@@ -16,6 +16,12 @@
 // can't keep it alive. A test file that fails to load is a failure, not a crash, so the other
 // files still run. Tests print the numbers that matter, indented six spaces under their line:
 // read them, don't just count passes.
+//
+// The quick suite stays under a minute (TECH §13.7): it is what runs while the user may be
+// playing. So a QUICK=1 run with no filter prints its total ("quick suite: 41.2 s (limit 60 s)")
+// and fails above QUICK_LIMIT_S, 60 unless the environment says otherwise. A run that fails on
+// time alone while the user plays is run again on a quiet machine before anything is changed, since
+// the machine is shared.
 import { readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
@@ -25,6 +31,7 @@ const filter = process.argv[2] || '';
 const quick = !!process.env.QUICK;
 const skip = (process.env.SKIP || '').split(',').map(x => x.trim()).filter(Boolean);
 const defaultTimeoutMs = Number(process.env.TIMEOUT_MS) || 5 * 60 * 1000;
+const QUICK_LIMIT_S = Number(process.env.QUICK_LIMIT_S) || 60;
 const files = readdirSync(dir).filter(f => f.endsWith('.test.mjs')).sort();
 const first = (e, n = 4) => String(e?.stack || e?.message || e).split('\n').slice(0, n).join('\n      ');
 
@@ -64,8 +71,14 @@ for (const file of files) {
   }
 }
 const totalS = (performance.now() - runT0) / 1000;
-const summary = `\n${pass} passed, ${fail} failed${left ? `, ${left} left out` : ''}${timedOut ? `, ${timedOut} timed out` : ''} (${totalS.toFixed(1)} s)\n`;
+// (the quick suite's minute: only a whole quick run is timed, a filtered one isn't the suite)
+let overTime = false;
+if (quick && !filter) {
+  overTime = totalS > QUICK_LIMIT_S;
+  console.log(`\nquick suite: ${totalS.toFixed(1)} s (limit ${QUICK_LIMIT_S} s)${overTime ? ': over the limit, a failure (TECH §13.7; run it again on a quiet machine before changing anything)' : ''}`);
+}
+const summary = `\n${pass} passed, ${fail + (overTime ? 1 : 0)} failed${left ? `, ${left} left out` : ''}${timedOut ? `, ${timedOut} timed out` : ''} (${totalS.toFixed(1)} s)\n`;
 // (after a time-out, exit once the summary is written: stdout to a pipe is asynchronous here, and
 // an exit straight after the write would lose it)
 if (timedOut) process.stdout.write(summary, () => process.exit(1));
-else { process.stdout.write(summary); process.exitCode = fail ? 1 : 0; }
+else { process.stdout.write(summary); process.exitCode = fail || overTime ? 1 : 0; }

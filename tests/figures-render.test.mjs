@@ -5,11 +5,12 @@
 // candidates' 40 people drawn, at most SHEETS_PER_FRAME bands sent up in any frame (the user,
 // tradecraft 2026-10-29: "each time I turn it staggers almost a second"), nothing sent once all are in,
 // and the figures in a handful of draw calls. It prints the atlas's numbers: the sheet, the slots, the
-// uploads and what each costs. Port 8232 (this agent's; the browser tests' 8223 is shared).
+// uploads and what each costs. On OLYMPUS_TEST_PORT (the browser tests' 8223 by default), so a parallel
+// agent's run is its own.
 import { assert } from './helpers.mjs';
-import { withGame } from './browser.mjs';
+import { withGame, BROWSER_TEST_PORT } from './browser.mjs';
 
-const PORT = 8232;
+const PORT = BROWSER_TEST_PORT;
 
 export default [
   {

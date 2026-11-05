@@ -57,24 +57,28 @@ The user's standing performance asks carry over from LONGHAUL and tradecraft:
 - "Build everything as if it's going to scale to huge proportions" (LONGHAUL memory `feedback_scale.md`, 2026-03-24);
 - "only refactor the tech from there if it's the best way" (the brief).
 
-### 1.2 Built in the 0.0.x engine round (as of 2026-11-05)
+### 1.2 Built in 0.0.1 and 0.0.2's skeleton (as of 2026-11-05)
 
 | Module | What it is | Proven by (measured) |
 |---|---|---|
-| `src/core/clock.js`, `calendar.js` | Integer ms since 2351-03-22 08:00 UTC. The UTC calendar uses Hinnant's algorithm. MSD follows Allison and McEwen, with the Mars local clock, the timeslip and the Mars year. `state.clock = { ms, tick, holds }` | `core-calendar` 10 tests, against Mars24's worked example |
-| `src/core/loop.js` | Fixed 50 ms ticks from an accumulator, capped at 250 ms a frame (5 ticks). It has named layers: fast layers every tick, periodic layers on their period's boundaries. The player's pause and the sim's holds are kept apart. It has a synchronous `skip()` that steps a minute at a time, and errors are contained | "a week: 10,080 minutes and 168 hours stepped in 0.6 ms" |
-| `src/core/state.js` | The reserved domains, canonical JSON (keys sorted), ±Infinity and NaN carried, a refusal of anything that is not plain data, and `addUpgrade(id, fn)` | `core-state` 7 tests |
-| `src/core/store.js` | IndexedDB `olympus`, store `saves`, slots `auto`, `manual-1` to `manual-9` and `ironman`, records stamped with VERSION, export and import | "3,000 ticks of a dummy sim: 1.6 µs a tick … byte-identical saves" |
+| `src/core/clock.js`, `calendar.js`; `src/data/setting/calendar.js`; `src/sim/time/dates.js` | Integer ms since 2351-03-22 08:00 UTC. The UTC calendar uses Hinnant's algorithm. MSD follows Allison and McEwen from TIME §1's integer anchor (`MSD_EPOCH_MS`). The Mars local clock is TIME §2.4's (longitudes in [0°, 360°), the slip centred on mean midnight, the face at 24:00 through it), and the year is SETTING §3.3's (Sol 1 the Airy-0 sol holding Ls 0), with SETTING's definitions passed in as a parameter; `dates.js` binds them. `state.clock = { ms, tick, holds, seq }` | `core-calendar` 10 tests: Mars24's worked example, SETTING §3.8's vectors (the start on Monday, Sol 590 MY 211, 12:39:34; 12:40 at +25.7 s) |
+| `src/core/loop.js` | Fixed 50 ms ticks from an accumulator, capped at 250 ms a frame (5 ticks), with named layers and the player's pause kept apart from the sim's holds. Four modes: paused, live, `ff` (at most 40 ticks and 8 ms a frame) and `outcome` (4 ms a frame). `clock.seq` counts every tick. A live frame stops when a tick begins a skip. The 0.0.1 `skip()` is kept for its five tests | `core-loop` 14 tests: "ff 60 s, cheap ticks: 40 ticks a frame at most"; "outcome 90 min at 0.35 ms a step: 12 steps a frame at most" |
+| `src/core/state.js` | The 25 reserved keys, canonical JSON (keys sorted), ±Infinity and NaN carried, a refusal of anything that is not plain data. The registry of domains' claims (`registerDomain`, with `init` and `after`), `addUpgrade(id, fn, { scoped })`. `fromJSON` parses with no reviver unless the text holds an encoded number | `core-state` 10 tests; 499 KB loaded in 3.2 ms (27.5 ms with a reviver) |
+| `src/core/ids.js`, `num.js`, `queue.js`, `facts.js` | 27 id kinds (16 counted), `cmpId` (p9 before p10), cached sorted id lists (`ids(map)`, checked against a fresh sort every nth call in debug). `q(x, step)`. The event queue as a saved heap with lazy cancels and `hazard()`. 24 facts registered | `game-ids`, `core-queue`: 100,000 operations at 341 a ms, the same 21,146 pops as a sorted reference; `ids(map)` 26.9 ns a call |
+| `src/sim/game.js`, `jobs.js`, `log.js`, `time/skip.js`, `time/domain.js` | The composition root (§2.5): eight domains in `DOMAIN_ORDER` (people, weapons, combat, world and career stubs), the twelve fast layers, one slow layer a minute stepped from the saved mark `time.slowToMs`, the jobs (`hour@`, `day@`, `local@`, `week@`, `every@`), the actions by prefix, `newGame`. The skip engines on TECH §5.3's grids. TIME's autosave triggers and its stub actions (G, a digit, R) | `game-domains` 6, `game-targets` 4, `game-slow` 2, `game-determinism` 10 tests: an 8-hour sleep one digest under three curves; 90.5 s lived, a 5-minute skip, 90.5 s lived, each moment stepped once |
+| `src/core/store.js` | v2: IndexedDB `olympus` version 2 (saves, profile, cache). Slots `<world>:<name>`, records with digest, UTF-8 bytes and honesty marks, the rotation on time, damage and its stand-ins, the bug report with the engine | `core-store` 11, `store-browser` 2 tests: a 469 KB save written in 19 ms, loaded in 8.5 ms; a v0.0.1 database opened as version 2 |
 | `src/core/rng.js`, `hash.js` | sfc32 bit for bit with tradecraft, named saved streams, `stream(...seeds)`, FNV-1a `hash`, `hash01`, `hashPick`, and a cyrb53 `digest` | `core-rng` 6 tests |
 | `src/core/bus.js` | tradecraft's and LONGHAUL's bus merged. A listener that throws never throws into the sim | |
-| `src/core/keys.js`, `input.js` | Keys read by physical code with AZERTY labels, hold and tap (`TAP_MS` 220), a per-tick snapshot, and the mouse in stage pixels | `core-input` 6 tests |
-| `src/core/debug.js` | `window.__olympus` and the URL parameters (`play`, `seed`, `hour`, `mode`, `debug`) | `browser`, `core-browser` |
+| `src/core/keys.js`, `input.js` | Keys read by physical code with AZERTY labels, hold and tap (`TAP_MS` 220), a per-tick snapshot, `queue(action)` for the UI's own actions, and the mouse in stage pixels | `core-input` 6 tests |
+| `src/core/debug.js` | `window.__olympus` (state, step, start, newGame, save, load, skip, pause, events, report, view, version) and the URL parameters (`play`, `seed`, `hour`, `mode`, `debug`, `prop`, `mood`, `fog`, `nostore`, `perf`) | `browser`, `core-browser` |
+| `src/sim/places/*.js`, `src/sim/scenarios/sandbox.js`, `src/data/places/testroom.js`, `melas.js` | PLACES's skeleton: the wall rule (`plan.js`, re-exported by `src/render/walls.js`), the fixture catalogue, A* on 0.25 m cells for C0, C1 and C2 with path requests delivered by cost, the player's movement (walk 1.14, run 2.69, stroll 0.75 m/s), the site graph, the validator, the `lightLevel` stub. The test rooms, and Base Melas's plan compacted (the armoury, the canopy and the mess moved) | `places-nav` 6, `places-reach` 2, `places-validate` 5, `places-walk-sol` 1 tests: A* p95 690 µs; the training sol 11.82 real minutes at 1.14 m/s |
 | `src/render/scale.js` | `PX_PER_M` 16 or 24 from `?ppm=` (24 by default) | |
-| `src/render/stage.js`, `camera.js`, `materials.js`, `post.js`, `lights.js`, `moods.js`, `fog.js` | tradecraft's stage. The scene is drawn **once** into two attachments (colour plus part IDs, WebGL2 MRT). The palette snap reads a 64³ lookup **baked on the GPU** (a 512 × 512 pass). The blit is sharp-bilinear. There are 10 lamp-slot pairs. The fog mask is 96 × 128 RG8 (24 KB) | |
-| `src/render/batch.js`, `batch-math.js`, `pack.js`, `textures.js`, `cards.js`, `cutaway.js`, `walls.js` | An area's boxes become one buffer and **one draw call per atlas page**, packed shelf by shelf. Pages are uploaded in bands. Cards stand upright. The dollhouse cutaway has a deck mode | "400 boxes: 2,400 quads … 1 atlas page → 1 draw call"; "323 paintings on 1 page of 1024 × 640, 91% filled" |
+| `src/render/stage.js`, `camera.js`, `materials.js`, `post.js`, `lights.js`, `moods.js`, `fog.js` | tradecraft's stage. The scene is drawn **once** into two attachments (colour plus part IDs, WebGL2 MRT). The palette snap reads a 64³ lookup **baked on the GPU** (a 512 × 512 pass). The blit is sharp-bilinear. There are 10 lamp-slot pairs. The fog mask is 96 × 128 RG8 (24 KB). Pass times by timer query | |
+| `src/render/batch.js`, `batch-math.js`, `pack.js`, `textures.js`, `cards.js`, `cutaway.js`, `walls.js` | An area's boxes become one buffer and **one draw call per atlas page**, packed shelf by shelf, built from the paint worker's arrays. Pages are uploaded in bands. Cards stand upright. The dollhouse cutaway has a deck mode | "400 boxes: 2,400 quads … 1 atlas page → 1 draw call"; "323 paintings on 1 page of 1024 × 640, 91% filled" |
+| `src/render/view.js`, `painter.js`, `uploads.js`, `warm.js`, `stats.js`; `src/art/jobs.js`, `worker.js` | The game view (§9.11): the live area built behind a cut, the mood by the hour, interpolation, the camera's lead, the figures from `state.actors`. The paint worker (`sheet` and `area` jobs, 2 workers on 8 threads, the main thread's 4 ms a frame without one), the upload queue (1 MB and 2 ms a frame), the shader warm-up, the GL counters | `view-browser` 2, `render-worker` 1, `render-uploads` 4 tests: the test rooms in 35 to 60 ms in the worker; 6 draw calls walking; 0 programs linked while walking |
 | `src/art/tone.js`, `palette.js`, `paint.js`, `brush.js`, `tiles.js`, `font.js` | tradecraft's colour maths and its 116-colour palette exactly, plus the MARS, SHIP and EUROPA palettes. The painter writes typed arrays, and the alpha byte carries the glow class. Tiles repeat seamlessly. The pixel font is 3 × 5, with stencils | `render-palette`, `render-batch` |
-| `src/ui/boot.js`, `style.css`, `src/main.js` | The title on paper, the menu and keys cards, and a placeholder `sandbox` scenario | `core-browser` 4 tests |
-| `tools/*`, `play.sh`, `play.cmd`, `tests/run.mjs`, `helpers.mjs`, `browser.mjs`, `syntax.test.mjs`, `version.test.mjs` | The method: play copy, promotion, releases, the server, shots, keep-awake, the runner (`heavy`, `QUICK`, `SKIP`, `TIMEOUT_MS`) | `syntax` 6 rules |
+| `src/ui/boot.js`, `style.css`, `src/main.js` | The title on paper (Continue across worlds), the menu (Report a problem) and keys cards, the HUD's three clocks at the live site's longitude, autosaves on the sim's facts, the stage and the sandbox | `core-browser` 4 tests |
+| `tools/*`, `play.sh`, `play.cmd`, `tests/run.mjs`, `helpers.mjs`, `browser.mjs`, `game.mjs`, `golden.mjs`, `game-dummy.mjs`, `ids-check.mjs`, `bots/*.mjs`, `syntax.test.mjs`, `version.test.mjs` | The method: play copy, promotion, releases, the server, shots, keep-awake, the runner (`heavy`, `QUICK` with its 60 s limit, `SKIP`, `TIMEOUT_MS`, `OLYMPUS_TEST_PORT`), the headless game, goldens, the dummy world, the id walk, the bots | `syntax` 13 rules |
 
 This section specifies what these modules become and everything around them.
 
@@ -101,7 +105,7 @@ TECH owns the layout, the state's top level and the implementation. Where an ear
 17. **Kit and items have one shape and one owner** (§6.1, §6.7): every item record lives in `state.items` (WEAPONS), and a person carries `kit = { tmpl, worn, hands }` with the containers' contents riding in the containers. WEAPONS owns `arms/kit.js` alone (VIEWS draws it). BODY §2.5's `p.wear.suit` is `p.kit.worn.suit`; WEAPONS §4.1's "a sheet's `arms`, a lying item's `arms`, a rack's `arms`" is "the gun's record in `items`, held by a person's kit, a place's lying list or a fixture".
 18. **`units` is a top-level key owned by PEOPLE**, as PEOPLE §2.6 writes it, and **`chapter` and `voyage` sit under `time`**, not at the top level as TIME §13 writes them.
 19. **A skip's step grid is set by its kind, never by the splash's target** (§5.3). TIME §5.4's `t1 = min(t0 + MIN_MS, targetMs, …)` and §5.7's event-driven shortcut under a splash are replaced: splashed skips step whole minutes, chapter days whole hours, and only skips of a new kind, `world` (the prologue, the successor's gap, node's fixtures: no clock shown), go event to event.
-20. **People per scene are set in §16.7.** Everyone live in view is drawn (nobody pops), so PEOPLE §13.2's "figures drawn 80" is replaced by the drawn counts there, and `MAX_PEOPLE` rises from VIEWS's 160 to 256.
+20. **People per scene are set in §16.7.** Everyone live in view is drawn (nobody pops), so PEOPLE §13.2's "figures drawn 80" is replaced by the drawn counts there, and `MAX_PEOPLE` rises from VIEWS's 160 and 240 to 256.
 21. **Slots** (§7.2): nine manual slots (CAREER §23's "any number of slots" reads "nine manual slots"), the `edge` slot ROADMAP §2.6 asks for, a `day` slot, and a hidden `ironman-prev`.
 22. **The honesty marks stay out of the fiction** (§15.5): `debugUsed`, `imported` and `recovered` are kept in the save's meta, the load list and the profile, never on the Memorial Wall or the service-record papers. CAREER §23's `imported` "on its record, the memorial and the profile" reads "on the profile and the load list".
 23. **The world layer lands at 0.2, whole** (§5.8, §12.4): traffic, politics, conflict, forces and intel are ported together. At 0.1 the news archive is SETTING §7.7's authored timeline (ROADMAP §5.7's fallback, made the plan). ROADMAP's 0.0.12 row and §15.5's LONGHAUL column move `gravity.js`, `lambert.js`, `spatial-hash.js`, `world.js`'s rails, `politics.js`, `conflict.js`, `forces.js` and `intel.js` to 0.2 beside `traffic.js`, and keep the constants, the ephemeris, `bodyfacts.js`, the hull, faction and name data and the display modules at 0.0.12.
@@ -128,8 +132,10 @@ src/core/                   the engine: no game knowledge, no DOM except the two
   profile.js                per-layer timing in perf mode (writes only to its own runtime object)
 src/data/                   pure tables shared by several domains or the UI: literals, frozen, no logic
   activities.js pod.js furniture.js backgrounds.js hulls.js factions.js bodyfacts.js
-  setting/   SETTING's tables, one module per table: ranks.js mos.js names.js uniforms.js
-             calendar.js units.js …  (SETTING §1 proposed src/sim/setting/: correction 11)
+  setting/   SETTING's tables, one module per table (SETTING §1.3): calendar.js world.js
+             timeline.js mars.js corps.js hulls.js jovian.js theatres.js faces.js news.js
+             prices.js names.js  (timeline.js as §5.8 and §18 name it, SETTING to add it;
+             SETTING §1 proposed src/sim/setting/: correction 11)
 src/world/                  the background (LONGHAUL's): knows nothing of people or the player
   constants.js ephemeris.js gravity.js lambert.js kepler.js worlds.js rails.js spatial.js
   politics.js conflict.js forces.js intel.js traffic.js news.js voyage.js dropship.js
@@ -240,6 +246,7 @@ The sections wrote the same things several ways: the player as `me`, `p0` and `p
 | `ob` | ordnance in flight | `ob5521` | COMBAT |
 | `sv` | a salvo | `sv12` | COMBAT |
 | `ai` | an ammunition issue | `ai88` | WEAPONS |
+| `pr` | a path request | `pr5531` | PLACES |
 
 A new counted kind adds its row here in the change that first makes one. Single letters are kept for the seven kinds that fill saves.
 
@@ -249,9 +256,10 @@ A new counted kind adds its row here in the change that first makes one. Single 
 |---|---|---|---|
 | world | `w-<seed>`; a second world on the same seed `w-<seed>-<n>` | `w-48213` | TECH |
 | career | `c-<world seed>-<n>`, n its order in the world | `c-48213-1` | CAREER |
-| unit | `<battalion>/<regiment>`, then `-<company letter>`, `-<platoon>`, `-<squad>`, `-ft<n>` for a fire team; a headquarters `-hq`; any other unit a kebab segment under its parent | `2/4`, `2/4-E`, `2/4-E-2-1`, `2/4-E-2-1-ft2`, `2/4-E-hq` | PEOPLE (the tree, PEOPLE §2.6's own form), SETTING (the order of battle) |
+| unit | `<battalion>/<regiment>`, then `-<company letter>`, `-<platoon>`, `-<squad>`, `-ft<n>` for a fire team; a headquarters `-hq`; any other unit a kebab segment under its parent; units outside the Corps' order of battle (a CFB cell) are kebab keys in COMBAT's tables | `2/4`, `2/4-E`, `2/4-E-2-1`, `2/4-E-2-1-ft2`, `2/4-E-hq`; `cell-pwyll-3` | PEOPLE (the tree, PEOPLE §2.6's own form), SETTING (the order of battle), COMBAT (cells) |
 | site, area, room, zone | PLACES's forms: kebab segments joined by `.` | `melas`, `melas.echo.1`, `e1.bay-2-1`, `e1.z.bay-2-1` | PLACES |
 | fixture, opening | `f:` or `o:`, then the template's path in `:`-joined kebab segments | `f:e1:rack:07`, `o:e1:bay-2-1` | PLACES |
+| link | `l:` and the template path | `l:hellas:trunk` | PLACES |
 | spot or seat | `<fixture id>#<n>` (a seat is a spot of its fixture: PEOPLE's `fx:mess:t14:s3` is `f:mess:t14#3`) | `f:mess:t14#3`, `f:armoury:rack-e2#14` | PLACES |
 | data record | the key in its table, kebab-case or lowerCamel, unique in that table | `r7`, `6.5x40r`, `shower`, `react-to-contact` | the table's owner |
 
@@ -259,6 +267,8 @@ Rules (my calls):
 - **The player is an ordinary person.** Their id is whatever `p<n>` the roster gave them, `state.player.id` names it, and `playerId(state)` is the one helper. No alias (`me`, `p0`, `p:player`) appears in saved data. The next recruit (CAREER §21) is a new person in the same world, and the last one's id must stay on the memorial and in people's memories.
 - **A promoted crowd member gets a `p` id** (never PEOPLE §2.2's `x<seed>`); the seed it came from is kept in its `look.seed`.
 - **A gun is an item.** WEAPONS's `r7#p.3` is `i<n>` with `model: 'r7'`; its serial (`HAD R7 0412 3378`) is still a hash of its id.
+- **A portal is named by its opening or link id** (`o:echo:front`, `l:echo:stairs-up`), never by a `p:` form of its own, so the `p` prefix stays the people's. A path request is counted (`pr5531`, never `pr:5531`).
+- **A household is a number inside the career, not an id** (CAREER's `h-redwater-1` would collide with the hulls' `h`).
 - **Fields that hold an id** are named `id`, `<role>Id` or `<role>Ids` (`leaderId`, `subjectId`, `assignedId`), or `who`. Maps keyed by id are registered as such by their owner at `createSim` (§2.5). The validator walk of §8.2 relies on both.
 - **Order.** `cmpId(a, b)` compares the kind, then the number, then the rest: a total order in which `p9` comes before `p10`.
 
@@ -538,7 +548,7 @@ advanceSkip(state, bus, targetMs, budget):            // outcome, out, day and w
 TIME §5.8's sequence is implemented as written:
 1. the activity closes, with the fraction lived;
 2. BODY and PEOPLE settle in closed form;
-3. persistent people are placed by `whereAt`, and the crowd is recycled when the gap is 120 s or more;
+3. persistent people are placed by `whereIs` (PEOPLE §4.6; CONTRACTS §13), and the crowd is recycled when the gap is 120 s or more;
 4. papers are drained;
 5. `skip-end` is emitted;
 6. if the skip stopped early, the player is landed, with a reflex where one is plausible;
@@ -587,7 +597,7 @@ SETTING §2.3 opens every new world by rolling LONGHAUL's start state from the e
 | an 8-hour sleep in a quiet barracks | ≤ 25 ms in all, sliced at 4 ms a frame | 480 minute steps at a few µs plus about 40 event steps: about 7 ms (§5.3) |
 | an 8-hour sleep with a process that is not steady (a squadmate bleeding, a compartment off its set point) | ≤ 30 ms (my call) | 480 minute steps at ≤ 0.05 ms, plus the events |
 | a chapter day of 24 h | ≤ 30 ms | 24 hour steps; 24 hourly jobs at ≤ 0.5 ms, three daily jobs at ≤ 5 ms, each at its own slot |
-| a 12-day voyage carried on | ≤ 0.5 s, spread over the day splashes | 288 hour steps with 288 hourly jobs and 36 daily ones, about 0.33 s (my estimate from LONGHAUL's measured costs, §11.1) |
+| a 12-day voyage carried on (the homeward 0.3 G voyage, 12.5 days, the longest: CONTRACTS §14) | ≤ 0.5 s, spread over the day splashes | 288 hour steps with 288 hourly jobs and 36 daily ones, about 0.33 s (my estimate from LONGHAUL's measured costs, §11.1) |
 | fast-forward | ≤ 8 ms of real time a frame | 40 ticks at about 0.2 ms in an ordinary area |
 
 ---
@@ -605,7 +615,7 @@ The top level is reserved. A new key needs a change to this table. The owner def
 | `rng` | TECH | `{ main: [4 words], <stream>: [4 words], … }` | built; streams named by their owner |
 | `events` | TIME (implemented by TECH) | the queue's heap array, and nothing else | §4; correction 15 |
 | `skip` | TIME | the running skip, or null | §5 |
-| `time` | TIME | `{ chapter, voyage, pod, alarms, interrupts: { perSol, perSkip }, liveSinceSaveMs }` | the clock is not here; `chapter` and `voyage` are here, not at the top level (correction 18) |
+| `time` | TIME | `{ chapter, voyage, pod, alarms, interrupts: { perSol, perSkip }, liveSinceSaveMs, director, stances, drills }`: `director: { recent: [{ kind, day }], lastSpikeDay }` (TIME §9.8), `stances: { <blockKind>: stance }` (TIME §9.3), `drills: { dealt: [kinds], board: [...] }` (TIME §12.8) | the clock is not here; `chapter` and `voyage` are here, not at the top level (correction 18); the last three are TIME §13's asks |
 | `player` | PEOPLE | `{ id, actor, waypoint, presets, keeps }` | a pointer and the controller's own bits; `id` is the player's ordinary person id (§2.3.1), and the person is `people[player.id]` |
 | `people` | PEOPLE | `{ <personId>: person }`, an id-keyed map and nothing else: the sheets of tiers 1 to 3, with `body` (BODY), `skills` (SKILLS), `kit` (WEAPONS, §6.7), gauges | PEOPLE §2.3; a person's memories are a runtime index over `happenings` |
 | `units` | PEOPLE | `{ <unit path>: unit }`: the unit tree and its billets | PEOPLE §2.6, kept at the top level so `people` stays a map of persons only (correction 18) |
@@ -717,7 +727,7 @@ The first budgets (an event at 75 B, a log record at 160 B, a tier-2 person at 1
 
 ### 6.7 Kit and items
 
-The range (0.0.6), the lane (0.0.8) and the Tank (0.0.10) all need this shape first, so it is settled before 0.0.6, with one owner: **WEAPONS** owns `items`, the `kit` inside a person, `arms/kit.js` and the slots and containers (VIEWS draws them, BODY sums their mass). TECH fixes only the form (my call, from the reviewers' proposal):
+The range (0.0.6), the lane and the Tank (0.1.x, ROADMAP §5.8) all need this shape first, so it is settled before 0.0.6, with one owner: **WEAPONS** owns `items`, the `kit` inside a person, `arms/kit.js` and the slots and containers (VIEWS draws them, BODY sums their mass). TECH fixes only the form (my call, from the reviewers' proposal):
 
 ```
 person.kit = {
@@ -1128,32 +1138,34 @@ As the method note recommends (`tradecraft-method.md` §5.2), the game needs no 
 
 ### 12.3 To port from tradecraft, by milestone
 
+The When column is ROADMAP §15.5's row for each file (a row names an order, not a release: CONTRACTS §18); a row with several files gives each its own.
+
 | Source (lines) | OLYMPUS | Verdict | What changes | When |
 |---|---|---|---|---|
-| `src/art/sprites.js` (1,587) | `src/art/sprites/*` | adapt | roles and shading kept; templates per picked variant; military kit; true-left layers; VIEWS §3.4's frames | 0.0.x |
-| `src/render/crowd.js` (293) | `src/render/crowd.js` | adapt | array atlas, bands, long and rotated cells, `MAX_PEOPLE` 256 (§16.7) | 0.0.x |
-| `src/art/furniture.js` (1,700) | `src/art/furniture/*` | adapt the kit, new makers | whole-pixel boxes, parts, `GLASS`, `THIN`, `compact()` as is; military and ship kinds | 0.0.x to 0.1 |
-| `tools/gallery.mjs` (83), `samples/index.html` (99) | the same paths | adapt | port 8212, `olympus.picks`, pixel mode | 0.0.x |
-| `src/sim/light.js` (143) | `src/sim/places/light.js` | adapt | `lightLevel` (correction 14); the Mars sun (Mars24), moods, tiled pools on the CPU | 0.0.x |
-| `src/sim/checks.js` (79), `skills.js` (56), `xp.js` (74), `training.js` (98), `rust.js` (65), `know.js` (80), `belief.js` (66), `sense.js` (179), `instinct.js` (53), `tutorial/earpiece.js` (119) | `src/sim/skills/*` | adapt or port (SKILLS §16) | | 0.1 |
-| `src/sim/fitness.js` (77), `needs.js` (129), `thermal.js` (159), `health.js` (404), `medicine.js` (251), `aid.js` (340), `diagnosis.js` (282), `blood.js` (47) | `src/sim/body/*` | adapt (BODY §2.7) | | 0.1 |
-| `src/sim/firearms.js` (487), `shooting.js` (637), `gunwork.js` (142), `armoury.js` (67), `armour.js` (247), `paper.js` (94), `armed.js` (549, `gunner()`), `scenarios/range.js` (415, `safety()`) | `src/sim/arms/*` | adapt (WEAPONS §15) | | 0.1 |
-| `src/sim/items.js` (278), `clothes.js` (311) | `src/sim/arms/kit.js` | adapt (WEAPONS; VIEWS draws it) | pockets become load-bearing gear; `state.items` and `person.kit` (§6.7) | the shape before 0.0.6; the port 0.0.6 |
-| `src/sim/reflex.js` (76), `cover.js` (135), `weapons.js` (106, the melee table) | `src/sim/combat/reflex.js`, `cover.js`, `cqc.js` | adapt (COMBAT §18) | | 0.1 (reflex, cover for the range and drills), later (the rest) |
-| `src/sim/people.js` (225), `interiors/staffing.js` (174), `crowd.js` (319), `agents.js` (579, routes and stops), `perception.js` (265), `interact.js` (291), `habits.js` (148) | `src/sim/people/*` | adapt (PEOPLE) | areas and a navgraph replace the street rows | 0.1 |
-| `src/sim/world.js` (177), `interiors/plan.js` (75), `furniture.js` (145), `use.js` (48), `path.js` (59), `range.js` (83), `acts.js` (315) | `src/sim/places/*`, `src/data/furniture.js` | adapt (PLACES) | A* on a binary heap; grids cached per area and class | 0.1 |
-| `src/sim/log.js` (27) | `src/sim/log.js` | adapt | §6.5's record | 0.1 |
-| `src/sim/game.js` (620) | `src/sim/game.js` | reference | the order of the tick and the shape of `skip()`; the body is rewritten | 0.1 |
-| `src/art/doll.js` (903) | `src/art/doll.js`, `weaponcard.js` | adapt strongly (VIEWS §4) | | 0.1 |
-| `src/render/blood.js` (62), `items.js` (95), `prints.js` (64) | `src/render/decals.js` | reuse, merged | one instanced draw | 0.1 |
-| `src/render/view.js` (710) | `src/render/view.js` | rewrite, order kept (§9.11) | | 0.1 |
-| `src/art/pixeltown.js` (2,312): `keep`, `compact`, `bevel`, `fineBricks`, `stones` | `src/art/brush.js`, `structures.js` | port the helpers | | 0.1 |
-| `src/art/townsprites.js` (464): `foliage`, `propCard` | `src/art/props.js` | adapt | | 0.1 (cards), later (dome parks) |
-| `src/render/town.js` (474) | `src/render/chunks.js` | reference: the generator in budget, see-through cards | | 0.1 |
-| `src/ui/plaque.js` (190), `pockets.js` (142), `body.js` (92), `mind.js` (265) | `src/ui/plaque.js`, `cards/inventory.js`, `aid.js`, `mind.js` | adapt | | 0.1 |
-| `src/ui/ui.js` (1,169), `style.css` | `src/ui/hud/*`, `cards/*` | reference: tokens and grammar kept, split into one module per screen | | 0.1 |
-| `tests/bots.mjs` (129), `rangebot.mjs` (93), `shopwalk.mjs` (45), `world.test.mjs` (171) | `tests/bots/*`, `game-determinism` | reference (pattern) | | 0.1 |
-| `src/sim/cqc.js` (473), `cqctext.js` (217), `cqcshow.js` (136), `fight.js` (206), `wounded.js` (177), `onlookers.js` (164), `scenarios/dojo.js` (419) | `src/sim/combat/*`, `people/*` | adapt (COMBAT §18, PEOPLE) | | the mat room at 0.1, the rest later |
+| `src/art/sprites.js` (1,587) | `src/art/sprites/*` | adapt | roles and shading kept; templates per picked variant; military kit; true-left layers; VIEWS §3.4's frames | 0.0.2 |
+| `src/render/crowd.js` (293) | `src/render/crowd.js` | adapt | array atlas, bands, long and rotated cells, `MAX_PEOPLE` 256 (§16.7) | 0.0.2 |
+| `src/art/furniture.js` (1,700) | `src/art/furniture/*` | adapt the kit, new makers | whole-pixel boxes, parts, `GLASS`, `THIN`, `compact()` as is; military and ship kinds | 0.0.2 (begun) to 0.1 |
+| `tools/gallery.mjs` (83), `samples/index.html` (99) | the same paths | adapt | port 8212, `olympus.picks`, pixel mode | 0.0.2 |
+| `src/sim/light.js` (143) | `src/sim/places/light.js` | adapt | `lightLevel` (correction 14); the Mars sun (Mars24), moods, tiled pools on the CPU | 0.0.4 |
+| `src/sim/checks.js` (79), `skills.js` (56), `xp.js` (74), `training.js` (98), `rust.js` (65), `know.js` (80), `belief.js` (66), `sense.js` (179), `instinct.js` (53), `tutorial/earpiece.js` (119) | `src/sim/skills/*` | adapt or port (SKILLS §16) | | `instinct` 0.0.5; `checks`, `skills` 0.0.6; `know`, `belief`, `sense` 0.0.10; `xp`, `training`, `rust`, `tutorial/earpiece` 0.0.13 to 0.0.15 |
+| `src/sim/fitness.js` (77), `needs.js` (129), `thermal.js` (159), `health.js` (404), `medicine.js` (251), `aid.js` (340), `diagnosis.js` (282), `blood.js` (47) | `src/sim/body/*` | adapt (BODY §2.7) | | `needs`, `thermal` (begun) 0.0.5; `health`, `blood` 0.0.7; `fitness` 0.0.13 to 0.0.15; `medicine`, `aid`, `diagnosis` **0.1.x** (the lane) |
+| `src/sim/firearms.js` (487), `shooting.js` (637), `gunwork.js` (142), `armoury.js` (67), `armour.js` (247), `paper.js` (94), `armed.js` (549, `gunner()`), `scenarios/range.js` (415, `safety()`) | `src/sim/arms/*` | adapt (WEAPONS §15) | | `firearms`, `shooting`, `gunwork` 0.0.6; `armed`, `scenarios/range`, `paper`, `armour` (into `penetrate.js`) 0.0.7; `armoury` 0.0.8 |
+| `src/sim/items.js` (278), `clothes.js` (311) | `src/sim/arms/kit.js` | adapt (WEAPONS; VIEWS draws it) | pockets become load-bearing gear; `state.items` and `person.kit` (§6.7) | the shape before 0.0.6; `items` 0.0.6, `clothes` 0.0.11 |
+| `src/sim/reflex.js` (76), `cover.js` (135), `weapons.js` (106, the melee table) | `src/sim/combat/reflex.js`, `cover.js`, `cqc.js` | adapt (COMBAT §18) | | `reflex` 0.0.6; `cover` **0.1.x** (the patrol); the melee table **0.1.x** (the mat) |
+| `src/sim/people.js` (225), `interiors/staffing.js` (174), `crowd.js` (319), `agents.js` (579, routes and stops), `perception.js` (265), `interact.js` (291), `habits.js` (148) | `src/sim/people/*` | adapt (PEOPLE) | areas and a navgraph replace the street rows | `perception` 0.0.4 (sight); `people`, `interiors/staffing`, `crowd`, `agents`, `habits` 0.0.9; `interact` 0.0.10 |
+| `src/sim/world.js` (177), `interiors/plan.js` (75), `furniture.js` (145), `use.js` (48), `path.js` (59), `range.js` (83), `acts.js` (315) | `src/sim/places/*`, `src/data/furniture.js` | adapt (PLACES) | A* on a binary heap; grids cached per area and class | `interiors/plan`, `path` 0.0.3 (referenced); `use`, `furniture`, `acts` 0.0.5; `range` 0.0.7; `world` 0.0.12 |
+| `src/sim/log.js` (27) | `src/sim/log.js` | adapt | §6.5's record | 0.0.4 |
+| `src/sim/game.js` (620) | `src/sim/game.js` | reference | the order of the tick and the shape of `skip()`; the body is rewritten | 0.0.3 |
+| `src/art/doll.js` (903) | `src/art/doll.js`, `weaponcard.js` | adapt strongly (VIEWS §4) | | 0.0.5 (the first cut) |
+| `src/render/blood.js` (62), `items.js` (95), `prints.js` (64) | `src/render/decals.js` | reuse, merged | one instanced draw | `items` 0.0.6; `blood` 0.0.7; `prints` 0.0.12 |
+| `src/render/view.js` (710) | `src/render/view.js` | rewrite, order kept (§9.11) | | 0.0.4 (begun) |
+| `src/art/pixeltown.js` (2,312): `keep`, `compact`, `bevel`, `fineBricks`, `stones` | `src/art/brush.js`, `structures.js` | port the helpers | | 0.0.12 |
+| `src/art/townsprites.js` (464): `foliage`, `propCard` | `src/art/props.js` | adapt | | 0.0.12 (cards), later (dome parks) |
+| `src/render/town.js` (474) | `src/render/chunks.js` | reference: the generator in budget, see-through cards | | 0.0.12 |
+| `src/ui/plaque.js` (190), `pockets.js` (142), `body.js` (92), `mind.js` (265) | `src/ui/plaque.js`, `cards/inventory.js`, `aid.js`, `mind.js` | adapt | | `plaque`, `pockets` 0.0.6; `mind` 0.0.13 to 0.0.15; `body` **0.1.x** (the lane) |
+| `src/ui/ui.js` (1,169), `style.css` | `src/ui/hud/*`, `cards/*` | reference: tokens and grammar kept, split into one module per screen | | 0.0.13 to 0.0.15 |
+| `tests/bots.mjs` (129), `rangebot.mjs` (93), `shopwalk.mjs` (45), `world.test.mjs` (171) | `tests/bots/*`, `game-determinism` | reference (pattern) | | `rangebot` 0.0.6; `bots` 0.0.9; the rest 0.1 |
+| `src/sim/cqc.js` (473), `cqctext.js` (217), `cqcshow.js` (136), `fight.js` (206), `wounded.js` (177), `onlookers.js` (164), `scenarios/dojo.js` (419) | `src/sim/combat/*`, `people/*` | adapt (COMBAT §18, PEOPLE) | | **0.1.x**: `cqc`, `cqctext`, `cqcshow`, `fight`, `scenarios/dojo` (the mat); `wounded`, `onlookers` (the patrol) |
 | `tools/vendor-three.mjs` (61) | `tools/vendor-three.mjs` | reuse when three is upgraded | | as needed |
 
 ### 12.4 To port from LONGHAUL, by milestone
@@ -1255,6 +1267,7 @@ Files stay flat in `tests/` (the runner reads that one folder), prefixed by doma
   |---|---|
   | `squadbay-night` | 0.1 |
   | `parade-platoon` (42 in formation, outdoors, chunks) | 0.1 |
+  | `company-march` (Echo's 191 crossing to the mess at a block change, then formed and marched across the parade deck as blocks: PEOPLE §13.5) | 0.1 |
   | `range-far` (firing line, the far window open at 200 m) | 0.1 |
   | `mess-noon` (160 live agents: the busiest area, §16.7) | 0.1 |
   | `troopship-battle` (a berthing deck under battle red, couches, a floater) | 0.2 |
@@ -1277,7 +1290,7 @@ Files stay flat in `tests/` (the runner reads that one folder), prefixed by doma
 
 `tests/golden.mjs` provides `golden(name, value, expected)`. It digests the canonical JSON of `value` (or the bytes of a typed array) and compares. With `PRINT_HASH=1` it prints `golden('<name>', …, '<digest>')` lines ready to paste. A golden re-set on purpose is said so in CHANGELOG.md (tradecraft's way). Goldens at 0.1:
 - the Base Melas site (rooms, fixtures, spots, openings), and a chunk's tiles and dressing;
-- the company roster from seed 48213, and sol 1's schedules for the squad;
+- the company roster from seed 48213, and career sol 1's schedules for the squad (Tuesday, CONTRACTS §3);
 - the palette per place, and the lookup sampled at 4,096 cells;
 - each sprite variant's sheet for 6 kit specs;
 - an area's atlas packing;
@@ -1360,7 +1373,7 @@ Every tool kills the server it starts.
 | `view` | the stage's `stats` (the last frame's draw calls, triangles, programs, uploads, view ms) and `idle` (nothing pending) |
 | `perf` | per-layer tick timings (`core/profile.js`) and frame histograms |
 | `events()` | the queue sorted, with clock faces |
-| `tiers()` | every person's level (L0 to L4) and where `whereAt` puts them |
+| `tiers()` | every person's level (L0 to L4) and where `whereIs` puts them |
 | `record()`, `report()`, `replay(report)` | the recorder (§8.3) |
 | `bot(name)` | run a bot in the page |
 | `goto(timeOrSpot)` | debug only, marks the save (§15.5) |
@@ -1375,7 +1388,7 @@ Every tool kills the server it starts.
 | `?play=test-<id>` | a test scene (ROADMAP §2.2), from the first scene (0.0.6): its own world, marked so, never writing a career, the profile or the memorial | new |
 | `?play=moment-<id>` | a moment fixture (ROADMAP §2.3): the career save in `tests/fixtures/moment-<id>.json`, fetched from the served tree (the one fixture the game ever fetches, and only through this parameter), its world marked `moment` | new |
 | `?start=<rung>` (alone, or with `?play=standby`) | a new career at that rung (CAREER §22: `newjoin` by default), from the enlistment paper's seeded defaults, skipping the title and the paper; a rung not yet unlocked needs `&debug=1` | new |
-| `&drill=1` | "I know the drill" (CAREER §5.6): the arrival was yesterday, start at 05:30 reveille on sol 1. CAREER's `?start=newjoin&drill=1&seed=48213` is valid as written | new |
+| `&drill=1` | "I know the drill" (CAREER §5.6): the arrival was yesterday, start at 05:30 reveille on career sol 1 (Tuesday, CONTRACTS §3). CAREER's `?start=newjoin&drill=1&seed=48213` is valid as written | new |
 | `&seed=<n>` | the world's seed | built |
 | `&hour=<h>` | the Mars local hour at the start | built |
 | `&t=MY211.S590.1240`, `&utc=2351-12-19T02:20Z` | a start time (TIME §19). The examples are SETTING §3.7's start itself (Sol 590 of MY 211, 12:40 Melas time). A time before the start (`START_MS`) is accepted only with `&debug=1`, for samples and shots of another season: no career exists before it | new |
@@ -1468,7 +1481,7 @@ The mean per lived tick in `mess-noon` is listed in §3.1. In short:
 
 | Domain | Share |
 |---|---|
-| PEOPLE (actors, perception, thinking: §3.1's steps 3, 6 and 7, within PEOPLE §13.2's 0.8 ms less its paths) | 0.50 ms |
+| PEOPLE (actors, perception, thinking: §3.1's steps 3, 6 and 7; PEOPLE §13.2's 0.53 ms adds its per-second 0.03 ms, which sits in `second`: CONTRACTS §19, item 5) | 0.50 ms |
 | paths (PLACES, in work units) | 0.60 ms |
 | rules (WEAPONS, COMBAT, inertia, fast environment) | 0.40 ms |
 | BODY fast and per-second | 0.20 ms |
@@ -1566,6 +1579,7 @@ One table for every kind of scene, so buffers, the atlas and the LOD rules are s
 | `squadbay-night` | 14 (the squad, the fire watch) | 0 | 0 | 14 | 14 | 0.1 |
 | `range-far` | 48 (the platoon's 42, the range staff 6) | 0 | 0 | 48 | 48 | 0.1 |
 | `parade-platoon` | 42 | 0 | 20 (other units passing) | 62 | 62 | 0.1 |
+| `company-march` (PEOPLE §13.5's test) | 48 crossing; none in ranks | up to 120 crossing (Echo's others past the 48; the last at L2 until they come out of the barracks) | 0 | 168 crossing; in ranks, Echo's 191 as one block | 191 (in ranks, about 130 of them in the 40 m frame) | 0.1 |
 | `mess-noon` (the busiest) | 48 | 12 (the rest of Echo's sitting) | 100 (PEOPLE §12.2's noon peak) | 160 | 180 (with 20 ghosts) | 0.1 |
 | `troopship-battle` | 48 | 0 | 40 (the crew on watch, another company) | 88 | 100 | 0.2 |
 | `europa-street` | 19 (the squad, a few of the town's notables) | 0 | 120 | 139 | 160 | 0.3 |
@@ -1574,7 +1588,8 @@ One table for every kind of scene, so buffers, the atlas and the LOD rules are s
 
 - **Puppets** are persistent people driven by crowd steering when more are scheduled into an area than its persistent cap allows (PEOPLE §13.1). A puppet takes a crowd slot, so the crowd and its puppets stay within 120.
 - **A crowd scene** is an area PEOPLE declares one while a protest or riot is on (PEOPLE §12.6: at most 200). There the crowd's cap rises to 200 and the persistent cap falls to 24 (the rest of the platoon are puppets or held back by their orders), so live agents stay at 224. The crowd outside the close ring looks and thinks every fourth tick (LONGHAUL's lite steps, as TIME §5.2 uses them for fast-forward). `cavern-riot` budgets it in the 0.3 bench at the hub's 2 ms a tick. If the bench fails, the fallback is that the protest's members past 120 wait outside the cavern's doors as an outcome crowd (counted by PEOPLE, not simulated) until a live one leaves (my call).
-- **Drawn** counts are what `render/crowd.js` and the people atlas are sized for: `MAX_PEOPLE` 256 instances. PEOPLE §13.2's "figures drawn 80" is replaced by this column, and VIEWS's `MAX_PEOPLE` 160 by 256.
+- **Formations** (`company-march`) are PEOPLE §13.5's blocks: a unit in ranks moves as one path and one steering step, its members at their marks, and does not count against the 48 or the crowd (CONTRACTS §8). `parade-platoon` stays the platoon's 42 and 20 passing; the company march is a scene of its own (my call; CONTRACTS §19, item 4), and PEOPLE's test of it in `people.perf.test.mjs` takes its name.
+- **Drawn** counts are what `render/crowd.js` and the people atlas are sized for: `MAX_PEOPLE` 256 instances. PEOPLE §13.2's "figures drawn 80" is replaced by this column, and VIEWS's `MAX_PEOPLE` 160 and 240 by 256.
 
 ---
 
@@ -1609,7 +1624,7 @@ ROADMAP owns the milestone numbers; this is what TECH builds, in order.
 4. The sliced skip engines (`time/skip.js`) on the kinds' grids (§5.3), and the loop's four modes. `skipNow` keeps the five `core-loop` skip tests passing; `game-targets` is added with them.
 5. Store v2: worlds in slots, `profile` and `cache` stores, `auto-prev` and `ironman-prev` rotated on time, the `day` and `edge` slots, digests and recovery, the report export with its engine.
 6. `tests/game.mjs`, the determinism suite of §8.2 in its quick and heavy variants (with a dummy domain where real ones are missing), `game-ids`, and `golden.mjs`; the runner's quick total and its 60 s limit.
-7. For the look round: the sprite and crowd ports with the array atlas (`MAX_PEOPLE` 256), `tools/gallery.mjs` and `samples/` (four variants × five scenes, VIEWS §2.3), `tools/sheet.mjs`, `?scene=` and `?mood=`.
+7. For the look round: the sprite and crowd ports with the array atlas (`MAX_PEOPLE` 256), `tools/gallery.mjs` and `samples/` (shipped in v0.0.1: `samples/look/`, five scenes, each a 2 × 2 of density by figure, 24 views; VIEWS §2.3), `tools/sheet.mjs`, `?scene=` and `?mood=`.
 8. The paint worker with the `sheet` and `area` jobs; `render/uploads.js`, `warm.js`, `stats.js` with per-pass GPU timing (or pass repetition); `__ready` with nothing pending. **The built stage is measured per pass on the Mac** against §16.6's column, and the bench card's per-pass split is ready for Windows.
 9. From 0.0.4: `tests/bots/lib.mjs`, the bot toolkit (§13.2), with `walker` as its first user. **Before 0.0.6**: the kit and items shape of §6.7 (WEAPONS's), so the range, the lane and the Tank build on it.
 
@@ -1628,7 +1643,7 @@ ROADMAP owns the milestone numbers; this is what TECH builds, in order.
 - the debug card and overlays 1 to 16;
 - the recruit, range, walker, slob and idler bots, on the toolkit;
 - `bots-week`, `save-size`, `save-cost`, `game-tick`, the throttled `perf` rows;
-- the perf scenes `squadbay-night`, `parade-platoon`, `range-far` and `mess-noon`, with the bench card and the degrade ladder (§16.6);
+- the perf scenes `squadbay-night`, `parade-platoon`, `company-march`, `range-far` and `mess-noon`, with the bench card and the degrade ladder (§16.6);
 - `tools/replay.mjs` (with `--page`), `savecat.mjs`, `perf.mjs` and `fonts.mjs`;
 - the first fixture save for the upgrade tests (the 0.1 edge save, ROADMAP §2.6).
 
@@ -1640,7 +1655,7 @@ ROADMAP owns the milestone numbers; this is what TECH builds, in order.
 - decks as areas with the ladder dissolve;
 - the system, local, threat and planetary screens on pictures;
 - `troopship-battle` in the bench;
-- the 12-day chapter's compute test.
+- the 12-day chapter's compute test (the homeward 0.3 G voyage's 12.5 days, the worst case; 0.2's own is 6.9: CONTRACTS §14).
 
 **0.3, Europa:** drop-ship profiles, optics and the scope screen, the ground tac and the suit HUD's tac, the Europa sky maps, `europa-street` and `cavern-riot` (the crowd scene of §16.7) in the bench, and the vacuum audio path.
 
@@ -1649,6 +1664,8 @@ ROADMAP owns the milestone numbers; this is what TECH builds, in order.
 ---
 
 ## 19. Cross-references
+
+CONTRACTS.md (docs/design) carries the canonical values of §2.3.1, §2.7, §3.1, §6.1, §7.2 and §16; a change here changes it there.
 
 What TECH relies on from the other sections:
 
@@ -1668,12 +1685,12 @@ What TECH relies on from the other sections:
 - **WEAPONS**: the module list of `src/sim/arms/` (WEAPONS §15); **the owner of `items`, `person.kit` and `arms/kit.js`** (§6.7, correction 17), settled before 0.0.6: the slots, the containers and their capacities, `materialise`, `move`; guns as items (`i<n>`) in place of `r7#p.3` (WEAPONS §4.1), and the `armoury` records by gun id; the issue log capped (§6.6); the `stop` key's contents; ballistic tables as a memo at boot (at or under 150 ms), their results rounded by `q()` (rule 11); the rng streams `shot`, `frag`, `fuse`, `throw` and `hole`; brass as particles (`BRASS_LIVE` 64) and tile counts; `fx` and `sound` facts for shots.
 - **COMBAT**: `state.fights`; its module list (COMBAT §18, with drills as `.js`: correction 12); the order inside `rules` (§3.1, step 8); `threatKnown(state)`; `pictures.js` for every sensor source; the director's encounters as events; the ship layer one minute ahead as slow contributor 4; the zone and force data for `world`; the ids of §2.3.1 in §2.1's and §6's samples (`fg`, `od`, `uf`, `ob`, `sv`; people as `p<n>`, units as `2/4-E-2-1`); the `crowd` test's 200 civilians as §16.7's crowd scene.
 - **PEOPLE**:
-  - `whereAt` and `whereIs` in closed form, and the L0 to L4 levels;
+  - `whereIs` in closed form (PEOPLE §4.6), and the L0 to L4 levels;
   - **`state.happenings`** for PEOPLE §2.5's log of notable things, ids `n<n>`, with `known` kept by group and per-person exceptions (§6.6), in §2.5, §9 and §13.2 (corrections 15 and 16);
   - `units` at the top level as PEOPLE §2.6 has it, and the person record's `kit` (WEAPONS's) beside `body` and `skills` (§6.1);
   - the ids of §2.3.1 in every sample (`p:0042` is `p42`; the player is their own `p` id; a promoted crowd member is a `p` id, not `x<seed>`; `fx:mess:t14:s3` is `f:mess:t14#3`; `subject` is `subjectId`);
   - stubs that expire when no happening of weight 2 or more names them (§6.6);
-  - the per-scene table of §16.7, replacing §13.2's "figures drawn 80"; the crowd scene's caps; puppets in the crowd's cap;
+  - the per-scene table of §16.7, replacing §13.2's "figures drawn 80"; the crowd scene's caps; puppets in the crowd's cap; §13.5's company march benched as `company-march`, its test renamed from `parade-platoon` (CONTRACTS §19, item 4);
   - the `names` registry;
   - the per-domain budgets of §16.2 (PEOPLE §13.2);
   - perception's formulas, shared with `fogcast.js`, reading `lightLevel` (correction 14);

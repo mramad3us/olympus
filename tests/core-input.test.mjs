@@ -121,6 +121,32 @@ export default [
     },
   },
   {
+    name: 'input: Tab, Space and the move keys keep their browser meaning while the game does not own the keys (the title), and letting Cmd go lets every key go (macOS sends no keyup under Cmd)',
+    fn() {
+      const win = new EventTarget();
+      let owns = false;
+      const inp = createInput({ target: win, now: () => 0, swallow: () => owns });
+      const tab = key('keydown', 'Tab'), down = key('keydown', 'ArrowDown'), space = key('keydown', 'Space'), alt = key('keydown', 'AltLeft');
+      for (const e of [tab, down, space, alt]) win.dispatchEvent(e);
+      const onTitle = [tab, down, space].map(e => e.defaultPrevented);
+      for (const c of ['Tab', 'ArrowDown', 'Space', 'AltLeft']) win.dispatchEvent(key('keyup', c));
+      owns = true;
+      const tab2 = key('keydown', 'Tab'), space2 = key('keydown', 'Space');
+      win.dispatchEvent(tab2); win.dispatchEvent(space2);
+      win.dispatchEvent(key('keyup', 'Tab')); win.dispatchEvent(key('keyup', 'Space'));
+      // (walking with Z held, Cmd goes down, Z is let go under it (no keyup comes), then Cmd is let go)
+      win.dispatchEvent(key('keydown', 'KeyW'));
+      win.dispatchEvent(key('keydown', 'MetaLeft', { metaKey: true }));
+      const walking = inp.snapshot().mz;
+      win.dispatchEvent(key('keyup', 'MetaLeft'));
+      const after = inp.snapshot().mz;
+      console.log(`      on the title, Tab, ArrowDown and Space prevented: ${onTitle.join(', ')}; Alt ${alt.defaultPrevented}; in play, Tab and Space prevented: ${tab2.defaultPrevented}, ${space2.defaultPrevented}; Z held into Cmd: mz ${walking}, after Cmd let go ${after}`);
+      assert(onTitle.every(p => !p) && alt.defaultPrevented && tab2.defaultPrevented && space2.defaultPrevented, JSON.stringify({ onTitle, alt: alt.defaultPrevented, tab2: tab2.defaultPrevented }));
+      assert(walking === -1 && after === 0, `mz ${walking} then ${after}`);
+      inp.dispose();
+    },
+  },
+  {
     name: 'the mouse: stage pixels from client pixels, clicks on the stage only, buttons and the wheel',
     fn() {
       const win = new EventTarget();

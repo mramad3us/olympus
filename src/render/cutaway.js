@@ -23,7 +23,9 @@
 //     kind: 'door' | 'gap', label }], decor: [{ kind: 'emergency' | 'sign' | 'board' | 'stencil' | 'clock',
 //     x, y, w, h, text }], lamps: [{ x, z, ... }] }
 // A door on the north wall is painted on it (tradecraft's front door); anywhere else an opening is a
-// gap in the wall with a threshold. Everything goes into an area (src/render/batch.js): one draw call.
+// gap in the wall with a threshold. Everything goes into an area (src/render/batch.js): one draw call,
+// or a collector of plain specs (src/art/jobs.js createCollector), which is how the paint worker builds it.
+// Pure. No three.js and no DOM in its imports, so the paint worker's closure may hold it (TECH §2.2).
 import { wallsOf, wallRect, WALL_H_M, CUT_H_M, OUTER_T_M } from './walls.js';
 import { tile } from '../art/tiles.js';
 import { GLOW, paint } from '../art/paint.js';

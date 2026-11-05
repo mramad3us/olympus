@@ -2,7 +2,7 @@
 
 The skill list, the one roll, Warfighting, growth, training, rust, fitness, NPC skill levels, reading people, the feel and the instinct line. DESIGN.md is the hub and wins where the two disagree.
 
-Written 2026-11-05 from DESIGN.md and the research notes: `tradecraft-design-1.md` §10 (skills and checks, growth, rust, fitness), `tradecraft-design-2.md` §5, §6, §12 (the feel, XP, Read), `tradecraft-design-3.md` §6, §7 (tutorial, backgrounds, belief), `tradecraft-sim-combat.md` §1, §10.5, `tradecraft-sim-world.md` §8, §10.2 (perception, Read, instinct), `longhaul-shipboard.md` §13 and `longhaul-setting.md` §14, §17 (rank gates). Code read for the numbers that actually run: tradecraft `src/sim/{skills,checks,xp,training,rust,fitness,know,belief,sense,instinct}.js`, `campaign.js` (BACKGROUNDS), `career.js` (FLOORS). The tables below were computed from those formulas with a scratch script.
+Written 2026-11-05 from DESIGN.md and the research notes: `tradecraft-design-1.md` §10 (skills and checks, growth, rust, fitness), `tradecraft-design-2.md` §5, §6, §12 (the feel, XP, Read), `tradecraft-design-3.md` §6, §7 (tutorial, backgrounds, belief), `tradecraft-sim-combat.md` §1, §10.5, `tradecraft-sim-world.md` §8, §10.2 (perception, Read, instinct), `longhaul-shipboard.md` §13 and `longhaul-setting.md` §14, §17 (rank gates). Code read for the numbers that actually run: tradecraft `src/sim/{skills,checks,xp,training,rust,fitness,know,belief,sense,instinct}.js`, `campaign.js` (BACKGROUNDS), `career.js` (FLOORS). The tables below were computed from those formulas with a scratch script. Aligned the same day with `CONTRACTS.md`, the shared contracts (ids, the fitness module's home, the milestone numbers), which this section cites rather than restates.
 
 Conventions. "The user, date" is the user's own words or decision. Quotes dated before 2026-11-05 were said about tradecraft and carry over as the user's tastes. "(my call)" marks this section's own choices, which hold until the user overrules them. Every value is an integer unless its name carries a unit.
 
@@ -480,7 +480,7 @@ Every roll draws from OLYMPUS's `src/core/rng.js` (sfc32, ported from tradecraft
 |---|---|---|---|
 | **Warfighting** (the over-skill) | XP: operations above all, a little from training and won rolls | cost ×6.25 every 20 points | `xp.js` (adapt) |
 | **Trained bases** | hours: training blocks, courses, manuals, field use; school floors at graduation | `4 + 0.8 × base` hours a point, capped by the teacher | `training.js` (adapt), `career.js` FLOORS (pattern) |
-| **Fitness** | the week's load against what the base asks | a point of effective fitness a week at most; the base moves after two weeks at the band's edge | `fitness.js` (port) |
+| **Fitness** | the week's load against what the base asks | a point of effective fitness a week at most; the base moves after two weeks at the band's edge | `fitness.js` (port, as BODY's `src/sim/body/fitness.js`, §16) |
 
 Background points never grow. Rust (§7) takes value away and practice gives it back.
 
@@ -662,7 +662,7 @@ Floors are bases. Lengths are real-world references for CAREER to set.
 | `engineer`: combat engineer | 10 weeks | MRK 6, WPN 6, CQC 5, FLD 5, AWR 4, TAC 2, COM 3, TEC 7, MED 4, EVA 6, ZG 4, DEM 8, DRV 3 | 12 | 10 |
 | `driver`: vehicle operator | 8 weeks | MRK 6, WPN 6, CQC 5, FLD 4, AWR 4, COM 3, TEC 6, MED 4, EVA 5, ZG 3, DRV 9 | 12 | 10 |
 | `cls`: combat lifesaver | 40 h | MED 7 | none | 9 |
-| `mcmap-gray`, `-green`, `-brown`, `-black` | 25, 33, 37.5, 71 h (the real syllabus hours) | CQC 8, 11, 14, 17 | none | the belt +2 |
+| `mcmap-grey`, `-green`, `-brown`, `-black` | 25, 33, 37.5, 71 h (the real syllabus hours) | CQC 8, 11, 14, 17 | none | the belt +2 |
 | `eva-qual`: EVA qualification (Phobos) | 3 weeks | EVA 10, ZG 8, TEC 4 | none | 12 |
 | `under-ice`: under-ice operations (Europa) | 4 weeks | EVA 12, ZG 8, FLD 10, DRV 6 | none | 13 |
 | `corporal`: Corporal's course | 3 weeks | LDR 6, TAC 6 | none | 9 |
@@ -680,7 +680,7 @@ Floors are bases. Lengths are real-world references for CAREER to set.
 VIEWS owns the screens. SKILLS supplies the words and numbers:
 - **Over-skill line**: "Warfighting 17, 3 of 8 XP toward 18" (tradecraft's `progress()` words).
 - **A skill's row**: name, level word (§2.3), ◆ for background points, rust marks, "×1.17", value, and progress, for example "7.5 of 10.4 h toward 9". At a cap: "as far as unit training goes: a course for more".
-- **After an operation**, in the debrief paper: "+14.4 XP: a contact on the Conamara ring road, an insurgent cell, done clean (Europa ×1.2)". Then "Warfighting 26, 4 of 14 toward 27".
+- **After an operation**, in the debrief paper: "+14.4 XP: a contact in Pwyll Deep's Shaft Head, an insurgent cell, done clean (Europa ×1.2)". Then "Warfighting 26, 4 of 14 toward 27".
 - **At the week's end**, on the training paper (TIME): hours by skill, points gained, rust gained or lost, and the fitness week (§8).
 
 ---
@@ -1010,7 +1010,7 @@ SETTING owns the ranks, insignia, badges and the MCMAP belt colours. SKILLS owns
 | Badge | Floor it implies |
 |---|---|
 | Rifle qualification: marksman, sharpshooter, expert | MRK base 6, 9, 12 |
-| MCMAP belt: tan, gray, green, brown, black | CQC base 5, 8, 11, 14, 17 |
+| MCMAP belt: tan, grey, green, brown, black | CQC base 5, 8, 11, 14, 17 |
 | EVA qualification | EVA 10 |
 | Boarding tab | ZG 8, EVA 8 |
 | Scout sniper | MRK 15, FLD 14 |
@@ -1209,17 +1209,17 @@ All plain JSON in the save. Keys starting with `$` are runtime-only and are stri
 { "kind": "check", "skill": "marksmanship", "value": 11, "roll": 14,
   "mods": [ { "why": "dusk", "v": -1, "src": "env" }, { "why": "tired", "v": -1, "src": "need" } ],
   "total": 23, "nat": 0, "dc": 18, "hook": false, "tempo": "normal", "steady": false, "routine": false,
-  "pressure": "fire", "ok": true, "margin": 5, "grade": "good", "by": "me", "them": false, "hidden": false }
+  "pressure": "fire", "ok": true, "margin": 5, "grade": "good", "by": "p233", "them": false, "hidden": false }
 ```
 
-An opposed roll is `{ "kind": "opposed", "ours": side, "theirs": side, "ok", "margin", "grade", "them", "hidden" }`, where each side is `{ skill, value, roll, mods, total, nat, by }` (tradecraft's shape, plus `by`, `grade` and `hidden`).
+An opposed roll is `{ "kind": "opposed", "ours": side, "theirs": side, "ok", "margin", "grade", "them", "hidden" }`, where each side is `{ skill, value, roll, mods, total, nat, by }` (tradecraft's shape, plus `by`, `grade` and `hidden`). `by` is the roller's person id; the player's is an ordinary `p<n>`, as everyone's (CONTRACTS §10).
 
 ### 15.3 What the character knows of someone (`state.mind.known[personId]`)
 
 ```json
 { "reads": 3, "at": 18290000, "skills": { "cqc": [11, 19], "fitness": [9, 15] },
   "cls": "soldier", "trained": "well trained",
-  "rank": "Sgt", "name": "Ruiz", "unit": "2/4", "badges": [ "rifle-expert", "mcmap-brown" ],
+  "rank": "Sgt", "name": "Ruiz", "unitId": "2/4", "badges": [ "rifle-expert", "mcmap-brown" ],
   "mood": { "fear": ["a little wary", "you think so"], "trust": ["believes you", "a guess"], "at": 18290000 },
   "fights": { "won": 0, "lost": 1 }, "armour": null }
 ```
@@ -1230,7 +1230,7 @@ An opposed roll is `{ "kind": "opposed", "ours": side, "theirs": side, "ok", "ma
 "$instinct": { "line": { "id": "late", "voice": "di", "tone": "warn", "text": "…", "act": "walk:formation", "ms": 18290000 },
                "chip": { "id": "need", "tone": "warn", "short": "Drink", "act": "walk:fountain", "ms": 18291000 }, "keys": [ "B", "F" ],
                "queued": 1,
-               "gone": { "salute": 18240000 }, "humourAt": 18100000, "net": [ { "from": "p-varga", "text": "…", "until": 18295000 } ] }
+               "gone": { "salute": 18240000 }, "humourAt": 18100000, "net": [ { "fromId": "p<n>", "text": "…", "until": 18295000 } ] }
 ```
 
 It is rebuilt from the state each tick, so a load only forgets the repeat timers. The newest order waiting for an answer (B's target) is not kept here: it is PEOPLE's and COMBAT's order record, read through.
@@ -1249,7 +1249,7 @@ TECH owns the layout. My proposal is `src/sim/skills/`, all pure, each opening w
 | `training.js`: `hoursFor()`, `train()`, `learn()`, `teacherK()`, the syllabus table, `fieldCredit()` | `src/sim/training.js` (98 lines) | adapt | teacher kinds and caps; the instructor factor; field learning; Belta's factor; the bookshop becomes the terminal's manuals |
 | `schools.js`: the floors table, `graduate()` | `src/sim/career.js` FLOORS (pattern) | new on a pattern | the military schools; CAREER calls `graduate(p, id)` |
 | `rust.js`: `rustOff()`, `practise()`, `rustRoll()`, `opCleared()` | `src/sim/rust.js` (65 lines) | port | `RUST_PERIOD_MS` (28 sols, the only definition); the military keeps; operations clearing rust by kind |
-| `fitness.js`: `exercise()`, `onFoot()`, `rollWeeks()`, `weekWords()` | `src/sim/fitness.js` (77 lines) | port | `FIT_WEEK_MS` (7 sols, the only definition); marine activities by BODY's kinds; BODY's gravity and load factors called, never copied |
+| `src/sim/body/fitness.js` (BODY §2.7 owns the module; this section's rules and `FIT_WEEK_MS` are in it): `exercise()`, `onFoot()`, `rollWeeks()`, `weekWords()` | `src/sim/fitness.js` (77 lines) | port | `FIT_WEEK_MS` (7 sols, the only definition); marine activities by BODY's kinds; BODY's gravity and load factors called, never copied; SKILLS's `value()` reads effective fitness through the helper injected into it, so `skills/` does not import `body/` (TECH correction 8; CONTRACTS §13) |
 | `templates.js`: NPC tiers, `rollSheet()`, `crowdValue()`, `RANK_WF` | `src/sim/people.js` `sheet()`/`passerby()`, `campaign.js` BACKGROUNDS | new on a pattern | the tables in §10 and §11 |
 | `know.js`: `sizeUp()`, `insignia()`, `priors()`, `readMood()`, `fought()`, `seenInAction()` | `src/sim/know.js` (80 lines), `src/sim/belief.js` (66 lines) | adapt | Awareness instead of Analysis; the never-centred offset; insignia facts and priors; mood words with a confidence |
 | `feel.js` | `src/sim/sense.js` (179 lines) | adapt | Warfighting instead of Tradecraft; no naturals; vacuum and bulkhead modifiers; the street coupling (`Z`, rows) removed; the patch handed to PEOPLE's perception |
@@ -1306,7 +1306,7 @@ QUICK mode skips the 100,000-roll grids and the 50-run career, which are marked 
 
 **The stories it creates:**
 - The private who felt nothing when the sniper watched, and the sergeant who did.
-- The corporal with a gray belt who loses a bout to the quiet one with a brown.
+- The corporal with a grey belt who loses a bout to the quiet one with a brown.
 - The rifle badge that told you more about the new lieutenant than his words did.
 - The DI's voice saying "He has a mother" the first time your muzzle crossed a friend.
 - The squad leader whose bad contact report sent the team the wrong way. His Comms roll is in the log.
@@ -1327,22 +1327,22 @@ QUICK mode skips the 100,000-roll grids and the 50-run career, which are marked 
 
 ## 19. Build order
 
-ROADMAP owns the milestones. This is what SKILLS needs, in order.
+ROADMAP owns the milestones (§3.4 there holds over this section's earlier proposal: CONTRACTS §18). This is what SKILLS needs, in order.
 
-**The first playable (0.1: a standby week at Base Melas):**
+**The first playable (0.1.0: the core standby week at Base Melas; ROADMAP §5):**
 1. `checks.js` with every rule in §5. Routine work, tempo, steady and retry are needed at once by the armoury, the cleaning bench and the suit locker.
-2. `skills.js` with the sixteen skills, the soldier and civilian classes, `value()`, `paceOf()` and `mitigated()` (the suit at Melas's suit drill).
+2. `skills.js` with the sixteen skills, the soldier and civilian classes, `value()`, `paceOf()` and `mitigated()` (built at 0.1.0; EVA in use, with the suit, at 0.1.x with the Tank: ROADMAP §3.4, §5.8).
 3. `templates.js` with the tiers seen on base: recruit (none at Melas, but Depot flashbacks), private through gunnery sergeant, second lieutenant, Navy rating (Melas's shuttle crews), Redwater's civilians, MSS. `RANK_WF`.
 4. Starting values: the rifleman MOS and the ten backgrounds (§10).
 5. `training.js` and the syllabus of §6.4 for every block of Melas's Plan of the Day. Skipped blocks show their representative rolls.
 6. `xp.js` with training XP and roll XP. Operation XP is in the tables but unused.
 7. `rust.js`. In a week it hardly fires, but its periods and keeps run from day one, so saves carry them.
-8. `fitness.js`, with BODY's gravity and carry factors.
+8. Fitness's rules and `FIT_WEEK_MS` in BODY's `src/sim/body/fitness.js` (BODY §2.7 owns the module), with BODY's gravity and carry factors; `value()` reads effective fitness through the injected helper (TECH correction 8).
 9. `know.js`: the size-up, insignia facts and priors, and the mood read.
 10. `instinct.js` with `settle()`, the chip and the DI's base rules of §14.4, with B acknowledging spoken orders and F rendering salutes.
 11. The tests in §17, except `feel` and `instinct.net`.
 
-**The deployment (the voyage and Europa):**
+**0.2 and 0.3 (the voyage and Europa):**
 - operation XP and fade, field learning, languages (Belta classes aboard, immersion);
 - the NCO on the net and the field rules of §14.5;
 - the feel;
@@ -1351,9 +1351,9 @@ ROADMAP owns the milestones. This is what SKILLS needs, in order.
 - templates for insurgents, ice miners, corporate security and constables;
 - the under-ice and EVA schools.
 
-**Combat depth and boarding:** pirates and the spacer class in fights, Demolitions breaching, Tactics reads of fire, abstract engagements, and Zero-g penalties in full.
+**0.4 and 0.5 (combat depth and boarding):** pirates and the spacer class in fights, Demolitions breaching, Tactics reads of fire, abstract engagements, and Zero-g penalties in full.
 
-**Special operations:** the sniper, recon and raider schools with their Warfighting floors, the tier-one template, MNI spooks, plain-clothes Fieldcraft.
+**0.6 and 0.7 (special operations):** the sniper, recon and raider schools with their Warfighting floors, the tier-one template, MNI spooks, plain-clothes Fieldcraft.
 
 ---
 
@@ -1363,8 +1363,8 @@ ROADMAP owns the milestones. This is what SKILLS needs, in order.
   - `bodyMods(p, key, ctx)` and `needMods(p, key, ctx)`, honouring `SKILLS[key].uses`;
   - the fatigue ladder and the needs' bands, as named modifiers;
   - the suit's base penalties (gloves, bulk, visor) and free-fall base penalties, which SKILLS reduces;
-  - **the one helper for exercise load**: `fRun`, `fWalk`, `fWork` and the load term `(1 + loadKg / massKg)` of §3.1, exported for `fitness.js` to call (§8), and the any-g sessions (gym 10, combatives 7, centrifuge 8). SKILLS's own `gK` and `carryK` are gone. Two of §15.1's worked figures do not follow from its own formulas and want correcting there: a km run on Europa is 0.66 points (2.5 × 0.264), not 0.69 (that is Ganymede's), and a 10 km ruck march with 30 kg on Mars is 5.3 points (10 × 0.6 × 0.628 × 1.4), not 12, unless a ruck march is meant to be a kind of its own;
-  - §15.1's training week is `FIT_WEEK_MS` (7 sols, absolute time since the career began, §7 and §8), not the UTC calendar's Monday to Sunday;
+  - **the one helper for exercise load**: `fRun`, `fWalk`, `fWork` and the load term `(1 + loadKg / massKg)` of §3.1, exported for `body/fitness.js` to call (§8), and the any-g sessions (gym 10, combatives 7, centrifuge 8). SKILLS's own `gK` and `carryK` are gone, and §15.1's worked figures follow its formulas (a km run on Europa 0.66 points, a 10 km ruck march with 30 kg on Mars 5.3);
+  - §15.1's training week, `FIT_WEEK_MS` (7 sols, absolute time since the career began, §7 and §8), not the calendar's Monday to Sunday, as BODY now reads it;
   - the capacities Fitness drives; G-conditioning, deconditioning, pain and the adrenaline rule in CQC;
   - every aid DC and base time (at value 10); aid steps are procedure, so routine work (§5.1) applies to them out of danger.
 - **WEAPONS**:
@@ -1389,7 +1389,7 @@ ROADMAP owns the milestones. This is what SKILLS needs, in order.
 - **TIME**:
   - the activities and the Plan of the Day (lengths, splashes, interrupts);
   - **§8.1 replaces `chorePace` with `paceOf()`** (§5.12) for every skill-scaled activity (`suit-up` by EVA, `clean-rifle` by Weapon handling and the rest), and test 7 is recomputed with it (`clean-rifle` after a range day 39:00 at value 10, 40:33 at 9; `suit-up` 9:25 at EVA 6). its cross-references' request to SKILLS ("a pace curve (or acceptance of `chorePace`)") is answered: the curve is `paceOf`;
-  - **§11.3's absolute periods cite `RUST_PERIOD_MS` and `FIT_WEEK_MS`** (§7, §8) instead of restating "rust's 28-day periods" as `k × 7 × DAY_MS`;
+  - §11.3's absolute periods, which cite `RUST_PERIOD_MS` and `FIT_WEEK_MS` (§7, §8; CONTRACTS §5) and restate no period;
   - `block-done` events; the skip contract calling `rustRoll`, `rollWeeks` and the skip stream;
   - chapters offering training choices on voyages; the calendar's week (for rosters and rest sols, not for fitness or rust).
 - **CAREER**:

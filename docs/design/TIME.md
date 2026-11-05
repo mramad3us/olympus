@@ -2,7 +2,7 @@
 
 How OLYMPUS keeps and spends time: the one clock and its faces, the 1:1 rules and every kind of pause, stop motion, the `skip()` contract and the activities that use it, the splash, interrupts, the Plan of the Day, chapters and papers, the background layers and their cadences, voyages, autosaves and determinism.
 
-Written 2026-11-05 against `docs/DESIGN.md` (the hub) and the research notes in `docs/research/`. Revised the same day after the five-critic review of the whole design: SETTING's calendar (§3.2–3.3) and voyage doctrine (§6.5) adopted; TECH's corrections 1, 9 and 10, its paths (§2.1) and its state keys (§6.1) adopted; one parity contract (§5.5); one Plan of the Day keyed by weekday (§9.2); the sol director (§9.8); stances for carried-on blocks (§9.3); free time that pays (§8.9); drills that vary and the one that is real (§12.8). Numbers marked "measured" were computed on 2026-11-05 by a scratch script that imports LONGHAUL's `js/sim/ephemeris.js` and `js/sim/worlds.js` read-only. "The user" is the person who directs OLYMPUS, LONGHAUL and tradecraft; their decisions are quoted with dates. My own decisions are marked **(my call)** and hold until the user overrules them.
+Written 2026-11-05 against `docs/DESIGN.md` (the hub) and the research notes in `docs/research/`. Revised the same day after the five-critic review of the whole design: SETTING's calendar (§3.2–3.3) and voyage doctrine (§6.5) adopted; TECH's corrections 1, 9 and 10, its paths (§2.1) and its state keys (§6.1) adopted; one parity contract (§5.5); one Plan of the Day keyed by weekday (§9.2); the sol director (§9.8); stances for carried-on blocks (§9.3); free time that pays (§8.9); drills that vary and the one that is real (§12.8). Aligned the same day with `CONTRACTS.md`, the shared contracts, which carries this section's constants, the Plan of the Day's times and the skip budgets for citation: TECH's step grid by kind (correction 19, the new `world` kind), ids, save slots and `whereIs` adopted. Numbers marked "measured" were computed on 2026-11-05 by a scratch script that imports LONGHAUL's `js/sim/ephemeris.js` and `js/sim/worlds.js` read-only. "The user" is the person who directs OLYMPUS, LONGHAUL and tradecraft; their decisions are quoted with dates. My own decisions are marked **(my call)** and hold until the user overrules them.
 
 ## The model in short
 
@@ -59,7 +59,7 @@ The built `core/calendar.js` predates this section's rules in three places, and 
 | `TT_MINUS_UTC_MS` | 69,184 | TT − UTC: 32.184 s + 37 leap seconds, frozen (§2.3) |
 | `MSD_EPOCH` | 169,639.236313 | Mars Sol Date at the epoch (measured) |
 | `MSD_EPOCH_MS` | 15,059,764,595,616 | `round(MSD_EPOCH × SOL_MS)`: the integer form |
-| `MELAS_LON_E_DEG`, `MELAS_LAT_DEG` | 287.2, −10.5 | Base Melas on the Melas Chasma floor (PLACES §4.1 confirms both; SETTING §3.8's `SITES.melas` has −10.4, which moves Melas' daylight by under a minute: PLACES owns the site) |
+| `MELAS_LON_E_DEG`, `MELAS_LAT_DEG` | 287.2, −10.5 | Base Melas on the Melas Chasma floor (PLACES §4.1 owns the site; SETTING §3.8's `SITES.melas` carries it; CONTRACTS §2) |
 | `MELAS_LON_MS` | 70,822,917 | `round(287.2 / 360 × SOL_MS)` |
 | `MARS_YEAR_MS` | 59,373,085,632 | LONGHAUL's Mars orbital period, 687.1885 d (Kepler from a = 1.524 AU) = 668.8023 sols (SETTING §3.2, imported) |
 | `LS_EPOCH_DEG` | 174.0 | Ls at the epoch: the real *mean* Ls, so that the season and LONGHAUL's planet angle agree (SETTING §3.2, imported; it replaces this section's draft 163.234, the real Ls) |
@@ -70,7 +70,7 @@ The built `core/calendar.js` predates this section's rules in three places, and 
 | `START_MS` | 23,480,400,000 | the start, 2351-12-19 02:20:00 UTC (SETTING §3.7, TECH §5.8) |
 | `MARS_OBLIQUITY_DEG` | 25.19 | for solar declination |
 | `LIVE_MAX_S` | 45 | actions shorter than this are lived at 1:1 as busy steps (my call) |
-| `FF_MAX_S` = `RECYCLE_S` | 120 | below: fast-forward the real sim; at or above: outcome skip and crowd recycle (tradecraft `crowd.js`) |
+| `FF_MAX_MS` (= `RECYCLE_S` × 1,000) | 120,000 | below: fast-forward the real sim; at or above: outcome skip and crowd recycle (tradecraft `crowd.js`) |
 | `FF_ACTOR_S_MAX` | 6,000 | live actors × planned seconds a fast-forward may cost; above it the skip is an outcome (§5.2, my call) |
 | `FF_OUT_FRAME_MS` | 12 | sim time a frame may take in an `out` fast-forward, when the stage is hidden by the blackout (§4.5, my call) |
 | `SPLASH_IN_S`, `SPLASH_HOLD_S`, `SPLASH_OUT_S` | 0.4, 0.8, 0.5 | a full splash's zoom in, outcome strip and zoom out (§6.2; VIEWS draws to them) |
@@ -149,7 +149,7 @@ SETTING §3.2–3.4 defines the calendar (the year's origin, Sol 1's rule, the w
 - **The Mars Year** begins at the instant Ls = 0 (the northern spring equinox, the Clancy convention): year k begins at `MY_START_MS + (k − 211) × MARS_YEAR_MS`. **Sol 1 of MY k is the Airy-0 sol (integer MSD) that contains that instant**, `MY_SOL1_MSD[k]`, and that number is Sol 1 everywhere on Mars: a site's local `solIndex` is compared against the same boundaries, so a date means the same sol number planet-wide (SETTING §3.3, replacing this section's draft "first local sol after the instant"). `my` is the largest k with `MY_SOL1_MSD[k] ≤ solIndex`, and `solOfYear = solIndex − MY_SOL1_MSD[my] + 1`. Years hold 668 or 669 sols (668.80 on average; MY 211 to 216: 669, 669, 669, 669, 668, 669), with no leap rule to maintain: the ephemeris period does it.
 - Measured at Melas: the epoch is `solIndex` 169,640, **Sol 326** MY 211 (169,640 − 169,315 + 1); the start is `solIndex` 169,904, **Sol 590** MY 211 (SETTING §3.7), Ls 316.4°.
 - **Solar declination** `δ = asin(sin 25.19° × sin Ls)`; hour angle `H = 2π × (meanSolarFrac − 0.5)`. With latitude φ, `sin elev = sin φ sin δ + cos φ cos δ cos H`. No equation of time: the orbit is circular in the ephemeris (my call, for consistency with LONGHAUL). The canyon walls cut the horizon (PLACES supplies the horizon profile; `sunAt` applies it).
-- Measured at Melas (10.5° S) without terrain: at the start, Ls 316.4°, the day is 12.78 h (sunrise 05:37, sunset 18:23, noon elevation 83°, a few degrees south of the zenith); at the epoch, Ls 174°, 12.27 h (05:52 to 18:08, noon 77°); at Ls 0°, 12.33 h (05:50 to 18:10); at Ls 90°, 11.64 h (06:11 to 17:49); at Ls 270°, 13.02 h (05:30 to 18:30). SETTING §3.7's figures at 10.4° S differ by under a minute.
+- Measured at Melas (10.5° S) without terrain: at the start, Ls 316.4°, the day is 12.78 h (sunrise 05:37, sunset 18:23, noon elevation 83°, a few degrees south of the zenith); at the epoch, Ls 174°, 12.27 h (05:52 to 18:08, noon 77°); at Ls 0°, 12.33 h (05:50 to 18:10); at Ls 90°, 11.64 h (06:11 to 17:49); at Ls 270°, 13.02 h (05:30 to 18:30). SETTING §3.7 and CONTRACTS §3 quote the start's figures at the same 10.5° S.
 - **The week** is seven sols, Monday to Sunday, counted from MSD 0 (a Monday): `weekday = (solIndex + WEEK_OFFSET) mod 7`, 0 = Monday, `WEEK_OFFSET` 0 (SETTING §3.4). The epoch's sol is a Wednesday (its UTC day a Thursday); the start's is a Monday. Weekday names are SETTING's.
 - The renderer of Mars on any instrument (telescope, tactical, a drop ship's window) rotates the planet by `meanSolarFrac` at the site's longitude, not by LONGHAUL's sidereal `rotH`, so the terminator over the Mariner Valley always agrees with the base's clocks. (LONGHAUL's `solarDayH(Mars)` gives 88,775.340 s, 0.1 s longer than `SOL_MS`; the difference would drift the terminator one minute every 625 sols.)
 
@@ -159,7 +159,7 @@ SETTING §3.2–3.4 defines the calendar (the year's origin, Sol 1's rule, the w
 |---|---|---|---|
 | Ships (every hull) | UTC | ship's day 00:00–24:00 UTC; Navy crew on three 8-hour watches from 00:00, 08:00, 16:00 (LONGHAUL `duty.js`); embarked marines on the detachment's Plan of the Day | free space; the sun's direction from the ephemeris |
 | Phobos Naval Yard | UTC | the yard's watches; berthing lit on a UTC day | Phobos' solar day 7.66 h; Mars fills a quarter of the sky |
-| Callisto Station (MCRN Jovian base) | UTC | three watches; lights on a UTC day | solar day 402.1 h (16.75 d); eclipse by Jupiter about 4.8 h every orbit (2D ephemeris) |
+| Callisto: Naval Station Valhalla (the Navy) and Camp Lofn (the Corps) | UTC | three watches; lights on a UTC day | solar day 402.1 h (16.75 d); eclipse by Jupiter about 4.8 h every orbit (2D ephemeris) |
 | Europa's towns (under the ice) | UTC (hub) | three 8-hour shifts, as SETTING §3.6 names them: **first shift** 06:00–14:00 ("the morning"), **swing** 14:00–22:00, **graveyard** 22:00–06:00 ("the dark"); town lights at day level 06:00–22:00 UTC, dimmed amber 22:00–06:00, so people's clocks hold without a sun (my call) | none under the ice |
 | Europa's surface | UTC on the suit | work is timed by the dose clock (§3.1), not by the sun | solar day 85.29 h (sun up about 42.6 h); Jupiter fixed in the sky over the sub-Jovian hemisphere; eclipse by Jupiter about 2.9 h every 3.551-day orbit, at local noon on the Jupiter-facing side |
 | Ganymede | UTC (my call) | | solar day 172.0 h |
@@ -291,15 +291,15 @@ When the player is unconscious (BODY), time passes as an **automatic skip** of k
 
 | | **Fast-forward** (`ff`) | **Outcome skip** (`outcome`) |
 |---|---|---|
-| When | the planned gap is under 120 s (`FF_MAX_S`) and the area can afford it (below); an `out` skip during a fight, whatever its length (§4.5) | 120 s or more; 45 s or more in a crowded area; every chapter day |
-| What runs | the real sim, every tick, all layers, at up to `FF_TICKS_FRAME` 40 ticks and `FF_FRAME_MS` 8 ms of sim per frame (TECH §3.6) | the skip engine in simulated steps of at most one game minute, on the live minute grid (§5.4) |
+| When | the planned gap is under 120 s (`FF_MAX_MS` 120,000) and the area can afford it (below); an `out` skip during a fight, whatever its length (§4.5) | 120 s or more; 45 s or more in a crowded area; every chapter day |
+| What runs | the real sim, every tick, all layers, at up to `FF_TICKS_FRAME` 40 ticks and `FF_FRAME_MS` 8 ms of sim per frame (TECH §3.6) | the skip engine in simulated steps on its kind's grid (§5.4): whole game minutes on the live minute grid for an activity (`outcome`, `out`), whole hours for a steady chapter day (`day`), event to event only for a `world` skip (§5.7; CONTRACTS §2) |
 | On screen | the stage itself, in place, with a dimmed ring around you and a fast clock: a time-lapse of the real world | the splash: everything beyond the iris in ink, the stage zoomed close on you at the appliance in the full form (§6) |
 | Interrupts | from the fast layer at the tick they happen (perception, contact, COMBAT) and from the event queue | from the event queue only (§5.6) |
 | Crowd | walks on | recycled at the end, behind the ink |
 | Persistent people | walk on | placed by schedule at the end, behind the ink |
 | Real duration | 1–2 s for 120 s in an ordinary area (2,400 ticks at 0.2–0.4 ms) | the splash curve (§6.2) |
 
-**Crowded areas.** A fast-forward costs every live actor's ticks, and an outcome skip costs almost nothing, so a fast-forward is allowed only while `liveActors × planS ≤ FF_ACTOR_S_MAX` 6,000 actor-seconds (my call; TECH's bench tunes the number): a 120 s gap with up to 50 actors on the area (the squad bay, a range lane, a berthing at night), a 60 s gap with up to 100. Above it, any gap of `LIVE_MAX_S` 45 s or more is an outcome skip with the brief splash and an inked ring (§6.1). In the mess at noon (168 actors, TECH §3.1) that is every skip: busing the tray, the line, the toilet. The numbers say why: a 120 s fast-forward there is 2,400 ticks at about 1.8 ms, 4.4 s of compute and about 9 s of real time at 8 ms a frame (test 18 prints it), against 1–2 s in the bay. The rule reads only the state (the live actor list), so it is deterministic, and a fast-forward stays exactly lived ticks: TECH §8.2's `game-ff` (a fast-forward against the same ticks lived) holds unchanged. An earlier draft let actors outside the close ring think and look every fourth tick in a dear fast-forward; that is dropped, because it would make a fast-forward differ from lived time and would save little (thinking and looking are 0.25 ms of the mess's 1.83 ms).
+**Crowded areas.** A fast-forward costs every live actor's ticks, and an outcome skip costs almost nothing, so a fast-forward is allowed only while `liveActors × planS ≤ FF_ACTOR_S_MAX` 6,000 actor-seconds (my call; TECH's bench tunes the number): a 120 s gap with up to 50 actors on the area (the squad bay, a range lane, a berthing at night), a 60 s gap with up to 100. Above it, any gap of `LIVE_MAX_S` 45 s or more is an outcome skip with the brief splash and an inked ring (§6.1). In the mess at noon (160 live agents, cap 168: CONTRACTS §8) that is every skip: busing the tray, the line, the toilet. The numbers say why: a 120 s fast-forward there is 2,400 ticks at about 1.8 ms, 4.4 s of compute and about 9 s of real time at 8 ms a frame (test 18 prints it), against 1–2 s in the bay. The rule reads only the state (the live actor list), so it is deterministic, and a fast-forward stays exactly lived ticks: TECH §8.2's `game-ff` (a fast-forward against the same ticks lived) holds unchanged. An earlier draft let actors outside the close ring think and look every fourth tick in a dear fast-forward; that is dropped, because it would make a fast-forward differ from lived time and would save little (thinking and looking are 0.25 ms of the mess's 1.83 ms).
 
 The fast-forward keeps "nobody pops in or out in view" (the hub) for short gaps, because people walk; the outcome engine keeps it by placing and recycling only behind ink. The outcome engine is what makes hours cheap. Both are deterministic and both end through the same `finishSkip`.
 
@@ -308,7 +308,7 @@ The fast-forward keeps "nobody pops in or out in view" (the hub) for short gaps,
 ```
 skip(state, bus, {
   activity: 'shower',               // key into the activities table (§8)
-  who: 'p0',                        // always the player; NPCs never call skip()
+  who: 'p233',                      // the player, playerId(state); NPCs never call skip() (CONTRACTS §10)
   durMs | untilMs | untilEvent,     // duration rule, resolved now to toMs
   chunkMs,                          // repeatable activities (read, study): 600,000
   where: { area, spot },            // the fixture spot you stand or sit at
@@ -327,10 +327,10 @@ Checks, in order (each failure gives an `ok:false` with a `why` the instinct can
 4. The activity's own preconditions (BODY: you cannot sleep standing at 1 G; WEAPONS: you need the rifle in hand, unloaded, to clean it; PLACES: the shower has water).
 5. The obligation check (§9.5): if `toMs` passes the next mandatory muster minus the walk there, the late card offers "fit it in" (shortened to end in time), "do it anyway" (sets `late: 'accepted'`) or "not now".
 
-Then the kind is chosen, from the state alone: `out` and `day` by the caller; `ff` if the planned gap is under `FF_MAX_S` and the area passes the crowded-area rule (§5.2), else `outcome`. Then:
+Then the kind is chosen, from the state alone: `out`, `day` and `world` (the prologue, the successor's gap, node's fixtures) by the caller; `ff` if the planned gap is under `FF_MAX_MS` and the area passes the crowded-area rule (§5.2), else `outcome`. Then:
 ```
 state.skip = {
-  id: 'k37', kind: 'ff' | 'outcome' | 'day' | 'out',
+  id: 'k37', kind: 'ff' | 'outcome' | 'day' | 'out' | 'world',
   activity, who, where, posture, mask, resolver, stance,
   fromMs, toMs, atMs: fromMs,       // atMs: how far the sim has got
   chunkMs, chunks: 0,
@@ -345,15 +345,15 @@ and the bus gets `skip-start { id, activity, kind, fromMs, toMs, where, posture,
 
 ### 5.4 One outcome step
 
-The loop calls `advanceSkip(state, bus, targetMs, budget)` each frame with the time the splash clock has reached (§6.2). The engine runs steps until the clock reaches `min(targetMs, toMs)` or the skip stops. TECH §5.3 implements it; this is the contract, on `state.clock` (TECH correction 1):
+The loop calls `advanceSkip(state, bus, targetMs, budget)` each frame with the time the splash clock has reached (§6.2). Where a step ends is set by the skip's kind and the state, never by the target: the target only gates whole steps (TECH §5.3; CONTRACTS §2). TECH §5.3 implements it; this is the contract, on `state.clock` (TECH correction 1):
 
 ```
-s = state.skip; limit = min(targetMs, s.toMs)
-while (t0 = state.clock.ms) < limit and not s.stop and not budget.over():
+s = state.skip
+while (t0 = state.clock.ms) < s.toMs and not s.stop and not budget.over():
   tEv = nextAt(state)                                     // the queue's earliest live event
-  if allSteady(state): t1 = min(limit, tEv, minNextChange(state, t0))   // event to event (§5.7)
-  else:                t1 = min(limit, tEv, floorToMinute(t0) + MIN_MS) // whole minutes, on the live minute grid
+  t1 = min(s.toMs, tEv, gridNext(s, state, t0))           // outcome, out: minutes; day: hours while steady; world: event to event
   t1 = max(t1, t0 + SEC_MS)                               // never a zero step; events sit on whole seconds
+  if t1 > targetMs: break                                 // the target gates whole steps, never cuts one
 
   slowStep(state, bus, t0, t1, { skipping: true, skip: s })   // §11.2: the same function the live minute layer calls
   activityStep(state, s, t0, t1)                          // the activity's own accruals (training hours, laundry, …)
@@ -390,7 +390,7 @@ This is the one definition of "lived equals skipped". BODY §2.6 and §25, PLACE
 - **Linear accruals** (dose at a constant rate, G·hours at a constant G, training hours, water used) are added per step.
 - **One set of step functions.** The live per-second layer, the live minute layer and the skip engine call the same functions, with the step length Δ the only difference: `bleedStep(p, Δ)`, `heatStep(p, env, Δ)`, `zoneStep(zone, Δ)` and their kin, each owned by its section. Nothing is modelled twice, so lived and skipped differ only by discretisation, which is measured.
 
-**What is not exact, and why.** Several processes are evaluated at step ends and so depend on Δ: BODY's clotting rule, the heat balance's own sub-steps (BODY §2.6: "heat balance a minute at a time"), limited exchange between zones (PLACES §3.1: "exact for exponentials, limited for exchange"), and hazards redrawn when a rate changes, which happens at different instants lived (to the second) and skipped (to the minute). So lived and skipped time cannot be bit-identical, and no part of the design may claim parity "by construction" (TECH §5.3's phrase is withdrawn).
+**What is not exact, and why.** Several processes are evaluated at step ends and so depend on Δ: BODY's clotting rule, the heat balance's own sub-steps (BODY §2.6: "heat balance a minute at a time"), limited exchange between zones (PLACES §3.1: "exact for exponentials, limited for exchange"), and hazards redrawn when a rate changes, which happens at different instants lived (to the second) and skipped (to the minute). So lived and skipped time cannot be bit-identical, and no part of the design may claim parity "by construction".
 
 **The contract.**
 
@@ -412,9 +412,9 @@ A tolerance that a change breaks is a bug in a step function, never a reason to 
 - **Whole seconds.** Every scheduled `atMs` is a whole second; a pre-drawn time is rounded down to its second. A skip that stops lands on that second, so the landing is exact.
 - In live play the tick dispatches every event with `atMs ≤ now` at its start (§11.1).
 
-### 5.7 The event-driven shortcut
+### 5.7 Event to event: `world` skips only
 
-When no per-minute process is active (`steady(state)`: nobody at the site bleeds, every compartment is at its set point, no suit is sealed, no voyage leg is ramping, no process lacks a closed form), the engine steps from event to event: the result is identical because every interrupt is an event and every process is closed form. In practice an 8-hour sleep in a quiet barracks is a few dozen steps (the hourly world jobs, the PEOPLE transitions in the squad bay, the reveille), not 480.
+Event-to-event steps are for `world` skips only, where no clock is shown (the prologue, the successor's gap, node's fixtures); a `day` skip steps whole hours while every contributor is steady; a splashed skip steps whole minutes (TECH §5.3, correction 19). An 8-hour sleep in a quiet barracks is 480 minute steps and about 40 events, about 7 ms (CONTRACTS §7).
 
 ### 5.8 Finishing and landing
 
@@ -441,19 +441,23 @@ finishSkip(state, bus):
 
 ### 5.9 Persistent people and the crowd after a skip
 
-- **Placement.** PEOPLE supplies `whereAt(person, ms) → { site, area, room, spot, activity, posture, path? }` (PEOPLE §4.6's `whereIs`), closed form from the sol's schedule plus overrides (sick bay, the brig, on leave, dead). At the end of an outcome skip, everyone whose `whereAt(end)` is the live area is put at their spot in their posture; anyone mid-walk is put on their path at the walked fraction (one A* on the area's grid, PLACES); anyone now elsewhere is removed. This is tradecraft's `staffing.js` rule ("already at their post if the clock jumped"), extended to every persistent person. Nobody is placed inside the iris, where the player can see: someone whose spot is there (the squadmate at the next sink) appears or leaves by the close frame's dissolve during the splash, at their `whereAt` time (§6.3). The renderer never interpolates a placement across a jump of more than `JUMP_M` 1.5 m (TECH §9.4, VIEWS §2.4; the user, tradecraft, 2026-11-04: "NPCs streak accross the screen when they spawn").
+- **Placement.** PEOPLE supplies `whereIs(person, ms)` (PEOPLE §4.6, with `posture` and `path`; CONTRACTS §13), closed form from the sol's schedule plus overrides (sick bay, the brig, on leave, dead). At the end of an outcome skip, everyone whose `whereIs(end)` is the live area is put at their spot in their posture; anyone mid-walk is put on their path at the walked fraction (one A* on the area's grid, PLACES); anyone now elsewhere is removed. This is tradecraft's `staffing.js` rule ("already at their post if the clock jumped"), extended to every persistent person. Nobody is placed inside the iris, where the player can see: someone whose spot is there (the squadmate at the next sink) appears or leaves by the close frame's dissolve during the splash, at their `whereIs` time (§6.3). The renderer never interpolates a placement across a jump of more than `JUMP_M` 1.5 m (TECH §9.4, VIEWS §2.4; the user, tradecraft, 2026-11-04: "NPCs streak accross the screen when they spawn").
 - **Walk-ins in live play.** A schedule that brings someone into the live area spawns them at an entrance (a door, a hatch, a corridor mouth) out of view, walking in; if every entrance is in view they wait up to 60 s, then come through the nearest door anyway: people come through doors, that is not popping. Leaving is walked out the same way. An area left unseen for `JUMP_MS` (2 minutes) has its people placed, not walked, when you come back.
 - **The crowd** (tier 4) is recycled after any outcome skip of 120 s or more (the user, tradecraft, 2026-11-03: "time passing (like during a judo class) doesn't seem to recycle the NPCs on the map?"): every throwaway person is dropped except casualties, and the area is refilled anywhere outside the iris at the new minute's density (tradecraft `crowd.js recycle`, `fill: true`). Casualties stay until someone takes them (the user, tradecraft, 2026-11-04: "shot and down NPCs … should stay loaded for a reasonable amount of time").
 - All of this happens while everything beyond the iris is ink, in the brief form as in the full (§6.1, §6.3), so the iris opens on a world that is already consistent. Test 20 checks it: no actor appears or vanishes in a visible cell across any kind of splash.
 
 ### 5.10 Performance
 
+TECH §5.9 implements these, and CONTRACTS §7 carries them for citation.
+
 | Work | Budget | Typical |
 |---|---|---|
 | one outcome step, quiet minute | ≤ 0.05 ms | a few µs plus whatever events fire |
-| an 8-hour sleep, event-driven | ≤ 25 ms in total, spread over the splash's frames | about 40 steps |
+| an 8-hour sleep in a quiet barracks | ≤ 25 ms in total, spread over the splash's frames | 480 minute steps and about 40 events: about 7 ms |
+| an 8-hour sleep beside a process that is not steady | ≤ 30 ms | 480 minute steps at ≤ 0.05 ms |
 | a chapter day (24 h with 24 world hours) | ≤ 30 ms | |
-| the default voyage (6.9 days) carried on in one go | ≤ 0.3 s, spread over the day splashes | 165 world hours and 7 world days of jobs: about 0.19 s by TECH §5.9's estimate (0.33 s for 12 days) |
+| the default voyage (6.9 days) carried on in one go | ≤ 0.3 s, spread over the day splashes | 165 world hours and 7 world days of jobs: about 0.19 s by TECH §5.9's estimate |
+| the homeward voyage (12.5 days) carried on in one go | ≤ 0.5 s, spread over the day splashes | 288 hour steps with their hourly jobs and 36 daily ones: about 0.33 s for 12 days by TECH §5.9's estimate |
 | fast-forward | ≤ 8 ms of sim per frame; 120 s in about 3 s of real time at most | 40 ticks at 0.2 ms; at the crowded-area limit (50 actors for 120 s, about 0.55 ms a tick by TECH §3.1's per-actor cost) about 2.7 s |
 | an `out` fast-forward in a fight | ≤ 12 ms of sim per frame (`FF_OUT_FRAME_MS`) | 11 minutes in about 9 s of blackout (§4.5) |
 
@@ -494,7 +498,7 @@ The displayed clock follows an ease: progress `p(τ) = ease-in-out over [0, 1]`,
 ### 6.3 What the time-lapse shows
 
 - **The close frame** is VIEWS' iris: everything within `SPLASH_IRIS_M` 3.5 m of the splash's centre (between you and the appliance). Things inside it move fast and truly.
-  - **At 0.1**: you, the fixtures and the effects (the steam, the light through a window or a port, the timer on the shower panel, the clock); and persistent people whose `whereAt` puts them inside the iris, who appear and leave by a 4×4 Bayer dissolve at their `whereAt` times (a squadmate at the next sink who leaves at minute 7; his departure is in `skip.frame`). People using the same appliance with you (the squad at your mess table) play their activity's idle frames.
+  - **At 0.1**: you, the fixtures and the effects (the steam, the light through a window or a port, the timer on the shower panel, the clock); and persistent people whose `whereIs` puts them inside the iris, who appear and leave by a 4×4 Bayer dissolve at their `whereIs` times (a squadmate at the next sink who leaves at minute 7; his departure is in `skip.frame`). People using the same appliance with you (the squad at your mess table) play their activity's idle frames.
   - **At 0.2**: the occupancy ghosts VIEWS §16 lists for the voyage milestone: persistent people coming and going through the iris as dithered ghosts in their activity's frame, and a room's occupancy (the mess hall's tables filling and emptying) drawn from PEOPLE's occupancy curve. An outcome skip has no crowd agents to draw, so the crowd is never in the time-lapse.
 - **The clock** of your device, including the slip: the face stops at 24:00, the `+mm` runs, then 00:00 and the sol number turns over.
 - **The ticker**: one line at a time from `skip.ticker` (ambient events, activity milestones: "Water off. 06:52."; the PA; a message's sender). At most one line per 0.8 s of real time; the rest go to the log.
@@ -688,7 +692,7 @@ A standard night at Melas, taps 22:00 to reveille 05:30, is 7 h 30 m on the cloc
 
 Training credit for a skipped block is the same as for a lived one (time is the currency: SKILLS §6.3 counts hours either way), at the stance the player chose (§9.3): carrying on keeps the price of effort, and living keeps the moment-to-moment choices and the story, the moments where your decisions or a squadmate's trouble change the outcome (§9.4).
 
-**A G-house block, worked** (the G-qualification's Ring stint on the standby's Thursday afternoon, ROADMAP moment 3): the 12:40 formation marches to the G-house (PLACES §4.3: 514 m, 7.5 min at BODY's 1.14 m/s walk on Mars), 12:48; boarding 5 min, 12:53; spin-up 6 min, 12:59; a 3 h stint at 1 G to 15:59; spin-down 6 min, 16:05; then the Long Arm by appointment (brief, profile, recovery: about 25 min) until 16:30. Train-b (12:45–16:30) therefore holds **3 h at 1 G with the Long Arm after it**, or 3 h 25 min without; train-a (08:00–11:30) holds about 3 h 15 min. CAREER §7.3's G-1 test ("4 h working at 1 G, then 10 min at 3 G") fits neither block: CAREER shortens the stint to 3 h, which I recommend, or runs the qualification over both blocks with the noon meal as rations in the Ring's lounge car (the doors stay locked while it spins). A single-seat Long Arm qualifies a platoon over several sols, by appointment; the player's run is the one on the stage.
+**A G-house block, worked** (the G-qualification's Ring stint on the standby's Friday afternoon, career sol 4's `train-b`: CAREER §5.4, CONTRACTS §3): the 12:40 formation marches to the G-house (PLACES §4.3: 514 m, 7.5 min at BODY's 1.14 m/s walk on Mars), 12:48; boarding 5 min, 12:53; spin-up 6 min, 12:59; CAREER §7.3's 2 h stint at 1 G to 14:59; spin-down 6 min, 15:05; then the Long Arm by appointment (brief, profile, recovery: about 25 min) until about 15:30. Train-b (12:45–16:30) therefore holds **the 2 h stint with the Long Arm after it**, with about an hour left for the march back to `maintenance`; at most it holds 3 h at 1 G with the Long Arm, or 3 h 25 min without, and train-a (08:00–11:30) about 3 h 15 min. A single-seat Long Arm qualifies a platoon over several sols, by appointment; the player's run is the one on the stage.
 
 ### 8.7 Duty, social, medical, transport
 
@@ -779,13 +783,13 @@ Each is an ordinary activity under §8.1 and §5: walked to, skipped behind its 
 
 ## 9. The Plan of the Day
 
-The Plan of the Day (PoD) is a real Marine Corps document: the unit's schedule for tomorrow, posted the evening before. In OLYMPUS it is the time structure of every sol on base and every ship's day with troops embarked. **§9.2 is the one PoD table**: CAREER, BODY, PEOPLE, PLACES and ROADMAP cite its times and never restate them. PEOPLE fills its content and rosters (its templates reference block ids, never clock times, PEOPLE §4.1); CAREER says which block kind fills which weekday's slots by phase (the standby's lessons, CAREER §5.4); this section settles its shape, its times and how time moves through it.
+The Plan of the Day (PoD) is a real Marine Corps document: the unit's schedule for tomorrow, posted the evening before. In OLYMPUS it is the time structure of every sol on base and every ship's day with troops embarked. **§9.2 is the one PoD table**. CONTRACTS §4 carries its times for citation, changed in the same change as this table. CAREER, BODY, PEOPLE, PLACES and ROADMAP cite its times and never restate them. PEOPLE fills its content and rosters (its templates reference block ids, never clock times, PEOPLE §4.1); CAREER says which block kind fills which weekday's slots by phase (the standby's lessons, CAREER §5.4); this section settles its shape, its times and how time moves through it.
 
 ### 9.1 Data
 
 ```
 pod = {
-  unit: '1/2/E/2/4', site: 'melas', locale: { kind: 'mars', lonE: 287.2 },
+  unitId: '2/4-E-2-1', site: 'melas', locale: { kind: 'mars', lonE: 287.2 },
   day: 169905,                         // the local day's index (§11.3): the sol on Mars, the UTC day aboard
   weekday: 1,                          // 0 = Monday (SETTING §3.4); picks the row of §9.2's week
   publishedMs,                         // 20:00 local the evening before
@@ -794,7 +798,7 @@ pod = {
     id: 'pt', kind: 'pt',              // ids as PEOPLE §4.1 uses them
     start: '05:45', end: '06:45',      // civil local; resolved to ms by atMarsLocal
     muster: { area: 'company-street', spot: 'formation-2' },
-    who: 'platoon' | 'squad' | ['p0', 'n14'],
+    who: 'platoon' | 'squad' | ['p233', 'p41'],
     dress: 'pt',
     attendance: 'mandatory' | 'optional' | 'window',   // a window: chow, sick call
     live: 'choice' | 'forced' | 'skip-only',
@@ -802,7 +806,7 @@ pod = {
     beat: 'big' | null,                // a block that is itself the sol's spike: an inspection, a first time, a qualification (§9.8)
     lateRule: 'formation' | 'class' | 'duty' | 'window'
   } ],
-  duties: [ { post: 'fire-watch-sqbay-2', from: '02:00', to: '04:00', who: 'p0' } ]
+  duties: [ { post: 'fire-watch-sqbay-2', from: '02:00', to: '04:00', who: 'p233' } ]
 }
 ```
 
@@ -847,11 +851,11 @@ The night is 7 h 30 m on the clock and 8 h 9 m 35 s in the rack, because the sli
 
 **On standby** (the start of a career): liberty only within the recall radius (Redwater), and one unannounced recall or alert drill a week at a hashed time between 22:00 and 05:00 or during a free block (an A interrupt) (my call).
 
-**The first standby, by weekday.** The career starts on Monday Sol 590 at 12:40 (SETTING §3.7), so CAREER §5.4's standby sols fall: sol 0 Monday (arrival and check-in), sol 1 Tuesday, sol 2 Wednesday, sol 3 Thursday (field day that evening), sol 4 Friday (the inspection), sol 5 Saturday and sol 6 Sunday (holiday routine), sol 7 Monday. CAREER §5.4 lists which block kind fills which slot on those weekdays; its sol-5 field exercise falls on a Saturday, so CAREER moves it to a weekday or marks that Saturday `routine: 'field'`. The orders paper's dates (CAREER §5.7's sample says "Sol 251") are generated from this calendar: the standby runs Sol 590 to Sol 597–604.
+**The first standby, by weekday.** The career starts on Monday Sol 590 at 12:40 (SETTING §3.7), so career sol n falls on weekday n mod 7, Monday first: career sol 0 Monday (arrival and check-in), 3 Thursday (field day that evening), 4 Friday (the inspection), 5 and 6 Saturday and Sunday (holiday routine), 7 Monday. CAREER §5.4 books which block kind fills which slot on those weekdays, and CONTRACTS §3 carries the lessons by weekday; the mission rehearsal exercise runs on the second Monday and Tuesday, so no lesson falls on a weekend. The orders paper's dates are generated from this calendar: the first recruit's standby is `STANDBY_SOLS` 10 (slip 0), the warning order comes on Wednesday Sol 599 and the battalion sails from Phobos on Sol 602 (CAREER §5.9; CONTRACTS §3).
 
 On ships, the detachment's PoD runs on UTC with the same shape (reveille 06:00Z, taps 22:00Z), shortened sleep (no slip: Martians call the 24-hour day "the short day", my call), and the ship's drills and maneuvers as forced moments (§12).
 
-**Who cites this table.** CAREER §5.4's working-sol times (formation 07:30, chow 11:30–13:00, training 13:00–16:30, maintenance to 17:00, evening chow from 17:00), CAREER §14.3's mail call "16:30, names called in formation", BODY §7.1's 06:00 reveille (and its 8 h 39 m 35 s in the rack), and PEOPLE §4.2's and §11.10's "sol 6" inspection are replaced by the times above. PLACES §4.3's walking times take their speed from BODY's gait helper (1.14 m/s on Mars, BODY §16.1), not 1.2 m/s.
+**Who cites this table.** CAREER §5.4's earlier working-sol times (formation 07:30, chow 11:30–13:00, training 13:00–16:30, maintenance to 17:00, evening chow from 17:00), CAREER §14.3's mail call "16:30, names called in formation", BODY §7.1's earlier 06:00 reveille (BODY now reads 05:30 and 8 h 09 m 35 s in the rack), and PEOPLE §4.2's and §11.10's "sol 6" inspection are replaced by the times above. PLACES §4.3's walking times take their speed from BODY's gait helper (1.14 m/s on Mars, BODY §16.1), not 1.2 m/s.
 
 ### 9.3 Living a block or skipping it
 
@@ -1053,7 +1057,7 @@ TECH owns the module layout and the implementation of the tick; this section is 
 4. **Fast layer**, the live area only: movement (the player, then actors), the spatial rehash, perception, thinking (staggered by id hash), the rules (weapons and stop-motion steps, CQC, inertial bodies, fast environment effects such as a room venting), the player's fast body (bleeding on whole seconds, G-LOC, breath-hold, pain).
 5. **Per-second sub-layer**, on whole seconds (`clock.ms mod 1000 = 0`; per-entity work staggered by `floor(clock.ms / TICK_MS) mod 20 = hash(id) mod 20`, TECH §3.2): the crowd topped up out of view, walk-ins and walk-outs (§5.9), noticing, the instinct's `settle()`, the HUD's offers.
 6. The clock: `clock.ms += 50`, `clock.tick += 1` (a lived tick).
-7. If a game minute ended: `slowStep(state, bus, minuteStart, minuteEnd, { skip: false })`, the same function the skip engine calls (§5.4).
+7. If a game minute ended: `slowStep(state, bus, minuteStart, minuteEnd, { skipping: false })`, the same function the skip engine calls (§5.4).
 8. The autosave check (§13).
 
 Decisions made in one tick act in the next (both projects' rule).
@@ -1090,7 +1094,7 @@ Recurring jobs are events that re-post themselves (TECH §4.3's `every` grammar:
 
 **One job for many people.** A per-day pass is one event that walks the site's people in id order, never one event per person: about 230 people with a daily event each in body time would fill the queue for nothing (TECH §4.4's cap). BODY's "04:00 body time" survives only as the body clock's own marker (where "body morning" begins for the bowel's reflex and the kidneys' night cut, BODY §7.2), read in closed form and never posted as an event.
 
-**Absolute periods.** Physiological and skill rollovers (fitness weeks, rust's 28-day periods) are counted in absolute time since the career began (`every@` with `k × 7 × DAY_MS`), not on any calendar, so they never jump when you move between sols and UTC days (my call; BODY and SKILLS own the rules).
+**Absolute periods.** Physiological and skill rollovers (fitness weeks, rust's periods) are counted in absolute time since the career began (`every@<ms>` at `k × FIT_WEEK_MS` and `k × RUST_PERIOD_MS`, 7 and 28 sols, whose only definitions are SKILLS §8's and §7's; CONTRACTS §5), not on any calendar, so they never jump when you move between sols and UTC days (my call; BODY and SKILLS own the rules).
 
 ### 11.4 Level of detail
 
@@ -1186,13 +1190,13 @@ Phobos to Jupiter's space, departing on SETTING §6.5's default day, Sol 602 (23
 
 Light lag to Mars grows from under a second to about 47 minutes on the way. Departing 60 days later the chord is 4.93 AU and the 1 G burn takes 6.34 days; at LONGHAUL's epoch (chord 6.40 AU) it was 7.23 days.
 
-**One method, said once.** The timeline is the closed form plus the real legs (§12.3), which is how every hull on rails flies in LONGHAUL's world and in OLYMPUS's (`world.js transitStateAt`; the Coprates transports are on rails, SETTING §6.3). LONGHAUL's measured 5–12% overhead (about +8% on long transfers) comes from its guidance law flying a commanded hull by feedback at one-minute steps; it is not physics a Navy navigator would fly, so it is left out of every OLYMPUS voyage, SETTING's tables included. SETTING §2.4's "flown" column (7.32 d at 1 G for this departure) and §6.5's 7.3 days become `voyagePlan()`'s 6.87 days door to door, plus the capture, when SETTING next changes (§19).
+**One method, said once.** The timeline is the closed form plus the real legs (§12.3), which is how every hull on rails flies in LONGHAUL's world and in OLYMPUS's (`world.js transitStateAt`; the Coprates transports are on rails, SETTING §6.3). LONGHAUL's measured 5–12% overhead (about +8% on long transfers) comes from its guidance law flying a commanded hull by feedback at one-minute steps; it is not physics a Navy navigator would fly, so it is left out of every OLYMPUS voyage, SETTING's tables included: SETTING §2.4 and §6.5 quote `voyagePlan()`'s 6.87 days door to door at 1 G and 12.48 at 0.3 G (CONTRACTS §14).
 
 **The default profile is SETTING's** (SETTING §6.5 owns MCRN doctrine: "fight at one G"): **1 G out**, a week of Earth weight that the Corps' G-conditioning exists for; 0.3 G home after months at 0.134 G (SETTING's open question 2, the one question put to the user, §20). This section's earlier draft defaulted to 0.38 G (11.8 days); it is withdrawn. Which profile each deployment files is CAREER's (the deployments catalogue), within SETTING's doctrine. PLACES §5.2's transport takes its cruise G from the filed profile, not from a hull constant.
 
 ### 12.6 Drops, ascents and rides
 
-- **Drop rides** (COMBAT and PLACES own the scene): planned from LONGHAUL's `planetary.js` profiles, cached per world and craft. Europa, to Pwyll: 0.91 h of mostly free-fall coast from the parking orbit and a powered descent, which LONGHAUL's pinnace flies in 1.5 min at up to 3.69 G and the Corps' Simoom lander, throttled to its troop-rated 2.5 G, in about 2 min (SETTING §6.4). Mars, pinnace: 2.0–2.9 h to the entry, 38 min of entry at up to 2.16 G, a powered landing. Lived: separation, each burn's ignition, the entry interface or the hover, touchdown; the coasts are `strapped-in`.
+- **Drop rides** (COMBAT and PLACES own the scene): planned from LONGHAUL's `planetary.js` profiles, cached per world and craft. Europa, to Pwyll: 0.91 h of mostly free-fall coast from the parking orbit and a powered descent, which LONGHAUL's pinnace flies in 1.5 min at up to 3.69 G and the Corps' Simoom lander in a braking burn of up to about 77 s at its troop-rated 2.5 G cap, then 90 s from the hover under 1 G (SETTING §6.4; CONTRACTS §14). Mars, pinnace: 2.0–2.9 h to the entry, 38 min of entry at up to 2.16 G, a powered landing. Lived: separation, each burn's ignition, the entry interface or the hover, touchdown; the coasts are `strapped-in`.
 - **Melas to Phobos:** an assault lander from Melas Field (SETTING §6.5: 2–3.5 h in all; about 5 min of ascent capped at 2.5 G, then free fall with a few minutes of 1 G burns), to Phobos' orbit at 9,377 km and the Pens. Windows come every 11.1 h (Phobos' synodic period over a surface site); the wait for one is a `stand-by` at the terminal, up to 6 h (LONGHAUL `shuttles.js WINDOW_MAX`).
 - **Ground rides** (the bus to Redwater, a rover, the rail): PLACES' timetables; the wait at the stop is `stand-by`, the ride is `ride`, boarding and getting off are lived.
 
@@ -1221,7 +1225,7 @@ The hub settles IndexedDB, plain JSON, Ironman with one autosave, Standard with 
 
 **Ironman adds:** the moment combat begins in your area (the first shot by anyone, or general quarters), and death, saved at once, so that closing the tab never undoes a fight or a death (my call, the purpose of "death ends the career", the user, 2026-11-05).
 
-**Slots:** Ironman one (`ironman`); Standard `auto`, `auto-prev` (the one before, my call) and manual slots.
+**Slots:** TECH §7.2's (CONTRACTS §12): Standard `auto`, `auto-prev` (rotated on time), `day`, `manual-1` to `manual-9`, `edge`; Ironman `ironman` and the hidden `ironman-prev`.
 
 **What is saved** (TECH §6.1's keys, adopted word for word):
 - `clock`: `{ ms, tick, holds, seq }` (correction 1);
@@ -1243,7 +1247,7 @@ Runtime structures (`$`-prefixed: the queue's `$events.bySrc` index, caches) are
 6. The splash and the UI never change the sim. "To the end" moves only the splash's target, which never changes the result; "stop here", "one more chunk" and a block's stance are sim inputs applied at a known sim minute, recorded like any input (TECH §5.5, §8.3).
 7. Real time never enters the sim. The splash's real speed decides only how many simulated minutes a frame computes; the result does not depend on it.
 8. Iteration order that decides anything is sorted: by id through `ids(obj)` or by a total comparator (TECH §8.1, rule 9), never a JS object's own key order (a canonical save writes keys sorted, so it changes after a load) and never a `Set` or `Map` built from hashed keys.
-9. Float results must be identical within one engine (V8: the user's Chrome and the node tests). Equality across engines is not required (my call): `Math.exp` and friends may differ by an ulp between engines, and saves are not moved between engines in normal use. Integer time and calendar arithmetic are exact everywhere.
+9. Float results must be identical within one engine. Chrome's V8 and node's are different versions (TECH §8.1, rule 11): transcendental results are rounded by `q()` before they are saved, and a page replay is the authority when node's V8 differs. Equality across engines is not required (my call): `Math.exp` and friends may differ by an ulp between engines, and saves are not moved between engines in normal use. Integer time and calendar arithmetic are exact everywhere.
 10. A save and load at any step boundary (mid-tick excluded) continues identically (§15).
 
 ---
@@ -1265,13 +1269,13 @@ Runtime structures (`$`-prefixed: the queue's `$events.bySrc` index, caches) are
 9. **Events land exactly:** an alarm at 05:20:00 during a sleep; prints the landing ms (exact), the activity's partial outcome, and that P5 events went to the ticker; a D and an S event at the same second resolve D first; two events at the same second and priority posted as `e999` and `e1000` resolve in posting order.
 10. **Masks:** a table of every activity class against every priority, printed, compared with §7.3.
 11. **Splash timing** (`splash`, shared with VIEWS §14): prints `S(m)` for the gaps of §6.2, and for every activity in §8 at its typical length the real seconds of its splash (brief or full, every phase) at a fixed frame rate: Melas' 10-minute shower 4.3 s, a night 7.7 s. Asserts the strip waits for a key only when the outcome holds a failed roll.
-12. **Persistent placement:** a squad bay with 13 persistent people; skip 23:00 to 05:25; prints who is where and in what posture at the end and asserts it matches `whereAt`; a crowd area prints the throwaway count before and after recycling and the casualties kept.
+12. **Persistent placement:** a squad bay with 13 persistent people; skip 23:00 to 05:25; prints who is where and in what posture at the end and asserts it matches `whereIs`; a crowd area prints the throwaway count before and after recycling and the casualties kept.
 13. **Plan of the Day:** prints a week of the standby from Monday Sol 590 in ms and Melas time, by weekday (Thursday's field day, Friday's inspection, the weekend's holiday routine); arrival times at −6, −3, +1, +5, +15, +45 min print their lateness classes.
 14. **Chapter** (heavy): the default voyage (1 G, 6.9 days door to door) carried on with one allocation; prints each forced moment with its UTC, the number of day cards, the offers per day, the drills and the incident, the beats delivered (at least one a week) and the total compute in ms.
 15. **Voyage:** prints chord, burn time, flip time, peak speed and door-to-door for 0.3, 0.38, 0.5 and 1 G departing Sol 602 (§12.5), felt G and deck state at 20 sample times, the secure windows, the ramp's fall from 1 and 2 m (§12.3), and light lag to Mars at departure, flip and capture. Asserts SETTING's tables quote `voyagePlan()`'s numbers.
 16. **Determinism:** 3,000 ticks, an outcome skip of 2 h, 3,000 ticks; run twice and once with a save and load inside the skip's splash; prints the three JSON hashes and asserts equality; prints µs per tick and µs per simulated minute.
 17. **Stop-motion exits:** enters stop motion, then each of death, knockdown, being pinned, being restrained, strapping in under 1.5+ G; asserts the state leaves still and every actor in the area moves on the next tick.
-18. **Performance** (heavy): prints the times of §5.10 against their budgets, and the real seconds of a forced 120 s fast-forward in `mess` at noon (168 actors; about 9 s) against the same gap as the outcome skip the crowded-area rule chooses there; prints which engine the rule picks for 45, 90 and 120 s gaps in the bay, on a range lane, in a berthing and in the mess.
+18. **Performance** (heavy): prints the times of §5.10 against their budgets, and the real seconds of a forced 120 s fast-forward in `mess` at noon (160 live agents, CONTRACTS §8; about 9 s) against the same gap as the outcome skip the crowded-area rule chooses there; prints which engine the rule picks for 45, 90 and 120 s gaps in the bay, on a range lane, in a berthing and in the mess.
 19. **Knocked out mid-fight** (heavy): a fight scene; the player is knocked out for 11 minutes; asserts the `out` skip runs as a fast-forward, the fight's actors act tick by tick, the corpsman reaches the player at a tick the log records, and the skip turns into an outcome skip when the fight record closes; prints the ticks, the compute ms and the real seconds behind the blackout.
 20. **Nobody pops in view:** for every splash kind (brief fast-forward, brief outcome, full, interrupted, a landing with a runner), records the set of actors drawn in visible (not inked) cells each frame; asserts no actor appears or vanishes in a visible cell except by walking across the view's edge or through a door, and that a runner lands outside the iris; prints the counts.
 21. **Care is asked:** a spent day with the default care line, then with a skipped meal and a ration canteen, then on a rationed site; asserts nothing is consumed outside the ticked line (no personal item without its tick), and that a shortfall lands as a forced moment; prints the day's ledger of meals, water and items.
@@ -1293,7 +1297,7 @@ Runtime structures (`$`-prefixed: the queue's `$events.bySrc` index, caches) are
 | tradecraft `src/sim/shooting.js` phases | **adapt** (WEAPONS owns it) | the choose/act freeze rule kept as the stop-motion clock |
 | tradecraft `src/sim/reading.js` | **adapt** | 10-minute chunks for reading and study, "one more chunk" |
 | tradecraft `src/sim/crowd.js` `recycle`, `lies` | **adapt** (PEOPLE owns it) | `RECYCLE_S 120` kept, re-expressed on areas |
-| tradecraft `src/sim/interiors/staffing.js` | **adapt** (PEOPLE owns it) | the 2-minute jump rule generalised to every persistent person's `whereAt` |
+| tradecraft `src/sim/interiors/staffing.js` | **adapt** (PEOPLE owns it) | the 2-minute jump rule generalised to every persistent person's `whereIs` |
 | tradecraft `scenarios/campaign.js` `passTo`, `campaign.js pass` | **reference** | the day-by-day catch-up producing papers becomes the chapter's day loop and the papers cadence |
 | LONGHAUL `js/sim/world.js` `transitStateAt`, `traffic.js` | **adapt** | the transit closed form becomes `voyagePlan()`'s `placeAt` in `src/world/voyage.js`; legs and deck states added; no guidance overhead, as on LONGHAUL's rails (§12.5) |
 | LONGHAUL `js/sim/autopilot.js` crew policy and flip interlock | **port as data** | `PREP_MINUTES 10`, `FLIP_MINUTES 6`, secure 30 min before a flip, 10 min after ignition, the last hour, `SECURE_LINGER 10`, the 1.5 G line |
@@ -1383,16 +1387,16 @@ What is never removed: walking (the base is where the world is), the moments of 
 What TIME relies on, by section, and what the review asks of each owner where TIME's rules now differ from their text (they align in their next change; until then this section and the hub decide):
 
 - **DESIGN.md (the hub):** name TIME as the owner of the sol's rhythm under Pillar 8 (the sol director, §9.8). The Time settled decisions' "an open overlay pauses" reads, with VIEWS, as "a card pauses; in-world screens and the terminal run" (§4.2).
-- **SETTING:** the calendar's definitions, imported from `src/data/setting/calendar.js` (§2.5); the start (§3.7); the names of the clocks ("Melas time", "UTC" or "Zulu"), the wrist terminal's name, the slip's lore and the "short day", Europa's shift names (SETTING §3.6); MCRN doctrine on troop voyage profiles and the one transport class (SETTING §6.3, §6.5). *Asked:* SETTING §2.4's "flown" column and §6.5's 7.3 days take `voyagePlan()`'s door-to-door (6.87 days at 1 G departing Sol 602) and drop the +8% (§12.5); its open question 2 also carries the method, so the user is asked once (§20); `SITES.melas.latDeg` takes PLACES's −10.5; the `setting-calendar` test exports its vectors for TIME's tests (§15).
-- **PLACES:** Base Melas' exact latitude and longitude (287.2° E, 10.5° S, PLACES §4.1) and the canyon's horizon profile; fixture uses and spots; muster areas as polygons; entrances for walk-ins; nav paths and their lengths; each site's water rule for showers and when a site is rationed (§10.3); timetables for rides; the environment's per-minute step and its `steady` flag, with step functions shared between the 1 Hz and per-minute layers (§5.5); **tolerances for pressure, temperature and gases** in the parity contract (my defaults in §5.5 until set); the Ring's spin-up, spin-down and seats (§8.6, §8.9); the laundry machines as world timers; wall clocks as fixtures; the content of the garrison incidents it owns (§9.8) and of the voyage's drills and real incident (§12.8). *Asked:* §4.3's walking times from BODY's gait helper (1.14 m/s on Mars); §5.2's transport is SETTING's Coprates class and takes its cruise G from the filed profile (1 G by default), not 0.38 G.
-- **BODY:** needs as anchors and rates with `valueAt` and `nextCrossings`; bleeding and heat as step functions of Δ shared by every layer (§5.5); `heal(person, days)` that composes over fractions of a day, called only by the hourly healing slot; core heat; dose rate, limit and the dose clock; G exposure from `feltAt`, and the day's G stimulus after 45 min (§8.6); sleep pressure, natural waking, sleep depth and inertia; the circadian phase and misalignment for the estimate; consciousness and its crossings (`out` skips); walking speed by gravity and state; impact effects, including the ramp's 1.3 m/s and an instant relight's 4.4 m/s (§12.3); the stances' body numbers (§9.3); the 3–4 toilet visits a sol tuning. *Asked:* §2.2's day layer runs as the one `local@00:00` job and no longer heals; its "04:00 body time" stays only as the body clock's marker (§11.3); §7.1's sleep figures use §9.2's 05:30 reveille (8 h 9 min 35 s in the rack); `body-cond`'s voyage row cites SETTING's profile (a week at 1 G) rather than 12 days at 0.3 G.
+- **SETTING:** the calendar's definitions, imported from `src/data/setting/calendar.js` (§2.5); the start (§3.7); the names of the clocks ("Melas time", "UTC" or "Zulu"), the wrist terminal's name, the slip's lore and the "short day", Europa's shift names (SETTING §3.6); MCRN doctrine on troop voyage profiles and the one transport class (SETTING §6.3, §6.5). *Answered* in SETTING's revision: §2.4 and §6.5 quote `voyagePlan()`'s door to door (6.87 days at 1 G departing Sol 602) with no +8% (§12.5; CONTRACTS §14), and `SITES.melas.latDeg` is PLACES's −10.5. *Asked:* its open question 2 also carries the method, so the user is asked once (§20); the `setting-calendar` test exports its vectors for TIME's tests (§15).
+- **PLACES:** Base Melas' exact latitude and longitude (287.2° E, 10.5° S, PLACES §4.1) and the canyon's horizon profile; fixture uses and spots; muster areas as polygons; entrances for walk-ins; nav paths and their lengths; each site's water rule for showers and when a site is rationed (§10.3); timetables for rides; the environment's per-minute step and its `steady` flag, with step functions shared between the 1 Hz and per-minute layers (§5.5); **tolerances for pressure, temperature and gases** in the parity contract (my defaults in §5.5 until set); the Ring's spin-up, spin-down and seats (§8.6, §8.9); the laundry machines as world timers; wall clocks as fixtures; the content of the garrison incidents it owns (§9.8) and of the voyage's drills and real incident (§12.8). *Answered* in PLACES's revision: §4.3 times its walks at BODY's 1.14 m/s (the outdoor gait stays open, CONTRACTS §19, item 2); §5.2's transport is SETTING's Coprates class, its felt G the filed profile's (1 G out by default), with no cruise G of its own.
+- **BODY:** needs as anchors and rates with `valueAt` and `nextCrossings`; bleeding and heat as step functions of Δ shared by every layer (§5.5); `heal(person, days)` that composes over fractions of a day, called only by the hourly healing slot; core heat; dose rate, limit and the dose clock; G exposure from `feltAt`, and the day's G stimulus after 45 min (§8.6); sleep pressure, natural waking, sleep depth and inertia; the circadian phase and misalignment for the estimate; consciousness and its crossings (`out` skips); walking speed by gravity and state; impact effects, including the ramp's 1.3 m/s and an instant relight's 4.4 m/s (§12.3); the stances' body numbers (§9.3); the 3–4 toilet visits a sol tuning. *Answered* in BODY's revision: §2.2's day layer is the one `local@00:00` job and no longer heals, its "04:00 body time" only the body clock's marker (§11.3); §7.1's sleep figures use §9.2's 05:30 reveille (8 h 9 min 35 s in the rack); `body-cond` and §14.1 print SETTING's two voyages (1 G out for 6.9 days, 0.3 G home for 12.5).
 - **SKILLS:** a pace curve (or acceptance of `chorePace`); training-hour credit for lived and skipped blocks at their stance (§9.3); class resolvers; the asleep-on-post and nodding-off checks; tempos for the range's stances (SKILLS §5.9); Awareness DCs for reflexes on landing.
 - **WEAPONS:** dirt factors; strip, clean and reassembly as steps (the field-stripped state on landing); magazine loading times; the range block's resolver and relays at a stance; stop-motion step durations; the drill-round box (§8.9); the lost-weapon lockdown's content (§9.8).
 - **COMBAT:** `threatKnown(state)`; reflex kinds and DCs; general quarters and alerts as events; suit-up's emergency tempo numbers (§8.2, from COMBAT §13.2); the encounter director's encounters as events with approach paths; field-exercise resolvers; drop-ride scenes and the G cap for troop landers; ship combat's hold points (COMBAT §13.3, cited in §12.4); the drills' content (§12.8). *Asked:* §3.6 says what §4.5 says: an `out` skip in a fight is a fast-forward, not an off-screen exchange.
-- **PEOPLE:** `whereAt(person, ms)` (PEOPLE §4.6's `whereIs`); rosters and the PoD's content by block id; the relief call's forgetting; discipline from lateness records; story beats for the weekly guarantee; S events (someone coming to talk); offers for the day card (§10.3); the hip-pocket classes and the bounding league (§8.9); content for the incidents it owns (§9.8); tier-3 daily outcomes; crowd recycling, density and casualties; the mess line model and the occupancy curve (§6.3, 0.2). *Asked:* §4.2's and §11.10's "sol 6" inspection is Friday's (§9.2); §13.2's hourly pass runs at :05 UTC, its per-sol pass and §15.2's arc director at §11.3's slots, not "inside the timeslip".
-- **CAREER:** pay's epoch and amounts; orders, evaluations and their cadence; mail content; the first-time-lived list for the tutorial; deployments' voyage profiles within SETTING's doctrine; schools, leave and hospital stays as chapters; Ironman. *Asked:* §5.4 lists only which block kind fills which weekday's slots and cites §9.2's times (its sol-5 field exercise falls on a Saturday); §5.7's orders paper takes its dates from the calendar ("Sol 251" is outside the standby's Sol 590 to 604); §7.3's G-1 stint fits a block (3 h, §8.6), and its clause "because the troopship's thrust is under 1 G" becomes a rule for a 1 G voyage: G-2 to embark, or the remedial programme until G-2; §14.3's mail call is §9.2's 18:30.
+- **PEOPLE:** `whereIs(person, ms)` (PEOPLE §4.6); rosters and the PoD's content by block id; the relief call's forgetting; discipline from lateness records; story beats for the weekly guarantee; S events (someone coming to talk); offers for the day card (§10.3); the hip-pocket classes and the bounding league (§8.9); content for the incidents it owns (§9.8); tier-3 daily outcomes; crowd recycling, density and casualties; the mess line model and the occupancy curve (§6.3, 0.2). *Asked:* §4.2's and §11.10's "sol 6" inspection is Friday's (§9.2); §13.2's hourly pass runs at :05 UTC, its per-sol pass and §15.2's arc director at §11.3's slots, not "inside the timeslip".
+- **CAREER:** pay's epoch and amounts; orders, evaluations and their cadence; mail content; the first-time-lived list for the tutorial; deployments' voyage profiles within SETTING's doctrine; schools, leave and hospital stays as chapters; Ironman. *Answered* in CAREER's revision: §5.4 books its lessons into §9.2's blocks by weekday (the mission rehearsal exercise on the second Monday and Tuesday, CONTRACTS §3); §5.7's orders paper takes its dates from the calendar; §7.3's G-1 stint is 2 h, inside Friday's `train-b` with the Long Arm (§8.6), and a G-3 recruit deploys with a note; §14.3's mail call is §9.2's 18:30.
 - **VIEWS:** the splash's look, the iris (`SPLASH_IRIS_M` 3.5 m) and the close plates; the day page; the clock faces' drawing; the outcome strip's icons; drawing to §6.2's timing and §6.4's keys (its own curve and Esc-to-skip replaced); the papers tray; the reading-light threshold; the occupancy ghosts at 0.2 (§6.3). *Asked:* §8.8 says whether a letter opened from the terminal opens as a pausing paper card (TIME assumes it does, §4.2).
-- **TECH:** the module layout and paths (§1), the tick's implementation, the event heap (§5.6), the slicing of skips across frames, saves and the `time` key's additions (§13), the debug handle (`__olympus.skip(ms)` runs an `idle` outcome skip with mask `D`), URL parameters (`&t=MY211.S590.1240` for Melas time, `&utc=2351-12-19T02:20Z`), the headless exemption from the blur and hidden pauses and `withGame`'s check (§4.2). *Asked:* §5.3's "so 'lived equals skipped' holds by construction" is withdrawn in favour of §5.5's contract; §6.1 lists the `time` key's additions (`director`, `stances`, `drills`); §8.2's `time-parity` runs test 8 at §5.5's tolerances; the bench tunes `FF_ACTOR_S_MAX`.
+- **TECH:** the module layout and paths (§1), the tick's implementation, the event heap (§5.6), the slicing of skips across frames, saves and the `time` key's additions (§13), the debug handle (`__olympus.skip(ms)` runs an `idle` outcome skip with mask `D`), URL parameters (`&t=MY211.S590.1240` for Melas time, `&utc=2351-12-19T02:20Z`), the headless exemption from the blur and hidden pauses and `withGame`'s check (§4.2). *Asked:* §6.1 lists the `time` key's additions (`director`, `stances`, `drills`); §8.2's `time-parity` runs test 8 at §5.5's tolerances; the bench tunes `FF_ACTOR_S_MAX`.
 - **ROADMAP:** moment 3 cites §8.6's G-house block; moment 5's "sol-6 bay inspection" is Friday's (career sol 4); 0.2's tests and the `passenger` bot assume SETTING's 1 G voyage (about 7 days), with offers, drills and the incident printed.
 
 ---

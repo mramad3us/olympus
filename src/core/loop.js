@@ -43,13 +43,40 @@
 // runs (tradecraft's broke(): "a bug in a tick costs that tick, not the game"). A skip whose layer
 // throws stops there with stopped 'error', and its outcomes still apply to the time lived.
 //
+// The four modes (TECH §3.6), decided each frame, a pause winning:
+//   paused   any pause reason: no ticks, the accumulator waits, the render runs.
+//   live     the accumulator's ticks, at most MAX_TICKS_PER_FRAME (5). A tick that begins a skip
+//            (state.skip set) ends the frame's ticking: the ticks still owed are dropped.
+//   ff       state.skip.kind is 'ff' (a fast-forward: lived ticks, faster): up to FF_TICKS_FRAME (40)
+//            ticks and FF_FRAME_MS (8 ms) of real time a frame, each on the skip's fixed input
+//            (the input's skip: commands go to the first), each followed by the skip's end check.
+//            The accumulator is emptied.
+//   outcome  any other skip kind: the skip engine's advance(state, bus, targetMs, budget, acts),
+//            with the target the splash sets (skipTarget(ms); null means the skip's toMs) and a
+//            budget of SKIP_FRAME_MS (4 ms) of real time, read between steps; the input's skip:
+//            commands are handed to it, the rest of the input dropped. The accumulator is emptied.
+// The modes other than live and paused exist once the sim has given the loop its skip engines
+// (useSkips({ advance, ffInput, ffCheck }), src/sim/game.js); without them a state.skip is not the
+// loop's business. When a skip ends the loop is live again with an empty accumulator: the splash's
+// real seconds are never owed to the sim.
+//
+// clock.seq counts every tick the loop runs, held or not, lost or not, before anything else in it,
+// so a recorded input can be keyed to it (TECH §8.3; correction 1).
+//
 // Nothing here touches the DOM: requestAnimationFrame is looked up only by start(), and a test
-// drives frame(nowMs) or step(n) by hand.
+// drives frame(nowMs) or step(n) by hand. Real time comes from now() (performance.now() unless one
+// is given), used only for stats and the ff and outcome budgets, never by the sim.
 import { TICK_MS, MIN_MS, HOUR_MS, wholeTicks, crossings, isHeld } from './clock.js';
 import { nullBus } from './bus.js';
 
 export const FRAME_CAP_MS = 250;
 export const MAX_TICKS_PER_FRAME = FRAME_CAP_MS / TICK_MS;         // 5
+/** A fast-forward frame: at most this many ticks, and this much real time (TECH §3.6). */
+export const FF_TICKS_FRAME = 40;
+export const FF_FRAME_MS = 8;
+/** An outcome frame: at most this much real time of skip steps (TECH §3.6). */
+export const SKIP_FRAME_MS = 4;
+export const MODES = Object.freeze(['paused', 'live', 'ff', 'outcome']);
 /** The standard layers' periods. */
 export const LAYER_EVERY_MS = Object.freeze({ fast: TICK_MS, slow: MIN_MS, world: HOUR_MS });
 /** The input of a tick with nothing pressed. */
@@ -58,19 +85,20 @@ export const NO_INPUT = Object.freeze({ mx: 0, mz: 0, run: false, stroll: false,
 /**
  * A loop. Options:
  *   step(state, input, bus, ctx)   the sim's tick: the first fast layer, run while held too
- *   render(alpha, state, info)     drawn every frame; info { paused, held, ticks, frame }
+ *   render(alpha, state, info)     drawn every frame; info { paused, held, ticks, frame, mode }
  *   poll()                         the input of the next tick (src/core/input.js snapshot)
- *   bus, onError(e, where)
+ *   bus, onError(e, where), now()  (real ms, for stats and the skip budgets)
  * ctx (fast layers): { held, skip(ms, opts), tickMs }. ctx (periodic): { atMs, everyMs, n, skipping, what, interrupt(reason) }.
  */
-export function createLoop({ step = null, render = null, poll = null, bus = nullBus, onError = (e) => console.error(e) } = {}) {
+export function createLoop({ step = null, render = null, poll = null, bus = nullBus, onError = (e) => console.error(e), now: nowFn = null } = {}) {
   let state = null;
   const fast = [], periodic = [];
   let order = 0;
   const reasons = new Set();
   let accMs = 0, lastMs = null, alpha = 0, frames = 0, rafId = 0, running = false, skipping = false, heldKey = '';
-  const stats = { ticks: 0, lostTicks: 0, ticksLastFrame: 0, tickMs: 0, tickMsMax: 0, skips: 0 };
-  const now = () => globalThis.performance?.now?.() ?? 0;
+  let skips = null, targetMs = null, mode = 'paused';
+  const stats = { ticks: 0, lostTicks: 0, ticksLastFrame: 0, tickMs: 0, tickMsMax: 0, skips: 0, mode, ffTicksLastFrame: 0, skipStepsLastFrame: 0, skipFrameMs: 0 };
+  const now = nowFn ?? (() => globalThis.performance?.now?.() ?? 0);
   const report = (e, where) => { try { onError(e, where); } catch { /* (an error reporter that throws mustn't stop the game) */ } };
 
   const fastCtx = { held: false, tickMs: TICK_MS, skip: (ms, opts) => skip(ms, opts) };
@@ -110,6 +138,7 @@ export function createLoop({ step = null, render = null, poll = null, bus = null
     if (!state) throw new Error('the loop has no state (start(state) first)');
     const t0 = now();
     let moved = false;
+    state.clock.seq = (state.clock.seq ?? 0) + 1;                   // (every tick, held or not, lost or not)
     try {
       // (held is read again before each layer: a hold set by the step stops the layers after it in
       // this very tick, and one released by the step lets them run)
@@ -175,20 +204,70 @@ export function createLoop({ step = null, render = null, poll = null, bus = null
 
   const isPaused = () => reasons.size > 0;
 
-  /** A frame at real time nowMs (performance.now()): ticks owed, then the render. */
+  /** The mode a frame runs in now (see the header). */
+  function modeNow() {
+    if (!state || isPaused()) return 'paused';
+    const s = skips ? state.skip : null;
+    return !s ? 'live' : s.kind === 'ff' ? 'ff' : 'outcome';
+  }
+  const skipActs = (input) => (input?.act ?? []).filter(a => (typeof a === 'string' ? a : a?.act ?? '').startsWith('skip:'));
+  // (a skip ended in this frame: live again, nothing owed)
+  function skipEnded() { accMs = 0; targetMs = null; }
+
+  // (a fast-forward frame: lived ticks on the skip's input, within the tick and real-time budgets)
+  function ffFrame() {
+    accMs = 0;
+    const t0 = now(), polled = poll ? poll() : null;
+    let n = 0;
+    while (n < FF_TICKS_FRAME && (n === 0 || now() - t0 < FF_FRAME_MS)) {
+      const base = skips.ffInput(state);
+      tick(n === 0 && polled ? { ...base, act: skipActs(polled) } : base);
+      n++;
+      let done = true;
+      try { done = skips.ffCheck(state, bus); } catch (e) { report(e, 'skip'); }
+      if (done || !state.skip) { skipEnded(); break; }
+    }
+    stats.ffTicksLastFrame = n;
+    stats.skipFrameMs = now() - t0;
+    return n;
+  }
+
+  // (an outcome frame: the skip engine's whole steps up to the target, within the real-time budget)
+  function outcomeFrame() {
+    accMs = 0;
+    const t0 = now(), polled = poll ? poll() : null;
+    const budget = { over: (done) => done > 0 && now() - t0 >= SKIP_FRAME_MS };
+    let r = { steps: 0, done: false };
+    try { r = skips.advance(state, bus, targetMs ?? state.skip.toMs, budget, skipActs(polled)) ?? r; }
+    catch (e) { report(e, 'skip'); }
+    stats.skipStepsLastFrame = r.steps;
+    stats.skipFrameMs = now() - t0;
+    if (r.done || !state.skip) skipEnded();
+    return 0;
+  }
+
+  /** A frame at real time nowMs (performance.now()): ticks owed (or skip steps), then the render. */
   function frame(nowMs) {
     const dtMs = lastMs === null ? 0 : Math.min(FRAME_CAP_MS, Math.max(0, nowMs - lastMs));
     lastMs = nowMs;
+    mode = modeNow();
+    stats.mode = mode;
     let n = 0;
-    if (state && !isPaused()) {
+    stats.ffTicksLastFrame = 0;
+    stats.skipStepsLastFrame = 0;
+    if (mode === 'live') {
       accMs += dtMs;
-      while (accMs >= TICK_MS) { tick(poll ? poll() : NO_INPUT); accMs -= TICK_MS; n++; }
-    }
+      while (accMs >= TICK_MS) {
+        tick(poll ? poll() : NO_INPUT); accMs -= TICK_MS; n++;
+        if (skips && state.skip) { accMs = 0; break; }               // (a tick began a skip: the owed ticks are dropped)
+      }
+    } else if (mode === 'ff') n = ffFrame();
+    else if (mode === 'outcome') outcomeFrame();
     alpha = accMs / TICK_MS;
     stats.ticksLastFrame = n;
     frames++;
     if (render) {
-      try { render(alpha, state, { paused: isPaused(), held: !!state && isHeld(state), ticks: n, frame: frames }); }
+      try { render(alpha, state, { paused: isPaused(), held: !!state && isHeld(state), ticks: n, frame: frames, mode }); }
       catch (e) { report(e, 'render'); }
     }
   }
@@ -212,8 +291,18 @@ export function createLoop({ step = null, render = null, poll = null, bus = null
       schedule();
     },
     stop() { running = false; globalThis.cancelAnimationFrame?.(rafId); },
-    /** Play another state from here (a load, a new career). */
-    setState(s) { state = s; accMs = 0; alpha = 0; heldKey = s?.clock?.holds?.join(',') ?? ''; },
+    /** Play another state from here (a load, a new career). A saved skip resumes in its mode. */
+    setState(s) { state = s; accMs = 0; alpha = 0; targetMs = null; heldKey = s?.clock?.holds?.join(',') ?? ''; },
+    /** The sim's skip engines: { advance(state, bus, targetMs, budget, acts) → { steps, done }, ffInput(state) → input, ffCheck(state, bus) → done }. */
+    useSkips(hooks) {
+      if (hooks && (typeof hooks.advance !== 'function' || typeof hooks.ffInput !== 'function' || typeof hooks.ffCheck !== 'function')) throw new Error('useSkips({ advance, ffInput, ffCheck })');
+      skips = hooks ?? null;
+    },
+    /** How far the splash's clock has got, the target of the outcome frames (null: the skip's end). */
+    skipTarget(ms = null) { targetMs = ms === null || ms === undefined ? null : ms; return targetMs; },
+    get target() { return targetMs; },
+    /** The mode the last frame ran in ('paused', 'live', 'ff' or 'outcome'). */
+    get mode() { return mode; },
     get state() { return state; },
     /** n ticks now, whatever the pause (the debug handle's step). Returns how many moved the clock. */
     step(n = 1, input = NO_INPUT) { let moved = 0; for (let i = 0; i < n; i++) if (tick(input)) moved++; return moved; },

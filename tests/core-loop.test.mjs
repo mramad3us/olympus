@@ -1,11 +1,34 @@
 // The loop (src/core/loop.js): fixed 50 ms ticks from any frame rate, the 250 ms cap, the player's
 // pause and an overlay's, the sim's holds (stop motion), the layers at their periods, and skip():
-// time passing a minute at a time with interrupts, outcomes and its report.
+// time passing a minute at a time with interrupts, outcomes and its report (the 0.0.1 engine, kept
+// for these tests as TECH §5.1 says). Then the four modes of TECH §3.6 with the sim's sliced skips
+// (src/sim/game.js, src/sim/time/skip.js): ff at most 40 ticks and 8 ms a frame, outcome at most
+// 4 ms, back to live with nothing owed; a skip saved after its third slice resuming to the same
+// digest; a hold set by the rules layer; a live frame that stops when a tick begins a skip.
 import { assert, near, fmt } from './helpers.mjs';
-import { createLoop, NO_INPUT, FRAME_CAP_MS } from '../src/core/loop.js';
+import { createLoop, NO_INPUT, FRAME_CAP_MS, FF_TICKS_FRAME, FF_FRAME_MS, SKIP_FRAME_MS } from '../src/core/loop.js';
 import { recordingBus, createBus } from '../src/core/bus.js';
-import { newState } from '../src/core/state.js';
-import { TICK_MS, MIN_MS, HOUR_MS, holdTime, releaseTime } from '../src/core/clock.js';
+import { newState, toJSON, fromJSON } from '../src/core/state.js';
+import { digest } from '../src/core/hash.js';
+import { TICK_MS, MIN_MS, HOUR_MS, holdTime, releaseTime, isHeld } from '../src/core/clock.js';
+import { createSim, newGame } from '../src/sim/game.js';
+import { dummyWorld, scriptInput } from './game-dummy.mjs';
+
+const busyFor = (ms) => { const t = performance.now(); while (performance.now() - t < ms) { /* (a dear tick, on purpose) */ } };
+// (the median: the machine is shared, so one frame preempted is not the loop's fault; counts are held exactly)
+const median = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
+
+// (a game in a loop driven by frames, as the page drives it: poll gives each tick's input, keyed to
+// clock.seq as a recording is, so a loaded game is fed what the game it came from would have been)
+function framed({ seed = 1, domains = {}, inputs = null, hour = null } = {}) {
+  const bus = recordingBus();
+  const loop = createLoop({ bus, poll: () => (inputs ? inputs(loop.state?.clock.seq ?? 0) : { ...NO_INPUT, act: [] }), onError: (e, w) => { throw new Error(`${w}: ${e.message}`); } });
+  const sim = createSim({ loop, bus, domains });
+  loop.setState(newGame({ seed, hour, domains }));
+  let t = 1000;
+  loop.frame(t);
+  return { loop, sim, bus, get state() { return loop.state; }, frame(dtMs = 17) { t += dtMs; loop.frame(t); return loop.stats; } };
+}
 
 // (a loop on a fresh state, driven by hand: frames at a given rate for a span of real time)
 function rig({ startMs = 0, step = null, bus = createBus() } = {}) {
@@ -220,6 +243,133 @@ export default [
       rendered.frame(0); rendered.frame(16);
       assert(told.filter(w => w === 'render').length === 2, 'a throwing render stopped the frames');
       console.log(`      5 ticks with one throwing: ${state.clock.tick} moved, told '${told[0]}'; a skip's layer threw: stopped '${r.stopped}' after ${fmt(r.elapsedMs / 1000, 1)} s`);
+    },
+  },
+
+  {
+    name: 'modes: paused, live, ff and outcome, a pause winning; ff at most 40 ticks and 8 ms a frame, outcome at most 4 ms; back to live with nothing owed',
+    fn() {
+      let tickCostMs = 0, stepCostMs = 0;
+      const dear = { ...dummyWorld, fast: { ...dummyWorld.fast, rules: () => busyFor(tickCostMs) },
+        slow: [...dummyWorld.slow, { name: 'dear', step: () => busyFor(stepCostMs) }] };
+      const g = framed({ domains: { world: dear } });
+      for (let i = 0; i < 60; i++) g.frame();
+      assert(g.loop.mode === 'live' && Math.abs(g.state.clock.tick - 20) <= 1, `live: ${g.loop.mode}, ${g.state.clock.tick} ticks`);
+      g.loop.pause(true);
+      const tPaused = g.state.clock.tick;
+      for (let i = 0; i < 10; i++) g.frame();
+      assert(g.loop.mode === 'paused' && g.state.clock.tick === tPaused, 'paused');
+      // (a pause wins over a running skip too)
+      g.sim.beginSkip(g.state, { activity: 'wait', planMs: 60_000 });
+      g.frame();
+      assert(g.loop.mode === 'paused' && g.state.skip.kind === 'ff', `a pause during a skip: ${g.loop.mode}`);
+      g.loop.pause(false);
+      // (ff: cheap ticks, then dear ones)
+      const ffRun = (costMs) => {
+        tickCostMs = costMs;
+        const per = [], ms = [];
+        while (g.state.skip && per.length < 10_000) { const st = g.frame(); if (st.mode !== 'ff') break; per.push(st.ffTicksLastFrame); ms.push(st.skipFrameMs); }
+        tickCostMs = 0;
+        return { per, ms };
+      };
+      const cheap = ffRun(0);
+      assert(!g.state.skip && Math.max(...cheap.per) <= FF_TICKS_FRAME && cheap.per.reduce((a, b) => a + b, 0) === 60_000 / TICK_MS, `ff: ${cheap.per.join(',')}`);
+      assert(g.loop.alpha === 0, `the frame that ended the ff left alpha ${g.loop.alpha}`);
+      g.frame();
+      assert(g.loop.mode === 'live', `after the ff: ${g.loop.mode}`);
+      g.sim.beginSkip(g.state, { activity: 'wait', planMs: 20_000 });
+      const dearFf = ffRun(0.6);
+      assert(Math.max(...dearFf.per) <= Math.ceil(FF_FRAME_MS / 0.6) + 1 && median(dearFf.ms) <= FF_FRAME_MS + 1, `dear ff: ${dearFf.per.join(',')} ticks, median ${median(dearFf.ms)} ms`);
+      // (outcome: dear steps, sliced at 4 ms)
+      g.frame();
+      stepCostMs = 0.35;
+      g.sim.beginSkip(g.state, { activity: 'wait', planMs: 90 * MIN_MS });
+      const steps = [], sms = [];
+      while (g.state.skip && steps.length < 10_000) { const st = g.frame(); steps.push(st.skipStepsLastFrame); sms.push(st.skipFrameMs); }
+      stepCostMs = 0;
+      assert(g.loop.mode === 'outcome' && Math.max(...steps) <= Math.ceil(SKIP_FRAME_MS / 0.35) + 1 && median(sms) <= SKIP_FRAME_MS + 1, `outcome: ${steps.join(',')} steps, median ${median(sms)} ms`);
+      assert(g.loop.alpha === 0 && g.loop.target === null, `the frame that ended the outcome skip left alpha ${g.loop.alpha}, target ${g.loop.target}`);
+      g.frame();
+      assert(g.loop.mode === 'live', `after the outcome: ${g.loop.mode}`);
+      const mean = (a) => fmt(a.reduce((x, y) => x + y, 0) / a.length, 1);
+      console.log(`      live 1 s: ${tPaused} ticks; paused 10 frames: +0 (a pause wins over a running skip)`);
+      console.log(`      ff 60 s, cheap ticks: ${cheap.per.length} frames, ${Math.max(...cheap.per)} ticks a frame at most (mean ${mean(cheap.per)}); 0.6 ms ticks: ${Math.max(...dearFf.per)} at most (mean ${mean(dearFf.per)}), frames ${fmt(median(dearFf.ms), 1)} ms median, ${fmt(Math.max(...dearFf.ms), 1)} ms the longest`);
+      console.log(`      outcome 90 min at 0.35 ms a step: ${steps.length} frames, ${Math.max(...steps)} steps a frame at most (mean ${mean(steps)}), frames ${fmt(median(sms), 1)} ms median, ${fmt(Math.max(...sms), 1)} ms the longest; then live, alpha 0`);
+    },
+  },
+  {
+    name: 'a skip saved after its third slice and loaded resumes to the same digest',
+    fn() {
+      const run = (saveAfter) => {
+        let g = framed({ seed: 48213, domains: { world: dummyWorld }, inputs: (k) => scriptInput(k, { hands: false }) });
+        for (let i = 0; i < 300; i++) g.frame();
+        g.sim.beginSkip(g.state, { activity: 'sleep', planMs: 3 * HOUR_MS, kind: 'outcome' });
+        const from = g.state.skip.fromMs;
+        let slices = 0, json = null;
+        while (g.state.skip) {
+          g.loop.skipTarget(from + (slices + 1) * 7 * MIN_MS);
+          g.frame();
+          slices++;
+          if (slices === saveAfter && g.state.skip) {
+            json = toJSON(g.state);
+            const atMs = g.state.skip.atMs;
+            g = framed({ seed: 1, domains: { world: dummyWorld }, inputs: (k) => scriptInput(k, { hands: false }) });
+            g.loop.setState(fromJSON(json));
+            assert(g.state.skip && g.state.skip.atMs === atMs, 'the skip did not come back with the load');
+          }
+        }
+        // (then live frames to the same tick: real time decides which frame a tick falls in, never what it does)
+        const seqEnd = g.state.clock.seq + 120;
+        while (g.state.clock.seq < seqEnd) g.frame();
+        return { digest: digest(toJSON(g.state)), slices, saved: json ? json.length : 0 };
+      };
+      const plain = run(0), resumed = run(3);
+      assert(plain.digest === resumed.digest && plain.slices === resumed.slices, JSON.stringify({ plain, resumed }));
+      console.log(`      3 h in ${plain.slices} slices of 7 game minutes: ${plain.digest} plain, ${resumed.digest} saved after the third slice (${fmt(resumed.saved / 1024, 1)} KB) and loaded`);
+    },
+  },
+  {
+    name: 'a hold set by the rules layer skips paths and second, runs offers, keeps the clock; clock.seq counts the held ticks',
+    fn() {
+      const calls = { rules: 0, paths: 0, second: 0, offers: 0, input: 0 };
+      const probe = { owner: 'TECH', keys: ['world'], init: (s) => { s.world ??= {}; },
+        fast: {
+          input: (s, input) => { calls.input++; if (input.act.includes('let-go')) releaseTime(s, 'probe'); },
+          rules: (s) => { calls.rules++; if (s.world.holdNow) { s.world.holdNow = false; holdTime(s, 'probe'); } },
+          paths: () => { calls.paths++; }, second: () => { calls.second++; }, offers: () => { calls.offers++; },
+        } };
+      const bus = recordingBus();
+      const loop = createLoop({ bus });
+      createSim({ loop, bus, domains: { world: probe } });
+      loop.setState(newGame({ seed: 3, domains: { world: probe } }));
+      const s = loop.state;
+      loop.step(4);
+      const before = { ...calls }, ms0 = s.clock.ms, seq0 = s.clock.seq;
+      s.world.holdNow = true;
+      loop.step(1);
+      const d = (k) => calls[k] - before[k];
+      assert(isHeld(s, 'probe') && s.clock.ms === ms0 && d('rules') === 1 && d('paths') === 0 && d('second') === 0 && d('offers') === 1 && d('input') === 1, `the tick that held: ${JSON.stringify(calls)}`);
+      loop.step(10);
+      assert(s.clock.ms === ms0 && d('rules') === 1 && d('offers') === 11 && d('input') === 11 && s.clock.seq === seq0 + 11 && s.clock.tick === 4, `held: ${JSON.stringify(calls)}, seq ${s.clock.seq}`);
+      loop.step(1, { ...NO_INPUT, act: ['let-go'] });
+      assert(!isHeld(s) && s.clock.ms === ms0 + TICK_MS && d('paths') === 1 && d('second') === 1 && s.clock.seq === seq0 + 12, `released: ${JSON.stringify(calls)}`);
+      console.log(`      the tick that held: rules ${1}, paths 0, second 0, offers 1, clock +0; ten held ticks: input and offers only, clock.seq +${10}, clock.tick ${s.clock.tick - 1}; released by input: the rest of that tick ran, clock +${TICK_MS} ms`);
+    },
+  },
+  {
+    name: 'a live frame stops ticking when a tick begins a skip: the owed ticks dropped, the next frame in the skip\'s mode',
+    fn() {
+      const g = framed({ inputs: (k) => ({ ...NO_INPUT, act: k === 0 ? ['hand'] : [] }) });
+      const tick0 = g.state.clock.tick;
+      g.frame(FRAME_CAP_MS);                                       // (five ticks owed)
+      assert(g.state.clock.tick === tick0 + 1 && g.state.skip?.kind === 'outcome' && g.loop.alpha === 0 && g.loop.stats.ticksLastFrame === 1, `ticks ${g.state.clock.tick - tick0}, skip ${g.state.skip?.kind}, alpha ${g.loop.alpha}`);
+      g.frame();
+      assert(g.loop.mode === 'outcome' && g.state.clock.tick === tick0 + 1, `next frame: ${g.loop.mode}`);
+      let frames = 1;
+      while (g.state.skip && frames < 1000) { g.frame(); frames++; }
+      g.frame();
+      assert(!g.state.skip && g.loop.mode === 'live' && g.bus.events.some(([t, d]) => t === 'skip-end' && d.minutes === 15), 'the wait did not end');
+      console.log(`      a 250 ms frame owed 5 ticks: 1 ran (R began a 15-minute wait), 4 dropped; the wait in ${frames} outcome frames (no splash target: to its end at 4 ms a frame), then live`);
     },
   },
 ];

@@ -24,6 +24,12 @@
 // setFocus({ x, z, h, w }) (the figure seen through to: things between it and the camera are drawn
 // see-through); setFog(texture, x0, z0, w, h, dimK) (the fog of awareness, src/render/fog.js);
 // setPalette(name | colours). stats holds the last frame's draw calls, triangles and milliseconds.
+//
+// The GPU's time by pass (TECH §16.5), where the browser offers EXT_disjoint_timer_query_webgl2
+// (src/render/stats.js createPassTimer): a query round the shadow map (only in a frame that redraws
+// it: three draws it inside render(), so its shadowMap.render is wrapped to time it), the scene, the
+// composite (post) and the blit. stats.passes is the latest frame the GPU has answered for, { shadowMs
+// (the last redraw's), sceneMs, postMs, blitMs }, or null where there is no timer (stats.timer false).
 import * as THREE from 'three';
 import { PX_PER_M, RES, RES_MAX, frameFor } from './scale.js';
 import { createCamera } from './camera.js';
@@ -32,6 +38,7 @@ import { createPost } from './post.js';
 import { SHARED, olyMaterial, ensurePart, isOly } from './materials.js';
 import { glowKOf } from './moods.js';
 import { PALETTES, TRADECRAFT } from '../art/palette.js';
+import { createPassTimer } from './stats.js';
 
 const ZERO4 = new Float32Array(4);
 
@@ -69,9 +76,17 @@ export function createStage({ parent = document.body, palette = TRADECRAFT, grad
   let bg = new THREE.Color(background), area = null, shadowsDirty = true, focus = null, warned = false;
   const stats = { calls: { scene: 0, post: 0, total: 0 }, triangles: 0, cpuMs: 0, gpuMs: null, shadowDrawn: false, frames: 0, programs: 0, textures: 0, geometries: 0, w: W, h: H, ppm: PX_PER_M, gpu: gpuName };
 
-  // (a GPU timer where the browser offers one: EXT_disjoint_timer_query_webgl2; Chrome often does not)
-  const timer = gl.getExtension('EXT_disjoint_timer_query_webgl2');
-  const queries = [];
+  // (a GPU timer per pass where the browser offers one: EXT_disjoint_timer_query_webgl2; Chrome often does not)
+  const passes = createPassTimer(gl);
+  stats.timer = passes.available;
+  stats.passes = null;
+  const drawShadows = renderer.shadowMap.render.bind(renderer.shadowMap);
+  renderer.shadowMap.render = (...a) => {
+    if (!renderer.shadowMap.needsUpdate) return drawShadows(...a);
+    passes.begin('shadow');
+    drawShadows(...a);
+    passes.begin('scene');
+  };
 
   function setMood(m) {
     const md = lights.apply(m);
@@ -117,21 +132,22 @@ export function createStage({ parent = document.body, palette = TRADECRAFT, grad
     renderer.info.reset();
     prepare();
     if (lights.update(cam.at.x, cam.at.z) || shadowsDirty) { renderer.shadowMap.needsUpdate = true; shadowsDirty = false; stats.shadowDrawn = true; } else stats.shadowDrawn = false;
-    let q = null;
-    if (timer && queries.length < 4) { q = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, q); }
+    passes.begin('scene');
     renderer.setRenderTarget(post.rt);
     renderer.setClearColor(bg, 1);
     renderer.clear(true, true, false);
     gl.clearBufferfv(gl.COLOR, 1, ZERO4);                            // (the part IDs: none)
     renderer.render(scene, camera);
     stats.calls.scene = renderer.info.render.calls; stats.triangles = renderer.info.render.triangles;
+    passes.begin('post');
     post.compose(camera);
+    passes.begin('blit');
     post.present();
-    if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push(q); }
-    while (queries.length && gl.getQueryParameter(queries[0], gl.QUERY_RESULT_AVAILABLE)) {
-      const r = gl.getQueryParameter(queries[0], gl.QUERY_RESULT);
-      if (!gl.getParameter(timer.GPU_DISJOINT_EXT)) stats.gpuMs = r / 1e6;
-      gl.deleteQuery(queries.shift());
+    passes.end();
+    const g = passes.last;
+    if (g) {
+      stats.passes = { shadowMs: passes.shadowLastMs ?? 0, sceneMs: g.sceneMs, postMs: g.postMs, blitMs: g.blitMs };
+      stats.gpuMs = g.shadowMs + g.sceneMs + g.postMs + g.blitMs;
     }
     stats.calls.total = renderer.info.render.calls; stats.calls.post = stats.calls.total - stats.calls.scene;
     stats.programs = renderer.info.programs?.length ?? 0; stats.textures = renderer.info.memory.textures; stats.geometries = renderer.info.memory.geometries;
@@ -172,7 +188,7 @@ export function createStage({ parent = document.body, palette = TRADECRAFT, grad
   }
 
   return {
-    THREE, renderer, scene, camera, cam, lights, post, canvas, stats, ppm: PX_PER_M,
+    THREE, renderer, scene, camera, cam, lights, post, canvas, stats, passes, ppm: PX_PER_M,
     look: (x, z, y = 0) => cam.look(x, z, y), follow: cam.follow, setLead: cam.setLead,
     setMood, setArea, setFocus, render, size, fit, readPicture, dispose,
     setFog: post.setFog, setSnap: post.setSnap, setGamma: post.setGamma,

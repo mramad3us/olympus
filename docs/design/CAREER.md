@@ -119,18 +119,18 @@ All plain JSON (DESIGN, saves). `$` keys are runtime only. Times are integer gam
     "world": "w-48213",
     "status": "standby",
     "end": null,
-    "sheet": "me",
+    "sheetId": "p233",
     "why": "money-home",
     "service": {
       "number": "MCR 4471-0932-17",
       "enlistedMs": 0, "termY": 4, "easMs": 0, "extendedMonths": 0,
       "grade": "E-1", "dateOfRankMs": 0, "promotions": [],
       "pmos": "0311", "amos": [], "billet": "rifleman",
-      "unit": { "regiment": "4th Marines", "battalion": "2/4", "company": "Echo", "platoon": 2, "squad": 1, "team": 2 },
+      "unitId": "2/4-E-2-1-ft2",
       "station": "melas", "reCode": null
     },
     "standing": { "periodFromMs": 0, "pro": 70, "con": 70, "events": [] },
-    "expectations": [{ "id": "on-time", "by": "n-1-0", "setMs": 0, "state": "open", "missedMs": [] }],
+    "expectations": [{ "id": "on-time", "byId": "p50", "setMs": 0, "state": "open", "missedMs": [] }],
     "readiness": { "gq": "done", "suit": "done", "dental": "booked", "will": "done", "layout": "open", "zero": "done" },
     "standby": { "slip": 0, "mrx": { "grade": null, "points": 0 }, "billet": { "named": null, "candidates": ["dm"] } },
     "marks": [{ "atMs": 0, "grade": "E-1", "pro": 4.3, "con": 4.4, "why": "end of period" }],
@@ -151,14 +151,16 @@ All plain JSON (DESIGN, saves). `$` keys are runtime only. Times are integer gam
     "leave": { "balanceD": 2.5, "taken": [] },
     "medical": { "limdu": null, "boards": [], "profile": [], "doseBars": [] },
     "discipline": { "page11": [], "njp": [], "courts": [] },
-    "family": ["f-1", "f-2", "f-3"],
+    "family": ["fm1", "fm2", "fm3"],
     "letters": [],
     "offers": [],
     "record": [{ "atMs": 0, "kind": "enlisted", "text": "Enlisted at the Redwater recruiting station for four years, infantry." }],
-    "flags": { "knowTheDrill": false, "imported": false, "flashback": "breach" }
+    "flags": { "flashback": "breach" }
   }
 }
 ```
+
+Ids follow TECH §2.3.1 (CONTRACTS §10): the player's sheet is an ordinary person, `people[sheetId]`, the same id as `state.player.id` (here `p233`, the 0.1 new game's of TECH §6.2), never `me`; the squad leader who set the expectation is `p50`; family members are counted `fm<n>`. The sample writes its nulls and empty lists out to name the fields; on disk, fields at their defaults are left out (TECH §6.6, rule 1), so `knowTheDrill` appears in `flags` only when true. The honesty marks (`imported` and the rest) live in `meta`, not here (TECH §6.1, CONTRACTS §9).
 
 Doses are not kept here: they are BODY's ledgers (`rad.careerSv`, `yearSv`, `deploySv`, BODY §12.2), read by CAREER's limits (15.6), never copied (one quantity, one helper). `doseBars` records the bars a limit has put on the marine (`{ kind: 'surface' | 'radiation-duty' | 'jovian', untilMs, why }`).
 
@@ -168,7 +170,7 @@ Kept in IndexedDB `olympus`, store `profile`, so it survives a world being delet
 
 ```json
 {
-  "unlocks": { "rungs": ["newjoin"], "sides": [], "legends": [], "earned": [{ "rung": "lcpl", "by": "c-48213-1", "atMs": 0 }] },
+  "unlocks": { "rungs": ["newjoin"], "sides": [], "legends": [], "earned": [{ "rung": "lcpl", "byId": "c-48213-1", "atMs": 0 }] },
   "careers": [{ "id": "c-48213-1", "world": "w-48213", "name": "Maren Holloway", "mode": "ironman", "grade": "E-4", "years": 3.4, "end": "kia", "where": "Conamara Under-Ice", "atMs": 0 }],
   "worlds": [{ "id": "w-48213", "seed": 48213, "title": "Holloway's world", "lastMs": 0 }]
 }
@@ -177,13 +179,13 @@ Kept in IndexedDB `olympus`, store `profile`, so it survives a world being delet
 ### 3.3 A family member (a lifetime person: PEOPLE stores them, CAREER makes them)
 
 ```json
-{ "id": "f-2", "relation": "sister", "name": "Signe Holloway", "sex": "f", "born": 0, "home": "redwater",
-  "household": "h-redwater-1", "job": "water-rights clerk", "alive": true, "attitude": "worried",
+{ "id": "fm2", "relation": "sister", "name": "Signe Holloway", "sex": "f", "born": 0, "home": "redwater",
+  "household": 1, "job": "water-rights clerk", "alive": true, "attitude": "worried",
   "gauges": { "fear": 0, "trust": 2, "affinity": 3 }, "ties": 62, "lastLetterMs": 0, "holdUntilMs": 0,
   "arcs": [{ "id": "wedding", "beat": 0, "nextMs": 0 }] }
 ```
 
-`household` groups the members who live at one address (a letter to the household reaches each, 14.2); `holdUntilMs` is when the ties' decay resumes after an honest letter (14.1).
+`household` groups the members who live at one address (a letter to the household reaches each, 14.2): a number inside the career, not an id (`h` is the hulls' prefix; CONTRACTS §19, item 8); `holdUntilMs` is when the ties' decay resumes after an honest letter (14.1).
 
 ---
 
@@ -392,7 +394,7 @@ Mistakes during lessons cost the squad leader's opinion (gauges, PEOPLE) and sta
 
 The battalion is the Corps' **Alert Battalion** (SETTING §0 and §7.7), on 96 hours' notice to move (48 once the vote clears committee, 5.9), so it trains at home and stays near. **The Plan of the Day is TIME §9.2's training sol, and this section books its lessons into TIME's blocks by id** (TIME §9.2 and PEOPLE §4.1: `reveille`, `muster`, `pt`, `hygiene-chow`, `morning-formation`, `train-a`, `noon-chow`, `noon-formation`, `train-b`, `maintenance`, `evening-chow`, `mail-call`, `free`, `taps`), **never by clock times**, so when TIME's numbers move every booking follows (the user's consistency complaint, tradecraft rc30: "the point of bringing the tutorials in the career was to have consistency"). The week is TIME's too (TIME §9.2, after SETTING §3.4): Monday to Friday training routine, with field day in Thursday's `maintenance` and the platoon sergeant's inspection on Friday, 08:00–10:00, before a short `train-a`; Saturday and Sunday holiday routine, the two rest sols.
 
-Standby sols are counted from 0, the arrival Monday (Sol 590 MY 211 in a new world), so standby sol n falls on the week's sol (n mod 7) + 1, the week's sol 1 being Monday. **At most two new systems a sol** (my call, after a critic's count of 90 to 150 real minutes a sol with three): each teaching sol's two lessons are its new systems, and everything else in it is already known.
+Standby sols are counted from 0, the arrival Monday (Sol 590 MY 211 in a new world), so standby sol n falls on weekday n mod 7, Monday first (CONTRACTS §3); a day of the week is named by its weekday, never as "sol 6" of a week. **At most two new systems a sol** (my call, after a critic's count of 90 to 150 real minutes a sol with three): each teaching sol's two lessons are its new systems, and everything else in it is already known.
 
 | Sol | `pt` | `train-a` | `train-b` | `maintenance` and the evening | New systems |
 |---|---|---|---|---|---|
@@ -409,6 +411,19 @@ Standby sols are counted from 0, the arrival Monday (Sol 590 MY 211 in a new wor
 | the weekdays of 9 to 13, only when the floor vote slips (5.9) | PT | the second week's blocks, dealt by the world seed: a combat marksmanship day (movers and positions; scored for the DM billet), MOUT in the training village (stack and clear with marking rounds), the CBRN class with the mask and the gas chamber, a battalion run, the commanding officer's inspection, an 8 km hump | | | (none new) |
 
 No rifle qualification is shot in the standby: the boot qualification is current (shot at Argyre about four months earlier, and section 7.4 keeps qualifications at least 300 days apart), so sol 2's string is familiarisation and the combat marksmanship day is training; both are scored for the DM billet. The PFT and CFT are not in the standby either: the boot summary's PFT is the current one.
+
+**Stand-ins until the 0.1.x scenes join** (ROADMAP §5.2 asks this section to name them; my call on each). At 0.1.0 a lesson whose scene has not joined keeps its slot with a block already built, of the same length, so the sol keeps its shape and nothing is staged or abstracted; each join puts its lesson back on its sol for careers that have not reached it (ROADMAP §5.8), and the instinct never offers a block that is not built.
+
+| Career sol and block | The lesson | Its stand-in at 0.1.0 | Back with |
+|---|---|---|---|
+| 2 Wed, `train-b` | the suit loft | the range day runs on: a relay of the course at 200 m, then the rifle cleaned at the canopy and inspected, moved up from `maintenance` (the evening is then free) | `test-tank` |
+| 3 Thu, `train-a` | suit drill: the dust lock and the Tank | a second range day: the 300 m confirm again and a relay of the course | `test-tank` |
+| 3 Thu, `train-b` | the combat lifesaver class and lane | a class at Schools | `test-lane` |
+| 4 Fri, `train-b` | the G-house: the Ring and the Long Arm | the field house's circuit, then close-order drill on the parade deck | `test-ghouse` |
+| 7 Mon, `train-a` | MCMAP on the mat | close-order drill on the parade deck; the MRX's orders after it as booked, or the pre-combat inspection of gear alone while the MRX is on its stand-in | `test-mat` |
+| 7 Mon, `train-b`, to 8 Tue, the afternoon | the mission rehearsal exercise (5.8) | the second week's built blocks: the combat marksmanship day on sol 7 and the 8 km hump on sol 8's morning, then the squad leader's review in the hot wash's place; the MRX's term in the billets (5.7) and in standing reads their graded rolls | `test-patrol` and `test-roe-lane`, with the lane and the mat already joined |
+
+The slipped weekdays (9 to 13) deal only from the built blocks until MOUT joins with the patrol and the CBRN class with the Tank. Until the Tank and the G-house join, the suit and the G-qualification stay open on the readiness checklist (5.7) without holding a marine back: a career that crosses the standby without them clears both in 0.2's predeploy at Melas, before the lift (ROADMAP §5.2; 7.3 asks for the G-qualification before any deployment off Mars).
 
 #### 5.4.1 Rest sols
 
@@ -465,7 +480,7 @@ A billet changes the kit you carry on Europa (the automatic rifle's weight, the 
 
 ### 5.8 The mission rehearsal exercise
 
-Every standby ends with a **mission rehearsal exercise** (MRX), the real Corps' certification of a unit before it deploys (my call, after a critic's case that the arc which teaches every system never joined them before the career's first stakes). About 28 hours of game time, from sol 7's `train-b` to sol 8's afternoon, in the training village and the Talus (PLACES §4.12: the village's mock checkpoint on Europa's CP-A template, its tunnel with a pressure-door pair), with role-players running a Europa town. COMBAT §22 builds every piece in training form for 0.1; the MRX is where they are joined.
+Every standby ends with a **mission rehearsal exercise** (MRX), the real Corps' certification of a unit before it deploys (my call, after a critic's case that the arc which teaches every system never joined them before the career's first stakes). About 28 hours of game time, from sol 7's `train-b` to sol 8's afternoon, in the training village and the Talus (PLACES §4.12: the village's mock checkpoint on Europa's CP-A template, its tunnel with a pressure-door pair), with role-players running a Europa town. COMBAT §22 builds every piece in training form, in 0.1.x's scenes (ROADMAP §5.8); the MRX is where they are joined, and until they are, its sols hold 5.4's stand-ins.
 
 | Phase | What | Lived | Joins |
 |---|---|---|---|
@@ -480,7 +495,7 @@ Every standby ends with a **mission rehearsal exercise** (MRX), the real Corps' 
 
 Its key moments are lived and the rest are carried on, so it plays in about 100 to 150 real minutes across the two sols (my call; the `recruit` bot prints it, 5.11).
 
-**The graded result** is the sum of the player's graded rolls in its lived moments (SKILLS §5.6's grades as points: disaster −3, bad −2, miss −1, pass +1, good +2, superb +3, my call), with the squad's result as COMBAT's after-action scores it. It moves standing (pro +4, +2, 0, −3 or −6 for distinguished, good, satisfactory, poor or failed, by bands the test prints), it is the largest shared term in the billets (5.7), and the squad leader reads it out at the hot wash in a line. The battalion is certified whatever the player does: the Corps would not hold a battalion for one private. The warning order follows the certification (5.9), so ROADMAP §5.3 may make the MRX the lead-in to its moment 5.
+**The graded result** is the sum of the player's graded rolls in its lived moments (SKILLS §5.6's grades as points: disaster −3, bad −2, miss −1, pass +1, good +2, superb +3, my call), with the squad's result as COMBAT's after-action scores it. It moves standing (pro +4, +2, 0, −3 or −6 for distinguished, good, satisfactory, poor or failed, by bands the test prints), it is the largest shared term in the billets (5.7), and the squad leader reads it out at the hot wash in a line. The battalion is certified whatever the player does: the Corps would not hold a battalion for one private. The warning order follows the certification (5.9), so ROADMAP §5.3 may make the MRX the lead-in to its `moment-warning-order` once the MRX has joined.
 
 ### 5.9 The vote and the orders
 
@@ -671,7 +686,7 @@ The acute part is run on the Long Arm **seated upright, so the load is +Gz** (PL
 
 **Why upright, and why 3.5 G** (after a critic's sum). On BODY's standard couch at 75°, 3 G is 0.78 G of +Gz and 2.9 G of +Gx (BODY §13.1), and nobody greys out: the earlier "10 min at 3 G on a couch" could tell no one apart. Seated upright, BODY §13.3's grey-out line is T − 1.2 = 2.6 + 1.2 × min(1, gCond) + compG − penalties. Reaching 3.5 G at 0.1 G/s, the baroreflex (compG) has built about +0.39 G, so the line stands at about **3.44 G for a Martian civilian** (gCond 0.38: grey-out, a fail), 3.71 G at gCond 0.6, 4.07 G at 0.9 and **4.19 G for a conditioned marine** (gCond 1.0: about 0.7 G in hand). A tired, dry marine loses some of that margin (0.3 at `pEff` ≥ 20, 0.15 for each % of water deficit), so the body on the day counts: come rested and watered. At 2.5 G the line is about 2.8 + 1.2 × gCond, so G-2's acute part passes almost everyone and its 1 G work decides. The 1 G work tests the conditioning the Corps deploys on (BODY §14.1 quotes CAREER's deployability standard as gCond ≥ 0.9; that standard is G-1, which BODY's own band puts at about 0.87); the Long Arm tests the acute margin a drop asks for.
 
-In the standby the qualification fills `train-b` on sol 4 (5.4), on TIME §8.6's worked G-house block: the march to the G-house, the Ring's spin-up, two hours at 1 G and the spin-down, then your appointment on the Long Arm (`long-arm`: the physiologist's brief, the profile, recovery, about 25 minutes). The Long Arm has one seat, so the squad's other appointments run through the week, and only the player's run is on the stage. A recruit who arrives G-3 (the Callisto-born may) is on the remedial programme in the standby and retested before embarkation. Still G-3, they deploy anyway to Europa (0.134 G does not need G-1), with a note, and the Alert Battalion's 7.3 days out at 1 G (SETTING §6.5's doctrine) are the cost: BODY's "very heavy" or "crushing" band (§14.1) for a week, the couch and the corpsman's watch, and a lower G-conditioning start on Europa (my call).
+In the standby the qualification fills `train-b` on sol 4 (5.4), on TIME §8.6's worked G-house block: the march to the G-house, the Ring's spin-up, two hours at 1 G and the spin-down, then your appointment on the Long Arm (`long-arm`: the physiologist's brief, the profile, recovery, about 25 minutes). The Long Arm has one seat, so the squad's other appointments run through the week, and only the player's run is on the stage. A recruit who arrives G-3 (the Callisto-born may) is on the remedial programme in the standby and retested before embarkation. Still G-3, they deploy anyway to Europa (0.134 G does not need G-1), with a note, and the Alert Battalion's 6.9 days out at 1 G (SETTING §6.5's doctrine; CONTRACTS §14) are the cost: BODY's "very heavy" or "crushing" band (§14.1) for a week, the couch and the corpsman's watch, and a lower G-conditioning start on Europa (my call).
 
 ### 7.4 Rifle qualification
 
@@ -981,7 +996,7 @@ A tour of 18 to 45 hours needs a shape beyond the weekly beat, and the player's 
 | Line | From | Shown as |
 |---|---|---|
 | Each district's mood: Pwyll Deep, the Tyre Works, Manannán | PEOPLE §12.4's mood `M` | its word (calm, uneasy, tense, angry, riot) and its trend over the week |
-| Incidents a week, by kind | the event log (protests, detentions, attacks, accidents, uses of force) | counts against the tour's first week |
+| Incidents a week, by kind | PEOPLE §2.5's happenings (protests, detentions, attacks, accidents, uses of force) | counts against the tour's first week |
 | Water and power uptime at the Works | PLACES's utilities (§3.12) | percent, and the hours lost |
 | The unions' attitude | SETTING §7.5's Accord unions and Hard Ice, moved by the world and by the platoon's dealings | a line each |
 | The platoon's dose | BODY's `deploySv`, summed, against the rotation's planning limit (15.6) | mSv spent and left |
@@ -1520,9 +1535,9 @@ Unlocks are earned in **both modes** (default of open question 3). Debug mode op
 The hub settles both (kickoff, 2026-11-05). This section adds:
 
 - The mode is chosen on the enlistment paper and **never changes** in a career. **Standard is ticked on a profile's first enlistment paper**, with Ironman one click away and its meaning printed under both boxes ("IRONMAN: one save, kept for you. If you die, the career is over and the world goes on."); afterwards the paper ticks the mode of the profile's last career (4.2; my call, reversing my earlier default of Ironman, for the hub's decision log). The user's kickoff decision, a choice per career at new game, is unchanged: only the box ticked by default moves.
-- **Ironman** keeps **one autosave slot per world** (TIME owns the cadence). On death it is overwritten with the world after the career ended, so "continue" goes straight to the next recruit.
-- **Standard** saves anywhere, to any number of slots, and offers Load a save at death (section 19, step 3).
-- **Export and import** exist in both. An Ironman career restored from an older export is marked `imported` on its record, the memorial and the profile: the honest mark (my call). It plays on normally.
+- **Ironman** keeps **one autosave slot per world**, `ironman`, which is also its edge save (TIME owns the cadence; the hidden `ironman-prev` is offered only by recovery, TECH §7.2, CONTRACTS §12). On death it is overwritten with the world after the career ended, so "continue" goes straight to the next recruit.
+- **Standard** saves anywhere, to nine manual slots beside `auto`, `auto-prev`, `day` and `edge` (TECH §7.2; CONTRACTS §12), and offers Load a save at death (section 19, step 3).
+- **Export and import** exist in both. An Ironman career restored from an older export is marked `imported` on the profile and the load list, never on the Memorial Wall or the papers (TECH §15.5): the honest mark. It plays on normally.
 - The memorial and the profile show each career's mode.
 - No difficulty settings (tradecraft had none; mistakes cost).
 
@@ -1672,26 +1687,32 @@ All pure (`src/sim/career/`, no DOM), each opening with a prose header, randomne
 
 ## Build order
 
-ROADMAP owns the milestones; this is what the career needs in each.
+ROADMAP owns the milestones (§3.4 holds over this list; CONTRACTS §18); this is what the career needs in each.
 
-**0.1: a standby at Base Melas.**
+**0.1.0: a standby at Base Melas, the core career.**
 - The enlistment paper with every field (why you joined included), the quick pick of three, Standard ticked and Ironman one click away; birthplaces as data, backgrounds as SKILLS §10.2's with CAREER's columns, the starting sheet by SKILLS §10.1; the flashback's two scenes; the recruit training summary; the family generated.
 - Arrival at 12:40, the gate, the sponsor at the bus, the three stops; the squad's welcome at evening chow; the 02:30 recall drill; the sol-1 list and the initial counselling; the squad leader beside you (the earpiece port); the DI's voice in the T line; "I know the drill".
-- The standby calendar by TIME's block ids, sols 0 to 9, at most two new systems a sol, "I've got this"; the rest sols' set pieces; lessons booked, missed, asked for again; the slipped weekdays' blocks for later standbys.
-- The readiness checklist, the billets, the vote's clock, the mission rehearsal exercise.
+- The standby calendar by TIME's block ids, sols 0 to 9, at most two new systems a sol, "I've got this"; the stand-ins of 5.4 for the lessons whose scenes join in 0.1.x; the rest sols' set pieces; lessons booked, missed, asked for again; the slipped weekdays' blocks for later standbys.
+- The readiness checklist, the billets, the vote's clock; the MRX's sols on their stand-ins (5.4).
 - Standing events, the squad leader's word, the STANDING leaf's expectations and the PATHS leaf (no marking date falls inside the first arc: with the December start, the first marks are on 31 January, during the first deployment).
 - One pay day inside the standby (sol 4, by the world's pay epoch: 2.3) with its LES; the PX, SETTING's prices and 12.8's personal gear.
-- The PFT's and CFT's timed events through BODY's `courseTime` (for the boot summary) and the G-qualification upright on the Long Arm.
+- The PFT's and CFT's timed events through BODY's `courseTime` (for the boot summary).
 - A letter home and its reply (on Mars, next day), the household letter, the ties' rules.
 - The warning order at the last formation, as the acceptance moment.
-- Death in the standby: the casualty report, the last roll call, the memorial wall and list, and the next recruit into the same world (56 days, the vacancy rule); the garrison row of the lethality budget.
+- Death in the standby: the death splash, the casualty report, the career's end, the memorial's list, the world kept; the garrison row of the lethality budget.
 - Not in 0.1: promotion past PFC, deployments, schools, Redwater, boards.
 
-**Later (proposed):**
-- **0.2** the move and the voyage: predeploy, Redwater liberty, afloat and imminent danger pay, letters at light lag, the passenger rows of the lethality budget (COMBAT's ship combat from inside).
+**0.1.x: the rest of the week** (ROADMAP §5.8, a scene a patch).
+- Each lesson back on its sol as its scene joins (5.4): the suit loft and the suit drill with the Tank, the lifesaver class and lane, the G-house, MCMAP on the mat.
+- The G-qualification upright on the Long Arm (7.3), with the G-house.
+- The mission rehearsal exercise (5.8), once the patrol and the ROE lane have joined.
+- The last roll call, the Memorial Wall's plaques, and the next recruit into the same world (56 days, the vacancy rule), with `career-successor`.
+
+**Later** (ROADMAP §3.4's numbers):
+- **0.2** the move and the voyage: predeploy, with the G-qualification and the suit for a career that crossed the standby without them (5.4, 7.3), Redwater liberty, afloat and imminent danger pay, letters at light lag, the passenger rows of the lethality budget (COMBAT's ship combat from inside).
 - **0.3** the Europa deployment: the `esf` entry (MSF-E, Still Water) lived day by day with chapter days from the third week, its arcs and beats, the sector board, the three acts and the crisis, the relief-in-place paper; combat pay and the tax exclusion; the dose limits' table enforced; awards; evacuation; the post-deployment paper; block leave; the tour rows of the lethality budget.
-- **0.4** the dwell: marks, the composite and cutting scores, PFT, CFT and G-qualification in full, the annual rifle qualification, promotion to Corporal, the Corporals Course, MCMAP belts, leave in the towns and the family home, the offers paper, Phobos security.
-- **0.5** individual deployments at sea: ship's detachment, boarding team, Belt anti-piracy, the Void and Breacher courses.
+- **0.4** the dwell: marks, the composite and cutting scores, PFT, CFT and G-qualification in full, the annual rifle qualification, promotion to Corporal, the Corporals Course, MCMAP belts, leave in the towns and the family home, the offers paper.
+- **0.5** individual deployments at sea: ship's detachment, boarding team, Belt anti-piracy, Phobos security (its free-fall patrols want 0.5's zero-g combat, ROADMAP §3.4), the Void and Breacher courses.
 - **0.6** reconnaissance: the screening, BRC with floors, recon missions from the generator.
 - **0.7** the Raiders: A&S, ITC, the full generator, the load-out at the team cage, Raider deployments.
 - **0.8** the long career: Sergeant and the boards, billets and fitness reports, EAS and reenlistment, retirement, medical boards and ratings, discipline's effects, the successor in full (siblings, former recruits as people), the unlockable starts.

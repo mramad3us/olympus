@@ -34,9 +34,11 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--paper
 button { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
-/* The stage: the canvas fills the window, every pixel the same size. */
-#frame { position: fixed; inset: 0; overflow: hidden; background: #000; }
-#frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+/* The stage: the pixel stage's canvas, as large as the window allows at its shape, centred, every
+   pixel the same size (src/render/stage.js fit() sets its size and place; the border beyond is ink).
+   The HUD lies over the whole window. */
+#frame { position: fixed; inset: 0; overflow: hidden; background: var(--ink); }
+#frame canvas { position: absolute; display: block; image-rendering: pixelated; }
 #hud { position: absolute; inset: 0; pointer-events: none; }
 
 /* The wrist terminal, top right: what the character carries that tells the time (DESIGN.md, Time). */
@@ -58,7 +60,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .sheet kbd { color: var(--ink); border-color: var(--rule); }
 
 /* PAUSED, and the hint under it. */
-.banner { position: absolute; top: 18%; left: 50%; transform: translate(-50%, -50%); background: var(--hud); padding: 10px 22px; letter-spacing: 0.3em; font-size: calc(16px * var(--ui)); text-align: center; }
+.banner { position: absolute; top: 9%; left: 50%; transform: translate(-50%, -50%); background: var(--hud); padding: 10px 22px; letter-spacing: 0.3em; font-size: calc(16px * var(--ui)); text-align: center; }
 .banner small { display: block; letter-spacing: 0.04em; font-size: calc(11px * var(--ui)); color: var(--muted); margin-top: 4px; }
 .hint { position: absolute; right: 14px; bottom: 14px; font-size: calc(11px * var(--ui)); color: #b8bdc8; background: var(--hud); padding: 5px 8px; border-radius: 4px; }
 

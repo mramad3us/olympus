@@ -9,7 +9,7 @@ Conventions: "the user" is quoted with the date of the words. "(my call)" marks 
 ## 0. The model in one page
 
 1. **Four tiers** (DESIGN.md, 2026-11-05): T1 your squad and chain of command (about 20, cap 24) at full depth; T2 the rest of Echo Company (about 170) with full sheets, cheap off the map; T3 the named people of a place; T4 the crowd, seeded and throwaway, never popping in view. People move between tiers by rule.
-2. **One plain JSON record** per persistent person: identity, service, six personality axes and two tags, background, skills, BODY.md's body and needs (as "time since X"), mood, gauges toward you, ties to others, favours, schedule, place, arcs, discipline. What people know lives on a global **event log**: who knows each event, how, and how distorted.
+2. **One plain JSON record** per persistent person: identity, service, six personality axes and two tags, background, skills, BODY.md's body and needs (as "time since X"), mood, gauges toward you, ties to others, favours, schedule, place, arcs, discipline. What people know lives on the global ring of **happenings** (`state.happenings`): who knows each one, how, and how distorted.
 3. **`whereIs(person, ms)`** (the one name for the schedule lookup, §4.6) answers where anyone is at any time, in what posture and on what path, from overrides, the Plan of the Day block and their role template, varied by a hash of (person, sol, block). Lived on the map, looked up off it; a skip moves nobody tick by tick. This generalises tradecraft's embassy rota.
 4. **Behaviour** is longhaul's priority ladder (survival, casualties, orders and customs, duty posts, urgent needs, the block, errands, needs, social, leisure, idle) with utility inside each rung, booked places and queues, and a measured chance of off-plan lapses that feeds discipline with real cases.
 5. **Perception** is tradecraft's cone, radius, light-limited range and walls, plus hearing that knows the air pressure. One visibility primitive, a symmetric line test over a 0.5 m sight grid, draws the fog and decides who witnessed what (§7.6); one air law scales every sound (§7.3).
@@ -17,7 +17,7 @@ Conventions: "the user" is quoted with the date of the words. "(my call)" marks 
 7. **Conversation** is a real system: time stands still while you choose a topic and an approach; checks are d20 + skill + named modifiers in the log; address and etiquette have consequences; orders are received and given; banter, asks, trades, comfort, and the K/L/M **hard talk** (the user's "KLM style minigame", 2026-10-26). You can **walk with** someone and talk on the way (§10.16). Scenes you are in but not driving (formations, inspections, briefings, mail call) run in **attend mode**, fast until they reach you (§10.12). People speak with their own voices and remember shared events aloud (§10.14).
 8. **The chain of command is live**: orders with deadlines, customs in motion (which become habits, §6.6), an infractions catalogue, the real ladder from correction to court-martial, inspections that put the squad's comfort on your locker, and punishments that are chapters with something to win back (§11.11).
 9. **Crowds** port tradecraft's bubble to areas: base personnel, ship crews, Europa's townsfolk with district moods driving queues, protests and riots.
-10. **Budgets**: 48 persistent people at full depth (inside the near ring on grounds, §13.5) and 120 crowd agents, at most 160 figures in the frame (TECH's `MAX_PEOPLE`), people's sim measured at TECH's 0.53 ms a tick in the busiest area, paths in TECH's work units, every off-map process closed-form on absolute hours and sols.
+10. **Budgets**: 48 persistent people at full depth (inside the near ring on grounds, §13.5) and 120 crowd agents, at most `MAX_PEOPLE` 256 drawn (TECH §16.7), people's sim at TECH §16.2's 0.50 ms a tick in the busiest area (CONTRACTS §8, §6), paths in TECH's work units, every off-map process closed-form on absolute hours and sols.
 
 ---
 
@@ -48,17 +48,17 @@ Conventions: "the user" is quoted with the date of the words. "(my call)" marks 
 
 | Tier | Who | Typical count | On the map | Off the map | Saved |
 |---|---|---|---|---|---|
-| **T1, your people** | your squad (12 besides you); platoon HQ (platoon commander, platoon sergeant, platoon guide); the platoon's attached corpsman and radio operator; the company's first sergeant, gunnery sergeant and commander; up to 4 promoted friends | 20, cap 24 | full: needs each game minute (BODY's slow layer), perception, utility, 32 memories, ties to all of T1 and the platoon | L2 by the minute in the same site, L3 by the sol elsewhere (§13) | full sheet, about 4 KB |
-| **T2, your unit** | the rest of Echo Company; the battalion's sergeant major, commander and executive officer | about 170 | as T1, with 8 memories and ties to their own squad and chain only | L2/L3 | full sheet, about 1.2 KB |
-| **T3, named people of a place** | base staff (mess, armoury, aid station, chaplain, PX, barber, gym, range, centrifuge, gate), a ship's notables, a town's notables, an operation's people (a hostage, a target, a witness) | 20 to 40 per site | as T2 | L3 | sheet; reduced to a stub after 120 sols unmet and outside any arc |
+| **T1, your people** | your squad (12 besides you); platoon HQ (platoon commander, platoon sergeant, platoon guide); the platoon's attached corpsman and radio operator; the company's first sergeant, gunnery sergeant and commander; up to 4 promoted friends | 20, cap 24 | full: needs each game minute (BODY's slow layer), perception, utility, 32 memories, ties to all of T1 and the platoon | L2 by the minute in the same site, L3 by the sol elsewhere (§13) | full sheet, 3.7 KB after TECH §6.6's size rules |
+| **T2, your unit** | the rest of Echo Company; the battalion's sergeant major, commander and executive officer | about 170 | as T1, with 8 memories and ties to their own squad and chain only | L2/L3 | full sheet, 2.2 KB after TECH §6.6's size rules |
+| **T3, named people of a place** | base staff (mess, armoury, aid station, chaplain, PX, barber, gym, range, centrifuge, gate), a ship's notables, a town's notables, an operation's people (a hostage, a target, a witness) | 20 to 40 per site | as T2 | L3 | sheet, 1.7 KB; reduced to a stub (0.25 KB) after 120 sols unmet and outside any arc, and the stub deleted once no happening of weight 2 or more names it (TECH §6.6, rule 5) |
 | **T4, the crowd** | everyone else: other battalions' marines, sailors, contractors, townsfolk | at most 120 live | movement, light perception (Awareness 4, tradecraft's `CIVILIAN_AWARENESS`), reactions, mood | nothing | a seed and a plan only |
 
 ### 2.2 Moving between tiers
 
-- **T4 to T3** (tradecraft `src/sim/interact.js` `person()`, lines 143–151): the moment you open the F menu on a crowd member, they get a sheet generated from their seed, saved as `people['x<seed>']`. Also promoted: anyone who becomes a casualty, anyone you detain or search, and up to 3 crowd witnesses of an event of weight 4 or more that involves you (they may be asked about it later).
+- **T4 to T3** (tradecraft `src/sim/interact.js` `person()`, lines 143–151): the moment you open the F menu on a crowd member, they get a sheet generated from their seed, given a `p` id, its seed kept in `look.seed` (CONTRACTS §10); like a T3 stub, it is deleted once no happening of weight 2 or more names it (TECH §6.6, rule 5). Also promoted: anyone who becomes a casualty, anyone you detain or search, and up to 3 crowd witnesses of an event of weight 4 or more that involves you (they may be asked about it later).
 - **T2 to T1**: transferred into your squad or platoon HQ, or befriended: affinity toward you of 3 or more and at least 6 notable exchanges with you in the last 30 sols. At most 4 promoted friends; when a fifth qualifies, the one with the lowest affinity drops back to T2 (ties and memories kept, memories trimmed to 8).
 - **T1 to T2**: transferred out of your platoon, or you are transferred (CAREER.md). Your old squad becomes T2 with ties intact.
-- **T3 stubs**: a T3 not met for 120 sols and in no arc keeps only `{ id, name, look seed, gauges, top 2 memories }`, and regrows a full sheet from their seed on the next meeting (the skills come back the same, because the seed is the same).
+- **T3 stubs**: a T3 not met for 120 sols and in no arc keeps only `{ id, name, look seed, gauges, top 2 memories }`, and regrows a full sheet from their seed on the next meeting (the skills come back the same, because the seed is the same). A stub that no happening of weight 2 or more names any longer is deleted (TECH §6.6, rule 5); its id is never reused.
 
 ### 2.3 The person record
 
@@ -66,9 +66,9 @@ Plain data, `$` keys runtime-only (DESIGN.md, Saves). One record for the player 
 
 ```json
 {
-  "id": "p:0042",
+  "id": "p42",
   "tier": 1,
-  "name": { "given": "Noor", "family": "Halloran", "nick": "Hollywood", "callsign": null },
+  "name": { "given": "Noor", "family": "Halloran", "nick": "Hollywood" },
   "sex": "f",
   "bornMs": -746928000000,
   "home": { "id": "redwater", "world": "mars", "place": "Redwater", "kind": "valley-town" },
@@ -76,38 +76,37 @@ Plain data, `$` keys runtime-only (DESIGN.md, Saves). One record for the player 
   "faith": "none",
   "service": {
     "branch": "marines", "rank": "LCpl", "grade": "E3", "mos": "0311",
-    "unit": "2/4-E-2-1", "billet": "ft2-ar",
+    "unitId": "2/4-E-2-1", "billet": "ft2-ar",
     "enlistedMs": -47000000000, "dateOfRankMs": -9100000000, "easMs": 79000000000,
-    "plan": { "promote": [[31000000000, "E4"]], "pcsMs": null, "reenlistP": 0.34 },
+    "plan": { "promote": [[31000000000, "E4"]], "reenlistP": 0.34 },
     "record": [ { "atMs": -9100000000, "kind": "promoted", "to": "E3" } ]
   },
-  "traits": { "nerve": 1, "drive": -1, "warmth": 2, "temper": 0, "rules": -1, "social": 2 },
+  "traits": { "nerve": 1, "drive": -1, "warmth": 2, "rules": -1, "social": 2 },
   "tags": ["joker", "letter-writer"],
   "background": "ice-hauler-family",
   "quirks": ["hums-cadence"],
   "voice": { "phrase": "dust-in-everything", "topic": "hellas", "register": "chatty", "n": { "small-talk": 7, "shop-talk": 2 } },
   "skills": { "social": [5, 1], "awareness": [5, 2], "cqc": [5, 0] },
   "os": 16,
-  "body": {},
+  "body": { "v": 1, "tmpl": "f-adult" },
+  "kit": { "tmpl": "rifleman-garrison" },
   "needs": { "ateMs": 0, "drankMs": 0, "wokeMs": 0, "sleepDebtH": 1.5, "washedMs": 0, "voidedMs": 0, "bowelMs": 0, "shavedMs": 0, "haircutMs": 0 },
   "mood": { "stress": 12, "morale": 68, "mod": -4, "modMs": 0 },
-  "gauges": { "fear": 0, "trust": -1, "affinity": 1, "metMs": 0, "sharedMs": 0, "talkedMs": 0, "base": { "fear": 0, "trust": 0, "affinity": 1 } },
-  "ties": { "p:0017": [0, 3, 4, 0, "buddy"], "p:0031": [0, 0, -2, 0, "rival"] },
-  "acc": { "p:player": { "trust": 0.25, "affinity": 0.5 } },
-  "owes": { "p:player": 1 },
-  "loans": [],
-  "sched": { "role": "rifleman", "overrides": [], "liberty": "base" },
-  "task": null,
-  "place": { "site": "melas", "area": "bks-2.deck-1", "room": "bay-2", "x": 12.4, "z": 5.0, "sinceMs": 0 },
+  "gauges": { "trust": -1, "affinity": 1, "metMs": 0, "sharedMs": 0, "talkedMs": 0, "base": { "affinity": 1 } },
+  "ties": { "p17": [0, 3, 4, 0, "buddy"], "p31": [0, 0, -2, 0, "rival"] },
+  "acc": { "p233": { "trust": 0.25, "affinity": 0.5 } },
+  "owes": { "p233": 1 },
+  "sched": { "role": "rifleman", "liberty": "base" },
+  "place": { "site": "melas", "area": "melas.echo.1", "room": "e1.bay-2-1", "x": 12.4, "z": 5.0, "sinceMs": 0 },
   "appearance": { "uniform": "utilities", "launderedMs": 0, "squaredMs": 0, "bagMs": 0, "dust": 0.2, "gigLine": true },
   "arcs": [ { "id": "dear-john", "stage": "withdrawn", "sinceMs": 0, "vars": { "partner": "Kai" } } ],
-  "discipline": { "entries": [], "pending": null, "restrictedUntilMs": 0, "extraDutyLeftH": 0, "suspendedUntilMs": 0 },
-  "look": { "seed": 778211 },
-  "alive": true, "fate": null
+  "look": { "seed": 778211 }
 }
 ```
 
-- `body` is BODY.md's shape, unchanged. `needs` holds whatever event times BODY.md's need model keys on; the names above are the ones I rely on (§5).
+- Ids are TECH §2.3.1's (CONTRACTS §10): a person is `p<n>`, and the player is an ordinary one, named by `state.player.id` and read through `playerId(state)` (`p233` in these samples, the 0.1 new game's of TECH §6.2); never `me`, `p0` or `p:player`. Fields holding an id are `id`, `<role>Id`, `<role>Ids` or `who`; maps keyed by person (`ties`, `acc`, `owes`) take the ids as keys. `place` uses PLACES's area and room ids.
+- **No defaults on disk** (TECH §6.6, rule 1): null, false, zero where zero is the default and empty fields are left out, and `withDefaults('person', rec)` fills them on read. So this sample has no `callsign`, no `temper` (0), no `fear` (0), no `loans`, `task`, `overrides` or `discipline` (all empty), and no `alive: true` or `fate: null`.
+- `body` is BODY.md's shape stored as its deltas from a template, `{ v, tmpl, …what differs }` (TECH §6.6, rule 2; CONTRACTS §9): this one differs from `f-adult` in nothing yet. `kit` is WEAPONS's (TECH §6.7): an issue template until one of its items is drawn, used, dropped or inspected, when `materialise()` gives the items ids. `needs` holds whatever event times BODY.md's need model keys on; the names above are the ones I rely on (§5).
 - `skills` and `os` (the Warfighting over-skill) are SKILLS.md's shape: `{ key: [base, bg] }` (SKILLS §15.1) and 0 to 100.
 - `ties[otherId]` is `[fear, trust, affinity, metMs, tag]`, sparse (§8.2). `acc` holds fractional gauge changes that have not yet made a whole step (§8.4).
 - `gauges.sharedMs` is the last time this person and the player spent time together (§10.4); `gauges.talkedMs` the last time they talked, which keeps the tie from drifting (§8.1).
@@ -127,40 +126,43 @@ A person on the live area is an **actor**, as in tradecraft (`src/sim/game.js`, 
 `ai` for persistent people:
 
 ```json
-{ "kind": "person", "rung": 6, "task": { "kind": "chow", "target": "fx:mess:t14:s3", "steps": [["go", 31.2, 8.0], ["queue", "fx:mess:line"], ["use", "fx:mess:line", 22000], ["go", 40.1, 12.5], ["use", "fx:mess:t14:s3", 1260000]], "booked": "fx:mess:t14:s3", "startMs": 0, "untilMs": 0 }, "stack": [], "nextThinkTick": 1840, "stuckS": 0, "aware": { "p:player": "seen" } }
+{ "kind": "person", "rung": 6, "task": { "kind": "chow", "target": "f:mess:t14#3", "steps": [["go", 31.2, 8.0], ["queue", "f:mess:line"], ["use", "f:mess:line", 22000], ["go", 40.1, 12.5], ["use", "f:mess:t14#3", 1260000]], "booked": "f:mess:t14#3", "startMs": 0, "untilMs": 0 }, "stack": [], "nextThinkTick": 1840, "stuckS": 0, "aware": { "p233": "seen" } }
 ```
+
+Fixtures and their spots carry PLACES's ids (CONTRACTS §10): a fixture is `f:` and its template path, a spot or seat `<fixture id>#<n>` (seat 3 of table 14 is `f:mess:t14#3`), an opening `o:`.
 
 Crowd actors carry `ai: { kind: "crowd", role, plan: { from, to, stops }, mood }` and nothing else (§12).
 
-### 2.5 The event log: what is known, by whom
+### 2.5 Happenings: what is known, by whom
 
-Every notable thing that happens (a negligent discharge, a fight, a failed inspection, a saved life, a Dear John letter read aloud) is one record in `state.events`, a ring of at most 1,200 (my call). Knowledge of it is stored on the event, not on each person, so gossip can be computed per event and a person's memories are a runtime index (`$known[personId]`).
+Every notable thing that happens (a negligent discharge, a fight, a failed inspection, a saved life, a Dear John letter read aloud) is one record in `state.happenings`, a ring of at most 1,200 (my call; `state.events` is TIME's queue, and this ring was called the event log before TECH's correction 15). Knowledge of it is stored on the happening, not on each person, so gossip can be computed per happening and a person's memories are a runtime index (`$known[personId]`).
 
 ```json
 {
-  "id": 8812, "kind": "nd", "atMs": 0, "site": "melas", "room": "range-1",
-  "subject": "p:player", "object": null, "w": 3,
-  "facts": { "weapon": "rifle", "struck": "berm", "endangered": [] },
-  "tags": [],
+  "id": "n8812", "kind": "nd", "atMs": 0, "site": "melas", "room": "kd.line-200",
+  "subjectId": "p233", "w": 3,
+  "facts": { "weapon": "rifle", "struck": "berm" },
   "known": {
-    "p:0012": ["saw", null, 3, 0, 0],
-    "p:0017": ["told", "p:0012", 3, 1, 0]
-  },
-  "crowdWitnesses": 0
+    "2/4-E-2-1": ["saw", null, 3, 0, 0],
+    "p12": ["saw", null, 3, 0, 0],
+    "p17": ["told", "p12", 3, 1, 0]
+  }
 }
 ```
 
-A `known` entry is `[how, fromId, weight, distortion, learnedMs]`. `how` is `saw`, `heard`, `told` or `was` (the subject or object). Distortion codes are in §9.4. An event is dropped when no knower holds it above the forgetting threshold, except weight-5 events (a death, a life saved), which are kept for the memorial (CAREER.md).
+A happening's id is counted, `n<n>` (CONTRACTS §10); `subjectId` and `objectId` name the people in it, and a field at its default is left out (here there is no `objectId`, no `tags`, no `endangered` and no `crowdWitnesses`: TECH §6.6, rule 1). A `known` entry is `[how, fromId, weight, distortion, learnedMs]`. **Knowledge is kept by group** (TECH §6.6, rule 4): an entry keyed by a unit id (`2/4-E-2-1`, the squad who saw it from the next lane) stands for everyone in it, and entries keyed by a person's id are the exceptions and the lone knowers (`p12`, a range coach; `p17`, told by `p12`); a person's own entry wins over their unit's. So a happening the whole company has heard of is about 0.3 KB, not 7 KB. `how` is `saw`, `heard`, `told` or `was` (the subject or object). Distortion codes are in §9.4. A happening is dropped when no knower holds it above the forgetting threshold, except weight-5 happenings (a death, a life saved), which are kept for the memorial (CAREER.md).
 
 ### 2.6 Units, billets and the chain
 
 ```json
 "units": {
-  "2/4-E":     { "name": "Echo Company, 2nd Battalion, 4th Marines", "parent": "2/4", "billets": { "co": "p:0001", "xo": "p:0002", "1sg": "p:0003", "gysgt": "p:0004" } },
-  "2/4-E-2":   { "parent": "2/4-E", "billets": { "pltcmdr": "p:0040", "pltsgt": "p:0041", "guide": "p:0043", "doc": "p:0044", "ro": "p:0045" } },
-  "2/4-E-2-1": { "parent": "2/4-E-2", "billets": { "sl": "p:0050", "ft1-tl": "p:0051", "ft1-ar": "p:0052", "ft1-aar": "p:0053", "ft1-r": "p:0054", "ft2-tl": "p:0055", "ft2-ar": "p:0042", "ft2-aar": "p:0056", "ft2-r": "p:player", "ft3-tl": "p:0057", "ft3-ar": "p:0058", "ft3-aar": "p:0059", "ft3-r": "p:0060" } }
+  "2/4-E":     { "name": "Echo Company, 2nd Battalion, 4th Marines", "parentId": "2/4", "billets": { "co": "p1", "xo": "p2", "1sg": "p3", "gysgt": "p4" } },
+  "2/4-E-2":   { "parentId": "2/4-E", "billets": { "pltcmdr": "p40", "pltsgt": "p41", "guide": "p43", "doc": "p44", "ro": "p45" } },
+  "2/4-E-2-1": { "parentId": "2/4-E-2", "billets": { "sl": "p50", "ft1-tl": "p51", "ft1-ar": "p52", "ft1-aar": "p53", "ft1-r": "p54", "ft2-tl": "p55", "ft2-ar": "p42", "ft2-aar": "p56", "ft2-r": "p233", "ft3-tl": "p57", "ft3-ar": "p58", "ft3-aar": "p59", "ft3-r": "p60" } }
 }
 ```
+
+Unit ids are TECH §2.3.1's paths (CONTRACTS §10: `2/4`, `2/4-E`, `2/4-E-2-1`, a fire team `2/4-E-2-1-ft2`); the billet values are person ids, the player's among them (`p233` fills the empty billet the roster left, §3.12).
 
 `chainOf(personId)` walks up the billets and returns the NCO channel and the command channel merged in the order a junior marine meets them: fire team leader, squad leader, platoon sergeant, platoon commander, first sergeant, company commander, battalion sergeant major, battalion commander. An empty billet is skipped (the next one up acts). Billet keys are stable even when the people in them change, so orders and duty rosters address billets where that is what the Corps does ("the second team's AR").
 
@@ -174,7 +176,7 @@ At a new career (CAREER.md), the world's seed generates **all of Echo Company** 
 
 ### 3.2 The company's billets
 
-A rifle platoon, as DESIGN.md settles it (squad of 13, platoon of about 42), with its two attachments:
+A rifle platoon, as DESIGN.md settles it (squad of 13, platoon of 42 and its two attachments, 44: CONTRACTS §15):
 
 | Billet | Count | Rank (weights) |
 |---|---|---|
@@ -189,7 +191,7 @@ A rifle platoon, as DESIGN.md settles it (squad of 13, platoon of about 42), wit
 | Corpsman (Navy, attached) | 1 | junior hospital rating 40, third class 50, second class 10 (SETTING.md names the Navy grades) |
 | Radio operator (attached) | 1 | LCpl 60, Cpl 25, PFC 15 |
 
-Three rifle platoons (132), a weapons platoon of 46 (platoon commander and sergeant; a machine-gun section of 19, a mortar section of 13, an assault section of 13), and a company headquarters of 13 (commander Capt, executive officer 1stLt, first sergeant, gunnery sergeant, clerk, supply sergeant, communications chief, senior corpsman, a pressure-and-suit safety NCO (my call: a Martian billet, a Cpl who owns the company's suit lockers and pressure drills), two drivers, two runners). That is 191 with attachments, "about 180" in DESIGN.md's round number. Billet names belong to SETTING.md's MOS list; weapons in the billets belong to WEAPONS.md.
+Three rifle platoons (132), a weapons platoon of 46 (platoon commander and sergeant; a machine-gun section of 19, a mortar section of 13, an assault section of 13), and a company headquarters of 13 (commander Capt, executive officer 1stLt, first sergeant, gunnery sergeant, clerk, supply sergeant, communications chief, senior corpsman, a pressure-and-suit safety NCO (my call: a Martian billet, a Cpl who owns the company's suit lockers and pressure drills), two drivers, two runners). That is 191 with attachments, DESIGN.md's "about 190". Billet names belong to SETTING.md's MOS list; weapons in the billets belong to WEAPONS.md.
 
 ### 3.3 Ranks and ages
 
@@ -327,37 +329,37 @@ Base Melas's named staff, one generator per post (`stream('staff', site, post)`)
 
 ### 4.1 The garrison sol (what I build on from TIME.md)
 
-TIME.md owns the Plan of the Day as a time structure (its §9.2 is the 0.1 template). People's templates reference **block ids**, never clock times, so when TIME.md's numbers move, everyone follows. The ids I use, on TIME.md's times for a training sol at Base Melas:
+TIME.md owns the Plan of the Day as a time structure (its §9.2 is the 0.1 template). People's templates reference **block ids**, never clock times, so when TIME.md's numbers move, everyone follows. The ids I use for a training sol at Base Melas; their times are TIME §9.2's, quoted once in CONTRACTS §4, and not copied here:
 
-| Block id | Time | Notes for people |
-|---|---|---|
-| `reveille` | 05:30 | the duty NCO's call; fire watch 4 wakes the bay |
-| `muster` | 05:40 | accountability in the bay, by squad |
-| `pt` | 05:45–06:45 | run, circuit or centrifuge by rotation; PT uniform |
-| `hygiene-chow` | 06:45–07:45 | the reveille queue at the heads (§6.4); chow window 06:50–07:40 |
-| `morning-formation` | 07:50 | the squad leader's inspection of shave, haircut and uniform; morning colours at 08:00 |
-| `train-a` | 08:00–11:30 | the company's training plan |
-| `noon-chow` | 11:30–12:30 | the line closes 12:20 |
-| `noon-formation` | 12:40 | |
-| `train-b` | 12:45–16:30 | |
-| `maintenance` | 16:30–17:15 | weapons and gear, the armoury line; field day on sol 4 (16:30–18:30) |
-| `evening-chow` | 17:15–18:30 | |
-| `mail-call` | 18:30 | optional, lived |
-| `free` | 18:30–21:45 | on base; liberty on the right evenings |
-| `taps` | 22:00 | in the rack (lights-out warning at 21:45) |
-| `night` | 22:00–05:30 | includes the timeslip after 24:00; the four fire watches |
+| Block id | Notes for people |
+|---|---|
+| `reveille` | the duty NCO's call; fire watch 4 wakes the bay |
+| `muster` | accountability in the bay, by squad |
+| `pt` | run, circuit or centrifuge by rotation; PT uniform |
+| `hygiene-chow` | the reveille queue at the heads (§6.4); the chow window inside the block |
+| `morning-formation` | the squad leader's inspection of shave, haircut and uniform; morning colours |
+| `train-a` | the company's training plan |
+| `noon-chow` | the line closes before the block ends |
+| `noon-formation` | |
+| `train-b` | |
+| `maintenance` | weapons and gear, the armoury line; field day on Thursday |
+| `evening-chow` | |
+| `mail-call` | optional, lived |
+| `free` | on base; liberty on the right evenings |
+| `taps` | in the rack (the lights-out warning before it) |
+| `night` | includes the timeslip after 24:00; the four fire watches |
 
 Rack time is 7 h 30 min of clock plus the 39 min 35 s timeslip: 8 h 09 min 35 s. Martian marines sleep long; Earth-born ones notice.
 
 ### 4.2 The week
 
-A week of seven sols, Monday to Sunday (SETTING §3.4: weekdays by `solIndex mod 7`): sols 1 to 5 are training days; sol 4's maintenance block becomes **field day** (the barracks cleaned, 16:30–18:30, TIME.md's times); sol 6 opens with the **inspection** (08:00–10:00, §11.10), then a half day and liberty from 12:00; sol 7 is holiday routine. On standby, liberty is limited to the recall radius (Redwater) and one unannounced recall drill comes each week (TIME.md). Liberty for privates to lance corporals ends at 00:00, "home before the slip" (my call: a local custom of the Mariner Valley bases); for corporals and above at 02:00. Privates to lance corporals go on liberty in pairs (the liberty-buddy rule).
+A week of seven sols, Monday to Sunday (SETTING §3.4: weekdays by `solIndex mod 7`): Monday to Friday train; Thursday's maintenance block becomes **field day**; Friday opens with the platoon sergeant's **inspection** (§11.10), then the short `train-a` and liberty from 17:15; Saturday and Sunday are holiday routine (TIME §9.2; CONTRACTS §4). On standby, liberty is limited to the recall radius (Redwater) and one unannounced recall drill comes each week (TIME.md). Liberty for privates to lance corporals ends at 00:00, "home before the slip" (my call: a local custom of the Mariner Valley bases); for corporals and above at 02:00. Privates to lance corporals go on liberty in pairs (the liberty-buddy rule).
 
 ### 4.3 The duty roster
 
 | Duty | Eligible | When | Length | Post | Expected rate per eligible person | What the post asks |
 |---|---|---|---|---|---|---|
-| Fire watch | Pvt to LCpl of the platoon | every night | four watches (TIME.md's times): 22:00–24:00 and the slip (**the slip watch**, 2 h 39 min 35 s, the longest of the night, traded for or given); 00:00–02:00; 02:00–04:00; 04:00–05:30 | the platoon's floor of squad bays (PLACES.md: a bay per squad, 14 racks), one roving watch | about 1 in 8 sols (4 watches a night among about 30 eligible) | stay awake and in the bay; rounds every 30 min (doors, heads, the duty log); wake the next watch; wake the bay at reveille |
+| Fire watch | Pvt to LCpl of the platoon | every night | four watches (TIME.md's times): 22:00–24:00 and the slip (**the slip watch**, 2 h 39 min 35 s, the longest of the night, traded for or given); 00:00–02:00; 02:00–04:00; 04:00–05:30 | the platoon's floor of squad bays (PLACES §4.4: a bay per squad, 15 racks), one roving watch | about 1 in 8 sols (4 watches a night among about 30 eligible) | stay awake and in the bay; rounds every 30 min (doors, heads, the duty log); wake the next watch; wake the bay at reveille |
 | Duty NCO | Cpl to Sgt of the company | 08:00 to 08:00 | 1 sol | barracks duty desk | about 1 in 40 sols | the desk, the log, musters for the restricted, the barracks' safety; sleeps 02:00–04:00 in the duty room |
 | Duty runner | PFC to LCpl | 08:00 to 08:00 | 1 sol | duty desk | about 1 in 100 sols | messages, summons, the phone |
 | Guard | the company's turn: 1 sol in 4 (four companies share the base guard, my call) | 08:00 to 08:00 | three reliefs, 2 h on and 4 h off | gate, armoury, perimeter posts | about 1 in 30 sols (24 marines on the company's guard day) | the post's orders (SETTING.md's general orders); a sentry calls for relief, never leaves |
@@ -367,7 +369,7 @@ A week of seven sols, Monday to Sunday (SETTING §3.4: weekdays by `solIndex mod
 | Range detail | 4 per range day | 06:30–17:00 | the day | the range | when the range is booked | targets, brass, the ammunition point |
 | Extra duty | those punished (§11.5) | after working hours | at most 2 h a sol, never on the rest sol | as assigned | as awarded | |
 
-**Assignment** (tradecraft's week-ahead planning, `src/sim/campaign.js` `plan()`, made fair): with sol 7's Plan of the Day at 20:00 (TIME.md posts the PoD then), the platoon sergeant's roster for the next week is published to the duty board in the barracks passageway and to wrist terminals (VIEWS.md). For each slot, in time order, from `stream('roster', unitId, weekIndex)`:
+**Assignment** (tradecraft's week-ahead planning, `src/sim/campaign.js` `plan()`, made fair): with Monday's Plan of the Day, posted Sunday at 20:00 (`week@Sunday/20:00`, CONTRACTS §5), the platoon sergeant's roster for the next week is published to the duty board in the barracks passageway and to wrist terminals (VIEWS.md). For each slot, in time order, from `stream('roster', unitId, weekIndex)`:
 
 ```
 eligible = members of the right ranks, not on leave, school, hospital, sick in quarters,
@@ -390,15 +392,15 @@ A template maps each block id to an activity, a place kind and a variance. Some 
 | rifleman, AR, AAR | hygiene, PT, chow | the training blocks with the squad | maintenance, chow, free | arrives at formation 1–6 min early, 2 min earlier per point of drive above 0; never late except by a lapse (§6.5) |
 | fire team leader | as rifleman, 5 min earlier | leads the team in training | checks the team's weapons before turn-in | inspects the team before the squad leader does |
 | squad leader | up at 05:15 | runs the squad's training | the squad's evening word; visits the bay at 21:30 | NCO-call with the platoon sergeant at 07:30 |
-| platoon sergeant | at the company office at 06:45 | runs PT on two sols in five; the platoon's schedule | the duty roster; walks the bay during field day | inspects on sol 6 |
+| platoon sergeant | at the company office at 06:45 | runs PT on two sols in five; the platoon's schedule | the duty roster; walks the bay during field day | inspects on Friday |
 | platoon commander | officer call at the company at 07:30 | training oversight; the platoon's paperwork | leaves the barracks at 18:00; officers' quarters | |
 | corpsman ("Doc") | sick call at the aid station 07:00–08:00 | with the platoon | the aid station on alternate evenings | |
 | first sergeant | company office from 06:30 | everywhere | walks the barracks at 17:00 and during field day | holds the company's discipline (§11) |
-| company commander | office 07:30–17:30 | PT with the company on sol 3 | office hours at 09:00 when there are cases | |
+| company commander | office 07:30–17:30 | PT with the company on Wednesday | office hours at 09:00 when there are cases | |
 | mess chief (T3) | mess hall from 04:00 | the serving line at chow | closes at 19:30 | |
-| armourer (T3) | armoury window 06:30–17:30 | inspections at turn-in | | the armoury line on range days |
+| armourer (T3) | armoury window 06:00–18:00 (PLACES §4.6; PLACES §4.14 owns posts and hours) | inspections at turn-in | | the armoury line on range days |
 | MP desk sergeant (T3) | 12-hour shifts, 06:00 and 18:00 | | | |
-| chaplain (T3) | office hours 09:00–16:00 | visits the barracks on sol 2 | the chapel on the rest sol | |
+| chaplain (T3) | office hours 09:00–16:00 | visits the barracks on Tuesday | the chapel on the rest sol | |
 
 Per-person variance comes from `hashFloat(personId, sol, blockId)`: arrival offsets, how long a shower or a meal takes (inside TIME.md's activity durations), when in a block an errand happens, which free-time option wins a near tie.
 
@@ -537,9 +539,9 @@ keep the current task unless a new option scores > 1.3 x it (hysteresis), or the
 A task is a list of steps, as tradecraft's busy plans (`['go', x, z]`, `['wait', ticks, face, gait]`) and longhaul's tasks:
 
 ```json
-{ "kind": "shower", "rung": 8, "target": "fx:bks2-head:shower-3",
-  "steps": [["go", 12.0, 4.5], ["queue", "fx:bks2-head:showers"], ["use", "fx:bks2-head:shower-3", 540000], ["go", 3.0, 4.0]],
-  "booked": "fx:bks2-head:shower-3", "startMs": 0, "untilMs": 0, "then": "dress" }
+{ "kind": "shower", "rung": 8, "target": "f:e1:head-2a:showers#3",
+  "steps": [["go", 12.0, 4.5], ["queue", "f:e1:head-2a:showers"], ["use", "f:e1:head-2a:showers#3", 540000], ["go", 3.0, 4.0]],
+  "booked": "f:e1:head-2a:showers#3", "startMs": 0, "untilMs": 0, "then": "dress" }
 ```
 
 `use` durations come from TIME.md's activities table, varied by the person's hash. NPCs live their activities in real time on the map: you see Okonjo go into the showers and come out eight minutes later, towel round his neck.
@@ -552,7 +554,7 @@ Longhaul's rule (2026-10-24; `js/sim/crew-ai.js` `taken()`, and `js/sim/ship-lay
 - Racks and lockers are owned and never used by anyone else, except a shared hot rack (§4.7).
 - **Mess seating**: a table scores Σ affinity toward those already seated, +1 for each squadmate, −3 for each enemy; staff NCOs sit at their own tables, officers in their own mess (PLACES.md). Juniors fill from the line in order. Who sits with whom at noon is how the player reads the platoon's friendships.
 - **The player books too**: R on a fixture books it; if an NPC had booked it and was walking there, the NPC replans (and barks if it was theirs: "That's my rack, boot.").
-- The reveille queue is real: a platoon's floor of about 42 marines shares its head (the counts are PLACES.md's; my working figure is eight toilets, eight sinks and eight showers), which makes the hygiene window tight. A test prints the longest wait.
+- The reveille queue is real: a platoon's floor of 42 marines shares its heads (the counts are PLACES §4.4's: `head-2a` and `head-2b` hold 8 showers, 8 basins, 7 stalls and 2 urinals between them), which makes the hygiene window tight. A test prints the longest wait.
 
 ### 6.5 Temptation: the off-plan choices
 
@@ -815,7 +817,7 @@ Each tell is distorted with probability 0.08 (`gossip` ×2, `straight-shooter` �
 
 ### 9.5 Off the map, by the sol
 
-At each sol boundary (inside the timeslip), for each event with novelty above 0.05 and each person in the company who does not know it:
+At each local day's start (the `local@00:00` pass, TIME §11.3; CONTRACTS §5), for each happening with novelty above 0.05 and each person in the company who does not know it:
 
 ```
 miss = product over knowers j of (1 - p(wEff_j, novelty))^contactHours(i, j)
@@ -950,9 +952,11 @@ The words are SETTING.md's; the rules are these. Address is chosen automatically
 5. Refuse: insubordination (§11.3). An **unlawful order** (COMBAT.md's rules of engagement say which) must be refused, and refusing it is not an infraction; obeying it is.
 
 ```json
-{ "id": "o:4411", "from": "p:0050", "to": "p:player", "kind": "be-at", "text": "Armoury window, with your rifle, at 16:10.",
-  "where": { "site": "melas", "room": "armory-window" }, "byMs": 0, "test": "at-place", "standing": false, "status": "open", "issuedMs": 0 }
+{ "id": "od4411", "fromId": "p50", "toId": "p233", "kind": "be-at", "text": "Armoury window, with your rifle, at 16:10.",
+  "where": { "site": "melas", "room": "armoury.window" }, "byMs": 0, "test": "at-place", "status": "open", "issuedMs": 0 }
 ```
+
+An order's id is counted `od<n>` (CONTRACTS §10: `o:` is the openings' form); `standing` is left out while false (TECH §6.6, rule 1).
 
 Order kinds: `be-at`, `do` (a task with a completion test: "clean-weapon" until WEAPONS.md's dirt is under its threshold and the armourer has passed it), `carry` (an item to a place), `stop` (a behaviour), `wear` (a uniform), `stay` (a post), `wake` (someone at a time), `tell` (deliver a message: you as runner). At the deadline, the issuer or a delegate checks it if they can perceive the result, or when a report comes in. Missed by less than 10 min: a correction; not done: failure to obey (§11.3). Standing orders (a sentry's general orders, the range's safety rules from WEAPONS.md) are checked continuously.
 
@@ -1003,11 +1007,11 @@ A briefing is one speaker to many: the squad leader's evening word, the platoon 
 
 **Attend mode** (my call, after the critics: lived at 1:1, these scenes give the player nothing to do for minutes at a time). A scene the player is in but not driving runs in attend mode: a formation and its inspection (§11.10), colours, a briefing, mail call, the company commander's speech (CAREER §5.7, 2 to 3 minutes), a memorial's forming up, a hail and farewell's speeches, the waiting at a board.
 
-- It **fast-forwards at up to ×4** on TIME's fast-forward engine (TIME §5.2: the real sim, every tick, in stretches under its `FF_MAX_S` 120 s), at a capped rate, so the world goes on round you visibly and nobody is placed or pops. The lines play in the ticker and as quick balloons, and the content goes on the paper as before.
+- It **fast-forwards at up to ×4** on TIME's fast-forward engine (TIME §5.2: the real sim, every tick, in stretches under its `FF_MAX_MS` 120,000, CONTRACTS §2), at a capped rate, so the world goes on round you visibly and nobody is placed or pops. The lines play in the ticker and as quick balloons, and the content goes on the paper as before.
 - It **drops to 1:1** when a line is addressed to you (your name called, a question, "you, Marine"), when the inspector is **two marines away** from you in the inspection order, when a reflex or a bearing check is due, on anything TIME's fast-forward interrupts for (a hostile, an alarm, a body crossing), or when you ask for 1:1 (VIEWS gives the key). It goes back to ×4 when the moment has passed: the inspector moved on from you, your answer given, your letter in your hand.
 - **Moving breaks it.** Walking out of ranks or turning to talk is breaking ranks or talking in ranks (an on-the-spot correction, §11.5), and ends attend mode for you.
 - **A small stake: bearing.** Standing at attention or parade rest is held against the body. A **bearing check**, d20 + Nerve (SKILLS §2.2) + 6 (drill, every marine out of boot camp; my call) against DC 12 with BODY's named modifiers (fatigue, the bladder, heat or cold, pain, dust in the collar; SKILLS §5.4), falls at each drop to 1:1 while the inspector or the speaker faces you, and once every 5 game minutes in ranks otherwise, and only when one of those modifiers applies. With Nerve 4: tired (−2), 85%; tired with the bladder urgent (−2 and −3), 70%; exhausted and bursting (−4 and −6), 45%. A failure is a fidget the figure shows (a shift of weight, a hand to the collar, eyes off the front). If the inspector or an NCO of your chain perceives it (§7), at an inspection it is a gig on the bearing item (§11.10); elsewhere, "Eyes front." (R0).
-- **What it comes to**: colours, about 15 s of real time; a briefing of 3 minutes, about 45 s plus your question; mail call, under a minute until your name; the commander's speech, about 40 s; the morning inspection, about 2 minutes, and the platoon's inspection on sol 6, about 4 (§11.10's pacing). A memorial's roll call and the cross are always at 1:1 (my call: some moments are not hurried).
+- **What it comes to**: colours, about 15 s of real time; a briefing of 3 minutes, about 45 s plus your question; mail call, under a minute until your name; the commander's speech, about 40 s; the morning inspection, about 2 minutes, and the platoon's inspection on Friday, about 4 (§11.10's pacing). A memorial's roll call and the cross are always at 1:1 (my call: some moments are not hurried).
 - **Boards**: CAREER §8.5's meritorious board ("a lived scene at battalion, 20 to 30 minutes") becomes, on the people side, three lived beats of about 2 minutes each (the uniform inspection, the pull-up bar, the three NCOs' questions) with the waiting between them in attend mode or skipped (§20).
 
 ### 10.13 Over the radio and in suits
@@ -1021,7 +1025,7 @@ Tradecraft's register carries: "Grounded and procedural… The humour is in the 
 Over a first term of 60 to 120 hours the same people will talk to you hundreds of times, so pools alone would recur, and the persistent cast would lose its voices (the critics). Four things keep them (my calls):
 
 - **No line twice from the same mouth within 3 sols.** Lines spoken to the player are drawn by a per-speaker rotation: for each topic, the speaker walks a permutation of the pool seeded by `hash(speaker, key)`, with a counter per topic (`voice.n`, a few dozen small numbers for a T1, saved because the lines go into the log, which is saved). No line comes back until the pool is spent. Ambient barks keep their hash by 12 s windows (§10.8).
-- **Callbacks: the memory voiced.** When speaker and listener both hold a memory (§9), a line may come from the callback pools, keyed by (event kind, weight band 1 to 2, 3, or 4 to 5, tone: fond, rib, bitter, grave), with `{when}` ("on sol 2", "at the range last week") and `{event}` from the event: "Like the dummy round on sol 2. You looked at that rifle like it owed you money." The shared memory with the highest `wEff` that this speaker has not called back in 7 sols is used. Small talk, ribbing and banter use a callback at 30% when one is available, comfort at 50% when the memory is fond. Weight-5 events are called back only in the grave tone, never as a rib. A callback is the "shared memory" that lets ask and tell earn points (§10.4).
+- **Callbacks: the memory voiced.** When speaker and listener both hold a memory (§9), a line may come from the callback pools, keyed by (event kind, weight band 1 to 2, 3, or 4 to 5, tone: fond, rib, bitter, grave), with `{when}` ("on Wednesday", "at the range last week") and `{event}` from the event: "Like the dummy round on Wednesday. You looked at that rifle like it owed you money." The shared memory with the highest `wEff` that this speaker has not called back in 7 sols is used. Small talk, ribbing and banter use a callback at 30% when one is available, comfort at 50% when the memory is fond. Weight-5 events are called back only in the grave tone, never as a rib. A callback is the "shared memory" that lets ask and tell earn points (§10.4).
 - **Voice quirks**, drawn at generation from the roster stream by traits, background and home: each T1 has two and each T2 one. A **turn of phrase** (from SETTING §5.9's slang and sayings: "Dust in everything.", "Within tolerance.", "Breathe easy.", "Sixty years yet."), used about once in five lines. A **hobbyhorse**, a topic they always come back to (the water rights at home, Hellas, a sister's farm, the recon course, the Earthers, the next liberty), which their small talk and the news turn to at 25%. A **register** from the traits: clipped (social ≤ −1), chatty (social ≥ 2), formal (rules ≥ 2), rough (temper ≥ 2 and rules ≤ 0); pools carry register variants where they matter. All in `voice` (§2.3).
 - **Earned nicknames** (SETTING §12.3's pools; §3.5). The squad gives the player one after the first event of weight 3 or more in which the player is the subject or object, once at least 7 of the squad know it (§9.5): from the `deed` pool for its kind ("Berm", "Seal", "Long Ball"), or the `ironic` pool if it was a failure ("Sunshine" after the bay failed on your locker). A later event of weight 4 or more may replace it (30%). Squadmates with affinity ≥ 1 toward you use it in barks and banter, your NCOs off duty; the rest use it only behind your back, in gossip you overhear. How many of the squad use it is the plainest sign of acceptance. You may object ("Don't call me that.": Social vs 14; on a success it fades over 7 sols, and the squad ribs you once for asking).
 
@@ -1030,7 +1034,7 @@ The soak test (`people.voice.test.mjs`, heavy) prints, per speaker, the lines re
 ### 10.15 The talk state
 
 ```json
-"talk": { "with": "p:0042", "mode": "talk", "openedMs": 0, "round": 2,
+"talk": { "withId": "p42", "mode": "talk", "openedMs": 0, "round": 2,
   "said": [ { "topic": "swap-duty", "approach": "marker", "roll": null, "line": "Take my slip watch Thursday and we're square.", "reply": "Fine. But we're square.", "mood": "warm", "seconds": 15 } ],
   "hard": null }
 ```
@@ -1040,7 +1044,7 @@ The soak test (`people.voice.test.mjs`, heavy) prints, per speaker, the lines re
 A scene in attend mode (§10.12) is a record of its own, which TIME's fast-forward reads for its rate and its drops to 1:1:
 
 ```json
-"scene": { "kind": "inspection", "by": "p:0050", "order": ["p:0051", "p:0055", "p:0042", "p:player", "p:0056"], "at": 1,
+"scene": { "kind": "inspection", "byId": "p50", "order": ["p51", "p55", "p42", "p233", "p56"], "at": 1,
   "rate": 4, "drop": null, "bearingDueMs": 0, "paper": null }
 ```
 
@@ -1171,13 +1175,13 @@ Discipline has a mirror (DESIGN.md: "and praise"): on-the-spot praise ("Good job
 
 | Inspection | When | By | Items | Lived |
 |---|---|---|---|---|
-| personal | every morning formation (light), sol 6 (full) | squad leader (daily), platoon sergeant (sol 6) | shave (≤ 20 h since, for those who shave), haircut (≤ 10 sols), squared away (≤ 3 sols since: boots shined, uniform pressed and laundered), dust ≤ 0.3, name tape and insignia, gig line, hygiene below "ripe", bearing (§10.12), a weapon if under arms | yes, in attend mode (§10.12): the NCO walks the ranks, 10 to 15 s a marine with nothing found, 30 to 45 s with a fault, 30 to 40 s on you in your first 30 sols |
-| bay | sol 6, 08:00–10:00, after field day | platoon sergeant, sometimes the first sergeant | rack made (and made tight: 60 s or more at reveille; a rushed 30 s rack fails half the time), locker tidy ≥ 0.8 and laid out, deck clean ≥ 0.75, dust ≤ 0.2, head ≥ 0.8, no contraband | yes |
+| personal | every morning formation (light), Friday (full) | squad leader (daily), platoon sergeant (Friday) | shave (≤ 20 h since, for those who shave), haircut (≤ 10 sols), squared away (≤ 3 sols since: boots shined, uniform pressed and laundered), dust ≤ 0.3, name tape and insignia, gig line, hygiene below "ripe", bearing (§10.12), a weapon if under arms | yes, in attend mode (§10.12): the NCO walks the ranks, 10 to 15 s a marine with nothing found, 30 to 45 s with a fault, 30 to 40 s on you in your first 30 sols |
+| bay | Friday, 08:00–10:00 (TIME §9.2), after Thursday's field day | platoon sergeant, sometimes the first sergeant | rack made (and made tight: 60 s or more at reveille; a rushed 30 s rack fails half the time), locker tidy ≥ 0.8 and laid out, deck clean ≥ 0.75, dust ≤ 0.2, head ≥ 0.8, no contraband | yes |
 | weapon | at turn-in after cleaning | the armourer | WEAPONS.md's cleanliness and condition | yes, at the armoury window |
 | full gear layout ("junk on the bunk") | monthly and before a deployment | platoon sergeant | every issued item laid on the rack | yes; a missing item is paid for (CAREER.md) |
 | health and comfort | unannounced, about once in 30 sols | the first sergeant with NCOs | lockers searched for contraband | yes |
 
-**Pacing.** At those times a squad's morning inspection (12 marines, a fault or two among them) is about 4 minutes of game time and about 2 minutes of real time in attend mode, within TIME §9.2's "lived (1–2 min)"; the platoon's inspection on sol 6 (about 42) is about 12 minutes of game time and about 4 real. From two marines before you until the inspector moves on from you it is 1:1, about a minute with the inspector's face 20 cm from yours; the rest of the ranks pass at ×4.
+**Pacing.** At those times a squad's morning inspection (12 marines, a fault or two among them) is about 4 minutes of game time and about 2 minutes of real time in attend mode, within TIME §9.2's "lived (1–2 min)"; the platoon's inspection on Friday (the platoon's 42) is about 12 minutes of game time and about 4 real. From two marines before you until the inspector moves on from you it is 1:1, about a minute with the inspector's face 20 cm from yours; the rest of the ranks pass at ×4.
 
 **Upkeep is one activity and one bag** (my call, after the critics: shave, haircut, laundry, boots, dust and the locker each on its own clock stacked into a rota of errands, the kind of upkeep pillar 8 sends to activities):
 
@@ -1225,8 +1229,10 @@ Tradecraft's crowd (`src/sim/crowd.js`, 319 lines) re-expressed on PLACES.md's a
 Crowd agent:
 
 ```json
-{ "id": "a412", "who": null, "seed": 99112311, "x": 0, "z": 0, "ai": { "kind": "crowd", "role": "marine-other", "plan": { "from": "door:bks-5", "to": "door:mess", "stops": [] }, "mood": 34 } }
+{ "id": "a412", "who": null, "seed": 99112311, "x": 0, "z": 0, "ai": { "kind": "crowd", "role": "marine-other", "plan": { "from": "o:bks-5:front", "to": "o:mess:front", "stops": [] }, "mood": 34 } }
 ```
+
+A plan's ends are PLACES's opening ids (CONTRACTS §10).
 
 ### 12.2 Base Melas
 
@@ -1234,7 +1240,7 @@ Roles: marines of other battalions (dressed by the Plan of the Day: PT gear at d
 
 | Area kind | Peak | Off-peak |
 |---|---|---|
-| mess hall | 168 at noon chow, the budget's ceiling and TECH §3.1's busiest scene: 48 persistent at L0 and L1 (the rest of the company as puppets in crowd slots) and the crowd to 120; the hall seats 240 (PLACES §4.5), and the 40 m frame over its 55 m dining room holds about 125 of them | 10 |
+| mess hall | 160 at noon chow, TECH §16.7's busiest bench, `mess-noon`: 48 persistent at L0 and L1, 12 puppets (the rest of the company in crowd slots) and 100 crowd, under the cap of 168 (CONTRACTS §8); the hall seats 240 (PLACES §4.5), and the 40 m frame over its 55 m dining room holds about 125 of them | 10 |
 | base main street, per 100 m | 30 for 10 min either side of a block change | 4 during blocks, 12 in the evening |
 | PX | 25 on pay-day evening | 6 |
 | gym | 20 in the evening | 5 |
@@ -1299,17 +1305,17 @@ The millisecond figures are targets the perf test measures, never limits the sim
 
 | Quantity | Budget |
 |---|---|
-| persistent people at L0 and L1 | 48 (on grounds and habs, inside the near ring, §13.5) |
-| crowd agents | 120 |
-| actors in all | 168, TECH §3.1's busiest area (the mess hall at noon: 48 persistent and 120 crowd) |
-| figures drawn | at most 160 in the frame (TECH §9.4's `MAX_PEOPLE`, one instanced draw for the crowd: DESIGN.md, Performance). Actors outside the frame are culled from the draw, never from the sim; inside it nothing is culled, so the frame is kept under the cap instead: the crowd is the slack (none spawned into or routed through the frame while it holds 152 or more), walk-ins wait out of view at their door while it is full, and formations stay under it (§13.5) |
-| people's sim per tick, busiest area | TECH §3.1's rows, 0.53 ms in all (TECH §16.2): actors' movement and steering 0.25, sightings and hearing 0.15, decisions 0.10, PEOPLE's per-second share 0.03 |
+| persistent people at L0 and L1 | 48 (on grounds and habs, inside the near ring, §13.5); 24 in a crowd scene |
+| crowd agents | 120, puppets included; 200 in a crowd scene |
+| actors in all | cap 168 (224 in a crowd scene); the busiest bench, `mess-noon`, 160: 48 persistent, 12 puppets, 100 crowd (CONTRACTS §8) |
+| figures drawn | at most `MAX_PEOPLE` 256 (TECH §16.7; one instanced draw for the crowd: DESIGN.md, Performance). Actors outside the frame are culled from the draw, never from the sim; inside it nothing is culled, so the frame is kept under the cap instead: the crowd is the slack (none spawned into or routed through the frame while it holds 248 or more, the cap less 8), walk-ins wait out of view at their door while it is full, and formations stay under it (§13.5) |
+| people's sim per tick, busiest area | 0.50 ms (TECH §16.2: steps 3, 6 and 7, `actors` 0.25, `look` 0.15, `think` 0.10; CONTRACTS §6); PEOPLE's per-second 0.03 ms sits in TECH's `second` row |
 | path requests | TECH's `PATH_SOLVES_TICK` 6 solves and `PATH_NODES_TICK` 8,000 node expansions a tick, shared with the player, who goes first; persistent people before the crowd; unserved requests wait a tick. The flow fields for each area's six busiest destinations (§6.9) serve most crowd trips with no solve |
 | the slow layer, each game minute (one tick) | 230 off-map people at 2 µs each: 0.5 ms |
-| the hourly social pass (one tick at minute 7) | 1 ms |
-| the per-sol pass (gossip, careers, arcs, the roster) | 20 ms, spread over 20 ticks inside the timeslip |
+| the hourly social pass (one tick at `hour@:05Z`, CONTRACTS §5) | 1 ms |
+| the per-sol pass (gossip, careers, arcs, the roster) | 20 ms in the `local@00:00` job (CONTRACTS §5), spread over 20 ticks |
 | a 30-sol chapter skip | 0.6 s behind the splash |
-| save | T1 4 KB each, T2 1.2 KB, events ring at most 1,200 entries; people's share of a save at most 500 KB |
+| save | CONTRACTS §7 and TECH §6.6: tier 1 3.7 KB each, tier 2 2.2 KB, `happenings` at most 1,200 records, `people` at most 560 KB |
 
 ### 13.3 Entering and leaving an area
 
@@ -1327,8 +1333,8 @@ Base Melas's ground is one area of 1,000 × 700 m (PLACES §4.1), and a company 
 - **The handover** happens out of view. Coming in, a person is placed on the nearest free cell of the real A* path at their progress (PLACES §2.3) with a task matching their activity and its remaining time; going out, their state is written back to their sheet. 56 m is twice the frame's half-diagonal of 27.5 m (TECH §9.3), so no handover is ever seen. An open far window (VIEWS §2.4) is a second focus with the same ring round its point, so people there are actors before its dissolve shows them.
 - **Interiors** (`floor`, `deck`, `craft`, `ring`: at most 120 × 80 m) keep the whole area at L0 and L1, as in §13.1.
 - **The crowd bubble** on grounds and habs is the same radius (§12.1).
-- **Formations are blocks** (my call). A unit in ranks (a formation, a column on the march, the memorial's company) moves as one path, each member at their mark's offset (PLACES §2.6's formation marks), and stands without thinking: one solve and one steering step whatever its size, and its members do not count against the 48. They are L0 for perception and needs (they see, hear and fidget, §10.12) and think again at "Fall out." PLACES's company layout (platoons abreast, three ranks, 1.0 m files) is about 62 m wide, so the 40 m frame holds about 130 of a company's 191, under `MAX_PEOPLE`. A battalion formation in one frame (0.4 at the earliest) needs TECH to raise the cap or draw distant ranks as one card a rank (§20).
-- **The test** (`parade-platoon`, in `people.perf.test.mjs`): Echo Company, 191 people, crossing the ground from the barracks to the mess at a block change one by one, with the player among them; then formed up and marched across the parade deck. Each second it prints the counts at L0, L1, as puppets and at L2, the actors, the figures in the frame, the handovers in view, and µs a tick. Passes: L0 + L1 ≤ 48, actors ≤ 168, figures in the frame ≤ 160, handovers in view 0.
+- **Formations are blocks** (my call). A unit in ranks (a formation, a column on the march, the memorial's company) moves as one path, each member at their mark's offset (PLACES §2.6's formation marks), and stands without thinking: one solve and one steering step whatever its size, and its members do not count against the 48. They are L0 for perception and needs (they see, hear and fidget, §10.12) and think again at "Fall out." PLACES's company layout (platoons abreast, three ranks, 1.0 m files) is about 62 m wide, so the 40 m frame holds about 130 of a company's 191, under `MAX_PEOPLE` 256. A battalion formation in one frame (0.4 at the earliest) still needs distant ranks drawn as one card a rank (§20).
+- **The test** (`parade-company`, in `people.perf.test.mjs`; a scene of its own beside TECH §16.7's `parade-platoon` bench of 42 persistent and 20 crowd, which TECH is asked to register, CONTRACTS §19, item 4): Echo Company, 191 people, crossing the ground from the barracks to the mess at a block change one by one, with the player among them; then formed up and marched across the parade deck. Each second it prints the counts at L0, L1, as puppets and at L2, the actors, the figures in the frame, the handovers in view, and µs a tick. Passes: L0 + L1 ≤ 48, actors ≤ 168, figures in the frame ≤ `MAX_PEOPLE` 256, handovers in view 0.
 
 ---
 
@@ -1387,16 +1393,16 @@ An arc is a template: a **cast** (roles filled by eligible people), a **trigger*
     { "id": "mending", "sols": [5, 15], "beats": ["laughs-at-chow-again"], "end": "recovered" },
     { "id": "office-hours", "end": "punished" }
   ],
-  "ends": { "recovered": { "news": "doing-better", "ifHelpedBy": { "who": "p:player", "beat": "thanks-you", "gauges": { "trust": 1, "affinity": 2 } } },
+  "ends": { "recovered": { "news": "doing-better", "ifHelpedBy": { "role": "player", "beat": "thanks-you", "gauges": { "trust": 1, "affinity": 2 } } },
             "punished": { "news": "office-hours-result" } }
 }
 ```
 
-`comfortScore` counts comfort given (§10.10): listening 1, a successful reassurance or story 2, getting them help 2. Flags are named values the behaviour model registers (`needsComfort`, `skipsChowP`, `socialK`, `libertyIncidentK`, `temptationK`, …); an unknown flag fails the syntax test as an unknown name does (§15.4).
+A template is data shared by every world, so it holds no world's ids: the player is the role `player`, resolved through `playerId(state)` when the end fires (in this world `p233`; CONTRACTS §10), as the cast's roles are resolved to the people who fill them. `comfortScore` counts comfort given (§10.10): listening 1, a successful reassurance or story 2, getting them help 2. Flags are named values the behaviour model registers (`needsComfort`, `skipsChowP`, `socialK`, `libertyIncidentK`, `temptationK`, …); an unknown flag fails the syntax test as an unknown name does (§15.4).
 
 ### 15.2 The director
 
-Once a week (sol 1, inside the timeslip), the arc director counts the beats the player perceived last week. Pillar 8 asks for a story beat each week: if there were none, it advances an arc in the player's squad or starts one; it never runs more than 3 active arcs in the squad or 6 in the platoon, and places beats where `whereIs()` says the player will be (chow, free time, the bay before taps). Like longhaul's hourly encounter director, it is cheap and runs only around the player.
+Once a week (`week@Monday/00:00`, CONTRACTS §5), the arc director counts the beats the player perceived last week. Pillar 8 asks for a story beat each week: if there were none, it advances an arc in the player's squad or starts one; it never runs more than 3 active arcs in the squad or 6 in the platoon, and places beats where `whereIs()` says the player will be (chow, free time, the bay before taps). Like longhaul's hourly encounter director, it is cheap and runs only around the player.
 
 ### 15.3 Templates
 
@@ -1485,7 +1491,7 @@ All under `tests/` (TECH.md's runner; QUICK leaves out the heavy ones). Each pri
 
 - `people.roster.test.mjs`: 100 companies. Ranks per billet against the weights; ages by rank (mean, min, max); homes in percent against SETTING §4.7's shares (each within 2 points) and women against its 30%; trait histograms; full-name duplicates (0); family-name repeats per company (≤ 1 each); no blocked name (SETTING §12.6) and no "Innis Shallow"; the golden first squad of seed 1 (names, ranks, tags, voice quirks), unchanged.
 - `people.schedule.test.mjs`: `whereIs()` at 30 times across a sol for every T1, with posture and path; for walkers, the point at the walked fraction against PLACES's route (within one cell); formation attendance (≥ 98% off temptation); mess occupancy by 15-minute bin; fire-watch spread over 8 weeks (≤ 1); skip equivalence (one sol against 25 hours: identical JSON).
-- `people.behaviour.test.mjs`: a full sol in Barracks 2 with 44 persistent people at L0: the reveille queue's longest wait (≤ 12 min), the mess line's longest wait (≤ 8 min), double bookings (0), stuck events (0), anyone moved in view (0), late arrivals per 100 person-sols by drive.
+- `people.behaviour.test.mjs`: a full sol on 2nd Platoon's floor of Echo's barracks (PLACES §4.4) with 44 persistent people at L0: the reveille queue's longest wait (≤ 12 min), the mess line's longest wait (≤ 8 min), double bookings (0), stuck events (0), anyone moved in view (0), late arrivals per 100 person-sols by drive.
 - `people.temptation.test.mjs`: 365 sols of a company off-map: lapses a sol (about 1), by kind; liberty incidents per 100 nights out; detections; rungs reached.
 - `people.gossip.test.mjs`: the §9.5 table within 10 points; the distortion rate (8% ± 2); the share of the platoon holding a distorted version of a weight-3 event after 7 sols.
 - `people.talk.test.mjs`: success rates for each approach × gauge from −5 to +5 at Social 5, 10 and 20; hard-talk win rates by Social gap (the §10.11 table within 3 points); blow-up rates. **Talk and the gauges** (§10.4), 30 sols each: the *farmer* bot (each of the 12 squadmates visited every sol for small talk, ask and tell, no shared time) against the *social* bot (chow at the squad's table, cards twice a week, two walks with someone a sol, no rounds of the bay): mean affinity gained per squadmate at sols 7 and 30, and the days the talk cap bit. Passes: the farmer under +0.6 a squadmate by sol 7 (the old table gave about +1.25 a squadmate a sol, the gauge's top within the week); the social bot ahead of the farmer at both dates. **Walk with** (§10.16): lines played per walk to chow, walks ended at forks, time stood still during a walk (only at a card).
@@ -1493,14 +1499,14 @@ All under `tests/` (TECH.md's runner; QUICK leaves out the heavy ones). Each pri
 - `people.sight.test.mjs`: §7.6's three comparisons on 200 seeded scenes (the mask against `clearLine` for every cell, the player's sightings against the mask, `clearLine` both ways on 10,000 pairs): mismatches (0); the shadowcast's µs per recompute and recomputes a second at a walk.
 - `people.hearing.test.mjs`: `airK` and `airDb` at the §7.3 table's pressures (to 0.01 and 0.1 dB); each sound's audible radius at 101.3, 66, 40 and 17 kPa and in vacuum; the same helper's value read by COMBAT's `HEAR_M`, WEAPONS's heard radius and VIEWS's gain (one function, the same numbers).
 - `people.discipline.test.mjs`: the rung chosen for each infraction × priors; office-hours findings against evidence strength; a year of a careless-player bot (late 1 sol in 5, a muzzle flag a week): counsellings, NJPs, whether separation starts. **The stretches** (§11.11): remission granted by the sol it was asked for, good-conduct time earned by incidents, trusty status reached, the rear party's sailing made or missed; a story beat in every week of every stretch (≥ 1).
-- `people.inspection.test.mjs`: bay `kept` over a week with and without field day; gigs per inspection by drive; the share of failed bay inspections. **Attend mode** (§10.12): game and real seconds of the morning squad inspection (about 240 and 120), the sol-6 platoon inspection (about 720 and 240), colours (60 and 15); bearing checks rolled and fidgets seen by need state. **Upkeep**: activities a week a player needs to pass every morning inspection (square away 2 to 3, the bag 2 to 3, a barber visit about 0.7), against the old rota.
+- `people.inspection.test.mjs`: bay `kept` over a week with and without field day; gigs per inspection by drive; the share of failed bay inspections. **Attend mode** (§10.12): game and real seconds of the morning squad inspection (about 240 and 120), Friday's platoon inspection (about 720 and 240), colours (60 and 15); bearing checks rolled and fidgets seen by need state. **Upkeep**: activities a week a player needs to pass every morning inspection (square away 2 to 3, the bag 2 to 3, a barber visit about 0.7), against the old rota.
 - `people.habits.test.mjs`: a recruit bot walking Base Melas's main street at the noon block change for 10 sols: salute prompts a walk before and after the habit is owned, lapses by fatigue, prompts back aboard a ship and for an unfamiliar uniform.
 - `people.crowd.test.mjs`: crowd counts by hour in the mess and on the main street; spawns in view (0); recycling after 120 s; on the ground, crowd agents beyond `DROP_M` (0); Europa: a district's mood after each event in §12.4; protest and riot rates by mood; queue waits by λ and S.
 - `people.arcs.test.mjs`: 52 weeks: beats the player could perceive per week (minimum ≥ 1), arcs started and ended by kind; endings the player learned within 7 sols by gossip (≥ 0.8) and within 14 by any means (1.0); thanks beats played against those owed (all); every arc's conditions parsed against the registered names (0 unknown).
-- `people.perf.test.mjs`: µs a tick in the mess hall at noon with 48 persistent and 120 crowd (≤ 530, TECH §16.2's share); path solves and node expansions a tick against TECH's caps; figures in the frame (≤ 160); `parade-platoon` (§13.5): L0, L1, puppets and L2 a second, handovers in view (0); the minute, hour and sol passes; a 30-sol chapter; people's share of the save.
+- `people.perf.test.mjs`: µs a tick in `mess-noon` with 48 persistent, 12 puppets and 100 crowd (CONTRACTS §8; ≤ 500, TECH §16.2's share); path solves and node expansions a tick against TECH's caps; figures in the frame (≤ `MAX_PEOPLE` 256); `parade-company` (§13.5): L0, L1, puppets and L2 a second, handovers in view (0); the minute, hour and sol passes; a 30-sol chapter; people's share of the save.
 - `world.determinism.test.mjs` (TECH.md's, with this scene): 3,000 ticks twice, once with a save and load at 1,500: identical JSON.
 
-Debug (TECH.md's handle): `__olympus.people.list()`, `.whereIs(id, ms)`, `.sheet(id)` (gauges as numbers, in debug only), `.arc(id, stage)` to force a stage, `.events()`, `.gossip(eventId)` to see who knows what; URL `?people=debug` draws awareness and booked spots over the stage.
+Debug (TECH.md's handle): `__olympus.people.list()`, `.whereIs(id, ms)`, `.sheet(id)` (gauges as numbers, in debug only), `.arc(id, stage)` to force a stage, `.happenings()`, `.gossip(happeningId)` to see who knows what; URL `?people=debug` draws awareness and booked spots over the stage.
 
 ---
 
@@ -1520,7 +1526,9 @@ Debug (TECH.md's handle): `__olympus.people.list()`, `.whereIs(id, ms)`, `.sheet
 
 **Before 0.1**: the actor shape of §2.4 with `y`, `vy`, `att` and `anchor` at their defaults, from the first save that holds actors (0.0.3), so the shape never has to change under the saves.
 
-**0.1, a standby week at Base Melas** (ROADMAP.md sets the milestone):
+ROADMAP §3.4 holds the milestone numbers (CONTRACTS §18).
+
+**0.1.0, a standby week at Base Melas, the core career** (ROADMAP §5.2):
 
 - the roster generator for the whole company and Base Melas's T3 staff; T1 and T2 sheets; the player's arrival in the empty billet;
 - the garrison Plan of the Day templates for all roles in the 1st Squad's day and the company's; the duty roster with fire watch, the duty NCO and runner, working parties, head detail and field day (guard and mess duty for NPCs, as overrides only);
@@ -1528,19 +1536,30 @@ Debug (TECH.md's handle): `__olympus.people.list()`, `.whereIs(id, ms)`, `.sheet
 - NPC needs in closed form and BODY.md's slow layer on the map; morale; hygiene seen by others;
 - perception ported on the one visibility primitive (the sight grid, `clearLine`, the player's mask, §7.6), with hearing through the one air law (§7.3); witnessing;
 - gauges toward the player and NPC ties; the exchange table with its repeat rule; shared time, the talk cap and ties kept alive by talk (§10.4); markers; the read as words;
-- the event log, memory, gossip on and off the map (the negligent discharge must spread);
+- happenings, memory and gossip on the map;
 - conversation: small talk, ask about them, what's the word, shop talk, ask for help, ask permission, swap a duty, borrow and trade, report, comfort, rib; orders received; forms of address and the etiquette breaches; barks and joining in; briefings and mail call in attend mode, with the bearing check (§10.12); walk with (§10.16); voices: the line rotation, callbacks, quirks and the player's nickname (§10.14);
-- discipline: the infractions that can happen on base in a week, rungs R0 to R4 (office hours lived), R5 and above as papers; temptation lapses for NPCs; restriction and extra duty as chapters with their goals (§11.11);
-- inspections: morning personal (in attend mode), the sol-6 bay, the armoury's weapon inspection; square away and the platoon's laundry bag;
+- discipline: the infractions that can happen on base in a week, rungs R0 to R2 lived, R3 and above as papers (every class of infraction has a rung to land on from the first range day);
+- inspections: morning personal (in attend mode), Friday's bay, the armoury's weapon inspection; square away and the platoon's laundry bag;
 - the base crowd in the mess hall, on the main street and at the PX;
-- arcs: Dear John, the shammer, recon dreams (one of them the director's first beat), on the condition grammar (§15.4), with every ending reaching the player (§15.5);
-- the tests above, minus Europa's.
+- the tests above, minus Europa's and 0.1.x's.
 
-**0.2, the voyage** (the troopship): embarked templates and Navy watches; secure for burn with `planCouches`; hot racks; NPCs in free fall on PLACES's handhold graph (§6.9), with the salute habit's shipboard context; NJP aboard ship with no right to refuse; the hard talk; the bully, the board, Belter blood and the feud arcs; courts-martial as chapters, with the brig and correctional custody as chapters (§11.11); the remain-behind element for a player left at Melas; NPC orders given by the player as a fire team leader if CAREER.md promotes.
+**0.1.x, the rest of the week** (ROADMAP §5.8, with `test-office-hours`):
+
+- gossip off the map (the negligent discharge must spread: the platoon's story by the third sol, §9.5);
+- discipline in full on base: R3's platoon-office scene and R4 lived (office hours), R5 and above as papers; restriction and extra duty as chapters with their goals (§11.11);
+- temptation lapses for NPCs (§6.5);
+- arcs: Dear John, the shammer, recon dreams (one of them the director's first beat), on the condition grammar (§15.4), with every ending reaching the player (§15.5);
+- `people.temptation` and `people.arcs`, with `people.discipline` and `people.gossip` grown to R3, R4 and off the map.
+
+**0.2, the voyage** (the troopship): embarked templates and Navy watches; secure for burn with `planCouches`; hot racks; NPCs in free fall on PLACES's handhold graph (§6.9), with the salute habit's shipboard context; NJP aboard ship with no right to refuse; the hard talk; the bully, the board, Belter blood and the feud arcs; correctional custody as a chapter (§11.11); the remain-behind element for a player left at Melas.
 
 **0.3, Europa**: town civilians and district moods, with the near ring on the towns' habs; queues at checkpoints; protests and riots; Europa's T3 notables; deaths, the memorial, replacement and the billet shuffle on deployment; the after-contact and family-emergency arcs; limited duty as a chapter (§11.11); radio conversation in the field.
 
-**0.4 and later**: special operations' small teams and operation-scoped people (hostages, targets, witnesses questioned in the hard talk); leading a squad (Leadership and orders at scale); romance as arcs if the user wants it (§21); more arc templates, three kinds of everything.
+**0.4, the first dwell**: courts-martial as chapters, with the brig (§11.8, §11.11).
+
+**0.5, at sea**: NPC orders given by the player as a fire team leader, once CAREER.md promotes to Corporal (in the first dwell, 0.4; ROADMAP §3.4).
+
+**0.6 and 0.7**: special operations' small teams and operation-scoped people (hostages, targets, witnesses questioned in the hard talk). **0.8**: leading a squad (Leadership and orders at scale). **Later**: romance as arcs if the user wants it (§21); more arc templates, three kinds of everything.
 
 ---
 
@@ -1549,7 +1568,7 @@ Debug (TECH.md's handle): `__olympus.people.list()`, `.whereIs(id, ms)`, `.sheet
 - **SETTING.md**: the rank list and insignia (to read rank and choose address); forms of address and customs (salutes and the visor tap, colours, attention on deck, the battlefield cross); the uniforms of the day; the MOS list behind the billets; name pools by culture and home (§12.1) and the nickname pools (§12.3), which the player's earned nickname draws on (§10.14); the homes with kinds and shares and the 30% of women (§4.7), taken as they stand (§3.4); the canon ledger (§1.2: no "Innis Shallow"); faiths; the calendar (the 7-sol week of §3.4, rest sols, sunset for colours); the Corps' code names for the infractions; Europa's factions' faces and town demographics; Lang Belta; the slang and sayings (§5.9) for barks and the turns of phrase.
 - **TIME.md**: the Plan of the Day's block ids and times; the rule that talk costs no game time and the long-talk activities (counselling, cards, comfort through a night), kept: shared time answers the farming that open question 2 would otherwise invite (§10.4); activities for corrective training, EMI, extra duty, restriction musters, field day, waiting on watch, guard reliefs, mess duty, mail call, office hours, the memorial, inspections, the barber, sick call, queueing; the skip() contract calling `people.skip(state, fromMs, toMs)` (the minute, hour and sol passes); interrupts raised by people (a summons, an order, a fire-watch event, an NPC who needs you); chapters' papers (counselling, NJP, mail). This round asks TIME for:
   - the schedule lookup's one name, `whereIs(person, ms)`, with §4.6's shape, in place of `whereAt` (TIME §5.9, §6.3, §15, §16, §19);
-  - **attend mode** (§10.12): the fast-forward engine (TIME §5.2) run at a capped rate of ×4, in stretches under `FF_MAX_S`, dropping to 1:1 on PEOPLE's triggers from the `scene` record (§10.15), as a clock state or a skip kind of its own;
+  - **attend mode** (§10.12): the fast-forward engine (TIME §5.2) run at a capped rate of ×4, in stretches under `FF_MAX_MS`, dropping to 1:1 on PEOPLE's triggers from the `scene` record (§10.15), as a clock state or a skip kind of its own;
   - talk on the move (§10.16) running at 1:1 in the `run` state, with the ordinary talk card still `still`;
   - chapter kinds for the hard stretches (§11.11): `restriction`, `custody`, `brig`, `limdu`, `rear-party` (TIME §10.2), each with its goal on the day card;
   - TIME §8.5's `kit` as the "square away" activity, 20 to 30 min, and `laundry` as the fallback to the platoon's laundry bag (§11.10).
@@ -1561,7 +1580,7 @@ Debug (TECH.md's handle): `__olympus.people.list()`, `.whereIs(id, ms)`, `.sheet
   - §4.3: either take SETTING §4.7's shares for the player's birthplace draw, or say that its weights are the player's candidate draw and differ on purpose (`londres` 18 against 9, `redwater` 14 against 30, `callisto` 8 against 5); PEOPLE's roster uses SETTING's (§3.4);
   - §8.5: the meritorious board as three lived beats of about 2 minutes (the uniform inspection, the pull-up bar, the three questions), the waiting in attend mode or skipped (§10.12); its knowledge roll names Analysis, which SKILLS §2.2 dropped;
   - §5.8, §15.2, §15.7 and §16: the remain-behind element, limited duty and the brig as the chapters of §11.11, each with its goal and its paper, rather than stretches skipped with outcomes; conduct credit for a good extra-duty or custody report.
-- **PLACES.md**: areas, rooms and fixtures with spots and queue floor; the nav grid and its reachability tests; doors (sight and sound); Base Melas's buildings and fixture counts (squad bays, heads, mess seats and staff tables, aid station, chapel, PX, gym, barber, comm booths, duty desk, parade deck and flagpole); light at a spot; air pressure for sound; bad-air status; Redwater; troopship berthing and couches; Europa's districts; the site graph's route polylines (§2.3), which place L2 people on grounds (§13.5); the formation marks (§2.6). The mess's 240 seats (§4.5) against the crowd: at most 160 figures are drawn in the frame and 168 actors simulated (§13.2). This round asks PLACES for:
+- **PLACES.md**: areas, rooms and fixtures with spots and queue floor; the nav grid and its reachability tests; doors (sight and sound); Base Melas's buildings and fixture counts (squad bays, heads, mess seats and staff tables, aid station, chapel, PX, gym, barber, comm booths, duty desk, parade deck and flagpole); light at a spot; air pressure for sound; bad-air status; Redwater; troopship berthing and couches; Europa's districts; the site graph's route polylines (§2.3), which place L2 people on grounds (§13.5); the formation marks (§2.6). The mess's 240 seats (§4.5) against the crowd: at most 168 actors simulated and `MAX_PEOPLE` 256 drawn (§13.2; CONTRACTS §8). This round asks PLACES for:
   - **the sight grid** (§7.6): walls, closed doors and fixtures rasterised into 0.5 m cells with three bits (blocks a prone, a crouched, a standing eye), built with each area and, on grounds and habs, each chunk, re-marked when a door moves, and the static index rasterised into the same cells along a far line on demand;
   - **the handhold graph** before 0.2 (§6.9): free-fall navigation as nodes on handholds, rails, mag strips and planting spots, and edges as push-offs with a clear line, a length and a speed, plus hand-over-hand edges, for NPCs and COMBAT's zero-g fighter alike.
 - **VIEWS.md**: the talk box, order card, quick card and hard-talk display (K/L/M, edges, composure); balloons and edge markers; the People leaf; papers (orders, counselling, NJP, the duty board); "?" and "!" over heads; salute, attention and parade-rest poses; the crowd's look. This round asks VIEWS for: `whereIs` in place of `whereAt` (§5.1, §17); the audio gain `airDb(P)` in §11.2 in place of `20 log₁₀(P / 101.3)`, with its low-pass kept, and its `audio` test's dB by that formula; the `fog` test (§14) comparing the sim's mask as §7.6 sets it out; the walk-with chip strip (§10.16); attend mode's ticker, its 1:1 key and the fidget frames (§10.12); the doll's single "inspection-ready" state (§11.10); the nickname in balloons.
@@ -1569,7 +1588,8 @@ Debug (TECH.md's handle): `__olympus.people.list()`, `.whereIs(id, ms)`, `.sheet
   - `whereIs` in place of `whereAt` (§5.4, §15.2's `tiers()`, §19);
   - §9.11 step 9: `fogcast.js` draws the player's mask that the sim's `look` step computes (§7.6), adding only easing and dither, inside `look`'s 0.15 ms row as measured;
   - the actor shape of §2.4 (`y`, `vy`, `att`, `anchor`) from 0.0.3;
-  - `MAX_PEOPLE` 160 (§9.4) as this section's figures budget, and a raised cap or ranks drawn as one card each before a battalion formation fills a frame (0.4 at the earliest; §13.5);
+  - `MAX_PEOPLE` 256 (TECH §16.7) as this section's figures budget; a battalion formation in one frame still needs ranks drawn as cards (0.4 at the earliest; §13.5);
+  - `parade-company` (§13.5: Echo's 191 crossing the ground, then in formation) registered as a bench scene beside §16.7's `parade-platoon` (CONTRACTS §19, item 4);
   - the arc condition grammar (§15.4) as plain data under §2.4's rule, and the syntax test's check of every arc's conditions and flags against the registered names.
 - **ROADMAP.md**: the milestones in §19; 0.0.7's morning inspection in attend mode.
 

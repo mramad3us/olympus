@@ -8,6 +8,10 @@
 // snapshot() drains them, so of the ticks a frame runs, the first gets the presses. The snapshot is
 // plain data, so a run can be recorded and replayed.
 //
+// queue(action) puts an action of the UI's own (a menu's choice, a splash's command, a debug key's
+// 'debug:skip:<ms>') into the same list, for the next snapshot, as a key press would: the UI never
+// changes the state itself (TECH §2.6).
+//
 // Every action also goes to the onAction(fn) listeners as fn(action, kind, event): the UI routes the
 // screens ('inventory', 'menu'), the loop's pause ('pause'), and a menu's digits. accept(action,
 // kind) decides whether a sim action is queued at all (main.js says no while the game is paused or
@@ -21,19 +25,25 @@
 // Controls).
 //
 // Browser manners kept from tradecraft (src/ui/input.js): Cmd and Ctrl combinations are left to the
-// browser; typing in a text field is not a key for the game; the move keys, Tab, Space and Alt don't
-// scroll, move focus or open the browser's menu; a key's auto-repeat fires nothing; losing focus lets
-// every key go. This module is imported only by the browser side (main.js): nothing in the sim reads
-// the DOM.
+// browser; typing in a text field is not a key for the game; while the game owns the keys (swallow():
+// main.js says a state is live and no card or title page is up) the move keys, Tab and Space don't
+// scroll, move focus or press a button, and otherwise they keep their browser meaning, so the title's
+// and the enlistment's buttons are reached with Tab (0.0.2 swallowed them everywhere, and only the
+// first button could be used from the keyboard); Alt never opens the browser's menu; a key's
+// auto-repeat fires nothing; losing focus lets every key go, and so does letting Cmd go (on macOS
+// Chrome sends no keyup for a letter released while Cmd is held, so a move key held into a Cmd
+// shortcut would walk on by itself). This module is imported only by the browser side (main.js):
+// nothing in the sim reads the DOM.
 import { createKeyState, label as keyLabel, BINDINGS } from './keys.js';
 
 const PREVENT = new Set(['Tab', 'Space', 'AltLeft', 'AltRight', ...BINDINGS.filter(b => b.kind === 'move').flatMap(b => b.codes)]);
 
 /**
  * Input from a target (window by default). Options: stage (the canvas) and stageSize ([w, h] in
- * stage pixels), layout ('azerty' | 'qwerty' | 'auto'), accept(action, kind), now() (ms).
+ * stage pixels), layout ('azerty' | 'qwerty' | 'auto'), accept(action, kind), swallow() (whether the
+ * game owns the keys now: Tab, Space and the move keys lose their browser meaning), now() (ms).
  */
-export function createInput({ target = globalThis.window, stage = null, stageSize = null, layout = 'azerty', accept = () => true, now = () => globalThis.performance.now() } = {}) {
+export function createInput({ target = globalThis.window, stage = null, stageSize = null, layout = 'azerty', accept = () => true, swallow = () => true, now = () => globalThis.performance.now() } = {}) {
   const keys = createKeyState();
   const handlers = new Set();
   let queue = [];
@@ -52,12 +62,13 @@ export function createInput({ target = globalThis.window, stage = null, stageSiz
 
   const onDown = (e) => {
     if (e.metaKey || e.ctrlKey || typing(e)) return;               // (the browser's shortcuts, and text being typed)
-    if (PREVENT.has(e.code) || e.altKey) e.preventDefault();       // (Alt is the stroll: held with a move, it mustn't type or wake a menu)
+    if ((PREVENT.has(e.code) && swallow()) || e.altKey || e.code?.startsWith('Alt')) e.preventDefault();   // (Alt is the stroll: held with a move, it mustn't type or wake a menu)
     if (e.repeat) return;
     dispatch(keys.down(e.code, now(), e.key), e);
   };
   const onUp = (e) => {
     if (e.code?.startsWith('Alt')) e.preventDefault();
+    if (e.code === 'MetaLeft' || e.code === 'MetaRight') { keys.clear(); return; }   // (the keys let go under Cmd sent no keyup)
     dispatch(keys.up(e.code, now()), e);
   };
   const onBlur = () => { keys.clear(); mouse.buttons = 0; };
@@ -96,6 +107,11 @@ export function createInput({ target = globalThis.window, stage = null, stageSiz
     },
     /** What is held now, without draining anything (for the UI). */
     peek() { return { ...keys.snapshot(now()), act: queue.slice(), mouse: { ...mouse } }; },
+    /**
+     * An action for the next snapshot's act, as a key press gives (TECH §2.6: the UI's and the debug
+     * keys' way into the sim; the UI never changes the state itself). Deliberate, so accept() is not asked.
+     */
+    queue(action) { queue.push(action); },
     /** Drop the queued actions and clicks (a scene change, a load). */
     drop() { queue = []; clicks = []; wheel = 0; },
     /** Let every key go. */

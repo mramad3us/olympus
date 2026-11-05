@@ -31,6 +31,16 @@
 //     muzzle, unlit, nudged along the camera's line (in front, or behind the head from behind), for
 //     FLASH_MS; the caller lights whoever is within FLASH_LIT_M (poses.js gunPose() decides when).
 // Frames follow the sim (poses.js gaitFrame(): walks by distance, idles at 2 fps by a person's phase).
+//
+// In the game (TECH §9.4, §11.2) the bands are painted off the main thread: given a painter
+// (src/render/painter.js), a band not yet up is asked of the paint worker (priority 'visible', or 'own'
+// for the player's), and when its pixels come back they wait in the upload queue (src/render/uploads.js:
+// 1 MB and 2 ms a frame, the player's first) for their texSubImage2D, rather than being painted here
+// within BUDGET_MS. The player's own figure is never put off: a band of theirs that is not up when it is
+// drawn is painted on the main thread at once (painter.runNow) and sent at once. prepare() asks for a
+// look's bands behind a cut and resolves once they are up (view.js waits on the player's before the
+// world shows). Without a painter (the samples) the bands are painted here as before. MAX_PEOPLE is 256
+// (TECH correction 20, §16.7: the largest drawn count, a crowd scene's 224 live agents and 32 ghosts).
 import * as THREE from 'three';
 import { PX_PER_M } from './scale.js';
 import { FRAG_DECL } from './materials.js';
@@ -43,17 +53,18 @@ export const ATLAS_PX = 4096;
 export const SHEETS_PER_FRAME = 2;
 /** Milliseconds a frame for painting new bands (VIEWS.md 3.7). */
 export const BUDGET_MS = PX_PER_M >= 20 ? 3.0 : 1.5;
-export const MAX_PEOPLE = 160, MAX_FLASHES = 24;
+export const MAX_PEOPLE = 256, MAX_FLASHES = 24;
 /** Who a flash lights, and the most it lights them (tradecraft's: linear, a warm white). */
 export const FLASH_LIT_M = 3, FLASH_LIGHT = Object.freeze([1.0, 0.85, 0.55]);
 const INK = 0x14151c, TOWARD = new THREE.Vector3(0, Math.SQRT1_2, Math.SQRT1_2).multiplyScalar(0.15);
 
 /**
- * The figures of the stage: { group (add it to the scene or an area), update(people), stats, atlas,
- * layout, dispose }. opts: renderer (required), prop ('chibi' | 'soldier'), ppm, atlasPx, budgetMs,
- * sheetsPerFrame, maxPeople.
+ * The figures of the stage: { group (add it to the scene or an area), update(people), prepare(key, look,
+ * bands), stats, atlas, layout, dispose }. opts: renderer (required), prop ('chibi' | 'soldier'), ppm,
+ * atlasPx, budgetMs, sheetsPerFrame, maxPeople, painter (the paint worker's: src/render/painter.js),
+ * uploads (the frame's upload queue: src/render/uploads.js).
  */
-export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasPx = ATLAS_PX, budgetMs = BUDGET_MS, sheetsPerFrame = SHEETS_PER_FRAME, maxPeople = MAX_PEOPLE } = {}) {
+export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasPx = ATLAS_PX, budgetMs = BUDGET_MS, sheetsPerFrame = SHEETS_PER_FRAME, maxPeople = MAX_PEOPLE, painter = null, uploads = null } = {}) {
   const lay = sheetLayout(prop, ppm);
   const COLS = Math.floor(atlasPx / lay.w), ROWS = Math.floor(atlasPx / lay.h), SLOTS = COLS * ROWS;
   // (on the GPU only: storage made at its first use, nothing sent with it; rows top-down, as the sheets are painted)
@@ -64,7 +75,7 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
   atlas.flipY = false;
   atlas.source.dataReady = false;
   atlas.needsUpdate = true;
-  const stats = { slots: SLOTS, used: 0, fallback: 0, uploads: 0, uploadBytes: 0, uploadMs: 0, paintMs: 0, bandsPainted: 0, drawn: 0, deferred: 0, lastFrame: { uploads: 0, bytes: 0, paintMs: 0, uploadMs: 0 }, atlasPx, sheet: [lay.w, lay.h] };
+  const stats = { slots: SLOTS, used: 0, fallback: 0, uploads: 0, uploadBytes: 0, uploadMs: 0, paintMs: 0, bandsPainted: 0, drawn: 0, deferred: 0, asked: 0, waiting: 0, ownNow: 0, lastFrame: { uploads: 0, bytes: 0, paintMs: 0, uploadMs: 0 }, atlasPx, sheet: [lay.w, lay.h] };
 
   // ---------- slots: look key → { slot, bands: Set, seen, job } ----------
   const slots = new Map(), free = Array.from({ length: SLOTS }, (_, i) => SLOTS - 1 - i);
@@ -73,24 +84,62 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
   function slotOf(key, look, own) {
     let s = slots.get(key);
     if (!s) {
-      if (uploadsLeft <= 0 && !own) return null;
+      if (!painter && uploadsLeft <= 0 && !own) return null;      // (painting here: a new face only when a band may go up)
       let i = free.pop();
       if (i === undefined) {                                        // (full: the slot unseen longest, if not seen this frame)
         let worst = null;
         for (const [k, v] of slots) if (v.seen < frameNo && (!worst || v.seen < worst[1].seen)) worst = [k, v];
         if (!worst) return null;
         slots.delete(worst[0]); i = worst[1].slot;
+        forget(worst[1]);
       }
-      s = { slot: i, look: look?.top ? look : wear(look), bands: new Set(), seen: frameNo, job: null, jobBand: null };
+      s = { slot: i, key, raw: look, look: look?.top ? look : wear(look), bands: new Set(), asked: new Map(), got: new Map(), seen: frameNo, job: null, jobBand: null, gone: false };
       slots.set(key, s);
       stats.used = slots.size;
     }
     s.seen = frameNo;
     return s;
   }
+  // (a slot given to another look: what was asked for the old one never lands in it)
+  function forget(s) {
+    s.gone = true;
+    if (uploads) for (const b of s.got.keys()) uploads.cancel(`fig:${s.slot}:${b}`);
+    s.got.clear();
+  }
+  const bandOf = ({ meta, buffers }) => ({ band: meta.band, rect: meta.rect, pm: { w: meta.w, h: meta.h, data: new Uint32Array(buffers[0]) } });
+  // (a band asked of the paint worker: its pixels into the upload queue when they come)
+  function ask(s, band, priority, { direct = false } = {}) {
+    if (s.asked.has(band)) return s.asked.get(band);
+    stats.asked++; stats.waiting++;
+    const p = painter.run('sheet', { look: s.raw, band, prop, ppm }, { priority }).then(({ meta, buffers }) => {
+      stats.waiting--;
+      if (s.gone || s.bands.has(band)) return;
+      const b = bandOf({ meta, buffers });
+      stats.paintMs += meta.ms?.paint ?? 0;
+      if (direct || !uploads) { upload(s, b); return; }
+      s.got.set(band, b);
+      uploads.queue({ key: `fig:${s.slot}:${band}`, bytes: b.rect.w * b.rect.h * 4, own: !!s.own, run: () => { const g = s.got.get(band); s.got.delete(band); if (g && !s.gone && !s.bands.has(band)) upload(s, g); } });
+    }, (e) => { stats.waiting--; s.asked.delete(band); console.warn(`figures: band '${band}' of '${s.key}' did not paint`, e); });
+    s.asked.set(band, p);
+    return p;
+  }
   /** Work on a slot's band within the frame's budget (own: to its end); true once it's up. */
   function ensureBand(s, band, own) {
     if (s.bands.has(band)) return true;
+    if (painter) {
+      if (own) {
+        // (yours: never put off. Its pixels back from the worker and waiting in the queue go up now;
+        // otherwise it is painted here, whatever the worker is doing, and sent now)
+        s.own = true;
+        const g = s.got.get(band);
+        if (g) { s.got.delete(band); uploads?.cancel(`fig:${s.slot}:${band}`); upload(s, g); return true; }
+        upload(s, bandOf(painter.runNow('sheet', { look: s.raw, band, prop, ppm })));
+        stats.ownNow++;
+        return true;
+      }
+      if (!s.asked.has(band)) ask(s, band, 'visible');
+      return false;
+    }
     if (s.ready) return false;                                     // (painted, waiting for a frame with an upload to spare)
     if (s.job && s.jobBand !== band) return false;                 // (one band at a time a slot)
     if (!s.job) { s.job = bandSteps(s.look, band, { prop, ppm }); s.jobBand = band; }
@@ -266,8 +315,11 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
       i++;
     }
     cards.count = blobs.count = i; flashes.count = nf;
-    cards.instanceMatrix.needsUpdate = blobs.instanceMatrix.needsUpdate = flashes.instanceMatrix.needsUpdate = true;
-    aRect.needsUpdate = aTint.needsUpdate = aAlpha.needsUpdate = aSlot.needsUpdate = true;
+    // (only the instances drawn are sent: a frame's few hundred bytes, not MAX_PEOPLE's 16 KB a matrix buffer)
+    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aAlpha, i], [aSlot, nf]]) {
+      if (!n) continue;
+      a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true;
+    }
     stats.drawn = i;
     return i;
   }
@@ -277,13 +329,31 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
   /** Paint and send a look's bands now, whatever the budget (a load screen's warm-up). */
   function warm(key, look, bands = ['gait']) {
     const s = slotOf(key, look, true);
-    for (const b of bands) { uploadsLeft = Math.max(uploadsLeft, 1); ensureBand(s, b, true); }
+    for (const b of bands) {
+      uploadsLeft = Math.max(uploadsLeft, 1);
+      if (painter && !s.bands.has(b)) upload(s, bandOf(painter.runNow('sheet', { look: s.raw, band: b, prop, ppm })));
+      else ensureBand(s, b, true);
+    }
     return s;
+  }
+  /**
+   * Ask the paint worker for a look's bands behind a cut (priority 'own' for the player's): resolves once
+   * they are on the GPU, sent at once rather than through the queue (a cut allows whole uploads: TECH §9.7).
+   */
+  function prepare(key, look, { bands = ['gait'], own = false } = {}) {
+    const s = slotOf(key, look, true);
+    if (own) s.own = true;
+    if (!painter) { warm(key, look, bands); return Promise.resolve(s); }
+    // (a band already on its way is waited for; if it would go through the queue, it is sent as soon as it lands)
+    return Promise.all(bands.filter(b => !s.bands.has(b)).map(b => ask(s, b, own ? 'own' : 'visible', { direct: true }).then(() => {
+      const g = s.got.get(b);
+      if (g && !s.bands.has(b)) { s.got.delete(b); uploads?.cancel(`fig:${s.slot}:${b}`); upload(s, g); }
+    }))).then(() => s);
   }
   function dispose() {
     geo.dispose(); material.dispose(); bgeo.dispose(); bmat.dispose(); fgeo.dispose(); fmat.dispose(); ftex.dispose(); atlas.dispose();
     group.removeFromParent();
   }
   group.userData.dispose = dispose;
-  return { group, cards, blobs, flashes, update, warm, ready, stats, atlas, layout: lay, slots, dispose, COLS, ROWS, SLOTS };
+  return { group, cards, blobs, flashes, update, warm, prepare, ready, stats, atlas, layout: lay, slots, dispose, COLS, ROWS, SLOTS, prop, ppm, material, bmat, fmat };
 }

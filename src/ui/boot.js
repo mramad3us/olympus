@@ -1,15 +1,19 @@
 // OLYMPUS ui: the way in, and the two cards the engine needs before the real screens exist.
 //
 // The title is a typed sheet of paper on the dark (tradecraft's title: docs/research/shots/
-// tradecraft-title.png): OLYMPUS, the version, then Continue (the latest autosave, a Standard
-// career's or an Ironman's), New career (the lead entry, brass-edged), and Load a save file. New
+// tradecraft-title.png): OLYMPUS, the version, then Continue (the newest autosave of any world, a
+// Standard career's 'auto' or an Ironman's 'ironman', v0.0.1's unworlded ones included: the store's
+// summaries carry each slot's name), New career (the lead entry, brass-edged), and Load a save file. New
 // career leads to the enlistment paper, a stub until the career screens arrive: the unit the recruit
 // joins (DESIGN.md, Setting: 1st Squad, 2nd Platoon, Echo Company, 2nd Battalion, 4th Marine
 // Regiment, at Marine Corps Base Melas) and the one choice the user settled at kickoff, how death is
 // kept, Standard or Ironman, for the whole career (the user, 2026-11-05).
 //
-// In play, two cards of dark glass: the menu (Esc: resume, save to a file, load a file, quit to the
-// title) and the keys ('?': every binding with its label in the player's layout, from keys.js).
+// In play, two cards of dark glass: the menu (Esc: resume, save to a file, load a file, report a
+// problem, quit to the title) and the keys ('?': every binding with its label in the player's
+// layout, from keys.js, in this build's words where main.js gives them (R waits fifteen minutes
+// until 0.0.4), and the debug keys ^ and $ (AZERTY's labels of BracketLeft and BracketRight) in
+// debug mode). The title's pages answer the arrows (and Z, S) by moving between their buttons.
 // Each card that opens tells main.js through cb.overlay(name, open), and main.js holds a pause
 // reason for it while it is open (DESIGN.md, Time: "an open overlay pauses"). A card's lines are
 // numbered and a digit picks one (read by code: AZERTY's top row types & é " ' without Shift).
@@ -31,7 +35,9 @@ const ago = (ms) => {
 };
 
 /**
- * cb: { newCareer(mode), continueFrom(slot), loadFile(), resume(), saveFile(), quit(), overlay(name, open), label(action) }.
+ * cb: { newCareer(mode), continueFrom(slot), loadFile(), resume(), saveFile(), report(), quit(), overlay(name, open), label(action),
+ * says() (this build's words for a binding, where they differ from keys.js's: R waits until 0.0.4), keysExtra() ([[key, say]…]
+ * more rows for the keys card: the debug keys in debug mode) }.
  */
 export function createBoot({ root = document.body, cb }) {
   const title = el('div', { id: 'title', hidden: true });
@@ -44,7 +50,8 @@ export function createBoot({ root = document.body, cb }) {
   function showTitle({ version = '?', saves = [], now = Date.now() } = {}) {
     titleArgs = { version, saves };
     page = 'title';
-    const last = saves.filter(r => r.slot === 'auto' || r.slot === 'ironman').sort((a, b) => b.savedAt - a.savedAt)[0];
+    const nameOf = (r) => r.name ?? String(r.slot).split(':').pop();
+    const last = saves.filter(r => nameOf(r) === 'auto' || nameOf(r) === 'ironman').sort((a, b) => b.savedAt - a.savedAt)[0];
     title.replaceChildren(el('div', { className: 'sheet' },
       el('h1', { textContent: 'OLYMPUS' }),
       el('p', { className: 'sub', textContent: `v${version} · in development: the engine` }),
@@ -79,6 +86,19 @@ export function createBoot({ root = document.body, cb }) {
     title.querySelector('.item.standard')?.focus();
   }
 
+  // (the title's pages from the keyboard: the arrows, and Z and S by where they sit, move between its
+  // buttons, Tab too, and Enter or Space presses one; main.js leaves those keys their browser meaning here)
+  root.ownerDocument?.addEventListener?.('keydown', (e) => {
+    if (!page || title.hidden || card || e.metaKey || e.ctrlKey || e.altKey) return;
+    const step = e.code === 'ArrowDown' || e.code === 'KeyS' ? 1 : e.code === 'ArrowUp' || e.code === 'KeyW' ? -1 : 0;
+    if (!step) return;
+    const items = [...title.querySelectorAll('button.item')];
+    if (!items.length) return;
+    e.preventDefault();
+    const at = items.indexOf(root.ownerDocument.activeElement);
+    items[at < 0 ? 0 : (at + step + items.length) % items.length].focus();
+  });
+
   const hideTitle = () => { title.hidden = true; page = null; };
   /** Esc on the title's pages: from enlistment back to the title. */
   function back() { if (page === 'enlist' && titleArgs) showTitle(titleArgs); }
@@ -109,20 +129,22 @@ export function createBoot({ root = document.body, cb }) {
       ['Resume', () => { closeCard(); cb.resume(); }, 'Esc'],
       ['Save to a file', () => cb.saveFile(), null],
       ['Load a save file…', () => { closeCard(); cb.loadFile(); }, null],
+      ['Report a problem', () => { closeCard(); cb.report?.(); }, null],
       ['Quit to the title', () => { closeCard(); cb.quit(); }, null],
     ];
     const lines = acts.map(([text, fn, k], i) => line(i + 1, text, fn, k));
     openCard('menu', el('div', { className: 'glass menu' },
       el('h3', { textContent: 'Menu' }),
       el('div', { className: 'glass-list' }, lines),
-      el('p', { className: 'note', textContent: 'An autosave every 30 game minutes, on leaving the page, and on quitting to the title.' })), lines);
+      el('p', { className: 'note', textContent: 'An autosave after every five minutes of play, after time passes, at the start of each sol, on leaving the page, and on quitting to the title. Report a problem writes a file with the last autosave and what went wrong.' })), lines);
   }
 
   function openKeys() {
-    const L = (a) => cb.label(a);
+    const L = (a) => cb.label(a), says = cb.says?.() ?? {};
     const rows = [[`${L('up')} ${L('left')} ${L('down')} ${L('right')}`, 'walk (the arrows too)']];
-    for (const b of BINDINGS) if (b.kind !== 'move') rows.push([L(b.action), b.say]);
+    for (const b of BINDINGS) if (b.kind !== 'move') rows.push([L(b.action), says[b.action] ?? b.say]);
     rows.push(['1 … 0', 'pick a step or a line']);
+    for (const [k, say] of cb.keysExtra?.() ?? []) rows.push([k, say]);
     openCard('keys', el('div', { className: 'glass keys' },
       el('h3', { textContent: 'Keys' }),
       el('div', { className: 'keylist' }, rows.flatMap(([k, say]) => [el('kbd', { textContent: k }), el('span', { textContent: say })])),

@@ -1,13 +1,13 @@
 # BODY: the marine's physiology
 
-The spec for every body in OLYMPUS: the player's, and those of the persistent people of PEOPLE.md's tiers 1 to 3. It settles needs, air, water, heat, radiation, gravity acute and chronic, sleep and the body clock, fitness, locomotion in every gravity, wounds, medicine, suits as life support, drugs and death, with rates and units, state shapes, algorithms and tests. Written 2026-11-05 from the user's brief and DESIGN.md's settled decisions, with numbers checked in a scratch script against published reference values (named where used). Revised the same day after five critics' review: the interfaces with SKILLS, TIME and CAREER, the thermal, CO, anoxia, decompression and G-conditioning models, the suits and the shielding were reworked and every changed number reprinted from a scratch run. Where this file and DESIGN.md disagree, DESIGN.md wins until one is corrected.
+The spec for every body in OLYMPUS: the player's, and those of the persistent people of PEOPLE.md's tiers 1 to 3. It settles needs, air, water, heat, radiation, gravity acute and chronic, sleep and the body clock, fitness, locomotion in every gravity, wounds, medicine, suits as life support, drugs and death, with rates and units, state shapes, algorithms and tests. Written 2026-11-05 from the user's brief and DESIGN.md's settled decisions, with numbers checked in a scratch script against published reference values (named where used). Revised the same day after five critics' review: the interfaces with SKILLS, TIME and CAREER, the thermal, CO, anoxia, decompression and G-conditioning models, the suits and the shielding were reworked and every changed number reprinted from a scratch run. Aligned the same day with `CONTRACTS.md`, the shared contracts (the job slots, the body saved as deltas, items and ids, the voyage profiles, the milestone numbers), which this file cites rather than restates; §14.1's voyage figures were reprinted for SETTING's two voyages. Where this file and DESIGN.md disagree, DESIGN.md wins until one is corrected.
 
 How to read it: units are in the names (`gutKcal`, `doseSv`, `pressKpa`); the user's decisions are quoted with their date; my own decisions are marked "(my call)"; numbers are constants for the builders, to be tuned in play and printed by the tests in section 25.
 
 ## 0. The model in one page
 
 - **One body, one model, everyone.** The player and every persistent NPC carry the same `body` record and run the same functions. Off-map people get the same closed forms through the skip (section 2.6). The crowd gets a stub (section 24).
-- **Four cadences.** A fast layer at 20 Hz for what changes in seconds (G-LOC, decompression, suit pressure, stamina, gait). A second layer at 1 Hz for bleeding, pain, air dose, heat, radiation dose and drugs. A minute layer for needs bookkeeping, thresholds and morale. A day layer for healing, conditioning, fitness weeks and rust. Every accumulator has a closed form or a fixed sub-step, so a skipped hour and a lived hour give the same body (tradecraft's rule, kept).
+- **Four cadences.** A fast layer at 20 Hz for what changes in seconds (G-LOC, decompression, suit pressure, stamina, gait). A second layer at 1 Hz for bleeding, pain, air dose, heat, radiation dose and drugs. A minute layer for needs bookkeeping, thresholds and morale. A day layer, the one `local@00:00` job, for conditioning, bone and plasma; healing runs hourly in its own slot, and fitness weeks and rust at their absolute periods (TIME §11.3; CONTRACTS §5). Every accumulator has a closed form or a fixed sub-step, so a skipped hour and a lived hour give the same body (tradecraft's rule, kept).
 - **Needs are physical quantities, not bars.** Food is kilocalories in the gut and in reserve. Water is litres of body water against euhydration. The bladder is millilitres, the bowel grams. Hygiene is grime from sweat, dust and time. Sleep is hours of sleep pressure against a body clock that drifts between Mars sols and ship UTC days. Each turns into named roll modifiers at stated thresholds, and each has a hard end (collapse, accident, death) that the instinct warns of before it lands.
 - **Air is partial pressures.** The body reads the inspired O₂, CO₂, CO and total pressure of whatever it breathes (a room, a mask, a suit loop). Hypoxia is driven by the published time-of-useful-consciousness table (11 s in vacuum, 4 min at 25,000 ft equivalent). Brain injury runs on two clocks: minutes without oxygen, hours in severe hypoxia. CO₂, carbon monoxide by partial pressure and ventilation, ebullism below 6.3 kPa, lung and ear barotrauma, and decompression sickness from tissue nitrogen are each a numbered model. Martians living in 66 kPa air are naturally ready for a 34 kPa suit; a marine off a 101 kPa ship needs four hours on oxygen, two with exercise, or a suit run high.
 - **Heat is a heat balance on two nodes**, a core and a skin shell (Gagge's two-node model). Metabolic watts against losses through clothing, air (thinner air carries less heat) and a cold night sky, with vasomotor control, sweating and shivering, feeding tradecraft's core-temperature stages. The shell cools first, so the core falls at 1 to 2 °C an hour in a bad night, after frostbite has already begun. Suits remove at most 450 W; work harder and you cook.
@@ -56,7 +56,7 @@ The `body` record (2.5) belongs to every person with a sheet. The functions take
 | fast | every tick (50 ms) | gait and traction, stamina, G-LOC reserve and vision, suit pressure and leaks, decompression (ebullism, barotrauma triggers), breath-hold, falls and impacts, zero-g drift and grabs |
 | second | every 20th tick (1 s) | bleeding (tradecraft's `bloodTick`), pain and adrenaline, hypoxia dose and the brain clocks, CO₂ and CO loads, heat balance (two nodes, on the game's 10 s grid), radiation dose, suit consumables, drugs' concentrations, microsleep hazard |
 | minute | every 60 s, and at each skip's sub-step | energy and water ledgers' thresholds and words, bladder and bowel stages, hygiene, sleep pressure, the body clock, morale drift, infection hazard sums, DCS tissue nitrogen, AMS |
-| day | at 04:00 body time, or at each 24 h of a skip | healing (`heal()`), bone, plasma, G-conditioning, vestibular adaptation, fitness weeks, rust, ARS phase changes, mass from deficits |
+| day | the one `local@00:00` job (TIME §11.3; CONTRACTS §5) | bone, plasma, G-conditioning, vestibular adaptation, ARS phase changes, mass from deficits; fitness weeks and rust roll at their own absolute periods (`every@<ms>` at `FIT_WEEK_MS` and `RUST_PERIOD_MS`, SKILLS §7 and §8); healing is the hourly `hour@:35Z` slot only; 04:00 body time stays the body clock's marker, never posted |
 
 The second and minute layers run inside the 20 Hz loop on their tick boundaries (TECH.md's tick order places the body after movement and before perception).
 
@@ -86,47 +86,33 @@ The second and minute layers run inside the 20 Hz loop on their tick boundaries 
 - `bodyLine(p)`: the instinct's body line, in priority order (section 23.2).
 
 ### 2.5 State shape
-Plain JSON, saved; `$` keys are runtime-only and stripped. One record per person:
+Plain JSON, saved; `$` keys are runtime-only and stripped. One record per person, saved as its deltas from its build's template (TECH §6.6, rules 1 and 2; CONTRACTS §9). A marine in the middle of a sol at Melas:
 
 ```json
 "body": {
   "v": 1,
-  "baseMassKg": 75.0, "heightCm": 178, "sex": "m", "bornMs": -662256000000,
-  "traits": { "sleepNeedH": 8.0, "tauIntH": 24.2, "sasK": 0.45, "sweatMaxLh": 1.0, "co2Native": true, "bmrK": 1.0 },
-  "energy": { "gutKcal": 420, "reserveKcal": -150, "emptySinceMs": null, "emptyH": 0 },
+  "tmpl": "m-adult",
+  "baseMassKg": 75.0, "heightCm": 178, "bornMs": -662256000000,
+  "traits": { "sasK": 0.45, "co2Native": true },
+  "energy": { "gutKcal": 420, "reserveKcal": -150 },
   "water": { "balanceL": -0.2, "gutL": 0.1 },
   "bladder": { "ml": 180 },
-  "bowel": { "g": 140, "transitG": 90, "reflexUntilMs": null, "diarrhoeaUntilMs": null },
-  "hygiene": { "grime": 22, "stubbleH": 6, "sealedH": 0 },
-  "sleep": { "pressureH": 3.4, "asleep": false, "sinceMs": 0, "depthK": 1.0, "inertiaUntilMs": null, "offsetH": 0.0,
-             "berth": "bay-2a.r14", "berthNights": 12 },
-  "stamina": 100,
-  "stress": { "v": 12, "loadPts": 0, "peakMs": null },
-  "morale": { "v": 70, "mods": [] },
-  "thermal": { "coreC": 37.0, "skinC": 33.5, "frost": { "hands": 0, "feet": 0, "face": 0 } },
-  "air": { "hypoxia": 0, "anoxicS": 0, "hypoxicS": 0, "co2Load": 0.4, "coHbPct": 0.5, "acclimPiO2Kpa": 19.1,
-           "co2AcclimKpa": 0.40, "n2FastKpa": 40.2, "n2SlowKpa": 40.2, "holdS": 0, "holdKpa": null,
+  "bowel": { "g": 140, "transitG": 90 },
+  "hygiene": { "grime": 22, "stubbleH": 6 },
+  "sleep": { "pressureH": 3.4, "berthId": "f:e1:rack:14", "berthNights": 12 },
+  "stress": { "v": 12 },
+  "morale": { "v": 70 },
+  "air": { "co2Load": 0.4, "acclimPiO2Kpa": 19.1, "co2AcclimKpa": 0.40, "n2FastKpa": 40.2, "n2SlowKpa": 40.2,
            "lungTolKpa": 9.1, "earsKpa": 66 },
-  "rad": { "careerSv": 0.012, "yearSv": 0.004, "deploySv": 0, "daySv": 0, "acuteGy": 0, "skinGy": 0, "ars": null },
-  "g": { "reserveS": 6, "compG": 0, "locUntilMs": null, "dazedUntilMs": null, "agsm": 0,
-         "juice": null, "hangover": null },
-  "heart": { "health": 100, "strain": 0, "strainS": 0 },
-  "cond": { "gCond": 0.92, "bone": 0.86, "plasmaK": 1.0, "vestAdapt": 0,
-            "gWeek": [ { "liveG": 0.38, "hiH": 2.0, "hiG": 1.0 }, { "liveG": 0.38, "hiH": 0, "hiG": 0 } ] },
-  "fit": { "off": 0, "load": 0, "week": 0, "last": 0, "dayLoad": 0, "dayLoadAtMs": null },
-  "held": { "cellMs": 0, "rates": {} },
-  "parts": { "head": 0, "torso": 0, "armL": 0, "armR": 0, "legL": 0, "legR": 0 },
-  "injuries": [],
-  "blood": 100,
-  "adrenalineMs": null,
-  "drugs": [],
-  "posture": "standing",
-  "consc": { "downUntilMs": null, "outUntilMs": null, "arrest": null },
-  "tended": {}, "scars": [], "dead": null
+  "rad": { "careerSv": 0.012, "yearSv": 0.004 },
+  "cond": { "gCond": 0.92, "bone": 0.86,
+            "gWeek": [ { "liveG": 0.38, "hiH": 2.0, "hiG": 1.0 }, { "liveG": 0.38 } ] }
 }
 ```
 
-The suit, when worn, is its own item record (section 19.2) referenced by `p.wear.suit`; its loop becomes the `env` the body breathes when the helmet is sealed. `cond.gWeek` holds the last seven days (two shown); `held` keeps the rates of the current sub-step cell (2.6), so a save taken mid-cell resumes exactly.
+`tmpl` names the build's template (`m-adult`, `f-adult`), which holds the resting values the record leaves out, and `withDefaults('body', rec)` fills them on read: the build's sex and reference traits (`sleepNeedH` 8.0, `tauIntH` 24.2, `sweatMaxLh` 1.0, `bmrK` 1.0); `stamina` 100, `blood` 100 and `heart.health` 100, with no strain; `thermal` at a 37.0 °C core and a 33.5 °C skin, no frost; `g` with a full 6 s `reserveS` and nothing on it; `sleep.depthK` 1.0 and `offsetH` 0; `plasmaK` 1.0 and `vestAdapt` 0; `coHbPct` 0.5; every counter and dose not shown at zero (the other `air` doses, `stress.loadPts`, the `rad` ledgers past the year's, `fit`, `held`); every one of the six `parts` at 0; `posture` standing; and every timer, list and record empty or null (`energy.emptySinceMs`, `bowel.reflexUntilMs`, `injuries`, `drugs`, `consc`, `tended`, `scars`, `dead`). The sample keeps only what differs: the ledgers in the middle of a sol, the traits drawn for this person, and the history of where the body has lived.
+
+The suit, when worn, is its own item record in `state.items` (section 19.2), held at `p.kit.worn.suit` (TECH §6.7); its loop becomes the `env` the body breathes when the helmet is sealed. `cond.gWeek` holds the last seven days (two shown); `held` keeps the rates of the current sub-step cell (2.6), so a save taken mid-cell resumes exactly.
 
 ### 2.6 The skip contract for the body
 TIME.md owns `skip()`. The body's needs are its physical ledgers (gut and reserve kilocalories, body-water litres, bladder millilitres, bowel grams, grime, sleep pressure, tissue nitrogen, dose), advanced by one function; there are no separate anchors and no `valueAt`. The body provides three functions:
@@ -136,7 +122,7 @@ TIME.md owns `skip()`. The body's needs are its physical ledgers (gut and reserv
 - `bodyPeek(p, envSeg, atMs)` returns an advanced copy without writing, for the splash's time-lapse and any reading in the middle of a skip.
 
 The promises:
-- **Exact composition.** `bodyAdvance` over `[a, c]` gives the same body as `[a, b]` then `[b, c]`, for any whole-second `b`, to float rounding. Within a segment every closed-form ledger is linear (energy, water, bladder, grime, sleep pressure, dose) or exponential (gut water, transit, tissue nitrogen, morale, bone, gCond), and those compose exactly. The rest is stepped on **the game's own grid**, not the skip's: bleeding and DCS on the minute (multiples of 60,000 ms since the epoch), the heat balance on the 10 s grid, the body clock on the hour, healing at 04:00 body time. Inside a grid cell every rate is the one evaluated at the cell's start and kept in `body.held`, so a split inside a cell reuses it and the halves add up to the whole.
+- **Exact composition.** `bodyAdvance` over `[a, c]` gives the same body as `[a, b]` then `[b, c]`, for any whole-second `b`, to float rounding. Within a segment every closed-form ledger is linear (energy, water, bladder, grime, sleep pressure, dose) or exponential (gut water, transit, tissue nitrogen, morale, bone, gCond), and those compose exactly. The rest is stepped on **the game's own grid**, not the skip's: bleeding and DCS on the minute (multiples of 60,000 ms since the epoch), the heat balance on the 10 s grid, the body clock on the hour, healing in the hourly `hour@:35Z` slot and the daily work in the `local@00:00` job (TIME §11.3; CONTRACTS §5). Inside a grid cell every rate is the one evaluated at the cell's start and kept in `body.held`, so a split inside a cell reuses it and the halves add up to the whole.
 - **Event sub-steps.** Each ledger reports when it next crosses a threshold that changes a rate (the gut empties, the bladder reaches 450 mL and would wake a sleeper, shivering saturates). `bodyAdvance` steps to the earliest, applies the change, and continues; `nextCrossings` reads the same list.
 - **Hazards against thresholds.** Infection, DCS onset, faint spells, accidents, training injuries and skin trouble use tradecraft's race: a threshold `−ln(u)` drawn from the person's own stream when the risk begins, against accumulated `−ln(1 − p)`, so the result does not depend on how time was sliced.
 - **Lived against skipped.** The same interval ticked at 20 Hz in live play and skipped agree within the tolerances the parity test prints (section 25); the difference comes only from the live fast layer's finer steps.
@@ -155,7 +141,7 @@ Proposed paths (TECH.md owns the final layout). Sources are tradecraft's `../tra
 | `body/radiation.js` | new | | |
 | `body/gload.js` | longhaul `crew.js` `G_THRESHOLDS`, `protectedG`, `endJuice`, `physiologyTick`, `gStateFor` | adapt | per minute becomes per second; axis and posture; G-LOC reserve |
 | `body/conditioning.js` | tradecraft `fitness.js` (hook) | new | bone, plasma, gCond, vestibular |
-| `body/fitness.js` | tradecraft `src/sim/fitness.js` | reuse | exercise points scaled by gravity (15.1) |
+| `body/fitness.js` | tradecraft `src/sim/fitness.js` | reuse | exercise points scaled by gravity (15.1); SKILLS §8's rules and `FIT_WEEK_MS` live here, and SKILLS's `value()` reads effective fitness through the helper injected into it (TECH correction 8; CONTRACTS §13) |
 | `body/motion.js` | longhaul `crew.js mobility()`, `inertia.js`, `applyImpact` | adapt | Froude gaits, traction, jumps, falls, zero-g |
 | `body/health.js` | tradecraft `src/sim/health.js` | adapt (high value) | new injury kinds; limb bleed clamped below an artery's rate; the player is knocked down too |
 | `body/medicine.js`, `aid.js`, `diagnosis.js` | tradecraft same names | adapt | IFAK and corpsman kit; MARCH; suit biomedical data as plain sight for friends |
@@ -317,7 +303,7 @@ Before an EVA, a strap-in for a burn, a drop, a long convoy or a guard post, the
 - **Awake**: +1.0 per hour, multiplied for the time it applies: ×1.3 at MET above 4; ×(1 + 0.5 × (r − 1)) up to ×1.75 when the felt g is over your G-conditioning (`r = gG/gCond`, section 14; longhaul's rest drain was ×1.5 above 1.5 G); ×1.1 at stress ≥ 50; ×1.2 with core above 38 °C; ×1.2 with SpO₂ under 90%.
 - **Asleep**: −`clearH × depthK` per hour, `clearH = (24 − sleepNeedH)/sleepNeedH × quality` (2.0 at an 8 h need), floor 0. `sleepNeedH` is per person, normal around 8.0 h (sd 0.5, 6.5 to 9.5).
 - **Deep sleep after a long day**: `depthK = 1 + 0.5 × max(0, pressureH − 16)/16`, fixed when sleep begins and held for that sleep (Borbély's slow-wave rebound made linear, my call; it keeps each night exact over skips). A night begun at 20 h clears 12.5% faster.
-- **The balance on the Plan of the Day.** The Mars clock's timeslip falls inside the night (my call: the Corps keeps the slip inside taps). On TIME §9.2's schedule, taps at 22:00 and reveille at 05:30, the rack holds 8 h 09 m 35 s. At `clearH` 2.0 that clears 16.3 h against a 16.5 h waking day: −0.2 h a sol before anything else, and about −0.8 h with the 10 min it takes to fall asleep and PT's hour at ×1.3. Deep sleep takes part of it back, so on a training week the pressure left at reveille settles at 0.4 to 1.0 h by sol 3, "tired" (−1) arrives in the last half hour before taps (from 21:10 to 21:40), never in training, and the holiday routine's 07:00 reveille on sol 7 clears it all (scratch run, 2026-11-05, three weeks; `body-sleep` prints it). The sol is a little short for sleepers, and the Corps lives with it. A marine who needs 8.5 h runs 1 to 4 h short by sol 5 and is tired from about 17:00; one who stays up past taps, or stands a fire watch, pays the next day.
+- **The balance on the Plan of the Day.** The Mars clock's timeslip falls inside the night (my call: the Corps keeps the slip inside taps). On TIME §9.2's schedule, taps at 22:00 and reveille at 05:30, the rack holds 8 h 09 m 35 s. At `clearH` 2.0 that clears 16.3 h against a 16.5 h waking day: −0.2 h a sol before anything else, and about −0.8 h with the 10 min it takes to fall asleep and PT's hour at ×1.3. Deep sleep takes part of it back, so on a training week the pressure left at reveille settles at 0.4 to 1.0 h by Wednesday, "tired" (−1) arrives in the last half hour before taps (from 21:10 to 21:40), never in training, and the weekend's 07:00 holiday reveille clears it all (scratch run, 2026-11-05, three weeks; `body-sleep` prints it). The sol is a little short for sleepers, and the Corps lives with it. A marine who needs 8.5 h runs 1 to 4 h short by Friday and is tired from about 17:00; one who stays up past taps, or stands a fire watch, pays the next day.
 - **Quality** (product, 0.3 to 1.0):
 
 | Factor | Value |
@@ -615,7 +601,7 @@ Drive start, cut and flip throw anyone unsecured (LONGHAUL's `inertia.js`, with 
   - a marine fresh from boot at 0.92 who skips the Ring through the standby: 0.87 after 7 sols, **0.83 after 14** (G-2 and a heavy first day at 1 G, 26.2's story); on the two blocks, 0.92 holds;
   - a Fitness 12 marine on Europa with no centrifuge falls from 1.0 to 0.58 in twelve weeks, and a 1 G deck is then "very heavy";
   - on Europa, 4 h a week on a machine giving 1 G at the centre of mass holds 0.86, 8 h 0.99; PLACES's Hamster at the FOB (1.2 G at the feet of a 2.2 m arm, 0.67 at the centre of mass) holds only 0.61 at 4 h and 0.68 at 8 (a note for PLACES, section 28);
-  - a 12-day voyage at 0.3 G: 0.85 with no sessions, 0.91 with 4 h a week at 1 G; under 1 G of thrust the deck itself is the stimulus (from 0.85 to 0.89 in a 7.3-day run).
+  - the homeward 12.5-day voyage at 0.3 G, from 0.92: 0.84 with no sessions, 0.91 with 4 h a week at 1 G (from the 0.86 a machine held on Europa: 0.80 and 0.87); the first voyage, 6.9 days at 1 G, is itself the stimulus (from 0.85, where a standby without the Ring leaves a marine on Sol 602, to 0.88 in a 6.9-day run) (SETTING §6.5; CONTRACTS §14).
 - **The Ring's capacity** (PLACES §4.9: 60 seats, 2 h sessions with 6 min spin-up and spin-down): 7 sessions between 05:00 and 22:00 are 420 seats a sol and 2,940 a week against the battalion's 1,900 (950 marines × 2 blocks), 65% booked, which leaves about 1,000 seats a week for evening bookings and the remedial programme; round the clock it is 4,200. PEOPLE schedules the Ring by company, PLACES books the evening seats, and TIME's `centrifuge` activity is the Ring's 2 h block, whose doors lock while it spins (section 28). `body-cond` prints seats booked against demand.
 - **Effects** by `r = g/gCond` (felt g sustained for more than 10 s; acute events use section 13):
 
@@ -651,8 +637,8 @@ A Martian civilian on a 1 G deck (r 2.63) is crushed; a conditioned marine is no
 Tradecraft's `fitness.js` is ported unchanged in its rules (base and effective fitness, the weekly load, `upNeed(b) = 4.5b`, `holdNeed(b) = 2.2b + 2·max(0, b − 12)`, the band of ±3, two weeks at an edge to move the base) because they are the user's (2026-11-03, quoted in section 1).
 
 ### 15.1 What changes
-- **Points by gravity**: a kilometre run gives `2.5 × fRun(g)` points, walked `0.6 × fWalk(g)`, both ×(1 + load/mass); on Mars a run is worth 1.18 points, on Europa 0.69, in free fall nothing. Resistance gyms on Mars and aboard use flywheels and bands, not weights: a session is 10 points at any g (tradecraft's `SESSION_PTS`). A centrifuge or thrust-gym session with exercise at 1 G is 8 points; combatives 7 (tradecraft's `CLASS_PTS`); light PT 4; a ruck march of 10 km with 30 kg on Mars 5.3 points by the walking rule (0.6 × 0.63 × 1.4 a km), because 30 kg weighs 11 kg there: a hump is light work on Mars and heavier on a 1 G deck (8.4 points).
-- **Week**: the fitness week follows the weekday (SETTING §3.4: Monday to Sunday) of the clock the person lives by: seven sols counted from MSD 0 at Base Melas and on Mars, UTC days aboard ship, at Callisto and on Europa (TIME §2.6 names the clock lived by). A change of clock closes the current week early and pro rata (its load against `holdNeed × days/7`). Pay and evaluations stay on UTC (CAREER §2.3). The day layer rolls weeks.
+- **Points by gravity**: a kilometre run gives `2.5 × fRun(g)` points, walked `0.6 × fWalk(g)`, both ×(1 + load/mass); on Mars a run is worth 1.18 points, on Europa 0.66 (2.5 × 0.264), in free fall nothing. Resistance gyms on Mars and aboard use flywheels and bands, not weights: a session is 10 points at any g (tradecraft's `SESSION_PTS`). A centrifuge or thrust-gym session with exercise at 1 G is 8 points; combatives 7 (tradecraft's `CLASS_PTS`); light PT 4; a ruck march of 10 km with 30 kg on Mars 5.3 points by the walking rule (0.6 × 0.63 × 1.4 a km), because 30 kg weighs 11 kg there: a hump is light work on Mars and heavier on a 1 G deck (8.4 points).
+- **Week**: the training week is SKILLS's `FIT_WEEK_MS` (621,426,708 ms, 7 sols), counted in absolute time since the career began and rolled at its own absolute period, `every@<ms>`, not by the day layer (SKILLS §8; TIME §11.3; CONTRACTS §5). It is not the calendar's Monday to Sunday: it stays 7 sols long aboard ship, at Callisto and on Europa, so a change of clock never closes a week early or moves it. Rest sols keep the calendar's week (SETTING §3.4), and pay and evaluations stay on UTC (CAREER §2.3).
 - **Effective fitness** feeds stamina capacity (8), the pain limit (`30 + 2 × Fitness`, tradecraft's), part capacities (`takes × (1 + Fitness/20)`), and SKILLS.md's Fitness skill value.
 - Fitness and G-conditioning are separate: Fitness is how hard the body works, G-conditioning in what gravity it can.
 
@@ -845,16 +831,22 @@ The marine's issue suit, SETTING §5.7's **HAD Mk 7** ("the seven", "the can"; W
 ### 19.2 Item state
 
 ```json
-{ "type": "suit", "id": "lvs#p.1", "worn": true, "helmet": "sealed", "gloves": "on", "mode": "nominal",
+{ "type": "suit", "id": "i401", "model": "lvs", "worn": true, "helmet": "sealed", "gloves": "on", "mode": "nominal",
   "pressKpa": 34.0, "o2G": 588, "o2ReserveG": 150, "loopCo2Kpa": 0.12,
-  "cartridge": { "id": "lioh#p.4", "usedG": 210, "capG": 720 },
+  "cartridge": "i402",
   "drinkL": 0.6, "feedKg": 2.4, "batteryWh": 640, "urineMl": 0, "linerSoil": 0,
-  "breaches": [ { "id": 1, "part": "armL", "areaMm2": 28.3, "sealed": 0, "patch": null, "atMs": 0 } ],
+  "breaches": [ { "part": "armL", "areaMm2": 28.3, "sealed": 0, "patch": null, "atMs": 0 } ],
   "seals": 0.95, "dust": 0.1, "visor": { "cond": 1, "fog": 0, "fouled": false },
   "faults": [], "known": true }
 ```
 
-A suit in a locker is the same object; `known` follows tradecraft's gun rule (someone else's suit is unknown until checked).
+The cartridge is an item of its own in `state.items`, held by the suit (TECH §6.7; CONTRACTS §9 and §10), so it is counted, swapped and carried like a magazine:
+
+```json
+"i402": { "type": "cartridge", "model": "lioh", "usedG": 210 }
+```
+
+Its capacity (720 g) is the `lioh` model's, not the record's. A breach is an entry in the suit's list, not an item, so it carries no id. A suit in a locker is the same object; `known` follows tradecraft's gun rule (someone else's suit is unknown until checked).
 
 ### 19.3 Consumables
 - **Oxygen**: `VO2 = M/336` L/min (1 L of O₂ a minute releases about 336 W), ×1.429 g/L, plus the nominal leak `2 × (1 + 4 × dust)` g/h, plus breaches (19.4). At an average 300 W the primary lasts 7.6 h; at rest (130 W) 17 h; at hard work (600 W) 3.9 h.
@@ -913,7 +905,7 @@ The sums, at pace 1.00:
 - **Seal and go** skips every check (from the full don it saves 105 s; from the quick don, 50): an undetected fault `15% × (1 − EVA/30)` of the time.
 - **Doffing**: depressurise and the helmet off 20 s, gloves 10 s, the shell 60 s (back to the skin: 90 s in all), the skin 90 s: **180 s** in all. TIME adds servicing after outside use (19.9).
 
-How each plays is TIME's (its 45 s and 120 s rule; the first time is lived, in CAREER's sol 1 suit loft): the quick don at general quarters is a short fast-forward, the full don a skip with its outcome unless it is the first time.
+How each plays is TIME's (its 45 s and 120 s rule; the first time is lived, in CAREER's suit loft on Wednesday, career sol 2: CONTRACTS §3): the quick don at general quarters is a short fast-forward, the full don a skip with its outcome unless it is the first time.
 
 ### 19.8 What the suit costs the body
 - Pressurised: walk ×0.85, run ×0.75, sprint ×0.7. Roll penalties are `gear` entries that EVA wears down (SKILLS §5.13's `mitigated()`; the values in brackets are what a marine at EVA 10 feels): gloves −4 on hands (−2), the pressurised bulk −3 on legs and torso (−2), CQC −5 in place of it (−3); the helmet narrows the sight cone to 140° (PEOPLE.md's perception) and costs −1 eyes (−1). Hearing is the radio and what comes through the suit (in vacuum, only contact). The high mode (55 kPa) stiffens it: −1 more on hands, legs and torso, leaks ×1.6.
@@ -1093,7 +1085,7 @@ Each module ships with a `tests/body-*.test.mjs` that prints its numbers (DESIGN
 | `body-dcs` * | P(DCS) for each row of 11.7 over 4,000 seeded people (37% / 31% / 25% / 15% / 2% / 8% / 0.4% / 0.2% / 0.02% / 0.01% / 54%, ± 3 points) |
 | `body-suit` | leak table of 19.4 (pressure held, time to 17, 12, 10, 6.3 kPa) for 1 to 25 mm holes in the light suit and the hardshell; suit-hour budgets at 130, 300, 600 W for both; the donning sums at EVA 0, 10, 20 (shell 90 s, quick don 140 s, full 345 s at EVA 10); patch success by EVA skill 0, 10, 20 for 5 and 12 mm holes, own arm and own back; the packs' crossing times at 50, 200, 500 and 1,000 m |
 | `body-gload` | grey-out, blackout and G-LOC seconds for each profile of 13.3; the held strain: G-LOC or not, and stamina left, for straining from the start, at the grey and too late, on a 3-minute profile to 7 G; `gqClass` for gCond 0.38, 0.70, 0.85, 0.92, 1.0, rested and dehydrated 4%; juice hangovers (21.6 / 43 / 72 h standard; 110 / 147 / 180 h for 7 G 6 h, 10 G 2 h, 10 G 24 h, LONGHAUL's parity); unsecured 3 G timeline (injured 50, unconscious 59, dead 106 min, ± 10%, LONGHAUL's parity) |
-| `body-cond` | gEq for 0 to 10 h a week at 1 G on Mars (0.58 / 0.82 / 0.90 / 0.96 / 1.00 at 0 / 2 / 4 / 6 / 8 h); gCond after a standby of 7 and 14 sols with 0 and 4 h a week (0.87 / 0.83; 0.92); after a 12-day voyage at 0.3 G with and without sessions; after 12 weeks on Europa with none, with the FOB's Hamster as PLACES has it, and with a 1 G-at-the-centre machine; `perf` and gK at 1 G and on Mars for those bodies; the Ring's seats booked against the battalion's demand (2,940 a week against 1,900); faint chances on standing after 30 days of free fall; training injuries a week in a battalion of 950 on the periodised Plan of the Day (target 3 to 6) and on an unperiodised one |
+| `body-cond` | gEq for 0 to 10 h a week at 1 G on Mars (0.58 / 0.82 / 0.90 / 0.96 / 1.00 at 0 / 2 / 4 / 6 / 8 h); gCond after a standby of 7 and 14 sols with 0 and 4 h a week (0.87 / 0.83; 0.92); after the first voyage (1 G, 6.9 days) and the homeward one (0.3 G, 12.5 days), with and without sessions (SETTING §6.5; CONTRACTS §14); after 12 weeks on Europa with none, with the FOB's Hamster as PLACES has it, and with a 1 G-at-the-centre machine; `perf` and gK at 1 G and on Mars for those bodies; the Ring's seats booked against the battalion's demand (2,940 a week against 1,900); faint chances on standing after 30 days of free fall; training injuries a week in a battalion of 950 on the periodised Plan of the Day (target 3 to 6) and on an unperiodised one |
 | `body-radiation` | `shieldK` and `skinK` for every row of 12.1's table; doses for 15, 30, 60, 240 min on Europa's surface in each shield; ARS outcomes over 2,000 seeded people at 1.5, 3, 5, 8 Gy-Eq by care tier; skin burns at 2, 6, 10, 15, 18 Gy |
 | `body-motion` | the table of 16.1 (speeds, Froude numbers, stopping on three surfaces, jumps from the force-velocity push, falls); jump heights at Fitness 0, 10, 20 and at mass ratios 1.0, 1.3, 1.6; a 45 kg load's weight ratio on Mars, Europa, a 1 G deck; free-fall grab outcomes at 1, 2, 3, 4 m/s |
 | `body-health` | tradecraft's printed rates, unchanged (parity): bleed times, knock seconds, pain under adrenaline, infection outcomes over 3 weeks, first-aid times by Medicine (now through `paceOf`) |
@@ -1129,21 +1121,26 @@ A private who skipped the Ring all standby drags through his first sol on the tr
   - **Cards whose answer is pure training become automatic** above a threshold, with the roll in the log: at EVA 10 a marine trained in the Tank exhales on an explosive decompression by himself; at EVA or Warfighting 12 he strains at the grey; at Fitness 12, or airborne-qualified, he rolls a hard landing when nothing else is at stake. Tradecraft's remembered-choice rule (the user, 2026-11-04: "the reflex window is spammed on us too") lets an answer stand for 120 s (`KEEP_S`).
 
 ## 27. Build order
-ROADMAP.md sets the milestones, and §3.4 there moved two of this section's proposals; this order adopts its table (2026-11-05).
+ROADMAP.md sets the milestones, and §3.4 there moved these proposals to 0.1.x and 0.0.7; this order adopts its table (2026-11-05). ROADMAP's 0.0.n rows name an order, not a release (CONTRACTS §18).
 
-**0.1, a standby week at Base Melas** (ROADMAP §5).
+**0.0.7, the range** (ROADMAP §4, the `test-range` row).
+- Wounds, bleeding, pain and knockdown: tradecraft's `health.js` ported (wounds, bleeding, pain, shock, knockdown, consciousness, death) with the range, so that a negligent discharge lands somewhere real (WEAPONS §6.6, ND-4); the casualty is the range corpsman's and the aid station's, as an outcome, until the lane joins at 0.1.x.
+
+**0.1.0, the core standby week at Base Melas** (ROADMAP §5).
 - Energy, water, bladder, bowel and hygiene with the mess, the head, the showers (by water minutes) and the canteen; shaving and inspections.
 - Sleep pressure, deep sleep and the body clock on the sol (the timeslip inside taps); fatigue penalties; microsleeps on watch; the daily load cap and training injuries.
 - Stress and morale; the shakes.
 - The two-node heat balance with Mars outdoors and the night sky (PT dress at dawn, a night exercise at −30 °C, the sentry's night), cold hands and frostbite.
-- Air at Melas (the stuffy 0.4 kPa for newcomers only) and the **altitude-chamber class** (hypoxia awareness: masks off at a simulated Tharsis, cards to sort, symptoms learned; PLACES.md needs a chamber room whose pressure the instructor sets); CO from a barracks fire.
-- **The suit in the Tank** (moved from 0.2 by ROADMAP §3.4): the light vac suit's pressure, leaks and patching, hypoxia in the suit, consumables, the dead fan and the purge, donning with its sums (the shell's 90 s, the quick don, the full don), mobility costs, the suit room's cleaning, and the Tank's breach drill with the decompression card.
-- **Acute G in the Long Arm** (moved from 0.2 by ROADMAP §3.4): axes and posture, effective G, +Gz from grey-out to G-LOC, +Gx, the held straining manoeuvre, and `gqClass` for CAREER's G-qualification.
-- Fitness and effective fitness with PT, light PT, the gym, humps and the range walk; stamina; G-conditioning with the Ring's weekly hours; bone and plasma tracked (their effects show later); `perf` for CAREER's tests.
-- Locomotion at 0.38 G (gaits, push and brake limits, traction, load by weight and mass, the force-velocity jump, falls from the training tower).
-- Wounds, bleeding, pain, knockdown and first aid ported, with the IFAK's tourniquet, pressure dressing and gauze (range accidents, combatives, a training fall); diagnosis; the base clinic.
+- Air at Melas (the stuffy 0.4 kPa for newcomers only); CO from a barracks fire.
+- Fitness and effective fitness with PT, light PT, the gym, humps and the range walk; stamina; G-conditioning, bone and plasma tracked by the daily closed form (14.1 to 14.3), so the edge carries them; `perf` for CAREER's tests.
+- Locomotion at 0.38 G (gaits, push and brake limits, traction, load by weight and mass).
 - Caffeine, garrison painkillers, alcohol at the club; the background dosimeter reading.
 - `bodyMods` and `needMods` on SKILLS's `uses`; the body line; interrupts; `bodyAdvance`, `nextCrossings` and `bodyPeek`; the composition and parity tests.
+
+**0.1.x, the patches that fill the standby** (ROADMAP §5.8, one scored scene each).
+- **The suit in the Tank** (moved from 0.2 by ROADMAP §3.4; the `test-tank` scene): the light vac suit's pressure, leaks and patching, hypoxia in the suit, consumables, the dead fan and the purge, donning with its sums (the shell's 90 s, the quick don, the full don), mobility costs, the suit room's cleaning, and the Tank's breach drill with the decompression card; and the **altitude-chamber class** (hypoxia awareness: masks off at a simulated Tharsis, cards to sort, symptoms learned; PLACES.md needs a chamber room whose pressure the instructor sets).
+- **Acute G in the Long Arm** (moved from 0.2 by ROADMAP §3.4; the `test-ghouse` scene): axes and posture, effective G, +Gz from grey-out to G-LOC, +Gx, the held straining manoeuvre, and `gqClass` for CAREER's G-qualification; G-conditioning trained in the Ring; the force-velocity jump and falls from the training tower.
+- **First aid** (the `test-lane` scene): MARCH with the IFAK's tourniquet, pressure dressing and gauze (range accidents, combatives, a training fall); diagnosis; the base clinic.
 
 **0.2, the move and the voyage** (ROADMAP §6). Vacuum in full: ebullism, lung barotrauma (the drop since the glottis closed, explosive decompression), the ears' asymmetry, DCS and prebreathe; free-fall locomotion, mag boots, handholds and the SAFER jet; couches under thrust, sustained +Gx and juice re-based to seconds with LONGHAUL's hangovers; space sickness; the free-fall fluid shift and plasma; ship UTC, the week on the ship's clock and ship-lag; cruise dose and the storm shelter; the corpsman's bag (chest seal, NPA, needle); G-conditioning under 1 G of thrust; the quick don at general quarters.
 
@@ -1165,7 +1162,7 @@ What BODY relies on from each section, and, after the critics' review of 2026-11
 |---|---|---|
 | TIME.md | the clocks (Mars local with the timeslip, UTC) and which one a person lives by; the activities table with durations and each activity's body profile fields (2.3); `skip()` calling `bodyAdvance` with environment segments; the splash and reflex cards; interrupts consuming 23.3; chapters setting daily activities; how the clock runs while the player is unconscious; the world layer's solar particle events | §5.5: needs are BODY's ledgers advanced by `bodyAdvance`, with no anchors and no `valueAt`; the earliest of `nextCrossings` queued as a priority-3 event (`ledger`, `band`). §8.1: `chorePace` deleted, every activity paced by SKILLS's `paceOf` on its named skill (`suit-up`: EVA; `clean-rifle`: Weapon handling, as WEAPONS §9.3), which answers TIME §19's request. §8.2: `suit-up` and `suit-down` are 19.7's sums × `paceOf(EVA)` (345 s with a buddy, 450 alone, the 140 s quick don; 180 s off); the shower's water minutes are PLACES's per site, and its hygiene BODY's by water minutes (6); `sponge-bath` and `wipes` need durations. §8.6: `centrifuge` becomes the Ring's 2 h block (doors locked while it spins), `pt` gains light PT, and the gym's 18 h rule becomes 7.3's load cap. §9.2: reveille 05:30 stands; 7.1 gives its sleep balance. §17's "3–4 toilet visits a sol" comes out at 4 to 5 for the 2 L of urine a cool training sol makes (4.2): honest at that intake. §10.6: the chapter paper reports measurements and felt words (23.1). The reflex cards of 26.3 (the G onset is a held step) |
 | PLACES.md | each area's and room's `env` (2.3): pressure and gas mix, CO, temperature, wind, light cycle, dose rate, gravity (with the voyage's thrust), surface μ and ferrous decks, fire, smoke, water quality; the altitude chamber, the Ring and the Long Arm, the suit room, heads, showers and the aid station's chamber as fixtures | a sky temperature in the weather (Swinbank or Brunt, about −55 °C over −30 °C air on a clear Melas night) folded into `radC` by view factor; `doseAt` reading 12.1's shielding curve for its hulls and ice (its depth function is the curve's tail, unchanged from 0.5 m down); `gyPerSv` by field; each site's `WATER_MIN` and litres (Melas, the ship's 12 L, the FOB's 5 min and 30 L, the towns' long showers) in one place with TIME's 1.5 min for Europa withdrawn; blood on a deck (0.2) in §2.7's list; the Ring booked by company with evening seats (14.1's capacity); the FOB's Hamster gives only 0.67 G at the centre of mass, so to hold a marine near 0.9 on Europa it needs about 1.8 G at the feet of its 2.2 m arm, or a longer arm; Olympus summit's dose (about 1.4 µSv/h) for its table |
-| SKILLS.md | the skill list and each skill's `uses` (§2.2, used by section 22); the contract of §5.4 (`bodyMods` and `needMods` with `ctx`); `paceOf` (§5.12) for every body step; `mitigated()` (§5.13) for the suit and the gravity regime; the EVA skill used by patching, donning, push-off and grabs; Medicine's pace; Fitness as a skill whose effective value this section computes; the straining manoeuvre as a trained technique (the better of EVA and Warfighting); training XP multipliers from morale | `ctx` should carry the roll's target distance (`targetM`) so the smell penalty (section 22's hygiene row) applies only within range; §8's gravity factor and carry factor are BODY's (15.1's walking and running rules), and its centrifuge session (6 points) and BODY's (8) should be one number |
+| SKILLS.md | the skill list and each skill's `uses` (§2.2, used by section 22); the contract of §5.4 (`bodyMods` and `needMods` with `ctx`); `paceOf` (§5.12) for every body step; `mitigated()` (§5.13) for the suit and the gravity regime; the EVA skill used by patching, donning, push-off and grabs; Medicine's pace; Fitness as a skill whose effective value this section computes; the straining manoeuvre as a trained technique (the better of EVA and Warfighting); training XP multipliers from morale | `ctx` should carry the roll's target distance (`targetM`) so the smell penalty (section 22's hygiene row) applies only within range. SKILLS §8 now takes BODY's gravity and carry factors (15.1's walking and running rules) and its centrifuge session of 8 points, and its `FIT_WEEK_MS` is 15.1's training week |
 | WEAPONS.md | bullets into injuries (calibre, force, part, through-and-through), hole sizes through suits, armour coverage, muzzle blast levels at the ear, recoil and anchoring that use 16.2's traction, frayed-stress use in muzzle discipline, the suits' armour | §8.3: "hard suit (boarding armour)" renamed "hardshell (HAD M-22)", its mass and life support BODY's 19.11; §7.8's `light` anchor recomputed on PLACES's surface ice at μ 0.30 (deceleration 0.39 m/s² on Europa, twice the old figure, so each push stops in half the distance: a 5.6 cm/s push in 0.4 cm), and 0.10 in the towns |
 | COMBAT.md | suppression and "being shot at" mods, CQC in suits and low g using 16.3's mass penalties, EVA tactics on 16.6's packs, CASEVAC times to the care tiers, the off-screen casualty resolver for the crowd, blast injuries and throws | §13.2's suit-up cites 19.7's quick don (120 s and the 20 s buddy check, 140 s); §14.2's crossings and §15.1's pack read 16.6's table (the numbers agree); §15.3's dose plan and ceiling go into CAREER's limits table, and its example suit rate becomes 12.1's (89 mSv/h in a light suit, 41 in a hardshell: a 20 mSv plan is 13 and 29 minutes) |
 | PEOPLE.md | NPC LOD and how needs drive behaviour; reactions to smell, blood and accidents; discipline for grooming, sleeping on watch, being drunk; chaplain and counsellor care for combat stress load; perception using the helmet cone, vision under G and hearing | the Plan of the Day periodised (light PT on MCMAP and hump sols, none on a field-exercise sol: 7.3); the Ring's two blocks a week scheduled by company (14.1); `people.behaviour` printing training injuries a week against BODY's 3 to 6 |

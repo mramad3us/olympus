@@ -80,7 +80,7 @@ A typical **active sol plays in 40 to 70 real minutes**. That covers two to four
 - **The Corps:**
   - **The MCRN Marine Corps** is the Navy's ground, boarding and shipboard-security arm.
   - Enlisted and officer ranks follow the real-world US Marine model: Private, Private First Class, Lance Corporal, Corporal, Sergeant, Staff Sergeant, Gunnery Sergeant, First Sergeant/Master Sergeant, Sergeant Major/Master Gunnery Sergeant; then 2nd Lieutenant to General.
-  - Units run fire team (4), squad (3 teams + leader = 13), platoon (3 squads + HQ, about 43), company (about 190 with attachments), battalion (about 1,000; 2/4 deploys 980).
+  - Units run fire team (4), squad (3 teams + leader = 13), platoon (3 squads + HQ, 44 with its corpsman and radio operator), company (191 with attachments: PEOPLE §3.2, CONTRACTS §15), battalion (about 1,000; 2/4 deploys 980).
   - Martian Marines train at 1 G under thrust and in centrifuges to be fit to fight Earthers and to ride warships. **G-conditioning** is a core stat (see Body).
 - **The player's home unit:**
   - 1st Squad, 2nd Platoon, Echo Company, 2nd Battalion, 4th Marine Regiment.
@@ -114,7 +114,7 @@ A typical **active sol plays in 40 to 70 real minutes**. That covers two to four
   - Far things get outcomes, not simulation (LONGHAUL's rule).
 
 ### Space and scales
-- **Close-up play** is the **pixel stage**, tradecraft's look: an orthographic camera looking north, tilted 45° (the user calls this "top-down"), procedural pixel art drawn by code, a generated palette with every pixel snapped to it, outlines, toon light, real lamp pools and darkness, and cutaway interiors.
+- **Close-up play** is the **pixel stage**, tradecraft's look: an orthographic camera looking north, tilted 45° (the user calls this "top-down"), pixel art drawn by code, a generated palette with every pixel snapped to it, outlines, toon light, real lamp pools and darkness, and cutaway interiors.
   - **Pixel density is decided by look samples the user scores.** The candidates are tradecraft's 16 px/m at 640×360 and a higher-resolution 24 px/m at 960×540. Everything takes `PX_PER_M` from one constant, so the choice is a number.
   - Figures likewise come down to chibi (tradecraft's pick) or taller proportions, by sample.
   - A **close figure** at double density (tradecraft's doll) shows your body and kit (inventory, wounds, suit) and gives the splash vignettes.
@@ -123,13 +123,15 @@ A typical **active sol plays in 40 to 70 real minutes**. That covers two to four
   - **Tactical screen** (local space, km).
   - **Planetary space** (orbits, G contours, airspaces).
   - **System map** (AU, light lag).
-  - **Telescope and viewports** (scope-sky: procedural worlds, stars, phases).
+  - **Telescope and viewports** (scope-sky: worlds and stars drawn by code, phases).
   - The marine sees these on real screens: a troopship's repeater in the berthing, a terminal, a suit HUD, a drop ship's seat display. Each sits inside a pixel-art bezel at the stage's scale.
   - What they show is only what that screen could know.
 - **Areas.** The world is made of **sites** (Base Melas, a troopship, Callisto Station, Conamara Under-Ice, a derelict, …). Sites are made of **areas**: a deck, a building's floor, an outdoor chunk.
   - One area is live at a time, and outdoor chunks stream around you.
   - Persistent people elsewhere are tracked by area and room on their schedules.
-  - Everything is pure data from generators and authored templates ("at least three kinds of everything").
+  - **The world is handcrafted; what happens in it is procedural** (the user, 2026-11-05: "game world is handcrafted, events and world politics, assignments, opportunities, mission details are all procedural").
+    - **Handcrafted:** every site, area, building, room, ship deck, town and stretch of ground is authored, placed by hand and the same in every career, so the player learns Base Melas, *Testudo*'s decks and Pwyll Deep as places. Large grounds (the Talus, Europa's surface) may be laid with tools while they are authored, then committed as fixed data and finished by hand: nothing in a place's layout or dressing is rolled per career (my call on the method). "At least three kinds of everything" holds as authored variety: three hand-made squad bays, not three rolls of one.
+    - **Procedural, from the world's seed and the career's choices:** events and incidents, world politics, fleets and the war (LONGHAUL's sim), the news, assignments and orders, opportunities (schools, details, volunteer duties, selection windows), mission details (objectives, the opposition, intel, timings, where in a handcrafted place things happen and who is there), and **every person**: the persistent cast and the crowd alike (below, People).
 
 ### Bodies, weapons, skills
 - Physiology, needs, wounds and medicine are ported from tradecraft (health, medicine, aid, diagnosis, armour) and extended. New systems: thirst, hygiene, bladder and bowel, air (O₂, CO₂, pressure), temperature, G-load (acute and chronic), radiation dose, deconditioning versus **G-conditioning**, and suit systems. LONGHAUL's G thresholds and juice are re-based to seconds.
@@ -147,6 +149,7 @@ A typical **active sol plays in 40 to 70 real minutes**. That covers two to four
   2. **Your unit:** the platoon and company, a full sheet and a schedule, simulated at lower detail off-map.
   3. **Named people of a place:** base staff, a town's notables.
   4. **The crowd:** seeded, throwaway, recycled after skips, never popping in view.
+- **Every person is generated** (the user, 2026-11-05, asked whether the persistent cast should be handcrafted: "All people generated"). Your squad, your NCOs and officers and the key people of each site are rolled from the world's seed (names, faces, backgrounds, traits, ties and arcs drawn from authored pools), so each career meets new people; nobody is a written character. Only places are handcrafted.
 - **Every persistent person** has a schedule (the duty roster and the Plan of the Day), needs, moods, the tradecraft fear/trust/affinity gauges toward you and toward each other, memories of events, a career, and story arcs.
 - **The chain of command is live.** Orders are given and expected, and so are customs (salutes outdoors, reporting, asking permission), discipline (counselling, extra duty, NJP) and praise.
 
@@ -203,11 +206,19 @@ A typical **active sol plays in 40 to 70 real minutes**. That covers two to four
 | [VIEWS.md](design/VIEWS.md) | The pixel stage (look, density, camera, light, cutaways); the splash; the instruments (tactical, planetary, system, telescope); the HUD, sheets and menus; controls in full; audio |
 | [TECH.md](design/TECH.md) | Module layout; the tick and the layers; state and saves; the renderer and its performance; what is ported from LONGHAUL and tradecraft; testing and tooling |
 | [ROADMAP.md](design/ROADMAP.md) | Milestones from 0.0.x to 1.0, each with its acceptance moments; what is built when, in which order, and why |
+| [CONTRACTS.md](design/CONTRACTS.md) | The shared contracts in one place: time constants, the start, the Plan of the Day, job slots, budgets, people per scene, state keys, ids, bus facts, save slots, voyages, unit sizes, the air, names. Cited by every section, never restated |
+
+When two documents disagree, this hub wins, then TECH §1.3 (the implementation) and ROADMAP §3.4 (the milestones), then the owner CONTRACTS names, then the rest (my call).
 
 ## Decision log
 
 Newest first. Every decision the user makes and every complaint they raise goes here with its date, then into the section it affects.
 
+- 2026-11-06, Claude's calls on CONTRACTS §19's open items: (2) BODY's 1.14 m/s walk stands, and the walk test passes on the compacted plan (11.82 min), so PLACES §4.2 and §4.3 take the plan as built; (4) the company march is `company-march`, and PEOPLE renames its test; (10) a fight is never turned into an outcome around the player: an `out` skip during a live fight runs as a fast-forward (TIME §4.5), and TECH's loop picks the engine by the skip's engine, not its kind; (11) Base Melas lies at 10.5° S, owned by PLACES §4.1, which reprints its terrain sunrise and sunset.
+- 2026-11-06, Claude's calls in building v0.0.2: Base Melas's plan is drawn closer together, so the training sol walks in 11.82 real minutes at BODY's 1.14 m/s, under the 12-minute target (the armoury moves from (420, 190) to (444, 190), its cleaning canopy from (420, 216) to (446, 216), the mess hall from (488, 246) to (488, 242); PLACES §4.2 as written walked 12.87; CONTRACTS §19 item 2). The walker collides as its clearance class's circle (C0 0.27 m), with a door assist of up to 0.3 m sideways (PLACES §2.1). The slow layer steps from a saved mark, `time.slowToMs`, so each moment of game time is stepped once, lived or skipped (TECH §6). SETTING's calendar definitions are bound to core's arithmetic in `src/sim/time/dates.js`. The debug skip keys are labelled ^ and $, AZERTY's names for them. A play copy rolled back below 0.0.2 finds no saves until it is promoted forward again (nothing is deleted).
+- 2026-11-06, Claude's calls in reconciling the sections into CONTRACTS.md: the voyage doctrine (1 G out, 0.3 G home, 0.38 G for routine moves); the start at 2351-12-19 02:20 UTC; SETTING §1.4's settled ship and place names; the soft 34 kPa suit; the Coprates-class transport at PLACES §5.2's 240 m with eight Simoom landers and a wave of 352 marines (the Haboobs fly from the shore); Europa's towns at Ice standard, 75 kPa; a frigate's marine detachment of 15; Base Melas at 10.5° S; Plan of the Day days named by weekday, and career sols counted from the arrival as sol 0. The order of precedence is under Sections.
+- 2026-11-05, the user, asked whether the persistent cast (squad, chain of command, key people) should be handcrafted or generated: "All people generated". Every person is rolled from the world's seed from authored pools; only places are handcrafted (Settled decisions, People).
+- 2026-11-05, the user: "one thing I might have been unclear about : game world is handcrafted, events and world politics, assignments, opportunities, mission details are all procedural". Places are authored and fixed in every career; events, politics, assignments, opportunities, mission details and crowds are procedural (Settled decisions, Areas). PLACES §9 (generation and variety), §9.5 (procedural grounds) and the sections that roll layouts per seed are corrected to match.
 - 2026-11-05, Claude's call, after the critics' round: the first standby is lived sol by sol at 1:1 (only activities skip time); chapters and "Call it a day" begin with later dwell weeks (TIME §9.7, §10.1). The warming agent is named (perfluorocarbons; SETTING §4.5). The air table is by inspired O₂. VIEWS §10's eight military keys (A, W, V, U, N, B, O, P) are recorded above under Controls.
 - 2026-11-05, the user: "btw we don't use the image gen mcp at all in the other projects". No image generation, by MCP or by script: every image and sound is made by the game's own code at runtime.
 - 2026-11-05, the user: "also do keep the game up to date on github please". Public repo; every release is pushed.

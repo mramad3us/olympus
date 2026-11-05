@@ -1,20 +1,37 @@
-// The saved state (src/core/state.js): the reserved shape, the round trip, $ keys gone at any depth,
-// the odd numbers carried, canonical key order, plain data enforced, foreign saves refused, and the
-// additive upgrades.
+// The saved state (src/core/state.js): the reserved shape (TECH §6.1's 25 keys at their empty
+// defaults), the round trip, $ keys gone at any depth, the odd numbers carried, canonical key order,
+// plain data enforced, foreign saves refused, the additive upgrades, 0.0.1's 'sites' become
+// 'places' once, and a 0.0.1 sandbox save upgraded and played 400 ticks.
 import { assert, fmt } from './helpers.mjs';
-import { newState, toJSON, fromJSON, stripRuntime, upgradeState, addUpgrade, copyState, DOMAINS, SAVE_SCHEMA, GAME } from '../src/core/state.js';
+import { newState, toJSON, fromJSON, stripRuntime, upgradeState, addUpgrade, copyState, resetDomains, DOMAINS, SAVE_SCHEMA, GAME } from '../src/core/state.js';
+import { createLoop } from '../src/core/loop.js';
+import { recordingBus } from '../src/core/bus.js';
+import { TICK_MS } from '../src/core/clock.js';
+import { createSim } from '../src/sim/game.js';
+import { scriptInput } from './game-dummy.mjs';
+import { playerActor } from '../src/core/ids.js';
+
+// (a v0.0.1 sandbox save, made by v0.0.1's own state.js and main.js's sandbox fill, 400 ticks in:
+// its clock off the tick grid, its player a stub, its longitude in 'sites')
+const V001_SANDBOX = '{"clock":{"holds":[],"ms":29196348,"tick":400},"flags":{},"log":[],"meta":{"createdMs":29176348,"game":"olympus","mode":"standard","scenario":"sandbox","schema":1,"seed":4,"version":"0.0.1"},"people":{},"player":{"name":"Private (stub)","x":3.625,"z":-1.45},"rng":{"main":[3383045941,133646322,2179121275,970576573]},"sites":{"sandbox":{"lonEDeg":-72}},"world":{}}';
 
 const throwsWith = (fn, re) => { try { fn(); } catch (e) { assert(re.test(e.message), `threw "${e.message}", not ${re}`); return e.message; } throw new Error(`did not throw ${re}`); };
 
 export default [
   {
-    name: 'newState: the reserved domains, schema 1, the dice seeded, the clock at the asked time',
+    name: 'newState: TECH §6.1\'s 25 keys at their empty defaults, schema 1, the dice seeded, the clock at the asked time',
     fn() {
+      resetDomains();                                              // (these are the core's own states: no game's domains registered)
       const s = newState(1234, { version: '0.0.1', mode: 'ironman', scenario: 'sandbox', startMs: 12_345 });
-      assert(Object.keys(s).join() === DOMAINS.join(), `keys ${Object.keys(s)}`);
+      assert(DOMAINS.length === 25 && Object.keys(s).join() === DOMAINS.join(), `keys ${Object.keys(s)}`);
       assert(SAVE_SCHEMA === 1 && s.meta.schema === 1 && s.meta.game === GAME && s.meta.seed === 1234 && s.meta.mode === 'ironman' && s.meta.version === '0.0.1', JSON.stringify(s.meta));
-      assert(s.clock.ms === 12_300 && s.clock.tick === 0 && s.clock.holds.length === 0 && s.meta.createdMs === 12_300, `clock ${JSON.stringify(s.clock)} (startMs rounds down to the tick)`);
+      assert(s.meta.worldId === 'w-1234' && JSON.stringify(s.meta.next) === '{}' && s.meta.errors.length === 0, JSON.stringify(s.meta));
+      assert(s.clock.ms === 12_300 && s.clock.tick === 0 && s.clock.holds.length === 0 && s.clock.seq === 0 && s.meta.createdMs === 12_300, `clock ${JSON.stringify(s.clock)} (startMs rounds down to the tick)`);
       assert(Array.isArray(s.rng.main) && s.rng.main.length === 4 && s.log.length === 0, 'rng and log');
+      const empties = { events: '[]', skip: 'null', talk: 'null', stop: 'null', career: 'null', places: '{"live":null,"sites":{}}', actors: '{"list":[]}',
+        armoury: '{"guns":{},"ammoIssues":[]}', player: '{"id":null,"actor":null,"waypoint":null,"presets":{},"keeps":{}}',
+        time: '{"chapter":null,"voyage":null,"pod":{},"alarms":[],"interrupts":{"perSol":0,"perSkip":0},"liveSinceSaveMs":0,"slowToMs":null}' };
+      for (const [k, want] of Object.entries(empties)) assert(JSON.stringify(s[k]) === want, `${k}: ${JSON.stringify(s[k])}`);
       assert(newState(-1).meta.seed === 4294967295, 'seed as an unsigned 32-bit word');
       throwsWith(() => newState(1, { mode: 'hardcore' }), /mode/);
       console.log(`      domains: ${DOMAINS.join(', ')}; a fresh save is ${toJSON(s).length} bytes`);
@@ -23,6 +40,7 @@ export default [
   {
     name: 'round trip: save, load, save again gives the same bytes; the loaded state equals the saved',
     fn() {
+      resetDomains();
       const s = newState(99, { version: '0.0.1' });
       Object.assign(s.player, { name: 'Pvt. Ada Reyes', x: 1.25, z: -3.5, kit: [{ id: 'm1', rounds: 30 }, { id: 'm2', rounds: 0 }] });
       s.people.sgt = { name: 'Sgt. Okafor', gauges: { fear: 0, trust: 2, affinity: -1 } };
@@ -39,15 +57,15 @@ export default [
     fn() {
       const s = newState(5);
       s.$world = { grid: new Map([[1, 2]]) };                      // (a Map is fine under a $ key: it is never saved)
-      s.sites.melas = { seed: 7, $geometry: new Float32Array(9), rooms: [{ id: 'bay', $mesh: { a: 1 } }, { id: 'head' }] };
+      s.places.sites.melas = { seed: 7, $geometry: new Float32Array(9), rooms: [{ id: 'bay', $mesh: { a: 1 } }, { id: 'head' }] };
       s.people.x = { name: 'x', $path: [[0, 0], [1, 1]] };
       const json = toJSON(s);
       assert(!json.includes('$'), `a $ key reached the save: ${json.match(/.{20}\$.{20}/)}`);
       const t = fromJSON(json);
-      assert(t.sites.melas.rooms.length === 2 && t.sites.melas.rooms[0].id === 'bay' && !('$mesh' in t.sites.melas.rooms[0]) && !('$world' in t), 'stripped wrongly');
-      assert(s.$world && s.sites.melas.$geometry, 'stripping touched the live state');
+      assert(t.places.sites.melas.rooms.length === 2 && t.places.sites.melas.rooms[0].id === 'bay' && !('$mesh' in t.places.sites.melas.rooms[0]) && !('$world' in t), 'stripped wrongly');
+      assert(s.$world && s.places.sites.melas.$geometry, 'stripping touched the live state');
       const copy = stripRuntime(s);
-      assert(!('$world' in copy) && copy !== s && copy.sites !== s.sites, 'stripRuntime is not a copy');
+      assert(!('$world' in copy) && copy !== s && copy.places !== s.places, 'stripRuntime is not a copy');
       console.log(`      $world, $geometry, $mesh, $path dropped; live state untouched; ${json.length} bytes`);
     },
   },
@@ -79,7 +97,7 @@ export default [
   {
     name: 'plain data: a Map, a Set, a class, a function or a typed array outside a $ key throws with its path',
     fn() {
-      const cases = [['people.a.items', new Map()], ['world.seen', new Set()], ['player.when', new Date(0)], ['flags.f', () => 1], ['sites.s.buf', new Uint8Array(2)]];
+      const cases = [['people.a.items', new Map()], ['world.seen', new Set()], ['player.when', new Date(0)], ['flags.f', () => 1], ['places.sites.s.buf', new Uint8Array(2)]];
       const said = [];
       for (const [path, bad] of cases) {
         const s = newState(1), keys = path.split('.');
@@ -106,6 +124,7 @@ export default [
   {
     name: 'upgrades: an older save gets the missing domains, and each domain\'s own fill, once',
     fn() {
+      resetDomains();
       const old = { meta: { game: 'olympus', schema: 1, seed: 77 }, clock: { ms: 5000 } };
       let calls = 0;
       addUpgrade('test-needs', (s) => { calls++; s.player.needs ??= { waterMs: 0 }; });
@@ -118,6 +137,43 @@ export default [
       assert(again === toJSON(s), 'upgrading an up-to-date save changed it');
       addUpgrade('test-needs', () => {});                           // (leave nothing behind for other tests)
       console.log(`      a two-key save filled to ${DOMAINS.length} domains; a domain's fill ran once; upgrading twice changes nothing (${fmt(again.length, 0)} bytes)`);
+    },
+  },
+
+  {
+    name: 'upgrades: 0.0.1\'s sites becomes places once; a fresh state loads unchanged, its keys and seq filled',
+    fn() {
+      resetDomains();
+      const old = JSON.parse(V001_SANDBOX);
+      const s = upgradeState(JSON.parse(V001_SANDBOX));
+      assert(!('sites' in s) && JSON.stringify(s.places) !== undefined && s.places.sites && s.flags['mig:sites-places'] === true, JSON.stringify({ places: s.places, flags: s.flags }));
+      assert(s.meta.worldId === 'w-4' && s.clock.seq === 0 && s.clock.ms % TICK_MS === 0 && s.clock.ms === Math.floor(old.clock.ms / TICK_MS) * TICK_MS, JSON.stringify(s.clock));
+      assert(DOMAINS.every(k => k in s) && Object.keys(s).filter(k => !DOMAINS.includes(k)).length === 0, `keys ${Object.keys(s)}`);
+      const once = toJSON(s), twice = toJSON(upgradeState(JSON.parse(once)));
+      assert(once === twice, 'upgrading an upgraded save changed it');
+      const fresh = newState(9), json = toJSON(fresh);
+      assert(toJSON(fromJSON(json)) === json && !('mig:sites-places' in fromJSON(json).flags), 'a fresh state changed through a load');
+      console.log(`      0.0.1's sites {"sandbox":{"lonEDeg":-72}} gone, places ${JSON.stringify(s.places)}, flag set; clock ${old.clock.ms} → ${s.clock.ms} (on the tick grid); a second upgrade and a fresh state's load change nothing`);
+    },
+  },
+  {
+    name: 'a 0.0.1 sandbox save upgrades to the sandbox and runs 400 ticks without error',
+    fn() {
+      const errors = [];
+      const bus = recordingBus({ onError: (e, type) => errors.push(`${type}: ${e.message}`) });
+      const loop = createLoop({ bus, onError: (e, where) => errors.push(`${where}: ${e.message}`) });
+      const sim = createSim({ loop, bus });
+      const s = fromJSON(V001_SANDBOX);
+      loop.setState(s);
+      const me = playerActor(s);
+      assert(s.player.id && s.people[s.player.id] && me && s.places.live?.site && s.meta.seed === 4 && s.meta.version === '0.0.1', JSON.stringify({ player: s.player, live: s.places.live }));
+      // (TECH §6.1's player record and nothing else: 0.0.1's name, x and z gone, where the actor is)
+      assert(Object.keys(s.player).sort().join() === 'actor,id,keeps,presets,waypoint', `player keys ${Object.keys(s.player).sort()}: ${JSON.stringify(s.player)}`);
+      const x0 = me.x, z0 = me.z;
+      let moved = 0;
+      for (let i = 0; i < 400; i++) if (loop.tick(scriptInput(s.clock.seq, { hands: false }))) moved++;
+      assert(!errors.length && loop.stats.lostTicks === 0 && s.clock.tick === 400 + moved && s.clock.seq === 400 && moved >= 370, `${errors.join('; ')} (lost ${loop.stats.lostTicks}, tick ${s.clock.tick}, moved ${moved})`);
+      console.log(`      loaded as ${s.player.id} (actor ${s.player.actor}) at ${s.places.live.site}/${s.places.live.area}, seed and version kept; 400 ticks, none lost (${400 - moved} held for G's choice); walked to ${fmt(me.x - x0, 2)}, ${fmt(me.z - z0, 2)} m; ${sim.stats.slowSteps} slow steps; ${s.events.length} event${s.events.length === 1 ? '' : 's'} queued`);
     },
   },
 ];

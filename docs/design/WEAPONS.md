@@ -455,37 +455,37 @@ The link fails with the battery, with damage to the optic or the helmet, and und
 
 ### 3.7 Toward forty by 1.0
 
-The arsenal grows by milestone (ROADMAP owns the dates; these are my proposals). Calibres added: 12.7×100 mm Republic, 8.6×70 mm Republic, 4.6×30 mm UN, 84 mm recoilless rounds, 26.5 mm signal flares, 6.8 mm powder-actuated pins, and the subsonic and countermass loads.
+The arsenal grows by milestone (ROADMAP owns the dates: its §3.4 shifts this section's 0.4, 0.5 and 0.6 lists by one, to 0.5, 0.6 and 0.7, and keeps 0.2 and 0.3; the models are my proposals). Calibres added: 12.7×100 mm Republic, 8.6×70 mm Republic, 4.6×30 mm UN, 84 mm recoilless rounds, 26.5 mm signal flares, 6.8 mm powder-actuated pins, and the subsonic and countermass loads.
 
 | # | Model | Maker | Kind, calibre | Why it exists | Milestone |
 |---|---|---|---|---|---|
 | 18 | M-30 medium machine gun | HAD | mmg, 7.6×56 belt, tripod | the weapons platoon's gun; base and checkpoint defence on Europa | 0.3 |
 | 19 | C-7N naval carbine | HAD | carbine, 6.5×40 frangible, catcher fixed | the ship's armoury; the sailors' gun at general quarters | 0.2 |
-| 20 | S-11 recon sniper rifle | HAD | sniper, 8.6×70 | scout snipers | 0.5 |
-| 21 | S-14 anti-materiel rifle | HAD | 12.7×100, bolt | vehicles, drones, the Europa surface | 0.6 |
-| 22 | C-7S suppressed recon carbine | HAD | carbine, 6.5×40 subsonic | reconnaissance | 0.5 |
-| 23 | P-12S recon pistol | HAD | pistol, 9×21 subsonic, suppressor | reconnaissance | 0.5 |
-| 24 | V-5X countermass EVA carbine | HAD | carbine, 6.5×40 countermass (a puff of powdered polymer thrown back with equal momentum: no recoil, a 2 m danger cone behind) | firing while floating without spinning | 0.6 |
-| 25 | G-46 six-shot launcher | HAD | gl, 40×46 revolver | the assault section | 0.4 |
-| 26 | RL-84 recoilless rifle | HAD | 84 mm, backblast 30 m (the CS variant uses a saline countermass for confined spaces) | bunkers, vehicles, hatches on the surface; never inside a pressure hull without an order | 0.5 |
-| 27 | B-12K under-barrel breacher | HAD | shotgun, 12-bore, 3 shells | breaching without a second long gun | 0.4 |
+| 20 | S-11 recon sniper rifle | HAD | sniper, 8.6×70 | scout snipers | 0.6 |
+| 21 | S-14 anti-materiel rifle | HAD | 12.7×100, bolt | vehicles, drones, the Europa surface | 0.7 |
+| 22 | C-7S suppressed recon carbine | HAD | carbine, 6.5×40 subsonic | reconnaissance | 0.6 |
+| 23 | P-12S recon pistol | HAD | pistol, 9×21 subsonic, suppressor | reconnaissance | 0.6 |
+| 24 | V-5X countermass EVA carbine | HAD | carbine, 6.5×40 countermass (a puff of powdered polymer thrown back with equal momentum: no recoil, a 2 m danger cone behind) | firing while floating without spinning | 0.7 |
+| 25 | G-46 six-shot launcher | HAD | gl, 40×46 revolver | the assault section | 0.5 |
+| 26 | RL-84 recoilless rifle | HAD | 84 mm, backblast 30 m (the CS variant uses a saline countermass for confined spaces) | bunkers, vehicles, hatches on the surface; never inside a pressure hull without an order | 0.6 |
+| 27 | B-12K under-barrel breacher | HAD | shotgun, 12-bore, 3 shells | breaching without a second long gun | 0.5 |
 | 28 | SP-26 signal pistol | HAD | 26.5 mm flare | signals; illumination on Mars under its parachute; on Europa there is no air for the parachute, so it burns along its arc as a falling star | 0.3 |
 | 29 | L-40 less-lethal launcher | HAD (MSS) | 40 mm baton and OC | Martian Security; peacekeeping crowds | 0.3 |
-| 30 | P-71 revolver | Tharsis Arsenal | revolver, 9×21 rimmed | an heirloom: an officer's grandfather's; tradecraft's cylinder rules | 0.4 |
-| 31 | FA-9C carbine | Tessier-Ndlovu | carbine, 5.8×42 | UNN boarding parties | 0.4 |
-| 32 | FA-9L marksman | Tessier-Ndlovu | dmr, 5.8×42 | UN Marines | 0.5 |
-| 33 | MG-31 | Tessier-Ndlovu | lmg, 5.8×42 belt | UN Marines | 0.5 |
-| 34 | SG-5 | Tessier-Ndlovu | shotgun, 12-bore semi | UN boarding parties | 0.5 |
-| 35 | VP-4 boarding PDW | Tessier-Ndlovu | pdw, 4.6×30 UN | the UN's answer to the V-5 | 0.5 |
-| 36 | TMW-9 "Long Six" | Tycho Machine Works | dmr, 7.62×39, long barrel and a 4× scope | the Belt's marksman | 0.4 |
-| 37 | Rockhound | a Vesta shop | bolt rifle, 7.62×39 | prospectors' rock-and-varmint rifle; insurgents' sniper rifle | 0.4 |
-| 38 | slam-fire shotgun | a Ceres shop | shotgun, 12-bore single | improvised; unreliable ×3 | 0.4 |
+| 30 | P-71 revolver | Tharsis Arsenal | revolver, 9×21 rimmed | an heirloom: an officer's grandfather's; tradecraft's cylinder rules | 0.5 |
+| 31 | FA-9C carbine | Tessier-Ndlovu | carbine, 5.8×42 | UNN boarding parties | 0.5 |
+| 32 | FA-9L marksman | Tessier-Ndlovu | dmr, 5.8×42 | UN Marines | 0.6 |
+| 33 | MG-31 | Tessier-Ndlovu | lmg, 5.8×42 belt | UN Marines | 0.6 |
+| 34 | SG-5 | Tessier-Ndlovu | shotgun, 12-bore semi | UN boarding parties | 0.6 |
+| 35 | VP-4 boarding PDW | Tessier-Ndlovu | pdw, 4.6×30 UN | the UN's answer to the V-5 | 0.6 |
+| 36 | TMW-9 "Long Six" | Tycho Machine Works | dmr, 7.62×39, long barrel and a 4× scope | the Belt's marksman | 0.5 |
+| 37 | Rockhound | a Vesta shop | bolt rifle, 7.62×39 | prospectors' rock-and-varmint rifle; insurgents' sniper rifle | 0.5 |
+| 38 | slam-fire shotgun | a Ceres shop | shotgun, 12-bore single | improvised; unreliable ×3 | 0.5 |
 | 39 | rivet driver | Europa's ice works | improvised, 6.8 mm powder-actuated pin, 5 m range | the ice towns' tool, a weapon in a riot; a nail in a pressure suit | 0.3 |
-| 40 | Cold Hand | Hungry Dark clan | smg, 9×19 open bolt, integral suppressor | pirates of the outer dark: "they run cold and leave nothing behind" | 0.6 |
-| 41 | SH-9 pistol | Star Helix | pistol, 9×19 | the Belt's police contractor | 0.5 |
-| 42 | SH riot gun | Star Helix | shotgun, 12-bore beanbag | Belt station police | 0.5 |
-| 43 | farmer's pump gun | Ganymede | shotgun, 12-bore | the Concord's farmers | 0.6 |
-| 44 | Raptor | Brannock Security Services | carbine, 5.8×42 surplus | mercenaries with mixed kit | 0.6 |
+| 40 | Cold Hand | Hungry Dark clan | smg, 9×19 open bolt, integral suppressor | pirates of the outer dark: "they run cold and leave nothing behind" | 0.7 |
+| 41 | SH-9 pistol | Star Helix | pistol, 9×19 | the Belt's police contractor | 0.6 |
+| 42 | SH riot gun | Star Helix | shotgun, 12-bore beanbag | Belt station police | 0.6 |
+| 43 | farmer's pump gun | Ganymede | shotgun, 12-bore | the Concord's farmers | 0.7 |
+| 44 | Raptor | Brannock Security Services | carbine, 5.8×42 surplus | mercenaries with mixed kit | 0.7 |
 
 Melee weapons (the bayonet, the entrenching tool, the rifle used as a club: tradecraft's `gunWhip` k 1.2, a long gun 1.6, guard 0.7) are COMBAT's, on tradecraft's `weapons.js` table.
 
@@ -521,28 +521,33 @@ An optic:
 
 ### 4.1 Truth
 
-Ported from tradecraft `src/sim/firearms.js` (487 lines, imports only `checks`, `skills`, `rng`): the state, `newGun`, `act`, `fire`, `feed`, `canDo`, `said`, `ready`, `misfire`, `jamChance`, `service`, `moveArm`, `fillMag` keep their meaning. A gun's state travels with the gun (a sheet's `arms`, a lying item's `arms`, a rack's `arms`): a gun dropped is the same gun picked up (tradecraft).
+Ported from tradecraft `src/sim/firearms.js` (487 lines, imports only `checks`, `skills`, `rng`): the state, `newGun`, `act`, `fire`, `feed`, `canDo`, `said`, `ready`, `misfire`, `jamChance`, `service`, `moveArm`, `fillMag` keep their meaning. A gun's state is its record in `state.items`, held by a person's kit, a place's lying list or a fixture (TECH §6.7): a gun dropped is the same gun picked up (tradecraft).
 
 ```json
-"r7#p.3": {
-  "type": "gun", "model": "r7", "serial": "HAD R7 0412 3378",
-  "mag": "mag-had30c#p.4", "chamber": "live", "jam": null, "locked": false,
+"i7": {
+  "type": "gun", "model": "r7",
+  "mag": "i401", "chamber": "live", "jam": null, "locked": false,
   "mode": "safe", "cocked": true, "portOpen": false,
   "cond": 0.93, "foul": 0.12, "dust": 0.04, "lube": "dry", "frost": 0,
   "barrelC": 24, "gunC": 8, "roundC": 24, "barrelHist": { "maxC": 310, "over600": false },
-  "optic": { "id": "so4", "mag": 1, "on": true, "battH": 540, "link": true },
+  "optic": "i406",
   "zero": { "rangeM": 400, "gMs2": 3.727, "rhoKgM3": 0.894, "soundMs": 322, "v0Ms": 790,
             "angleMrad": 1.576, "atMs": 1784000000 },
-  "fit": { "sling": "two-point", "bipod": false, "catcher": false, "ugl": "g40#p.5", "suppressor": null, "light": false, "laser": false, "bfa": false, "cover": null },
+  "fit": { "sling": "two-point", "bipod": false, "catcher": false, "ugl": "i405", "suppressor": null, "light": false, "laser": false, "bfa": false, "cover": null },
   "belief": { "chamber": "live", "mag": "in", "count": 29, "countApprox": false, "safe": true, "cond": "fine" },
   "rounds": 37, "cleanedMs": 1782000000, "servicedMs": 1700000000,
-  "name": null, "by": "p"
-}
+  "name": null, "byId": "p233"
+},
+"i401": { "type": "mag", "fam": "had30c", "n": 29, "load": "ball" },
+"i405": { "type": "gun", "model": "g40", "chamber": "empty", "mode": "safe" },
+"i406": { "type": "optic", "model": "so4", "mag": 1, "on": true, "battH": 540, "link": true }
 ```
 
-New fields against tradecraft: `serial` (from a hash of the id: "HAD R7 0412 3378"), `portOpen`, `foul`, `dust`, `lube` (`wet`, `dry`, `vac`, `none`), `frost`, `barrelC`, `gunC` and `roundC` (the chambered round's own temperature, for cook-off) (°C), `barrelHist` (the hottest the barrel has been, for the armourer: §9.5), `optic`, `zero` (§2.5), `fit` (accessories), `belief`, `rounds` (lifetime count, the armourer's book), `name` (marines name their rifles: PEOPLE's quirk; the sheet shows it). Magazine: `{ "type": "mag", "fam": "had30c", "n": 30, "load": "ball", "tracerLast": 0, "cond": 0.95, "dust": 0, "dummy": null }`.
+Ids are CONTRACTS §10's: the gun, its magazine, its launcher and its optic are items (`i<n>`), each with its own record in `state.items`, the magazine held by the gun's `mag` and the launcher and the optic by its mount (TECH §6.7); `byId` names the player, an ordinary person id. The record is printed whole here; on disk null, false and default fields are left out (TECH §6.6, rule 1), and a racked, cleared gun saves only what differs from its model's defaults, about 250 B (rule 7).
 
-**Lazy state** (LONGHAUL's "traffic that never fights never pays for it"): a crowd NPC's gun has no record until it matters (drawn, dropped, taken, searched); then `newGun()` makes it from the NPC's template.
+New fields against tradecraft: `serial` (derived from a hash of the id, "HAD R7 0412 3378", never saved), `portOpen`, `foul`, `dust`, `lube` (`wet`, `dry`, `vac`, `none`), `frost`, `barrelC`, `gunC` and `roundC` (the chambered round's own temperature, for cook-off) (°C), `barrelHist` (the hottest the barrel has been, for the armourer: §9.5), `optic` (the item on the gun's mount), `zero` (§2.5), `fit` (accessories), `belief`, `rounds` (lifetime count, the armourer's book), `name` (marines name their rifles: PEOPLE's quirk; the sheet shows it). Magazine: `{ "type": "mag", "fam": "had30c", "n": 30, "load": "ball", "tracerLast": 0, "cond": 0.95, "dust": 0, "dummy": null }`.
+
+**Lazy state** (LONGHAUL's "traffic that never fights never pays for it"): a crowd NPC's gun has no record until it matters (drawn, dropped, taken, searched); then `newGun()` makes it from the NPC's template, when `materialise(state, personId)` gives the kit's items their ids and records (TECH §6.7's lazy kit).
 
 ### 4.2 Belief: what the holder knows
 
@@ -693,7 +698,7 @@ The Corps runs weapon handling by command (modelled on the US Marine Corps' LOAD
 
 **Weapons conditions** (US Marine Corps terms, adopted): **Condition 1** magazine in, round chambered, bolt closed, safe, port cover closed. **Condition 2** a hammer pistol carried chambered and decocked (the P-10, PA-21). **Condition 3** magazine in, chamber empty, bolt closed, safe. **Condition 4** no magazine, chamber empty, bolt closed, safe. `conditionOf(g)` derives it from the truth; the belief has its own.
 
-**The ordered condition** is a standing order for an area (PLACES tags each area with a default; the chain of command overrides, PEOPLE §11): Base Melas everywhere Condition 4 except a firing line on a range and the guard's posts (Condition 3); a drop ship's couch Condition 4 until "make ready" before the ramp opens; aboard ship Condition 4 except the ship's guard and a boarding party; Europa inside the wire Condition 3, outside it Condition 1. Carrying a weapon in a higher condition than ordered is an infraction when found: by inspection, by the armourer's check at the window, by a show-clear (PEOPLE §11.3).
+**The ordered condition** is a standing order for an area (PLACES tags each area with a default; the chain of command overrides, PEOPLE §11): Base Melas everywhere Condition 4 except a firing line on a range and the guard's posts (Condition 3); a lander's couch (the Simoom's, SETTING §6.4) Condition 4 until "make ready" before the ramp opens; aboard ship Condition 4 except the ship's guard and a boarding party; Europa inside the wire Condition 3, outside it Condition 1. Carrying a weapon in a higher condition than ordered is an infraction when found: by inspection, by the armourer's check at the window, by a show-clear (PEOPLE §11.3).
 
 **The Corps' four rules** (the US Marine Corps' weapon safety rules, adopted; SETTING may voice them, the drill instructor's instinct line quotes them): 1. Treat every weapon as if it were loaded. 2. Never point a weapon at anything you do not intend to shoot. 3. Keep your finger straight and off the trigger until you are ready to fire. 4. Keep the weapon on safe until you intend to fire.
 
@@ -758,7 +763,7 @@ The muzzle's direction is the holder's heading plus the posture's yaw and pitch 
 - The cone's reach for a downward muzzle is where its line meets the floor: `h / tan(|pitch|)`, plus a body's radius.
 - A person is **in the cone** if their body (a 0.25 m circle) overlaps the cone in plan **and** the muzzle line's height there lies within their body's span (standing 0 to 1.75 m, crouched 0 to 1.0 m, prone 0 to 0.4 m; tradecraft's cover spans). So a low ready flags shins within 1.8 m, a high ready flags a face only within 0.6 m, a slung-front rifle flags only toes.
 - **Ladders and trunks** (PLACES's vertical links): on a ladder the muzzle's "ahead" is along the ladder. A rifle slung on the back muzzle up points at whoever climbs above; muzzle down, at whoever is below. The Corps' ladder rule (my call): sling muzzle down going up, and muzzle up going down, so the muzzle points away from the climber who follows.
-- **Couches and racks**: strapped into a drop ship's couch the rifle stands muzzle down between the knees (`couched`: cone 10°, 0.2 m), Condition 4 until "make ready" (§5.3).
+- **Couches and racks**: strapped into a lander's couch the rifle stands muzzle down between the knees (`couched`: cone 10°, 0.2 m), Condition 4 until "make ready" (§5.3).
 - **Outside the weapon mode** the V key cycles the safe postures (slung back, slung front, patrol; VIEWS §10.1), and a hold offers all of them on digits. Changing posture is a roll (DC 3 to 4) that raises a toast only if it fails; like every habit roll it is written in full to J under the `habit` filter (pillar 3: "every roll can be read in the log"; SKILLS §5.14: "The player's own rolls are always logged in full"). **G** (weapon ready) goes to low ready and enters stop motion: intent (VIEWS, TIME).
 
 ### 6.2 What carries where
@@ -771,7 +776,7 @@ The muzzle's direction is the holder's heading plus the posture's yaw and pitch 
 | a range, behind the line | slung, bolt locked open with the flag inserted | 4 |
 | a range, on the line | as the course of fire orders | as ordered |
 | a guard post | patrol or slung front | 3 |
-| a drop ship's couch | couched | 4 |
+| a lander's couch | couched | 4 |
 | aboard ship, moving | slung front, or Sul in passageways | 4 |
 | a boarding stack, a breach | high or low ready by the stack's place (COMBAT) | 1 |
 | Europa, inside the wire | slung front | 3 |
@@ -1172,7 +1177,7 @@ PLACES gives every wall, door, fixture and cover object a material and a thickne
 | mild steel | 0.8 | yes | a locker 1.5 mm (1.2); a pressure door 6 mm (4.8) |
 | armour steel | 1.0 | yes | a vault door |
 | aluminium alloy | 0.3 | yes | an interior partition 2 mm (0.6); a pressure bulkhead 8 mm (2.4) |
-| titanium | 0.55 | yes | a drop ship's skin 4 mm (2.2) |
+| titanium | 0.55 | yes | a lander's skin 4 mm (2.2) |
 | composite (CFRP) | 0.25 | yes | consoles, couches |
 | honeycomb panel | 0.05 | no | a cabin wall 25 mm (1.25) |
 | glass, polycarbonate | 0.1 | yes | windows; a ship's viewport of laminated sapphire 50 mm (8) |
@@ -1186,7 +1191,7 @@ PLACES gives every wall, door, fixture and cover object a material and a thickne
 
 **Perforation at 10 m** in an MCRN ship's 66 kPa air [computed]:
 
-| Round | Partition 2 mm Al | Cabin wall | Pressure bulkhead | Pressure door | Drop ship skin | Habitat wall | 1 m ice | Locker |
+| Round | Partition 2 mm Al | Cabin wall | Pressure bulkhead | Pressure door | Lander skin | Habitat wall | 1 m ice | Locker |
 |---|---|---|---|---|---|---|---|---|
 | 9×21 ball | 97% | 82% | 29% | 0% | 36% | 8% | 0% | 84% |
 | 9×19 ball | 96% | 75% | 22% | 0% | 28% | 0% | 0% | 77% |
@@ -1246,10 +1251,10 @@ A bullet hole is a hiss and a damage-control job, not an explosive decompression
 What WEAPONS hands BODY for every hit (a bus fact and a call, `applyHit`):
 
 ```json
-{ "kind": "gunshot", "on": "p:okafor", "part": "torso", "fromId": "p:cell-3", "rangeM": 42,
+{ "kind": "gunshot", "onId": "p52", "part": "torso", "fromId": "p310", "rangeM": 42,
   "load": "6.5x40r/ball", "energyJ": 2180, "diaMm": 6.7, "w": 1.56, "penLeftMm": 5.3,
   "armour": { "layer": "plate", "stopped": false, "wear": 0.08, "bluntPts": 0 },
-  "through": true, "exitPart": "torso", "margin": 6, "shotId": "s:812",
+  "through": true, "exitPart": "torso", "margin": 6, "shotId": "sh812",
   "suitHoles": [ { "part": "torso", "areaMm2": 35, "kind": "entry" },
                  { "part": "torso", "areaMm2": 79, "kind": "exit" } ] }
 ```
@@ -1421,24 +1426,26 @@ The worst thing a marine can do to a weapon short of an ND that hurts someone (P
 
 ```json
 "armoury": {
-  "had-r7-04123378": { "model": "r7", "gun": "r7#p.3", "assigned": "p", "rack": "E2-14",
+  "i7": { "assignedId": "p233", "rackId": "f:armoury:rack-e2#14",
     "loc": "armoury", "out": null, "zeroCard": [{ "where": "Melas KD range", "rangeM": 400, "angleMrad": 1.576, "atMs": 1784000000 }],
     "lti": { "lastMs": 1700000000, "roundsAt": 1210 }, "rounds": 1247,
-    "log": [{ "atMs": 1786000000, "what": "out", "to": "p", "by": "armourer:cpl-ito" }] }
+    "log": [{ "atMs": 1786000000, "what": "out", "toId": "p233", "byId": "p147" }] }
 },
-"ammoIssues": [{ "id": "ai:88", "atMs": 1786100000, "place": "range:kd", "to": "p", "cal": "6.5x40r",
+"ammoIssues": [{ "id": "ai88", "atMs": 1786100000, "area": "melas.ground", "toId": "p233", "cal": "6.5x40r",
                  "load": "ball", "n": 60, "returned": 2, "fired": 58, "brassBack": 54 }]
 ```
 
+The armoury's records are keyed by the gun's item id (`i7`, CONTRACTS §10): the model is on the item's record, and the serial on the weapons card stays a hash of the id. The rack's slot is a spot of its fixture (`f:armoury:rack-e2#14`), the armourer an ordinary person id (`p147` here), an issue a counted `ai<n>`, and its place a PLACES area id (the KD range's lines lie on the Melas ground, PLACES §1.3 and §4.12).
+
 ### 10.8 The rifle in the routine
 
-On base the rifle lives in the armoury and comes out for the range, the field and the MOUT exercise; guard comes round about 1 sol in 30 (PEOPLE §4.3). Over a 7 to 14 sol standby that puts a weapon in the player's hands on 3 to 5 sols, and pillar 2 ("The gun is a machine") would be absent from most of 0.1. So the routine itself handles weapons (my proposals, after the review; PEOPLE owns the roster and the Plan of the Day's templates, TIME the activities, CAREER the standby calendar, and each decides):
+On base the rifle lives in the armoury and comes out for the range, the field and the MOUT exercise; guard comes round about 1 sol in 30 (PEOPLE §4.3). Over a standby of 10 sols and its slip (`STANDBY_SOLS`, CONTRACTS §3) that puts a weapon in the player's hands on 3 to 5 sols, and pillar 2 ("The gun is a machine") would be absent from most of 0.1. So the routine itself handles weapons (my proposals, after the review; PEOPLE owns the roster and the Plan of the Day's templates, TIME the activities, CAREER the standby calendar, and each decides):
 
 - **The ready platoon's guard.** 2/4 holds the Corps' Alert Battalion watch (SETTING) on 96 hours' notice (CAREER §5.4), and on standby its ready platoon furnishes the base's interior guard: the **main gate** and the **ammunition supply point**, with three reliefs of **2 h on and 4 h off**, in **Condition 3**, under the general orders (SETTING voices them). Rotated through the platoon's juniors, it puts a new join on a post **about once a week** (against PEOPLE's 1 in 30 sols for the company's base guard). What WEAPONS gives it:
   - **Guard mount**: the inspection under arms (the sergeant of the guard looks at the rifle, the magazines and the marine: a dirty rifle here is PEOPLE's "dirty weapon at inspection"); the ammunition issue by count against the name (2 HAD-30 magazines of 30 ball, §10.4); **LOAD at the loading point**, muzzle in the clearing barrel, the sergeant of the guard watching: Condition 3.
   - **On post**: patrol or slung front (§6.2); the habit check against every car and walker at the gate (§6.3: a gate is a crowd at shift change); the challenge, the ID check and the escalation of force are COMBAT's and PEOPLE's; the sensitive-item check at every relief (§10.5).
   - **The relief**: UNLOAD SHOW CLEAR at the clearing barrel under the corporal of the guard, the rounds counted back into the issue record. A round left in a chamber, a magazine short, a round in a pocket: each is found here, and an ND here is ND-1 at the barrel or ND-2 off it (§6.6). These are the weekly real stakes: live rounds, a tired marine at 02:00, and a show clear that matters.
-- **The daily weapons drill** (TIME's `weapons-drill`, 20 minutes in the maintenance block, PEOPLE §4.1's 16:30–17:15, on every working sol without a range or field block). Draw at the window with the show clear; at the cleaning canopy's drill line or the squad bay's drill wall, with **drill rounds only** (the orange dummies, §2.3, filled from the drill box), the squad leader or the fire team leader calls the Corps' commands (§5.3): LOAD, MAKE READY, dry fire on the wall's target (the trigger press, the reset), RELOAD (speed and tactical, from the pouches), IMMEDIATE ACTION and REMEDIAL ACTION on stoppages the NCO sets with dummies and an empty case (a stovepipe, a double feed, a dummy that clicks), UNLOAD SHOW CLEAR; then turn-in with the show clear. Every step is the real rolled step (§5.2), in the log. It is **lived the first time** and skippable after (TIME §9.3: "the first time is lived"; the skip rolls each step and stops at a beat). It gives 20 minutes of Weapon handling training a sol (SKILLS §6.3's hours) and keeps rust off (SKILLS §7). It is safe by construction, so its stakes are the habit: a fumbled step leaves a `?` on the weapon card, and the squad leader sees whether you check it. The one live danger is a round someone kept from the range (§10.4: "live rounds kept"): a dummy box with a live round in it is a PEOPLE quirk's story, and the drill's opening show clear is what catches it.
+- **The daily weapons drill** (TIME's `weapons-drill`, 20 minutes in the `maintenance` block, CONTRACTS §4, on every working sol without a range or field block). Draw at the window with the show clear; at the cleaning canopy's drill line or the squad bay's drill wall, with **drill rounds only** (the orange dummies, §2.3, filled from the drill box), the squad leader or the fire team leader calls the Corps' commands (§5.3): LOAD, MAKE READY, dry fire on the wall's target (the trigger press, the reset), RELOAD (speed and tactical, from the pouches), IMMEDIATE ACTION and REMEDIAL ACTION on stoppages the NCO sets with dummies and an empty case (a stovepipe, a double feed, a dummy that clicks), UNLOAD SHOW CLEAR; then turn-in with the show clear. Every step is the real rolled step (§5.2), in the log. It is **lived the first time** and skippable after (TIME §9.3: "the first time is lived"; the skip rolls each step and stops at a beat). It gives 20 minutes of Weapon handling training a sol (SKILLS §6.3's hours) and keeps rust off (SKILLS §7). It is safe by construction, so its stakes are the habit: a fumbled step leaves a `?` on the weapon card, and the squad leader sees whether you check it. The one live danger is a round someone kept from the range (§10.4: "live rounds kept"): a dummy box with a live round in it is a PEOPLE quirk's story, and the drill's opening show clear is what catches it.
 - **The show clear at every draw and turn-in stays lived**, every time (about 8 s at WH 10, one key: §5.3): the armoury line's queue is skipped (§10.2), the window and the clearing barrel never are.
 
 With these, the rifle comes out on every working sol (the drill, the range, the field) and live on post about once a week. A two-week standby gives about a dozen draws and as many turn-ins, 6 to 8 drills, and two guard days of four posts each, every post a LOAD and an UNLOAD SHOW CLEAR at the barrel: each a chance for the checking habit, and the guard's a chance for a negligent discharge with real stakes.
@@ -1494,10 +1501,10 @@ Out of 400: Expert 360, Sharpshooter 330, Marksman 300 (my call). [computed] MRK
 
 ### 11.3 The range day
 
-TIME runs the block (the range: opening, relays, the brass call, closing, CAREER's standby sol 2 and sol 8 or 9) and decides what is lived; this is what happens in it.
+TIME runs the block (the range: opening, relays, the brass call, closing; in CAREER's standby, career sol 2, with no qualification shot there, CAREER §5.4) and decides what is lived; this is what happens in it.
 
 - **Opening**: the safety brief (the range safety officer's rules, §6.4, are in force from here), ammunition issue by count (§10.4).
-- **Zeroing** (CAREER's sol 2, and on arrival on another world): §11.4.
+- **Zeroing** (CAREER's career sol 2, and on arrival on another world): §11.4.
 - **The relays**: two relays; one shoots while the other is in the **pits** pulling and marking targets (the KD range's real rhythm). Pit duty is livable: lived the first time, skippable after like any block (§11.5). Each string is lived in stop motion or **shot as a skip**: the string is rolled shot by shot with the shooter's modifiers at the start of the string, every roll in the log (TIME §9.3: "each skipped relay is resolved by WEAPONS' shot rolls"). A mishap (a stoppage the skip cannot clear, an ND) stops the skip at that second.
 - **The coach's dummy round** (tradecraft's `snap`): on familiarisation days the coach slips an orange dummy 2 to 4 rounds down a magazine; it clicks, and the marine does immediate action. The log says what it was after.
 - **Stoppages on the line** are cleared by the shooter in stop motion; time keeps running on a rapid-fire string, which is where the skill shows.
@@ -1533,12 +1540,12 @@ Pulling and marking targets is the known-distance range's real rhythm, and the b
 | **G-11** stun | 380 g | flash composition | 1.5 s | 7 Mcd flash, 170 dB at 1.5 m (§12.5) | 0.3 |
 | **G-12** smoke | 600 g | | 1.5 s | 90 s of screening smoke in still air (§12.5) | 0.3 |
 | 40 mm **HEDP** | 230 g | 0.032 kg and a shaped charge | arms at 15 m, impact | a 50 mm RHAe jet (the usual figure for M433-class rounds); fragments `K` 18 (an effective casualty radius of 5 m, the published figure for M433-class rounds) | 0.3 |
-| 40 mm **TP** practice | 230 g | chalk | impact | a puff | 0.1 |
+| 40 mm **TP** practice | 230 g | chalk | impact | a puff | 0.1.x |
 | 40 mm buckshot, baton, smoke, illumination | | | | buckshot 20 pellets, as the 12-bore at 0.9 the energy; baton 145 J, less-lethal; illumination: a parachute flare on Mars (40 s), a falling star on Europa | 0.3 |
 | **BC-1** linear cutting charge | 0.8 kg | 0.3 kg, shaped | electric | cuts a door-sized frame in 6 mm steel or 12 mm aluminium (Demolitions, COMBAT's breach) | 0.3 |
-| **WIC** water-impulse charge | 2.5 kg | 0.15 kg behind 2 L of water | electric | punches a door in with little fragmentation | 0.4 |
-| **thermite** hatch cutter | 1.2 kg | | 90 s burn | cuts a hatch seam, no blast, smoke and heat | 0.4 |
-| **Compound-9** block | 0.57 kg | 0.75 kg | cap and timer | demolition (SKILLS' Demolitions) | 0.5 |
+| **WIC** water-impulse charge | 2.5 kg | 0.15 kg behind 2 L of water | electric | punches a door in with little fragmentation | 0.5 |
+| **thermite** hatch cutter | 1.2 kg | | 90 s burn | cuts a hatch seam, no blast, smoke and heat | 0.5 |
+| **Compound-9** block | 0.57 kg | 0.75 kg | cap and timer | demolition (SKILLS' Demolitions) | 0.6 |
 
 ### 12.2 Throwing in each gravity
 
@@ -1590,7 +1597,7 @@ keeps:    the cover between, by §8.2 against each fragment (COMBAT's cover geom
 
 The 40 mm HEDP at `K` 18: 99% at 2 m, 51% at 5 m, 16% at 10 m. Thin air leaves fragments faster; vacuum leaves them at full speed to any range.
 
-**Walls**: a wall at distance `r` takes `240 / r²` balls a square metre at normal incidence; each is resolved by §8.2 with the wall's rating divided by the cosine of its angle. A G-9 bursting 1 m from a wall in an MCRN hull [computed, integrated over the wall]: about 1,460 balls strike it; a pressure bulkhead, a drop ship's skin or a steel door stops every one (ball pen 0.8 at most, under half of 2.2, 2.4 and 4.8); a cabin wall lets about 50 through (57 from 0.5 m, 32 from 2 m) and a partition about 360, so the next cabin is in the burst too. The pressure problem of a grenade aboard is its blast in a small room (§12.4), not its fragments.
+**Walls**: a wall at distance `r` takes `240 / r²` balls a square metre at normal incidence; each is resolved by §8.2 with the wall's rating divided by the cosine of its angle. A G-9 bursting 1 m from a wall in an MCRN hull [computed, integrated over the wall]: about 1,460 balls strike it; a pressure bulkhead, a lander's skin or a steel door stops every one (ball pen 0.8 at most, under half of 2.2, 2.4 and 4.8); a cabin wall lets about 50 through (57 from 0.5 m, 32 from 2 m) and a partition about 360, so the next cabin is in the burst too. The pressure problem of a grenade aboard is its blast in a small room (§12.4), not its fragments.
 
 ### 12.4 Blast
 
@@ -1759,9 +1766,9 @@ Each test prints its numbers (tradecraft's and LONGHAUL's habit: "tests print th
 
 ## Build order
 
-**0.1, a standby week at Base Melas** (CAREER's standby: the range on sol 2, qualification on sol 8 or 9):
+**0.1, a standby week at Base Melas** (CAREER's standby: the range on career sol 2; no qualification shot in the standby, CAREER §5.4). The list is kept whole and built over ROADMAP §4.2's three scenes: `test-handling` at 0.0.6 (`firearms.js`, the actions and macros, `carry.js`, `shot.js` at 25 m without wind or holdover), `test-range` at 0.0.7 (`ballistics.js`, wind and holdover, the KD targets and zeroing, `penetrate.js`, `gunner.js`, range safety in full, brass) and `test-armoury` at 0.0.8 (`armoury.js`, `upkeep.js`, with dust, fouling, lube and heat made live); the rifle in the routine joins with the Plan of the Day (0.0.14), and the G-40's TP rounds at the mission rehearsal exercise at 0.1.x (ROADMAP §5.2). A patch number names ROADMAP's row, not a release (CONTRACTS §18).
 - `ballistics.js` with the bore-line tables on their grid and every environment class printed (cheap to build, and the tests pin the numbers); `calibres.js` with 6.5×40 (ball, tracer, blank, dummy) and 9×21 ball; 40×46 TP; G-9P.
-- Models: R-7 (the player's), C-7 (seen), R-7M, L-20 (the squad's automatic riflemen), P-12 (officers and staff NCOs), G-40 with TP rounds (the team leaders' at the range), M-2290 (drill and the colour guard, dummy rounds only).
+- Models: R-7 (the player's), C-7 (seen), R-7M, L-20 (the squad's automatic riflemen), P-12 (officers and staff NCOs), G-40 (the team leaders'; its TP rounds fired at the mission rehearsal exercise from 0.1.x), M-2290 (drill and the colour guard, dummy rounds only).
 - `firearms.js` ported with belief, dust, fouling, lube and heat (barrels heat on the range); every §5.2 action these guns use; the macros; weapons conditions and their area defaults.
 - `carry.js`: postures, the cone, the habit check (one roll per approach, automatic habits, near misses, the `habit` lines in J), flags and points to PEOPLE, range safety, ND grading.
 - `shot.js` complete: the DC, every modifier including wind and holdover; the shooter's beliefs and the plaque on them; the KD targets; zeroing; the qualification course and the pits (§11.5); the pistol course for NPC officers in closed form.
@@ -1771,11 +1778,11 @@ Each test prints its numbers (tradecraft's and LONGHAUL's habit: "tests print th
 - `gunner.js` for NPC marines on the range (relays shoot with the same steps).
 - Tests: `ballistics`, `firearms`, `drills`, `nd`, `carry`, `shot`, `upkeep`, `armoury`, `qual`, `parity`.
 
-**0.2, the voyage** (the troopship, the drop ship's couches): V-5, C-7 carried, B-12, P-10; frangible loads; brass in free fall, catchers and the drift records past the cap; recoil drift and spin, mag boots, handholds, tethers; gloves and the HUD link; the ship's armoury; penetration of bulkheads, `holeArea()`, holes and leaks (with PLACES's gas model), ricochets; drop-ship couch rules.
+**0.2, the voyage** (the Coprates-class transport, the Simoom's couches): V-5, C-7 carried, B-12, P-10; frangible loads; brass in free fall, catchers and the drift records past the cap; recoil drift and spin, mag boots, handholds, tethers; gloves and the HUD link; the ship's armoury; penetration of bulkheads, `holeArea()`, holes and leaks (with PLACES's gas model), ricochets; the lander's couch rules.
 
 **0.3, Europa**: armour and suits (the stop tables, the suit's two holes), AP, the Europa zero and the Callisto re-zero, vacuum heat, cook-off and barrel failure, the cold soak with the WC-3 cover and the HAD-30S, and frost; the S-9; the UN, Belt and corporate weapons (FA-9, PA-21, TMW-6, Pick, the pipe pistol, Kestrel); G-9, G-11, G-12, 40 mm HEDP, the BC-1, with `fragHits()` and `qsp()` for COMBAT; near misses and cracks for COMBAT's suppression; real loadouts in fights; weapons in enemy hands; the M-30, C-7N, SP-26, L-40, the rivet driver.
 
-**0.4 to 0.6**: the rest of §3.7's list in its milestones (recon's suppressed and subsonic weapons and sniper rifles at 0.5; the countermass carbine and anti-materiel rifle at 0.6); demolitions with SKILLS' Demolitions; the G-46 and B-12K; the `spin` flight (§2.9) with the first ring station (PLACES's Hygiea Ring, Ceres Station), at the latest when ROADMAP's spoke and ring settings arrive.
+**0.5 to 0.7**: the rest of §3.7's list in its milestones (recon's suppressed and subsonic weapons and sniper rifles at 0.6; the countermass carbine and anti-materiel rifle at 0.7); demolitions with SKILLS' Demolitions; the G-46 and B-12K; the `spin` flight (§2.9) with the first ring station (PLACES's Hygiea Ring, Ceres Station), at the latest when ROADMAP's spoke and ring settings arrive.
 
 **1.0**: 44 models in 15 calibres.
 

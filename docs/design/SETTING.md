@@ -4,9 +4,9 @@ Written 2026-11-05 from [DESIGN.md](../DESIGN.md) (the hub, which wins on any co
 
 ## 0. Summary
 
-OLYMPUS plays in LONGHAUL's solar system, nine months after LONGHAUL's own opening. The world's state at new game is LONGHAUL's start state (2351-03-22 08:00 UTC) rolled forward as outcomes to **Monday, Sol 590 of Mars Year 211 (5 Patience), 12:40 Melas time, which is 2351-12-19 02:20 UTC**. On that day Mars and Jupiter are 5.73 AU apart and closing, near their 30-year median of 5.48 AU: a troopship takes **7.4 days at 1 G or 13.5 days at 0.3 G** to the Jovian moons (the Alert Battalion flies out at 1 G, section 6.5), and a message takes **48 minutes**.
+OLYMPUS plays in LONGHAUL's solar system, nine months after LONGHAUL's own opening. The world's state at new game is LONGHAUL's start state (2351-03-22 08:00 UTC) rolled forward as outcomes to **Monday, Sol 590 of Mars Year 211 (5 Patience), 12:40 Melas time, which is 2351-12-19 02:20 UTC**. On that day Mars and Jupiter are 5.73 AU apart and closing, near their 30-year median of 5.48 AU: a troopship takes **6.9 days at 1 G or 12.5 days at 0.3 G** door to door to the Jovian moons (TIME §12.5's `voyagePlan()`, departing Sol 602; CONTRACTS §14; the Alert Battalion flies out at 1 G, section 6.5), and a message takes **48 minutes**.
 
-Mars is LONGHAUL's terraformed Mars with the hub's honest air: 66 kPa and a sea-level breath on the floor of the Mariner Valley, a 2,000 m breath at the datum, the death zone on Olympus. The Martian Congressional Republic is earnest, precise, short of hulls and proud of them. Its **MCRN Marine Corps** is a 53,000-strong volunteer force of shipboard detachments, boarding teams and expeditionary infantry that trains at 1 G to fight Earthers. The player's battalion, 2nd Battalion 4th Marines, lives at **Marine Corps Base Melas** on the canyon floor, 18 km from the open-air town of **Redwater**, and holds the Corps' Alert Battalion watch when the game opens.
+Mars is LONGHAUL's terraformed Mars with the hub's honest air: 66 kPa and a sea-level breath on the floor of the Mariner Valley, a 2,400 m breath at the datum (by inspired O₂, the hub's table; CONTRACTS §16), the death zone on Olympus. The Martian Congressional Republic is earnest, precise, short of hulls and proud of them. Its **MCRN Marine Corps** is a 53,000-strong volunteer force of shipboard detachments, boarding teams and expeditionary infantry that trains at 1 G to fight Earthers. The player's battalion, 2nd Battalion 4th Marines, lives at **Marine Corps Base Melas** on the canyon floor, 18 km from the open-air town of **Redwater**, and holds the Corps' Alert Battalion watch when the game opens.
 
 The Jovian theatre is Martian space contested by Earth. Europa's three million people live in nine towns 200 to 2,900 m under ice that takes 5.4 Sv a day at the surface. Since the **Jovian Accord** (signed at Conamara on 2351-09-03), a Martian Stabilisation Force guards the water and power works, under the civil authority of the OPA's Ice Control, between the miners' unions, corporate security, Ceres Free Belt cells and a watching UN observer mission. The force is 980 short of its 2,400 cap when the game opens: 2/4, at its deployed strength of 980, is the battalion that fills it.
 
@@ -50,7 +50,8 @@ SETTING owns world facts and lore, the Corps' organisation, ranks and insignia, 
 
 ```
 setting/calendar.js     constants and month/week names (TIME does the arithmetic)
-setting/world.js        the prologue's fixtures, the Europa timeline, public figures
+setting/world.js        the prologue's fixtures, public figures
+setting/timeline.js     §7.7's authored Europa timeline, read by date: the 0.1 news archive (TECH §5.8, §18)
 setting/mars.js         air table, climate, places lore, homes
 setting/corps.js        ranks, insignia, MOS, units, bases, uniforms, customs, slang, awards
 setting/hulls.js        troop berths for LONGHAUL's MCRN classes (a column beside TECH's src/data/hulls.js), the transport, the landers
@@ -70,7 +71,7 @@ SETTING owns names and doctrine; the disagreements ROADMAP §3.4 left open are s
 
 | Working name or value | Where | Settled | Here |
 |---|---|---|---|
-| "Noctis class" troop transport | PLACES §5.2 | the **Coprates-class assault transport**; the player's first ride is **MCRN *Testudo* (AP-33)**. SETTING adopts PLACES's hull (260 m, 68,000 t, 1,056 troop racks, crew 90) | 6.3 |
+| "Noctis class" troop transport | PLACES §5.2 | the **Coprates-class assault transport**; the player's first ride is **MCRN *Testudo* (AP-33)**. SETTING adopts PLACES's hull (240 m, 52,000 t, 1,150 troops, crew 72: PLACES §5.2, re-synced in one change, CONTRACTS §19, item 9) | 6.3 |
 | D-16 drop ship | PLACES §5.5 | the **Simoom-class assault lander** ("the brick", 44 couches) | 6.4 |
 | L-60 heavy lander | PLACES §5.5 | the **Haboob-class heavy lander** (PLACES's design, named here) | 6.4 |
 | the transport's cruise of 0.38 G; TIME's default voyage of 0.38 G | PLACES §5.2, TIME §12.5 and §20 question 5 | MCRN doctrine: the Alert Battalion and every urgent or wartime movement **out at 1 G**; the homeward leg after a low-g tour **at 0.3 G**; routine rotations at Mars-normal 0.38 G | 6.5 |
@@ -87,7 +88,7 @@ SETTING owns names and doctrine; the disagreements ROADMAP §3.4 left open are s
 | the arms makers and HAD's works (Dustfall, Ophir, "Hellas") | SETTING §4.10, WEAPONS §3.1, SKILLS §10.2 | **WEAPONS §3.1's makers**; HAD's small arms at **Ophir Chasma**, its drives and suits at Dustfall | 4.10 |
 | Ceres Station's spin, asked for and not given | PLACES §8, CAREER §4.3, §10.2, §11.3 | **0.30 G at the rim of 450 m drums** (ω 0.0809 rad/s), 0.301 G with Ceres' pull | 8.1 |
 | the Commandant's name against the squad examples' Okonjo | SETTING §7.7, CAREER §5.3, PEOPLE §14.4, §18 | the Commandant is **General Halima Strand**; public figures' family names are kept off tier 1–2 | 7.7, 12.6 |
-| the towns' air: "Ice standard" against Belter town standard | SETTING §7.3, PLACES §3.2, §7.1 | **PLACES's Belter town standard** (55 kPa) | 7.3 |
+| the towns' air: "Ice standard" against Belter town standard | SETTING §7.3, PLACES §3.2, §7.1 | **Ice standard**, PLACES §3.2's row and its one definition (75.0 kPa, pO₂ 16.5 kPa, 22%, 14 °C); PLACES no longer holds a 55 kPa row. CONTRACTS §19, item 1, holds this until the lead settles it; the name is SETTING's to change | 7.3 |
 
 ---
 
@@ -118,24 +119,24 @@ Corrections to LONGHAUL's library text for OLYMPUS (my call, following the hub's
 
 ### 2.3 The prologue: from LONGHAUL's epoch to the start
 
-The new game rolls LONGHAUL's world from its epoch (2351-03-22 08:00 UTC) to the start (2351-12-19 02:20 UTC), **271.76 days**, as outcomes: politics daily, zones and forces hourly, news relayed and archived (TECH runs it; LONGHAUL simulates a year of this in seconds). The roll is seeded per career, so each world's 2351 differs, with three constraints (my call):
+The new game rolls LONGHAUL's world from its epoch (2351-03-22 08:00 UTC) to the start (2351-12-19 02:20 UTC), **271.76 days**, as outcomes: politics daily, zones and forces hourly, news relayed and archived (TECH runs it from 0.2, TECH §5.8, correction 23; at 0.1 the archive is §7.7's authored timeline; LONGHAUL simulates a year of this in seconds). The roll is seeded per world (`stream('prologue', worldSeed)`), so each world's 2351 differs, with three constraints (my call):
 
 1. MCR–UN relation is held above −70 (no war before the start; crises allowed).
 2. Two zones are pinned at Europa from 2351-06-01: an `insurgency` (CFB against MCR) and a `standoff` (UN against MCR). They stay until the Accord ends.
-3. The authored Europa timeline (7.7) is injected as fixed incidents and headlines on their dates, so every career's archive tells the same Europa story inside a different system year.
+3. The authored Europa timeline (7.7) is injected as fixed incidents and headlines on their dates, so every world's archive tells the same Europa story inside a different system year.
 
 The archive is the recruit's last nine months of news: what they read at Argyre and Camp Ius (section 10).
 
 ### 2.4 Distances and transit times at the start (computed)
 
-LONGHAUL's ephemeris, analytic constant-G brachistochrones `t = 2√(d/a)` against the moving target (Jupiter's moons ride with Jupiter), with LONGHAUL's measured flight overhead of +8% (flip, departure, terminal approach) applied in the "flown" column. Light time 499.0 s per AU.
+LONGHAUL's ephemeris, analytic constant-G brachistochrones `t = 2√(d/a)` against the moving target (Jupiter's moons ride with Jupiter), with TIME §12.5's `voyagePlan()` door to door (the closed form plus the real legs; LONGHAUL's +8% guidance overhead is not applied). Light time 499.0 s per AU. The door-to-door column and the peak speed are `voyagePlan()`'s, departing at each moment (computed by TIME §12.3's method in a scratch script over LONGHAUL's ephemeris, read-only; the default row is TIME §12.5's and CONTRACTS §14's).
 
-| Moment (UTC) | Mars–Jupiter | Light time | 1 G (analytic / flown) | 0.3 G (analytic / flown) | Peak speed at 1 G |
+| Moment (UTC) | Mars–Jupiter | Light time | 1 G (analytic / door to door) | 0.3 G (analytic / door to door) | Peak speed at 1 G |
 |---|---|---|---|---|---|
-| Start, 2351-12-19 02:20 | 5.734 AU | 47.7 min | 6.86 / **7.41 d** | 12.52 / **13.52 d** | 2,907 km/s |
-| +7 sols, 2351-12-26 | 5.658 AU | 47.1 min | 6.80 / 7.35 d | 12.44 / 13.44 d | 2,882 km/s |
-| +12 sols, 2351-12-31 (default departure) | 5.603 AU | 46.6 min | 6.77 / **7.32 d** | 12.40 / **13.39 d** | 2,870 km/s |
-| +21 sols, 2352-01-09 | 5.502 AU | 45.8 min | 6.71 / 7.25 d | 12.26 / 13.24 d | 2,845 km/s |
+| Start, 2351-12-19 02:20 | 5.734 AU | 47.7 min | 6.86 / 6.95 d | 12.52 / 12.62 d | 2,902 km/s |
+| +7 sols, 2351-12-26 | 5.658 AU | 47.1 min | 6.80 / 6.90 d | 12.44 / 12.54 d | 2,883 km/s |
+| +12 sols, 2351-12-31 (default departure) | 5.603 AU | 46.6 min | 6.77 / **6.87 d** | 12.40 / **12.48 d** | 2,869 km/s |
+| +21 sols, 2352-01-09 | 5.502 AU | 45.8 min | 6.71 / 6.81 d | 12.26 / 12.37 d | 2,843 km/s |
 
 For scale (computed): over 2351 the distance rises from 6.41 AU at LONGHAUL's epoch to its maximum, 6.73 AU, at the end of June, then falls to 5.73 AU at the start; it reaches its minimum, 3.68 AU, in early August 2352. The 30-year median is 5.48 AU. The start therefore sits on an ordinary, closing distance.
 
@@ -153,7 +154,7 @@ TIME owns the clock maths and the display (`marsLocal`, the timeslip, formatting
 
 - **UTC** is the system's time: powers, the Navy, ships, Phobos, Callisto, Europa's towns, orders, pay, the news [D]. TT − UTC is frozen at 69.184 s (TIME's call, kept).
 - **Mars Sol Date** (Allison & McEwen 2000, the Mars24 algorithm): MSD 0 began at the Airy-0 meridian on 1873-12-29, a Monday on Earth. Measured: MSD at LONGHAUL's epoch is 169,639.237. MTC is Coordinated Mars Time, the mean solar time at Airy-0.
-- **Local civil time on Mars** is the mean solar time of a site's own meridian, in Earth-length hours with the 39 m 35 s timeslip (KSR's convention) centred on mean midnight (TIME 2.4). Base Melas and Redwater keep **Melas time** at 287.2°E (TIME's `lonMs` 70,822,917; this section places the base there, 3.6). The Republic has no time zones: towns name their meridian ("Melas time", "Londres time") and the Navy uses UTC (my call, matching TIME).
+- **Local civil time on Mars** is the mean solar time of a site's own meridian, in Earth-length hours with the 39 m 35 s timeslip (KSR's convention) centred on mean midnight (TIME 2.4). Base Melas and Redwater keep **Melas time** at 287.2°E (TIME's `lonMs` 70,822,917; PLACES §4.1 places the base there, CONTRACTS §2). The Republic has no time zones: towns name their meridian ("Melas time", "Londres time") and the Navy uses UTC (my call, matching TIME).
 
 ### 3.2 Seasons
 
@@ -239,7 +240,7 @@ Every place off Mars keeps UTC [D]. TIME's table (2.6) of shifts and skies is us
 | UTC | **2351-12-19 02:20** (TIME's MSD constant decides the seconds) |
 | Days since LONGHAUL's epoch | 271.76 |
 | Season | Ls 316.4°: late southern summer at Melas, the tail of the dust season |
-| Daylight at Melas (10.4°S) | 12.77 h; sunrise 05:37, sunset 18:23 civil; noon sun 83° up, a few degrees south of the zenith |
+| Daylight at Melas (10.5° S, PLACES §4.1) | 12.78 h; sunrise 05:37, sunset 18:23 civil; noon sun 83° up, a few degrees south of the zenith |
 | Next New Year (MY 212, Sol 1, a Thursday) | 2352-03-09 18:27 UTC at Melas midnight: during the first deployment, about 81 days in |
 | Next Corps Birthday (MY 212 Sol 214, a Sunday) | 2352-10-14 UTC |
 
@@ -248,7 +249,7 @@ CAREER's working default (LONGHAUL's epoch) is replaced by this date.
 ### 3.8 Data and test vectors
 
 ```js
-// setting/calendar.js (constants only; TIME's time.js does the arithmetic)
+// setting/calendar.js (constants only; TIME's src/sim/time/dates.js does the arithmetic)
 export const LS_EPOCH_DEG = 174.0;
 export const MARS_YEAR_MS = 59_373_085_632;
 export const MY_AT_EPOCH = 211;
@@ -260,10 +261,10 @@ export const MONTH_SOLS = [28,28,28,28,28,27, 28,28,28,28,28,27, 28,28,28,28,28,
 export const WEEKDAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 export const WEEK_OFFSET = 0;                     // MSD 0 was a Monday
 export const START = { solIndex: 169904, civil: '12:40', site: 'melas' };
-export const SITES = { melas: { latDeg: -10.4, lonEDeg: 287.2, altitudeM: -4500 } };
+export const SITES = { melas: { latDeg: -10.5, lonEDeg: 287.2, altitudeM: -4500 } };   // PLACES §4.1's site
 ```
 
-Tests print and check (tolerance ±1 min on UTC, exact on sols): MSD at the epoch 169,639.237; Melas civil time at the epoch 00:31 (TIME measured 00:30:38 with its constant; the seconds follow TIME's MSD constant); the epoch's sol is a Wednesday (the Martian week; the UTC day is a Thursday), Sol 326 MY 211, 19 Gleaning, Ls 174.0; Sol 1 of MY 212 is MSD 169,984; MY 211–216 lengths 669, 669, 669, 669, 668, 669; the start is solIndex 169,904, Monday, Sol 590, 5 Patience, Ls 316.4, 2351-12-19 02:20 UTC; Melas daylight at Ls 316.4 is 12.77 h with sunrise 05:37; at Ls 90 it is 11.65 h (06:10–17:50), at Ls 270 13.01 h (05:30–18:30).
+Tests print and check (tolerance ±1 min on UTC, exact on sols): MSD at the epoch 169,639.237; Melas civil time at the epoch 00:31 (TIME measured 00:30:38 with its constant; the seconds follow TIME's MSD constant); the epoch's sol is a Wednesday (the Martian week; the UTC day is a Thursday), Sol 326 MY 211, 19 Gleaning, Ls 174.0; Sol 1 of MY 212 is MSD 169,984; MY 211–216 lengths 669, 669, 669, 669, 668, 669; the start is solIndex 169,904, Monday, Sol 590, 5 Patience, Ls 316.4, 2351-12-19 02:20 UTC; Melas daylight at 10.5° S (TIME §2.5's figures) at Ls 316.4 is 12.78 h with sunrise 05:37; at Ls 90 11.64 h (06:11–17:49), at Ls 270 13.02 h (05:30–18:30).
 
 ---
 
@@ -328,7 +329,7 @@ Mean surface temperature −25 °C [D]; the valley floors are the warmest places
 
 - **Rain** is rare: the valley sees it a few afternoons a summer when the sea's moisture carries this far, mostly as virga. Frost and thin snow settle in winter on the plateaus and the northern coasts.
 - **The dust** (real values): 1–3 µm basaltic grains, magnetic (magnetite), electrostatic, clinging to cloth and optics; raw ground holds 0.5% perchlorate salts (Phoenix measured 0.6%), which irritate skin and eyes and suppress the thyroid. Lowland soil has been remediated by engineered perchlorate-reducing bacteria to under 0.05%; the plateaus and the training areas on raw ground have not. Marines call the rash "Redwater rash" (BODY owns its effects; WEAPONS owns dust in guns).
-- The weather is a pure function of the site, the seed and the clock, drawn from streams of its own, never stored (tradecraft's `weather.js` pattern; TECH or PLACES builds it from this table). The 0.1 standby pins a clear first sol and at least one local storm in its two weeks (my call, for the acceptance moment).
+- The weather is a pure function of the site, the seed and the clock, drawn from streams of its own, never stored (tradecraft's `weather.js` pattern; TECH or PLACES builds it from this table). The 0.1 standby has Melas' clear sky only (the sun, the temperature, a fixed τ); the dust devils, the local storm and the fog come with 0.2's predeploy at Melas (ROADMAP §3.4).
 
 ### 4.5 The terraforming and the land
 
@@ -375,8 +376,8 @@ About four billion people [L]. The named cities hold a fifth of them; the rest l
 | Firstlight [L] | Elysium Planitia, 3°N 155°E | −2.8 km | 22 million | open air | the first town to breathe unmasked (MY 158); proud of it |
 | Twin Domes [L] | Gale crater, 5°S 138°E | −4.4 km | 6 million | two old domes | at the foot of Mount Sharp; a heritage town |
 | Canal Town [L] | Coprates Chasma, 13.5°S 297°E | −5.0 km | 3.5 million | open air | canals, reed beds, lakes; the 5th Marines' liberty town |
-| Highrim [L] | Melas south rim, 11.2°S 287.2°E | +3.6 km | 1.1 million | old domes | the rim town over the base; the **Highrim Incline** (an 11 km cable railway in three stages up a landslide scarp) joins it to the valley floor |
-| **Redwater** [L] | Melas floor, 10.3°S 287.5°E | −4.3 km | 180,000 | open air | the base's town (4.8) |
+| Highrim [L] | Melas south rim, 11.3°S 287.2°E | +3.6 km | 1.1 million | old domes | the rim town over the base; the **Highrim Incline** (an 11 km cable railway in three stages up a landslide scarp) joins it to the valley floor |
+| **Redwater** [L] | Melas floor, 10.4°S 287.5°E | −4.3 km | 180,000 | open air | the base's town (4.8) |
 | MCRD Argyre | Argyre basin, 50°S 317°E | −4.0 km | (the depot) | open air, cold | the Corps' recruit depot: "the Argyre icebox" |
 
 **Homes** of the Corps' marines, for PEOPLE's generator and CAREER's birthplaces (shares among enlisted marines; my call, close to PEOPLE's working weights):
@@ -409,7 +410,7 @@ Redwater lies 18 km east of the base's main gate on an alluvial fan below the so
 
 PLACES draws the base; this is its place in the world.
 
-- **Where**: the southern floor of Melas Chasma at **10.4°S 287.2°E, −4.5 km, 66 kPa** [D for the altitude and pressure; my call for the coordinates, which match TIME's meridian]. The south wall rises 8 km about 45 km away (7–10° of sky to the south); the north wall is 150 km off (3°); east and west the canyon runs to 1–2° of horizon. PLACES and VIEWS take this profile.
+- **Where**: the southern floor of Melas Chasma at **10.5° S 287.2° E, −4.5 km, 66 kPa** [D for the altitude and pressure; the coordinates are PLACES §4.1's site, on TIME's meridian (CONTRACTS §2), and 4.7 places Redwater and Highrim from them]. The south wall rises 8 km about 45 km away (7–10° of sky to the south); the north wall is 150 km off (3°); east and west the canyon runs to 1–2° of horizon. PLACES and VIEWS take this profile.
 - **History**: Naval Training Center Melas from MY 175 (2283), on the flat outwash below an old landslide; Marine Corps Base Melas from MY 178. Chosen because the floor is breathable (marines train unmasked), wide and flat for long ranges, walled for cliff and altitude work, far from the cities, and 680 km from the Tharsis Spaceport.
 - **Who**: Headquarters, 2nd Marine Division; the **4th Marines** (1/4, 2/4, 3/4); part of the 11th Marines (fires); the 1st Deep Reconnaissance Company and the Recon school; the Raider school (5.10); Melas Field with two assault lander squadrons; a Navy branch hospital; a brig. About 19,000 marines and sailors, 6,000 civilian staff and 9,000 dependents in the married quarters ("the Terraces").
 - **What the base has** (PLACES places them): the Echo lines (2/4's barracks), mess halls, the PX, chapels, the **G-house** (the centrifuge hall: CAREER's PFT at 1 G, BODY's conditioning; marines call a session "a spin"), the ranges on the floor, the Candor and wall cliffs, the **high range** on Sinai Planum at +4 km reached by the Highrim Incline, "Little Conamara" (a pressurised mock-up of an under-ice town street for Europa training), the armouries, the suit lockers and pressure-drill hall, Melas Field's pads, and **the Grove**: a stand of larch and pine with one tree for every 2nd Division marine dead in service since MY 180 (5.8).
@@ -475,8 +476,8 @@ The hub fixes the shape [D]; PEOPLE fixes the company's billets (191 with attach
 |---|---|---|---|---|
 | Fire team | Corporal or Lance Corporal (team leader) | 4 | team leader, automatic rifleman, assistant automatic rifleman, rifleman | "Echo Two-One Alpha" |
 | Squad | Sergeant (squad leader) | 13 | squad leader and three fire teams | "Echo Two-One" |
-| Platoon | Second or First Lieutenant (platoon commander), Staff Sergeant (platoon sergeant) | about 43 | three squads, platoon HQ (commander, platoon sergeant, platoon guide, radio operator), a Navy corpsman | "Echo Two" (commander "Echo Two Actual") |
-| Rifle company | Captain ("the Skipper"), First Sergeant | about 191 | three rifle platoons, a weapons platoon (machine guns, mortars, assault), company HQ (PEOPLE 3.2) | "Echo" (commander "Echo Six") |
+| Platoon | Second or First Lieutenant (platoon commander), Staff Sergeant (platoon sergeant) | 44 (42 and its attached corpsman and radio operator, PEOPLE §3.2; CONTRACTS §15) | three squads and the platoon HQ (commander, platoon sergeant, platoon guide), with an attached radio operator and Navy corpsman | "Echo Two" (commander "Echo Two Actual") |
+| Rifle company | Captain ("the Skipper"), First Sergeant | 191 | three rifle platoons, a weapons platoon (machine guns, mortars, assault), company HQ (PEOPLE 3.2) | "Echo" (commander "Echo Six") |
 | Battalion | Lieutenant Colonel ("the Old Man" or "the Old Woman"), Sergeant Major | about 1,000 (980 deployed) | HQ and service company, three rifle companies, a weapons company | "Bulwark" for 2/4 |
 | Regiment | Colonel | about 3,100 | three battalions and an HQ company | "Rampart" for the 4th Marines |
 | Division | Major General | about 15,000 | three infantry regiments, a fires regiment, a reconnaissance company, combat engineers, logistics | |
@@ -742,26 +743,26 @@ LONGHAUL's classes carry no troops [L]; OLYMPUS adds a `troops` column (my call)
 | **Valles-class destroyer** (TL4) | 220 m, 80 | **30** | a light platoon: two squads, a platoon HQ, a corpsman | 2 pinnaces |
 | **Olympus-class battleship** (TL4, a command ship) | 480 m, 280 | **222** | a ship's detachment of 42 for security, plus a ready boarding company of 180 | 4 pinnaces, 2 landers, and 2 assault landers when the company embarks |
 | Martian Security cutter | 55 m, 8 | 0 | police | pinnace |
-| **Coprates-class assault transport** (6.3) | 260 m, 90 | **up to 1,056** | a reinforced battalion | 6 Simoom assault landers, 2 Haboob heavy landers |
+| **Coprates-class assault transport** (6.3) | 240 m, 72 | **up to 1,150** | a reinforced battalion | 8 Simoom assault landers, 2 pinnaces |
 
 Afloat at any time: about 75 marines in frigates (5 × 15), 60 in destroyers and 666 in the battleships, **about 800** (801), plus whatever battalion a transport carries. PLACES §5.3 and this table carry the same 15.
 
 ### 6.3 The Coprates-class assault transport
 
-Three in commission: **MCRN Coprates** (AP-31), **MCRN Halloran** (AP-32) and **MCRN Testudo** (AP-33), the player's first ride (names from LONGHAUL's MCRN pools [L]; AP is a new hull code). PLACES §5.2's "Noctis class" is this class: the name is SETTING's, and the hull's size, crew, berths and guns are PLACES's deck program, adopted here so that one set of numbers stands (my call, in the contract patch). Navy auxiliaries outside LONGHAUL's force lists: they are on rails between Phobos, Callisto and exercises, and the background war does not spend them (TECH). Data in LONGHAUL's `ship-classes.js` shape:
+Three in commission: **MCRN Coprates** (AP-31), **MCRN Halloran** (AP-32) and **MCRN Testudo** (AP-33), the player's first ride (names from LONGHAUL's MCRN pools [L]; AP is a new hull code). PLACES §5.2 draws this class: the name is SETTING's, and the hull's size, crew, berths and guns are PLACES's deck program, adopted here so that one set of numbers stands (my call, in the contract patch; re-synced to PLACES §5.2's redrawn hull in one change, CONTRACTS §19, item 9). Navy auxiliaries outside LONGHAUL's force lists: they are on rails between Phobos, Callisto and exercises, and the background war does not spend them (TECH). Data in LONGHAUL's `ship-classes.js` shape:
 
 ```js
 { id: 'mcrn-transport', kind: 'Assault transport', name: 'Coprates-class assault transport',
   yard: 'MARS', tl: 4, size: 'L', category: 'military', code: 'AP',
-  lengthM: 260, hullM: [260, 44, 40], massT: 68000,          // PLACES §5.2's hull
-  crew: [80, 100], crewStd: 90, troops: 1056, brig: 30,       // 8 company compartments of 132 racks
-  cruiseG: 1, maxG: 5, ratedG: 3, standingG: 1.5, evasive: true, // 1.5 G with people standing, 3 G couched
-  armor: 2, pdc: 6, tubes: 0, magazine: { he: 0, nuke: 0 }, rail: 0,  // it sails escorted
-  craft: { simoom: 6, haboob: 2 },                            // eight silos
+  lengthM: 240, hullM: [240, 40, 36], massT: 52000,          // PLACES §5.2's hull
+  crew: [60, 90], crewStd: 72, troops: 1150, brig: 30,        // 8 company compartments of 144 couches (1,152)
+  cruiseG: 1, maxG: 5, ratedG: 3.5, standingG: 1.5, evasive: true, // 1.5 G with people standing, 3.5 G couched
+  armor: 2, pdc: 8, tubes: 0, magazine: { he: 0, nuke: 0 }, rail: 0,  // it sails escorted
+  craft: { simoom: 8, pinnace: 2 },                           // eight Simoom silos, two pinnace bays
   pitch: 'A tower of troop decks round a drive: a battalion, its landers and a month of stores, at one G.' }
 ```
 
-The ship is LONGHAUL's grammar: a tower whose decks are floors under thrust [L]. PLACES builds its deck program (troop berthing decks by company, galley, the armoury, the eight lander silos, the couch decks for burns over 1.5 G, the brig, the hospital). A wave is what the silos hold: six Simooms of 44 and two Haboobs of 60, **384 marines** (or two vehicles and 40), so 2/4 at 980 goes down in three waves. `cruiseG` is the class's cruise; the thrust a movement flies is doctrine's (6.5).
+The ship is LONGHAUL's grammar: a tower whose decks are floors under thrust [L]. PLACES builds its deck program (troop berthing decks by company, galley, the armoury, the eight lander silos, the couch decks for burns over 1.5 G, the brig, the hospital). A wave is what the silos hold: eight Simooms of 44, **352 marines**, the ready rooms' 352 crash couches (PLACES §5.2), so 2/4 at 980 goes down in three waves (352, 352 and 276). The class carries no heavy lander: the Haboobs (6.4) fly from the shore. `cruiseG` is the class's cruise; the thrust a movement flies is doctrine's (6.5).
 
 ### 6.4 Assault landers and insertion craft
 
@@ -769,12 +770,12 @@ The only atmosphere-rated hulls are carried craft [U 2026-10-25]; the Corps' are
 
 | Craft | Role | Length, loaded mass | Crew, seats, cargo | G cruise / max / troop-rated | Other |
 |---|---|---|---|---|---|
-| **Simoom-class assault lander** ("the brick"; PLACES §5.5's D-16) | lands a reinforced platoon from orbit and lifts it back | 26 m, 92 t (58 t dry) | 2 pilots and a crew chief; **44 crash couches**; 6 t | 1 / 4 / **2.5 G** | lift-to-drag 1.2; β ≈ 655 kg/m²; tiles 1.1 MW/m²; a chin cannon (WEAPONS); radiation-shielded cabin (about 8 g/cm²) |
+| **Simoom-class assault lander** ("the brick"; PLACES §5.5) | lands a reinforced platoon from orbit and lifts it back | 26 m, 92 t (58 t dry) | 2 pilots and a crew chief; **44 crash couches**; 6 t | 1 / 4 / **2.5 G** | lift-to-drag 1.2; β ≈ 655 kg/m²; tiles 1.1 MW/m²; a chin cannon (WEAPONS); radiation-shielded cabin (about 8 g/cm²) |
 | **Mistral-class insertion craft** | puts a recon or Raider team down unseen | 15 m, 34 t | 2 pilots; 10 seats; 2 t | 1 / 5 / 3 G | TL4 signature × 0.7 again (radar-absorbent skin, a cold-gas final descent, no plume in the last 300 m) |
-| **Haboob-class heavy lander** (PLACES §5.5's L-60, named here) | lands vehicles, stores and big lifts of troops | 30 × 10 × 7 m, about 150 t loaded (my call) | 2 pilots and a crew chief; **60 couches**, or a vehicle of up to 20 t and 20 couches | 1 / 3 / **2.5 G** | the Simoom's systems, scaled; the crawlers for the FOBs ride down in them |
+| **Haboob-class heavy lander** (named here; the L-60 of PLACES's earlier draft) | lands vehicles, stores and big lifts of troops | 30 × 10 × 7 m, about 150 t loaded (my call) | 2 pilots and a crew chief; **60 couches**, or a vehicle of up to 20 t and 20 couches | 1 / 3 / **2.5 G** | the Simoom's systems, scaled; not carried by the Coprates class (6.3): it flies from Melas Field and Camp Lofn with the wing's squadrons (my call), and the crawlers for the FOBs ride down in it |
 | Pinnace (LONGHAUL's) | the Navy's utility craft aboard frigates and destroyers | 18 m, 45 t | 1–2 crew; 12 seats; 4 t | 1 / 4 | [L] |
 
-PLACES §5.5's D-16 is the Simoom: its cabin is drawn for the Simoom's 44 couches, and the transport's silos are sized for its 26 m (PLACES §5.2).
+PLACES §5.5 draws the Simoom's cabin for its 44 couches, and the transport's eight silos are sized for its 26 m (PLACES §5.2: 10 × 6 m in plan, 28 m tall).
 
 **The troop-rated limit caps the drop** (computed against LONGHAUL's Europa runs, read-only). Europa's low-orbit speed is 1.43 km/s, but a drop from the transport's parking orbit (LONGHAUL's, 5,258 km from Europa's centre, 3,700 km up) falls in faster: on the fast 0.9 h run the craft burns about 1.0 km/s to leave the orbit, coasts, and arrives over the pad at about 1.9 km/s, which its **braking burn** kills in about **77 s at the 2.5 G cap**; the slow 2.3 h run arrives at about 0.25 km/s and brakes in 10 s. The landing from LONGHAUL's 10 km hover then takes **90 s at under 1 G** (LONGHAUL's profile opens with a shove of up to 3.7 G, the part the cap trims). So the powered descent is up to about a minute and a quarter at the cap and a minute and a half gentle: about 2.0 km/s in 2.8 minutes, a mean near 1.25 G under a 2.5 G peak. Mars entry peaks near 2.2 G anyway (LONGHAUL's pinnace profile). COMBAT and TIME fly the drop; BODY feels it; the drop test prints each burn's Δv, duration and peak G (14).
 
@@ -784,24 +785,24 @@ PLACES §5.5's D-16 is the Simoom: its cabin is drawn for the Simoom's 44 couche
 
 | Movement | Thrust | Why |
 |---|---|---|
-| **The Alert Battalion, reinforcements, any movement in a crisis or at war, outbound** | **1 G** | "Fight at one G" (5.2): the battalion arrives a week after the vote, not twelve days, and arrives having lived a week at the gravity it trains for. After the Murias seal attack (7.7), 2/4's movement is urgent, so the player's first voyage is this one: **7.3 days** |
-| Homeward, after a tour in low gravity | **0.3 G** | 13.4 days: a step for bodies deconditioned by months at 0.134 G, between Europa's pull and Mars's, and the Navy saves the drive (BODY owns what each does to the body) |
-| Routine rotations, reliefs and administrative moves | 0.38 G (Mars-normal, TIME's profile) | 11.8 days at home gravity |
+| **The Alert Battalion, reinforcements, any movement in a crisis or at war, outbound** | **1 G** | "Fight at one G" (5.2): the battalion arrives a week after the vote, not twelve days, and arrives having lived a week at the gravity it trains for. After the Murias seal attack (7.7), 2/4's movement is urgent, so the player's first voyage is this one: **6.87 days** door to door (TIME §12.5) |
+| Homeward, after a tour in low gravity | **0.3 G** | 12.5 days: a step for bodies deconditioned by months at 0.134 G, between Europa's pull and Mars's, and the Navy saves the drive (BODY owns what each does to the body) |
+| Routine rotations, reliefs and administrative moves | 0.38 G (Mars-normal, TIME's profile) | 11.1 days at home gravity |
 | Fleet exercises (CAREER's `exercise`) | 1 G for weeks | the test the G-house trains for |
 
-This is what makes the standby's centrifuge sessions pay or cost on the voyage (ROADMAP 0.2's "The short day": the marine who skipped the G-house faints at formation under 1 G), and the voyage the G-conditioning stat's first test. TIME's voyage tests print the 1 G profile as the default.
+This is what makes the standby's centrifuge sessions pay or cost on the voyage (ROADMAP 0.2's "The short day": the marine who skipped the G-house faints at formation under 1 G), and the voyage the G-conditioning stat's first test. TIME's voyage tests print the 1 G profile as the default. The times are `voyagePlan()`'s door to door for a Sol 602 departure (CONTRACTS §14); a movement on another date takes its answer for that date.
 
 | Leg | Time | Felt gravity | Notes |
 |---|---|---|---|
 | Melas Field to Phobos | 2–3.5 h (LONGHAUL's Mars lander runs) | about 5 min of ascent capped at 2.5 G, then free fall with a few minutes of 1 G burns | the first time in space for most |
 | The Pens, Phobos | 1–3 sols | 0.0006 G | 6.1 |
-| Departure | 1–2 h | near zero | LONGHAUL's RCS departure |
-| Burn, flip, brake | **7.3 days at 1 G** (departing Sol 602, 2351-12-31) | 1 G; 6 min of free fall at the flip, couches from 30 min before | the voyage chapter (TIME); doctrine's urgent outbound profile (above); the way home is 13.4 days at 0.3 G |
+| Departure | 2 h 15 min | near zero | secure 20 min, LONGHAUL's RCS departure 105 min, prep 10 min (TIME §12.3; CONTRACTS §14) |
+| Burn, flip, brake | **6.87 days at 1 G** door to door, the departure above included (departing Sol 602, 2351-12-31 10:15Z; CONTRACTS §14) | 1 G; 6 min of free fall at the flip, couches from 30 min before | the voyage chapter (TIME); doctrine's urgent outbound profile (above); the way home is 12.5 days at 0.3 G |
 | Callisto | 2–4 sols | 0.126 G | **reception and staging** at Camp Lofn: dosimeter issue, the Accord classes, rifles zeroed on the surface range in vacuum, Lang Belta phrases |
 | Callisto to Europa's parking orbit | 6–9 h at 1 G | 1 G | the transport stays no longer than the drop needs: Europa's orbit is inside Jupiter's belts |
-| The drop | 0.9–2.3 h per wave (LONGHAUL's runs from Europa's parking orbit), three waves of up to 384 for a battalion (6.3) | free fall; a deorbit burn of about 1.5 to 2.5 min at 1 G (0.8 to 1.4 km/s); a braking burn of up to about 77 s at the 2.5 G cap; 90 s down from the hover at under 1 G (6.4) | onto the Pwyll spaceport's pads, beside FOB Pwyll; the transport's eight landers go back aboard after the last wave (the Accord's clause 3 counts the landers based on Europa, 7.6) |
+| The drop | 0.9–2.3 h per wave (LONGHAUL's runs from Europa's parking orbit), three waves of up to 352 for a battalion (6.3) | free fall; a deorbit burn of about 1.5 to 2.5 min at 1 G (0.8 to 1.4 km/s); a braking burn of up to about 77 s at the 2.5 G cap; 90 s down from the hover at under 1 G (6.4) | onto the Pwyll spaceport's pads, beside FOB Pwyll; the transport's eight landers go back aboard after the last wave (the Accord's clause 3 counts the landers based on Europa, 7.6) |
 
-Total, gate to under-ice camp: **about 12–15 sols**. The departure day is UTC New Year's Eve (my call: a beat for TIME).
+Total, gate to under-ice camp: **about 10–15 sols** (about 10.3 to 15 days with the legs above, the three waves' turnarounds included). The departure day is UTC New Year's Eve (my call: a beat for TIME).
 
 ---
 
@@ -815,8 +816,8 @@ Mars holds it at 0.66, Earth contests Europa and Ganymede at 0.40, and the Belt'
 
 Callisto [L]: 0.126 G, the most cratered surface known, outside the worst of Jupiter's belts: **about 0.1 mSv a day** at the surface (Ringwald 2000: 0.01 rem a day), "the safe moon to build on". Ground control MCR, "Naval Air Control", airspaces Valhalla, Asgard, Adlinda and Heimdall [L]. Solar day 402 h (16.75 Earth days); Jupiter hangs 4.3° wide in the sky.
 
-- **Naval Station Valhalla** (TIME's "Callisto Station"): the MCRN's Jovian base on the floor of the Valhalla basin, near the Valhalla Spaceport: Navy repair docks for the squadron, fuel, a hospital (clinic grade [L]), MARFORJOV and the Jovian Command headquarters.
-- **Camp Lofn**: 3rd Marine Brigade's camp 12 km away, with its centrifuge hall (BODY: mandatory sessions in 0.126 G), the surface range in vacuum, and the RSOI halls for arriving battalions. PLACES §6's "MCRN Base Callisto" is Camp Lofn: its Transit is the RSOI halls, its Spin the centrifuge hall, its Flats the surface range, and its Jovian Command block MARFORJOV's rear headquarters for MSF-E (the Jovian Command itself sits at Naval Station Valhalla). Its 400 m tunnel ends at **Lofn Gate**, a quarter of Valhalla Town.
+- **Naval Station Valhalla**: the MCRN's Jovian base on the floor of the Valhalla basin, near the Valhalla Spaceport: Navy repair docks for the squadron, fuel, a hospital (clinic grade [L]), MARFORJOV and the Jovian Command headquarters.
+- **Camp Lofn**: 3rd Marine Brigade's camp 12 km away, with its centrifuge hall (BODY: mandatory sessions in 0.126 G), the surface range in vacuum, and the RSOI halls for arriving battalions. PLACES §6 draws Camp Lofn: its Transit is the RSOI halls, its Spin the centrifuge hall, its Flats the surface range, and its Jovian Command block MARFORJOV's rear headquarters for MSF-E (the Jovian Command itself sits at Naval Station Valhalla). Its 400 m tunnel ends at **Lofn Gate**, a quarter of Valhalla Town.
 - **The dome towns** (2.4 million on Callisto, my call): **Valhalla Town** (900,000; the base's liberty town, bars under lamps, black-market real coffee), **Asgard Dome** (600,000; ice mining and farms under lamps), **Tindr** and **Bran** (smaller, quiet). Martian colonists, Navy families, Belter labour. Their accent is Martian with Belter words.
 
 ### 7.3 Europa: the world
@@ -828,12 +829,12 @@ Callisto [L]: 0.126 G, the most cratered surface known, outside the worst of Jup
 - **The ice and the towns** (my call on the model and every temperature, from ice mechanics; the numbers computed in a scratch script). Closure is tied to the temperature of the ice round a gallery, so the liner ("the felt") and, at Thera, the cold lines are what a reamer fights:
   - The shell's conductive lid is cold: about **105 K at 1 km and 120–125 K at 3 km** (a heat flow of 40 to 50 mW/m² through ice whose conductivity is 651/T W/(m·K)), everywhere but over Thera's lens.
   - Ice flows by **Glen's law**, strain rate = A τⁿ with **n = 3**, and an Arrhenius rate factor **A(T) = 3.5 × 10⁻²⁵ Pa⁻³ s⁻¹ at −10 °C**, with an activation energy of **60 kJ/mol** below −10 °C and 115 kJ/mol above (Cuffey & Paterson 2010). At 105 K, A is about 10¹⁸ times smaller than at −10 °C: the lid's ice is rigid.
-  - A gallery closes by **Nye's (1953) law for a tunnel**: its half-width a shrinks at `ȧ = a · (ΔP / (2 I))³`, with `I = ∫₁^∞ A(s)^(−1/3) s^(−5/3) ds` over the ice round it (s = r/a), and ΔP the weight of the ice above (920 kg/m³ × 1.315 m/s² × depth: **1.21 MPa a kilometre**) less the town's air (55 kPa). In ice of one temperature this is Nye's `ȧ/a = A (ΔP/3)³`. The integral is why cold ice a few metres in holds a warm face: a warm wall alone does not squeeze, a warm halo does.
-  - **The cold towns** (every town but Thera Lens, 200 to 1,400 m): the felt (PLACES §3.8's liner, 0.25 m of foam and a membrane, U 0.1 W/(m²·K)) holds the ice face near **130–140 K** against the town's 18 °C, and the galleries **do not close by creep** (under a micrometre a century; even a hall whose face is held at −10 °C for decades stays put, because the cold ice behind it is rigid). Their danger is melt: a hole in the felt lets the bare face reach 0 °C within hours, and it **sweats about 0.3 L an hour from every square metre** (8 mm of wall a day), runs, refreezes on floors and cables, and spalls: PLACES's "dripping street". Their **reamers** cut new galleries and trim back what melt and refreeze build.
+  - A gallery closes by **Nye's (1953) law for a tunnel**: its half-width a shrinks at `ȧ = a · (ΔP / (2 I))³`, with `I = ∫₁^∞ A(s)^(−1/3) s^(−5/3) ds` over the ice round it (s = r/a), and ΔP the weight of the ice above (920 kg/m³ × 1.315 m/s² × depth: **1.21 MPa a kilometre**) less the town's air (Ice standard's 75 kPa, PLACES §3.2; the closures below were first run at 55 kPa, and since closure goes as ΔP³ the 75 kPa air makes each about 2% smaller at Thera's depths, inside their rounding). In ice of one temperature this is Nye's `ȧ/a = A (ΔP/3)³`. The integral is why cold ice a few metres in holds a warm face: a warm wall alone does not squeeze, a warm halo does.
+  - **The cold towns** (every town but Thera Lens, 200 to 1,400 m): the felt (PLACES §3.8's liner, 0.25 m of foam and a membrane, U 0.1 W/(m²·K)) holds the ice face near **130–140 K** against the town's 14 °C (Ice standard's set temperature), and the galleries **do not close by creep** (under a micrometre a century; even a hall whose face is held at −10 °C for decades stays put, because the cold ice behind it is rigid). Their danger is melt: a hole in the felt lets the bare face reach 0 °C within hours, and it **sweats about 0.3 L an hour from every square metre** (8 mm of wall a day), runs, refreezes on floors and cables, and spalls: PLACES's "dripping street". Their **reamers** cut new galleries and trim back what melt and refreeze build.
   - **Thera Lens** lies 300 to 700 m over a lens of brine at 3 km, and its ice is warm: about **215 K at 2,300 m, 230 K at 2,500 m and 245 K at 2,700 m** (a conductive profile from 100 K at the surface to 270 K at the lens). It creeps. The town's **cold lines** (brine loops behind the felt, run off its heat pumps) hold the faces at −45 °C (228 K), and still a 5 m gallery loses about **27 cm of its width a year at 2,300 m, 80 cm at 2,500 m and 2 m at 2,700 m**: Thera's reamers work every street, recutting the deep ones every year or two.
   - **When the cold lines stop** (a power cut: Europa's power is dear), the felt alone lets Thera's faces settle at −20 °C (PLACES's limit), and the warmth soaks into the ice at its diffusivity of about 1.5 × 10⁻⁶ m²/s, a metre in about a week. At 2,700 m the width a gallery loses rises from 2 m a year to **1 cm a day within a week** and 1.5 cm a day within a month; with a hole in the felt as well (the face sweating at 0 °C), to 1.4 cm a day in a week and 2.4 cm a day in a month. At 2,500 m the same failure takes it from 0.8 m a year to 1.3 m a year in a week and 2.4 m a year in a hundred days. A sweating wall in Thera is an emergency measured in weeks and read with a tape across the street; Thera calls it "the squeeze".
   - What PLACES needs from this (it runs the environment): a face temperature per zone from its liner model, the far-field ice temperature by town and depth (these values), and each gallery's width, narrowed by this law in its slow layer.
-- **The towns' air** is PLACES §3.2's **Belter town standard** (55 kPa, pO₂ 19 kPa, 34.5% O₂, CO₂ often 0.5 to 1 kPa, 18 °C: less pressure on the liners and less imported nitrogen), from the electrolysis of meltwater; the towns call it "town air". PLACES owns the airs, and its choice replaces this section's earlier "Ice standard" draft. The force's FOBs and Camp Halloran keep Martian indoor standard (66 kPa). Air is metered and taxed (the **air levy**).
+- **The towns' air** is **Ice standard**, PLACES §3.2's row and its one definition (75.0 kPa, pO₂ 16.5 kPa at 22%, 14 °C; the poor low streets' CO₂ 0.5 to 1.0 kPa), from the electrolysis of meltwater; the towns call it "town air". PLACES owns the airs and SETTING gives the name; CONTRACTS §19, item 1, holds this row until the lead settles it (the "Belter town standard" of 55 kPa that this section adopted earlier is no longer a PLACES row). The force's FOBs and Camp Halloran keep Martian indoor standard (66 kPa). Air is metered and taxed (the **air levy**).
 - **Radiation**: Europa's surface takes **5.4 Sv a day** [D] (Ringwald 2000: 540 rem a day). The table below is the environment the BODY model reads (my call: order-of-magnitude values from electron ranges in water-ice and the attenuation of their bremsstrahlung; shielding in g/cm²):
 
 | Where | Shielding | Dose rate | Time to 50 mSv |
@@ -1181,10 +1182,10 @@ Never generated, as full names: James Holden, Naomi Nagata, Amos Burton, Alex Ka
 - `setting-ephemeris.test.mjs`: Mars–Jupiter at the epoch 6.410 AU, at the start 5.734 AU, the minimum 3.68 AU in early August 2352 and the maximum 6.73 AU at the end of June 2351 (daily sampling); 1 G and 0.3 G transits at the start (6.86 and 12.52 days analytic); light times 47.7, 19.3 and 23.3 min.
 - `setting-air.test.mjs`: the air table of 4.2 row by row (pressure, O₂, Earth-equivalent altitude, boiling point), within 0.1 kPa and 1 °C, and the hub's rows (−5 km 67.6–67.7 kPa, datum 52 / 16.6, +5 km 40 / 12.8, +10 km 30.7 / 9.8).
 - `setting-names.test.mjs`: over 20,000 draws per culture, the duplicate rate of full names (target under 1 in 1,000 before the registry, 0 after); no blocklisted name ever; no public figure's family name in a tier 1–2 draw, and their full names registered before the roster; family-name share per pool within 2 points of 12.1.
-- `setting-data.test.mjs`: every rank has a grade, abbreviation, insignia and address; every MOS a code and field; every home a share, kind and culture, shares summing to 100; every price positive, and no second price table in `src/` (a shop's prices are multipliers on this one); every Europa town in one of LONGHAUL's three airspaces; populations summing to 2.95 million ± 0.05; the hull table's afloat total, printed (801: frigates 15 each); the transport's wave (384) and waves for 980 (3); the MCMAP belt keys spelt `grey`.
+- `setting-data.test.mjs`: every rank has a grade, abbreviation, insignia and address; every MOS a code and field; every home a share, kind and culture, shares summing to 100; every price positive, and no second price table in `src/` (a shop's prices are multipliers on this one); every Europa town in one of LONGHAUL's three airspaces; populations summing to 2.95 million ± 0.05; the hull table's afloat total, printed (801: frigates 15 each); the transport's wave (352: eight Simooms of 44) and waves for 980 (3); the MCMAP belt keys spelt `grey`.
 - `setting-europa-dose.test.mjs`: the radiation table's times to 50 mSv (13 min bare, 33 min in a light vac suit, 1 h 50 min in a hardshell).
 - `setting-craft.test.mjs` (my proposal; it runs OLYMPUS's own ports, TECH's `src/world/lambert.js` and `dropship.js`, never the sibling project, and holds them to the scratch run's numbers): the Europa drop from LONGHAUL's parking orbit on its 0.9 h and 2.3 h runs, printing **each burn's Δv, duration and peak G** (deorbit about 1.0 and 0.8 km/s; braking about 1.9 and 0.25 km/s, 77 and 10 s at the 2.5 G cap; the landing from the 10 km hover 90 s at under 1 G), and failing if any troop-carrying burn exceeds 2.5 G; Phobos jumps at 2, 2.5 and 3 m/s (370, 590 and 870 m up; 12, 16 and 20 min aloft); the spin table of 8.1 (ω, turn, rim speed; Ceres' 0.301 G at 5.5°; ±8% walking at 1.5 m/s; the 8 cm drop).
-- `setting-ice.test.mjs`: the closure law of 7.3 against Nye's closed form in ice of one temperature (−20 °C at 600 m: 10 cm a year of half-width); the cold towns' closure, printed and under 10⁻⁶ m a year; Thera's widths lost a year with the cold lines on at 2,300, 2,500 and 2,700 m (27, 80 and 200 cm, ±15%); the cold lines off at 1, 7, 30 and 100 days at 2,500 and 2,700 m; a felt hole's sweat in a cold town (0.3 L an hour a square metre).
+- `setting-ice.test.mjs`: the closure law of 7.3 against Nye's closed form in ice of one temperature (−20 °C at 600 m, a 5 m gallery under Ice standard's 75 kPa: 9.5 cm a year of half-width; it was 10.5 cm at the earlier 55 kPa); the cold towns' closure, printed and under 10⁻⁶ m a year; Thera's widths lost a year with the cold lines on at 2,300, 2,500 and 2,700 m (27, 80 and 200 cm, ±15%); the cold lines off at 1, 7, 30 and 100 days at 2,500 and 2,700 m; a felt hole's sweat in a cold town (0.3 L an hour a square metre).
 
 ---
 
@@ -1212,19 +1213,23 @@ Never generated, as full names: James Holden, Naomi Nagata, Amos Burton, Alex Ka
 
 ## 16. Build order
 
-**0.1, a standby week at Base Melas** (needs from this section):
+ROADMAP §3.4 holds the milestone numbers (CONTRACTS §18).
+
+**0.1.0, a standby week at Base Melas** (needs from this section):
 
 1. `setting/calendar.js` with its test vectors (3.8): the start date, Mars Year, sols, months, weekdays, holidays (Charter Day and the Birthday are outside the first weeks; the UTC Christmas falls in them).
-2. Base Melas' lore and coordinates (4.9), Redwater's lore (4.8, for the bus and the Strip if liberty is in 0.1), Melas' climate with a pinned clear first sol and one local storm (4.4), the air at −4.5 km (4.2).
-3. The Corps for the barracks: ranks, insignia and address (5.5), the player's chain and the company's callsigns (5.3), MOS 0311 and the squad's MOSs (5.6), utilities, PT kit, ship greys and the light vac suit for the suit drill (5.7), customs and the general orders (5.8), slang and sayings for the instinct (5.9).
+2. Base Melas' lore and coordinates (4.9), Redwater's lore (4.8, for the bus and the Strip if liberty is in 0.1), Melas' clear sky (the sun, the temperature, a fixed τ; 4.4), the air at −4.5 km (4.2); the local storm at 0.2.
+3. The Corps for the barracks: ranks, insignia and address (5.5), the player's chain and the company's callsigns (5.3), MOS 0311 and the squad's MOSs (5.6), utilities, PT kit and ship greys (5.7), customs and the general orders (5.8), slang and sayings for the instinct (5.9).
 4. Names: the Martian pools, the registry and the blocklist (12).
-5. The news board with the prologue's archive and the Europa timeline up to the start (2.3, 7.7, 10); the Congress' vote as the week's beat.
+5. The news board with §7.7's authored timeline as its archive (`setting/timeline.js`, 10); the Congress' vote as the week's beat. The prologue (2.3) and the live news come at 0.2.
 6. The one price list, for the PX, the base club and the barber (11).
 7. The settled names (1.4), so no template carries a working name.
 
-**0.2, the voyage and the drop**: Phobos (6.1, its jumps), the Coprates transport and the Simoom (6.3, 6.4) with the drop's capped burns, the voyage doctrine and the movement table (6.5: 1 G out), Callisto's base and reception (7.2), the Crossing the Belt and flip customs (5.8).
+**0.1.x, the rest of the week**: the light vac suit (5.7) for the suit drill, with the Tank (ROADMAP §5.8).
 
-**0.3, Europa**: the towns (7.4) and FOB Pwyll, the parties and their faces (7.5, 9), the Accord's clauses (7.6), the radiation table and the ice's closure law (7.3), Lang Belta phrases.
+**0.2, the voyage and the drop**: Phobos (6.1, its jumps), the Coprates transport and the Simoom (6.3, 6.4) with the drop's capped burns, the voyage doctrine and the movement table (6.5: 1 G out), the Crossing the Belt and flip customs (5.8); Redwater in full for the last liberty (4.8); the prologue and the live news (2.3, 10); Melas' local storm (4.4).
+
+**0.3, Europa**: Callisto's base and reception (7.2), the towns (7.4) and FOB Pwyll, the parties and their faces (7.5, 9), the Accord's clauses (7.6), the radiation table and the ice's closure law (7.3), Lang Belta phrases.
 
 **Later**: the other cities and homes in full (4.7), Ganymede and the theatres (8), spin gravity at Ceres and the rings (8.1), Deep Recon and the Raider Regiment (5.10), MNI Special Activities, the Lorica (5.7), the embassies.
 
@@ -1235,17 +1240,17 @@ Never generated, as full names: James Holden, Naomi Nagata, Amos Burton, Alex Ka
 What this section needs from the others, and what they take from it. The contract patch's settlements (1.4) are listed by owner.
 
 - **DESIGN (the hub)**: its decision log records the contract patch's calls (my calls, the user may overrule): the voyage doctrine (1 G out for the Alert Battalion and urgent movements, 0.3 G home, 0.38 G routine; 6.5), the light vac suit as a soft 34 kPa suit (5.7), the settled names (1.4) and the start date (3.7).
-- **TIME**: implements the calendar (3) with these constants (`LS_EPOCH_DEG` 174.0 and Sol 1 on the Airy-0 sol replace its drafts); the start instant (3.7); shift names on Europa (3.6); the prologue's world steps (2.3) with TECH. **The voyage**: §12.5's default and §20 question 5 take the doctrine of 6.5 (the player's first voyage is 1 G, 7.3 days; 0.38 G stays the profile for routine rotations), and TIME's voyage tests print the 1 G profile as the default. The drop's powered part is 6.4's (a braking burn of up to about 77 s at the 2.5 G cap, then 90 s from the hover), not "1.5 min at up to 3.69 G". Shops: §8.7's `px` (browsing lived, the counter timed) is the rule 15 follows; its prices come from 11.
+- **TIME**: implements the calendar (3) with these constants (`LS_EPOCH_DEG` 174.0 and Sol 1 on the Airy-0 sol replace its drafts); the start instant (3.7); shift names on Europa (3.6); the prologue's world steps (2.3) with TECH. **The voyage**: §12.5's default and §20 question 5 take the doctrine of 6.5 (the player's first voyage is 1 G, 6.87 days door to door, TIME §12.5's figure, adopted; 0.38 G stays the profile for routine rotations), and TIME's voyage tests print the 1 G profile as the default; 2.4 and 6.5 quote `voyagePlan()`, with no +8%. The drop's powered part is 6.4's (a braking burn of up to about 77 s at the 2.5 G cap, then 90 s from the hover), not "1.5 min at up to 3.69 G". Shops: §8.7's `px` (browsing lived, the counter timed) is the rule 15 follows; its prices come from 11.
 - **BODY**: reads the air table (4.2), the dust facts (4.4), Mars' and Europa's dose environments (4.3, 7.3), gravities and spin (8.1), the suits' identities (5.7) and the dose regulations (7.3); owns every physiological effect and the suits' life-support numbers. **The light vac suit is BODY §19's soft suit** (5.7): its 34 kPa is the one suit pressure, and §19.7 is the one donning table every section cites (COMBAT's 120 s, TIME's 8 to 11 min and CAREER's 90 s qualification align to it). One number to settle: §19.1's ×0.6 dose factor for the light suit against 7.3's table (2.2 of 5.4 Sv a day, ×0.41), whose 90 mSv an hour ROADMAP's `moment-surface` uses. The Phobos jump is 6.1's (600 m and 16 minutes, not escape).
 - **SKILLS**: reads ranks (5.5), the MCMAP belts and their keys (5.5: `mcmap-grey`, not `mcmap-gray`; "gray" becomes "grey" in §6.6 and the reading tables), the MOS list (5.6) and languages (Lang Belta for Belters and linguists). Boot is 13 weeks in both. §10.2's backgrounds: `hecate-line` is "Hecate Arms & Drive's small-arms line at Ophir Chasma" (HAD makes no guns at Hellas, 4.10), and `old-domes` is "Highrim's old domes" (Redwater is an open-air town, 4.7).
 - **WEAPONS**: owns the makers (§3.1), which 4.10 adopts; applies the Accord's ammunition clause (7.6, clause 4); sets the suits' and helmets' protection (§8.3's "light vac suit shell" is the soft suit with its hard shell, 5.7); its replacement values (§10.6) replace this section's for weapons and optics (11). §8.7's "at 30 kPa a 6.5 mm hole loses 3.7 g/s" is recomputed at BODY's 34 kPa.
 - **COMBAT**: turns the doctrine (5.2) and the Accord (7.6) into ROE and escalation of force; flies the drop under the troop-rated limit (6.4); the suit-up time is BODY §19.7's.
 - **PEOPLE**: generates people from the homes, shares, cultures, names and nicknames (4.7, 12), with the public figures' family names kept off tier 1–2 and their full names registered (12.5, 12.6); performs the customs and general orders (5.8); uses the faces (9) and the public figures (7.7: the Commandant is now General Halima Strand, so §14.4's and §18's Okonjo stays a squadmate); the Navy grades for corpsmen (5.5); "MCMAP" is the programme's settled name.
 - **CAREER**: the start date replaces §5.1's working default (3.7); uses the MOS codes (5.6), ranks and insignia (5.5), awards and badges (5.7), the order of battle and bases (5.4), Deep Recon and the Raider Regiment names (5.10), the theatres and Ceres' 0.3 G (8, 8.1), MSF-E and Operation STILL WATER (7.6), the birthplaces' lore (4.7); sets the pay table (§12.1–12.2) whose scale 11 follows. **§12.7 deletes its price table and cites 11**; §12.4's "Air and water levy: 1%" becomes "**Terraforming levy: 1%**" (4.10's one name: civilians 12%, service members 1%), and the LES sample line with it. Its G-3 note ("the troopship's thrust is under 1 G") meets the 1 G doctrine (6.5): a G-3 marine rides the Alert Battalion's voyage at 1 G, and CAREER decides what that costs or excuses.
-- **PLACES**: maps Base Melas, Redwater's Strip, the Highrim Incline, Little Conamara, Phobos' Pens, the Coprates transport's deck program, the Simoom, Camp Lofn, Camp Halloran, FOB Pwyll and the towns from this lore; confirms Melas' horizon profile (4.9). From the contract patch (1.4): **renames** "Noctis class" to the Coprates class and MCRN *Testudo*, D-16 to the Simoom (its cabin drawn for 44 couches, the silos sized for 26 m), L-60 to the Haboob, "FOB Conamara" to FOB Pwyll in the Pwyll airspace, "MCRN Base Callisto" to Camp Lofn, and its town templates to kinds whose instances take 7.4's names, all before any template is authored; flies the transport at doctrine's thrust (6.5), not a 0.38 G cruise; keeps its frigate detachment of 15 (6.2 now agrees); takes Ceres' 0.301 G and the rings' spin from 8.1 (§8's setting 12); runs the ice's closure law (7.3) from its liner model's face temperatures and these far-field temperatures; its Belter town standard is the towns' air (7.3). TECH §1.3, correction 7, applies to its chunks (§2.4, §11: lazy pure generation counted in cells generated per tick, no 4 ms budget).
+- **PLACES**: maps Base Melas, Redwater's Strip, the Highrim Incline, Little Conamara, Phobos' Pens, the Coprates transport's deck program, the Simoom, Camp Lofn, Camp Halloran, FOB Pwyll and the towns from this lore; confirms Melas' horizon profile (4.9) and owns the site's coordinates (PLACES §4.1, CONTRACTS §2: 10.5° S, which 3.8's `SITES.melas` now carries). From the contract patch (1.4): the renames are made (the Coprates class and MCRN *Testudo*, the Simoom with its cabin drawn for 44 couches and the silos sized for 26 m, Camp Lofn, and the town templates as kinds whose instances take 7.4's names); its "FOB Pwyll Deep" reads FOB Pwyll (CONTRACTS §17); its redrawn transport (§5.2: 240 m, eight Simooms and two pinnaces, no heavy lander) is 6.3's record, re-synced in one change (CONTRACTS §19, item 9); flies the transport at doctrine's thrust (6.5), not a 0.38 G cruise; its frigate detachment is 15 (6.2; CONTRACTS §15); takes Ceres' 0.301 G and the rings' spin from 8.1 (§8's setting 12); runs the ice's closure law (7.3) from its liner model's face temperatures and these far-field temperatures; its Ice standard (§3.2) is the towns' air (7.3; CONTRACTS §19, item 1). TECH §1.3, correction 7, applies to its chunks (§2.4, §11: lazy pure generation counted in cells generated per tick, no 4 ms budget).
 - **VIEWS**: draws the Valles pattern and the other uniforms, the insignia and badges (5.5, 5.7), the flag and the emblem, the Martian sky (4.1), the letterhead ("Marine Corps, Martian Congressional Republic Navy" with the Spear and Ring); shows "Sol 590 · MY 211" on the watch. §7.2's sample `SUIT 30.2 kPa` reads at BODY's 34 kPa (`SUIT 34.0 kPa`). A jump on Phobos rises and hangs for minutes (6.1).
 - **TECH**: puts these tables in `src/data/setting/` (1.3, correction 11); ports `ephemeris.js`, `factions.js`, `politics.js`, `conflict.js`, `forces.js`, `intel.js` and `names.js` (13); runs the prologue with its constraints; adds the transports as non-combat Navy hulls; its `src/data/hulls.js` carries the `troops` column (6.2).
-- **ROADMAP**: the build order (16). §3.4's open disagreements are settled (1.4: the voyage thrust, the start date, the ship, craft and FOB names). `moment-drop`'s "powered descent of about two minutes at up to 2.5 G" becomes 6.4's braking burn of about a minute and a quarter at the cap and a minute and a half from the hover, and its "first breath of Ice standard air" becomes the towns' Belter town standard (at the FOB, Martian standard).
+- **ROADMAP**: the build order (16). §3.4's open disagreements are settled (1.4: the voyage thrust, the start date, the ship, craft and FOB names). `moment-drop`'s "powered descent of about two minutes at up to 2.5 G" becomes 6.4's braking burn of about a minute and a quarter at the cap and a minute and a half from the hover.
 
 ---
 
@@ -1254,7 +1259,7 @@ What this section needs from the others, and what they take from it. The contrac
 Settled in the contract patch (my calls, recorded in the hub's decision log; the user may overrule either, and the change is a constant):
 
 - **The start date**: late 2351, **2351-12-19 02:20 UTC** (Mars–Jupiter 5.73 AU and closing, nine months of rolled-forward history), rather than LONGHAUL's own opening (2351-03-22, 6.41 AU, no prologue). CAREER §5.1 and TECH use it (3.7).
-- **The first voyage's thrust**: **1 G out** for the Alert Battalion ("fight at one G"; 7.3 days, the standby's centrifuge sessions tested by a week at the gravity they train for), **0.3 G home** after months at 0.134 G, and 0.38 G for routine rotations (6.5). TIME's 0.38 G default yields to it.
+- **The first voyage's thrust**: **1 G out** for the Alert Battalion ("fight at one G"; 6.9 days, the standby's centrifuge sessions tested by a week at the gravity they train for), **0.3 G home** after months at 0.134 G, and 0.38 G for routine rotations (6.5). TIME's 0.38 G default yields to it. The times are `voyagePlan()`'s door to door, the closed form plus the real legs, with LONGHAUL's +8% guidance overhead left out (TIME §12.5; CONTRACTS §14), so the user is asked about the method with the thrust.
 
 Still open:
 

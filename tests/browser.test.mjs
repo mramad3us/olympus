@@ -1,5 +1,5 @@
 // The game in a real browser (heavy: a server and headless Chrome, through tests/browser.mjs on the
-// browser tests' port 8223, so its saves never touch the player's). It boots from the title with no
+// browser tests' port, 8223 or OLYMPUS_TEST_PORT's, so its saves never touch the player's). It boots from the title with no
 // error and puts its handle on window (window.__olympus: DESIGN.md, Stack, "Debug handle"); and a
 // game saved, run on, loaded and run on again with the same inputs comes out byte for byte the
 // same, in the real browser build (tradecraft's determinism check, ported as it is).

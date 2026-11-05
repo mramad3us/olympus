@@ -25,7 +25,8 @@ import { root as ROOT } from './helpers.mjs';
 
 export const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 export const CHROME_ARGS = ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'];
-export const BROWSER_TEST_PORT = 8223;
+// OLYMPUS_TEST_PORT moves the default, so parallel agents (8230 to 8239) each run the heavy tests on their own.
+export const BROWSER_TEST_PORT = Number(process.env.OLYMPUS_TEST_PORT) || 8223;
 // The user's play copy and dev tree, and the sibling projects' ports (longhaul, tradecraft).
 const NOT_OURS = new Set([8200, 8201, 8090, 8100, 8101, 8112, 8123]);
 const SERVER_WAIT_MS = 5000, STEP_MS = 100, ERROR_GRACE_MS = 500;

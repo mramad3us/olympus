@@ -67,31 +67,32 @@ One record per fight in the live area, in `state.fights` (plain JSON; `$` keys a
 
 ```json
 {
-  "id": "f-0193",
-  "area": "conamara/pump3/level2",
+  "id": "fg193",
+  "area": "tyre.pump-3.level-2",
   "startedMs": 2051333000,
   "phase": "contact",
   "sides": {
-    "blue": { "units": ["u-1-2-E-2-4"], "leaderId": "p-sgt-okafor", "drill": { "id": "react-to-contact", "phase": "fire-superiority", "sinceMs": 2051341000 },
-              "contacts": { "p-red-07": { "x": 41.5, "z": -12.0, "seenMs": 2051339400, "by": "p-lcpl-tanaka", "how": "seen", "conf": 0.9 } } },
-    "red":  { "units": ["cell-pwyll-3"], "leaderId": "p-red-02", "doctrine": "irregular", "contacts": {} },
+    "blue": { "unitIds": ["2/4-E-2-1"], "leaderId": "p50", "drill": { "id": "react-to-contact", "phase": "fire-superiority", "sinceMs": 2051341000 },
+              "contacts": { "p907": { "x": 41.5, "z": -12.0, "seenMs": 2051339400, "byId": "p55", "how": "seen", "conf": 0.9 } } },
+    "red":  { "unitIds": ["cell-pwyll-3"], "leaderId": "p902", "doctrine": "irregular", "contacts": {} },
     "civ":  { "fleeing": 31, "down": 2, "filming": 3 }
   },
   "roe": { "card": "msfe-europa-2351", "fire": "tight", "warningShots": false },
-  "casualties": [{ "id": "p-pfc-ruiz", "side": "blue", "atMs": 2051352100, "precedence": null, "at": { "x": 12, "z": 3 }, "state": "wia", "ccp": null }],
-  "useOfForce": ["uof-0412"],
-  "quietSinceMs": null,
-  "log": "fightlog-0193"
+  "casualties": [{ "who": "p56", "side": "blue", "atMs": 2051352100, "precedence": null, "at": { "x": 12, "z": 3 }, "state": "wia", "ccp": null }],
+  "useOfForce": ["uf412"],
+  "quietSinceMs": null
 }
 ```
+
+Ids follow CONTRACTS §10: a fight is `fg<n>`, a use-of-force record `uf<n>`, a person `p<n>` (the contacts are keyed by theirs), a unit `2/4-E-2-1`; the area is a PLACES id in 2/4's sector (the Tyre Works, SETTING §7.7). The fight keeps no log of its own: its lines are ordinary `log` records (TECH §6.5) that name it by `fightId`.
 
 Per actor, a combat block on the live actor (not the sheet, so a save between fights carries none of it unless a fight is live):
 
 ```json
 {
-  "side": "blue", "unit": "u-1-2-E-2-4", "team": "A", "role": "R",
-  "task": { "kind": "bound", "to": { "x": 18.0, "z": 6.5 }, "orderId": "o-77" },
-  "posture": "kneel", "cover": { "fixture": "crate-12", "keeps": 0.55 }, "anchor": "planted",
+  "side": "blue", "unitId": "2/4-E-2-1", "team": "A", "role": "R",
+  "task": { "kind": "bound", "to": { "x": 18.0, "z": 6.5 }, "orderId": "od77" },
+  "posture": "kneel", "cover": { "fixtureId": "f:pump-3:crate-12", "keeps": 0.55 }, "anchor": "planted",
   "supp": 38, "suppAtMs": 2051350800, "sector": [1.2, 2.4],
   "reactUntilMs": 2051351050, "thinkAtMs": 2051351200,
   "nerve": 0.8, "brokeAtMs": null, "horsDeCombat": false
@@ -107,10 +108,10 @@ Per actor, a combat block on the live actor (not the sheet, so a save between fi
 
 ### 2.3 Training fights: the harness, the umpire and the training casualty
 
-Training fights are fight records with an `exercise` block: the sol-5 field exercise and the MOUT exercise in sols 7–13 (CAREER §5.4), and runs in the shoot house (PLACES).
+Training fights are fight records with an `exercise` block: the mission rehearsal exercise on career sols 7 and 8 and the MOUT exercise in the slipped weekdays, sols 9 to 13 (CAREER §5.4, CONTRACTS §3), and runs in the shoot house (PLACES).
 
 ```json
-{ "exercise": { "kind": "field", "umpireId": "p-ssgt-varga", "regen": true, "regenMin": 10, "hotWashAtMs": 2051990000 } }
+{ "exercise": { "kind": "field", "umpireId": "p61", "regen": true, "regenMin": 10, "hotWashAtMs": 2051990000 } }
 ```
 
 `kind` is one of `field`, `mout` and `shoothouse`. Everything runs as in a live fight, with blanks or marking rounds. The **laser engagement harness** scores hits by the real rolls (my call: the 2351 descendant of MILES). Blanks make no crack, so near misses come as the harness's tone at ×0.5 suppression (§5.1).
@@ -590,8 +591,8 @@ NPC subordinates who are not engaged look at their leader every 3–6 s (my call
 An order is data:
 
 ```json
-{ "id": "o-77", "fromId": "p-sgt-okafor", "to": { "team": "A" }, "verb": "bound", "args": { "x": 18.0, "z": 6.5, "via": "rush" },
-  "channel": "radio", "saidMs": 2051349600, "heardBy": { "p-player": 2051350200, "p-lcpl-tanaka": 2051350200 }, "status": "open" }
+{ "id": "od77", "fromId": "p50", "to": { "team": "A" }, "verb": "bound", "args": { "x": 18.0, "z": 6.5, "via": "rush" },
+  "channel": "radio", "saidMs": 2051349600, "heardBy": { "p233": 2051350200, "p55": 2051350200 }, "status": "open" }
 ```
 
 - It arrives as speech (balloon and log) and on the radio box above the instinct line (VIEWS). The **T line** offers the obedient step with its time: "T: rush with your team to the pump housing (12 m, 3.1 s)." T in stop motion takes the step; T in real time takes it at once (it enters stop motion only if the step is a fighting step).
@@ -653,7 +654,7 @@ Taking it opens a **cut-down order panel** for the rest of that fight. It closes
 
 ### 9.1 The Europa ROE card (my call on the card; it obeys SETTING §7.6's Accord, cited by clause)
 
-The card of the Martian Stabilisation Force, Europa (MSF-E, SETTING §7.6). It is issued as a paper at the Europa brief (CAREER's sol 5 class) and carried in the mind:
+The card of the Martian Stabilisation Force, Europa (MSF-E, SETTING §7.6). It is issued as a paper at the Europa brief (CAREER §5.4's class in Friday's short `train-a`, career sol 4) and carried in the mind:
 1. You may always use force, up to deadly force, to defend yourself, your unit, and persons in your care (UN observers, detainees, civilians you are protecting) against a **hostile act** or **demonstrated hostile intent**.
 2. **Hostile intent** includes: a weapon pointed at a person; preparing to throw or fire; reaching for a weapon after a warning; advancing on a guarded point past its warning line after warnings.
 3. **Positive identification** is required before engaging: you must perceive the person, the weapon or the act.
@@ -746,7 +747,7 @@ Restrain (cuffs), search (tradecraft's 20 s, finds what is carried), tag, segreg
 Every shot fired, CQC strike, less-lethal use and shove by the player (and by NPCs, for the platoon's review) makes a record, filled from what **the actor perceived at the moment** (PEOPLE's perception and the helmet camera, which records the same thing):
 
 ```json
-{ "id": "uof-0412", "byId": "p-player", "atMs": 2051352900, "kind": "lethal-shot", "targetId": "p-civ-118",
+{ "id": "uf412", "byId": "p233", "atMs": 2051352900, "kind": "lethal-shot", "targetId": "p118",
   "perceived": { "pid": false, "cues": ["fast-approach", "hands-hidden", "ignored-commands"], "weaponSeen": false, "hostileAct": false,
                  "distanceM": 9.5, "closingMs": 2.4, "dangerLineM": 15 },
   "eof": ["shout", "shout", "show"], "timeAvailableS": 4.1,
@@ -755,12 +756,14 @@ Every shot fired, CQC strike, less-lethal use and shove by the player (and by NP
   "review": null }
 ```
 
+The player is an ordinary person id (`p233` here, named by `state.player.id`), and the man shot, a crowd member until then, was promoted to a `p` id the moment the record named him, his seed kept in `look.seed` (CONTRACTS §10).
+
 **A detention is a use of force too.** Its record (`kind: "detention"`) adds the Accord's clock:
 
 ```json
 { "kind": "detention",
   "detention": { "restrainedMs": 2051353400, "searchedMs": 2051354100, "jointLogMs": 2051361000,
-                 "handedOverMs": 2051371000, "to": "star-helix", "by": "p-cpl-okafor" } }
+                 "handedOverMs": 2051371000, "to": "star-helix", "byId": "p52" } }
 ```
 
 The review (§9.7) checks two things: that `handedOverMs − restrainedMs` is at most 6 h (21,600,000 ms), and that `jointLogMs` is set before the hand-over.
@@ -1006,7 +1009,7 @@ Demolitions (SKILLS's ladder: "a breaching charge on a door" average; "a hull-cu
 
 Care follows tactical combat casualty care's three phases. Every aid action, DC and time is BODY's (ported from tradecraft's `aid.js`); COMBAT sets the flow.
 1. **Care under fire.** Win the fire first. The casualty, if able, crawls to cover and puts on his own tourniquet. A rescuer drags him to cover (§3.4) only when the drill's leader says so or the rescuer's band is ≤ 1. Only massive bleeding is treated under fire (a tourniquet high and tight).
-2. **Tactical field care**, in cover: BODY's MARCH order (massive bleeding, airway, respiration, circulation, hypothermia and head). The corpsman comes ("Corpsman up!") or a combat lifesaver works (CAREER's sol 4 class).
+2. **Tactical field care**, in cover: BODY's MARCH order (massive bleeding, airway, respiration, circulation, hypothermia and head). The corpsman comes ("Corpsman up!") or a combat lifesaver works (CAREER §5.4's class on career sol 3, the Thursday).
 3. **Evacuation**: to the casualty collection point (CCP), then by the request of §12.3, then through the chain of §12.4.
 
 ### 12.2 The corpsman's triage
@@ -1130,9 +1133,11 @@ The hold starts at the later of the CIC's first track and 90 s before the pass. 
 Every berthing and ready room has a repeater (a screen in a pixel-art bezel, VIEWS's longhaul-grammar instrument), showing the CIC's picture at the ship's sensor knowledge: longhaul's threat board (ship-centred, logarithmic range 1 km to 10,000,000 km, inbound red, ours teal, dark contacts hollow, lost contacts as aging fixes) and, under it, a **timeline strip** of the engagement:
 
 ```json
-{ "kind": "inbound", "id": "ord-5521", "salvo": "s-12", "count": 2, "atMs": 2054112500, "etaKnown": true,
-  "source": "c-unn-danube-07", "profile": "fast", "text": "Two torpedoes, inbound, time to impact 4 min 10 s" }
+{ "kind": "inbound", "id": "ob5521", "salvoId": "sv12", "count": 2, "atMs": 2054112500, "etaKnown": true,
+  "sourceId": "h44", "profile": "fast", "text": "Two torpedoes, inbound, time to impact 4 min 10 s" }
 ```
+
+Ordnance in flight is `ob<n>`, a salvo `sv<n>`, and the firing ship a saved hull, `h<n>`, promoted into `world.hulls` when it fought (CONTRACTS §10; TECH §6.6).
 
 Kinds: `launch` (ours or theirs, when seen), `inbound` (with predicted arrival, updated each minute from the guidance forecast; a slug is an `inbound` with `"profile": "slug"` from the second it is tracked, §13.3), `envelope` (entering our PDC envelope), `intercept`, `hit` (where, as reported), `burn`, `flip`, `jink`, `contact` (new, lost, identified). Past events stay on the strip; predicted ones count down. Items exist only if the ship knows them: a cold torpedo (LONGHAUL's `TORPEDO_RADAR_AU` 0.0002 AU, 29,920 km for a quality-1 sensor) appears on the strip only 25 minutes before it arrives at 20 km/s, instead of the hours a talking torpedo gives **[computed]**. The repeater shows only if the player's couch faces it or they are near it; the suit's visor band shows the general-quarters state, the compartment's pressure and the 1MC's captions, not the tactical picture (my call).
 
@@ -1221,7 +1226,7 @@ Doctrine (my call): board only after the target's PDCs are disabled (longhaul's 
 - **Muster** at the boarding lock: suits on and checked (buddy check 20 s, EVA suit check per SKILLS), weapons with frangible loads (WEAPONS), breaching kit, the stack order given by the team leaders. Lived.
 - **By collar** (the target mated by force or surrendered): capture 2 min, seal 3 min (longhaul's docking timings), equalise (or not: §7.8's rule), then the inner hatch.
 - **By EVA** (§15): tethered to a guide line where one is shot across, otherwise free flight on packs. **[computed]** With the combat pack (§15.1) accelerating at 0.15 m/s² and cruising at 2 m/s: 50 m in 0.6 min, 200 m in 1.9, 500 m in 4.4, 1 km in 8.6, 2 km in 16.9, about 4 m/s of Δv per crossing.
-- **A crossing is never an outcome skip** (the user, 2026-10-29: "it would skip all the gameplay"; TIME §5.1.2). Its first minute is lived. Past that it runs on TIME's fast-forward: the real sim in chunks under `FF_MAX_S` 120 s, with perception, the feel and the visor band live, at TIME's full rate, since in the void there is nothing to read but the target and the gauges (my call). It drops to 1:1 at any contact, when `threatKnown` turns true (§6.1), when a weapon or the target's PDC tracks the party, and at 50 m from the target's hull, where the last metres are tethered and lived.
+- **A crossing is never an outcome skip** (the user, 2026-10-29: "it would skip all the gameplay"; TIME §5.1.2). Its first minute is lived. Past that it runs on TIME's fast-forward: the real sim in chunks under `FF_MAX_MS` 120,000 (CONTRACTS §2), with perception, the feel and the visor band live, at TIME's full rate, since in the void there is nothing to read but the target and the gauges (my call). It drops to 1:1 at any contact, when `threatKnown` turns true (§6.1), when a weapon or the target's PDC tracks the party, and at 50 m from the target's hull, where the last metres are tethered and lived.
 
 ### 14.3 Breach
 
@@ -1350,18 +1355,20 @@ The same sol, at the base or the patrol base, the squad leader runs a short debr
 A paper (TIME's papers), written from the log and the side's board, never from the truth unless the investigation found it:
 
 ```json
-{ "kind": "aar", "fightId": "f-0193", "unit": "1st Sqd, 2nd Plt, E Co, 2/4", "where": "Conamara Under-Ice, Pumping Station 3, level 2",
+{ "kind": "aar", "fightId": "fg193", "unitId": "2/4-E-2-1", "where": "Tyre Works, Pumping Station 3, level 2",
   "fromMs": 2051333000, "toMs": 2051781000,
   "timeline": [ { "atMs": 2051339400, "text": "Contact, east passage, two rifles, 40 m (LCpl Tanaka)" } ],
-  "friendly": [ { "id": "p-pfc-ruiz", "state": "dow", "precedence": "A", "evacMin": 46 } ],
+  "friendly": [ { "who": "p56", "state": "dow", "precedence": "A", "evacMin": 46 } ],
   "enemy": { "confirmed": 3, "probable": 1, "detained": 2 },
   "civilian": { "killed": 0, "wounded": 1, "by": "enemy fire" },
   "you": { "rounds": 61, "magazines": 3, "hitsClaimed": 2, "hitsConfirmed": 1, "ordersObeyed": 5, "ordersNotObeyed": 0, "cas": true },
-  "useOfForce": [ { "id": "uof-0412", "finding": "justified" } ],
+  "useOfForce": [ { "id": "uf412", "finding": "justified" } ],
   "conductUnderFire": "good", "valour": [ { "kind": "drag-under-fire", "grade": 1 } ], "initiative": null,
   "lessons": ["The east passage was covered by one man for ninety seconds."],
   "xp": [ { "class": "contact", "base": 15, "outcome": 0.8, "difficulty": 1.0, "risk": 1.2, "total": 14.4 } ] }
 ```
+
+The paper prints the unit from its id ("1st Sqd, 2nd Plt, E Co, 2/4") and each person by name and rank (CONTRACTS §10).
 
 - `conductUnderFire` (good, adequate, poor) feeds CAREER's standing (+5 for good). It reads: orders obeyed, returning fire, staying with the team, aid given, steps taken while suppressed.
 - `valour` events feed CAREER's valour medals by grade (my calls): 1, an act under fire for a comrade (a drag, aid in the open), or taking charge of the team under fire (§8.5); 2, the same under heavy fire (band 3) or wounded; 3, an act that turned the fight or saved several at mortal risk. The Combat Action Ribbon is CAREER's: under hostile fire and returned it (`cas`).
@@ -1426,7 +1433,7 @@ Modules COMBAT asks TECH to lay out (TECH §2.1 adopted the list): `src/sim/comb
   - Decisions: at most 6 fighters a tick (§3.2), each 16 candidates of cover-field lookups, 16 line-of-sight tests and 16 short path estimates: about 50 µs each.
   - Suppression: one subtraction per fighter per tick.
   - The cover field is built at area load (about 40 ms for 40,000 cells, my estimate; spread over frames) and patched locally.
-- **The busiest area is a fight among civilians**, not the mess at noon. Think of a checkpoint contact, a riot or a boarding. TECH's `mess-noon` (TECH §3.1) holds no fight, and COMBAT's 0.8 ms, PEOPLE's 0.8 ms and paths' 0.6 ms add up to 2.2 ms if each is taken at its own worst. So COMBAT asks for a second busiest-area scene from 0.0.11, **`village-contact`**.
+- **The busiest area is a fight among civilians**, not the mess at noon. Think of a checkpoint contact, a riot or a boarding. TECH's `mess-noon` (TECH §3.1) holds no fight, and COMBAT's 0.8 ms, PEOPLE's 0.50 ms and paths' 0.60 ms (CONTRACTS §6) come to 1.9 ms if each is taken at its own worst, 2.23 ms with BODY's 0.20 and the rest's 0.13. So COMBAT asks for a second busiest-area scene from the patrol's join (0.1.x, ROADMAP §5.8), **`village-contact`**.
   - It is the MOUT exercise's contact in the training village: two squads with blanks and the harness (26 fighters), 4 umpires, 60 role-players as the village's crowd, and the player.
   - It runs in `game-tick` (node) and as a bench scene (`?bench=village-contact`), and both print every layer.
   - Its budget by TECH §3.1's layers is below (my proposal; TECH owns the table).
@@ -1480,7 +1487,7 @@ Each test is `tests/<name>.test.mjs` with seeded loops; heavy ones are skipped u
 | `patrol` (heavy) | 100 seeded 2-hour patrols with three danger areas (§21): real minutes per patrol (target 25 to 40), the share of game time at 1:1, interrupts by kind; and **parity**: the same seed with every leg lived at 1:1 gives the same IED and watcher spotted at the same tick |
 | `offscreen` | §16.1's calibration table, live; Lanchester losses for 3 zone fights |
 | `aar` | the paper and XP for 6 scripted fights; for 2 training fights, each training casualty's option (§2.3), the harness log in the paper and the real minutes spent out of the fight |
-| `village-contact` (in TECH's `game-tick`, from 0.0.11) | the tick's mean and p99 per layer of TECH §3.1 in the scene of §19; fails over 2 ms mean |
+| `village-contact` (in TECH's `game-tick`, from the patrol's join at 0.1.x) | the tick's mean and p99 per layer of TECH §3.1 in the scene of §19; fails over 2 ms mean |
 | `combat.browser` | playwright: a shoot-house run through the real page: stop motion entered, three steps, a hit, the after-action paper shown |
 
 ---
@@ -1494,12 +1501,12 @@ Each test is `tests/<name>.test.mjs` with seeded loops; heavy ones are skipped u
 **Where it would turn into chores, and what removes them.**
 - **Patrol legs.** No outcome skip ever replaces a leg (the user, 2026-10-29, §1; TIME §5.1.2). On a patrol the watching is the gameplay, and an outcome skip runs no perception: the IED, the watcher and the ambush would become dice drawn ahead that the player never sees coming. But a 2-hour patrol lived at 1:1 takes 2 real hours, and a tour holds dozens, which alone would break the hub's 40 to 70 minute active sol. So:
   - **Move with the patrol** is the default for every leg: an auto-walk in formation. T follows the point man, at your slot and sector (§7.6).
-  - **Quiet legs** run on TIME's fast-forward: the real sim tick by tick, with perception, hearing, the feel and every roll live. It goes at `PATROL_FF_RATE` ×10 (my call: slow enough to read the street), in chunks under `FF_MAX_S` 120 s, each chunk checked against `threatKnown` (§6.1).
+  - **Quiet legs** run on TIME's fast-forward: the real sim tick by tick, with perception, hearing, the feel and every roll live. It goes at `PATROL_FF_RATE` ×10 (my call: slow enough to read the street), in chunks under `FF_MAX_MS` 120,000 (CONTRACTS §2), each chunk checked against `threatKnown` (§6.1).
   - **Danger areas** marked on the patrol order are lived at 1:1: a gallery mouth, a market, a known IED route, a choke point.
   - **The fast-forward drops to 1:1 at once** on any perception event (a cue, a contact, a sound, a felt watcher, SKILLS §13), on the NCO's halts (a security halt, a listening halt, a "Set"), on an order to you, and whenever `threatKnown` turns true.
   - **The player** stops it with any movement key, G, X or E (to look), and may live any leg, or the whole patrol, at 1:1. The rate is the activity's own, not a speed control (the hub allows none while you act): the player can stop the fast-forward but never quicken it.
   - **The result**: a 2-hour patrol with three danger areas plays in about 25 to 40 real minutes (my target; the `patrol` test and ROADMAP's `patroller` bot print it). Spotting the IED is the same Awareness roll at the same tick whether the leg ran at 1:1 or fast.
-  - The sol-5 field exercise's patrol on Mars runs the same way.
+  - The mission rehearsal exercise's patrol on Mars (career sols 7 and 8) runs the same way.
 - **General quarters' hours**: the wait skip with hold points (§13.3), and the choices it asks at the couch.
 - **Checkpoint shifts**: the deck of cases (§9.9). Routine subjects go in the ticker; one to three an hour are lived.
 - **Consolidation, magazine redistribution, searches, detainee paperwork**: the Consolidate activity (§17.1).
@@ -1512,12 +1519,15 @@ Each test is `tests/<name>.test.mjs` with seeded loops; heavy ones are skipped u
 
 ## 22. Build order
 
-The milestones are ROADMAP's (its §3.4 moved this section's first proposal: real ship combat from 0.2 to 0.4, boarding and command from 0.4 to 0.5, special operations to 0.6 and 0.7, the squad leader's panel to 0.8). This order follows it.
+The milestones are ROADMAP's (its §3.4 moved this section's first proposal: the training scenes over 0.0.6 and 0.1.x, real ship combat from 0.2 to 0.4, boarding and command from 0.4 to 0.5, special operations to 0.6 and 0.7, the squad leader's panel to 0.8). This order follows it; a patch number names ROADMAP's row, not a release (CONTRACTS §18).
 
 **0.0.x, the scored scenes** (ROADMAP §4.2):
-- **0.0.6** `test-range`: stop motion's shooting steps; `reflex.js`.
-- **0.0.8** `test-mat-lane`: the mat (§10, Mars gravity only); the combat lifesaver lane's casualty card and a practice 9-line (§12.3).
-- **0.0.11** `test-field`: everything of §3 to §8 in training form, and §9's lane.
+- **0.0.6** `test-handling`: stop motion's shooting steps; `reflex.js`.
+
+**0.1.x, the scenes that fill the week** (ROADMAP §5.8), each scored, then joined:
+- `test-lane`: the combat lifesaver lane's casualty card and a practice 9-line (§12.3).
+- `test-mat`: the mat (§10, Mars gravity only).
+- `test-patrol`: everything of §3 to §8 in training form.
   - Stop motion's combat steps, long steps, interrupts, late notice and startle (§3).
   - Cover with Base Melas's fixtures and the training village's (§4), and the cover field.
   - Suppression (§5) with blanks and the laser engagement harness (§2.3): shots resolved by the real rolls, hits scored on the harness instead of the body, near-miss tones at ×0.5 suppression. The training casualty's three options (§2.3).
@@ -1525,15 +1535,15 @@ The milestones are ROADMAP's (its §3.4 moved this section's first proposal: rea
   - Orders received: voice, radio, signals, the T line (§8.1, §8.2, §8.4). No order panel yet.
   - The patrol's legs as "Move with the patrol" on the fast-forward, with danger areas at 1:1 (§21).
   - `threatKnown` (§6.1), since the first skip refused in a fight is here.
-  - The ROE lane at the mock checkpoint: the compliance model, the use-of-force record and the review, with the instructor's critique as its paper (§9).
   - Training after-actions and XP (§17); the other squads' results off-screen (§16.1).
-  - The **`village-contact`** scene in `game-tick` and the bench (§19), so the busiest real case is measured from the first fight.
+  - The **`village-contact`** scene in `game-tick` and the bench (§19), with the patrol's join, so the busiest real case is measured from the first fight.
+- `test-roe-lane`: §9's lane at the mock checkpoint: the compliance model, the use-of-force record and the review, with the instructor's critique as its paper (§9).
 
-**0.1, the standby week at Base Melas** (CAREER's calendar). It joins the scenes into the week, everything in training form, so every system exists and is tested with nothing lethal:
-- the sol-5 squad field exercise down the valley floor against another squad as the opposing force;
-- the ROE and EOF class on the sol-5 morning, and its lane;
-- the MOUT exercise in the training village (sols 7–13): stack and clear with marking rounds (a bruise, BODY), `enter-and-clear` (§7.8), regeneration on long exercises (§2.3);
-- the mat session; the lifesaver lane.
+**0.1, the standby week at Base Melas** (CAREER §5.4's calendar, CONTRACTS §3). 0.1.0 holds the classes; the 0.1.x joins put each scene into the week, everything in training form, so every system exists and is tested with nothing lethal:
+- **0.1.x**: the mission rehearsal exercise on career sols 7 and 8 (CAREER §5.4) against another squad as the opposing force;
+- **0.1.0**: the ROE and EOF class in Friday's short `train-a` (career sol 4), with the Europa brief; **0.1.x**: its lane;
+- **0.1.x**: the MOUT exercise in the training village (the slipped weekdays, sols 9 to 13): stack and clear with marking rounds (a bruise, BODY), `enter-and-clear` (§7.8), regeneration on long exercises (§2.3);
+- **0.1.x**: the mat session; the lifesaver lane.
 
 **0.2, the voyage**: general quarters drills on the troopship; the wait skip and its hold points; the couch's choices (§13.3); the repeater on a drill picture; drill hits as interior events, on the pipeline the real fight will use; damage control jobs in drill; zero-g training in the flip and a zero-g mat (§10.3, §13, §14.5).
 
@@ -1561,7 +1571,7 @@ The milestones are ROADMAP's (its §3.4 moved this section's first proposal: rea
 - **SETTING**: the Europa Accord (§7.6), whose clauses 4 to 7 the ROE card cites (frangible only and no explosives inside pressure, detainees to Star Helix within 6 h, the joint log, entry into dwellings, the observers); names of the Corps' combatives belts and medals; Belter Lang phrases; factions' faces for §7.9 (Star Helix as the towns' police); the evacuation chain's facilities (Role 2 town, Naval Station Valhalla's hospital at Role 3 and Phobos at Role 4).
 - **TIME**: stop motion's general mechanism and freezing rules; the skip contract and splash for the wait at general quarters, Consolidate and CASEVAC; interrupts to skips; papers; the world layer's cadence for ground incidents; autosave rules in a fight. Specifically:
   - TIME §5.1.6 should cite §6.1 here for `threatKnown`, its four reasons and the alarms' answering activities.
-  - A **chained fast-forward**: TIME §5.2's `ff` engine run in chunks under `FF_MAX_S`, each re-checked against `threatKnown`, for patrol legs (at `PATROL_FF_RATE` ×10), EVA crossings (at TIME's full rate) and the training observer (at `OBSERVE_FF_RATE` ×4). Never an outcome skip on a journey (TIME §5.1.2).
+  - A **chained fast-forward**: TIME §5.2's `ff` engine run in chunks under `FF_MAX_MS` (CONTRACTS §2), each re-checked against `threatKnown`, for patrol legs (at `PATROL_FF_RATE` ×10), EVA crossings (at TIME's full rate) and the training observer (at `OBSERVE_FF_RATE` ×4). Never an outcome skip on a journey (TIME §5.1.2).
   - The activities `wait-at-station` (§13.3), `checkpoint-shift` (§9.9, mask `D A O B P`, chunked by the hour) and `move-with-patrol` (§21) in its table.
 - **BODY**: wounds from bullets, fragments, blast, spall and hypervelocity; pain, shock, consciousness, knockdown (and whether the player is knocked down); every first aid action, DC and time; `minutesTo()`; drag and carry speeds; run speed and traction by gravity; G-load, juice and G-LOC; suits as life support, breaches and patches; stress and combat stress; radiation dose and the suit's shielding; compressive asphyxia; blast lung and eardrums; `bodyMods()` and `needMods()`. Specifically:
   - **Free-fall movement**: push-offs, grabs, landings and mag boots, whose numbers BODY §16.6 and §16.7 own and COMBAT §3.4 and §14.5 only cite. They should roll Zero-g, as SKILLS §2.2 gives them, not EVA as BODY's text says now. EVA stays the skill for suit work.
@@ -1584,13 +1594,13 @@ The milestones are ROADMAP's (its §3.4 moved this section's first proposal: rea
   - PLACES §12's formation marches to the range and the training village run on TIME's chained fast-forward with perception live, as patrol legs do, never as an outcome skip (TIME §5.1.2).
 - **VIEWS**: the step panel, the order panel and its key, the cut-down "Take the team" panel (§8.5), the 9-line card, the repeater's drawing, the visor band, the heard plaque, the instinct line and radio box, shake from hits (COMBAT gives `dp / 30` m/s), suppression's look if any, the log's expandable bursts, the checkpoint's ticker and the training casualty's card (§2.3, §9.9).
 - **TECH**: the ship layer one minute ahead with timestamped interior events; module layout (with `threat.js` and `checkpoint.js`, §18); tick order (COMBAT asks for: perception, then fighter decisions, then timed actions and movement, then shot and blast resolution, then suppression decay); rng streams; the test runner. Specifically:
-  - The **`village-contact`** scene in `game-tick` and the bench from 0.0.11 (§19).
+  - The **`village-contact`** scene in `game-tick` and the bench from the patrol's join at 0.1.x (§19).
   - §19's level-of-detail rules carried into TECH §3.1's layer budgets.
 - **ROADMAP** (its text to align):
   - §8's `moment-vampire` says "a railgun slug gives no warning". It should read "a slug gives only its sensor warning, held from at most 90 s out" (§13.3).
   - §9's `moment-away` calls the crossing "skippable with interrupts". It should read "fast-forwarded with perception live" (§14.2).
   - §7's 0.3 list should add "Take the team" (§8.5) and the checkpoint's deck of cases (§9.9), and should read "grenades only where the Accord allows them" in place of "grenades in towns".
-  - §4.2's 0.0.11 should add the `village-contact` scene.
+  - §5.8's patrol join carries the `village-contact` scene, as it now does.
 
 ---
 
