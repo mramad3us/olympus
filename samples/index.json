@@ -1,0 +1,916 @@
+{
+ "built": "2026-11-05T19:46",
+ "samples": [
+  {
+   "id": "look",
+   "title": "The look: five scenes with their people, in the four candidates",
+   "about": "The first look round put together: the kit's scenes (samples/scenes) with the real figures in them (samples/figures, one instanced draw), lit by the scene's mood, in the game's own frame (zoom 1, 40 × 22.5 m), or zoomed twice where a splash would frame it (L2, L5). Each scene is shown four ways, the two open questions crossed: the density (16 px/m at 640 × 360, tradecraft's; or 24 px/m at 960 × 540) by row, and the figures (A, chibi, about 2.4 heads, tradecraft's; or B, soldier, about 3.8 heads) by column. Nothing else changes inside a scene's four pictures: the same people in the same places at the same moment. Shots are the picture's own pixels at × 2, so both densities fill the same width here; click one to see it larger and flip between the four with the arrow keys. Star what you like and give each a score out of 100, then Copy my picks and paste it back.",
+   "pixel": true,
+   "matrix": {
+    "rows": [
+     "16 px/m",
+     "24 px/m"
+    ],
+    "cols": [
+     "A: chibi",
+     "B: soldier"
+    ]
+   },
+   "groups": [
+    {
+     "id": "L1",
+     "title": "The squad bay at reveille",
+     "about": "Echo Company's east wing at Base Melas (PLACES §4.4): three squad bays, the hallway, the heads and the lounge, the overheads on before the sky is light. Thirteen marines get up: you in PT kit down the 1st squad's aisle, one dressing at an open wall locker, one on a footlocker lacing his shoes, one in a towel heading out for the head, the squad leader (a sergeant in utilities) calling the 2nd squad, a late riser still asleep on an upper rack, one making her rack, two of the 3rd squad out to formation, one at the study table, the fire watch by his desk in the hallway, one at head A's basins. Zoom 1: the game's frame, 40 × 22.5 m.",
+     "sets": [
+      null
+     ],
+     "matrix": {
+      "rows": [
+       "16 px/m",
+       "24 px/m"
+      ],
+      "cols": [
+       "A: chibi",
+       "B: soldier"
+      ]
+     },
+     "views": [
+      {
+       "id": "L1-a",
+       "set": 0,
+       "row": 0,
+       "col": 0,
+       "name": "16 px/m · A: chibi",
+       "query": "scene=bay&t=0.9&ppm=16&prop=chibi",
+       "shot": "look/shots/l1-a.png",
+       "native": [
+        640,
+        360
+       ],
+       "report": {
+        "frame": [
+         640,
+         360
+        ],
+        "ppm": 16,
+        "prop": "chibi",
+        "mood": "reveille",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 3.7,
+        "people": 13,
+        "looks": 12,
+        "drawn": 13,
+        "boxes": 827,
+        "figureUploads": 12,
+        "figureKB": 2520,
+        "figurePaintMs": 257.3
+       }
+      },
+      {
+       "id": "L1-b",
+       "set": 0,
+       "row": 0,
+       "col": 1,
+       "name": "16 px/m · B: soldier",
+       "query": "scene=bay&t=0.9&ppm=16&prop=soldier",
+       "shot": "look/shots/l1-b.png",
+       "native": [
+        640,
+        360
+       ],
+       "report": {
+        "frame": [
+         640,
+         360
+        ],
+        "ppm": 16,
+        "prop": "soldier",
+        "mood": "reveille",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 0.6,
+        "people": 13,
+        "looks": 12,
+        "drawn": 13,
+        "boxes": 827,
+        "figureUploads": 12,
+        "figureKB": 2520,
+        "figurePaintMs": 225.3
+       }
+      },
+      {
+       "id": "L1-c",
+       "set": 0,
+       "row": 1,
+       "col": 0,
+       "name": "24 px/m · A: chibi",
+       "query": "scene=bay&t=0.9&ppm=24&prop=chibi",
+       "shot": "look/shots/l1-c.png",
+       "native": [
+        960,
+        540
+       ],
+       "report": {
+        "frame": [
+         960,
+         540
+        ],
+        "ppm": 24,
+        "prop": "chibi",
+        "mood": "reveille",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 1,
+        "people": 13,
+        "looks": 12,
+        "drawn": 13,
+        "boxes": 827,
+        "figureUploads": 12,
+        "figureKB": 5670,
+        "figurePaintMs": 370.4
+       }
+      },
+      {
+       "id": "L1-d",
+       "set": 0,
+       "row": 1,
+       "col": 1,
+       "name": "24 px/m · B: soldier",
+       "query": "scene=bay&t=0.9&ppm=24&prop=soldier",
+       "shot": "look/shots/l1-d.png",
+       "native": [
+        960,
+        540
+       ],
+       "report": {
+        "frame": [
+         960,
+         540
+        ],
+        "ppm": 24,
+        "prop": "soldier",
+        "mood": "reveille",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 0.8,
+        "people": 13,
+        "looks": 12,
+        "drawn": 13,
+        "boxes": 827,
+        "figureUploads": 12,
+        "figureKB": 5670,
+        "figurePaintMs": 358.8
+       }
+      }
+     ]
+    },
+    {
+     "id": "L2",
+     "title": "The head: a shower behind its curtain",
+     "about": "Head 2A in the evening. One marine showers in the middle stall behind its drawn curtain (VIEWS §3.4: the curtain from the shins to the shoulders, the wet hair above it; the steam over the one shower running); you in a towel at the basins under the fogged mirror, another brushing his teeth beside you, one drying off on the bench, one coming in through the door. Zoom 2 (20 × 11.25 m), the framing of the shower's splash (DESIGN: the splash is the stage zoomed close on you at the appliance).",
+     "sets": [
+      null
+     ],
+     "matrix": {
+      "rows": [
+       "16 px/m",
+       "24 px/m"
+      ],
+      "cols": [
+       "A: chibi",
+       "B: soldier"
+      ]
+     },
+     "views": [
+      {
+       "id": "L2-a",
+       "set": 0,
+       "row": 0,
+       "col": 0,
+       "name": "16 px/m · A: chibi",
+       "query": "scene=head&zoom=2&t=0.9&ppm=16&prop=chibi",
+       "shot": "look/shots/l2-a.png",
+       "native": [
+        320,
+        180
+       ],
+       "report": {
+        "frame": [
+         320,
+         180
+        ],
+        "ppm": 16,
+        "prop": "chibi",
+        "mood": "evening",
+        "zoom": 2,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 0.6,
+        "people": 5,
+        "looks": 5,
+        "drawn": 5,
+        "boxes": 86,
+        "figureUploads": 5,
+        "figureKB": 1092,
+        "figurePaintMs": 116.2
+       }
+      },
+      {
+       "id": "L2-b",
+       "set": 0,
+       "row": 0,
+       "col": 1,
+       "name": "16 px/m · B: soldier",
+       "query": "scene=head&zoom=2&t=0.9&ppm=16&prop=soldier",
+       "shot": "look/shots/l2-b.png",
+       "native": [
+        320,
+        180
+       ],
+       "report": {
+        "frame": [
+         320,
+         180
+        ],
+        "ppm": 16,
+        "prop": "soldier",
+        "mood": "evening",
+        "zoom": 2,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 2.1,
+        "people": 5,
+        "looks": 5,
+        "drawn": 5,
+        "boxes": 86,
+        "figureUploads": 5,
+        "figureKB": 1092,
+        "figurePaintMs": 111.5
+       }
+      },
+      {
+       "id": "L2-c",
+       "set": 0,
+       "row": 1,
+       "col": 0,
+       "name": "24 px/m · A: chibi",
+       "query": "scene=head&zoom=2&t=0.9&ppm=24&prop=chibi",
+       "shot": "look/shots/l2-c.png",
+       "native": [
+        480,
+        270
+       ],
+       "report": {
+        "frame": [
+         480,
+         270
+        ],
+        "ppm": 24,
+        "prop": "chibi",
+        "mood": "evening",
+        "zoom": 2,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 0.9,
+        "people": 5,
+        "looks": 5,
+        "drawn": 5,
+        "boxes": 86,
+        "figureUploads": 5,
+        "figureKB": 2457,
+        "figurePaintMs": 189.2
+       }
+      },
+      {
+       "id": "L2-d",
+       "set": 0,
+       "row": 1,
+       "col": 1,
+       "name": "24 px/m · B: soldier",
+       "query": "scene=head&zoom=2&t=0.9&ppm=24&prop=soldier",
+       "shot": "look/shots/l2-d.png",
+       "native": [
+        480,
+        270
+       ],
+       "report": {
+        "frame": [
+         480,
+         270
+        ],
+        "ppm": 24,
+        "prop": "soldier",
+        "mood": "evening",
+        "zoom": 2,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 1,
+        "people": 5,
+        "looks": 5,
+        "drawn": 5,
+        "boxes": 86,
+        "figureUploads": 5,
+        "figureKB": 2457,
+        "figurePaintMs": 176.1
+       }
+      }
+     ]
+    },
+    {
+     "id": "L3",
+     "title": "The mess hall at noon: the queue at the serving line",
+     "about": "The mess hall's western 40 m at the noon meal (PLACES §4.5). A queue comes from the entry's hand basins through the door to the tray start, and along the line marines face the hot wells with their trays; four cooks in whites behind the line and at a prep table; a sergeant at the headcount desk; nine at the tables, the north benches facing you, the south ones their backs. Twenty-five people, thirteen looks. Zoom 1.",
+     "sets": [
+      null
+     ],
+     "matrix": {
+      "rows": [
+       "16 px/m",
+       "24 px/m"
+      ],
+      "cols": [
+       "A: chibi",
+       "B: soldier"
+      ]
+     },
+     "views": [
+      {
+       "id": "L3-a",
+       "set": 0,
+       "row": 0,
+       "col": 0,
+       "name": "16 px/m · A: chibi",
+       "query": "scene=mess&t=0.9&ppm=16&prop=chibi",
+       "shot": "look/shots/l3-a.png",
+       "native": [
+        640,
+        360
+       ],
+       "report": {
+        "frame": [
+         640,
+         360
+        ],
+        "ppm": 16,
+        "prop": "chibi",
+        "mood": "noon",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 0.5,
+        "people": 25,
+        "looks": 12,
+        "drawn": 25,
+        "boxes": 378,
+        "figureUploads": 17,
+        "figureKB": 2940,
+        "figurePaintMs": 230.9
+       }
+      },
+      {
+       "id": "L3-b",
+       "set": 0,
+       "row": 0,
+       "col": 1,
+       "name": "16 px/m · B: soldier",
+       "query": "scene=mess&t=0.9&ppm=16&prop=soldier",
+       "shot": "look/shots/l3-b.png",
+       "native": [
+        640,
+        360
+       ],
+       "report": {
+        "frame": [
+         640,
+         360
+        ],
+        "ppm": 16,
+        "prop": "soldier",
+        "mood": "noon",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 0.8,
+        "people": 25,
+        "looks": 12,
+        "drawn": 25,
+        "boxes": 378,
+        "figureUploads": 17,
+        "figureKB": 2940,
+        "figurePaintMs": 210.5
+       }
+      },
+      {
+       "id": "L3-c",
+       "set": 0,
+       "row": 1,
+       "col": 0,
+       "name": "24 px/m · A: chibi",
+       "query": "scene=mess&t=0.9&ppm=24&prop=chibi",
+       "shot": "look/shots/l3-c.png",
+       "native": [
+        960,
+        540
+       ],
+       "report": {
+        "frame": [
+         960,
+         540
+        ],
+        "ppm": 24,
+        "prop": "chibi",
+        "mood": "noon",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 1.4,
+        "people": 25,
+        "looks": 12,
+        "drawn": 25,
+        "boxes": 378,
+        "figureUploads": 17,
+        "figureKB": 6615,
+        "figurePaintMs": 510.5
+       }
+      },
+      {
+       "id": "L3-d",
+       "set": 0,
+       "row": 1,
+       "col": 1,
+       "name": "24 px/m · B: soldier",
+       "query": "scene=mess&t=0.9&ppm=24&prop=soldier",
+       "shot": "look/shots/l3-d.png",
+       "native": [
+        960,
+        540
+       ],
+       "report": {
+        "frame": [
+         960,
+         540
+        ],
+        "ppm": 24,
+        "prop": "soldier",
+        "mood": "noon",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 0.7,
+        "people": 25,
+        "looks": 12,
+        "drawn": 25,
+        "boxes": 378,
+        "figureUploads": 17,
+        "figureKB": 6615,
+        "figurePaintMs": 431.9
+       }
+      }
+     ]
+    },
+    {
+     "id": "L4",
+     "title": "The valley floor: two marines in vac suits, by day and in a dust storm",
+     "about": "Melas Chasma's floor by the Talus 3 station (the vehicle lock, the dust vestibule, a scarp of layered deposits). A suit drill: you in the light vac suit, rifle at the low ready, walking back up to the vehicle lock; the other in the low-g bound at 0.38 g (the lope's apex, 0.45 m up, the shadow under it shrunk), rifle slung. a to d by a clear day; e to h in a dust storm of optical depth 4 (VIEWS §2.7: the sun at a tenth, sight about 100 m, dust falling and blowing), the fog of awareness round you (what you aren't looking at veiled), the other marine a shape in the haze at the edge of your sight. Zoom 1.",
+     "sets": [
+      "clear day",
+      "dust storm, τ 4"
+     ],
+     "matrix": {
+      "rows": [
+       "16 px/m",
+       "24 px/m"
+      ],
+      "cols": [
+       "A: chibi",
+       "B: soldier"
+      ]
+     },
+     "views": [
+      {
+       "id": "L4-a",
+       "set": 0,
+       "row": 0,
+       "col": 0,
+       "name": "clear day · 16 px/m · A: chibi",
+       "query": "scene=chasm&t=0.9&mood=day&ppm=16&prop=chibi",
+       "shot": "look/shots/l4-a.png",
+       "native": [
+        640,
+        360
+       ],
+       "report": {
+        "frame": [
+         640,
+         360
+        ],
+        "ppm": 16,
+        "prop": "chibi",
+        "mood": "day",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 1.4,
+        "people": 2,
+        "looks": 2,
+        "drawn": 2,
+        "boxes": 254,
+        "figureUploads": 2,
+        "figureKB": 504,
+        "figurePaintMs": 94.1
+       }
+      },
+      {
+       "id": "L4-b",
+       "set": 0,
+       "row": 0,
+       "col": 1,
+       "name": "clear day · 16 px/m · B: soldier",
+       "query": "scene=chasm&t=0.9&mood=day&ppm=16&prop=soldier",
+       "shot": "look/shots/l4-b.png",
+       "native": [
+        640,
+        360
+       ],
+       "report": {
+        "frame": [
+         640,
+         360
+        ],
+        "ppm": 16,
+        "prop": "soldier",
+        "mood": "day",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 1.5,
+        "people": 2,
+        "looks": 2,
+        "drawn": 2,
+        "boxes": 254,
+        "figureUploads": 2,
+        "figureKB": 504,
+        "figurePaintMs": 97.5
+       }
+      },
+      {
+       "id": "L4-c",
+       "set": 0,
+       "row": 1,
+       "col": 0,
+       "name": "clear day · 24 px/m · A: chibi",
+       "query": "scene=chasm&t=0.9&mood=day&ppm=24&prop=chibi",
+       "shot": "look/shots/l4-c.png",
+       "native": [
+        960,
+        540
+       ],
+       "report": {
+        "frame": [
+         960,
+         540
+        ],
+        "ppm": 24,
+        "prop": "chibi",
+        "mood": "day",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 0.6,
+        "people": 2,
+        "looks": 2,
+        "drawn": 2,
+        "boxes": 254,
+        "figureUploads": 2,
+        "figureKB": 1134,
+        "figurePaintMs": 211.8
+       }
+      },
+      {
+       "id": "L4-d",
+       "set": 0,
+       "row": 1,
+       "col": 1,
+       "name": "clear day · 24 px/m · B: soldier",
+       "query": "scene=chasm&t=0.9&mood=day&ppm=24&prop=soldier",
+       "shot": "look/shots/l4-d.png",
+       "native": [
+        960,
+        540
+       ],
+       "report": {
+        "frame": [
+         960,
+         540
+        ],
+        "ppm": 24,
+        "prop": "soldier",
+        "mood": "day",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 0.9,
+        "people": 2,
+        "looks": 2,
+        "drawn": 2,
+        "boxes": 254,
+        "figureUploads": 2,
+        "figureKB": 1134,
+        "figurePaintMs": 159.9
+       }
+      },
+      {
+       "id": "L4-e",
+       "set": 1,
+       "row": 0,
+       "col": 0,
+       "name": "dust storm, τ 4 · 16 px/m · A: chibi",
+       "query": "scene=chasm&t=0.9&mood=storm&ppm=16&prop=chibi",
+       "shot": "look/shots/l4-e.png",
+       "native": [
+        640,
+        360
+       ],
+       "report": {
+        "frame": [
+         640,
+         360
+        ],
+        "ppm": 16,
+        "prop": "chibi",
+        "mood": "storm",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 1.9,
+        "people": 2,
+        "looks": 2,
+        "drawn": 2,
+        "boxes": 254,
+        "figureUploads": 2,
+        "figureKB": 504,
+        "figurePaintMs": 96.3
+       }
+      },
+      {
+       "id": "L4-f",
+       "set": 1,
+       "row": 0,
+       "col": 1,
+       "name": "dust storm, τ 4 · 16 px/m · B: soldier",
+       "query": "scene=chasm&t=0.9&mood=storm&ppm=16&prop=soldier",
+       "shot": "look/shots/l4-f.png",
+       "native": [
+        640,
+        360
+       ],
+       "report": {
+        "frame": [
+         640,
+         360
+        ],
+        "ppm": 16,
+        "prop": "soldier",
+        "mood": "storm",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 1.2,
+        "people": 2,
+        "looks": 2,
+        "drawn": 2,
+        "boxes": 254,
+        "figureUploads": 2,
+        "figureKB": 504,
+        "figurePaintMs": 82
+       }
+      },
+      {
+       "id": "L4-g",
+       "set": 1,
+       "row": 1,
+       "col": 0,
+       "name": "dust storm, τ 4 · 24 px/m · A: chibi",
+       "query": "scene=chasm&t=0.9&mood=storm&ppm=24&prop=chibi",
+       "shot": "look/shots/l4-g.png",
+       "native": [
+        960,
+        540
+       ],
+       "report": {
+        "frame": [
+         960,
+         540
+        ],
+        "ppm": 24,
+        "prop": "chibi",
+        "mood": "storm",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 1,
+        "people": 2,
+        "looks": 2,
+        "drawn": 2,
+        "boxes": 254,
+        "figureUploads": 2,
+        "figureKB": 1134,
+        "figurePaintMs": 197.8
+       }
+      },
+      {
+       "id": "L4-h",
+       "set": 1,
+       "row": 1,
+       "col": 1,
+       "name": "dust storm, τ 4 · 24 px/m · B: soldier",
+       "query": "scene=chasm&t=0.9&mood=storm&ppm=24&prop=soldier",
+       "shot": "look/shots/l4-h.png",
+       "native": [
+        960,
+        540
+       ],
+       "report": {
+        "frame": [
+         960,
+         540
+        ],
+        "ppm": 24,
+        "prop": "soldier",
+        "mood": "storm",
+        "zoom": 1,
+        "palette": "mars",
+        "calls": 6,
+        "cpuMs": 0.8,
+        "people": 2,
+        "looks": 2,
+        "drawn": 2,
+        "boxes": 254,
+        "figureUploads": 2,
+        "figureKB": 1134,
+        "figurePaintMs": 144.9
+       }
+      }
+     ]
+    },
+    {
+     "id": "L5",
+     "title": "A frigate's deck 5 at battle stations: strapped into a crash couch",
+     "about": "A Hellas-class frigate's marine deck under battle red (the panels at a third, the red strips; the ship palette). You lie strapped into a crash couch in the ready room, helmet sealed; a marine two couches along with his helmet off and clipped to his pack, another in the row behind; one sits on the one couch whose harness is still open, about to strap in; the section's NCO in the aisle, helmet off. Lying in this projection: a body on its back, head north, is seen from its feet, so it looks much like a figure standing (VIEWS §3.5); the couch round it and the long shadow say it lies. Zoom 2 (20 × 11.25 m) on the ready room, as a splash would frame it; the whole deck is 17.4 × 15.4 m.",
+     "sets": [
+      null
+     ],
+     "matrix": {
+      "rows": [
+       "16 px/m",
+       "24 px/m"
+      ],
+      "cols": [
+       "A: chibi",
+       "B: soldier"
+      ]
+     },
+     "views": [
+      {
+       "id": "L5-a",
+       "set": 0,
+       "row": 0,
+       "col": 0,
+       "name": "16 px/m · A: chibi",
+       "query": "scene=deck&zoom=2&t=0.9&ppm=16&prop=chibi",
+       "shot": "look/shots/l5-a.png",
+       "native": [
+        320,
+        180
+       ],
+       "report": {
+        "frame": [
+         320,
+         180
+        ],
+        "ppm": 16,
+        "prop": "chibi",
+        "mood": "battle",
+        "zoom": 2,
+        "palette": "ship",
+        "calls": 5,
+        "cpuMs": 1,
+        "people": 5,
+        "looks": 4,
+        "drawn": 5,
+        "boxes": 444,
+        "figureUploads": 4,
+        "figureKB": 504,
+        "figurePaintMs": 76.1
+       }
+      },
+      {
+       "id": "L5-b",
+       "set": 0,
+       "row": 0,
+       "col": 1,
+       "name": "16 px/m · B: soldier",
+       "query": "scene=deck&zoom=2&t=0.9&ppm=16&prop=soldier",
+       "shot": "look/shots/l5-b.png",
+       "native": [
+        320,
+        180
+       ],
+       "report": {
+        "frame": [
+         320,
+         180
+        ],
+        "ppm": 16,
+        "prop": "soldier",
+        "mood": "battle",
+        "zoom": 2,
+        "palette": "ship",
+        "calls": 5,
+        "cpuMs": 2.1,
+        "people": 5,
+        "looks": 4,
+        "drawn": 5,
+        "boxes": 444,
+        "figureUploads": 4,
+        "figureKB": 504,
+        "figurePaintMs": 91.1
+       }
+      },
+      {
+       "id": "L5-c",
+       "set": 0,
+       "row": 1,
+       "col": 0,
+       "name": "24 px/m · A: chibi",
+       "query": "scene=deck&zoom=2&t=0.9&ppm=24&prop=chibi",
+       "shot": "look/shots/l5-c.png",
+       "native": [
+        480,
+        270
+       ],
+       "report": {
+        "frame": [
+         480,
+         270
+        ],
+        "ppm": 24,
+        "prop": "chibi",
+        "mood": "battle",
+        "zoom": 2,
+        "palette": "ship",
+        "calls": 5,
+        "cpuMs": 1.8,
+        "people": 5,
+        "looks": 4,
+        "drawn": 5,
+        "boxes": 444,
+        "figureUploads": 4,
+        "figureKB": 1134,
+        "figurePaintMs": 143
+       }
+      },
+      {
+       "id": "L5-d",
+       "set": 0,
+       "row": 1,
+       "col": 1,
+       "name": "24 px/m · B: soldier",
+       "query": "scene=deck&zoom=2&t=0.9&ppm=24&prop=soldier",
+       "shot": "look/shots/l5-d.png",
+       "native": [
+        480,
+        270
+       ],
+       "report": {
+        "frame": [
+         480,
+         270
+        ],
+        "ppm": 24,
+        "prop": "soldier",
+        "mood": "battle",
+        "zoom": 2,
+        "palette": "ship",
+        "calls": 5,
+        "cpuMs": 1.4,
+        "people": 5,
+        "looks": 4,
+        "drawn": 5,
+        "boxes": 444,
+        "figureUploads": 4,
+        "figureKB": 1134,
+        "figurePaintMs": 143
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,2946 @@
+[
+ {
+  "name": "bay-full-reveille-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=bay&view=full&mood=reveille&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "bay",
+   "view": "full",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "reveille",
+   "palette": "mars",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 11,
+    "post": 3,
+    "total": 14
+   },
+   "triangles": 10126,
+   "cpuMs": 0.3,
+   "gpuMs": 1.033,
+   "frameMs": 17.7,
+   "area": {
+    "boxes": 827,
+    "quads": 5008,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x148"
+    ],
+    "atlasKB": 592,
+    "glowMapKB": 0,
+    "paintMs": 7.3,
+    "lamps": 32,
+    "cards": 5
+   },
+   "build": {
+    "describeMs": 7.5,
+    "buildMs": 13.2,
+    "uploadMs": 0.5
+   },
+   "bench": 0.307,
+   "weather": {
+    "puffs": 3
+   },
+   "programs": 8,
+   "textures": 16,
+   "geometries": 15,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "bay-full-reveille-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=bay&view=full&mood=reveille&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "bay",
+   "view": "full",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "reveille",
+   "palette": "mars",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 11,
+    "post": 3,
+    "total": 14
+   },
+   "triangles": 10126,
+   "cpuMs": 0.2,
+   "gpuMs": 0.419,
+   "frameMs": 18.3,
+   "area": {
+    "boxes": 827,
+    "quads": 5008,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x308"
+    ],
+    "atlasKB": 1232,
+    "glowMapKB": 0,
+    "paintMs": 9.2,
+    "lamps": 32,
+    "cards": 5
+   },
+   "build": {
+    "describeMs": 8.8,
+    "buildMs": 15.3,
+    "uploadMs": 0.7
+   },
+   "bench": 0.395,
+   "weather": {
+    "puffs": 3
+   },
+   "programs": 8,
+   "textures": 16,
+   "geometries": 15,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "bay-close-reveille-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=bay&view=close&mood=reveille&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "bay",
+   "view": "close",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "reveille",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 11,
+    "post": 3,
+    "total": 14
+   },
+   "triangles": 10126,
+   "cpuMs": 0.2,
+   "gpuMs": 0.136,
+   "frameMs": 15.3,
+   "area": {
+    "boxes": 827,
+    "quads": 5008,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x148"
+    ],
+    "atlasKB": 592,
+    "glowMapKB": 0,
+    "paintMs": 6.6,
+    "lamps": 32,
+    "cards": 5
+   },
+   "build": {
+    "describeMs": 7.8,
+    "buildMs": 12.9,
+    "uploadMs": 0.6
+   },
+   "bench": 0.143,
+   "weather": {
+    "puffs": 3
+   },
+   "programs": 8,
+   "textures": 16,
+   "geometries": 15,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "bay-close-reveille-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=bay&view=close&mood=reveille&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "bay",
+   "view": "close",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "reveille",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 11,
+    "post": 3,
+    "total": 14
+   },
+   "triangles": 10126,
+   "cpuMs": 0.2,
+   "gpuMs": 0.714,
+   "frameMs": 16.2,
+   "area": {
+    "boxes": 827,
+    "quads": 5008,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x308"
+    ],
+    "atlasKB": 1232,
+    "glowMapKB": 0,
+    "paintMs": 9.1,
+    "lamps": 32,
+    "cards": 5
+   },
+   "build": {
+    "describeMs": 8.8,
+    "buildMs": 15.3,
+    "uploadMs": 0.8
+   },
+   "bench": 0.232,
+   "weather": {
+    "puffs": 3
+   },
+   "programs": 8,
+   "textures": 16,
+   "geometries": 15,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "bay-full-lightsOut-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=bay&view=full&mood=lightsOut&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "bay",
+   "view": "full",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "lightsOut",
+   "palette": "mars",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 5,
+    "post": 2,
+    "total": 7
+   },
+   "triangles": 10000,
+   "cpuMs": 0.2,
+   "gpuMs": 0.861,
+   "frameMs": 16.8,
+   "area": {
+    "boxes": 822,
+    "quads": 4978,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x148"
+    ],
+    "atlasKB": 592,
+    "glowMapKB": 0,
+    "paintMs": 8.1,
+    "lamps": 33,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 7.3,
+    "buildMs": 12.8,
+    "uploadMs": 0.7
+   },
+   "bench": 0.273,
+   "weather": null,
+   "programs": 7,
+   "textures": 12,
+   "geometries": 8,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "bay-full-lightsOut-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=bay&view=full&mood=lightsOut&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "bay",
+   "view": "full",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "lightsOut",
+   "palette": "mars",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 5,
+    "post": 2,
+    "total": 7
+   },
+   "triangles": 10000,
+   "cpuMs": 0.1,
+   "gpuMs": 0.403,
+   "frameMs": 16.7,
+   "area": {
+    "boxes": 822,
+    "quads": 4978,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x312"
+    ],
+    "atlasKB": 1248,
+    "glowMapKB": 0,
+    "paintMs": 10.2,
+    "lamps": 33,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8.1,
+    "buildMs": 15.9,
+    "uploadMs": 0.8
+   },
+   "bench": 0.343,
+   "weather": null,
+   "programs": 7,
+   "textures": 12,
+   "geometries": 8,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "bay-close-lightsOut-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=bay&view=close&mood=lightsOut&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "bay",
+   "view": "close",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "lightsOut",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 5,
+    "post": 2,
+    "total": 7
+   },
+   "triangles": 10000,
+   "cpuMs": 0.2,
+   "gpuMs": 0.097,
+   "frameMs": 15.3,
+   "area": {
+    "boxes": 822,
+    "quads": 4978,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x148"
+    ],
+    "atlasKB": 592,
+    "glowMapKB": 0,
+    "paintMs": 7,
+    "lamps": 33,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 7.3,
+    "buildMs": 13.4,
+    "uploadMs": 0.6
+   },
+   "bench": 0.1,
+   "weather": null,
+   "programs": 7,
+   "textures": 12,
+   "geometries": 8,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "bay-close-lightsOut-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=bay&view=close&mood=lightsOut&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "bay",
+   "view": "close",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "lightsOut",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 5,
+    "post": 2,
+    "total": 7
+   },
+   "triangles": 10000,
+   "cpuMs": 0.2,
+   "gpuMs": 0.631,
+   "frameMs": 15,
+   "area": {
+    "boxes": 822,
+    "quads": 4978,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x312"
+    ],
+    "atlasKB": 1248,
+    "glowMapKB": 0,
+    "paintMs": 10.4,
+    "lamps": 33,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8.2,
+    "buildMs": 16,
+    "uploadMs": 0.7
+   },
+   "bench": 0.216,
+   "weather": null,
+   "programs": 7,
+   "textures": 12,
+   "geometries": 8,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "head-close-evening-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=head&view=close&mood=evening&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "head",
+   "view": "close",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "evening",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 7,
+    "post": 3,
+    "total": 10
+   },
+   "triangles": 1118,
+   "cpuMs": 0.3,
+   "gpuMs": 0.14,
+   "frameMs": 14.9,
+   "area": {
+    "boxes": 86,
+    "quads": 526,
+    "drawCalls": 1,
+    "atlas": [
+     "256x88"
+    ],
+    "atlasKB": 88,
+    "glowMapKB": 0,
+    "paintMs": 2,
+    "lamps": 4,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 3.3,
+    "buildMs": 4.2,
+    "uploadMs": 0.4
+   },
+   "bench": 0.14,
+   "weather": {
+    "puffs": 4
+   },
+   "programs": 8,
+   "textures": 14,
+   "geometries": 11,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "head-close-evening-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=head&view=close&mood=evening&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "head",
+   "view": "close",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "evening",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 7,
+    "post": 3,
+    "total": 10
+   },
+   "triangles": 1118,
+   "cpuMs": 0.2,
+   "gpuMs": 0.623,
+   "frameMs": 16,
+   "area": {
+    "boxes": 86,
+    "quads": 526,
+    "drawCalls": 1,
+    "atlas": [
+     "256x176"
+    ],
+    "atlasKB": 176,
+    "glowMapKB": 0,
+    "paintMs": 2.5,
+    "lamps": 4,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 3.6,
+    "buildMs": 4.6,
+    "uploadMs": 0.5
+   },
+   "bench": 0.199,
+   "weather": {
+    "puffs": 4
+   },
+   "programs": 8,
+   "textures": 14,
+   "geometries": 11,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "head-close-lightsOut-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=head&view=close&mood=lightsOut&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "head",
+   "view": "close",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "lightsOut",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 7,
+    "post": 3,
+    "total": 10
+   },
+   "triangles": 1118,
+   "cpuMs": 0.2,
+   "gpuMs": 0.107,
+   "frameMs": 14.9,
+   "area": {
+    "boxes": 86,
+    "quads": 526,
+    "drawCalls": 1,
+    "atlas": [
+     "256x88"
+    ],
+    "atlasKB": 88,
+    "glowMapKB": 0,
+    "paintMs": 1.8,
+    "lamps": 4,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 3.3,
+    "buildMs": 4.3,
+    "uploadMs": 0.5
+   },
+   "bench": 0.134,
+   "weather": {
+    "puffs": 4
+   },
+   "programs": 8,
+   "textures": 14,
+   "geometries": 11,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "head-close-lightsOut-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=head&view=close&mood=lightsOut&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "head",
+   "view": "close",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "lightsOut",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 7,
+    "post": 3,
+    "total": 10
+   },
+   "triangles": 1118,
+   "cpuMs": 0.1,
+   "gpuMs": 0.653,
+   "frameMs": 14.8,
+   "area": {
+    "boxes": 86,
+    "quads": 526,
+    "drawCalls": 1,
+    "atlas": [
+     "256x176"
+    ],
+    "atlasKB": 176,
+    "glowMapKB": 0,
+    "paintMs": 2.8,
+    "lamps": 4,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 3.8,
+    "buildMs": 4.8,
+    "uploadMs": 0.6
+   },
+   "bench": 0.221,
+   "weather": {
+    "puffs": 4
+   },
+   "programs": 8,
+   "textures": 14,
+   "geometries": 11,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "mess-full-noon-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=mess&view=full&mood=noon&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "mess",
+   "view": "full",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "noon",
+   "palette": "mars",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 19,
+    "post": 3,
+    "total": 22
+   },
+   "triangles": 4758,
+   "cpuMs": 0.2,
+   "gpuMs": 0.977,
+   "frameMs": 17.5,
+   "area": {
+    "boxes": 378,
+    "quads": 2280,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x92"
+    ],
+    "atlasKB": 368,
+    "glowMapKB": 0,
+    "paintMs": 4.2,
+    "lamps": 41,
+    "cards": 9
+   },
+   "build": {
+    "describeMs": 6,
+    "buildMs": 7.7,
+    "uploadMs": 0.6
+   },
+   "bench": 0.307,
+   "weather": {
+    "puffs": 8
+   },
+   "programs": 8,
+   "textures": 20,
+   "geometries": 23,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "mess-full-noon-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=mess&view=full&mood=noon&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "mess",
+   "view": "full",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "noon",
+   "palette": "mars",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 19,
+    "post": 3,
+    "total": 22
+   },
+   "triangles": 4758,
+   "cpuMs": 0.2,
+   "gpuMs": 0.405,
+   "frameMs": 18.9,
+   "area": {
+    "boxes": 378,
+    "quads": 2280,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x212"
+    ],
+    "atlasKB": 848,
+    "glowMapKB": 0,
+    "paintMs": 5.3,
+    "lamps": 41,
+    "cards": 9
+   },
+   "build": {
+    "describeMs": 7,
+    "buildMs": 8.6,
+    "uploadMs": 0.7
+   },
+   "bench": 0.397,
+   "weather": {
+    "puffs": 8
+   },
+   "programs": 8,
+   "textures": 20,
+   "geometries": 23,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "mess-close-noon-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=mess&view=close&mood=noon&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "mess",
+   "view": "close",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "noon",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 16,
+    "post": 3,
+    "total": 19
+   },
+   "triangles": 4716,
+   "cpuMs": 0.3,
+   "gpuMs": 0.181,
+   "frameMs": 15.7,
+   "area": {
+    "boxes": 378,
+    "quads": 2280,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x92"
+    ],
+    "atlasKB": 368,
+    "glowMapKB": 0,
+    "paintMs": 3.8,
+    "lamps": 41,
+    "cards": 9
+   },
+   "build": {
+    "describeMs": 6,
+    "buildMs": 7.5,
+    "uploadMs": 0.7
+   },
+   "bench": 0.135,
+   "weather": {
+    "puffs": 8
+   },
+   "programs": 8,
+   "textures": 19,
+   "geometries": 20,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "mess-close-noon-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=mess&view=close&mood=noon&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "mess",
+   "view": "close",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "noon",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 16,
+    "post": 3,
+    "total": 19
+   },
+   "triangles": 4716,
+   "cpuMs": 0.2,
+   "gpuMs": 0.7,
+   "frameMs": 15.5,
+   "area": {
+    "boxes": 378,
+    "quads": 2280,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x212"
+    ],
+    "atlasKB": 848,
+    "glowMapKB": 0,
+    "paintMs": 5.1,
+    "lamps": 41,
+    "cards": 9
+   },
+   "build": {
+    "describeMs": 7.1,
+    "buildMs": 8.9,
+    "uploadMs": 0.7
+   },
+   "bench": 0.233,
+   "weather": {
+    "puffs": 8
+   },
+   "programs": 8,
+   "textures": 19,
+   "geometries": 20,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "chasm-full-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=chasm&view=full&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "chasm",
+   "view": "full",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 7,
+    "post": 3,
+    "total": 10
+   },
+   "triangles": 3134,
+   "cpuMs": 0.3,
+   "gpuMs": 0.961,
+   "frameMs": 19.1,
+   "area": {
+    "boxes": 254,
+    "quads": 1534,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x696"
+    ],
+    "atlasKB": 2784,
+    "glowMapKB": 0,
+    "paintMs": 74.6,
+    "lamps": 5,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 9.4,
+    "buildMs": 79.1,
+    "uploadMs": 0.8
+   },
+   "bench": 0.293,
+   "weather": {
+    "puffs": 0
+   },
+   "programs": 8,
+   "textures": 14,
+   "geometries": 11,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "chasm-full-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=chasm&view=full&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "chasm",
+   "view": "full",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 7,
+    "post": 3,
+    "total": 10
+   },
+   "triangles": 3134,
+   "cpuMs": 0.1,
+   "gpuMs": 1.642,
+   "frameMs": 20.2,
+   "area": {
+    "boxes": 254,
+    "quads": 1534,
+    "drawCalls": 1,
+    "atlas": [
+     "2048x844"
+    ],
+    "atlasKB": 6752,
+    "glowMapKB": 0,
+    "paintMs": 146.8,
+    "lamps": 5,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 13.4,
+    "buildMs": 150.9,
+    "uploadMs": 1.1
+   },
+   "bench": 0.442,
+   "weather": {
+    "puffs": 0
+   },
+   "programs": 8,
+   "textures": 14,
+   "geometries": 11,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "chasm-full-storm-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=chasm&view=full&mood=storm&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "chasm",
+   "view": "full",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "storm",
+   "palette": "mars",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 7,
+    "post": 3,
+    "total": 10
+   },
+   "triangles": 3134,
+   "cpuMs": 0.2,
+   "gpuMs": 1.005,
+   "frameMs": 18.2,
+   "area": {
+    "boxes": 254,
+    "quads": 1534,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x696"
+    ],
+    "atlasKB": 2784,
+    "glowMapKB": 0,
+    "paintMs": 75.3,
+    "lamps": 5,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 9.7,
+    "buildMs": 79.7,
+    "uploadMs": 0.9
+   },
+   "bench": 0.31,
+   "weather": {
+    "puffs": 0
+   },
+   "programs": 8,
+   "textures": 15,
+   "geometries": 11,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "chasm-full-storm-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=chasm&view=full&mood=storm&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "chasm",
+   "view": "full",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "storm",
+   "palette": "mars",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 7,
+    "post": 3,
+    "total": 10
+   },
+   "triangles": 3134,
+   "cpuMs": 0.2,
+   "gpuMs": 1.785,
+   "frameMs": 21.4,
+   "area": {
+    "boxes": 254,
+    "quads": 1534,
+    "drawCalls": 1,
+    "atlas": [
+     "2048x844"
+    ],
+    "atlasKB": 6752,
+    "glowMapKB": 0,
+    "paintMs": 149.1,
+    "lamps": 5,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 13.5,
+    "buildMs": 153.4,
+    "uploadMs": 1.2
+   },
+   "bench": 0.467,
+   "weather": {
+    "puffs": 0
+   },
+   "programs": 8,
+   "textures": 15,
+   "geometries": 11,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "chasm-full-heavy-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=chasm&view=full&mood=heavy&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "chasm",
+   "view": "full",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "heavy",
+   "palette": "mars",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 7,
+    "post": 3,
+    "total": 10
+   },
+   "triangles": 3134,
+   "cpuMs": 0.2,
+   "gpuMs": 1.02,
+   "frameMs": 18.6,
+   "area": {
+    "boxes": 254,
+    "quads": 1534,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x696"
+    ],
+    "atlasKB": 2784,
+    "glowMapKB": 0,
+    "paintMs": 74.9,
+    "lamps": 5,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 9.3,
+    "buildMs": 78.9,
+    "uploadMs": 0.8
+   },
+   "bench": 0.303,
+   "weather": {
+    "puffs": 0
+   },
+   "programs": 8,
+   "textures": 15,
+   "geometries": 11,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "chasm-full-heavy-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=chasm&view=full&mood=heavy&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "chasm",
+   "view": "full",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "heavy",
+   "palette": "mars",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 7,
+    "post": 3,
+    "total": 10
+   },
+   "triangles": 3134,
+   "cpuMs": 0.2,
+   "gpuMs": 1.833,
+   "frameMs": 21.3,
+   "area": {
+    "boxes": 254,
+    "quads": 1534,
+    "drawCalls": 1,
+    "atlas": [
+     "2048x844"
+    ],
+    "atlasKB": 6752,
+    "glowMapKB": 0,
+    "paintMs": 147,
+    "lamps": 5,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 13.6,
+    "buildMs": 151.5,
+    "uploadMs": 1.2
+   },
+   "bench": 0.478,
+   "weather": {
+    "puffs": 0
+   },
+   "programs": 8,
+   "textures": 15,
+   "geometries": 11,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "chasm-close-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=chasm&view=close&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "chasm",
+   "view": "close",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 2,
+    "post": 3,
+    "total": 5
+   },
+   "triangles": 3070,
+   "cpuMs": 0.1,
+   "gpuMs": 0.448,
+   "frameMs": 15.7,
+   "area": {
+    "boxes": 254,
+    "quads": 1534,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x696"
+    ],
+    "atlasKB": 2784,
+    "glowMapKB": 0,
+    "paintMs": 75.2,
+    "lamps": 5,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 9.4,
+    "buildMs": 79.4,
+    "uploadMs": 0.8
+   },
+   "bench": 0.181,
+   "weather": {
+    "puffs": 0
+   },
+   "programs": 7,
+   "textures": 12,
+   "geometries": 6,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "chasm-close-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=chasm&view=close&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "chasm",
+   "view": "close",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 2,
+    "post": 3,
+    "total": 5
+   },
+   "triangles": 3070,
+   "cpuMs": 0.1,
+   "gpuMs": 0.632,
+   "frameMs": 17.3,
+   "area": {
+    "boxes": 254,
+    "quads": 1534,
+    "drawCalls": 1,
+    "atlas": [
+     "2048x844"
+    ],
+    "atlasKB": 6752,
+    "glowMapKB": 0,
+    "paintMs": 149.7,
+    "lamps": 5,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 13.8,
+    "buildMs": 154.1,
+    "uploadMs": 1.2
+   },
+   "bench": 0.222,
+   "weather": {
+    "puffs": 0
+   },
+   "programs": 7,
+   "textures": 12,
+   "geometries": 6,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "chasm-close-storm-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=chasm&view=close&mood=storm&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "chasm",
+   "view": "close",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "storm",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 2,
+    "post": 3,
+    "total": 5
+   },
+   "triangles": 3070,
+   "cpuMs": 0.3,
+   "gpuMs": 0.476,
+   "frameMs": 16.7,
+   "area": {
+    "boxes": 254,
+    "quads": 1534,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x696"
+    ],
+    "atlasKB": 2784,
+    "glowMapKB": 0,
+    "paintMs": 76.1,
+    "lamps": 5,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 9.2,
+    "buildMs": 79.9,
+    "uploadMs": 0.8
+   },
+   "bench": 0.185,
+   "weather": {
+    "puffs": 0
+   },
+   "programs": 7,
+   "textures": 13,
+   "geometries": 6,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "chasm-close-storm-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=chasm&view=close&mood=storm&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "chasm",
+   "view": "close",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "storm",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 2,
+    "post": 3,
+    "total": 5
+   },
+   "triangles": 3070,
+   "cpuMs": 0.1,
+   "gpuMs": 0.681,
+   "frameMs": 17.8,
+   "area": {
+    "boxes": 254,
+    "quads": 1534,
+    "drawCalls": 1,
+    "atlas": [
+     "2048x844"
+    ],
+    "atlasKB": 6752,
+    "glowMapKB": 0,
+    "paintMs": 149,
+    "lamps": 5,
+    "cards": 3
+   },
+   "build": {
+    "describeMs": 13.6,
+    "buildMs": 153.4,
+    "uploadMs": 1.1
+   },
+   "bench": 0.229,
+   "weather": {
+    "puffs": 0
+   },
+   "programs": 7,
+   "textures": 13,
+   "geometries": 6,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-full-normal-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=full&mood=normal&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "full",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "normal",
+   "palette": "ship",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5538,
+   "cpuMs": 0.2,
+   "gpuMs": 0.361,
+   "frameMs": 17.2,
+   "area": {
+    "boxes": 448,
+    "quads": 2725,
+    "drawCalls": 1,
+    "atlas": [
+     "512x136"
+    ],
+    "atlasKB": 272,
+    "glowMapKB": 83,
+    "paintMs": 4.6,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 6.6,
+    "buildMs": 9.7,
+    "uploadMs": 0.7
+   },
+   "bench": 0.289,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-full-normal-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=full&mood=normal&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "full",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "normal",
+   "palette": "ship",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5538,
+   "cpuMs": 0.2,
+   "gpuMs": 0.56,
+   "frameMs": 16.9,
+   "area": {
+    "boxes": 448,
+    "quads": 2725,
+    "drawCalls": 1,
+    "atlas": [
+     "512x300"
+    ],
+    "atlasKB": 600,
+    "glowMapKB": 83,
+    "paintMs": 6,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 7.2,
+    "buildMs": 11.3,
+    "uploadMs": 0.7
+   },
+   "bench": 0.38,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-full-battle-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=full&mood=battle&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "full",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "battle",
+   "palette": "ship",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5498,
+   "cpuMs": 0.2,
+   "gpuMs": 0.359,
+   "frameMs": 16.8,
+   "area": {
+    "boxes": 444,
+    "quads": 2705,
+    "drawCalls": 1,
+    "atlas": [
+     "512x136"
+    ],
+    "atlasKB": 272,
+    "glowMapKB": 83,
+    "paintMs": 4.7,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 6.9,
+    "buildMs": 10.8,
+    "uploadMs": 0.7
+   },
+   "bench": 0.268,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-full-battle-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=full&mood=battle&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "full",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "battle",
+   "palette": "ship",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5498,
+   "cpuMs": 0.2,
+   "gpuMs": 1.031,
+   "frameMs": 18.4,
+   "area": {
+    "boxes": 444,
+    "quads": 2705,
+    "drawCalls": 1,
+    "atlas": [
+     "512x300"
+    ],
+    "atlasKB": 600,
+    "glowMapKB": 83,
+    "paintMs": 6.2,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 7.8,
+    "buildMs": 11.9,
+    "uploadMs": 0.7
+   },
+   "bench": 0.452,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-full-emergency-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=full&mood=emergency&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "full",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "emergency",
+   "palette": "ship",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5538,
+   "cpuMs": 0.2,
+   "gpuMs": 0.182,
+   "frameMs": 15.8,
+   "area": {
+    "boxes": 448,
+    "quads": 2725,
+    "drawCalls": 1,
+    "atlas": [
+     "512x136"
+    ],
+    "atlasKB": 272,
+    "glowMapKB": 83,
+    "paintMs": 4.6,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 7.1,
+    "buildMs": 10.5,
+    "uploadMs": 0.7
+   },
+   "bench": 0.197,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-full-emergency-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=full&mood=emergency&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "full",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "emergency",
+   "palette": "ship",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5538,
+   "cpuMs": 0.4,
+   "gpuMs": 2.836,
+   "frameMs": 19.3,
+   "area": {
+    "boxes": 448,
+    "quads": 2725,
+    "drawCalls": 1,
+    "atlas": [
+     "512x300"
+    ],
+    "atlasKB": 600,
+    "glowMapKB": 83,
+    "paintMs": 6,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 7.9,
+    "buildMs": 12,
+    "uploadMs": 0.5
+   },
+   "bench": 0.462,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-close-normal-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=close&mood=normal&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "close",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "normal",
+   "palette": "ship",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5538,
+   "cpuMs": 0.2,
+   "gpuMs": 0.142,
+   "frameMs": 15.1,
+   "area": {
+    "boxes": 448,
+    "quads": 2725,
+    "drawCalls": 1,
+    "atlas": [
+     "512x136"
+    ],
+    "atlasKB": 272,
+    "glowMapKB": 83,
+    "paintMs": 5.1,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 7.1,
+    "buildMs": 11,
+    "uploadMs": 0.7
+   },
+   "bench": 0.136,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-close-normal-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=close&mood=normal&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "close",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "normal",
+   "palette": "ship",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5538,
+   "cpuMs": 0.2,
+   "gpuMs": 1.916,
+   "frameMs": 15.9,
+   "area": {
+    "boxes": 448,
+    "quads": 2725,
+    "drawCalls": 1,
+    "atlas": [
+     "512x300"
+    ],
+    "atlasKB": 600,
+    "glowMapKB": 83,
+    "paintMs": 6.6,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 7.9,
+    "buildMs": 12.1,
+    "uploadMs": 0.8
+   },
+   "bench": 0.212,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-close-battle-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=close&mood=battle&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "close",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "battle",
+   "palette": "ship",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5498,
+   "cpuMs": 0.3,
+   "gpuMs": 0.19,
+   "frameMs": 15.6,
+   "area": {
+    "boxes": 444,
+    "quads": 2705,
+    "drawCalls": 1,
+    "atlas": [
+     "512x136"
+    ],
+    "atlasKB": 272,
+    "glowMapKB": 83,
+    "paintMs": 4.9,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 7.3,
+    "buildMs": 10.2,
+    "uploadMs": 0.5
+   },
+   "bench": 0.178,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-close-battle-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=close&mood=battle&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "close",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "battle",
+   "palette": "ship",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5498,
+   "cpuMs": 0.3,
+   "gpuMs": 0.642,
+   "frameMs": 16.6,
+   "area": {
+    "boxes": 444,
+    "quads": 2705,
+    "drawCalls": 1,
+    "atlas": [
+     "512x300"
+    ],
+    "atlasKB": 600,
+    "glowMapKB": 83,
+    "paintMs": 6.1,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 8,
+    "buildMs": 12.2,
+    "uploadMs": 0.6
+   },
+   "bench": 0.228,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-close-emergency-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=close&mood=emergency&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "close",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "emergency",
+   "palette": "ship",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5538,
+   "cpuMs": 0.2,
+   "gpuMs": 0.182,
+   "frameMs": 15.3,
+   "area": {
+    "boxes": 448,
+    "quads": 2725,
+    "drawCalls": 1,
+    "atlas": [
+     "512x136"
+    ],
+    "atlasKB": 272,
+    "glowMapKB": 83,
+    "paintMs": 4.7,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 6.6,
+    "buildMs": 10.5,
+    "uploadMs": 0.6
+   },
+   "bench": 0.152,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "deck-close-emergency-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=deck&view=close&mood=emergency&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "deck",
+   "view": "close",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "emergency",
+   "palette": "ship",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 9,
+    "post": 2,
+    "total": 11
+   },
+   "triangles": 5538,
+   "cpuMs": 0.2,
+   "gpuMs": 0.664,
+   "frameMs": 16.6,
+   "area": {
+    "boxes": 448,
+    "quads": 2725,
+    "drawCalls": 1,
+    "atlas": [
+     "512x300"
+    ],
+    "atlasKB": 600,
+    "glowMapKB": 83,
+    "paintMs": 6.1,
+    "lamps": 18,
+    "cards": 4
+   },
+   "build": {
+    "describeMs": 7.7,
+    "buildMs": 12,
+    "uploadMs": 0.8
+   },
+   "bench": 0.225,
+   "weather": null,
+   "programs": 7,
+   "textures": 15,
+   "geometries": 12,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-full-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=full&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "full",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 5,
+    "post": 2,
+    "total": 7
+   },
+   "triangles": 7808,
+   "cpuMs": 0.3,
+   "gpuMs": 0.349,
+   "frameMs": 16.9,
+   "area": {
+    "boxes": 631,
+    "quads": 3882,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x204"
+    ],
+    "atlasKB": 816,
+    "glowMapKB": 0,
+    "paintMs": 9,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8,
+    "buildMs": 14.4,
+    "uploadMs": 0.7
+   },
+   "bench": 0.285,
+   "weather": null,
+   "programs": 7,
+   "textures": 12,
+   "geometries": 8,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-full-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=full&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "full",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 5,
+    "post": 2,
+    "total": 7
+   },
+   "triangles": 7976,
+   "cpuMs": 0.2,
+   "gpuMs": 0.623,
+   "frameMs": 17.7,
+   "area": {
+    "boxes": 645,
+    "quads": 3966,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x464"
+    ],
+    "atlasKB": 1856,
+    "glowMapKB": 0,
+    "paintMs": 11.2,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 9.1,
+    "buildMs": 16.7,
+    "uploadMs": 0.8
+   },
+   "bench": 0.394,
+   "weather": null,
+   "programs": 7,
+   "textures": 12,
+   "geometries": 8,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-full2-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=full2&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "full2",
+   "ppm": 16,
+   "zoom": 1,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    640,
+    360
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7764,
+   "cpuMs": 0.2,
+   "gpuMs": 0.248,
+   "frameMs": 15.5,
+   "area": {
+    "boxes": 631,
+    "quads": 3882,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x204"
+    ],
+    "atlasKB": 816,
+    "glowMapKB": 0,
+    "paintMs": 9.1,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8.1,
+    "buildMs": 14.5,
+    "uploadMs": 0.6
+   },
+   "bench": 0.231,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-full2-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=full2&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "full2",
+   "ppm": 24,
+   "zoom": 1,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    960,
+    540
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7932,
+   "cpuMs": 0.3,
+   "gpuMs": 1.966,
+   "frameMs": 18.1,
+   "area": {
+    "boxes": 645,
+    "quads": 3966,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x464"
+    ],
+    "atlasKB": 1856,
+    "glowMapKB": 0,
+    "paintMs": 11,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 9.1,
+    "buildMs": 16.6,
+    "uploadMs": 0.7
+   },
+   "bench": 0.418,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-wall-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=wall&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "wall",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7764,
+   "cpuMs": 0.1,
+   "gpuMs": 0.092,
+   "frameMs": 15,
+   "area": {
+    "boxes": 631,
+    "quads": 3882,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x204"
+    ],
+    "atlasKB": 816,
+    "glowMapKB": 0,
+    "paintMs": 9.5,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8,
+    "buildMs": 14.4,
+    "uploadMs": 0.7
+   },
+   "bench": 0.098,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-wall-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=wall&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "wall",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7932,
+   "cpuMs": 0.1,
+   "gpuMs": 0.565,
+   "frameMs": 14.8,
+   "area": {
+    "boxes": 645,
+    "quads": 3966,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x464"
+    ],
+    "atlasKB": 1856,
+    "glowMapKB": 0,
+    "paintMs": 10.8,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 9,
+    "buildMs": 16.5,
+    "uploadMs": 0.8
+   },
+   "bench": 0.204,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-wall2-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=wall2&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "wall2",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 5,
+    "post": 2,
+    "total": 7
+   },
+   "triangles": 7808,
+   "cpuMs": 0.1,
+   "gpuMs": 0.385,
+   "frameMs": 15.1,
+   "area": {
+    "boxes": 631,
+    "quads": 3882,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x204"
+    ],
+    "atlasKB": 816,
+    "glowMapKB": 0,
+    "paintMs": 8.9,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8.1,
+    "buildMs": 14.3,
+    "uploadMs": 0.8
+   },
+   "bench": 0.173,
+   "weather": null,
+   "programs": 7,
+   "textures": 12,
+   "geometries": 8,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-wall2-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=wall2&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "wall2",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 5,
+    "post": 2,
+    "total": 7
+   },
+   "triangles": 7976,
+   "cpuMs": 0.2,
+   "gpuMs": 0.242,
+   "frameMs": 14.9,
+   "area": {
+    "boxes": 645,
+    "quads": 3966,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x464"
+    ],
+    "atlasKB": 1856,
+    "glowMapKB": 0,
+    "paintMs": 10.6,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 9.3,
+    "buildMs": 16.4,
+    "uploadMs": 0.9
+   },
+   "bench": 0.208,
+   "weather": null,
+   "programs": 7,
+   "textures": 12,
+   "geometries": 8,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-left-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=left&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "left",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7764,
+   "cpuMs": 0.2,
+   "gpuMs": 0.385,
+   "frameMs": 15.1,
+   "area": {
+    "boxes": 631,
+    "quads": 3882,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x204"
+    ],
+    "atlasKB": 816,
+    "glowMapKB": 0,
+    "paintMs": 9.3,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8,
+    "buildMs": 14.5,
+    "uploadMs": 0.7
+   },
+   "bench": 0.173,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-left-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=left&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "left",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7932,
+   "cpuMs": 0.2,
+   "gpuMs": 0.581,
+   "frameMs": 14.9,
+   "area": {
+    "boxes": 645,
+    "quads": 3966,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x464"
+    ],
+    "atlasKB": 1856,
+    "glowMapKB": 0,
+    "paintMs": 11.4,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 9.1,
+    "buildMs": 16.8,
+    "uploadMs": 0.7
+   },
+   "bench": 0.207,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-right-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=right&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "right",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7764,
+   "cpuMs": 0.4,
+   "gpuMs": 0.401,
+   "frameMs": 15.2,
+   "area": {
+    "boxes": 631,
+    "quads": 3882,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x204"
+    ],
+    "atlasKB": 816,
+    "glowMapKB": 0,
+    "paintMs": 8.9,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8.3,
+    "buildMs": 14.3,
+    "uploadMs": 0.7
+   },
+   "bench": 0.172,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-right-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=right&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "right",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7932,
+   "cpuMs": 0.1,
+   "gpuMs": 0.546,
+   "frameMs": 15.9,
+   "area": {
+    "boxes": 645,
+    "quads": 3966,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x464"
+    ],
+    "atlasKB": 1856,
+    "glowMapKB": 0,
+    "paintMs": 11.4,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 9.7,
+    "buildMs": 16.5,
+    "uploadMs": 0.8
+   },
+   "bench": 0.203,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-rows-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=rows&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "rows",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7764,
+   "cpuMs": 0.2,
+   "gpuMs": 0.098,
+   "frameMs": 15.1,
+   "area": {
+    "boxes": 631,
+    "quads": 3882,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x204"
+    ],
+    "atlasKB": 816,
+    "glowMapKB": 0,
+    "paintMs": 9.1,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8.1,
+    "buildMs": 14.4,
+    "uploadMs": 0.7
+   },
+   "bench": 0.103,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-rows-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=rows&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "rows",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7932,
+   "cpuMs": 0.1,
+   "gpuMs": 0.543,
+   "frameMs": 14.8,
+   "area": {
+    "boxes": 645,
+    "quads": 3966,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x464"
+    ],
+    "atlasKB": 1856,
+    "glowMapKB": 0,
+    "paintMs": 11,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 9.1,
+    "buildMs": 16.5,
+    "uploadMs": 0.8
+   },
+   "bench": 0.199,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-rows2-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=rows2&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "rows2",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7764,
+   "cpuMs": 0.1,
+   "gpuMs": 0.144,
+   "frameMs": 15,
+   "area": {
+    "boxes": 631,
+    "quads": 3882,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x204"
+    ],
+    "atlasKB": 816,
+    "glowMapKB": 0,
+    "paintMs": 9.2,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8,
+    "buildMs": 14.4,
+    "uploadMs": 0.7
+   },
+   "bench": 0.134,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-rows2-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=rows2&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "rows2",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7932,
+   "cpuMs": 0.3,
+   "gpuMs": 0.583,
+   "frameMs": 14.9,
+   "area": {
+    "boxes": 645,
+    "quads": 3966,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x464"
+    ],
+    "atlasKB": 1856,
+    "glowMapKB": 0,
+    "paintMs": 10.8,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 9.2,
+    "buildMs": 16.2,
+    "uploadMs": 0.8
+   },
+   "bench": 0.204,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-rows3-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=rows3&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "rows3",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7764,
+   "cpuMs": 0.2,
+   "gpuMs": 0.155,
+   "frameMs": 15.2,
+   "area": {
+    "boxes": 631,
+    "quads": 3882,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x204"
+    ],
+    "atlasKB": 816,
+    "glowMapKB": 0,
+    "paintMs": 8.9,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8.1,
+    "buildMs": 14.3,
+    "uploadMs": 0.6
+   },
+   "bench": 0.142,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-rows3-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=rows3&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "rows3",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7932,
+   "cpuMs": 0.3,
+   "gpuMs": 0.53,
+   "frameMs": 15.3,
+   "area": {
+    "boxes": 645,
+    "quads": 3966,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x464"
+    ],
+    "atlasKB": 1856,
+    "glowMapKB": 0,
+    "paintMs": 11.2,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 9.2,
+    "buildMs": 16.6,
+    "uploadMs": 0.7
+   },
+   "bench": 0.202,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-rows4-day-ppm16",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=rows4&mood=day&ppm=16&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "rows4",
+   "ppm": 16,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    320,
+    180
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7764,
+   "cpuMs": 0.1,
+   "gpuMs": 0.374,
+   "frameMs": 15.2,
+   "area": {
+    "boxes": 631,
+    "quads": 3882,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x204"
+    ],
+    "atlasKB": 816,
+    "glowMapKB": 0,
+    "paintMs": 8.9,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 8.1,
+    "buildMs": 14.4,
+    "uploadMs": 0.7
+   },
+   "bench": 0.166,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ },
+ {
+  "name": "kit-rows4-day-ppm24",
+  "url": "http://127.0.0.1:8233/samples/scenes/?scene=kit&view=rows4&mood=day&ppm=24&hud=0&bench=1",
+  "report": {
+   "scene": "kit",
+   "view": "rows4",
+   "ppm": 24,
+   "zoom": 2,
+   "mood": "day",
+   "palette": "mars",
+   "frame": [
+    480,
+    270
+   ],
+   "calls": {
+    "scene": 1,
+    "post": 2,
+    "total": 3
+   },
+   "triangles": 7932,
+   "cpuMs": 0.2,
+   "gpuMs": 0.564,
+   "frameMs": 14.9,
+   "area": {
+    "boxes": 645,
+    "quads": 3966,
+    "drawCalls": 1,
+    "atlas": [
+     "1024x464"
+    ],
+    "atlasKB": 1856,
+    "glowMapKB": 0,
+    "paintMs": 10.7,
+    "lamps": 12,
+    "cards": 2
+   },
+   "build": {
+    "describeMs": 9.3,
+    "buildMs": 16.7,
+    "uploadMs": 0.7
+   },
+   "bench": 0.202,
+   "weather": null,
+   "programs": 5,
+   "textures": 10,
+   "geometries": 4,
+   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  "errors": []
+ }
+]

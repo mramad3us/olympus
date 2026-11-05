@@ -1,0 +1,15 @@
+{
+  "name": "olympus",
+  "private": true,
+  "type": "module",
+  "description": "OLYMPUS: a hard science-fiction Martian marine's life (a browser game, in development)",
+  "scripts": {
+    "start": "./play.sh",
+    "dev": "./play.sh --dev",
+    "test": "node tests/run.mjs",
+    "test:quick": "QUICK=1 node tests/run.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.0"
+  }
+}

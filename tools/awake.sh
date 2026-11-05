@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TRADECRAFT: keep the Mac awake while Claude works, and only then.
+# OLYMPUS: keep the Mac awake while Claude works, and only then.
 #
 #   tools/awake.sh renew          renew the lease; start the keeper if none runs (the hooks call this)
 #   tools/awake.sh run <cmd...>   run a long job, the lease kept fresh for as long as it runs
@@ -14,6 +14,9 @@
 # with nothing for anyone to remember. (In longhaul an hour-long caffeinate was
 # renewed by hand, and the chain lapsed.) A job that runs for over an hour with
 # no tool calls (a long simulation in the background) goes through `run`.
+# (OLYMPUS, 2026-11-05: the hooks aren't installed yet, so nothing renews the
+# lease on its own; until they are, `renew` or `run` by hand, or a background
+# caffeinate, keeps the Mac up. CLAUDE.md says which is in use.)
 #
 # On battery, caffeinate alone was not enough: longhaul's Mac went to 'Idle
 # Sleep' while `caffeinate -dims` held its assertions, once macOS had declared

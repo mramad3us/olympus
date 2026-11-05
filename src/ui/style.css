@@ -1,0 +1,104 @@
+/* OLYMPUS: the interface's look. The picture is pixel art (the stage's canvas, filling the window);
+   the interface over it is type, in two materials carried over from tradecraft (src/ui/style.css):
+   - dark glass, for what the marine's kit shows (the wrist terminal, the menu, the mind, the cards):
+     near-black, a one-pixel slate edge, monospace, brass for what matters;
+   - cream paper with a typewriter face, for what is handed to them (the title, enlistment, orders,
+     papers), Papers, Please-cold.
+   One token sheet, no overrides layered on overrides (LONGHAUL's 4,000-line legacy CSS is the
+   warning). Sizes scale with --ui, set on the root when a screen wants bigger type. Colours are the
+   game's: ink, paper, brass, a typewriter red, a muted slate. */
+:root {
+  --ink: #1a1214;
+  --ink-2: #23252f;
+  --paper: #f4efe6;
+  --paper-2: #e2dac6;
+  --rule: #c4bba9;
+  --brass: #e7b84a;
+  --brass-hi: #f8e08a;
+  --red: #9e3c36;
+  --green: #356f42;
+  --muted: #8f96a6;
+  --faint: #6a7182;
+  --hud: rgba(20, 21, 28, 0.78);
+  --glass: rgba(20, 21, 28, 0.94);
+  --glass-edge: #353947;
+  --glass-line: #4c5262;
+  --glass-well: #1b1c24;
+  --glass-text: #dfe2e8;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --type: "Courier New", Courier, ui-monospace, monospace;
+  --ui: 1;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--ink); color: var(--paper); overflow: hidden; font: calc(14px * var(--ui))/1.4 var(--mono); }
+button { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+
+/* The stage: the canvas fills the window, every pixel the same size. */
+#frame { position: fixed; inset: 0; overflow: hidden; background: #000; }
+#frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+#hud { position: absolute; inset: 0; pointer-events: none; }
+
+/* The wrist terminal, top right: what the character carries that tells the time (DESIGN.md, Time). */
+.watch { position: absolute; top: 14px; right: 14px; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; padding: 6px 10px 5px; text-align: right; min-width: 13em; }
+.watch .time { font-size: calc(20px * var(--ui)); letter-spacing: 0.06em; color: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.watch .slip { display: inline-block; margin-left: 6px; padding: 0 4px; font-size: calc(10px * var(--ui)); letter-spacing: 0.14em; color: var(--ink); background: var(--brass); border-radius: 2px; vertical-align: 3px; }
+.watch .date, .watch .utc { font-size: calc(11px * var(--ui)); color: var(--muted); font-variant-numeric: tabular-nums; }
+.watch .place { font-size: calc(11px * var(--ui)); color: var(--glass-text); font-family: var(--type); margin-top: 2px; }
+
+/* Lines as they come, top left. */
+.toasts { position: absolute; left: 14px; top: 14px; width: min(calc(520px * var(--ui)), calc(50% - 150px)); display: flex; flex-direction: column; gap: 4px; }
+.toast { background: var(--hud); border-left: 3px solid var(--muted); padding: 4px 9px; font-size: calc(12.5px * var(--ui)); transition: opacity 1.2s; }
+.toast.warn { border-color: var(--brass); }
+.toast.bad { border-color: var(--red); }
+.toast.gone { opacity: 0; }
+
+/* Keycaps, in the player's layout. */
+kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid var(--glass-line); border-bottom-width: 2px; border-radius: 3px; text-align: center; color: var(--paper); font: calc(11px * var(--ui))/1.5 var(--mono); }
+.sheet kbd { color: var(--ink); border-color: var(--rule); }
+
+/* PAUSED, and the hint under it. */
+.banner { position: absolute; top: 18%; left: 50%; transform: translate(-50%, -50%); background: var(--hud); padding: 10px 22px; letter-spacing: 0.3em; font-size: calc(16px * var(--ui)); text-align: center; }
+.banner small { display: block; letter-spacing: 0.04em; font-size: calc(11px * var(--ui)); color: var(--muted); margin-top: 4px; }
+.hint { position: absolute; right: 14px; bottom: 14px; font-size: calc(11px * var(--ui)); color: #b8bdc8; background: var(--hud); padding: 5px 8px; border-radius: 4px; }
+
+/* Paper: the title, enlistment, orders. */
+.sheet { background: var(--paper); color: var(--ink); font-family: var(--type); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); border-radius: 2px; }
+.sheet h1, .sheet h2 { font-weight: bold; letter-spacing: 0.25em; margin: 0; }
+.sheet h1 { font-size: calc(30px * var(--ui)); }
+.sheet h2 { font-size: calc(18px * var(--ui)); }
+.sheet .sub { color: var(--faint); margin: 4px 0 0; font-size: calc(13px * var(--ui)); }
+.sheet .stamp { display: inline-block; border: 2px solid var(--red); color: var(--red); padding: 1px 8px; letter-spacing: 0.2em; font-weight: bold; transform: rotate(-3deg); font-size: calc(12px * var(--ui)); }
+.sheet hr { border: 0; border-top: 1px dashed var(--rule); margin: 14px 0; }
+.sheet p { margin: 8px 0; }
+.sheet .note { color: var(--faint); font-size: calc(12px * var(--ui)); }
+.sheet .item { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--paper-2); padding: 9px 6px; cursor: pointer; font-family: var(--type); font-size: calc(15px * var(--ui)); color: var(--ink); }
+.sheet .item:hover, .sheet .item:focus-visible { background: var(--paper-2); outline: none; }
+.sheet .item small { display: block; color: var(--faint); font-size: calc(12px * var(--ui)); margin-top: 2px; }
+.sheet .item[disabled] { color: #a0978a; cursor: default; background: none; }
+.sheet .item.lead { background: var(--paper-2); border-left: 3px solid var(--brass); border-bottom-color: transparent; }
+.sheet .item.lead:hover, .sheet .item.lead:focus-visible { background: #d8cfb8; }
+.sheet .item.small { font-size: calc(13px * var(--ui)); color: var(--faint); padding: 6px; }
+
+#title { position: fixed; inset: 0; display: flex; align-items: safe center; justify-content: center; overflow-y: auto; padding: 16px 0; background: radial-gradient(ellipse at center, #23252f 0%, var(--ink) 70%); }
+#title .sheet { width: min(calc(560px * var(--ui)), 92%); padding: 28px 32px; }
+@media (min-width: 980px) { #title .sheet { width: min(calc(760px * var(--ui)), 80%); } }
+#title .section { font: bold calc(13px * var(--ui)) var(--type); letter-spacing: 0.2em; margin: 18px 0 2px; color: var(--ink); }
+#title .unit { font-size: calc(13px * var(--ui)); line-height: 1.5; }
+
+/* Over the picture: a veil, and a card on it. Every one of them pauses the game. */
+.overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 21, 28, 0.55); }
+.overlay .sheet { width: min(calc(460px * var(--ui)), 92%); max-height: 92%; overflow: auto; padding: 22px 26px; }
+
+/* Dark glass: the kit's own screens (the menu, the keys, and later the mind, the cards). */
+.glass { width: min(calc(460px * var(--ui)), 92%); max-height: 92%; overflow: auto; background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 4px; padding: 14px 18px 12px; color: var(--glass-text); font-family: var(--mono); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); }
+.glass h3 { font-size: calc(11px * var(--ui)); letter-spacing: 0.08em; color: var(--brass); font-weight: normal; margin: 4px 0 10px; text-transform: uppercase; }
+.glass .note { color: var(--muted); font-size: calc(12px * var(--ui)); margin: 10px 0 0; }
+.glass-list { display: flex; flex-direction: column; gap: 4px; }
+.glass-list .item { display: flex; gap: 10px; align-items: center; text-align: left; background: var(--ink-2); border: 1px solid var(--glass-line); color: var(--glass-text); padding: 5px 10px; cursor: pointer; border-radius: 2px; }
+.glass-list .item:hover, .glass-list .item:focus-visible { border-color: var(--brass); outline: none; }
+.glass-list .item kbd { min-width: 1.4em; }
+.glass-list .item small { color: var(--muted); margin-left: auto; font-size: calc(11px * var(--ui)); }
+.glass .keylist { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; align-items: baseline; font-size: calc(12.5px * var(--ui)); }
+.glass .keylist kbd { justify-self: end; }
+.glass .keylist span { color: #b8bdc8; }

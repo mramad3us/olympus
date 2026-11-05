@@ -1,4 +1,4 @@
-// TRADECRAFT: read or set the built-in display's backlight (0–1), for tools/awake.sh.
+// OLYMPUS: read or set the built-in display's backlight (0–1), for tools/awake.sh.
 //
 //   bright          print the current level
 //   bright 0.6      set it

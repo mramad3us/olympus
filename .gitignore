@@ -1,6 +1,17 @@
 .DS_Store
 node_modules/
-.run/
+*.log
+# the play copy (a git worktree on a release tag: tools/promote.sh)
 .play/
-*.private
+# runtime state: server pids, the keep-awake lease and its log, release backups
+.run/
+# art references (commercial screenshots: kept local, never committed)
 ref/
+# credentials and anything private: never committed
+*.private
+__pycache__/
+# agents' scratch copies of the repo (git worktrees made by Claude Code's isolation)
+.claude/worktrees/
+# screenshots of longhaul and tradecraft taken for the research notes (27 MB): a local reading aid,
+# reshot from the sibling projects when needed, never shipped
+docs/research/shots/

@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- OLYMPUS: the page. Dark, one stylesheet, an import map for the vendored three.js (the pixel
+     stage's alone; nothing else loads from outside the repository), and the game's one entry,
+     src/main.js. No build step: the browser loads the modules as they are. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:,">
+<title>OLYMPUS</title>
+<link rel="stylesheet" href="src/ui/style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

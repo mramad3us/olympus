@@ -1,0 +1,6 @@
+# Windows scripts keep Windows line endings, whatever the checkout.
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+# Shell scripts keep Unix line endings, even in a Windows clone with core.autocrlf (bash
+# stops at the first \r).
+*.sh text eol=lf

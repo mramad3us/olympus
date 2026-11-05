@@ -1,0 +1,107 @@
+# OLYMPUS: working notes
+
+A hard science-fiction browser game: you are one career Martian marine, living real-time sols in detail (the body, the rifle, the squad), under a solar system that runs as LONGHAUL's does. The design is settled in `docs/DESIGN.md` (the hub: the brief, the pillars, the settled decisions) and its sections in `docs/design/*.md`; `docs/research/` holds the digests of the user's two earlier games it draws on. This file is the method (how we version, play, test and work), carried over from tradecraft (`../tradecraft`, itself carried from longhaul, `../longhaul`) and fitted to OLYMPUS. The brief asked for it: "Build from the ground up with functional test versions and a promotion script to test the latest stable version (like tradecraft)" (the user, 2026-11-05; quoted in `docs/research/tradecraft-method.md` §15).
+
+## Commands
+
+- `./play.sh`: serve the play copy (`.play/`, the release the user plays) on :8200 and open the browser; the first time, it makes the play copy from the latest release. `./play.sh --dev`: the working tree, as it is now, on :8201. Both serve through `tools/serve.py`: `Cache-Control: no-store` (a caching server lets the browser mix old and new modules after an update, and the load fails), a listen queue of 128 (the standard 5 resets the odd module request), 127.0.0.1 only, file types set in code. A pidfile per port in `.run/` lets `play.sh` stop its own earlier server, and only its own.
+- `./play.sh --gallery` (`play.cmd --gallery`): the play copy's look samples (`samples/index.html`) on :8212, where the user stars and scores them; "Copy my picks" gives the text they paste back. `node tools/gallery.mjs [filter] [--port N]` reshoots every view of every `samples/*/sample.json` (each shot whole picture pixels, or the run fails).
+- `tools/promote.sh [vX.Y.Z]`: move the play copy to a release (default: the latest). `--status` says where it is and what is newer. An older tag rolls back.
+- On Windows, `play.cmd` (runs `tools/play.ps1`): `play.sh` and `promote.sh` together (`--dev`, `--promote [vX.Y.Z]`, `--status`; the tags are fetched from GitHub first, since there the game is a clone). Keep it in step with them. `play.cmd` and `play.ps1` keep CRLF line endings (`.gitattributes`), shell scripts LF.
+- `tools/release.sh patch "<summary>" --trailer "Co-Authored-By: …" --trailer "Claude-Session: …"`: cut a release (below).
+- `npm test`, or `node tests/run.mjs <filter>`: the tests. `npm run test:quick` (`QUICK=1`) leaves out the ones marked `heavy: true` (the browser, long or timed runs); use it whenever the user may be playing. `SKIP=a,b` leaves out tests by name, `TIMEOUT_MS` changes the five-minute limit a test gets.
+- `node tools/shot.mjs <url> <out.png> [--size WxH] [--ready <expr>] [--timeout ms]`: a screenshot in headless Chrome on the GPU; it fails on page errors, console errors and failed requests, and prints `window.__report`.
+- `tools/awake.sh status | off | on | renew | run <cmd…>`: the keep-awake lease (below).
+- `npm install`: playwright-core 1.64.0, the tests' and shots' only dependency (`node_modules/` is ignored; the game loads nothing from it).
+- Browser smoke run: serve on a port of your own (8230 to 8239: `python3 tools/serve.py <port> <dir>`, or `withGame(fn, { port })` from `tests/browser.mjs`), drive the system Chrome (`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`, headless, `--use-angle=metal --enable-gpu --ignore-gpu-blocklist`) through playwright-core, collect page errors, console errors and HTTP errors, and kill the server after.
+
+## Ports
+
+One port, one browser origin, so one set of saves (IndexedDB and localStorage are per origin):
+
+| Port | What |
+|---|---|
+| 8200 | the play copy: the user's game and the user's saves. Never touched otherwise |
+| 8201 | the working tree (`./play.sh --dev`) |
+| 8212 | the gallery of look samples |
+| 8223 | the browser tests (`tests/browser.mjs`) |
+| 8230 to 8239 | agents and smoke runs, one each |
+
+Not ours, never used: 8090 (longhaul), 8100 and 8101 (tradecraft's play and dev), 8112 and 8123 (tradecraft's gallery and tests). `withGame` refuses 8200, 8201 and those, and a port that already answers.
+
+## Versions and releases
+
+- `VERSION` holds the version: one place, read by the game and the scripts.
+- The numbers (the user, 2026-11-05: "Claude cuts patches and bumps the minor at each tested milestone. 1.0 is the user's call"):
+  - `release.sh patch`: a round of work, or a batch of the user's patch requests (0.0.1 → 0.0.2). As many as needed.
+  - `release.sh minor`: a milestone of `docs/design/ROADMAP.md` built and tested, its acceptance moments ready for the user (0.0.9 → 0.1.0).
+  - `release.sh rc --major`: opens the 1.0 candidate (0.x.y → 1.0.0-rc1). Only on the user's word that the game is ready for it (my call: the 1.0 is theirs, so the way into it is too; the script can't check that).
+  - `release.sh rc`: the next candidate (1.0.0-rc1 → 1.0.0-rc2), fixes and work while a candidate is open. Patch and minor are refused on a candidate.
+  - `release.sh major --user-validated`: the candidate becomes 1.0.0, when the user has validated it, said out loud. A major never skips its candidate.
+- What `release.sh` does, in order: refuses an empty Unreleased (every release says what it changed), an existing tag, a branch other than `main` (my call), and any untracked file outside the shipped top-level paths (`src tests tools docs vendor samples assets index.html VERSION CHANGELOG.md README.md CLAUDE.md CREDITS.md package.json package-lock.json play.sh play.cmd .gitignore .gitattributes`: commit a new one on purpose, ignore it, or delete it, so a scratch file never ships through `git add -A`); backs up VERSION and CHANGELOG.md in `.run/`; stamps CHANGELOG.md and writes VERSION; runs `npm test` (`QUICK` and `SKIP` pass through); and if the tests, a stray file they left, the commit or a Ctrl+C stop it, puts VERSION, CHANGELOG.md and git's index back. Then the commit `vX.Y.Z: <summary>` (subject under 72 characters; the detail goes in CHANGELOG.md), the trailers given, an annotated tag, the push with `--follow-tags`, and the play copy's status.
+- Every release goes through `tools/release.sh`, on `main`, and is pushed to `origin` (github.com/mramad3us/olympus, public; the user, 2026-11-05: "also do keep the game up to date on github please"). That is standing permission for release commits. Other commits, branches, merges and anything forced only when asked. A push that fails leaves the release made and says so: push it by hand once GitHub answers.
+- CHANGELOG.md is the release history: what changed for the player and which numbers moved, written under `## Unreleased` as the work happens. Each bullet opens with a bold sentence that states the change as a fact about the game, then the mechanism and the numbers, before and after; the user's asks and reports attributed ("your ask", "your report from Windows"); a last `Tests:` bullet. No `## ` heading inside an entry (it would end the entry; `release.sh` refuses it). The release history doesn't go in memory (longhaul's memory grew to 36 KB of it).
+
+## The play copy (the user plays while we work)
+
+- The user plays `.play/`, a git worktree detached at a release tag. It changes only through `tools/promote.sh`, and only on the user's go ("update my game", "go", "promote"). Their game never changes under their feet, and the working tree is always ours: no scratch copy is needed just because they're playing.
+- After each release, announce it in the chat: the version, what's in it (the CHANGELOG entry, in short), and that it's ready to promote. Never promote unasked. If a release breaks their game, `tools/promote.sh <previous tag>` puts the last one back.
+- `.play/` is a checkout of a tag, so nothing ignored is in it: whatever the game loads must be committed (vendored three.js, assets) or made by the game at runtime.
+- Never touch `.play/`, the play port (:8200) or its saves otherwise. When the user may be playing (they said so, or `lsof -nP -iTCP:8200 -sTCP:LISTEN` shows the play server), the machine is shared: run `npm run test:quick`, and no heavy benchmarks unless asked.
+
+## Scratch copies and parallel work
+
+- For experiments, parallel agents and baselines: `git worktree add <scratchpad>/<name> [ref]` (or an agent's worktree isolation, under the ignored `.claude/worktrees/`), named for what they hold (`base-v0.3.2`, `exp-gload`). Remove them when done (`git worktree remove`). Scratch files go outside the repo (the session's scratchpad, or `/private/tmp/claude-501/olympus-build/<task>/`).
+- "Prep it but don't apply until I say go" means build it on a branch or a scratch worktree, show what changes, and merge on the go. That is separate from promotion.
+- Parallel agents each own named files and folders, take one port of 8230 to 8239, and don't commit: the lead integrates and releases.
+- The sibling projects (`../longhaul`, `../tradecraft`) are read-only: read them, import their pure modules from a scratch script for numbers, never change them, never run their release or promote scripts or use their ports.
+
+## Keeping the Mac awake
+
+- The user leaves long runs going and doesn't want to come back to a Mac that slept and stopped the work.
+- The hooks that renew `tools/awake.sh`'s lease on every prompt and tool call (`.claude/settings.json`: `UserPromptSubmit` and `PreToolUse` → `"$CLAUDE_PROJECT_DIR"/tools/awake.sh renew 2>/dev/null || true`, as tradecraft has them) could not be installed by Claude: changing the settings is the user's. Until they are, a background `caffeinate` started for the session holds the Mac awake.
+- `tools/awake.sh` is here all the same: `renew` starts its keeper for an hour, `run <cmd…>` keeps the lease fresh for as long as a long job runs, `status` says what holds the Mac awake (and counts caffeinate processes that aren't its own), `off` stops it until `on`. On battery it also declares user activity (caffeinate alone once failed in longhaul). It leaves the screen lit (the user, 2026-10-26, of tradecraft: stop killing the brightness); dimming is opt-in (`AWAKE_DIM=1`). A closed lid on battery still sleeps: say so if the user is about to leave the Mac on battery.
+- "Kill caffeinate" means stopping whichever keeps the Mac awake: `tools/awake.sh off`, and the session's background caffeinate. Check `tools/awake.sh status` before saying anything about it.
+- Hooks load when a session starts: a new or changed hook needs a restart, or a look at `/hooks`.
+
+## Docs
+
+- `docs/DESIGN.md` is the hub and the source of truth: the brief, the pillars, the settled decisions, the decision log. The sections in `docs/design/*.md` (SETTING, TIME, BODY, SKILLS, WEAPONS, COMBAT, PEOPLE, CAREER, PLACES, VIEWS, TECH, ROADMAP) hold the detail. When a section and the hub disagree, the hub wins until one is corrected, in the same change.
+- Every decision the user makes and every complaint they raise goes into DESIGN.md's decision log with its date, then into the section it affects as a rule. Claude's own decisions are marked "(my call)" so the user can overrule them.
+- `README.md`, the docs and the module headers are the truth for the systems and their numbers. When a constant or behaviour they quote changes, update them in the same change.
+- `docs/research/` is a set of dated digests of `../longhaul` and `../tradecraft` with file and line references: reading, not rules.
+- Memory holds only the user's preferences and the decisions not written in the repo.
+- House style: plain, precise British English; colons and commas, never em dashes; units in names and numbers with their units; the user's words quoted with their date.
+
+## Rules of the code (tradecraft's, confirmed for OLYMPUS)
+
+- **Stack:** vanilla ES modules, no build step, browser, fully playable offline. No runtime dependencies but three.js 0.186.1, vendored in `vendor/three/` (MIT) for the pixel stage only; the instruments are Canvas2D, the interface plain DOM over the canvas. The game loads nothing from `node_modules`. It changes only by decision, recorded in DESIGN.md.
+- **The sim is pure.** `src/sim` and `src/core` never touch the DOM or three.js. They report facts on the bus they are given, and the UI decides how to show them. The two core modules that talk to the browser (`src/core/store.js`, the saves; `src/core/input.js`, the keyboard) are named in `tests/syntax.test.mjs` (`BROWSER_EDGE`), and nothing else in the sim or core may import them.
+- **One tick at a time:** game time is integer milliseconds, ticked at 20 Hz (`TICK_MS` 50), in a fixed, documented order. Decisions made in a tick act the next. Skips give outcomes for the gap, not a tick-by-tick run.
+- **State is plain data.** Keys starting with `$` are runtime-only and stripped from saves. A `SAVE_SCHEMA`: prefer additive changes that an `upgradeState` fills in on load; bump the schema only for a change that can't be. Before 1.0, old saves are kept only where it comes naturally, with no work to carry them over a change (the user's rule for tradecraft, 2026-10-26, carried over until they say otherwise).
+- **Randomness only through the one seeded rng** (`src/core/rng.js`, with streams), so tests can seed it; cosmetic choices by hash (`src/core/hash.js`). No `Math.random` anywhere in `src/` (checked).
+- **Units in constant names** (`rangeM`, `speedMs`, `doseSv`, `TICK_MS`). In longhaul, a wrong unit once made pirates charge to 800 km instead of 800,000 km.
+- **Scale:** spatial indexes, no per-tick work over every entity, far things get outcomes, not simulation (LONGHAUL's rule). The sim stays under 2 ms a tick in the busiest area.
+- **From day one:** the debug handle `window.__olympus` (state, step(n, input), start, newGame, save, load, skip, pause, version); `window.__ready` once the third frame is drawn; URL parameters that skip the title (`?play=<scenario>&seed=<n>&hour=<h>`); save export and import as a JSON file, so a bug the user hits can be replayed exactly (longhaul had to decode Chrome's IndexedDB blobs to get at a save). Names: IndexedDB `olympus`, storage keys `olympus.*`.
+- **Visuals obey the sim:** effects take their real time and scale, and one quantity shows one number on every screen, computed by one shared helper.
+- **Performance:** 60 fps on the user's Mac and on Windows (ANGLE over D3D11: judge it there too); no texture uploads mid-play that hitch; static geometry batched; one instanced draw for the crowd.
+- **Style.** Every module opens with a header that explains its model in prose (checked: at least a sentence). Comments explain why. Script and module headers open `OLYMPUS:` with a colon. No em dashes (checked in `src/`). Match the surrounding density and naming.
+- **Tests print the numbers that matter** (balance, timings, counts), indented six spaces under their line. Read them; don't just count passes.
+
+## Tests
+
+- `tests/*.test.mjs`, each default-exporting `[{ name, fn, heavy?, timeoutMs? }]`; `fn` may be async and fails by throwing. Names are sentences about the behaviour, with the user's words and date when a test pins their ask. Assertions carry their evidence (`assert(cond, JSON.stringify({ … }))`).
+- `tests/helpers.mjs`: `assert`, `near`, `fmt`, `root`. Drivers for the game (a recruit's day, a range shooter, a boarding stack) go in modules of their own beside it, their memory plain data on the actor so it saves.
+- `tests/browser.mjs`: `withGame(fn, { port, query, init, ready, … })` starts `tools/serve.py` on its port (8223 by default), waits for `/VERSION`, drives the system Chrome, opens `/?<query>` and waits for `window.__ready`; `fn(page, errors, game)`. Anything in `errors` when `fn` returns fails the test (a test that provokes an error on purpose empties the list). `frameMs(page)` gives the median and 95th-percentile frame times.
+- `tests/syntax.test.mjs`: every module in `src/` and `tools/*.mjs` parses; the rules above that a machine can check. `tests/version.test.mjs`: VERSION's form, the Unreleased section, the entries newest first ending at VERSION. `tests/browser.test.mjs` (heavy): the game boots with no errors, the handle answers, a save loaded carries on byte for byte.
+- Golden hashes pin procedural generation (tradecraft's way): when generation changes on purpose, reprint them (`PRINT_HASH=1`), paste them, and say so in CHANGELOG.md. Statistical tests run N trials and print rates, with room for chance. A test that pins a bug fails without the fix.
+
+## Working with the user
+
+- They play on the Mac and on Windows (`play.cmd`): both must work, and performance is judged on both.
+- Their keyboard is AZERTY. The game reads keys by physical position (`KeyboardEvent.code`) and labels them for AZERTY (ZQSD to walk); tests press by code.
+- They often play while asking for changes, and drop in patch requests mid-round: fold those into the next patch release.
+- Each mechanic is built first as a playable test the user scores, and the look is chosen from numbered samples they score (tradecraft's way), before mechanics are joined.
+- Announce every release in the chat with what's in it; never promote unasked; every release is pushed to the public GitHub repo with its tag.
+- If an auto-mode safety check blocks commands, say so and ask the user to switch permission modes, rather than working around it (a military game will trip it: combat-heavy conversations did in longhaul).
+- Kill any server you start.

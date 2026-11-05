@@ -1,0 +1,45 @@
+{
+ "title": "The look: five scenes with their people, in the four candidates",
+ "about": "The first look round put together: the kit's scenes (samples/scenes) with the real figures in them (samples/figures, one instanced draw), lit by the scene's mood, in the game's own frame (zoom 1, 40 × 22.5 m), or zoomed twice where a splash would frame it (L2, L5). Each scene is shown four ways, the two open questions crossed: the density (16 px/m at 640 × 360, tradecraft's; or 24 px/m at 960 × 540) by row, and the figures (A, chibi, about 2.4 heads, tradecraft's; or B, soldier, about 3.8 heads) by column. Nothing else changes inside a scene's four pictures: the same people in the same places at the same moment. Shots are the picture's own pixels at × 2, so both densities fill the same width here; click one to see it larger and flip between the four with the arrow keys. Star what you like and give each a score out of 100, then Copy my picks and paste it back.",
+ "pixel": "stage",
+ "matrix": {
+  "rows": { "param": "ppm", "values": ["16", "24"], "labels": ["16 px/m", "24 px/m"] },
+  "cols": { "param": "prop", "values": ["chibi", "soldier"], "labels": ["A: chibi", "B: soldier"] }
+ },
+ "groups": [
+  {
+   "id": "L1",
+   "title": "The squad bay at reveille",
+   "query": "scene=bay&t=0.9",
+   "about": "Echo Company's east wing at Base Melas (PLACES §4.4): three squad bays, the hallway, the heads and the lounge, the overheads on before the sky is light. Thirteen marines get up: you in PT kit down the 1st squad's aisle, one dressing at an open wall locker, one on a footlocker lacing his shoes, one in a towel heading out for the head, the squad leader (a sergeant in utilities) calling the 2nd squad, a late riser still asleep on an upper rack, one making her rack, two of the 3rd squad out to formation, one at the study table, the fire watch by his desk in the hallway, one at head A's basins. Zoom 1: the game's frame, 40 × 22.5 m."
+  },
+  {
+   "id": "L2",
+   "title": "The head: a shower behind its curtain",
+   "query": "scene=head&zoom=2&t=0.9",
+   "about": "Head 2A in the evening. One marine showers in the middle stall behind its drawn curtain (VIEWS §3.4: the curtain from the shins to the shoulders, the wet hair above it; the steam over the one shower running); you in a towel at the basins under the fogged mirror, another brushing his teeth beside you, one drying off on the bench, one coming in through the door. Zoom 2 (20 × 11.25 m), the framing of the shower's splash (DESIGN: the splash is the stage zoomed close on you at the appliance)."
+  },
+  {
+   "id": "L3",
+   "title": "The mess hall at noon: the queue at the serving line",
+   "query": "scene=mess&t=0.9",
+   "about": "The mess hall's western 40 m at the noon meal (PLACES §4.5). A queue comes from the entry's hand basins through the door to the tray start, and along the line marines face the hot wells with their trays; four cooks in whites behind the line and at a prep table; a sergeant at the headcount desk; nine at the tables, the north benches facing you, the south ones their backs. Twenty-five people, thirteen looks. Zoom 1."
+  },
+  {
+   "id": "L4",
+   "title": "The valley floor: two marines in vac suits, by day and in a dust storm",
+   "query": "scene=chasm&t=0.9",
+   "sets": [
+    { "label": "clear day", "query": "mood=day" },
+    { "label": "dust storm, τ 4", "query": "mood=storm" }
+   ],
+   "about": "Melas Chasma's floor by the Talus 3 station (the vehicle lock, the dust vestibule, a scarp of layered deposits). A suit drill: you in the light vac suit, rifle at the low ready, walking back up to the vehicle lock; the other in the low-g bound at 0.38 g (the lope's apex, 0.45 m up, the shadow under it shrunk), rifle slung. a to d by a clear day; e to h in a dust storm of optical depth 4 (VIEWS §2.7: the sun at a tenth, sight about 100 m, dust falling and blowing), the fog of awareness round you (what you aren't looking at veiled), the other marine a shape in the haze at the edge of your sight. Zoom 1."
+  },
+  {
+   "id": "L5",
+   "title": "A frigate's deck 5 at battle stations: strapped into a crash couch",
+   "query": "scene=deck&zoom=2&t=0.9",
+   "about": "A Hellas-class frigate's marine deck under battle red (the panels at a third, the red strips; the ship palette). You lie strapped into a crash couch in the ready room, helmet sealed; a marine two couches along with his helmet off and clipped to his pack, another in the row behind; one sits on the one couch whose harness is still open, about to strap in; the section's NCO in the aisle, helmet off. Lying in this projection: a body on its back, head north, is seen from its feet, so it looks much like a figure standing (VIEWS §3.5); the couch round it and the long shadow say it lies. Zoom 2 (20 × 11.25 m) on the ready room, as a splash would frame it; the whole deck is 17.4 × 15.4 m."
+  }
+ ]
+}

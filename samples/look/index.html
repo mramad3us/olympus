@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OLYMPUS · look samples</title>
+<link rel="icon" href="data:,">
+<!--
+  The look samples: the five scenes with the real figures in them, one candidate at a time
+  (?scene=bay|head|mess|chasm|deck&ppm=16|24&prop=chibi|soldier&mood=…&t=…). main.js says how.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #0e0f14; overflow: hidden; }
+  #hud { position: absolute; left: 10px; top: 10px; padding: 8px 10px; background: rgba(20, 21, 28, 0.82); border-left: 2px solid #e7b84a;
+         color: #c8cdd6; font: 12px/1.45 ui-monospace, 'SF Mono', Menlo, monospace; white-space: pre; pointer-events: none; z-index: 2; }
+  #hud b { color: #e7b84a; font-weight: 600; }
+  #hud.off { display: none; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "../../vendor/three/build/three.module.js", "three/addons/": "../../vendor/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="hud" class="off"></div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
