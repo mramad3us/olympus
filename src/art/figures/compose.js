@@ -39,7 +39,15 @@
 // (outfits.js: a towel wrapped at the waist, bare chested, or at the chest for a woman; shower shoes)
 // is a wrap drawn over both thighs as one part, so it reads as cloth, not shorts; wet hair (the look's
 // cue after a shower) is the hair's own colour darker, with a wet sheen on its crown, and on a shaved
-// head a glint on the scalp. Pure.
+// head a glint on the scalp.
+// 0.0.5 (the build sheet 0.0.5 §2.3 (b)): the rifle's handling rigs (poses.js HELD_RIFLE): 'front' (slung
+// across the chest, the muzzle at the left knee, the hands free, the sling over the left shoulder),
+// 'raise' (both hands bringing it off the sling), 'charge' (the rifle level under the right arm, the right
+// hand up at the charging handle at the receiver's back), 'release' (the left hand at the bolt catch over
+// the magazine well), 'check' (the muzzle up, the left hand at the port, the eyes down on it),
+// 'proneRest' (prone, the rifle forward off the shoulder); kneeling, the rigs follow the kneeling body;
+// prone (rig.prone), the hands work with the rifle propped on the elbows, its well clear of the ground,
+// and a slung rifle lies across the back. Pure.
 import { PX_PER_M } from '../../render/scale.js';
 import { bodyOf } from './body.js';
 import { poseOf, cellKind, AIM_TILT, KICK_TILT } from './poses.js';
@@ -179,7 +187,7 @@ function rigOf(pose, J, B, look, dir) {
   // (the rig works in the facing's frame, not the body's turned one: lying prone, "forward" is still the way they face)
   const right = mul(LEFT, -1), U = UP, Fw = F;
   const mid = lerp(J.sh.r, J.sh.l, 0.5), side = dir === 'right' || dir === 'left';
-  const out = { gun, lenM, withMag: true, hand: { r: null, l: null }, mode: r.mode };
+  const out = { gun, lenM, withMag: !look.magOut, hand: { r: null, l: null }, mode: r.mode };
   // (a chibi's head is wider than its shoulders: seen from behind, a shouldered gun is drawn just clear of it, as tradecraft drew it)
   const clear = dir === 'up' ? B.headW / 2 - B.armOut * 0.45 + 1.5 / B.ppm : 0;
   const aimDir = () => {
@@ -226,6 +234,7 @@ function rigOf(pose, J, B, look, dir) {
       break;
     }
     case 'slung': {
+      if (gun === 'rifle' && r.prone) return proneSlung(out, J, B, G, at, right);
       if (gun === 'rifle') {
         // (on the back, its muzzle up past the right shoulder; the sling across the chest)
         const k = [0.7, 0.71];
@@ -242,10 +251,44 @@ function rigOf(pose, J, B, look, dir) {
       return finish(out, J, B, G, at, false);
     }
     case 'magout': case 'magin': {
-      out.dir = norm(yaw(pitchUp(Fw, -0.35), 0.35));
-      out.butt = add(add(add(J.sh.r, mul(Fw, 0.1)), mul(U, -0.12)), mul(LEFT, 0.02));
-      out.down = norm(add(mul(U, -0.8), mul(LEFT, 0.6)));
+      if (r.prone) {
+        // (prone: the rifle propped on the elbows, its well up off the ground, the magazine hanging under it)
+        out.dir = pitchUp(Fw, 0.12);
+        out.butt = add(add(add(J.sh.r, mul(Fw, 0.12)), mul(U, 0.04)), mul(LEFT, -0.04));
+        out.down = mul(U, -1);
+      } else {
+        out.dir = norm(yaw(pitchUp(Fw, -0.35), 0.35));
+        out.butt = add(add(add(J.sh.r, mul(Fw, 0.1)), mul(U, -0.12)), mul(LEFT, 0.02));
+        out.down = norm(add(mul(U, -0.8), mul(LEFT, 0.6)));
+      }
       out.withMag = r.mode === 'magin';
+      break;
+    }
+    case 'front': {
+      if (r.prone) return proneSlung(out, J, B, G, at, right);
+      // (slung in front, hands off: across the chest, the butt at the right shoulder, the muzzle at the left knee)
+      out.dir = norm(add(add(mul(U, -0.86), mul(LEFT, 0.5)), mul(Fw, 0.1)));
+      out.butt = add(add(add(J.sh.r, mul(Fw, B.chestDepth + 0.05)), mul(U, 0.03)), mul(LEFT, 0.03));
+      out.down = Fw;
+      out.strap = [add(add(J.sh.l, mul(Fw, B.chestDepth * 0.9)), mul(U, 0.03)), out.butt];
+      return finish(out, J, B, G, at, false);
+    }
+    case 'raise': {
+      out.dir = norm(yaw(pitchUp(Fw, -0.95), 0.75));
+      out.butt = add(add(add(J.sh.r, mul(Fw, 0.08)), mul(U, -0.02)), mul(LEFT, 0.02));
+      break;
+    }
+    case 'charge': case 'release': case 'check': {
+      // (the rifle in to the body: level under the arm for the charging handle and the release, muzzle up for a
+      // press check; prone, propped on the elbows)
+      const up = r.mode === 'check' ? 0.32 : r.mode === 'charge' ? 0.12 : -0.12;
+      if (r.prone) { out.dir = pitchUp(Fw, r.mode === 'check' ? 0.22 : 0.08); out.butt = add(add(add(J.sh.r, mul(Fw, 0.12)), mul(U, -0.03)), mul(LEFT, -0.04)); }
+      else { out.dir = pitchUp(Fw, up); out.butt = add(add(add(J.sh.r, mul(Fw, 0.02)), mul(U, r.mode === 'check' ? -0.12 : -0.07)), mul(LEFT, B.armOut * 0.3)); }
+      break;
+    }
+    case 'proneRest': {
+      out.dir = pitchUp(Fw, -0.06);
+      out.butt = add(add(add(J.sh.r, mul(Fw, 0.08)), mul(U, -0.04)), mul(LEFT, B.armOut * 0.3));
       break;
     }
     case 'lap': {
@@ -258,6 +301,13 @@ function rigOf(pose, J, B, look, dir) {
   }
   return finish(out, J, B, G, at, true);
 }
+// (a rifle slung while prone: across the back from the hips toward the right shoulder, the hands free)
+function proneSlung(out, J, B, G, at, right) {
+  out.dir = norm(add(add(mul(F, 0.94), mul(right, 0.22)), mul(UP, 0.1)));
+  out.butt = add(add(J.pelvis, mul(UP, B.chestDepth * 1.9)), mul(F, -0.18));
+  out.down = mul(right, -1);
+  return finish(out, J, B, G, at, false);
+}
 function finish(out, J, B, G, at, hold) {
   if (!out.down) { const d = out.dir; out.down = norm(sub([0, 0, -1], mul(d, -d[2]))); if (Math.abs(out.dir[2]) > 0.95) out.down = F; }
   out.down = norm(sub(out.down, mul(out.dir, dot(out.down, out.dir))));
@@ -265,11 +315,13 @@ function finish(out, J, B, G, at, hold) {
   out.muzzle = point(G.muzzle, 0);
   out.magwell = point(G.magwell ?? G.grip, at(1.5));
   if (!hold) return out;
-  out.hand.r = point(G.grip, at(1.2));
+  out.hand.r = out.mode === 'charge' ? point(G.grip - 1.2, -at(2.6)) : point(G.grip, at(1.2));   // (charging: the right hand up at the handle, the receiver's back)
   if (out.mode === 'magout') {
     out.hand.l = add(out.magwell, mul(out.down, B.magM * 0.95));
     out.loose = { at: add(out.magwell, mul(out.down, B.magM * 0.25)), dir: out.down };
   } else if (out.mode === 'magin') out.hand.l = add(out.magwell, mul(out.down, B.magM * 0.75));
+  else if (out.mode === 'release') out.hand.l = point((G.magwell ?? G.grip) - 1.5, at(0.6));          // (the left hand on the bolt catch)
+  else if (out.mode === 'check') out.hand.l = point((G.magwell ?? G.grip) - 1.5, -at(0.9));          // (the left hand at the port)
   else if (out.gun === 'pistol') out.hand.l = add(out.hand.r, mul(out.dir, at(0.5)));
   else {
     // (the support hand under the handguard; a hand that can't reach slides back along the gun until it can)
@@ -447,7 +499,7 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
     op(d, () => {
       const a = pp(sh), e = pp(el), w2 = pp(wr), h2 = pp(tip);
       g.begin(a[0], a[1]);
-      const shell = top === 'suit' ? (k) => (k < 0.38 ? 'c' : upperRole) : upperRole;
+      const shell = top === 'suit' ? (k) => (k < 0.38 ? 'c' : upperRole) : Lk.brassard && s === 'l' ? (k) => (k > 0.12 && k < 0.8 ? 'i' : upperRole) : upperRole;
       g.capsule(snap2(a, T.arm), snap2(e, T.arm), T.arm / 2, shell);
       g.capsule(snap2(e, T.fore), snap2(w2, T.fore), T.fore / 2, (k) => (top === 'suit' && k > 0.82 ? 'ð' : foreRole));
       g.capsule(snap2(w2, T.hand), snap2(h2, T.hand), T.hand / 2, Lk.gloves ? 'd' : 's');
@@ -741,6 +793,7 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
     else if (view === 'up') { g.begin(x0, y0); g.tpl(T(K.nape).t, x0, y0); }
   }
   if (covering) { const t = T(K.hat[hat]).t; g.begin(x0, y0); g.tpl(t, x0, y0); }
+  if ((Lk.ears || Lk.headset) && !sealed && pose.stance !== 'supine') earCups(g, Lk, view, x0, y0, W, H, B);
   // (foam: white at the mouth round the brush, or along the jaw for a shave: on the head's own lowest skin pixels)
   if (pose.foam && !sealed && view !== 'up') {
     const skin = [];
@@ -778,6 +831,32 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
     g.begin();
     for (let x = Math.round(nk[0]) - w; x <= Math.round(nk[0]) + w; x++) { g.put(x, y, 'ð'); if (B.ppm >= 20) g.put(x, y + 1, 'Ð'); }
   }
+}
+
+/**
+ * Ear defenders (0.0.5: the 25 m line's), drab cups at the ears on a dark band over the crown and the
+ * cover; a headset (the range officer's) is one cup, at the left ear, and a boom to the mouth. Side on,
+ * the near cup over the ear, the band up over the head; from the front or behind, a cup each side.
+ */
+function earCups(g, Lk, view, x0, y0, W, H, B) {
+  const u = Math.max(1, Math.round(B.ppm / 16)), cw = 2 * u, ch = 3 * u + 1, ey = y0 + Math.round(H * 0.52);
+  const cup = (cx) => { g.begin(); for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) g.put(cx + i, ey + j, Lk.headset && !Lk.ears ? 'u' : 'æ'); };
+  const band = (x) => { g.begin(); for (let y = y0 - u; y < ey; y++) for (let i = 0; i < u; i++) g.put(x + i, y, 'u'); };
+  if (view === 'right' || view === 'left') {
+    const cx = view === 'right' ? x0 + Math.round(W * 0.24) : x0 + W - Math.round(W * 0.24) - cw;
+    // (a headset is at the left ear: seen from the right it is the far one, behind the head; only its boom shows)
+    if (Lk.ears || view === 'left') { band(cx + (view === 'left' ? 0 : cw - u)); cup(cx); }
+    if (Lk.headset) {
+      // (the boom: from the near cup to the mouth seen from the left; from the right only its tip shows at the mouth)
+      g.begin();
+      if (view === 'left') for (let i = 0; i < Math.round(W * 0.3); i++) g.put(cx - 1 - i, ey + ch - 1 + Math.floor(i / 3), 'n');
+      else for (let i = 0; i < 2 * u; i++) g.put(x0 + Math.round(W * 0.66) + i, ey + ch, 'n');
+    }
+    return;
+  }
+  const left = view === 'down' ? x0 + W - 1 : x0 - cw + 1, right = view === 'down' ? x0 - cw + 1 : x0 + W - 1;
+  for (let x = x0; x < x0 + W; x++) for (let i = 0; i < u; i++) { g.begin(); g.put(x, y0 - u + i, 'u'); }
+  if (Lk.ears) { cup(left); cup(right); } else { cup(left); if (view === 'down') { g.begin(); for (let i = 0; i < Math.round(W * 0.35); i++) g.put(left - i, ey + ch, 'n'); } }
 }
 
 /** The gun's cells: its shape turned along its line as the picture shows it, or seen end on, its muzzle a ring. */

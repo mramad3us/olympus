@@ -12,7 +12,10 @@
 //
 // The memory belongs to one state and one area: a new state (a load, a new career), another area
 // (actors are made again behind the cut) or a skip (the people are where the time has put them, TIME
-// §5.9) forgets it. It is the view's, never saved; PEOPLE's state.mind.seen and its ghosts (a
+// §5.9) forgets it; the view forgets it for a skip only while a full splash's iris covers the picture
+// (begin's skipping), and a brief splash's lapse, which never covers it, keeps it, so the squad drawn
+// as last seen never jumps to where they are in one frame with the bay in view (the review of v0.0.5's
+// rack: seven did on the dressing splash's first frame); they show as they are once looked at. It is the view's, never saved; PEOPLE's state.mind.seen and its ghosts (a
 // person's last sighting kept in the save, forgotten past 70 m) come with sightings (0.0.10).
 // Pure: no DOM, no three.js (node tests drive it on the headless game).
 
@@ -24,9 +27,9 @@ export function createMemory() {
   const seen = new Map();                                            // actor id → { x, z, value }
   let of = null;
   return {
-    /** A frame begins: forgotten with a new state, another area, or while a skip runs. */
-    begin(state, areaId) {
-      if (!of || of.state !== state || of.area !== areaId || state?.skip) { seen.clear(); of = { state, area: areaId }; }
+    /** A frame begins: forgotten with a new state, another area, or while a skip runs (skipping: the caller's say, by default state.skip; the view's waits for a splash's iris to close). */
+    begin(state, areaId, { skipping = !!state?.skip } = {}) {
+      if (!of || of.state !== state || of.area !== areaId || skipping) { seen.clear(); of = { state, area: areaId }; }
     },
     /** What to draw for an actor at (x, z): its remembered value when neither spot is in sight, else null (draw it as it is, then keep it). */
     recall(id, x, z, inSight) {

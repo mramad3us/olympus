@@ -1,7 +1,7 @@
 // OLYMPUS art: the kit, every piece by kind. place() puts one into an area; KINDS lists them; FOOTPRINTS sizes them.
 //
 // A piece is { kind, x, z, face = 'down', make, look, seed } (tradecraft's furniture() spec, plus make):
-// kind names the maker (quarters.js, mess.js, head.js, training.js, ship.js, signs.js), make a way of
+// kind names the maker (quarters.js, mess.js, head.js, training.js, ship.js, signs.js, range.js), make a way of
 // building it (a steel rack or a modular one), look its state (made or unmade, open or shut, lit or not),
 // seed the cosmetic choices a look leaves open (which blanket, which dents), so a bay of fifteen racks
 // isn't one rack fifteen times ("at least three kinds of everything": the user, tradecraft, carried
@@ -11,7 +11,8 @@
 //
 // place(area, spec) builds the piece with the kit builder (kit.js) into the area (src/render/batch.js,
 // or any object with the same box(), ground(), lamp(), glowLine() and part()), and returns its world
-// boxes and lamps (and a clock's dials, where the stage lays its hands: structure.js). Nothing here holds GPU objects: painters are plain functions, remembered by key.
+// boxes and lamps (and a clock's dials, where the stage lays its hands, and a stair's landing and mark,
+// which the stairs test holds to the sim's: structure.js). Nothing here holds GPU objects: painters are plain functions, remembered by key.
 // Pure.
 import { builder, pieceRng, variant } from './kit.js';
 import * as quarters from './quarters.js';
@@ -21,6 +22,7 @@ import * as training from './training.js';
 import * as ship from './ship.js';
 import * as signs from './signs.js';
 import * as structure from './structure.js';
+import * as range from './range.js';
 
 /** Footprints by kind: w across, d deep, h tall (metres), and the makes each kind has. */
 export const FOOTPRINTS = Object.freeze({
@@ -70,6 +72,14 @@ export const FOOTPRINTS = Object.freeze({
   stairsWell: { w: 1.2, d: 4.8, h: 1.0, makes: ['rail', 'wall'] },
   lampPost: { w: 0.25, d: 0.25, h: 4.0, makes: ['sodium', 'flood'] },
   doorLeaf: { w: 1.0, d: 0.045, h: 2.1, makes: ['interior', 'ext', 'office'] },
+  // (0.0.5: the KD range's 25 m bay and its tower, pieces of the ground that are not the catalogue's fixtures;
+  // equal to the range's own kinds, src/data/places/range.js RANGE_KINDS, pinned by places-validate)
+  kdTower: { w: 4.0, d: 4.0, h: 9.0, makes: ['open', 'cab'] },
+  kdMat: { w: 1.0, d: 2.2, h: 0.03, makes: ['canvas', 'rubber'] },
+  kdFrame: { w: 1.0, d: 0.2, h: 1.35, makes: ['card25', 'chest'] },
+  rangeSign: { w: 2.4, d: 0.12, h: 1.3, makes: ['lane', 'distance', 'notice', 'flagpole'] },
+  berm: { w: 19.5, d: 6.0, h: 3.0, makes: ['earth', 'sandbag'] },
+  rangeFence: { w: 6.0, d: 0.1, h: 2.4, makes: ['mesh', 'rope'] },
 });
 
 const MAKERS = {
@@ -84,6 +94,7 @@ const MAKERS = {
   ladderWell: ship.ladderWell, crashCouch: ship.crashCouch, conduit: ship.conduit, handhold: ship.handhold, emergencyLight: ship.emergencyLight,
   sign: signs.sign, window: signs.wallWindow, board: signs.board, sofa: signs.sofa, vending: signs.vending, bin: signs.bin,
   wallClock: structure.wallClock, stairs: structure.stairs, stairsWell: structure.stairsWell, lampPost: structure.lampPost, doorLeaf: structure.doorLeaf,
+  kdTower: range.kdTower, kdMat: range.kdMat, kdFrame: range.kdFrame, rangeSign: range.rangeSign, berm: range.berm, rangeFence: range.rangeFence,
 };
 /** Every kind the kit builds. */
 export const KINDS = Object.freeze(Object.keys(MAKERS));
@@ -91,7 +102,7 @@ export const KINDS = Object.freeze(Object.keys(MAKERS));
 /**
  * Put a piece into an area: { kind, x, z, y = 0 (a floor's height, or a fixture's mounting height for
  * wall pieces that take it), face, make, look, seed, w, d (a piece that stretches: a conduit's run, a
- * serving line's length) }. Returns { kind, boxes, lamps, footprint }.
+ * serving line's length) }. Returns { kind, boxes, lamps, footprint, face, dials, stair }.
  */
 export function place(area, spec) {
   const { kind, x = 0, z = 0, y = 0, face = 'down', seed = 1 } = spec;
@@ -100,5 +111,5 @@ export function place(area, spec) {
   const k = builder(area, { x, z, y, face });
   const o = { W: spec.w ?? fp.w, D: spec.d ?? fp.d, H: spec.h ?? fp.h, ppm: area.ppm, seed, v: variant(seed, 4), r: pieceRng(kind, seed), make: spec.make ?? fp.makes[0], look: spec.look ?? {}, kind, faces: spec.faces, dir: spec.dir };
   make(k, o);
-  return { kind, boxes: k.boxes, lamps: k.lamps, footprint: { w: o.W, d: o.D, h: o.H }, face, dials: k.dials ?? null };
+  return { kind, boxes: k.boxes, lamps: k.lamps, footprint: { w: o.W, d: o.D, h: o.H }, face, dials: k.dials ?? null, stair: k.stair ?? null };
 }

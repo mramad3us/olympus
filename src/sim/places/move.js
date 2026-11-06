@@ -35,7 +35,10 @@
 //
 // Facing (faceOf): moving only east–west faces 'right' or 'left', only north–south 'up' or 'down'; a
 // diagonal keeps the face if it is one of its two, else takes the north–south one. Facing follows the
-// keys even against a wall. Gait is 'idle' when nothing moved, else 'run', 'stroll' or 'walk', and
+// keys even against a wall, but on the range's firing line with the rifle in the hands (a range session
+// open, the rifle off its sling: lineStrafe) the keys move without turning, the muzzle held downrange as
+// the Corps holds it (the design review of v0.0.5: a 120 ms tap of S turned the figure and the muzzle
+// 90°, a fault; a tap of Q turned it 180° and stopped the line at once); slung, the keys turn as anywhere. Gait is 'idle' when nothing moved, else 'run', 'stroll' or 'walk', and
 // strideM counts the metres walked modulo STRIDE_WRAP_M 201.6 m (src/data/body/gait.js, the view's
 // number too), which the walk's, the run's and the bound's four-step cycles (0.64, 1.8 and 2.8 m) all
 // divide (my calls), so the view picks the frame from strideM and a wrap never jumps a frame. The
@@ -164,6 +167,14 @@ export function moveActor(actor, mx, mz, speedMs, grid) {
   return dx || dz ? q(Math.sqrt(dx * dx + dz * dz), POS_STEP_M) : 0;
 }
 
+/** Whether the keys move the player without turning them: a range session open and the rifle in the hands (see the header). */
+export function lineStrafe(state) {
+  const R = state.armoury?.range;
+  if (!R || R.end) return false;
+  const posture = state.people?.[playerId(state)]?.kit?.carry?.posture ?? 'slungFront';
+  return posture !== 'slungFront' && posture !== 'slungBack';
+}
+
 /** The fast layer `player` (TECH §3.1, layer 2): the player's actor walks the live area's grid by the keys held. */
 export function playerStep(state, input, bus, ctx) {
   doorsStep(state);                                                // (leaves that have swung open are free before anyone moves)
@@ -176,10 +187,11 @@ export function playerStep(state, input, bus, ctx) {
   // (the feet held: the keys only turn a standing player, and a berth or a stall is never settled out of:
   // a lying player's spot is inside the rack, where a walker may not stand)
   // (nor a rising one: the rise and the dressing keep their facing, never swung round mid-frame)
-  if (feetHeld(state)) { if ((a.posture ?? 'stand') === 'stand' && !transPlaying(a, state.clock.ms)) a.face = faceOf(mx, mz, a.face); a.gait = 'idle'; return; }
+  const strafe = lineStrafe(state);
+  if (feetHeld(state)) { if ((a.posture ?? 'stand') === 'stand' && !transPlaying(a, state.clock.ms) && !strafe) a.face = faceOf(mx, mz, a.face); a.gait = 'idle'; return; }
   const grid = navOf(state, area, PLAYER_CLS, a.x, a.z);
   settle(a, grid);                                                 // (a spot it may not stand on: put out at once, keys or none)
-  a.face = faceOf(mx, mz, a.face);
+  if (!strafe) a.face = faceOf(mx, mz, a.face);
   const gaits = gaitsOf(state, playerId(state)), gait = gaitOf(input, gaits), speed = speedOf(input, gaits);
   if (!speed) { a.gait = 'idle'; return; }
   const moved = moveActor(a, mx, mz, speed, grid);

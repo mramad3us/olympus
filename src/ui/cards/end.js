@@ -5,7 +5,9 @@
 // never covers the landing). The card pauses the game and offers, numbered: 1 Again with the same
 // seed, 2 Again with a new seed (the scene's procedural parts drawn afresh), 3 Score (the score card,
 // cards/score.js), 4 the title. A test scene saves nothing (the build sheet 0.0.4 §8, item 24), so
-// leaving it loses nothing; the scores alone are kept.
+// leaving it loses nothing; the scores alone are kept. A scene with a result says it under the title
+// (said: the 0.0.5 round's range summary, cards/tests.js sceneSaid: "Clear at 09:14 · 61 of 75 · 4 V ·
+// no faults").
 
 /** The card's body and its numbered lines: { body, lines }. scene: SCENES' record; seed; on: { again(sameSeed), score(), title() }. */
 export function endCard({ scene, seed, on = {}, said = null }) {

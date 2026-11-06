@@ -1,9 +1,12 @@
 // The keys (src/core/keys.js) and the input (src/core/input.js): the bindings by physical code with
 // AZERTY labels (QWERTY on request), every control DESIGN.md names, hold against tap at 220 ms, the
 // digits by code, and the per-tick snapshot with the mouse in stage pixels, driven here through a
-// plain EventTarget (no browser needed).
+// plain EventTarget (no browser needed). The 0.0.5 round's (the build sheet §2.4, §5.4): V carry, A and
+// W the stance up and down by code (KeyQ, KeyZ, labelled A and W on AZERTY, Q and Z on QWERTY), queued
+// as carry, stance:up and stance:down; the digits a press key for the step panel (tapped under TAP_MS,
+// held at TAP_MS while still down, never both), their key-down 'digit' kept for menus and G's stub.
 import { assert } from './helpers.mjs';
-import { BINDINGS, TAP_MS, label, actionOf, bindingOf, createKeyState, AZERTY_LABELS } from '../src/core/keys.js';
+import { BINDINGS, TAP_MS, label, actionOf, bindingOf, createKeyState, AZERTY_LABELS, isDigitCode } from '../src/core/keys.js';
 import { createInput } from '../src/core/input.js';
 
 // (a key event as the browser would send it, enough for input.js)
@@ -15,7 +18,8 @@ export default [
     name: 'bindings: by physical code, labelled AZERTY by default, QWERTY on request (KeyW is up: Z on AZERTY, W on QWERTY)',
     fn() {
       assert(actionOf('KeyW') === 'up' && actionOf('KeyA') === 'left' && actionOf('KeyS') === 'down' && actionOf('KeyD') === 'right', 'ZQSD');
-      assert(actionOf('KeyZ') === null && actionOf('KeyQ') === null, 'the keys AZERTY labels W and A walk nowhere');
+      // (the keys AZERTY labels W and A walk nowhere: since 0.0.5 they are the stance down and up)
+      assert(actionOf('KeyZ') === 'stanceDown' && actionOf('KeyQ') === 'stanceUp', 'the keys AZERTY labels W and A');
       assert(label('up') === 'Z' && label('left') === 'Q' && label('down') === 'S' && label('right') === 'D', `AZERTY move labels ${['up', 'left', 'down', 'right'].map(a => label(a))}`);
       const q = { layout: 'qwerty' };
       assert(label('up', q) === 'W' && label('left', q) === 'A' && label('guard', q) === ';' && label('guard') === 'M', 'QWERTY / AZERTY labels');
@@ -34,7 +38,7 @@ export default [
       // (DESIGN.md, Controls: ZQSD walk; Shift run; Alt stroll; E look/glance; F people; R at hand; T instinct;
       // G ready; X shooting mode; K L M hit grab guard; I C H Tab J; Space pause; ? keys; Esc menu)
       const want = { up: 'Z', left: 'Q', down: 'S', right: 'D', run: 'Shift', stroll: 'Alt', look: 'E', people: 'F', hand: 'R', instinct: 'T', ready: 'G',
-        shoot: 'X', hit: 'K', grab: 'L', guard: 'M', inventory: 'I', sheet: 'C', aid: 'H', mind: 'Tab', log: 'J', pause: 'Space', help: '?', menu: 'Esc' };
+        shoot: 'X', carry: 'V', stanceUp: 'A', stanceDown: 'W', hit: 'K', grab: 'L', guard: 'M', inventory: 'I', sheet: 'C', aid: 'H', mind: 'Tab', log: 'J', pause: 'Space', help: '?', menu: 'Esc' };
       const wrong = Object.entries(want).filter(([a, l]) => label(a) !== l).map(([a, l]) => `${a}: ${label(a)} (want ${l})`);
       assert(!wrong.length, wrong.join('; '));
       const kinds = Object.fromEntries(BINDINGS.map(b => [b.action, b.kind]));
@@ -78,11 +82,62 @@ export default [
       assert(d.join() === 'digit:1/digit,digit:0/digit,digit:7/digit', d.join());
       const help = k.down('KeyM', 0, '?');
       assert(help[0]?.action === 'help', 'Shift and the comma\'s key on AZERTY: help');
-      assert(k.down('KeyZ', 0).length === 0 && k.down('F13', 0).length === 0, 'unbound keys fire nothing');
+      assert(k.down('F13', 0).length === 0 && k.down('KeyY', 0).length === 0, 'unbound keys fire nothing');
       k.clear();
       s = k.snapshot(10);
       assert(s.mx === 0 && s.mz === 0 && !s.run && k.held.length === 0, 'clear');
       console.log(`      Z+D → (1, -1); Z+S+D+→ → (1, 0); digits: ${d.join(' ')}`);
+    },
+  },
+  {
+    name: 'V, A and W by code (KeyV, KeyQ, KeyZ), labelled V, A and W on AZERTY (V, Q, Z on QWERTY), queued for the sim as carry, stance:up and stance:down',
+    fn() {
+      const k = createKeyState(), q = { layout: 'qwerty' };
+      const fired = ['KeyV', 'KeyQ', 'KeyZ'].map(c => k.down(c, 0)[0]);
+      const labels = ['carry', 'stanceUp', 'stanceDown'].map(a => label(a)), qwerty = ['carry', 'stanceUp', 'stanceDown'].map(a => label(a, q));
+      console.log(`      ${fired.map((f, i) => `${['KeyV', 'KeyQ', 'KeyZ'][i]} → ${f.action}/${f.kind}`).join(', ')}; AZERTY ${labels.join(' ')}, QWERTY ${qwerty.join(' ')}`);
+      assert(fired.map(f => `${f.action}/${f.kind}`).join() === 'carry/sim,stance:up/sim,stance:down/sim', JSON.stringify(fired));
+      assert(labels.join('') === 'VAW' && qwerty.join('') === 'VQZ', JSON.stringify({ labels, qwerty }));
+      // (through the input: queued as the sim's actions, the listeners told the same)
+      const win = new EventTarget(), heard = [];
+      const inp = createInput({ target: win, now: () => 0 });
+      inp.onAction((a, kind) => heard.push(`${a}/${kind}`));
+      for (const c of ['KeyV', 'KeyQ', 'KeyZ']) { win.dispatchEvent(key('keydown', c)); win.dispatchEvent(key('keyup', c)); }
+      const s = inp.snapshot();
+      assert(s.act.join() === 'carry,stance:up,stance:down' && s.mx === 0 && s.mz === 0, JSON.stringify(s));
+      assert(heard.join() === 'carry/sim,stance:up/sim,stance:down/sim', heard.join());
+      inp.dispose();
+    },
+  },
+  {
+    name: 'the digits as press keys (the build sheet 0.0.5 §2.4): down fires digit:N/digit for menus; let go under 220 ms a tap; held 220 ms a held, then nothing on letting go; never both',
+    fn() {
+      const k = createKeyState();
+      const down = k.down('Digit3', 1000), up = k.up('Digit3', 1000 + TAP_MS - 1);
+      assert(down.length === 1 && down[0].action === 'digit:3' && down[0].kind === 'digit', JSON.stringify(down));
+      assert(up.length === 1 && up[0].action === 'digit:3' && up[0].kind === 'tap', `a 219 ms press: ${JSON.stringify(up)}`);
+      k.down('Numpad1', 2000);
+      const early = k.due(2000 + TAP_MS - 1), due = k.due(2000 + TAP_MS), again = k.due(2000 + 900), off = k.up('Numpad1', 2000 + 900);
+      assert(!early.length && due.length === 1 && due[0].action === 'digit:1' && due[0].kind === 'held' && !again.length && !off.length, JSON.stringify({ early, due, again, off }));
+      // (a stalled timer: let go past TAP_MS without a due() asked, the hold fires on the way up)
+      k.down('Digit0', 3000);
+      const late = k.up('Digit0', 3000 + 400);
+      assert(late.length === 1 && late[0].kind === 'held' && late[0].action === 'digit:0', JSON.stringify(late));
+      assert(isDigitCode('Digit5') && isDigitCode('Numpad9') && !isDigitCode('KeyD'), 'isDigitCode');
+      // (through the input: the down queued (a menu's, G's stub), the tap and the hold to the listeners only; Shift's state read with them)
+      const win = new EventTarget(), heard = [];
+      let t = 0;
+      const inp = createInput({ target: win, now: () => t });
+      inp.onAction((a, kind, e) => heard.push(`${a}/${kind}${e?.shiftKey ? '+shift' : ''}`));
+      win.dispatchEvent(key('keydown', 'Digit2')); t = 100; win.dispatchEvent(key('keyup', 'Digit2'));
+      win.dispatchEvent(key('keydown', 'ShiftLeft', { shiftKey: true })); win.dispatchEvent(key('keydown', 'Digit4', { shiftKey: true })); t = 150; win.dispatchEvent(key('keyup', 'Digit4', { shiftKey: true })); win.dispatchEvent(key('keyup', 'ShiftLeft'));
+      t = 1000; win.dispatchEvent(key('keydown', 'Digit1'));
+      t = 1000 + TAP_MS; const held = inp.snapshot();
+      t = 1700; win.dispatchEvent(key('keyup', 'Digit1'));
+      console.log(`      Digit3 down → digit:3/digit, up at 219 ms → tap; Numpad1 held → held at 220 ms, nothing after; heard through the input: ${heard.join(' ')}; queued ${held.act.join(', ')}`);
+      assert(held.act.join() === 'digit:2,digit:4,digit:1', held.act.join());
+      assert(heard.join(' ') === 'digit:2/digit digit:2/tap digit:4/digit+shift digit:4/tap+shift digit:1/digit digit:1/held', heard.join(' '));
+      inp.dispose();
     },
   },
   {

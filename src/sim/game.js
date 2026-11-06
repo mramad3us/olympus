@@ -7,8 +7,10 @@
 //      TIME §5.4's slow order, the place, the body, the people), each a descriptor { name, owner, keys,
 //      idMaps, idFields, init, start, fast, slow, jobs, events, actions, upgrades }. time is
 //      src/sim/time/domain.js, places src/sim/places/domain.js, body src/sim/body/domain.js (0.0.4: the
-//      body lives on the person and claims no key), people src/sim/people/domain.js, tech below;
-//      weapons, combat, world and career are stubs here until their sections build
+//      body lives on the person and claims no key), people src/sim/people/domain.js, weapons
+//      src/sim/arms/domain.js (0.0.5: stop motion, the items, the range; its init fills its keys as the
+//      stub did, so a gunless game is v0.0.4's byte for byte), tech below; combat, world and career are
+//      stubs here until their sections build
 //      them (each claims its keys and fills them empty; their actions do nothing). domains: { <name>:
 //      descriptor } replaces a built-in one (tests/game-dummy.mjs's world), and a name outside the
 //      order is added after it. Each claims its top-level keys (core/state.js registerDomain): a key
@@ -49,18 +51,20 @@
 // since TECH §3.7 says they never touch the state (0.0.2 wrote a render error into meta.errors even
 // while paused, so the page's save parted from a node replay exactly when something broke).
 //
-// newGame({ seed, mode, scenario, startMs, hour, worldId, version, domains, at }) makes a fresh
+// newGame({ seed, mode, scenario, startMs, hour, worldId, version, domains, at, setup }) makes a fresh
 // state: core's newState, meta.worldId (w-<seed> unless given), every domain's init in order, then
 // hour (the Mars local hour, a fraction giving minutes) moves the clock and meta.createdMs to the next
 // such time at the longitude of the scenario's site (SCENARIO_SITES), before the scenario's fill, so a
 // barracks started at 23:00 places the squad asleep (the 0.0.3 build sheet §8, item 20); then the fill
 // (SCENARIOS: the sandbox, src/sim/scenarios/sandbox.js, the test rooms; the barracks,
 // src/sim/scenarios/barracks.js, Echo Company drawn from the seed and the player in 1st Squad's bay),
-// given { at } (an { area, x, z, face } to start at), then each recurring job's first occurrence is
+// given { at, setup } (an { area, x, z, face } to start at; a scene's setup, test-handling's 'hot' or
+// 'bench' for the tests and the bench), then each recurring job's first occurrence is
 // posted, then each domain's start(state) in order (a new game's own: the body's start body, the
 // night's taps, reveille and drill). The start is START_MS, 2351-12-19 02:20 UTC (SETTING §3.7); a
 // test world has no career (ROADMAP §2.1). The test scenes (src/sim/scenarios/tests.js, 0.0.4) are
-// test-shower and test-night, on Melas: the barracks at their hour with the scene's body and outfit.
+// test-shower and test-night, on Melas: the barracks at their hour with the scene's body and outfit;
+// 0.0.5 adds test-handling, "Show clear" (src/sim/scenarios/handling.js: the 25 m line of the KD range).
 //
 // The tech domain's actions: debug:skip:<ms> (the debug keys ^ and $ on AZERTY, the codes
 // BracketLeft and BracketRight, [ and ] on QWERTY) marks the save (meta.debugUsed, an honesty mark,
@@ -91,6 +95,8 @@ import { peopleDomain } from './people/domain.js';
 import { sandbox, SANDBOX } from './scenarios/sandbox.js';
 import { barracks, BARRACKS } from './scenarios/barracks.js';
 import { testShower, testNight, TESTS } from './scenarios/tests.js';
+import { testHandling, HANDLING } from './scenarios/handling.js';
+import { weaponsDomain } from './arms/domain.js';
 import { SITES } from '../data/setting/calendar.js';
 import { logEntry } from './log.js';
 
@@ -101,9 +107,9 @@ const LAYER_NAMES = new Set(FAST_LAYERS.map(L => L.name));
 /** The domains, in the order their contributors run. */
 export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'body', 'people', 'weapons', 'combat', 'world', 'career']);
 /** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
-export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight });
+export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling });
 /** The site each scenario starts on: its longitude sets the start's hour. */
-export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site, 'test-shower': TESTS.site, 'test-night': TESTS.site });
+export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site, 'test-shower': TESTS.site, 'test-night': TESTS.site, 'test-handling': HANDLING.site });
 
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act);
 /** Whether an error from where (the loop's onError) is the sim's, and so noted in the state: a tick's or a skip's. */
@@ -150,13 +156,12 @@ export const techDomain = descriptor({ name: 'tech', owner: 'TECH', keys: ['meta
 const stub = (name, owner, keys, more = {}) => descriptor({ name, owner, keys, init: keysInit(keys), stub: true, ...more });
 /** The domains not built yet: each claims its keys (TECH §6.1) and fills them empty. */
 export const STUB_DOMAINS = Object.freeze({
-  weapons: stub('weapons', 'WEAPONS', ['stop', 'items', 'armoury'], { idMaps: { items: 'i', 'armoury.guns': 'i' }, actions: { shoot: noop } }),
   combat: stub('combat', 'COMBAT', ['fights'], { actions: { hit: noop, grab: noop, guard: noop } }),
   world: stub('world', 'TECH', ['world']),
   career: stub('career', 'CAREER', ['career', 'careers', 'memorial']),
 });
 
-const BUILT_IN = () => ({ tech: techDomain, time: timeDomain, places: placesDomain, body: bodyDomain, people: peopleDomain, ...STUB_DOMAINS });
+const BUILT_IN = () => ({ tech: techDomain, time: timeDomain, places: placesDomain, body: bodyDomain, people: peopleDomain, weapons: weaponsDomain, ...STUB_DOMAINS });
 
 // (a descriptor with every field present, named by its slot)
 function normalise(name, d) {
@@ -324,7 +329,7 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
 // ---- a new game ----
 
 /** A new game's state (see the header). */
-export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null } = {}) {
+export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null } = {}) {
   if (seed === undefined || seed === null) throw new Error('newGame(): a seed is needed');
   const fill = SCENARIOS[scenario];
   if (!fill) throw new Error(`no scenario '${scenario}' (${Object.keys(SCENARIOS).join(', ')})`);
@@ -340,7 +345,7 @@ export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs
     const t = msAtMarsTime(s.clock.ms, h, m, lon);
     s.clock.ms = s.meta.createdMs = Math.ceil(t / TICK_MS) * TICK_MS;
   }
-  fill(s, { at });
+  fill(s, { at, setup });
   s.time.slowToMs = s.clock.ms;                                    // (the slow layer has stepped up to the start)
   postJobs(s, createJobs(list));
   for (const d of list) d.start?.(s);

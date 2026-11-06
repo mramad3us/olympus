@@ -251,15 +251,15 @@ Owner: TECH §6.1. The top level is reserved; a new key needs a change there. In
 | `skip` | TIME | the running skip, or null; v0.0.4 adds `spotId` (the activity's spot) and `held` (the O events an `O*` mask held) |
 | `time` | TIME | `{ chapter, voyage, pod, alarms, interrupts, liveSinceSaveMs, slowToMs }` and TIME's own additions (`director`, `stances`, `drills`, TIME §13). Built in v0.0.4: `pod` (the night posted), `drills { open, last, forced }`, `doing` (the activity under way), `resume` (a cut one R may finish), `chunk` (a chunked skip's landing, for "carry on"), `attend` (the last 50 arrivals at musters), `prefs` (`mute`), `interrupts { perSol, perSkip, sol }` |
 | `player` | PEOPLE | `{ id, actor, waypoint, presets, keeps }`; the person is `people[player.id]` |
-| `people` | PEOPLE | id-keyed persons only, each with `body` (BODY), `skills` (SKILLS), `kit` (WEAPONS); the body lives here and its domain claims no top-level key (built in v0.0.4; BODY §2.5) |
+| `people` | PEOPLE | id-keyed persons only, each with `body` (BODY), `skills` (SKILLS), `kit` (WEAPONS); the body lives here and its domain claims no top-level key (built in v0.0.4; BODY §2.5). v0.0.5 adds `skills` written for the scene's player only (everyone else reads a lazy sheet by their rank's tier, SKILLS §11.1), `kit = { tmpl, worn: { carrier, head, sling }, hands, carry: { posture, finger, near } }` (TECH §6.7), and for staff `tier: 3` and `post = { key, area, x, z, y, face, posture, outfit }` (by `key`, never an id; PEOPLE §3.13) |
 | `units` | PEOPLE | the unit tree and its billets |
 | `happenings` | PEOPLE | the ring of notable things, ids `n<n>` (PEOPLE §2.5's "event log", renamed) |
-| `actors` | PEOPLE | `{ list, area }`, the live area's bodies in a stable order and the area they were made for (built in v0.0.3; TECH §6.1) |
+| `actors` | PEOPLE | `{ list, area }`, the live area's bodies in a stable order and the area they were made for (built in v0.0.3; TECH §6.1); v0.0.5 adds an actor's `stance` (`'kneel'` or `'prone'`, absent standing) and `headRad` (the heading in the weapon mode only) |
 | `mind`, `talk`, `names` | PEOPLE | the player's knowledge (`seen`, `felt`, `heard`, `known`, `map`, and `threat` for COMBAT §6.1), written and read only through `people/mind.js` (`noteThreat(state, why, atMs, whoId)`, `threatOf(state)`, the generic `noteMind`/`mindOf`; PEOPLE §8.8); an open conversation; the registry of full names |
 | `fights` | COMBAT | one record per fight in the live area |
-| `stop` | WEAPONS (with COMBAT for CQC) | the stop-motion context, or null |
+| `stop` | WEAPONS (with COMBAT for CQC) | the stop-motion context, or null; built in v0.0.5: `{ mode, who, gun, phase, pick, aim, doing, queue, reflex, keep }`, its reflex card saved (TECH §6.1) |
 | `items` | WEAPONS | every item with a record, wherever it is |
-| `armoury` | WEAPONS | accountability by gun id, ammunition issues |
+| `armoury` | WEAPONS | accountability by gun id, ammunition issues; built in v0.0.5: `guns`, `ammoIssues` (`ai<n>`) and `range`, the range session, whose `fp` is a fixture's name, not a `spotId` (TECH §6.1) |
 | `places` | PLACES | `{ live: { site, area }, sites: { … } }` (the built `sites` domain is renamed) |
 | `world` | TECH (porting LONGHAUL) | empty at 0.1; politics, zones, forces, hulls, stations, intel, news from 0.2; civil traffic regenerated, never saved |
 | `career`, `careers`, `memorial` | CAREER | the current career; past careers in this world; the dead, never capped |
@@ -270,8 +270,8 @@ Owner: TECH §6.1. The top level is reserved; a new key needs a change there. In
 |---|---|
 | `$` keys | runtime only, at any depth, stripped from saves; a domain's derived data sits under one root (`$places`, `$people`, `$events`, `$items`, `$world`, `$body`); the instinct's line is `$instinct` (SKILLS §15.4) |
 | Defaults | null, false, zero and empty fields are left out on disk (TECH §6.6, rule 1) |
-| A body | deltas from a template: `{ v, tmpl, …what differs }` (TECH §6.6, rule 2); `v` 2 from v0.0.4, the ledgers' record (BODY §2.5); only the player's is simulated this round, the squad's carry `{ v, tmpl, heightM, build }` |
-| A person's kit | `kit = { tmpl, worn: { <slot>: itemId }, hands: [right, left] }`; the suit is `kit.worn.suit` (TECH §6.7) |
+| A body | deltas from a template: `{ v, tmpl, …what differs }` (TECH §6.6, rule 2); `v` 2 from v0.0.4, the ledgers' record (BODY §2.5); from v0.0.5 `eyes`, the eyes' adaptation, absent while at rest in the light they stand in and written once the player's eyes are anchored (BODY §2.5); only the player's is simulated this round, the squad's carry `{ v, tmpl, heightM, build }` |
+| A person's kit | `kit = { tmpl, worn: { <slot>: itemId }, hands: [right, left] }`; the suit is `kit.worn.suit` (TECH §6.7); from v0.0.5 `kit.worn.sling` holds the slung rifle whatever its posture, and `kit.carry` the posture, the finger and the habit's approaches |
 
 ## 10. Ids
 
@@ -318,7 +318,7 @@ Counted ids are `<prefix><n>`, the counter `meta.next[prefix]`, never reused in 
 | A portal | named by its opening or link id (`o:echo:front`, `l:echo:stairs-up`), never a `p:` form; a path request is counted (`pr5531`, never `pr:5531`) |
 | A household | a number inside the career, not an id (`h` is the hulls') |
 | Fields holding an id | `id`, `<role>Id`, `<role>Ids`, or `who` (`leaderId`, `subjectId`, `assignedIds`, `parentId`); a spot is `spotId`, a fixture `fixtureId` |
-| No data key in a `*Id` field | the ids walk reads every `*Id` field as a reference, so a data record's key or a number goes in a field named for what it is: a block `block`, an activity `activity`, a drill's sol `drill` (v0.0.4) |
+| No data key in a `*Id` field | the ids walk reads every `*Id` field as a reference, so a data record's key or a number goes in a field named for what it is: a block `block`, an activity `activity`, a drill's sol `drill` (v0.0.4); a course `course`, a lane `lane`, a set stoppage `set`, a firing point's fixture name `fp`, a post's `key` (v0.0.5); and no record that is not a definition carries an `id` field (stop motion's sub-steps say `action`) |
 | Order | `cmpId`: kind, then number, then the rest (`p9` before `p10`); decisions iterate `ids(map)` |
 
 ## 11. Bus facts
@@ -340,17 +340,26 @@ Owner: TECH §2.7; every name is registered in `src/core/facts.js` with its owne
 | `autosave` | `{ why: 'skip' \| 'day' \| 'area' \| 'live' \| 'combat' \| 'death' \| 'edge' \| … }` | TIME and CAREER ask, TECH writes |
 | `log` | `{ entry }` | TECH |
 | `line` | `{ text, kind? }`, a short line for the player (a toast until the presenter exists) | TECH |
-| `roll` | `{ roll }` | SKILLS |
-| `say` | `{ who, text, kind, durMs }` | PEOPLE |
+| `roll` | `{ roll }`; from v0.0.5 told after each logged roll with the roller, `{ roll, who }` | SKILLS |
+| `say` | `{ who, text, kind, durMs }`; v0.0.5's kinds `pa` (the tower's PA) and `speech` (someone beside you: the coach) | PEOPLE |
 | `area-enter`, `area-leave` | `{ site, area, from, portal }` | PLACES |
 | `door` | `{ id, area, x, z, state: 'open' \| 'closed', kind, who }`, a door turned; x and z its middle in the frame of the side it was turned from: the live area's when it holds the door (a ground's mass door naming the opening), else the opening's floor (built in v0.0.3) | PLACES |
 | `chunk-in`, `chunk-out` | `{ site, area, i, j }` | PLACES |
 | `path-done` | `{ reqId, who, ok, lengthM, reason }`, a path request answered | PLACES |
 | `sound` | `{ kind, x, y, z, area, db, src }` | VIEWS, PEOPLE |
 | `fx` | `{ kind, x, y, z, atMs, dir, size }` | WEAPONS, COMBAT, PLACES |
+| `stop-mode` | `{ phase: 'enter' \| 'leave', who, gun, via: 'ready' \| 'shoot' \| null, why }`: stop motion entered or left (v0.0.5) | WEAPONS |
+| `step` | `{ phase: 'start' \| 'sub' \| 'halt' \| 'cut' \| 'end', who, step, i, action, fromMs, toMs, ok, grade, routine, mishap, text, brass? }`: a stop-motion or live step; **`sub` is emitted as each sub-step begins**, rolled, with its `fromMs` and `toMs`, so audio places the action's sounds by fraction; `halt`, `cut` and `end` come at the step's end, `cut`'s text the command that cut it; `brass` what the step threw out of the port, `[{ kind, landMs, at }]` (v0.0.5) | WEAPONS |
+| `shot` | `{ id, who, gun, atMs, fired, why, stoppage, set, muzzle: { x, y, z }, dirRad, target, lane, hole: { at, score, v } \| null, brass: { kind, landMs, at } \| null, logSeq }`: a trigger pulled (v0.0.5) | WEAPONS |
+| `muzzle` | `{ who, at, kind: 'near' \| 'flag' \| 'point', posture, atMs }`: a muzzle swept over someone (v0.0.5) | WEAPONS |
+| `nd` | `{ who, gun, grade, into, nearId, atMs, during }`: a negligent discharge (v0.0.5) | WEAPONS |
+| `range` | `{ phase: 'cmd' \| 'fault' \| 'string' \| 'clear' \| 'stopped', cmd, hot, rule, kind: 'warn' \| 'stop', text, n, score, of, v, why }`: the range session (v0.0.5; a string's fact adds `hits`, `shots` and `list`, its shots in order as `{ score, v, hit }`, which PAPER prints, a miss `-`) | WEAPONS |
+| `reflex` | `{ phase: 'offer' \| 'chosen' \| 'kept', why, title, options, key }`: a reflex card (v0.0.5) | COMBAT |
 | `papers` | `{ papers }` | TIME, CAREER |
 | `body-stage`, `body-event`, `body-interrupt`, `body-dead` | BODY §2.4; as built in v0.0.4: `body-stage` `{ who, ledger, from, to, tone, words, atMs }`, `body-event` `{ who, kind: 'void' \| 'bowel' \| 'accident' \| 'asleep' \| 'woke' \| 'wash' \| 'groom' \| 'drink' \| 'eat', atMs, amount }`, `body-interrupt` `{ who, ledger, band, atMs }` (a crossing event dispatched); `body-dead` registered and not emitted (no death this round) | BODY |
 | `broke` | `{ where, message }` | TECH |
+
+The tower's commands are events, not facts: kind `range-cmd` at priority 2 (an O), handled by `onRangeCmd(state, bus, ev)`, the event handlers' signature in `jobs.js` (the build sheet's `onRangeCmd(state, ev, bus)` is corrected; COMBAT §3.3).
 
 ## 12. Saves: stores and slots
 
@@ -378,6 +387,7 @@ One quantity, one helper (the hub). Every screen and every system calls these; n
 | the player's id | `playerId(state)` | TECH, `core/ids.js` |
 | where a person is | `whereIs(person, ms)`, with `posture` and `path` | PEOPLE §4.6 (TIME's and TECH's `whereAt` reads `whereIs`) |
 | light at a point | `lightLevel(state, x, z, ms)` | `src/sim/places/light.js` (correction 14; VIEWS's `lightAt` reads `lightLevel`) |
+| the light as the eyes take it (the picture's exposure and sight's reach, one number) | `eyeView(rec, ms)`, `eyesAdaptedTo(field)` → `{ a, gain, coneGain, lightK, rod, glare, shut, nv }`, read through people's `eyeViewOf(state, actor)` (`src/sim/body/eyes.js`, v0.0.5). The eyes: luminance 100 cd/m² × (lightLevel / 0.75)^3; floors, cones 0 and rods −2.1 log10 cd/m²; `REF_LOG` 0.15 (v0.0.4's picture, the eye five minutes into the dark); lids 3% photopic, 1% scotopic; the rods' gain (Y_ref / Y_a)^0.2, the cones' (Y_ref / Y_c)^0.2, `lightK` the rods' gain to the 1/0.6 power; each light's S/P in `src/data/places/sky.js` | BODY §23.4 (the picture's mix VIEWS §2.7, the reach PEOPLE §7.1) |
 | the sun | `sunAt(site, ms) → { elevDeg, azDeg, horizonDeg, eclipsed, visible }`; `sunTimes(site, ms, { terrain })` | TIME §1, with PLACES's `horizonAt`; built in `src/sim/places/sun.js` (v0.0.3), reading PLACES's walls `MELAS_WALLS` in `src/data/places/melas.js` |
 | dose rate | `doseAt(state, x, z, who)` | PLACES §3.10 |
 | clocks and dates | `utc`, `msd`, `marsLocal`, `atMarsLocal`, `msAtMarsTime`, `localDay`, `dtg`, `formatDuration` | TIME §1, `src/sim/time/dates.js` over `core/calendar.js` |
@@ -389,10 +399,16 @@ One quantity, one helper (the hub). Every screen and every system calls these; n
 | the alert drill now | `alertNow(state, ms)`, `musterOf(state, pid)`, `mustered(state, pid, ms)` (`src/sim/time/alerts.js`, v0.0.4; the stage's beacon reads it) | TIME §9.5 |
 | the splash's pace | `lapseS`, `splashPlan`, `ease`, `targetAt` (`src/sim/time/splash.js`, v0.0.4; the HUD drives it, the stage draws to it) | TIME §6.2 |
 | what draws a person, and the pose between two | `figureOf(state, actor, ms)`, `poseAt(actor, ms)` (`src/sim/people/figure.js`, `place.js`) | PEOPLE §4.6 |
-| a roll's words | `rollText(roll)` | SKILLS |
+| a roll's words | `rollText(roll)`; built in v0.0.5 as `checkText(roll)` and `checkShort(roll)` (`src/sim/skills/checks.js`, tradecraft's word for word) | SKILLS |
 | the news | `world/news.js` (SETTING §7.7's timeline at 0.1, the live layer from 0.2) | TECH §5.8 |
 | gait speeds | BODY §16.1: walk 1.14 m/s on Mars, 1.45 at 1 G, 0.88 on Europa; built in v0.0.4 as `gaitSpeeds` and `gaitsOf` (`src/sim/body/motion.js`), rounded to 0.01 m/s | BODY |
 | items moving | `arms/kit.js move(state, itemId, toHolder)` | WEAPONS |
+| one person's side of a check: their value, their body's and needs' modifiers, the light | `rollerOf(state, pid, { ms })` (`src/sim/combat/roll.js`, v0.0.5; skills never import the body: TECH correction 8) | COMBAT, for SKILLS and BODY |
+| a gun as its holder believes it (the only view the HUD reads) | `beliefOf(state, gunId)` (`src/sim/arms/firearms.js`, v0.0.5) | WEAPONS §4.2 |
+| the step panel's steps | `stepsOf(state, ms)` (`src/sim/arms/shooting.js`, v0.0.5; about 0.7 ms a call, so the HUD reads it once a tick) | WEAPONS §7.1 |
+| the plaque's figures, the same list as the roll | `plaqueOf(state, pid, { target, part })` (`src/sim/arms/shot.js`, v0.0.5) | WEAPONS §7.10 |
+| the rifle on a figure, the kit, the range's paper and brass, as the stage draws them | `gunLook(state, actor, ms)`, `kitLook(state, pid)`, `rangeLook(state, ms)` (`src/sim/arms/look.js`, v0.0.5, in `SIM_FOR_VIEW`) | WEAPONS, for VIEWS |
+| a skill's time | `paceOf(v)` (`src/sim/skills/skills.js`, v0.0.5: the one pace helper, checked) | SKILLS §5.12 |
 
 | Module rule | Home |
 |---|---|
@@ -498,7 +514,7 @@ Owner: ROADMAP (§3.4 holds over every section's earlier proposal; the owners al
 
 | Rule | |
 |---|---|
-| Rows, not releases | patch numbers in ROADMAP's tables name an order, not a release: v0.0.1 shipped the look round (§4.1's 0.0.2 row) with the engine, v0.0.2 shipped the skeleton (the 0.0.3 row), v0.0.3 the 0.0.4 row (a walkable barracks on a laid-out base) and v0.0.4 the 0.0.5 row (needs and the first skip); CHANGELOG says which rows each release holds. A section citing "0.0.n" names ROADMAP's row |
+| Rows, not releases | patch numbers in ROADMAP's tables name an order, not a release: v0.0.1 shipped the look round (§4.1's 0.0.2 row) with the engine, v0.0.2 shipped the skeleton (the 0.0.3 row), v0.0.3 the 0.0.4 row (a walkable barracks on a laid-out base), v0.0.4 the 0.0.5 row (needs and the first skip) and v0.0.5 the 0.0.6 row (`test-handling`, "Show clear"); CHANGELOG says which rows each release holds. A section citing "0.0.n" names ROADMAP's row |
 | 0.1.0 and 0.1.x | 0.1.0 is the core career; 0.1.x the patches that join the Tank, the G-house and the Long Arm, the lifesaver lane, the mat, the patrol, the ROE lane, office hours and the last roll call (ROADMAP §5.8) |
 | The world layer | the constants, the ephemeris, body facts, the faction, hull and name data and the display modules at 0.0.12; traffic, politics, conflict, forces, intel, gravity, Lambert, the spatial hash, the rails and the prologue together at 0.2; the 0.1 news archive is SETTING §7.7's authored timeline (correction 23) |
 | Later | Europa 0.3; ship combat 0.4 (fought from the troop transport); boarding, EVA and the frigate and corvette 0.5; reconnaissance 0.6; the Raiders 0.7; the long career and the squad leader's panel 0.8 |

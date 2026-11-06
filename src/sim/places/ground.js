@@ -20,8 +20,18 @@
 //             the company's plate by each of Echo's outside doors (the exit signs are the floors');
 //   portals   Echo's front, east and west exits, into the building: a band on the building's face at
 //             the door (out 'n', into it), arriving 0.7 m inside the floor from its own band;
+//   pieces    (0.0.5) the KD range's 25 m bay and its tower (src/data/places/range.js RANGE_PIECES: the
+//             tower, the mats, the lane boards, the frames and their cards, the berm, the fence and the
+//             rope), kit pieces the stage draws (src/art/kit/range.js) that are not the catalogue's
+//             fixtures: each blocks the nav as its data says (solid: the berm, which hides what is behind
+//             it; see: the tower's legs, the frames, the boards, the fence and the rope, which stop a
+//             walker and not an eye), so the bay is walked inside its fence, rope and berm and nowhere
+//             else (the gates stay shut: the scene starts on the line);
 //   look      the palette, the authored look seed, the formation marks (decor) and the lamps: 'street'
 //             at every lamp post, 'flood' on the fence.
+// The ground drawn is GROUND.drawnM (Main Side with its apron, and X3's strip over the KD range): the
+// masses, surfaces and zones that reach into it, boundsM their bounding rect; walkM stays Main Side's
+// rect (what v0.0.4's readers read), walksM lists every walked rect (Main Side, the bay).
 // And for the nav and the sight grids (src/sim/places/nav.js, sight.js), the rects that block: each
 // mass's rects with a reveal DOOR_REVEAL_M 0.8 m deep cut out at every door that has an opening (the
 // reveal is a leaf of its own, blocked while the opening is closed), the fence's runs cut at the
@@ -32,6 +42,7 @@ import { GROUND, LAMP_LINES, FLOODS, STREET, DOOR_SIGNS } from '../../data/place
 import { SEEDS } from '../../data/places/echo.js';
 import { LAMP_KINDS } from '../../data/places/sky.js';
 import { ECHO_1, ECHO_ENTRIES } from './echo.js';
+import { RANGE_PIECES, RANGE_KINDS, LINE_PAD } from '../../data/places/range.js';
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 const r4 = (v) => { const r = Math.round(v * 10000) / 10000; return r === 0 ? 0 : r; };
@@ -51,7 +62,9 @@ export const LAMP_DOOR_M = 3;
 
 const rectOf = (r) => (Array.isArray(r) ? { x0: r[0], z0: r[1], x1: r[2], z1: r[3] } : r);
 const overlaps = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1;
-const B = { x0: GROUND.walkM.x0 - GROUND.apronM, z0: GROUND.walkM.z0 - GROUND.apronM, x1: GROUND.walkM.x1 + GROUND.apronM, z1: GROUND.walkM.z1 + GROUND.apronM };
+const DRAWN = GROUND.drawnM.map(r => ({ ...r }));
+const B = { x0: Math.min(...DRAWN.map(r => r.x0)), z0: Math.min(...DRAWN.map(r => r.z0)), x1: Math.max(...DRAWN.map(r => r.x1)), z1: Math.max(...DRAWN.map(r => r.z1)) };
+const inDrawn = (r) => DRAWN.some(d => overlaps(r, d));
 const ox = ECHO_1.originM[0], oz = ECHO_1.originM[2];
 
 // (what is cut from a rect by a hole: up to four rects round it)
@@ -77,7 +90,7 @@ function revealOf(d, a, b) {
 // ---- the massing ----
 const entryOf = (doorId) => ECHO_ENTRIES.find(e => e.ground === doorId) ?? null;
 const openingRec = (id) => ECHO_1.openings.find(o => o.id === id);
-const massing = MELAS_PLAN.buildings.filter(b => b.rects.some(r => overlaps(rectOf(r), B))).map(b => ({
+const massing = MELAS_PLAN.buildings.filter(b => b.rects.some(r => inDrawn(rectOf(r)))).map(b => ({
   id: b.id, name: b.name, rects: b.rects.map(r => [...r]),
   heightM: b.open ? CANOPY_M : r4(b.storeys * STOREY_M + PARAPET_M), open: !!b.open,
   doors: b.doors.map(d => {
@@ -121,11 +134,12 @@ const fenceR = rectOf(MELAS_PLAN.fence.rect), gates = MELAS_PLAN.gates.map(g => 
 // ---- surfaces and zones ----
 const lineBox = (l) => { const xs = l.pts.map(p => p[0]), zs = l.pts.map(p => p[1]), h = l.widthM / 2; return { x0: Math.min(...xs) - h, z0: Math.min(...zs) - h, x1: Math.max(...xs) + h, z1: Math.max(...zs) + h }; };
 const surfaces = [
-  ...MELAS_PLAN.zones.filter(z => z.surface === 'paving' && overlaps(rectOf(z.rect), B)).map(z => ({ kind: 'paving', id: z.id, rect: [...z.rect] })),
-  ...MELAS_PLAN.roads.filter(r => overlaps(lineBox(r), B)).map(r => ({ kind: 'paving', id: r.id, pts: r.pts.map(p => [...p]), widthM: r.widthM })),
-  ...MELAS_PLAN.paths.filter(r => overlaps(lineBox(r), B)).map(r => ({ kind: 'path', id: r.id, pts: r.pts.map(p => [...p]), widthM: r.widthM })),
+  ...MELAS_PLAN.zones.filter(z => z.surface === 'paving' && inDrawn(rectOf(z.rect))).map(z => ({ kind: 'paving', id: z.id, rect: [...z.rect] })),
+  ...MELAS_PLAN.roads.filter(r => inDrawn(lineBox(r))).map(r => ({ kind: 'paving', id: r.id, pts: r.pts.map(p => [...p]), widthM: r.widthM })),
+  ...MELAS_PLAN.paths.filter(r => inDrawn(lineBox(r))).map(r => ({ kind: 'path', id: r.id, pts: r.pts.map(p => [...p]), widthM: r.widthM })),
+  { kind: LINE_PAD.kind, id: LINE_PAD.id, rect: [...LINE_PAD.rect] },
 ];
-const zones = MELAS_PLAN.zones.filter(z => z.name && overlaps(rectOf(z.rect), B)).map(z => ({ id: z.id, kind: z.kind, name: z.name, rect: [...z.rect] }));
+const zones = MELAS_PLAN.zones.filter(z => z.name && inDrawn(rectOf(z.rect))).map(z => ({ id: z.id, kind: z.kind, name: z.name, rect: [...z.rect] }));
 
 // ---- fixtures and lamps ----
 const seedOf = (() => { const n = {}; return (kind) => { const k = (n[kind] = (n[kind] ?? -1) + 1); return SEEDS[k % SEEDS.length]; }; })();
@@ -171,6 +185,19 @@ for (const rule of LAMP_LINES) {
 for (const f of STREET.fixtures) fixtures.push({ id: `f:melas:echo-street:${f.name}`, kind: f.kind, make: f.make, x: f.x, z: f.z, face: f.face, seed: seedOf(f.kind), ...(f.look ? { look: { ...f.look } } : {}) });
 for (const s of DOOR_SIGNS) fixtures.push({ id: `f:melas:echo:${s.name}`, kind: 'sign', make: 'plaque', x: s.x, z: s.z, face: s.face, y: s.y, seed: seedOf('sign'), look: { ...s.look } });
 
+// ---- the KD range's 25 m bay: its pieces, and what of them blocks (see the header) ----
+/** What a piece covers on the ground: { x0, z0, x1, z1 } (its kind's w and d, or its own, swapped facing left or right). */
+export function pieceRect(p) {
+  const k = RANGE_KINDS[p.kind], W = p.w ?? k.w, D = p.d ?? k.d, side = p.face === 'left' || p.face === 'right';
+  const w = (side ? D : W) / 2, d = (side ? W : D) / 2;
+  return { x0: r4(p.x - w), z0: r4(p.z - d), x1: r4(p.x + w), z1: r4(p.z + d) };
+}
+const pieces = RANGE_PIECES.map(p => ({ ...p, look: { ...p.look }, h: p.h ?? RANGE_KINDS[p.kind].h }));
+for (const p of pieces) {
+  if (!p.block) continue;
+  blockers.push({ ...pieceRect(p), tag: p.id, h: p.h, ...(p.block === 'see' ? { see: true } : {}) });
+}
+
 // ---- the portals: into Echo by its outside doors ----
 const portals = [];
 for (const m of massing) for (const d of m.doors) {
@@ -182,8 +209,8 @@ for (const m of massing) for (const d of m.doors) {
 /** Base Melas's ground (melas.ground), the site plan laid out (see the header). */
 export const GROUND_AREA = deepFreeze({
   id: GROUND.id, site: GROUND.site, kind: 'ground', name: GROUND.name, short: GROUND.name, originM: [0, 0, 0],
-  boundsM: { ...B }, walkM: { ...GROUND.walkM }, plan: GROUND.plan, spawn: { ...GROUND.spawn },
-  massing, surfaces, zones,
+  boundsM: { ...B }, walkM: { ...GROUND.walkM[0] }, walksM: GROUND.walkM.map(r => ({ ...r })), drawnM: DRAWN, plan: GROUND.plan, spawn: { ...GROUND.spawn },
+  massing, surfaces, zones, pieces,
   fence: { rect: [fenceR.x0, fenceR.z0, fenceR.x1, fenceR.z1], heightM: 3, postM: 3 }, gates,
   rooms: [], openings: [], fixtures, portals,
   look: { palette: 'mars', seed: GROUND.lookSeed, decor: STREET.marks.map(m => ({ ...m })), lamps },

@@ -9,6 +9,10 @@
 // The 0.0.4 round's (the build sheet §5.4): ?bench=splash-sleep, R at your rack and the night's full
 // splash, gives the card its splash row, { frames, medianMs, p95Ms, over25 } of the frames the splash
 // showed, and a seventh line in the copied text.
+// The 0.0.5 round's (the build sheet §2.3 (g), §5.4): ?bench=range-line, test-handling's 'bench' setup (the
+// mode entered, prone, aimed at your card, one magazine of 15), its keys Digit1 tapped 15 times, 1.3 s
+// apart, each a Fire at the normal tempo through the step panel as a player's tap sends it: 15 shots, the
+// card's row and the range's holes.
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { BENCH_SCENES, BENCH_DEFAULT, BENCH_S, BENCH_WARM_S } from '../src/data/bench.js';
@@ -93,6 +97,24 @@ export default [
         for (const line of text.split('\n')) console.log(`        ${line}`);
         assert(r.scene === 'splash-sleep' && r.splash && r.splash.frames >= 20 && /splash frames/.test(text), JSON.stringify(r));
       }, { query: 'bench=splash-sleep', timeoutMs: 60000 });
+    },
+  },
+  {
+    name: '?bench=range-line: test-handling\'s bench setup, Digit1 tapped 15 times through the step panel, each a Fire: 15 shots on the card, the frame times and draw calls of the line',
+    heavy: true,
+    timeoutMs: 150000,
+    async fn() {
+      const sc = BENCH_SCENES['range-line'];
+      assert(sc && sc.play === 'test-handling' && sc.setup === 'bench', `the bench scene range-line (the stage's src/data/bench.js): ${JSON.stringify(sc ?? null)}`);
+      const keysMs = sc.keys.reduce((a, [, ms]) => a + ms, 0), taps = sc.keys.filter(([k]) => k === 'Digit1').length;
+      await withGame(async (page) => {
+        await page.waitForFunction(() => window.__bench && document.querySelector('.glass.bench'), null, { timeout: 90000 });
+        const r = await page.evaluate(() => window.__bench);
+        const range = await page.evaluate((h) => ({ summary: window[h].range()?.summary ?? null, paper: document.querySelector('.paper')?.dataset.text ?? null, scenario: window[h].state.meta.scenario }), '__olympus');
+        console.log(`      range-line: ${taps} taps of Digit1 over ${keysMs / 1000} s; ${r.frames} frames, median ${r.medianMs} ms, p95 ${r.p95Ms} ms, max ${r.maxMs} ms, over 25 ms ${r.over25}, draw calls ${r.drawCallsMax}, uploads ${r.uploadsMaxBytes} B; the range: ${JSON.stringify(range.summary)}`);
+        assert(r.scene === 'range-line' && range.scenario === 'test-handling' && r.frames >= 100, JSON.stringify(r));
+        assert(range.summary?.shots === taps, `the taps fired ${range.summary?.shots} of ${taps}: ${JSON.stringify(range.summary)}`);
+      }, { query: 'bench=range-line', timeoutMs: 90000 });
     },
   },
 ];

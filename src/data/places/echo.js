@@ -62,13 +62,19 @@
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
-/** The building in the site frame (PLACES §4.2: b:echo at 480, 190), and its floors' heights. */
+/**
+ * The building in the site frame (PLACES §4.2: b:echo at 480, 190), and its floors' heights. A floor's
+ * floorName is what the HUD's place line and the log call it (places' placeLine: 'Echo Company
+ * barracks, upper floor · East stair'): 'upper floor' rather than the British 'first floor', since a
+ * player who took the upper floor for a basement read the flights backwards (the user, 2026-11-06,
+ * "florr N-1, cannot cross the space to head downstairs again"; my call).
+ */
 export const ECHO = deepFreeze({
   site: 'melas', building: 'b:echo', name: 'Echo Company barracks', originM: [480, 0, 190], storeyM: 3.4,
   mirrorX: 84,                                                     // (the west wing is the east wing mirrored: x' = 84 − x)
   floors: [
-    { id: 'melas.echo.1', code: 'e1', level: 1, name: 'Echo Company barracks, ground floor', boundsM: { x0: 0.3, z0: 0.3, x1: 83.7, z1: 23.7 } },
-    { id: 'melas.echo.2', code: 'e2', level: 2, name: 'Echo Company barracks, first floor', boundsM: { x0: 0.3, z0: 0.3, x1: 83.7, z1: 17.7 } },
+    { id: 'melas.echo.1', code: 'e1', level: 1, name: 'Echo Company barracks, ground floor', floorName: 'ground floor', boundsM: { x0: 0.3, z0: 0.3, x1: 83.7, z1: 23.7 } },
+    { id: 'melas.echo.2', code: 'e2', level: 2, name: 'Echo Company barracks, upper floor', floorName: 'upper floor', boundsM: { x0: 0.3, z0: 0.3, x1: 83.7, z1: 17.7 } },
   ],
 });
 

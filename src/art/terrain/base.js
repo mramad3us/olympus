@@ -18,7 +18,11 @@
 //     structure (the cleaning canopy) its posts and its roof only. A building is one part on every
 //     chunk it crosses (partOf: the outline never draws a seam where two chunks meet);
 //   - the fence (3 m, chain link on posts every 3 m: its mesh holes alpha-tested, so it is seen through),
-//     its gates closed (bars), and the ground's fixtures (lamp posts, bins, the guidon post) by the kit.
+//     its gates closed (bars), and the ground's fixtures (lamp posts, bins, the guidon post) by the kit;
+//   - (0.0.5) the ground's pieces, the kit's too: the KD range's 25 m bay and its tower (the frames, the
+//     mats, the berm, the fence and the rope, the boards: src/art/kit/range.js), each drawn whole by the
+//     chunk its middle is in, as a fixture is.
+// The apron's boulders stand outside every walked rect (walksM: Main Side and, from 0.0.5, the bay).
 // What a chunk holds is chosen on the main thread (pieceOf: the records that reach into it), so the
 // worker is sent a few kilobytes, not the whole ground.
 // Pure.
@@ -61,13 +65,13 @@ function segRects(s) {
 const rectsMeet = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
 
 /**
- * The ground's records by chunk: { chunks: Map key → { massing: [i], surfaces: [i], fixtures: [i], fence,
- * gates: [i] }, cx0, cz0, cx1, cz1 (the chunks the bounds cover) }. Built once per ground (the stage keeps it).
+ * The ground's records by chunk: { chunks: Map key → { massing: [i], surfaces: [i], fixtures: [i], pieces: [i],
+ * fence, gates: [i] }, cx0, cz0, cx1, cz1 (the chunks the bounds cover) }. Built once per ground (the stage keeps it).
  */
 export function indexGround(ground) {
   const b = ground.boundsM, [cx0, cz0] = chunkAt(b.x0, b.z0), [cx1, cz1] = chunkAt(b.x1 - 1e-6, b.z1 - 1e-6);
   const chunks = new Map();
-  const at = (cx, cz) => { const k = keyOf(cx, cz); let c = chunks.get(k); if (!c) chunks.set(k, c = { massing: [], surfaces: [], fixtures: [], gates: [], fence: false }); return c; };
+  const at = (cx, cz) => { const k = keyOf(cx, cz); let c = chunks.get(k); if (!c) chunks.set(k, c = { massing: [], surfaces: [], fixtures: [], pieces: [], gates: [], fence: false }); return c; };
   const each = (r, fn) => {
     const [a0, b0] = chunkAt(r[0], r[1]), [a1, b1] = chunkAt(r[2] - 1e-6, r[3] - 1e-6);
     for (let cz = Math.max(cz0, b0); cz <= Math.min(cz1, b1); cz++) for (let cx = Math.max(cx0, a0); cx <= Math.min(cx1, a1); cx++) fn(at(cx, cz));
@@ -75,6 +79,7 @@ export function indexGround(ground) {
   (ground.massing ?? []).forEach((m, i) => { for (const r of m.rects) each(r, c => { if (!c.massing.includes(i)) c.massing.push(i); }); });
   (ground.surfaces ?? []).forEach((s, i) => { for (const r of segRects(s)) each(r, c => { if (!c.surfaces.includes(i)) c.surfaces.push(i); }); });
   (ground.fixtures ?? []).forEach((f, i) => each([f.x - 0.5, f.z - 0.5, f.x + 0.5, f.z + 0.5], c => { if (!c.fixtures.includes(i)) c.fixtures.push(i); }));
+  (ground.pieces ?? []).forEach((p, i) => each([p.x - 0.01, p.z - 0.01, p.x + 0.01, p.z + 0.01], c => { if (!c.pieces.includes(i)) c.pieces.push(i); }));
   (ground.gates ?? []).forEach((g, i) => each([g.x - g.widthM / 2 - 1, g.z - g.widthM / 2 - 1, g.x + g.widthM / 2 + 1, g.z + g.widthM / 2 + 1], c => c.gates.push(i)));
   if (ground.fence) {
     const [x0, z0, x1, z1] = ground.fence.rect, t = 0.3;
@@ -85,9 +90,10 @@ export function indexGround(ground) {
 
 /** What a chunk's job is sent: the records that reach into it, plain (a few kilobytes). */
 export function pieceOf(ground, index, cx, cz) {
-  const c = index.chunks.get(keyOf(cx, cz)) ?? { massing: [], surfaces: [], fixtures: [], gates: [], fence: false };
+  const c = index.chunks.get(keyOf(cx, cz)) ?? { massing: [], surfaces: [], fixtures: [], pieces: [], gates: [], fence: false };
   return {
-    id: ground.id, cx, cz, walkM: ground.walkM ?? null, seed: ground.look?.seed ?? 1,
+    id: ground.id, cx, cz, walkM: ground.walkM ?? null, walksM: ground.walksM ?? (ground.walkM ? [ground.walkM] : null), seed: ground.look?.seed ?? 1,
+    pieces: (c.pieces ?? []).map(i => ground.pieces[i]),
     massing: c.massing.map(i => ({ ...ground.massing[i], index: i })),
     surfaces: c.surfaces.map(i => ground.surfaces[i]),
     fixtures: c.fixtures.map(i => ground.fixtures[i]),
@@ -289,15 +295,15 @@ export function layChunk(col, piece, { massPart, fencePart }) {
     }
   }
   // The fixtures (the kit's), each in the chunk its centre is in.
-  for (const f of piece.fixtures) {
+  for (const f of [...piece.fixtures, ...(piece.pieces ?? [])]) {
     if (f.x < R.x0 || f.x >= R.x1 || f.z < R.z0 || f.z >= R.z1) continue;
     place(col, f); counts.fixtures++;
   }
   // The apron's boulders, outside the walked ground: by a hash of the authored look seed and the chunk.
-  const W = piece.walkM;
-  if (W) for (let k = 0; k < 3; k++) {
+  const Ws = piece.walksM ?? (piece.walkM ? [piece.walkM] : null);
+  if (Ws) for (let k = 0; k < 3; k++) {
     const h = hash3(piece.seed, piece.cx * 131 + k, piece.cz * 71), x = R.x0 + (h % 1000) / 1000 * CHUNK_M, z = R.z0 + ((h >>> 10) % 1000) / 1000 * CHUNK_M;
-    const inside = x > W.x0 - 6 && x < W.x1 + 6 && z > W.z0 - 6 && z < W.z1 + 6;
+    const inside = Ws.some(W => x > W.x0 - 6 && x < W.x1 + 6 && z > W.z0 - 6 && z < W.z1 + 6) || (piece.pieces ?? []).some(p => p.kind === 'berm' && Math.abs(x - p.x) < 8 && Math.abs(z - p.z) < 14);
     if (inside || (h >>> 20) % 3) continue;
     boulder(col, { x, z, sizeM: 0.4 + ((h >>> 22) % 5) * 0.15, kind: (h >>> 25) % 2 ? 'basalt' : 'rust', seed: h % 97 }); counts.boxes++;
   }

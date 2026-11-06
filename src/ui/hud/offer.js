@@ -19,11 +19,12 @@ export function offerWords(offer, { armed = false } = {}) {
   return { key: offer.act ?? 'hand', text, more: Array.isArray(offer.more) && offer.more.length > 0 };
 }
 
-/** What R tapped sends for an offer: { act: 'hand', args: { want, id?, spotId?, args? } } (a door's verbs are want 'door'), or null. */
+/** What R tapped sends for an offer: { act: 'hand', args: { want, id?, spotId?, args?, lead? } } (a door's verbs are want 'door'; an activity's lead: a sleep or a nap from your rack's foot lies you down in sight first), or null. */
 export function wantOf(offer) {
   if (!offer) return null;
   const want = offer.verb === 'open' || offer.verb === 'close' ? 'door' : offer.verb;
   const args = { want };
   if (offer.verb === 'activity' || offer.verb === 'resume') { args.id = offer.id; args.spotId = offer.spotId ?? null; if (offer.args) args.args = offer.args; }
+  if (offer.verb === 'activity') args.lead = true;
   return { act: 'hand', args };
 }

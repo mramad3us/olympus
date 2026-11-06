@@ -18,11 +18,16 @@
 // build gives a meaning, labelled AZERTY), the log (J: cards/log.js, its last lines), the bench's
 // result (cards/bench.js), and the 0.0.4 round's, opened by main.js through openCard: PERSONNEL (C:
 // cards/sheet.js), the choices (R held: cards/choose.js), the late card (cards/late.js), a test
-// scene's end card and its score card (cards/end.js, cards/score.js). Each card that opens tells main.js through cb.overlay(name, open), and
+// scene's end card and its score card (cards/end.js, cards/score.js); and the 0.0.5 round's what you
+// carry (I: cards/inventory.js, tradecraft's pockets ported, the gear's tiles by arms' kitView). The
+// step panel and the reflex card of stop motion are the HUD's (src/ui/hud/steps.js, reflex.js), not
+// cards: they hold no pause of their own, the sim's 'stop' and 'reflex' holds stand time still. Each card that opens tells main.js through cb.overlay(name, open), and
 // main.js holds a pause reason for it while it is open (DESIGN.md, Time: "an open overlay pauses")
 // and hides the HUD under it (VIEWS §7.5: the card alone, never the HUD drawn through the glass). A
 // card's lines are numbered and a digit picks one (read by code: AZERTY's top row types & é " '
-// without Shift). The title's pages answer the arrows (and Z, S) by moving between their buttons.
+// without Shift). A card opens with the focus on its lead line (the end card's Score it), and for its
+// first CARD_GUARD_MS it takes no Enter or Space, so a key meant for the screen before never presses
+// its focused line. The title's pages answer the arrows (and Z, S) by moving between their buttons.
 //
 // The screens never change the state: every choice goes back to main.js through cb, which acts.
 // Plain DOM, built here and in the cards' modules and nowhere else; the look is src/ui/style.css.
@@ -49,11 +54,23 @@ const ago = (ms) => {
  * logLines), sound() ({ volume, muted } now, or null), volume(v), mute(on), scenes() (the test scenes, src/data/scenes.js's
  * records in order), playScene(scene) }.
  */
+/** A card ignores Enter and Space this long after it opens (ms; the design review's: a key meant for the screen before). */
+export const CARD_GUARD_MS = 400;
+
 export function createBoot({ root = document.body, cb }) {
   const title = el('div', { id: 'title', hidden: true });
   const veil = el('div', { className: 'overlay', hidden: true });
   root.append(title, veil);
-  let card = null, picks = [], page = null, titleArgs = null;
+  let card = null, picks = [], page = null, titleArgs = null, openedAt = -Infinity;
+  const nowMs = () => globalThis.performance?.now?.() ?? Date.now();
+  // (a key pressed for the screen before never lands on a card that has just opened: Enter and Space do nothing
+  // for its first CARD_GUARD_MS (the design review's: Enter, read as the HUD's "end the scene", pressed the end
+  // card's Again and threw the run away); a digit names its line, so it is never pressed by accident)
+  const guarded = () => nowMs() - openedAt < CARD_GUARD_MS;
+  root.ownerDocument?.addEventListener?.('keydown', (e) => {
+    if (!card || !guarded()) return;
+    if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') { e.preventDefault(); e.stopPropagation(); }
+  }, true);
 
   // ---- paper ----
 
@@ -125,11 +142,12 @@ export function createBoot({ root = document.body, cb }) {
 
   function openCard(name, body, lines = []) {
     if (card) closeCard();
-    card = name; picks = lines;
+    card = name; picks = lines; openedAt = nowMs();
     veil.replaceChildren(body);
     veil.hidden = false;
     cb.overlay(name, true);
-    body.querySelector('button')?.focus();
+    // (the focus on the card's lead line where it has one (the end card's Score it), else its first)
+    (body.querySelector('button.lead') ?? body.querySelector('button'))?.focus();
   }
   function closeCard() {
     if (!card) return;

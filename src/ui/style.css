@@ -171,7 +171,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass .volume input { flex: 1; accent-color: var(--brass); }
 .glass .volume output { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; color: var(--glass-text); }
 
-/* The log card (J): the last lines, stamped on the live site's clock, newest last. */
+/* The log card (J): the scene's lines, stamped on the live site's clock, newest first, filtered by kind. */
 .glass.log { width: min(calc(720px * var(--ui)), 92%); }
 .glass .loglist { max-height: min(calc(520px * var(--ui)), 70vh); overflow-y: auto; display: flex; flex-direction: column; gap: 2px; font-size: calc(12px * var(--ui)); }
 .glass .logline { display: grid; grid-template-columns: auto 1fr; gap: 12px; padding: 2px 8px; border-left: 3px solid var(--muted); background: var(--ink-2); }
@@ -179,6 +179,10 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass .logline.bad, .glass .logline.urgent { border-color: var(--red); }
 .glass .logline.calm { border-color: var(--green); }
 .glass .logline .stamp { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.glass .logline .sum { display: block; color: var(--muted); font-size: calc(11px * var(--ui)); }
+.glass .logfilters { display: flex; gap: 6px; margin: 0 0 8px; }
+.glass .logfilters .logfilter { font: inherit; font-size: calc(11px * var(--ui)); padding: 2px 10px; background: var(--ink-2); color: var(--muted); border: 1px solid var(--glass-line); cursor: pointer; }
+.glass .logfilters .logfilter.on { color: var(--glass-text); border-color: var(--brass); }
 
 /* The bench card: the result, Copy results, and the text it copies. */
 .glass.bench { width: min(calc(680px * var(--ui)), 94%); }
@@ -227,3 +231,123 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 
 /* The title's Tests page: the scenes on the title's paper. */
 #title .sheet.tests .item.scene small { white-space: normal; }
+
+/* The weapon mode (the build sheet 0.0.5 §2.4; VIEWS §4.4, §7.4, §7.5): STEPS, 720 × 148 on INSTINCT,
+   the weapon card's 180 × 148 at its left and the steps in two columns of five; RADIO moves onto STEPS;
+   PAPER, 200 × 200 at the top centre under PAUSED's slot; the plaque and its brackets in the picture. */
+#hud.weapon .radio.voices { bottom: calc(var(--m) + (44px + 6px + 148px + 6px) * var(--ui)); }
+.steps, .reflexcard { position: absolute; left: 50%; bottom: calc(var(--m) + (44px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(720px * var(--ui)); height: calc(148px * var(--ui)); overflow: hidden; display: flex; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; pointer-events: auto; font-size: calc(12px * var(--ui)); line-height: 1.25; }
+.steps .wcard { flex: none; width: calc(180px * var(--ui)); height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(4px * var(--ui)); border-right: 1px solid var(--glass-edge); background: #2b2e3a; overflow: hidden; }
+/* (the card at a whole number of device pixels a card pixel, cropped by its box rather than shrunk: steps.js cardScale) */
+.steps .wcard canvas { image-rendering: pixelated; display: block; flex: none; }
+.steps .wcard-cap { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(4px * var(--ui)); font-size: calc(11px * var(--ui)); letter-spacing: 0.05em; white-space: nowrap; }
+.steps .wcard-cap span { padding: 0 calc(4px * var(--ui)); border: 1px solid var(--glass-line); border-radius: 2px; color: var(--glass-text); }
+.steps .wcard-cap .wc-mode.safe { color: #8fd19e; border-color: #356f42; }
+.steps .wcard-cap .wc-mode.live { color: #f0a090; border-color: var(--red); }
+.steps .wcard-cap .wc-rounds.unknown { color: var(--brass); border-color: var(--brass); }
+.steps .wcard-cap .wc-stop { color: var(--ink); background: var(--brass); border-color: var(--brass); }
+.steps .wcard-cap .wc-locked { color: var(--muted); }
+.steps .steplist { flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(5, 1fr); grid-auto-flow: column; gap: 0 calc(6px * var(--ui)); padding: calc(4px * var(--ui)) calc(6px * var(--ui)); }
+.steps .step { position: relative; display: flex; align-items: center; gap: calc(6px * var(--ui)); min-width: 0; overflow: hidden; padding: 0 calc(5px * var(--ui)); border-left: 2px solid transparent; cursor: pointer; }
+.steps .step:hover { background: rgba(231, 184, 74, 0.08); }
+.steps .step > kbd { flex: none; }
+.steps .step .label { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; color: var(--paper); line-height: 1.12; }
+.steps .step .label .name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.steps .step.command .label .name { letter-spacing: 0.04em; }
+.steps .step .meta { flex: none; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; font-size: calc(10.5px * var(--ui)); line-height: 1.15; white-space: nowrap; }
+.steps .step.cmd { border-left-color: var(--brass); background: rgba(231, 184, 74, 0.06); }
+.steps .step.cmd .label .name::before { content: '◉ '; color: var(--brass); }
+.steps .step .time { color: #b8bdc8; font-variant-numeric: tabular-nums; }
+.steps .step .time.rushed { color: #f0a090; }
+.steps .step .odds { color: var(--brass); font-variant-numeric: tabular-nums; }
+.steps .step .odds.routine { color: var(--muted); }
+.steps .step .ticks { color: var(--brass); letter-spacing: 0.12em; font-size: calc(10.5px * var(--ui)); }
+.steps .step .why { color: var(--muted); max-width: calc(110px * var(--ui)); overflow: hidden; text-overflow: ellipsis; }
+.steps .step.off { cursor: default; }
+.steps .step.off.refused { background: rgba(180, 81, 80, 0.28); }
+.steps .step.off.refused .why { color: var(--paper); }
+.steps .step.off .label .name, .steps .step.off .time { text-decoration: line-through; color: var(--faint); }
+.steps .step.fire .label .name { color: #f6d0c8; }
+.steps .step.fire.off .label .name { color: var(--faint); }
+.steps .step.more .label { color: var(--muted); }
+.steps.acting .step { opacity: 0.45; }
+.steps.acting .step.running { opacity: 1; background: rgba(231, 184, 74, 0.12); border-left-color: var(--brass); }
+.steps .step .wait { color: var(--muted); }
+/* A step running alone in the panel: its name, its sub-steps ticking, its time gone. */
+.steps .running-view { grid-column: 1 / -1; grid-row: 1 / -1; position: relative; display: flex; flex-direction: column; justify-content: center; gap: calc(6px * var(--ui)); padding: 0 calc(10px * var(--ui)); border-left: 2px solid var(--brass); background: rgba(231, 184, 74, 0.08); }
+.steps .running-view .rv-head { display: flex; align-items: baseline; gap: calc(10px * var(--ui)); }
+.steps .running-view .rv-name { color: var(--paper); font-size: calc(14px * var(--ui)); letter-spacing: 0.04em; }
+.steps .running-view .rv-tempo { color: var(--muted); font-size: calc(11px * var(--ui)); }
+.steps .running-view .rv-tempo.rushed { color: #f0a090; }
+.steps .running-view .rv-subs { display: flex; flex-wrap: wrap; gap: calc(2px * var(--ui)) calc(12px * var(--ui)); font-size: calc(11.5px * var(--ui)); color: #b8bdc8; }
+.steps .running-view .rv-sub b { color: var(--brass); font-weight: normal; }
+.steps .running-view .rv-sub.now { color: var(--paper); }
+.steps .running-view .rv-sub.bad b { color: #f0a090; }
+.steps .running-view .rv-tap { color: var(--muted); font-size: calc(11px * var(--ui)); }
+.steps .running-view .track { position: relative; display: block; height: 3px; background: rgba(255, 255, 255, 0.08); }
+.steps .running-view .track .bar { display: block; height: 100%; width: 0; background: var(--brass); }
+.steps .step .track { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(255, 255, 255, 0.06); }
+.steps .step .track .bar { display: block; height: 100%; width: 0; background: var(--brass); }
+
+/* The reflex card in STEPS' place (VIEWS §8.10): its title plaque, numbered answers with their times, R to keep. */
+.reflexcard { flex-direction: column; justify-content: center; gap: calc(4px * var(--ui)); padding: calc(6px * var(--ui)) calc(12px * var(--ui)); border-color: var(--red); }
+/* (a reflex card waiting: the step panel is its weapon card alone at STEPS' left, the reflex card the rest, side by side, never over each other) */
+.steps.cardonly { width: calc(180px * var(--ui)); transform: translateX(calc(-50% - 270px * var(--ui))); }
+.steps.cardonly .steplist { display: none; }
+.steps.cardonly ~ .reflexcard, .reflexcard.beside { width: calc(540px * var(--ui)); transform: translateX(calc(-50% + 90px * var(--ui))); }
+.reflexcard .rx-head { display: flex; align-items: center; gap: calc(10px * var(--ui)); }
+.reflexcard .rx-plaque { image-rendering: pixelated; display: block; }
+.reflexcard .rx-note { color: var(--muted); font-size: calc(11px * var(--ui)); }
+.reflexcard .rx-list { display: flex; flex-direction: column; gap: calc(2px * var(--ui)); }
+.reflexcard .rx-row { display: flex; align-items: center; gap: calc(8px * var(--ui)); color: var(--paper); }
+.reflexcard .rx-row .time { color: #b8bdc8; }
+.reflexcard .rx-row.none .label { color: var(--muted); }
+.reflexcard .rx-keep { color: var(--muted); font-size: calc(11px * var(--ui)); }
+.reflexcard .rx-keep.on { color: var(--brass); }
+
+/* The radio box (VIEWS §7.1): who speaks, then what they say; two lines at most, the newest under. */
+.radio.voices { flex-direction: column; align-items: stretch; justify-content: flex-end; gap: calc(2px * var(--ui)); pointer-events: none; }
+.radio.voices .voice { display: flex; gap: calc(10px * var(--ui)); align-items: baseline; min-width: 0; background: var(--hud); border-left: 3px solid var(--tone-note); padding: calc(2px * var(--ui)) calc(10px * var(--ui)); overflow: hidden; }
+.radio.voices .voice.pa { border-left-color: var(--brass); }
+.radio.voices .voice.speech { border-left-color: #6f9a74; }
+.radio.voices .voice .who { flex: none; color: var(--brass); font-size: calc(11px * var(--ui)); letter-spacing: 0.06em; }
+.radio.voices .voice.speech .who { color: #a8d0ac; }
+.radio.voices .voice .said { min-width: 0; overflow: hidden; color: var(--paper); font-family: var(--type); white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+
+/* PAPER, 200 × 200 at the top centre under PAUSED's slot: your card close, its holes numbered. */
+.paper { position: absolute; left: 50%; top: calc(var(--m) + (48px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(200px * var(--ui)); height: calc(200px * var(--ui)); border: 1px solid var(--glass-edge); border-radius: 4px; overflow: hidden; pointer-events: none; }
+.paper canvas { display: block; width: 100%; height: 100%; }
+
+/* The plaque over the bracketed target and its brackets (src/ui/plaque.js place(): a picture pixel at a time). */
+.plaque { position: absolute; left: 0; top: 0; image-rendering: pixelated; transform-origin: 0 0; pointer-events: none; }
+.plaque-info { position: absolute; left: 0; top: 0; max-width: calc(320px * var(--ui)); background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 3px; padding: calc(4px * var(--ui)) calc(8px * var(--ui)); font-size: calc(11px * var(--ui)); line-height: 1.35; color: var(--glass-text); pointer-events: none; }
+.plaque-info .pi-dc { color: var(--brass); }
+.plaque-info .pi-odds { color: var(--muted); }
+
+/* A log line's tone is a class of its own; the 'note' one is not the cards' footnote (.glass .note). */
+.glass .loglist .logline.note { margin: 0; font-size: inherit; color: var(--glass-text); }
+/* The log's rolls: a line in brief that opens to its whole sum. */
+.glass .logline.roll { cursor: pointer; }
+.glass .logline.roll .fold { color: var(--muted); }
+.glass .logline.roll .rollfull { margin-top: 2px; color: #b8bdc8; white-space: normal; }
+.glass .logline.roll .rollfull small { color: var(--muted); }
+.glass .logline.roll:focus-visible { outline: 1px solid var(--brass); }
+
+/* What you carry (I): the plaque, you, the gear's tiles (VIEWS §8.3; tradecraft's pockets). */
+.glass.pockets { width: min(calc(760px * var(--ui)), 94%); }
+.glass.pockets .pk-head canvas { image-rendering: pixelated; display: block; margin-bottom: 10px; }
+.glass.pockets .pk-body { display: grid; grid-template-columns: auto 1fr; gap: calc(16px * var(--ui)); align-items: start; }
+.glass.pockets .pk-doll canvas { image-rendering: pixelated; display: block; border: 1px solid var(--glass-line); }
+.glass.pockets .pk-main { display: flex; flex-direction: column; gap: 8px; }
+.glass.pockets h4 { font-size: calc(11px * var(--ui)); letter-spacing: 0.08em; color: var(--brass); font-weight: normal; margin: 0 0 4px; text-transform: uppercase; }
+.glass.pockets .pk-pocket { background: var(--ink-2); border: 1px solid var(--glass-line); border-radius: 2px; padding: 4px 8px; }
+.glass.pockets .pk-pocket.empty { opacity: 0.6; }
+.glass.pockets .pk-pocket-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--glass-text); font-size: calc(12px * var(--ui)); margin-bottom: 3px; }
+.glass.pockets .pk-fill { display: inline-block; width: calc(60px * var(--ui)); height: 4px; background: var(--glass-well); border: 1px solid var(--glass-line); }
+.glass.pockets .pk-fill i { display: block; height: 100%; background: var(--brass); }
+.glass.pockets .pk-thing { display: flex; align-items: center; gap: 8px; font-size: calc(12px * var(--ui)); color: var(--paper); padding: 1px 0; }
+.glass.pockets .pk-icon { image-rendering: pixelated; flex: none; }
+.glass.pockets .pk-dot { display: inline-block; width: calc(8px * var(--ui)); height: calc(8px * var(--ui)); border-radius: 50%; background: var(--glass-line); flex: none; }
+.glass.pockets .pk-dot.gun { background: var(--muted); border-radius: 1px; width: calc(18px * var(--ui)); height: calc(5px * var(--ui)); }
+.glass.pockets .pk-reach { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.glass.pockets .pk-none { color: var(--muted); font-size: calc(12px * var(--ui)); margin: 2px 0; }

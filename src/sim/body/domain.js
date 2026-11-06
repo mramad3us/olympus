@@ -21,6 +21,17 @@
 //              minute; desperate, 2%): the bladder or the bowel lets go if still in its band;
 //   upgrades   'body:v2': a v0.0.3 save's bodies set to v2 and the player's ledgers written as
 //              startBody at the save's clock (flag mig:body-v2). A new save is unchanged by it.
+//              The eyes need none (0.0.5): a body with no eyes record (a v0.0.3 or v0.0.4 save, a new
+//              game) has eyes adapted to the light they stand in, and the first tick anchors them there
+//              at the clock, as an upgrade would have, without moving a save on load;
+//   eyes       (0.0.5, src/sim/body/eyes.js) the player's eyes brought to the tick in the bodyFast
+//              layer, after the body (the light's key checked each tick, the field the eyes receive,
+//              perception's fieldOf, re-read for their own move), and in a skip by the slow
+//              contributor 'eyes' at each step (the light's steps, the open air's minute, the lids):
+//              the same anchors lived or skipped. Steady, its next change while the eyes' field reads
+//              the open air the next minute the sky's level changes, an hour on at most (so a day's hour
+//              steps never pass the sky's minutes at dawn and dusk, and never cut a night or a noon
+//              into minutes), else none.
 // The squad's bodies stay { v: 2, tmpl, heightM, build } this round (their needs come at 0.0.9).
 import { TICK_MS, SEC_MS } from '../../core/clock.js';
 import { playerId, playerActor, ids } from '../../core/ids.js';
@@ -34,6 +45,9 @@ import { stagesOf } from './cues.js';
 import { asleepAt } from './sleep.js';
 import { activityNow } from '../time/doing.js';
 import { siteLonEDeg } from '../jobs.js';
+import { eyesStep, skyChangeMs } from './eyes.js';
+import { eyeOf, fieldOf } from '../people/perception.js';
+import { sightGridOf } from '../places/sight.js';
 
 /** The fast layer 'bodyFast': this tick's load into the live mix, and stamina (see the header). */
 export function bodyFastStep(state, input, bus) {
@@ -50,6 +64,24 @@ export function bodyFastStep(state, input, bus) {
   const st = staminaTick(rec.stamina ?? 100, !!rec.blown, load.metG, TICK_MS / SEC_MS);
   if (st.stamina >= 100) delete rec.stamina; else rec.stamina = q(st.stamina, 1e-9);
   if (st.blown) rec.blown = true; else delete rec.blown;
+  stepEyes(state, state.clock.ms, true);
+}
+
+/** The player's eyes brought to ms (src/sim/body/eyes.js eyesStep); look: the eyes' own move too (lived ticks). */
+export function stepEyes(state, ms, look = false) {
+  const pid = playerId(state), me = playerActor(state), area = state.places?.live?.area;
+  if (!pid || !area || !me) return null;
+  // (the light the eyes receive at a time, the lids shut or not: perception's field from where the eyes are)
+  const eye = eyeOf(state, me), fieldAt = (t, shut) => fieldOf(state, eye, t, shut);
+  const gen = sightGridOf(state, area, eye.x, eye.z)?.gen ?? 0;
+  const lookSig = look ? `${area}|${eye.x}|${eye.z}|${eye.headRad}|${eye.eyeLayer}|${eye.asleep ? 1 : 0}|${gen}` : null;
+  return eyesStep(state, pid, ms, fieldAt, { look, lookSig });
+}
+/** The slow contributor 'eyes': the player's eyes to the step's end by time alone (the light's steps, the open air's minute, the lids). */
+export function eyesSlowStep(state, bus, fromMs, toMs) { stepEyes(state, toMs, false); }
+/** When the eyes' field may next change by time alone: while it reads the open air, the next game minute the sky's level changes (or an hour on, to look again: eyes.js skyChangeMs), else never (the light's steps are found inside any step). */
+export function eyesNextChangeMs(state, t0) {
+  return skyChangeMs(state, state.people?.[playerId(state)]?.body?.eyes, t0);
 }
 
 /** The slow contributor 'body' (see the header). */
@@ -126,7 +158,8 @@ export const bodyDomain = Object.freeze({
   init: () => {},
   start: startGame,
   fast: Object.freeze({ bodyFast: bodyFastStep }),
-  slow: Object.freeze([Object.freeze({ name: 'body', step: bodySlowStep, steady: () => true, nextChangeMs: () => Infinity })]),
+  slow: Object.freeze([Object.freeze({ name: 'body', step: bodySlowStep, steady: () => true, nextChangeMs: () => Infinity }),
+    Object.freeze({ name: 'eyes', step: eyesSlowStep, steady: () => true, nextChangeMs: eyesNextChangeMs })]),
   jobs: Object.freeze({}),
   events: Object.freeze({ body: onBodyEvent, 'body-hazard': onHazard }),
   actions: Object.freeze({}),

@@ -38,6 +38,12 @@
 // world (the flush, reveille's bugle). The world's recipes are rendered at their own rate (WORLD_RATE_HZ,
 // 24 kHz: Melas's air takes everything over 5.2 kHz anyway), after the steps' and the doors'.
 //
+// The 0.0.5 round's range (range.js, the build sheet §2.4): RANGE's recipes (the report, the action's
+// clicks, the case's tick, the tower's chime) baked after the world's, and shot(kind, { delayS, gainDb,
+// lowHz, pan, rate }) plays one on the world bus now or delayS later (the berm's slap-back); fact() hands
+// the shot, step and say facts to it, and frame() lets it play the clicks and ticks the drawn clock has
+// passed. createAudio({ looks }) gives it arms' kitLook (the ear defenders), from main.js.
+//
 // stats: { state (the context's, or 'none'), started, baked (every sound rendered), steps, doors,
 // dropped (past VOICES_MAX), late (foot-falls too late to play), voices, voicesMax, volume, muted,
 // master (the master gain's target), sampleRate, last, prepareMs (the context's making, at boot),
@@ -47,10 +53,11 @@ import { isHeld, TICK_MS } from '../../core/clock.js';
 import { playerActor } from '../../core/ids.js';
 import * as places from '../../sim/places/model.js';
 import { airDb } from '../../sim/people/hearing.js';
-import { STEPS, DOORS, WORLD, VOICES_MAX, MASTER_DEFAULT, AIR_KPA, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
+import { STEPS, DOORS, WORLD, RANGE, VOICES_MAX, MASTER_DEFAULT, AIR_KPA, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
 import { renderSteps } from './synth.js';
 import { createStepScheduler, stepVoice, lowpassHz, MARS_G } from './steps.js';
 import { createWorld } from './world.js';
+import { createRange } from './range.js';
 
 /** The limiter's knee on the master (dBFS). */
 export const LIMIT_DB = -3;
@@ -59,11 +66,11 @@ export const BAKE_FRAME_MS = 3;
 const dbToK = (db) => 10 ** (db / 20);
 const clamp01 = (v) => Math.min(1, Math.max(0, Number(v)));
 
-/** The audio presenter (see the header). profile: { volume, muted } (the saved profile's audio). */
-export function createAudio({ profile = null, AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext } = {}) {
+/** The audio presenter (see the header). profile: { volume, muted } (the saved profile's audio); looks: { kitLook } (arms' readers, for the range). */
+export function createAudio({ profile = null, looks = {}, AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext } = {}) {
   let ctx = null, master = null, world = null, limiter = null, worldLp = null, duckGain = null, uiBus = null;
   let volume = Number.isFinite(profile?.volume) ? clamp01(profile.volume) : MASTER_DEFAULT, muted = !!profile?.muted;
-  const buffers = { step: {}, door: {}, world: {} };
+  const buffers = { step: {}, door: {}, world: {}, range: {} };
   const loops = new Map();                                         // (key → a looping voice: { src, g, lp, kind })
   let duckSig = '';
   const steps = createStepScheduler();
@@ -115,7 +122,7 @@ export function createAudio({ profile = null, AudioContextClass = globalThis.Aud
       duckGain = ctx.createGain(); uiBus = ctx.createGain();
       world.connect(worldLp); worldLp.connect(duckGain); duckGain.connect(master); uiBus.connect(master);
       master.connect(limiter); limiter.connect(ctx.destination);
-      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door], [WORLD, buffers.world]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
+      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door], [WORLD, buffers.world], [RANGE, buffers.range]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
       applyMaster();
       stats.sampleRate = ctx.sampleRate; stats.prepareMs = perfNow() - t0;
       ctx.onstatechange = () => { stats.state = ctx.state; };
@@ -228,12 +235,27 @@ export function createAudio({ profile = null, AudioContextClass = globalThis.Aud
   };
   const worldSounds = createWorld(worldOps);
   stats.world = worldSounds.stats;
+  // ---- the range's sounds (range.js asks for them): a RANGE recipe now, or delayS later on the audio clock ----
+  const rangeOps = {
+    shot(kind, { delayS = 0, gainDb = 0, lowHz = WORLD_OPEN_HZ, pan = 0, rate = 1 } = {}) {
+      if (!running()) return false;
+      const set = buffers.range[kind];
+      if (!set?.length) return false;
+      const n = (stats.rangeShots = (stats.rangeShots ?? 0) + 1);
+      const ok = play(set[hashInt(set.length, 'range', kind, n)], { atS: ctx.currentTime + Math.max(0, delayS), gainDb, lowHz, pan, rate: rate * (1 + (hash01('range-rate', kind, n) - 0.5) * 0.04) });
+      if (ok) stats.last = { what: kind, gainDb: Math.round(gainDb * 10) / 10, lowpassHz: Math.round(lowHz), delayS: Math.round(delayS * 1000) / 1000 };
+      return ok;
+    },
+  };
+  const rangeSounds = createRange(rangeOps, { looks });
+  stats.range = rangeSounds.stats;
 
   let lastState = null;
   /** A frame: the foot-falls the player's walk has reached, played where the drawn feet fall; the world's sounds; the splash's muffle. */
   function frame(state, alpha = 0, nowS = 0, { splash = null } = {}) {
     if (toBake.length || baking) bakeSome();
     if (running()) { try { worldSounds.frame(state, { splash, nowS }); } catch (e) { stats.worldError = String(e?.message ?? e); } }
+    if (running() && !splash) { try { rangeSounds.frame(state, { alpha }); } catch (e) { stats.rangeError = String(e?.message ?? e); } }
     const a = state ? playerActor(state) : null;
     // (another state, a load or a new career: the feet start afresh, never a burst of the strides between)
     if (state !== lastState) { steps.reset(); lastState = state; }
@@ -275,8 +297,12 @@ export function createAudio({ profile = null, AudioContextClass = globalThis.Aud
 
   return {
     prepare, start, frame, door,
-    /** A bus fact the world's sounds hear (the flush's body-event, reveille's bugle): fact(type, payload, state). */
-    fact(type, payload, state) { return running() ? worldSounds.fact(type, payload, state) : false; },
+    /** A bus fact the world's and the range's sounds hear (the flush's body-event, reveille's bugle; the shot, a step, the tower's say): fact(type, payload, state). */
+    fact(type, payload, state) {
+      if (!running()) return false;
+      const w = worldSounds.fact(type, payload, state);
+      return rangeSounds.fact(type, payload, state) || w;
+    },
     /** The master volume, 0 to 1. */
     setVolume(v) { volume = clamp01(v); applyMaster(); },
     /** Mute, or not. */

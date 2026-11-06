@@ -128,6 +128,8 @@ const ZONES = [
   Z('melas.obstacles', 'course', [800, 20, 980, 150], null, null, 'Obstacle course'),
   Z('melas.grove', 'grove', [140, 20, 280, 150], null, null, 'The Grove'),
   Z('melas.parking', 'parking', [20, 440, 180, 560], 'paving', null, 'Parking'),
+  // (0.0.5: the KD range's 25 m bay, before the range's own zone so a point in the bay finds it first; src/data/places/range.js)
+  Z('melas.kd-25', 'range', [1086, 280.5, 1136, 300.2], null, null, 'The 25 m line'),
   Z('melas.kd-range', 'range', [1060, 280, 1640, 420], null, null, 'Known-distance rifle range'),
   Z('melas.grenade-range', 'range', [1200, 520, 1260, 560], null, null, 'Hand grenade range'),
   Z('melas.village', 'village', [400, 900, 700, 1100], null, null, 'Training village'),

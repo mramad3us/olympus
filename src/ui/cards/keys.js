@@ -10,18 +10,29 @@
 // keys ^ and $ (the codes BracketLeft and BracketRight, [ and ] on QWERTY). Alt is Option on a Mac.
 // The words for each key are the build's, given by main.js where the sim knows them (R's wait in
 // whole minutes from its own WAIT_MS), else keys.js's own.
+//
+// The 0.0.5 round's (the build sheet §2.4, VIEWS §10.1 and §10.2): G weapon ready, the rifle up and time
+// standing still (stop motion); X the shooting mode on and off; the digits a step tapped, with Shift
+// rushed, held careful (Fire held: hold the aim to +4 and fire); A and W (the codes KeyQ and KeyZ) the
+// stance up and down; V the carry posture; I what you carry; and in stop motion (STOP_KEYS) Enter aim at
+// the bracketed target, Q and D (the move keys' codes KeyA and KeyD) the brackets to the next target, a
+// click to aim and a click on the aimed one to fire, and in a reflex card R to keep the answer.
 import { bindingOf } from '../../core/keys.js';
 
 /** The actions with a meaning in this build, in the card's order (the walk and the digits are rows of their own). */
-export const KEYS_IN_BUILD = Object.freeze(['run', 'stroll', 'hand', 'instinct', 'ready', 'digits', 'sheet', 'log', 'pause', 'menu', 'help']);
+export const KEYS_IN_BUILD = Object.freeze(['run', 'stroll', 'hand', 'instinct', 'ready', 'shoot', 'digits', 'stance', 'carry', 'inventory', 'sheet', 'log', 'pause', 'menu', 'help']);
 /** The build's words for them, where keys.js's differ. */
 export const KEY_WORDS = Object.freeze({
   run: 'run, held',
   stroll: 'stroll, held',
   hand: "what's at hand: an appliance, a door, else wait; held: the choices",
   instinct: 'what the instinct says; held: the next',
-  ready: 'weapon ready: time stands still until a digit',
-  digits: 'a choice while time stands still, a line of a card',
+  ready: 'weapon ready: the rifle up, time stands still while you choose',
+  shoot: 'the shooting mode, on and off (with a rifle)',
+  digits: 'a step, tapped; with Shift rushed; held careful (Fire held: hold the aim, then fire); a line of a card',
+  stance: 'stance up, stance down (kneel, prone)',
+  carry: 'carry: the rifle\'s next posture',
+  inventory: 'what you carry',
   sheet: 'character sheet: your body and your file',
   log: 'the log',
   pause: 'pause',
@@ -31,15 +42,19 @@ export const KEY_WORDS = Object.freeze({
 
 /** In a splash, the keys mean (TIME §6.4, VIEWS §10.3): [code or action, words]. */
 export const SPLASH_KEYS = Object.freeze([['pause', 'in a splash: to the end (Enter, a click too)'], ['Backspace', 'in a splash: stop here, where the activity allows']]);
+/** In stop motion, the keys mean (VIEWS §10.2; the build sheet 0.0.5 §2.4): [codes or actions, words]. */
+export const STOP_KEYS = Object.freeze([[['Enter'], 'in stop motion: aim at the bracketed target (a click too; a click on the aimed one fires)'], [['KeyA', 'KeyD'], 'in stop motion: the brackets to the next target'], [['hand'], 'in a reflex card: keep the answer two minutes']]);
 
 /** The card's rows: [[keys, words]…]. label(action or code) names a key; says overrides words; extra adds rows (the debug keys). */
 export function keysRows({ label, says = {}, extra = [] }) {
   const rows = [[`${label('up')} ${label('left')} ${label('down')} ${label('right')}`, 'walk (the arrows too)']];
   for (const action of KEYS_IN_BUILD) {
     if (action === 'digits') { rows.push(['1 … 0', says.digits ?? KEY_WORDS.digits]); continue; }
+    if (action === 'stance') { rows.push([`${label('stanceUp')} ${label('stanceDown')}`, says.stance ?? KEY_WORDS.stance]); continue; }
     rows.push([label(action), says[action] ?? KEY_WORDS[action] ?? bindingOf(action)?.say ?? action]);
   }
   for (const [k, words] of SPLASH_KEYS) rows.push([label(k), words]);
+  for (const [ks, words] of STOP_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
   for (const r of extra) rows.push(r);
   return rows;
 }

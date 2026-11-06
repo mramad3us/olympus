@@ -6,8 +6,13 @@
 // MELAS_PLAN and these tables, at load and the same in every career (the user, 2026-11-05: "game
 // world is handcrafted"): nothing here or there reads a seed of the world. What these tables add:
 //   GROUND        the area's name, how far the valley floor is drawn past the fence (GROUND_APRON_M
-//                 40 m, the sheet's §4) and what is walked (inside the fence), and the area's look seed:
-//                 an authored constant for the chunks' fixed dressing (PLACES §2.4), never a world's;
+//                 40 m, the sheet's §4), what is walked (walkM, a list since 0.0.5: inside Main Side's
+//                 fence, and the KD range's 25 m bay outside the East gate, src/data/places/range.js),
+//                 the ground drawn (drawnM: Main Side and its apron, and X3's strip, x 1,040 to 1,680
+//                 and z 260 to 440, so the whole KD range stands on this ground when 0.0.7 builds its
+//                 other lines and nothing placed now moves: the build sheet 0.0.5 §2.3, PLACES §9), and
+//                 the area's look seed: an authored constant for the chunks' fixed dressing (PLACES
+//                 §2.4), never a world's;
 //   LAMP_LINES    the street lamps, by an authored rule of the plan's own lines: one every `everyM`
 //                 along a road or walk, `offsetM` off its centre line on the side given, between `from`
 //                 and `to` along it (sodium, PLACES §4.1's lit lines); a lamp that would stand in a
@@ -22,10 +27,12 @@
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
-/** The ground area: its name, the valley floor drawn past the fence, the walked rect, its look seed. */
+/** The ground area: its name, the valley floor drawn past the fence, the walked rects (Main Side, the 25 m bay), the ground drawn, its look seed. */
 export const GROUND = deepFreeze({
   id: 'melas.ground', site: 'melas', name: 'Base Melas', plan: 'melas@1', apronM: 40,
-  walkM: { x0: 0, z0: 0, x1: 1000, z1: 700 }, lookSeed: 4417,
+  walkM: [{ x0: 0, z0: 0, x1: 1000, z1: 700 }, { x0: 1086, z0: 281, x1: 1124, z1: 300 }],
+  drawnM: [{ x0: -40, z0: -40, x1: 1040, z1: 740 }, { x0: 1040, z0: 260, x1: 1680, z1: 440 }],
+  lookSeed: 4417,
   spawn: { x: 522.0, z: 214.9, face: 'down' },
 });
 

@@ -2,7 +2,10 @@
 //
 // One line at the bottom centre (layout.js: 720 × 44 at --ui 1), left to right:
 //   the lead     what the game says it is doing instead of the instinct's own line: "Time stands still:
-//                a digit to choose." while a choice holds time (VIEWS §7.4), the bench's countdown;
+//                a digit to choose." while G's stub holds time (VIEWS §7.4), "Time stands still." in
+//                stop motion (the 0.0.5 round: the step panel says the rest, and the line beside the
+//                lead speaks every tone there, SKILLS §14.3's rule lifted for the 'stop' hold: the build
+//                sheet §8 item 10), the bench's countdown;
 //   the line     SKILLS' instinctNow(state).line, the most pressing thing the DI has to say ("Thirsty.
 //                The tap's right here."), its tone as its left border (calm slate, note blue, warn brass,
 //                urgent red blinking three times: VIEWS §7.1, §9.4) and T's keycap before it when T does

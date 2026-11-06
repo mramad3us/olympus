@@ -21,6 +21,12 @@
 //     chest, a hard hat with its lamp lit.
 //   - THE TOWEL (0.0.4: out of the shower and dressing, TIME §8.2's dress part): a towel wrapped at the
 //     waist, bare chested (at the chest for a woman: look.sex 'f'), shower shoes; no cover, no belt.
+//   - THE RANGE STAFF (0.0.5, the build sheet 0.0.5 §2.3 (d)): utilities and the soft cover with the
+//     range detail's red brassard on the left arm; the range officer a headset over the cover (look.headset).
+// And what the kit puts on anyone (0.0.5, the arms role's kitLook): ear defenders over the cover (look.ears:
+// drab cups on a band), the plate carrier with its magazine pouches over utilities (look.carrier, as the
+// carrier outfit's but under the cover, not the helmet: the 25 m line's dress); and look.magOut, the rifle
+// drawn with its magazine out of the well (gunLook's mag), in every frame but the magazine's own.
 // A look also carries the body's cues the figure shows (VIEWS §7.3, BODY's cuesOf): wet (the hair darker
 // with a sheen, for WET_HAIR_MS after a wash) and tired (fatigue at or past tired: the head down, the
 // arms swinging less: poses.js). Both change the drawing, so they are part of the look's shape.
@@ -57,12 +63,21 @@ export function valles(u, v, ppm, seed = 1) {
 
 /** The outfits a look can name. */
 export const OUTFITS = Object.freeze(['utilities', 'nco', 'pt', 'vac', 'vacOpen', 'carrier', 'civilian', 'towel']);
+/**
+ * A duty's dress over an outfit (0.0.5: the range detail's, utilities with the red brassard): a look may name
+ * it as it names an outfit, but it is not among OUTFITS, the samples' lineup (which sits at the 24 px/m
+ * atlas's 15 looks: one more and it never comes in at that test density).
+ */
+export const DUTY_DRESS = Object.freeze(['rangeStaff']);
 export const OUTFIT_LABELS = Object.freeze({
   utilities: 'Utilities, Valles pattern', nco: 'Sergeant in utilities (collar pins)', pt: 'PT kit', vac: 'Light vac suit, sealed',
   vacOpen: 'Light vac suit, helmet off', carrier: 'Plate carrier over utilities', civilian: 'Europa ice miner', towel: 'A towel, after the shower',
+  rangeStaff: 'Range staff in utilities (the red brassard)',
 });
 /** The towel (an issue towel's olive drab, light enough to read as cloth on skin) and shower shoes. */
 export const TOWEL = 0xa59f86, SHOWER_SHOE = 0x2c2e38;
+/** The range detail's brassard (the Corps' red), ear defenders' cups and band, a headset's. */
+export const BRASSARD = 0xd8463a, EARS = Object.freeze({ cup: 0x4c633d, band: 0x282b34 }), HEADSET = 0x282b34;
 
 const TAN_BOOT = 0x9a7650, BELT = 0x5c4a36, DRAB = 0x545e40, DRAB_DARK = 0x3d4530;
 const SHELL = 0xc8c0ae, SKINSUIT = 0x3b4256, SUIT_RING = 0x4c5262, SUIT_BOOT = 0x5a6070, PACK = 0x7d776c, OXBLOOD = 0x6e2a2e, PT_GREY = 0x8f96a6;
@@ -73,7 +88,7 @@ const MINER = 0xd0663a, MINER_BAND = 0xdfe2e8, HARDHAT = 0xe0b040, HELMET = 0x5f
  * weapon, carry, skin, seed }. top/legs: { kind, color | pattern }; head: { kind, color, sealed }.
  */
 export function wear(look = {}) {
-  const outfit = OUTFITS.includes(look.outfit) ? look.outfit : 'utilities';
+  const outfit = OUTFITS.includes(look.outfit) || DUTY_DRESS.includes(look.outfit) ? look.outfit : 'utilities';
   const seed = look.seed ?? 1;
   const L = {
     outfit, seed,
@@ -82,16 +97,19 @@ export function wear(look = {}) {
     weapon: look.weapon ?? null, carry: look.carry ?? (look.weapon ? 'low' : null),
     top: null, legs: null, boots: TAN_BOOT, gloves: null, head: null, armour: null, pack: null, rank: look.rank ?? null, belt: null,
     accents: {}, closedEyes: false, wet: !!look.wet, tired: !!look.tired, sex: look.sex === 'f' ? 'f' : 'm',
+    ears: !!look.ears, headset: !!look.headset, brassard: false, magOut: !!look.magOut,
   };
   const camo = { pattern: 'valles' };
   switch (outfit) {
-    case 'utilities': case 'nco': case 'carrier':
+    case 'utilities': case 'nco': case 'carrier': case 'rangeStaff':
       L.top = { kind: 'blouse', ...camo, seed: seed * 3 + 1 };
       L.legs = { kind: 'trousers', ...camo, seed: seed * 3 + 2 };
       L.belt = BELT;
       L.head = look.head === null ? null : { kind: outfit === 'carrier' ? 'helmet' : 'cover', ...(outfit === 'carrier' ? { color: HELMET } : { ...camo, seed: seed * 3 + 3 }) };
       if (outfit === 'nco') L.rank = look.rank ?? 'sgt';
       if (outfit === 'carrier') L.armour = { color: DRAB, pouches: DRAB_DARK };
+      if (outfit === 'rangeStaff') { L.brassard = true; L.accents.band = BRASSARD; }
+      if (look.carrier && !L.armour) L.armour = { color: DRAB, pouches: DRAB_DARK };   // (the kit's plate carrier over utilities, the cover kept)
       break;
     case 'pt':
       L.top = { kind: 'tee', color: OXBLOOD, emblem: true };

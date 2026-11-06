@@ -5,6 +5,10 @@
 // ledgers as the start body at the save's clock (flag mig:body-v2), tonight's taps and reveille
 // posted (mig:time-pod), and runs on with no error; the wait saved mid-skip finishes with the mask it
 // was saved with (D); and a save made after the load carries on byte for byte.
+// 0.0.5 (the build sheet §3, §8 item 30): no upgrade for a v0.0.4 save. Two made by v0.0.4's own code
+// from a worktree at its tag (the barracks, seed 48213, at 13:00 after a minute's walk; and at 13:30
+// saved while G's 'ready' held time) load as they are, carry on 3,000 ticks, and save and load equal;
+// the 'ready' save's digit lets time go, as v0.0.4's did.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -47,6 +51,37 @@ export default [
         h.load(mid); h.step(2 * MIN_TICKS, { mx: -1 });
         console.log(`        ran on to ${hm(g.state.clock.ms)} with no error; saved there and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
         assert(!g.errors.length && h.save() === end, JSON.stringify({ errors: g.errors.slice(0, 3) }));
+      }
+    },
+  },
+
+  {
+    name: 'a v0.0.4 save loads with no upgrade: both carry on 3,000 ticks with no error, a save made after carries on byte for byte, and the save made while G held time is let go by a digit',
+    fn() {
+      for (const name of ['v0.0.4-barracks-1300', 'v0.0.4-barracks-ready']) {
+        const json = read(name), old = JSON.parse(json);
+        assert(old.meta.version === '0.0.4' && old.stop === null && JSON.stringify(old.armoury) === JSON.stringify({ ammoIssues: [], guns: {} }), `${name}: not a v0.0.4 save (${old.meta.version})`);
+        const g = createGame({ scenario: 'barracks', seed: 48213, version: '0.0.5' });
+        const s = g.load(json);
+        const held = s.clock.holds.join();
+        const flags = Object.keys(s.flags ?? {}).filter(k => k.startsWith('mig:')).join(', ');
+        let let0 = null;
+        if (held === 'ready') {
+          const t = s.clock.ms;
+          g.step(20);
+          const still = g.state.clock.ms === t;
+          g.step(1, { act: ['digit:1'] });
+          let0 = { still, after: g.state.clock.ms - t, holds: g.state.clock.holds.length, line: g.facts('line').at(-1)?.text };
+          assert(still && let0.after === 50 && !let0.holds, JSON.stringify(let0));
+        }
+        g.step(1500, { mx: 1 });
+        const mid = g.save();
+        g.step(1500, { mz: -1 });
+        const end = g.save();
+        const h = createGame({ scenario: 'barracks', seed: 48213, version: '0.0.5' });
+        h.load(mid); h.step(1500, { mz: -1 });
+        console.log(`      ${name}: saved at ${hm(old.clock.ms)}, holds [${held}], mig flags [${flags}]${let0 ? `; 20 ticks held moved the clock ${let0.still ? 'not at all' : 'SOME'}, the digit let it go ("${let0.line}")` : ''}; 3,000 ticks on to ${hm(g.state.clock.ms)} with ${g.errors.length} errors; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+        assert(!g.errors.length && !h.errors.length && h.save() === end, JSON.stringify({ errors: g.errors.slice(0, 3) }));
       }
     },
   },

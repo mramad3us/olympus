@@ -9,8 +9,10 @@
 //            hands stand at 12) with a TIMESLIP badge and the minutes into it ('+12');
 //   weekday and sol: 'Monday · Sol 590 · MY 211' (SETTING's week and year);
 //   utc      'Wed 19 Dec 2351 02:20 UTC', its second line, the clock ships and the Corps keep;
-//   place    the place as you know it: places' placeLine, the live area's name and the room you
-//            stand in ('Echo Company barracks · 1st Squad, 2nd Platoon').
+//   place    the place as you know it: places' placeLine, the live area's building, its floor and the
+//            room you stand in ('Echo Company barracks, ground floor · 1st Squad, 2nd Platoon'), shown on
+//            two lines, the building and floor over the room (from 0.0.5: the user, 2026-11-06, took the
+//            upper floor for "N-1" with no floor named anywhere).
 //   strip    the body strip folded in (VIEWS §7.6; hud/strip.js): only the glyphs whose felt band has
 //            left fine, so it is empty when all is well (pillar 1: not a row of meters to keep green), on
 //            the time row's left, where the large right-aligned time leaves room (my call: the watch keeps
@@ -53,6 +55,16 @@ export function createWatch(parent) {
   timeRow.prepend(strip.el);
   parent.append(root);
   const put = (node, text) => { if (node.textContent !== text) node.textContent = text; };
+  // (the place on two lines, the building and its floor over the room, so a long line never wraps at its
+  // separator; its text is still placeLine's one line, the separator kept in a hidden span)
+  const putPlace = (text) => {
+    if (place.textContent === text) return;
+    const at = text.indexOf(' · ');
+    if (at < 0) { place.textContent = text; return; }
+    const sep = el('span', 'sep', ' · ');
+    sep.hidden = true;
+    place.replaceChildren(text.slice(0, at), sep, document.createElement('br'), text.slice(at + 3));
+  };
   return {
     el: root,
     update(state, { strip: entries = null } = {}) {
@@ -63,7 +75,7 @@ export function createWatch(parent) {
       if (f.slip) put(slip, `TIMESLIP +${f.slipMin}`);
       put(day, `${f.weekday} · ${f.sol}`);
       put(utc, f.utc);
-      put(place, f.place);
+      putPlace(f.place);
       return f;
     },
   };

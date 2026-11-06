@@ -42,6 +42,15 @@
 // part's line for the ticker), and then lives it (mode 'live': the feet held, a move key cuts it at
 // its fraction) or hands it to the skip engine (ctx.sim.beginSkip, kind 'ff' or 'outcome' as above;
 // force: 'live' | 'ff' | 'outcome' for the tests), telling the bus 'activity' { phase: 'start' }.
+// lead (the page's R, the choices and the late card ask for it: the user, 2026-11-06, "slightly slower
+// animations on getting in and out of rack"): a sleep or a nap begun standing at your rack's foot, its
+// first part lying, first lies you down in sight (people/place.js lieActor, the rise backwards, 4.8 s
+// from a lower berth when nothing hurries) and writes time.lead { id, spotId, args, atMs, late?,
+// force? }; leadStep, in the time domain's input layer, begins it from the berth once you are down, a
+// sleep's "for" turned into its planned end so it ends where its price said; a move key before then
+// drops it and gets you up again from the frame shown (time's input layer, people/place.js backActor),
+// the instinct saying "Into the rack." meanwhile. Without lead (a bot's, a test's), it begins at once
+// and you lie in the berth behind the splash, as v0.0.4 had it.
 // finishActivity(state, bus, endMs, { by, fraction }) closes it, from finishSkip or the live check:
 // the part under way given its share (whole parts were given theirs at their events), the landing
 // pose and outfit (TIME §7.5: a shower cut or fitted short of its whole dress part lands you in a
@@ -76,7 +85,7 @@ import { musterOf } from './alerts.js';
 
 export { dressMs };
 import { nightOf } from './pod.js';
-import { stepOnto, layPlayer, outfitOf, setOutfit } from '../people/place.js';
+import { stepOnto, layPlayer, lieActor, outfitOf, setOutfit } from '../people/place.js';
 import { bodyOf, intake, relieve, wash, groom, sleepBegin, sleepEnd } from '../body/body.js';
 import { stagesOf, hasBeard } from '../body/cues.js';
 
@@ -322,8 +331,8 @@ function landingOutfit(state, id, fraction, doing = null, args = null) {
 
 const refuse = (bus, why, text) => { if (text) bus?.emit('line', { text, kind: 'refused' }); return { ok: false, why }; };
 
-/** TIME §5.3's start (see the header). Returns { ok, why }. */
-export function startActivity(state, bus, ctx, { id, spotId = null, args = {}, late = null, force = null } = {}) {
+/** TIME §5.3's start (see the header). Returns { ok, why } (and lead: true where it lies the player down first). */
+export function startActivity(state, bus, ctx, { id, spotId = null, args = {}, late = null, force = null, lead = false } = {}) {
   const rec = activityOf(id);
   if (!rec) return refuse(bus, 'unknown', null);
   if (isHeld(state) || state.skip || state.time?.doing) return refuse(bus, 'busy', null);
@@ -354,6 +363,16 @@ export function startActivity(state, bus, ctx, { id, spotId = null, args = {}, l
   }
   const kind = force ?? plan.kind;
   const t0 = state.clock.ms;
+  // (the page's R at your rack's foot, standing, a sleep or a nap that begins lying: you lie down in
+  // sight first, and it begins from the berth once you are down, ending where its price said)
+  if (lead && !inBerth && sp?.use === 'sleep' && plan.parts[0]?.lie) {
+    const t = lieActor(state, me, ownOf(state).seatId, t0);
+    if (t) {
+      const { forMs, ...rest } = args;
+      state.time.lead = { id, spotId: sp.id, args: Number.isFinite(forMs) ? { ...rest, until: plan.endMs } : args, atMs: t.fromMs + t.ms, ...(late ? { late } : {}), ...(force ? { force } : {}) };
+      return { ok: true, why: null, kind, durMs: plan.durMs, lead: true };
+    }
+  }
   // (a resumed shower: what was worn into it, not the towel it was cut in)
   const wornIn = args.resume ? args.resume.outfit ?? state.time.resume?.outfit ?? null : null;
   const from = { outfit: wornIn ?? outfitOf(me), x: me.x, z: me.z, face: me.face ?? 'down' };
@@ -510,6 +529,19 @@ export function liveStep(state, input, bus) {
   if (!d || d.mode !== 'live' || state.skip) return;
   if (input?.mx || input?.mz) { finishActivity(state, bus, state.clock.ms, { by: 'player' }); return; }
   if (state.clock.ms >= d.toMs) finishActivity(state, bus, d.toMs);
+}
+
+/**
+ * The time domain's input layer's part for a lead (time.lead, startActivity's lead: the player lying
+ * down in sight before a sleep or a nap): once they are down, its activity begins from the berth.
+ * While time is held or a skip runs it waits; refused then (the klaxon came while they lay down, and
+ * sleep in a drill is late), it is dropped, and they lie awake in the rack.
+ */
+export function leadStep(state, bus, ctx) {
+  const L = state.time?.lead;
+  if (!L || state.clock.ms < L.atMs || state.skip || isHeld(state) || state.time.doing) return;
+  delete state.time.lead;
+  startActivity(state, bus, ctx, { id: L.id, spotId: L.spotId, args: L.args ?? {}, late: L.late ?? null, force: L.force ?? null });
 }
 
 /** The resume on offer, or null (time.resume, while its time and the player's distance hold). */

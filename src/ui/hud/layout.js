@@ -18,6 +18,17 @@
 // walking TOASTS, WATCH, INSTINCT, RADIO, KEYS; paused the same and PAUSED; a splash CLOCK, RADIO and
 // INSTINCT, everything else hidden. The test proves every pair of one state apart.
 //
+// The 0.0.5 round's weapon mode (the build sheet §2.4, VIEWS §7.5): STEPS, 720 × 148 on INSTINCT (the
+// step panel, the weapon card's 180 × 148 at its left; while a reflex card waits the panel shrinks to its
+// weapon card and the reflex card takes the rest of STEPS beside it), RADIO on STEPS
+// instead of on INSTINCT (RECTS' onIn), and PAPER, 200 × 200 at the top centre (your card close, the
+// sheet's §8 item 21), placed under PAUSED's slot (below), so the paused weapon mode keeps both apart
+// with PAUSED where it always is (my call: VIEWS puts both at the top centre and says nothing of the
+// pair). States weapon (TOASTS, WATCH, PAPER, INSTINCT, STEPS, RADIO, KEYS) and weapon-paused (the
+// same and PAUSED). At the four window sizes the test uses (1024 × 768, 1280 × 600, 1600 × 900, 1920
+// × 1080) PAPER's foot clears RADIO's top by 314, 146, 233 and 279 px, and TOASTS by 26, 154, 85 and
+// 102 px (core-browser prints them).
+//
 // --ui is tradecraft's fit(): clamp(s / 2, 0.85, 1.5), s the window's scale over a 640 × 360 picture
 // widened to the window's shape up to 768 × 430 (render/scale.js frameFor at 16 px/m's frame), so it
 // is the same at either density: 1.5 at 1920 × 1080, 1.13 at 1440 × 900, 0.85 at 1024 × 768 (VIEWS's
@@ -30,16 +41,22 @@ export const RECTS = Object.freeze({
   TOASTS: Object.freeze({ w: 460, h: 84, anchor: 'top-left' }),
   WATCH: Object.freeze({ w: 280, h: 132, anchor: 'top-right' }),
   INSTINCT: Object.freeze({ w: 720, h: 44, anchor: 'bottom-centre' }),
-  RADIO: Object.freeze({ w: 720, h: 52, anchor: 'bottom-centre', on: 'INSTINCT' }),
+  RADIO: Object.freeze({ w: 720, h: 52, anchor: 'bottom-centre', on: 'INSTINCT', onIn: Object.freeze({ weapon: 'STEPS', 'weapon-paused': 'STEPS' }) }),
+  STEPS: Object.freeze({ w: 720, h: 148, anchor: 'bottom-centre', on: 'INSTINCT' }),
   KEYS: Object.freeze({ w: 120, h: 32, anchor: 'bottom-right' }),
   PAUSED: Object.freeze({ w: 240, h: 48, anchor: 'top-centre' }),
   CLOCK: Object.freeze({ w: 260, h: 72, anchor: 'top-centre' }),
+  PAPER: Object.freeze({ w: 200, h: 200, anchor: 'top-centre', below: 'PAUSED' }),
 });
+/** The weapon card's share of STEPS, at its left (CSS px at --ui 1; VIEWS §4.4, §7.5). */
+export const CARD_W = 180, CARD_H = 148;
 /** The rectangles each state uses (VIEWS §7.5's per-state table, this round's states). */
 export const STATES = Object.freeze({
   walking: Object.freeze(['TOASTS', 'WATCH', 'INSTINCT', 'RADIO', 'KEYS']),
   paused: Object.freeze(['TOASTS', 'WATCH', 'INSTINCT', 'RADIO', 'KEYS', 'PAUSED']),
   splash: Object.freeze(['CLOCK', 'RADIO', 'INSTINCT']),
+  weapon: Object.freeze(['TOASTS', 'WATCH', 'PAPER', 'INSTINCT', 'STEPS', 'RADIO', 'KEYS']),
+  'weapon-paused': Object.freeze(['TOASTS', 'WATCH', 'PAPER', 'INSTINCT', 'STEPS', 'RADIO', 'KEYS', 'PAUSED']),
 });
 /** The margin from the window's edges, and between stacked rectangles (CSS px at --ui 1). */
 export const MARGIN_PX = 12, GAP_PX = 6;
@@ -53,22 +70,28 @@ export function uiScale(w, h) {
   return Math.round(Math.max(UI_MIN, Math.min(UI_MAX, f.scale / 2)) * 100) / 100;
 }
 
-/** Every rectangle at a window of w × h: { ui, TOASTS: { x, y, w, h }, … } in window pixels (a stacked one GAP_PX over the one it sits on). */
-export function rectsAt(w, h) {
+/**
+ * Every rectangle at a window of w × h in a state: { ui, TOASTS: { x, y, w, h }, … } in window pixels (a
+ * stacked one GAP_PX over the one it sits on, on, or in the state its onIn names; a top one below another
+ * GAP_PX under it). The state moves only RADIO (on STEPS in the weapon mode).
+ */
+export function rectsAt(w, h, state = 'walking') {
   const ui = uiScale(w, h), m = MARGIN_PX * ui, out = { ui };
-  for (const [name, r] of Object.entries(RECTS)) {
-    const rw = r.w * ui, rh = r.h * ui;
+  const placeOne = (name) => {
+    if (out[name]) return out[name];
+    const r = RECTS[name], rw = r.w * ui, rh = r.h * ui;
     const x = r.anchor.endsWith('left') ? m : r.anchor.endsWith('right') ? w - m - rw : (w - rw) / 2;
-    const under = r.on ? out[r.on] : null;
-    const y = under ? under.y - GAP_PX * ui - rh : r.anchor.startsWith('top') ? m : h - m - rh;
-    out[name] = { x, y, w: rw, h: rh };
-  }
+    const onName = r.onIn?.[state] ?? r.on, under = onName ? placeOne(onName) : null, over = r.below ? placeOne(r.below) : null;
+    const y = under ? under.y - GAP_PX * ui - rh : over ? over.y + over.h + GAP_PX * ui : r.anchor.startsWith('top') ? m : h - m - rh;
+    return (out[name] = { x, y, w: rw, h: rh });
+  };
+  for (const name of Object.keys(RECTS)) placeOne(name);
   return out;
 }
 
 /** The pairs of a state's rectangles that meet at a window of w × h (none, VIEWS §7.5): ['A × B', …]. */
 export function clashesAt(w, h, state = 'walking') {
-  const r = rectsAt(w, h), names = STATES[state] ?? [], out = [];
+  const r = rectsAt(w, h, state), names = STATES[state] ?? [], out = [];
   for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if (overlaps(r[names[i]], r[names[j]])) out.push(`${names[i]} × ${names[j]}`);
   return out;
 }

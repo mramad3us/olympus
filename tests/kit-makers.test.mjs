@@ -143,7 +143,7 @@ export default [
       const two = place(recordingArea(ppm), { kind: 'wallClock', make: 'station', x: 5, z: 5, y: 1.12, face: 'down', faces: ['melas', 'utc'] });
       assert(two.dials?.map(x => x.which).join() === 'front,back', 'a two-faced clock has a front and a back dial');
       const st = recordingArea(ppm); place(st, { kind: 'stairs', make: 'concrete', x: 82, z: 12, face: 'up', dir: 'up' });
-      assert(st.grounds.length === 1 && st.boxes.length >= 6, `a flight: ${st.grounds.length} treads painting, ${st.boxes.length} boxes`);
+      assert(st.grounds.length === 2 && st.boxes.length >= 6, `a flight: ${st.grounds.length} grounds (its treads and its mark), ${st.boxes.length} boxes`);
       const w = recordingArea(ppm); place(w, { kind: 'stairsWell', make: 'rail', x: 82, z: 12, face: 'up', dir: 'down' });
       const lp = recordingArea(ppm); place(lp, { kind: 'lampPost', make: 'sodium', x: 530, z: 220 });
       const tall = Math.max(...lp.boxes.map(({ b }) => b.y1));
@@ -181,5 +181,22 @@ export default [
     console.log(`      at 16 px/m: ${rows.join(', ')}; the timer lit has ${glow} glowing pixels; the steam's pixels by density (rising, running, thinning): ${steam.join(', ')}; ${pieceCount()} paintings kept`);
     assert(glow > 0, 'the timer glows');
     assert(steam[1] > steam[0] && steam[0] > steam[2], 'the steam thickest while the water runs');
+  } },
+  { name: 'the KD range\'s pieces (0.0.5, src/art/kit/range.js) stand as the sheet builds them: the tower\'s deck at 6.0 m and its top at 9 m with the flag\'s pole to 11.5, the frame\'s backer 1.0 × 1.2 m, the berm in four steps to 3 m, the fence 2.4 m and the rope at 0.85 m, the line\'s flag pole 3.6 m', fn() {
+    const lines = [];
+    for (const ppm of [16, 24]) {
+      const top = (kind, make, extra = {}) => { const a = recordingArea(ppm); place(a, { kind, make, x: 1000, z: 300, face: extra.face ?? 'down', seed: 3, look: extra.look ?? {}, ...(extra.w ? { w: extra.w } : {}), ...(extra.d ? { d: extra.d } : {}) }); return { boxes: a.boxes.map(({ b }) => b), grounds: a.grounds.length }; };
+      const tower = top('kdTower', 'open', { look: { flag: [1.5, -1.5] } }), cab = top('kdTower', 'cab');
+      const deck = tower.boxes.find(b => Math.abs(b.y1 - 6.0) < 1 / ppm && b.x1 - b.x0 > 3.9), towerTop = Math.max(...tower.boxes.filter(b => b.x1 - b.x0 > 0.2).map(b => b.y1)), pole = Math.max(...tower.boxes.map(b => b.y1));
+      const frame = top('kdFrame', 'card25'), backer = frame.boxes.find(b => Math.abs(b.x1 - b.x0 - 1.0) < 1 / ppm);
+      const berm = top('berm', 'earth', { face: 'left', w: 19.5, d: 6 }), steps = berm.boxes.map(b => b.y1).sort((a, b) => a - b);
+      const fence = top('rangeFence', 'mesh', { w: 50 }), rope = top('rangeFence', 'rope', { w: 41 }), flag = top('rangeSign', 'flagpole'), mat = top('kdMat', 'canvas', { face: 'right' });
+      lines.push(`${ppm} px/m: the tower ${tower.boxes.length} boxes, its deck at ${deck ? deck.y1 : '?'} m, its top ${towerTop} m, its flag's pole to ${pole} m (the cab make ${cab.boxes.length} boxes); the backer ${backer ? `${backer.x1 - backer.x0} × ${backer.y1 - backer.y0}` : '?'} m; the berm's steps ${steps.join(', ')} m; the fence ${Math.max(...fence.boxes.map(b => b.y1))} m, ${fence.boxes.length} boxes; the rope ${Math.max(...rope.boxes.map(b => b.y1))} m; the line's pole ${Math.max(...flag.boxes.map(b => b.y1))} m; a mat ${mat.grounds} flat piece`);
+      assert(deck && Math.abs(towerTop - 9.0) < 1 / ppm && Math.abs(pole - 11.5) < 1 / ppm, `${ppm}: the tower`);
+      assert(backer && Math.abs(backer.y1 - 1.2) < 1 / ppm && backer.y0 === 0, `${ppm}: the backer`);
+      assert(steps.length === 4 && steps.every((y, i) => Math.abs(y - 0.75 * (i + 1)) < 1 / ppm), `${ppm}: the berm's steps ${steps}`);
+      assert(Math.abs(Math.max(...fence.boxes.map(b => b.y1)) - 2.5) < 0.11 && Math.abs(Math.max(...rope.boxes.map(b => b.y1)) - 0.95) < 0.11 && Math.abs(Math.max(...flag.boxes.map(b => b.y1)) - 3.6) < 1 / ppm && mat.grounds === 1, `${ppm}: the fence, the rope, the pole, the mat`);
+    }
+    for (const l of lines) console.log(`      ${l}`);
   } },
 ];

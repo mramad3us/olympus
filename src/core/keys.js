@@ -19,9 +19,15 @@
 //          T tapped is the instinct's line, held its chip (SKILLS §14.1). The UI turns each into the
 //          sim's action with its arguments, so these are never queued for the sim by themselves
 //   sim    an action for the sim, fired once on the key going down (F people, G ready, X shoot,
-//          K L M hit grab guard)
+//          K L M hit grab guard; the 0.0.5 round's V carry, and A and W the stance up and down, the
+//          codes KeyQ and KeyZ, which sit left of the move keys on AZERTY: their binding's sends is
+//          what is queued, 'stance:up' and 'stance:down')
 //   digit  the digits by code (Digit1, Numpad1), because AZERTY's top row types & é " ' without Shift
-//          (tradecraft ui.js digit()); they pick steps in the step panel and lines in menus
+//          (tradecraft ui.js digit()); they pick lines in menus on the key going down ({ action:
+//          'digit:N', kind: 'digit' }), and, for the step panel of stop motion, they are press keys as
+//          well (the build sheet 0.0.5 §2.4): let go under TAP_MS a 'tap', held TAP_MS a 'held' (fired
+//          then, while still down, once a press), never both; the panel reads a tap as the step at its
+//          normal tempo (rushed with Shift) and a hold as careful, Fire held as hold and fire
 //   ui     a screen (I inventory, C sheet, H first aid, Tab the mind, J log, Esc menu, ? keys)
 //   loop   Space, the pause
 // '?' is read by the character it types (e.key), whatever key makes it: Shift and the comma's key
@@ -46,6 +52,9 @@ export const BINDINGS = Object.freeze([
   { action: 'instinct', codes: ['KeyT'], kind: 'press', say: 'what the instinct says; held: the next' },
   { action: 'ready', codes: ['KeyG'], kind: 'sim', say: 'weapon ready' },
   { action: 'shoot', codes: ['KeyX'], kind: 'sim', say: 'shooting mode' },
+  { action: 'carry', codes: ['KeyV'], kind: 'sim', say: 'carry: the next posture' },
+  { action: 'stanceUp', codes: ['KeyQ'], kind: 'sim', sends: 'stance:up', say: 'stance up' },
+  { action: 'stanceDown', codes: ['KeyZ'], kind: 'sim', sends: 'stance:down', say: 'stance down' },
   { action: 'hit', codes: ['KeyK'], kind: 'sim', say: 'hit' },
   { action: 'grab', codes: ['KeyL'], kind: 'sim', say: 'grab' },
   { action: 'guard', codes: ['Semicolon'], kind: 'sim', say: 'guard' },
@@ -65,6 +74,8 @@ const DIGIT_CODE = /^(?:Digit|Numpad)([0-9])$/;
 
 /** The binding of an action ('up', 'ready'…), or undefined. */
 export const bindingOf = (action) => BY_ACTION.get(action);
+/** Whether a code is a digit's (Digit0 to Digit9, Numpad0 to Numpad9). */
+export const isDigitCode = (code) => DIGIT_CODE.test(code);
 /** The action a code is bound to ('KeyW' → 'up'), 'digit:N' for a digit, or null. */
 export function actionOf(code) {
   const b = BY_CODE.get(code);
@@ -114,8 +125,9 @@ export function label(actionOrCode, { layout = 'azerty', layoutMap = null, mac =
 
 /**
  * Keys held and let go, without the DOM. down(code, tMs, key) and up(code, tMs) return what fired,
- * as [{ action, kind }]; due(tMs) what a press key held TAP_MS fires ('held', once a press);
- * snapshot(tMs) is what is held now: { mx, mz (-1, 0 or 1), run, stroll, look }.
+ * as [{ action, kind }]; due(tMs) what a press key or a digit held TAP_MS fires ('held', once a press);
+ * snapshot(tMs) is what is held now: { mx, mz (-1, 0 or 1), run, stroll, look }. A sim binding fires
+ * its sends ('stance:up') where it has one, else its action.
  */
 export function createKeyState({ tapMs = TAP_MS } = {}) {
   const held = new Map();                                          // code → when it went down (ms)
@@ -128,30 +140,30 @@ export function createKeyState({ tapMs = TAP_MS } = {}) {
       held.set(code, tMs);
       pressDone.delete(code);
       const b = BY_CODE.get(code);
-      if (b) return b.kind === 'sim' || b.kind === 'ui' || b.kind === 'loop' ? fire(b.action, b.kind) : b.kind === 'press' ? fire(b.action, 'down') : [];
+      if (b) return b.kind === 'sim' ? fire(b.sends ?? b.action, 'sim') : b.kind === 'ui' || b.kind === 'loop' ? fire(b.action, b.kind) : b.kind === 'press' ? fire(b.action, 'down') : [];
       const d = DIGIT_CODE.exec(code);
       return d ? fire(`digit:${d[1]}`, 'digit') : [];
     },
     up(code, tMs) {
       const since = held.get(code);
       held.delete(code);
-      const b = BY_CODE.get(code);
+      const b = BY_CODE.get(code), d = b ? null : DIGIT_CODE.exec(code);
       if (b?.kind === 'hold' && since !== undefined && tMs - since < tapMs && !anotherHolds(b, code)) return fire(b.tap, 'sim');
-      if (b?.kind === 'press') {
-        const done = pressDone.delete(code);
+      if (b?.kind === 'press' || d) {
+        const done = pressDone.delete(code), action = d ? `digit:${d[1]}` : b.action;
         // (let go before TAP_MS: a tap; a press whose 'held' fired already says nothing more)
-        if (since !== undefined && !done) return tMs - since < tapMs ? fire(b.action, 'tap') : fire(b.action, 'held');
+        if (since !== undefined && !done) return tMs - since < tapMs ? fire(action, 'tap') : fire(action, 'held');
       }
       return [];
     },
-    /** The press keys held TAP_MS or more whose 'held' has not fired yet: [{ action, kind: 'held' }], each once a press. */
+    /** The press keys and digits held TAP_MS or more whose 'held' has not fired yet: [{ action, kind: 'held' }], each once a press. */
     due(tMs) {
       const out = [];
       for (const [code, since] of held) {
-        const b = BY_CODE.get(code);
-        if (b?.kind !== 'press' || pressDone.has(code) || tMs - since < tapMs) continue;
+        const b = BY_CODE.get(code), d = b ? null : DIGIT_CODE.exec(code);
+        if ((b?.kind !== 'press' && !d) || pressDone.has(code) || tMs - since < tapMs) continue;
         pressDone.add(code);
-        out.push({ action: b.action, kind: 'held' });
+        out.push({ action: d ? `digit:${d[1]}` : b.action, kind: 'held' });
       }
       return out;
     },

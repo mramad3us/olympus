@@ -27,9 +27,11 @@
 //
 // 0.0.3 (the build sheet 0.0.3 §2.1) adds the building's own kinds: wallClock (hung on a wall, or
 // standing on a desk, `mount: 'desk'` on the fixture), stairs (a flight a floor walks, at cost 15,
-// blocking nothing), stairsWell (the floor above's view of it: blocks but its top STAIR_TOP_M 1.0 m)
-// and lampPost; a flight's front (+z as it faces down) is its foot and its back its top (the kit's
-// rule, src/art/kit/structure.js). Kinds gain `seats`, numbered after the spots: { n, dx, dz, y, use,
+// blocking nothing), stairsWell (the floor above's view of it: blocks but its top STAIR_TOP_M 1.0 m,
+// openTopOf, the landing) and lampPost; a flight's front (+z as it faces down) is its foot and its back
+// its top (the kit's rule, src/art/kit/structure.js stairEnd, which draws a well's landing and its mark
+// where blockRectOf leaves it open: v0.0.4 drew them at the front, and the user stood on a drawn landing
+// the sim blocked, 2026-11-06). Kinds gain `seats`, numbered after the spots: { n, dx, dz, y, use,
 // head } (rack2: #2 the lower berth at y 0.45 and #3 the upper at 1.35; rack1 #2; a footlocker #2
 // at 0.40; a stool's and a chair's #1 spot is its seat, at 0.47 and 0.45), head the end the sleeper's
 // head lies at as the piece faces down ('n': its back), turned with it. Seats are not walking spots.
@@ -143,6 +145,8 @@ export const mountOf = (fx) => fx.mount ?? kindOf(fx.kind).mount;
 /**
  * The rect a blocking fixture stops walkers on: its footprint, but a stairsWell's open top (the last
  * STAIR_TOP_M of the flight, at its back) is left out, so one walks onto the landing and no further.
+ * The kit draws a well's landing, its DOWN mark and its guard from the same rule (src/art/kit/
+ * structure.js stairEnd: the back is the top), and the stairs test holds the two equal in every area.
  */
 export function blockRectOf(fx) {
   const r = footprintOf(fx);
@@ -153,6 +157,16 @@ export function blockRectOf(fx) {
   if (face === 'up') return { ...r, z1: r4(r.z1 - STAIR_TOP_M) };
   if (face === 'left') return { ...r, x1: r4(r.x1 - STAIR_TOP_M) };
   return { ...r, x0: r4(r.x0 + STAIR_TOP_M) };
+}
+
+/** A stairsWell's open top, the landing one walks onto from its floor: its footprint less blockRectOf, { x0, z0, x1, z1 }; null for any other kind. */
+export function openTopOf(fx) {
+  if (fx.kind !== 'stairsWell') return null;
+  const r = footprintOf(fx), b = blockRectOf(fx);
+  if (b.z0 > r.z0) return { ...r, z1: b.z0 };
+  if (b.z1 < r.z1) return { ...r, z0: b.z1 };
+  if (b.x0 > r.x0) return { ...r, x1: b.x0 };
+  return { ...r, x0: b.x1 };
 }
 
 /** What a fixture hides from the sight grid, metres (its kind's sightH; a fixture may say its own). */

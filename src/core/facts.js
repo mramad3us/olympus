@@ -14,6 +14,9 @@
 // skip passed. The 0.0.3 sheet adds door (PLACES: a door turned by a hand, doors.js).
 // The 0.0.4 sheet (§2.5) adds TIME's activity, alert, reveille and late, widens skip-start and
 // skip-interrupt, gives skip-end its outcome, and writes BODY's three payloads out.
+// The 0.0.5 sheet (§2.5) adds WEAPONS' stop-mode, step, shot, muzzle, nd and range, and COMBAT's
+// reflex; say gains its kinds 'pa' (the tower) and 'speech' (the coach), fx its flash, and roll is
+// told after each logged roll with the roller (who).
 
 const fact = (owner, payload) => Object.freeze({ owner, payload });
 
@@ -32,8 +35,8 @@ export const FACTS = Object.freeze({
   autosave: fact('TIME, CAREER (ask), TECH (writes)', "{ why: 'skip' | 'day' | 'live' | 'area' | 'edge' | 'combat' | 'death' }"),
   log: fact('TECH', '{ entry }: a record appended to state.log'),
   line: fact('TECH', '{ text, kind? }: a short line for the player (a toast until the presenter)'),
-  roll: fact('SKILLS', '{ roll } (SKILLS §15.2\'s record)'),
-  say: fact('PEOPLE', "{ who, text, kind: 'speech' | 'radio' | 'bark' | 'pa', durMs }"),
+  roll: fact('SKILLS', '{ roll, who } (SKILLS §15.2\'s record, after it is logged; who the roller)'),
+  say: fact('PEOPLE', "{ who, text, kind: 'speech' | 'radio' | 'bark' | 'pa', durMs }: 'pa' the range tower's, 'speech' a person beside you"),
   'area-enter': fact('PLACES', '{ site, area, from, portal }'),
   'area-leave': fact('PLACES', '{ site, area, from, portal }'),
   'chunk-in': fact('PLACES', '{ site, area, i, j }'),
@@ -41,7 +44,14 @@ export const FACTS = Object.freeze({
   'path-done': fact('PLACES', '{ reqId, who, ok, lengthM, reason }: a path request answered'),
   door: fact('PLACES', "{ id, area, x, z, state: 'open' | 'closed', kind, who }: a door turned (x, z its middle in its area's frame)"),
   sound: fact('VIEWS (audio), PEOPLE (hearing)', '{ kind, x, y, z, area, db, src }'),
-  fx: fact('WEAPONS, COMBAT, PLACES', '{ kind, x, y, z, atMs, dir, size }: a muzzle flash, an impact, sparks, steam'),
+  fx: fact('WEAPONS, COMBAT, PLACES', "{ kind: 'flash' | …, x, y, z, atMs, dir, size }: a muzzle flash, an impact, sparks, steam"),
+  'stop-mode': fact('WEAPONS', "{ phase: 'enter' | 'leave', who, gun, via: 'ready' | 'shoot' | null, why }: stop motion entered or left"),
+  step: fact('WEAPONS', "{ phase: 'start' | 'sub' | 'halt' | 'cut' | 'end', who, step, i, action, fromMs, toMs, ok, grade, routine, mishap, text, brass?: [{ kind, landMs, at }] }: a stop-motion or live step and its sub-steps ('sub' as each begins, rolled; brass what it threw out of the port)"),
+  shot: fact('WEAPONS', '{ id, who, gun, atMs, fired, why, stoppage, set, muzzle: { x, y, z }, dirRad, target, lane, hole: { at, score, v } | null, brass: { kind, landMs, at } | null, logSeq }: a trigger pulled'),
+  muzzle: fact('WEAPONS', "{ who, at, kind: 'near' | 'flag' | 'point', posture, atMs }: a muzzle swept over someone"),
+  nd: fact('WEAPONS', '{ who, gun, grade, into, nearId, atMs, during }: a negligent discharge'),
+  range: fact('WEAPONS', "{ phase: 'cmd' | 'fault' | 'string' | 'clear' | 'stopped', cmd, hot, rule, kind: 'warn' | 'stop', text, n, score, of, v, why, hits?, shots?, list?: [{ score, v, hit }] }: the range session (hits, shots and list on a string's score, list its shots in order, a miss as score 0)"),
+  reflex: fact('COMBAT', "{ phase: 'offer' | 'chosen' | 'kept', why, title, options, key }: a reflex card"),
   papers: fact('TIME, CAREER', '{ papers: [ … ] }'),
   'body-stage': fact('BODY', '{ who, ledger, from, to, tone, words, atMs }'),
   'body-event': fact('BODY', "{ who, kind: 'void' | 'bowel' | 'accident' | 'asleep' | 'woke' | 'wash' | 'groom' | 'drink' | 'eat', atMs, amount }"),

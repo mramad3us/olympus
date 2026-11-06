@@ -182,3 +182,144 @@ export const WORLD = Object.freeze({
     ]),
   }),
 });
+
+// ---- the 0.0.5 round: the range (the build sheet §2.4, VIEWS §11.3; my calls, unscored) ----
+//
+// The R-7's report as its shooter hears it: the muzzle's blast (white noise low-passed at 3.6 kHz under
+// a 0.3 ms attack and a 22 ms decay), the bullet's crack riding on it (high-passed noise, 3 ms), the
+// powder's thump (a sine falling 95 to 48 Hz), and the open air's tail (low-passed noise over 0.18 s),
+// at REPORT_SOURCE_DB over its recipe's peak at 1 m (a rifle at a metre is some 100 dB over a foot-fall:
+// the limiter catches the rest, as it does the klaxon), heard from MUZZLE_AHEAD_M 0.9 m ahead of the
+// ear, through Melas's air (airDb(65.9) −1.9 dB, the low-pass at 5.2 kHz). The berm gives it back:
+// ECHO_DB −12 dB and low-passed at ECHO_LP_HZ, 2 × its distance at SOUND_SPEED_MS 322 m/s later (the
+// line at x 1,100 and the berm's face at 1,128: 0.17 s). The range's rule is ear defenders (ears-m1):
+// electronic ones, which pass the range's voices and take every impulse (a report, its echo) down
+// EARS_DB −25 dB and low-pass it at EARS_LP_HZ 2 kHz, so the shot is a dull, heavy thump and the coach
+// stays words in the radio box (the sheet: "speech stays text"). The action's clicks, felt as much as
+// heard through the hands and the cheek, are not muffled (my call). ACTION_SOUNDS puts each click at
+// its fraction of its sub-step's time on the game clock (the sheet's: the magazine's seat at 0.8 of
+// magIn, the charging handle's pull at 0.35 and slam at 0.9, the release's slam at 0.5, the tap's palm
+// at 0.5, the selector at 0.6; the rest mine), so stop motion freezes them with the picture. A case
+// lands on regolith with a soft tick (no ring: the ground takes it) at its own landing time and place;
+// the tower's speaker chimes twice before each of its lines (a bell's two notes, E5 then C5, through a
+// horn's band), PA_SOURCE_DB over its peak at the tower, 20 m off.
+
+/** The report at 1 m against its recipe's peak (dB; my call: the limiter takes the rest). */
+export const REPORT_SOURCE_DB = 24;
+/** The muzzle stands this far ahead of the shooter's ear (m: the R-7's 0.92 m, shouldered). */
+export const MUZZLE_AHEAD_M = 0.9;
+/** The berm's slap-back: its level against the report, and its low-pass (dB, Hz). */
+export const ECHO_DB = -12, ECHO_LP_HZ = 1500;
+/** The speed of sound in Melas's air (m/s: the build sheet's, 2 × 28 m in 0.17 s). */
+export const SOUND_SPEED_MS = 322;
+/** Ear defenders (ears-m1, electronic): every impulse taken down this far and low-passed here (dB, Hz: the range's rule, VIEWS §11.3's 25 dB). */
+export const EARS_DB = -25, EARS_LP_HZ = 2000;
+/** A click of your own gun's action at your hands, against its recipe's peak (dB). */
+export const CLICK_SOURCE_DB = 0;
+/** The tower's speaker against its recipe's peak at 1 m (dB: a loudspeaker; my call). */
+export const PA_SOURCE_DB = 20;
+/** The click's sound at a fraction of each action's time (the sheet's §2.4 and mine): action id (or a family 'magOut:*') → [[kind, fraction]]. */
+export const ACTION_SOUNDS = Object.freeze({
+  magIn: Object.freeze([Object.freeze(['magSeat', 0.8])]),
+  charge: Object.freeze([Object.freeze(['chargePull', 0.35]), Object.freeze(['chargeSlam', 0.9])]),
+  rack: Object.freeze([Object.freeze(['chargePull', 0.3]), Object.freeze(['chargeSlam', 0.85])]),
+  release: Object.freeze([Object.freeze(['boltSlam', 0.5])]),
+  tap: Object.freeze([Object.freeze(['palm', 0.5])]),
+  'selector:*': Object.freeze([Object.freeze(['selector', 0.6])]),
+  'magOut:*': Object.freeze([Object.freeze(['magOut', 0.3])]),
+  lockBack: Object.freeze([Object.freeze(['chargePull', 0.4]), Object.freeze(['selector', 0.85])]),
+  pressCheck: Object.freeze([Object.freeze(['chargePull', 0.3]), Object.freeze(['chargeSlam', 0.8])]),
+  port: Object.freeze([Object.freeze(['selector', 0.5])]),
+  functionCheck: Object.freeze([Object.freeze(['dryClick', 0.7])]),
+  clearDouble: Object.freeze([Object.freeze(['magOut', 0.1]), Object.freeze(['chargePull', 0.28]), Object.freeze(['chargeSlam', 0.45]), Object.freeze(['chargePull', 0.6]), Object.freeze(['magSeat', 0.8]), Object.freeze(['chargeSlam', 0.95])]),
+});
+/** A pull that did not fire and clicks (the shot fact's why). */
+export const DRY_WHY = Object.freeze(['dud', 'empty']);
+
+/** The range's sounds (see the header). */
+export const RANGE = Object.freeze({
+  report: Object.freeze({
+    levelDb: -6, durS: 0.6, variants: 3, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', lowpass: 3600, attackS: 0.0003, decayS: 0.022, db: 0 }),
+      Object.freeze({ kind: 'noise', highpass: 3000, attackS: 0.0001, decayS: 0.003, db: -4 }),
+      Object.freeze({ kind: 'tone', hz: 95, toHz: 48, attackS: 0.001, decayS: 0.06, db: -3 }),
+      Object.freeze({ kind: 'noise', lowpass: 700, attackS: 0.01, decayS: 0.18, delayS: 0.005, db: -14 }),
+    ]),
+  }),
+  magSeat: Object.freeze({
+    levelDb: -14, durS: 0.08, variants: 2,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([2200, 2]), attackS: 0.0004, decayS: 0.006, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 620, toHz: 520, attackS: 0.0005, decayS: 0.012, db: -6 }),
+      Object.freeze({ kind: 'tone', hz: 150, toHz: 110, attackS: 0.001, decayS: 0.014, db: -8 }),
+    ]),
+  }),
+  magOut: Object.freeze({
+    levelDb: -18, durS: 0.16, variants: 2,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([3000, 4]), attackS: 0.0003, decayS: 0.003, db: 0 }),
+      Object.freeze({ kind: 'sweep', hz: 1900, toHz: 1100, q: 4, attackS: 0.01, decayS: 0.05, delayS: 0.02, durS: 0.12, db: -10 }),
+    ]),
+  }),
+  chargePull: Object.freeze({
+    levelDb: -17, durS: 0.12, variants: 2,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'sweep', hz: 1400, toHz: 3200, q: 3, attackS: 0.008, decayS: 0.05, durS: 0.09, db: 0 }),
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([3800, 5]), attackS: 0.0003, decayS: 0.002, delayS: 0.085, db: -4 }),
+    ]),
+  }),
+  chargeSlam: Object.freeze({
+    levelDb: -11, durS: 0.1, variants: 2,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([3200, 3]), attackS: 0.0002, decayS: 0.004, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 1850, toHz: 1800, attackS: 0.0003, decayS: 0.018, db: -10 }),
+      Object.freeze({ kind: 'tone', hz: 230, toHz: 170, attackS: 0.0008, decayS: 0.016, db: -7 }),
+    ]),
+  }),
+  boltSlam: Object.freeze({
+    levelDb: -10, durS: 0.1, variants: 2,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([3600, 3]), attackS: 0.0002, decayS: 0.004, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 2100, toHz: 2050, attackS: 0.0003, decayS: 0.02, db: -9 }),
+      Object.freeze({ kind: 'tone', hz: 240, toHz: 180, attackS: 0.0008, decayS: 0.016, db: -8 }),
+    ]),
+  }),
+  palm: Object.freeze({
+    levelDb: -15, durS: 0.07, variants: 2,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', lowpass: 800, attackS: 0.001, decayS: 0.012, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 170, toHz: 120, attackS: 0.001, decayS: 0.015, db: -5 }),
+    ]),
+  }),
+  selector: Object.freeze({
+    levelDb: -22, durS: 0.03, variants: 2,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([4600, 4]), attackS: 0.0002, decayS: 0.0018, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 3300, toHz: 3200, attackS: 0.0002, decayS: 0.003, db: -9 }),
+    ]),
+  }),
+  dryClick: Object.freeze({
+    levelDb: -16, durS: 0.05, variants: 2,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([3000, 5]), attackS: 0.0002, decayS: 0.003, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 2400, toHz: 2300, attackS: 0.0002, decayS: 0.006, db: -8 }),
+    ]),
+  }),
+  caseTick: Object.freeze({
+    levelDb: -24, durS: 0.05, variants: 3,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([3400, 3]), attackS: 0.0002, decayS: 0.0025, db: 0 }),
+      Object.freeze({ kind: 'grains', n: 4, spreadS: 0.02, bandpass: Object.freeze([2600, 1.5]), decayS: 0.0012, db: -8 }),
+    ]),
+  }),
+  chime: Object.freeze({
+    levelDb: -14, durS: 1.5, variants: 1, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'tone', hz: 659.26, toHz: 659.26, attackS: 0.004, decayS: 0.45, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 1977.8, toHz: 1977.8, attackS: 0.002, decayS: 0.12, db: -14 }),
+      Object.freeze({ kind: 'tone', hz: 523.25, toHz: 523.25, attackS: 0.004, decayS: 0.55, delayS: 0.42, db: -1 }),
+      Object.freeze({ kind: 'tone', hz: 1569.8, toHz: 1569.8, attackS: 0.002, decayS: 0.14, delayS: 0.42, db: -15 }),
+    ]),
+  }),
+});

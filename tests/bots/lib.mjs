@@ -36,6 +36,9 @@
 //                           the next primitive starts (a tour of every spot).
 //   pressToward(me, p, o)   the keys toward p, tracking the line from o when given.
 //   runBot(game, bot, { maxTicks }) → { ticks, done, reason, log } on tests/game.mjs's createGame.
+//   stepAct(step, tempo, target)   a stop-motion step as the hud sends it (0.0.5): { act: 'stop', args }.
+//   waitStill()             a primitive: no input until stop motion stands still for a choice (or no
+//                           step plays), or fails 'timeout'.
 import { navOf, openNavOf, path, centreOf, CLASSES } from '../../src/sim/places/nav.js';
 import { PLAYER_CLS, WALK_MS } from '../../src/sim/places/move.js';
 import { areaOf } from '../../src/sim/places/model.js';
@@ -225,4 +228,21 @@ export function runBot(game, bot, { maxTicks = 20 * 60 * 10 } = {}) {
   while (ticks < maxTicks && status() === 'running') { game.step(1, bot); ticks++; }
   const P = game.me()?.bot?.plan;
   return { ticks, done: P?.status === 'done', reason: P?.status === 'done' ? null : P?.why ?? (ticks >= maxTicks ? 'maxTicks' : 'no plan'), log: P?.log ?? [] };
+}
+
+/** A stop-motion step as the hud sends it (the 0.0.5 build sheet §2.4): { act: 'stop', args: { step, tempo, target } }. */
+export const stepAct = (step, tempo = 'normal', target = null) => ({ act: 'stop', args: { step, tempo, ...(target ? { target } : {}) } });
+
+/** Wait, pressing nothing, until stop motion stands still for a choice or no step plays (0.0.5), or timeoutMs of game time. */
+export function waitStill(timeoutMs = 60_000) {
+  return {
+    name: 'waitStill',
+    start(state) { return { untilMs: state.clock.ms + timeoutMs }; },
+    step(state, me, m) {
+      const S = state.stop;
+      if (!S || !S.doing || S.phase === 'choose') return { done: true };
+      if (state.clock.ms >= m.untilMs) return { fail: 'timeout' };
+      return { input: {} };
+    },
+  };
 }

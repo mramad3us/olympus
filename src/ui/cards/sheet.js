@@ -21,6 +21,8 @@ import { unitName, billetDef } from '../../sim/people/roster.js';
 import { playerId, playerActor } from '../../core/ids.js';
 import { durationText, DAY_MS } from '../../core/clock.js';
 import { entryEl, STRIP_ORDER } from '../hud/strip.js';
+import { SKILLS, levelOf } from '../../sim/skills/skills.js';
+import { valueOf } from '../../sim/skills/templates.js';
 
 /** A row's glyph on the sheet, CSS pixels a glyph pixel at --ui 1 (my call: 4, the row's height; the HUD's is 3). */
 export const ROW_SCALE = 4;
@@ -35,6 +37,9 @@ const nameOf = (n) => (!n ? '?' : typeof n === 'string' ? n : [n.given, n.nick ?
  * The sheet's contents now: { name, file: [[label, value]…], strip, line, needs: [{ need, name, band, words, tone }],
  * doll: { look, sex, body, outfit } }. body: BODY's readers; ms the clock (state.clock.ms).
  */
+/** The skills the file shows where the sheet is written (the range's two). */
+export const SHEET_SKILLS = Object.freeze(['marksmanship', 'weapons']);
+
 export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg = 0, look = null } = {}) {
   const pid = playerId(state), p = state?.people?.[pid] ?? null, svc = p?.service ?? {};
   const rec = body.bodyOf ? body.bodyOf(state, pid) : null;
@@ -59,6 +64,9 @@ export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg 
     ['Billet', billet?.what ?? svc.billet ?? '?'],
     ['Rack', p?.berthId ? rackName(p.berthId) : 'none'],
     ['In service', enlisted !== null ? (enlisted >= 60 * DAY_MS ? `${Math.round(enlisted / (30.44 * DAY_MS))} months` : durationText(enlisted)) : '?'],
+    // (the skills a scene rolls on, where the sheet is written (the range's): every roll uses them, and nowhere but J's
+    // sums showed them (the design review's); the value with its trained level)
+    ...(p?.skills ? SHEET_SKILLS.map(k => [SKILLS[k].name, `${valueOf(state, pid, k)} · ${levelOf(p.skills.skills?.[k]?.[0] ?? 0)}`]) : []),
   ];
   const me = state ? playerActor(state) : null;
   return {

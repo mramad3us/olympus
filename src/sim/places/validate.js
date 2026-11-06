@@ -35,6 +35,14 @@
 //   portal       every portal's band lies on one of its area's openings (a door) or across a link's
 //                flight; its arrival stands free for C0 in the other area, PORTAL_CLEAR_M 0.6 m or more
 //                inside that area's band back (the hysteresis: a walker never bounces)
+//   arrive-face  every portal's arrival faces the way its band is crossed (out 'n' arrives facing up,
+//                's' down, 'e' right, 'w' left): one arrives walking on, never turned back to the way
+//                one came (from 0.0.5; floors and grounds alike)
+//   stair-top    every stairsWell has a link's portal across it, and the portal's firing zone (STEP_M to
+//                STEP_M + PORTAL_DEPTH_M past its band) lies wholly on the well's open top (fixtures.js
+//                openTopOf, the landing the kit draws): one who steps onto the drawn landing goes down,
+//                and nowhere else does (the user, 2026-11-06: "cannot cross the space to head downstairs
+//                again, is it intentional ?", from a landing drawn at the well's other end; from 0.0.5)
 //   link         a link's stops have the same x and z on both floors, a flight on the floor below and a
 //                well on the floor above at them, the same face (the stair keeps its place on screen)
 //   decor        every decor piece sits on a full-height wall: a run of the north boundary
@@ -52,11 +60,12 @@
 // most LAMPS_MAX 256 lamps (TECH §9.6's table); seeds as a floor's.
 import { isId } from '../../core/ids.js';
 import { planOf, wallsOf, wallRect, roomAt, WALL_H_M } from './plan.js';
-import { CATALOGUE, footprintOf, blocks, mountOf } from './fixtures.js';
+import { CATALOGUE, footprintOf, blocks, mountOf, openTopOf } from './fixtures.js';
 import { buildGrid, cellOf, chunkGrid, CHUNK_M } from './nav.js';
 import { standOk } from './collide.js';
 import { areaOf } from './model.js';
 import { pastBand } from './portals.js';
+import { STEP_M, PORTAL_DEPTH_M } from './plan.js';
 import { DOOR_REVEAL_M } from './ground.js';
 import { siteGraph, route, reachable } from './graph.js';
 import { DOOR_WAYPOINT_M } from '../../data/places/melas.js';
@@ -183,6 +192,13 @@ export function validateArea(area) {
   for (const rec of [area, ...area.rooms]) { c.check('no-seed'); for (const k of ['seed', 'siteSeed', 'dressSeed']) if (k in rec) c.fail('no-seed', rec.id, `carries a '${k}' (the world is handcrafted: a place holds no seed)`); }
   // portals on their openings and links, arriving clear of the other area's band back
   for (const p of area.portals ?? []) portalRule(c, area, p, fx);
+  // a well's open top is where its portal fires
+  for (const f of fx.filter(x => x.kind === 'stairsWell')) {
+    c.check('stair-top');
+    const top = openTopOf(f), across = (area.portals ?? []).filter(p => (area.links ?? []).some(l => l.id === p.via) && bandAcross(p.band, f));
+    if (!across.length) { c.fail('stair-top', f.id, 'has no link\'s portal across it'); continue; }
+    for (const p of across) { const z = zoneRectOf(p.band); if (!inside(z, top, 0.01)) c.fail('stair-top', f.id, `${p.id} fires at ${JSON.stringify(z)}, not on the well's open top ${JSON.stringify(top)}`); }
+  }
   // links aligned through the floors
   for (const l of area.links ?? []) {
     c.check('link');
@@ -232,6 +248,20 @@ function bandDist(b, x, z) {
   const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz, t = L ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L)) : 0;
   return Math.sqrt((ax + t * dx - x) ** 2 + (az + t * dz - z) ** 2);
 }
+// (whether a band runs across a flight or a well: its middle on the flight's line, its line within the flight's length)
+function bandAcross(b, f) {
+  const fp = footprintOf(f);
+  return b.axis === 'x' ? near(f.x, (b.a + b.b) / 2) && b.at >= fp.z0 - 0.01 && b.at <= fp.z1 + 0.01
+    : near(f.z, (b.a + b.b) / 2) && b.at >= fp.x0 - 0.01 && b.at <= fp.x1 + 0.01;
+}
+// (where a band fires: a..b across, STEP_M to STEP_M + PORTAL_DEPTH_M past it on its out side)
+function zoneRectOf(b) {
+  const s = b.out === 's' || b.out === 'e' ? 1 : -1, p = b.at + s * STEP_M, q = b.at + s * (STEP_M + PORTAL_DEPTH_M);
+  const lo = Math.min(p, q), hi = Math.max(p, q);
+  return b.axis === 'x' ? { x0: b.a, x1: b.b, z0: lo, z1: hi } : { x0: lo, x1: hi, z0: b.a, z1: b.b };
+}
+/** The face one arrives with through a band crossed toward its out side. */
+const FACE_OF_OUT = Object.freeze({ n: 'up', s: 'down', e: 'right', w: 'left' });
 // (a scratch state for the grids a check builds: every opening as its template has it)
 const scratchState = () => ({ clock: { ms: 0 }, places: { sites: {} } });
 // (whether a point stands free for C0 in an area: a floor's grid, a ground's chunk)
@@ -249,6 +279,9 @@ function portalRule(c, area, p, fx) {
   else if ((area.openings ?? []).some(o => o.id === p.via)) { const o = area.openings.find(x => x.id === p.via); on = o.axis === b.axis && near(o.at, b.at) && near(o.a, b.a) && near(o.b, b.b); }
   else if ((area.links ?? []).some(l => l.id === p.via)) on = fx.some(f => (f.kind === 'stairs' || f.kind === 'stairsWell') && b.axis === 'x' && near(f.x, (b.a + b.b) / 2, 0.01) && b.at >= footprintOf(f).z0 - 0.01 && b.at <= footprintOf(f).z1 + 0.01);
   if (!on) { c.fail('portal', p.id, `its band ${JSON.stringify(b)} is on none of ${area.id}'s openings or flights`); return; }
+  // (its arrival facing on, the way the band is crossed)
+  c.check('arrive-face');
+  if (p.to.face !== FACE_OF_OUT[b.out]) c.fail('arrive-face', p.id, `arrives facing ${p.to.face}, crossed toward '${b.out}' (facing ${FACE_OF_OUT[b.out]} walks on)`);
   // (its arrival free, and clear of the band back)
   if (!freeIn(other, p.to.x, p.to.z)) c.fail('portal', p.id, `arrives at (${p.to.x}, ${p.to.z}) in ${other.id}, which is not free for C0`);
   const back = (other.portals ?? []).find(q => q.to?.area === area.id && q.via === p.via);

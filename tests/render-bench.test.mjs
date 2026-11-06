@@ -18,6 +18,11 @@
 // and the night's full splash (the zoom, the iris, the night going by), at 16 px/m: the splash's own
 // frames timed in the page ({ frames, medianMs, p95Ms, over25 }, the bench card's splash row), its draw
 // calls and uploads, no program linked, and the paced p95 at most 18 ms on a 60 Hz clock.
+// 0.0.5 (the build sheet 0.0.5 §2.3 (g), §4 stage, §5.3): the bench's range-line scene, test-handling's
+// 'bench' setup on the 25 m line (prone, hot, aimed, a magazine of 15) and Digit1 tapped fifteen times
+// through the step panel: a string at 25 m with its flashes, kicks, cases and holes, at 16 px/m; prints the
+// frames, the draw calls, the uploads, the shots on the card and the brass, and holds the same budgets
+// (p95 at most 18 ms on a 60 Hz clock, at most 160 draw calls, no frame over 1 MB, no program linked).
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { BENCH_SCENES } from '../src/data/bench.js';
@@ -26,6 +31,8 @@ const sleepQuery = `play=${SLEEP.play}&seed=${SLEEP.seed}&hour=${SLEEP.hour}&are
 import { frameClock, startSampling, stopSampling, burst, framesLine, pct } from './stage-drive.mjs';
 
 const SCENE = BENCH_SCENES['squadbay-night'];
+const LINE = BENCH_SCENES['range-line'];
+const lineQuery = (ppm) => `play=${LINE.play}&seed=${LINE.seed}&hour=${LINE.hour}&setup=${LINE.setup}&nostore=1&perf=1&ppm=${ppm}`;
 const queryOf = (ppm) => `play=${SCENE.play}&seed=${SCENE.seed}&hour=${SCENE.hour}&area=${SCENE.at.area}&at=${SCENE.at.x},${SCENE.at.z}&face=${SCENE.at.face}&nostore=1&perf=1&ppm=${ppm}`;
 
 export default [
@@ -97,6 +104,42 @@ export default [
         if (sixty) assert(result.p95Ms <= 18, `paced splash frames: p95 ${fmt(result.p95Ms, 1)} ms`);
         assert(!errors.length, errors.join('\n'));
       }, { query: sleepQuery, viewport: { width: 1600, height: 900 }, timeoutMs: 60000 });
+    },
+  },
+  {
+    name: 'the bench scene range-line: a string of fifteen at 25 m by Digit1 through the step panel, its flashes, cases and holes, at 60 fps (p95 at most 18 ms on a 60 Hz clock), draw calls under 160, no program linked, no frame over 1 MB (the build sheet 0.0.5 §2.3 (g))',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() {
+      await withGame(async (page, errors, game) => {
+        await page.waitForTimeout((LINE.warmS ?? 2) * 1000);
+        const boot = await page.evaluate(() => ({ programs: window.__report.view.programs, range: window.__olympus.range?.() ?? null, fire: (window.__olympus.steps?.()?.slots ?? []).find(s => s.id === 'fire') ?? null }));
+        await startSampling(page);
+        for (const [code, ms] of LINE.keys) {
+          if (code) await page.keyboard.down(code);
+          await page.waitForTimeout(ms);
+          if (code) await page.keyboard.up(code);
+        }
+        const frames = await stopSampling(page);
+        const here = await frameClock(page), b = await burst(page);
+        const after = await page.evaluate(() => ({ programs: window.__report.view.programs, people: window.__report.view.people, range: window.__report.view.range, arms: window.__report.view.arms, session: window.__olympus.range?.() ?? null, gpu: window.__report.view.gpu }));
+        const dts = frames.map(f => f.dt), calls = Math.max(...frames.map(f => f.calls)), bytes = Math.max(...frames.map(f => f.bytes)), links = frames.reduce((n, f) => n + f.links, 0);
+        const viewMed = pct(frames.map(f => f.viewMs), 0.5), viewP95 = pct(frames.map(f => f.viewMs), 0.95), p95 = pct(dts, 0.95);
+        const sixty = pct(dts, 0.5) <= 17.5 && here.medianMs <= 17.5, shots = after.session?.summary?.shots ?? 0;
+        console.log(`      16 px/m: ${frames.length} frames over ${fmt(dts.reduce((a, d) => a + d, 0) / 1000, 1)} s: ${framesLine(dts)}`);
+        console.log(`      draw calls ${calls} at most; programs ${boot.programs} → ${after.programs} (${links} linked); uploads ${fmt(bytes / 1024, 1)} KB a frame at most; the view's CPU median ${fmt(viewMed, 2)} ms, p95 ${fmt(viewP95, 2)} ms; ${after.people.drawn} drawn`);
+        console.log(`      the string: ${shots} shots (${after.session?.summary?.score ?? 0} of ${after.session?.summary?.of ?? 0}); on the stage ${after.range?.holes ?? 0} holes, ${after.range?.brass ?? 0} cases, the flags ${after.range?.flag ?? 0} px; you ${after.arms ? `${after.arms.stance} ${after.arms.frame}` : 'unarmed'}`);
+        console.log(`      40 frames back to back, each finished on the GPU: median ${fmt(b.medianMs, 2)} ms, p95 ${fmt(b.p95Ms, 2)} ms; the clock on this page ${fmt(here.medianMs, 1)} ms${sixty ? '' : ' (not 60 Hz: the paced p95 is printed, not held)'}`);
+        // (the string is held when the setup offers Fire on Digit1: the bench setup must start off safe, the shot role's)
+        if (boot.fire && !boot.fire.off) assert(shots === 15, `${shots} shots of the 15 tapped`);
+        else console.log(`      Fire at the start: ${boot.fire ? `struck (${boot.fire.off})` : 'not offered'}: the 'bench' setup starts on safe, so Digit1 fires nothing and the string is not held (the shot role's setup to put on semi)`);
+        assert(calls <= 160, `${calls} draw calls`);
+        assert(links === 0 && after.programs === boot.programs, `programs linked in the scene: ${links} (${boot.programs} → ${after.programs})`);
+        assert(bytes <= 1024 * 1024, `a frame sent ${bytes} bytes`);
+        assert(b.medianMs <= 1000 / 60, `a frame and its GPU work: median ${fmt(b.medianMs, 2)} ms`);
+        if (sixty) assert(p95 <= 18, `paced frames: p95 ${fmt(p95, 1)} ms`);
+        assert(!errors.length, errors.join('\n'));
+      }, { query: lineQuery(16), viewport: { width: 1600, height: 900 }, timeoutMs: 60000 });
     },
   },
 ];

@@ -3,16 +3,20 @@
 // TIME owns four of the state's keys (TECH §6.1): clock { ms, tick, holds, seq } (built by TECH in
 // src/core/clock.js), events (the queue, src/core/queue.js), skip (the running skip, or null:
 // ./skip.js) and time { chapter, voyage, pod, alarms, interrupts, liveSinceSaveMs, slowToMs, drills,
-// doing, resume, attend, prefs }. slowToMs is the game time the slow contributors have been stepped to
+// doing, lead, resume, attend, prefs }. slowToMs is the game time the slow contributors have been stepped to
 // (game.js slowStep): every slow step spans [slowToMs, t] and moves it, the live minute layer's and a
 // skip's alike, so lived and skipped play step each moment of game time once (TIME §5.5's parity).
 // pod is the night posted (./pod.js), drills { open, last, forced } the alert drill, doing the
-// activity under way (./doing.js), resume a cut one R may finish, attend the arrivals at musters (the
+// activity under way (./doing.js), lead one waiting while the player lies down in sight before it
+// (./activities.js), resume a cut one R may finish, attend the arrivals at musters (the
 // last 50), prefs the player's (prefs.mute: the S kinds muted, none this round), interrupts the S
 // stops counted (./interrupts.js). What it does (the 0.0.2 sheet §2.1; the 0.0.4 sheet §2.2.9):
 //   input        an activity lived at 1:1 (under 45 s: a drink, a bar) ends at its time, or is cut
-//                by a move key at its fraction; a move key while the player lies or sits gets them
-//                up (people/place.js riseActor), as R and T do.
+//                by a move key at its fraction; a lead (time.lead: the page's R lay the player down
+//                in sight before a sleep or a nap, ./activities.js) begins its activity once they
+//                are down, and a move key before then takes it back (people/place.js backActor: up
+//                again from the frame shown, the activity dropped); a move key while the player lies
+//                or sits gets them up (people/place.js riseActor), as R and T do.
 //   second       on each whole second lived (the fast layer 'second', live only, TECH §3.3), adds
 //                1,000 ms to time.liveSinceSaveMs; at AUTOSAVE_LIVE_MS (five minutes of unpaused
 //                live play, TIME §13) it asks an autosave ({ why: 'live' }) and starts again (the
@@ -28,21 +32,21 @@
 //                v0.0.3 save) post tonight's too, so a game begun at 23:00 has its reveille.
 //   events       taps, reveille, alert, alert-count, alert-end (./pod.js), activity-part (an
 //                activity's part ended at its second: ./activities.js).
-//   actions      ready (G): time stands still for a choice, 'ready' held until a digit; digit:<n>:
-//                the choice made, time runs again (TIME's stop-motion hook, a stub until WEAPONS's
-//                step panel at 0.0.6); skip:stop and skip:chunk: the player's commands to a running
+//   actions      (G's ready and the digits moved to WEAPONS's domain at 0.0.5: src/sim/arms/domain.js
+//                keeps v0.0.4's stub for a player with no rifle); skip:stop and skip:chunk: the player's commands to a running
 //                skip, into skip.cmds at the clock, or, just after a chunked skip ended, 'carry on'
 //                (the same activity again for its chunk: TIME §6.4); activity ({ act: 'activity',
-//                args: { id, spotId, args, late } }): an activity started (the late card's answers,
-//                the choices card, tests). R is places' `hand` (src/sim/places/hand.js).
+//                args: { id, spotId, args, late, lead } }): an activity started (the late card's
+//                answers, the choices card, tests; lead: the page's, see ./activities.js). R is
+//                places' `hand` (src/sim/places/hand.js).
 // A choice or a skip is refused while a skip runs (TIME §5.3, check 1: not in stop motion).
-import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
+import { isHeld } from '../../core/clock.js';
 import { fillDomain } from '../../core/state.js';
 import { playerActor } from '../../core/ids.js';
 import { WAIT_MS } from '../../data/activities.js';
 import { postNight, fillPod, onTaps, onReveille, onAlert, onAlertCount, onAlertEnd, musterCheck } from './pod.js';
-import { startActivity, liveStep, onActivityPart, resumeStep } from './activities.js';
-import { riseActor } from '../people/place.js';
+import { startActivity, liveStep, leadStep, onActivityPart, resumeStep } from './activities.js';
+import { riseActor, backActor } from '../people/place.js';
 
 export { WAIT_MS };
 /** Live play between autosaves, in game time (TIME §13). */
@@ -67,24 +71,17 @@ function secondStep(state, input, bus) {
   if (t.chunk && t.chunk.atMs !== state.clock.ms) delete t.chunk;          // (the strip's "carry on" passed: time has moved on)
 }
 
-// (the input layer: a lived activity's end or cut; a move key gets a lying or sitting player up)
-function activityInput(state, input, bus) {
+// (the input layer: a lived activity's end or cut; a lead's activity once the player is down; a move key gets a lying or sitting player up)
+function activityInput(state, input, bus, ctx) {
   if (state.time?.doing) { liveStep(state, input, bus); return; }
+  if (state.time?.lead) {
+    // (a move key while you lie down takes it back: up again from the frame shown, the activity dropped)
+    if ((input?.mx || input?.mz) && !state.skip && !isHeld(state)) { delete state.time.lead; backActor(state, playerActor(state), state.clock.ms); return; }
+    leadStep(state, bus, ctx); return;
+  }
   if (state.skip || isHeld(state) || !(input?.mx || input?.mz)) return;
   const me = playerActor(state);
   if (me && (me.posture ?? 'stand') !== 'stand') riseActor(state, me, state.clock.ms);
-}
-
-function ready(state, action, bus) {
-  if (state.skip || isHeld(state, 'ready')) return;
-  holdTime(state, 'ready');
-  bus.emit('line', { text: 'Weapon ready: time stands still until you choose (a digit).' });
-}
-
-function digit(state, action, bus) {
-  if (!isHeld(state, 'ready')) return;
-  releaseTime(state, 'ready');
-  bus.emit('line', { text: `Choice ${nameOf(action).slice(6)}: time runs again.` });
 }
 
 // (skip:stop and skip:chunk into the running skip's commands; a chunk asked just after a chunked skip ended carries it on)
@@ -102,7 +99,7 @@ function skipCommand(state, action, bus, ctx) {
 function activityAction(state, action, bus, ctx) {
   const a = typeof action === 'object' ? action?.args ?? {} : {};
   if (!a.id) return;
-  startActivity(state, bus, ctx, { id: a.id, spotId: a.spotId ?? null, args: a.args ?? {}, late: a.late ?? null, force: a.force ?? null });
+  startActivity(state, bus, ctx, { id: a.id, spotId: a.spotId ?? null, args: a.args ?? {}, late: a.late ?? null, force: a.force ?? null, lead: !!a.lead });
 }
 
 /** A new game's night (a roster's): tonight's taps, reveille and drill posted. */
@@ -136,6 +133,6 @@ export const timeDomain = Object.freeze({
     solDirector: Object.freeze({ every: 'local@20:00', prio: 5, run: (state) => postNight(state, state.clock.ms) }),
   }),
   events: Object.freeze({ taps: onTaps, reveille: onReveille, alert: onAlert, 'alert-count': onAlertCount, 'alert-end': onAlertEnd, 'activity-part': onActivityPart }),
-  actions: Object.freeze({ ready, digit, skip: skipCommand, activity: activityAction }),
+  actions: Object.freeze({ skip: skipCommand, activity: activityAction }),
   upgrades: Object.freeze([['time:pod', upgradePod]]),
 });

@@ -19,7 +19,10 @@
 //
 // R and T are press keys (keys.js): their 'down', 'tap' and 'held' go to the listeners only, never
 // into the queue, since what they send depends on what the line and the offer said when the key went
-// down (the UI queues it, with its arguments). A press held TAP_MS fires 'held' then, while the key is
+// down (the UI queues it, with its arguments). The digits are press keys too since the 0.0.5 round:
+// their 'digit' on the key going down is queued as before (a menu's line, G's stub), their 'tap' and
+// 'held' go to the listeners only (the step panel of stop motion sends its step from what it showed,
+// and main.js's accept refuses the bare digit there). A press held TAP_MS fires 'held' then, while the key is
 // still down (the build sheet 0.0.4 §2.4: "R and T act on key-up under TAP_MS 220, or at 220 ms while
 // held"): a timer set on the key going down asks the key machine's due() at TAP_MS, and every
 // snapshot asks it too, so a stalled timer only delays it to the next tick.
@@ -76,7 +79,7 @@ export function createInput({ target = globalThis.window, stage = null, stageSiz
     if (e.repeat) return;
     const fired = keys.down(e.code, now(), e.key);
     dispatch(fired, e);
-    if (later && fired.some(f => f.kind === 'down')) later(() => due(e), TAP_MS + 5);
+    if (later && fired.some(f => f.kind === 'down' || f.kind === 'digit')) later(() => due(e), TAP_MS + 5);
   };
   const onUp = (e) => {
     if (e.code?.startsWith('Alt')) e.preventDefault();
@@ -133,7 +136,7 @@ export function createInput({ target = globalThis.window, stage = null, stageSiz
     key(code, down = true) {
       const fired = down ? keys.down(code, now()) : keys.up(code, now());
       dispatch(fired, null);
-      if (down && later && fired.some(f => f.kind === 'down')) later(() => due(null), TAP_MS + 5);
+      if (down && later && fired.some(f => f.kind === 'down' || f.kind === 'digit')) later(() => due(null), TAP_MS + 5);
       return fired;
     },
     /** Drop the queued actions and clicks (a scene change, a load). */

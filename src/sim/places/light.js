@@ -32,16 +32,32 @@
 //                     a ceiling panel makes the fill, never a pool: the sheet's §8 item 7). Outdoors (a
 //                     ground, or a point of a floor in no room: a porch past an outside door) the open
 //                     air's level plus the lit pools.
+//   lightFrame(...), spectrumAt(frame, x, z)  the same light with its colour as the eyes take it
+//                     (0.0.5's dark adaptation, src/sim/body/eyes.js): spectrumAt gives { level, sp,
+//                     sky }, the level lightLevel's own number, sky whether the open air can decide it
+//                     (no room, or windows whose daylight at the brightest sky beats the fill under the
+//                     room's lighting now) and sp the light's scotopic to photopic ratio
+//                     (the rods' share against the cones', src/data/places/sky.js's sp), each source's
+//                     weighted by its share of the level (the fill or the window's sky, each pool);
+//                     the frame is the clock's state, the dark rule and the lamps at ms, with the open
+//                     air's level held at skyMs (the eyes hold the sky to the game minute, so lived and
+//                     skipped see it change at the same instant). lightKeyOf(siteId, ms) names what of
+//                     the light changes in steps (the clock's state, the dark rule): the eyes look for
+//                     its steps to the millisecond.
 // A call costs a room lookup and the lamps of one 4 m bin: the clock's state, the sky and the lamps'
-// bins are kept per (area, ms) (one frame's calls share them), so the per-call work is small and
-// allocates nothing. Pure (its caches are of pure functions).
+// bins are kept per (area, ms) (one frame's calls share them; the sky for two instants, a frame's clock
+// and its game minute, which the eyes read together), so the per-call work is small and allocates
+// nothing. Pure (its caches are of pure functions).
 import { marsClock, yearsOf } from '../../core/calendar.js';
 import { HOUR_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import * as SETTING from '../../data/setting/calendar.js';
-import { MARS_ROWS, MOODS, CLASSES, CLASS_OF_KIND, WINDOW_K, LAMP_KINDS, TIMES } from '../../data/places/sky.js';
+import { MARS_ROWS, MOODS, CLASSES, CLASS_OF_KIND, WINDOW_K, LAMP_KINDS, TIMES, SKY_SP } from '../../data/places/sky.js';
 import { areaOf, siteOf, roomOf } from './model.js';
 import { sunAt } from './sun.js';
+
+/** The open air's brightest level (the sky's rows' highest). */
+const SKY_MAX_LEVEL = Math.max(...MARS_ROWS.map(r => r.level));
 
 export { WINDOW_K, TIMES };
 /** A light level is kept to this. */
@@ -77,10 +93,11 @@ export function lightingOf(state, areaId, roomId, ms) {
 
 // ---- the open air ----
 
-let skyLast = { site: null, ms: NaN, out: null };
+let skyLast = { site: null, ms: NaN, out: null }, skyPrev = { site: null, ms: NaN, out: null };   // (two slots: a frame's clock and its minute, lightFrame's two)
 /** The open air at a site: { elevDeg, azDeg, visible, eclipsed, sunColor, sunK, skyColor, skyK, ground, tint: [r, g, b], glow, shadow, level }. */
 export function skyAt(siteId, ms) {
   if (skyLast.site === siteId && skyLast.ms === ms) return skyLast.out;
+  if (skyPrev.site === siteId && skyPrev.ms === ms) { const t = skyLast; skyLast = skyPrev; skyPrev = t; return skyLast.out; }
   const s = sunAt(siteId, ms), e = s.elevDeg;
   let i = 0;
   while (i < MARS_ROWS.length - 1 && e < MARS_ROWS[i + 1].elevDeg) i++;
@@ -102,7 +119,7 @@ export function skyAt(siteId, ms) {
     skyColor: lerpHex(a.sky, b.sky, k), skyK: q(lerp(a.skyK, b.skyK, k), 0.0001), ground: lerpHex(a.ground, b.ground, k),
     tint: Object.freeze(tint.map(v => q(v, 0.0001))), glow: q(lerp(a.glow, b.glow, k), 0.0001), shadow: q(shadow, 0.0001), level: q(level, LEVEL_STEP),
   });
-  skyLast = { site: siteId, ms, out };
+  skyPrev = skyLast; skyLast = { site: siteId, ms, out };
   return out;
 }
 
@@ -110,7 +127,7 @@ export function skyAt(siteId, ms) {
 
 let lampCache = new Map();                                         // (area id → { key → { list, bins } })
 /** Forget the lamp tables (TECH §2.3). */
-export function resetCaches() { lampCache = new Map(); skyLast = { site: null, ms: NaN, out: null }; frameLast = null; }
+export function resetCaches() { lampCache = new Map(); skyLast = { site: null, ms: NaN, out: null }; skyPrev = { site: null, ms: NaN, out: null }; frameLast = null; }
 
 // (what lights a kind: the clock's state, and whether the sun is under the geometric horizon)
 function litNow(kind, roomState, dark) {
@@ -127,7 +144,7 @@ function tableOf(area, clock, dark) {
   const roomState = new Map((area.rooms ?? []).map(r => [r.id, CLASSES[classOf(r)]?.always ?? clock]));
   const list = Object.freeze((area.look?.lamps ?? []).map((l, i) => {
     const K = LAMP_KINDS[l.kind ?? 'ceiling'] ?? LAMP_KINDS.ceiling, st = l.room ? roomState.get(l.room) ?? clock : clock;
-    return Object.freeze({ i, x: l.x, z: l.z, y: l.y ?? 3.0, r: K.r ?? l.r ?? 0, core: K.core, ring: K.ring, kind: l.kind ?? 'ceiling', color: K.color, room: l.room ?? null, on: litNow(l.kind ?? 'ceiling', st, dark) });
+    return Object.freeze({ i, x: l.x, z: l.z, y: l.y ?? 3.0, r: K.r ?? l.r ?? 0, core: K.core, ring: K.ring, kind: l.kind ?? 'ceiling', color: K.color, sp: K.sp ?? 1, room: l.room ?? null, on: litNow(l.kind ?? 'ceiling', st, dark) });
   }));
   // (the lit pools binned by POOL_BIN_M over the area, each in every bin its 1.5 r disc touches)
   const pools = list.filter(l => l.on && l.r > 0), b = area.boundsM, nx = Math.max(1, Math.ceil((b.x1 - b.x0) / POOL_BIN_M) + 1), nz = Math.max(1, Math.ceil((b.z1 - b.z0) / POOL_BIN_M) + 1);
@@ -167,6 +184,50 @@ function poolsAt(t, x, z) {
     if (d2 < l.r * l.r) s += l.core; else if (d2 < 2.25 * l.r * l.r) s += l.ring;
   }
   return s;
+}
+
+// (the pools' sum at a point and their S/P-weighted sum, as poolsAt counts them)
+function poolsSpAt(t, x, z) {
+  const i = Math.floor((x - t.x0) / POOL_BIN_M), j = Math.floor((z - t.z0) / POOL_BIN_M);
+  if (i < 0 || j < 0 || i >= t.nx || j >= t.nz) return [0, 0];
+  let s = 0, w = 0;
+  for (const l of t.bins[j * t.nx + i]) {
+    const dx = x - l.x, dz = z - l.z, d2 = dx * dx + dz * dz, k = d2 < l.r * l.r ? l.core : d2 < 2.25 * l.r * l.r ? l.ring : 0;
+    s += k; w += k * l.sp;
+  }
+  return [s, w];
+}
+
+/** What of the light changes in steps at a site (the clock's lighting state, whether the sun is under the horizon): see the header. */
+export function lightKeyOf(siteId, ms) { return `${clockLighting(siteId, ms)}|${skyAt(siteId, ms).elevDeg < 0 ? 1 : 0}`; }
+
+/** An area's light at ms with the open air's level held at skyMs, for spectrumAt (see the header): { area, clock, sky, skyLevel, table }. */
+export function lightFrame(state, areaId = state?.places?.live?.area, ms = state?.clock?.ms ?? 0, skyMs = ms) {
+  const area = areaOf(areaId);
+  if (!area) return null;
+  const clock = clockLighting(area.site, ms), dark = skyAt(area.site, ms).elevDeg < 0, skyLevel = skyAt(area.site, skyMs).level;
+  return { area, clock, skyLevel, table: tableOf(area, clock, dark) };
+}
+
+/**
+ * The light at (x, z) of a lightFrame, with its colour as the eyes take it: { level (lightLevel's), sp
+ * (the scotopic to photopic ratio), sky (whether the open air's level can decide it: a point in no
+ * room, or a room whose windows' daylight at the brightest sky would beat its fill under its lighting
+ * now; the eyes hold such a field to the game minute) }.
+ */
+export function spectrumAt(F, x, z) {
+  if (!F) return { level: 1, sp: SKY_SP, sky: true };
+  const [pk, pw] = poolsSpAt(F.table, x, z);
+  let base, baseSp, sky;
+  const room = F.area.kind === 'ground' ? null : roomOf(F.area, x, z);
+  if (!room) { base = F.skyLevel; baseSp = SKY_SP; sky = true; }
+  else {
+    const mood = CLASSES[classOf(room)]?.always ?? F.clock, fill = MOODS[mood].fill, daylight = room.windows ? WINDOW_K * F.skyLevel : 0;
+    if (daylight > fill) { base = daylight; baseSp = SKY_SP; } else { base = fill; baseSp = MOODS[mood].sp ?? 1; }
+    sky = !!room.windows && WINDOW_K * SKY_MAX_LEVEL > fill;
+  }
+  const sum = base + pk;
+  return { level: q(Math.min(1, sum), LEVEL_STEP), sp: sum > 0 ? q((base * baseSp + pw) / sum, 0.0001) : 1, sky };
 }
 
 /** The light at (x, z) in an area (the live one by default) at game time ms, 0 to 1 (see the header). */

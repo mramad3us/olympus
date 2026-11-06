@@ -10,7 +10,11 @@
 // In play the goal line shows for GOAL_S in the toasts, and the scene ends on its endOn fact
 // (endsScene: a shower cut short by Backspace is not the end, its finish is: my call), once the splash
 // has played out and END_HOLD_S 6 s of live play after it (or Enter: the line says so; C and J open over
-// the world meanwhile), with the end card (cards/end.js).
+// the world meanwhile), with the end card (cards/end.js). The 0.0.5 round's test-handling ends on the
+// range fact at either of two phases ({ fact: 'range', phase: ['clear', 'stopped'] }: "The line is
+// clear.", or the range stopped for a fault), so endOn's phase may be a list; endFacts() names every
+// fact a scene ends on, for main.js to hear; sceneSaid(scene, range) the end card's line for a scene
+// that has one (the range's summary: "Clear at 09:14 · 61 of 75 · 4 V · no faults").
 import { lastScore } from './score.js';
 
 /** A scene's goal line shows this long in TOASTS on arrival (s of play; the build sheet 0.0.4 §2.4). */
@@ -18,13 +22,31 @@ export const GOAL_S = 8;
 /** A scene's end card waits this long of live play after its fact's splash has played out, or Enter, so you see where it left you (s; the review of v0.0.4: clean and wet-headed at 19:40, the squad lying down at 03:00). */
 export const END_HOLD_S = 6;
 
-/** Whether a fact ends a scene (its endOn: { fact, phase?, activity?: [ids] }): a cut activity (a fraction under 1) does not (my call: finishing it does). */
+/** Whether a fact ends a scene (its endOn: { fact, phase? (a phase or a list), activity?: [ids] }): a cut activity (a fraction under 1) does not (my call: finishing it does). */
 export function endsScene(endOn, type, payload = {}) {
   if (!endOn || type !== endOn.fact) return false;
-  if (endOn.phase && payload.phase !== endOn.phase) return false;
+  if (endOn.phase && !(Array.isArray(endOn.phase) ? endOn.phase.includes(payload?.phase) : payload?.phase === endOn.phase)) return false;
   if (endOn.activity && !endOn.activity.includes(payload.activity)) return false;
   if (type === 'activity' && Number.isFinite(payload.fraction) && payload.fraction < 1) return false;
   return true;
+}
+
+/** The facts the scenes end on (SCENES' endOn facts), each once. */
+export const endFacts = (scenes) => [...new Set(Object.values(scenes ?? {}).map(s => s.endOn?.fact).filter(Boolean))];
+
+/** The clock's hh:mm of a game ms, by clockText (main.js's, the live site's clock). */
+const DEFAULT_CLOCK = (ms) => String(ms);
+/**
+ * The end card's line for a scene, or null: a range scene's summary from rangeNow(state) ({ summary: { score, of,
+ * v, shots, faults, clearAtMs }, end: { phase, atMs, why } }): "Clear at 09:14 · 61 of 75 · 4 V · no faults", or
+ * "Stopped: <why> · 21 of 75 · 2 faults".
+ */
+export function sceneSaid(range, { clockText = DEFAULT_CLOCK } = {}) {
+  const sm = range?.summary;
+  if (!sm) return null;
+  const faults = Number(sm.faults) || 0, stopped = (range.end?.phase ?? range.phase) === 'stopped', why = range.end?.why ?? range.why ?? null;
+  const head = stopped ? `Stopped${why ? `: ${why}` : ''}` : Number.isFinite(sm.clearAtMs) ? `Clear at ${clockText(sm.clearAtMs)}` : 'The line';
+  return [head, `${sm.score ?? 0} of ${sm.of ?? 0}`, sm.v ? `${sm.v} V` : null, faults ? `${faults} fault${faults === 1 ? '' : 's'}` : 'no faults'].filter(Boolean).join(' · ');
 }
 
 /** The page's body: a paper sheet. scenes: SCENES' records in order; onPick(scene); onBack(); storage (the scores). */

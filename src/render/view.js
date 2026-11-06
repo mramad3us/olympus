@@ -23,6 +23,16 @@
 // fact, before setArea has the new one up), nothing is drawn and the last picture holds: only the
 // upload queue drains, so the figures the cut waits for come up (stats.held counts those frames). The
 // first frame after shows the new area with its people, its camera snapped and its fog exact (9);
+//   2b. the eye (0.0.5): the player's adapted eye, BODY's eyes through people's eyeViewOf (the same
+//      number perception's reach reads), on the post pass as its gains against v0.0.4's exposure (the
+//      rods' and the cones'), the rods' share of vision and the glare (src/render/post.js setEye), eased
+//      over EYE_EASE_S 0.15 s of real time so a tick's step or the lids opening never jumps a frame
+//      (snapped on a new state); 1 and 0 under a held mood (the samples', a debug look), while the eyes
+//      are shut and with a night-vision device on (the device's picture). A splash holds the eye as it
+//      was when the splash began, through its lapse, beat and strip, and eases to the live eye over its
+//      zoom out (the review of v0.0.5's eyes: the night's lapse pulsed 0.88, 1.13, 1.0 within a second
+//      of real time as the eyes adapted in the berth before the lids closed). view.stats.eye: { gain,
+//      coneGain, rod, glare, a, held, shown };
 //   2. the light (src/render/lighting.js): outdoors the Mars sky's row at the sun's elevation from places'
 //      skyAt (the key light off in the canyon's shade, `eclipsed`, and coming in with the disc's share
 //      over the wall, `visible`), indoors each room's fill through the
@@ -75,7 +85,10 @@
 //     from a berth plays between ticks frame by frame: lying is the berth's drawing (the player's own
 //     too, now that the player lies down), breathing at BREATH_HZ, its curtain closing over CURTAIN_MS
 //     after the sleeper lies; sitUp and lieDown the berth thrown back with the upper body's card on the
-//     mattress at its head; sit on the rack's edge; climb down an upper berth's side at its height;
+//     mattress at its head, moving to the rack's edge over the last SIT_SLIDE_K of sitting up (smoothly:
+//     figureOf's upK and edge), so the sit frame follows on where it ends (the review of v0.0.5's rack:
+//     a 1.04 m hop in one frame at every rise and lie-down); sit on the rack's edge; climb down an
+//     upper berth's side at its height;
 //     standUp; dressing two frames in turn; an activity's part its own frame (the toothbrush, the razor,
 //     the basin, undressing and dressing); a transition's frames at its own places, never glided
 //     (fig.k under 1: figureOf's x and z), everything else between the ticks as before;
@@ -92,6 +105,23 @@
 //     wet head read whole, never a checkered shape (the integrator's shots m3-03, m3-04);
 //   - the alert's beacon in hall-2 (people's alertNow): lit, a red pool, while the horn sounds; the bay
 //     stays dark.
+// 0.0.5 (the build sheet 0.0.5 §2.3), the rifle and the range:
+//   - a figure with a rifle (the arms role's gunLook, src/sim/arms/look.js: the stage reads the arms only
+//     there) is drawn in its rifle's frame when it is not walking (poses.js rifleFrame: the carry and the
+//     stance held, an action's frame, the aim turned to the bracketed target, the kick and the flash on
+//     game time, so stop motion freezes them), its look carrying the rifle (its gait's carry the one it last
+//     walked with: a squad walking with slung rifles shares a sheet, and a change of posture in stop motion
+//     changes no sheet), the magazine out of the well when gunLook says so, and kitLook's ear defenders and
+//     plate carrier; the range staff in their dress (outfits.js rangeStaff), the range officer's headset by
+//     his post; a person posted on a height (the RO on the tower's deck at 6.0 m) drawn there, the blob on
+//     the deck. A muzzle's flash lights whoever stands within FLASH_LIT_M of it (VIEWS §3.6);
+//   - the camera's weapon lead (camera.js aimLead) toward rangeLook's pick, and your own shot's shake;
+//   - the range in play (src/render/range.js: the holes in the cards, the red flag, the brass, your shot's
+//     flash star and blast dust) and things lying (src/render/decals.js: a dropped magazine), from rangeLook
+//     at the moment drawn. The arms' effects (the rifle's frames, the flash, the kick, the shake, the range)
+//     are drawn at the positions' own time, between the last two ticks (fxMs = ms − TICK_MS + alpha ×
+//     TICK_MS), so a shot stamped at its tick's start shows its whole flash (the runtime review of v0.0.5);
+//   - worldAt(xPx, yPx): the ground under a pixel of the picture, for the hud's mouse.
 // idle and pending say what still waits (an area's build, the chunks in the picture, uploads, a sheet,
 // the worker, the warm-up), so main.js sets window.__ready only once nothing does. stats: the last
 // frame's draw calls, triangles, programs, CPU ms, uploads, people drawn and put off (people: { drawn,
@@ -130,9 +160,20 @@ import { hash01 } from '../core/hash.js';
 import { playerActor } from '../core/ids.js';
 import { STRIDE_WRAP_M } from '../data/body/gait.js';
 import { planOf } from '../sim/places/plan.js';
+import * as ARMS from '../sim/arms/look.js';
+import { rifleFrame, gaitCarryOf, RIFLE_BANDS } from '../art/figures/poses.js';
+import { FLASH_LIT_M, FLASH_LIGHT } from './figures.js';
+import { createRange } from './range.js';
+import { createDecals } from './decals.js';
+import { aimLead, fxMsOf, SHOT_SHAKE_PX, SHOT_SHAKE_MS } from './lead.js';
+import { KD_RANGE, RANGE_KINDS } from '../data/places/range.js';
 
+/** How long the picture takes to follow the eye's gain and its rods' share, seconds of real time (an ease, not the eye's own time: that is the sim's). */
+export const EYE_EASE_S = 0.15;
 /** People are put where they are, not glided, across a jump longer than this in a tick (metres). */
 export const JUMP_M = 1.5;
+/** The share of sitting up (the last of it) over which the sitter on the mattress moves from the berth's head to its edge, where the sit frame follows on. */
+export const SIT_SLIDE_K = 0.6;
 /** The camera's lean where you go, east-west and north-south (metres): walking or strolling, and running (VIEWS §2.4). */
 export const LEAD_WALK_M = Object.freeze([1.0, 2.5]), LEAD_RUN_M = Object.freeze([1.5, 3.5]);
 /** An area that fits the frame with this much to spare on each side holds the camera still (metres). */
@@ -198,11 +239,11 @@ export function occludersOf(area) {
   } else if (area.rooms?.length) {
     for (const w of wallsOf(planOf(area))) { const r = wallRect(w); out.push({ ...r, h: w.h }); }
   }
-  for (const f of area.fixtures ?? []) {
-    const fp = FOOTPRINTS[f.kind];
-    if (!fp || fp.h < 0.5) continue;
-    const side = f.face === 'left' || f.face === 'right', w = (side ? fp.d : fp.w) / 2, d = (side ? fp.w : fp.d) / 2;
-    out.push({ x0: f.x - w, x1: f.x + w, z0: f.z - d, z1: f.z + d, h: (f.y ?? 0) + fp.h });
+  for (const f of [...(area.fixtures ?? []), ...(area.pieces ?? [])]) {
+    const fp = FOOTPRINTS[f.kind] ?? RANGE_KINDS[f.kind];
+    if (!fp || (f.h ?? fp.h) < 0.5) continue;
+    const W = f.w ?? fp.w, D = f.d ?? fp.d, side = f.face === 'left' || f.face === 'right', w = (side ? D : W) / 2, d = (side ? W : D) / 2;
+    out.push({ x0: f.x - w, x1: f.x + w, z0: f.z - d, z1: f.z + d, h: (f.y ?? 0) + (f.h ?? fp.h) });
   }
   return out;
 }
@@ -219,13 +260,14 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const lighting = createLighting(stage), clocks = createClocks();
   const chunks = createChunks({ THREE, renderer: stage.renderer, painter, uploads, ppm });
   const splash = createSplash(stage), vignettes = createVignettes(stage, { ppm });
-  stage.scene.add(figures.group, clocks.group, vignettes.group);
+  const rangeLayer = createRange(stage, { ppm }), decals = createDecals(stage, { ppm });
+  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group);
   const cache = new Map();                                           // area id → { id, kind, area, built, info, bounds, palette, name, occluders, racks, fixtures }
   let live = null, chain = Promise.resolve(), building = 0, warmed = false, warming = null;
   let heldMood = null, palette = null, fogOn = true, testFog = false, fog = null, fogAt = null, fogWant = null;
   let lastState = null, wipe = null, seeK = 0, liftK = 0, liftRect = null, propsSig = '', tallS = 0, wideK = 0, vigCut = null;
   const lead = [0, 0];
-  let lastT = null, snapNext = true, realS = 0, ownLook = null;
+  let lastT = null, snapNext = true, realS = 0, ownLook = null, eyeShown = null, eyeState = null, eyeHeld = null;
   const looks = new Map();                                           // person id → { look, key }
   const memory = createMemory();                                     // (each actor as last drawn in sight)
   const waitingSheets = new Set();
@@ -233,6 +275,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     calls: 0, triangles: 0, programs: 0, cpuMs: 0, viewMs: 0, uploads: { n: 0, bytes: 0 }, people: { drawn: 0, lying: 0 }, deferred: 0, ppm, splash: null, vignette: null, beacon: null,
     res: [stage.W, stage.H], camera: { x: 0, z: 0 }, gpu: null, mood: null, area: null, build: null, frames: 0, you: null,
     clocks: [], lamps: { table: 0, slots: 0 }, chunks: { built: 0, building: 0, popped: 0, mainMs: 0 }, see: { k: 0, lift: 0 }, fog: { recomputes: 0, ms: 0, source: null },
+    arms: null, range: null,
   };
   // (for the tests, off the printed report: every figure as last drawn, with its tint; the fog's last wanted mask)
   let drawnNow = [];
@@ -401,6 +444,37 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     if (!o) m.set(k, (o = Object.freeze({ ...look, ...(wet ? { wet: true } : {}), ...(tired ? { tired: true } : {}), ...(f ? { sex: 'f' } : {}) })));
     return o;
   }
+  // (a look with a rifle in hand and the kit worn: the gait's carry, the magazine out, ear defenders, the
+  // carrier, a headset; one object per look and variant, so the caches key on it)
+  const armed = new WeakMap();
+  function armedLook(look, v) {
+    if (!look) return look;
+    let m = armed.get(look);
+    if (!m) armed.set(look, (m = new Map()));
+    const k = `${v.weapon ?? '-'}|${v.carry ?? '-'}|${v.magOut ? 1 : 0}|${v.ears ? 1 : 0}|${v.carrier ? 1 : 0}|${v.headset ? 1 : 0}`;
+    let o = m.get(k);
+    if (!o) m.set(k, (o = Object.freeze({ ...look, ...(v.weapon ? { weapon: v.weapon, carry: v.carry } : {}), ...(v.magOut ? { magOut: true } : {}), ...(v.ears ? { ears: true } : {}), ...(v.carrier ? { carrier: true } : {}), ...(v.headset ? { headset: true } : {}) })));
+    return o;
+  }
+  // (the carry a figure's gait frames are painted with: the one it last walked with, so standing still in
+  // stop motion, a change of posture changes no sheet)
+  const gaitCarry = new Map();
+  const RO_POST = /(^|:)kd-ro$/;
+  /** What an actor carries and wears, as the figure draws it: { gl (gunLook or null), look (armed), kit }. */
+  function armsOf(state, a, look, msA, walking) {
+    const person = state.people?.[a.who] ?? null;
+    const gl = typeof ARMS.gunLook === 'function' && person?.kit ? ARMS.gunLook(state, a, msA) : null;
+    const kit = gl || person?.kit ? (typeof ARMS.kitLook === 'function' ? ARMS.kitLook(state, a.who) : null) : null;
+    let carry = null;
+    if (gl) {
+      if (walking || !gaitCarry.has(a.id)) gaitCarry.set(a.id, gaitCarryOf(gl.carry));
+      carry = gaitCarry.get(a.id);
+    }
+    const headset = !!person?.post && RO_POST.test(person.post.key ?? '');
+    if (!gl && !kit?.ears && !kit?.carrier && !headset) return { gl: null, look, kit };
+    return { gl, kit, look: armedLook(look, { weapon: gl ? 'rifle' : null, carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset }) };
+  }
+
   // (a figure's frame from its transition (people's poseAt) or its activity's part, else null: the gait's;
   // msA the clock dressing's two frames turn on: the game's in play, the view's own in a splash, where a
   // time-lapse would turn them every frame)
@@ -528,6 +602,31 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     stats.see = { k: seeK, lift: liftK, hidden, wide: wideK };
   }
 
+  // ---------- the eye ----------
+  // (the player's eye on the post pass: see the header, 2b)
+  function eyeFrame(state, dtS, sp = null) {
+    const me = state ? playerActor(state) : null;
+    const v = !heldMood && me && state.places?.live?.area && typeof PERCEPTION.eyeViewOf === 'function' ? PERCEPTION.eyeViewOf(state, me) : null;
+    let want = { g: Math.log(v?.gain ?? 1), c: Math.log(v?.coneGain ?? v?.gain ?? 1), rod: v?.rod ?? 0, glare: v?.glare ?? 0 };
+    const fresh = !eyeShown || eyeState !== state || !(dtS > 0);
+    // (a splash holds the eye as it began, through the lapse, the beat and the strip, and eases to the
+    // live eye over its zoom out: the night's lapse never pulses with the eyes' minutes before the lids close)
+    if (sp && !fresh) {
+      eyeHeld ??= { ...eyeShown };
+      if (sp.phase !== 'out') want = eyeHeld;
+      else { const o = Math.max(0, Math.min(1, sp.k ?? 0)), w = o * o * (3 - 2 * o); want = { g: eyeHeld.g + (want.g - eyeHeld.g) * w, c: eyeHeld.c + (want.c - eyeHeld.c) * w, rod: eyeHeld.rod + (want.rod - eyeHeld.rod) * w, glare: eyeHeld.glare + (want.glare - eyeHeld.glare) * w }; }
+    } else eyeHeld = null;                                           // (no splash, or a new state: nothing held)
+    if (fresh) eyeShown = { ...want };
+    else {
+      const k = sp ? 1 : 1 - Math.exp(-dtS / EYE_EASE_S);
+      for (const key of ['g', 'c', 'rod', 'glare']) eyeShown[key] += (want[key] - eyeShown[key]) * k;
+    }
+    eyeState = state;
+    stage.post?.setEye?.(Math.exp(eyeShown.g), eyeShown.rod, Math.exp(eyeShown.c), eyeShown.glare);
+    stats.eye = { gain: v?.gain ?? 1, coneGain: v?.coneGain ?? v?.gain ?? 1, rod: v?.rod ?? 0, glare: v?.glare ?? 0, a: v?.a ?? null, lightK: v?.lightK ?? 1, shut: !!v?.shut, nv: !!v?.nv, held: !!eyeHeld,
+      shown: { gain: Math.round(Math.exp(eyeShown.g) * 1e4) / 1e4, coneGain: Math.round(Math.exp(eyeShown.c) * 1e4) / 1e4, rod: Math.round(eyeShown.rod * 1e4) / 1e4, glare: Math.round(eyeShown.glare * 1e4) / 1e4 } };
+  }
+
   // ---------- the stair's wipe ----------
   function wipeFrame(dtS) {
     if (!wipe) return;
@@ -568,11 +667,23 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const lightMs = sp && Number.isFinite(sp.shownMs) ? Math.min(ms, sp.shownMs) : ms;
       light = lighting.frame(state, area, { ms: lightMs, lonEDeg: info.lonEDeg ?? 0, siteId: area.site, heldMood });
       stats.mood = heldMood ?? lighting.stats.rig;
+      // 2b. the eye
+      eyeFrame(state, dtS, sp);
       // 3. where everyone is between the last two ticks, and how each is drawn at that moment
       const k = info.held ? 1 : alpha;
       const me = playerActor(state), meId = me?.id ?? null, tS = ms / 1000 + k * 0.05, msA = ms + k * TICK_MS, breathS = sp ? realS : msA / 1000, frameMs = breathS * 1000;
-      // (the memory: forgotten with a new state, another area, or a skip)
-      memory.begin(state, live.id);
+      // (the arms' effects on the positions' own time, between the last two ticks: a shot is stamped at its tick's
+      // start and the clock is a tick past it by the first frame drawn, so on msA its flash's strong part fell in
+      // a tick never drawn (the runtime review's: no flash in any frame of a tapped Fire); held, the clock itself)
+      const fxMs = fxMsOf(ms, k, TICK_MS);
+      // (the memory: forgotten with a new state, another area, or a skip, the last only while a full
+      // splash's iris covers the picture (or no splash shows it), never in sight of the bay: a brief
+      // splash's lapse keeps it, so a squadmate drawn as last seen stays so until looked at; the review
+      // of v0.0.5's rack, seven jumping in the dressing splash's first frame)
+      memory.begin(state, live.id, { skipping: !!state.skip && (!sp || (sp.form === 'full' && (sp.inkK ?? 0) >= 0.999)) });
+      const flashes = [];
+      let ownGun = null;
+      const rl = typeof ARMS.rangeLook === 'function' && live.id === KD_RANGE.area ? ARMS.rangeLook(state, fxMs) : null;
       const eye = me && typeof PERCEPTION.eyeOf === 'function' && typeof PERCEPTION.visibility === 'function' ? PERCEPTION.eyeOf(state, me) : null;
       const inSight = (x, z) => PERCEPTION.visibility(state, eye, x, z, ms) > 0;
       for (const a of state.actors?.list ?? []) {
@@ -598,6 +709,13 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
             x = spot.x + (x - spot.x) * o; z = spot.z + (z - spot.z) * o; face = o < 0.5 ? spot.face : face;
           } else hidden = true;
         }
+        // (a rifle in hand, the kit worn: the look that draws them, and the rifle's frame when not walking)
+        const walking0 = GAIT[fig.gait ?? a.gait] !== undefined && (fig.gait ?? a.gait ?? 'idle') !== 'idle' && step > 1e-6;
+        const arms = armsOf(state, a, look0, fxMs, walking0);
+        look0 = arms.look;
+        const rf = arms.gl && !walking0 ? rifleFrame(arms.gl, { face, x, z, ms: fxMs }) : null;
+        if (arms.gl?.flash > 0 && arms.gl.muzzle) flashes.push({ x: arms.gl.muzzle.x, z: arms.gl.muzzle.z, k: arms.gl.flash });
+        if (own && arms.gl) { ownGun = arms.gl; }
         // (your own look changed by a cue (wet hair, the tired walk): the worker paints it while the last one is drawn)
         if (own) look0 = ownLookOf(look0);
         const { look, key } = lookOf(look0, a.who);
@@ -607,14 +725,20 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         if (tf === 'sitUp' || tf === 'lieDown') {
           // (up on the mattress: the berth thrown back to the waist, the upper body's card at its head)
           const b = berthOf(a, fig, a.who, { msA, up: true, breathS }), st = sitterOn(b, tf);
+          // (to the edge over the last SIT_SLIDE_K of sitting up, smoothly: where the sit frame takes over)
+          const edge = Number.isFinite(fig.edgeX) && Number.isFinite(fig.edgeZ) && Number.isFinite(fig.upK);
+          const u = edge ? Math.max(0, Math.min(1, (fig.upK - (1 - SIT_SLIDE_K)) / SIT_SLIDE_K)) : 0, w = u * u * (3 - 2 * u);
           people.push({ ...p, ...b, lie: b.lie, x: b.x, z: b.z, card: false, id: `${a.id}:berth` });
-          Object.assign(p, { x: st.x, z: st.z, frame: st.frame, face: st.face, y: st.y, seat: st.y, noBlob: true });
+          Object.assign(p, { x: edge ? st.x + (fig.edgeX - st.x) * w : st.x, z: edge ? st.z + (fig.edgeZ - st.z) * w : st.z, frame: st.frame, face: st.face, y: st.y, seat: st.y, noBlob: true });
         } else if (tf === 'lie' || (fig.posture === 'lie' && !frameOf(fig, frameMs))) Object.assign(p, berthOf(a, fig, a.who, { msA, breathS }));
         else {
           const f = frameOf(fig, frameMs);
           if (f === 'sit' || (!f && fig.posture === 'sit')) { p.frame = 'sit'; p.y = Math.max(0, (fig.y ?? 0.45) - figures.layout.body.seatM); p.seat = p.y; }
           else if (f === 'climb') { p.frame = 'climb'; p.y = Math.max(0, fig.y ?? 0); p.seat = 0; }
           else if (f) p.frame = f;
+          else if (rf?.frame) { p.frame = rf.frame; p.flash = !!rf.flash; }
+          // (standing on a height: the range officer on the tower's deck; the blob on the deck under them)
+          if (!p.y && (fig.posture ?? 'stand') === 'stand' && (fig.y ?? 0) > 0.05) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
         }
         if (hidden) p.hidden = true;
         if (!hidden) people.push(p);
@@ -648,14 +772,21 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const cw = stage.W / ppm, ch = stage.H / ppm, b = cameraBounds(live);
       if (you && !wipe) {
         const n = Math.hypot(you.dx, you.dz), L = you.gait === 'run' ? LEAD_RUN_M : LEAD_WALK_M;
-        const want0 = you.gait !== 'idle' && n > 1e-6 ? [you.dx / n * L[0], you.dz / n * L[1]] : [0, 0];
+        // (the weapon mode's lead toward the bracketed target, else the walk's)
+        const pick = ownGun ? rl?.pick ?? null : null;
+        const want0 = pick ? aimLead(you, pick, [cw / 2, ch / 2], { k: ARMS.AIM_LEAD_K ?? 0.55, edgeM: ARMS.EDGE_KEEP_M ?? 2.5 })
+          : you.gait !== 'idle' && n > 1e-6 ? [you.dx / n * L[0], you.dz / n * L[1]] : [0, 0];
         if (snapNext) { lead[0] = want0[0]; lead[1] = want0[1]; }
         else { const kk = 1 - Math.exp(-dtS / LEAD_S); lead[0] += (want0[0] - lead[0]) * kk; lead[1] += (want0[1] - lead[1]) * kk; }
         // (the lead snapped to the pixel grid before it is added: the camera and the figure, each snapped,
         // then keep one offset, where an eased lead between pixels flipped the figure a pixel each frame)
         const lx = Math.round(lead[0] * ppm) / ppm, lz = Math.round(lead[1] * ppm) / ppm;
         const ax = cameraAxis(you.x, lx, b.x0, b.x1, cw), az = cameraAxis(you.z, lz, b.z0, b.z1, ch);
-        stage.look(ax.c, az.c);
+        // (your own shot: the picture kicked back along the bore a pixel, for SHOT_SHAKE_MS of game time)
+        const since = ownGun?.shotMs !== null && ownGun?.shotMs !== undefined ? fxMs - ownGun.shotMs : Infinity;
+        const kick = since >= 0 && since < SHOT_SHAKE_MS ? SHOT_SHAKE_PX / ppm : 0, back = FACE[you.face] ?? [1, 0];
+        stage.look(ax.c - back[0] * kick, az.c - back[1] * kick);
+        stats.arms = ownGun ? { carry: ownGun.carry, stance: ownGun.stance, frame: you.frame ?? null, flash: ownGun.flash, kick: ownGun.kick, shake: !!kick, pick } : null;
         snapNext = false;
       }
       // 5. the ground's chunks round the camera
@@ -679,7 +810,15 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         const d = Math.hypot(x - beacon.x, z - beacon.z), kk = d < beacon.r ? beacon.core + beacon.ring : d < beacon.r * 1.5 ? beacon.ring : 0;
         return kk ? [t[0] + 1.0 * kk, t[1] + 0.07 * kk, t[2] + 0.04 * kk] : t;
       };
-      for (const p of people) p.tint = tintAt(p.x, p.z);
+      // (a muzzle's flash lights whoever is within FLASH_LIT_M of it, falling off with the distance: VIEWS §3.6)
+      for (const p of people) {
+        p.tint = tintAt(p.x, p.z);
+        for (const f of flashes) { const d = Math.hypot(p.x - f.x, p.z - f.z); if (d < FLASH_LIT_M) { const kk = (1 - d / FLASH_LIT_M) * f.k; p.tint = p.tint.map((v, i) => v + FLASH_LIGHT[i] * kk); } }
+      }
+      // (the range in play and what lies on the ground: rangeLook at the moment drawn)
+      stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt }) : (rangeLayer.update(null), null);
+      const ds = decals.update(rl?.lying ?? [], tintAt);
+      stats.lying = rl ? { items: ds.items, pixels: ds.pixels } : null;
       vignettes.update(vigItems, tintAt, vigRed);
       // 9. the fog; 10. what stands between the camera and you
       fogFrame(state, you, dtS, light, fogLift);
@@ -694,7 +833,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       curtain: !!p.lie?.curtain, own: p.own, tint: p.tint, remembered: !!p.remembered, key: p.key }));
     // 12b. the splash's pass and the zoom's crop (src/render/splash.js), set before the picture
     const it = splash.set(sp, { dimK: light?.dimK ?? stage.mood.dimK });
-    stats.splash = sp ? { phase: sp.phase, form: sp.form, k: sp.k, zoom: it.zoom, iris: it.iris ? it.iris.R : null, ring: it.ring ? it.ring.R : null, beat: it.beat?.kind ?? null, crop: splash.stats.crop, shownMs: sp.shownMs,
+    stats.splash = sp ? { phase: sp.phase, form: sp.form, k: sp.k, inkK: sp.inkK ?? null, zoom: it.zoom, iris: it.iris ? it.iris.R : null, ring: it.ring ? it.ring.R : null, beat: it.beat?.kind ?? null, crop: splash.stats.crop, shownMs: sp.shownMs,
       passes: splash.stats.drawn, lift: !!fogLift, centre: sp.centre ?? null } : null;
     // 12. the upload queue
     const up = uploads ? uploads.drain() : { n: 0, bytes: 0, ms: 0 };
@@ -720,7 +859,22 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     lastState = state;
     const meId = playerActor(state)?.id ?? null, jobs = [];
     for (const a of state.actors?.list ?? []) {
-      const fig = figureOf(state, a), { look, key } = lookOf(fig.look, a.who);
+      const fig = figureOf(state, a), person = state.people?.[a.who] ?? null, own = a.id === meId;
+      // (a rifle in hand: its look and the magazine-out one, with the arms and rifle bands, so a change of
+      // posture or a magazine out in stop motion never paints on the main thread)
+      const arms = armsOf(state, a, lookWith(fig.look, fig, person?.sex), state.clock.ms, false);
+      if (arms.gl) {
+        const rifleBands = ['gait', 'arms', ...RIFLE_BANDS, ...(own ? ['move'] : [])];
+        for (const magOut of [false, true]) {
+          const L = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: gaitCarry.get(a.id), magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false });
+          const { key: k2 } = lookOf(L, `${a.who}${magOut ? ':magout' : ''}`);
+          jobs.push(figures.prepare(k2, L, { bands: rifleBands, own }));
+        }
+        if (own) ownLook = { state, want: arms.look, shown: arms.look, asked: false };
+        continue;
+      }
+      if (arms.look !== lookWith(fig.look, fig, person?.sex)) { const { key: k3 } = lookOf(arms.look, a.who); jobs.push(figures.prepare(k3, arms.look, { bands: ['gait'], own })); continue; }
+      const { look, key } = lookOf(fig.look, a.who);
       if (fig.posture === 'lie' && fig.frame !== 'sitUp' && fig.frame !== 'lieDown') { if (a.id === meId) jobs.push(figures.prepare(key, look ?? {}, { bands: ['gait', 'rest'], own: true })); continue; }   // (a sleeper is a berth; yours may rise)
       // (yours with the move band too: a stroll or a stair never paints on the main thread)
       const bands = [...(fig.posture === 'sit' || fig.posture === 'lie' ? ['gait', 'rest'] : ['gait']), ...(a.id === meId ? ['move'] : [])];
@@ -731,7 +885,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
 
   /** Compile the stage's programs (warm.js): once, at boot. */
   function warm() {
-    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1]] }).then((r) => { warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
+    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1], rangeLayer.pixels.mesh, decals.pixels.mesh] }).then((r) => { warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
       (e) => { warmed = true; console.warn('view: the warm-up failed', e); return null; });
     return warming;
   }
@@ -749,7 +903,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   };
 
   return {
-    setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks, splash, vignettes,
+    setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks, splash, vignettes, range: rangeLayer, decals,
     /** Hold a mood by name (MOODS), or null to follow places' light. */
     setMood(name) { heldMood = name && MOODS[name] ? name : null; },
     /** The fog of awareness on or off (on by default: perception's; with no perception, the samples' test fog when asked). */
@@ -758,6 +912,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     get fog() { return fogWant; },
     /** The live area's name, and its build's numbers. */
     get area() { return live ? { id: live.id, name: live.name, kind: live.kind, info: live.info } : null; },
+    /** The ground under a pixel of the picture (xPx, yPx from its top-left, the stage's W × H): { x, z } (the hud's mouse). */
+    worldAt(xPx, yPx) { const [x, z] = stage.cam.ground(xPx, yPx, 0); return { x, z }; },
     get idle() { return pendingList().length === 0; },
     get pending() { return pendingList(); },
     stats,
@@ -765,7 +921,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       endWipe();
       for (const c of cache.values()) c.built?.dispose();
       cache.clear(); live = null;
-      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose();
+      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose();
     },
   };
 }

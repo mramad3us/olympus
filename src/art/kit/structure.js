@@ -14,13 +14,23 @@
 //               clock on its stand, MELAS on the front, UTC on the back: look.faces);
 //   stairs      1.2 × 4.8: a flight drawn in plan, as the floor it stands on sees it (the sim walks it at the
 //               floor's height, so a flight drawn rising would sink the figure into its treads): treads with
-//               their nosings, darker the higher they go, a handrail each side, the run's arrow and its
-//               word at the foot. dir 'up' (floor 1: the flight going up) or 'down'; its front (+z) is the
-//               foot of the flight; makes 'concrete' (a cast flight, steel nosings) and 'steel';
-//   stairsWell  1.2 × 4.8 × 1.0: the floor above's view of the same stair, the well open down to the floor
-//               below (treads falling away into the dark) with a guard rail on three sides, and the top
-//               STAIR_TOP_M of the flight a landing one walks onto; makes 'rail' and 'wall' (a solid
-//               parapet);
+//               their nosings, darker the higher they go, a handrail each side; its front (+z) is the foot of
+//               the flight and its back the top (places' fixtures.js states the same rule). dir 'up' (floor 1:
+//               the flight going up) or 'down'; makes 'concrete' (a cast flight, steel nosings) and 'steel';
+//   stairsWell  1.2 × 4.8 × 1.0: the floor above's view of the same stair: its landing at the back, the top
+//               STAIR_TOP_M of the flight one walks onto from this floor (lit treads, the floor's level at
+//               the back edge), the well open down to the floor below from the landing's edge to the front
+//               (treads falling away into the dark), and a guard rail on its two long sides and its far end;
+//               makes 'rail' and 'wall' (a solid parapet).
+//   Each stair carries a mark on the end one steps on from its floor (stairEnd: a flight that climbs at
+//   its foot, a well at its landing, so the landing and the mark lie exactly where places' blockRectOf
+//   leaves the well open and the portal's band takes one down): a solid triangle over its word, "▲ UP"
+//   or "▼ DOWN" in the kit's pixel font, amber paint, the word on a dark plate, painted upright on the
+//   screen whatever way the flight runs (its painting turned back by the piece's turn), so up and down
+//   read at a glance (the user, 2026-11-06, upstairs at the east well: "cannot cross the space to head
+//   downstairs again, is it intentional ?": v0.0.4 drew the well's landing and its arrow at its north
+//   end, the sim's open top is its south). A maker leaves what it drew in k.stair ({ dir, mark, and a
+//   well's landing, open and guard: the world rects and boxes }), which the stairs test reads;
 //   lampPost    0.25 × 0.25 × 4.0: a pole on a cast base, an arm, the lamp's head with its lens under it
 //               (glow class NIGHT: lit when the sky's glow says, VIEWS §2.7); makes 'sodium' (a street's)
 //               and 'flood' (the fence's, its head tilted out). Its pool is places' (lampsOf), not the kit's;
@@ -30,7 +40,7 @@
 //               'interior' (PLACES §1.6's hinged door, grey), 'ext' (the weather door, steel, a wired
 //               window), 'office' (wood).
 // Pure.
-import { tex } from './kit.js';
+import { tex, rotPainter } from './kit.js';
 import { C, U, P, bevel, sunk, tone, hash3 } from './common.js';
 import { paintedSteel, concrete, grimeFoot } from '../materials/index.js';
 import { fontFor } from './type.js';
@@ -89,8 +99,8 @@ export function wallClock(k, o) {
 // ---------- stairs ----------
 
 const STAIR_C = { concrete: 0x9c917a, steel: 0x7c7f86 };
-/** A flight seen from above, its foot at the bottom row: treads every 0.28 m, nosings, darker toward the top; the run's arrow and word at the foot. */
-const flightTop = (make, dir, ppm) => tex(`flight:${make}:${dir}`, (px, w, h, p) => {
+/** A flight seen from above, its foot at the bottom row: treads every 0.28 m, nosings, darker toward the top. */
+const flightTop = (make, dir) => tex(`flight:${make}:${dir}`, (px, w, h, p) => {
   const c = STAIR_C[make] ?? STAIR_C.concrete, u = U(p), tread = Math.max(4, Math.round(0.28 * p)), n = Math.floor(h / tread);
   for (let k = 0; k < n + 1; k++) {
     const y = h - (k + 1) * tread, t = k / Math.max(1, n), cc = tone(c, dir === 'up' ? -0.16 * t : -0.05 - 0.2 * t);
@@ -99,20 +109,61 @@ const flightTop = (make, dir, ppm) => tex(`flight:${make}:${dir}`, (px, w, h, p)
     px(0, y + tread - 1, w, 1, tone(cc, -0.12));                       // (the riser's shadow under the next)
     if (make === 'steel') for (let i = 2; i < w - 2; i += Math.max(3, Math.round(3 * u))) px(i, y + 2, 1, tread - 4, tone(cc, -0.05));
   }
-  // (the run's arrow up the middle and its word at the foot)
-  const cx = Math.floor(w / 2), ink = 0xd9d1b7, ah = Math.min(h - 4, Math.round(2.2 * p));
-  px(cx, h - ah - 2, 1, ah, ink);
-  for (let i = 1; i <= Math.max(2, Math.round(2 * u)); i++) { px(cx - i, h - ah - 2 + i, 1, 1, ink); px(cx + i, h - ah - 2 + i, 1, 1, ink); }
-  const f = fontFor(p), word = dir === 'up' ? 'UP' : 'DOWN';
-  if (f.width(word) < w - 2) f.stencil(px, Math.floor((w - f.width(word)) / 2), h - f.h - 2, word, ink);
 });
+/** A well's landing seen from above: the flight's top treads, the floor's level at the top row (the piece's back), each a step down toward the well. */
+const landingTop = tex('stairlanding', (px, w, h, p) => {
+  const c = STAIR_C.concrete, tread = Math.max(4, Math.round(0.28 * p)), n = Math.ceil(h / tread);
+  for (let k = 0; k < n; k++) {
+    const y = k * tread, t = k / Math.max(1, n), cc = tone(c, -0.02 - 0.14 * t);
+    px(0, y, w, tread, cc);
+    px(0, y + tread - 2, w, 1, tone(0xb7b0a8, -0.1 * t));             // (the nosing, where the tread drops to the next)
+    px(0, y + tread - 1, w, 1, tone(cc, -0.3));                         // (the drop's shadow)
+  }
+});
+
+/**
+ * Where a stair is stepped on from the floor it is drawn on, and what its mark says: { dir, z0, z1 }
+ * in the piece's own frame (z toward its front). A flight's front is its foot and its back its top
+ * (the header; places' fixtures.js states the same rule), so a flight that climbs from this floor
+ * ('up') is stepped on at its front, the last STAIR_TOP_M of it, and a well (or a flight that goes
+ * down from this floor) at its back: the open top places' blockRectOf leaves a well, its landing.
+ * The maker draws the landing, the mark and the guard from this one answer, and the stairs test
+ * holds it equal to the walkable part of every well's footprint in every area.
+ */
+export function stairEnd(kind, dir, D) {
+  const down = kind === 'stairsWell' || dir === 'down';
+  return down ? { dir: 'down', z0: -D / 2, z1: -D / 2 + STAIR_TOP_M } : { dir: 'up', z0: D / 2 - STAIR_TOP_M, z1: D / 2 };
+}
+
+/** The mark's paint: amber, a dark edge under the triangle, the word amber on a dark plate (hazard paint, as a warning's yellow on black). */
+const MARK_INK = C.amber, MARK_SHADOW = C.ink, MARK_PLATE = C.hazardD;
+/** A stair's mark: a solid triangle (▲ up, ▼ down) over its word on a plate, centred, painted upright (the caller turns it back from the piece's turn); the word left out where it will not fit. */
+export const stairMark = (dir) => tex(`stairmark:${dir}`, (px, w, h, p) => {
+  const f = fontFor(p), word = dir === 'up' ? 'UP' : 'DOWN', up = dir === 'up';
+  const th = Math.max(4, Math.round(0.38 * p));                            // (the triangle's rows: 6 at 16 px/m (11 px across), 9 at 24 (17 across))
+  const gap = Math.max(1, Math.round(0.06 * p)), fits = f.width(word) <= w;
+  const tall = th + 1 + (fits ? gap + f.h + 2 : 0), y0 = Math.max(0, Math.floor((h - tall) / 2)), cx = Math.floor((w - 1) / 2);
+  const tri = (dx, dy, c) => { for (let r = 0; r < th; r++) { const half = up ? r : th - 1 - r; px(cx - half + dx, y0 + r + dy, 2 * half + 1, 1, c); } };
+  tri(1, 1, MARK_SHADOW); tri(0, 0, MARK_INK);
+  if (!fits) return;
+  // (the plate a pixel round the word where the end has the pixels: 20 across for DOWN at 16 px/m, all of Echo's 1.2 m landings snapped)
+  const pw = Math.min(w, f.width(word) + 2), x = Math.floor((w - pw) / 2), y = y0 + th + 1 + gap;
+  px(x, y, pw, f.h + 2, MARK_PLATE);
+  f.text(px, x + Math.floor((pw - f.width(word)) / 2), y + 1, word, MARK_INK);
+});
+// (the mark on the end one steps on, upright on the screen whatever way the piece faces: its painting
+// turned back by the piece's quarter turns, which the builder turns forward again)
+function markEnd(k, W, end) {
+  return k.ground({ x0: -W / 2, z0: end.z0, x1: W / 2, z1: end.z1, top: rotPainter(stairMark(end.dir), (4 - k.q) & 3), lift: 0.004 });
+}
 const railC = (c) => tex(`stairrail:${c}`, (px, w, h) => { px(0, 0, w, h, c); px(0, 0, w, 1, tone(c, 0.1)); });
 
-/** A flight of stairs in plan (see the header). */
+/** A flight of stairs in plan (see the header): its treads, its handrails, and its mark at the end one steps on (stairEnd). */
 export function stairs(k, o) {
-  const { W, D, ppm } = o, make = o.make ?? 'concrete', dir = o.look?.dir ?? o.dir ?? 'up';
+  const { W, D } = o, make = o.make ?? 'concrete', dir = o.look?.dir ?? o.dir ?? 'up', end = stairEnd('stairs', dir, D);
   k.comp();
-  k.ground({ x0: -W / 2, z0: -D / 2, x1: W / 2, z1: D / 2, top: flightTop(make, dir, ppm), lift: 0.003 });
+  k.ground({ x0: -W / 2, z0: -D / 2, x1: W / 2, z1: D / 2, top: flightTop(make, dir), lift: 0.003 });
+  const mark = markEnd(k, W, end);
   // (a handrail each side on its posts: 0.9 m, thin, one part with the stringers)
   const rc = make === 'steel' ? 0x565b67 : 0x7c736b;
   k.comp();
@@ -121,36 +172,40 @@ export function stairs(k, o) {
     k.box({ x: sx * (W / 2 - 0.03), z: 0, y: 0.86, w: 0.05, d: D, h: 0.04, faces: { sides: rc, top: railC(rc) } });
     for (const pz of [-D / 2 + 0.1, 0, D / 2 - 0.1]) k.box({ x: sx * (W / 2 - 0.03), z: pz, y: 0.1, w: 0.03, d: 0.03, h: 0.76, faces: { sides: rc } });
   }
+  k.stair = { dir: end.dir, mark };
 }
 
-/** The well a stair comes up through, seen from the floor above (see the header). */
+/** The well a stair comes up through, seen from the floor above (see the header), its landing, mark and guard where stairEnd says. */
 export function stairsWell(k, o) {
-  const { W, D, ppm } = o, make = o.make ?? 'rail', top = STAIR_TOP_M;
+  const { W, D } = o, make = o.make ?? 'rail', end = stairEnd('stairsWell', 'down', D);
   const well = tex(`well:${make}`, (px, w, h, p) => {
     const tread = Math.max(4, Math.round(0.28 * p)), n = Math.ceil(h / tread);
     px(0, 0, w, h, 0x14151c);
-    // (the flight falling away from the landing (the front) into the dark, a tread a step darker)
+    // (the flight falling away from the landing (the top row) into the dark, a tread a step darker)
     for (let kk = 0; kk < n; kk++) { const y = kk * tread, t = 1 - kk / n; px(1, y, w - 2, tread - 1, tone(0x6e6658, -0.45 + 0.32 * t)); px(1, y + tread - 1, w - 2, 1, tone(0x14151c, 0.02)); }
     px(0, 0, 1, h, 0x14151c); px(w - 1, 0, 1, h, 0x14151c);
   });
   k.comp();
-  // (the well's floor: from the back to the landing; the landing itself the top treads, lit)
-  k.ground({ x0: -W / 2, z0: -D / 2, x1: W / 2, z1: D / 2 - top, top: well, lift: 0.002 });
-  k.ground({ x0: -W / 2, z0: D / 2 - top, x1: W / 2, z1: D / 2, top: flightTop('concrete', 'down', ppm), lift: 0.003 });
-  // (the guard round the opening: its two long sides and its far end, 1.0 m)
+  // (the landing, the top treads one walks onto, lit, at the back; the well's floor from its edge to the front, the foot)
+  const landing = k.ground({ x0: -W / 2, z0: end.z0, x1: W / 2, z1: end.z1, top: landingTop, lift: 0.003 });
+  const open = k.ground({ x0: -W / 2, z0: end.z1, x1: W / 2, z1: D / 2, top: well, lift: 0.002 });
+  const mark = markEnd(k, W, end);
+  // (the guard round the opening: its two long sides from the landing's edge, and its far end at the front, 1.0 m)
   k.comp();
   const gc = make === 'wall' ? 0xb8b2a4 : 0x565b67, H = 1.0, t = make === 'wall' ? 0.12 : 0.05;
   const sideFace = make === 'wall' ? tex(`parapet:${gc}`, (px, w, h) => { px(0, 0, w, h, gc); px(0, 0, w, 1, tone(gc, 0.08)); px(0, h - 1, w, 1, tone(gc, -0.2)); }) : railC(gc);
-  const ends = [[-W / 2 + t / 2, -D / 2, -W / 2 + t / 2, D / 2 - top], [W / 2 - t / 2, -D / 2, W / 2 - t / 2, D / 2 - top]];
-  for (const [x, z0, , z1] of ends) {
-    if (make === 'wall') k.box({ x, z: (z0 + z1) / 2, w: t, d: z1 - z0, h: H, faces: { sides: sideFace, top: tone(gc, 0.06) } });
+  const guard = [];
+  for (const x of [-W / 2 + t / 2, W / 2 - t / 2]) {
+    const z0 = end.z1, z1 = D / 2;
+    if (make === 'wall') guard.push(k.box({ x, z: (z0 + z1) / 2, w: t, d: z1 - z0, h: H, faces: { sides: sideFace, top: tone(gc, 0.06) } }));
     else {
-      k.box({ x, z: (z0 + z1) / 2, y: H - 0.05, w: t, d: z1 - z0, h: 0.05, faces: { sides: gc, top: railC(gc) } });
-      for (let z = z0 + 0.05; z <= z1 - 0.02; z += 0.6) k.box({ x, z, w: 0.03, d: 0.03, h: H - 0.05, faces: { sides: gc } });
+      guard.push(k.box({ x, z: (z0 + z1) / 2, y: H - 0.05, w: t, d: z1 - z0, h: 0.05, faces: { sides: gc, top: railC(gc) } }));
+      for (let z = z0 + 0.05; z <= z1 - 0.02; z += 0.6) guard.push(k.box({ x, z, w: 0.03, d: 0.03, h: H - 0.05, faces: { sides: gc } }));
     }
   }
-  if (make === 'wall') k.box({ x: 0, z: -D / 2 + t / 2, w: W, d: t, h: H, faces: { sides: sideFace, top: tone(gc, 0.06) } });
-  else k.box({ x: 0, z: -D / 2 + 0.025, y: H - 0.05, w: W, d: 0.05, h: 0.05, faces: { sides: gc, top: railC(gc) } });
+  if (make === 'wall') guard.push(k.box({ x: 0, z: D / 2 - t / 2, w: W, d: t, h: H, faces: { sides: sideFace, top: tone(gc, 0.06) } }));
+  else guard.push(k.box({ x: 0, z: D / 2 - 0.025, y: H - 0.05, w: W, d: 0.05, h: 0.05, faces: { sides: gc, top: railC(gc) } }));
+  k.stair = { dir: end.dir, landing, open, mark, guard };
 }
 
 // ---------- lamp posts ----------

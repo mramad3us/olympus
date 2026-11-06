@@ -23,7 +23,8 @@
 //     outside doors' bands on their walls (out 's'), arriving 0.9 m out on the ground.
 // The records keep TEST_AREA's shape with the sheet's additions (rooms' surface, lighting, owner,
 // layout, windows; openings' leaf, openS, closeS; fixtures' berths, lockerIds, footlockerIds, faces,
-// dir; links, portals, posts; look.decor and look.lamps with kinds). Frozen.
+// dir; links, portals, posts; look.decor and look.lamps with kinds; from 0.0.5 the floor's floorName,
+// 'ground floor' or 'upper floor', which the HUD's place line names). Frozen.
 import {
   ECHO, SEEDS, WINGS, BAY_LAYOUTS, BERTH_ORDER, HQ_BERTHS, LAYOUTS, WING_ROOMS, WING_DOORS, WING_FIXTURES,
   CORE_ROOMS, CORE_DOORS, CORE_FIXTURES, LAMPS, POSTS, STAIRS, STAIR_BANDS, EXITS, SPAWNS, FINISH,
@@ -167,7 +168,7 @@ export function buildFloor(floor) {
     portals.push({ id: o.id, kind: 'door', via: o.id, band: { axis: 'x', at: o.at, a: o.a, b: o.b, out: 's' }, to: { area: 'melas.ground', x: e.out.x, z: e.out.z, face: 'down' } });
   }
   return deepFreeze({
-    id: floor.id, site: ECHO.site, kind: 'floor', code, name: floor.name, short: ECHO.name, level,
+    id: floor.id, site: ECHO.site, kind: 'floor', code, name: floor.name, short: ECHO.name, floorName: floor.floorName, level,
     originM: [ECHO.originM[0], r4((level - 1) * ECHO.storeyM), ECHO.originM[2]],
     boundsM: { ...floor.boundsM }, spawn: { ...SPAWNS[floor.id] },
     rooms, openings, fixtures, zones, links, portals, posts,
@@ -177,7 +178,7 @@ export function buildFloor(floor) {
 
 /** Echo's ground floor (melas.echo.1): 2nd Platoon east, 1st Platoon west, the company's core. */
 export const ECHO_1 = buildFloor(ECHO.floors[0]);
-/** Echo's first floor (melas.echo.2): the Weapons Platoon east, 3rd Platoon west, the classroom and the study room. */
+/** Echo's upper floor (melas.echo.2): the Weapons Platoon east, 3rd Platoon west, the classroom and the study room. */
 export const ECHO_2 = buildFloor(ECHO.floors[1]);
 /** Where an outside door leads in from the ground: the ground's portal id → { opening, area, x, z, face }. */
 export const ECHO_ENTRIES = deepFreeze(EXITS.map(e => ({ ground: e.ground, opening: `o:e1:${e.door}`, to: { area: ECHO.floors[0].id, x: e.in.x, z: e.in.z, face: 'up' } })));

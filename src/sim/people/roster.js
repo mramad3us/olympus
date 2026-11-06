@@ -50,6 +50,9 @@
 // the look from what fits the squad on stream('roster', seed, unitId, 'looks', 'player'). Ties, arcs,
 // skills, needs, kit and career timelines are not rolled this round (the sheet §2.2). Each person's
 // berthId is places' berthOf(unitId, billet) where their room lists them (the rest have none yet).
+// Since 0.0.5 drawCore takes the stream it draws on (the roster's by default, so the roster is drawn
+// as before), and admitStaff makes a staff post's person (src/sim/people/staff.js: the range officer,
+// the coach) on the staff's streams, after the roster and the player, with no billet.
 import { stream, next, int, range, pick, chance, weighted } from '../../core/rng.js';
 import { DAY_MS } from '../../core/clock.js';
 import { nextId, put } from '../../core/ids.js';
@@ -189,8 +192,7 @@ function drawTags(r, n, traits, homeKind, bg) {
  * The draws of one billet's person on their own stream, in the fixed order of the header: { sex,
  * rank, ageD, tisD, home, place, background, traits, tags, hasQuirk, hasNick, body, look, ageY }.
  */
-export function drawCore(seed, unitId, def, tier) {
-  const r = stream('roster', seed, unitId, def.key);
+export function drawCore(seed, unitId, def, tier, r = stream('roster', seed, unitId, def.key)) {
   const sex = chance(r, WOMEN_FRAC) ? 'f' : 'm';
   const rank = weighted(r, def.ranks);
   const { ageD, tisD, redraws, raised } = drawAge(r, rank);
@@ -354,11 +356,13 @@ function sparseTraits(traits) {
 }
 
 // (one billet's person record from its core draws; the name, quirk and nick on the billet's side streams)
-function makePerson(state, ctx, { unitId, def, squad }, core, tier, { player = false } = {}) {
+function makePerson(state, ctx, { unitId, def, squad }, core, tier, { player = false, base = null } = {}) {
   const seed = state.meta.seed;
   const rk = RANKS[core.rank];
+  // (the person's side streams: a billet's on the roster's, a post's on the staff's: staff.js)
+  const side = (...k) => (base ? stream(...base, ...k) : stream('roster', seed, unitId, def.key, ...k));
   // (the name: up to NAME_REROLLS draws against the rules, then the middle name for a full name still taken)
-  const rn = stream('roster', seed, unitId, def.key, 'name');
+  const rn = side('name');
   const sq = squad ? ctx.squads.get(squad) : null;
   const rules = { tier, squad: sq, companyFamily: ctx.family };
   let name = null;
@@ -374,7 +378,7 @@ function makePerson(state, ctx, { unitId, def, squad }, core, tier, { player = f
   // (the quirk, a squad's all different)
   let quirk = null;
   if (core.hasQuirk && !player) {
-    const rq = stream('roster', seed, unitId, def.key, 'quirk');
+    const rq = side('quirk');
     for (let k = 0; k < QUIRK_REROLLS && !quirk; k++) { const q = pick(rq, QUIRKS).id; if (!sq?.quirks.has(q)) quirk = q; }
   }
   const rec = {
@@ -395,7 +399,7 @@ function makePerson(state, ctx, { unitId, def, squad }, core, tier, { player = f
   }
   // (the nickname, a squad's all different; then the company's fix for a family name it already has)
   if (core.hasNick && !player) {
-    const nick = nickFor(stream('roster', seed, unitId, def.key, 'nick'), rec, quirk, sq?.nicks ?? new Set());
+    const nick = nickFor(side('nick'), rec, quirk, sq?.nicks ?? new Set());
     if (nick) rec.name.nick = nick;
   }
   const first = ctx.firstOfFamily.get(name.family);
@@ -531,6 +535,22 @@ export function fillPlayer(state, { unitId = PLAYER_BILLET.unitId, billet = PLAY
     s.drawn += ctx.stats.drawn; s.lookRedraws += ctx.stats.lookRedraws; s.lookPicks += ctx.stats.lookPicks; s.lookClashes += ctx.stats.lookClashes;
     for (const [k, v] of Object.entries(ctx.stats.rerolled)) s.rerolled[k] = (s.rerolled[k] ?? 0) + v;
   }
+  return id;
+}
+
+/**
+ * A person of a staff post (src/sim/people/staff.js; the 0.0.5 build sheet §2.6): made from their
+ * core draws as a billet's person is, named on the post's side streams (base: ['staff', seed, site,
+ * post], so the roster's names and the player's move by nothing), given the next id and registered,
+ * with no billet in any unit (service.billet names the post). tier 3. Returns their person id.
+ */
+export function admitStaff(state, core, def, { base, refMs = START_MS, tier = 3 } = {}) {
+  const ctx = contextOf(state, COMPANY.id, refMs);
+  const rec = makePerson(state, ctx, { unitId: def.unitId, def, squad: null }, core, tier, { base });
+  const id = nextId(state, 'p');
+  rec.id = id;
+  put(state, state.people, id, rec);
+  registerName(state, fullName(rec.name), id);
   return id;
 }
 

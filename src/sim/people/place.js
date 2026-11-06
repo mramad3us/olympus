@@ -21,6 +21,9 @@
 //               (my call): 0 or 1 sitting, 2 standing at their locker. The lower berth sits on the
 //               rack's edge on the side its lockers stand (facing them), the upper on the rack's
 //               footlocker (facing the aisle), so no two share a spot; utilities, no cover indoors.
+// The staff (0.0.5: the range officer and the coach, src/sim/people/staff.js) are placed where they are
+// posted: placed() adds those whose person.post is on the live area, and whereIs gives a posted
+// person their post's pose (its area, place, height, facing, posture and outfit) whatever the hour.
 // The fire watch (fireWatchOf: one Pvt to LCpl of 2nd Platoon's 2nd or 3rd Squad, drawn once a world
 // on stream('roster', seed, '2/4-E-2', 'fire-watch'), the 0.0.3 sheet §8, item 9) sits at the post's
 // seat in bay-2-1 from taps to reveille, facing down the bay, stands at the post through a drill and
@@ -32,10 +35,25 @@
 // say where it came from and when, so poseAt(actor, ms) draws it frame by frame: the rise lying (0),
 // sitting up (to 0.35, the body drawn from the berth's middle toward its edge), sitting on the rack's
 // edge (to 0.55: SIT_ACROSS_M toward its lockers), the climb down from an upper berth (0.55 to 0.8, y
-// from 1.35 to 0), standing up (0.8, to the foot) and standing at the foot (1); lying down is the same
-// backwards. Every position moves continuously through it (no keyframe jumps a cell). RISE_MS 2.5 s (an upper berth 3.4 s), DOWN_MS 2.5 s,
-// SIT_MS 1.2 s, STEP_IN_MS 0.4 s; each person's call delay is callDelay(pid, cause), 2 to 20 s by hash
-// (cosmetic: it moves no dice). squadCall(state, cause, atMs) is the call itself (reveille, the
+// from 1.35 to 0), standing up (0.8, the half metre to the foot) and standing at the foot (1)
+// (RISE_KEYS); from a lower berth (LOWER_KEYS) sitting up (to 0.35), on the edge (to 0.5), standing
+// up off it in place (to 0.62) and the steps out to the rack's foot at a walk, the gait's frames by
+// the distance walked ('walk', walkM: my call; the foot is 1.55 m from the edge, and v0.0.4 slid it in
+// the half-risen frame over its last 20%, 3.1 m/s); lying down is the same backwards. Every position
+// moves continuously through it (no keyframe jumps a cell). The lengths
+// (the user, 2026-11-06, of v0.0.4's: "slightly slower animations on getting in and out of rack":
+// 1.6 times v0.0.4's 2.5 s and 3.4 s, an upper berth's shares kept): at the alarm's tempo, the klaxon and
+// a training sol's reveille, RISE_MS 4.0 s (an upper berth RISE_UPPER_MS 5.5 s, the climb), DOWN_MS
+// 4.0 s (5.5 s), SIT_MS 1.8 s; when nothing hurries (the weekend's reveille, the stand-down, going to
+// bed, getting up after a nap) UNHURRIED_K 1.2 times those, to the tick: 4.8 s, 6.6 s and 2.15 s
+// (my call); STEP_IN_MS 0.4 s either way. transMs(kind, upper, hurried) gives them. Each person's call
+// delay is callDelay(pid, cause, atMs, seed): CALL_DELAY_MS[cause] by hash of the world's seed, the
+// person, the call and its moment, so each night and each career has its own order (v0.0.4 hashed the
+// person and the call alone, and the same marine rose first every night of every career); the klaxon's
+// 1 to 10 s, so the bay is seen scrambling while you get up yourself (v0.0.4's 2 to 20 s left eleven of
+// the twelve still in their racks when a quick player's dressing splash began, and their rises went by
+// in its time-lapse), reveille's and the stand-down's 2 to 20 s (cosmetic: it moves no dice).
+// squadCall(state, cause, atMs) is the call itself (reveille, the
 // klaxon, the stand-down: pod.js's handlers): every placed live actor whose whereIs is a transition
 // from the pose it holds takes it at once, trans and dress with it, in sight or not, since what it
 // shows is lived; any other change waits for the player to look away, as always.
@@ -53,8 +71,11 @@
 // slow contributor 'people:place' puts every actor at its whereIs at each step's end by the same rule
 // (an asleep player sees nothing, so a night's sleep moves everyone), and the screen after a skip shows
 // the people you could not see where the time has put them.
-// The player's own transitions (stepOnto, layPlayer, riseActor) are here too, so one poseAt draws
-// everyone: stepping onto an activity's spot, lying in the rack, getting up from it.
+// The player's own transitions (stepOnto, layPlayer, lieActor, backActor, riseActor) are here too, so
+// one poseAt draws everyone: stepping onto an activity's spot, lying in the rack (behind the splash, or
+// in sight before it: lieActor, the page's R at the rack's foot; taken back by a move key while it
+// plays: backActor, the same frames backwards from the one shown), getting up from it, each at the
+// tempo of the moment (hurriedAt: a drill open, a training sol's reveille stand; else UNHURRIED_K slower).
 import { hash, hash01, hashInt } from '../../core/hash.js';
 import { stream, pick } from '../../core/rng.js';
 import { SEC_MS, TICK_MS, HOUR_MS } from '../../core/clock.js';
@@ -81,12 +102,18 @@ export const NIGHT_BACK_MS = 8 * HOUR_MS;
 export const BUCKETS = 1000 / TICK_MS;
 /** How far the lower berth's sitter sits from the rack's centre: across, toward its lockers, and along, toward its foot (my calls). */
 export const SIT_ACROSS_M = 0.3, SIT_ALONG_M = 0.45;
-/** The transitions' lengths (the 0.0.4 sheet §4, my calls), ms. */
-export const RISE_MS = 2_500, RISE_UPPER_MS = 3_400, DOWN_MS = 2_500, DOWN_UPPER_MS = 3_400, SIT_MS = 1_200, STEP_IN_MS = 400;
-/** A call's delay before each person moves, ms: [least, most]. */
-export const CALL_DELAY_MS = Object.freeze([2_000, 20_000]);
-/** The rise's keyframes (shares of its length): sitting up ends, sitting on the edge ends, the climb ends. */
+/** The transitions' lengths at the alarm's tempo (the klaxon, a training sol's reveille), ms: 1.6 times v0.0.4's 2,500 and 3,400 (the user, 2026-11-06: "slightly slower animations on getting in and out of rack"); SIT_MS 1.5 times its 1,200. */
+export const RISE_MS = 4_000, RISE_UPPER_MS = 5_500, DOWN_MS = 4_000, DOWN_UPPER_MS = 5_500, SIT_MS = 1_800, STEP_IN_MS = 400;
+/** When nothing hurries (the weekend's reveille, the stand-down, going to bed, up after a nap), the rack's transitions take this many times as long (my call). */
+export const UNHURRIED_K = 1.2;
+/** A call's delay before each person moves, by the call, ms: [least, most] (see the header). */
+export const CALL_DELAY_MS = Object.freeze({
+  alert: Object.freeze([1_000, 10_000]), reveille: Object.freeze([2_000, 20_000]), 'stand-down': Object.freeze([2_000, 20_000]),
+});
+/** The rise's keyframes from an upper berth (shares of its length): sitting up ends, sitting on the edge ends, the climb ends; then standing up to the foot. */
 export const RISE_KEYS = Object.freeze({ sitUp: 0.35, sit: 0.55, climb: 0.8 });
+/** A lower berth's: sitting up ends, sitting on the edge ends, standing up off it ends; then the steps out to the rack's foot, at a walk (my call: see the header). */
+export const LOWER_KEYS = Object.freeze({ sitUp: 0.35, sit: 0.5, stand: 0.62 });
 /** An upper berth's height and above: it is climbed down from, metres. */
 export const UPPER_Y_M = 1.0;
 /** An upper berth's marine stands this far beside the rack's foot spot, toward its lockers (my call), metres. */
@@ -147,16 +174,17 @@ export function fireWatchOf(state) {
   return rt.fireWatch;
 }
 
-/** The people placed this round, in id order: the player's squad (the player among them) and the fire watch. */
+/** The people placed this round, in id order: the player's squad (the player among them), the fire watch, and the staff posted on the live area (0.0.5). */
 export function placed(state) {
   const me = playerId(state), unit = state.people?.[me]?.service?.unitId;
   if (!unit || !state.units?.[unit]) return [];
-  // (kept until the player, their unit, the fire watch or the people counter moves: billets change only as people are made this round)
-  const billets = state.units[unit].billets, fw = fireWatchOf(state), rt = peopleRt(state);
-  const key = `${me}|${unit}|${fw}|${state.meta?.next?.p ?? 0}`;
+  // (kept until the player, their unit, the fire watch, the people counter, the live area or a post moves: billets change only as people are made this round)
+  const billets = state.units[unit].billets, fw = fireWatchOf(state), rt = peopleRt(state), live = state.places?.live?.area ?? null;
+  const key = `${me}|${unit}|${fw}|${state.meta?.next?.p ?? 0}|${live}`;
   if (rt.placedKey !== key) {
     const out = new Set(Object.values(billets));
     if (fw) out.add(fw);
+    for (const id of postedOn(state, live)) out.add(id);
     rt.placed = Object.freeze([...out].sort(cmpId));
     rt.placedSet = new Set(rt.placed);
     rt.placedKey = key;
@@ -165,8 +193,23 @@ export function placed(state) {
 }
 const placedSet = (state) => { placed(state); return peopleRt(state).placedSet ?? new Set(); };
 
-/** A call's delay for a person (see the header): 2,000 + hashInt(18,001, 'call', pid, cause) ms. */
-export const callDelay = (pid, cause) => CALL_DELAY_MS[0] + hashInt(CALL_DELAY_MS[1] - CALL_DELAY_MS[0] + 1, 'call', pid, cause);
+/** The staff posted on an area (person.post: src/sim/people/staff.js), in id order. */
+export function postedOn(state, area) {
+  if (!area) return [];
+  const out = [];
+  for (const id of Object.keys(state.people ?? {})) { const post = state.people[id]?.post; if (post && post.area === area) out.push(id); }
+  return out.sort(cmpId);
+}
+/** A post set or cleared (staff.js setPost): the placed list is drawn again. */
+export function notePosts(state) { delete peopleRt(state).placedKey; }
+// (a posted person's pose: at their post, as authored, never away while posted)
+const postPose = (post) => ({ area: post.area, x: post.x, z: post.z, y: post.y ?? 0, face: post.face ?? 'down', posture: post.posture ?? 'stand', spotId: null, outfit: post.outfit ?? 'utilities', curtain: false });
+
+/** A call's delay for a person (see the header): least + hashInt(most − least + 1, 'call', seed, pid, cause, atMs) ms, on CALL_DELAY_MS[cause]. */
+export function callDelay(pid, cause, atMs = 0, seed = 0) {
+  const [lo, hi] = CALL_DELAY_MS[cause] ?? CALL_DELAY_MS.reveille;
+  return lo + hashInt(hi - lo + 1, 'call', seed, pid, cause, atMs);
+}
 
 // (a berth's pose by day, from its seat: the lower on the rack's edge or at their locker, the upper on the footlocker or at their locker)
 function dayPose(state, id, seat, ms) {
@@ -225,28 +268,35 @@ function footPose(seat, outfit) {
 const headOfPose = (p) => (p.posture === 'lie' && p.spotId ? seatFor(p.spotId)?.head ?? null : null);
 const fromOf = (p) => ({ posture: p.posture ?? 'stand', x: p.x, z: p.z, y: p.y ?? 0, face: p.face ?? 'down', head: headOfPose(p), spotId: p.spotId ?? null });
 
-/** The rise's length from a berth (an upper berth's climb is longer). */
-export const riseMsOf = (y) => ((y ?? 0) >= UPPER_Y_M ? RISE_UPPER_MS : RISE_MS);
+/** A transition's length, ms (see the header): kind 'rise' | 'down' | 'sit' | 'stand' | 'step', from or to an upper berth, at the alarm's tempo or not (UNHURRIED_K, to the tick). */
+export function transMs(kind, upper = false, hurried = true) {
+  if (kind === 'step') return STEP_IN_MS;
+  const ms = kind === 'rise' ? (upper ? RISE_UPPER_MS : RISE_MS) : kind === 'down' ? (upper ? DOWN_UPPER_MS : DOWN_MS) : SIT_MS;
+  return hurried ? ms : Math.round(ms * UNHURRIED_K / TICK_MS) * TICK_MS;
+}
+/** The rise's length from a berth at height y (an upper berth's climb is longer), at the alarm's tempo or not. */
+export const riseMsOf = (y, hurried = true) => transMs('rise', (y ?? 0) >= UPPER_Y_M, hurried);
 
-// (the transition from one pose to another starting at fromMs: a rise or a lying down by the berth's edge, a sit or a stand, a step)
-function transBetween(a, b, fromMs, seat = null) {
+// (the transition from one pose to another starting at fromMs: a rise or a lying down by the berth's
+// edge, a sit or a stand, a step; hurried: at the alarm's tempo, else UNHURRIED_K slower)
+function transBetween(a, b, fromMs, seat = null, hurried = true) {
   const pa = a.posture ?? 'stand', pb = b.posture ?? 'stand';
   if (pa === 'lie' && pb === 'stand') {
     const s = seat ?? seatFor(a.spotId), rack = s ? fixtureOf(s.area, s.fixture) : null, e = s ? edgeOf(s, rack) : { x: a.x, z: a.z };
     const upper = (a.y ?? 0) >= UPPER_Y_M;
-    const t = { kind: 'rise', fromMs, ms: riseMsOf(a.y), from: fromOf(a), via: { x: e.x, z: e.z, y: a.y ?? 0 } };
+    const t = { kind: 'rise', fromMs, ms: transMs('rise', upper, hurried), from: fromOf(a), via: { x: e.x, z: e.z, y: a.y ?? 0 } };
     if (upper) t.climb = climbOf(b, rack);
     return t;
   }
   if (pa === 'stand' && pb === 'lie') {
     const s = seat ?? seatFor(b.spotId), rack = s ? fixtureOf(s.area, s.fixture) : null, e = s ? edgeOf(s, rack) : { x: b.x, z: b.z };
     const upper = (b.y ?? 0) >= UPPER_Y_M;
-    const t = { kind: 'down', fromMs, ms: upper ? DOWN_UPPER_MS : DOWN_MS, from: fromOf(a), via: { x: e.x, z: e.z, y: b.y ?? 0 } };
+    const t = { kind: 'down', fromMs, ms: transMs('down', upper, hurried), from: fromOf(a), via: { x: e.x, z: e.z, y: b.y ?? 0 } };
     if (upper) t.climb = climbOf(a, rack);
     return t;
   }
-  if (pa === 'sit' && pb === 'stand') return { kind: 'stand', fromMs, ms: SIT_MS, from: fromOf(a) };
-  if (pa === 'stand' && pb === 'sit') return { kind: 'sit', fromMs, ms: SIT_MS, from: fromOf(a) };
+  if (pa === 'sit' && pb === 'stand') return { kind: 'stand', fromMs, ms: transMs('stand', false, hurried), from: fromOf(a) };
+  if (pa === 'stand' && pb === 'sit') return { kind: 'sit', fromMs, ms: transMs('sit', false, hurried), from: fromOf(a) };
   return { kind: 'step', fromMs, ms: STEP_IN_MS, from: fromOf(a) };
 }
 const playing = (t, ms) => !!t && ms < t.fromMs + t.ms;
@@ -258,9 +308,22 @@ function climbOf(stand, rack) {
 
 // (reveille's time on the morning of a local sol: its first whole second, as the event's)
 function reveilleOfSol(ms, lon) {
-  const { sol } = localSol(ms, lon);
-  const h = HOLIDAY.has(weekdayOf(sol)) ? REVEILLE_HOLIDAY_H : REVEILLE_H;
+  const h = holidayAt(ms, lon) ? REVEILLE_HOLIDAY_H : REVEILLE_H;
   return Math.ceil((solStartMs(ms, lon) + Math.round(h * HOUR_MS)) / SEC_MS) * SEC_MS;
+}
+// (the local sol of ms is a Saturday or a Sunday: the holiday routine's reveille, which nothing hurries)
+const holidayAt = (ms, lon) => HOLIDAY.has(weekdayOf(localSol(ms, lon).sol));
+
+/**
+ * Whether the player's own rack transitions go at the alarm's tempo at ms: while a drill is open, and
+ * in a training sol's reveille stand (reveille to the 05:40 muster); else, nothing hurrying, UNHURRIED_K
+ * slower (the weekend's reveille, a nap's end, going to bed).
+ */
+export function hurriedAt(state, ms = state.clock.ms) {
+  const d = state.time?.drills?.open;
+  if (d && ms >= d.atMs && ms < d.endMs) return true;
+  const lon = lonOf(state), R = reveilleOfSol(ms, lon);
+  return ms >= R && ms < R + REVEILLE_STAND_MS && !holidayAt(ms, lon);
 }
 
 // (the drill record covering ms, if one: the open drill, or the last one while its people settle)
@@ -274,9 +337,10 @@ function drillAt(state, ms) {
 function drillPose(state, id, seat, ms, d) {
   const before = basePose(state, id, seat, d.atMs - TICK_MS);
   const stand = footPose(seat, 'utilities');
+  const seed = state.meta?.seed ?? 0;
   if (ms < d.endMs) {
-    const at = d.atMs + callDelay(id, 'alert');
-    const t = transBetween(before, stand, at, seat);
+    const at = d.atMs + callDelay(id, 'alert', d.atMs, seed);
+    const t = transBetween(before, stand, at, seat, true);
     const dm = dressMs(before.outfit ?? 'utilities', 'utilities', DRESS_HURRY_K);   // (the alarm's tempo, as the player's: TIME §8.2's emergency one)
     const out = { ...stand };
     if (playing(t, ms) || ms < t.fromMs) out.trans = t;
@@ -284,9 +348,9 @@ function drillPose(state, id, seat, ms, d) {
     return out;
   }
   const after = basePose(state, id, seat, ms);
-  const at = d.endMs + callDelay(id, 'stand-down');
+  const at = d.endMs + callDelay(id, 'stand-down', d.endMs, seed);
   const dm = dressMs('utilities', after.outfit ?? 'utilities');
-  const t = transBetween({ ...stand, outfit: after.outfit }, after, at + dm, seat);
+  const t = transBetween({ ...stand, outfit: after.outfit }, after, at + dm, seat, false);   // (back to bed: nothing hurries)
   if (ms >= t.fromMs + t.ms) return null;                            // (settled: the night's pose, nothing playing)
   const out = { ...after };
   out.trans = t;
@@ -295,13 +359,13 @@ function drillPose(state, id, seat, ms, d) {
 }
 
 // (the fire watch through a drill: standing at the post, sitting again after)
-function postDrillPose(sitting, id, ms, d) {
+function postDrillPose(sitting, id, ms, d, seed) {
   const stand = { ...sitting, posture: 'stand', y: 0, spotId: sitting.spotId };
   if (ms < d.endMs) {
-    const t = transBetween(sitting, stand, d.atMs + callDelay(id, 'alert'));
+    const t = transBetween(sitting, stand, d.atMs + callDelay(id, 'alert', d.atMs, seed), null, true);
     return playing(t, ms) || ms < t.fromMs ? { ...stand, trans: t } : stand;
   }
-  const t = transBetween(stand, sitting, d.endMs + callDelay(id, 'stand-down'));
+  const t = transBetween(stand, sitting, d.endMs + callDelay(id, 'stand-down', d.endMs, seed), null, false);
   return playing(t, ms) || ms < t.fromMs ? { ...sitting, trans: t } : null;
 }
 
@@ -311,8 +375,9 @@ function basePose(state, id, seat, ms) {
   const lon = lonOf(state), R = reveilleOfSol(ms, lon);
   if (lights === 'lightsOut' || (ms < R && ms > R - HOUR_MS)) return nightPose(state, id, seat, ms);
   if (ms >= R && ms < R + REVEILLE_STAND_MS) {
+    // (a training sol's reveille is an order with a muster ten minutes on; the weekend's, nothing hurries)
     const before = nightPose(state, id, seat, R - TICK_MS), stand = footPose(seat, 'pt');
-    const t = transBetween(before, stand, R + callDelay(id, 'reveille'), seat);
+    const t = transBetween(before, stand, R + callDelay(id, 'reveille', R, state.meta?.seed ?? 0), seat, !holidayAt(ms, lon));
     return playing(t, ms) || ms < t.fromMs ? { ...stand, trans: t } : stand;
   }
   return dayPose(state, id, seat, ms);
@@ -331,6 +396,7 @@ export function whereIs(state, personId, ms = state.clock.ms) {
     const seat = p.berthId ? seatFor(p.berthId) : null;
     return seat ? footPose(seat, 'utilities') : { away: true };
   }
+  if (p.post) return postPose(p.post);
   if (!placedSet(state).has(personId)) return { away: true };
   const seat = p.berthId ? seatFor(p.berthId) : null;
   const d = drillAt(state, ms);
@@ -340,7 +406,7 @@ export function whereIs(state, personId, ms = state.clock.ms) {
       const room = areaOf(ps.area)?.rooms?.find(r => r.id === ps.room);
       const face = room ? FACE_OF((room.rect[0] + room.rect[2]) / 2 - ps.x, (room.rect[1] + room.rect[3]) / 2 - ps.z) : 'up';
       const sitting = { area: ps.area, x: ps.x, z: ps.z, y: ps.y, face, posture: 'sit', spotId: ps.id, outfit: 'utilities', curtain: false };
-      return (d && postDrillPose(sitting, personId, ms, d)) || sitting;
+      return (d && postDrillPose(sitting, personId, ms, d, state.meta?.seed ?? 0)) || sitting;
     }
     return seat ? dayPose(state, personId, seat, ms) : { away: true };
   }
@@ -352,8 +418,11 @@ export function whereIs(state, personId, ms = state.clock.ms) {
 
 const FRAME_OF = Object.freeze({ stand: 'stand', sit: 'sit', lie: 'lie' });
 /**
- * What an actor shows at ms (pure): { posture, frame, k, x, z, y, face, head, spotId, outfit }, frame
- * 'lie' | 'sitUp' | 'sit' | 'climb' | 'standUp' | 'stand' | 'dress' | 'lieDown', k the share of the
+ * What an actor shows at ms (pure): { posture, frame, k, x, z, y, face, head, spotId, outfit, walkM?, upK?,
+ * edgeX?, edgeZ? }, frame 'lie' | 'sitUp' | 'sit' | 'climb' | 'standUp' | 'walk' | 'stand' | 'dress' |
+ * 'lieDown' (walk: the steps between a lower berth's edge and its foot, walkM the metres walked so far;
+ * sitUp and lieDown: upK how far sat up, 0 lying to 1 up, and edgeX, edgeZ the berth's edge, where the
+ * sit frame takes over, so the view's sitter on the mattress meets it there), k the share of the
  * transition (1 when none plays), spotId the spot of the pose shown (a rise's berth until it leaves
  * it: the view draws the berth of the pose it shows, never the end's). headNow is the head's
  * direction of the pose it holds (figureOf gives it from the berth). A dress plays its frames
@@ -394,17 +463,31 @@ function between(t, f, e, k) {
     const q = rise ? k : 1 - k;                                     // (the rise's own share: lying down plays it backwards)
     const lie = rise ? f : e, stand = rise ? e : f, upper = (lie.y ?? 0) >= UPPER_Y_M;
     const face = q < K.climb ? (rise ? f.face : e.face) : stand.face;
-    if (q < K.sitUp) { const c = q / K.sitUp; return { posture: 'lie', ...pos(lerp(lie.x, v.x, c), lerp(lie.z, v.z, c), lie.y), face: lie.face, head: lie.head, spotId: lie.spotId ?? null, frame: q <= 0 ? 'lie' : rise ? 'sitUp' : 'lieDown', k }; }
+    const S = upper ? K.sitUp : LOWER_KEYS.sitUp;
+    if (q < S) {
+      // (upK: how far sat up, 0 lying to 1 up; edgeX, edgeZ: the edge's spot, where the sit frame follows on, for the view's drawing)
+      const c = q / S;
+      return { posture: 'lie', ...pos(lerp(lie.x, v.x, c), lerp(lie.z, v.z, c), lie.y), face: lie.face, head: lie.head, spotId: lie.spotId ?? null, frame: q <= 0 ? 'lie' : rise ? 'sitUp' : 'lieDown', k,
+        ...(q > 0 ? { upK: r4(c), edgeX: r4(v.x), edgeZ: r4(v.z) } : {}) };
+    }
+    if (!upper) {
+      // (a lower berth: on the edge until LOWER_KEYS.sit, up off it in place, then the steps out to the foot at a walk)
+      const L = LOWER_KEYS;
+      if (q < L.sit) return { posture: 'sit', ...pos(v.x, v.z, lie.y), face, head: null, spotId: lie.spotId ?? null, frame: 'sit', k };
+      if (q < L.stand) return { posture: 'stand', ...pos(v.x, v.z, lerp(lie.y, 0, (q - L.sit) / (L.stand - L.sit))), face, head: null, spotId: lie.spotId ?? null, frame: 'standUp', k };
+      if (q >= 1) return { posture: 'stand', ...pos(stand.x, stand.z, 0), face: stand.face, head: null, spotId: stand.spotId ?? null, frame: 'stand', k };
+      const c = (q - L.stand) / (1 - L.stand), len = Math.hypot(stand.x - v.x, stand.z - v.z);
+      const out = FACE_OF(stand.x - v.x, stand.z - v.z);
+      return { posture: 'stand', ...pos(lerp(v.x, stand.x, c), lerp(v.z, stand.z, c), 0), face: rise ? out : BACK[out], head: null, spotId: stand.spotId ?? null, frame: 'walk', walkM: r4((rise ? c : 1 - c) * len), k };
+    }
     if (q < K.sit) return { posture: 'sit', ...pos(v.x, v.z, lie.y), face, head: null, spotId: lie.spotId ?? null, frame: 'sit', k };
-    const cl = upper ? t.climb ?? v : v;
+    const cl = t.climb ?? v;
     if (q < K.climb) {
-      if (!upper) return { posture: 'sit', ...pos(v.x, v.z, lie.y), face, head: null, spotId: lie.spotId ?? null, frame: 'sit', k };
       const c = (q - K.sit) / (K.climb - K.sit);
       return { posture: 'stand', ...pos(lerp(v.x, cl.x, c), lerp(v.z, cl.z, c), lerp(lie.y, 0, c)), face, head: null, spotId: lie.spotId ?? null, frame: 'climb', k };
     }
     const c = (q - K.climb) / (1 - K.climb);
-    const y0 = upper ? 0 : lie.y;
-    return { posture: 'stand', ...pos(lerp(cl.x, stand.x, c), lerp(cl.z, stand.z, c), lerp(y0, 0, c)), face: stand.face, head: null, spotId: stand.spotId ?? null, frame: q >= 1 ? 'stand' : 'standUp', k };
+    return { posture: 'stand', ...pos(lerp(cl.x, stand.x, c), lerp(cl.z, stand.z, c), 0), face: stand.face, head: null, spotId: stand.spotId ?? null, frame: q >= 1 ? 'stand' : 'standUp', k };
   }
   if (t.kind === 'sit' || t.kind === 'stand') {
     const toSit = t.kind === 'sit';
@@ -577,7 +660,7 @@ export function layPlayer(state, a, seatId, ms = state.clock.ms) {
   delete a.trans;
 }
 
-/** The player gets up (R, T or a move key while lying or sitting): a rise to their rack's foot, or a stand where they sit. Returns the transition, or null. */
+/** The player gets up (R, T or a move key while lying or sitting): a rise to their rack's foot, or a stand where they sit, at the tempo of the moment (hurriedAt). Returns the transition, or null. */
 export function riseActor(state, a, ms = state.clock.ms) {
   if (!a) return null;
   const posture = a.posture ?? 'stand';
@@ -588,9 +671,47 @@ export function riseActor(state, a, ms = state.clock.ms) {
     const seat = a.spotId ? seatFor(a.spotId) : null;
     end = seat ? footPose(seat, outfitOf(a)) : { ...here, posture: 'stand', y: 0 };
   } else end = { ...here, posture: 'stand', y: 0, spotId: null };
-  const t = transBetween(here, end, ms);
+  const t = transBetween(here, end, ms, null, hurriedAt(state, ms));
   a.x = end.x; a.z = end.z; a.face = end.face; a.$px = end.x; a.$pz = end.z;
   delete a.posture; delete a.y; delete a.spotId;
+  a.trans = t;
+  return t;
+}
+
+/**
+ * The player's lying down taken back while it plays (a move key during time's lead: the review of
+ * v0.0.5's rack, R could not be undone): the rise from the frame shown on, the same frames backwards
+ * at the same pace (the rise's share now the lying down's), back to where they stood, never a jump.
+ * Returns the transition, or null (no lying down playing).
+ */
+export function backActor(state, a, ms = state.clock.ms) {
+  const t = a?.trans;
+  if (!t || t.kind !== 'down' || !t.from || ms < t.fromMs || !playing(t, ms)) return null;
+  const lie = { posture: 'lie', x: a.x, z: a.z, y: a.y ?? 0, face: a.face ?? 'down', head: headOfPose(a), spotId: a.spotId ?? null };
+  const rise = { kind: 'rise', fromMs: 2 * ms - t.fromMs - t.ms, ms: t.ms, from: lie, via: t.via, ...(t.climb ? { climb: t.climb } : {}) };
+  const f = t.from;
+  a.x = f.x; a.z = f.z; a.face = f.face ?? 'down'; a.$px = a.x; a.$pz = a.z;
+  delete a.posture; delete a.y;
+  if (f.spotId) a.spotId = f.spotId; else delete a.spotId;
+  a.trans = rise;
+  return rise;
+}
+
+/**
+ * The player lies down in their berth in sight (a sleep or a nap begun standing at their rack's foot,
+ * the page's R: src/sim/time/activities.js's lead), the rise played backwards from where the figure is
+ * drawn now, at the tempo of the moment (hurriedAt: going to bed, nothing hurries). Returns the
+ * transition, or null (no such berth, or a transition already playing).
+ */
+export function lieActor(state, a, seatId, ms = state.clock.ms) {
+  const seat = seatId ? seatFor(seatId) : null;
+  if (!a || !seat || (a.posture ?? 'stand') !== 'stand' || playing(a.trans, ms)) return null;
+  const rack = fixtureOf(seat.area, seat.fixture);
+  const here = { posture: 'stand', x: a.x, z: a.z, y: 0, face: a.face ?? 'down', spotId: a.spotId ?? null };
+  const end = { posture: 'lie', x: seat.x, z: seat.z, y: seat.y, face: rack?.face ?? 'down', spotId: seat.id };
+  const t = transBetween(here, end, ms, seat, hurriedAt(state, ms));
+  a.x = end.x; a.z = end.z; a.y = end.y; a.posture = 'lie'; a.spotId = seat.id; a.face = end.face;
+  a.$px = a.x; a.$pz = a.z;
   a.trans = t;
   return t;
 }

@@ -366,6 +366,8 @@ Every roll carries a `pressure` set by its owner. It decides what the roll may t
 - `danger`: a real threat is present (hostiles in the area who are or may be aware, a breach, a fire, a need in its critical band), or an operation is under way.
 - `fire`: you were shot at in the last 5 s, you are in CQC, or you are in a decompression.
 
+**As built in v0.0.5** (the build sheet 0.0.5 §8 item 12, my call): every roll on the range is at `evaluated`, the coach and the tower watching, so handling is routine for the trained (§5.1), while the shot, an opposed roll and a rushed step never are. `danger` and `fire` wait for the scenes that reach them (WEAPONS §5.1).
+
 **Tempo** (my call; the owner says which tempos an action offers):
 
 | Tempo | Time | Modifier | When |
@@ -936,6 +938,8 @@ These sit on tradecraft's scale: "a civilian sits around 0–8 … enemy special
 | raider (31) | 95% | 95% | 95% | 95% | 95% | 60% |
 | tier one (42) | 95% | 95% | 95% | 95% | 95% | 95% |
 
+**As built in v0.0.5** (`src/sim/skills/templates.js` `TIERS`, `rollSheet`, `sheetOf`; the build sheet 0.0.5 §8 item 11): the soldier rows from Private to Staff or Gunnery Sergeant and the new Second Lieutenant, each holding its Warfighting range and, per skill, the base range its value range comes from at that Warfighting (`[round(lo / (1 + wf × WFhi/100)), round(hi / (1 + wf × WFlo/100))]`, one rule for every tier), so the private's base is Marksmanship 8 to 10, Weapon handling 8 to 10 and Awareness 5 to 6, and **Fitness 11 to 13** (the table's, Fitness carrying no weight; the build sheet's 10 to 12 was one off). **Comms, Tech, Demolitions and Driving**, which the table leaves out, are 1 to 4 at every soldier tier (my call). **A person's sheet comes from their own rank's tier** (`RANK_TIER`: Pvt and PFC the private's, then LCpl, Cpl, Sgt, SSgt and GySgt each their own), read lazily and written nowhere; so a corporal coach reads the corporal's row and his Awareness can fall below the sergeant's 12 to 17 the build sheet gave the coach (seeds 48213, 7 and 1 all drew a sergeant: Awareness 18, 17 and 14). Only the scene's player gets a written sheet (§15.1).
+
 ### 11.2 Generating a sheet
 
 - **Persistent people** (PEOPLE's tiers 1 to 3). From `stream('people', id)`, each skill's base is `intIn(lo, hi)` from the template. Two or three skills drawn from the stream get 1 or 2 background points, which gives personality: the corporal who boxes, the private who was a mechanic. Warfighting is `intIn(lo, hi)`, and the rank table in §11.3 refines it by time in service.
@@ -1115,6 +1119,8 @@ The user, 2026-11-05 (DESIGN.md, Controls): "T: the instinct's line (the drill i
 
 **As built in v0.0.4** (`src/sim/skills/instinct.js`, tradecraft's `settle()` ported; `LINE_MIN_MS` 3,000, `REPEAT_MS` 60,000, `HUMOUR_GAP_MS` 300,000; the line in `state.$instinct`, §15.4). It runs in the fast layer `offers` on whole seconds and on the first tick after a skip or a load. At most one line and one chip: **a calm line never takes the chip**, and the chip gives its rule's `short` words (two or three: every rule has them; the HUD cuts a chip without them to its first sentence). **T acts only where its act is at hand** (the build sheet's §8 item 12): get up, dress at your own rack's foot or your locker, the activity of the fixture you stand at; a line that sends you somewhere says where, and its T does nothing until the player's paths come. T acts only while the line's rule still fires with that act (`instinctAction`); T sent with no line seen does nothing; "T held" shows only on a chip with an act. **The needs speak only to a standing player**: lying awake the line is `woke`, and in a drill the klaxon's `alarm`. A line held back while time stands still is not counted as gone, so it returns at once when time runs again, and a line's words are picked again when its rule's case changes (the klaxon's: up, then dress, then your rack). While a rise plays the alarm still says "Up" and T waits; the dressing line and its act come together once you stand. Silent in a splash; only urgent lines while time stands still.
 
+**As built in v0.0.5** (`instinct.js`; the build sheet 0.0.5 §8 item 10). **Stop motion's hold does not silence it**: under the `'stop'` hold the line speaks in every tone (rule 6 holds for every other hold, G's stub `'ready'` included), and `$instinct` gains **`lead`**, "Time stands still." (VIEWS §7.4: the HUD shows it before the line, and entering the mode no longer toasts it as well), and `stopKey`. **A rule may carry its own `repeatMs`**: the range's rules have 0, since a line's commands come every few seconds, each new advice (the 60 s no-nagging rule had silenced each range rule after its first line, so strings 2 and 3 got none). **The line is also settled when stop motion's phase or step changes**, not only on whole seconds, since a step that ends between whole seconds leaves the clock standing there; and what the DI knows on the line is kept per tick and per step, not per clock, so the line goes as the step it names begins ("Cold line! Safe it!" had stayed over CEASE FIRE). Acts `stop:<step>[@<tempo>][><target>]` and `stop:enter` are done by `shooting.js chooseStep`, offered only when the step is in the panel now and never a command the tower has not given.
+
 ### 14.4 The DI at Base Melas (the first playable's rules)
 
 | Id | Tone | When (source) | T does | A line (tier 1) |
@@ -1153,6 +1159,21 @@ The user, 2026-11-05 (DESIGN.md, Controls): "T: the instinct's line (the drill i
 | `situation` | calm | nothing else applies: in a drill, stand fast at your rack until the stand-down; by day free time; evenings taps; nights sleep | in a drill, standing at your rack in utilities: stand fast | "At your rack, eyes front. The stand-down is at 03:00." |
 
 **While a drill is open nothing sends you from your rack** (the integrator's call: mustered at 02:35 the DI had said "Shave. Head A has mirrors."): the needs, the stubble and taps keep quiet, the bladder and the bowel speaking only at urgent, and the calm line is to stand fast, never with humour. **No grooming lines from 21:50 to 05:00**, and by day the calm line no longer sends you to a squad board you cannot read (the review of v0.0.4). `late` and `next` before Plan of the Day blocks come with the blocks (0.0.14); the walking acts ("walk to the head") with the player's paths.
+
+**As built in v0.0.5, the DI on the range** (`src/sim/skills/instinct/range.js`; the build sheet 0.0.5 §2.2, §8 item 10; at least four phrasings each, the DI's voice; the coach speaks as a person in the radio box and the range officer on the PA, never through this line): eight rules, merged by tone after the base rules, reading only what the character knows (the tower's command as heard, the red flag, the rifle as believed, the finger and the posture as felt, the muzzle's heading, the aim).
+
+| Id | Tone | When | T does | A line |
+|---|---|---|---|---|
+| `range-cease` | urgent | the line cold and the rifle off safe or the finger on | CEASE FIRE | "Cold line! Safe it!" |
+| `range-muzzle` | urgent | the rifle in hand and its muzzle past `MUZZLE_WARN_DEG` 45° off downrange; **outside the mode the heading is read from the facing** (the integrator's), so it speaks off the line too | aim at your card | "Muzzle downrange! Your card, nowhere else." |
+| `range-stoppage` | warn | a stoppage felt ("Tap, rack."); the trigger still dead after the tap-rack (a **`look` variant**: a look at the port, not IMMEDIATE ACTION again, which would loop: on a double the charge "won't go into battery"); a double feed seen ("Double feed. Lock, strip, rack."); quiet while a drill runs | IMMEDIATE ACTION; a look at the port; REMEDIAL ACTION | "Tap, rack."; "Stop pulling things. Look at what you have."; "Double feed. Lock, strip, rack." |
+| `range-cmd` | warn | the tower's command not done yet | the command (its stance first where it has one; out of the mode, the rifle up first) | "The tower said LOAD." |
+| `range-reload` | note | in the stance called, the bolt locked on an empty magazine | RELOAD | "Fresh magazine. The bolt goes forward on it." |
+| `range-unknown` | note | a `?` on the weapon card | a press check | |
+| `range-fire` | note | the line hot: aim at your card, then off safe, then press | aims and takes the safety off; **never the shot** (the fixer's: 33 presses of T had cleared the scene): the press is always your own digit | "Breathe out. Press." |
+| `range-wait` | calm | nothing to do | wait for the tower | "Wait for the tower." |
+
+**While a range session is open the base rules keep quiet below urgent**, for the whole session, its end included (the integrator's: "Free time. Spend it like it costs something." had spoken over the end card), and `situation` is null.
 
 ### 14.5 The DI in the field (later milestones; COMBAT supplies the facts)
 
@@ -1274,6 +1295,8 @@ TECH owns the layout. My proposal is `src/sim/skills/`, all pure, each opening w
 | `know.js`: `sizeUp()`, `insignia()`, `priors()`, `readMood()`, `fought()`, `seenInAction()` | `src/sim/know.js` (80 lines), `src/sim/belief.js` (66 lines) | adapt | Awareness instead of Analysis; the never-centred offset; insignia facts and priors; mood words with a confidence |
 | `feel.js` | `src/sim/sense.js` (179 lines) | adapt | Warfighting instead of Tradecraft; no naturals; vacuum and bulkhead modifiers; the street coupling (`Z`, rows) removed; the patch handed to PEOPLE's perception |
 | `instinct.js`: `settle()` plus the rules | `src/sim/instinct.js` (53 lines), `src/sim/tutorial/earpiece.js` | port `settle()`, adapt the earpiece | `place()` dropped (street-only); repeat and minimum-time rules; voices; tiers; relaying the net; the chip and the queued count; B's and F's reaches; the rule lists in `instinct/base.js` and `instinct/field.js` |
+
+**As built in v0.0.5** (the build sheet 0.0.5 §2.2, §8 item 11): `skills.js` (the sixteen skills and their uses, `own`, `value`, the one `paceOf`, `mitigated`), `checks.js` (`check`, `opposed`, `won`, `grade`, `oddsOf`, `checkText`, `checkShort`: tradecraft's dice bit for bit, its own log line word for word) and `templates.js` (the tiers, `rollSheet`, `sheetOf`, `valueOf`), all in `src/sim/skills/`; no rust, training or XP yet. **Skills don't import the body**: COMBAT's **`rollerOf(state, pid, { ms })`** (`src/sim/combat/roll.js`; CONTRACTS §13) brings BODY's `bodyMods` and `needMods` on the skill's uses and "no light to see it by" −2 on handling in the dark, so the plaque's odds and the roll's are one list; `fixedRoller` is the tests'. `tests/syntax.test.mjs` holds the pace rule: no function or top-level constant named for `pace` outside `skills.js`.
 
 - **From LONGHAUL**, nothing here is ported. `careers.js` rank gates (XP plus a skill threshold) are a pattern for CAREER. `crew.js`'s practice formula (`skill += 0.0006 × min × (1 − skill/110)`) is not used: OLYMPUS counts hours.
 - **Tradecraft quirks fixed in the port:**

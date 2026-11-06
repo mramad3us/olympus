@@ -6,7 +6,9 @@
 //   press(act)           an action pressed once ('hand', { act: 'instinct', args }, a debug key)
 //   hand(want, more)     R as the page sends it: { act: 'hand', args: { want, ... } } for the offer
 //                        handOffer names now (want 'activity', 'rise', 'door', 'resume', 'wait'), and
-//                        nothing if the offer is not of that kind (fails 'no-offer')
+//                        nothing if the offer is not of that kind (fails 'no-offer'); an activity's
+//                        with lead, as the page's (a sleep from the rack's foot: you lie down in
+//                        sight first, then it begins)
 //   instinctT(chip)      T as the page sends it: the instinct's line shown now ({ act: 'instinct', args:
 //                        { id, act } }, or the chip's with chip), failing 'no-act' when it offers nothing
 //   until(pred, ms)      lib's waitUntil, named for the timelines
@@ -50,7 +52,8 @@ export function hand(want, more = {}) {
       const kind = { open: 'door', close: 'door' }[o?.verb] ?? o?.verb;
       if (!o || kind !== want) return { fail: `no-offer (${o?.verb ?? 'none'})` };
       m.pressed = true; m.label = o.label;
-      return { input: { act: [{ act: 'hand', args: { want, ...more } }] } };
+      // (the page sends an activity's R with lead: a sleep from the rack's foot lies you down in sight first)
+      return { input: { act: [{ act: 'hand', args: { want, ...(want === 'activity' ? { lead: true } : {}), ...more } }] } };
     },
   };
 }

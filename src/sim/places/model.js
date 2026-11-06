@@ -26,7 +26,8 @@
 // (src/data/setting/calendar.js SITES, through the site's geo), which the clocks and the recurring
 // jobs' `local@` times read (the hub: one quantity, one helper). Before any site is entered it is
 // Melas's, where every career starts (SETTING §3.7). placeLine(state) is the HUD's place line (the
-// live area's building and the room or ground zone the player stands in), roomOf(area, x, z) the room
+// live area's building, its floor in a building of floors (the area's floorName: 'upper floor'), and
+// the room or ground zone the player stands in), roomOf(area, x, z) the room
 // at a point, surfaceAt(state, x, z) what the feet are on (the audio's footsteps, BODY's grip later).
 import { TEST_SITE } from '../../data/places/testroom.js';
 import { MELAS_SITE } from '../../data/places/melas.js';
@@ -163,11 +164,15 @@ export function zoneOf(areaId, x, z) {
   return (a?.zones ?? []).find(zn => zn.name && zn.rect && inRect(zn.rect, x, z)) ?? null;
 }
 
-/** The HUD's place line: 'Echo Company barracks · 1st Squad, 2nd Platoon' (the live area's building and the room or zone the player stands in). */
+/**
+ * The HUD's place line: 'Echo Company barracks, ground floor · 1st Squad, 2nd Platoon' (the live area's
+ * building, its floor where the area names one (floorName: a building's floors; out of doors none),
+ * and the room or zone the player stands in).
+ */
 export function placeLine(state) {
   const a = liveArea(state);
   if (!a) return '';
-  const me = playerActor(state), head = a.short ?? a.name;
+  const me = playerActor(state), head = a.floorName ? `${a.short ?? a.name}, ${a.floorName}` : a.short ?? a.name;
   if (!me) return head;
   const where = a.kind === 'ground' ? zoneOf(a, me.x, me.z) : roomOf(a, me.x, me.z);
   return where?.name ? `${head} · ${where.name}` : head;

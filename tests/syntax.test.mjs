@@ -36,6 +36,11 @@
 //   - readPixels only in src/render/stats.js, under its test flag (TECH §9.10, §16.5);
 //   - a module's first line is '// OLYMPUS <folder>: …' (a folder of its own path under src) or
 //     '// OLYMPUS: …' (TECH §2.3; CLAUDE.md).
+// 0.0.5 (the build sheet 0.0.5 §1, the stage's): SIM_FOR_VIEW gains src/sim/arms/look.js (what the stage
+// reads of the arms: the rifle on a figure, the kit, the range's paper and brass); and SKILLS §5.12's pace
+// rule, one pace helper: no function and no top-level const or let whose name has "pace" as a word
+// (paceOf, PACE_K, slow_pace) is defined outside src/sim/skills/skills.js; parameters and properties
+// are free (a step's pace read from paceOf is fine).
 import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -174,7 +179,23 @@ const MAY_IMPORT = {
   art: ['core', 'data', 'art'], render: ['core', 'data', 'art', 'render'], ui: SRC_FOLDERS, main: [...SRC_FOLDERS, 'main'],
 };
 /** The pure sim helpers the stage may read (TECH §2.2's SIM_FOR_VIEW, with the 0.0.2 sheet's places/plan.js, the 0.0.3 sheet's §1: the sun, the clocks, the doors, people's perception and figures, and the 0.0.4 sheet's §1: the alert's beacon). */
-const SIM_FOR_VIEW = new Set(['src/sim/places/plan.js', 'src/sim/places/light.js', 'src/sim/places/sun.js', 'src/sim/places/clocks.js', 'src/sim/places/doors.js', 'src/sim/people/perception.js', 'src/sim/people/figure.js', 'src/sim/time/alerts.js']);
+const SIM_FOR_VIEW = new Set(['src/sim/places/plan.js', 'src/sim/places/light.js', 'src/sim/places/sun.js', 'src/sim/places/clocks.js', 'src/sim/places/doors.js', 'src/sim/people/perception.js', 'src/sim/people/figure.js', 'src/sim/time/alerts.js', 'src/sim/arms/look.js']);
+/** SKILLS §5.12: the one pace helper's home (paceOf); a name with "pace" as a word is defined nowhere else in src. */
+const PACE_HOME = 'src/sim/skills/skills.js';
+// (a name's words: camelCase, PascalCase, snake_case and SCREAMING_CASE split; "pace" one of them)
+const wordsOf = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').toLowerCase().split(/[\s_$]+/).filter(Boolean);
+const hasPace = (name) => wordsOf(name).includes('pace');
+/** The names a module defines at its top level or as a function anywhere: function declarations, top-level const and let. */
+function definedNames(code) {
+  const out = [];
+  for (const m of code.matchAll(/\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/g)) out.push({ name: m[1], at: m.index });
+  for (const m of code.matchAll(/^(?:export\s+)?(?:const|let|var)\s+([^=;]+?)=/gm)) {
+    // (each declarator of the line: `const a = 1, b = 2`; destructuring's names too)
+    const line = code.slice(m.index, code.indexOf('\n', m.index) === -1 ? code.length : code.indexOf('\n', m.index));
+    for (const d of line.replace(/^(?:export\s+)?(?:const|let|var)\s+/, '').split(/,(?![^{[]*[}\]])/)) { const n = /^\s*([A-Za-z_$][\w$]*)\s*=/.exec(d); if (n) out.push({ name: n[1], at: m.index }); }
+  }
+  return out;
+}
 /** Render modules art may import: the density (TECH correction 3: art/density.js became render/scale.js). */
 const ART_FROM_RENDER = new Set(['src/render/scale.js']);
 const WORKER = 'src/art/worker.js';
@@ -398,4 +419,21 @@ export default [
     },
   },
   ...RULES_0_0_2,
+  {
+    name: 'rules: one pace helper (SKILLS §5.12): no function or top-level const named with "pace" as a word outside src/sim/skills/skills.js',
+    fn() {
+      const files = srcFiles(), hits = [];
+      for (const f of files) {
+        if (rel(f) === PACE_HOME) continue;
+        const src = readFileSync(f, 'utf8'), code = codeOnly(src);
+        for (const d of definedNames(code)) if (hasPace(d.name)) hits.push(`${rel(f)}:${code.slice(0, d.at).split('\n').length}: ${d.name}`);
+      }
+      const home = existsSync(path.join(root, PACE_HOME)) ? definedNames(codeOnly(readFileSync(path.join(root, PACE_HOME), 'utf8'))).filter(d => hasPace(d.name)).map(d => d.name) : [];
+      const probe = ['paceOf', 'PACE_K', 'slow_pace', 'space', 'spaceOf', 'paced', 'Pace'].map(n => `${n} ${hasPace(n) ? 'yes' : 'no'}`);
+      report({ 'pace defined outside skills.js': hits });
+      console.log(`      ${files.length} modules; defined in ${PACE_HOME}: ${home.join(', ') || 'none yet'}; the word test: ${probe.join(', ')}`);
+      assert(hasPace('paceOf') && hasPace('PACE_K') && hasPace('slow_pace') && !hasPace('space') && !hasPace('paced'), 'the word test');
+      assert(!hits.length, hits.join('\n'));
+    },
+  },
 ];

@@ -1,11 +1,12 @@
 // OLYMPUS people: figureOf, what the stage reads to draw anyone: their look in the outfit of the moment, their pose frame by frame, where it sits, what they are doing and how their body looks (the 0.0.3 build sheet §2.2; the 0.0.4 sheet §2.2.7).
 //
 // figureOf(state, actor, ms) → { look, posture, frame, k, x, z, y, face, head, spotId, curtain, gait,
-// strideM, outfit, inside, activity, cues } (spotId the pose's shown: a rising sleeper's berth until
+// strideM, outfit, inside, activity, cues, and upK, edgeX, edgeZ in a sitUp or lieDown frame: how far
+// sat up and the berth's edge, poseAt's } (spotId the pose's shown: a rising sleeper's berth until
 // they leave it, the view's berth to draw), ms the moment drawn (the view's clock.ms + alpha ×
 // TICK_MS, so a transition plays between ticks). The pose is people's poseAt (src/sim/people/place.js):
 // a transition (rising from a berth, lying down, sitting, standing, stepping onto a spot) drawn frame
-// by frame ('lie', 'sitUp', 'sit', 'climb', 'standUp', 'stand', 'dress', 'lieDown'), k its share,
+// by frame ('lie', 'sitUp', 'sit', 'climb', 'standUp', 'walk', 'stand', 'dress', 'lieDown'), k its share,
 // x, z and y where the body is at that frame (the actor's own fields hold the end of it), the outfit
 // changing half-way through a dress. look is a wear() spec (src/art/figures/outfits.js): the person's
 // own look ({ skin, hair: { style, color }, seed }, drawn by the roster) with the outfit worn at ms
@@ -15,7 +16,9 @@
 // (a memo keyed by the look record), so the view's caches can key on it. head is the direction the
 // head lies ('n', 's', 'e', 'w': the berth's seat's, from places' seatOf), null unless lying; curtain
 // whether the rack's curtain is drawn over a sleeper (once any transition has played out: the view
-// draws it and hides who is behind); gait and strideM the walker's (the player's own, else idle).
+// draws it and hides who is behind); gait and strideM the walker's (the player's own, else idle;
+// 'walk' and the metres walked through a transition's 'walk' frame, the steps between a lower berth's
+// edge and its foot, so the view draws the gait's frames there and the feet never slide).
 // For the player, inside is the fixture whose stall they stand in while an activity's part says so
 // (the stage hides the figure behind it), activity { id, part, k } what they are doing (TIME's
 // activityNow), and cues the body's cuesOf (wet, grime, sweat, tired, stubble, bladder, hunger,
@@ -75,8 +78,10 @@ export function figureOf(state, actor, ms = state?.clock?.ms ?? 0) {
   return {
     look: lookFor(person.look, p.outfit, indoorsNow(state)),
     posture: p.posture, frame: p.frame, k: p.k, x: p.x, z: p.z, y: p.y, face: p.face, head: p.head, spotId: p.spotId ?? null,
+    ...(p.upK !== undefined ? { upK: p.upK, edgeX: p.edgeX, edgeZ: p.edgeZ } : {}),
     curtain: !!actor.curtain && still,
-    gait: isPlayer && still ? gait : 'idle', strideM: isPlayer ? strideM : 0, outfit: p.outfit,
+    // (the steps between a lower berth's edge and its foot walk on the gait's frames, by the metres walked)
+    gait: p.frame === 'walk' ? 'walk' : isPlayer && still ? gait : 'idle', strideM: p.frame === 'walk' ? p.walkM ?? 0 : isPlayer ? strideM : 0, outfit: p.outfit,
     inside: now?.inside ? now.fixtureId : null,
     activity: now ? { id: now.id, part: now.part, k: now.k } : null,
     cues: isPlayer ? cuesFor(state, actor.who, ms) : NO_CUES,

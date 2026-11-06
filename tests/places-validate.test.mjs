@@ -4,6 +4,12 @@
 // against the kit's FOOTPRINTS here, the one place that reads both (the sim may not import the art:
 // TECH §2.2; build sheet 0.0.2 §8 item 6). The user's rule of 2026-11-05 ("game world is handcrafted")
 // is held twice: no place record carries a seed, and a new game's places.sites holds none.
+// 0.0.5 (the build sheet 0.0.5 §2.3, §5.3): the KD range's 25 m bay and its tower (src/data/places/range.js),
+// at their place on X3 as melas@1's final template: the lanes, boxes, coaches and cards where the sheet puts
+// them, every piece inside the ground drawn and X3, none in another, their kinds the kit's FOOTPRINTS, every
+// lane's firing point and coach's place reachable from every other on the ground's C0 grid, and the bay
+// closed (its fence, rope and berm: nothing outside reached), pinned by goldens. The ground grew over X3, so
+// its golden and the site plan's (the bay's zone) were re-set on purpose this round.
 import { assert, fmt } from './helpers.mjs';
 import { golden } from './golden.mjs';
 import { createGame } from './game.mjs';
@@ -17,11 +23,14 @@ import { CATALOGUE, KINDS, berthOf, seatOf } from '../src/sim/places/fixtures.js
 import { buildGrid } from '../src/sim/places/nav.js';
 import { FOOTPRINTS } from '../src/art/kit/index.js';
 import { melasGame } from './bots/walker.mjs';
+import { KD_RANGE, RANGE_PIECES, RANGE_KINDS, LINE_FLAGS, TOWER } from '../src/data/places/range.js';
+import { pieceRect } from '../src/sim/places/ground.js';
+import { chunkGrid, cellOf, CHUNK_M, CELL_M } from '../src/sim/places/nav.js';
 
 const copy = (v) => JSON.parse(JSON.stringify(v));
 const rulesOf = (res) => [...new Set(res.problems.map(p => p.rule))];
 const AREA_RULES = ['ids', 'unique', 'opening', 'room-opening', 'door-clear', 'zone', 'kind', 'overlap', 'in-room', 'spawn'];
-const ECHO_RULES = ['no-seed', 'portal', 'link', 'decor', 'exit-sign', 'seeds', 'heads', 'berths'];
+const ECHO_RULES = ['no-seed', 'portal', 'arrive-face', 'stair-top', 'link', 'decor', 'exit-sign', 'seeds', 'heads', 'berths'];
 const GROUND_RULES = ['ids', 'unique', 'no-seed', 'door', 'reveal', 'portal', 'door-sign', 'fixture', 'gate', 'lamps', 'seeds'];
 const PLAN_RULES = ['ids', 'unique', 'ring', 'apart', 'door', 'road', 'gate', 'edge', 'joined', 'daily'];
 
@@ -38,11 +47,14 @@ const AREA_BREAKS = {
   'in-room': (a) => { a.fixtures[0].room = 't1.office'; },
   spawn: (a) => { a.spawn = { x: 20.625, z: 9.075, face: 'right' }; },
 };
-// (on Echo's ground floor: each new rule broken once)
+// (on Echo's ground floor, or the floor ECHO_BREAK_ON names: each new rule broken once)
 const fixtureOf = (a, id) => a.fixtures.find(f => f.id === id);
+const ECHO_BREAK_ON = { 'stair-top': ECHO_2 };
 const ECHO_BREAKS = {
   'no-seed': (a) => { a.rooms[0].seed = 48213; },
   portal: (a) => { a.portals.find(p => p.id === 'l:echo:stair-e').to.z = 15.0; },          // (0.3 m from floor 2's band back, not 0.6)
+  'arrive-face': (a) => { a.portals.find(p => p.id === 'l:echo:stair-e').to.face = 'up'; }, // (arriving upstairs turned back to the well)
+  'stair-top': (a) => { fixtureOf(a, 'f:e2:stair-e:flight').face = 'down'; },              // (on floor 2: the open top turned to the north, v0.0.4's picture, the band still at the south)
   link: (a) => { fixtureOf(a, 'f:e1:stair-e:flight').x += 0.4; },
   decor: (a) => { a.look.decor[0].x = 90; },
   'exit-sign': (a) => { a.fixtures = a.fixtures.filter(f => f.id !== 'f:e1:vestibule:sign-1'); },
@@ -119,7 +131,7 @@ export default [
       }
       const caught = [];
       for (const rule of ECHO_RULES) {
-        const a = copy(ECHO_1);
+        const a = copy(ECHO_BREAK_ON[rule] ?? ECHO_1);
         ECHO_BREAKS[rule](a);
         const got = rulesOf(validateArea(a));
         caught.push(`${rule}: ${got.join('+') || 'none'}`);
@@ -210,9 +222,9 @@ export default [
       const grid = buildGrid(TEST_AREA, 'C0'), e1 = buildGrid(ECHO_1, 'C0', { closed: (o) => o.state === 'closed' });
       const a = golden('places: TEST_AREA', TEST_AREA, '1b598ff4fcfa65');
       const g = golden('places: TEST_AREA C0 grid bytes', grid.cost, '189fefcff571bf');
-      const b = golden('places: ECHO_1', ECHO_1, '11196730cf23f2');   // (0.0.4 re-set from 08f56e69dfa150: a drinking fountain in each wing's hall)
-      const c = golden('places: ECHO_2', ECHO_2, '0beba02edd957f');   // (0.0.4 re-set from 1afda0fc95253b: the same)
-      const d = golden('places: GROUND_AREA', GROUND_AREA, '000d6d7a726622');   // (0.0.3's fixer re-set it from 131d1b63b7f5b2: the street doors' exit signs became the company's plates, their three exit lamps gone)
+      const b = golden('places: ECHO_1', ECHO_1, '0784d8b14248b8');   // (0.0.5 re-set from 11196730cf23f2: the floor's floorName, 'ground floor'; 0.0.4's from 08f56e69dfa150: a drinking fountain in each wing's hall)
+      const c = golden('places: ECHO_2', ECHO_2, '1127fea3c6e702');   // (0.0.5 re-set from 0beba02edd957f: floorName 'upper floor', and its name 'first floor' became 'upper floor'; 0.0.4's from 1afda0fc95253b: the fountains)
+      const d = golden('places: GROUND_AREA', GROUND_AREA, '0620249a3a1ee1');   // (0.0.5 re-set from 000d6d7a726622: the ground grew over X3, the KD range's 25 m bay and its tower; 0.0.3's fixer set that from 131d1b63b7f5b2)
       const e = golden('places: ECHO_1 C0 grid bytes', e1.cost, '1201fe98a1ceda');   // (0.0.4 re-set from 14b1247ac344b4: the fountains' footprints)
       console.log(`      TEST_AREA ${a}; its C0 grid (${grid.nx} × ${grid.nz}) ${g}`);
       console.log(`      ECHO_1 ${b}, ECHO_2 ${c}, GROUND_AREA ${d}; ECHO_1's C0 grid (${e1.nx} × ${e1.nz}, its doors as the template has them) ${e}`);
@@ -244,9 +256,87 @@ export default [
   {
     name: 'Base Melas\'s site plan is pinned by goldens',
     fn() {
-      const p = golden('places: MELAS_PLAN', MELAS_PLAN, '0f9ae504ac4dbc');
-      const w = golden('places: MELAS_PLAN_AS_WRITTEN', MELAS_PLAN_AS_WRITTEN, '140c63b80bc327');
+      const p = golden('places: MELAS_PLAN', MELAS_PLAN, '07d03f4ca4f3c7');   // (0.0.5 re-set from 0f9ae504ac4dbc: the 25 m bay's zone, melas.kd-25)
+      const w = golden('places: MELAS_PLAN_AS_WRITTEN', MELAS_PLAN_AS_WRITTEN, '05d1dbf22c101d');   // (0.0.5 re-set from 140c63b80bc327: the same zone)
       console.log(`      MELAS_PLAN ${p}; MELAS_PLAN_AS_WRITTEN ${w}`);
+    },
+  },
+  {
+    name: 'the KD range\'s 25 m bay and its tower stand at their final place on X3 (PLACES §4.12, the build sheet 0.0.5 §2.3): lanes, boxes, coaches and cards where the sheet puts them, every piece in the ground drawn and in X3, none in another, their kinds the kit\'s',
+    fn() {
+      const bay = KD_RANGE.bay, lanes = bay.lanes, W = bay.walk, X3 = [1060, 280, 1640, 420], inR = (r, q) => r.x0 >= q[0] - 1e-9 && r.z0 >= q[1] - 1e-9 && r.x1 <= q[2] + 1e-9 && r.z1 <= q[3] + 1e-9;
+      const inWalk = (p) => p.x > W[0] && p.x < W[2] && p.z > W[1] && p.z < W[3];
+      console.log(`      ${lanes.length} lanes on the line at x ${bay.lineX}, cards at x ${bay.targetX} (${bay.targetX - bay.lineX} m), z ${lanes.map(l => l.fp.z).join(', ')}; the berm ${JSON.stringify(bay.berm)}; the walk ${JSON.stringify(W)}`);
+      console.log(`      the tower ${JSON.stringify(KD_RANGE.tower.rect)}, ${KD_RANGE.tower.heightM} m, its deck at ${KD_RANGE.tower.deckY} m, the RO at (${KD_RANGE.tower.ro.x}, ${KD_RANGE.tower.ro.z}) facing ${KD_RANGE.tower.ro.face}, its flag at (${KD_RANGE.tower.flag.x}, ${KD_RANGE.tower.flag.z}); the line's flags ${LINE_FLAGS.map(f => `(${f.x}, ${f.z})`).join(', ')}`);
+      assert(lanes.length === 6 && lanes.every((l, i) => l.lane === i + 1 && l.fp.x === 1100 && Math.abs(l.fp.z - (283.5 + 3 * i)) < 1e-9 && l.target.x === 1125 && l.target.z === l.fp.z && l.target.centreY === 0.6), 'the lanes as the sheet gives them');
+      for (const l of lanes) {
+        assert(inWalk(l.fp) && inWalk(l.coach), `lane ${l.lane}: its firing point and its coach inside the walk`);
+        assert(Math.abs(l.box[0] - (l.fp.x - 1.4)) < 1e-9 && Math.abs(l.box[2] - (l.fp.x + 2.2)) < 1e-9 && Math.abs(l.box[3] - l.box[1] - 2) < 1e-9, `lane ${l.lane}'s box`);
+        assert(l.fixtures.fp === `f:kd:fp25-${l.lane}` && l.fixtures.target === `f:kd:t25-${l.lane}` && RANGE_PIECES.some(p => p.id === l.fixtures.fp) && RANGE_PIECES.some(p => p.id === l.fixtures.target), `lane ${l.lane}'s pieces`);
+      }
+      const t = KD_RANGE.tower, tr = { x0: t.rect[0], z0: t.rect[1], x1: t.rect[2], z1: t.rect[3] };
+      assert(JSON.stringify(t.rect) === JSON.stringify(TOWER.rect) && t.ro.x === 1080 && t.ro.z === 296 && t.heightM === 9 && t.deckY === 6, 'the tower at (1,080, 296), 9 m, the deck at 6.0');
+      assert(t.flag.x > tr.x0 && t.flag.x < tr.x1 && t.flag.z > tr.z0 && t.flag.z < tr.z1, 'the flag on the tower');
+      // (every piece: in the ground drawn and in X3; blocking ones apart, but the fence, the rope and the berm, which meet)
+      const drawn = GROUND_AREA.drawnM, rects = RANGE_PIECES.map(p => ({ p, r: pieceRect(p) }));
+      for (const { p, r } of rects) {
+        assert(drawn.some(d => inR(r, [d.x0, d.z0, d.x1, d.z1])) && inR(r, X3), `${p.id} ${JSON.stringify(r)} outside the ground drawn or X3`);
+        const k = RANGE_KINDS[p.kind], f = FOOTPRINTS[p.kind];
+        assert(f && k && f.w === k.w && f.d === k.d && f.h === k.h && f.makes.includes(p.make), `${p.id}: the kit's ${p.kind} (${JSON.stringify(f)}) is the range's (${JSON.stringify(k)}) and has its make ${p.make}`);
+      }
+      const joins = new Set(['berm', 'rangeFence']), clash = [];
+      for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i], b = rects[j];
+        if (!a.p.block || !b.p.block || (joins.has(a.p.kind) && joins.has(b.p.kind))) continue;
+        if (a.r.x0 < b.r.x1 && b.r.x0 < a.r.x1 && a.r.z0 < b.r.z1 && b.r.z0 < a.r.z1) clash.push(`${a.p.id} × ${b.p.id}`);
+      }
+      const kinds = {};
+      for (const p of RANGE_PIECES) kinds[p.kind] = (kinds[p.kind] ?? 0) + 1;
+      console.log(`      ${RANGE_PIECES.length} pieces (${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join(', ')}), all in the ground drawn ${JSON.stringify(drawn.map(d => [d.x0, d.z0, d.x1, d.z1]))} and X3; ${GROUND_AREA.nav.blockers.filter(b => String(b.tag).startsWith('f:kd:')).length} of the nav's blockers theirs; overlaps ${clash.length ? clash.join(', ') : 'none'}`);
+      assert(!clash.length, clash.join(', '));
+      assert(GROUND_AREA.walksM.length === 2 && JSON.stringify(GROUND_AREA.walksM[1]) === JSON.stringify({ x0: W[0], z0: W[1], x1: W[2], z1: W[3] }) && JSON.stringify(GROUND_AREA.walkM) === JSON.stringify({ x0: 0, z0: 0, x1: 1000, z1: 700 }), 'the walked rects: Main Side and the bay');
+      assert(GROUND_AREA.zones.some(z => z.id === KD_RANGE.zone), 'the bay\'s zone on the ground');
+    },
+  },
+  {
+    name: 'every lane\'s firing point and coach\'s place on the 25 m line are reached from every other on the ground\'s C0 grid, and the bay is closed: nothing outside its fence, rope and berm is reached (the gates stay shut: the scene starts on the line)',
+    fn() {
+      const st = createGame({ scenario: 'sandbox', seed: 48213 }).state;
+      // (the window of chunks round the bay, its cells joined into one grid and flooded from lane 1's firing point)
+      const i0 = Math.floor(1060 / CHUNK_M), i1 = Math.floor(1150 / CHUNK_M), j0 = Math.floor(270 / CHUNK_M), j1 = Math.floor(310 / CHUNK_M);
+      const grids = new Map();
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) grids.set(`${i},${j}`, chunkGrid(st, GROUND_AREA, i, j, 'C0'));
+      const free = (x, z) => { const g = grids.get(`${Math.floor(x / CHUNK_M)},${Math.floor(z / CHUNK_M)}`); if (!g) return false; const c = cellOf(g, x, z); return c >= 0 && g.cost[c] !== 255; };
+      const key = (x, z) => `${Math.round(x / CELL_M)},${Math.round(z / CELL_M)}`, seen = new Set(), start = KD_RANGE.bay.lanes[0].fp;
+      const snapC = (v) => (Math.floor(v / CELL_M) + 0.5) * CELL_M;
+      const todo = [[snapC(start.x), snapC(start.z)]];
+      seen.add(key(...todo[0]));
+      let leak = null;
+      while (todo.length) {
+        const [x, z] = todo.pop();
+        if (x < i0 * CHUNK_M + 1 || x > (i1 + 1) * CHUNK_M - 1 || z < j0 * CHUNK_M + 1 || z > (j1 + 1) * CHUNK_M - 1) { leak = [x, z]; break; }
+        for (const [dx, dz] of [[CELL_M, 0], [-CELL_M, 0], [0, CELL_M], [0, -CELL_M]]) {
+          const nx = x + dx, nz = z + dz, k = key(nx, nz);
+          if (seen.has(k) || !free(nx, nz)) continue;
+          seen.add(k); todo.push([nx, nz]);
+        }
+      }
+      const reached = (p) => seen.has(key(snapC(p.x), snapC(p.z)));
+      const spots = KD_RANGE.bay.lanes.flatMap(l => [{ what: `lane ${l.lane}'s firing point`, ...l.fp }, { what: `lane ${l.lane}'s coach`, x: l.coach.x, z: l.coach.z }]);
+      const missed = spots.filter(p => !reached(p)).map(p => p.what);
+      const outside = [{ x: 1092, z: 303 }, { x: 1083, z: 290 }, { x: 1137, z: 290 }, { x: 1110, z: 278 }, { x: 1080, z: 299.5 }].filter(reached);
+      console.log(`      the bay flooded from lane 1's firing point: ${seen.size} cells of ${CELL_M} m (${(seen.size * CELL_M * CELL_M).toFixed(0)} m²); ${spots.length - missed.length} of ${spots.length} firing points and coaches reached; outside the bay reached: ${outside.length ? JSON.stringify(outside) : 'none'}; ${leak ? `it leaked out at ${leak}` : 'closed'}`);
+      assert(!missed.length, `not reached: ${missed.join(', ')}`);
+      assert(!leak && !outside.length, `the bay is open: ${JSON.stringify(leak ?? outside)}`);
+      assert(seen.size * CELL_M * CELL_M > 600 && seen.size * CELL_M * CELL_M < 1000, `the bay's walkable ground ${seen.size * CELL_M * CELL_M} m²`);
+    },
+  },
+  {
+    name: 'the KD range\'s bay and its pieces are pinned by goldens (melas@1\'s template: a change to them is on purpose and said)',
+    fn() {
+      const a = golden('places: KD_RANGE', KD_RANGE, '09bbbab6c91cad');
+      const b = golden('places: RANGE_PIECES', RANGE_PIECES, '0369e5d085a39f');
+      console.log(`      KD_RANGE ${a}; RANGE_PIECES ${b}`);
     },
   },
 ];

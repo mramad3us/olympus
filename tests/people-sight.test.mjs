@@ -3,7 +3,9 @@
 // the dark shortens the reach to 10 + 42 × lightLevel, the cone and the awareness radius decide what
 // is behind, racks do not block a standing eye and lockers do, clearLine is symmetric, and sightMask
 // (what the fog draws) equals visibility at every cell. Prints the light at the spots, the reaches,
-// the cells compared and the cost per call against the tick's budget.
+// the cells compared and the cost per call against the tick's budget. From 0.0.5 the reach reads the
+// adapted eye (BODY's eyes, tests/eyes-sight.test.mjs): the reach at 23:00 is pinned here for v0.0.4's
+// eye, the eyes' reference (five minutes in the dark, lightK 1), where 10 + 42 × lightLevel holds.
 import { assert, fmt, machine } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { areaOf, roomOf, openingState } from '../src/sim/places/model.js';
@@ -14,6 +16,7 @@ import { lightLevel } from '../src/sim/places/light.js';
 import { footprintOf } from '../src/sim/places/fixtures.js';
 import { eyeOf, visibility, sightOf, canSee, clearLine, sightMask, SIGHT_M, LIGHT_M, SEEN, ALWAYS_M, LAYER_BIT, REACH_SOFT_M } from '../src/sim/people/perception.js';
 import { stream, range, int } from '../src/core/rng.js';
+import { REF_LOG, logCdOf } from '../src/sim/body/eyes.js';
 import { playerActor } from '../src/core/ids.js';
 import { readFileSync } from 'node:fs';
 
@@ -45,6 +48,8 @@ const doorAct = (id, to) => ({ act: 'door', args: { id, to } });
 const pct = (list, q) => list[Math.min(list.length - 1, Math.floor(q * list.length))];
 const put = (me, x, z, face) => Object.assign(me, { x, z, face, $px: x, $pz: z });
 const cellBits = (grid, x, z) => grid.bits[Math.floor((z - grid.z0) / grid.cellM) * grid.nx + Math.floor((x - grid.x0) / grid.cellM)];
+// (the player's eyes as v0.0.4's picture and reach stood for them: five minutes into the bay's dark, lightK 1)
+const referenceEye = (s) => { s.people[s.player.id].body.eyes = { atMs: s.clock.ms, c: REF_LOG, rn: REF_LOG, rb: REF_LOG, yp: logCdOf(0.04), ys: logCdOf(0.04), key: null }; };
 
 export default [
   {
@@ -72,7 +77,7 @@ export default [
     },
   },
   {
-    name: 'at 23:00 the reach is 10 + 42 × lightLevel: in hall-2 a target 12 m off in the dark unseen, one in a night light\'s core seen at 12 m; in the bay the fire watch under the red lamp seen from the bay\'s far end',
+    name: 'at 23:00, to v0.0.4\'s eye (the eyes\' reference, five minutes in the dark), the reach is 10 + 42 × lightLevel: in hall-2 a target 12 m off in the dark unseen, one in a night light\'s core seen at 12 m; in the bay the fire watch under the red lamp seen from the bay\'s far end',
     fn() {
       const hall = room('e1.hall-2'), lamps = areaOf(AREA).look.lamps;
       const night = lamps.filter(L => L.kind === 'night' && L.room === 'e1.hall-2').sort((a, b) => b.x - a.x);
@@ -81,6 +86,8 @@ export default [
       // (the target in the lamp's pool where it comes nearest the hall's middle, clear of the wall's cells; the viewer 12 m west, facing east)
       const g = scene(23, L.x - 12, zc, 'right');
       const s = g.state, me = playerActor(s);
+      referenceEye(s);
+      assert(eyeOf(s, me).lightK === 1, `v0.0.4's eye: lightK ${eyeOf(s, me).lightK}`);
       const grid = sightGridOf(s, AREA, me.x, me.z), free = (x, z) => (cellBits(grid, x, z) & LAYER_BIT.stand) === 0;
       let inCore = null;
       for (let dz = 0; dz <= 1.2 && !inCore; dz += 0.05) for (const zz of [L.z + dz, L.z - dz]) {
@@ -96,7 +103,7 @@ export default [
       const dark = target(darkFrom + 12, zc);
       const lCore = lightLevel(s, inCore.x, inCore.z, s.clock.ms, AREA), lDark = lightLevel(s, dark.x, dark.z, s.clock.ms, AREA);
       const dCore = Math.hypot(inCore.x - me.x, inCore.z - me.z), dDark = 12;
-      const vCore = sightOf(s, me, inCore), vDark = sightOf(s, viewer(darkFrom, zc, 'right'), dark);
+      const vCore = sightOf(s, me, inCore), vDark = sightOf(s, put({ ...me }, darkFrom, zc, 'right'), dark);
       assert(lDark <= 0.06 && !vDark.seen, `the dark at ${fmt(dDark)} m: light ${lDark}, ${JSON.stringify(vDark)}`);
       assert(vCore.seen, `the night light's core at ${fmt(dCore)} m: light ${lCore}, ${JSON.stringify(vCore)}`);
       // (the bay: the fire watch at the post under the red lamp, seen from the bay's west end)

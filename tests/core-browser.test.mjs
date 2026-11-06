@@ -1,9 +1,10 @@
 // The engine core and the HUD in a real browser (heavy): the title paper shows with no errors and the
 // page says it's ready; ?play=sandbox&hour=6 still starts at 06:00 in v0.0.2's test rooms; a new
 // career from the title opens in Echo's barracks, in bay-2-1, on Monday, Sol 590 of MY 211 at 12:39
-// Melas time (CONTRACTS §2, §3), UTC on the watch's second line, the place line "Echo Company barracks
-// · 1st Squad, 2nd Platoon", the squad at its racks; it walks by physical keys, Space and an open card
-// pause, G holds time still until a digit (the instinct's line says so), R away from doors passes
+// Melas time (CONTRACTS §2, §3), UTC on the watch's second line, the place line "Echo Company barracks,
+// ground floor · 1st Squad, 2nd Platoon" (the floor named from 0.0.5), the squad at its racks; it
+// walks by physical keys, Space and an open card pause, G holds time still until a digit (the
+// instinct's line says so), R away from doors passes
 // fifteen minutes with its toast; at the bay door the instinct's line offers "R open the door", R
 // opens it and the line becomes "R close the door"; at most three toasts, top left, in their
 // rectangle; J opens the log with its last lines; ? lists every key this build gives a meaning,
@@ -20,6 +21,17 @@
 // splash to the klaxon's exact second, ALARM, the urgent line, T rises, T dresses, the count; R held
 // mid-drill and "sleep until reveille" brings the late card; a debug hour to the stand-down, the end
 // card. The splash's rectangles apart at the three window sizes.
+// The 0.0.5 round's (the build sheet §5.4): the keys card adds G's words, X, the digits (tapped, Shift,
+// held), A and W, V, I, Enter and Q D. test-handling ("Show clear") from the title's Tests and by the
+// keys on ?play=test-handling&seed=48213: the goal; the tower's brief and the coach in the radio box; G
+// (time stands still, "Time stands still." leading the line); the panel by the believed state
+// (Condition 4: LOAD offered, MAKE READY not, Fire struck "aim first", then "on safe" once aimed); W twice
+// to prone; LOAD on its digit once the tower says it, its ticks; MAKE READY; off safe; Enter aims and the
+// plaque says its percentage; Fire held puts a hole in PAPER; then the range bot (tests/bots/range.mjs,
+// in the page) to the set stoppage, where the reflex card takes STEPS' place and a digit answers it; the
+// weapon card showing the belief, pixel for pixel, while the debug handle makes the truth differ; the bot
+// on through SHOW CLEAR to "The line is clear."; the end card's summary, Score and Copy my scores. And the
+// weapon state's rectangles in the page at 1024 × 768, 1280 × 600, 1600 × 900 and 1920 × 1080, none meeting.
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { rectsAt, overlaps } from '../src/ui/hud/layout.js';
@@ -133,7 +145,7 @@ export default [
         console.log(`      ${s0.mode} career, ${s0.scenario} in ${s0.area}: watch '${w.time}' · '${w.day}' · '${w.utc}' · '${w.place}'; ${s0.actors.length} actors (${Object.entries(postures).map(([k, v]) => `${v} ${k}`).join(', ')}); the line '${w.instinct}'`);
         assert(s0.mode === 'ironman' && s0.scenario === 'barracks' && s0.area === 'melas.echo.1', JSON.stringify(s0));
         assert(w.time === '12:39' && w.day === 'Monday · Sol 590 · MY 211' && /02:20 UTC$/.test(w.utc) && /19 Dec 2351/.test(w.utc), JSON.stringify(w));
-        assert(w.place === 'Echo Company barracks · 1st Squad, 2nd Platoon', `the place line: '${w.place}'`);
+        assert(w.place === 'Echo Company barracks, ground floor · 1st Squad, 2nd Platoon', `the place line: '${w.place}'`);
         assert(s0.actors.length >= 13 && !postures.lie && others.length >= 12, `the squad at its racks: ${JSON.stringify(postures)}`);
         // (KeyS then KeyD by code, whatever the layout: the keys labelled S and D on the user's AZERTY; into the aisle, then east along it)
         const p0 = await page.evaluate(meIn, H);
@@ -233,10 +245,10 @@ export default [
         await page.keyboard.press('KeyJ');
         await page.waitForFunction(() => document.querySelector('.glass.log'), null, { timeout: 3000 });
         const log = await page.evaluate((h) => ({ lines: [...document.querySelectorAll('.glass.log .logline')].map(e => e.innerText.replace(/\s+/g, ' ')), reasons: window[h].loop.pauseReasons, records: window[h].state.log.length }), H);
-        console.log(`      J: ${log.lines.length} lines of ${log.records} records, paused by '${log.reasons}'; last: '${log.lines[log.lines.length - 1]}'`);
-        // (the debug line, then the skip's own line from time's activity: 'idle', "15 min went by.")
-        const dbg = log.lines.findLast(l => /\[debug\] skipped 15 min/.test(l));
-        assert(log.lines.length >= 1 && log.lines.length <= 40 && dbg && log.lines.indexOf(dbg) >= log.lines.length - 2 && /^S\d+ \d\d:\d\d:\d\d/.test(dbg) && log.reasons.join() === 'overlay:log', JSON.stringify(log));
+        console.log(`      J: ${log.lines.length} lines of ${log.records} records, paused by '${log.reasons}'; newest: '${log.lines[0]}'`);
+        // (newest first (VIEWS §8.6; the parity review's): the skip's own line from time's activity, 'idle', "15 min went by.", then the debug line)
+        const dbg = log.lines.find(l => /\[debug\] skipped 15 min/.test(l));
+        assert(log.lines.length >= 1 && log.lines.length <= 400 && dbg && log.lines.indexOf(dbg) <= 1 && /^S\d+ \d\d:\d\d:\d\d/.test(dbg) && log.reasons.join() === 'overlay:log', JSON.stringify(log));
         await page.keyboard.press('KeyJ');
         const closed = await page.evaluate((h) => ({ card: document.querySelector('.glass.log'), reasons: window[h].loop.pauseReasons }), H);
         assert(!closed.card && !closed.reasons.length, 'J closes the log');
@@ -244,7 +256,7 @@ export default [
     },
   },
   {
-    name: '? lists every key this build gives a meaning, labelled AZERTY (Z Q S D, Shift, Alt, R, T, G, C, J, Space, Esc, ?, and in a splash Space and Backspace), and nothing else; in debug mode ^ and $',
+    name: '? lists every key this build gives a meaning, labelled AZERTY (Z Q S D, Shift, Alt, R, T, G, X, the digits, A W, V, I, C, J, Space, Esc, ?, in a splash Space and Backspace, in stop motion Enter and Q D), and nothing else; in debug mode ^ and $',
     heavy: true,
     async fn() {
       await withGame(async (page) => {
@@ -257,9 +269,10 @@ export default [
         };
         const rows = await read(), keys = rows.map(r => r[0]);
         console.log(`      keys: ${rows.map(([k, s]) => `${k} ${s}`).join(' | ')}`);
-        const want = ['Z Q S D', 'Shift', /^(Alt|Option)$/, 'R', 'T', 'G', '1 … 0', 'C', 'J', 'Space', 'Esc', '?', 'Backspace'];
+        const want = ['Z Q S D', 'Shift', /^(Alt|Option)$/, 'R', 'T', 'G', 'X', '1 … 0', 'A W', 'V', 'I', 'C', 'J', 'Space', 'Esc', '?', 'Backspace', 'Enter', 'Q D'];
         for (const w of want) assert(keys.some(k => (w instanceof RegExp ? w.test(k) : k === w)), `no row for ${w}: ${keys.join(', ')}`);
-        for (const not of ['F', 'X', 'I', 'H', 'Tab', 'E', 'K', 'L', 'M']) assert(!keys.includes(not), `${not} does nothing in this build, yet it is on the card`);
+        for (const not of ['F', 'H', 'Tab', 'E', 'K', 'L', 'M']) assert(!keys.includes(not), `${not} does nothing in this build, yet it is on the card`);
+        assert(/Shift rushed/.test(rows.find(r => r[0] === '1 … 0')[1]) && /held careful/.test(rows.find(r => r[0] === '1 … 0')[1]) && /stance/.test(rows.find(r => r[0] === 'A W')[1]), 'the digits\' tempo and the stance keys');
         assert(/door/.test(rows.find(r => r[0] === 'R')[1]) && /wait 15 min/.test(rows.find(r => r[0] === 'R')[1]) && /held: the choices/.test(rows.find(r => r[0] === 'R')[1]), `R's words: ${rows.find(r => r[0] === 'R')[1]}`);
         assert(/instinct/.test(rows.find(r => r[0] === 'T')[1]) && /character sheet/.test(rows.find(r => r[0] === 'C')[1]) && rows.some(([k, w]) => k === 'Space' && /to the end/.test(w)), 'T, C and the splash\'s Space');
         assert(!keys.includes('^') && !keys.includes('$'), 'the debug keys show only in debug mode');
@@ -481,11 +494,12 @@ export default [
         // (C: PERSONNEL, the doll, ON YOU in words, THE FILE; C again closes it)
         await page.keyboard.press('KeyC');
         await page.waitForFunction(() => document.querySelector('.glass.sheetcard'));
-        const sheet = await page.evaluate((h) => ({ text: document.querySelector('.glass.sheetcard').innerText, doll: !!document.querySelector('.glass.sheetcard canvas.doll'), glyphs: document.querySelectorAll('.glass.sheetcard .glyph').length, reasons: window[h].loop.pauseReasons }), H);
+        // (the rank the scene drew for you: a scene from the title's Tests menu draws its seed, so not always a Private)
+        const sheet = await page.evaluate(async (h) => { const s = window[h].state, R = (await import('/src/data/people/ranks.js')).RANKS; return { text: document.querySelector('.glass.sheetcard').innerText, rank: R[s.people[s.player.id].service.rank]?.title ?? null, doll: !!document.querySelector('.glass.sheetcard canvas.doll'), glyphs: document.querySelectorAll('.glass.sheetcard .glyph').length, reasons: window[h].loop.pauseReasons }; }, H);
         await page.keyboard.press('KeyC');
         const closed = await page.evaluate(() => !document.querySelector('.glass.sheetcard'));
         console.log(`      C: PERSONNEL with the doll ${sheet.doll}, ${sheet.glyphs} glyphs, paused by ${sheet.reasons}; '${sheet.text.split('\n').filter(Boolean).slice(0, 12).join(' | ')}'; C closes it: ${closed}`);
-        assert(sheet.doll && sheet.glyphs === 9 && /On you/i.test(sheet.text) && /The file/i.test(sheet.text) && /Private/.test(sheet.text) && sheet.reasons.includes('overlay:sheet') && closed, JSON.stringify(sheet));
+        assert(sheet.doll && sheet.glyphs === 9 && /On you/i.test(sheet.text) && /The file/i.test(sheet.text) && !!sheet.rank && sheet.text.includes(sheet.rank) && sheet.reasons.includes('overlay:sheet') && closed, JSON.stringify(sheet));
         // (thirsty at a sink: the drink on the chip, T held drinks there, lived, the tap running. The thirst is
         // set on the body's water ledger in the page, as a scene's fill sets its ledgers: a fixture, not a rule)
         const sink = await spotIn(page, 'f:e1:head-2a:sinks-1#1');
@@ -586,6 +600,178 @@ export default [
         console.log(`      the stand-down: the end card '${end.card.split('\n').filter(Boolean).slice(0, 2).join(' | ')}'`);
         assert(/End of the scene: The klaxon at 02:30/i.test(end.card) && end.scene.ended, JSON.stringify(end));
       }, { query: 'play=test-night&seed=48213&nostore=1&debug=1' });
+    },
+  },
+  {
+    name: 'test-handling, "Show clear", from the Tests menu and by the keys: the goal, the tower and the coach in the radio box, G and "Time stands still.", the panel by the believed state (LOAD offered, MAKE READY not, Fire struck), prone by W, LOAD on its digit after the tower\'s, MAKE READY, Enter and the plaque\'s percentage, Fire held and a hole in PAPER; the reflex card at the set; the weapon card the belief\'s while the truth differs; SHOW CLEAR, the end card\'s summary and Copy my scores',
+    heavy: true,
+    timeoutMs: 300000,
+    async fn() {
+      await withGame(async (page, errors, game) => {
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: game.origin });
+        // (from the title's Tests: the scene is listed and starts)
+        await page.click('#title .item.tests');
+        const list = await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].map(b => b.innerText.split('\n')[0]));
+        console.log(`      Tests: ${list.join(' | ')}`);
+        assert(list.includes('Show clear'), JSON.stringify(list));
+        await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].find(b => /Show clear/.test(b.innerText)).click());
+        await playing(page);
+        const fromMenu = await page.evaluate((h) => ({ scene: window[h].scene, goal: document.querySelector('.toasts').textContent, place: document.querySelector('.watch .place')?.textContent ?? '' }), H);
+        console.log(`      from the menu: ${JSON.stringify(fromMenu.scene)}; '${fromMenu.goal.slice(0, 90)}…' at '${fromMenu.place}'`);
+        assert(fromMenu.scene?.id === 'test-handling' && /tower's commands/.test(fromMenu.goal), JSON.stringify(fromMenu));
+        // (the same by the URL, seed 48213, played by the keys)
+        await game.open('play=test-handling&seed=48213&nostore=1');
+        await playing(page);
+        const beat = (what) => page.evaluate(([h, what]) => ({ what, ms: window[h].state.clock.ms, stop: window[h].stop(), panel: window[h].steps()?.slots?.map(s => `${s.key} ${s.label}${s.off ? ` (${s.off})` : ''}`) ?? null, card: document.querySelector('.steps .wcard')?.dataset.text ?? null, radio: window[h].radio.map(l => `${l.head} ${l.text}`), line: document.querySelector('.instinct')?.textContent ?? '', paper: document.querySelector('.paper')?.dataset.text ?? null }), [H, what]);
+        const choose = () => page.waitForFunction((h) => window[h].stop()?.phase === 'choose', H, { timeout: 30000 });
+        const cmd = (c) => page.waitForFunction(([h, c]) => window[h].range()?.cmd === c, [H, c], { timeout: 60000 });
+        const keyOf = async (id) => {
+          for (let i = 0; i < 6; i++) {
+            const k = await page.evaluate(([h, id]) => window[h].steps()?.slots?.find(s => s.id === id)?.key ?? null, [H, id]);
+            if (k) return k;
+            await page.keyboard.press('Digit0'); await settle(page, 120);
+          }
+          throw new Error(`no ${id} on the panel`);
+        };
+        await cmd('prone');
+        const brief = await beat('the prone command');
+        console.log(`      the radio box: ${brief.radio.join(' | ')}`);
+        assert(brief.radio.some(l => /^◉ TOWER · \w+ \w+/.test(l)) && brief.radio.some(l => /prone/.test(l)), JSON.stringify(brief.radio));
+        // (G: the rifle up, time stands still; the panel by the belief: Condition 4)
+        await page.keyboard.press('KeyG');
+        await choose(); await settle(page, 200);
+        const g = await beat('G');
+        console.log(`      G: '${g.line}'; the card '${g.card}'; the panel: ${g.panel.join(' · ')}`);
+        assert(/^Time stands still\./.test(g.line) && g.stop.mode === 'stop' && g.card === 'SAFE · 0 + OUT', JSON.stringify({ line: g.line, card: g.card }));
+        const all0 = await page.evaluate((h) => window[h].steps().steps.map(s => ({ id: s.id, off: s.off ?? null })), H);
+        assert(all0.some(s => s.id === 'macro:load' && !s.off) && !all0.some(s => s.id === 'macro:ready') && all0.find(s => s.id === 'fire')?.off === 'aim first', JSON.stringify(all0));
+        await page.keyboard.press('Enter'); await settle(page, 150); await choose(); await settle(page, 150);
+        const aimed0 = await beat('aimed at Condition 4');
+        console.log(`      aimed at Condition 4: ${aimed0.panel[0]}`);
+        assert(/\(on safe\)$/.test(aimed0.panel[0]), aimed0.panel[0]);
+        // (W twice: kneel, then prone)
+        for (let i = 0; i < 2; i++) { await page.keyboard.press('KeyZ'); await settle(page, 150); await choose(); }
+        const stance = await page.evaluate((h) => window[h].state.actors.list.find(a => a.id === window[h].state.player.actor).stance ?? 'stand', H);
+        assert(stance === 'prone', `W twice: ${stance}`);
+        // (LOAD once the tower says it, on its digit; its ticks as it runs; the radio box says the command)
+        await cmd('load'); await choose(); await settle(page, 150);
+        const load = await beat('LOAD');
+        await page.keyboard.press(`Digit${await keyOf('macro:load')}`);
+        await page.waitForFunction((h) => window[h].stop()?.phase === 'act', H, { timeout: 5000 });
+        await settle(page, 900);
+        const loading = await page.evaluate(() => ({ ticks: [...document.querySelectorAll('.steps .running-view .rv-sub b')].map(b => b.textContent).join(''), name: document.querySelector('.steps .running-view .rv-name')?.textContent ?? '', subs: document.querySelector('.steps .running-view .rv-subs')?.textContent ?? '', acting: document.querySelector('.steps')?.classList.contains('acting') }));
+        await choose();
+        console.log(`      LOAD said: ${load.radio.at(-1)}; on ${load.panel.find(p => /LOAD/.test(p))}; running: '${loading.name}', '${loading.subs}'`);
+        assert(load.radio.some(l => /LOAD/.test(l)) && loading.acting && loading.name === 'LOAD' && /^[✓◦✗]{1,3}·{0,2}$/.test(loading.ticks) && loading.ticks.length === 3, JSON.stringify(loading));
+        await cmd('ready'); await choose();
+        await page.keyboard.press(`Digit${await keyOf('macro:ready')}`);
+        await cmd('fire'); await choose(); await settle(page, 150);
+        await page.keyboard.press(`Digit${await keyOf('selector:semi')}`); await settle(page, 150); await choose();
+        await page.keyboard.press('Enter'); await settle(page, 150); await choose(); await settle(page, 200);
+        const pl = await page.evaluate((h) => ({ p: window[h].plaque(), drawn: document.querySelector('.plaque.reticle')?.dataset.text ?? null, hidden: document.querySelector('.plaque.reticle')?.hidden }), H);
+        console.log(`      the plaque: '${pl.p?.words}', drawn '${pl.drawn}'; ${pl.p?.parts.dc}: ${pl.p?.parts.parts.join(', ')} | ${pl.p?.parts.mods.join(', ')}`);
+        assert(/^PAPER · 25 M · \d+% · /.test(pl.p?.words ?? '') && pl.drawn && /^PAPER \d+%/.test(pl.drawn) && pl.hidden === false, JSON.stringify(pl));
+        // (Fire held: hold and fire; a hole in PAPER, the shot's toast, the roll in J)
+        const holes0 = Number(await page.evaluate(() => document.querySelector('.paper')?.dataset.holes ?? 0));
+        const fk = await keyOf('fire');
+        await page.keyboard.down(`Digit${fk}`); await settle(page, 350); await page.keyboard.up(`Digit${fk}`);
+        await settle(page, 150); await choose(); await settle(page, 200);
+        const shot = await page.evaluate(() => ({ holes: Number(document.querySelector('.paper')?.dataset.holes ?? 0), paper: document.querySelector('.paper')?.dataset.text, toast: [...document.querySelectorAll('.toasts .toast')].map(t => t.textContent).at(-1) }));
+        console.log(`      Fire held: PAPER '${shot.paper}'; the toast '${shot.toast}'`);
+        assert(shot.holes === holes0 + 1 && /^Marksmanship \d+ against \d+/.test(shot.toast ?? ''), JSON.stringify(shot));
+        // (the bot, in the page, to the set stoppage: the reflex card in STEPS' place, answered by a digit)
+        const bot = (until, maxTicks = 60000) => page.evaluate(async ([h, until, maxTicks]) => {
+          const { rangeBot } = await import('/tests/bots/range.mjs');
+          const O = window[h], run = rangeBot(), done = new Function('O', `return (${until});`);
+          O.pause(true);
+          let n = 0;
+          for (; n < maxTicks && !done(O); n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); O.step(1, run(s, me, (me.bot ??= {}))); }
+          O.pause(false);
+          return { ticks: n, done: done(O) };
+        }, [H, until, maxTicks]);
+        const toSet = await bot('!!O.stop()?.reflex || !!O.range()?.end');
+        await settle(page, 300);
+        // (the weapon card stays at its place beside the reflex card, the two apart (the design review's: the card hid it))
+        const rx = await page.evaluate((h) => { const st = document.querySelector('.steps'), rc = document.querySelector('.reflexcard'), a = st.getBoundingClientRect(), b = rc.getBoundingClientRect();
+          return { rx: window[h].stop()?.reflex ?? null, card: rc?.hidden === false ? rc.innerText : null, cardOnly: !st.hidden && st.classList.contains('cardonly'), wcard: st.querySelector('.wcard')?.dataset.text ?? null, apart: a.right <= b.left + 0.5, range: window[h].range() }; }, H);
+        console.log(`      the bot ran ${toSet.ticks} ticks to the set: '${(rx.card ?? '').split('\n').join(' | ')}'; beside it the weapon card '${rx.wcard}', apart ${rx.apart}`);
+        assert(rx.rx && rx.card && /Nothing: stay on the card/.test(rx.card) && rx.cardOnly && rx.apart && rx.wcard, JSON.stringify(rx));
+        await page.keyboard.press('Digit1'); await settle(page, 200);
+        const answered = await page.evaluate((h) => ({ reflex: window[h].stop()?.reflex ?? null, phase: window[h].stop()?.phase, step: window[h].stop()?.doing?.step ?? null }), H);
+        console.log(`      1 answered: ${JSON.stringify(answered)}`);
+        assert(!answered.reflex, JSON.stringify(answered));
+        await choose(); await settle(page, 200);
+        // (the weapon card: the truth made to differ by the debug handle, the card the belief's, pixel for pixel)
+        const wc = await page.evaluate(async (h) => {
+          const O = window[h], g = O.gun(), id = g.id, truth = O.state.items[id], { paintWeaponCard } = await import('/src/art/weaponcard.js'), { weaponCardModel } = await import('/src/ui/hud/steps.js');
+          const was = { chamber: truth.chamber }, mag = truth.mag ? O.state.items[truth.mag] : null, n0 = mag?.n;
+          truth.chamber = truth.chamber === 'live' ? 'dud' : 'live'; if (mag) mag.n = (mag.n ?? 0) + 7;
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const cv = document.querySelector('.steps .wcard canvas'), px = new Uint32Array(cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data.buffer);
+          const b = O.gun().belief, want = paintWeaponCard({ model: b.model, belief: b }), lie = paintWeaponCard({ model: b.model, belief: { ...b, chamber: truth.chamber, count: mag?.n ?? null, countApprox: false } });
+          let same = 0, unlike = 0;
+          for (let i = 0; i < px.length; i++) { if (px[i] === want.data[i]) same++; if (px[i] !== lie.data[i]) unlike++; }
+          const text = document.querySelector('.steps .wcard').dataset.text, model = weaponCardModel(b).line;
+          truth.chamber = was.chamber; if (mag) mag.n = n0;
+          return { truth: { chamber: truth.chamber === 'live' ? 'dud' : 'live', n: (n0 ?? 0) + 7 }, belief: { chamber: b.chamber, count: b.count }, text, model, same, of: px.length, unlike };
+        }, H);
+        console.log(`      the truth made to differ (chamber ${wc.truth.chamber}, ${wc.truth.n} in the magazine) under the belief (${wc.belief.chamber}, ${wc.belief.count}): the card '${wc.text}', ${wc.same} of ${wc.of} pixels the belief's card, ${wc.unlike} unlike the truth's`);
+        assert(wc.text === wc.model && wc.same === wc.of && wc.unlike > 0, JSON.stringify(wc));
+        // (the bot on through SHOW CLEAR: the line is clear, the scene ends; Enter, the end card's summary; Score, Copy my scores)
+        const toEnd = await bot('!!O.range()?.end');
+        await page.waitForFunction((h) => window[h].scene?.ended, H, { timeout: 10000 });
+        const fin = await page.evaluate((h) => ({ range: window[h].range(), radio: window[h].radio.map(l => `${l.head} ${l.text}`), stop: window[h].stop() }), H);
+        console.log(`      the bot ran ${toEnd.ticks} ticks more: ${JSON.stringify(fin.range.end)}, ${JSON.stringify(fin.range.summary)}; the radio: ${fin.radio.join(' | ')}`);
+        assert(fin.range.end?.phase === 'clear' && !fin.stop, JSON.stringify(fin.range.end));
+        await settle(page, 300);
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.querySelector('.glass.end'), null, { timeout: 10000 });
+        const end = await page.evaluate(() => document.querySelector('.glass.end').innerText);
+        // (a key at once lands nowhere, the card's guard; then Enter presses its lead, Score it, never Again: the
+        // design review's, where Enter read as "end the scene" restarted it and lost the run)
+        await page.keyboard.press('Enter');
+        await settle(page, 200);
+        const guarded = await page.evaluate((h) => ({ end: !!document.querySelector('.glass.end'), score: !!document.querySelector('.glass.score'), focus: document.activeElement?.textContent ?? '', cmd: window[h].range()?.cmd ?? null }), H);
+        await settle(page, 300);
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.querySelector('.glass.score'), null, { timeout: 5000 });
+        const restarted = await page.evaluate((h) => window[h].range()?.cmd ?? null, H);
+        console.log(`      Enter at once on the end card: the card ${guarded.end ? 'still open' : 'gone'}, focus on '${guarded.focus.replace(/\s+/g, ' ').trim()}'; Enter after it: the score card, the scene's command still '${restarted}'`);
+        assert(guarded.end && !guarded.score && /Score it/.test(guarded.focus) && restarted === 'end', JSON.stringify({ guarded, restarted }));
+        await page.click('.glass.score .copy');
+        await page.waitForFunction(() => /Copied|failed/.test(document.querySelector('.glass.score .copied').textContent), null, { timeout: 5000 });
+        const clip = await page.evaluate(async () => navigator.clipboard.readText().catch(e => `(no read: ${e.message})`));
+        console.log(`      the end card: '${end.split('\n').filter(Boolean).slice(0, 2).join(' | ')}'; Copy my scores: '${clip}'`);
+        // (of 75 for fifteen rounds; 70 when a dud or a stripped round of a double went to the ground: the build sheet §6, check 3)
+        assert(/End of the scene: Show clear/i.test(end) && /Clear at \d\d:\d\d · \d+ of (70|75) · .*(no faults|fault)/.test(end), end);
+        assert(new RegExp(`^OLYMPUS v${await page.evaluate((h) => window[h].version, H)} · test-handling · seed 48213 · steps 50 · shot 50 · pace 50 · ★ no · note: none$`).test(clip), clip);
+      }, { query: 'nostore=1' });
+    },
+  },
+  {
+    name: 'the weapon state\'s rectangles in the page at 1024 × 768, 1280 × 600, 1600 × 900 and 1920 × 1080: TOASTS, WATCH, PAPER, INSTINCT, STEPS, RADIO and KEYS each where layout.js reserves it, none meeting',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() {
+      await withGame(async (page) => {
+        await page.waitForFunction((h) => window[h].range()?.cmd === 'prone', H, { timeout: 60000 });
+        await page.keyboard.press('KeyG');
+        await page.waitForFunction((h) => window[h].stop()?.phase === 'choose', H, { timeout: 30000 });
+        for (const [w, hh] of [[1024, 768], [1280, 600], [1600, 900], [1920, 1080]]) {
+          await page.setViewportSize({ width: w, height: hh });
+          await settle(page, 400);
+          const got = await page.evaluate(() => {
+            const r = (sel) => { const e = document.querySelector(sel); if (!e || e.hidden || getComputedStyle(e).display === 'none') return null; const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
+            return { TOASTS: r('.toasts'), WATCH: r('.watch'), PAPER: r('.paper'), INSTINCT: r('.instinct'), STEPS: r('.steps'), RADIO: r('.radio.voices'), KEYS: r('.keyshint') };
+          });
+          const want = rectsAt(w, hh, 'weapon'), names = Object.keys(got).filter(k => got[k]), clash = [], off = [];
+          for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if (overlaps(got[names[i]], got[names[j]])) clash.push(`${names[i]} × ${names[j]}`);
+          for (const n of names) if (n !== 'TOASTS' && n !== 'RADIO' && n !== 'INSTINCT' && (Math.abs(got[n].x - want[n].x) > 2 || Math.abs(got[n].y - want[n].y) > 2)) off.push(`${n} at (${fmt(got[n].x, 0)}, ${fmt(got[n].y, 0)}) not (${fmt(want[n].x, 0)}, ${fmt(want[n].y, 0)})`);
+          console.log(`      ${w} × ${hh} (--ui ${want.ui}): ${names.map(n => `${n} ${fmt(got[n].w, 0)}×${fmt(got[n].h, 0)}@${fmt(got[n].x, 0)},${fmt(got[n].y, 0)}`).join(' ')}; meeting: ${clash.join(', ') || 'none'}`);
+          assert(['STEPS', 'PAPER', 'WATCH', 'KEYS'].every(n => got[n]) && !clash.length && !off.length, JSON.stringify({ clash, off }));
+          if (got.RADIO) assert(got.RADIO.y + got.RADIO.h <= got.STEPS.y + 1, `RADIO on STEPS: ${JSON.stringify({ radio: got.RADIO, steps: got.STEPS })}`);
+        }
+      }, { query: 'play=test-handling&seed=48213&nostore=1' });
     },
   },
 ];

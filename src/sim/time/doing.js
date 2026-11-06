@@ -12,8 +12,10 @@
 // lived, fast-forwarded or skipped, so the body's load (BODY's segOf), the stage's vignette and the
 // hud's strip agree. feetHeld(state) is whether the player's feet stay put this tick (places'
 // move.js asks it each tick): while an activity runs (lived, a fast-forward or a skip), while the
-// player lies or sits, and while one of their transitions plays (rising, lying down, stepping onto a
-// spot, dressing: their actor's trans and dress, src/sim/people/place.js).
+// player lies or sits, while one of their transitions plays (rising, lying down, stepping onto a
+// spot, dressing: their actor's trans and dress, src/sim/people/place.js), and since 0.0.5 while
+// stop motion or a live step holds them (state.stop: src/sim/arms/shooting.js) or they kneel or lie
+// prone (actor.stance: a move key stands them first).
 // It imports data and core only, so the body and the feet read it without an import cycle.
 // Pure.
 import { playerActor } from '../../core/ids.js';
@@ -57,9 +59,10 @@ export const transPlaying = (a, ms) => !!a && ((a.trans && ms < a.trans.fromMs +
 /** Whether the player's feet are held this tick (see the header). */
 export function feetHeld(state) {
   if (!state) return false;
-  if (state.skip || state.time?.doing) return true;
+  if (state.skip || state.time?.doing || state.stop) return true;
   const me = playerActor(state);
   if (!me) return false;
+  if (me.stance) return true;
   const posture = me.posture ?? 'stand';
   return posture === 'lie' || posture === 'sit' || transPlaying(me, state.clock.ms);
 }

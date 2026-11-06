@@ -88,8 +88,32 @@
 // card with the frame times, draw calls, uploads, the renderer and the screen, and Copy results;
 // window.__bench holds the same.
 //
+// The weapon mode (the build sheet 0.0.5 §2.4; VIEWS §4.4, §7.4, §7.5, §8.3, §8.10, §10.2, §11.3): while
+// the shot role's stopNow(state) says stop motion holds, the HUD takes its weapon state (layout.js):
+// the step panel in STEPS (hud/steps.js: stepsOf(state) numbered on the digits, the weapon card at its
+// left painted from arms' beliefOf alone, the stage's paintWeaponCard), RADIO on it, your card close in
+// PAPER (hud/paper.js, from arms' rangeLook), the plaque over the bracketed target (src/ui/plaque.js:
+// the shot role's plaqueOf, its hover the DC's parts and every modifier) with corner brackets, pale on
+// what the pointer or the brackets are on, red on what is aimed at (the list shown 2.5 s after an aim or a
+// bracket's move by the keys too, the call to fire naming Fire's digit when the last input was a key; the
+// plaque gone on a cold line or under a handling step), and a reflex card beside the weapon card while the
+// gun's own stop waits (hud/reflex.js; the panel its card alone). The keys: a digit tapped sends the step it shows at
+// the normal tempo ({ act: 'stop', args: { step, tempo, target } }), with Shift rushed, held careful
+// (Fire held: hold and fire), 0 pages the singles past nine; Enter aims at the bracketed target; Q and
+// D (the codes KeyA and KeyD) and the arrows step the brackets (step 'pick:-1' | 'pick:+1'); the mouse
+// brackets on hover, aims on a click, fires on a click on the aimed one; in a reflex card a digit
+// answers and R flips keep. accept() refuses the bare digit in stop motion (the panel sends what it
+// showed). The radio box (hud/radio.js) shows the say facts, the tower's and the coach's, in RADIO in
+// every state but a splash; I opens what you carry (cards/inventory.js, arms' kitView, its reach the sim's
+// magIn time); the log's toasts carry of the rolls only the shots (by the hole's tone), the failures that are
+// not routine and the looks that find something, in the action's words, never a hidden roll; a range fault
+// is a short tag, its words the coach's in the radio box; a struck row's digit says why; the
+// range's sounds (audio/range.js) hear the shot, step and say facts. test-handling ("Show clear") is
+// a scene of the Tests menu and ?play=test-handling&seed=48213[&setup=hot|bench]; it ends on the range
+// fact at 'clear' or 'stopped', its end card saying the range's summary.
+//
 // For tests and shots, URL parameters skip the title (src/core/debug.js readParams):
-// ?play=sandbox|barracks|test-shower|test-night&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>];
+// ?play=sandbox|barracks|test-shower|test-night|test-handling&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench];
 // &ppm=16|24 (the density, 16 by default, the user's pick: src/render/scale.js; 24 a test density);
 // &mood=<name> (else the view's by the hour); &fog=1 (the samples'
 // test fog); &nostore=1; &perf=1 (the GL counters and the GPU's time by pass, in window.__report).
@@ -102,7 +126,7 @@ import { createInput } from './core/input.js';
 import { fromJSON, toJSON } from './core/state.js';
 import * as store from './core/store.js';
 import { createDebugHandle, installDebug, readParams } from './core/debug.js';
-import { MIN_MS, HOUR_MS, durationText } from './core/clock.js';
+import { MIN_MS, HOUR_MS, TICK_MS, durationText, isHeld } from './core/clock.js';
 import { utcClockText } from './core/calendar.js';
 import { playerActor, setIdsCheck } from './core/ids.js';
 import { solText, marsClock } from './sim/time/dates.js';
@@ -122,23 +146,39 @@ import { handOffer } from './sim/places/hand.js';
 import { eyeOf, sightMask, canSee } from './sim/people/perception.js';
 import { BARRACKS } from './sim/scenarios/barracks.js';
 import { BENCH_SCENES, BENCH_DEFAULT } from './data/bench.js';
+import { beliefOf, REFUSALS, actionMs } from './sim/arms/firearms.js';
+import { kitView } from './sim/arms/kit.js';
+import { rollerOf } from './sim/combat/roll.js';
+import { kitLook, rangeLook } from './sim/arms/look.js';
+import { MODELS } from './sim/arms/models.js';
+import { stepsOf, stopNow, targetsOf, LABELS as STEP_LABELS } from './sim/arms/shooting.js';
+import { plaqueOf } from './sim/arms/shot.js';
+import { rangeNow } from './sim/scenarios/handling.js';
+import { KD_RANGE } from './data/places/range.js';
+import { paintWeaponCard } from './art/weaponcard.js';
 import { createBoot } from './ui/boot.js';
-import { applyScale } from './ui/hud/layout.js';
+import { applyScale, uiScale, rectsAt } from './ui/hud/layout.js';
 import { createWatch } from './ui/hud/watch.js';
 import { createToasts } from './ui/hud/toasts.js';
 import { wantOf } from './ui/hud/offer.js';
 import { createInstinct } from './ui/hud/instinct.js';
 import { createSplashControl, createSplashHud, splashContext } from './ui/hud/splash.js';
 import { keysRows } from './ui/cards/keys.js';
-import { logLines } from './ui/cards/log.js';
+import { logLines, rollLine, hiddenRec } from './ui/cards/log.js';
 import { runBench, benchResult, benchCard } from './ui/cards/bench.js';
 import { chooseCard } from './ui/cards/choose.js';
 import { lateCard } from './ui/cards/late.js';
 import { sheetOf, sheetCard } from './ui/cards/sheet.js';
 import { endCard } from './ui/cards/end.js';
 import { scoreCard, readScores } from './ui/cards/score.js';
-import { GOAL_S, END_HOLD_S, endsScene } from './ui/cards/tests.js';
+import { GOAL_S, END_HOLD_S, endsScene, endFacts, sceneSaid } from './ui/cards/tests.js';
+import { inventoryCard } from './ui/cards/inventory.js';
 import { createAudio } from './ui/audio/engine.js';
+import { createSteps, createTicks } from './ui/hud/steps.js';
+import { createRadio } from './ui/hud/radio.js';
+import { createPaper, paperModel } from './ui/hud/paper.js';
+import { createReflex } from './ui/hud/reflex.js';
+import { plaque, bracket, place, shotPlaque, plaqueWords, plaqueParts } from './ui/plaque.js';
 import { doll } from './art/doll/doll.js';
 import { createStage } from './render/stage.js';
 import { createView, CUT_MAX_MS, FOG_CELLS } from './render/view.js';
@@ -203,7 +243,9 @@ view.warm();
 const bus = createBus({ onError: (e, type) => broke(e, `a listener of '${type}'`) });
 let loop = null, sim = null;
 // (the game owns Tab, Space and the move keys only in play with no card up: on the title they move focus and press buttons)
-const input = createInput({ accept: () => !!loop?.state && !loop.paused && !splash?.active, swallow: () => !!loop?.state && !boot?.card && !boot?.page });
+// (in stop motion the bare digit is refused: the step panel sends the step it showed, the build sheet 0.0.5 §2.4)
+const inStop = (s = loop?.state) => s?.stop?.mode === 'stop';
+const input = createInput({ accept: (action, kind) => !!loop?.state && !loop.paused && !splash?.active && !(kind === 'digit' && inStop()), swallow: () => !!loop?.state && !boot?.card && !boot?.page });
 const fitInput = () => input.setStage(stage.canvas, stage.W, stage.H);
 fitInput();
 addEventListener('resize', fitInput);
@@ -212,6 +254,16 @@ loop = createLoop({ render, poll: () => input.snapshot(), bus, onError: (e, wher
 sim = createSim({ loop, bus });
 const label = (a) => input.label(a);
 const instinct = createInstinct(hud, { label });
+// (the weapon mode's HUD: the step panel with its weapon card, the reflex card in its place, the radio box, the PAPER inset, the plaque and its brackets)
+const stepPanel = createSteps(hud, { label, labelOf: (id) => STEP_LABELS[id] ?? id, paintCard: (belief) => (belief?.model ? paintWeaponCard({ model: belief.model, belief, k: 1 }) : null),
+  onPick: (step) => { if (!loop.paused && !boot.card && !splash?.active && inStop()) { let st = null; try { st = stopNow(loop.state); } catch { /* (no stop motion: nothing to send) */ } if (st && !st.reflex) sendStep(step, input.peek().run ? 'rushed' : 'normal', st); } } });
+const reflexCard = createReflex(hud, { plaque, label });
+const radio = createRadio(hud);
+const paperInset = createPaper(hud);
+const ticks = createTicks();
+const aimPlaque = el('canvas', { className: 'plaque reticle', hidden: true }), pickBox = el('canvas', { className: 'plaque bracket', hidden: true }), aimBox = el('canvas', { className: 'plaque bracket', hidden: true });
+const plaqueInfo = el('div', { className: 'plaque-info', hidden: true });
+hud.append(pickBox, aimBox, aimPlaque, plaqueInfo);
 const splashHud = createSplashHud(hud, { label });
 // (the splash: TIME's timing driven in real time; the debug skips get the short time-lapse, so six $ presses are not six full splashes: my call)
 const splash = createSplashControl({ timing: splashTiming, shortFor: (e) => e.activity === 'idle' });
@@ -219,7 +271,7 @@ hud.append(keysHint);
 keysHint.append(el('kbd', { textContent: input.label('help') }), ' keys');
 
 // ---- the sound: made at boot, suspended; nothing plays before the first key or click ----
-const audio = createAudio({ profile: null });
+const audio = createAudio({ profile: null, looks: { kitLook } });
 // (the context's construction opens the device synchronously, over 200 ms: paid here behind the title, never on the first key)
 try { audio.prepare(); } catch (e) { console.warn('the sound was not prepared', e); }
 // (the saved volume and mute; ?nostore=1 neither reads nor writes the database, so a bench or a shot opens none)
@@ -266,7 +318,8 @@ const boot = createBoot({ cb: {
     says: { hand: `what's at hand: an appliance, a door, else wait ${durationText(WAIT_MS)} (R twice); held: the choices` },
     extra: settings.debug ? DEBUG_SKIPS.map(([code, ms]) => [input.label(code), `debug: ${durationText(ms)} pass (marks the save)`]) : [],
   }),
-  logLines: () => logLines(loop.state, { lonEDeg: lonAt(loop.state) }),
+  // (the hidden rolls only in debug, once the scene is over: tradecraft's)
+  logLines: () => logLines(loop.state, { lonEDeg: lonAt(loop.state), over: !!settings.debug && !!scene?.ended }),
   scenes: () => Object.values(SCENES),
   playScene: (scene) => playScene(scene),
   sound: () => ({ volume: audio.volume, muted: audio.muted }),
@@ -279,11 +332,12 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
 
 /**
  * A new career's state: { seed, mode, scenario ('barracks', a career's; 'sandbox' the test rooms), hour (the Mars
- * local hour at the live site to start at), at ({ area, x, z, face }: somewhere else than the scenario's start) }.
+ * local hour at the live site to start at), at ({ area, x, z, face }: somewhere else than the scenario's start),
+ * setup (test-handling's: null, 'hot' at string 1 aimed, 'bench' with one magazine of 15) }.
  */
-function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', hour = null, at = null } = {}) {
+function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', hour = null, at = null, setup = null } = {}) {
   if (!SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
-  return freshGame({ seed, mode, scenario, hour, at, version: VERSION });
+  return freshGame({ seed, mode, scenario, hour, at, setup, version: VERSION });
 }
 /** The URL's start somewhere else (&area=, &at=, &face=), or null: an area alone starts at its spawn. */
 function atParam(scenario) {
@@ -321,9 +375,9 @@ function holdCut(work, what) {
 // ---- the test scenes: a goal on arrival, no saves, the end card once the scene's fact has come ----
 let scene = null;                                                    // ({ rec: SCENES', seed, ended: false, shown: false } while a scene plays)
 const sceneOf = (s) => (s?.meta?.scenario ? Object.values(SCENES).find(x => x.scenario === s.meta.scenario) ?? null : null);
-/** Start a scene: a new game of its scenario, at its hour (or the URL's), with the seed given or a new one. */
-function playScene(rec, { seed = randomSeed(), hour = null } = {}) {
-  return launch(newGame({ seed, scenario: rec.scenario, hour: hour ?? rec.hour ?? null }));
+/** Start a scene: a new game of its scenario, at its hour (or the URL's), with the seed given or a new one, and the URL's setup. */
+function playScene(rec, { seed = randomSeed(), hour = null, setup = null } = {}) {
+  return launch(newGame({ seed, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup }));
 }
 
 /** Play a state from here (new, loaded or imported). Resolves with it once its area shows (or the cut gives up). */
@@ -334,6 +388,7 @@ function launch(s, { from = null } = {}) {
   toasts.clear();
   splash.clear(); splashPause(false);
   handArmedAt = null; handDown = null; tDown = null;
+  resetWeaponHud();
   loop.setState(s);
   loop.pause(false, 'player');
   hud.hidden = false;
@@ -441,12 +496,30 @@ function autosaveDue(info) {
 // its last second (the cause: the klaxon, reveille) and the activity's own line go up as toasts, not
 // taps from four hours ago (the review of v0.0.4); a debug skip's idle line is its '[debug]' line's twin)
 let debugSkip = false, heldLog = null;
+// (the log's records of what was said: the radio box shows them, so no toast says them twice)
+const VOICE_KINDS = new Set(['pa', 'speech', 'radio', 'say', 'bark']);
 bus.on('log', ({ entry } = {}) => {
   if (entry?.kind === 'debug' && /skipped/.test(entry.text ?? '')) debugSkip = true;
+  // (a roll: a toast only for a shot, a failure that is not routine; the rest is in J, folded: the build sheet 0.0.5 §2.4)
+  if (entry?.kind === 'roll') { const t = rollToast(entry); if (t && !loop.state?.skip) toast(t.text, t.tone); return; }
   if (!entry?.text) return;
+  if (VOICE_KINDS.has(entry.kind)) return;                         // (what was said is in the radio box, and in J)
   if (loop.state?.skip) { if (entry.kind === 'activity' && debugSkip) return; (heldLog ??= []).push(entry); return; }
   toast(entry.text, entry.tone);
 });
+/**
+ * A roll's toast, or null: a shot's (its line, the hole's word, the hole's tone on a card), a failure that is not
+ * routine and a look that found a stoppage or a round, each in the action's words (warn); routine handling and
+ * passes stay in the log; a hidden roll (a failed look: SKILLS §5.14) never shows (the parity review's).
+ */
+function rollToast(entry) {
+  const line = rollLine(entry), r = entry.roll;
+  if (!line || !r || hiddenRec(entry) || entry.short) return null;
+  if (r.skill === 'marksmanship') return { text: entry.text ?? line.short, tone: entry.paper !== undefined ? entry.tone : r.ok ? 'note' : 'warn' };
+  if (r.kind === 'check' && !r.ok && !r.routine) return { text: line.words ?? line.short, tone: 'warn' };
+  if (entry.found && line.words) return { text: line.words, tone: 'warn' };
+  return null;
+}
 bus.on('line', ({ text, kind = '' }) => toast(text, kind));
 // (an activity's own log line says what passed; the plain skips, which have none, still say how long)
 bus.on('skip-end', (e) => {
@@ -457,6 +530,26 @@ bus.on('skip-end', (e) => {
   if (e.toMs > e.fromMs && (!e.activity || e.activity === 'idle' || !ACTIVITIES[e.activity])) toast(`${durationText(e.toMs - e.fromMs)} pass (${e.minutes ?? Math.floor((e.toMs - e.fromMs) / MIN_MS)} minutes stepped).`);
 });
 bus.on('door', (f) => { try { audio.door(f, loop.state); } catch (e) { broke(e, 'the sound'); } });
+// (the weapon mode's facts: the voices to the radio box and the tower's chime, the steps' ticks and clicks, the shot's report, the range's faults and strings)
+bus.on('say', (f) => { radio.say(f, loop.state); try { audio.fact('say', f, loop.state); } catch (e) { broke(e, 'the sound'); } });
+bus.on('step', (f) => {
+  if (f?.who === loop.state?.player?.id) { ticks.fact(f); if (f.phase === 'end' && f.step === 'aim') showPlaqueInfo(); }
+  try { audio.fact('step', f, loop.state); } catch (e) { broke(e, 'the sound'); }
+});
+bus.on('shot', (f) => { try { audio.fact('shot', f, loop.state); } catch (e) { broke(e, 'the sound'); } });
+bus.on('stop-mode', () => { stepPage = 0; hoverKey = null; });
+bus.on('reflex', (f) => { if (f?.phase === 'offer') reflexKeep = false; });
+bus.on('range', (f) => {
+  if (!f) return;
+  if (f.phase === 'string') lastString = { n: f.n, score: f.score, of: f.of, v: f.v, shots: f.list ?? [] };
+  else if (f.phase === 'cmd' && f.hot) lastString = null;
+  // (a fault's words are the coach's, in the radio box: the toast is a short tag, so the sentence is not on the
+  // screen twice (the runtime review's))
+  else if (f.phase === 'fault') toast(`${f.kind === 'stop' ? 'Stopped' : 'Fault'}: ${FAULT_WORD[f.rule] ?? f.rule ?? 'the line'}`, f.kind === 'stop' ? 'bad' : 'warn');
+});
+/** A range fault's tag (carry.js rangeSafety's rules, the scene's own): rule → words. */
+const FAULT_WORD = Object.freeze({ muzzle: 'the muzzle off downrange', uprange: 'the muzzle uprange', person: 'aimed at a person', lane: 'another lane\'s card',
+  walk: 'off the firing point', cold: 'a shot on a cold line', ahead: 'ahead of the tower', finger: 'the finger on, moving', coach: 'the muzzle on the coach', nd: 'a negligent discharge' });
 // (the splash hears TIME's facts at once: on skip-start the target is held at its start, so the loop's first outcome frame never runs the whole skip)
 bus.on('skip-start', (e) => {
   const s = loop.state;
@@ -468,7 +561,7 @@ bus.on('skip-interrupt', (e) => splash.interrupt(e));
 bus.on('skip-end', (e) => splash.end(e));
 for (const type of ['body-event', 'reveille']) bus.on(type, (f) => { try { audio.fact(type, f, loop.state); } catch (e) { broke(e, 'the sound'); } });
 // (a scene's end: its fact noted, the card once the splash has played out)
-for (const type of ['activity', 'alert']) bus.on(type, (f) => { if (scene && !scene.ended && endsScene(scene.rec.endOn, type, f)) scene.ended = true; });
+for (const type of endFacts(SCENES)) bus.on(type, (f) => { if (scene && !scene.ended && endsScene(scene.rec.endOn, type, f)) scene.ended = true; });
 
 /** The bug report (store.js reportOf, TECH §7.6), the menu's and the debug handle's alike: the anchor, the errors, the stats, the renderer, the engine, the screen, the density. */
 async function buildReport() {
@@ -543,23 +636,95 @@ function splashKey(action, kind) {
     else if (splash.chunkable()) input.queue('skip:chunk');         // (during the lapse: the engine's own chunk)
   }
 }
-input.onAction((action, kind) => {
+input.onAction((action, kind, e) => {
   if (!loop.state) { if (action === 'menu') boot.back(); return; }  // (the title's pages: Esc goes back)
   if (boot.card) {                                                   // (a card is open: its keys)
-    const own = (action === 'help' && boot.card === 'keys') || (action === 'log' && boot.card === 'log') || (action === 'sheet' && boot.card === 'sheet');
+    const own = (action === 'help' && boot.card === 'keys') || (action === 'log' && boot.card === 'log') || (action === 'sheet' && boot.card === 'sheet') || (action === 'inventory' && boot.card === 'inventory');
     if (action === 'menu' || own) { const was = boot.card; boot.closeCard(); if (was === 'menu') loop.pause(false, 'player'); if (was === 'score' && scene?.ended) openEnd(); }
     else if (kind === 'digit') boot.digit(Number(action.slice(6)));
     return;
   }
   if (splash.active) { splashKey(action, kind); return; }
+  if (inStop() && !loop.paused && stopKey(action, kind, e)) return;
   if (action === 'pause') loop.togglePause('player');
   else if (action === 'menu') boot.openMenu();
   else if (action === 'help') boot.openKeys();
   else if (action === 'log') boot.openLog();
   else if (action === 'sheet') openSheet();
+  else if (action === 'inventory') openInventory();
   else if (action === 'hand') handPress(kind);
   else if (action === 'instinct') instinctPress(kind);
 });
+// (stop motion's keys, the build sheet 0.0.5 §2.4: a digit tapped is the step the panel shows on it at its normal
+// tempo, rushed with Shift (read as the key went down), held careful (Fire held: hold and fire); 0 pages the singles
+// past nine; in a reflex card a digit answers it and R flips keep. Returns whether the key was stop motion's)
+let stepPage = 0, digitShift = false, reflexKeep = false, hoverKey = null, lastString = null, plaqueMemo = null;
+// (the plaque's list of the DC's parts and the modifiers, for the keys as for the mouse: shown PLAQUE_INFO_MS of real
+// time after an aim ends and whenever the brackets move (the design review's: by the keys it never showed); the last
+// input, a key or the mouse, names the plaque's call to fire; the plaque's own rectangle, hovered as its target)
+const PLAQUE_INFO_MS = 2500;
+let infoUntil = 0, lastInput = 'key', plaqueRect = null;
+const showPlaqueInfo = () => { infoUntil = performance.now() + PLAQUE_INFO_MS; };
+addEventListener('keydown', () => { lastInput = 'key'; }, true);
+addEventListener('pointermove', (e) => { if (e.movementX || e.movementY) lastInput = 'mouse'; }, true);
+function resetWeaponHud() { stepPage = 0; digitShift = false; reflexKeep = false; hoverKey = null; lastString = null; plaqueMemo = null; ticks.reset(); radio.clear(); }
+function stopKey(action, kind, e) {
+  const s = loop.state;
+  let st = null;
+  try { st = stopNow(s); } catch { st = null; }
+  if (!st) return false;
+  if (action === 'hand' && st.reflex) { if (kind === 'down') reflexKeep = !reflexKeep; return true; }
+  if (!action.startsWith('digit:')) return false;
+  if (kind === 'digit') { digitShift = !!e?.shiftKey || input.peek().run; return true; }
+  if (kind !== 'tap' && kind !== 'held') return true;
+  const n = Number(action.slice(6));
+  if (st.reflex) {
+    const o = reflexCard.optionFor(n);
+    if (o) input.queue({ act: 'stop', args: { step: `reflex:${o.key}`, keep: reflexKeep } });
+    return true;
+  }
+  const step = stepPanel.stepFor(n);
+  if (step === 'more') { if (kind === 'tap') stepPage++; return true; }
+  // (a struck row's digit says why, never nothing (the runtime and parity reviews': the key looked dropped))
+  if (step?.off) { refusedStep(step); return true; }
+  if (step) sendStep(step, kind === 'held' ? 'careful' : digitShift ? 'rushed' : 'normal', st);
+  return true;
+}
+/** A struck step chosen: its row flashed, its reason said (Fire on safe in WEAPONS §4.4's words). */
+function refusedStep(step) {
+  stepPanel.flash?.(step.id);
+  toast(step.kind === 'fire' && step.off === 'on safe' ? REFUSALS.safety : `${step.label}: ${step.off}.`, 'warn');
+}
+/** A step chosen (a digit, a click on its row): { act: 'stop', args: { step, tempo, target } }, the aim at the bracketed target, Fire held as hold and fire. */
+function sendStep(step, tempo, st = null) {
+  const pick = st?.pick ?? null;
+  const args = { step: step.id, tempo, target: step.kind === 'aim' ? step.target ?? pick : null };
+  if (step.kind === 'fire' && tempo === 'careful') args.hold = true;
+  stepPage = 0;                                                      // (the panel back to its first page once a step is chosen)
+  input.queue({ act: 'stop', args });
+}
+// (the brackets: Q and D (the codes KeyA and KeyD) and the arrows step them, Enter aims at the bracketed one)
+addEventListener('keydown', (e) => {
+  if (!loop.state || boot.card || splash.active || loop.paused || e.repeat || e.metaKey || e.ctrlKey || !inStop()) return;
+  let st = null;
+  try { st = stopNow(loop.state); } catch { return; }
+  if (!st || st.reflex) return;
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') { input.queue({ act: 'stop', args: { step: 'pick:-1' } }); showPlaqueInfo(); }
+  else if (e.code === 'KeyD' || e.code === 'ArrowRight') { input.queue({ act: 'stop', args: { step: 'pick:+1' } }); showPlaqueInfo(); }
+  else if ((e.code === 'Enter' || e.code === 'NumpadEnter') && st.pick) { e.preventDefault(); input.queue({ act: 'stop', args: { step: 'aim', target: st.pick, tempo: 'normal' } }); }
+});
+// (the mouse in stop motion: a click on a target aims at it, a click on the aimed one fires)
+frameEl.addEventListener('pointerdown', (e) => {
+  if (!loop.state || boot.card || splash.active || loop.paused || e.button !== 0 || !inStop()) return;
+  if (e.target?.closest?.('.steps, .reflexcard')) return;
+  let st = null;
+  try { st = stopNow(loop.state); } catch { return; }
+  const key = targetUnderPointer();
+  if (!st || st.reflex || !key) return;
+  if (st.aim?.key === key) input.queue({ act: 'stop', args: { step: 'fire', tempo: 'normal' } });
+  else input.queue({ act: 'stop', args: { step: 'aim', target: key, tempo: 'normal' } });
+});
+
 // (in a splash: Enter to the end, Backspace stop here; on the strip any key unbound there closes it, never T or Backspace)
 const SPLASH_OWN = new Set(['Space', 'KeyT', 'Backspace', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight', 'ControlLeft', 'ControlRight']);
 addEventListener('keydown', (e) => {
@@ -586,11 +751,27 @@ function openSheet() {
   catch (e) { broke(e, 'the character sheet'); return; }
   boot.openCard('sheet', sheetCard(sheet, { dollOf: (args) => doll(args) }));
 }
+// (I: what you carry, believed counts only (arms' kitView); the doll as on the sheet)
+function openInventory() {
+  const s = loop.state, me = s ? playerActor(s) : null, p = s?.people?.[s.player?.id];
+  if (!s) return;
+  let view = null;
+  try {
+    // (the reach the sim's own: a magazine in, at your Weapon handling, as the step panel shows it)
+    const gunId = s.people?.[s.player.id]?.kit?.worn?.sling, g0 = gunId ? s.items?.[gunId] : null;
+    view = kitView(s, s.player.id, { magInS: g0 ? actionMs(rollerOf(s, s.player.id), g0, 'magIn') / 1000 : null });
+    const gun = view?.sling?.gunId ? s.items?.[view.sling.gunId] : null;
+    if (view?.sling && gun) view = { ...view, sling: { ...view.sling, word: `Your ${MODELS[gun.model]?.short ?? 'rifle'}` } };
+  } catch (e) { broke(e, 'the inventory'); return; }
+  const look = p?.look ? lookFor(p.look, me?.outfit ?? 'utilities', indoorsNow(s)) : null;
+  const { body, lines } = inventoryCard(view, { label: (a) => input.label(a), dollOf: look ? () => doll({ look, sex: p.sex, outfit: me?.outfit ?? 'utilities' }) : null });
+  boot.openCard('inventory', body, lines);
+}
 function openChoices(o) {
   const { body, lines } = chooseCard({ offer: o, onPick: (m) => {
     boot.closeCard();
     if (m.late) { openLate(m, o); return; }
-    input.queue({ act: 'activity', args: { id: m.id, spotId: m.spotId ?? o.spotId ?? null, args: m.args ?? {} } });
+    input.queue({ act: 'activity', args: { id: m.id, spotId: m.spotId ?? o.spotId ?? null, args: m.args ?? {}, lead: true } });
   } });
   boot.openCard('choose', body, lines);
 }
@@ -601,7 +782,7 @@ function openLate(what, o) {
     what: { label: head, durMs: what.durMs, min: ACTIVITIES[what.id]?.min ?? 0 }, late: what.late, nowMs: loop.state?.clock.ms ?? null, clockText,
     onAnswer: (answer) => {
       boot.closeCard();
-      if (answer === 'fit' || answer === 'accepted') input.queue({ act: 'activity', args: { id: what.id, spotId: what.spotId ?? o?.spotId ?? null, args: what.args ?? {}, late: answer } });
+      if (answer === 'fit' || answer === 'accepted') input.queue({ act: 'activity', args: { id: what.id, spotId: what.spotId ?? o?.spotId ?? null, args: what.args ?? {}, late: answer, lead: true } });
     },
   });
   boot.openCard('late', body, lines);
@@ -609,8 +790,10 @@ function openLate(what, o) {
 function openEnd() {
   if (!scene) return;
   const { rec, seed } = scene;
-  const { body, lines } = endCard({ scene: rec, seed, on: {
-    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), hour: params.play === rec.scenario ? params.hour : null }),
+  let said = null;
+  try { said = sceneSaid(loop.state ? rangeNow(loop.state) : null, { clockText }); } catch (e) { broke(e, 'the end card'); }
+  const { body, lines } = endCard({ scene: rec, seed, said, on: {
+    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), hour: params.play === rec.scenario ? params.hour : null, setup: params.play === rec.scenario || params.play === rec.id ? params.setup : null }),
     score: () => openScore(),
     title: () => quitToTitle(),
   } });
@@ -727,12 +910,134 @@ function render(alpha, s, info) {
   }
   // (R pressed once where it would wait: the line asks for it again, for HAND_AGAIN_MS)
   if (handArmedAt !== null && (performance.now() - handArmedAt > HAND_AGAIN_MS || hand?.verb !== 'wait')) handArmedAt = null;
-  const lead = benchLead ?? (info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
+  // (stop motion, the build sheet 0.0.5 §2.4: the step panel or the reflex card, PAPER, the plaque; the radio box in every state but a splash)
+  const weapon = weaponHud(s, alpha, { hidden: inSplash });
+  radio.frame(dtMs, !info.paused && !boot.card && !shown && !isHeld(s));
+  const voices = radio.update({ hidden: inSplash, weapon: weapon.on });
+  // (the lead: "Time stands still." in stop motion (VIEWS §7.4), v0.0.4's words while G's stub holds time, the scene's end)
+  const lead = benchLead ?? (weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
   const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null });
-  report.hud = { watch: faces, offer: line, line, toasts: toasts.lines, splash: splashText };
+  report.hud = { watch: faces, offer: line, line, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on };
   // (the HUD's and the sound's share of the frame: CONTRACTS §7's UI DOM budget is 1 ms)
   report.frame.uiMs = performance.now() - uiT0;
 }
+// ---- the weapon mode's HUD (the build sheet 0.0.5 §2.4) ----
+// (the --ui scale now, for the PAPER inset's crisp pixels: layout.js's, read on resize)
+let uiK = uiScale(innerWidth, innerHeight);
+addEventListener('resize', () => { uiK = uiScale(innerWidth, innerHeight); });
+const HIDDEN_WEAPON = Object.freeze({ on: false, steps: '', reflex: '', paper: '', plaque: '' });
+// (what the sim says of stop motion, read once a tick, not once a frame: the state moves only in ticks, 20 a
+// second, and the frames are three times that; CONTRACTS §7's 1 ms for the UI, which the panel's readers took
+// alone while firing)
+let simRead = { key: null };
+function readSim(s) {
+  const key = `${s.clock.tick}|${s.clock.seq}|${s.clock.ms}|${s.stop?.phase}|${s.stop?.pick}|${s.stop?.aim?.key}`;
+  if (simRead.key === key && simRead.state === s) return simRead;
+  const r = { key, state: s, st: null, steps: [], belief: null, range: null, look: null, targets: [] };
+  try { r.st = stopNow(s); } catch (e) { broke(e, 'stop motion'); }
+  if (r.st?.mode === 'stop') {
+    if (!r.st.reflex) { try { r.steps = stepsOf(s); } catch (e) { broke(e, 'the step panel'); } }
+    try { r.belief = s.stop?.gun ? beliefOf(s, s.stop.gun) : null; } catch (e) { broke(e, 'the weapon card'); }
+    try { r.range = rangeNow(s); r.look = r.range ? rangeLook(s, s.clock.ms) : null; } catch (e) { broke(e, 'the PAPER inset'); }
+    try { r.targets = targetsOf(s, s.player.id); } catch (e) { broke(e, 'the targets'); }
+  }
+  return (simRead = r);
+}
+/** The step panel or the reflex card, PAPER, the plaque and its brackets, for the state now: { on, steps, reflex, paper, plaque } (their texts). */
+function weaponHud(s, alpha, { hidden = false } = {}) {
+  const sim = s && !hidden ? readSim(s) : null, st = sim?.st ?? null;
+  const on = st?.mode === 'stop';
+  hud.classList.toggle('weapon', !!on);
+  if (!on) { stepPanel.update({ hidden: true }); reflexCard.update(null); paperInset.update(null); aimHud(null); return HIDDEN_WEAPON; }
+  let stepsText = '', reflexText = '', paperText = '';
+  // (a reflex card: the weapon card stays at its place, the reflex card beside it in the rest of STEPS)
+  if (st.reflex) { stepPanel.update({ cardOnly: true, steps: [], belief: sim.belief, ui: uiK }); reflexText = reflexCard.update(st.reflex, { keep: reflexKeep }); }
+  else {
+    reflexCard.update(null);
+    stepsText = stepPanel.update({ phase: st.phase, steps: sim.steps, page: stepPage, shift: input.peek().run, doing: st.doing, nowMs: s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), belief: sim.belief, ticks, ui: uiK });
+  }
+  try {
+    const mine = sim.look?.lanes?.find(l => l.mine) ?? null;
+    paperText = paperInset.update(mine ? paperModel(mine, { last: lastString, hot: !!sim.range?.hot }) : null, { ui: uiK });
+  } catch (e) { broke(e, 'the PAPER inset'); }
+  return { on: true, steps: stepsText, reflex: reflexText, paper: paperText, plaque: aimHud(s, st, sim.targets, sim.range) };
+}
+// (where the picture lies on the page: its top-left and its CSS pixels a picture pixel; stage.js fit() sets them)
+const pictureBox = () => { const c = stage.canvas.style; return { ox: parseFloat(c.left) || 0, oy: parseFloat(c.top) || 0, k: (parseFloat(c.width) || stage.W) / stage.W }; };
+/** A target's place in the picture: its centre and its frame's size in picture pixels { x, y, w, h } (a card on its backer; a person standing). */
+function targetPx(t) {
+  const paper = t.kind === 'paper', lane = paper ? KD_RANGE.bay.lanes.find(l => l.lane === t.lane) : null;
+  const yM = paper ? t.y ?? lane?.target.centreY ?? 0.6 : (t.y ?? 0) + 0.9, frame = paper ? lane?.target.frameM ?? [1.0, 1.2] : [0.6, 1.8];
+  const [x, y] = stage.cam.project(t.x, yM, t.z);
+  return { x, y, w: Math.round(frame[0] * PX_PER_M), h: Math.round(frame[1] * PX_PER_M) };
+}
+/** The target under the pointer now (its key), or null: within its frame's box in the picture. list: targetsOf's, if read already. */
+function targetUnderPointer(list = null) {
+  const s = loop.state, m = input.mouse;
+  if (!s || !m.inside || !stage.cam?.project) return null;
+  if (!list) { try { list = targetsOf(s, s.player.id); } catch { return null; } }
+  // (the pointer over the plaque hovers what it names: the words are where a player reaches for the numbers)
+  if (plaqueRect && m.x >= plaqueRect.x0 && m.x <= plaqueRect.x1 && m.y >= plaqueRect.y0 && m.y <= plaqueRect.y1 && list.some(t => t.key === plaqueRect.key)) return plaqueRect.key;
+  let best = null, bd = Infinity;
+  for (const t of list) {
+    const p = targetPx(t), dx = Math.abs(m.x - p.x), dy = Math.abs(m.y - p.y);
+    if (dx <= p.w / 2 + 3 && dy <= p.h / 2 + 3 && dx + dy < bd) { best = t.key; bd = dx + dy; }
+  }
+  return best;
+}
+/** The plaque over what the brackets, the pointer or the aim are on, its brackets, and its hover's list. Returns the plaque's words. */
+function aimHud(s, st = null, list = [], range = null) {
+  const hide = () => { aimPlaque.hidden = pickBox.hidden = aimBox.hidden = plaqueInfo.hidden = true; plaqueRect = null; return ''; };
+  if (!s || !st || st.reflex || !stage.cam?.project) return hide();
+  // (a cold line, or a handling step running: no plaque counting over the card, the brackets at half strength so the
+  // lane stays marked (the design review's: "+4 IN 2.8 S · ON SAFE" jumping through SHOW CLEAR's sub-steps))
+  const sub = st.doing?.kind !== 'wait' ? st.doing?.list?.[st.doing.i] ?? null : null;
+  const quiet = (range && range.hot === false) || (sub !== null && !['aim', 'hold', 'fire'].includes(sub));
+  aimBox.style.opacity = pickBox.style.opacity = quiet ? '0.5' : '';
+  hoverKey = targetUnderPointer(list);
+  const aimedKey = st.aim?.key ?? null, shownKey = hoverKey ?? st.pick ?? aimedKey;
+  const shown = list.find(t => t.key === shownKey) ?? null, aimed = list.find(t => t.key === aimedKey) ?? null;
+  if (!shown && !aimed) return hide();
+  const { ox, oy, k } = pictureBox();
+  if (aimed) { const p = targetPx(aimed); place(aimBox, bracket({ w: p.w, h: p.h, style: 'tail' }), p.x, p.y, k, 'centre', { ox, oy }); aimBox.hidden = false; } else aimBox.hidden = true;
+  if (shown && shown.key !== aimedKey) { const p = targetPx(shown); place(pickBox, bracket({ w: p.w, h: p.h, style: 'seen' }), p.x, p.y, k, 'centre', { ox, oy }); pickBox.hidden = false; } else pickBox.hidden = true;
+  if (!shown || quiet) { aimPlaque.hidden = plaqueInfo.hidden = true; plaqueRect = null; return ''; }
+  // (the plaque's record, once a tick and a target: the shot role's plaqueOf, the roll's own list)
+  const memoKey = `${s.clock.ms}|${s.clock.seq}|${shown.key}|${aimedKey}`;
+  if (plaqueMemo?.key !== memoKey) {
+    let rec = null;
+    try { rec = plaqueOf(s, s.player.id, { target: shown }); } catch (e) { broke(e, 'the plaque'); }
+    plaqueMemo = { key: memoKey, rec };
+  }
+  // (on the aimed card, Fire struck in the panel says why in CLICK FIRE's place: 'ON SAFE', 'A STOPPAGE')
+  const fireOff = shown.key === aimedKey ? (simRead.state === s ? simRead.steps : []).find(x => x.id === 'fire')?.off ?? null : null;
+  // (by the keys, the plaque names Fire's digit, not a click: '+4 IN 1.4 S · 1 HELD FIRE'; CLICK FIRE after a mouse move)
+  const fireKey = lastInput === 'key' ? (simRead.state === s ? stepPanel.slots : []).find(x => x.step?.id === 'fire')?.key ?? '1' : null;
+  const rec = plaqueMemo.rec ? { ...plaqueMemo.rec, ...(fireOff ? { fireOff } : {}), ...(fireKey ? { fireKey } : {}) } : null;
+  if (!rec) { aimPlaque.hidden = plaqueInfo.hidden = true; plaqueRect = null; return ''; }
+  const p = targetPx(shown), pq = plaque(shotPlaque(rec, { aimed: shown.key === aimedKey }));
+  // (kept inside the picture, 2 px from its edges: a card near the frame's edge, or a long reason, ran it off
+  // the page's right side: the integrator's; the notch then points a little off the card rather than the words being cut)
+  const tipX = Math.max(pq.tip + 2, Math.min(stage.W - (pq.w - pq.tip) - 2, p.x));
+  place(aimPlaque, pq, tipX, p.y - p.h / 2 - 3, k, 'tip', { ox, oy });
+  aimPlaque.hidden = false;
+  plaqueRect = { key: shown.key, x0: tipX - pq.tip, x1: tipX - pq.tip + pq.w, y0: p.y - p.h / 2 - 3 - pq.h, y1: p.y - p.h / 2 - 3 };
+  // (hovering it, or just after an aim or a bracket's move by the keys: the DC's parts and every modifier as believed, the list the roll will use)
+  const parts = plaqueParts(rec), sig = JSON.stringify(parts);
+  plaqueInfo.hidden = hoverKey !== shown.key && !(performance.now() < infoUntil && shown.key === (st.pick ?? aimedKey));
+  if (!plaqueInfo.hidden) {
+    if (plaqueInfo.dataset.sig !== sig) {
+      plaqueInfo.dataset.sig = sig;
+      plaqueInfo.replaceChildren(el('div', { className: 'pi-dc', textContent: `${parts.dc}: ${parts.parts.join(' · ')}` }), el('div', { className: 'pi-mods', textContent: parts.mods.length ? `${parts.mods.join(' · ')}` : 'no modifier' }), el('div', { className: 'pi-odds', textContent: `${rec.part === 'PAPER' ? 'on the paper' : 'the odds'} ${parts.odds}` }));
+    }
+    // (below the target and to its left, kept in the free band over the bottom stack: above the plaque if it would reach RADIO)
+    const ih = plaqueInfo.offsetHeight, foot = rectsAt(innerWidth, innerHeight, 'weapon').RADIO.y - 6, below = oy + (p.y + p.h / 2 + 4) * k;
+    const iy = below + ih <= foot ? below : oy + (p.y - p.h / 2 - 3) * k - aimPlaque.offsetHeight - ih - 4;
+    plaqueInfo.style.transform = `translate(${Math.round(ox + (p.x - p.w / 2 - 6) * k)}px, ${Math.round(iy)}px) translateX(-100%)`;
+  }
+  return plaqueWords(rec);
+}
+
 // (every one of a loaded save's first ticks lost: it is damaged; what stands in for it is loaded)
 async function recoverBroken(slot) {
   try { const { state, from } = await store.recover(slot); toast(`That save is damaged: ${from} instead.`, 'warn'); await launch(state, { from }); }
@@ -743,7 +1048,7 @@ async function recoverBroken(slot) {
 async function bench(name) {
   const scene = BENCH_SCENES[name];
   if (!scene || !SCENARIOS[scene.play]) { toast(`No bench scene '${name}': the title instead.`, 'warn'); await showTitle(); return null; }
-  await launch(newGame({ seed: scene.seed, scenario: scene.play, hour: scene.hour, at: scene.at }));
+  await launch(newGame({ seed: scene.seed, scenario: scene.play, hour: scene.hour, at: scene.at ?? null, setup: scene.setup ?? null }));
   while (!window.__ready) await sleep(50);
   const me = () => { const a = playerActor(loop.state); return a ? { x: a.x, z: a.z } : null; };
   // (the scene's keys through the input, so a press key (R at the rack) reaches the page's listeners as a real one would)
@@ -814,6 +1119,12 @@ const handleMore = {
   get scene() { return scene ? { id: scene.rec.id, seed: scene.seed, ended: scene.ended, shown: scene.shown } : null; },
   /** The audio's world (the water, the tap, the flush, the klaxon, the bugle, the splash's muffle and ticks). */
   get world() { return { ...audio.stats.world }; },
+  /** The range's sounds (the reports, echoes, clicks, cases, chimes and the last of each). */
+  get rangeSound() { return { ...audio.stats.range }; },
+  /** The radio box's lines now: [{ head, text, kind }]. */
+  get radio() { return radio.lines; },
+  /** The step panel's step on a digit now (n 0 to 9), as the key would send it. */
+  stepOn(n) { const st = stepPanel.stepFor(n); return st && st !== 'more' ? { id: st.id, kind: st.kind, label: st.label } : st; },
 };
 installDebug(createDebugHandle({
   loop, sim, start: launch, newGame, version: VERSION, store, bus, about, view, solText, report: buildReport, queue: (a) => input.queue(a), more: handleMore,
@@ -824,12 +1135,23 @@ installDebug(createDebugHandle({
   instinct: (s) => ({ ...instinctNow(s), parts: instinct.parts }),
   splash: () => splash.info,
   scores: () => readScores(),
+  // (the weapon mode's readers, the build sheet 0.0.5 §2.4: the gun's truth beside its belief, the panel, the plaque, the range, stop motion)
+  arms: {
+    gun: (s) => {
+      const id = s.stop?.gun ?? s.people?.[s.player?.id]?.kit?.worn?.sling ?? null;
+      return id && s.items?.[id] ? { id, truth: JSON.parse(JSON.stringify(s.items[id])), belief: beliefOf(s, id) } : null;
+    },
+    steps: (s) => (stopNow(s) ? { steps: stepsOf(s), slots: stepPanel.slots.map(x => ({ key: x.key, id: x.step.id, kind: x.step.kind, label: x.step.label, ms: x.step.ms, off: x.step.off ?? null, routine: !!x.step.routine, odds: x.step.odds ?? null, cmd: !!x.step.cmd })), text: stepPanel.text, page: stepPage } : null),
+    plaque: () => (plaqueMemo?.rec ? { rec: plaqueMemo.rec, words: plaqueWords(plaqueMemo.rec), parts: plaqueParts(plaqueMemo.rec), shown: aimPlaque.dataset.text ?? null } : null),
+    range: (s) => rangeNow(s),
+    stop: (s) => stopNow(s),
+  },
 }));
 loop.start();
 if (benchName) await bench(benchName).catch((e) => broke(e, 'the bench'));
 else if (params.play) {
   const rec = Object.values(SCENES).find(x => x.id === params.play || x.scenario === params.play);
-  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour });
+  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup });
   else if (SCENARIOS[params.play]) launch(newGame({ seed: params.seed ?? 1, scenario: params.play, mode: params.mode, hour: params.hour, at: atParam(params.play) }));
   else { toast(`No scenario '${params.play}': the title instead.`, 'warn'); await showTitle(); }
 } else await showTitle();

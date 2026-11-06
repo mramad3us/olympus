@@ -22,7 +22,9 @@
 //                       ducked, at most TICK_MAX_HZ (10 a second: a 10-minute shower ticks ten times in
 //                       its 2.6 s, a night is a steady 10 Hz whirr).
 // Nothing plays while the context is not running (the engine's own rule). The pure parts (klaxonVoice,
-// wallsBetween, duckOf, the ticker's rule, loopsAt) are what the ui-audio test measures in node.
+// wallsBetween, duckOf, the ticker's rule, loopsAt) are what the ui-audio test measures in node. The
+// 0.0.5 round's range (the shot, the action's clicks, the brass, the tower's chime) is a presenter of its
+// own beside this one (range.js), on the same world bus, so the splash's muffle takes it too.
 import { playerActor, playerId } from '../../core/ids.js';
 import { MIN_MS } from '../../core/clock.js';
 import { airDb } from '../../sim/people/hearing.js';

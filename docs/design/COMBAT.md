@@ -182,6 +182,8 @@ A step longer than `STEP_LONG_S` 1.0 s is **interruptible**. It ends early, and 
 
 **Startle.** The first step after a `newThreat` freeze costs `STARTLE_MS = max(0, 700 − 7 × WF)` extra: 0.63 s at WF 10, 0.49 s at WF 30, nothing from WF 100 (my call). Training buys reaction time; the player's free thinking does not.
 
+**As built in v0.0.5** (`src/sim/arms/shooting.js`, `src/sim/scenarios/handling.js`; the build sheet 0.0.5 §8 item 17): two interrupts. **`orderToMe`**: the tower's commands are **O events at priority 2** (kind `range-cmd`, TIME §7.1), posted by the range officer when he sees the line ready for the last one (a stance, a magazine in, hands still, the rifle on safe), after a gap drawn on `stream(seed, 'range:gap', i)` (1.5 to 4 s); a command ends a wait or a hold at once, and **CEASE FIRE cuts any other step at the end of its current sub-step**, so a macro is never left half a sub-step done. **`gunStop`**: a pull that clicks or a shot that does not cycle ends the fire step at the pull's end and offers the reflex card (§3.5). `STEP_LONG_MS` 1,000 is in `src/sim/combat/steps.js`; noticing late and the startle wait for the first hostile.
+
 ### 3.4 Combat steps
 
 Base times are at value 10 (pace 1.00) and scale with SKILLS's `paceOf(value)` on the named skill; failure costs ×1.6 where a roll is made (SKILLS §5.12). Gun handling, aiming and firing are WEAPONS's steps and are not repeated here. Every exposing step is marked: it raises you into the threat's view for its duration and is what suppression makes hard (§5.3).
@@ -214,6 +216,8 @@ Base times are at value 10 (pace 1.00) and scale with SKILLS's `paceOf(value)` o
 
 Tempo (SKILLS §5.9): rush, dash, crawl and the grenade throw are `rushable` (×0.6 time, −3 on their roll); peek, slicing the pie and the throw are `careful` (×1.5, +2). Nothing in combat is "taken steady": it is never pressure `none`.
 
+**As built in v0.0.5** (`src/sim/combat/steps.js` `stanceMs`, `STANCES`; the build sheet 0.0.5 §4): the stances alone, at value 10 by `paceOf(Fitness)`, rolling nothing. Getting down falls at the gravity: **stand to prone** `max(900, tFall(1.0 m) + 300)`, 1,033 ms on Mars; **kneel to prone** `max(600, tFall(0.5 m) + 300)`, 818 ms; and the in-between stances (my calls): **stand to kneel 500 ms, kneel to stand 500, prone to kneel 1,000, prone to stand 1,300**. A stance step writes `actor.stance` (`'kneel'` or `'prone'`, absent standing) at its end; outside the mode, A and W are lived steps, and a move key while kneeling or prone stands you first. The other steps of the table wait for the first fight.
+
 ### 3.5 Reflex cards in combat
 
 Tradecraft's `reflex.js` is ported as is (offer, chosen, `KEEP_S` 120 s kept answers, "Nothing: let it come" always present). A reflex is offered only out of stop motion, when the player perceives the moment coming (the check in the second column). Each option is a step of §3.4 or WEAPONS, and choosing a fighting step enters stop motion.
@@ -226,6 +230,8 @@ Tradecraft's `reflex.js` is ported as is (offer, chosen, `KEEP_S` 120 s kept ans
 | `hatch` | a hatch or door opens onto you with someone behind it | Awareness vs 8 | Fire (if aimed: held) · Back off · Grab · Nothing |
 | `vent` | a breach with flow within 5 m | Awareness vs 6 | Seal visor (if up: 2 s, §13.3) · Grab a handhold · Brace · Nothing |
 | `friendlyLine` | a friend steps onto your line of fire as you are about to fire | always (Weapon handling's muzzle discipline, WEAPONS) | Hold fire · Fire anyway |
+
+**As built in v0.0.5, the reflex inside stop motion** (`src/sim/combat/reflex.js`, tradecraft's ported; the build sheet 0.0.5 §8 item 8, my call): the gun's own stop during a lived step offers the card, which this section first offered only outside the mode. A click (`why: 'click'`, "Click.") or a shot that did not cycle (`why: 'stop'`, "It didn't cycle.") holds `'reflex'` and offers "Tap, rack" (IMMEDIATE ACTION), "Look at the port" (0.3 s) and **"Nothing: stay on the card"**, the "Nothing" option's words for a click or a stoppage of your own rifle ("Nothing: let it come" stays for a threat). The card sits **beside the weapon card**, in the step panel's place, so the believed state stays in sight at the moment of diagnosis (VIEWS §8.10). A digit answers; R keeps the answer for `KEEP_MS` 120 s, and a kept answer still offered answers the next card without showing it ("By reflex: tap, rack."). Its record is `state.stop.reflex`, saved (TIME §13).
 
 ### 3.6 Big outcomes: reflex, then splash
 
@@ -1427,6 +1433,8 @@ Outcome: objective met with no friendly KIA ×1.0; met with KIA ×0.8; contact b
 | `longhaul/js/sim/inertia.js` | **adapt (BODY, PLACES)** | thrown bodies on hits and jinks, with tower-deck axes |
 | `longhaul/js/sim/life-support.js`, `fire.js` | **PLACES ports** | COMBAT feeds holes and fires |
 | `longhaul/js/ui/combat.js` threat board | **reference (VIEWS)** | the repeater (§13.4) |
+
+**As built in v0.0.5** (the build sheet 0.0.5 §8 items 7, 8 and 11): `src/sim/combat/roll.js` (new: `rollerOf(state, pid, { ms })`, one person's side of every check, BODY's `bodyMods` and `needMods` on the skill's uses and "no light to see it by" −2 on handling in the dark, so skills never import the body: TECH correction 8; CONTRACTS §13), `steps.js` (the stances and the wait, §3.4) and `reflex.js` (tradecraft's, reused, inside stop motion: §3.5).
 
 Modules COMBAT asks TECH to lay out (TECH §2.1 adopted the list): `src/sim/combat/{fight, steps, cover, coverfield, suppress, board, threat, fighter, team, drills/*, orders, roe, eof, checkpoint, nonlethal, cqc, grenade, casualty, shipfight, hits, dc, boarding, eva, offscreen, aar}.js`, each opening with its prose header. Drills are `.js` data modules (TECH §1.3, correction 12). `threat.js` holds `threatKnown` (§6.1). `checkpoint.js` holds the shift's resolver (§9.9).
 

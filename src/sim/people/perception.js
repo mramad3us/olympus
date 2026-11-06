@@ -24,7 +24,15 @@
 // so an eye lying in one would see only its own cell: a lying, awake player's eye looks out of the
 // berth instead (lookOut, the integrator's call for 0.0.4: woken by the klaxon you lift your head and
 // look past the rack's foot), moved along its facing through the run of cells that block its layer,
-// from its own, onto the last of them (an end cell, which never blocks), at most BERTH_LOOK_M 2 m.
+// from its own, onto the last of them (an end cell, which never blocks), at most BERTH_LOOK_M 2 m; a
+// sitting one too (on the rack's edge). Within ALWAYS_M of the body's own spot, what a standing eye
+// there has a clear line to is seen all the same, so your own berth, and you in it, are never in the
+// fog (the review of v0.0.5's rack: with the eye out at the rack's foot, you could not see yourself sit
+// up). The player's eye through a transition is the pose shown (people's poseAt), not the pose it ends
+// in: lying in the berth (the berth's own eye) while lying, sitting up or lying back, sitting on the
+// edge, else standing where the frame stands (the review of v0.0.5's rack: R's lying down closed the
+// fog on the berth 0.4 s after the key while the figure still stood at the rack's foot, and T's rise
+// opened the standing view while it sat up in the berth).
 //
 // clearLine(grid, ax, az, bx, bz, layer): the segment between the centres of the two points' cells,
 // walked cell by cell in exact integer arithmetic (the cells it passes through, compared as
@@ -48,10 +56,38 @@
 // (i + 0.5) × cellM), by the same per-cell function, the grid and the eye's cell taken once: the fog
 // draws this mask (VIEWS §2.11) and the poses read canSee, one function (the 0.0.3 sheet §2.2;
 // people-sight proves the mask equals visibility at every cell).
+//
+// The adapted eye (0.0.5: the user's ask of 2026-11-06, "eye adapting to darkness making things less
+// dark after a while in the dark compared to when entering dark from a lit place"). The reach reads
+// the light as the eye takes it, BODY's eyes (src/sim/body/eyes.js eyeView: lightK, the same quantity
+// the picture's exposure shows): the light at the spot counts as min(1, L × lightK), and the dark's
+// floor SIGHT_M as SIGHT_M × min(1, lightK) (the eye's baseM), so an eye just in from a lit place sees
+// only round it in a dark room and an eye adapted to the dark sees farther than v0.0.4's (lightK 1: any
+// lit place at rest, and the dark five minutes in). In the squad bay at lights out: 3.3 m just in from
+// the lit head, 5.6 m at a minute, 11.7 m at five, 14.9 m at twenty, 17.6 m fully adapted
+// (eyes-sight prints them). The eye's lightK comes with eyeOf: the player's from their body's eyes
+// record at the clock (on the tick a wake lands on, the record still shut until bodyFast anchors it
+// again after the actors layer, the eyes as they open: the record's state on the open field, never a
+// blind tick); anyone else's, or a player with no record yet, adapted at rest to the light they stand
+// in (eyes.js eyesAdaptedTo). eyeViewOf(state, actor) hands the same view to the picture (the
+// view's exposure on the post pass), so the screen and the dice read one number.
+// fieldOf(state, eye, ms, shut) is the light those eyes receive, which the eyes follow: the mean
+// luminance (eyes.js logCdOf, photopic, and scotopic by the light's sp: places' spectrumAt) over the
+// eye's spot (weight FIELD_SELF_W 2) and FIELD_N 15 points in front of it, at FIELD_RINGS_M 1, 2.5 and
+// 4.5 m and FIELD_ANGLES_RAD 0, ±0.3 and ±0.9 rad off the heading (the line straight ahead too, so a
+// doorway in front of you counts: Head A lit through its open door), each counted only where the eye
+// has a clear line to it and the point is not in a blocker (a point of a floor in no room, a porch past
+// an outside door, is the open air, as places' lightLevel takes it), the open air's level held to the
+// game minute (places' lightFrame): { yp, ys, sky }, the lids' share taken when shut (sky: whether the
+// open air can decide any point, outdoors, in no room, or through a room's windows where daylight at its
+// brightest would beat the room's fill under its lighting now: places' spectrumAt).
 // Pure.
-import { lightLevel } from '../places/light.js';
+import { lightLevel, lightFrame, spectrumAt } from '../places/light.js';
 import { sightGridOf } from '../places/sight.js';
 import { isAsleep } from '../body/body.js';
+import { eyeView, eyesAdaptedTo, eyesAt, viewOf, shutAt, fieldFrom, logCdOf } from '../body/eyes.js';
+import { poseAt } from './place.js';
+import { MIN_MS } from '../../core/clock.js';
 
 export const CONE_DEG = 100, CONE_PER_AWARENESS = 2, CONE_MAX_DEG = 170;
 export const AWARE_M = 2.5, AWARE_PER = 0.2, ALWAYS_M = 1;
@@ -80,24 +116,94 @@ export const headOf = (face) => HEADS[face] ?? HEADS.down;
 export const BERTH_LOOK_M = 2;
 /** The grid layer an eye at heightM reaches. */
 export const layerAt = (heightM) => (heightM >= LAYER_M.stand ? 'stand' : heightM >= LAYER_M.crouch ? 'crouch' : 'prone');
+/** The field the eyes receive (see the header): the eye's own spot's weight, the rings' radii and the angles off the heading. */
+export const FIELD_SELF_W = 2, FIELD_RINGS_M = Object.freeze([1, 2.5, 4.5]), FIELD_ANGLES_RAD = Object.freeze([-0.9, -0.3, 0, 0.3, 0.9]);
+export const FIELD_N = FIELD_RINGS_M.length * FIELD_ANGLES_RAD.length;
 
 /** Someone's eyes (see the header). */
 export function eyeOf(state, actor) {
-  const isPlayer = !!actor && actor.id === state?.player?.actor;
+  const isPlayer = !!actor && actor.id === state?.player?.actor, ms = state?.clock?.ms ?? 0;
   const aw = isPlayer ? PLAYER_AWARENESS : MARINE_AWARENESS;
-  const posture = actor.posture ?? 'stand';
-  const eyeM = (EYE_M[posture] ?? EYE_M.stand) + (actor.y ?? 0);
-  const headRad = headOf(actor.face), coneRad = Math.min(CONE_MAX_DEG, CONE_DEG + CONE_PER_AWARENESS * aw) * Math.PI / 360;
+  // (the player's eye through a transition is the pose shown, not its end: the fog never closes on the
+  // berth while the figure still stands at the rack's foot, nor opens the standing view while it sits up)
+  const p = isPlayer ? poseShown(actor, ms) : actor;
+  const posture = p.posture ?? 'stand';
+  const eyeM = (EYE_M[posture] ?? EYE_M.stand) + (p.y ?? 0);
+  const headRad = headOf(p.face), coneRad = Math.min(CONE_MAX_DEG, CONE_DEG + CONE_PER_AWARENESS * aw) * Math.PI / 360;
   const outer = coneRad + CONE_SOFT_RAD + 1e-6;
   const eye = {
-    x: actor.x, z: actor.z, headRad, coneRad,
+    x: p.x, z: p.z, headRad, coneRad,
     awareM: AWARE_M + AWARE_PER * aw, eyeLayer: layerAt(eyeM), asleep: isPlayer ? isAsleep(state, actor.who, state.clock?.ms) : posture === 'lie',
     areaId: state?.places?.live?.area ?? null,
     // (the heading's unit vector and the cosine past which nothing is in the cone's soft edge: a quick test before the angle)
     hx: Math.cos(headRad), hz: Math.sin(headRad), outerCos: outer >= Math.PI ? -2 : Math.cos(outer),
   };
-  if (isPlayer && posture === 'lie' && !eye.asleep) lookOut(state, eye);
+  if (isPlayer && (posture === 'lie' || posture === 'sit') && !eye.asleep) lookOut(state, eye);
+  // (the light as these eyes take it: eyeViewOf's, the picture's own number)
+  const view = eye.asleep ? null : viewFor(state, actor, eye, isPlayer, ms);
+  eye.lightK = view && !view.nv ? view.lightK : 1;
+  eye.baseM = SIGHT_M * Math.min(1, eye.lightK);
   return eye;
+}
+
+// (where an actor's eyes are at ms: the pose a transition shows while one plays (people's poseAt: a
+// lie, sitUp or lieDown frame lying in the berth, a sit frame sitting, any other standing, at its x, z
+// and y), else the actor's own)
+function poseShown(actor, ms) {
+  const t = actor.trans;
+  if (!t || ms >= t.fromMs + t.ms) return actor;
+  const f = poseAt(actor, ms);
+  // (in the berth, lying, sitting up or lying back: the berth's own lying eye, a rise's from or a lying down's end)
+  if (f.posture === 'lie') return t.kind === 'rise' && t.from ? t.from : actor;
+  return { posture: f.posture, x: f.x, z: f.z, y: f.y, face: f.face };
+}
+
+// (an eye's view: the player's record at ms, else adapted at rest to the field it stands in. A record
+// still shut while the eyes are open is behind the clock by the tick a wake lands on (the sleep ends in
+// the due layer, the record is anchored again in bodyFast, after the actors layer): the eyes as they
+// open, the record's state at ms on the open field, what that anchor will hold, never a blind tick)
+function viewFor(state, actor, eye, isPlayer, ms) {
+  const body = state?.people?.[actor.who]?.body, rec = body?.eyes;
+  if (!(isPlayer && rec && Number.isFinite(rec.atMs))) return eyesAdaptedTo(fieldOf(state, eye, ms, false));
+  if (rec.shut && !shutAt(body.sleep ?? null, ms)) return viewOf(eyesAt(rec, ms), fieldOf(state, eye, ms, false), { nv: !!rec.nv });
+  return eyeView(rec, ms);
+}
+
+/**
+ * What someone's eyes make of the light now (BODY's eyes, src/sim/body/eyes.js eyeView: { a, gain,
+ * coneGain, lightK, rod, glare, shut, nv }): the one helper the picture's exposure and this module's reach both
+ * read (eyeOf's lightK is its lightK). Shut eyes (asleep): { shut: true, gain 1, rod 0 }.
+ */
+export function eyeViewOf(state, actor, ms = state?.clock?.ms ?? 0) {
+  if (!actor) return null;
+  const isPlayer = actor.id === state?.player?.actor, posture = actor.posture ?? 'stand';
+  const asleep = isPlayer ? isAsleep(state, actor.who, ms) : posture === 'lie';
+  if (asleep) return { a: null, gain: 1, coneGain: 1, lightK: 0, rod: 0, glare: 0, shut: true, nv: false };
+  return viewFor(state, actor, eyeOf(state, actor), isPlayer, ms);
+}
+
+/** The light the eyes receive at ms (see the header): { yp, ys (log10 cd/m² at the retina), sky }. */
+export function fieldOf(state, eye, ms = state?.clock?.ms ?? 0, shut = false) {
+  const F = eye.areaId ? lightFrame(state, eye.areaId, ms, Math.floor(ms / MIN_MS) * MIN_MS) : null;
+  if (!F) return { ...fieldFrom(100, 150, shut), sky: false };
+  const grid = gridFor(state, eye), bit = LAYER_BIT[eye.eyeLayer] ?? LAYER_BIT.stand;
+  let sumP = 0, sumS = 0, w = 0, sky = false;
+  const add = (x, z, k) => {
+    const s = spectrumAt(F, x, z), y = 10 ** logCdOf(s.level);
+    sumP += k * y; sumS += k * y * s.sp; w += k;
+    if (s.sky) sky = true;                                          // (the open air can decide this point: no room, or windows that beat the fill)
+  };
+  add(eye.x, eye.z, FIELD_SELF_W);
+  for (const r of FIELD_RINGS_M) for (const da of FIELD_ANGLES_RAD) {
+    const h = eye.headRad + da, x = eye.x + Math.cos(h) * r, z = eye.z + Math.sin(h) * r;
+    if (grid) {
+      const C = grid.cellM, i = Math.floor((x - grid.x0) / C), j = Math.floor((z - grid.z0) / C);
+      if (i >= 0 && j >= 0 && i < grid.nx && j < grid.nz && (grid.bits[j * grid.nx + i] & bit) !== 0) continue;   // (in a wall or a blocker)
+      if (!clearLine(grid, eye.x, eye.z, x, z, bit)) continue;
+    }
+    add(x, z, 1);
+  }
+  return { ...fieldFrom(w ? sumP / w : 0, w ? sumS / w : 0, shut), sky };
 }
 
 // (a lying player's eye out of the berth: along the facing through the cells that block its layer, onto the last; see the header)
@@ -108,6 +214,7 @@ function lookOut(state, eye) {
   const cell = (x, z) => { const i = Math.floor((x - grid.x0) / C), j = Math.floor((z - grid.z0) / C); return i >= 0 && j >= 0 && i < grid.nx && j < grid.nz ? j * grid.nx + i : -1; };
   const c0 = cell(eye.x, eye.z);
   if (c0 < 0 || (grid.bits[c0] & bit) === 0) return;               // (an eye not in a blocker sees from where it is)
+  eye.bx = eye.x; eye.bz = eye.z;                                   // (the body's own spot: its berth stays in sight, visAt)
   let x = eye.x, z = eye.z;
   for (let d = C; d <= BERTH_LOOK_M + 1e-9; d += C) {
     const nx = eye.x + eye.hx * d, nz = eye.z + eye.hz * d, c = cell(nx, nz);
@@ -172,6 +279,13 @@ const blocksAt = (bits, nx, nz, bit, i, j) => i >= 0 && j >= 0 && i < nx && j < 
 
 // (the one per-cell function, visibility()'s and sightMask()'s alike: the grid given, the eye's cell given)
 function visAt(state, eye, grid, ei, ej, bit, x, z, ms) {
+  // (an eye looking out of a berth: within ALWAYS_M of the body's own spot, what a standing eye there has
+  // a clear line to is seen, so your own berth and you in it are never in the fog)
+  if (eye.bx !== undefined && grid) {
+    const bx = x - eye.bx, bz = z - eye.bz, C = grid.cellM;
+    if (bx * bx + bz * bz < ALWAYS_M * ALWAYS_M
+      && walk(grid.bits, grid.nx, grid.nz, LAYER_BIT.stand, Math.floor((eye.bx - grid.x0) / C), Math.floor((eye.bz - grid.z0) / C), Math.floor((x - grid.x0) / C), Math.floor((z - grid.z0) / C))) return 1;
+  }
   const dx = x - eye.x, dz = z - eye.z, d = Math.sqrt(dx * dx + dz * dz);
   let open, far = -1, c = 0;
   if (d < ALWAYS_M) open = 1;
@@ -185,7 +299,7 @@ function visAt(state, eye, grid, ei, ej, bit, x, z, ms) {
       if (!outside) { off = Math.atan2(dz, dx) - eye.headRad; if (off > Math.PI) off -= TAU; else if (off < -Math.PI) off += TAU; }   // (both in [−π, π]: one turn at most)
       c = outside ? 0 : clamp01((eye.coneRad + CONE_SOFT_RAD - Math.abs(off)) / (2 * CONE_SOFT_RAD));
       if (c <= v) open = v;                                         // (far ≤ 1, so the cone can add nothing: tradecraft's far <= v)
-      else if (d <= SIGHT_M - REACH_SOFT_M) open = c;              // (the reach is at least SIGHT_M: full, whatever the light)
+      else if (d <= (eye.baseM ?? SIGHT_M) - REACH_SOFT_M) open = c;   // (the reach is at least the dark's floor: full, whatever the light)
       else if (d >= SIGHT_M + LIGHT_M + REACH_SOFT_M) open = v;    // (beyond any reach)
       else { open = v; far = 0; }                                   // (the light decides: after the line, which may make it moot)
     }
@@ -196,8 +310,8 @@ function visAt(state, eye, grid, ei, ej, bit, x, z, ms) {
     if (!walk(grid.bits, grid.nx, grid.nz, bit, ei, ej, ti, tj)) return 0;
   }
   if (far === 0) {
-    const L = lightLevel(state, x, z, ms, eye.areaId);
-    far = clamp01((SIGHT_M + LIGHT_M * L + REACH_SOFT_M - d) / (2 * REACH_SOFT_M));
+    const L = lightLevel(state, x, z, ms, eye.areaId), Le = L * (eye.lightK ?? 1);
+    far = clamp01(((eye.baseM ?? SIGHT_M) + LIGHT_M * (Le < 1 ? Le : 1) + REACH_SOFT_M - d) / (2 * REACH_SOFT_M));
     const fc = far * c;
     if (fc > open) open = fc;
   }

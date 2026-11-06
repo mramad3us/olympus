@@ -11,6 +11,8 @@
 //                         up, utilities, the foot of your rack (T rises you, then dresses you at your
 //                         rack); past the count, the words say you missed it, never its time
 //                         (the review of v0.0.4: "The count is at 02:40" read at 02:41)
+//   lead          note    lying down in sight before a sleep or a nap (time's lead): "Into the rack."
+//                         (a move key takes it back; the review of v0.0.5's rack)
 //   need-bladder  warn    the bladder at need, or could go at your rack after 21:00
 //   need-bowel    warn    the bowel at need
 //   need-thirst   warn    thirsty (T: a drink at a tap or a machine)
@@ -30,8 +32,10 @@
 // the klaxon's line says it (alarm). While a drill is open nothing sends you from your rack (the
 // integrator's call for 0.0.4: mustered at 02:35 the DI had said "Shave. Head A has mirrors."): the
 // needs, the stubble and taps keep quiet, the bladder and the bowel but at urgent, and the calm line
-// is to stand fast until the stand-down. doAct(state, bus, ctx, act) does an act, the instinct's T and
-// nothing else.
+// is to stand fast until the stand-down. On the range (0.0.5: a session, open or ended, src/sim/scenarios/
+// handling.js rangeNow) the same holds: the needs speak at urgent only, the grooming and taps lines keep
+// quiet, and the calm line is the range's (instinct/range.js). doAct(state, bus, ctx, act) does an act,
+// the instinct's T and nothing else; 'stop:<step>' acts go to the step panel (shooting.js chooseStep).
 // Pure but doAct.
 import { marsClock } from '../../../core/calendar.js';
 import { playerActor, playerId } from '../../../core/ids.js';
@@ -42,6 +46,9 @@ import { alertNow, mustered, musterOf, rackFootOf } from '../../time/alerts.js';
 import { activitiesAt, startActivity, ownOf, spotOf, nextReveilleMs } from '../../time/activities.js';
 import { riseActor, outfitOf } from '../../people/place.js';
 import { transPlaying } from '../../time/doing.js';
+import { rangeNow } from '../../scenarios/handling.js';
+import { chooseStep, enterStop } from '../../arms/shooting.js';
+import { stepOfAct } from './range.js';
 
 // (BODY's band ladders, so a rule names the band it fires at and reads the stage by its place in the ladder)
 const LADDERS = Object.freeze({
@@ -76,10 +83,13 @@ function know(state, me, ms) {
   const own = ownOf(state);
   const atLocker = !!own.lockerId && at.some(a => a.fixtureId === own.lockerId);
   const v = { pid, body, stages, h, at, atRack, nearRack, atLocker, posture: me.posture ?? 'stand', moving: transPlaying(me, ms), outfit: outfitOf(me),
-    busy: !!state.skip || !!state.time?.doing, asleep: isAsleep(state, pid, ms), drill: state.time?.drills?.open ?? null };
+    busy: !!state.skip || !!state.time?.doing, asleep: isAsleep(state, pid, ms), drill: state.time?.drills?.open ?? null, range: onRange(state) };
   memo = { state, ms, v };
   return v;
 }
+// (a range session, open or ended: the needs keep quiet below urgent, the calm line is the range's: 0.0.5;
+// once the line is clear the range's rules fall quiet too, so nothing speaks over the end card)
+const onRange = (state) => !!rangeNow(state);
 const atFixture = (k, ...ids) => k.at.find(a => ids.includes(a.id)) ?? null;
 const actAt = (k, ...ids) => { const a = atFixture(k, ...ids); return a ? `activity:${a.id}` : null; };
 const hm = (h) => { const H = Math.floor(h) % 24, M = Math.floor((h - Math.floor(h)) * 60); return `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`; };
@@ -120,10 +130,17 @@ export const BASE_RULES = Object.freeze([
     },
   },
   {
+    id: 'lead', voice: 'di', tone: 'note', short: 'Rack', reach: null,
+    // (lying down in sight before a sleep or a nap, time's lead: what you are doing while it plays; a move key takes it back)
+    when(state, me, ms) { return state.time?.lead && !state.skip ? { k: know(state, me, ms) } : null; },
+    act: () => null,
+    text: { 1: ['Into the rack.', 'Into the rack. Lie down.', 'Rack. Lie down.', 'In you get.'] },
+  },
+  {
     id: 'need-bladder', voice: 'di', tone: 'warn', short: 'Head', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.posture !== 'stand' || (k.drill && !atLeast(k.stages, 'bladder', 'urgent'))) return null;
+      if (k.busy || k.posture !== 'stand' || ((k.drill || k.range) && !atLeast(k.stages, 'bladder', 'urgent'))) return null;
       if (atLeast(k.stages, 'bladder', 'need')) return { k, variant: actAt(k, 'urinate') ? 'here' : 'go' };
       if (atLeast(k.stages, 'bladder', 'could-go') && k.nearRack && k.h >= 21 && k.h < 24.7) return { k, variant: actAt(k, 'urinate') ? 'here' : 'night' };
       return null;
@@ -140,7 +157,7 @@ export const BASE_RULES = Object.freeze([
     id: 'need-bowel', voice: 'di', tone: 'warn', short: 'Stall', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.posture !== 'stand' || !atLeast(k.stages, 'bowel', 'need') || (k.drill && !atLeast(k.stages, 'bowel', 'urgent'))) return null;
+      if (k.busy || k.posture !== 'stand' || !atLeast(k.stages, 'bowel', 'need') || ((k.drill || k.range) && !atLeast(k.stages, 'bowel', 'urgent'))) return null;
       return { k, variant: actAt(k, 'bowel') ? 'here' : 'go' };
     },
     act: (ctx) => actAt(ctx.k, 'bowel'),
@@ -154,7 +171,7 @@ export const BASE_RULES = Object.freeze([
     id: 'need-thirst', voice: 'di', tone: 'warn', short: 'Drink', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.drill || k.posture !== 'stand' || !atLeast(k.stages, 'thirst', 'thirsty')) return null;
+      if (k.busy || k.drill || k.range || k.posture !== 'stand' || !atLeast(k.stages, 'thirst', 'thirsty')) return null;
       return { k, variant: actAt(k, 'drink') ? 'here' : 'go' };
     },
     act: (ctx) => actAt(ctx.k, 'drink'),
@@ -168,7 +185,7 @@ export const BASE_RULES = Object.freeze([
     id: 'need-hunger', voice: 'di', tone: 'warn', short: 'Eat', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.drill || k.posture !== 'stand' || !atLeast(k.stages, 'hunger', 'hungry')) return null;
+      if (k.busy || k.drill || k.range || k.posture !== 'stand' || !atLeast(k.stages, 'hunger', 'hungry')) return null;
       return { k, variant: actAt(k, 'snack') ? 'here' : 'go' };
     },
     act: (ctx) => actAt(ctx.k, 'snack'),
@@ -184,7 +201,7 @@ export const BASE_RULES = Object.freeze([
     tone: (ctx) => (ctx?.evening ? 'note' : 'warn'),
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.drill || k.posture === 'lie') return null;
+      if (k.busy || k.drill || k.range || k.posture === 'lie') return null;
       const tired = atLeast(k.stages, 'fatigue', 'tired') && (k.h >= 21 || k.h < 4), exhausted = atLeast(k.stages, 'fatigue', 'exhausted');
       if (!tired && !exhausted) return null;
       const evening = !exhausted && k.h >= 21 && k.h < 22;
@@ -202,7 +219,7 @@ export const BASE_RULES = Object.freeze([
     id: 'need-dirt', voice: 'di', tone: 'warn', short: 'Shower', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.drill || k.posture !== 'stand' || !dayH(k.h) || !atLeast(k.stages, 'hygiene', 'unwashed')) return null;
+      if (k.busy || k.drill || k.range || k.posture !== 'stand' || !dayH(k.h) || !atLeast(k.stages, 'hygiene', 'unwashed')) return null;
       return { k, variant: actAt(k, 'shower') ? 'here' : 'go' };
     },
     act: (ctx) => actAt(ctx.k, 'shower'),
@@ -235,7 +252,7 @@ export const BASE_RULES = Object.freeze([
     id: 'rack', voice: 'di', tone: 'note', short: 'Taps', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.drill || k.nearRack || !(k.h >= 21 + 50 / 60 && k.h < 22)) return null;
+      if (k.busy || k.drill || k.range || k.nearRack || !(k.h >= 21 + 50 / 60 && k.h < 22)) return null;
       return { k };
     },
     act: () => null,
@@ -246,7 +263,7 @@ export const BASE_RULES = Object.freeze([
     id: 'stubble', voice: 'di', tone: 'note', short: 'Shave', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.drill || k.posture !== 'stand' || !dayH(k.h) || !k.body || !hasBeard(k.body) || !((k.body.hygiene?.stubbleH ?? 0) > 20)) return null;
+      if (k.busy || k.drill || k.range || k.posture !== 'stand' || !dayH(k.h) || !k.body || !hasBeard(k.body) || !((k.body.hygiene?.stubbleH ?? 0) > 20)) return null;
       return { k, variant: actAt(k, 'basin') ? 'here' : 'go' };
     },
     act: (ctx) => actAt(ctx.k, 'basin'),
@@ -261,7 +278,7 @@ export const BASE_RULES = Object.freeze([
     short: (ctx) => (ctx.variant === 'drill' ? 'Stand fast' : ctx.variant === 'evening' ? 'Taps 22:00' : ctx.variant === 'night' ? 'Sleep' : 'Free time'),
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy) return null;
+      if (k.busy || k.range) return null;
       if (k.drill) return { k, variant: 'drill', noHumour: true, end: hm(k.h + (k.drill.endMs - ms) / 3_600_000) };
       const variant = k.h >= 18 && k.h < 22 ? 'evening' : k.h >= 22 || k.h < 5.5 ? 'night' : 'day';
       return { k, variant };
@@ -279,11 +296,13 @@ export const BASE_RULES = Object.freeze([
   },
 ]);
 
-/** Do an instinct's act (T): 'rise', 'dress:utilities', 'activity:<id>', 'standfast', 'sleep:reveille' (in your berth). Returns whether it was done. */
+/** Do an instinct's act (T): 'rise', 'dress:utilities', 'activity:<id>', 'standfast', 'sleep:reveille' (in your berth), 'stop:<step>' (a step of the panel: the range's rules) and 'stop:enter' (G). Returns whether it was done. */
 export function doAct(state, bus, ctx, act) {
   const me = playerActor(state);
   if (!me || !act) return false;
   if (act === 'rise') return !!riseActor(state, me, state.clock.ms);
+  if (act === 'stop:enter') return enterStop(state, bus, { via: 'ready' }).ok;
+  if (act.startsWith('stop:')) { const s = stepOfAct(act); return !!s && chooseStep(state, bus, { step: s.step, tempo: s.tempo, target: s.target }, ctx).ok; }
   if (act === 'standfast') return startActivity(state, bus, ctx, { id: 'standfast' }).ok;
   if (act === 'sleep:reveille') {
     const foot = rackFootOf(ownOf(state).seatId);
@@ -299,7 +318,8 @@ export function doAct(state, bus, ctx, act) {
     const id = act.slice(9);
     const at = activitiesAt(state, me.x, me.z).find(a => a.id === id && a.free);
     if (!at || !spotOf(state, at.spotId)) return false;
-    return startActivity(state, bus, ctx, { id, spotId: at.spotId }).ok;
+    // (T is the page's key, as R is: a sleep or a nap from your rack's foot lies you down in sight first, time's lead)
+    return startActivity(state, bus, ctx, { id, spotId: at.spotId, lead: true }).ok;
   }
   return false;
 }

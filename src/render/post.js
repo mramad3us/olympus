@@ -2,6 +2,29 @@
 //
 // tradecraft's composite (src/art/pixelart.js), in its order, over the picture the scene pass drew
 // into two attachments (colour, HalfFloat; part IDs, RGBA8; src/render/materials.js) and a depth texture:
+//   0. the eye (0.0.5, setEye(gain, rod, cone, glare): BODY's eyes, src/sim/body/eyes.js eyeView, the
+//      number perception's reach reads too): the linear colour times the eye's gain against v0.0.4's
+//      exposure (under 1 just in from a lit place, over 1 dark-adapted, and a glare's bloom when the
+//      lights come on). Two gains: the rods' (gain) for what the rods see of a pixel, and the cones'
+//      (cone, at their plateau 1.07 when fully dark-adapted) for the rest, mixed in log by the rods' share
+//      of the pixel, how dim it is (its brightest channel from CONE_LO up over a band at least as wide as
+//      the two gains' ratio, so a brighter pixel never shows darker) times its scotopic over its photopic
+//      luminance (a red, which the rods hardly see, 0.16), so a lamp's lit pool and the fire watch's red
+//      stay near v0.0.4's brightness while the dim surfaces lighten (the review of v0.0.5's eyes: one
+//      gain took the red pool to 1.61 times its value, toward salmon; two, 1.27 times, eyes-browser);
+//      and, by the rods' share of
+//      vision rod, the dim pixels' colour toward what the rods see:
+//      their scotopic grey (SCOTOPIC_RGB, the rods' sensitivity to the sRGB primaries, from Larson,
+//      Rushmeier and Piatko 1997's scotopic luminance, normalised to white: a red reads darker than a
+//      blue-green of one luma) tinted ROD_TINT a little toward blue-green, at most ROD_MIX 0.5 of the
+//      way; a pixel whose brightest channel is over CONE_LO 0.10 to CONE_HI 0.24 before the gain (a
+//      lamp's lit pool, a lit doorway) keeps its colour, as the cones see it, so the fire watch's red
+//      stays red. In a glare (glare over 0: the lights on over a dark-adapted eye, the field over the
+//      eye's adapted level) a pixel the gain takes past white washes toward white by the excess rather
+//      than saturating channel by channel; else the clamp is v0.0.4's. What the fog dims (step 2, the
+//      place as remembered) takes the cones' gain only under 1: a dark-adapted eye sees farther and
+//      lighter, it does not light the rooms behind the walls. Four uniforms and a score of operations a
+//      pixel; gain 1, cone 1, rod 0 and glare 0 leave the picture exactly as it was;
 //   1. the colour at the pixel, gamma-encoded (tradecraft's pow(1/2.2), the look the user approved;
 //      `gamma: 'srgb'` takes the exact curve instead);
 //   2. the fog of awareness: the world under the pixel rebuilt from depth (invVP), looked up on a
@@ -38,6 +61,8 @@ import { LUT_LEVELS, LUT_TILES, lutSize } from '../art/palette.js';
 
 /** How far a kept pixel over the figure behind a mass goes toward the ink (VIEWS §2.10: its silhouette at 60%). */
 export const SILHOUETTE_K = 0.6;
+/** The rods' sensitivity to the linear sRGB primaries, normalised to white (see the header), their grey's tint, how far a pixel goes to it at rod 1, and the band of brightness over which the cones take a pixel back. */
+export const SCOTOPIC_RGB = Object.freeze([0.033, 0.766, 0.202]), ROD_TINT = Object.freeze([0.88, 1.0, 1.08]), ROD_MIX = 0.5, CONE_LO = 0.10, CONE_HI = 0.24;
 /** The people's part (src/render/cards.js PEOPLE_PART) as the ID pass writes it: three bytes. */
 const PEOPLE_ID = [0xa5, 0xa5, 0xa5].map(b => b / 255);
 
@@ -47,7 +72,7 @@ const POST_FRAG = /* glsl */`
   precision highp float; precision highp int; precision highp sampler2D;
   in vec2 vUv; out vec4 outColor;
   uniform sampler2D tColor, tDepth, tId, tFog, tLut, tPal;
-  uniform vec2 res; uniform float near, far, outline, grade, fogOn, dimK, srgb;
+  uniform vec2 res; uniform float near, far, outline, grade, fogOn, dimK, srgb, eyeGain, eyeCone, eyeRod, eyeGlare;
   uniform vec4 fogBox; uniform mat4 invVP; uniform vec3 peoplePart;
   uniform int lutN, lutTiles, palCount, snapMode;
   float lin(float d) { return near + d * (far - near); }
@@ -81,7 +106,27 @@ const POST_FRAG = /* glsl */`
   }
   void main() {
     ivec2 ip = ivec2(gl_FragCoord.xy), mx = ivec2(res) - 1;
-    vec3 col = encode(clamp(texelFetch(tColor, ip, 0).rgb, 0.0, 1.0));
+    vec3 eyeC = texelFetch(tColor, ip, 0).rgb, eye0 = eyeC;
+    float eyeX = max(eyeC.r, max(eyeC.g, eyeC.b)), eyeS = dot(eyeC, vec3(${SCOTOPIC_RGB.map(v => v.toFixed(3)).join(', ')}));
+    if (eyeRod > 0.0) {
+      // (the rods' grey for the dim pixels, a lamp's pool kept in colour by the cones)
+      float w = eyeRod * ${ROD_MIX.toFixed(2)} * (1.0 - smoothstep(${CONE_LO.toFixed(2)}, ${CONE_HI.toFixed(2)}, eyeX));
+      eyeC = mix(eyeC, vec3(eyeS) * vec3(${ROD_TINT.map(v => v.toFixed(2)).join(', ')}), w);
+    }
+    // (the gain: the rods' for what they see of the pixel, the dim and the blue-green, the cones' for the
+    // rest, a lamp's pool and a red light; mixed in log over a band of brightness wide enough that a
+    // brighter pixel never shows darker)
+    float eyeK = 0.0;
+    if (eyeGain > eyeCone) {
+      float hi = max(${CONE_HI.toFixed(2)}, ${CONE_LO.toFixed(2)} * eyeGain / eyeCone);
+      float dim = 1.0 - clamp(log(max(eyeX, 1e-6) / ${CONE_LO.toFixed(2)}) / log(hi / ${CONE_LO.toFixed(2)}), 0.0, 1.0);
+      eyeK = dim * clamp(eyeS / max(dot(eye0, vec3(0.2126, 0.7152, 0.0722)), 1e-6), 0.0, 1.0);
+    }
+    vec3 eyeG = eyeC * (eyeCone * pow(eyeGain / eyeCone, eyeK));
+    // (over-exposed in a glare: washed toward white by the excess, not saturated channel by channel; else v0.0.4's clamp)
+    float eyeM = max(eyeG.r, max(eyeG.g, eyeG.b));
+    if (eyeGlare > 0.0 && eyeM > 1.0) eyeG = mix(eyeG / eyeM, vec3(1.0), (1.0 - 1.0 / eyeM) * min(1.0, eyeGlare));
+    vec3 col = encode(clamp(eyeG, 0.0, 1.0));
     float raw = texelFetch(tDepth, ip, 0).r, d = lin(raw);
     vec2 uv = (vec2(ip) + 0.5) / res;
     vec4 w4 = invVP * vec4(uv * 2.0 - 1.0, raw * 2.0 - 1.0, 1.0);
@@ -89,7 +134,7 @@ const POST_FRAG = /* glsl */`
     if (fogOn > 0.5 && raw < 0.99999) {
       vec2 fp = wp.xz + vec2(0.0, clamp(wp.y, 0.0, 1.0) * 0.5);
       vec2 fv = texture(tFog, (fp - fogBox.xy) / fogBox.zw).rg;
-      if (fv.r < bayer(gl_FragCoord.xy)) col = dim(col);
+      if (fv.r < bayer(gl_FragCoord.xy)) col = dim(encode(clamp(eyeC * min(eyeCone, 1.0), 0.0, 1.0)));   // (the memory: darker to a light-adapted eye, never lit by a dark-adapted one)
       else if (fv.g > bayer(gl_FragCoord.xy + vec2(2.0, 1.0))) col = feltTint(col);
     }
     vec4 id = texelFetch(tId, ip, 0);
@@ -192,7 +237,7 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
     lutN: { value: LUT_LEVELS }, lutTiles: { value: LUT_TILES }, snapMode: { value: SNAP[snap] ?? 0 },
     res: { value: new THREE.Vector2(W, H) }, near: { value: near }, far: { value: far },
     outline: { value: outline ? 1 : 0 }, grade: { value: grade }, srgb: { value: gamma === 'srgb' ? 1 : 0 },
-    tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, dimK: { value: 0.48 },
+    tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, dimK: { value: 0.48 }, eyeGain: { value: 1 }, eyeCone: { value: 1 }, eyeRod: { value: 0 }, eyeGlare: { value: 0 },
     invVP: { value: new THREE.Matrix4() }, peoplePart: { value: new THREE.Vector3(...PEOPLE_ID) },
   };
   const post = new THREE.Scene(), out = new THREE.Scene(), bakeScene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -240,12 +285,18 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
     fitBlit();
   }
   const setFog = (tex, x0 = 0, z0 = 0, w = 1, h = 1, dimK = 0.48) => { U.tFog.value = tex; U.fogOn.value = tex ? 1 : 0; U.fogBox.value.set(x0, z0, w, h); U.dimK.value = dimK; };
+  /** The eye (see the header, step 0): its gain against v0.0.4's exposure (the rods'), the cones' (never over it), the rods' share of vision, 0 to 1, and the glare, log units over the adapted level (0 at rest). */
+  const setEye = (gain = 1, rod = 0, cone = gain, glare = 0) => {
+    U.eyeGain.value = Number.isFinite(gain) ? gain : 1;
+    U.eyeCone.value = Number.isFinite(cone) ? Math.min(cone, U.eyeGain.value) : U.eyeGain.value;
+    U.eyeRod.value = Math.max(0, Math.min(1, rod || 0)); U.eyeGlare.value = Math.max(0, glare || 0);
+  };
   function dispose() {
     for (const t of [rt, rtOut, rtLut]) t.dispose();
     rt.depthTexture.dispose(); pal.dispose();
     for (const m of [composite, baker, blit]) { m.geometry.dispose(); m.material.dispose(); }
   }
-  return { rt, rtOut, rtLut, U, bake, compose, present, size, setFog, setCrop, dispose,
+  return { rt, rtOut, rtLut, U, bake, compose, present, size, setFog, setEye, setCrop, dispose,
     get crop() { return cropped; },
     setSnap: (s) => { U.snapMode.value = SNAP[s] ?? 0; }, setGamma: (g) => { U.srgb.value = g === 'srgb' ? 1 : 0; } };
 }

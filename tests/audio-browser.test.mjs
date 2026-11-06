@@ -14,6 +14,11 @@
 // world muffled under the splash (the duck at its full depth mid-lapse, open again after), the watch's
 // ticks; the flush at the urinal; the klaxon at the night's landing through bay-2-1's door (one wall);
 // reveille's bugle when 05:30 stops R's wait.
+// The 0.0.5 round's range (the build sheet §2.4, §5.4; audio/range.js): on test-handling's line the tower's
+// chime before its lines; LOAD by its digit, the magazine seating at 0.8 of magIn; MAKE READY, the
+// charging handle's pull and slam; a shot fired, the report through the ear defenders (25 dB down and
+// low-passed at 2 kHz) and the berm's slap-back 0.17 s after it, then the case's tick as the clock passes
+// its landing; and nothing new while time stands still in stop motion.
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 
@@ -172,6 +177,55 @@ export default [
         console.log(`      reveille: ${bg.world.bugles} bugle at ${bg.time}, ${JSON.stringify(bg.world.lastBugle)}`);
         assert(bg.world.bugles === 1, JSON.stringify(bg.world));
       }, { query: 'nostore=1' });
+    },
+  },
+  {
+    name: 'the range by ear: the tower\'s chime on its lines; LOAD seats the magazine at 0.8 of magIn, MAKE READY pulls and slams the handle; a shot\'s report through the ear defenders (−25 dB, 2 kHz) and the berm\'s slap-back 0.17 s after, then the case\'s tick at its landing; nothing new while time stands still',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() {
+      await withGame(async (page) => {
+        await page.keyboard.press('ShiftLeft');                       // (a key: the context resumes)
+        await page.waitForFunction((h) => window[h].audio.contextState === 'running' && window[h].audio.baked, H, { timeout: 30000 });
+        const choose = () => page.waitForFunction((h) => window[h].stop()?.phase === 'choose', H, { timeout: 30000 });
+        const cmd = (c) => page.waitForFunction(([h, c]) => window[h].range()?.cmd === c, [H, c], { timeout: 60000 });
+        const keyOf = async (id) => { for (let i = 0; i < 6; i++) { const k = await page.evaluate(([h, id]) => window[h].steps()?.slots?.find(x => x.id === id)?.key ?? null, [H, id]); if (k) return k; await page.keyboard.press('Digit0'); await page.waitForTimeout(120); } throw new Error(`no ${id}`); };
+        const rs = () => page.evaluate((h) => window[h].rangeSound, H);
+        await cmd('prone');
+        await page.waitForTimeout(300);
+        const chimed = await rs();
+        await page.keyboard.press('KeyG'); await choose();
+        for (let i = 0; i < 2; i++) { await page.keyboard.press('KeyZ'); await page.waitForTimeout(150); await choose(); }
+        // (time standing still: nothing new plays however long one thinks)
+        const still0 = await rs(); await page.waitForTimeout(1500); const still1 = await rs();
+        await cmd('load'); await choose();
+        await page.keyboard.press(`Digit${await keyOf('macro:load')}`);
+        await page.waitForTimeout(200); await choose(); await page.waitForTimeout(150);
+        const loaded = await rs();
+        await cmd('ready'); await choose();
+        await page.keyboard.press(`Digit${await keyOf('macro:ready')}`);
+        await page.waitForTimeout(200); await choose(); await page.waitForTimeout(150);
+        const ready = await rs();
+        await cmd('fire'); await choose();
+        await page.keyboard.press(`Digit${await keyOf('selector:semi')}`); await page.waitForTimeout(150); await choose();
+        await page.keyboard.press('Enter'); await page.waitForTimeout(150); await choose();
+        const before = await rs();
+        const fk = await keyOf('fire');
+        await page.keyboard.press(`Digit${fk}`);                       // (a tap: Fire at the normal tempo)
+        await page.waitForFunction(([h, n]) => window[h].rangeSound.reports > n, [H, before.reports], { timeout: 10000 });
+        const shot = await rs();
+        await page.waitForTimeout(1500);                                // (the case lands under a second after: 0.37 s prone)
+        const after = await rs();
+        console.log(`      the tower's chime: ${chimed.chimes} by the prone command (${JSON.stringify(chimed.lastChime)}); standing still 1.5 s: ${still1.clicks - still0.clicks} clicks, ${still1.reports - still0.reports} reports`);
+        console.log(`      LOAD: ${loaded.clicks - still1.clicks} clicks, the last ${JSON.stringify(loaded.lastClick)}; MAKE READY: ${ready.clicks - loaded.clicks} more, the last ${JSON.stringify(ready.lastClick)}`);
+        console.log(`      the shot: ${JSON.stringify(shot.lastReport)}; its echo ${JSON.stringify(shot.lastEcho)}; then the case: ${after.cases - before.cases} tick (${JSON.stringify(after.lastCase)}); late clicks dropped: ${after.queue.late}`);
+        assert(chimed.chimes >= 1 && still1.clicks === still0.clicks && still1.reports === still0.reports, JSON.stringify({ chimed, still0, still1 }));
+        const by = (a, b, k) => (b.byKind?.[k] ?? 0) - (a.byKind?.[k] ?? 0);
+        console.log(`      by kind: LOAD ${JSON.stringify(Object.fromEntries(Object.keys(loaded.byKind).map(k => [k, by(still1, loaded, k)])))}; MAKE READY ${JSON.stringify(Object.fromEntries(Object.keys(ready.byKind).map(k => [k, by(loaded, ready, k)])))}`);
+        assert(by(still1, loaded, 'magSeat') === 1 && by(loaded, ready, 'chargePull') >= 1 && by(loaded, ready, 'chargeSlam') >= 1, JSON.stringify({ loaded: loaded.byKind, ready: ready.byKind }));
+        assert(shot.lastReport?.ears === true && shot.lastReport.lowpassHz === 2000 && Math.abs(shot.lastReport.gainDb - (-2.9)) < 0.2 && shot.echoes > before.echoes && Math.abs(shot.lastEcho.delayS - 0.17) < 0.01, JSON.stringify(shot));
+        assert(after.cases > before.cases, JSON.stringify(after));
+      }, { query: 'play=test-handling&seed=48213&nostore=1' });
     },
   },
 ];

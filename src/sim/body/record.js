@@ -10,7 +10,9 @@
 // tauIntH ~ N(24.2, 0.2), each rounded to 0.01 (normal() uses log and cos, rounded before they decide
 // anything: core/rng.js). A draw is a pure function of the seed and the id, so drawing again gives
 // the same traits. hasBeard(rec) is whether the body grows stubble at all (a man's; a woman's
-// stubble ledger is never shown, shaved or nagged about). Kept apart from the engine (body.js): the
+// stubble ledger is never shown, shaved or nagged about). The eyes' record (0.0.5, src/sim/body/eyes.js:
+// its anchor, which its own module rounds) is carried whole, as held is: it has no template, its
+// absence being eyes adapted to the light they stand in. Kept apart from the engine (body.js): the
 // shape of the record, not its rates (the stage's readers, cues.js through people/figure.js, take in
 // the engine all the same).
 // Pure.
@@ -54,6 +56,7 @@ export function withDefaults(rec, person = null, ms = null) {
   for (const g of GROUPS) full[g] = { ...copy(t[g]), ...copy(rec?.[g] ?? {}) };
   for (const k of SCALARS) full[k] = rec?.[k] ?? t[k];
   full.held = copy(rec?.held ?? {});
+  if (rec?.eyes) full.eyes = copy(rec.eyes);
   full.sex = person?.sex ?? rec?.sex ?? t.sex;
   full.ageY = person && Number.isFinite(person.bornMs) && Number.isFinite(ms) ? (ms - person.bornMs) / YEAR_MS : t.ageY;
   return full;
@@ -72,6 +75,7 @@ export function deltaOf(full) {
   for (const k of SCALARS) if (full[k] !== undefined && full[k] !== t[k]) rec[k] = full[k];
   const h = full.held;
   if (h && (h.ms || h.rp || h.cur || h.solved || h.posted)) rec.held = h;
+  if (full.eyes) rec.eyes = full.eyes;
   return rec;
 }
 

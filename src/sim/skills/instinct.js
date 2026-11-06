@@ -7,7 +7,8 @@
 //   - no flicker: a line stays at least LINE_MIN_MS 3 s before a line of higher tone replaces it,
 //     unless that line is urgent; the chip likewise;
 //   - no nagging: a line that went because its rule stopped firing (its act done, the need met) does
-//     not come back from the same rule within REPEAT_MS 60 s, unless its tone has risen;
+//     not come back from the same rule within REPEAT_MS 60 s (or the rule's own repeatMs: the range's
+//     rules have none, each command on the line being new advice, 0.0.5), unless its tone has risen;
 //   - the chip: the most pressing waiting rule with no key of its own (reach null) beside the line,
 //     its short words, done by T held (never a calm one: it only informs); waiting rules with a reach (B's orders, F's customs: none this
 //     round) show their keycaps (keys), the rest are counted (queued);
@@ -21,9 +22,14 @@
 // shows, so the words hold while the line does (and are picked again when the rule's case changes:
 // the klaxon's 'up', then 'dress', then 'rack').
 // instinctStep(state, input, bus, ctx) is the fast layer 'offers' (it runs while time stands still):
-// on whole seconds, on a tick with an action in it, and on the first tick after a skip or a load, it
+// on whole seconds, on a tick with an action in it, on the first tick after a skip or a load, and (0.0.5)
+// when stop motion's phase or step changes (a step ends between whole seconds, the clock standing there), it
 // settles state.$instinct = { line: { id, voice, tone, text, act, short, ms } | null, chip, keys,
 // queued, gone, humourAt } (SKILLS §15.4; runtime only, so a load forgets only the repeat timers).
+// Since 0.0.5 the range's rules (src/sim/skills/instinct/range.js, the DI on the tower's line) are
+// weighed after the base's within each tone, and stop motion's hold ('stop') does not silence the line
+// (the build sheet §8 item 10: SKILLS §14.3.6's rule holds for every other hold): every tone speaks, T
+// acts, and the line carries its lead, "Time stands still." (lead in $instinct, the hud's to show).
 // instinctAction(state, { act: 'instinct', args: { id, act, chip } }, bus, ctx) does the act the hud
 // saw when T went down, if rule id still fires with that act now ('rise': get up from the rack;
 // 'dress:utilities': dress at your rack or locker; 'activity:<id>': the activity of the fixture you
@@ -35,6 +41,12 @@ import { isHeld, SEC_MS } from '../../core/clock.js';
 import { hashPick, hash01 } from '../../core/hash.js';
 import { playerActor } from '../../core/ids.js';
 import { BASE_RULES, doAct } from './instinct/base.js';
+import { RANGE_RULES } from './instinct/range.js';
+
+/** Every rule the instinct weighs: the base's, then the range's (merged by tone in settle(): the range's after the base's within a tone). */
+export const RULES = Object.freeze([...BASE_RULES, ...RANGE_RULES]);
+/** The line's lead while stop motion holds time (VIEWS §7.4; the build sheet §8 item 10). */
+export const STOP_LEAD = 'Time stands still.';
 
 export const RANK = Object.freeze({ calm: 0, note: 1, warn: 2, urgent: 3 });
 export const LINE_MIN_MS = 3_000, REPEAT_MS = 60_000, HUMOUR_GAP_MS = 300_000;
@@ -55,7 +67,7 @@ export function settle(prev, fired, ms, { urgentOnly = false } = {}) {
   const eligible = [...firing.values()].filter(l => {
     if (urgentOnly && l.tone !== 'urgent') return false;
     const g = gone[l.id];
-    return !g || ms - g.ms >= REPEAT_MS || RANK[l.tone] > RANK[g.tone] || shown?.id === l.id;
+    return !g || ms - g.ms >= (l.repeatMs ?? REPEAT_MS) || RANK[l.tone] > RANK[g.tone] || shown?.id === l.id;
   });
   const top = eligible.reduce((b, l) => (!b || RANK[l.tone] > RANK[b.tone] ? l : b), null);
   let line = null;
@@ -85,7 +97,7 @@ export function settle(prev, fired, ms, { urgentOnly = false } = {}) {
 
 // (a rule's firing now, as a line: its words picked at the moment it first shows)
 function fire(rule, ctx, state, ms) {
-  return { id: rule.id, voice: rule.voice ?? 'di', tone: typeof rule.tone === 'function' ? rule.tone(ctx) : rule.tone, act: rule.act ? rule.act(ctx, state) : null, short: typeof rule.short === 'function' ? rule.short(ctx) : rule.short ?? null, reach: rule.reach ?? null, ctx, rule };
+  return { id: rule.id, voice: rule.voice ?? 'di', tone: typeof rule.tone === 'function' ? rule.tone(ctx) : rule.tone, act: rule.act ? rule.act(ctx, state) : null, short: typeof rule.short === 'function' ? rule.short(ctx) : rule.short ?? null, reach: rule.reach ?? null, repeatMs: rule.repeatMs ?? null, ctx, rule };
 }
 const wordsOf = (rule, ctx, ms) => {
   const tier = rule.text?.[ctx?.tier ?? 1] ?? rule.text?.[1] ?? [];
@@ -95,7 +107,7 @@ const wordsOf = (rule, ctx, ms) => {
 };
 
 /** The rules that fire now for the player, most pressing first within a tone (the rules' order). */
-export function firedNow(state, ms = state.clock.ms, rules = BASE_RULES) {
+export function firedNow(state, ms = state.clock.ms, rules = RULES) {
   const me = playerActor(state);
   if (!me) return [];
   const out = [];
@@ -126,13 +138,16 @@ export const instinctNow = (state) => state.$instinct ?? { line: null, chip: nul
 export function instinctStep(state, input, bus, ctx) {
   const prev = state.$instinct ?? null, ms = state.clock.ms;
   if (state.skip) { state.$instinct = { ...(prev ?? instinctNow(state)), line: null, chip: null, keys: [], queued: 0, quiet: 'splash' }; return; }
-  const due = !prev || prev.quiet === 'splash' || ms % SEC_MS === 0 || (input?.act?.length ?? 0) > 0 || prev.atMs === undefined || prev.atMs > ms;
+  // (stop motion's phase and step: a step that ends between whole seconds leaves the clock standing there, so its end is due too)
+  const S = state.stop, stopKey = S ? `${S.mode}|${S.phase}|${S.doing?.step ?? ''}|${S.doing?.i ?? ''}|${S.reflex ? 'r' : ''}` : '';
+  const due = !prev || prev.quiet === 'splash' || ms % SEC_MS === 0 || (input?.act?.length ?? 0) > 0 || prev.atMs === undefined || prev.atMs > ms || (prev.stopKey ?? '') !== stopKey;
   if (!due) return;
   const fired = firedNow(state, ms);
-  const s = settle(prev, fired, ms, { urgentOnly: isHeld(state) });
+  const stop = isHeld(state, 'stop');
+  const s = settle(prev, fired, ms, { urgentOnly: isHeld(state) && !stop });
   const L = present(s.line, prev?.line, ms, prev?.humourAt ?? null);
   const C = s.chip ? { id: s.chip.id, tone: s.chip.tone, short: s.chip.short ?? wordsOf(s.chip.rule, s.chip.ctx, s.chip.ms), act: s.chip.act, ms: s.chip.ms } : null;
-  state.$instinct = { line: L.line, chip: C, keys: s.keys, queued: s.queued, gone: s.gone, humourAt: L.humourAt, atMs: ms };
+  state.$instinct = { line: L.line, chip: C, keys: s.keys, queued: s.queued, gone: s.gone, humourAt: L.humourAt, atMs: ms, lead: stop && L.line ? STOP_LEAD : null, stopKey };
 }
 
 /** The 'instinct' action, T (see the header). */
@@ -148,7 +163,7 @@ export function instinctAction(state, action, bus, ctx) {
     target = want ? fired.find(l => l.id === want.id) ?? null : null;
   }
   if (!target?.act) return false;
-  if (isHeld(state) && target.tone !== 'urgent') return false;
+  if (isHeld(state) && !isHeld(state, 'stop') && target.tone !== 'urgent') return false;
   const ok = doAct(state, bus, ctx, target.act);
   if (ok) { const inst = state.$instinct; if (inst) inst.atMs = undefined; }   // (settled again on the next tick, not the next second)
   return ok;

@@ -27,13 +27,16 @@
 // 02:35' while a drill is open, the late check (TIME §9.5: TIME's lateCheck, or null) and `more`, the
 // other choices R held opens (the choices card); the slip's times as the watch shows them, '24:00 +12'.
 // handOffer(state) is null while time stands still or a skip or an activity runs (TIME §5.3, check 1),
+// while stop motion is on (state.stop: the mode, or a lived V, A or W step: 0.0.5), on the range's
+// firing line from the brief to the end (state.armoury.range: the tower runs it),
 // or while one of the player's transitions plays (the rise from the rack, the step onto a spot), when
 // R does nothing. In a drill, R's wait carries the late check too, so the page shows the late card.
 //
 // The places domain's actions (domain.js): `hand` (R) does what handOffer says, and `door`
 // ({ act: 'door', args: { id, to } }: 'open' | 'closed', or the other way when to is left out) turns
 // one door whatever the reach, for tests and the debug handle. The page sends R as { act: 'hand', args:
-// { want: 'rise' | 'activity' | 'door' | 'resume' | 'wait', id?, args?, late? } }, what its offer said
+// { want: 'rise' | 'activity' | 'door' | 'resume' | 'wait', id?, args?, late?, lead? } } (lead: a sleep
+// or a nap from your rack's foot lies you down in sight first, src/sim/time/activities.js), what its offer said
 // when the key went down, and the action does nothing where the offer has changed kind by the tick (a
 // door the walk carried out of reach does not become a fifteen-minute wait, nor a wait a door); plain
 // 'hand' (tests, bots, a replay) does what handOffer says. The page asks for the wait twice (R once
@@ -167,7 +170,13 @@ function activityOffer(state, me) {
 
 /** What R would do now (see the header): { act: 'hand', verb, target, id, spotId, label, durMs, endMs, late, more } | null. */
 export function handOffer(state) {
-  if (!state || state.skip || isHeld(state) || state.time?.doing) return null;
+  // (stop motion, a step of it playing or a lived V, A or W: the rifle is in your hands and R has nothing to
+  // give; 0.0.5, the integrator's: "R wait 15 min" had shown under a LOAD, and R would have begun the wait mid-step)
+  if (!state || state.skip || isHeld(state) || state.time?.doing || state.stop) return null;
+  // (on the range's firing line R has nothing either: the tower runs it, and a quarter hour sat out on the line
+  // would pass unchallenged (the runtime and design reviews); its own wait is the panel's, and once the line is
+  // clear Enter ends the scene)
+  if (state.armoury?.range) return null;
   const me = playerActor(state), area = liveArea(state);
   if (!me || !area) return WAIT_OFFER;
   if (transPlaying(me, state.clock.ms)) return null;
@@ -209,7 +218,7 @@ export function handAction(state, action, bus, ctx) {
         pick = (offer.more ?? []).find(c => c.id === args.id && JSON.stringify(c.args ?? {}) === JSON.stringify(args.args ?? {})) ?? null;
         if (!pick) return;
       }
-      startActivity(state, bus, ctx, { id: pick.id, spotId: pick.spotId, args: pick.args ?? {}, late: args.late ?? null });
+      startActivity(state, bus, ctx, { id: pick.id, spotId: pick.spotId, args: pick.args ?? {}, late: args.late ?? null, lead: !!args.lead });
       return;
     }
     default: return;

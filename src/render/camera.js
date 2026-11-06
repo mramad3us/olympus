@@ -17,6 +17,9 @@
 // eases the lean there (LEAD_S) and looks at the focus plus the lean.
 import * as THREE from 'three';
 import { PX_PER_M, S45 } from './scale.js';
+// (0.0.5: the weapon mode's lead and your shot's shake, pure, in lead.js so the tests read them in node)
+export { aimLead, SHOT_SHAKE_PX, SHOT_SHAKE_MS } from './lead.js';
+
 
 /** How far the camera stands back along its line, metres (any distance: it's orthographic). */
 export const CAMERA_BACK_M = 60;

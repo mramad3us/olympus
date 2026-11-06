@@ -41,6 +41,15 @@
 //     pulled over the head, both arms up), dress1 (a leg into the trousers, the knee up), basin (leaning
 //     at a sink, the hands at the basin), brush (the toothbrush at the mouth, foam on it) and shave (the
 //     razor at the jaw, foam along it): held names what the right hand holds, foam where it lies.
+// 0.0.5 adds the rifle's handling (the build sheet 0.0.5 §2.3 (b), VIEWS §3.4's weapon frames), in three
+// bands of their own, a POOL apart on the atlas (src/art/figures/atlas.js) so a look that never handles
+// a rifle costs none of them: rifle (standing: the low and high ready, slung front and on the back held
+// still, the rifle raised from the sling or slung again, the charging handle, the bolt released, the
+// press check), rifleKneel (the same kneeling, with the magazine out and in) and rifleProne (prone: the
+// rifle rested forward, slung across the back, the charging handle, the release, the press check, the
+// magazine out and in, the rifle propped on the elbows for the hands to work under it); the aims and the
+// fires stay in arms. rifleFrame() turns the arms role's gunLook (src/sim/arms/look.js: carry, stance,
+// action, aim, kick, flash) into the frame to draw, on the sim's clock, as gunPose() does for an actor.
 // A look's cues change its frames, not only its colours: tired (BODY's fatigue, VIEWS §7.3: the head down
 // a pixel, the arms swinging half as far, a touch more lean) is a flag poseOf() reads.
 // How a weapon is carried through the gait (slung, patrol, high ready) is the look's (outfits.js
@@ -72,15 +81,22 @@ export const BANDS = Object.freeze({
   rest: Object.freeze(['sit', 'sitUp', 'standUp', 'climb', 'lieDown', 'dress0', 'dress1', 'basin', 'brush', 'shave']),
   lie: Object.freeze(['couch', 'sleep']),
   float: Object.freeze(['float0', 'float1', ...Array.from({ length: 7 }, (_, i) => `tumble${i + 1}`)]),
+  rifle: Object.freeze(['lowReady', 'highReady', 'slungFront', 'slungBack', 'raise', 'charge', 'release', 'pressCheck']),
+  rifleKneel: Object.freeze(['kneelLow', 'kneelHigh', 'kneelFront', 'kneelSlung', 'kneelCharge', 'kneelRelease', 'kneelCheck', 'kneelMagout', 'kneelMagin']),
+  rifleProne: Object.freeze(['proneLow', 'proneSlung', 'proneCharge', 'proneRelease', 'proneCheck', 'proneMagout', 'proneMagin']),
 });
-/** The berth's transitions as poseAt names them (the time role's src/sim/people/place.js), and the frames they draw: 'lie' is the berth's painting, 'stand' the idle. */
-export const TRANSITION_FRAMES = Object.freeze({ lie: null, sitUp: 'sitUp', sit: 'sit', climb: 'climb', standUp: 'standUp', stand: null, lieDown: 'lieDown', dress: 'dress0' });
+/** The bands painted in the rifle's pool of the atlas (atlas.js sheetLayout's pools): only a look that handles a rifle needs them. */
+export const RIFLE_BANDS = Object.freeze(['rifle', 'rifleKneel', 'rifleProne']);
+/** Which pool of the atlas each band is painted in: 'base' (every look's sheet) or 'rifle'. */
+export const POOL_OF = Object.freeze(Object.fromEntries(Object.keys(BANDS).map(b => [b, RIFLE_BANDS.includes(b) ? 'rifle' : 'base'])));
+/** The berth's transitions as poseAt names them (the time role's src/sim/people/place.js), and the frames they draw: 'lie' is the berth's painting, 'stand' the idle, 'walk' the gait's walk by the metres walked (the steps between a lower berth's edge and its foot). */
+export const TRANSITION_FRAMES = Object.freeze({ lie: null, sitUp: 'sitUp', sit: 'sit', climb: 'climb', standUp: 'standUp', walk: null, stand: null, lieDown: 'lieDown', dress: 'dress0' });
 export const BAND_KEYS = Object.freeze(Object.keys(BANDS));
 export const FRAMES = Object.freeze(Object.values(BANDS).flat());
 export const BAND_OF = Object.freeze(Object.fromEntries(Object.entries(BANDS).flatMap(([b, fs]) => fs.map(f => [f, b]))));
 export const GUN_FRAMES = Object.freeze(['aim', 'aimhi', 'aimlo', 'fire', 'firehi', 'firelo']);
 /** Lying frames: a long cell seen side on, the long cell stood up seen end on. */
-const LYING = new Set(['prone', 'pronefire', 'sleep', 'couch']);
+const LYING = new Set(['prone', 'pronefire', 'sleep', 'couch', ...BANDS.rifleProne]);
 /** Which cell a frame takes, seen facing dir (body.js CELLS_M). */
 export function cellKind(frame, dir) {
   if (BAND_OF[frame] === 'float') return 'float';
@@ -142,8 +158,25 @@ const BASIN = { lean: 0.45, legs: { r: [-0.06, 0.06, 0.05], l: [-0.06, 0.06, 0.0
 const BRUSH = { lean: 0.1, legs: STAND, arms: { r: [1.2, 1.9, 0.08], l: [0.25, 0.4, 0.07] }, held: 'brush', foam: 'mouth' };
 const SHAVE = { lean: 0.08, legs: STAND, arms: { r: [1.05, 2.05, 0.16], l: [0.2, 0.35, 0.07] }, held: 'razor', foam: 'jaw' };
 
+// The rifle's held frames (0.0.5): a stance's body (SHOOT's feet standing, KNEEL, PRONE's) and the rig's
+// mode (compose.js rigOf: 'low', 'high', 'front' slung across the chest hands off, 'slung' on the back,
+// 'raise' both hands bringing it off the sling, 'charge' the right hand at the charging handle, 'release'
+// the left at the bolt catch, 'check' the left at the port and the eyes on it, 'magout' and 'magin',
+// 'proneRest' the rifle rested forward off the shoulder). Prone, the hands work with the rifle propped on
+// the elbows (rig.prone), so its magazine well is clear of the ground.
+const STAND_EASY = { lean: 0.03, legs: { r: [-0.08, 0.06, 0.05], l: [0.1, 0.1, 0.05] } };
+const PRONE_BODY = { stance: 'prone', legs: { r: [0, 0.05, 0.16], l: [0, 0.3, 0.12] } };
+const HELD_RIFLE = Object.freeze({
+  lowReady: [STAND_EASY, 'low'], highReady: [STAND_EASY, 'high'], slungFront: [STAND_EASY, 'front'], slungBack: [STAND_EASY, 'slung'],
+  raise: [STAND_EASY, 'raise'], charge: [SHOOT, 'charge'], release: [SHOOT, 'release'], pressCheck: [SHOOT, 'check'],
+  kneelLow: [KNEEL, 'low'], kneelHigh: [KNEEL, 'high'], kneelFront: [KNEEL, 'front'], kneelSlung: [KNEEL, 'slung'],
+  kneelCharge: [KNEEL, 'charge'], kneelRelease: [KNEEL, 'release'], kneelCheck: [KNEEL, 'check'], kneelMagout: [KNEEL, 'magout'], kneelMagin: [KNEEL, 'magin'],
+  proneLow: [PRONE_BODY, 'proneRest'], proneSlung: [PRONE_BODY, 'slung'], proneCharge: [PRONE_BODY, 'charge'], proneRelease: [PRONE_BODY, 'release'],
+  proneCheck: [PRONE_BODY, 'check'], proneMagout: [PRONE_BODY, 'magout'], proneMagin: [PRONE_BODY, 'magin'],
+});
+
 /** A gun's rig through the gait frames, by carry: the hands' mode (compose.js RIGS). */
-const CARRY_RIG = { low: 'low', high: 'high', slung: 'slung' };
+const CARRY_RIG = { low: 'low', high: 'high', slung: 'slung', front: 'front' };
 
 /**
  * The pose of a frame for a look's weapon and carry (see the header). Plain data, a new object each call.
@@ -181,6 +214,11 @@ function basePose(frame, { weapon = null, carry = null } = {}) {
     case 'float': p = { ...(k ? FLOAT1 : FLOAT0), rig: gaitRig && gaitRig.mode === 'slung' ? gaitRig : weapon ? { mode: 'low' } : null }; break;
     case 'tumble': p = { ...FLOAT0, roll: k * Math.PI / 4, rig: gaitRig && gaitRig.mode === 'slung' ? gaitRig : weapon ? { mode: 'low' } : null }; break;
     default: p = null;
+  }
+  if (!p && HELD_RIFLE[frame]) {
+    const [body, mode] = HELD_RIFLE[frame];
+    const prone = body === PRONE_BODY, hold = !['front', 'slung'].includes(mode);
+    p = { ...body, ...(mode === 'check' ? { headDrop: 1 } : {}), rig: { mode, gun: 'rifle', ...(prone ? { prone: true } : {}), ...(body === KNEEL ? { kneel: true } : {}), hold } };
   }
   if (!p) {
     const gun = weapon ?? 'rifle';                                   // (an aim with nothing in the hands draws the rifle's: a sheet is a look's)
@@ -258,3 +296,53 @@ export function gunPose(a, ms) {
   if (!kick && (face === 'left' || face === 'right') && up >= 0 && up < RAISE_MS && turn >= 0) turn--;   // (coming up from the carry)
   return { frame: `${kick ? 'fire' : 'aim'}${turn > 0 ? 'hi' : turn < 0 ? 'lo' : ''}`, flash };
 }
+
+// ---------- the rifle in hand: the arms role's gunLook as a frame (0.0.5) ----------
+
+/** The held frame for a carry and a stance (gunLook's carry: 'front' | 'slung' | 'low' | 'high'; stance 'stand' | 'kneel' | 'prone'). */
+const CARRY_FRAME = Object.freeze({
+  stand: { front: 'slungFront', slung: 'slungBack', low: 'lowReady', high: 'highReady' },
+  kneel: { front: 'kneelFront', slung: 'kneelSlung', low: 'kneelLow', high: 'kneelHigh' },
+  prone: { front: 'proneSlung', slung: 'proneSlung', low: 'proneLow', high: 'proneLow' },
+});
+/** An action's frame (gunLook.action.frame: look.js ACTION_FRAMES) for a stance; 'aim' and 'fire' are the arms band's. */
+const ACTION_FRAME = Object.freeze({
+  stand: { raise: 'raise', sling: 'raise', charge: 'charge', release: 'release', check: 'pressCheck', magout: 'magout', magin: 'magin' },
+  kneel: { raise: 'kneelLow', sling: 'kneelLow', charge: 'kneelCharge', release: 'kneelRelease', check: 'kneelCheck', magout: 'kneelMagout', magin: 'kneelMagin' },
+  prone: { raise: 'proneLow', sling: 'proneLow', charge: 'proneCharge', release: 'proneRelease', check: 'proneCheck', magout: 'proneMagout', magin: 'proneMagin' },
+});
+const AIM_OF = { stand: 'aim', kneel: 'kneel', prone: 'prone' }, FIRE_OF = { stand: 'fire', kneel: 'kneelfire', prone: 'pronefire' };
+
+/**
+ * The frame a rifle in hand is drawn in (the arms role's gunLook: { carry: 'front' | 'slung' | 'low' |
+ * 'high' | 'aim', stance, aim: { x, z, ms } | null, action: { frame, k } | null, kick, flash }), for a
+ * body at (x, z) facing `face`, at game time ms: { frame, flash }. A kick shows the stance's fire frame,
+ * an action its frame (a list walked by k), an aim the stance's aim (standing, turned up or down the
+ * picture by turnOf, held lower its first RAISE_MS), else the carry's held frame. Pure.
+ */
+export function rifleFrame(gl, { face = 'right', x = 0, z = 0, ms = 0 } = {}) {
+  if (!gl) return { frame: null, flash: false };
+  const stance = CARRY_FRAME[gl.stance] ? gl.stance : 'stand', flash = !!gl.flash;
+  const aimed = (kick) => {
+    if (stance !== 'stand') return kick ? FIRE_OF[stance] : AIM_OF[stance];
+    const a = gl.aim, dx = a ? a.x - x : 0, dz = a ? a.z - z : 0;
+    const to = Math.hypot(dx, dz) > 0.05 ? Math.atan2(dz, dx) : HEAD[face] ?? 0;
+    let turn = turnOf(face, to);
+    const up = a ? ms - a.ms : Infinity;
+    if (!kick && (face === 'left' || face === 'right') && up >= 0 && up < RAISE_MS && turn >= 0) turn--;
+    return `${kick ? 'fire' : 'aim'}${turn > 0 ? 'hi' : turn < 0 ? 'lo' : ''}`;
+  };
+  if (gl.kick) return { frame: aimed(true), flash };
+  const act = gl.action?.frame;
+  if (act) {
+    const list = Array.isArray(act) ? act : [act];
+    const f = list[Math.min(list.length - 1, Math.max(0, Math.floor((gl.action.k ?? 0) * list.length)))];
+    if (f === 'aim' || f === 'fire') return { frame: aimed(false), flash };
+    const fr = ACTION_FRAME[stance][f];
+    if (fr) return { frame: fr, flash };
+  }
+  if (gl.carry === 'aim') return { frame: aimed(false), flash };
+  return { frame: CARRY_FRAME[stance][gl.carry] ?? CARRY_FRAME[stance].low, flash };
+}
+/** The carry a look's gait frames are painted with, for a gunLook's carry (an aim walks at the low ready). */
+export const gaitCarryOf = (carry) => (carry === 'aim' || !carry ? 'low' : carry);

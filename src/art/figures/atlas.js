@@ -10,6 +10,11 @@
 // sheet, and it is painted (paintBand(): compose.js and shade.js for each of its cells) and sent up
 // alone, the first time anyone of that look needs it: a crowd that never aims never costs an aim.
 //
+// 0.0.5: the rifle's handling bands (poses.js RIFLE_BANDS) are laid out in a POOL of their own, a second,
+// smaller sheet (pools.rifle: the three bands side by side, about 880 × 152 at 16 px/m), so the base sheet
+// keeps its size and the atlas its 40 looks at 16 px/m; the render keeps rifle sheets in the atlas's rows
+// the base sheets leave below them (src/render/figures.js) and gives one only to a look that handles a
+// rifle. A band's rectangle and its cells are in its pool's sheet (bands[band].pool).
 // Each cell carries its frame's anchor (ax, ay: the pixel over the sim's spot, body.js), the same for
 // every look at a density (lying frames are fitted to their cells by the body alone, not
 // by what it carries), so the render places any look's card from the layout. The flashes are not on the
@@ -18,7 +23,7 @@
 // cell's top-left, and the render draws it as a card of its own, unlit, for FLASH_MS.
 // Pure: Pixmaps (src/art/paint.js words), no GPU objects.
 import { PX_PER_M } from '../../render/scale.js';
-import { BANDS, BAND_KEYS, DIRS, cellKind, FRAMES } from './poses.js';
+import { BANDS, BAND_KEYS, DIRS, cellKind, FRAMES, POOL_OF } from './poses.js';
 import { bodyOf } from './body.js';
 import { composeFrame } from './compose.js';
 import { shade } from './shade.js';
@@ -28,12 +33,15 @@ import { word } from '../paint.js';
 
 /** The sheet's width, metres at the density (512 px at 16 px/m, 768 at 24). */
 export const SHEET_W_M = 32;
+/** The rifle pool's sheet width, metres (its three bands side by side: 880 px at 16 px/m, so four go across a 4096 atlas). */
+export const RIFLE_SHEET_W_M = 56;
 const GAP = 0;
 
 const layouts = new Map();
 /**
- * The sheet's layout at a density: { w, h, bands: { [band]: { x, y, w, h } },
- * cells: Map `${frame}|${dir}` → { x, y, w, h, ax, ay, kind, band } } (x, y in the sheet; ax, ay in the cell).
+ * The sheet's layout at a density: { w, h (the base pool's sheet), bands: { [band]: { x, y, w, h, pool } },
+ * cells: Map `${frame}|${dir}` → { x, y, w, h, ax, ay, kind, band, pool }, pools: { base: { w, h }, rifle:
+ * { w, h } } } (x, y in the band's pool's sheet; ax, ay in the cell).
  */
 export function sheetLayout(ppm = PX_PER_M) {
   const key = `${ppm}`;
@@ -55,17 +63,21 @@ export function sheetLayout(ppm = PX_PER_M) {
     }
     return { band, w, h: y, cells };
   });
-  // (shelves: blocks left to right while they fit the sheet's width, then a new shelf)
-  const SW = Math.max(Math.round(SHEET_W_M * ppm), ...blocks.map(b => b.w));
-  let sx = 0, sy = 0, shelf = 0;
-  const bands = {}, cells = new Map();
-  for (const b of blocks) {
-    if (sx + b.w > SW) { sx = 0; sy += shelf; shelf = 0; }
-    bands[b.band] = { x: sx, y: sy, w: b.w, h: b.h };
-    for (const c of b.cells) cells.set(`${c.frame}|${c.dir}`, { ...c, x: sx + c.x, y: sy + c.y });
-    sx += b.w; shelf = Math.max(shelf, b.h);
+  // (shelves, a pool at a time: blocks left to right while they fit the sheet's width, then a new shelf)
+  const bands = {}, cells = new Map(), pools = {};
+  for (const [pool, wM] of [['base', SHEET_W_M], ['rifle', RIFLE_SHEET_W_M]]) {
+    const mine = blocks.filter(b => POOL_OF[b.band] === pool);
+    const SW = Math.max(Math.round(wM * ppm), ...mine.map(b => b.w));
+    let sx = 0, sy = 0, shelf = 0;
+    for (const b of mine) {
+      if (sx + b.w > SW) { sx = 0; sy += shelf; shelf = 0; }
+      bands[b.band] = { x: sx, y: sy, w: b.w, h: b.h, pool };
+      for (const c of b.cells) cells.set(`${c.frame}|${c.dir}`, { ...c, pool, x: sx + c.x, y: sy + c.y });
+      sx += b.w; shelf = Math.max(shelf, b.h);
+    }
+    pools[pool] = { w: SW, h: sy + shelf };
   }
-  const out = { ppm, w: SW, h: sy + shelf, bands, cells, body: B };
+  const out = { ppm, w: pools.base.w, h: pools.base.h, bands, cells, body: B, pools };
   layouts.set(key, out);
   return out;
 }
@@ -80,7 +92,8 @@ export function sheetLayout(ppm = PX_PER_M) {
  */
 export function shapeKey(L) {
   return [L.top?.kind, L.top?.emblem ? 'e' : '', L.legs?.kind, L.head?.kind ?? '-', L.armour ? 'ø' : '', L.pack ? (L.pack.helmet ? 'jh' : 'j') : '',
-    L.belt ? 'y' : '', L.rank ? 'r' : '', L.gloves ? 'd' : '', L.hair?.style, L.weapon ?? '-', L.carry ?? '-', L.wet ? 'w' : '', L.tired ? 't' : ''].join('|');
+    L.belt ? 'y' : '', L.rank ? 'r' : '', L.gloves ? 'd' : '', L.hair?.style, L.weapon ?? '-', L.carry ?? '-', L.wet ? 'w' : '', L.tired ? 't' : '',
+    `${L.ears ? 'E' : ''}${L.headset ? 'H' : ''}${L.brassard ? 'B' : ''}${L.magOut ? 'M' : ''}`].join('|');
 }
 /** How many composed frames are kept (a least-recently-used cache: about ten shapes' gait bands). */
 export const COMPOSED_KEEP = 600;
@@ -136,16 +149,23 @@ export function* bandSteps(look, band, { ppm = PX_PER_M } = {}) {
   return { band, rect, pm: { w: rect.w, h: rect.h, data, repeat: false, key: null, glows: true }, ms };
 }
 
-/** Every band of a look on one sheet (a Pixmap of the whole layout): for the samples, the tests and a single card. */
-export function paintSheet(look, { ppm = PX_PER_M, bands = BAND_KEYS } = {}) {
-  const lay = sheetLayout(ppm), data = new Uint32Array(lay.w * lay.h);
+/**
+ * Every band of a look on one sheet (a Pixmap of the whole layout): for the samples, the tests and a single
+ * card. The rifle pool's sheet is stacked under the base's when any of its bands are asked for (rifle: true
+ * for all of them; by default a look with a weapon gets them).
+ */
+export function paintSheet(look, { ppm = PX_PER_M, bands = null, rifle = null } = {}) {
+  const lay = sheetLayout(ppm), L = look?.top ? look : wear(look);
+  const want = bands ?? BAND_KEYS.filter(b => POOL_OF[b] === 'base' || (rifle ?? !!L.weapon));
+  const withRifle = want.some(b => POOL_OF[b] === 'rifle');
+  const W = withRifle ? Math.max(lay.w, lay.pools.rifle.w) : lay.w, H = lay.h + (withRifle ? lay.pools.rifle.h : 0), data = new Uint32Array(W * H);
   let ms = 0;
-  for (const band of bands) {
-    const b = paintBand(look, band, { ppm }), r = b.rect;
-    for (let y = 0; y < r.h; y++) data.set(b.pm.data.subarray(y * r.w, (y + 1) * r.w), (r.y + y) * lay.w + r.x);
+  for (const band of want) {
+    const b = paintBand(look, band, { ppm }), r = b.rect, oy = POOL_OF[band] === 'rifle' ? lay.h : 0;
+    for (let y = 0; y < r.h; y++) data.set(b.pm.data.subarray(y * r.w, (y + 1) * r.w), (oy + r.y + y) * W + r.x);
     ms += b.ms;
   }
-  return { w: lay.w, h: lay.h, data, repeat: false, key: null, glows: true, ms };
+  return { w: W, h: H, data, repeat: false, key: null, glows: true, ms };
 }
 
 /** One frame of a look as a Pixmap with its anchor: { pm, ax, ay, muzzle, flash } (a single card, a close look). */
@@ -156,6 +176,11 @@ export function paintFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
 }
 
 export const FIRE_FRAMES = Object.freeze(['fire', 'firehi', 'firelo', 'kneelfire', 'pronefire']);
+/**
+ * The flash's size on Mars, of tradecraft's (the build sheet 0.0.5 §2.3 (c): "the flash (Mars ×1.2)": in
+ * Melas's 66 kPa the propellant's gas burns on a little further past the muzzle than at sea level).
+ */
+export const MARS_FLASH_K = 1.2;
 const strips = new Map();
 /**
  * Every flash there can be at a density, in one strip: { pm, size (a slot's side, px),
@@ -165,7 +190,7 @@ const strips = new Map();
 export function flashStrip(ppm = PX_PER_M) {
   const key = `${ppm}`;
   if (strips.has(key)) return strips.get(key);
-  const lay = sheetLayout(ppm), k = ppm / 16, list = [];
+  const lay = sheetLayout(ppm), k = ppm / 16 * MARS_FLASH_K, list = [];
   for (const gun of ['rifle', 'pistol']) for (const dir of DIRS) for (const frame of FIRE_FRAMES) {
     if (gun === 'pistol' && frame === 'pronefire') continue;
     const fr = composeFrame(wear({ outfit: 'utilities', weapon: gun }), dir, frame, { ppm });

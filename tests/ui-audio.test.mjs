@@ -18,10 +18,17 @@
 // shown minute, at most TICK_MAX_HZ: a 10-minute shower's 10 over its 2.6 s lapse, a night's steady
 // 10 Hz), the world's recipes (the water and the tap looping seamlessly, the flush, the klaxon's whoop
 // from 600 to 1,100 Hz, reveille's bugle, the tick) and which loop plays at which part.
+// The 0.0.5 round's range (the build sheet §2.4, §5.4; audio/range.js): the R-7's report at the shooter in
+// Melas's 65.9 kPa (airDb −1.9 dB, the muzzle 0.9 m off) with and without ear defenders (EARS_DB −25 dB and
+// a 2 kHz low-pass), the berm's slap-back 12 dB under it 0.17 s later (2 × 28 m at 322 m/s), a neighbour's
+// at 3 and 6 m; the action's clicks at their fractions of each sub-step on the game clock, a case's tick at
+// its landMs as the clock passes it, the dry click of a dud, the tower's chime on a pa line; nothing new
+// while time stands still, nothing a skip jumped over; and RANGE's recipes rendered and measured.
 import { assert, near, fmt } from './helpers.mjs';
 import { footfalls, stepVoice, createStepScheduler, weightDb, lowpassHz, HALF_CYCLE_M } from '../src/ui/audio/steps.js';
 import { render, measure } from '../src/ui/audio/synth.js';
-import { STEPS, DOORS, WORLD, AIR_KPA, LOOKAHEAD_S, WALL_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, TICK_MAX_HZ, KLAXON_HZ, WORLD_RATE_HZ } from '../src/data/sounds.js';
+import { STEPS, DOORS, WORLD, RANGE, AIR_KPA, LOOKAHEAD_S, WALL_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, TICK_MAX_HZ, KLAXON_HZ, WORLD_RATE_HZ, EARS_DB, EARS_LP_HZ, ECHO_DB, SOUND_SPEED_MS, REPORT_SOURCE_DB, ACTION_SOUNDS } from '../src/data/sounds.js';
+import { reportVoice, echoOf, caseVoice, chimeVoice, clickVoice, actionSoundsOf, createRange, createClickQueue, BERM_FACE_X, LATE_MS } from '../src/ui/audio/range.js';
 import { klaxonVoice, wallsBetween, duckOf, createTicker, loopsAt } from '../src/ui/audio/world.js';
 import { areaOf } from '../src/sim/places/model.js';
 import { ALERT_DRILL } from '../src/data/pod.js';
@@ -256,6 +263,90 @@ export default [
       const rows = [[sh, 30_000], [sh, 100_000], [sh, 300_000], [ba, 60_000], [{ time: {}, clock: { ms: 0 } }, 0]].map(([st, ms]) => loopsAt(st, ms));
       console.log(`      the shower at 0:30, 1:40, 5:00: water ${rows.slice(0, 3).map(r => r.water).join(', ')}; the basin's teeth: tap ${rows[3].tap}; nothing under way: ${JSON.stringify(rows[4])}`);
       assert(!rows[0].water && rows[1].water && !rows[2].water && rows[3].tap && !rows[3].water && !rows[4].water && !rows[4].tap, JSON.stringify(rows));
+    },
+  },
+  {
+    name: 'the R-7\'s report at the shooter in 65.9 kPa: −1.9 dB of air, the muzzle 0.9 m off; ear defenders take it 25 dB down and low-pass it at 2 kHz; the berm\'s slap-back 12 dB under it 0.17 s later; a neighbour\'s at 3 and 6 m',
+    fn() {
+      const me = { x: 1100, z: 292.5 }, open = reportVoice({ me, mine: true, ears: false }), ears = reportVoice({ me, mine: true, ears: true });
+      console.log(`      yours, no defenders: ${fmt(open.gainDb, 1)} dB over the recipe's peak at ${fmt(open.lowpassHz, 0)} Hz (source +${REPORT_SOURCE_DB}, the air ${fmt(airDb(65.9), 2)}); with them: ${fmt(ears.gainDb, 1)} dB at ${fmt(ears.lowpassHz, 0)} Hz`);
+      console.log(`      the echo: ${fmt(ears.echo.gainDb, 1)} dB at ${fmt(ears.echo.lowpassHz, 0)} Hz, ${fmt(ears.echo.delayS * 1000, 1)} ms after (${fmt(ears.echo.pathM, 1)} m of path at ${SOUND_SPEED_MS} m/s to the berm's face at x ${BERM_FACE_X} and back)`);
+      near(open.gainDb, REPORT_SOURCE_DB + airDb(65.9), 1e-9, 'the report at 0.9 m: no distance loss inside a metre');
+      near(open.gainDb - ears.gainDb, -EARS_DB, 1e-9, 'the defenders');
+      near(airDb(65.9), -1.87, 0.01, 'airDb(65.9)');
+      assert(open.lowpassHz > 5000 && ears.lowpassHz === EARS_LP_HZ, `${open.lowpassHz} / ${ears.lowpassHz}`);
+      near(ears.echo.gainDb - ears.gainDb, ECHO_DB, 1e-9, 'the echo under the report');
+      near(ears.echo.delayS, 0.174, 0.002, 'the echo 2 × 28 m at 322 m/s');
+      const n3 = reportVoice({ me, muzzle: { x: 1100.9, z: 295.5 }, mine: false, ears: true }), n6 = reportVoice({ me, muzzle: { x: 1100.9, z: 298.5 }, mine: false, ears: true });
+      console.log(`      a neighbour 3 m off: ${fmt(n3.gainDb, 1)} dB (${fmt(n3.distM, 2)} m, pan ${fmt(n3.pan, 2)}); 6 m: ${fmt(n6.gainDb, 1)} dB; their echoes ${fmt(n3.echo.delayS * 1000, 0)} and ${fmt(n6.echo.delayS * 1000, 0)} ms after`);
+      assert(n3.gainDb < ears.gainDb && n6.gainDb < n3.gainDb && n3.echo.delayS < ears.echo.delayS, JSON.stringify({ n3: n3.gainDb, n6: n6.gainDb }));
+      const pa = chimeVoice({ me }), tick = caseVoice({ me, at: { x: 1101.73, z: 295.09 } });
+      console.log(`      the tower's chime from its deck: ${fmt(pa.distM, 1)} m, ${fmt(pa.gainDb, 1)} dB, pan ${fmt(pa.pan, 2)}; a case landing 3.1 m off to the right: ${fmt(tick.gainDb, 1)} dB, pan ${fmt(tick.pan, 2)}`);
+      assert(pa.distM > 20 && pa.pan < 0 && tick.pan > 0, JSON.stringify({ pa, tick }));
+    },
+  },
+  {
+    name: 'the range\'s sounds on the game clock: the clicks at their fractions of each sub-step (the magazine\'s seat at 0.8 of magIn, the handle at 0.35 and 0.9 of charge), a case\'s tick at its landMs, the dry click of a dud, the chime on a pa line; nothing new while time stands still, nothing a skip jumped over',
+    fn() {
+      const played = [];
+      const engine = { shot: (kind, opts) => { played.push({ kind, ...opts }); return true; } };
+      const range = createRange(engine, { looks: { kitLook: () => ({ ears: true }) } });
+      const state = { player: { id: 'p145', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p145', x: 1100, z: 292.5 }] }, clock: { ms: 1000, holds: [] } };
+      const at = (ms, held = false, alpha = 0) => { state.clock.ms = ms; state.clock.holds = held ? ['stop'] : []; range.frame(state, { alpha }); return played.map(p => p.kind); };
+      at(1000);
+      // (LOAD's magIn from 1,400 to 3,010 ms; then a shot at 4,000 with its case landing at 4,870)
+      range.fact('step', { phase: 'sub', who: 'p145', step: 'macro:load', i: 1, action: 'magIn', fromMs: 1400, toMs: 3010 }, state);
+      range.fact('step', { phase: 'sub', who: 'p145', step: 'macro:load', i: 1, action: 'magIn', fromMs: 1400, toMs: 3010 }, state);   // (heard twice: scheduled once)
+      const seatMs = 1400 + 0.8 * 1610;
+      const before = at(seatMs - 60).length, stood = at(seatMs + 10, true, 0.9).length === before;
+      const seat = at(seatMs + 10).slice(before);
+      console.log(`      magIn 1,400 to 3,010 ms: the seat due at ${seatMs} ms; at ${seatMs - 60}: ${before} played; the clock standing a tick short with the frame 90% on: nothing; past it: ${seat.join(', ')}`);
+      assert(before === 0 && seat.join() === 'magSeat', JSON.stringify(played));
+      range.fact('shot', { who: 'p145', fired: true, muzzle: { x: 1100.9, y: 0.25, z: 292.5 }, brass: { kind: 'case', landMs: 4870, at: [1101.73, 295.09] } }, state);
+      const shot = played.slice(-2);
+      at(4800); const early = played.length;
+      at(4870); const landed = played.at(-1);
+      console.log(`      the shot: ${shot.map(p => `${p.kind} ${fmt(p.gainDb, 1)} dB ${fmt(p.lowHz, 0)} Hz${p.delayS ? ` +${fmt(p.delayS * 1000, 0)} ms` : ''}`).join(', ')}; the case: nothing at 4,800 ms, ${landed.kind} at 4,870 (${fmt(landed.gainDb, 1)} dB)`);
+      assert(shot[0].kind === 'report' && shot[1].kind === 'report' && Math.abs(shot[1].delayS - 0.17) < 0.006 && early === played.length - 1 && landed.kind === 'caseTick', JSON.stringify(played.slice(-3)));
+      // (charge: the pull at 0.35, the slam at 0.9; a skip jumps the clock past both: dropped, counted late)
+      range.fact('step', { phase: 'start', who: 'p145', step: 'charge', i: 0, action: 'charge', fromMs: 5000, toMs: 5920 }, state);
+      at(5000 + 0.35 * 920 + 1); at(5000 + 0.9 * 920 + 1);
+      const charge = played.slice(-2).map(p => p.kind);
+      range.fact('step', { phase: 'start', who: 'p145', step: 'charge', i: 0, action: 'charge', fromMs: 6000, toMs: 6920 }, state);
+      const n0 = played.length; at(6000 + 920 + LATE_MS + 50);
+      console.log(`      charge: ${charge.join(', ')}; jumped ${LATE_MS + 50} ms past a charge's end: ${played.length - n0} played, ${range.stats.queue.late} dropped`);
+      assert(charge.join() === 'chargePull,chargeSlam' && played.length === n0 && range.stats.queue.late === 2, JSON.stringify({ charge, late: range.stats.queue.late }));
+      range.fact('shot', { who: 'p145', fired: false, why: 'dud' }, state);
+      range.fact('shot', { who: 'p145', fired: false, why: 'safety' }, state);
+      range.fact('say', { who: 'p146', kind: 'pa', text: 'MAKE READY.' }, state);
+      range.fact('say', { who: 'p147', kind: 'speech', text: 'Breathe out.' }, state);
+      console.log(`      a dud's pull: ${played.at(-2).kind}; on safe: nothing; the tower's line: ${played.at(-1).kind}; the coach's: nothing`);
+      assert(played.at(-2).kind === 'dryClick' && played.at(-1).kind === 'chime' && range.stats.dry === 1 && range.stats.chimes === 1, JSON.stringify(played.slice(-3)));
+      // (every action the panel offers has its clicks, or none on purpose)
+      const rows = ['magIn', 'charge', 'release', 'tap', 'selector:safe', 'magOut:drop', 'lockBack', 'pressCheck', 'clearDouble', 'observe'].map(a => `${a} ${actionSoundsOf(a).map(([k, f]) => `${k}@${f}`).join('+') || 'none'}`);
+      console.log(`      ${rows.join('; ')}`);
+      assert(actionSoundsOf('magOut:pouch') === ACTION_SOUNDS['magOut:*'] && actionSoundsOf('selector:semi')[0][1] === 0.6 && actionSoundsOf('observe').length === 0, 'the families');
+    },
+  },
+  {
+    name: 'the range\'s sounds by code (RANGE): the report, the action\'s clicks, the case\'s tick, the tower\'s chime: each at its level, the same samples twice, ending on silence; the report the loudest and the lowest, the selector the brightest click',
+    fn() {
+      const m = {};
+      for (const [kind, recipe] of Object.entries(RANGE)) {
+        const rate = recipe.rateHz ?? 48000, t0 = performance.now();
+        const a = render(recipe, { sampleRate: rate, name: kind, variant: 0 }), ms = performance.now() - t0, b = render(recipe, { sampleRate: rate, name: kind, variant: 0 });
+        m[kind] = measure(a, rate);
+        console.log(`      ${kind.padEnd(10)}: ${fmt(m[kind].durS * 1000, 0)} ms at ${rate} Hz, peak ${fmt(m[kind].peakDb, 1)} dBFS, RMS ${fmt(m[kind].rmsDb, 1)}, centroid ${fmt(m[kind].centroidHz, 0)} Hz, decay ${fmt(m[kind].decayS * 1000, 0)} ms; rendered in ${fmt(ms, 1)} ms`);
+        near(m[kind].peakDb, recipe.levelDb, 0.1, `${kind}'s peak`);
+        assert(a.every((v, i) => v === b[i]) && a.every(Number.isFinite) && Math.abs(a[a.length - 1]) < 1e-6, `${kind}: the same twice, finite, silent at its end`);
+      }
+      const clicks = ['magSeat', 'chargeSlam', 'boltSlam', 'selector', 'dryClick'];
+      assert(clicks.every(k => m.report.peakDb > m[k].peakDb) && m.selector.centroidHz > m.palm.centroidHz && m.report.decayS > m.chargeSlam.decayS, JSON.stringify(Object.fromEntries(Object.entries(m).map(([k, v]) => [k, [Math.round(v.peakDb), Math.round(v.centroidHz)]]))));
+      const v = clickVoice();
+      console.log(`      a click at the hands: ${fmt(v.gainDb, 1)} dB at ${fmt(v.lowpassHz, 0)} Hz (not muffled: the defenders pass what is not an impulse)`);
+      const q = createClickQueue();
+      q.add(300, 'b'); q.add(100, 'a'); q.add(200, 'c');
+      assert(q.due(250).map(e => e.kind).join() === 'a,c' && q.size === 1, 'the queue in time order');
     },
   },
 ];
