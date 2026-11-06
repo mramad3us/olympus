@@ -6,10 +6,13 @@
 // clipboard. ?bench=1 is the same scene. Nothing is written to the saves. The build sheet 0.0.3 §5.4.
 // Prints the result as the card's text gives it (the headless clock's pacing is the harness's, not
 // the game's: render-bench and view-browser judge the frame times). On OLYMPUS_TEST_PORT.
+// The 0.0.4 round's (the build sheet §5.4): ?bench=splash-sleep, R at your rack and the night's full
+// splash, gives the card its splash row, { frames, medianMs, p95Ms, over25 } of the frames the splash
+// showed, and a seventh line in the copied text.
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { BENCH_SCENES, BENCH_DEFAULT, BENCH_S, BENCH_WARM_S } from '../src/data/bench.js';
-import { benchResult, benchText } from '../src/ui/cards/bench.js';
+import { benchResult, benchText, splashOf } from '../src/ui/cards/bench.js';
 
 const FIELDS = ['scene', 'version', 'ppm', 'seconds', 'frames', 'medianMs', 'p95Ms', 'p99Ms', 'maxMs', 'over25', 'drawCallsMax', 'trianglesMax', 'programs', 'uploadsMaxBytes', 'viewMedianMs', 'viewP95Ms', 'ticks', 'simMsPerTick', 'walkedM', 'renderer', 'dpr', 'window', 'picture', 'threads'];
 
@@ -66,6 +69,30 @@ export default [
         console.log(`      ?bench=1: ${r.scene}, ${r.frames} frames, median ${r.medianMs} ms, p95 ${r.p95Ms} ms, draw calls ${r.drawCallsMax}, walked ${r.walkedM} m`);
         assert(r.scene === 'squadbay-night', JSON.stringify(r));
       }, { query: 'bench=1', timeoutMs: 60000 });
+    },
+  },
+  {
+    name: 'a scene with a splash adds its row: the splash\'s frames alone, { frames, medianMs, p95Ms, over25 }, and a seventh line',
+    fn() {
+      const frames = Array.from({ length: 600 }, (_, i) => ({ dt: i % 50 === 0 ? 28 : 16.7, splash: i >= 100 && i < 560 ? 'lapse' : null }));
+      const s = splashOf(frames), r = benchResult({ frames, walkedM: 0 }, { name: 'splash-sleep', version: 'test', ppm: 16 }), lines = benchText(r).split('\n');
+      console.log(`      ${JSON.stringify(s)}; the text's last line: '${lines.at(-1)}'`);
+      assert(s.frames === 460 && s.medianMs === 16.7 && s.over25 === 10 && lines.length === 7 && /^splash frames 460/.test(lines.at(-1)) && splashOf([{ dt: 16 }]) === null, JSON.stringify({ s, lines }));
+      assert(BENCH_SCENES['splash-sleep']?.keys?.[0]?.[0] === 'KeyR', 'the splash-sleep scene presses R');
+    },
+  },
+  {
+    name: '?bench=splash-sleep: R at the rack, the night\'s splash timed; the card\'s splash row',
+    heavy: true,
+    timeoutMs: 150000,
+    async fn() {
+      await withGame(async (page) => {
+        await page.waitForFunction(() => window.__bench && document.querySelector('.glass.bench'), null, { timeout: 60000 });
+        const r = await page.evaluate(() => window.__bench), text = await page.evaluate(() => document.querySelector('.glass.bench .benchtext').value);
+        console.log(`      splash-sleep: ${r.frames} frames, median ${r.medianMs} ms, p95 ${r.p95Ms} ms; the splash: ${JSON.stringify(r.splash)}`);
+        for (const line of text.split('\n')) console.log(`        ${line}`);
+        assert(r.scene === 'splash-sleep' && r.splash && r.splash.frames >= 20 && /splash frames/.test(text), JSON.stringify(r));
+      }, { query: 'bench=splash-sleep', timeoutMs: 60000 });
     },
   },
 ];

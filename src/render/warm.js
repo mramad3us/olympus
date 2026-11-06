@@ -13,7 +13,8 @@
 // What it warms: a batch mesh on a one-texel page (src/render/materials.js batchMaterial), the
 // figures' own three materials (src/render/figures.js: cards, blobs, flashes, the berths sharing the
 // cards' program; their shaders are the same for every look, so one instance each is enough), and any
-// extra materials the view names (0.0.3: the clocks' hands, src/render/clocks.js). Returns { programs, ms, compiled }.
+// extra materials the view names (0.0.3: the clocks' hands, src/render/clocks.js), and instanced meshes it
+// names (0.0.4: the splash's vignettes, src/render/vignettes.js, warmed as one-instance copies). Returns { programs, ms, compiled }.
 // Two things matter for a warm program to be the one play uses. It is compiled with the scene's render
 // target bound (a program's key holds the output colour space, which differs between the canvas and a
 // target). And the warm-up's own batch material is kept, never disposed: three frees a program when the
@@ -24,7 +25,7 @@ import { batchMaterial } from './materials.js';
 const kept = [];                                                     // (the warm-up's materials: kept, so their programs stay)
 
 /** Compile what the stage will draw with: a promise of { programs (linked in all), ms, compiled (by this warm-up) }. */
-export async function warmUp(stage, { figures = null, extra: extraMats = [] } = {}) {
+export async function warmUp(stage, { figures = null, extra: extraMats = [], instanced = [] } = {}) {
   const t0 = performance.now(), r = stage.renderer, before = r.info.programs?.length ?? 0;
   const group = new THREE.Group();
   group.name = 'warm-up';
@@ -53,6 +54,13 @@ export async function warmUp(stage, { figures = null, extra: extraMats = [] } = 
       inst.setMatrixAt(0, new THREE.Matrix4().makeTranslation(0, -50, 0));
       group.add(inst); extra.push(inst);
     }
+  }
+  // (instanced draws the view adds (0.0.4: the splash's vignettes), a one-instance copy of each, as the figures')
+  for (const src of instanced.filter(Boolean)) {
+    const inst = new THREE.InstancedMesh(src.geometry, src.material, 1);
+    inst.count = 1; inst.frustumCulled = false; inst.userData = { ...src.userData }; inst.renderOrder = src.renderOrder;
+    inst.setMatrixAt(0, new THREE.Matrix4().makeTranslation(0, -50, 0));
+    group.add(inst); extra.push(inst);
   }
   // (any other material the stage draws with: the clocks' hands, on a quad each)
   const quads = [];

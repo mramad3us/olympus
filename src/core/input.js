@@ -17,6 +17,13 @@
 // kind) decides whether a sim action is queued at all (main.js says no while the game is paused or
 // an overlay is open, so a key pressed in a menu doesn't land in the world when it closes).
 //
+// R and T are press keys (keys.js): their 'down', 'tap' and 'held' go to the listeners only, never
+// into the queue, since what they send depends on what the line and the offer said when the key went
+// down (the UI queues it, with its arguments). A press held TAP_MS fires 'held' then, while the key is
+// still down (the build sheet 0.0.4 §2.4: "R and T act on key-up under TAP_MS 220, or at 220 ms while
+// held"): a timer set on the key going down asks the key machine's due() at TAP_MS, and every
+// snapshot asks it too, so a stalled timer only delays it to the next tick.
+//
 // The mouse, in stage coordinates: the position over the stage element (the canvas) in its own
 // pixels (setStage(el, widthPx, heightPx): 640 × 360 or 960 × 540, whatever PX_PER_M decides), its
 // buttons held (the MouseEvent bitmask: 1 left, 2 right, 4 middle), the clicks on the stage since
@@ -34,7 +41,7 @@
 // Chrome sends no keyup for a letter released while Cmd is held, so a move key held into a Cmd
 // shortcut would walk on by itself). This module is imported only by the browser side (main.js):
 // nothing in the sim reads the DOM.
-import { createKeyState, label as keyLabel, BINDINGS } from './keys.js';
+import { createKeyState, label as keyLabel, BINDINGS, TAP_MS } from './keys.js';
 
 const PREVENT = new Set(['Tab', 'Space', 'AltLeft', 'AltRight', ...BINDINGS.filter(b => b.kind === 'move').flatMap(b => b.codes)]);
 
@@ -60,11 +67,16 @@ export function createInput({ target = globalThis.window, stage = null, stageSiz
   };
   const typing = (e) => !!e.target?.closest?.('input, textarea, select, [contenteditable]');
 
+  // (a press held TAP_MS fires 'held' while still down: asked on a timer, and at every snapshot)
+  const due = (e = null) => { const fired = keys.due(now()); if (fired.length) dispatch(fired, e); };
+  const later = globalThis.setTimeout?.bind(globalThis) ?? null;
   const onDown = (e) => {
     if (e.metaKey || e.ctrlKey || typing(e)) return;               // (the browser's shortcuts, and text being typed)
     if ((PREVENT.has(e.code) && swallow()) || e.altKey || e.code?.startsWith('Alt')) e.preventDefault();   // (Alt is the stroll: held with a move, it mustn't type or wake a menu)
     if (e.repeat) return;
-    dispatch(keys.down(e.code, now(), e.key), e);
+    const fired = keys.down(e.code, now(), e.key);
+    dispatch(fired, e);
+    if (later && fired.some(f => f.kind === 'down')) later(() => due(e), TAP_MS + 5);
   };
   const onUp = (e) => {
     if (e.code?.startsWith('Alt')) e.preventDefault();
@@ -101,6 +113,7 @@ export function createInput({ target = globalThis.window, stage = null, stageSiz
     onAction(fn) { handlers.add(fn); return () => handlers.delete(fn); },
     /** The next tick's input (drains the actions and clicks). */
     snapshot() {
+      due();
       const out = { ...keys.snapshot(now()), act: queue, mouse: { x: mouse.x, y: mouse.y, inside: mouse.inside, buttons: mouse.buttons, clicks, wheel } };
       queue = []; clicks = []; wheel = 0;
       return out;
@@ -112,6 +125,17 @@ export function createInput({ target = globalThis.window, stage = null, stageSiz
      * keys' way into the sim; the UI never changes the state itself). Deliberate, so accept() is not asked.
      */
     queue(action) { queue.push(action); },
+    /**
+     * A key pressed or let go by its code, as the keyboard would send it (the bench's scripted keys, the
+     * build sheet 0.0.4 §2.3: R at the rack is a press, so it must reach the listeners, not only the key
+     * machine): through the key machine to the listeners and the queue.
+     */
+    key(code, down = true) {
+      const fired = down ? keys.down(code, now()) : keys.up(code, now());
+      dispatch(fired, null);
+      if (down && later && fired.some(f => f.kind === 'down')) later(() => due(null), TAP_MS + 5);
+      return fired;
+    },
     /** Drop the queued actions and clicks (a scene change, a load). */
     drop() { queue = []; clicks = []; wheel = 0; },
     /** Let every key go. */

@@ -24,14 +24,27 @@
 //   view               the stage's numbers (the view's stats, with idle and pending), or null
 //   act(action)        an action into the sim (a string or { act, args }): queued for the next tick
 //                      the loop runs, or, while it is paused, run at once in a tick of its own
+//   activity(id, spotId, args)  an activity begun at a spot (time's action { act: 'activity', args:
+//                      { id, spotId, args } }: the late card's and the choices card's way in), by act()
+//   drill(ms)          the alert drill forced to sound at ms tonight (the debug action
+//                      debug:drill:<ms>, which marks the save), by act()
+//   body()             the player's body record and its stages now (main.js gives BODY's readers:
+//                      { body, stages, strip, words, cues })
+//   instinct()         the instinct's line, chip and keys now (SKILLS' instinctNow), and the parts the
+//                      HUD shows
+//   splash()           the running splash, its plan, phase and shown clock (hud/splash.js), or null
+//   scores()           the scores kept in this browser (localStorage['olympus.scores'])
 //   loop, bus, sim     the machinery, for tests that listen
 // and what main.js adds through more (property descriptors, so getters stay getters), since core
 // may not import the sim (TECH §2.2): area (the live area's id), go(area, x, z, face) (the debug
 // action debug:go, which marks the save), door(id, to) (the door action), actors() (each actor with
 // its person's name, posture, outfit and whether you see them), light(x, z) (places' lightLevel
 // now), sun() (sunAt now), sightMask() (people's, for the player now), offer() (R's offer now),
-// audio (the sound's stats). window.__ready turns true once the page has drawn its frames with
-// nothing pending (main.js), so a test or a shot knows the page is up.
+// audio (the sound's stats), hud (the HUD's lines: the watch, the instinct's line, the toasts, the
+// splash's plaque, ticker and strip), scene (the test scene playing: its id, seed, whether it has
+// ended) and world (the world's sounds: the water, the tap, the flushes, the klaxon's whoops, the
+// bugle, the splash's muffle and ticks). window.__ready turns true once the page has drawn its frames
+// with nothing pending (main.js), so a test or a shot knows the page is up.
 //
 // URL parameters skip the title for tests and shots (main.js reads them through readParams()):
 // ?play=<scenario>&seed=<n>&hour=<h>[&mode=ironman][&debug=1], hour being the Mars local hour at the
@@ -85,7 +98,7 @@ function pair(v) {
  * queue(action) the input's (an action for the next tick the loop runs); more, members main.js adds
  * (an object whose property descriptors are copied onto the handle).
  */
-export function createDebugHandle({ loop, sim = null, start, newGame, version = '?', store = null, bus = null, about = () => 'debug', view = null, solText = null, report = null, queue = null, more = null }) {
+export function createDebugHandle({ loop, sim = null, start, newGame, version = '?', store = null, bus = null, about = () => 'debug', view = null, solText = null, report = null, queue = null, more = null, body = null, instinct = null, splash = null, scores = null }) {
   const inputOf = (inp) => (inp ? { ...NO_INPUT, ...inp, act: inp.act ?? [] } : NO_INPUT);
   const slotOf = (name) => {
     const s = String(name);
@@ -136,6 +149,18 @@ export function createDebugHandle({ loop, sim = null, start, newGame, version = 
       queue(action);
       return null;
     },
+    /** An activity begun at a spot (time's action), as the late card and the choices card send it. */
+    activity(id, spotId, args = {}, { late = null } = {}) { return this.act({ act: 'activity', args: { id, spotId, args, ...(late ? { late } : {}) } }); },
+    /** The alert drill forced to sound at ms (the debug action: it marks the save). */
+    drill(ms) { return this.act(`debug:drill:${Math.round(ms)}`); },
+    /** The player's body now: { body, stages, strip, words, cues } (BODY's readers, from main.js), or null. */
+    body() { return body && loop.state ? body(loop.state) : null; },
+    /** The instinct now: { line, chip, keys, queued, parts }, or null. */
+    instinct() { return instinct && loop.state ? instinct(loop.state) : null; },
+    /** The running splash: its plan, phase and shown clock, or null. */
+    splash() { return splash ? splash() : null; },
+    /** The scores kept in this browser: { v: 1, scores: [] }. */
+    scores() { return scores ? scores() : { v: 1, scores: [] }; },
     loop,
     bus,
     sim,

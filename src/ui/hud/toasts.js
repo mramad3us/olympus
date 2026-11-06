@@ -9,7 +9,8 @@
 // brass, urgent and bad red, calm green). The rectangle never grows: a line wraps to two at most,
 // and if three long ones would overflow it the oldest goes first, so nothing reaches the picture's
 // middle or the watch (the user: "overlapping UI elements", tradecraft; VIEWS §7.5). Everything a
-// toast said is in the log card (J), whole.
+// toast said is in the log card (J), whole. A line may ask for its own time (push(text, tone, { s }):
+// a test scene's goal line, GOAL_S 8 s, the build sheet 0.0.4 §2.4).
 
 /** How long a toast stays, in seconds of play (VIEWS §7.1), and how many show at once. */
 export const TOAST_S = 16, TOASTS_MAX = 3;
@@ -28,11 +29,12 @@ export function createToasts(parent) {
   };
   return {
     el: root,
-    /** A line: its text and its tone ('note' | 'warn' | 'urgent' | 'bad' | 'calm'). */
-    push(text, tone = 'note') {
+    /** A line: its text and its tone ('note' | 'warn' | 'urgent' | 'bad' | 'calm'); s its seconds of play (TOAST_S by default). */
+    push(text, tone = 'note', { s = TOAST_S } = {}) {
       if (!text) return null;
       const t = Object.assign(document.createElement('div'), { className: `toast ${tone || 'note'}`, textContent: String(text) });
       t.dataset.born = String(clockMs);
+      t.dataset.life = String(s * 1000);
       root.append(t);
       fit();
       return t;
@@ -41,9 +43,9 @@ export function createToasts(parent) {
     frame(dtMs, running = true) {
       if (running) clockMs += Math.max(0, Math.min(dtMs, 250));
       for (const t of [...root.children]) {
-        const age = clockMs - Number(t.dataset.born);
-        if (age > TOAST_S * 1000 && !t.classList.contains('gone')) t.classList.add('gone');
-        if (age > TOAST_S * 1000 + TOAST_FADE_MS) t.remove();
+        const age = clockMs - Number(t.dataset.born), life = Number(t.dataset.life) || TOAST_S * 1000;
+        if (age > life && !t.classList.contains('gone')) t.classList.add('gone');
+        if (age > life + TOAST_FADE_MS) t.remove();
       }
     },
     clear() { root.replaceChildren(); },

@@ -180,7 +180,7 @@ export const rack3 = (k, o) => rackMaker(k, o, 3);
 
 // ---------- lockers ----------
 
-const lockerFront = (make, c, n, open, seed) => tex(`locker:${make}:${c}:${n}:${open}:${seed % 4}`, (px, w, h, ppm) => {
+export const lockerFront = (make, c, n, open, seed) => tex(`locker:${make}:${c}:${n}:${open}:${seed % 4}`, (px, w, h, ppm) => {
   const u = U(ppm), f = fontFor(ppm), m = P(0.04, ppm, 1);
   paintedSteel(px, 0, 0, w, h, { c, ppm, seed: 11 });
   if (open) {

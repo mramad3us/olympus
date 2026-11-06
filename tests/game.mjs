@@ -22,7 +22,8 @@
 //     the slicing never moves the result: game-slices);
 //   - a fast-forward skip runs real ticks: while one is on, each tick takes the skip's own input
 //     (the loop's ffInput) instead of the caller's, and the loop's ffCheck ends it, as an ff frame
-//     does. Both hooks are what createSim gives loop.useSkips, caught here on the way in.
+//     does (or the tick's due layer, at an interrupting event's own tick: 0.0.4). Both hooks are
+//     what createSim gives loop.useSkips, caught here on the way in.
 // A tick that throws is lost (the loop's rule) and noted in meta.errors by sim.noteError, as in the
 // page; here it also goes into g.errors, and with strict (the default) the step throws, so a test
 // can't pass over a lost tick (both runs of a determinism test would lose the same one).

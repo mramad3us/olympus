@@ -285,7 +285,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       if (i >= maxPeople) break;
       if (p.lie) {
         // (a sleeper in a rack: the berth's quad, flat on the mattress, the head at its end; see the header)
-        const c = berthCell(p.lie);
+        const c = berthCell(p.lie);   // (its breath, its curtain's step and whether it is thrown back are in the painting's key: bedding.js)
         q4.setFromAxisAngle(up, HEAD_TURN[p.lie.head] ?? 0);
         sc.set(bw / ppm, 1, bh / ppm);
         ps.set(snap(p.x), (p.lie.y ?? 0.5), snap(p.z));
@@ -326,7 +326,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       const k = 1 / (1 + 0.6 * lift);
       m4.makeScale(sx * k, 1, sz * k).setPosition(bx, 0.012, bz);
       blobs.setMatrixAt(i, m4);
-      aAlpha.setX(i, Math.max(0.15, 0.4 - 0.083 * lift));
+      aAlpha.setX(i, p.noBlob ? 0 : Math.max(0.15, 0.4 - 0.083 * lift));
       // (the flash: its card over the muzzle, a little toward the camera, or behind the head from behind)
       const gun = s.look.weapon;
       if (p.flash && gun && nf < MAX_FLASHES) {

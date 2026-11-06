@@ -123,7 +123,8 @@ export default [
       const out = [];
       for (const [kind, unsteady] of [['outcome', null], ['day', [2.5 * HOUR_MS, 3.5 * HOUR_MS]], ['world', null], ['world', [1 * HOUR_MS, 1.25 * HOUR_MS]]]) {
         const record = [], seen = [];
-        const g = createGame({ seed: 7, hour: 21, domains: { world: testWorld(record, seen) } });
+        // (the body's crossings left out (an inert body domain, 0.0.4): its events would end steps of their own, and this counts the world's)
+        const g = createGame({ seed: 7, hour: 21, domains: { world: testWorld(record, seen), body: { owner: 'BODY', keys: [] } } });
         g.step(1);
         const from = g.state.clock.ms;
         if (unsteady) { g.state.world.tw.unsteadyFromMs = from + unsteady[0]; g.state.world.tw.unsteadyToMs = from + unsteady[1]; }

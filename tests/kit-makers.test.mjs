@@ -9,6 +9,7 @@
 import { snapBox, faceTexels, FACES } from '../src/render/batch-math.js';
 import { paint, unword } from '../src/art/paint.js';
 import { hash3 } from '../src/art/tone.js';
+import { piece, pieceCount, VIGNETTE_PIECES } from '../src/art/kit/vignette.js';
 import { place, KINDS, FOOTPRINTS } from '../src/art/kit/index.js';
 import { builder, rotTexel, rotPainter, turn, tex } from '../src/art/kit/kit.js';
 import { assert } from './helpers.mjs';
@@ -160,5 +161,25 @@ export default [
     assert(gap > 0.7 && gap < 0.95, `the gap between the bunks is ${gap.toFixed(2)} m`);
     const bootsN = a.boxes.filter(({ b }) => b.y1 <= 0.21).length;
     console.log(`      lower mattress top at ${tops[0].y1.toFixed(2)} m, upper deck at ${tops[1].y0.toFixed(2)} m: a gap of ${gap.toFixed(2)} m (the camera at 45° sees that far under it); ${a.boxes.length} boxes, ${bootsN} low ones (boots, a drawer)`);
+  } },
+  { name: 'the splash\'s vignette pieces (the build sheet 0.0.4 §2.3 (b), src/art/kit/vignette.js) paint within their size at both densities, every frame of an animation different, mist and lamps as marked', fn() {
+    const rows = [];
+    for (const ppm of [16, 24]) for (const [name, def] of Object.entries(VIGNETTE_PIECES)) {
+      const frames = Array.from({ length: def.frames }, (_, f) => piece(name, { frame: f, on: f % 2 ? 0 : 1, density: 1, seed: 3 }, ppm));
+      for (const pm of frames) {
+        assert(pm.w === Math.max(1, Math.round(def.wM * ppm)) && pm.h === Math.max(1, Math.round(def.hM * ppm)), `${name}@${ppm}: ${pm.w} × ${pm.h}`);
+        let n = 0; for (const v of pm.data) if ((v >>> 24) >= 128) n++;
+        assert(n > 0, `${name}@${ppm} drew nothing`);
+        assert(pm.mist === def.mist, `${name}: mist`);
+      }
+      const sigs = new Set(frames.map(pm => pm.data.join()));
+      if (def.frames > 1) assert(sigs.size === def.frames, `${name}@${ppm}: ${sigs.size} of ${def.frames} frames differ`);
+      if (ppm === 16) rows.push(`${name} ${frames[0].w}×${frames[0].h}${def.frames > 1 ? ` ×${def.frames}` : ''}`);
+    }
+    const lit = piece('timer', { on: 1 }, 16), glow = [...lit.data].filter(v => (v >>> 24) >= 248 && (v >>> 24) < 255).length;
+    const steam = [0, 1, 2].map(d => { const pm = piece('steam', { frame: 0, density: d, seed: 3 }, 16); let n = 0; for (const v of pm.data) if ((v >>> 24) >= 128) n++; return n; });
+    console.log(`      at 16 px/m: ${rows.join(', ')}; the timer lit has ${glow} glowing pixels; the steam's pixels by density (rising, running, thinning): ${steam.join(', ')}; ${pieceCount()} paintings kept`);
+    assert(glow > 0, 'the timer glows');
+    assert(steam[1] > steam[0] && steam[0] > steam[2], 'the steam thickest while the water runs');
   } },
 ];

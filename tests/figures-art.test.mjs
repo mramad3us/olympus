@@ -141,7 +141,7 @@ export default [
     },
   },
   {
-    name: 'a sheet is laid out in bands, every cell inside its band; the atlas holds 64 looks at 16 px/m and 25 at 24',
+    name: 'a sheet is laid out in bands, every cell inside its band; the atlas holds 40 looks at 16 px/m and 15 at 24 (0.0.4: the move and rest bands\' 84 cells took it from 64 and 25; a sleeper in a rack takes no look, the squad\'s PT and utilities 27 at the klaxon)',
     fn() {
       const prop = 'chibi';
       for (const ppm of PPMS) {
@@ -155,7 +155,7 @@ export default [
         const kb = (r) => Math.round(r.w * r.h * 4 / 1024);
         console.log(`      ${prop} at ${ppm} px/m: sheet ${lay.w} × ${lay.h} (${kb(lay)} KB), ${lay.cells.size} cells; bands ${Object.entries(lay.bands).map(([k, r]) => `${k} ${r.w}×${r.h} (${kb(r)} KB)`).join(', ')}; ${slots} looks in a 4096² atlas`);
         assert(lay.cells.size === FRAMES.length * DIRS.length, 'every frame and facing has a cell');
-        assert(slots >= (ppm === 16 ? 60 : 24), `${slots} slots`);
+        assert(slots >= (ppm === 16 ? 40 : 15), `${slots} slots`);
       }
     },
   },

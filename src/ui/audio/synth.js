@@ -9,7 +9,16 @@
 // (dBFS at 1 m, Earth's air and gravity), and its last 4 ms faded to silence so it never clicks.
 // The filters are the audio cookbook's biquads (R. Bristow-Johnson): low-pass and high-pass with Q
 // 0.707, band-pass of constant peak gain at the layer's Q; a sweep recomputes its band every 32
-// samples along an exponential glide. The noise is white, from the game's own sfc32 dice on a
+// samples along an exponential glide. Two pitched layers came with the 0.0.4 round (the build sheet
+// §2.4's sounds): glide, a band-limited sawtooth (polyBLEP: no aliasing to speak of, and cheap: a
+// few operations a sample) gliding from hz to toHz over durS under an attack and a release, then
+// through its formant band-pass (the klaxon's whoop, 600 to 1,100 Hz); and notes, a melody of
+// [hz, durS] notes on the same sawtooth with a scoop into each note, a vibrato and a brass formant (the
+// bugle's reveille, VIEWS §11.3: "a sawtooth through a brass formant filter"). A recipe marked loop is
+// rendered a crossfade longer than its durS and its tail crossfaded into its head (equal power over
+// LOOP_XFADE_S), so it plays seamlessly on a looping source (the shower's water, the tap), and gets
+// no fade at its end. renderSteps() is the same rendering a layer at a time (a generator), so the
+// engine can spread a long recipe over several frames. The noise is white, from the game's own sfc32 dice on a
 // stream named for the recipe, its variant and its layer (src/core/rng.js stream): the same sound
 // is the same samples on every machine and every run, and Math.random is never called. The engine
 // (engine.js) copies these samples into AudioBuffers at the first key or click and plays them
@@ -23,6 +32,8 @@ import { stream, next } from '../../core/rng.js';
 
 /** The fade at a sound's end, so it never stops on a click (seconds). */
 export const FADE_S = 0.004;
+/** A loop's seam: its tail crossfaded into its head over this long (seconds). */
+export const LOOP_XFADE_S = 0.12;
 const TAU = 2 * Math.PI;
 const dbToK = (db) => 10 ** (db / 20);
 
@@ -115,24 +126,88 @@ function sweepLayer(layer, n, sr, r) {
   return buf;
 }
 
-const LAYERS = { noise: noiseLayer, tone: toneLayer, grains: grainsLayer, sweep: sweepLayer };
+// (a band-limited sawtooth's correction at a discontinuity: polyBLEP, phase t in [0, 1), increment dt)
+function blep(t, dt) {
+  if (t < dt) { const x = t / dt; return x + x - x * x - 1; }
+  if (t > 1 - dt) { const x = (t - 1) / dt; return x * x + x + x + 1; }
+  return 0;
+}
+const sawAt = (ph, dt) => 2 * ph - 1 - blep(ph, dt);
+
+function glideLayer(layer, n, sr) {
+  const buf = new Float32Array(n), d = layer.delayS ?? 0, durS = layer.durS ?? 1, hz = layer.hz, to = layer.toHz ?? hz;
+  const att = layer.attackS ?? 0.02, rel = layer.releaseS ?? 0.06;
+  let ph = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / sr - d;
+    if (t < 0 || t > durS) continue;
+    const f = hz * (to / hz) ** (t / durS), dt = f / sr;
+    ph += dt; if (ph >= 1) ph -= 1;
+    const env = Math.min(1, t / att) * Math.min(1, Math.max(0, (durS - t) / rel));
+    buf[i] = sawAt(ph, dt) * env;
+  }
+  if (layer.formant) filterInPlace(buf, biquad('bandpass', layer.formant[0], layer.formant[1], sr));
+  if (layer.lowpass) filterInPlace(buf, biquad('lowpass', layer.lowpass, Math.SQRT1_2, sr));
+  return buf;
+}
+
+function notesLayer(layer, n, sr) {
+  const buf = new Float32Array(n), att = layer.attackS ?? 0.025, rel = layer.releaseS ?? 0.04, gap = layer.gapS ?? 0.015;
+  const vibHz = layer.vibratoHz ?? 5.5, vibK = layer.vibratoK ?? 0.004, scoopK = layer.scoopK ?? 0.03;
+  let at = layer.delayS ?? 0;
+  for (const [hz, durS] of layer.notes ?? []) {
+    const i0 = Math.round(at * sr), len = Math.round(durS * sr);
+    let ph = 0;
+    for (let i = 0; i < len && i0 + i < n; i++) {
+      const t = i / sr, f = hz * (1 - scoopK * Math.exp(-t / 0.02)) * (1 + vibK * Math.sin(TAU * vibHz * t)), dt = f / sr;
+      ph += dt; if (ph >= 1) ph -= 1;
+      const env = Math.min(1, t / att) * Math.min(1, Math.max(0, (durS - t) / rel));
+      buf[i0 + i] += sawAt(ph, dt) * env;
+    }
+    at += durS + gap;
+  }
+  if (layer.formant) filterInPlace(buf, biquad('bandpass', layer.formant[0], layer.formant[1], sr));
+  if (layer.highpass) filterInPlace(buf, biquad('highpass', layer.highpass, Math.SQRT1_2, sr));
+  if (layer.lowpass) filterInPlace(buf, biquad('lowpass', layer.lowpass, Math.SQRT1_2, sr));
+  return buf;
+}
+
+const LAYERS = { noise: noiseLayer, tone: toneLayer, grains: grainsLayer, sweep: sweepLayer, glide: glideLayer, notes: notesLayer };
+
+/**
+ * A recipe rendered a layer at a time: a generator that yields after each layer (and before its
+ * finish), and returns the samples render() gives. The engine advances it across frames within its
+ * bake budget, so a long recipe (the flush's 3.2 s, the bugle's 3.9 s) never stalls one frame.
+ */
+export function* renderSteps(recipe, { sampleRate = 48000, name = 'sound', variant = 0 } = {}) {
+  const n = Math.max(1, Math.round((recipe.durS ?? 0.1) * sampleRate));
+  const xf = recipe.loop ? Math.min(n >> 1, Math.round(LOOP_XFADE_S * sampleRate)) : 0, total = n + xf;
+  let out = new Float32Array(total);
+  for (let li = 0; li < recipe.layers.length; li++) {
+    const layer = recipe.layers[li], make = LAYERS[layer.kind];
+    if (!make) throw new Error(`synth: no layer kind '${layer.kind}' in '${name}'`);
+    const buf = normalise(make(layer, total, sampleRate, stream('sound', name, variant, li))), k = dbToK(layer.db ?? 0);
+    for (let i = 0; i < total; i++) out[i] += buf[i] * k;
+    yield li;
+  }
+  // (a loop: the tail past durS crossfaded into the head at equal power, so the end runs into the start)
+  if (xf) {
+    for (let i = 0; i < xf; i++) { const a = i / xf; out[i] = out[i] * Math.sqrt(a) + out[n + i] * Math.sqrt(1 - a); }
+    out = out.slice(0, n);
+  }
+  normalise(out);
+  const level = dbToK(recipe.levelDb ?? -12), fade = recipe.loop ? 0 : Math.min(n, Math.round(FADE_S * sampleRate));
+  for (let i = 0; i < n; i++) out[i] *= level * (fade && i >= n - fade ? (n - 1 - i) / fade : 1);
+  return out;
+}
 
 /**
  * A recipe (src/data/sounds.js) rendered: a Float32Array of mono samples at sampleRate, its peak the
  * recipe's levelDb. name and variant pick the noise's stream, so each variant is its own take.
  */
-export function render(recipe, { sampleRate = 48000, name = 'sound', variant = 0 } = {}) {
-  const n = Math.max(1, Math.round((recipe.durS ?? 0.1) * sampleRate)), out = new Float32Array(n);
-  recipe.layers.forEach((layer, li) => {
-    const make = LAYERS[layer.kind];
-    if (!make) throw new Error(`synth: no layer kind '${layer.kind}' in '${name}'`);
-    const buf = normalise(make(layer, n, sampleRate, stream('sound', name, variant, li))), k = dbToK(layer.db ?? 0);
-    for (let i = 0; i < n; i++) out[i] += buf[i] * k;
-  });
-  normalise(out);
-  const level = dbToK(recipe.levelDb ?? -12), fade = Math.min(n, Math.round(FADE_S * sampleRate));
-  for (let i = 0; i < n; i++) out[i] *= level * (i >= n - fade ? (n - 1 - i) / fade : 1);
-  return out;
+export function render(recipe, opts = {}) {
+  const it = renderSteps(recipe, opts);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
 }
 
 // ---- measuring ----

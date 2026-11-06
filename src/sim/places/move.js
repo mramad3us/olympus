@@ -1,11 +1,17 @@
-// OLYMPUS places: the player's walk on the live area's grid, at Mars gravity (the fast layer `player`).
+// OLYMPUS places: the player's walk on the live area's grid, at the body's gaits (the fast layer `player`).
 //
-// The sim's movement until BODY's gaits arrive (0.0.5: inertia, traction, stamina, bounding, the gait
-// by load): a speed by the keys held, the step taken on the live area's nav grid for the player's
-// clearance class, and the actor's facing, gait and stride kept for the view. The speeds are BODY
-// §16.1's Mars row (build sheet §8 item 2): WALK_MS 1.14 m/s (the walk at 0.38 G), RUN_MS 2.69, and
-// STROLL_MS 0.75; 0.0.1 had tradecraft's Earth 3.6 and 0.95. Shift runs and wins over Alt, which
-// strolls; with no direction the speed is 0.
+// A speed by the keys held, the step taken on the live area's nav grid for the player's clearance
+// class, and the actor's facing, gait and stride kept for the view. The speeds are BODY's gait helper
+// (src/sim/body/motion.js gaitSpeeds, BODY §16.1 and §16.3, rounded to 0.01 m/s; the build sheet 0.0.4
+// §8 item 11), read for the player each tick (gaitsOf: the felt g, the load, stamina, and the needs
+// that forbid a run); WALK_MS 1.14 m/s, RUN_MS 2.69 and STROLL_MS 0.75 stay exported as its Mars row,
+// unloaded and rested (MARS_GAITS), which the bots and the walk tests read. Shift runs, while the body
+// can run (a blown marine walks), and wins over Alt, which strolls; with no direction the speed is 0.
+// While TIME's feetHeld (src/sim/time/doing.js: an activity under way, lying or sitting, a transition
+// playing) the keys only turn a standing player (not while a transition plays: the rise keeps its
+// facing) and nothing settles the feet, so a berth or a stall
+// the player lies or stands in is never pushed out of (0.0.4; inertia, traction and bounding come with
+// BODY §16.2).
 //
 // A tick's step: speedMs × TICK_MS / 1000 along the keys' direction (mx, mz each −1, 0 or 1; KeyW,
 // north, is mz = −1), split by axis (a diagonal moves each axis by the step over √2, so the speed is
@@ -47,10 +53,13 @@ import { navOf, navAhead, nearestFree, centreOf, cellOf } from './nav.js';
 import { standOk, sweep, onFloor } from './collide.js';
 import { doorsStep } from './doors.js';
 import { portalCrossed, moveTo } from './portals.js';
-import { playerActor } from '../../core/ids.js';
+import { playerActor, playerId } from '../../core/ids.js';
 import { STRIDE_WRAP_M } from '../../data/body/gait.js';
+import { MARS_GAITS, gaitsOf } from '../body/motion.js';
+import { feetHeld, transPlaying } from '../time/doing.js';
 
-export const WALK_MS = 1.14, RUN_MS = 2.69, STROLL_MS = 0.75;
+/** The Mars gaits, unloaded and rested (BODY §16.1 by motion.js gaitSpeeds: 1.14, 2.69, 0.75 m/s). */
+export const WALK_MS = MARS_GAITS.walkMs, RUN_MS = MARS_GAITS.runMs, STROLL_MS = MARS_GAITS.strollMs;
 /** The player's clearance class (PLACES §2.1: C0, PT kit or uniform, until kit sets it). */
 export const PLAYER_CLS = 'C0';
 export const POS_STEP_M = 0.0001;
@@ -65,10 +74,15 @@ const toward = (from, v) => (v >= from ? Math.floor(v * K + 1e-7) / K : Math.cei
 const at = (actor, axis) => (axis === 'x' ? actor.x : actor.z);
 const okAt = (grid, actor, axis, v) => (axis === 'x' ? standOk(grid, v, actor.z) : standOk(grid, actor.x, v));
 
+/** The gait the keys ask for, as the body allows: 'run' (Shift, while it can run), 'stroll' (Alt), 'walk', or 'idle' with no direction. */
+export function gaitOf(input, gaits = MARS_GAITS) {
+  if (!input || (!sgn(input.mx) && !sgn(input.mz))) return 'idle';
+  return input.run && gaits.runOk ? 'run' : input.stroll && !input.run ? 'stroll' : 'walk';
+}
 /** The speed the keys ask for, m/s: 0 with no direction; Shift (run) wins over Alt (stroll). */
-export function speedOf(input) {
-  if (!input || (!sgn(input.mx) && !sgn(input.mz))) return 0;
-  return input.run ? RUN_MS : input.stroll ? STROLL_MS : WALK_MS;
+export function speedOf(input, gaits = MARS_GAITS) {
+  const g = gaitOf(input, gaits);
+  return g === 'idle' ? 0 : g === 'run' ? gaits.runMs : g === 'stroll' ? gaits.strollMs : gaits.walkMs;
 }
 
 /** The facing the keys give: east–west only right or left, north–south only up or down, a diagonal keeps one of its two. */
@@ -158,13 +172,18 @@ export function playerStep(state, input, bus, ctx) {
   a.$px = a.x; a.$pz = a.z;
   const area = state.places?.live?.area;
   if (!area) return;
+  const mx = sgn(input?.mx), mz = sgn(input?.mz);
+  // (the feet held: the keys only turn a standing player, and a berth or a stall is never settled out of:
+  // a lying player's spot is inside the rack, where a walker may not stand)
+  // (nor a rising one: the rise and the dressing keep their facing, never swung round mid-frame)
+  if (feetHeld(state)) { if ((a.posture ?? 'stand') === 'stand' && !transPlaying(a, state.clock.ms)) a.face = faceOf(mx, mz, a.face); a.gait = 'idle'; return; }
   const grid = navOf(state, area, PLAYER_CLS, a.x, a.z);
   settle(a, grid);                                                 // (a spot it may not stand on: put out at once, keys or none)
-  const mx = sgn(input?.mx), mz = sgn(input?.mz), speed = speedOf(input);
   a.face = faceOf(mx, mz, a.face);
+  const gaits = gaitsOf(state, playerId(state)), gait = gaitOf(input, gaits), speed = speedOf(input, gaits);
   if (!speed) { a.gait = 'idle'; return; }
   const moved = moveActor(a, mx, mz, speed, grid);
-  a.gait = moved > 0 ? (input.run ? 'run' : input.stroll ? 'stroll' : 'walk') : 'idle';
+  a.gait = moved > 0 ? gait : 'idle';
   if (moved > 0) a.strideM = q(((a.strideM ?? 0) + moved) % STRIDE_WRAP_M, POS_STEP_M);
   if (grid.kind === 'ground') navAhead(state, area, PLAYER_CLS, a.x, a.z);
   const p = moved > 0 ? portalCrossed(state, a) : null;

@@ -28,7 +28,10 @@
 //      near-ties, at a thirtieth of the work. `snap: 'loop'` keeps tradecraft's loop, 'off' none.
 // Then the blit: the finished picture onto the canvas at any scale, sharp-bilinear (each picture pixel
 // a solid square, the one screen pixel an edge falls inside blending the two; nearest-neighbour would
-// make some pixels a screen pixel wider and they would crawl as the camera moves).
+// make some pixels a screen pixel wider and they would crawl as the camera moves). A crop (setCrop: the
+// splash's zoom, VIEWS §2.4: "a crop of the picture, still rendered at zoom 1, blitted larger through
+// the same sharp-bilinear filter") shows a rectangle of the picture over the whole canvas, its pixels
+// that many times larger; any size, so the zoom eases continuously (src/render/splash.js).
 // Every read is a texelFetch at the pixel's own texel: the post pass never filters.
 import * as THREE from 'three';
 import { LUT_LEVELS, LUT_TILES, lutSize } from '../art/palette.js';
@@ -145,9 +148,9 @@ const BAKE_FRAG = /* glsl */`
 const BLIT_FRAG = /* glsl */`
   precision highp float;
   in vec2 vUv; out vec4 outColor;
-  uniform sampler2D tPic; uniform vec2 res, scale;
+  uniform sampler2D tPic; uniform vec2 res, scale; uniform vec4 crop;
   void main() {
-    vec2 t = vUv * res, c = fract(t) - 0.5, edge = 0.5 - 0.5 / max(scale, vec2(1.0));
+    vec2 t = crop.xy + vUv * crop.zw, c = fract(t) - 0.5, edge = 0.5 - 0.5 / max(scale, vec2(1.0));
     vec2 f = (c - clamp(c, -edge, edge)) * scale + 0.5;
     outColor = texture(tPic, (floor(t) + f) / res);
   }`;
@@ -198,7 +201,13 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
   const BU = { tPal: U.tPal, palCount: U.palCount, lutN: U.lutN, lutTiles: U.lutTiles };
   const baker = quad(BAKE_FRAG, BU);
   bakeScene.add(baker);
-  const blit = quad(BLIT_FRAG, { tPic: { value: rtOut.texture }, res: { value: new THREE.Vector2(W, H) }, scale: { value: new THREE.Vector2(1, 1) } });
+  const blit = quad(BLIT_FRAG, { tPic: { value: rtOut.texture }, res: { value: new THREE.Vector2(W, H) }, scale: { value: new THREE.Vector2(1, 1) }, crop: { value: new THREE.Vector4(0, 0, W, H) } });
+  let pw = W, ph = H, ow = W, oh = H, cropped = null;
+  const fitBlit = () => {
+    const B = blit.material.uniforms, c = cropped ?? [0, 0, pw, ph];
+    B.crop.value.set(c[0], c[1], c[2], c[3]);
+    B.scale.value.set(ow / c[2], oh / c[3]);
+  };
   out.add(blit);
 
   /** Bake the palette's lookup (once per palette: a 512 × 512 pass, no upload but the palette's few bytes). */
@@ -222,7 +231,13 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
     for (const t of [rt, rtOut]) t.setSize(w, h);
     U.res.value.set(w, h);
     blit.material.uniforms.res.value.set(w, h);
-    blit.material.uniforms.scale.value.set(outW / w, outH / h);
+    pw = w; ph = h; ow = outW; oh = outH; cropped = null;
+    fitBlit();
+  }
+  /** Show a rectangle of the picture (x, y from its bottom-left, w × h, in picture pixels) over the whole canvas; null: all of it. */
+  function setCrop(x = null, y = 0, w = pw, h = ph) {
+    cropped = x === null ? null : [x, y, Math.max(1, w), Math.max(1, h)];
+    fitBlit();
   }
   const setFog = (tex, x0 = 0, z0 = 0, w = 1, h = 1, dimK = 0.48) => { U.tFog.value = tex; U.fogOn.value = tex ? 1 : 0; U.fogBox.value.set(x0, z0, w, h); U.dimK.value = dimK; };
   function dispose() {
@@ -230,6 +245,7 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
     rt.depthTexture.dispose(); pal.dispose();
     for (const m of [composite, baker, blit]) { m.geometry.dispose(); m.material.dispose(); }
   }
-  return { rt, rtOut, rtLut, U, bake, compose, present, size, setFog, dispose,
+  return { rt, rtOut, rtLut, U, bake, compose, present, size, setFog, setCrop, dispose,
+    get crop() { return cropped; },
     setSnap: (s) => { U.snapMode.value = SNAP[s] ?? 0; }, setGamma: (g) => { U.srgb.value = g === 'srgb' ? 1 : 0; } };
 }

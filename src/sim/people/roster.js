@@ -64,6 +64,7 @@ import { QUIRKS, QUIRK_FRAC } from '../../data/people/quirks.js';
 import { SKINS, HAIR_STYLES, HAIR_COLOURS, GREY_FROM_Y, GREY_W, HEIGHTS_M, BUILDS, BODY_TMPL, LOOK_SEED_MAX, LOOK_REROLLS } from '../../data/people/looks.js';
 import { personName, middleName, fullName, registerName, nameRejected } from './names.js';
 import { berthOf } from '../places/fixtures.js';
+import { BODY_V } from '../body/record.js';
 
 /** A full name's draws before the middle-name escape (SETTING §12.5), and the most draws a name gets in all. */
 export const NAME_REROLLS = 10, NAME_DRAWS_MAX = 100;
@@ -382,7 +383,7 @@ function makePerson(state, ctx, { unitId, def, squad }, core, tier, { player = f
     home: { id: core.home.id, place: core.place, kind: core.home.kind }, culture: core.home.culture,
     service: { branch: def.branch, rank: core.rank, grade: rk.grade, mos: def.mos, unitId, billet: def.key, enlistedMs: ctx.refMs - core.tisD * DAY_MS },
     background: core.bg.id,
-    body: { v: 1, tmpl: BODY_TMPL[core.sex], heightM: core.body.heightM, build: core.body.build },
+    body: { v: BODY_V, tmpl: BODY_TMPL[core.sex], heightM: core.body.heightM, build: core.body.build },   // (BODY's record at its version: its ledgers from the template, src/sim/body/record.js)
     look: { skin: core.parts.skin, hair: { style: core.parts.style, color: core.parts.color }, seed: core.lookSeed },
   };
   if (name.middle) rec.name.middle = name.middle;

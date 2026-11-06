@@ -16,7 +16,14 @@
 // set on the save's area) and the walk carried on to the end. Every one ends with the straight run's
 // digest, and that digest is node's for the same seed, hour and version (tests/game.mjs): the page
 // and a node replay are one game.
+//
+// (0.0.4) A real v0.0.3 save (tests/saves/, made by v0.0.3's own code inside R's wait: game-upgrade's)
+// started in the page: its splash picks up from the save's clock and plays out on real frames, with
+// no error, the body filled in; and a save made in the middle of a splash (a 45-minute nap at the
+// rack's foot, saved while the time-lapse runs), started again, carries on byte for byte with the
+// game that went on from it.
 import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { assert, fmt, root } from './helpers.mjs';
 import { withGame, frameMs } from './browser.mjs';
 import { createGame } from './game.mjs';
@@ -27,6 +34,7 @@ import { WALK_START, walkBot } from './walk-moment2.mjs';
 const PAGE_SAVES = Object.freeze([57, 290, 1007, 1009, 2300, 2379, 14916, 20140]);
 
 const HANDLE = "typeof window.__olympus === 'object' && window.__olympus !== null";
+const V003_MIDWAIT = () => gunzipSync(readFileSync(`${root}/tests/saves/v0.0.3-barracks-midwait.json.gz`)).toString('utf8');
 const SETTLE_MS = 1000;            // (time for a late error at start to show before we read the page)
 
 export default [
@@ -140,6 +148,50 @@ export default [
         const bad = r.back.filter(b => b.status !== 'done' || b.end !== r.A.tick || b.digest !== r.A.digest);
         assert(!bad.length, JSON.stringify(bad.slice(0, 3)));
       }, { query: 'play=barracks&hour=23&seed=48213&nostore=1', timeoutMs: 60_000 });
+    },
+  },
+  {
+    name: 'a v0.0.3 save started in the page plays its splash out with no error, the body filled in; a save made mid-splash, started again, carries on byte for byte',
+    heavy: true,
+    timeoutMs: 180_000,
+    async fn() {
+      await withGame(async (page) => {
+        const r = await page.evaluate(async ({ old }) => {
+          const h = window.__olympus, sleep = (ms) => new Promise(res => setTimeout(res, ms));
+          const { handOffer } = await import('/src/sim/places/hand.js');
+          const waitFor = async (cond, ms) => { const t0 = performance.now(); while (!cond() && performance.now() - t0 < ms) await sleep(50); return cond(); };
+          // (1) the v0.0.3 save, inside its wait: the splash picks up and plays out on real frames
+          const t0 = performance.now();
+          await h.start(old);
+          const atLoad = { skip: !!h.state.skip, mask: h.state.skip?.mask ?? null, v: h.state.people[h.state.player.id].body?.v, splash: h.splash()?.phase ?? null };
+          const out = await waitFor(() => !h.state.skip && !h.splash(), 30_000);
+          const after = { out, s: (performance.now() - t0) / 1000, clock: h.state.clock.ms, body: !!h.body()?.stages, flags: Object.keys(h.state.flags).filter(k => k.startsWith('mig:')) };
+          // (2) a fresh game at the rack's foot at 19:30: R's nap, saved while its time-lapse runs
+          await h.newGame({ scenario: 'barracks', seed: 48213, hour: 19.5 });
+          await sleep(300);
+          const o = handOffer(h.state);
+          h.activity(o.id, o.spotId, o.args ?? {});
+          await waitFor(() => h.state.skip && h.splash()?.phase === 'lapse' && h.state.clock.ms - h.state.skip.fromMs > 10 * 60_000, 20_000);
+          h.pause(true);
+          const mid = { phase: h.splash()?.phase, minutes: (h.state.clock.ms - h.state.skip.fromMs) / 60_000, of: (h.state.skip.toMs - h.state.skip.fromMs) / 60_000, json: h.save() };
+          const finish = () => { for (let k = 0; h.state.skip && k < 1e6; k++) if (h.sim.advanceSkip(h.state, Infinity, { over: () => false })?.done) break; };
+          finish(); h.step(400, { mx: 1 });
+          const a = h.save();
+          const started = h.start(mid.json);
+          h.pause(true);
+          await started;
+          h.pause(true);
+          const resumed = { skip: !!h.state.skip, splash: h.splash()?.phase ?? null };
+          finish(); h.step(400, { mx: 1 });
+          const b = h.save();
+          h.pause(false);
+          return { atLoad, after, mid: { phase: mid.phase, minutes: mid.minutes, of: mid.of, kb: mid.json.length / 1024 }, resumed, same: a === b, offer: o.label };
+        }, { old: V003_MIDWAIT() });
+        console.log(`      the v0.0.3 save inside its wait: skip ${r.atLoad.skip} (mask ${r.atLoad.mask}), the body v ${r.atLoad.v}, the splash ${r.atLoad.splash}; played out in ${fmt(r.after.s, 2)} s, the body read, flags ${r.after.flags.join(', ')}`);
+        console.log(`      R at 19:30: "${r.offer}"; saved in the ${r.mid.phase} at minute ${fmt(r.mid.minutes, 1)} of ${fmt(r.mid.of, 0)} (${fmt(r.mid.kb, 0)} KB); started again: skip ${r.resumed.skip}, the splash ${r.resumed.splash}; finished and 400 ticks on: ${r.same ? 'byte for byte' : 'DIFFERENT'}`);
+        assert(r.atLoad.skip && r.atLoad.mask === 'D' && r.atLoad.v === 2 && r.after.out && r.after.body, JSON.stringify(r));
+        assert(r.mid.phase === 'lapse' && r.resumed.skip && r.same, JSON.stringify(r));
+      }, { query: 'play=barracks&hour=19.5&seed=48213&nostore=1', timeoutMs: 60_000 });
     },
   },
 ];

@@ -1,33 +1,50 @@
-// OLYMPUS sim: TIME's domain, as the composition root registers it: its keys, its per-second layer, its jobs and its actions.
+// OLYMPUS sim: TIME's domain, as the composition root registers it: its keys, its layers, its jobs, its events and its actions.
 //
 // TIME owns four of the state's keys (TECH §6.1): clock { ms, tick, holds, seq } (built by TECH in
 // src/core/clock.js), events (the queue, src/core/queue.js), skip (the running skip, or null:
-// ./skip.js) and time { chapter, voyage, pod, alarms, interrupts, liveSinceSaveMs, slowToMs }.
-// slowToMs is the game time the slow contributors have been stepped to (game.js slowStep): every
-// slow step spans [slowToMs, t] and moves it, the live minute layer's and a skip's alike, so lived
-// and skipped play step each moment of game time once (TIME §5.5's parity; null on an older save,
-// where the first step takes its own start). What it does in this round, the skeleton's (the 0.0.2
-// build sheet, §2.1):
+// ./skip.js) and time { chapter, voyage, pod, alarms, interrupts, liveSinceSaveMs, slowToMs, drills,
+// doing, resume, attend, prefs }. slowToMs is the game time the slow contributors have been stepped to
+// (game.js slowStep): every slow step spans [slowToMs, t] and moves it, the live minute layer's and a
+// skip's alike, so lived and skipped play step each moment of game time once (TIME §5.5's parity).
+// pod is the night posted (./pod.js), drills { open, last, forced } the alert drill, doing the
+// activity under way (./doing.js), resume a cut one R may finish, attend the arrivals at musters (the
+// last 50), prefs the player's (prefs.mute: the S kinds muted, none this round), interrupts the S
+// stops counted (./interrupts.js). What it does (the 0.0.2 sheet §2.1; the 0.0.4 sheet §2.2.9):
+//   input        an activity lived at 1:1 (under 45 s: a drink, a bar) ends at its time, or is cut
+//                by a move key at its fraction; a move key while the player lies or sits gets them
+//                up (people/place.js riseActor), as R and T do.
 //   second       on each whole second lived (the fast layer 'second', live only, TECH §3.3), adds
 //                1,000 ms to time.liveSinceSaveMs; at AUTOSAVE_LIVE_MS (five minutes of unpaused
-//                live play, TIME §13) it asks an autosave ({ why: 'live' }) and starts again. The
-//                sim resets the count when it asks, since the writer must not change the state
-//                (TECH §7.4).
+//                live play, TIME §13) it asks an autosave ({ why: 'live' }) and starts again (the
+//                sim resets the count when it asks, since the writer must not change the state:
+//                TECH §7.4); then, while a drill is open, the muster check (./pod.js), a resume
+//                forgotten past its time or its distance, and a chunk's "carry on" once time moved.
 //   autosaveDay  a job at local@00:00 (the sol's first second after the slip, TIME §11.3), prio 5,
 //                src 'time:autosave-day': asks an autosave ({ why: 'day' }), which the writer puts
 //                in the day slot of a Standard career (TECH §7.4).
+//   solDirector  a job at local@20:00 (CONTRACTS §5; TIME §9.8's sol director, this round only the
+//                night): posts the night's taps, reveille and, on its drawn night, the alert drill
+//                (./pod.js postNight). start(state) (a new game) and the upgrade 'time:pod' (a
+//                v0.0.3 save) post tonight's too, so a game begun at 23:00 has its reveille.
+//   events       taps, reveille, alert, alert-count, alert-end (./pod.js), activity-part (an
+//                activity's part ended at its second: ./activities.js).
 //   actions      ready (G): time stands still for a choice, 'ready' held until a digit; digit:<n>:
 //                the choice made, time runs again (TIME's stop-motion hook, a stub until WEAPONS's
 //                step panel at 0.0.6); skip:stop and skip:chunk: the player's commands to a running
-//                skip, into skip.cmds at the clock. R left this table at 0.0.3: it is PLACES's `hand`,
-//                what's at hand (a door within reach, else the wait of WAIT_MS, fifteen minutes, an
-//                outcome skip with mask D: src/sim/places/hand.js; the build sheet 0.0.3 §8 item 15).
+//                skip, into skip.cmds at the clock, or, just after a chunked skip ended, 'carry on'
+//                (the same activity again for its chunk: TIME §6.4); activity ({ act: 'activity',
+//                args: { id, spotId, args, late } }): an activity started (the late card's answers,
+//                the choices card, tests). R is places' `hand` (src/sim/places/hand.js).
 // A choice or a skip is refused while a skip runs (TIME §5.3, check 1: not in stop motion).
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { fillDomain } from '../../core/state.js';
+import { playerActor } from '../../core/ids.js';
+import { WAIT_MS } from '../../data/activities.js';
+import { postNight, fillPod, onTaps, onReveille, onAlert, onAlertCount, onAlertEnd, musterCheck } from './pod.js';
+import { startActivity, liveStep, onActivityPart, resumeStep } from './activities.js';
+import { riseActor } from '../people/place.js';
 
-/** R's wait where no door is at hand (0.0.1's; PLACES's hand.js reads it). */
-export const WAIT_MS = 900_000;
+export { WAIT_MS };
 /** Live play between autosaves, in game time (TIME §13). */
 export const AUTOSAVE_LIVE_MS = 300_000;
 
@@ -45,6 +62,17 @@ function secondStep(state, input, bus) {
   const t = state.time;
   t.liveSinceSaveMs = (t.liveSinceSaveMs ?? 0) + 1000;
   if (t.liveSinceSaveMs >= AUTOSAVE_LIVE_MS) askAutosave(state, bus, 'live');
+  if (t.drills?.open) musterCheck(state, bus);
+  resumeStep(state);
+  if (t.chunk && t.chunk.atMs !== state.clock.ms) delete t.chunk;          // (the strip's "carry on" passed: time has moved on)
+}
+
+// (the input layer: a lived activity's end or cut; a move key gets a lying or sitting player up)
+function activityInput(state, input, bus) {
+  if (state.time?.doing) { liveStep(state, input, bus); return; }
+  if (state.skip || isHeld(state) || !(input?.mx || input?.mz)) return;
+  const me = playerActor(state);
+  if (me && (me.posture ?? 'stand') !== 'stand') riseActor(state, me, state.clock.ms);
 }
 
 function ready(state, action, bus) {
@@ -59,13 +87,36 @@ function digit(state, action, bus) {
   bus.emit('line', { text: `Choice ${nameOf(action).slice(6)}: time runs again.` });
 }
 
-function skipCommand(state, action) {
+// (skip:stop and skip:chunk into the running skip's commands; a chunk asked just after a chunked skip ended carries it on)
+function skipCommand(state, action, bus, ctx) {
   const cmd = nameOf(action).slice(5);
-  if (!state.skip || (cmd !== 'stop' && cmd !== 'chunk')) return;
-  state.skip.cmds.push({ atMs: state.clock.ms, cmd });
+  if (cmd !== 'stop' && cmd !== 'chunk') return;
+  if (state.skip) { state.skip.cmds.push({ atMs: state.clock.ms, cmd }); return; }
+  const c = state.time?.chunk;
+  if (cmd === 'chunk' && c && c.atMs === state.clock.ms) {
+    delete state.time.chunk;
+    startActivity(state, bus, ctx, { id: c.activity, spotId: c.spotId ?? null, args: c.args ?? {} });
+  }
 }
 
-/** TIME's domain descriptor (TECH §2.5; the 0.0.2 build sheet, §2.1). */
+function activityAction(state, action, bus, ctx) {
+  const a = typeof action === 'object' ? action?.args ?? {} : {};
+  if (!a.id) return;
+  startActivity(state, bus, ctx, { id: a.id, spotId: a.spotId ?? null, args: a.args ?? {}, late: a.late ?? null, force: a.force ?? null });
+}
+
+/** A new game's night (a roster's): tonight's taps, reveille and drill posted. */
+function start(state) { postNight(state, state.clock.ms); }
+
+/** The upgrade of a v0.0.3 save (flag mig:time-pod): the night's records, and tonight posted. A save made since (time.pod.sol set, or no roster) is left as it is. */
+function upgradePod(state) {
+  if (!state.time) return;
+  fillPod(state.time);
+  if (Number.isFinite(state.time.pod?.sol) || state.flags?.['mig:time-pod']) return;
+  if (postNight(state, state.clock?.ms ?? 0)) (state.flags ??= {})['mig:time-pod'] = true;
+}
+
+/** TIME's domain descriptor (TECH §2.5; the 0.0.2 build sheet, §2.1; the 0.0.4 sheet §2.2.9). */
 export const timeDomain = Object.freeze({
   name: 'time',
   owner: 'TIME',
@@ -75,12 +126,16 @@ export const timeDomain = Object.freeze({
   init(state) {
     for (const k of KEYS) fillDomain(state, k);
     state.time.interrupts ??= { perSol: 0, perSkip: 0 };
+    fillPod(state.time);
   },
-  fast: Object.freeze({ second: secondStep }),
+  start,
+  fast: Object.freeze({ input: activityInput, second: secondStep }),
   slow: Object.freeze([]),
   jobs: Object.freeze({
     autosaveDay: Object.freeze({ every: 'local@00:00', prio: 5, run: (state, bus) => askAutosave(state, bus, 'day') }),
+    solDirector: Object.freeze({ every: 'local@20:00', prio: 5, run: (state) => postNight(state, state.clock.ms) }),
   }),
-  actions: Object.freeze({ ready, digit, skip: skipCommand }),
-  upgrades: Object.freeze([]),
+  events: Object.freeze({ taps: onTaps, reveille: onReveille, alert: onAlert, 'alert-count': onAlertCount, 'alert-end': onAlertEnd, 'activity-part': onActivityPart }),
+  actions: Object.freeze({ ready, digit, skip: skipCommand, activity: activityAction }),
+  upgrades: Object.freeze([['time:pod', upgradePod]]),
 });

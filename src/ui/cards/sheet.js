@@ -1,0 +1,115 @@
+// OLYMPUS cards: the character sheet (C), PERSONNEL, your body as you feel it and your file (VIEWS §8.2).
+//
+// Tradecraft's four columns made a service record (VIEWS §8.2), three of them this round (the build
+// sheet 0.0.4 §2.4): the doll, you as you stand (the stage's doll(), src/art/doll/doll.js, given the
+// body's cues: wet hair, grime, sweat, stubble, tired eyes, a hand at the belt when the bladder
+// presses), ON YOU (BODY's words for what the character feels, wordsOf(body, ms): the line, "Fed two
+// hours ago; thirsty.", then each need a row with its stage in words, never a number the character
+// could not know: VIEWS §8.2; the strip's nine glyphs of VIEWS §7.6 each at the head of its own row, in
+// the strip's order, the rows with no glyph after them, so the watch's folded glyphs can be learnt
+// here: the review of v0.0.4, one row of nine above a table of ten matched nothing), and THE
+// FILE (name, rank, MOS, unit, billet, rack, time in service, from the roster). WHAT YOU ARE (the
+// skills) comes with SKILLS at 0.0.6. The card pauses the game, as every card does; C or Esc closes it.
+//
+// sheetOf(state, { body }) is the pure part (the ui-sheet test reads it in node): body is BODY's
+// readers ({ bodyOf, stagesOf, stripOf, wordsOf, cuesOf }, src/sim/body/), given by main.js so this card
+// holds no body rule (but one of words: a shaved head's "Hair wet." reads "Head wet.", since BODY
+// knows the body and not the haircut). sheetCard(sheet, { dollOf }) is the DOM; dollOf(args) the stage's doll().
+import { RANKS } from '../../data/people/ranks.js';
+import { COMPANY } from '../../data/people/billets.js';
+import { unitName, billetDef } from '../../sim/people/roster.js';
+import { playerId, playerActor } from '../../core/ids.js';
+import { durationText, DAY_MS } from '../../core/clock.js';
+import { entryEl, STRIP_ORDER } from '../hud/strip.js';
+
+/** A row's glyph on the sheet, CSS pixels a glyph pixel at --ui 1 (my call: 4, the row's height; the HUD's is 3). */
+export const ROW_SCALE = 4;
+
+/** The needs' names on the sheet, in the strip's order (VIEWS §7.6), and the rest of what BODY's wordsOf reports. */
+export const NEED_NAMES = Object.freeze({ water: 'Thirst', food: 'Hunger', bladder: 'Bladder', bowel: 'Bowel', sleep: 'Sleep', grime: 'Hygiene', heat: 'Heat', air: 'Air', pain: 'Pain', stubble: 'Shave', stamina: 'Breath', stress: 'Nerves', morale: 'Morale', hair: 'Hair' });
+/** What a need at its first band feels like where BODY's band has no words (nothing to feel: my calls). */
+export const FINE_WORDS = Object.freeze({ water: 'Not thirsty.', bladder: 'Nothing pressing.', bowel: 'Nothing pressing.', stamina: 'Breathing easy.' });
+const nameOf = (n) => (!n ? '?' : typeof n === 'string' ? n : [n.given, n.nick ? `'${n.nick}'` : null, n.family].filter(Boolean).join(' '));
+
+/**
+ * The sheet's contents now: { name, file: [[label, value]…], strip, line, needs: [{ need, name, band, words, tone }],
+ * doll: { look, sex, body, outfit } }. body: BODY's readers; ms the clock (state.clock.ms).
+ */
+export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg = 0, look = null } = {}) {
+  const pid = playerId(state), p = state?.people?.[pid] ?? null, svc = p?.service ?? {};
+  const rec = body.bodyOf ? body.bodyOf(state, pid) : null;
+  const strip = rec && body.stripOf ? body.stripOf(rec, ms) : [];
+  const words = rec && body.wordsOf ? body.wordsOf(rec, ms) : { line: '', needs: [] };
+  const stages = rec && body.stagesOf ? body.stagesOf(rec, ms, lonEDeg) : null;
+  const cues = rec && body.cuesOf ? body.cuesOf(rec, ms) : null;
+  const byNeed = new Map((words?.needs ?? []).map(n => [n.need, n]));
+  const tones = new Map((strip ?? []).map(e => [e.need, e.tone]));
+  const order = (n) => { const i = STRIP_ORDER.indexOf(n); return i < 0 ? 99 : i; };
+  // (BODY's words know the body, not the haircut: a shaved head is wet, not its hair)
+  const bald = (look ?? p?.look)?.hair?.style === 'bald', said = (t) => (bald && t ? t.replace(/Hair wet\./g, 'Head wet.') : t);
+  const needs = [...byNeed.values()].sort((a, b) => order(a.need) - order(b.need))
+    .map(n => ({ need: n.need, name: bald && n.need === 'hair' ? 'Head' : NEED_NAMES[n.need] ?? n.need, band: n.band ?? null, words: said(n.words || FINE_WORDS[n.need] || ''), tone: tones.get(n.need) ?? n.tone ?? 'fine' }));
+  const billet = svc.unitId && svc.billet ? billetDef(svc.unitId, svc.billet) : null;
+  const enlisted = Number.isFinite(svc.enlistedMs) ? Math.max(0, ms - svc.enlistedMs) : null;
+  const file = [
+    ['Name', nameOf(p?.name)],
+    ['Rank', svc.rank ? `${RANKS[svc.rank]?.title ?? svc.rank} (${svc.grade ?? RANKS[svc.rank]?.grade ?? '?'})` : '?'],
+    ['MOS', svc.mos ?? '?'],
+    ['Unit', svc.unitId ? `${unitName(svc.unitId)}, ${COMPANY.name}` : '?'],
+    ['Billet', billet?.what ?? svc.billet ?? '?'],
+    ['Rack', p?.berthId ? rackName(p.berthId) : 'none'],
+    ['In service', enlisted !== null ? (enlisted >= 60 * DAY_MS ? `${Math.round(enlisted / (30.44 * DAY_MS))} months` : durationText(enlisted)) : '?'],
+  ];
+  const me = state ? playerActor(state) : null;
+  return {
+    name: nameOf(p?.name), file, strip: strip ?? [], line: said(words?.line ?? ''), needs, stages,
+    doll: { look: look ?? p?.look ?? null, sex: p?.sex ?? 'm', body: cues, outfit: me?.outfit ?? 'utilities' },
+  };
+}
+
+// ('f:e1:bay-2-1:rack-n1#2' → 'bay 2-1, rack n1, lower berth')
+function rackName(berthId) {
+  const m = /:([a-z0-9-]+):rack-([a-z0-9]+)#(\d+)$/.exec(berthId);
+  if (!m) return berthId;
+  const bay = m[1].replace(/^bay-/, 'bay ');
+  return `${bay}, rack ${m[2]}, ${m[3] === '2' ? 'lower' : 'upper'} berth`;
+}
+
+/** The card's body (a glass of three columns). dollOf(args) → a Pixmap (the stage's doll()), or null; scale its CSS pixels a doll pixel at --ui 1 (2: the shot at 1 read too small). */
+export function sheetCard(sheet, { dollOf = null, scale = 2 } = {}) {
+  const doc = globalThis.document;
+  const el = (tag, props = {}, ...kids) => { const n = Object.assign(doc.createElement(tag), props); n.append(...kids.filter(k => k !== null && k !== undefined)); return n; };
+  // (the doll: its pixels straight onto a canvas, shown at whole-pixel scale)
+  let figure = null;
+  if (dollOf) {
+    try {
+      const pm = dollOf(sheet.doll);
+      if (pm?.data) {
+        const c = el('canvas', { className: 'doll' });
+        c.width = pm.w; c.height = pm.h;
+        c.style.width = `calc(${pm.w * scale}px * var(--ui))`;
+        c.style.height = `calc(${pm.h * scale}px * var(--ui))`;
+        const g = c.getContext('2d');
+        if (g) g.putImageData(new ImageData(new Uint8ClampedArray(pm.data.buffer.slice(0)), pm.w, pm.h), 0, 0);
+        figure = c;
+      }
+    } catch (e) { console.warn('PERSONNEL: the doll was not drawn', e); }
+  }
+  // (each glyph at the head of its need's row, in the strip's order; then the needs no glyph shows)
+  const byNeed = new Map(sheet.needs.map(n => [n.need, n]));
+  const row = (n, glyph) => el('div', { className: `need ${n.tone}`, title: n.band ? `${n.name}: ${n.band}` : n.name },
+    glyph ?? el('span', { className: 'g' }), el('span', { className: 'k', textContent: n.name }), el('span', { className: 'v', textContent: n.words || n.band || '' }));
+  const rows = [
+    ...sheet.strip.map(e => { const n = byNeed.get(e.need) ?? { need: e.need, name: NEED_NAMES[e.need] ?? e.need, band: e.band ?? null, words: e.words ?? '', tone: e.tone ?? 'fine' }; return row(n, entryEl({ ...e, words: n.words || e.words }, ROW_SCALE)); }),
+    ...sheet.needs.filter(n => !sheet.strip.some(e => e.need === n.need)).map(n => row(n, null)),
+  ];
+  const needs = el('div', { className: 'needs' }, ...rows);
+  const file = el('div', { className: 'keylist file' }, ...sheet.file.flatMap(([k, v]) => [el('span', { className: 'k', textContent: k }), el('span', { className: 'v', textContent: v })]));
+  return el('div', { className: 'glass sheetcard' },
+    el('h3', { textContent: 'Personnel' }),
+    el('div', { className: 'cols' },
+      el('div', { className: 'col dollcol' }, figure ?? el('p', { className: 'note', textContent: 'No figure to draw.' })),
+      el('div', { className: 'col onyou' }, el('h4', { textContent: 'On you' }), sheet.line ? el('p', { className: 'feel', textContent: sheet.line }) : null, needs),
+      el('div', { className: 'col thefile' }, el('h4', { textContent: 'The file' }), file)),
+    el('p', { className: 'note', textContent: 'What you feel, not what a meter says. C or Esc to close.' }));
+}

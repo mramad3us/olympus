@@ -19,11 +19,16 @@
 //     and the combat helmet.
 //   - A CIVILIAN, a Europa ice miner: safety-orange coveralls with reflective bands, a dosimeter on the
 //     chest, a hard hat with its lamp lit.
+//   - THE TOWEL (0.0.4: out of the shower and dressing, TIME §8.2's dress part): a towel wrapped at the
+//     waist, bare chested (at the chest for a woman: look.sex 'f'), shower shoes; no cover, no belt.
+// A look also carries the body's cues the figure shows (VIEWS §7.3, BODY's cuesOf): wet (the hair darker
+// with a sheen, for WET_HAIR_MS after a wash) and tired (fatigue at or past tired: the head down, the
+// arms swinging less: poses.js). Both change the drawing, so they are part of the look's shape.
 // The Valles pattern is painted at pixel scale by valles(): value noise cut into bands, in blocks of a
 // pixel at 16 px/m and two at 24 (a pattern a few centimetres a block either way), its coordinates
 // those of the body part it is on, so it moves with the part and never swims across a walking figure.
 // Colours here are base tones; shade.js makes each one's light, shade and dark by rule. Pure.
-import { noise } from '../tone.js';
+import { noise, tone } from '../tone.js';
 
 /** Skin tones (tradecraft's SKIN). */
 export const SKIN = Object.freeze({ light: 0xedc39c, tan: 0xc48a62, brown: 0x8c5a3f, dark: 0x5e3a2a });
@@ -51,11 +56,13 @@ export function valles(u, v, ppm, seed = 1) {
 }
 
 /** The outfits a look can name. */
-export const OUTFITS = Object.freeze(['utilities', 'nco', 'pt', 'vac', 'vacOpen', 'carrier', 'civilian']);
+export const OUTFITS = Object.freeze(['utilities', 'nco', 'pt', 'vac', 'vacOpen', 'carrier', 'civilian', 'towel']);
 export const OUTFIT_LABELS = Object.freeze({
   utilities: 'Utilities, Valles pattern', nco: 'Sergeant in utilities (collar pins)', pt: 'PT kit', vac: 'Light vac suit, sealed',
-  vacOpen: 'Light vac suit, helmet off', carrier: 'Plate carrier over utilities', civilian: 'Europa ice miner',
+  vacOpen: 'Light vac suit, helmet off', carrier: 'Plate carrier over utilities', civilian: 'Europa ice miner', towel: 'A towel, after the shower',
 });
+/** The towel (an issue towel's olive drab, light enough to read as cloth on skin) and shower shoes. */
+export const TOWEL = 0xa59f86, SHOWER_SHOE = 0x2c2e38;
 
 const TAN_BOOT = 0x9a7650, BELT = 0x5c4a36, DRAB = 0x545e40, DRAB_DARK = 0x3d4530;
 const SHELL = 0xc8c0ae, SKINSUIT = 0x3b4256, SUIT_RING = 0x4c5262, SUIT_BOOT = 0x5a6070, PACK = 0x7d776c, OXBLOOD = 0x6e2a2e, PT_GREY = 0x8f96a6;
@@ -74,7 +81,7 @@ export function wear(look = {}) {
     hair: { style: look.hair?.style ?? 'crew', color: HAIR[look.hair?.color] ?? look.hair?.color ?? HAIR.dark },
     weapon: look.weapon ?? null, carry: look.carry ?? (look.weapon ? 'low' : null),
     top: null, legs: null, boots: TAN_BOOT, gloves: null, head: null, armour: null, pack: null, rank: look.rank ?? null, belt: null,
-    accents: {}, closedEyes: false,
+    accents: {}, closedEyes: false, wet: !!look.wet, tired: !!look.tired, sex: look.sex === 'f' ? 'f' : 'm',
   };
   const camo = { pattern: 'valles' };
   switch (outfit) {
@@ -100,6 +107,11 @@ export function wear(look = {}) {
       L.head = outfit === 'vac' ? { kind: 'vac', color: SHELL, sealed: true } : { kind: 'ring', color: SUIT_RING };
       L.accents.rings = SUIT_RING; L.accents.band = 0x9e3c36;            // (the Corps' red on the shoulders)
       break;
+    case 'towel':
+      L.top = L.sex === 'f' ? { kind: 'towelChest', color: TOWEL } : { kind: 'bare', color: L.skin };
+      L.legs = { kind: 'towel', color: TOWEL };
+      L.boots = SHOWER_SHOE;
+      break;
     case 'civilian':
       L.top = { kind: 'coverall', color: MINER };
       L.legs = { kind: 'coverall', color: MINER };
@@ -116,7 +128,7 @@ export function wear(look = {}) {
 export function coloursOf(L, ppm) {
   const pat = (layer) => (layer?.pattern === 'valles' ? (u, v) => valles(u, v, ppm, layer.seed ?? 1) : layer?.color ?? 0x8f96a6);
   return {
-    s: L.skin, h: L.hair.color, t: pat(L.top), p: pat(L.legs), f: L.boots, a: pat(L.head),
+    s: L.skin, h: L.wet ? tone(L.hair.color, -0.06) : L.hair.color, t: pat(L.top), p: pat(L.legs), f: L.boots, a: pat(L.head),
     r: L.hair.color, y: L.belt ?? 0x47302a, w: 0xf6f4ee, x: 0x6b4636,
     ø: L.armour?.color ?? DRAB, æ: L.armour?.pouches ?? DRAB_DARK,
     c: L.top?.kind === 'suit' ? L.top.color : (L.legs?.shell ?? SHELL), ð: L.accents.rings ?? SUIT_RING, þ: 0x1b2541,

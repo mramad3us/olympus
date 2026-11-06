@@ -17,8 +17,14 @@
 // PLAYER_AWARENESS 5 for the player (SKILLS's out-of-boot floor, until SKILLS) and MARINE_AWARENESS 5
 // for everyone else (my call: marines read as marines); the eye's height is EYE_M by posture (stand
 // 1.6, sit 1.0, lie 0.3: PLACES §2.4's eye heights) plus the actor's y, and its layer the highest of
-// the grid's three it reaches (stand at 1.6 m, crouch at 1.0, prone below). A lying person is asleep
-// this round (they lie only in their racks after taps) and sees nothing (PEOPLE §7.2).
+// the grid's three it reaches (stand at 1.6 m, crouch at 1.0, prone below). A lying person but the
+// player is asleep this round (they lie only in their racks after taps) and sees nothing (PEOPLE §7.2);
+// the player sees from the berth unless their body sleeps (BODY's isAsleep: the 0.0.4 sheet §8, item 22).
+// A berth is a blocker on the low layers (a rack's cells hold PRONE and CROUCH, its footlocker PRONE),
+// so an eye lying in one would see only its own cell: a lying, awake player's eye looks out of the
+// berth instead (lookOut, the integrator's call for 0.0.4: woken by the klaxon you lift your head and
+// look past the rack's foot), moved along its facing through the run of cells that block its layer,
+// from its own, onto the last of them (an end cell, which never blocks), at most BERTH_LOOK_M 2 m.
 //
 // clearLine(grid, ax, az, bx, bz, layer): the segment between the centres of the two points' cells,
 // walked cell by cell in exact integer arithmetic (the cells it passes through, compared as
@@ -45,6 +51,7 @@
 // Pure.
 import { lightLevel } from '../places/light.js';
 import { sightGridOf } from '../places/sight.js';
+import { isAsleep } from '../body/body.js';
 
 export const CONE_DEG = 100, CONE_PER_AWARENESS = 2, CONE_MAX_DEG = 170;
 export const AWARE_M = 2.5, AWARE_PER = 0.2, ALWAYS_M = 1;
@@ -69,6 +76,8 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 export const wrap = (a) => ((a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 /** The heading of a sprite facing, radians (x east, z south). */
 export const headOf = (face) => HEADS[face] ?? HEADS.down;
+/** How far a lying player's eye looks out of the berth along its facing (see the header). */
+export const BERTH_LOOK_M = 2;
 /** The grid layer an eye at heightM reaches. */
 export const layerAt = (heightM) => (heightM >= LAYER_M.stand ? 'stand' : heightM >= LAYER_M.crouch ? 'crouch' : 'prone');
 
@@ -80,13 +89,32 @@ export function eyeOf(state, actor) {
   const eyeM = (EYE_M[posture] ?? EYE_M.stand) + (actor.y ?? 0);
   const headRad = headOf(actor.face), coneRad = Math.min(CONE_MAX_DEG, CONE_DEG + CONE_PER_AWARENESS * aw) * Math.PI / 360;
   const outer = coneRad + CONE_SOFT_RAD + 1e-6;
-  return {
+  const eye = {
     x: actor.x, z: actor.z, headRad, coneRad,
-    awareM: AWARE_M + AWARE_PER * aw, eyeLayer: layerAt(eyeM), asleep: posture === 'lie',
+    awareM: AWARE_M + AWARE_PER * aw, eyeLayer: layerAt(eyeM), asleep: isPlayer ? isAsleep(state, actor.who, state.clock?.ms) : posture === 'lie',
     areaId: state?.places?.live?.area ?? null,
     // (the heading's unit vector and the cosine past which nothing is in the cone's soft edge: a quick test before the angle)
     hx: Math.cos(headRad), hz: Math.sin(headRad), outerCos: outer >= Math.PI ? -2 : Math.cos(outer),
   };
+  if (isPlayer && posture === 'lie' && !eye.asleep) lookOut(state, eye);
+  return eye;
+}
+
+// (a lying player's eye out of the berth: along the facing through the cells that block its layer, onto the last; see the header)
+function lookOut(state, eye) {
+  const grid = gridFor(state, eye);
+  if (!grid) return;
+  const C = grid.cellM, bit = LAYER_BIT[eye.eyeLayer];
+  const cell = (x, z) => { const i = Math.floor((x - grid.x0) / C), j = Math.floor((z - grid.z0) / C); return i >= 0 && j >= 0 && i < grid.nx && j < grid.nz ? j * grid.nx + i : -1; };
+  const c0 = cell(eye.x, eye.z);
+  if (c0 < 0 || (grid.bits[c0] & bit) === 0) return;               // (an eye not in a blocker sees from where it is)
+  let x = eye.x, z = eye.z;
+  for (let d = C; d <= BERTH_LOOK_M + 1e-9; d += C) {
+    const nx = eye.x + eye.hx * d, nz = eye.z + eye.hz * d, c = cell(nx, nz);
+    if (c < 0 || (grid.bits[c] & bit) === 0) break;
+    x = nx; z = nz;
+  }
+  eye.x = Math.round(x * 1e4) / 1e4; eye.z = Math.round(z * 1e4) / 1e4;
 }
 
 // ---- the line ----

@@ -29,6 +29,15 @@
 // distance from 1 m with the area's rolloff (1.5 indoors, 1 outdoors, VIEWS §11.2), panned by its
 // offset east or west of you, through the same air.
 //
+// The 0.0.4 round's world (world.js, the build sheet §2.4): the world bus runs through a low-pass and
+// a duck gain before the master, so a splash muffles the world (duck({ lowpassHz, gainDb }), eased with
+// setTargetAtTime), and a UI bus beside it carries the splash's watch tick, unmuffled. loopOn(key,
+// kind, opts) and loopOff(key) hold a looping voice (the shower's water, the tap) faded in and out
+// over LOOP_FADE_S; oneShot(kind, opts) plays the flush, the klaxon's whoop, the bugle on the world
+// bus, uiShot(kind) the tick on the UI bus. fact(type, payload, state) hands the bus's facts to the
+// world (the flush, reveille's bugle). The world's recipes are rendered at their own rate (WORLD_RATE_HZ,
+// 24 kHz: Melas's air takes everything over 5.2 kHz anyway), after the steps' and the doors'.
+//
 // stats: { state (the context's, or 'none'), started, baked (every sound rendered), steps, doors,
 // dropped (past VOICES_MAX), late (foot-falls too late to play), voices, voicesMax, volume, muted,
 // master (the master gain's target), sampleRate, last, prepareMs (the context's making, at boot),
@@ -38,9 +47,10 @@ import { isHeld, TICK_MS } from '../../core/clock.js';
 import { playerActor } from '../../core/ids.js';
 import * as places from '../../sim/places/model.js';
 import { airDb } from '../../sim/people/hearing.js';
-import { STEPS, DOORS, VOICES_MAX, MASTER_DEFAULT, AIR_KPA, ROLLOFF, PAN_FULL_M } from '../../data/sounds.js';
-import { render } from './synth.js';
+import { STEPS, DOORS, WORLD, VOICES_MAX, MASTER_DEFAULT, AIR_KPA, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
+import { renderSteps } from './synth.js';
 import { createStepScheduler, stepVoice, lowpassHz, MARS_G } from './steps.js';
+import { createWorld } from './world.js';
 
 /** The limiter's knee on the master (dBFS). */
 export const LIMIT_DB = -3;
@@ -51,9 +61,11 @@ const clamp01 = (v) => Math.min(1, Math.max(0, Number(v)));
 
 /** The audio presenter (see the header). profile: { volume, muted } (the saved profile's audio). */
 export function createAudio({ profile = null, AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext } = {}) {
-  let ctx = null, master = null, world = null, limiter = null;
+  let ctx = null, master = null, world = null, limiter = null, worldLp = null, duckGain = null, uiBus = null;
   let volume = Number.isFinite(profile?.volume) ? clamp01(profile.volume) : MASTER_DEFAULT, muted = !!profile?.muted;
-  const buffers = { step: {}, door: {} };
+  const buffers = { step: {}, door: {}, world: {} };
+  const loops = new Map();                                         // (key → a looping voice: { src, g, lp, kind })
+  let duckSig = '';
   const steps = createStepScheduler();
   let voices = 0;
   const stats = { state: 'none', started: false, baked: false, steps: 0, doors: 0, dropped: 0, late: 0, voices: 0, voicesMax: 0, volume, muted, master: 0, sampleRate: 0, last: null, prepareMs: null, startMs: null, startedAt: null };
@@ -69,16 +81,24 @@ export function createAudio({ profile = null, AudioContextClass = globalThis.Aud
 
   // (the sounds rendered a few at a time, BAKE_FRAME_MS of a frame at most, so the first key never
   // hitches the picture; a foot-fall before its surface is ready is left silent)
+  // (a recipe is rendered a layer at a time, renderSteps: one taking longer than a frame's budget goes on the next frame)
   const toBake = [];
+  let baking = null;
   function bakeSome() {
-    const t0 = globalThis.performance?.now?.() ?? 0;
-    while (toBake.length && (globalThis.performance?.now?.() ?? 0) - t0 < BAKE_FRAME_MS) {
-      const [into, kind, recipe, v] = toBake.shift(), sr = ctx.sampleRate;
-      const samples = render(recipe, { sampleRate: sr, name: kind, variant: v }), b = ctx.createBuffer(1, samples.length, sr);
-      b.copyToChannel(samples, 0);
-      (into[kind] ??= []).push(b);
+    const t0 = perfNow();
+    while ((baking || toBake.length) && perfNow() - t0 < BAKE_FRAME_MS) {
+      if (!baking) {
+        const [into, kind, recipe, v] = toBake.shift(), sr = recipe.rateHz ? Math.min(ctx.sampleRate, recipe.rateHz) : ctx.sampleRate;
+        baking = { into, kind, sr, it: renderSteps(recipe, { sampleRate: sr, name: kind, variant: v }) };
+      }
+      const r = baking.it.next();
+      if (!r.done) continue;
+      const b = ctx.createBuffer(1, r.value.length, baking.sr);
+      b.copyToChannel(r.value, 0);
+      (baking.into[baking.kind] ??= []).push(b);
+      baking = null;
     }
-    stats.baked = !toBake.length;
+    stats.baked = !toBake.length && !baking;
   }
 
   /** The context and the graph made, suspended until start(): at boot, behind the title (see the header). Safe to call again. */
@@ -90,8 +110,12 @@ export function createAudio({ profile = null, AudioContextClass = globalThis.Aud
       limiter = ctx.createDynamicsCompressor();
       limiter.threshold.value = LIMIT_DB; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.003; limiter.release.value = 0.12;
       master = ctx.createGain(); world = ctx.createGain();
-      world.connect(master); master.connect(limiter); limiter.connect(ctx.destination);
-      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
+      // (the world through the splash's muffle: a low-pass, open at WORLD_OPEN_HZ, and a duck gain; the UI bus beside it)
+      worldLp = ctx.createBiquadFilter(); worldLp.type = 'lowpass'; worldLp.frequency.value = WORLD_OPEN_HZ; worldLp.Q.value = Math.SQRT1_2;
+      duckGain = ctx.createGain(); uiBus = ctx.createGain();
+      world.connect(worldLp); worldLp.connect(duckGain); duckGain.connect(master); uiBus.connect(master);
+      master.connect(limiter); limiter.connect(ctx.destination);
+      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door], [WORLD, buffers.world]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
       applyMaster();
       stats.sampleRate = ctx.sampleRate; stats.prepareMs = perfNow() - t0;
       ctx.onstatechange = () => { stats.state = ctx.state; };
@@ -111,8 +135,8 @@ export function createAudio({ profile = null, AudioContextClass = globalThis.Aud
   }
   const running = () => !!ctx && ctx.state === 'running';
 
-  // (one voice: a buffer, at a time on the audio clock, through the air's low-pass, a gain and a pan)
-  function play(buffer, { atS, gainDb, lowHz, rate = 1, pan = 0 }) {
+  // (one voice: a buffer, at a time on the audio clock, through the air's low-pass, a gain and a pan, onto a bus)
+  function play(buffer, { atS, gainDb, lowHz, rate = 1, pan = 0, bus = null }) {
     if (voices >= VOICES_MAX) { stats.dropped++; return false; }
     const src = ctx.createBufferSource();
     src.buffer = buffer; src.playbackRate.value = rate;
@@ -123,7 +147,7 @@ export function createAudio({ profile = null, AudioContextClass = globalThis.Aud
     src.connect(lp); lp.connect(g);
     let tail = g;
     if (pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); g.connect(p); tail = p; }
-    tail.connect(world);
+    tail.connect(bus ?? world);
     voices++; stats.voices = voices; stats.voicesMax = Math.max(stats.voicesMax, voices);
     src.onended = () => { voices--; stats.voices = voices; src.disconnect(); lp.disconnect(); g.disconnect(); if (tail !== g) tail.disconnect(); };
     src.start(Math.max(ctx.currentTime, atS));
@@ -137,10 +161,79 @@ export function createAudio({ profile = null, AudioContextClass = globalThis.Aud
     return { area, kind, gG: site?.gravity?.gG ?? MARS_G, pKpa: AIR_KPA[kind] ?? AIR_KPA.default };
   }
 
+  // ---- the world's loops and one-shots (world.js asks for them) ----
+  const worldOps = {
+    /** A looping voice on (or its level moved): key, kind (WORLD's), { gainDb, lowHz, pan }. */
+    loopOn(key, kind, { gainDb = 0, lowHz = WORLD_OPEN_HZ, pan = 0 } = {}) {
+      if (!running()) return false;
+      const t = ctx.currentTime, k = dbToK(gainDb);
+      let L = loops.get(key);
+      if (L) { L.g.gain.setTargetAtTime(k, t, LOOP_FADE_S / 3); return true; }
+      const set = buffers.world[kind];
+      if (!set?.length || voices >= VOICES_MAX) { if (set?.length) stats.dropped++; return false; }
+      const src = ctx.createBufferSource(), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+      src.buffer = set[0]; src.loop = true;
+      lp.type = 'lowpass'; lp.frequency.value = lowHz; lp.Q.value = Math.SQRT1_2;
+      g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(k, t, LOOP_FADE_S / 3);
+      src.connect(lp); lp.connect(g);
+      let tail = g;
+      if (pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); g.connect(p); tail = p; }
+      tail.connect(world);
+      src.start(t);
+      voices++; stats.voices = voices; stats.voicesMax = Math.max(stats.voicesMax, voices);
+      src.onended = () => { voices--; stats.voices = voices; src.disconnect(); lp.disconnect(); g.disconnect(); if (tail !== g) tail.disconnect(); };
+      loops.set(key, { src, g, lp, kind });
+      stats.loops = loops.size;
+      return true;
+    },
+    /** A looping voice faded out and stopped. */
+    loopOff(key) {
+      const L = loops.get(key);
+      if (!L) return false;
+      loops.delete(key);
+      stats.loops = loops.size;
+      if (!ctx) return false;
+      const t = ctx.currentTime;
+      L.g.gain.cancelScheduledValues(t); L.g.gain.setTargetAtTime(0, t, LOOP_FADE_S / 3);
+      try { L.src.stop(t + LOOP_FADE_S * 2); } catch { /* (already stopped) */ }
+      return true;
+    },
+    /** A world sound once, now: kind (WORLD's), { gainDb, lowHz, pan }. */
+    oneShot(kind, { gainDb = 0, lowHz = WORLD_OPEN_HZ, pan = 0 } = {}) {
+      if (!running()) return false;
+      const set = buffers.world[kind];
+      if (!set?.length) return false;
+      const ok = play(set[hashInt(set.length, 'world', kind, stats.oneShots ?? 0)], { atS: ctx.currentTime, gainDb, lowHz, pan });
+      if (ok) { stats.oneShots = (stats.oneShots ?? 0) + 1; stats.last = { what: kind, gainDb: Math.round(gainDb * 10) / 10, lowpassHz: Math.round(lowHz) }; }
+      return ok;
+    },
+    /** A UI sound once, now, on the UI bus (the splash's tick: never muffled). */
+    uiShot(kind) {
+      if (!running()) return false;
+      const set = buffers.world[kind];
+      if (!set?.length) return false;
+      return play(set[hashInt(set.length, 'ui', kind, stats.uiShots = (stats.uiShots ?? 0) + 1)], { atS: ctx.currentTime, gainDb: 0, lowHz: WORLD_OPEN_HZ, bus: uiBus });
+    },
+    /** The world's muffle: { lowpassHz, gainDb } (duckOf's), eased; written only when it changes. */
+    duck({ lowpassHz: hz = WORLD_OPEN_HZ, gainDb = 0 } = {}) {
+      if (!ctx || !worldLp) return;
+      const sig = `${Math.round(hz)}|${gainDb.toFixed(2)}`;
+      if (sig === duckSig) return;
+      duckSig = sig;
+      const t = ctx.currentTime;
+      worldLp.frequency.setTargetAtTime(hz, t, 0.03);
+      duckGain.gain.setTargetAtTime(dbToK(gainDb), t, 0.03);
+      stats.duck = { lowpassHz: Math.round(hz), gainDb: Math.round(gainDb * 10) / 10 };
+    },
+  };
+  const worldSounds = createWorld(worldOps);
+  stats.world = worldSounds.stats;
+
   let lastState = null;
-  /** A frame: the foot-falls the player's walk has reached, played where the drawn feet fall. */
-  function frame(state, alpha = 0, nowS = 0) {
-    if (toBake.length) bakeSome();
+  /** A frame: the foot-falls the player's walk has reached, played where the drawn feet fall; the world's sounds; the splash's muffle. */
+  function frame(state, alpha = 0, nowS = 0, { splash = null } = {}) {
+    if (toBake.length || baking) bakeSome();
+    if (running()) { try { worldSounds.frame(state, { splash, nowS }); } catch (e) { stats.worldError = String(e?.message ?? e); } }
     const a = state ? playerActor(state) : null;
     // (another state, a load or a new career: the feet start afresh, never a burst of the strides between)
     if (state !== lastState) { steps.reset(); lastState = state; }
@@ -182,6 +275,8 @@ export function createAudio({ profile = null, AudioContextClass = globalThis.Aud
 
   return {
     prepare, start, frame, door,
+    /** A bus fact the world's sounds hear (the flush's body-event, reveille's bugle): fact(type, payload, state). */
+    fact(type, payload, state) { return running() ? worldSounds.fact(type, payload, state) : false; },
     /** The master volume, 0 to 1. */
     setVolume(v) { volume = clamp01(v); applyMaster(); },
     /** Mute, or not. */
@@ -192,6 +287,6 @@ export function createAudio({ profile = null, AudioContextClass = globalThis.Aud
     /** The master gain's value now (0 when muted), as the graph has it. */
     get masterGain() { return master ? master.gain.value : gainOf(); },
     stats,
-    dispose() { try { ctx?.close(); } catch { /* (already closed) */ } ctx = null; master = world = limiter = null; stats.state = 'closed'; },
+    dispose() { try { ctx?.close(); } catch { /* (already closed) */ } ctx = null; master = world = limiter = worldLp = duckGain = uiBus = null; loops.clear(); stats.state = 'closed'; },
   };
 }

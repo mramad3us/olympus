@@ -1,24 +1,39 @@
-// OLYMPUS people: figureOf, what the stage reads to draw anyone: their look in the outfit of the moment, their posture and where it sits (the 0.0.3 build sheet §2.2).
+// OLYMPUS people: figureOf, what the stage reads to draw anyone: their look in the outfit of the moment, their pose frame by frame, where it sits, what they are doing and how their body looks (the 0.0.3 build sheet §2.2; the 0.0.4 sheet §2.2.7).
 //
-// figureOf(state, actor) → { look, posture, y, face, head, curtain, gait, strideM }. look is a wear()
-// spec (src/art/figures/outfits.js): the person's own look ({ skin, hair: { style, color }, seed },
-// drawn by the roster) with the outfit the actor wears now (PT kit in the rack, utilities by day: the
-// sheet §8, item 21) and head: null indoors (covers come off under a roof, the Corps' custom), so the
-// view never rebuilds a look by hand. The same look object comes back for the same person, outfit
-// and roof until the person's look changes (a memo keyed by the look record), so the view's caches
-// can key on it. posture is 'stand', 'sit' or 'lie'; y the height of the seat or berth the body is on
-// (the view lifts the sit frame to it, lays the sleep frame on the berth); head the direction the
-// head lies ('n', 's', 'e', 'w': the berth's seat's, from places' seatOf), null unless lying;
-// curtain whether the rack's curtain is drawn over a sleeper (the view draws it and hides who is
-// behind); gait and strideM the walker's (the player's own, else idle). A person without the
-// roster's record (the sandbox's player: a look and a name) draws as before: their look as it is,
-// standing.
+// figureOf(state, actor, ms) → { look, posture, frame, k, x, z, y, face, head, spotId, curtain, gait,
+// strideM, outfit, inside, activity, cues } (spotId the pose's shown: a rising sleeper's berth until
+// they leave it, the view's berth to draw), ms the moment drawn (the view's clock.ms + alpha ×
+// TICK_MS, so a transition plays between ticks). The pose is people's poseAt (src/sim/people/place.js):
+// a transition (rising from a berth, lying down, sitting, standing, stepping onto a spot) drawn frame
+// by frame ('lie', 'sitUp', 'sit', 'climb', 'standUp', 'stand', 'dress', 'lieDown'), k its share,
+// x, z and y where the body is at that frame (the actor's own fields hold the end of it), the outfit
+// changing half-way through a dress. look is a wear() spec (src/art/figures/outfits.js): the person's
+// own look ({ skin, hair: { style, color }, seed }, drawn by the roster) with the outfit worn at ms
+// (PT kit in the rack, utilities by day, a towel in and out of the shower) and head: null indoors
+// (covers come off under a roof, the Corps' custom), so the view never rebuilds a look by hand; the
+// same look object comes back for the same person, outfit and roof until the person's look changes
+// (a memo keyed by the look record), so the view's caches can key on it. head is the direction the
+// head lies ('n', 's', 'e', 'w': the berth's seat's, from places' seatOf), null unless lying; curtain
+// whether the rack's curtain is drawn over a sleeper (once any transition has played out: the view
+// draws it and hides who is behind); gait and strideM the walker's (the player's own, else idle).
+// For the player, inside is the fixture whose stall they stand in while an activity's part says so
+// (the stage hides the figure behind it), activity { id, part, k } what they are doing (TIME's
+// activityNow), and cues the body's cuesOf (wet, grime, sweat, tired, stubble, bladder, hunger,
+// thirst: 0 to 1, for the wet head and the tired walk); everyone else's cues are zeros this round
+// (their needs come at 0.0.9). A person without the roster's record (the sandbox's player: a look and
+// a name) draws as before: their look as it is, standing.
 // Pure.
 import { seatOf } from '../places/fixtures.js';
 import { areaOf } from '../places/model.js';
+import { activityNow } from '../time/doing.js';
+import { bodyOf } from '../body/body.js';
+import { cuesOf } from '../body/cues.js';
+import { poseAt } from './place.js';
 
 const memo = new WeakMap();                                        // (a person's look record → Map(variant → the frozen wear() spec))
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
+/** An NPC's body cues this round: none move (their needs come at 0.0.9). */
+export const NO_CUES = Object.freeze({ wetK: 0, grimeK: 0, sweatK: 0, tiredK: 0, stubbleK: 0, bladderK: 0, hungerK: 0, thirstK: 0 });
 
 /** The wear() spec for a person's look in an outfit, under a roof or not: the same object while the look is unchanged. */
 export function lookFor(look, outfit = 'utilities', indoors = false) {
@@ -38,17 +53,32 @@ export function lookFor(look, outfit = 'utilities', indoors = false) {
 /** Whether the live area has a roof (a floor of a building, a deck): covers off. */
 export const indoorsNow = (state) => areaOf(state.places?.live?.area)?.kind === 'floor';
 
-/** What the stage draws for an actor (see the header). */
-export function figureOf(state, actor) {
+// (the body's cues for the player, zeros where the body says nothing)
+function cuesFor(state, pid, ms) {
+  const b = bodyOf(state, pid);
+  return b ? { ...NO_CUES, ...cuesOf(b, ms) } : NO_CUES;
+}
+
+/** What the stage draws for an actor at ms (see the header). */
+export function figureOf(state, actor, ms = state?.clock?.ms ?? 0) {
   const person = actor?.who ? state.people?.[actor.who] : null;
   const gait = actor?.gait ?? 'idle', strideM = actor?.strideM ?? 0, face = actor?.face ?? 'down';
-  if (!person?.service) return { look: person?.look ?? {}, posture: 'stand', y: 0, face, head: null, curtain: false, gait, strideM };
+  if (!person?.service) {
+    return { look: person?.look ?? {}, posture: 'stand', frame: 'stand', k: 1, x: actor?.x ?? 0, z: actor?.z ?? 0, y: 0, face, head: null, spotId: actor?.spotId ?? null, curtain: false, gait, strideM,
+      outfit: 'utilities', inside: null, activity: null, cues: NO_CUES };
+  }
   const isPlayer = actor.id === state.player?.actor;
-  const posture = isPlayer ? 'stand' : actor.posture ?? 'stand';
-  const head = posture === 'lie' && actor.spotId ? seatOf(actor.spotId)?.head ?? null : null;
+  const headNow = (actor.posture ?? 'stand') === 'lie' && actor.spotId ? seatOf(actor.spotId)?.head ?? null : null;
+  const p = poseAt(actor, ms, headNow);
+  const still = p.k >= 1;
+  const now = isPlayer ? activityNow(state, ms) : null;
   return {
-    look: lookFor(person.look, actor.outfit ?? 'utilities', indoorsNow(state)),
-    posture, y: isPlayer ? 0 : actor.y ?? 0, face, head, curtain: !!actor.curtain,
-    gait: isPlayer ? gait : 'idle', strideM: isPlayer ? strideM : 0,
+    look: lookFor(person.look, p.outfit, indoorsNow(state)),
+    posture: p.posture, frame: p.frame, k: p.k, x: p.x, z: p.z, y: p.y, face: p.face, head: p.head, spotId: p.spotId ?? null,
+    curtain: !!actor.curtain && still,
+    gait: isPlayer && still ? gait : 'idle', strideM: isPlayer ? strideM : 0, outfit: p.outfit,
+    inside: now?.inside ? now.fixtureId : null,
+    activity: now ? { id: now.id, part: now.part, k: now.k } : null,
+    cues: isPlayer ? cuesFor(state, actor.who, ms) : NO_CUES,
   };
 }

@@ -3,8 +3,10 @@
 //
 // From the foot of the player's rack in bay-2-1 at 23:00: the aisle walked east and west under the
 // fire watch's red lamp past the sleeping squad, back to the rack; six debug hours ($, an Earth hour
-// each: 04:20 Melas time) and R's fifteen-minute waits until the bay's lights are on (05:30 on a
-// weekday: the last wait ends at 05:35); out by the bay door (R), up the east
+// each, TIME's idle activity: 04:20 Melas time; seed 48213's first drill sounds this night, at
+// 02:57:00.091, and stops one, the A rule, and the next $ goes on: 27,790 ticks in all) and R at the
+// rack's foot until the bay's lights are on (0.0.4: R there is sleep until reveille, which reveille
+// ends at 05:30:00 on a weekday; the walk's first move key gets the player up); out by the bay door (R), up the east
 // stair to the Weapons Platoon's hall and down the main stair, through the lobby and the vestibule's
 // two doors (R) onto Echo's street; there, waiting for the sun to clear the canyon's wall; west along
 // the street and north round the barracks' west end (the 4 m between Echo and the armoury), across

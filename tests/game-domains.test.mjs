@@ -95,14 +95,17 @@ export default [
     },
   },
   {
-    name: 'the actions table: routed by prefix to their owners (R\'s hand and the door to places, 0.0.3), the people domain built, the stubs doing what the sheet says; an unknown action counted, never thrown',
+    name: 'the actions table: routed by prefix to their owners (R\'s hand and the door to places, 0.0.3; the activity to time and the instinct\'s T to people, 0.0.4), the people and body domains built, the stubs doing what the sheet says; an unknown action counted, never thrown',
     fn() {
       const g = createGame({ seed: 4 });
       const table = g.sim.actions;
-      const want = { debug: 'tech', ready: 'time', digit: 'time', skip: 'time', hand: 'places', door: 'places', people: 'people', instinct: 'people', shoot: 'weapons', hit: 'combat', grab: 'combat', guard: 'combat' };
+      const want = { debug: 'tech', ready: 'time', digit: 'time', skip: 'time', activity: 'time', hand: 'places', door: 'places', people: 'people', instinct: 'people', shoot: 'weapons', hit: 'combat', grab: 'combat', guard: 'combat' };
       assert(JSON.stringify(Object.keys(table).sort()) === JSON.stringify(Object.keys(want).sort()) && Object.entries(want).every(([a, d]) => table[a] === d), JSON.stringify(table));
       const people = g.sim.domains.find(d => d.name === 'people');
       assert(people && !people.stub && g.sim.layers.find(L => L.name === 'actors').contributors.includes('people') && g.sim.slow.includes('people:place'), `the people domain: ${JSON.stringify(people)}`);
+      const body = g.sim.domains.find(d => d.name === 'body');
+      assert(body && !body.stub && body.keys.length === 0 && g.sim.domains.map(d => d.name).join() === DOMAIN_ORDER.join() && DOMAIN_ORDER.indexOf('body') === DOMAIN_ORDER.indexOf('places') + 1, `the body domain: ${JSON.stringify(body)}, order ${DOMAIN_ORDER.join()}`);
+      assert(g.sim.layers.find(L => L.name === 'offers').contributors.includes('people'), 'the instinct in the offers layer');
       const press = (act) => g.step(1, { act: [act] });
       const lines = () => g.facts('line').map(l => l.text);
       // (G holds time until a digit)
@@ -126,15 +129,19 @@ export default [
       g.advance();
       assert(!g.state.skip && g.facts('skip-end').at(-1).interrupted && g.facts('skip-end').at(-1).by === 'player', 'skip:stop did not stop it');
       // (the debug skip marks the save, logs, and skips)
+      // (the debug skip: TIME's idle activity, its [debug] record and then the activity's own line)
+      const seq0 = g.state.log.at(-1)?.seq ?? 0;
       press('debug:skip:900000');
-      const rec = g.state.log.at(-1);
-      assert(g.state.meta.debugUsed === true && rec.kind === 'debug' && rec.text === '[debug] skipped 15 min' && rec.seq === 1, JSON.stringify(rec));
+      const [rec, idleLine] = g.state.log.filter(e => e.seq > seq0);
+      const idleEnd = g.facts('skip-end').at(-1);
+      assert(g.state.meta.debugUsed === true && rec.kind === 'debug' && rec.text === '[debug] skipped 15 min' && idleLine?.kind === 'activity' && idleEnd.activity === 'idle' && idleEnd.minutes === 15, JSON.stringify({ rec, idleLine, idleEnd }));
       // (the stubs route and do nothing; an unknown action is counted)
       const routed0 = g.sim.stats.routed, unrouted0 = g.sim.stats.unrouted;
       for (const a of ['people', 'instinct', 'shoot', 'hit', 'grab', 'guard']) press(a);
+      assert(!g.state.skip && !g.state.time.doing, 'a bare T did something in the sandbox');
       press('dance'); press({ act: 'juggle', args: [3] }); press({ args: [] });
       assert(g.sim.stats.routed - routed0 === 6 && g.sim.stats.unrouted - unrouted0 === 3 && g.errors.length === 0, JSON.stringify(g.sim.stats));
-      console.log(`      ${Object.entries(table).map(([a, d]) => `${a} → ${d}`).join(', ')}; the people domain built (the actors layer, the slow 'people:place')`);
+      console.log(`      ${Object.entries(table).map(([a, d]) => `${a} → ${d}`).join(', ')}; the people domain built (the actors layer, the slow 'people:place', the instinct in 'offers'); the body domain after places (${DOMAIN_ORDER.join(', ')})`);
       console.log(`      lines: ${lines().map(l => `"${l}"`).join(', ')}`);
       console.log(`      R: ${end.minutes} minutes stepped as an outcome skip; skip:stop at ${s.cmds[0].atMs}; debug: "${rec.text}", debugUsed; routed ${g.sim.stats.routed}, unrouted ${g.sim.stats.unrouted} (last: ${JSON.stringify(g.sim.stats.unroutedLast)})`);
     },

@@ -33,10 +33,25 @@
 // grey lead in frayed cover, cuts and gashes, an artery spurting, a bruise, a break's jag; dressings (a
 // taped pad, or turns round a limb), a tourniquet's strap and buckle high on the limb, a splint's staves,
 // bleeding inside as a dashed ring. rows.spots says where each numbered one is, for its plaque.
+//
+// The body (0.0.4, VIEWS §4.2's first cut: "what the doll shows of the body", graphics over words), from
+// BODY's cues (cuesOf: each 0 to 1), as the character sees themselves in the mirror:
+//   - wet (wetK): the hair darker, its sheen in the lens' blue along the crown, drops at the temple and
+//     on the shoulder; grime (grimeK): dust specks on the hands, the face and the cloth, thickest low on
+//     the legs where the dust settles; sweat (sweatK): the cloth darker at the collar, the armpits and the
+//     chest (tradecraft's stain in the cloth's own tones); stubble (stubbleK): the jaw and the lip dotted
+//     in the hair's colour;
+//   - tired (tiredK ≥ 0.5): heavy eyelids over half the eye, dark under it, the shoulders dropped;
+//   - the bladder (bladderK ≥ 0.6): the knees in and the right hand at the belt; hunger (hungerK ≥ 0.6):
+//     the left hand on the stomach (both arms bent from the shoulder, the forearm across the body, the
+//     hand a fist of skin);
+//   - and the outfits the body is in for them: PT kit (the oxblood tee, its short sleeves, the grey
+//     shorts, running shoes and socks), the towel (at the waist, bare chested, or at the chest for a
+//     woman; shower shoes).
 // Pure: it returns a Pixmap (src/art/paint.js words), opaque, the backdrop round the figure.
 import { PX_PER_M } from '../../render/scale.js';
 import { word } from '../paint.js';
-import { SKIN, HAIR, valles } from '../figures/outfits.js';
+import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE } from '../figures/outfits.js';
 import { shapeAt, turned } from '../figures/templates.js';
 import { REF, INK, mix, lum, cloth, flesh, smooth, ribbon, edgeOf, grid, halo, TONES } from './grid.js';
 
@@ -47,6 +62,10 @@ const MID = REF.W / 2;
 /** Doll pixels a centimetre at scale 1 (tradecraft's: 175 cm over 126 rows): what's held is drawn to its length. */
 export const PX_PER_CM = 0.72;
 const GOLD = 0xe7b84a, RUST = 0xe8896a;
+/** The PT kit's colours (the sprites' own: outfits.js), the wet sheen, the dust of the grime. */
+const OXBLOOD = 0x6e2a2e, PT_GREY = 0x8f96a6, RUNNER = 0xc4c8d0, SOCK = 0xe8e6e0, SHEEN = 0xb8d8ec, DUST = 0x7a5a44;
+/** Where a cue starts to show on the doll's posture (VIEWS §4.2, the build sheet §2.3 (d)). */
+export const TIRED_SHOWS_K = 0.5, BLADDER_SHOWS_K = 0.6, HUNGER_SHOWS_K = 0.6;
 const WAIST_Y = 52, BELT_Y = 58, CROTCH_Y = 72, KNEE_Y = 101, ANKLE_Y = 124, FLOOR_Y = 132;
 const lf = (pts) => pts.map(([d, y]) => [MID - d, y]);
 const rt = (pts) => pts.map(([d, y]) => [MID + d, y]);
@@ -76,9 +95,9 @@ function camo(g, ids, T, seed) {
 // ---------- the body ----------
 
 function legs(g, B, kit) {
-  const T = cloth(kit.legs);
-  const firm = [[0, BELT_Y], [B.hip, BELT_Y], [B.hip + 0.4, 66], [B.hip - 0.2, 82], [B.knee, KNEE_Y], [B.hem, ANKLE_Y + 1], [B.gap, ANKLE_Y + 1], [B.gap - 1, KNEE_Y], [0.5, 80], [0, CROTCH_Y]];
-  const easy = [[0, BELT_Y], [B.hip, BELT_Y], [B.hip + 0.6, 66], [B.hip + 0.4, 82], [B.knee + 1, KNEE_Y], [B.hem + 1.8, ANKLE_Y + 1], [B.gap + 1, ANKLE_Y + 1], [B.gap, KNEE_Y], [0.5, 80], [0, CROTCH_Y]];
+  const T = kit.bareLegs ? flesh(kit.skin) : cloth(kit.legs), kin = kit.knees ?? 0;
+  const firm = [[0, BELT_Y], [B.hip, BELT_Y], [B.hip + 0.4, 66], [B.hip - 0.2, 82], [B.knee - kin, KNEE_Y], [B.hem, ANKLE_Y + 1], [B.gap, ANKLE_Y + 1], [B.gap - 1 - kin, KNEE_Y], [0.5, 80], [0, CROTCH_Y]];
+  const easy = [[0, BELT_Y], [B.hip, BELT_Y], [B.hip + 0.6, 66], [B.hip + 0.4, 82], [B.knee + 1 - kin, KNEE_Y], [B.hem + 1.8, ANKLE_Y + 1], [B.gap + 1, ANKLE_Y + 1], [B.gap - kin, KNEE_Y], [0.5, 80], [0, CROTCH_Y]];
   const a = g.add(g.scan(lf(firm)), T.base), b = g.add(g.scan(rt(easy)), T.base);
   g.on(a, g.scan(lf([[B.hip + 1, 70], [B.hip - 4.4, 74], [B.knee - 4.2, 94], [B.knee - 2, 99], [B.knee + 1, 99]])), T.soft);
   g.on(a, g.scan(lf([[B.knee + 1, 104], [B.knee - 3.6, 106], [B.hem - 3.6, 118], [B.hem - 1.6, 121], [B.hem + 1, 121]])), T.soft);
@@ -96,6 +115,7 @@ function legs(g, B, kit) {
   return { a, b, T };
 }
 function boots(g, B, kit) {
+  if (kit.towel) return showerFeet(g, B, kit);
   const T = cloth(kit.boots), [x0, x1] = [B.gap, B.hem];
   // (rough-out boots, the trousers bloused over their tops: a turned-over roll of cloth at the ankle)
   const top = kit.suit ? ANKLE_Y - 3 : ANKLE_Y - 1;
@@ -108,6 +128,11 @@ function boots(g, B, kit) {
     g.on(id, g.rows(FLOOR_Y - 1, 0, REF.W), cloth(kit.suit ? 0x23252f : 0x47302a).base);   // (the sole)
     if (!kit.suit) for (const y of [top + 2, top + 4]) g.on(id, g.rows(y, Math.round(mid) - 1, Math.round(mid) + 1), T.deep);   // (laces)
   }
+  if (kit.pt) {
+    // (white socks over the running shoes' tops)
+    const W2 = cloth(SOCK);
+    for (const [side, w0, w1] of [[lf, B.gap - 0.4, B.hem + 0.4], [rt, B.gap + 0.6, B.hem + 2]]) { const r = g.add(g.scan(side([[w0, ANKLE_Y - 4], [w1, ANKLE_Y - 4], [w1 + 0.2, ANKLE_Y - 1], [w0 - 0.2, ANKLE_Y - 1]])), W2.base); g.on(r, g.rows(ANKLE_Y - 2, 0, REF.W), W2.shade); }
+  }
   if (!kit.suit && kit.bloused) {
     const C = cloth(kit.legs);
     for (const [side, w0, w1] of [[lf, B.gap - 0.6, B.hem + 0.6], [rt, B.gap + 0.4, B.hem + 2.2]]) {
@@ -118,11 +143,44 @@ function boots(g, B, kit) {
   }
 }
 
+/** Bare feet in shower shoes: the feet in skin, a dark sole under them and a strap across the instep. */
+function showerFeet(g, B, kit) {
+  const S = flesh(kit.skin), sole = cloth(SHOWER_SHOE), [x0, x1] = [B.gap, B.hem], top = ANKLE_Y - 1;
+  for (const [side, a, b] of [[lf, x0 + 0.2, x1 + 1.6], [rt, x0 + 0.8, x1 + 3.4]]) {
+    const foot = g.add(g.scan(side(smooth([[b - 1.8, top], [b, 127], [b + 0.4, FLOOR_Y - 2], [a, FLOOR_Y - 2], [a - 0.4, 127], [a, top]], 3))), S.base);
+    g.on(foot, g.scan(side([[(a + b) / 2 + 1, top], [b + 1, top], [b + 1, FLOOR_Y], [(a + b) / 2 + 1, FLOOR_Y]])), S.shade);
+    const sl = g.add(g.scan(side([[a - 0.8, FLOOR_Y - 2], [b + 1, FLOOR_Y - 2], [b + 1, FLOOR_Y], [a - 0.8, FLOOR_Y]])), sole.base);
+    g.on(sl, g.rows(FLOOR_Y - 1, 0, REF.W), sole.deep);
+    g.over(g.scan(side([[a, 127.2], [b, 126.4], [b, 127.6], [a, 128.4]])), sole.shade);   // (the strap)
+  }
+}
+/** The PT shorts, or the towel at the waist, over bare legs: one part across both thighs to its hem (shorts split at the crotch, a towel not). */
+function overLegs(g, B, kit) {
+  const T = cloth(kit.towel ? TOWEL : PT_GREY), hem = kit.towel ? 97 : 80;
+  const pts = kit.towel
+    ? both([[0, BELT_Y - 1], [B.hip + 1.2, BELT_Y - 1], [B.hip + 2, 68], [B.hip + 2.2, 84], [B.hip + 1.6, hem], [0, hem + 0.6]])
+    : both([[0, BELT_Y], [B.hip + 0.6, BELT_Y], [B.hip + 1.2, 66], [B.hip + 1.2, hem], [B.gap - 0.6, hem], [0.8, CROTCH_Y + 3]]);
+  const id = g.add(g.scan(pts), T.base);
+  g.on(id, g.scan(lf([[0, BELT_Y], [B.hip + 2, BELT_Y], [B.hip + 2, hem + 1], [B.hip - 3, hem + 1], [B.hip - 3, 64], [0, 62]])), T.soft);
+  g.on(id, g.scan(rt([[B.hip - 4, 60], [B.hip + 3, 60], [B.hip + 3, hem + 1], [B.hip - 4, hem + 1]])), T.shade);
+  g.on(id, g.rows(hem - 1, 0, REF.W), T.deep);
+  if (kit.towel) {
+    // (the towel's rolled top, its tuck at the wearer's left hip, its fold lines falling from it)
+    g.on(id, g.rows(BELT_Y - 1, 0, REF.W), T.light); g.on(id, g.rows(BELT_Y, 0, REF.W), T.shade);
+    g.on(id, g.rows(BELT_Y + 1, MID + 6, MID + 9, BELT_Y + 3), T.deep);
+    folds(g, id, [[[[MID + 7, BELT_Y + 3], [MID + 5, 76], [MID + 3, 94]], 1.4], [[[MID - 8, 64], [MID - 9, 80], [MID - 10, 94]], 1.2]], T.shade);
+  } else {
+    g.on(id, g.rows(BELT_Y, 0, REF.W), T.deep);                   // (the waistband)
+    g.on(id, g.scan(rt([[0, CROTCH_Y + 2], [B.gap, hem - 2], [B.gap + 1, hem], [0, hem]])), T.deep);
+  }
+  kit.bottomId = id;
+}
+
 // ---------- the utility blouse, and the suit's shell ----------
 
 function blouse(g, B, kit) {
-  const T = cloth(kit.top), hem = 68, ease = 1.2;
-  const shoulders = [[B.neck + 0.5, 25.6], [B.neck + 4.5, 28.5], [B.shoulder - 4, 30.6], [B.shoulder - 1, 33]];
+  const T = cloth(kit.top), hem = 68, ease = 1.2, d = kit.drop ?? 0;
+  const shoulders = [[B.neck + 0.5, 25.6 + d * 0.5], [B.neck + 4.5, 28.5 + d], [B.shoulder - 4, 30.6 + d], [B.shoulder - 1, 33 + d]];
   const id = g.add(g.scan(both([...shoulders, [B.chest + ease, 41], [B.waist + ease + 0.6, WAIST_Y], [B.hip + ease + 0.6, BELT_Y + 2], [B.hip + ease + 0.8, hem]])), T.base);
   g.on(id, g.scan(lf([[B.chest + 2, 41], [B.chest - 2, 31], [B.neck + 3, 28], [B.neck + 5, 31], [B.chest - 4, 34], [B.chest - 2, 42], [B.waist + 1, 50]])), T.soft);
   g.on(id, g.scan(smooth(rt([[B.neck + 3, 27], [B.chest - 5, 36], [B.chest - 3.4, 43], [B.waist - 3.6, WAIST_Y], [B.waist - 2, 58], [B.hip - 2.4, hem + 2], [B.hip + 9, hem + 2], [B.hip + 9, 27]]), 3)), T.shade);
@@ -133,6 +191,7 @@ function blouse(g, B, kit) {
   for (let y = 33; y < hem - 1; y++) g.on(id, g.rows(y, MID, MID), T.shade);
   for (let y = 38; y < hem - 3; y += 7) g.on(id, g.rows(y, MID - 1, MID - 1), T.deep);
   kit.camoParts.add(id);
+  kit.topId = id;
   flap(g, MID - 12, 36, 8, kit.marks.chest?.[0] ?? 'free', T, kit);
   flap(g, MID + 4, 36, 8, kit.marks.chest?.[1] ?? 'free', T, kit);
   // (the name tapes over the pockets: plain tapes, a few stitched letters)
@@ -149,6 +208,49 @@ function blouse(g, B, kit) {
     if (kit.rank) { const x = side === lf ? MID - 6 : MID + 5; kit.late.push(() => { g.put(x, 30, 0x23252f); g.put(x, 31, 0x23252f); g.put(x, 29, 0x9aa1ae); }); }
   }
   return { id, T, hem };
+}
+/** The PT tee: oxblood, a crew neck, the Corps' emblem on the left chest, worn out over the shorts. */
+function tee(g, B, kit) {
+  const T = cloth(OXBLOOD), hem = 64, d = kit.drop ?? 0;
+  const id = g.add(g.scan(both([[B.neck + 0.5, 25.6 + d * 0.5], [B.neck + 4.5, 28.5 + d], [B.shoulder - 4, 30.6 + d], [B.shoulder - 1, 33 + d], [B.chest + 0.6, 41], [B.waist + 1, WAIST_Y], [B.hip + 0.8, BELT_Y + 2], [B.hip + 1, hem]])), T.base);
+  g.on(id, g.scan(lf([[B.chest + 2, 41], [B.chest - 2, 31], [B.neck + 3, 28], [B.neck + 5, 31], [B.chest - 4, 34], [B.chest - 2, 42], [B.waist + 1, 50]])), T.soft);
+  g.on(id, g.scan(smooth(rt([[B.neck + 3, 27], [B.chest - 5, 36], [B.chest - 3.4, 43], [B.waist - 3.6, WAIST_Y], [B.waist - 2, 58], [B.hip - 2.4, hem + 2], [B.hip + 9, hem + 2], [B.hip + 9, 27]]), 3)), T.shade);
+  folds(g, id, [[lf([[B.chest - 1, 43], [9, 49], [5, 52]]), 1.6], [lf([[B.waist, 58], [8, 61], [4, 61]]), 1.4]], T.shade);
+  g.on(id, g.rows(hem - 1, 0, REF.W), T.deep);
+  const S = flesh(kit.skin);
+  const n = g.add(g.scan(both([[B.neck - 0.4, 24], [B.neck, 26.6], [2.4, 28.4], [0, 28.8]])), S.base, REF.H);
+  g.on(n, g.scan(rt([[1, 24], [1, 30], [8, 30], [8, 24]])), S.deep);
+  g.over(g.scan(both([[B.neck + 0.2, 26.6], [B.neck + 0.6, 27.8], [2.4, 29.6], [0, 29.8], [0, 28.8], [2.4, 28.4]])), T.deep);   // (the crew neck's band)
+  // (the emblem: an eagle, globe and anchor at stage size a gold blot with a lit pixel)
+  g.span(38, MID + 5, MID + 7, GOLD); g.span(39, MID + 5, MID + 7, mix(GOLD, 0x6b3a1c, 0.35)); g.put(MID + 6, 37, mix(GOLD, 0xfff4d0, 0.4));
+  kit.topId = id;
+  return { id, T, hem };
+}
+/** Bare chested (the towel at the waist): the torso in skin, the chest's and the belly's shapes in its shades. */
+function bareTorso(g, B, kit) {
+  const S = flesh(kit.skin), d = kit.drop ?? 0;
+  const id = g.add(g.scan(both([[B.neck, 24], [B.neck + 4, 28 + d], [B.shoulder - 4.4, 30.2 + d], [B.shoulder - 1.4, 32.6 + d], [B.chest - 0.4, 41], [B.waist, WAIST_Y], [B.hip, BELT_Y + 1]])), S.base, REF.H);
+  g.on(id, g.scan(lf([[B.chest - 1, 41], [B.chest - 3, 31], [B.neck + 3, 28], [B.neck + 5, 31], [B.chest - 5, 34], [B.chest - 3, 42], [B.waist, 50]])), S.soft);
+  g.on(id, g.scan(smooth(rt([[B.neck + 3, 27], [B.chest - 5, 36], [B.chest - 4, 43], [B.waist - 4, WAIST_Y], [B.waist - 2, BELT_Y + 2], [B.hip + 9, BELT_Y + 2], [B.hip + 9, 27]]), 3)), S.shade);
+  // (the chest's lower line, the sternum, the navel)
+  for (const side of [lf, rt]) g.on(id, g.scan(side(ribbon([[2, 41.4], [6, 42.2], [10, 41]], 1.2))), S.shade);
+  for (let y = 33; y < 44; y++) g.on(id, g.rows(y, MID, MID), S.soft);
+  g.put(MID, 52, S.deep);
+  kit.topId = null;
+  return { id, T: S, hem: BELT_Y };
+}
+/** A towel at the chest (a woman's): a tube of towel from under the arms to the knees, its tucked top rolled; the shoulders bare. */
+function towelChest(g, B, kit) {
+  const S = flesh(kit.skin), T = cloth(TOWEL), d = kit.drop ?? 0;
+  const sk = g.add(g.scan(both([[B.neck, 24], [B.neck + 4, 28 + d], [B.shoulder - 4.4, 30.2 + d], [B.shoulder - 1.4, 32.6 + d], [B.chest - 0.4, 38], [0, 38]])), S.base, REF.H);
+  g.on(sk, g.scan(rt([[B.neck + 3, 27], [B.shoulder, 30], [B.shoulder, 38], [B.neck + 3, 38]])), S.shade);
+  const id = g.add(g.scan(both([[0, 36], [B.chest + 0.4, 36], [B.chest + 1, 41], [B.waist + 1.4, WAIST_Y], [B.hip + 1.6, BELT_Y + 2], [B.hip + 2, 84], [B.hip + 1.6, 97], [0, 97.6]])), T.base);
+  g.on(id, g.rows(36, 0, REF.W), T.light); g.on(id, g.rows(37, 0, REF.W), T.shade);
+  g.on(id, g.scan(rt([[B.waist - 3, 44], [B.hip + 3, 44], [B.hip + 3, 98], [B.waist - 3, 98]])), T.shade);
+  g.on(id, g.rows(96, 0, REF.W), T.deep);
+  folds(g, id, [[[[MID + 6, 38], [MID + 5, 60], [MID + 3, 92]], 1.4], [[[MID - 7, 50], [MID - 8, 70], [MID - 9, 92]], 1.2]], T.shade);
+  kit.topId = null;
+  return { id, T, hem: 97 };
 }
 function shell(g, B, kit) {
   // (the vac suit's hard torso: a shell over the skin from the collar to the waist ring, the Corps' red at the shoulders)
@@ -177,11 +279,14 @@ function shell(g, B, kit) {
 // ---------- arms and hands ----------
 
 function arms(g, B, kit) {
-  const c = kit.sleeve, S = flesh(kit.skin), T = cloth(c), loose = kit.suit ? 0.1 : 0.4;
+  const c = kit.sleeve, S = flesh(kit.skin), bare = kit.bareArms, T = bare ? S : cloth(c), loose = kit.suit || bare ? 0.1 : 0.4, drop = kit.drop ?? 0;
   const armpit = 40, cuffY = B.armIn[0][1];
-  const out = B.armOut.map(([d, y], i) => [d + (i ? loose : 0), y]), inn = B.armIn.map(([d, y], i) => [d - (i < 4 ? loose * 0.5 : 0), y]);
+  const out = B.armOut.map(([d, y], i) => [d + (i ? loose : 0), y + (i < 3 ? drop * (1 - i * 0.3) : 0)]), inn = B.armIn.map(([d, y], i) => [d - (i < 4 ? loose * 0.5 : 0), y]);
   const across = (y) => [edgeOf(out, y), edgeOf([...inn].reverse(), y)];
   for (const [flat, far] of [[lf, 0], [rt, 1]]) {
+    // (an arm the body's cues bend: the hand at the belt (the bladder), or on the stomach (hunger))
+    const bend = far ? kit.bendL : kit.bendR;
+    if (bend) { bentArm(g, B, kit, flat, far, bend, out, inn); continue; }
     const side = (pts) => flat(pts).map(([x, y]) => [x, y - far]);
     const id = g.add(g.scan(side(smooth([...out, ...inn], 3))), T.base, armpit), lit = far ? T.base : T.soft, dark = far ? T.deep : T.shade;
     const inner = (y, k = 0) => across(y)[1] + k, outer = (y, k = 0) => across(y)[0] + k;
@@ -192,8 +297,9 @@ function arms(g, B, kit) {
       g.on(id, g.scan(side([[outer(57) + 2, 57], [outer(58) - 1.4, 58], [outer(64) - 1.4, 64], [outer(66) + 2, 67]])), lit);
     }
     const e = (outer(52) + inner(52)) / 2;
-    folds(g, id, [[side([[e + 3.4, 49.6], [e, 52], [e - 3.4, 51]]), 1.5], [side([[e + 3.4, 54], [e + 0.4, 56.4], [e - 3.4, 55]]), 1.5]], dark);
-    if (!kit.suit) kit.camoParts.add(id);
+    if (!bare) folds(g, id, [[side([[e + 3.4, 49.6], [e, 52], [e - 3.4, 51]]), 1.5], [side([[e + 3.4, 54], [e + 0.4, 56.4], [e - 3.4, 55]]), 1.5]], dark);
+    if (kit.pt) sleeveCap(g, id, side, out, inn, far);
+    if (!kit.suit && !bare) kit.camoParts.add(id);
     hands(g, B, flat, kit.gloves ? cloth(kit.gloves) : S, far, !!kit.gloves);
     if (kit.suit) {
       // (the shell's shoulder cap; the wrist's seal ring)
@@ -204,6 +310,34 @@ function arms(g, B, kit) {
       g.over(g.scan(side([[a + 0.4, cuffY - 2 - far], [b - 0.4, cuffY - 2 - far], [b - 0.4, cuffY - far], [a + 0.4, cuffY - far]])), far ? R.base : R.light);
     } else g.on(id, g.rows(cuffY - 3 - far, 0, REF.W), T.deep);
   }
+}
+/** The PT tee's short sleeve over a bare arm: its cloth from the shoulder to above the elbow, its hem darker. */
+function sleeveCap(g, id, side, out, inn, far) {
+  const T = cloth(OXBLOOD), y1 = 42.6, pts = [[out[0][0] - 1, out[0][1]], [out[1][0] + 0.6, out[1][1]], [out[2][0] + 0.8, out[2][1]], [out[3][0] + 0.8, y1], [edgeOf([...inn].reverse(), y1) - 0.6, y1], [inn.at(-1)[0] - 0.6, 36]];
+  g.on(id, g.scan(side(smooth(pts, 3)).map(([x, y]) => [x, y - far])), far ? T.base : T.soft);
+  g.on(id, g.scan(side([[out[3][0] + 1, y1 - 1.2], [inn.at(-2)[0] - 2, y1 - 1.2], [inn.at(-2)[0] - 2, y1], [out[3][0] + 1, y1]]).map(([x, y]) => [x, y - far])), T.deep);
+}
+/**
+ * An arm bent by a cue: the upper arm from the shoulder down the side to the elbow, the forearm across the
+ * body to its hand at `to` ([d, y]: reference columns from the middle on its side, a row), the hand a fist.
+ */
+function bentArm(g, B, kit, side, far, to, out, inn) {
+  const S = flesh(kit.skin), bare = kit.bareArms, T = bare ? S : cloth(kit.sleeve);
+  const elbow = [out[5][0] - 1.2, 52], elbowIn = [inn[2][0] - 0.4, 52];
+  const upper = [...out.slice(0, 5), [out[5][0], 51], elbow, elbowIn, ...inn.slice(3)];
+  const id = g.add(g.scan(side(smooth(upper, 3)).map(([x, y]) => [x, y - far])), far ? T.base : T.soft, 40);
+  g.on(id, g.scan(side([[elbowIn[0], 40], [elbowIn[0] + 2.6, 40], [elbowIn[0] + 2.6, 53], [elbowIn[0], 53]]).map(([x, y]) => [x, y - far])), T.shade);
+  if (kit.pt) sleeveCap(g, id, side, out, inn, far);
+  if (!kit.suit && !bare) kit.camoParts.add(id);
+  // (the forearm: a band from the elbow to the hand, its lower edge in shade)
+  const a = [(elbow[0] + elbowIn[0]) / 2, 51], h = 3.1, dx = to[0] - a[0], dy = to[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L * h, ny = dx / L * h;
+  const fore = [[a[0] + nx, a[1] + ny], [to[0] + nx, to[1] + ny], [to[0] - nx, to[1] - ny], [a[0] - nx, a[1] - ny]];
+  const fid = g.add(g.scan(side(fore).map(([x, y]) => [x, y - far])), bare ? S.base : T.base);
+  g.on(fid, g.scan(side([[a[0] - nx * 0.2, a[1] - ny * 0.2], [to[0] - nx * 0.2, to[1] - ny * 0.2], [to[0] - nx, to[1] - ny], [a[0] - nx, a[1] - ny]]).map(([x, y]) => [x, y - far])), bare ? S.shade : T.shade);
+  if (!kit.suit && !bare) kit.camoParts.add(fid);
+  // (the fist at the end, skin, lit on its top)
+  const hand = g.add(g.scan(side(smooth([[to[0] - 3, to[1] - 2.6], [to[0] + 2.4, to[1] - 2.8], [to[0] + 3, to[1] + 1.6], [to[0] - 2.6, to[1] + 2.2]], 3)).map(([x, y]) => [x, y - far])), kit.gloves ? cloth(kit.gloves).base : S.base);
+  g.on(hand, g.scan(side([[to[0] - 3, to[1] - 3], [to[0] + 3, to[1] - 3], [to[0] + 3, to[1] - 1.6], [to[0] - 3, to[1] - 1.6]]).map(([x, y]) => [x, y - far])), kit.gloves ? cloth(kit.gloves).light : S.light);
 }
 const HAND = ['.bbbbbs..', '.lbbbbbs.', 'lbbbbbbbs', 'lbbbbbsbs', 'lbbbbbsbs', 'lbbbbsbbs', 'lbbbbsbs.', 'lbsbbsss.', 'bbsbsbs..', 'bbsbsb...', '.bbbb....'];
 function hands(g, B, side, S, far, gloved) {
@@ -518,6 +652,55 @@ function wounds(g, B, sex, W) {
   return spots;
 }
 
+// ---------- the body's marks (0.0.4: BODY's cues, see the header) ----------
+
+const h3 = (x, y, k) => { let v = (x * 374761393 + y * 668265263 + k * 2147483647) | 0; v = Math.imul(v ^ (v >>> 13), 1274126177); return ((v ^ (v >>> 16)) >>> 0) / 4294967296; };
+/** Wet hair's sheen along the crown, a drop at the temple and one on the shoulder. */
+function wetHair(g, kit) {
+  const hairC = kit.hair.color;
+  for (let y = 0; y < g.ROWS; y++) for (let x = 0; x < g.W; x++) {
+    const c = g.col[y][x];
+    if (c !== hairC && c !== cloth(hairC).light && c !== cloth(hairC).base) continue;
+    if (y / g.S < 9 && h3(x, y, 5) < 0.22 && (x / g.S < MID + 2)) g.col[y][x] = SHEEN;
+  }
+  g.put(MID - 9, 14, SHEEN); g.put(MID - 9, 15, mix(SHEEN, 0x5d9db1, 0.3));
+  g.put(MID + 12, 31, SHEEN);
+}
+/** Stubble: the jaw, the chin and the lip dotted in the hair's colour over the skin (density by stubbleK). */
+function stubble(g, kit, k) {
+  const S = flesh(kit.skin), dot = mix(kit.hair.color, S.shade, 0.35);
+  for (let y = g.T(19); y < g.T(26); y++) for (let x = g.T(MID - 7); x < g.T(MID + 7); x++) {
+    const c = g.col[y]?.[x], ry = y / g.S;
+    if (c !== S.base && c !== S.shade && c !== S.soft && c !== S.light) continue;
+    if (ry < 21 && Math.abs(x / g.S - MID) > 3.2 && ry < 20.5) continue;   // (the cheeks above the jaw stay clear)
+    if (h3(x, y, 9) < 0.18 + 0.5 * k) g.col[y][x] = dot;
+  }
+}
+/** Tired: the lids down over half of each eye, dark under them. */
+function tiredEyes(g, kit) {
+  const S = flesh(kit.skin), lid = mix(0x2a1c18, S.deep, 0.25);
+  for (const x0 of [MID - 6, MID + 3]) { g.span(14, x0 - 1, x0 + 3, mix(lid, S.shade, 0.3)); g.put(x0, 15, lid); g.put(x0 + 2, 15, lid); g.span(16, x0, x0 + 2, S.shade); }
+}
+/** Grime: dust specks over the figure, thickest low on the legs and on the hands (by grimeK). */
+function grimeMarks(g, k) {
+  for (let y = 0; y < g.ROWS; y++) for (let x = 0; x < g.W; x++) {
+    const c = g.col[y][x];
+    if (c === null) continue;
+    const ry = y / g.S, low = ry > 100 ? 1.8 : ry > 70 ? 1.2 : 1;
+    if (h3(x, y, 17) < k * 0.2 * low) g.col[y][x] = mix(c, DUST, 0.42);
+  }
+}
+/** Sweat: the top darker at the collar, the armpits and down the chest (tradecraft's stain, in the cloth's own darker tones). */
+function sweatMarks(g, kit, k) {
+  if (!kit.topId) return;
+  const blots = [[MID - 13, 40, 3.2, 4], [MID + 12, 40, 3.2, 4], [MID - 0.5, 30.5, 5, 1.6], [MID - 0.5, 40, 2.6, 4.6]];
+  for (const [cx, cy, rx, ry] of blots) for (let y = g.T(cy - ry); y < g.T(cy + ry); y++) for (let x = g.T(cx - rx); x < g.T(cx + rx); x++) {
+    if (g.part[y]?.[x] !== kit.topId) continue;
+    const e = Math.hypot((x / g.S - cx) / rx, (y / g.S - cy) / ry);
+    if (e < 1 && (e < 0.6 || h3(x, y, 23) < 0.6)) g.col[y][x] = mix(g.col[y][x], INK, 0.16 + 0.16 * k);
+  }
+}
+
 // ---------- the backdrop ----------
 
 const WALL = 0x383c4a, FLOOR = 0x2b2e3a, FLOOR_DARK = 0x1f2029;
@@ -528,8 +711,8 @@ function backdrop(x, y) {
 
 // ---------- the figure ----------
 
-/** The kit a look puts on the doll (the sprites' look, src/art/figures/outfits.js, read for the doll). */
-function kitOf(look = {}, marks = {}) {
+/** The kit a look puts on the doll (the sprites' look, src/art/figures/outfits.js, read for the doll), and the body's cues it shows. */
+function kitOf(look = {}, marks = {}, body = null) {
   const outfit = look.outfit ?? 'utilities', suit = outfit === 'vac' || outfit === 'vacOpen';
   const skin = SKIN[look.skin] ?? look.skin ?? SKIN.tan;
   const kit = {
@@ -541,6 +724,15 @@ function kitOf(look = {}, marks = {}) {
     shell: 0xc8c0ae, rings: 0x4c5262, pack: 0x7d776c, gloves: suit ? 0x4c5262 : null,
   };
   if (suit) { kit.legs = 0x3b4256; kit.sleeve = 0x3b4256; kit.boots = 0x5a6070; }
+  if (outfit === 'pt') Object.assign(kit, { pt: true, top: OXBLOOD, sleeve: OXBLOOD, legs: PT_GREY, boots: RUNNER, bloused: false, rank: false, head: null, bareLegs: true, bareArms: true });
+  if (outfit === 'towel') Object.assign(kit, { towel: true, top: kit.skin, sleeve: kit.skin, legs: TOWEL, boots: SHOWER_SHOE, bloused: false, rank: false, head: null, bareLegs: true, bareArms: true });
+  // (the body's cues: VIEWS §4.2, see the header)
+  const cue = (k) => Math.max(0, Math.min(1, body?.[k] ?? 0));
+  kit.cues = { wet: cue('wetK'), grime: cue('grimeK'), sweat: cue('sweatK'), stubble: cue('stubbleK'), tired: cue('tiredK'), bladder: cue('bladderK'), hunger: cue('hungerK') };
+  if (kit.cues.wet > 0) kit.hair = { ...kit.hair, color: mix(kit.hair.color, 0x14151c, 0.18) };
+  if (kit.cues.tired >= TIRED_SHOWS_K) kit.drop = 1;
+  if (kit.cues.bladder >= BLADDER_SHOWS_K) { kit.knees = 1.6; kit.bendR = [4, 60]; }
+  if (kit.cues.hunger >= HUNGER_SHOWS_K) kit.bendL = [3, 49];
   return kit;
 }
 
@@ -551,20 +743,32 @@ function kitOf(look = {}, marks = {}) {
  * ({ wounds: [{ n, part, kind, bleed, dressed, stitched, spurt, plate }], tourniquets, splints, bloody }),
  * scale (DOLL_SCALE) }.
  */
-export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hurts = null, scale = DOLL_SCALE } = {}) {
-  const g = grid(scale, DROP), B = BODY[sex] ?? BODY.m, kit = kitOf(look, marks);
+export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hurts = null, scale = DOLL_SCALE, body = null, outfit = null } = {}) {
+  const g = grid(scale, DROP), B = BODY[sex] ?? BODY.m, kit = kitOf(outfit ? { ...look, outfit } : look, marks, body);
+  const bare = kit.pt || kit.towel;
   const L = legs(g, B, kit);
-  if (!kit.suit) kit.camoParts.add(L.a).add(L.b);
+  if (!kit.suit && !bare) kit.camoParts.add(L.a).add(L.b);
   boots(g, B, kit);
-  if (!kit.suit) cargo(g, B, kit, L);
-  if (kit.suit) shell(g, B, kit); else { blouse(g, B, kit); rigBelt(g, B, kit); }
+  if (bare) overLegs(g, B, kit);
+  if (!kit.suit && !bare) cargo(g, B, kit, L);
+  if (kit.suit) shell(g, B, kit);
+  else if (kit.pt) tee(g, B, kit);
+  else if (kit.towel) (sex === 'f' ? towelChest : bareTorso)(g, B, kit);
+  else { blouse(g, B, kit); rigBelt(g, B, kit); }
   if (kit.armour) carrier(g, B, kit);
   if (hand === 'rifle') rifleIn(g, B, kit);
   arms(g, B, kit);
   head(g, B, kit, look);
   if (kit.head?.kind !== 'vac') hair(g, kit);
   hat(g, kit);
-  if (!kit.suit) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
+  if (!kit.suit && !bare) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
+  // (the body's marks, over the cloth and the skin, before the seams and the ink)
+  const C = kit.cues;
+  if (C.sweat > 0.05) sweatMarks(g, kit, C.sweat);
+  if (C.grime > 0.05) grimeMarks(g, C.grime);
+  if (C.stubble > 0.05 && kit.head?.kind !== 'vac') stubble(g, kit, C.stubble);
+  if (C.tired >= TIRED_SHOWS_K && kit.head?.kind !== 'vac') tiredEyes(g, kit);
+  if (C.wet > 0 && kit.head?.kind !== 'vac' && !kit.head) wetHair(g, kit);
   // Where a part lies over an earlier one, its edge goes dark (before the marks: a seam mustn't cross a pocket's gold).
   const seams = [];
   for (let y = 0; y < g.ROWS; y++) for (let x = 0; x < g.W; x++) {

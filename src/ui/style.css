@@ -20,6 +20,8 @@
   --muted: #8f96a6;
   --faint: #6a7182;
   --hud: rgba(20, 21, 28, 0.78);
+  --tone-calm: #4c5262;
+  --tone-note: #3b6296;
   --glass: rgba(20, 21, 28, 0.94);
   --glass-edge: #353947;
   --glass-line: #4c5262;
@@ -39,7 +41,7 @@ button { font: inherit; color: inherit; }
    pixel the same size (src/render/stage.js fit() sets its size and place; the border beyond is ink).
    The HUD lies over the whole window. */
 #frame { position: fixed; inset: 0; overflow: hidden; background: var(--ink); }
-#frame canvas { position: absolute; display: block; image-rendering: pixelated; }
+#frame > canvas { position: absolute; display: block; image-rendering: pixelated; }
 #hud { position: absolute; inset: 0; pointer-events: none; }
 
 /* The HUD's reserved rectangles (VIEWS §7.5; src/ui/hud/layout.js RECTS): each element owns a fixed
@@ -48,7 +50,8 @@ button { font: inherit; color: inherit; }
 
 /* WATCH, 280 × 132 top right: the wrist terminal (TIME §3.1's faces; src/ui/hud/watch.js). */
 .watch { position: absolute; top: var(--m); right: var(--m); width: calc(280px * var(--ui)); max-height: calc(132px * var(--ui)); overflow: hidden; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; padding: calc(6px * var(--ui)) calc(10px * var(--ui)); text-align: right; }
-.watch .time { font-size: calc(26px * var(--ui)); line-height: 1.15; letter-spacing: 0.06em; color: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.watch .time { font-size: calc(26px * var(--ui)); line-height: 1.15; letter-spacing: 0.06em; color: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; display: flex; align-items: center; justify-content: flex-end; gap: calc(6px * var(--ui)); }
+.watch .time .t { margin-left: auto; }
 .watch .slip { display: inline-block; margin-left: 6px; padding: 0 4px; font-size: calc(10px * var(--ui)); letter-spacing: 0.12em; color: var(--ink); background: var(--brass); border-radius: 2px; vertical-align: calc(5px * var(--ui)); }
 .watch .date { font-size: calc(12px * var(--ui)); color: var(--glass-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .watch .utc { font-size: calc(11px * var(--ui)); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -63,11 +66,52 @@ button { font: inherit; color: inherit; }
 .toast.gone { opacity: 0; }
 body > .toasts { position: fixed; z-index: 5; }
 
-/* INSTINCT, 720 × 44 bottom centre: the instinct's line and R's offer as a chip (src/ui/hud/offer.js). */
-.instinct { position: absolute; left: 50%; bottom: var(--m); transform: translateX(-50%); width: calc(720px * var(--ui)); height: calc(44px * var(--ui)); display: flex; align-items: center; justify-content: center; gap: calc(10px * var(--ui)); overflow: hidden; white-space: nowrap; font-size: calc(13px * var(--ui)); }
-.instinct .lead { background: var(--hud); padding: calc(4px * var(--ui)) calc(10px * var(--ui)); border-left: 3px solid var(--brass); color: var(--paper); }
-.instinct .chip { background: var(--hud); padding: calc(4px * var(--ui)) calc(10px * var(--ui)); border: 1px solid var(--glass-edge); border-radius: 3px; color: var(--glass-text); }
+/* INSTINCT, 720 × 44 bottom centre: the instinct's line, its chip and R's offer as a chip
+   (src/ui/hud/instinct.js); two rows, the line above, the chips below, each cut with an ellipsis. The line's
+   tone is its left border (VIEWS §9.4's prompt tones: calm slate, note blue, warn brass, urgent red
+   blinking three times). In a splash the same rectangle holds the ticker and the splash's keycaps. */
+.instinct { position: absolute; left: 50%; bottom: var(--m); transform: translateX(-50%); width: calc(720px * var(--ui)); height: calc(44px * var(--ui)); display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: calc(2px * var(--ui)); overflow: hidden; white-space: nowrap; font-size: calc(12.5px * var(--ui)); line-height: 1.3; }
+.instinct .row { display: flex; justify-content: center; align-items: center; gap: calc(8px * var(--ui)); min-width: 0; overflow: hidden; }
+.instinct .row > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+.instinct.ticker { flex-direction: row; justify-content: center; align-items: center; gap: calc(8px * var(--ui)); }
+.instinct .lead { background: var(--hud); padding: calc(2px * var(--ui)) calc(9px * var(--ui)); border-left: 3px solid var(--brass); color: var(--paper); flex-shrink: 0; }
+.instinct .line { background: var(--hud); padding: calc(2px * var(--ui)) calc(9px * var(--ui)); border-left: 3px solid var(--tone-note); color: var(--paper); }
+.instinct .line.calm { border-color: var(--tone-calm); }
+.instinct .line.warn { border-color: var(--brass); }
+.instinct .line.urgent { border-color: var(--red); animation: urgent 0.5s steps(1) 3; }
+@keyframes urgent { 0% { border-color: var(--red); background: rgba(158, 60, 54, 0.55); } 50% { border-color: transparent; background: var(--hud); } }
+.instinct .chip { background: var(--hud); padding: calc(2px * var(--ui)) calc(9px * var(--ui)); border: 1px solid var(--glass-edge); border-radius: 3px; color: var(--glass-text); }
+.instinct .chip.next { color: #b8bdc8; flex-shrink: 4; }
+.instinct .chip.offer { flex-shrink: 1; }
 .instinct .chip kbd { margin-right: 2px; }
+.instinct.ticker .line { border-color: var(--muted); }
+.instinct.ticker .line.urgent { border-color: var(--red); }
+.instinct.ticker .chip.keys { color: #b8bdc8; }
+
+/* RADIO, 720 × 52 stacked on INSTINCT (layout.js): the radio box later; in a splash the outcome strip,
+   each need that moved before and after with a one-pixel arrow between, the look glyph, "carry on". */
+.radio { position: absolute; left: 50%; bottom: calc(var(--m) + (44px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(720px * var(--ui)); height: calc(52px * var(--ui)); display: flex; align-items: center; justify-content: center; gap: calc(14px * var(--ui)); overflow: hidden; white-space: nowrap; font-size: calc(12.5px * var(--ui)); }
+.radio.outcome { background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; }
+.radio .moved, .radio .look { display: inline-flex; align-items: center; gap: calc(5px * var(--ui)); }
+.radio .look { padding-left: calc(10px * var(--ui)); border-left: 1px solid var(--glass-edge); }
+.radio .carry { color: var(--brass); }
+
+/* CLOCK, 260 × 72 top centre: the splash's clock plaque, the wrist face at the time shown, and an
+   interrupt's plaque under it (ALARM in red). */
+.splash-clock { position: absolute; top: var(--m); left: 50%; transform: translateX(-50%); width: calc(260px * var(--ui)); height: calc(72px * var(--ui)); overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; }
+.splash-clock .t { font-size: calc(30px * var(--ui)); line-height: 1.1; letter-spacing: 0.06em; color: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.splash-clock .sub { font-size: calc(11.5px * var(--ui)); color: var(--glass-text); white-space: nowrap; letter-spacing: 0.04em; }
+.splash-clock.plaque .sub { letter-spacing: 0.3em; color: var(--brass); font-weight: bold; }
+.splash-clock.alarm { border-color: var(--red); }
+.splash-clock.alarm .sub { color: #e8896a; }
+
+/* The body strip's glyphs (src/ui/hud/strip.js): 5 × 5 canvases at 3× on the HUD, 6× on the sheet,
+   their tone doubled by a border in warn and urgent. */
+.glyph { position: static; display: inline-block; image-rendering: pixelated; vertical-align: middle; box-sizing: content-box; border: 1px solid transparent; }
+.glyph.bordered.warn { border-color: var(--brass); }
+.glyph.bordered.urgent { border-color: var(--red); }
+.strip { display: flex; gap: calc(4px * var(--ui)); align-items: center; }
+.watch .strip.folded { order: -1; margin-right: auto; pointer-events: auto; }
 
 /* KEYS, 120 × 32 bottom right: "? keys", folded (the user, tradecraft 2026-10-27). */
 .keyshint { position: absolute; right: var(--m); bottom: var(--m); width: calc(120px * var(--ui)); height: calc(32px * var(--ui)); display: flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden; white-space: nowrap; font-size: calc(11px * var(--ui)); color: #b8bdc8; background: var(--hud); border-radius: 4px; }
@@ -143,3 +187,43 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass .benchlist .v { color: var(--glass-text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .glass .copied { display: block; min-height: 1.4em; margin: 6px 0 0; color: var(--brass); font-size: calc(12px * var(--ui)); }
 .glass .benchtext { width: 100%; margin-top: 6px; background: var(--glass-well); color: var(--glass-text); border: 1px solid var(--glass-line); font: calc(11px * var(--ui))/1.4 var(--mono); resize: none; }
+
+/* The choices card (R held) and the late card: numbered lines on glass; a struck line is what will not fit. */
+.glass.choose, .glass.late { width: min(calc(520px * var(--ui)), 92%); }
+.glass-list .item.struck { color: var(--faint); text-decoration: line-through; cursor: default; }
+.glass .latebar { position: relative; height: calc(10px * var(--ui)); margin: 0 0 10px; background: var(--glass-well); border: 1px solid var(--glass-line); }
+.glass .latebar .left { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(53, 111, 66, 0.8); }
+.glass .latebar .need { position: absolute; left: 0; top: 35%; height: 30%; background: var(--brass); }
+
+/* PERSONNEL (C): the doll, ON YOU, THE FILE (VIEWS §8.2). */
+.glass.sheetcard { width: min(calc(900px * var(--ui)), 94%); }
+.glass.sheetcard .cols { display: grid; grid-template-columns: auto 1fr 1fr; gap: calc(18px * var(--ui)); align-items: start; }
+.glass.sheetcard h4 { font-size: calc(11px * var(--ui)); letter-spacing: 0.08em; color: var(--brass); font-weight: normal; margin: 0 0 8px; text-transform: uppercase; }
+.glass.sheetcard canvas.doll { image-rendering: pixelated; display: block; border: 1px solid var(--glass-line); }
+.glass.sheetcard .feel { margin: 4px 0 8px; color: var(--paper); font-family: var(--type); }
+.glass.sheetcard .needs { display: flex; flex-direction: column; gap: 2px; font-size: calc(12px * var(--ui)); }
+.glass.sheetcard .need { display: grid; grid-template-columns: calc(20px * var(--ui)) 6em 1fr; gap: 8px; align-items: center; padding: 1px 6px; border-left: 3px solid var(--glass-line); background: var(--ink-2); }
+.glass.sheetcard .need .g { display: block; width: calc(20px * var(--ui)); }
+.glass.sheetcard .need.note { border-color: var(--tone-note); }
+.glass.sheetcard .need.warn { border-color: var(--brass); }
+.glass.sheetcard .need.urgent { border-color: var(--red); }
+.glass.sheetcard .need .k { color: var(--muted); }
+.glass.sheetcard .file { grid-template-columns: auto 1fr; font-size: calc(12px * var(--ui)); }
+.glass.sheetcard .file .k { color: var(--muted); text-align: right; }
+
+/* A test scene's end card and its score card (ROADMAP §2.2). */
+.glass.end { width: min(calc(520px * var(--ui)), 92%); }
+.glass.end .said { color: var(--paper); font-family: var(--type); }
+.glass.score { width: min(calc(620px * var(--ui)), 94%); }
+.glass.score .aspects { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.glass.score .aspect { display: grid; grid-template-columns: 6.5em 1fr 10em 2.6em; gap: 8px; align-items: center; font-size: calc(12px * var(--ui)); }
+.glass.score .aspect .name { color: var(--paper); }
+.glass.score .aspect small { color: var(--muted); }
+.glass.score .aspect input { accent-color: var(--brass); }
+.glass.score .aspect output { text-align: right; font-variant-numeric: tabular-nums; }
+.glass.score .item.star { display: block; width: 100%; margin: 4px 0; text-align: left; background: var(--ink-2); border: 1px solid var(--glass-line); color: var(--glass-text); padding: 5px 10px; cursor: pointer; border-radius: 2px; }
+.glass.score .item.star.on { border-color: var(--brass); color: var(--brass); }
+.glass.score .note-in { width: 100%; margin: 4px 0 8px; background: var(--glass-well); color: var(--glass-text); border: 1px solid var(--glass-line); font: calc(12px * var(--ui))/1.4 var(--mono); resize: vertical; }
+
+/* The title's Tests page: the scenes on the title's paper. */
+#title .sheet.tests .item.scene small { white-space: normal; }

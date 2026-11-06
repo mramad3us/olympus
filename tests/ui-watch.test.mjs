@@ -6,12 +6,17 @@
 // the slip, its hands at 12) and the same slip flag. Until places' clocks.js exists, the comparison
 // is against a local fixture of its contract (marsClock's face, built here) and the test says so;
 // once it exists the real module is used. Also: the start's faces (Monday, Sol 590 · MY 211, 12:39,
-// 'Wed 19 Dec 2351 02:20 UTC') and the slip's badge minutes.
+// 'Wed 19 Dec 2351 02:20 UTC') and the slip's badge minutes. The 0.0.4 round's (the build sheet §5.4):
+// the splash's clock plaque reads the same helper at the time shown (watchFaces(state, { ms })), so a
+// plaque at 02:30 and the watch at 02:30 agree through the slip; and the body strip folded into the
+// watch shows only the glyphs whose band has left fine (hud/strip.js foldedOf), in the strip's order,
+// none when all is well, each glyph's pixels filled from the bottom to its band (glyphCells).
 import { assert } from './helpers.mjs';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { root } from './helpers.mjs';
 import { watchFaces } from '../src/ui/hud/watch.js';
+import { foldedOf, glyphCells, GLYPHS, STRIP_ORDER, movedOf } from '../src/ui/hud/strip.js';
 import { marsClock } from '../src/sim/time/dates.js';
 import { stream, next } from '../src/core/rng.js';
 import { START_MS } from '../src/data/setting/calendar.js';
@@ -74,6 +79,40 @@ export default [
       const s12 = watchFaces(stateAt(slipStart + 12 * MIN_MS + 5000), { lonEDeg: MELAS_LON });
       console.log(`      12 min into the slip: ${s12.time} TIMESLIP +${s12.slipMin} (${s12.weekday}, ${s12.sol})`);
       assert(s12.slip && s12.time === '24:00' && s12.slipMin === 12, JSON.stringify(s12));
+    },
+  },
+  {
+    name: 'the splash\'s plaque reads the watch\'s helper at the time shown: the same faces as the watch at that time, the slip included',
+    fn() {
+      const base = stateAt(START_MS);
+      let bad = 0;
+      const slip = solStartMs(START_MS, MELAS_LON) + 86_400_000 + 5 * MIN_MS;
+      for (const ms of [START_MS, START_MS + 3_600_000, slip, START_MS + 13 * 3_600_000]) {
+        const a = watchFaces(base, { lonEDeg: MELAS_LON, ms }), b = watchFaces(stateAt(ms), { lonEDeg: MELAS_LON });
+        if (a.time !== b.time || a.slip !== b.slip || a.slipMin !== b.slipMin || a.sol !== b.sol) bad++;
+      }
+      const p = watchFaces(base, { lonEDeg: MELAS_LON, ms: slip });
+      console.log(`      4 times shown against the watch at them: ${bad} disagree; in the slip the plaque reads ${p.slip ? `24:00 +${p.slipMin}` : p.time}`);
+      assert(!bad && p.slip && p.slipMin === 5, JSON.stringify(p));
+    },
+  },
+  {
+    name: 'the body strip folded into the watch: only the glyphs whose band has left fine, in the strip\'s order, none when all is well; a glyph filled from the bottom to its band',
+    fn() {
+      const fine = STRIP_ORDER.map(n => ({ need: n, band: 'fine', fill: 0, tone: 'fine' }));
+      const some = fine.map(e => (e.need === 'grime' ? { ...e, band: 'unwashed', fill: 3, tone: 'warn' } : e.need === 'water' ? { ...e, band: 'thirsty', fill: 1, tone: 'warn' } : e.need === 'food' ? { ...e, band: 'clean', fill: 1, tone: 'fine' } : e));
+      const f0 = foldedOf(fine), f1 = foldedOf(some.slice().reverse());
+      console.log(`      all fine: ${f0.length} glyphs; thirsty and unwashed (and a fill-1 fine band): ${f1.map(e => `${e.need} ${e.band}`).join(', ')}`);
+      assert(f0.length === 0 && f1.map(e => e.need).join() === 'water,grime', JSON.stringify(f1));
+      const rows = (cells) => Array.from({ length: 5 }, (_, y) => Array.from(cells.slice(y * 5, y * 5 + 5)).join('')).join(' ');
+      console.log(`      the drop at fill 0: ${rows(glyphCells('water', 0))}; at fill 2: ${rows(glyphCells('water', 2))}; at fill 5: ${rows(glyphCells('water', 5))}`);
+      const c2 = glyphCells('water', 2);
+      for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) {
+        const ink = GLYPHS.water[y][x] === '1', v = c2[y * 5 + x];
+        assert(ink ? v === (y >= 3 ? 2 : 1) : v === 0, `the drop's pixel ${x},${y}: ${v}`);
+      }
+      const m = movedOf({ strip: some }, fine);
+      assert(m.map(x => x.need).join() === 'water,food,grime', JSON.stringify(m.map(x => x.need)));
     },
   },
 ];

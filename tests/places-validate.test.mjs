@@ -210,10 +210,10 @@ export default [
       const grid = buildGrid(TEST_AREA, 'C0'), e1 = buildGrid(ECHO_1, 'C0', { closed: (o) => o.state === 'closed' });
       const a = golden('places: TEST_AREA', TEST_AREA, '1b598ff4fcfa65');
       const g = golden('places: TEST_AREA C0 grid bytes', grid.cost, '189fefcff571bf');
-      const b = golden('places: ECHO_1', ECHO_1, '08f56e69dfa150');
-      const c = golden('places: ECHO_2', ECHO_2, '1afda0fc95253b');
+      const b = golden('places: ECHO_1', ECHO_1, '11196730cf23f2');   // (0.0.4 re-set from 08f56e69dfa150: a drinking fountain in each wing's hall)
+      const c = golden('places: ECHO_2', ECHO_2, '0beba02edd957f');   // (0.0.4 re-set from 1afda0fc95253b: the same)
       const d = golden('places: GROUND_AREA', GROUND_AREA, '000d6d7a726622');   // (0.0.3's fixer re-set it from 131d1b63b7f5b2: the street doors' exit signs became the company's plates, their three exit lamps gone)
-      const e = golden('places: ECHO_1 C0 grid bytes', e1.cost, '14b1247ac344b4');
+      const e = golden('places: ECHO_1 C0 grid bytes', e1.cost, '1201fe98a1ceda');   // (0.0.4 re-set from 14b1247ac344b4: the fountains' footprints)
       console.log(`      TEST_AREA ${a}; its C0 grid (${grid.nx} × ${grid.nz}) ${g}`);
       console.log(`      ECHO_1 ${b}, ECHO_2 ${c}, GROUND_AREA ${d}; ECHO_1's C0 grid (${e1.nx} × ${e1.nz}, its doors as the template has them) ${e}`);
     },

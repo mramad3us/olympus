@@ -3,10 +3,12 @@
 // createSim({ loop, bus, domains }) builds the game on a core loop (TECH §2.5), holding no state of
 // its own (everything is in the state or a pure function of it), so the same file runs in the
 // page, in node for the tests and the bots (tests/game.mjs), and in a replay:
-//   1. the domains, in DOMAIN_ORDER (tech, time, places, people, weapons, combat, world, career),
-//      each a descriptor { name, owner, keys, idMaps, idFields, init, fast, slow, jobs, events,
-//      actions, upgrades }. time is src/sim/time/domain.js, places src/sim/places/domain.js, tech
-//      below; people, weapons, combat, world and career are stubs here until their sections build
+//   1. the domains, in DOMAIN_ORDER (tech, time, places, body, people, weapons, combat, world, career:
+//      TIME §5.4's slow order, the place, the body, the people), each a descriptor { name, owner, keys,
+//      idMaps, idFields, init, start, fast, slow, jobs, events, actions, upgrades }. time is
+//      src/sim/time/domain.js, places src/sim/places/domain.js, body src/sim/body/domain.js (0.0.4: the
+//      body lives on the person and claims no key), people src/sim/people/domain.js, tech below;
+//      weapons, combat, world and career are stubs here until their sections build
 //      them (each claims its keys and fills them empty; their actions do nothing). domains: { <name>:
 //      descriptor } replaces a built-in one (tests/game-dummy.mjs's world), and a name outside the
 //      order is added after it. Each claims its top-level keys (core/state.js registerDomain): a key
@@ -35,7 +37,11 @@
 //      before its first colon, to the domain that registered it; an unknown one is counted
 //      (stats.unrouted), never thrown;
 //   7. the skip engines (src/sim/time/skip.js), given to the loop through loop.useSkips, and the one
-//      stops(mask, ev) rule that both they and the due layer's fast-forward check read (sim.stops).
+//      stops(mask, ev, state) rule, TIME's masks (src/sim/time/interrupts.js), that both they and the
+//      due layer's fast-forward check read (sim.stops), the due layer noting a fast-forward's stops,
+//      its ticker lines and its held orders as the outcome engine does (skip.js noteDue), and finishing
+//      a fast-forward an event stops at that tick's clock (the event's own second, where an outcome
+//      skip lands too: TIME §5.5's events at the same second), the rest of the tick lived after it.
 // sim.noteError(state, error, where) is the loop's onError's other half (main.js, tests/game.mjs):
 // '<where>: <first line>' into meta.errors (the last ERRORS_MAX, saved, so an exported save carries
 // them) and 'broke' on the bus. Only the sim's own errors are written into the state (notesInState:
@@ -51,14 +57,19 @@
 // (SCENARIOS: the sandbox, src/sim/scenarios/sandbox.js, the test rooms; the barracks,
 // src/sim/scenarios/barracks.js, Echo Company drawn from the seed and the player in 1st Squad's bay),
 // given { at } (an { area, x, z, face } to start at), then each recurring job's first occurrence is
-// posted. The start is START_MS, 2351-12-19 02:20 UTC (SETTING §3.7); a test world has no career
-// (ROADMAP §2.1). The people domain is src/sim/people/domain.js (0.0.3), no longer a stub.
+// posted, then each domain's start(state) in order (a new game's own: the body's start body, the
+// night's taps, reveille and drill). The start is START_MS, 2351-12-19 02:20 UTC (SETTING §3.7); a
+// test world has no career (ROADMAP §2.1). The test scenes (src/sim/scenarios/tests.js, 0.0.4) are
+// test-shower and test-night, on Melas: the barracks at their hour with the scene's body and outfit.
 //
 // The tech domain's actions: debug:skip:<ms> (the debug keys ^ and $ on AZERTY, the codes
 // BracketLeft and BracketRight, [ and ] on QWERTY) marks the save (meta.debugUsed, an honesty mark,
-// TECH §15.5), writes a [debug] log record and begins an idle skip; debug:go:<areaId>:<x>:<z>[:<face>]
-// (the debug handle's go()) marks the save, writes a [debug] record and moves the player there,
-// across areas if need be, by places' moveTo (src/sim/places/portals.js), as a portal would.
+// TECH §15.5), writes a [debug] log record and starts TIME's idle activity for that long (an outcome
+// skip, mask D A: a drill stops it); debug:go:<areaId>:<x>:<z>[:<face>] (the debug handle's go())
+// marks the save, writes a [debug] record and moves the player there, across areas if need be, by
+// places' moveTo (src/sim/places/portals.js), as a portal would; debug:drill:<ms> marks the save,
+// writes a [debug] record, sets time.drills.forced to that game time and posts the night again (TIME's
+// postNight), so the alert drill sounds then (a test scene's, the debug handle's drill()).
 // The tick's order and the shape of skip() are referenced from tradecraft v0.2.0-rc3 src/sim/game.js
 // (620 lines; its body is rewritten, TECH §12.3).
 import { newState, registerDomain, resetDomains, fillDomain, addUpgrade, ERRORS_MAX } from '../core/state.js';
@@ -67,14 +78,19 @@ import { msAtMarsTime } from '../core/calendar.js';
 import { MIN_MS, TICK_MS, isHeld, durationText } from '../core/clock.js';
 import { START_MS } from '../data/setting/calendar.js';
 import { createJobs, dispatch as dispatchJob, postJobs, ensureJobs, siteLonEDeg } from './jobs.js';
-import { createSkips, defaultStops, engineOf } from './time/skip.js';
+import { createSkips, engineOf, noteDue } from './time/skip.js';
+import { stops as maskStops } from './time/interrupts.js';
 import { timeDomain } from './time/domain.js';
+import { startActivity } from './time/activities.js';
+import { postNight } from './time/pod.js';
+import { bodyDomain } from './body/domain.js';
 import { placesDomain } from './places/domain.js';
 import { siteOf } from './places/model.js';
 import { moveTo } from './places/portals.js';
 import { peopleDomain } from './people/domain.js';
 import { sandbox, SANDBOX } from './scenarios/sandbox.js';
 import { barracks, BARRACKS } from './scenarios/barracks.js';
+import { testShower, testNight, TESTS } from './scenarios/tests.js';
 import { SITES } from '../data/setting/calendar.js';
 import { logEntry } from './log.js';
 
@@ -83,11 +99,11 @@ export const FAST_LAYERS = Object.freeze(['due', 'input', 'player', 'actors', 'b
   .map(name => Object.freeze({ name, whileHeld: name === 'input' || name === 'offers' })));
 const LAYER_NAMES = new Set(FAST_LAYERS.map(L => L.name));
 /** The domains, in the order their contributors run. */
-export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'people', 'weapons', 'combat', 'world', 'career']);
+export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'body', 'people', 'weapons', 'combat', 'world', 'career']);
 /** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
-export const SCENARIOS = Object.freeze({ sandbox, barracks });
+export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight });
 /** The site each scenario starts on: its longitude sets the start's hour. */
-export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site });
+export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site, 'test-shower': TESTS.site, 'test-night': TESTS.site });
 
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act);
 /** Whether an error from where (the loop's onError) is the sim's, and so noted in the state: a tick's or a skip's. */
@@ -109,12 +125,21 @@ function debugAction(state, action, bus, ctx) {
     moveTo(state, state.player.actor, { area, x: Number(x), z: Number(z), face: FACES.has(face) ? face : undefined }, bus, { why: 'debug' });
     return;
   }
+  const drill = /^debug:drill:(\d+)$/.exec(name);
+  if (drill) {
+    const ms = Number(drill[1]);
+    state.meta.debugUsed = true;
+    logEntry(state, bus, { kind: 'debug', tone: 'note', text: `[debug] an alert drill at ${ms}` });
+    (state.time.drills ??= {}).forced = ms;
+    postNight(state, state.clock.ms);
+    return;
+  }
   const m = /^debug:skip:(\d+)$/.exec(name);
-  if (!m || state.skip || isHeld(state)) return;
+  if (!m || state.skip || isHeld(state) || state.time?.doing) return;
   const ms = Number(m[1]);
   state.meta.debugUsed = true;
   logEntry(state, bus, { kind: 'debug', tone: 'note', text: `[debug] skipped ${durationText(ms)}` });
-  ctx.sim.beginSkip(state, { activity: 'idle', planMs: ms, mask: 'D' });
+  startActivity(state, bus, ctx, { id: 'idle', args: { ms }, force: 'outcome' });
 }
 
 const descriptor = (d) => Object.freeze({ idMaps: {}, idFields: {}, fast: {}, slow: [], jobs: {}, events: {}, actions: {}, upgrades: [], ...d });
@@ -131,14 +156,14 @@ export const STUB_DOMAINS = Object.freeze({
   career: stub('career', 'CAREER', ['career', 'careers', 'memorial']),
 });
 
-const BUILT_IN = () => ({ tech: techDomain, time: timeDomain, places: placesDomain, people: peopleDomain, ...STUB_DOMAINS });
+const BUILT_IN = () => ({ tech: techDomain, time: timeDomain, places: placesDomain, body: bodyDomain, people: peopleDomain, ...STUB_DOMAINS });
 
 // (a descriptor with every field present, named by its slot)
 function normalise(name, d) {
   if (!d) throw new Error(`no domain '${name}'`);
   return {
     name, owner: d.owner ?? name, keys: [...(d.keys ?? [])], idMaps: { ...(d.idMaps ?? {}) }, idFields: { ...(d.idFields ?? {}) },
-    init: d.init ?? null, fast: { ...(d.fast ?? {}) }, slow: [...(d.slow ?? [])], jobs: { ...(d.jobs ?? {}) }, events: { ...(d.events ?? {}) },
+    init: d.init ?? null, start: d.start ?? null, fast: { ...(d.fast ?? {}) }, slow: [...(d.slow ?? [])], jobs: { ...(d.jobs ?? {}) }, events: { ...(d.events ?? {}) },
     actions: { ...(d.actions ?? {}) }, upgrades: [...(d.upgrades ?? [])], stub: !!d.stub,
   };
 }
@@ -206,8 +231,8 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
   const minNextChange = (state, t0) => { let m = Infinity; for (const c of slow) { const t = c.nextChangeMs(state, t0); if (t < m) m = t; } return m; };
 
   // (one rule for when an event stops a skip, the outcome engine's and the due layer's fast-forward
-  // check alike: TIME's masks replace defaultStops at 0.0.5, here and nowhere else)
-  const stops = defaultStops;
+  // check alike: TIME's masks, given the state for TIME §7.4's limits, here and nowhere else)
+  const stops = maskStops;
   const skips = createSkips({ slowStep, allSteady, minNextChange, dispatch, stops, tick: (state) => {
     if (!loop || loop.state !== state) throw new Error('a fast-forward runs lived ticks on the loop playing this state');
     loop.tick(skips.ffInput(state));
@@ -234,10 +259,8 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
       for (let ev = popNext(state, t); ev; ev = popNext(state, t)) {
         dispatch(state, bus, ev);
         const s = state.skip;
-        if (s && engineOf(s) === 'ff' && !s.stop && stops(s.mask, ev)) {
-          s.stop = { atMs: t, by: ev.id };
-          bus.emit('skip-interrupt', { id: s.id, atMs: t, by: ev.id, prio: ev.prio, line: ev.line ?? null, reflex: ev.reflex ?? null });
-        }
+        // (a fast-forward stopped by an event lands at its tick, as an outcome skip lands at its second: the rest of the tick is lived)
+        if (s && engineOf(s) === 'ff' && !s.stop && noteDue(state, bus, s, ev, t, stops)) skips.finishSkip(state, bus);
       }
       run(state, input);
     };
@@ -263,8 +286,8 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
     allSteady,
     minNextChange,
     dispatch,
-    /** Whether an event stops a skip with a mask: the one rule both engines use. */
-    stops,
+    /** Whether an event stops a skip with a mask (given the state, TIME §7.4's limits): the one rule both engines use. */
+    stops: (mask, ev, state = null) => stops(mask, ev, state),
     beginSkip: (state, req) => skips.beginSkip(state, bus, req),
     advanceSkip: (state, targetMs = Infinity, budget, acts = []) => skips.advanceSkip(state, bus, targetMs, budget, acts),
     finishSkip: (state) => skips.finishSkip(state, bus),
@@ -320,5 +343,6 @@ export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs
   fill(s, { at });
   s.time.slowToMs = s.clock.ms;                                    // (the slow layer has stepped up to the start)
   postJobs(s, createJobs(list));
+  for (const d of list) d.start?.(s);
   return s;
 }

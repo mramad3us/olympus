@@ -121,11 +121,11 @@ export default [
     },
   },
   {
-    name: 'handOffer names the nearest door in reach in the player\'s facing half-plane, the wait elsewhere, nothing behind the player, and null while time stands still',
+    name: 'handOffer names the nearest door in reach in the player\'s facing half-plane, the wait elsewhere (another marine\'s rack offers nothing, your own its activities: 0.0.4), nothing behind the player, and null while time stands still',
     fn() {
       const g = melasGame(createGame, { seed: 48213, hour: 12 });
       const rows = [], at = (x, z, face) => { put(g, 'melas.echo.1', x, z, face); const o = handOffer(g.state); rows.push(`(${x}, ${z}) facing ${face}: ${o ? `${o.verb} ${o.target ?? ''}`.trim() : 'null'}`); return o; };
-      const a = at(57.7, 8.6, 'up'), b = at(57.7, 8.6, 'down'), c = at(65.6, 9.0, 'down'), d = at(52.075, 3.3, 'down'), e = at(57.7, 7.6, 'down');
+      const a = at(57.7, 8.6, 'up'), b = at(57.7, 8.6, 'down'), c = at(65.6, 9.0, 'down'), d = at(54.525, 3.3, 'down'), e = at(57.7, 7.6, 'down'), own = at(52.075, 3.3, 'down');
       g.step(1, { act: ['ready'] });
       const held = handOffer(g.state);
       g.step(1, { act: ['digit:1'] });
@@ -136,9 +136,10 @@ export default [
       assert(c?.target === 'o:e1:head-2b', JSON.stringify(c));
       assert(d?.verb === 'wait' && d.label === 'wait 15 min', JSON.stringify(d));
       assert(e?.target === 'o:e1:bay-2-1', `standing in the doorway: ${JSON.stringify(e)}`);
+      assert(own?.verb === 'activity' && own.spotId === 'f:e1:bay-2-1:rack-n1#1', `the player's own rack's foot: ${JSON.stringify(own)}`);
       assert(held === null, String(held));
       // (the page's R carries what its offer said: a want that no longer matches the offer's kind does nothing)
-      put(g, 'melas.echo.1', 52.075, 3.3, 'down');
+      put(g, 'melas.echo.1', 54.525, 3.3, 'down');
       g.clearFacts();
       g.step(1, { act: [{ act: 'hand', args: { want: 'door' } }] });
       const noWait = g.facts('skip-start').length;
@@ -146,7 +147,7 @@ export default [
       const before = openingState(g.state, 'o:e1:bay-2-1');
       g.step(1, { act: [{ act: 'hand', args: { want: 'wait' } }] });
       const noDoor = openingState(g.state, 'o:e1:bay-2-1') === before && g.facts('skip-start').length === 0;
-      put(g, 'melas.echo.1', 52.075, 3.3, 'down');
+      put(g, 'melas.echo.1', 54.525, 3.3, 'down');
       g.step(1, { act: [{ act: 'hand', args: { want: 'wait' } }] });
       const waited = g.facts('skip-start').length;
       console.log(`      R with a want: 'door' where the offer is the wait: ${noWait} skips; 'wait' at the bay door: door ${before} → ${openingState(g.state, 'o:e1:bay-2-1')}, no skip ${noDoor}; 'wait' where it waits: ${waited} skip`);

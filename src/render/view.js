@@ -64,6 +64,34 @@
 //  11. the people: one instanced draw (src/render/figures.js), yours never deferred; the berths;
 //  12. the upload queue drained (src/render/uploads.js: 1 MB and 2 ms a frame, yours first);
 //  13. stage.render(); 15. stats.
+// 0.0.4 (the build sheet §2.3), the splash and the people's transitions:
+//   - info.splash (the hud's splash frame, src/ui/hud/splash.js; null outside one): the light is the time
+//     shown (shownMs: "light is a pure function of time, so a night's sleep shows the squad bay go dark,
+//     the exit signs, dawn at the windows, reveille's overheads", VIEWS §5.1); the fog inside the iris
+//     is lifted while it is closed (the vignette is shown as seen, even to a sleeper: my call), back to
+//     the eyes' own as it opens; the vignette's pieces stand at the fixture (src/render/vignettes.js);
+//     the zoom, the iris, the ring and the beat are src/render/splash.js's pass over the picture;
+//   - every figure is people's figureOf(state, actor, ms) at ms = clock.ms + alpha × TICK_MS, so a rise
+//     from a berth plays between ticks frame by frame: lying is the berth's drawing (the player's own
+//     too, now that the player lies down), breathing at BREATH_HZ, its curtain closing over CURTAIN_MS
+//     after the sleeper lies; sitUp and lieDown the berth thrown back with the upper body's card on the
+//     mattress at its head; sit on the rack's edge; climb down an upper berth's side at its height;
+//     standUp; dressing two frames in turn; an activity's part its own frame (the toothbrush, the razor,
+//     the basin, undressing and dressing); a transition's frames at its own places, never glided
+//     (fig.k under 1: figureOf's x and z), everything else between the ticks as before;
+//   - the body's cues on the figure (VIEWS §7.3): the wet head after a wash, the tired walk; a look the
+//     cues change is painted by the worker while the old one is still drawn, so your own figure never
+//     waits on the main thread for wet hair;
+//   - inside: in a shower stall you are drawn in it facing its head with the steam before you, through
+//     the dress part too, stepping out to the stall's spot over its last 15% (the review of v0.0.4: in
+//     the dress part you had stood at the spot, behind the stall, a ghost through its dither); in any
+//     other fixture (a toilet stall) you are hidden behind it, the vignette's boots under the partition.
+//     While the iris closes on a shower stall, the stall and the floor to its spot are cut down to
+//     CUT_H_M as the interior cutaway cuts walls (the lift's uniforms, by the iris's inkK, so it
+//     dissolves in and out with it) and the see-through's dither is let go: you, the steam cover and the
+//     wet head read whole, never a checkered shape (the integrator's shots m3-03, m3-04);
+//   - the alert's beacon in hall-2 (people's alertNow): lit, a red pool, while the horn sounds; the bay
+//     stays dark.
 // idle and pending say what still waits (an area's build, the chunks in the picture, uploads, a sheet,
 // the worker, the warm-up), so main.js sets window.__ready only once nothing does. stats: the last
 // frame's draw calls, triangles, programs, CPU ms, uploads, people drawn and put off (people: { drawn,
@@ -72,6 +100,13 @@
 // and the fog, the camera and where your figure was drawn, the GPU by pass where there is a timer.
 import * as FIGURE from '../sim/people/figure.js';
 import * as PERCEPTION from '../sim/people/perception.js';
+import * as ALERTS from '../sim/time/alerts.js';
+import { TICK_MS } from '../core/clock.js';
+import { createSplash, CURTAIN_MS } from './splash.js';
+import { createVignettes } from './vignettes.js';
+import { vignetteItems, insideSpot, BEACON_Y_M } from './vignette-items.js';
+import { BAND_OF } from '../art/figures/poses.js';
+import { BREATH_HZ } from '../art/figures/bedding.js';
 import { createFigures } from './figures.js';
 import { areaFromJob, reserveParts } from './batch.js';
 import { createFogMask, FOG_CELL_M } from './fog.js';
@@ -89,6 +124,7 @@ import { SHARED } from './materials.js';
 import { PALETTES } from '../art/palette.js';
 import { runJob } from '../art/jobs.js';
 import { FOOTPRINTS } from '../art/kit/index.js';
+import { BERTH_M } from '../art/figures/bedding.js';
 import { RACK_DECKS, BERTH_TOP_M, rackBlanket } from '../art/kit/quarters.js';
 import { hash01 } from '../core/hash.js';
 import { playerActor } from '../core/ids.js';
@@ -122,7 +158,13 @@ export const LIFT_FROM_M = 2.2;
 /** The test fog's shape: near (m), cone half-angle (rad), reach (m); the samples' look/main.js. */
 export const TEST_FOG = Object.freeze({ nearM: 2.5, cone: 0.8, reachM: 14 });
 const FACE = { right: [1, 0], left: [-1, 0], down: [0, 1], up: [0, -1] };
-const GAIT = { run: 'run', walk: 'walk', stroll: 'walk', bound: 'bound', idle: 'idle' };
+const GAIT = { run: 'run', walk: 'walk', stroll: 'stroll', bound: 'bound', idle: 'idle' };
+/** A dressing figure's two frames, each held this long (game ms: a shirt over the head, a leg into the trousers). */
+export const DRESS_FRAME_MS = 900;
+/** An activity's part, the frame it shows (the sink's three, undressing and dressing); anything else is the gait's. */
+const PART_FRAME = Object.freeze({ teeth: 'brush', shave: 'shave', face: 'basin', in: 'dress', dress: 'dress', 'turn-in': 'dress' });
+/** The beacon's red pool (the stage's dynamic lamp slots: a lamp of kind 'beacon', VIEWS §2.7's hard-edged pool). */
+export const BEACON_LAMP = Object.freeze({ y: 2.4, r: 2.2, color: 0xff4a3a, core: 0.55, ring: 0.22, kind: 'beacon' });
 const HEAD_OF_FACE = { down: 'n', up: 's', right: 'w', left: 'e' };
 const now = () => performance.now();
 
@@ -176,18 +218,19 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const figures = createFigures({ renderer: stage.renderer, ppm, painter, uploads });
   const lighting = createLighting(stage), clocks = createClocks();
   const chunks = createChunks({ THREE, renderer: stage.renderer, painter, uploads, ppm });
-  stage.scene.add(figures.group, clocks.group);
-  const cache = new Map();                                           // area id → { id, kind, area, built, info, bounds, palette, name, occluders, racks }
+  const splash = createSplash(stage), vignettes = createVignettes(stage, { ppm });
+  stage.scene.add(figures.group, clocks.group, vignettes.group);
+  const cache = new Map();                                           // area id → { id, kind, area, built, info, bounds, palette, name, occluders, racks, fixtures }
   let live = null, chain = Promise.resolve(), building = 0, warmed = false, warming = null;
   let heldMood = null, palette = null, fogOn = true, testFog = false, fog = null, fogAt = null, fogWant = null;
-  let lastState = null, wipe = null, seeK = 0, liftK = 0, liftRect = null, propsSig = '', tallS = 0, wideK = 0;
+  let lastState = null, wipe = null, seeK = 0, liftK = 0, liftRect = null, propsSig = '', tallS = 0, wideK = 0, vigCut = null;
   const lead = [0, 0];
-  let lastT = null, snapNext = true;
+  let lastT = null, snapNext = true, realS = 0, ownLook = null;
   const looks = new Map();                                           // person id → { look, key }
   const memory = createMemory();                                     // (each actor as last drawn in sight)
   const waitingSheets = new Set();
   const stats = {
-    calls: 0, triangles: 0, programs: 0, cpuMs: 0, viewMs: 0, uploads: { n: 0, bytes: 0 }, people: { drawn: 0, lying: 0 }, deferred: 0, ppm,
+    calls: 0, triangles: 0, programs: 0, cpuMs: 0, viewMs: 0, uploads: { n: 0, bytes: 0 }, people: { drawn: 0, lying: 0 }, deferred: 0, ppm, splash: null, vignette: null, beacon: null,
     res: [stage.W, stage.H], camera: { x: 0, z: 0 }, gpu: null, mood: null, area: null, build: null, frames: 0, you: null,
     clocks: [], lamps: { table: 0, slots: 0 }, chunks: { built: 0, building: 0, popped: 0, mainMs: 0 }, see: { k: 0, lift: 0 }, fog: { recomputes: 0, ms: 0, source: null },
   };
@@ -218,7 +261,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   }
   async function build(area, priority = 'area') {
     const t0 = now();
-    const entry = { id: area.id, kind: area.kind === 'ground' ? 'ground' : 'floor', area, built: null, info: null, bounds: boundsOf(area), palette: area.look?.palette ?? null, name: area.name ?? area.id, occluders: occludersOf(area), racks: racksOf(area) };
+    const entry = { id: area.id, kind: area.kind === 'ground' ? 'ground' : 'floor', area, built: null, info: null, bounds: boundsOf(area), palette: area.look?.palette ?? null, name: area.name ?? area.id, occluders: occludersOf(area), racks: racksOf(area),
+      fixtures: new Map((area.fixtures ?? []).map(f => [f.id, f])) };
     seenBounds.set(area.id, entry.bounds);
     if (entry.kind === 'ground') {
       entry.info = { buildMs: 0, jobMs: 0, mainMs: 0, waitMs: 0, wallMs: now() - t0, boxes: 0, drawCalls: 0, where: painter ? painter.mode : 'main', chunks: true };
@@ -317,30 +361,103 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   }
 
   // ---------- the people ----------
+  const keys = new WeakMap();
+  const keyOf = (look) => { if (!look) return 'look:{}'; let k = keys.get(look); if (!k) keys.set(look, (k = `look:${JSON.stringify(look)}`)); return k; };
   function lookOf(look, who) {
     let e = looks.get(who);
-    if (!e || e.look !== look) { e = { look, key: `look:${JSON.stringify(look ?? {})}` }; looks.set(who, e); }
+    if (!e || e.look !== look) { e = { look, key: keyOf(look) }; looks.set(who, e); }
     return e;
   }
-  // (how an actor is drawn: people's figureOf, else 0.0.2's look and the actor's own fields)
-  function figureOf(state, a) {
-    if (typeof FIGURE.figureOf === 'function') { const f = FIGURE.figureOf(state, a); if (f) return f; }
+  // (your own look: a new one (a cue, an outfit) is shown once the worker has painted its gait, the last one
+  // drawn meanwhile, so your figure never waits on the main thread; without a worker, at once)
+  function ownLookOf(look) {
+    if (!ownLook || ownLook.state !== lastState) { ownLook = { state: lastState, want: look, shown: look, asked: false }; return look; }
+    if (ownLook.want !== look) { ownLook.want = look; ownLook.asked = false; }
+    if (ownLook.shown === look) return look;
+    const key = keyOf(look);
+    if (!painter || figures.ready(key, 'gait')) { ownLook.shown = look; return look; }
+    if (!ownLook.asked) {
+      ownLook.asked = true;
+      const o = ownLook;
+      figures.prepare(key, look, { bands: ['gait'], own: true }).then(() => { if (o.want === look) o.shown = look; }, () => { o.shown = look; });
+    }
+    return ownLook.shown;
+  }
+  // (how an actor is drawn at ms: people's figureOf, else 0.0.2's look and the actor's own fields)
+  function figureOf(state, a, ms = state.clock.ms) {
+    if (typeof FIGURE.figureOf === 'function') { const f = FIGURE.figureOf(state, a, ms); if (f) return f; }
     return { look: state.people?.[a.who]?.look ?? null, posture: a.posture ?? 'stand', y: a.y ?? 0, face: a.face ?? 'down', head: a.head ?? null, curtain: !!a.curtain, gait: a.gait, strideM: a.strideM ?? 0 };
   }
-  // (a sleeper's berth: its rack, its deck by the seat's number, the blanket the rack's maker gave it)
-  function berthOf(a, fig, person) {
-    const seat = a.spotId ?? null, [fid, n] = seat ? seat.split('#') : [null, null], rack = fid ? live.racks.get(fid) : null;
-    const decks = rack ? RACK_DECKS[rack.kind] : null, deck = decks ? decks[Math.max(0, Math.min(decks.length - 1, Number(n) - 2))] : null;
+  // (a look with the body's cues it shows, and a woman's towel at the chest: one object per look and cue, so the caches key on it)
+  const cued = new WeakMap();
+  function lookWith(look, fig, sex) {
+    if (!look) return look;
+    const wet = (fig.cues?.wetK ?? 0) > 0, tired = (fig.cues?.tiredK ?? 0) >= 0.5, f = look.outfit === 'towel' && sex === 'f';
+    if (!wet && !tired && !f) return look;
+    let m = cued.get(look);
+    if (!m) cued.set(look, (m = new Map()));
+    const k = `${wet ? 'w' : ''}${tired ? 't' : ''}${f ? 'f' : ''}`;
+    let o = m.get(k);
+    if (!o) m.set(k, (o = Object.freeze({ ...look, ...(wet ? { wet: true } : {}), ...(tired ? { tired: true } : {}), ...(f ? { sex: 'f' } : {}) })));
+    return o;
+  }
+  // (a figure's frame from its transition (people's poseAt) or its activity's part, else null: the gait's;
+  // msA the clock dressing's two frames turn on: the game's in play, the view's own in a splash, where a
+  // time-lapse would turn them every frame)
+  function frameOf(fig, msA) {
+    const tf = fig.frame, part = fig.activity?.part ?? null;
+    if (tf === 'sit' || tf === 'climb' || tf === 'standUp') return tf;
+    if (tf === 'dress') return `dress${Math.floor(msA / DRESS_FRAME_MS) % 2}`;
+    const pf = part ? PART_FRAME[part] : null;
+    if (pf === 'dress') return `dress${Math.floor(msA / DRESS_FRAME_MS) % 2}`;
+    return pf ?? null;
+  }
+  // (on a flight of stairs: walking up it toward its face, or down)
+  function stairsOf(a, x, z) {
+    if (!live || (a.gait !== 'walk' && a.gait !== 'stroll')) return null;
+    for (const f of live.area.fixtures ?? []) {
+      if (f.kind !== 'stairs') continue;
+      const fp = FOOTPRINTS.stairs, side = f.face === 'left' || f.face === 'right', hw = (side ? fp.d : fp.w) / 2, hd = (side ? fp.w : fp.d) / 2;
+      if (Math.abs(x - f.x) > hw || Math.abs(z - f.z) > hd) continue;
+      const dx = a.x - (a.$px ?? a.x), dz = a.z - (a.$pz ?? a.z), up = { up: -dz, down: dz, left: -dx, right: dx }[f.face] ?? 0;
+      return up >= 0 ? 'stairsUp' : 'stairsDown';
+    }
+    return null;
+  }
+  // (a sleeper's berth: its rack, its deck, the blanket the rack's maker gave it. The berth is the pose
+  // shown's (figureOf's spotId: a rising sleeper's own until they leave it), never the end state's, which
+  // a call has already moved to the rack's foot (the review of v0.0.4: the upper berth's sleepers drawn
+  // in the lower one, hidden, from the klaxon's first frame); a seat that is no berth (the foot's #1)
+  // takes the deck nearest the figure's height)
+  function berthOf(a, fig, person, { msA = 0, up = false, breathS = msA / 1000 } = {}) {
+    const seat = fig.spotId ?? a.spotId ?? null, [fid, n] = seat ? seat.split('#') : [null, null], rack = fid ? live.racks.get(fid) : null;
+    const decks = rack ? RACK_DECKS[rack.kind] : null;
+    let deck = null;
+    if (decks && Number(n) >= 2) deck = decks[Math.max(0, Math.min(decks.length - 1, Number(n) - 2))];
+    else if (decks) deck = decks.reduce((b, d) => (Math.abs(d + BERTH_TOP_M - (fig.y ?? 0)) < Math.abs(b + BERTH_TOP_M - (fig.y ?? 0)) ? d : b), decks[0]);
     const head = fig.head ?? HEAD_OF_FACE[fig.face] ?? 'n', look = fig.look ?? {};
+    const seed = Math.floor(hash01('berth', a.who ?? a.id) * 1000);
+    // (breathing: the blanket's two frames at BREATH_HZ, each sleeper on a phase of their own, on the game's
+    // clock in play and the view's own in a splash (a night's time-lapse would flicker); the curtain closing
+    // over CURTAIN_MS once the sleeper is down, where the lying down was seen to end)
+    const breath = up ? 0 : Math.floor(breathS * BREATH_HZ * 2 + seed / 97) % 2;
+    const downAt = a.trans && a.trans.kind === 'down' ? a.trans.fromMs + a.trans.ms : null;
+    const curtainK = fig.curtain && downAt !== null && msA - downAt < CURTAIN_MS ? Math.max(0, (msA - downAt) / CURTAIN_MS) : null;
     return {
-      x: rack ? rack.x : a.x, z: rack ? rack.z : a.z,
+      x: rack ? rack.x : a.x, z: rack ? rack.z : a.z, rack, head,
       lie: { y: deck !== null ? deck + BERTH_TOP_M + 0.005 : (fig.y ?? 0) + 0.12, head, blanket: rack ? rackBlanket(rack) : 'olive', skin: look.skin ?? 'tan', hair: look.hair ?? { style: 'crew', color: 'dark' },
-        curtain: fig.curtain ? (rack?.look?.curtain ?? 'olive') : null, seed: Math.floor(hash01('berth', a.who ?? a.id) * 1000), who: person ?? a.who },
+        curtain: fig.curtain && !up ? (rack?.look?.curtain ?? 'olive') : null, curtainK, breath, up, seed, who: person ?? a.who },
     };
+  }
+  // (a body up on its mattress, sitUp or lieDown: its upper half's card on the berth at the head's end, facing its foot)
+  const FACE_OF_HEAD = { n: 'down', s: 'up', e: 'left', w: 'right' };
+  function sitterOn(b, frame) {
+    const along = BERTH_M[1] / 2 - 0.42, d = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[b.head] ?? [0, -1];
+    return { x: b.x + d[0] * along, z: b.z + d[1] * along, y: b.lie.y, frame, face: FACE_OF_HEAD[b.head] ?? 'down' };
   }
 
   // ---------- the fog of awareness ----------
-  function fogFrame(state, you, dtS, light) {
+  function fogFrame(state, you, dtS, light, lift = null) {
     if (!fogOn || !you || !state) { stage.setFog(null); return; }
     fog ??= createFogMask({ nx: FOG_CELLS[0], nz: FOG_CELLS[1] });
     const me = playerActor(state), real = !testFog && typeof PERCEPTION.sightMask === 'function' && typeof PERCEPTION.eyeOf === 'function';
@@ -349,14 +466,16 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     const sec = Math.floor(state.clock.ms / 1000);
     const turned = fogAt && Math.abs((((eye.headRad ?? 0) - fogAt.head) * 180 / Math.PI + 540) % 360 - 180) >= FOG_TURN_DEG;
     // (a new area, or the first fog: shown as it is at once, never the old area's shape eased out over the new: v0.0.3's review)
-    const snap = !fogAt || live.id !== fogAt.area;
-    if (snap || Math.hypot(eye.x - fogAt.x, eye.z - fogAt.z) >= FOG_MOVE_M || turned || sec !== fogAt.sec || propsSig !== fogAt.props) {
+    const snap = !fogAt || live.id !== fogAt.area, liftSig = lift ? `${lift.x},${lift.z}` : '';
+    if (snap || Math.hypot(eye.x - fogAt.x, eye.z - fogAt.z) >= FOG_MOVE_M || turned || sec !== fogAt.sec || propsSig !== fogAt.props || liftSig !== fogAt.lift) {
       const t0 = now(), cam = stage.cam.at;
       fog.place(cam.x - FOG_CELLS[0] * FOG_CELL_M / 2, cam.z - FOG_CELLS[1] * FOG_CELL_M / 2);
       const [x0, z0] = fog.box;
       if (real) {
         const mask = { x0, z0, nx: FOG_CELLS[0], nz: FOG_CELLS[1], cellM: FOG_CELL_M, vis: new Float32Array(FOG_CELLS[0] * FOG_CELLS[1]) };
         PERCEPTION.sightMask(state, eye, mask);
+        // (a splash's iris, closed: the vignette inside it shown as seen; my call)
+        if (lift) for (let j = 0; j < mask.nz; j++) for (let i = 0; i < mask.nx; i++) if (Math.hypot(x0 + (i + 0.5) * FOG_CELL_M - lift.x, z0 + (j + 0.5) * FOG_CELL_M - lift.z) < lift.r) mask.vis[j * mask.nx + i] = 1;
         fog.setSeen(mask.vis);
         fogWant = { x0, z0, nx: mask.nx, nz: mask.nz, cellM: FOG_CELL_M, vis: mask.vis, ms: state.clock.ms, eye: { x: eye.x, z: eye.z, headRad: eye.headRad } };
       } else {
@@ -368,7 +487,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         });
         fogWant = null;
       }
-      fogAt = { x: eye.x, z: eye.z, head: eye.headRad ?? 0, sec, props: propsSig, area: live.id };
+      fogAt = { x: eye.x, z: eye.z, head: eye.headRad ?? 0, sec, props: propsSig, area: live.id, lift: liftSig };
       stats.fog.recomputes++; stats.fog.ms = now() - t0; stats.fog.source = real ? 'sightMask' : 'test';
     }
     fog.ease(snap ? Infinity : dtS || Infinity);
@@ -383,7 +502,16 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     const hidden = live.occluders.some(b => occludes(b, you.x, you.z, hw, H));
     const step = dtS > 0 ? dtS / SEE_DISSOLVE_S : 1;
     seeK = Math.max(0, Math.min(1, seeK + (hidden ? step : -step)));
-    SHARED.uSeeK.value = seeK;
+    // (the vignette's cut stands in for the see-through while the iris is closed on a stall)
+    const cutK = vigCut?.k ?? 0;
+    SHARED.uSeeK.value = seeK * (1 - cutK);
+    if (cutK > 0) {
+      const r = vigCut.rect;
+      SHARED.uLift.value.set(r[0], r[1], r[2], r[3]); SHARED.uLiftY.value.set(CUT_H_M, cutK);
+      SHARED.uSeeWide.value.w = 0;
+      stats.see = { k: seeK * (1 - cutK), lift: 0, hidden, wide: 0, cut: cutK };
+      return;
+    }
     // (behind a tall mass for longer than the dissolve: the wide see-through, a disc round you; the figure's box for a glimpse)
     const tall = live.kind === 'ground' && live.occluders.some(b => b.h > TALL_MASS_M && occludes(b, you.x, you.z, hw, H));
     tallS = tall ? tallS + (dtS || 0) : 0;
@@ -415,7 +543,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   function frame(alpha, state, info = {}) {
     const t0 = now();
     const dtS = lastT === null ? 0 : Math.min(0.1, (t0 - lastT) / 1000);
-    lastT = t0;
+    lastT = t0; realS += dtS;
     if (state) lastState = state;
     painter?.step();                                                 // (5: the main thread's share, when there is no worker)
     let you = null, light = null;
@@ -432,14 +560,17 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       return;
     }
     stats.holding = false;
+    const sp = state ? info.splash ?? null : null;
+    let fogLift = null, vigItems = [], vigRed = 0;
     if (state && live) {
       const area = live.area, ms = state.clock.ms;
-      // 2. the light
-      light = lighting.frame(state, area, { ms, lonEDeg: info.lonEDeg ?? 0, siteId: area.site, heldMood });
+      // 2. the light (in a splash, the light of the time shown: shownMs, never past the sim's clock)
+      const lightMs = sp && Number.isFinite(sp.shownMs) ? Math.min(ms, sp.shownMs) : ms;
+      light = lighting.frame(state, area, { ms: lightMs, lonEDeg: info.lonEDeg ?? 0, siteId: area.site, heldMood });
       stats.mood = heldMood ?? lighting.stats.rig;
-      // 3. where everyone is between the ticks, and how each is drawn
+      // 3. where everyone is between the last two ticks, and how each is drawn at that moment
       const k = info.held ? 1 : alpha;
-      const me = playerActor(state), meId = me?.id ?? null, tS = ms / 1000 + k * 0.05;
+      const me = playerActor(state), meId = me?.id ?? null, tS = ms / 1000 + k * 0.05, msA = ms + k * TICK_MS, breathS = sp ? realS : msA / 1000, frameMs = breathS * 1000;
       // (the memory: forgotten with a new state, another area, or a skip)
       memory.begin(state, live.id);
       const eye = me && typeof PERCEPTION.eyeOf === 'function' && typeof PERCEPTION.visibility === 'function' ? PERCEPTION.eyeOf(state, me) : null;
@@ -447,19 +578,72 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       for (const a of state.actors?.list ?? []) {
         const was = a.id !== meId && eye ? memory.recall(a.id, a.x, a.z, inSight) : null;
         if (was) { people.push({ ...was, tS, dx: 0, dz: 0, remembered: true }); continue; }
+        const fig = figureOf(state, a, msA), own = a.id === meId;
+        // (a transition plays at its own places (figureOf's x and z, k under 1), never glided; everything else between the ticks)
+        const moving = typeof fig.k === 'number' && fig.k < 1 && Number.isFinite(fig.x);
         const px = a.$px ?? a.x, pz = a.$pz ?? a.z, step = Math.hypot(a.x - px, a.z - pz), jump = step > JUMP_M;
-        const x = jump ? a.x : px + (a.x - px) * k, z = jump ? a.z : pz + (a.z - pz) * k;
-        const fig = figureOf(state, a), own = a.id === meId;
-        let stride = (fig.strideM ?? a.strideM ?? 0) - (jump ? 0 : (1 - k) * step);
+        let x = moving ? fig.x : jump ? a.x : px + (a.x - px) * k, z = moving ? fig.z : jump ? a.z : pz + (a.z - pz) * k;
+        let stride = (fig.strideM ?? a.strideM ?? 0) - (jump || moving ? 0 : (1 - k) * step);
         if (stride < 0) stride += STRIDE_WRAP_M;
-        const { look, key } = lookOf(fig.look, a.who);
-        const p = { key, look: look ?? {}, x, z, face: fig.face ?? a.face ?? 'down', gait: GAIT[fig.gait ?? a.gait] ?? 'idle', stride, tS, phase: hash01('phase', a.id) * 2, own, id: a.id, dx: a.x - px, dz: a.z - pz };
-        if (fig.posture === 'sit') { p.frame = 'sit'; p.y = Math.max(0, (fig.y ?? 0.45) - figures.layout.body.seatM); p.seat = p.y; }
-        else if (fig.posture === 'lie' && !own) Object.assign(p, berthOf(a, fig, a.who));
-        people.push(p);
+        const person = state.people?.[a.who] ?? null;
+        let look0 = lookWith(fig.look, fig, person?.sex);
+        let face = fig.face ?? a.face ?? 'down', hidden = false;
+        // (inside a fixture: in a shower stall, drawn in it facing its head (the steam before you); in any other, hidden behind it)
+        const inside = fig.inside ? live.fixtures.get(fig.inside) ?? null : null;
+        if (inside) {
+          const spot = insideSpot(inside);
+          if (spot) {
+            // (the dress part's last 15%: stepping out of the stall to its spot, at the time-lapse's pace)
+            const out = fig.activity?.part === 'dress' ? Math.max(0, Math.min(1, ((fig.activity.k ?? 0) - 0.85) / 0.15)) : 0, o = out * out * (3 - 2 * out);
+            x = spot.x + (x - spot.x) * o; z = spot.z + (z - spot.z) * o; face = o < 0.5 ? spot.face : face;
+          } else hidden = true;
+        }
+        // (your own look changed by a cue (wet hair, the tired walk): the worker paints it while the last one is drawn)
+        if (own) look0 = ownLookOf(look0);
+        const { look, key } = lookOf(look0, a.who);
+        const gait = stairsOf(a, x, z) ?? GAIT[fig.gait ?? a.gait] ?? 'idle';
+        const p = { key, look: look ?? {}, x, z, face, gait, stride, tS, phase: hash01('phase', a.id) * 2, own, id: a.id, dx: a.x - px, dz: a.z - pz, fig: fig.frame ?? null };
+        const tf = fig.frame;
+        if (tf === 'sitUp' || tf === 'lieDown') {
+          // (up on the mattress: the berth thrown back to the waist, the upper body's card at its head)
+          const b = berthOf(a, fig, a.who, { msA, up: true, breathS }), st = sitterOn(b, tf);
+          people.push({ ...p, ...b, lie: b.lie, x: b.x, z: b.z, card: false, id: `${a.id}:berth` });
+          Object.assign(p, { x: st.x, z: st.z, frame: st.frame, face: st.face, y: st.y, seat: st.y, noBlob: true });
+        } else if (tf === 'lie' || (fig.posture === 'lie' && !frameOf(fig, frameMs))) Object.assign(p, berthOf(a, fig, a.who, { msA, breathS }));
+        else {
+          const f = frameOf(fig, frameMs);
+          if (f === 'sit' || (!f && fig.posture === 'sit')) { p.frame = 'sit'; p.y = Math.max(0, (fig.y ?? 0.45) - figures.layout.body.seatM); p.seat = p.y; }
+          else if (f === 'climb') { p.frame = 'climb'; p.y = Math.max(0, fig.y ?? 0); p.seat = 0; }
+          else if (f) p.frame = f;
+        }
+        if (hidden) p.hidden = true;
+        if (!hidden) people.push(p);
         if (own) you = p;
         else if (eye) memory.keep(a.id, a.x, a.z, p);
       }
+      // (the splash's vignette at its fixture; the alert's beacon in the hall while a drill is open)
+      vigCut = null;
+      if (sp && sp.vignette) {
+        const f = sp.fixtureId ? live.fixtures.get(sp.fixtureId) ?? null : null;
+        vigItems = vignetteItems({ sp, fixture: f, you, tS: realS, ppm });
+        stats.vignette = { name: sp.vignette, fixture: sp.fixtureId ?? null, part: sp.part ?? null, items: vigItems.length };
+        // (a shower stall in a closing iris: the stall and the floor to its spot cut down, by the iris's ink, so
+        // you read whole in it and on its spot after, at the strip; never a neighbour's partition)
+        if (f && f.kind === 'showerStall' && sp.form === 'full' && (sp.inkK ?? 0) > 0) {
+          const fp = FOOTPRINTS.showerStall, side = f.face === 'left' || f.face === 'right', hw = (side ? fp.d : fp.w) / 2 + 0.05, hd = (side ? fp.w : fp.d) / 2 + 0.05;
+          const me = playerActor(state), mx = me?.x ?? f.x, mz = me?.z ?? f.z;
+          vigCut = { rect: [Math.min(f.x - hw, mx - 0.35), Math.min(f.z - hd, mz - 0.4), Math.max(f.x + hw, mx + 0.35), Math.max(f.z + hd, mz + 0.1)], k: Math.max(0, Math.min(1, sp.inkK)) };
+        }
+      } else stats.vignette = null;
+      const alert = typeof ALERTS.alertNow === 'function' ? ALERTS.alertNow(state, msA) : null;
+      if (alert && alert.horn?.area === live.id) {
+        vigItems.push({ name: 'beacon', opts: { on: alert.hornOn ? 1 : 0 }, x: alert.horn.x, y: BEACON_Y_M, z: alert.horn.z });
+        stage.lights.setLamps(alert.hornOn ? [{ ...BEACON_LAMP, x: alert.horn.x, z: alert.horn.z }] : []);
+        stats.beacon = { on: !!alert.hornOn, phase: alert.phase };
+      } else { if (stats.beacon) stage.lights.setLamps([]); stats.beacon = null; }
+      if (sp?.phase === 'beat' && (sp.interrupt?.kind === 'alert' || sp.interrupt?.letter === 'A')) vigRed = Math.sin(Math.PI * ((sp.k ?? 0) * 2 % 1)) * 0.8;
+      // (the iris's inside, shown as seen while it is closed: its centre and radius for the fog)
+      if (sp && sp.form === 'full' && sp.centre && (sp.inkK ?? 0) > 0.5 && sp.phase !== 'out') fogLift = { x: sp.centre.x, z: sp.centre.z, r: (Number.isFinite(sp.irisM) ? sp.irisM : 3.5) + 1.5 };
       // 4. the camera
       const cw = stage.W / ppm, ch = stage.H / ppm, b = cameraBounds(live);
       if (you && !wipe) {
@@ -488,9 +672,17 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       }
       stats.clocks = clocks.frame(state, info.lonEDeg ?? 0);
       // 8. tints where each stands: places' level through the eye's exposure
-      for (const p of people) p.tint = heldMood ? stage.lightAt(p.x, p.z) : lighting.tintAt(state, p.x, p.z, ms);
+      const beacon = stats.beacon?.on ? stage.lights.lamps[0] : null;
+      const tintAt = (x, z) => {
+        const t = heldMood ? stage.lightAt(x, z) : lighting.tintAt(state, x, z, lightMs);
+        if (!beacon) return t;
+        const d = Math.hypot(x - beacon.x, z - beacon.z), kk = d < beacon.r ? beacon.core + beacon.ring : d < beacon.r * 1.5 ? beacon.ring : 0;
+        return kk ? [t[0] + 1.0 * kk, t[1] + 0.07 * kk, t[2] + 0.04 * kk] : t;
+      };
+      for (const p of people) p.tint = tintAt(p.x, p.z);
+      vignettes.update(vigItems, tintAt, vigRed);
       // 9. the fog; 10. what stands between the camera and you
-      fogFrame(state, you, dtS, light);
+      fogFrame(state, you, dtS, light, fogLift);
       seeFrame(you, dtS);
       wipeFrame(dtS);
     }
@@ -498,7 +690,12 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     // whose frames are up: the player's own is on its way from the worker
     figures.update(info.cut ? people.filter(p => p.lie || figures.ready(p.key, bandOf(p))) : people);
     for (const p of people) if (!p.lie && !figures.ready(p.key, bandOf(p))) waitingSheets.add(p.key);
-    drawnNow = people.map(p => ({ id: p.id, x: p.x, z: p.z, lie: !!p.lie, sit: p.frame === 'sit', curtain: !!p.lie?.curtain, own: p.own, tint: p.tint, remembered: !!p.remembered }));
+    drawnNow = people.map(p => ({ id: p.id, x: p.x, z: p.z, y: p.y ?? 0, lie: !!p.lie, sit: p.frame === 'sit', frame: p.lie ? (p.lie.up ? 'berthUp' : 'berth') : p.frame ?? p.gait, face: p.face, fig: p.fig ?? null,
+      curtain: !!p.lie?.curtain, own: p.own, tint: p.tint, remembered: !!p.remembered, key: p.key }));
+    // 12b. the splash's pass and the zoom's crop (src/render/splash.js), set before the picture
+    const it = splash.set(sp, { dimK: light?.dimK ?? stage.mood.dimK });
+    stats.splash = sp ? { phase: sp.phase, form: sp.form, k: sp.k, zoom: it.zoom, iris: it.iris ? it.iris.R : null, ring: it.ring ? it.ring.R : null, beat: it.beat?.kind ?? null, crop: splash.stats.crop, shownMs: sp.shownMs,
+      passes: splash.stats.drawn, lift: !!fogLift, centre: sp.centre ?? null } : null;
     // 12. the upload queue
     const up = uploads ? uploads.drain() : { n: 0, bytes: 0, ms: 0 };
     // 13. the picture
@@ -515,7 +712,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       you: you ? { x: you.x, z: you.z, stride: you.stride, gait: you.gait } : null, light,
     });
   }
-  const bandOf = (p) => (p.frame === 'sit' ? 'rest' : 'gait');
+  // (a figure's band: its frame's, or its gait's (a stroll and the stairs are the move band's))
+  const bandOf = (p) => BAND_OF[p.frame ?? (p.gait === 'stroll' || p.gait?.startsWith('stairs') ? `${p.gait}0` : p.gait)] ?? 'gait';
 
   /** Every actor's figure painted and sent behind a cut (the paint worker: the player's first, priority 'own'): resolves once they are up. */
   function prepareOwn(state) {
@@ -523,8 +721,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     const meId = playerActor(state)?.id ?? null, jobs = [];
     for (const a of state.actors?.list ?? []) {
       const fig = figureOf(state, a), { look, key } = lookOf(fig.look, a.who);
-      if (fig.posture === 'lie' && a.id !== meId) continue;          // (a sleeper is a berth: nothing to paint ahead)
-      const bands = fig.posture === 'sit' ? ['gait', 'rest'] : ['gait'];
+      if (fig.posture === 'lie' && fig.frame !== 'sitUp' && fig.frame !== 'lieDown') { if (a.id === meId) jobs.push(figures.prepare(key, look ?? {}, { bands: ['gait', 'rest'], own: true })); continue; }   // (a sleeper is a berth; yours may rise)
+      // (yours with the move band too: a stroll or a stair never paints on the main thread)
+      const bands = [...(fig.posture === 'sit' || fig.posture === 'lie' ? ['gait', 'rest'] : ['gait']), ...(a.id === meId ? ['move'] : [])];
       jobs.push(figures.prepare(key, look ?? {}, { bands, own: a.id === meId }));
     }
     return Promise.all(jobs);
@@ -532,7 +731,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
 
   /** Compile the stage's programs (warm.js): once, at boot. */
   function warm() {
-    warming ??= warmUp(stage, { figures, extra: [clocks.material] }).then((r) => { warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
+    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1]] }).then((r) => { warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
       (e) => { warmed = true; console.warn('view: the warm-up failed', e); return null; });
     return warming;
   }
@@ -550,7 +749,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   };
 
   return {
-    setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks,
+    setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks, splash, vignettes,
     /** Hold a mood by name (MOODS), or null to follow places' light. */
     setMood(name) { heldMood = name && MOODS[name] ? name : null; },
     /** The fog of awareness on or off (on by default: perception's; with no perception, the samples' test fog when asked). */
@@ -566,7 +765,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       endWipe();
       for (const c of cache.values()) c.built?.dispose();
       cache.clear(); live = null;
-      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose();
+      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose();
     },
   };
 }

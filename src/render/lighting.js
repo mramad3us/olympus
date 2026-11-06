@@ -34,6 +34,8 @@ export const INTERIOR_RIG = Object.freeze({ sky: 0xe8eaf0, ground: 0x8f8a80, sky
 /** The background round a cutaway (the dark) and beyond a ground's apron. */
 export const BG_INDOOR = 0x14151c, BG_OUTDOOR = 0x2a1f22;
 const DAY_FROM_H = 6, NIGHT_FROM_H = 19;
+/** The moving lights the stage's lamp slots take (the static pools are the lamp table's): 0.0.4's alert beacon, at full strength in every rig. */
+export const MOVING_LAMPS = Object.freeze({ beacon: 1 });
 
 const lumaLin = (hex) => { const c = linear(hex); return 0.30 * c[0] + 0.59 * c[1] + 0.11 * c[2]; };
 /** The calibrated rig's light (VIEWS §2.7's ≥ 20° row: a sky fill of 0.6 and a key of 0.79), as the luma both give. */
@@ -125,7 +127,7 @@ export function createLighting(stage) {
         const sun0 = sky.eclipsed ? 0 : (sky.sunK ?? 0), g = rigGain(sky.skyColor ?? 0x8a96c8, sky.skyK ?? 0.4, sky.sunColor ?? 0xfff1de, sun0, exposure(sky.level ?? 1));
         const sun = sun0 * g;
         mood = { name: 'sky', background: BG_OUTDOOR, sun: sky.sunColor ?? 0xfff1de, sunK: sun, sky: sky.skyColor ?? 0x8a96c8, ground: sky.ground ?? 0x6a4a44, skyK: (sky.skyK ?? 0.4) * g,
-          shadow: sky.eclipsed ? 0 : (sky.shadow ?? 1) * 0.8, tint: sky.tint ?? [1, 1, 1], lamps: {}, lampColour: {},
+          shadow: sky.eclipsed ? 0 : (sky.shadow ?? 1) * 0.8, tint: sky.tint ?? [1, 1, 1], lamps: MOVING_LAMPS, lampColour: {},
           glow: { lamp: sky.glow ?? 0, night: sky.glow ?? 0, strip: 0, battle: 0, emergency: 0, screen: 1 }, stripLight: [0, 0, 0], battleLight: [0, 0, 0] };
         elevDeg = sky.elevDeg ?? null;
         dimK = 0.18 + 0.3 * exposure(sky.level ?? 1);
@@ -142,7 +144,7 @@ export function createLighting(stage) {
       const night = [...lightingNow.values()].some(l => l === 'lightsOut');
       // (the windows show the open air's light: glow class LAMP, the sky's level through the eye)
       const out = typeof LIGHT.skyAt === 'function' && siteId ? exposure(LIGHT.skyAt(siteId, ms).level ?? 1) : 1;
-      mood = { name: night ? 'lightsOut' : 'interior', background: BG_INDOOR, ...INTERIOR_RIG, tint: [1, 1, 1], lamps: {}, lampColour: {},
+      mood = { name: night ? 'lightsOut' : 'interior', background: BG_INDOOR, ...INTERIOR_RIG, tint: [1, 1, 1], lamps: MOVING_LAMPS, lampColour: {},
         glow: { lamp: out, night: night ? 1 : 0, strip: 0, battle: 0, emergency: 0, screen: 1 }, stripLight: [0, 0, 0], battleLight: [0, 0, 0] };
       const you = state.actors?.list?.find(x => x.id === state.player?.actor);
       dimK = 0.18 + 0.3 * exposure(you ? levelAt(state, you.x, you.z, ms) : 0.75);

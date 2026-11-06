@@ -74,12 +74,13 @@ export function sheetLayout(ppm = PX_PER_M) {
 
 /**
  * What in a look changes a frame's drawing (not its colours): the cut of the top and legs, what's on the
- * head, armour, pack, belt, rank, gloves, hair style, weapon and carry. Looks alike in these (a squad in
+ * head, armour, pack, belt, rank, gloves, hair style, weapon and carry, and the body's cues it shows
+ * (wet hair's sheen, a tired body's pose). Looks alike in these (a squad in
  * utilities, whatever their skin, hair colour or camouflage's seed) share their composed frames.
  */
 export function shapeKey(L) {
   return [L.top?.kind, L.top?.emblem ? 'e' : '', L.legs?.kind, L.head?.kind ?? '-', L.armour ? 'ø' : '', L.pack ? (L.pack.helmet ? 'jh' : 'j') : '',
-    L.belt ? 'y' : '', L.rank ? 'r' : '', L.gloves ? 'd' : '', L.hair?.style, L.weapon ?? '-', L.carry ?? '-'].join('|');
+    L.belt ? 'y' : '', L.rank ? 'r' : '', L.gloves ? 'd' : '', L.hair?.style, L.weapon ?? '-', L.carry ?? '-', L.wet ? 'w' : '', L.tired ? 't' : ''].join('|');
 }
 /** How many composed frames are kept (a least-recently-used cache: about ten shapes' gait bands). */
 export const COMPOSED_KEEP = 600;

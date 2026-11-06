@@ -12,16 +12,22 @@
 // kept for its tests), line (a short line for the player, a toast until the presenter exists) and
 // path-done (PLACES: a path request answered); and skip-end's minutes, the whole game minutes the
 // skip passed. The 0.0.3 sheet adds door (PLACES: a door turned by a hand, doors.js).
+// The 0.0.4 sheet (§2.5) adds TIME's activity, alert, reveille and late, widens skip-start and
+// skip-interrupt, gives skip-end its outcome, and writes BODY's three payloads out.
 
 const fact = (owner, payload) => Object.freeze({ owner, payload });
 
 /** Every bus fact: name → { owner, payload } (a one-line description of the payload). */
 export const FACTS = Object.freeze({
   hold: fact('TECH', '{ held, holds }: time stands still (or runs again) for the sim\'s reasons'),
-  'skip-start': fact('TIME', '{ id, activity, kind, fromMs, toMs, where, posture, mask }'),
+  'skip-start': fact('TIME', '{ id, activity, kind, engine, fromMs, toMs, where, posture, mask, spotId, vignette, stoppable, chunkMs }'),
   'skip-frame': fact('TIME', '{ id, atMs, ticker: [new lines], frame: sample | null }, once per frame of a skip'),
-  'skip-interrupt': fact('TIME', '{ id, atMs, by, prio, line, reflex }'),
-  'skip-end': fact('TIME', '{ id, activity, fromMs, toMs, planned, interrupted, by, outcome, papers, minutes }'),
+  'skip-interrupt': fact('TIME', '{ id, atMs, by, prio, letter, kind, line, reflex }'),
+  'skip-end': fact('TIME', '{ id, activity, fromMs, toMs, planned, interrupted, by, outcome: { body: { before, after }, look: { outfit, wet }, chunk: { offerMs } | null, lines, failedRoll, activity, held }, papers, minutes }'),
+  activity: fact('TIME', "{ phase: 'start' | 'end', activity, who, spotId, fromMs, toMs, mode: 'live' | 'ff' | 'outcome', fraction, by, outcome }"),
+  alert: fact('TIME', "{ drill, kind: 'drill', phase: 'sound' | 'count' | 'stand-down', atMs, dueMs, endMs, horn: { area, x, z }, here?, of? (the count: present of the squad) }"),
+  reveille: fact('TIME', '{ atMs, area, holiday }'),
+  late: fact('TIME', "{ who, block, dueMs, arrivedMs, lateMs, class: 'on-time' | 'late-minor' | 'late' | 'very-late' | 'missed' | 'left', leftMs? }"),
   skip: fact('TECH', 'the legacy loop.skip report: { what, fromMs, toMs, requestedMs, elapsedMs, minutes, stopped, reason }'),
   autosave: fact('TIME, CAREER (ask), TECH (writes)', "{ why: 'skip' | 'day' | 'live' | 'area' | 'edge' | 'combat' | 'death' }"),
   log: fact('TECH', '{ entry }: a record appended to state.log'),
@@ -37,9 +43,9 @@ export const FACTS = Object.freeze({
   sound: fact('VIEWS (audio), PEOPLE (hearing)', '{ kind, x, y, z, area, db, src }'),
   fx: fact('WEAPONS, COMBAT, PLACES', '{ kind, x, y, z, atMs, dir, size }: a muzzle flash, an impact, sparks, steam'),
   papers: fact('TIME, CAREER', '{ papers: [ … ] }'),
-  'body-stage': fact('BODY', 'BODY §2.4'),
-  'body-event': fact('BODY', 'BODY §2.4'),
-  'body-interrupt': fact('BODY', 'BODY §2.4'),
+  'body-stage': fact('BODY', '{ who, ledger, from, to, tone, words, atMs }'),
+  'body-event': fact('BODY', "{ who, kind: 'void' | 'bowel' | 'accident' | 'asleep' | 'woke' | 'wash' | 'groom' | 'drink' | 'eat', atMs, amount }"),
+  'body-interrupt': fact('BODY', '{ who, ledger, band, atMs }: a crossing event dispatched'),
   'body-dead': fact('BODY', 'BODY §2.4'),
   broke: fact('TECH', '{ where, message }: a lost tick or a failed listener'),
 });

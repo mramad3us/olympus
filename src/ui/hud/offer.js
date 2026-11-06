@@ -1,39 +1,29 @@
-// OLYMPUS hud: the instinct's line at the bottom centre, and R's offer on it (VIEWS §7.1, §7.4).
+// OLYMPUS hud: R's offer, the chip of what's at hand at the end of the instinct's line (VIEWS §7.1, §7.4).
 //
-// The INSTINCT rectangle (layout.js, 720 × 44 at --ui 1) holds one line: its lead, then R's offer as
-// a chip, the keycap in the player's layout and what R does here ("R open the door" when a door is
-// in reach, "R close the door" once it stands open, "R wait 15 min" elsewhere: places' handOffer,
-// asked every frame, which says nothing while time stands still or a skip runs). The lead is what
-// the game says it is doing in place of the instinct's own lines (they come with SKILLS's instinct,
-// 0.0.5): "Time stands still: a digit to choose." while a choice holds time (VIEWS §7.4's lead), the
-// bench's countdown. Tradecraft's settle(): a line holds while its rule does and drops at once when
-// it stops, and the DOM is written only when the line changes, so a frame costs a compare.
+// What R does here is places' and time's handOffer(state) (src/sim/places/hand.js, the build sheet
+// 0.0.4 §2.2.6): getting up when lying or sitting, an activity at the fixture you stand at ("shower ·
+// 10 min, done 19:41"), a door ("open the door", "close the door"), the resume of a cut activity
+// ("finish your shower · 7 min"), else the wait ("wait 15 min"), asked every frame; it says nothing
+// while time stands still or a skip runs. offerWords() is the chip's words: the offer's label, "again:"
+// before the wait while a first R has armed it (R twice waits, as built in v0.0.3: HAND_AGAIN_MS in
+// main.js), and whether the offer has more (R held: the rack's sleep and naps, the sink's three: the
+// choices card, cards/choose.js). The chip itself is drawn by hud/instinct.js, after the line and its
+// own chip, and never on an urgent line (SKILLS §14.1: R's offer is appended as a chip, except on an
+// urgent line). wantOf() is what R tapped sends the sim for an offer (hand.js's handAction reads it).
 
-/** The line in parent: { el, update({ lead, offer }) }; label(action) names a key in the player's layout. */
-export function createOffer(parent, { label = (a) => a } = {}) {
-  const root = Object.assign(document.createElement('div'), { className: 'instinct' });
-  parent.append(root);
-  let shown = null;
-  return {
-    el: root,
-    /** lead: a string or null; offer: handOffer()'s { act, verb, target, label } or null. Returns the line's text. */
-    update({ lead = null, offer = null } = {}) {
-      const key = offer ? label(offer.act ?? 'hand') : '';
-      const sig = `${lead ?? ''}|${key}|${offer?.label ?? ''}`;
-      if (sig !== shown) {
-        shown = sig;
-        const kids = [];
-        if (lead) kids.push(Object.assign(document.createElement('span'), { className: 'lead', textContent: lead }));
-        if (offer) {
-          const chip = Object.assign(document.createElement('span'), { className: 'chip' });
-          chip.append(Object.assign(document.createElement('kbd'), { textContent: key }), ` ${offer.label}`);
-          kids.push(chip);
-        }
-        root.replaceChildren(...kids);
-        root.hidden = !kids.length;
-      }
-      return root.hidden ? '' : root.textContent;
-    },
-    get text() { return root.hidden ? '' : root.textContent; },
-  };
+/** The chip's words for an offer: { key, text, more } (key the action whose keycap leads it). armed: a first R has asked for the wait. */
+export function offerWords(offer, { armed = false } = {}) {
+  if (!offer) return null;
+  const label = offer.label ?? offer.verb ?? '';
+  const text = offer.verb === 'wait' && armed ? `again: ${label}` : label;
+  return { key: offer.act ?? 'hand', text, more: Array.isArray(offer.more) && offer.more.length > 0 };
+}
+
+/** What R tapped sends for an offer: { act: 'hand', args: { want, id?, spotId?, args? } } (a door's verbs are want 'door'), or null. */
+export function wantOf(offer) {
+  if (!offer) return null;
+  const want = offer.verb === 'open' || offer.verb === 'close' ? 'door' : offer.verb;
+  const args = { want };
+  if (offer.verb === 'activity' || offer.verb === 'resume') { args.id = offer.id; args.spotId = offer.spotId ?? null; if (offer.args) args.args = offer.args; }
+  return { act: 'hand', args };
 }

@@ -14,9 +14,15 @@
 // (its frames' median and a 2D canvas on the game's page), the paced p95 at most 18 ms (printed
 // otherwise, as view-browser does: headless Chrome on this Mac paces its frames at 10 to 60 Hz from
 // page to page). Runs on OLYMPUS_TEST_PORT.
+// 0.0.4 (the build sheet §2.3 (e), §5.3): the bench's splash-sleep scene, R at your rack's foot at 21:57
+// and the night's full splash (the zoom, the iris, the night going by), at 16 px/m: the splash's own
+// frames timed in the page ({ frames, medianMs, p95Ms, over25 }, the bench card's splash row), its draw
+// calls and uploads, no program linked, and the paced p95 at most 18 ms on a 60 Hz clock.
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { BENCH_SCENES } from '../src/data/bench.js';
+const SLEEP = BENCH_SCENES['splash-sleep'];
+const sleepQuery = `play=${SLEEP.play}&seed=${SLEEP.seed}&hour=${SLEEP.hour}&area=${SLEEP.at.area}&at=${SLEEP.at.x},${SLEEP.at.z}&face=${SLEEP.at.face}&nostore=1&perf=1&ppm=16`;
 import { frameClock, startSampling, stopSampling, burst, framesLine, pct } from './stage-drive.mjs';
 
 const SCENE = BENCH_SCENES['squadbay-night'];
@@ -61,6 +67,36 @@ export default [
           assert(!errors.length, errors.join('\n'));
         }
       }, { query: queryOf(16), viewport: { width: 1600, height: 900 }, timeoutMs: 60000 });
+    },
+  },
+  {
+    name: 'the bench scene splash-sleep: R at your rack and the night\'s full splash, its frames at 60 fps (p95 at most 18 ms on a 60 Hz clock), draw calls under 160, no program linked, no frame over 1 MB (the build sheet 0.0.4 §2.3 (e))',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() {
+      await withGame(async (page, errors) => {
+        const clock = await frameClock(page);
+        await page.waitForTimeout((SLEEP.warmS ?? 2) * 1000);
+        const boot = await page.evaluate(() => ({ programs: window.__report.view.programs, offer: window.__olympus.offer()?.label ?? null }));
+        const sampling = page.evaluate((MS) => new Promise(res => {
+          const out = []; let last = null; const t0 = performance.now();
+          const f = (t) => { const r = window.__report, v = r.view; if (last !== null) out.push({ dt: t - last, splash: v.splash?.phase ?? null, calls: v.calls, bytes: r.gl?.last?.bytes ?? 0, links: r.gl?.last?.links ?? 0, viewMs: v.viewMs }); last = t; if (t - t0 < MS) requestAnimationFrame(f); else res(out); };
+          requestAnimationFrame(f);
+        }), SLEEP.keys.reduce((a, [, ms]) => a + ms, 0));
+        for (const [code, ms] of SLEEP.keys) { if (code) await page.keyboard.down(code); await page.waitForTimeout(ms); if (code) await page.keyboard.up(code); }
+        const frames = await sampling, sp = frames.filter(f => f.splash), dts = sp.map(f => f.dt);
+        const result = { frames: sp.length, medianMs: pct(dts, 0.5), p95Ms: pct(dts, 0.95), over25: dts.filter(d => d > 25).length };
+        const phases = [...new Set(sp.map(f => f.splash))];
+        const sixty = result.medianMs <= 17.5 && clock.medianMs <= 17.5;
+        console.log(`      the headless clock ${fmt(clock.medianMs, 1)} ms; R at the rack's foot (${boot.offer}); the splash's ${phases.join(' → ')}: ${framesLine(dts)}`);
+        console.log(`      result.splash ${JSON.stringify({ ...result, medianMs: +fmt(result.medianMs, 2), p95Ms: +fmt(result.p95Ms, 2) })}; draw calls ${Math.max(...sp.map(f => f.calls))} at most; uploads ${fmt(Math.max(...sp.map(f => f.bytes)) / 1024, 1)} KB a frame at most; the view's CPU median ${fmt(pct(sp.map(f => f.viewMs), 0.5), 2)} ms; ${sp.reduce((n, f) => n + f.links, 0)} linked${sixty ? '' : ' (not 60 Hz: the paced p95 is printed, not held)'}`);
+        assert(sp.length > 20 && phases.includes('lapse'), `the splash ran: ${sp.length} frames, ${phases}`);
+        assert(Math.max(...sp.map(f => f.calls)) <= 160, 'draw calls');
+        assert(sp.every(f => !f.links), 'no program linked in the splash');
+        assert(Math.max(...sp.map(f => f.bytes)) <= 1024 * 1024, 'no frame over 1 MB');
+        if (sixty) assert(result.p95Ms <= 18, `paced splash frames: p95 ${fmt(result.p95Ms, 1)} ms`);
+        assert(!errors.length, errors.join('\n'));
+      }, { query: sleepQuery, viewport: { width: 1600, height: 900 }, timeoutMs: 60000 });
     },
   },
 ];

@@ -27,7 +27,8 @@
 //                  passes every one of them on the nav grid (the test rooms' rule, kept).
 //   WING_FIXTURES  the wing's other rooms' pieces in the east wing's frame (the platoon office, the HQ
 //                  rack room, the two heads, the laundry, the cleaning locker, the lounge, the stair and
-//                  its vestibule, the hallway's bins and night lights).
+//                  its vestibule, the hallway's bins, night lights and drinking fountain: 0.0.4, on the
+//                  south wall between Head A's door and the bin, so R has a fountain to drink at).
 //   CORE_1, CORE_2 the core's rooms, doors and pieces on each floor (the company's offices, the lobby
 //                  with the duty desk and its two-faced clock, the vestibule, the main stair, the duty
 //                  room and the mail room; upstairs the classroom and the study room).
@@ -364,6 +365,7 @@ export const WING_FIXTURES = deepFreeze([
   F('stair-{s}', 'sign-1', 'sign', 'exit', 80.095, 15.5, 'right', { y: 2, floor2: {  } }),
   F('stair-{s}', 'extinguisher-1', 'bin', 'extinguisher', 82.1, 10.3, 'down'),
   F('vest-{s}', 'sign-1', 'sign', 'exit', 83, 17.605, 'up', { y: 0.8, floor1: {  } }),
+  F('hall-{p}', 'fountain-1', 'waterFountain', 'wall', 61, 9.775, 'up'),
   F('hall-{p}', 'bin-1', 'bin', 'bin', 63, 9.72, 'up'),
   F('hall-{p}', 'extinguisher-1', 'bin', 'extinguisher', 74.3, 9.72, 'up'),
   F('hall-{p}', 'night-1', 'emergencyLight', 'night', 51, 7.74, 'down', { y: 0.3 }),

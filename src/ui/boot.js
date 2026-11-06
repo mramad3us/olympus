@@ -10,10 +10,15 @@
 // kept, Standard or Ironman, for the whole career (the user, 2026-11-05). The career opens in Echo's
 // barracks on Monday, Sol 590 of MY 211, at 12:40 Melas time (CONTRACTS §3).
 //
+// The title's Tests (ROADMAP §2.2, first used at v0.0.4): a page of the test scenes on the same
+// paper (cards/tests.js), each started with its goal and scored at its end; Esc or Back returns.
+//
 // In play, cards of dark glass, each built by its own module and hosted here: the menu (Esc:
 // cards/menu.js, with the sound's volume and mute), the keys ('?': cards/keys.js, every key this
-// build gives a meaning, labelled AZERTY), the log (J: cards/log.js, its last lines), and the bench's
-// result (cards/bench.js). Each card that opens tells main.js through cb.overlay(name, open), and
+// build gives a meaning, labelled AZERTY), the log (J: cards/log.js, its last lines), the bench's
+// result (cards/bench.js), and the 0.0.4 round's, opened by main.js through openCard: PERSONNEL (C:
+// cards/sheet.js), the choices (R held: cards/choose.js), the late card (cards/late.js), a test
+// scene's end card and its score card (cards/end.js, cards/score.js). Each card that opens tells main.js through cb.overlay(name, open), and
 // main.js holds a pause reason for it while it is open (DESIGN.md, Time: "an open overlay pauses")
 // and hides the HUD under it (VIEWS §7.5: the card alone, never the HUD drawn through the glass). A
 // card's lines are numbered and a digit picks one (read by code: AZERTY's top row types & é " '
@@ -24,6 +29,7 @@
 import { menuCard } from './cards/menu.js';
 import { keysCard } from './cards/keys.js';
 import { logCard } from './cards/log.js';
+import { testsPage } from './cards/tests.js';
 
 const el = (tag, props = {}, ...kids) => {
   const n = Object.assign(document.createElement(tag), props);
@@ -40,7 +46,8 @@ const ago = (ms) => {
 /**
  * cb: { newCareer(mode), continueFrom(slot), loadFile(), resume(), saveFile(), report(), quit(), overlay(name, open),
  * keysRows() (the keys card's [[key, words]…]: cards/keys.js keysRows), logLines() (the log card's lines: cards/log.js
- * logLines), sound() ({ volume, muted } now, or null), volume(v), mute(on) }.
+ * logLines), sound() ({ volume, muted } now, or null), volume(v), mute(on), scenes() (the test scenes, src/data/scenes.js's
+ * records in order), playScene(scene) }.
  */
 export function createBoot({ root = document.body, cb }) {
   const title = el('div', { id: 'title', hidden: true });
@@ -63,6 +70,7 @@ export function createBoot({ root = document.body, cb }) {
       item('New career: enlist', 'Out of boot camp, a private of the MCRN Marine Corps, posted to a rifle platoon at Marine Corps Base Melas, on the floor of the Mariner Valley.', () => showEnlist(), 'item lead career'),
       el('hr'),
       item('Load a save file…', 'A .json save exported from the menu (Esc), from this browser or another.', () => cb.loadFile(), 'item load'),
+      (cb.scenes?.() ?? []).length ? item('Tests: scenes to play and score', 'Each new mechanic first as a scene of its own: play it, then score it and paste the line back.', () => showTests(), 'item tests') : null,
       el('hr'),
       el('p', { className: 'note', textContent: 'Keys are read by where they sit on the keyboard, so they work on any layout; they are labelled AZERTY (Z Q S D to walk). In play, ? shows them all, Space pauses, Esc is the menu.' }),
     ));
@@ -102,9 +110,16 @@ export function createBoot({ root = document.body, cb }) {
     items[at < 0 ? 0 : (at + step + items.length) % items.length].focus();
   });
 
+  function showTests() {
+    page = 'tests';
+    title.replaceChildren(testsPage({ scenes: cb.scenes?.() ?? [], version: titleArgs?.version ?? '?', onPick: (scene) => cb.playScene?.(scene), onBack: () => back() }));
+    title.hidden = false;
+    title.querySelector('.item.scene')?.focus();
+  }
+
   const hideTitle = () => { title.hidden = true; page = null; };
-  /** Esc on the title's pages: from enlistment back to the title. */
-  function back() { if (page === 'enlist' && titleArgs) showTitle(titleArgs); }
+  /** Esc on the title's pages: from enlistment or the tests back to the title. */
+  function back() { if ((page === 'enlist' || page === 'tests') && titleArgs) showTitle(titleArgs); }
 
   // ---- glass cards ----
 
@@ -144,7 +159,7 @@ export function createBoot({ root = document.body, cb }) {
   function openLog() { openCard('log', logCard(cb.logLines?.() ?? [])); }
 
   return {
-    showTitle, showEnlist, hideTitle, back, openMenu, openKeys, openLog, openCard, closeCard,
+    showTitle, showEnlist, showTests, hideTitle, back, openMenu, openKeys, openLog, openCard, closeCard,
     /** A digit while a card is open: its line, if it has one. */
     digit(n) { const b = picks[(n === 0 ? 10 : n) - 1]; if (b) b.click(); return !!b; },
     get card() { return card; },

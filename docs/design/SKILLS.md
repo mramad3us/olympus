@@ -2,7 +2,7 @@
 
 The skill list, the one roll, Warfighting, growth, training, rust, fitness, NPC skill levels, reading people, the feel and the instinct line. DESIGN.md is the hub and wins where the two disagree.
 
-Written 2026-11-05 from DESIGN.md and the research notes: `tradecraft-design-1.md` §10 (skills and checks, growth, rust, fitness), `tradecraft-design-2.md` §5, §6, §12 (the feel, XP, Read), `tradecraft-design-3.md` §6, §7 (tutorial, backgrounds, belief), `tradecraft-sim-combat.md` §1, §10.5, `tradecraft-sim-world.md` §8, §10.2 (perception, Read, instinct), `longhaul-shipboard.md` §13 and `longhaul-setting.md` §14, §17 (rank gates). Code read for the numbers that actually run: tradecraft `src/sim/{skills,checks,xp,training,rust,fitness,know,belief,sense,instinct}.js`, `campaign.js` (BACKGROUNDS), `career.js` (FLOORS). The tables below were computed from those formulas with a scratch script. Aligned the same day with `CONTRACTS.md`, the shared contracts (ids, the fitness module's home, the milestone numbers), which this section cites rather than restates.
+Written 2026-11-05 from DESIGN.md and the research notes: `tradecraft-design-1.md` §10 (skills and checks, growth, rust, fitness), `tradecraft-design-2.md` §5, §6, §12 (the feel, XP, Read), `tradecraft-design-3.md` §6, §7 (tutorial, backgrounds, belief), `tradecraft-sim-combat.md` §1, §10.5, `tradecraft-sim-world.md` §8, §10.2 (perception, Read, instinct), `longhaul-shipboard.md` §13 and `longhaul-setting.md` §14, §17 (rank gates). Code read for the numbers that actually run: tradecraft `src/sim/{skills,checks,xp,training,rust,fitness,know,belief,sense,instinct}.js`, `campaign.js` (BACKGROUNDS), `career.js` (FLOORS). The tables below were computed from those formulas with a scratch script. Aligned the same day with `CONTRACTS.md`, the shared contracts (ids, the fitness module's home, the milestone numbers), which this section cites rather than restates. Revised 2026-11-06 for v0.0.4 as built (the build sheet `docs/build/0.0.4.md`): the instinct's `settle()` and its first eleven rules (§14.3, §14.4, §15.4).
 
 Conventions. "The user, date" is the user's own words or decision. Quotes dated before 2026-11-05 were said about tradecraft and carry over as the user's tastes. "(my call)" marks this section's own choices, which hold until the user overrules them. Every value is an integer unless its name carries a unit. Every person is generated (the user, 2026-11-05: "All people generated"), so the people named in this section's examples (Pvt Okoye, Corporal Diaz, Sergeant Ruiz, Varga on the net) are examples of what PEOPLE's generator draws, never written characters. Revised 2026-11-06: §6.2's line-career rows re-run on the 10-sol standby and the 6.9-day voyage (CONTRACTS §3, §14); the DI generated (§14.1); `hecate-line` at Ophir Chasma (§10.2).
 
@@ -1113,6 +1113,8 @@ The user, 2026-11-05 (DESIGN.md, Controls): "T: the instinct's line (the drill i
 7. **Humour** only on calm and note lines, at most one aside every `HUMOUR_GAP_S` 300 s of lived time, never on urgent or warn lines and never about a death. Picked by hash, never by dice.
 8. **The player's setting** (VIEWS): full (the default), quiet (warn and urgent only), or off except urgent.
 
+**As built in v0.0.4** (`src/sim/skills/instinct.js`, tradecraft's `settle()` ported; `LINE_MIN_MS` 3,000, `REPEAT_MS` 60,000, `HUMOUR_GAP_MS` 300,000; the line in `state.$instinct`, §15.4). It runs in the fast layer `offers` on whole seconds and on the first tick after a skip or a load. At most one line and one chip: **a calm line never takes the chip**, and the chip gives its rule's `short` words (two or three: every rule has them; the HUD cuts a chip without them to its first sentence). **T acts only where its act is at hand** (the build sheet's §8 item 12): get up, dress at your own rack's foot or your locker, the activity of the fixture you stand at; a line that sends you somewhere says where, and its T does nothing until the player's paths come. T acts only while the line's rule still fires with that act (`instinctAction`); T sent with no line seen does nothing; "T held" shows only on a chip with an act. **The needs speak only to a standing player**: lying awake the line is `woke`, and in a drill the klaxon's `alarm`. A line held back while time stands still is not counted as gone, so it returns at once when time runs again, and a line's words are picked again when its rule's case changes (the klaxon's: up, then dress, then your rack). While a rise plays the alarm still says "Up" and T waits; the dressing line and its act come together once you stand. Silent in a splash; only urgent lines while time stands still.
+
 ### 14.4 The DI at Base Melas (the first playable's rules)
 
 | Id | Tone | When (source) | T does | A line (tier 1) |
@@ -1133,6 +1135,24 @@ The user, 2026-11-05 (DESIGN.md, Controls): "T: the instinct's line (the drill i
 | `rusty` | note | a rusty skill whose keeper is open in free time (§7) | walk there | "The range is open till 1800. Your shooting's gone soft." |
 | `rack` | note | lights out within 10 min (TIME) | walk to the rack | "Lights out in ten. The rack is the one place nobody yells at you." |
 | `situation` | calm | nothing else applies (TIME) | none | "Free time till 2100. Spend it like it costs something. It does." |
+
+**As built in v0.0.4** (`src/sim/skills/instinct/base.js`; tier 1 only, at least four phrasings each, every rule with its chip's `short`): eleven rules, most pressing first, reading only what the character knows (the body as felt through BODY's `stagesOf`, the wrist's clock, where they stand, what they wear). This table's `need` is split by ledger, and `alarm` is the alert drill's:
+
+| Id | Tone | When | T does | A line |
+|---|---|---|---|---|
+| `alarm` | urgent | a drill open and you not mustered, or mustered and gone from your rack | get up, then dress at your rack (the line's words follow: up, dress, your rack) | "Klaxon. Up, utilities, the foot of your rack. Five minutes."; past the count "You missed the count. Utilities, your rack, now." (never the count's time once it is past) |
+| `need-bladder` | warn | the bladder at need, or could go at your rack after 21:00 | the head, at a urinal or a stall | "Your bladder has opinions. The head is across the hall." |
+| `need-bowel` | warn | the bowel at need | a stall | |
+| `need-thirst` | warn | thirsty | a drink, at a tap, a fountain or a machine | |
+| `need-hunger` | warn | hungry | a bar, at the mail room's machine | "The mail room's machine has bars." |
+| `need-sleep` | warn; a note from 21:00 to taps | exhausted any time, or tired after taps; tired before taps is a note | sleep, at your rack | "Taps at 22:00. You will sleep tonight." |
+| `need-dirt` | warn | unwashed, from 05:00 to 21:50 | a shower, at a stall | |
+| `woke` | note | lying awake in the rack, no drill open | get up; between taps and reveille, back to sleep in the berth, or the head when the bladder is at need | "Back to sleep. Reveille is at 05:30."; "The head, then back in the rack." |
+| `rack` | note | 21:50 to 22:00, away from your rack | none (the line says where) | "Taps at 22:00. Be in your rack for it." |
+| `stubble` | note | over 20 h on a face that grows it (BODY §6), 05:00 to 21:50 | the basin, at a sink | "Shave. Head A has mirrors." |
+| `situation` | calm | nothing else applies: in a drill, stand fast at your rack until the stand-down; by day free time; evenings taps; nights sleep | in a drill, standing at your rack in utilities: stand fast | "At your rack, eyes front. The stand-down is at 03:00." |
+
+**While a drill is open nothing sends you from your rack** (the integrator's call: mustered at 02:35 the DI had said "Shave. Head A has mirrors."): the needs, the stubble and taps keep quiet, the bladder and the bowel speaking only at urgent, and the calm line is to stand fast, never with humour. **No grooming lines from 21:50 to 05:00**, and by day the calm line no longer sends you to a squad board you cannot read (the review of v0.0.4). `late` and `next` before Plan of the Day blocks come with the blocks (0.0.14); the walking acts ("walk to the head") with the player's paths.
 
 ### 14.5 The DI in the field (later milestones; COMBAT supplies the facts)
 
@@ -1233,7 +1253,7 @@ An opposed roll is `{ "kind": "opposed", "ours": side, "theirs": side, "ok", "ma
                "gone": { "salute": 18240000 }, "humourAt": 18100000, "net": [ { "fromId": "p<n>", "text": "…", "until": 18295000 } ] }
 ```
 
-It is rebuilt from the state each tick, so a load only forgets the repeat timers. The newest order waiting for an answer (B's target) is not kept here: it is PEOPLE's and COMBAT's order record, read through.
+It is rebuilt from the state each tick, so a load only forgets the repeat timers. The newest order waiting for an answer (B's target) is not kept here: it is PEOPLE's and COMBAT's order record, read through. As built in v0.0.4, `instinctNow(state)` gives `{ line: { id, voice: 'di', tone, text, act, ms } | null, chip, keys: [], queued, gone, humourAt }`, and T sends `{ act: 'instinct', args: { id, act, chip } }` for the line shown when the key went down.
 
 ---
 

@@ -33,7 +33,13 @@
 // symmetric about its middle column. Each cell also carries its part's pattern coordinates (u, v: the
 // pixel's offset from the part's origin joint), so a camouflage pattern moves with the sleeve.
 // The frame also reports its muzzle and the flash's kind (side on, a burst along the barrel; at you or
-// away, a star) for the render's flash card, and the cell's anchor (body.js). Pure.
+// away, a star) for the render's flash card, and the cell's anchor (body.js).
+// 0.0.4: a pose may leave its legs out (noLegs: the berth's blanket holds them), sit on its pelvis
+// (ground 'pelvis'), turn its head (a look) or its eyes (a glance), drop it a pixel (tired); the towel
+// (outfits.js: a towel wrapped at the waist, bare chested, or at the chest for a woman; shower shoes)
+// is a wrap drawn over both thighs as one part, so it reads as cloth, not shorts; wet hair (the look's
+// cue after a shower) is the hair's own colour darker, with a wet sheen on its crown, and on a shaved
+// head a glint on the scalp. Pure.
 import { PX_PER_M } from '../../render/scale.js';
 import { bodyOf } from './body.js';
 import { poseOf, cellKind, AIM_TILT, KICK_TILT } from './poses.js';
@@ -58,6 +64,10 @@ const F = [1, 0, 0], LEFT = [0, 1, 0], UP = [0, 0, 1];
 const FACING = {
   down: { f: [0, 1], l: [1, 0] }, up: { f: [0, -1], l: [-1, 0] }, right: { f: [1, 0], l: [0, -1] }, left: { f: [-1, 0], l: [0, 1] },
 };
+
+/** A look's head, a quarter turn to the body's right, as the picture shows it; a glance (from the side or behind: toward the camera, or over the shoulder). */
+const HEAD_TURN = { down: 'left', up: 'right', right: 'down', left: 'up' };
+const GLANCE = { up: 'right', right: 'down', left: 'down' };
 
 /** A stance's orientation: where the standing body's forward, left and up go (prone falls forward, supine back). */
 const ORIENT = {
@@ -121,7 +131,10 @@ export function solve(pose, B) {
   for (const s of ['r', 'l']) { const f = J.foot[s]; f.heel = turn(f.heel); f.toe = turn(f.toe); f.top = turn(f.top); f.dir = turn(f.dir); }
   for (const sl of J.slices) sl.c = turn(sl.c);
   J.up = turn(UP); J.fwd = turn(F); J.left = turn(LEFT);
-  if (pose.stance !== 'float') {
+  if (pose.ground === 'pelvis') {
+    // (sitting on the mattress: the seat of the body on the ground, the legs out along it)
+    shift(J, [0, 0, -J.pelvis[2] + B.thighThick * 0.5 + (pose.lift ?? 0)]);
+  } else if (pose.stance !== 'float') {
     const low = [];
     for (const s of ['r', 'l']) { low.push(J.foot[s].heel[2], J.foot[s].toe[2], J.knee[s][2] - B.shinThick / 2); }
     if (o) for (const sl of J.slices) low.push(sl.c[2] - Math.abs(J.chestF[2]) * sl.d - Math.abs(J.left[2]) * sl.w);
@@ -357,7 +370,7 @@ function quarter(t, bw, bh, q) {
   return { t: { x, y, rows }, bw: W, bh: H };
 }
 
-const ROLE_ARM = { blouse: ['t', 't'], tee: ['t', 's'], suit: ['p', 'p'], coverall: ['t', 't'] };
+const ROLE_ARM = { blouse: ['t', 't'], tee: ['t', 's'], suit: ['p', 'p'], coverall: ['t', 't'], bare: ['s', 's'], towelChest: ['s', 's'] };
 
 /**
  * One frame of a look (outfits.js wear(), or a raw look), facing dir: { cells (rows of { ch, part, u, v, t }
@@ -366,7 +379,7 @@ const ROLE_ARM = { blouse: ['t', 't'], tee: ['t', 's'], suit: ['p', 'p'], covera
  */
 export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
   const Lk = look?.top ? look : wear(look);
-  const B = bodyOf(ppm), pose = poseOf(frame, { weapon: Lk.weapon, carry: Lk.carry });
+  const B = bodyOf(ppm), pose = poseOf(frame, { weapon: Lk.weapon, carry: Lk.carry, tired: !!Lk.tired });
   const kind = cellKind(frame, dir), cell = B.cell[kind];
   const J = solve(pose, B), rig = rigOf(pose, J, B, Lk, dir);
   if (rig) for (const s of ['r', 'l']) if (rig.hand[s]) {
@@ -387,15 +400,15 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
   const T = B.thick;
 
   // Legs: thigh and shin one part, the boot its own (a dark line where the trouser meets it).
-  for (const s of ['r', 'l']) {
+  for (const s of pose.noLegs ? [] : ['r', 'l']) {
     const hip = J.hip[s], knee = J.knee[s], ankle = J.ankle[s], ft = J.foot[s];
     const d = (P.depth(hip) + P.depth(knee) + P.depth(ankle)) / 3 - 0.04;
     op(d, () => {
       const a = pp(hip), k = pp(knee), b = pp(ankle);
       g.begin(a[0], a[1]);
-      const legRole = legsKind === 'shorts' ? (kk) => (kk < 0.55 ? 'p' : 's') : 'p';
+      const legRole = legsKind === 'shorts' ? (kk) => (kk < 0.55 ? 'p' : 's') : legsKind === 'towel' ? (kk) => (kk < 0.7 ? 'p' : 's') : 'p';
       g.capsule(snap2(a, T.thigh), snap2(k, T.thigh), T.thigh / 2, legRole);
-      const shinRole = legsKind === 'shorts' ? (kk) => (kk > 0.62 ? 'ŝ' : 's') : legsKind === 'coverall' ? (kk) => (kk > 0.35 && kk < 0.55 ? 'i' : 'p') : 'p';
+      const shinRole = legsKind === 'shorts' ? (kk) => (kk > 0.62 ? 'ŝ' : 's') : legsKind === 'towel' ? 's' : legsKind === 'coverall' ? (kk) => (kk > 0.35 && kk < 0.55 ? 'i' : 'p') : 'p';
       g.capsule(snap2(k, T.shin), snap2(b, T.shin), T.shin / 2, shinRole);
     });
     op(P.depth(ft.toe) / 2 + P.depth(ft.heel) / 2 - 0.035, () => {
@@ -414,6 +427,9 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
     g.poly(pts, torsoRole);
     torsoDetails(g, torsoPart, Lk, J, P, pp, B, dir, pose);
   });
+  // The towel: one wrap over the hips and both thighs to above the knees (a skirt of cloth, not two legs),
+  // its rolled top edge a darker row; under a blanket (noLegs) only its top shows.
+  if (legsKind === 'towel' && !pose.noLegs) op(torsoDepth + 0.004, () => towelWrap(g, J, P, pp, B));
   // The plate carrier (a slab over the chest, front and back) and its pouches; the vac suit's pack.
   if (Lk.armour) {
     op(torsoDepth + 0.005, () => carrier(g, Lk, J, P, pp, B, dir));
@@ -435,6 +451,16 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
       g.capsule(snap2(a, T.arm), snap2(e, T.arm), T.arm / 2, shell);
       g.capsule(snap2(e, T.fore), snap2(w2, T.fore), T.fore / 2, (k) => (top === 'suit' && k > 0.82 ? 'ð' : foreRole));
       g.capsule(snap2(w2, T.hand), snap2(h2, T.hand), T.hand / 2, Lk.gloves ? 'd' : 's');
+    });
+  }
+  // What the right hand holds at the sink: a toothbrush (its white handle, the bristles), a razor (steel).
+  if (pose.held) {
+    const el = J.el.r, wr = J.wr.r, dirH = norm(sub(wr, el)), tip = add(wr, mul(dirH, B.hand * 0.6));
+    op(Math.max(P.depth(wr), P.depth(J.neckTop)) + 0.08, () => {
+      const a = pp(tip), b = pp(add(tip, mul(dirH, pose.held === 'brush' ? 0.16 : 0.08)));
+      g.begin();
+      g.capsule(snap2(a, 1), snap2(b, 1), 0.55, pose.held === 'brush' ? 'w' : 'v');
+      if (pose.held === 'brush') g.put(Math.floor(b[0]), Math.floor(b[1]), 'i');
     });
   }
   // The weapon (and a loose magazine, a sling, a holster).
@@ -529,7 +555,9 @@ function torsoDetails(g, part, Lk, J, P, pp, B, dir, pose) {
     const fromTop = H - t, abs = Math.abs(s), bodyRight = s * rightSign > 0;
     let ch = null;
     // (below the waist, the shorts or the suit's skin: a T-shirt and the suit's hard shell stop there)
-    if ((top === 'tee' || top === 'suit') && t < waistT) ch = 'p';
+    if ((top === 'tee' || top === 'suit' || top === 'bare') && t < waistT) ch = 'p';
+    // (a towel at the chest: bare shoulders above it, its tucked edge a darker row)
+    if (top === 'towelChest') { if (fromTop < H * 0.2) ch = 's'; else if (fromTop < H * 0.2 + px) ch = 'T'; else if (t < waistT) ch = 'p'; }
     // (the belt, all round; its buckle in front)
     if (Lk.belt && top !== 'tee' && Math.abs(t - waistT) < px * 0.75 + 0.01) ch = view === 'front' && abs < px * 1.2 ? 'g' : 'y';
     if (top === 'suit' && Math.abs(t - waistT) < px * 0.6) ch = 'ð';
@@ -561,6 +589,23 @@ function torsoDetails(g, part, Lk, J, P, pp, B, dir, pose) {
     if (H - t < px * 1.05 && view !== 'side') c.ch = 'i';
   }
   void pose;
+}
+
+/** The towel wrapped at the waist: one polygon over the hips and both thighs to above the knees, its rolled top a darker row. */
+function towelWrap(g, J, P, pp, B) {
+  const pts = [];
+  const across = mul(J.left, B.hipHalf + 0.6 / B.ppm), deep = mul(J.chestF, B.waistDepth + 0.4 / B.ppm);
+  const waist = lerp(J.pelvis, J.neckBase, 0.12);
+  for (const sx of [-1, 1]) for (const sd of [-1, 1]) pts.push(pp(add(add(waist, mul(across, sx)), mul(deep, sd))));
+  for (const s of ['r', 'l']) {
+    const k = lerp(J.hip[s], J.knee[s], 0.72), th = B.thighThick / 2 + 0.5 / B.ppm;
+    for (const sx of [-1, 1]) for (const sd of [-1, 1]) pts.push(pp(add(add(k, mul(J.left, sx * th)), mul(J.chestF, sd * th))));
+  }
+  const hulled = hull(pts).map(([x, y]) => [Math.round(x), Math.round(y)]);
+  const id = g.begin(...pp(waist));
+  g.poly(hulled, 'p');
+  const top = Math.min(...hulled.map(p => p[1]));
+  for (let x = Math.min(...hulled.map(p => p[0])); x <= Math.max(...hulled.map(p => p[0])); x++) g.on(id, x, top, 'P');
 }
 
 /** The plate carrier: a slab over the chest from the collarbones to above the belt, a pixel proud; three pouches across the belly in front; the back plate's drag handle behind. */
@@ -661,6 +706,8 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
     view = 'down';
     q = dir === 'down' ? 0 : dir === 'up' ? 2 : dir === 'right' ? -1 : 1;
   } else if (pose.stance === 'prone') view = dir;
+  else if (pose.head === 'turn') view = HEAD_TURN[dir];
+  else if (pose.head === 'glance' && dir !== 'down') view = GLANCE[dir];
   const kit = headKit(B.head.w, B.head.sideW, B.head.h);
   const K = kit[view];
   const [bw, bh] = K.box;
@@ -674,14 +721,15 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
   const crownV = pose.stance === 'prone' ? norm(add(J.up, mul(UP, 1.3))) : J.up;
   const o = P.p([0, 0, 0]), cu = P.p(crownV), cl = Math.hypot(cu[0] - o[0], cu[1] - o[1]) || 1;
   const crown = [(cu[0] - o[0]) / cl, (cu[1] - o[1]) / cl], ext = Math.abs(crown[0]) * W + Math.abs(crown[1]) * H;
-  const x0 = Math.round(nk[0] + crown[0] * ext / 2 - W / 2 + fwd * bw * 0.06), y0 = Math.round(nk[1] + crown[1] * ext / 2 - H / 2);
+  const x0 = Math.round(nk[0] + crown[0] * ext / 2 - W / 2 + fwd * bw * 0.06), y0 = Math.round(nk[1] + crown[1] * ext / 2 - H / 2) + (pose.headDrop ?? 0);
   const head = g.begin(x0, y0);
   g.tpl(box.t, x0, y0);
   const hat = Lk.head?.kind, sealed = hat === 'vac';
-  // (the face, painted on the head: the same part; behind a sealed visor, no face)
+  // (the face, painted on the head: the same part; behind a sealed visor, no face; a glance from the
+  // front moves the eyes a pixel to the body's right, the picture's left)
   if (!sealed) {
-    const f = T(pose.eyes === 'shut' ? K.shut : K.face).t;
-    if (f) f.rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.') g.on(head, x0 + f.x + i, y0 + f.y + j, ch); }));
+    const f = T(pose.eyes === 'shut' ? K.shut : K.face).t, sx = pose.head === 'glance' && view === 'down' ? -1 : 0;
+    if (f) f.rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.') g.on(head, x0 + f.x + i + sx, y0 + f.y + j, ch); }));
   }
   const style = Lk.hair?.style ?? 'crew', cropped = ['short', 'crew'].includes(style);
   const covering = hat && hat !== 'ring';
@@ -693,6 +741,37 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
     else if (view === 'up') { g.begin(x0, y0); g.tpl(T(K.nape).t, x0, y0); }
   }
   if (covering) { const t = T(K.hat[hat]).t; g.begin(x0, y0); g.tpl(t, x0, y0); }
+  // (foam: white at the mouth round the brush, or along the jaw for a shave: on the head's own lowest skin pixels)
+  if (pose.foam && !sealed && view !== 'up') {
+    const skin = [];
+    box.t.rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === 's') skin.push([x0 + box.t.x + i, y0 + box.t.y + j]); }));
+    const low = Math.max(...skin.map(p => p[1])), mid = (Math.min(...skin.map(p => p[0])) + Math.max(...skin.map(p => p[0]))) / 2;
+    const fwdX = view === 'right' ? 1 : view === 'left' ? -1 : 0, mouthY = low - Math.max(1, Math.round(H * 0.22));
+    for (const [x, y] of skin) {
+      const jaw = pose.foam === 'jaw' && y >= low - 1 && (fwdX === 0 || (x - mid) * fwdX >= 0);
+      const mouth = pose.foam === 'mouth' && Math.abs(y - mouthY) <= 0 && Math.abs(x - (mid + fwdX * W * 0.3)) <= 1;
+      if (jaw || mouth) g.on(head, x, y, 'w');
+    }
+  }
+  // (wet hair: a sheen on the crown, two pixels of the lens' glint toward the light, the upper left)
+  if (Lk.wet && !covering && !sealed && style !== 'bald') {
+    const hp = g.part, t = T(K.hair[style]).t, pts = [];
+    t.rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === 'h' && pts.length < 64) pts.push([x0 + t.x + i, y0 + t.y + j]); }));
+    const top = Math.min(...pts.map(p => p[1])), row1 = pts.filter(p => p[1] <= top + 1).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const mid = row1[Math.floor(row1.length * 0.3)];
+    if (mid) { g.on(hp, mid[0], mid[1] + 1, 'l'); g.on(hp, mid[0] + 1, mid[1] + 1, 'l'); if (B.ppm >= 20) g.on(hp, mid[0] + 2, mid[1] + 2, 'l'); }
+  }
+  // (a wet shaved head: the same glint on the scalp, on the head's own top skin pixels, so the shower
+  // shows on a bald marine too: seed 48213's player is one, and moment 3 asks for the wet head)
+  if (Lk.wet && !covering && !sealed && style === 'bald') {
+    const skin = [];
+    box.t.rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === 's') skin.push([x0 + box.t.x + i, y0 + box.t.y + j]); }));
+    if (skin.length) {
+      const top = Math.min(...skin.map(p => p[1])), row1 = skin.filter(p => p[1] <= top + 1).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const mid = row1[Math.floor(row1.length * 0.3)];
+      if (mid) { g.on(head, mid[0], mid[1] + 1, 'w'); g.on(head, mid[0] + 1, mid[1] + 1, 'w'); if (B.ppm >= 20) g.on(head, mid[0] + 2, mid[1] + 2, 'w'); }
+    }
+  }
   if (hat === 'ring') {
     // (the helmet off: the suit's neck ring round the collar)
     const w = Math.round((B.shoulderHalf * 0.75) * B.ppm), y = Math.round(nk[1]);

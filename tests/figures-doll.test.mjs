@@ -2,9 +2,12 @@
 //
 // Pure: the doll is painted in node at scale 1 (tradecraft's 64 × 140, 16 px/m) and 1.5 (24 px/m), and
 // the tests count what is drawn where: the visor hides the face, a used slot shows gold, every wound kind
-// marks the figure where its spot says. They print the sizes, the times and the counts.
-import { assert } from './helpers.mjs';
-import { doll, woundSpot } from '../src/art/doll/doll.js';
+// marks the figure where its spot says; 0.0.4 (the build sheet §5.3, VIEWS §4.2): every body mark draws
+// where it belongs (wet hair at the head, grime most on the legs, sweat on the top, stubble on the jaw,
+// the tired eyes, the hand at the belt and on the stomach), the PT kit and the towel dress it. They print
+// the sizes, the times and the counts.
+import { assert, fmt } from './helpers.mjs';
+import { doll, woundSpot, TIRED_SHOWS_K, BLADDER_SHOWS_K, HUNGER_SHOWS_K } from '../src/art/doll/doll.js';
 import { unword } from '../src/art/paint.js';
 
 const WALL = 0x383c4a, FLOOR = 0x2b2e3a, FLOOR_DARK = 0x1f2029, INK = 0x14151c, GOLD = 0xe7b84a;
@@ -77,6 +80,49 @@ export default [
       console.log(`      colours across the trousers (rows 80–95): utilities ${colours(u, 80, 95)}, vac suit ${colours(v, 80, 95)}; the rifle spans ${rifleRows} rows (85 cm is ${Math.round(85 * 0.72)})`);
       assert(colours(u, 80, 95) > colours(v, 80, 95) + 8, 'a pattern on the utilities');
       assert(rifleRows > 50, 'the rifle to its length');
+    },
+  },
+  {
+    name: 'the body on the doll (VIEWS §4.2, the build sheet 0.0.4 §2.3 (d)): wet hair, grime, sweat, stubble, tired eyes and shoulders, the hand at the belt, the hand on the stomach, each where it belongs and only there',
+    fn() {
+      const look = { outfit: 'utilities', head: null, skin: 'tan', hair: { style: 'short', color: 'brown' } };
+      const base = doll({ look, scale: 1 }), rows = [];
+      const where = (a, b) => { let n = 0, y0 = 999, y1 = -1, x0 = 999, x1 = -1; for (let y = 0; y < a.h; y++) for (let x = 0; x < a.w; x++) if (a.data[y * a.w + x] !== b.data[y * b.w + x]) { n++; y0 = Math.min(y0, y); y1 = Math.max(y1, y); x0 = Math.min(x0, x); x1 = Math.max(x1, x); } return { n, y0, y1, x0, x1 }; };
+      const cases = [
+        ['wet', { wetK: 1 }, (w) => w.y1 < 40 && w.n >= 6],
+        ['grime', { grimeK: 1 }, (w) => w.n > 150],
+        ['sweat', { sweatK: 1 }, (w) => w.y0 >= 26 && w.y1 <= 50 && w.n > 20],
+        ['stubble', { stubbleK: 1 }, (w) => w.y0 >= 20 && w.y1 <= 29 && w.n > 10],
+        ['tired', { tiredK: TIRED_SHOWS_K }, (w) => w.y0 >= 15 && w.n > 6],
+        ['bladder', { bladderK: BLADDER_SHOWS_K }, (w) => w.n > 60 && w.y1 > 95],
+        ['hunger', { hungerK: HUNGER_SHOWS_K }, (w) => w.n > 60 && w.y1 < 86],
+        ['just under the thresholds', { tiredK: TIRED_SHOWS_K - 0.01, bladderK: BLADDER_SHOWS_K - 0.01, hungerK: HUNGER_SHOWS_K - 0.01 }, (w) => w.n === 0],
+      ];
+      for (const [k, body, ok] of cases) {
+        const t0 = performance.now(), pm = doll({ look, body, scale: 1 }), ms = performance.now() - t0, w = where(base, pm);
+        rows.push(`${k} ${w.n} px (rows ${w.n ? `${w.y0}-${w.y1}` : '-'}, ${fmt(ms, 1)} ms)`);
+        assert(ok(w), `${k}: ${JSON.stringify(w)}`);
+      }
+      // (grime settles low: more specks below the knees than over the chest, row for row)
+      const g = doll({ look, body: { grimeK: 1 }, scale: 1 }), band = (y0, y1) => { let n = 0, f = 0; for (let y = y0; y < y1; y++) for (let x = 0; x < g.w; x++) { if (!figure(colourAt(base, x, y))) continue; f++; if (g.data[y * g.w + x] !== base.data[y * base.w + x]) n++; } return n / Math.max(1, f); };
+      rows.push(`grime's share of the figure: chest ${fmt(band(34, 50), 2)}, shins ${fmt(band(104, 124), 2)}`);
+      assert(band(104, 124) > band(34, 50), 'more dust low on the legs');
+      console.log(`      ${rows.join('; ')}`);
+    },
+  },
+  {
+    name: 'the doll in PT kit (the oxblood tee, grey shorts, bare legs, running shoes and socks) and in a towel (at the waist, or at the chest for a woman; shower shoes), wet and clean after the shower',
+    fn() {
+      const look = { head: null, skin: 'tan', hair: { style: 'short', color: 'brown' } };
+      const u = doll({ look: { ...look, outfit: 'utilities' }, scale: 1 }), pt = doll({ look: { ...look, outfit: 'pt' }, scale: 1 });
+      const tw = doll({ look, outfit: 'towel', body: { wetK: 1 }, scale: 1 }), tf = doll({ look: { ...look, hair: { style: 'bun', color: 'brown' } }, sex: 'f', outfit: 'towel', body: { wetK: 1 }, scale: 1 });
+      const oxblood = count(pt, c => { const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255; return r > g + 25 && r > b + 20 && r < 170; }, 14, 26, 50, 66);
+      const skinLegs = (pm) => count(pm, c => { const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255; return r > g && g > b && r - b > 40 && r > 120; }, 14, 84, 50, 120);
+      const skinChest = (pm) => count(pm, c => { const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255; return r > g && g > b && r - b > 40 && r > 120; }, 16, 34, 48, 52);
+      const legs = (() => { let n = 0; for (let y = 84; y < 120; y++) for (let x = 14; x < 50; x++) if (pt.data[y * pt.w + x] !== u.data[y * u.w + x]) n++; return n; })();
+      console.log(`      PT kit: ${oxblood} oxblood pixels on the tee, ${skinLegs(pt)} skin-toned on the shins, ${legs} pixels of leg apart from the utilities'; the towel: ${skinChest(tw)} of bare chest, a woman's ${skinChest(tf)}; the towel against PT kit ${diff(tw, pt)} pixels`);
+      assert(oxblood > 300 && skinLegs(pt) > 200 && legs > 500, 'PT kit');
+      assert(skinChest(tw) > 300 && skinChest(tf) < skinChest(tw) / 2, 'the towel at the waist, or at the chest');
     },
   },
 ];

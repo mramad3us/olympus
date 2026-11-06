@@ -2,7 +2,7 @@
 
 OLYMPUS: the shared contracts, in one place. Several sections build on the same names and numbers: the clock and its constants, the start, the Plan of the Day, the job slots, the budgets of a tick and a frame, the people a scene holds, the state's top-level keys, the ids, the bus facts, the save slots, the voyage profiles, the unit sizes, the air and the names of ships and places. Each contract has one owner section, which holds the reasoning. This appendix holds the canonical values, one line each, so that every other section cites `CONTRACTS §n` instead of restating a number that can drift. When the owner changes a value, the same change updates the line here. The hub (`docs/DESIGN.md`) wins over both until they agree; TECH §1.3's corrections hold over every section on implementation matters, and ROADMAP §3.4 holds on milestone numbers.
 
-Written 2026-11-05 from DESIGN.md, TECH §1.3, ROADMAP §3.4, SETTING §1.4 and the owners' sections as they stood that day. Where two owners still disagree, §19 names the disagreement and which value holds until it is settled. Revised 2026-11-06 for v0.0.2 as built (the slow mark, the debug skip keys, the start's 25.665 s, the facts and ids the code registers, the walker's collision, the compacted Melas plan) and for the settlements of §19's items 2, 4, 10 and 11 in DESIGN.md's decision log; and for the user's rule of 2026-11-05 that the world is handcrafted, so a chunk is decoded from committed ground data, never generated per world (§6). Revised again for v0.0.3 as built (the build sheet `docs/build/0.0.3.md`): the skip's engine (§2), the start's daylight (§3), the sight grid and the ground's windows (§6), the area-entry tick (§7), the `door` fact (§11), the sun's home (§13) and the Weapons Platoon's billets, open (§19).
+Written 2026-11-05 from DESIGN.md, TECH §1.3, ROADMAP §3.4, SETTING §1.4 and the owners' sections as they stood that day. Where two owners still disagree, §19 names the disagreement and which value holds until it is settled. Revised 2026-11-06 for v0.0.2 as built (the slow mark, the debug skip keys, the start's 25.665 s, the facts and ids the code registers, the walker's collision, the compacted Melas plan) and for the settlements of §19's items 2, 4, 10 and 11 in DESIGN.md's decision log; and for the user's rule of 2026-11-05 that the world is handcrafted, so a chunk is decoded from committed ground data, never generated per world (§6). Revised again for v0.0.3 as built (the build sheet `docs/build/0.0.3.md`): the skip's engine (§2), the start's daylight (§3), the sight grid and the ground's windows (§6), the area-entry tick (§7), the `door` fact (§11), the sun's home (§13) and the Weapons Platoon's billets, open (§19). Revised for v0.0.4 as built (the build sheet `docs/build/0.0.4.md`, §8 and §9): the splash's and the interrupts' constants (§2), the alert drill drawn (§3, §4), the night's job (§5), the night's sleep measured with a body (§7), the body on the person and the `*Id` rule (§9, §10), TIME's and BODY's facts (§11), the new helpers (§13), the numbering (§18) and the drill settled (§19, item 13).
 
 ---
 
@@ -40,7 +40,10 @@ Owner: TIME §1 and §2 (values), built in `src/core/clock.js` and `calendar.js`
 | Skip kinds and their step grid | `ff`: lived ticks; `outcome`, `out`: whole game minutes; `day`: whole hours, each cut at a slow contributor's next change, minutes while any contributor is not steady; `world`: event to event, no clock shown; every step ends on the 50 ms tick grid | the target gates whole steps, never cuts one (TECH §5.3, correction 19) |
 | A skip's engine | `skip.engine`: `ff` (lived ticks) or `outcome` (the grid above), set when the skip begins; `ff` for kind `ff`, and for `out` while a fight is live in the area (whatever its length) or under 120 s where the area allows a fast-forward (TIME §5.2), else `outcome`; an `out` skip whose fight closes goes on as `outcome` | the loop picks its mode by the engine, never the kind (TECH §3.6; TIME §4.5: a fight is never turned into an outcome around the player; §19 item 10, settled 2026-11-06). Built in v0.0.3: `beginSkip` sets it (`ff` for kind `ff`, or kind `out` while `fightLive`, a hook false until COMBAT's fights), and `engineOf()` reads an older record's engine from its kind |
 | The slow mark | `time.slowToMs`: how far the slow layer has stepped; every slow step spans [mark, t] and moves it, lived or skipped, so each moment of game time is stepped once | TECH §3.4, built in v0.0.2 |
-| Event times | whole seconds | `post()` floors `atMs` to the second |
+| Event times | whole seconds | `post()` floors `atMs` to the second; a clock time lands on its first whole second at or after it, so the watch reads it (02:30 at Melas on Tuesday Sol 591 is 02:30:00.091) |
+| The splash (TIME §6, built in v0.0.4, `src/sim/time/splash.js`) | the time-lapse `S(m) = clamp(1.4 + 0.95 ln(1 + m/4), 1.6, 8.0)` s; full from `FULL_FROM_MS` 180,000; `SPLASH_IN_S` 0.4, `SPLASH_HOLD_S` 0.8, `SPLASH_OUT_S` 0.5 (0.25 at prio 0); brief: `BRIEF_HOLD_S` 0.4 and no zoom; `DECEL_S` 0.35, `BEAT_S` 0.6, `WHIRR_S` 0.25, `CHUNK_OFFER_S` 1.2, `TICKER_GAP_S` 0.8, `SHORT_LAPSE_S` 1.0 (the debug skips); `SPLASH_IRIS_M` 3.5, `SPLASH_ZOOM` 3, `BRIEF_RING_M` 6; the ease's first 15% and last 20% at 40% of the middle's rate | a 10-minute shower 4.29 s in all, a night 22:00 to 05:30 7.67 s; a fast-forward's lapse runs at the engine's pace; no game time passes from the landing to the end of the zoom out (the `'splash'` pause) |
+| Interrupts (TIME §7, built in v0.0.4, `src/sim/time/interrupts.js`) | `PRIO` D 0, A 1, O 2, B 3, S 4 (5 ambient); `S_PER_SKIP` 1, `S_PER_SOL` 3 | sources this round: A the alert drill; O reveille, the drill's count and stand-down; B the body's crossings |
+| Activities (TIME §8, built in v0.0.4, `src/data/activities.js`) | `LIVE_MAX_MS` 45,000; `SPOT_REACH_M` 0.6; `FIXTURE_FREE_M` 0.5; `RESUME_MS` 600,000 (or 2 m away); `DRESS_MIN` PT kit 2, utilities 4, a towel 0, `UNDRESS_K` 0.6, `DRESS_HURRY_K` 0.5 in an open drill; `WATER_MIN` Melas 3; `SLEEP_MIN_MS` 1,200,000, `SLEEP_MAX_MS` 43,200,000; `NAP_MIN` 20, 45, 90; `WAIT_MS` 900,000 | TIME §8.1 to §8.4 hold the table |
 
 ## 3. The start and the first standby
 
@@ -60,7 +63,7 @@ The standby's lessons by weekday (CAREER §5.4 owns them; blocks are §4's):
 
 | Career sol | Weekday | What the calendar books |
 |---|---|---|
-| 0 | Monday | arrival at 12:40, the three stops; the 02:30 recall drill that night |
+| 0 | Monday | arrival at 12:40, the three stops; the week's alert drill on this night or the next, at a minute drawn from 00:30 to 04:30 (§4; the 02:30 pin withdrawn in v0.0.4) |
 | 1 | Tuesday | the rest of the check-in, the initial counselling; the weapons class |
 | 2 | Wednesday | the range (zero at 25 m, confirm at 300 m, a string); the suit loft |
 | 3 | Thursday | suit drill and the Tank; the combat lifesaver class and lane; field day; the defence committee's vote |
@@ -103,7 +106,7 @@ A training sol (Monday to Friday), Melas time:
 | Thursday | `maintenance` becomes field day, 16:30–18:30; `evening-chow` runs to 19:00 |
 | Friday | the platoon sergeant's inspection, bay and personal, 08:00–10:00; `train-a` 10:00–11:30; liberty from 17:15 |
 | Saturday, Sunday | holiday routine: reveille 07:00, brunch 08:00–11:00, dinner 17:00–18:30, taps 22:00; juniors on liberty back by 00:00 |
-| On standby | liberty within the recall radius (Redwater); one unannounced recall or alert drill a week. Until Redwater is built (0.2), the player's liberty is on base (CAREER §5.4, ROADMAP §5) and the people's Redwater liberty is an off-site override (PEOPLE §4.6) |
+| On standby | liberty within the recall radius (Redwater); one unannounced recall or alert drill a week. As built in v0.0.4 (`src/data/pod.js` `ALERT_DRILL`): the alert drill, an A interrupt, on a night and at a minute drawn from the world's seed (`stream(seed, 'time:alert-drill', week)`: the night `int(r, 7)`, the minute `int(r, 241)` after 00:30), so between 00:30 and 04:30 with the slip inside the night, and in the career's first week on one of its first two nights; the klaxon 45 s; the muster at your rack's foot in utilities, the count at +5 min and the stand-down at +30 (O events), lateness from the count by TIME §9.5's classes. Until Redwater is built (0.2), the player's liberty is on base (CAREER §5.4, ROADMAP §5) and the people's Redwater liberty is an off-site override (PEOPLE §4.6) |
 | Aboard ship | UTC; the same shape, reveille 06:00Z, taps 22:00Z, no slip; the `maintenance` block is field day every day aboard (PEOPLE §4.7, my call) |
 
 The night is 7 h 30 m on the clock and 8 h 09 m 35 s in the rack.
@@ -126,7 +129,7 @@ Owner: TIME §11.3 (the only slot table); the `every` grammar and the queue are 
 | `day@05:20Z` | conflict zones born, escalated, ended | world |
 | `day@07:00Z` | forces census and yards | world |
 | `local@00:00` | the per-day passes: everyone's schedules for the day, PEOPLE's per-sol pass (gossip, careers, arcs, the roster), BODY's daily work (bone, plasma, G stimulus, conditioning, vestibular, mass, ARS phases); TIME's `autosaveDay`, which asks the sol's autosave (`why: 'day'`, built in v0.0.2) | PEOPLE, BODY, TIME |
-| `local@20:00` | tomorrow's PoD published; the sol director | PEOPLE, TIME |
+| `local@20:00` | tomorrow's PoD published; the sol director (built in v0.0.4 as TIME's `solDirector`, which posts the night: taps, reveille and, on its drawn night, the alert drill, `src/sim/time/pod.js` `postNight`; a new game's `start` and a v0.0.3 save's upgrade post tonight's too) | PEOPLE, TIME |
 | `week@Sunday/20:00` | the week's duty roster and liberty list | PEOPLE |
 | `week@Monday/00:00` | the arc director | PEOPLE |
 | `every@<ms>` | absolute periods from the career's start (fitness weeks, rust's periods) | BODY, SKILLS |
@@ -198,7 +201,7 @@ Owner: TECH §16 (measured on the Mac, Chrome on ANGLE Metal, at 16 px/m (the us
 | JS heap; GPU memory | ≤ 300 MB, ≤ 20 MB growth in a 10-minute soak; ≤ 384 MB (people 48 MiB at B: three 4096² R8 layers of role indices and a 256 KiB colour-row table, VIEWS §3.7; v0.0.2's one RGBA8 4096² atlas is 64 MiB until the bands land) |
 | loop | at most 5 ticks a frame (`FRAME_CAP_MS` 250); `ff` up to `FF_TICKS_FRAME` 40 and `FF_FRAME_MS` 8; outcome skips `SKIP_FRAME_MS` 4 (8 for the prologue) |
 | a quiet outcome step | ≤ 0.05 ms |
-| an 8-hour sleep, quiet barracks | ≤ 25 ms: 480 minute steps and about 40 events, about 7 ms |
+| an 8-hour sleep, quiet barracks | ≤ 25 ms: 480 minute steps and about 40 events; measured in v0.0.4 with the player's body, 21:36 to reveille (8 h 34 min), 16 to 19 ms warm in the foreground (k 1.00), 35 to 45 ms the first, cold one; the time side alone (the queue, the slow mark, the squad's placing) 13.7 ms at k 4.04, about 3.4 ms at k 1 (TIME §5.10) |
 | an 8-hour sleep, a process not steady | ≤ 30 ms |
 | a chapter day | ≤ 30 ms |
 | the default voyage (6.9 days) carried on | ≤ 0.3 s over the day splashes (TIME §5.10) |
@@ -245,10 +248,10 @@ Owner: TECH §6.1. The top level is reserved; a new key needs a change there. In
 | `clock` | TIME (built by TECH) | `{ ms, tick, holds, seq }` |
 | `rng` | TECH | named streams |
 | `events` | TIME (implemented by TECH) | the queue's heap array, saved as it is, and nothing else |
-| `skip` | TIME | the running skip, or null |
-| `time` | TIME | `{ chapter, voyage, pod, alarms, interrupts, liveSinceSaveMs, slowToMs }` and TIME's own additions (`director`, `stances`, `drills`, TIME §13) |
+| `skip` | TIME | the running skip, or null; v0.0.4 adds `spotId` (the activity's spot) and `held` (the O events an `O*` mask held) |
+| `time` | TIME | `{ chapter, voyage, pod, alarms, interrupts, liveSinceSaveMs, slowToMs }` and TIME's own additions (`director`, `stances`, `drills`, TIME §13). Built in v0.0.4: `pod` (the night posted), `drills { open, last, forced }`, `doing` (the activity under way), `resume` (a cut one R may finish), `chunk` (a chunked skip's landing, for "carry on"), `attend` (the last 50 arrivals at musters), `prefs` (`mute`), `interrupts { perSol, perSkip, sol }` |
 | `player` | PEOPLE | `{ id, actor, waypoint, presets, keeps }`; the person is `people[player.id]` |
-| `people` | PEOPLE | id-keyed persons only, each with `body` (BODY), `skills` (SKILLS), `kit` (WEAPONS) |
+| `people` | PEOPLE | id-keyed persons only, each with `body` (BODY), `skills` (SKILLS), `kit` (WEAPONS); the body lives here and its domain claims no top-level key (built in v0.0.4; BODY §2.5) |
 | `units` | PEOPLE | the unit tree and its billets |
 | `happenings` | PEOPLE | the ring of notable things, ids `n<n>` (PEOPLE §2.5's "event log", renamed) |
 | `actors` | PEOPLE | `{ list, area }`, the live area's bodies in a stable order and the area they were made for (built in v0.0.3; TECH §6.1) |
@@ -265,9 +268,9 @@ Owner: TECH §6.1. The top level is reserved; a new key needs a change there. In
 
 | Rule | |
 |---|---|
-| `$` keys | runtime only, at any depth, stripped from saves; a domain's derived data sits under one root (`$places`, `$people`, `$events`, `$items`, `$world`, `$body`) |
+| `$` keys | runtime only, at any depth, stripped from saves; a domain's derived data sits under one root (`$places`, `$people`, `$events`, `$items`, `$world`, `$body`); the instinct's line is `$instinct` (SKILLS §15.4) |
 | Defaults | null, false, zero and empty fields are left out on disk (TECH §6.6, rule 1) |
-| A body | deltas from a template: `{ v, tmpl, …what differs }` (TECH §6.6, rule 2) |
+| A body | deltas from a template: `{ v, tmpl, …what differs }` (TECH §6.6, rule 2); `v` 2 from v0.0.4, the ledgers' record (BODY §2.5); only the player's is simulated this round, the squad's carry `{ v, tmpl, heightM, build }` |
 | A person's kit | `kit = { tmpl, worn: { <slot>: itemId }, hands: [right, left] }`; the suit is `kit.worn.suit` (TECH §6.7) |
 
 ## 10. Ids
@@ -314,7 +317,8 @@ Counted ids are `<prefix><n>`, the counter `meta.next[prefix]`, never reused in 
 | A gun | an item `i<n>` with `model: 'r7'`; its serial is a hash of its id (never `r7#p.3`) |
 | A portal | named by its opening or link id (`o:echo:front`, `l:echo:stairs-up`), never a `p:` form; a path request is counted (`pr5531`, never `pr:5531`) |
 | A household | a number inside the career, not an id (`h` is the hulls') |
-| Fields holding an id | `id`, `<role>Id`, `<role>Ids`, or `who` (`leaderId`, `subjectId`, `assignedIds`, `parentId`) |
+| Fields holding an id | `id`, `<role>Id`, `<role>Ids`, or `who` (`leaderId`, `subjectId`, `assignedIds`, `parentId`); a spot is `spotId`, a fixture `fixtureId` |
+| No data key in a `*Id` field | the ids walk reads every `*Id` field as a reference, so a data record's key or a number goes in a field named for what it is: a block `block`, an activity `activity`, a drill's sol `drill` (v0.0.4) |
 | Order | `cmpId`: kind, then number, then the rest (`p9` before `p10`); decisions iterate `ids(map)` |
 
 ## 11. Bus facts
@@ -324,10 +328,14 @@ Owner: TECH §2.7; every name is registered in `src/core/facts.js` with its owne
 | Fact | Payload | Owner |
 |---|---|---|
 | `hold` | `{ held, holds }` | TECH |
-| `skip-start` | `{ id, activity, kind, engine, fromMs, toMs, where, posture, mask }` (`engine` §2's, v0.0.3) | TIME |
+| `skip-start` | `{ id, activity, kind, engine, fromMs, toMs, where, posture, mask, spotId, vignette, stoppable, chunkMs }` (`engine` §2's, v0.0.3; the last four v0.0.4's) | TIME |
 | `skip-frame` | `{ id, atMs, ticker, frame }` | TIME |
-| `skip-interrupt` | `{ id, atMs, by, prio, line, reflex }` | TIME |
-| `skip-end` | `{ id, activity, fromMs, toMs, planned, interrupted, by, outcome, papers, minutes }` (`minutes`: the whole game minutes it passed) | TIME |
+| `skip-interrupt` | `{ id, atMs, by, prio, letter, kind, line, reflex }` (`letter` and `kind` v0.0.4's) | TIME |
+| `skip-end` | `{ id, activity, fromMs, toMs, planned, interrupted, by, outcome, papers, minutes }` (`minutes`: the whole game minutes it passed); `outcome` from v0.0.4 `{ body: { before, after }, look: { outfit, wet }, chunk: { offerMs } \| null, lines, failedRoll, activity, held }`, `chunk.offerMs` the offer's 1.2 s, the chunk's length being `skip-start`'s `chunkMs` | TIME |
+| `activity` | `{ phase: 'start' \| 'end', activity, who, spotId, fromMs, toMs, mode: 'live' \| 'ff' \| 'outcome', fraction, by, outcome }` (v0.0.4) | TIME |
+| `alert` | `{ drill, kind: 'drill', phase: 'sound' \| 'count' \| 'stand-down', atMs, dueMs, endMs, horn: { area, x, z } }`, the count adding who was present of the squad (v0.0.4) | TIME |
+| `reveille` | `{ atMs, area, holiday }` (v0.0.4) | TIME |
+| `late` | `{ who, block, dueMs, arrivedMs, lateMs, class }`, `class` TIME §9.5's (`on-time`, `late-minor`, `late`, `very-late`, `missed`) or `left` with `leftMs`, an arrival gone from the rack at the count or the stand-down (v0.0.4) | TIME |
 | `skip` | the legacy `loop.skip` report, `{ what, fromMs, toMs, requestedMs, elapsedMs, minutes, stopped, reason }`, kept for `skipNow`'s tests | TECH |
 | `autosave` | `{ why: 'skip' \| 'day' \| 'area' \| 'live' \| 'combat' \| 'death' \| 'edge' \| … }` | TIME and CAREER ask, TECH writes |
 | `log` | `{ entry }` | TECH |
@@ -341,7 +349,7 @@ Owner: TECH §2.7; every name is registered in `src/core/facts.js` with its owne
 | `sound` | `{ kind, x, y, z, area, db, src }` | VIEWS, PEOPLE |
 | `fx` | `{ kind, x, y, z, atMs, dir, size }` | WEAPONS, COMBAT, PLACES |
 | `papers` | `{ papers }` | TIME, CAREER |
-| `body-stage`, `body-event`, `body-interrupt`, `body-dead` | BODY §2.4 | BODY |
+| `body-stage`, `body-event`, `body-interrupt`, `body-dead` | BODY §2.4; as built in v0.0.4: `body-stage` `{ who, ledger, from, to, tone, words, atMs }`, `body-event` `{ who, kind: 'void' \| 'bowel' \| 'accident' \| 'asleep' \| 'woke' \| 'wash' \| 'groom' \| 'drink' \| 'eat', atMs, amount }`, `body-interrupt` `{ who, ledger, band, atMs }` (a crossing event dispatched); `body-dead` registered and not emitted (no death this round) | BODY |
 | `broke` | `{ where, message }` | TECH |
 
 ## 12. Saves: stores and slots
@@ -375,10 +383,15 @@ One quantity, one helper (the hub). Every screen and every system calls these; n
 | clocks and dates | `utc`, `msd`, `marsLocal`, `atMarsLocal`, `msAtMarsTime`, `localDay`, `dtg`, `formatDuration` | TIME §1, `src/sim/time/dates.js` over `core/calendar.js` |
 | transit times, felt G, place, lag | `voyagePlan`, `feltAt`, `placeAt`, `lagAt` | TIME §12, `src/world/voyage.js` |
 | a known threat | `threatKnown(state)` | COMBAT |
-| a roll's modifiers; capacities | `bodyMods`, `needMods`; `capacity(p)` | BODY §2.4 |
+| a roll's modifiers; capacities | `bodyMods`, `needMods`; `capacity(p)` (built in v0.0.4 as `bodyMods(state, pid, key)`, `needMods(state, pid, key)` and `capacityOf(state, pid)` in `src/sim/body/mods.js`) | BODY §2.4 |
+| a body as felt: its bands, cues, strip and words | `stagesOf`, `cuesOf`, `stripOf`, `wordsOf` (`src/sim/body/cues.js`, v0.0.4); the record `bodyOf(state, pid)`, brought to a moment by `bodySync` (`src/sim/body/body.js`) | BODY §2.4, §23 |
+| what the player is doing; whether the feet are held | `activityNow(state, ms)`, `feetHeld(state)` (`src/sim/time/doing.js`, v0.0.4) | TIME §8 |
+| the alert drill now | `alertNow(state, ms)`, `musterOf(state, pid)`, `mustered(state, pid, ms)` (`src/sim/time/alerts.js`, v0.0.4; the stage's beacon reads it) | TIME §9.5 |
+| the splash's pace | `lapseS`, `splashPlan`, `ease`, `targetAt` (`src/sim/time/splash.js`, v0.0.4; the HUD drives it, the stage draws to it) | TIME §6.2 |
+| what draws a person, and the pose between two | `figureOf(state, actor, ms)`, `poseAt(actor, ms)` (`src/sim/people/figure.js`, `place.js`) | PEOPLE §4.6 |
 | a roll's words | `rollText(roll)` | SKILLS |
 | the news | `world/news.js` (SETTING §7.7's timeline at 0.1, the live layer from 0.2) | TECH §5.8 |
-| gait speeds | BODY §16.1: walk 1.14 m/s on Mars, 1.45 at 1 G, 0.88 on Europa | BODY |
+| gait speeds | BODY §16.1: walk 1.14 m/s on Mars, 1.45 at 1 G, 0.88 on Europa; built in v0.0.4 as `gaitSpeeds` and `gaitsOf` (`src/sim/body/motion.js`), rounded to 0.01 m/s | BODY |
 | items moving | `arms/kit.js move(state, itemId, toHolder)` | WEAPONS |
 
 | Module rule | Home |
@@ -485,14 +498,14 @@ Owner: ROADMAP (§3.4 holds over every section's earlier proposal; the owners al
 
 | Rule | |
 |---|---|
-| Rows, not releases | patch numbers in ROADMAP's tables name an order, not a release: v0.0.1 shipped the look round (§4.1's 0.0.2 row) with the engine, v0.0.2 shipped the skeleton (the 0.0.3 row), and the next release, v0.0.3, ships the 0.0.4 row; CHANGELOG says which rows each release holds. A section citing "0.0.n" names ROADMAP's row |
+| Rows, not releases | patch numbers in ROADMAP's tables name an order, not a release: v0.0.1 shipped the look round (§4.1's 0.0.2 row) with the engine, v0.0.2 shipped the skeleton (the 0.0.3 row), v0.0.3 the 0.0.4 row (a walkable barracks on a laid-out base) and v0.0.4 the 0.0.5 row (needs and the first skip); CHANGELOG says which rows each release holds. A section citing "0.0.n" names ROADMAP's row |
 | 0.1.0 and 0.1.x | 0.1.0 is the core career; 0.1.x the patches that join the Tank, the G-house and the Long Arm, the lifesaver lane, the mat, the patrol, the ROE lane, office hours and the last roll call (ROADMAP §5.8) |
 | The world layer | the constants, the ephemeris, body facts, the faction, hull and name data and the display modules at 0.0.12; traffic, politics, conflict, forces, intel, gravity, Lambert, the spatial hash, the rails and the prologue together at 0.2; the 0.1 news archive is SETTING §7.7's authored timeline (correction 23) |
 | Later | Europa 0.3; ship combat 0.4 (fought from the troop transport); boarding, EVA and the frigate and corvette 0.5; reconnaissance 0.6; the Raiders 0.7; the long career and the squad leader's panel 0.8 |
 
 ## 19. Open between owners
 
-Each line names the value that holds until the owners settle it; the lead records the settlement in DESIGN.md's decision log. Re-checked 2026-11-06 against every section: items 2, 4, 10 and 11 were settled in DESIGN.md's decision log that day and are now in the owners' text (the second table); v0.0.3's build found item 12.
+Each line names the value that holds until the owners settle it; the lead records the settlement in DESIGN.md's decision log. Re-checked 2026-11-06 against every section: items 2, 4, 10 and 11 were settled in DESIGN.md's decision log that day and are now in the owners' text (the second table); v0.0.3's build found item 12; v0.0.4's build settled item 13, the alert drill.
 
 | # | Disagreement | Holds until settled |
 |---|---|---|
@@ -513,3 +526,4 @@ Settled in the owners' text since this file was written:
 | 9 | The Coprates-class hull: SETTING's 260 m record against PLACES's 240 m deck program | SETTING §1.4, §6.2 and §6.3 and PLACES §5.2 carry one hull (240 × 40 × 36 m, 52,000 t, crew 72, 1,150 troops, rated 3.5 G, 8 PDCs, eight Simooms and two pinnaces) and the 352 wave (§15) |
 | 10 | An `out` skip in a fight: TIME §4.5 ran it as a fast-forward of any length, TECH's loop sent every `out` to the outcome engine | settled 2026-11-06: a fight is never turned into an outcome around the player; TECH §3.6's loop picks its mode by `skip.engine`, and §5.9 holds the 12 ms row (§2, §7) |
 | 11 | Melas's latitude: PLACES wrote 10.4° S and called SETTING's record the owner, while SETTING named PLACES | settled 2026-11-06: 10.5° S, owned by PLACES §4.1 and carried by SETTING §3.8's `SITES.melas`; PLACES §3.15's terrain sunrise and sunset, rerun at 10.5° S, are unchanged to the minute (§3) |
+| 13 | The alert drill: CAREER §5.2 pinned the first to 02:30 on sol 0's night as an O wake event with a muster on the company street; TIME §9.2 drew the week's between 22:00 and 05:00, outside the slip; ROADMAP §4.1 named it an A interrupt | settled 2026-11-06 in building v0.0.4 (DESIGN.md's log): drawn from the world's seed between 00:30 and 04:30, the slip inside the night, the career's first on one of its first two nights; an A interrupt, its count and stand-down O events; the muster at your rack's foot, the count at +5 min, the stand-down at +30; the company street's muster with walking people at 0.0.9 (§3, §4; TIME §9.2, §9.5; CAREER §5.2) |

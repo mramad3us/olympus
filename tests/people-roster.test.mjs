@@ -25,13 +25,14 @@ import { seatOf, berthOf } from '../src/sim/places/fixtures.js';
 import { stream } from '../src/core/rng.js';
 import { SKIN, HAIR } from '../src/art/figures/outfits.js';
 import { placed } from '../src/sim/people/place.js';
+import { BODY_V } from '../src/sim/body/record.js';
 import { checkIds } from './ids-check.mjs';
 
 const SEED = 48213;
 /** Worlds the looks sweep rolls (each about 30 ms). */
 const SWEEP_WORLDS = 80;
 // (the roster's people key, digest pinned: PRINT_HASH=1 reprints it, said in CHANGELOG.md when it moves)
-const GOLDEN_ROSTER = '015b827a61b0dc';
+const GOLDEN_ROSTER = '034dbe60c69d1f';   // (0.0.4 re-set from 015b827a61b0dc: every body is written at BODY's record version, v 2)
 const ageY = (p) => (START_MS - p.bornMs) / DAY_MS / YEAR_D;
 const tisMo = (p) => (START_MS - p.service.enlistedMs) / DAY_MS / (YEAR_D / 12);
 const partsOf = (p) => ({ skin: p.look.skin, style: p.look.hair.style, color: p.look.hair.color });
@@ -147,7 +148,7 @@ export default [
         assert(p.look.hair.color !== 'grey' || ageY(p) >= 32, `${p.id}: grey at ${fmt(ageY(p))}`);
         const [lo, , hi] = HEIGHTS_M[p.sex];
         assert(p.body.heightM >= lo && p.body.heightM <= hi && p.body.heightM >= KIT.heightM[0] && p.body.heightM <= KIT.heightM[1] && KIT.builds.includes(p.body.build), `${p.id}: ${JSON.stringify(p.body)}`);
-        assert(p.body.tmpl === (p.sex === 'f' ? 'f-adult' : 'm-adult') && p.body.v === 1 && Number.isInteger(p.look.seed), `${p.id}: ${JSON.stringify(p.body)}`);
+        assert(p.body.tmpl === (p.sex === 'f' ? 'f-adult' : 'm-adult') && p.body.v === BODY_V && Number.isInteger(p.look.seed), `${p.id}: ${JSON.stringify(p.body)}`);
       }
       let closest = 3, pairs = 0, clashing = 0;
       for (const u of ROSTER_UNITS.filter(x => x.split('-').length === 4)) {
@@ -225,7 +226,9 @@ export default [
       }
       // (a game's roster is a bare roll's: the scenario adds nothing to the people but the actors)
       const g = createGame({ scenario: 'barracks', seed: SEED, hour: 23 });
-      assert(toJSON(rosterOf(g.state)) === ja, 'the barracks game\'s roster differs from a bare roll\'s (the hour moved it?)');
+      // (the identities only: a game's player has a start body, its ledgers BODY's, src/sim/body/record.js)
+      const ident = (s) => { const c = JSON.parse(toJSON(rosterOf(s))); for (const p of Object.values(c.people)) if (p.body) p.body = { v: p.body.v, tmpl: p.body.tmpl, heightM: p.body.heightM, build: p.body.build }; return JSON.stringify(c); };
+      assert(ident(g.state) === ident(a.s), 'the barracks game\'s roster differs from a bare roll\'s (the hour moved it?)');
       const d = golden(`the roster, seed ${SEED}`, rosterOf(a.s), GOLDEN_ROSTER);
       console.log(`      seed ${SEED} twice: ${ja.length} bytes, equal; seed ${SEED + 1}: different (${same} of ${Object.keys(a.s.people).length} ids with the same full name); ${checked} billets each their own stream's draw; the barracks game at 23:00 the same roster`);
       console.log(`      the roster's golden ${d} (${fmt(ja.length / 1024)} KB of people, units and names)`);

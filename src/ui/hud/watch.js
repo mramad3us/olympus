@@ -11,19 +11,26 @@
 //   utc      'Wed 19 Dec 2351 02:20 UTC', its second line, the clock ships and the Corps keep;
 //   place    the place as you know it: places' placeLine, the live area's name and the room you
 //            stand in ('Echo Company barracks · 1st Squad, 2nd Platoon').
+//   strip    the body strip folded in (VIEWS §7.6; hud/strip.js): only the glyphs whose felt band has
+//            left fine, so it is empty when all is well (pillar 1: not a row of meters to keep green), on
+//            the time row's left, where the large right-aligned time leaves room (my call: the watch keeps
+//            its four lines inside its 132 px).
 // watchFaces(state) is the pure part (the ui-watch test compares it with wallClockAt on a thousand
-// times); createWatch(parent) the DOM, in the WATCH rectangle (layout.js), written only when a face
-// changes, so a frame costs a string compare.
+// times); { ms } reads another time than the clock's, the splash's clock plaque the time shown
+// (hud/splash.js), from the same helper, so the plaque and the watch never disagree. createWatch(parent)
+// the DOM, in the WATCH rectangle (layout.js), written only when a face changes, so a frame costs a
+// string compare; update(state, { strip }) takes the strip's entries (BODY's stripOf, folded by main.js).
 import { marsClock, weekdayName } from '../../sim/time/dates.js';
 import { utcText } from '../../core/calendar.js';
 import { MIN_MS } from '../../core/clock.js';
 import * as places from '../../sim/places/model.js';
+import { createStrip, foldedOf } from './strip.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
-/** The watch's faces now: { time 'HH:MM', slip, slipMin, sol 'Sol 590 · MY 211', weekday 'Monday', utc, place }. */
-export function watchFaces(state, { lonEDeg = null } = {}) {
-  const ms = state.clock.ms, lon = lonEDeg ?? places.lonOf(state), c = marsClock(ms, lon);
+/** The watch's faces now (or at ms): { time 'HH:MM', slip, slipMin, sol 'Sol 590 · MY 211', weekday 'Monday', utc, place }. */
+export function watchFaces(state, { lonEDeg = null, ms: atMs = null } = {}) {
+  const ms = atMs ?? state.clock.ms, lon = lonEDeg ?? places.lonOf(state), c = marsClock(ms, lon);
   let place = '';
   try { place = places.placeLine?.(state) || ''; } catch { place = ''; }
   if (!place) place = places.liveArea(state)?.name ?? '';
@@ -41,12 +48,16 @@ export function createWatch(parent) {
   slip.hidden = true;
   timeRow.append(t, slip);
   root.append(timeRow, day, utc, place);
+  // (the strip on the time row's left, which the large right-aligned time leaves empty: the watch keeps its four lines)
+  const strip = createStrip(timeRow, { className: 'strip folded' });
+  timeRow.prepend(strip.el);
   parent.append(root);
   const put = (node, text) => { if (node.textContent !== text) node.textContent = text; };
   return {
     el: root,
-    update(state) {
+    update(state, { strip: entries = null } = {}) {
       const f = watchFaces(state);
+      f.strip = strip.update(entries ? foldedOf(entries) : []);
       put(t, f.time);
       slip.hidden = !f.slip;
       if (f.slip) put(slip, `TIMESLIP +${f.slipMin}`);

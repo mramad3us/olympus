@@ -11,10 +11,21 @@
 // fell inside a frame already drawn), and nothing while paused, held or skipping, nor a burst after.
 // And every recipe of src/data/sounds.js rendered and measured (peak, RMS, centroid, decay: VIEWS
 // §11.5's numbers), the same samples twice, its variants different.
+// The 0.0.4 round's (the build sheet §5.4, audio/world.js): the klaxon's level through 0, 1 and 2 walls
+// (by the horn in hall-2, in bay-2-1 at your rack through its door, in Head A, two rooms off in the
+// mail room; WALL_DB a wall and the low-pass halved), the splash's duck (the world at SPLASH_LP_HZ and
+// SPLASH_DUCK_DB with the iris closed, open with it open, eased between), the watch's tick (a tick a
+// shown minute, at most TICK_MAX_HZ: a 10-minute shower's 10 over its 2.6 s lapse, a night's steady
+// 10 Hz), the world's recipes (the water and the tap looping seamlessly, the flush, the klaxon's whoop
+// from 600 to 1,100 Hz, reveille's bugle, the tick) and which loop plays at which part.
 import { assert, near, fmt } from './helpers.mjs';
 import { footfalls, stepVoice, createStepScheduler, weightDb, lowpassHz, HALF_CYCLE_M } from '../src/ui/audio/steps.js';
 import { render, measure } from '../src/ui/audio/synth.js';
-import { STEPS, DOORS, AIR_KPA, LOOKAHEAD_S } from '../src/data/sounds.js';
+import { STEPS, DOORS, WORLD, AIR_KPA, LOOKAHEAD_S, WALL_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, TICK_MAX_HZ, KLAXON_HZ, WORLD_RATE_HZ } from '../src/data/sounds.js';
+import { klaxonVoice, wallsBetween, duckOf, createTicker, loopsAt } from '../src/ui/audio/world.js';
+import { areaOf } from '../src/sim/places/model.js';
+import { ALERT_DRILL } from '../src/data/pod.js';
+import { lapseS, ease } from '../src/sim/time/splash.js';
 import { airDb } from '../src/sim/people/hearing.js';
 import { STRIDE_WRAP_M } from '../src/data/body/gait.js';
 
@@ -171,6 +182,80 @@ export default [
       // (the surfaces sound apart: tile brightest, regolith darkest)
       const cen = (k) => measure(render(STEPS[k], { sampleRate: sr, name: k }), sr).centroidHz;
       assert(cen('tile') > cen('concrete') && cen('concrete') > cen('regolith'), JSON.stringify({ tile: cen('tile'), concrete: cen('concrete'), regolith: cen('regolith') }));
+    },
+  },
+  {
+    name: 'the klaxon through the walls: loudest by the horn in hall-2, muffled in bay-2-1 at your rack through its door and in Head A (one wall, −10 dB, the low-pass halved), fainter two rooms off',
+    fn() {
+      const area = areaOf('melas.echo.1'), horn = ALERT_DRILL.horn;
+      const at = [['hall-2, 2 m from the horn', { x: 55.7, z: 8.8 }], ['bay-2-1, your rack\'s foot', { x: 52.075, z: 3.3 }], ['Head A, at a shower stall', { x: 58.95, z: 16.4 }], ['the mail room', { x: 46, z: 22 }]];
+      const got = at.map(([what, me]) => { const w = wallsBetween(area, horn, me); return { what, w, v: klaxonVoice({ horn, me, walls: w, pKpa: AIR_KPA.floor, kind: area.kind }) }; });
+      for (const g of got) console.log(`      ${g.what}: ${fmt(g.v.distM, 1)} m, ${g.w} wall${g.w === 1 ? '' : 's'}: ${fmt(g.v.gainDb, 1)} dB against its recipe's peak, low-pass ${fmt(g.v.lowpassHz, 0)} Hz`);
+      assert(got[0].w === 0 && got[1].w === 1 && got[2].w === 1 && got[3].w === 2, JSON.stringify(got.map(g => g.w)));
+      assert(got[0].v.gainDb > got[1].v.gainDb && got[0].v.gainDb > got[2].v.gainDb && got[2].v.gainDb > got[3].v.gainDb, JSON.stringify(got.map(g => g.v.gainDb)));
+      const same = klaxonVoice({ horn, me: at[1][1], walls: 0 }), thru = klaxonVoice({ horn, me: at[1][1], walls: 1 }), two = klaxonVoice({ horn, me: at[1][1], walls: 2 });
+      near(same.gainDb - thru.gainDb, -WALL_DB, 1e-9, 'a wall');
+      near(thru.gainDb - two.gainDb, -WALL_DB, 1e-9, 'a second wall');
+      assert(Math.abs(thru.lowpassHz * 2 - same.lowpassHz) < 1e-9 && Math.abs(two.lowpassHz * 4 - same.lowpassHz) < 1e-9, 'the low-pass halved a wall');
+      console.log(`      at your rack's spot through 0, 1, 2 walls: ${[same, thru, two].map(v => `${fmt(v.gainDb, 1)} dB at ${fmt(v.lowpassHz, 0)} Hz`).join(', ')}; the air ${fmt(airDb(AIR_KPA.floor), 2)} dB`);
+    },
+  },
+  {
+    name: 'the splash\'s duck: the world at 900 Hz and −9 dB with the iris closed, open at 20 kHz and 0 dB with it open, eased between, closed throughout a brief splash; the tick once a shown minute, at most 10 Hz',
+    fn() {
+      const rows = [null, { form: 'full', inkK: 0 }, { form: 'full', inkK: 0.5 }, { form: 'full', inkK: 1 }, { form: 'brief', inkK: 0 }].map(duckOf);
+      console.log(`      ${rows.map(d => `k ${fmt(d.k, 1)}: ${fmt(d.lowpassHz, 0)} Hz, ${fmt(d.gainDb, 1)} dB`).join('; ')}`);
+      assert(rows[0].gainDb === 0 && rows[0].lowpassHz === 20000 && Math.abs(rows[3].lowpassHz - SPLASH_LP_HZ) < 1e-6 && rows[3].gainDb === SPLASH_DUCK_DB && rows[4].k === 1, JSON.stringify(rows));
+      assert(rows[2].lowpassHz < rows[1].lowpassHz && rows[2].lowpassHz > rows[3].lowpassHz, 'eased between');
+      // (the shown clock of a 10-minute shower and of a night, at 60 fps, through the ticker)
+      for (const [what, gapMin] of [['the shower', 10], ['the night', 494.6]]) {
+        const tk = createTicker(), L = lapseS(gapMin), from = 23_505_105_700;
+        let n = 0, last = null, minGap = Infinity;
+        for (let t = 0; t <= L + 1e-9; t += 1 / 60) {
+          const shown = from + ease(t / L) * gapMin * 60_000;
+          if (tk.tick(shown, t)) { n++; if (last !== null) minGap = Math.min(minGap, t - last); last = t; }
+        }
+        console.log(`      ${what} (${gapMin} min over ${fmt(L, 2)} s): ${n} ticks, ${fmt(n / L, 1)} a second, at least ${fmt(minGap * 1000, 0)} ms apart`);
+        assert(minGap >= 1 / TICK_MAX_HZ - 1e-6 && n <= Math.ceil(L * TICK_MAX_HZ) + 1, JSON.stringify({ n, minGap }));
+        if (gapMin === 10) assert(n >= 9 && n <= 10, `a tick a minute: ${n}`);
+      }
+    },
+  },
+  {
+    name: 'the world\'s sounds by code: the water and the tap loop seamlessly, the flush, the klaxon\'s whoop from 600 to 1,100 Hz, the bugle, the tick; the loops at their parts only',
+    fn() {
+      const sr = WORLD_RATE_HZ;
+      for (const [kind, recipe] of Object.entries(WORLD)) {
+        const rate = recipe.rateHz ?? 48000, t0 = performance.now();
+        const a = render(recipe, { sampleRate: rate, name: kind, variant: 0 }), ms = performance.now() - t0;
+        const b = render(recipe, { sampleRate: rate, name: kind, variant: 0 }), m = measure(a, rate);
+        const same = a.every((v, i) => v === b[i]), finite = a.every(Number.isFinite);
+        // (a loop's seam: the jump from its last sample to its first no bigger than a step inside it)
+        let seam = '';
+        if (recipe.loop) {
+          let maxStep = 0;
+          for (let i = 1; i < a.length; i++) maxStep = Math.max(maxStep, Math.abs(a[i] - a[i - 1]));
+          const jump = Math.abs(a[0] - a[a.length - 1]);
+          seam = `; the seam's jump ${fmt(jump * 1000, 2)} ‰ of full scale against the largest step inside ${fmt(maxStep * 1000, 2)}`;
+          assert(jump <= maxStep * 1.01, `${kind}'s loop clicks at its seam`);
+        } else assert(Math.abs(a[a.length - 1]) < 1e-6, `${kind} ends on silence`);
+        console.log(`      ${kind.padEnd(6)}: ${fmt(m.durS * 1000, 0)} ms at ${rate} Hz, peak ${fmt(m.peakDb, 1)} dBFS, RMS ${fmt(m.rmsDb, 1)}, centroid ${fmt(m.centroidHz, 0)} Hz, decay ${fmt(m.decayS * 1000, 0)} ms; rendered in ${fmt(ms, 1)} ms${seam}`);
+        near(m.peakDb, recipe.levelDb, 0.1, `${kind}'s peak`);
+        assert(same && finite, JSON.stringify({ kind, same, finite }));
+      }
+      assert(sr === 24000 && KLAXON_HZ.join() === '600,1100', 'the world\'s rate and the klaxon\'s whoop');
+      // (the klaxon's pitch rises through its whoop: the centroid of its first third under its last's)
+      const k = render(WORLD.klaxon, { sampleRate: sr, name: 'klaxon' }), third = Math.floor(k.length / 3);
+      const c0 = measure(k.slice(0, third), sr).centroidHz, c2 = measure(k.slice(2 * third), sr).centroidHz;
+      console.log(`      the klaxon's centroid: ${fmt(c0, 0)} Hz in its first third, ${fmt(c2, 0)} Hz in its last`);
+      assert(c2 > c0, 'the whoop rises');
+      // (which loop at which part: time's activityNow over a doing record)
+      const doing = (activity, spotId, parts) => ({ time: { doing: { activity, spotId, mode: 'outcome', fromMs: 0, toMs: parts.at(-1).toMs, parts } }, clock: { ms: 0 } });
+      const sh = doing('shower', 'f:e1:head-2a:shower-2#1', [{ part: 'in', toMs: 60_000 }, { part: 'water', toMs: 240_000 }, { part: 'dress', toMs: 600_000 }]);
+      const ba = doing('basin', 'f:e1:head-2a:sinks-1#1', [{ part: 'teeth', toMs: 120_000 }, { part: 'face', toMs: 180_000 }]);
+      const rows = [[sh, 30_000], [sh, 100_000], [sh, 300_000], [ba, 60_000], [{ time: {}, clock: { ms: 0 } }, 0]].map(([st, ms]) => loopsAt(st, ms));
+      console.log(`      the shower at 0:30, 1:40, 5:00: water ${rows.slice(0, 3).map(r => r.water).join(', ')}; the basin's teeth: tap ${rows[3].tap}; nothing under way: ${JSON.stringify(rows[4])}`);
+      assert(!rows[0].water && rows[1].water && !rows[2].water && rows[3].tap && !rows[3].water && !rows[4].water && !rows[4].tap, JSON.stringify(rows));
     },
   },
 ];

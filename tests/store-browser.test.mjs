@@ -133,12 +133,13 @@ export default [
         const r = await page.evaluate(async () => {
           const store = await import('/src/core/store.js'), { newState, toJSON } = await import('/src/core/state.js');
           const { newGame } = await import('/src/sim/game.js'), { put } = await import('/src/core/ids.js'), { post } = await import('/src/core/queue.js');
+          const { BODY_V } = await import('/src/sim/body/record.js');   // (the bodies at BODY's record version: an older one is raised on load, body:v2)
           const ms = () => performance.now();
           // (a synthetic state shaped like 0.1's, TECH §7.4: 13 tier-1 sheets, 180 tier-2, 600 events, 2,000 log lines, 800 items,
           // grown from a real new game, so a load's upgrade (the page's domains, composed by main.js) finds nothing to fill)
           const big = newGame({ seed: 48213, version: 'test' });
           const pad = (n, k) => Array.from({ length: n }, (_, i) => `${k}${(i * 2654435761 >>> 0).toString(36)}`);
-          for (let i = 2; i <= 194; i++) put(big, big.people, `p${i}`, { id: `p${i}`, name: `Marine ${i}`, tier: i <= 14 ? 1 : 2, body: { v: 1, tmpl: 'm-adult', core: 37 + (i % 10) / 10, water: 0.9 }, skills: Object.fromEntries(pad(i <= 14 ? 24 : 12, 's').map((k, j) => [k, j % 7])), notes: pad(i <= 14 ? 20 : 6, 'n').join(' ') });
+          for (let i = 2; i <= 194; i++) put(big, big.people, `p${i}`, { id: `p${i}`, name: `Marine ${i}`, tier: i <= 14 ? 1 : 2, body: { v: BODY_V, tmpl: 'm-adult', core: 37 + (i % 10) / 10, water: 0.9 }, skills: Object.fromEntries(pad(i <= 14 ? 24 : 12, 's').map((k, j) => [k, j % 7])), notes: pad(i <= 14 ? 20 : 6, 'n').join(' ') });
           for (let i = 1; i <= 600; i++) post(big, { atMs: big.clock.ms + i * 60_000, prio: 5, kind: 'need', src: `people:p${2 + (i % 193)}`, payload: { need: 'water', band: i % 4 } });
           for (let i = 1; i <= 2000; i++) big.log.push({ seq: i, atMs: big.clock.ms + i * 5000, kind: i % 3 ? 'note' : 'roll', tone: 'note', text: i % 3 ? `Line ${i}: the platoon moves to the range, then back to the barracks for chow.` : undefined, roll: i % 3 ? undefined : { skill: 'weapons', d20: 1 + (i % 20), value: 7, mods: [['rested', 1]], dc: 12, margin: (i % 20) - 4 } });
           for (let i = 1; i <= 800; i++) put(big, big.items, `i${i}`, { type: i % 4 ? 'mag' : 'gun', model: i % 4 ? 'had30c' : 'r7', n: i % 31, load: 'ball', holds: i % 9 ? undefined : [`i${i + 1}`] });

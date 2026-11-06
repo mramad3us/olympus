@@ -19,8 +19,10 @@
 //   ff        a fast-forward (engine 'ff') is lived ticks: the loop runs the real sim faster, with the skip's fixed
 //             input (ffInput: no keys, the activity's posture to come), and after each tick asks
 //             ffCheck, which finishes the skip once the clock reaches toMs or something stopped it
-//             (a 'skip:stop' command; a due event whose priority breaks the mask, set by the 'due'
-//             layer; any fast layer may set s.stop).
+//             (a 'skip:stop' command; any fast layer may set s.stop); a due event whose priority
+//             breaks the mask is stopped at by the 'due' layer, which finishes the skip there and
+//             then, at the event's own tick (game.js), so a fast-forward and an outcome skip land at
+//             one second (TIME §5.5).
 //   outcome   engine 'outcome' (kinds outcome, out, day, world) steps the slow layer on a grid set by the
 //             kind (TECH §5.3; correction 19), never by the splash's target or the frame's budget:
 //               outcome, out   whole game minutes on the live minute grid (the splash's clock moves
@@ -52,22 +54,41 @@
 //             stops it, by 'hold', as the 0.0.1 engine did: no time passes while time stands
 //             still, and a fast-forward's fixed input could never answer. 'skip-frame' is heard
 //             once per call.
-// finishSkip(state, bus) closes it (TIME §5.8: the activity, the body and the people settle, papers;
-// stubs until their owners build them), tells the bus 'skip-end' { id, activity, fromMs, toMs,
-// planned, interrupted, by, outcome, papers, minutes }, nulls state.skip and asks an autosave
-// ({ why: 'skip' }, resetting time.liveSinceSaveMs: the sim resets it when it asks, TECH §7.4).
-// skipNow(state, bus, req) is begin, advance to the end with no budget, finish: tests, the debug
-// handle's skip(), node's bots. It keeps the kind the page would use, so it walks the page's grid;
-// an ff skip needs lived ticks, so skipNow runs them through the tick() it was given.
+// finishSkip(state, bus) closes it (TIME §5.8): the activity closes with the share lived
+// (src/sim/time/activities.js finishActivity: its effects whole or partial, the landing's pose and
+// outfit, its log line), the player's body is brought to the end after an outcome skip (BODY's
+// bodySync; a fast-forward's body is as its lived ticks left it, so game-ff stays bit-exact; the
+// people were placed at each step, the unseen only, by their slow contributor), and the bus hears 'skip-end'
+// { id, activity, fromMs, toMs, planned, interrupted, by, outcome, papers, minutes } with outcome =
+// { body: { before, after } (BODY's stripOf and stagesOf at the start and the end, for the strip),
+// look: { outfit, wet }, chunk: { offerMs } | null (a chunked activity that ran its chunk: T carries
+// on, TIME §6.4), lines (the ticker's and the activity's), failedRoll: false (no rolls this round),
+// activity (finishActivity's outcome), held (the O* events held: TIME §7.2) }; then state.skip is
+// nulled and an autosave asked ({ why: 'skip' }, resetting time.liveSinceSaveMs: the sim resets it
+// when it asks, TECH §7.4). skipNow(state, bus, req) is begin, advance to the end with no budget,
+// finish: tests, the debug handle's skip(), node's bots. It keeps the kind the page would use, so it
+// walks the page's grid; an ff skip needs lived ticks, so skipNow runs them through the tick() it was
+// given, up to FF_GUARD_TICKS (12 hours of them: the parity tests force a night's fast-forward).
 //
-// stops(mask, ev) is TIME's to write with its masks (0.0.5). Until then defaultStops: job events
-// never stop a skip; priority 0 (D, danger) and 1 (A, alarms) always do; 2 (O), 3 (B) and 4 (S)
-// stop it where the mask names their letter (O* holds orders, so it does not); 5 never.
+// stops(mask, ev, state) is TIME's (src/sim/time/interrupts.js, TIME §7): job events never stop a
+// skip; priority 0 (D) and 1 (A) always do; O unless the mask holds it (O*: dispatched, its line to
+// the ticker, its id to s.held); B unless the mask excepts its ledger; S by S, S(k) knocks, S(w)
+// wakes, within TIME §7.4's limits; 5 never. A stop is s.stop = { atMs, by: the event's id, kind,
+// prio, letter } and tells 'skip-interrupt' { id, atMs, by, prio, letter, kind, line, reflex }.
+// beginSkip keeps the activity's spotId on the record and tells 'skip-start' { id, activity, kind,
+// engine, fromMs, toMs, where, posture, mask, spotId, vignette, stoppable, chunkMs }.
 import { nextId, playerId } from '../../core/ids.js';
 import { nextAt, popNext } from '../../core/queue.js';
 import { SEC_MS, MIN_MS, HOUR_MS, TICK_MS, wholeTicks, isHeld } from '../../core/clock.js';
 import { NO_INPUT } from '../../core/loop.js';
 import { askAutosave } from './domain.js';
+import { stops as maskStops, holds, letterOf, noteStop, resetSkipCount } from './interrupts.js';
+import { finishActivity } from './activities.js';
+import { CHUNK_OFFER_S } from './splash.js';
+import { bodyOf, bodySync } from '../body/body.js';
+import { stagesOf, stripOf } from '../body/cues.js';
+import { siteLonEDeg } from '../jobs.js';
+import { playerActor } from '../../core/ids.js';
 
 export const SKIP_KINDS = Object.freeze(['ff', 'outcome', 'out', 'day', 'world']);
 /** A skip record's engine: its own, or from its kind for a save made before the field (v0.0.2, v0.0.3's first builds). */
@@ -78,19 +99,33 @@ export const FF_MAX_MS = 120_000;
 export const NO_BUDGET = Object.freeze({ over: () => false });
 /** A budget of n steps a frame (tests). */
 export const stepsBudget = (n) => Object.freeze({ over: (done) => done >= n });
+/** skipNow's fast-forward guard: at most this many lived ticks (12 hours: the parity tests' forced nights). */
+export const FF_GUARD_TICKS = 864_000;
 
-const LETTER_PRIO = Object.freeze({ D: 0, A: 1, O: 2, B: 3, S: 4 });
+/** Whether an event stops a skip with this mask: TIME's rule (src/sim/time/interrupts.js). */
+export const defaultStops = (mask, ev, state = null) => maskStops(mask, ev, state);
 
-/** Whether an event stops a skip with this mask (see the header: TIME's masks replace it at 0.0.5). */
-export function defaultStops(mask, ev) {
-  if (ev.kind === 'job') return false;
-  const prio = ev.prio ?? 5;
-  if (prio <= 1) return true;
-  if (prio >= 5) return false;
-  for (const part of String(mask ?? '').split(/\s+/)) {
-    if (!part || part.endsWith('*')) continue;
-    if (LETTER_PRIO[part[0]] === prio) return true;
+/** The player's body as the strip reads it ({ strip, stages }), or null without one. */
+export function bodyLook(state, ms = state.clock.ms) {
+  const b = state.player?.id ? bodyOf(state, state.player.id) : null;
+  return b ? { strip: stripOf(b, ms), stages: stagesOf(b, ms, siteLonEDeg(state)) } : null;
+}
+
+/**
+ * An event dispatched while a skip runs (either engine), after its handler: a stop where the mask lets
+ * it through (s.stop, counted, 'skip-interrupt'), else its line to the ticker and, held by O*, its id
+ * to s.held. Returns whether it stopped the skip.
+ */
+export function noteDue(state, bus, s, ev, atMs, stops = maskStops, newLines = null) {
+  if (stops(s.mask, ev, state)) {
+    const letter = letterOf(ev);
+    s.stop = { atMs, by: ev.id, kind: ev.kind, prio: ev.prio ?? 5, letter };
+    noteStop(state, ev, atMs);
+    bus.emit('skip-interrupt', { id: s.id, atMs, by: ev.id, prio: ev.prio ?? 5, letter, kind: ev.kind, line: ev.line ?? null, reflex: ev.reflex ?? null });
+    return true;
   }
+  if (holds(s.mask, ev)) (s.held ??= []).push(ev.id);
+  if (ev.line) { const rec = { atMs, text: ev.line, tone: ev.tone ?? 'note' }; (s.ticker ??= []).push(rec); newLines?.push(rec); }
   return false;
 }
 
@@ -132,8 +167,14 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
       fromMs, toMs: fromMs + planMs, atMs: fromMs, chunkMs: Math.max(0, wholeTicks(req.chunkMs ?? 0)), chunks: 0,
       ticker: [], frame: [], stop: null, result: {}, cmds: [],
     };
+    if (req.spotId) s.spotId = req.spotId;
+    s.held = [];
+    if (state.time) resetSkipCount(state);
+    const look = bodyLook(state, fromMs);
+    if (look) s.result.before = look;
     state.skip = s;
-    bus.emit('skip-start', { id: s.id, activity: s.activity, kind, engine, fromMs, toMs: s.toMs, where: s.where, posture: s.posture, mask: s.mask });
+    bus.emit('skip-start', { id: s.id, activity: s.activity, kind, engine, fromMs, toMs: s.toMs, where: s.where, posture: s.posture, mask: s.mask,
+      spotId: s.spotId ?? null, vignette: req.vignette ?? null, stoppable: req.stoppable ?? true, chunkMs: s.chunkMs });
     return s;
   }
 
@@ -150,12 +191,7 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
   function dispatchDue(state, bus, s, atMs, newLines) {
     for (let ev = popNext(state, atMs); ev; ev = popNext(state, atMs)) {
       dispatch(state, bus, ev);
-      if (stops(s.mask, ev)) {
-        s.stop = { atMs, by: ev.id };
-        bus.emit('skip-interrupt', { id: s.id, atMs, by: ev.id, prio: ev.prio, line: ev.line ?? null, reflex: ev.reflex ?? null });
-        return;
-      }
-      if (ev.line) { const rec = { atMs, text: ev.line, tone: ev.tone ?? 'note' }; s.ticker.push(rec); newLines.push(rec); }
+      if (noteDue(state, bus, s, ev, atMs, stops, newLines)) return;
     }
   }
 
@@ -200,8 +236,17 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
     const s = state.skip;
     if (!s) return null;
     const end = state.clock.ms;
-    // (TIME §5.8: the activity closes with the fraction lived, the body and the people settle, persistent
-    // people are placed and the crowd recycled behind the ink, papers drained: their owners' stubs, 0.0.5 on)
+    // (TIME §5.8: the activity closes with the fraction lived, the body is brought to the end, the people
+    // were placed at each step (the unseen only), papers drained (CAREER's, later))
+    const act = finishActivity(state, bus, end, { by: s.stop?.by ?? null, stopKind: s.stop?.kind ?? null });
+    // (an outcome skip's body is brought to its end; a fast-forward's is lived ticks, as live play leaves it: TECH's game-ff)
+    if (engineOf(s) !== 'ff' && s.who && bodyOf(state, s.who)) bodySync(state, s.who, end, bus);
+    const after = bodyLook(state, end), me = playerActor(state);
+    const chunk = s.chunkMs > 0 && !s.stop ? { offerMs: Math.round(CHUNK_OFFER_S * 1000) } : null;
+    if (chunk && state.time) state.time.chunk = { activity: s.activity, spotId: s.spotId ?? null, atMs: end };
+    else if (state.time) delete state.time.chunk;
+    s.result = { ...s.result, body: { before: s.result.before ?? null, after }, look: act?.look ?? { outfit: me?.outfit ?? 'utilities', wet: false }, chunk,
+      lines: [...(s.ticker ?? []).map(r => r.text), ...(act?.line ? [act.line] : [])], failedRoll: false, activity: act, held: [...(s.held ?? [])] };
     const out = { id: s.id, activity: s.activity, fromMs: s.fromMs, toMs: end, planned: s.toMs, interrupted: !!s.stop,
       by: s.stop?.by ?? null, outcome: s.result, papers: [], minutes: Math.floor((end - s.fromMs) / MIN_MS) };
     lastEnd = out;
@@ -233,7 +278,7 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
     else {
       if (!tick) throw new Error('skipNow(): a fast-forward needs lived ticks, and no tick() was given');
       for (let n = 0; !ffCheck(state, bus); n++) {
-        if (n > FF_MAX_MS) throw new Error(`skipNow(): a fast-forward that never ends (${s.id})`);
+        if (n > FF_GUARD_TICKS) throw new Error(`skipNow(): a fast-forward that never ends (${s.id})`);
         tick(state);
       }
     }

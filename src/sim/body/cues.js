@@ -1,0 +1,116 @@
+// OLYMPUS body: the readers, the body as the character feels it: felt bands, cues for the figure and the doll, the strip, the words (BODY §23.1; VIEWS §7.6, §8.2; the build sheet 0.0.4 §2.1).
+//
+// The body reports in sensations, never numbers (BODY §23.1; "we only know what we know", tradecraft
+// 2026-10-26). stagesOf(body, ms, lonEDeg) gives each ledger's felt band, { band, i, tone, words, fill }
+// (i 0 is fine), for hunger, thirst, the bladder, the bowel, hygiene, fatigue (on the effective
+// pressure, the body clock's term at ms), stamina, stubble, stress and morale: the instinct, the
+// strip, the sheet and the late card read the same bands, by the one helper (the hub). cuesOf gives
+// the stage and the doll what to draw, each 0 to 1: wetK (wet hair fading over its 20 minutes),
+// grimeK, sweatK, tiredK (½ at the tired line: the head drops a pixel, the eyelids grow heavy), stubbleK,
+// bladderK (½ between need and urgent: knees in, a hand at the belt from 0.6), hungerK (a hand on the
+// stomach from 0.6, hungry), thirstK. stripOf is VIEWS §7.6's nine pictograms in their order, each
+// filled from the bottom to its band (fill 0 to 5) with its tone; heat, air and pain fill 0 this
+// round (thermal is indoors and steady; the air and wounds come later). wordsOf is the sheet's line
+// (VIEWS §8.2, BODY's belief in words: "Fed two hours ago; thirsty.", "Fresh. Hair wet.") and each
+// need's words. A body without a beard (hasBeard: a woman's) has no stubble stage past 0, no stubbleK
+// and no Shave row in the words. A record may be given whole or as its saved deltas. The site's longitude places the
+// body clock (Melas's by default, where every career starts).
+// Pure.
+import { HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, FATIGUE_BANDS, STAMINA_BANDS, STUBBLE_BANDS, STRESS_BANDS, MORALE_BANDS, HYGIENE } from '../../data/body/needs.js';
+import { SITES, START } from '../../data/setting/calendar.js';
+import { HOUR_MS, MIN_MS } from '../../core/clock.js';
+import { withDefaults, hasBeard } from './record.js';
+
+export { hasBeard };
+import { massOf, hungerIndex } from './energy.js';
+import { thirstPct, thirstIndex } from './water.js';
+import { bladderIndex, bowelIndex, bowelLowerG } from './elimination.js';
+import { grimeIndex, stubbleIndex } from './hygiene.js';
+import { phiOf, circ, fatigueIndex, lonMsOf } from './sleep.js';
+import { stressIndex, moraleIndex } from './stress.js';
+import { stageOf } from './thermal.js';
+
+/** Melas's east longitude, the readers' default. */
+export const MELAS_LON_E_DEG = SITES[START.site].lonEDeg;
+/** VIEWS §7.6's strip, in its order. */
+export const STRIP_NEEDS = Object.freeze(['water', 'food', 'bladder', 'bowel', 'sleep', 'grime', 'heat', 'air', 'pain']);
+
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const staminaIndex = (v) => { for (let i = STAMINA_BANDS.length - 1; i >= 1; i--) if (v < STAMINA_BANDS[i].below) return i; return 0; };
+const stage = (bands, i) => { const b = bands[i]; return { band: b.id, i, tone: b.tone, words: b.words, fill: b.fill }; };
+
+/** The body's effective sleep pressure at ms (BODY §7.3): the pressure and the body clock's term. */
+export function pEffOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
+  const b = withDefaults(body);
+  return b.sleep.pressureH + circ(phiOf(ms, lonMsOf(lonEDeg), b.sleep.offsetH));
+}
+
+/** Each ledger's felt band at ms (see the header). */
+export function stagesOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
+  const b = withDefaults(body), lonMs = lonMsOf(lonEDeg), phi = phiOf(ms, lonMs, b.sleep.offsetH), mass = massOf(b);
+  const e = b.energy;
+  return {
+    hunger: stage(HUNGER, hungerIndex(e.gutKcal, e.emptyH, e.reserveKcal)),
+    thirst: stage(THIRST, thirstIndex(thirstPct(b.water.balanceL, mass))),
+    bladder: stage(BLADDER_BANDS, bladderIndex(b.bladder.ml)),
+    bowel: stage(BOWEL_BANDS, bowelIndex(b.bowel.g, bowelLowerG(b.bowel.reflexUntilMs, ms, phi))),
+    hygiene: stage(GRIME_BANDS, grimeIndex(b.hygiene.grime)),
+    fatigue: stage(FATIGUE_BANDS, fatigueIndex(b.sleep.pressureH + circ(phi))),
+    stamina: stage(STAMINA_BANDS, staminaIndex(b.stamina)),
+    stubble: stage(STUBBLE_BANDS, hasBeard(b) ? stubbleIndex(b.hygiene.stubbleH) : 0),
+    stress: stage(STRESS_BANDS, stressIndex(b.stress.v)),
+    morale: stage(MORALE_BANDS, moraleIndex(b.morale.v)),
+  };
+}
+
+const HUNGER_K = Object.freeze([0, 0.2, 0.6, 0.8, 1, 1, 1]);
+/** What the figure and the doll draw, each 0 to 1 (see the header). */
+export function cuesOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
+  const b = withDefaults(body), h = b.hygiene, wet = h.wetUntilMs !== null && h.wetUntilMs !== undefined && ms < h.wetUntilMs ? (h.wetUntilMs - ms) / HYGIENE.WET_HAIR_MS : 0;
+  const e = b.energy;
+  return {
+    wetK: clamp01(wet), grimeK: clamp01(h.grime / 100), sweatK: clamp01((h.sweatL ?? 0) / 0.5),
+    tiredK: clamp01((pEffOf(b, ms, lonEDeg) - 12) / 8), stubbleK: hasBeard(b) ? clamp01(h.stubbleH / 48) : 0,
+    bladderK: clamp01((b.bladder.ml - 200) / 500), hungerK: HUNGER_K[hungerIndex(e.gutKcal, e.emptyH, e.reserveKcal)] ?? 1,
+    thirstK: clamp01(thirstPct(b.water.balanceL, massOf(b)) / 6),
+  };
+}
+
+/** VIEWS §7.6's strip: [{ need, band, fill, tone }] in STRIP_NEEDS's order. */
+export function stripOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
+  const s = stagesOf(body, ms, lonEDeg), b = withDefaults(body), cold = stageOf(b.thermal.coreC);
+  const of = (need, st) => ({ need, band: st.band, fill: st.fill, tone: st.tone });
+  return [
+    of('water', s.thirst), of('food', s.hunger), of('bladder', s.bladder), of('bowel', s.bowel), of('sleep', s.fatigue), of('grime', s.hygiene),
+    { need: 'heat', band: cold?.id ?? 'fine', fill: 0, tone: cold ? (cold.v <= -3 ? 'urgent' : 'warn') : 'fine' },
+    { need: 'air', band: 'fine', fill: 0, tone: 'fine' }, { need: 'pain', band: 'fine', fill: 0, tone: 'fine' },
+  ];
+}
+
+const NUMBER = Object.freeze(['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve']);
+/** "Fed two hours ago" from the last meal's time (the sheet's words; no clock reading). */
+export function fedPhrase(ateMs, ms) {
+  if (!Number.isFinite(ateMs)) return 'Fed';
+  const min = (ms - ateMs) / MIN_MS, h = Math.round((ms - ateMs) / HOUR_MS);
+  if (min < 15) return 'Fed just now';
+  if (min < 45) return 'Fed half an hour ago';
+  if (h <= 1) return 'Fed an hour ago';
+  return h <= 12 ? `Fed ${NUMBER[h]} hours ago` : 'Fed, a long while ago';
+}
+const lower = (w) => w.replace(/\.$/, '').replace(/^./, c => c.toLowerCase());
+/** The sheet's words (VIEWS §8.2): { line, needs: [{ need, band, words }] }. */
+export function wordsOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
+  const b = withDefaults(body), s = stagesOf(b, ms, lonEDeg), wet = cuesOf(b, ms, lonEDeg).wetK > 0;
+  const food = s.hunger.i === 0 ? fedPhrase(b.energy.ateMs, ms) : s.hunger.words.replace(/\.$/, '');
+  const order = [['bladder', s.bladder], ['bowel', s.bowel], ['water', s.thirst], ['sleep', s.fatigue], ['grime', s.hygiene], ['stubble', s.stubble], ['stamina', s.stamina], ['stress', s.stress], ['morale', s.morale]];
+  const notes = order.filter(([, st]) => st.tone !== 'fine' && st.words).map(([, st]) => lower(st.words));
+  let line;
+  if (notes.length) line = `${food}; ${notes.join('; ')}.`;
+  else {
+    const fresh = [s.hygiene.i === 0 ? 'Fresh.' : null, wet ? 'Hair wet.' : null].filter(Boolean);
+    line = s.hunger.i > 0 || !fresh.length ? [`${food}.`, ...fresh].join(' ') : fresh.join(' ');
+  }
+  const needs = [['food', s.hunger], ...order].filter(([need]) => need !== 'stubble' || hasBeard(b)).map(([need, st]) => ({ need, band: st.band, words: st.words }));
+  if (wet) needs.push({ need: 'hair', band: 'wet', words: 'Hair wet.' });
+  return { line, needs };
+}

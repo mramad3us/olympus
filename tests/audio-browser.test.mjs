@@ -9,6 +9,11 @@
 // the master gain to 0, and unmuting puts the volume back. The build sheet 0.0.3 §5.4. Prints the
 // counts, the voice of the last step (its surface, gain against Earth and low-pass) and the
 // context's state and sample rate. On OLYMPUS_TEST_PORT (8223 by default).
+// The 0.0.4 round's (the build sheet §5.4, audio/world.js): the shower's water plays in its water part
+// only (every frame of the splash sampled: the loop on exactly where the part shown is 'water'), the
+// world muffled under the splash (the duck at its full depth mid-lapse, open again after), the watch's
+// ticks; the flush at the urinal; the klaxon at the night's landing through bay-2-1's door (one wall);
+// reveille's bugle when 05:30 stops R's wait.
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 
@@ -92,6 +97,81 @@ export default [
         console.log(`      mute: the master gain ${muted.masterGain} (muted ${muted.muted}); unmuted: ${fmt(back.masterGain, 3)} at volume ${back.volume}`);
         assert(muted.muted && muted.masterGain === 0 && !back.muted && Math.abs(back.masterGain - back.volume ** 2) < 1e-3, JSON.stringify({ muted, back }));
       }, { query: 'play=barracks&seed=48213&nostore=1', init: countContexts });
+    },
+  },
+  {
+    name: 'the world\'s sounds: the shower\'s water in its water part only, the world muffled under the splash and the watch ticking; the flush at the urinal; the klaxon at the night\'s landing through the bay\'s door; reveille\'s bugle when 05:30 stops the wait',
+    heavy: true,
+    timeoutMs: 240000,
+    async fn() {
+      await withGame(async (page, errors, game) => {
+        const wakeAndGo = async (spotId) => {
+          await page.mouse.click(5, 5);                                // (the first click: the sound wakes)
+          await page.waitForFunction((h) => window[h].audio.contextState === 'running' && window[h].audio.baked, H, { timeout: 15000 });
+          if (!spotId) return null;
+          const p = await page.evaluate(async ([h, id]) => {
+            const fx = await import('/src/sim/places/fixtures.js'), m = await import('/src/sim/places/model.js');
+            const f = m.areaOf(window[h].area).fixtures.find(x => id.startsWith(`${x.id}#`));
+            return fx.spotsOf(f).find(q => q.id === id);
+          }, [H, spotId]);
+          await page.evaluate(([h, q]) => window[h].go(window[h].area, q.x, q.z, q.face), [H, p]);
+          await page.waitForTimeout(500);
+          return p;
+        };
+        const sample = () => page.evaluate((h) => new Promise((resolve) => {
+          const out = [], t0 = performance.now(); let started = false;
+          const f = () => { const sp = window[h].splash(), w = window[h].world, a = window[h].audio; if (sp) { started = true; out.push({ phase: sp.phase, shownMs: sp.shownMs, water: w.water, duck: w.duckK, ticks: w.ticks, master: a.duck ?? null }); }
+            if ((started && !sp) || performance.now() - t0 > 30000) resolve(out); else requestAnimationFrame(f); };
+          requestAnimationFrame(f);
+        }), H);
+        // (the shower: every frame's water against the part shown)
+        await page.goto(`${game.origin}/?play=test-shower&seed=48213&nostore=1`);
+        await page.waitForFunction(() => window.__ready === true);
+        await wakeAndGo('f:e1:head-2a:shower-2#1');
+        const from = await page.evaluate((h) => window[h].state.clock.ms, H);
+        const tl0 = sample();
+        await page.keyboard.press('KeyR');
+        const tl = await tl0;
+        // (the parts from the shower's own record: in 1 min, water 3 min, dress 6)
+        const partAt = (ms) => (ms - from < 60_000 ? 'in' : ms - from < 240_000 ? 'water' : 'dress');
+        const bad = tl.filter(x => x.phase === 'lapse' && Math.abs(x.shownMs - from - 60_000) > 30_000 && Math.abs(x.shownMs - from - 240_000) > 30_000 && x.water !== (partAt(x.shownMs) === 'water'));
+        const wet = tl.filter(x => x.water), duck = Math.max(...tl.map(x => x.duck)), ticks = tl.at(-1)?.ticks ?? 0;
+        const w1 = await page.evaluate((h) => window[h].world, H);
+        console.log(`      the shower: ${tl.length} frames, the water on in ${wet.length} (shown +${fmt((Math.min(...wet.map(x => x.shownMs)) - from) / 60000, 2)} to +${fmt((Math.max(...wet.map(x => x.shownMs)) - from) / 60000, 2)} min); frames whose water disagrees with the part (a minute's grace at the edges): ${bad.length}; the duck at most ${fmt(duck, 2)}, after ${w1.duckK}; ${ticks} ticks of the watch`);
+        assert(wet.length > 0 && !bad.length && duck === 1 && w1.duckK === 0 && !w1.water && ticks >= 8, JSON.stringify({ wet: wet.length, bad: bad.slice(0, 3), duck, after: w1 }));
+        // (the urinal: the head, a brief fast-forward, then the flush)
+        await page.waitForFunction(() => document.querySelector('.glass.end'), null, { timeout: 10000 }).catch(() => {});
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(300);
+        const f0 = await page.evaluate((h) => window[h].world.flushes, H);
+        await wakeAndGo('f:e1:head-2a:urinal-1#1');
+        const offer = await page.evaluate((h) => window[h].offer(), H);
+        await page.keyboard.press('KeyR');
+        await page.waitForFunction(([h, n]) => window[h].world.flushes > n, [H, f0], { timeout: 15000 }).catch(() => {});
+        const fl = await page.evaluate((h) => ({ world: window[h].world, last: window[h].audio.last }), H);
+        console.log(`      the urinal ('${offer?.label}'): ${fl.world.flushes - f0} flush; the last sound ${JSON.stringify(fl.last)}`);
+        assert(fl.world.flushes === f0 + 1, JSON.stringify(fl));
+        // (the night: the klaxon at the landing, through the bay's door)
+        await page.goto(`${game.origin}/?play=test-night&seed=48213&nostore=1`);
+        await page.waitForFunction(() => window.__ready === true);
+        await wakeAndGo(null);
+        await page.keyboard.press('KeyR');
+        await page.waitForFunction((h) => window[h].world.klaxons > 0, H, { timeout: 40000 }).catch(() => {});
+        const kl = await page.evaluate((h) => ({ world: window[h].world, ms: window[h].state.clock.ms }), H);
+        console.log(`      the klaxon at ${kl.ms}: ${kl.world.klaxons} whoop(s), ${JSON.stringify(kl.world.lastKlaxon)}`);
+        assert(kl.world.klaxons >= 1 && kl.world.lastKlaxon?.walls === 1 && kl.world.lastKlaxon.lowpassHz < 3000, JSON.stringify(kl.world));
+        // (reveille: the wait from 05:20 stopped at 05:30, the bugle)
+        await page.goto(`${game.origin}/?play=barracks&seed=48213&hour=5.33&nostore=1`);
+        await page.waitForFunction(() => window.__ready === true);
+        await wakeAndGo(null);
+        await page.evaluate((h) => window[h].go(window[h].area, 54.8, 3.95, 'right'), H);
+        await page.waitForTimeout(400);
+        await page.keyboard.press('KeyR'); await page.waitForTimeout(150); await page.keyboard.press('KeyR');
+        await page.waitForFunction((h) => window[h].world.bugles > 0, H, { timeout: 20000 }).catch(() => {});
+        const bg = await page.evaluate((h) => ({ world: window[h].world, time: document.querySelector('.watch .t')?.textContent }), H);
+        console.log(`      reveille: ${bg.world.bugles} bugle at ${bg.time}, ${JSON.stringify(bg.world.lastBugle)}`);
+        assert(bg.world.bugles === 1, JSON.stringify(bg.world));
+      }, { query: 'nostore=1' });
     },
   },
 ];
