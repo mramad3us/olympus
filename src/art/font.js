@@ -3,7 +3,11 @@
 // tradecraft's glyphs (src/art/pixelart.js), the Latin letters, digits and marks; written with a
 // painter's px() so it lands in a texture's pixels and is snapped like the rest. M, N and W are
 // wider (4 and 5 columns), as a 3-wide one reads as a smudge. A stencil (military markings: "MCRN",
-// "DECK 4", a locker's number) is the same font with its bridges cut: stencil().
+// "DECK 4", "2ND SQUAD", a locker's number) is the same font painted whole: stencil(). 0.0.1 cut the
+// bridges out of every glyph's middle row, as a stencil plate has them, and at 3 × 5 that took the
+// middle stroke of 2, S, A and N, so the look round's "2ND SQUAD" read "EUND" (2026-11-06); a letter
+// five pixels tall has no pixel to spare, so nothing is cut (src/art/kit/type.js says the same of the
+// 5 × 7 alphabet; kit-stencil reads every area's stencils back, glyph by glyph).
 // Pure.
 
 const GLYPHS = {
@@ -38,11 +42,10 @@ export function text(px, x, y, str, c, glow = 0) {
   }
 }
 
-/** A stencil: text() with its middle row's bridges cut (every glyph's row 2 drawn only at its ends). */
-export function stencil(px, x, y, str, c) {
-  for (const ch of String(str).toUpperCase()) {
-    const g = GLYPHS[ch] ?? GLYPHS[' '];
-    g.forEach((row, j) => [...row].forEach((b, i) => { if (b === '1' && !(j === 2 && i > 0 && i < row.length - 1 && row.length > 2)) px(x + i, y + j, 1, 1, c); }));
-    x += g[0].length + 1;
-  }
-}
+/** A stencil: the letters painted whole in colour c (no bridges cut: see the header). */
+export function stencil(px, x, y, str, c) { text(px, x, y, str, c); }
+
+/** A character's glyph in the 3 × 5 alphabet: rows of '0' and '1' (an unknown character is a space). */
+export const glyphOf = (ch) => GLYPHS[String(ch).toUpperCase()] ?? GLYPHS[' '];
+/** The characters the 3 × 5 alphabet draws. */
+export const GLYPH_CHARS = Object.freeze(Object.keys(GLYPHS));

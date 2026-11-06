@@ -49,6 +49,16 @@
 // An autosave with why 'day' also writes 'day', and with 'edge' writes 'edge' (Standard; an Ironman
 // career's edge save is its own slot).
 //
+// Leaving the page (TECH §7.4: "on leaving the page, on hiding the tab"): autosave() reads the auto
+// and -prev records first and writes in the reads' callbacks, and a page that is going away never
+// gets them, so v0.0.3's first build wrote nothing on a reload or a closed tab (the review: a new
+// career lost until its first autosave). autosaveSync() writes with no read and no await: the
+// connection already open (none open: it returns null and writes nothing), the rotation planned from
+// the records this page last wrote or loaded for those slots (known: autosave(), autosaveSync() and
+// load() keep them; one not known plans as none there), every put issued at once in one transaction,
+// then commit(). It leaves the profile alone (its update reads first): the profile's last-played time
+// waits for the next ordinary save, and the load list is the saves store's, which has the record.
+//
 // Loading checks the digest, then fromJSON() upgrades the save. A save that fails (the digest, the
 // parse, the upgrade; or main.js finds each of its first RECOVER_TICKS ticks lost) is damaged, and
 // load() throws a SaveError with the slots that could stand in (TECH §7.3): Standard auto-prev,
@@ -258,7 +268,10 @@ export function profileAfterSave(profile, record) {
 
 // ---- IndexedDB ----
 
-let idb = null, dbPromise = null;
+let idb = null, dbPromise = null, dbOpen = null;
+// (the records this page last wrote to or loaded from each slot: autosaveSync plans its rotation from them)
+const known = new Map();
+const remember = (r) => { if (r?.slot) known.set(r.slot, r); };
 const factory = () => idb ?? globalThis.indexedDB;
 
 /**
@@ -267,7 +280,7 @@ const factory = () => idb ?? globalThis.indexedDB;
  */
 export function useIndexedDB(f = null) {
   const was = dbPromise;
-  idb = f; dbPromise = null;
+  idb = f; dbPromise = null; dbOpen = null; known.clear();
   was?.then(db => db.close()).catch(() => {});
 }
 
@@ -284,7 +297,7 @@ function openAt(f, ver) {
     };
     req.onsuccess = () => {
       const db = req.result;
-      db.onversionchange = () => { db.close(); dbPromise = null; };   // (another tab upgrading: let it)
+      db.onversionchange = () => { db.close(); dbPromise = null; dbOpen = null; };   // (another tab upgrading: let it)
       resolve(db);
     };
     req.onerror = () => reject(req.error);
@@ -309,6 +322,7 @@ function open() {
       throw new Error(`the saves' database is at version ${db.version}, from a newer OLYMPUS, without the stores this one needs`);
     });
   }).catch((e) => { dbPromise = null; throw e; });
+  dbPromise.then((db) => { dbOpen = db; }, () => {});
   return dbPromise;
 }
 
@@ -362,6 +376,27 @@ export async function autosave(state, about = '', { why = 'live' } = {}) {
     };
     touchProfile(t, next);
   });
+  for (const r of plan.puts) remember(r);
+  return { slot, rotated: plan.rotated, extra: plan.extra, kept: plan.kept, bytes: next.bytes, ms: perfNow() - t0 };
+}
+
+/**
+ * The career's autosave written at once, for a page that is going away (see the header): no read, no
+ * await, every put in one transaction and commit(). Returns { slot, rotated, extra, kept, bytes, ms },
+ * or null where no connection is open yet (nothing written). The write completes after the page has
+ * gone, as IndexedDB lets a committed transaction do.
+ */
+export function autosaveSync(state, about = '', { why = 'live' } = {}) {
+  if (!dbOpen) return null;
+  const t0 = perfNow();
+  const slot = autoSlotOf(state), next = recordOf(slot, state, about), prevSlot = prevSlotOf(slot);
+  const plan = planAutosave({ auto: known.get(slot) ?? null, prev: known.get(prevSlot) ?? null }, next, { mode: state.meta.mode, why });
+  let t;
+  try { t = dbOpen.transaction([SAVES], 'readwrite'); } catch { return null; }   // (the connection closing under it)
+  const s = t.objectStore(SAVES);
+  for (const r of plan.puts) s.put(r);
+  try { t.commit?.(); } catch { /* (already committing: it goes as it is) */ }
+  for (const r of plan.puts) remember(r);
   return { slot, rotated: plan.rotated, extra: plan.extra, kept: plan.kept, bytes: next.bytes, ms: perfNow() - t0 };
 }
 
@@ -387,7 +422,7 @@ export async function offersOf(slot) {
  */
 export async function load(slot) {
   const rec = await getRecord(slot);
-  try { return stateOfRecord(rec, String(slot)); }
+  try { const state = stateOfRecord(rec, String(slot)); remember(rec); return state; }
   catch (e) {
     if (e instanceof SaveError && e.code !== 'newer') e.offers = await offersOf(slot).catch(() => []);
     throw e;
@@ -418,6 +453,17 @@ export { remove as delete };
 export const getProfile = () => run([PROFILE], 'readonly', t => t.objectStore(PROFILE).get(PROFILE_KEY)).then(p => p ?? emptyProfile());
 /** Write the profile whole. */
 export const putProfile = (p) => run([PROFILE], 'readwrite', t => { t.objectStore(PROFILE).put({ ...p, key: PROFILE_KEY }); });
+/**
+ * Change the profile in one transaction: fn(profile) → the profile to write (read and written in the
+ * same transaction, so a save's own profile update can't land between them and be lost, as it could
+ * between a getProfile and a putProfile). Resolves to what was written.
+ */
+export const updateProfile = (fn) => run([PROFILE], 'readwrite', (t) => {
+  const s = t.objectStore(PROFILE), g = s.get(PROFILE_KEY);
+  let next = null;
+  g.onsuccess = () => { next = { ...fn(g.result ?? emptyProfile()), key: PROFILE_KEY }; s.put(next); };
+  return () => next;
+});
 
 /** A cached thing (any structured-cloneable value), or null. */
 export const cacheGet = (key) => run([CACHE], 'readonly', t => t.objectStore(CACHE).get(String(key))).then(r => r?.value ?? null);

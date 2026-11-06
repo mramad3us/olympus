@@ -32,12 +32,21 @@
 // keys even against a wall. Gait is 'idle' when nothing moved, else 'run', 'stroll' or 'walk', and
 // strideM counts the metres walked modulo STRIDE_WRAP_M 201.6 m (src/data/body/gait.js, the view's
 // number too), which the walk's, the run's and the bound's four-step cycles (0.64, 1.8 and 2.8 m) all
-// divide (my calls), so the view picks the frame from strideM and a wrap never jumps a frame. The player layer sets $px and $pz (where the actor
-// was at the tick's start, runtime only) first, for the view's interpolation.
+// divide (my calls), so the view picks the frame from strideM and a wrap never jumps a frame. The
+// player layer sets $px and $pz (where the actor was at the tick's start, runtime only) first, for the
+// view's interpolation.
+//
+// 0.0.3 (the build sheet 0.0.3 §2.1): the layer first frees the door leaves that have swung open
+// (doors.js doorsStep), walks the grid nav.js gives for the actor's point (a floor's, or a ground's
+// window round it, NAV_EDGE_M from its edge), builds at most NAV_CHUNKS_TICK of a ground's chunks
+// ahead after the move, and then asks portals.js whether the actor crossed a portal, moving it into
+// the next area if it did (moveTo: the facts, the autosave, the cut that is main.js's).
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
-import { navOf, nearestFree, centreOf, cellOf } from './nav.js';
+import { navOf, navAhead, nearestFree, centreOf, cellOf } from './nav.js';
 import { standOk, sweep, onFloor } from './collide.js';
+import { doorsStep } from './doors.js';
+import { portalCrossed, moveTo } from './portals.js';
 import { playerActor } from '../../core/ids.js';
 import { STRIDE_WRAP_M } from '../../data/body/gait.js';
 
@@ -143,12 +152,13 @@ export function moveActor(actor, mx, mz, speedMs, grid) {
 
 /** The fast layer `player` (TECH §3.1, layer 2): the player's actor walks the live area's grid by the keys held. */
 export function playerStep(state, input, bus, ctx) {
+  doorsStep(state);                                                // (leaves that have swung open are free before anyone moves)
   const a = playerActor(state);
   if (!a) return;
   a.$px = a.x; a.$pz = a.z;
   const area = state.places?.live?.area;
   if (!area) return;
-  const grid = navOf(state, area, PLAYER_CLS);
+  const grid = navOf(state, area, PLAYER_CLS, a.x, a.z);
   settle(a, grid);                                                 // (a spot it may not stand on: put out at once, keys or none)
   const mx = sgn(input?.mx), mz = sgn(input?.mz), speed = speedOf(input);
   a.face = faceOf(mx, mz, a.face);
@@ -156,4 +166,7 @@ export function playerStep(state, input, bus, ctx) {
   const moved = moveActor(a, mx, mz, speed, grid);
   a.gait = moved > 0 ? (input.run ? 'run' : input.stroll ? 'stroll' : 'walk') : 'idle';
   if (moved > 0) a.strideM = q(((a.strideM ?? 0) + moved) % STRIDE_WRAP_M, POS_STEP_M);
+  if (grid.kind === 'ground') navAhead(state, area, PLAYER_CLS, a.x, a.z);
+  const p = moved > 0 ? portalCrossed(state, a) : null;
+  if (p) moveTo(state, a.id, p.to, bus, { portal: p });
 }

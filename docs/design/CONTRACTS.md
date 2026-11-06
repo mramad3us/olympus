@@ -2,7 +2,7 @@
 
 OLYMPUS: the shared contracts, in one place. Several sections build on the same names and numbers: the clock and its constants, the start, the Plan of the Day, the job slots, the budgets of a tick and a frame, the people a scene holds, the state's top-level keys, the ids, the bus facts, the save slots, the voyage profiles, the unit sizes, the air and the names of ships and places. Each contract has one owner section, which holds the reasoning. This appendix holds the canonical values, one line each, so that every other section cites `CONTRACTS §n` instead of restating a number that can drift. When the owner changes a value, the same change updates the line here. The hub (`docs/DESIGN.md`) wins over both until they agree; TECH §1.3's corrections hold over every section on implementation matters, and ROADMAP §3.4 holds on milestone numbers.
 
-Written 2026-11-05 from DESIGN.md, TECH §1.3, ROADMAP §3.4, SETTING §1.4 and the owners' sections as they stood that day. Where two owners still disagree, §19 names the disagreement and which value holds until it is settled.
+Written 2026-11-05 from DESIGN.md, TECH §1.3, ROADMAP §3.4, SETTING §1.4 and the owners' sections as they stood that day. Where two owners still disagree, §19 names the disagreement and which value holds until it is settled. Revised 2026-11-06 for v0.0.2 as built (the slow mark, the debug skip keys, the start's 25.665 s, the facts and ids the code registers, the walker's collision, the compacted Melas plan) and for the settlements of §19's items 2, 4, 10 and 11 in DESIGN.md's decision log; and for the user's rule of 2026-11-05 that the world is handcrafted, so a chunk is decoded from committed ground data, never generated per world (§6). Revised again for v0.0.3 as built (the build sheet `docs/build/0.0.3.md`): the skip's engine (§2), the start's daylight (§3), the sight grid and the ground's windows (§6), the area-entry tick (§7), the `door` fact (§11), the sun's home (§13) and the Weapons Platoon's billets, open (§19).
 
 ---
 
@@ -29,7 +29,7 @@ Owner: TIME §1 and §2 (values), built in `src/core/clock.js` and `calendar.js`
 | `START_MS` | 23,480,400,000 | 2351-12-19 02:20:00 UTC, 271.76 days after the epoch (§3) |
 | `MSD_EPOCH` | 169,639.236313 | `MSD_EPOCH_MS` 15,059,764,595,616; TT − UTC frozen at 69.184 s |
 | `MARS_YEAR_MS`, `LS_EPOCH_DEG`, `MY_AT_EPOCH`, `MY_SOL1_MSD`, `WEEK_OFFSET` | 59,373,085,632; 174.0; 211; `{ 211: 169315 }`; 0 | SETTING §3.8, imported, never restated |
-| Melas | 287.2° E, 10.5° S, −4,500 m | PLACES §4.1 owns the site; `MELAS_LON_MS` 70,822,917; PLACES §3.15 and §4.1 still write 10.4° S (§19, item 11) |
+| Melas | 287.2° E, 10.5° S, −4,500 m | PLACES §4.1 owns the site and SETTING §3.8's `SITES.melas` carries it (§19 item 11, settled 2026-11-06); `MELAS_LON_MS` 70,822,917 |
 | The clock in the state | `state.clock = { ms, tick, holds, seq }` | `tick` counts lived ticks only; `seq` every loop tick; never `state.time.ms` (TECH correction 1) |
 | Game-time phase | `floor(clock.ms / TICK_MS)` | the same lived or skipped |
 | `LIVE_MAX_S` | 45 | shorter actions are busy steps at 1:1 |
@@ -37,7 +37,9 @@ Owner: TIME §1 and §2 (values), built in `src/core/clock.js` and `calendar.js`
 | `FF_ACTOR_S_MAX` | 6,000 | live actors × planned seconds a fast-forward may cost (TIME §5.2) |
 | `JUMP_MS`, `JUMP_M` | 120,000; 1.5 m | an area unseen this long is placed, not walked; no placement interpolated past 1.5 m |
 | `READ_CHUNK_MS`, `EARLY_MS`, `AUTOSAVE_LIVE_MS` | 600,000; 300,000; 300,000 | reading chunks; "five minutes early"; live autosave |
-| Skip kinds and their step grid | `ff`: lived ticks; `outcome`, `out`: whole game minutes; `day`: whole hours, minutes while any contributor is not steady; `world`: event to event, no clock shown | the target gates whole steps, never cuts one (TECH §5.3, correction 19); an `out` skip during a live fight runs as lived ticks (TIME §4.5): §19, item 10 |
+| Skip kinds and their step grid | `ff`: lived ticks; `outcome`, `out`: whole game minutes; `day`: whole hours, each cut at a slow contributor's next change, minutes while any contributor is not steady; `world`: event to event, no clock shown; every step ends on the 50 ms tick grid | the target gates whole steps, never cuts one (TECH §5.3, correction 19) |
+| A skip's engine | `skip.engine`: `ff` (lived ticks) or `outcome` (the grid above), set when the skip begins; `ff` for kind `ff`, and for `out` while a fight is live in the area (whatever its length) or under 120 s where the area allows a fast-forward (TIME §5.2), else `outcome`; an `out` skip whose fight closes goes on as `outcome` | the loop picks its mode by the engine, never the kind (TECH §3.6; TIME §4.5: a fight is never turned into an outcome around the player; §19 item 10, settled 2026-11-06). Built in v0.0.3: `beginSkip` sets it (`ff` for kind `ff`, or kind `out` while `fightLive`, a hook false until COMBAT's fights), and `engineOf()` reads an older record's engine from its kind |
+| The slow mark | `time.slowToMs`: how far the slow layer has stepped; every slow step spans [mark, t] and moves it, lived or skipped, so each moment of game time is stepped once | TECH §3.4, built in v0.0.2 |
 | Event times | whole seconds | `post()` floors `atMs` to the second |
 
 ## 3. The start and the first standby
@@ -47,8 +49,8 @@ Owner: SETTING §3.7 (the start), CAREER §5.4 and §5.9 (the standby's calendar
 | Item | Value |
 |---|---|
 | The start | Monday, Sol 590 of MY 211 (civil 5 Patience 211), 12:40 Melas time, 2351-12-19 02:20 UTC, `solIndex` 169,904, Ls 316.4° |
-| At `START_MS` exactly | 12:39:34 Melas; 12:40 falls 25.6 s later (TIME §2.4) |
-| Daylight at Melas on the start | 12.78 h, sunrise 05:37, sunset 18:23, noon sun 83° up, on a flat horizon (TIME §2.5, at 10.5° S); the canyon's walls shorten it to about 12.53 h, 05:44 to 18:16 (PLACES §3.15's `horizonAt`, to be reprinted at 10.5° S: §19, item 11) |
+| At `START_MS` exactly | 12:39:34.335 Melas; 12:40 falls 25.7 s later (25.665 s, TIME §2.4) |
+| Daylight at Melas on the start | 12.78 h, sunrise 05:36, sunset 18:23, noon sun 83.42° up, on a flat horizon (TIME §2.5, at 10.5° S); the canyon's walls shorten it to 12.53 h, 05:44 to 18:15 (PLACES §3.15's `horizonAt`; as built in v0.0.3, `sunTimes`, printed by `places-light`; SETTING §3.7 prints the seasons) |
 | Career sols | sol 0 is the arrival Monday; career sol n is weekday (n mod 7), Monday first |
 | `STANDBY_SOLS` | 10 + slip; slip 0 for a new world's first recruit (CAREER §5.9) |
 | First recruit's dates | warning order Wednesday Sol 599 at the 07:50 formation (the paper stamped 08:00); pack-out Sol 600; Echo lifts Sol 601; the battalion sails from Phobos Sol 602, 2351-12-31 10:15 UTC |
@@ -102,7 +104,7 @@ A training sol (Monday to Friday), Melas time:
 | Friday | the platoon sergeant's inspection, bay and personal, 08:00–10:00; `train-a` 10:00–11:30; liberty from 17:15 |
 | Saturday, Sunday | holiday routine: reveille 07:00, brunch 08:00–11:00, dinner 17:00–18:30, taps 22:00; juniors on liberty back by 00:00 |
 | On standby | liberty within the recall radius (Redwater); one unannounced recall or alert drill a week. Until Redwater is built (0.2), the player's liberty is on base (CAREER §5.4, ROADMAP §5) and the people's Redwater liberty is an off-site override (PEOPLE §4.6) |
-| Aboard ship | UTC; the same shape, reveille 06:00Z, taps 22:00Z, no slip |
+| Aboard ship | UTC; the same shape, reveille 06:00Z, taps 22:00Z, no slip; the `maintenance` block is field day every day aboard (PEOPLE §4.7, my call) |
 
 The night is 7 h 30 m on the clock and 8 h 09 m 35 s in the rack.
 
@@ -123,7 +125,7 @@ Owner: TIME §11.3 (the only slot table); the `every` grammar and the queue are 
 | `day@05:00Z` | politics | world |
 | `day@05:20Z` | conflict zones born, escalated, ended | world |
 | `day@07:00Z` | forces census and yards | world |
-| `local@00:00` | the per-day passes: everyone's schedules for the day, PEOPLE's per-sol pass (gossip, careers, arcs, the roster), BODY's daily work (bone, plasma, G stimulus, conditioning, vestibular, mass, ARS phases) | PEOPLE, BODY |
+| `local@00:00` | the per-day passes: everyone's schedules for the day, PEOPLE's per-sol pass (gossip, careers, arcs, the roster), BODY's daily work (bone, plasma, G stimulus, conditioning, vestibular, mass, ARS phases); TIME's `autosaveDay`, which asks the sol's autosave (`why: 'day'`, built in v0.0.2) | PEOPLE, BODY, TIME |
 | `local@20:00` | tomorrow's PoD published; the sol director | PEOPLE, TIME |
 | `week@Sunday/20:00` | the week's duty roster and liberty list | PEOPLE |
 | `week@Monday/00:00` | the arc director | PEOPLE |
@@ -165,8 +167,12 @@ Owner: TECH §3.1 and §3.2 (the layers and the units), PLACES §2 (navigation's
 | `NODE_CAP` | 16,000 expansions a solve; a leg over it fails `cap` and is split | PLACES §2.2 |
 | `pathEstimate` cap | 400 expansions by default | PLACES §2.2 |
 | `CELL_M` | 0.25 m; clearance classes C0 0.27 m, C1 0.33 m, C2 0.40 m | PLACES §2.1 |
+| A* steps | whole weights, 10 straight and 14 diagonal, times the cell's cost; the octile heuristic in the same weights (`10 × max + 4 × min`) | PLACES §2.2 |
+| A walker's collision | its class's circle against the walls, blocking fixtures and closed leaves its grid was built from; the door assist slides it up to `NUDGE_M` 0.3 m sideways; a walker inside a blocker is settled on the nearest free cell within 2 m | PLACES §2.1, TECH §3.1 layer 2 |
 | `CHUNK_M`, `REACH_M`, `DROP_M` | 32 m; 56 m; 96 m | PLACES §2.4 |
-| Chunk generation | lazy and pure, counted in cells generated; no millisecond budget in the sim (TECH correction 7) | TECH §8.1 |
+| A ground's nav window | `WINDOW_CHUNKS` 3 × 3 chunks (96 m), the walker at least `NAV_EDGE_M` 16 m from its edge; at most `NAV_CHUNKS_TICK` 1 chunk built ahead a tick; a path request solves on a window placed by its own start | PLACES §2.4 (built in v0.0.3) |
+| The sight grid | `SIGHT_CELL_M` 0.25 m, the nav's lattice; bits `PRONE` 1, `CROUCH` 2, `STAND` 4 at eye heights 0.3, 1.0 and 1.6 m; a floor's grid the whole area, a ground's a window `SIGHT_WINDOW_M` 192 m wide holding the eye `SIGHT_EDGE_M` 56 m from its edge, past `SIGHT_REACH_M` 54 m (10 + 42 + 2), only the window's chunks kept | PEOPLE §7.6, built by PLACES (`src/sim/places/sight.js`, v0.0.3) |
+| Chunk decoding | a chunk is decoded from its ground's committed data (PLACES §9.5: grounds are authored, never generated per world), lazily and purely, counted in cells decoded; no millisecond budget in the sim (TECH correction 7) | TECH §8.1 |
 | `BRASS_LIVE` | 64 moving cases | TECH §3.1 |
 | Budgets inside the sim | work units only (expansions, solves, cells, people placed), never real time | TECH §3.2 |
 | Next tick | intents written in steps 6 to 8 act in steps 2, 3 and 9 of the next tick | TECH §3.1 |
@@ -175,21 +181,21 @@ Sim per tick by domain (TECH §16.2): PEOPLE 0.50 ms (steps 3, 6, 7), paths 0.60
 
 ## 7. Frame, sim, skip and save budgets
 
-Owner: TECH §16 (measured on the Mac, Chrome on ANGLE Metal, density B in a 1600 × 1000 window) and TECH §5.9 (skips, after TIME §5.10).
+Owner: TECH §16 (measured on the Mac, Chrome on ANGLE Metal, at 16 px/m (the user's pick, VIEWS §2.3) in a 1600 × 1000 window) and TECH §5.9 (skips, after TIME §5.10).
 
 | Measure | Budget |
 |---|---|
 | frame time | median ≤ 16.7 ms; p95 ≤ 18 ms; p99 walking ≤ 25 ms; no frame over 50 ms after an area's first 3 s |
 | under a 4× CPU throttle | walking scenes hold a 60 fps median; `mess-noon` and crowd scenes median ≤ 25 ms, p95 ≤ 33 ms |
 | under a 6× CPU throttle | walking scenes hold a 60 fps median; no frame over 50 ms (tradecraft's measure) |
-| sim per lived tick | ≤ 2.0 ms mean; ≤ 4 ms at a minute boundary; ≤ 8 ms mean under the 4× throttle |
+| sim per lived tick | ≤ 2.0 ms mean; ≤ 4 ms at a minute boundary; ≤ 8 ms mean under the 4× throttle; the area-entry tick is behind the cut and left out (a floor's first grid about 6 ms, the ground's first window 14 to 27 ms in v0.0.3; `places-walkers`) |
 | view CPU, UI DOM | ≤ 4 ms; ≤ 1 ms a frame |
 | GPU, integrated class at 1080p | ≤ 7.5 ms an ordinary frame (9 with the far window); the Mac holds a third (2.5; 3) |
 | draw calls; programs | ≤ 160 (600 fails); ≤ 16, none linked after the first area's first frame |
 | uploads mid-play | ≤ 1 MB and ≤ 2 ms a frame; whole textures only behind a cut |
 | boot; title to play | ≤ 1.5 s; ≤ 3 s cold, ≤ 1.5 s cached |
 | area change | ≤ 250 ms behind the cut; first frame ≤ 33 ms |
-| JS heap; GPU memory | ≤ 300 MB, ≤ 20 MB growth in a 10-minute soak; ≤ 384 MB (people 128 MB: two 4096² layers) |
+| JS heap; GPU memory | ≤ 300 MB, ≤ 20 MB growth in a 10-minute soak; ≤ 384 MB (people 48 MiB at B: three 4096² R8 layers of role indices and a 256 KiB colour-row table, VIEWS §3.7; v0.0.2's one RGBA8 4096² atlas is 64 MiB until the bands land) |
 | loop | at most 5 ticks a frame (`FRAME_CAP_MS` 250); `ff` up to `FF_TICKS_FRAME` 40 and `FF_FRAME_MS` 8; outcome skips `SKIP_FRAME_MS` 4 (8 for the prologue) |
 | a quiet outcome step | ≤ 0.05 ms |
 | an 8-hour sleep, quiet barracks | ≤ 25 ms: 480 minute steps and about 40 events, about 7 ms |
@@ -217,6 +223,7 @@ Owner: TECH §16.7 (correction 20). Everyone live in view is drawn, live or as a
 | `troopship-battle` | 48 | 0 | 40 | 88 | 100 | 0.2 |
 | `europa-street` | 19 | 0 | 120 | 139 | 160 | 0.3 |
 | `cavern-riot`, a crowd scene | 24 | 0 | 200 | 224 | 256 | 0.3 |
+| `village-contact` (COMBAT §19's fight among civilians) | 31: 26 fighters, 4 umpires, the player | 0 | 60 role-players | 91 | about 100 | 0.1.x (the patrol's join) |
 
 | Cap | Value |
 |---|---|
@@ -239,13 +246,13 @@ Owner: TECH §6.1. The top level is reserved; a new key needs a change there. In
 | `rng` | TECH | named streams |
 | `events` | TIME (implemented by TECH) | the queue's heap array, saved as it is, and nothing else |
 | `skip` | TIME | the running skip, or null |
-| `time` | TIME | `{ chapter, voyage, pod, alarms, interrupts, liveSinceSaveMs }` and TIME's own additions (`director`, `stances`, `drills`, TIME §13) |
+| `time` | TIME | `{ chapter, voyage, pod, alarms, interrupts, liveSinceSaveMs, slowToMs }` and TIME's own additions (`director`, `stances`, `drills`, TIME §13) |
 | `player` | PEOPLE | `{ id, actor, waypoint, presets, keeps }`; the person is `people[player.id]` |
 | `people` | PEOPLE | id-keyed persons only, each with `body` (BODY), `skills` (SKILLS), `kit` (WEAPONS) |
 | `units` | PEOPLE | the unit tree and its billets |
 | `happenings` | PEOPLE | the ring of notable things, ids `n<n>` (PEOPLE §2.5's "event log", renamed) |
-| `actors` | PEOPLE | `{ list }`, the live area's bodies in a stable order |
-| `mind`, `talk`, `names` | PEOPLE | the player's knowledge; an open conversation; the registry of full names |
+| `actors` | PEOPLE | `{ list, area }`, the live area's bodies in a stable order and the area they were made for (built in v0.0.3; TECH §6.1) |
+| `mind`, `talk`, `names` | PEOPLE | the player's knowledge (`seen`, `felt`, `heard`, `known`, `map`, and `threat` for COMBAT §6.1), written and read only through `people/mind.js` (`noteThreat(state, why, atMs, whoId)`, `threatOf(state)`, the generic `noteMind`/`mindOf`; PEOPLE §8.8); an open conversation; the registry of full names |
 | `fights` | COMBAT | one record per fight in the live area |
 | `stop` | WEAPONS (with COMBAT for CQC) | the stop-motion context, or null |
 | `items` | WEAPONS | every item with a record, wherever it is |
@@ -292,9 +299,10 @@ Counted ids are `<prefix><n>`, the counter `meta.next[prefix]`, never reused in 
 |---|---|---|
 | world | `w-<seed>`; a second world on the same seed `w-<seed>-<n>` | `w-48213` |
 | career | `c-<world seed>-<n>` | `c-48213-1` |
-| unit | `<battalion>/<regiment>`, then `-<company>`, `-<platoon>`, `-<squad>`, `-ft<n>`, `-hq` | `2/4`, `2/4-E`, `2/4-E-2-1`, `2/4-E-2-1-ft2` |
+| unit | `<battalion>/<regiment>`, then `-<company>`, `-<platoon>`, `-<squad>`, `-ft<n>`, `-hq`; units outside the Corps' order of battle (a CFB cell) are kebab keys in COMBAT's tables | `2/4`, `2/4-E`, `2/4-E-2-1`, `2/4-E-2-1-ft2`; `cell-pwyll-3` |
 | site, area, room, zone | kebab segments joined by `.` | `melas`, `melas.echo.1`, `e1.bay-2-1`, `e1.z.bay-2-1` |
 | fixture, opening | `f:` or `o:` and the template path in `:`-joined kebab segments | `f:e1:rack:07`, `o:e1:bay-2-1` |
+| site plan: waypoint, building, road or path | `w:`, `b:` or `r:` and kebab segments (`w:` with a colon, never a world's `w-`) | `w:echo:front`, `b:echo`, `r:valley` |
 | link | `l:` and the template path | `l:hellas:trunk` |
 | spot or seat | `<fixture id>#<n>` | `f:mess:t14#3`, `f:armoury:rack-e2#14` |
 | data record | its key in its table | `r7`, `6.5x40r`, `shower`, `react-to-contact` |
@@ -316,16 +324,20 @@ Owner: TECH §2.7; every name is registered in `src/core/facts.js` with its owne
 | Fact | Payload | Owner |
 |---|---|---|
 | `hold` | `{ held, holds }` | TECH |
-| `skip-start` | `{ id, activity, kind, fromMs, toMs, where, posture, mask }` | TIME |
+| `skip-start` | `{ id, activity, kind, engine, fromMs, toMs, where, posture, mask }` (`engine` §2's, v0.0.3) | TIME |
 | `skip-frame` | `{ id, atMs, ticker, frame }` | TIME |
 | `skip-interrupt` | `{ id, atMs, by, prio, line, reflex }` | TIME |
-| `skip-end` | `{ id, activity, fromMs, toMs, planned, interrupted, by, outcome, papers }` | TIME |
+| `skip-end` | `{ id, activity, fromMs, toMs, planned, interrupted, by, outcome, papers, minutes }` (`minutes`: the whole game minutes it passed) | TIME |
+| `skip` | the legacy `loop.skip` report, `{ what, fromMs, toMs, requestedMs, elapsedMs, minutes, stopped, reason }`, kept for `skipNow`'s tests | TECH |
 | `autosave` | `{ why: 'skip' \| 'day' \| 'area' \| 'live' \| 'combat' \| 'death' \| 'edge' \| … }` | TIME and CAREER ask, TECH writes |
 | `log` | `{ entry }` | TECH |
+| `line` | `{ text, kind? }`, a short line for the player (a toast until the presenter exists) | TECH |
 | `roll` | `{ roll }` | SKILLS |
 | `say` | `{ who, text, kind, durMs }` | PEOPLE |
 | `area-enter`, `area-leave` | `{ site, area, from, portal }` | PLACES |
+| `door` | `{ id, area, x, z, state: 'open' \| 'closed', kind, who }`, a door turned; x and z its middle in the frame of the side it was turned from: the live area's when it holds the door (a ground's mass door naming the opening), else the opening's floor (built in v0.0.3) | PLACES |
 | `chunk-in`, `chunk-out` | `{ site, area, i, j }` | PLACES |
+| `path-done` | `{ reqId, who, ok, lengthM, reason }`, a path request answered | PLACES |
 | `sound` | `{ kind, x, y, z, area, db, src }` | VIEWS, PEOPLE |
 | `fx` | `{ kind, x, y, z, atMs, dir, size }` | WEAPONS, COMBAT, PLACES |
 | `papers` | `{ papers }` | TIME, CAREER |
@@ -341,9 +353,9 @@ Owner: TECH §7 (cadence: TIME §13).
 | IndexedDB | `olympus`, version 2; stores `saves` (keyPath `slot`), `profile` (one record), `cache` |
 | localStorage | `olympus.settings`, `olympus.debug`, `olympus.picks`, `olympus.scores`, `olympus.debug.overlays` |
 | Slot form | `<worldId>:<name>`; the built store's unprefixed slots read as world `w-legacy` |
-| Standard | `auto`, `auto-prev`, `day`, `manual-1` to `manual-9`, `edge` |
+| Standard | `auto`, `auto-prev`, `day`, `manual-1` to `manual-9`, `edge`; `auto-prev` is not listed (`HIDDEN_NAMES`, as `ironman-prev`) and is offered by recovery |
 | Ironman | `ironman`, and the hidden `ironman-prev` (offered only by recovery); the `ironman` slot is the edge save |
-| Rotation on time | `auto` copied to `auto-prev` only when `auto-prev` is ≥ `AUTO_PREV_GAME_MS` 600,000 or ≥ `AUTO_PREV_REAL_MS` 300,000 older; `ironman-prev` likewise |
+| Rotation on time | `auto` copied to `auto-prev` only when `auto-prev` is ≥ `AUTO_PREV_GAME_MS` 600,000 or ≥ `AUTO_PREV_REAL_MS` 300,000 older, and never a record whose digest fails; `ironman-prev` likewise |
 | `day` | the first quiet frame after local 00:00 |
 | Triggers | every skip's end, every chapter day, an area change, 5 minutes of live play, `pagehide` and hidden, quitting, a forced day; Ironman adds combat's start and death |
 | Honesty marks | `meta.debugUsed`, `meta.imported`, `meta.recovered`: on the profile and the load list, never on the Memorial Wall or the papers (correction 22) |
@@ -358,7 +370,7 @@ One quantity, one helper (the hub). Every screen and every system calls these; n
 | the player's id | `playerId(state)` | TECH, `core/ids.js` |
 | where a person is | `whereIs(person, ms)`, with `posture` and `path` | PEOPLE §4.6 (TIME's and TECH's `whereAt` reads `whereIs`) |
 | light at a point | `lightLevel(state, x, z, ms)` | `src/sim/places/light.js` (correction 14; VIEWS's `lightAt` reads `lightLevel`) |
-| the sun | `sunAt(site, ms) → { elevDeg, azDeg, eclipsed }` | TIME §1, with PLACES's `horizonAt` |
+| the sun | `sunAt(site, ms) → { elevDeg, azDeg, horizonDeg, eclipsed, visible }`; `sunTimes(site, ms, { terrain })` | TIME §1, with PLACES's `horizonAt`; built in `src/sim/places/sun.js` (v0.0.3), reading PLACES's walls `MELAS_WALLS` in `src/data/places/melas.js` |
 | dose rate | `doseAt(state, x, z, who)` | PLACES §3.10 |
 | clocks and dates | `utc`, `msd`, `marsLocal`, `atMarsLocal`, `msAtMarsTime`, `localDay`, `dtg`, `formatDuration` | TIME §1, `src/sim/time/dates.js` over `core/calendar.js` |
 | transit times, felt G, place, lag | `voyagePlan`, `feltAt`, `placeAt`, `lagAt` | TIME §12, `src/world/voyage.js` |
@@ -374,7 +386,7 @@ One quantity, one helper (the hub). Every screen and every system calls these; n
 | SETTING's tables | `src/data/setting/`, one module per table (correction 11) |
 | data | `.js` modules with a prose header, never `.json` (correction 12) |
 | fitness | `src/sim/body/fitness.js`; SKILLS's `value()` reads effective fitness through the injected helper (correction 8) |
-| pixel density | `src/render/scale.js`, `PX_PER_M` 16 or 24, `?ppm=` (`?density=` an alias) (correction 3) |
+| pixel density | `src/render/scale.js`, `PX_PER_M` 16 (the user's pick, 2026-11-06; VIEWS §2.3), `?ppm=24` a test parameter only (`?density=` an alias) (correction 3) |
 | palette snap | a 64³ lookup baked on the GPU (correction 4) |
 | lamps | tiled static pools with no count limit, plus 10 dynamic slots (correction 5) |
 | folders | WEAPONS's `src/sim/arms/`, COMBAT's `src/sim/combat/`, PLACES's `src/sim/places/`, as their sections list them (correction 13) |
@@ -460,7 +472,7 @@ Owner: SETTING §1.4 (names and doctrine), with PLACES mapping its templates ont
 | "MCRN Base Callisto", TIME's "Callisto Station" | Camp Lofn, the Corps' camp (the Transit, the Spin, the Flats); Naval Station Valhalla, the Navy's base and Jovian Command, 12 km off; Valhalla Town beyond Lofn Gate | §7.2 |
 | the close-combat programme | the Marine Corps Martial Arts Programme (MCMAP), belt keys spelt `grey` | §5.5 |
 | boot | 13 weeks at MCRD Argyre | §5.4 |
-| the Commandant | General Halima Strand; public figures' family names kept off tiers 1 and 2 | §7.7, §12.6 |
+| the Commandant | generated per world, like every public office holder (SETTING §7.7's offices, PEOPLE §3.13), registered before the roster; holders' family names kept off tiers 1 and 2 | §7.7, §12.5, §12.6 |
 | the levy | the terraforming levy: 12% for civilians, 1% for service members | §4.10 |
 | money | 1 MCR ≈ US$14.5; a Private's basic pay 145 MCR a 30-day period; one price list, SETTING §11's | §11 |
 | the arms makers | WEAPONS §3.1's; HAD's small arms at Ophir Chasma, drives and suits at Dustfall | §4.10 |
@@ -473,30 +485,31 @@ Owner: ROADMAP (§3.4 holds over every section's earlier proposal; the owners al
 
 | Rule | |
 |---|---|
-| Rows, not releases | patch numbers in ROADMAP's tables name an order, not a release: v0.0.1 shipped the look round (§4.1's 0.0.2 row) with the engine, so the skeleton (the 0.0.3 row) ships as v0.0.2; CHANGELOG says which rows each release holds. A section citing "0.0.n" names ROADMAP's row |
+| Rows, not releases | patch numbers in ROADMAP's tables name an order, not a release: v0.0.1 shipped the look round (§4.1's 0.0.2 row) with the engine, v0.0.2 shipped the skeleton (the 0.0.3 row), and the next release, v0.0.3, ships the 0.0.4 row; CHANGELOG says which rows each release holds. A section citing "0.0.n" names ROADMAP's row |
 | 0.1.0 and 0.1.x | 0.1.0 is the core career; 0.1.x the patches that join the Tank, the G-house and the Long Arm, the lifesaver lane, the mat, the patrol, the ROE lane, office hours and the last roll call (ROADMAP §5.8) |
 | The world layer | the constants, the ephemeris, body facts, the faction, hull and name data and the display modules at 0.0.12; traffic, politics, conflict, forces, intel, gravity, Lambert, the spatial hash, the rails and the prologue together at 0.2; the 0.1 news archive is SETTING §7.7's authored timeline (correction 23) |
 | Later | Europa 0.3; ship combat 0.4 (fought from the troop transport); boarding, EVA and the frigate and corvette 0.5; reconnaissance 0.6; the Raiders 0.7; the long career and the squad leader's panel 0.8 |
 
 ## 19. Open between owners
 
-Each line names the value that holds until the owners settle it; the lead records the settlement in DESIGN.md's decision log. Re-checked 2026-11-05 against every section: items 1, 3 and 5 to 9 are now settled in the owners' text (the second table), each awaiting its line in the decision log and, where named, a stale sentence in one section; items 10 and 11 are new.
+Each line names the value that holds until the owners settle it; the lead records the settlement in DESIGN.md's decision log. Re-checked 2026-11-06 against every section: items 2, 4, 10 and 11 were settled in DESIGN.md's decision log that day and are now in the owners' text (the second table); v0.0.3's build found item 12.
 
 | # | Disagreement | Holds until settled |
 |---|---|---|
-| 2 | **The walking speed of the walk test.** BODY §16.1 walks Mars at 1.14 m/s, and PLACES §4.3 and ROADMAP §4.1 now time their walks at it; at 1.14 m/s PLACES's reference sol walks 13.3 minutes, over `SOL_WALK_MAX_MIN` 12. PLACES asks BODY for an outdoor brisk walk of 1.32 m/s (11.5 minutes) | BODY's 1.14 m/s, so the walk test fails until BODY adopts an outdoor brisk walk or PLACES compacts the plan |
-| 4 | **The company march's name.** TECH §16.7 keeps `parade-platoon` at 42 and 20 and registers the company march as `company-march` (§8; VIEWS §3.7 now counts 62); PEOPLE §13.5 and its test list still call it `parade-company` | TECH's `company-march`; PEOPLE renames its test |
-| 10 | **An `out` skip in a fight.** TIME §4.5 and §5.2 run unconsciousness during a live fight as a fast-forward of any length, at `FF_OUT_FRAME_MS` 12 ms a frame, so the fight goes on tick by tick around the body; TECH §3.6 routes every `state.skip.kind` `'out'` to the outcome engine, §5.3 steps `out` on whole minutes, and §5.9 lacks the 12 ms row | TIME §4.5's rule (a fight is never turned into an outcome around the player); TECH's loop chooses the engine by the skip's engine, not its kind, and §5.9 adds the row |
-| 11 | **Melas's latitude.** PLACES §3.15 and §4.1 write 10.4° S and call SETTING's `SITES.melas` the record; SETTING §3.8's record carries −10.5 and names PLACES §4.1 the owner; TIME §1, §2.5 and every daylight figure use 10.5° S; PLACES's terrain daylight (12.53 h, against a flat "12.77 h") was run at 10.4° | 10.5° S; PLACES corrects §3.15 and §4.1, names itself the owner, and reprints its terrain sunrise and sunset |
+| 12 | The weapons platoon: PEOPLE §3.2's sections (the platoon commander and sergeant, a machine-gun section of 19, a mortar section of 13, an assault section of 13) add to 47, against its own 46 and §15's company of 191 (SETTING §5.3, PEOPLE §3.2) | §15's 46 and 191 hold; the Weapons Platoon is not generated (v0.0.3's company is 145 with the player: the headquarters and three rifle platoons), and its bays' berths stand empty, until PEOPLE settles the billets |
 
 Settled in the owners' text since this file was written:
 
 | # | Was | Now |
 |---|---|---|
 | 1 | Europa's towns' air: SETTING adopted a 55 kPa "Belter town standard" PLACES no longer held | SETTING §1.4 and §7.3 adopt PLACES §3.2's Ice standard (§16) |
+| 2 | The walking speed of the walk test: at BODY's 1.14 m/s PLACES's reference sol walked 13.3 minutes against `SOL_WALK_MAX_MIN` 12, and PLACES asked BODY for an outdoor brisk walk of 1.32 m/s | settled 2026-11-06: BODY's 1.14 m/s stands; v0.0.2 compacted the plan (the armoury, its canopy and the mess hall moved), so the sol walks 808.7 m in 11.82 minutes; PLACES §4.2 and §4.3 take the plan as built |
 | 3 | The hull data's milestone: ROADMAP moved `ship-classes.js` to 0.2 | ROADMAP §5.1 and §15.5 keep it at 0.0.12 (correction 23) |
-| 5 | PEOPLE's sim share: 0.53 ms in PEOPLE, 0.8 ms in ROADMAP | both read TECH §16.2's 0.50 ms; TECH §16.2's row still cites "PEOPLE §13.2's 0.53 ms", a note to drop |
+| 4 | The company march's name: PEOPLE §13.5 called it `parade-company` | settled 2026-11-06: `company-march` (TECH §16.7, §8); PEOPLE renames its test |
+| 5 | PEOPLE's sim share: 0.53 ms in PEOPLE, 0.8 ms in ROADMAP | every section reads TECH §16.2's 0.50 ms |
 | 6 | The look round's scenes: VIEWS planned three Mars scenes and two swatches | VIEWS §2.3 and ROADMAP §4.1 list what shipped: L1 to L5, 24 views |
 | 7 | The standby's length: ROADMAP's `7 + floor(8u)` | ROADMAP §5.1 reads CAREER's `10 + slip` (§3) |
-| 8 | Ids TECH's table lacked | TECH §2.3.1 has `pr<n>`, `l:`, portals by opening or link id, households as numbers (§10) |
-| 9 | The Coprates-class hull: SETTING's 260 m record against PLACES's 240 m deck program | SETTING §1.4, §6.2 and §6.3 carry PLACES §5.2's hull (240 × 40 × 36 m, 52,000 t, crew 72, 1,150 troops, rated 3.5 G, 8 PDCs, eight Simooms and two pinnaces) and the 352 wave (§15); PLACES §5.2's opening paragraph and its §14 ask still describe the old disagreement, to be cut |
+| 8 | Ids TECH's table lacked | TECH §2.3.1 has `pr<n>`, `l:`, the site plan's `w:`, `b:` and `r:`, portals by opening or link id, households as numbers (§10) |
+| 9 | The Coprates-class hull: SETTING's 260 m record against PLACES's 240 m deck program | SETTING §1.4, §6.2 and §6.3 and PLACES §5.2 carry one hull (240 × 40 × 36 m, 52,000 t, crew 72, 1,150 troops, rated 3.5 G, 8 PDCs, eight Simooms and two pinnaces) and the 352 wave (§15) |
+| 10 | An `out` skip in a fight: TIME §4.5 ran it as a fast-forward of any length, TECH's loop sent every `out` to the outcome engine | settled 2026-11-06: a fight is never turned into an outcome around the player; TECH §3.6's loop picks its mode by `skip.engine`, and §5.9 holds the 12 ms row (§2, §7) |
+| 11 | Melas's latitude: PLACES wrote 10.4° S and called SETTING's record the owner, while SETTING named PLACES | settled 2026-11-06: 10.5° S, owned by PLACES §4.1 and carried by SETTING §3.8's `SITES.melas`; PLACES §3.15's terrain sunrise and sunset, rerun at 10.5° S, are unchanged to the minute (§3) |

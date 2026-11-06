@@ -168,7 +168,7 @@ function rigOf(pose, J, B, look, dir) {
   const mid = lerp(J.sh.r, J.sh.l, 0.5), side = dir === 'right' || dir === 'left';
   const out = { gun, lenM, withMag: true, hand: { r: null, l: null }, mode: r.mode };
   // (a chibi's head is wider than its shoulders: seen from behind, a shouldered gun is drawn just clear of it, as tradecraft drew it)
-  const clear = B.prop === 'chibi' && dir === 'up' ? B.headW / 2 - B.armOut * 0.45 + 1.5 / B.ppm : 0;
+  const clear = dir === 'up' ? B.headW / 2 - B.armOut * 0.45 + 1.5 / B.ppm : 0;
   const aimDir = () => {
     let d = Fw;
     const turn = r.turn ?? 0, tilt = AIM_TILT[gun];
@@ -181,7 +181,7 @@ function rigOf(pose, J, B, look, dir) {
     case 'aim': case 'prone': {
       out.dir = aimDir();
       if (gun === 'rifle') {
-        out.butt = add(add(add(J.sh.r, mul(Fw, 0.02)), mul(LEFT, B.armOut * 0.45)), mul(U, B.prop === 'soldier' ? 0.03 : 0));
+        out.butt = add(add(J.sh.r, mul(Fw, 0.02)), mul(LEFT, B.armOut * 0.45));
         if (r.mode === 'prone') out.butt = add(out.butt, mul(U, 0.03));
       } else {
         const reach = (B.upperArm + B.foreArm) * 0.92;
@@ -215,7 +215,7 @@ function rigOf(pose, J, B, look, dir) {
     case 'slung': {
       if (gun === 'rifle') {
         // (on the back, its muzzle up past the right shoulder; the sling across the chest)
-        const k = B.prop === 'chibi' ? [0.7, 0.71] : [0.88, 0.45];
+        const k = [0.7, 0.71];
         out.dir = norm(add(add(mul(U, k[0]), mul(right, k[1])), mul(Fw, -0.03)));
         out.butt = add(add(add(J.pelvis, mul(U, 0.06)), mul(LEFT, 0.16)), mul(Fw, -(B.waistDepth + 0.05)));
         out.down = mul(Fw, -1);
@@ -364,9 +364,9 @@ const ROLE_ARM = { blouse: ['t', 't'], tee: ['t', 's'], suit: ['p', 'p'], covera
  * or null), w, h, ax, ay (the anchor), kind (the cell), muzzle ([x, y] or null), flash ({ kind, th } or
  * null), look }.
  */
-export function composeFrame(look, dir, frame, { prop = 'chibi', ppm = PX_PER_M } = {}) {
+export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
   const Lk = look?.top ? look : wear(look);
-  const B = bodyOf(prop, ppm), pose = poseOf(frame, { weapon: Lk.weapon, carry: Lk.carry });
+  const B = bodyOf(ppm), pose = poseOf(frame, { weapon: Lk.weapon, carry: Lk.carry });
   const kind = cellKind(frame, dir), cell = B.cell[kind];
   const J = solve(pose, B), rig = rigOf(pose, J, B, Lk, dir);
   if (rig) for (const s of ['r', 'l']) if (rig.hand[s]) {
@@ -709,7 +709,7 @@ function gunCells(g, rig, pp, P, B) {
   const nearer = P.depth(rig.muzzle) > P.depth(rig.butt);
   // (seen end on when it points along the camera's depth, toward it or away, however long the picture draws it)
   const along = Math.abs(P.world(rig.dir)[2]), atYou = nearer && (ratio < 0.5 || along > 0.8);
-  const kA = B.ppm / 16 * (B.prop === 'soldier' ? 0.95 : 1);
+  const kA = B.ppm / 16;
   g.begin(a[0], a[1]);
   if (rig.holster) {
     // (a holstered pistol: a dark grip at the hip, the holster down the thigh)

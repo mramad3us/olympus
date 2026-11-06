@@ -3,16 +3,20 @@
 // §2.2, §1.9; the build sheet 0.0.2 §5.3).
 //
 // The delivery test needs solves over PATH_NODES_TICK 8,000 expansions, which the test rooms cannot
-// give (their C0 grid has 3,471 free cells), so it sets a window of Base Melas's ground (the Two-Four
-// lines) as the nav grid of the area 'melas.ground' in the state's runtime cache, as the chunk
-// builder will at 0.1, and sets it again after a load (the grid is a pure function of the plan).
-import { assert, near, fmt } from './helpers.mjs';
+// give (their C0 grid has 3,471 free cells), so it sets a window of Base Melas's site plan (the
+// Two-Four lines, gates open: groundGrid) as the nav grid of a probe area id in the state's runtime
+// cache, and sets it again after a load (the grid is a pure function of the plan). Since 0.0.3
+// melas.ground is an area of its own, walked by windows of 32 m chunks (nav.js navOf), so the probe
+// takes an id no area has; the ground's own windows are benched below (the build sheet 0.0.3 §5.1),
+// their 2 ms p95 scaled by helpers.mjs machineK() where the run is slower than the user's Mac in the
+// foreground (macOS's background band: 3.5 to 4 times), the expansions printed beside it.
+import { assert, near, fmt, machine, REF_LOOP_MS } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { TEST_AREA } from '../src/data/places/testroom.js';
 import { MELAS_PLAN } from '../src/sim/places/siteplan.js';
 import {
   CELL_M, CLASSES, NODE_CAP, PATH_NODES_TICK, PATH_SOLVES_TICK, buildGrid, groundGrid, path, octileM, centreOf, freeCount,
-  navStats, navOf, requestPath, pathEstimate, cellOf, remarkOpening,
+  navStats, navOf, requestPath, pathEstimate, cellOf, remarkOpening, CHUNK_M, NAV_EDGE_M, WINDOW_CHUNKS, groundStats, resetGroundStats, navAhead,
 } from '../src/sim/places/nav.js';
 import { setOpening } from '../src/sim/places/model.js';
 import { WALK_MS, RUN_MS, STROLL_MS, POS_STEP_M, faceOf, speedOf } from '../src/sim/places/move.js';
@@ -132,6 +136,39 @@ export default [
     },
   },
   {
+    name: 'a ground window built round Echo\'s street from its 32 m chunks, and A* across it on 1,000 random free pairs a chunk apart at most: all found, p95 at most 2 ms, no allocation per solve (the build sheet 0.0.3 §5.1)',
+    fn() {
+      const g = createGame({ scenario: 'sandbox', seed: 3 });
+      resetGroundStats();
+      const t0 = performance.now(), w = navOf(g.state, 'melas.ground', 'C0', 530, 224), buildMs = performance.now() - t0, s0 = groundStats();
+      const w0 = { x0: w.x0, z0: w.z0, cells: w.nx * w.nz, free: freeCount(w), blockers: w.blockers.length, leaves: w.leaves.map(l => `${l.id} ${l.closed ? 'closed' : 'open'}`).join(', ') };
+      // (the window holds its point NAV_EDGE_M in; a point farther than that from its edge is held by the same window)
+      const same = navOf(g.state, 'melas.ground', 'C0', 530 + 10, 224 - 10) === w, moved = navOf(g.state, 'melas.ground', 'C0', w.x0 + w.nx * w.cellM - NAV_EDGE_M + 1, 224) !== w;
+      const w2 = navOf(g.state, 'melas.ground', 'C0', 530, 224), before = groundStats().chunksBuilt;
+      const ahead = []; for (let k = 0; k < 30; k++) ahead.push(navAhead(g.state, 'melas.ground', 'C0', 530, 224));
+      // (pairs in the window's middle 64 m, the near ring, at most a chunk apart: a walker's leg toward its
+      // next waypoint (PLACES §2.3); a pair farther apart round a building may hit NODE_CAP, which the
+      // planner splits at waypoints (PLACES §2.2), so the wider sample is printed, not held)
+      const mid = { x0: w2.x0 + 16, z0: w2.z0 + 16, x1: w2.x0 + 80, z1: w2.z0 + 80 }, inMid = ([x, z]) => x >= mid.x0 && x <= mid.x1 && z >= mid.z0 && z <= mid.z1;
+      const all = pairsOf(w2, 20000, 'ground-window').filter(([p, r]) => inMid(p) && inMid(r));
+      const b = bench(w2, all.filter(([p, r]) => Math.sqrt((p[0] - r[0]) ** 2 + (p[1] - r[1]) ** 2) <= CHUNK_M).slice(0, 1000));
+      const wide = bench(w2, all.slice(0, 300));
+      const across = path(w2, [522, 214.9], [559, 248]);
+      console.log(`      the window round (530, 224): ${WINDOW_CHUNKS} × ${WINDOW_CHUNKS} chunks of ${CHUNK_M} m from (${w0.x0}, ${w0.z0}), ${w0.cells} cells, ${w0.free} free, ${w0.blockers} blockers, leaves ${w0.leaves}; built in ${fmt(buildMs, 1)} ms (${s0.chunksBuilt} chunks)`);
+      console.log(`      held 10 m off: ${same}; re-placed past NAV_EDGE_M ${NAV_EDGE_M} m: ${moved}; ahead: ${ahead.join(' ')} chunks a call (the ring of 25 round the walker's chunk), ${groundStats().chunksBuilt} built in all`);
+      const M = machine(), ceilUs = 2000 * M.k;
+      console.log(`      A* on 1,000 pairs in its middle 64 m at most ${CHUNK_M} m apart: µs p50 ${fmt(q(b.us, 0.5), 0)}, p95 ${fmt(q(b.us, 0.95), 0)}, max ${fmt(Math.max(...b.us), 0)}; expansions p50 ${q(b.exp, 0.5)}, p95 ${q(b.exp, 0.95)}, max ${Math.max(...b.exp)}; ${b.fails} not found; scratch allocations ${b.allocs}, heap growths ${b.grows}`);
+      console.log(`      the ceiling here: p95 2 ms × ${fmt(M.k, 2)} (this process runs the reference loop in ${fmt(M.ms, 0)} ms, the foreground ${REF_LOOP_MS} ms) = ${fmt(ceilUs / 1000, 2)} ms; the p95 in the foreground's terms ${fmt(q(b.us, 0.95) / M.k, 0)} µs`);
+      console.log(`      (300 pairs anywhere in the middle 64 m: µs p50 ${fmt(q(wide.us, 0.5), 0)}, p95 ${fmt(q(wide.us, 0.95), 0)}; ${wide.fails} over NODE_CAP ${NODE_CAP}, the planner's to split at a waypoint)`);
+      console.log(`      Echo's front door to the mess's lane across the street: ${fmt(across.lengthM, 2)} m, ${across.expanded} expansions`);
+      assert(same && moved, JSON.stringify({ same, moved }));
+      assert(ahead.every(n => n <= 1) && before + ahead.reduce((n, x) => n + x, 0) >= 25 && ahead.at(-1) === 0, JSON.stringify({ before, ahead }));
+      assert(!across.fail && b.allocs === 0 && b.grows === 0, JSON.stringify({ across: across.fail, allocs: b.allocs, grows: b.grows }));
+      assert(b.fails === 0, `${b.fails} of 1,000 pairs not found`);
+      assert(q(b.us, 0.95) <= ceilUs, `p95 ${fmt(q(b.us, 0.95), 0)} µs, over 2 ms × ${fmt(M.k, 2)}`);
+    },
+  },
+  {
     name: 'the ground waypoint edges agree with A* on the ground within 5%',
     fn() {
       const m = measureEdges(MELAS_PLAN), worst = m.edges.filter(e => e.astarM !== null).sort((a, b) => b.diffFrac - a.diffFrac || a.a.localeCompare(b.a));
@@ -146,7 +183,7 @@ export default [
     name: 'path requests are delivered on dequeueTick + max(1, ceil(expanded / 8,000)), and the same after a save and load mid-queue',
     fn() {
       const ground = groundGrid(MELAS_PLAN, LINES_RING, 'C0');
-      const setGround = (state) => { ((state.$places ??= {}).nav ??= {})['melas.ground'] = { C0: ground }; };
+      const PROBE = 'test.lines-probe', setGround = (state) => { ((state.$places ??= {}).nav ??= {})[PROBE] = { C0: ground }; };
       // (twenty requests across the lines: a seeded mix of short ones and long ones round the buildings)
       const pairs = pairsOf(ground, 20, 'delivery');
       const run = (saveAt = null) => {
@@ -155,9 +192,9 @@ export default [
         const got = [];
         const hear = (G) => G.bus.on('path-done', (d) => got.push({ id: d.reqId, tick: G.state.clock.tick, ok: d.ok, lengthM: d.lengthM, reason: d.reason }));
         hear(g);
-        pairs.forEach(([a, b], k) => { if (k < 12) requestPath(g.state, { who: 'a1', area: 'melas.ground', cls: 'C0', from: a, to: b }); });
+        pairs.forEach(([a, b], k) => { if (k < 12) requestPath(g.state, { who: 'a1', area: PROBE, cls: 'C0', from: a, to: b }); });
         for (let t = 0; t < 40; t++) {
-          if (t === 3) pairs.slice(12).forEach(([a, b]) => requestPath(g.state, { who: 'a1', area: 'melas.ground', cls: 'C0', from: a, to: b }));
+          if (t === 3) pairs.slice(12).forEach(([a, b]) => requestPath(g.state, { who: 'a1', area: PROBE, cls: 'C0', from: a, to: b }));
           if (t === saveAt) {
             const json = g.save(), queued = g.state.places.nav.queue.length, pending = g.state.places.nav.pending.length, debt = g.state.places.nav.debtNodes;
             g = createGame({ scenario: 'sandbox', seed: 7 }); g.load(json); setGround(g.state); hear(g);

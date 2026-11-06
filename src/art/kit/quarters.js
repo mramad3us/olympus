@@ -13,6 +13,9 @@
 // boots on the floor under the lower bunk, the upper deck's shadow on the lower one. Its posts are
 // thin boxes of one part with the frame: at a pixel or two they ink dark, as a steel tube frame reads.
 //
+// RACK_DECKS and BERTH_TOP_M say where a berth's top is, and rackBlanket(spec) which blanket the maker
+// gave a rack: the stage lays a sleeper on it in the same wool (src/art/figures/bedding.js).
+//
 // Makes (o.make) and looks (o.look), each from the seed where not given:
 //   rack2, rack1    make 'steel' (olive tube), 'grey' (grey enamel), 'modular' (panel ends, a drawer
 //                   under); look { made: true | false, blanket: 'olive' | 'grey' | 'tan' | 'red', towel, boots }
@@ -27,7 +30,7 @@
 //   studyTable      a table and four stools (PLACES: "a study table with 4 stools")
 //   dutyDesk        make 'counter' (a counter front with the company's plate), 'desk', 'podium'; look { lamp }
 // Pure.
-import { tex } from './kit.js';
+import { tex, pieceRng } from './kit.js';
 import { C, U, P, bevel, sunk, oval, cloth, folds, louvres, handleV, handleH, padlock, nameCard, screenFace, cabinet, tone, hash3 } from './common.js';
 import { paintedSteel, grimeFoot, chips, scuffs } from '../materials/index.js';
 import { fontFor } from './type.js';
@@ -36,6 +39,12 @@ const BLANKETS = { olive: 0x4c633d, grey: 0x625854, tan: 0x96694f, red: 0x6e272f
 const FRAMES = { steel: 0x37664f, grey: 0x565b67, modular: 0x7c736b };
 const LOCKERS = { olive: 0x4c633d, grey: 0x87959d, tan: 0xb28a59 };
 const pick = (r, list) => list[Math.floor(r() * list.length)];
+const BLANKET_PICKS = ['olive', 'olive', 'grey', 'tan'];
+/** The decks' heights of each rack kind (metres), and a berth's top over its deck: the mattress and the pillow on it. */
+export const RACK_DECKS = Object.freeze({ rack1: Object.freeze([0.3]), rack2: Object.freeze([0.28, 1.22]), rack3: Object.freeze([0.3, 0.98, 1.66]) });
+export const BERTH_TOP_M = 0.05 + 0.14 + 0.09;
+/** A rack's blanket as its maker picks it (its look's, else the first draw of its seeded dice): what the sleeper's blanket must match. */
+export function rackBlanket(spec) { return spec.look?.blanket ?? pick(pieceRng(spec.kind ?? 'rack2', spec.seed ?? 1), BLANKET_PICKS); }
 
 // ---------- racks ----------
 
@@ -130,7 +139,7 @@ function rackMaker(k, o, tiers) {
   const two = tiers >= 2;
   const { W, D, ppm, r, seed } = o, make = o.make ?? 'steel', look = o.look ?? {};
   const fc = FRAMES[make] ?? FRAMES.steel, rail = railFace(fc);
-  const blanket = look.blanket ?? pick(r, ['olive', 'olive', 'grey', 'tan']);
+  const blanket = look.blanket ?? pick(r, BLANKET_PICKS);
   const madeLo = look.made ?? (look.madeLower ?? r() > 0.25), madeHi = look.madeUpper ?? look.made ?? r() > 0.3;
   const H = tiers === 3 ? 2.15 : two ? 1.7 : 0.75, post = 0.05, BK = -D / 2, FR = D / 2;
   const frame = k.comp();

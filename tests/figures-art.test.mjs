@@ -1,12 +1,12 @@
 // OLYMPUS tests: the figures' art (src/art/figures/). Proportions, frames, facings, shading, sheets, flashes.
 //
 // Pure tests (no GPU): they compose and shade frames in node at both densities (the density is an
-// argument of every painter here, so one run checks 16 and 24 px/m) and both proportion candidates,
-// and print the numbers that matter: the figures' heights and heads, the frames that compose, the
+// argument of every painter here, so one run checks 16 px/m, the user's pick, and 24, the one-constant
+// rule's guard) for the chibi, the one figure since the user's pick (2026-11-06, VIEWS §2.3), and print the numbers that matter: the figures' heights and heads, the frames that compose, the
 // sheet and its bands, what a band costs to paint, and the palette the camouflage lands on.
 import { createHash } from 'node:crypto';
 import { assert } from './helpers.mjs';
-import { bodyOf, PROPORTION_KEYS } from '../src/art/figures/body.js';
+import { bodyOf } from '../src/art/figures/body.js';
 import { FRAMES, DIRS, BANDS, STEP_M, gaitFrame, gunPose, tumbleFrame, turnOf, KICK_MS, FLASH_MS, AFTER_MS, cellKind } from '../src/art/figures/poses.js';
 import { composeFrame } from '../src/art/figures/compose.js';
 import { shade, INK } from '../src/art/figures/shade.js';
@@ -26,27 +26,29 @@ const partsOf = (cells, test) => { const s = new Set(); cells.forEach(r => r.for
 
 export default [
   {
-    name: 'both candidates stand life-size (about 1.8 m) and the chibi\'s head is about 2.4 of its height, the soldier\'s about 3.75 (DESIGN.md: chibi or taller proportions, by sample)',
+    name: 'the chibi stands life-size (about 1.8 m) and its head is about 2.4 of its height (the user\'s pick, 2026-11-06: 16 px/m chibi)',
     fn() {
-      for (const prop of PROPORTION_KEYS) for (const ppm of PPMS) {
-        const fr = composeFrame({ outfit: 'pt', weapon: null, hair: { style: 'crew' } }, 'down', 'idle0', { prop, ppm });
-        const b = box(fr.cells), B = bodyOf(prop, ppm), heightM = b.h / ppm, heads = b.h / B.head.h;
+      const prop = 'chibi';
+      for (const ppm of PPMS) {
+        const fr = composeFrame({ outfit: 'pt', weapon: null, hair: { style: 'crew' } }, 'down', 'idle0', { ppm });
+        const b = box(fr.cells), B = bodyOf(ppm), heightM = b.h / ppm, heads = b.h / B.head.h;
         console.log(`      ${prop} at ${ppm} px/m: ${b.h} px tall (${heightM.toFixed(2)} m with hair), head ${B.head.w} × ${B.head.h} px, ${heads.toFixed(2)} heads; cell ${fr.w} × ${fr.h}`);
         assert(heightM > 1.6 && heightM < 1.95, `${prop}@${ppm}: ${heightM} m`);
-        assert(prop === 'chibi' ? heads > 2.0 && heads < 2.7 : heads > 3.3 && heads < 4.3, `${prop}@${ppm}: ${heads} heads`);
+        assert(heads > 2.0 && heads < 2.7, `${prop}@${ppm}: ${heads} heads`);
         // (the soles end on the anchor's row; a toe nearer the camera may go a pixel or two below it, into the cell's foot room)
         assert(b.y1 + 1 >= fr.ay && b.y1 + 1 <= fr.ay + Math.round(0.125 * ppm), `${prop}@${ppm}: the soles end on the anchor's row (${b.y1 + 1} vs ${fr.ay})`);
       }
     },
   },
   {
-    name: 'every frame composes in all four facings, for both candidates at both densities, and stays inside its cell',
+    name: 'every frame composes in all four facings at both densities, and stays inside its cell',
     fn() {
       const looks = [{ outfit: 'carrier', weapon: 'rifle', carry: 'low' }, { outfit: 'vac', weapon: 'pistol', carry: 'slung' }, { outfit: 'civilian', weapon: null }];
       let n = 0, empty = 0;
       const t0 = performance.now();
-      for (const prop of PROPORTION_KEYS) for (const ppm of PPMS) for (const look of looks) for (const frame of FRAMES) for (const dir of DIRS) {
-        const fr = composeFrame(look, dir, frame, { prop, ppm });
+      const prop = 'chibi';
+      for (const ppm of PPMS) for (const look of looks) for (const frame of FRAMES) for (const dir of DIRS) {
+        const fr = composeFrame(look, dir, frame, { ppm });
         const b = box(fr.cells);
         if (b.x1 < 0) { empty++; continue; }
         assert(fr.cells.length === fr.h && fr.cells[0].length === fr.w, `${frame} ${dir}: the grid is its cell`);
@@ -55,17 +57,17 @@ export default [
         if (fr.kind !== 'stand') assert(b.x0 > 0 && b.y0 > 0 && b.x1 < fr.w - 1, `${prop}@${ppm} ${frame} ${dir}: fitted inside its ${fr.kind} cell (${JSON.stringify(b)} in ${fr.w}×${fr.h})`);
         n++;
       }
-      console.log(`      ${n} frames composed (${FRAMES.length} frames × ${DIRS.length} facings × 2 candidates × 2 densities × 3 looks) in ${(performance.now() - t0).toFixed(0)} ms; ${empty} empty`);
+      console.log(`      ${n} frames composed (${FRAMES.length} frames × ${DIRS.length} facings × 2 densities × 3 looks) in ${(performance.now() - t0).toFixed(0)} ms; ${empty} empty`);
       assert(empty === 0, `${empty} frames drew nothing`);
     },
   },
   {
     name: 'the rifle stays in the right hand whichever way they face: a true left view, not the right mirrored (VIEWS.md 3.2)',
     fn() {
-      for (const prop of PROPORTION_KEYS) {
+      for (const prop of ['chibi']) {
         const look = wear({ outfit: 'utilities', weapon: 'rifle' });
         const gunAt = (fr) => partsOf(fr.cells, c => c.ch === 'n' || c.ch === 'v'), headAt = (fr) => Math.min(...partsOf(fr.cells, c => c.ch === 's' && c.part > 3));
-        const right = composeFrame(look, 'right', 'aim', { prop, ppm: 24 }), left = composeFrame(look, 'left', 'aim', { prop, ppm: 24 });
+        const right = composeFrame(look, 'right', 'aim', { ppm: 16 }), left = composeFrame(look, 'left', 'aim', { ppm: 16 });
         // (facing right the right side is toward the camera: the shouldered rifle is drawn over the head; facing left, behind it)
         const gr = Math.max(...gunAt(right)), gl = Math.max(...gunAt(left));
         let differ = 0;
@@ -110,7 +112,7 @@ export default [
     fn() {
       for (const ppm of PPMS) {
         const L = wear({ outfit: 'vac', weapon: null });
-        const fr = composeFrame(L, 'down', 'idle0', { prop: 'chibi', ppm }), pm = shade(fr.cells, coloursOf(L, ppm));
+        const fr = composeFrame(L, 'down', 'idle0', { ppm }), pm = shade(fr.cells, coloursOf(L, ppm));
         let outline = 0, missing = 0, glows = 0, colours = new Set();
         for (let y = 0; y < pm.h; y++) for (let x = 0; x < pm.w; x++) {
           const v = unword(pm.data[y * pm.w + x]);
@@ -141,8 +143,9 @@ export default [
   {
     name: 'a sheet is laid out in bands, every cell inside its band; the atlas holds 64 looks at 16 px/m and 25 at 24',
     fn() {
-      for (const prop of PROPORTION_KEYS) for (const ppm of PPMS) {
-        const lay = sheetLayout(prop, ppm);
+      const prop = 'chibi';
+      for (const ppm of PPMS) {
+        const lay = sheetLayout(ppm);
         for (const c of lay.cells.values()) {
           const b = lay.bands[c.band];
           assert(c.x >= b.x && c.y >= b.y && c.x + c.w <= b.x + b.w && c.y + c.h <= b.y + b.h, `${c.frame} ${c.dir} outside its band`);
@@ -162,7 +165,7 @@ export default [
       for (const ppm of PPMS) {
         const looks = [0, 1, 2, 3].map(i => ({ outfit: 'utilities', weapon: 'rifle', carry: 'slung', seed: 10 + i, skin: ['tan', 'light', 'brown', 'dark'][i] }));
         assert(new Set(looks.map(l => shapeKey(wear(l)))).size === 1, 'one shape');
-        const ms = looks.map(l => paintBand(l, 'gait', { prop: 'soldier', ppm }).ms);
+        const ms = looks.map(l => paintBand(l, 'gait', { ppm }).ms);
         console.log(`      gait band (${BANDS.gait.length} frames × 4 facings) at ${ppm} px/m: first face ${ms[0].toFixed(1)} ms, then ${ms.slice(1).map(v => v.toFixed(1)).join(', ')} ms`);
         assert(Math.min(...ms.slice(1)) < ms[0], 'cheaper the second time');
       }
@@ -172,8 +175,8 @@ export default [
     name: 'a look paints the same sheet byte for byte every time (no Math.random: hashes and seeds), and a seed changes only its camouflage',
     fn() {
       const h = (pm) => createHash('sha1').update(Buffer.from(pm.data.buffer)).digest('hex').slice(0, 12);
-      const a = paintSheet({ outfit: 'carrier', weapon: 'rifle', seed: 4 }, { prop: 'chibi', ppm: 16 }), b = paintSheet({ outfit: 'carrier', weapon: 'rifle', seed: 4 }, { prop: 'chibi', ppm: 16 });
-      const c = paintSheet({ outfit: 'carrier', weapon: 'rifle', seed: 5 }, { prop: 'chibi', ppm: 16 });
+      const a = paintSheet({ outfit: 'carrier', weapon: 'rifle', seed: 4 }, { ppm: 16 }), b = paintSheet({ outfit: 'carrier', weapon: 'rifle', seed: 4 }, { ppm: 16 });
+      const c = paintSheet({ outfit: 'carrier', weapon: 'rifle', seed: 5 }, { ppm: 16 });
       console.log(`      carrier, chibi, 16 px/m: ${h(a)} twice ${h(b)}; seed 5: ${h(c)}`);
       assert(h(a) === h(b), 'the same twice');
       assert(h(a) !== h(c), 'another seed, another camouflage');
@@ -183,7 +186,7 @@ export default [
     name: 'every fire frame of both guns in every facing has its flash in the strip, a burst side on and a star at the camera',
     fn() {
       for (const ppm of PPMS) {
-        const s = flashStrip('chibi', ppm);
+        const s = flashStrip(ppm);
         const side = [...s.index.keys()].filter(k => k.includes('|right|') || k.includes('|left|')).length;
         console.log(`      ${ppm} px/m: ${s.count} flashes in a ${s.pm.w} × ${s.pm.h} strip (${side} side on), each in a ${s.size}-px square`);
         for (const gun of ['rifle', 'pistol']) for (const dir of DIRS) for (const f of ['fire', 'firehi', 'firelo', 'kneelfire']) assert(s.index.has(`${gun}|${dir}|${f}`), `${gun} ${dir} ${f}`);
@@ -193,7 +196,7 @@ export default [
   {
     name: 'every outfit dresses the figure differently: seven looks, seven palettes of pixels',
     fn() {
-      const sig = OUTFITS.map(o => { const L = wear({ outfit: o, weapon: null }); const fr = composeFrame(L, 'down', 'idle0', { prop: 'soldier', ppm: 24 }); const pm = shade(fr.cells, coloursOf(L, 24)); return createHash('sha1').update(Buffer.from(pm.data.buffer)).digest('hex').slice(0, 8); });
+      const sig = OUTFITS.map(o => { const L = wear({ outfit: o, weapon: null }); const fr = composeFrame(L, 'down', 'idle0', { ppm: 16 }); const pm = shade(fr.cells, coloursOf(L, 16)); return createHash('sha1').update(Buffer.from(pm.data.buffer)).digest('hex').slice(0, 8); });
       console.log(`      ${OUTFITS.map((o, i) => `${o} ${sig[i]}`).join(', ')}`);
       assert(new Set(sig).size === OUTFITS.length, 'all different');
     },

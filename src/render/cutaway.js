@@ -23,7 +23,9 @@
 //     kind: 'door' | 'gap', label }], decor: [{ kind: 'emergency' | 'sign' | 'board' | 'stencil' | 'clock',
 //     x, y, w, h, text }], lamps: [{ x, z, ... }] }
 // A door on the north wall is painted on it (tradecraft's front door); anywhere else an opening is a
-// gap in the wall with a threshold. Everything goes into an area (src/render/batch.js): one draw call,
+// gap in the wall with a threshold (and its leaf, a moving piece the area job adds: src/art/jobs.js). A
+// stencil is painted whole in the density's alphabet (src/art/kit/type.js fontFor: 0.0.3, after the look
+// round's "2ND SQUAD" read "EUND"), where decorRect() says. Everything goes into an area (src/render/batch.js): one draw call,
 // or a collector of plain specs (src/art/jobs.js createCollector), which is how the paint worker builds it.
 // Pure. No three.js and no DOM in its imports, so the paint worker's closure may hold it (TECH §2.2).
 import { wallsOf, wallRect, WALL_H_M, CUT_H_M, OUTER_T_M } from './walls.js';
@@ -31,7 +33,8 @@ import { tile } from '../art/tiles.js';
 import { GLOW, paint } from '../art/paint.js';
 import { tone, hash3 } from '../art/tone.js';
 import { bevel, rivet, hazard, plate, mottle } from '../art/brush.js';
-import { text, textWidth, stencil } from '../art/font.js';
+import { text, textWidth } from '../art/font.js';
+import { fontFor } from '../art/kit/type.js';
 import { SHIP_GLOWS } from '../art/palette.js';
 
 export { WALL_H_M, CUT_H_M };
@@ -107,8 +110,25 @@ function paintDoor(px, x, w, h, f, ppm, label) {
   }
 }
 
+/**
+ * Where a piece of decor is painted on the north wall's face, pixels from the face's top-left: { x, y,
+ * w, h }. A stencil is as wide as its text in the density's alphabet (3 × 5 under 20 px/m, 5 × 7 from
+ * it: src/art/kit/type.js fontFor), centred on its x; the rest are sized in metres. X maps an area x
+ * to the face's column; faceH is the face's height in pixels. (kit-stencil reads a stencil back here.)
+ */
+export function decorRect(d, ppm, X, faceH) {
+  const f = fontFor(ppm), text = d.text ?? 'MCRN';
+  const w = d.kind === 'stencil' ? f.width(text) : Math.max(3, Math.round((d.w ?? (d.kind === 'emergency' ? 0.3 : 0.6)) * ppm));
+  const h = d.kind === 'stencil' ? f.h : Math.max(3, Math.round((d.h ?? (d.kind === 'emergency' ? 0.14 : 0.4)) * ppm));
+  const y = d.y ?? (d.kind === 'emergency' ? EMERGENCY_Y_M : 1.5);
+  return { x: X(d.x) - Math.floor(w / 2), y: faceH - Math.round(y * ppm) - h, w, h };
+}
+
+/** A stencil's paint on a finish: its wainscot colour darkened, so it reads on the pale upper wall. */
+export const stencilColour = (f) => tone(f.c1, -0.35);
+
 /** What hangs on the north wall (decor), painted at (x, y) px, w × h px. */
-function paintDecor(px, d, x, y, w, h, f) {
+function paintDecor(px, d, x, y, w, h, f, ppm) {
   if (d.kind === 'emergency') {                                      // (a lamp housing, its amber lens: lit in an emergency)
     px(x, y, w, h, 0x4c5262); bevel(px, x, y, w, h, 0x4c5262, 1.2);
     px(x + 1, y + 1, w - 2, h - 2, EMERGENCY_AMBER, GLOW.EMERGENCY);
@@ -120,7 +140,7 @@ function paintDecor(px, d, x, y, w, h, f) {
     return;
   }
   if (d.kind === 'clock') { px(x, y, w, h, 0x23252f); px(x + 1, y + 1, w - 2, h - 2, 0xf4efe6); const cx = x + Math.floor(w / 2), cy = y + Math.floor(h / 2); px(cx, y + 2, 1, cy - y - 1, 0x23252f); px(cx, cy, Math.max(1, Math.floor(w / 3)), 1, 0x23252f); return; }
-  if (d.kind === 'stencil') { stencil(px, x, y, d.text ?? 'MCRN', d.color ?? tone(f.c1, -0.35)); return; }
+  if (d.kind === 'stencil') { fontFor(ppm).stencil(px, x, y, d.text ?? 'MCRN', d.color ?? stencilColour(f)); return; }
   // a sign: a plate, its text centred
   const c = d.color ?? 0x9e3c36;
   px(x, y, w, h, c); bevel(px, x, y, w, h, c, 1.2);
@@ -153,11 +173,8 @@ export function buildCutaway(area, plan, { deck = false, finish = null, strips =
     const X = (m) => Math.round((m - bx0) * ppm);
     for (const r of roomsN) paintFinish(px, X(r.x0), X(r.x1) - X(r.x0), h, fin(r), ppm, { battleY: battle ? BATTLE_Y_M : null });
     for (const d of plan.decor ?? []) {
-      // (a stencil is as wide as its text in the 3 × 5 font, whatever the density: centred on its x)
-      const dw = d.kind === 'stencil' ? textWidth(d.text ?? 'MCRN') : Math.max(3, Math.round((d.w ?? (d.kind === 'emergency' ? 0.3 : 0.6)) * ppm));
-      const dh = d.kind === 'stencil' ? 5 : Math.max(3, Math.round((d.h ?? (d.kind === 'emergency' ? 0.14 : 0.4)) * ppm));
-      const y = d.y ?? (d.kind === 'emergency' ? EMERGENCY_Y_M : 1.5);
-      paintDecor(px, d, X(d.x) - Math.floor(dw / 2), h - Math.round(y * ppm) - dh, dw, dh, F);
+      const { x: dx, y: dy, w: dw, h: dh } = decorRect(d, ppm, X, h);
+      paintDecor(px, d, dx, dy, dw, dh, F, ppm);
     }
     for (const o of doorsN) paintDoor(px, X(o.a), X(o.b) - X(o.a), h, F, ppm, o.label);
   };

@@ -9,7 +9,7 @@
 // draw calls at most 160 (TECH §9.2; 600 is VIEWS §14's hard failure), no program linked after the
 // first area frame (warm.js), no frame sending over 1 MB (uploads.js), frame times median at most
 // 20 ms and p95 at most 33 ms (the bench's 16.7 and 18 ms are 0.1's), and no error on the page.
-// Then ?prop=soldier at 24 px/m walks 1 s without error. Runs on OLYMPUS_TEST_PORT (8223 by default).
+// Runs on OLYMPUS_TEST_PORT (8223 by default).
 //
 // The frame clock is the browser's, and a headless Chrome may keep a slow one: on the Mac this round
 // (2026-11-05) every page that draws ran its requestAnimationFrame at 10 Hz or so under the test
@@ -25,8 +25,24 @@
 // the clock, a limit it cannot hide (after the 0.0.2 review: the 60 fps target was held by no
 // number): 40 frames driven back to back in the page, each finished on the GPU with gl.finish(), at
 // most 16.7 ms at the median, the frame's main-thread work and its GPU work together.
+//
+// 0.0.3 (the build sheet's §5.3): the barracks at 23:00, ?play=barracks&hour=23&seed=48213&nostore=1
+// &perf=1 at 16 and 24 px/m, the aisle walked 3 s east and 3 s west: 14 figures drawn every frame, 12
+// of them lying in their berths (the berth's quad, flat on the mattress: the look round's L5), draw
+// calls at most 160, no program linked after the first area frame, no frame sending over 1 MB, the
+// bay's wall clock showing the watch's time (places' wallClockAt, dates.js marsClock: one helper), the
+// fire watch under the red lamp tinted redder and brighter than a sleeper in the dark, no error; shots
+// of the bay at 23:00 and 12:40 and the street at dawn and at noon, both densities, into OLYMPUS_SHOTS
+// (the system's temp folder by default), printed to be looked at.
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
+import { startSampling, stopSampling, burst, framesLine, pct as pctOf } from './stage-drive.mjs';
+import { mkdirSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+/** Where the shots go: outside the repository (the session's own temp), printed. */
+const SHOTS = process.env.OLYMPUS_SHOTS ?? path.join(os.tmpdir(), 'olympus-shots');
 
 const H = '__olympus';
 const pct = (xs, p) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(s.length * p))] : NaN; };
@@ -129,16 +145,57 @@ export default [
     },
   },
   {
-    name: 'the soldier figure (?prop=soldier) at 24 px/m walks a second without error',
+    name: 'the barracks at 23:00: fourteen figures, twelve lying in their racks, the clock agreeing with the watch, the red lamp on the fire watch, in budget at 16 and 24 px/m (the build sheet 0.0.3 §5.3)',
     heavy: true,
-    timeoutMs: 90000,
+    timeoutMs: 300000,
     async fn() {
-      await withGame(async (page) => {
-        const { at } = await walk(page, [['KeyD', 1000]]);
-        const r = await page.evaluate(() => ({ prop: window.__report.prop, people: window.__report.view.people, deferred: window.__report.view.deferred }));
-        console.log(`      ${r.prop}: walked ${fmt(at[1].x - at[0].x, 2)} m east in 1 s; ${r.people} drawn, ${r.deferred} put off`);
-        assert(r.prop === 'soldier' && r.people === 1 && at[1].x - at[0].x > 0.7, JSON.stringify({ r, at }));
-      }, { query: 'play=sandbox&seed=1&perf=1&nostore=1&ppm=24&prop=soldier', timeoutMs: 60000 });
+      mkdirSync(SHOTS, { recursive: true });
+      await withGame(async (page, errors, game) => {
+        for (const ppm of [16, 24]) {
+          await game.open(`play=barracks&hour=23&seed=48213&nostore=1&perf=1&ppm=${ppm}`);
+          await page.waitForTimeout(800);
+          const boot = await page.evaluate(() => ({ links: window.__report.gl?.total.links ?? 0, programs: window.__report.view.programs, area: window.__report.view.area }));
+          await startSampling(page);
+          await page.keyboard.down('KeyD'); await page.waitForTimeout(3000); await page.keyboard.up('KeyD');
+          await page.keyboard.down('KeyA'); await page.waitForTimeout(3000); await page.keyboard.up('KeyA');
+          await page.waitForTimeout(300);
+          const frames = await stopSampling(page);
+          const look = await page.evaluate(async () => {
+            const { marsClock } = await import('/src/sim/time/dates.js');
+            const { lonOf } = await import('/src/sim/places/model.js');
+            const s = window.__olympus.state, v = window.__report.view, c = marsClock(s.clock.ms, lonOf(s));
+            const lamps = (await import('/src/sim/places/light.js')).lampsOf(s, s.places.live.area, s.clock.ms).filter(l => l.kind === 'red' && l.on);
+            return { watch: { hour: c.hour, minute: c.minute }, clocks: v.clocks, figures: v.figures, red: lamps.map(l => ({ x: l.x, z: l.z, r: l.r })), after: { links: window.__report.gl.total.links, programs: v.programs, maxBytes: window.__report.gl.max.bytes } };
+          });
+          const b = await burst(page);
+          const drawn = frames.map(f => f.drawn), lying = frames.map(f => f.lying), calls = Math.max(...frames.map(f => f.calls)), tris = Math.max(...frames.map(f => f.tris));
+          const bytes = Math.max(...frames.map(f => f.bytes)), links = frames.reduce((n, f) => n + f.links, 0), viewMs = pctOf(frames.map(f => f.viewMs), 0.5);
+          const bay = look.clocks.find(c => c.id.includes('bay-2-1')), face = bay?.faces?.[0];
+          const red = look.red[0], near = (f) => red && Math.hypot(f.x - red.x, f.z - red.z) < red.r;
+          const lum = (t) => 0.3 * t[0] + 0.59 * t[1] + 0.11 * t[2];
+          const lit = look.figures.find(f => !f.own && near(f)), dark = look.figures.filter(f => f.lie && !near(f)).sort((p, q) => lum(p.tint) - lum(q.tint))[0];
+          console.log(`      ${ppm} px/m: ${boot.area?.id} (built ${fmt(boot.area?.buildMs ?? 0, 0)} ms, the cut ${fmt(boot.area?.cutMs ?? 0, 0)} ms); figures drawn ${Math.min(...drawn)} to ${Math.max(...drawn)}, lying ${Math.min(...lying)} to ${Math.max(...lying)}; draw calls ${calls} at most, triangles ${tris}; programs ${boot.programs} → ${look.after.programs} (${links} linked while walking); uploads ${fmt(bytes / 1024, 1)} KB a frame at most; view ${fmt(viewMs, 2)} ms`);
+          console.log(`      frames ${framesLine(frames.map(f => f.dt))}; 40 back to back, each finished on the GPU: median ${fmt(b.medianMs, 2)} ms, p95 ${fmt(b.p95Ms, 2)} ms`);
+          console.log(`      the watch ${String(look.watch.hour).padStart(2, '0')}:${String(look.watch.minute).padStart(2, '0')}, bay-2-1's clock ${face ? `${face.hour}:${String(face.minute).padStart(2, '0')}${face.slip ? ' (slip)' : ''}` : 'none'}; ${look.clocks.length} clocks on the floor`);
+          console.log(`      tints: under the red lamp ${lit ? `${lit.id} ${lit.tint.map(v => fmt(v, 3)).join(', ')}` : 'nobody'}; a sleeper in the dark ${dark ? `${dark.id} ${dark.tint.map(v => fmt(v, 3)).join(', ')}` : 'none'}`);
+          await page.screenshot({ path: path.join(SHOTS, `bay-23-${ppm}.png`) });
+          assert(Math.min(...drawn) === 14 && Math.max(...drawn) === 14 && Math.min(...lying) === 12 && Math.max(...lying) === 12, `drawn ${[...new Set(drawn)]}, lying ${[...new Set(lying)]}`);
+          assert(calls <= 160, `${calls} draw calls`);
+          assert(links === 0 && look.after.programs === boot.programs, `programs linked after the first area frame: ${links} (${boot.programs} → ${look.after.programs})`);
+          assert(bytes <= 1024 * 1024, `a frame sent ${bytes} bytes`);
+          assert(face && face.hour % 12 === look.watch.hour % 12 && face.minute === look.watch.minute, `the clock ${JSON.stringify(face)} and the watch ${JSON.stringify(look.watch)}`);
+          assert(lit && dark && lit.tint[0] > lit.tint[1] * 1.3 && lum(lit.tint) > lum(dark.tint), `under the red lamp ${JSON.stringify(lit)}, in the dark ${JSON.stringify(dark)}`);
+          assert(!errors.length, errors.join('\n'));
+          // (the shots, looked at: the bay at 12:40, the street at dawn and at noon)
+          for (const [name, q] of [['bay-1240', 'play=barracks&hour=12.67&seed=48213'], ['street-0545', 'play=barracks&hour=5.75&seed=48213&area=melas.ground&at=522,224&face=up'], ['street-1200', 'play=barracks&hour=12&seed=48213&area=melas.ground&at=522,224&face=up']]) {
+            await game.open(`${q}&nostore=1&ppm=${ppm}`);
+            await page.waitForTimeout(600);
+            await page.screenshot({ path: path.join(SHOTS, `${name}-${ppm}.png`) });
+          }
+          assert(!errors.length, errors.join('\n'));
+        }
+        console.log(`      shots in ${SHOTS}: bay-23, bay-1240, street-0545, street-1200 at 16 and 24 px/m`);
+      }, { query: 'play=barracks&hour=23&seed=48213&nostore=1&perf=1&ppm=16', viewport: { width: 1600, height: 900 }, timeoutMs: 60000 });
     },
   },
   {
@@ -170,7 +227,7 @@ export default [
         await page.keyboard.press('Digit1');                           // (time runs again)
         await page.waitForTimeout(200);
         assert(!(await page.evaluate(() => window.__olympus.loop.held)) && !errors.length, errors.join('\n'));
-      }, { query: 'play=sandbox&seed=1&nostore=1&ppm=24&prop=soldier', timeoutMs: 60000 });
+      }, { query: 'play=sandbox&seed=1&nostore=1', timeoutMs: 60000 });
     },
   },
 ];

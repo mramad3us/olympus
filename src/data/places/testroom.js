@@ -23,7 +23,9 @@
 // from x = a to b. Fixtures are a kit place() spec (src/art/kit/index.js) plus their id and room;
 // their sizes are the sim's catalogue (src/sim/places/fixtures.js, equal to the kit's FOOTPRINTS).
 // look is the view's: the palette, the wall finish, what hangs on the hallway's north wall, the
-// ceiling lamps (r in metres). Frozen literals (TECH §2.4).
+// ceiling lamps (r in metres). Frozen literals (TECH §2.4). A fixture's seed is an authored constant,
+// at most six a kind (the 0.0.3 sheet's SEEDS_PER_KIND: the office's two lockers take the bay's first
+// two, 11 and 12, where they had 54 and 55).
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
@@ -77,8 +79,8 @@ export const TEST_AREA = deepFreeze({
     fx('f:t1:desk:03', 'desk', 'steel', 45.0, 4.2, 'down', OFFICE, 52, { look: { screen: true } }),
     fx('f:t1:chair:03', 'chair', 'office', 45.0, 4.85, 'up', OFFICE, 52),
     fx('f:t1:rifles:01', 'rifleRack', 'cabinet', 42.5, 9.875, 'up', OFFICE, 53),
-    fx('f:t1:locker:07', 'wallLocker', 'single', 46.6, 9.825, 'up', OFFICE, 54, { look: { colour: 'grey', n: 301 } }),
-    fx('f:t1:locker:08', 'wallLocker', 'single', 47.2, 9.825, 'up', OFFICE, 55, { look: { colour: 'grey', n: 302 } }),
+    fx('f:t1:locker:07', 'wallLocker', 'single', 46.6, 9.825, 'up', OFFICE, 11, { look: { colour: 'grey', n: 301 } }),
+    fx('f:t1:locker:08', 'wallLocker', 'single', 47.2, 9.825, 'up', OFFICE, 12, { look: { colour: 'grey', n: 302 } }),
     fx('f:t1:bin:01', 'bin', 'extinguisher', 36.7, 9.8, 'up', OFFICE, 56),
     // (the hallway: two bins against the north wall, the night lights at its foot every 12 m)
     fx('f:t1:bin:02', 'bin', 'bin', 12.0, 0.25, 'down', HALL, 61),

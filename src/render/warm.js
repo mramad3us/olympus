@@ -10,9 +10,10 @@
 // again. The post, blit and bake programs were made when the stage was (post.bake()). The view's
 // browser test counts linkProgram calls after the first area frame and fails on any.
 //
-// What it warms: a batch mesh on a one-texel page (src/render/materials.js batchMaterial), and the
-// figures' own three materials (src/render/figures.js: cards, blobs, flashes; their shaders are the
-// same for every look, so one instance each is enough). Returns { programs, ms, compiled }.
+// What it warms: a batch mesh on a one-texel page (src/render/materials.js batchMaterial), the
+// figures' own three materials (src/render/figures.js: cards, blobs, flashes, the berths sharing the
+// cards' program; their shaders are the same for every look, so one instance each is enough), and any
+// extra materials the view names (0.0.3: the clocks' hands, src/render/clocks.js). Returns { programs, ms, compiled }.
 // Two things matter for a warm program to be the one play uses. It is compiled with the scene's render
 // target bound (a program's key holds the output colour space, which differs between the canvas and a
 // target). And the warm-up's own batch material is kept, never disposed: three frees a program when the
@@ -23,7 +24,7 @@ import { batchMaterial } from './materials.js';
 const kept = [];                                                     // (the warm-up's materials: kept, so their programs stay)
 
 /** Compile what the stage will draw with: a promise of { programs (linked in all), ms, compiled (by this warm-up) }. */
-export async function warmUp(stage, { figures = null } = {}) {
+export async function warmUp(stage, { figures = null, extra: extraMats = [] } = {}) {
   const t0 = performance.now(), r = stage.renderer, before = r.info.programs?.length ?? 0;
   const group = new THREE.Group();
   group.name = 'warm-up';
@@ -53,6 +54,9 @@ export async function warmUp(stage, { figures = null } = {}) {
       group.add(inst); extra.push(inst);
     }
   }
+  // (any other material the stage draws with: the clocks' hands, on a quad each)
+  const quads = [];
+  for (const m of extraMats) { const q = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.1), m); q.frustumCulled = false; q.userData.noId = true; group.add(q); quads.push(q); }
   group.position.set(stage.cam.at.x, -20, stage.cam.at.z);           // (under the floor, out of sight)
   stage.scene.add(group);
   kept.push(batch.material, page);
@@ -67,6 +71,7 @@ export async function warmUp(stage, { figures = null } = {}) {
     group.removeFromParent();
     g.dispose();
     for (const inst of extra) inst.dispose?.();
+    for (const q of quads) q.geometry.dispose();
   }
   const programs = r.info.programs?.length ?? 0;
   return { programs, compiled: programs - before, ms: performance.now() - t0 };

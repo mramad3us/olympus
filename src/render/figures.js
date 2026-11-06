@@ -30,6 +30,12 @@
 //   - FLASHES: a third instanced draw of cards from the flash strip (atlas.js flashStrip()), at the
 //     muzzle, unlit, nudged along the camera's line (in front, or behind the head from behind), for
 //     FLASH_MS; the caller lights whoever is within FLASH_LIT_M (poses.js gunPose() decides when).
+//   - BERTHS (0.0.3): a person lying in a rack (lie: { y, head, ... }) is not a card: in this projection an
+//     upright card of a body lying head north reads as one standing (the look round's L5). They are drawn
+//     as the berth shows them, a quad lying on the mattress at its height, painted with the blanket over
+//     the body and the head on the pillow in their own hair and skin, or the drawn curtain
+//     (src/art/figures/bedding.js), from a small atlas a cell a sleeper, a fourth instanced draw with the
+//     cards' own shader (one program), lit by the same tint; no blob (the rack is under them).
 // Frames follow the sim (poses.js gaitFrame(): walks by distance, idles at 2 fps by a person's phase).
 //
 // In the game (TECH §9.4, §11.2) the bands are painted off the main thread: given a painter
@@ -48,24 +54,30 @@ import { PEOPLE_PART } from './cards.js';
 import { sheetLayout, bandSteps, flashStrip } from '../art/figures/atlas.js';
 import { BAND_OF, gaitFrame } from '../art/figures/poses.js';
 import { wear } from '../art/figures/outfits.js';
+import { paintSleeper, sleeperKey, BERTH_M } from '../art/figures/bedding.js';
+import { paint } from '../art/paint.js';
 
 export const ATLAS_PX = 4096;
 export const SHEETS_PER_FRAME = 2;
 /** Milliseconds a frame for painting new bands (VIEWS.md 3.7). */
 export const BUDGET_MS = PX_PER_M >= 20 ? 3.0 : 1.5;
 export const MAX_PEOPLE = 256, MAX_FLASHES = 24;
+/** The berths' atlas, texels square (a sleeper's cell is 0.84 × 1.92 m: 20 × 46 px at 24 px/m, 275 cells). */
+export const BERTH_ATLAS_PX = 512;
+/** The part a berth's sleeper writes (outlined against the rack, not against the people standing by). */
+export const BERTH_PART = PEOPLE_PART + 1;
 /** Who a flash lights, and the most it lights them (tradecraft's: linear, a warm white). */
 export const FLASH_LIT_M = 3, FLASH_LIGHT = Object.freeze([1.0, 0.85, 0.55]);
 const INK = 0x14151c, TOWARD = new THREE.Vector3(0, Math.SQRT1_2, Math.SQRT1_2).multiplyScalar(0.15);
 
 /**
  * The figures of the stage: { group (add it to the scene or an area), update(people), prepare(key, look,
- * bands), stats, atlas, layout, dispose }. opts: renderer (required), prop ('chibi' | 'soldier'), ppm,
+ * bands), stats, atlas, layout, dispose }. opts: renderer (required), ppm,
  * atlasPx, budgetMs, sheetsPerFrame, maxPeople, painter (the paint worker's: src/render/painter.js),
  * uploads (the frame's upload queue: src/render/uploads.js).
  */
-export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasPx = ATLAS_PX, budgetMs = BUDGET_MS, sheetsPerFrame = SHEETS_PER_FRAME, maxPeople = MAX_PEOPLE, painter = null, uploads = null } = {}) {
-  const lay = sheetLayout(prop, ppm);
+export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, budgetMs = BUDGET_MS, sheetsPerFrame = SHEETS_PER_FRAME, maxPeople = MAX_PEOPLE, painter = null, uploads = null } = {}) {
+  const lay = sheetLayout(ppm);
   const COLS = Math.floor(atlasPx / lay.w), ROWS = Math.floor(atlasPx / lay.h), SLOTS = COLS * ROWS;
   // (on the GPU only: storage made at its first use, nothing sent with it; rows top-down, as the sheets are painted)
   const atlas = new THREE.DataTexture(null, atlasPx, atlasPx);
@@ -111,7 +123,7 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
   function ask(s, band, priority, { direct = false } = {}) {
     if (s.asked.has(band)) return s.asked.get(band);
     stats.asked++; stats.waiting++;
-    const p = painter.run('sheet', { look: s.raw, band, prop, ppm }, { priority }).then(({ meta, buffers }) => {
+    const p = painter.run('sheet', { look: s.raw, band, ppm }, { priority }).then(({ meta, buffers }) => {
       stats.waiting--;
       if (s.gone || s.bands.has(band)) return;
       const b = bandOf({ meta, buffers });
@@ -133,7 +145,7 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
         s.own = true;
         const g = s.got.get(band);
         if (g) { s.got.delete(band); uploads?.cancel(`fig:${s.slot}:${band}`); upload(s, g); return true; }
-        upload(s, bandOf(painter.runNow('sheet', { look: s.raw, band, prop, ppm })));
+        upload(s, bandOf(painter.runNow('sheet', { look: s.raw, band, ppm })));
         stats.ownNow++;
         return true;
       }
@@ -142,7 +154,7 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
     }
     if (s.ready) return false;                                     // (painted, waiting for a frame with an upload to spare)
     if (s.job && s.jobBand !== band) return false;                 // (one band at a time a slot)
-    if (!s.job) { s.job = bandSteps(s.look, band, { prop, ppm }); s.jobBand = band; }
+    if (!s.job) { s.job = bandSteps(s.look, band, { ppm }); s.jobBand = band; }
     for (;;) {
       if (!own && msLeft <= 0) return false;
       const t0 = performance.now(), r = s.job.next(), dt = performance.now() - t0;
@@ -174,34 +186,7 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
   const aRect = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 4), 4);
   const aTint = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 3), 3);
   geo.setAttribute('aRect', aRect); geo.setAttribute('aTint', aTint);
-  const material = new THREE.ShaderMaterial({
-    uniforms: { atlas: { value: atlas }, size: { value: atlasPx }, part: { value: PEOPLE_PART } },
-    defines: { OLY_SEE: '' },
-    vertexShader: /* glsl */`
-      attribute vec4 aRect; attribute vec3 aTint;
-      varying vec2 vPx; varying vec3 vTint; varying vec3 vOlyWorld; flat varying float vOlyPart;
-      uniform float part;
-      void main() {
-        vPx = aRect.xy + vec2(uv.x, 1.0 - uv.y) * aRect.zw;          // (atlas pixels, rows top-down as painted)
-        vTint = aTint; vOlyPart = part;
-        vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
-        vOlyWorld = w.xyz;
-        gl_Position = projectionMatrix * viewMatrix * w;
-      }`,
-    fragmentShader: /* glsl */`
-      ${FRAG_DECL}
-      uniform sampler2D atlas; uniform float size;
-      varying vec2 vPx; varying vec3 vTint;
-      void main() {
-        olySee(vOlyWorld);
-        vec4 c = texture2D(atlas, (floor(vPx) + 0.5) / size);
-        float a = floor(c.a * 255.0 + 0.5);
-        if (a < 128.0) discard;
-        // (a glow class in the alpha: a lamp, a display, drawn unlit; the rest lit by where they stand)
-        gl_FragColor = vec4(a < 248.0 || a > 254.5 ? c.rgb * vTint : c.rgb, 1.0);
-        pc_fragId = olyId(vOlyPart, olyFlag);
-      }`,
-  });
+  const material = cardMaterial(atlas, atlasPx, PEOPLE_PART);
   material.userData.oly = { card: true };
   const cards = new THREE.InstancedMesh(geo, material, maxPeople);
   cards.frustumCulled = false; cards.count = 0;
@@ -228,7 +213,7 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
   blobs.userData.noId = true;
 
   // ---------- the flashes ----------
-  const strip = flashStrip(prop, ppm), FS = strip.size;
+  const strip = flashStrip(ppm), FS = strip.size;
   const ftex = new THREE.DataTexture(new Uint8Array(strip.pm.data.buffer), strip.pm.w, strip.pm.h);
   ftex.magFilter = ftex.minFilter = THREE.NearestFilter; ftex.generateMipmaps = false; ftex.colorSpace = THREE.SRGBColorSpace; ftex.flipY = false; ftex.needsUpdate = true;
   const fgeo = new THREE.PlaneGeometry(1, 1).translate(0.5, 0.5, 0);
@@ -250,9 +235,39 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
   flashes.frustumCulled = false; flashes.count = 0; flashes.renderOrder = 2;
   flashes.userData.noId = true;
 
+  // ---------- the berths (a sleeper on a mattress: bedding.js, see the header) ----------
+  const bw = Math.max(4, Math.round(BERTH_M[0] * ppm)), bh = Math.max(8, Math.round(BERTH_M[1] * ppm));
+  const BCOLS = Math.floor(BERTH_ATLAS_PX / bw), BCELLS = BCOLS * Math.floor(BERTH_ATLAS_PX / bh);
+  const batlas = new THREE.DataTexture(null, BERTH_ATLAS_PX, BERTH_ATLAS_PX);
+  batlas.magFilter = batlas.minFilter = THREE.NearestFilter; batlas.generateMipmaps = false; batlas.colorSpace = THREE.SRGBColorSpace; batlas.flipY = false;
+  batlas.source.dataReady = false; batlas.needsUpdate = true;
+  const bgeo2 = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const bRect = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 4), 4), bTint = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 3), 3);
+  bgeo2.setAttribute('aRect', bRect); bgeo2.setAttribute('aTint', bTint);
+  const berthMat = cardMaterial(batlas, BERTH_ATLAS_PX, BERTH_PART);
+  const berths = new THREE.InstancedMesh(bgeo2, berthMat, maxPeople);
+  berths.frustumCulled = false; berths.count = 0; berths.userData.part = BERTH_PART;
+  const berthCells = new Map();                                      // key → cell index
+  function berthCell(o) {
+    const key = sleeperKey(o);
+    let c = berthCells.get(key);
+    if (c !== undefined) return c;
+    if (berthCells.size >= BCELLS) { const first = berthCells.keys().next().value; c = berthCells.get(first); berthCells.delete(first); } else c = berthCells.size;
+    berthCells.set(key, c);
+    const pm = paint(bw, bh, (px) => paintSleeper(px, bw, bh, { ...o, ppm }));
+    const src = new THREE.DataTexture(new Uint8Array(pm.data.buffer), bw, bh);
+    src.flipY = false;
+    renderer.copyTextureToTexture(src, batlas, null, at.set((c % BCOLS) * bw, Math.floor(c / BCOLS) * bh));
+    src.dispose();
+    stats.berthsPainted = (stats.berthsPainted ?? 0) + 1;
+    return c;
+  }
+  const HEAD_TURN = { n: 0, s: Math.PI, e: -Math.PI / 2, w: Math.PI / 2 };
+  const q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), ps = new THREE.Vector3();
+
   const group = new THREE.Group();
   group.name = 'figures';
-  group.add(cards, blobs, flashes);
+  group.add(cards, blobs, flashes, berths);
 
   const m4 = new THREE.Matrix4(), snap = (v) => Math.round(v * ppm) / ppm;
   /**
@@ -264,10 +279,24 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
     frameNo++;
     uploadsLeft = sheetsPerFrame; msLeft = budgetMs;
     stats.lastFrame = { uploads: 0, bytes: 0, paintMs: 0, uploadMs: 0 };
-    let i = 0, nf = 0;
+    let i = 0, nf = 0, nBerth = 0;
     stats.deferred = 0; stats.fallback = 0;
     for (const p of people) {
       if (i >= maxPeople) break;
+      if (p.lie) {
+        // (a sleeper in a rack: the berth's quad, flat on the mattress, the head at its end; see the header)
+        const c = berthCell(p.lie);
+        q4.setFromAxisAngle(up, HEAD_TURN[p.lie.head] ?? 0);
+        sc.set(bw / ppm, 1, bh / ppm);
+        ps.set(snap(p.x), (p.lie.y ?? 0.5), snap(p.z));
+        m4.compose(ps, q4, sc);
+        berths.setMatrixAt(nBerth, m4);
+        bRect.setXYZW(nBerth, (c % BCOLS) * bw, Math.floor(c / BCOLS) * bh, bw, bh);
+        const t = p.tint ?? [1, 1, 1];
+        bTint.setXYZ(nBerth, t[0], t[1], t[2]);
+        nBerth++;
+        continue;
+      }
       const s = slotOf(p.key, p.look, p.own);
       if (!s) { stats.deferred++; continue; }
       if (s.ready && (uploadsLeft > 0 || p.own)) upload(s, s.ready);   // (a band painted last frame, its upload put off; yours never)
@@ -314,14 +343,14 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
       }
       i++;
     }
-    cards.count = blobs.count = i; flashes.count = nf;
+    cards.count = blobs.count = i; flashes.count = nf; berths.count = nBerth;
     // (only the instances drawn are sent: a frame's few hundred bytes, not MAX_PEOPLE's 16 KB a matrix buffer)
-    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aAlpha, i], [aSlot, nf]]) {
+    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aAlpha, i], [aSlot, nf], [berths.instanceMatrix, nBerth], [bRect, nBerth], [bTint, nBerth]]) {
       if (!n) continue;
       a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true;
     }
-    stats.drawn = i;
-    return i;
+    stats.drawn = i + nBerth; stats.lying = nBerth;
+    return i + nBerth;
   }
 
   /** Whether a look's band is on the GPU (for tests and warm-ups). */
@@ -331,7 +360,7 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
     const s = slotOf(key, look, true);
     for (const b of bands) {
       uploadsLeft = Math.max(uploadsLeft, 1);
-      if (painter && !s.bands.has(b)) upload(s, bandOf(painter.runNow('sheet', { look: s.raw, band: b, prop, ppm })));
+      if (painter && !s.bands.has(b)) upload(s, bandOf(painter.runNow('sheet', { look: s.raw, band: b, ppm })));
       else ensureBand(s, b, true);
     }
     return s;
@@ -352,8 +381,45 @@ export function createFigures({ renderer, prop = 'chibi', ppm = PX_PER_M, atlasP
   }
   function dispose() {
     geo.dispose(); material.dispose(); bgeo.dispose(); bmat.dispose(); fgeo.dispose(); fmat.dispose(); ftex.dispose(); atlas.dispose();
+    bgeo2.dispose(); berthMat.dispose(); batlas.dispose();
     group.removeFromParent();
   }
   group.userData.dispose = dispose;
-  return { group, cards, blobs, flashes, update, warm, prepare, ready, stats, atlas, layout: lay, slots, dispose, COLS, ROWS, SLOTS, prop, ppm, material, bmat, fmat };
+  return { group, cards, blobs, flashes, berths, update, warm, prepare, ready, stats, atlas, layout: lay, slots, dispose, COLS, ROWS, SLOTS, ppm, material, bmat, fmat, berthMat };
+}
+
+/**
+ * The cards' material: an upright (or, for the berths, a lying) quad per instance reading its rectangle
+ * of an atlas (aRect, texels, rows top-down), tinted by the light where it stands (aTint), writing the
+ * given part (one program for every card material: its source is the same).
+ */
+function cardMaterial(atlas, size, part) {
+  return new THREE.ShaderMaterial({
+    uniforms: { atlas: { value: atlas }, size: { value: size }, part: { value: part } },
+    defines: { OLY_SEE: '' },
+    vertexShader: /* glsl */`
+      attribute vec4 aRect; attribute vec3 aTint;
+      varying vec2 vPx; varying vec3 vTint; varying vec3 vOlyWorld; flat varying float vOlyPart;
+      uniform float part;
+      void main() {
+        vPx = aRect.xy + vec2(uv.x, 1.0 - uv.y) * aRect.zw;          // (atlas pixels, rows top-down as painted)
+        vTint = aTint; vOlyPart = part;
+        vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
+        vOlyWorld = w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */`
+      ${FRAG_DECL}
+      uniform sampler2D atlas; uniform float size;
+      varying vec2 vPx; varying vec3 vTint;
+      void main() {
+        olySee(vOlyWorld);
+        vec4 c = texture2D(atlas, (floor(vPx) + 0.5) / size);
+        float a = floor(c.a * 255.0 + 0.5);
+        if (a < 128.0) discard;
+        // (a glow class in the alpha: a lamp, a display, drawn unlit; the rest lit by where they stand)
+        gl_FragColor = vec4(a < 248.0 || a > 254.5 ? c.rgb * vTint : c.rgb, 1.0);
+        pc_fragId = olyId(vOlyPart, olyFlag);
+      }`,
+  });
 }

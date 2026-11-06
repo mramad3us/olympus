@@ -262,6 +262,58 @@ export default [
     },
   },
   {
+    name: 'leaving the page: autosaveSync writes with no read and no await, every put made before it returns, rotating from the records this page knows; with no connection open it writes nothing (v0.0.3\'s review: the leave-the-page save never landed)',
+    async fn() {
+      const idb = fakeIndexedDB(), log = [];
+      let inside = false;
+      // (a spy on the connection: every request a transaction makes, and whether it was made inside the call)
+      const open0 = idb.open.bind(idb);
+      idb.open = (name, ver) => {
+        const req = open0(name, ver);
+        let user = null;
+        Object.defineProperty(req, 'onsuccess', { configurable: true, set(fn) { user = fn; }, get() { return () => {
+          const c = req.result, tx0 = c.transaction.bind(c);
+          c.transaction = (names, mode) => {
+            const t = tx0(names, mode), os0 = t.objectStore;
+            t.objectStore = (n) => { const st = os0(n); return Object.fromEntries(Object.entries(st).map(([k, f]) => [k, (...a) => { log.push({ op: k, store: n, sync: inside }); return f(...a); }])); };
+            return t;
+          };
+          user?.();
+        }; } });
+        return req;
+      };
+      const clock = { ms: 1_793_900_000_000 };
+      useClock(() => clock.ms); setVersion('0.0.3');
+      try {
+        useIndexedDB(idb);
+        // (nothing open yet: nothing written)
+        const none = store.autosaveSync(stateAt(1000), 'x');
+        // (the career's first autosave opens the connection; then 3 s of play, and the page goes)
+        let gameMs = 23_480_400_000;
+        await store.autosave(stateAt(gameMs), 'launch', { why: 'launch' });
+        gameMs += 3 * SEC_MS; clock.ms += 3 * SEC_MS;
+        const mark = log.length, txBefore = idb.stats.transactions;
+        inside = true;
+        const r = store.autosaveSync(stateAt(gameMs), 'leaving', { why: 'live' });
+        inside = false;
+        const ops = log.slice(mark), tx = idb.stats.transactions - txBefore;
+        for (let i = 0; i < 5; i++) await new Promise(res => setTimeout(res, 0));
+        const auto = await store.getRecord('w-1:auto'), prev = await store.getRecord('w-1:auto-prev');
+        // (10 game minutes on, a second leaving: the rotation copies the auto it wrote, known with no read)
+        gameMs += AUTO_PREV_GAME_MS; clock.ms += SEC_MS;
+        const r2 = store.autosaveSync(stateAt(gameMs), 'leaving again');
+        for (let i = 0; i < 5; i++) await new Promise(res => setTimeout(res, 0));
+        const auto2 = await store.getRecord('w-1:auto'), prev2 = await store.getRecord('w-1:auto-prev');
+        console.log(`      before any connection: ${none}; leaving 3 s after the first autosave: ${tx} transaction, requests ${ops.map(o => `${o.op} ${o.store}${o.sync ? '' : ' (later)'}`).join(', ')}; auto at +${fmt((auto.gameMs - 23_480_400_000) / SEC_MS, 0)} s, rotated ${r.rotated}`);
+        console.log(`      leaving 10 game min on: rotated ${r2.rotated}, auto-prev ${fmt((auto2.gameMs - prev2.gameMs) / MIN_MS, 1)} game min behind auto (the record the first leave wrote)`);
+        assert(none === null, JSON.stringify(none));
+        assert(r && tx === 1 && ops.length > 0 && ops.every(o => o.op === 'put' && o.sync && o.store === 'saves'), JSON.stringify({ r, tx, ops }));
+        assert(auto.gameMs === gameMs - AUTO_PREV_GAME_MS && auto.about === 'leaving' && prev?.about === 'launch', JSON.stringify({ auto: auto.about, prev: prev?.about }));
+        assert(r2.rotated && prev2.about === 'leaving' && auto2.about === 'leaving again', JSON.stringify({ r2, prev2: prev2.about, auto2: auto2.about }));
+      } finally { useIndexedDB(null); useClock(); }
+    },
+  },
+  {
     name: 'ironman-prev rotates from ironman by the same rule; a damaged auto is never copied over a good -prev; the plan is pure',
     async fn() {
       const T = fresh();
@@ -408,6 +460,27 @@ export default [
         const gone = await store.cacheGet('sky:Phobos:1024x512:v1');
         assert(got?.px?.[2] === 3 && got.w === 1024 && gone === null, JSON.stringify({ got: !!got, gone }));
         console.log(`      worlds ${p.worlds.map(w => `${w.worldId} (${fmt((w.lastPlayedAt - w.createdAt) / 1000, 0)} s played${w.marks ? `, ${w.marks}` : ''})`).join(', ')}; kept after w-1's saves went; cache: a typed array kept and cleared`);
+      } finally { T.done(); }
+    },
+  },
+  {
+    name: 'updateProfile reads and writes the profile in one transaction: a save landing beside it keeps its world, where a getProfile then a putProfile (0.0.3\'s first sound settings) lost it',
+    async fn() {
+      const T = fresh();
+      try {
+        await store.autosave(stateAt(0, { seed: 1 }), 'a');
+        // (the old way: read, a save writes its world into the profile, then the stale read written whole)
+        const stale = await store.getProfile();
+        await store.autosave(stateAt(0, { seed: 3 }), 'b');
+        await store.putProfile({ ...stale, audio: { volume: 0.5, muted: false } });
+        const lost = !(await store.getProfile()).worlds.some(w => w.worldId === 'w-3');
+        // (the new way, with a save begun beside it)
+        const both = await Promise.all([store.updateProfile(p => ({ ...p, audio: { volume: 0.25, muted: true } })), store.autosave(stateAt(0, { seed: 4 }), 'c')]);
+        const q = await store.getProfile();
+        const kept = q.worlds.some(w => w.worldId === 'w-4') && q.audio?.volume === 0.25 && q.audio?.muted === true && both[0]?.audio?.volume === 0.25;
+        console.log(`      getProfile, a save, putProfile: the save's world ${lost ? 'lost' : 'kept'}; updateProfile beside a save: worlds ${q.worlds.map(w => w.worldId).join(', ')}, audio ${JSON.stringify(q.audio)}`);
+        assert(lost, 'the two-step write was expected to lose the save\'s world (the race this pins)');
+        assert(kept, JSON.stringify({ worlds: q.worlds.map(w => w.worldId), audio: q.audio, wrote: both[0] }));
       } finally { T.done(); }
     },
   },

@@ -2,6 +2,7 @@
  "title": "The look: five scenes with their people, in the four candidates",
  "about": "The first look round put together: the kit's scenes (samples/scenes) with the real figures in them (samples/figures, one instanced draw), lit by the scene's mood, in the game's own frame (zoom 1, 40 × 22.5 m), or zoomed twice where a splash would frame it (L2, L5). Each scene is shown four ways, the two open questions crossed: the density (16 px/m at 640 × 360, tradecraft's; or 24 px/m at 960 × 540) by row, and the figures (A, chibi, about 2.4 heads, tradecraft's; or B, soldier, about 3.8 heads) by column. Nothing else changes inside a scene's four pictures: the same people in the same places at the same moment. Shots are the picture's own pixels at × 2, so both densities fill the same width here; click one to see it larger and flip between the four with the arrow keys. Star what you like and give each a score out of 100, then Copy my picks and paste it back.",
  "pixel": "stage",
+ "frozen": "The look round as the user shot and scored it (2026-11-06: every star on 16 px/m chibi, VIEWS §2.3). The soldier (B) is no longer drawn by the game or this page, so tools/gallery.mjs keeps these shots and their scores as they are and never reshoots them.",
  "matrix": {
   "rows": { "param": "ppm", "values": ["16", "24"], "labels": ["16 px/m", "24 px/m"] },
   "cols": { "param": "prop", "values": ["chibi", "soldier"], "labels": ["A: chibi", "B: soldier"] }

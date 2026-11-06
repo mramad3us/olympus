@@ -11,7 +11,7 @@
 //
 // place(area, spec) builds the piece with the kit builder (kit.js) into the area (src/render/batch.js,
 // or any object with the same box(), ground(), lamp(), glowLine() and part()), and returns its world
-// boxes and lamps. Nothing here holds GPU objects: painters are plain functions, remembered by key.
+// boxes and lamps (and a clock's dials, where the stage lays its hands: structure.js). Nothing here holds GPU objects: painters are plain functions, remembered by key.
 // Pure.
 import { builder, pieceRng, variant } from './kit.js';
 import * as quarters from './quarters.js';
@@ -20,6 +20,7 @@ import * as head from './head.js';
 import * as training from './training.js';
 import * as ship from './ship.js';
 import * as signs from './signs.js';
+import * as structure from './structure.js';
 
 /** Footprints by kind: w across, d deep, h tall (metres), and the makes each kind has. */
 export const FOOTPRINTS = Object.freeze({
@@ -63,6 +64,12 @@ export const FOOTPRINTS = Object.freeze({
   bin: { w: 0.4, d: 0.4, h: 0.6, makes: ['bin', 'mop', 'extinguisher'] },
   tableSmall: { w: 1.2, d: 0.8, h: 0.76, makes: ['folding', 'steel'] },
   galleyUnit: { w: 1.8, d: 0.9, h: 1.0, makes: ['range', 'kettle', 'prep'] },
+  // (0.0.3: the barracks' clocks and stairs, the streets' lamps; equal to places' catalogue, src/sim/places/fixtures.js)
+  wallClock: { w: 0.30, d: 0.05, h: 0.30, makes: ['school', 'station'] },
+  stairs: { w: 1.2, d: 4.8, h: 3.4, makes: ['concrete', 'steel'] },
+  stairsWell: { w: 1.2, d: 4.8, h: 1.0, makes: ['rail', 'wall'] },
+  lampPost: { w: 0.25, d: 0.25, h: 4.0, makes: ['sodium', 'flood'] },
+  doorLeaf: { w: 1.0, d: 0.045, h: 2.1, makes: ['interior', 'ext', 'office'] },
 });
 
 const MAKERS = {
@@ -76,6 +83,7 @@ const MAKERS = {
   suitLocker: ship.suitLocker, airlockDoor: ship.airlockDoor, pressureDoor: ship.pressureDoor, hatch: ship.hatch,
   ladderWell: ship.ladderWell, crashCouch: ship.crashCouch, conduit: ship.conduit, handhold: ship.handhold, emergencyLight: ship.emergencyLight,
   sign: signs.sign, window: signs.wallWindow, board: signs.board, sofa: signs.sofa, vending: signs.vending, bin: signs.bin,
+  wallClock: structure.wallClock, stairs: structure.stairs, stairsWell: structure.stairsWell, lampPost: structure.lampPost, doorLeaf: structure.doorLeaf,
 };
 /** Every kind the kit builds. */
 export const KINDS = Object.freeze(Object.keys(MAKERS));
@@ -90,7 +98,7 @@ export function place(area, spec) {
   const fp = FOOTPRINTS[kind], make = MAKERS[kind];
   if (!fp || !make) throw new Error(`kit: no kind '${kind}'`);
   const k = builder(area, { x, z, y, face });
-  const o = { W: spec.w ?? fp.w, D: spec.d ?? fp.d, H: spec.h ?? fp.h, ppm: area.ppm, seed, v: variant(seed, 4), r: pieceRng(kind, seed), make: spec.make ?? fp.makes[0], look: spec.look ?? {}, kind };
+  const o = { W: spec.w ?? fp.w, D: spec.d ?? fp.d, H: spec.h ?? fp.h, ppm: area.ppm, seed, v: variant(seed, 4), r: pieceRng(kind, seed), make: spec.make ?? fp.makes[0], look: spec.look ?? {}, kind, faces: spec.faces, dir: spec.dir };
   make(k, o);
-  return { kind, boxes: k.boxes, lamps: k.lamps, footprint: { w: o.W, d: o.D, h: o.H }, face };
+  return { kind, boxes: k.boxes, lamps: k.lamps, footprint: { w: o.W, d: o.D, h: o.H }, face, dials: k.dials ?? null };
 }

@@ -1,20 +1,28 @@
-// places-validate: PLACES §9.6's rules over the test rooms and Base Melas's site plan, each rule
-// broken on purpose once to prove it fails, and the goldens that pin what is authored (the build
-// sheet 0.0.2 §5.3). The catalogue's sizes are checked against the kit's FOOTPRINTS here, the one
-// place that reads both (the sim may not import the art: TECH §2.2; build sheet §8 item 6).
+// places-validate: PLACES §9.6's rules over the test rooms, Echo Company's two floors, Base Melas's
+// ground and its site plan, each rule broken on purpose once to prove it fails, and the goldens that
+// pin what is authored (the build sheets 0.0.2 §5.3 and 0.0.3 §5.1). The catalogue's sizes are checked
+// against the kit's FOOTPRINTS here, the one place that reads both (the sim may not import the art:
+// TECH §2.2; build sheet 0.0.2 §8 item 6). The user's rule of 2026-11-05 ("game world is handcrafted")
+// is held twice: no place record carries a seed, and a new game's places.sites holds none.
 import { assert, fmt } from './helpers.mjs';
 import { golden } from './golden.mjs';
+import { createGame } from './game.mjs';
 import { TEST_AREA } from '../src/data/places/testroom.js';
 import { MELAS_COMPACTION } from '../src/data/places/melas.js';
 import { MELAS_PLAN, MELAS_PLAN_AS_WRITTEN } from '../src/sim/places/siteplan.js';
-import { validateArea, validatePlan, DOOR_CLEAR_M, MIN_GAP_M } from '../src/sim/places/validate.js';
-import { CATALOGUE, KINDS } from '../src/sim/places/fixtures.js';
+import { ECHO_1, ECHO_2 } from '../src/sim/places/echo.js';
+import { GROUND_AREA } from '../src/sim/places/ground.js';
+import { validateArea, validatePlan, validateGround, DOOR_CLEAR_M, MIN_GAP_M, EXIT_SIGN_M, SEEDS_PER_KIND, LAMPS_MAX } from '../src/sim/places/validate.js';
+import { CATALOGUE, KINDS, berthOf, seatOf } from '../src/sim/places/fixtures.js';
 import { buildGrid } from '../src/sim/places/nav.js';
 import { FOOTPRINTS } from '../src/art/kit/index.js';
+import { melasGame } from './bots/walker.mjs';
 
 const copy = (v) => JSON.parse(JSON.stringify(v));
 const rulesOf = (res) => [...new Set(res.problems.map(p => p.rule))];
 const AREA_RULES = ['ids', 'unique', 'opening', 'room-opening', 'door-clear', 'zone', 'kind', 'overlap', 'in-room', 'spawn'];
+const ECHO_RULES = ['no-seed', 'portal', 'link', 'decor', 'exit-sign', 'seeds', 'heads', 'berths'];
+const GROUND_RULES = ['ids', 'unique', 'no-seed', 'door', 'reveal', 'portal', 'door-sign', 'fixture', 'gate', 'lamps', 'seeds'];
 const PLAN_RULES = ['ids', 'unique', 'ring', 'apart', 'door', 'road', 'gate', 'edge', 'joined', 'daily'];
 
 // (one sample a rule, each the authored data with one thing broken)
@@ -30,6 +38,31 @@ const AREA_BREAKS = {
   'in-room': (a) => { a.fixtures[0].room = 't1.office'; },
   spawn: (a) => { a.spawn = { x: 20.625, z: 9.075, face: 'right' }; },
 };
+// (on Echo's ground floor: each new rule broken once)
+const fixtureOf = (a, id) => a.fixtures.find(f => f.id === id);
+const ECHO_BREAKS = {
+  'no-seed': (a) => { a.rooms[0].seed = 48213; },
+  portal: (a) => { a.portals.find(p => p.id === 'l:echo:stair-e').to.z = 15.0; },          // (0.3 m from floor 2's band back, not 0.6)
+  link: (a) => { fixtureOf(a, 'f:e1:stair-e:flight').x += 0.4; },
+  decor: (a) => { a.look.decor[0].x = 90; },
+  'exit-sign': (a) => { a.fixtures = a.fixtures.filter(f => f.id !== 'f:e1:vestibule:sign-1'); },
+  seeds: (a) => { a.fixtures.filter(f => f.kind === 'rack2').forEach((f, i) => { f.seed = 100 + i; }); },
+  heads: (a) => { a.fixtures = a.fixtures.filter(f => !(f.room === 'e1.head-2a' && f.kind === 'showerStall')); },
+  berths: (a) => { fixtureOf(a, 'f:e1:bay-2-1:rack-n1').berths = ['ft2-r', 'ft2-r']; },
+};
+const GROUND_BREAKS = {
+  ids: (g) => { g.fixtures[0].id = 'lamp 1'; },
+  unique: (g) => { g.fixtures[1].id = g.fixtures[0].id; },
+  'no-seed': (g) => { g.seed = 48213; },
+  door: (g) => { g.massing.find(m => m.id === 'b:mess').doors[0].z += 3; },
+  reveal: (g) => { g.nav.leaves.find(l => l.id === 'o:e1:front').rect.z0 += 0.4; },
+  portal: (g) => { g.portals[0].to.z = 23.5; },                                            // (0.2 m inside the floor's band back)
+  'door-sign': (g) => { g.fixtures = g.fixtures.filter(f => f.id !== 'f:melas:echo:sign-front'); },
+  fixture: (g) => { g.fixtures.push({ id: 'f:melas:bin-9', kind: 'bin', make: 'bin', x: 522, z: 214.4, face: 'down', seed: 3 }); },
+  gate: (g) => { g.gates[0].x = 30; },
+  lamps: (g) => { for (let i = 0; i < LAMPS_MAX; i++) g.look.lamps.push({ kind: 'street', x: 500, z: 300, y: 4 }); },
+  seeds: (g) => { g.fixtures.filter(f => f.kind === 'lampPost').forEach((f, i) => { f.seed = 10 + i; }); },
+};
 const PLAN_BREAKS = {
   ids: (p) => { p.buildings[0].id = 'b:Echo Company'; },
   unique: (p) => { p.waypoints[1].id = p.waypoints[0].id; },
@@ -43,12 +76,23 @@ const PLAN_BREAKS = {
   daily: (p) => { p.waypoints.push({ id: 'w:island', x: 300, z: 300, kind: 'junction' }); p.daily.places.mess = 'w:island'; },
 };
 
+// The 1st Squad's berths, the build sheet 0.0.3 §2.1's table as built (area frame): the south row at z
+// 6.495, not the sheet's 6.575, because the bay's south wall is an inner wall astride z 7.6 (0.08 m into
+// the bay); the squad leader's single along the east wall facing down at 59.945, 1.325 (the sheet's
+// "about 60.0, 1.4, left": a rack facing left would run 2.05 m east–west, more than the corner's 1.65).
+const BERTH_TABLE = [
+  ['rack-n0', 'rack2', 49.625, 1.325, 'down', ['ft2-tl', 'ft2-ar']], ['rack-n1', 'rack2', 52.075, 1.325, 'down', ['ft2-r', 'ft2-aar']],
+  ['rack-n2', 'rack2', 54.525, 1.325, 'down', ['ft1-tl', 'ft1-ar']], ['rack-n3', 'rack2', 56.975, 1.325, 'down', ['ft1-aar', 'ft1-r']],
+  ['rack-s0', 'rack2', 49.625, 6.495, 'up', ['ft3-tl', 'ft3-ar']], ['rack-s1', 'rack2', 52.075, 6.495, 'up', ['ft3-aar', 'ft3-r']],
+  ['rack-s2', 'rack2', 54.525, 6.495, 'up', [null, null]], ['rack-sl', 'rack1', 59.945, 1.325, 'down', ['sl']],
+];
+
 export default [
   {
     name: 'the test rooms keep every rule of PLACES §9.6, and each rule fails on a sample made to break it',
     fn() {
       const res = validateArea(TEST_AREA);
-      console.log(`      ${res.counts.rooms} rooms, ${res.counts.openings} openings, ${res.counts.fixtures} fixtures, ${res.counts.zones} zones; checks: ${AREA_RULES.map(r => `${r} ${res.counts[r] ?? 0}`).join(', ')}`);
+      console.log(`      ${res.counts.rooms} rooms, ${res.counts.openings} openings, ${res.counts.fixtures} fixtures, ${res.counts.zones} zones; checks: ${[...AREA_RULES, 'no-seed', 'decor', 'seeds'].map(r => `${r} ${res.counts[r] ?? 0}`).join(', ')}`);
       assert(res.ok, JSON.stringify(res.problems));
       const caught = [];
       for (const rule of AREA_RULES) {
@@ -63,22 +107,115 @@ export default [
     },
   },
   {
-    name: 'the catalogue\'s sizes are the kit\'s FOOTPRINTS (what is drawn is what blocks)',
+    name: 'Echo Company\'s two floors keep every rule (PLACES §9.6 and the sheet\'s: portals, links, decor, exit signs, seeds, heads, berths), and each new rule fails on a sample made to break it',
     fn() {
-      const off = KINDS.filter(k => { const f = FOOTPRINTS[k], c = CATALOGUE[k]; return !f || f.w !== c.w || f.d !== c.d || f.h !== c.h; });
-      const open = KINDS.filter(k => !CATALOGUE[k].block);
-      console.log(`      ${KINDS.length} core kinds, ${KINDS.length - off.length} equal to FOOTPRINTS; not blocking: ${open.join(', ')}; spots ${KINDS.reduce((n, k) => n + CATALOGUE[k].spots.length, 0)}`);
-      assert(!off.length, off.map(k => `${k}: catalogue ${JSON.stringify(CATALOGUE[k])} kit ${JSON.stringify(FOOTPRINTS[k])}`).join('\n'));
-      assert(open.join() === 'chair,stool,board,sign,window,emergencyLight', open.join());
+      for (const a of [ECHO_1, ECHO_2]) {
+        const res = validateArea(a), c = res.counts, kinds = {};
+        for (const f of a.fixtures) kinds[f.kind] = (kinds[f.kind] ?? 0) + 1;
+        console.log(`      ${a.id}: ${c.rooms} rooms, ${c.openings} openings, ${c.fixtures} fixtures, ${c.zones} zones, ${c.portals} portals, ${c.links} links, ${c.lamps} lamps`);
+        console.log(`        checks: ${[...AREA_RULES, ...ECHO_RULES].map(r => `${r} ${c[r] ?? 0}`).join(', ')}`);
+        console.log(`        fixtures by kind: ${Object.entries(kinds).sort((p, q) => q[1] - p[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`);
+        assert(res.ok, JSON.stringify(res.problems.slice(0, 6)));
+      }
+      const caught = [];
+      for (const rule of ECHO_RULES) {
+        const a = copy(ECHO_1);
+        ECHO_BREAKS[rule](a);
+        const got = rulesOf(validateArea(a));
+        caught.push(`${rule}: ${got.join('+') || 'none'}`);
+        assert(got.includes(rule), `breaking '${rule}' was not caught: ${got.join(', ')}`);
+      }
+      console.log(`      broken on purpose: ${caught.join('; ')}`);
+      console.log(`      an exit sign within ${EXIT_SIGN_M} m of every portal's band; at most ${SEEDS_PER_KIND} look seeds a kind`);
     },
   },
   {
-    name: 'the test rooms and their C0 grid are pinned by goldens',
+    name: 'the 1st Squad\'s berths are the sheet\'s §2.1 table (the player in rack n1\'s lower berth), every squad bay has its 15 berths, and berthOf, seatOf and the fire watch\'s post read them from data alone',
     fn() {
-      const grid = buildGrid(TEST_AREA, 'C0');
-      const a = golden('places: TEST_AREA', TEST_AREA, '089faeb83aa5ed');
+      const off = [];
+      for (const [name, kind, x, z, face, berths] of BERTH_TABLE) {
+        const f = ECHO_1.fixtures.find(q => q.id === `f:e1:bay-2-1:${name}`);
+        if (!f || f.kind !== kind || Math.abs(f.x - x) > 1e-6 || Math.abs(f.z - z) > 1e-6 || f.face !== face || JSON.stringify(f.berths) !== JSON.stringify(berths)) off.push(`${name}: ${JSON.stringify(f && { kind: f.kind, x: f.x, z: f.z, face: f.face, berths: f.berths })}`);
+      }
+      const me = berthOf('2/4-E-2-1', 'ft2-r'), seat = seatOf(me), post = seatOf('f:e1:bay-2-1:stool-1#1');
+      const bays = [ECHO_1, ECHO_2].flatMap(a => a.rooms.filter(r => r.kind === 'squadBay').map(r => ({ a, r })));
+      const counts = bays.map(({ a, r }) => `${r.id.split('.')[1]} ${r.layout} ${a.fixtures.filter(f => f.room === r.id && f.berths).reduce((n, f) => n + f.berths.length, 0)}`);
+      console.log(`      bay-2-1 (layout A): ${BERTH_TABLE.map(([n, , x, z, f, b]) => `${n} (${x}, ${z}) ${f} ${b.map(v => v ?? 'spare').join('/')}`).join('; ')}`);
+      console.log(`      the player's berth ${me}: (${seat.x}, ${seat.z}) y ${seat.y}, head ${seat.head}, locker ${seat.lockerId}, footlocker ${seat.footlockerId}`);
+      console.log(`      the fire watch's post: ${post.id} at (${post.x}, ${post.z}) y ${post.y}`);
+      console.log(`      berths by bay: ${counts.join(', ')}`);
+      assert(!off.length, off.join('\n'));
+      assert(me === 'f:e1:bay-2-1:rack-n1#2' && seat.y === 0.45 && seat.head === 'n' && seat.lockerId === 'f:e1:bay-2-1:locker-n1a', JSON.stringify(seat));
+      assert(bays.length === 12 && counts.every(c => c.endsWith(' 15')), counts.join(', '));
+    },
+  },
+  {
+    name: 'Base Melas\'s ground keeps every rule (the masses\' doors and reveals, portals, a plate by every door into a building, fixtures, gates, lamps, seeds), and each rule fails on a sample made to break it',
+    fn() {
+      const res = validateGround(GROUND_AREA), c = res.counts;
+      const lampKinds = {};
+      for (const l of GROUND_AREA.look.lamps) lampKinds[l.kind] = (lampKinds[l.kind] ?? 0) + 1;
+      console.log(`      ${GROUND_AREA.id}: ${c.masses} masses (${GROUND_AREA.massing.filter(m => m.open).length} open), ${c.doors} doors, ${c.surfaces} surfaces, ${c.fixtures} fixtures, ${c.lamps} lamps (${Object.entries(lampKinds).map(([k, n]) => `${k} ${n}`).join(', ')}), ${c.portals} portals, ${c.gates} gates, the drawn ground ${JSON.stringify(GROUND_AREA.boundsM)}`);
+      console.log(`        checks: ${GROUND_RULES.map(r => `${r} ${c[r] ?? 0}`).join(', ')}`);
+      assert(res.ok, JSON.stringify(res.problems.slice(0, 6)));
+      const caught = [];
+      for (const rule of GROUND_RULES) {
+        const g = copy(GROUND_AREA);
+        GROUND_BREAKS[rule](g);
+        const got = rulesOf(validateGround(g));
+        caught.push(`${rule}: ${got.join('+') || 'none'}`);
+        assert(got.includes(rule), `breaking '${rule}' was not caught: ${got.join(', ')}`);
+      }
+      console.log(`      broken on purpose: ${caught.join('; ')}`);
+    },
+  },
+  {
+    name: 'no place holds a seed: no area or room record carries one, and a new game\'s places.sites hold only their template (the user, 2026-11-05: "game world is handcrafted")',
+    fn() {
+      const records = [TEST_AREA, ECHO_1, ECHO_2, GROUND_AREA];
+      const seeded = records.flatMap(a => [a, ...a.rooms].filter(r => 'seed' in r || 'siteSeed' in r || 'dressSeed' in r).map(r => r.id));
+      const sandbox = createGame({ scenario: 'sandbox', seed: 48213 }), melas = melasGame(createGame, { seed: 48213 });
+      const sites = [sandbox, melas].map(g => g.state.places.sites);
+      console.log(`      area and room records with a seed: ${seeded.length ? seeded.join(', ') : 'none'}; the ground's look seed ${GROUND_AREA.look.seed} (an authored constant)`);
+      console.log(`      a new sandbox's places.sites ${JSON.stringify(sites[0])}; a game in Echo's bay (${melas.state.meta.scenario}) ${JSON.stringify(sites[1])}`);
+      assert(!seeded.length, seeded.join(', '));
+      for (const s of sites) for (const [id, rec] of Object.entries(s)) assert(!('seed' in rec) && Object.keys(rec).every(k => k === 'template' || k === 'openings'), `${id}: ${JSON.stringify(rec)}`);
+      // (a v0.0.2 save, its site's seed in it, loses the seed on load (places:no-site-seed) and plays on; a fresh save loads unchanged)
+      const old = createGame({ scenario: 'sandbox', seed: 48213 });
+      old.state.places.sites.test.seed = 2843217;
+      const json = old.save(), fresh = sandbox.save();
+      old.load(json);
+      old.step(40, { mx: 1 });
+      sandbox.load(fresh);
+      console.log(`      a v0.0.2 save's ${JSON.stringify(JSON.parse(json).places.sites)} loads as ${JSON.stringify(old.state.places.sites)}, flags ${JSON.stringify(old.state.flags)}, and walks on (${old.errors.length} errors); a fresh save loads unchanged: ${sandbox.save() === fresh}`);
+      assert(!('seed' in old.state.places.sites.test) && old.state.flags['mig:no-site-seed'] === true && !old.errors.length, JSON.stringify(old.state.places.sites));
+      assert(sandbox.save() === fresh && !('mig:no-site-seed' in (sandbox.state.flags ?? {})), 'a fresh save moved on load');
+    },
+  },
+  {
+    name: 'the catalogue\'s sizes are the kit\'s FOOTPRINTS (what is drawn is what blocks)',
+    fn() {
+      const missing = KINDS.filter(k => !FOOTPRINTS[k]);
+      const off = KINDS.filter(k => { const f = FOOTPRINTS[k], c = CATALOGUE[k]; return f && (f.w !== c.w || f.d !== c.d || f.h !== c.h); });
+      const open = KINDS.filter(k => !CATALOGUE[k].block);
+      console.log(`      ${KINDS.length} core kinds, ${KINDS.length - off.length - missing.length} equal to FOOTPRINTS${missing.length ? `, not yet in the kit: ${missing.join(', ')}` : ''}; not blocking: ${open.join(', ')}; spots ${KINDS.reduce((n, k) => n + CATALOGUE[k].spots.length, 0)}, seats ${KINDS.reduce((n, k) => n + CATALOGUE[k].seats.length, 0)}`);
+      assert(!off.length, off.map(k => `${k}: catalogue ${JSON.stringify(CATALOGUE[k])} kit ${JSON.stringify(FOOTPRINTS[k])}`).join('\n'));
+      assert(!missing.length, `the kit lacks ${missing.join(', ')} (the stage's §2.3)`);
+      assert(open.join() === 'chair,stool,board,sign,window,emergencyLight,wallClock,stairs', open.join());
+    },
+  },
+  {
+    name: 'the test rooms, Echo\'s two floors, the ground and Echo\'s ground floor\'s C0 grid are pinned by goldens',
+    fn() {
+      const grid = buildGrid(TEST_AREA, 'C0'), e1 = buildGrid(ECHO_1, 'C0', { closed: (o) => o.state === 'closed' });
+      const a = golden('places: TEST_AREA', TEST_AREA, '1b598ff4fcfa65');
       const g = golden('places: TEST_AREA C0 grid bytes', grid.cost, '189fefcff571bf');
+      const b = golden('places: ECHO_1', ECHO_1, '08f56e69dfa150');
+      const c = golden('places: ECHO_2', ECHO_2, '1afda0fc95253b');
+      const d = golden('places: GROUND_AREA', GROUND_AREA, '000d6d7a726622');   // (0.0.3's fixer re-set it from 131d1b63b7f5b2: the street doors' exit signs became the company's plates, their three exit lamps gone)
+      const e = golden('places: ECHO_1 C0 grid bytes', e1.cost, '14b1247ac344b4');
       console.log(`      TEST_AREA ${a}; its C0 grid (${grid.nx} × ${grid.nz}) ${g}`);
+      console.log(`      ECHO_1 ${b}, ECHO_2 ${c}, GROUND_AREA ${d}; ECHO_1's C0 grid (${e1.nx} × ${e1.nz}, its doors as the template has them) ${e}`);
     },
   },
   {

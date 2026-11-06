@@ -14,6 +14,10 @@
 //      between touching parts). Metric thresholds: a pixel up the ground or down a wall is 0.044 m
 //      further at 16 px/m and 0.029 m at 24, both over 0.02. Part IDs compare exactly (three bytes);
 //      a pixel the see-through dither kept (ID alpha 0.5) draws no line, or every hole would ink it;
+//   3b. the figure through a mass (VIEWS §2.10, 0.0.3): a pixel the see-through dither kept (ID alpha
+//      0.5) with two or more of its four neighbours showing the people's part through the holes lies over
+//      the figure behind it, and is inked SILHOUETTE_K (60%) toward the ink, so the figure's silhouette
+//      reads through the checkerboard;
 //   4. the grade (tradecraft's fine look, grade 1): 18% toward grey, light a touch warmer, shadows
 //      under luma 0.35 toward violet;
 //   5. the palette snap. tradecraft looped over up to 128 colours per pixel (padded to 128 because
@@ -29,6 +33,11 @@
 import * as THREE from 'three';
 import { LUT_LEVELS, LUT_TILES, lutSize } from '../art/palette.js';
 
+/** How far a kept pixel over the figure behind a mass goes toward the ink (VIEWS §2.10: its silhouette at 60%). */
+export const SILHOUETTE_K = 0.6;
+/** The people's part (src/render/cards.js PEOPLE_PART) as the ID pass writes it: three bytes. */
+const PEOPLE_ID = [0xa5, 0xa5, 0xa5].map(b => b / 255);
+
 const QUAD_VERT = `out vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 
 const POST_FRAG = /* glsl */`
@@ -36,7 +45,7 @@ const POST_FRAG = /* glsl */`
   in vec2 vUv; out vec4 outColor;
   uniform sampler2D tColor, tDepth, tId, tFog, tLut, tPal;
   uniform vec2 res; uniform float near, far, outline, grade, fogOn, dimK, srgb;
-  uniform vec4 fogBox; uniform mat4 invVP;
+  uniform vec4 fogBox; uniform mat4 invVP; uniform vec3 peoplePart;
   uniform int lutN, lutTiles, palCount, snapMode;
   float lin(float d) { return near + d * (far - near); }
   // A 4 × 4 ordered dither: the threshold for this pixel.
@@ -94,6 +103,12 @@ const POST_FRAG = /* glsl */`
         else if (other && dn > d + 0.02) edge = min(edge, 0.4);
       }
       col *= edge;
+    } else if (id.a > 0.25 && id.a < 0.75) {
+      // (kept by the see-through dither: over the figure behind, its silhouette inked through the holes)
+      int n = 0;
+      ivec2 o[4] = ivec2[4](ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1));
+      for (int i = 0; i < 4; i++) { vec3 idn = texelFetch(tId, clamp(ip + o[i], ivec2(0), mx), 0).rgb; if (all(lessThan(abs(idn - peoplePart), vec3(0.5 / 255.0)))) n++; }
+      if (n >= 2) col = mix(col, vec3(0.08, 0.08, 0.11), ${SILHOUETTE_K.toFixed(2)});
     }
     if (grade > 0.0) {
       float l = dot(col, vec3(0.30, 0.59, 0.11));
@@ -175,7 +190,7 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
     res: { value: new THREE.Vector2(W, H) }, near: { value: near }, far: { value: far },
     outline: { value: outline ? 1 : 0 }, grade: { value: grade }, srgb: { value: gamma === 'srgb' ? 1 : 0 },
     tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, dimK: { value: 0.48 },
-    invVP: { value: new THREE.Matrix4() },
+    invVP: { value: new THREE.Matrix4() }, peoplePart: { value: new THREE.Vector3(...PEOPLE_ID) },
   };
   const post = new THREE.Scene(), out = new THREE.Scene(), bakeScene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const composite = quad(POST_FRAG, U);

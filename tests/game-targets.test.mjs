@@ -8,7 +8,7 @@ import { createGame } from './game.mjs';
 import { post, hazard } from '../src/core/queue.js';
 import { q } from '../src/core/num.js';
 import { SEC_MS, MIN_MS, HOUR_MS, TICK_MS } from '../src/core/clock.js';
-import { stepsBudget, NO_BUDGET } from '../src/sim/time/skip.js';
+import { stepsBudget, NO_BUDGET, engineOf } from '../src/sim/time/skip.js';
 
 const TAU_MS = 47 * MIN_MS;                                          // (the test process's time constant)
 const floorMin = (ms) => Math.floor(ms / MIN_MS) * MIN_MS;
@@ -227,6 +227,33 @@ export default [
         out.push(`${kind}: summoned at +${fmt((at - from) / SEC_MS, 2)} s, stopped at +${fmt((end.toMs - from) / SEC_MS, 2)} s by '${end.by}'`);
       }
       console.log(`      ${out.join('; ')}`);
+    },
+  },
+  {
+    name: 'the loop\'s mode follows the skip\'s engine, not its kind (TECH §3.6, §5.2): beginSkip gives ff its ff engine and outcome, out and day the outcome engine; an \'out\' skip whose engine is ff (a live fight) runs lived ticks in the loop and ends on its own',
+    fn() {
+      const g = createGame({ seed: 21 });
+      g.step(5);
+      const engines = {};
+      for (const [kind, planMs] of [['ff', 60_000], ['outcome', 20 * MIN_MS], ['out', 20 * MIN_MS], ['day', 2 * HOUR_MS]]) {
+        const s = g.sim.beginSkip(g.state, { activity: 'wait', planMs, kind });
+        engines[kind] = s.engine;
+        g.state.skip = null;
+      }
+      // (an old record with no engine reads it from its kind)
+      const legacy = [engineOf({ kind: 'ff' }), engineOf({ kind: 'out' })];
+      // (an 'out' skip of 2 minutes, its engine ff as COMBAT will set it in a live fight: the loop's frames run its ticks)
+      const t0 = g.state.clock.tick, s = g.sim.beginSkip(g.state, { activity: 'out', planMs: 2 * MIN_MS, kind: 'out' });
+      s.engine = 'ff';
+      const modes = new Set();
+      let frames = 0;
+      for (let t = 0; g.state.skip && frames < 400; t += 16.7, frames++) { g.loop.frame(1000 + t); modes.add(g.loop.stats.mode); }
+      const lived = g.state.clock.tick - t0, end = g.facts('skip-end').at(-1);
+      console.log(`      engines by kind: ${JSON.stringify(engines)}; a record with none: ff → ${legacy[0]}, out → ${legacy[1]}`);
+      console.log(`      an 'out' skip of 2 min on the ff engine: modes ${[...modes].join(', ')} over ${frames} frames, ${lived} ticks lived, ended at +${fmt((end.toMs - end.fromMs) / SEC_MS, 1)} s`);
+      assert(engines.ff === 'ff' && engines.outcome === 'outcome' && engines.out === 'outcome' && engines.day === 'outcome', JSON.stringify(engines));
+      assert(legacy[0] === 'ff' && legacy[1] === 'outcome', JSON.stringify(legacy));
+      assert(!g.state.skip && modes.has('ff') && !modes.has('outcome') && lived === 2 * MIN_MS / TICK_MS && end.toMs - end.fromMs === 2 * MIN_MS, JSON.stringify({ modes: [...modes], lived, end }));
     },
   },
 ];

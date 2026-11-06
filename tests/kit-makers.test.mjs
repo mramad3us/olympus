@@ -12,6 +12,8 @@ import { hash3 } from '../src/art/tone.js';
 import { place, KINDS, FOOTPRINTS } from '../src/art/kit/index.js';
 import { builder, rotTexel, rotPainter, turn, tex } from '../src/art/kit/kit.js';
 import { assert } from './helpers.mjs';
+import { CATALOGUE } from '../src/sim/places/fixtures.js';
+import { DIAL_PX_MIN, dialPx } from '../src/art/kit/structure.js';
 
 let partN = 1;
 /** An area that records what goes into it (the batch's interface, no GPU). */
@@ -47,7 +49,13 @@ export function paintAll(area) {
 }
 const LOOKS = [{}, { made: false, open: true, end: true, occupied: true, door: 'open', curtain: 'half', sleeper: true }, { made: true, open: false, state: 'cycling' }];
 // (pieces that stretch or stand out of their footprint on purpose: a door swung open, a curtain rod, the target's track, a duct's run)
-const MARGIN_M = { wallLocker: 0.6, rifleRack: 0.1, targetCarrier: 0.9, airlockDoor: 3.2, conduit: 0.05, servingLine: 0.15, gymRack: 0.6, footlocker: 0.05, toiletStall: 0.95, showerStall: 0.05, centrifuge: 0.1, ladderWell: 0.05, sign: 0.6 };
+const MARGIN_M = { wallLocker: 0.6, rifleRack: 0.1, targetCarrier: 0.9, airlockDoor: 3.2, conduit: 0.05, servingLine: 0.15, gymRack: 0.6, footlocker: 0.05, toiletStall: 0.95, showerStall: 0.05, centrifuge: 0.1, ladderWell: 0.05, sign: 0.6,
+  // (a leaf is built from its hinge at the origin, along +x: half its width past the centred footprint; a flood's head leans out of its pole)
+  doorLeaf: 0.55, lampPost: 0.12,
+  // (a clock's dial is drawn bigger than life where it must read: DIAL_PX_MIN px across, 0.56 m at 16 px/m, its 0.30 m footprint's)
+  wallClock: (DIAL_PX_MIN / 16 - 0.30) / 2 + 0.02 };
+/** The kinds 0.0.3 added, which places' catalogue (src/sim/places/fixtures.js) must size as the kit does. */
+const NEW_0_0_3 = ['wallClock', 'stairs', 'stairsWell', 'lampPost'];
 
 export default [
   { name: 'a turn moves boxes round the piece and hands each face to the one it becomes', fn() {
@@ -114,6 +122,34 @@ export default [
     assert(few.length === 0, `kinds with one make: ${few.join(', ')}`);
     for (const k of ['rack2', 'wallLocker', 'footlocker', 'rifleRack', 'dutyDesk', 'messTable', 'showerStall', 'toiletStall', 'sinkRow', 'crashCouch', 'suitLocker', 'airlockDoor', 'pressureDoor', 'hatch']) assert(FOOTPRINTS[k].makes.length >= 3, `${k}: ${FOOTPRINTS[k].makes.length} makes`);
     console.log(`      ${KINDS.length} kinds, ${KINDS.reduce((n, k) => n + FOOTPRINTS[k].makes.length, 0)} makes: ${KINDS.map(k => `${k} ${FOOTPRINTS[k].makes.length}`).join(', ')}`);
+  } },
+  { name: 'the kit sizes every kind places\' catalogue has as the catalogue does (what is drawn is what blocks), the 0.0.3 kinds included', fn() {
+    const both = Object.keys(CATALOGUE).filter(k => FOOTPRINTS[k]), off = [], missing = NEW_0_0_3.filter(k => !CATALOGUE[k]);
+    for (const k of both) for (const d of ['w', 'd', 'h']) if (Math.abs(CATALOGUE[k][d] - FOOTPRINTS[k][d]) > 1e-9) off.push(`${k}.${d}: catalogue ${CATALOGUE[k][d]}, kit ${FOOTPRINTS[k][d]}`);
+    console.log(`      ${both.length} kinds in both, ${off.length} sizes apart${off.length ? `: ${off.join('; ')}` : ''}; the 0.0.3 kinds ${NEW_0_0_3.map(k => `${k} ${FOOTPRINTS[k].w} × ${FOOTPRINTS[k].d} × ${FOOTPRINTS[k].h} m`).join(', ')}${missing.length ? `; not yet in the catalogue: ${missing.join(', ')}` : ''}`);
+    assert(!off.length, off.join('\n'));
+    assert(!missing.length, `places' catalogue lacks ${missing.join(', ')} (the build sheet's §2.1)`);
+  } },
+  { name: 'the new kinds paint within their footprints: a clock reports its dials, a flight its treads, a well its rail, a lamp post its glowing lens', fn() {
+    const lines = [];
+    for (const ppm of [16, 24]) {
+      const a = recordingArea(ppm), r = place(a, { kind: 'wallClock', make: 'school', x: 5, z: 0.32, y: 2.15, face: 'down', faces: ['melas'] });
+      assert(r.dials?.length === 1 && r.dials[0].which === 'front', `a wall clock reports ${JSON.stringify(r.dials)}`);
+      const d = r.dials[0].box;
+      // (DIAL_PX_MIN pixels across at least, odd, square, its middle within a pixel of the life-size dial's, 2.30 m)
+      assert(d.wPx >= DIAL_PX_MIN && d.wPx === dialPx(ppm) && d.wPx % 2 === 1 && d.wPx === d.hPx && Math.abs((d.y0 + d.y1) / 2 - 2.3) <= 1 / ppm, `the dial ${JSON.stringify(d)}`);
+      lines.push(`the wall clock's dial at ${ppm} px/m: ${d.wPx} × ${d.hPx} px (${(d.wPx / ppm).toFixed(3)} m across, its middle at ${((d.y0 + d.y1) / 2).toFixed(3)} m)`);
+      const two = place(recordingArea(ppm), { kind: 'wallClock', make: 'station', x: 5, z: 5, y: 1.12, face: 'down', faces: ['melas', 'utc'] });
+      assert(two.dials?.map(x => x.which).join() === 'front,back', 'a two-faced clock has a front and a back dial');
+      const st = recordingArea(ppm); place(st, { kind: 'stairs', make: 'concrete', x: 82, z: 12, face: 'up', dir: 'up' });
+      assert(st.grounds.length === 1 && st.boxes.length >= 6, `a flight: ${st.grounds.length} treads painting, ${st.boxes.length} boxes`);
+      const w = recordingArea(ppm); place(w, { kind: 'stairsWell', make: 'rail', x: 82, z: 12, face: 'up', dir: 'down' });
+      const lp = recordingArea(ppm); place(lp, { kind: 'lampPost', make: 'sodium', x: 530, z: 220 });
+      const tall = Math.max(...lp.boxes.map(({ b }) => b.y1));
+      assert(tall > 3.8 && tall <= 4.05, `the lamp post stands ${tall} m`);
+      lines.push(`${ppm} px/m: the dial ${d.wPx} × ${d.hPx} px at ${d.y0.toFixed(3)} to ${d.y1.toFixed(3)} m; the flight ${st.boxes.length} boxes of rail; the well ${w.boxes.length} boxes; the lamp post ${lp.boxes.length} boxes, ${tall.toFixed(2)} m`);
+    }
+    for (const l of lines) console.log(`      ${l}`);
   } },
   { name: 'a rack is built as it stands: the lower bunk under the upper with the gap the camera sees into', fn() {
     const a = recordingArea(24);

@@ -22,23 +22,32 @@
 //                      menu's Report a problem uses, so both carry the anchor, the renderer, the
 //                      engine, the screen and the density: a promise), else the store's reportOf
 //   view               the stage's numbers (the view's stats, with idle and pending), or null
+//   act(action)        an action into the sim (a string or { act, args }): queued for the next tick
+//                      the loop runs, or, while it is paused, run at once in a tick of its own
 //   loop, bus, sim     the machinery, for tests that listen
-// and window.__ready turns true once the page has drawn its frames with nothing pending (main.js),
-// so a test or a shot knows the page is up.
+// and what main.js adds through more (property descriptors, so getters stay getters), since core
+// may not import the sim (TECH §2.2): area (the live area's id), go(area, x, z, face) (the debug
+// action debug:go, which marks the save), door(id, to) (the door action), actors() (each actor with
+// its person's name, posture, outfit and whether you see them), light(x, z) (places' lightLevel
+// now), sun() (sunAt now), sightMask() (people's, for the player now), offer() (R's offer now),
+// audio (the sound's stats). window.__ready turns true once the page has drawn its frames with
+// nothing pending (main.js), so a test or a shot knows the page is up.
 //
 // URL parameters skip the title for tests and shots (main.js reads them through readParams()):
 // ?play=<scenario>&seed=<n>&hour=<h>[&mode=ironman][&debug=1], hour being the Mars local hour at the
-// start (0-24, a fraction giving minutes), seed a whole number; and for the stage &prop=chibi|soldier
-// (the figure: chibi until the look is scored), &mood=<name>, &fog=1, &nostore=1 (no IndexedDB
-// writes: shots, benches, agents' smoke runs) and &perf=1 (the GL counters and pass times).
+// start (0-24, a fraction giving minutes), seed a whole number; &area=<id>&at=<x>,<z>&face=<f> a
+// start somewhere else than the scenario's (the barracks' berth): an area, a place in its frame in
+// metres, a facing (up, down, left, right); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
+// agents' smoke runs) and &perf=1 (the GL counters and pass times). ?bench=<scene> (or ?bench=1, the
+// default scene) runs the bench card (main.js; src/data/bench.js holds the scenes).
 import { toJSON, fromJSON } from './state.js';
 import { NO_INPUT } from './loop.js';
 import { sorted } from './queue.js';
 import { utcText, marsTimeText } from './calendar.js';
 
-export const PROPS = Object.freeze(['chibi', 'soldier']);
+export const FACES = Object.freeze(['up', 'down', 'left', 'right']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, prop, mood, fog, nostore, perf }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -49,12 +58,22 @@ export function readParams(search = globalThis.location?.search ?? '') {
     hour: num('hour'),
     mode: q.get('mode') === 'ironman' ? 'ironman' : 'standard',
     debug: on('debug'),
-    prop: PROPS.includes(q.get('prop')) ? q.get('prop') : 'chibi',
     mood: q.get('mood') || null,
     fog: on('fog'),
     nostore: on('nostore'),
     perf: on('perf'),
+    bench: q.get('bench') || null,
+    area: q.get('area') || null,
+    at: pair(q.get('at')),
+    face: FACES.includes(q.get('face')) ? q.get('face') : null,
   };
+}
+
+// ('<x>,<z>' as two finite numbers, else null)
+function pair(v) {
+  if (!v) return null;
+  const xs = String(v).split(',').map(t => (t.trim() === '' ? NaN : Number(t)));
+  return xs.length === 2 && xs.every(Number.isFinite) ? xs : null;
 }
 
 /**
@@ -62,9 +81,11 @@ export function readParams(search = globalThis.location?.search ?? '') {
  * makes one; sim is src/sim/game.js's; store is src/core/store.js (for save and load by slot and the
  * report); about(state) the line a save shows in the lists; view the stage's view, if any; solText(ms,
  * lonE) the watch's face for events() (the sim's dates.js, SETTING's years bound), else the bare clock;
- * report() the page's bug report builder (main.js: what the menu's Report a problem writes), if any.
+ * report() the page's bug report builder (main.js: what the menu's Report a problem writes), if any;
+ * queue(action) the input's (an action for the next tick the loop runs); more, members main.js adds
+ * (an object whose property descriptors are copied onto the handle).
  */
-export function createDebugHandle({ loop, sim = null, start, newGame, version = '?', store = null, bus = null, about = () => 'debug', view = null, solText = null, report = null }) {
+export function createDebugHandle({ loop, sim = null, start, newGame, version = '?', store = null, bus = null, about = () => 'debug', view = null, solText = null, report = null, queue = null, more = null }) {
   const inputOf = (inp) => (inp ? { ...NO_INPUT, ...inp, act: inp.act ?? [] } : NO_INPUT);
   const slotOf = (name) => {
     const s = String(name);
@@ -72,7 +93,7 @@ export function createDebugHandle({ loop, sim = null, start, newGame, version = 
     return store.slotFor(loop.state ?? {}, s);
   };
   const lonOf = (state) => { try { return sim?.lonOf?.(state) ?? 0; } catch { return 0; } };
-  return {
+  const handle = {
     get state() { return loop.state; },
     get version() { return typeof version === 'function' ? version() : version; },
     step(n = 1, input = null) { return loop.step(n, inputOf(input)); },
@@ -109,10 +130,18 @@ export function createDebugHandle({ loop, sim = null, start, newGame, version = 
       return { olympus: 'report', version: this.version, state: s ? toJSON(s) : null, errors: s?.meta?.errors ?? [], stats };
     },
     get view() { return view ? { ...(view.stats ?? {}), idle: !!view.idle, pending: view.pending ?? [] } : null; },
+    /** An action into the sim: queued for the next tick the loop runs, or run at once in a tick of its own while paused. */
+    act(action) {
+      if (loop.paused || !queue) return loop.step(1, inputOf({ act: [action] }));
+      queue(action);
+      return null;
+    },
     loop,
     bus,
     sim,
   };
+  if (more) Object.defineProperties(handle, Object.getOwnPropertyDescriptors(more));
+  return handle;
 }
 
 /** Put the handle on window (globalThis) as __olympus. */

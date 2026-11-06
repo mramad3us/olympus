@@ -5,16 +5,16 @@
 // them together, as the game will: a scene's area (samples/scenes/*.js build(): one batch draw), its
 // mood and weather, and its people drawn by the figures' renderer (src/render/figures.js: one instanced
 // draw for everyone, their cards lit by stage.lightAt where they stand), placed by cast.js. One page is
-// one candidate: ?ppm=16|24 (src/render/scale.js, read once at load) and ?prop=chibi|soldier; the
-// gallery (samples/index.html, built by tools/gallery.mjs from sample.json) shows the four of a scene
-// side by side, numbered L1-a to L5-d.
+// one density: ?ppm=16|24 (src/render/scale.js, read once at load). The figures are the chibi, the
+// user's pick (2026-11-06, VIEWS §2.3): ?prop is ignored. The gallery (samples/index.html) shows the
+// look round as it was shot and scored, the four candidates of a scene side by side, L1-a to L5-d,
+// the soldier's (B) columns included; sample.json is frozen, so tools/gallery.mjs keeps those shots.
 //
-// URL parameters: scene=bay|head|mess|chasm|deck (cast.js CASTS), ppm=16|24, prop=chibi|soldier,
+// URL parameters: scene=bay|head|mess|chasm|deck (cast.js CASTS), ppm=16|24,
 // mood=<a mood of the scene> (otherwise the cast's), t=<seconds> (freeze the moment: walkers mid-stride,
 // the dust and the steam where they are then; without it the page runs), zoom, x, z (the camera, else
 // the cast's), palette (else the scene's), weather=0, fog=0|1 (else the scene's say), see=0, hud=1.
-// Keys: H the overlay; D the other density, P the other figures (each a reload: the density is read
-// once); M the next mood; Space freeze or run; W weather. window.__ready turns true once everyone is
+// Keys: H the overlay; D the other density (a reload: the density is read once); M the next mood; Space freeze or run; W weather. window.__ready turns true once everyone is
 // drawn and three frames are on screen; window.__report holds the numbers (draw calls, people, looks,
 // the atlas's uploads and painting) for tools/shot.mjs and tools/gallery.mjs to print and keep.
 import { createStage } from '../../src/render/stage.js';
@@ -22,7 +22,7 @@ import { createArea } from '../../src/render/batch.js';
 import { createFogMask } from '../../src/render/fog.js';
 import { createWeather } from '../../src/render/weather.js';
 import { createFigures } from '../../src/render/figures.js';
-import { bodyOf, PROPORTIONS } from '../../src/art/figures/body.js';
+import { bodyOf, CHIBI } from '../../src/art/figures/body.js';
 import { PALETTES } from '../../src/art/palette.js';
 import { PX_PER_M } from '../../src/render/scale.js';
 import { SCENES } from '../scenes/scenes.js';
@@ -31,7 +31,6 @@ import { CASTS, LOOKS, placeAt } from './cast.js';
 const q = new URLSearchParams(location.search);
 const castName = CASTS[q.get('scene')] ? q.get('scene') : 'bay';
 const C = CASTS[castName], S = SCENES[C.scene];
-const prop = PROPORTIONS[q.get('prop')] ? q.get('prop') : 'chibi';
 const moodNames = Object.keys(S.moods);
 const moodName = S.moods[q.get('mood')] ? q.get('mood') : C.mood;
 const zoom = Number(q.get('zoom') ?? C.camera.zoom ?? 1);
@@ -57,9 +56,9 @@ stage.look(camX, camZ);
 
 // The people: one renderer, the candidate's. Everyone is "own" (painted at once, whatever the budget):
 // a sample shows the finished picture; the budget's own numbers are the figures sample's (?budget=1).
-const figs = createFigures({ renderer: stage.renderer, prop });
+const figs = createFigures({ renderer: stage.renderer });
 area.add(figs.group);
-const B = bodyOf(prop, PX_PER_M);
+const B = bodyOf(PX_PER_M);
 const youAt = Math.max(0, C.people.findIndex(p => p.you));
 
 // The fog of awareness round you, where the scene asks for it (the storm): near, and a cone ahead.
@@ -81,7 +80,7 @@ function fogUpdate(you) {
 }
 
 const report = {
-  scene: castName, ppm: PX_PER_M, prop, mood: moodName, zoom, palette: paletteName, t: frozenS,
+  scene: castName, ppm: PX_PER_M, prop: 'chibi', mood: moodName, zoom, palette: paletteName, t: frozenS,
   frame: null, calls: null, cpuMs: 0, people: C.people.length, looks: new Set(C.people.map(p => p.look)).size,
   drawn: 0, deferred: 0, area: { boxes: st.boxes, drawCalls: st.drawCalls, atlasKB: Math.round(st.atlasBytes / 1024), buildMs: +buildMs.toFixed(1) },
   figures: null, fog: fogOn, weather: null,
@@ -121,7 +120,6 @@ addEventListener('keydown', (e) => {
   held.add(e.code);
   if (e.code === 'KeyH') hud.classList.toggle('off');
   else if (e.code === 'KeyD') reloadWith({ ppm: PX_PER_M === 16 ? 24 : 16 });
-  else if (e.code === 'KeyP') reloadWith({ prop: prop === 'chibi' ? 'soldier' : 'chibi' });
   else if (e.code === 'KeyM') reloadWith({ mood: moodNames[(moodNames.indexOf(moodName) + 1) % moodNames.length] });
   else if (e.code === 'Space') { frozenS = frozenS === null ? clockS : null; e.preventDefault(); }
   else if (e.code === 'KeyW') weatherOn = !weatherOn;
@@ -142,9 +140,9 @@ function loop(now) {
   if (!hud.classList.contains('off') && (frames < 5 || frames % 15 === 0)) {
     hud.innerHTML = [
       `<b>OLYMPUS</b> look · <b>${S.title}</b> · ${PX_PER_M} px/m · ${s.w}×${s.h}${zoom > 1 ? ` (zoom ${zoom})` : ''} · palette ${paletteName}`,
-      `figures <b>${PROPORTIONS[prop].label}</b> · ${F.drawn} drawn of ${C.people.length}, ${report.looks} looks · mood <b>${moodName}</b>${frozenS !== null ? ` · frozen at ${frozenS.toFixed(2)} s` : ''}`,
+      `figures <b>${CHIBI.label}</b> · ${F.drawn} drawn of ${C.people.length}, ${report.looks} looks · mood <b>${moodName}</b>${frozenS !== null ? ` · frozen at ${frozenS.toFixed(2)} s` : ''}`,
       `draw calls ${s.calls.total} (scene ${s.calls.scene}, post ${s.calls.post}) · cpu ${s.cpuMs.toFixed(2)} ms · area ${st.boxes} boxes, built ${buildMs.toFixed(0)} ms · atlas ${F.uploads} bands, ${report.figures.uploadKB} KB, painted ${report.figures.paintMs} ms`,
-      `H overlay · D density · P figures · M mood · Space freeze · W weather`,
+      `H overlay · D density · M mood · Space freeze · W weather`,
     ].join('\n');
   }
   if (!window.__ready && frames >= 3 && report.deferred === 0 && F.drawn === C.people.length) requestAnimationFrame(() => { window.__ready = true; });

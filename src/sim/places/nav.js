@@ -36,10 +36,21 @@
 //   - String pulling walks every cell a segment passes through (a supercover line, corners counted
 //     on both sides) instead of tradecraft's samples every half cell, so a pulled leg never clips the
 //     corner of a blocked cell between two samples (my call: the walker follows the pulled points).
-//   - Grounds: groundGrid(plan, rect, cls) is a window of a site plan's ground (PLACES §2.4: chunks
-//     come at 0.1; a window is what a walk test or a bot needs now): buildings and the fence block
-//     (gates open, open structures such as a canopy on posts do not), roads, paths and paved zones
-//     cost 10, the rest of the ground is regolith at 13.
+//   - Grounds: groundGrid(plan, rect, cls) is a window of a site plan's ground (the walk test's
+//     measure of the plan's edges): buildings and the fence block (gates open, open structures such
+//     as a canopy on posts do not), roads, paths and paved zones cost 10, the rest regolith at 13.
+//     The game's ground (0.0.3, the build sheet 0.0.3 §2.1) is an area of its own, melas.ground, its
+//     grids CHUNK_M 32 m chunks built lazily from its committed data (chunkGrid: its masses with their
+//     doors' reveals as leaves, the fence, closed gates, blocking fixtures; paving and paths 10,
+//     regolith 13) and cached in $places.chunks; navOf gives the walker a window of WINDOW_CHUNKS² of
+//     them holding it NAV_EDGE_M 16 m from its edge, kept until it does not and then assembled again
+//     round its chunk (from the cached chunks, in the replaced window's buffers), and navAhead builds
+//     at most NAV_CHUNKS_TICK of the ring round it a tick, so the next window finds its chunks built.
+//     A path request on the ground solves on a window placed by its own `from` (windowAt), never the
+//     player's, so its answer is a function of the state alone. Each grid keeps `base`, its cells'
+//     costs before anything blocks them, from which a leaf's cells are re-marked (remarkLeaf: every
+//     cached floor grid, chunk and window holding it, and the ground's shared leaf record first, so a
+//     chunk built after the door turned starts from its state now, whatever chunks were built then).
 //   - Requests (PLACES §2.2, TECH §3.1 layer 9, correction 7): requestPath() queues one in
 //     state.places.nav.queue (the player's own first, then by request id); pathsStep(), the fast
 //     layer `paths`, first delivers what is due, then pays off debtNodes from its PATH_NODES_TICK
@@ -52,10 +63,10 @@
 //     node expansions, never in milliseconds (TECH correction 7).
 // Lengths are rounded to the millimetre (q, TECH §8.1 rule 11) and taken by Math.sqrt, which IEEE
 // rounds exactly, never Math.hypot, which engines may compute differently.
-import { planOf, wallsOf, wallRect, leafRect } from './plan.js';
-import { footprintOf, blocks, kindOf as catalogueKind } from './fixtures.js';
+import { planOf, wallsOf, wallRect, leafRect, roomAt, PORCH_M } from './plan.js';
+import { footprintOf, blocks, blockRectOf, kindOf as catalogueKind } from './fixtures.js';
 import { createHeap } from './heap.js';
-import { areaOf, openingState } from './model.js';
+import { areaOf, leafClosed } from './model.js';
 import { nextId, numOf, playerActor } from '../../core/ids.js';
 import { q } from '../../core/num.js';
 
@@ -119,7 +130,7 @@ function block(grid, r) {
   }
 }
 // (the index ranges [i0, i1, j0, j1] of the cells whose centre lies inside a rect, edges included to
-// 1e-9 m: the one rule for a room's cells, which buildGrid paints and remarkOpening reads back)
+// 1e-9 m: the one rule for a room's cells, which buildGrid paints and the remark reads back)
 function cellSpan(grid, r) {
   const C = grid.cellM;
   return [
@@ -133,49 +144,81 @@ function surface(grid, r, cost, { over = false } = {}) {
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const k = j * grid.nx + i; if (over || grid.cost[k] !== BLOCKED) grid.cost[k] = cost; }
 }
 const roomRect = (room) => ({ x0: room.rect[0], z0: room.rect[1], x1: room.rect[2], z1: room.rect[3] });
-// (a cell's floor cost before blockers, by buildGrid's rule: the last room listed that holds its centre wins, else blocked)
-function roomCostAt(grid, area, i, j) {
-  for (let k = area.rooms.length - 1; k >= 0; k--) {
-    const [i0, i1, j0, j1] = cellSpan(grid, roomRect(area.rooms[k]));
-    if (i >= i0 && i <= i1 && j >= j0 && j <= j1) return roomCost(area.rooms[k]);
-  }
-  return BLOCKED;
-}
+const roomCost = (room) => COSTS[room.surface ?? 'floor'] ?? COSTS.floor;
 
-/** The rects that block a floor area whatever its doors: its wall runs and its blocking fixtures, each tagged. */
+/** The rects that block a floor area whatever its doors: its wall runs and its blocking fixtures (a stairs well but its top), each tagged. */
 export function staticBlockers(area) {
   const plan = planOf(area);
   return [
     ...wallsOf(plan).map(w => ({ ...wallRect(w), tag: 'wall' })),
-    ...(area.fixtures ?? []).filter(blocks).map(f => ({ ...footprintOf(f), tag: f.id })),
+    ...(area.fixtures ?? []).filter(blocks).map(f => ({ ...blockRectOf(f), tag: f.id })),
   ];
 }
-const roomCost = (room) => COSTS[room.surface ?? 'floor'] ?? COSTS.floor;
+
+/**
+ * The porches of a floor: past each outside door a portal crosses (its band's out side in no room),
+ * PORCH_M of floor across the band's a..b, so a walker can step STEP_M out through it and the portal
+ * fires (PLACES §1.6: "counts from the doorway's band plus STEP_M beyond it").
+ */
+export function porchesOf(area) {
+  const plan = planOf(area), out = [];
+  for (const p of area.portals ?? []) {
+    const b = p.band, mid = (b.a + b.b) / 2, e = 0.1;
+    const probe = b.axis === 'x' ? [mid, b.at + (b.out === 's' ? e : -e)] : [b.at + (b.out === 'e' ? e : -e), mid];
+    if (roomAt(plan, probe[0], probe[1])) continue;
+    out.push(b.axis === 'x'
+      ? (b.out === 's' ? { x0: b.a, x1: b.b, z0: b.at, z1: b.at + PORCH_M } : { x0: b.a, x1: b.b, z0: b.at - PORCH_M, z1: b.at })
+      : (b.out === 'e' ? { x0: b.at, x1: b.at + PORCH_M, z0: b.a, z1: b.b } : { x0: b.at - PORCH_M, x1: b.at, z0: b.a, z1: b.b }));
+  }
+  return out;
+}
 
 /**
  * An area's grid for a clearance class: { areaId, kind: 'floor', cls, radiusM, cellM, x0, z0, nx, nz,
- * cost: Uint8Array, floor: Uint8Array (1 where a cell's centre lies in a room), blockers, leaves }.
- * opening(o) gives each opening's state ('open' | 'closed').
+ * cost: Uint8Array, base: Uint8Array (each cell's cost before anything blocks it: its room's surface, a
+ * porch's floor, a flight's 15), floor: Uint8Array (1 where a cell's centre lies in a room or a porch),
+ * blockers, leaves, gen }. closed(o) says whether an opening's leaf blocks (opening(o) → 'open' |
+ * 'closed', 0.0.2's form, is read where closed is not given).
  */
-export function buildGrid(area, cls, { opening = (o) => o.state } = {}) {
+export function buildGrid(area, cls, { opening = null, closed = null } = {}) {
   const radiusM = CLASSES[cls];
   if (radiusM === undefined) throw new Error(`places: no clearance class '${cls}' (${Object.keys(CLASSES).join(', ')})`);
-  const plan = planOf(area);
-  const x0 = floorTo(plan.x0 - GRID_MARGIN_M, CELL_M), z0 = floorTo(plan.z0 - GRID_MARGIN_M, CELL_M);
-  const nx = Math.ceil((plan.x1 + GRID_MARGIN_M - x0) / CELL_M - 1e-9), nz = Math.ceil((plan.z1 + GRID_MARGIN_M - z0) / CELL_M - 1e-9);
-  const grid = { areaId: area.id, kind: 'floor', cls, radiusM, cellM: CELL_M, x0, z0, nx, nz, cost: new Uint8Array(nx * nz).fill(BLOCKED), floor: null, blockers: staticBlockers(area), leaves: [] };
+  if (area.kind === 'ground') throw new Error(`places: ${area.id} is a ground: its grids are windows of chunks (navOf with a point)`);
+  const isClosed = closed ?? (opening ? (o) => opening(o) === 'closed' : (o) => o.state === 'closed');
+  const plan = planOf(area), porches = porchesOf(area);
+  const ex = porches.reduce((b, p) => ({ x0: Math.min(b.x0, p.x0), z0: Math.min(b.z0, p.z0), x1: Math.max(b.x1, p.x1), z1: Math.max(b.z1, p.z1) }), { x0: plan.x0, z0: plan.z0, x1: plan.x1, z1: plan.z1 });
+  const x0 = floorTo(ex.x0 - GRID_MARGIN_M, CELL_M), z0 = floorTo(ex.z0 - GRID_MARGIN_M, CELL_M);
+  const nx = Math.ceil((ex.x1 + GRID_MARGIN_M - x0) / CELL_M - 1e-9), nz = Math.ceil((ex.z1 + GRID_MARGIN_M - z0) / CELL_M - 1e-9);
+  const grid = { areaId: area.id, kind: 'floor', cls, radiusM, cellM: CELL_M, x0, z0, nx, nz, cost: new Uint8Array(nx * nz).fill(BLOCKED), base: null, floor: null, blockers: staticBlockers(area), leaves: [], gen: 1 };
   for (const r of area.rooms) surface(grid, roomRect(r), roomCost(r), { over: true });
-  grid.floor = grid.cost.map(c => (c === BLOCKED ? 0 : 1));       // (the floor: cells whose centre lies in a room, what collide.js stands walkers on)
+  for (const p of porches) surface(grid, p, COSTS.paving, { over: true });
+  for (const f of area.fixtures ?? []) { const c = catalogueKind(f.kind).cost; if (c && grid) surface(grid, footprintOf(f), c); }
+  grid.base = grid.cost.slice();
+  grid.floor = grid.cost.map(c => (c === BLOCKED ? 0 : 1));       // (the floor: cells whose centre lies in a room or a porch, what collide.js stands walkers on)
   for (const b of grid.blockers) block(grid, b);
   for (const o of plan.openings) {
     if (o.kind !== 'door') continue;
-    const leaf = { id: o.id, rect: leafRect(o), closed: opening(areaOpening(area, o.id)) === 'closed' };
+    const leaf = { id: o.id, rect: leafRect(o), closed: !!isClosed(areaOpening(area, o.id)) };
     grid.leaves.push(leaf);
     if (leaf.closed) block(grid, leaf.rect);
   }
   return grid;
 }
 const areaOpening = (area, id) => (area.openings ?? []).find(o => o.id === id);
+
+// (the cells round a rect recomputed from the base, the blockers and the closed leaves: how many changed)
+function remarkRect(grid, rect) {
+  const [i0, j0, i1, j1] = span(grid, rect, grid.radiusM + grid.cellM), C = grid.cellM, rr = grid.radiusM * grid.radiusM;
+  let changed = 0;
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const cx = grid.x0 + (i + 0.5) * C, cz = grid.z0 + (j + 0.5) * C, k = j * grid.nx + i;
+    let c = grid.base[k];
+    if (c !== BLOCKED && (grid.blockers.some(b => distSq(cx, cz, b) < rr) || grid.leaves.some(l => l.closed && distSq(cx, cz, l.rect) < rr))) c = BLOCKED;
+    if (grid.cost[k] !== c) { grid.cost[k] = c; changed++; }
+  }
+  if (changed) grid.gen = (grid.gen ?? 1) + 1;
+  return changed;
+}
 
 /**
  * Re-mark a grid's cells round one opening's leaf after it opened or closed: only the cells within the
@@ -185,26 +228,162 @@ export function remarkOpening(grid, area, openingId, s) {
   const leaf = grid.leaves.find(l => l.id === openingId);
   if (!leaf) return 0;
   leaf.closed = s === 'closed';
-  const [i0, j0, i1, j1] = span(grid, leaf.rect, grid.radiusM + grid.cellM), C = grid.cellM, rr = grid.radiusM * grid.radiusM;
-  let changed = 0;
-  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-    const cx = grid.x0 + (i + 0.5) * C, cz = grid.z0 + (j + 0.5) * C;
-    let c = roomCostAt(grid, area, i, j);
-    if (c !== BLOCKED && (grid.blockers.some(b => distSq(cx, cz, b) < rr) || grid.leaves.some(l => l.closed && distSq(cx, cz, l.rect) < rr))) c = BLOCKED;
-    const k = j * grid.nx + i;
-    if (grid.cost[k] !== c) { grid.cost[k] = c; changed++; }
-  }
-  return changed;
+  return remarkRect(grid, leaf.rect);
 }
 
-/** The grid of an area for a class, as the state has its doors: built once, cached in state.$places.nav[areaId][cls]. */
-export function navOf(state, areaId, cls) {
+/**
+ * Re-mark an opening's leaf on every grid the state has cached (its floor's, every class; the ground's
+ * chunks and windows where its reveal names it), by leafClosed now. Returns the cells changed.
+ */
+export function remarkLeaf(state, openingId) {
+  const closed = leafClosed(state, openingId), nav = state.$places?.nav ?? {};
+  // (the ground's shared leaf records first, every class's: a chunk built later reads them, so one
+  // turned while no built chunk held it must not keep its old state, or the walk's history decides it)
+  for (const byCls of Object.values(state.$places?.leaves ?? {})) for (const m of Object.values(byCls)) { const l = m.get(openingId); if (l) l.closed = closed; }
+  let changed = 0;
+  for (const byCls of Object.values(nav)) for (const grid of Object.values(byCls)) changed += remarkGrid(grid, openingId, closed);
+  for (const byCls of Object.values(state.$places?.solveWin ?? {})) for (const grid of Object.values(byCls)) changed += remarkGrid(grid, openingId, closed);
+  for (const byCls of Object.values(state.$places?.chunks ?? {})) for (const chunks of Object.values(byCls)) for (const ch of chunks.values()) changed += remarkGrid(ch, openingId, closed);
+  return changed;
+}
+function remarkGrid(grid, id, closed) {
+  const leaf = grid.leaves?.find(l => l.id === id);
+  if (!leaf) return 0;
+  leaf.closed = closed;
+  return remarkRect(grid, leaf.rect);
+}
+
+// ---- the ground: chunks, and the window round the walker ----
+
+/** A ground's chunk, metres (PLACES §2.4, CONTRACTS §6), and its cells a side. */
+export const CHUNK_M = 32, CHUNK_CELLS = CHUNK_M / CELL_M;
+/** A ground's window is WINDOW_CHUNKS chunks a side, and holds the walker at least NAV_EDGE_M from its edge (my calls). */
+export const WINDOW_CHUNKS = 3, NAV_EDGE_M = 16;
+/** Chunks built ahead a tick, per class, once the walk is under way (work units: TECH correction 7). */
+export const NAV_CHUNKS_TICK = 1;
+/** The ring of chunks kept built ahead of the window, chunks either side of the walker's (my call). */
+export const AHEAD_RING = 2;
+const navStatsG = { chunksBuilt: 0, windowsBuilt: 0, aheadBuilt: 0, maxTickBuilds: 0 };
+/** The ground's counters: chunks built, windows assembled, chunks built ahead, the most built in one tick by one class. */
+export const groundStats = () => ({ ...navStatsG });
+/** Reset the ground's counters (a test's fresh start). */
+export function resetGroundStats() { for (const k of Object.keys(navStatsG)) navStatsG[k] = 0; }
+
+let groundFixed = new WeakMap();                                   // (a ground's blocking fixtures as rects, built once)
+function fixtureBlockers(area) {
+  let list = groundFixed.get(area);
+  if (!list) groundFixed.set(area, list = Object.freeze((area.fixtures ?? []).filter(blocks).map(f => Object.freeze({ ...footprintOf(f), tag: f.id }))));
+  return list;
+}
+const chunkRect = (i, j) => ({ x0: i * CHUNK_M, z0: j * CHUNK_M, x1: (i + 1) * CHUNK_M, z1: (j + 1) * CHUNK_M });
+// (the ground's leaves for a class: one shared object a leaf, so a chunk and a window agree)
+function groundLeaves(state, area, cls) {
+  const P = (state.$places ??= {}), byArea = ((P.leaves ??= {})[area.id] ??= {});
+  return (byArea[cls] ??= new Map(area.nav.leaves.map(l => [l.id, { id: l.id, kind: l.kind, rect: l.rect, closed: l.kind === 'gate' ? (area.gates.find(g => g.id === l.id)?.state ?? 'closed') === 'closed' : leafClosed(state, l.id) }])));
+}
+
+/**
+ * A ground's chunk (i, j) as a grid for a class: regolith at 13, the paved zones, roads and paths at
+ * 10, the masses, the fence, blocking fixtures and closed leaves (a reveal while its opening is shut,
+ * a gate) blocked. Built from the ground's committed data alone (PLACES §2.4, §9.5).
+ */
+export function chunkGrid(state, area, i, j, cls) {
+  const radiusM = CLASSES[cls], R = chunkRect(i, j), near = { x0: R.x0 - radiusM - CELL_M, z0: R.z0 - radiusM - CELL_M, x1: R.x1 + radiusM + CELL_M, z1: R.z1 + radiusM + CELL_M };
+  const g = { areaId: area.id, kind: 'chunk', i, j, cls, radiusM, cellM: CELL_M, x0: R.x0, z0: R.z0, nx: CHUNK_CELLS, nz: CHUNK_CELLS, cost: new Uint8Array(CHUNK_CELLS * CHUNK_CELLS).fill(COSTS.regolith), base: null, floor: null, blockers: [], leaves: [], gen: 1 };
+  for (const s of area.surfaces) {
+    if (s.rect) { const r = { x0: s.rect[0], z0: s.rect[1], x1: s.rect[2], z1: s.rect[3] }; if (overlaps(r, near)) surface(g, r, COSTS.paving); continue; }
+    const xs = s.pts.map(p => p[0]), zs = s.pts.map(p => p[1]), h = s.widthM / 2;
+    if (overlaps({ x0: Math.min(...xs) - h, z0: Math.min(...zs) - h, x1: Math.max(...xs) + h, z1: Math.max(...zs) + h }, near)) strip(g, s.pts, s.widthM, COSTS.paving);
+  }
+  g.base = g.cost.slice();
+  for (const b of [...area.nav.blockers, ...fixtureBlockers(area)]) if (overlaps(b, near)) { g.blockers.push(b); block(g, b); }
+  for (const l of groundLeaves(state, area, cls).values()) if (overlaps(l.rect, near)) { g.leaves.push(l); if (l.closed) block(g, l.rect); }
+  navStatsG.chunksBuilt++;
+  return g;
+}
+// (a chunk from the cache, built when missing)
+function chunkOf(state, area, i, j, cls) {
+  const P = (state.$places ??= {}), byCls = ((P.chunks ??= {})[area.id] ??= {}), map = (byCls[cls] ??= new Map()), key = `${i},${j}`;
+  let ch = map.get(key);
+  if (!ch) { ch = chunkGrid(state, area, i, j, cls); map.set(key, ch); }
+  return ch;
+}
+// (a window of WINDOW_CHUNKS² chunks from (i0, j0), assembled from the cached chunks; the window it
+// replaces lends its two buffers, so a walk across the base allocates no new ones: nothing keeps a
+// window once navOf has dropped it, a walker's path being points, not cells)
+function windowGrid(state, area, cls, i0, j0, old = null) {
+  const n = WINDOW_CHUNKS, N = n * CHUNK_CELLS, cost = old?.cost ?? new Uint8Array(N * N), base = old?.base ?? new Uint8Array(N * N);
+  if (old) { old.cost = null; old.base = null; }
+  const blockers = new Set(), leaves = new Set();
+  for (let cj = 0; cj < n; cj++) for (let ci = 0; ci < n; ci++) {
+    const ch = chunkOf(state, area, i0 + ci, j0 + cj, cls);
+    for (let r = 0; r < CHUNK_CELLS; r++) {
+      const at = (cj * CHUNK_CELLS + r) * N + ci * CHUNK_CELLS;
+      cost.set(ch.cost.subarray(r * CHUNK_CELLS, (r + 1) * CHUNK_CELLS), at);
+      base.set(ch.base.subarray(r * CHUNK_CELLS, (r + 1) * CHUNK_CELLS), at);
+    }
+    for (const b of ch.blockers) blockers.add(b);
+    for (const l of ch.leaves) leaves.add(l);
+  }
+  navStatsG.windowsBuilt++;
+  return { areaId: area.id, kind: 'ground', cls, radiusM: CLASSES[cls], cellM: CELL_M, x0: i0 * CHUNK_M, z0: j0 * CHUNK_M, nx: N, nz: N, cost, base, floor: null, blockers: [...blockers], leaves: [...leaves], win: { i0, j0, n }, gen: 1 };
+}
+// (whether a window holds (x, z) at least NAV_EDGE_M from its edge)
+const holds = (g, x, z) => x >= g.x0 + NAV_EDGE_M && x <= g.x0 + g.nx * g.cellM - NAV_EDGE_M && z >= g.z0 + NAV_EDGE_M && z <= g.z0 + g.nz * g.cellM - NAV_EDGE_M;
+
+/**
+ * The grid of an area for a class, as the state has its doors, cached in state.$places.nav[areaId][cls]:
+ * a floor's whole grid, built once; a ground's window round (x, z) (the area's spawn when none is
+ * given), kept while it holds the point NAV_EDGE_M from its edge and assembled again round the point's
+ * chunk when it does not, from chunks built lazily and cached. The window's placement is runtime only
+ * and never changes an outcome: a walker collides with the rects near it, which every window holding
+ * it 16 m in contains.
+ */
+export function navOf(state, areaId, cls, x = null, z = null) {
   const P = (state.$places ??= {});
   const byArea = ((P.nav ??= {})[areaId] ??= {});
-  if (byArea[cls]) return byArea[cls];
   const area = areaOf(areaId);
-  if (!area) throw new Error(`places: no area '${areaId}' to build a nav grid for`);
-  return (byArea[cls] = buildGrid(area, cls, { opening: (o) => openingState(state, o) }));
+  if (!area) { if (byArea[cls]) return byArea[cls]; throw new Error(`places: no area '${areaId}' to build a nav grid for`); }
+  if (area.kind !== 'ground') return (byArea[cls] ??= buildGrid(area, cls, { closed: (o) => leafClosed(state, o) }));
+  const px = x ?? area.spawn.x, pz = z ?? area.spawn.z, g = byArea[cls];
+  if (g && (x === null || holds(g, px, pz))) return g;
+  const c = Math.floor(WINDOW_CHUNKS / 2);
+  return (byArea[cls] = windowGrid(state, area, cls, Math.floor(px / CHUNK_M) - c, Math.floor(pz / CHUNK_M) - c, g));
+}
+
+/**
+ * Build ahead on a ground: at most budget chunks of the ring AHEAD_RING round the walker's chunk that
+ * are not yet built, nearest first (ties by row, then column), so the window's next placement finds
+ * its chunks built and no tick builds more than NAV_CHUNKS_TICK a class. Returns how many it built.
+ */
+export function navAhead(state, areaId, cls, x, z, budget = NAV_CHUNKS_TICK) {
+  const area = areaOf(areaId);
+  if (!area || area.kind !== 'ground' || budget <= 0) return 0;
+  const map = state.$places?.chunks?.[areaId]?.[cls], ci = Math.floor(x / CHUNK_M), cj = Math.floor(z / CHUNK_M);
+  let built = 0;
+  for (let d = 1; d <= AHEAD_RING && built < budget; d++) for (let j = cj - d; j <= cj + d && built < budget; j++) for (let i = ci - d; i <= ci + d && built < budget; i++) {
+    if (Math.max(Math.abs(i - ci), Math.abs(j - cj)) !== d || map?.has(`${i},${j}`)) continue;
+    chunkOf(state, area, i, j, cls); built++; navStatsG.aheadBuilt++;
+  }
+  return built;
+}
+
+/**
+ * A ground's window placed by a point alone (centred on the chunk holding it), for a path request: the
+ * request's answer then depends on its own `from`, never on where the player's window happens to be,
+ * so a game saved mid-request and loaded solves it on the same cells. Cached one per area and class.
+ */
+export function windowAt(state, areaId, cls, x, z) {
+  const area = areaOf(areaId), c = Math.floor(WINDOW_CHUNKS / 2), i0 = Math.floor(x / CHUNK_M) - c, j0 = Math.floor(z / CHUNK_M) - c;
+  const P = (state.$places ??= {}), byArea = ((P.solveWin ??= {})[areaId] ??= {}), w = byArea[cls];
+  if (w && w.win.i0 === i0 && w.win.j0 === j0) return w;
+  return (byArea[cls] = windowGrid(state, area, cls, i0, j0, w));
+}
+
+/** An area's grid with every door open, for the 'locked' check and the bots' way through closed doors (floors only; cached). */
+export function openNavOf(areaId, cls) {
+  const area = areaOf(areaId);
+  return area && area.kind !== 'ground' ? openGridOf(area, cls) : null;
 }
 
 // (a polyline strip: every cell whose centre lies within half its width of a segment)
@@ -252,6 +431,7 @@ export const buildingBlocks = (b) => !b.open;
 /**
  * A window [x0, z0, x1, z1] of a site plan's ground as a grid for a class (PLACES §2.4): regolith at
  * 13 by default; roads, paths and paved zones at 10; buildings and the fence blocked (gates open).
+ * The walk test's measure of the plan's edges (v0.0.2); the game's ground is the area's chunks above.
  */
 export function groundGrid(plan, rect, cls) {
   const radiusM = CLASSES[cls];
@@ -259,13 +439,14 @@ export function groundGrid(plan, rect, cls) {
   const w = rectOf(rect);
   const x0 = floorTo(w.x0, CELL_M), z0 = floorTo(w.z0, CELL_M);
   const nx = Math.ceil((w.x1 - x0) / CELL_M - 1e-9), nz = Math.ceil((w.z1 - z0) / CELL_M - 1e-9);
-  const grid = { areaId: plan.area, kind: 'ground', planId: plan.id, cls, radiusM, cellM: CELL_M, x0, z0, nx, nz, cost: new Uint8Array(nx * nz).fill(COSTS[plan.ground ?? 'regolith']), floor: null, blockers: [], leaves: [] };
+  const grid = { areaId: plan.area, kind: 'ground', planId: plan.id, cls, radiusM, cellM: CELL_M, x0, z0, nx, nz, cost: new Uint8Array(nx * nz).fill(COSTS[plan.ground ?? 'regolith']), base: null, floor: null, blockers: [], leaves: [] };
   const win = { x0, z0, x1: x0 + nx * CELL_M, z1: z0 + nz * CELL_M }, near = (r) => overlaps({ x0: r.x0 - 30, z0: r.z0 - 30, x1: r.x1 + 30, z1: r.z1 + 30 }, win);
   for (const z of plan.zones ?? []) if (z.surface && COSTS[z.surface] !== undefined) { const r = rectOf(z.rect); if (near(r)) surface(grid, r, COSTS[z.surface]); }
   for (const r of [...(plan.roads ?? []), ...(plan.paths ?? [])]) {
     const xs = r.pts.map(p => p[0]), zs = r.pts.map(p => p[1]);
     if (near({ x0: Math.min(...xs), z0: Math.min(...zs), x1: Math.max(...xs), z1: Math.max(...zs) })) strip(grid, r.pts, r.widthM, COSTS[r.surface ?? 'paving']);
   }
+  grid.base = grid.cost.slice();
   for (const b of plan.buildings ?? []) {
     if (!buildingBlocks(b)) continue;
     for (const r of b.rects) { const rr = { ...rectOf(r), tag: b.id }; if (near(rr)) { grid.blockers.push(rr); block(grid, rr); } }
@@ -454,14 +635,14 @@ export function navState(state) {
 function openGridOf(area, cls) {
   let byCls = openGrids.get(area);
   if (!byCls) openGrids.set(area, byCls = {});
-  return (byCls[cls] ??= buildGrid(area, cls, { opening: () => 'open' }));
+  return (byCls[cls] ??= buildGrid(area, cls, { closed: () => false }));
 }
 // (a solve as a request asks it: on its area's grid as the state has it; a 'blocked' that only a closed door causes is 'locked')
 function solve(state, req) {
   if (!areaOf(req.area) && !state.$places?.nav?.[req.area]?.[req.cls]) return { fail: 'blocked', expanded: 0 };   // (an area gone since the request: answered, never thrown in the tick)
-  const grid = navOf(state, req.area, req.cls);
+  const area = areaOf(req.area), grid = area?.kind === 'ground' ? windowAt(state, req.area, req.cls, req.from[0], req.from[1]) : navOf(state, req.area, req.cls);
   const r = path(grid, req.from, req.to);
-  if (r.fail !== 'blocked' || !grid.leaves.some(l => l.closed) || !areaOf(req.area)) return r;
+  if (r.fail !== 'blocked' || !grid.leaves.some(l => l.closed) || !area || area.kind === 'ground') return r;
   const o = path(openGridOf(areaOf(req.area), req.cls), req.from, req.to);
   return o.fail ? { fail: 'blocked', expanded: r.expanded + o.expanded } : { fail: 'locked', expanded: r.expanded + o.expanded };
 }

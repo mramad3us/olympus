@@ -1,6 +1,6 @@
 # SETTING: the world of 2351, for a Martian marine
 
-Written 2026-11-05 from [DESIGN.md](../DESIGN.md) (the hub, which wins on any conflict) and the research notes `longhaul-setting.md`, `longhaul-physics.md`, `longhaul-combat.md`, `longhaul-shipboard.md` and `tradecraft-design-1.md`. Numbers marked "computed" come from scratch scripts that import LONGHAUL's pure modules read-only (`js/sim/ephemeris.js`, `js/sim/worlds.js`, `js/core/constants.js`, and for the contract patch `js/sim/planetary.js`, `js/sim/lambert.js` and `js/sim/stations.js`); none of those projects was modified. Revised 2026-11-05 by the contract patch, which applies the five critics' findings for this section (1.4 lists what it settles).
+Written 2026-11-05 from [DESIGN.md](../DESIGN.md) (the hub, which wins on any conflict) and the research notes `longhaul-setting.md`, `longhaul-physics.md`, `longhaul-combat.md`, `longhaul-shipboard.md` and `tradecraft-design-1.md`. Numbers marked "computed" come from scratch scripts that import LONGHAUL's pure modules read-only (`js/sim/ephemeris.js`, `js/sim/worlds.js`, `js/core/constants.js`, and for the contract patch `js/sim/planetary.js`, `js/sim/lambert.js` and `js/sim/stations.js`); none of those projects was modified. Revised 2026-11-05 by the contract patch, which applies the five critics' findings for this section (1.4 lists what it settles). Revised 2026-11-06 for the user's two rules of 2026-11-05 (1.1): the places this section gives lore for are handcrafted, mapped by PLACES and the same in every career; every person alive in the career's present, the public figures of 7.7 included, is generated per world; FOB Pwyll's position follows PLACES §7.5; the Coriolis figures of 8.1 take BODY's walk.
 
 ## 0. Summary
 
@@ -23,6 +23,10 @@ This section gives the facts, the names, the lore and the data. TIME turns the c
 - **[L]**: LONGHAUL's content, shipped there without objection; kept.
 - **[C]**: an Expanse canon term kept, flagged (section 1.2).
 - **(my call)**: decided here; holds until the user overrides it.
+
+Two rules of the user's, 2026-11-05, which every table here obeys:
+- **"game world is handcrafted, events and world politics, assignments, opportunities, mission details are all procedural".** The places this section describes (Base Melas, Redwater, the towns of Mars and Europa, Camp Lofn, the hulls, the theatres of 8) are authored once, mapped by PLACES and the same in every career. Their lore is fixed; what happens in and to them after the start (politics, incidents, the war, the news) comes from LONGHAUL's world sim, rolled per world (2.3).
+- **"All people generated"** (asked whether the persistent cast should be handcrafted). Nobody alive in the career's present is written here. The holders of the Republic's and the factions' public offices, the faction leaders, the faces of 9 and every person the player could meet or read of as living are generated per world from 12's pools (PEOPLE §3.1, §3.13), as world politics are procedural. **The authored archive before the start** (5.1's history, 7.7's timeline) may name figures of the past as history, the same in every world (my call); it names none so far, and where a headline needs a present office holder it names the office and the world fills in the person it drew (7.7). The people named in examples (Okafor in 5.5's forms of address and 5.8's reporting, Okonjo in 12.3's nicknames) are examples of the generator's output.
 
 ### 1.2 The canon ledger
 
@@ -50,7 +54,7 @@ SETTING owns world facts and lore, the Corps' organisation, ranks and insignia, 
 
 ```
 setting/calendar.js     constants and month/week names (TIME does the arithmetic)
-setting/world.js        the prologue's fixtures, public figures
+setting/world.js        the prologue's fixtures, the public offices (their holders are generated, 7.7)
 setting/timeline.js     §7.7's authored Europa timeline, read by date: the 0.1 news archive (TECH §5.8, §18)
 setting/mars.js         air table, climate, places lore, homes
 setting/corps.js        ranks, insignia, MOS, units, bases, uniforms, customs, slang, awards
@@ -87,7 +91,7 @@ SETTING owns names and doctrine; the disagreements ROADMAP §3.4 left open are s
 | the levy: 12% against "air and water levy 1%" | SETTING §4.10, CAREER §12.4 | one name, **the terraforming levy**: 12% for civilians, 1% for service members | 4.10 |
 | the arms makers and HAD's works (Dustfall, Ophir, "Hellas") | SETTING §4.10, WEAPONS §3.1, SKILLS §10.2 | **WEAPONS §3.1's makers**; HAD's small arms at **Ophir Chasma**, its drives and suits at Dustfall | 4.10 |
 | Ceres Station's spin, asked for and not given | PLACES §8, CAREER §4.3, §10.2, §11.3 | **0.30 G at the rim of 450 m drums** (ω 0.0809 rad/s), 0.301 G with Ceres' pull | 8.1 |
-| the Commandant's name against the squad examples' Okonjo | SETTING §7.7, CAREER §5.3, PEOPLE §14.4, §18 | the Commandant is **General Halima Strand**; public figures' family names are kept off tier 1–2 | 7.7, 12.6 |
+| the Commandant's name against the squad examples' Okonjo | SETTING §7.7, CAREER §5.3, PEOPLE §14.4, §18 | the Commandant and every other public office holder are **generated per world** (the user, 2026-11-05: "All people generated"; the earlier settled name, General Halima Strand, is withdrawn), registered before the roster, their family names kept off tier 1–2 | 7.7, 12.5, 12.6 |
 | the towns' air: "Ice standard" against Belter town standard | SETTING §7.3, PLACES §3.2, §7.1 | **Ice standard**, PLACES §3.2's row and its one definition (75.0 kPa, pO₂ 16.5 kPa, 22%, 14 °C); PLACES no longer holds a 55 kPa row. CONTRACTS §19, item 1, holds this until the lead settles it; the name is SETTING's to change | 7.3 |
 
 ---
@@ -123,7 +127,7 @@ The new game rolls LONGHAUL's world from its epoch (2351-03-22 08:00 UTC) to the
 
 1. MCR–UN relation is held above −70 (no war before the start; crises allowed).
 2. Two zones are pinned at Europa from 2351-06-01: an `insurgency` (CFB against MCR) and a `standoff` (UN against MCR). They stay until the Accord ends.
-3. The authored Europa timeline (7.7) is injected as fixed incidents and headlines on their dates, so every world's archive tells the same Europa story inside a different system year.
+3. The authored Europa timeline (7.7) is injected as fixed incidents and headlines on their dates, so every world's archive tells the same Europa story inside a different system year. That archive is history before the start, authored and the same in every world (my call, 1.1); from the start on, events and politics are the world's own, procedural as the user's rule has it (2026-11-05). Its headlines name offices, never living persons: the world fills in the holders it drew (7.7).
 
 The archive is the recruit's last nine months of news: what they read at Argyre and Camp Ius (section 10).
 
@@ -240,11 +244,23 @@ Every place off Mars keeps UTC [D]. TIME's table (2.6) of shifts and skies is us
 | UTC | **2351-12-19 02:20** (TIME's MSD constant decides the seconds) |
 | Days since LONGHAUL's epoch | 271.76 |
 | Season | Ls 316.4°: late southern summer at Melas, the tail of the dust season |
-| Daylight at Melas (10.5° S, PLACES §4.1) | 12.78 h; sunrise 05:37, sunset 18:23 civil; noon sun 83° up, a few degrees south of the zenith |
+| Daylight at Melas (10.5° S, PLACES §4.1) | over a flat horizon 12.78 h, sunrise 05:36, sunset 18:23 civil; over the canyon's walls (PLACES §3.15's `horizonAt`) **12.53 h, sunrise 05:44, sunset 18:15**, the times the base lives by; noon sun 83.42° up, a few degrees south of the zenith (as built in v0.0.3: `sunTimes` in `src/sim/places/sun.js`, printed by `places-light`; the table below) |
 | Next New Year (MY 212, Sol 1, a Thursday) | 2352-03-09 18:27 UTC at Melas midnight: during the first deployment, about 81 days in |
 | Next Corps Birthday (MY 212 Sol 214, a Sunday) | 2352-10-14 UTC |
 
 CAREER's working default (LONGHAUL's epoch) is replaced by this date.
+
+**Daylight at Melas over the year**, the flat horizon beside the canyon's walls (`sunTimes` with `terrain` false and true, as v0.0.3 builds it and `places-light` prints it; civil Melas time):
+
+| Ls | Flat horizon | Over the walls | The walls take |
+|---|---|---|---|
+| 0° | 05:50 to 18:09, 12.33 h | 05:54 to 18:05, 12.19 h | 8 min |
+| 90° | 06:10 to 17:49, 11.64 h | 06:15 to 17:44, 11.49 h | 9 min |
+| 174° (the epoch's) | 05:52 to 18:08, 12.27 h | 05:56 to 18:03, 12.13 h | 8 min |
+| 270° | 05:29 to 18:30, 13.02 h | 05:45 to 18:14, 12.49 h | 31 min |
+| 316.4° (the start) | 05:36 to 18:23, 12.78 h, noon 83.42° | 05:44 to 18:15, 12.53 h | 15 min |
+
+Round the southern summer solstice the sun rises and sets well south of east and west, behind the south wall's flanks, so the walls take most then.
 
 ### 3.8 Data and test vectors
 
@@ -264,7 +280,9 @@ export const START = { solIndex: 169904, civil: '12:40', site: 'melas' };
 export const SITES = { melas: { latDeg: -10.5, lonEDeg: 287.2, altitudeM: -4500 } };   // PLACES §4.1's site
 ```
 
-Tests print and check (tolerance ±1 min on UTC, exact on sols): MSD at the epoch 169,639.237; Melas civil time at the epoch 00:31 (TIME measured 00:30:38 with its constant; the seconds follow TIME's MSD constant); the epoch's sol is a Wednesday (the Martian week; the UTC day is a Thursday), Sol 326 MY 211, 19 Gleaning, Ls 174.0; Sol 1 of MY 212 is MSD 169,984; MY 211–216 lengths 669, 669, 669, 669, 668, 669; the start is solIndex 169,904, Monday, Sol 590, 5 Patience, Ls 316.4, 2351-12-19 02:20 UTC; Melas daylight at 10.5° S (TIME §2.5's figures) at Ls 316.4 is 12.78 h with sunrise 05:37; at Ls 90 11.64 h (06:11–17:49), at Ls 270 13.02 h (05:30–18:30).
+The canyon's walls are not in `SITES`. They are PLACES's data, `MELAS_WALLS = { southKm: 45, southRiseM: 8000, northKm: 150, northRiseM: 8000 }` in `src/data/places/melas.js` (PLACES §3.15), and `src/sim/places/sun.js` reads them there for `horizonAt`, so the four numbers live in one place and every reader of the horizon (TIME's sun, perception's light, VIEWS's sky) gets them through `sunAt` (my call, 2026-11-06: it replaces PLACES §3.15's ask that `SITES.melas` carry a `wall` record).
+
+Tests print and check (tolerance ±1 min on UTC, exact on sols): MSD at the epoch 169,639.237; Melas civil time at the epoch 00:31 (TIME measured 00:30:38 with its constant; the seconds follow TIME's MSD constant); the epoch's sol is a Wednesday (the Martian week; the UTC day is a Thursday), Sol 326 MY 211, 19 Gleaning, Ls 174.0; Sol 1 of MY 212 is MSD 169,984; MY 211–216 lengths 669, 669, 669, 669, 668, 669; the start is solIndex 169,904, Monday, Sol 590, 5 Patience, Ls 316.4, 2351-12-19 02:20 UTC; Melas daylight at 10.5° S (TIME §2.5's sun, as built) at Ls 316.4 is 12.78 h, 05:36 to 18:23, over a flat horizon, and 12.53 h, 05:44 to 18:15, over the walls (PLACES §3.15's `horizonAt` on `MELAS_WALLS`); at Ls 90 11.64 h (06:10 to 17:49), at Ls 270 13.02 h (05:29 to 18:30), flat (§3.7's table gives the walls' times).
 
 ---
 
@@ -410,10 +428,11 @@ Redwater lies 18 km east of the base's main gate on an alluvial fan below the so
 
 PLACES draws the base; this is its place in the world.
 
-- **Where**: the southern floor of Melas Chasma at **10.5° S 287.2° E, −4.5 km, 66 kPa** [D for the altitude and pressure; the coordinates are PLACES §4.1's site, on TIME's meridian (CONTRACTS §2), and 4.7 places Redwater and Highrim from them]. The south wall rises 8 km about 45 km away (7–10° of sky to the south); the north wall is 150 km off (3°); east and west the canyon runs to 1–2° of horizon. PLACES and VIEWS take this profile.
+- **Where**: the southern floor of Melas Chasma at **10.5° S 287.2° E, −4.5 km, 66 kPa** [D for the altitude and pressure; the coordinates are PLACES §4.1's site, on TIME's meridian (CONTRACTS §2), and 4.7 places Redwater and Highrim from them]. The south wall rises 8 km about 45 km away (9.7° of sky due south with Mars's curvature, less off the meridian); the north wall, also 8 km, is 150 km off and stands 1.8° above the horizon (the curvature takes 3.3 km of its rise; PLACES §3.15); east and west the canyon runs to 1–2° of horizon. PLACES and VIEWS take this profile, and PLACES holds its numbers (`MELAS_WALLS` in `src/data/places/melas.js`, §3.8): built in v0.0.3, `horizonAt` gives 9.71° due south and 1.79° due north.
 - **History**: Naval Training Center Melas from MY 175 (2283), on the flat outwash below an old landslide; Marine Corps Base Melas from MY 178. Chosen because the floor is breathable (marines train unmasked), wide and flat for long ranges, walled for cliff and altitude work, far from the cities, and 680 km from the Tharsis Spaceport.
 - **Who**: Headquarters, 2nd Marine Division; the **4th Marines** (1/4, 2/4, 3/4); part of the 11th Marines (fires); the 1st Deep Reconnaissance Company and the Recon school; the Raider school (5.10); Melas Field with two assault lander squadrons; a Navy branch hospital; a brig. About 19,000 marines and sailors, 6,000 civilian staff and 9,000 dependents in the married quarters ("the Terraces").
 - **What the base has** (PLACES places them): the Echo lines (2/4's barracks), mess halls, the PX, chapels, the **G-house** (the centrifuge hall: CAREER's PFT at 1 G, BODY's conditioning; marines call a session "a spin"), the ranges on the floor, the Candor and wall cliffs, the **high range** on Sinai Planum at +4 km reached by the Highrim Incline, "Little Conamara" (a pressurised mock-up of an under-ice town street for Europa training), the armouries, the suit lockers and pressure-drill hall, Melas Field's pads, and **the Grove**: a stand of larch and pine with one tree for every 2nd Division marine dead in service since MY 180 (5.8).
+- **Its roads and walks** keep the names PLACES's plan gave them as working names (`src/data/places/melas.js`), adopted here so the plaques and the papers may print them (my call): **Training Road** (out to the ranges and the training grounds), **Village Road** (to the training village), **the Lines Walk** (along the north edge of the company streets) and **the South Walk** (along their south edge); the three lanes between the two walks are **First, Second and Third Lane**, numbered west to east. Like the base itself, they are authored and the same in every career.
 
 ### 4.10 Martian society, as a marine sees it
 
@@ -554,7 +573,7 @@ Rules of address: officers are "sir" or "ma'am"; NCOs are never "sir" ("Don't ca
 | O-8 | Rear Admiral | MajGen |
 | O-9, O-10 | Vice Admiral, Admiral | LtGen, Gen |
 
-Corpsmen carry the prefix "Hospital": PEOPLE's "junior hospital rating" is a **Hospital Able Rating** (E-3), "third class" a **Hospital Leading Hand** (E-4), "second class" a **Hospital Petty Officer Second Class** (E-5).
+Corpsmen carry the prefix "Hospital": PEOPLE's "junior hospital rating" is a **Hospital Able Rating** (E-3), "third class" a **Hospital Leading Hand** (E-4), "second class" a **Hospital Petty Officer Second Class** (E-5), and the company's senior corpsman may be a **Hospital Petty Officer First Class** (E-6). Their abbreviations are **HAR, HLH, HPO2, HPO1**, as the roster writes them (`src/data/people/ranks.js`; PEOPLE's call in v0.0.3, adopted here).
 
 **The Marine Corps Martial Arts Programme (MCMAP)**, spoken "mick-map" (my call: the US Corps' programme of the same name is the model, and its name is public military practice, not canon; the British spelling is the house style). SKILLS, CAREER, PEOPLE and ROADMAP use this name, and SKILLS reads the belts. Belts, with the barracks' names for them: tan ("dust"), grey ("basalt"), green ("lichen"), brown ("umber"), black first to sixth degree. Keys: `mcmap-tan`, `mcmap-grey` (never `gray`), `mcmap-green`, `mcmap-brown`, `mcmap-black-1` to `mcmap-black-6`. Recruits leave Argyre with tan; grey is a corporal's expectation.
 
@@ -585,7 +604,8 @@ Codes follow the US Corps' scheme where a real equivalent exists (my call, agree
 | 2149 *new* | Powered armour technician | Ordnance | the Lorica (MSAC only) |
 | 2311 | Ammunition technician | Ammunition | |
 | 2336 | Explosive ordnance disposal | Ammunition | Sergeant and up |
-| 0621 | Field radio operator | Communications | |
+| 0621 | Field radio operator | Communications | the company's comm chief too |
+| 0111 | Administrative specialist | Administration | the company office's clerks (PEOPLE §3.2; the roster's code in v0.0.3, adopted here) |
 | 0627 *new* | Tight-beam and relay operator | Communications | under-ice relays, laser links |
 | 0231 | Intelligence specialist | Intelligence | |
 | 2641 | Linguist (Lang Belta) | Intelligence | Lang Belta interpreters for Europa |
@@ -599,6 +619,7 @@ Codes follow the US Corps' scheme where a real equivalent exists (my call, agree
 | 6211 *new* | Assault lander crew chief | Assault wing | |
 | 6231 *new* | Assault lander mechanic | Assault wing | |
 | 7562 *new* | Assault lander pilot | Assault wing | officers |
+| 8404 | Field medical service technician | Navy, medical | not a Marine MOS: the Navy's code for a corpsman serving with marines, which the roster gives every corpsman (PEOPLE §3.2; the roster's code in v0.0.3, adopted here) |
 | 8511, 8411, 8156 | Drill instructor, recruiter, embassy guard | B-billets | free MOS for the tour (CAREER) |
 | 0916, 8531 | Close combat instructor, marksmanship coach | additional | |
 
@@ -862,7 +883,7 @@ About 2.95 million people in nine towns and some forty rigs ("a few million" [L]
 | **Conamara Under-Ice** | Conamara | 350–900 m | 820,000 | the oldest town, galleries cut through the tilted ice rafts of the chaos; seat of Ice Control and the Ice Council; markets, union halls, the old shafts; **Camp Halloran** (MSF-E's headquarters) beside the spaceport shaft | Ice Control; the Accord unions |
 | Murias | Conamara | 200–500 m | 95,000 | an old rig town gone poor; shaft families; tight galleries, bad air in the low streets | the Reamers' and Shaftmen's Union (militant) |
 | Annwn | Conamara | 300–700 m | 140,000 | a boom town of new shafts and new arrivals from the Belt | mixed |
-| **Pwyll Deep** | Pwyll | 600–1,400 m | 610,000 | a crater town under Pwyll's bright rays; the **Pwyll catapult**, a mass driver on the surface that throws ice blocks to orbit for the haulers; **FOB Pwyll**, 2/4's base, beside the Pwyll spaceport, 2 km from the main shaft's head (PLACES §7.5 maps it) | the Ice Haulers' Union; the FOB and the corridors are the force's |
+| **Pwyll Deep** | Pwyll | 600–1,400 m | 610,000 | a crater town under Pwyll's bright rays; the **Pwyll catapult**, a mass driver on the surface that throws ice blocks to orbit for the haulers; **FOB Pwyll**, 2/4's base, beside the Pwyll spaceport at the foot of its shaft, 600 m down (Pwyll Deep's Foot, behind CP-A: PLACES §7.5 maps it and owns its place) | the Ice Haulers' Union; the FOB and the corridors are the force's |
 | **Tyre Works** | Pwyll | 400–1,000 m | 380,000 | the waterworks: melt halls, refineries and the electrolysis plants that make oxygen and hydrogen for the Jovian moons; reactors run by Hecate Jovian Power (HAD's subsidiary) under contract | the Works are MSF-E's to guard (2/4's sector) |
 | Manannán | Pwyll | 250–600 m | 160,000 | Pur'n'Kleen's hauler port: warehouses, crew bars, contract labour | Pur'n'Kleen and its guards |
 | **Thera Lens** | Thera | 2,300–2,700 m (its pumping halls and the lake borehole below) | 290,000 | deep, warm and squeezed (7.3), over a lens of liquid water at 3 km; the poorest town, devout, the CFB's heartland; reamers work every street | Star Helix alone; outside the Works and the force's zones ("past the Thera line") |
@@ -880,7 +901,7 @@ Folklore: miners say the old ones live in the ocean and knock on the deep shafts
 - **Star Helix Security** [C]: the OPA's police contractor, the towns' police. Underpaid, outnumbered, half Belter and half anyone; some honest, some bought.
 - **The miners' unions** (locals of LONGHAUL's Belt Unions [L]): the **Ice Haulers' Union** (Pwyll and the catapult), the **Reamers' and Shaftmen's Union** (tunnels; militant), the **Water Workers' Federation** (Tyre). Two camps: the **Accord unions**, who signed on to the peace, and **Hard Ice**, who call the Martians an occupation and shelter the cells.
 - **Corporate security**: **LKC Asset Protection** (Earth's combine at Callanish, ex-UN marines in grey), **Pur'n'Kleen Protective** (the water company's guards at Manannán and on the haulers), and **BSS contractors** (LONGHAUL's mercenaries [L], hired by LKC after the Callanish shooting). Armed under Ice Control licences; tense with everyone.
-- **Ceres Free Belt cells** (LONGHAUL's `opa-ceres` insurgency [L]): small, local, young, linked to Ceres by money and slogans. Their weapons are improvised bombs in shafts, snipers on catwalks, sabotage of seals and air plants, and crowds. Their best-known signature on Europa is a bomb-maker the news calls **"the Lantern"**.
+- **Ceres Free Belt cells** (LONGHAUL's `opa-ceres` insurgency [L]): small, local, young, linked to Ceres by money and slogans. Their weapons are improvised bombs in shafts, snipers on catwalks, sabotage of seals and air plants, and crowds. Their best-known signature on Europa is a bomb-maker the news calls **"the Lantern"**: an epithet of the archive, not a written person; who the Lantern is, if the world ever needs to know, is drawn by the world like everyone (CAREER §10.2's `esf` arc, PEOPLE §3.1).
 - **The UN Observer Mission, Europa (UNOME)**: 64 unarmed observers and 200 staff, pale blue armbands, under a UN major general; the Accord gives them access (7.6). One **UN Security cutter** (UNS) holds Europa's parking orbit under Ice Control clearance. Some observers are honest soldiers; some are EID.
 - **Hecate Jovian Power** (HAD): runs the Tyre reactors. The CUC asks in the Congress why marines guard a Hecate contract.
 - **The Hungry Dark** [L]: pirates who take haulers in the gulf; on Europa, a market for stolen ice and stolen people.
@@ -921,27 +942,27 @@ The authored timeline injected by the prologue (2.3); UTC dates; my call.
 | 2351-11-14 | **The Murias seal attack**: a pressure door sabotaged in Murias's low streets: 12 dead. The Congress debates a second battalion; the CUC opposes |
 | 2351-12-19 | **The start.** MSF-E stands at **1,420** of its 2,400: 1/7 (960 deployed) holds the Conamara airspace and the Tyre Works; a headquarters of 180, an MP platoon of 45, a logistics detachment of 150, a lander detachment of 60 with four landers, a Navy surgical team of 25. The Congress' vote on the reinforcement is due within the standby (CAREER triggers the orders); 2/4, the Alert Battalion, deploying at 980, would bring the force exactly to its cap and take the Pwyll airspace (Pwyll Deep, Tyre Works, Manannán) from **FOB Pwyll**; 1/7 keeps Conamara from Camp Halloran's lines |
 
-Public figures for the news and the papers (my call; PEOPLE may promote any to a persistent person). Their full names are registered at new game (12.5) and their family names are kept off the squad and the chain of command (12.6), so a squad leader never shares a name with the Commandant by chance and reads as a plot point. (The Commandant was "Okonjo" in an earlier draft, the surname that CAREER §5.3 and PEOPLE §14.4 and §18 give a squad leader and a squadmate; the Commandant is renamed rather than the examples, my call: one change instead of three, and hand-written examples must avoid the names below as well.)
+**Public offices** for the news and the papers (my call on the list). The offices are authored, part of the world's institutions and the same in every world; **their holders are generated** at new game from the world's seed and 12's pools, by each office's culture, as tier-3 people (PEOPLE §3.13; the user, 2026-11-05: "All people generated"). They are registered before the roster is drawn (12.5), and their family names are kept off the squad and the chain of command (12.6), so a squad leader never shares a name with the Commandant by chance and reads as a plot point. The world's politics may replace a holder (an election, a retirement, a death), and the successor is drawn and registered the same way. Templates and headlines name a holder by the office's key (`{commandant}`, `{first-councillor}`), never by a written name. (An earlier draft wrote a cast of names here, General Halima Strand as Commandant among them; they are withdrawn, because the present is procedural and nobody is a written character.)
 
-| Who | Role |
-|---|---|
-| General Halima Strand | Commandant of the Marine Corps |
-| Sergeant Major Teodor Brennan | Sergeant Major of the Marine Corps |
-| First Councillor Signe Abernathy | head of the Republic's Executive Council |
-| Congresswoman Noor Castellanos | the CUC's floor leader |
-| Admiral Vidar Hakimian | chief of the MCRN Admiralty |
-| Colonel Imre Danso | Commander, MSF-E |
-| Chief Controller Ilan Achieng | head of Europa Ice Control |
-| Rilka Otieno | the Ice Haulers' Union's bosmang at Pwyll |
-| Major General Lerato Mahlangu (UN) | head of UNOME |
-| Pieter De Vries | LKC's manager at Callanish |
-| "the Lantern" | an unidentified CFB bomb-maker |
+| Office key | Office | Drawn from (12.1) |
+|---|---|---|
+| `commandant` | General, Commandant of the Marine Corps | `mars-dome`, `mars-valley` |
+| `sgtmaj-corps` | Sergeant Major of the Marine Corps | `mars-valley`, `mars-dome` |
+| `first-councillor` | First Councillor, head of the Republic's Executive Council | `mars-dome` |
+| `cuc-floor-leader` | the CUC's floor leader in the Congress | `mars-dome`, `mars-valley` |
+| `admiralty-chief` | Admiral, chief of the MCRN Admiralty | `mars-dome` |
+| `msfe-commander` | Colonel, Commander, MSF-E | `mars-dome`, `mars-valley` |
+| `chief-controller` | Chief Controller, head of Europa Ice Control | `belter`, `jovian` |
+| `ihu-bosmang-pwyll` | the Ice Haulers' Union's bosmang at Pwyll | `belter` |
+| `unome-head` | Major General (UN), head of UNOME | `earther` |
+| `lkc-callanish` | LKC's manager at Callanish | `earther`, `lunar` |
+| (no office) | "the Lantern", an unidentified CFB bomb-maker: the archive's epithet (7.5), a person only if the world draws one | `belter` |
 
 ---
 
 ## 8. Beyond Europa: the theatres special operations reach
 
-The settings CAREER's recon and Raider missions and its other deployments draw on (PLACES builds them).
+The settings CAREER's recon and Raider missions and its other deployments draw on (PLACES authors them, the same in every career; the missions set in them are procedural, CAREER §11.3).
 
 | Theatre | Gravity | Air | Radiation | People, holder [L] | What a team goes there for |
 |---|---|---|---|---|---|
@@ -970,7 +991,7 @@ The hub allows spin gravity only where LONGHAUL spins things [D]. LONGHAUL's `st
 | Tycho Station's ring | 700 m | 0.0648 rad/s (0.62 rpm) | 97 s | 45.4 m/s | 0.30 G |
 
 - **Ceres Station** (my call on its shape): the port LONGHAUL draws (gantry towers, cradles, the ground works) sits on the surface; the city lives below it in **six drums**, caverns 900 m across and about 3 km long cut under some 600 m of rock (Ceres' weak pull makes that only 0.37 MPa of overburden, so the caverns stand), each a cylinder turning on bearings about a vertical axis, its rim the **concourse** and a dozen levels of districts stacked toward the axis. A 3 m level loses 0.002 G, so the upper districts are lighter by a few hundredths. Lifts and spoke ladders join the levels and the despun hub, where the drum meets the port. PLACES §8's setting 12 (the consulate in a concourse district) takes 0.301 G from this table; CAREER §4.3, §10.2 and §11.3's 0.3 G stands.
-- **What spin does to a body and a gun** (BODY and WEAPONS own the effects; these are the numbers): walking at 1.5 m/s with the spin makes a marine about **8% heavier**, against it 8% lighter (the rim moves at 36 m/s); a magazine dropped from 1.5 m lands about **8 cm to antispinward** of where it was let go; head and feet differ by 0.4% of weight, too little to feel at under 1 rpm. On the bigger rings each of these is a little smaller (Tycho: 6.7% and 6.6 cm).
+- **What spin does to a body and a gun** (BODY and WEAPONS own the effects; these are the numbers, computed): walking at BODY's 1.07 m/s for 0.30 G (BODY §16.1's gait law, walk = 1.45 × g^0.25, the one helper of CONTRACTS §13) with the spin makes a marine about **6% heavier**, against it 6% lighter (the rim moves at 36 m/s); a lope at 1.5 m/s makes it about 8%; a magazine dropped from 1.5 m lands about **8 cm to antispinward** of where it was let go; head and feet differ by 0.4% of weight, too little to feel at under 1 rpm. On the bigger rings each of these is a little smaller (Tycho: 4.8% at the walk, 6.7% at the lope, and 6.6 cm).
 
 ---
 
@@ -1020,10 +1041,10 @@ TIME sets when items arrive and VIEWS how they look; this is what the news is (m
 | UN Press Service (UNPS) | Earth | institutional, confident, long |
 | Ganymede Agricultural Wire | the GAC | prices, weather, neutrality |
 
-Templates: LONGHAUL's politics headlines are used as written ("Budget fight: the {A} wins the vote against the {B}."; "Leaked files embarrass the {B}; the {A} denies any part in it."; "Investigators trace the money behind the {sub}'s raids to {backer}. {backer} denies everything."; "Bombings and sabotage on {body}: {Ceres Free Belt} cells against {power}.") [L], plus these (examples as they read at the start):
+Templates name a living person only by an office's key, filled with the family name of the holder this world drew (7.7): `{first-councillor}` reads as the First Councillor's name. Templates: LONGHAUL's politics headlines are used as written ("Budget fight: the {A} wins the vote against the {B}."; "Leaked files embarrass the {B}; the {A} denies any part in it."; "Investigators trace the money behind the {sub}'s raids to {backer}. {backer} denies everything."; "Bombings and sabotage on {body}: {Ceres Free Belt} cells against {power}.") [L], plus these (examples as they read at the start):
 
-- RB · Londres Nova · 0 min: "Congress to vote this week on a second battalion for Europa. First Councillor Abernathy: 'We keep our word, and we keep it small.'"
-- Tharsis Herald · 0 min: "Castellanos: 'Every marine on the ice is a century more under the domes.' The CUC tables the Hecate contract."
+- RB · Londres Nova · 0 min: "Congress to vote this week on a second battalion for Europa. First Councillor {first-councillor}: 'We keep our word, and we keep it small.'"
+- Tharsis Herald · 0 min: "{cuc-floor-leader}: 'Every marine on the ice is a century more under the domes.' The CUC tables the Hecate contract."
 - The Ice Courier · Conamara · 47 min: "Air at 0.31 a cube in Murias after the seal attack. Council asks the Force for more patrols in the low streets."
 - Radio Thera · 47 min: "Inyalowda go home. The Lantern says nothing, and the Lantern is right."
 - UNPS · Earth · 19 min: "Observer Mission reports 14 detentions by Martian forces in November, all handed over within the Accord's six hours."
@@ -1146,11 +1167,11 @@ PEOPLE's pools, keyed (my call; PEOPLE chooses when):
 
 ### 12.5 The registry
 
-`state.names` (PEOPLE's persistent registry, LONGHAUL's idea made persistent): every full name of a tier 1–3 person is unique in the world; a clash rerolls up to 10 times, then takes the middle name. Family names may repeat within a company (PEOPLE 3.5). Ship and operation names share the same registry by kind. **The public figures of 7.7 are registered at new game**, before the roster is drawn, so no generated person takes their full names; a public figure who later leaves office keeps the name, and a successor drawn by the world is registered the same way.
+`state.names` (PEOPLE's persistent registry, LONGHAUL's idea made persistent): every full name of a tier 1–3 person is unique in the world; a clash rerolls up to 10 times, then takes the middle name. Family names may repeat within a company (PEOPLE 3.5). Ship and operation names share the same registry by kind. **The holders of 7.7's public offices are generated and registered first at new game**, before the roster is drawn, so no other person takes their full names; a holder who later leaves office keeps the name, and a successor drawn by the world is registered the same way.
 
 ### 12.6 The canon blocklist
 
-Never generated, as full names: James Holden, Naomi Nagata, Amos Burton, Alex Kamal, Roberta (Bobbie) Draper, Chrisjen Avasarala, Fred Johnson, Josephus (Joe) Miller, Julie Mao, Jules-Pierre Mao, Clarissa Mao, Camina Drummer, Klaes Ashford, Anderson Dawes, Praxidike Meng, Elvi Okoye, Marco Inaros, Filip Inaros, Anna Volovodov, Sadavir Errinwright, Michio Pa, Winston Duarte, Dimitri Havelock, Octavia Muss, Diogo Harari, Basia Merton, Carlos Baca. Never used as a family name for tier 1–2 people (the squad and the chain of command, where a player would notice): Holden, Nagata, Kamal, Draper, Avasarala, Errinwright, Inaros, Drummer, Ashford, Dawes, Duarte, Volovodov; and **the family names of the setting's public figures** (7.7: Strand, Brennan, Abernathy, Castellanos, Hakimian, Danso, Achieng, Otieno, Mahlangu, De Vries, and any successor's), because a squad leader who shares the Commandant's name reads as a plot point. Several of them are LONGHAUL's `MARS_FOUNDER` names, so the founders' pool for tier 1–2 draws loses them while they are in the news; tier 3 and the crowd may still carry them. Authored examples in the other sections (CAREER's, PEOPLE's) keep to the same rule. Ship names removed from LONGHAUL's pools: Donnager, Scirocco, Rocinante, Canterbury, Agatha King, Behemoth, Tachi, Thomas Prince, Seung Un, Okimbo, Ravi, Guy Molinari.
+Never generated, as full names: James Holden, Naomi Nagata, Amos Burton, Alex Kamal, Roberta (Bobbie) Draper, Chrisjen Avasarala, Fred Johnson, Josephus (Joe) Miller, Julie Mao, Jules-Pierre Mao, Clarissa Mao, Camina Drummer, Klaes Ashford, Anderson Dawes, Praxidike Meng, Elvi Okoye, Marco Inaros, Filip Inaros, Anna Volovodov, Sadavir Errinwright, Michio Pa, Winston Duarte, Dimitri Havelock, Octavia Muss, Diogo Harari, Basia Merton, Carlos Baca. Never used as a family name for tier 1–2 people (the squad and the chain of command, where a player would notice): Holden, Nagata, Kamal, Draper, Avasarala, Errinwright, Inaros, Drummer, Ashford, Dawes, Duarte, Volovodov; and **the family names of this world's public office holders** (7.7, whoever the world's seed made them, and any successor's), because a squad leader who shares the Commandant's name reads as a plot point. When a holder's family name is one of LONGHAUL's `MARS_FOUNDER` names, the founders' pool for tier 1–2 draws loses it while they are in office; tier 3 and the crowd may still carry it. The examples in the other sections (CAREER's, PEOPLE's) are examples of output, and the registry keeps every world's real draws apart. Ship names removed from LONGHAUL's pools: Donnager, Scirocco, Rocinante, Canterbury, Agatha King, Behemoth, Tachi, Thomas Prince, Seung Un, Okimbo, Ravi, Guy Molinari.
 
 ---
 
@@ -1181,7 +1202,7 @@ Never generated, as full names: James Holden, Naomi Nagata, Amos Burton, Alex Ka
 - `setting-calendar.test.mjs`: the vectors of 3.8 (epoch MSD, Melas civil time, sol and month and weekday at the epoch and the start, Ls, the MY 211–216 boundaries and lengths, daylight at four Ls values).
 - `setting-ephemeris.test.mjs`: Mars–Jupiter at the epoch 6.410 AU, at the start 5.734 AU, the minimum 3.68 AU in early August 2352 and the maximum 6.73 AU at the end of June 2351 (daily sampling); 1 G and 0.3 G transits at the start (6.86 and 12.52 days analytic); light times 47.7, 19.3 and 23.3 min.
 - `setting-air.test.mjs`: the air table of 4.2 row by row (pressure, O₂, Earth-equivalent altitude, boiling point), within 0.1 kPa and 1 °C, and the hub's rows (−5 km 67.6–67.7 kPa, datum 52 / 16.6, +5 km 40 / 12.8, +10 km 30.7 / 9.8).
-- `setting-names.test.mjs`: over 20,000 draws per culture, the duplicate rate of full names (target under 1 in 1,000 before the registry, 0 after); no blocklisted name ever; no public figure's family name in a tier 1–2 draw, and their full names registered before the roster; family-name share per pool within 2 points of 12.1.
+- `setting-names.test.mjs`: over 20,000 draws per culture, the duplicate rate of full names (target under 1 in 1,000 before the registry, 0 after); no blocklisted name ever; no office holder's family name (7.7, as this world drew them) in a tier 1–2 draw, and their full names registered before the roster; the same seed draws the same holders, and two seeds different ones; family-name share per pool within 2 points of 12.1.
 - `setting-data.test.mjs`: every rank has a grade, abbreviation, insignia and address; every MOS a code and field; every home a share, kind and culture, shares summing to 100; every price positive, and no second price table in `src/` (a shop's prices are multipliers on this one); every Europa town in one of LONGHAUL's three airspaces; populations summing to 2.95 million ± 0.05; the hull table's afloat total, printed (801: frigates 15 each); the transport's wave (352: eight Simooms of 44) and waves for 980 (3); the MCMAP belt keys spelt `grey`.
 - `setting-europa-dose.test.mjs`: the radiation table's times to 50 mSv (13 min bare, 33 min in a light vac suit, 1 h 50 min in a hardshell).
 - `setting-craft.test.mjs` (my proposal; it runs OLYMPUS's own ports, TECH's `src/world/lambert.js` and `dropship.js`, never the sibling project, and holds them to the scratch run's numbers): the Europa drop from LONGHAUL's parking orbit on its 0.9 h and 2.3 h runs, printing **each burn's Δv, duration and peak G** (deorbit about 1.0 and 0.8 km/s; braking about 1.9 and 0.25 km/s, 77 and 10 s at the 2.5 G cap; the landing from the 10 km hover 90 s at under 1 G), and failing if any troop-carrying burn exceeds 2.5 G; Phobos jumps at 2, 2.5 and 3 m/s (370, 590 and 870 m up; 12, 16 and 20 min aloft); the spin table of 8.1 (ω, turn, rim speed; Ceres' 0.301 G at 5.5°; ±8% walking at 1.5 m/s; the 8 cm drop).
@@ -1220,8 +1241,8 @@ ROADMAP §3.4 holds the milestone numbers (CONTRACTS §18).
 1. `setting/calendar.js` with its test vectors (3.8): the start date, Mars Year, sols, months, weekdays, holidays (Charter Day and the Birthday are outside the first weeks; the UTC Christmas falls in them).
 2. Base Melas' lore and coordinates (4.9), Redwater's lore (4.8, for the bus and the Strip if liberty is in 0.1), Melas' clear sky (the sun, the temperature, a fixed τ; 4.4), the air at −4.5 km (4.2); the local storm at 0.2.
 3. The Corps for the barracks: ranks, insignia and address (5.5), the player's chain and the company's callsigns (5.3), MOS 0311 and the squad's MOSs (5.6), utilities, PT kit and ship greys (5.7), customs and the general orders (5.8), slang and sayings for the instinct (5.9).
-4. Names: the Martian pools, the registry and the blocklist (12).
-5. The news board with §7.7's authored timeline as its archive (`setting/timeline.js`, 10); the Congress' vote as the week's beat. The prologue (2.3) and the live news come at 0.2.
+4. Names: the Martian pools, the registry and the blocklist (12); the public offices (7.7), whose holders PEOPLE generates at new game and registers first; the base's road and walk names (4.9).
+5. The news board with §7.7's authored timeline as its archive (`setting/timeline.js`, 10), its headlines naming offices filled from this world's holders; the Congress' vote as the week's beat. The prologue (2.3) and the live news come at 0.2.
 6. The one price list, for the PX, the base club and the barber (11).
 7. The settled names (1.4), so no template carries a working name.
 
@@ -1245,9 +1266,9 @@ What this section needs from the others, and what they take from it. The contrac
 - **SKILLS**: reads ranks (5.5), the MCMAP belts and their keys (5.5: `mcmap-grey`, not `mcmap-gray`; "gray" becomes "grey" in §6.6 and the reading tables), the MOS list (5.6) and languages (Lang Belta for Belters and linguists). Boot is 13 weeks in both. §10.2's backgrounds: `hecate-line` is "Hecate Arms & Drive's small-arms line at Ophir Chasma" (HAD makes no guns at Hellas, 4.10), and `old-domes` is "Highrim's old domes" (Redwater is an open-air town, 4.7).
 - **WEAPONS**: owns the makers (§3.1), which 4.10 adopts; applies the Accord's ammunition clause (7.6, clause 4); sets the suits' and helmets' protection (§8.3's "light vac suit shell" is the soft suit with its hard shell, 5.7); its replacement values (§10.6) replace this section's for weapons and optics (11). §8.7's "at 30 kPa a 6.5 mm hole loses 3.7 g/s" is recomputed at BODY's 34 kPa.
 - **COMBAT**: turns the doctrine (5.2) and the Accord (7.6) into ROE and escalation of force; flies the drop under the troop-rated limit (6.4); the suit-up time is BODY §19.7's.
-- **PEOPLE**: generates people from the homes, shares, cultures, names and nicknames (4.7, 12), with the public figures' family names kept off tier 1–2 and their full names registered (12.5, 12.6); performs the customs and general orders (5.8); uses the faces (9) and the public figures (7.7: the Commandant is now General Halima Strand, so §14.4's and §18's Okonjo stays a squadmate); the Navy grades for corpsmen (5.5); "MCMAP" is the programme's settled name.
+- **PEOPLE**: generates people from the homes, shares, cultures, names and nicknames (4.7, 12), with the office holders' family names kept off tier 1–2 and their full names registered (12.5, 12.6); performs the customs and general orders (5.8); uses the faces (9) and generates the holders of the public offices (7.7) like any person, first, so §14.4's and §18's Okonjo and every other example can never collide with them; the Navy grades for corpsmen (5.5); "MCMAP" is the programme's settled name.
 - **CAREER**: the start date replaces §5.1's working default (3.7); uses the MOS codes (5.6), ranks and insignia (5.5), awards and badges (5.7), the order of battle and bases (5.4), Deep Recon and the Raider Regiment names (5.10), the theatres and Ceres' 0.3 G (8, 8.1), MSF-E and Operation STILL WATER (7.6), the birthplaces' lore (4.7); sets the pay table (§12.1–12.2) whose scale 11 follows. **§12.7 deletes its price table and cites 11**; §12.4's "Air and water levy: 1%" becomes "**Terraforming levy: 1%**" (4.10's one name: civilians 12%, service members 1%), and the LES sample line with it. Its G-3 note ("the troopship's thrust is under 1 G") meets the 1 G doctrine (6.5): a G-3 marine rides the Alert Battalion's voyage at 1 G, and CAREER decides what that costs or excuses.
-- **PLACES**: maps Base Melas, Redwater's Strip, the Highrim Incline, Little Conamara, Phobos' Pens, the Coprates transport's deck program, the Simoom, Camp Lofn, Camp Halloran, FOB Pwyll and the towns from this lore; confirms Melas' horizon profile (4.9) and owns the site's coordinates (PLACES §4.1, CONTRACTS §2: 10.5° S, which 3.8's `SITES.melas` now carries). From the contract patch (1.4): the renames are made (the Coprates class and MCRN *Testudo*, the Simoom with its cabin drawn for 44 couches and the silos sized for 26 m, Camp Lofn, and the town templates as kinds whose instances take 7.4's names); its "FOB Pwyll Deep" reads FOB Pwyll (CONTRACTS §17); its redrawn transport (§5.2: 240 m, eight Simooms and two pinnaces, no heavy lander) is 6.3's record, re-synced in one change (CONTRACTS §19, item 9); flies the transport at doctrine's thrust (6.5), not a 0.38 G cruise; its frigate detachment is 15 (6.2; CONTRACTS §15); takes Ceres' 0.301 G and the rings' spin from 8.1 (§8's setting 12); runs the ice's closure law (7.3) from its liner model's face temperatures and these far-field temperatures; its Ice standard (§3.2) is the towns' air (7.3; CONTRACTS §19, item 1). TECH §1.3, correction 7, applies to its chunks (§2.4, §11: lazy pure generation counted in cells generated per tick, no 4 ms budget).
+- **PLACES**: maps Base Melas, Redwater's Strip, the Highrim Incline, Little Conamara, Phobos' Pens, the Coprates transport's deck program, the Simoom, Camp Lofn, Camp Halloran, FOB Pwyll and the towns from this lore, each authored once and the same in every career (1.1); prints the base's road and walk names of 4.9; owns FOB Pwyll's place at Pwyll Deep's Foot (PLACES §7.5), which 7.4 now follows; confirms Melas' horizon profile (4.9) and owns the site's coordinates (PLACES §4.1, CONTRACTS §2: 10.5° S, which 3.8's `SITES.melas` now carries). From the contract patch (1.4): the renames are made (the Coprates class and MCRN *Testudo*, the Simoom with its cabin drawn for 44 couches and the silos sized for 26 m, Camp Lofn, and the town templates as kinds whose instances take 7.4's names); its "FOB Pwyll Deep" reads FOB Pwyll (CONTRACTS §17); its redrawn transport (§5.2: 240 m, eight Simooms and two pinnaces, no heavy lander) is 6.3's record, re-synced in one change (CONTRACTS §19, item 9); flies the transport at doctrine's thrust (6.5), not a 0.38 G cruise; its frigate detachment is 15 (6.2; CONTRACTS §15); takes Ceres' 0.301 G and the rings' spin from 8.1 (§8's setting 12); runs the ice's closure law (7.3) from its liner model's face temperatures and these far-field temperatures; its Ice standard (§3.2) is the towns' air (7.3; CONTRACTS §19, item 1). TECH §1.3, correction 7, applies to its chunks (§2.4, §11: lazy pure generation counted in cells generated per tick, no 4 ms budget).
 - **VIEWS**: draws the Valles pattern and the other uniforms, the insignia and badges (5.5, 5.7), the flag and the emblem, the Martian sky (4.1), the letterhead ("Marine Corps, Martian Congressional Republic Navy" with the Spear and Ring); shows "Sol 590 · MY 211" on the watch. §7.2's sample `SUIT 30.2 kPa` reads at BODY's 34 kPa (`SUIT 34.0 kPa`). A jump on Phobos rises and hangs for minutes (6.1).
 - **TECH**: puts these tables in `src/data/setting/` (1.3, correction 11); ports `ephemeris.js`, `factions.js`, `politics.js`, `conflict.js`, `forces.js`, `intel.js` and `names.js` (13); runs the prologue with its constraints; adds the transports as non-combat Navy hulls; its `src/data/hulls.js` carries the `troops` column (6.2).
 - **ROADMAP**: the build order (16). §3.4's open disagreements are settled (1.4: the voyage thrust, the start date, the ship, craft and FOB names). `moment-drop`'s "powered descent of about two minutes at up to 2.5 G" becomes 6.4's braking burn of about a minute and a quarter at the cap and a minute and a half from the hover.
@@ -1260,6 +1281,10 @@ Settled in the contract patch (my calls, recorded in the hub's decision log; the
 
 - **The start date**: late 2351, **2351-12-19 02:20 UTC** (Mars–Jupiter 5.73 AU and closing, nine months of rolled-forward history), rather than LONGHAUL's own opening (2351-03-22, 6.41 AU, no prologue). CAREER §5.1 and TECH use it (3.7).
 - **The first voyage's thrust**: **1 G out** for the Alert Battalion ("fight at one G"; 6.9 days, the standby's centrifuge sessions tested by a week at the gravity they train for), **0.3 G home** after months at 0.134 G, and 0.38 G for routine rotations (6.5). TIME's 0.38 G default yields to it. The times are `voyagePlan()`'s door to door, the closed form plus the real legs, with LONGHAUL's +8% guidance overhead left out (TIME §12.5; CONTRACTS §14), so the user is asked about the method with the thrust.
+
+Settled by the user (2026-11-05):
+
+- **The public figures are generated** ("All people generated"): the Commandant, the First Councillor and every office of 7.7 are filled per world by PEOPLE's generator, and the names this section once wrote are withdrawn. Only the authored archive before the start may name figures of the past (my call, 1.1). The places stay authored and the same in every world ("game world is handcrafted").
 
 Still open:
 

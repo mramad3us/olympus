@@ -3,8 +3,9 @@
 //
 // A floor is one tile repeated, so a tile must meet its own next copy without a seam: its noise periodic,
 // its hashed specks wrapped, and its size a whole number of its pattern's repeats (tileSizePx). Lettering
-// must stay legible: the 5 × 7 alphabet has every letter the 3 × 5 has, a stencil wears only the top and
-// foot rows, and a plaque paints to the size it says. The storm table is VIEWS §2.7's, row for row.
+// must stay legible: the 5 × 7 alphabet has every letter the 3 × 5 has, a stencil is painted whole (0.0.3:
+// the look round's "2ND SQUAD" read "EUND" once its bridges were cut; kit-stencil reads every one back),
+// and a plaque paints to the size it says. The storm table is VIEWS §2.7's, row for row.
 import { paint, unword } from '../src/art/paint.js';
 import { tile, tileSizePx, MATERIAL_KINDS, concrete, vinyl, deckPlate, rubberMat, ceramic, regolith } from '../src/art/materials/index.js';
 import { GLYPHS57, fontFor, plaque, plaqueSize, text57, stencil57, width57 } from '../src/art/kit/type.js';
@@ -41,15 +42,15 @@ export default [
     }
     console.log('      7 m of regolith at 16 and 24 px/m: the two halves painted apart equal the whole painted at once (pebbles across the join included)');
   } },
-  { name: 'lettering stays legible: the 5 × 7 alphabet is complete, a stencil wears only top and foot, a plaque paints to its size', fn() {
+  { name: 'lettering stays legible: the 5 × 7 alphabet is complete, a stencil is painted whole, a plaque paints to its size', fn() {
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./:!#&%\'';
     for (const ch of letters) { const g = GLYPHS57[ch]; assert(g && g.length === 7 && g.every(r => r.length === g[0].length), `5 × 7 '${ch}'`); }
     assert(fontFor(16).name === '3x5' && fontFor(24).name === '5x7', 'the alphabet by density');
     const lit = (fn, str) => { const s = new Set(); fn((x, y) => s.add(`${x},${y}`), 0, 0, str, 1); return s; };
     for (const word of ['VEHICLE LOCK 1', 'DECK 5', 'HEAD 2A']) {
       const full = lit(text57, word), worn = lit(stencil57, word);
-      for (const p of full) { const y = +p.split(',')[1]; if (y > 0 && y < 6) assert(worn.has(p), `'${word}': a stencil lost a middle-row pixel at ${p}`); }
-      assert(worn.size < full.size, `'${word}': no wear`);
+      for (const p of full) assert(worn.has(p), `'${word}': a stencil lost a pixel at ${p}`);
+      assert(worn.size === full.size, `'${word}': the stencil paints ${worn.size} pixels, the letters ${full.size}`);
     }
     for (const ppm of [16, 24]) {
       const [w, h] = plaqueSize({ text: 'DECK 5', sub: 'MARINES', icon: 'helmet', ppm });

@@ -4,14 +4,16 @@
 // ground, up a wall and across (src/render/camera.js makes all three the same). Which density is
 // the user's call, by look samples (DESIGN.md, Space and scales: "Pixel density is decided by look
 // samples the user scores ... Everything takes PX_PER_M from one constant, so the choice is a
-// number"). The two candidates:
+// number"). The look round put two candidates:
 //   - 16 px/m at 640 × 360, tradecraft's (the user's pick there, 2026-10-26);
 //   - 24 px/m at 960 × 540, Stoneshard's frame (2 × 2 screen pixels a pixel at 1080p), finer.
-// Both show the same 40 × 22.5 m of the world on a 16:9 window: only the pixel size changes.
+// Both show the same 40 × 22.5 m of the world on a 16:9 window: only the pixel size changes. The
+// user picked 16 px/m with the chibi figures (2026-11-06, DESIGN.md's decision log and VIEWS §2.3:
+// every star of the look round on 16 px/m chibi), so DEFAULT_PPM is 16.
 //
-// The density comes from the page's query (?ppm=16 or ?ppm=24; 24 by default, my call: the finer
-// one is the open question the samples put to the user), read once at load: the stage, the
-// painters and the batcher all import PX_PER_M from here and never hold another number for it.
+// The density comes from the page's query (?ppm=16 or ?ppm=24; 16 by default: the user's pick; 24
+// stays a test parameter, which keeps the one-constant rule honest), read once at load: the stage,
+// the painters and the batcher all import PX_PER_M from here and never hold another number for it.
 // In node (tests) the query is absent; OLYMPUS_PPM in the environment picks instead.
 //
 // On a window of another shape the picture widens on its longer side, as tradecraft's did
@@ -25,7 +27,8 @@ export const DENSITIES = Object.freeze({
   16: Object.freeze({ pxPerM: 16, res: Object.freeze([640, 360]) }),
   24: Object.freeze({ pxPerM: 24, res: Object.freeze([960, 540]) }),
 });
-export const DEFAULT_PPM = 24;
+/** The density when none is asked for: the user's pick (2026-11-06, VIEWS §2.3). */
+export const DEFAULT_PPM = 16;
 /** The widest the picture grows on an odd-shaped window, metres (tradecraft's 768 × 430 px at 16 px/m). */
 export const MAX_VIEW_M = Object.freeze([48, 26.875]);
 /** sin 45°: what a metre of ground or wall becomes along the camera's vertical axis. */

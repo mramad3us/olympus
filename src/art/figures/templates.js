@@ -6,11 +6,11 @@
 // (REF), and the gear OLYMPUS needs and tradecraft never drew (the utility cover, the light vac suit's
 // helmet with its visor, the neck ring, a miner's hard hat with its lamp) is drawn at the same reference
 // size, pixel by pixel, in the same letters. headKit() then fits the reference to a head of any size
-// (the chibi's at 16 px/m is the reference itself; at 24 px/m it is 23 × 18; the soldier's is 7 × 8 and
-// 11 × 12) by resampling each template's pixels round the head's box (nearest, so shapes stay solid and
+// (the chibi's at 16 px/m is the reference itself; at 24 px/m it is 23 × 18) by resampling each
+// template's pixels round the head's box (nearest, so shapes stay solid and
 // edges stay single pixels), and lays the face on by rule, not by resampling: eyes, brows and a mouth
 // placed at the reference's fractions of the head and sized to it (one by two pixels on the reference,
-// two by three with a glint on the chibi at 24 px/m, a single pixel on the small soldier at 16).
+// two by three with a glint on the chibi at 24 px/m).
 //
 // Letters (VIEWS.md 3.1, shade.js): s skin, h hair, a hat, ð seal rings, þ visor glass, ¤ a lamp (glows),
 // and fixed: e an eye, o its glint, b a brow (the hair's darkest), z the mouth (the skin's darkest), l a

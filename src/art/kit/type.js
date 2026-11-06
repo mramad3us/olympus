@@ -15,7 +15,7 @@
 // signs (green), warnings (yellow on black), danger (red), the Corps' red. Stencils (a locker's number,
 // "DECK 5") are the letters sprayed and worn at their top and foot, in either alphabet.
 // Pure.
-import { text as text35, textWidth as width35, GLYPH_H } from '../font.js';
+import { text as text35, textWidth as width35, GLYPH_H, glyphOf as glyph35 } from '../font.js';
 import { tone } from '../tone.js';
 
 /** 5 × 7 capitals, digits and marks (rows of '0'/'1'; narrow marks narrower). */
@@ -57,35 +57,24 @@ export function text57(px, x, y, str, c, glow = 0) {
   }
 }
 /**
- * Stencilled paint: the letters sprayed through a stencil and worn, a pixel in four missing along their
- * top and foot rows (by hash).
- * Not the bridges cut out of the middle row (src/art/font.js stencil()): at these sizes that takes E's
- * and H's middle arms and they read as C and I ("VEHICLE" came out "VCHICLC", 2026-11-05).
+ * Stencilled paint: the letters whole, in the paint's colour. 0.0.1 wore a pixel in four off their top
+ * and foot rows (and src/art/font.js cut the middle row's bridges before that: "VEHICLE" came out
+ * "VCHICLC", 2026-11-05, and "2ND SQUAD" "EUND", 2026-11-06); at five and seven pixels a letter has no
+ * pixel to lose, so a stencil now reads exactly as its glyphs (kit-stencil reads them back).
  */
-function worn(text, glyph) {
-  return (px, x, y, str, c) => {
-    let k = 0;
-    for (const ch of String(str).toUpperCase()) {
-      const g = glyph(ch);
-      // (paint is lost at a letter's top and foot, where the stencil's edge lifts: never in its middle rows, where the letter is told apart)
-      g.forEach((row, j) => [...row].forEach((b, i) => { const edge = j === 0 || j === g.length - 1; if (b === '1' && !(edge && (k++ * 7 + i * 5) % 4 === 1)) px(x + i, y + j, 1, 1, c); }));
-      x += g[0].length + 1;
-    }
-  };
-}
-export const stencil57 = worn(text57, glyph57);
-const glyph35 = (ch) => { const rows = []; text35((x, y) => { (rows[y] ??= []).push(x); }, 0, 0, ch, 0); const w = Math.max(1, width35(ch)); return Array.from({ length: GLYPH_H }, (_, j) => Array.from({ length: w }, (_, i) => (rows[j]?.includes(i) ? '1' : '0')).join('')); };
-const glyph35Cache = new Map();
-/** The 3 × 5 alphabet stencilled the same way (worn, not cut). */
-export const stencilWorn35 = worn(text35, (ch) => { if (!glyph35Cache.has(ch)) glyph35Cache.set(ch, glyph35(ch)); return glyph35Cache.get(ch); });
+export const stencil57 = (px, x, y, str, c) => text57(px, x, y, str, c);
+/** The 3 × 5 alphabet stencilled the same way (whole). */
+export const stencilWorn35 = (px, x, y, str, c) => text35(px, x, y, str, c);
+/** A character's glyph in the 5 × 7 alphabet (rows of '0' and '1'). */
+export { glyph57 };
 
 /** The density at which lettering goes from 3 × 5 to 5 × 7 (px/m). */
 export const FINE_FONT_PPM = 20;
-/** The alphabet for a density: { h, width(str), text(px, x, y, str, c, glow), stencil(px, x, y, str, c) }. */
+/** The alphabet for a density: { name, h, width(str), text(px, x, y, str, c, glow), stencil(px, x, y, str, c), glyph(ch) }. */
 export function fontFor(ppm) {
   return ppm >= FINE_FONT_PPM
-    ? { name: '5x7', h: 7, width: width57, text: text57, stencil: stencil57 }
-    : { name: '3x5', h: GLYPH_H, width: width35, text: text35, stencil: stencilWorn35 };
+    ? { name: '5x7', h: 7, width: width57, text: text57, stencil: stencil57, glyph: glyph57 }
+    : { name: '3x5', h: GLYPH_H, width: width35, text: text35, stencil: stencilWorn35, glyph: glyph35 };
 }
 /** The longest of `options` that fits `w` pixels in the density's alphabet ('' if none does). */
 export const fitText = (options, w, ppm) => [options].flat().find(s => fontFor(ppm).width(s) <= w) ?? '';

@@ -30,6 +30,29 @@
 //     stands there, as hard-edged bands (a core and a ring, as pixel art draws a lamp's pool): floor strips' on
 //     the floor and the walls' feet (under 0.6 m), battle strips' on the floor near them and on the band of
 //     wall they run along (0.55–1.95 m: the strips are at 1.3 m on north walls and 0.8 m on cut walls).
+//   - the room's fill (uRoomMap over uRoomBox, 0.0.3): a floor's rooms each lit by their own overheads
+//     (PLACES's lighting classes: a bay dark at lights out while its head stays lit), a map of 0.25 m
+//     cells holding the light each cell's room shows (src/render/lighting.js: the eye's adaptation of
+//     places' lightLevel fill, in the fill's colour, × 2 to carry a value over 1), multiplying the sky
+//     fill and the key light; outdoors it is off and the rig is the sky's;
+//   - the static lamp pools (uLampTable, uLampGrid: TECH §9.6's tiled table, 0.0.3): up to four lamps a
+//     4 m cell, each a hard-edged pool (a core to r, a ring to 1.5 r) in its colour, added to the light;
+//     a surface y metres up reads both maps y × 0.5 m south of it (the fog's rule: a wall lit by the
+//     room in front of it, a wall's foot by the pool at its foot). Ceiling lamps are no pools (the look
+//     round's blotches, L1 and L3): they are the room's fill;
+//   - the see-through's fade (uSeeK, 0..1 over SEE_DISSOLVE_S: VIEWS §2.10), the dither run by a 4 × 4
+//     Bayer threshold so it dissolves in and out, never pops; a top above SEE_ROOF_M (a roof, an
+//     awning) is hidden outright where the figure is behind it, the rest goes to the checkerboard;
+//   - the wide see-through (uSeeWide: x, z, radius, fade; batch materials only, the area's own
+//     geometry): behind a tall mass for longer than the see-through's dissolve, everything of the area
+//     above CUT_H_M, south of the figure, whose spot on the ground (x, z − y: what it hides) lies within
+//     SEE_WIDE_M of the figure, dissolved away with a dithered rim, as the interior cutaway cuts the
+//     walls down: the ground, the fence and whatever stands round you show, not only your figure
+//     (v0.0.3's review: behind Echo the player walked blind in a figure-sized box);
+//   - the lift (uLift, uLiftY): a roof over the figure (an open shed it stands under) dissolved away
+//     above uLiftY.x by the threshold uLiftY.y;
+//   - the stair's wipe (uWipe, a batch material's own: x, z, radius, mode): one floor dissolving
+//     outward from the stair as the other dissolves in, a radial Bayer wipe (VIEWS §2.9).
 // The batch material (batchMaterial()) is the same toon material reading an area's atlas: each vertex
 // carries its face's atlas region and its texel position (repeating faces wrap inside the region), so
 // every box of an area, each with its own painted faces, is one material and one draw call.
@@ -43,6 +66,18 @@ import { GLOW_CLASSES } from '../art/paint.js';
 /** Uniforms every patched material shares by reference; the stage sets their values. */
 export const SHARED = {
   uSee: { value: new THREE.Vector4(0, 0, 0, 0) },                    // the figure seen through to: x, z, half-width, height (w 0: off)
+  uSeeK: { value: 1 },                                                // the see-through's fade, 0..1 (a Bayer threshold)
+  uLift: { value: new THREE.Vector4(0, 0, 0, 0) },                   // a roof lifted over the figure: x0, z0, x1, z1 (x1 ≤ x0: none)
+  uLiftY: { value: new THREE.Vector2(2.4, 0) },                       // its height, and its fade 0..1
+  uSeeWide: { value: new THREE.Vector4(0, 0, 0, 0) },                 // the wide see-through behind a tall mass: x, z, radius, fade (w 0: off)
+  uRoomMap: { value: null },                                          // a floor's rooms' fill (src/render/lighting.js), × 2
+  uRoomBox: { value: new THREE.Vector4(0, 0, 0, 0) },                // its x0, z0, width, depth in metres (z 0: off)
+  uRoomOut: { value: new THREE.Color(1, 1, 1) },                      // the fill outside its rooms (the dark round a cutaway)
+  uLampTable: { value: null },                                        // the pools: two texels a lamp (x, z, r, core; colour, ring), 128 lamps a row
+  uLampGrid: { value: null },                                         // four lamp numbers (index + 1) a cell
+  uLampBox: { value: new THREE.Vector4(0, 0, 4, 0) },                // the grid's x0, z0, cell metres, on (w 0: no pools)
+  uLampN: { value: new THREE.Vector2(0, 0) },                         // the grid's cells across and down
+  uAmbientK: { value: 1 },                                            // outdoors, the sky's light as the eye sees it (a pool lights only what it adds to)
   uGlowK: { value: new Float32Array(GLOW_CLASSES) },                 // each glow class's strength, 0..1 (the mood's)
   uGlowMap: { value: null },                                          // the area's strip-light map (null: none)
   uGlowBox: { value: new THREE.Vector4(0, 0, 0, 0) },                // its x0, z0, width, depth in metres (z 0: none)
@@ -64,6 +99,7 @@ const VERT_DECL = /* glsl */`
   attribute float aPart;
   flat varying float vOlyPart;
   varying vec3 vOlyWorld;
+  varying float vOlyUp;
   #ifdef OLY_BATCH
     attribute vec2 aTexel;
     attribute vec4 aRegion;
@@ -80,17 +116,27 @@ const VERT_MAIN = /* glsl */`
       olyW = instanceMatrix * olyW;
     #endif
     vOlyWorld = (modelMatrix * olyW).xyz;
+    vOlyUp = normalize((modelMatrix * vec4(objectNormal, 0.0)).xyz).y;
   }
   #ifdef OLY_BATCH
     vOlyTexel = aTexel; vOlyRegion = aRegion; vOlyGlow = aGlow;
   #endif`;
+
+/** Above this a top hidden behind the figure is taken away, not dithered (a roof, an awning: VIEWS §2.10's "roofs are hidden"), metres. */
+export const SEE_ROOF_M = 2.4;
+/** The wide see-through: what is kept of the area's geometry under it (the cutaway's CUT_H_M), and its dithered rim, metres. */
+export const SEE_WIDE_KEEP_M = 1.0, SEE_WIDE_EDGE_M = 1.0;
+/** The stair's wipe: the width of its dithered edge, metres. */
+export const WIPE_EDGE_M = 1.5;
 
 /** GLSL for any stage fragment shader: the ID output and the shared uniforms (custom shaders include it too). */
 export const FRAG_DECL = /* glsl */`
   layout(location = 1) out highp vec4 pc_fragId;
   flat varying float vOlyPart;
   varying vec3 vOlyWorld;
-  uniform vec4 uSee;
+  uniform vec4 uSee; uniform float uSeeK;
+  uniform vec4 uLift; uniform vec2 uLiftY;
+  uniform vec4 uSeeWide;
   uniform float uGlowK[${GLOW_CLASSES}];
   uniform sampler2D uGlowMap;
   uniform vec4 uGlowBox;
@@ -98,20 +144,52 @@ export const FRAG_DECL = /* glsl */`
   float olyFlag = 1.0;
   // The part ID as three bytes, and the flag (1 a part, 0.5 kept by the see-through dither).
   vec4 olyId(float id, float flag) { return vec4(mod(id, 256.0), mod(floor(id / 256.0), 256.0), floor(id / 65536.0), 255.0 * flag) / 255.0; }
-  // Does the fragment at world p hide the figure (uSee)? Then drop every other pixel of it.
-  void olySee(vec3 p) {
-    if (uSee.w <= 0.0 || p.y < 0.05 || p.z <= uSee.y + 0.02 || abs(p.x - uSee.x) > uSee.z) return;
+  // A 4 × 4 ordered dither's threshold for this pixel, 0..1 (its cells under 0.5 are a checkerboard).
+  float olyBayer() {
+    int i = int(mod(gl_FragCoord.x, 4.0)) + 4 * int(mod(gl_FragCoord.y, 4.0));
+    float m[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
+    return (m[i] + 0.5) / 16.0;
+  }
+  // Does the fragment at world p (a face whose normal points up by up) hide the figure (uSee)? Then
+  // dissolve it by the fade: a top over SEE_ROOF_M (a roof) hidden, the rest to the checkerboard.
+  void olySee(vec3 p, float up) {
+    if (uSee.w <= 0.0 || uSeeK <= 0.0 || p.y < 0.05 || p.z <= uSee.y + 0.02 || abs(p.x - uSee.x) > uSee.z) return;
     float zg = p.z - p.y;
     if (zg < uSee.y - uSee.w || zg > uSee.y + 0.1) return;
-    if (mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 0.5) discard;
+    float b = olyBayer(), k = (up > 0.5 && p.y > ${SEE_ROOF_M.toFixed(2)}) ? uSeeK : uSeeK * 0.5;
+    if (b < k) discard;
     olyFlag = 0.5;
+  }
+  void olySee(vec3 p) { olySee(p, 0.0); }
+  // The wide see-through (uSeeWide): the area's geometry above SEE_WIDE_KEEP_M and south of the figure,
+  // where what it hides on the ground lies within the radius, dissolved by the fade, a dithered rim.
+  void olySeeWide(vec3 p) {
+    if (uSeeWide.w <= 0.0 || p.y <= ${SEE_WIDE_KEEP_M.toFixed(2)} || p.z <= uSeeWide.y + 0.02) return;
+    float d = distance(vec2(p.x, p.z - p.y), uSeeWide.xy);
+    float k = clamp((uSeeWide.z - d) / ${SEE_WIDE_EDGE_M.toFixed(2)} + 0.5, 0.0, 1.0) * uSeeWide.w;
+    if (olyBayer() < k) discard;
+  }
+  // A roof lifted over the figure: everything in uLift's rectangle above uLiftY.x dissolved by uLiftY.y.
+  void olyLift(vec3 p) {
+    if (uLiftY.y <= 0.0 || uLift.z <= uLift.x || p.y < uLiftY.x) return;
+    if (p.x < uLift.x || p.x > uLift.z || p.z < uLift.y || p.z > uLift.w) return;
+    if (olyBayer() < uLiftY.y) discard;
   }`;
 const FRAG_BATCH_DECL = /* glsl */`
   uniform sampler2D uAtlas;
   uniform vec2 uAtlasSize;
+  uniform vec4 uWipe;
   varying vec2 vOlyTexel;
   flat varying vec4 vOlyRegion;
   flat varying float vOlyGlow;`;
+// (what the patched three.js materials add to every fragment shader: the light maps, the face's up)
+const FRAG_LIGHT_DECL = /* glsl */`
+  varying float vOlyUp;
+  uniform sampler2D uRoomMap, uLampTable, uLampGrid;
+  uniform vec4 uRoomBox, uLampBox;
+  uniform vec3 uRoomOut;
+  uniform vec2 uLampN;
+  uniform float uAmbientK;`;
 const FRAG_MAT_DECL = /* glsl */`
   uniform float uOlyGlow;`;
 
@@ -122,12 +200,19 @@ function patch(shader, material) {
     .replace('#include <common>', `#include <common>\n${VERT_DECL}`)
     .replace('#include <project_vertex>', `#include <project_vertex>\n${VERT_MAIN}`);
   let f = shader.fragmentShader
-    .replace('#include <common>', `#include <common>\n${FRAG_DECL}\n${o.batch ? FRAG_BATCH_DECL : FRAG_MAT_DECL}`)
+    .replace('#include <common>', `#include <common>\n${FRAG_DECL}\n${FRAG_LIGHT_DECL}\n${o.batch ? FRAG_BATCH_DECL : FRAG_MAT_DECL}`)
     .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
       float olyGlowClass = 0.0;
       #ifdef OLY_SEE
-        olySee(vOlyWorld);
-      #endif`);
+        olySee(vOlyWorld, vOlyUp);
+        ${o.batch ? 'olySeeWide(vOlyWorld);' : ''}
+      #endif
+      olyLift(vOlyWorld);
+      ${o.batch ? `if (uWipe.w != 0.0) {
+        // (the stair's wipe: inside the radius kept for the floor coming in, outside for the one going)
+        float olyT = (distance(vOlyWorld.xz, uWipe.xy) - uWipe.z) / ${WIPE_EDGE_M.toFixed(2)} + olyBayer() - 0.5;
+        if (uWipe.w > 0.0 ? olyT > 0.0 : olyT <= 0.0) discard;
+      }` : ''}`);
   if (o.batch) {
     // (the face's texel, wrapped inside its region: a repeating tile repeats, a painted face maps one texel a pixel)
     f = f.replace('#include <map_fragment>', `#include <map_fragment>
@@ -153,8 +238,39 @@ function patch(shader, material) {
         totalEmissiveRadiance += diffuseColor.rgb * olyK;
         diffuseColor.rgb *= 1.0 - olyK;
       }`);
-  // (the strip light: floor strips light the floor and the walls' feet; battle strips the walls and the floor near them)
+  // (the room's fill multiplies the rig's light; the pools add theirs; then the strips)
   f = f.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+      {
+        vec2 olyQ = vOlyWorld.xz + vec2(0.0, clamp(vOlyWorld.y, 0.0, 3.0) * 0.5);
+        float olyLit = uAmbientK;
+        if (uRoomBox.z > 0.0) {
+          vec2 olyR = (olyQ - uRoomBox.xy) / uRoomBox.zw;
+          vec3 olyK = olyR.x >= 0.0 && olyR.y >= 0.0 && olyR.x < 1.0 && olyR.y < 1.0 ? texture2D(uRoomMap, olyR).rgb * 2.0 : uRoomOut;
+          reflectedLight.directDiffuse *= olyK; reflectedLight.indirectDiffuse *= olyK;
+          olyLit = dot(olyK, vec3(0.30, 0.59, 0.11));
+        }
+        if (uLampBox.w > 0.0) {
+          vec2 olyC = floor((olyQ - uLampBox.xy) / uLampBox.z);
+          if (olyC.x >= 0.0 && olyC.y >= 0.0 && olyC.x < uLampN.x && olyC.y < uLampN.y) {
+            vec4 olyIds = texelFetch(uLampGrid, ivec2(olyC), 0);
+            vec3 olyPool = vec3(0.0);
+            for (int i = 0; i < 4; i++) {
+              float id = olyIds[i];
+              if (id < 0.5) break;
+              int t = int(id + 0.5) - 1;
+              ivec2 at = ivec2((t % 128) * 2, t / 128);
+              vec4 la = texelFetch(uLampTable, at, 0), lb = texelFetch(uLampTable, at + ivec2(1, 0), 0);
+              float d = distance(olyQ, la.xy);
+              olyPool += lb.rgb * (d < la.z ? la.w + lb.w : d < 1.5 * la.z ? lb.w : 0.0);
+            }
+            // (a pool adds only up to the light a fully lit place shows, as places' lightLevel tops out at 1:
+            // a desk lamp by day is no blotch on a lit floor)
+            float olyP = dot(olyPool, vec3(0.30, 0.59, 0.11));
+            olyPool *= clamp((1.0 - olyLit) / max(olyP, 1e-4), 0.0, 1.0);
+            reflectedLight.indirectDiffuse += diffuseColor.rgb * olyPool;
+          }
+        }
+      }
       if (uGlowBox.z > 0.0) {
         vec2 olyQ = (vOlyWorld.xz - uGlowBox.xy) / uGlowBox.zw;
         if (olyQ.x >= 0.0 && olyQ.y >= 0.0 && olyQ.x < 1.0 && olyQ.y < 1.0) {
@@ -211,7 +327,7 @@ export function unlit(color, map = null, opts = {}) {
  */
 export function batchMaterial(atlas, atlasW, atlasH, { see = true } = {}) {
   const m = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: RAMP, vertexColors: true });
-  return olyMaterial(m, { see, batch: true, uniforms: { uAtlas: { value: atlas }, uAtlasSize: { value: new THREE.Vector2(atlasW, atlasH) } } });
+  return olyMaterial(m, { see, batch: true, uniforms: { uAtlas: { value: atlas }, uAtlasSize: { value: new THREE.Vector2(atlasW, atlasH) }, uWipe: { value: new THREE.Vector4(0, 0, 0, 0) } } });
 }
 
 /** Give a mesh's geometry its part attribute if it has none (every vertex `part`). */

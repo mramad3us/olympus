@@ -22,7 +22,16 @@
 // and fails above QUICK_LIMIT_S, 60 unless the environment says otherwise. A run that fails on
 // time alone while the user plays is run again on a quiet machine before anything is changed, since
 // the machine is shared.
+//
+// The priority (0.0.3). On macOS a process started from an app in the background (the terminal behind
+// a game in front) runs in the darwin background band (`ps -o pri` 4, a foreground terminal's 31), on
+// the efficiency cores: CPU work there runs 3.5 to 4 times slower (a plain loop, 380 ms against
+// 101 ms), and the headless Chrome the browser tests start inherits it and paces its frames at 10 Hz.
+// It can't be left from inside (taskpolicy -B does not stick while the app stays behind), so the
+// runner says so once at the start; CPU-time ceilings are scaled by helpers.mjs machineK(), the
+// machine's measured slowness against the foreground's.
 import { readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
@@ -34,6 +43,14 @@ const defaultTimeoutMs = Number(process.env.TIMEOUT_MS) || 5 * 60 * 1000;
 const QUICK_LIMIT_S = Number(process.env.QUICK_LIMIT_S) || 60;
 const files = readdirSync(dir).filter(f => f.endsWith('.test.mjs')).sort();
 const first = (e, n = 4) => String(e?.stack || e?.message || e).split('\n').slice(0, n).join('\n      ');
+
+/** Below this `ps -o pri` a process is in macOS's background band (4 there; 31 a terminal's). */
+const BG_PRI_BELOW = 20;
+if (process.platform === 'darwin') {
+  let pri = null;
+  try { pri = Number(execFileSync('ps', ['-o', 'pri=', '-p', String(process.pid)], { encoding: 'utf8' }).trim()); } catch { /* (no ps: nothing to say) */ }
+  if (pri !== null && pri < BG_PRI_BELOW) console.log(`(the runner is in macOS's background band, priority ${pri}: CPU timings run slow here, and the CPU-time ceilings are scaled by the machine's measured slowness, helpers.mjs machineK())`);
+}
 
 let pass = 0, fail = 0, left = 0, timedOut = 0;
 const runT0 = performance.now();

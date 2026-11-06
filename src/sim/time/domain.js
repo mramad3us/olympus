@@ -18,15 +18,15 @@
 //                in the day slot of a Standard career (TECH §7.4).
 //   actions      ready (G): time stands still for a choice, 'ready' held until a digit; digit:<n>:
 //                the choice made, time runs again (TIME's stop-motion hook, a stub until WEAPONS's
-//                step panel at 0.0.6); hand (R): a wait of WAIT_MS (fifteen minutes, 0.0.1's R), an
-//                outcome skip with mask D (R becomes "what's at hand" at 0.0.4); skip:stop and
-//                skip:chunk: the player's commands to a running skip, into skip.cmds at the clock.
-// A choice or a skip is refused while a skip runs, and R while time stands still (TIME §5.3, check
-// 1: not in stop motion).
+//                step panel at 0.0.6); skip:stop and skip:chunk: the player's commands to a running
+//                skip, into skip.cmds at the clock. R left this table at 0.0.3: it is PLACES's `hand`,
+//                what's at hand (a door within reach, else the wait of WAIT_MS, fifteen minutes, an
+//                outcome skip with mask D: src/sim/places/hand.js; the build sheet 0.0.3 §8 item 15).
+// A choice or a skip is refused while a skip runs (TIME §5.3, check 1: not in stop motion).
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { fillDomain } from '../../core/state.js';
 
-/** R's wait in the sandbox (0.0.1's). */
+/** R's wait where no door is at hand (0.0.1's; PLACES's hand.js reads it). */
 export const WAIT_MS = 900_000;
 /** Live play between autosaves, in game time (TIME §13). */
 export const AUTOSAVE_LIVE_MS = 300_000;
@@ -59,11 +59,6 @@ function digit(state, action, bus) {
   bus.emit('line', { text: `Choice ${nameOf(action).slice(6)}: time runs again.` });
 }
 
-function hand(state, action, bus, ctx) {
-  if (state.skip || isHeld(state)) return;
-  ctx.sim.beginSkip(state, { activity: 'wait', planMs: WAIT_MS, mask: 'D' });
-}
-
 function skipCommand(state, action) {
   const cmd = nameOf(action).slice(5);
   if (!state.skip || (cmd !== 'stop' && cmd !== 'chunk')) return;
@@ -86,6 +81,6 @@ export const timeDomain = Object.freeze({
   jobs: Object.freeze({
     autosaveDay: Object.freeze({ every: 'local@00:00', prio: 5, run: (state, bus) => askAutosave(state, bus, 'day') }),
   }),
-  actions: Object.freeze({ ready, digit, hand, skip: skipCommand }),
+  actions: Object.freeze({ ready, digit, skip: skipCommand }),
   upgrades: Object.freeze([]),
 });

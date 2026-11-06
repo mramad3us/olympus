@@ -24,24 +24,48 @@
 // id is `<fixture id>#<n>` (TECH §2.3.1). What changed from tradecraft: uses are lists, spots carry
 // their use, the kinds are the barracks' and the base's (the military catalogue grows with each
 // template), seats and staff spots wait for booking (0.0.5) and PEOPLE's posts (0.0.9).
+//
+// 0.0.3 (the build sheet 0.0.3 §2.1) adds the building's own kinds: wallClock (hung on a wall, or
+// standing on a desk, `mount: 'desk'` on the fixture), stairs (a flight a floor walks, at cost 15,
+// blocking nothing), stairsWell (the floor above's view of it: blocks but its top STAIR_TOP_M 1.0 m)
+// and lampPost; a flight's front (+z as it faces down) is its foot and its back its top (the kit's
+// rule, src/art/kit/structure.js). Kinds gain `seats`, numbered after the spots: { n, dx, dz, y, use,
+// head } (rack2: #2 the lower berth at y 0.45 and #3 the upper at 1.35; rack1 #2; a footlocker #2
+// at 0.40; a stool's and a chair's #1 spot is its seat, at 0.47 and 0.45), head the end the sleeper's
+// head lies at as the piece faces down ('n': its back), turned with it. Seats are not walking spots.
+// `sightH` is what a piece hides from PEOPLE's sight grid (src/sim/places/sight.js): its h, unless the
+// kind says otherwise (racks 1.0, so a standing eye sees over a bay's racks: the sheet's §8 item 12;
+// wall pieces, chairs, stools, stairs and lamp posts none). `cost` is the nav cost of the cells it
+// stands on (stairs 15, PLACES §2.1), where it does not block.
+//
+// seatOf, berthOf and postOf read every area's data (src/sim/places/areas.js), built into an index
+// on first use: a rack lists its berths (billets of its room's owner, lower first, null a spare) and
+// each berth's locker and footlocker, so a person's berth is found from data alone (PEOPLE §3.2).
 // Pure.
 
+import { AREA_LIST } from './areas.js';
+
 const S = (n, dx, dz, use, face = 'up') => Object.freeze({ n, dx, dz, use, face });
-const K = (w, d, h, block, wall, uses, spots = [], mount = null) => Object.freeze({ w, d, h, block, wall, mount, uses: Object.freeze(uses), spots: Object.freeze(spots) });
+const K = (w, d, h, block, wall, uses, spots = [], mount = null, more = {}) => Object.freeze({ w, d, h, block, wall, mount, uses: Object.freeze(uses), spots: Object.freeze(spots), seats: Object.freeze(more.seats ?? []), sightH: more.sightH ?? (mount === 'wall' ? 0 : h), cost: more.cost ?? null });
+// (a seat: its number after the spots, its offset as the piece faces down, its height, its use, where the head lies)
+const ST = (n, dx, dz, y, use, head = null) => Object.freeze({ n, dx, dz, y, use, head });
+
+/** A stair's walkable top in the well above, metres (the sheet's §4; the kit's STAIR_TOP_M). */
+export const STAIR_TOP_M = 1.0;
 
 /** The core kinds (PLACES §1.5; sizes equal to the kit's FOOTPRINTS). */
 export const CATALOGUE = Object.freeze({
   // berthing
-  rack2: K(0.95, 2.05, 1.7, true, true, ['sleep', 'rest'], [S(1, 0, 1.975, 'sleep')]),
-  rack1: K(0.95, 2.05, 0.75, true, true, ['sleep', 'rest'], [S(1, 0, 1.975, 'sleep')]),
-  rack3: K(0.8, 2.0, 2.15, true, true, ['sleep', 'store'], [S(1, 0, 1.5, 'sleep')]),
+  rack2: K(0.95, 2.05, 1.7, true, true, ['sleep', 'rest'], [S(1, 0, 1.975, 'sleep')], null, { sightH: 1.0, seats: [ST(2, 0, 0, 0.45, 'sleep', 'n'), ST(3, 0, 0, 1.35, 'sleep', 'n')] }),
+  rack1: K(0.95, 2.05, 0.75, true, true, ['sleep', 'rest'], [S(1, 0, 1.975, 'sleep')], null, { sightH: 1.0, seats: [ST(2, 0, 0, 0.45, 'sleep', 'n')] }),
+  rack3: K(0.8, 2.0, 2.15, true, true, ['sleep', 'store'], [S(1, 0, 1.5, 'sleep')], null, { seats: [ST(2, 0, 0, 0.30, 'sleep', 'n'), ST(3, 0, 0, 0.95, 'sleep', 'n'), ST(4, 0, 0, 1.60, 'sleep', 'n')] }),
   wallLocker: K(0.6, 0.55, 1.9, true, true, ['store', 'dress'], [S(1, 0, 0.825, 'dress')]),
-  footlocker: K(0.8, 0.45, 0.4, true, false, ['store', 'sit'], [S(1, 0, 0.625, 'store')]),
+  footlocker: K(0.8, 0.45, 0.4, true, false, ['store', 'sit'], [S(1, 0, 0.625, 'store')], null, { seats: [ST(2, 0, 0, 0.40, 'sit')] }),
   // arms and work
   rifleRack: K(1.4, 0.45, 1.85, true, true, ['stow', 'draw'], [S(1, 0, 0.725, 'draw')]),
   desk: K(1.2, 0.65, 0.76, true, false, ['work'], [S(1, 0, 0.775, 'work')]),
-  chair: K(0.5, 0.5, 0.9, false, false, ['sit'], [S(1, 0, 0, 'sit', 'down')]),
-  stool: K(0.36, 0.36, 0.47, false, false, ['sit'], [S(1, 0, 0, 'sit', 'down')]),
+  chair: K(0.5, 0.5, 0.9, false, false, ['sit'], [S(1, 0, 0, 'sit', 'down')], null, { sightH: 0, seats: [ST(1, 0, 0, 0.45, 'sit')] }),
+  stool: K(0.36, 0.36, 0.47, false, false, ['sit'], [S(1, 0, 0, 'sit', 'down')], null, { sightH: 0, seats: [ST(1, 0, 0, 0.47, 'sit')] }),
   studyTable: K(1.6, 0.8, 0.76, true, false, ['study', 'clean'], [S(1, -0.4, -0.75, 'study', 'down'), S(2, 0.4, -0.75, 'study', 'down')]),
   dutyDesk: K(1.8, 0.8, 1.12, true, false, ['checkIn'], [S(1, 0, 0.85, 'checkIn'), S(2, 0, -0.85, 'staff', 'down')]),
   tableSmall: K(1.2, 0.8, 0.76, true, false, ['eat', 'sit'], [S(1, 0, 0.8, 'eat')]),
@@ -60,6 +84,11 @@ export const CATALOGUE = Object.freeze({
   sinkRow: K(1.8, 0.6, 1.9, true, true, ['wash', 'shave'], [S(1, -0.6, 0.7, 'wash'), S(2, 0, 0.7, 'wash'), S(3, 0.6, 0.7, 'wash')]),
   washer: K(0.65, 0.65, 0.9, true, true, ['launder'], [S(1, 0, 0.775, 'launder')]),
   waterFountain: K(0.5, 0.35, 1.2, true, true, ['drink'], [S(1, 0, 0.575, 'drink')]),
+  // the building's own (0.0.3)
+  wallClock: K(0.30, 0.05, 0.30, false, true, ['read'], [], 'wall'),
+  stairs: K(1.2, 4.8, 3.4, false, false, ['climb'], [], null, { sightH: 0, cost: 15 }),
+  stairsWell: K(1.2, 4.8, 1.0, true, false, ['climb'], [], null, { cost: 15 }),
+  lampPost: K(0.25, 0.25, 4.0, true, false, [], [], null, { sightH: 0 }),
 });
 
 /** The catalogue's kinds, in its order. */
@@ -107,3 +136,76 @@ export function spotsOf(fx) {
 
 /** Every spot of an area's fixtures, in the fixtures' order. */
 export const spotsOfArea = (area) => (area.fixtures ?? []).flatMap(spotsOf);
+
+/** Where a fixture is mounted: 'wall' or 'desk' (checked by its centre, never by its footprint), else null (on the floor). */
+export const mountOf = (fx) => fx.mount ?? kindOf(fx.kind).mount;
+
+/**
+ * The rect a blocking fixture stops walkers on: its footprint, but a stairsWell's open top (the last
+ * STAIR_TOP_M of the flight, at its back) is left out, so one walks onto the landing and no further.
+ */
+export function blockRectOf(fx) {
+  const r = footprintOf(fx);
+  if (fx.kind !== 'stairsWell') return r;
+  const face = fx.face ?? 'down';
+  // (the back, the top, is −z of the piece as it faces down: north facing down, south facing up, east facing left, west facing right)
+  if (face === 'down') return { ...r, z0: r4(r.z0 + STAIR_TOP_M) };
+  if (face === 'up') return { ...r, z1: r4(r.z1 - STAIR_TOP_M) };
+  if (face === 'left') return { ...r, x1: r4(r.x1 - STAIR_TOP_M) };
+  return { ...r, x0: r4(r.x0 + STAIR_TOP_M) };
+}
+
+/** What a fixture hides from the sight grid, metres (its kind's sightH; a fixture may say its own). */
+export const sightHOf = (fx) => fx.sightH ?? (mountOf(fx) ? 0 : kindOf(fx.kind).sightH);
+
+const HEADS = Object.freeze({ down: { n: 'n', s: 's', e: 'e', w: 'w' }, up: { n: 's', s: 'n', e: 'w', w: 'e' }, left: { n: 'e', s: 'w', e: 's', w: 'n' }, right: { n: 'w', s: 'e', e: 'n', w: 's' } });
+
+/** A fixture's seats in the area: [{ id: '<fixture>#<n>', fixture, x, z, y, use, head }], turned with it. */
+export function seatsOf(fx) {
+  const k = kindOf(fx.kind), face = fx.face ?? 'down';
+  return k.seats.map(s => {
+    const [dx, dz] = turn(face, s.dx, s.dz);
+    return { id: `${fx.id}#${s.n}`, fixture: fx.id, x: r4(fx.x + dx), z: r4(fx.z + dz), y: s.y, use: s.use, head: s.head ? HEADS[face][s.head] : null };
+  });
+}
+
+// ---- the berths and posts index, from every area's data (built once) ----
+
+let index = null;
+/** Forget the berths index (TECH §2.3). */
+export function resetCaches() { index = null; }
+function indexOf() {
+  if (index) return index;
+  const fixtures = new Map(), byUnit = new Map(), posts = new Map();
+  for (const area of AREA_LIST) {
+    const rooms = new Map((area.rooms ?? []).map(r => [r.id, r]));
+    for (const fx of area.fixtures ?? []) fixtures.set(fx.id, { fx, area });
+    for (const fx of area.fixtures ?? []) {
+      if (!fx.berths) continue;
+      const unitId = rooms.get(fx.room)?.owner?.unitId;
+      if (!unitId) continue;
+      const m = byUnit.get(unitId) ?? byUnit.set(unitId, new Map()).get(unitId);
+      fx.berths.forEach((billet, i) => { if (billet && !m.has(billet)) m.set(billet, `${fx.id}#${i + 2}`); });
+    }
+    for (const p of area.posts ?? []) posts.set(p.id, Object.freeze({ id: p.id, unitId: p.unitId, area: area.id, seatId: p.seatId }));
+  }
+  return (index = { fixtures, byUnit, posts });
+}
+
+/** A seat by its id, from data alone: { id, fixture, area, room, x, z, y, use, head, lockerId, footlockerId } | null. */
+export function seatOf(seatId) {
+  const m = /^(.*)#([0-9]+)$/.exec(seatId ?? '');
+  if (!m) return null;
+  const hit = indexOf().fixtures.get(m[1]);
+  if (!hit) return null;
+  const { fx, area } = hit, s = seatsOf(fx).find(x => x.id === seatId);
+  if (!s) return null;
+  const berth = Number(m[2]) - 2;                                  // (a rack's seats #2, #3… are its berths in order)
+  return { ...s, area: area.id, room: fx.room, lockerId: fx.lockerIds?.[berth] ?? null, footlockerId: fx.footlockerIds?.[berth] ?? null };
+}
+
+/** The seat of a billet's berth: the rack in the room the unit owns that lists the billet, '<rack>#<n>'; null if none. */
+export const berthOf = (unitId, billet) => indexOf().byUnit.get(unitId)?.get(billet) ?? null;
+
+/** A post by its id ('fire-watch:2/4-E-2'): { id, unitId, area, seatId } | null. */
+export const postOf = (postId) => indexOf().posts.get(postId) ?? null;

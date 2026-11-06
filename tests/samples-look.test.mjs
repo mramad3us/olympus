@@ -23,7 +23,7 @@ import { expand, nativeOf, readSamples, KEEP_X } from '../tools/gallery.mjs';
 import { CASTS, LOOKS, placeAt } from '../samples/look/cast.js';
 import { FRAMES, DIRS, STEP_M } from '../src/art/figures/poses.js';
 import { OUTFITS, wear } from '../src/art/figures/outfits.js';
-import { PROPORTIONS, bodyOf } from '../src/art/figures/body.js';
+import { CHIBI, bodyOf } from '../src/art/figures/body.js';
 import { PALETTES } from '../src/art/palette.js';
 
 const SAMPLES = path.join(root, 'samples');
@@ -76,7 +76,7 @@ const paramsOf = (q) => Object.fromEntries(new URLSearchParams(q));
 
 export default [
   {
-    name: 'look samples: each scene is a 2 × 2 of the candidates, 16 or 24 px/m by chibi or soldier figures, and its four pictures differ in nothing else',
+    name: 'look samples (the look round as scored, its shots kept: VIEWS §2.3): each scene is a 2 × 2 of the candidates, 16 or 24 px/m by chibi or soldier figures, and its four pictures differ in nothing else',
     fn() {
       const groups = lookGroups(), M = look().sample.matrix, ids = new Set();
       assert(groups.map(g => g.id).join() === 'L1,L2,L3,L4,L5', JSON.stringify(groups.map(g => g.id)));
@@ -131,11 +131,11 @@ export default [
       const b = placeAt(chasm[1], t, 0.25), bf = `bound${Math.floor(b.stride / STEP_M.bound) % 4}`;
       assert(bf === 'bound2' && b.y > 0.35, `the bound at t ${t}: ${bf}, ${b.y.toFixed(2)} m up`);
       const sitter = CASTS.mess.people.find(p => p.frame === 'sit' && p.seat === 0.46);
-      const ys = Object.keys(PROPORTIONS).map(prop => placeAt(sitter, t, bodyOf(prop, 16).seatM).y);
-      assert(Math.abs(ys[0] - (0.46 - PROPORTIONS.chibi.seatM)) < 1e-9 && Math.abs(ys[1] - Math.max(0, 0.46 - PROPORTIONS.soldier.seatM)) < 1e-9, JSON.stringify(ys));
+      const ys = [placeAt(sitter, t, bodyOf(16).seatM).y];
+      assert(Math.abs(ys[0] - (0.46 - CHIBI.seatM)) < 1e-9, JSON.stringify(ys));
       const couch = placeAt(CASTS.deck.people[0], t, 0.25);
       assert(couch.frame === 'couch' && couch.y === 0.52, JSON.stringify(couch));
-      console.log(`      at t ${t} s: you walk ${d.toFixed(2)} m (frame walk${Math.floor(d / STEP_M.walk) % 4}); the bound ${bf} at ${b.y.toFixed(2)} m; a bench sitter lifted ${ys.map(y => y.toFixed(2)).join(' (A) and ')} (B) m; the couch at ${couch.y} m`);
+      console.log(`      at t ${t} s: you walk ${d.toFixed(2)} m (frame walk${Math.floor(d / STEP_M.walk) % 4}); the bound ${bf} at ${b.y.toFixed(2)} m; a bench sitter lifted ${ys[0].toFixed(2)} m; the couch at ${couch.y} m`);
     },
   },
   {
@@ -191,7 +191,7 @@ export default [
     async fn() {
       const { withGame } = await import('./browser.mjs');
       const port = Number(process.env.SAMPLES_PORT) || undefined;
-      for (const query of ['scene=mess&ppm=24&prop=soldier&t=0.9', 'scene=chasm&mood=storm&ppm=16&prop=chibi&t=0.9']) {
+      for (const query of ['scene=mess&ppm=16&t=0.9', 'scene=chasm&mood=storm&ppm=24&t=0.9']) {
         await withGame(async (page) => {
           const r = await page.evaluate(() => window.__report);
           const C = CASTS[paramsOf(query).scene];

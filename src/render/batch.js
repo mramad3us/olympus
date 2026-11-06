@@ -26,7 +26,10 @@
 //     (cells of GLOW_CELL_M, a core of radius r and a ring to 1.5 r, hard-edged, square at the segment's ends,
 //     on the side it shines toward), which the materials
 //     add to the light of whatever stands there (src/render/materials.js uGlowMap);
-//   - extras (add()): meshes that are not batched (cards, things that move), freed with the area.
+//   - extras (add()): meshes that are not batched (cards, things that move), freed with the area;
+//   - props (0.0.3): its moving pieces (a door's leaf), each its own small mesh on the area's page in a
+//     group at its pivot, which src/render/props.js turns; clocks: its wall clocks' dials (the hands are
+//     src/render/clocks.js's).
 // Part IDs (outlines) are numbered for the whole page (newPart()), so two areas never share one.
 import * as THREE from 'three';
 import { PX_PER_M } from './scale.js';
@@ -104,17 +107,32 @@ function gpuPages(pages, buffers) {
  * strip-light map. Returns { meshes, atlas, glowTex, glowBox }.
  */
 function realise({ meta, buffers }, group, { name, see }) {
-  const atlas = gpuPages(meta.pages, buffers), meshes = [];
-  for (const M of meta.meshes) {
+  const atlas = gpuPages(meta.pages, buffers), meshes = [], props = [];
+  // (one material a page, shared by its static mesh and every moving piece on it)
+  const mats = atlas.pages.map(P => batchMaterial(P.gpu, P.w, P.h, { see }));
+  const geometry = (M) => {
     const g = new THREE.BufferGeometry();
     for (const k of MESH_ATTRS) g.setAttribute(k, new THREE.BufferAttribute(new Float32Array(buffers[M.bufs[k]]), ITEM[k]));
     g.setIndex(new THREE.BufferAttribute(M.index32 ? new Uint32Array(buffers[M.bufs.index]) : new Uint16Array(buffers[M.bufs.index]), 1));
     g.computeBoundingSphere(); g.computeBoundingBox();
-    const P = atlas.pages[M.page], m = new THREE.Mesh(g, batchMaterial(P.gpu, P.w, P.h, { see }));
+    return g;
+  };
+  for (const M of meta.meshes) {
+    const m = new THREE.Mesh(geometry(M), mats[M.page]);
     m.castShadow = m.receiveShadow = true;
     m.name = `${name}:batch${M.page}`;
     m.userData.batch = true;
     meshes.push(m); group.add(m);
+  }
+  // (a moving piece: its meshes in a group at its pivot, which the stage turns: src/render/props.js)
+  for (const p of meta.props ?? []) {
+    const pg = new THREE.Group();
+    pg.name = `${name}:prop:${p.id}`;
+    pg.position.set(p.pivot[0], 0, p.pivot[1]);
+    pg.rotation.y = p.base ?? 0;
+    for (const M of p.meshes) { const m = new THREE.Mesh(geometry(M), mats[M.page]); m.castShadow = m.receiveShadow = true; m.userData.batch = true; pg.add(m); }
+    group.add(pg);
+    props.push({ ...p, meshes: undefined, group: pg });
   }
   let glowTex = null, glowBox = null;
   if (meta.glow) {
@@ -124,13 +142,13 @@ function realise({ meta, buffers }, group, { name, see }) {
     glowTex.needsUpdate = true;
     glowBox = meta.glow.box;
   }
-  return { meshes, atlas, glowTex, glowBox };
+  return { meshes, atlas, glowTex, glowBox, props, mats };
 }
 
 // The area object the stage takes, around its GPU objects (shared by createArea and areaFromJob).
-function areaShell({ name, ppm, group, lamps, glowLines, extras, meshes, stats, get }) {
+function areaShell({ name, ppm, group, lamps, glowLines, extras, meshes, stats, get, props = [], clocks = [], mats = [], meta = null }) {
   return {
-    name, ppm, group, lamps, glowLines, extras, meshes, stats,
+    name, ppm, group, lamps, glowLines, extras, meshes, stats, props, clocks, mats, meta,
     /** A mesh that is not batched (a card, a moving thing): in the area's group, freed with it (by its userData.dispose if it has one). */
     add(obj) { extras.push(obj); group.add(obj); return obj; },
     /** The strip light at (x, z): [strip, battle] 0..1 (for a sprite's tint; the shader reads the same map). */
@@ -148,6 +166,8 @@ function areaShell({ name, ppm, group, lamps, glowLines, extras, meshes, stats, 
     /** Free its GPU objects and its extras' (geometries and materials they own). */
     dispose() {
       for (const m of meshes) { m.geometry.dispose(); m.material.dispose(); }
+      for (const p of props) for (const m of p.group.children) m.geometry.dispose();
+      for (const m of mats) m.dispose();
       get().atlas?.dispose(); get().glowTex?.dispose();
       // (an extra that knows how to free itself says so: userData.dispose, as a card does; the rest: their meshes' geometries, materials and maps)
       for (const e of extras) {
@@ -173,12 +193,13 @@ export function createArea({ name = 'area', ppm = PX_PER_M, see = true } = {}) {
     const data = yield* buildAreaData(col, { name });
     const r = realise(data, group, { name, see });
     meshes.push(...r.meshes);
+    shell.props.push(...r.props); shell.mats.push(...r.mats);
     Object.assign(gpu, { atlas: r.atlas, glowTex: r.glowTex, glowBox: r.glowBox, built: true });
     Object.assign(stats, data.meta.stats, { paintMs: data.meta.ms.paint, buildMs: data.meta.ms.build });
     return stats;
   }
 
-  const shell = areaShell({ name, ppm, group, lamps: col.lamps, glowLines: col.glowLines, extras, meshes, stats, get: () => gpu });
+  const shell = areaShell({ name, ppm, group, lamps: col.lamps, glowLines: col.glowLines, extras, meshes, stats, get: () => gpu, props: [], mats: [] });
   return Object.assign(shell, {
     /**
      * A box: { x, z, y = 0, w, d, h } (footprint centre, bottom, sizes: metres) or { x0, x1, y0, y1, z0, z1 };
@@ -221,7 +242,7 @@ export function areaFromJob(result, { name = result.meta.name ?? 'area', see = t
   meshes.push(...r.meshes);
   const gpu = { atlas: r.atlas, glowTex: r.glowTex, glowBox: r.glowBox, built: true };
   const stats = { ...meta.stats, paintMs: meta.ms?.paint ?? 0, buildMs: meta.ms?.build ?? 0, parts: meta.parts ?? 0 };
-  return areaShell({ name, ppm: meta.ppm, group, lamps: meta.lamps, glowLines: meta.glowLines, extras, meshes, stats, get: () => gpu });
+  return areaShell({ name, ppm: meta.ppm, group, lamps: meta.lamps, glowLines: meta.glowLines, extras, meshes, stats, get: () => gpu, props: r.props, clocks: meta.clocks ?? [], mats: r.mats, meta });
 }
 
 /** Run a generator for at most budgetMs; returns { done, value }. */

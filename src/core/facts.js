@@ -11,7 +11,7 @@
 // The 0.0.2 build sheet (§2.1) adds three to TECH's table: skip (the legacy loop.skip's report,
 // kept for its tests), line (a short line for the player, a toast until the presenter exists) and
 // path-done (PLACES: a path request answered); and skip-end's minutes, the whole game minutes the
-// skip passed.
+// skip passed. The 0.0.3 sheet adds door (PLACES: a door turned by a hand, doors.js).
 
 const fact = (owner, payload) => Object.freeze({ owner, payload });
 
@@ -33,6 +33,7 @@ export const FACTS = Object.freeze({
   'chunk-in': fact('PLACES', '{ site, area, i, j }'),
   'chunk-out': fact('PLACES', '{ site, area, i, j }'),
   'path-done': fact('PLACES', '{ reqId, who, ok, lengthM, reason }: a path request answered'),
+  door: fact('PLACES', "{ id, area, x, z, state: 'open' | 'closed', kind, who }: a door turned (x, z its middle in its area's frame)"),
   sound: fact('VIEWS (audio), PEOPLE (hearing)', '{ kind, x, y, z, area, db, src }'),
   fx: fact('WEAPONS, COMBAT, PLACES', '{ kind, x, y, z, atMs, dir, size }: a muzzle flash, an impact, sparks, steam'),
   papers: fact('TIME, CAREER', '{ papers: [ … ] }'),

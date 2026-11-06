@@ -84,7 +84,8 @@ export const bay = {
       decor: [
         ...[0, 11.6, 23.2].flatMap((bx, i) => [
           { kind: 'clock', x: bx + 5.9, y: 2.3, w: 0.3, h: 0.3 }, { kind: 'emergency', x: bx + 4.6 }, { kind: 'emergency', x: bx + 9.8 },
-          { kind: 'stencil', x: bx + 5.9, y: 1.95, text: ['1ST SQUAD', '2ND SQUAD', '3RD SQUAD'][i] },
+          // (clear of the window at bx + 5.5 and the notice board at bx + 10.75: the whole-glyph stencil is 2.2 m wide, and under the window it read '1 QUAD')
+          { kind: 'stencil', x: bx + 8.1, y: 1.95, text: ['1ST SQUAD', '2ND SQUAD', '3RD SQUAD'][i] },
         ]),
       ],
       lamps: [

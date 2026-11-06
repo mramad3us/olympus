@@ -3,9 +3,9 @@
 // tradecraft's pose table (src/art/sprites.js POSES) gave each frame a bob, arm reaches and swings and
 // leg shapes per view, so a new hat or coat animated in every frame for free. OLYMPUS keeps the idea
 // and one step more: a frame is a small body pose in three dimensions (POSE below), the same for every
-// facing, proportion and density, which the composer (compose.js) solves into joints, projects through
+// facing and density, which the composer (compose.js) solves into joints, projects through
 // the stage's camera and draws as parts. So a walk, an aim or a float is written once and comes out right
-// seen from the front, the back and both sides, for the chibi and the soldier, at 16 and 24 px/m, and the
+// seen from the front, the back and both sides, at 16 and 24 px/m, and the
 // left view is a true left view, not the right one mirrored: a rifle stays in the right hand and its stock
 // in the right shoulder whichever way the marine faces (VIEWS.md 3.2 asks for that).
 //
@@ -21,7 +21,9 @@
 //     eyes ('shut'), straps (a crash couch's harness).
 // The frames (FRAMES) come in bands (BANDS), painted when first needed, as tradecraft's crowd painted
 // a new face's street frames first and the rest on demand: the gait (idle, walk, run, the low-g bound),
-// the arms (aims, fires, kneeling and prone, the magazine out and in), rest (sitting, a couch, a rack),
+// the arms (aims, fires, kneeling and prone, the magazine out and in), rest (sitting: 0.0.3 split it
+// from lie, a couch and a rack, so a squad sitting at its racks paints four cells a look, not twelve,
+// behind the first cut; a sleeper in a rack is the berth's own drawing, src/art/figures/bedding.js),
 // float (two drifting frames and seven more turns of the first, 45° apart: VIEWS.md 3.4's tumble).
 // How a weapon is carried through the gait (slung, patrol, high ready) is the look's (outfits.js
 // wear(): carry), so a squad walking with slung rifles shares one sheet, and a carry changed is a new
@@ -48,7 +50,8 @@ const range = (p, n) => Array.from({ length: n }, (_, i) => `${p}${i}`);
 export const BANDS = Object.freeze({
   gait: Object.freeze([...range('idle', 2), ...range('walk', 4), ...range('run', 4), ...range('bound', 4)]),
   arms: Object.freeze(['aim', 'aimhi', 'aimlo', 'fire', 'firehi', 'firelo', 'kneel', 'kneelfire', 'magout', 'magin', 'prone', 'pronefire']),
-  rest: Object.freeze(['sit', 'couch', 'sleep']),
+  rest: Object.freeze(['sit']),
+  lie: Object.freeze(['couch', 'sleep']),
   float: Object.freeze(['float0', 'float1', ...Array.from({ length: 7 }, (_, i) => `tumble${i + 1}`)]),
 });
 export const BAND_KEYS = Object.freeze(Object.keys(BANDS));

@@ -39,7 +39,7 @@ export default [
           let stepping = true;
           const pump = () => { if (!stepping) return; main.step(); requestAnimationFrame(pump); };
           requestAnimationFrame(pump);
-          await worker.run('sheet', { look: {}, band: 'gait', prop: 'chibi', ppm: 16 }, { priority: 'own' });
+          await worker.run('sheet', { look: {}, band: 'gait', ppm: 16 }, { priority: 'own' });
           const startMs = performance.now() - t0;
           const looks = [
             { outfit: 'utilities', skin: 'tan', hair: { style: 'crew', color: 'dark' }, seed: 21 },
@@ -48,7 +48,7 @@ export default [
           ];
           const jobs = [];
           for (const ppm of [16, 24]) {
-            for (const prop of ['chibi', 'soldier']) for (const look of looks) jobs.push({ job: 'sheet', args: { look, band: 'gait', prop, ppm }, label: `sheet ${prop} ${look.outfit} ${ppm}` });
+            for (const look of looks) jobs.push({ job: 'sheet', args: { look, band: 'gait', ppm }, label: `sheet chibi ${look.outfit} ${ppm}` });
             jobs.push({ job: 'area', args: { area: TEST_AREA, ppm, partBase: 1000 }, label: `area test.rooms ${ppm}` });
           }
           const out = [];

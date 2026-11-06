@@ -17,7 +17,7 @@
 // for one press), or a bot: (state, me, mem) → input for one tick, pure, me the player's actor and
 // mem its memory, me.bot (plain data on the actor, so it saves and loads with the game; tradecraft
 // tests/bots.mjs). Skips run as the page runs them, on the same grid (TECH §5.3) but synchronously:
-//   - an outcome, out, day or world skip begun in a tick (R's wait, a debug skip) is advanced to its
+//   - (by the skip's engine, not its kind: TECH §3.6) an outcome, out, day or world skip begun in a tick (R's wait, a debug skip) is advanced to its
 //     end with no budget before the next tick, as skipNow() would (the page slices it over frames;
 //     the slicing never moves the result: game-slices);
 //   - a fast-forward skip runs real ticks: while one is on, each tick takes the skip's own input
@@ -27,6 +27,7 @@
 // page; here it also goes into g.errors, and with strict (the default) the step throws, so a test
 // can't pass over a lost tick (both runs of a determinism test would lose the same one).
 import { createLoop, NO_INPUT } from '../src/core/loop.js';
+import { engineOf } from '../src/sim/time/skip.js';
 import { recordingBus } from '../src/core/bus.js';
 import { toJSON, fromJSON } from '../src/core/state.js';
 import { digest as digestOf } from '../src/core/hash.js';
@@ -52,10 +53,11 @@ export { playerActor };
  * A headless game: { state, bus, loop, sim, errors, step, run, skipNow, advance, me, digest, save,
  * load, facts }. Options: scenario, seed, mode, hour, startMs, worldId, domains (descriptors that
  * replace built-in domains, for createSim and newGame alike), version (meta.version, 'test' so a
- * golden doesn't move with VERSION), strict (throw on a lost tick or a listener's error).
+ * golden doesn't move with VERSION), strict (throw on a lost tick or a listener's error), at (an
+ * { area, x, z, face } the scenario starts the player at, as the page's ?at= does).
  */
 export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', hour = null, startMs, worldId = null,
-  domains = {}, version = 'test', strict = true } = {}) {
+  domains = {}, version = 'test', strict = true, at = null } = {}) {
   const errors = [];
   let sim = null, hooks = null, seen = 0;
   const bus = recordingBus({ onError: (e, type) => errors.push(`a listener of '${type}': ${firstLine(e)}`) });
@@ -69,7 +71,7 @@ export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', 
     loop.useSkips = (h) => { hooks = h; return useSkips.call(loop, h); };
   }
   sim = createSim({ loop, bus, domains });
-  const opts = { seed, mode, scenario, hour, worldId, version, domains };
+  const opts = { seed, mode, scenario, hour, worldId, version, domains, at };
   if (startMs !== undefined) opts.startMs = startMs;
   loop.setState(newGame(opts));
 
@@ -80,12 +82,12 @@ export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', 
   function finishSkips() {
     const s = loop.state;
     if (!s?.skip) return;
-    if (s.skip.kind === 'ff') { hooks?.ffCheck?.(s, bus); return; }
+    if (engineOf(s.skip) === 'ff') { hooks?.ffCheck?.(s, bus); return; }
     for (let n = 0; s.skip && n < SKIP_SLICES_MAX; n++) if (sim.advanceSkip(s, Infinity, NO_BUDGET)?.done) break;
     if (s.skip) throw new Error(`a skip that never ends: ${JSON.stringify({ ...s.skip, ticker: undefined, frame: undefined })}`);
   }
   function inputFor(s, inputOrBot) {
-    if (s.skip?.kind === 'ff' && hooks?.ffInput) return fullInput(hooks.ffInput(s));
+    if (s.skip && engineOf(s.skip) === 'ff' && hooks?.ffInput) return fullInput(hooks.ffInput(s));
     if (typeof inputOrBot !== 'function') return fullInput(inputOrBot);
     const me = playerActor(s);
     return fullInput(inputOrBot(s, me, me ? (me.bot ??= {}) : {}));
@@ -100,7 +102,7 @@ export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', 
       let moved = 0;
       for (let i = 0; i < n; i++) {
         // (a save loaded inside an outcome skip: the page's loop finishes it before ticking again)
-        if (loop.state.skip && loop.state.skip.kind !== 'ff') { finishSkips(); strictCheck(); }
+        if (loop.state.skip && engineOf(loop.state.skip) !== 'ff') { finishSkips(); strictCheck(); }
         const s = loop.state;
         if (loop.tick(inputFor(s, inputOrBot))) moved++;
         strictCheck();

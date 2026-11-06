@@ -47,11 +47,13 @@
 //   paused   any pause reason: no ticks, the accumulator waits, the render runs.
 //   live     the accumulator's ticks, at most MAX_TICKS_PER_FRAME (5). A tick that begins a skip
 //            (state.skip set) ends the frame's ticking: the ticks still owed are dropped.
-//   ff       state.skip.kind is 'ff' (a fast-forward: lived ticks, faster): up to FF_TICKS_FRAME (40)
+//   ff       state.skip.engine is 'ff' (a fast-forward: lived ticks, faster; beginSkip sets the engine,
+//            'ff' for kind 'ff' and for an 'out' skip in a live fight, TECH §3.6; a record with no
+//            engine, from an older save, goes by its kind): up to FF_TICKS_FRAME (40)
 //            ticks and FF_FRAME_MS (8 ms) of real time a frame, each on the skip's fixed input
 //            (the input's skip: commands go to the first), each followed by the skip's end check.
 //            The accumulator is emptied.
-//   outcome  any other skip kind: the skip engine's advance(state, bus, targetMs, budget, acts),
+//   outcome  any other skip engine: the skip engine's advance(state, bus, targetMs, budget, acts),
 //            with the target the splash sets (skipTarget(ms); null means the skip's toMs) and a
 //            budget of SKIP_FRAME_MS (4 ms) of real time, read between steps; the input's skip:
 //            commands are handed to it, the rest of the input dropped. The accumulator is emptied.
@@ -208,7 +210,9 @@ export function createLoop({ step = null, render = null, poll = null, bus = null
   function modeNow() {
     if (!state || isPaused()) return 'paused';
     const s = skips ? state.skip : null;
-    return !s ? 'live' : s.kind === 'ff' ? 'ff' : 'outcome';
+    // (the skip's engine, not its kind: an 'out' skip in a live fight runs lived ticks, TECH §3.6; a
+    // record from before the field has none, and its kind says the same thing then)
+    return !s ? 'live' : (s.engine ?? (s.kind === 'ff' ? 'ff' : 'outcome')) === 'ff' ? 'ff' : 'outcome';
   }
   const skipActs = (input) => (input?.act ?? []).filter(a => (typeof a === 'string' ? a : a?.act ?? '').startsWith('skip:'));
   // (a skip ended in this frame: live again, nothing owed)

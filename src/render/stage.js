@@ -20,7 +20,9 @@
 // frame where tradecraft's furnished flat was 821.
 //
 // What the game sets (all plain values): look(x, z) or follow(x, z, dtS) and setLead(dx, dz) (the
-// eye-lead hook); setMood(name | mood); setArea(area) (its group, lamps and strip-light map);
+// eye-lead hook); setMood(name | mood) (the shadows redrawn), setLight(mood) (the same numbers, a light
+// changing by the minute: no redraw) and setSunElevation(deg) (the key light's height, redrawn a degree
+// at a time); setArea(area) (its group, lamps and strip-light map);
 // setFocus({ x, z, h, w }) (the figure seen through to: things between it and the camera are drawn
 // see-through); setFog(texture, x0, z0, w, h, dimK) (the fog of awareness, src/render/fog.js);
 // setPalette(name | colours). stats holds the last frame's draw calls, triangles and milliseconds.
@@ -88,15 +90,17 @@ export function createStage({ parent = document.body, palette = TRADECRAFT, grad
     passes.begin('scene');
   };
 
-  function setMood(m) {
+  function setLight(m) {
     const md = lights.apply(m);
     SHARED.uGlowK.value.set(glowKOf(md));
     SHARED.uStripLight.value.setRGB(...md.stripLight);
     SHARED.uBattleLight.value.setRGB(...md.battleLight);
-    bg = new THREE.Color(md.background);
-    shadowsDirty = true;
+    bg.setHex(md.background);
     return md;
   }
+  function setMood(m) { const md = setLight(m); shadowsDirty = true; return md; }
+  /** The key light's height (degrees: places' sunAt); the shadow map redrawn when it moves a whole degree. */
+  function setSunElevation(deg) { if (lights.setElevation(deg)) shadowsDirty = true; return lights.elevDeg; }
   setMood(mood);
 
   /** Make an area the live one (its group in the scene, its lamps and strip light in use); the last is taken out, not freed. */
@@ -190,7 +194,7 @@ export function createStage({ parent = document.body, palette = TRADECRAFT, grad
   return {
     THREE, renderer, scene, camera, cam, lights, post, canvas, stats, passes, ppm: PX_PER_M,
     look: (x, z, y = 0) => cam.look(x, z, y), follow: cam.follow, setLead: cam.setLead,
-    setMood, setArea, setFocus, render, size, fit, readPicture, dispose,
+    setMood, setLight, setSunElevation, setArea, setFocus, render, size, fit, readPicture, dispose,
     setFog: post.setFog, setSnap: post.setSnap, setGamma: post.setGamma,
     setPalette(p) { post.bake(typeof p === 'string' ? PALETTES[p] : p); },
     /** The light a sprite at (x, z) takes (linear RGB): the mood's and the lamps', plus the area's strips. */

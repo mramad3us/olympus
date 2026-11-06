@@ -57,28 +57,34 @@ The user's standing performance asks carry over from LONGHAUL and tradecraft:
 - "Build everything as if it's going to scale to huge proportions" (LONGHAUL memory `feedback_scale.md`, 2026-03-24);
 - "only refactor the tech from there if it's the best way" (the brief).
 
-### 1.2 Built in 0.0.1 and 0.0.2's skeleton (as of 2026-11-05)
+### 1.2 Built in 0.0.1 to 0.0.3 (as of 2026-11-06: v0.0.3, a walkable barracks on a laid-out base)
+
+v0.0.1 shipped the engine and the look round, v0.0.2 the skeleton (a free walk in the test rooms), v0.0.3 ROADMAP's 0.0.4 row (CONTRACTS §18): New career opens in Echo Company's barracks on Base Melas, both floors walkable, the base's ground out to its fences, the company generated, sight and its fog, the sun and the lamps, doors and stairs, the view's memory, sound and the bench card. 146 modules; 287 tests in 52 suites (the quick suite 252 in 26.4 s).
 
 | Module | What it is | Proven by (measured) |
 |---|---|---|
 | `src/core/clock.js`, `calendar.js`; `src/data/setting/calendar.js`; `src/sim/time/dates.js` | Integer ms since 2351-03-22 08:00 UTC. The UTC calendar uses Hinnant's algorithm. MSD follows Allison and McEwen from TIME §1's integer anchor (`MSD_EPOCH_MS`). The Mars local clock is TIME §2.4's (longitudes in [0°, 360°), the slip centred on mean midnight, the face at 24:00 through it), and the year is SETTING §3.3's (Sol 1 the Airy-0 sol holding Ls 0), with SETTING's definitions passed in as a parameter; `dates.js` binds them. `state.clock = { ms, tick, holds, seq }` | `core-calendar` 10 tests: Mars24's worked example, SETTING §3.8's vectors (the start on Monday, Sol 590 MY 211, 12:39:34; 12:40 at +25.7 s) |
-| `src/core/loop.js` | Fixed 50 ms ticks from an accumulator, capped at 250 ms a frame (5 ticks), with named layers and the player's pause kept apart from the sim's holds. Four modes: paused, live, `ff` (at most 40 ticks and 8 ms a frame) and `outcome` (4 ms a frame). `clock.seq` counts every tick. A live frame stops when a tick begins a skip. The 0.0.1 `skip()` is kept for its five tests | `core-loop` 14 tests: "ff 60 s, cheap ticks: 40 ticks a frame at most"; "outcome 90 min at 0.35 ms a step: 12 steps a frame at most" |
+| `src/core/loop.js` | Fixed 50 ms ticks from an accumulator, capped at 250 ms a frame (5 ticks), with named layers and the player's pause kept apart from the sim's holds. Four modes: paused, live, `ff` (at most 40 ticks and 8 ms a frame) and `outcome` (4 ms a frame), picked by the skip's engine (v0.0.3, §3.6). `clock.seq` counts every tick. A live frame stops when a tick begins a skip. The 0.0.1 `skip()` is kept for its five tests | `core-loop` 14 tests: "ff 60 s, cheap ticks: 40 ticks a frame at most"; "outcome 90 min at 0.35 ms a step: 12 steps a frame at most" |
 | `src/core/state.js` | The 25 reserved keys, canonical JSON (keys sorted), ±Infinity and NaN carried, a refusal of anything that is not plain data. The registry of domains' claims (`registerDomain`, with `init` and `after`), `addUpgrade(id, fn, { scoped })`. `fromJSON` parses with no reviver unless the text holds an encoded number | `core-state` 10 tests; 499 KB loaded in 3.2 ms (27.5 ms with a reviver) |
-| `src/core/ids.js`, `num.js`, `queue.js`, `facts.js` | 27 id kinds (16 counted), `cmpId` (p9 before p10), cached sorted id lists (`ids(map)`, checked against a fresh sort every nth call in debug). `q(x, step)`. The event queue as a saved heap with lazy cancels and `hazard()`. 24 facts registered | `game-ids`, `core-queue`: 100,000 operations at 341 a ms, the same 21,146 pops as a sorted reference; `ids(map)` 26.9 ns a call |
-| `src/sim/game.js`, `jobs.js`, `log.js`, `time/skip.js`, `time/domain.js` | The composition root (§2.5): eight domains in `DOMAIN_ORDER` (people, weapons, combat, world and career stubs), the twelve fast layers, one slow layer a minute stepped from the saved mark `time.slowToMs`, the jobs (`hour@`, `day@`, `local@`, `week@`, `every@`), the actions by prefix, `newGame`. The skip engines on TECH §5.3's grids. TIME's autosave triggers and its stub actions (G, a digit, R) | `game-domains` 6, `game-targets` 4, `game-slow` 2, `game-determinism` 10 tests: an 8-hour sleep one digest under three curves; 90.5 s lived, a 5-minute skip, 90.5 s lived, each moment stepped once |
-| `src/core/store.js` | v2: IndexedDB `olympus` version 2 (saves, profile, cache). Slots `<world>:<name>`, records with digest, UTF-8 bytes and honesty marks, the rotation on time, damage and its stand-ins, the bug report with the engine | `core-store` 11, `store-browser` 2 tests: a 469 KB save written in 19 ms, loaded in 8.5 ms; a v0.0.1 database opened as version 2 |
+| `src/core/ids.js`, `num.js`, `queue.js`, `facts.js` | 27 id kinds (16 counted), `cmpId` (p9 before p10), cached sorted id lists (`ids(map)`, checked against a fresh sort every nth call in debug). `q(x, step)`. The event queue as a saved heap with lazy cancels and `hazard()`. 25 facts registered (v0.0.3 adds `door`), 14 emitted | `game-ids`, `core-queue`: 100,000 operations at 341 a ms, the same 21,146 pops as a sorted reference; `ids(map)` 26.9 ns a call |
+| `src/sim/game.js`, `jobs.js`, `log.js`, `time/skip.js`, `time/domain.js` | The composition root (§2.5): eight domains in `DOMAIN_ORDER` (the people domain real from v0.0.3; weapons, combat, world and career stubs), the twelve fast layers, one slow layer a minute stepped from the saved mark `time.slowToMs`, the jobs (`hour@`, `day@`, `local@`, `week@`, `every@`), the actions by prefix, `newGame` (the clock moved for `hour` before the scenario's fill, v0.0.3), the scenarios `sandbox` and `barracks`. The skip engines on TECH §5.3's grids, with `skip.engine` (v0.0.3). TIME's autosave triggers and its stub actions (G, a digit); R moved to PLACES's `hand` (v0.0.3) | `game-domains` 6, `game-targets` 4, `game-slow` 2, `game-determinism` 10 tests: an 8-hour sleep one digest under three curves; 90.5 s lived, a 5-minute skip, 90.5 s lived, each moment stepped once |
+| `src/core/store.js` | v2: IndexedDB `olympus` version 2 (saves, profile, cache). Slots `<world>:<name>`, records with digest, UTF-8 bytes and honesty marks, the rotation on time, damage and its stand-ins, the bug report with the engine. v0.0.3: `updateProfile(fn)` in one transaction, `autosaveSync()` for leaving the page, and the autosave at a career's launch (§7.4) | `core-store`, `store-browser` tests: a 469 KB save written in 19 ms, loaded in 8.5 ms; a v0.0.1 database opened as version 2; New career, a reload, Continue (v0.0.3) |
 | `src/core/rng.js`, `hash.js` | sfc32 bit for bit with tradecraft, named saved streams, `stream(...seeds)`, FNV-1a `hash`, `hash01`, `hashPick`, and a cyrb53 `digest` | `core-rng` 6 tests |
 | `src/core/bus.js` | tradecraft's and LONGHAUL's bus merged. A listener that throws never throws into the sim | |
 | `src/core/keys.js`, `input.js` | Keys read by physical code with AZERTY labels, hold and tap (`TAP_MS` 220), a per-tick snapshot, `queue(action)` for the UI's own actions, and the mouse in stage pixels | `core-input` 6 tests |
-| `src/core/debug.js` | `window.__olympus` (state, step, start, newGame, save, load, skip, pause, events, report, view, version) and the URL parameters (`play`, `seed`, `hour`, `mode`, `debug`, `prop`, `mood`, `fog`, `nostore`, `perf`) | `browser`, `core-browser` |
-| `src/sim/places/*.js`, `src/sim/scenarios/sandbox.js`, `src/data/places/testroom.js`, `melas.js` | PLACES's skeleton: the wall rule (`plan.js`, re-exported by `src/render/walls.js`), the fixture catalogue, A* on 0.25 m cells for C0, C1 and C2 with path requests delivered by cost, the player's movement (walk 1.14, run 2.69, stroll 0.75 m/s), the site graph, the validator, the `lightLevel` stub. The test rooms, and Base Melas's plan compacted (the armoury, the canopy and the mess moved) | `places-nav` 6, `places-reach` 2, `places-validate` 5, `places-walk-sol` 1 tests: A* p95 690 µs; the training sol 11.82 real minutes at 1.14 m/s |
-| `src/render/scale.js` | `PX_PER_M` 16 or 24 from `?ppm=` (24 by default) | |
-| `src/render/stage.js`, `camera.js`, `materials.js`, `post.js`, `lights.js`, `moods.js`, `fog.js` | tradecraft's stage. The scene is drawn **once** into two attachments (colour plus part IDs, WebGL2 MRT). The palette snap reads a 64³ lookup **baked on the GPU** (a 512 × 512 pass). The blit is sharp-bilinear. There are 10 lamp-slot pairs. The fog mask is 96 × 128 RG8 (24 KB). Pass times by timer query | |
+| `src/core/debug.js` | `window.__olympus` (state, step, start, newGame, save, load, skip, pause, events, report, view, version; v0.0.3 adds `act` and main.js's `area`, `go`, `door`, `actors`, `light`, `sun`, `sightMask`, `offer`, `audio`, `hud`: §15.2) and the URL parameters (`play`, `seed`, `hour`, `mode`, `debug`, `mood`, `fog`, `nostore`, `perf`; v0.0.3 adds `bench`, `area`, `at`, `face` and drops `prop`: §15.3) | `browser`, `core-browser` |
+| `src/sim/places/*.js` (v0.0.3), `src/data/places/echo.js`, `ground.js`, `sky.js` | **The walkable barracks on a laid-out base.** Echo Company's barracks on both floors (`melas.echo.1`: 36 rooms, 38 openings, 392 fixtures, 148 lamps; `melas.echo.2`: 28, 28, 413, 135), built from its tables with the bays' three layouts; Base Melas's ground (`melas.ground`: 37 buildings as massing, 41 doors, 71 paved roads, paths and decks, the fence and its four gates, closed, 179 fixtures, 173 lamps) walked on 3 × 3 windows of 32 m chunks; the sun over the canyon's walls (`sun.js`: `sunAt` with the disc's share, `horizonAt`, `sunTimes`); the light made real (`light.js`: lighting classes by Melas time, `lampsOf`, `skyAt`, `lightLevel`); doors and R (`doors.js`, `hand.js`: leaves swinging over their `openS`, the `door` fact, R's offer); portals and stairs (`portals.js`); the sight grid on 0.25 m cells (`sight.js`); wall clocks (`clocks.js`); seats, berths and posts in the fixtures; no site seed (`places:no-site-seed`) | `places-validate`, `places-reach` (366 and 391 spots, none unreachable), `places-portals`, `places-light`, `places-walkers` (757 spots walked, 2,345 m; the four gates, 4.2 km), `places-walk-sol` (793.3 m, 11.60 real minutes), `places-nav` (a ground window's A* p95 836 µs) |
+| `src/sim/people/*.js`, `src/data/people/*.js`, `src/data/setting/names.js`, `homes.js`, `src/sim/scenarios/barracks.js` | **The company, generated.** The roster (`roster.js`: the company HQ and three rifle platoons, 145 billets, each person on their billet's stream; names from SETTING's pools with the registry; ranks, ages, homes, backgrounds, axes, tags, quirks, nicknames, bodies and looks); the player in the empty billet (`fillPlayer`); where the placed people are and the actors layer that changes a pose only out of sight, in a skip too (`place.js`); what draws anyone (`figure.js`); sight (`perception.js`: `eyeOf`, `clearLine`, `visibility`, `sightMask`); the air law (`hearing.js`) | `people-roster` (seed 48213: 8.8 ms, 90.5 KB, 30.3% women), `people-sight` (sightMask equal to visibility on 614,400 cells; an eye pressed to a wall sees nothing behind it), `people-poses`, `game-walk` (the user's walk, 21,018 ticks, saved anywhere and carried on byte for byte) |
+| `src/sim/places/*.js` (v0.0.2), `src/sim/scenarios/sandbox.js`, `src/data/places/testroom.js`, `melas.js` | PLACES's skeleton: the wall rule (`plan.js`, re-exported by `src/render/walls.js`), the fixture catalogue, A* on 0.25 m cells for C0, C1 and C2 on a typed-array heap (`heap.js`) with path requests delivered by cost, the player's movement (`move.js`: walk 1.14, run 2.69, stroll 0.75 m/s) with the walker colliding as its class's circle (`collide.js`: the door assist of `NUDGE_M` 0.3 m, and settling a walker found inside a blocker), the site graph, the validator, the `lightLevel` stub. The test rooms, and Base Melas's authored tables (`src/data/places/melas.js`) built into its plan by `siteplan.js`, compacted (the armoury, the canopy and the mess moved) | `places-nav` 6, `places-reach` 2, `places-validate` 5, `places-walk-sol` 1 tests: A* p95 690 µs; the training sol 11.82 real minutes at 1.14 m/s |
+| `src/render/scale.js` | `PX_PER_M` 16 or 24 from `?ppm=`: `DEFAULT_PPM` 16 from v0.0.3, the user's pick (24 in v0.0.2) | `render-scale` |
+| `src/render/stage.js`, `camera.js`, `materials.js`, `post.js`, `lights.js`, `moods.js`, `fog.js` | tradecraft's stage. The scene is drawn **once** into two attachments (colour plus part IDs, WebGL2 MRT). The palette snap reads a 64³ lookup **baked on the GPU** (a 512 × 512 pass). The blit is sharp-bilinear. There are 10 lamp-slot pairs. The fog mask is 192 × 128 RG8 cells of 0.25 m in the game (48 KB, v0.0.3; 96 × 128 of 0.5 m in v0.0.2). Pass times by timer query | |
 | `src/render/batch.js`, `batch-math.js`, `pack.js`, `textures.js`, `cards.js`, `cutaway.js`, `walls.js` | An area's boxes become one buffer and **one draw call per atlas page**, packed shelf by shelf, built from the paint worker's arrays. Pages are uploaded in bands. Cards stand upright. The dollhouse cutaway has a deck mode | "400 boxes: 2,400 quads … 1 atlas page → 1 draw call"; "323 paintings on 1 page of 1024 × 640, 91% filled" |
 | `src/render/view.js`, `painter.js`, `uploads.js`, `warm.js`, `stats.js`; `src/art/jobs.js`, `worker.js` | The game view (§9.11): the live area built behind a cut, the mood by the hour, interpolation, the camera's lead, the figures from `state.actors`. The paint worker (`sheet` and `area` jobs, 2 workers on 8 threads, the main thread's 4 ms a frame without one), the upload queue (1 MB and 2 ms a frame), the shader warm-up, the GL counters | `view-browser` 2, `render-worker` 1, `render-uploads` 4 tests: the test rooms in 35 to 60 ms in the worker; 6 draw calls walking; 0 programs linked while walking |
+| `src/render/chunks.js`, `lighting.js`, `light-maps.js`, `memory.js`, `clocks.js`, `props.js`; `src/art/figures/bedding.js`, `kit/structure.js`, `terrain/base.js` (v0.0.3) | **The stage on the barracks and the base.** Echo's floors (a floor in 120 to 175 ms in the worker) and the ground's chunks (built within 56 m, dropped beyond 96 m, a texture page each); `AREA_CACHE` 3 and the areas behind the portals prepared, the cut holding its picture; the light from places' helpers (the tiled lamp table, room fills, the eye's exposure, the key light from `sunAt`); the fog from people's `sightMask`; the view's memory; see-through masses and the wide see-through; the stair's wipe; door leaves, wall clocks (9 px dials), stencils, sleepers in their racks; the chibi alone at 16 px/m | `view-browser`, `view-areas` (cuts, chunks, lamps, the key light, the player never hidden), `render-fog` (0 mismatches), `render-memory`, `render-lightmaps`, `render-bench` (60 fps at both densities, p95 16.7 ms, 51 to 53 draw calls, 51 KB uploaded a frame at most), `kit-stencil`, `kit-makers` |
 | `src/art/tone.js`, `palette.js`, `paint.js`, `brush.js`, `tiles.js`, `font.js` | tradecraft's colour maths and its 116-colour palette exactly, plus the MARS, SHIP and EUROPA palettes. The painter writes typed arrays, and the alpha byte carries the glow class. Tiles repeat seamlessly. The pixel font is 3 × 5, with stencils | `render-palette`, `render-batch` |
 | `src/ui/boot.js`, `style.css`, `src/main.js` | The title on paper (Continue across worlds), the menu (Report a problem) and keys cards, the HUD's three clocks at the live site's longitude, autosaves on the sim's facts, the stage and the sandbox | `core-browser` 4 tests |
-| `tools/*`, `play.sh`, `play.cmd`, `tests/run.mjs`, `helpers.mjs`, `browser.mjs`, `game.mjs`, `golden.mjs`, `game-dummy.mjs`, `ids-check.mjs`, `bots/*.mjs`, `syntax.test.mjs`, `version.test.mjs` | The method: play copy, promotion, releases, the server, shots, keep-awake, the runner (`heavy`, `QUICK` with its 60 s limit, `SKIP`, `TIMEOUT_MS`, `OLYMPUS_TEST_PORT`), the headless game, goldens, the dummy world, the id walk, the bots | `syntax` 13 rules |
+| `src/ui/hud/`, `src/ui/cards/`, `src/ui/audio/`, `src/data/bench.js`, `sounds.js` (v0.0.3) | **The HUD, the cards and the sound.** VIEWS §7.5's five rectangles (`layout.js`), the watch (`watch.js`: Melas time, the weekday and sol, UTC, the place), the toasts, R's offer (`offer.js`); the menu with the master volume and mute in the profile, the keys card (AZERTY), the log card (its last 40 lines), the bench card (`?bench=squadbay-night`, Copy results); the sound made at boot and resumed by the first key, footsteps by surface and doors where they are (`engine.js`, `steps.js`, `synth.js`), all synthesised | `core-browser`, `ui-watch` (1,000 times, 0 disagreeing), `ui-audio`, `audio-browser`, `bench-browser`; the HUD and the sound 0.10 ms a frame at the median |
+| `tools/*`, `play.sh`, `play.cmd`, `tests/run.mjs`, `helpers.mjs`, `browser.mjs`, `game.mjs`, `golden.mjs`, `game-dummy.mjs`, `ids-check.mjs`, `bots/*.mjs`, `syntax.test.mjs`, `version.test.mjs` | The method: play copy, promotion, releases, the server, shots, keep-awake, the runner (`heavy`, `QUICK` with its 60 s limit, `SKIP`, `TIMEOUT_MS`, `OLYMPUS_TEST_PORT`; from v0.0.3 it names macOS's background band, and `helpers.mjs` `machineK()` scales CPU-time ceilings there: CLAUDE.md, Tests), the headless game, goldens, the dummy world, the id walk, the bots (v0.0.3: `walkFloors`, `walkToFences`, `crossTo`, and the user's walk `tests/walk-moment2.mjs`) | `syntax` 13 rules (v0.0.3: `SIM_FOR_VIEW` gains five modules, the WebAudio constructors kept out of the sim) |
 
 This section specifies what these modules become and everything around them.
 
@@ -92,7 +98,7 @@ TECH owns the layout, the state's top level and the implementation. Where an ear
 4. **The palette lookup is baked on the GPU** (built), not on the CPU in a worker as VIEWS §2.5 proposed. A 64³ bake takes one 512 × 512 draw.
 5. **Lamps**: VIEWS's `LAMP_SLOTS` 16 is replaced by tiled static pools with no limit on count, plus 10 dynamic slots (§9.6).
 6. **Bus fact names are kebab-case** (`skip-start`, `skip-end`), not VIEWS's `skip:start`. They are listed in one registry (§2.7).
-7. **No wall-clock budget inside the sim.** PLACES's "6 solves or 1.5 ms of solving per tick" becomes 6 solves or `PATH_NODES_TICK` 8,000 node expansions per tick. PLACES's "4 ms of sim per chunk" becomes lazy, pure generation (§8.1, rules 6 and 7).
+7. **No wall-clock budget inside the sim.** PLACES's "6 solves or 1.5 ms of solving per tick" becomes 6 solves or `PATH_NODES_TICK` 8,000 node expansions per tick. PLACES's "4 ms of sim per chunk" becomes lazy, pure decoding of the ground's committed data (§8.1, rules 6 and 7; grounds are authored, never generated per world: PLACES §9.5).
 8. **Fitness lives in `src/sim/body/fitness.js`**, where BODY §2.7 put it. SKILLS's `value()` reads effective fitness from it through the injected helper.
 9. **The event queue is saved as its heap array**, not sorted (§4). The order is a pure function of the operations done, so determinism is the same, and saving stays a pure read.
 10. **Autosave**: `main.js`'s stub (every 30 game minutes) is replaced by TIME §13's triggers, implemented in §7.4.
@@ -132,10 +138,16 @@ src/core/                   the engine: no game knowledge, no DOM except the two
   profile.js                per-layer timing in perf mode (writes only to its own runtime object)
 src/data/                   pure tables shared by several domains or the UI: literals, frozen, no logic
   activities.js pod.js furniture.js backgrounds.js hulls.js factions.js bodyfacts.js
+  bench.js                  the bench scenes, read by the page's card and the stage's test     (built in 0.0.3)
+  sounds.js                 every sound's synthesis parameters (VIEWS §11.5)                   (built in 0.0.3)
+  body/      gait.js                                                                           (built)
+  people/    billets.js ranks.js traits.js backgrounds.js looks.js quirks.js                   (built in 0.0.3)
+  places/    testroom.js melas.js (built in 0.0.2) echo.js ground.js sky.js                    (built in 0.0.3)
   setting/   SETTING's tables, one module per table (SETTING §1.3): calendar.js world.js
              timeline.js mars.js corps.js hulls.js jovian.js theatres.js faces.js news.js
-             prices.js names.js  (timeline.js as §5.8 and §18 name it, SETTING to add it;
-             SETTING §1 proposed src/sim/setting/: correction 11)
+             prices.js names.js homes.js  (timeline.js as §5.8 and §18 name it, SETTING to add it;
+             SETTING §1 proposed src/sim/setting/: correction 11; calendar.js built, names.js and
+             homes.js built in 0.0.3 by PEOPLE's builder)
 src/world/                  the background (LONGHAUL's): knows nothing of people or the player
   constants.js ephemeris.js gravity.js lambert.js kepler.js worlds.js rails.js spatial.js
   politics.js conflict.js forces.js intel.js traffic.js news.js voyage.js dropship.js
@@ -159,15 +171,27 @@ src/sim/                    the game: pure, facts on the bus
              threat.js reflex.js director.js pictures.js
   people/    person.js roster.js schedule.js behaviour.js walk.js steer.js crowd.js
              perception.js hearing.js relations.js memory.js gossip.js talk.js orders.js
-             discipline.js arcs.js lod.js interact.js names.js
+             discipline.js arcs.js lod.js interact.js names.js mind.js
+             domain.js roster.js names.js place.js figure.js perception.js hearing.js   (built in 0.0.3)
   places/    (PLACES §14: model.js plan.js fixtures.js nav.js graph.js chunks.js air.js fire.js
               thermal.js utilities.js weather-mars.js env.js validate.js templates/)
-             grid.js collide.js light.js (lightLevel: correction 14) affordance.js
+             heap.js collide.js move.js siteplan.js domain.js (built in 0.0.2) grid.js
+             light.js (lightLevel: correction 14) affordance.js
+             areas.js echo.js ground.js sun.js doors.js hand.js portals.js sight.js clocks.js
+             (built in 0.0.3; light.js made real)
   career/    career.js creation.js standing.js promotion.js pay.js deployments.js mail.js
              memorial.js unlocks.js
-  scenarios/ sandbox.js standby.js squadbay.js range.js mess.js samples.js
+  scenarios/ sandbox.js (built) barracks.js (built in 0.0.3: New career's) standby.js range.js mess.js
+             samples.js  (`squadbay` stays the bench scene's name, not a scenario)
 src/art/                    painters: pixels into typed arrays; no GPU, no DOM
   tone.js palette.js paint.js brush.js tiles.js font.js                                   (built)
+  figures/   atlas.js body.js compose.js outfits.js poses.js shade.js templates.js (built)
+             bedding.js (built in 0.0.3: the sleeper in a rack)
+  kit/       common.js head.js index.js kit.js mess.js quarters.js ship.js signs.js training.js
+             type.js (built) structure.js (built in 0.0.3: stairs, wall clocks, lamp posts, leaves)
+  terrain/   ground.js index.js rocks.js scarp.js (built) base.js (built in 0.0.3: the base's chunks)
+  materials/ index.js surfaces.js wear.js; doll/ doll.js grid.js                           (built)
+             (the built folders figures/ and kit/ stand for the sprites/ and furniture/ below)
   sprites/   roles.js shade.js poses.js rigs.js compose.js templates/<variant>.js
   doll.js weaponcard.js furniture/(kit.js base.js ship.js europa.js) structures.js props.js
   plaque.js bezel.js icons.js sky.js
@@ -178,16 +202,22 @@ src/render/                 the pixel stage (three.js lives here and only here)
   batch-math.js pack.js textures.js cards.js cutaway.js walls.js                          (built)
   view.js crowd.js decals.js props.js chunks.js pools.js far.js fogcast.js uploads.js
   warm.js stats.js splash.js windows.js
+  view.js painter.js uploads.js warm.js stats.js figures.js weather.js (built in 0.0.2)
+  memory.js clocks.js chunks.js lighting.js light-maps.js props.js (built in 0.0.3; no
+             fogcast.js: the view calls people's sightMask, §9.11)
 src/ui/                     plain DOM over the canvas; never three
   boot.js style.css                                                                        (built)
   dom.js presenter.js pointers.js plaque.js splash.js
   hud/       watch.js toasts.js prompt.js balloons.js radio.js suit.js tags.js
+             watch.js toasts.js layout.js offer.js (built in 0.0.3: the rectangles, R's offer)
   cards/     menu.js keys.js sheet.js inventory.js aid.js mind.js log.js papers.js
              choice.js talk.js reflex.js terminal.js settings.js bench.js debug.js report.js
+             menu.js keys.js log.js bench.js (built in 0.0.3)
   displays/  kit.js fit.js labels.js marks.js zoom.js scalebar.js
   screens/   view.js system.js planetary.js local.js threat.js scope.js groundtac.js
              terminal.js rangetower.js seat.js
-  audio/     presenter.js synth.js mixer.js
+  audio/     engine.js steps.js synth.js (built in 0.0.3: the engine is the presenter and the
+             mixer, steps.js the pure foot-falls; presenter.js and mixer.js as first proposed)
 vendor/three/ vendor/fonts/  samples/  tests/  tools/
 ```
 
@@ -202,17 +232,18 @@ Files listed with a domain are proposals made by that domain's section, adopted 
 | `src/world` | `src/core`, `src/data`, `src/world` |
 | `src/sim` | `src/core`, `src/data`, `src/world`, `src/sim` |
 | `src/art` | `src/core`, `src/data`, `src/art` |
-| `src/render` | `src/core`, `src/data`, `src/art`, `src/render`, `three`, and the pure sim helpers named in `SIM_FOR_VIEW` (`places/light.js`, `people/perception.js` visibility, `body/motion.js` poses) |
+| `src/render` | `src/core`, `src/data`, `src/art`, `src/render`, `three`, and the pure sim helpers named in `SIM_FOR_VIEW` (`places/plan.js`, the wall rule the cutaway and the walker share; `places/light.js`; from v0.0.3 `places/sun.js`, `places/clocks.js`, `places/doors.js` (the leaves' open fraction), `people/perception.js` (visibility and `sightMask`) and `people/figure.js` (what draws anyone); later `body/motion.js` poses) |
 | `src/ui` | anything in `src` except `three` |
 | `src/main.js` | anything |
-| `src/art/worker.js` (and everything it imports) | `src/core`, `src/data`, `src/art`, and the render modules whose header says `Pure.` (`batch-math.js`, `pack.js`). Nothing in its import closure may import `three` |
+| `src/art/worker.js` (and everything it imports) | `src/core`, `src/data`, `src/art`, the render modules whose header says `Pure.` (`batch-math.js`, `pack.js`), the `SIM_FOR_VIEW` modules whose header says `Pure.`, and `ART_FROM_RENDER`. Nothing in its import closure may import `three` |
 
 `tests/syntax.test.mjs` gains three rules:
 - the matrix above, read from the code with comments and strings blanked, as its other checks are;
 - no `Date`, no `performance`, no `setTimeout` and no `requestAnimationFrame` in `src/sim`, `src/world` or `src/data`. In `src/core` they are allowed only in `loop.js` (frame timing and stats), `store.js` (`savedAt`) and `input.js` (event times);
-- `three` imported only under `src/render`.
+- `three` imported only under `src/render`;
+- (built in v0.0.3) no WebAudio constructor (`AudioContext`, `OfflineAudioContext`, `webkitAudioContext`, `AudioWorkletNode`) in `src/sim` or `src/core`: sound is the UI's (`src/ui/audio/`).
 
-`BROWSER_EDGE` stays `store.js` and `input.js`.
+`BROWSER_EDGE` stays `store.js` and `input.js`. One more named exception, as `BROWSER_EDGE` is named: **`ART_FROM_RENDER`**, the density, `src/render/scale.js`. Correction 3 put VIEWS's `art/density.js` there, so the art modules that paint at `PX_PER_M` (eight in v0.0.2) import a render module, and `scale.js`, which reads `?ppm=` once at load, sits in the worker's closure without the `Pure.` header (built, `tests/syntax.test.mjs`). Moving `PX_PER_M` into `src/core` or `src/data` with the URL read left in `main.js` would remove the exception (my call: not worth a change while it is the only one).
 
 ### 2.3 Module conventions
 
@@ -260,6 +291,7 @@ A new counted kind adds its row here in the change that first makes one. Single 
 | site, area, room, zone | PLACES's forms: kebab segments joined by `.` | `melas`, `melas.echo.1`, `e1.bay-2-1`, `e1.z.bay-2-1` | PLACES |
 | fixture, opening | `f:` or `o:`, then the template's path in `:`-joined kebab segments | `f:e1:rack:07`, `o:e1:bay-2-1` | PLACES |
 | link | `l:` and the template path | `l:hellas:trunk` | PLACES |
+| site plan: waypoint, building, road or path | `w:`, `b:` or `r:`, then kebab segments joined by `:` (a waypoint's `w:` takes a colon, a world's `w-` a dash) | `w:echo:front`, `b:echo`, `r:valley` | PLACES (built in 0.0.2) |
 | spot or seat | `<fixture id>#<n>` (a seat is a spot of its fixture: PEOPLE's `fx:mess:t14:s3` is `f:mess:t14#3`) | `f:mess:t14#3`, `f:armoury:rack-e2#14` | PLACES |
 | data record | the key in its table, kebab-case or lowerCamel, unique in that table | `r7`, `6.5x40r`, `shower`, `react-to-contact` | the table's owner |
 
@@ -269,6 +301,7 @@ Rules (my calls):
 - **A gun is an item.** WEAPONS's `r7#p.3` is `i<n>` with `model: 'r7'`; its serial (`HAD R7 0412 3378`) is still a hash of its id.
 - **A portal is named by its opening or link id** (`o:echo:front`, `l:echo:stairs-up`), never by a `p:` form of its own, so the `p` prefix stays the people's. A path request is counted (`pr5531`, never `pr:5531`).
 - **A household is a number inside the career, not an id** (CAREER's `h-redwater-1` would collide with the hulls' `h`).
+- **An answered path request's id stays valid**: once delivered, a request is gone from the queue, so the id walk accepts a `pr` reference below `meta.next.pr` as a request already answered (`actor.path.reqId`; built in `tests/ids-check.mjs`).
 - **Fields that hold an id** are named `id`, `<role>Id` or `<role>Ids` (`leaderId`, `subjectId`, `assignedId`), or `who`. Maps keyed by id are registered as such by their owner at `createSim` (§2.5). The validator walk of §8.2 relies on both.
 - **Order.** `cmpId(a, b)` compares the kind, then the number, then the rest: a total order in which `p9` comes before `p10`.
 
@@ -278,35 +311,40 @@ Rules (my calls):
 
 `ids(map)` is called per decision per tick over `people` (about 230 records), `items` (up to 2,000) and a site's fixtures, so it must not allocate and sort each time (my call):
 - an id-keyed map is changed only through `put(state, map, id, rec)` and `drop(state, map, id)` in `core/ids.js`, which keep the map's ids in `cmpId` order in a runtime key on the map (`map.$ids`), inserting by binary search;
-- `ids(map)` returns that array (frozen in debug), built once after a load and never re-sorted;
-- in debug runs every 64th call, and every call in the determinism suite, asserts that it equals the map's own non-`$` keys sorted by `cmpId`, so a write that bypassed `put` is found at once.
+- `ids(map)` returns that array, built once after a load and never re-sorted;
+- `setIdsCheck(n)` makes every nth call compare it with the map's own non-`$` keys sorted by `cmpId`, so a write that bypassed `put` is found at once: `main.js` sets 64 in debug, the determinism suite 1 (built; the array is not frozen, since a freeze per call would cost what the cache saves).
 
 ### 2.4 Data modules
 
 `src/data/*.js` export frozen literals: `export const ACTIVITIES = Object.freeze({ shower: { … } })`. They contain no functions, apart from tiny pure helpers that read the same table. They are imported, never fetched, so they load with the modules and work offline.
 - **Every record has a stable id.** Saves refer to data by id. An authored template carries a version (`'melas@1'`; PLACES §9: a site pins `template@version`). When a change would move saved geometry, the version goes up and `upgradeState` decides what an older save keeps (§7.7).
+- **Places are authored data** (the user, 2026-11-05: "game world is handcrafted"). Every site, area, deck, dressing and ground is a frozen literal committed to the repository, the same in every career; no place record carries a layout seed, and nothing derives a layout from the world's seed (PLACES §9). Authoring tools may write these literals (§14); the game only reads them. What happens in the places (events, politics, assignments, opportunities, mission details) and every person are drawn from the world's seed at run time.
+- **No logic in data.** Where a table needs derived parts, a module of the owner's folder derives them: v0.0.2's `src/sim/places/siteplan.js` builds Base Melas's door waypoints, spurs, junctions and edges from `src/data/places/melas.js`'s tables, so the data module holds only literals and no exception to this rule is needed (the 0.0.2 review moved the builder out; the `MELAS_PLAN` golden did not move).
 - **Where a table lives.** A table read by more than one domain or by the UI goes in `src/data`. A table read only by its own domain may sit in that domain's folder, under the same rules: WEAPONS's `arms/calibres.js` and `models.js`, COMBAT's `combat/drills/*.js`, PLACES's `places/templates/`.
 - **Owners.** Each table is owned by the section whose content it holds. TECH owns only their form.
 
 ### 2.5 The composition root: `src/sim/game.js`
 
-`createSim({ loop, bus })` is the one place where the game is put together:
-1. it registers each domain's top-level state keys and id-keyed maps (`registerDomain(owner, { keys, idMaps, init })`, in `core/state.js`): a key claimed twice throws at once, naming both claimants, and a key not in §6.1's table throws too;
-2. it registers the fast layers, in the order of §3.1;
+`createSim({ loop, bus, domains })` is the one place where the game is put together (built in 0.0.2). Each domain is a descriptor `{ name, owner, keys, idMaps, idFields, init, fast, slow, jobs, events, actions, upgrades }`, taken in `DOMAIN_ORDER` (tech, time, places, people, weapons, combat, world, career; the last five stubs until their sections build them), and `domains` may replace one or add one after the order (a test's dummy world):
+1. it registers each domain's top-level state keys, id-keyed maps and id fields not named by §2.3.1's rule (`registerDomain(name, { owner, keys, idMaps, idFields, init, after })`, in `core/state.js`): a key claimed twice throws at once, naming both claimants, and a key not in §6.1's table throws too. A claim's `after(state)` runs on load once every fill and upgrade has;
+2. it registers the fast layers, in the order of §3.1 (`FAST_LAYERS`, frozen `{ name, whileHeld }` records);
 3. it registers the slow contributors, in the order of §3.4;
-4. it merges the jobs registry (§4.3);
-5. it installs the actions table, which routes each input action by its prefix to its owner (`people`, `hand`, `instinct`, `ready`, `shoot`, `digit:n`, `inv:…`, `aid:…`, `skip:stop`, `skip:chunk`, …).
+4. it merges the jobs registry (§4.3), and registers a keyless `jobs` entry whose `after`, on loading a state with a scenario, drops the events of a job that no longer exists and posts any recurring job that is missing;
+5. it takes each domain's `events: { <kind>: fn }`, the handlers of events that are not jobs, and its `upgrades`, added with `addUpgrade(id, fn, { scoped: true })` as the game's own;
+6. it installs the actions table, which routes each input action by its prefix (the text before its first colon) to its owner (`people`, `hand`, `instinct`, `ready`, `shoot`, `digit:n`, `inv:…`, `aid:…`, `skip:stop`, `skip:chunk`, `debug:skip:<ms>`, …); an unknown one is counted (`stats.unrouted`), never thrown. Until SKILLS has a domain, `instinct` routes to the people stub.
+
+The registry and the upgrades live in `core/state.js`'s module state, and `createSim` resets them (`resetDomains()` drops every claim and every scoped upgrade), so two games in one process each register their own. A test that round-trips a bare `newState()` after a `createSim` in the same process calls `resetDomains()` first (core-state and core-queue do). On load the jobs entry's check runs after every fill and upgrade (a scenario's `sandbox:0.0.1` among them), so a job's next occurrence is posted at the live site's longitude as the upgrades leave it.
 
 The test `game-domains` (§13.6) checks the registry three ways: the registered keys are exactly §6.1's table; each domain's `init`, run alone on an empty state, creates only its own keys, so the domains' keys are disjoint; and every save made in the determinism suite has no top-level key outside the registry. Two agents building in parallel (ROADMAP §2.7) can therefore never both write one key unnoticed.
 
-`newGame({ seed, mode, scenario, startMs, worldId })` builds a fresh state through the scenario. `continueWorld(state, careerOpts)` starts the next recruit in an existing world (CAREER §21). `createSim` holds no state of its own: everything it needs is in `state` or is a pure function of it. So the same file runs:
+`newGame({ seed, mode, scenario, startMs, hour, worldId, version, domains })` builds a fresh state through the scenario: core's `newState`, `meta.worldId` (`w-<seed>` unless given), every domain's `init` in order, the scenario's fill, `hour` (the Mars local hour at the live site), then each recurring job's first occurrence. It throws without a seed. The new state's empty shapes are written out in full, as §6.2 shows them; §6.6's rule 1 (no defaults on disk) applies from the first domain that writes defaults. `continueWorld(state, careerOpts)` starts the next recruit in an existing world (CAREER §21). `createSim` holds no state of its own: everything it needs is in `state` or is a pure function of it. So the same file runs:
 - in the page;
 - in node for the tests and the bots (`tests/game.mjs`, §13.2);
 - in `tools/replay.mjs`.
 
 ### 2.6 The browser edge and the UI's way into the sim
 
-- **The UI never changes the state.** Every choice in a card, a menu or a splash becomes an **action** (a string, or a small plain object `{ act, args }`). The UI queues it through `input.queue(action)`, and it goes into the next tick's snapshot (`input.act`). The recorder keeps it like a key press (§8.3). This is tradecraft's rule (`ui.js`: "player choices go back through callbacks as action strings consumed by the next tick"), made complete.
+- **The UI never changes the state.** Every choice in a card, a menu or a splash becomes an **action** (a string, or a small plain object `{ act, args }`). The UI queues it through `input.queue(action)`, and it goes into the next tick's snapshot (`input.act`). `queue()` does not pass through the key filter (`accept()`), so the UI's own actions get in while the game is paused or a card is up (built). The recorder keeps it like a key press (§8.3). This is tradecraft's rule (`ui.js`: "player choices go back through callbacks as action strings consumed by the next tick"), made complete.
 - **The sim never reads the UI.** It reports facts on the bus. `src/ui/presenter.js` is LONGHAUL's single place that decides how each fact is shown: a log line, a toast, a balloon, a card, a sound (`js/ui/presenter.js`, 328 lines, its pattern).
 - **What the UI may read**: the state (read only) and the exported helpers of the sims (one quantity, one helper: the watch calls `calendar.js`, the sheet calls `body/mods.js`, the step panel calls `arms/shooting.js options()`). UI code never computes a quantity of the sim on its own.
 
@@ -320,20 +358,23 @@ Facts are kebab-case names with plain-data payloads (the bus's header convention
 | `skip-start` | `{ id, activity, kind, fromMs, toMs, where, posture, mask }` | TIME |
 | `skip-frame` | `{ id, atMs, ticker: [new lines], frame: sample \| null }`, once per frame of a skip | TIME |
 | `skip-interrupt` | `{ id, atMs, by, prio, line, reflex }` | TIME |
-| `skip-end` | `{ id, activity, fromMs, toMs, planned, interrupted, by, outcome, papers }` | TIME |
+| `skip-end` | `{ id, activity, fromMs, toMs, planned, interrupted, by, outcome, papers, minutes }` (`minutes`: the whole game minutes the skip passed) | TIME |
+| `skip` | the legacy `loop.skip` report `{ what, fromMs, toMs, requestedMs, elapsedMs, minutes, stopped, reason }`, kept for `skipNow`'s five `core-loop` tests (built) | TECH |
 | `autosave` | `{ why: 'skip' \| 'day' \| 'area' \| 'live' \| 'combat' \| 'death' \| 'edge' \| … }` | TIME and CAREER (ask), TECH (writes) |
 | `log` | `{ entry }`, a record appended to `state.log` | TECH |
+| `line` | `{ text, kind? }`, a short line for the player: a toast until the presenter exists (built) | TECH |
 | `roll` | `{ roll }` (SKILLS §15.2's record) | SKILLS |
 | `say` | `{ who, text, kind: 'speech' \| 'radio' \| 'bark' \| 'pa', durMs }` | PEOPLE |
 | `area-enter`, `area-leave` | `{ site, area, from, portal }` | PLACES |
 | `chunk-in`, `chunk-out` | `{ site, area, i, j }` | PLACES |
+| `path-done` | `{ reqId, who, ok, lengthM, reason }`, a path request answered (built) | PLACES |
 | `sound` | `{ kind, x, y, z, area, db, src }` | VIEWS (audio), PEOPLE (hearing) |
 | `fx` | `{ kind, x, y, z, atMs, dir, size }` (a muzzle flash, an impact, sparks, steam) | WEAPONS, COMBAT, PLACES |
 | `papers` | `{ papers: [ … ] }` | TIME, CAREER |
 | `body-stage`, `body-event`, `body-interrupt`, `body-dead` | BODY §2.4 | BODY |
 | `broke` | `{ where, message }`, a lost tick or a failed listener | TECH |
 
-Every other fact is registered by its owning section in the same table, in the same change that first emits it.
+Every other fact is registered by its owning section in the same table, in the same change that first emits it. v0.0.2 registers these 24 (`src/core/facts.js`).
 
 ---
 
@@ -347,7 +388,7 @@ Every other fact is registered by its owning section in the same table, in the s
 |---|---|---|---|---|---|
 | 0 | `due` | dispatch every event with `atMs ≤ clock.ms` (§4) | `core/queue.js`, `sim/jobs.js` (TECH, TIME) | no | 0.02 ms |
 | 1 | `input` | apply the snapshot: actions routed to their owners, held keys to the player's intent | `sim/game.js` (all) | **yes** | 0.03 ms |
-| 2 | `player` | the player moves: busy plan, walking, bounding, zero-g push-offs; speeds from BODY, collision from PLACES | `people/walk.js`, `body/motion.js`, `places/collide.js` | no | 0.03 ms |
+| 2 | `player` | the player moves: busy plan, walking, bounding, zero-g push-offs; speeds from BODY, collision from PLACES (the walker's circle of its class's radius against its grid's rects, x then z, sliding along what it presses into; the door assist of `NUDGE_M` 0.3 m; a walker inside a blocker settled on the nearest free cell: PLACES §2.1) | `places/move.js`, `places/collide.js` (built in 0.0.2), then `people/walk.js`, `body/motion.js` | no | 0.03 ms |
 | 3 | `actors` | every live actor moves: steering, path following, kinematic agents | `people/steer.js`, `people/walk.js` (PEOPLE) | no | 0.25 ms |
 | 4 | `bodyFast` | BODY's fast cadence for the player and every L0 and L1 person: gait and traction, stamina, G-LOC reserve, suit pressure, breath-hold, falls | `body/*` (BODY) | no | 0.10 ms |
 | 5 | `rehash` | the actor grid, rebuilt from `actors.list` in its saved order | `places/grid.js` (PLACES) | no | 0.03 ms |
@@ -364,12 +405,14 @@ Then the loop moves the clock (`ms += 50`, `tick += 1`). Then come the periodic 
 
 **Holds** (stop motion, talk, a reflex card) are the loop's (built). While `state.clock.holds` is non-empty, only `input` and `offers` run, and the clock stands. A hold set mid-tick freezes that tick at once, as the built loop does: the layers after the one that set it run only if they run while held. So a hold set by step 8 skips steps 9 and 10, still runs step 11, and the clock does not move that tick: the step panel (`offers`) is current on the frozen frame. `core-loop` tests this case (§13.6).
 
+**The paths budget, measured** (v0.0.2): a blocked A* in the test rooms runs about 0.34 µs an expansion (2,320 in 0.78 ms), so `PATH_NODES_TICK` 8,000 is about 2.7 ms of solving, against this table's 0.60 ms for the layer; six "locked" requests to the office made one tick of 4.4 ms (9,228 expansions). The budget is in work units and stays so (correction 7); what changes with the measure is the number. **Until `mess-noon` measures it (0.0.9)**, the 8,000 stands, and `game-tick` prints the paths layer's worst tick beside it; if the busiest area's mean passes 0.60 ms, `PATH_NODES_TICK` comes down toward 1,800 (0.6 ms at the measured rate), and the hierarchy's door-to-door legs (PLACES §2.2) carry the rest (my call).
+
 **The sum** is 1.83 ms mean in the busiest area. The minute boundary adds the slow step (§3.4) to one tick in 1,200. Quiet areas (the squad bay at night, a range lane) are expected near 0.3 ms.
 
 ### 3.2 Staggering and work units
 
 - **Bucketed per-entity work.** An actor's per-second work runs on the tick where `phase mod 20 = hash(id) mod 20`, and `phase = floor(clock.ms / TICK_MS)`. So a crowd's second costs a twentieth of it each tick, and no tick carries all of it (tradecraft did this by hand for followers and onlookers; here it is a rule). Work at other periods uses the same form: `hash(id) mod (periodMs / TICK_MS)`.
-- **Work units, not milliseconds.** Anything in the sim that limits how much work a tick does counts units of work: path node expansions, solves, chunk cells generated, people placed. It never counts real time. That keeps a tick's result a function of the state and the input alone (§8.1). Wall-clock budgets exist only outside the sim: in the render, the paint worker, and the slicing of skips across frames.
+- **Work units, not milliseconds.** Anything in the sim that limits how much work a tick does counts units of work: path node expansions, solves, chunk cells decoded, people placed. It never counts real time. That keeps a tick's result a function of the state and the input alone (§8.1). Wall-clock budgets exist only outside the sim: in the render, the paint worker, and the slicing of skips across frames.
 - **Spatial queries** return results sorted by distance, ties broken by id (`byDistanceThenId`). The actor grid is rebuilt every tick from the saved actor list, as tradecraft's `rehash()` was. That costs about 0.03 ms for 160 actors and has no history to diverge.
 
 ### 3.3 The per-second layer
@@ -382,7 +425,7 @@ The layer is **live only**. It does not run in an outcome skip, because there TI
 
 ### 3.4 The slow layer: `slowStep(state, bus, fromMs, toMs, ctx)`
 
-This is one function. Live play calls it at every whole game minute, with `[minuteStart, minuteEnd]`. The outcome engine calls it for each of its steps (§5.3), with `ctx.skipping` true. It runs the registered **contributors** in TIME §5.4's order:
+This is one function. Live play calls it at every whole game minute; the outcome engine calls it for each of its steps (§5.3), with `ctx.skipping` true. **Every call starts at the saved slow mark**, `time.slowToMs`, and moves it to the step's end (built in 0.0.2; a save with none starts at `fromMs`): live play's minute at m steps `[mark, m]`, and a skip's first step starts at the mark, so lived minutes and skipped steps cover each moment of game time once wherever a skip starts or ends. Before the mark, store's probe of 90.5 s lived, a 5-minute skip and 90.5 s lived stepped [60, 90.5] s never and [360, 390.5] s twice (`game-slow`). Each contributor runs in its own try: one that throws loses only its own span, its error is rethrown once the rest have stepped, and none steps a span twice. It runs the registered **contributors** in TIME §5.4's order:
 
 | # | Contributor | What | Owner |
 |---|---|---|---|
@@ -420,8 +463,10 @@ The loop runs in one of four modes, decided each frame:
 |---|---|---|
 | `paused` | any pause reason (Space, an overlay, a hidden tab) | no ticks. The accumulator waits. The render runs |
 | `live` | default | the accumulator's ticks, at most 5 a frame (built) |
-| `ff` | `state.skip.kind === 'ff'` | up to `FF_TICKS_FRAME` 40 ticks and `FF_FRAME_MS` 8 ms of real time a frame, with the skip's fixed input. The accumulator is reset |
-| `outcome` | `state.skip.kind` is `'outcome'`, `'out'`, `'day'` or `'world'` | `advanceSkip()`: the whole grid steps that end by the splash's target (`world`: no target), at most `SKIP_FRAME_MS` 4 ms of real time a frame (8 ms for the prologue behind its papers, §5.8) |
+| `ff` | `state.skip.engine === 'ff'` | up to `FF_TICKS_FRAME` 40 ticks and `FF_FRAME_MS` 8 ms of real time a frame (`FF_OUT_FRAME_MS` 12 for an `out` skip behind the blackout, TIME §4.5), with the skip's fixed input. The accumulator is reset |
+| `outcome` | `state.skip.engine === 'outcome'` | `advanceSkip()`: the whole grid steps that end by the splash's target (`world`: no target), at most `SKIP_FRAME_MS` 4 ms of real time a frame (8 ms for the prologue behind its papers, §5.8) |
+
+**The mode follows the skip's engine, not its kind** (CONTRACTS §2; §19 item 10, settled 2026-11-06). `beginSkip` sets `state.skip.engine` (§5.2): `ff` for kind `ff`, and for kind `out` while a fight is live in the area, whatever its length, or under 120 s where the area allows a fast-forward (TIME §4.5, §5.2); `outcome` for the rest. An `out` skip whose fight record closes switches its engine to `outcome` at that tick and goes on, the stage still hidden (TIME §4.5): a fight is never turned into an outcome around the player. Built in v0.0.3: `loop.js`'s mode line reads the engine (an older record without one by its kind), and so do `game.js`'s due layer, `advanceSkip`, `ffCheck`, `skipNow` and `tests/game.mjs`; `game-targets` holds it (an `out` skip on the `ff` engine runs 2,400 lived ticks in `ff` mode). v0.0.2's loop read the kind.
 
 Holds work inside `live` and `ff` as they do today. When a skip ends, the loop returns to `live` with an empty accumulator: the splash's real seconds are never owed to the sim.
 
@@ -438,7 +483,7 @@ These are built. A tick that throws is lost: its clock does not move, `broke` is
 `state.events` is an array kept as a **binary min-heap**, ordered by `(atMs, prio, seq)`. It holds the queue and nothing else (correction 15). Each entry is TIME §5.6's record, saved without its null and default fields (§6.6):
 
 ```json
-{ "id": "e812", "seq": 812, "atMs": 1234567000, "prio": 3, "kind": "job", "src": "world:zones", "payload": { "job": "zoneIncidents" } }
+{ "id": "e812", "seq": 812, "atMs": 23484000000, "prio": 3, "kind": "job", "src": "world:zones", "payload": { "job": "zoneIncidents" } }
 ```
 
 - A missing `who`, `area`, `line`, `tone` or `reflex` reads as null. This record is 117 B; with its five nulls written out it was 178 B (measured, minified JSON).
@@ -455,11 +500,12 @@ cancel(state, src, pred?)            → n      // by source key (TIME §5.6: "s
 nextAt(state)                        → ms | Infinity
 popDue(state, tMs)                   → [ev…]  // every live event with atMs ≤ tMs, in (atMs, prio, seq) order
 hazard(state, { src, key, ratePerMin, gen }) → id   // pre-drawn: atMs = now + floorSec(−ln(u) / rate × MIN_MS)
-                                                    // u from stream(src, key, gen); redraw on a rate change with gen + 1
+                                                    // u from stream(worldSeed, src, key, gen): the world's seed is in it,
+                                                    // or every world would share its hazard times; redraw on a rate change with gen + 1
 size(state), live(state)             // for tests and the save meter
 ```
 
-The dispatcher (`sim/jobs.js dispatch(state, bus, ev)`) calls the handler registered for `ev.kind` (and `ev.payload.job` for jobs). The handler applies the event's world effects whatever any skip mask says. The skip engine then decides whether the event stops the skip (TIME §7).
+The dispatcher (`sim/jobs.js dispatch(state, bus, ev)`) calls the handler registered for `ev.kind` (and `ev.payload.job` for jobs). The handler applies the event's world effects whatever any skip mask says. The skip engine then decides whether the event stops the skip (TIME §7), through the one `stops(mask, ev)` rule that both engines and the due layer's fast-forward check read. Until TIME's masks are built, it is `defaultStops` (built): job events never stop a skip; priorities 0 (D) and 1 (A) always do; 2 (O), 3 (B) and 4 (S) where the mask names their letter (`O*` holds orders, so it does not); 5 never.
 
 ### 4.3 Recurring jobs
 
@@ -496,11 +542,16 @@ The sim calls it during a tick: an activity began at its fixture, a chapter day 
 
 ```
 kind = req.kind ?? (req.planMs < FF_MAX_MS ? 'ff' : 'outcome')       // FF_MAX_MS = 120,000
-state.skip = { id: 'k' + next.k++, kind, activity, who, where, posture, mask, resolver,
+engine = kind == 'ff' ? 'ff'
+       : kind == 'out' and (fightLive(state) or (planMs < FF_MAX_MS and ffAllowed(state))) ? 'ff'
+       : 'outcome'                                                // §3.6; TIME §4.5, §5.2
+state.skip = { id: 'k' + next.k++, kind, engine, activity, who, where, posture, mask, resolver,
                fromMs: now, toMs: now + planMs, atMs: now, chunkMs, chunks: 0,
                ticker: [], frame: [], stop: null, result: {}, cmds: [] }
 emit('skip-start', …)
 ```
+
+`chunkMs` is rounded up to a whole tick when the skip begins, so every step ends on the 50 ms grid (built). **The engine is built in v0.0.3** (`src/sim/time/skip.js`): `beginSkip` sets `engine` (`ff` for kind `ff`, or kind `out` while `fightLive(state)`, a hook that is false until COMBAT's fights; the `ffAllowed` branch waits for them too) and `skip-start` carries it; `engineOf(s)` reads an older record's engine from its kind (`ff` for `ff`, else `outcome`), so a save from v0.0.2 carries on. No golden moved. `stop` is `{ atMs, by }`, where `by` is the cause: the stopping event's id, `'player'` (a `skip:stop` command) or `'hold'` (a hold set during the skip). It is a cause, not an id field (§2.3.1 names id fields `id`, `*Id`, `*Ids` and `who`), so the id walk does not read it.
 
 The current tick ends normally. The loop sees `state.skip` on the next frame and changes mode.
 
@@ -511,7 +562,7 @@ The current tick ends normally. The loop sees `state.skip` on the next frame and
 ```
 gridNext(s, state, t0):                               // the end of the next step, before events and toMs
   outcome, out:  floorToMinute(t0) + MIN_MS           // whole game minutes on the live minute grid: the splash's clock moves by the minute
-  day:           allSteady(state) ? floorToHour(t0) + HOUR_MS : floorToMinute(t0) + MIN_MS
+  day:           allSteady(state) ? min(floorToHour(t0) + HOUR_MS, minNextChange(state, t0)) : floorToMinute(t0) + MIN_MS
   world:         allSteady(state) ? minNextChange(state, t0) : floorToMinute(t0) + MIN_MS   // event to event: no clock is shown
 
 advanceSkip(state, bus, targetMs, budget):            // outcome, out, day and world kinds
@@ -519,13 +570,15 @@ advanceSkip(state, bus, targetMs, budget):            // outcome, out, day and w
   loop:
     if s.stop or clock.ms ≥ s.toMs or budget.over(): break
     if s.cmds has 'stop' with atMs ≤ clock.ms: s.stop = { atMs: clock.ms, by: 'player' }; break
+    if clock.holds not empty: s.stop = { atMs: clock.ms, by: 'hold' }; break   // no time passes while time stands still
     t0 = clock.ms
     t1 = min(s.toMs, nextAt(state), gridNext(s, state, t0))
     t1 = min(s.toMs, max(t1, nextWholeSecond(t0)))   // never a zero step; events sit on whole seconds
+    assert onTickGrid(t1)                             // events on whole seconds, changes and chunks rounded up to ticks
     if t1 > targetMs: break                           // the target gates whole steps; it never cuts one
+    clock.ms = t1                                     // the clock first, as when the live minute layer runs
     slowStep(state, bus, t0, t1, { skipping: true, skip: s })
     activityStep(state, s, t0, t1)                    // TIME: the activity's own accruals
-    clock.ms = t1
     for ev in popDue(state, t1):
       dispatch(state, bus, ev)
       if stops(s.mask, ev): s.stop = { atMs: t1, by: ev.id }; emit('skip-interrupt', …); break
@@ -536,12 +589,15 @@ advanceSkip(state, bus, targetMs, budget):            // outcome, out, day and w
   if clock.ms ≥ s.toMs or s.stop: finishSkip(state, bus)
 ```
 
-- **The kinds' grids.** Splashed activity skips (`outcome`) and unconsciousness (`out`) step on whole game minutes, ending early at an event's second. Chapter days (`day`) step on whole hours, falling to minutes while any contributor is not steady (someone bleeds, a compartment is off its set point, a voyage leg is ramping), so a step never spans a process without a closed form. `world` skips (the prologue, §5.8; the successor's gap, CAREER §21; node's moment fixtures and career runs) show no clock and take no target, so they may go event to event while everything is steady.
+- **The kinds' grids.** Splashed activity skips (`outcome`) and unconsciousness (`out`, when it runs on the outcome engine: §3.6) step on whole game minutes, ending early at an event's second. Chapter days (`day`) step on whole hours, falling to minutes while any contributor is not steady (someone bleeds, a compartment is off its set point, a voyage leg is ramping), so a step never spans a process without a closed form. `world` skips (the prologue, §5.8; the successor's gap, CAREER §21; node's moment fixtures and career runs) show no clock and take no target, so they may go event to event while everything is steady.
 - **The target gates, it never cuts.** A step runs only if it ends at or before the target. The day splash's target therefore reaches the sim by whole hours and an activity splash's by whole minutes, whether or not the UI floors it. "To the end" sets the target to `toMs`. With no splash (node, the tests, `?nostore` benches) the target is `toMs`, and `skipNow` (§5.6) walks exactly the grid the page walks.
 - `budget.over()` is the loop's: real time used this frame against `SKIP_FRAME_MS` 4. It is read between steps, so it decides only **where the slicing falls**, never what a step computes (test "slice independence", §8.2).
-- `allSteady` is the AND of the contributors' `steady()`. `minNextChange` is the minimum of their `nextChangeMs()`. Both are functions of the state, so the grid is the same in the page, in node and in a replay.
+- `allSteady` is the AND of the contributors' `steady()`. `minNextChange` is the minimum of their `nextChangeMs()`, rounded up to a whole tick. Both are functions of the state, so the grid is the same in the page, in node and in a replay. A `day` skip's hour step is also cut at `minNextChange`, so an hour never runs past the moment a process stops being steady (my call, built in 0.0.2).
+- **The clock moves before the slow step**, as it does in live play when the minute layer runs, so an event a contributor posts from "now" never falls inside the step it is posted in (built; my call). An event due at the skip's first clock (the one the tick that began it moved to) is dispatched there first, at its own second, not a step late.
+- **Every step ends on the 50 ms tick grid** (built): a contributor's next change and a chunk added to the wait are rounded up to a whole tick, and `advanceSkip` throws on a step that would end off it. The review's build left the clock at …678.9 ms after a fractional change, where live play never met a whole second again.
+- **A hold set during a skip stops it**, by `'hold'`, in both engines (built): a choice the game waits on cannot be answered by a fast-forward's fixed input, and no time passes while time stands still.
 - **The cost.** An 8-hour sleep is now 480 minute steps plus its events (about 40), not "about 40 steps". In a quiet barracks a steady minute step does no contributor work (§3.4), so it costs a few µs: about 2 to 3 ms for the night, plus eight hourly jobs at up to 0.5 ms, about 7 ms in all (my estimate), inside TIME §5.10's 25 ms. A night beside a process that is not steady pays up to TIME's 0.05 ms ceiling on every step, 24 ms for the steps alone, and is budgeted separately in §5.9.
-- **`ff` kind**: the loop runs real ticks with the skip's input (`NO_INPUT` plus the activity's held posture). A fast layer may set `s.stop` (perception, contact, COMBAT), and so may step 0 when a due event's priority breaks the mask. After each tick, the loop checks `clock.ms ≥ s.toMs || s.stop` and calls `finishSkip`.
+- **The `ff` engine** (kind `ff`, and `out` in a fight or under 120 s): the loop runs real ticks with the skip's input (`NO_INPUT` plus the activity's held posture). A fast layer may set `s.stop` (perception, contact, COMBAT), and so may step 0 when a due event's priority breaks the mask. After each tick, the loop checks `clock.ms ≥ s.toMs || s.stop` and calls `finishSkip`.
 
 ### 5.4 Finishing: `finishSkip(state, bus)`
 
@@ -564,7 +620,7 @@ Placement and recycling happen while the splash still hides the stage, so the zo
 
 ### 5.6 `skipNow(state, bus, req)`
 
-This is `beginSkip`, then `advanceSkip` with `targetMs = Infinity` and no budget, then the finish. It serves tests, `__olympus.skip(ms)` (an `idle` activity with mask `D`: TIME §19), the debug keys `[` and `]`, and the bots in node. It keeps the kind the page would use, so it steps the page's grid and reaches the page's bits; only callers that ask for `kind: 'world'` (fixtures, career runs) go event to event.
+This is `beginSkip`, then `advanceSkip` with `targetMs = Infinity` and no budget, then the finish. It serves tests, `__olympus.skip(ms)` (an `idle` activity with mask `D`: TIME §19), the bots in node, and the debug keys ^ and $ (AZERTY's labels of the codes `BracketLeft` and `BracketRight`, `[` and `]` on QWERTY), which in the page begin a sliced idle skip of 15 minutes and one hour through the action `debug:skip:<ms>`, marking the save `debugUsed` (§15.5). It keeps the kind the page would use, so it steps the page's grid and reaches the page's bits; only callers that ask for `kind: 'world'` (fixtures, career runs) go event to event.
 
 ### 5.7 Saving inside a skip
 
@@ -597,8 +653,10 @@ SETTING §2.3 opens every new world by rolling LONGHAUL's start state from the e
 | an 8-hour sleep in a quiet barracks | ≤ 25 ms in all, sliced at 4 ms a frame | 480 minute steps at a few µs plus about 40 event steps: about 7 ms (§5.3) |
 | an 8-hour sleep with a process that is not steady (a squadmate bleeding, a compartment off its set point) | ≤ 30 ms (my call) | 480 minute steps at ≤ 0.05 ms, plus the events |
 | a chapter day of 24 h | ≤ 30 ms | 24 hour steps; 24 hourly jobs at ≤ 0.5 ms, three daily jobs at ≤ 5 ms, each at its own slot |
+| the default voyage (6.9 days at 1 G) carried on | ≤ 0.3 s, spread over the day splashes | 165 hour steps with their hourly jobs and 7 days of daily ones, about 0.19 s (my estimate, as below) |
 | a 12-day voyage carried on (the homeward 0.3 G voyage, 12.5 days, the longest: CONTRACTS §14) | ≤ 0.5 s, spread over the day splashes | 288 hour steps with 288 hourly jobs and 36 daily ones, about 0.33 s (my estimate from LONGHAUL's measured costs, §11.1) |
 | fast-forward | ≤ 8 ms of real time a frame | 40 ticks at about 0.2 ms in an ordinary area |
+| an `out` fast-forward in a fight | ≤ 12 ms of sim a frame (`FF_OUT_FRAME_MS`, TIME §4.5), the stage hidden by the blackout | eleven minutes out in a fight of 30 actors: 13,200 ticks at about 0.5 ms, some 6.6 s of compute behind about 9 s of blackout (TIME §5.10) |
 
 ---
 
@@ -615,13 +673,13 @@ The top level is reserved. A new key needs a change to this table. The owner def
 | `rng` | TECH | `{ main: [4 words], <stream>: [4 words], … }` | built; streams named by their owner |
 | `events` | TIME (implemented by TECH) | the queue's heap array, and nothing else | §4; correction 15 |
 | `skip` | TIME | the running skip, or null | §5 |
-| `time` | TIME | `{ chapter, voyage, pod, alarms, interrupts: { perSol, perSkip }, liveSinceSaveMs, director, stances, drills }`: `director: { recent: [{ kind, day }], lastSpikeDay }` (TIME §9.8), `stances: { <blockKind>: stance }` (TIME §9.3), `drills: { dealt: [kinds], board: [...] }` (TIME §12.8) | the clock is not here; `chapter` and `voyage` are here, not at the top level (correction 18); the last three are TIME §13's asks |
+| `time` | TIME | `{ chapter, voyage, pod, alarms, interrupts: { perSol, perSkip }, liveSinceSaveMs, slowToMs, director, stances, drills }`: `slowToMs` the slow mark (§3.4, built),  `director: { recent: [{ kind, day }], lastSpikeDay }` (TIME §9.8), `stances: { <blockKind>: stance }` (TIME §9.3), `drills: { dealt: [kinds], board: [...] }` (TIME §12.8) | the clock is not here; `chapter` and `voyage` are here, not at the top level (correction 18); the last three are TIME §13's asks |
 | `player` | PEOPLE | `{ id, actor, waypoint, presets, keeps }` | a pointer and the controller's own bits; `id` is the player's ordinary person id (§2.3.1), and the person is `people[player.id]` |
 | `people` | PEOPLE | `{ <personId>: person }`, an id-keyed map and nothing else: the sheets of tiers 1 to 3, with `body` (BODY), `skills` (SKILLS), `kit` (WEAPONS, §6.7), gauges | PEOPLE §2.3; a person's memories are a runtime index over `happenings` |
 | `units` | PEOPLE | `{ <unit path>: unit }`: the unit tree and its billets | PEOPLE §2.6, kept at the top level so `people` stays a map of persons only (correction 18) |
 | `happenings` | PEOPLE | the ring of notable things and who knows them: at most 1,200 records, ids `n<n>` | PEOPLE §2.5's "event log", renamed (correction 15); kept for the memorial past the ring when of weight 5 |
-| `actors` | PEOPLE | `{ list: [actor…] }`: the bodies on the live area, persistent and crowd, in a stable order | rebuilt into the grid every tick |
-| `mind` | PEOPLE | the player's knowledge: `seen` (ghosts), `felt`, `heard`, `known` (SKILLS §15.3), `map` (PLACES: what is known of places) | "we only know what we know" |
+| `actors` | PEOPLE | `{ list: [actor…], area }`: the bodies on the live area, persistent and crowd, in a stable order, and the area they were made for (built in v0.0.3: a load carries on with the same actors; the people domain's `idFields` gains `'actors.area': 'place'`) | rebuilt into the grid every tick |
+| `mind` | PEOPLE | the player's knowledge: `seen` (ghosts), `felt`, `heard`, `known` (SKILLS §15.3), `map` (PLACES: what is known of places), `threat` (COMBAT §6.1) | "we only know what we know"; written and read only through PEOPLE's `people/mind.js`: `noteThreat(state, why, atMs, whoId)` and `threatOf(state)` for COMBAT's record, the generic `noteMind(state, part, rec)` and `mindOf(state, part)` for the rest (PEOPLE §8.8) |
 | `talk` | PEOPLE | an open conversation, or null | a save in a talk resumes in it (TIME §13) |
 | `names` | PEOPLE (pools from SETTING) | the registry of every full name in the world, by kind (people, ships, operations) | PEOPLE §3.5, SETTING §12 |
 | `fights` | COMBAT | one record per fight in the live area (COMBAT §2.1) | empty in peace |
@@ -647,7 +705,7 @@ The top level is reserved. A new key needs a change to this table. The owner def
   "rng": { "main": [1, 2, 3, 4], "people": [5, 6, 7, 8] },
   "events": [ { "id": "e1", "seq": 1, "atMs": 23506800000, "prio": 5, "kind": "job", "src": "people:pod", "payload": { "job": "podPublish", "every": "local@20:00" } } ],
   "skip": null,
-  "time": { "chapter": null, "voyage": null, "pod": { }, "alarms": [], "interrupts": { "perSol": 0, "perSkip": 0 }, "liveSinceSaveMs": 0 },
+  "time": { "chapter": null, "voyage": null, "pod": { }, "alarms": [], "interrupts": { "perSol": 0, "perSkip": 0 }, "liveSinceSaveMs": 0, "slowToMs": null },
   "player": { "id": "p233", "actor": "a1", "waypoint": null, "presets": {}, "keeps": {} },
   "people": { "p233": { "id": "p233", "name": "…", "body": { "v": 1, "tmpl": "m-adult" }, "skills": { },
                         "kit": { "tmpl": "newjoin-arrival", "worn": { "torso": "i401", "belt": "i402" }, "hands": [null, "i403"] } } },
@@ -659,7 +717,7 @@ The top level is reserved. A new key needs a change to this table. The owner def
   "items": { "i7": { "type": "gun", "model": "r7", "chamber": "empty", "mode": "safe" },
              "i403": { "type": "paper", "kind": "check-in-sheet" } },
   "armoury": { "guns": { "i7": { "assignedId": "p233", "log": [] } }, "ammoIssues": [] },
-  "places": { "live": { "site": "melas", "area": "melas.echo.1" }, "sites": { "melas": { "seed": 418211, "template": "melas@1",
+  "places": { "live": { "site": "melas", "area": "melas.echo.1" }, "sites": { "melas": { "template": "melas@1",
               "fixtures": { "f:armoury:rack-e2": { "holds": { "14": "i7" } } } } } },
   "world": { },
   "career": { "id": "c-48213-1", "world": "w-48213", "status": "arriving" },
@@ -683,9 +741,9 @@ Every top-level key is present. Inside a domain, fields at their defaults (null,
 ### 6.5 The log
 
 ```json
-{ "seq": 4182, "atMs": 1234567000, "kind": "roll", "tone": "note",
+{ "seq": 4182, "atMs": 23484000000, "kind": "roll", "tone": "note",
   "roll": { "skill": "weapons", "d20": 9, "value": 7, "mods": [["rested", 1], ["cold hands", -1]], "dc": 12, "margin": 2 },
-  "who": "p233", "area": "melas.range" }
+  "who": "p233", "area": "melas.ground" }
 ```
 
 - **A roll record stores no `text`.** J renders "Weapon handling 14 against 12: passed" from the roll by SKILLS's `rollText(roll)`, whose wording is picked by hash, so it reads the same every time. Other records keep a short `text`, or a `{ line, args }` key into their owner's line table. Defaults are left out (`hidden: false`, `seen: true`). The record above is 196 B; with its text and defaults written out it was 268 B (measured, minified JSON).
@@ -759,7 +817,7 @@ IndexedDB database `olympus`, **version 2**. Its `onupgradeneeded` keeps version
 | Store | keyPath | Holds |
 |---|---|---|
 | `saves` | `slot` | save records (§7.3) |
-| `profile` | `key` (one record, `'profile'`) | CAREER §3.2's profile: unlocks, careers across worlds, the worlds list. It outlives any world |
+| `profile` | `key` (one record, `'profile'`) | CAREER §3.2's profile: unlocks, careers across worlds, the worlds list, each world's entry carrying its honesty `marks` when it has any, updated in the same transaction as the save (built), and the sound's volume and mute (v0.0.3). It outlives any world. `updateProfile(fn)` reads and writes it in one transaction (built in v0.0.3 for the volume and mute: read and written back in two, a save landing between could lose a world's last-played time) |
 | `cache` | `key` | generated assets the game may rebuild at any time: sky surface maps (`sky:Phobos:1024x512:v1`), and later anything else heavy and pure. Cleared freely; never needed for correctness |
 
 `localStorage` holds settings only, all under `olympus.*`: `olympus.settings` (JSON: key layout, short splashes, audio, accessibility, the quality level of §16.6), `olympus.debug`, `olympus.picks` (the gallery), `olympus.scores` (the test scenes' score cards, ROADMAP §2.2), `olympus.debug.overlays`. Every access is wrapped in try/catch, so a private window falls back to defaults (LONGHAUL `wm.js`).
@@ -767,7 +825,7 @@ IndexedDB database `olympus`, **version 2**. Its `onupgradeneeded` keeps version
 ### 7.2 Slots and worlds
 
 A slot is `<worldId>:<name>`:
-- `w-48213:auto` and `w-48213:auto-prev` (a Standard career: the latest autosave and an older one, rotated on time, §7.4; TIME §13);
+- `w-48213:auto` and `w-48213:auto-prev` (a Standard career: the latest autosave and an older one, rotated on time, §7.4; TIME §13). `auto-prev` is not listed either (`HIDDEN_NAMES` holds it with `ironman-prev`, the 0.0.2 build sheet's call): the loader's recovery offers it;
 - `w-48213:day` (Standard: the sol's first quiet moment after local 00:00, §7.4; my call);
 - `w-48213:manual-1` to `manual-9` (Standard: nine manual slots; CAREER §23's "any number of slots" reads nine, correction 21);
 - `w-48213:edge` (the content edge's save, ROADMAP §2.6: written once when the career reaches the build's edge, loaded on the next minor). In Ironman there is no separate edge slot: the `ironman` slot is the edge save;
@@ -780,12 +838,12 @@ The built store's unprefixed slots are read as world `w-legacy` (pre-1.0 "where 
 
 ```json
 { "slot": "w-48213:auto", "world": "w-48213", "career": "c-48213-1", "json": "<canonical state JSON>",
-  "digest": "188cc2865b727c", "bytes": 912384, "about": "Pvt Holloway · Sol 307 · 06:12 · Base Melas",
-  "version": "0.1.3", "schema": 1, "mode": "standard", "seed": 48213, "gameMs": 123456789000,
+  "digest": "188cc2865b727c", "bytes": 912384, "about": "Pvt Holloway · Sol 592 · 06:12 · Base Melas",
+  "version": "0.1.3", "schema": 1, "mode": "standard", "seed": 48213, "gameMs": 23634696200,
   "savedAt": 1793900000000, "marks": [] }
 ```
 
-`digest` is `hash.js digest(json)`, written when saved and checked on load. `marks` copies the state's honesty marks (`debugUsed`, `imported`, `recovered`) for the load list. A record whose digest fails, or whose state will not load (`fromJSON` or `upgradeState` throws, or each of the first 20 ticks after the load is lost, §3.7), is reported ("this save is damaged"), and the loader offers recovery:
+`about` is the load list's line, the career's rank and name as created (Holloway here is an example of a name the enlistment paper draws or the player types: CAREER §4.2; nobody is written). `digest` is `hash.js digest(json)`, written when saved and checked on load; `bytes` is the JSON's UTF-8 length. A record with no digest (v0.0.1's) loads without the check. `marks` copies the state's honesty marks (`debugUsed`, `imported`, `recovered`) for the load list. A record whose digest fails, or whose state will not load (`fromJSON` or `upgradeState` throws, or each of the first 20 ticks after the load is lost, §3.7), is reported ("this save is damaged"), and the loader offers recovery:
 - **Standard**: `auto-prev`, then `day`, then the newest manual slot of the world.
 - **Ironman**: the hidden `ironman-prev`, offered only here. A career recovered this way is marked `meta.recovered = true`, shown beside `imported` and `debugUsed` (§15.5), so honesty is kept without losing the career to a bug (my call). A softlock the digest cannot see is a bug report (§7.6): the fix ships in code and the same save plays on.
 
@@ -794,9 +852,10 @@ The built store's unprefixed slots are read as world `w-legacy` (pre-1.0 "where 
 - **Triggers** are TIME §13's, as `autosave` facts. `main.js` coalesces them: at most one write per frame, after the frame's ticks or skip steps.
 - **When.** A live trigger (`AUTOSAVE_LIVE_MS`: 5 minutes of unpaused live play, counted by `time.liveSinceSaveMs` in game time) waits for a **quiet frame**: no tick owed beyond one, not in stop motion, not within 0.5 s of a shot. It waits at most 10 s, then writes anyway. Skip ends, area changes and chapter days write at once, because they sit behind a cut or a splash.
 - **How.** `toJSON` (canonical) on the main thread. It measured 2.6 ms for a 508 KB synthetic save shaped like 0.1's (13 tier-1 sheets, 180 tier-2, 600 events, 2,000 log lines, 140 hulls, 800 items), about 5 µs a KB, so about 8 ms at 1.5 MB. From 0.2 it encodes only the dirty keys (§6.6). Then an IndexedDB `put`, which is asynchronous. Saving is **a pure read**: it changes nothing in the state (`liveSinceSaveMs` is reset by the sim when it asks, not by the writer).
-- **Rotation, on time** (my call). Area changes write an autosave at every door, so copying `auto` to `auto-prev` at every write would leave `auto-prev` seconds behind `auto`, and a bug that corrupts the state or softlocks it would be in both within moments. So a Standard autosave copies the existing `auto` to `auto-prev`, in the same transaction, **only** when the existing `auto-prev` is at least `AUTO_PREV_GAME_MS` 600,000 (10 game minutes) older than the save being written, or at least `AUTO_PREV_REAL_MS` 300,000 (5 real minutes, by `savedAt`) older. `ironman-prev` rotates from `ironman` by the same rule.
+- **Rotation, on time** (my call). Area changes write an autosave at every door, so copying `auto` to `auto-prev` at every write would leave `auto-prev` seconds behind `auto`, and a bug that corrupts the state or softlocks it would be in both within moments. So a Standard autosave copies the existing `auto` to `auto-prev`, in the same transaction, **only** when the existing `auto-prev` is at least `AUTO_PREV_GAME_MS` 600,000 (10 game minutes) older than the save being written, or at least `AUTO_PREV_REAL_MS` 300,000 (5 real minutes, by `savedAt`) older. `ironman-prev` rotates from `ironman` by the same rule. **A damaged record is never rotated** (my call, built): an `auto` whose digest fails is overwritten, not copied, since copying it would take the good `auto-prev` with it. `autosave()` returns `{ slot, rotated, extra, kept, bytes, ms }` for the tests and the save overlay.
 - **The day slot.** At the first quiet frame after local 00:00 (00:00 after the timeslip, TIME §2.4), a Standard career also writes `day`: one slot per world, a sol old at most, which no door can overwrite.
-- **Leaving.** `pagehide` and `visibilitychange` (hidden) start a write at once. Chrome finishes an IndexedDB transaction begun in `pagehide`. The 5-minute live cadence bounds what could be lost if it did not.
+- **Leaving.** `pagehide` and `visibilitychange` (hidden) start a write at once. Chrome finishes an IndexedDB transaction begun in `pagehide`. The 5-minute live cadence bounds what could be lost if it did not. **As built in v0.0.3** (my call, after the review: the leave-the-page save never landed): leaving writes with `store.autosaveSync()`, which reads nothing and awaits nothing: the rotation is planned from the records this page last wrote or loaded, every put is issued in one transaction before it returns, then `commit()`, and the profile is left alone (`core-store` holds it: one transaction, puts only, null with no connection).
+- **At launch** (built in v0.0.3, my call): a new career or an imported file is autosaved as it launches (`why: 'launch'`), so a reload's Continue finds it (the review: a career was lost on a reload until its first autosave, five minutes of play or a door away; `store-browser` holds it, with 3.2 s of play kept across a second reload).
 - **Ironman** writes only its slot (and its hidden `ironman-prev` by rotation), and at the extra moments TIME §13 lists (combat begins, death).
 - **The edge.** On reaching the content edge, CAREER sets `career.edge` and asks for an autosave with `{ why: 'edge' }`; the writer puts it in `edge` (Standard) or `ironman` (Ironman), then the edge card shows (ROADMAP §2.6).
 
@@ -828,7 +887,7 @@ The built store's unprefixed slots are read as world `w-legacy` (pre-1.0 "where 
 - **Before 1.0**, the user's tradecraft rule holds: "Before 1.0, old saves are kept only where it comes naturally" (2026-10-26, carried until they say otherwise). A schema bump refuses older saves with the message "This career was saved by OLYMPUS v0.1.4, before a change it cannot carry. Start a new career: your profile and the memorial are kept." The profile store and its unlocks are never versioned away.
 - **After 1.0**, every bump must ship a migration.
 - **Data versions.** Templates carry `@n`. A save names the version it was built from, and an upgrade may keep an old template version loadable or rebuild it.
-- **Tests.** `core-state` keeps its upgrade tests. Each release that adds an upgrade adds a fixture save, made by the previous release, under `tests/fixtures/`, loaded and run 400 ticks without error (my call: cheap, and it catches a silent break).
+- **Tests.** `core-state` keeps its upgrade tests. Each release that adds an upgrade adds a fixture save, made by the previous release, under `tests/fixtures/`, loaded and run 400 ticks without error (my call: cheap, and it catches a silent break). The first is v0.0.1's own save (`LEGACY_V001_JSON`, made by the tag's code; it lives in `core-store.test.mjs` until it moves there).
 
 ---
 
@@ -843,7 +902,7 @@ Rules marked (checked) are enforced by `tests/syntax.test.mjs` or by a test of t
 3. **Cosmetics come from hashes**: lines, faces, posters, the splash's crowd, the instinct's wording (`hash01`, `hashPick`). A cosmetic choice never draws from a stream. (Review; the test "cosmetics don't move dice" toggles every cosmetic option and asserts identical digests.)
 4. **No real time in the sim.** No `Date`, no `performance`, no timers in `src/sim`, `src/world` or `src/data`. (checked)
 5. **A tick is a function of the state and the input.** Everything a tick needs is in `state`, in the input snapshot, or a pure function of them.
-6. **Budgets inside the sim are work units**: solves, node expansions, cells generated. Never milliseconds (correction 7).
+6. **Budgets inside the sim are work units**: solves, node expansions, chunk cells decoded. Never milliseconds (correction 7).
 7. **Derived data is pure and forced on demand** (§6.3). Background precomputation may only warm caches.
 8. **Decisions act next tick** (§3.1), so the order of actors within a step does not change the result.
 9. **Sorted iteration where order decides**: `ids(map)` (the cached ids in `cmpId` order, §2.3.2), queries `byDistanceThenId`, sorts with total comparators (ties by id; V8's sort is stable). A JS object's own key order is insertion order, but a canonical save writes keys sorted, so the same object iterates in a different order after a load. The key-order fuzz test (§8.2) catches any decision that depends on it.
@@ -923,11 +982,12 @@ The target is **at most 160 in the worst bench scene** (my call). VIEWS §14's "
 - **Outdoor chunks** (`CHUNK_M` 32 m, PLACES §2.4) are built in `render/chunks.js` by a generator, within `CHUNK_FRAME_MS` 3 ms of main-thread work a frame. The geometry arrays come from the worker (§11.2), and the main thread only uploads them. **Nothing pops into view**: the near ring's `REACH_M` 56 m is double the view's half-diagonal (24 × 13.5 m at most gives 27.5 m), so a chunk is built at least 28 m before it can be seen. Chunks are built ahead along the direction of travel first, and freed one frame after their replacement is drawn, so shared programs are never recompiled (tradecraft's `dying` list).
 - **Ground runs.** A chunk's 1 m material cells are merged into runs of the same tile (world-anchored, so they still repeat seamlessly). That cuts a chunk's ground from 1,024 quads to a few dozen (my call), and a typical chunk stays under 600 KB of vertex data.
 - **Tiles are painted once per site.** A site's tile kinds (regolith variants, slabs, deck plate) go into one tile atlas painted at site load. Chunks only reference it. So streaming a chunk uploads geometry, never new tile textures.
+- **As built in v0.0.3** (`src/render/chunks.js`, `src/art/terrain/base.js`): each ground chunk has **one texture page of its own** (100 to 340 KB), painted in the worker and sent through the upload queue within its 1 MB a frame, in place of one tile atlas per site; the ground's chunks are built within `REACH_M` 56 m and dropped beyond `DROP_M` 96 m, none first drawn in the picture (`view-areas`). The view keeps `AREA_CACHE` 3 areas built (the ground and both of Echo's floors) and prepares the areas the live area's portals lead to while play runs, so a door cuts in 3 to 11 ms once prepared; the first cut after launch is the area's build, 500 to 940 ms in the background band, under `CUT_MAX_MS` 1,000. Behind a cut the last picture holds (the view draws nothing and only drains the upload queue while the cut is held or the sim's area differs from the view's), and the cut waits for the figures of the people met there.
 
 ### 9.4 People: one instanced draw
 
 `render/crowd.js` adapts tradecraft's (293 lines):
-- **The atlas is a `DataArrayTexture` of 4096² layers**, allocated empty on the GPU and filled by sub-image copies (`renderer.copyTextureToTexture` with a region and a layer position: `texSubImage3D`, present in the vendored r186). Layers are 1 at density A and 2 at B (VIEWS §3.7).
+- **The atlas is a `DataArrayTexture` of 4096² R8 layers** (16 MiB each), allocated empty on the GPU and filled by sub-image copies (`renderer.copyTextureToTexture` with a region and a layer position: `texSubImage3D`, present in the vendored r186). It holds VIEWS §3.7's role indices: bodies are painted once per look as `role × 8 + tone`, the shader looks each index up in the person's colour row (a 256 × `MAX_PEOPLE` RGBA8 table, 256 KiB), and heads are per person. Layers are 2 at density A and 3 at B (VIEWS §3.7's budget; my call, aligning this section and §16.4 with it: the earlier "1 at A and 2 at B" counted RGBA8 layers of whole sheets). v0.0.2 draws from one RGBA8 4096² texture (64 MiB), a slot per look's sheet, the glow class in the alpha byte (`src/render/figures.js`), until the role-indexed bands land with the crowd port.
 - **Bands, not whole sheets.** A person's frames are allocated by band (street, weapon class, stance, environment, drill and PT, fight). Each band takes one LRU slot. A band is composed when first needed: a sleeper needs no weapon frames.
 - **Composition happens in the worker** (§11.2). The pixels come back as a transferable buffer and join the upload queue. `SHEETS_PER_FRAME` is 2 (VIEWS). The player's own figure is composed on the main thread at once if the worker is busy: it is never deferred.
 - **Per instance**: matrix, cell (layer, x, y, w, h), tint (`lightLevel` from the same helper the dice read, correction 14), flags (long cell, rotated, lifted, ghost). `MAX_PEOPLE` is 256 instances (VIEWS had 160): the largest drawn count of §16.7, a crowd scene's 224 live agents and 32 ghosts. `MAX_FLASHES` is 24.
@@ -954,6 +1014,8 @@ tradecraft lit lamp pools with 10 pairs of spotlights moved to the nearest lamps
 
 The existing strip-light map (`uGlowMap`: floor strips, battle strips) stays as built.
 
+**Built in v0.0.3** (`src/render/lighting.js`, `light-maps.js`): the tiled lamp table and its 4 m grid (`GRID_PER_CELL` 4), filled from places' `lampsOf` and re-sent only when places hands a new array; ceiling lamps are the room's fill (a room map of 0.25 m cells), never pools; a figure's tint is the exposure of `lightLevel` at its feet (VIEWS §2.7). Echo's ground floor tables 148 lamps, the ground 173.
+
 ### 9.7 Textures and uploads
 
 - **Allocate once.** Every texture the stage uses is allocated at site or area load at its final size: tile atlas, area pages, the decal atlas, the people array, light tables, the fog, the lookup, and the render targets. Allocation uses data-less textures with `texStorage` semantics.
@@ -974,7 +1036,7 @@ The stage uses **these programs and no others**:
 - the shadow depth variant of `batch`;
 - `post`, `blit` and `lut-bake`.
 
-That is 11, with a ceiling of 16. `render/warm.js` builds a hidden warm scene with one mesh of each, and compiles it at boot with `renderer.compileAsync` (KHR_parallel_shader_compile where present: ANGLE over D3D11 compiles slowly, and compiling in parallel keeps the title responsive). The perf test counts `linkProgram` calls after the first frame of the first area and fails on any. A material with a new `defines` combination is a code review failure.
+That is 11, with a ceiling of 16. As built in v0.0.3, the clocks' hands material is warmed at boot with the rest, and the berths' sleepers share the cards' program, so no program links after the first area's first frame (`view-browser`, `render-bench`). `render/warm.js` builds a hidden warm scene with one mesh of each, and compiles it at boot with `renderer.compileAsync` (KHR_parallel_shader_compile where present: ANGLE over D3D11 compiles slowly, and compiling in parallel keeps the title responsive). The perf test counts `linkProgram` calls after the first frame of the first area and fails on any. A material with a new `defines` combination is a code review failure.
 
 ### 9.9 The far window and the splash zoom
 
@@ -997,15 +1059,17 @@ tradecraft's `view.js` order, rewritten around OLYMPUS's sim (VIEWS §13):
 6. lights: the pools table updated if lamps changed, dynamic slots;
 7. air and weather uniforms;
 8. sprite tints;
-9. the fog mask (`fogcast.js`: symmetric shadowcasting over 0.5 m cells from the eyes against the area's opaque cells, then the cone, the reach and the light from perception's own formulas). It is recomputed when the eyes move 0.25 m or turn 3°, and once a game second, in at most 1 ms (tradecraft's eased fog: in 0.08 s, out 0.4 s);
-10. people as remembered: ghosts frozen where last seen, from `state.mind.seen`;
+9. the fog mask (`fogcast.js`: symmetric shadowcasting over 0.5 m cells from the eyes against the area's opaque cells, then the cone, the reach and the light from perception's own formulas). It is recomputed when the eyes move 0.25 m or turn 3°, and once a game second, in at most 1 ms (tradecraft's eased fog: in 0.08 s, out 0.4 s). As built in v0.0.3 there is no `fogcast.js`: the view calls people's `sightMask` (§2.2's `SIM_FOR_VIEW`) over 192 × 128 cells of 0.25 m and `render/fog.js` eases and dithers it (VIEWS §2.11; PEOPLE §7.6);
+10. people as remembered: ghosts frozen where last seen, from `state.mind.seen`; as built in v0.0.3, the view's own memory (`render/memory.js`, never saved) until `state.mind.seen` comes with sightings (VIEWS §2.11);
 11. the crowd instances, decals and effects;
 12. the upload queue drained;
 13. `stage.render()`;
 14. the far window;
 15. stats.
 
-**Budget**: view CPU at most 4 ms a frame on the Mac (tradecraft measured 2.3 to 3.4 ms).
+**As built in v0.0.2** (`src/render/view.js`, the steps that exist): 1, the area cut (the area painted and packed in the worker, sent up whole behind it); 2, the mood by the hour at the live site (`day` 06:00 to 18:59 Melas time, `night` otherwise, unless a mood is held); 3, interpolation from `actor.$px`, `$pz` (while time stands still everyone is drawn where the sim has them, so a held clock holds the picture); 4, the camera (VIEWS §2.4: per axis, an area that fits the frame with 1 m to spare holds the camera on its extent on screen, its north wall included, and a larger one is followed and clamped; the lead is snapped to the pixel grid before it is added); 5, the main thread's share of the paint jobs when there is no worker (`painter.step()`); 8, sprite tints (`stage.lightAt` until `places/light.js` is real); 9, the fog hook (the samples' test fog, off by default); 11, the figures from `state.actors.list`; 12, the upload queue; 13, the render; 15, stats. `view.pending` names what still waits (the area, uploads, a sheet, the worker, the warm-up), which `__ready` reads (§13.3).
+
+**Budget**: view CPU at most 4 ms a frame on the Mac (tradecraft measured 2.3 to 3.4 ms; v0.0.2's sandbox 0.6 ms, p95 1.0 ms).
 
 ---
 
@@ -1095,14 +1159,15 @@ One module worker, `src/art/worker.js` (`new Worker(url, { type: 'module' })`). 
 
 | Job | Input | Output (transferable) | Typical (my estimate) |
 |---|---|---|---|
-| `sheet` | a person's look spec, a band, the variant | the band's pixels and its frame table | 1.5 to 3 ms (VIEWS §3.7 `SHEET_MS`) |
-| `area` | an area's plan and finishes | its paintings, packed into pages, and its batch arrays | 30 to 120 ms behind the cut |
-| `chunk` | a site seed, `(i, j)`, the plan's clip | the chunk's batch arrays (ground runs, dressing) | 5 to 15 ms |
+| `sheet` | a person's look spec, a band, the variant | the band's pixels and its frame table | **measured in v0.0.2**: a whole gait band 16 to 190 ms in the worker (the first, cold, about 200 ms), 80 to 180 ms in node; VIEWS §3.7's 1.5 to 3 ms a band is the role-indexed band's budget, not the built sheet's |
+| `area` | an area's plan and finishes | its paintings, packed into pages, and its batch arrays | **measured**: 20 to 60 ms in the worker (the test rooms 35 to 60 ms: 129 boxes, 783 quads, one 864 KB page), behind the cut |
+| `chunk` | the ground's committed data for `(i, j)` and the plan's clip (PLACES §9.5) | the chunk's batch arrays (ground runs, dressing) | 5 to 15 ms (my estimate) |
 | `sky` | a body, a size, the generator version | its surface map | 0.4 to 1.7 s, then cached |
 | `doll` | the close figure's spec | its pixels | ≤ 15 ms (VIEWS §14) |
 
 - **The protocol** is a message `{ id, job, args }` answered by `{ id, ok, buffers, meta }`, the buffers sent in the transfer list. No `SharedArrayBuffer`.
 - **Priority**: the player's sheet, then visible people, then the next area, then chunks ahead, then sky maps.
+- **Start-up**: the worker's modules load in 160 to 210 ms (measured), so a `?play=` boot waits for it behind the cut; the area's own build is held to `AREA_BUILD_MS` alone (§9.3).
 - **The worker is cosmetic.** Its outputs are pixels and geometry for the stage only. The sim never waits on it, so its timing cannot touch determinism. Its outputs are still pure: the test `worker` asserts that worker and main-thread outputs have equal digests, byte for byte.
 - **Fallback**: if `new Worker` throws, `art/jobs.js` runs on the main thread as generators within 4 ms a frame (tradecraft's yielding builders).
 
@@ -1214,7 +1279,7 @@ The When column is ROADMAP §15.5's row for each file (a row names an order, not
 | Kind | Where | Runs | Example |
 |---|---|---|---|
 | unit sims | `tests/<domain>-*.test.mjs`, node | quick | `body-water`, `skills-checks`, `core-queue` |
-| golden hashes | in the test that generates | quick | Base Melas' site digest, the roster's digest |
+| golden hashes | in the test that builds or generates the value | quick | Base Melas' site digest (authored), the roster's digest (generated) |
 | statistical | N trials, rates printed, room for chance | quick (small N), heavy (big N) | `skills-checks` 100,000 rolls (heavy) |
 | parity | lived against skipped, live minute against skip step | quick, with a heavy 8-hour variant | `time-parity` |
 | determinism | §8.2 | quick in the squad bay; heavy in `mess-noon`, and replay | `game-determinism` |
@@ -1255,7 +1320,9 @@ Files stay flat in `tests/` (the runner reads that one folder), prefixed by doma
 ### 13.3 Browser tests
 
 `tests/browser.mjs` is built: `withGame(fn, { port, query, init, ready })`, the system Chrome headless with `--use-angle=metal --enable-gpu --ignore-gpu-blocklist`, errors collected and failing the test, and `frameMs(page)`. Additions:
-- **`window.__ready`** turns true only when three frames have been drawn **with nothing pending**: area built, uploads drained, visible sheets composed, worker idle for the visible set. The limit is 10 s, after which it turns true and `__report.pending` says what was still waiting (so shots never catch a half-built frame).
+- **`window.__ready`** turns true only when three frames (`READY_FRAMES`) have been drawn **with nothing pending**: the shader warm-up done, the area built, uploads drained, the player's own sheet composed, the worker started (built: `view.pending`, and a held cut). The limit is `READY_LIMIT_MS` 10 s, after which it turns true and `__report.pending` says what was still waiting (so shots never catch a half-built frame).
+- **The browser tests' port** is `OLYMPUS_TEST_PORT` when set (an agent's own of 8230 to 8239), else 8223.
+- **Frame budgets on a headless clock** (v0.0.2's `view-browser`, my call after the build). Headless Chrome on this Mac paces its frames at 10 to 60 Hz, changing from page to page, so a frame median there says nothing about the game. On a slow clock the test holds the main thread's work to 4 ms a frame (0.6 to 0.8 ms measured), and, at both densities whatever the clock, 40 frames driven back to back, each finished on the GPU (`gl.finish`), to 16.7 ms at the median (0.1 to 0.3 ms measured); it prints the measured clock beside them. The per-pass GPU times from the timer query swing widely between 10 Hz frames (post 1.2 to 5.9 ms in one scene), so they are printed, not asserted, until the bench's pass repetition (§16.5) or a 60 Hz clock measures them.
 - **The page's facts.** `withGame` gives the test a `facts` recorder on the page's bus (`__olympus.bus`).
 - **Key presses go by code** (`page.keyboard.down('KeyW')`), as the game reads them (CLAUDE.md).
 
@@ -1265,11 +1332,12 @@ Files stay flat in `tests/` (the runner reads that one folder), prefixed by doma
 
   | Scene | Milestone |
   |---|---|
-  | `squadbay-night` | 0.1 |
+  | `squadbay-night` (built in v0.0.3: the bay at 23:00, the aisle walked east, west and back, then still; `src/data/bench.js`, the page's card and `render-bench` read the one definition) | 0.1 (built 0.0.3) |
   | `parade-platoon` (42 in formation, outdoors, chunks) | 0.1 |
   | `company-march` (Echo's 191 crossing to the mess at a block change, then formed and marched across the parade deck as blocks: PEOPLE §13.5) | 0.1 |
   | `range-far` (firing line, the far window open at 200 m) | 0.1 |
   | `mess-noon` (160 live agents: the busiest area, §16.7) | 0.1 |
+  | `village-contact` (COMBAT §19: a fight among civilians in the training village, the busiest fight; also in `game-tick`) | 0.1.x |
   | `troopship-battle` (a berthing deck under battle red, couches, a floater) | 0.2 |
   | `europa-street` | 0.3 |
   | `cavern-riot` (a crowd scene: 200 civilians in a cavern when shots start, COMBAT §20's `crowd`; §16.7) | 0.3 |
@@ -1284,12 +1352,16 @@ Files stay flat in `tests/` (the runner reads that one folder), prefixed by doma
   It prints one row per scene and run: frame median, p95, p99, frames over 25 ms, draw calls (max), triangles, programs, uploads (max per frame and mean), view CPU ms, sim ms per tick (mean and p99), ticks per frame, GPU ms per pass (shadow, scene, post, far window, blit: §16.6), the quality level, JS heap, and our own GPU byte count. It fails on §16's budgets, the throttled ones included.
 - **`tests/uploads.test.mjs`** (heavy) is a 60 s walk through Base Melas with 60 people. It prints bytes uploaded per frame (max, mean), sheets composed per frame and layers in use, and asserts no frame over 1 MB, no whole-texture upload after the first area, and no program linked after it.
 - **`tests/soak.test.mjs`** (heavy) runs the recruit bot in the page for 10 minutes. It prints heap at start and end after a forced GC (`--js-flags=--expose-gc`), lost ticks and errors, and asserts heap growth under 20 MB and no errors.
-- **The bench card** (`?bench=all`, or Settings, Benchmark) runs the same scenes in the user's own browser. It shows the table with the machine's renderer string (`WEBGL_debug_renderer_info`), DPR, window size, `hardwareConcurrency`, the GPU ms per pass and the quality level it would choose (§16.6), and offers **Copy results**, so the user can run it on Windows and paste the result into the conversation: the gallery's "Copy my picks" pattern. Headless Chrome on a Mac hides Windows upload stalls (tradecraft PIPELINE, 2026-10-29), so this card is how ANGLE over D3D11 gets judged (my call).
+- **The bench card** (`?bench=all`, or Settings, Benchmark) runs the same scenes in the user's own browser. It shows the table with the machine's renderer string (`WEBGL_debug_renderer_info`), DPR, window size, `hardwareConcurrency`, the GPU ms per pass and the quality level it would choose (§16.6), and offers **Copy results**, so the user can run it on Windows and paste the result into the conversation: the gallery's "Copy my picks" pattern. Headless Chrome on a Mac hides Windows upload stalls (tradecraft PIPELINE, 2026-10-29), so this card is how ANGLE over D3D11 gets judged (my call). **Built in v0.0.3 for one scene** (`?bench=squadbay-night`, or `?bench=1`; `src/ui/cards/bench.js`): it saves nothing and opens no database, and shows the frame median, p95 and p99, frames over 25 ms, draw calls, triangles, programs, uploads, view CPU, `simMsPerTick`, the renderer, DPR, the window, `hardwareConcurrency`, the density and the version, with Copy results; `window.__bench` holds the same. On the Mac: 60 fps at both densities, p95 16.7 ms, 51 to 53 draw calls at most, 50,218 triangles, 51 KB uploaded a frame at most, 1.0 ms of view CPU at the median. The Windows numbers are the user's to run.
 
 ### 13.5 Golden hashes
 
-`tests/golden.mjs` provides `golden(name, value, expected)`. It digests the canonical JSON of `value` (or the bytes of a typed array) and compares. With `PRINT_HASH=1` it prints `golden('<name>', …, '<digest>')` lines ready to paste. A golden re-set on purpose is said so in CHANGELOG.md (tradecraft's way). Goldens at 0.1:
-- the Base Melas site (rooms, fixtures, spots, openings), and a chunk's tiles and dressing;
+`tests/golden.mjs` provides `golden(name, value, expected)`. It digests the canonical JSON of `value` (or the bytes of a typed array) and compares. With `PRINT_HASH=1` it prints `golden('<name>', …, '<digest>')` lines ready to paste. A golden re-set on purpose is said so in CHANGELOG.md (tradecraft's way). Goldens pin two kinds of thing:
+- **Authored data** (every place: the hub, 2026-11-05, "game world is handcrafted"). A place's golden pins what was committed, so it moves only when someone changes the place on purpose. The world's seed never enters it: each places golden is taken under two seeds and must give one digest (my call), which proves no layout or dressing reads the seed.
+- **Procedural content** from seed 48213: the roster and the people (all generated), schedules, the prologue, the day's traffic. These move when a generator changes.
+
+v0.0.2 pins the sandbox's new game at seed 48213 (`05fa96c32a3dbf`), the test rooms (`TEST_AREA` `089faeb83aa5ed`) and their C0 grid (`189fefcff571bf`), and Base Melas's plan as built and as first written (`MELAS_PLAN` `0f9ae504ac4dbc`, `MELAS_PLAN_AS_WRITTEN` `140c63b80bc327`). Goldens at 0.1:
+- the Base Melas site (rooms, fixtures, spots, openings, dressing), and each authored ground's chunks as decoded (PLACES §9.5);
 - the company roster from seed 48213, and career sol 1's schedules for the squad (Tuesday, CONTRACTS §3);
 - the palette per place, and the lookup sampled at 4,096 cells;
 - each sprite variant's sheet for 6 kit specs;
@@ -1344,6 +1416,7 @@ The runner already prints each test's ms. A test whose time doubles from one rel
 | `tools/sheet.mjs <variant> <spec.json> <out.png> [--scale 4]` | new (0.0.x) | | a sprite sheet painted in node by the pure painters, written with a tiny PNG encoder over `node:zlib` (`tools/png.mjs`), no dependency |
 | `tools/fonts.mjs` | new (0.1) | | copies IBM Plex WOFF2 subsets and their OFL licences from `../longhaul/fonts` into `vendor/fonts/` (read-only source; "a script, never a hand edit") |
 | `tools/vendor-three.mjs` | to port when needed | | re-vendors three.js on an upgrade |
+| `tools/layout.mjs`, `tools/dress.mjs`, `tools/ground.mjs` | new (the dressing tool with Echo's bays, 0.0.4; the ground tool with the Talus, 0.1.x) | authoring only | propose a template's layout, a room's dressing or a ground's chunks by PLACES §9's rules (tradecraft's `flat.js` pattern) and write them into the place's data module as frozen literals, for the author to finish by hand and look at in shots before committing; the game never runs them, so no layout or dressing is rolled per world or per career (the hub, 2026-11-05) |
 
 Ports follow CLAUDE.md:
 - **8223** for browser tests and `tools/perf.mjs` (never both at once);
@@ -1362,7 +1435,7 @@ Every tool kills the server it starts.
 - **Backquote** (the `²` key top left on AZERTY, read by code) opens the **debug card**. It pauses, as any card does.
 - **F9** toggles the perf HUD.
 - **F10** toggles the last set of overlays.
-- **`[` and `]`** skip 15 minutes and an hour as an `idle` activity (built).
+- **^ and $** (AZERTY's labels of the codes `BracketLeft` and `BracketRight`, `[` and `]` on QWERTY) skip 15 minutes and an hour as an `idle` activity, a sliced outcome skip that marks the save `debugUsed` (built); the `?` card lists them in debug mode.
 
 ### 15.2 The handle
 
@@ -1378,13 +1451,16 @@ Every tool kills the server it starts.
 | `bot(name)` | run a bot in the page |
 | `goto(timeOrSpot)` | debug only, marks the save (§15.5) |
 
+**As built in v0.0.3** (`src/core/debug.js`, `src/main.js`): `createDebugHandle` takes `queue` (the input's, for an action on the next tick) and `more` (members `main.js` adds as property descriptors, so getters stay getters, since core may not import the sim). `act(action)` sends an action into the sim, a string or `{ act, args }`: queued for the next tick, or run at once in a tick of its own while paused. `main.js` adds `area` (the live area's id), `go(area, x, z, face)` (the debug action `debug:go`, which marks the save), `door(id, to)` (the `door` action), `actors()` (each actor with its person's name, posture, outfit and whether you see them), `light(x, z)` (`lightLevel` now), `sun()` (`sunAt` now), `sightMask()` (people's, for the player now, at the view's `cellM`), `offer()` (R's offer now), `audio` (the sound's stats) and `hud`. `view.stats` adds `people: { drawn, lying, remembered }`, `area: { id, buildMs, cutMs }`, `clocks`, `lamps`, `chunks`, and `held` (the frames a cut held its picture); `view.area` is `{ id, name, kind, info }`. The bench reports `simMsPerTick` with its frame times (`window.__bench`).
+
 `window.__report` carries numbers a page publishes about itself (benches, samples). `window.__renderer` is the GL renderer string. `tools/shot.mjs` prints both (built).
 
 ### 15.3 URL parameters
 
 | Parameter | What | State |
 |---|---|---|
-| `?play=<scenario>` | skip the title: `sandbox`; at 0.1 also `standby`, `squadbay`, `range`, `mess`, and the sample scenes | built |
+| `?play=<scenario>` | skip the title: `barracks` (New career's, v0.0.3) and `sandbox` (the test rooms); at 0.1 also `standby`, `squadbay`, `range`, `mess`, and the sample scenes | built |
+| `&area=<id>&at=<x>,<z>&face=<f>` | start in another area, at a point, facing `up`, `down`, `left` or `right` (`&area=melas.ground&at=522,224` is Echo's street) | built (v0.0.3) |
 | `?play=test-<id>` | a test scene (ROADMAP §2.2), from the first scene (0.0.6): its own world, marked so, never writing a career, the profile or the memorial | new |
 | `?play=moment-<id>` | a moment fixture (ROADMAP §2.3): the career save in `tests/fixtures/moment-<id>.json`, fetched from the served tree (the one fixture the game ever fetches, and only through this parameter), its world marked `moment` | new |
 | `?start=<rung>` (alone, or with `?play=standby`) | a new career at that rung (CAREER §22: `newjoin` by default), from the enlistment paper's seeded defaults, skipping the title and the paper; a rung not yet unlocked needs `&debug=1` | new |
@@ -1394,14 +1470,16 @@ Every tool kills the server it starts.
 | `&t=MY211.S590.1240`, `&utc=2351-12-19T02:20Z` | a start time (TIME §19). The examples are SETTING §3.7's start itself (Sol 590 of MY 211, 12:40 Melas time). A time before the start (`START_MS`) is accepted only with `&debug=1`, for samples and shots of another season: no career exists before it | new |
 | `&mode=ironman` | the career's mode | built |
 | `&debug=1` | debug mode | built |
-| `?ppm=16 \| 24` (alias `?density=`) | the density | built |
-| `&scene=<id>`, `&mood=<name>`, `&weather=<τ>` | samples and shots (VIEWS §17) | new |
+| `?ppm=16 \| 24` (alias `?density=`) | the density: 16 by default (the user's pick, VIEWS §2.3), 24 a test parameter only | built |
+| `&scene=<id>`, `&mood=<name>`, `&weather=<τ>` | samples and shots (VIEWS §17); with `&fog=1`, the samples' test fog | `&mood=` and `&fog=` built; the rest new |
 | `&bot=<name>` | a bot plays in the page | new |
-| `&bench=<scene \| all>` | the bench card | new |
-| `&perf=1` | the perf HUD and GL counters | new |
+| `&bench=<scene \| all>` | the bench card: `?bench=squadbay-night` (or `?bench=1`, the same) built in v0.0.3, with Copy results; `all` and the other scenes at 0.1 | built (one scene) |
+| `&perf=1` | the GL counters and pass times (built); the perf HUD | built (counters) |
 | `&short=1` | short splashes | new |
 | `&slot=<world:name>` | load a slot at once | new |
-| `&nostore=1` | no IndexedDB writes (shots, benches, agents' smoke runs) | new |
+| `&nostore=1` | IndexedDB neither read nor written, the sound's saved settings included (shots, benches, agents' smoke runs) | built (v0.0.3) |
+
+v0.0.2's `&prop=` (the figure's proportion, chibi or soldier) is gone with the soldier figure (VIEWS §2.3, v0.0.3).
 
 ### 15.4 Overlays
 
@@ -1450,7 +1528,7 @@ Every command writes a log line tagged `[debug]` and sets `meta.debugUsed = true
 
 ### 16.1 Targets
 
-These are measured on the Mac, with Chrome on ANGLE Metal at density B (960 × 540) in a 1600 × 1000 window, unless a row says otherwise.
+These are measured on the Mac, with Chrome on ANGLE Metal at 16 px/m (640 × 360, the user's pick of 2026-11-06, VIEWS §2.3; the rows measured earlier at density B, 960 × 540, say so and are an upper bound) in a 1600 × 1000 window, unless a row says otherwise.
 
 | Measure | Budget | Measured by |
 |---|---|---|
@@ -1481,7 +1559,7 @@ The mean per lived tick in `mess-noon` is listed in §3.1. In short:
 
 | Domain | Share |
 |---|---|
-| PEOPLE (actors, perception, thinking: §3.1's steps 3, 6 and 7; PEOPLE §13.2's 0.53 ms adds its per-second 0.03 ms, which sits in `second`: CONTRACTS §19, item 5) | 0.50 ms |
+| PEOPLE (actors, perception, thinking: §3.1's steps 3, 6 and 7; its per-second work sits in `second`) | 0.50 ms |
 | paths (PLACES, in work units) | 0.60 ms |
 | rules (WEAPONS, COMBAT, inertia, fast environment) | 0.40 ms |
 | BODY fast and per-second | 0.20 ms |
@@ -1514,9 +1592,9 @@ A skip frame is spent the same way, with the sim's share given to `advanceSkip` 
 | tile atlas (one per site, 2048²) | 16 MB |
 | area pages (live plus 2 cached areas, at most 2 pages of 2048² each) | at most 96 MB |
 | chunk geometry (near ring, 12 chunks × 0.6 MB) | about 8 MB |
-| people (2 layers of 4096²) | 128 MB |
+| people (3 R8 layers of 4096² and the colour rows, §9.4, VIEWS §3.7; v0.0.2's one RGBA8 4096² atlas is 64 MB) | 48 MB |
 | decal atlas (1024²) | 4 MB |
-| **total** | **about 280 MB**, budget 384 MB |
+| **total** | **about 200 MB**, budget 384 MB |
 
 When the count would pass the budget, cached areas are freed first, then people bands unseen longest.
 
@@ -1537,7 +1615,7 @@ When the count would pass the budget, cached areas are freed first, then people 
 
 The user plays on Windows too ("passers-by vanished in the middle of the street", the user on Windows, tradecraft 2026-10-26). Nothing here can run ANGLE over D3D11 automatically, and the default target (§20, question 2) is an integrated GPU of the last four years (Intel Iris Xe or AMD 680M class) at 1080p and density B. That GPU is roughly a quarter to a third of the M5 Pro's, and its laptop CPU about 2 to 2.5 times slower single-threaded (my estimates, from public benchmark scores). So:
 
-**GPU budgets per pass** (my call; the integrated class at 1080p, density B: the stage's 960 × 540 picture blitted to 1920 × 1080):
+**GPU budgets per pass** (my call; the integrated class at 1080p, set at density B, 960 × 540 blitted to 1920 × 1080, and so with room to spare at the chosen 16 px/m, 640 × 360 blitted at 3×):
 
 | Pass | Integrated class | The Mac must hold (a third) |
 |---|---|---|
@@ -1584,11 +1662,12 @@ One table for every kind of scene, so buffers, the atlas and the LOD rules are s
 | `troopship-battle` | 48 | 0 | 40 (the crew on watch, another company) | 88 | 100 | 0.2 |
 | `europa-street` | 19 (the squad, a few of the town's notables) | 0 | 120 | 139 | 160 | 0.3 |
 | `cavern-riot` (a crowd scene) | 24 (the squad, an MP team) | 0 | 200 (PEOPLE §12.6's largest protest) | 224 | 256 (with 32 ghosts) | 0.3 |
+| `village-contact` (COMBAT §19: the MOUT exercise's contact, the busiest fight among civilians) | 31 (26 fighters with blanks and the harness, 4 umpires, the player) | 0 | 60 (the role-players) | 91 | about 100 | 0.1.x (the patrol's join, ROADMAP §5.8) |
 | **caps** | **48** (PEOPLE §13.2); 24 in a crowd scene | **count in the crowd's cap** | **120**; 200 in a crowd scene | **168**; 224 in a crowd scene | **`MAX_PEOPLE` 256**; ghosts at most `GHOSTS_MAX` 32 | |
 
 - **Puppets** are persistent people driven by crowd steering when more are scheduled into an area than its persistent cap allows (PEOPLE §13.1). A puppet takes a crowd slot, so the crowd and its puppets stay within 120.
 - **A crowd scene** is an area PEOPLE declares one while a protest or riot is on (PEOPLE §12.6: at most 200). There the crowd's cap rises to 200 and the persistent cap falls to 24 (the rest of the platoon are puppets or held back by their orders), so live agents stay at 224. The crowd outside the close ring looks and thinks every fourth tick (LONGHAUL's lite steps, as TIME §5.2 uses them for fast-forward). `cavern-riot` budgets it in the 0.3 bench at the hub's 2 ms a tick. If the bench fails, the fallback is that the protest's members past 120 wait outside the cavern's doors as an outcome crowd (counted by PEOPLE, not simulated) until a live one leaves (my call).
-- **Formations** (`company-march`) are PEOPLE §13.5's blocks: a unit in ranks moves as one path and one steering step, its members at their marks, and does not count against the 48 or the crowd (CONTRACTS §8). `parade-platoon` stays the platoon's 42 and 20 passing; the company march is a scene of its own (my call; CONTRACTS §19, item 4), and PEOPLE's test of it in `people.perf.test.mjs` takes its name.
+- **Formations** (`company-march`) are PEOPLE §13.5's blocks: a unit in ranks moves as one path and one steering step, its members at their marks, and does not count against the 48 or the crowd (CONTRACTS §8). `parade-platoon` stays the platoon's 42 and 20 passing; the company march is a scene of its own (my call, settled 2026-11-06: CONTRACTS §19, item 4), and PEOPLE's test of it in `people.perf.test.mjs` takes its name.
 - **Drawn** counts are what `render/crowd.js` and the people atlas are sized for: `MAX_PEOPLE` 256 instances. PEOPLE §13.2's "figures drawn 80" is replaced by this column, and VIEWS's `MAX_PEOPLE` 160 and 240 by 256.
 
 ---
@@ -1628,6 +1707,8 @@ ROADMAP owns the milestone numbers; this is what TECH builds, in order.
 8. The paint worker with the `sheet` and `area` jobs; `render/uploads.js`, `warm.js`, `stats.js` with per-pass GPU timing (or pass repetition); `__ready` with nothing pending. **The built stage is measured per pass on the Mac** against §16.6's column, and the bench card's per-pass split is ready for Windows.
 9. From 0.0.4: `tests/bots/lib.mjs`, the bot toolkit (§13.2), with `walker` as its first user. **Before 0.0.6**: the kit and items shape of §6.7 (WEAPONS's), so the range, the lane and the Tank build on it.
 
+v0.0.2 (ROADMAP's 0.0.3 row, CONTRACTS §18) built items 1 to 6 and most of 8; item 7's array atlas (§9.4) and item 8's per-pass measure on a real display clock (§13.3) wait, and the owners' samples on the id table (item 2, correction 16) are the docs' to finish.
+
 **0.1, a standby week at Base Melas:**
 - `render/view.js`;
 - chunks streamed (the parade deck, the range, the company street);
@@ -1659,7 +1740,7 @@ ROADMAP owns the milestone numbers; this is what TECH builds, in order.
 
 **0.3, Europa:** drop-ship profiles, optics and the scope screen, the ground tac and the suit HUD's tac, the Europa sky maps, `europa-street` and `cavern-riot` (the crowd scene of §16.7) in the bench, and the vacuum audio path.
 
-**Later:** ship combat (the ordnance, damage and agents ports, with driven hulls in the slow step), boarding with target hulls generated as sites, CQC, special-operations sites, and the world's outcome oracle in a worker only if §11.1's budget is ever passed.
+**Later:** ship combat (the ordnance, damage and agents ports, with driven hulls in the slow step), boarding into authored hulls (the target is a class's authored deck program, PLACES §5 and §8; the mission's details, its crew and where they are, procedural), CQC, special-operations sites (authored places, PLACES §8), and the world's outcome oracle in a worker only if §11.1's budget is ever passed.
 
 ---
 
@@ -1690,7 +1771,7 @@ What TECH relies on from the other sections:
   - `units` at the top level as PEOPLE §2.6 has it, and the person record's `kit` (WEAPONS's) beside `body` and `skills` (§6.1);
   - the ids of §2.3.1 in every sample (`p:0042` is `p42`; the player is their own `p` id; a promoted crowd member is a `p` id, not `x<seed>`; `fx:mess:t14:s3` is `f:mess:t14#3`; `subject` is `subjectId`);
   - stubs that expire when no happening of weight 2 or more names them (§6.6);
-  - the per-scene table of §16.7, replacing §13.2's "figures drawn 80"; the crowd scene's caps; puppets in the crowd's cap; §13.5's company march benched as `company-march`, its test renamed from `parade-platoon` (CONTRACTS §19, item 4);
+  - the per-scene table of §16.7, replacing §13.2's "figures drawn 80"; the crowd scene's caps; puppets in the crowd's cap; §13.5's company march benched as `company-march`, its test taking that name where PEOPLE wrote `parade-company` (CONTRACTS §19, item 4, settled 2026-11-06);
   - the `names` registry;
   - the per-domain budgets of §16.2 (PEOPLE §13.2);
   - perception's formulas, shared with `fogcast.js`, reading `lightLevel` (correction 14);
@@ -1703,7 +1784,8 @@ What TECH relies on from the other sections:
   - the player's own `p` id in fixture samples (`assigned`), and `unit:2/4-E-2` for access (§2.3.1);
   - the live area's zones at 1 Hz in the per-second layer, the rest of the site in `slowStep`, all of them in a skip (§3.3, §3.4);
   - the nav grid and A* in work units (correction 7);
-  - pure, lazily forced chunk generation;
+  - chunks decoded lazily and purely from each ground's committed data (PLACES §9.5: grounds are authored with tools and committed, never generated per world), counted in cells decoded;
+  - every place authored, with no layout seed in any site, area or ground record (PLACES §9; §2.4), and goldens over the authored places taken under two seeds (§13.5);
   - `envStep` with `steady` and `nextChangeMs`; gas and pressure decays rounded by `q()` (rule 11);
   - the site's tile kinds, for the tile atlas painted at load;
   - the lamp list per area, for the tiled pools.

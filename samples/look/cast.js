@@ -17,8 +17,9 @@
 //     card is lifted by the seat less the candidate's own seatM) or bed (a bed's top: lying frames
 //     lie on it);
 //     you: true for the one the eyes follow (the see-through and the fog of awareness are round them) }.
-// The same cast serves both candidates and both densities: only ?prop= and ?ppm= change between the
-// four pictures of a sample (tests/samples-look.test.mjs checks it).
+// The same cast served both candidates and both densities: only ?prop= and ?ppm= changed between the
+// four pictures of a sample (tests/samples-look.test.mjs checks it). Since the user's pick (2026-11-06:
+// 16 px/m chibi, VIEWS §2.3) the page draws the chibi alone, and the soldier's shots are the gallery's.
 //
 // The looks are outfits.js's (utilities, the sergeant's, PT kit, the vac suit sealed and open), plus
 // three the outfits don't have yet, made here from wear()'s layers (my calls, for these samples only):

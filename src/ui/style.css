@@ -28,6 +28,7 @@
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --type: "Courier New", Courier, ui-monospace, monospace;
   --ui: 1;
+  --m: calc(12px * var(--ui));                /* the HUD's margin from the window's edges (VIEWS §7.5) */
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--ink); color: var(--paper); overflow: hidden; font: calc(14px * var(--ui))/1.4 var(--mono); }
@@ -41,28 +42,43 @@ button { font: inherit; color: inherit; }
 #frame canvas { position: absolute; display: block; image-rendering: pixelated; }
 #hud { position: absolute; inset: 0; pointer-events: none; }
 
-/* The wrist terminal, top right: what the character carries that tells the time (DESIGN.md, Time). */
-.watch { position: absolute; top: 14px; right: 14px; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; padding: 6px 10px 5px; text-align: right; min-width: 13em; }
-.watch .time { font-size: calc(20px * var(--ui)); letter-spacing: 0.06em; color: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.watch .slip { display: inline-block; margin-left: 6px; padding: 0 4px; font-size: calc(10px * var(--ui)); letter-spacing: 0.14em; color: var(--ink); background: var(--brass); border-radius: 2px; vertical-align: 3px; }
-.watch .date, .watch .utc { font-size: calc(11px * var(--ui)); color: var(--muted); font-variant-numeric: tabular-nums; }
-.watch .place { font-size: calc(11px * var(--ui)); color: var(--glass-text); font-family: var(--type); margin-top: 2px; }
+/* The HUD's reserved rectangles (VIEWS §7.5; src/ui/hud/layout.js RECTS): each element owns a fixed
+   box at --ui 1, 12 px from the window's edges, every size and margin scaled by --ui, and no two meet.
+   An element keeps to its box: what does not fit is cut, never spilled over the picture. */
 
-/* Lines as they come, top left. */
-.toasts { position: absolute; left: 14px; top: 14px; width: min(calc(520px * var(--ui)), calc(50% - 150px)); display: flex; flex-direction: column; gap: 4px; }
-.toast { background: var(--hud); border-left: 3px solid var(--muted); padding: 4px 9px; font-size: calc(12.5px * var(--ui)); transition: opacity 1.2s; }
+/* WATCH, 280 × 132 top right: the wrist terminal (TIME §3.1's faces; src/ui/hud/watch.js). */
+.watch { position: absolute; top: var(--m); right: var(--m); width: calc(280px * var(--ui)); max-height: calc(132px * var(--ui)); overflow: hidden; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; padding: calc(6px * var(--ui)) calc(10px * var(--ui)); text-align: right; }
+.watch .time { font-size: calc(26px * var(--ui)); line-height: 1.15; letter-spacing: 0.06em; color: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.watch .slip { display: inline-block; margin-left: 6px; padding: 0 4px; font-size: calc(10px * var(--ui)); letter-spacing: 0.12em; color: var(--ink); background: var(--brass); border-radius: 2px; vertical-align: calc(5px * var(--ui)); }
+.watch .date { font-size: calc(12px * var(--ui)); color: var(--glass-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.watch .utc { font-size: calc(11px * var(--ui)); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.watch .place { font-size: calc(11.5px * var(--ui)); line-height: 1.3; color: var(--glass-text); font-family: var(--type); margin-top: calc(3px * var(--ui)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* TOASTS, 460 × 84 top left: the log's last lines, newest last (src/ui/hud/toasts.js). */
+.toasts { position: absolute; left: var(--m); top: var(--m); width: calc(460px * var(--ui)); height: calc(84px * var(--ui)); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; gap: calc(3px * var(--ui)); pointer-events: none; }
+.toast { flex: none; background: var(--hud); border-left: 3px solid var(--muted); padding: calc(2px * var(--ui)) calc(8px * var(--ui)); font-size: calc(12px * var(--ui)); line-height: 1.35; transition: opacity 1.2s; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .toast.warn { border-color: var(--brass); }
-.toast.bad { border-color: var(--red); }
+.toast.bad, .toast.urgent { border-color: var(--red); }
+.toast.calm { border-color: var(--green); }
 .toast.gone { opacity: 0; }
+body > .toasts { position: fixed; z-index: 5; }
+
+/* INSTINCT, 720 × 44 bottom centre: the instinct's line and R's offer as a chip (src/ui/hud/offer.js). */
+.instinct { position: absolute; left: 50%; bottom: var(--m); transform: translateX(-50%); width: calc(720px * var(--ui)); height: calc(44px * var(--ui)); display: flex; align-items: center; justify-content: center; gap: calc(10px * var(--ui)); overflow: hidden; white-space: nowrap; font-size: calc(13px * var(--ui)); }
+.instinct .lead { background: var(--hud); padding: calc(4px * var(--ui)) calc(10px * var(--ui)); border-left: 3px solid var(--brass); color: var(--paper); }
+.instinct .chip { background: var(--hud); padding: calc(4px * var(--ui)) calc(10px * var(--ui)); border: 1px solid var(--glass-edge); border-radius: 3px; color: var(--glass-text); }
+.instinct .chip kbd { margin-right: 2px; }
+
+/* KEYS, 120 × 32 bottom right: "? keys", folded (the user, tradecraft 2026-10-27). */
+.keyshint { position: absolute; right: var(--m); bottom: var(--m); width: calc(120px * var(--ui)); height: calc(32px * var(--ui)); display: flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden; white-space: nowrap; font-size: calc(11px * var(--ui)); color: #b8bdc8; background: var(--hud); border-radius: 4px; }
 
 /* Keycaps, in the player's layout. */
 kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid var(--glass-line); border-bottom-width: 2px; border-radius: 3px; text-align: center; color: var(--paper); font: calc(11px * var(--ui))/1.5 var(--mono); }
 .sheet kbd { color: var(--ink); border-color: var(--rule); }
 
-/* PAUSED, and the hint under it. */
-.banner { position: absolute; top: 9%; left: 50%; transform: translate(-50%, -50%); background: var(--hud); padding: 10px 22px; letter-spacing: 0.3em; font-size: calc(16px * var(--ui)); text-align: center; }
-.banner small { display: block; letter-spacing: 0.04em; font-size: calc(11px * var(--ui)); color: var(--muted); margin-top: 4px; }
-.hint { position: absolute; right: 14px; bottom: 14px; font-size: calc(11px * var(--ui)); color: #b8bdc8; background: var(--hud); padding: 5px 8px; border-radius: 4px; }
+/* PAUSED, 240 × 48: at the top centre, in the margin row between TOASTS and WATCH (layout.js). */
+.banner { position: absolute; top: var(--m); left: 50%; transform: translateX(-50%); width: calc(240px * var(--ui)); height: calc(48px * var(--ui)); overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--hud); letter-spacing: 0.3em; font-size: calc(16px * var(--ui)); line-height: 1.1; text-align: center; white-space: nowrap; }
+.banner small { display: block; letter-spacing: 0.04em; font-size: calc(11px * var(--ui)); color: var(--muted); margin-top: calc(4px * var(--ui)); }
 
 /* Paper: the title, enlistment, orders. */
 .sheet { background: var(--paper); color: var(--ink); font-family: var(--type); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); border-radius: 2px; }
@@ -104,3 +120,26 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass .keylist { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; align-items: baseline; font-size: calc(12.5px * var(--ui)); }
 .glass .keylist kbd { justify-self: end; }
 .glass .keylist span { color: #b8bdc8; }
+
+/* The menu's sound: mute on its numbered line, the master volume on a slider. */
+.glass-list .item.mute.off { color: var(--muted); }
+.glass .volume { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; font-size: calc(12px * var(--ui)); color: #b8bdc8; }
+.glass .volume input { flex: 1; accent-color: var(--brass); }
+.glass .volume output { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; color: var(--glass-text); }
+
+/* The log card (J): the last lines, stamped on the live site's clock, newest last. */
+.glass.log { width: min(calc(720px * var(--ui)), 92%); }
+.glass .loglist { max-height: min(calc(520px * var(--ui)), 70vh); overflow-y: auto; display: flex; flex-direction: column; gap: 2px; font-size: calc(12px * var(--ui)); }
+.glass .logline { display: grid; grid-template-columns: auto 1fr; gap: 12px; padding: 2px 8px; border-left: 3px solid var(--muted); background: var(--ink-2); }
+.glass .logline.warn { border-color: var(--brass); }
+.glass .logline.bad, .glass .logline.urgent { border-color: var(--red); }
+.glass .logline.calm { border-color: var(--green); }
+.glass .logline .stamp { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The bench card: the result, Copy results, and the text it copies. */
+.glass.bench { width: min(calc(680px * var(--ui)), 94%); }
+.glass .benchlist { grid-template-columns: auto 1fr; margin-bottom: 10px; }
+.glass .benchlist .k { color: var(--muted); text-align: right; }
+.glass .benchlist .v { color: var(--glass-text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.glass .copied { display: block; min-height: 1.4em; margin: 6px 0 0; color: var(--brass); font-size: calc(12px * var(--ui)); }
+.glass .benchtext { width: 100%; margin-top: 6px; background: var(--glass-well); color: var(--glass-text); border: 1px solid var(--glass-line); font: calc(11px * var(--ui))/1.4 var(--mono); resize: none; }

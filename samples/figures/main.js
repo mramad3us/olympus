@@ -1,22 +1,22 @@
-// OLYMPUS figures sample: the two proportion candidates as sheets, in a lineup on the stage, and the close figure.
+// OLYMPUS figures sample: the chibi as sheets, in a lineup on the stage, and the close figure.
 //
 // Three views (?view=):
 //   - sheets (default): every frame of every outfit in all four facings, as the render's sheets hold them
-//     (src/art/figures/atlas.js paintSheet()), for one candidate at one density: ?prop=chibi|soldier,
-//     ?ppm=16|24, ?outfits=a,b (outfits.js OUTFITS; "name:weapon:carry" for a weapon and a carry, e.g.
+//     (src/art/figures/atlas.js paintSheet()), at one density: ?ppm=16|24, ?outfits=a,b (outfits.js OUTFITS; "name:weapon:carry" for a weapon and a carry, e.g.
 //     utilities:rifle:slung), ?scale=N (the integer scale; 2 by default at 16 px/m, 1 at 24).
-//   - lineup: both candidates on a concrete floor in the stage at ?ppm, standing in every outfit and doing
+//   - lineup: the chibi (the user's pick, 2026-11-06: VIEWS §2.3; the soldier, B, survives only as the
+//     gallery's PNGs and their scores) on a concrete floor in the stage at ?ppm, standing in every outfit and doing
 //     things (walking with the rifle low, running in PT kit, the high ready, an aimed shot with its flash,
 //     kneeling, a magazine out, prone, sitting with the rifle slung, a vac suit floating, a couch, the rack),
-//     drawn by src/render/figures.js in one instanced draw a candidate; ?mood=, ?zoom=, ?focus=a|b (centre
-//     on one candidate's rows), ?t= (seconds: a still moment for a shot), ?hud=0.
+//     drawn by src/render/figures.js in one instanced draw; ?mood=, ?zoom=, ?t= (seconds: a still moment
+//     for a shot), ?hud=0.
 //   - doll: the close figure (src/art/doll/), a marine in utilities and in the vac suit with the load-bearing
 //     gear's slots marked, and wounded with dressings; ?scale=.
 // window.__ready turns true when the view is drawn; window.__report holds its numbers (sheet sizes and
 // paint times; the atlas's uploads, bytes and milliseconds; draw calls).
 import { PX_PER_M } from '../../src/render/scale.js';
 import { OUTFITS, OUTFIT_LABELS } from '../../src/art/figures/outfits.js';
-import { PROPORTIONS } from '../../src/art/figures/body.js';
+import { CHIBI } from '../../src/art/figures/body.js';
 import { sheetLayout, paintSheet, flashStrip } from '../../src/art/figures/atlas.js';
 
 const q = new URLSearchParams(location.search);
@@ -43,21 +43,21 @@ const lookOf = (s) => { const [outfit, weapon, carry] = s.split(':'); return { o
 
 // ---------- sheets ----------
 function sheets() {
-  const prop = q.get('prop') ?? 'chibi', scale = Number(q.get('scale') ?? (PX_PER_M >= 20 ? 1 : 2));
+  const scale = Number(q.get('scale') ?? (PX_PER_M >= 20 ? 1 : 2));
   const list = (q.get('outfits') ?? OUTFITS.join(',')).split(',');
-  const root = document.getElementById('sheets'), lay = sheetLayout(prop, PX_PER_M);
-  root.innerHTML = `<h1>OLYMPUS · FIGURES · ${PROPORTIONS[prop].label} · ${PX_PER_M} px/m</h1>
+  const root = document.getElementById('sheets'), lay = sheetLayout(PX_PER_M);
+  root.innerHTML = `<h1>OLYMPUS · FIGURES · ${CHIBI.label} · ${PX_PER_M} px/m</h1>
     <p class="note">Each sheet holds a look's every frame in its four facings (rows: down, up, right, left), in bands: the gait (idle, walk, run, the low-g bound), the arms (aim, aim high and low, fire, kneeling aim and fire, magazine out and in, prone aim and fire), rest (sitting, a crash couch, the rack) and float (two drifting frames, seven tumbles). The sheet is ${lay.w} × ${lay.h} px; the render sends it a band at a time.</p>`;
   report.sheet = [lay.w, lay.h]; report.bands = lay.bands; report.paintMs = {};
   for (const s of list) {
     const look = lookOf(s), name = s.split(':')[0];
-    const pm = paintSheet(look, { prop, ppm: PX_PER_M });
+    const pm = paintSheet(look, { ppm: PX_PER_M });
     report.paintMs[s] = +pm.ms.toFixed(1);
     const h = document.createElement('h2');
     h.innerHTML = `<b>${OUTFIT_LABELS[name] ?? name}</b> · ${look.weapon ?? 'unarmed'}${look.weapon ? `, carried ${look.carry}` : ''} · painted in ${pm.ms.toFixed(1)} ms`;
     root.append(h, canvasOf(pm, scale));
   }
-  const fs = flashStrip(prop, PX_PER_M);
+  const fs = flashStrip(PX_PER_M);
   report.flashStrip = [fs.pm.w, fs.pm.h, fs.count];
   requestAnimationFrame(() => requestAnimationFrame(() => { window.__ready = true; }));
 }
@@ -77,11 +77,11 @@ async function lineup() {
   const stage = createStage({ palette: q.get('palette') ?? 'tradecraft', mood, zoom });
   const area = createArea({ name: 'lineup' });
   area.ground({ x0: -14, z0: -8, x1: 34, z1: 22, top: tile('concrete', { metres: 2 }) });
-  area.ground({ x0: -14, z0: 5.6, x1: 34, z1: 5.7, top: 0xb9862e, lift: 0.002 });   // (a painted line between the candidates)
+  area.ground({ x0: -14, z0: 5.6, x1: 34, z1: 5.7, top: 0xb9862e, lift: 0.002 });   // (a painted line behind the rows)
   const BENCH = 0x7a6a52;
-  // (a stool for each candidate's sitter, as high as its seat; a rack for its sleeper)
-  for (const [prop, z] of [['chibi', 4.2], ['soldier', 9.8]]) {
-    const B = bodyOf(prop, PX_PER_M);
+  // (a stool for the sitter, as high as its seat; a rack for the sleeper)
+  {
+    const B = bodyOf(PX_PER_M), z = 4.2;
     area.box({ x: 15.3, z, w: 0.5, d: 0.42, h: B.seatM, faces: { sides: BENCH, top: 0x8f7d62 } });
     area.box({ x: 20.7, z: z - 0.05, w: 2.1, d: 0.85, h: 0.42, faces: { sides: 0x5f6a58, top: 0x9aa48e } });
   }
@@ -89,10 +89,10 @@ async function lineup() {
   area.buildNow();
   area.upload(stage.renderer);
   stage.setArea(area);
-  const figs = { chibi: createFigures({ renderer: stage.renderer, prop: 'chibi' }), soldier: createFigures({ renderer: stage.renderer, prop: 'soldier' }) };
-  area.add(figs.chibi.group); area.add(figs.soldier.group);
+  const figs = createFigures({ renderer: stage.renderer });
+  area.add(figs.group);
 
-  // The people: per candidate, a row standing (every outfit, three carries) and a row doing things.
+  // The people: a row standing (every outfit, three carries) and a row doing things.
   const STAND = [...OUTFITS.map(o => `${o}:none`), 'utilities:rifle:slung', 'carrier:rifle:high', 'utilities:pistol:low'];
   // (x: metres along the row; the prone and the rack's sleeper take a long cell, so more room)
   const ACT = [
@@ -113,52 +113,49 @@ async function lineup() {
   const budgeted = q.get('budget') === '1';
   let maxUploads = 0, maxPaintMs = 0, maxBytes = 0, framesToAll = null, steadyUploads = 0;
   const t0 = performance.now();
-  const rows = (prop, z0) => {
+  const rows = (z0) => {
     const out = [];
-    STAND.forEach((s, i) => out.push({ key: `${prop}|${s}`, look: lookOf(s), x: 1 + i * 1.7, z: z0, face: 'down', gait: 'idle', phase: i * 0.37 }));
-    ACT.forEach((a) => out.push({ ...a, key: `${prop}|${a.look}`, look: lookOf(a.look), x: 1.2 + a.x, z: z0 + 2.2 + (a.dz ?? 0), y: a.y ?? 0 }));
+    STAND.forEach((s, i) => out.push({ key: `chibi|${s}`, look: lookOf(s), x: 1 + i * 1.7, z: z0, face: 'down', gait: 'idle', phase: i * 0.37 }));
+    ACT.forEach((a) => out.push({ ...a, key: `chibi|${a.look}`, look: lookOf(a.look), x: 1.2 + a.x, z: z0 + 2.2 + (a.dz ?? 0), y: a.y ?? 0 }));
     return out;
   };
-  const people = { chibi: rows('chibi', 2.0), soldier: rows('soldier', 7.6) };
-  const focus = q.get('focus');
-  const cx = 10.2, cz = focus === 'a' ? 3.4 : focus === 'b' ? 9.0 : 6.3;
+  const people = rows(2.0);
+  const cx = 10.2, cz = 3.4;
   let last = performance.now(), frames = 0;
   window.__figures = figs; window.__stage = stage;
   function loop(now) {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     const tS = tFixed ?? (now - t0) / 1000;
-    for (const prop of ['chibi', 'soldier']) {
-      const list = people[prop].map(p => {
-        const tint = stage.lightAt(p.x, p.z);
-        // (the flash lights who's near: FLASH_LIT_M)
-        const firing = people[prop].find(o => o.flash && Math.hypot(o.x - p.x, o.z - p.z) < FLASH_LIT_M);
-        const flashOn = firing && (tFixed !== null || Math.floor(tS * 4) % 4 === 0);
-        return { ...p, stride: (p.move ?? 0) * tS, tS, tint: flashOn ? tint.map((v, j) => Math.max(v, FLASH_LIGHT[j] * 0.8)) : tint, flash: p.flash && flashOn, own: !budgeted && frames < 2 };
-      });
-      figs[prop].update(list);
-    }
+    const list = people.map(p => {
+      const tint = stage.lightAt(p.x, p.z);
+      // (the flash lights who's near: FLASH_LIT_M)
+      const firing = people.find(o => o.flash && Math.hypot(o.x - p.x, o.z - p.z) < FLASH_LIT_M);
+      const flashOn = firing && (tFixed !== null || Math.floor(tS * 4) % 4 === 0);
+      return { ...p, stride: (p.move ?? 0) * tS, tS, tint: flashOn ? tint.map((v, j) => Math.max(v, FLASH_LIGHT[j] * 0.8)) : tint, flash: p.flash && flashOn, own: !budgeted && frames < 2 };
+    });
+    figs.update(list);
     stage.follow(cx, cz, dt);
     stage.setFocus(null);
     stage.render();
     frames++;
-    const s = stage.stats, A = figs.chibi.stats, B = figs.soldier.stats;
-    const upl = A.lastFrame.uploads + B.lastFrame.uploads;
-    maxUploads = Math.max(maxUploads, upl); maxBytes = Math.max(maxBytes, A.lastFrame.bytes + B.lastFrame.bytes); maxPaintMs = Math.max(maxPaintMs, A.lastFrame.paintMs + B.lastFrame.paintMs);
-    if (framesToAll === null && A.deferred + B.deferred + A.fallback + B.fallback === 0 && frames > 1) framesToAll = frames;
+    const s = stage.stats, A = figs.stats;
+    const upl = A.lastFrame.uploads;
+    maxUploads = Math.max(maxUploads, upl); maxBytes = Math.max(maxBytes, A.lastFrame.bytes); maxPaintMs = Math.max(maxPaintMs, A.lastFrame.paintMs);
+    if (framesToAll === null && A.deferred + A.fallback === 0 && frames > 1) framesToAll = frames;
     else if (framesToAll !== null) steadyUploads += upl;
     Object.assign(report, {
       frame: [s.w, s.h], zoom, mood, calls: { ...s.calls }, cpuMs: +s.cpuMs.toFixed(2),
-      atlas: { px: A.atlasPx, sheetA: A.sheet, sheetB: B.sheet, slotsA: A.slots, slotsB: B.slots, usedA: A.used, usedB: B.used },
-      uploads: A.uploads + B.uploads, uploadKB: Math.round((A.uploadBytes + B.uploadBytes) / 1024), uploadMs: +(A.uploadMs + B.uploadMs).toFixed(2),
-      paintMs: +(A.paintMs + B.paintMs).toFixed(1), drawn: A.drawn + B.drawn, deferred: A.deferred + B.deferred, fallback: A.fallback + B.fallback,
-      perUpload: A.uploads + B.uploads ? { kB: +((A.uploadBytes + B.uploadBytes) / 1024 / (A.uploads + B.uploads)).toFixed(0), ms: +((A.uploadMs + B.uploadMs) / (A.uploads + B.uploads)).toFixed(3) } : null,
+      atlas: { px: A.atlasPx, sheet: A.sheet, slots: A.slots, used: A.used },
+      uploads: A.uploads, uploadKB: Math.round(A.uploadBytes / 1024), uploadMs: +A.uploadMs.toFixed(2),
+      paintMs: +A.paintMs.toFixed(1), drawn: A.drawn, deferred: A.deferred, fallback: A.fallback,
+      perUpload: A.uploads ? { kB: +(A.uploadBytes / 1024 / A.uploads).toFixed(0), ms: +(A.uploadMs / A.uploads).toFixed(3) } : null,
       budget: { budgeted, maxUploadsPerFrame: maxUploads, maxKBPerFrame: Math.round(maxBytes / 1024), maxPaintMsPerFrame: +maxPaintMs.toFixed(2), framesToAll, steadyUploads, frames },
     });
     if (q.get('hud') !== '0') hud.innerHTML = [
       `<b>OLYMPUS</b> figures · ${PX_PER_M} px/m · ${s.w}×${s.h}${zoom > 1 ? ` (zoom ${zoom})` : ''} · mood ${mood}`,
-      `top rows: A chibi · bottom rows: B soldier · drawn ${report.drawn}, waiting ${report.deferred}`,
+      `${CHIBI.label} · drawn ${report.drawn}, waiting ${report.deferred}`,
       `draw calls ${s.calls.total} (scene ${s.calls.scene}, post ${s.calls.post}) · cpu ${s.cpuMs.toFixed(2)} ms`,
-      `atlas ${A.atlasPx}² · sheets A ${A.sheet.join('×')} (${A.slots} slots), B ${B.sheet.join('×')} (${B.slots}) · uploads ${report.uploads}, ${report.uploadKB} KB, ${report.uploadMs} ms · painted ${report.paintMs} ms`,
+      `atlas ${A.atlasPx}² · sheet ${A.sheet.join('×')} (${A.slots} slots) · uploads ${report.uploads}, ${report.uploadKB} KB, ${report.uploadMs} ms · painted ${report.paintMs} ms`,
     ].join('\n');
     // (ready once everyone is drawn and nothing waits)
     if (!window.__ready && report.deferred === 0 && report.fallback === 0 && frames > 3) requestAnimationFrame(() => { window.__ready = true; });

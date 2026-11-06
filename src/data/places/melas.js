@@ -219,8 +219,16 @@ export const MELAS_COMPACTION = deepFreeze([
 /** The tables the site plan is built from (src/sim/places/siteplan.js), frozen as PLACES §4.2 writes them. */
 export const MELAS_TABLES = deepFreeze({ BUILDINGS, ZONES, ROADS, WALKS, GATES, MARKS, LINKS, ECHO_INTERIOR, MELAS_RINGS, DOOR_WAYPOINT_M, SPUR_W_M });
 
-/** The site record of Base Melas (PLACES §1.2): its areas grow with the buildings that get interiors. */
+/**
+ * Melas Chasma's walls round the base (PLACES §3.15, §4.1; the sheet 0.0.3 §8 item 5): each a straight
+ * crest parallel to the canyon's east–west axis, its perpendicular distance and its rise. The sun's
+ * horizon reads them (src/sim/places/sun.js horizonAt). They live here only, PLACES's data, and SETTING
+ * §3.8 points here rather than keeping a copy in SITES.melas, so the number is in one place (my call).
+ */
+export const MELAS_WALLS = deepFreeze({ southKm: 45, southRiseM: 8000, northKm: 150, northRiseM: 8000 });
+
+/** The site record of Base Melas (PLACES §1.2): its areas grow with the buildings that get interiors; horizon names its walls. */
 export const MELAS_SITE = deepFreeze({
-  id: 'melas', kind: 'base', template: 'melas@1', name: 'Marine Corps Base Melas', geo: 'melas',
-  gravity: { kind: 'surface', gG: 0.38 }, areas: ['melas.ground', 'melas.echo.1'],
+  id: 'melas', kind: 'base', template: 'melas@1', name: 'Marine Corps Base Melas', geo: 'melas', horizon: 'melas',
+  gravity: { kind: 'surface', gG: 0.38 }, areas: ['melas.ground', 'melas.echo.1', 'melas.echo.2'],
 });

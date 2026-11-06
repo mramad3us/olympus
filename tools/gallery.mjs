@@ -19,7 +19,9 @@
 // and ?zoom= (src/render/scale.js DENSITIES, one place for those numbers), checked against the frame the
 // page reports (window.__report.frame).
 //
-// sample.json, one of two forms:
+// sample.json, one of two forms (either may carry "frozen": why, and a frozen sample's views are never
+// shot again: they keep their last shots and index entries, as unwanted views of a filter do. The look
+// round is frozen once scored, 2026-11-06: its soldier columns can no longer be drawn):
 //   - tradecraft's: { title, about, pixel?, views: [{ name, query, id? }] };
 //   - groups, OLYMPUS's look rounds: { title, about, pixel?, matrix?, groups: [{ id, title, about, query?,
 //     sets?: [{ label, query }], views? }] }. With a matrix ({ rows: { param, values, labels }, cols: {
@@ -147,7 +149,7 @@ async function main() {
       let all = true;
       for (const g of groups) for (const v of g.views) {
         const keyOld = `${folder}/${v.id}`;
-        const wanted = !filter || [folder, g.id, v.id].some(x => x.includes(filter));
+        const wanted = !sample.frozen && (!filter || [folder, g.id, v.id].some(x => x.includes(filter)));
         if (!wanted) { all = false; if (oldViews.has(keyOld)) Object.assign(v, oldViews.get(keyOld), { name: v.name, query: v.query }); else v.missing = true; continue; }
         const native = nativeOf(v.pixel, v.query);
         const raw = path.join(scratch, `${v.id}.raw.png`), file = `${slug(v.id)}.${native ? 'png' : 'jpg'}`, dest = path.join(shots, file);

@@ -14,6 +14,12 @@
 //   walkRoom(game)        every spot of the live area from the spawn, lived: the game is set back to
 //                         its start for each spot, and a goTo bot walks there through the movement
 //                         layer (move.js), as the player's keys would.
+//   walkFloors(game)      (0.0.3) every spot of both of Echo's floors in one tour through the movement
+//                         layer, up the east stair and down again, doors opened by R.
+//   walkToFences(game)    (0.0.3) from the player's berth out of Echo's front door, then along the
+//                         ground's waypoint graph to the inside of each of the four gates in turn.
+//   melasGame(createGame) (0.0.3) a game with the player at their berth: people's barracks scenario
+//                         where it exists, else the sandbox moved into Echo (a local fixture).
 // REF_SOL is TIME §9.2's training sol as PLACES §4.3 counts it (three chow windows, six head visits,
 // three formations, the armoury at maintenance, the evening in the barracks), in the build sheet's
 // twenty legs (§5.3): marches to and from blocks and PT's run are the Corps moving you (TIME's
@@ -24,7 +30,10 @@ import { groundGrid, path, octileM } from '../../src/sim/places/nav.js';
 import { WALK_MS } from '../../src/sim/places/move.js';
 import { spotsOfArea } from '../../src/sim/places/fixtures.js';
 import { areaOf } from '../../src/sim/places/model.js';
-import { goTo, plan, runBot } from './lib.mjs';
+import { moveTo } from '../../src/sim/places/portals.js';
+import { MELAS_PLAN } from '../../src/sim/places/siteplan.js';
+import { SCENARIOS } from '../../src/sim/game.js';
+import { goTo, crossTo, plan, runBot, ARRIVE_M } from './lib.mjs';
 
 /** The training sol's walking, at most, in real minutes (ROADMAP §4.1). */
 export const SOL_WALK_MAX_MIN = 12;
@@ -133,4 +142,121 @@ export function walkRoom(game, { cls = 'C0', maxTicks = 20 * 120 } = {}) {
   }
   game.load(start);
   return { spots: out };
+}
+
+// ---- 0.0.3: the barracks' floors and the base's fences, lived (the build sheet 0.0.3 §2.1, §5.1) ----
+
+/** Where the 1st Squad's player sleeps: the foot of rack n1 in bay-2-1, facing down (the sheet's §2.1 table). */
+export const BERTH_FOOT = Object.freeze({ area: 'melas.echo.1', x: 52.075, z: 3.3, face: 'down' });
+/** Where the walk to the fences ends at each gate: 1.5 m inside it (the gates are closed this release: the sheet's §8 item 19). */
+export const GATE_INSIDE_M = 1.5;
+/** A walk along the ground's waypoint graph is cut into goTo legs this long (each inside the nav window), metres. */
+export const ROUTE_LEG_M = 12;
+
+/**
+ * A headless game with the player at a point of Base Melas (BERTH_FOOT by default): people's barracks
+ * scenario where game.js has it, else the sandbox with its player moved there by places' moveTo (a
+ * local fixture until people's `barracks` lands: the round's rule).
+ */
+export function melasGame(createGame, { seed = 48213, hour = null, at = BERTH_FOOT, ...opts } = {}) {
+  const g = createGame({ scenario: SCENARIOS.barracks ? 'barracks' : 'sandbox', seed, hour, ...opts });
+  if (!SCENARIOS.barracks || at !== BERTH_FOOT) moveTo(g.state, g.me().id, at, null, { why: 'test' });
+  g.clearFacts();
+  return g;
+}
+
+// (a floor's spots, ordered nearest first from a point by straight distance: a tour)
+function tourOf(area, from) {
+  const left = spotsOfArea(area).slice(), out = [];
+  let [x, z] = from;
+  while (left.length) {
+    let k = 0, best = Infinity;
+    for (let i = 0; i < left.length; i++) { const d = (left[i].x - x) ** 2 + (left[i].z - z) ** 2; if (d < best) { best = d; k = i; } }
+    const s = left.splice(k, 1)[0];
+    out.push(s); x = s.x; z = s.z;
+  }
+  return out;
+}
+
+/**
+ * Every spot of both of Echo's floors walked through the movement layer (the sheet's §5.1): floor 1's
+ * spots in a nearest-first tour from where the player stands, up the east stair, floor 2's, and down
+ * again, doors opened by R where they stand in the way. → { floors: { <area>: { spots, reached, failed:
+ * [{ id, why }] } }, metres, ticks, doors, plans }.
+ */
+export function walkFloors(game, { cls = 'C0', maxTicks = 400_000 } = {}) {
+  const me = game.me();
+  const one = tourOf(areaOf('melas.echo.1'), [me.x, me.z]), two = tourOf(areaOf('melas.echo.2'), [80.95, 16.0]);
+  const steps = [...one.map(s => goTo(s.id, { cls, area: 'melas.echo.1' })), crossTo({ area: 'melas.echo.2', x: 80.95, z: 16.0 }, { cls }),
+    ...two.map(s => goTo(s.id, { cls, area: 'melas.echo.2' })), crossTo({ area: 'melas.echo.1', x: me.x, z: me.z }, { cls })];
+  const spotsBy = [...one.map(s => ['melas.echo.1', s]), null, ...two.map(s => ['melas.echo.2', s]), null];
+  const r = runBot(game, plan(steps, { keepGoing: true }), { maxTicks });
+  const floors = { 'melas.echo.1': { spots: one.length, reached: 0, failed: [] }, 'melas.echo.2': { spots: two.length, reached: 0, failed: [] } };
+  let metres = 0, doors = 0, plans = 0;
+  for (const e of r.log) {
+    metres += e.lengthM ?? 0; doors += e.doors ?? 0; plans += e.plans ?? 0;
+    const sb = spotsBy[e.k];
+    if (!sb) { if (e.fail) floors['melas.echo.2'].failed.push({ id: e.name, why: e.fail }); continue; }
+    const [area, s] = sb, gap = Math.sqrt((e.x - s.x) ** 2 + (e.z - s.z) ** 2);
+    if (e.done && e.area === area && gap <= REACH_SLACK_M) floors[area].reached++;
+    else floors[area].failed.push({ id: s.id, why: e.fail ?? `${gap.toFixed(2)} m off in ${e.area}` });
+  }
+  return { floors, metres: Math.round(metres * 10) / 10, ticks: r.ticks, doors, plans, done: r.done, reason: r.reason, lastArea: game.state.places.live.area };
+}
+
+// (the ground's waypoint graph without the buildings' interiors: what an outdoor walk is routed on)
+let groundOnly = null;
+const groundGraph = () => (groundOnly ??= siteGraph({ ...MELAS_PLAN, interiors: {} }));
+/** The gates in the order the walk visits them, with the point GATE_INSIDE_M inside each. */
+export const FENCE_GATES = Object.freeze([
+  Object.freeze({ id: 'w:gate:north', name: 'the North gate', inside: [550, GATE_INSIDE_M] }),
+  Object.freeze({ id: 'w:gate:main', name: 'the main gate', inside: [GATE_INSIDE_M, 410] }),
+  Object.freeze({ id: 'w:gate:east', name: 'the East gate', inside: [1000 - GATE_INSIDE_M, 410] }),
+  Object.freeze({ id: 'w:gate:south', name: 'the South gate', inside: [550, 700 - GATE_INSIDE_M] }),
+]);
+
+// (a route on the ground graph from one waypoint to another as one polyline, its last point replaced)
+function routeLine(fromId, toId, end = null) {
+  const r = route(groundGraph(), fromId, toId);
+  if (!r) return null;
+  const pts = [];
+  for (const l of r.legs) for (const p of l.pts) if (!pts.length || Math.abs(pts[pts.length - 1][0] - p[0]) + Math.abs(pts[pts.length - 1][1] - p[1]) > 1e-6) pts.push([p[0], p[1]]);
+  if (end) pts[pts.length - 1] = end;
+  return { pts, lengthM: r.lengthM };
+}
+// (a polyline cut into points every legM, its corners kept)
+function legsOf(pts, legM) {
+  const out = [];
+  for (let k = 0; k + 1 < pts.length; k++) {
+    const [ax, az] = pts[k], [bx, bz] = pts[k + 1], L = Math.sqrt((bx - ax) ** 2 + (bz - az) ** 2), n = Math.max(1, Math.ceil(L / legM));
+    for (let i = 1; i <= n; i++) out.push([ax + (bx - ax) * i / n, az + (bz - az) * i / n]);
+  }
+  return out;
+}
+
+/**
+ * From where the player stands (their berth) out of Echo's front door, then along the ground's
+ * waypoint graph to the inside of the North, main, East and South gates in turn (the sheet's §5.1),
+ * each leg a plan of goTo legs of ROUTE_LEG_M on the ground's windows. onLeg(name, game) is called
+ * after each leg (the test reads its counters there). → { legs: [{ name, metres, ticks, done, reason, end }] }.
+ */
+export function walkToFences(game, { cls = 'C0', onLeg = () => {}, maxTicks = 200_000 } = {}) {
+  const legs = [];
+  const run = (name, steps, metres) => {
+    const t0 = game.state.clock.tick, r = runBot(game, plan(steps), { maxTicks }), me = game.me();
+    game.me().bot = {};
+    legs.push({ name, metres: Math.round(metres * 10) / 10, ticks: game.state.clock.tick - t0, done: r.done, reason: r.reason, end: [me.x, me.z], area: game.state.places.live.area });
+    onLeg(name, game);
+  };
+  run('out of the front door', [crossTo({ area: 'melas.ground', x: 522, z: 216.5 }, { cls })], 0);
+  legs[0].metres = Math.round((game.me().bot?.plan?.log?.[0]?.lengthM ?? 0) * 10) / 10;
+  let from = 'w:echo:front';
+  for (const gt of FENCE_GATES) {
+    const line = routeLine(from, gt.id, gt.inside);
+    if (!line) { legs.push({ name: gt.name, done: false, reason: 'no route' }); continue; }
+    const pts = legsOf(line.pts, ROUTE_LEG_M);
+    run(`to ${gt.name}`, pts.map((p, i) => goTo(p, { cls, area: 'melas.ground', arriveM: i === pts.length - 1 ? ARRIVE_M : 0.6, openDoors: false })), line.lengthM);
+    from = gt.id;
+  }
+  return { legs };
 }

@@ -8,11 +8,29 @@
 // and two fast-layer contributors in TECH §3.1's order: `player` (layer 2, move.js playerStep: the
 // player walks the live area's grid) and `paths` (layer 9, nav.js pathsStep: path requests served
 // within PATH_SOLVES_TICK 6 and PATH_NODES_TICK 8,000 node expansions, delivered on a tick fixed by
-// their cost). No slow contributor, job, action or upgrade of its own this round: zones' air at 1 Hz
-// and the minute's environment come with PLACES §3 (0.1), doors on R with VIEWS's R (0.0.4).
+// their cost). No slow contributor or job of its own this round: zones' air at 1 Hz and the minute's
+// environment come with PLACES §3 (0.1).
+//
+// 0.0.3 (the build sheet 0.0.3 §2.1): the actions `hand` (R: what's at hand, a door within reach,
+// else 0.0.2's fifteen-minute wait, which leaves TIME's domain) and `door` ({ act: 'door', args:
+// { id, to } }, tests and the debug handle), hand.js's; the player layer now also frees door leaves,
+// builds a ground's chunks ahead and crosses portals (move.js); and the upgrade 'places:no-site-seed'
+// drops v0.0.2's per-site seed from an older save (the user, 2026-11-05: "game world is handcrafted":
+// nothing of a place is rolled), marking flags['mig:no-site-seed'] where it dropped one, so a fresh
+// state loads unchanged. A path request's `who` is walked by name (TECH §2.3.1), so idFields need not
+// list places.nav.pending[].who.
 import { initPlaces } from './model.js';
 import { playerStep } from './move.js';
 import { pathsStep } from './nav.js';
+import { handAction, doorAction } from './hand.js';
+
+/** Drop v0.0.2's site seeds from an older save (see the header). */
+export function dropSiteSeeds(state) {
+  let dropped = 0;
+  for (const rec of Object.values(state.places?.sites ?? {})) if (rec && 'seed' in rec) { delete rec.seed; dropped++; }
+  if (dropped) (state.flags ??= {})['mig:no-site-seed'] = true;
+  return dropped;
+}
 
 /** The places domain's descriptor (TECH §2.5). */
 export const placesDomain = Object.freeze({
@@ -25,6 +43,6 @@ export const placesDomain = Object.freeze({
   fast: Object.freeze({ player: playerStep, paths: pathsStep }),
   slow: Object.freeze([]),
   jobs: Object.freeze({}),
-  actions: Object.freeze({}),
-  upgrades: Object.freeze([]),
+  actions: Object.freeze({ hand: handAction, door: doorAction }),
+  upgrades: Object.freeze([['places:no-site-seed', dropSiteSeeds]]),
 });

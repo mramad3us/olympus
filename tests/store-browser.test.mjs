@@ -91,6 +91,41 @@ export default [
     },
   },
   {
+    name: 'a new career is saved as it launches, and the time played after is saved as the page goes: New career, reload, Continue; 3 s of play, reload, Continue carries on from them (v0.0.3\'s review: the saves store held nothing)',
+    heavy: true,
+    timeoutMs: 120000,
+    async fn() {
+      await withGame(async (page, errors, game) => {
+        const H = '__olympus';
+        const saves = () => page.evaluate(async () => { const store = await import('/src/core/store.js'); return (await store.list({ hidden: true })).map(x => ({ slot: x.slot, gameMs: x.gameMs })); });
+        await page.click('#title .item.career');
+        await page.click('#title .item.standard');
+        await page.waitForFunction((h) => window[h].state && !window[h].loop.paused && document.querySelector('.watch .t')?.textContent, H, { timeout: 30000 });
+        const launched = await page.evaluate((h) => window[h].state.clock.ms, H);
+        // (the launch's own save, before any leaving: in the store within a second)
+        let atLaunch = [];
+        for (let k = 0; k < 20 && !atLaunch.some(x => x.slot.endsWith(':auto') && x.gameMs === launched); k++) { await page.waitForTimeout(100); atLaunch = await saves(); }
+        // (a reload at once: the title offers it)
+        await game.open('');
+        const after1 = await saves(), cont1 = await page.locator('#title .item.continue').innerText().catch(() => null);
+        // (Continue, 3 s of play, then a reload: the leave-the-page write carries the 3 s)
+        await page.click('#title .item.continue');
+        await page.waitForFunction((h) => window[h].state && !window[h].loop.paused, H, { timeout: 30000 });
+        await page.waitForTimeout(3000);
+        const played = await page.evaluate((h) => window[h].state.clock.ms, H);
+        await game.open('');
+        const after2 = await saves();
+        const auto2 = after2.find(x => x.slot.endsWith(':auto'));
+        console.log(`      launched at game ${launched} ms, saved at launch: ${JSON.stringify(atLaunch)}; reloaded at once: ${JSON.stringify(after1)}, the title: ${JSON.stringify(cont1?.split('\n')[0] ?? null)}`);
+        console.log(`      continued and played to ${played} ms (+${fmt((played - launched) / 1000, 1)} s), reloaded: auto at +${fmt(((auto2?.gameMs ?? 0) - launched) / 1000, 1)} s (${after2.length} records)`);
+        assert(atLaunch.some(x => x.slot.endsWith(':auto') && x.gameMs === launched), `nothing saved at launch: ${JSON.stringify(atLaunch)}`);
+        assert(after1.some(x => x.slot.endsWith(':auto') && x.gameMs >= launched) && cont1 && /Continue/.test(cont1), JSON.stringify({ after1, cont1 }));
+        assert(auto2 && auto2.gameMs > launched + 2000 && auto2.gameMs <= played + 200, JSON.stringify({ after2, played, launched }));
+        assert(!errors.length, errors.join('\n'));
+      }, { timeoutMs: 60000 });
+    },
+  },
+  {
     name: 'save, list, load and remove round trip byte for byte; an autosave rotates in one transaction, on time; profile and cache; a 500 KB synthetic save timed',
     heavy: true,
     async fn() {

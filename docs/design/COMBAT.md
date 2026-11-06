@@ -18,6 +18,8 @@ Revised 2026-11-05 after five critics reviewed the whole design. The changes:
 - the busiest area is budgeted with a fight in it (§19);
 - the build order is aligned with ROADMAP (§22).
 
+Revised 2026-11-06 for the user's two rules of 2026-11-05 (§1): the places a fight happens in are authored, and the fight itself (who, where in the place, when, against what) is procedural; everyone in it is generated, so the names in this section's examples (Tanaka, Ruiz, Okafor, Kade) are examples of what PEOPLE's generator draws. Also: COMBAT's threat record goes through PEOPLE's `mind` accessors (§6.1), and MCMAP's mat session is career sol 7 (§10.6).
+
 ---
 
 ## 0. The model in one page
@@ -35,6 +37,10 @@ Around all of it, **the rules of engagement** judge every use of force on what t
 ## 1. The user's words this section obeys
 
 From the OLYMPUS brief (2026-11-05): "Features should include, ship combat, ship boarding, combat on planetary grounds etc."; "getting on a drop ship to be deployed for peace keeping on Europa"; "special operations teams [...] dropped in much different special forces settings"; "Shooting should play as in Tradecraft"; "NPCs should also be well built and reactive, smart, have their own lives".
+
+The user's two rules of the same day:
+- "game world is handcrafted, events and world politics, assignments, opportunities, mission details are all procedural". **The ground is authored; the fight is drawn.** Every place a fight can happen (the training village and the Talus, the Works' passages and the towns' galleries, a checkpoint, a ship's decks, a target hull of its class, a special-operations setting) is PLACES's hand-made place, the same in every career, with its cover, its doors and its routes. What is procedural, from the world's seed and the day's stream: which operation comes and when (§16.2's incidents, CAREER §10 and §11.3); its objective, its opposition (their number, kind and quality, §7.9, §14.4), what the brief's intelligence gets right and wrong, and its timing; and **where inside the place** things happen: the cell's ambush on an authored route, the IED in a gallery mouth, the defenders' barricades on a hull's decks, the hostages' room, the checkpoint's deck of cases (§9.9). A layout is never rolled per seed (my call on the reading).
+- "All people generated" (asked whether the persistent cast should be handcrafted). The squad, the NCO on the net, the opposition, the role-players, the civilians in the crossfire and the umpire are all drawn from the world's seed (PEOPLE §3.1); nobody in a fight is a written character.
 
 Carried from tradecraft (dates are the user's):
 - 2026-11-03: "Shooting is going to be integrated in a stop motion way, heavily relying on the weapons skill [...] each step to ready a weapon has to be acted on by the player and will have time move forward as we do". "Shooting mode is [...] explicitly entered and should only stop time if we're trying to shoot".
@@ -225,7 +231,7 @@ Tradecraft's `reflex.js` is ported as is (offer, chosen, `KEEP_S` 120 s kept ans
 
 The 2026-11-04 rule is applied to every large change of state in a fight. The order is: a reflex chance where one is plausible, the animation in the stage, then a short outcome splash (VIEWS draws it):
 - **Knocked down by a hit**: BODY decides the knock time; COMBAT needs a choice when it ends: "Stay down" (prone, smaller target) or "Get up" (cross-reference BODY on whether the player is knocked down as NPCs are; tradecraft exempted the player).
-- **Out cold**: fade; the outcome splash when you come to says where you are, who has you and how long it was ("Doc Ibarra's hands on your chest. Eleven minutes.").
+- **Out cold**: fade; the outcome splash when you come to says where you are, who has you and how long it was ("Doc's hands on your chest. Eleven minutes.": the corpsman is whoever the roster drew for the platoon's `doc` billet).
 - **Captured, CASEVAC'd, dead**: the splash, then CAREER's papers.
 
 ### 3.7 Edge cases
@@ -426,7 +432,7 @@ threatKnown(state) → { known, why, sinceMs, alarm }
 
 - **Never refused**: being carried, being evacuated as a casualty (§12.4) and being unconscious (TIME §4.5's `out`). In all three the player cannot act.
 - **Words.** `sinceMs` is when the newest reason began. The instinct words the refusal from `why`: "Not with them out there." (hostile) · "Shots, close. Not now." (shots, hit) · "General quarters. Get to your couch." (alarm).
-- **State.** `state.mind.threat = { seenMs, seenId, shotMs, takenMs }` is plain data and is saved, so a save loaded mid-threat still refuses the skip. Alarms are read from PLACES's records and the ship's.
+- **State.** `state.mind.threat = { seenMs, seenId, shotMs, takenMs }` is plain data and is saved, so a save loaded mid-threat still refuses the skip. It sits in PEOPLE's `mind` key (CONTRACTS §9), so COMBAT writes it only through PEOPLE's `noteThreat(state, why, atMs, whoId)` and reads it through `threatOf(state)` (PEOPLE §8.8); COMBAT owns what it means. Alarms are read from PLACES's records and the ship's.
 - **Cost.** One pass over the player's board and the live alarms. It runs when a skip asks and at each fast-forward chunk (§21), never per tick.
 
 ---
@@ -925,7 +931,7 @@ Added to tradecraft's `weapons.js` table (k, guard, grab, awkward; my calls):
 
 ### 10.6 The belt ladder and training
 
-Tradecraft's technique ladder (swing to roundhouse; shove to choke; block, parry, slip) stays as written and maps onto the Corps' MCMAP belts (SKILLS reads the belt from the uniform; SETTING names it): tan to CQC 5, grey to 10, green to 15, brown to 20, black from 21 (my call). The dojo scenario (`tradecraft/src/sim/scenarios/dojo.js`) is the template for the mat session on CAREER's sol 4: drills called by the instructor, then bouts against a weaker, an even and a stronger marine and the instructor; "remembered" on a later career it snaps to the bouts (the user, 2026-10-26).
+Tradecraft's technique ladder (swing to roundhouse; shove to choke; block, parry, slip) stays as written and maps onto the Corps' MCMAP belts (SKILLS reads the belt from the uniform; SETTING names it): tan to CQC 5, grey to 10, green to 15, brown to 20, black from 21 (my call). The dojo scenario (`tradecraft/src/sim/scenarios/dojo.js`) is the template for the mat session on career sol 7, the second Monday (CAREER §5.4; CONTRACTS §3): drills called by the instructor, then bouts against a weaker, an even and a stronger marine and the instructor; "remembered" on a later career it snaps to the bouts (the user, 2026-10-26).
 
 ---
 
@@ -1217,7 +1223,7 @@ Secure from general quarters; casualties to the sick bay; the berthing's dead co
 
 ### 14.1 Phases and timings (longhaul's `boarding.js`, kept)
 
-`muster → cross → breach → fight → secured → return`. Muster waits up to `MUSTER_LIMIT_MIN` 25 for stragglers (cap 90). Cross by a mated collar `COLLAR_MIN` 2 min, or by EVA within `EVA_RANGE_M` 2,000 m at `EVA_SPEED_MS` 2 with the target still (relative speed under 2 m/s, not thrusting). Breach: cut an EVA hatch `BREACH_EVA_MIN` 10, a collar's inner hatch `BREACH_COLLAR_MIN` 6. Secured actions: search 20 min, take stores 40, prisoners 15, scuttle 10 to set with a 120 min fuse, salvage 45, accounts 30. Longhaul's own note, "Boarding a station is a marine operation: not yet", is OLYMPUS's to answer: stations are boardable, and the station's deck program comes from PLACES.
+`muster → cross → breach → fight → secured → return`. Muster waits up to `MUSTER_LIMIT_MIN` 25 for stragglers (cap 90). Cross by a mated collar `COLLAR_MIN` 2 min, or by EVA within `EVA_RANGE_M` 2,000 m at `EVA_SPEED_MS` 2 with the target still (relative speed under 2 m/s, not thrusting). Breach: cut an EVA hatch `BREACH_EVA_MIN` 10, a collar's inner hatch `BREACH_COLLAR_MIN` 6. Secured actions: search 20 min, take stores 40, prisoners 15, scuttle 10 to set with a 120 min fuse, salvage 45, accounts 30. Longhaul's own note, "Boarding a station is a marine operation: not yet", is OLYMPUS's to answer: stations are boardable, and the station's deck program is PLACES's, authored. **The hull is authored, the boarding is drawn** (§1): a target is one of PLACES's hand-made deck programs for its class (a hauler, a smuggler, a Belt runner, a frigate), the same decks in every career; which hull of the class it is, its name, its crew and how many of them fight (§14.4), where they barricade, and the objectives (§14.6) come from the operation.
 
 Doctrine (my call): board only after the target's PDCs are disabled (longhaul's DISARM aim) or it has struck. A PDC that still works kills an EVA crossing ("PDC raking is a finisher": a coasting target is hit nearly 100%, and so is a marine on a thruster pack).
 
@@ -1271,7 +1277,7 @@ A disabled target coasts, so most boardings are fought in free fall. The movemen
 
 ### 14.6 Objectives and the end
 
-Objectives come from the operation (CAREER's mission generator): the bridge, engineering (always, against a scuttle), the brig, the cargo, prisoners, the logs. The ship is **secured** when every compartment is cleared or the remaining defenders surrender (longhaul's rule: they give up at none left, or at 10% left for quality above 0.7, or 35% left with 50% a minute). The party falls back when 30% or fewer of it can fight, carrying whom it can (longhaul). Return needs a mated collar or EVA range: "a party can only come back across what it can cross".
+Objectives come from the operation (CAREER §11.3's mission generator, placed on the authored hull's own compartments): the bridge, engineering (always, against a scuttle), the brig, the cargo, prisoners, the logs. The ship is **secured** when every compartment is cleared or the remaining defenders surrender (longhaul's rule: they give up at none left, or at 10% left for quality above 0.7, or 35% left with 50% a minute). The party falls back when 30% or fewer of it can fight, carrying whom it can (longhaul). Return needs a mated collar or EVA range: "a party can only come back across what it can cross".
 
 ### 14.7 Other squads in the same boarding
 
@@ -1293,7 +1299,7 @@ No sound: perception is sight, the suit radio and touch (VIEWS §2.11's vacuum a
 
 ### 15.3 Europa's radiation clock
 
-Europa's surface takes about 5.4 Sv a sol of radiation unshielded (DESIGN). BODY owns the dose model and the suit's shielding (`doseRateSvH` behind a combat suit). COMBAT sets the operational rule (my calls):
+Europa's surface takes about 5.4 Sv a day of radiation unshielded (DESIGN; a sol is Mars's). BODY owns the dose model and the suit's shielding (`doseRateSvH` behind a combat suit). COMBAT sets the operational rule (my calls):
 - Every surface EVA has a **dose plan**, `EVA_DOSE_PLAN_SV` 0.020 by default, set by the operation. The squad leader calls return to base at 80% of plan.
 - The emergency ceiling is `EVA_DOSE_CEILING_SV` 0.100, which only an officer's order lets anyone pass, to save a life.
 - The dosimeter on the visor band is a clock: plan time = `0.020 / doseRateSvH`. At a suit dose rate of 0.03 Sv/h that is 40 minutes; at 0.1 Sv/h, 12.
@@ -1584,13 +1590,15 @@ The milestones are ROADMAP's (its §3.4 moved this section's first proposal: the
   - Checkpoint arrivals by hour and the district's mood (§12.4, §12.5), with the search stance's push on the mood to confirm (§9.9: +0.03 thorough, +0.01 standard, 0 quick).
   - Puppets for fleeing civilians on an exit flow field (§19).
   - Trust and affinity moved by taking the team (§8.5) and by a couch swap (§13.3).
+  - The `mind` accessors (`noteThreat`, `threatOf`) for §6.1's threat record (PEOPLE §8.8: done).
 - **CAREER**: the standby calendar's combat blocks; deployments and the mission generator for operations and boardings; the fire team leader billet; standing, conduct marks, valour medals and the Combat Action Ribbon; courts-martial; death codes and the memorial; letters. Specifically:
   - §8.5's meritorious board reading `initiative` (§8.5 here) as grounds for a nomination.
   - §15.3's evacuation agreeing with §12.4's chain: Callisto without neural surgery or grafts, Mars past 30 days.
 - **PLACES**: fixtures with heights, materials and thickness; the nav grid and its spatial bins; room polygons for points of domination; hatches, their ratings and pressure gauges; compartment atmospheres, venting, fire, smoke and air contaminants; deck programs of ships and stations; lighting states; the training village and shoot house. Specifically:
   - The checkpoints' detention cells and hand-over desks (§7.6).
   - Shelters rated against incoming fire, and the storm shelter (§6.1's alarms).
-  - Danger areas tagged on patrol routes (§21).
+  - Danger areas tagged on patrol routes (§21): the candidates are tagged on the authored routes, and the day's operation draws which of them hold a cell, an IED or a watcher (§1; PLACES §9.8: done).
+  - Spots and compartments on every authored hull and setting where an operation may put its objective, its defenders' barricades and its hostages (§14.1, §14.6; CAREER §11.3), so nothing in the layout is rolled (PLACES §9.8: done).
   - PLACES §12's formation marches to the range and the training village run on TIME's chained fast-forward with perception live, as patrol legs do, never as an outcome skip (TIME §5.1.2).
 - **VIEWS**: the step panel, the order panel and its key, the cut-down "Take the team" panel (§8.5), the 9-line card, the repeater's drawing, the visor band, the heard plaque, the instinct line and radio box, shake from hits (COMBAT gives `dp / 30` m/s), suppression's look if any, the log's expandable bursts, the checkpoint's ticker and the training casualty's card (§2.3, §9.9).
 - **TECH**: the ship layer one minute ahead with timestamped interior events; module layout (with `threat.js` and `checkpoint.js`, §18); tick order (COMBAT asks for: perception, then fighter decisions, then timed actions and movement, then shot and blast resolution, then suppression decay); rng streams; the test runner. Specifically:

@@ -134,12 +134,14 @@ function headerText(src) {
 const HEADER_MIN_CHARS = 40;          // (a sentence: a header is prose that explains the model, not a title)
 
 // The DOM as the sim would reach it: a member of a browser global, a call of a frame or style
-// function, a DOM type. A key or a variable called window (a launch window) is no DOM; a local
+// function, a DOM type, WebAudio's constructors. A key or a variable called window (a launch window) is no DOM; a local
 // named so and then dotted into is flagged, and is better renamed than excused.
 const DOM = new RegExp([
   /(?<![.\w$])(document|window|navigator|localStorage|sessionStorage|indexedDB|location)\s*(\.|\[)/.source,
   /(?<![.\w$])(requestAnimationFrame|cancelAnimationFrame|getComputedStyle|matchMedia)\s*\(/.source,
   /(?<![.\w$])(HTMLElement|HTMLCanvasElement|HTMLImageElement|customElements|DOMParser|MutationObserver)(?![\w$])/.source,
+  // (WebAudio is the browser's too: the sound lives in src/ui/audio, the 0.0.3 sheet's §1)
+  /(?<![.\w$])(AudioContext|OfflineAudioContext|webkitAudioContext|AudioWorkletNode)(?![\w$])/.source,
   /\bglobalThis\s*\.\s*(document|window)\b/.source,
 ].join('|'));
 const THREE = /\bfrom\s*['"]three(\/[^'"]*)?['"]|\bimport\s*\(\s*['"]three(\/[^'"]*)?['"]\s*\)/;
@@ -171,8 +173,8 @@ const MAY_IMPORT = {
   core: ['core'], data: ['data'], world: ['core', 'data', 'world'], sim: ['core', 'data', 'world', 'sim'],
   art: ['core', 'data', 'art'], render: ['core', 'data', 'art', 'render'], ui: SRC_FOLDERS, main: [...SRC_FOLDERS, 'main'],
 };
-/** The pure sim helpers the stage may read (TECH §2.2's SIM_FOR_VIEW, with the sheet's places/plan.js). */
-const SIM_FOR_VIEW = new Set(['src/sim/places/plan.js', 'src/sim/places/light.js']);
+/** The pure sim helpers the stage may read (TECH §2.2's SIM_FOR_VIEW, with the 0.0.2 sheet's places/plan.js and the 0.0.3 sheet's §1: the sun, the clocks, the doors, people's perception and figures). */
+const SIM_FOR_VIEW = new Set(['src/sim/places/plan.js', 'src/sim/places/light.js', 'src/sim/places/sun.js', 'src/sim/places/clocks.js', 'src/sim/places/doors.js', 'src/sim/people/perception.js', 'src/sim/people/figure.js']);
 /** Render modules art may import: the density (TECH correction 3: art/density.js became render/scale.js). */
 const ART_FROM_RENDER = new Set(['src/render/scale.js']);
 const WORKER = 'src/art/worker.js';

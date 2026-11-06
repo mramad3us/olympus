@@ -4,7 +4,10 @@
 // (three compiles a program per count of lights):
 //   - a hemisphere light, the sky's fill (sky colour above, the ground's bounce below);
 //   - a directional "sun" from the upper left, a little in front (tradecraft's: sprites are shaded that
-//     way, so it never swings round), casting hard pixel shadows (BasicShadowMap). It follows the camera
+//     way, so it never swings round), casting hard pixel shadows (BasicShadowMap). Its height follows the
+//     sun's (setElevation(deg): places' sunAt, VIEWS §2.7: "Height, colour and strength move"), in whole
+//     degrees from SUN_MIN_ELEV_DEG (a lower sun's shadows would outrun the shadow camera), so the shadow
+//     map is redrawn once a degree and not every frame of a dawn; its azimuth on screen never moves. It follows the camera
 //     in steps of SHADOW_STEP (an even number of shadow texels, about 2 m), its frustum a step wider, so
 //     a shadow texel covers the same ground on the same grid wherever it stands: shadows never shimmer
 //     and the map is redrawn only when the step changes or the area does (tradecraft view.js: the
@@ -22,23 +25,39 @@ import { moodOf, pickLamps, lampColour, lightAt as lightAtOf } from './moods.js'
 export const LAMP_SLOTS = 10;
 /** A ceiling lamp's height (tradecraft's LAMP_Y: under a 2.8 m ceiling). */
 export const LAMP_Y_M = 2.7;
-export const SHADOW_MAP_PX = 2048, SHADOW_HALF_M = 26, SUN_BACK_M = 18;
+export const SHADOW_MAP_PX = 2048, SHADOW_HALF_M = 26, SUN_BACK_M = 90, SHADOW_FAR_M = 220;
 /** The sun's direction of travel: from the upper left, a little in front (tradecraft's (−8, 15, 5) toward the target). */
 export const SUN_DIR = Object.freeze([8, -15, -5]);
+/** The art's sun height (tradecraft's direction: 57.8°), and the lowest the key light's direction goes (degrees). */
+export const SUN_ART_ELEV_DEG = 57.8, SUN_MIN_ELEV_DEG = 10;
 
 export function createLights(scene) {
   const hemi = new THREE.HemisphereLight(0xdde6ff, 0x9a8a78, 0.6 * Math.PI);
   const sun = new THREE.DirectionalLight(0xfff2dc, 0.79 * Math.PI);
   sun.castShadow = true;
   sun.shadow.mapSize.set(SHADOW_MAP_PX, SHADOW_MAP_PX);
-  Object.assign(sun.shadow.camera, { left: -SHADOW_HALF_M, right: SHADOW_HALF_M, top: SHADOW_HALF_M, bottom: -SHADOW_HALF_M, near: 1, far: 80 });
+  Object.assign(sun.shadow.camera, { left: -SHADOW_HALF_M, right: SHADOW_HALF_M, top: SHADOW_HALF_M, bottom: -SHADOW_HALF_M, near: 1, far: SHADOW_FAR_M });
   sun.shadow.bias = -0.0008;
   scene.add(hemi, sun, sun.target);
 
-  // The shadow camera's basis and step (see the header).
+  // The shadow camera's basis and step (see the header), remade when the sun's height changes.
   const dir = new THREE.Vector3(...SUN_DIR).normalize();
   const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
   const up = new THREE.Vector3().crossVectors(right, dir).normalize();
+  const flat = new THREE.Vector2(SUN_DIR[0], SUN_DIR[2]).normalize();
+  let elevDeg = SUN_ART_ELEV_DEG;
+  /** The key light's height (degrees, from places' sunAt), in whole degrees from SUN_MIN_ELEV_DEG; true when it moved (the shadows redrawn). */
+  function setElevation(deg) {
+    const e = Math.max(SUN_MIN_ELEV_DEG, Math.min(85, Math.round(deg)));
+    if (e === elevDeg) return false;
+    elevDeg = e;
+    const r = e * Math.PI / 180;
+    dir.set(flat.x * Math.cos(r), -Math.sin(r), flat.y * Math.cos(r)).normalize();
+    right.crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+    up.crossVectors(right, dir).normalize();
+    su = null; sv = null;
+    return true;
+  }
   const sc = sun.shadow.camera, texel = (sc.right - sc.left) / sun.shadow.mapSize.x;
   const SHADOW_STEP = 2 * Math.round(1 / texel) * texel;
   { const h = sc.right + SHADOW_STEP / 2, n = Math.round(2 * h / texel); Object.assign(sc, { left: -h, right: h, top: h, bottom: -h }); sc.updateProjectionMatrix(); sun.shadow.mapSize.set(n, n); }
@@ -88,7 +107,7 @@ export function createLights(scene) {
   }
 
   return {
-    hemi, sun, slots, apply, setLamps, update,
+    hemi, sun, slots, apply, setLamps, update, setElevation, get elevDeg() { return elevDeg; },
     get mood() { return mood; }, get lamps() { return lamps; },
     /** The light a sprite standing at (x, z) takes (linear RGB): the mood's tint and the pools it stands in, plus `extra`. */
     lightAt: (x, z, extra = null) => lightAtOf(mood, lamps, x, z, extra),

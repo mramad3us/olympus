@@ -10,8 +10,9 @@
 // it is a floor marking ("KEEP CLEAR", a lane number, "STAND HERE").
 //
 // A window is a fixture in front of the north wall that looks like a deep opening in it: the reveal in
-// shade, the sill lit, the glass showing the sky (painted, so it darkens with the mood's light: a pane by
-// day, a dark one at night). Base Melas's windows are small and deep (PLACES §4.4: "small deep windows,
+// shade, the sill lit, the glass showing the sky in glow class LAMP (0.0.3: the room's rig sets that
+// class to the open air's light through the eye, src/render/lighting.js, so the pane shows the sky by
+// day and goes dark at night whatever the room's own lights). Base Melas's windows are small and deep (PLACES §4.4: "small deep windows,
 // two per bay, on the north wall"); a ship's viewport has its armoured shutter half down.
 //
 // Makes and looks:
@@ -74,9 +75,11 @@ const windowFace = (make, sky, frame) => tex(`window:${make}:${sky}:${frame}`, (
   px(0, 0, w, h, tone(c, -0.18));
   px(0, 0, w, rv, tone(c, -0.3)); px(w - rv, 0, rv, h, tone(c, -0.25)); px(0, 0, rv, h, tone(c, -0.1));
   const gx = rv, gy = rv, gw = w - 2 * rv, gh = h - rv - P(0.08, ppm, 2);
-  for (let j = 0; j < gh; j++) px(gx, gy + j, gw, 1, mixHex(s, tone(s, -0.12), j / gh));
+  // (the daylight through the glass: glow class LAMP, which the room's rig lights by the open air's
+  // light, src/render/lighting.js, so a window shows the sky by day and goes dark at night)
+  for (let j = 0; j < gh; j++) px(gx, gy + j, gw, 1, mixHex(s, tone(s, -0.12), j / gh), GLOW.LAMP);
   // (the far wall of the canyon, a band of it, faint)
-  if (sky === 'mars' || sky === 'dust' || sky === 'dawn') for (let i = 0; i < gw; i++) { const hh = Math.round(gh * (0.35 + 0.1 * Math.sin(i * 0.3) + 0.05 * Math.sin(i * 1.1))); px(gx + i, gy + gh - hh, 1, hh, tone(s, -0.08)); }
+  if (sky === 'mars' || sky === 'dust' || sky === 'dawn') for (let i = 0; i < gw; i++) { const hh = Math.round(gh * (0.35 + 0.1 * Math.sin(i * 0.3) + 0.05 * Math.sin(i * 1.1))); px(gx + i, gy + gh - hh, 1, hh, tone(s, -0.08), GLOW.LAMP); }
   glass(px, gx, gy, gw, Math.floor(gh * 0.6), s);
   if (make !== 'slit') px(gx + Math.floor(gw / 2), gy, 1, gh, tone(c, -0.05));
   px(0, h - P(0.08, ppm, 2), w, P(0.08, ppm, 2), tone(c, 0.06)); px(0, h - P(0.08, ppm, 2), w, 1, tone(c, 0.1));   // (the sill)

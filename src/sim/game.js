@@ -43,16 +43,22 @@
 // since TECH §3.7 says they never touch the state (0.0.2 wrote a render error into meta.errors even
 // while paused, so the page's save parted from a node replay exactly when something broke).
 //
-// newGame({ seed, mode, scenario, startMs, hour, worldId, version, domains }) makes a fresh state:
-// core's newState, meta.worldId (w-<seed> unless given), every domain's init in order, the scenario's
-// fill (SCENARIOS: the sandbox, src/sim/scenarios/sandbox.js), then hour (the Mars local hour, a
-// fraction giving minutes) moves the clock and meta.createdMs to the next such time at the live
-// site's longitude, then each recurring job's first occurrence is posted. The start is START_MS,
-// 2351-12-19 02:20 UTC (SETTING §3.7); a test world has no career (ROADMAP §2.1).
+// newGame({ seed, mode, scenario, startMs, hour, worldId, version, domains, at }) makes a fresh
+// state: core's newState, meta.worldId (w-<seed> unless given), every domain's init in order, then
+// hour (the Mars local hour, a fraction giving minutes) moves the clock and meta.createdMs to the next
+// such time at the longitude of the scenario's site (SCENARIO_SITES), before the scenario's fill, so a
+// barracks started at 23:00 places the squad asleep (the 0.0.3 build sheet §8, item 20); then the fill
+// (SCENARIOS: the sandbox, src/sim/scenarios/sandbox.js, the test rooms; the barracks,
+// src/sim/scenarios/barracks.js, Echo Company drawn from the seed and the player in 1st Squad's bay),
+// given { at } (an { area, x, z, face } to start at), then each recurring job's first occurrence is
+// posted. The start is START_MS, 2351-12-19 02:20 UTC (SETTING §3.7); a test world has no career
+// (ROADMAP §2.1). The people domain is src/sim/people/domain.js (0.0.3), no longer a stub.
 //
-// The tech domain's one action is debug:skip:<ms> (the debug keys ^ and $ on AZERTY, the codes
-// BracketLeft and BracketRight, [ and ] on QWERTY): it marks the save
-// (meta.debugUsed, an honesty mark, TECH §15.5), writes a [debug] log record and begins an idle skip.
+// The tech domain's actions: debug:skip:<ms> (the debug keys ^ and $ on AZERTY, the codes
+// BracketLeft and BracketRight, [ and ] on QWERTY) marks the save (meta.debugUsed, an honesty mark,
+// TECH §15.5), writes a [debug] log record and begins an idle skip; debug:go:<areaId>:<x>:<z>[:<face>]
+// (the debug handle's go()) marks the save, writes a [debug] record and moves the player there,
+// across areas if need be, by places' moveTo (src/sim/places/portals.js), as a portal would.
 // The tick's order and the shape of skip() are referenced from tradecraft v0.2.0-rc3 src/sim/game.js
 // (620 lines; its body is rewritten, TECH §12.3).
 import { newState, registerDomain, resetDomains, fillDomain, addUpgrade, ERRORS_MAX } from '../core/state.js';
@@ -61,10 +67,15 @@ import { msAtMarsTime } from '../core/calendar.js';
 import { MIN_MS, TICK_MS, isHeld, durationText } from '../core/clock.js';
 import { START_MS } from '../data/setting/calendar.js';
 import { createJobs, dispatch as dispatchJob, postJobs, ensureJobs, siteLonEDeg } from './jobs.js';
-import { createSkips, defaultStops } from './time/skip.js';
+import { createSkips, defaultStops, engineOf } from './time/skip.js';
 import { timeDomain } from './time/domain.js';
 import { placesDomain } from './places/domain.js';
-import { sandbox } from './scenarios/sandbox.js';
+import { siteOf } from './places/model.js';
+import { moveTo } from './places/portals.js';
+import { peopleDomain } from './people/domain.js';
+import { sandbox, SANDBOX } from './scenarios/sandbox.js';
+import { barracks, BARRACKS } from './scenarios/barracks.js';
+import { SITES } from '../data/setting/calendar.js';
 import { logEntry } from './log.js';
 
 /** The fast layers of a tick, in order (TECH §3.1); input and offers run while time stands still. */
@@ -73,8 +84,10 @@ export const FAST_LAYERS = Object.freeze(['due', 'input', 'player', 'actors', 'b
 const LAYER_NAMES = new Set(FAST_LAYERS.map(L => L.name));
 /** The domains, in the order their contributors run. */
 export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'people', 'weapons', 'combat', 'world', 'career']);
-/** The scenarios a new game can start in: each fills a fresh state. */
-export const SCENARIOS = Object.freeze({ sandbox });
+/** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
+export const SCENARIOS = Object.freeze({ sandbox, barracks });
+/** The site each scenario starts on: its longitude sets the start's hour. */
+export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site });
 
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act);
 /** Whether an error from where (the loop's onError) is the sim's, and so noted in the state: a tick's or a skip's. */
@@ -84,8 +97,19 @@ const noop = () => {};
 
 // ---- the tech domain, and the stubs ----
 
+const FACES = new Set(['up', 'down', 'left', 'right']);
 function debugAction(state, action, bus, ctx) {
-  const m = /^debug:skip:(\d+)$/.exec(nameOf(action) ?? '');
+  const name = nameOf(action) ?? '';
+  const go = /^debug:go:([a-z0-9][a-z0-9.-]*):(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)(?::([a-z]+))?$/.exec(name);
+  if (go) {
+    if (state.skip || isHeld(state) || !state.player?.actor) return;
+    const [, area, x, z, face] = go;
+    state.meta.debugUsed = true;
+    logEntry(state, bus, { kind: 'debug', tone: 'note', text: `[debug] went to ${area} (${x}, ${z})` });
+    moveTo(state, state.player.actor, { area, x: Number(x), z: Number(z), face: FACES.has(face) ? face : undefined }, bus, { why: 'debug' });
+    return;
+  }
+  const m = /^debug:skip:(\d+)$/.exec(name);
   if (!m || state.skip || isHeld(state)) return;
   const ms = Number(m[1]);
   state.meta.debugUsed = true;
@@ -101,16 +125,13 @@ export const techDomain = descriptor({ name: 'tech', owner: 'TECH', keys: ['meta
 const stub = (name, owner, keys, more = {}) => descriptor({ name, owner, keys, init: keysInit(keys), stub: true, ...more });
 /** The domains not built yet: each claims its keys (TECH §6.1) and fills them empty. */
 export const STUB_DOMAINS = Object.freeze({
-  people: stub('people', 'PEOPLE', ['player', 'people', 'units', 'happenings', 'actors', 'mind', 'talk', 'names'], {
-    idMaps: { people: 'p', units: 'unit' }, idFields: { 'player.id': 'p', 'player.actor': 'a' }, actions: { people: noop, instinct: noop },
-  }),
   weapons: stub('weapons', 'WEAPONS', ['stop', 'items', 'armoury'], { idMaps: { items: 'i', 'armoury.guns': 'i' }, actions: { shoot: noop } }),
   combat: stub('combat', 'COMBAT', ['fights'], { actions: { hit: noop, grab: noop, guard: noop } }),
   world: stub('world', 'TECH', ['world']),
   career: stub('career', 'CAREER', ['career', 'careers', 'memorial']),
 });
 
-const BUILT_IN = () => ({ tech: techDomain, time: timeDomain, places: placesDomain, ...STUB_DOMAINS });
+const BUILT_IN = () => ({ tech: techDomain, time: timeDomain, places: placesDomain, people: peopleDomain, ...STUB_DOMAINS });
 
 // (a descriptor with every field present, named by its slot)
 function normalise(name, d) {
@@ -213,7 +234,7 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
       for (let ev = popNext(state, t); ev; ev = popNext(state, t)) {
         dispatch(state, bus, ev);
         const s = state.skip;
-        if (s && s.kind === 'ff' && !s.stop && stops(s.mask, ev)) {
+        if (s && engineOf(s) === 'ff' && !s.stop && stops(s.mask, ev)) {
           s.stop = { atMs: t, by: ev.id };
           bus.emit('skip-interrupt', { id: s.id, atMs: t, by: ev.id, prio: ev.prio, line: ev.line ?? null, reflex: ev.reflex ?? null });
         }
@@ -280,7 +301,7 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
 // ---- a new game ----
 
 /** A new game's state (see the header). */
-export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs = START_MS, hour = null, worldId = null, version = '?', domains = {} } = {}) {
+export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null } = {}) {
   if (seed === undefined || seed === null) throw new Error('newGame(): a seed is needed');
   const fill = SCENARIOS[scenario];
   if (!fill) throw new Error(`no scenario '${scenario}' (${Object.keys(SCENARIOS).join(', ')})`);
@@ -288,13 +309,15 @@ export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs
   s.meta.worldId = worldId ?? `w-${s.meta.seed}`;
   const list = domainsOf(domains);
   for (const d of list) d.init?.(s);
-  fill(s);
+  // (the clock to the start's hour before the fill, at the scenario's site: the sheet §8, item 20)
   if (hour !== null && hour !== undefined) {
     const h = Math.max(0, Math.min(24, Math.floor(hour)));
     const m = Math.min(h === 24 ? 39 : 59, Math.round((hour - Math.floor(hour)) * 60));
-    const t = msAtMarsTime(s.clock.ms, h, m, siteLonEDeg(s));
+    const lon = SITES[siteOf(SCENARIO_SITES[scenario])?.geo]?.lonEDeg ?? siteLonEDeg(s);
+    const t = msAtMarsTime(s.clock.ms, h, m, lon);
     s.clock.ms = s.meta.createdMs = Math.ceil(t / TICK_MS) * TICK_MS;
   }
+  fill(s, { at });
   s.time.slowToMs = s.clock.ms;                                    // (the slow layer has stepped up to the start)
   postJobs(s, createJobs(list));
   return s;

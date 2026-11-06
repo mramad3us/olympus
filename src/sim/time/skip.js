@@ -3,20 +3,25 @@
 // TIME §5 owns the contract (the activities, the masks, the interrupts, what happens at the end);
 // this is how the engine does it (TECH §5). One record, state.skip, holds a running skip and its
 // progress, so a skip can be cut into slices across frames and saved between any two steps:
-//     { id: 'k1', kind, activity, who, where, posture, mask, fromMs, toMs, atMs, chunkMs, chunks,
+//     { id: 'k1', kind, engine, activity, who, where, posture, mask, fromMs, toMs, atMs, chunkMs, chunks,
 //       ticker: [{ atMs, text, tone }], frame: [], stop: null | { atMs, by }, result: {}, cmds: [] }
 // beginSkip(state, bus, req) starts one during a tick (req = { activity, planMs, kind?, who?, where?,
 // posture = null, mask = 'D', chunkMs = 0 }); the kind is the caller's for 'out', 'day' and 'world',
-// else 'ff' under FF_MAX_MS (120 s) and 'outcome' at or over it (TIME §5.2). The tick that began it
-// ends normally; the loop sees state.skip on its next frame and changes mode (src/core/loop.js).
+// else 'ff' under FF_MAX_MS (120 s) and 'outcome' at or over it (TIME §5.2). The engine is set there
+// too (TECH §3.6, §5.2; CONTRACTS §2): 'ff' for kind 'ff', and for kind 'out' while a fight is live in
+// the area (fightLive(state), COMBAT's: none exists before 0.0.7, so false) whatever its length, a
+// fight never turned into an outcome round the player; 'outcome' for the rest. The loop's mode follows
+// the engine, not the kind (a save from before the field reads it from the kind, engineOf). The tick
+// that began it ends normally; the loop sees state.skip on its next frame and changes mode
+// (src/core/loop.js).
 //
 // Two engines behind the one record:
-//   ff        a fast-forward is lived ticks: the loop runs the real sim faster, with the skip's fixed
+//   ff        a fast-forward (engine 'ff') is lived ticks: the loop runs the real sim faster, with the skip's fixed
 //             input (ffInput: no keys, the activity's posture to come), and after each tick asks
 //             ffCheck, which finishes the skip once the clock reaches toMs or something stopped it
 //             (a 'skip:stop' command; a due event whose priority breaks the mask, set by the 'due'
 //             layer; any fast layer may set s.stop).
-//   outcome   the other kinds (outcome, out, day, world) step the slow layer on a grid set by the
+//   outcome   engine 'outcome' (kinds outcome, out, day, world) steps the slow layer on a grid set by the
 //             kind (TECH §5.3; correction 19), never by the splash's target or the frame's budget:
 //               outcome, out   whole game minutes on the live minute grid (the splash's clock moves
 //                              by the minute)
@@ -65,6 +70,8 @@ import { NO_INPUT } from '../../core/loop.js';
 import { askAutosave } from './domain.js';
 
 export const SKIP_KINDS = Object.freeze(['ff', 'outcome', 'out', 'day', 'world']);
+/** A skip record's engine: its own, or from its kind for a save made before the field (v0.0.2, v0.0.3's first builds). */
+export const engineOf = (s) => (!s ? null : s.engine ?? (s.kind === 'ff' ? 'ff' : 'outcome'));
 /** Under this planned gap a skip is a fast-forward of lived ticks; at or over it, an outcome skip (TIME §5.2). */
 export const FF_MAX_MS = 120_000;
 /** A budget that is never over: the whole skip at once (node, tests, "to the end" with no splash). */
@@ -96,7 +103,7 @@ const has = (s, cmd, atMs) => s.cmds.some(c => c.cmd === cmd && !c.done && c.atM
  * minNextChange(state, t0); dispatch(state, bus, ev); stops(mask, ev); tick(state) runs one lived
  * tick of the real sim (for skipNow's fast-forwards).
  */
-export function createSkips({ slowStep, allSteady = () => true, minNextChange = () => Infinity, dispatch, stops = defaultStops, tick = null }) {
+export function createSkips({ slowStep, allSteady = () => true, minNextChange = () => Infinity, dispatch, stops = defaultStops, tick = null, fightLive = () => false }) {
   let lastEnd = null;                                              // (the last skip-end payload: what skipNow returns)
 
   /** The end of the next step of a skip from t0, before events and toMs (TECH §5.3). */
@@ -117,15 +124,16 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
     const kind = req.kind ?? (planMs < FF_MAX_MS ? 'ff' : 'outcome');
     if (!SKIP_KINDS.includes(kind)) throw new Error(`no skip kind '${kind}' (${SKIP_KINDS.join(', ')})`);
     const fromMs = state.clock.ms;
+    const engine = kind === 'ff' || (kind === 'out' && fightLive(state)) ? 'ff' : 'outcome';
     const s = {
-      id: nextId(state, 'k'), kind, activity: req.activity ?? 'idle',
+      id: nextId(state, 'k'), kind, engine, activity: req.activity ?? 'idle',
       who: req.who ?? playerId(state), where: req.where ?? state.places?.live?.area ?? null,
       posture: req.posture ?? null, mask: req.mask ?? 'D',
       fromMs, toMs: fromMs + planMs, atMs: fromMs, chunkMs: Math.max(0, wholeTicks(req.chunkMs ?? 0)), chunks: 0,
       ticker: [], frame: [], stop: null, result: {}, cmds: [],
     };
     state.skip = s;
-    bus.emit('skip-start', { id: s.id, activity: s.activity, kind, fromMs, toMs: s.toMs, where: s.where, posture: s.posture, mask: s.mask });
+    bus.emit('skip-start', { id: s.id, activity: s.activity, kind, engine, fromMs, toMs: s.toMs, where: s.where, posture: s.posture, mask: s.mask });
     return s;
   }
 
@@ -154,7 +162,7 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
   function advanceSkip(state, bus, targetMs = Infinity, budget = NO_BUDGET, acts = []) {
     const s = state.skip;
     if (!s) return { steps: 0, done: true };
-    if (s.kind === 'ff') throw new Error('advanceSkip() on a fast-forward: the loop runs its ticks');
+    if (engineOf(s) === 'ff') throw new Error('advanceSkip() on a fast-forward: the loop runs its ticks');
     takeCommands(state, s, acts);
     const newLines = [];
     let steps = 0;
@@ -210,7 +218,7 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
   function ffCheck(state, bus) {
     const s = state.skip;
     if (!s) return true;
-    if (s.kind !== 'ff') return false;
+    if (engineOf(s) !== 'ff') return false;
     s.atMs = state.clock.ms;
     if (!s.stop && has(s, 'stop', state.clock.ms)) s.stop = { atMs: state.clock.ms, by: 'player' };
     if (!s.stop && isHeld(state)) s.stop = { atMs: state.clock.ms, by: 'hold' };   // (a fast-forward's fixed input can't answer a choice)
@@ -221,7 +229,7 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
   function skipNow(state, bus, req) {
     const s = beginSkip(state, bus, req);
     lastEnd = null;
-    if (s.kind !== 'ff') advanceSkip(state, bus, Infinity, NO_BUDGET);
+    if (engineOf(s) !== 'ff') advanceSkip(state, bus, Infinity, NO_BUDGET);
     else {
       if (!tick) throw new Error('skipNow(): a fast-forward needs lived ticks, and no tick() was given');
       for (let n = 0; !ffCheck(state, bus); n++) {
