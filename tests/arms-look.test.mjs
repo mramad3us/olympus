@@ -6,6 +6,9 @@ import { toJSON } from '../src/core/state.js';
 import { gunLook, kitLook, rangeLook, caseAt, ejectCase, ACTION_FRAMES, CARRY_RIGS, FLASH_MS, KICK_MS, G_MS2, PORT_H_M } from '../src/sim/arms/look.js';
 import { holeOf } from '../src/sim/arms/paper.js';
 import { faceRad } from '../src/sim/arms/carry.js';
+import { createGame } from './game.mjs';
+import { kdBot } from './bots/kd.mjs';
+import { kdNow } from '../src/sim/scenarios/range.js';
 
 // (a step under way, as the shot role's stop motion keeps it: state.stop.doing, read by its stepNow)
 function doing(W, action, k = 0.5) {
@@ -102,6 +105,28 @@ export default [
       assert(mine.holes.map(h => h.n).join() === '1,2,3,4,1', `numbered in their string: ${mine.holes.map(h => h.n)}`);
       assert(look.brass.length === 2 && look.brass[0].rest === false && look.brass[1].rest === true, 'a case in flight, the dummy at rest');
       assert(before === after, 'nothing written');
+    },
+  },
+  {
+    name: 'rangeLook.kd (0.0.7) on test-range\'s 300 m line: the twenty faces with how far each is up (continuous through a mark), the flags\' heading and lift, the relay\'s fires, the cases flying and on their tiles, the dust in the berm; a gunner\'s rifle aimed at its own face',
+    fn() {
+      const g = createGame({ scenario: 'test-range', seed: 7, setup: 'confirm' }), bot = kdBot(), s = g.state;
+      let maxJump = 0, prev = null, seenFire = 0, seenDust = 0, ups = new Set(), gunnerAim = null;
+      for (let n = 0; n < 20 * 90 && kdNow(s).cmd !== 'clear'; n++) {
+        g.step(1, bot);
+        const L = rangeLook(s, s.clock.ms).kd, own = L.faces[s.armoury.range.kdLane - 1];
+        if (prev !== null) maxJump = Math.max(maxJump, Math.abs(own.up - prev));
+        prev = own.up; ups.add(Math.round(own.up * 10) / 10);
+        seenFire = Math.max(seenFire, L.fires.length); seenDust = Math.max(seenDust, L.dust.length);
+        const G = s.armoury.range.relay[0], a = s.actors.list.find(x => x.who === G.pid);
+        if (!gunnerAim && a) { const look = gunLook(s, a, s.clock.ms); if (look?.aim) gunnerAim = { aim: look.aim, carry: look.carry }; }
+      }
+      const L = rangeLook(s, s.clock.ms).kd;
+      console.log(`      the line ${L.line} m; ${L.faces.length} faces, yours went through ${[...ups].sort().join(', ')} (the biggest step a tick ${fmt(maxJump, 3)}); ${L.flags.length} flags, e.g. ${JSON.stringify(L.flags[2])}; fires up to ${seenFire} at once; dust up to ${seenDust}; ${L.tiles.length} tiles of cases (${L.tiles.reduce((t, x) => t + x.n, 0)}); a gunner ${JSON.stringify(gunnerAim)}`);
+      assert(L.faces.length === 20 && L.flags.length === 16, 'every face and flag (sixteen: four down the middle, the fixer\'s of v0.0.7)');
+      assert(ups.has(0) && ups.has(1) && maxJump <= 0.05, `a face goes down and up continuously (${maxJump} a tick)`);
+      assert(seenFire >= 2 && L.tiles.length > 0, 'the relay\'s fires and cases');
+      assert(gunnerAim && gunnerAim.carry === 'aim' && gunnerAim.aim.x === 1600, `a gunner aims at its own face: ${JSON.stringify(gunnerAim)}`);
     },
   },
 ];

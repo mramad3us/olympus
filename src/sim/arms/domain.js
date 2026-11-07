@@ -25,12 +25,22 @@
 // Its id fields: items' and armoury.guns' keys are item ids; kit.worn, kit.hands, a gun's mag, a
 // container's holds, stop.gun and the things lying on a site's ground (places.sites.<site>.items[].id,
 // kit.js lyingOf) hold them.
+// 0.0.7 (the build sheet 0.0.7 §2.7): test-range's KD course (src/sim/scenarios/range.js) adds to the tick:
+//   actors   range.js kdActors: the corpsman's run and care, then the relay (gunner.js gunnerStep: each gunner's
+//            next sub-step on the tower's command), lived only;
+//   rules    range.js safety after handling.js rangeRules (which keeps test-handling's verdicts): range safety in
+//            full on the KD (the cold line, forward of the line, the muzzle over people, the ND's rule);
+//   events   'pit' (range.js onPitEvent: a carrier down, marked, up, the disk);
+//   actions  kd:police, kd:turnIn, kd:declare (range.js kdAct: the player's range actions at their commands);
+// and its id fields the relay's rifles and magazines (armoury.range.relay[].gunId, .magIds[]) and the dummy's
+// magazine (armoury.range.dummy.magId).
 import { fillDomain } from '../../core/state.js';
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { playerId } from '../../core/ids.js';
 import { enterStop, chooseStep, stopInput, stopRules, carryAction, stanceAction, gunOn } from './shooting.js';
 import { habitStep } from './carry.js';
 import { onRangeCmd, rangeRules, rangeSecond } from '../scenarios/handling.js';
+import { onPitEvent, safety, kdActors, kdAct } from '../scenarios/range.js';
 
 const KEYS = Object.freeze(['stop', 'items', 'armoury']);
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act ?? '');
@@ -69,6 +79,12 @@ function stop(state, action, bus, ctx) {
 
 function carry(state, action, bus) { carryAction(state, bus); }
 
+// (0.0.7: the KD's range actions, 'kd:<id>' (police, turnIn, declare))
+function kd(state, action, bus, ctx) {
+  const name = nameOf(action), id = argsOf(action).id ?? (name.length > 3 ? name.slice(3) : null);
+  if (id) kdAct(state, bus, id, ctx);
+}
+
 function stance(state, action, bus) {
   const name = nameOf(action), a = argsOf(action);
   const dir = a.to ?? a.dir ?? (name.length > 7 ? name.slice(7) : 'down');
@@ -80,6 +96,7 @@ function rules(state, input, bus, ctx) {
   stopRules(state, input, bus, ctx);
   habitStep(state, input, bus, ctx);
   rangeRules(state, input, bus, ctx);
+  safety(state, input, bus, ctx);
 }
 
 /** WEAPONS' domain descriptor (see the header). */
@@ -88,12 +105,13 @@ export const weaponsDomain = Object.freeze({
   owner: 'WEAPONS',
   keys: KEYS,
   idMaps: Object.freeze({ items: 'i', 'armoury.guns': 'i' }),
-  idFields: Object.freeze({ 'people{}.kit.worn{}': 'i', 'people{}.kit.hands[]': 'i', 'items{}.mag': 'i', 'items{}.holds[]': 'i', 'stop.gun': 'i', 'places.sites{}.items[].id': 'i' }),
+  idFields: Object.freeze({ 'people{}.kit.worn{}': 'i', 'people{}.kit.hands[]': 'i', 'items{}.mag': 'i', 'items{}.holds[]': 'i', 'stop.gun': 'i', 'places.sites{}.items[].id': 'i',
+    'armoury.range.relay[].gunId': 'i', 'armoury.range.relay[].magIds[]': 'i', 'armoury.range.dummy.magId': 'i' }),
   init(state) { for (const k of KEYS) fillDomain(state, k); },
-  fast: Object.freeze({ input: stopInput, rules, second: rangeSecond }),
+  fast: Object.freeze({ input: stopInput, actors: kdActors, rules, second: rangeSecond }),
   slow: Object.freeze([]),
   jobs: Object.freeze({}),
-  events: Object.freeze({ 'range-cmd': onRangeCmd }),
-  actions: Object.freeze({ ready, digit, shoot, stop, carry, stance }),
+  events: Object.freeze({ 'range-cmd': onRangeCmd, pit: onPitEvent }),
+  actions: Object.freeze({ ready, digit, shoot, stop, carry, stance, kd }),
   upgrades: Object.freeze([]),
 });

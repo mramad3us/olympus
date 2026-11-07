@@ -27,14 +27,36 @@
 //     port and landing where and when the sim says (my call: the tick on the regolith and the case lying
 //     agree with the picture).
 // One instanced draw of pixels (src/render/decals.js createPixels), lit where each pixel is.
+// 0.0.7 (the build sheet 0.0.7 §2.4 (b), (c)): the KD ground in play, from rangeLook.kd (look.js, the range role's):
+//   - THE FACES on their carriers: one small batch of the kit's own (src/art/jobs.js's collector, a moving piece
+//     a face, so each is its own mesh, frustum-culled, in the batch's program: no new one), built once when the
+//     KD is first seen, each face painted FACE_K times life size (art/kit/range.js paintKdFace) and raised or
+//     lowered every frame where its carrier has it (range-items.js kdFaceAt: rangeLook's up, 0 to 1 over
+//     CARRIER_S, never a pop; a face down is under the ground, which hides it as the pits' parapet hides it
+//     from the line); on each the holes the pits show, the spotter in the last, the score disk on its pole
+//     (rising and going down over DISK_RISE_MS) and a miss's red flag waved across it;
+//   - THE FLAGS along both sides of the range, each sleeve blowing by flagOf (the sim's wind: its way and its
+//     strength, so the wind reads off them as a marine reads it);
+//   - THE RELAY: every shooter's flash star and blast dust from fires (their last 1.2 s), the cases flying and,
+//     at rest, by metre tile (rangeLook.kd.tiles: none lost past the session's 64 live cases), and the dust a
+//     round throws off the berm.
+// What is drawn is culled to the views given (the frame, and the far window's while it is open), so a flag 300 m
+// off costs nothing until the window looks at it.
 import { PX_PER_M } from './scale.js';
 import { createPixels } from './decals.js';
-import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART } from './range-items.js';
+import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART,
+  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp } from './range-items.js';
+import { createCollector, buildAreaData } from '../art/jobs.js';
+import { areaFromJob, newPart } from './batch.js';
+import { paintKdFace, facePx } from '../art/kit/range.js';
 import { LINE_FLAGS, LINE_FLAG } from '../data/places/range.js';
 export { cardFace, holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, drawnY, drawnBoreM, drawnMuzzleM, FLAG_HOIST_MS, FLAG_FLAP_MS, PUFF_MS, FLAG_PART } from './range-items.js';
 
 /** The most pixels the range draws a frame (six cards of holes, the flags, 64 cases at two pixels, the dust), and the flash star's. */
-export const MAX_RANGE_PIXELS = 1700, BLAST_PIXELS = 32;
+export const MAX_RANGE_PIXELS = 4000, BLAST_PIXELS = 256;
+/** How far outside a view a thing still drawn may stand (metres: a flag's sleeve 4.5 m up, a face's disk). */
+export const VIEW_MARGIN_M = 8;
+const inViews = (views, x, z) => !views || views.some(v => x > v.x0 - VIEW_MARGIN_M && x < v.x1 + VIEW_MARGIN_M && z > v.z0 - VIEW_MARGIN_M && z < v.z1 + VIEW_MARGIN_M + 6);
 
 /**
  * The range on a stage: { group, update(look, { kd, ms, tintOf }), stats, dispose }. look: rangeLook(state,
@@ -49,12 +71,34 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
   const group = new THREE.Group();
   group.name = 'range';
   group.add(px.mesh, blast.mesh);
-  const stats = { holes: 0, brass: 0, flying: 0, flag: 0, flash: 0, dust: 0, pixels: 0 };
+  const stats = { holes: 0, brass: 0, flying: 0, flag: 0, flash: 0, dust: 0, pixels: 0, kd: null };
+  // ---------- the KD's faces: a moving piece each, built once ----------
+  let faces = null;                                                 // { built, byLane: Map lane → { group, paper } }
+  const discs = new Map(), misses = new Map();                     // (lane → { value, sinceMs, untilMs }: the disk and the flag going down after the look drops them)
+  function buildFaces(list) {
+    const col = createCollector({ ppm, part: newPart }), byLane = new Map();
+    const painters = {};
+    for (const f of list) {
+      const paper = f.paper ?? 'kdA', n = facePx(paper, ppm), h = n / ppm / 2;
+      painters[paper] ??= (px) => paintKdFace(px, 0, 0, ppm, paper);
+      col.prop({ id: `face:${f.lane}`, kind: 'face', lane: f.lane, pivot: [f.x, f.z] });
+      col.box({ x0: -h, x1: h, y0: 0, y1: 2 * h, z0: -0.01, z1: 0.01, faces: { front: painters[paper], back: 0x8c6d59, sides: 0x8c6d59, top: 0x8c6d59 } });
+      col.endProp();
+      byLane.set(f.lane, { paper });
+    }
+    const g = buildAreaData(col, { name: 'kd-faces' });
+    let r; do { r = g.next(); } while (!r.done);
+    const built = areaFromJob(r.value, { name: 'kd-faces', see: false });
+    built.upload(stage.renderer); built.atlas.release();
+    for (const p of built.props) { const e = byLane.get(p.lane); if (e) e.group = p.group; for (const m of p.group.children) { m.castShadow = false; m.receiveShadow = true; } }
+    group.add(built.group);
+    return { built, byLane };
+  }
   // (the flag's hoist: from where it was when the line last changed, toward up or down, on game time)
   let hot = false, fromK = 0, sinceMs = null, seen = false;
   const holesSeen = new Map();                                      // (lane|n|xCm|yCm → the game time it was first drawn)
   const hoistAt = (ms) => { if (sinceMs === null) return hot ? 1 : 0; const t = Math.max(0, Math.min(1, (ms - sinceMs) / FLAG_HOIST_MS)); return hot ? fromK + (1 - fromK) * t : fromK * (1 - t); };
-  function update(look, { kd = null, ms = 0, tintOf = null } = {}) {
+  function update(look, { kd = null, ms = 0, tintOf = null, views = null } = {}) {
     let n = 0, nb = 0;
     const put = (p, part = 0, noLine = false) => { if (px.set(n, { ...p, color: p.c, tint: tintOf ? tintOf(p.x, p.z) : [1, 1, 1], part, noLine })) n++; };
     stats.holes = stats.brass = stats.flying = stats.flag = stats.flash = stats.dust = 0;
@@ -89,11 +133,53 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
       flash.forEach((p, i) => blast.set(i, { ...p, color: p.c, part: 0, noLine: true }));
       nb = flash.length;
       stats.flash = flash.length; stats.dust = dust.length;
-    } else { hot = false; sinceMs = null; fromK = 0; seen = false; holesSeen.clear(); }
+      // ---------- the KD ground (0.0.7) ----------
+      const K = look.kd ?? null;
+      if (K) {
+        const ks = { faces: 0, up: 0, holes: 0, spotters: 0, disks: 0, misses: 0, flags: 0, fires: 0, cases: 0, tiles: 0, dust: 0, carriers: [] };
+        if (!faces && K.faces?.length) faces = buildFaces(K.faces);
+        for (const f of K.faces ?? []) {
+          const fa = kdFaceAt(f, ppm), e = faces?.byLane.get(f.lane);
+          if (e?.group) {
+            const px0 = fa.x0 + fa.n / ppm / 2;
+            if (e.group.position.x !== px0 || e.group.position.y !== fa.yBot || e.group.position.z !== fa.z) { e.group.position.set(px0, fa.yBot, fa.z); e.group.updateMatrixWorld(true); }
+          }
+          ks.faces++; if ((f.up ?? 1) >= 1) ks.up++;
+          ks.carriers.push({ lane: f.lane, up: f.up ?? 1, yTop: fa.yTop });
+          if (!inViews(views, f.x, f.z)) continue;
+          for (const h of f.holes ?? []) { const q = kdHolePixel(fa, h, ppm); if (q && q.y > 0) { put({ ...q, c: q.black ? PALE : DARK }, 0, true); ks.holes++; } }
+          for (const q of spotterPixels(fa, f.spotter, ppm)) if (q.y > 0) { put(q, 0, true); ks.spotters++; }
+          // (the disk: up while the look gives it, then down over DISK_RISE_MS; the miss's flag the same)
+          const d0 = discs.get(f.lane);
+          if (f.disk) discs.set(f.lane, { value: f.disk.value, sinceMs: f.disk.sinceMs ?? ms, untilMs: null });
+          else if (d0 && d0.untilMs === null) d0.untilMs = ms;
+          const d = discs.get(f.lane);
+          if (d) { const k = poleUp(d.sinceMs, ms, d.untilMs); if (k > 0) { for (const q of diskPixels(fa, d.value, k, ppm)) put(q, FLAG_PART + 2, false); ks.disks++; } else if (d.untilMs !== null) discs.delete(f.lane); }
+          const m0 = misses.get(f.lane);
+          if (Number.isFinite(f.flagSinceMs)) misses.set(f.lane, { sinceMs: f.flagSinceMs, untilMs: null });
+          else if (m0 && m0.untilMs === null) m0.untilMs = ms;
+          const m = misses.get(f.lane);
+          if (m) { const k = poleUp(m.sinceMs, ms, m.untilMs); if (k > 0) { for (const q of missFlagPixels(fa, k, ms, ppm)) put(q, FLAG_PART + 3, false); ks.misses++; } else if (m.untilMs !== null) misses.delete(f.lane); }
+        }
+        for (const fl of K.flags ?? []) { if (!inViews(views, fl.x, fl.z)) continue; for (const q of sleevePixels(fl, ms, ppm)) put(q, FLAG_PART + 4); ks.flags++; }
+        for (const fire of K.fires ?? []) {
+          if (!inViews(views, fire.x, fire.z)) continue;
+          if (look.fire && fire.atMs === look.fire.atMs && Math.abs(fire.x - look.fire.x) < 0.01 && Math.abs(fire.z - look.fire.z) < 0.01) continue;   // (yours: drawn above)
+          ks.fires++;
+          for (const q of dustPixels(fire, ms, ppm)) put(q, 0, true);
+          for (const q of flashPixels(fire, ms, ppm)) { if (blast.set(nb, { ...q, color: q.c, part: 0, noLine: true })) nb++; }
+        }
+        for (const b of K.brass ?? []) { if (!inViews(views, b.x, b.z)) continue; for (const q of brassPixels(b, ppm, ms)) put(q); ks.cases++; }
+        for (const t of K.tiles ?? []) { if (!inViews(views, t.x, t.z)) continue; for (const q of tilePixels(t, ppm)) put(q); ks.tiles++; }
+        for (const d of K.dust ?? []) { if (!inViews(views, d.x, d.z)) continue; for (const q of bermDustPixels(d, ms, ppm)) { put(q, 0, true); ks.dust++; } }
+        stats.kd = ks;
+        if (faces) faces.built.group.visible = true;
+      } else { stats.kd = null; if (faces) faces.built.group.visible = false; }
+    } else { hot = false; sinceMs = null; fromK = 0; seen = false; holesSeen.clear(); if (faces) faces.built.group.visible = false; stats.kd = null; }
     px.count(n);
     blast.count(nb);
     stats.pixels = n + nb;
     return stats;
   }
-  return { group, update, stats, pixels: px, blast, dispose() { px.dispose(); blast.dispose(); group.removeFromParent(); } };
+  return { group, update, stats, pixels: px, blast, get faces() { return faces; }, dispose() { px.dispose(); blast.dispose(); faces?.built.dispose(); group.removeFromParent(); } };
 }

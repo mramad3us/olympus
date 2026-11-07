@@ -213,7 +213,13 @@ export default [
       console.log(`      before the checks: believed empty and 5; after: ${said(b)}`);
       const keys = Object.keys(b).sort().join(',');
       // (0.0.6: the believed kind of the magazine in (magLoad) and the magazine in the hand as believed (hand), the user's ask of 2026-11-07)
-      assert(keys === 'chamber,cocked,condWord,count,countApprox,hand,locked,mag,magFam,magLoad,mode,model,port,short,stoppage', `beliefOf's fields: ${keys}`);
+      // (0.0.7: the turrets and the lever as seen (sight, optic), the zero and the dope as believed (zero, dope): the build sheet 0.0.7 §2.1;
+      // the truth's zero never among them)
+      assert(keys === 'chamber,cocked,condWord,count,countApprox,dope,hand,locked,mag,magFam,magLoad,mode,model,optic,port,short,sight,stoppage,zero', `beliefOf's fields: ${keys}`);
+      s2.items[V.gunId].zero = { elev: 7, wind: -3 };
+      const b2 = beliefOf(s2, V.gunId);
+      console.log(`      the true zero (7, −3) set: believed zero ${JSON.stringify(b2.zero)}, dope ${JSON.stringify(b2.dope)}, turrets ${JSON.stringify(b2.sight)} at ${b2.optic}×`);
+      assert(b2.zero.elev === 0 && b2.zero.wind === 0 && b2.dope[300].elev === -3 && !('trueZero' in b2), 'the truth\'s zero never in the belief: the card\'s zero and its dope');
       for (const k of ['set', 'jam', 'n', 'cond', 'rounds', 'dust', 'foul', 'lube', 'byId', 'belief']) assert(!(k in b), `no truth field ${k}`);
     },
   },

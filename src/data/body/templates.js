@@ -33,6 +33,8 @@ const ledgers = (more = {}) => ({
   morale: { v: 70 },
   thermal: { coreC: 37.0 },
   traits: { sleepNeedH: 8.0, tauIntH: 24.2, bmrK: 1.0 },
+  parts: { head: 0, torso: 0, armL: 0, armR: 0, legL: 0, legR: 0 },
+  blood: 100, bloodMs: null, bleedK: 1,
   ...more,
 });
 
@@ -44,6 +46,6 @@ export const TEMPLATES = deepFreeze({
 /** The template a record without one reads. */
 export const DEFAULT_TMPL = 'm-adult';
 /** The ledger groups a record may hold (the rest of a record is v, tmpl, heightM, build, atMs, held). */
-export const GROUPS = Object.freeze(['energy', 'water', 'bladder', 'bowel', 'hygiene', 'hands', 'hair', 'sleep', 'stress', 'morale', 'thermal', 'traits']);
+export const GROUPS = Object.freeze(['energy', 'water', 'bladder', 'bowel', 'hygiene', 'hands', 'hair', 'sleep', 'stress', 'morale', 'thermal', 'traits', 'parts']);
 /** The scalar ledgers kept at the record's top level. */
-export const SCALARS = Object.freeze(['stamina', 'blown']);
+export const SCALARS = Object.freeze(['stamina', 'blown', 'blood', 'bloodMs', 'bleedK']);

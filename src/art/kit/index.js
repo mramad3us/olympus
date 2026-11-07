@@ -80,6 +80,17 @@ export const FOOTPRINTS = Object.freeze({
   rangeSign: { w: 2.4, d: 0.12, h: 1.3, makes: ['lane', 'distance', 'notice', 'flagpole'] },
   berm: { w: 19.5, d: 6.0, h: 3.0, makes: ['earth', 'sandbag'] },
   rangeFence: { w: 6.0, d: 0.1, h: 2.4, makes: ['mesh', 'rope'] },
+  // (0.0.7: the rest of the KD ground, equal to the range role's RANGE_KINDS (src/data/places/range.js), pinned by
+  // places-validate; the long pieces stretched by their own w and d)
+  kdCarrier: { w: 1.8, d: 0.3, h: 2.0, makes: ['frame', 'timber'] },
+  kdParapet: { w: 100, d: 3.0, h: 0.5, makes: ['concrete', 'earth'] },
+  kdPits: { w: 100, d: 10, h: 0.0, makes: ['trench', 'timber'] },
+  kdBerm: { w: 28, d: 100, h: 8.0, makes: ['earth', 'terraced'] },
+  kdFlag: { w: 0.1, d: 0.1, h: 4.5, makes: ['sleeve', 'timber'] },
+  kdPoint: { w: 0.1, d: 0.1, h: 0.6, makes: ['stake', 'post'] },
+  kdLineBoard: { w: 1.2, d: 0.12, h: 1.3, makes: ['distance', 'frame'] },
+  kdCanopy: { w: 6.0, d: 4.0, h: 3.0, makes: ['open', 'tarp'] },
+  rangeShack: { w: 12, d: 8, h: 3.5, makes: ['shut', 'store'] },
   // (0.0.6: the PX barber's pole on its stand, equal to places' catalogue, src/sim/places/fixtures.js)
   barberPole: { w: 0.36, d: 0.36, h: 2.2, makes: ['pole', 'lit'] },
 });
@@ -97,6 +108,8 @@ const MAKERS = {
   sign: signs.sign, window: signs.wallWindow, board: signs.board, sofa: signs.sofa, vending: signs.vending, bin: signs.bin, barberPole: signs.barberPole,
   wallClock: structure.wallClock, stairs: structure.stairs, stairsWell: structure.stairsWell, lampPost: structure.lampPost, doorLeaf: structure.doorLeaf,
   kdTower: range.kdTower, kdMat: range.kdMat, kdFrame: range.kdFrame, rangeSign: range.rangeSign, berm: range.berm, rangeFence: range.rangeFence,
+  kdCarrier: range.kdCarrier, kdParapet: range.kdParapet, kdPits: range.kdPits, kdBerm: range.kdBerm, kdFlag: range.kdFlag, kdPoint: range.kdPoint,
+  kdLineBoard: range.kdLineBoard, kdCanopy: range.kdCanopy, rangeShack: range.rangeShack,
 };
 /** Every kind the kit builds. */
 export const KINDS = Object.freeze(Object.keys(MAKERS));

@@ -14,7 +14,10 @@
 //             that multiply §4.3's rates). This round's cut is the R-7, the player's rifle.
 //   FAMILIES  box magazines (§3.3): the calibre, the rounds, the masses empty and full, the length and
 //             volume, a counter (a Hall sensor the HUD link reads) or a witness window.
-//   OPTICS    the optic as issued (§3.5); the SO-4 at 1× this round (its throw lever comes at 0.0.7).
+//   OPTICS    the optic as issued (§3.5): the SO-4, 1× to 4× on its throw lever (0.0.7: the lever, the
+//             sight picture 1.00 at 1× as v0.0.5 timed it and 1.20 at 4×, WEAPONS §3.5), its turrets in
+//             clicks of 0.1 mrad to ±60 (the metric turret, my call) and its reticle's hold marks every
+//             0.5 mrad to ±3 (the build sheet 0.0.7 §2.1, §4).
 // A gun's state is not here: it is its record in state.items (firearms.js); a model is what every gun
 // of the model shares. Data only: frozen literals and three lookups that read them.
 
@@ -47,10 +50,13 @@ export const FAMILIES = Object.freeze({
   had30c: Object.freeze({ word: 'a HAD-30C magazine', cal: '6.5x40r', n: 30, emptyG: 135, fullG: 375, lenCm: 21, l: 0.27, counter: true, window: true }),
 });
 
-/** Optics (WEAPONS §3.5): the SO-4, used at 1× this round. */
+/** Optics (WEAPONS §3.5): the SO-4, its lever's two settings, the sight picture at each, its turrets and its reticle. */
 export const OPTICS = Object.freeze({
-  so4: Object.freeze({ word: 'the SO-4', magMin: 1, magMax: 4, sight: 1.0, throwLever: true, reddot: true, link: true, massG: 480 }),
+  so4: Object.freeze({ word: 'the SO-4', magMin: 1, magMax: 4, mags: Object.freeze([1, 4]), sight: 1.0, sightAt: Object.freeze({ 1: 1.0, 4: 1.2 }), throwLever: true, reddot: true, link: true, massG: 480,
+    clickMrad: 0.1, turretMaxClk: 60, tickMrad: 0.5, holdMaxMrad: 3 }),
 });
+/** The sight picture × of an optic at a magnification (the aim's time: shot.js aimS). */
+export const opticSight = (O, mag = 1) => O?.sightAt?.[mag] ?? O?.sight ?? 1;
 
 /** A gun's model record (gun: its item record, or a model id), or null. */
 export const modelOf = (gun) => MODELS[typeof gun === 'string' ? gun : gun?.model] ?? null;

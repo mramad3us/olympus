@@ -42,6 +42,9 @@
 // the magazine in a hand. A magazine's belief is { n?, approx?, kind?, feel? } (firearms.js): the kind the
 // holder believes it holds, and the band its weight felt in the hand when the count is not known. The range's
 // meant kind is the session's load (meantLoad: the course's, 'ball').
+// 0.0.7 (the build sheet 0.0.7 §2.3, §3.1): test-range's 'range-kd' issue (the zero's four magazines of three, the ear
+// defenders 'ed1' worn in their own slot, kit.worn.ears: SLOTS gains 'ears', last, so the other templates' items and
+// ids are as before; earsOn reads it), and discard(), the coach taking a magazine back at the turn-in.
 import { nextId, put } from '../../core/ids.js';
 import { q } from '../../core/num.js';
 import { areaOf } from '../places/model.js';
@@ -60,6 +63,8 @@ export const CONTAINERS = Object.freeze({
   'pouch-mag2': Object.freeze({ type: 'pouch', word: 'magazine pouch', holds: 2, fits: Object.freeze(['mag']) }),
   'pouch-dump': Object.freeze({ type: 'pouch', word: 'dump pouch', holds: 4, fits: Object.freeze(['mag']), dump: true }),
   'ears-m1': Object.freeze({ type: 'ears', word: 'ear defenders', slot: 'head' }),
+  // (0.0.7: the KD's ear defenders, worn in their own slot, kit.worn.ears (the build sheet 0.0.7 §3.1, §8 item 18))
+  ed1: Object.freeze({ type: 'ears', word: 'ear defenders', slot: 'ears' }),
 });
 
 /** The issue templates: worn (slot → model), the carrier's pouches in reach order, the magazines ([family, rounds]) filling the pouches in order. */
@@ -79,6 +84,15 @@ export const KIT_TEMPLATES = Object.freeze({
     mags: Object.freeze([Object.freeze(['had30', 5]), Object.freeze(['had30', 5]), Object.freeze(['had30', 5]), Object.freeze(['had30', 5, 'tracer'])]),
     unkinded: true, cond: 0.93, posture: 'slungFront',
   }),
+  // (0.0.7, test-range's issue (the build sheet 0.0.7 §2.3, §8 item 24): the R-7 (its zero drawn by the scene, the SO-4
+  // at 1x), the carrier and its pouches, ear defenders in their own slot, the zero's four magazines of three; the 300 m
+  // and the 200 m lines' magazines are issued at the line, behind the splash)
+  'range-kd': Object.freeze({
+    worn: Object.freeze({ carrier: 'pc-m3', sling: 'r7', ears: 'ed1' }),
+    carrier: Object.freeze(['pouch-mag2', 'pouch-mag2', 'pouch-dump']),
+    mags: Object.freeze([Object.freeze(['had30', 3]), Object.freeze(['had30', 3]), Object.freeze(['had30', 3]), Object.freeze(['had30', 3])]),
+    cond: 0.93, posture: 'slungFront',
+  }),
 });
 /** A magazine at your feet is within this of you (m): where a dropped one lands (firearms.js atFeet: 0.25 to 0.45 m ahead) with room to spare. */
 export const FEET_M = 1.2;
@@ -86,7 +100,9 @@ export const FEET_M = 1.2;
 export const PLACE_WORDS = Object.freeze({ p1: 'chest pouch 1', p2: 'chest pouch 2', p3: 'chest pouch 3', p4: 'chest pouch 4', dump: 'the dump pouch', ground: 'at your feet' });
 
 /** The worn slots, in the order a kit is walked. */
-export const SLOTS = Object.freeze(['carrier', 'head', 'sling']);
+export const SLOTS = Object.freeze(['carrier', 'head', 'sling', 'ears']);
+/** Whether a person wears ear defenders in their own slot (0.0.7: the KD's; the sound is heard through them). */
+export const earsOn = (state, pid) => !!state.people?.[pid]?.kit?.worn?.ears;
 
 // ---- the holder index (runtime) ----
 
@@ -206,6 +222,22 @@ export function move(state, itemId, to) {
   }
   idx[itemId] = h;
   return h;
+}
+
+/**
+ * An item taken off the game (w): out of its holder and out of state.items, with what it holds (a magazine handed
+ * back to the coach at the KD's turn-in, 0.0.7). Returns whether it was there.
+ */
+export function discard(state, itemId) {
+  const rec = state.items?.[itemId];
+  if (!rec) return false;
+  for (const c of [...(rec.holds ?? [])]) discard(state, c);
+  if (rec.type === 'gun' && rec.mag) discard(state, rec.mag);
+  const idx = index(state);
+  detach(state, itemId, idx[itemId] ?? null);
+  delete idx[itemId];
+  delete state.items[itemId];
+  return true;
 }
 
 // ---- the issue ----

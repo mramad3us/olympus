@@ -122,6 +122,25 @@
 //     are drawn at the positions' own time, between the last two ticks (fxMs = ms − TICK_MS + alpha ×
 //     TICK_MS), so a shot stamped at its tick's start shows its whole flash (the runtime review of v0.0.5);
 //   - worldAt(xPx, yPx): the ground under a pixel of the picture, for the hud's mouse.
+// 0.0.7 (the build sheet 0.0.7 §2.4, §8 items 20 and 25):
+//   - THE FAR WINDOW (src/render/far.js; VIEWS §2.4, TECH §9.9): setFar(point | null) each frame from main.js (the
+//     ballistics role's farPointOf placed by the hud's placeFar: the point, its range, the disc's centre and radius
+//     in the window's CSS pixels, the optic's lever, the hold); the view turns the disc into the picture's pixels,
+//     centres a KD face's window on the face as drawn (its centre as it stands up, FACE_K times life size: the
+//     reticle's mils at the face's scale), fills the window's own fog (far.js farFogCells: perception's visibility
+//     near, the open air's light beyond, the optic's lift) once a game second or when the point moves, and steps
+//     its chunks and its dissolve; the window itself is drawn inside the stage's composite. farState() says whether
+//     it is open, how far dissolved, whether its ground is built, and where it sits in the picture. The KD's target
+//     line is asked for ahead the first time the range's KD look is seen (prebuild: TECH §9.9's "the range area
+//     pre-builds its target line at entry");
+//   - the KD in play (src/render/range.js): its faces on their carriers, the disks, the flags, the relay's fire,
+//     brass and berm dust, culled to the frame and the far window;
+//   - the stances the range sets (people's figure.js): a casualty lying where they fell ('hurt', a card, not a
+//     berth), the corpsman kneeling at work ('aid', unarmed), sitting with the R-7 (poses.js's seated frames, by
+//     the rifle's frame); someone below the ground (the pits' detail on its floor) drawn at their height, so the
+//     ground hides them as the parapet hides them from the line;
+//   - BLOOD (src/render/decals.js createBlood, src/render/blood.js): the body role's bloodLook (src/sim/body/blood.js)
+//     on the ground and the wounds' marks on the figures, at the moment drawn.
 // idle and pending say what still waits (an area's build, the chunks in the picture, uploads, a sheet,
 // the worker, the warm-up), so main.js sets window.__ready only once nothing does. stats: the last
 // frame's draw calls, triangles, programs, CPU ms, uploads, people drawn and put off (people: { drawn,
@@ -165,9 +184,22 @@ import { rifleFrame, gaitCarryOf, RIFLE_BANDS } from '../art/figures/poses.js';
 import { FLASH_LIT_M, FLASH_LIGHT } from './figures.js';
 import { createRange } from './range.js';
 import { createDecals } from './decals.js';
-import { aimLead, fxMsOf, SHOT_SHAKE_PX, SHOT_SHAKE_MS } from './lead.js';
+import { aimLead, fxMsOf, SHOT_SHAKE_PX, SHOT_SHAKE_MS, FAR_LEAD_M } from './lead.js';
 import { KD_RANGE, RANGE_KINDS } from '../data/places/range.js';
+import { createFar, farFogBox, farFogCells, pictOfCss, FAR_R_PX } from './far.js';
+import { createCamera } from './camera.js';
+import { createPost } from './post.js';
+import { reserveParts as reserveParts2 } from './batch.js';
+import { ensurePart, olyMaterial, isOly } from './materials.js';
+import { PARTS_PER_CHUNK } from './chunks.js';
+import { createBlood } from './decals.js';
+import { kdFaceAt } from './range-items.js';
+import { FACE_K } from '../art/kit/range.js';
+import { lightLevel } from '../sim/places/light.js';
+import * as BLOOD from '../sim/body/blood.js';
 
+/** The pieces' sizes the far window reads to find a long piece reaching into it (the range's kinds and the kit's). */
+const FAR_SIZES = Object.freeze({ ...RANGE_KINDS, ...FOOTPRINTS });
 /** How long the picture takes to follow the eye's gain and its rods' share, seconds of real time (an ease, not the eye's own time: that is the sim's). */
 export const EYE_EASE_S = 0.15;
 /** People are put where they are, not glided, across a jump longer than this in a tick (metres). */
@@ -261,7 +293,13 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const chunks = createChunks({ THREE, renderer: stage.renderer, painter, uploads, ppm });
   const splash = createSplash(stage), vignettes = createVignettes(stage, { ppm });
   const rangeLayer = createRange(stage, { ppm }), decals = createDecals(stage, { ppm });
-  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group);
+  const blood = createBlood(stage, { ppm });
+  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group);
+  // (the far window: its own camera, post, fog and chunks; drawn inside the stage's composite, before the blit)
+  const far = createFar(stage, { createCamera, createPost, createFogMask, areaFromJob, reserveParts: reserveParts2, partsPerChunk: PARTS_PER_CHUNK, ensurePart, olyMaterial, isOly },
+    { painter, uploads, ppm, chunksGroup: chunks.group });
+  far.attach();
+  let farWant = null, farFogAt = null, kdPrebuilt = false;
   const cache = new Map();                                           // area id → { id, kind, area, built, info, bounds, palette, name, occluders, racks, fixtures }
   let live = null, chain = Promise.resolve(), building = 0, warmed = false, warming = null;
   let heldMood = null, palette = null, fogOn = true, testFog = false, fog = null, fogAt = null, fogWant = null;
@@ -275,7 +313,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     calls: 0, triangles: 0, programs: 0, cpuMs: 0, viewMs: 0, uploads: { n: 0, bytes: 0 }, people: { drawn: 0, lying: 0 }, deferred: 0, ppm, splash: null, vignette: null, beacon: null,
     res: [stage.W, stage.H], camera: { x: 0, z: 0 }, gpu: null, mood: null, area: null, build: null, frames: 0, you: null,
     clocks: [], lamps: { table: 0, slots: 0 }, chunks: { built: 0, building: 0, popped: 0, mainMs: 0 }, see: { k: 0, lift: 0 }, fog: { recomputes: 0, ms: 0, source: null },
-    arms: null, range: null,
+    arms: null, range: null, far: null, blood: null,
   };
   // (for the tests, off the printed report: every figure as last drawn, with its tint; the fog's last wanted mask)
   let drawnNow = [];
@@ -472,7 +510,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     }
     const headset = !!person?.post && RO_POST.test(person.post.key ?? '');
     if (!gl && !kit?.ears && !kit?.carrier && !headset) return { gl: null, look, kit };
-    return { gl, kit, look: armedLook(look, { weapon: gl ? 'rifle' : null, carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset }) };
+    const v = { weapon: gl ? 'rifle' : null, carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset };
+    // (the twin: the same look with the magazine the other way, whose sheet the figures draw while this one's band paints)
+    return { gl, kit, look: armedLook(look, v), twin: gl ? armedLook(look, { ...v, magOut: !v.magOut }) : null };
   }
 
   // (a figure's frame from its transition (people's poseAt) or its activity's part, else null: the gait's;
@@ -637,6 +677,44 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     if (k >= 1) endWipe();
   }
 
+  // ---------- the far window ----------
+  // (its point in the picture: the hud's disc from CSS pixels, a KD face's centred on the face as drawn standing up;
+  // its fog once a game second or when the point moves; its chunks and its dissolve stepped. Returns its view or null)
+  function farFrame(state, rl, area, dtS, light) {
+    if (live.kind === 'ground') {
+      far.setGround(area, FAR_SIZES);
+      if (rl?.kd && !kdPrebuilt) {
+        kdPrebuilt = true;
+        far.prebuild((rl.kd.faces ?? []).filter((f, i, a) => i % 3 === 0 || i === a.length - 1).map(f => ({ x: f.x, z: f.z - (f.upY ?? 1.9) })));
+      }
+    }
+    let v = null;
+    const w = farWant;
+    if (w && live.kind === 'ground' && Number.isFinite(w.x)) {
+      const lane = /^face:(\d+)$/.exec(w.key ?? '')?.[1], face = lane && rl?.kd ? rl.kd.faces?.find(f => String(f.lane) === lane) : null;
+      const c = face ? (() => { const fa = kdFaceAt({ ...face, up: 1 }, ppm); return { x: fa.x0 + fa.n / ppm / 2, y: fa.cy, z: fa.z, faceK: FACE_K }; })() : { x: w.x, y: w.y ?? 0, z: w.z, faceK: 1 };
+      const css = stage.canvas.style, rect = { left: parseFloat(css.left) || 0, top: parseFloat(css.top) || 0, width: parseFloat(css.width) || stage.W, height: parseFloat(css.height) || stage.H };
+      const d = Number.isFinite(w.cx) ? pictOfCss({ cx: w.cx, cy: w.cy, rCss: w.rCss }, rect, stage.W, stage.H) : { cx: stage.W - FAR_R_PX - 6, cy: Math.round(stage.H / 2), r: FAR_R_PX };
+      const h0 = w.hold ?? state.stop?.hold ?? null, hold = Array.isArray(h0) ? h0 : h0 ? [h0.xMil ?? 0, h0.yMil ?? 0] : [0, 0];
+      v = { key: w.key ?? `${w.x},${w.z}`, ...c, rangeM: w.rangeM ?? 0, cx: d.cx, cy: d.cy, r: d.r, optic: w.optic ?? 1, hold, tickRad: w.tickRad };
+    }
+    far.set(v);
+    const fs = far.frame(dtS);
+    // (the window's fog: perception's near, the open air's far, the optic's lift; a new box or a game second)
+    const shownV = far.view;
+    if (shownV && state) {
+      const ms = state.clock.ms, me = playerActor(state), sec = Math.floor(ms / 1000), sig = `${shownV.key}|${shownV.optic}|${sec}`;
+      if (sig !== farFogAt && me && typeof PERCEPTION.eyeOf === 'function') {
+        farFogAt = sig;
+        const eye = PERCEPTION.eyeOf(state, me), box = farFogBox(shownV.x, shownV.z - shownV.y);
+        const vis = farFogCells(box, eye, { vis: (x, z) => PERCEPTION.visibility(state, eye, x, z, ms), light: (x, z) => lightLevel(state, x, z, ms, live.id), optic: shownV.optic });
+        far.setFog(vis, box, light?.dimK ?? stage.mood.dimK);
+      }
+    }
+    stats.far = { ...fs, want: !!w };
+    return shownV;
+  }
+
   // ---------- a frame ----------
   /** Draw the state between its last two ticks. info: { lonEDeg (the live site's longitude), cut (an area's cut is held), paused, held }. */
   function frame(alpha, state, info = {}) {
@@ -721,8 +799,12 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         const { look, key } = lookOf(look0, a.who);
         const gait = stairsOf(a, x, z) ?? GAIT[fig.gait ?? a.gait] ?? 'idle';
         const p = { key, look: look ?? {}, x, z, face, gait, stride, tS, phase: hash01('phase', a.id) * 2, own, id: a.id, dx: a.x - px, dz: a.z - pz, fig: fig.frame ?? null };
+        if (arms.twin && !own) p.twin = lookOf(arms.twin, `${a.who}:twin`).key;
         const tf = fig.frame;
-        if (tf === 'sitUp' || tf === 'lieDown') {
+        if (tf === 'hurt') {
+          // (a casualty lying where they fell: the lie band's card on the ground, never a berth)
+          p.frame = 'hurt';
+        } else if (tf === 'sitUp' || tf === 'lieDown') {
           // (up on the mattress: the berth thrown back to the waist, the upper body's card at its head)
           const b = berthOf(a, fig, a.who, { msA, up: true, breathS }), st = sitterOn(b, tf);
           // (to the edge over the last SIT_SLIDE_K of sitting up, smoothly: where the sit frame takes over)
@@ -737,6 +819,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           else if (f === 'climb') { p.frame = 'climb'; p.y = Math.max(0, fig.y ?? 0); p.seat = 0; }
           else if (f) p.frame = f;
           else if (rf?.frame) { p.frame = rf.frame; p.flash = !!rf.flash; }
+          else if (tf === 'aid') p.frame = 'aid';                     // (the corpsman kneeling at work, unarmed)
+          // (below the ground: the pits' detail on their floor, drawn at their height, so the ground hides them)
+          if ((fig.y ?? 0) < -0.05 && !p.frame) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
           // (standing on a height: the range officer on the tower's deck; the blob on the deck under them)
           if (!p.y && (fig.posture ?? 'stand') === 'stand' && (fig.y ?? 0) > 0.05) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
         }
@@ -774,7 +859,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         const n = Math.hypot(you.dx, you.dz), L = you.gait === 'run' ? LEAD_RUN_M : LEAD_WALK_M;
         // (the weapon mode's lead toward the bracketed target, else the walk's)
         const pick = ownGun ? rl?.pick ?? null : null;
-        const want0 = pick ? aimLead(you, pick, [cw / 2, ch / 2], { k: ARMS.AIM_LEAD_K ?? 0.55, edgeM: ARMS.EDGE_KEEP_M ?? 2.5 })
+        const pickFar = !!pick && (Math.abs(pick.x - you.x) > cw || Math.abs(pick.z - you.z) > ch);
+        const want0 = pick ? aimLead(you, pick, [cw / 2, ch / 2], { k: ARMS.AIM_LEAD_K ?? 0.55, edgeM: ARMS.EDGE_KEEP_M ?? 2.5, ...(pickFar ? { maxM: FAR_LEAD_M } : {}) })
           : you.gait !== 'idle' && n > 1e-6 ? [you.dx / n * L[0], you.dz / n * L[1]] : [0, 0];
         if (snapNext) { lead[0] = want0[0]; lead[1] = want0[1]; }
         else { const kk = 1 - Math.exp(-dtS / LEAD_S); lead[0] += (want0[0] - lead[0]) * kk; lead[1] += (want0[1] - lead[1]) * kk; }
@@ -816,7 +902,14 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         for (const f of flashes) { const d = Math.hypot(p.x - f.x, p.z - f.z); if (d < FLASH_LIT_M) { const kk = (1 - d / FLASH_LIT_M) * f.k; p.tint = p.tint.map((v, i) => v + FLASH_LIGHT[i] * kk); } }
       }
       // (the range in play and what lies on the ground: rangeLook at the moment drawn)
-      stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt }) : (rangeLayer.update(null), null);
+      // (the far window's point this frame: the view's frame of it, and its rect for the range's culling)
+      const farView = farFrame(state, rl, area, dtS, light);
+      const camAt = stage.cam.at, views = [{ x0: camAt.x - cw / 2, x1: camAt.x + cw / 2, z0: camAt.z - ch / 2, z1: camAt.z + ch / 2 + 8 }];
+      if (farView) { const m = far.R / ppm; views.push({ x0: farView.x - m, x1: farView.x + m, z0: farView.z - farView.y - m, z1: farView.z - farView.y + m + 8 }); }
+      stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views }) : (rangeLayer.update(null), null);
+      // (blood on the ground, and the wounds' marks on the figures drawn)
+      const bl = typeof BLOOD.bloodLook === 'function' ? BLOOD.bloodLook(state, live.id, fxMs) : null;
+      stats.blood = blood.update(bl, { ms: fxMs, figures: people.filter(q => !q.remembered).map(q => ({ id: q.id, x: q.x, z: q.z, face: q.face, lie: q.frame === 'hurt' || !!q.lie, kneel: /kneel|aid/.test(q.frame ?? '') })), tintOf: tintAt });
       const ds = decals.update(rl?.lying ?? [], tintAt);
       stats.lying = rl ? { items: ds.items, pixels: ds.pixels } : null;
       vignettes.update(vigItems, tintAt, vigRed);
@@ -857,18 +950,21 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   /** Every actor's figure painted and sent behind a cut (the paint worker: the player's first, priority 'own'): resolves once they are up. */
   function prepareOwn(state) {
     lastState = state;
-    const meId = playerActor(state)?.id ?? null, jobs = [];
+    const meId = playerActor(state)?.id ?? null, jobs = [], twins = [];
     for (const a of state.actors?.list ?? []) {
       const fig = figureOf(state, a), person = state.people?.[a.who] ?? null, own = a.id === meId;
       // (a rifle in hand: its look and the magazine-out one, with the arms and rifle bands, so a change of
       // posture or a magazine out in stop motion never paints on the main thread)
       const arms = armsOf(state, a, lookWith(fig.look, fig, person?.sex), state.clock.ms, false);
       if (arms.gl) {
-        const rifleBands = ['gait', 'arms', ...RIFLE_BANDS, ...(own ? ['move'] : [])];
-        for (const magOut of [false, true]) {
+        // (0.0.7: the seated band too, sitting with the R-7 at 200 m, so a figure never stands while it paints)
+        const rifleBands = ['gait', 'arms', 'seated', ...RIFLE_BANDS, ...(own ? ['move'] : [])];
+        // (the look as held first, everyone's, then the twins: rifle sheets are taken while free (8 at 16 px/m), so the
+        // relay's figures in sight have theirs and a twin waits for a sheet another look leaves)
+        for (const magOut of arms.gl.mag === false ? [true, false] : [false, true]) {
           const L = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: gaitCarry.get(a.id), magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false });
           const { key: k2 } = lookOf(L, `${a.who}${magOut ? ':magout' : ''}`);
-          jobs.push(figures.prepare(k2, L, { bands: rifleBands, own }));
+          (magOut === (arms.gl.mag === false) ? jobs : twins).push(() => figures.prepare(k2, L, { bands: rifleBands, own }));
         }
         if (own) ownLook = { state, want: arms.look, shown: arms.look, asked: false };
         continue;
@@ -880,12 +976,12 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const bands = [...(fig.posture === 'sit' || fig.posture === 'lie' ? ['gait', 'rest'] : ['gait']), ...(a.id === meId ? ['move'] : [])];
       jobs.push(figures.prepare(key, look ?? {}, { bands, own: a.id === meId }));
     }
-    return Promise.all(jobs);
+    return Promise.all([...jobs, ...twins].map(j => (typeof j === 'function' ? j() : j)));
   }
 
   /** Compile the stage's programs (warm.js): once, at boot. */
   function warm() {
-    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1], rangeLayer.pixels.mesh, decals.pixels.mesh] }).then((r) => { warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
+    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1], rangeLayer.pixels.mesh, decals.pixels.mesh, blood.pixels.mesh, blood.marks.mesh] }).then((r) => { far.warm(); warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
       (e) => { warmed = true; console.warn('view: the warm-up failed', e); return null; });
     return warming;
   }
@@ -903,7 +999,15 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   };
 
   return {
-    setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks, splash, vignettes, range: rangeLayer, decals,
+    setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks, splash, vignettes, range: rangeLayer, decals, blood, far,
+    /**
+     * The far window's point each frame (main.js, from the ballistics role's farPointOf placed by the hud's placeFar), or
+     * null: { key, x, y, z, rangeM, cx, cy, rCss (the disc in the window's CSS pixels), optic (1 | 4), hold?: [xMil, yMil],
+     * tickRad? (the bearing's tick, when the placer slid the disc) }.
+     */
+    setFar(p) { farWant = p ?? null; },
+    /** The far window as drawn: { open, alpha (0..1, the dissolve), ready (its ground built), rPict, centrePict ([x, y] picture pixels) }. */
+    farState() { return far.state; },
     /** Hold a mood by name (MOODS), or null to follow places' light. */
     setMood(name) { heldMood = name && MOODS[name] ? name : null; },
     /** The fog of awareness on or off (on by default: perception's; with no perception, the samples' test fog when asked). */
@@ -921,7 +1025,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       endWipe();
       for (const c of cache.values()) c.built?.dispose();
       cache.clear(); live = null;
-      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose();
+      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); blood.dispose(); far.dispose();
     },
   };
 }

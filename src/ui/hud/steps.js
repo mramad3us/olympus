@@ -45,7 +45,17 @@
 // its kind, its weight's band) and the believed kind of the one in the rifle (magLoad); the line adds "HAND 5",
 // "HAND A FEW", "HAND ?" ("TR" when tracer). A row the scene marks without striking it (step.warn: "one magazine a
 // string") shows its mark in amber where a struck row shows its reason, and stays choosable.
+//
+// 0.0.7 (the build sheet 0.0.7 §2.5 (a): the shot at distance): the card carries the SO-4's turrets and the hold
+// (src/art/weaponcard.js distanceParts: the dial from the believed zero, the lever's power, the line's believed dope,
+// the reticle with the hold), from beliefOf's new fields (sight, seen; zero and dope, believed; optic, seen) and the
+// stop's hold, never the rifle's true zero; its words and caption say the same ("4× · ▼3 · 300 ▼3 ✓ · HOLD 0.5 R").
+// The panel's new rows are the shot role's (stepsOf: the coach's call to dial, the dope for the line, the holds for
+// your read and the coach's, the flags read, the lever, sitting), each with its words on its hover; a row's time
+// and odds as any other's. The dial's keys (Z S and the arrows a click of elevation, Shift with Q D a click of
+// windage: core/keys.js dialOf) send 'sight:elev:±1' and 'sight:wind:±1' (main.js).
 import { CARD_W, CARD_H } from './layout.js';
+import { distanceParts, dialWords } from '../../art/weaponcard.js';
 
 /** A struck row chosen lights this long (ms). */
 export const FLASH_MS = 220;
@@ -91,6 +101,7 @@ export function rowTitle(step, { label = (a) => a } = {}) {
   if (Number.isFinite(step.carefulMs)) bits.push(`held: careful, ${secs(step.carefulMs)} (+2)`);
   if (step.kind === 'fire') bits.push('held: hold the aim to +4, then fire');
   if (step.subs?.length) bits.push(step.subs.map(x => `${x.label ?? x.id}${Number.isFinite(x.ms) ? ` ${secs(x.ms)}` : ''}`).join(', '));
+  if (step.words && step.words !== step.label) bits.push(step.words);
   if (step.off) bits.push(`not now: ${step.off}`);
   else if (step.warn) bits.push(step.warn === 'one magazine a string' ? `ahead of the tower: ${step.warn}` : step.warn);
   return bits.join(' · ');
@@ -130,14 +141,14 @@ const MODE_WORD = Object.freeze({ safe: 'SAFE', semi: 'SEMI', auto: 'AUTO', burs
 const CHAMBER_WORD = Object.freeze({ live: 'ROUND', empty: 'EMPTY', '?': '?', dud: 'DUD', case: 'CASE' });
 const STOPPAGE_WORD = Object.freeze({ click: 'CLICK', dead: 'DEAD', felt: 'FELT', case: 'CASE', double: 'DOUBLE' });
 /** The keys of beliefOf's record the card reads: nothing else is ever read from it. */
-export const BELIEF_FIELDS = Object.freeze(['model', 'short', 'chamber', 'mag', 'magFam', 'count', 'countApprox', 'magLoad', 'mode', 'locked', 'port', 'stoppage', 'condWord', 'cocked', 'hand']);
+export const BELIEF_FIELDS = Object.freeze(['model', 'short', 'chamber', 'mag', 'magFam', 'count', 'countApprox', 'magLoad', 'mode', 'locked', 'port', 'stoppage', 'condWord', 'cocked', 'hand', 'sight', 'zero', 'optic', 'dope']);
 const FEEL_LINE = Object.freeze({ none: 'NONE', few: 'A FEW', half: 'HALF', most: 'NEARLY FULL', full: 'FULL' });
 const FEEL_WORDS = Object.freeze({ none: 'feels empty', few: 'a few rounds by its weight', half: 'about half full by its weight', most: 'nearly full by its weight', full: 'full by its weight' });
 /**
  * The card's caption from a belief (beliefOf's record): { short, mode, chamber, count, locked, port, stoppage,
  * cond, line ('SAFE · ROUND + 3'), words (the hover's plain sentence) }. Pure; reads only BELIEF_FIELDS.
  */
-export function weaponCardModel(belief) {
+export function weaponCardModel(belief, { distance = false, line: kdLine = null, hold = null } = {}) {
   const b = {};
   for (const k of BELIEF_FIELDS) b[k] = belief?.[k];
   const mode = MODE_WORD[b.mode] ?? (b.mode ? String(b.mode).toUpperCase() : '?');
@@ -151,8 +162,14 @@ export function weaponCardModel(belief) {
   const chamberWords = { live: 'a round in the chamber', empty: 'the chamber empty', '?': "the chamber: you haven't checked", dud: 'a dud in the chamber', case: 'a case caught in the port' }[b.chamber] ?? 'the chamber: unknown';
   const magWords = b.mag === 'out' ? 'no magazine' : count === '?' ? 'a magazine, uncounted' : `${b.countApprox ? 'about ' : ''}${b.count} in the magazine`;
   const handWords = H ? `; in your hand a magazine, ${Number.isFinite(H.n) ? `${H.approx ? 'about ' : ''}${H.n === 0 ? 'empty' : `${H.n} round${H.n === 1 ? '' : 's'}`}` : H.feel ? FEEL_WORDS[H.feel] ?? 'its count unknown' : 'its count unknown'}${H.load ? `, ${H.load}` : ', its kind not seen'}` : '';
-  const words = `${b.short ?? 'The rifle'}: ${chamberWords}, ${magWords}${b.magLoad && b.mag !== 'out' ? ` of ${b.magLoad}` : ''}, ${b.mode === 'safe' ? 'on safe' : `on ${b.mode ?? '?'}`}${b.locked ? ', the bolt locked back' : ''}${stoppage ? `; ${stoppage.toLowerCase()}` : ''}${b.condWord && b.condWord !== 'fine' ? `; ${b.condWord}` : ''}${handWords}.`;
-  return { short: b.short ?? null, model: b.model ?? null, mode, chamber, count, locked: !!b.locked, port: b.port ?? null, stoppage, cond: b.condWord ?? null, hand, line, words };
+  // (0.0.7: the turrets and the hold, where the card shows them: the dial from the believed zero, the line's dope)
+  const F = distanceParts(b, { distance, line: kdLine, hold }), D = F ? dialWords(F) : null;
+  const holdSaid = F && (F.hold.xMil || F.hold.yMil) ? `HOLD ${[F.hold.xMil ? `${Math.abs(F.hold.xMil)} ${F.hold.xMil > 0 ? 'R' : 'L'}` : null, F.hold.yMil ? `${Math.abs(F.hold.yMil)} ${F.hold.yMil > 0 ? 'UP' : 'DN'}` : null].filter(Boolean).join(' ')}` : null;
+  const far = D ? [D.power, D.dial, D.dope ? `${D.dope}${D.onDope ? ' ✓' : D.toGo ? ` (${D.toGo} to go)` : ''}` : null, holdSaid].filter(Boolean).join(' · ') : null;
+  const clickWords = (n, up, down) => `${Math.abs(n)} click${Math.abs(n) === 1 ? '' : 's'} ${n > 0 ? up : down}`;
+  const farWords = F ? `; the scope at ${F.optic} power, ${!F.dial.elev && !F.dial.wind ? `on ${F.zero ? 'your' : 'the card\'s'} zero` : `${[F.dial.elev ? clickWords(F.dial.elev, 'up', 'down') : null, F.dial.wind ? clickWords(F.dial.wind, 'right', 'left') : null].filter(Boolean).join(' and ')} from ${F.zero ? 'your' : 'the card\'s'} zero`}${F.line ? `, ${F.onDope ? 'on' : 'off'} your dope for ${F.line} m` : ''}${holdSaid ? `, holding ${holdSaid.slice(5).replace(' R', ' mil right').replace(' L', ' mil left').replace(' UP', ' mil up').replace(' DN', ' mil down')}` : ''}` : '';
+  const words = `${b.short ?? 'The rifle'}: ${chamberWords}, ${magWords}${b.magLoad && b.mag !== 'out' ? ` of ${b.magLoad}` : ''}, ${b.mode === 'safe' ? 'on safe' : `on ${b.mode ?? '?'}`}${b.locked ? ', the bolt locked back' : ''}${stoppage ? `; ${stoppage.toLowerCase()}` : ''}${b.condWord && b.condWord !== 'fine' ? `; ${b.condWord}` : ''}${handWords}${farWords}.`;
+  return { short: b.short ?? null, model: b.model ?? null, mode, chamber, count, locked: !!b.locked, port: b.port ?? null, stoppage, cond: b.condWord ?? null, hand, far, line: far ? `${line} · ${far}` : line, words };
 }
 
 /** Pixels onto a canvas: a Pixmap-like { w, h, data | px } (a Uint32Array in ImageData's order, or RGBA bytes). */
@@ -174,13 +191,24 @@ export function putPixels(canvas, pm) {
  * shrunk to 0.84 they dropped columns, "SEMI" reading "<-NT"); a card larger than its box is cropped by it, centred.
  */
 export const cardScale = (ui = 1, dpr = 1) => Math.max(1, Math.floor(ui * dpr + 1e-6)) / dpr;
+/**
+ * The card fitted to its box (CARD_W × CARD_H at --ui): cardScale's whole device pixels where they fit; where even
+ * one device pixel a card pixel is larger than the box (--ui under 1 at a DPR of 1: 1024 × 768's 0.85), the box's own
+ * scale, drawn smooth rather than pixelated so no column drops: { k, smooth } (the runtime review's of v0.0.7: at
+ * 1024 × 768 the 180 × 148 card was cut by its 153 px box on every side, the turrets' row and "▼3 TO GO" lost).
+ */
+export function cardFit(ui = 1, dpr = 1) {
+  const k = cardScale(ui, dpr);
+  return k <= ui + 1e-6 ? { k, smooth: false } : { k: ui, smooth: true };
+}
 
 /**
  * The panel in parent: { el, update(view) → its text, text, slots, stepFor(n) }. view: { phase ('choose' | 'act'),
  * steps (stepsOf), page, shift (Shift held), doing (stopNow's), nowMs, belief (beliefOf's record), ticks
  * (createTicks()), hidden }. paintCard(belief) → the card's pixels (the stage's paintWeaponCard), or null;
  * onPick(step) a row clicked (main.js sends it as a tapped digit would); labelOf(actionId) an action's words
- * (shooting.js LABELS), for the running step's sub-steps.
+ * (shooting.js LABELS), for the running step's sub-steps. 0.0.7: view.distance (a course at distance: the card's
+ * turrets shown), view.line (the KD line you are on: its dope), view.hold (the stop's hold, { xMil, yMil }).
  */
 export function createSteps(parent, { label = (a) => a, paintCard = null, onPick = null, labelOf = (id) => id } = {}) {
   const doc = globalThis.document;
@@ -200,19 +228,21 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     if (v.hidden || !v.steps) { root.hidden = true; text = ''; return ''; }
     root.hidden = false;
     // (the card: repainted only when the belief it shows changes; its size at a whole number of device pixels)
-    const k = cardScale(v.ui ?? 1, globalThis.devicePixelRatio || 1);
-    if (k !== cardK) { cardK = k; cardCanvas.style.width = `${CARD_W * k}px`; cardCanvas.style.height = `${CARD_H * k}px`; }
-    const model = weaponCardModel(v.belief);
-    const cs = JSON.stringify(BELIEF_FIELDS.map(k => v.belief?.[k]));
+    const fit = cardFit(v.ui ?? 1, globalThis.devicePixelRatio || 1), k = fit.k;
+    if (k !== cardK) { cardK = k; cardCanvas.style.width = `${CARD_W * k}px`; cardCanvas.style.height = `${CARD_H * k}px`; cardCanvas.style.imageRendering = fit.smooth ? 'auto' : ''; }
+    const far = { distance: !!v.distance, line: v.line ?? null, hold: v.hold ?? null };
+    const model = weaponCardModel(v.belief, far);
+    const cs = JSON.stringify([BELIEF_FIELDS.map(k => v.belief?.[k]), far]);
     if (cs !== sigCard) {
       sigCard = cs;
       let drawn = false;
-      try { drawn = !!paintCard && putPixels(cardCanvas, paintCard(v.belief)); } catch (e) { console.warn('the weapon card was not painted', e); }
+      try { drawn = !!paintCard && putPixels(cardCanvas, paintCard(v.belief, far)); } catch (e) { console.warn('the weapon card was not painted', e); }
       cardCanvas.hidden = !drawn;
       // (the card's picture says it all, its marks and its count included; the words only stand in when it can't be painted)
       caption.hidden = drawn;
       caption.replaceChildren(...[el('span', { className: `wc-mode ${model.mode === 'SAFE' ? 'safe' : 'live'}`, textContent: model.mode }),
         el('span', { className: `wc-rounds${model.chamber === '?' || model.count === '?' ? ' unknown' : ''}`, textContent: model.line.split(' · ')[1] ?? '' }),
+        model.far ? el('span', { className: 'wc-far', textContent: model.far }) : null,
         model.locked ? el('span', { className: 'wc-locked', textContent: 'LOCKED' }) : null,
         model.stoppage ? el('span', { className: 'wc-stop', textContent: model.stoppage }) : null].filter(Boolean));
       cardBox.title = model.words;

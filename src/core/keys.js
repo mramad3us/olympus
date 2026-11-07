@@ -34,6 +34,10 @@
 // '?' is read by the character it types (e.key), whatever key makes it: Shift and the comma's key
 // on AZERTY, which no action uses, so it never steals a move.
 //
+// The 0.0.7 round's (the build sheet 0.0.7 §2.5 (a)): in stop motion the SO-4's turrets by the keys, which walk
+// nowhere there: Z and S (the codes KeyW and KeyS) and the arrows ↑ ↓ a click of elevation up and down, and Shift
+// with Q and D (KeyA, KeyD) or ← → a click of windage left and right (Q and D alone still step the brackets). dialOf
+// (code, { shift }) gives the step the page sends ('sight:elev:+1'), or null; main.js reads it in stop motion only.
 // createKeyState() is the machine without the DOM: down(code, tMs, key) and up(code, tMs) return
 // what fired, and snapshot(tMs) what is held (the per-tick part of the input). input.js feeds it
 // from the browser; a test feeds it by hand.
@@ -69,6 +73,16 @@ export const BINDINGS = Object.freeze([
   { action: 'help', codes: [], key: '?', kind: 'ui', say: 'these keys' },
 ]);
 
+/** In stop motion, a click of elevation by these codes (+ up), and with Shift a click of windage by these (+ right): the build sheet 0.0.7 §2.5. */
+export const DIAL_ELEV_CODES = Object.freeze({ KeyW: 1, ArrowUp: 1, KeyS: -1, ArrowDown: -1 });
+export const DIAL_WIND_CODES = Object.freeze({ KeyA: -1, ArrowLeft: -1, KeyD: 1, ArrowRight: 1 });
+/** The dial's step for a key in stop motion: 'sight:elev:+1', 'sight:wind:-1', or null (Q and D without Shift are the brackets'). */
+export function dialOf(code, { shift = false } = {}) {
+  const e = DIAL_ELEV_CODES[code];
+  if (e) return `sight:elev:${e > 0 ? '+' : '-'}1`;
+  const w = shift ? DIAL_WIND_CODES[code] : null;
+  return w ? `sight:wind:${w > 0 ? '+' : '-'}1` : null;
+}
 const BY_ACTION = new Map(BINDINGS.map(b => [b.action, b]));
 const BY_CODE = new Map(BINDINGS.flatMap(b => b.codes.map(c => [c, b])));
 const DIGIT_CODE = /^(?:Digit|Numpad)([0-9])$/;

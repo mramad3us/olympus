@@ -17,10 +17,26 @@
 // dull-red streak TRACE_STREAK_M long behind the round as it flies at its 790 m/s to the card (32 ms at 25 m, one or
 // two frames at 60 Hz), every other pixel, and the bright trace only past traceFromM. Every pixel is a centre in
 // metres on the stage's pixel grid.
+// 0.0.7 (the build sheet 0.0.7 §2.4 (b), (c)): the KD ground's moving things, from rangeLook.kd:
+//   - THE FACES: kdFaceAt() puts a face where its carrier has it, FACE_K times life size (src/art/kit/range.js),
+//     its top edge where the sim's top edge is (so a face down at FACE_DOWN_Y is wholly under the ground, and one
+//     up stands over the parapet), moving continuously with the carrier's up (0 down, 1 up: never a pop);
+//     kdHolePixel() a hole on it (cm from its centre, x right and y down), spotterPixels() the spotter in the hole
+//     the pits put up (an orange plus round a dark centre: it reads on the white and on the black), diskPixels()
+//     the score disk on its pole at the face's right shoulder (a white disc with the value's digit, 10 px across
+//     at 16 px/m, rising on its pole over DISK_RISE_MS and going down the same way), missFlagPixels() the red
+//     flag waved across the face for a miss;
+//   - THE FLAGS: sleevePixels() a range flag's sleeve on its pole's top, blowing toward the sim's wind (flagOf's
+//     towardRad, the way it blows to) and lifted by its strength (liftK 0 limp along the pole to 1 straight out),
+//     in red and white bands, its tail stirring on game time;
+//   - THE RELAY: flashPixels() and dustPixels() for every shooter's fire (sitting as well: drawnMuzzleM's 'sit'),
+//     tilePixels() the cases at rest on a metre tile (rangeLook.kd.tiles: up to TILE_CASES_MAX drawn, scattered by
+//     hash in the tile's half nearest its middle), bermDustPixels() a round's dust off the berm's face.
 // Pure: no three.js, no DOM.
 import { PX_PER_M } from './scale.js';
 import { hash01 } from '../core/hash.js';
-import { cardPx, cardPxPerCm, CARD_AT_M, CARD_RINGS_CM } from '../art/kit/range.js';
+import { cardPx, cardPxPerCm, CARD_AT_M, CARD_RINGS_CM, FACE_K, KD_FACES, facePx, facePxPerCm } from '../art/kit/range.js';
+import { fontFor } from '../art/kit/type.js';
 import { composeFrame } from '../art/figures/compose.js';
 import { FLAG, TOWER } from '../data/places/range.js';
 
@@ -29,7 +45,7 @@ export const FLAG_HOIST_MS = 600, FLAG_FLAP_MS = 400;
 /** A new hole's puff of paper, game milliseconds. */
 export const PUFF_MS = 200;
 /** The blast's dust: how high the motes are thrown (m), how many prone and kneeling, Mars' gravity (m/s²), and the whole of it (game ms: look.js DUST_MS). */
-export const DUST_UP_M = 0.3, DUST_N = Object.freeze({ prone: 9, kneel: 5 }), DUST_G_MS2 = 3.727, DUST_LIFE_MS = 1200;
+export const DUST_UP_M = 0.3, DUST_N = Object.freeze({ prone: 9, kneel: 5, sit: 5 }), DUST_G_MS2 = 3.727, DUST_LIFE_MS = 1200;
 /** The flash's first tick and its whole (game ms: look.js FLASH_MS). */
 export const FLASH_STAR_MS = 50, FLASH_LIFE_MS = 100;
 /**
@@ -137,7 +153,7 @@ export function drawnMuzzleM(ppm = PX_PER_M) {
   let m = muzzles.get(ppm);
   if (m) return m;
   m = {};
-  for (const [stance, frame] of [['stand', 'aim'], ['kneel', 'kneel'], ['prone', 'prone']]) {
+  for (const [stance, frame] of [['stand', 'aim'], ['kneel', 'kneel'], ['prone', 'prone'], ['sit', 'sitAim']]) {
     const fr = composeFrame({ outfit: 'utilities', weapon: 'rifle', carry: 'low' }, 'right', frame, { ppm });
     m[stance] = fr.muzzle ? { aheadM: (fr.muzzle[0] - fr.ax + 0.5) / ppm, upM: Math.max(0.05, (fr.ay - fr.muzzle[1] - 0.5) / ppm) } : { aheadM: 0.5, upM: SIM_PORT_M[stance] * 0.6 };
   }
@@ -200,7 +216,7 @@ export function dustPixels(fire, ms, ppm = PX_PER_M) {
   const m = drawnMuzzleM(ppm)[fire.stance], sgn = fire.face === 'left' ? -1 : 1, out = [];
   for (let i = 0; i < DUST_N[fire.stance]; i++) {
     const h = (k) => hash01('dust', fire.atMs, i, k);
-    const up = DUST_UP_M * (0.45 + 0.55 * h('up')) * (fire.stance === 'kneel' ? 0.6 : 1), v0 = Math.sqrt(2 * DUST_G_MS2 * up), flight = 2 * v0 / DUST_G_MS2;
+    const up = DUST_UP_M * (0.45 + 0.55 * h('up')) * (fire.stance === 'prone' ? 1 : 0.6), v0 = Math.sqrt(2 * DUST_G_MS2 * up), flight = 2 * v0 / DUST_G_MS2;
     // (each mote leaves a little after the blast, the farthest last)
     const t0 = 0.03 * h('t0'), tt = t - t0;
     if (tt < 0) continue;
@@ -240,3 +256,161 @@ export function decalPixels(it, ppm = PX_PER_M) {
   return out;
 }
 
+
+// ---------- the KD ground (0.0.7) ----------
+
+/** A face's sim heights when the look gives none (the range role's FACE_UP_Y, FACE_DOWN_Y: its centre, metres). */
+export const FACE_UP_Y = 1.9, FACE_DOWN_Y = -0.6;
+/** The score disk: its diameter at 16 px/m (px; scaled with the density), its rise on its pole and its going down (game ms). */
+export const DISK_PX = 10, DISK_RISE_MS = 300;
+/** The miss's red flag waved across the face: its size (m) and its wave's period (game ms). */
+export const MISS_FLAG_M = Object.freeze([0.9, 0.6]), MISS_WAVE_MS = 700;
+/** A flag's sleeve: its length and its mouth's and tail's diameters (m: drawn bigger than life, the kit's way with small things, so its way and its lift read at 16 px/m), its bands, its stir (game ms). */
+export const SLEEVE_M = Object.freeze({ len: 2.2, mouth: 0.55, tail: 0.25, poleTop: 4.5 }), SLEEVE_BANDS = 5, SLEEVE_STIR_MS = 350;
+/** The most cases drawn on a metre tile at rest (a tile's count can be the relay's whole string). */
+export const TILE_CASES_MAX = 10;
+/** A round's dust off the berm: motes, how high they go (m), the whole of it (game ms). */
+export const BERM_DUST_N = 10, BERM_DUST_UP_M = 0.9, BERM_DUST_MS = 1600;
+const SPOT = 0xf08a2a, SPOT_C = 0x1a1214, DISK = 0xf4efe6, DISK_INK = 0x1a1214, POLE = 0xb7b0a8, SLEEVE = [0xe85a3a, 0xf4efe6], MISS = 0xc23b2e;
+/** A face's drawn left edge behind the face's line (m): just clear of the parapet's back. */
+export const FACE_BEHIND_M = 0.06;
+/** How far the face's overlays stand toward the camera from its plane (m: the 25 m card's HOLE_LIFT_M). */
+export const FACE_LIFT_M = HOLE_LIFT_M;
+
+/**
+ * A face where its carrier has it: { x0, x1, yTop, yBot, cy, z, n (px a side), k (px a cm), paper } metres, on the
+ * pixel grid. face: rangeLook.kd's { x, z, paper, up, upY?, downY? }; its top edge at the sim's (centre + half its
+ * real side), its drawn side FACE_K times the real, its left edge FACE_BEHIND_M behind the face's line (over the
+ * pits); up moves it continuously between down and up.
+ */
+export function kdFaceAt(face, ppm = PX_PER_M) {
+  const F = KD_FACES[face.paper] ?? KD_FACES.kdA, sideM = F.sideCm / 100, n = facePx(face.paper ?? 'kdA', ppm);
+  const up = Math.max(0, Math.min(1, face.up ?? 1)), cy = (face.downY ?? FACE_DOWN_Y) + ((face.upY ?? FACE_UP_Y) - (face.downY ?? FACE_DOWN_Y)) * up;
+  // (its left edge on the face's line, the parapet's back: so the whole face stands over the pits and sinks into them
+  // evenly, never half behind the parapet's top and half into the floor; a metre east of the sim's centre at FACE_K 2)
+  const yTop = snap(cy + sideM / 2, ppm), x0 = snap(face.x + FACE_BEHIND_M, ppm);
+  return { x0, x1: x0 + n / ppm, yTop, yBot: yTop - n / ppm, cy: yTop - n / ppm / 2, z: snap(face.z, ppm), n, k: facePxPerCm(ppm), paper: face.paper ?? 'kdA' };
+}
+/** A hole's pixel on a KD face (cm from its centre, x right and y down): { x, y, z, i, j, black } or null off the paper. */
+export function kdHolePixel(fa, hole, ppm = PX_PER_M) {
+  const i = Math.floor(fa.n / 2 + hole.xCm * fa.k), j = Math.floor(fa.n / 2 + hole.yCm * fa.k);
+  if (i < 0 || i >= fa.n || j < 0 || j >= fa.n) return null;
+  const F = KD_FACES[fa.paper] ?? KD_FACES.kdA;
+  return { x: fa.x0 + (i + 0.5) / ppm, y: fa.yTop - (j + 0.5) / ppm + FACE_LIFT_M, z: fa.z + FACE_LIFT_M, i, j, black: Math.hypot(hole.xCm, hole.yCm) <= F.blackCm };
+}
+/**
+ * The spotter in a hole ([xCm, yCm]): a 3 × 3 orange disc round the dark hole, with a dark rim a pixel wide, 5 × 5 in
+ * all, [{ x, y, z, c }], or none off the paper (the runtime review's of v0.0.7: the plus of five pixels read as a 1 to
+ * 2 px dot in the black through the far window).
+ */
+export function spotterPixels(fa, at, ppm = PX_PER_M) {
+  if (!at) return [];
+  const h = kdHolePixel(fa, { xCm: at[0], yCm: at[1] }, ppm);
+  if (!h) return [];
+  const P = 1 / ppm, out = [];
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    const ring = Math.max(Math.abs(dx), Math.abs(dy));
+    if (ring === 2 && Math.abs(dx) === 2 && Math.abs(dy) === 2) continue;   // (its corners off: round)
+    out.push({ x: h.x + dx * P, y: h.y - dy * P, z: h.z + 0.01, c: ring === 2 || ring === 0 ? SPOT_C : SPOT });
+  }
+  return out;
+}
+/** How far up a disk or a flag on its pole stands (0 down to 1 up) at ms: risen over DISK_RISE_MS from since, and gone down over it from until. */
+export function poleUp(sinceMs, ms, untilMs = null) {
+  if (!Number.isFinite(sinceMs) || ms < sinceMs) return 0;
+  const up = Math.min(1, (ms - sinceMs) / DISK_RISE_MS);
+  if (Number.isFinite(untilMs) && ms > untilMs) return Math.max(0, up - (ms - untilMs) / DISK_RISE_MS);
+  return up;
+}
+/**
+ * The score disk on its pole at the face's right shoulder: [{ x, y, z, c }] metres. value 'V' | 5 | 4 | 3 | 2; k how
+ * far up (poleUp): the pole comes up from the pits behind the face, the disk over the face's top corner.
+ */
+export function diskPixels(fa, value, k, ppm = PX_PER_M) {
+  if (!(k > 0)) return [];
+  const P = 1 / ppm, d = Math.max(6, Math.round(DISK_PX * ppm / 16)), r = d / 2, out = [];
+  const cxPx = Math.round((fa.x1 - fa.x0) * ppm) + Math.round(r) - 2, top = fa.yTop + (d * 0.6) / ppm, lowest = -0.3;
+  const cy = lowest + (top - lowest) * k, z = fa.z + FACE_LIFT_M + 0.02, x0 = fa.x0;
+  // (the pole: from the parapet's top up to the disk)
+  for (let y = Math.max(0.5, cy - (d * 2) / ppm); y < cy - r * P; y += P) out.push({ x: x0 + (cxPx + 0.5) * P, y: snap(y, ppm) + 0.5 * P, z: z - 0.01, c: POLE });
+  const glyph = fontFor(ppm), text = String(value), tw = glyph.width(text), on = new Set();
+  glyph.text((x, y, w = 1, h = 1) => { for (let a = 0; a < w; a++) for (let b = 0; b < h; b++) on.add(`${x + a},${y + b}`); }, Math.floor((d - tw) / 2), Math.floor((d - glyph.h) / 2), text, 0);
+  for (let j = 0; j < d; j++) for (let i = 0; i < d; i++) {
+    const e = Math.hypot(i + 0.5 - r, j + 0.5 - r);
+    if (e > r) continue;
+    const c = e > r - 1 ? DISK_INK : on.has(`${i},${j}`) ? DISK_INK : DISK;
+    out.push({ x: x0 + (cxPx - Math.floor(r) + i + 0.5) * P, y: snap(cy, ppm) + (r - j - 0.5) * P, z, c });
+  }
+  return out;
+}
+/** The red flag waved across the face for a miss (k how far up, poleUp; ms the game time for its wave): [{ x, y, z, c }]. */
+export function missFlagPixels(fa, k, ms, ppm = PX_PER_M) {
+  if (!(k > 0)) return [];
+  const P = 1 / ppm, w = Math.round(MISS_FLAG_M[0] * ppm), h = Math.round(MISS_FLAG_M[1] * ppm), out = [];
+  // (swung from the face's left shoulder to its right and back, its staff from the pits)
+  const sw = 0.5 + 0.5 * Math.sin(2 * Math.PI * ms / MISS_WAVE_MS), span = (fa.x1 - fa.x0) - MISS_FLAG_M[0];
+  const x0 = snap(fa.x0 + span * sw, ppm), top = fa.yTop + 0.2 - (1 - k) * (fa.yTop + 0.5), z = fa.z + FACE_LIFT_M + 0.03;
+  for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) {
+    const sag = Math.round(Math.sin(i / 3 + ms / 120) * (i / w) * 1.5);
+    out.push({ x: x0 + (i + 0.5) * P, y: snap(top, ppm) - (j + sag + 0.5) * P, z, c: j === 0 ? tone8(MISS) : MISS });
+  }
+  for (let y = 0.5; y < top; y += P) out.push({ x: x0 + 0.5 * P, y: snap(y, ppm) + 0.5 * P, z, c: POLE });
+  return out;
+}
+const tone8 = (c) => (((c >> 16) & 255) * 0.75 << 16) | (((c >> 8) & 255) * 0.75 << 8) | ((c & 255) * 0.75);
+/**
+ * A range flag's sleeve on its pole at { x, z } (rangeLook.kd.flags: towardRad the way the wind blows it, x east and
+ * z south; liftK 0 limp to 1 straight out) at game time ms: [{ x, y, z, c }] metres. Its axis from the pole's top
+ * toward the wind's way, drooping (1 − liftK) × 80° below level; its width tapering from the mouth to the tail; its
+ * bands red and white; its tail stirring a pixel on SLEEVE_STIR_MS. Seen from the south at 45°, a point at height y
+ * shows where the ground at z − y does, so a sleeve blowing north rises up the picture, one blowing east lies across it.
+ */
+export function sleevePixels(flag, ms, ppm = PX_PER_M) {
+  const P = 1 / ppm, lift = Math.max(0, Math.min(1, flag.liftK ?? 0)), droop = (1 - lift) * 80 * Math.PI / 180;
+  const t = flag.towardRad ?? 0, dx = Math.cos(t) * Math.cos(droop), dz = Math.sin(t) * Math.cos(droop), dy = -Math.sin(droop);
+  const L = SLEEVE_M.len, steps = Math.max(8, Math.round(2 * L * ppm)), out = [], seen = new Set();   // (half-pixel steps along and across: a diagonal sleeve with no gaps)
+  const stir = Math.floor(ms / SLEEVE_STIR_MS) % 2;
+  const top = (flag.poleTop ?? SLEEVE_M.poleTop) - 0.05, z0 = flag.z + 0.06;
+  // (the screen's up: what a pixel's offset across the sleeve runs along; its axis in picture pixels: x, and z − y)
+  const sx = dx, sy = dz - dy, sl = Math.hypot(sx, sy) || 1, nx = -sy / sl, ny = sx / sl;
+  for (let s = 0; s <= steps; s++) {
+    const f = s / steps, wob = f > 0.6 ? (stir ? 1 : -1) * (f - 0.6) * 1.5 * P * (1.2 - lift) : 0;
+    const x = flag.x + dx * L * f + nx * wob, y = top + dy * L * f, z = z0 + dz * L * f;
+    const half = ((SLEEVE_M.mouth + (SLEEVE_M.tail - SLEEVE_M.mouth) * f) * ppm) / 2;
+    const band = Math.min(SLEEVE_BANDS - 1, Math.floor(f * SLEEVE_BANDS)), c = SLEEVE[band % 2];
+    for (let o = -half; o <= half; o += 0.5) {
+      // (across the axis on the picture: a pixel along the normal, put back at the sleeve's own depth)
+      const gx = Math.round((x + nx * o * P) * ppm), gy = Math.round(((z - y) + ny * o * P) * ppm);
+      const key = `${gx},${gy}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ x: (gx + 0.5) * P, y: snap(y, ppm) + 0.5 * P, z: (gy + 0.5) * P + snap(y, ppm) + 0.5 * P, c: Math.abs(o) > half - 1 ? tone8(c) : c });
+    }
+  }
+  return out;
+}
+/** The cases at rest on a metre tile (rangeLook.kd.tiles: { x, z, n }, x and z its corner): [{ x, y, z, c, flat }], up to TILE_CASES_MAX. */
+export function tilePixels(t, ppm = PX_PER_M) {
+  const out = [], n = Math.min(TILE_CASES_MAX, t.n ?? 0);
+  for (let i = 0; i < n; i++) {
+    const h = (k) => hash01('tile', t.x, t.z, i, k);
+    const b = { x: t.x + 0.2 + 0.6 * h('x'), z: t.z + 0.2 + 0.6 * h('z'), rest: true, rotRad: h('r') * Math.PI * 2, kind: 'case' };
+    out.push(...brassPixels(b, ppm));
+  }
+  return out;
+}
+/** A round's dust off the berm (rangeLook.kd.dust: { x, y, z, atMs }) at game time ms: motes thrown up and back toward the line, falling at 0.38 g. */
+export function bermDustPixels(d, ms, ppm = PX_PER_M) {
+  const t = (ms - d.atMs) / 1000;
+  if (!(t >= 0 && t * 1000 < BERM_DUST_MS)) return [];
+  const out = [];
+  for (let i = 0; i < BERM_DUST_N; i++) {
+    const h = (k) => hash01('berm', d.atMs, d.x, i, k);
+    const up = BERM_DUST_UP_M * (0.3 + 0.7 * h('u')), v0 = Math.sqrt(2 * DUST_G_MS2 * up), back = -(0.2 + 0.8 * h('b')), side = (h('s') - 0.5) * 0.8;
+    const y = (d.y ?? 1) + v0 * t - 0.5 * DUST_G_MS2 * t * t;
+    if (y < 0) continue;
+    if (h('stay') > 1 - t * 1000 / BERM_DUST_MS) continue;
+    out.push({ x: snap(d.x + back * t, ppm), y: snap(y, ppm) + 0.5 / ppm, z: snap(d.z + side * t, ppm) + 0.05, c: DUST[i % DUST.length], flat: false });
+  }
+  return out;
+}

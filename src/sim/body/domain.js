@@ -33,6 +33,20 @@
 //              steps never pass the sky's minutes at dawn and dusk, and never cut a night or a noon
 //              into minutes), else none.
 // The squad's bodies stay { v: 2, tmpl, heightM, build } this round (their needs come at 0.0.9).
+// 0.0.7 (the build sheet 0.0.7 §2.2, §2.7; src/sim/body/wounds.js): the wounds, anyone's, needs or not.
+//   bodyFast   first, for each actor on the live area whose body carries wounds (an unwounded one is
+//              passed over: nothing new runs): the stance 'down' while downOf says so (a casualty
+//              lies; a figure not down any more is stood up again, the player's only by a move key:
+//              BODY change 2, getting up is the player's choice; anyone else's once nothing bleeds
+//              and no round is in a leg or the torso: such a casualty waits for the corpsman and the
+//              stretcher where they fell, my call), the bleed's factor (the gait's
+//              exertion, the cold of the core: stepWounds re-anchors when it changes), and the drips
+//              (blood.js dripStep, lived only);
+//   body       the slow contributor steps every wounded body to the step's end first (stepWounds,
+//              lived each minute and each skip step alike: a closed form, so a minute's steps and one
+//              skip agree; in a skip the player's factor is the activity's), a death told as
+//              'body-dead'; then the player's needs as before.
+// Hits come by call (applyHit), never by event: no event or upgrade is added (§8 item 14).
 import { TICK_MS, SEC_MS } from '../../core/clock.js';
 import { playerId, playerActor, ids } from '../../core/ids.js';
 import { post } from '../../core/queue.js';
@@ -48,9 +62,12 @@ import { siteLonEDeg } from '../jobs.js';
 import { eyesStep, skyChangeMs } from './eyes.js';
 import { eyeOf, fieldOf } from '../people/perception.js';
 import { sightGridOf } from '../places/sight.js';
+import { hasWounds, stepWounds, downOf, exertionOf, holdFactor, bleeding } from './wounds.js';
+import { dripStep } from './blood.js';
 
 /** The fast layer 'bodyFast': this tick's load into the live mix, and stamina (see the header). */
 export function bodyFastStep(state, input, bus) {
+  woundsFast(state, input);
   const pid = playerId(state), p = state.people?.[pid];
   let rec = p?.body;
   if (!rec || rec.atMs === null || rec.atMs === undefined) return;
@@ -65,6 +82,45 @@ export function bodyFastStep(state, input, bus) {
   if (st.stamina >= 100) delete rec.stamina; else rec.stamina = q(st.stamina, 1e-9);
   if (st.blown) rec.blown = true; else delete rec.blown;
   stepEyes(state, state.clock.ms, true);
+}
+
+// (a casualty who waits for the corpsman and the stretcher where they fell, the knock over: still bleeding, or shot in a leg or the torso; my call)
+const waits = (rec, ms) => bleeding(rec, ms) || (rec.injuries ?? []).some(i => i.gunshot && (i.part === 'torso' || i.part.startsWith('leg')));
+// (whether a tick's input moves the feet: the player's way up from 'down')
+const moving = (input) => !!input && ((input.mx ?? 0) !== 0 || (input.mz ?? 0) !== 0);
+/** The fast layer's wounds (see the header): the casualty's stance, the bleed's factor, the drips. Writes. */
+export function woundsFast(state, input) {
+  const list = state.actors?.list;
+  if (!list?.length) return;
+  const ms = state.clock.ms, me = state.player?.actor;
+  let any = false;
+  for (const a of list) {
+    const rec = a.who ? state.people?.[a.who]?.body : null;
+    if (!hasWounds(rec)) continue;
+    any = true;
+    const d = downOf(rec, ms);
+    if (d.down) a.stance = 'down';
+    else if (a.stance === 'down' && (a.id === me ? moving(input) : !waits(rec, ms))) delete a.stance;
+    if (!rec.dead) holdFactor(rec, ms, { exertion: exertionOf(a), coreC: rec.thermal?.coreC ?? 37 });
+  }
+  if (any) dripStep(state, ms);
+}
+// (the bleed's factor in a skip: the player's activity's kind, still for anyone else)
+const SKIP_EXERTION = Object.freeze({ walk: 1.5, run: 2.5 });
+/** Every wounded body brought to toMs (see the header); a death told. Writes. */
+export function woundsSlow(state, bus, fromMs, toMs, ctx = {}) {
+  const pid = playerId(state);
+  for (const id of ids(state.people ?? {})) {
+    const rec = state.people[id].body;
+    if (!hasWounds(rec)) continue;
+    let k = null;
+    if (ctx.skipping) {
+      const act = id === pid ? covering(activityNow(state, fromMs), fromMs) : null;
+      k = { exertion: SKIP_EXERTION[act?.kind] ?? 1, coreC: rec.thermal?.coreC ?? 37 };
+    }
+    const { events } = stepWounds(rec, fromMs, toMs, k);
+    for (const e of events) if (e.kind === 'dead') bus?.emit('body-dead', { who: id, why: e.why, atMs: e.atMs });
+  }
 }
 
 /** The player's eyes brought to ms (src/sim/body/eyes.js eyesStep); look: the eyes' own move too (lived ticks). */
@@ -85,7 +141,8 @@ export function eyesNextChangeMs(state, t0) {
 }
 
 /** The slow contributor 'body' (see the header). */
-export function bodySlowStep(state, bus, fromMs, toMs) {
+export function bodySlowStep(state, bus, fromMs, toMs, ctx = {}) {
+  woundsSlow(state, bus, fromMs, toMs, ctx);
   const pid = playerId(state), rec = state.people?.[pid]?.body;
   if (!rec || rec.atMs === null || rec.atMs === undefined) return;
   const out = bodySync(state, pid, toMs, bus);

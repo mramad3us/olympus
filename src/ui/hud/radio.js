@@ -89,7 +89,11 @@ export function createRadio(parent) {
         root.replaceChildren(...lines.map(l => el('div', { className: `voice ${l.kind}` }, el('span', { className: 'who', textContent: l.head }), el('span', { className: 'said', textContent: l.text }))));
         root.hidden = !lines.length;
         // (the rectangle never grows: a newest line that wraps to two rows takes the older one's place, as the toasts do)
-        while (root.children.length > 1 && root.scrollHeight > root.clientHeight + 1) root.firstChild.remove();
+        // (the voices' own heights, not scrollHeight: the box is aligned to its end, so what overflows it goes off its top,
+        // which scrollHeight does not count (the 0.0.7 integrator's: two wrapped lines were each clipped to a row))
+        const gap = parseFloat(globalThis.getComputedStyle?.(root)?.rowGap ?? '0') || 0;
+        const over = () => { let h = 0; for (const c of root.children) h += c.offsetHeight; return h + gap * (root.children.length - 1) > root.clientHeight + 1; };
+        while (root.children.length > 1 && over()) root.firstChild.remove();
       }
       root.hidden = !lines.length;
       // (what shows: the lines the box kept room for, the newest last)

@@ -180,6 +180,30 @@ export const ACTIVITIES = deepFreeze({
     parts: [still('wait', 'standdown', 1.5)], resumable: false, stoppable: true, chunkMs: 0, vignette: 'standby', min: 0,
     log: ['Stood fast at the foot of your rack: {dur}.', '{dur} at the foot of your rack, eyes front.', 'Standing by your rack for {dur}, as ordered.', '{dur} of standing fast. Nobody moved.'],
   },
+  // (0.0.7, the KD range's (the build sheet 0.0.7 §2.3): each started by test-range's scene, never offered by R; their
+  // lengths asked by the scene (args.ms), their ends src/sim/scenarios/range.js kdPartEnd's: the walk lands the relay at
+  // the next line with its issue; the pits run relay 2's confirm and the walk to the 200 m line; the brass is picked up
+  // kneeling at the point, behind the brief splash over LIVE_MAX_MS 10 s; the casualty taken off to the aid station, its outcome in the strip)
+  'kd-walk': {
+    id: 'kd-walk', class: 'day', uses: [], offer: 'to the next line', noun: 'the walk to the line', mask: 'D A',
+    parts: [still('kd-walk', 'asked', 2.5, 'stand', { line: 'Relay one at the line.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['Down the range to the next line: {dur}.', 'Relay one walked the lanes to the line, rifles slung: {dur}.', '{dur} of regolith underfoot to the next line.', 'The walk downrange, the faces growing: {dur}.'],
+  },
+  'kd-pits': {
+    id: 'kd-pits', class: 'day', uses: [], offer: 'the pits', noun: 'the pits', mask: 'D A',
+    parts: [still('kd-pits', 'asked', 1.8, 'stand', { line: 'Relay two fired their confirm; you pulled their targets.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['Pulling butts for relay two: {dur} of faces up, faces down.', 'The pits: the carriers, the spotters, the paste pot, {dur}.', '{dur} in the pits under the cracks going over.', 'Relay two\'s confirm marked from the pits: {dur}.'],
+  },
+  'police-brass': {
+    id: 'police-brass', class: 'day', uses: [], offer: 'police your brass', noun: 'your brass', mask: 'D A O',
+    parts: [still('police', 'asked', 2.0, 'stand')], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['Your brass picked up off the regolith: {dur}.', 'On your knees for your cases: {dur}.', 'Every case found and pocketed: {dur}.', 'Brass policed: {dur}.'],
+  },
+  'kd-casualty': {
+    id: 'kd-casualty', class: 'day', uses: [], offer: 'the casualty', noun: 'the casualty', mask: 'D A',
+    parts: [still('kd-casualty', 'asked', 1.5, 'stand', { line: 'The ambulance came for the casualty.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['The range held while the casualty went to the aid station: {dur}.', '{dur} on safe while the corpsman and the ambulance did their work.', 'Cease fire for {dur}: a casualty off the range.', 'The range closed behind the ambulance: {dur}.'],
+  },
   idle: {
     id: 'idle', class: 'day', uses: [], offer: 'idle', mask: 'D A',
     parts: [still('idle', 'asked', 1.5)], resumable: false, stoppable: true, chunkMs: 0, vignette: null, min: 0,

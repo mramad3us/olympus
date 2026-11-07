@@ -7,7 +7,8 @@
 // world is handcrafted"): nothing here or there reads a seed of the world. What these tables add:
 //   GROUND        the area's name, how far the valley floor is drawn past the fence (GROUND_APRON_M
 //                 40 m, the sheet's §4), what is walked (walkM, a list since 0.0.5: inside Main Side's
-//                 fence, and the KD range's 25 m bay outside the East gate, src/data/places/range.js),
+//                 fence, and the KD range's 25 m bay outside the East gate, src/data/places/range.js;
+//                 0.0.7: the KD's lanes from the ready line to the parapet, and the pits behind it),
 //                 the ground drawn (drawnM: Main Side and its apron, and X3's strip, x 1,040 to 1,680
 //                 and z 260 to 440, so the whole KD range stands on this ground when 0.0.7 builds its
 //                 other lines and nothing placed now moves: the build sheet 0.0.5 §2.3, PLACES §9), and
@@ -38,7 +39,7 @@ const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v 
 /** The ground area: its name, the valley floor drawn past the fence, the walked rects (Main Side, the 25 m bay), the ground drawn, its look seed. */
 export const GROUND = deepFreeze({
   id: 'melas.ground', site: 'melas', name: 'Base Melas', plan: 'melas@1', apronM: 40,
-  walkM: [{ x0: 0, z0: 0, x1: 1000, z1: 700 }, { x0: 1086, z0: 281, x1: 1124, z1: 300 }],
+  walkM: [{ x0: 0, z0: 0, x1: 1000, z1: 700 }, { x0: 1086, z0: 281, x1: 1124, z1: 300 }, { x0: 1060.4, z0: 300.5, x1: 1597, z1: 399.5 }, { x0: 1600.4, z0: 300.5, x1: 1609.6, z1: 399.5 }],
   drawnM: [{ x0: -40, z0: -40, x1: 1040, z1: 740 }, { x0: 1040, z0: 260, x1: 1680, z1: 440 }],
   lookSeed: 4417,
   spawn: { x: 522.0, z: 214.9, face: 'down' },

@@ -5,7 +5,7 @@
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { oddsOf } from '../src/sim/skills/checks.js';
-import { rangeDC, opticMod, dcOf, modsOf, aimS, fireMs, tapsOf, climbOf, plaqueOf, resolveShot, aimMsOf, pullMsOf, heldOf } from '../src/sim/arms/shot.js';
+import { rangeDC, opticMod, dcOf, modsOf, aimS, fireMs, tapsOf, climbOf, plaqueOf, resolveShot, aimMsOf, pullMsOf, heldOf, biasMod, PART_RADIUS_CM, POSITION } from '../src/sim/arms/shot.js';
 import { KD_RINGS, ringOf, holeOf, scoreOf } from '../src/sim/arms/paper.js';
 import { targetsOf } from '../src/sim/arms/shooting.js';
 import { startBody } from '../src/sim/body/body.js';
@@ -35,6 +35,15 @@ export function hotGame({ seed = 48213, mrk = 10, wh = 10, stance = 'prone', set
 }
 
 export default [
+  {
+    name: 'WEAPONS §7.4\'s biasMod on a torso: −1, −2, −3, −5, −7, −9, −12 at 5, 10, 15, 25, 40, 60, 100 cm, exactly; sitting is +3 (0.0.7)',
+    fn() {
+      const at = [5, 10, 15, 25, 40, 60, 100], got = at.map(b => biasMod(b, PART_RADIUS_CM.torso));
+      console.log(`      biasMod against a torso (${PART_RADIUS_CM.torso} cm): ${at.map((b, i) => `${b} cm ${got[i]}`).join(', ')}; the head (9 cm) at 10 cm ${biasMod(10, 9)}; none at 0 ${biasMod(0, 25)}`);
+      assert(got.join() === '-1,-2,-3,-5,-7,-9,-12' && biasMod(0, 25) === 0 && biasMod(-25, 25) === -5, got.join());
+      assert(POSITION.sit === 3 && POSITION.prone === 4 && POSITION.kneel === 2 && POSITION.stand === 0, JSON.stringify(POSITION));
+    },
+  },
   {
     name: 'rangeDC is round(5 log2(d / 10)) from 10 m; the 25 m card is DC 19 (6 + 0 + 0 + 7 + 6), its parts listed; the SO-4 at 1× +1 within 25 m',
     fn() {

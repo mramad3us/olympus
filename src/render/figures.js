@@ -42,6 +42,10 @@
 //     up for them where the rows left are too few): 8 at 16 px/m and 9 at 24 in a 4096 atlas, the base
 //     sheets' 40 and 15 unchanged. A full pool gives the rifle sheet unseen longest to the look that needs
 //     one; its owner keeps its base sheet.
+//     0.0.7 (the KD's relay, six rifles in sight): prepare takes a rifle sheet when one is free; a rifle band
+//     painted for a look with none is forgotten, so it is asked again once the look has one; and a figure whose
+//     band is not up yet is drawn from its twin's sheet (p.twin: the same figure with the magazine in or out)
+//     when that has it, so a shooter changing magazines prone never stands up while the new sheet paints.
 // Frames follow the sim (poses.js gaitFrame(): walks by distance, idles at 2 fps by a person's phase).
 //
 // In the game (TECH §9.4, §11.2) the bands are painted off the main thread: given a painter
@@ -98,7 +102,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
   atlas.flipY = false;
   atlas.source.dataReady = false;
   atlas.needsUpdate = true;
-  const stats = { slots: SLOTS, rifleSlots: RSLOTS, rifleUsed: 0, used: 0, fallback: 0, uploads: 0, uploadBytes: 0, uploadMs: 0, paintMs: 0, bandsPainted: 0, drawn: 0, deferred: 0, asked: 0, waiting: 0, ownNow: 0, lastFrame: { uploads: 0, bytes: 0, paintMs: 0, uploadMs: 0 }, atlasPx, sheet: [lay.w, lay.h] };
+  const stats = { slots: SLOTS, rifleSlots: RSLOTS, rifleUsed: 0, used: 0, fallback: 0, twin: 0, uploads: 0, uploadBytes: 0, uploadMs: 0, paintMs: 0, bandsPainted: 0, drawn: 0, deferred: 0, asked: 0, waiting: 0, ownNow: 0, lastFrame: { uploads: 0, bytes: 0, paintMs: 0, uploadMs: 0 }, atlasPx, sheet: [lay.w, lay.h] };
 
   // ---------- slots: look key → { slot, bands: Set, seen, job } ----------
   const slots = new Map(), free = Array.from({ length: SLOTS }, (_, i) => SLOTS - 1 - i);
@@ -156,7 +160,10 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
     stats.asked++; stats.waiting++;
     const p = painter.run('sheet', { look: s.raw, band, ppm }, { priority }).then(({ meta, buffers }) => {
       stats.waiting--;
-      if (s.gone || s.bands.has(band) || (POOL_OF[band] === 'rifle' && (s.rslot === null || s.rslot === undefined))) return;
+      if (s.gone || s.bands.has(band)) return;
+      // (a rifle band painted for a look with no rifle sheet (prepare's, or evicted since): forgotten, so the look asks
+      // again once it has one (the 0.0.7 integrator's: kept as asked, it was never painted, and the relay stood up))
+      if (POOL_OF[band] === 'rifle' && (s.rslot === null || s.rslot === undefined)) { s.asked.delete(band); return; }
       const b = bandOf({ meta, buffers });
       stats.paintMs += meta.ms?.paint ?? 0;
       if (direct || !uploads) { upload(s, b); return; }
@@ -318,7 +325,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
     uploadsLeft = sheetsPerFrame; msLeft = budgetMs;
     stats.lastFrame = { uploads: 0, bytes: 0, paintMs: 0, uploadMs: 0 };
     let i = 0, nf = 0, nBerth = 0;
-    stats.deferred = 0; stats.fallback = 0;
+    stats.deferred = 0; stats.fallback = 0; stats.twin = 0;
     for (const p of people) {
       if (i >= maxPeople) break;
       if (p.lie) {
@@ -341,13 +348,18 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       let frame = p.frame ?? gaitFrame(p.gait ?? 'idle', p);
       const face = p.face ?? 'down';
       let band = BAND_OF[frame] ?? 'gait';
+      let from = s;
       if (!ensureBand(s, band, p.own)) {
-        // (its band not up yet: standing in the gait's frames meanwhile, if those are; else not drawn yet)
-        if (band !== 'gait' && (s.bands.has('gait') || ensureBand(s, 'gait', p.own))) { frame = 'idle0'; band = 'gait'; stats.fallback++; }
+        // (its band not up yet: its twin's (the same figure with the magazine in or out, p.twin) if that one has it, so a
+        // prone shooter changing magazines never stands up for the frames the new sheet takes (the 0.0.7 integrator's);
+        // else standing in the gait's frames meanwhile, if those are; else not drawn yet)
+        const t = p.twin ? slots.get(p.twin) : null;
+        if (t && t.bands.has(band)) { from = t; t.seen = frameNo; stats.twin = (stats.twin ?? 0) + 1; }
+        else if (band !== 'gait' && (s.bands.has('gait') || ensureBand(s, 'gait', p.own))) { frame = 'idle0'; band = 'gait'; stats.fallback++; }
         else { stats.deferred++; continue; }
       }
       const c = lay.cells.get(`${frame}|${face}`) ?? lay.cells.get(`idle0|down`);
-      const [ox, oy] = originOf(s, band);
+      const [ox, oy] = originOf(from, band);
       // (see the header: the anchor's row on the spot; the card's lowest rows above the floor)
       const nb = (c.h - c.ay) / ppm, ys = p.y ?? 0, yb = snap(Math.max(0, ys - nb)), zc = snap(p.z - ys + yb + nb);
       const left = snap(p.x) - c.ax / ppm;
@@ -411,6 +423,8 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
     const s = slotOf(key, look, true);
     if (own) s.own = true;
     if (!painter) { warm(key, look, bands); return Promise.resolve(s); }
+    // (a rifle sheet taken for its rifle bands if one is free (none is taken from a look drawn this frame))
+    if (bands.some(b => POOL_OF[b] === 'rifle')) rifleSlotOf(s);
     // (a band already on its way is waited for; if it would go through the queue, it is sent as soon as it lands)
     return Promise.all(bands.filter(b => !s.bands.has(b)).map(b => ask(s, b, own ? 'own' : 'visible', { direct: true }).then(() => {
       const g = s.got.get(b);

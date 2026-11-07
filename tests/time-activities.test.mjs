@@ -62,7 +62,7 @@ export default [
       assert(len.shower.durMs === 600_000 && len.shower.kind === 'outcome', 'the shower');
       assert(len['dress PT kit → utilities'].durMs === 312_000 && len['dress utilities → PT kit'].durMs === 264_000 && len['dress towel → utilities'].durMs === 240_000, 'dressing');
       const sink = ['wash-hands', 'teeth', 'shave', 'clip', 'wash-face'].map(id => len[id].durMs);
-      assert(sink.join() === '30000,120000,240000,600000,60000' && len['wash-hands'].kind === 'live' && len['wash-face'].kind === 'ff' && len.teeth.kind === 'outcome', `the sink: ${sink.join()}`);
+      assert(sink.join() === '30000,120000,240000,600000,60000' && len['wash-hands'].kind === 'ff' && len['wash-face'].kind === 'ff' && len.teeth.kind === 'outcome', `the sink: ${sink.join()}`);
       assert(Object.values(len).every(p => p.parts.length === 1 || ['in', 'turn-in'].includes(p.parts[0].part)), 'a single action of one part, but the shower');
       assert(len['dress PT kit → utilities, in a drill'].durMs === 156_000, `the hurried dress: ${len['dress PT kit → utilities, in a drill'].durMs}`);
       assert(len.urinate.durMs === 75_000 && len.urinate.kind === 'ff' && len.bowel.durMs === 360_000, 'the head');
@@ -72,9 +72,10 @@ export default [
       // (0.0.6: no turn-in, you sleep in what you wear; the build sheet §8 item 6)
       const fromUt = len['sleep to reveille, from utilities'];
       assert(fromUt.parts.length === 1 && fromUt.parts[0].part === 'lie' && fromUt.endMs === night.endMs, `the night from utilities: ${fromUt.parts.map(p => p.part)}`);
-      assert(len['a drink at a tap'].kind === 'live' && len['a drink at a tap'].durMs === 30_000 && len['R\'s wait'].durMs === 900_000, 'drink and wait');
-      assert(kindFor(s, LIVE_MAX_MS - 50) === 'live' && kindFor(s, LIVE_MAX_MS) === 'ff' && kindFor(s, 120_000) === 'outcome', 'the engines by length');
-      console.log(`      engines: under ${LIVE_MAX_MS / 1000} s lived, to 120 s a fast-forward (here ${s.actors.list.length} actors × 75 s = ${s.actors.list.length * 75} actor-seconds ≤ 6,000), from 120 s an outcome skip`);
+      // the user, 2026-11-07: "No time skip on the 30s of hand washing intentional ? I'm okay with no time skip for actions taking up to 10s"
+      assert(len['a drink at a tap'].kind === 'ff' && len['wash-hands'].kind === 'ff' && len['a drink at a tap'].durMs === 30_000 && len['R\'s wait'].durMs === 900_000, 'drink and wait');
+      assert(LIVE_MAX_MS === 10_000 && kindFor(s, LIVE_MAX_MS) === 'live' && kindFor(s, LIVE_MAX_MS + 50) === 'ff' && kindFor(s, 120_000) === 'outcome', 'the engines by length');
+      console.log(`      engines: up to ${LIVE_MAX_MS / 1000} s lived (the user, 2026-11-07: "up to 10s"; wash hands, a drink and a snack, 30 s, now a fast-forward behind the brief splash), to 120 s a fast-forward (here ${s.actors.list.length} actors × 75 s = ${s.actors.list.length * 75} actor-seconds ≤ 6,000), from 120 s an outcome skip`);
     },
   },
   {
@@ -177,21 +178,24 @@ export default [
     },
   },
   {
-    name: 'a drink at a tap is lived at 1:1, 30 s, the feet held; a move key cuts it at its fraction, the water taken by it',
+    name: 'a drink at a tap is a fast-forward behind the brief splash (30 s, over LIVE_MAX_MS 10 s: the user, 2026-11-07); forced live it runs at 1:1, the feet held, and a move key cuts it at its fraction, the water taken by it',
     fn() {
       const g = createGame({ scenario: 'barracks', seed: SEED, hour: 19.5 });
       const s = g.state, pid = s.player.id;
       at(g, 'f:e1:head-2a:sinks-1#2');
       const water = () => { const w = bodyOf(s, pid).water; return w.balanceL + (w.gutL ?? 0); };   // (the body's water and what is still in the gut)
       const b0 = water();
-      const r = startActivity(s, g.bus, ctxOf(g), { id: 'drink', spotId: 'f:e1:head-2a:sinks-1#2' });
+      // (its own kind is 'ff' now; the 1:1 engine, still every action's up to 10 s, is pinned by forcing it)
+      const own = planOf(s, 'drink', { spotId: 'f:e1:head-2a:sinks-1#2' });
+      assert(own.kind === 'ff', JSON.stringify({ kind: own.kind, durMs: own.durMs }));
+      const r = startActivity(s, g.bus, ctxOf(g), { id: 'drink', spotId: 'f:e1:head-2a:sinks-1#2', force: 'live' });
       assert(r.ok && r.kind === 'live' && !s.skip && s.time.doing?.mode === 'live' && feetHeld(s), JSON.stringify(r));
       const n = activityNow(s);
       g.step(20 * 30 + 2);
       const end = g.facts('activity').at(-1), b1 = water();
       assert(end.phase === 'end' && end.fraction === 1 && !s.time.doing && b1 - b0 > 0.45, JSON.stringify({ end, b0, b1 }));
       // (again, cut by a move key at 12 s)
-      const r2 = startActivity(s, g.bus, ctxOf(g), { id: 'drink', spotId: 'f:e1:head-2a:sinks-1#2' });
+      const r2 = startActivity(s, g.bus, ctxOf(g), { id: 'drink', spotId: 'f:e1:head-2a:sinks-1#2', force: 'live' });
       const b2 = water();
       g.step(20 * 12);
       g.step(1, { mx: 1 });

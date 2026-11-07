@@ -53,6 +53,8 @@ const LOOKS = [{}, { made: false, open: true, end: true, occupied: true, door: '
 const MARGIN_M = { wallLocker: 0.6, rifleRack: 0.1, targetCarrier: 0.9, airlockDoor: 3.2, conduit: 0.05, servingLine: 0.15, gymRack: 0.6, footlocker: 0.05, toiletStall: 0.95, showerStall: 0.05, centrifuge: 0.1, ladderWell: 0.05, sign: 0.6,
   // (a leaf is built from its hinge at the origin, along +x: half its width past the centred footprint; a flood's head leans out of its pole)
   doorLeaf: 0.55, lampPost: 0.12,
+  // (0.0.7: a firing point's plate is drawn bigger than life, as the kit draws small things, so its number reads)
+  kdPoint: 0.2,
   // (a clock's dial is drawn bigger than life where it must read: DIAL_PX_MIN px across, 0.56 m at 16 px/m, its 0.30 m footprint's)
   wallClock: (DIAL_PX_MIN / 16 - 0.30) / 2 + 0.02 };
 /** The kinds 0.0.3 added, which places' catalogue (src/sim/places/fixtures.js) must size as the kit does. */

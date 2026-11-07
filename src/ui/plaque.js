@@ -27,6 +27,14 @@
 // the same list the roll will use (one helper, one list: the user's rule from tradecraft, 2026-10-26:
 // "we only know what we know"). place(el, p, x, y, k, anchor) sets a plaque on the HUD, x and y in the
 // picture's pixels, k the picture's scale on screen, snapped to the picture's grid.
+//
+// The 0.0.7 round's (the build sheet 0.0.7 §2.1 plaqueOf, §2.5 (a), (b); WEAPONS §7.10): at distance the plaque gains
+// a second plate under it, the terms (termsPixels: plaqueOf's terms, range, wind, hold, zero, each a glyph and a few
+// words, the wind's arrow the way the shooter believes it blows, and the chance of each ring as a strip of six cells,
+// V to a miss, widths by their odds: graphics over words, readable at a glance); the hover lists the same terms and
+// the rings' odds in words. farLabel(far) is the far window's plaque ("TARGET 10 · 300 M", farPointOf's label), in
+// the seen kind's enamel, with the aim glyph. Every term is the shooter's belief: the wind as read (or as the coach
+// called it), the zero as believed, the hold as set, the range as known on a line; the truth never reaches here.
 import { glyphOf } from '../art/font.js';
 
 /** The kinds: face, its lit edge, its shade, the letters, the glyph (VIEWS §9.1's table; tradecraft's tail and felt). */
@@ -71,6 +79,11 @@ export const ICONS = Object.freeze({
   right: ['00100', '00110', '11111', '00110', '00100'],
   paper: ['11111', '10001', '10101', '10001', '11111'],
   mag: ['01110', '01010', '01110', '01010', '01110'],
+  // (0.0.7: the terms at distance; my calls)
+  range: ['00000', '10001', '11111', '10001', '00000'],
+  flag: ['10000', '11110', '11100', '10000', '10000'],
+  hold: ['00100', '00101', '11011', '00100', '00100'],
+  turret: ['01110', '11111', '10101', '11111', '01110'],
 });
 
 /** The marks src/art/font.js has no glyph for, drawn the same way (3 × 5, 1 is ink; my calls). */
@@ -78,7 +91,8 @@ export const MARKS = Object.freeze({
   '+': ['000', '010', '111', '010', '000'], '?': ['110', '001', '010', '000', '010'], '·': ['0', '0', '1', '0', '0'],
   '≈': ['000', '011', '110', '011', '110'], '×': ['000', '101', '010', '101', '000'], '(': ['01', '10', '10', '10', '01'],
   ')': ['10', '01', '01', '01', '10'], '=': ['000', '111', '000', '111', '000'], '−': ['00', '00', '11', '00', '00'],
-  '◉': ['010', '111', '111', '111', '010'], '>': ['100', '010', '001', '010', '100'],
+  '◉': ['010', '111', '111', '111', '010'], '>': ['100', '010', '001', '010', '100'], '<': ['001', '010', '100', '010', '001'],
+  '▲': ['000', '010', '111', '000', '000'], '▼': ['000', '111', '010', '000', '000'], '✓': ['000', '001', '101', '010', '000'],
 });
 const rowsOf = (ch) => MARKS[ch] ?? glyphOf(ch);
 
@@ -261,4 +275,114 @@ export function plaqueParts(rec) {
   const mods = (rec.mods ?? []).map(m => `${m.why} ${signed(m.v)}`);
   const total = (rec.mods ?? []).reduce((a, m) => a + (Number(m.v) || 0), 0);
   return { dc: `DC ${rec.dc ?? '?'}`, parts, mods, total, odds: oddsSaid(rec) };
+}
+
+// ---- 0.0.7: the terms at distance, the rings' odds, the far window's label (see the header) ----
+/** A term's glyph by its key (plaqueOf's terms). */
+export const TERM_ICONS = Object.freeze({ range: 'range', wind: 'flag', hold: 'hold', zero: 'turret' });
+/** The rings' cells, V to a miss, and their colours in the strip (the face's black to the berm's dust; my calls). */
+export const RING_CELLS = Object.freeze([['v', 0xf8e08a], ['5', 0xe7b84a], ['4', 0xc4574e], ['3', 0x9e3c36], ['2', 0x6e2a2e], ['miss', 0x565b67]]);
+/** The rings' strip's width in pixels. */
+export const RING_STRIP_PX = 36;
+
+const fix = (v, d = 1) => { const n = Math.round(Math.abs(v) * 10 ** d) / 10 ** d; return Number.isInteger(n) ? String(n) : n.toFixed(d).replace(/0+$/, ''); };
+/**
+ * A term's few words as the plate says them (upper case): range "300 M"; wind "3 M/S >" (v the believed cross,
+ * m/s, + blowing to the right: the arrow the way it blows; by 'coach', his call in whole m/s); hold "0.5 R" ([xMil, yMil] or { xMil, yMil }: + right,
+ * + up); zero "▲2 <1" (v { elev, wind } clicks from the believed zero) or the sim's own words where v is not one of these.
+ */
+export function termText(t) {
+  if (!t) return '';
+  const v = t.v;
+  if (t.key === 'range' && Number.isFinite(v)) return `${Math.round(v)} M`;
+  // (the coach's call as he said it, whole metres a second ("about 3 metres a second"): the plate is never more precise
+  // than what the shooter was told (the runtime review's of v0.0.7); their own read keeps its tenth)
+  if (t.key === 'wind' && Number.isFinite(v) && t.by === 'coach') return Math.abs(v) < 0.5 ? 'STILL' : `${Math.round(Math.abs(v))} M/S ${v > 0 ? '>' : '<'}`;
+  if (t.key === 'wind' && Number.isFinite(v)) return Math.abs(v) < 0.05 ? 'STILL' : `${fix(v)} M/S ${v > 0 ? '>' : '<'}`;
+  if (t.key === 'hold' && v && (Array.isArray(v) || typeof v === 'object')) {
+    const x = Array.isArray(v) ? v[0] : v.xMil, y = Array.isArray(v) ? v[1] : v.yMil;
+    if (!x && !y) return 'CENTRE';
+    return [x ? `${fix(x, 2)} ${x > 0 ? 'R' : 'L'}` : null, y ? `${fix(y, 2)} ${y > 0 ? 'UP' : 'DN'}` : null].filter(Boolean).join(' ');
+  }
+  if (t.key === 'zero' && v && typeof v === 'object' && ('elev' in v || 'wind' in v)) {
+    const e = Math.round(v.elev ?? 0), w = Math.round(v.wind ?? 0);
+    if (!e && !w) return 'ON ZERO';
+    return [e ? `${e > 0 ? '▲' : '▼'}${Math.abs(e)}` : null, w ? `${w > 0 ? '>' : '<'}${Math.abs(w)}` : null].filter(Boolean).join(' ');
+  }
+  return String(t.words ?? '').toUpperCase().replace(/[^A-Z0-9 .+\-<>?·%/×=()]/g, '').slice(0, 18).trim();
+}
+/** The rings' odds as six shares summing to 1 (V, 5, 4, 3, 2, miss), from plaqueOf's kd.ringOdds; null if none. */
+export function ringShares(ringOdds) {
+  if (!ringOdds) return null;
+  const raw = RING_CELLS.map(([k]) => Math.max(0, Number(ringOdds[k]) || 0)), sum = raw.reduce((a, b) => a + b, 0);
+  return sum > 0 ? raw.map(x => x / sum) : null;
+}
+/**
+ * The terms' plate: { w, h, data, words, segments: [{ key, x, w, text }], strip: { x, w, cells: [{ ring, x, w }] } | null }:
+ * one enamel plate in the seen kind, a segment a term (its glyph and its words) after a seam each, and the rings'
+ * strip at its end (RING_STRIP_PX wide, a cell a ring, widths by the odds).
+ */
+export function termsPixels(terms = [], { ringOdds = null, style = 'seen' } = {}) {
+  const S = STYLES[style] ?? STYLES.seen;
+  const segs = terms.filter(Boolean).map(t => ({ key: t.key, text: termText(t), icon: TERM_ICONS[t.key] ?? 'pin' })).filter(x => x.text);
+  const shares = ringShares(ringOdds);
+  const segW = (x) => 5 + 2 + textW(x.text);
+  let w = 1 + 3;
+  segs.forEach((x, i) => { w += (i ? 5 : 0) + segW(x); });
+  const stripX = shares ? w + (segs.length ? 5 : 0) : null;
+  if (shares) w = stripX + RING_STRIP_PX;
+  w += 3 + 1;
+  const body = 1 + 2 + 5 + 2 + 1, buf = pixelBuffer(w + 1, body + 1), { px } = buf;
+  px(1, 1, w, body, SHADOW); px(0, 0, w, body, INK);
+  px(1, 1, w - 2, body - 2, S.face); px(1, 1, w - 2, 1, S.hi); px(1, body - 2, w - 2, 1, S.lo);
+  for (const [x, y] of [[0, 0], [w - 1, 0], [0, body - 1], [w - 1, body - 1]]) buf.clear(x, y);
+  let x = 4;
+  const out = [];
+  segs.forEach((sg, i) => {
+    if (i) { px(x + 2, 2, 1, body - 4, S.lo); x += 5; }
+    (ICONS[sg.icon] ?? ICONS.pin).forEach((row, j) => [...row].forEach((b, k) => { if (b === '1') px(x + k, 3 + j, 1, 1, S.glyph); }));
+    writeText(px, x + 7, 3, sg.text, S.ink);
+    out.push({ key: sg.key, x, w: segW(sg), text: sg.text });
+    x += segW(sg);
+  });
+  let strip = null;
+  if (shares) {
+    if (segs.length) px(stripX - 3, 2, 1, body - 4, S.lo);
+    let cx = stripX;
+    const cells = [];
+    // (each ring its share of the strip, at least a pixel where it has any chance; the last takes what rounding left)
+    RING_CELLS.forEach(([ring, colour], i) => {
+      const cw = i === RING_CELLS.length - 1 ? stripX + RING_STRIP_PX - cx : shares[i] > 0 ? Math.max(1, Math.round(shares[i] * RING_STRIP_PX)) : 0;
+      const ww = Math.max(0, Math.min(cw, stripX + RING_STRIP_PX - cx));
+      if (ww) px(cx, 3, ww, 5, colour);
+      cells.push({ ring, x: cx, w: ww });
+      cx += ww;
+    });
+    px(stripX - 1, 2, RING_STRIP_PX + 2, 1, INK); px(stripX - 1, 8, RING_STRIP_PX + 2, 1, INK);
+    strip = { x: stripX, w: RING_STRIP_PX, cells };
+  }
+  const words = [...out.map(o => o.text), shares ? ringWords(ringOdds) : null].filter(Boolean).join(' · ');
+  return { w: buf.w, h: buf.h, data: buf.data, tip: Math.floor(w / 2), words, segments: out, strip, style };
+}
+/** The rings' odds in words, the hover's and the plate's reader's: "V 4% 5 21% 4 38% 3 22% 2 9% MISS 6%". */
+export function ringWords(ringOdds) {
+  const sh = ringShares(ringOdds);
+  if (!sh) return '';
+  return RING_CELLS.map(([k], i) => `${k === 'miss' ? 'MISS' : k.toUpperCase()} ${Math.round(sh[i] * 100)}%`).join(' ');
+}
+/** The terms' plate on a canvas, cached as the plaques are. */
+export function termsPlaque(terms, opts = {}) {
+  return keep(`t|${JSON.stringify(terms?.map(t => [t?.key, termText(t)]))}|${JSON.stringify(ringShares(opts.ringOdds)?.map(v => Math.round(v * 100)))}|${opts.style ?? ''}`, () => termsPixels(terms, opts));
+}
+/** The hover's lines for the terms: ['300 m', 'wind 3 m/s, blowing right (your read)', …] from the terms' own words. */
+export function termLines(rec) {
+  const lines = (rec?.terms ?? []).map(t => (t.words ? String(t.words) : termText(t).toLowerCase())).filter(Boolean);
+  if (rec?.kd?.ringOdds) lines.push(`the rings: ${ringWords(rec.kd.ringOdds).toLowerCase()}`);
+  return lines;
+}
+/** The far window's plaque: { text: 'TARGET 10', sub: '300 M', style: 'seen', icon: 'aim', notch: false } from farPointOf's record. */
+export function farLabel(far) {
+  if (!far) return null;
+  const [head, ...rest] = String(far.label ?? `TARGET ${far.lane ?? '?'} · ${Math.round(far.rangeM ?? 0)} M`).toUpperCase().split(' · ');
+  return { text: head, sub: rest.length ? rest.join(' · ') : null, style: 'seen', icon: 'aim', notch: false };
 }

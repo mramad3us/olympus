@@ -17,6 +17,8 @@ import { stream, next } from '../src/core/rng.js';
 import { feed, doAction, beliefOf, gunField } from '../src/sim/arms/firearms.js';
 import { subsOf } from '../src/sim/arms/drills.js';
 import { ndOf } from '../src/sim/arms/carry.js';
+import { createGame } from './game.mjs';
+import { kdAt, ndOf as ndOfKd } from '../src/sim/arms/carry.js';
 
 const N = Number(process.env.ND_N ?? 10_000);
 const PRESSURES = (process.env.ND_PRESSURES ?? 'evaluated,danger').split(',');
@@ -153,6 +155,31 @@ export default [
       }
       console.log(`      ${lines.join('\n      ')}`);
       assert(!seen.has('ND-4') && !seen.has('ND-5'), 'never ND-4 this round');
+    },
+  },
+  {
+    name: 'on the KD (0.0.7) a negligent discharge is traced through the live area (penetrate.js traceRound): aimed prone downrange it goes into the ground ahead or the berm (ND-1); a rifle brought up puts it in the shooter\'s foot SELF_SHOT_LONG 10% of the time (ND-4, the hit handed to the scene); a person on its line is hit (ND-4)',
+    fn() {
+      const g = createGame({ scenario: 'test-range', seed: 48213, setup: 'confirm' }), s = g.state, pid = s.player.id, gunId = s.people[pid].kit.worn.sling, me = g.me();
+      assert(kdAt(s, pid), 'the player on the KD');
+      me.stance = 'prone'; me.headRad = 0;
+      s.people[pid].kit.carry.posture = 'aimed';
+      const grades = {}, into = {};
+      for (let k = 0; k < 200; k++) { s.items[gunId].rounds = k; const v = ndOfKd(s, pid, gunId, { during: 'functionCheck' }); grades[v.grade] = (grades[v.grade] ?? 0) + 1; into[v.into] = (into[v.into] ?? 0) + 1; }
+      s.people[pid].kit.carry.posture = 'slungFront';
+      let foot = 0, n = 2000;
+      for (let k = 0; k < n; k++) { s.items[gunId].rounds = 1000 + k; const v = ndOfKd(s, pid, gunId, { during: 'up' }); if (v.into === 'foot') foot++; }
+      // (a neighbour stood up in front of the muzzle: on its line)
+      s.people[pid].kit.carry.posture = 'aimed';
+      const G = s.armoury.range.relay[0], a = s.actors.list.find(x => x.who === G.pid);
+      const saved = { x: a.x, z: a.z, stance: a.stance };
+      a.x = me.x + 6; a.z = me.z; delete a.stance;
+      const hitV = ndOfKd(s, pid, gunId, { during: 'functionCheck' });
+      Object.assign(a, saved);
+      console.log(`      aimed prone downrange, 200 function checks: ${JSON.stringify(grades)} into ${JSON.stringify(into)}; brought up, ${n}: ${foot} into the foot (${fmt(100 * foot / n, 1)}%); a neighbour 6 m ahead: ${hitV.grade}, hits ${JSON.stringify(hitV.hits.map(h => [h.onId, h.part]))}`);
+      assert((grades['ND-1'] ?? 0) === 200 && (into.berm ?? 0) + (into.ground ?? 0) === 200, 'aimed prone downrange: ND-1 every time, into the berm or the ground ahead (a level bore 0.28 m up meets the regolith before the berm)');
+      assert(Math.abs(foot / n - 0.1) <= 0.015, `the self-shot ${foot / n}`);
+      assert(hitV.grade === 'ND-4' && hitV.hits.some(h => h.onId === G.pid), 'a person on its line is hit');
     },
   },
 ];

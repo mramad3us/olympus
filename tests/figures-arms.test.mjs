@@ -18,6 +18,10 @@
 //     and stirs; a case flies as one upright pixel and lies as two flat ones of its kind; a thing lying
 //     has its ink outline, the same each time; the weapon mode's lead (camera.js aimLead) clamps;
 //   - the weapon card reads the belief and only the belief: every glyph changes with it, nothing else does.
+// 0.0.7 (the build sheet 0.0.7 §5.4): sitting with the R-7 (the seated band: aim, fire, low, the charging handle, a
+// magazine), the casualty lying (hurt) and the corpsman kneeling at work (aid) compose in every facing at 16 and 24
+// px/m, each a frame of its own (none alike side on, none the kneeling or prone frame it is closest to), the base
+// sheet still 40 looks at 16 px/m; rifleFrame sits a seated shooter; the KD's drawn muzzle sitting is printed.
 // The arms role's gunLook is used live where it exists (the scene's hot setup) and from small fixtures of
 // its shape elsewhere, said so in the lines.
 import { assert, fmt } from './helpers.mjs';
@@ -118,6 +122,42 @@ export default [
       assert(f({ carry: 'aim', aim: { x: 1125, z: 295.5, ms: at.ms - 50 } }).frame === 'aimlo', 'held lower its first RAISE_MS');
       assert(f({ kick: 0.5, stance: 'prone', flash: 0.2 }).frame === 'pronefire' && f({ kick: 0.5, stance: 'prone', flash: 0.2 }).flash === true && f({ kick: 0.1, stance: 'kneel' }).frame === 'kneelfire', 'the kick');
       assert(gaitCarryOf('aim') === 'low' && gaitCarryOf('front') === 'front', 'the gait carries');
+    },
+  },
+  {
+    name: 'sitting with the R-7, the casualty lying and the corpsman kneeling at work (the build sheet 0.0.7 §5.4) compose facing down, up, right and left at 16 and 24 px/m, each a frame of its own, the base sheet keeping 40 looks; rifleFrame sits a seated shooter',
+    fn() {
+      const mars = PALETTES.mars.map(rgbOf), frames = [...BANDS.seated, 'hurt', 'aid'];
+      let n = 0, worst = { e: 0 };
+      const blank = [];
+      for (const ppm of [16, 24]) for (const frame of frames) for (const dir of DIRS) {
+        const look = frame === 'aid' ? { ...LOOK, weapon: null, outfit: 'utilities' } : LOOK;
+        const fr = composeFrame(look, dir, frame, { ppm }), pf = paintFrame(look, dir, frame, { ppm });
+        n++;
+        if (opaque(pf.pm) < 40 * (ppm / 16) ** 2) blank.push(`${frame} ${dir}@${ppm}`);
+        assert(fr.kind === cellKind(frame, dir) && fr.w === pf.pm.w && fr.h === pf.pm.h, `${frame} ${dir}: its cell`);
+        for (const v of pf.pm.data) {
+          if ((v >>> 24) < 128) continue;
+          const [r, g, b] = rgbOf(unword(v).hex);
+          let e = Infinity;
+          for (const [pr, pg, pb] of mars) e = Math.min(e, paletteDistance(r, g, b, pr, pg, pb));
+          if (e > worst.e) worst = { e, frame, dir, ppm };
+        }
+      }
+      const side = (f) => paintFrame(f === 'aid' ? { ...LOOK, weapon: null } : LOOK, 'right', f).pm;
+      const pairs = [...frames.map((a, i) => frames.slice(i + 1).map(b => [a, b])).flat(), ['sitAim', 'kneel'], ['sitFire', 'kneelfire'], ['sitLow', 'kneelLow'], ['sitMagout', 'kneelMagout'], ['hurt', 'sleep'], ['aid', 'kneelLow']];
+      const alike = pairs.filter(([a, b]) => diff(side(a), side(b)) < 3).map(([a, b]) => `${a} = ${b}`);
+      const lay = sheetLayout(16), slots = Math.floor(4096 / lay.w) * Math.floor(4096 / lay.h);
+      const at = { x: 1400, z: 330, face: 'right', ms: 10_000 }, gl = (o) => ({ model: 'r7', carry: 'low', stance: 'sit', aim: null, action: null, flash: 0, kick: 0, mag: true, ...o });
+      const sat = { low: rifleFrame(gl({}), at).frame, aim: rifleFrame(gl({ carry: 'aim', aim: { x: 1600, z: 330, ms: 0 } }), at).frame, kick: rifleFrame(gl({ carry: 'aim', kick: 0.5 }), at).frame,
+        charge: rifleFrame(gl({ action: { frame: 'charge', k: 0.5 } }), at).frame, magin: rifleFrame(gl({ action: { frame: 'magin', k: 0.5 } }), at).frame };
+      console.log(`      ${n} frames composed (${frames.join(', ')} × 4 facings × 2 densities); ${blank.length} blank; the worst colour ${fmt(worst.e, 4)} (${worst.frame} ${worst.dir}@${worst.ppm}); alike side on: ${alike.length ? alike.join(', ') : 'none'}`);
+      console.log(`      the base sheet ${lay.w} × ${lay.h} (${slots} looks at 16 px/m); seated: ${Object.entries(sat).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+      assert(!blank.length && worst.e <= PALETTE_E, JSON.stringify({ blank, worst }));
+      assert(!alike.length, alike.join(', '));
+      assert(slots >= 40, `${slots} looks`);
+      assert(sat.low === 'sitLow' && sat.aim === 'sitAim' && sat.kick === 'sitFire' && sat.charge === 'sitCharge' && sat.magin === 'sitMagout', JSON.stringify(sat));
+      for (const f of frames) assert(POOL_OF[BANDS.seated.includes(f) ? 'seated' : f === 'hurt' ? 'lie' : 'rest'] === 'base', `${f} in the base pool`);
     },
   },
   {

@@ -23,6 +23,7 @@ import { q } from '../../core/num.js';
 import { hungerIndex } from './energy.js';
 import { thirstPct, thirstIndex } from './water.js';
 import { stageOf } from './thermal.js';
+import { mobilityOf } from './wounds.js';
 
 /** The load's band by weight against strength (BODY §16.3). */
 export function loadBandOf(loadKg, gG, massKg, effFitness = STAMINA.FITNESS) {
@@ -79,5 +80,11 @@ export function gaitsOf(state, pid, { gG = G_MELAS, loadKg = 0 } = {}) {
   if (hunger >= 4 || thirst >= 4) g.sprintOk = false;                                   // (weak, dehydrated: no sprint)
   if (hunger >= 6 || thirst >= 6 || cold?.down) { g.runOk = false; g.sprintOk = false; } // (starving, collapsing, down)
   if (cold?.slow) for (const k of ['strollMs', 'walkMs', 'runMs', 'sprintMs']) g[k] = q(g[k] * cold.slow, GAIT.SPEED_STEP_MS);
+  // (0.0.7: a wound slows the walker by its legs, torso and blood (wounds.js mobilityOf); an unhurt body is untouched)
+  if (rec.injuries?.length || (rec.bloodMs !== undefined && rec.bloodMs !== null)) {
+    const m = mobilityOf(rec, state.clock.ms);
+    for (const k of ['strollMs', 'walkMs', 'runMs', 'sprintMs']) g[k] = q(g[k] * m.k, GAIT.SPEED_STEP_MS);
+    if (!m.runOk) { g.runOk = false; g.sprintOk = false; }
+  }
   return g;
 }

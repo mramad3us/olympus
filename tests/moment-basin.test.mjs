@@ -4,7 +4,8 @@
 // pressing R should open the menu with all the possible interractions as single actions, with the ability to select
 // several actions"). The barracks at 19:30, seed 48213: the bot walks from the rack's foot to Head A's urinal and R
 // there (the head; with the bladder at 50 mL or under the urinal's row is struck, so a stall, and it says so), then to
-// a sink, where R's words read "wash hands · 30 s" and R does that alone (lived, the hands clean, nothing else
+// a sink, where R's words read "wash hands · 30 s" and R does that alone (behind the brief splash since
+// 2026-11-07, the user: "I'm okay with no time skip for actions taking up to 10s"; the hands clean, nothing else
 // changed); R's words then read "shave · 4 min, done …" (or "drink · 30 s" if thirsty); R held lists six rows; brush
 // teeth, shave and wash face checked and sent as one chain: one splash, three activity ends each with its line, one
 // skip-end with outcome.chain of three, the stubble 0 and the clock 7 minutes on. A save made during the shave,
@@ -105,7 +106,7 @@ export default [
       console.log('      v0.0.5, the same walk (the bundle):');
       for (const l of V005) console.log(`        ${l}`);
       // (check 3)
-      assert(atSink && atSink.label === 'wash hands · 30 s' && atSink.why === 'hands' && hands.mode === 'live' && hands.fraction === 1 && stagesOf(bodyOf(s, pid), hands.toMs).hands.i === 0, JSON.stringify({ atSink, hands: hands && [hands.mode, hands.fraction] }));
+      assert(atSink && atSink.label === 'wash hands · 30 s' && atSink.why === 'hands' && hands.mode === 'ff' && hands.fraction === 1 && stagesOf(bodyOf(s, pid), hands.toMs).hands.i === 0, JSON.stringify({ atSink, hands: hands && [hands.mode, hands.fraction] }));
       assert(soiled.length >= 1 && soiled[0].atMs === theHead.toMs && groomed.length === 1 && groomed[0].amount === 8, JSON.stringify({ soiled, groomed }));
       assert(Math.abs(b1.hygiene.stubbleH - stub0) < 1e-9 && acts.filter(f => f.fromMs >= hands.fromMs).every(f => f.activity === 'wash-hands'), 'washing the hands did something else');
       assert((o2.id === 'shave' && /^shave · 4 min, done \d\d:\d\d$/.test(o2.label)) || (o2.id === 'drink' && o2.label === 'drink · 30 s'), o2.label);

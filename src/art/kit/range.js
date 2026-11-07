@@ -27,10 +27,37 @@
 //   rangeSign   'lane' (a lane's number on a red board atop a post), 'distance' ("25 M"), 'notice'
 //               ("LIVE FIRE" in the Corps' red), 'flagpole' (a white pole 3.6 m tall with its cap: the
 //               line's red flag flies from it while hot, the stage's).
+// 0.0.7 (the build sheet 0.0.7 §2.3, §2.4 (b); PLACES §4.12, WEAPONS §11.5): the rest of the KD ground. The
+// long north-south pieces (the parapet, the pits, the berm) stand as the range role lays them, facing 'left'
+// (their front to the line, west) with w their run along it and d their depth from it, stretched by the
+// piece's own w and d; in the piece's frame x runs along them and +z toward the line:
+//   kdCarrier   'frame', 'timber': a target carrier's frame on its rails in the pits, low (its uprights to
+//               the parapet's top, 0.5 m, so nothing stands up from the pits but the face it carries): the
+//               face itself rides it and is the stage's (src/render/range.js: it moves, so it is drawn each
+//               frame at the sim's height, FACE_K times life size);
+//   kdParapet   'concrete', 'earth': the pits' front wall, 0.5 m over the ground, its top a coping in 5 m
+//               bays, its ends the wall's section (the range role lays its back wall and ends with it too);
+//   kdPits      'trench', 'timber': the trench's mouth as the camera sees it from above at 45° (the ground
+//               is one quad a chunk at y 0, so the trench is painted, not cut: a dark floor with the shadow of
+//               the parapet's lip, a duckboard walk, a drain); the faces sink into it as they go down;
+//   kdBerm      'earth', 'terraced': the impact berm, four steps of 2 m rising east away from the line (8 m),
+//               each step's lip pocked where rounds have gone in, its ends the section;
+//   kdFlag      'sleeve', 'timber': a range flag's pole, 4.5 m, its swivel ring at the top (the sleeve is the
+//               stage's, blowing by the sim's wind: src/render/range-items.js sleevePixels);
+//   kdPoint     'stake', 'post': a firing point's numbered stake, the lane's number (look.text) on a plate
+//               bigger than life, the kit's way with small things;
+//   kdLineBoard 'distance', 'frame': the line's distance board ("200", "300", "500": look.text) on two posts;
+//   kdCanopy    'open', 'tarp': the ammunition point, an open canopy 6 × 4 m on four posts over its bench
+//               and its ammunition boxes;
+//   rangeShack  'shut', 'store': the range's shack, 12 × 8 m, shut this round (its door closed, its windows
+//               shuttered), its sign over the door.
+// The faces' paintings (paintKdFace: the A and B targets, KD_FACES' rings) are here too, as the 25 m card's
+// are: the stage draws the faces from them.
 // Pure.
 import { tex } from './kit.js';
 import { C, U, P, bevel, cloth, tone, hash3 } from './common.js';
-import { paintedSteel, concrete, regolith } from '../materials/index.js';
+import { paintedSteel, concrete, regolith, tile } from '../materials/index.js';
+import { paint } from '../paint.js';
 import { fontFor } from './type.js';
 
 /** The card is drawn this many times life size (the kit's small things are drawn bigger than life: a 30 cm card is 14 px at 16 px/m, its black 5 px across, so a string's holes read apart on it). */
@@ -232,28 +259,27 @@ export function berm(k, o) {
 
 // ---------- the fence and the rope ----------
 
-const meshFace = tex('kdmesh', (px, w, h, ppm) => {
+// (a fence's and a rope's faces are short repeats along their run, never a painting the run's length: the KD's rope is
+// 541 m, past an atlas page; the 0.0.7 review's, my call)
+const fencePm = new Map();
+const meshFace = (ppm, H) => { const key = `mesh:${ppm}:${H}`; let p = fencePm.get(key); if (!p) fencePm.set(key, (p = paint(Math.max(3, Math.round(0.12 * ppm)), Math.max(2, Math.round(H * ppm)), (px, w, h) => {
   px(0, 0, w, h, null);
-  const d = Math.max(3, Math.round(0.12 * ppm));
+  const d = w;
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if ((i + j) % d === 0 || (i - j + 1000 * d) % d === 0) px(i, j, 1, 1, 0x7c7f86);
   px(0, 0, w, Math.max(1, Math.round(0.05 * ppm)), 0x565b67); px(0, h - 1, w, 1, 0x565b67);
-});
-const ropeFace = tex('kdrope', (px, w, h, ppm) => {
-  px(0, 0, w, h, null);
-  const seg = Math.max(3, Math.round(0.25 * ppm));
-  for (let x = 0; x < w; x++) px(x, 0, 1, h, Math.floor(x / seg) % 2 ? 0xdad0bc : C.red);
-});
+}))); return p; };
+const ropeFace = (ppm) => { const key = `rope:${ppm}`; let p = fencePm.get(key); if (!p) fencePm.set(key, (p = paint(2 * Math.max(3, Math.round(0.25 * ppm)), 1, (px, w) => { px(0, 0, w / 2, 1, C.red); px(w / 2, 0, w / 2, 1, 0xdad0bc); }))); return p; };
 export function rangeFence(k, o) {
   const { W, ppm } = o, make = o.make ?? 'mesh';
   k.comp();
   if (make === 'rope') {
     const H = 0.85;
     for (let x = -W / 2; x <= W / 2 + 1e-6; x += Math.max(1, W / Math.max(1, Math.round(W / 2)))) k.box({ x: Math.max(-W / 2 + 0.03, Math.min(W / 2 - 0.03, x)), z: 0, w: 0.05, d: 0.05, h: H + 0.1, faces: { front: tex('kdstake', (px, w, h) => { px(0, 0, w, h, 0xd0ac5e); px(0, 0, w, 2, 0x302a2a); }), sides: 0xb28a59, top: 0x302a2a } });
-    k.box({ x0: -W / 2, x1: W / 2, z0: -0.01, z1: 0.01, y0: H - 0.04, y1: H, faces: { front: ropeFace, top: C.red }, only: ['front', 'top'] });
+    k.box({ x0: -W / 2, x1: W / 2, z0: -0.01, z1: 0.01, y0: H - 0.04, y1: H, faces: { front: ropeFace(ppm), top: C.red }, only: ['front', 'top'] });
     return;
   }
   const H = o.H ?? 2.4, P3 = 3;
-  k.box({ x0: -W / 2, x1: W / 2, z0: -0.02, z1: 0.02, y0: 0, y1: H, faces: { front: meshFace, back: meshFace }, only: ['front', 'back'] });
+  k.box({ x0: -W / 2, x1: W / 2, z0: -0.02, z1: 0.02, y0: 0, y1: H, faces: { front: meshFace(ppm, H), back: meshFace(ppm, H) }, only: ['front', 'back'] });
   for (let x = -W / 2; x <= W / 2 + 1e-6; x += P3) k.box({ x: Math.max(-W / 2 + 0.04, Math.min(W / 2 - 0.04, x)), z: 0, w: 0.08, d: 0.08, h: H + 0.1, faces: { sides: 0x565b67, top: tone(0x565b67, 0.08) } });
   void ppm;
 }
@@ -282,4 +308,188 @@ export function rangeSign(k, o) {
   k.box({ x: 0, z: 0.03, y: top - bh, w: Math.min(bw, o.W ?? bw), d: 0.03, h: bh, faces: { front: boardFace(make, text), sides: C.ink, top: C.ink } });
 }
 
+
+// ---------- the KD ground (0.0.7) ----------
+
+/** The KD faces drawn this many times life size (the build sheet 0.0.7 §2.4: a 1.0 m A face 32 px at 16 px/m, its black 10 px, a hole 1 px). */
+export const FACE_K = 2;
+/**
+ * The KD faces as drawn (WEAPONS §11.1; the ballistics role's paper.js PAPERS kdA and kdB, their numbers, the
+ * picture's copy as CARD_RINGS_CM is the card's): the paper's side, a ring's width and the black's radius, cm.
+ * The rings: V within half a ring width, 5 within one, 4 within two (the black), 3 within three, 2 within four.
+ */
+export const KD_FACES = Object.freeze({
+  kdA: Object.freeze({ sideCm: 100, ringCm: 7.5, blackCm: 15 }),
+  kdB: Object.freeze({ sideCm: 120, ringCm: 11.25, blackCm: 22.5 }),
+});
+/** A KD face's side in pixels as drawn at the density (32 px for the A face at 16 px/m). */
+export const facePx = (paper, ppm) => Math.max(8, Math.round((KD_FACES[paper] ?? KD_FACES.kdA).sideCm / 100 * FACE_K * ppm));
+/** Pixels a centimetre on a KD face as drawn (0.32 at 16 px/m). */
+export const facePxPerCm = (ppm) => FACE_K * ppm / 100;
+/**
+ * A KD face's painting at (x0, y0), n × n pixels (facePx): white paper, the black to the 4 ring with the 5 and
+ * the V rings' lines in it in grey where the density parts them, the 3 and 2 rings' lines on the white, a
+ * timber edge (the frame the paper is stapled to).
+ */
+export function paintKdFace(px, x0, y0, ppm, paper = 'kdA') {
+  const F = KD_FACES[paper] ?? KD_FACES.kdA, n = facePx(paper, ppm), k = facePxPerCm(ppm), c = n / 2, w = F.ringCm;
+  px(x0, y0, n, n, C.paper);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const r = Math.hypot(i + 0.5 - c, j + 0.5 - c) / k, edge = 0.55 / k;
+    if (r <= F.blackCm) px(x0 + i, y0 + j, 1, 1, ppm >= 20 && (Math.abs(r - w) < edge || Math.abs(r - w / 2) < edge) ? 0x49403e : 0x1a1214);
+    else if (Math.abs(r - 3 * w) < edge || Math.abs(r - 4 * w) < edge) px(x0 + i, y0 + j, 1, 1, 0x7c736b);
+  }
+  px(x0, y0, n, 1, BOARD_D); px(x0, y0 + n - 1, n, 1, BOARD_D); px(x0, y0, 1, n, BOARD_D); px(x0 + n - 1, y0, 1, n, tone(BOARD_D, -0.1));
+}
+
+const CONCRETE = 0x9c917a, PIT = 0x49403e;
+const steelFace = (c) => tex(`kdsteel:${c}`, (px, w, h) => { px(0, 0, w, h, c); px(0, 0, 1, h, tone(c, 0.1)); px(w - 1, 0, 1, h, tone(c, -0.15)); });
+const timberFace = tex('kdtimber', (px, w, h) => { px(0, 0, w, h, BOARD_D); for (let j = 2; j < h; j += 3) px(0, j, w, 1, tone(BOARD_D, -0.06)); px(0, 0, 1, h, tone(BOARD_D, 0.08)); });
+
+export function kdCarrier(k, o) {
+  const { W, D } = o, make = o.make ?? 'steel', post = make === 'timber' ? timberFace : steelFace(STEEL), top = make === 'timber' ? BOARD : STEEL;
+  // (the rails along the pit's floor under it, then two uprights to the parapet's top and the cross-head the face's frame drops into;
+  // all of it behind the face's plane, local z < 0, so the face drawn over it covers its middle)
+  k.comp();
+  for (const sx of [-1, 1]) k.box({ x: sx * (W / 2 - 0.06), z: -D / 2 + 0.08, w: 0.1, d: 0.1, h: 0.5, faces: { front: post, sides: tone(top, -0.12), top } });
+  k.box({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: -D / 2 + 0.06, y0: 0.42, y1: 0.5, faces: { front: tex('kdcrosshead', (px, w, h) => { px(0, 0, w, h, top); px(0, h - 1, w, 1, tone(top, -0.2)); }), sides: tone(top, -0.1), top } });
+  k.comp();
+  for (const sz of [-1, 1]) k.box({ x0: -W / 2, x1: W / 2, z0: sz * D / 2 - (sz > 0 ? 0.05 : 0), z1: sz * D / 2 + (sz < 0 ? 0.05 : 0), y0: 0, y1: 0.06, faces: { front: STEEL_D, sides: STEEL_D, top: tone(STEEL, -0.05) } });
+}
+
+// (the long pieces' tops are tiles, a pattern of a few metres repeated along the 100 m from the piece's own corner, never a
+// painting 1,600 px long: a chunk's page stays small, the kit's rule for floors)
+const pms = new Map();
+const keepPm = (key, w, h, draw) => { let p = pms.get(key); if (!p) pms.set(key, (p = paint(w, h, draw))); return p; };
+// (a top's tile in the piece's frame: columns along its run (x), rows across it, row 0 its back (east), the last its front (west))
+const copingTile = (ppm, D) => keepPm(`kdcoping:${ppm}:${D}`, Math.round(5 * ppm), Math.max(2, Math.round(D * ppm)), (px, w, h) => {
+  concrete(px, 0, 0, w, h, { c: tone(CONCRETE, 0.04), ppm, seed: 21 });
+  px(w - 1, 0, 1, h, tone(CONCRETE, -0.1));                         // (a joint every 5 m)
+  px(0, h - 1, w, 1, tone(CONCRETE, 0.12)); px(0, 0, w, 1, tone(CONCRETE, -0.2));
+});
+const parapetEnd = tex('kdparapetend', (px, w, h, ppm) => { concrete(px, 0, 0, w, h, { c: tone(CONCRETE, -0.08), ppm, seed: 23 }); px(0, 0, w, 1, tone(CONCRETE, 0.08)); });
+const bankTile = (ppm, D) => keepPm(`kdbank:${ppm}:${D}`, Math.round(4 * ppm), Math.max(2, Math.round(D * ppm)), (px, w, h) => regolith(px, 0, 0, w, h, { c: EARTH, ppm, seed: 25, dust: 0.3 }));
+export function kdParapet(k, o) {
+  const { W, D, ppm } = o, H = o.H ?? 0.5, make = o.make ?? 'concrete';
+  k.comp();
+  if (make === 'earth') {
+    // (a bank of rammed regolith faced with sandbags, its top at the parapet's height)
+    k.box({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: D / 2, y0: 0, y1: H, faces: { top: bankTile(ppm, D), front: bagFace, back: bagFace, sides: parapetEnd } });
+    return;
+  }
+  k.box({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: D / 2, y0: 0, y1: H, faces: { top: copingTile(ppm, D), sides: parapetEnd } });
+}
+
+const pitFloor = (make, ppm, D) => keepPm(`kdpitfloor:${make}:${ppm}:${D}`, Math.round(2 * ppm), Math.max(4, Math.round(D * ppm)), (px, w, h) => {
+  // (the trench seen from above, rows from its back (east) to its front (west): a drain at the back, a duckboard
+  // walk along it, the floor dark in the parapet's shadow toward the front)
+  if (make === 'timber') { px(0, 0, w, h, PIT); for (let j = 0; j < h; j += Math.max(3, Math.round(0.25 * ppm))) px(0, j, w, 1, tone(PIT, -0.12)); }
+  else concrete(px, 0, 0, w, h, { c: tone(PIT, 0.04), ppm, seed: 31 });
+  const shade = Math.max(2, Math.round(1.2 * ppm));
+  for (let j = 0; j < shade && j < h; j++) px(0, h - 1 - j, w, 1, tone(PIT, -0.24 + 0.2 * j / shade));
+  const walk0 = Math.round(h * 0.3), walkW = Math.max(3, Math.round(0.8 * ppm));
+  for (let i = 0; i < w; i++) px(i, walk0, 1, walkW, i % Math.max(2, Math.round(0.15 * ppm)) ? BOARD_D : tone(BOARD_D, -0.25));
+  px(0, Math.max(1, Math.round(0.3 * ppm)), w, 1, 0x14151c);
+});
+export function kdPits(k, o) {
+  const { W, D, ppm } = o, make = o.make ?? 'trench';
+  k.comp();
+  k.ground({ x0: -W / 2, z0: -D / 2, x1: W / 2, z1: D / 2, top: pitFloor(make, ppm, D), lift: 0.004 });
+}
+
+const bermTop = (step, ppm) => tile('regolith', { metres: 4, ppm, c: tone(EARTH, -0.06 + step * 0.03), seed: 41 + step, dust: 0.25 });
+// (a step's lip to the line pocked where rounds go in: a strip a metre deep, repeated along it)
+const pocks = (step, ppm) => keepPm(`kdpocks:${step}:${ppm}`, Math.round(3 * ppm), Math.round(1.2 * ppm), (px, w, h) => {
+  px(0, 0, w, h, null);
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (hash3(i, j, 77 + step) % 19 === 0) px(i, j, 1, 1, tone(EARTH, -0.3));
+});
+export function kdBerm(k, o) {
+  const { W, D, ppm } = o, H = o.H ?? 8, make = o.make ?? 'earth', steps = 4, run = D / steps;
+  // (each step set back from the line by a quarter of the depth and H / 4 higher; the terraced make's risers faced with sandbags)
+  for (let s = 0; s < steps; s++) {
+    k.comp();
+    const z1 = D / 2 - s * run, y0 = s ? H * s / steps : 0, y1 = H * (s + 1) / steps, x0 = -W / 2 + s * 0.2, x1 = W / 2 - s * 0.2;
+    k.box({ x0, x1, z0: -D / 2, z1, y0, y1, faces: { top: bermTop(s, ppm), front: make === 'terraced' ? bagFace : tone(EARTH, -0.1), back: tone(EARTH, -0.14), left: earthEnd(s), right: earthEnd(s) } });
+    k.ground({ x0, z0: z1 - 1.2, x1, z1, y: y1, top: pocks(s, ppm), lift: 0.004 });
+  }
+}
+
+export function kdFlag(k, o) {
+  const H = o.H ?? 4.5, make = o.make ?? 'steel', pole = make === 'timber' ? timberFace : tex('kdflagpole', (px, w, h) => { px(0, 0, w, h, 0xd6d0c9); px(w - 1, 0, 1, h, tone(0xd6d0c9, -0.2)); for (let j = 0; j < h; j += 6) px(0, j, w, 1, C.red); });
+  k.comp();
+  k.box({ x: 0, z: 0, w: 0.1, d: 0.1, h: 0.2, faces: { front: tex('kdflagbase', (px, w, h, p) => concrete(px, 0, 0, w, h, { c: CONCRETE, ppm: p, seed: 7 })), sides: tone(CONCRETE, -0.15), top: CONCRETE } });
+  k.box({ x: 0, z: 0, y: 0.2, w: 0.06, d: 0.06, h: H - 0.3, faces: { front: pole, sides: 0xb7b0a8, top: 0xd0ac5e } });
+  k.box({ x: 0, z: 0, y: H - 0.12, w: 0.1, d: 0.1, h: 0.12, faces: { front: STEEL_D, sides: STEEL_D, top: STEEL } });
+}
+
+export function kdPoint(k, o) {
+  const { ppm } = o, H = o.H ?? 0.6, make = o.make ?? 'stake', text = String(o.look?.text ?? '');
+  const f = fontFor(ppm), pw = Math.max(0.3, (f.width(text || '0') + 3) / ppm), ph = Math.max(0.25, (f.h + 3) / ppm);
+  k.comp();
+  k.box({ x: 0, z: 0, w: 0.08, d: 0.08, h: H - ph * 0.5, faces: { front: make === 'post' ? steelFace(0x565b67) : tex('kdstakeface', (px, w, h) => { px(0, 0, w, h, 0xd0ac5e); px(0, h - 3, w, 3, 0x302a2a); }), sides: 0xb28a59, top: 0x302a2a } });
+  // (the plate: bigger than life, the lane's number white on the Corps' red, so it reads from the line at 16 px/m)
+  k.comp();
+  k.box({ x: 0, z: 0.05, y: H - ph, w: pw, d: 0.02, h: ph, faces: { front: tex(`kdpointplate:${text}`, (px, w, h, p) => { const g = fontFor(p); px(0, 0, w, h, C.mcrnD); bevel(px, 0, 0, w, h, C.mcrnD, 1.0); if (g.width(text) <= w - 2) g.stencil(px, Math.floor((w - g.width(text)) / 2), Math.floor((h - g.h) / 2), text, C.paper); }), sides: C.ink, top: C.ink } });
+}
+
+export function kdLineBoard(k, o) {
+  const { W, ppm } = o, H = o.H ?? 2.0, make = o.make ?? 'board', text = String(o.look?.text ?? '').toUpperCase();
+  const f = fontFor(ppm), bh = Math.max(0.5, (f.h * 2 + 6) / ppm), bw = Math.min(W, Math.max(1.0, (f.width(text) * 2 + 8) / ppm));
+  k.comp();
+  for (const sx of [-1, 1]) k.box({ x: sx * (bw / 2 - 0.05), z: 0, w: 0.08, d: 0.08, h: H - 0.05, faces: { front: make === 'frame' ? steelFace(0x565b67) : tex('kdboardpost', (px, w, h) => { px(0, 0, w, h, BOARD_D); px(0, 0, 1, h, tone(BOARD_D, 0.1)); }), sides: 0x573a37, top: BOARD } });
+  k.comp();
+  // (the distance in doubled letters, black on white: read across the range from the next line)
+  k.box({ x: 0, z: 0.05, y: H - bh, w: bw, d: 0.03, h: bh, faces: { front: tex(`kdlineboard:${make}:${text}`, (px, w, h, p) => {
+    const g = fontFor(p), bg = make === 'frame' ? 0xdad0bc : C.paper;
+    px(0, 0, w, h, bg); bevel(px, 0, 0, w, h, bg, 1.0); px(0, 0, w, 1, C.red); px(0, h - 1, w, 1, C.red);
+    // (doubled where the board is wide enough, else at the alphabet's own size)
+    const tw = g.width(text) * 2 + 1, x0 = Math.floor((w - tw) / 2), y0 = Math.floor((h - g.h * 2) / 2);
+    if (tw <= w - 2) g.stencil((x, y, ww, hh, c) => px(x0 + (x - x0) * 2, y0 + (y - y0) * 2, ww * 2, hh * 2, c), x0, y0, text, C.ink);
+    else if (g.width(text) <= w - 2) g.stencil(px, Math.floor((w - g.width(text)) / 2), Math.floor((h - g.h) / 2), text, C.ink);
+  }), sides: C.ink, top: C.ink } });
+}
+
+const tarpTop = (make) => tex(`kdtarp:${make}`, (px, w, h, ppm) => {
+  const c = make === 'tarp' ? 0x96694f : 0x737949;
+  cloth(px, 0, 0, w, h, c, { u: U(ppm), seed: 5 });
+  for (let i = Math.round(1.5 * ppm); i < w; i += Math.round(1.5 * ppm)) px(i, 0, 1, h, tone(c, -0.12));
+  px(0, h - 1, w, 1, tone(c, -0.25));
+});
+const crateFace = tex('kdammocrate', (px, w, h, p) => { px(0, 0, w, h, 0x4c633d); px(0, 0, w, 1, tone(0x4c633d, 0.1)); px(0, h - 1, w, 1, tone(0x4c633d, -0.2)); const g = fontFor(p); if (g.width('AMMO') <= w - 2 && g.h <= h - 2) g.stencil(px, Math.floor((w - g.width('AMMO')) / 2), Math.floor((h - g.h) / 2), 'AMMO', 0xd0ac5e); });
+export function kdCanopy(k, o) {
+  const { W, D } = o, H = o.H ?? 3.0, make = o.make ?? 'open', post = steelFace(0x565b67);
+  // (four posts, the roof sloping down to the south, open on every side: the camera sees under its front edge)
+  k.comp();
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) k.box({ x: sx * (W / 2 - 0.08), z: sz * (D / 2 - 0.08), w: 0.1, d: 0.1, h: (sz < 0 ? H : H - 0.4) - 0.1, faces: { front: post, sides: 0x565b67, top: 0x565b67 } });
+  k.comp();
+  k.box({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: D / 2, y0: H - 0.5, y1: H - 0.4, faces: { top: tarpTop(make), front: tone(make === 'tarp' ? 0x96694f : 0x737949, -0.2), sides: tone(make === 'tarp' ? 0x96694f : 0x737949, -0.25) } });
+  // (the issuing bench under it, and the ammunition boxes on it and beside it)
+  k.comp();
+  k.box({ x: 0, z: -0.6, w: W * 0.6, d: 0.7, h: 0.8, faces: { front: tex('kdbench', (px, w, h) => { px(0, 0, w, h, BOARD); px(0, 0, w, 2, tone(BOARD, 0.08)); px(0, h - 1, w, 1, tone(BOARD, -0.3)); for (let i = 2; i < w; i += 9) px(i, 2, 1, h - 3, tone(BOARD, -0.15)); }), top: BOARD, sides: BOARD_D } });
+  for (let i = 0; i < 3; i++) { k.comp(); k.box({ x: -W * 0.22 + i * 0.6, z: -0.6, y: 0.8, w: 0.45, d: 0.25, h: 0.2, faces: { front: crateFace, top: tone(0x4c633d, 0.06), sides: tone(0x4c633d, -0.1) } }); }
+  k.comp();
+  k.box({ x: W / 2 - 0.7, z: 0.6, w: 0.9, d: 0.5, h: 0.4, faces: { front: crateFace, top: tone(0x4c633d, 0.06), sides: tone(0x4c633d, -0.1) } });
+}
+
+const shackWall = (make) => tex(`kdshackwall:${make}`, (px, w, h, ppm) => {
+  paintedSteel(px, 0, 0, w, h, { c: 0xc4ac97, ppm, seed: 3 });
+  // (a door in the middle, shut, and a window either side, its shutter down; the store has a roller door instead)
+  const dw = Math.round((make === 'store' ? 2.4 : 1.0) * ppm), dh = Math.round(2.1 * ppm), dx = Math.floor((w - dw) / 2);
+  px(dx, h - dh, dw, dh, make === 'store' ? 0x7c7f86 : 0x6e272f);
+  if (make === 'store') for (let j = h - dh + 1; j < h; j += 2) px(dx, j, dw, 1, tone(0x7c7f86, -0.12));
+  else { px(dx + dw - 3, h - Math.round(1.05 * ppm), 2, 1, 0xd0ac5e); bevel(px, dx, h - dh, dw, dh, 0x6e272f, 1.0); }
+  for (const s of [-1, 1]) {
+    const ww = Math.round(1.4 * ppm), wh = Math.round(0.9 * ppm), wx = Math.floor(w / 2 + s * w * 0.3 - ww / 2), wy = Math.round(0.9 * ppm);
+    px(wx, wy, ww, wh, 0x7c736b);
+    for (let j = wy + 1; j < wy + wh; j += 2) px(wx, j, ww, 1, tone(0x7c736b, -0.15));
+  }
+  px(0, h - 2, w, 2, tone(0xc4ac97, -0.25));
+});
+export function rangeShack(k, o) {
+  const { W, D } = o, H = o.H ?? 3.4, make = o.make ?? 'shut';
+  k.comp();
+  k.box({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: D / 2, y0: 0, y1: H - 0.3, faces: { front: shackWall(make), sides: tone(0xc4ac97, -0.12), top: 0x7c736b } });
+  k.comp();
+  k.box({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: D / 2, y0: H - 0.3, y1: H, faces: { front: fasciaFace(make === 'store' ? 'RANGE STORE' : 'RANGE'), top: tex('kdshackroof', (px, w, h) => { px(0, 0, w, h, 0x7c736b); for (let j = 3; j < h; j += 4) px(0, j, w, 1, tone(0x7c736b, -0.08)); bevel(px, 0, 0, w, h, 0x7c736b, 1); }), sides: tone(0x7c736b, -0.15) } });
+}
 void P;

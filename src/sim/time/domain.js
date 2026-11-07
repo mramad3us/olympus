@@ -12,7 +12,7 @@
 // behind one splash (./chain.js, 0.0.6), attend the arrivals at musters (the
 // last 50), prefs the player's (prefs.mute: the S kinds muted, none this round), interrupts the S
 // stops counted (./interrupts.js). What it does (the 0.0.2 sheet §2.1; the 0.0.4 sheet §2.2.9):
-//   input        an activity lived at 1:1 (under 45 s: a drink, a bar) ends at its time, or is cut
+//   input        an activity lived at 1:1 (up to 10 s) ends at its time, or is cut
 //                by a move key at its fraction; a lead (time.lead: the page's R lay the player down
 //                in sight before a sleep or a nap, ./activities.js) begins its activity once they
 //                are down, and a move key before then takes it back (people/place.js backActor: up

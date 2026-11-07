@@ -54,7 +54,7 @@
 //             klaxon stop it), which the page asks for twice.
 // rows is how many rows R held shows; more (v0.0.5's readers) every choice of the spot's other rows and
 // the quick row's other choices, flattened, struck ones left out. An offer's label is TIME's priceOf
-// (', done HH:MM' from LIVE_MAX_MS 45 s; ', the count 02:35' while a drill's count is to come).
+// (', done HH:MM' from DONE_FROM_MS 60 s; ', the count 02:35' while a drill's count is to come).
 // handOffer and handMenu are null while time stands still or a skip or an activity runs (TIME §5.3, check
 // 1), while stop motion is on (state.stop: the mode, or a lived V, A or W step: 0.0.5), on the range's
 // firing line from the brief to the end (state.armoury.range: the tower runs it), or while one of the

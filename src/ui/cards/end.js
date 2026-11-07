@@ -7,7 +7,8 @@
 // cards/score.js), 4 the title. A test scene saves nothing (the build sheet 0.0.4 §8, item 24), so
 // leaving it loses nothing; the scores alone are kept. A scene with a result says it under the title
 // (said: the 0.0.5 round's range summary, cards/tests.js sceneSaid: "Clear at 09:14 · 61 of 75 · 4 V ·
-// no faults").
+// no faults"). 0.0.7: said may be a list, the summary and an incident under it, each its own line (the KD's
+// "Range closed: Pvt Okafor hit in the left thigh by a negligent discharge, evacuated").
 
 /** The card's body and its numbered lines: { body, lines }. scene: SCENES' record; seed; on: { again(sameSeed), score(), title() }. */
 export function endCard({ scene, seed, on = {}, said = null }) {
@@ -21,7 +22,8 @@ export function endCard({ scene, seed, on = {}, said = null }) {
   ];
   const body = el('div', { className: 'glass end' },
     el('h3', { textContent: `End of the scene: ${scene.title}` }),
-    said ? el('p', { className: 'said', textContent: said }) : null,
+    // (said: a line, or the lines of a scene with an incident (0.0.7: the range closed by a casualty), each its own)
+    ...(Array.isArray(said) ? said : [said]).filter(Boolean).map((t, i) => el('p', { className: `said${i ? ' incident' : ''}`, textContent: t })),
     el('div', { className: 'glass-list' }, ...lines),
     el('p', { className: 'note', textContent: 'A test scene saves nothing; your scores are kept in this browser.' }));
   return { body, lines };

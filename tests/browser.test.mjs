@@ -27,6 +27,11 @@
 // "The line is clear.": saves made in stop motion (while choosing, mid-step in a Corps command, at the
 // reflex card the set stoppage brings, in a chained wait), each started again and played on to the end,
 // end on the straight run's digest, and that digest is node's for the same seed and version.
+//
+// (0.0.7) test-range in the page, driven by tests/bots/kd.mjs through the handle from the brief to the card: each splash
+// (the walk, the pits) moved to its middle and then finished, as the page's splash would; saves made in stop motion at
+// the zero, mid-step, in the middle of the walk's splash, while the pits mark the confirm and in the 200 m string, each
+// started again and played on to the end, end on the straight run's digest, and that digest is node's.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { assert, fmt, root } from './helpers.mjs';
@@ -35,6 +40,8 @@ import { createGame } from './game.mjs';
 import { runBot } from './bots/lib.mjs';
 import { WALK_START, walkBot } from './walk-moment2.mjs';
 import { rangeBot } from './bots/range.mjs';
+import { kdBot } from './bots/kd.mjs';
+import { kdNow } from '../src/sim/scenarios/range.js';
 
 /** Where the page's walk is saved: a tick in each part of it (game-walk's quick ticks, a few). */
 const PAGE_SAVES = Object.freeze([57, 290, 1007, 1009, 2300, 2379, 14916, 20140]);
@@ -251,6 +258,77 @@ export default [
         const bad = r.back.filter(b => b.end !== r.A.tick || b.digest !== r.A.digest);
         assert(!bad.length, JSON.stringify(bad));
       }, { query: 'play=test-handling&seed=48213&nostore=1', timeoutMs: 60_000 });
+    },
+  },
+  {
+    name: 'test-range in the page, the KD bot from the brief to the card: saves made in stop motion at the zero, mid-step, in the middle of the walk\'s splash, while the pits mark the confirm and in the 200 m string, started again, carry on byte for byte, and the page\'s game is node\'s',
+    heavy: true,
+    timeoutMs: 300_000,
+    async fn() {
+      const version = readFileSync(`${root}/VERSION`, 'utf8').trim(), start = { scenario: 'test-range', seed: 48213 };
+      // (node: each splash opened, moved to its middle, then finished, as the page's run below does)
+      const n = createGame({ ...start, version }), nb = kdBot();
+      for (let t = 0; t < 30_000 && !kdNow(n.state)?.end; t++) {
+        n.tickOpen(nb);
+        const sk = n.state.skip;
+        if (sk && sk.engine !== 'ff') { n.advance(sk.fromMs + Math.round((sk.toMs - sk.fromMs) / 2 / 50) * 50); for (let k = 0; n.state.skip && k < 1e5; k++) n.advance(); }
+      }
+      const nodeDigest = n.digest(), nodeTick = n.state.clock.tick;
+      await withGame(async (page) => {
+        const r = await page.evaluate(async ({ start, maxTicks }) => {
+          const h = window.__olympus;
+          const { kdBot: mk } = await import('/tests/bots/kd.mjs');
+          const { kdNow: K } = await import('/src/sim/scenarios/range.js');
+          const { digest } = await import('/src/core/hash.js');
+          const { playerActor } = await import('/src/core/ids.js');
+          h.pause(true);
+          const fresh = h.newGame(start);
+          h.pause(true);
+          await fresh;
+          h.pause(true);
+          const done = () => !!K(h.state)?.end;
+          const NB = { over: () => false };
+          // (a splash: to its middle (onMid there), then to its end)
+          const splash = (onMid) => {
+            const sk = h.state.skip;
+            if (!sk || sk.engine === 'ff') return;
+            h.sim.advanceSkip(h.state, sk.fromMs + Math.round((sk.toMs - sk.fromMs) / 2 / 50) * 50, NB);
+            onMid?.();
+            for (let k = 0; h.state.skip && k < 1e5; k++) if (h.sim.advanceSkip(h.state, Infinity, NB)?.done) break;
+          };
+          const play = (onTick = () => {}, onMid = null) => { const b = mk(); let t = 0; for (; t < maxTicks && !done(); t++) { const s = h.state, me = playerActor(s); if (!s.skip) h.step(1, b(s, me, (me.bot ??= {}))); splash(onMid); onTick(); } return t; };
+          const saves = [], want = new Set(['choosing at the zero', 'mid-step', 'mid-splash', 'the pits marking', 'the 200 m string']);
+          const take = (at) => { if (want.has(at)) { want.delete(at); saves.push({ at, tick: h.state.clock.tick, json: h.save() }); } };
+          const ticks = play(() => {
+            const S = h.state.stop, k = K(h.state);
+            if (!k || k.end) return;
+            if (S?.phase === 'choose' && k.stage === 'zero' && k.hot) take('choosing at the zero');
+            if (S?.doing?.kind === 'command' && S.doing.i > 0) take('mid-step');
+            if (k.line === 300 && ['down', 'spot', 'up'].includes(k.pits?.[k.kdLane]?.phase)) take('the pits marking');
+            if (k.line === 200 && k.hot && (k.strings.at(-1)?.holes?.length ?? 0) >= 3) take('the 200 m string');
+          }, () => take('mid-splash'));
+          const A = { digest: digest(h.save()), tick: h.state.clock.tick, ticks, end: K(h.state)?.end ?? null, summary: K(h.state)?.summary ?? null };
+          const back = [];
+          for (const sv of saves) {
+            const started = h.start(sv.json);
+            h.pause(true);
+            await started;
+            h.pause(true);
+            // (a save made mid-splash starts inside it: its second half first)
+            if (h.state.skip) for (let k = 0; h.state.skip && k < 1e5; k++) if (h.sim.advanceSkip(h.state, Infinity, NB)?.done) break;
+            play();
+            back.push({ at: sv.at, tick: sv.tick, kb: sv.json.length / 1024, end: h.state.clock.tick, digest: digest(h.save()) });
+          }
+          h.pause(false);
+          return { A, back };
+        }, { start, maxTicks: 30_000 });
+        console.log(`      node: tick ${nodeTick}, digest ${nodeDigest}; the page straight through: tick ${r.A.tick} (${r.A.ticks} ticks), ${r.A.summary}, digest ${r.A.digest}`);
+        for (const b of r.back) console.log(`        saved ${b.at} at tick ${b.tick} (${fmt(b.kb, 0)} KB), started again: tick ${b.end}, ${b.digest === r.A.digest ? 'the same digest' : `DIGEST ${b.digest}`}`);
+        assert(r.A.end?.phase === 'clear' && r.A.tick === nodeTick && r.A.digest === nodeDigest, JSON.stringify({ page: r.A, nodeTick, nodeDigest }));
+        assert(r.back.length === 5, `${r.back.length} saves of 5: ${r.back.map(b => b.at).join(', ')}`);
+        const bad = r.back.filter(b => b.end !== r.A.tick || b.digest !== r.A.digest);
+        assert(!bad.length, JSON.stringify(bad));
+      }, { query: 'play=test-range&seed=48213&nostore=1', timeoutMs: 60_000 });
     },
   },
 ];

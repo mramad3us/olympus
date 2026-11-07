@@ -16,6 +16,10 @@
 // (nothing written), and each legacy activity finishes as v0.0.5 finished it (its end, parts, line and
 // outfit, taken from v0.0.5's own run of the same save); 3,000 ticks with no error, a save after carried on
 // byte for byte. The v0.0.3 and v0.0.4 saves pass their own upgrades, then people:cuts.
+// 0.0.7 (the build sheet 0.0.7 §3.2, §5.2, §8 item 14): two saves made by v0.0.6's own code from a worktree at its
+// tag (the barracks, seed 48213, at 19:00 after a minute's walk; test-handling setup=hot after two shots). Nothing
+// is written on load: each saves again at once byte for byte, every body reads unhurt (the parts at 0, the blood
+// at 100 %, no injury, no anchor), each plays 600 ticks with no error, and a save after carries on byte for byte.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -24,6 +28,7 @@ import { createGame } from './game.mjs';
 import { bodyOf } from '../src/sim/body/body.js';
 import { stagesOf } from '../src/sim/body/cues.js';
 import { BODY_V } from '../src/sim/body/record.js';
+import { bloodAt, hasWounds, PART_KEYS } from '../src/sim/body/wounds.js';
 import { marsClock } from '../src/core/calendar.js';
 import { SITES } from '../src/data/setting/calendar.js';
 
@@ -123,6 +128,27 @@ export default [
         console.log(`        finished at ${hm(got.toMs)}: ${got.parts.join(', ')}, "${got.line}", in ${got.outfit}${got.interrupted ? ', landed by an interrupt' : ''}; v0.0.5: ${hm(want.toMs)}, the same ${JSON.stringify(got) === JSON.stringify(want) ? 'in every field' : 'NOT'}; 3,000 ticks, ${g.errors.length} errors; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
         assert(!cuts.some(c => c === 'bald' || c === 'crew') && s.flags['mig:people-cuts'] && !('hands' in rec) && !('hair' in rec), JSON.stringify({ cuts: count(cuts), flags: s.flags }));
         assert(JSON.stringify(got) === JSON.stringify(want), JSON.stringify({ got, want }));
+        assert(!g.errors.length && !h.errors.length && h.save() === end, JSON.stringify({ errors: g.errors.slice(0, 3) }));
+      }
+    },
+  },
+  {
+    name: 'a v0.0.6 save loads with nothing written: it saves again byte for byte at once, every body unhurt (the wound model\'s fields read their defaults), 600 ticks with no error, a save after carried on byte for byte',
+    fn() {
+      for (const [name, version] of [['v0.0.6-barracks-1900', '0.0.6'], ['v0.0.6-handling-hot', '0.0.6']]) {
+        const json = read(name), old = JSON.parse(json);
+        assert(old.meta.version === version, `${name}: not a v${version} save (${old.meta.version})`);
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 });
+        const s = g.load(json), again = g.save();
+        const ids = Object.keys(s.people), hurt = ids.filter(id => { const b = bodyOf(s, id); return hasWounds(b) || bloodAt(b, s.clock.ms) !== 100 || PART_KEYS.some(k => b.parts[k] !== 0); });
+        g.step(300, { mx: 1 });
+        const mid = g.save();
+        g.step(300);
+        const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 });
+        h.load(mid); h.step(300);
+        console.log(`      ${name}: saved at ${hm(old.clock.ms)} (${old.meta.scenario}, ${json.length} bytes); saved again at once: ${again === json ? 'byte for byte' : 'DIFFERENT'}; ${ids.length} bodies, ${hurt.length} hurt; 600 ticks, ${g.errors.length} errors; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+        assert(again === json && !hurt.length, JSON.stringify({ same: again === json, hurt: hurt.slice(0, 3) }));
         assert(!g.errors.length && !h.errors.length && h.save() === end, JSON.stringify({ errors: g.errors.slice(0, 3) }));
       }
     },

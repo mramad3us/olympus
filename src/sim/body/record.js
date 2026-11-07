@@ -15,6 +15,10 @@
 // absence being eyes adapted to the light they stand in. Kept apart from the engine (body.js): the
 // shape of the record, not its rates (the stage's readers, cues.js through people/figure.js, take in
 // the engine all the same).
+// 0.0.7 (the build sheet 0.0.7 §3.1, §8 item 14): the wound model's state (src/sim/body/wounds.js) is
+// additive and nothing is written on load: the template's parts group (damage 0) and its blood scalars
+// (100 %, no anchor, factor 1) save as deltas like any ledger, and injuries, knock, dead and fitness
+// (WHOLE) are carried whole when present, an empty injury list left out. A v0.0.6 body is unhurt.
 // Pure.
 import { DAY_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
@@ -23,6 +27,8 @@ import { TEMPLATES, DEFAULT_TMPL, GROUPS, SCALARS } from '../../data/body/templa
 import { BODY_TMPL } from '../../data/people/looks.js';
 import { SLEEP, BMI_BY_BUILD, KCAL_PER_KG } from '../../data/body/needs.js';
 
+/** The wound model's fields carried whole when present (0.0.7, src/sim/body/wounds.js): an empty list is not written. */
+export const WHOLE = Object.freeze(['injuries', 'knock', 'dead', 'fitness']);
 /** The record's version: 2 from v0.0.4 (the ledgers; v0.0.3's roster wrote 1). */
 export const BODY_V = 2;
 const YEAR_MS = 365.25 * DAY_MS;
@@ -57,6 +63,7 @@ export function withDefaults(rec, person = null, ms = null) {
   for (const k of SCALARS) full[k] = rec?.[k] ?? t[k];
   full.held = copy(rec?.held ?? {});
   if (rec?.eyes) full.eyes = copy(rec.eyes);
+  for (const k of WHOLE) if (rec?.[k] !== undefined) full[k] = copy(rec[k]);
   full.sex = person?.sex ?? rec?.sex ?? t.sex;
   full.ageY = person && Number.isFinite(person.bornMs) && Number.isFinite(ms) ? (ms - person.bornMs) / YEAR_MS : t.ageY;
   return full;
@@ -76,6 +83,7 @@ export function deltaOf(full) {
   const h = full.held;
   if (h && (h.ms || h.rp || h.cur || h.solved || h.posted)) rec.held = h;
   if (full.eyes) rec.eyes = full.eyes;
+  for (const k of WHOLE) if (full[k] !== undefined && !(Array.isArray(full[k]) && !full[k].length)) rec[k] = full[k];
   return rec;
 }
 

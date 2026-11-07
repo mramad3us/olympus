@@ -10,9 +10,14 @@
 // same number the eye reads), not drawn unlit; and the instanced quads are the stage's (createPixels():
 // the MRT's part ID, none here, so the outline pass inks round the lot as one shape), shared with the
 // range's holes, flag and brass (src/render/range.js). Redrawn only when what lies changes.
+// 0.0.7 (the build sheet 0.0.7 §2.4 (d)): blood. createBlood() draws the body role's bloodLook (src/sim/body/blood.js:
+// the site's spatters and drips, the marks on each casualty) through src/render/blood.js's pixels (tradecraft's
+// render/blood.js ported): the ground's flat, in one instanced draw redrawn when the list or the game minute changes
+// (it darkens as it dries), the marks over the figures they are on, every frame (a casualty may be moved).
 import { PX_PER_M } from './scale.js';
 import { FRAG_DECL } from './materials.js';
 import { decalPixels } from './range-items.js';
+import { bloodPixels, markPixels, MAX_BLOOD_PIXELS } from './blood.js';
 export { decalPixels, SHAPES } from './range-items.js';
 
 /** The most pixels the things lying take (a magazine is about 25 with its outline). */
@@ -94,4 +99,43 @@ export function createDecals(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
     return stats;
   }
   return { group, update, stats, pixels: px, dispose() { px.dispose(); group.removeFromParent(); } };
+}
+
+/**
+ * Blood on a stage (see the header): { group, update(look, { ms, figures, tintOf }), stats, dispose }. look: bloodLook's
+ * { decals, marks } or null; figures: the view's drawn people ({ id, x, z, face, lie, kneel }) the marks follow.
+ */
+export function createBlood(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
+  const THREE = stage.THREE, ground = createPixels(THREE, MAX_BLOOD_PIXELS, { ppm, order: 1 }), marks = createPixels(THREE, 120, { ppm, order: 3 });
+  marks.mesh.material.transparent = true; marks.mesh.material.depthWrite = false;
+  const group = new THREE.Group();
+  group.name = 'blood';
+  group.add(ground.mesh, marks.mesh);
+  const stats = { decals: 0, pixels: 0, marks: 0, redrawn: 0 };
+  let key = '';
+  function update(look, { ms = 0, figures = [], tintOf = null } = {}) {
+    const decals = look?.decals ?? [];
+    let total = 0;
+    for (const d of decals) total += d.n;                            // (a pool grows its n: the body's)
+    const k = `${decals.length}:${total}:${decals.at(-1)?.seed ?? 0}:${decals[0]?.seed ?? 0}:${Math.floor(ms / 60000)}`;
+    if (k !== key) {
+      key = k;
+      let n = 0;
+      const t0 = decals.length && tintOf ? tintOf(decals[0].x, decals[0].z) : [1, 1, 1];
+      for (const p of bloodPixels(decals, ms, ppm)) if (ground.set(n, { x: p.x, y: p.y, z: p.z, flat: true, color: p.c, tint: t0 })) n++;
+      ground.count(n);
+      stats.decals = decals.length; stats.pixels = n; stats.redrawn++;
+    }
+    let m = 0;
+    const byId = look?.marks ?? {};
+    for (const f of figures) {
+      const list = byId[f.id];
+      if (!list?.length) continue;
+      for (const p of markPixels(f, list, ms, ppm)) if (marks.set(m, { x: p.x, y: p.y, z: p.z, color: p.c, tint: tintOf ? tintOf(f.x, f.z) : [1, 1, 1], part: 0, noLine: true })) m++;
+    }
+    marks.count(m);
+    stats.marks = m;
+    return stats;
+  }
+  return { group, update, stats, pixels: ground, marks, dispose() { ground.dispose(); marks.dispose(); group.removeFromParent(); } };
 }

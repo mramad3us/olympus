@@ -112,6 +112,13 @@ export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', 
       }
       return moved;
     },
+    /** One tick that leaves an outcome skip it begins open, as the page's splash has it (a save made behind a splash: advance() moves it part-way, step() finishes it). */
+    tickOpen(inputOrBot = NO_INPUT) {
+      if (loop.state.skip) return false;
+      const moved = loop.tick(inputFor(loop.state, inputOrBot));
+      strictCheck();
+      return moved;
+    },
     /** ms of game time in ticks (ms / TICK_MS of them), with a bot or an input. */
     run(ms, bot = NO_INPUT) { return game.step(Math.round(ms / TICK_MS), bot); },
     /** A skip begun, advanced to its end and finished now (sim.skipNow): its skip-end payload. */

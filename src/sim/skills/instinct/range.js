@@ -23,6 +23,14 @@
 //   range-fire      note    the line hot: aim at your card, then off safe, then "Breathe out. Press."
 //                           (T aims and goes off safe; the press is never T's, always your own digit)
 //   range-wait      calm    nothing to do: wait for the tower
+//   range-kd        warn    (0.0.7, test-range's KD course: the build sheet 0.0.7 §2.3) what the KD's own commands ask:
+//                           "Dial the coach's call: four up, two left.", "Your dope for three hundred is three
+//                           down.", "Four power.", sitting then LOAD, the zero's RELOAD, "Police your brass.",
+//                           "Unused rounds back to the coach.", "Say it: no brass, no ammo."; on a hot KD line,
+//                           "Wind from the left: the coach says hold a mil left." until held so (hold:call; the point of aim
+//                           moves into the wind: shot.js holdFor); police, turn in and declare done by T (kd:<id>)
+// v0.0.6's rules are unchanged on the bay's fam25 course; on the kd course your target is the zero card at 25 m and
+// your KD lane's face past it, and the tower's own KD commands are range-kd's, not range-cmd's.
 // While a session is open the base rules keep quiet below urgent (instinct/base.js) and these speak in
 // every tone even while time stands still for the step panel ('stop'), the line's lead "Time stands
 // still." (instinct.js; VIEWS §7.4).
@@ -32,6 +40,8 @@ import { beliefOf } from '../../arms/firearms.js';
 import { stepsOf, gunOn } from '../../arms/shooting.js';
 import { rangeOf, lineReady, roundsLeft } from '../../scenarios/handling.js';
 import { SEQ } from '../../../data/courses.js';
+import { DOPE_CARD } from '../../arms/ballistics.js';
+import { holdSaid } from '../../arms/shot.js';
 import { headOf } from '../../people/perception.js';
 
 /** The muzzle's heading off downrange past which the DI speaks (the build sheet §2.2), degrees. */
@@ -59,7 +69,7 @@ function know(state, me, ms) {
     const steps = S?.mode === 'stop' && S.phase === 'choose' ? stepsOf(state, ms) : [];
     const offered = (id) => steps.find(s => s.id === id && !s.off) ?? null;
     v = { R, pid, gunId, b, S, posture, inHand, finger: carry.finger ?? 'off', stance: me.stance ?? 'stand', inMode: S?.mode === 'stop', choosing: S?.mode === 'stop' && S.phase === 'choose',
-      busy: !!S?.doing && S.doing.kind !== 'wait', aimed: S?.aim?.key ?? null, own: `paper:${R.lane}`, head: me.headRad ?? (me.face ? headOf(me.face) : null), offered, steps, cmd: R.cmd?.id ?? null, hot: R.hot };
+      busy: !!S?.doing && S.doing.kind !== 'wait', aimed: S?.aim?.key ?? null, own: R.course === 'kd' && (R.line ?? 25) !== 25 ? `face:${R.kdLane}` : `paper:${R.lane}`, kd: R.course === 'kd', head: me.headRad ?? (me.face ? headOf(me.face) : null), offered, steps, cmd: R.cmd?.id ?? null, hot: R.hot };
   }
   memo = { state, key, v };
   return v;
@@ -117,15 +127,58 @@ export const RANGE_RULES = Object.freeze([
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k || !k.cmd || k.cmd === 'brief' || k.cmd === 'end' || k.cmd === 'fire' || k.busy || lineReady(state, k.cmd)) return null;
+      if (k.kd && KD_OWN.has(k.cmd)) return null;
       // (what the command asks first: the stance, then the rest)
       const want = { prone: 'stance:prone', kneel: 'stance:kneel', stand: 'stance:stand' }[k.cmd];
       const stanceNow = { prone: 'prone', kneel: 'kneel', stand: 'stand' }[k.cmd];
       if ((k.cmd === 'kneel' || k.cmd === 'stand') && k.stance === stanceNow) return null;   // (the stance taken: the reload's line, range-reload)
       const step = want ?? { load: 'macro:load', ready: 'macro:ready', cease: 'macro:cease', clear: 'macro:clear' }[k.cmd] ?? null;
-      return { k, step, said: SAID[k.cmd] ?? k.cmd, short: (SAID[k.cmd] ?? k.cmd).split(',')[0].replace(/^\w/, c => c.toUpperCase()) };
+      const said = SAID[k.cmd] ?? k.cmd, Said = said.replace(/^\w/, c => c.toUpperCase());
+      return { k, step, said, Said, short: Said.split(',')[0] };
     },
     act: (ctx) => (!ctx.k.inMode ? 'stop:enter' : ctx.step ? actIf(ctx.k, ctx.step) : null),
-    text: { 1: ['The tower said {said}.', 'You heard the tower: {said}.', '{said}. The tower does not say it for the exercise.', 'The tower is waiting on you: {said}.'] },
+    text: { 1: ['The tower said {said}.', 'You heard the tower: {said}.', '{Said}. The tower means it.', 'The tower is waiting on you: {said}.'] },
+  },
+  {
+    id: 'range-kd', voice: 'di', repeatMs: RANGE_REPEAT_MS, tone: 'warn', reach: null,
+    short: (ctx) => ctx.short,
+    when(state, me, ms) {
+      const k = know(state, me, ms);
+      if (!k || !k.kd || !k.cmd || k.busy) return null;
+      const R = k.R, line = R.line ?? 25;
+      // (a hot KD line: the coach's hold, until it is held)
+      if (k.cmd === 'fire' && k.hot && line !== 25 && R.call?.holdMil && k.choosing && k.offered('hold:call')) {
+        const h = { xMil: R.call.holdMil[0], yMil: R.call.holdMil[1] ?? 0 };
+        return { k, variant: 'hold', step: 'hold:call', short: 'Hold', from: R.call.crossMs > 0 ? 'the left' : 'the right', hold: holdSaid(h) };
+      }
+      if (!KD_OWN.has(k.cmd) || lineReady(state, k.cmd, { relay: false })) return null;
+      const call = state.stop && k.steps.find(s => s.id === 'sight:call' && !s.off);
+      switch (k.cmd) {
+        case 'dial': return call ? { k, variant: 'dial', step: 'sight:call', short: 'Dial', call: call.label.replace(/^Dial the coach's call: /, '') } : null;
+        case 'dope': { const c = DOPE_CARD.r7?.[line]?.elev ?? 0; return { k, variant: 'dope', step: `sight:dope:${line}`, short: 'Dope', line: line === 300 ? 'three hundred' : 'two hundred', clicks: `${Math.abs(c)} ${c < 0 ? 'down' : 'up'}` }; }
+        case 'optic': return { k, variant: 'optic', step: 'optic:4', short: 'Four power' };
+        case 'sit': return { k, variant: 'sit', step: k.stance !== 'sit' ? 'stance:sit' : 'macro:load', short: k.stance !== 'sit' ? 'Sit' : 'Load' };
+        case 'reload': return { k, variant: 'reload', step: reloadOf(k)?.id ?? 'macro:load', short: 'Reload' };
+        case 'police': return { k, variant: 'police', step: null, kdAct: 'kd:police', short: 'Police' };
+        case 'turnIn': return { k, variant: 'turnIn', step: null, kdAct: 'kd:turnIn', short: 'Turn in' };
+        case 'declare': return { k, variant: 'declare', step: null, kdAct: 'kd:declare', short: 'Declare' };
+        default: return null;
+      }
+    },
+    // (police, turn in and declare are the range's own actions, done by T as by their panel rows: range.js kdAct)
+    act: (ctx) => (ctx.kdAct ?? (!ctx.step ? null : !ctx.k.inMode ? 'stop:enter' : actIf(ctx.k, ctx.step))),
+    text: {
+      1: ['Wait for the tower.'],
+      hold: ['Wind from {from}: the coach says hold {hold}.', 'The coach called the wind. Hold {hold}.', 'Hold {hold}, as the coach called it.', 'Wind from {from}. Hold where the coach said: {hold}.'],
+      dial: ['Dial the coach\'s call: {call}.', 'The coach called {call}. Dial it.', 'Turrets: {call}, as called.', 'Your corrections: {call}.'],
+      dope: ['Your dope for {line} is {clicks}.', 'The card says {clicks} for {line}. Dial it.', 'Dope for {line}: {clicks}.', 'Set {clicks}: your dope for {line}.'],
+      optic: ['Four power.', 'Optic up to four.', 'Throw the lever: four power.', 'Four power, as the tower said.'],
+      sit: ['Sitting, then LOAD.', 'Sit down, then the magazine in.', 'The sitting position. Then LOAD.', 'Sit, and load.'],
+      reload: ['Your next three. RELOAD.', 'Next magazine. RELOAD.', 'The tower said RELOAD.', 'Three more. RELOAD.'],
+      police: ['Police your brass.', 'Every case off the regolith. Police your brass.', 'Your brass. All of it.', 'Pick up your brass.'],
+      turnIn: ['Unused rounds back to the coach.', 'Anything left goes back to the coach.', 'Rounds to the coach.', 'Turn in what you did not fire.'],
+      declare: ['Say it: no brass, no ammo.', 'The declaration: no brass, no ammo.', 'No brass, no ammo. Say it.', 'Declare it: no brass, no ammo.'],
+    },
   },
   {
     id: 'range-reload', voice: 'di', repeatMs: RANGE_REPEAT_MS, tone: 'note', short: 'Reload', reach: null,
@@ -155,23 +208,26 @@ export const RANGE_RULES = Object.freeze([
   },
   {
     id: 'range-fire', voice: 'di', repeatMs: RANGE_REPEAT_MS, tone: 'note', reach: null,
-    short: (ctx) => (ctx.variant === 'aim' ? 'Aim' : ctx.variant === 'safe' ? 'Off safe' : 'Press'),
+    short: (ctx) => (ctx.variant === 'aim' ? 'Aim' : ctx.variant === 'safe' ? 'Off safe' : ctx.variant === 'mark' ? 'Your mark' : 'Press'),
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k || !k.hot || !k.b || k.b.stoppage || k.busy || !k.inHand) return null;
       if (k.b.chamber === 'empty' && k.b.locked) return null;
       if (k.aimed !== k.own) return { k, variant: 'aim' };
       if (k.b.mode === 'safe') return { k, variant: 'safe' };
+      // (slow fire at a KD face: the next pull after your mark (shooting.js markWaitOf), never into a face in the pits)
+      if (k.offered('wait:mark') || state.stop?.doing?.step === 'wait:mark') return { k, variant: 'mark' };
       return { k, variant: 'press' };
     },
     // (T aims and takes the safety off, but never takes the shot: the press is always your own digit, held or tapped
     // (the design review's: 33 presses of T cleared the scene, T pulling every trigger; pillar 3, you decide))
-    act: (ctx) => (ctx.variant === 'aim' ? actIf(ctx.k, 'aim', null, ctx.k.own) : ctx.variant === 'safe' ? actIf(ctx.k, 'selector:semi') : null),
+    act: (ctx) => (ctx.variant === 'aim' ? actIf(ctx.k, 'aim', null, ctx.k.own) : ctx.variant === 'safe' ? actIf(ctx.k, 'selector:semi') : ctx.variant === 'mark' ? actIf(ctx.k, 'wait:mark') : null),
     text: {
       1: ['Breathe out. Press.'],
       aim: ['Your card. Aim.', 'The card in your lane. Get on it.', 'Commence fire means the card. Aim.', 'The reticle on your card.'],
       safe: ['Off safe, then press.', 'The safety is still on. Thumb it off.', 'Off safe. It will not fire on safe, whatever you hope.', 'Thumb the selector to semi.'],
       press: ['Breathe out. Press.', 'Let the sight settle. Then press.', 'Squeeze, do not snatch.', 'Exhale, hold, press. Let the shot surprise you.'],
+      mark: ['Wait for your mark.', 'Your target is in the pits. Wait for the disk.', 'Slow fire: one shot, one mark. Wait.', 'Let the pits mark it. Then the next.'],
     },
   },
   {
@@ -180,10 +236,14 @@ export const RANGE_RULES = Object.freeze([
       const k = know(state, me, ms);
       if (!k || k.hot || k.busy) return null;
       if (k.cmd && k.cmd !== 'brief' && k.cmd !== 'end' && !lineReady(state, k.cmd)) return null;
+      // (the KD course: nothing during the brief (nothing has been done to be "done"), and no "Hands still" after a
+      // command answered as asked, which read as a reprimand nobody earned (the design review's of v0.0.7))
+      if (k.kd) return k.cmd === 'brief' ? null : { k, noHumour: true, variant: 'kd' };
       return { k, noHumour: true };
     },
     act: (ctx) => (ctx.k.choosing && ctx.k.offered('wait') ? 'stop:wait' : null),
-    text: { 1: ['Wait for the tower.', 'Nothing happens until the tower says so.', 'Done. Wait for the next command.', 'Hands still. The tower runs this line.'] },
+    text: { 1: ['Wait for the tower.', 'Nothing happens until the tower says so.', 'Done. Wait for the next command.', 'Hands still. The tower runs this line.'],
+      kd: ['Wait for the tower.', 'Nothing happens until the tower says so.', 'Done. Wait for the next command.', 'Good. Now wait for the tower.'] },
   },
 ]);
 
@@ -197,6 +257,9 @@ export function stepOfAct(act) {
   if (at >= 0) { tempo = rest.slice(at + 1); rest = rest.slice(0, at); }
   return { step: rest, tempo, target };
 }
+
+/** The KD course's own commands, range-kd's (0.0.7). */
+const KD_OWN = new Set(['dial', 'dope', 'optic', 'sit', 'reload', 'police', 'turnIn', 'declare', 'group', 'walk', 'pits']);
 
 /** The tower's commands, for the rules' words (courses.js SEQ). */
 export const RANGE_CMDS = Object.freeze(SEQ.map(c => c.id));

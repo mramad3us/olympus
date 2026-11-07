@@ -39,7 +39,12 @@
 //   steps()            the step panel now: { steps (the shot role's stepsOf), slots (the digits as the
 //                      panel numbers them), text (as shown) }, or null outside stop motion
 //   plaque()           the plaque now: { rec (plaqueOf's record for the target shown), words, parts }
-//   range()            the range session now (the shot role's rangeNow), or null
+//   range()            the range session now (the shot role's rangeNow), or null; on test-range (0.0.7) its
+//                      record carries, unenumerated, kd() (range.js kdNow: the stages, groups, strings, pits,
+//                      the coach's call, the relay, brass, the declaration, the casualty) and nd(who) (a
+//                      negligent discharge forced from your rifle toward a person id or { x, z }: range.js
+//                      forceNd, the build sheet 0.0.7 §6 item 7); and far() the far window (farPointOf, its
+//                      place, the stage's farState)
 //   stop()             stop motion now (the shot role's stopNow: mode, phase, pick, aim, doing, reflex)
 //   menu()             R held's menu now (places' handMenu: { title, spotId, fixtureId, quick, rows }), or
 //                      null; and the card open, if it is: { …, card: { text, cursor, checked, picks } }
@@ -62,7 +67,8 @@
 // ?play=<scenario>&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&setup=hot|bench|mixed], hour being the Mars local hour at the
 // start (0-24, a fraction giving minutes), seed a whole number; &area=<id>&at=<x>,<z>&face=<f> a
 // start somewhere else than the scenario's (the barracks' berth): an area, a place in its frame in
-// metres, a facing (up, down, left, right); setup test-handling's start ('hot': string 1 in Condition 1,
+// metres, a facing (up, down, left, right); setup test-handling's start or test-range's ('confirm', 's200',
+// 'far': the build sheet 0.0.7 §2.3); for test-handling ('hot': string 1 in Condition 1,
 // prone, the line hot, aimed at your card; 'bench': the same with one magazine of 15, the build sheet
 // 0.0.5 §2.2's fill; 'mixed', 0.0.6: the course from its brief with a fourth magazine, of tracer); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
 // agents' smoke runs) and &perf=1 (the GL counters and pass times). ?bench=<scene> (or ?bench=1, the
@@ -73,8 +79,8 @@ import { sorted } from './queue.js';
 import { utcText, marsTimeText } from './calendar.js';
 
 export const FACES = Object.freeze(['up', 'down', 'left', 'right']);
-/** test-handling's setups (the build sheet 0.0.5 §2.2; 'mixed', the 0.0.6 arms role's: one tracer magazine besides the ball). */
-export const SETUPS = Object.freeze(['hot', 'bench', 'mixed']);
+/** test-handling's setups (the build sheet 0.0.5 §2.2; 'mixed', the 0.0.6 arms role's: one tracer magazine besides the ball); test-range's (0.0.7 §2.3: 'confirm' zeroed at the 300 m line, 's200' sitting at the 200 m line, 'far' the range-far bench's). */
+export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200', 'far']);
 
 /** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup }. */
 export function readParams(search = globalThis.location?.search ?? '') {

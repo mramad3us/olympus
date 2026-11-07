@@ -18,6 +18,11 @@
 // 0.0.6: the hands (the build sheet 0.0.6 §2.2): stagesOf's hands band, its words naming the last soiling
 // from dirty on ("Dirty hands, since the head.", "Gun oil and carbon on your hands.", "Regolith ground into
 // your palms."; handsWords), cuesOf's handsK (dirt / 100) and handsWhy for the doll, and the words' hands row.
+// 0.0.7 (the build sheet 0.0.7 §2.2; src/sim/body/wounds.js): the wounds in words, never a number, for C
+// and the instinct: woundWords (each wound and how it bleeds, the blood's band felt, the pain's band,
+// down), woundLine (the body line's first say, BODY §23.2's order: an artery or a bleed of 8 %/min or more,
+// collapsed or in shock, a bleed of 0.8, pain), and the strip's pain cell filled by the pain's band
+// (fine 0, in pain 2, bad pain 3, agony 5). An unwounded body reads as before, word for word.
 // Pure.
 import { HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, FATIGUE_BANDS, STAMINA_BANDS, STUBBLE_BANDS, STRESS_BANDS, MORALE_BANDS, HYGIENE, HANDS_BANDS } from '../../data/body/needs.js';
 import { SITES, START } from '../../data/setting/calendar.js';
@@ -32,6 +37,9 @@ import { grimeIndex, stubbleIndex, handsIndex } from './hygiene.js';
 import { phiOf, circ, fatigueIndex, lonMsOf } from './sleep.js';
 import { stressIndex, moraleIndex } from './stress.js';
 import { stageOf } from './thermal.js';
+import { woundWords, painOf, painBand, bandOf, bleeding, hasWounds, LIMB_CAP_PM } from './wounds.js';
+
+export { woundWords };
 
 /** Melas's east longitude, the readers' default. */
 export const MELAS_LON_E_DEG = SITES[START.site].lonEDeg;
@@ -105,8 +113,28 @@ export function stripOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
   return [
     of('water', s.thirst), of('food', s.hunger), of('bladder', s.bladder), of('bowel', s.bowel), of('sleep', s.fatigue), of('grime', s.hygiene),
     { need: 'heat', band: cold?.id ?? 'fine', fill: 0, tone: cold ? (cold.v <= -3 ? 'urgent' : 'warn') : 'fine' },
-    { need: 'air', band: 'fine', fill: 0, tone: 'fine' }, { need: 'pain', band: 'fine', fill: 0, tone: 'fine' },
+    { need: 'air', band: 'fine', fill: 0, tone: 'fine' }, painCell(b, ms),
   ];
+}
+const PAIN_FILL = Object.freeze({ 'in pain': [2, 'warn'], 'bad pain': [3, 'warn'], agony: [5, 'urgent'] });
+// (the strip's pain cell: the pain's band felt now)
+function painCell(b, ms) {
+  const band = hasWounds(b) ? painBand(painOf(b, ms)) : null, f = band ? PAIN_FILL[band.word] : null;
+  return f ? { need: 'pain', band: band.word, fill: f[0], tone: f[1] } : { need: 'pain', band: 'fine', fill: 0, tone: 'fine' };
+}
+/** The body line's say on wounds at ms (BODY §23.2's order), or null: { tone, text }. Never a number. */
+export function woundLine(body, ms) {
+  const b = withDefaults(body);
+  if (!hasWounds(b) || b.dead) return null;
+  const on = (b.injuries ?? []).filter(i => i.bleed > ms && !i.internal && !i.cared);
+  const hard = on.find(i => i.artery || (i.rate ?? 0) >= LIMB_CAP_PM);
+  if (hard) return { tone: 'urgent', text: `Bleeding hard from ${hard.name.replace(/^an? /, 'the ')}: a tourniquet, now.` };
+  const band = bandOf(b, ms);
+  if (band === 'collapsed' || band === 'shock') return { tone: 'urgent', text: 'Going into shock: lie flat, keep warm, call the corpsman.' };
+  if (on.some(i => (i.rate ?? 0) >= 0.8)) return { tone: 'warn', text: 'Bleeding: press on it.' };
+  if (bleeding(b, ms) && on.length) return { tone: 'warn', text: 'Still bleeding: keep pressure on.' };
+  const pain = painBand(painOf(b, ms));
+  return pain ? { tone: 'note', text: pain.word === 'agony' ? 'The pain is everything.' : 'It hurts. Keep still.' } : null;
 }
 
 const NUMBER = Object.freeze(['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve']);

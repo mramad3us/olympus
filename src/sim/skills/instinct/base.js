@@ -7,6 +7,8 @@
 // item 12): 'rise' (up from the rack), 'dress:utilities' (at your own rack's foot or your locker),
 // 'activity:<id>' (the activity of the fixture you stand at); a line that sends you somewhere says
 // where, and T then does nothing. The rules, most pressing first:
+//   wound         by the wound  (0.0.7) the body's wound line in BODY §23.2's order (cues.js woundLine): an artery
+//                         or a hard bleed and shock urgent, a bleed warn, the pain a note; its words are the line
 //   alarm         urgent  a drill open and you not mustered (or mustered and gone from your rack):
 //                         up, utilities, the foot of your rack (T rises you, then dresses you at your
 //                         rack); past the count, the words say you missed it, never its time
@@ -48,13 +50,14 @@ import { marsClock } from '../../../core/calendar.js';
 import { playerActor, playerId } from '../../../core/ids.js';
 import { siteLonEDeg } from '../../jobs.js';
 import { bodyOf, isAsleep } from '../../body/body.js';
-import { stagesOf, hasBeard } from '../../body/cues.js';
+import { stagesOf, hasBeard, woundLine } from '../../body/cues.js';
 import { alertNow, mustered, musterOf, rackFootOf } from '../../time/alerts.js';
 import { activitiesAt, startActivity, ownOf, spotOf, nextReveilleMs } from '../../time/activities.js';
 import { HANDS_NAG_MS } from '../../../data/activities.js';
 import { riseActor, outfitOf } from '../../people/place.js';
 import { transPlaying } from '../../time/doing.js';
 import { rangeNow } from '../../scenarios/handling.js';
+import { kdAct } from '../../scenarios/range.js';
 import { chooseStep, enterStop } from '../../arms/shooting.js';
 import { stepOfAct } from './range.js';
 
@@ -115,6 +118,15 @@ const arrivedAt = (state, al) => (state.time.attend ?? []).some(a => a.drill ===
 
 /** The DI's rules (see the header), most pressing first. */
 export const BASE_RULES = Object.freeze([
+  {
+    // (0.0.7: a wound first, in BODY §23.2's order (cues.js woundLine): an artery or a hard bleed urgent, shock, a bleed, the pain)
+    id: 'wound', voice: 'di', tone: (ctx) => ctx.tone, short: 'Wound', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms), w = k.body ? woundLine(k.body, ms) : null;
+      return w ? { k, tone: w.tone, said: w.text } : null;
+    },
+    text: { 1: ['{said}'] },
+  },
   {
     id: 'alarm', voice: 'di', tone: 'urgent', short: 'Klaxon', reach: null,
     when(state, me, ms) {
@@ -327,12 +339,13 @@ export const BASE_RULES = Object.freeze([
   },
 ]);
 
-/** Do an instinct's act (T): 'rise', 'dress:utilities', 'activity:<id>', 'standfast', 'sleep:reveille' (in your berth), 'stop:<step>' (a step of the panel: the range's rules) and 'stop:enter' (G). Returns whether it was done. */
+/** Do an instinct's act (T): 'rise', 'dress:utilities', 'activity:<id>', 'standfast', 'sleep:reveille' (in your berth), 'stop:<step>' (a step of the panel: the range's rules), 'stop:enter' (G) and 'kd:<id>' (the KD's police, turn-in, declaration). Returns whether it was done. */
 export function doAct(state, bus, ctx, act) {
   const me = playerActor(state);
   if (!me || !act) return false;
   if (act === 'rise') return !!riseActor(state, me, state.clock.ms);
   if (act === 'stop:enter') return enterStop(state, bus, { via: 'ready' }).ok;
+  if (act.startsWith('kd:')) return !!kdAct(state, bus, act.slice(3), ctx).ok;
   if (act.startsWith('stop:')) { const s = stepOfAct(act); return !!s && chooseStep(state, bus, { step: s.step, tempo: s.tempo, target: s.target }, ctx).ok; }
   if (act === 'standfast') return startActivity(state, bus, ctx, { id: 'standfast' }).ok;
   if (act === 'sleep:reveille') {

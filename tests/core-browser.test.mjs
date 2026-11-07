@@ -39,6 +39,12 @@
 // its keys its own), the digits and Space check brush teeth, shave and wash face, Enter: one splash, three lines
 // in its strip; the mouse the same (a click on each box, DO IT); Esc and R close it; the card inside the window
 // at four sizes; at the rack mid-drill, R held, the sleep's row and Enter bring the late card.
+// The 0.0.7 round's (the build sheet 0.0.7 §5.5 core-browser): test-range, "The line at 300 m", from the Tests menu and by
+// the URL with no errors; the KD bot (tests/bots/kd.mjs, in the page) to the zero's first group read: PAPER the group card
+// (the zero card, its holes, the call "6 DOWN · 14 RIGHT" or "ZEROED"); on to the confirm at 300 m, aimed at your face: the far window open
+// on it (view.farState().open), labelled "TARGET n · 300 M", its disc and stack apart from every HUD rectangle in the page;
+// Z twice dials two clicks up: the turrets' belief moves, the believed zero does not, the plaque's zero term follows; the
+// bot to the end: the end card's KD summary, Score it at 85, 80, 90, and Copy my scores gives ROADMAP §2.2's line.
 import { assert, fmt, root } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { rectsAt, overlaps } from '../src/ui/hud/layout.js';
@@ -266,7 +272,7 @@ export default [
     },
   },
   {
-    name: '? lists every key this build gives a meaning, labelled AZERTY (Z Q S D, Shift, Alt, R, T, G, X, the digits, A W, V, I, C, J, Space, Esc, ?, in a splash Space and Backspace, in stop motion Enter and Q D), and nothing else; in debug mode ^ and $',
+    name: '? lists every key this build gives a meaning, labelled AZERTY (Z Q S D, Shift, Alt, R, T, G, X, the digits, A W, V, I, C, J, Space, Esc, ?, in a splash Space and Backspace, in stop motion Enter and Q D, and 0.0.7\'s Z S and Shift Q D the turrets, E held the far window), and nothing else; in debug mode ^ and $',
     heavy: true,
     async fn() {
       await withGame(async (page) => {
@@ -281,7 +287,9 @@ export default [
         console.log(`      keys: ${rows.map(([k, s]) => `${k} ${s}`).join(' | ')}`);
         const want = ['Z Q S D', 'Shift', /^(Alt|Option)$/, 'R', 'T', 'G', 'X', '1 … 0', 'A W', 'V', 'I', 'C', 'J', 'Space', 'Esc', '?', 'Backspace', 'Enter', 'Q D'];
         for (const w of want) assert(keys.some(k => (w instanceof RegExp ? w.test(k) : k === w)), `no row for ${w}: ${keys.join(', ')}`);
-        for (const not of ['F', 'H', 'Tab', 'E', 'K', 'L', 'M']) assert(!keys.includes(not), `${not} does nothing in this build, yet it is on the card`);
+        for (const not of ['F', 'H', 'Tab', 'K', 'L', 'M']) assert(!keys.includes(not), `${not} does nothing in this build, yet it is on the card`);
+        // (0.0.7: E held on a KD line opens the far window; Z S and Shift with Q D the scope's turrets in stop motion)
+        assert(/far window/.test(rows.find(r => r[0] === 'E')?.[1] ?? '') && /elevation/.test(rows.find(r => r[0] === 'Z S')?.[1] ?? '') && /windage/.test(rows.find(r => r[0] === 'Shift Q D')?.[1] ?? ''), 'the 0.0.7 keys: E, Z S, Shift Q D');
         assert(/Shift rushed/.test(rows.find(r => r[0] === '1 … 0')[1]) && /held careful/.test(rows.find(r => r[0] === '1 … 0')[1]) && /stance/.test(rows.find(r => r[0] === 'A W')[1]), 'the digits\' tempo and the stance keys');
         assert(/door/.test(rows.find(r => r[0] === 'R')[1]) && /wait 15 min/.test(rows.find(r => r[0] === 'R')[1]) && /held: the menu/.test(rows.find(r => r[0] === 'R')[1]), `R's words: ${rows.find(r => r[0] === 'R')[1]}`);
         assert(rows.some(([k, w]) => k === 'Space' && /R menu/.test(w)) && rows.some(([k, w]) => k === 'Q D' && /R menu/.test(w)), 'the R menu\'s keys');
@@ -511,7 +519,7 @@ export default [
         const closed = await page.evaluate(() => !document.querySelector('.glass.sheetcard'));
         console.log(`      C: PERSONNEL with the doll ${sheet.doll}, ${sheet.glyphs} glyphs, paused by ${sheet.reasons}; '${sheet.text.split('\n').filter(Boolean).slice(0, 12).join(' | ')}'; C closes it: ${closed}`);
         assert(sheet.doll && sheet.glyphs === 9 && /On you/i.test(sheet.text) && /The file/i.test(sheet.text) && !!sheet.rank && sheet.text.includes(sheet.rank) && sheet.reasons.includes('overlay:sheet') && closed, JSON.stringify(sheet));
-        // (thirsty at a sink: the drink on the chip, T held drinks there, lived, the tap running. The thirst is
+        // (thirsty at a sink: the drink on the chip, T held drinks there, a fast-forward behind the brief splash. The thirst is
         // set on the body's water ledger in the page, as a scene's fill sets its ledgers: a fixture, not a rule)
         const sink = await spotIn(page, 'f:e1:head-2a:sinks-1#1');
         await page.evaluate(([h, p]) => window[h].go(window[h].area, p.x, p.z, p.face), [H, sink]);
@@ -522,7 +530,7 @@ export default [
         await page.waitForFunction((h) => window[h].state.time?.doing?.activity === 'drink', H, { timeout: 3000 }).catch(() => {});
         const drink = await page.evaluate((h) => ({ doing: window[h].state.time?.doing ?? null }), H);
         console.log(`      thirsty at a sink: '${thirsty.all}'; T held: ${drink.doing?.activity} (${drink.doing?.mode})`);
-        assert(/T held\s*Drink/.test(thirsty.all) && drink.doing?.activity === 'drink' && drink.doing.mode === 'live', JSON.stringify({ thirsty, drink }));
+        assert(/T held\s*Drink/.test(thirsty.all) && drink.doing?.activity === 'drink' && drink.doing.mode === 'ff', JSON.stringify({ thirsty, drink }));   // (30 s: behind the brief splash since the user's 2026-11-07 "up to 10s")
       }, { query: 'nostore=1' });
     },
   },
@@ -902,6 +910,94 @@ export default [
           if (got.RADIO) assert(got.RADIO.y + got.RADIO.h <= got.STEPS.y + 1, `RADIO on STEPS: ${JSON.stringify({ radio: got.RADIO, steps: got.STEPS })}`);
         }
       }, { query: 'play=test-handling&seed=48213&nostore=1' });
+    },
+  },
+  {
+    name: 'test-range, "The line at 300 m": from the Tests menu and by the URL; the group card at the zero; the far window opens on your 300 m face, labelled, apart from every HUD rectangle; two clicks up move the turrets\' belief and the plaque, never the zero; the end card and the score line "… · test-range · seed 48213 · far window 85 · shot at distance 80 · range safety 90 · ★ no · note: none"',
+    heavy: true,
+    timeoutMs: 420000,
+    async fn() {
+      await withGame(async (page, errors, game) => {
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: game.origin });
+        await page.click('#title .item.tests');
+        const list = await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].map(b => b.innerText.split('\n')[0]));
+        console.log(`      Tests: ${list.join(' | ')}`);
+        assert(list.includes('The line at 300 m'), JSON.stringify(list));
+        await game.open('play=test-range&seed=48213&nostore=1');
+        await playing(page);
+        const start = await page.evaluate((h) => ({ scene: window[h].scene, kd: window[h].kd(), goal: document.querySelector('.toasts')?.textContent ?? '' }), H);
+        console.log(`      the scene: ${JSON.stringify(start.scene)}; the KD at ${start.kd?.stage}, line ${start.kd?.line}, lane ${start.kd?.lane}; '${start.goal.slice(0, 80)}…'`);
+        assert(start.scene?.id === 'test-range' && start.kd?.stage === 'zero', JSON.stringify(start));
+        // (the KD bot in the page, the loop paused while it steps; the HUD drawn again once it lets go)
+        const bot = (until, maxTicks = 200000) => page.evaluate(async ([h, until, maxTicks]) => {
+          const { kdBot } = await import('/tests/bots/kd.mjs');
+          const O = window[h], run = kdBot(), done = new Function('O', `return (${until});`);
+          O.pause(true);
+          let n = 0;
+          for (; n < maxTicks && !done(O); n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); O.step(1, run(s, me, (me.bot ??= {}))); }
+          O.pause(false);
+          return { ticks: n, done: done(O) };
+        }, [H, until, maxTicks]);
+        // (a walk or the pits are behind a splash, which the page paces: the bot lets go, Enter takes the splash to its end, and on)
+        const through = async (until, rounds = 12) => {
+          let ticks = 0, r = null;
+          for (let i = 0; i < rounds; i++) {
+            r = await bot(`(${until}) || !!O.state.skip`);
+            ticks += r.ticks;
+            if (await page.evaluate((u) => new Function('O', `return (${u});`)(window.__olympus), until)) return { ticks, done: true };
+            if (!(await page.evaluate((h) => !!window[h].state.skip, H))) return { ticks, done: false };
+            for (let w = 0; w < 120 && await page.evaluate((h) => !!window[h].state.skip || !!window[h].splash(), H); w++) { await page.keyboard.press('Enter'); await settle(page, 250); }
+          }
+          return { ticks, done: false };
+        };
+        const toGroup = await bot('(() => { const k = O.kd(); const g = k?.groups?.at(-1); return !!O.stop() && !!g && !k.hot && !!(g.call || g.ok); })()');
+        await settle(page, 600);
+        const group = await page.evaluate((h) => ({ paper: document.querySelector('.paper')?.dataset.text ?? null, groups: window[h].kd().groups }), H);
+        console.log(`      the bot ran ${toGroup.ticks} ticks to the first group read: PAPER '${group.paper}'`);
+        assert(toGroup.done && /the zero card, group \d+: 3 holes/.test(group.paper ?? '') && /(UP|DOWN|LEFT|RIGHT|ZEROED)/.test(group.paper), JSON.stringify(group));
+        // (on to the confirm, aimed at your own face: the far window open on it)
+        const toFar = await through('(() => { const k = O.kd(), st = O.stop(); return k?.stage === \'confirm\' && k.line === 300 && st?.phase === \'choose\' && st.aim?.key === `face:${k.kdLane}`; })()');
+        const why = await page.evaluate((h) => ({ kd: { stage: window[h].kd()?.stage, line: window[h].kd()?.line, cmd: window[h].kd()?.cmd, kdLane: window[h].kd()?.kdLane }, stop: window[h].stop(), far: window[h].far }), H);
+        console.log(`      the bot ran ${toFar.ticks} ticks (${toFar.done ? 'there' : 'not there'}): ${JSON.stringify({ kd: why.kd, aim: why.stop?.aim, phase: why.stop?.phase, far: why.far?.far ?? null, open: why.far?.open ?? null })}`);
+        await page.waitForFunction((h) => window[h].far?.stage?.open && window[h].far?.alpha >= 1, H, { timeout: 10000 });
+        await settle(page, 400);
+        const far = await page.evaluate((h) => {
+          const r = (sel) => { const e = document.querySelector(sel); if (!e || e.hidden || getComputedStyle(e).display === 'none') return null; const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
+          return { far: window[h].far, kd: window[h].kd(), rects: { TOASTS: r('.toasts'), WATCH: r('.watch'), PAPER: r('.paper'), INSTINCT: r('.instinct'), STEPS: r('.steps'), RADIO: r('.radio.voices'), KEYS: r('.keyshint') }, label: r('.plaque.farlabel'), plaque: r('.plaque.reticle'), terms: r('.plaque.terms'), hud: window[h].hud };
+        }, H);
+        const p = far.far.place, disc = { x: p.cx - p.RK, y: p.cy - p.RK, w: 2 * p.RK, h: 2 * p.RK }, own = [['disc', disc], ['label', far.label], ['plaque', far.plaque], ['terms', far.terms]].filter(([, b]) => b);
+        const meets = [];
+        for (const [n, b] of own) for (const [m, r] of Object.entries(far.rects)) if (r && overlaps(b, r)) meets.push(`${n} × ${m}`);
+        console.log(`      the bot ran ${toFar.ticks} ticks to the confirm, aimed: the far window ${far.far.open ? 'open' : 'shut'} at (${fmt(p.cx, 0)}, ${fmt(p.cy, 0)}) r ${fmt(p.r, 0)}, '${far.far.label}'; PAPER ${far.rects.PAPER ? 'shown' : 'yielding'}; meeting: ${meets.join(', ') || 'none'}`);
+        console.log(`      the plaque '${far.hud.plaque}'; its terms '${far.hud.terms}'`);
+        assert(far.far.stage.open && /^TARGET \d+ 300 M$/.test(far.far.label ?? '') && far.far.far.key === `face:${far.kd.kdLane}` && !far.rects.PAPER && !meets.length, JSON.stringify({ far: far.far, meets }));
+        // (Z twice: two clicks up; the turrets' belief moves, the believed zero not, and the plaque's zero term with them)
+        const before = await page.evaluate((h) => ({ b: window[h].gun().belief, terms: window[h].plaque()?.rec?.terms ?? [] }), H);
+        await page.keyboard.press('KeyW'); await settle(page, 250); await page.waitForFunction((h) => window[h].stop()?.phase === 'choose', H, { timeout: 5000 });
+        await page.keyboard.press('KeyW'); await settle(page, 250); await page.waitForFunction((h) => window[h].stop()?.phase === 'choose', H, { timeout: 5000 });
+        await settle(page, 300);
+        const after = await page.evaluate((h) => ({ b: window[h].gun().belief, terms: window[h].plaque()?.rec?.terms ?? [], card: document.querySelector('.steps .wcard')?.dataset.text ?? '' }), H);
+        const z0 = before.terms.find(t => t.key === 'zero')?.v, z1 = after.terms.find(t => t.key === 'zero')?.v;
+        console.log(`      Z twice: the turrets ${JSON.stringify(before.b.sight)} → ${JSON.stringify(after.b.sight)}, the believed zero ${JSON.stringify(before.b.zero)} → ${JSON.stringify(after.b.zero)}; the plaque's zero term ${JSON.stringify(z0)} → ${JSON.stringify(z1)}; the card '${after.card}'`);
+        assert(after.b.sight.elev === before.b.sight.elev + 2 && after.b.sight.wind === before.b.sight.wind && JSON.stringify(after.b.zero) === JSON.stringify(before.b.zero) && z1?.elev === (z0?.elev ?? 0) + 2, JSON.stringify({ before, after }));
+        // (the bot to the end: the end card says the KD's summary; Score it, 85, 80, 90; Copy my scores)
+        const toEnd = await through('!!O.range()?.end', 20);
+        await page.waitForFunction((h) => window[h].scene?.ended, H, { timeout: 15000 });
+        for (let w = 0; w < 60 && !(await page.evaluate(() => !!document.querySelector('.glass.end'))); w++) { await page.keyboard.press('Enter'); await settle(page, 300); }
+        await page.waitForFunction(() => document.querySelector('.glass.end'), null, { timeout: 15000 });
+        const end = await page.evaluate(() => document.querySelector('.glass.end').innerText);
+        console.log(`      the bot ran ${toEnd.ticks} ticks to the end: '${end.split('\n').filter(Boolean).slice(0, 3).join(' | ')}'`);
+        assert(/End of the scene: The line at 300 m/i.test(end) && /(Clear|Closed|Stopped).* · (zero in|not zeroed in) \d group/.test(end), end);
+        await settle(page, 400);
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.querySelector('.glass.score'), null, { timeout: 5000 });
+        await page.evaluate(() => { const set = [85, 80, 90]; [...document.querySelectorAll('.glass.score input.score')].forEach((i, n) => { i.value = String(set[n]); i.dispatchEvent(new Event('input')); }); });
+        await page.click('.glass.score .copy');
+        await page.waitForFunction(() => /Copied|failed/.test(document.querySelector('.glass.score .copied').textContent), null, { timeout: 5000 });
+        const clip = await page.evaluate(async () => navigator.clipboard.readText().catch(e => `(no read: ${e.message})`));
+        console.log(`      Copy my scores: '${clip}'`);
+        assert(new RegExp(`^OLYMPUS v${await page.evaluate((h) => window[h].version, H)} · test-range · seed 48213 · far window 85 · shot at distance 80 · range safety 90 · ★ no · note: none$`).test(clip), clip);
+      }, { query: 'nostore=1', viewport: { width: 1600, height: 900 } });
     },
   },
 ];

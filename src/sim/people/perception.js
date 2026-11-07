@@ -120,6 +120,21 @@ export const layerAt = (heightM) => (heightM >= LAYER_M.stand ? 'stand' : height
 export const FIELD_SELF_W = 2, FIELD_RINGS_M = Object.freeze([1, 2.5, 4.5]), FIELD_ANGLES_RAD = Object.freeze([-0.9, -0.3, 0, 0.3, 0.9]);
 export const FIELD_N = FIELD_RINGS_M.length * FIELD_ANGLES_RAD.length;
 
+/** The firing line's band (0.0.7): LINE_AWARE_M either way along the line, LINE_DEPTH_M either side of it, LINE_SOFT_M its soft edge. */
+export const LINE_AWARE_M = 12, LINE_DEPTH_M = 2.5, LINE_SOFT_M = 0.75;
+// (the band a shooter on test-range's KD course takes in along the firing line: the neighbours prone 5 m either side are
+// at the edge of the eye and in the ear (their reports, their brass), so the relay is drawn as it is, never as figures
+// remembered from the walk (the integrator's call for 0.0.7, the stage's report: prone, the eye's 3.5 m and its cone
+// downrange left the relay in the fog). Only on the kd course: test-handling's bay is the user's scored scene, as scored)
+function lineBandOf(state, p) {
+  const R = state?.armoury?.range;
+  // (kept past the course's end to the card: the neighbours seen a moment before never turn to remembered figures on
+  // the open line by day (the runtime review's of v0.0.7))
+  if (!R || R.course !== 'kd') return null;
+  const dr = R.downrangeRad ?? 0;
+  return { x: p.x, z: p.z, ux: -Math.sin(dr), uz: Math.cos(dr), halfM: LINE_AWARE_M, depthM: LINE_DEPTH_M };
+}
+
 /** Someone's eyes (see the header). */
 export function eyeOf(state, actor) {
   const isPlayer = !!actor && actor.id === state?.player?.actor, ms = state?.clock?.ms ?? 0;
@@ -139,6 +154,8 @@ export function eyeOf(state, actor) {
     hx: Math.cos(headRad), hz: Math.sin(headRad), outerCos: outer >= Math.PI ? -2 : Math.cos(outer),
   };
   if (isPlayer && (posture === 'lie' || posture === 'sit') && !eye.asleep) lookOut(state, eye);
+  // (0.0.7: on the KD's firing line the line is known: see lineBandOf)
+  if (isPlayer && !eye.asleep) { const band = lineBandOf(state, p); if (band) eye.band = band; }
   // (the light as these eyes take it: eyeViewOf's, the picture's own number)
   const view = eye.asleep ? null : viewFor(state, actor, eye, isPlayer, ms);
   eye.lightK = view && !view.nv ? view.lightK : 1;
@@ -290,7 +307,13 @@ function visAt(state, eye, grid, ei, ej, bit, x, z, ms) {
   let open, far = -1, c = 0;
   if (d < ALWAYS_M) open = 1;
   else {
-    const v = clamp01((eye.awareM + AWARE_SOFT_M - d) / (2 * AWARE_SOFT_M));
+    let v = clamp01((eye.awareM + AWARE_SOFT_M - d) / (2 * AWARE_SOFT_M));
+    if (eye.band && v < 1) {
+      // (the firing line's band (lineBandOf): along the line and a little either side of it)
+      const B = eye.band, along = Math.abs((x - B.x) * B.ux + (z - B.z) * B.uz), across = Math.abs((x - B.x) * B.uz - (z - B.z) * B.ux);
+      const bv = clamp01((B.halfM + LINE_SOFT_M - along) / (2 * LINE_SOFT_M)) * clamp01((B.depthM + LINE_SOFT_M - across) / (2 * LINE_SOFT_M));
+      if (bv > v) v = bv;
+    }
     if (v >= 1) open = 1;
     else {
       // (outside the cone's soft edge by the dot product, a hair inside its true angle: no atan2 needed, c is 0)

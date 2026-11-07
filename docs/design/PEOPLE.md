@@ -648,6 +648,8 @@ Tradecraft's `src/sim/perception.js` (265 lines), with its constants:
 
 **As built in v0.0.5: the reach reads the adapted eye** (BODY §23.4; the user's ask of 2026-11-06). It is `SIGHT_M` 10 × min(1, lightK) + `LIGHT_M` 42 × min(1, L × lightK), with `lightK` from BODY's eyes (`eyeView`, through `eyeViewOf`, §7.6): 1 at rest in any lit place and five minutes into the dark, which is v0.0.4's 10 + 42 × light. In the bay at lights out: 3.3 m just in from the lit head, 5.6 at a minute, 11.7 at five, 14.9 at twenty, 17.6 m fully adapted or woken from sleep (`eyes-sight` prints them).
 
+**As built in v0.0.7: the firing line** (§7.2's table). On the KD course the player's eye also takes in a band along the firing line (`lineBandOf`: 12 m either way, 2.5 m either side, a 0.75 m soft edge), whatever the cone and the all-round radius say. The reach itself still ends about 54 m out; a face at 300 m is the far window's, which has its own open-air law (VIEWS §2.4).
+
 ### 7.2 What OLYMPUS changes
 
 | Condition | Effect (my calls) |
@@ -660,6 +662,7 @@ Tradecraft's `src/sim/perception.js` (265 lines), with its constants:
 | asleep | nothing but hearing, with thresholds ×0.3 (a shout wakes, footsteps do not) |
 | lying awake in a berth (built in v0.0.4, the player only) | sees from the berth: the eye looks out along its facing past the rack's own cells, at most `BERTH_LOOK_M` 2 m (§7.6) |
 | just in from a lit place, or dark-adapted (built in v0.0.5) | the light as the eye takes it (BODY §23.4's eyes, §7.1): the reach falls just in from a lit place and grows over half an hour in the dark. In a glare (the lights on, a lit door) the reach is the lit field's at rest (my call: no blind second for unseen-only changes to use) |
+| on the KD course's firing line (built in v0.0.7, the player only) | the firing line is taken in: a band `LINE_AWARE_M` 12 m either way along the line and `LINE_DEPTH_M` 2.5 m either side of it, with a soft edge of `LINE_SOFT_M` 0.75 m (`perception.js` `lineBandOf`), so the relay prone 5 m either side, outside the cone and the 3.5 m round a prone eye, is drawn as it is and never as figures remembered in the fog. It holds past the course's end to the card. Only on `test-range`'s KD course (`armoury.range.course` 'kd'): test-handling's bay, the user's scored scene, is unchanged (my call, the integrator's; DESIGN.md's log, 2026-11-07) |
 
 As built in v0.0.4 the player is asleep only when the body sleeps (BODY's `isAsleep`; the build sheet's §8 item 22), so a player lying awake sees; everyone else's sleep is still read from their posture (they lie only in their racks after taps).
 

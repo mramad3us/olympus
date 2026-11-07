@@ -10,6 +10,8 @@ import { copyState, toJSON } from '../src/core/state.js';
 import { move, holderOf, rebuildHolders, sparesOf, dumpOf, pouchFor, lyingOf, kitView, KIT_TEMPLATES } from '../src/sim/arms/kit.js';
 import { doAction } from '../src/sim/arms/firearms.js';
 import { runMacro } from '../src/sim/arms/drills.js';
+import { createGame } from './game.mjs';
+import { earsOn, SLOTS } from '../src/sim/arms/kit.js';
 
 // (the weapons domain's declarations, as the build sheet's §2.6 gives them, for the id walk)
 const ARMS_IDS = { idMaps: { items: 'i', 'armoury.guns': 'i', people: 'p', 'places.sites': 'place' }, idFields: { 'people{}.kit.worn{}': 'i', 'people{}.kit.hands[]': 'i', 'items{}.mag': 'i', 'items{}.holds[]': 'i', 'stop.gun': 'i', 'places.sites{}.items[].id': 'i', 'actors.area': 'place', 'player.id': 'p', 'player.actor': 'a' } };
@@ -99,6 +101,20 @@ export default [
       for (const [id, to] of [[F.magIds[2], { gun: F.gunId }], [F.gunId, { container: 'i3' }], ['i9', { pid: F.pid, slot: 'carrier' }]]) { try { move(F.state, id, to); } catch { refused++; } }
       assert(refused === 3, 'a magazine into a loaded gun, a rifle into a pouch, a second carrier: refused');
       assert(KIT_TEMPLATES['range-fam'].mags.length === 3, 'the range\'s issue: three magazines');
+    },
+  },
+  {
+    name: 'test-range\'s issue (0.0.7): the range-kd kit, the R-7 with its zero drawn, the carrier, four magazines of three, ear defenders in their own slot (kit.worn.ears, SLOTS\' last, so the other kits\' ids stand); the relay drawn the same',
+    fn() {
+      const g = createGame({ scenario: 'test-range', seed: 48213 }), s = g.state, pid = s.player.id, kit = s.people[pid].kit;
+      const T = KIT_TEMPLATES['range-kd'], gun = s.items[kit.worn.sling], ears = s.items[kit.worn.ears];
+      const mags = Object.values(s.items).filter(i => i.type === 'mag' && (i.n === 3)).length;
+      console.log(`      SLOTS ${SLOTS.join(', ')}; worn ${JSON.stringify(kit.worn)}; the rifle's zero ${JSON.stringify(gun.zero ?? null)}, turrets ${JSON.stringify(gun.sight ?? null)}, lever ${gun.optic ?? 1}; ears ${ears?.model}; earsOn ${earsOn(s, pid)}; magazines of three in the game ${mags}`);
+      assert(SLOTS.at(-1) === 'ears' && T.worn.ears === 'ed1' && ears?.type === 'ears' && earsOn(s, pid), 'the ear defenders in their slot');
+      assert(T.mags.length === 4 && T.mags.every(([f, n]) => f === 'had30' && n === 3), 'four magazines of three');
+      assert(mags === 4 * 6, `the player and the five of the relay each four magazines of three: ${mags}`);
+      const h = createGame({ scenario: 'test-handling', seed: 48213 });
+      assert(!earsOn(h.state, h.state.player.id), 'test-handling\'s ear defenders stay where v0.0.6 put them (worn.head): no muffle');
     },
   },
 ];

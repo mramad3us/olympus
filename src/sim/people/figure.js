@@ -30,6 +30,10 @@
 // else's the actor's (actor.hair, which people's actors layer writes only out of the player's sight), or
 // the closed form's while an actor has none; lookFor's memo is keyed by it too. The cues gain the hands
 // (handsK, handsWhy: the doll's).
+// 0.0.7 (the build sheet 0.0.7 §2.4, §2.7): the actor's stance the range sets is drawn: 'down' (a casualty lying
+// where they fell: posture 'lie', frame 'hurt', on the ground, not a berth), 'kneel' for someone without a rifle
+// (the corpsman at work: frame 'aid'; a rifle in hand is drawn by the arms' gunLook instead, the view's), and
+// 'sit' passed on as stance for the rifle's seated frames. Nothing else of the figure changes.
 // Pure.
 import { seatOf } from '../places/fixtures.js';
 import { areaOf } from '../places/model.js';
@@ -78,6 +82,12 @@ export function figureOf(state, actor, ms = state?.clock?.ms ?? 0) {
       outfit: 'utilities', inside: null, activity: null, cues: NO_CUES };
   }
   const isPlayer = actor.id === state.player?.actor;
+  const st = actor.stance ?? null;
+  if (st === 'down' || st === 'kneel') {
+    const base = figureOf(state, { ...actor, stance: null }, ms);
+    return st === 'down' ? { ...base, posture: 'lie', frame: 'hurt', k: 1, x: actor.x, z: actor.z, y: 0, head: null, spotId: null, curtain: false, gait: 'idle', strideM: 0, stance: st }
+      : { ...base, frame: base.frame === 'stand' || !base.frame ? 'aid' : base.frame, stance: st };
+  }
   const headNow = (actor.posture ?? 'stand') === 'lie' && actor.spotId ? seatOf(actor.spotId)?.head ?? null : null;
   const p = poseAt(actor, ms, headNow);
   const still = p.k >= 1;
@@ -93,5 +103,6 @@ export function figureOf(state, actor, ms = state?.clock?.ms ?? 0) {
     inside: now?.inside ? now.fixtureId : null,
     activity: now ? { id: now.id, part: now.part, k: now.k } : null,
     cues: isPlayer ? cuesFor(state, actor.who, ms) : NO_CUES,
+    ...(st ? { stance: st } : {}),
   };
 }

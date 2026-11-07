@@ -15,6 +15,15 @@
 // n, score, of, v, list }) the score goes under the card, every shot in order, a miss '-': "STRING 1 · 4 5 - 5 4 · 18 OF 25 · 1 V", and stays
 // until the next commence fire. Graphics first (VIEWS §7.6): the score is the one line of words.
 //
+// The 0.0.7 round's faces (the build sheet 0.0.7 §2.5 (b); WEAPONS §11.1, §11.4): the same inset shows the zero
+// card and the KD faces in their real units (paper.js PAPERS: holes { at: [xCm, yCm] } with x right and y down from
+// the face's centre, as the stage draws paper), by faceModel(paperId, …): the zero card (zero25, 30 × 30 cm at
+// PAPER_K, its 1 cm grid, the aim box at its centre and the BZO's mark ZERO25_MARK_CM under it, where a zeroed
+// rifle strikes at 25 m), the A and B faces (kdA 100 × 100 cm, kdB 120 × 120, fitted to the inset: their rings at
+// 0.5, 1, 2, 3 and 4 ring widths, the black), each hole its 6.7 mm at least FACE_HOLE_MIN_PX, the newest ringed,
+// a group's centre a cross and its call an arrow from the centre to the mark (cards/kd.js builds the group card
+// and the score card on it). On the KD the far window shows your face as the pits mark it, so this inset shows it
+// only while the window is shut (layout.js 'weapon-far' leaves PAPER out). drawFace(g, model, s) draws it.
 // paperModel(look, opts) is the pure part (the hole's place in the inset's pixels, its number, the
 // newest, the score's line), drawPaper(g, model, s) draws it on a Canvas2D at s device pixels an inset
 // pixel (crisp at every --ui and device ratio; its letters the plaques' 3 × 5 alphabet at whole device
@@ -153,14 +162,15 @@ export function createPaper(parent) {
       if (!m) { root.hidden = true; words = ''; return ''; }
       root.hidden = false;
       const s = Math.max(1, ui * dpr), side = Math.round(PAPER_PX * s);
-      const sg = JSON.stringify([side, m.label, m.score, m.holes.map(h => [Math.round(h.x * 10), Math.round(h.y * 10), h.n, h.newest])]);
+      const sg = JSON.stringify([side, m.kind ?? 'card', m.paper ?? null, m.label, m.score, m.holes.map(h => [Math.round(h.x * 10), Math.round(h.y * 10), h.n, h.newest, h.old ?? false, h.label ?? null]), m.centre ?? null, m.arrow ?? null]);
       if (sg !== sig) {
         sig = sg;
         cv.width = side; cv.height = side;
         const g = cv.getContext('2d');
-        if (g) { g.imageSmoothingEnabled = false; drawPaper(g, m, s); }
+        if (g) { g.imageSmoothingEnabled = false; (m.kind === 'face' ? drawFace : drawPaper)(g, m, s); }
         const mine = m.holes.filter(h => !h.old), old = m.holes.length - mine.length;
-        words = `${m.label}: ${mine.length} hole${mine.length === 1 ? '' : 's'}${mine.length ? ` (${mine.map(h => `${h.n} ${h.v ? 'V' : h.score}`).join(', ')})` : ''}${old ? `, ${old} from earlier strings` : ''}${m.score ? ` · ${m.score}` : ''}`;
+        words = m.kind === 'face' ? m.words ?? `${m.label}: ${mine.length} hole${mine.length === 1 ? '' : 's'}${old ? `, ${old} earlier` : ''}${m.score ? ` · ${m.score}` : ''}`
+          : `${m.label}: ${mine.length} hole${mine.length === 1 ? '' : 's'}${mine.length ? ` (${mine.map(h => `${h.n} ${h.v ? 'V' : h.score}`).join(', ')})` : ''}${old ? `, ${old} from earlier strings` : ''}${m.score ? ` · ${m.score}` : ''}`;
         root.dataset.text = words;
         root.dataset.holes = String(m.holes.length);
         root.dataset.string = String(mine.length);
@@ -169,4 +179,102 @@ export function createPaper(parent) {
     },
     get text() { return root.hidden ? '' : words; },
   };
+}
+
+// ---- 0.0.7: the faces in real units (see the header) ----
+/** The faces as the inset draws them: side (cm), ring width (cm), the black's radius (cm), the grid (cm), the mark (cm, y down). */
+export const FACES = Object.freeze({
+  card25: Object.freeze({ sizeCm: 30, ringCm: 2.5, blackCm: 5, gridCm: null, markCm: null, kind: 'card' }),
+  zero25: Object.freeze({ sizeCm: 30, ringCm: 2.5, blackCm: null, gridCm: 1, markCm: Object.freeze([0, 3]), kind: 'zero', boxCm: 2.5 }),
+  kdA: Object.freeze({ sizeCm: 100, ringCm: 7.5, blackCm: 15, gridCm: null, markCm: null, kind: 'kd' }),
+  kdB: Object.freeze({ sizeCm: 120, ringCm: 11.25, blackCm: 22.5, gridCm: null, markCm: null, kind: 'kd' }),
+});
+/** The rings' outer edges in ring widths (paper.js RING_EDGES: V, 5, 4, 3, 2). */
+export const FACE_RINGS = Object.freeze([['v', 0.5], ['5', 1], ['4', 2], ['3', 3], ['2', 4]]);
+/** A hole drawn at least this wide (inset px: a 6.7 mm hole on a 1 m face is a pixel). */
+export const FACE_HOLE_MIN_PX = 3;
+/** The face's side in the inset (px at --ui 1): the card's 120 px, the KD faces' 130 (two lines of words under them in the 200 px). */
+export const FACE_PX = Object.freeze({ zero: 120, card: 120, kd: 130 });
+
+/**
+ * A face's inset model: { kind: 'face', paper, face: { x, y, size, cx, cy, k (px a cm) }, rings: [{ name, r }], blackR,
+ * grid (px) | null, mark: { x, y } | null, box (px) | null, holes: [{ x, y, r, n, score, v, newest, old, onBlack }],
+ * centre: { x, y } | null, arrow: { x0, y0, x1, y1 } | null, label, scoreLines, sub }. paper: a FACES key (or a spec
+ * of the same shape); holes [{ at: [xCm, yCm] | null, score, v, n, old }] (x right, y down; at null off the paper:
+ * left off); group { centreCm, call } the coach's read; markCm overrides the face's own; label over it; scoreLines
+ * under it; mark the newest.
+ */
+export function faceModel(paper, { holes = [], group = null, label = '', scoreLines = null, size = PAPER_PX, newest = true, markCm = null } = {}) {
+  const F = typeof paper === 'string' ? FACES[paper] ?? FACES.kdA : paper;
+  const side = FACE_PX[F.kind] ?? 140, k = side / F.sizeCm;
+  const x0 = Math.round((size - side) / 2), y0 = Math.round((size - side) / 2) + 2, cx = x0 + side / 2, cy = y0 + side / 2;
+  const to = (at) => ({ x: cx + at[0] * k, y: cy + at[1] * k });
+  const inside = holes.filter(h => Array.isArray(h.at) && Math.abs(h.at[0]) <= F.sizeCm / 2 && Math.abs(h.at[1]) <= F.sizeCm / 2);
+  const lastFresh = [...inside].reverse().find(h => !h.old) ?? null;
+  const out = inside.map((h) => {
+    const p = to(h.at), rCm = Math.hypot(h.at[0], h.at[1]);
+    return { x: p.x, y: p.y, r: Math.max(FACE_HOLE_MIN_PX / 2, (HOLE_CM / 2) * k), n: h.n ?? null, score: h.score ?? 0, v: !!h.v, old: !!h.old, newest: newest && h === lastFresh, onBlack: F.blackCm ? rCm <= F.blackCm : false };
+  });
+  const mk = markCm ?? F.markCm, mark = mk ? to(mk) : null;
+  const centre = group?.centreCm ? to(group.centreCm) : null;
+  const arrow = centre && mark && Math.hypot(mark.x - centre.x, mark.y - centre.y) >= 3 ? { x0: centre.x, y0: centre.y, x1: mark.x, y1: mark.y } : centre && !F.markCm && Math.hypot(cx - centre.x, cy - centre.y) >= 3 ? { x0: centre.x, y0: centre.y, x1: cx, y1: cy } : null;
+  return {
+    kind: 'face', paper: typeof paper === 'string' ? paper : F.kind, faceKind: F.kind,
+    face: { x: x0, y: y0, size: side, cx, cy, k },
+    rings: F.kind === 'zero' ? [] : FACE_RINGS.map(([name, u]) => ({ name, r: u * F.ringCm * k })),
+    blackR: F.blackCm ? F.blackCm * k : 0, grid: F.gridCm ? F.gridCm * k : null, mark, box: F.boxCm ? F.boxCm * k : null,
+    holes: out, centre, arrow, label, scoreLines, score: scoreLines ? scoreLines.join(' · ') : null,
+  };
+}
+
+/** A face's model on a Canvas2D context at s device pixels an inset pixel (the PAPER inset's frame and glass, as the card's). */
+export function drawFace(g, m, s = 1, write = letters) {
+  const S = (v) => Math.round(v * s);
+  g.clearRect(0, 0, S(PAPER_PX), S(PAPER_PX));
+  g.fillStyle = GLASS; g.fillRect(0, 0, S(PAPER_PX), S(PAPER_PX));
+  const { x, y, size, cx, cy } = m.face;
+  g.fillStyle = FRAME; g.fillRect(S(x - 3), S(y - 3), S(size + 6), S(size + 6));
+  g.fillStyle = PAPER_C; g.fillRect(S(x), S(y), S(size), S(size));
+  // (the zero card's grid, faint, every centimetre, and its aim box; a KD face's black and its rings)
+  if (m.grid) {
+    g.fillStyle = '#d6cbb0';
+    for (let gx = cx % m.grid; gx < x + size; gx += m.grid) if (gx > x) g.fillRect(S(gx), S(y), Math.max(1, Math.round(s * 0.5)), S(size));
+    for (let gy = cy % m.grid; gy < y + size; gy += m.grid) if (gy > y) g.fillRect(S(x), S(gy), S(size), Math.max(1, Math.round(s * 0.5)));
+    g.fillStyle = '#9a8e74'; g.fillRect(S(cx) - 0, S(y), Math.max(1, Math.round(s)), S(size)); g.fillRect(S(x), S(cy), S(size), Math.max(1, Math.round(s)));
+  }
+  if (m.box) { g.fillStyle = INKC; g.fillRect(S(cx - m.box / 2), S(cy - m.box / 2), S(m.box), S(m.box)); }
+  if (m.blackR) { g.fillStyle = INKC; g.beginPath(); g.arc(cx * s, cy * s, m.blackR * s, 0, Math.PI * 2); g.fill(); }
+  g.lineWidth = Math.max(1, Math.round(s));
+  for (const r of m.rings) {
+    g.strokeStyle = r.r <= m.blackR + 0.01 ? RING_ON_BLACK : RING_ON_PAPER;
+    g.beginPath(); g.arc(cx * s, cy * s, Math.max(0.5, r.r * s - g.lineWidth / 2), 0, Math.PI * 2); g.stroke();
+  }
+  // (the zero card's mark: a ring with a cross, where a zeroed rifle strikes)
+  if (m.mark) { g.strokeStyle = '#3b6296'; g.beginPath(); g.arc(m.mark.x * s, m.mark.y * s, 3 * s, 0, Math.PI * 2); g.stroke(); g.fillStyle = '#3b6296'; g.fillRect(S(m.mark.x - 5), S(m.mark.y), S(10), Math.max(1, Math.round(s))); g.fillRect(S(m.mark.x), S(m.mark.y - 5), Math.max(1, Math.round(s)), S(10)); }
+  for (const h of m.holes.filter(o => o.old)) { g.fillStyle = h.onBlack ? '#5e574d' : '#6b6359'; g.beginPath(); g.arc(h.x * s, h.y * s, Math.max(1, h.r * s * 0.9), 0, Math.PI * 2); g.fill(); }
+  for (const h of m.holes.filter(o => !o.old)) {
+    g.fillStyle = h.onBlack ? '#e8dfc8' : '#0b0809';
+    g.beginPath(); g.arc(h.x * s, h.y * s, Math.max(1.2, h.r * s), 0, Math.PI * 2); g.fill();
+    if (h.newest) { g.strokeStyle = NEWEST; g.lineWidth = Math.max(1, Math.round(s)); g.beginPath(); g.arc(h.x * s, h.y * s, Math.max(3, (h.r + 2.5) * s), 0, Math.PI * 2); g.stroke(); }
+  }
+  // (a group's centre: an amber cross; the call: an arrow from it to where it should be)
+  if (m.centre) { g.fillStyle = '#e7b84a'; g.fillRect(S(m.centre.x - 4), S(m.centre.y), S(9), Math.max(1, Math.round(s))); g.fillRect(S(m.centre.x), S(m.centre.y - 4), Math.max(1, Math.round(s)), S(9)); }
+  if (m.arrow) {
+    const { x0, y0, x1, y1 } = m.arrow, a = Math.atan2(y1 - y0, x1 - x0), hl = 5;
+    g.strokeStyle = '#e7b84a'; g.lineWidth = Math.max(1, Math.round(s));
+    g.beginPath(); g.moveTo(x0 * s, y0 * s); g.lineTo(x1 * s, y1 * s); g.stroke();
+    g.beginPath(); g.moveTo(x1 * s, y1 * s); g.lineTo((x1 - hl * Math.cos(a - 0.5)) * s, (y1 - hl * Math.sin(a - 0.5)) * s); g.moveTo(x1 * s, y1 * s); g.lineTo((x1 - hl * Math.cos(a + 0.5)) * s, (y1 - hl * Math.sin(a + 0.5)) * s); g.stroke();
+  }
+  // (each hole's value beside it where the model carries numbers: the score card's)
+  if (write) {
+    // (light where the value sits on the black, ink on the paper: by the value's own place, not its hole's)
+    for (const h of m.holes) if (h.label) write(g, h.lx, h.ly, h.label, m.blackR && Math.hypot(h.lx + 3.5 - cx, h.ly + 5 - cy) <= m.blackR ? '#f4efe6' : '#1a1214', s);
+    const kk = letterPx(s) / s;
+    if (m.label) write(g, x - 3, y - 6 - 5 * kk, m.label, '#dfe2e8', s);
+    (m.scoreLines ?? []).forEach((line, i) => {
+      const big = textW(line) * kk <= PAPER_PX - 8, small = Math.max(1, Math.round(s)), kq = big ? kk : small / s;
+      const at = Math.max(2, (PAPER_PX - textW(line) * kq) / 2), ly = y + size + 6 + i * (5 * kk + 2);
+      if (big) write(g, at, ly, line, '#e7b84a', s); else letters(g, at, ly, line, '#e7b84a', s, small);
+    });
+  }
 }

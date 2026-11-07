@@ -58,23 +58,44 @@
 // stepNow(state, pid, ms) is what the stage reads of a step (src/sim/arms/look.js: the action's frame
 // and its share k); stopNow(state) is the hud's view. The range session's bookkeeping is the scene's
 // (handling.js: lineReady, recordShot, afterStep, aheadOf, coachOf).
+//
+// 0.0.7, the line at distance (WEAPONS §2.5, §3.5, §7.3, §7.4, §11.4; VIEWS §2.4; the build sheet 0.0.7 §2.1, §8
+// items 6 to 9 and 25). On a KD line (lineOf: the line whose firing-point box holds the shooter, 200, 300 or 500,
+// or 25 on the bay on the KD course) the targets are the KD faces of all twenty lanes ('face:<lane>', 'your
+// target' and 'target <n>'), a far one in the list though outside the frame: the far window counts as the frame
+// (VIEWS §2.4); on the bay on the KD course the cards are the 25 m zeroing card (paper.js zero25). farPointOf()
+// is what the far window shows: the aimed, else the bracketed, else (E held: looking) your own face, when it
+// lies outside the lead's frame. The new rows, only on such a line (test-handling's panel unchanged): the
+// turrets ('sight:elev:<±n>', 'sight:wind:<±n>': DIAL_S a click × pace, hands off the aim; 'sight:dope:<line>' to
+// the believed dope for the line; 'sight:call', the coach's pending call, which also moves the believed zero by
+// its clicks), the hold ('hold:<x>,<y>' mrad, 'hold:read' for your read of the wind, 'hold:call' for the coach's,
+// 'hold:centre': HOLD_SHIFT_MS each, the held aim kept; stop.hold), a read of the flags ('read': READ_S × pace,
+// wind.js readWind, kept on the session's reads), the lever ('optic:1', 'optic:4': OPTIC_S) and sitting
+// ('stance:sit', its own row, never in A and W's cycle; SIT_MS its times, my calls). Rows given by id that the
+// panel does not list ('sight:elev:+4', 'hold:0.5,0') are taken as asked (the hud's keys, the bots).
 // Pure but enterStop, leaveStop, liveStep, chooseStep, stopInput, stopRules.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { playerActor, playerId } from '../../core/ids.js';
 import { headOf } from '../people/perception.js';
+import { downOf } from '../body/wounds.js';
 import { isRoutine, oddsOf, TEMPO } from '../skills/checks.js';
 import { rollerOf } from '../combat/roll.js';
 import { stanceMs, WAIT_MAX_MS, STANCES, stanceStep } from '../combat/steps.js';
 import { offerReflex, chosenReflex } from '../combat/reflex.js';
-import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, tapsOf, TAP_SPLIT_S, HELD_MAX } from './shot.js';
-import { canDo, doAction, beliefOf, actionMs, REFUSALS, sayObserved, actionOf, actionKey, actionPlace } from './firearms.js';
+import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, tapsOf, TAP_SPLIT_S, HELD_MAX, poiOf, holdFor, holdWords, windBeliefOf, HOLD_STEP_MRAD, HOLD_MAX_MRAD, HOLD_SHIFT_MS } from './shot.js';
+import { canDo, doAction, beliefOf, actionMs, REFUSALS, sayObserved, actionOf, actionKey, actionPlace, dial, dialMs, opticMs, readMs, setOptic, believeZero, beliefZero, sightOf, TURRET_MAX_CLK } from './firearms.js';
+import { readWind } from './wind.js';
+import { clickWords } from './paper.js';
+import { paceOf } from '../skills/skills.js';
 import { handMagOf, pickMag, pouchOf, atFeetOf, meantLoad, believedN, believedKind } from './kit.js';
 import { modelOf } from './models.js';
 import { macrosFor, subsOf, macroMs } from './drills.js';
 import { POSTURES } from './carry.js';
+import { faceUpAt, markedFor, FACE_DOWN_UP } from './pits.js';
 import { AIM_LEAD_K, EDGE_KEEP_M, FRAME_HALF_M } from './look.js';
 import { KD_RANGE } from '../../data/places/range.js';
+import { KD_STRINGS } from '../../data/courses.js';
 import { HANDS } from '../../data/body/needs.js';
 import { soil } from '../body/body.js';
 import { areaOf } from '../places/model.js';
@@ -97,9 +118,15 @@ export const LABELS = Object.freeze({
   'reach@dump': 'Reach: the dump pouch', 'reach@ground': 'Reach: at your feet',
   // (short enough for the panel's column at 1600 × 900: "…chest pouch 1" wrapped its digit onto a line of its own (the fixer's, 0.0.6))
   'stowMag@p1': 'Put back: pouch 1', 'stowMag@p2': 'Put back: pouch 2', 'stowMag@p3': 'Put back: pouch 3', 'stowMag@p4': 'Put back: pouch 4',
-  show: 'Show clear', finger: 'Finger off', fire: 'Fire', aim: 'Aim', hold: 'Hold the aim', wait: 'Wait for the tower', leave: 'Stand easy',
-  'stance:stand': 'Stand', 'stance:kneel': 'Kneel', 'stance:prone': 'Prone',
+  show: 'Show clear', finger: 'Finger off', fire: 'Fire', aim: 'Aim', hold: 'Hold the aim', wait: 'Wait for the tower', 'wait:mark': 'Wait for the mark', leave: 'Stand easy',
+  'stance:stand': 'Stand', 'stance:kneel': 'Kneel', 'stance:prone': 'Prone', 'stance:sit': 'Sitting',
+  // (0.0.7: the turrets, the hold, the read and the lever (see the header))
+  read: 'Read the flags', 'optic:1': 'One power', 'optic:4': 'Four power', 'hold:centre': 'Hold centre', 'sight:call': 'Dial the coach\'s call',
 });
+/** Sitting's times (my calls; COMBAT §3.4's stances have none): from and to each stance, ms at pace 1, × paceOf(Fitness). */
+export const SIT_MS = Object.freeze({ 'stand>sit': 2000, 'kneel>sit': 1500, 'prone>sit': 1800, 'sit>stand': 1200, 'sit>kneel': 1000, 'sit>prone': 1500 });
+/** A stance change's time with sitting in it (steps.js stanceMs for the rest), ms. */
+export const stanceMsOf = (from, to, fitness = 10) => (from === 'sit' || to === 'sit' ? (from === to ? 0 : Math.round((SIT_MS[`${from}>${to}`] ?? 1500) * paceOf(fitness))) : stanceMs(from, to, { fitness }));
 /**
  * The handling that takes a hand off the rifle's grip or the cheek off the stock, so the held aim settles again
  * after it (tradecraft's list: its dropMag, insertMag, release, rack, clear, chamber1; WEAPONS §7.1's "magazine,
@@ -107,7 +134,9 @@ export const LABELS = Object.freeze({
  * keep the aim (the parity review's: every step had reset it).
  */
 export const HANDS_OFF = Object.freeze(new Set(['magIn', 'magOut:drop', 'magOut:dump', 'magOut:pouch', 'magOut:strip', 'charge', 'rack', 'release', 'lockBack', 'clearDouble',
-  'pressCheck', 'magCheck', 'tap', 'inspect', 'show', 'functionCheck', 'reach', 'seat', 'lookMag', 'stowMag', 'dumpMag', 'dropMag']));
+  'pressCheck', 'magCheck', 'tap', 'inspect', 'show', 'functionCheck', 'reach', 'seat', 'lookMag', 'stowMag', 'dumpMag', 'dropMag', 'dial', 'optic']));
+// (a 0.0.7 row's key for HANDS_OFF and the like: 'sight:…' a dial, 'optic:N' the lever)
+const rowKey = (id) => (id.startsWith('sight:') ? 'dial' : id.startsWith('optic:') ? 'optic' : id.startsWith('hold:') ? 'holdmark' : actionKey(id));
 /** The stances' keys: A up, W down (VIEWS §10). */
 export const STANCE_KEYS = Object.freeze({ up: 'A', down: 'W' });
 
@@ -133,17 +162,49 @@ export function inLeadFrame(me, x, z, half) {
   return lead(me.x, x, half[0]) && lead(me.z, z, half[1]);
 }
 
-/** What the shooter may aim at (see the header): [{ key, kind, x, z, dM, lane, name, paper }], the cards left to right, then the people. */
+/**
+ * The line a shooter stands on (see the header): 200, 300 or 500 (a KD point's box holds them), 25 on the bay on the
+ * KD course, or null (test-handling's bay included: its panel is v0.0.6's).
+ */
+export function lineOf(state, pid = playerId(state)) {
+  const a = pid === playerId(state) ? meOf(state) : state.actors?.list?.find(x => x.who === pid);
+  if (!a || state.places?.live?.area !== KD_RANGE.area) return null;
+  const kd = KD_RANGE.kd;
+  if (kd) for (const d of [200, 300, 500]) {
+    const L = kd.lanes.find(l => { const b = l.points[d].box; return a.x >= b[0] && a.x <= b[2] && a.z >= b[1] && a.z <= b[3]; });
+    if (L) return d;
+  }
+  return rangeOf(state)?.course === 'kd' && a.x < KD_RANGE.bay.targetX ? 25 : null;
+}
+/** The KD lane a shooter's line puts them on (their face), or null. */
+export const kdLaneAt = (state, pid = playerId(state)) => {
+  const a = pid === playerId(state) ? meOf(state) : state.actors?.list?.find(x => x.who === pid), kd = KD_RANGE.kd;
+  if (!a || !kd) return null;
+  return kd.lanes.reduce((best, L) => (Math.abs(L.z - a.z) < Math.abs((best?.z ?? Infinity) - a.z) ? L : best), null)?.lane ?? null;
+};
+// (a face's carrier height now: the pits' view of the session's record (pits.js faceUpAt), up off the course)
+const faceUp = (state, lane) => faceUpAt(state.armoury?.range, lane, state.clock.ms);
+
+/** What the shooter may aim at (see the header): [{ key, kind, x, z, dM, lane, name, paper, far? }], the cards or the faces left to right, then the people. */
 export function targetsOf(state, pid = playerId(state)) {
   const me = meOf(state);
   if (!me) return [];
   const half = frameHalf(state), out = [], area = state.places?.live?.area;
   if (area === KD_RANGE.area) {
-    const own = rangeOf(state)?.lane ?? null;
-    for (const L of KD_RANGE.bay.lanes) {
+    const R = rangeOf(state), own = R?.lane ?? null, line = lineOf(state, pid);
+    if (line && line !== 25 && KD_RANGE.kd) {
+      // (a KD line: the twenty faces, far ones too (the far window is the frame for them: VIEWS §2.4))
+      const ownKd = R?.kdLane ?? kdLaneAt(state, pid);
+      for (const L of KD_RANGE.kd.lanes) {
+        const f = L.face, up = faceUp(state, L.lane), y = f.downY + (f.upY - f.downY) * up;
+        out.push({ key: `face:${L.lane}`, kind: 'paper', x: f.x, z: f.z, y, dM: Math.hypot(f.x - me.x, f.z - me.z), lane: L.lane, line, name: L.lane === ownKd ? 'your target' : `target ${L.lane}`,
+          paper: f.paper ?? 'kdA', far: !inLeadFrame(me, f.x, f.z, half), up });
+      }
+    } else for (const L of KD_RANGE.bay.lanes) {
       const t = L.target, y = t.centreY ?? 0.6;
       if (!inLeadFrame(me, t.x, t.z, half)) continue;
-      out.push({ key: `paper:${L.lane}`, kind: 'paper', x: t.x, z: t.z, y, dM: Math.hypot(t.x - me.x, t.z - me.z), lane: L.lane, name: L.lane === own ? 'your card' : `the lane ${L.lane} card`, paper: 'card25' });
+      out.push({ key: `paper:${L.lane}`, kind: 'paper', x: t.x, z: t.z, y, dM: Math.hypot(t.x - me.x, t.z - me.z), lane: L.lane, name: L.lane === own ? 'your card' : `the lane ${L.lane} card`,
+        paper: R?.course === 'kd' ? 'zero25' : 'card25', ...(line === 25 ? { line } : {}) });
     }
   }
   out.sort((a, b) => a.x - b.x || a.z - b.z);
@@ -158,6 +219,28 @@ export function targetsOf(state, pid = playerId(state)) {
 }
 /** A target by its key, if in the frame now. */
 export const targetOf = (state, key, pid = playerId(state)) => (key ? targetsOf(state, pid).find(t => t.key === key) ?? null : null);
+
+/** After a rapid string, how long the far window stays on your face once the pits have marked it (s): the rise and the look. */
+export const FAR_MARK_HOLD_S = 6;
+/**
+ * The far point the far window shows (VIEWS §2.4; the build sheet §2.1): the aimed target, else the bracketed one, else
+ * (looking: E held, or a rapid string being marked) your own face, when it lies outside the lead's frame: { key, x, y,
+ * z, rangeM, lane, line, why: 'aim' | 'bracket' | 'look' | 'marking', label: 'TARGET 10 · 300 M' }, or null.
+ */
+export function farPointOf(state, pid = playerId(state), { looking = false } = {}) {
+  const S = state.stop, list = targetsOf(state, pid), by = (k) => (k ? list.find(t => t.key === k) ?? null : null);
+  const R = rangeOf(state), ownKd = R?.kdLane ?? kdLaneAt(state, pid);
+  // (a rapid string marked together after CEASE FIRE: the window stays on your face until its holes have been up
+  // FAR_MARK_HOLD_S, so the string is seen landing (the design review's of v0.0.7: it closed at CEASE FIRE, the ten
+  // holes marked while you unloaded))
+  const str = R?.course === 'kd' ? R.strings?.at(-1) : null, lastId = str?.shots?.at(-1) ?? null;
+  const lastRec = lastId && KD_STRINGS[str.id]?.marked === 'after' ? R.shots?.find(x => x.id === lastId) ?? null : null;
+  const marking = !!lastRec && !R.hot && !R.end && (!lastRec.marked || state.clock.ms - lastRec.marked < FAR_MARK_HOLD_S * 1000);
+  const pick = [[by(S?.aim?.key), 'aim'], [by(S?.pick), 'bracket'], [looking || marking ? list.find(t => t.key === `face:${ownKd}`) ?? null : null, looking ? 'look' : 'marking']].find(([t]) => t?.far);
+  if (!pick) return null;
+  const [t, why] = pick, line = t.line ?? lineOf(state, pid);
+  return { key: t.key, x: t.x, y: t.y, z: t.z, rangeM: Math.round(t.dM), lane: t.lane, line, why, label: `TARGET ${t.lane} · ${line ?? Math.round(t.dM)} M` };
+}
 
 // ---- the mode ----
 
@@ -178,7 +261,9 @@ export function enterStop(state, bus, { pid = playerId(state), gunId = gunOn(sta
   if (state.stop?.mode === 'live' || state.time?.doing) return { ok: false, why: 'busy' };
   if (rangeOf(state)?.end) return { ok: false, why: 'the line is clear' };
   me.headRad ??= headOf(me.face ?? 'right');
-  const own = targetsOf(state, pid).find(t => t.kind === 'paper' && t.lane === rangeOf(state)?.lane) ?? targetsOf(state, pid)[0] ?? null;
+  // (your own: on a KD line your face (KD lane 6 + your bay lane, the session's kdLane), on the bay your card)
+  const list = targetsOf(state, pid), R = rangeOf(state);
+  const own = list.find(t => t.key === `face:${R?.kdLane ?? kdLaneAt(state, pid)}`) ?? list.find(t => t.kind === 'paper' && t.lane === R?.lane) ?? list[0] ?? null;
   state.stop = { mode: 'stop', who: pid, gun: gunId, phase: 'choose', pick: own?.key ?? null, aim: null, doing: null, queue: [], reflex: null, keep: {} };
   holdTime(state, 'stop');
   bus?.emit('stop-mode', { phase: 'enter', who: pid, gun: gunId, via, why: null });
@@ -232,6 +317,110 @@ function reachLabel(state, pid, gun, id) {
   return `${LABELS[id] ?? id} (${what}${more > 1 ? ` · front of ${more}` : ''})`;
 }
 
+// ---- 0.0.7: the line's rows (see the header) ----
+
+const row = (id, kind, label, ms, o = {}) => ({ id, kind, label, ms, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null, words: label, ...o });
+const signed = (n) => (n > 0 ? `+${n}` : String(n));
+const clampHold = (v) => Math.max(-HOLD_MAX_MRAD, Math.min(HOLD_MAX_MRAD, Math.round(v / HOLD_STEP_MRAD) * HOLD_STEP_MRAD)) || 0;
+// (the face a hold or a read is for: the aimed, the bracketed, else your own)
+function faceFor(state, pid) {
+  const S = state.stop, list = targetsOf(state, pid), R = rangeOf(state);
+  return list.find(t => t.key === S?.aim?.key && t.kind === 'paper') ?? list.find(t => t.key === S?.pick && t.kind === 'paper')
+    ?? list.find(t => t.key === `face:${R?.kdLane ?? kdLaneAt(state, pid)}`) ?? list.find(t => t.kind === 'paper' && t.lane === R?.lane) ?? null;
+}
+/** The coach's call waiting to be dialled (the session's: the confirm's wind call, else the last group's), or null: { call, clicks }. */
+export function pendingCall(state) {
+  const R = rangeOf(state);
+  if (!R) return null;
+  const c = R.call?.clicks && !R.call.dialled && (R.call.clicks.elev || R.call.clicks.wind) ? R.call : null;
+  if (c) return { call: c, clicks: c.clicks };
+  const g = [...(R.groups ?? [])].reverse().find(x => x.call && !x.call.dialled && (x.call.elev || x.call.wind));
+  return g ? { call: g.call, clicks: { elev: g.call.elev, wind: g.call.wind } } : null;
+}
+/** The row for a 0.0.7 step id, whether the panel lists it or not (see the header), or null. */
+export function lineRow(state, id, ms = state.clock.ms) {
+  const S = state.stop, pid = S?.who ?? playerId(state), gun = gunOf(state, S?.gun), me = meOf(state);
+  if (!gun || !me) return null;
+  const roller = rollerOf(state, pid, { ms }), b = beliefOf(state, S.gun), line = lineOf(state, pid);
+  let m;
+  if ((m = /^sight:(elev|wind):([+-]?\d+)$/.exec(id))) {
+    const n = Number(m[2]), dir = m[1] === 'elev' ? (n > 0 ? 'up' : 'down') : n > 0 ? 'right' : 'left';
+    const off = !n ? 'nothing to dial' : Math.abs((m[1] === 'elev' ? b.sight.elev : b.sight.wind) + n) > TURRET_MAX_CLK ? 'the turret\'s end' : null;
+    return row(id, 'sight', `Dial ${Math.abs(n)} ${dir}`, dialMs(roller, n), { off, clicks: m[1] === 'elev' ? { elev: n, wind: 0 } : { elev: 0, wind: n } });
+  }
+  if ((m = /^sight:dope:(\d+)$/.exec(id))) {
+    const d = Number(m[1]), want = b.dope?.[d];
+    if (!want) return null;
+    const ce = want.elev - b.sight.elev, cw = want.wind - b.sight.wind, n = Math.abs(ce) + Math.abs(cw);
+    const words = n ? clickWords({ elev: ce, wind: cw }).replace(/\.$/, '').toLowerCase() : 'set';
+    return row(id, 'sight', `Dope for ${d} m: ${words}`, dialMs(roller, n), { off: n ? null : 'set already', clicks: { elev: ce, wind: cw } });
+  }
+  if (id === 'sight:call') {
+    const p = pendingCall(state);
+    if (!p) return row(id, 'sight', LABELS['sight:call'], 0, { off: 'no call to dial' });
+    const n = Math.abs(p.clicks.elev) + Math.abs(p.clicks.wind);
+    return row(id, 'sight', `Dial the coach's call: ${clickWords(p.clicks).replace(/\.$/, '').toLowerCase()}`, dialMs(roller, n), { clicks: { ...p.clicks } });
+  }
+  if (id.startsWith('hold:')) {
+    const face = faceFor(state, pid), cur = S.hold ?? { xMil: 0, yMil: 0 };
+    let to = null, label;
+    if (id === 'hold:centre') { to = { xMil: 0, yMil: 0 }; label = LABELS['hold:centre']; }
+    else if (id === 'hold:read' || id === 'hold:call') {
+      const R = rangeOf(state), wb = id === 'hold:read' ? (R?.reads?.[pid] ?? S.read ?? null) : R?.call ?? null;
+      if (!wb || !face) return row(id, 'hold', id === 'hold:read' ? 'Hold for your read' : 'Hold for the coach', 0, { off: id === 'hold:read' ? 'read the flags first' : 'no call yet' });
+      to = id === 'hold:call' && Array.isArray(wb.holdMil) ? { xMil: wb.holdMil[0], yMil: wb.holdMil[1] ?? 0 }
+        : (() => { const p = poiOf(state, pid, S.gun, face, { ms, belief: true, crossMs: wb.crossMs, hold: null }); return { xMil: holdFor({ windCm: p.terms.find(t => t.key === 'wind').windCm }, face.dM).xMil, yMil: cur.yMil ?? 0 }; })();
+      label = `${id === 'hold:read' ? 'Hold for your read' : 'Hold for the coach'}: ${holdWords(to)}`;
+    } else {
+      const xy = /^hold:(-?[\d.]+),(-?[\d.]+)$/.exec(id);
+      if (!xy) return null;
+      to = { xMil: clampHold(Number(xy[1])), yMil: clampHold(Number(xy[2])) };
+      label = `Hold ${holdWords(to)}`;
+    }
+    const same = (to.xMil ?? 0) === (cur.xMil ?? 0) && (to.yMil ?? 0) === (cur.yMil ?? 0);
+    return row(id, 'hold', label, HOLD_SHIFT_MS, { off: same ? 'held so' : null, hold: to });
+  }
+  if (id === 'read') return row(id, 'read', `${LABELS.read}`, readMs(roller), { off: line ? null : 'nothing to read here' });
+  if (id === 'optic:1' || id === 'optic:4') {
+    const mag = Number(id.slice(6));
+    return row(id, 'optic', LABELS[id], opticMs(), { off: b.optic === mag ? 'set already' : null, mag });
+  }
+  if (id === 'stance:sit') return row(id, 'stance', LABELS['stance:sit'], stanceMsOf(me.stance ?? 'stand', 'sit', roller.value('fitness')), { off: me.stance === 'sit' ? 'sitting already' : null });
+  return null;
+}
+// (the line's rows the panel lists, on a KD line or the zero card's line only (test-handling's panel unchanged))
+function lineRows(state, pid) {
+  const line = lineOf(state, pid), me = meOf(state);
+  if (!line) return [];
+  const b = beliefOf(state, state.stop.gun), out = [];
+  const add = (id) => { const r = lineRow(state, id); if (r && !(r.off && /set already|held so|no call|sitting already|nothing to dial/.test(r.off))) out.push(r); };
+  add('sight:call');
+  if (line !== 25) add(`sight:dope:${line}`);
+  if (line !== 25) { add('hold:call'); add('hold:read'); if ((state.stop.hold?.xMil ?? 0) || (state.stop.hold?.yMil ?? 0)) add('hold:centre'); add('read'); }
+  add(b.optic === 4 ? 'optic:1' : 'optic:4');
+  // (the turrets click by click and a hold mark by mark are the hud's keys ('sight:elev:±n', 'hold:x,y'), not rows: the
+  // panel keeps the call, the dope and the holds a line needs (my call: four more rows would push the commands off it))
+  if (me?.stance !== 'sit') add('stance:sit');
+  return out;
+}
+
+/** The longest wait for a mark (ms): the pits' slowest cycle (reaction 2 s, the carrier 2 s down, a failed marking 6 s, 2 s up) and room. */
+export const MARK_WAIT_MS = 20_000;
+/**
+ * Whether the shooter's next slow-fire pull would come before their mark (see the stepsOf note): { down } while the
+ * string is hot and marked shot by shot, their aim on their own face, and their last shot not yet marked or the face
+ * not up; null otherwise.
+ */
+export function markWaitOf(state, pid, aimT, ms = state.clock.ms) {
+  const R = rangeOf(state);
+  if (!R || R.course !== 'kd' || !R.hot || !aimT || aimT.kind !== 'paper' || !aimT.lane || aimT.lane !== R.kdLane) return null;
+  if (KD_STRINGS[R.string]?.marked !== 'each') return null;
+  const str = R.strings?.at(-1), shots = str?.shots ?? [];
+  const down = faceUpAt(R, aimT.lane, ms) < FACE_DOWN_UP;
+  if (!down && (!shots.length || markedFor(R, aimT.lane, ms, shots))) return null;
+  return { down };
+}
+
 /** The steps the panel offers now (see the header). */
 export function stepsOf(state, ms = state.clock.ms) {
   const S = state.stop;
@@ -240,8 +429,10 @@ export function stepsOf(state, ms = state.clock.ms) {
   if (!gun || !me) return [];
   const roller = rollerOf(state, pid, { ms }), belief = beliefOf(state, S.gun), posture = postureOf(state, pid), out = [];
   const stance = me.stance ?? 'stand', fit = roller.value('fitness');
-  const stances = STANCES.filter(s => s !== stance).map(to => ({ id: `stance:${to}`, kind: 'stance', label: LABELS[`stance:${to}`], ms: stanceMs(stance, to, { fitness: fit }), rushMs: null, carefulMs: null,
-    odds: null, routine: null, off: null, subs: [], cmd: false, skill: null, key: STANCES.indexOf(to) > STANCES.indexOf(stance) ? STANCE_KEYS.down : STANCE_KEYS.up }));
+  // (knocked down by a wound: no stance while wounds.js downOf holds you down, then each stance as from prone)
+  const down = stance === 'down', lying = down && downOf(state.people?.[pid]?.body, ms).down, from = down ? 'prone' : stance;
+  const stances = lying ? [] : STANCES.filter(s => s !== stance).map(to => ({ id: `stance:${to}`, kind: 'stance', label: LABELS[`stance:${to}`], ms: stanceMsOf(from, to, fit), rushMs: null, carefulMs: null,
+    odds: null, routine: null, off: null, subs: [], cmd: false, skill: null, key: stance === 'sit' || down ? null : STANCES.indexOf(to) > STANCES.indexOf(stance) ? STANCE_KEYS.down : STANCE_KEYS.up }));
   const wait = { id: 'wait', kind: 'wait', label: LABELS.wait, ms: WAIT_MAX_MS, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
   const leave = { id: 'leave', kind: 'leave', label: LABELS.leave, ms: 0, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
   if (slung(posture)) return [...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, wait, leave];
@@ -252,9 +443,18 @@ export function stepsOf(state, ms = state.clock.ms) {
   const pl = aimT ? plaqueOf(state, pid, { target: aimT, ms }) : null;
   out.push({ id: 'fire', kind: 'fire', label: aimT ? `Fire at ${aimT.name}` : LABELS.fire, ms: pull.ms, rushMs: Math.round(pull.ms * TEMPO.rushed.timeK),
     carefulMs: h && h.v < HELD_MAX ? (h.toFullMs ?? 0) + pull.ms : null, odds: pl?.odds ?? null, routine: false, off: fireOff, subs: [{ id: 'fire', label: LABELS.fire, ms: pull.ms }], cmd: false, skill: 'marksmanship', target: aimT?.key ?? null });
+  // (slow fire on a KD face: the pits mark each shot; a pull before your mark is warned, and the wait for it offered
+  // (the reviewers' of v0.0.7: the relay and the player fired five rounds in 8 s into faces going down))
+  const mw = markWaitOf(state, pid, aimT, ms), Rl = rangeOf(state);
+  if (mw) out[0].warn = mw.down ? 'the target is down: wait for your mark' : 'wait for your mark';
+  // (the line cold with rounds in it: the first press is the coach's warning, the second the stop; marked before either
+  // (the runtime review's of v0.0.7, as v0.0.6 marks RELOAD's "one magazine a string"))
+  else if (Rl && !Rl.end && !Rl.hot && Rl.cmd && !fireOff) out[0].warn = 'the line is cold';
   // (2 Aim at the bracketed target, or Hold the aim already on it)
   const pickT = S.pick ? targetOf(state, S.pick, pid) : null;
-  if (pickT && S.aim?.key !== pickT.key) out.push({ id: 'aim', kind: 'aim', label: `Aim at ${pickT.name}`, ms: aimMsOf(state, pid, S.gun, pickT), rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: 'weapons', target: pickT.key });
+  if (pickT && S.aim?.key !== pickT.key) out.push({ id: 'aim', kind: 'aim', label: `Aim at ${pickT.name}`, ms: aimMsOf(state, pid, S.gun, pickT), rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: 'weapons', target: pickT.key,
+    // (on a range, a rifle aimed at a person stops the line at once: said on the row before the press does it)
+    ...(pickT.kind === 'person' && Rl && !Rl.end ? { warn: 'a person: the range stops' } : {}) });
   else if (aimT) out.push({ id: 'hold', kind: 'hold', label: LABELS.hold, ms: h?.toFullMs ?? 0, rushMs: null, carefulMs: null, odds: null, routine: null, off: h && h.v >= HELD_MAX ? 'steady' : null, subs: [], cmd: false, skill: 'marksmanship', target: aimT.key });
   else out.push({ id: 'aim', kind: 'aim', label: LABELS.aim, ms: null, rushMs: null, carefulMs: null, odds: null, routine: null, off: 'nothing in the frame to aim at', subs: [], cmd: false, skill: 'weapons' });
   // (the Corps' commands, the tower's current first)
@@ -285,6 +485,8 @@ export function stepsOf(state, ms = state.clock.ms) {
       subs: q.map(a => ({ id: a, label: LABELS[a] ?? a, ms: actionMs(roller, gun, a, { tempo: 'normal' }) })), cmd: false, skill: 'weapons', macro: null, queue: [...q] });
   }
   out.push(...macros);
+  // (0.0.7: the line's rows: the call, the dope, the hold, the read, the lever, the turrets, sitting (see the header))
+  out.push(...lineRows(state, pid));
   // (the singles the belief allows, the selector first: off safe before a string and on safe at its end are the
   // singles a shooter takes most, and canDo's order put them past the panel's first page behind the magazine's
   // five (the integrator's, played by the keys); the postures apart, as V's)
@@ -299,6 +501,7 @@ export function stepsOf(state, ms = state.clock.ms) {
   }
   out.push(...stances);
   for (const a of singles) if (a.startsWith('posture:')) out.push(actionStep(state, roller, gun, a, 'posture'));
+  if (mw) out.push({ ...wait, id: 'wait:mark', label: LABELS['wait:mark'], ms: MARK_WAIT_MS });
   out.push(wait, leave);
   // (a reach's row says what it would bring; a step that would seat another magazine mid-string is marked, not struck)
   for (const st of out) if (actionKey(st.id) === 'reach' && actionPlace(st.id)) st.label = reachLabel(state, pid, gun, st.id);
@@ -379,15 +582,42 @@ function runSub(state, bus, d, i, atMs) {
     if (!shot.fired) d.gunStop = 'click';
     else if (shot.stoppage) d.gunStop = 'stop';
     text = shot.fired ? (shot.hole ? `Bang. ${shot.roll?.verb ?? ''}` : 'Bang.') : (REFUSALS[shot.why] ?? 'Click.');
+  } else if (id.startsWith('sight:') || id.startsWith('hold:') || id === 'read' || id.startsWith('optic:')) {
+    // (0.0.7: the line's rows (see the header): their effect at the sub-step's start, as a single's)
+    const r = lineRow(state, id, atMs), gun = gunOf(state, gunId);
+    rec.ms = r?.ms ?? 0;
+    if (!r || r.off) { d.cut = true; rec.ms = 0; }
+    else if (r.kind === 'sight') {
+      const turned = dial(gun, r.clicks);
+      text = turned.n ? `${clickWords(turned).replace(/\.$/, '')} on the turrets.` : 'The turrets are where they were.';
+      if (id === 'sight:call') { const p = pendingCall(state); if (p) { p.call.dialled = true; const z = beliefZero(gun); believeZero(gun, { elev: z.elev + turned.elev, wind: z.wind + turned.wind }); } }
+      if (S.aim) S.aim.settledMs = Math.max(S.aim.settledMs, atMs + rec.ms);
+    } else if (r.kind === 'hold') {
+      if (!(r.hold.xMil ?? 0) && !(r.hold.yMil ?? 0)) delete S.hold; else S.hold = { xMil: r.hold.xMil ?? 0, yMil: r.hold.yMil ?? 0 };
+      text = `Holding ${holdWords(r.hold)}.`;
+    } else if (r.kind === 'read') {
+      const face = faceFor(state, pid), bearing = face ? Math.atan2(face.z - me.z, face.x - me.x) : (me?.headRad ?? 0);
+      const w = readWind(state, pid, { atMs, bearingRad: bearing, rangeM: face?.dM ?? 300 });
+      const rd = { crossMs: w.crossMs, band: w.band, atMs };
+      const R = rangeOf(state);
+      if (R) (R.reads ??= {})[pid] = rd; else S.read = rd;
+      text = w.speedWord === 'still' ? 'The flags hang: no wind to speak of.' : `The flags: ${w.speedWord} ${w.fromWord}.`;
+    } else if (r.kind === 'optic') {
+      setOptic(gun, r.mag);
+      text = r.mag === 4 ? 'Four power.' : 'One power.';
+      if (S.aim) S.aim.settledMs = Math.max(S.aim.settledMs, atMs + rec.ms);
+    }
   } else if (id.startsWith('stance:')) {
     const to = id.slice(7), from = me?.stance ?? 'stand';
-    rec.ms = stanceMs(from, to, { fitness: rollerOf(state, pid).value('fitness') });
+    rec.ms = stanceMsOf(from, to, rollerOf(state, pid).value('fitness'));
     d.stanceTo = to;
     noteTick(state, { moving: true });
     S.aim = null;
     if (postureOf(state, pid) === 'aimed') setPosture(state, pid, 'lowReady');
   } else if (id === 'wait') {
     rec.ms = WAIT_MAX_MS;
+  } else if (id === 'wait:mark') {
+    rec.ms = MARK_WAIT_MS;
   } else if (id === 'functionCheck' && beliefOf(state, gunId)?.chamber !== 'empty') {
     // (nobody pulls the trigger on a rifle they believe has a round in it: the rest of a macro carried on after a
     // look found one stops here (the code review's: "Carry on" after the coach's "Hold." fired it into the berm))
@@ -432,10 +662,11 @@ function soilOf(state, bus, id, stanceTo) {
   if (!id) return;
   const pid = playerId(state);
   if (id.startsWith('stance:')) {
-    if ((stanceTo === 'kneel' || stanceTo === 'prone') && areaOf(state.places?.live?.area)?.kind === 'ground') soil(state, pid, { k: HANDS.REGOLITH, why: 'regolith' }, state.clock.ms, bus);
+    if ((stanceTo === 'kneel' || stanceTo === 'prone' || stanceTo === 'sit') && areaOf(state.places?.live?.area)?.kind === 'ground') soil(state, pid, { k: HANDS.REGOLITH, why: 'regolith' }, state.clock.ms, bus);
     return;
   }
-  if (!CLEAN_SUBS.has(actionKey(id))) soil(state, pid, { k: HANDS.RIFLE_SUB, why: 'rifle' }, state.clock.ms, bus);
+  // (0.0.7: the turrets, the lever, the hold and a read touch none of the working parts)
+  if (!CLEAN_SUBS.has(actionKey(id)) && !['dial', 'optic', 'holdmark', 'read'].includes(rowKey(id))) soil(state, pid, { k: HANDS.RIFLE_SUB, why: 'rifle' }, state.clock.ms, bus);
 }
 
 function endSub(state, bus, d) {
@@ -584,7 +815,8 @@ export function chooseStep(state, bus, { step, tempo = 'normal', target = null, 
   }
   if (step === 'leave') return { ok: leaveStop(state, bus, 'player'), why: null };
   if (target && step === 'aim') { if (targetOf(state, target, S.who)) S.pick = target; else return { ok: false, why: 'not in the frame' }; }
-  const st = stepsOf(state).find(x => x.id === step);
+  // (0.0.7: a line's row asked by id though the panel does not list it (the hud's keys, the bots): taken as asked, on a line)
+  const st = stepsOf(state).find(x => x.id === step) ?? (/^(sight:|hold:|optic:|read$|stance:sit$)/.test(step) && lineOf(state, S.who) ? lineRow(state, step) : null);
   if (!st) { if (S.phase === 'choose') holdTime(state, 'stop'); return { ok: false, why: 'not offered' }; }
   if (st.off) { if (S.phase === 'choose') holdTime(state, 'stop'); return { ok: false, why: st.off }; }
   const t = tempo === 'rushed' && st.rushMs !== null && st.rushMs !== undefined ? 'rushed' : tempo === 'careful' && st.carefulMs !== null && st.carefulMs !== undefined ? 'careful' : 'normal';
@@ -643,6 +875,8 @@ export function stopInput(state, input, bus, ctx) {
     return;
   }
   if (!S.doing || isHeld(state)) return;
+  // (the wait for the mark ends as the disk or the flag goes up on your face)
+  if (S.doing.step === 'wait:mark' && !markWaitOf(state, S.who, S.aim ? targetOf(state, S.aim.key, S.who) : null, state.clock.ms)) { endStep(state, bus, 'end'); return; }
   advance(state, bus);
 }
 

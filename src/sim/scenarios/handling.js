@@ -69,6 +69,15 @@
 // setup 'mixed' (my call) issues the 'range-mixed' kit: the three magazines of ball and a fourth of tracer,
 // their counts told and their kinds not (one of them is tracer, the coach says), each kind its own ammunition
 // issue. The course's load is ball (R.load, kit.js meantLoad: what the drills reach for first).
+// 0.0.7 (the build sheet 0.0.7 §2.3, §2.7): the course engine is the course's, so test-range's kd course runs on it:
+// its tower is seqOf(R) (courses.js SEQ for fam25, SEQ_KD for kd), the next command after one kdNextI's on the kd
+// course (the zero's loop), its readinesses kdReady's and the relay's (gunner.js relayReady) where the shared ones
+// do not answer, the commands' work kdOnCmd's and the strings' end kdStringEnd's, the box the line holds you in the
+// point's on the line you are on (kdPoint), each shot recorded with its shooter (who: the relay's too, which never
+// count as yours) and handed to kdShot for the pits, the 200 m string's second magazine seated without the
+// one-magazine fault (KD_STRINGS mags 2), the move-on's undone work kdMoveOn's, and rangeNow's summary kdNow's
+// line (src/sim/scenarios/range.js). On fam25 every path is v0.0.6's, to the tick (test-handling's score of
+// 100/100/100 stands).
 import { TICK_MS, holdTime, isHeld } from '../../core/clock.js';
 import { msAtMarsTime } from '../../core/calendar.js';
 import { stream, int, intIn, pick, weighted } from '../../core/rng.js';
@@ -77,7 +86,7 @@ import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { post } from '../../core/queue.js';
 import { START_MS, SITES } from '../../data/setting/calendar.js';
 import { SCENES } from '../../data/scenes.js';
-import { COURSES, SEQ, COACH, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
+import { COURSES, SEQ, SEQ_KD, KD_STRINGS, COACH, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
 import { KD_RANGE } from '../../data/places/range.js';
 import { logEntry } from '../log.js';
 import { siteOf } from '../places/model.js';
@@ -95,6 +104,7 @@ import { scoreOf, PAPERS } from '../arms/paper.js';
 import { enterStop, leaveStop, gunOn } from '../arms/shooting.js';
 import { BRASS_LIVE, ejectCase } from '../arms/look.js';
 import { feetHeld } from '../time/doing.js';
+import { kdReady, kdRelayReady, kdOnCmd, kdNextI, kdSecond, kdStringEnd, kdShot, kdMoveOn, kdPoint, kdNow } from './range.js';
 
 /** Where the scene plays. */
 export const HANDLING = Object.freeze({ site: 'melas', area: KD_RANGE.area, course: 'fam25' });
@@ -107,10 +117,19 @@ export const SAY_MS = 3_500, SAY_WORD_MS = 330;
 const LANE_WORD = Object.freeze(['zero', 'one', 'two', 'three', 'four', 'five', 'six']);
 /** The tower's commands said again with the lane (a nudge). */
 export const NUDGE = Object.freeze({ prone: 'the prone position.', load: 'LOAD.', ready: 'MAKE READY.', fire: 'commence fire.', cease: 'CEASE FIRE.',
-  kneel: 'kneeling. RELOAD.', stand: 'standing. RELOAD.', clear: 'UNLOAD, SHOW CLEAR.' });
+  kneel: 'kneeling. RELOAD.', stand: 'standing. RELOAD.', clear: 'UNLOAD, SHOW CLEAR.',
+  // (0.0.7: the kd course's)
+  reload: 'RELOAD.', dial: 'your corrections.', optic: 'optics to four power.', dope: 'your dope.', sit: 'sitting. LOAD.', police: 'police your brass.',
+  turnIn: 'rounds to your coach.', declare: 'your declaration.' });
 
 /** The session, or null. */
 export const rangeOf = (state) => state.armoury?.range ?? null;
+/** The tower's sequence of a session's course (0.0.7: SEQ_KD on the kd course). */
+export const seqOf = (R) => (R?.course === 'kd' ? SEQ_KD : SEQ);
+// (the command after i: the next, or the kd course's own (its zero's loop); null at the end)
+const nextIOf = (state, R, i) => (R.course === 'kd' ? kdNextI(state, i) : i + 1 < SEQ.length ? i + 1 : null);
+// (a shot is the player's: v0.0.6's by their lane; the kd course's by its shooter, the relay's never)
+const mineOf = (state, R, x) => (R.course === 'kd' ? x.who === playerId(state) : x.lane === R.lane);
 /** The coach's person id (the observer of a show clear), or null. */
 export const coachOf = (state) => rangeOf(state)?.coachId ?? null;
 /** The command a macro answers (courses.js MACRO_CMD): an id, a list of ids, or null. */
@@ -227,15 +246,21 @@ export function startRange(state, bus, { course = 'fam25', lane, setup = null, k
 export const stillOf = (state) => { const S = state.stop; return !S || !S.doing || S.doing.kind === 'wait'; };
 
 /** Whether the line is ready for a command's next (see the header: what the RO can see). */
-export function lineReady(state, cmdId = rangeOf(state)?.cmd?.id) {
+export function lineReady(state, cmdId = rangeOf(state)?.cmd?.id, { relay = true } = {}) {
   const R = rangeOf(state);
   if (!R || !R.cmd) return false;
-  const def = SEQ[R.cmd.i] ?? SEQ.find(c => c.id === cmdId);
+  const seq = seqOf(R), def = seq[R.cmd.i] ?? seq.find(c => c.id === cmdId);
   const pid = playerId(state), me = playerActor(state), gun = state.items?.[gunOn(state, pid)];
   const still = stillOf(state);
   if (!me || !gun) return false;
   const mag = gun.mag ? state.items[gun.mag] : null, finger = state.people[pid]?.kit?.carry?.finger ?? 'off';
   const safe = gunField(gun, 'mode') === 'safe' && finger !== 'on';
+  // (0.0.7: the kd course's own readinesses, and the relay ready with you)
+  if (R.course === 'kd') {
+    if (relay && def.ready !== 'always' && !kdRelayReady(state)) return false;
+    const k = kdReady(state, def, { still, gun, mag, safe, me });
+    if (k !== null) return k;
+  }
   switch (def.ready) {
     case 'always': return true;
     case 'prone': return still && me.stance === 'prone';
@@ -258,12 +283,12 @@ export function onRangeCmd(state, bus, ev) {
   const R = rangeOf(state);
   if (!R || R.end) return;
   const { cmd, i } = ev.payload ?? {};
-  const def = SEQ[i];
+  const def = seqOf(R)[i];
   if (!def || def.id !== cmd) return;
   const now = state.clock.ms;
   R.cmd = { id: cmd, i, atMs: now }; R.next = null; R.livedMs = 0; R.nudged = false;
   sayOn(state, bus, { who: R.roId, text: hashPick(def.say, 'range-cmd', state.meta.seed, i), kind: 'pa' });
-  if (cmd === 'brief') { R.phase = 'brief'; coachSays(state, bus, R.mixed ? COACH.briefMixed : COACH.brief, 'brief'); }
+  if (cmd === 'brief') { R.phase = 'brief'; if (R.course !== 'kd') coachSays(state, bus, R.mixed ? COACH.briefMixed : COACH.brief, 'brief'); }
   else if (cmd === 'fire') {
     R.hot = true; R.phase = 'string'; R.string = def.string;
     // (the string's magazine: the one in the rifle now, or the first seated in it (magSeated); a dry shooter sits it out)
@@ -271,9 +296,10 @@ export function onRangeCmd(state, bus, ev) {
     if (gun?.mag) R.strMag = gun.mag; else delete R.strMag;
     if (R.dry) (R.sat ??= []).push(def.string);
   }
-  else if (cmd === 'cease') { R.hot = false; R.phase = 'cmd'; stringScore(state, bus, def.string); }
+  else if (cmd === 'cease') { R.hot = false; R.phase = 'cmd'; if (R.course === 'kd') kdStringEnd(state, bus, def.string); else stringScore(state, bus, def.string); }
   else if (cmd !== 'end') R.phase = 'cmd';
-  bus?.emit('range', { phase: 'cmd', cmd, hot: R.hot, rule: null, kind: null, text: null });
+  bus?.emit('range', { phase: 'cmd', cmd, hot: R.hot, rule: null, kind: null, text: null, ...(R.course === 'kd' ? { line: R.line ?? null } : {}) });
+  if (R.course === 'kd') kdOnCmd(state, bus, def, i);
   if (cmd === 'end') { endRange(state, bus, 'clear', null); return; }
   // (orderToMe: a wait or a hold ends at once; a CEASE FIRE cuts any other step at its sub-step's end)
   const S = state.stop, d = S?.doing;
@@ -320,17 +346,20 @@ const countWord = (n) => COUNT_WORD[n] ?? String(n);
 const capital = (w) => w.charAt(0).toUpperCase() + w.slice(1);
 
 /** The fast layer 'second' (live only, see the header): the RO watches; the line ready, the next command after a gap; a nudge. */
-export function rangeSecond(state, input, bus) {
+export function rangeSecond(state, input, bus, ctx) {
   if (state.clock.ms % 1000 !== 0) return;
   const R = rangeOf(state);
   if (!R || R.end || !R.cmd) return;
+  // (0.0.7: the kd course's second: a splash begun, a string's limit, the brass settled)
+  if (R.course === 'kd' && kdSecond(state, bus, ctx)) return;
+  if (R.end) return;
   R.livedMs += 1000;
-  const i = R.cmd.i, C = COURSES[R.course];
-  if (!R.next && i + 1 < SEQ.length && lineReady(state, R.cmd.id)) {
-    const gap = i === 0 ? C.firstGapMs : intIn(stream(state.meta.seed, 'range:gap', i + 1), C.roGapMs[0], C.roGapMs[1]);
+  const i = R.cmd.i, C = COURSES[R.course], SQ = seqOf(R), ni = nextIOf(state, R, i);
+  if (!R.next && ni !== null && lineReady(state, R.cmd.id)) {
+    const gap = i === 0 ? C.firstGapMs : intIn(stream(state.meta.seed, 'range:gap', ni), C.roGapMs[0], C.roGapMs[1]);
     const atMs = state.clock.ms + gap;
-    post(state, { atMs, prio: 2, kind: 'range-cmd', src: 'arms:range', payload: { cmd: SEQ[i + 1].id, i: i + 1 } });
-    R.next = { id: SEQ[i + 1].id, i: i + 1, atMs: Math.floor(atMs / 1000) * 1000 };
+    post(state, { atMs, prio: 2, kind: 'range-cmd', src: 'arms:range', payload: { cmd: SQ[ni].id, i: ni } });
+    R.next = { id: SQ[ni].id, i: ni, atMs: Math.floor(atMs / 1000) * 1000 };
     return;
   }
   if (!R.next && !R.nudged && i > 0 && R.livedMs >= C.nudgeMs && NUDGE[R.cmd.id]) {
@@ -346,19 +375,21 @@ export function rangeSecond(state, input, bus) {
   const clean = !!gun && !gunField(gun, 'jam') && !['case', 'dud'].includes(gunField(gun, 'chamber'));
   // (a string fired to its last round is the one wait where none left is the end of the work, not a want of it: its
   // bolt locks back on the empty, so there the check still waits for the shooter to be still)
-  const firing = SEQ[i].ready === 'emptyLocked' && R.shots.some(x => x.string === R.string && x.lane === R.lane);
-  if (!R.next && !R.dry && NEEDS_ROUNDS.includes(SEQ[i].ready) && R.livedMs >= C.checkMs && clean && (!firing || stillOf(state)) && roundsLeft(state) === 0) {
+  const firing = SQ[i].ready === 'emptyLocked' && R.shots.some(x => x.string === R.string && mineOf(state, R, x));
+  // (0.0.7: on the kd course the line may wait on the relay with you ready: your own readiness met is no want of rounds)
+  const ownReady = R.course === 'kd' && lineReady(state, R.cmd.id, { relay: false });
+  if (!R.next && !R.dry && !ownReady && NEEDS_ROUNDS.includes(SQ[i].ready) && R.livedMs >= C.checkMs && clean && (!firing || stillOf(state)) && roundsLeft(state) === 0) {
     R.dry = { atMs: state.clock.ms, cmd: R.cmd.id };
     R.livedMs = 0;                                   // (the move-on's wait starts again from the coach's word)
     // (found dry while a string is called and none of it fired: that string is sat out too)
-    if (R.hot && !R.shots.some(x => x.string === R.string && x.lane === R.lane) && !(R.sat ??= []).includes(R.string)) R.sat.push(R.string);
+    if (R.hot && !R.shots.some(x => x.string === R.string && mineOf(state, R, x)) && !(R.sat ??= []).includes(R.string)) R.sat.push(R.string);
     coachSays(state, bus, COACH.dry, 'dry', i);
     bus?.emit('range', { phase: 'dry', cmd: R.cmd.id, hot: R.hot, rule: null, kind: null, text: null });
     return;
   }
   // (0.0.6: the line waits on one lane no longer than moveOnMs of lived time: see the header; a dry shooter's
   // never a 'slow' fault, the coach having said why the rifle is not loaded)
-  if (!R.next && i > 0 && i + 1 < SEQ.length && R.livedMs >= C.moveOnMs) moveOn(state, bus, { quiet: !!R.dry && NEEDS_ROUNDS.includes(SEQ[i].ready) });
+  if (!R.next && i > 0 && ni !== null && R.livedMs >= C.moveOnMs) moveOn(state, bus, { quiet: !!R.dry && NEEDS_ROUNDS.includes(SQ[i].ready) });
 }
 
 /** What the shooter has to fire (the coach's count, the truth: see the header): the chamber's live round, the magazine in, the hand's, the pouches', those at their feet. */
@@ -376,12 +407,16 @@ export function roundsLeft(state, pid = playerId(state)) {
 
 /** The line moves on (see the header): a 'slow' fault (none when quiet: a dry shooter's), the next command posted; at UNLOAD, SHOW CLEAR the coach clears the rifle. */
 export function moveOn(state, bus, { quiet = false } = {}) {
-  const R = rangeOf(state), i = R.cmd.i, C = COURSES[R.course];
-  if (SEQ[i].ready === 'shown') { coachClears(state, bus); return; }
+  const R = rangeOf(state), i = R.cmd.i, C = COURSES[R.course], SQ = seqOf(R);
+  if (SQ[i].ready === 'shown') { coachClears(state, bus); return; }
   if (!quiet) fault(state, bus, 'slow', 'warn', hashPick(COACH.slow, 'coach', state.meta.seed, 'slow', i));
-  const atMs = state.clock.ms + intIn(stream(state.meta.seed, 'range:gap', i + 1), C.roGapMs[0], C.roGapMs[1]);
-  post(state, { atMs, prio: 2, kind: 'range-cmd', src: 'arms:range', payload: { cmd: SEQ[i + 1].id, i: i + 1 } });
-  R.next = { id: SEQ[i + 1].id, i: i + 1, atMs: Math.floor(atMs / 1000) * 1000 };
+  // (0.0.7: on the kd course the coach does what was left undone (kdMoveOn); a splash still to come is waited for)
+  if (R.course === 'kd') { kdMoveOn(state, bus, SQ[i]); if (SQ[i].ready === 'arrived') { R.livedMs = 0; return; } }
+  const ni = nextIOf(state, R, i);
+  if (ni === null) return;
+  const atMs = state.clock.ms + intIn(stream(state.meta.seed, 'range:gap', ni), C.roGapMs[0], C.roGapMs[1]);
+  post(state, { atMs, prio: 2, kind: 'range-cmd', src: 'arms:range', payload: { cmd: SQ[ni].id, i: ni } });
+  R.next = { id: SQ[ni].id, i: ni, atMs: Math.floor(atMs / 1000) * 1000 };
 }
 
 /**
@@ -433,7 +468,10 @@ export function spoutCheck(state, bus, id) {
 /** The magazine the string began with and the one about to be seated: the mark the panel shows (see the header), or null. */
 export function oneMagWarn(state, magId) {
   const R = rangeOf(state);
-  return R && !R.end && R.hot && R.strMag && magId && magId !== R.strMag ? 'one magazine a string' : null;
+  if (!R || R.end || !R.hot || !R.strMag || !magId || magId === R.strMag) return null;
+  // (0.0.7: not while the kd course's string has a written change left (KD_STRINGS mags 2): magSeated draws no fault for it)
+  if (R.course === 'kd' && (R.strSeats ?? 1) < (KD_STRINGS[R.string]?.mags ?? 1)) return null;
+  return 'one magazine a string';
 }
 
 /**
@@ -459,6 +497,8 @@ export function magSeated(state, bus, magId) {
   if (!R.hot) return;
   if (!R.strMag) { R.strMag = magId; return; }
   if (magId === R.strMag) return;
+  // (0.0.7: the kd course's 200 m string is two magazines, the change inside it written into the course (KD_STRINGS mags 2))
+  if (R.course === 'kd' && (R.strSeats = (R.strSeats ?? 1) + 1) <= (KD_STRINGS[R.string]?.mags ?? 1)) { R.strMag = magId; return; }
   R.strMag = magId;
   R.faults.push({ rule: 'onemag', kind: 'warn', atMs: state.clock.ms });
   const first = !R.oneMagSaid;
@@ -479,6 +519,18 @@ export function fault(state, bus, rule, kind, text) {
 }
 
 /** The stop: "Cease fire! Cease fire!", the coach takes the rifle, the end (see the header). */
+/**
+ * A range rule in words (carry.js rangeSafety's rules and the scenes' own): the toast's "Stopped: aimed at a person"
+ * and the end card's, one place for both (the runtime review's of v0.0.7: the card printed the rule's id, "Stopped:
+ * cold"). Data only.
+ */
+export const STOP_WORDS = Object.freeze({ muzzle: 'the muzzle off downrange', uprange: 'the muzzle uprange', person: 'aimed at a person', lane: 'another lane\'s card',
+  walk: 'off the firing point', cold: 'a round on a cold line', ahead: 'ahead of the tower', finger: 'the finger on, moving', coach: 'the muzzle on the coach', nd: 'a negligent discharge',
+  onemag: 'one magazine a string', slow: 'the line waited on you', forward: 'forward of the line', coldSafe: 'off safe on a cold line', flagged: 'the muzzle over a neighbour',
+  declare: 'a false declaration', casualty: 'a casualty on the line', dry: 'out of rounds' });
+/** A rule's words, or the rule itself if it has none. */
+export const stopWords = (rule) => (rule ? STOP_WORDS[rule] ?? rule : null);
+
 export function stopRange(state, bus, rule, text = null) {
   const R = rangeOf(state);
   if (!R || R.end) return;
@@ -515,7 +567,7 @@ export function endRange(state, bus, phase, why = null) {
 export function rangeRules(state, input, bus) {
   const R = rangeOf(state);
   if (!R || R.end || state.skip || isHeld(state)) return;
-  const pid = playerId(state), now = state.clock.ms, me = playerActor(state), L = laneOf(R.lane);
+  const pid = playerId(state), now = state.clock.ms, me = playerActor(state), L = R.course === 'kd' ? kdPoint(state) : laneOf(R.lane);
   // (the minute the rifle in the hands left the firing point's box: the caller's clock for the walk rule)
   const inHand = !['slungFront', 'slungBack'].includes(state.people[pid]?.kit?.carry?.posture ?? 'slungFront');
   const out = !!me && inHand && !(me.x >= L.box[0] && me.x <= L.box[2] && me.z >= L.box[1] && me.z <= L.box[3]);
@@ -524,7 +576,7 @@ export function rangeRules(state, input, bus) {
   // (a move key counts as moving only when the feet can move: in stop motion, or kneeling or prone, they are held,
   // and Q and D (KeyA, KeyD) step the brackets there; the code review's: D in a shot's recovery was a finger fault)
   const line = { ...rangeLine(state), warned: R.warned, outAtMs: R.outAtMs ?? null, shot: t?.shot ?? null, coldShots: R.coldShots ?? 0, ahead: !!t?.ahead,
-    moving: !!t?.moving || (!feetHeld(state) && !!(input?.mx || input?.mz)), nd: !!t?.nd };
+    moving: !!t?.moving || (!feetHeld(state) && !!(input?.mx || input?.mz)), nd: !!t?.nd && R.course !== 'kd' };
   const v = rangeSafety(state, pid, now, line);
   if (!v) return;
   for (const w of v.warn ?? []) {
@@ -538,11 +590,11 @@ export function rangeRules(state, input, bus) {
 
 /** The line as range safety reads it: { downrangeRad, box, lane, hot, targetKey, people, area, laneTargets }. */
 export function rangeLine(state) {
-  const R = rangeOf(state), L = laneOf(R.lane), me = playerActor(state);
+  const R = rangeOf(state), L = R.course === 'kd' ? kdPoint(state) : laneOf(R.lane), me = playerActor(state);
   const people = (state.actors?.list ?? []).filter(a => a !== me && a.who).map(a => ({ who: a.who, actorId: a.id, x: a.x, z: a.z, y: a.y ?? 0, stance: a.stance ?? 'stand' }));
   // (the aim's target: held, or being brought onto: an aim at a person is the fault from the moment it is chosen)
   const S = state.stop, targetKey = S?.aim?.key ?? (S?.doing?.list?.[S.doing.i] === 'aim' ? S.doing.aimKey ?? null : null);
-  return { downrangeRad: KD_RANGE.downrangeRad, box: L.box, lane: R.lane, hot: R.hot, targetKey, people, area: KD_RANGE.area,
+  return { downrangeRad: KD_RANGE.downrangeRad, box: L.box, lane: R.course === 'kd' ? L.lane : R.lane, hot: R.hot, targetKey, people, area: KD_RANGE.area,
     coachId: R.coachId, cmd: R.cmd?.id ?? null };
 }
 
@@ -552,7 +604,9 @@ export function aheadOf(state, bus, macroId) {
   if (!R || R.end || !want || macroId === 'cease') return false;
   const wants = Array.isArray(want) ? want : [want];
   // (given already: the tower has said that command at some point of the sequence so far)
-  if (R.cmd && SEQ.slice(0, R.cmd.i + 1).some(c => wants.includes(c.id))) return false;
+  // (0.0.7: the kd course says LOAD and MAKE READY at each line: given already means in this stage of it)
+  const given = seqOf(R).slice(0, (R.cmd?.i ?? -1) + 1).filter(c => R.course !== 'kd' || c.stage === seqOf(R)[R.cmd.i].stage);
+  if (R.cmd && given.some(c => wants.includes(c.id))) return false;
   // (a RELOAD while a string is fired is one magazine a string's fault, counted when the magazine is seated (0.0.6))
   if (R.hot && macroId.startsWith('reload:')) return false;
   noteTick(state, { ahead: true });
@@ -568,6 +622,7 @@ const issueOf = (state, R, load) => state.armoury.ammoIssues.find(a => a.id === 
 export function recordShot(state, bus, shot) {
   const R = rangeOf(state);
   if (!R) return;
+  if (R.course === 'kd') { recordKdShot(state, bus, shot); return; }
   if (shot.fired) {
     const issue = issueOf(state, R, shot.load);
     if (issue) issue.fired += 1;
@@ -584,6 +639,38 @@ export function recordShot(state, bus, shot) {
 }
 
 /**
+ * A shot recorded on the kd course (0.0.7; see the header): the player's and the relay's alike on R.shots with its
+ * shooter, its line, its string (its index in R.strings, strN) and its group on the zero card; the player's own on
+ * their issue, their faults and their stoppage as fam25's; every case thrown with its shooter (brass.js counts the
+ * player's); the pits' marking (range.js kdShot).
+ */
+function recordKdShot(state, bus, shot) {
+  const R = rangeOf(state), pid = playerId(state), mine = (shot.who ?? pid) === pid;
+  if (shot.fired) {
+    if (mine) { const issue = issueOf(state, R, shot.load); if (issue) issue.fired += 1; }
+    const mods = shot.roll?.mods ?? [], care = mods.some(m => m.src === 'tempo' && m.v < 0) ? 'rushed' : mods.some(m => m.why === 'the aim held' && m.v >= 4) ? 'held' : 'unheld';
+    const rec = { id: shot.id, who: shot.who ?? pid, atMs: shot.atMs, lane: shot.lane, line: R.line ?? 25, string: R.string, strN: R.strings?.length ? R.strings.length - 1 : null,
+      hole: shot.hole?.at ?? null, score: shot.hole?.score ?? 0, v: !!shot.hole?.v, logSeq: shot.logSeq, care,
+      ...(R.string === 'zero' ? { group: (R.groups?.length ?? 1) - 1 } : {}), ...(shot.berm ? { berm: true } : {}), ...(shot.roll?.nat === 1 ? { nat1: true } : {}), ...(shot.load && shot.load !== 'ball' ? { load: shot.load } : {}) };
+    R.shots.push(rec);
+    if (R.shots.length > SHOTS_KEPT) R.shots.splice(0, R.shots.length - SHOTS_KEPT);
+    // (the player's own on the string and the zero's group, so their scores outlive SHOTS_KEPT and the relay's many)
+    if (mine && R.strings?.length && R.hot) {
+      const str = R.strings.at(-1), h = { id: shot.id, at: rec.hole, score: rec.score, v: rec.v };
+      str.shots.push(shot.id); (str.holes ??= []).push(h);
+      // (the zero's group keeps the turrets each round was fired at, so the coach can pool the groups: paper.js poolOf)
+      if (R.string === 'zero' && R.groups?.length) (R.groups.at(-1).holes ??= []).push({ ...h, sight: { elev: 0, wind: 0, ...(state.items[gunOn(state, pid)]?.sight ?? {}) } });
+    }
+    if (shot.brassRec) { R.brass.push({ ...shot.brassRec, who: shot.who ?? pid }); if (R.brass.length > BRASS_LIVE) R.brass.splice(0, R.brass.length - BRASS_LIVE); }
+    kdShot(state, bus, shot, rec);
+    if (R.end || !mine) return;
+    if (!R.hot) R.coldShots = (R.coldShots ?? 0) + 1;
+    noteTick(state, { shot: { lane: shot.lane ?? undefined } });
+  }
+  if (mine && ((!shot.fired && shot.why === 'dud') || shot.stoppage)) R.stoppage = { atMs: shot.atMs, kind: shot.set ?? (shot.stoppage === 'double' ? 'double' : shot.stoppage ? 'stovepipe' : 'dud'), set: !!shot.set, cleared: false };
+}
+
+/**
  * What a handling step threw out of the port (firearms.js doAction's ejects: 'round', 'dummy' from the
  * coach's dud, 'case' from a stovepipe), stored as the session's brass so the stage draws the orange
  * dummy and the stripped round flying and lying (look.js ejectCase: a hand's throw for a round or the
@@ -593,6 +680,7 @@ export function recordEjects(state, pid, ejects, atMs, key) {
   const R = rangeOf(state), me = playerActor(state), gun = state.items?.[gunOn(state, pid)];
   if (!R || !me || !gun || !ejects?.length) return [];
   const recs = ejects.map(kind => ejectCase(gun, { ...carryOf(state, pid), x: me.x, z: me.z, hand: kind !== 'case' }, { atMs, kind, key: `${key}:${atMs}:${kind}` }));
+  if (R.course === 'kd') for (const r of recs) r.who = pid;
   R.brass.push(...recs);
   if (R.brass.length > BRASS_LIVE) R.brass.splice(0, R.brass.length - BRASS_LIVE);
   // (what landed and when, for the step's fact: the sound's tick on the regolith (the runtime review's: a cleared case
@@ -631,6 +719,7 @@ export function afterStep(state, bus, d, why) {
     if (gun && !gunField(gun, 'jam') && !['case', 'dud'].includes(gunField(gun, 'chamber'))) {
       R.stoppage.cleared = true;
       if (R.stoppage.set) coachSays(state, bus, COACH.set[R.stoppage.kind] ?? COACH.set.dud, 'set', R.stoppage.kind);
+      if (R.stoppage.set && R.dummy) R.dummy.cleared = true;
     }
   }
 }
@@ -641,6 +730,7 @@ export function afterStep(state, bus, d, why) {
 export function rangeNow(state, ms = state.clock.ms) {
   const R = rangeOf(state);
   if (!R) return null;
+  if (R.course === 'kd') return kdRangeNow(state, R, ms);
   const mine = R.shots.filter(s => s.lane === R.lane);
   const s = scoreOf(mine.map(h => ({ at: h.hole, score: h.score, v: h.v })));
   const strings = [0, 1, 2].map(k => ({ ...scoreOf(mine.filter(h => h.string === k).map(h => ({ at: h.hole, score: h.score, v: h.v }))), ...(R.sat?.includes(k) ? { sat: true } : {}), ...(R.over?.includes(k) ? { over: true } : {}) }));
@@ -651,6 +741,21 @@ export function rangeNow(state, ms = state.clock.ms) {
     line: { lane: R.lane, box: L.box, fp: L.fp, target: L.target, downrangeRad: KD_RANGE.downrangeRad },
     strings, end: R.end,
     summary: { score: s.score, of: s.of, v: s.v, shots: s.shots, hits: s.hits, groupCm: s.groupCm, faults: R.faults.length, clearAtMs: R.end?.phase === 'clear' ? R.end.atMs : null, sat: R.sat?.length ?? 0, over: R.over?.length ?? 0 },
+    dry: !!R.dry,
+  };
+}
+
+// (0.0.7: rangeNow's shape on the kd course, its summary kdNow's line (the end card's: the build sheet 0.0.7 §2.3))
+function kdRangeNow(state, R, ms) {
+  const K = kdNow(state, ms), P = kdPoint(state), pid = playerId(state);
+  const mine = R.shots.filter(s => s.who === pid);
+  const s = scoreOf(mine.map(h => ({ at: h.hole, score: h.score, v: h.v })));
+  return {
+    course: R.course, lane: P?.lane ?? R.lane, phase: R.phase, string: R.string, cmd: R.cmd?.id ?? null, cmdI: R.cmd?.i ?? null, cmdAtMs: R.cmd?.atMs ?? null, hot: R.hot,
+    observerId: R.coachId, roId: R.roId, paper: R.paper ?? 'zero25',
+    line: P ? { lane: P.lane, box: P.box, fp: P.fp, target: P.target ?? null, face: P.face ?? null, downrangeRad: KD_RANGE.downrangeRad, line: P.line } : null,
+    strings: K.strings, end: R.end, kd: K, incident: K.incident,
+    summary: K.summary, score: { score: s.score, of: s.of, v: s.v, shots: s.shots, hits: s.hits, faults: R.faults.length, clearAtMs: R.end?.phase === 'clear' ? R.end.atMs : null },
     dry: !!R.dry,
   };
 }

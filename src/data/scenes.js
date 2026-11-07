@@ -7,7 +7,7 @@
 // sweatL, stubbleH, pressureH, bladderMl), the outfit worn, a forced alert drill ({ hour }: the night's
 // 02:30, in place of the week's draw), a course of fire (course: src/data/courses.js, test-handling's
 // 25 m line, 0.0.5), its setup (test-handling's 'mixed': a scene of its own on the same scenario, 0.0.6) and the fact that ends it (the end card, once the strip is done; a phase may be a
-// list: the range's 'clear' or 'stopped').
+// list: the range's 'clear' or 'stopped'; 0.0.7's test-range also 'closed', the range closed after a casualty).
 // The hud reads every field; scenes save nothing (the sheet §8, item 24): their scores alone are kept.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
@@ -42,6 +42,15 @@ export const SCENES = deepFreeze({
     aspects: [['steps', 'the reach, the look, the choice of magazine'], ['shot', 'the plaque, the roll in the log, the hole in the paper'], ['pace', 'quick to drive by keys, never a wall of text']],
     body: {}, outfit: 'utilities', course: 'fam25',
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
+  },
+  // (0.0.7: the KD range in full, ROADMAP §4.2's 0.0.7 row (the build sheet 0.0.7 §2.3): the zero, the confirm at 300 m,
+  // the 200 m string, the relay beside you; scored on ROADMAP §2.2's three aspects)
+  'test-range': {
+    id: 'test-range', title: 'The line at 300 m', scenario: 'test-range', hour: 10.0,
+    goal: "Zero at 25 m in three-round groups, confirm at 300 m with the pits marking, ten rapid sitting at 200 m. The tower's commands, your coach's calls.",
+    aspects: [['far window', 'the far window: the face, the marks, the disk'], ['shot at distance', 'the shot at distance: the zero, the wind, the hold'], ['range safety', 'range safety: the tower, the cold line, the declaration']],
+    body: {}, outfit: 'utilities', course: 'kd',
+    endOn: { fact: 'range', phase: ['clear', 'stopped', 'closed'] },
   },
 });
 

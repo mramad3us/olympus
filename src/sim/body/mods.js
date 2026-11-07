@@ -13,6 +13,11 @@
 // a roll whose uses meet the row's; 'all' rows to every roll. No roll reads them yet (skill checks
 // come at 0.0.6). capacityOf(state, pid) is what the body lets you do: { walkK, runOk, sprintOk,
 // awareK, visionK, canStand } (BODY §2.4's capacity; awareK unread this round, the sheet §8 item 21).
+// 0.0.7 (the build sheet 0.0.7 §2.2; src/sim/body/wounds.js woundMods): bodyMods carries the wounds' rows
+// (src 'body:wound', 'body:pain', 'body:blood': BODY §22's head, torso, arms, legs, cracks, pain and
+// blood) for any body that has them, a gunner's on the line too, whose needs are not simulated; ctx.skill
+// names the roll's skill where a row asks (a broken arm's −6 on Weapon handling; CQC feels no pain till
+// after). capacityOf's canStand reads the wounds' (wounds.js canStand), walkK their mobility, runOk theirs.
 import { HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, STAMINA, ELIM_MOD_MIN, MORALE } from '../../data/body/needs.js';
 import { playerId } from '../../core/ids.js';
 import { bodyOf } from './body.js';
@@ -22,6 +27,7 @@ import { thermalMods, stageOf } from './thermal.js';
 import { smellM } from './hygiene.js';
 import { gaitsOf } from './motion.js';
 import { siteLonEDeg } from '../jobs.js';
+import { woundMods, hasWounds, canStand as woundsStand, mobilityOf } from './wounds.js';
 
 /** BODY §22's shorthand groups as SKILLS's uses ('*': every roll). */
 export const USE_GROUPS = Object.freeze({ all: '*', mind: Object.freeze(['head']), body: Object.freeze(['legs', 'torso', 'breath']), hands: Object.freeze(['hands', 'arms']), eyes: Object.freeze(['eyes']), social: Object.freeze(['face', 'voice']) });
@@ -38,7 +44,9 @@ const row = (out, keyUses, uses, why, v, src) => { if (v && lands(usesOf(uses), 
 /** The body's conditions on a roll of key (see the header). */
 export function bodyMods(state, pid, key = 'all', ctx = {}) {
   const b = bodyOf(state, pid);
-  if (!b || b.atMs === null) return [];
+  if (!b) return [];
+  const wounds = hasWounds(b) ? woundMods(b, usesOf(key), ctx.ms ?? state.clock.ms, ctx) : [];
+  if (b.atMs === null) return wounds;
   const out = [], uses = usesOf(key);
   for (const m of thermalMods(b.thermal.coreC)) {
     row(out, uses, 'all', m.why, m.v, 'body:thermal');
@@ -48,7 +56,7 @@ export function bodyMods(state, pid, key = 'all', ctx = {}) {
   if (b.blown || st <= 0) { row(out, uses, ['legs', 'torso', 'breath'], 'blown', -4, 'body:stamina'); row(out, uses, ['hands', 'arms'], 'blown', -3, 'body:stamina'); }
   else if (st < STAMINA.WINDED_BELOW) row(out, uses, ['breath', 'arms', 'hands', 'legs'], 'winded', -2, 'body:stamina');
   else if (st < 50) row(out, uses, ['breath', 'arms', 'hands', 'legs'], 'breathing hard', -1, 'body:stamina');
-  return out;
+  return wounds.length ? [...out, ...wounds] : out;
 }
 
 /** The needs on a roll of key (see the header). ctx.targetM: the distance to the one the roll is aimed at (the smell's range). */
@@ -84,9 +92,10 @@ export function needMods(state, pid, key = 'all', ctx = {}) {
 export function capacityOf(state, pid = playerId(state)) {
   const b = bodyOf(state, pid);
   if (!b) return { walkK: 1, runOk: true, sprintOk: true, awareK: 1, visionK: 1, canStand: true };
-  const g = gaitsOf(state, pid), cold = stageOf(b.thermal.coreC), s = stagesOf(b, state.clock.ms, siteLonEDeg(state));
+  const ms = state.clock.ms, g = gaitsOf(state, pid), cold = stageOf(b.thermal.coreC), s = stagesOf(b, ms, siteLonEDeg(state));
+  const hurt = hasWounds(b), m = hurt ? mobilityOf(b, ms) : { k: 1, runOk: true };
   return {
-    walkK: cold?.slow ?? 1, runOk: g.runOk, sprintOk: g.sprintOk,
-    awareK: 1, visionK: 1, canStand: !cold?.down && !cold?.dead && s.thirst.i < THIRST.length - 1,
+    walkK: (cold?.slow ?? 1) * m.k, runOk: g.runOk && m.runOk, sprintOk: g.sprintOk && m.runOk,
+    awareK: 1, visionK: 1, canStand: !cold?.down && !cold?.dead && s.thirst.i < THIRST.length - 1 && (!hurt || woundsStand(b, ms)),
   };
 }

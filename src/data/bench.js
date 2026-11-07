@@ -18,7 +18,14 @@
 // build sheet 0.0.5 §2.3 (g)): test-handling's 'bench' setup (prone on the 25 m line, the line hot, the
 // mode entered and aimed at your card, one magazine of 15), Digit1 tapped for 120 ms and then still for
 // 1,180 ms, fifteen times: a string of fifteen at 25 m, the flash, the kick, the brass and the holes, timed
-// frame by frame (its p95 held at 18 ms); no at: the scene starts you on the line.
+// frame by frame (its p95 held at 18 ms); no at: the scene starts you on the line. range-far (0.0.7, the build sheet
+// 0.0.7 §2.4 (e), ROADMAP §4.2's 0.0.7 row): test-range's 'far' setup (the 300 m line, prone, the SO-4 at 4×, aimed at
+// your face with the far window open on it, Fire alone on the panel, the relay firing a long string beside you),
+// Digit1 tapped for 120 ms, then T (the DI's "Wait for your mark": the wait lets time run) 1 s after it, the pull and its
+// recovery done, then still,
+// four times in 20 s: four shots at 300 m, the pits marking in the window while the relay fires and waits for its own
+// marks round you, the game running the whole bench rather than for the five taps alone (the integrator's of v0.0.7:
+// the far setup is stop motion, so five taps of Fire ran about 2 s of the line), timed frame by frame (its p95 held at 18 ms).
 
 /** The bench scenes by name (the build sheet's §2.4). */
 export const BENCH_SCENES = Object.freeze({
@@ -38,6 +45,11 @@ export const BENCH_SCENES = Object.freeze({
     play: 'test-handling', seed: 48213, hour: 9, setup: 'bench',
     keys: Object.freeze(Array.from({ length: 15 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 1180])]).flat()),
     warmS: 2,
+  }),
+  'range-far': Object.freeze({
+    play: 'test-range', seed: 48213, hour: 10, setup: 'far',
+    keys: Object.freeze(Array.from({ length: 4 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 3880])]).flat()),
+    warmS: 3,
   }),
 });
 

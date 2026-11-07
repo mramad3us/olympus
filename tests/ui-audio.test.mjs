@@ -24,6 +24,11 @@
 // at 3 and 6 m; the action's clicks at their fractions of each sub-step on the game clock, a case's tick at
 // its landMs as the clock passes it, the dry click of a dud, the tower's chime on a pa line; nothing new
 // while time stands still, nothing a skip jumped over; and RANGE's recipes rendered and measured.
+// The 0.0.7 round's (the build sheet 0.0.7 §5.5): the R-7 at distance in Melas air: the crack of your round leaving, the
+// strike's thump back at its flight time plus its distance over the speed of sound (ballistics.js soundMsOf on the valley
+// floor: 300 m, 0.42 + 0.93 = 1.35 s ±10 ms), a neighbour's report a sound's way late, the defenders on each (an impulse
+// over their gate down 25 dB, a far strike under it untouched), the tower's speaker through their circuit, the KD's berm
+// for the echo past the bay's, a carrier in the pits under the parapet; and twelve reports in 200 ms play at most six voices.
 // The 0.0.6 round's (the build sheet 0.0.6 §2.3): the clippers' loop (a 120 Hz motor's hum through a 2 kHz band,
 // seamless) while a shaved head is buzzed, the tap while the hands are washed, and the R menu's sounds (a tick, a
 // latch and a lower latch, two rising notes, a close) rendered by code and played on the UI bus from the 'ui' fact.
@@ -31,7 +36,10 @@ import { assert, near, fmt } from './helpers.mjs';
 import { footfalls, stepVoice, createStepScheduler, weightDb, lowpassHz, HALF_CYCLE_M } from '../src/ui/audio/steps.js';
 import { render, measure } from '../src/ui/audio/synth.js';
 import { STEPS, DOORS, WORLD, RANGE, AIR_KPA, LOOKAHEAD_S, WALL_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, TICK_MAX_HZ, KLAXON_HZ, WORLD_RATE_HZ, EARS_DB, EARS_LP_HZ, ECHO_DB, SOUND_SPEED_MS, REPORT_SOURCE_DB, ACTION_SOUNDS, UI_SOUNDS, CLIPPER_HZ } from '../src/data/sounds.js';
-import { reportVoice, echoOf, caseVoice, chimeVoice, clickVoice, actionSoundsOf, createRange, createClickQueue, BERM_FACE_X, LATE_MS } from '../src/ui/audio/range.js';
+import { reportVoice, echoOf, caseVoice, chimeVoice, clickVoice, actionSoundsOf, createRange, createClickQueue, BERM_FACE_X, LATE_MS,
+  crackVoice, strikeVoice, carrierVoice, throughEars, createReportLimiter, bermFor, KD_BERM_FACE_X, distLowpassHz } from '../src/ui/audio/range.js';
+import { REPORT_VOICES, REPORT_MERGE_MS, EARS_GATE_DB, PARAPET_DB, CRACK_SOURCE_DB, IMPACT_SOURCE_DB } from '../src/data/sounds.js';
+import { soundMsOf, ENV_CLASSES, flightOf } from '../src/sim/arms/ballistics.js';
 import { klaxonVoice, wallsBetween, duckOf, createTicker, loopsAt, createWorld } from '../src/ui/audio/world.js';
 import { areaOf } from '../src/sim/places/model.js';
 import { ALERT_DRILL } from '../src/data/pod.js';
@@ -372,4 +380,70 @@ export default [
       assert(shots.join() === 'uiMove,uiCheck,uiUncheck,uiConfirm,uiClose' && world.stats.ui === 5 && world.stats.lastUi === 'close', JSON.stringify({ shots, stats: world.stats }));
     },
   },
+  {
+    name: 'the R-7 at 300 m in Melas air: your report, the crack of your round leaving, the strike\'s thump 0.42 + 0.93 = 1.35 s later (±10 ms: its flight and 300 m at the valley\'s speed of sound); a neighbour 5 m off a sound\'s way late; the defenders take the impulses, not the far strike; the KD\'s berm for the echo',
+    fn() {
+      const env = ENV_CLASSES['mars-valley'], c = soundMsOf(env), fl = flightOf('r7', 'ball', env, 300);
+      const me = { x: 1300, z: 334.5 };
+      const sv = strikeVoice({ me, at: { x: 1600, z: 334.5 }, rangeM: 300, tofS: fl.tofS, soundMs: c, ears: true }), open = strikeVoice({ me, at: { x: 1600, z: 334.5 }, tofS: fl.tofS, soundMs: c });
+      console.log(`      the valley's air: ${fmt(c, 1)} m/s; the round to 300 m: ${fmt(fl.tofS, 3)} s at ${fmt(fl.vMs, 0)} m/s, ${fl.supersonic ? 'supersonic' : 'subsonic'}; the strike back at ${fmt(sv.delayS, 3)} s (${fmt(sv.gainDb, 1)} dB at ${fmt(sv.lowpassHz, 0)} Hz with the defenders, ${fmt(open.gainDb, 1)} without)`);
+      near(c, 322, 1.5, 'the speed of sound on the valley floor');
+      near(sv.delayS, 1.35, 0.01, 'the strike 1.35 s after the shot');
+      near(sv.delayS, fl.tofS + 300 / c, 1e-9, 'its flight plus its distance at c');
+      assert(sv.gainDb === open.gainDb && sv.gainDb < EARS_GATE_DB, `the far strike passes the defenders' gate: ${sv.gainDb}`);
+      const near5 = strikeVoice({ me, at: { x: 1305, z: 334.5 }, tofS: 0.007, soundMs: c, ears: true }), near5o = strikeVoice({ me, at: { x: 1305, z: 334.5 }, tofS: 0.007, soundMs: c });
+      console.log(`      a strike 5 m off: ${fmt(near5o.gainDb, 1)} dB open, ${fmt(near5.gainDb, 1)} through the defenders (an impulse over their gate ${EARS_GATE_DB} dB: down to it at most, low-passed at ${near5.lowpassHz} Hz)`);
+      assert(near5o.gainDb > EARS_GATE_DB && near5.gainDb === Math.max(EARS_GATE_DB, near5o.gainDb + EARS_DB) && near5.lowpassHz === EARS_LP_HZ, JSON.stringify({ near5, near5o }));
+      const k0 = crackVoice({ supersonic: true }), k1 = crackVoice({ supersonic: true, ears: true }), sub = crackVoice({ supersonic: false });
+      console.log(`      the crack leaving: ${fmt(k0.gainDb, 1)} dB open (source +${CRACK_SOURCE_DB}), ${fmt(k1.gainDb, 1)} through the defenders; a subsonic round: ${sub}`);
+      assert(Math.abs(k0.gainDb - k1.gainDb + EARS_DB) < 1e-9 && sub === null && k0.gainDb < REPORT_SOURCE_DB, JSON.stringify({ k0, k1 }));
+      const mine = reportVoice({ me, mine: true, ears: true, soundMs: c }), n5 = reportVoice({ me, muzzle: { x: 1300.9, z: 339.5 }, mine: false, ears: true, soundMs: c });
+      console.log(`      your report ${fmt(mine.gainDb, 1)} dB at once; a neighbour 5 m off ${fmt(n5.gainDb, 1)} dB, ${fmt(n5.delayS * 1000, 1)} ms late, pan ${fmt(n5.pan, 2)}; the echo off the KD's berm (x ${KD_BERM_FACE_X}) ${fmt(mine.echo.delayS, 3)} s after (${fmt(mine.echo.pathM, 0)} m)`);
+      near(n5.delayS, n5.distM / c, 1e-9, 'a neighbour a sound\'s way late');
+      assert(mine.delayS === 0 && bermFor(1300) === KD_BERM_FACE_X && bermFor(1100) === BERM_FACE_X && Math.abs(mine.echo.pathM - 2 * (KD_BERM_FACE_X - 1300)) < 1e-9, JSON.stringify(mine.echo));
+      const pa0 = chimeVoice({ me: { x: 1100, z: 292.5 } }), pa1 = chimeVoice({ me: { x: 1100, z: 292.5 }, ears: true });
+      console.log(`      the tower's speaker: ${fmt(pa0.lowpassHz, 0)} Hz open, ${fmt(pa1.lowpassHz, 0)} Hz through the defenders' circuit, ${fmt(pa1.gainDb, 1)} dB both`);
+      assert(pa1.lowpassHz === EARS_LP_HZ && pa1.gainDb === pa0.gainDb, JSON.stringify({ pa0, pa1 }));
+      const car = carrierVoice({ me, at: { x: 1603.5, z: 334.5 }, soundMs: c, ears: true }), carIn = carrierVoice({ me: { x: 1605, z: 334.5 }, at: { x: 1603.5, z: 334.5 }, soundMs: c, ears: true, inPits: true });
+      console.log(`      a carrier at 303.5 m under the parapet: ${fmt(car.gainDb, 1)} dB at ${fmt(car.lowpassHz, 0)} Hz, ${fmt(car.delayS, 2)} s late; in the pits beside it: ${fmt(carIn.gainDb, 1)} dB`);
+      assert(car.gainDb < carIn.gainDb + PARAPET_DB && near1(car.delayS, 303.5 / c) && distLowpassHz(300) < distLowpassHz(40), JSON.stringify(car));
+      const t = throughEars(-30, 4000, true);
+      assert(t.gainDb === -30 && t.lowpassHz === 4000, 'a quiet sound passes the defenders untouched');
+    },
+  },
+  {
+    name: 'the relay never a wall of noise: twelve reports in 200 ms play at most six voices (two within 60 ms one), and a string\'s reports through createRange keep to the limit; your own report and echo always play on an empty line',
+    fn() {
+      const L = createReportLimiter();
+      const verdicts = Array.from({ length: 12 }, (_, i) => L.admit(10 + i * (0.2 / 12)));
+      console.log(`      12 reports 16.7 ms apart: ${verdicts.join(' ')}; played ${L.stats.played}, merged ${L.stats.merged}, refused ${L.stats.full}, the most at once ${L.stats.most} (limit ${REPORT_VOICES}, merge ${REPORT_MERGE_MS} ms)`);
+      assert(L.stats.played <= REPORT_VOICES && L.stats.most <= REPORT_VOICES && L.stats.played >= 3, JSON.stringify(L.stats));
+      const L2 = createReportLimiter(), spread = Array.from({ length: 12 }, (_, i) => L2.admit(20 + i * 0.07));
+      console.log(`      12 reports 70 ms apart: played ${L2.stats.played}, refused ${L2.stats.full}, the most at once ${L2.stats.most}`);
+      assert(L2.stats.most <= REPORT_VOICES && L2.stats.merged === 0 && spread.filter(v => v === 'play').length === L2.stats.played, JSON.stringify(L2.stats));
+      // (through the presenter, on a fake engine and a clock that stands still: a relay of six firing together, twice, 100 ms apart)
+      const played = [], engine = { shot: (kind, opts) => { played.push({ kind, ...opts }); return true; } };
+      let nowS = 50;
+      const range = createRange(engine, { looks: { kitLook: () => ({ ears: true }) }, clock: () => nowS });
+      const state = { player: { id: 'p145', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p145', x: 1300, z: 334.5 }] }, clock: { ms: 1000, holds: [] }, places: { live: { area: 'melas.ground' } } };
+      for (let volley = 0; volley < 2; volley++) {
+        for (let n = 0; n < 6; n++) range.fact('shot', { who: `p${150 + n}`, fired: true, muzzle: { x: 1300.9, z: 334.5 + (n - 2.5) * 5 }, face: { paper: 'kdA', lane: 7 + n, line: 300 }, flight: { rangeM: 300, tofS: 0.42, supersonic: true } }, state);
+        nowS += 0.1;
+      }
+      const reports = played.filter(p => p.kind === 'report'), strikes = played.filter(p => p.kind === 'impact');
+      console.log(`      two volleys of six: ${reports.length} reports and echoes played of 24 heard, ${range.stats.voices.merged} merged, ${range.stats.voices.full} refused; ${strikes.length} strikes; no crack (none was yours: ${played.filter(p => p.kind === 'crack').length})`);
+      assert(range.stats.voices.most <= REPORT_VOICES && reports.length < 24 && played.every(p => p.kind !== 'crack'), JSON.stringify(range.stats.voices));
+      // (your own shot on an empty line: the report, its echo, the crack, the strike)
+      const p2 = [], r2 = createRange({ shot: (kind, opts) => { p2.push({ kind, ...opts }); return true; } }, { looks: { kitLook: () => ({ ears: true }) }, clock: () => 0 });
+      r2.fact('shot', { who: 'p145', fired: true, muzzle: { x: 1300.9, z: 334.5 }, face: { paper: 'kdA', lane: 10, line: 300 }, flight: { rangeM: 300, tofS: 0.42, supersonic: true } }, state);
+      console.log(`      your shot at 300 m: ${p2.map(p => `${p.kind}${p.delayS ? ` +${fmt(p.delayS, 3)} s` : ''}`).join(', ')}`);
+      assert(p2.map(p => p.kind).join() === 'report,report,crack,impact' && Math.abs(p2[3].delayS - (0.42 + 300 / soundMsOf(ENV_CLASSES['mars-valley']))) < 0.02, JSON.stringify(p2));
+      // (test-handling's card at 25 m, a shot with no face: the report and its echo only, as v0.0.6 played it)
+      const p3 = [], r3 = createRange({ shot: (kind, opts) => { p3.push({ kind, ...opts }); return true; } }, { looks: { kitLook: () => ({ ears: true }) }, clock: () => 0 });
+      r3.fact('shot', { who: 'p145', fired: true, muzzle: { x: 1100.9, z: 292.5 }, face: null, flight: { rangeM: 25, tofS: 0.03, supersonic: true } }, { ...state, actors: { list: [{ id: 'a1', who: 'p145', x: 1100, z: 292.5 }] } });
+      assert(p3.map(p => p.kind).join() === 'report,report', JSON.stringify(p3));
+    },
+  },
 ];
+
+function near1(a, b) { return Math.abs(a - b) < 1e-9; }

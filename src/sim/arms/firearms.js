@@ -78,6 +78,18 @@
 // muzzle (pull()'s load: the shot's look draws a tracer's trace) and out of the port ('tracer', a live
 // tracer round thrown by a hand).
 //
+// **The sight and the zero** (0.0.7; WEAPONS §2.5, §3.5, §11.4; the build sheet 0.0.7 §2.1, §8 items 7 and 8). The
+// gun's truth gains sight { elev, wind } (the SO-4's turrets, integer clicks of CLICK_MRAD 0.1, ±TURRET_MAX_CLK 60;
+// up raises the strike, right moves it right), zero { elev, wind } (the settings at which this rifle strikes on
+// the Corps' BZO: drawn at issue by drawZero(), N(0, ZERO_SD_CLK 10) clamped ±ZERO_MAX_CLK 25 on
+// stream('zero', seed, gunId), never shown) and optic (the lever: 1 or 4). Absent, each reads 0, 0 and 0, 0
+// and 1, so a v0.0.6 gun is zeroed on the BZO at 1× and saves byte for byte. The belief gains zero (what the
+// holder believes the zero is: absent, the armoury card's, the turrets as issued, 0, 0; the coach's after a
+// zero). The turrets and the lever are seen and felt, so beliefOf() returns them as they are, with the dope the
+// holder believes (belief.zero + ballistics.js DOPE_CARD). Dialling (dialMs: DIAL_S 0.12 s a click × pace, no
+// roll; the hands on the turret, off the aim), the lever (OPTIC_S 0.5 s, no roll) and a read of the wind
+// (READ_S 1.5 s × pace, no roll) are the singles of src/sim/arms/shooting.js, which call dial() and setOptic().
+//
 // doAction() is the state's way in: the roller (combat/roll.js rollerOf: the skill, the body, the needs,
 // the light), the main stream, the spares in reach, the observer; the items moved by kit.move, the
 // posture and the finger on kit.carry, the roll logged { kind: 'roll', roll, step, gun } and told
@@ -90,12 +102,13 @@
 import { q } from '../../core/num.js';
 import { hashInt } from '../../core/hash.js';
 import { nextId, put } from '../../core/ids.js';
-import { rngOf, next, chance } from '../../core/rng.js';
+import { rngOf, next, chance, stream, normal } from '../../core/rng.js';
 import { logEntry } from '../log.js';
 import { check, TEMPO } from '../skills/checks.js';
 import { paceOf } from '../skills/skills.js';
 import { rollerOf, DARK_BELOW } from '../combat/roll.js';
-import { MODELS, FAMILIES, modelOf, isLong, famCap } from './models.js';
+import { MODELS, FAMILIES, OPTICS, modelOf, isLong, famCap } from './models.js';
+import { DOPE_CARD } from './ballistics.js';
 import { move, sparesOf, dumpOf, pouchFor, ownerOf, holderOf, believedN, believedKind, handMagOf, pickMag, pouchesOf, pouchOf, atFeetOf, meantLoad, PLACE_WORDS } from './kit.js';
 import { CALIBRES, loadOf } from './calibres.js';
 import { ndOf, SLUNG } from './carry.js';
@@ -132,7 +145,14 @@ export const SHOW_LOOK_S = 1.0, SHOW_DC = 6, DARK_DC = 4;
 /** The count (WEAPONS §4.2): exact at Weapon handling COUNT_EXACT_FROM and up, approximate from COUNT_KEPT_FROM, lost in a burst below; a witness window reads exact to WINDOW_EXACT_TO rounds, ±1 above. */
 export const COUNT_EXACT_FROM = 15, COUNT_KEPT_FROM = 8, WINDOW_EXACT_TO = 20;
 /** A gun's fields at their defaults: written as absent (TECH §6.6). load: the chambered round's kind (0.0.6), ball unless said. */
-export const GUN_DEFAULTS = Object.freeze({ chamber: null, jam: null, locked: false, mode: 'safe', cocked: true, portOpen: false, set: null, foul: 0, dust: 0, lube: 'wet', rounds: 0, load: 'ball' });
+export const GUN_DEFAULTS = Object.freeze({ chamber: null, jam: null, locked: false, mode: 'safe', cocked: true, portOpen: false, set: null, foul: 0, dust: 0, lube: 'wet', rounds: 0, load: 'ball',
+  sight: null, zero: null, optic: 1 });
+/** The turrets (0.0.7, see the header): a click's seconds at value 10 (× pace), the lever's, a read of the wind's (× pace). */
+export const DIAL_S = 0.12, OPTIC_S = 0.5, READ_S = 1.5;
+/** The turrets' reach, clicks either way (the SO-4's). */
+export const TURRET_MAX_CLK = OPTICS.so4.turretMaxClk;
+/** A rifle as the armoury hands it out: its zero off the turrets' 0 by N(0, ZERO_SD_CLK), at most ZERO_MAX_CLK (my call: 1 mrad sd, 30 cm at 300 m). */
+export const ZERO_SD_CLK = 10, ZERO_MAX_CLK = 25;
 /** The magazine in hand (0.0.6, see the header): the reach and the seat, base seconds at value 10 (with LONG_K they make magIn's 1.61 s), a pickup off the ground, the look at a magazine. */
 export const REACH_S = 0.6, SEAT_S = 0.8, PICKUP_S = 1.0, LOOK_MAG_S = 0.6;
 /** A magazine's weight felt in the hand, by its share of the capacity: none, then up to each fraction (the truth's band, no roll). */
@@ -207,6 +227,10 @@ export const ACTIONS = Object.freeze({
   clearDouble: A('Clear the double feed', 5.0, 12, { tempo: C, frame: Object.freeze(['magout', 'charge', 'charge', 'charge', 'magin', 'charge']) }),
   show: A('Show it clear', SHOW_LOOK_S, SHOW_DC, { long: false, frame: 'check', observer: true }),
   finger: A('Finger off', 0, null, { long: false }),
+  // (0.0.7: the turrets, the lever and a read of the wind: no roll; their times by dialMs, opticMs, readMs (see the header))
+  dial: A('Dial the turrets', DIAL_S, null, { long: false, frame: 'check' }),
+  optic: A('Throw the lever', OPTIC_S, null, { long: false, paced: false, frame: 'check' }),
+  read: A('Read the wind', READ_S, null, { long: false }),
 });
 /** The actions that move the chamber or a magazine: a miss leaves that part '?' (WEAPONS §5.4). */
 const UNSURE = new Set(['charge', 'rack', 'lockBack', 'magOut:drop', 'magOut:dump', 'magOut:pouch', 'magOut:strip', 'inspect', 'clearDouble']);
@@ -223,6 +247,56 @@ export const HELD_ACTIONS = new Set(['seat', 'lookMag', 'stowMag', 'dumpMag', 'd
 export const gunField = (g, k) => (g?.[k] === undefined ? GUN_DEFAULTS[k] : g[k]);
 // (write a field, a default as absent)
 function setG(g, k, v) { if (v === undefined || v === GUN_DEFAULTS[k] || (v === null && GUN_DEFAULTS[k] === undefined)) delete g[k]; else g[k] = v; }
+
+// ---- 0.0.7: the turrets, the zero, the lever (see the header) ----
+
+const clk = (v) => Math.max(-TURRET_MAX_CLK, Math.min(TURRET_MAX_CLK, Math.round(v ?? 0) || 0));
+/** The turrets' settings (truth, and seen): { elev, wind }, 0, 0 when absent. */
+export const sightOf = (g) => ({ elev: g?.sight?.elev ?? 0, wind: g?.sight?.wind ?? 0 });
+/** The rifle's true zero (never shown): the settings at which it strikes on the BZO, 0, 0 when absent. */
+export const zeroOfGun = (g) => ({ elev: g?.zero?.elev ?? 0, wind: g?.zero?.wind ?? 0 });
+/** The lever's magnification (1 when absent). */
+export const opticOf = (g) => g?.optic ?? 1;
+/** The holder's believed zero: belief.zero, or the armoury card's (the turrets as issued: 0, 0). */
+export const beliefZero = (g) => ({ elev: g?.belief?.zero?.elev ?? 0, wind: g?.belief?.zero?.wind ?? 0 });
+// (an { elev, wind } pair written, 0, 0 as absent)
+function setPair(g, k, p) { const e = clk(p?.elev), w = clk(p?.wind); if (!e && !w) delete g[k]; else g[k] = { elev: e, wind: w }; }
+/** The turrets turned by clicks (w; clamped to their reach): returns the clicks actually turned { elev, wind, n }. */
+export function dial(g, { elev = 0, wind = 0 } = {}) {
+  const was = sightOf(g);
+  setPair(g, 'sight', { elev: was.elev + elev, wind: was.wind + wind });
+  const now = sightOf(g);
+  return { elev: now.elev - was.elev, wind: now.wind - was.wind, n: Math.abs(now.elev - was.elev) + Math.abs(now.wind - was.wind) };
+}
+/** The turrets set to a setting (w): dial()'s clicks to get there. */
+export const setSight = (g, to) => { const was = sightOf(g); return dial(g, { elev: (to?.elev ?? 0) - was.elev, wind: (to?.wind ?? 0) - was.wind }); };
+/** The rifle's true zero written (w; the armoury's draw, a test's). */
+export const setZero = (g, z) => setPair(g, 'zero', z);
+/** The holder's believed zero written (w; the coach's call after a group, the armoury card's at issue). */
+export function believeZero(g, z) {
+  const B = beliefRec(g);
+  if (!z) { delete B.zero; return; }
+  const e = clk(z.elev), w = clk(z.wind);
+  if (!e && !w) delete B.zero; else B.zero = { elev: e, wind: w };
+}
+/** The lever thrown (w): 1 or 4. */
+export function setOptic(g, mag) { if (mag === 1 || !mag) delete g.optic; else g.optic = mag; }
+/** A turn of the turrets' time, ms: DIAL_S a click × pace (no roll); at least a touch. */
+export const dialMs = (roller, clicks) => Math.round(Math.max(1, Math.abs(clicks)) * DIAL_S * paceOf(roller.value('weapons')) * 1000);
+/** The lever's time, ms (no roll), and a read of the wind's (× pace). */
+export const opticMs = () => Math.round(OPTIC_S * 1000);
+export const readMs = (roller) => Math.round(READ_S * paceOf(roller.value('marksmanship')) * 1000);
+/** A rifle's zero as the armoury hands it out (see the header): { elev, wind }, integer clicks, the same for a gun id in a world. */
+export function drawZero(seed, gunId) {
+  const r = stream('zero', seed, gunId), c = (v) => Math.max(-ZERO_MAX_CLK, Math.min(ZERO_MAX_CLK, Math.round(v)));
+  return { elev: c(normal(r, 0, ZERO_SD_CLK)), wind: c(normal(r, 0, ZERO_SD_CLK)) };
+}
+/** The dope a holder believes from a believed zero (the Corps' card added): { 200, 300, 500: { elev, wind } }, or null for a model with no card. */
+export function dopeFrom(model, z) {
+  const card = DOPE_CARD[model];
+  if (!card || !z) return null;
+  return Object.fromEntries(Object.entries(card).map(([d, c]) => [d, { elev: z.elev + c.elev, wind: z.wind + c.wind }]));
+}
 const BELIEF_DEFAULTS = Object.freeze({ locked: false, stoppage: null, countApprox: false });
 function setB(b, k, v) { if (v === undefined || v === null && k === 'count' || v === BELIEF_DEFAULTS[k]) delete b[k]; else b[k] = v; }
 const beliefRec = (g) => (g.belief ??= { chamber: 'empty' });
@@ -794,6 +868,8 @@ export function beliefOf(state, gunId) {
     count: typeof B.count === 'number' ? B.count : null, countApprox: !!B.countApprox, magLoad: B.load ?? null, mode: mine ? gunField(g, 'mode') : '?', locked: !!B.locked,
     port: gunField(g, 'portOpen') ? 'open' : 'closed', stoppage: B.stoppage ?? null, condWord: condWord(g), cocked: !!gunField(g, 'cocked'),
     hand: hm ? { fam: hm.fam, n: believedN(hm), approx: !!hm.belief?.approx, load: believedKind(hm), feel: hm.belief?.feel ?? null, cap: famCap(hm.fam) } : null,
+    // (0.0.7: the turrets and the lever seen as they are; the zero and the dope as believed, never the truth's)
+    sight: sightOf(g), optic: opticOf(g), zero: mine ? beliefZero(g) : null, dope: mine ? dopeFrom(g.model, beliefZero(g)) : null,
   };
 }
 
@@ -886,10 +962,11 @@ const atFeet = (state, pid, gunId) => {
  * the main stream through rollerOf, the truth and the belief by act(), the magazines moved by
  * kit.move, the posture and the finger on kit.carry, the roll logged and told, a discharge graded by
  * carry.js ndOf and told ('nd'). opts: { pid, gunId, action, tempo, pressure ('evaluated': the range),
- * observerId (show), bay (the range's geometry, for ndOf), force, mods }. Returns act()'s result with
+ * observerId (show), bay (the range's geometry, for ndOf), force, mods, log (false: nothing in J, no roll fact),
+ * rng (the stream's name, 'main' by default) }. Returns act()'s result with
  * { nd, observed } and the roll's log seq.
  */
-export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pressure = 'evaluated', observerId = null, bay = null, force = null, mods = null, deferSay = false } = {}) {
+export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pressure = 'evaluated', observerId = null, bay = null, force = null, mods = null, deferSay = false, log = true, rng = 'main' } = {}) {
   const gun = state.items?.[gunId], kit = state.people?.[pid]?.kit;
   const refuse = (text) => ({ ms: 0, ok: false, refused: true, halts: true, text, roll: null, mishap: null, nd: null, grade: null, routine: false, ejected: null, ejects: [], magId: gun?.mag ?? null });
   if (!gun || gun.type !== 'gun') return refuse('No gun.');
@@ -912,7 +989,7 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
   if (key === 'stowMag') { const p = pouchOf(state, pid, place ?? 'p1'); if (p && !p.dump && p.room > 0) { to = p.id; toWord = p.word; } }
   if (key === 'dumpMag') { const d = dumpOf(state, pid); if (d) { to = d; toWord = PLACE_WORDS.dump; } }
   const ctx = { spares, held, reach, reachWhy, to, toWord, pressure, tempo, light: roller.light, observer, observerId, posture, finger: carry.finger ?? 'off', mods: [...(PRESSURE_MODS[pressure] ?? []), ...(mods ?? [])], force };
-  const r = act(rngOf(state, 'main'), roller, gun, mag, action, ctx);
+  const r = act(rngOf(state, rng), roller, gun, mag, action, ctx);
   r.nd = null;
   if (r.refused) return r;
   // (the magazines, by kit.move: the one writer of a holder)
@@ -952,12 +1029,13 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
   const area = state.places?.live?.area ?? undefined;
   // (each roll's entry carries what the action did in words (the parity review's: the look's finding, the charge's,
   // a fumble's never reached J), but a silent failure's: hidden, it leaves no trace (SKILLS §5.14))
-  if (r.roll) {
+  // (log false: a gunner's sub-step (gunner.js), its roll kept out of J and the roll fact (the sheet 0.0.7 §8 item 23))
+  if (log && r.roll) {
     const e = logEntry(state, bus, { kind: 'roll', tone: r.ok || r.routine || r.silent ? 'note' : 'warn', roll: r.roll, step: key, ...(place ? { place } : {}), gun: gunId, who: pid, area,
       ...(r.text && !r.silent ? { text: r.text } : {}), ...(r.silent ? { hidden: true } : {}), ...(r.found ? { found: true } : {}), ...(action.startsWith('posture:') ? { filter: 'habit' } : {}) });
     r.logSeq = e.seq;
     bus?.emit('roll', { roll: r.roll, who: pid });
-  } else if (r.text && ((key === 'reach' && (place || r.halts)) || key === 'dropMag')) {
+  } else if (log && r.text && ((key === 'reach' && (place || r.halts)) || key === 'dropMag')) {
     // (no roll, but what the hand felt is the holder's to read again: J keeps it, and the line says it; a drill's own
     // reach by rule says nothing unless the weight surprised it, its seat's "A magazine in: 5 rounds." saying the rest)
     r.logSeq = logEntry(state, bus, { kind: 'note', tone: r.halts ? 'warn' : 'note', text: r.text, step: key, ...(place ? { place } : {}), gun: gunId, who: pid, area }).seq;

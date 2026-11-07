@@ -9,8 +9,12 @@
 // its own keys by code while it is up (input.own): every key going down is the card's alone, nothing queued, no
 // listener told, so a key pressed in the menu never lands in the world, now or when it closes; R let go after its
 // hold, a key held into the menu, still lets go in the machine.
+// The 0.0.7 round's (the build sheet 0.0.7 §2.5 (a)): in stop motion the scope's turrets by the keys, dialOf: Z and S
+// (KeyW, KeyS) and ↑ ↓ a click of elevation, Shift with Q and D (KeyA, KeyD) or ← → a click of windage; Q and D alone
+// stay the brackets'; the keys card lists them, labelled AZERTY.
 import { assert } from './helpers.mjs';
-import { BINDINGS, TAP_MS, label, actionOf, bindingOf, createKeyState, AZERTY_LABELS, isDigitCode } from '../src/core/keys.js';
+import { BINDINGS, TAP_MS, label, actionOf, bindingOf, createKeyState, AZERTY_LABELS, isDigitCode, dialOf, DIAL_ELEV_CODES, DIAL_WIND_CODES } from '../src/core/keys.js';
+import { keysRows } from '../src/ui/cards/keys.js';
 import { createInput } from '../src/core/input.js';
 
 // (a key event as the browser would send it, enough for input.js)
@@ -262,6 +266,20 @@ export default [
       r2();
       assert(!inp.owned, 'released');
       inp.dispose();
+    },
+  },
+  {
+    name: 'the scope\'s turrets by the keys in stop motion: Z S and ↑ ↓ a click of elevation, Shift with Q D or ← → a click of windage, Q D alone the brackets\' (dialOf); the keys card says so in AZERTY',
+    fn() {
+      const said = ['KeyW', 'ArrowUp', 'KeyS', 'ArrowDown', 'KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyE'].map(c => `${c} ${dialOf(c) ?? '-'} / ⇧ ${dialOf(c, { shift: true }) ?? '-'}`);
+      console.log(`      ${said.join('; ')}`);
+      assert(dialOf('KeyW') === 'sight:elev:+1' && dialOf('ArrowDown') === 'sight:elev:-1' && dialOf('KeyS', { shift: true }) === 'sight:elev:-1', 'the elevation, with or without Shift');
+      assert(dialOf('KeyA') === null && dialOf('KeyD') === null && dialOf('KeyA', { shift: true }) === 'sight:wind:-1' && dialOf('ArrowRight', { shift: true }) === 'sight:wind:+1', 'the windage only with Shift');
+      assert(Object.keys(DIAL_ELEV_CODES).every(c => actionOf(c)) && Object.keys(DIAL_WIND_CODES).every(c => actionOf(c)), 'every dial key is a move key, which walks nowhere in stop motion');
+      const rows = keysRows({ label: (a) => label(a) });
+      const dial = rows.filter(([, w]) => /elevation|windage|far window/.test(w));
+      console.log(`      the keys card: ${dial.map(([k, w]) => `${k}: ${w}`).join(' | ')}`);
+      assert(dial.length === 3 && dial[0][0] === 'Z S' && dial[1][0] === 'Shift Q D' && dial[2][0] === 'E', JSON.stringify(dial));
     },
   },
 ];

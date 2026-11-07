@@ -12,4 +12,7 @@ const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v 
 export const POSTS = deepFreeze({
   'melas:kd-ro': { site: 'melas', key: 'kd-ro', what: 'range officer', ranks: [['SSgt', 60], ['GySgt', 25], ['Sgt', 15]], mos: '0369', unitId: '2/4', branch: 'marines', outfit: 'rangeStaff' },
   'melas:kd-coach': { site: 'melas', key: 'kd-coach', what: 'marksmanship coach', ranks: [['Sgt', 60], ['Cpl', 40]], mos: '8531', unitId: '2/4', branch: 'marines', outfit: 'rangeStaff' },
+  // (0.0.7: the range's corpsman, behind the line, and the pits' NCO (the build sheet 0.0.7 §1, §2.3))
+  'melas:kd-corpsman': { site: 'melas', key: 'kd-corpsman', what: 'range corpsman', ranks: [['HLH', 50], ['HPO2', 35], ['HAR', 15]], mos: '8404', unitId: '2/4', branch: 'navy', outfit: 'rangeStaff' },
+  'melas:kd-pits': { site: 'melas', key: 'kd-pits', what: 'pits NCO', ranks: [['Sgt', 55], ['Cpl', 45]], mos: '0311', unitId: '2/4', branch: 'marines', outfit: 'rangeStaff' },
 });

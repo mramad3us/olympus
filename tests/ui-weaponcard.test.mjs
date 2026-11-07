@@ -9,12 +9,16 @@
 // its magazine while its holder believes a live round and about three (the state after a pull the holder
 // counted wrong): beliefOf gives the belief, the model's every word is the belief's, and the card painted
 // from beliefOf is pixel for pixel the card of the belief and differs from a card of the truth.
+// The 0.0.7 round's (the build sheet 0.0.7 §5.5 ui-weaponcard): the SO-4's turrets on the card at distance, the dial from
+// the believed zero ("▼3", never from the rifle's true zero), the lever's power, the line's believed dope ticked when the
+// turrets are on it, else the clicks to go, and the hold on the reticle; a card with none of it (test-handling's: the
+// turrets on the zero, 1×, no hold, no course at distance) is the v0.0.6 card pixel for pixel.
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { weaponCardModel, BELIEF_FIELDS } from '../src/ui/hud/steps.js';
 import { beliefOf } from '../src/sim/arms/firearms.js';
 import { materialise } from '../src/sim/arms/kit.js';
-import { paintWeaponCard, cardParts } from '../src/art/weaponcard.js';
+import { paintWeaponCard, cardParts, distanceParts, dialWords, HOLD_PX_PER_MIL, DIAL_Y, DOPE_Y } from '../src/art/weaponcard.js';
 
 // (the belief after a pull the holder counted wrong, and the truth under it)
 const BELIEF = { model: 'r7', short: 'R-7', chamber: 'live', mag: 'in', magFam: 'had30', count: 3, countApprox: true, mode: 'semi', locked: false, port: 'closed', stoppage: 'click', condWord: 'fine', cocked: true };
@@ -59,6 +63,33 @@ export default [
       const pb = cardParts(b), pt = cardParts(TRUTH_AS_BELIEF);
       console.log(`      the card from beliefOf: ${fromBelief.w} × ${fromBelief.h}, ${same} of ${fromBelief.data.length} pixels as the belief's own card, ${differ} unlike a card of the truth; its parts ${JSON.stringify(pb)} against the truth's ${JSON.stringify(pt)}`);
       assert(same === fromBelief.data.length && differ > 0, JSON.stringify({ same, differ }));
+    },
+  },
+  {
+    name: 'the card at distance: the turrets read from the believed zero (▼3 off a believed 7 up, whatever the rifle\'s true zero), the lever at 4×, the dope for 300 ticked when on it and "▼3 TO GO" for 200, the hold\'s target dot on the reticle; test-handling\'s card unchanged',
+    fn() {
+      const B = { ...BELIEF, sight: { elev: 4, wind: -2 }, zero: { elev: 7, wind: -2 }, optic: 4, dope: { 200: { elev: 1, wind: -2 }, 300: { elev: 4, wind: -2 }, 500: { elev: 11, wind: -2 } }, trueZero: { elev: 6, wind: -3 } };
+      const F300 = distanceParts(B, { distance: true, line: 300, hold: { xMil: 0.5, yMil: 0 } }), F200 = distanceParts(B, { distance: true, line: 200 });
+      const w300 = dialWords(F300), w200 = dialWords(F200), m = weaponCardModel(B, { distance: true, line: 300, hold: { xMil: 0.5, yMil: 0 } });
+      console.log(`      at 300: ${JSON.stringify(w300)}; at 200: ${JSON.stringify(w200)}`);
+      console.log(`      the card's line: ${m.line} | ${m.words}`);
+      assert(F300.dial.elev === -3 && F300.dial.wind === 0 && w300.dial === '▼3' && w300.power === '4×' && w300.dope === '300 ▼3' && w300.onDope, JSON.stringify(F300));
+      assert(w200.dope === '200 ▼6' && w200.toGo === '▼3' && !w200.onDope, JSON.stringify(w200));
+      assert(m.far === '4× · ▼3 · 300 ▼3 ✓ · HOLD 0.5 R' && /3 clicks down from your zero, on your dope for 300 m, holding 0.5 mil right/.test(m.words) && !/6|−3|-3 /.test(m.far), `${m.far} | ${m.words}`);
+      // (the pixels: the dial's row and the dope's in the words' colours, the hold's dot 0.5 mil left of the crosshair: the target where the hold puts it)
+      const c = paintWeaponCard({ model: 'r7', belief: B, distance: true, line: 300, hold: { xMil: 0.5, yMil: 0 } }), c0 = paintWeaponCard({ model: 'r7', belief: B, distance: true, line: 300 });
+      const at = (pm, x, y) => pm.data[y * pm.w + x] & 0xffffff, rowInk = (pm, y0) => { let n = 0; for (let y = y0; y < y0 + 10; y++) for (let x = 4; x < 90; x++) if (at(pm, x, y) !== at(pm, 2, 2)) n++; return n; };
+      const RET = [162, 28], dx = Math.round(0.5 * HOLD_PX_PER_MIL), red = at(c, RET[0] - dx, RET[1] - 1), redAt0 = at(c0, RET[0] - 1, RET[1] - 1);
+      console.log(`      the dial's row ${rowInk(c, DIAL_Y)} px of ink, the dope's ${rowInk(c, DOPE_Y)}; the target dot at ${-dx} px (0.5 mil left) ${red.toString(16)}, centred with no hold ${redAt0.toString(16)}`);
+      assert(rowInk(c, DIAL_Y) > 20 && rowInk(c, DOPE_Y) > 20 && red === redAt0 && red !== at(c, 2, 2), JSON.stringify({ red, redAt0 }));
+      // (the same card from a belief whose rifle is truly zeroed elsewhere: the card cannot know, so it is the same)
+      const c2 = paintWeaponCard({ model: 'r7', belief: { ...B, trueZero: { elev: 0, wind: 0 } }, distance: true, line: 300, hold: { xMil: 0.5, yMil: 0 } });
+      assert(c.data.every((v, i) => v === c2.data[i]), 'the true zero reaches no pixel');
+      // (test-handling's belief: the turrets on a zero at issue, 1×, no hold, no distance: no distance parts, the v0.0.6 card)
+      const plain = { ...BELIEF, sight: { elev: 0, wind: 0 }, zero: { elev: 0, wind: 0 }, optic: 1, dope: { 200: { elev: -6, wind: 0 }, 300: { elev: -3, wind: 0 }, 500: { elev: 4, wind: 0 } } };
+      const a = paintWeaponCard({ model: 'r7', belief: BELIEF }), b = paintWeaponCard({ model: 'r7', belief: plain });
+      console.log(`      test-handling's belief: distance parts ${JSON.stringify(cardParts(plain).far)}, the card the same as v0.0.6's: ${a.data.every((v, i) => v === b.data[i])}; its line "${weaponCardModel(plain).line}"`);
+      assert(cardParts(plain).far === null && a.data.every((v, i) => v === b.data[i]) && weaponCardModel(plain).line === 'SEMI · 1 + ≈3 · CLICK', 'unchanged');
     },
   },
 ];

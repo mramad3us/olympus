@@ -25,7 +25,17 @@
 //     when its kind is known, "?" on its plate when nothing is known, and under it its count ("5", "≈5"), its
 //     weight's band ("A FEW") or "?", and "TR" when it is believed tracer.
 // The optic (the SO-4) and the sling are drawn as fitted; dust and carbon wait for 0.0.8.
-// paintWeaponCard({ model, belief, k = 1 }) → { w, h, data, px } (a Pixmap: little-endian RGBA words,
+//   - 0.0.7 (the build sheet 0.0.7 §2.5 (a): the shot at distance): the SO-4's turrets and what the holder believes of
+//     them, drawn only where they matter (a course at distance, the lever at 4×, a turret off its zero, a hold; so
+//     test-handling's card stays as scored): the elevation turret on the tube and the windage on its side, each
+//     with a mark that turns with its clicks; over the rifle the dial from the believed zero ("▼3 ◀1", clicks of
+//     0.1 mrad; "0 0" on the zero), the lever's power ("4×") at the right, and under them the line's dope as believed
+//     ("300 ▼3", its clicks from the zero, ticked "✓" when the turrets are on it, else the clicks still to go: "300 ▼2 TO GO");
+//     a small reticle at the top right with the hold as the aim's offset: the crosshair is where you aim, the target's
+//     dot sits where the hold puts it (a hold 0.5 mil right puts the target 0.5 mil left of the crosshair: HOLD_PX_PER_MIL
+//     a mil, 0.5 mil ticks). The turrets are seen, so the clicks are the gun's own (beliefOf passes them through); the
+//     zero and the dope are beliefs, never the rifle's true zero (ui-truth).
+// paintWeaponCard({ model, belief, k = 1, distance = false, line = null, hold = null }) → { w, h, data, px } (a Pixmap: little-endian RGBA words,
 // ImageData's order, alpha 255 or 0; px the same array, the sheet's name for it), k an integer scale.
 // cardParts(belief) → the glyphs it will draw (for the tests: every glyph read from the belief alone).
 // Pure: no DOM, no three.js.
@@ -48,8 +58,35 @@ const MAG_N = 30;
 export const MAG_SHOWN_M = 0.165, MAG_HIDDEN_M = 0.045, MAG_W_PX = 7, MAG_CURVE_PX = 8;
 const FEEL_CARD = Object.freeze({ none: 'NONE', few: 'A FEW', half: 'HALF', most: 'NEARLY', full: 'FULL' });
 
-/** What the card draws, read from the belief alone: { mag, count, approx, load, chamber, port, locked, mode, mark, seen, hand }. */
-export function cardParts(belief = {}) {
+/** The reticle's pixels a mil of hold, and its half-width in mils (the stop's HOLD_MAX_MRAD 3: the sheet's §4). */
+export const HOLD_PX_PER_MIL = 3, HOLD_MAX_MIL = 3;
+/** The distance rows: the dial's and the dope's top (px), at the words' scale. */
+export const DIAL_Y = 3, DOPE_Y = 16;
+
+const clicksOf = (o) => ({ elev: Math.round(Number(o?.elev) || 0), wind: Math.round(Number(o?.wind) || 0) });
+/**
+ * The distance parts, from the belief alone and the hold: { dial: { elev, wind } (the turrets from the believed zero),
+ * sight, zero (null: the card's, the turrets at issue), optic, line, dope (the line's believed setting, or null), toGo
+ * ({ elev, wind } to the dope, or null), onDope, hold: { xMil, yMil } } or null when nothing at distance shows.
+ */
+export function distanceParts(belief = {}, { distance = false, line = null, hold = null } = {}) {
+  const b = belief ?? {};
+  const sight = clicksOf(b.sight), zero = b.zero ? clicksOf(b.zero) : null, optic = b.optic === 4 ? 4 : 1;
+  const h = hold && (Number(hold.xMil) || Number(hold.yMil)) ? { xMil: Number(hold.xMil) || 0, yMil: Number(hold.yMil) || 0 } : { xMil: 0, yMil: 0 };
+  const z = zero ?? { elev: 0, wind: 0 };
+  // (shown where it matters: a course at distance, the lever at 4×, a turret off the zero, a hold; a zero believed at the
+  // turrets' setting is every rifle's at issue, so it alone shows nothing: test-handling's card as scored)
+  const shows = distance || optic === 4 || sight.elev || sight.wind || sight.elev !== z.elev || sight.wind !== z.wind || h.xMil || h.yMil;
+  if (!shows) return null;
+  const dial = { elev: sight.elev - z.elev, wind: sight.wind - z.wind };
+  const at = line && b.dope?.[line] ? clicksOf(b.dope[line]) : null;
+  const toGo = at ? { elev: at.elev - sight.elev, wind: at.wind - sight.wind } : null;
+  const dope = at ? { elev: at.elev - z.elev, wind: at.wind - z.wind } : null;
+  return { dial, sight, zero, optic, line: at ? line : null, dope, toGo, onDope: !!toGo && !toGo.elev && !toGo.wind, hold: h };
+}
+
+/** What the card draws, read from the belief alone: { mag, count, approx, load, chamber, port, locked, mode, mark, seen, hand, far }. */
+export function cardParts(belief = {}, opts = {}) {
   const b = belief ?? {};
   const magIn = b.mag !== 'out';
   const known = magIn && Number.isFinite(b.count);
@@ -61,11 +98,16 @@ export function cardParts(belief = {}) {
     chamber: b.chamber ?? '?', port: portOpen ? 'open' : 'shut', locked: !!b.locked, mode: b.mode ?? 'safe',
     mark: felt ? '!' : b.chamber === '?' ? '?' : null, seen, load: magIn ? b.magLoad ?? null : null,
     hand: b.hand ? { count: Number.isFinite(b.hand.n) ? Math.max(0, Math.min(MAG_N, b.hand.n)) : null, approx: !!b.hand.approx, load: b.hand.load ?? null, feel: b.hand.feel ?? null } : null,
+    far: distanceParts(b, opts),
   };
 }
 
 // (the font has no "?" or "≈": the card's own, 3 × 5, as the font draws; the plaque's ≈)
-const EXTRA = { '?': ['###', '..#', '.##', '...', '.#.'], '≈': ['.#.#', '#.#.', '....', '.#.#', '#.#.'] };
+const EXTRA = { '?': ['###', '..#', '.##', '...', '.#.'], '≈': ['.#.#', '#.#.', '....', '.#.#', '#.#.'],
+  // (0.0.7: the turrets' arrows and the dope's tick, 5 × 5 as the font's letters stand)
+  '▲': ['.....', '..#..', '.###.', '#####', '.....'], '▼': ['.....', '#####', '.###.', '..#..', '.....'],
+  '◀': ['..#', '.##', '###', '.##', '..#'], '▶': ['#..', '##.', '###', '##.', '#..'], '✓': ['....#', '...#.', '#.#..', '.#...', '.....'],
+  '×': ['...', '#.#', '.#.', '#.#', '...'] };
 // (a word at n pixels a font pixel: the card's words at twice the letter, the runtime and design reviews': at 1×
 // "SEMI" and the count were 7 screen px tall at 1600 × 900, and shrunk at 1024 × 768 they dropped columns)
 function say(px, x, y, str, c, n = 1) {
@@ -85,8 +127,8 @@ export const WORD_K = 2, WORD_Y = 112;
 const M = (m) => Math.round(m * CARD_PX_PER_M);
 
 /** The card for a belief (see the header). */
-export function paintWeaponCard({ model = 'r7', belief = {}, k = 1 } = {}) {
-  const P = cardParts(belief);
+export function paintWeaponCard({ model = 'r7', belief = {}, k = 1, distance = false, line = null, hold = null } = {}) {
+  const P = cardParts(belief, { distance, line, hold });
   const base = paint(CARD_W, CARD_H, (px, w, h) => {
     // The backdrop: the doll's wall and floor (VIEWS §4.1), the rifle's shadow thrown a little right.
     px(0, 0, w, h, BG);
@@ -109,6 +151,7 @@ export function paintWeaponCard({ model = 'r7', belief = {}, k = 1 } = {}) {
       if ((v >>> 24) >= 128) px(x, y, 1, 1, ((v & 0xff) << 16) | (v & 0xff00) | ((v >>> 16) & 0xff));
     }
     marks(px, P);
+    if (P.far) farMarks(px, P.far);
   });
   // (opaque everywhere, alpha 255: the hud puts it straight into an ImageData)
   const W = CARD_W * k, H = CARD_H * k, data = new Uint32Array(W * H);
@@ -162,6 +205,16 @@ function rifle(px, P, model) {
   px(at(0.30), Y0 - 16, M(0.2), 1, POLY_L);
   px(at(0.47), Y0 - 18, M(0.04), 10, POLY);
   px(at(0.39), Y0 - 19, 4, 3, POLY_L);
+  // (0.0.7: the turrets, where the card shows the distance: the elevation's knob on the tube and the windage's beside it, each
+  // with its mark turned by its clicks (a click a pixel round its face, so a dial is seen to move))
+  if (P.far) {
+    const ex = at(0.37), ey = Y0 - 22;
+    px(ex, ey, 7, 5, POLY); px(ex, ey, 7, 1, POLY_L); px(ex + 1, ey + 5, 5, 1, STEEL_D);
+    px(ex + ((P.far.sight.elev % 7) + 7) % 7, ey + 1, 1, 2, MARK);
+    const wx = at(0.41), wy = Y0 - 15;
+    px(wx, wy, 5, 5, POLY_L); px(wx, wy, 5, 1, STEEL_L);
+    px(wx + 2, wy + 1 + ((P.far.sight.wind % 3) + 3) % 3, 1, 1, MARK);
+  }
   px(at(0.51) - 1, Y0 - 17, 1, 8, 0x3c5d84);
   px(at(0.30) - 1, Y0 - 15, 1, 4, 0x3c5d84);
   // The magazine: in its well, curving forward, its window to the count believed; one in the hand under the handguard.
@@ -261,4 +314,39 @@ function marks(px, P) {
     say(px, x, WORD_Y, word, MARK, WORD_K);
     if (H.load === 'tracer') say(px, x + (sayWidth(word) + 2) * WORD_K, WORD_Y, 'TR', RED, WORD_K);
   }
+}
+
+// (the distance rows over the rifle (see the header): the dial from the believed zero, the lever's power, the line's dope,
+// the reticle with the hold; the words at WORD_K, every number a belief's or a turret's)
+const signArrows = (n, up, down) => (n > 0 ? `${up}${n}` : n < 0 ? `${down}${-n}` : '0');
+export function dialWords(F) {
+  if (!F) return null;
+  // (the elevation first, the windage after it only when off; both on the zero: "ON ZERO")
+  const dial = !F.dial.elev && !F.dial.wind ? 'ON ZERO' : [F.dial.elev ? signArrows(F.dial.elev, '▲', '▼') : '0', F.dial.wind ? signArrows(F.dial.wind, '▶', '◀') : null].filter(Boolean).join(' ');
+  const dope = F.line ? `${F.line} ${signArrows(F.dope.elev, '▲', '▼')}${F.dope.wind ? ` ${signArrows(F.dope.wind, '▶', '◀')}` : ''}` : null;
+  const toGo = F.toGo && !F.onDope ? `${signArrows(F.toGo.elev, '▲', '▼')}${F.toGo.wind ? ` ${signArrows(F.toGo.wind, '▶', '◀')}` : ''}` : null;
+  return { dial, power: `${F.optic}×`, dope, toGo, onDope: F.onDope };
+}
+const RET_X = 162, RET_Y = 28, RET_R = 10;
+function farMarks(px, F) {
+  const w = dialWords(F);
+  say(px, 4, DIAL_Y, w.dial, MARK, WORD_K);
+  say(px, CARD_W - 4 - sayWidth(w.power) * WORD_K, DIAL_Y, w.power, F.optic === 4 ? AMBER : DIM, WORD_K);
+  if (w.dope) {
+    say(px, 4, DOPE_Y, w.dope, AMBER, WORD_K);
+    const x = 4 + (sayWidth(w.dope) + 3) * WORD_K;
+    if (w.onDope) say(px, x, DOPE_Y, '✓', 0x5fbf7e, WORD_K);
+    else if (w.toGo) say(px, x, DOPE_Y, w.toGo, RED, 1), say(px, x, DOPE_Y + 6, 'TO GO', RED, 1);
+  }
+  // (the reticle: its circle and crosshair, ticks every 0.5 mil; the target's dot where the hold puts it)
+  for (let a = 0; a < 64; a++) { const t = a / 64 * Math.PI * 2; px(Math.round(RET_X + Math.cos(t) * RET_R), Math.round(RET_Y + Math.sin(t) * RET_R), 1, 1, STEEL_L); }
+  px(RET_X - RET_R + 1, RET_Y, 2 * RET_R - 1, 1, INK); px(RET_X, RET_Y - RET_R + 1, 1, 2 * RET_R - 1, INK);
+  for (let m = -HOLD_MAX_MIL; m <= HOLD_MAX_MIL; m += 0.5) {
+    if (!m) continue;
+    const d = Math.round(m * HOLD_PX_PER_MIL), long = Number.isInteger(m);
+    px(RET_X + d, RET_Y - (long ? 1 : 0), 1, long ? 3 : 2, INK); px(RET_X - (long ? 1 : 0), RET_Y + d, long ? 3 : 2, 1, INK);
+  }
+  const hx = Math.max(-HOLD_MAX_MIL, Math.min(HOLD_MAX_MIL, F.hold.xMil)), hy = Math.max(-HOLD_MAX_MIL, Math.min(HOLD_MAX_MIL, F.hold.yMil));
+  const tx = RET_X - Math.round(hx * HOLD_PX_PER_MIL), ty = RET_Y + Math.round(hy * HOLD_PX_PER_MIL);
+  px(tx - 1, ty - 1, 3, 3, RED); px(tx, ty, 1, 1, INK);
 }

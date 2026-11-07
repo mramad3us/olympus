@@ -119,6 +119,20 @@
 // "Show clear, mixed magazines" too); it ends on the range
 // fact at 'clear' or 'stopped', its end card saying the range's summary.
 //
+// The 0.0.7 round's (the build sheet 0.0.7 §2.5; VIEWS §2.4, §7.4, §7.5, §11): test-range, "The line at 300 m"
+// (?play=test-range&seed=48213[&setup=confirm|s200|far], the Tests menu's entry). The far window: each frame the
+// sim's far point (shooting.js farPointOf: the aimed, the bracketed, or with E held on a KD line your own face, when
+// outside the frame) is placed by layout.js placeFar against the state's rectangles ('weapon-far': PAPER yields, or
+// 'walking'), handed to the stage (view.setFar: the disc's centre and radius in window CSS px, the optic), and
+// labelled here ("TARGET 10 · 300 M", the plaque's enamel, beside the disc where placeFar left room) with a tick on its
+// ring along the true bearing, both at the stage's dissolve (view.farState().alpha); a far target's brackets and
+// plaque stand on the window. The plaque at distance carries its terms' plate (range, wind, hold, zero and the rings'
+// odds: plaque.js termsPixels) and its hover their words. The weapon card shows the turrets, the believed dope for the
+// line and the hold (art/weaponcard.js); Z S and the arrows dial elevation, Shift with Q D windage (core/keys.js
+// dialOf). PAPER on the KD: the zero card live, the group card once the coach has read a group, your face as the pits
+// mark it while the window is shut, the score card at a string's end (cards/kd.js). The sounds hear the 'pit' fact
+// (the carriers). The end card says the KD's summary and an incident. C lists your wounds in BODY's words, and a
+// casualty's dimming (wounds.js avpuOf: P, U) fades the picture. window.__olympus.range() carries kd() and nd(who).
 // For tests and shots, URL parameters skip the title (src/core/debug.js readParams):
 // ?play=sandbox|barracks|test-shower|test-night|test-handling&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench|mixed];
 // &ppm=16|24 (the density, 16 by default, the user's pick: src/render/scale.js; 24 a test density);
@@ -161,12 +175,18 @@ import { rollerOf } from './sim/combat/roll.js';
 import { kitLook, rangeLook } from './sim/arms/look.js';
 import { MODELS } from './sim/arms/models.js';
 import { stepsOf, stopNow, targetsOf, LABELS as STEP_LABELS } from './sim/arms/shooting.js';
+import * as shooting from './sim/arms/shooting.js';
+import * as kdScene from './sim/scenarios/range.js';
+import * as wounds from './sim/body/wounds.js';
+import * as rangeKit from './sim/arms/kit.js';
 import { plaqueOf } from './sim/arms/shot.js';
-import { rangeNow } from './sim/scenarios/handling.js';
+import { rangeNow, STOP_WORDS } from './sim/scenarios/handling.js';
+// (a KD face drawn FACE_K times life size in the far window: the stage's own constant, VIEWS §2.12)
+import { FACE_K } from './art/kit/range.js';
 import { KD_RANGE } from './data/places/range.js';
 import { paintWeaponCard } from './art/weaponcard.js';
 import { createBoot } from './ui/boot.js';
-import { applyScale, uiScale, rectsAt } from './ui/hud/layout.js';
+import { applyScale, uiScale, rectsAt, placeFar, farTick, overlaps, STATES as HUD_STATES } from './ui/hud/layout.js';
 import { createWatch } from './ui/hud/watch.js';
 import { createToasts } from './ui/hud/toasts.js';
 import { wantOf } from './ui/hud/offer.js';
@@ -180,14 +200,16 @@ import { lateCard } from './ui/cards/late.js';
 import { sheetOf, sheetCard } from './ui/cards/sheet.js';
 import { endCard } from './ui/cards/end.js';
 import { scoreCard, readScores } from './ui/cards/score.js';
-import { GOAL_S, END_HOLD_S, endsScene, endFacts, sceneSaid } from './ui/cards/tests.js';
+import { GOAL_S, END_HOLD_S, endsScene, endFacts, sceneLines } from './ui/cards/tests.js';
+import { groupCardModel, kdScoreModel, kdLiveModel, atOf } from './ui/cards/kd.js';
+import { dialOf } from './core/keys.js';
 import { inventoryCard } from './ui/cards/inventory.js';
 import { createAudio } from './ui/audio/engine.js';
 import { createSteps, createTicks } from './ui/hud/steps.js';
 import { createRadio } from './ui/hud/radio.js';
-import { createPaper, paperModel } from './ui/hud/paper.js';
+import { createPaper, paperModel, faceModel } from './ui/hud/paper.js';
 import { createReflex } from './ui/hud/reflex.js';
-import { plaque, bracket, place, shotPlaque, plaqueWords, plaqueParts } from './ui/plaque.js';
+import { plaque, bracket, place, shotPlaque, plaqueWords, plaqueParts, termsPlaque, termLines, farLabel } from './ui/plaque.js';
 import { doll } from './art/doll/doll.js';
 import { createStage } from './render/stage.js';
 import { createView, CUT_MAX_MS, FOG_CELLS } from './render/view.js';
@@ -195,7 +217,7 @@ import { FOG_CELL_M } from './render/fog.js';
 import { createPainter } from './render/painter.js';
 import { createUploads } from './render/uploads.js';
 import { instrumentGL } from './render/stats.js';
-import { PX_PER_M } from './render/scale.js';
+import { PX_PER_M, RES } from './render/scale.js';
 
 /** Frames drawn with nothing pending before the page says it is ready; the longest it waits (TECH §13.3). */
 export const READY_FRAMES = 3, READY_LIMIT_MS = 10_000;
@@ -264,7 +286,7 @@ sim = createSim({ loop, bus });
 const label = (a) => input.label(a);
 const instinct = createInstinct(hud, { label });
 // (the weapon mode's HUD: the step panel with its weapon card, the reflex card in its place, the radio box, the PAPER inset, the plaque and its brackets)
-const stepPanel = createSteps(hud, { label, labelOf: (id) => STEP_LABELS[id] ?? id, paintCard: (belief) => (belief?.model ? paintWeaponCard({ model: belief.model, belief, k: 1 }) : null),
+const stepPanel = createSteps(hud, { label, labelOf: (id) => STEP_LABELS[id] ?? id, paintCard: (belief, far = {}) => (belief?.model ? paintWeaponCard({ model: belief.model, belief, k: 1, ...far }) : null),
   onPick: (step) => { if (!loop.paused && !boot.card && !splash?.active && inStop()) { let st = null; try { st = stopNow(loop.state); } catch { /* (no stop motion: nothing to send) */ } if (st && !st.reflex) sendStep(step, input.peek().run ? 'rushed' : 'normal', st); } } });
 const reflexCard = createReflex(hud, { plaque, label });
 const radio = createRadio(hud);
@@ -272,7 +294,13 @@ const paperInset = createPaper(hud);
 const ticks = createTicks();
 const aimPlaque = el('canvas', { className: 'plaque reticle', hidden: true }), pickBox = el('canvas', { className: 'plaque bracket', hidden: true }), aimBox = el('canvas', { className: 'plaque bracket', hidden: true });
 const plaqueInfo = el('div', { className: 'plaque-info', hidden: true });
-hud.append(pickBox, aimBox, aimPlaque, plaqueInfo);
+// (0.0.7: the terms' plate over the plaque at distance; the far window's label and the tick on its ring)
+const termsPlate = el('canvas', { className: 'plaque terms', hidden: true });
+const farLabelEl = el('canvas', { className: 'plaque farlabel', hidden: true }), farTickEl = el('div', { className: 'fartick', hidden: true });
+hud.append(pickBox, aimBox, aimPlaque, termsPlate, plaqueInfo, farLabelEl, farTickEl);
+// (a casualty's picture dimming at P and U: BODY §17.2's AVPU, wounds.js avpuOf; under the HUD, over the picture)
+const fadeEl = el('div', { className: 'avpu-fade', hidden: true });
+frameEl.insertBefore(fadeEl, hud);
 const splashHud = createSplashHud(hud, { label });
 // (the splash: TIME's timing driven in real time; the debug skips get the short time-lapse, so six $ presses are not six full splashes: my call)
 const splash = createSplashControl({ timing: splashTiming, shortFor: (e) => e.activity === 'idle' });
@@ -280,7 +308,7 @@ hud.append(keysHint);
 keysHint.append(el('kbd', { textContent: input.label('help') }), ' keys');
 
 // ---- the sound: made at boot, suspended; nothing plays before the first key or click ----
-const audio = createAudio({ profile: null, looks: { kitLook } });
+const audio = createAudio({ profile: null, looks: { kitLook, earsOn: rangeKit.earsOn } });
 // (the context's construction opens the device synchronously, over 200 ms: paid here behind the title, never on the first key)
 try { audio.prepare(); } catch (e) { console.warn('the sound was not prepared', e); }
 // (the saved volume and mute; ?nostore=1 neither reads nor writes the database, so a bench or a shot opens none)
@@ -562,6 +590,8 @@ bus.on('step', (f) => {
   try { audio.fact('step', f, loop.state); } catch (e) { broke(e, 'the sound'); }
 });
 bus.on('shot', (f) => { try { audio.fact('shot', f, loop.state); } catch (e) { broke(e, 'the sound'); } });
+// (0.0.7: the pits' carriers, heard over the berm)
+bus.on('pit', (f) => { try { audio.fact('pit', f, loop.state); } catch (e) { broke(e, 'the sound'); } });
 bus.on('stop-mode', () => { stepPage = 0; hoverKey = null; });
 bus.on('reflex', (f) => { if (f?.phase === 'offer') reflexKeep = false; });
 bus.on('range', (f) => {
@@ -572,10 +602,8 @@ bus.on('range', (f) => {
   // screen twice (the runtime review's))
   else if (f.phase === 'fault') toast(`${f.kind === 'stop' ? 'Stopped' : 'Fault'}: ${FAULT_WORD[f.rule] ?? f.rule ?? 'the line'}`, f.kind === 'stop' ? 'bad' : 'warn');
 });
-/** A range fault's tag (carry.js rangeSafety's rules, the scene's own): rule → words. */
-const FAULT_WORD = Object.freeze({ muzzle: 'the muzzle off downrange', uprange: 'the muzzle uprange', person: 'aimed at a person', lane: 'another lane\'s card',
-  walk: 'off the firing point', cold: 'a shot on a cold line', ahead: 'ahead of the tower', finger: 'the finger on, moving', coach: 'the muzzle on the coach', nd: 'a negligent discharge',
-  onemag: 'one magazine a string', slow: 'the line waited on you' });
+/** A range fault's tag (carry.js rangeSafety's rules, the scene's own): rule → words (handling.js STOP_WORDS, the end card's too). */
+const FAULT_WORD = STOP_WORDS;
 // (the splash hears TIME's facts at once: on skip-start the target is held at its start, so the loop's first outcome frame never runs the whole skip)
 bus.on('skip-start', (e) => {
   const s = loop.state;
@@ -729,6 +757,8 @@ function refusedStep(step) {
 }
 /** A step chosen (a digit, a click on its row): { act: 'stop', args: { step, tempo, target } }, the aim at the bracketed target, Fire held as hold and fire. */
 function sendStep(step, tempo, st = null) {
+  // (a range action on the panel (0.0.7: police, rounds back, the declaration): the range's own action, no tempo)
+  if (step.act) { stepPage = 0; input.queue(step.act); return; }
   const pick = st?.pick ?? null;
   const args = { step: step.id, tempo, target: step.kind === 'aim' ? step.target ?? pick : null };
   if (step.kind === 'fire' && tempo === 'careful') args.hold = true;
@@ -737,10 +767,14 @@ function sendStep(step, tempo, st = null) {
 }
 // (the brackets: Q and D (the codes KeyA and KeyD) and the arrows step them, Enter aims at the bracketed one)
 addEventListener('keydown', (e) => {
-  if (!loop.state || boot.card || splash.active || loop.paused || e.repeat || e.metaKey || e.ctrlKey || !inStop()) return;
+  if (!loop.state || boot.card || splash.active || loop.paused || e.metaKey || e.ctrlKey || !inStop()) return;
   let st = null;
   try { st = stopNow(loop.state); } catch { return; }
   if (!st || st.reflex) return;
+  // (0.0.7: the turrets, a click a key: Z S ↑ ↓ the elevation, Shift with Q D ← → the windage; held, a click a repeat)
+  const dial = dialOf(e.code, { shift: e.shiftKey });
+  if (dial) { e.preventDefault(); input.queue({ act: 'stop', args: { step: dial, tempo: 'normal' } }); return; }
+  if (e.repeat) return;
   if (e.code === 'KeyA' || e.code === 'ArrowLeft') { input.queue({ act: 'stop', args: { step: 'pick:-1' } }); showPlaqueInfo(); }
   else if (e.code === 'KeyD' || e.code === 'ArrowRight') { input.queue({ act: 'stop', args: { step: 'pick:+1' } }); showPlaqueInfo(); }
   else if ((e.code === 'Enter' || e.code === 'NumpadEnter') && st.pick) { e.preventDefault(); input.queue({ act: 'stop', args: { step: 'aim', target: st.pick, tempo: 'normal' } }); }
@@ -773,7 +807,7 @@ addEventListener('keydown', (e) => {
 });
 
 // ---- the cards of this round: PERSONNEL, the choices, the late card, a scene's end and score ----
-const BODY = Object.freeze({ bodyOf, stagesOf, stripOf, wordsOf, cuesOf, hairOf });
+const BODY = Object.freeze({ bodyOf, stagesOf, stripOf, wordsOf, cuesOf, hairOf, woundWords: wounds.woundWords });
 // (the player's hair's drawn step, hairOf's: the sheet's and the inventory's dolls wear the cut as it has grown)
 const hairStep = (s) => { try { return hairOf(s, s.player?.id, s.clock.ms)?.step ?? 0; } catch { return 0; } };
 const clockText = (ms) => { const c = marsClock(ms, lonAt(loop.state)); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
@@ -853,7 +887,8 @@ function openEnd() {
   if (!scene) return;
   const { rec, seed } = scene;
   let said = null;
-  try { said = sceneSaid(loop.state ? rangeNow(loop.state) : null, { clockText }); } catch (e) { broke(e, 'the end card'); }
+  // (the range's summary, and on the KD an incident on a line of its own: sceneLines)
+  try { const s = loop.state, r = s ? rangeNow(s) : null; said = sceneLines(r, r?.course === 'kd' ? kdOf(s) : null, { clockText }); } catch (e) { broke(e, 'the end card'); }
   const { body, lines } = endCard({ scene: rec, seed, said, on: {
     again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), hour: params.play === rec.scenario ? params.hour : null, setup: params.play === rec.scenario || params.play === rec.id ? params.setup : null }),
     score: () => openScore(),
@@ -979,7 +1014,9 @@ function render(alpha, s, info) {
   // (the lead: "Time stands still." in stop motion (VIEWS §7.4), v0.0.4's words while G's stub holds time, the scene's end)
   const lead = benchLead ?? (weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
   const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null, ui: uiK });
-  report.hud = { watch: faces, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on };
+  report.hud = { watch: faces, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on, far: weapon.far,
+    terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '' };
+  avpuFade(s);
   // (the HUD's and the sound's share of the frame: CONTRACTS §7's UI DOM budget is 1 ms)
   report.frame.uiMs = performance.now() - uiT0;
 }
@@ -987,47 +1024,168 @@ function render(alpha, s, info) {
 // (the --ui scale now, for the PAPER inset's crisp pixels: layout.js's, read on resize)
 let uiK = uiScale(innerWidth, innerHeight);
 addEventListener('resize', () => { uiK = uiScale(innerWidth, innerHeight); });
-const HIDDEN_WEAPON = Object.freeze({ on: false, steps: '', reflex: '', paper: '', plaque: '' });
+const HIDDEN_WEAPON = Object.freeze({ on: false, steps: '', reflex: '', paper: '', plaque: '', far: '' });
 // (what the sim says of stop motion, read once a tick, not once a frame: the state moves only in ticks, 20 a
 // second, and the frames are three times that; CONTRACTS §7's 1 ms for the UI, which the panel's readers took
 // alone while firing)
 let simRead = { key: null };
+// (the KD course's view, kdNow, once a tick: the stages, groups, strings, pits, the coach's call; null off the KD)
+const kdOf = (s) => { try { return kdScene.kdNow ? kdScene.kdNow(s, s.clock.ms) : null; } catch (e) { broke(e, 'the KD'); return null; } };
 function readSim(s) {
   const key = `${s.clock.tick}|${s.clock.seq}|${s.clock.ms}|${s.stop?.phase}|${s.stop?.pick}|${s.stop?.aim?.key}`;
   if (simRead.key === key && simRead.state === s) return simRead;
-  const r = { key, state: s, st: null, steps: [], belief: null, range: null, look: null, targets: [] };
+  const r = { key, state: s, st: null, steps: [], belief: null, range: null, look: null, targets: [], kd: null, far: null };
   try { r.st = stopNow(s); } catch (e) { broke(e, 'stop motion'); }
+  try { r.range = rangeNow(s); r.kd = r.range?.course === 'kd' ? kdOf(s) : null; } catch (e) { broke(e, 'the range'); }
   if (r.st?.mode === 'stop') {
     if (!r.st.reflex) { try { r.steps = stepsOf(s); } catch (e) { broke(e, 'the step panel'); } }
     try { r.belief = s.stop?.gun ? beliefOf(s, s.stop.gun) : null; } catch (e) { broke(e, 'the weapon card'); }
-    try { r.range = rangeNow(s); r.look = r.range ? rangeLook(s, s.clock.ms) : null; } catch (e) { broke(e, 'the PAPER inset'); }
+    try { r.look = r.range ? rangeLook(s, s.clock.ms) : null; } catch (e) { broke(e, 'the PAPER inset'); }
     try { r.targets = targetsOf(s, s.player.id); } catch (e) { broke(e, 'the targets'); }
   }
   return (simRead = r);
 }
-/** The step panel or the reflex card, PAPER, the plaque and its brackets, for the state now: { on, steps, reflex, paper, plaque } (their texts). */
+/** The KD line you are on (200, 300, 500), for the card's dope: kdNow's, where it is a firing line. */
+const kdLineOf = (kd) => ([200, 300, 500].includes(kd?.line) ? kd.line : null);
+/** Your KD lane (6 + your bay lane: range.js kdLane), or null. */
+const kdLaneOf = (s, range) => { try { return kdScene.kdLane?.(s) ?? (Number.isFinite(range?.lane) ? 6 + range.lane : null); } catch { return null; } };
+/**
+ * PAPER on the KD course (cards/kd.js): the zero card live as you fire, the group card once the coach has read the group
+ * (until the next commence fire), your face as the pits mark it, the score card at a string's end; null where the far
+ * window shows the face (PAPER yields: 'weapon-far').
+ */
+function kdPaper(s, sim) {
+  const kd = sim.kd, R = sim.range, lane = kd?.line === 25 ? kd.lane ?? R?.lane ?? null : R?.lane ?? null, kdLane = kd?.kdLane ?? kdLaneOf(s, R);
+  if (!kd) return null;
+  if (kd.stage === 'zero' || kd.line === 25) {
+    const groups = kd.groups ?? [], last = groups.at(-1);
+    if (last && !kd.hot && (last.call || last.ok || last.centreCm)) return groupCardModel(groups, { lane });
+    const holes = groups.flatMap((g, i) => (g.holes ?? []).map((h, j) => ({ at: atOf(h), score: h?.score, v: h?.v, n: j + 1, old: i < groups.length - 1 })));
+    return faceModel('zero25', { holes, label: `LANE ${lane ?? '?'} · GROUP ${Math.max(1, groups.length)}`, scoreLines: null });
+  }
+  const strs = kd.strings ?? [], last = strs.at(-1) ?? null, line = kdLineOf(kd);
+  const pit = kd.pits?.[kdLane] ?? null, cur = last && last.line === line ? last : null;
+  // (the score card once the line is cold and the pits have marked every hole of the string: never a score before its marks)
+  const same = (a, b) => Array.isArray(a) && Array.isArray(b) && Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
+  const marked = !!cur && (cur.holes ?? []).every(h => !h.at || (pit?.holes ?? []).some(p => same(atOf(p), h.at)));
+  if (cur && !kd.hot && cur.holes?.length && marked && pit?.phase === 'up') return kdScoreModel(cur, { lane: kdLane });
+  return kdLiveModel(pit, { paper: cur?.paper ?? 'kdA', lane: kdLane, line, str: cur });
+}
+/** The step panel or the reflex card, PAPER, the plaque and its brackets, the far window, for the state now: { on, steps, reflex, paper, plaque, far } (their texts). */
 function weaponHud(s, alpha, { hidden = false } = {}) {
   const sim = s && !hidden ? readSim(s) : null, st = sim?.st ?? null;
   const on = st?.mode === 'stop';
   hud.classList.toggle('weapon', !!on);
-  if (!on) { stepPanel.update({ hidden: true }); reflexCard.update(null); paperInset.update(null); aimHud(null); return HIDDEN_WEAPON; }
+  // (the KD's PAPER first: the group card and the score card stay up with the far window open, which then goes round
+  // PAPER (the state 'weapon'); the live face yields to the window, which shows it ('weapon-far'))
+  let kdModel = null;
+  if (on && sim?.kd) { try { kdModel = kdPaper(s, sim); } catch (e) { broke(e, 'the PAPER inset'); } }
+  const keepPaper = kdModel?.card === 'group' || kdModel?.card === 'score';
+  // (the far window, in stop motion or by E held on a KD line: placed before PAPER, which yields to it)
+  const far = s && !hidden ? farHud(s, sim, on, { paper: keepPaper }) : farHud(null);
+  if (!on) { stepPanel.update({ hidden: true }); reflexCard.update(null); paperInset.update(null); aimHud(null); return { ...HIDDEN_WEAPON, far: far?.words ?? '' }; }
   let stepsText = '', reflexText = '', paperText = '';
+  const distance = { distance: !!sim.kd, line: kdLineOf(sim.kd), hold: s.stop?.hold ?? null };
+  // (0.0.7: the range's own actions at their commands (range.js kdActs: police your brass, rounds to the coach, "No brass,
+  // no ammo"), rows of the panel among the commands, the tower's current marked; sent as the range's action, not a step)
+  const acts = (sim.kd?.acts ?? []).map(a => ({ id: a.id, kind: 'command', label: a.label, ms: a.ms ?? null, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: true, skill: null, act: a.id }));
+  const steps = acts.length ? [...sim.steps.filter(x => x.kind === 'fire' || x.kind === 'aim' || x.kind === 'hold'), ...acts, ...sim.steps.filter(x => !(x.kind === 'fire' || x.kind === 'aim' || x.kind === 'hold'))] : sim.steps;
   // (a reflex card: the weapon card stays at its place, the reflex card beside it in the rest of STEPS)
-  if (st.reflex) { stepPanel.update({ cardOnly: true, steps: [], belief: sim.belief, ui: uiK }); reflexText = reflexCard.update(st.reflex, { keep: reflexKeep }); }
+  if (st.reflex) { stepPanel.update({ cardOnly: true, steps: [], belief: sim.belief, ui: uiK, ...distance }); reflexText = reflexCard.update(st.reflex, { keep: reflexKeep }); }
   else {
     reflexCard.update(null);
-    stepsText = stepPanel.update({ phase: st.phase, steps: sim.steps, page: stepPage, shift: input.peek().run, doing: st.doing, nowMs: s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), belief: sim.belief, ticks, ui: uiK });
+    stepsText = stepPanel.update({ phase: st.phase, steps, page: stepPage, shift: input.peek().run, doing: st.doing, nowMs: s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), belief: sim.belief, ticks, ui: uiK, ...distance });
   }
   try {
-    const mine = sim.look?.lanes?.find(l => l.mine) ?? null;
-    paperText = paperInset.update(mine ? paperModel(mine, { last: lastString, hot: !!sim.range?.hot }) : null, { ui: uiK });
+    if (far?.open && !keepPaper) paperText = paperInset.update(null);
+    else if (sim.kd) paperText = paperInset.update(kdModel, { ui: uiK });
+    else {
+      const mine = sim.look?.lanes?.find(l => l.mine) ?? null;
+      paperText = paperInset.update(mine ? paperModel(mine, { last: lastString, hot: !!sim.range?.hot }) : null, { ui: uiK });
+    }
   } catch (e) { broke(e, 'the PAPER inset'); }
-  return { on: true, steps: stepsText, reflex: reflexText, paper: paperText, plaque: aimHud(s, st, sim.targets, sim.range) };
+  return { on: true, steps: stepsText, reflex: reflexText, paper: paperText, plaque: aimHud(s, st, sim.targets, sim.range), far: far?.words ?? '' };
+}
+// ---- a casualty's picture (BODY §17.2: AVPU; the build sheet 0.0.7 §2.5: the fade at P and U is the hud's) ----
+/** The picture's dimming by AVPU (0 clear; my calls: V a shade, P most of it, U nearly black). */
+const AVPU_FADE = Object.freeze({ A: 0, V: 0.25, P: 0.6, U: 0.92 });
+let avpuMemo = { key: null, a: 'A' };
+function avpuFade(s) {
+  const key = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}`;
+  if (avpuMemo.key !== key) {
+    let a = 'A';
+    try { const rec = wounds.avpuOf ? bodyOf(s, s.player?.id) : null; a = rec && (rec.injuries?.length || rec.knock || rec.dead) ? wounds.avpuOf(rec, s.clock.ms) ?? 'A' : 'A'; } catch (e) { broke(e, 'the casualty\'s picture'); }
+    avpuMemo = { key, a };
+  }
+  const o = AVPU_FADE[avpuMemo.a] ?? 0;
+  fadeEl.hidden = !o;
+  if (o && fadeEl.dataset.avpu !== avpuMemo.a) { fadeEl.style.opacity = String(o); fadeEl.dataset.avpu = avpuMemo.a; }
+}
+// ---- the far window (VIEWS §2.4; the build sheet 0.0.7 §2.4, §2.5 (b)) ----
+/** The far window's radius in picture pixels (VIEWS §2.4: 0.22 × the picture's base height, 79 px at 16 px/m). */
+const FAR_R_PIC = Math.round(0.22 * RES[1]);
+let farNow = null;                                                     // ({ far, place, open, alpha }: the frame's, for targetPx and the handle)
+// (the stack beside the far window, in picture px: its label, then a far target's plaque and its terms' plate, the sizes
+// aimHud drew last (a frame behind: they change with the words); placeFar keeps the whole stack free of the HUD)
+let farStack = { plaque: { w: 120, h: 15 }, terms: { w: 170, h: 12 } };
+const STACK_GAP_PX = 2;
+/** The rectangles the far window's hover keeps clear of (layout.js's weapon-far state). */
+const STATES_FAR = HUD_STATES['weapon-far'];
+/** The far window this frame: placed, handed to the stage, labelled and ticked. Returns { open, words } or null. */
+function farHud(s, sim = null, inStopMode = false, { paper = false } = {}) {
+  const hideAll = () => { farLabelEl.hidden = farTickEl.hidden = true; try { view.setFar?.(null); } catch (e) { broke(e, 'the far window'); } farNow = null; return null; };
+  if (!s || !stage.cam?.project) return hideAll();
+  let far = null;
+  try { far = shooting.farPointOf ? shooting.farPointOf(s, s.player.id, { looking: !!input.peek().look }) : null; } catch (e) { broke(e, 'the far point'); }
+  if (!far) return hideAll();
+  const me = playerActor(s);
+  if (!me) return hideAll();
+  const { ox, oy, k } = pictureBox();
+  const [px, py] = stage.cam.project(me.x, 0.9, me.z), [fx, fy] = stage.cam.project(far.x, far.y ?? 0, far.z);
+  const bearingRad = Math.atan2(fy - py, fx - px);
+  const spec = farLabel(far), pq = plaque(spec);
+  const hudState = inStopMode ? (paper ? (loop.paused ? 'weapon-paused' : 'weapon') : loop.paused ? 'weapon-far-paused' : 'weapon-far') : loop.paused ? 'paused' : 'walking';
+  // (in stop motion the stack holds the label, the plaque and the terms; walking (E held), the label alone)
+  const stackW = inStopMode ? Math.max(pq.w, farStack.plaque.w, farStack.terms.w) : pq.w, stackH = inStopMode ? pq.h + farStack.plaque.h + farStack.terms.h + 2 * STACK_GAP_PX : pq.h;
+  const p = placeFar(innerWidth, innerHeight, hudState, { bearingRad, rCss: FAR_R_PIC * k, k, frame: { x: ox, y: oy, w: stage.W * k, h: stage.H * k }, from: { x: ox + px * k, y: oy + py * k }, label: { w: stackW * k, h: stackH * k } });
+  if (p.hidden) return hideAll();
+  const optic = (sim?.belief?.optic ?? 1) === 4 ? 4 : 1;
+  try { view.setFar?.({ key: far.key, x: far.x, y: far.y ?? 0, z: far.z, rangeM: far.rangeM, cx: p.cx, cy: p.cy, rCss: p.r, optic, hold: s.stop?.hold ?? null }); } catch (e) { broke(e, 'the far window'); }
+  let fs = null;
+  try { fs = view.farState?.() ?? null; } catch { fs = null; }
+  const alpha = fs ? fs.alpha ?? (fs.open ? 1 : 0) : 1, open = fs ? !!fs.open || alpha > 0 : true;
+  // (the label beside the disc where placeFar left room, and the tick on the ring along the true bearing; both at the dissolve's alpha)
+  if (p.label) {
+    if (farLabelEl.$p !== pq) { farLabelEl.$p = pq; farLabelEl.width = pq.w; farLabelEl.height = pq.h; farLabelEl.getContext('2d')?.drawImage(pq.canvas, 0, 0); farLabelEl.dataset.text = pq.words; }
+    farLabelEl.style.width = `${pq.w * k}px`; farLabelEl.style.height = `${pq.h * k}px`;
+    // (the label nearest the disc: at the stack's top when it is under the disc, at its foot over it, centred across it)
+    const lx = p.label.x + (p.label.w - pq.w * k) / 2, ly = p.label.side === 'above' ? p.label.y + p.label.h - pq.h * k : p.label.y;
+    farLabelEl.style.transform = `translate(${Math.round(lx)}px, ${Math.round(ly)}px)`;
+    farLabelEl.style.opacity = String(alpha); farLabelEl.hidden = !open;
+  } else farLabelEl.hidden = true;
+  const t = farTick(p, k);
+  if (t) {
+    const len = Math.hypot(t.x1 - t.x0, t.y1 - t.y0);
+    farTickEl.style.width = `${Math.round(len)}px`; farTickEl.style.height = `${Math.max(1, Math.round(k))}px`;
+    farTickEl.style.transform = `translate(${Math.round(t.x0)}px, ${Math.round(t.y0)}px) rotate(${p.tickRad}rad)`;
+    farTickEl.style.opacity = String(alpha); farTickEl.hidden = !open;
+  }
+  farNow = { far, place: p, open, alpha, k, ox, oy };
+  return { open, words: open ? pq.words : '' };
 }
 // (where the picture lies on the page: its top-left and its CSS pixels a picture pixel; stage.js fit() sets them)
 const pictureBox = () => { const c = stage.canvas.style; return { ox: parseFloat(c.left) || 0, oy: parseFloat(c.top) || 0, k: (parseFloat(c.width) || stage.W) / stage.W }; };
-/** A target's place in the picture: its centre and its frame's size in picture pixels { x, y, w, h } (a card on its backer; a person standing). */
+/**
+ * A target's place in the picture: its centre and its frame's size in picture pixels { x, y, w, h } (a card on its backer; a
+ * person standing). A far one (0.0.7) stands in the far window: its centre the window's, its frame FACE_K times life size, and
+ * the disc's radius (rPic) so the plaque stands clear of the window.
+ */
 function targetPx(t) {
+  if (t.far && farNow?.place && farNow.far?.key === t.key) {
+    const { place: p, k, ox, oy } = farNow, size = Math.round((t.paper === 'kdB' ? 1.2 : 1.0) * FACE_K * PX_PER_M);
+    return { x: (p.cx - ox) / k, y: (p.cy - oy) / k, w: size, h: size, far: true, rPic: p.RK / k, labelSide: p.label?.side ?? null,
+      stack: p.label ? { x: (p.label.x - ox) / k, y: (p.label.y - oy) / k, w: p.label.w / k, h: p.label.h / k, side: p.label.side } : null };
+  }
   const paper = t.kind === 'paper', lane = paper ? KD_RANGE.bay.lanes.find(l => l.lane === t.lane) : null;
   const yM = paper ? t.y ?? lane?.target.centreY ?? 0.6 : (t.y ?? 0) + 0.9, frame = paper ? lane?.target.frameM ?? [1.0, 1.2] : [0.6, 1.8];
   const [x, y] = stage.cam.project(t.x, yM, t.z);
@@ -1042,14 +1200,16 @@ function targetUnderPointer(list = null) {
   if (plaqueRect && m.x >= plaqueRect.x0 && m.x <= plaqueRect.x1 && m.y >= plaqueRect.y0 && m.y <= plaqueRect.y1 && list.some(t => t.key === plaqueRect.key)) return plaqueRect.key;
   let best = null, bd = Infinity;
   for (const t of list) {
+    // (a far target outside the window's frame is not under the pointer: it is aimed through the window, or by the keys)
+    if (t.far && !(farNow?.far?.key === t.key)) continue;
     const p = targetPx(t), dx = Math.abs(m.x - p.x), dy = Math.abs(m.y - p.y);
     if (dx <= p.w / 2 + 3 && dy <= p.h / 2 + 3 && dx + dy < bd) { best = t.key; bd = dx + dy; }
   }
   return best;
 }
-/** The plaque over what the brackets, the pointer or the aim are on, its brackets, and its hover's list. Returns the plaque's words. */
+/** The plaque over what the brackets, the pointer or the aim are on, its brackets, its terms at distance, and its hover's list. Returns the plaque's words. */
 function aimHud(s, st = null, list = [], range = null) {
-  const hide = () => { aimPlaque.hidden = pickBox.hidden = aimBox.hidden = plaqueInfo.hidden = true; plaqueRect = null; return ''; };
+  const hide = () => { aimPlaque.hidden = pickBox.hidden = aimBox.hidden = plaqueInfo.hidden = termsPlate.hidden = true; plaqueRect = null; return ''; };
   if (!s || !st || st.reflex || !stage.cam?.project) return hide();
   // (a cold line, or a handling step running: no plaque counting over the card, the brackets at half strength so the
   // lane stays marked (the design review's: "+4 IN 2.8 S · ON SAFE" jumping through SHOW CLEAR's sub-steps))
@@ -1058,12 +1218,15 @@ function aimHud(s, st = null, list = [], range = null) {
   aimBox.style.opacity = pickBox.style.opacity = quiet ? '0.5' : '';
   hoverKey = targetUnderPointer(list);
   const aimedKey = st.aim?.key ?? null, shownKey = hoverKey ?? st.pick ?? aimedKey;
-  const shown = list.find(t => t.key === shownKey) ?? null, aimed = list.find(t => t.key === aimedKey) ?? null;
+  // (a far target whose window is not open has nowhere in the picture to stand: no brackets, no plaque, until it opens)
+  const placed = (t) => !!t && (!t.far || farNow?.far?.key === t.key);
+  const shown0 = list.find(t => t.key === shownKey) ?? null, aimed0 = list.find(t => t.key === aimedKey) ?? null;
+  const shown = placed(shown0) ? shown0 : null, aimed = placed(aimed0) ? aimed0 : null;
   if (!shown && !aimed) return hide();
   const { ox, oy, k } = pictureBox();
   if (aimed) { const p = targetPx(aimed); place(aimBox, bracket({ w: p.w, h: p.h, style: 'tail' }), p.x, p.y, k, 'centre', { ox, oy }); aimBox.hidden = false; } else aimBox.hidden = true;
   if (shown && shown.key !== aimedKey) { const p = targetPx(shown); place(pickBox, bracket({ w: p.w, h: p.h, style: 'seen' }), p.x, p.y, k, 'centre', { ox, oy }); pickBox.hidden = false; } else pickBox.hidden = true;
-  if (!shown || quiet) { aimPlaque.hidden = plaqueInfo.hidden = true; plaqueRect = null; return ''; }
+  if (!shown || quiet) { aimPlaque.hidden = plaqueInfo.hidden = termsPlate.hidden = true; plaqueRect = null; return ''; }
   // (the plaque's record, once a tick and a target: the shot role's plaqueOf, the roll's own list)
   const memoKey = `${s.clock.ms}|${s.clock.seq}|${shown.key}|${aimedKey}`;
   if (plaqueMemo?.key !== memoKey) {
@@ -1076,26 +1239,71 @@ function aimHud(s, st = null, list = [], range = null) {
   // (by the keys, the plaque names Fire's digit, not a click: '+4 IN 1.4 S · 1 HELD FIRE'; CLICK FIRE after a mouse move)
   const fireKey = lastInput === 'key' ? (simRead.state === s ? stepPanel.slots : []).find(x => x.step?.id === 'fire')?.key ?? '1' : null;
   const rec = plaqueMemo.rec ? { ...plaqueMemo.rec, ...(fireOff ? { fireOff } : {}), ...(fireKey ? { fireKey } : {}) } : null;
-  if (!rec) { aimPlaque.hidden = plaqueInfo.hidden = true; plaqueRect = null; return ''; }
-  const p = targetPx(shown), pq = plaque(shotPlaque(rec, { aimed: shown.key === aimedKey }));
+  if (!rec) { aimPlaque.hidden = plaqueInfo.hidden = termsPlate.hidden = true; plaqueRect = null; return ''; }
+  // (a far target's plaque stands in the stack beside the window that placeFar kept free, with no notch: the window is what it names)
+  const p = targetPx(shown), st0 = p.far ? p.stack : null;
+  const pq = plaque({ ...shotPlaque(rec, { aimed: shown.key === aimedKey }), ...(st0 ? { notch: false } : {}) });
+  const tp = rec.terms?.length ? termsPlaque(rec.terms, { ringOdds: rec.kd?.ringOdds ?? null }) : null;
+  if (st0) farStack = { plaque: { w: pq.w, h: pq.h }, terms: tp ? { w: tp.w, h: tp.h } : { w: 0, h: 0 } };
   // (kept inside the picture, 2 px from its edges: a card near the frame's edge, or a long reason, ran it off
   // the page's right side: the integrator's; the notch then points a little off the card rather than the words being cut)
-  const tipX = Math.max(pq.tip + 2, Math.min(stage.W - (pq.w - pq.tip) - 2, p.x));
-  place(aimPlaque, pq, tipX, p.y - p.h / 2 - 3, k, 'tip', { ox, oy });
+  // (in the far window's stack: under the label when the stack hangs under the disc, the terms under it; over it, the
+  // terms first and the plaque next to the label; beside it, under the label)
+  const lh = farLabelEl.$p?.h ?? 12, G = STACK_GAP_PX;
+  const sx = st0 ? st0.x + st0.w / 2 : 0;
+  const tipX = st0 ? Math.round(sx - pq.w / 2) + pq.tip : Math.max(pq.tip + 2, Math.min(stage.W - (pq.w - pq.tip) - 2, p.x));
+  const tipY = st0 ? (st0.side === 'above' ? st0.y + (tp ? tp.h + G : 0) + pq.h : st0.y + lh + G + pq.h) : p.y - p.h / 2 - 3;
+  place(aimPlaque, pq, tipX, tipY, k, 'tip', { ox, oy });
   aimPlaque.hidden = false;
-  plaqueRect = { key: shown.key, x0: tipX - pq.tip, x1: tipX - pq.tip + pq.w, y0: p.y - p.h / 2 - 3 - pq.h, y1: p.y - p.h / 2 - 3 };
+  plaqueRect = { key: shown.key, x0: tipX - pq.tip, x1: tipX - pq.tip + pq.w, y0: tipY - pq.h, y1: tipY };
+  // (0.0.7: the terms at distance, a plate of glyphs: range, wind, hold, zero, the rings' odds; over the plaque near a
+  // target in the picture, in the far window's stack beside the window)
+  let tpRect = null;
+  if (tp) {
+    const ty = st0 ? (st0.side === 'above' ? st0.y : tipY + G) : tipY - pq.h - 1 - tp.h;
+    const tx = st0 ? Math.round(sx - tp.w / 2) : Math.max(2, Math.min(stage.W - tp.w - 2, tipX - Math.floor(tp.w / 2)));
+    tpRect = { x: ox + tx * k, y: oy + ty * k, w: tp.w * k, h: tp.h * k };
+    if (termsPlate.$p !== tp) { termsPlate.$p = tp; termsPlate.width = tp.w; termsPlate.height = tp.h; termsPlate.getContext('2d')?.drawImage(tp.canvas, 0, 0); termsPlate.dataset.text = tp.words; }
+    termsPlate.style.width = `${tp.w * k}px`; termsPlate.style.height = `${tp.h * k}px`;
+    termsPlate.style.transform = `translate(${Math.round(ox + tx * k)}px, ${Math.round(oy + ty * k)}px)`;
+    termsPlate.hidden = false;
+  } else termsPlate.hidden = true;
   // (hovering it, or just after an aim or a bracket's move by the keys: the DC's parts and every modifier as believed, the list the roll will use)
-  const parts = plaqueParts(rec), sig = JSON.stringify(parts);
+  const parts = plaqueParts(rec), terms = termLines(rec), sig = JSON.stringify([parts, terms]);
   plaqueInfo.hidden = hoverKey !== shown.key && !(performance.now() < infoUntil && shown.key === (st.pick ?? aimedKey));
   if (!plaqueInfo.hidden) {
     if (plaqueInfo.dataset.sig !== sig) {
       plaqueInfo.dataset.sig = sig;
-      plaqueInfo.replaceChildren(el('div', { className: 'pi-dc', textContent: `${parts.dc}: ${parts.parts.join(' · ')}` }), el('div', { className: 'pi-mods', textContent: parts.mods.length ? `${parts.mods.join(' · ')}` : 'no modifier' }), el('div', { className: 'pi-odds', textContent: `${rec.part === 'PAPER' ? 'on the paper' : 'the odds'} ${parts.odds}` }));
+      plaqueInfo.replaceChildren(el('div', { className: 'pi-dc', textContent: `${parts.dc}: ${parts.parts.join(' · ')}` }), el('div', { className: 'pi-mods', textContent: parts.mods.length ? `${parts.mods.join(' · ')}` : 'no modifier' }),
+        terms.length ? el('div', { className: 'pi-terms', textContent: terms.join(' · ') }) : null,
+        el('div', { className: 'pi-odds', textContent: rec.part === 'FIVE' ? `a five or a V ${parts.odds} · on the paper ${Math.round((rec.kd?.scoreOdds ?? 0) * 100)}%` : `${rec.part === 'PAPER' ? 'on the paper' : 'the odds'} ${parts.odds}` }));
     }
     // (below the target and to its left, kept in the free band over the bottom stack: above the plaque if it would reach RADIO)
-    const ih = plaqueInfo.offsetHeight, foot = rectsAt(innerWidth, innerHeight, 'weapon').RADIO.y - 6, below = oy + (p.y + p.h / 2 + 4) * k;
-    const iy = below + ih <= foot ? below : oy + (p.y - p.h / 2 - 3) * k - aimPlaque.offsetHeight - ih - 4;
-    plaqueInfo.style.transform = `translate(${Math.round(ox + (p.x - p.w / 2 - 6) * k)}px, ${Math.round(iy)}px) translateX(-100%)`;
+    const ih = plaqueInfo.offsetHeight, iw = plaqueInfo.offsetWidth;
+    if (p.far) {
+      // (beside the far window: the first of its left, its right, under its stack, over it that meets no rectangle of the HUD)
+      const rects = rectsAt(innerWidth, innerHeight, 'weapon-far'), blocks = STATES_FAR.map(n => rects[n]).filter(Boolean);
+      const cx = ox + p.x * k, cy = oy + p.y * k, R = p.rPic * k, sb = p.stack ? { x: ox + p.stack.x * k, y: oy + p.stack.y * k, w: p.stack.w * k, h: p.stack.h * k } : null;
+      const spots = [{ x: cx - R - 6 - iw, y: cy - ih / 2 }, { x: cx + R + 6, y: cy - ih / 2 }, sb ? { x: sb.x + sb.w / 2 - iw / 2, y: sb.y + sb.h + 6 } : null, { x: cx - iw / 2, y: cy - R - 6 - ih }].filter(Boolean);
+      const fits = (b) => b.x >= 0 && b.y >= 0 && b.x + iw <= innerWidth && b.y + ih <= innerHeight && !blocks.some(r => overlaps({ x: b.x, y: b.y, w: iw, h: ih }, r)) && !(sb && overlaps({ x: b.x, y: b.y, w: iw, h: ih }, sb));
+      const at = spots.find(fits) ?? spots[0];
+      plaqueInfo.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(Math.max(0, at.y))}px)`;
+    } else {
+      // (near a target in the picture: the first of left of it below, right of it below, left or right level with it,
+      // over the plaque and its terms, that meets no rectangle of the HUD (the paper inset among them), the plaque nor
+      // the terms' plate; none clear, it is not shown (the runtime review's of v0.0.7: at 1600 x 900 on the zero card
+      // it covered the PAPER inset and the terms, "on the paper 78%" under the plate; VIEWS §7.5, nothing overlaps)
+      const rects = rectsAt(innerWidth, innerHeight, 'weapon'), blocks = (HUD_STATES.weapon ?? Object.keys(rects).filter(n => n !== 'ui')).map(n => rects[n]).filter(r => r && typeof r === 'object');
+      const pqRect = { x: ox + (tipX - pq.tip) * k, y: oy + (tipY - pq.h) * k, w: pq.w * k, h: pq.h * k };
+      const left = ox + (p.x - p.w / 2 - 6) * k - iw, right = ox + (p.x + p.w / 2 + 6) * k, below = oy + (p.y + p.h / 2 + 4) * k, level = oy + p.y * k - ih / 2;
+      const top = Math.min(pqRect.y, tpRect?.y ?? Infinity) - ih - 4;
+      const spots = [{ x: left, y: below }, { x: right, y: below }, { x: left, y: level }, { x: right, y: level }, { x: pqRect.x + pqRect.w / 2 - iw / 2, y: top }, { x: left, y: top }, { x: right, y: top }];
+      const box = (b) => ({ x: b.x, y: b.y, w: iw, h: ih });
+      const fits = (b) => b.x >= 0 && b.y >= 0 && b.x + iw <= innerWidth && b.y + ih <= innerHeight && !blocks.some(r => overlaps(box(b), r)) && !overlaps(box(b), pqRect) && !(tpRect && !termsPlate.hidden && overlaps(box(b), tpRect));
+      const at = spots.find(fits);
+      if (at) plaqueInfo.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
+      else plaqueInfo.hidden = true;
+    }
   }
   return plaqueWords(rec);
 }
@@ -1185,6 +1393,10 @@ const handleMore = {
   get rangeSound() { return { ...audio.stats.range }; },
   /** The radio box's lines now: [{ head, text, kind }]. */
   get radio() { return radio.lines; },
+  /** The far window now (0.0.7): { far (farPointOf's), place (placeFar's), open, alpha, stage (view.farState()) }, or null. */
+  get far() { return farNow ? { far: farNow.far, place: farNow.place, open: farNow.open, alpha: farNow.alpha, label: farLabelEl.hidden ? null : farLabelEl.dataset.text ?? null, stage: view.farState?.() ?? null } : null; },
+  /** The KD course now (range.js kdNow), or null off it. */
+  kd() { const s = loop.state; return s && rangeNow(s)?.course === 'kd' ? kdOf(s) : null; },
   /** The step panel's step on a digit now (n 0 to 9), as the key would send it. */
   stepOn(n) { const st = stepPanel.stepFor(n); return st && st !== 'more' ? { id: st.id, kind: st.kind, label: st.label } : st; },
 };
@@ -1217,7 +1429,21 @@ installDebug(createDebugHandle({
     },
     steps: (s) => (stopNow(s) ? { steps: stepsOf(s), slots: stepPanel.slots.map(x => ({ key: x.key, id: x.step.id, kind: x.step.kind, label: x.step.label, ms: x.step.ms, off: x.step.off ?? null, routine: !!x.step.routine, odds: x.step.odds ?? null, cmd: !!x.step.cmd })), text: stepPanel.text, page: stepPage } : null),
     plaque: () => (plaqueMemo?.rec ? { rec: plaqueMemo.rec, words: plaqueWords(plaqueMemo.rec), parts: plaqueParts(plaqueMemo.rec), shown: aimPlaque.dataset.text ?? null } : null),
-    range: (s) => rangeNow(s),
+    // (0.0.7: on the KD, kd() (kdNow) and nd(who) ride on the record unenumerated, so a test's evaluate still gets plain data)
+    range: (s) => {
+      const r = rangeNow(s);
+      if (!r) return r;
+      const out = { ...r };
+      Object.defineProperty(out, 'kd', { enumerable: false, value: () => kdOf(loop.state) });
+      Object.defineProperty(out, 'nd', { enumerable: false, value: (toward = null) => {
+        const st = loop.state;
+        if (!kdScene.forceNd || !st) return null;
+        // (a debug act on the state outside a tick, as debug:go is; the save is marked debug)
+        st.meta.debugUsed = true;
+        return kdScene.forceNd(st, bus, { pid: st.player.id, toward });
+      } });
+      return out;
+    },
     stop: (s) => stopNow(s),
   },
 }));

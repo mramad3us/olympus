@@ -256,7 +256,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 #hud.weapon .radio.voices { bottom: calc(var(--m) + (44px + 6px + 148px + 6px) * var(--ui)); }
 .steps, .reflexcard { position: absolute; left: 50%; bottom: calc(var(--m) + (44px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(720px * var(--ui)); height: calc(148px * var(--ui)); overflow: hidden; display: flex; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; pointer-events: auto; font-size: calc(12px * var(--ui)); line-height: 1.25; }
 .steps .wcard { flex: none; width: calc(180px * var(--ui)); height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(4px * var(--ui)); border-right: 1px solid var(--glass-edge); background: #2b2e3a; overflow: hidden; }
-/* (the card at a whole number of device pixels a card pixel, cropped by its box rather than shrunk: steps.js cardScale) */
+/* (the card at a whole number of device pixels a card pixel; where even one is too large for its box, at the box's scale and smooth: steps.js cardFit) */
 .steps .wcard canvas { image-rendering: pixelated; display: block; flex: none; }
 .steps .wcard-cap { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(4px * var(--ui)); font-size: calc(11px * var(--ui)); letter-spacing: 0.05em; white-space: nowrap; }
 .steps .wcard-cap span { padding: 0 calc(4px * var(--ui)); border: 1px solid var(--glass-line); border-radius: 2px; color: var(--glass-text); }
@@ -328,7 +328,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 
 /* The radio box (VIEWS §7.1): who speaks, then what they say; two lines at most, the newest under. */
 .radio.voices { flex-direction: column; align-items: stretch; justify-content: flex-end; gap: calc(2px * var(--ui)); pointer-events: none; }
-.radio.voices .voice { display: flex; gap: calc(10px * var(--ui)); align-items: baseline; min-width: 0; background: var(--hud); border-left: 3px solid var(--tone-note); padding: calc(2px * var(--ui)) calc(10px * var(--ui)); overflow: hidden; }
+/* (flex: none: a voice never shrinks to share the box, so a newest line that wraps overflows it and radio.js drops the older one; shrunk, both were clipped to a row each: the 0.0.7 integrator's) */
+.radio.voices .voice { flex: none; display: flex; gap: calc(10px * var(--ui)); align-items: baseline; min-width: 0; background: var(--hud); border-left: 3px solid var(--tone-note); padding: calc(2px * var(--ui)) calc(10px * var(--ui)); overflow: hidden; }
 .radio.voices .voice.pa { border-left-color: var(--brass); }
 .radio.voices .voice.speech { border-left-color: #6f9a74; }
 .radio.voices .voice .who { flex: none; color: var(--brass); font-size: calc(11px * var(--ui)); letter-spacing: 0.06em; }
@@ -372,3 +373,15 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass.pockets .pk-dot.gun { background: var(--muted); border-radius: 1px; width: calc(18px * var(--ui)); height: calc(5px * var(--ui)); }
 .glass.pockets .pk-reach { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .glass.pockets .pk-none { color: var(--muted); font-size: calc(12px * var(--ui)); margin: 2px 0; }
+
+/* 0.0.7, the line at 300 m (the build sheet 0.0.7 §2.5): the terms' plate over the plaque, the far window's label and
+   its tick on the ring (the stage draws the window itself), a casualty's dimming over the picture (under the HUD), the
+   weapon card's distance caption, the end card's incident, C's wounds, the hover's terms. */
+.plaque.terms { z-index: 1; }
+.plaque.farlabel { z-index: 1; }
+.fartick { position: absolute; left: 0; top: 0; background: var(--ink); box-shadow: 0 0 0 1px rgba(232, 223, 200, 0.55); transform-origin: 0 50%; pointer-events: none; }
+.avpu-fade { position: absolute; inset: 0; background: #0a0608; pointer-events: none; transition: opacity 0.6s linear; }
+.steps .wcard-cap .wc-far { color: var(--brass); }
+.glass.end .said.incident { color: var(--warn, #e7b84a); }
+.glass.sheetcard .wound { margin: 2px 0; color: #e8a59a; font-family: var(--type); }
+.plaque-info .pi-terms { color: var(--glass-text); }

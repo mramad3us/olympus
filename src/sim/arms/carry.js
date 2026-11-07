@@ -48,12 +48,24 @@
 // before 0.0.7: the build sheet's §8 item 19); a line uprange is ND-3 (the ready line and the tower are
 // there); into the berm or the ground ahead downrange of the firing line, ND-1; anything else ND-2.
 // Never ND-4 this round. Angles are radians, positions metres, rounded to 1e-4 m.
+// 0.0.7 (the build sheet 0.0.7 §2.3, §8 items 15 and 17; WEAPONS §6.5, §6.6): on the KD range's lines (kdAt: a person
+// in the KD's walk rect, or the bay's on the kd course) the round's line is traced through the live area by
+// penetrate.js traceRound (the bodies on it, the ground, the parapet, the berm), so it lands somewhere real: a person
+// hit is ND-4 (ND-5 when BODY's applyHit finds them dead: the scene grades it so), with its hits for the scene to
+// hand to the body; a long gun brought up or down, slung or unslung (up, stow, a posture's change), puts it into
+// the shooter's own foot SELF_SHOT_LONG 0.1 of the time (WEAPONS §6.5). The verdict is noted on the session
+// (R.$nd, runtime) for the scene's range safety (src/sim/scenarios/range.js safety). test-handling's bay, on its
+// fam25 course, is read as before, to the tick. Stances: sitting (0.0.7, the 200 m string) holds the muzzle at
+// STANCE_H.sit and the body's span SPAN_M.sit; a casualty lying ('down') is a prone span.
 import { stream, range, rngOf, d20 } from '../../core/rng.js';
 import { q } from '../../core/num.js';
 import { logEntry } from '../log.js';
 import { rollerOf } from '../combat/roll.js';
 import { grade } from '../skills/checks.js';
 import { KD_RANGE, RANGE_KINDS } from '../../data/places/range.js';
+import { traceRound, hitOf } from './penetrate.js';
+import { v0Of } from './ballistics.js';
+import { SELF_SHOT_LONG } from '../body/wounds.js';
 
 const RAD = Math.PI / 180;
 /**
@@ -72,9 +84,9 @@ export const POSTURES = Object.freeze({
 /** The slung postures: the rifle not in the hands. */
 export const SLUNG = new Set(['slungBack', 'slungFront']);
 /** The muzzle's height × this by the holder's stance. */
-export const STANCE_H = Object.freeze({ stand: 1.0, kneel: 0.68, prone: 0.2 });
+export const STANCE_H = Object.freeze({ stand: 1.0, kneel: 0.68, prone: 0.2, sit: 0.6, down: 0.2 });
 /** A body's height span by its stance (m), and its radius in plan. */
-export const SPAN_M = Object.freeze({ stand: Object.freeze([0, 1.75]), kneel: Object.freeze([0, 1.0]), prone: Object.freeze([0, 0.4]) });
+export const SPAN_M = Object.freeze({ stand: Object.freeze([0, 1.75]), kneel: Object.freeze([0, 1.0]), prone: Object.freeze([0, 0.4]), sit: Object.freeze([0, 1.1]), down: Object.freeze([0, 0.4]) });
 export const BODY_R_M = 0.25;
 /** The habit (WEAPONS §6.3): an approach lasts while the other stays within APPROACH_M; a failed habit flags after FLAG_MS in the cone; the context's DCs. */
 export const APPROACH_M = 3, FLAG_MS = 300, CROWD_N = 3, CROWD_DC = 2, FIRE_DC = 2, NEAR_BY = 2;
@@ -227,7 +239,7 @@ function openApproach(state, bus, A, B, cone, ms, ctx, list) {
 
 const inBox = (box, x, z) => !!box && x >= box[0] && x <= box[2] && z >= box[1] && z <= box[3];
 const isPersonKey = (k) => typeof k === 'string' && /^a[1-9][0-9]*$/.test(k);
-const laneOfKey = (k) => (typeof k === 'string' && k.startsWith('paper:') ? Number(k.slice(6)) : null);
+const laneOfKey = (k) => (typeof k === 'string' && k.startsWith('paper:') ? Number(k.slice(6)) : typeof k === 'string' && k.startsWith('face:') ? Number(k.slice(5)) : null);
 const TEXT = Object.freeze({
   uprange: 'Cease fire! Cease fire! Muzzle uprange.', person: 'Cease fire! Cease fire! You do not point a weapon at a person.',
   muzzle: 'Muzzle downrange. Always downrange.', lane: 'That\'s another lane\'s card. Yours only, ever.', laneShot: 'Cease fire! Cease fire! You fired on another lane.',
@@ -296,6 +308,7 @@ export function bayAt(state, pid) {
  * by default the KD bay when the person stands in it, bayAt) }.
  */
 export function ndOf(state, pid, gunId, { during = null, bay = bayAt(state, pid) } = {}) {
+  if (kdAt(state, pid)) return ndOnKd(state, pid, gunId, { during });
   const m = muzzleOf(state, pid, undefined, ND_POSTURE[during] ?? null);
   const gun = state.items?.[gunId];
   if (!m) return { grade: 'ND-2', into: 'ground', nearId: null, at: null, path: [], yawRad: 0, during };
@@ -332,3 +345,63 @@ export function ndOf(state, pid, gunId, { during = null, bay = bayAt(state, pid)
   const grade = nearId || (bay && offDeg > 90) ? 'ND-3' : ahead ? 'ND-1' : 'ND-2';
   return { grade, into, nearId, at, path, yawRad: q(yaw, 1e-6), during };
 }
+
+// ---- 0.0.7: a negligent discharge on the KD range's lines (see the header) ----
+
+/** The actions that bring a long gun up or down, slung or unslung (WEAPONS §6.5's self-shot). */
+export const UP_DOWN = new Set(['up', 'stow', 'posture:lowReady', 'posture:highReady']);
+/** Whether a person stands on the KD's lines (its walk rect) or, on the kd course, the bay: where an ND is traced. */
+export function kdAt(state, pid) {
+  const a = actorOf(state, pid), area = state.actors?.area ?? state.places?.live?.area, W = KD_RANGE.kd?.walk;
+  if (!a || area !== KD_RANGE.area || !W) return false;
+  if (inBox(W, a.x, a.z)) return true;
+  return state.armoury?.range?.course === 'kd' && inBox(KD_RANGE.bay.walk, a.x, a.z);
+}
+/**
+ * The ND on the KD (see the header): ndOf's verdict with { hits: [HitRecord], stoppedBy } from penetrate.js
+ * traceRound along the muzzle's line, spread as ndOf spreads it, or into the shooter's foot; noted on R.$nd.
+ */
+function ndOnKd(state, pid, gunId, { during = null } = {}) {
+  const posture = ND_POSTURE[during] ?? null, m = muzzleOf(state, pid, undefined, posture), gun = state.items?.[gunId], a = actorOf(state, pid);
+  const ms = state.clock?.ms ?? 0, seed = state.meta?.seed ?? 0;
+  if (!m || !a) return { grade: 'ND-2', into: 'ground', nearId: null, at: null, path: [], yawRad: 0, during, hits: [] };
+  const wh = rollerOf(state, pid).value('weapons');
+  const spread = ND_STEADY.has(during) ? 0 : DISCHARGE_SPREAD * (1 - muzzleSafe(wh));
+  const r = stream(seed, 'nd', pid, gunId, gun?.rounds ?? 0, ms);
+  const yaw = m.yawRad + range(r, -spread, spread);
+  let hits = [], into = 'past', at = null, path = [];
+  // (a long gun brought up or down: into the shooter's own foot, SELF_SHOT_LONG of the time)
+  if (UP_DOWN.has(during) && range(r, 0, 1) < SELF_SHOT_LONG) {
+    // (built by penetrate.js hitOf as every other hit is: its load 'cal/load', its energy and w from woundFactor at the
+    // muzzle's speed (w 1.57 for ball at 460 mm, was a fixed 1.6; the code review's of v0.0.7))
+    const load = gun?.load ?? 'ball';
+    hits = [{ ...hitOf({ onId: pid, part: 'legs', fromId: pid, rangeM: 0.5, cal: '6.5x40r', load, vMs: v0Of('6.5x40r', load, 460), margin: 0, shotId: `nd:${gunId}:${ms}`, through: true, nd: true }), where: 'foot', atMs: ms }];
+    into = 'foot'; at = { x: a.x, z: a.z }; path = [{ x: m.x, z: m.z }, at];
+  } else {
+    const tr = traceRound(state, { shooterId: pid, from: { x: m.x, y: m.y, z: m.z }, yawRad: yaw, pitchRad: m.pitchRad, cal: '6.5x40r', load: gun?.load ?? 'ball', barrelMm: 460, maxM: 2000,
+      rngKey: `nd:${pid}:${gunId}:${gun?.rounds ?? 0}:${ms}`, margin: 0, nd: true });
+    hits = (tr?.hits ?? []).map(h => ({ ...h, nd: true, atMs: ms }));
+    into = tr?.stoppedBy?.kind ?? 'past';
+    const end = tr?.stoppedBy?.at ?? tr?.path?.at(-1) ?? null;
+    at = end ? { x: q(end.x, 1e-4), z: q(end.z, 1e-4) } : null;
+    path = (tr?.path ?? []).map(p => ({ x: q(p.x, 1e-4), z: q(p.z, 1e-4) }));
+  }
+  // (who it passed near: in the cone, or within ND_NEAR_M of its line)
+  let nearId = hits[0]?.onId ?? null, best = Infinity;
+  if (!nearId && at) {
+    const ux = Math.cos(yaw), uz = Math.sin(yaw), dist = Math.hypot(at.x - m.x, at.z - m.z);
+    for (const o of state.actors?.list ?? []) {
+      if (o.who === pid) continue;
+      const vx = o.x - m.x, vz = o.z - m.z, t = Math.max(0, Math.min(dist, vx * ux + vz * uz)), dd = Math.hypot(vx - ux * t, vz - uz * t);
+      if (dd <= ND_NEAR_M && dd < best) { best = dd; nearId = o.who; }
+    }
+  }
+  const offDeg = Math.abs(angleDiff(yaw, KD_RANGE.downrangeRad)) / RAD;
+  const out = { grade: gradeNd({ hits, nearId, offDeg, into }), into, nearId, at, path, yawRad: q(yaw, 1e-6), during, hits };
+  const R = state.armoury?.range;
+  if (R) { R.$nd = { ...out, who: pid, atMs: ms }; delete R.$ndDone; }
+  return out;
+}
+
+/** An ND's grade on the KD by where it went (WEAPONS §6.6): someone hit ND-4 (ND-5 is BODY's death, the scene's), near someone or uprange ND-3, into the berm, the ground or the parapet ND-1, else ND-2. */
+export const gradeNd = ({ hits = [], nearId = null, offDeg = 0, into = 'past' }) => (hits.length ? 'ND-4' : nearId || offDeg > 90 ? 'ND-3' : into === 'berm' || into === 'ground' || into === 'parapet' ? 'ND-1' : 'ND-2');

@@ -22,6 +22,7 @@ import { HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, FATIGUE_BANDS 
 import { newGame } from '../src/sim/game.js';
 import { haircutWords } from '../src/ui/cards/sheet.js';
 import { hairAt, hairOf, SOL_H } from '../src/sim/body/hair.js';
+import { woundWords } from '../src/sim/body/wounds.js';
 
 const TABLES = { food: HUNGER, water: THIRST, bladder: BLADDER_BANDS, bowel: BOWEL_BANDS, grime: GRIME_BANDS, sleep: FATIGUE_BANDS };
 
@@ -102,6 +103,22 @@ export default [
       const bare = sheetOf(s, { body: wet, look: { hair: { style: 'shaved', color: 'dark' } } }), crew = sheetOf(s, { body: wet, look: { hair: { style: 'lowReg', color: 'dark' } } });
       console.log(`      shaved: '${bare.line}', ${bare.needs.find(n => n.need === 'hair')?.name}; low regulation: '${crew.line}'`);
       assert(bare.line === 'Fresh. Head wet.' && bare.needs.find(n => n.need === 'hair').name === 'Head' && crew.line === 'Fresh. Hair wet.', JSON.stringify({ bare: bare.line, crew: crew.line }));
+    },
+  },
+  {
+    name: 'C\'s wounds (the build sheet 0.0.7 §2.5): a gunshot wound in BODY\'s words under the line, "A gunshot wound in the left thigh, bleeding hard.", never a number; an unhurt body lists none',
+    fn() {
+      const g = newGame({ scenario: 'barracks', seed: 48213 }), base = readersAt('food', HUNGER[0]);
+      const said = ['A gunshot wound in the left thigh, bleeding hard.', 'Your left leg will not take your weight.'];
+      const sheet = sheetOf(g, { body: { ...base, woundWords: () => said } }), none = sheetOf(g, { body: base });
+      console.log(`      wounds on C: ${sheet.wounds.join(' | ')}; unhurt: ${JSON.stringify(none.wounds)}`);
+      assert(JSON.stringify(sheet.wounds) === JSON.stringify(said) && none.wounds.length === 0 && sheet.wounds.every(w => !/\d/.test(w)), JSON.stringify(sheet.wounds));
+      // (BODY's own words for a record with a thigh wound, where body.js's wounds.js is built: words, no numbers)
+      const rec = { v: 2, injuries: [{ part: 'legL', kind: 'cut', name: 'a gunshot wound in the left thigh', ms: 0, until: 864e6, bleed: 600000, rate: 7.2, deep: true, gunshot: true, through: true }], parts: { legL: 11.4 } };
+      let real = [];
+      try { real = woundWords(rec, 1000) ?? []; } catch (e) { real = [`(woundWords threw: ${e.message})`]; }
+      console.log(`      BODY's words for a 7.2 %/min thigh wound: ${real.join(' | ')}`);
+      assert(real.length >= 1 && real.every(w => typeof w === 'string' && !/\d/.test(w)), JSON.stringify(real));
     },
   },
 ];

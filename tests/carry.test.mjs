@@ -157,4 +157,12 @@ export default [
       assert(WARN_AGAIN_S === 20, 'WARN_AGAIN_S 20');
     },
   },
+  {
+    name: 'sitting (0.0.7, the 200 m string) holds the muzzle at STANCE_H.sit and the body\'s span SPAN_M.sit, between kneeling and standing; a casualty lying is a prone span',
+    fn() {
+      console.log(`      STANCE_H: ${Object.entries(STANCE_H).map(([k, v]) => `${k} ${v}`).join(', ')}; SPAN_M: ${Object.entries(SPAN_M).map(([k, v]) => `${k} ${v[0]}–${v[1]}`).join(', ')}`);
+      assert(STANCE_H.sit > STANCE_H.prone && STANCE_H.sit < STANCE_H.stand && SPAN_M.sit[1] > SPAN_M.kneel[1] && SPAN_M.sit[1] < SPAN_M.stand[1], 'sitting between kneeling and standing');
+      assert(JSON.stringify(SPAN_M.down) === JSON.stringify(SPAN_M.prone) && STANCE_H.down === STANCE_H.prone, 'a casualty lying as prone');
+    },
+  },
 ];

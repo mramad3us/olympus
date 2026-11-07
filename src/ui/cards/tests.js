@@ -16,6 +16,7 @@
 // fact a scene ends on, for main.js to hear; sceneSaid(scene, range) the end card's line for a scene
 // that has one (the range's summary: "Clear at 09:14 · 61 of 75 · 4 V · no faults").
 import { lastScore } from './score.js';
+import { stopWords } from '../../sim/scenarios/handling.js';
 
 /** A scene's goal line shows this long in TOASTS on arrival (s of play; the build sheet 0.0.4 §2.4). */
 export const GOAL_S = 8;
@@ -44,12 +45,27 @@ const DEFAULT_CLOCK = (ms) => String(ms);
 export function sceneSaid(range, { clockText = DEFAULT_CLOCK } = {}) {
   const sm = range?.summary;
   if (!sm) return null;
+  // (0.0.7: the KD course's summary is the range's own line, "Clear at 10:31 · zero in 2 groups · 300 m 21 of 25 · …",
+  // rangeNow giving kdNow's in its place (the build sheet 0.0.7 §2.3); an incident goes on a line of its own: sceneLines)
+  if (typeof sm === 'string') return sm;
   const faults = Number(sm.faults) || 0, stopped = (range.end?.phase ?? range.phase) === 'stopped', why = range.end?.why ?? range.why ?? null;
-  const head = stopped ? `Stopped${why ? `: ${why}` : ''}` : Number.isFinite(sm.clearAtMs) ? `Clear at ${clockText(sm.clearAtMs)}` : 'The line';
+  const head = stopped ? `Stopped${why ? `: ${stopWords(why)}` : ''}` : Number.isFinite(sm.clearAtMs) ? `Clear at ${clockText(sm.clearAtMs)}` : 'The line';
   // (0.0.6: a string sat out for want of rounds is said, so 70 of 75 with one string unfired reads as it was; one fired
   // with more than its rounds too, "1 string over-fired" (the fixer's))
   const sat = Number(sm.sat) || 0, over = Number(sm.over) || 0;
   return [head, `${sm.score ?? 0} of ${sm.of ?? 0}`, sm.v ? `${sm.v} V` : null, sat ? `${sat} string${sat === 1 ? '' : 's'} not fired` : null, over ? `${over} string${over === 1 ? '' : 's'} over-fired` : null, faults ? `${faults} fault${faults === 1 ? '' : 's'}` : 'no faults'].filter(Boolean).join(' · ');
+}
+
+/**
+ * The end card's lines for a scene: [summary, incident?, relay?]: sceneSaid's line, then on the KD an incident's words
+ * ("Range closed: Pvt Okafor hit in the left thigh by a negligent discharge, evacuated"), from kdNow's casualty
+ * ({ words } or { who, outcome, part }) or the range's incident line where it gives one, and the relay's ranked scores
+ * (kdNow's relayLine: "Relay one: you 62 of 70 · Cpl Xie 68 of 75 · … (2nd of 6)"). kd: kdNow's record, or null.
+ */
+export function sceneLines(range, kd = null, opts = {}) {
+  const head = sceneSaid(range, opts) ?? (typeof kd?.summary === 'string' ? kd.summary : null);
+  const c = kd?.casualty ?? null, incident = range?.incident ?? kd?.incident ?? (c ? c.words ?? (c.outcome ? `Range closed: ${c.name ?? c.who ?? 'a marine'} hit${c.part ? ` in the ${c.part}` : ''} by a negligent discharge, ${c.outcome}` : null) : null);
+  return [head, incident, kd?.relayLine ?? null].filter(Boolean);
 }
 
 /** The page's body: a paper sheet. scenes: SCENES' records in order; onPick(scene); onBack(); storage (the scores). */

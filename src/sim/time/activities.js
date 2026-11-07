@@ -24,7 +24,7 @@
 // resume from its front or a fit from its end, keeps its full length, fullMs, and what was done of it
 // before, doneMs, so its effects go by the share lived of the whole part), plan.fullMs the length
 // before a fit (what is left to do of it), and kind by TIME §5.2: 'live'
-// under LIVE_MAX_MS 45 s, 'ff' (a fast-forward of lived ticks) under FF_MAX_MS 120 s while the live
+// up to LIVE_MAX_MS 10 s, 'ff' (a fast-forward of lived ticks) under FF_MAX_MS 120 s while the live
 // actors × the planned seconds stay within FF_ACTOR_S_MAX 6,000, else 'outcome'. The rules for the
 // lengths (TIME §8.2 to §8.4): the shower's water minutes by site (Melas 3); dressing 0.6 × the
 // outfit taken off plus the one put on (DRESS_MIN: PT kit 2 min, utilities 4, a towel 0: PT kit to
@@ -88,6 +88,9 @@
 // whatever share was done (BODY's soil); dressing the outfit at its end (past half-way, cut: the new one);
 // sleep and a nap sleepBegin as the rack part starts and sleepEnd as it ends or is cut (the cause:
 // reveille, the klaxon, the body, the player, or natural); a drink and a bar intake × the share.
+// 0.0.7: the KD range's four (kd-walk, kd-pits, police-brass, kd-casualty: the build sheet 0.0.7 §2.3) end in
+// the scene's kdPartEnd (src/sim/scenarios/range.js): the relay at the next line, the pits' outcome, the
+// brass picked up, the casualty's outcome; whatever share was done, since the scene starts them and never cuts them.
 import { isHeld, SEC_MS, MIN_MS, TICK_MS, wholeTicks, durationText } from '../../core/clock.js';
 import { playerActor, playerId, cmpId } from '../../core/ids.js';
 import { post, cancel, sorted } from '../../core/queue.js';
@@ -113,9 +116,16 @@ import { stepOnto, layPlayer, lieActor, outfitOf, setOutfit } from '../people/pl
 import { bodyOf, intake, relieve, wash, groom, soil, sleepBegin, sleepEnd } from '../body/body.js';
 import { stagesOf, hasBeard } from '../body/cues.js';
 import { hairOf, cutsFor, cutHair, SOL_H } from '../body/hair.js';
+import { kdPartEnd } from '../scenarios/range.js';
 
 /** Under this an activity is lived at 1:1 (TIME §8.1), ms. */
-export const LIVE_MAX_MS = 45_000;
+// 10 s: the user, 2026-11-07, on the 30 s of washing their hands lived at 1:1: "I'm okay with no time skip
+// for actions taking up to 10s" (it was 45 s, TIME §8's first call). Up to and including it, lived.
+export const LIVE_MAX_MS = 10_000;
+// The price's ', done HH:MM' from a minute (my call, 2026-11-07): it was tied to LIVE_MAX_MS 45 s (a lived
+// action ends in front of you); at 10 s a 30 s wash would read 'done 14:00' at 13:59:45, a minute's
+// rounding of nothing, and lengthen R's plate.
+export const DONE_FROM_MS = 60_000;
 /** A fast-forward is allowed while live actors × planned seconds stay within this (TIME §5.2). */
 export const FF_ACTOR_S_MAX = 6_000;
 /** A spot is at hand within this, metres (my call). */
@@ -251,7 +261,7 @@ export function defaultDressTo(state, wearing = null) {
 
 /** The kind an activity of durMs takes here (TIME §5.2): 'live' | 'ff' | 'outcome'. */
 export function kindFor(state, durMs) {
-  if (durMs < LIVE_MAX_MS) return 'live';
+  if (durMs <= LIVE_MAX_MS) return 'live';
   const live = state.actors?.list?.length ?? 1;
   if (durMs < FF_MAX_MS && live * (durMs / SEC_MS) <= FF_ACTOR_S_MAX) return 'ff';
   return 'outcome';
@@ -348,13 +358,13 @@ const watchHm = (ms, lon) => { const c = marsClock(ms, lon); return c.timeslip ?
 
 /**
  * An offer's words, TIME §8.1's price: 'wash hands · 30 s', 'shave · 4 min, done 19:46' (', done HH:MM'
- * only at or over LIVE_MAX_MS 45 s: a lived action ends in front of you, the build sheet 0.0.6 §8 item 8),
+ * only from DONE_FROM_MS 60 s: a lived action ends in front of you, the build sheet 0.0.6 §8 item 8),
  * ', the count 02:35' while a drill's count is to come.
  */
 export function priceOf(state, word, durMs) {
   const lon = siteLonEDeg(state), d = state.time?.drills?.open;
   const count = d && state.clock.ms < d.dueMs ? `, the count ${watchHm(d.dueMs, lon)}` : '';
-  const done = durMs >= LIVE_MAX_MS ? `, done ${watchHm(state.clock.ms + durMs, lon)}` : '';
+  const done = durMs >= DONE_FROM_MS ? `, done ${watchHm(state.clock.ms + durMs, lon)}` : '';
   return `${word} · ${durationText(durMs)}${done}${count}`;
 }
 
@@ -565,6 +575,8 @@ function partEnd(state, bus, d, part, f, ms, whole = f) {
       else if (me && whole >= 0.5) setOutfit(me, d.args?.to ?? defaultDressTo(state));
       break;
     case 'turn-in': if (me && whole >= 0.5) setOutfit(me, 'pt'); break;
+    // (0.0.7: the KD range's records, their ends the scene's (src/sim/scenarios/range.js kdPartEnd))
+    case 'kd-walk': case 'kd-pits': case 'police': case 'kd-casualty': kdPartEnd(state, bus, part, whole, ms); break;
     case 'lie': {
       const by = d.stopBy ?? 'natural';
       const r = sleepEnd(state, pid, ms, { by }, bus);

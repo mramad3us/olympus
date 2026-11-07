@@ -13,6 +13,11 @@
 // kneeling, the low ready kneeling, a magazine in, the charging handle, a press check, a magazine dropped)
 // and the frame the view drew for it (view.arms.frame) against poses.js rifleFrame's. With OLYMPUS_SHOTS
 // set to a folder, each beat's picture is written there (the shots the sheet asks to be looked at).
+// 0.0.7 (the build sheet 0.0.7 §5.4): the KD's line at 300 m (test-range's 'far' setup: prone, 4×, aimed at your face):
+// the far window opens on your face once its ground is up and stays open; a shot fired, then the aim held, the pits'
+// carrier going down and up again, its drawn top sampled every frame: continuous (no frame's step over a pixel), the
+// face wholly under the ground while marked; the KD's twenty faces drawn, the window's chunks built (the parapet's and
+// the pits' with them), the draw calls with the window open, no error.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { assert, fmt } from './helpers.mjs';
@@ -114,6 +119,46 @@ export default [
         assert((last.lying?.items ?? 0) >= 1, 'the dropped magazine lies on the ground');
         assert(!errors.length, errors.join('\n'));
       }, { port: Number(process.env.OLYMPUS_TEST_PORT) || 8223, query: 'play=test-handling&seed=48213&nostore=1&perf=1&ppm=16', viewport: { width: 1280, height: 720 }, timeoutMs: 60000 });
+    },
+  },
+  {
+    name: 'the KD at 300 m: the far window open on your face, a shot fired and the aim held while the pits mark it, the carrier going down and up continuously (no frame\'s step over a pixel), the twenty faces drawn (the build sheet 0.0.7 §5.4)',
+    heavy: true,
+    timeoutMs: 240000,
+    async fn() {
+      await withGame(async (page, errors) => {
+        await page.waitForTimeout(3000);
+        const b0 = await page.evaluate(() => ({ far: window.__report.view.far, kd: window.__report.view.range?.kd ?? null, stop: window.__olympus.state.stop?.pick ?? null, slots: (window.__olympus.steps?.()?.slots ?? []).map(x => `${x.id}${x.off ? '×' : ''}`).slice(0, 6) }));
+        const lane = Number(String(b0.stop ?? '').split(':')[1]) || null;
+        console.log(`      the window at the start: ${JSON.stringify({ open: b0.far?.open, ready: b0.far?.ready, chunks: b0.far?.chunks, key: b0.far?.key })}; the panel ${b0.slots.join(', ')}; your face lane ${lane}`);
+        await save(page, 'kd-00-far');
+        // (every frame: your lane's carrier as drawn, the window's state, the draw calls)
+        await page.evaluate((lane) => { window.__kd = []; const f = () => { if (!window.__kd) return; const v = window.__report.view, c = (v.range?.kd?.carriers ?? []).find(x => x.lane === lane); window.__kd.push({ y: c?.yTop ?? null, up: c?.up ?? null, open: !!v.far?.open, calls: v.calls }); requestAnimationFrame(f); }; requestAnimationFrame(f); }, lane);
+        // (the shot, then out of stop motion so the game's time runs, E held: the window on your own face while the pits mark it)
+        await page.keyboard.press('Digit1');
+        await page.waitForTimeout(1200);
+        await page.keyboard.press('KeyX');
+        await page.waitForTimeout(200);
+        await page.keyboard.down('KeyE');
+        for (let i = 0; i < 14; i++) { await page.waitForTimeout(1000); if (i === 3) await save(page, 'kd-01-marking'); }
+        await page.keyboard.up('KeyE');
+        await page.waitForTimeout(300);
+        const kd = await page.evaluate(() => { const w = window.__kd; window.__kd = null; return w; });
+        const after = await page.evaluate(() => ({ far: window.__report.view.far, kd: window.__report.view.range?.kd ?? null }));
+        await save(page, 'kd-02-after');
+        const ys = kd.filter(f => f.y !== null).map(f => f.y);
+        let worst = 0;
+        for (let i = 1; i < ys.length; i++) worst = Math.max(worst, Math.abs(ys[i] - ys[i - 1]) * 16);
+        const lowest = Math.min(...ys), openShare = kd.filter(f => f.open).length / Math.max(1, kd.length), calls = Math.max(...kd.map(f => f.calls));
+        console.log(`      ${kd.length} frames: your carrier's top from ${fmt(Math.max(...ys), 3)} to ${fmt(lowest, 3)} m, the largest step a frame ${fmt(worst, 2)} px; the window open ${fmt(openShare * 100, 0)}% of frames (out of stop motion, E held); draw calls ${calls} at most`);
+        console.log(`      at the end: the window ${JSON.stringify({ open: after.far?.open, chunks: after.far?.chunks, calls: after.far?.calls })}; the KD drawn ${JSON.stringify({ ...after.kd, carriers: after.kd?.carriers?.length })}`);
+        assert(b0.far?.open && b0.far?.ready, 'the far window open on your face');
+        assert((after.kd?.faces ?? 0) === 20 && (after.far?.chunks ?? 0) >= 2, 'the faces and the window\'s ground');
+        assert(worst <= 1.0 + 1e-9, `a carrier's step of ${fmt(worst, 2)} px in one frame`);
+        assert(lowest < 0, `the face went down under the ground (lowest top ${lowest})`);
+        assert(calls <= 160, `${calls} draw calls`);
+        assert(!errors.length, errors.join('\n'));
+      }, { port: Number(process.env.OLYMPUS_TEST_PORT) || 8223, query: 'play=test-range&seed=48213&setup=far&nostore=1&perf=1&ppm=16', viewport: { width: 1280, height: 720 }, timeoutMs: 90000 });
     },
   },
 ];

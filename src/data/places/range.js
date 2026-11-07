@@ -19,7 +19,34 @@
 //     (0.9 m back and 1.4 m north of the point) facing downrange, the target, and its pieces' ids
 //     (fixtures.fp, fixtures.target).
 // KD_RANGE is the shape the build sheet's §2.3 gives every role (the shot role's fill, the arms role's
-// range rules, the hud's PAPER inset). RANGE_PIECES are the bay's kit pieces as authored, read by
+// range rules, the hud's PAPER inset).
+// 0.0.7 (the build sheet 0.0.7 §2.3, §8 item 21; PLACES §4.12): the rest of the KD ground, KD_RANGE.kd,
+// at its final place beside the bay, firing east:
+//   - THE LINES at x 1,400 (200 m), 1,300 (300 m) and 1,100 (500 m) from the faces at x 1,600, each 20
+//     numbered points 5 m apart (z 302.5 to 397.5: lane n at 297.5 + 5n), a sintered pad under each line
+//     (KD_PADS), a stake numbered for its lane behind each point (kdPoint) and the line's distance board
+//     at its north end (kdLineBoard); every point has the bay's shapes: fp, the box (fp.x − 1.4 to + 2.2,
+//     fp.z ± 1.0) and the coach's place at your left shoulder (fp.x − 0.9, fp.z − 1.4) facing downrange;
+//   - THE TARGET LINE: each lane's face on its carrier (kdCarrier, 1.8 × 0.3 × 2.0 m, at x 1,603.5 in the
+//     pits), its centre FACE_UP_Y 1.9 m up when raised and FACE_DOWN_Y −0.6 m pulled down behind the
+//     parapet (whose top is 0.5 m up), the A face by default (the course says which), and the puller's
+//     place behind it (x 1,605.5, facing the carrier);
+//   - THE PITS: the trench x 1,600 to 1,610 (kdPits, its floor 2.5 m down: a floor piece, not a blocker),
+//     the parapet in front (x 1,597 to 1,600, kdParapet, stretched), its back wall and its two ends
+//     (kdParapet too: concrete), the pits' walk (x 1,600.4 to 1,609.6) closed in by them;
+//   - THE IMPACT BERM x 1,612 to 1,640, 8 m high (kdBerm, stretched), stopping what passes the faces;
+//   - THE WIND FLAGS every 100 m from x 1,100 to 1,600 on both sides of the lanes, at z 299.0 and 401.0
+//     (kdFlag: the pole, the sleeve's cloth the stage's from wind.js's flagOf): the north row's first stands
+//     at x 1,140, past the bay's berm, since its x 1,100 would stand on the bay's sixth point (my call);
+//   - THE READY LINE at x 1,062 (behind the 500 m line: the sheet's 1,060 is X3's own west edge, where the rope
+//     stands; my call), the range shack (12 × 8 m, shut this round) west of
+//     the tower, and the ammunition point's canopy (6 × 4 m) at (1,070, 420): its piece's centre 2.5 m
+//     north so all of it stands in X3 (my call); both outside the walk;
+//   - THE ROPE round the lanes' ground (north along z 300.2 past the bay's own, south along z 399.8, west
+//     along x 1,060.2), so the KD is walked in its rect (x 1,060.4 to 1,597, z 300.5 to 399.5; the sheet's 1,056 is outside X3) and the pits
+//     in theirs, and nowhere else; the gates stay shut, so only a scene reaches it.
+// kdLaneOf(lane) gives a lane's record; which line holds a person is the scene's (src/sim/scenarios/range.js
+// kdLineOf: it reads the state). RANGE_PIECES are the bay's kit pieces as authored, read by
 // src/sim/places/ground.js into the ground area (its `pieces` and the nav's blockers) and drawn by the
 // kit (src/art/kit/range.js): the same in every career, no seed of the world (the user, 2026-11-05:
 // "game world is handcrafted"); a piece's `seed` is its authored look constant (PLACES §9.2).
@@ -53,7 +80,7 @@ const lane = (n) => {
 };
 
 /** The range as the sheet's §2.3 gives it to every role (see the header). */
-export const KD_RANGE = deepFreeze({
+const KD_RANGE_025 = ({
   area: 'melas.ground', zone: 'melas.kd-25', downrangeRad: 0,
   tower: { rect: [...TOWER.rect], heightM: TOWER.heightM, deckY: TOWER.deckY, ro: { x: 1080, z: 296, face: 'right' }, flag: { x: 1081.5, z: 294.5 } },
   bay: {
@@ -81,15 +108,15 @@ export const LINE_FLAG = deepFreeze({ poleTopY: 3.6, w: 0.6, h: 0.4, baseY: 1.2 
  * The bay's kit pieces (src/art/kit/range.js), as authored: { id, kind, make, x, z, face, w?, d?, h?,
  * look, seed, block: 'solid' | 'see' | null (what the nav and the sight grid make of it) }.
  */
-export const RANGE_PIECES = deepFreeze([
+const PIECES_025 = ([
   // The tower, its legs and stair seen from the bay; its deck open under a roof, so the RO stands in sight.
   { id: 'f:kd:tower', kind: 'kdTower', make: 'open', x: 1080, z: 296, face: 'down', look: { flag: [1.5, -1.5] }, seed: 11, block: 'see' },
   // The firing line's mats, one a lane, from behind the hips to past the elbows of a body prone on it.
-  ...KD_RANGE.bay.lanes.map(l => ({ id: l.fixtures.fp, kind: 'kdMat', make: 'canvas', x: l.fp.x + 0.35, z: l.fp.z, face: 'right', look: { lane: l.lane }, seed: 20 + l.lane, block: null })),
+  ...KD_RANGE_025.bay.lanes.map(l => ({ id: l.fixtures.fp, kind: 'kdMat', make: 'canvas', x: l.fp.x + 0.35, z: l.fp.z, face: 'right', look: { lane: l.lane }, seed: 20 + l.lane, block: null })),
   // The lane boards behind the line, a number on each.
-  ...KD_RANGE.bay.lanes.map(l => ({ id: `f:kd:lane25-${l.lane}`, kind: 'rangeSign', make: 'lane', x: l.fp.x - 1.6, z: l.fp.z - 0.9, face: 'down', w: 0.4, look: { text: String(l.lane) }, seed: 30 + l.lane, block: 'see' })),
+  ...KD_RANGE_025.bay.lanes.map(l => ({ id: `f:kd:lane25-${l.lane}`, kind: 'rangeSign', make: 'lane', x: l.fp.x - 1.6, z: l.fp.z - 0.9, face: 'down', w: 0.4, look: { text: String(l.lane) }, seed: 30 + l.lane, block: 'see' })),
   // The frames and their cards at 25 m, drawn facing you as the picture shows paper (tradecraft's target card).
-  ...KD_RANGE.bay.lanes.map(l => ({ id: l.fixtures.target, kind: 'kdFrame', make: 'card25', x: l.target.x, z: l.target.z, face: 'down', look: { lane: l.lane }, seed: 40 + l.lane, block: 'see' })),
+  ...KD_RANGE_025.bay.lanes.map(l => ({ id: l.fixtures.target, kind: 'kdFrame', make: 'card25', x: l.target.x, z: l.target.z, face: 'down', look: { lane: l.lane }, seed: 40 + l.lane, block: 'see' })),
   // The berm behind the cards, stepped up away from the line.
   // (it stops walkers, not eyes: nothing stands behind it, and its stepped top reads lit as you see it)
   { id: 'f:kd:berm25', kind: 'berm', make: 'earth', x: 1131, z: 290.25, face: 'left', w: 19.5, d: 6, look: {}, seed: 51, block: 'see' },
@@ -121,4 +148,113 @@ export const RANGE_KINDS = deepFreeze({
   rangeSign: { w: 2.4, d: 0.12, h: 1.3 },
   berm: { w: 19.5, d: 6.0, h: 3.0 },
   rangeFence: { w: 6.0, d: 0.1, h: 2.4 },
+  // (0.0.7, the build sheet 0.0.7 §2.3: the KD's pieces; the berm, the parapet and the pits stretched, giving their own w and d)
+  kdCarrier: { w: 1.8, d: 0.3, h: 2.0 },
+  kdParapet: { w: 100.0, d: 3.0, h: 0.5 },
+  kdPits: { w: 100.0, d: 10.0, h: 0.0 },
+  kdBerm: { w: 28.0, d: 100.0, h: 8.0 },
+  kdFlag: { w: 0.1, d: 0.1, h: 4.5 },
+  kdPoint: { w: 0.1, d: 0.1, h: 0.6 },
+  kdLineBoard: { w: 1.2, d: 0.12, h: 1.3 },
+  kdCanopy: { w: 6.0, d: 4.0, h: 3.0 },
+  rangeShack: { w: 12.0, d: 8.0, h: 3.5 },
 });
+
+// ---- 0.0.7: the KD ground (see the header) ----
+
+/** The KD's lanes, their spacing, lane 1's z, the target line, the ready line (metres). */
+export const KD_LANES = 20, KD_LANE_GAP_M = 5, KD_LANE1_Z = 302.5, KD_TARGET_X = 1600, KD_READY_X = 1062;
+/** The firing lines by their distance: x and zone. */
+export const KD_LINES = deepFreeze({ 200: { x: 1400, zone: 'melas.kd-line-200' }, 300: { x: 1300, zone: 'melas.kd-line-300' }, 500: { x: 1100, zone: 'melas.kd-line-500' } });
+/** A face's centre raised and pulled down (m above the ground; the parapet's top 0.5 m), and the carriers' and pullers' x. */
+export const FACE_UP_Y = 1.9, FACE_DOWN_Y = -0.6, CARRIER_X = 1603.5, PULLER_X = 1605.5;
+/** Where the carrier's frame is drawn: the middle of its face as drawn (the face's line + 1.1 m). */
+export const CARRIER_DRAWN_X = 1601.1;
+/** The pits, the parapet, the berm (metres; the build sheet 0.0.7 §2.3). */
+export const KD_PITS = deepFreeze({ x0: 1600, x1: 1610, floorY: -2.5, parapet: { x0: 1597, x1: 1600, topY: 0.5 }, walk: [1600.4, 300.5, 1609.6, 399.5] });
+export const KD_BERM = deepFreeze({ rect: [1612, 300, 1640, 400], heightM: 8 });
+/**
+ * The flags (x 1,100 to 1,600 every 100 m, both sides; the north row's first at x 1,140: see the header), and a middle
+ * row down the lanes the relay fires on, between lanes 9 and 10 (z 345): 10 m downrange of the 300, 200 and 100 m
+ * marks and 5 m short of the parapet, so a flag stands in the main picture on either line and one in the far window
+ * beside faces 8 to 11 (the design review's of v0.0.7: the nearest flag stood 33.5 m from any lane you fire on, never
+ * on screen, and "read the flags" was a menu's number; my call on the places); the ammunition point, the shack.
+ */
+export const KD_FLAGS_MID = deepFreeze([1310, 1410, 1510, 1595].map(x => ({ x, z: 345.0 })));
+export const KD_FLAGS = deepFreeze([1140, 1200, 1300, 1400, 1500, 1600].map(x => ({ x, z: 299.0 })).concat([1100, 1200, 1300, 1400, 1500, 1600].map(x => ({ x, z: 401.0 })), KD_FLAGS_MID));
+export const KD_AMMO = deepFreeze({ x: 1070, z: 420 }), KD_SHACK = deepFreeze({ x: 1070, z: 285 });
+/** The KD's walked rect and its rope. */
+export const KD_WALK = deepFreeze([1060.4, 300.5, 1597, 399.5]);
+export const KD_ROPES = deepFreeze([
+  { name: 'kd-rope-north-w', x0: 1060.2, z0: 300.2, x1: 1085.8, z1: 300.2 },
+  { name: 'kd-rope-north-e', x0: 1128.4, z0: 300.2, x1: 1597.0, z1: 300.2 },
+  { name: 'kd-rope-south', x0: 1060.2, z0: 399.8, x1: 1597.0, z1: 399.8 },
+  { name: 'kd-rope-west', x0: 1060.2, z0: 300.2, x1: 1060.2, z1: 399.8 },
+]);
+
+const kdPoint = (lane, d) => {
+  const z = KD_LANE1_Z + KD_LANE_GAP_M * (lane - 1), x = KD_LINES[d].x, fp = { x, z };
+  return { fp, box: [x - 1.4, z - 1.0, x + 2.2, z + 1.0], coach: { x: x - 0.9, z: z - 1.4, face: 'right' } };
+};
+const kdLane = (n) => {
+  const z = KD_LANE1_Z + KD_LANE_GAP_M * (n - 1);
+  return {
+    lane: n, z,
+    face: { x: KD_TARGET_X, z, upY: FACE_UP_Y, downY: FACE_DOWN_Y, paper: 'kdA' },
+    carrier: { x: CARRIER_X, z }, puller: { x: PULLER_X, z, face: 'left' },
+    points: { 200: kdPoint(n, 200), 300: kdPoint(n, 300), 500: kdPoint(n, 500) },
+    fixtures: { face: `f:kd:t-${n}`, fp: { 200: `f:kd:fp200-${n}`, 300: `f:kd:fp300-${n}`, 500: `f:kd:fp500-${n}` } },
+  };
+};
+/** The KD ground as the build sheet 0.0.7 §2.3 gives it to every role (KD_RANGE.kd: see the header). */
+export const KD = deepFreeze({
+  targetX: KD_TARGET_X, lanes: Array.from({ length: KD_LANES }, (_, i) => kdLane(i + 1)), laneGap: KD_LANE_GAP_M, lane1Z: KD_LANE1_Z, readyX: KD_READY_X, zone: 'melas.kd-range',
+  lines: { 200: { ...KD_LINES[200] }, 300: { ...KD_LINES[300] }, 500: { ...KD_LINES[500] } },
+  pits: { x0: KD_PITS.x0, x1: KD_PITS.x1, floorY: KD_PITS.floorY, parapet: { ...KD_PITS.parapet }, walk: [...KD_PITS.walk] },
+  berm: { rect: [...KD_BERM.rect], heightM: KD_BERM.heightM },
+  flags: KD_FLAGS.map(f => ({ ...f })), ammo: { ...KD_AMMO }, shack: { ...KD_SHACK },
+  walk: [...KD_WALK], nLanes: KD_LANES,
+});
+/** A KD lane's record (1 to 20), or null. */
+export const kdLaneOf = (lane) => KD.lanes[lane - 1] ?? null;
+
+/** A long rope's run (m): see KD_PIECES. */
+export const ROPE_RUN_M = 30;
+/** The KD's pieces (see the header): appended to RANGE_PIECES. */
+const KD_PIECES = [
+  ...[200, 300, 500].map((d, i) => ({ id: `f:kd:board-${d}`, kind: 'kdLineBoard', make: 'distance', x: KD_LINES[d].x + 0.5, z: 300.8, face: 'down', look: { text: String(d) }, seed: 90 + i, block: 'see' })),
+  ...KD.lanes.flatMap(L => [200, 300, 500].map(d => ({ id: L.fixtures.fp[d], kind: 'kdPoint', make: 'stake', x: L.points[d].fp.x - 1.6, z: L.z + 1.2, face: 'down', look: { text: String(L.lane) }, seed: 100 + L.lane, block: null }))),
+  // (the carrier's frame drawn under its face as the stage draws it, twice life size with its left edge on the line
+  // (VIEWS §2.12 FACE_K 2): at the sim's 1,603.5 it stood 1.5 m east of the face; the sim's carrier.x is unchanged)
+  ...KD.lanes.map(L => ({ id: L.fixtures.face, kind: 'kdCarrier', make: 'frame', x: CARRIER_DRAWN_X, z: L.z, face: 'left', look: { lane: L.lane }, seed: 130 + L.lane, block: 'see' })),
+  { id: 'f:kd:parapet', kind: 'kdParapet', make: 'concrete', x: 1598.5, z: 350, face: 'left', w: 100, d: 3, look: {}, seed: 151, block: 'see' },
+  { id: 'f:kd:pits-back', kind: 'kdParapet', make: 'concrete', x: 1611.0, z: 350, face: 'left', w: 100, d: 2, look: {}, seed: 152, block: 'see' },
+  { id: 'f:kd:pits-n', kind: 'kdParapet', make: 'concrete', x: 1605.0, z: 300.2, face: 'down', w: 10, d: 0.4, look: {}, seed: 153, block: 'see' },
+  { id: 'f:kd:pits-s', kind: 'kdParapet', make: 'concrete', x: 1605.0, z: 399.8, face: 'down', w: 10, d: 0.4, look: {}, seed: 154, block: 'see' },
+  { id: 'f:kd:pits', kind: 'kdPits', make: 'trench', x: 1605.0, z: 350, face: 'left', w: 100, d: 10, look: { floorY: KD_PITS.floorY }, seed: 155, block: null },
+  { id: 'f:kd:berm', kind: 'kdBerm', make: 'earth', x: 1626.0, z: 350, face: 'left', w: 100, d: 28, look: {}, seed: 156, block: 'see' },
+  ...KD_FLAGS.map((f, i) => ({ id: `f:kd:wind-${f.z < 320 ? 'n' : f.z > 380 ? 's' : 'm'}${f.x}`, kind: 'kdFlag', make: 'sleeve', x: f.x, z: f.z, face: 'down', look: {}, seed: 160 + i, block: 'see' })),
+  { id: 'f:kd:canopy', kind: 'kdCanopy', make: 'open', x: KD_AMMO.x, z: KD_AMMO.z - 2.5, face: 'down', look: {}, seed: 180, block: null },
+  { id: 'f:kd:shack', kind: 'rangeShack', make: 'shut', x: KD_SHACK.x, z: KD_SHACK.z, face: 'down', look: {}, seed: 181, block: 'solid' },
+  // (a rope in runs of at most ROPE_RUN_M: the stage draws a piece with the chunk its middle is in, so a 537 m rope in one
+  // piece went undrawn wherever its middle's chunk was out of reach; each run's middle is within 15 m of any part of it)
+  ...KD_ROPES.flatMap((r, i) => {
+    const along = r.z0 === r.z1, len = along ? r.x1 - r.x0 : r.z1 - r.z0, n = Math.max(1, Math.ceil(len / ROPE_RUN_M)), run = n === 1 ? len : Math.floor(len / n * 100) / 100;
+    return Array.from({ length: n }, (_, k) => {
+      const mid = (along ? r.x0 : r.z0) + run * (k + 0.5);
+      return { id: n === 1 ? `f:kd:${r.name}` : `f:kd:${r.name}-${k + 1}`, kind: 'rangeFence', make: 'rope', x: Math.round((along ? mid : r.x0) * 100) / 100, z: Math.round((along ? r.z0 : mid) * 100) / 100,
+        face: along ? 'down' : 'left', w: run, look: {}, seed: 190 + i, block: 'see' };
+    });
+  }),
+];
+/** The KD lines' sintered pads (path surfaces on the ground, as LINE_PAD), metres. */
+export const KD_PADS = deepFreeze([200, 300, 500].map(d => ({ id: `s:kd:line${d}`, kind: 'path', rect: [KD_LINES[d].x - 1.5, 300.5, KD_LINES[d].x + 2.5, 399.5] })));
+
+/** The range as the sheet's §2.3 gives it to every role (see the header): the bay (0.0.5) and, from 0.0.7, the KD (kd). */
+export const KD_RANGE = deepFreeze({ ...KD_RANGE_025, kd: KD });
+/**
+ * The range's kit pieces (src/art/kit/range.js), as authored: { id, kind, make, x, z, face, w?, d?, h?,
+ * look, seed, block: 'solid' | 'see' | null (what the nav and the sight grid make of it) }: the bay's (0.0.5)
+ * then the KD's (0.0.7).
+ */
+export const RANGE_PIECES = deepFreeze([...PIECES_025, ...KD_PIECES]);

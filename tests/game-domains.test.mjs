@@ -99,12 +99,12 @@ export default [
     },
   },
   {
-    name: 'the actions table: routed by prefix to their owners (R\'s hand and the door to places, 0.0.3; the activity to time and the instinct\'s T to people, 0.0.4; G, the digits, X, the steps, V and the stances to weapons, 0.0.5; R held\'s chain to time, 0.0.6), the people and body domains built, the stubs doing what the sheet says; an unknown action counted, never thrown',
+    name: 'the actions table: routed by prefix to their owners (R\'s hand and the door to places, 0.0.3; the activity to time and the instinct\'s T to people, 0.0.4; G, the digits, X, the steps, V and the stances to weapons, 0.0.5; R held\'s chain to time, 0.0.6; the KD\'s range actions to weapons, 0.0.7), the people and body domains built, the stubs doing what the sheet says; an unknown action counted, never thrown',
     fn() {
       const g = createGame({ seed: 4 });
       const table = g.sim.actions;
       const want = { debug: 'tech', skip: 'time', activity: 'time', chain: 'time', hand: 'places', door: 'places', people: 'people', instinct: 'people',
-        ready: 'weapons', digit: 'weapons', shoot: 'weapons', stop: 'weapons', carry: 'weapons', stance: 'weapons', hit: 'combat', grab: 'combat', guard: 'combat' };
+        ready: 'weapons', digit: 'weapons', shoot: 'weapons', stop: 'weapons', carry: 'weapons', stance: 'weapons', kd: 'weapons', hit: 'combat', grab: 'combat', guard: 'combat' };
       assert(JSON.stringify(Object.keys(table).sort()) === JSON.stringify(Object.keys(want).sort()) && Object.entries(want).every(([a, d]) => table[a] === d), JSON.stringify(table));
       const people = g.sim.domains.find(d => d.name === 'people');
       assert(people && !people.stub && g.sim.layers.find(L => L.name === 'actors').contributors.includes('people') && g.sim.slow.includes('people:place'), `the people domain: ${JSON.stringify(people)}`);
@@ -214,7 +214,8 @@ export default [
       domainsOf().find(d => d.name === 'weapons').init(s);
       assert(JSON.stringify(s) === JSON.stringify({ stop: null, items: {}, armoury: { guns: {}, ammoIssues: [] } }), JSON.stringify(s));
       const layers = sim.layers.filter(L => L.contributors.includes('weapons')).map(L => L.name);
-      assert(layers.join() === 'input,rules,second', layers.join());
+      // (0.0.7: the relay's and the corpsman's steps on the actors layer, test-range's: the build sheet 0.0.7 §2.7)
+      assert(layers.join() === 'input,actors,rules,second', layers.join());
       // (v0.0.4's own digests, made by its code in a scratch worktree of the tag, 2026-11-06; v0.0.5 made the same)
       const V004 = { 'sandbox|4|null': '03bf21fea193f8', 'sandbox|48213|null': '0d3ad82fd1c184', 'barracks|48213|null': '0ce4d2a7f4b363', 'barracks|48213|21.9': '11013be0e1a17f',
         'test-shower|48213|null': '157083cd7cf59e', 'test-night|7|null': '0a5f3c0639a9f0', 'barracks|48213|21.9|played': '08234d7efc6892' };

@@ -6,8 +6,12 @@
 // odds along its foot, the notch), its words in the sheet's form ("PAPER · 25 M · 85% · AIM 0.9 S", "… · +4 IN
 // 1.3 S · CLICK FIRE"), and the hover's list, which is the record's own DC parts and modifiers, in its order.
 // The brackets: four corners of the style's light edge, each inked round.
+// The 0.0.7 round's (the build sheet 0.0.7 §2.1 plaqueOf's terms and kd, §5.5 ui-plaque): the terms' plate at distance,
+// one segment a term (range, wind, hold, zero), each its glyph and its few words, and the rings' strip, its cells as wide
+// as their odds; the hover's lines; the far window's label from farPointOf's record.
 import { assert } from './helpers.mjs';
-import { plaquePixels, bracketPixels, shotPlaque, plaqueWords, plaqueParts, nextSaid, oddsSaid, textW, writeText, pixelBuffer, colourAt, mix, STYLES, ICONS, MARKS } from '../src/ui/plaque.js';
+import { plaquePixels, bracketPixels, shotPlaque, plaqueWords, plaqueParts, nextSaid, oddsSaid, textW, writeText, pixelBuffer, colourAt, mix, STYLES, ICONS, MARKS,
+  termsPixels, termText, termLines, ringShares, ringWords, farLabel, TERM_ICONS, RING_CELLS, RING_STRIP_PX } from '../src/ui/plaque.js';
 import { GLYPH_CHARS } from '../src/art/font.js';
 
 // (the record plaqueOf gives at the card, prone, before the aim: DC 19, the optic +1, prone +4: 85%)
@@ -106,6 +110,48 @@ export default [
       console.log(`      ${kinds.length} kinds: ${kinds.map((k, i) => `${k} ${sizes[i]} px`).join(', ')}`);
       assert(['home', 'duty', 'mess', 'armoury', 'medical', 'way', 'seen', 'squad', 'hazard', 'exit', 'felt', 'airlock', 'tail'].every(k => STYLES[k]), 'VIEWS §9.1\'s kinds');
       assert(['bed', 'fork', 'rifle', 'chevron', 'warn', 'ear', 'door', 'lock', 'clock'].every(g => ICONS[g]?.length === 5 && ICONS[g].every(r => r.length === 5)), 'VIEWS §9.1\'s glyphs, 5 × 5');
+    },
+  },
+  {
+    name: 'the terms at distance: one plate, a segment a term (range "300 M", wind "2.6 M/S >" the way it blows, hold "0.5 R", zero "▼3"), each its glyph and its words, and the rings\' strip at its end, each cell as wide as its odds; the hover\'s lines; nothing but the record\'s beliefs',
+    fn() {
+      const terms = [{ key: 'range', v: 300, words: '300 m' }, { key: 'wind', v: 2.6, words: 'wind 2.6 m/s from the left, blowing right (your read)' }, { key: 'hold', v: [0.5, 0], words: 'held 0.5 mil right' }, { key: 'zero', v: { elev: -3, wind: 0 }, words: '3 clicks down from your zero' }];
+      const ringOdds = { v: 0.04, 5: 0.21, 4: 0.38, 3: 0.22, 2: 0.09, miss: 0.06 };
+      const p = termsPixels(terms, { ringOdds });
+      console.log(`      the plate ${p.w} × ${p.h} px: ${p.words}`);
+      console.log(`      segments ${p.segments.map(g => `${g.key}@${g.x}+${g.w} "${g.text}"`).join(', ')}; the strip at ${p.strip.x}, cells ${p.strip.cells.map(c => `${c.ring} ${c.w}`).join(' ')}`);
+      assert(p.segments.map(g => g.text).join(' | ') === '300 M | 2.6 M/S > | 0.5 R | ▼3', p.segments.map(g => g.text).join(' | '));
+      // (each segment's glyph in the plate's glyph colour where its icon says, its words in ink after it)
+      const S = STYLES.seen;
+      for (const g of p.segments) {
+        const icon = ICONS[TERM_ICONS[g.key]], buf = { w: p.w, h: p.h, data: p.data };
+        icon.forEach((row, j) => [...row].forEach((b, i) => { if (b === '1') assert(colourAt(buf, g.x + i, 3 + j) === S.glyph, `${g.key}'s glyph at ${g.x + i},${3 + j}`); }));
+        assert(same(pixelsIn(buf, g.x + 7, 3, textW(g.text), 5, S.ink), inkOf(g.text)), `${g.key}'s words "${g.text}"`);
+      }
+      const total = p.strip.cells.reduce((a, c) => a + c.w, 0), sh = ringShares(ringOdds);
+      assert(total === RING_STRIP_PX && p.strip.cells.every((c, i) => Math.abs(c.w - sh[i] * RING_STRIP_PX) <= 1.5), JSON.stringify(p.strip.cells));
+      const buf = { w: p.w, h: p.h, data: p.data };
+      for (const c of p.strip.cells.filter(c => c.w)) assert(colourAt(buf, c.x, 5) === RING_CELLS.find(([k]) => k === c.ring)[1], `the ${c.ring} cell's colour`);
+      assert(ringWords(ringOdds) === 'V 4% 5 21% 4 38% 3 22% 2 9% MISS 6%', ringWords(ringOdds));
+      // (the words by their values: still air, a hold left and down, on the zero; a term without a value says its own words)
+      const said = [termText({ key: 'wind', v: 0.01 }), termText({ key: 'wind', v: -3.04 }), termText({ key: 'hold', v: { xMil: -0.25, yMil: -0.5 } }), termText({ key: 'hold', v: [0, 0] }), termText({ key: 'zero', v: { elev: 0, wind: 0 } }), termText({ key: 'zero', v: { elev: 2, wind: -1 } }), termText({ key: 'range', words: 'about 300 m' })];
+      console.log(`      ${said.join(' | ')}`);
+      assert(said.join(' | ') === 'STILL | 3 M/S < | 0.25 L 0.5 DN | CENTRE | ON ZERO | ▲2 <1 | ABOUT 300 M', said.join(' | '));
+      const lines = termLines({ terms, kd: { ringOdds } });
+      console.log(`      the hover: ${lines.join(' · ')}`);
+      assert(lines.length === 5 && lines[1] === terms[1].words && /^the rings: v 4%/.test(lines[4]), JSON.stringify(lines));
+      assert(termsPixels([], {}).segments.length === 0 && termsPixels(terms).strip === null, 'no terms, no odds: nothing drawn for them');
+    },
+  },
+  {
+    name: 'the far window\'s label: "TARGET 10" and after the seam "300 M", farPointOf\'s own words, in the seen kind\'s enamel with the aim glyph and no notch',
+    fn() {
+      const spec = farLabel({ key: 'face:10', label: 'TARGET 10 · 300 M', rangeM: 300, lane: 10 }), p = plaquePixels(spec);
+      console.log(`      ${JSON.stringify(spec)} → ${p.w} × ${p.h} px "${p.words}"`);
+      assert(spec.text === 'TARGET 10' && spec.sub === '300 M' && spec.style === 'seen' && spec.icon === 'aim' && spec.notch === false && p.words === 'TARGET 10 300 M', JSON.stringify(spec));
+      const bare = farLabel({ key: 'face:7', lane: 7, rangeM: 299.6 });
+      assert(bare.text === 'TARGET 7' && bare.sub === '300 M' && farLabel(null) === null, JSON.stringify(bare));
+      assert(['range', 'flag', 'hold', 'turret'].every(g => ICONS[g]?.length === 5 && ICONS[g].every(r => r.length === 5)) && ['<', '▲', '▼'].every(m => MARKS[m]?.length === 5), 'the new glyphs, 5 × 5, and marks');
     },
   },
 ];

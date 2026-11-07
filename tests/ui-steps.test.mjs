@@ -5,6 +5,10 @@
 // commands, singles, 0 more), struck reasons, 'routine'". The lists here are fed by hand in the shape of
 // the shot role's stepsOf() and stopNow().reflex, arms' rangeLook() and kitView(), and PEOPLE's say fact
 // (the sheet's §2.2 and §2.5): this suite tests the HUD's reading of them, not their making.
+// The 0.0.7 round's (the build sheet 0.0.7 §2.1, §5.5 ui-steps): the rows at distance as the shot role gives them
+// ({ id, label, ms, skill: null, odds: null, words }): the coach's call to dial, the dope for the line, the holds, the
+// flags read, the lever, sitting; each with its time and no odds (no roll), its words on its hover, Fire and the
+// commands kept on the first page past ten, the singles paged.
 import { assert, fmt } from './helpers.mjs';
 import { panelOf, rowText, oddsText, shownMs, rowTitle, createTicks, markOf, PANEL_KEYS } from '../src/ui/hud/steps.js';
 import { reflexOf } from '../src/ui/hud/reflex.js';
@@ -173,6 +177,36 @@ export default [
       assert(CARD_W === 180 && CARD_H === 148 && STATES.weapon.includes('PAPER') && STATES['weapon-paused'].includes('PAUSED'), 'the card and the states');
       const walk = rectsAt(1280, 720);
       assert(Math.abs(walk.RADIO.y + walk.RADIO.h + 6 * walk.ui - walk.INSTINCT.y) < 1e-6, 'walking, RADIO stays on INSTINCT');
+    },
+  },
+  {
+    name: 'the rows at distance read as the panel\'s others: "Dial the coach\'s call: 4 up, 2 left · 1.6 s", "Dope for 300 m: 3 down · 0.4 s", the holds, "Read the flags · 1.5 s", "Four power · 0.5 s", "Sitting · 2.0 s"; no odds (no roll), their words on the hover; past ten, Fire and the commands stay on the first page',
+    fn() {
+      const rows = [
+        { id: 'fire', kind: 'fire', label: 'Fire at your target', ms: 400, off: null, odds: 0.72, skill: 'marksmanship' },
+        { id: 'hold', kind: 'hold', label: 'Hold the aim', ms: 1300, skill: 'marksmanship' },
+        { id: 'macro:unload', kind: 'command', label: 'UNLOAD', ms: 3200, routine: true, skill: 'weapons' },
+        { id: 'sight:call', kind: 'single', label: 'Dial the coach\'s call: 4 up, 2 left', ms: 1600, skill: null, odds: null, words: 'the coach\'s clicks from his read of your marks' },
+        { id: 'sight:dope:300', kind: 'single', label: 'Dope for 300 m: 3 down', ms: 400, skill: null, odds: null, words: 'the turrets to your card\'s dope for 300 m' },
+        { id: 'hold:read', kind: 'single', label: 'Hold for your read: 0.5 mil right', ms: 300, skill: null, odds: null, words: 'your read of the flags: 2.6 m/s from the left' },
+        { id: 'hold:call', kind: 'single', label: 'Hold for the coach: 0.75 mil right', ms: 300, skill: null, odds: null, words: 'the coach\'s call: 3.5 m/s from the left' },
+        { id: 'hold:centre', kind: 'single', label: 'Hold centre', ms: 300, skill: null, odds: null },
+        { id: 'read', kind: 'single', label: 'Read the flags', ms: 1500, skill: null, odds: null, words: 'the flags along the range, ten seconds of them' },
+        { id: 'optic:4', kind: 'single', label: 'Four power', ms: 500, skill: null, odds: null },
+        { id: 'stance:sit', kind: 'stance', label: 'Sitting', ms: 2000, skill: null, odds: null },
+        { id: 'wait', kind: 'wait', label: 'Wait for the tower', ms: null },
+      ];
+      const p0 = panelOf(rows), p1 = panelOf(rows, { page: 1 });
+      const lines = p0.slots.map(s => rowText(s)), lines1 = p1.slots.map(s => rowText(s));
+      console.log(`      page 1: ${lines.join(' | ')}`);
+      console.log(`      page 2: ${lines1.join(' | ')}`);
+      assert(p0.pages === 2 && ['1', '2', '3'].every((k, i) => p0.slots[i].key === k && p1.slots[i].step.id === rows[i].id), 'Fire, Hold and UNLOAD on 1, 2, 3 on every page');
+      const all = [...p0.slots, ...p1.slots.slice(3)].map(s => rowText(s));
+      for (const want of ['Dial the coach\'s call: 4 up, 2 left · 1.6 s', 'Dope for 300 m: 3 down · 0.4 s', 'Hold for your read: 0.5 mil right · 0.3 s', 'Hold for the coach: 0.75 mil right · 0.3 s', 'Read the flags · 1.5 s', 'Four power · 0.5 s', 'Sitting · 2.0 s'])
+        assert(all.some(l => l.endsWith(want) && !/%|routine/.test(l)), `"${want}" in ${JSON.stringify(all)}`);
+      const t = rowTitle(rows[5]);
+      console.log(`      the hover of "${rows[5].label}": ${t}`);
+      assert(t.includes('your read of the flags') && !/rolls/.test(t), t);
     },
   },
 ];

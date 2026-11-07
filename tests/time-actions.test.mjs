@@ -143,14 +143,14 @@ export default [
       putAt(g, SINK);
       const o2 = handOffer(s), stub0 = b1.hygiene.stubbleH, grime0 = b1.hygiene.grime;
       g.step(1, { act: [{ act: 'hand', args: { want: 'activity' } }] });
-      const lived = !s.skip && s.time.doing?.mode === 'live';
+      const lived = s.time.doing?.mode ?? (s.skip ? s.skip.engine : null);   // (a fast-forward behind the brief splash: 30 s is over LIVE_MAX_MS 10 s, the user, 2026-11-07)
       g.run(31_000);
       const b2 = bodyOf(s, pid), st2 = stagesOf(b2, s.clock.ms), end = g.facts('activity').at(-1);
       const line = s.log.filter(e => e.kind === 'activity').at(-1);
       console.log(`      the urinal: R "${o.label}"; after: hands ${st1.hands.band} (dirt ${fmt(b1.hands.dirt, 1)}, ${b1.hands.why}), soil events ${soiled.map(e => `${e.amount} (${e.why})`).join(', ')}, groom events ${groomed.length}`);
       console.log(`      the sink: R "${o2.label}" (${o2.why}), lived ${lived}: hands ${st2.hands.band} (dirt ${fmt(b2.hands.dirt, 2)}), stubble ${fmt(stub0, 2)} → ${fmt(b2.hygiene.stubbleH, 2)} h, grime ${fmt(grime0, 2)} → ${fmt(b2.hygiene.grime, 2)}; "${line?.text}"`);
       assert(o.id === 'urinate' && st1.hands.i >= 2 && b1.hands.why === 'head' && !groomed.length && soiled.length === 1, JSON.stringify({ hands: b1.hands, groomed: groomed.length }));
-      assert(o2.id === 'wash-hands' && o2.label === 'wash hands · 30 s' && lived && end.activity === 'wash-hands' && end.fraction === 1 && st2.hands.i === 0, JSON.stringify({ o2: o2.label, end, hands: b2.hands }));
+      assert(o2.id === 'wash-hands' && o2.label === 'wash hands · 30 s' && lived === 'ff' && end.mode === 'ff' && end.activity === 'wash-hands' && end.fraction === 1 && st2.hands.i === 0, JSON.stringify({ o2: o2.label, end, hands: b2.hands }));
       assert(b2.hygiene.stubbleH > stub0 && Math.abs(b2.hygiene.grime - grime0) < 0.1, 'washing the hands shaved or washed something else');
     },
   },

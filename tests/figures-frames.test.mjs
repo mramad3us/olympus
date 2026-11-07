@@ -134,7 +134,9 @@ export default [
       for (const ppm of [16, 24]) {
         const lay = sheetLayout(ppm);
         console.log(`      ${ppm} px/m: sheet ${lay.w} × ${lay.h}; ${Object.entries(lay.bands).map(([k, r]) => `${k} ${BANDS[k].length} frames ${r.w}×${r.h}`).join(', ')}`);
-        assert(BANDS.gait.length === 14 && BANDS.move.length === 14 && BANDS.rest.length === 10, 'the bands');
+        // (0.0.7: rest gains the corpsman's aid, lie the casualty's hurt, and the seated band the R-7 sitting; the base sheet keeps its size)
+        assert(BANDS.gait.length === 14 && BANDS.move.length === 14 && BANDS.rest.length === 11 && BANDS.lie.length === 3 && BANDS.seated.length === 5, 'the bands');
+        assert(lay.w === Math.round(32 * ppm) && lay.h === (ppm === 16 ? 752 : 1128), `the base sheet ${lay.w} × ${lay.h}`);
         for (const f of NEW) for (const d of DIRS) assert(lay.cells.has(`${f}|${d}`), `${f} ${d} has a cell`);
       }
     },

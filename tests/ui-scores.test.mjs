@@ -6,10 +6,12 @@
 // version, seed, aspects, star, note, atIso }] }, newest last, at most SCORES_MAX; a stored value that
 // does not parse starts afresh; the last score of a scene is what the card opens with. And a scene's end
 // rule (cards/tests.js endsScene): the shower's or the dressing's end, the drill's stand-down, not a
-// shower cut short. Prints the lines and the stored record.
+// shower cut short. Prints the lines and the stored record. The 0.0.7 round's (the build sheet 0.0.7 §5.5): test-range's
+// line with its three aspects, "far window 85 · shot at distance 80 · range safety 90", and the KD's end card: its
+// summary as the range says it, an incident on a line of its own.
 import { assert } from './helpers.mjs';
 import { scoreLine, keepScore, readScores, lastScore, snapScore, SCORES_KEY, SCORES_MAX } from '../src/ui/cards/score.js';
-import { endsScene, GOAL_S } from '../src/ui/cards/tests.js';
+import { endsScene, GOAL_S, sceneSaid, sceneLines } from '../src/ui/cards/tests.js';
 
 const store = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), map: m }; };
 
@@ -63,6 +65,23 @@ export default [
       for (const [endOn, type, payload, want] of cases) assert(endsScene(endOn, type, payload) === want, JSON.stringify({ endOn, type, payload }));
       console.log(`      ${cases.length} facts read as the scenes' ends say; the goal line ${GOAL_S} s`);
       assert(GOAL_S === 8, 'GOAL_S');
+    },
+  },
+  {
+    name: 'test-range\'s line: "OLYMPUS v0.0.7 · test-range · seed 48213 · far window 85 · shot at distance 80 · range safety 90 · ★ no · note: none" (ROADMAP §2.2); the end card says the KD\'s summary, and an incident on its own line',
+    fn() {
+      const line = scoreLine({ version: '0.0.7', scene: 'test-range', seed: 48213, aspects: [['far window', 85], ['shot at distance', 80], ['range safety', 90]], star: false, note: '' });
+      console.log(`      ${line}`);
+      assert(line === 'OLYMPUS v0.0.7 · test-range · seed 48213 · far window 85 · shot at distance 80 · range safety 90 · ★ no · note: none', line);
+      const kdSum = 'Clear at 10:31 · zero in 2 groups · 300 m 21 of 25 · 200 m 44 of 50 · 2 V · no faults';
+      const fam = sceneSaid({ summary: { score: 61, of: 75, v: 4, faults: 0, clearAtMs: 0 }, end: { phase: 'clear' } }, { clockText: () => '09:14' });
+      const kd = sceneSaid({ course: 'kd', summary: kdSum });
+      const both = sceneLines({ course: 'kd', summary: kdSum }, { casualty: { who: 'p31', name: 'Pvt Okafor', part: 'left thigh', outcome: 'evacuated' } });
+      const said = sceneLines({ course: 'kd', summary: kdSum }, { casualty: { words: 'You were hit in the left foot: evacuated to the aid station' } });
+      console.log(`      test-handling's: ${fam}; the KD's: ${kd}; with a casualty: ${both.join(' / ')}; as the range words it: ${said[1]}`);
+      assert(fam === 'Clear at 09:14 · 61 of 75 · 4 V · no faults' && kd === kdSum, `${fam} / ${kd}`);
+      assert(both.length === 2 && both[1] === 'Range closed: Pvt Okafor hit in the left thigh by a negligent discharge, evacuated' && said[1] === 'You were hit in the left foot: evacuated to the aid station', JSON.stringify(both));
+      assert(sceneLines({ course: 'kd', summary: kdSum }, { casualty: null }).length === 1 && sceneLines(null, null).length === 0, 'no incident, one line; no range, none');
     },
   },
 ];

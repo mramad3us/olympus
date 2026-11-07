@@ -44,6 +44,10 @@
 // the shot, step and say facts to it, and frame() lets it play the clicks and ticks the drawn clock has
 // passed. createAudio({ looks }) gives it arms' kitLook (the ear defenders), from main.js.
 //
+// The 0.0.7 round's (range.js, the build sheet 0.0.7 §2.5 (d)): RANGE gains the crack, the strike's thump and the
+// carrier's rattle, baked with the rest; the reports and echoes go through range.js's voices' limit on this
+// context's clock (REPORT_VOICES at once), under the engine's own VOICES_MAX; fact() hears the 'pit' fact too.
+//
 // stats: { state (the context's, or 'none'), started, baked (every sound rendered), steps, doors,
 // dropped (past VOICES_MAX), late (foot-falls too late to play), voices, voicesMax, volume, muted,
 // master (the master gain's target), sampleRate, last, prepareMs (the context's making, at boot),
@@ -247,7 +251,8 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
       return ok;
     },
   };
-  const rangeSounds = createRange(rangeOps, { looks });
+  // (the voices' limit counts on the audio clock, where the reports will sound)
+  const rangeSounds = createRange(rangeOps, { looks, clock: () => (ctx ? ctx.currentTime : 0) });
   stats.range = rangeSounds.stats;
 
   let lastState = null;

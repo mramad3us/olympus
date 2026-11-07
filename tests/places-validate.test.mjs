@@ -13,6 +13,12 @@
 // and its ground floor's grid's, for the flights' guard (fixtures.js flightGuardOf, a flight's `open`
 // side, a rail across its foot), the stair rooms' extinguishers moved off the flights' feet and their
 // night lights, and the up bands 0.3 m north, with the new rule stair-foot.
+// 0.0.7 (the build sheet 0.0.7 §2.3, §5.3): the rest of the KD ground (KD_RANGE.kd: the 200, 300 and 500 m lines
+// with their twenty points, the target line on its carriers, the pits under the parapet, the impact berm, the wind
+// flags, the shack, the canopy and the rope round the lanes), every piece in the ground drawn and X3 and the kit's
+// FOOTPRINTS; every point of every line and every coach's place reached from the ready line on the ground's C0 grid,
+// the pits walked along their length, the lanes closed (nothing outside the rope and the parapet reached), the
+// gates still shut. GROUND_AREA, KD_RANGE and RANGE_PIECES re-set on purpose for it.
 import { assert, fmt } from './helpers.mjs';
 import { golden } from './golden.mjs';
 import { createGame } from './game.mjs';
@@ -228,7 +234,7 @@ export default [
       const g = golden('places: TEST_AREA C0 grid bytes', grid.cost, '189fefcff571bf');
       const b = golden('places: ECHO_1', ECHO_1, '16a0991afd36f2');   // (0.0.6 re-set from 0784d8b14248b8, by way of 1bfaeadda3e1a7: the doors' openS and closeS 0.4 s and 0.6 s (were 1.0 and 1.2); each flight's open side, the stair rooms' extinguishers moved to the east wall and a night light over each stair, the bands up 0.3 m north and the arrivals down with them; 0.0.5's from 11196730cf23f2: the floor's floorName, 'ground floor'; 0.0.4's from 08f56e69dfa150: a drinking fountain in each wing's hall)
       const c = golden('places: ECHO_2', ECHO_2, '0d9c4e955d0e04');   // (0.0.6 re-set from 1127fea3c6e702, by way of 1475eb634db564: the doors' openS and closeS 0.4 s and 0.6 s; the stair rooms' extinguishers moved to the east wall, a night light over each well, the arrivals down 0.3 m north; 0.0.5's from 0beba02edd957f: floorName 'upper floor', and its name 'first floor' became 'upper floor'; 0.0.4's from 1afda0fc95253b: the fountains)
-      const d = golden('places: GROUND_AREA', GROUND_AREA, '03f5d7ec1b64b8');   // (0.0.6 re-set from 0620249a3a1ee1: the PX barber's pole on its stand, f:melas:px:barber; 0.0.5 re-set from 000d6d7a726622: the ground grew over X3, the KD range's 25 m bay and its tower; 0.0.3's fixer set that from 131d1b63b7f5b2)
+      const d = golden('places: GROUND_AREA', GROUND_AREA, '0db1458f268269');   // (0.0.7's fixer re-set from 0bd09616d76961: the middle row of wind flags, z 345; 0.0.7 re-set from 03f5d7ec1b64b8: the KD's lines, pits, berm, flags, shack, canopy, rope (in runs of at most 30 m, the integrator's) and pads, its walked rects, the carriers drawn under their faces; 0.0.6 re-set from 0620249a3a1ee1: the PX barber's pole on its stand, f:melas:px:barber; 0.0.5 re-set from 000d6d7a726622: the ground grew over X3, the KD range's 25 m bay and its tower; 0.0.3's fixer set that from 131d1b63b7f5b2)
       const e = golden('places: ECHO_1 C0 grid bytes', e1.cost, '0e95501282079e');   // (0.0.6 re-set from 1201fe98a1ceda: the flights' rails, their closed tops and the rails across their feet, the extinguishers moved; 0.0.4's from 14b1247ac344b4: the fountains' footprints)
       console.log(`      TEST_AREA ${a}; its C0 grid (${grid.nx} × ${grid.nz}) ${g}`);
       console.log(`      ECHO_1 ${b}, ECHO_2 ${c}, GROUND_AREA ${d}; ECHO_1's C0 grid (${e1.nx} × ${e1.nz}, its doors as the template has them) ${e}`);
@@ -260,8 +266,8 @@ export default [
   {
     name: 'Base Melas\'s site plan is pinned by goldens',
     fn() {
-      const p = golden('places: MELAS_PLAN', MELAS_PLAN, '07d03f4ca4f3c7');   // (0.0.5 re-set from 0f9ae504ac4dbc: the 25 m bay's zone, melas.kd-25)
-      const w = golden('places: MELAS_PLAN_AS_WRITTEN', MELAS_PLAN_AS_WRITTEN, '05d1dbf22c101d');   // (0.0.5 re-set from 140c63b80bc327: the same zone)
+      const p = golden('places: MELAS_PLAN', MELAS_PLAN, '0fa77d16885ab8');   // (0.0.7 re-set from 07d03f4ca4f3c7: the KD's line zones, melas.kd-line-200, 300 and 500; 0.0.5 re-set from 0f9ae504ac4dbc: the 25 m bay's zone, melas.kd-25)
+      const w = golden('places: MELAS_PLAN_AS_WRITTEN', MELAS_PLAN_AS_WRITTEN, '0e823a645338ed');   // (0.0.7 re-set from 05d1dbf22c101d: the KD's line zones; 0.0.5 re-set from 140c63b80bc327: the same zone)
       console.log(`      MELAS_PLAN ${p}; MELAS_PLAN_AS_WRITTEN ${w}`);
     },
   },
@@ -298,7 +304,10 @@ export default [
       for (const p of RANGE_PIECES) kinds[p.kind] = (kinds[p.kind] ?? 0) + 1;
       console.log(`      ${RANGE_PIECES.length} pieces (${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join(', ')}), all in the ground drawn ${JSON.stringify(drawn.map(d => [d.x0, d.z0, d.x1, d.z1]))} and X3; ${GROUND_AREA.nav.blockers.filter(b => String(b.tag).startsWith('f:kd:')).length} of the nav's blockers theirs; overlaps ${clash.length ? clash.join(', ') : 'none'}`);
       assert(!clash.length, clash.join(', '));
-      assert(GROUND_AREA.walksM.length === 2 && JSON.stringify(GROUND_AREA.walksM[1]) === JSON.stringify({ x0: W[0], z0: W[1], x1: W[2], z1: W[3] }) && JSON.stringify(GROUND_AREA.walkM) === JSON.stringify({ x0: 0, z0: 0, x1: 1000, z1: 700 }), 'the walked rects: Main Side and the bay');
+      // (0.0.7: and the KD's lanes and its pits after them)
+      const KW = KD_RANGE.kd.walk, PW = KD_RANGE.kd.pits.walk, R4 = (q) => JSON.stringify({ x0: q[0], z0: q[1], x1: q[2], z1: q[3] });
+      assert(GROUND_AREA.walksM.length === 4 && JSON.stringify(GROUND_AREA.walksM[1]) === R4(W) && JSON.stringify(GROUND_AREA.walksM[2]) === R4(KW) && JSON.stringify(GROUND_AREA.walksM[3]) === R4(PW)
+        && JSON.stringify(GROUND_AREA.walkM) === JSON.stringify({ x0: 0, z0: 0, x1: 1000, z1: 700 }), 'the walked rects: Main Side, the bay, the KD\'s lanes and its pits');
       assert(GROUND_AREA.zones.some(z => z.id === KD_RANGE.zone), 'the bay\'s zone on the ground');
     },
   },
@@ -336,10 +345,67 @@ export default [
     },
   },
   {
+    name: 'the KD ground in full stands at its final place (PLACES §4.12, the build sheet 0.0.7 §2.3): twenty lanes 5 m apart on the 200, 300 and 500 m lines, each point with its box and its coach, the faces on their carriers at 1,600 m east, the pits behind the parapet, the berm, the flags every 100 m on both sides and four down the middle',
+    fn() {
+      const K = KD_RANGE.kd, lines = [200, 300, 500];
+      console.log(`      ${K.lanes.length} lanes at z ${K.lanes[0].z} to ${K.lanes.at(-1).z} (${K.laneGap} m); the lines ${lines.map(d => `${d} m at x ${K.lines[d].x} (${K.targetX - K.lines[d].x} m to the faces)`).join(', ')}; the ready line at x ${K.readyX}`);
+      console.log(`      the pits x ${K.pits.x0} to ${K.pits.x1}, floor ${K.pits.floorY} m, the parapet ${JSON.stringify(K.pits.parapet)}, the pits' walk ${JSON.stringify(K.pits.walk)}; the berm ${JSON.stringify(K.berm.rect)} ${K.berm.heightM} m; ${K.flags.length} flags (${K.flags.map(f => `${f.x}/${f.z}`).join(', ')}); the ammunition point ${JSON.stringify(K.ammo)}; the walk ${JSON.stringify(K.walk)}`);
+      assert(K.lanes.length === 20 && K.lanes.every((L, i) => L.lane === i + 1 && Math.abs(L.z - (302.5 + 5 * i)) < 1e-9 && L.face.x === 1600 && L.carrier.x === 1603.5), 'the lanes');
+      for (const d of lines) assert(K.targetX - K.lines[d].x === d, `the ${d} m line at ${d} m from the faces`);
+      for (const L of K.lanes) for (const d of lines) {
+        const P = L.points[d];
+        assert(P.fp.x === K.lines[d].x && P.fp.z === L.z && Math.abs(P.box[0] - (P.fp.x - 1.4)) < 1e-9 && Math.abs(P.box[2] - (P.fp.x + 2.2)) < 1e-9 && P.coach.x === P.fp.x - 0.9 && Math.abs(P.coach.z - (P.fp.z - 1.4)) < 1e-9, `lane ${L.lane} at ${d} m`);
+        assert(RANGE_PIECES.some(p => p.id === L.fixtures.fp[d] && p.kind === 'kdPoint' && p.look.text === String(L.lane)), `lane ${L.lane}'s stake at ${d} m`);
+      }
+      // (and the middle row between lanes 9 and 10, 10 m downrange of each line and 5 m short of the parapet: a flag in the
+      // picture on either line and in the far window (the design review's of v0.0.7))
+      const mid = K.flags.filter(f => f.z === 345);
+      assert(K.flags.length === 16 && K.flags.every(f => f.z === 299 || f.z === 401 || f.z === 345) && mid.length === 4 && mid.every(f => f.x < K.pits.parapet.x0) && [300, 200].every(d => mid.some(f => f.x - K.lines[d].x === 10)), 'the flags on both sides and down the middle');
+      assert(K.pits.parapet.x0 === 1597 && K.pits.parapet.x1 === 1600 && K.berm.rect[0] === 1612 && K.berm.heightM === 8, 'the pits and the berm');
+    },
+  },
+  {
+    name: 'every point of every KD line and every coach\'s place is reached from the ready line on the ground\'s C0 grid, the pits are walked along their length, and the lanes are closed: nothing past the rope or the parapet reached, the gates still shut',
+    fn() {
+      const st = createGame({ scenario: 'sandbox', seed: 48213 }).state, K = KD_RANGE.kd;
+      const grids = new Map(), grid = (x, z) => { const k = `${Math.floor(x / CHUNK_M)},${Math.floor(z / CHUNK_M)}`; if (!grids.has(k)) grids.set(k, chunkGrid(st, GROUND_AREA, Math.floor(x / CHUNK_M), Math.floor(z / CHUNK_M), 'C0')); return grids.get(k); };
+      const free = (x, z) => { const g = grid(x, z); const c = cellOf(g, x, z); return c >= 0 && g.cost[c] !== 255; };
+      const snapC = (v) => (Math.floor(v / CELL_M) + 0.5) * CELL_M, key = (x, z) => `${Math.round(x / CELL_M)},${Math.round(z / CELL_M)}`;
+      const flood = (sx, sz, box) => {
+        const seen = new Set(), todo = [[snapC(sx), snapC(sz)]];
+        seen.add(key(...todo[0]));
+        let leak = null;
+        while (todo.length) {
+          const [x, z] = todo.pop();
+          if (x < box[0] || x > box[2] || z < box[1] || z > box[3]) { leak = [x, z]; break; }
+          for (const [dx, dz] of [[CELL_M, 0], [-CELL_M, 0], [0, CELL_M], [0, -CELL_M]]) {
+            const nx = x + dx, nz = z + dz, k = key(nx, nz);
+            if (seen.has(k) || !free(nx, nz)) continue;
+            seen.add(k); todo.push([nx, nz]);
+          }
+        }
+        return { seen, leak, reached: (p) => seen.has(key(snapC(p.x), snapC(p.z))) };
+      };
+      const t0 = performance.now();
+      const lanes = flood(K.readyX + 1, 350, [1050, 290, 1660, 410]);
+      const spots = K.lanes.flatMap(L => [200, 300, 500].flatMap(d => [{ what: `lane ${L.lane}'s ${d} m point`, ...L.points[d].fp }, { what: `lane ${L.lane}'s ${d} m coach`, x: L.points[d].coach.x, z: L.points[d].coach.z }]));
+      const missed = spots.filter(p => !lanes.reached(p)).map(p => p.what);
+      const outside = [{ x: 1100, z: 298.5 }, { x: 1300, z: 402 }, { x: 1058, z: 350 }, { x: 1605, z: 350 }, { x: 1620, z: 350 }].filter(lanes.reached);
+      const pits = flood(1605, 350, [1595, 295, 1615, 405]), pitEnds = [{ x: 1605.5, z: 301 }, { x: 1605.5, z: 399 }, ...K.lanes.map(L => L.puller)];
+      const pitMissed = pitEnds.filter(p => !pits.reached(p)), pitOut = [{ x: 1595, z: 350 }, { x: 1620, z: 350 }].filter(pits.reached);
+      const gates = GROUND_AREA.gates.filter(g => g.state !== 'closed');
+      console.log(`      the lanes flooded from the ready line: ${lanes.seen.size} cells (${(lanes.seen.size * CELL_M * CELL_M).toFixed(0)} m²), ${spots.length - missed.length} of ${spots.length} points and coaches reached, outside reached ${outside.length ? JSON.stringify(outside) : 'none'}, ${lanes.leak ? `leaked at ${lanes.leak}` : 'closed'}; the pits ${pits.seen.size} cells, ${pitEnds.length - pitMissed.length} of ${pitEnds.length} places reached, ${pits.leak ? `leaked at ${pits.leak}` : 'closed'}; gates open ${gates.length}; ${fmt(performance.now() - t0, 0)} ms`);
+      assert(!missed.length, `not reached: ${missed.slice(0, 6).join(', ')}`);
+      assert(!lanes.leak && !outside.length, `the lanes are open: ${JSON.stringify(lanes.leak ?? outside)}`);
+      assert(!pitMissed.length && !pits.leak && !pitOut.length, `the pits: ${JSON.stringify({ pitMissed, leak: pits.leak, pitOut })}`);
+      assert(!gates.length, `the gates stay shut: ${gates.map(g => g.id).join(', ')}`);
+    },
+  },
+  {
     name: 'the KD range\'s bay and its pieces are pinned by goldens (melas@1\'s template: a change to them is on purpose and said)',
     fn() {
-      const a = golden('places: KD_RANGE', KD_RANGE, '09bbbab6c91cad');
-      const b = golden('places: RANGE_PIECES', RANGE_PIECES, '0369e5d085a39f');
+      const a = golden('places: KD_RANGE', KD_RANGE, '12a9082a867be1');   // (0.0.7's fixer re-set from 148f94d9302372: the middle row of wind flags; 0.0.7 re-set from 09bbbab6c91cad: KD_RANGE.kd, the KD ground in full, its zone melas.kd-range)
+      const b = golden('places: RANGE_PIECES', RANGE_PIECES, '0387e9d07c1d12');   // (0.0.7's fixer re-set from 06b3e5db9bdd5b: four wind sleeves down the middle, f:kd:wind-m1310 to m1595; 0.0.7 re-set from 0369e5d085a39f: the KD's pieces after the bay's, its ropes in 30 m runs, the carriers at 1,601.1)
       console.log(`      KD_RANGE ${a}; RANGE_PIECES ${b}`);
     },
   },

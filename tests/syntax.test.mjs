@@ -41,6 +41,8 @@
 // rule, one pace helper: no function and no top-level const or let whose name has "pace" as a word
 // (paceOf, PACE_K, slow_pace) is defined outside src/sim/skills/skills.js; parameters and properties
 // are free (a step's pace read from paceOf is fine).
+// 0.0.7 (the build sheet 0.0.7 §2.7, the stage's): SIM_FOR_VIEW gains src/sim/body/blood.js (the body's bloodLook:
+// the blood on the ground and the wounds' marks the stage draws).
 import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -179,7 +181,7 @@ const MAY_IMPORT = {
   art: ['core', 'data', 'art'], render: ['core', 'data', 'art', 'render'], ui: SRC_FOLDERS, main: [...SRC_FOLDERS, 'main'],
 };
 /** The pure sim helpers the stage may read (TECH §2.2's SIM_FOR_VIEW, with the 0.0.2 sheet's places/plan.js, the 0.0.3 sheet's §1: the sun, the clocks, the doors, people's perception and figures, and the 0.0.4 sheet's §1: the alert's beacon). */
-const SIM_FOR_VIEW = new Set(['src/sim/places/plan.js', 'src/sim/places/light.js', 'src/sim/places/sun.js', 'src/sim/places/clocks.js', 'src/sim/places/doors.js', 'src/sim/people/perception.js', 'src/sim/people/figure.js', 'src/sim/time/alerts.js', 'src/sim/arms/look.js']);
+const SIM_FOR_VIEW = new Set(['src/sim/places/plan.js', 'src/sim/places/light.js', 'src/sim/places/sun.js', 'src/sim/places/clocks.js', 'src/sim/places/doors.js', 'src/sim/people/perception.js', 'src/sim/people/figure.js', 'src/sim/time/alerts.js', 'src/sim/arms/look.js', 'src/sim/body/blood.js']);
 /** SKILLS §5.12: the one pace helper's home (paceOf); a name with "pace" as a word is defined nowhere else in src. */
 const PACE_HOME = 'src/sim/skills/skills.js';
 // (a name's words: camelCase, PascalCase, snake_case and SCREAMING_CASE split; "pace" one of them)

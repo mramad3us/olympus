@@ -21,6 +21,10 @@
 // hair's one helper, hairOf ("High and tight · growing out", "Haircut due Thursday.", "Out of regulation."):
 // grooming the hair as the beard is groomed (the user, 2026-11-06: "we should have to groom our hair the same
 // way we will have to groom our beards"). "Head wet." now for the shaved cut (v0.0.4's bald is gone).
+//
+// The 0.0.7 round's (the build sheet 0.0.7 §2.2, §2.5): a wound is on the sheet in BODY's words (wounds.js
+// woundWords(rec, ms): "A gunshot wound in the left thigh, bleeding hard."), under the line and over the needs,
+// never a number (blood, points, rates are the body's, not the character's); body.woundWords is given by main.js.
 import { RANKS } from '../../data/people/ranks.js';
 import { COMPANY } from '../../data/people/billets.js';
 import { unitName, billetDef } from '../../sim/people/roster.js';
@@ -78,8 +82,11 @@ export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg 
     ...(p?.skills ? SHEET_SKILLS.map(k => [SKILLS[k].name, `${valueOf(state, pid, k)} · ${levelOf(p.skills.skills?.[k]?.[0] ?? 0)}`]) : []),
   ];
   const me = state ? playerActor(state) : null;
+  // (0.0.7: the wounds in BODY's words, none when unhurt; numbers never shown)
+  let wounds = [];
+  try { wounds = rec && body.woundWords ? (body.woundWords(rec, ms) ?? []).filter(Boolean).map(String) : []; } catch { wounds = []; }
   return {
-    name: nameOf(p?.name), file, strip: strip ?? [], line: said(words?.line ?? ''), needs, stages,
+    name: nameOf(p?.name), file, strip: strip ?? [], line: said(words?.line ?? ''), needs, stages, wounds,
     doll: { look: look ?? p?.look ?? null, sex: p?.sex ?? 'm', body: cues, outfit: me?.outfit ?? 'utilities' },
   };
 }
@@ -133,7 +140,8 @@ export function sheetCard(sheet, { dollOf = null, scale = 2 } = {}) {
     el('h3', { textContent: 'Personnel' }),
     el('div', { className: 'cols' },
       el('div', { className: 'col dollcol' }, figure ?? el('p', { className: 'note', textContent: 'No figure to draw.' })),
-      el('div', { className: 'col onyou' }, el('h4', { textContent: 'On you' }), sheet.line ? el('p', { className: 'feel', textContent: sheet.line }) : null, needs),
+      el('div', { className: 'col onyou' }, el('h4', { textContent: 'On you' }), sheet.line ? el('p', { className: 'feel', textContent: sheet.line }) : null,
+        ...(sheet.wounds ?? []).map(w => el('p', { className: 'wound', textContent: w })), needs),
       el('div', { className: 'col thefile' }, el('h4', { textContent: 'The file' }), file)),
     el('p', { className: 'note', textContent: 'What you feel, not what a meter says. C or Esc to close.' }));
 }

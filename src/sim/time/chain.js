@@ -11,7 +11,7 @@
 //   planChain(state, { spotId, steps: [{ id, args }] }) → { ok, why, steps: [{ id, args, label,
 //                fromMs, toMs, durMs, off }], durMs, endMs, label, kind, late }: the menu's foot ("brush
 //                teeth, shave, wash face · 7 min, done 19:53"); ok false with the first step struck or
-//                not at this spot (why its words); kind by the total (TIME §5.2: under 45 s lived, under
+//                not at this spot (why its words); kind by the total (TIME §5.2: up to 10 s lived, under
 //                120 s a fast-forward, else an outcome skip); late TIME §9.5's check on the whole chain,
 //                the outfit it leaves you in as its landing (a chain of musters, dressing into
 //                utilities and standing fast, is never late).

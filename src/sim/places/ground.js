@@ -27,12 +27,16 @@
 //             fixtures: each blocks the nav as its data says (solid: the berm, which hides what is behind
 //             it; see: the tower's legs, the frames, the boards, the fence and the rope, which stop a
 //             walker and not an eye), so the bay is walked inside its fence, rope and berm and nowhere
-//             else (the gates stay shut: the scene starts on the line);
+//             else (the gates stay shut: the scene starts on the line); 0.0.7 adds the KD's (its lines'
+//             stakes and boards, the carriers, the parapet and the pits' walls, the trench's floor, the
+//             impact berm, the wind flags, the canopy, the shack and the rope round the lanes), and the
+//             lines' pads (KD_PADS) to the surfaces;
 //   look      the palette, the authored look seed, the formation marks (decor) and the lamps: 'street'
 //             at every lamp post, 'flood' on the fence.
 // The ground drawn is GROUND.drawnM (Main Side with its apron, and X3's strip over the KD range): the
 // masses, surfaces and zones that reach into it, boundsM their bounding rect; walkM stays Main Side's
-// rect (what v0.0.4's readers read), walksM lists every walked rect (Main Side, the bay).
+// rect (what v0.0.4's readers read), walksM lists every walked rect (Main Side, the bay, and from 0.0.7 the KD's
+// lanes and its pits).
 // And for the nav and the sight grids (src/sim/places/nav.js, sight.js), the rects that block: each
 // mass's rects with a reveal DOOR_REVEAL_M 0.8 m deep cut out at every door that has an opening (the
 // reveal is a leaf of its own, blocked while the opening is closed), the fence's runs cut at the
@@ -43,7 +47,7 @@ import { GROUND, LAMP_LINES, FLOODS, STREET, DOOR_SIGNS, BARBER } from '../../da
 import { SEEDS } from '../../data/places/echo.js';
 import { LAMP_KINDS } from '../../data/places/sky.js';
 import { ECHO_1, ECHO_ENTRIES } from './echo.js';
-import { RANGE_PIECES, RANGE_KINDS, LINE_PAD } from '../../data/places/range.js';
+import { RANGE_PIECES, RANGE_KINDS, LINE_PAD, KD_PADS } from '../../data/places/range.js';
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 const r4 = (v) => { const r = Math.round(v * 10000) / 10000; return r === 0 ? 0 : r; };
@@ -139,6 +143,8 @@ const surfaces = [
   ...MELAS_PLAN.roads.filter(r => inDrawn(lineBox(r))).map(r => ({ kind: 'paving', id: r.id, pts: r.pts.map(p => [...p]), widthM: r.widthM })),
   ...MELAS_PLAN.paths.filter(r => inDrawn(lineBox(r))).map(r => ({ kind: 'path', id: r.id, pts: r.pts.map(p => [...p]), widthM: r.widthM })),
   { kind: LINE_PAD.kind, id: LINE_PAD.id, rect: [...LINE_PAD.rect] },
+  // (0.0.7: the KD's 200, 300 and 500 m lines' pads)
+  ...KD_PADS.map(p => ({ kind: p.kind, id: p.id, rect: [...p.rect] })),
 ];
 const zones = MELAS_PLAN.zones.filter(z => z.name && inDrawn(rectOf(z.rect))).map(z => ({ id: z.id, kind: z.kind, name: z.name, rect: [...z.rect] }));
 

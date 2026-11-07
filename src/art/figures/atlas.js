@@ -175,7 +175,7 @@ export function paintFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
   return { pm: shade(fr.cells, coloursOf(L, ppm)), ax: fr.ax, ay: fr.ay, muzzle: fr.muzzle, flash: fr.flash, kind: fr.kind };
 }
 
-export const FIRE_FRAMES = Object.freeze(['fire', 'firehi', 'firelo', 'kneelfire', 'pronefire']);
+export const FIRE_FRAMES = Object.freeze(['fire', 'firehi', 'firelo', 'kneelfire', 'pronefire', 'sitFire']);
 /**
  * The flash's size on Mars, of tradecraft's (the build sheet 0.0.5 §2.3 (c): "the flash (Mars ×1.2)": in
  * Melas's 66 kPa the propellant's gas burns on a little further past the muzzle than at sea level).

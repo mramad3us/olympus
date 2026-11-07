@@ -293,6 +293,37 @@ export const ACTION_SOUNDS = Object.freeze({
 /** A pull that did not fire and clicks (the shot fact's why). */
 export const DRY_WHY = Object.freeze(['dud', 'empty']);
 
+// ---- the 0.0.7 round: the line at 300 m (the build sheet 0.0.7 §2.5 (d), VIEWS §11.3; my calls, unscored) ----
+//
+// The R-7 at distance, by the air it flies through. Your report at once, then the crack of your own round as it leaves
+// (supersonic: a 1 ms N-wave riding the blast, CRACK_SOURCE_DB over its peak, an impulse the defenders take down as the
+// report), and the strike coming back to you a flight and a sound's way later: the round's time of flight (the shot
+// fact's flight.tofS) plus the distance over the speed of sound in that air (ballistics.js soundMsOf: 322 m/s on the
+// valley floor), so at 300 m 0.42 + 0.93 = 1.35 s after the shot, a low thump of the berm taking it (IMPACT_SOURCE_DB
+// over its peak at 1 m: a 6.5 mm round into packed regolith), inverse with distance and low-passed further by it
+// (DIST_LP_REF_M: the corner falls with the distance past it, never under DIST_LP_MIN_HZ). A neighbour's report comes a
+// sound's way late (5 m: 16 ms), panned. The relay fires all through a string, so reports are kept to a few voices:
+// two within REPORT_MERGE_MS of each other are one (the second dropped, counted as merged), and at most REPORT_VOICES
+// reports and echoes sound at once (a further one dropped, counted), REPORT_HOLD_S each; never a wall of noise. The
+// defenders are electronic (v0.0.5's): an impulse over EARS_GATE_DB at the ear is taken EARS_DB down (the reports, the
+// echoes, the crack), a quieter one passes (the far strikes, the carriers), and the tower's speaker comes through
+// their circuit, low-passed at EARS_LP_HZ. The pits' work comes over the berm: a carrier running down or up its rails
+// (a steel rattle, CARRIER_SOURCE_DB) where it is, a sound's way late, under the parapet (PARAPET_DB and its low-pass).
+/** The crack of your own round as it leaves, against its recipe's peak (dB: under the report, over the action). */
+export const CRACK_SOURCE_DB = 16;
+/** The strike's thump at 1 m against its recipe's peak (dB). */
+export const IMPACT_SOURCE_DB = 34;
+/** A carrier on its rails at 1 m against its recipe's peak (dB). */
+export const CARRIER_SOURCE_DB = 26;
+/** Distance takes the highs too: the corner falls as DIST_LP_REF_HZ × DIST_LP_REF_M / d past DIST_LP_REF_M, never under DIST_LP_MIN_HZ (Hz, m). */
+export const DIST_LP_REF_HZ = 5200, DIST_LP_REF_M = 40, DIST_LP_MIN_HZ = 500;
+/** The relay's reports: at most this many at once, two within this of each other one, each sounding this long (voices, ms, s). */
+export const REPORT_VOICES = 6, REPORT_MERGE_MS = 60, REPORT_HOLD_S = 0.6;
+/** The defenders take an impulse down only over this level at the ear (dBFS over the recipe's peak). */
+export const EARS_GATE_DB = -12;
+/** The parapet between the pits and the line: its level and its low-pass (dB, Hz). */
+export const PARAPET_DB = -10, PARAPET_LP_HZ = 1200;
+
 /** The range's sounds (see the header). */
 export const RANGE = Object.freeze({
   report: Object.freeze({
@@ -368,6 +399,30 @@ export const RANGE = Object.freeze({
     layers: Object.freeze([
       Object.freeze({ kind: 'noise', bandpass: Object.freeze([3400, 3]), attackS: 0.0002, decayS: 0.0025, db: 0 }),
       Object.freeze({ kind: 'grains', n: 4, spreadS: 0.02, bandpass: Object.freeze([2600, 1.5]), decayS: 0.0012, db: -8 }),
+    ]),
+  }),
+  // (0.0.7: the crack of the round leaving, an N-wave of a millisecond; the strike's thump into the berm; a carrier's rattle)
+  crack: Object.freeze({
+    levelDb: -8, durS: 0.04, variants: 2,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', highpass: 2500, attackS: 0.00005, decayS: 0.0008, db: 0 }),
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([5200, 1.2]), attackS: 0.00005, decayS: 0.0012, delayS: 0.0009, db: -5 }),
+    ]),
+  }),
+  impact: Object.freeze({
+    levelDb: -10, durS: 0.3, variants: 3, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', lowpass: 420, attackS: 0.001, decayS: 0.045, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 82, toHz: 46, attackS: 0.002, decayS: 0.07, db: -4 }),
+      Object.freeze({ kind: 'grains', n: 6, spreadS: 0.06, bandpass: Object.freeze([900, 1.2]), decayS: 0.004, delayS: 0.01, db: -14 }),
+    ]),
+  }),
+  carrier: Object.freeze({
+    levelDb: -12, durS: 1.2, variants: 2, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'grains', n: 22, spreadS: 0.9, bandpass: Object.freeze([1400, 2]), decayS: 0.01, db: 0 }),
+      Object.freeze({ kind: 'sweep', hz: 380, toHz: 260, q: 3, attackS: 0.05, decayS: 0.6, durS: 1.0, db: -6 }),
+      Object.freeze({ kind: 'tone', hz: 140, toHz: 120, attackS: 0.003, decayS: 0.08, delayS: 0.95, db: -4 }),
     ]),
   }),
   chime: Object.freeze({

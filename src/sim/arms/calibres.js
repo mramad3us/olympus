@@ -21,7 +21,13 @@
 // magazine may be filled with, one kind a magazine (mixed loads, a tracer every fifth, wait for the
 // belts: my call). The tracer's red tip is my call (the Corps' colour; real armies paint red, orange
 // or green); its trace burns from traceFromM 30 m to tracerM 900 m (it lights a few tens of metres out),
-// so at 25 m by day the stage draws only a faint spark of it. Data only: frozen literals and three lookups.
+// so at 25 m by day the stage draws only a faint spark of it.
+//
+// 0.0.7 (the build sheet 0.0.7 §1: taken for a missing field): the 6.5×40's AP and frangible loads (WEAPONS
+// §2.3, §2.10), which ballistics.js and penetrate.js fly and test (§2.4's table, §8.3 and §8.5's stops and
+// perforations). Neither is issued on Mars's ranges (AP by order, frangible the shipboard standard), so each
+// is marked range: false and LIVE_LOADS, the kinds a range's magazine is filled with, leaves them out.
+// Data only: frozen literals and three lookups.
 
 /** The calibres (WEAPONS §2.2, §2.3): id → { word, diaMm, caseMm, caseG, propG, boxN, loads }. */
 export const CALIBRES = Object.freeze({
@@ -30,6 +36,8 @@ export const CALIBRES = Object.freeze({
     loads: Object.freeze({
       ball: Object.freeze({ word: 'ball', tip: null, tipWord: 'a bare copper tip', massG: 7.8, vRefMs: 790, refBarrelMm: 460, vExp: 0.18, bcG7: 0.23, pen0Mm: 7.0, penExp: 2, woundK: 1.0, priceMcr: 0.30 }),
       tracer: Object.freeze({ word: 'tracer', tip: 0xc23b2e, tipWord: 'a red tip', massG: 7.5, vRefMs: 790, refBarrelMm: 460, vExp: 0.18, bcG7: 0.22, pen0Mm: 6.5, penExp: 2, woundK: 1.0, tracerM: 900, traceFromM: 30, ignites: true, priceMcr: 0.40 }),
+      ap: Object.freeze({ word: 'AP', tip: 0x1c1c1c, tipWord: 'a black tip', massG: 7.1, vRefMs: 815, refBarrelMm: 460, vExp: 0.18, bcG7: 0.25, pen0Mm: 13.0, penExp: 1.5, woundK: 0.9, priceMcr: 1.20, byOrder: true, range: false }),
+      frangible: Object.freeze({ word: 'frangible', tip: 0x3f6fb5, tipWord: 'a blue tip', massG: 6.0, vRefMs: 790, refBarrelMm: 460, vExp: 0.18, bcG7: 0.15, pen0Mm: 1.5, penExp: 2, woundK: 1.1, frangible: true, priceMcr: 0.45, range: false }),
       blank: Object.freeze({ blank: true, word: 'a blank' }),
       dummy: Object.freeze({ dummy: true, word: 'an orange dummy' }),
     }),
@@ -48,7 +56,7 @@ export const calWord = (cal) => CALIBRES[cal]?.word ?? cal;
 /** A load's record ({ massG, … } | { dummy: true, … }), or null. */
 export const loadOf = (cal, load = 'ball') => CALIBRES[cal]?.loads?.[load] ?? null;
 
-/** The kinds a magazine of a calibre may be filled with: its live loads (not the blank or the dummy), ball first. */
-export const LIVE_LOADS = Object.freeze(Object.fromEntries(Object.entries(CALIBRES).map(([cal, C]) => [cal, Object.freeze(Object.keys(C.loads).filter(k => !C.loads[k].blank && !C.loads[k].dummy))])));
+/** The kinds a range's magazine of a calibre may be filled with: its live loads (not the blank, the dummy or a load the range never issues), ball first. */
+export const LIVE_LOADS = Object.freeze(Object.fromEntries(Object.entries(CALIBRES).map(([cal, C]) => [cal, Object.freeze(Object.keys(C.loads).filter(k => !C.loads[k].blank && !C.loads[k].dummy && C.loads[k].range !== false))])));
 /** A kind's word ('ball', 'tracer'; the orange dummy 'dummy'), the id itself when unknown. */
 export const loadWord = (load, cal = '6.5x40r') => (load === 'dummy' ? 'dummy' : loadOf(cal, load)?.word ?? load);

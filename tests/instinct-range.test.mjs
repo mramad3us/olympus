@@ -7,6 +7,8 @@ import { startBody } from '../src/sim/body/body.js';
 import { deltaOf } from '../src/sim/body/record.js';
 import { setLedgers } from '../src/sim/scenarios/tests.js';
 import { SITES } from '../src/data/setting/calendar.js';
+import { kdBot } from './bots/kd.mjs';
+import { kdNow } from '../src/sim/scenarios/range.js';
 
 /**
  * A shooter who presses only T (the line's act, as the hud sends it) and, on a reflex card, "Nothing": the DI then
@@ -68,6 +70,24 @@ export default [
       const I = instinctNow(s);
       console.log(`      T for MAKE READY during "${s.armoury.range.cmd.id}": nothing (${s.clock.ms - t0} ms on); in the mode: "${I.lead} ${I.line?.text}" (${I.line?.id}, T ${I.line?.act})`);
       assert(I.lead === 'Time stands still.' && I.line, JSON.stringify(I));
+    },
+  },
+  {
+    name: 'on the KD course (0.0.7) the DI says what the KD\'s own commands ask, in the character\'s knowledge: the coach\'s call to dial, the dope for the line, four power, the hold the coach called, police your brass, the rounds to the coach, the declaration',
+    fn() {
+      const g = createGame({ scenario: 'test-range', seed: 7 }), bot = kdBot(), heard = new Map();
+      for (let n = 0; n < 20 * 60 * 40 && !kdNow(g.state).end; n++) {
+        g.step(1, bot);
+        // (every tick: the bot answers police, turn-in and the declaration at once, so their line stands for one tick)
+        const L = instinctNow(g.state).line;
+        const line = L?.text ?? L?.words ?? null, id = L?.id ?? null;
+        if (id === 'range-kd' && line && !heard.has(line)) heard.set(line, kdNow(g.state).cmd);
+      }
+      const lines = [...heard.entries()];
+      console.log(`      ${lines.length} KD lines heard: ${lines.map(([t, c]) => `${c}: "${t}"`).join(' | ')}`);
+      const cmds = new Set(lines.map(([, c]) => c));
+      assert(['dope', 'police', 'turnIn', 'declare'].every(c => cmds.has(c)), `the KD's commands said: ${[...cmds].join(', ')}`);
+      assert(lines.every(([t]) => !/\d+\.\d{2,}/.test(t)), 'no truth\'s decimals in the DI\'s words');
     },
   },
 ];

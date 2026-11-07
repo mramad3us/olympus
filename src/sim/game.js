@@ -64,7 +64,8 @@
 // night's taps, reveille and drill). The start is START_MS, 2351-12-19 02:20 UTC (SETTING §3.7); a
 // test world has no career (ROADMAP §2.1). The test scenes (src/sim/scenarios/tests.js, 0.0.4) are
 // test-shower and test-night, on Melas: the barracks at their hour with the scene's body and outfit;
-// 0.0.5 adds test-handling, "Show clear" (src/sim/scenarios/handling.js: the 25 m line of the KD range).
+// 0.0.5 adds test-handling, "Show clear" (src/sim/scenarios/handling.js: the 25 m line of the KD range); 0.0.7
+// test-range, "The line at 300 m" (src/sim/scenarios/range.js: the KD range in full, its relay, its pits).
 //
 // The tech domain's actions: debug:skip:<ms> (the debug keys ^ and $ on AZERTY, the codes
 // BracketLeft and BracketRight, [ and ] on QWERTY) marks the save (meta.debugUsed, an honesty mark,
@@ -96,6 +97,7 @@ import { sandbox, SANDBOX } from './scenarios/sandbox.js';
 import { barracks, BARRACKS } from './scenarios/barracks.js';
 import { testShower, testNight, TESTS } from './scenarios/tests.js';
 import { testHandling, HANDLING } from './scenarios/handling.js';
+import { testRange, RANGE } from './scenarios/range.js';
 import { weaponsDomain } from './arms/domain.js';
 import { SITES } from '../data/setting/calendar.js';
 import { logEntry } from './log.js';
@@ -107,9 +109,9 @@ const LAYER_NAMES = new Set(FAST_LAYERS.map(L => L.name));
 /** The domains, in the order their contributors run. */
 export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'body', 'people', 'weapons', 'combat', 'world', 'career']);
 /** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
-export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling });
+export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange });
 /** The site each scenario starts on: its longitude sets the start's hour. */
-export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site, 'test-shower': TESTS.site, 'test-night': TESTS.site, 'test-handling': HANDLING.site });
+export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site, 'test-shower': TESTS.site, 'test-night': TESTS.site, 'test-handling': HANDLING.site, 'test-range': RANGE.site });
 
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act);
 /** Whether an error from where (the loop's onError) is the sim's, and so noted in the state: a tick's or a skip's. */
