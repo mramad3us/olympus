@@ -68,10 +68,13 @@
 // (casualtyOutcome), "The range is closed.", and the course goes on to UNLOAD, SHOW CLEAR, the declaration and the
 // card with the incident; the player as the casualty is carried to the card through the splash.
 // forceNd(state, bus, { pid, gunId, toward }) is the tests' and the debug handle's ND, graded and answered as any.
-// kdNow(state, ms) is the hud's and the bots' view; its summary the end card's ("Clear at 10:31 · zero in 2 groups ·
+// kdNow(state, ms) is the hud's and the bots' view (its zeroing: the rifle being zeroed, shot.js zeroingOf, for the weapon
+// card's dial); its summary the end card's ("Clear at 10:31 · zero in 2 groups ·
 // 300 m 21 of 25 · 200 m 44 of 50 · 2 V · no faults"). The waits never dead-end: v0.0.6's coach's check and
 // move-on hold on every command (handling.js rangeSecond), and the move-on here does what a command left
-// undone (kdMoveOn: the coach polices, takes the rounds, declares for you, each a fault).
+// undone (kdMoveOn: the coach polices, takes the rounds, declares for you, each a fault). Its nudge and its 60 s
+// count the line's wait on you alone (kdWaitOnYou: never the relay's, a timed string's, a splash's or a casualty's;
+// 0.0.7's tower fixer), and the walks' are the tower's own, passed over with no fault.
 import { TICK_MS } from '../../core/clock.js';
 import { msAtMarsTime } from '../../core/calendar.js';
 import { stream, intIn, weighted, int, range as rnd, d20 } from '../../core/rng.js';
@@ -95,11 +98,11 @@ import { rollerOf } from '../combat/roll.js';
 import { grade } from '../skills/checks.js';
 import { barracks } from './barracks.js';
 import { setLedgers } from './tests.js';
-import { rangeOf, sayOn, laneOf, drawLane, startRange, endRange, fault, stopRange, roundsLeft, seqOf, WARN_AGAIN_MS, stopWords } from './handling.js';
+import { rangeOf, sayOn, laneOf, drawLane, startRange, endRange, fault, stopRange, roundsLeft, seqOf, lineReady, WARN_AGAIN_MS, stopWords } from './handling.js';
 import { materialise, move, pouchesOf, discard, containersOf, atFeetOf, lyingOf } from '../arms/kit.js';
 import { newMag, drawZero, beliefOf, sightOf, beliefZero, gunField, feed } from '../arms/firearms.js';
 import { leaveStop, enterStop, gunOn } from '../arms/shooting.js';
-import { poiOf, holdFor, holdSaid } from '../arms/shot.js';
+import { poiOf, holdFor, holdSaid, zeroingOf } from '../arms/shot.js';
 import { readWind, COACH_MRK_MIN } from '../arms/wind.js';
 import { DOPE_CARD } from '../arms/ballistics.js';
 import { groupOf, poolOf, callOf, PAPERS, scoreOf } from '../arms/paper.js';
@@ -461,8 +464,9 @@ function coachWind(state, bus, why) {
   const h = holdFor({ windCm: poi.terms.find(t => t.key === 'wind')?.windCm ?? 0, elevCm: 0 }, dM);
   const keep = R.call?.clicks && !R.call.dialled ? { clicks: R.call.clicks, want: R.call.want } : {};
   R.call = { ...keep, crossMs: w.crossMs, band: w.band, holdMil: [h.xMil, h.yMil], atMs: now, for: pid };
-  if (Math.abs(w.crossMs) < 0.5) coachSay(state, bus, KD_COACH.still, 'still', why, R.line);
-  else coachSay(state, bus, fill(KD_COACH.wind, { from: w.crossMs > 0 ? 'left' : 'right', speed: `${Math.round(Math.abs(w.crossMs))} metres a second`, hold: holdSaid(h).replace(/ (left|right)$/, ''), side: h.xMil > 0 ? 'right' : h.xMil < 0 ? 'left' : '' }).map(s => s.replace(/ \.$/, '.').replace(/  +/g, ' ')), 'wind', why, R.line);
+  const n = Math.round(Math.abs(w.crossMs));
+  if (Math.abs(w.crossMs) < 0.5) coachSay(state, bus, KD_COACH[w.flags === 'limp' ? 'still' : w.flags] ?? KD_COACH.still, 'still', why, R.line);
+  else coachSay(state, bus, fill(KD_COACH.wind, { from: w.crossMs > 0 ? 'left' : 'right', speed: `${n} ${n === 1 ? 'metre' : 'metres'} a second`, hold: holdSaid(h).replace(/ (left|right)$/, ''), side: h.xMil > 0 ? 'right' : h.xMil < 0 ? 'left' : '' }).map(s => s.replace(/ \.$/, '.').replace(/  +/g, ' ')), 'wind', why, R.line);
   bus?.emit('range', { phase: 'call', cmd: R.cmd?.id ?? null, hot: R.hot, rule: null, kind: null, text: null, line: R.line, call: { crossMs: w.crossMs, holdMil: [h.xMil, h.yMil], clicks: R.call.clicks ?? null } });
   return R.call;
 }
@@ -546,6 +550,36 @@ export function kdReady(state, def, { still, gun, mag, safe, me }) {
 /** The relay's half of the RO's eye (handling.js lineReady). */
 export const kdRelayReady = (state) => relayReady(state, rangeOf(state)?.cmd?.i);
 
+/**
+ * The line's wait on you alone, lived (handling.js rangeSecond, each whole second, for the nudge and the move-on; w): R.onYouMs
+ * grows a second when the tower waits on you and on nobody else: the command is one of yours (not the brief, the coach's
+ * reading of the groups or the end), your readiness for it not met (lineReady without the relay), the relay's met, no
+ * string with a time limit being fired (the confirm's five minutes, the 200 m's sixty seconds: the tower's own CEASE FIRE
+ * ends them at the limit, the pits' marks are the range's to wait for), no splash or activity under way (the walk, the
+ * police: the range's own pace), no casualty holding the line, the next command not yet posted. The walks and the pits
+ * ('arrived') wait on the tower's splash, on R.livedMs as before. The user's report of 2026-11-07 ("got a fault for
+ * making tower wait when everyone was waiting"): the move-on counted every lived second since the command, so the 200 m
+ * string's minute, counted in whole seconds from a command given between two, reached 60 s before its limit and drew a
+ * 'slow' fault on anyone who used it; the confirm's slow fire, five minutes long, was cut at 60 s with a 'slow' fault and
+ * a CEASE FIRE while the shooter waited on the pits; and the relay's lag was counted to you. Returns the ms waited.
+ */
+export function kdWaitOnYou(state) {
+  const R = rangeOf(state), def = R?.cmd ? SEQ_KD[R.cmd.i] : null;
+  if (!R || !def) return 0;
+  if (def.ready === 'arrived') return R.livedMs;
+  if (onYou(state, R, def)) R.onYouMs = (R.onYouMs ?? 0) + 1000;
+  return R.onYouMs ?? 0;
+}
+// (whether this second the line waits on you alone: see kdWaitOnYou)
+function onYou(state, R, def) {
+  if (R.next || R.end || (R.casualty && R.casualty.phase !== 'outcome')) return false;
+  if (def.ready === 'always' || def.ready === 'never' || def.ready === 'zeroRead') return false;
+  if (state.skip || state.time?.doing || R.splash || R.splashOn) return false;
+  if (R.hot && R.limitAtMs !== null && R.limitAtMs !== undefined) return false;
+  if (lineReady(state, def.id, { relay: false })) return false;
+  return kdRelayReady(state);
+}
+
 // ---- each second lived ----
 
 /** The kd course's part of the second (handling.js rangeSecond, ctx the fast layer's): splashes begun, the string's limit, brass settled. */
@@ -583,12 +617,14 @@ export function kdSecond(state, bus, ctx) {
     }
   }
   if (holding) return true;
-  // (the string's limit: the tower's CEASE FIRE at it, lived time only)
+  // (the string's limit: the tower's CEASE FIRE at it, lived time only; its words, "CEASE FIRE. Time.", are the CEASE FIRE
+  // command's own, said once when it lands (handling.js onRangeCmd: it was said here and the sequence's "CEASE FIRE." a
+  // tick after, both in the box: 0.0.7's tower verifier))
   if (R.hot && R.limitAtMs !== null && R.limitAtMs !== undefined && now >= R.limitAtMs && !R.next) {
-    roSay(state, bus, KD_RO.limit, 'limit', R.cmd.i);
+    const text = hashPick(KD_RO.limit, 'kd-ro', state.meta.seed, 'limit', R.cmd.i);
     R.limitAtMs = null; R.limitHit = R.strings.length - 1;
     const i = R.cmd.i + 1;
-    post(state, { atMs: now, prio: 2, kind: 'range-cmd', src: 'arms:range', payload: { cmd: SEQ_KD[i].id, i } });
+    post(state, { atMs: now, prio: 2, kind: 'range-cmd', src: 'arms:range', payload: { cmd: SEQ_KD[i].id, i, text } });
     R.next = { id: SEQ_KD[i].id, i, atMs: now };
   }
   return false;
@@ -1022,6 +1058,8 @@ export function forceNd(state, bus, { pid = playerId(state), gunId = gunOn(state
 // ---- the view ----
 
 /** The session on the kd course as the hud and the bots read it (see the header), or null. */
+// (the card's zeroing: where this zero's clicks count from, or null (shot.js zeroingOf, the player's rifle))
+const zeroFrom = (state, pid) => { const z = zeroingOf(state, pid, gunOn(state, pid)); return z ? { from: z.from } : null; };
 export function kdNow(state, ms = state.clock.ms) {
   const R = rangeOf(state);
   if (!R || R.course !== 'kd') return null;
@@ -1056,7 +1094,8 @@ export function kdNow(state, ms = state.clock.ms) {
     stage: R.stage, line: R.line, cmd: R.cmd?.id ?? null, cmdI: R.cmd?.i ?? null, hot: R.hot, lane: R.line === 25 ? R.lane : R.kdLane, kdLane: R.kdLane,
     limitMsLeft: R.limitAtMs ? Math.max(0, R.limitAtMs - ms) : null, ready: def?.ready ?? null,
     groups: R.groups.map(g => ({ holes: (g.holes ?? []).map(h => h.at).filter(Boolean), centreCm: g.poolCm ?? g.centreCm, call: g.call, ok: g.ok })),
-    zeroed: !!R.zeroed, strings, pits, call: R.call ? { ...R.call } : null, relay, relay2: R.relay2Scores ?? null,
+    // (zeroing: the rifle being zeroed, the card's dial from the turrets as issued (shot.js zeroingOf), else null)
+    zeroed: !!R.zeroed, zeroing: zeroFrom(state, pid), strings, pits, call: R.call ? { ...R.call } : null, relay, relay2: R.relay2Scores ?? null,
     brass: { fired, policed: R.policed ?? 0, left }, rounds: { held: roundsLeft(state) + (R.picked ?? 0), turnedIn: R.turnedIn ?? 0 },
     declared: R.declared, casualty: R.casualty ? { ...R.casualty } : null, closed: !!R.closed, dummy: { ...R.dummy }, acts: kdActs(state),
     end: R.end, summary, incident: R.casualty?.words && R.casualty.phase === 'outcome' ? R.casualty.words : null, relayLine,

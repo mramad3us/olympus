@@ -22,7 +22,8 @@
 // tempo, its sub-steps with their words as glyph ticks filling as they are rolled (✓ passed, ◦ routine,
 // ✗ fumbled, · still to come), from the 'step' facts (createTicks), and a bar of its time gone on the
 // game clock (the sub-steps done and the share of the one running), so stop motion freezes it as it
-// freezes the picture; during Fire's recovery 1 again is the tap (a follow-up at the same aim). The step
+// freezes the picture; the tap is retired (0.0.8, COMBAT §25.6.4): a Pair, a Hammer or a Triple is a shot row chosen
+// while time stands still, and Fire during a fire step is busy. The step
 // is the one the panel last listed under its id (it leaves stepsOf's list as it changes the gun: LOAD
 // once the magazine is in). A chained wait (a step that completed the tower's command runs on to the
 // next: the sheet's §8 item 16) keeps the panel, any step chosen cutting it, its row "waiting for the tower".
@@ -49,11 +50,22 @@
 // 0.0.7 (the build sheet 0.0.7 §2.5 (a): the shot at distance): the card carries the SO-4's turrets and the hold
 // (src/art/weaponcard.js distanceParts: the dial from the believed zero, the lever's power, the line's believed dope,
 // the reticle with the hold), from beliefOf's new fields (sight, seen; zero and dope, believed; optic, seen) and the
-// stop's hold, never the rifle's true zero; its words and caption say the same ("4× · ▼3 · 300 ▼3 ✓ · HOLD 0.5 R").
+// stop's hold, never the rifle's true zero; its words and caption say the same ("4× · ▼3 · 300 ▼3 ✓ · HOLD 0.5 R"); while
+// the rifle is being zeroed (v.zeroing: kdNow's, shot.js zeroingOf) the clicks dialled in this zero ("1× · ZEROING ▲4 ◀2").
 // The panel's new rows are the shot role's (stepsOf: the coach's call to dial, the dope for the line, the holds for
 // your read and the coach's, the flags read, the lever, sitting), each with its words on its hover; a row's time
 // and odds as any other's. The dial's keys (Z S and the arrows a click of elevation, Shift with Q D a click of
 // windage: core/keys.js dialOf) send 'sight:elev:±1' and 'sight:wind:±1' (main.js).
+//
+// 0.0.8 (the build sheet 0.0.8 §2.2, §2.4; COMBAT §25.6, §25.11): at a contact's pause the panel leads with the contact's
+// answers and the shot rows (stepsOf's order: an identified no-shoot's Hold him and Challenge first), each row a real
+// choice priced and with its odds before you press: a shot row (kind 'shot': Pair, Hammer, Triple, Failure drill, To the
+// head) reads its time to two places, its aim apart where the row carries it ("Pair · 0.12 + 0.58 s"), and every
+// round's odds in order ("95% 95%", the head's after the torso's), struck with its gate's words where the sheet is
+// below it ("Marksmanship 12": what training buys); Hold him and Challenge as rows of their own; the reloads by their
+// purpose as stepsOf labels them (RELOAD, Top up, RELOAD, keep the empty). The shot and the contact's rows stay on
+// every page. Running, a shot row's sub-steps are its parts (the aim, the press, each round by its part, the shift),
+// ticked as each is rolled. The tap is retired (COMBAT §25.6.4): no follow-up is offered in Fire's recovery.
 import { CARD_W, CARD_H } from './layout.js';
 import { distanceParts, dialWords } from '../../art/weaponcard.js';
 
@@ -62,34 +74,103 @@ export const FLASH_MS = 220;
 
 /** The digits, in the panel's order: two columns of five. */
 export const PANEL_KEYS = Object.freeze(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
-/** The kinds that stay on every page: the shot and the tower's commands (the rest page under 0). */
-export const FIXED_KINDS = Object.freeze(['fire', 'aim', 'hold', 'command']);
+/** The kinds that stay on every page: the shot, the shot rows, the contact's answers and the tower's commands (the rest page under 0). */
+export const FIXED_KINDS = Object.freeze(['fire', 'aim', 'hold', 'command', 'shot', 'contact']);
+/**
+ * Whether a step stays on every page (a fixed kind, or a contact's answer by its id); a command stepsOf marks later (at a
+ * contact's pause, no answer to the man facing you: UNLOAD, a Top up with nothing to gain) pages with the rest, and a
+ * single it brought to the head (Off safe below rung 2) stays (the fixer's of 0.0.8).
+ */
+export const isFixed = (s) => (FIXED_KINDS.includes(s?.kind) && !s?.later) || String(s?.id ?? '').startsWith('contact:') || !!s?.promoted;
 
+/** The most fixed rows a page keeps, so a page always has room for some of the rest (0.0.8: at a contact's pause the rows are many). */
+export const FIXED_MAX = 8;
+/** Up to this many fixed rows repeat on every page; past it they hold the first page alone (0.0.8). */
+export const FIXED_REPEAT = 5;
+/** Whether a shot row is struck by its gate (the sheet below it: "Marksmanship 12"), not by a step to take first. */
+export const isGated = (s) => isShotRow(s) && !!s.off && !!s.gate && /^marksmanship/i.test(String(s.off));
+/**
+ * The shot rows struck by their gates folded into one row (0.0.8: what training buys, seen at a glance and costing one
+ * slot): { id: 'gated', kind: 'gated', label: 'Hammer 12 · Triple 18 · Failure drill 12', off: 'Marksmanship', rows }.
+ */
+export function gatedRow(list) {
+  const g = list.filter(isGated);
+  if (!g.length) return null;
+  return { id: 'gated', kind: 'gated', label: g.map(r => `${r.label} ${r.gate?.v ?? String(r.off).replace(/\D+/g, '')}`).join(' · '), ms: null, off: 'Marksmanship', rows: g, odds: null, routine: null };
+}
+/**
+ * The panel's order (0.0.8): the shot rows struck by their gates folded into one row after the offered ones, and a single that a
+ * struck row names as its first step ("off safe first": Off safe) brought up beside it, so it is on the first page.
+ */
+export function panelList(steps = []) {
+  const list = steps ?? [];
+  if (!list.some(isShotRow)) return list;
+  const gated = gatedRow(list), out = [];
+  const named = (s) => (/off safe/.test(String(s.off ?? '')) ? list.find(x => /^selector:(semi|auto)$/.test(x.id) && !x.off) ?? null : null);
+  const promoted = new Set();
+  let gatedAt = -1;
+  for (const s of list) {
+    if (isGated(s)) { if (gatedAt < 0) { gatedAt = out.length; out.push(gated); } continue; }
+    if (promoted.has(s.id)) continue;
+    out.push(s);
+    // (a single stepsOf already brought to the head (promoted): kept where it stands, never named twice)
+    if (s.promoted) promoted.add(s.id);
+    const n = isShotRow(s) ? named(s) : null;
+    if (n && !promoted.has(n.id)) { promoted.add(n.id); out.push({ ...n, kind: n.kind ?? 'single', promoted: true }); }
+  }
+  return out;
+}
 /**
  * The panel's slots: { slots: [{ key: '1', digit: 1, step }], more: { key: '0', page, pages } | null, page, pages }.
- * Ten steps or fewer take 1 to 9 and 0; more, and 1 to 9 hold the fixed kinds then a page of the rest, 0 pages.
+ * Ten steps or fewer take 1 to 9 and 0; more, and 1 to 9 hold the fixed kinds (FIXED_MAX at most) then a page of the rest, 0 pages.
  */
 export function panelOf(steps = [], { page = 0 } = {}) {
-  const list = steps ?? [];
+  const list = panelList(steps ?? []);
   if (list.length <= PANEL_KEYS.length) return { slots: list.map((step, i) => ({ key: PANEL_KEYS[i], digit: Number(PANEL_KEYS[i]), step })), more: null, page: 0, pages: 1 };
-  const fixed = list.filter(s => FIXED_KINDS.includes(s.kind)), rest = list.filter(s => !FIXED_KINDS.includes(s.kind));
+  const fixed0 = list.filter(s => isFixed(s) || s.kind === 'gated'), fixed = fixed0.slice(0, FIXED_MAX), over = new Set(fixed0.slice(FIXED_MAX));
+  const rest = list.filter(s => !fixed.includes(s) || over.has(s)).filter(s => !fixed.includes(s));
+  // (a few fixed rows stay on every page (the 25 m line's Fire, Aim and the tower's commands); more than FIXED_REPEAT of them
+  // (a contact's pause: the rows, the contact's answers, the reloads) hold the first page, and the pages after it are the
+  // rest nine at a time, so the singles are not one a page)
+  if (fixed.length > FIXED_REPEAT) {
+    const first = 9 - fixed.length, pages = 1 + Math.max(0, Math.ceil((rest.length - first) / 9)), p = ((page % pages) + pages) % pages;
+    const shown = p === 0 ? [...fixed, ...rest.slice(0, first)] : rest.slice(first + (p - 1) * 9, first + p * 9);
+    return { slots: shown.map((step, i) => ({ key: PANEL_KEYS[i], digit: i + 1, step })), more: { key: '0', digit: 0, page: p, pages }, page: p, pages };
+  }
   const per = Math.max(1, 9 - fixed.length), pages = Math.max(1, Math.ceil(rest.length / per)), p = ((page % pages) + pages) % pages;
   const shown = [...fixed, ...rest.slice(p * per, p * per + per)].slice(0, 9);
   return { slots: shown.map((step, i) => ({ key: PANEL_KEYS[i], digit: i + 1, step })), more: { key: '0', digit: 0, page: p, pages }, page: p, pages };
 }
 
 const secs = (ms) => (Number.isFinite(ms) ? `${(Math.max(0, ms) / 1000).toFixed(1)} s` : '');
-/** A step's odds as the row says them: 'routine', '85%', or '' where no roll is in doubt. */
+const secs2 = (ms) => (Math.max(0, ms) / 1000).toFixed(2);
+/** Whether a step is a shot row (specials.js: kind 'shot', its rounds and parts). */
+export const isShotRow = (s) => s?.kind === 'shot' && Array.isArray(s.rounds);
+/** A shot row's odds, round by round in order: [0.95, 0.95, 0.75]. */
+export const roundOdds = (s) => (isShotRow(s) ? s.rounds.map(r => r.odds) : []);
+/** A step's odds as the row says them: 'routine', '85%', a shot row's every round '95% 95% 75%', or '' where no roll is in doubt. */
 export function oddsText(step) {
   if (!step) return '';
+  if (isShotRow(step)) return step.rounds.map(r => (Number.isFinite(r.odds) ? `${Math.round(r.odds * 100)}%` : '?')).join(' ');
   if (step.routine) return 'routine';
   return Number.isFinite(step.odds) && step.odds < 1 ? `${Math.round(step.odds * 100)}%` : '';
+}
+/**
+ * A shot row's time as the row says it, to two places (its splits are a few hundredths): the aim apart where the row
+ * carries one, "0.12 + 0.58 s", else "0.79 s"; Shift's rushed time where it has one. Any other step: one place.
+ */
+export function timeText(step, { shift = false } = {}) {
+  const ms = shownMs(step, { shift });
+  if (!Number.isFinite(ms)) return '';
+  if (!isShotRow(step)) return secs(ms);
+  const aim = (step.parts ?? []).find(p => p.k === 'aim'), aimMs = aim && !(shift && Number.isFinite(step.rushMs)) ? aim.ms : 0;
+  return aimMs > 0 && aimMs < ms ? `${secs2(aimMs)} + ${secs2(ms - aimMs)} s` : `${secs2(ms)} s`;
 }
 /** Which time a row shows: rushed while Shift is held (where it can be rushed), else the normal one. */
 export const shownMs = (step, { shift = false } = {}) => (shift && Number.isFinite(step?.rushMs) ? step.rushMs : step?.ms);
 /** A row as one plain line: '3 LOAD · 2.4 s · routine', '1 fire · 0.4 s (on safe)', a marked one '5 RELOAD · 3.0 s · routine (! one magazine a string)'. */
 export function rowText(slot, opts = {}) {
-  const s = slot.step, t = secs(shownMs(s, opts)), odds = oddsText(s);
+  const s = slot.step, t = timeText(s, opts), odds = oddsText(s);
   return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${odds && !s.off ? ` · ${odds}` : ''}${s.off ? ` (${s.off})` : s.warn ? ` (! ${s.warn})` : ''}`;
 }
 /** A row's hover words: what it rolls, and its rushed and careful times where it has them. */
@@ -100,11 +181,35 @@ export function rowTitle(step, { label = (a) => a } = {}) {
   if (Number.isFinite(step.rushMs)) bits.push(`${label('run')} + digit: rushed, ${secs(step.rushMs)} (−3, never routine)`);
   if (Number.isFinite(step.carefulMs)) bits.push(`held: careful, ${secs(step.carefulMs)} (+2)`);
   if (step.kind === 'fire') bits.push('held: hold the aim to +4, then fire');
-  if (step.subs?.length) bits.push(step.subs.map(x => `${x.label ?? x.id}${Number.isFinite(x.ms) ? ` ${secs(x.ms)}` : ''}`).join(', '));
+  if (isShotRow(step)) bits.push(partsWords(step));
+  else if (step.subs?.length) bits.push(step.subs.map(x => `${x.label ?? x.id}${Number.isFinite(x.ms) ? ` ${secs(x.ms)}` : ''}`).join(', '));
+  if (step.gate && step.off) bits.push(`needs ${step.off}`);
   if (step.words && step.words !== step.label) bits.push(step.words);
   if (step.off) bits.push(`not now: ${step.off}`);
   else if (step.warn) bits.push(step.warn === 'one magazine a string' ? `ahead of the tower: ${step.warn}` : step.warn);
   return bits.join(' · ');
+}
+
+/** The parts' words of a shot row, the hover's: "the aim 0.12 s, the press 0.15 s, a round on the torso 95% (climb −1), …". */
+export function partsWords(step) {
+  if (!isShotRow(step)) return '';
+  let ri = 0;
+  const said = (step.parts ?? []).map(p => {
+    if (p.k === 'round') {
+      const r = step.rounds[ri++] ?? {}, part = r.part ?? p.part ?? 'torso';
+      return `a round ${part === 'head' ? 'to the head' : 'on the torso'}${Number.isFinite(r.odds) ? ` ${Math.round(r.odds * 100)}%` : ''}${r.climb ? ` (climb ${r.climb > 0 ? '+' : '−'}${Math.abs(r.climb)})` : ''}${Number.isFinite(p.ms) ? `, then ${secs2(p.ms)} s` : ''}`;
+    }
+    const w = { aim: 'the aim', press: 'the press', shift: 'the assessment and the shift' }[p.k] ?? p.k;
+    return `${w}${Number.isFinite(p.ms) ? ` ${secs2(p.ms)} s` : ''}`;
+  });
+  return said.join(', ');
+}
+/** A running shot row's sub-step's words: its part's, a round by its order and its part ("round 2 · torso"). */
+export function subWords(step, list, i, labelOf = (id) => id) {
+  const id = list?.[i];
+  if (!isShotRow(step) || id !== 'round') return labelOf(id);
+  const n = list.slice(0, i + 1).filter(x => x === 'round').length, r = step.rounds[n - 1];
+  return `round ${n} · ${r?.part ?? 'torso'}`;
 }
 
 // ---- the ticks of a running macro, from the 'step' facts ----
@@ -148,7 +253,7 @@ const FEEL_WORDS = Object.freeze({ none: 'feels empty', few: 'a few rounds by it
  * The card's caption from a belief (beliefOf's record): { short, mode, chamber, count, locked, port, stoppage,
  * cond, line ('SAFE · ROUND + 3'), words (the hover's plain sentence) }. Pure; reads only BELIEF_FIELDS.
  */
-export function weaponCardModel(belief, { distance = false, line: kdLine = null, hold = null } = {}) {
+export function weaponCardModel(belief, { distance = false, line: kdLine = null, hold = null, zeroing = null } = {}) {
   const b = {};
   for (const k of BELIEF_FIELDS) b[k] = belief?.[k];
   const mode = MODE_WORD[b.mode] ?? (b.mode ? String(b.mode).toUpperCase() : '?');
@@ -163,11 +268,14 @@ export function weaponCardModel(belief, { distance = false, line: kdLine = null,
   const magWords = b.mag === 'out' ? 'no magazine' : count === '?' ? 'a magazine, uncounted' : `${b.countApprox ? 'about ' : ''}${b.count} in the magazine`;
   const handWords = H ? `; in your hand a magazine, ${Number.isFinite(H.n) ? `${H.approx ? 'about ' : ''}${H.n === 0 ? 'empty' : `${H.n} round${H.n === 1 ? '' : 's'}`}` : H.feel ? FEEL_WORDS[H.feel] ?? 'its count unknown' : 'its count unknown'}${H.load ? `, ${H.load}` : ', its kind not seen'}` : '';
   // (0.0.7: the turrets and the hold, where the card shows them: the dial from the believed zero, the line's dope)
-  const F = distanceParts(b, { distance, line: kdLine, hold }), D = F ? dialWords(F) : null;
+  const F = distanceParts(b, { distance, line: kdLine, hold, zeroing }), D = F ? dialWords(F) : null;
   const holdSaid = F && (F.hold.xMil || F.hold.yMil) ? `HOLD ${[F.hold.xMil ? `${Math.abs(F.hold.xMil)} ${F.hold.xMil > 0 ? 'R' : 'L'}` : null, F.hold.yMil ? `${Math.abs(F.hold.yMil)} ${F.hold.yMil > 0 ? 'UP' : 'DN'}` : null].filter(Boolean).join(' ')}` : null;
   const far = D ? [D.power, D.dial, D.dope ? `${D.dope}${D.onDope ? ' ✓' : D.toGo ? ` (${D.toGo} to go)` : ''}` : null, holdSaid].filter(Boolean).join(' · ') : null;
   const clickWords = (n, up, down) => `${Math.abs(n)} click${Math.abs(n) === 1 ? '' : 's'} ${n > 0 ? up : down}`;
-  const farWords = F ? `; the scope at ${F.optic} power, ${!F.dial.elev && !F.dial.wind ? `on ${F.zero ? 'your' : 'the card\'s'} zero` : `${[F.dial.elev ? clickWords(F.dial.elev, 'up', 'down') : null, F.dial.wind ? clickWords(F.dial.wind, 'right', 'left') : null].filter(Boolean).join(' and ')} from ${F.zero ? 'your' : 'the card\'s'} zero`}${F.line ? `, ${F.onDope ? 'on' : 'off'} your dope for ${F.line} m` : ''}${holdSaid ? `, holding ${holdSaid.slice(5).replace(' R', ' mil right').replace(' L', ' mil left').replace(' UP', ' mil up').replace(' DN', ' mil down')}` : ''}` : '';
+  const dialled = [F?.dial.elev ? clickWords(F.dial.elev, 'up', 'down') : null, F?.dial.wind ? clickWords(F.dial.wind, 'right', 'left') : null].filter(Boolean).join(' and ');
+  // (while zeroing, the clicks dialled in this zero from the turrets as issued: the user's report, 2026-11-07)
+  const dialSaid = !F ? '' : F.zeroing ? (dialled ? `zeroing, ${dialled} dialled this zero` : 'zeroing, nothing dialled yet') : !dialled ? `on ${F.zero ? 'your' : 'the card\'s'} zero` : `${dialled} from ${F.zero ? 'your' : 'the card\'s'} zero`;
+  const farWords = F ? `; the scope at ${F.optic} power, ${dialSaid}${F.line ? `, ${F.onDope ? 'on' : 'off'} your dope for ${F.line} m` : ''}${holdSaid ? `, holding ${holdSaid.slice(5).replace(' R', ' mil right').replace(' L', ' mil left').replace(' UP', ' mil up').replace(' DN', ' mil down')}` : ''}` : '';
   const words = `${b.short ?? 'The rifle'}: ${chamberWords}, ${magWords}${b.magLoad && b.mag !== 'out' ? ` of ${b.magLoad}` : ''}, ${b.mode === 'safe' ? 'on safe' : `on ${b.mode ?? '?'}`}${b.locked ? ', the bolt locked back' : ''}${stoppage ? `; ${stoppage.toLowerCase()}` : ''}${b.condWord && b.condWord !== 'fine' ? `; ${b.condWord}` : ''}${handWords}${farWords}.`;
   return { short: b.short ?? null, model: b.model ?? null, mode, chamber, count, locked: !!b.locked, port: b.port ?? null, stoppage, cond: b.condWord ?? null, hand, far, line: far ? `${line} · ${far}` : line, words };
 }
@@ -220,7 +328,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   const list = el('div', { className: 'steplist' });
   root.append(cardBox, list);
   parent.append(root);
-  let sigRows = null, sigCard = null, slots = [], rowsEls = [], bar = null, text = '', cardK = null;
+  let sigRows = null, sigCard = null, slots = [], rowsEls = [], bar = null, text = '', cardK = null, hovered = null;
   // (every step the panel has shown, by id: the one running leaves stepsOf's list as it changes the gun, LOAD once the magazine is in)
   const known = new Map();
 
@@ -230,7 +338,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     // (the card: repainted only when the belief it shows changes; its size at a whole number of device pixels)
     const fit = cardFit(v.ui ?? 1, globalThis.devicePixelRatio || 1), k = fit.k;
     if (k !== cardK) { cardK = k; cardCanvas.style.width = `${CARD_W * k}px`; cardCanvas.style.height = `${CARD_H * k}px`; cardCanvas.style.imageRendering = fit.smooth ? 'auto' : ''; }
-    const far = { distance: !!v.distance, line: v.line ?? null, hold: v.hold ?? null };
+    const far = { distance: !!v.distance, line: v.line ?? null, hold: v.hold ?? null, zeroing: v.zeroing ?? null };
     const model = weaponCardModel(v.belief, far);
     const cs = JSON.stringify([BELIEF_FIELDS.map(k => v.belief?.[k]), far]);
     if (cs !== sigCard) {
@@ -259,7 +367,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     if (doing && doing.kind !== 'wait') return running(v, doing, model);
     const panel = panelOf(v.steps, { page: v.page ?? 0 });
     slots = panel.slots;
-    const rs = JSON.stringify(['panel', !!v.shift, panel.page, panel.pages, doing?.step ?? null, doing?.chain ?? null, panel.slots.map(s => [s.key, s.step.id, s.step.label, s.step.ms, s.step.rushMs, s.step.odds, s.step.routine, s.step.off, s.step.warn ?? null, s.step.cmd, s.step.subs?.length ?? 0])]);
+    const rs = JSON.stringify(['panel', !!v.shift, panel.page, panel.pages, doing?.step ?? null, doing?.chain ?? null, panel.slots.map(s => [s.key, s.step.id, s.step.label, s.step.ms, s.step.rushMs, s.step.odds, s.step.routine, s.step.off, s.step.warn ?? null, s.step.cmd, s.step.subs?.length ?? 0, roundOdds(s.step), s.step.lead ?? false])]);
     if (rs !== sigRows) {
       sigRows = rs;
       bar = null;
@@ -278,12 +386,14 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     const k = Number.isFinite(from) && Number.isFinite(to) && to > from ? Math.max(0, Math.min(1, ((nowMs ?? from) - from) / (to - from))) : 0;
     return Math.min(1, (i + k) / n);
   }
-  // (the running view: the step's name and tempo, its sub-steps as ticks with their words, its time gone; Fire's recovery offers the tap on 1)
+  // (the running view: the step's name and tempo, its sub-steps as ticks with their words, its time gone; the tap is
+  // retired (0.0.8, COMBAT §25.6.4): a Pair, a Hammer or a Triple is a row chosen while time stands still, so Fire's
+  // recovery offers nothing)
   function running(v, d, model) {
     const st = known.get(d.step) ?? { id: d.step, kind: d.kind, label: labelOf(d.step) };
     const subs = d.list ?? st.subs?.map(x => x.id) ?? [d.step], marks = v.ticks?.of(d.step, subs.length) ?? subs.map(() => '·');
-    const fire = d.kind === 'fire' ? v.steps.find(x => x.id === 'fire') ?? known.get('fire') ?? null : null;
-    slots = fire ? [{ key: '1', digit: 1, step: fire }] : [];
+    const fire = null;
+    slots = [];
     const rs = JSON.stringify(['run', d.step, d.tempo, d.i, marks.join(''), !!fire]);
     if (rs !== sigRows) {
       sigRows = rs;
@@ -291,12 +401,11 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
       const tempo = d.tempo && d.tempo !== 'normal' ? d.tempo : null;
       rowsEls = [el('div', { className: `running-view ${d.kind ?? ''}` },
         el('div', { className: 'rv-head' }, el('span', { className: 'rv-name', textContent: st.label }), tempo ? el('span', { className: `rv-tempo ${tempo}`, textContent: tempo }) : null),
-        subs.length > 1 ? el('div', { className: 'rv-subs' }, ...subs.map((id, i) => el('span', { className: `rv-sub${i === d.i ? ' now' : ''}${marks[i] === '✗' ? ' bad' : ''}` }, el('b', { textContent: marks[i] }), ` ${labelOf(id)}`))) : null,
-        el('span', { className: 'track' }, bar),
-        fire ? el('div', { className: 'rv-tap' }, el('kbd', { textContent: '1' }), ' again in the recovery: a follow-up at the same aim') : null)];
+        subs.length > 1 ? el('div', { className: 'rv-subs' }, ...subs.map((id, i) => el('span', { className: `rv-sub${i === d.i ? ' now' : ''}${marks[i] === '✗' ? ' bad' : ''}` }, el('b', { textContent: marks[i] }), ` ${subWords(st, subs, i, labelOf)}`))) : null,
+        el('span', { className: 'track' }, bar))];
       list.replaceChildren(...rowsEls);
       root.classList.add('acting');
-      text = [model.line, `running: ${st.label}${subs.length > 1 ? ` ${subs.map((id, i) => `${marks[i]} ${labelOf(id)}`).join(', ')}` : ''}`, fire ? '1 again: a follow-up' : null].filter(Boolean).join(' | ');
+      text = [model.line, `running: ${st.label}${subs.length > 1 ? ` ${subs.map((id, i) => `${marks[i]} ${subWords(st, subs, i, labelOf)}`).join(', ')}` : ''}`].filter(Boolean).join(' | ');
     }
     bar.style.width = `${Math.round(progress(d, v.nowMs) * 100)}%`;
     return text;
@@ -304,15 +413,21 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   // (a row: its key, its label (two lines at most), and at its right its time over its odds or its reason;
   // the chained wait's row marked as it runs, its time gone as a bar along its foot)
   function row(slot, v, doing) {
-    const s = slot.step, isRunning = !!doing && doing.step === s.id, odds = oddsText(s), t = secs(shownMs(s, v));
+    const s = slot.step, isRunning = !!doing && doing.step === s.id, odds = oddsText(s), t = timeText(s, v);
     const lab = el('span', { className: 'label' }, el('span', { className: 'name', textContent: s.label }));
     const meta = el('span', { className: 'meta' },
       t ? el('span', { className: `time${v.shift && Number.isFinite(s.rushMs) ? ' rushed' : ''}`, textContent: t }) : null,
-      s.off ? el('span', { className: 'why', textContent: s.off }) : s.warn ? el('span', { className: 'why warn', textContent: `! ${s.warn}` }) : odds ? el('span', { className: `odds${s.routine ? ' routine' : ''}`, textContent: odds }) : null);
+      s.off ? el('span', { className: 'why', textContent: s.off }) : s.warn ? el('span', { className: 'why warn', textContent: `! ${s.warn}` })
+        // (a shot row: each round's odds, a meter under each, the head's marked: graphics beside the numbers)
+        : isShotRow(s) ? el('span', { className: 'odds rounds' }, ...s.rounds.map(r => { const o = el('span', { className: `round ${r.part === 'head' ? 'head' : 'torso'}`, textContent: Number.isFinite(r.odds) ? `${Math.round(r.odds * 100)}%` : '?' }); o.style.setProperty('--k', String(Number.isFinite(r.odds) ? r.odds : 0)); return o; }))
+        : odds ? el('span', { className: `odds${s.routine ? ' routine' : ''}`, textContent: odds }) : null);
     const kids = [el('kbd', { textContent: slot.key }), lab, meta];
-    const r = el('div', { className: `step ${s.kind ?? 'single'}${s.off ? ' off' : ''}${s.warn && !s.off ? ' warned' : ''}${s.cmd ? ' cmd' : ''}${isRunning ? ' running' : ''}`, title: rowTitle(s, { label }) }, ...kids);
+    const r = el('div', { className: `step ${s.kind ?? 'single'}${s.off ? ' off' : ''}${s.warn && !s.off ? ' warned' : ''}${s.cmd ? ' cmd' : ''}${s.lead ? ' leads' : ''}${s.first ? ' first' : ''}${isRunning ? ' running' : ''}`, title: rowTitle(s, { label }) }, ...kids);
     r.dataset.step = s.id; r.dataset.key = slot.key;
     if (onPick && !s.off) r.addEventListener('click', () => onPick(s));
+    // (the row under the pointer: a shot row's parts stand over the target as a plate (main.js), the plaque for a row's parts)
+    r.addEventListener('mouseenter', () => { hovered = s.id; });
+    r.addEventListener('mouseleave', () => { if (hovered === s.id) hovered = null; });
     if (isRunning) {
       if (doing.chain) r.append(el('span', { className: 'wait', textContent: 'waiting for the tower' }));
       bar = el('i', { className: 'bar' });
@@ -325,6 +440,8 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     get text() { return root.hidden ? '' : text; },
     /** The slots shown now: [{ key, digit, step }]. */
     get slots() { return slots; },
+    /** The step under the pointer now (its id), or null. */
+    get hovered() { return root.hidden || !slots.some(x => x.step.id === hovered) ? null : hovered; },
     /** Flash a row (a struck step chosen: its reason lit for FLASH_MS). */
     flash(id) {
       const r = rowsEls.find(x => x.dataset?.step === id);

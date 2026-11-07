@@ -5,7 +5,7 @@
 // (VIEWS §7.5). Their sizes are VIEWS's in CSS pixels at --ui 1, from the window's edges with a 12 px
 // margin, all scaled by --ui: TOASTS 460 × 84 top left (three log lines), WATCH 280 × 132 top right
 // (the wrist terminal, with the body strip folded in), INSTINCT 720 × 44 bottom centre (the instinct's
-// line and R's offer; in a splash the ticker and its keycaps), RADIO 720 × 52 stacked on INSTINCT,
+// line and R's offer; in a splash the ticker and its keycaps), RADIO 720 × 60 stacked on INSTINCT (52 before 0.0.7's tower fixer: three rows, the standing command kept),
 // GAP_PX over it (the radio box; in a splash the outcome strip), CLOCK 260 × 72 top centre (the
 // splash's clock plaque), KEYS 120 × 32 bottom right ("? keys"), PAUSED 240 × 48. VIEWS puts PAUSED at the centre; it sits here at
 // the top centre, in the margin row between TOASTS and WATCH, which it clears at every window the
@@ -38,11 +38,19 @@
 // place, and its tick (FAR_TICK_PX on its ring) still points along the true bearing; nowhere free, it is
 // left off (hidden), never drawn over the HUD. The state 'weapon-far' is the weapon mode's with PAPER
 // yielding: on the KD your face is in the window, so the inset of your card has nothing to show (the sheet's).
+// The window also keeps clear of the wind flag you read (0.0.8, the sock verifier's: the plates, the step panel and the
+// far window covered the one middle flag on every lane you can draw): flagToKeep(w, h, state, boxes, frame) picks, of the
+// flags' boxes on the page (the pole and its sleeve's reach all round, FLAG_KEEP_M), the nearest with its pole and most
+// of its box in the picture and meeting no rectangle of the state, and placeFar's keep keeps it free as it keeps them. Where the window
+// has nowhere else to go it still shows, over the flag (main.js places it again without keep): the target comes first.
 // --ui is tradecraft's fit(): clamp(s / 2, 0.85, 1.5), s the window's scale over a 640 × 360 picture
 // widened to the window's shape up to 768 × 430 (render/scale.js frameFor at 16 px/m's frame), so it
 // is the same at either density: 1.5 at 1920 × 1080, 1.13 at 1440 × 900, 0.85 at 1024 × 768 (VIEWS's
 // table). rectsAt(w, h) gives every rectangle in window pixels, for the test that proves them apart
 // and for anything placed round them later (VIEWS's labels pass); applyScale() sets --ui on the page.
+// The 0.0.8 round's (the build sheet 0.0.8 §2.4): on the pairs pad the coach's shot timer's paper (hud/timer.js) takes
+// PAPER, where the 25 m card stands on the other courses, in stop motion and out of it: the states 'walking-paper' and
+// 'paused-paper' are walking's and paused's with PAPER, which clears TOASTS, WATCH and PAUSED at every size the tests use.
 import { frameFor } from '../../render/scale.js';
 
 /** The rectangles at --ui 1 (CSS px): size and anchor (VIEWS §7.5). */
@@ -50,7 +58,7 @@ export const RECTS = Object.freeze({
   TOASTS: Object.freeze({ w: 460, h: 84, anchor: 'top-left' }),
   WATCH: Object.freeze({ w: 280, h: 132, anchor: 'top-right' }),
   INSTINCT: Object.freeze({ w: 720, h: 44, anchor: 'bottom-centre' }),
-  RADIO: Object.freeze({ w: 720, h: 52, anchor: 'bottom-centre', on: 'INSTINCT', onIn: Object.freeze({ weapon: 'STEPS', 'weapon-paused': 'STEPS', 'weapon-far': 'STEPS', 'weapon-far-paused': 'STEPS' }) }),
+  RADIO: Object.freeze({ w: 720, h: 60, anchor: 'bottom-centre', on: 'INSTINCT', onIn: Object.freeze({ weapon: 'STEPS', 'weapon-paused': 'STEPS', 'weapon-far': 'STEPS', 'weapon-far-paused': 'STEPS' }) }),
   STEPS: Object.freeze({ w: 720, h: 148, anchor: 'bottom-centre', on: 'INSTINCT' }),
   KEYS: Object.freeze({ w: 120, h: 32, anchor: 'bottom-right' }),
   PAUSED: Object.freeze({ w: 240, h: 48, anchor: 'top-centre' }),
@@ -69,6 +77,9 @@ export const STATES = Object.freeze({
   // (0.0.7: the far window open, PAPER yields to it; paused, PAUSED as always)
   'weapon-far': Object.freeze(['TOASTS', 'WATCH', 'INSTINCT', 'STEPS', 'RADIO', 'KEYS']),
   'weapon-far-paused': Object.freeze(['TOASTS', 'WATCH', 'INSTINCT', 'STEPS', 'RADIO', 'KEYS', 'PAUSED']),
+  // (0.0.8: the shot timer's paper out of stop motion, on the pairs pad)
+  'walking-paper': Object.freeze(['TOASTS', 'WATCH', 'INSTINCT', 'RADIO', 'KEYS', 'PAPER']),
+  'paused-paper': Object.freeze(['TOASTS', 'WATCH', 'INSTINCT', 'RADIO', 'KEYS', 'PAUSED', 'PAPER']),
 });
 /** The margin from the window's edges, and between stacked rectangles (CSS px at --ui 1). */
 export const MARGIN_PX = 12, GAP_PX = 6;
@@ -138,9 +149,10 @@ export const FAR_LABEL_GAP_PX = 4;
  * scale), k the picture's CSS px a picture pixel (for the inset, the ring and the bezel; rCss / FAR_R_PX by
  * default); frame the picture's box on the page ({ x, y, w, h }, the window by default); from the player's place
  * on the page (the frame's centre by default); label { w, h } the box of the window's plaque (CSS px), kept
- * free with the disc below it, above it, or beside it on the frame's side. Hidden when nowhere is free.
+ * free with the disc below it, above it, or beside it on the frame's side; keep more boxes kept free as the state's
+ * rectangles are (the flag you read: flagToKeep). Hidden when nowhere is free.
  */
-export function placeFar(w, h, state = 'weapon-far', { bearingRad = 0, rCss = null, k = null, frame = null, from = null, label = null } = {}) {
+export function placeFar(w, h, state = 'weapon-far', { bearingRad = 0, rCss = null, k = null, frame = null, from = null, label = null, keep = [] } = {}) {
   const ui = uiScale(w, h);
   const f0 = frame ?? { x: 0, y: 0, w, h };
   // (the frame inside the window: a letterboxed picture's box, never past the window's edge)
@@ -176,7 +188,7 @@ export function placeFar(w, h, state = 'weapon-far', { bearingRad = 0, rCss = nu
     return 2 * W + Hh + (by - y);
   };
   const rects = rectsAt(w, h, state), names = STATES[state] ?? [];
-  const blocks = names.map(n => rects[n]).filter(Boolean);
+  const blocks = names.map(n => rects[n]).concat(keep ?? []).filter(Boolean);
   const gap = FAR_LABEL_GAP_PX * ui;
   // (the label's place round a disc at (cx, cy): below, above, then beside it toward the frame's middle)
   const labelAt = (cx, cy, side) => {
@@ -213,4 +225,29 @@ export function farTick(p, k = 1) {
   if (!p || p.hidden) return null;
   const c = Math.cos(p.tickRad), s = Math.sin(p.tickRad);
   return { x0: p.cx + c * p.r, y0: p.cy + s * p.r, x1: p.cx + c * (p.R + FAR_TICK_PX * k), y1: p.cy + s * (p.R + FAR_TICK_PX * k) };
+}
+
+// ---- the wind flag kept readable (0.0.8; PLACES §4.12, VIEWS §7.5) ----
+/** A wind flag's box round its pole's foot, metres in the picture: across (each side), up the screen (the 4.5 m pole and the sleeve's 2.95 m reach from its swivel) and down (the foot and its shadow's start). */
+export const FLAG_KEEP_M = Object.freeze({ side: 3, up: 7.5, down: 0.5 });
+/** The share of a flag's box that must lie in the picture for it to count as seen (its pole always in it). */
+export const FLAG_IN_FRAME_K = 0.6;
+/**
+ * The wind flag the HUD keeps clear, of boxes on the page ({ x, y, w, h, dM }: CSS px, dM the flag's distance from the
+ * player in metres): the nearest whose pole stands in the frame ({ x, y, w, h }, the window by default) with
+ * FLAG_IN_FRAME_K of its box, and whose part in the frame meets no rectangle of the state. Returns that part (with the
+ * box's other fields), or null when no flag is seen clear.
+ */
+export function flagToKeep(w, h, state, boxes, frame = null) {
+  const f = frame ?? { x: 0, y: 0, w, h }, fx0 = Math.max(0, f.x), fy0 = Math.max(0, f.y), fx1 = Math.min(w, f.x + f.w), fy1 = Math.min(h, f.y + f.h);
+  const rects = rectsAt(w, h, state), blocks = (STATES[state] ?? []).map(n => rects[n]).filter(Boolean);
+  let best = null;
+  for (const b of boxes ?? []) {
+    const x0 = Math.max(fx0, b.x), y0 = Math.max(fy0, b.y), x1 = Math.min(fx1, b.x + b.w), y1 = Math.min(fy1, b.y + b.h), cx = b.x + b.w / 2;
+    if (cx < fx0 || cx > fx1 || x1 <= x0 || y1 <= y0 || (x1 - x0) * (y1 - y0) < FLAG_IN_FRAME_K * b.w * b.h) continue;
+    const seen = { ...b, x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    if (blocks.some(r => overlaps(seen, r))) continue;
+    if (!best || b.dM < best.dM) best = seen;
+  }
+  return best;
 }

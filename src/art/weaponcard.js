@@ -31,11 +31,16 @@
 //     with a mark that turns with its clicks; over the rifle the dial from the believed zero ("▼3 ◀1", clicks of
 //     0.1 mrad; "0 0" on the zero), the lever's power ("4×") at the right, and under them the line's dope as believed
 //     ("300 ▼3", its clicks from the zero, ticked "✓" when the turrets are on it, else the clicks still to go: "300 ▼2 TO GO");
+//     while the rifle is being zeroed (the KD course's 25 m zero, until the coach accepts it: shot.js zeroingOf, passed
+//     as zeroing { from }) the dial counts the clicks dialled in this zero from the turrets as issued, "ZEROING ▲4 ◀2"
+//     ("ZEROING · NONE" before any), since a dialled call moves the believed zero with the turrets and the dial from it
+//     read "ON ZERO" after every call (the user's report, 2026-11-07: "I dialed in the coaches corrections, the UI still
+//     says that I'm on zero ?");
 //     a small reticle at the top right with the hold as the aim's offset: the crosshair is where you aim, the target's
 //     dot sits where the hold puts it (a hold 0.5 mil right puts the target 0.5 mil left of the crosshair: HOLD_PX_PER_MIL
 //     a mil, 0.5 mil ticks). The turrets are seen, so the clicks are the gun's own (beliefOf passes them through); the
 //     zero and the dope are beliefs, never the rifle's true zero (ui-truth).
-// paintWeaponCard({ model, belief, k = 1, distance = false, line = null, hold = null }) → { w, h, data, px } (a Pixmap: little-endian RGBA words,
+// paintWeaponCard({ model, belief, k = 1, distance = false, line = null, hold = null, zeroing = null }) → { w, h, data, px } (a Pixmap: little-endian RGBA words,
 // ImageData's order, alpha 255 or 0; px the same array, the sheet's name for it), k an integer scale.
 // cardParts(belief) → the glyphs it will draw (for the tests: every glyph read from the belief alone).
 // Pure: no DOM, no three.js.
@@ -65,11 +70,12 @@ export const DIAL_Y = 3, DOPE_Y = 16;
 
 const clicksOf = (o) => ({ elev: Math.round(Number(o?.elev) || 0), wind: Math.round(Number(o?.wind) || 0) });
 /**
- * The distance parts, from the belief alone and the hold: { dial: { elev, wind } (the turrets from the believed zero),
- * sight, zero (null: the card's, the turrets at issue), optic, line, dope (the line's believed setting, or null), toGo
- * ({ elev, wind } to the dope, or null), onDope, hold: { xMil, yMil } } or null when nothing at distance shows.
+ * The distance parts, from the belief alone and the hold: { dial: { elev, wind } (the turrets from the believed zero;
+ * while zeroing, from zeroing.from, the turrets as issued), zeroing (true while the rifle is being zeroed), sight, zero
+ * (null: the card's, the turrets at issue), optic, line, dope (the line's believed setting, or null), toGo ({ elev, wind }
+ * to the dope, or null), onDope, hold: { xMil, yMil } } or null when nothing at distance shows.
  */
-export function distanceParts(belief = {}, { distance = false, line = null, hold = null } = {}) {
+export function distanceParts(belief = {}, { distance = false, line = null, hold = null, zeroing = null } = {}) {
   const b = belief ?? {};
   const sight = clicksOf(b.sight), zero = b.zero ? clicksOf(b.zero) : null, optic = b.optic === 4 ? 4 : 1;
   const h = hold && (Number(hold.xMil) || Number(hold.yMil)) ? { xMil: Number(hold.xMil) || 0, yMil: Number(hold.yMil) || 0 } : { xMil: 0, yMil: 0 };
@@ -78,11 +84,13 @@ export function distanceParts(belief = {}, { distance = false, line = null, hold
   // turrets' setting is every rifle's at issue, so it alone shows nothing: test-handling's card as scored)
   const shows = distance || optic === 4 || sight.elev || sight.wind || sight.elev !== z.elev || sight.wind !== z.wind || h.xMil || h.yMil;
   if (!shows) return null;
-  const dial = { elev: sight.elev - z.elev, wind: sight.wind - z.wind };
+  // (while zeroing, the clicks dialled in this zero from where it started (see the header), else from the believed zero)
+  const from = zeroing?.from ? clicksOf(zeroing.from) : z;
+  const dial = { elev: sight.elev - from.elev, wind: sight.wind - from.wind };
   const at = line && b.dope?.[line] ? clicksOf(b.dope[line]) : null;
   const toGo = at ? { elev: at.elev - sight.elev, wind: at.wind - sight.wind } : null;
   const dope = at ? { elev: at.elev - z.elev, wind: at.wind - z.wind } : null;
-  return { dial, sight, zero, optic, line: at ? line : null, dope, toGo, onDope: !!toGo && !toGo.elev && !toGo.wind, hold: h };
+  return { dial, zeroing: !!zeroing?.from, sight, zero, optic, line: at ? line : null, dope, toGo, onDope: !!toGo && !toGo.elev && !toGo.wind, hold: h };
 }
 
 /** What the card draws, read from the belief alone: { mag, count, approx, load, chamber, port, locked, mode, mark, seen, hand, far }. */
@@ -107,7 +115,9 @@ const EXTRA = { '?': ['###', '..#', '.##', '...', '.#.'], '≈': ['.#.#', '#.#.'
   // (0.0.7: the turrets' arrows and the dope's tick, 5 × 5 as the font's letters stand)
   '▲': ['.....', '..#..', '.###.', '#####', '.....'], '▼': ['.....', '#####', '.###.', '..#..', '.....'],
   '◀': ['..#', '.##', '###', '.##', '..#'], '▶': ['#..', '##.', '###', '##.', '#..'], '✓': ['....#', '...#.', '#.#..', '.#...', '.....'],
-  '×': ['...', '#.#', '.#.', '#.#', '...'] };
+  '×': ['...', '#.#', '.#.', '#.#', '...'],
+  // (the zeroing dial's seam: "ZEROING · NONE")
+  '·': ['.', '.', '#', '.', '.'] };
 // (a word at n pixels a font pixel: the card's words at twice the letter, the runtime and design reviews': at 1×
 // "SEMI" and the count were 7 screen px tall at 1600 × 900, and shrunk at 1024 × 768 they dropped columns)
 function say(px, x, y, str, c, n = 1) {
@@ -127,8 +137,8 @@ export const WORD_K = 2, WORD_Y = 112;
 const M = (m) => Math.round(m * CARD_PX_PER_M);
 
 /** The card for a belief (see the header). */
-export function paintWeaponCard({ model = 'r7', belief = {}, k = 1, distance = false, line = null, hold = null } = {}) {
-  const P = cardParts(belief, { distance, line, hold });
+export function paintWeaponCard({ model = 'r7', belief = {}, k = 1, distance = false, line = null, hold = null, zeroing = null } = {}) {
+  const P = cardParts(belief, { distance, line, hold, zeroing });
   const base = paint(CARD_W, CARD_H, (px, w, h) => {
     // The backdrop: the doll's wall and floor (VIEWS §4.1), the rifle's shadow thrown a little right.
     px(0, 0, w, h, BG);
@@ -321,8 +331,10 @@ function marks(px, P) {
 const signArrows = (n, up, down) => (n > 0 ? `${up}${n}` : n < 0 ? `${down}${-n}` : '0');
 export function dialWords(F) {
   if (!F) return null;
-  // (the elevation first, the windage after it only when off; both on the zero: "ON ZERO")
-  const dial = !F.dial.elev && !F.dial.wind ? 'ON ZERO' : [F.dial.elev ? signArrows(F.dial.elev, '▲', '▼') : '0', F.dial.wind ? signArrows(F.dial.wind, '▶', '◀') : null].filter(Boolean).join(' ');
+  // (the elevation first, the windage after it only when off; both on the zero: "ON ZERO"; while zeroing, "ZEROING ▲4 ◀2",
+  // "ZEROING · NONE" before a click: the clicks dialled in this zero)
+  const none = !F.dial.elev && !F.dial.wind, clicks = [F.dial.elev ? signArrows(F.dial.elev, '▲', '▼') : '0', F.dial.wind ? signArrows(F.dial.wind, '▶', '◀') : null].filter(Boolean).join(' ');
+  const dial = F.zeroing ? (none ? 'ZEROING · NONE' : `ZEROING ${clicks}`) : none ? 'ON ZERO' : clicks;
   const dope = F.line ? `${F.line} ${signArrows(F.dope.elev, '▲', '▼')}${F.dope.wind ? ` ${signArrows(F.dope.wind, '▶', '◀')}` : ''}` : null;
   const toGo = F.toGo && !F.onDope ? `${signArrows(F.toGo.elev, '▲', '▼')}${F.toGo.wind ? ` ${signArrows(F.toGo.wind, '▶', '◀')}` : ''}` : null;
   return { dial, power: `${F.optic}×`, dope, toGo, onDope: F.onDope };

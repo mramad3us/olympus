@@ -31,6 +31,13 @@
 // (src/sim/skills/instinct/groom.js, GROOM_RULES: the haircut due) between the two, and stop motion's hold ('stop') does not silence the line
 // (the build sheet §8 item 10: SKILLS §14.3.6's rule holds for every other hold): every tone speaks, T
 // acts, and the line carries its lead, "Time stands still." (lead in $instinct, the hud's to show).
+// 0.0.8 (the build sheet 0.0.8 §2.3, §2.6): test-pairs' rules (src/sim/skills/instinct/pairs.js, PAIRS_RULES) are weighed
+// after the range's; on the pairs course the range's rules that speak of the tower's commands and its card (range-cmd,
+// range-kd, range-reload, range-fire, range-wait) keep quiet (the pairs rules say those things for the coach's commands
+// and the turners), the rest (the cold line, the muzzle, a stoppage, a press check) speak as anywhere on a range. While a
+// take-in's window is open nothing fires at all (src/sim/combat/contact.js pendingOf: no words in the window, COMBAT
+// §25.4.5), and at the pause the line's lead, until the first step chosen after it, is "Contact · 0.55 s." (react.js
+// takeInWords, the quantity's one formatter) in place of "Time stands still.".
 // instinctAction(state, { act: 'instinct', args: { id, act, chip } }, bus, ctx) does the act the hud
 // saw when T went down, if rule id still fires with that act now ('rise': get up from the rack;
 // 'dress:utilities': dress at your rack or locker; 'activity:<id>': the activity of the fixture you
@@ -44,9 +51,17 @@ import { playerActor } from '../../core/ids.js';
 import { BASE_RULES, doAct } from './instinct/base.js';
 import { GROOM_RULES } from './instinct/groom.js';
 import { RANGE_RULES } from './instinct/range.js';
+import { PAIRS_RULES } from './instinct/pairs.js';
+import { rangeOf } from '../scenarios/handling.js';
+import { contactNow, pendingOf } from '../combat/contact.js';
+import { takeInWords } from '../combat/react.js';
 
-/** Every rule the instinct weighs: the base's, the grooming's, then the range's (merged by tone in settle(): within a tone, in that order). */
-export const RULES = Object.freeze([...BASE_RULES, ...GROOM_RULES, ...RANGE_RULES]);
+/** The range's rules that keep quiet on the pairs course (see the header): the tower's commands and the card are the coach's and the turners' there. */
+export const RANGE_OFF_PAIRS = Object.freeze(new Set(['range-cmd', 'range-kd', 'range-reload', 'range-fire', 'range-wait']));
+// (a range rule kept quiet on the pairs course: the same rule, its when() answering nothing there)
+const offPairs = (r) => (RANGE_OFF_PAIRS.has(r.id) ? Object.freeze({ ...r, when: (state, me, ms) => (rangeOf(state)?.course === 'pairs' ? null : r.when(state, me, ms)) }) : r);
+/** Every rule the instinct weighs: the base's, the grooming's, the range's, then the pairs' (merged by tone in settle(): within a tone, in that order). */
+export const RULES = Object.freeze([...BASE_RULES, ...GROOM_RULES, ...RANGE_RULES.map(offPairs), ...PAIRS_RULES]);
 /** The line's lead while stop motion holds time (VIEWS §7.4; the build sheet §8 item 10). */
 export const STOP_LEAD = 'Time stands still.';
 
@@ -108,10 +123,10 @@ const wordsOf = (rule, ctx, ms) => {
   return typeof pick === 'function' ? pick(ctx) : String(pick).replace(/\{(\w+)\}/g, (_, k) => ctx?.[k] ?? '');
 };
 
-/** The rules that fire now for the player, most pressing first within a tone (the rules' order). */
+/** The rules that fire now for the player, most pressing first within a tone (the rules' order); none while a take-in's window is open. */
 export function firedNow(state, ms = state.clock.ms, rules = RULES) {
   const me = playerActor(state);
-  if (!me) return [];
+  if (!me || pendingOf(state)) return [];
   const out = [];
   for (const r of rules) {
     const ctx = r.when(state, me, ms);
@@ -141,7 +156,8 @@ export function instinctStep(state, input, bus, ctx) {
   const prev = state.$instinct ?? null, ms = state.clock.ms;
   if (state.skip) { state.$instinct = { ...(prev ?? instinctNow(state)), line: null, chip: null, keys: [], queued: 0, quiet: 'splash' }; return; }
   // (stop motion's phase and step: a step that ends between whole seconds leaves the clock standing there, so its end is due too)
-  const S = state.stop, stopKey = S ? `${S.mode}|${S.phase}|${S.doing?.step ?? ''}|${S.doing?.i ?? ''}|${S.reflex ? 'r' : ''}` : '';
+  // (0.0.8: a take-in's window opening or closing is due at once too: its silence starts on the sighting tick, not the next second)
+  const S = state.stop, win = pendingOf(state) ? 'w' : '', stopKey = `${S ? `${S.mode}|${S.phase}|${S.doing?.step ?? ''}|${S.doing?.i ?? ''}|${S.reflex ? 'r' : ''}` : ''}${win ? `|${win}` : ''}`;
   const due = !prev || prev.quiet === 'splash' || ms % SEC_MS === 0 || (input?.act?.length ?? 0) > 0 || prev.atMs === undefined || prev.atMs > ms || (prev.stopKey ?? '') !== stopKey;
   if (!due) return;
   const fired = firedNow(state, ms);
@@ -149,7 +165,18 @@ export function instinctStep(state, input, bus, ctx) {
   const s = settle(prev, fired, ms, { urgentOnly: isHeld(state) && !stop });
   const L = present(s.line, prev?.line, ms, prev?.humourAt ?? null);
   const C = s.chip ? { id: s.chip.id, tone: s.chip.tone, short: s.chip.short ?? wordsOf(s.chip.rule, s.chip.ctx, s.chip.ms), act: s.chip.act, ms: s.chip.ms } : null;
-  state.$instinct = { line: L.line, chip: C, keys: s.keys, queued: s.queued, gone: s.gone, humourAt: L.humourAt, atMs: ms, lead: stop && L.line ? STOP_LEAD : null, stopKey };
+  // (the contact's lead at a pause, until the first step chosen after it (see the header))
+  const cl = contactLead(state, prev);
+  state.$instinct = { line: L.line, chip: C, keys: s.keys, queued: s.queued, gone: s.gone, humourAt: L.humourAt, atMs: ms, lead: stop && L.line ? cl.lead ?? STOP_LEAD : null, stopKey, leadDone: cl.done };
+}
+
+/** The line's lead at a contact's pause: "Contact · 0.55 s.", until a step is chosen after it (runtime: $instinct.leadDone, the contact whose lead has gone). */
+export function contactLead(state, prev = state.$instinct ?? null) {
+  const last = contactNow(state)?.last ?? null, S = state.stop;
+  let done = prev?.leadDone ?? null;
+  if (!last || S?.mode !== 'stop') return { lead: null, done };
+  if (S.doing && S.doing.kind !== 'wait' && (S.doing.fromMs ?? 0) >= last.atMs) done = last.id;
+  return { lead: done === last.id ? null : `Contact · ${takeInWords(last.ms)} s.`, done };
 }
 
 /** The 'instinct' action, T (see the header). */

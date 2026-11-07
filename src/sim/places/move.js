@@ -51,6 +51,9 @@
 // window round it, NAV_EDGE_M from its edge), builds at most NAV_CHUNKS_TICK of a ground's chunks
 // ahead after the move, and then asks portals.js whether the actor crossed a portal, moving it into
 // the next area if it did (moveTo: the facts, the autosave, the cut that is main.js's).
+// 0.0.8 (the build sheet 0.0.8 §2.6; COMBAT §25.4.5): the keys are read through the contact's feetOf
+// (src/sim/combat/contact.js): with no window open the keys held, while one is open the move held at the
+// sighting for the body's go and then none, so the keys are not the marine's until he has taken it in.
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { navOf, navAhead, nearestFree, nearestFreeInReach, centreOf, cellOf } from './nav.js';
@@ -61,6 +64,7 @@ import { playerActor, playerId } from '../../core/ids.js';
 import { STRIDE_WRAP_M } from '../../data/body/gait.js';
 import { MARS_GAITS, gaitsOf } from '../body/motion.js';
 import { feetHeld, transPlaying } from '../time/doing.js';
+import { feetOf } from '../combat/contact.js';
 
 /** The Mars gaits, unloaded and rested (BODY §16.1 by motion.js gaitSpeeds: 1.14, 2.69, 0.75 m/s). */
 export const WALK_MS = MARS_GAITS.walkMs, RUN_MS = MARS_GAITS.runMs, STROLL_MS = MARS_GAITS.strollMs;
@@ -185,7 +189,8 @@ export function playerStep(state, input, bus, ctx) {
   a.$px = a.x; a.$pz = a.z;
   const area = state.places?.live?.area;
   if (!area) return;
-  const mx = sgn(input?.mx), mz = sgn(input?.mz);
+  // (0.0.8: the feet as the contact's window lets them: the move held at the sighting for the body's go, then stopped (COMBAT §25.4.5))
+  const feet = feetOf(state, input), mx = sgn(feet.mx), mz = sgn(feet.mz);
   // (the feet held: the keys only turn a standing player, and a berth or a stall is never settled out of:
   // a lying player's spot is inside the rack, where a walker may not stand)
   // (nor a rising one: the rise and the dressing keep their facing, never swung round mid-frame)
@@ -194,7 +199,7 @@ export function playerStep(state, input, bus, ctx) {
   const grid = navOf(state, area, PLAYER_CLS, a.x, a.z);
   settle(a, grid);                                                 // (a spot it may not stand on: put out at once, keys or none)
   if (!strafe) a.face = faceOf(mx, mz, a.face);
-  const gaits = gaitsOf(state, playerId(state)), gait = gaitOf(input, gaits), speed = speedOf(input, gaits);
+  const gaits = gaitsOf(state, playerId(state)), gait = gaitOf(feet, gaits), speed = speedOf(feet, gaits);
   if (!speed) { a.gait = 'idle'; return; }
   const moved = moveActor(a, mx, mz, speed, grid);
   a.gait = moved > 0 ? gait : 'idle';

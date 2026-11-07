@@ -31,13 +31,25 @@
 // since when, the red flag since when), flags (each wind flag's heading and lift: wind.js flagOf), fires (every
 // shooter's shot within FIRE_LOOK_MS 1.2 s: where they lie, sit or kneel, facing, the stance, the load), brass
 // (the cases flying, with their stance) and tiles (the cases at rest, counted on their 1 m tiles: brass.js),
-// dust (a round into the berm behind its face within DUST_MS) }. A sitting port is PORT_H_M.sit high.
+// dust (a round into the berm behind its face within DUST_MS), own (your point on a KD line: { lane, line, x, z, text },
+// its numbered stake's place, KD_STAKE_DX_M behind your fp on its row, so the stage marks it as yours; null at 25 m
+// and between lines: 0.0.7's tower fixer, the user's report of 2026-11-07, "did call me line 5 when I'm line 10") }.
+// 0.0.8: on the 25 m bay (both courses: the KD's zero is fired there) rangeLook's own top-level `own` is your bay lane's
+// stake the same way ({ lane, line: 25, x, z, text }, the bay's stakes now on their rows too: the tower verifier's
+// finding), null off the bay's line.
+// 0.0.8 (the build sheet 0.0.8 §2.4): on test-pairs' pairs course rangeLook gains pairs: { line, turners (each lane's: its
+// place, how far it faces (turners.js facingOf, a closed form over TURN_MS: never a jump), the face hung and what it
+// holds, its holes with their zone and whether the steel rang, down, the plate's fall), lines (the 7 m and 10 m paint) },
+// src/sim/scenarios/pairs.js pairsLook: the stage's only door to the turners.
+// A sitting port is PORT_H_M.sit high.
 // AIM_LEAD_K, EDGE_KEEP_M and FRAME_HALF_M are VIEWS §2.4's weapon-mode lead, shared by the camera and
 // the shot role's targetsOf: the frame's centre AIM_LEAD_K of the way from the player to the bracketed
 // target, the player kept EDGE_KEEP_M inside the frame's half-size at 16 px/m.
 import { hash01 } from '../../core/hash.js';
 import { q } from '../../core/num.js';
 import { ACTIONS, gunField } from './firearms.js';
+// (0.0.8: the lever's time, for the far window's ease between its scales: render reads the sim through this module only)
+export { OPTIC_S } from './firearms.js';
 import { muzzleOf, carryOf, faceRad } from './carry.js';
 import { lyingOf, CONTAINERS } from './kit.js';
 import { loadOf } from './calibres.js';
@@ -46,7 +58,8 @@ import { gunnerNow, gunnerTarget } from './gunner.js';
 import { flagOf } from './wind.js';
 import { tilesLook } from './brass.js';
 import { pitView } from '../scenarios/range.js';
-import { KD_RANGE } from '../../data/places/range.js';
+import { pairsLook } from '../scenarios/pairs.js';
+import { KD_RANGE, KD_STAKE_DX_M, KD_STAKE_DZ_M } from '../../data/places/range.js';
 
 /** Mars' surface gravity (m/s²: 0.38 g). */
 export const G_MS2 = 3.727;
@@ -185,11 +198,17 @@ export function rangeLook(state, ms = state?.clock?.ms ?? 0) {
   return {
     hot: !!s.hot, lanes,
     brass: (s.brass ?? []).map(rec => ({ ...caseAt(rec, ms), kind: rec.kind, stance: STANCE_OF_PORT[rec.y0] ?? 'stand', atMs: rec.atMs })),
-    lying, pick: pick && pid ? placeOf(state, pid, pick) : null, aimed: !!state.stop?.aim, fire,
+    lying, pick: pick && pid ? placeOf(state, pid, pick) : null, aimed: !!state.stop?.aim, fire, own: bayOwn(s),
     kd: s.course === 'kd' ? kdLook(state, s, ms) : null,
+    pairs: s.course === 'pairs' ? pairsLook(state, ms) : null,
   };
 }
 
+// (0.0.8: your bay lane's stake on the 25 m line, marked as yours as on the KD's (see the header))
+function bayOwn(s) {
+  const B = (s.line ?? 25) === 25 && s.lane ? KD_RANGE.bay.lanes[s.lane - 1] : null;
+  return B ? { lane: B.lane, line: 25, x: B.fp.x + KD_STAKE_DX_M, z: B.fp.z + KD_STAKE_DZ_M, text: String(B.lane) } : null;
+}
 // (0.0.7: the KD's part of rangeLook (see the header))
 function kdLook(state, s, ms) {
   const K = KD_RANGE.kd, seed = state.meta?.seed ?? 0;
@@ -212,7 +231,9 @@ function kdLook(state, s, ms) {
     }
   }
   const brass = (s.brass ?? []).filter(rec => rec.landMs > ms || rec.kind !== 'case').map(rec => ({ ...caseAt(rec, ms), kind: rec.kind, stance: STANCE_OF_PORT[rec.y0] ?? 'stand', atMs: rec.atMs }));
-  return { line: s.line ?? 25, faces, flags, fires, brass, tiles: tilesLook(state), dust };
+  const L = s.kdLane ? K.lanes[s.kdLane - 1] : null, P = L && (s.line ?? 25) !== 25 ? L.points[s.line] : null;
+  const own = P ? { lane: L.lane, line: s.line, x: P.fp.x + KD_STAKE_DX_M, z: L.z + KD_STAKE_DZ_M, text: String(L.lane) } : null;
+  return { line: s.line ?? 25, faces, flags, fires, brass, tiles: tilesLook(state), dust, own };
 }
 // (a case's stance from the port height it left: PORT_H_M's values are the stances')
 const STANCE_OF_PORT = Object.freeze(Object.fromEntries(Object.entries(PORT_H_M).map(([k, v]) => [v, k])));

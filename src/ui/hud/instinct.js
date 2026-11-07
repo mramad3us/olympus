@@ -5,7 +5,8 @@
 //                a digit to choose." while G's stub holds time (VIEWS §7.4), "Time stands still." in
 //                stop motion (the 0.0.5 round: the step panel says the rest, and the line beside the
 //                lead speaks every tone there, SKILLS §14.3's rule lifted for the 'stop' hold: the build
-//                sheet §8 item 10), the bench's countdown;
+//                sheet §8 item 10), the bench's countdown; at a contact's pause, until a step is chosen,
+//                "Contact · 0.55 s." in the take-in's amber (0.0.8: COMBAT §25.4.6);
 //   the line     SKILLS' instinctNow(state).line, the most pressing thing the DI has to say ("Thirsty.
 //                The tap's right here."), its tone as its left border (calm slate, note blue, warn brass,
 //                urgent red blinking three times: VIEWS §7.1, §9.4) and T's keycap before it when T does
@@ -64,7 +65,8 @@ const toneOf = (t) => (LINE_TONES.includes(t) ? t : 'note');
 export function partsOf({ lead = null, now = null, offer = null, label = (a) => a, armed = false } = {}) {
   const out = [];
   const T = label('instinct'), line = now?.line ?? null, chip = now?.chip ?? null;
-  if (lead) out.push({ part: 'lead', tone: 'note', keys: [], text: String(lead) });
+  // (0.0.8: a contact's pause leads "Contact · 0.55 s." in the take-in's amber: COMBAT §25.4.6)
+  if (lead) out.push({ part: 'lead', tone: /^Contact · /.test(String(lead)) ? 'contact' : 'note', keys: [], text: String(lead) });
   if (line?.text) out.push({ part: 'line', tone: toneOf(line.tone), keys: line.act ? [T] : [], text: line.text, id: line.id ?? null, act: line.act ?? null });
   // (the chip: the next keyless line in short, T held does it; the keycaps of lines with keys of their own; the rest counted)
   const keyed = (now?.keys ?? []).map(k => label(k)), queued = Math.max(0, Number(now?.queued) || 0);
@@ -112,7 +114,7 @@ export function createInstinct(parent, { label = (a) => a } = {}) {
   }
   function partEls(list) {
     return list.map(p => {
-      if (p.part === 'lead') return el('span', { className: 'lead' }, p.text);
+      if (p.part === 'lead') return el('span', { className: `lead${p.tone === 'contact' ? ' contact' : ''}` }, p.text);
       if (p.part === 'line') return el('span', { className: `line ${p.tone}` }, ...(p.keys.length ? [kbd(p.keys[0]), ' '] : []), p.text);
       const kids = p.keys.length ? [kbd(p.keys[0]), ' '] : [];
       // (a waiting line's own key as its keycap: "[B]" in the words)

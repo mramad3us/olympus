@@ -10,7 +10,7 @@
 // flags read, the lever, sitting; each with its time and no odds (no roll), its words on its hover, Fire and the
 // commands kept on the first page past ten, the singles paged.
 import { assert, fmt } from './helpers.mjs';
-import { panelOf, rowText, oddsText, shownMs, rowTitle, createTicks, markOf, PANEL_KEYS } from '../src/ui/hud/steps.js';
+import { panelOf, panelList, rowText, oddsText, shownMs, rowTitle, createTicks, markOf, PANEL_KEYS, timeText, partsWords, subWords, gatedRow, isGated, FIXED_MAX } from '../src/ui/hud/steps.js';
 import { reflexOf } from '../src/ui/hud/reflex.js';
 import { lineOf, holdS, createRadioQueue, HOLD_S, WORD_S } from '../src/ui/hud/radio.js';
 import { paperModel, PAPER_K, ringR, RINGS } from '../src/ui/hud/paper.js';
@@ -207,6 +207,68 @@ export default [
       const t = rowTitle(rows[5]);
       console.log(`      the hover of "${rows[5].label}": ${t}`);
       assert(t.includes('your read of the flags') && !/rolls/.test(t), t);
+    },
+  },
+  {
+    name: 'at a contact\'s pause the shot rows are priced and give every round\'s odds ("1 Pair · 0.40 + 0.52 s · 95% 95%", "Failure drill · … · 95% 95% 75%"); the rows above the sheet\'s Marksmanship fold into one struck row; "off safe first" brings Off safe beside it; the contact\'s answers lead on a no-shoot; the reloads by purpose; a page holds the rows and the singles go nine a page',
+    fn() {
+      const R = (id, label, ms, rounds, parts, extra = {}) => ({ id, kind: 'shot', label, ms, rushMs: Math.round(ms * 0.6), carefulMs: null, odds: rounds[0][1], routine: false, off: null, rounds: rounds.map(([part, odds, climb = 0]) => ({ part, odds, climb })), parts, gate: null, first: false, skill: 'marksmanship', ...extra });
+      const aim = { k: 'aim', ms: 400 }, press = { k: 'press', ms: 150 };
+      // (the tier one at 7 m, from low ready: COMBAT §25.6.2's times with the aim inside the row, rung 4)
+      const ONE = [
+        R('shot:pair', 'Pair', 920, [['torso', 0.95], ['torso', 0.95]], [aim, press, { k: 'round', ms: 260 }, { k: 'round', ms: 110 }], { gate: { skill: 'marksmanship', v: 8 } }),
+        R('shot:hammer', 'Hammer', 780, [['torso', 0.95], ['torso', 0.95]], [aim, press, { k: 'round', ms: 110 }, { k: 'round', ms: 120 }], { gate: { skill: 'marksmanship', v: 12 } }),
+        R('shot:failure', 'Failure drill', 910, [['torso', 0.95], ['torso', 0.95], ['head', 0.75]], [aim, press, { k: 'round', ms: 110 }, { k: 'round', ms: 90 }, { k: 'shift', ms: 75 }, { k: 'round', ms: 85 }], { gate: { skill: 'marksmanship', v: 12 } }),
+        { id: 'fire', kind: 'fire', label: 'Fire', ms: 260, off: 'aim first', skill: 'marksmanship' },
+        { id: 'aim', kind: 'aim', label: 'Aim at the target, lane 2', ms: 400, odds: null, skill: 'weapons' },
+        { id: 'contact:hold', kind: 'contact', label: 'Hold him', ms: 1000, subs: [{ id: 'aim', label: 'Aim', ms: 400 }, { id: 'hold', label: 'Hold the aim', ms: 600 }], skill: 'marksmanship' },
+        { id: 'macro:reload:speed', kind: 'command', label: 'RELOAD', ms: 1150, routine: true, skill: 'weapons' },
+        { id: 'macro:reload:tactical', kind: 'command', label: 'Top up', ms: 1500, routine: true, skill: 'weapons' },
+        { id: 'macro:reload:retain', kind: 'command', label: 'RELOAD, keep the empty', ms: 1360, routine: true, skill: 'weapons' },
+        ...['charge', 'lockBack', 'magOut:drop', 'stance:kneel', 'stance:prone', 'posture:highReady', 'leave', 'stow', 'port', 'pressCheck', 'lookMag'].map(id => ({ id, kind: 'single', label: id, ms: 300, routine: true })),
+      ];
+      const p = panelOf(ONE), lines = p.slots.map(x => rowText(x));
+      console.log(`      the tier one, page 1 of ${p.pages}: ${lines.join(' | ')}`);
+      assert(lines[0] === '1 Pair · 0.40 + 0.52 s · 95% 95%' && lines[1] === '2 Hammer · 0.40 + 0.38 s · 95% 95%' && lines[2] === '3 Failure drill · 0.40 + 0.51 s · 95% 95% 75%', JSON.stringify(lines));
+      assert(['RELOAD', 'Top up', 'RELOAD, keep the empty'].every(l => lines.some(x => x.includes(` ${l} · `))), `the reloads by purpose: ${lines}`);
+      const p2 = panelOf(ONE, { page: 1 });
+      console.log(`      page 2: ${p2.slots.map(x => rowText(x)).join(' | ')}`);
+      assert(p2.slots.length >= 2 && p2.slots.every(x => x.step.kind === 'single'), 'the singles after the first page, not one a page');
+      // (Shift: the rushed time, the aim inside it)
+      assert(timeText(ONE[0], { shift: true }) === '0.55 s' && rowText(p.slots[0], { shift: true }).startsWith('1 Pair · 0.55 s'), timeText(ONE[0], { shift: true }));
+      // (the hover: the parts, each round by its part and odds, the climb)
+      const t = rowTitle(ONE[2]);
+      console.log(`      the Failure drill's hover: ${t}`);
+      assert(/the aim 0\.40 s, the press 0\.15 s, a round on the torso 95%.*the assessment and the shift.*a round to the head 75%/.test(t), t);
+      // (the private: the rows over his Marksmanship 10 folded into one; the Pair struck "off safe first", Off safe beside it)
+      const PVT = [
+        R('shot:pair', 'Pair', 790, [['torso', 0.95], ['torso', 0.95, -1]], [press, { k: 'round', ms: 400 }, { k: 'round', ms: 240 }], { gate: { skill: 'marksmanship', v: 8 }, off: 'off safe first' }),
+        R('shot:hammer', 'Hammer', 650, [['torso', 0.95], ['torso', 0.95]], [press, { k: 'round', ms: 250 }, { k: 'round', ms: 250 }], { gate: { skill: 'marksmanship', v: 12 }, off: 'Marksmanship 12' }),
+        R('shot:triple', 'Triple', 900, [['torso', 0.95], ['torso', 0.95], ['torso', 0.95]], [press, { k: 'round', ms: 250 }, { k: 'round', ms: 250 }, { k: 'round', ms: 250 }], { gate: { skill: 'marksmanship', v: 18 }, off: 'Marksmanship 18' }),
+        R('shot:failure', 'Failure drill', 940, [['torso', 0.95], ['torso', 0.95], ['head', 0.95]], [press, { k: 'round', ms: 250 }, { k: 'round', ms: 120 }, { k: 'shift', ms: 120 }, { k: 'round', ms: 300 }], { gate: { skill: 'marksmanship', v: 12 }, off: 'Marksmanship 12' }),
+        { id: 'fire', kind: 'fire', label: 'Fire', ms: 400, off: 'aim first', skill: 'marksmanship' },
+        { id: 'aim', kind: 'aim', label: 'Aim at the target, lane 2', ms: 870, skill: 'weapons' },
+        { id: 'contact:hold', kind: 'contact', label: 'Hold him', ms: 2200, lead: false },
+        { id: 'macro:reload:tactical', kind: 'command', label: 'Top up', ms: 3200, routine: true },
+        { id: 'macro:unload', kind: 'command', label: 'UNLOAD', ms: 5000, routine: true },
+        { id: 'selector:semi', kind: 'single', label: 'Off safe', ms: 400, routine: true },
+        ...['charge', 'lockBack', 'magOut:drop', 'stance:kneel', 'stance:prone', 'posture:highReady', 'leave'].map(id => ({ id, kind: 'single', label: id, ms: 300, routine: true })),
+      ];
+      const q = panelOf(PVT), ql = q.slots.map(x => rowText(x));
+      console.log(`      the private, page 1 of ${q.pages}: ${ql.join(' | ')}`);
+      const g = gatedRow(PVT);
+      assert(ql[0] === '1 Pair · 0.79 s (off safe first)' && ql[1] === '2 Off safe · 0.4 s · routine', JSON.stringify(ql));
+      assert(g && g.label === 'Hammer 12 · Triple 18 · Failure drill 12' && g.off === 'Marksmanship' && ql.some(l => l.includes('Hammer 12 · Triple 18 · Failure drill 12 (Marksmanship)')) && isGated(PVT[1]) && !isGated(PVT[0]), JSON.stringify({ g, ql }));
+      assert(panelList(PVT).filter(x => x.id === 'selector:semi').length === 1, 'Off safe once');
+      // (a no-shoot identified: Hold him and Challenge lead, as contactRows marks them and stepsOf orders them)
+      const NOSHOOT = [{ id: 'contact:hold', kind: 'contact', label: 'Hold him', ms: 2200, lead: true }, { id: 'contact:challenge', kind: 'contact', label: 'Challenge', ms: 1200, lead: true, words: 'Show me your hands!' }, ...PVT.filter(x => x.id !== 'contact:hold')];
+      const n = panelOf(NOSHOOT).slots.map(x => rowText(x));
+      console.log(`      a no-shoot: ${n.slice(0, 4).join(' | ')}`);
+      assert(n[0] === '1 Hold him · 2.2 s' && n[1] === '2 Challenge · 1.2 s', JSON.stringify(n));
+      // (running: a Pair's sub-steps its parts, the rounds by their order and part)
+      assert(subWords(ONE[0], ['aim', 'press', 'round', 'round'], 3) === 'round 2 · torso' && subWords(ONE[2], ['aim', 'press', 'round', 'round', 'shift', 'round'], 5) === 'round 3 · head', 'the rounds by part');
+      // (fed lists in fam25's shape page as before: no shot row, nothing folded)
+      assert(panelList(STEPS_C4) === STEPS_C4 && FIXED_MAX === 8, 'fam25 untouched');
     },
   },
 ];

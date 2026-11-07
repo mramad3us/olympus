@@ -123,16 +123,21 @@
 //     TICK_MS), so a shot stamped at its tick's start shows its whole flash (the runtime review of v0.0.5);
 //   - worldAt(xPx, yPx): the ground under a pixel of the picture, for the hud's mouse.
 // 0.0.7 (the build sheet 0.0.7 §2.4, §8 items 20 and 25):
-//   - THE FAR WINDOW (src/render/far.js; VIEWS §2.4, TECH §9.9): setFar(point | null) each frame from main.js (the
-//     ballistics role's farPointOf placed by the hud's placeFar: the point, its range, the disc's centre and radius
-//     in the window's CSS pixels, the optic's lever, the hold); the view turns the disc into the picture's pixels,
-//     centres a KD face's window on the face as drawn (its centre as it stands up, FACE_K times life size: the
-//     reticle's mils at the face's scale), fills the window's own fog (far.js farFogCells: perception's visibility
-//     near, the open air's light beyond, the optic's lift) once a game second or when the point moves, and steps
-//     its chunks and its dissolve; the window itself is drawn inside the stage's composite. farState() says whether
-//     it is open, how far dissolved, whether its ground is built, and where it sits in the picture. The KD's target
-//     line is asked for ahead the first time the range's KD look is seen (prebuild: TECH §9.9's "the range area
-//     pre-builds its target line at entry");
+//   - THE FAR WINDOW (src/render/far.js; VIEWS §2.4, TECH §9.9): setFar(point | null) each frame from main.js
+//     (the ballistics role's farPointOf placed by the hud's placeFar: the point, its range, the disc's centre
+//     and radius in the window's CSS pixels, the optic's lever, the hold); the view turns the disc into the
+//     picture's pixels, centres a KD face's window on the face as drawn (its centre as it stands up, FACE_K
+//     times life size: the reticle's mils at the face's scale), fills the window's own fog (far.js
+//     farFogCells: perception's visibility near, the open air's light beyond, the optic's lift) once a game
+//     second or when the point moves or the scale changes, and steps its chunks, its dissolve and the lever's
+//     scale. 0.0.8: the scale is the lever's, 16 px/m at 4× and 4 at 1×, eased over OPTIC_S
+//     (sim/arms/look.js, handed to far.js); the fog's box at the window's scale (far.fogMag), its lift mixed
+//     by the scale while the lever eases (far.lens, in 1/32 steps, so the night's fog moves with the
+//     picture); the range layer culled to the window's ground at its scale (far.radiusM). The window itself
+//     is drawn inside the stage's composite. farState() says whether it is open, how far dissolved, whether
+//     its ground is built, and where it sits in the picture. The KD's target line is asked for ahead the
+//     first time the range's KD look is seen (prebuild: TECH §9.9's "the range area pre-builds its target
+//     line at entry");
 //   - the KD in play (src/render/range.js): its faces on their carriers, the disks, the flags, the relay's fire,
 //     brass and berm dust, culled to the frame and the far window;
 //   - the stances the range sets (people's figure.js): a casualty lying where they fell ('hurt', a card, not a
@@ -141,6 +146,10 @@
 //     ground hides them as the parapet hides them from the line;
 //   - BLOOD (src/render/decals.js createBlood, src/render/blood.js): the body role's bloodLook (src/sim/body/blood.js)
 //     on the ground and the wounds' marks on the figures, at the moment drawn.
+// 0.0.8 (the build sheet 0.0.8 §2.4): the pairs pad in play: rangeLook's pairs (the turners as they stand, their faces, holes
+// and the armoured face's plate) drawn by the range layer (src/render/range.js: each face as wide as it has turned, at the
+// moment drawn, so a turn plays over its real 0.3 s and never jumps; the steel's spark in the blast's draw); the stands and
+// the painted lines are the ground's kit pieces.
 // idle and pending say what still waits (an area's build, the chunks in the picture, uploads, a sheet,
 // the worker, the warm-up), so main.js sets window.__ready only once nothing does. stats: the last
 // frame's draw calls, triangles, programs, CPU ms, uploads, people drawn and put off (people: { drawn,
@@ -186,7 +195,7 @@ import { createRange } from './range.js';
 import { createDecals } from './decals.js';
 import { aimLead, fxMsOf, SHOT_SHAKE_PX, SHOT_SHAKE_MS, FAR_LEAD_M } from './lead.js';
 import { KD_RANGE, RANGE_KINDS } from '../data/places/range.js';
-import { createFar, farFogBox, farFogCells, pictOfCss, FAR_R_PX } from './far.js';
+import { createFar, farFogBox, farFogCells, pictOfCss, FAR_R_PX, FAR_LENS_STEPS } from './far.js';
 import { createCamera } from './camera.js';
 import { createPost } from './post.js';
 import { reserveParts as reserveParts2 } from './batch.js';
@@ -297,7 +306,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group);
   // (the far window: its own camera, post, fog and chunks; drawn inside the stage's composite, before the blit)
   const far = createFar(stage, { createCamera, createPost, createFogMask, areaFromJob, reserveParts: reserveParts2, partsPerChunk: PARTS_PER_CHUNK, ensurePart, olyMaterial, isOly },
-    { painter, uploads, ppm, chunksGroup: chunks.group });
+    { painter, uploads, ppm, chunksGroup: chunks.group, opticS: ARMS.OPTIC_S ?? 0.5 });
   far.attach();
   let farWant = null, farFogAt = null, kdPrebuilt = false;
   const cache = new Map();                                           // area id → { id, kind, area, built, info, bounds, palette, name, occluders, racks, fixtures }
@@ -703,11 +712,13 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     // (the window's fog: perception's near, the open air's far, the optic's lift; a new box or a game second)
     const shownV = far.view;
     if (shownV && state) {
-      const ms = state.clock.ms, me = playerActor(state), sec = Math.floor(ms / 1000), sig = `${shownV.key}|${shownV.optic}|${sec}`;
+      // (the lift mixed by the window's scale while the lever eases, in 1/32 steps: the fog moves with the picture, 0.0.8)
+      const lens = Math.round(far.lens * FAR_LENS_STEPS) / FAR_LENS_STEPS;
+      const ms = state.clock.ms, me = playerActor(state), sec = Math.floor(ms / 1000), fogMag = far.fogMag, sig = `${shownV.key}|${lens}|${fogMag}|${sec}`;
       if (sig !== farFogAt && me && typeof PERCEPTION.eyeOf === 'function') {
         farFogAt = sig;
-        const eye = PERCEPTION.eyeOf(state, me), box = farFogBox(shownV.x, shownV.z - shownV.y);
-        const vis = farFogCells(box, eye, { vis: (x, z) => PERCEPTION.visibility(state, eye, x, z, ms), light: (x, z) => lightLevel(state, x, z, ms, live.id), optic: shownV.optic });
+        const eye = PERCEPTION.eyeOf(state, me), box = farFogBox(shownV.x, shownV.z - shownV.y, fogMag);
+        const vis = farFogCells(box, eye, { vis: (x, z) => PERCEPTION.visibility(state, eye, x, z, ms), light: (x, z) => lightLevel(state, x, z, ms, live.id), optic: shownV.optic, lens });
         far.setFog(vis, box, light?.dimK ?? stage.mood.dimK);
       }
     }
@@ -905,7 +916,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       // (the far window's point this frame: the view's frame of it, and its rect for the range's culling)
       const farView = farFrame(state, rl, area, dtS, light);
       const camAt = stage.cam.at, views = [{ x0: camAt.x - cw / 2, x1: camAt.x + cw / 2, z0: camAt.z - ch / 2, z1: camAt.z + ch / 2 + 8 }];
-      if (farView) { const m = far.R / ppm; views.push({ x0: farView.x - m, x1: farView.x + m, z0: farView.z - farView.y - m, z1: farView.z - farView.y + m + 8 }); }
+      if (farView) { const m = far.radiusM; views.push({ x0: farView.x - m, x1: farView.x + m, z0: farView.z - farView.y - m, z1: farView.z - farView.y + m + 8 }); }
       stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views }) : (rangeLayer.update(null), null);
       // (blood on the ground, and the wounds' marks on the figures drawn)
       const bl = typeof BLOOD.bloodLook === 'function' ? BLOOD.bloodLook(state, live.id, fxMs) : null;

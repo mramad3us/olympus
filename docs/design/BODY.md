@@ -8,6 +8,8 @@ Revised 2026-11-06 for v0.0.4 as built (the build sheet `docs/build/0.0.4.md`, t
 
 Revised 2026-11-07 for v0.0.7 as built (the build sheet `docs/build/0.0.7.md` §8 items 14 to 17 and 31 to 33, the body role's report, the reviews): the wound fields (§2.5), the wounds as built (§17), down (§21.1), the wound line (§23.2), 0.0.7 done (§27), open question on the tourniquet (§29). Wounds are on every body hit, simulated needs or not.
 
+Revised 2026-11-07 for COMBAT §5's suppression and hardening (DESIGN.md's log of that day): the new §9.3 (stress under the chaos, and the body's toll on hardening) and two flashbang rows in §17.3 (flash-blind; the bang's deafness and whine).
+
 How to read it: units are in the names (`gutKcal`, `doseSv`, `pressKpa`); the user's decisions are quoted with their date; my own decisions are marked "(my call)"; numbers are constants for the builders, to be tuned in play and printed by the tests in section 25.
 
 ## 0. The model in one page
@@ -411,6 +413,27 @@ Tradecraft has no stamina; OLYMPUS adds one fast pool (0 to 100) beside effectiv
 - Drift toward the target at 0.004 a minute (a 4 h time constant). Event mods fade with a 2-sol time constant: a death in the unit −25, a promotion +12, mail from home +6, a hot meal after field rations +4, a shower after three sols without one +6, leave +15, cold rations −3, a juice crash −10.
 - **Effects**: under 30 "low": −1 mind, training XP ×0.8 (SKILLS.md), sleep quality ×0.9; under 15 "very low": −2 mind and social. Over 80: training XP ×1.1, stress falls ×1.2 as fast. PEOPLE.md uses NPC morale for behaviour.
 
+### 9.3 Stress, the chaos and hardening (2026-11-07; COMBAT §5)
+
+COMBAT §5 pools the chaos of a fight (rounds cracking close, blasts, flashbangs, a friend hit) and takes **hardening** off it before it reaches the hands (SKILLS §6.8 owns hardening; COMBAT §5.6 its formula). Where it meets this section (my calls unless named):
+- **Stress under fire** reads felt's band, the pool less hardening, not the raw pool: +0.3 a second suppressed, +0.6 pinned (COMBAT §5.3).
+- **The acute fight inputs of §9.1** (a fight begun +12, shot at +6, a round through your space +3, a blow +3) are taken × `(1 − H / 100)`: hardening blunts a fight's arousal (the systems proposal's). **Grief and trauma are never scaled** (a friend hit +10, a friend killed +20, killing +10, the combat stress load): hardening is not immunity to loss.
+- **The body's toll on hardening** (the doctrine proposal's, with the wound's two rows; COMBAT §5.6): while it lasts, the body takes some back, at most `HARD_TOLL_MAX` 25 together.
+
+  | Condition | Hardening |
+  |---|---|
+  | exhausted (the fatigue stage) | −10 |
+  | stress frayed (75 and up, §9.1) | −5 |
+  | a combat stress load over 60 (§9.1) | −10 |
+  | morale very low (under 15, §9.2) | −5 |
+  | concussed (§17.3) | −5 |
+  | in pain at "bad" or worse (§17.1's bands) | −5 |
+  | in shock (blood under 70, §17.1) | −10 |
+
+  [computed, COMBAT §5's T16] Three flashbangs beside a tier one: rested (H 95) felt 10, calm, −1; exhausted (85) felt 20, under fire, −2; exhausted with a heavy load and very low morale (70) felt 35, under fire, −4. Nobody is invulnerable.
+- **Being hit** is +25 to the pool (COMBAT §5.1) as well as pain and stress, and a hit can startle (a jump of felt of 10 or more, COMBAT §5.7). Pain's own roll modifiers stay §17.1's.
+- **The crash** (§9.1) reads the stress peak as it always did; the startle at loud noises that a combat stress load over 60 brings (§9.1) is BODY's own, separate from COMBAT's startle.
+
 ## 10. Heat: core temperature, cold and suits
 
 ### 10.1 Port and change
@@ -800,6 +823,8 @@ Timers: tradecraft's 60 s down for a head knocked out by blows and 90 s to come 
 | bends | 11.7 | 11.7 | 12 | recompression, O₂ | 6 to 24 h |
 | sprain | a bad landing, a missed grab, a slide | −1 body (ankle) or hands (wrist) | 6 | rest, compression | 7 to 14 days |
 | acoustic trauma | an unprotected shot or blast over 140 dB at the ear in a closed space (WEAPONS.md gives the level) | hearing ×0.5 for 1 to 24 h; each one leaves a permanent −0.02 of hearing (tinnitus at −0.1) | | ear protection | |
+| a flashbang's deafness (2026-11-07, COMBAT §11.4) | a flashbang in your room with no ear defenders (about 170 to 180 dB at 1.5 m) | hearing ×0.1 for 1 to 6 h and the whine (VIEWS §11.2), then acoustic trauma's permanent −0.02; a voice within about 2 m still heard. Hardening does not touch it | | ear defenders | |
+| flash-blind (2026-11-07, COMBAT §11.4) | facing a flashbang within 60° with no filtered visor | 5 s: the eyes' picture white, no new sighting (§23.4's adapted eye reset to the glare), looks fail, handling by feel (−2); 60° to 120°, dazzled 2 s at −3 to sight. Hardening does not touch it | | a filtered visor; eyes away | seconds |
 | eye injury | visor fragments, blast debris | −3 eyes, one eye | 8 | eye shield; hospital | 2 weeks, or a scar |
 | anoxic brain injury | 11.2 | head damage that never heals aboard (longhaul's brain damage); −2 mind for good | | full hospital | partial |
 | stroke | juice (13.6), embolism | head damage, one side weak (−4 hands or body) | | full hospital | months |

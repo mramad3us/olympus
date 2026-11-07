@@ -24,7 +24,9 @@
 // sub-steps' times before any fumble (the observer's look at their own pace); the shot role's stop
 // motion lives them at those times, sub-step by sub-step. macrosFor() is what the holder's belief
 // offers: LOAD from no magazine, MAKE READY from a magazine and an empty chamber, the reloads from a
-// bolt locked on empty (speed, or keep the empty) or with rounds left (tactical), UNLOAD when anything
+// bolt locked on empty (speed, or keep the empty) or with rounds left (tactical; on a course that says so, COURSES'
+// spoutTopUp, the pairs course's, also with the magazine believed empty and one up the spout: the lull's own case, where
+// v0.0.6's scored course says "fire it" instead (the fixer's, 0.0.8)), UNLOAD when anything
 // is in it, UNLOAD SHOW CLEAR only with an observer at hand, IMMEDIATE ACTION for a stoppage felt,
 // REMEDIAL for a double feed seen, CEASE FIRE off safe or with the finger on.
 //
@@ -43,6 +45,7 @@ import { actionMs, doAction, beliefOf, conditionOf, tempoFor } from './firearms.
 import { sparesOf } from './kit.js';
 import { modelOf, MODELS } from './models.js';
 import { rollerOf } from '../combat/roll.js';
+import { COURSES } from '../../data/courses.js';
 
 /** The macros (WEAPONS §5.3): id → { label, subs, observer? }. */
 export const MACROS = Object.freeze({
@@ -100,7 +103,7 @@ export function macrosFor(state, pid, gunId, { observerId = null } = {}) {
   if (b.mag === 'out' && withRounds.length && b.chamber !== 'live') ids.push('load');
   if (b.mag === 'in' && b.chamber === 'empty' && !b.locked && b.count !== 0 && !b.stoppage) ids.push('ready');
   if (b.mag === 'in' && b.locked && b.count === 0 && withRounds.length) ids.push('reload:speed', 'reload:retain');
-  else if (b.mag === 'in' && b.count !== 0 && withRounds.length && !b.stoppage) ids.push('reload:tactical');
+  else if (b.mag === 'in' && (b.count !== 0 || (b.chamber === 'live' && !!COURSES[state.armoury?.range?.course]?.spoutTopUp)) && withRounds.length && !b.stoppage) ids.push('reload:tactical');
   if (b.mode !== 'safe' || finger === 'on') ids.push('cease');
   if (b.mag === 'in' || b.chamber !== 'empty' || b.locked) ids.push('unload');
   if (observerId) ids.push('clear');

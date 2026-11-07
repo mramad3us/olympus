@@ -8,6 +8,8 @@
 // 02:30, in place of the week's draw), a course of fire (course: src/data/courses.js, test-handling's
 // 25 m line, 0.0.5), its setup (test-handling's 'mixed': a scene of its own on the same scenario, 0.0.6) and the fact that ends it (the end card, once the strip is done; a phase may be a
 // list: the range's 'clear' or 'stopped'; 0.0.7's test-range also 'closed', the range closed after a casualty).
+// 0.0.8's test-pairs (the build sheet 0.0.8 §2.3; COMBAT §25.10.3) plays on a test sheet the start card picks (pairs.js
+// testPairs' tier: boot recruit, private, sergeant, Raider, tier one; `sheets` the picker's order, `sheet` its default).
 // The hud reads every field; scenes save nothing (the sheet §8, item 24): their scores alone are kept.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
@@ -51,6 +53,14 @@ export const SCENES = deepFreeze({
     aspects: [['far window', 'the far window: the face, the marks, the disk'], ['shot at distance', 'the shot at distance: the zero, the wind, the hold'], ['range safety', 'range safety: the tower, the cold line, the declaration']],
     body: {}, outfit: 'utilities', course: 'kd',
     endOn: { fact: 'range', phase: ['clear', 'stopped', 'closed'] },
+  },
+  // (0.0.8: the take-in and the shot rows on the bay's turners, ROADMAP §4.2's 0.0.7b row (the build sheet 0.0.8 §2.3))
+  'test-pairs': {
+    id: 'test-pairs', title: 'Pairs', scenario: 'test-pairs', hour: 11.0,
+    goal: "Five strings at 7 and 10 m on the coach's timer. Wait out of it at low ready; when a target turns, take it in, then your shots. Threats only.",
+    aspects: [['turn', 'the turn: the take-in, its time, the brackets and the stamp'], ['shots', 'the shots: the rows, their price, odds and holes'], ['gun', 'the gun: RELOAD when dry, Top up in the lull']],
+    body: {}, outfit: 'utilities', course: 'pairs', sheets: ['recruit', 'private', 'sgt', 'raider', 'tierone'], sheet: 'private',
+    endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
 });
 

@@ -34,6 +34,9 @@
 //   actions  kd:police, kd:turnIn, kd:declare (range.js kdAct: the player's range actions at their commands);
 // and its id fields the relay's rifles and magazines (armoury.range.relay[].gunId, .magIds[]) and the dummy's
 // magazine (armoury.range.dummy.magId).
+// 0.0.8 (the build sheet 0.0.8 §2.6): test-pairs' pairs course (src/sim/scenarios/pairs.js) adds to the actors layer, after
+// kdActors, pairsActors (lived: the coach's walk, the turn armed, disarmed and taken, the string's time), and its id fields
+// the session's named magazines (armoury.range.mags{}, the short one named for Top up: armoury.range.wantMag).
 import { fillDomain } from '../../core/state.js';
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { playerId } from '../../core/ids.js';
@@ -41,6 +44,7 @@ import { enterStop, chooseStep, stopInput, stopRules, carryAction, stanceAction,
 import { habitStep } from './carry.js';
 import { onRangeCmd, rangeRules, rangeSecond } from '../scenarios/handling.js';
 import { onPitEvent, safety, kdActors, kdAct } from '../scenarios/range.js';
+import { pairsActors } from '../scenarios/pairs.js';
 
 const KEYS = Object.freeze(['stop', 'items', 'armoury']);
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act ?? '');
@@ -106,9 +110,9 @@ export const weaponsDomain = Object.freeze({
   keys: KEYS,
   idMaps: Object.freeze({ items: 'i', 'armoury.guns': 'i' }),
   idFields: Object.freeze({ 'people{}.kit.worn{}': 'i', 'people{}.kit.hands[]': 'i', 'items{}.mag': 'i', 'items{}.holds[]': 'i', 'stop.gun': 'i', 'places.sites{}.items[].id': 'i',
-    'armoury.range.relay[].gunId': 'i', 'armoury.range.relay[].magIds[]': 'i', 'armoury.range.dummy.magId': 'i' }),
+    'armoury.range.relay[].gunId': 'i', 'armoury.range.relay[].magIds[]': 'i', 'armoury.range.dummy.magId': 'i', 'armoury.range.mags{}': 'i', 'armoury.range.wantMag': 'i' }),
   init(state) { for (const k of KEYS) fillDomain(state, k); },
-  fast: Object.freeze({ input: stopInput, actors: kdActors, rules, second: rangeSecond }),
+  fast: Object.freeze({ input: stopInput, actors: (s, i, b, c) => { kdActors(s, i, b, c); pairsActors(s, i, b); }, rules, second: rangeSecond }),
   slow: Object.freeze([]),
   jobs: Object.freeze({}),
   events: Object.freeze({ 'range-cmd': onRangeCmd, pit: onPitEvent }),

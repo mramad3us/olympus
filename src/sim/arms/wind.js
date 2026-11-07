@@ -15,8 +15,11 @@
 // **Across a shot**: crossOf(wind, bearingRad) is the component across a bearing, + pushing the round to
 // the shooter's right (a wind from the left); pathWind() the mean of WIND_SAMPLES 5 points from the muzzle
 // to the face at one moment (the round meets the wind all the way down), the across and the head
-// components. flagOf() is a flag's heading and lift (liftK 0 limp under FLAG_LIMP_MS 0.5 m/s, 1 straight
-// out from FLAG_FULL_MS 8): what the stage draws and what a shooter reads.
+// components. flagOf() is a flag's heading and lift: its sleeve's FLAG_BANDS 5 bands fill one a FLAG_BAND_MS 1.5 m/s
+// (a real sleeve's 3 knots a band), so it is limp under FLAG_LIMP_MS 1.5 and straight out from FLAG_FULL_MS 7.5,
+// liftK the share filled (speed / FLAG_FULL_MS, 0 to 1): what the stage draws and what a shooter reads, two bands
+// out at 3 m/s (the user's report of v0.0.7, 2026-11-07, that the sleeve did not match the coach's 3 m/s from the
+// right: it was 0.5 and 8, a droop of (1 − liftK) × 80°, and the stage's to draw it so it reads; render/range-items.js).
 //
 // **The read** (WEAPONS §7.4: "we only know what we know"): readWind(state, pid, { atMs, bearingRad,
 // coach }) is the shooter's belief of the crosswind, never the truth: the steady wind they watched over
@@ -26,7 +29,12 @@
 // The band is what the shooter knows of their own judgement: the read × (1 ± (1 − windCorr)). The coach
 // reads with his own Marksmanship and the coach's bonus (his call is a read on his own sheet), at least
 // COACH_MRK_MIN 14 (mrkMin: a range coach is a marksman; the code review's of v0.0.7, three seeds in forty drew a
-// coach under it, whose call a MRK 14 player's own read beat).
+// coach under it, whose call a MRK 14 player's own read beat). Its words (windWords) are the crosswind's, but a
+// read with nothing across watched the flags too, and says what they do (flags): 'limp' only under FLAG_LIMP_MS of
+// steady wind, 'front' or 'behind' when the wind along the path (steadyPath's headMs) stands them out on its own
+// (FLAG_LIMP_MS or more), 'light' otherwise (the verifier's of the sleeve fix: "Flags are limp" said under a 3.6 m/s
+// tailwind that stood every sleeve out, the user's report's own kind, flags against words). What the flags do is plain
+// to see, so it is the truth's (the steady wind's); only the crosswind is judged.
 // Pure.
 import { stream, range } from '../../core/rng.js';
 import { hash01 } from '../../core/hash.js';
@@ -42,8 +50,8 @@ export const WIND_DRIFT_K = 0.25, WIND_DRIFT_S = Object.freeze([600, 1500]), WIN
 export const GUST_K = 0.35, GUST_S = Object.freeze([8.3, 17.9, 37.1]);
 /** The points along a path the wind is sampled at (the muzzle to the face). */
 export const WIND_SAMPLES = 5;
-/** A flag straight out, and limp (m/s). */
-export const FLAG_FULL_MS = 8, FLAG_LIMP_MS = 0.5;
+/** A sleeve's bands, the wind that fills each (m/s: 3 knots), and so limp under one band and straight out with all five. */
+export const FLAG_BANDS = 5, FLAG_BAND_MS = 1.5, FLAG_LIMP_MS = FLAG_BAND_MS, FLAG_FULL_MS = FLAG_BANDS * FLAG_BAND_MS;
 /** A read watches the wind this long (s), sampled every READ_STEP_S. */
 export const READ_AVG_S = 10, READ_STEP_S = 1;
 /** WEAPONS §7.4's correction: the coach's bonus, the cap, the base's slope; the least Marksmanship a coach's call is made with. */
@@ -98,42 +106,50 @@ export function pathWind(seed, ms, from, to, { gust = true } = {}) {
   return { crossMs: c / WIND_SAMPLES, headMs: h / WIND_SAMPLES };
 }
 
-/** A flag at a point (the stage's, through look.js): { towardRad, liftK } (0 limp to 1 straight out). */
+/** A flag at a point (the stage's, through look.js): { towardRad (the way it blows to), liftK (the share of its bands filled, 0 limp to 1 straight out), speedMs }. */
 export function flagOf(seed, ms, x, z) {
   const w = windAt(seed, ms, x, z);
-  return { towardRad: w.towardRad, liftK: Math.max(0, Math.min(1, (w.speedMs - FLAG_LIMP_MS) / (FLAG_FULL_MS - FLAG_LIMP_MS))), speedMs: w.speedMs };
+  return { towardRad: w.towardRad, liftK: Math.max(0, Math.min(1, w.speedMs / FLAG_FULL_MS)), speedMs: w.speedMs };
 }
 
 /** The share of the crosswind a shooter's read corrects (WEAPONS §7.4): clamp((MRK − 6) / 24, 0, 0.8), + COACH_CORR with a coach's call, ≤ CORR_CAP. */
 export const windCorrOf = (mrk, { coach = false } = {}) => Math.min(CORR_CAP, Math.max(0, Math.min(CORR_MAX_SELF, (mrk - 6) / 24)) + (coach ? COACH_CORR : 0));
 
-/** The steady crosswind across a path averaged over the READ_AVG_S before atMs (gusts not in it): what a read watches. */
-export function steadyCross(seed, atMs, from, to) {
-  let c = 0, n = 0;
-  for (let s = READ_AVG_S; s > 0; s -= READ_STEP_S) { c += pathWind(seed, atMs - s * 1000 + READ_STEP_S * 500, from, to, { gust: false }).crossMs; n++; }
-  return c / n;
+/** The steady wind across and along a path averaged over the READ_AVG_S before atMs (gusts not in it): what a read watches, { crossMs, headMs } (+ a headwind). */
+export function steadyPath(seed, atMs, from, to) {
+  let c = 0, h = 0, n = 0;
+  for (let s = READ_AVG_S; s > 0; s -= READ_STEP_S) { const p = pathWind(seed, atMs - s * 1000 + READ_STEP_S * 500, from, to, { gust: false }); c += p.crossMs; h += p.headMs; n++; }
+  return { crossMs: c / n, headMs: h / n };
 }
+/** The steady crosswind alone (steadyPath's crossMs). */
+export const steadyCross = (seed, atMs, from, to) => steadyPath(seed, atMs, from, to).crossMs;
 
 const r1 = (v) => Math.round(v * 10) / 10;
-/** The wind in a shooter's words: its speed (≈ 3 m/s, a breath of wind, still) and where it comes from. */
-export function windWords(crossMs) {
+/**
+ * The wind in a shooter's words: its speed across (≈ 3 m/s, a breath of wind, still) and where it comes from. With
+ * nothing across (under 0.5 m/s), what the flags do (see the header), given the wind along (headMs, + in the face) and
+ * the steady speed (speedMs): flags 'limp' (under FLAG_LIMP_MS: "no wind to speak of"), 'front' or 'behind' (the wind
+ * along stands them out), 'light' (they stir), the last three "nothing across"; null with a wind across.
+ */
+export function windWords(crossMs, headMs = 0, speedMs = Math.hypot(crossMs, headMs)) {
   const a = Math.abs(crossMs);
+  const flags = a >= 0.5 ? null : speedMs < FLAG_LIMP_MS ? 'limp' : Math.abs(headMs) >= FLAG_LIMP_MS ? (headMs > 0 ? 'front' : 'behind') : 'light';
   const speedWord = a < 0.5 ? 'still' : a < 1.5 ? 'a breath of wind' : `≈ ${Math.round(a)} m/s`;
-  const fromWord = a < 0.5 ? 'no wind to speak of' : crossMs > 0 ? 'from the left' : 'from the right';
-  return { speedWord, fromWord };
+  const fromWord = flags === 'limp' ? 'no wind to speak of' : flags ? 'nothing across' : crossMs > 0 ? 'from the left' : 'from the right';
+  return { speedWord, fromWord, flags };
 }
 
 /**
- * A shooter's read of the crosswind (see the header): { crossMs, band: [lo, hi], speedWord, fromWord, atMs, corr }.
+ * A shooter's read of the crosswind (see the header): { crossMs, band: [lo, hi], speedWord, fromWord, flags, atMs, corr }.
  * from: the shooter ({ x, z }; their actor by default), bearingRad the line to the face, rangeM its length (the
  * line's known distance on a KD line). Never the truth: the read drawn once for (pid, atMs).
  */
 export function readWind(state, pid, { atMs = state.clock.ms, bearingRad = 0, coach = false, rangeM = 300, from = null, mrkMin = null } = {}) {
   const me = from ?? (playerActor(state)?.who === pid ? playerActor(state) : state.actors?.list?.find(a => a.who === pid)) ?? { x: 0, z: 0 };
   const to = { x: me.x + Math.cos(bearingRad) * rangeM, z: me.z + Math.sin(bearingRad) * rangeM };
-  const truth = steadyCross(state.meta.seed, atMs, me, to);
+  const { crossMs: truth, headMs } = steadyPath(state.meta.seed, atMs, me, to);
   const mrk = Math.max(mrkMin ?? -Infinity, rollerOf(state, pid, { ms: atMs }).value('marksmanship')), corr = windCorrOf(mrk, { coach });
   const e = range(stream('judge', state.meta.seed, pid, 'wind', atMs), -(1 - corr), 1 - corr);
   const est = truth * (1 + e), lo = est * corr, hi = est * (2 - corr);
-  return { crossMs: r1(est), band: [r1(Math.min(lo, hi)), r1(Math.max(lo, hi))], ...windWords(est), atMs, corr };
+  return { crossMs: r1(est), band: [r1(Math.min(lo, hi)), r1(Math.max(lo, hi))], ...windWords(est, headMs, Math.hypot(truth, headMs)), atMs, corr };
 }

@@ -122,16 +122,16 @@ export default [
     },
   },
   {
-    name: 'a tap inside the recovery fires a follow-up at the same aim (a double from Marksmanship 8, no third below 18); X leaves only while choosing; a live step out of the mode holds nothing',
+    name: 'Fire during a fire step is busy: v0.0.5\'s tap inside the recovery is retired for the shot rows (COMBAT §25.6.4, §25.16\'s question 9, the user\'s "All good defaults" of 2026-11-07); X leaves only while choosing; a live step out of the mode holds nothing',
     fn() {
-      const g = game({ setup: 'hot', mrk: 10 }), s = g.state;
+      const g = game({ setup: 'hot', mrk: 20 }), s = g.state;
       run(g, 'selector:semi');
       const n0 = g.facts('shot').length;
       g.step(1, { act: [stepAct('fire')] }); g.step(2); g.step(1, { act: [stepAct('fire')] }); g.step(1); g.step(1, { act: [stepAct('fire')] });
       for (let n = 0; s.stop.phase === 'act' && n < 200; n++) g.step(1);
-      const shots = g.facts('shot').slice(n0), tap = g.state.log.filter(e => e.kind === 'roll' && e.step === 'fire').at(-1).roll;
-      console.log(`      Fire, then Fire 150 ms later, then a third: ${shots.length} shots, ${shots.map(x => x.atMs - shots[0].atMs).join(' and ')} ms apart; the follow-up's roll: ${tap.mods.map(m => `${m.v} ${m.why}`).join(', ')}`);
-      assert(shots.length === 2 && tap.mods.some(m => m.why === 'the muzzle still up from the last'), JSON.stringify(shots));
+      const shots = g.facts('shot').slice(n0), roll = g.state.log.filter(e => e.kind === 'roll' && e.step === 'fire').at(-1).roll;
+      console.log(`      Fire, then Fire 150 ms later, then a third, at Marksmanship 20: ${shots.length} shot (the presses inside the step busy); its roll: ${roll.mods.map(m => `${m.v} ${m.why}`).join(', ')}`);
+      assert(shots.length === 1 && !roll.mods.some(m => m.why === 'the muzzle still up from the last'), JSON.stringify(shots));
       // (X: refused mid-step, taken while choosing)
       g.step(1, { act: [stepAct('macro:cease')] });
       g.step(1, { act: ['shoot'] });

@@ -18,12 +18,31 @@
 // carrier going down and up again, its drawn top sampled every frame: continuous (no frame's step over a pixel), the
 // face wholly under the ground while marked; the KD's twenty faces drawn, the window's chunks built (the parapet's and
 // the pits' with them), the draw calls with the window open, no error.
+// 0.0.8 (the build sheet 0.0.8 §5.4 view-range): the pairs pad (test-pairs, the private on 48213): the six stands and the
+// painted lines in the ground's pieces; a turner's drawn width sampled every frame through its turn, following the closed
+// form (the face's 15 px × facingK at the moment drawn, at least its edge's pixel) and never stepping more than the turn's
+// own slope over the frame's time; holes on the face after the Pair; the armoured face's spark drawn while a ringing
+// round's SPARK_MS lasts; no error.
+// 0.0.8 (the user's report of 2026-11-07, "when at 300m, with the scope at 1x, the view still shows the target zoomed
+// in, just without the haircross"): the same line, the window's picture read at 4× and again with the lever thrown to 1:
+// the face's width in picture pixels from its outline ring (32 at 4×, 8 at 1×: 4 to 1), the reticle at 4× and none at 1×,
+// the window's density (16 and 4 px/m) and its ground (12 chunks, none built for the lever); the shots written as
+// kd-03-4x and kd-04-1x.
+// 0.0.8 (the sock verifier's: the plates, the step panel and the far window covered the one middle flag for every lane you
+// can draw): in the user's own framing (test-range 'far', prone on the 300 m line, the far window open) at 1280 x 720,
+// 1470 x 860 and 1600 x 900 on lanes 8 to 11, and on the 200 m line with E held (the window walking), the wind flag the
+// HUD keeps (window.__olympus.far.flag) is the one on your lane's side 18 m downrange, its box in the picture and clear
+// of every HUD rectangle, the far window's disc and its plates, its sleeve's white bands in the screenshot; the shots
+// flag-<size>-lane<n>.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { frameClock, startSampling, stopSampling, burst, framesLine, pct } from './stage-drive.mjs';
 import { KD_RANGE } from '../src/data/places/range.js';
+import * as PLACES_RANGE from '../src/data/places/range.js';
+import { turnerPx } from '../src/render/range-items.js';
+import { PNG } from './png-read.mjs';
 
 const SHOTS = process.env.OLYMPUS_SHOTS ?? null;
 const save = async (page, name) => { if (!SHOTS) return; mkdirSync(SHOTS, { recursive: true }); writeFileSync(path.join(SHOTS, `${name}.png`), await page.screenshot()); };
@@ -159,6 +178,152 @@ export default [
         assert(calls <= 160, `${calls} draw calls`);
         assert(!errors.length, errors.join('\n'));
       }, { port: Number(process.env.OLYMPUS_TEST_PORT) || 8223, query: 'play=test-range&seed=48213&setup=far&nostore=1&perf=1&ppm=16', viewport: { width: 1280, height: 720 }, timeoutMs: 90000 });
+    },
+  },
+  {
+    name: 'the pairs pad at 16 px/m: the stands and the lines among the ground\'s pieces; a turner\'s drawn width through its turn following its facing, no frame\'s step over the turn\'s own slope; the holes on the face after a Pair; the steel\'s spark while a ringing round\'s lasts (the build sheet 0.0.8 §5.4)',
+    heavy: true,
+    timeoutMs: 300000,
+    async fn() {
+      const pieces = (PLACES_RANGE.RANGE_PIECES ?? []).filter(p => p.kind === 'kdTurner' || p.kind === 'kdPaint');
+      console.log(`      the ground's pieces: ${pieces.filter(p => p.kind === 'kdTurner').length} turner stands, ${pieces.filter(p => p.kind === 'kdPaint').map(p => p.look?.text).join(' and ')} painted`);
+      assert(pieces.filter(p => p.kind === 'kdTurner').length === 6 && pieces.filter(p => p.kind === 'kdPaint').length === 2, JSON.stringify(pieces.map(p => p.id)));
+      await withGame(async (page, errors) => {
+        const bot = (until, maxTicks = 60000) => page.evaluate(async ([until, maxTicks]) => {
+          const { pairsBot } = await import('/tests/bots/pairs.mjs');
+          const O = window.__olympus; window.__pairsBot ??= pairsBot();
+          const run = window.__pairsBot, done = new Function('O', `return (${until});`);
+          O.pause(true);
+          let n = 0;
+          for (; n < maxTicks && !done(O); n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); O.step(1, run(s, me, (me.bot ??= {}))); }
+          return { ticks: n, done: done(O) };
+        }, [until, maxTicks]);
+        // (to the standby's last ticks before the turn, then the clock running: every frame the turning face's width)
+        await bot('(() => { const p = O.pairs(); return !!p?.str && p.str.armed && p.str.turnAtMs - O.state.clock.ms <= 200; })()');
+        const W = turnerPx(16).w;
+        await page.evaluate(() => { window.__tw = []; const f = (t) => { if (!window.__tw) return; const ps = window.__report.view.range?.pairs; window.__tw.push({ t, widths: ps?.widths ?? [], ms: window.__olympus.state.clock.ms }); requestAnimationFrame(f); }; requestAnimationFrame(f); });
+        await page.evaluate(() => window.__olympus.pause(false));
+        await page.waitForFunction(() => !!window.__olympus.contact()?.last, null, { timeout: 10000 });
+        await page.waitForTimeout(300);
+        const tw = await page.evaluate(() => { const w = window.__tw; window.__tw = null; return w; });
+        await save(page, 'pairs-00-pause');
+        const lane = Number(String((await page.evaluate(() => window.__olympus.contact().last.ids[0]))).split(':')[1]);
+        const series = tw.map(f => ({ t: f.t, w: f.widths.find(x => x.lane === lane) })).filter(f => f.w);
+        let worst = 0, bad = 0;
+        for (let i = 1; i < series.length; i++) {
+          const dw = Math.abs(series[i].w.dw - series[i - 1].w.dw), dt = series[i].t - series[i - 1].t, allow = Math.ceil(dt * (Math.PI / 2) / 300 * W) + 1;
+          worst = Math.max(worst, dw);
+          if (dw > allow) bad++;
+          // (the drawn width is the face's at the facing the frame drew: its 15 px × facingK, at least the edge's pixel)
+          const want = Math.max(1, Math.round(W * series[i].w.facingK));
+          if (series[i].w.dw !== want) bad++;
+        }
+        const turned = series.filter(f => f.w.dw > 1 && f.w.dw < W).length;
+        console.log(`      lane ${lane}'s turn over ${series.length} frames: widths ${series.map(f => f.w.dw).filter((w, i, a) => i === 0 || w !== a[i - 1]).join(' → ')} px; ${turned} frames part-way; the largest step a frame ${worst} px; out of bounds ${bad}`);
+        assert(series.length >= 4 && turned >= 1 && bad === 0 && series.at(-1).w.dw === W, JSON.stringify({ n: series.length, turned, bad, last: series.at(-1) }));
+        // (the bot's Pair: the holes on the face)
+        await bot('(O.pairs()?.str?.shots?.length ?? 0) >= 0 && (O.state.armoury.range.turners ?? []).some(t => (t.hits ?? []).length >= 2)');
+        await page.waitForTimeout(400);
+        const holes = await page.evaluate(() => window.__report.view.range?.pairs);
+        await save(page, 'pairs-01-holes');
+        console.log(`      after the Pair: ${JSON.stringify({ turners: holes?.turners, hung: holes?.hung, holes: holes?.holes, pixels: holes?.pixels })}`);
+        assert(holes?.turners === 6 && holes.holes >= 2 && holes.pixels > 0, JSON.stringify(holes));
+        // (on to the armoured string's first ringing round: the spark, drawn at that tick)
+        const ring = await bot('(O.state.armoury.range.turners ?? []).some(t => (t.hits ?? []).some(h => h.ring && O.state.clock.ms - (h.atMs ?? 0) < 100))', 120000);
+        await page.waitForTimeout(250);
+        const spark = await page.evaluate(() => ({ pairs: window.__report.view.range?.pairs, blast: window.__report.view.range?.flash }));
+        await save(page, 'pairs-02-spark');
+        console.log(`      ${ring.ticks} ticks on, a round rang on the armoured face: sparks drawn ${spark.pairs?.sparks}, holes ${spark.pairs?.holes}`);
+        assert(ring.done && (spark.pairs?.sparks ?? 0) > 0, JSON.stringify(spark));
+        await page.evaluate(() => window.__olympus.pause(false));
+        assert(!errors.length, errors.join('\n'));
+      }, { port: Number(process.env.OLYMPUS_TEST_PORT) || 8223, query: 'play=test-pairs&tier=private&seed=48213&nostore=1&perf=1&ppm=16', viewport: { width: 1280, height: 720 }, timeoutMs: 90000 });
+    },
+  },
+  {
+    name: 'the far window at 300 m is drawn at the lever\'s scale (the user\'s report, 2026-11-07: "when at 300m, with the scope at 1x, the view still shows the target zoomed in, just without the haircross"): your face 32 px across at 4× with the reticle, 8 px at 1× without it, 4 to 1, no chunk built for the lever',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() {
+      await withGame(async (page, errors) => {
+        await page.waitForFunction(() => window.__report.view.far?.open && window.__report.view.far?.alpha >= 1, null, { timeout: 20000 });
+        await page.waitForTimeout(500);
+        // (the face's width in the picture: along a row through the window's centre (6 px off it at 4×, clear of the
+        // reticle's wire and ticks; on it at 1×, between the brackets' corners), outward from the centre past the black to the face's outline ring, either way)
+        const faceWidth = async (name, rowOff) => {
+          const f = await page.evaluate(() => window.__report.view.far), box = await page.evaluate(() => { const cv = [...document.querySelectorAll('canvas')].sort((a, b) => (parseFloat(b.style.width) || 0) - (parseFloat(a.style.width) || 0))[0], c = cv.style; return { ox: parseFloat(c.left) || 0, oy: parseFloat(c.top) || 0, w: parseFloat(c.width), W: window.__report.view.res[0] }; });
+          const buf = await page.screenshot();
+          if (SHOTS) { mkdirSync(SHOTS, { recursive: true }); writeFileSync(path.join(SHOTS, `${name}.png`), buf); }
+          const im = PNG.read(buf), k = box.w / box.W;
+          const luma = (x, y) => { const X = Math.round(box.ox + (x + 0.5) * k), Y = Math.round(box.oy + (y + 0.5) * k), i = (Y * im.w + X) * 4; return 0.3 * im.data[i] + 0.59 * im.data[i + 1] + 0.11 * im.data[i + 2]; };
+          const [cx, cy] = f.centre, y = cy + rowOff, ink = (x) => luma(x, y) < 36;
+          const edge = (dir) => { let x = cx, n = 0; while (ink(x) && n++ < 12) x += dir; for (n = 0; n < 40 && !ink(x); n++) x += dir; return n < 40 ? x : null; };
+          const l = edge(-1), r = edge(1);
+          return { far: f, w: l !== null && r !== null ? r - l + 1 : null, l, r, k };
+        };
+        const four = await faceWidth('kd-03-4x', 6);
+        const r0 = await page.evaluate(() => ({ uploads: window.__report.view.far?.chunks, building: window.__report.view.far?.building }));
+        await page.evaluate(() => { window.__olympus.act({ act: 'stop', args: { step: 'optic:1' } }); return true; });
+        const eased = [];
+        for (let i = 0; i < 14; i++) { await page.waitForTimeout(60); eased.push(await page.evaluate(() => window.__report.view.far?.mag)); }
+        await page.waitForFunction(() => window.__report.view.far?.mag === 1 && window.__report.view.far?.open, null, { timeout: 10000 });
+        await page.waitForTimeout(400);
+        const one = await faceWidth('kd-04-1x', 0);
+        console.log(`      4×: the window at ${four.far.ppm} px/m (its pass ${four.far.spanPx} px), the reticle ${four.far.reticle ? 'on' : 'off'} (a mil ${four.far.milPx} px); your face ${four.w} px across (${four.l} to ${four.r} in the picture)`);
+        console.log(`      the lever to 1: the scale every 60 ms ${eased.map(m => fmt(m, 2)).join(', ')}; 1×: ${one.far.ppm} px/m (its pass ${one.far.spanPx} px), the reticle ${one.far.reticle ? 'on' : 'off'}; your face ${one.w} px across (${one.l} to ${one.r}); ${fmt(four.w / one.w, 2)} to 1`);
+        console.log(`      the window's ground: ${r0.uploads} chunks at 4× (${r0.building} building), ${one.far.chunks} at 1× (${one.far.building} building); draw calls ${four.far.calls} and ${one.far.calls}`);
+        assert(four.far.ppm === 16 && one.far.ppm === 4 && four.far.reticle === 1 && one.far.reticle === 0, JSON.stringify({ four: four.far, one: one.far }));
+        assert(four.w >= 30 && four.w <= 34 && one.w >= 7 && one.w <= 9 && Math.abs(four.w / one.w - 4) <= 0.6, `the face ${four.w} px at 4×, ${one.w} at 1×`);
+        assert(one.far.chunks === r0.uploads && one.far.building === 0, `chunks ${r0.uploads} → ${one.far.chunks}`);
+        // (eased, never a pop: some frames between the two scales)
+        assert(eased.some(m => m > 1.05 && m < 3.95), `the scale on the way: ${eased}`);
+        assert(!errors.length, errors.join('\n'));
+      }, { port: Number(process.env.OLYMPUS_TEST_PORT) || 8223, query: 'play=test-range&seed=48213&setup=far&nostore=1&perf=1&ppm=16', viewport: { width: 1280, height: 720 }, timeoutMs: 90000 });
+    },
+  },
+  {
+    name: 'a wind flag stays readable from the firing point in the picture as played (the sock verifier\'s, 0.0.8): prone on the 300 m line with the far window open at 1280 × 720, 1470 × 860 and 1600 × 900 on lanes 8 to 11, and on the 200 m line with E held, the flag 18 m downrange beside your lane is kept clear of every HUD rectangle, the far window and its plates, its sleeve\'s white bands on the screen',
+    heavy: true,
+    timeoutMs: 420000,
+    async fn() {
+      // (seeds 2, 4, 3 and 1 draw lanes 8, 9, 10 and 11)
+      const SEEDS = [[2, 8], [4, 9], [3, 10], [1, 11]], SIZES = [[1280, 720], [1470, 860], [1600, 900]];
+      const rows = [];
+      await withGame(async (page, errors, game) => {
+        const check = async (label, lane) => {
+          await page.waitForFunction(() => window.__olympus.far?.open && window.__olympus.far?.alpha >= 1, null, { timeout: 20000 });
+          await page.waitForTimeout(400);
+          const r = await page.evaluate(() => {
+            const box = (sel) => { const e = document.querySelector(sel); if (!e || e.hidden || getComputedStyle(e).display === 'none') return null; const b = e.getBoundingClientRect(); return b.width && b.height ? { sel, x: b.left, y: b.top, w: b.width, h: b.height } : null; };
+            const o = window.__olympus, f = o.far, p = f.place;
+            return { flag: f.flag, disc: { sel: 'disc', x: p.cx - p.RK, y: p.cy - p.RK, w: 2 * p.RK, h: 2 * p.RK }, label: p.label ? { sel: 'plates', ...p.label } : null, kd: o.kd()?.kdLane,
+              hud: ['.toasts', '.watch', '.paper', '.instinct', '.steps', '.radio.voices', '.keyshint'].map(box).filter(Boolean) };
+          });
+          const buf = await page.screenshot();
+          if (SHOTS) { mkdirSync(SHOTS, { recursive: true }); writeFileSync(path.join(SHOTS, `flag-${label}-lane${lane}.png`), buf); }
+          const im = PNG.read(buf), F = r.flag;
+          let white = 0;
+          if (F) for (let y = Math.ceil(F.y); y < F.y + F.h; y++) for (let x = Math.ceil(F.x); x < F.x + F.w; x++) { const i = (y * im.w + x) * 4; if (im.data[i] > 215 && im.data[i + 1] > 200 && im.data[i + 2] > 190) white++; }
+          const meets = F ? [...r.hud, r.disc, r.label].filter(b => b && overlap(F, b)).map(b => b.sel) : ['no flag'];
+          rows.push(`${label} lane ${r.kd}: the flag at (${F?.fx}, ${F?.fz}), ${F ? `${fmt(F.dM, 1)} m off, its box ${[F.x, F.y, F.w, F.h].map(v => fmt(v, 0)).join(', ')}` : 'none kept'}; its sleeve's white ${white} px; meets ${meets.join(', ') || 'nothing'}`);
+          assert(r.kd === lane && F && Math.abs(F.fz - (KD_RANGE.kd.lane1Z + 5 * (lane - 1))) === 2.5 && F.fx % 100 === 18 && !meets.length && white >= 12, JSON.stringify({ label, lane, r, white, meets }));
+        };
+        const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+        for (const [w, h] of SIZES) {
+          await page.setViewportSize({ width: w, height: h });
+          for (const [seed, lane] of SEEDS) { await game.open(`play=test-range&seed=${seed}&setup=far&hour=10&nostore=1`); await check(`${w}x${h}`, lane); }
+        }
+        // (the 200 m line, standing at the dope with E held: the window walking, your own face)
+        await page.setViewportSize({ width: 1280, height: 720 });
+        for (const [seed, lane] of [SEEDS[0], SEEDS[3]]) {
+          await game.open(`play=test-range&seed=${seed}&setup=s200&hour=10&nostore=1`);
+          await page.keyboard.down('KeyE');
+          await check('200m-E', lane);
+          await page.keyboard.up('KeyE');
+        }
+        for (const r of rows) console.log(`      ${r}`);
+        assert(!errors.length, errors.join('\n'));
+      }, { port: Number(process.env.OLYMPUS_TEST_PORT) || 8223, query: 'play=test-range&seed=2&setup=far&hour=10&nostore=1', viewport: { width: 1280, height: 720 }, timeoutMs: 90000 });
     },
   },
 ];

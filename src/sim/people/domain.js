@@ -19,7 +19,12 @@
 // bald to the shaved head; a woman's as they are), drawing no thinning (v0.0.4's bald men are the shaved
 // ones); the squad rule still holds, the map being one to one within a sex. Flag mig:people-cuts, set
 // only where a look changed, so a new save loads unchanged.
+// 0.0.8 (the build sheet 0.0.8 §2.6, §8 item 26; COMBAT §25.4): the contact's two layers, src/sim/combat/contact.js:
+// 'look' the detector (a turner newly seen opens the take-in's window or joins it; lived ticks only) and 'input' the
+// window's end (the pause on its tick, which runs while time stands still). Neither writes anything where the range
+// session has no turners, so a gunless game, test-handling and test-range are unchanged.
 import { fillDomain } from '../../core/state.js';
+import { contactLook, contactInput } from '../combat/contact.js';
 import { CUTS, LEGACY_CUTS } from '../../data/people/looks.js';
 import { actorsStep, placeSlowStep } from './place.js';
 import { instinctStep, instinctAction } from '../skills/instinct.js';
@@ -57,7 +62,7 @@ export const peopleDomain = Object.freeze({
   idMaps: Object.freeze({ people: 'p', units: 'unit' }),
   idFields: Object.freeze({ 'player.id': 'p', 'player.actor': 'a', 'actors.area': 'place' }),
   init: initPeople,
-  fast: Object.freeze({ actors: actorsStep, offers: instinctStep }),
+  fast: Object.freeze({ input: contactInput, actors: actorsStep, look: contactLook, offers: instinctStep }),
   slow: Object.freeze([Object.freeze({ name: 'people:place', step: placeSlowStep, steady: () => true })]),
   jobs: Object.freeze({}),
   actions: Object.freeze({ people: noop, instinct: instinctAction }),

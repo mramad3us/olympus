@@ -43,6 +43,9 @@
 // are free (a step's pace read from paceOf is fine).
 // 0.0.7 (the build sheet 0.0.7 §2.7, the stage's): SIM_FOR_VIEW gains src/sim/body/blood.js (the body's bloodLook:
 // the blood on the ground and the wounds' marks the stage draws).
+// 0.0.8 (the build sheet 0.0.8 §2.6; COMBAT §25.4.2): the take-in's one helper, REACT_HOME: no function and no top-level
+// const or let whose name's words include "take" and "in" (or "takein"), or "react" with "ms", is defined outside
+// src/sim/combat/react.js, so no module grows a reaction delay of its own (§3.2's reactMs is retired).
 import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -187,6 +190,9 @@ const PACE_HOME = 'src/sim/skills/skills.js';
 // (a name's words: camelCase, PascalCase, snake_case and SCREAMING_CASE split; "pace" one of them)
 const wordsOf = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').toLowerCase().split(/[\s_$]+/).filter(Boolean);
 const hasPace = (name) => wordsOf(name).includes('pace');
+/** COMBAT §25.4.2: the take-in's one home (takeInMs, coreMs, EXPECT); a name with "take in" or "react … ms" in its words is defined nowhere else in src. */
+const REACT_HOME = 'src/sim/combat/react.js';
+const hasReact = (name) => { const w = wordsOf(name); return w.includes('takein') || (w.includes('take') && w.includes('in')) || (w.includes('react') && w.includes('ms')); };
 /** The names a module defines at its top level or as a function anywhere: function declarations, top-level const and let. */
 function definedNames(code) {
   const out = [];
@@ -435,6 +441,23 @@ export default [
       report({ 'pace defined outside skills.js': hits });
       console.log(`      ${files.length} modules; defined in ${PACE_HOME}: ${home.join(', ') || 'none yet'}; the word test: ${probe.join(', ')}`);
       assert(hasPace('paceOf') && hasPace('PACE_K') && hasPace('slow_pace') && !hasPace('space') && !hasPace('paced'), 'the word test');
+      assert(!hits.length, hits.join('\n'));
+    },
+  },
+  {
+    name: 'rules: one take-in helper (COMBAT §25.4.2): no function or top-level const named with "take in" or "react … ms" outside src/sim/combat/react.js',
+    fn() {
+      const files = srcFiles(), hits = [];
+      for (const f of files) {
+        if (rel(f) === REACT_HOME) continue;
+        const code = codeOnly(readFileSync(f, 'utf8'));
+        for (const d of definedNames(code)) if (hasReact(d.name)) hits.push(`${rel(f)}:${code.slice(0, d.at).split('\n').length}: ${d.name}`);
+      }
+      const home = existsSync(path.join(root, REACT_HOME)) ? definedNames(codeOnly(readFileSync(path.join(root, REACT_HOME), 'utf8'))).filter(d => hasReact(d.name)).map(d => d.name) : [];
+      const probe = ['takeInMs', 'TAKEIN_FLOOR_MS', 'take_in', 'reactMs', 'REACT_MS', 'reactUntilMs', 'takeOff', 'inTake', 'reaction', 'reactK'].map(n => `${n} ${hasReact(n) ? 'yes' : 'no'}`);
+      report({ 'a take-in defined outside react.js': hits });
+      console.log(`      ${files.length} modules; defined in ${REACT_HOME}: ${home.join(', ') || 'none yet'}; the word test: ${probe.join(', ')}`);
+      assert(hasReact('takeInMs') && hasReact('TAKEIN_FLOOR_MS') && hasReact('reactMs') && hasReact('REACT_MS') && hasReact('reactUntilMs') && !hasReact('takeOff') && !hasReact('reaction') && !hasReact('reactK'), 'the word test');
       assert(!hits.length, hits.join('\n'));
     },
   },

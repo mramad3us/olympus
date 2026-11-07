@@ -324,6 +324,24 @@ export const EARS_GATE_DB = -12;
 /** The parapet between the pits and the line: its level and its low-pass (dB, Hz). */
 export const PARAPET_DB = -10, PARAPET_LP_HZ = 1200;
 
+// ---- the 0.0.8 round: the pairs pad (the build sheet 0.0.8 §2.4, §8 item 24, VIEWS §11; my calls, unscored) ----
+//
+// The turner's motor, a geared electric whirr (band-passed noise sweeping 500 to 900 Hz and its gear tooth's whine) over
+// its TURN_MS 0.3 s, and the clack of the face against its stop as it comes square (a hard knock: a 1.8 kHz click over a
+// board's 260 Hz thump), TURNER_SOURCE_DB at the stand; the way back is the same, a little lower. The coach's shot timer
+// beeps as the targets turn (its start: the beep is the turner's, §8 item 24), a 2.9 kHz electronic tone of a quarter
+// second with its third harmonic, BEEP_SOURCE_DB at the coach's hand, at your left shoulder (BEEP_AT: 0.9 m off). A round
+// on the armoured face's steel rings (STEEL_SOURCE_DB at the plate): a sharp strike and the plate's inharmonic partials
+// (1.35, 2.21, 3.46, 5.1 kHz, the lowest the longest), heard a sound's way late, through the defenders' gate like any
+// impulse; a round through it or into board makes no ring. A row's rounds (a Pair, a Hammer) are each heard at their own
+// formula time on the game clock, so the pair's two reports stand a split apart, the tier one's hammer 0.11 s.
+/** The turner's motor and clack at 1 m against their recipes' peaks (dB). */
+export const TURNER_SOURCE_DB = 10;
+/** The shot timer's beep at its 1 m against its recipe's peak (dB), and where it is: off your left shoulder (m; pan −1 to 1). */
+export const BEEP_SOURCE_DB = 4, BEEP_AT = Object.freeze({ distM: 0.9, pan: -0.45 });
+/** A round ringing on steel at 1 m against its recipe's peak (dB: a 10 mm plate struck by a 6.5 mm round). */
+export const STEEL_SOURCE_DB = 30;
+
 /** The range's sounds (see the header). */
 export const RANGE = Object.freeze({
   report: Object.freeze({
@@ -423,6 +441,39 @@ export const RANGE = Object.freeze({
       Object.freeze({ kind: 'grains', n: 22, spreadS: 0.9, bandpass: Object.freeze([1400, 2]), decayS: 0.01, db: 0 }),
       Object.freeze({ kind: 'sweep', hz: 380, toHz: 260, q: 3, attackS: 0.05, decayS: 0.6, durS: 1.0, db: -6 }),
       Object.freeze({ kind: 'tone', hz: 140, toHz: 120, attackS: 0.003, decayS: 0.08, delayS: 0.95, db: -4 }),
+    ]),
+  }),
+  // (0.0.8: the turner's motor and its clack, the shot timer's beep, the steel's ring)
+  turnerMotor: Object.freeze({
+    levelDb: -18, durS: 0.36, variants: 2, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'sweep', hz: 500, toHz: 900, q: 4, attackS: 0.03, decayS: 0.2, durS: 0.3, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 410, toHz: 470, attackS: 0.02, decayS: 0.18, db: -9 }),
+      Object.freeze({ kind: 'grains', n: 10, spreadS: 0.28, bandpass: Object.freeze([2400, 2]), decayS: 0.003, db: -14 }),
+    ]),
+  }),
+  turnerClack: Object.freeze({
+    levelDb: -12, durS: 0.12, variants: 2,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([1800, 2]), attackS: 0.0003, decayS: 0.005, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 260, toHz: 200, attackS: 0.001, decayS: 0.025, db: -4 }),
+    ]),
+  }),
+  timerBeep: Object.freeze({
+    levelDb: -16, durS: 0.32, variants: 1, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'tone', hz: 2900, toHz: 2900, attackS: 0.003, decayS: 0.6, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 8700, toHz: 8700, attackS: 0.003, decayS: 0.5, db: -16 }),
+    ]),
+  }),
+  steelRing: Object.freeze({
+    levelDb: -8, durS: 1.1, variants: 3, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([3800, 1.5]), attackS: 0.0001, decayS: 0.004, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 1350, toHz: 1346, attackS: 0.0005, decayS: 0.32, db: -4 }),
+      Object.freeze({ kind: 'tone', hz: 2210, toHz: 2205, attackS: 0.0005, decayS: 0.22, db: -7 }),
+      Object.freeze({ kind: 'tone', hz: 3460, toHz: 3455, attackS: 0.0005, decayS: 0.14, db: -10 }),
+      Object.freeze({ kind: 'tone', hz: 5100, toHz: 5090, attackS: 0.0005, decayS: 0.08, db: -14 }),
     ]),
   }),
   chime: Object.freeze({

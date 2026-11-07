@@ -21,6 +21,11 @@
 // again on their own line. A routine roll's line is quieter (calm), a failure that is not routine warn.
 // An observer's look (a record marked short: the coach's at SHOW CLEAR) is its outcome alone, named
 // ("Sgt Trevelyan looks in the chamber: clear."), never its sum: his number is not the shooter's to know.
+//
+// The 0.0.8 round's contact (the build sheet 0.0.8 §2.1; COMBAT §25.11): a record of kind 'contact' (contact.js, at the
+// pause: "Contact: the target, lane 4, 7 m: a rifle.") carries the take-in's sum under it as a roll's line does, folded
+// open to the whole sum, factor by factor ("Taken in in 0.55 s: 0.54 (Warfighting 15) × 1 (your sector); Awareness 6 + 14
+// = 20 against 7, noticed."); the Rolls filter shows it with the rolls (its notice check is one).
 import { marsClock } from '../../sim/time/dates.js';
 import { MIN_MS } from '../../core/clock.js';
 import { checkShort, checkText, partsText } from '../../sim/skills/checks.js';
@@ -31,9 +36,9 @@ export const LOG_CARD_LINES = 400;
 /** VIEWS §8.6's filters by kind: id → [the button's words, a record's test]. */
 export const LOG_FILTERS = Object.freeze({
   all: Object.freeze(['Everything', () => true]),
-  rolls: Object.freeze(['Rolls', (r) => r.kind === 'roll']),
+  rolls: Object.freeze(['Rolls', (r) => r.kind === 'roll' || r.kind === 'contact']),
   said: Object.freeze(['Said', (r) => r.kind === 'say']),
-  other: Object.freeze(['The rest', (r) => r.kind !== 'roll' && r.kind !== 'say']),
+  other: Object.freeze(['The rest', (r) => r.kind !== 'roll' && r.kind !== 'say' && r.kind !== 'contact']),
 });
 /** Whether a record stays out of J and the toasts: hidden, or its roll hidden (see the header). */
 export const hiddenRec = (rec) => !!(rec?.hidden || rec?.roll?.hidden);
@@ -69,12 +74,34 @@ export function rollLine(rec) {
 }
 
 /**
+ * A contact's line (a record of kind 'contact'): { short, full, parts, tone, words } as a roll's, its head the record's text,
+ * under it the take-in's sum (the record's words, contactNow().last.words: "Taken in in 0.55 s: …"), the factors on
+ * their own line where the record lists them ({ why, ms } and { why, k }); null for any other record.
+ */
+export function contactLine(rec) {
+  if (rec?.kind !== 'contact') return null;
+  // (a challenge's record carries its identification roll: the roll's line, its head the record's words)
+  if (rec.roll && (rec.roll.kind === 'check' || rec.roll.kind === 'opposed')) {
+    let short = null, full = null;
+    try { short = checkShort(rec.roll); full = checkText(rec.roll); } catch { short = full = null; }
+    if (short) return { short, full, parts: rec.roll.dcParts?.length ? `DC ${rec.roll.dc}: ${partsText(rec.roll.dcParts)}` : null, tone: rec.tone ?? 'note', words: rec.text ?? null };
+  }
+  // (the pause's record: its head ("Contact · 0.55 s. Lane 2, 7 m: a pistol.") over the take-in's sum, from the record's own
+  // words where it gives them, else read off its text, whose sum is the sentence "Taken in in …")
+  const text = String(rec.text ?? 'Contact.'), m = /^(.*?)\s*(Taken in in [^;]*;[^]*?(?:noticed|notice[^.]*|late)\.)\s*(.*)$/.exec(text);
+  const sum = rec.words ?? m?.[2] ?? null, head = rec.words ? text.replace(rec.words, '').replace(/\s+/g, ' ').trim() : m ? `${m[1]} ${m[3]}`.trim() : text;
+  const factors = Array.isArray(rec.parts) && rec.parts.length ? rec.parts.map(p => (p.k !== undefined ? `× ${p.k} ${p.why}` : `${(p.ms / 1000).toFixed(2)} s ${p.why}`)).join(' · ') : null;
+  if (!sum) return { short: text, full: text, parts: factors, tone: rec.tone ?? 'urgent', words: null };
+  return { short: sum, full: sum, parts: factors, tone: rec.tone ?? 'urgent', words: head };
+}
+
+/**
  * The card's lines: [{ seq, stamp, text, sub?, tone, kind, roll?: { short, full, parts } }], the last n records of
  * state.log that are not hidden (see the header), newest first. over: the hidden ones too (debug, after the scene).
  */
 export function logLines(state, { lonEDeg = 0, n = LOG_CARD_LINES, over = false } = {}) {
   return (state?.log ?? []).filter(r => over || !hiddenRec(r)).slice(-n).reverse().map(r => {
-    const roll = r.kind === 'roll' ? rollLine(r) : null;
+    const roll = r.kind === 'roll' ? rollLine(r) : r.kind === 'contact' ? contactLine(r) : null;
     const text = roll ? roll.words ?? roll.short : r.text ?? `(${r.kind})`;
     return { seq: r.seq, stamp: logStamp(r.atMs, lonEDeg), text, ...(roll?.words ? { sub: roll.short } : {}), tone: roll?.tone ?? r.tone ?? 'note', kind: r.kind, ...(roll ? { roll } : {}) };
   });

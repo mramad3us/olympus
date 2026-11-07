@@ -34,8 +34,10 @@
 // V to a miss, widths by their odds: graphics over words, readable at a glance); the hover lists the same terms and
 // the rings' odds in words. farLabel(far) is the far window's plaque ("TARGET 10 · 300 M", farPointOf's label), in
 // the seen kind's enamel, with the aim glyph. Every term is the shooter's belief: the wind as read (or as the coach
-// called it), the zero as believed, the hold as set, the range as known on a line; the truth never reaches here.
+// called it), the zero as believed, the hold as set, the range as known on a line; the truth never reaches here. While
+// the rifle is being zeroed (shot.js zeroingOf) the zero term says the clicks dialled in this zero ("ZEROING ▲4 <2").
 import { glyphOf } from '../art/font.js';
+import { GLOWS } from '../art/palette.js';
 
 /** The kinds: face, its lit edge, its shade, the letters, the glyph (VIEWS §9.1's table; tradecraft's tail and felt). */
 export const STYLES = Object.freeze({
@@ -289,7 +291,8 @@ const fix = (v, d = 1) => { const n = Math.round(Math.abs(v) * 10 ** d) / 10 ** 
 /**
  * A term's few words as the plate says them (upper case): range "300 M"; wind "3 M/S >" (v the believed cross,
  * m/s, + blowing to the right: the arrow the way it blows; by 'coach', his call in whole m/s); hold "0.5 R" ([xMil, yMil] or { xMil, yMil }: + right,
- * + up); zero "▲2 <1" (v { elev, wind } clicks from the believed zero) or the sim's own words where v is not one of these.
+ * + up); zero "▲2 <1" (v { elev, wind } clicks from the believed zero; with t.zeroing, the clicks dialled in this zero from the
+ * turrets as issued: "ZEROING ▲4 <2", "ZEROING · NONE", the card's words) or the sim's own words where v is not one of these.
  */
 export function termText(t) {
   if (!t) return '';
@@ -306,8 +309,11 @@ export function termText(t) {
   }
   if (t.key === 'zero' && v && typeof v === 'object' && ('elev' in v || 'wind' in v)) {
     const e = Math.round(v.elev ?? 0), w = Math.round(v.wind ?? 0);
-    if (!e && !w) return 'ON ZERO';
-    return [e ? `${e > 0 ? '▲' : '▼'}${Math.abs(e)}` : null, w ? `${w > 0 ? '>' : '<'}${Math.abs(w)}` : null].filter(Boolean).join(' ');
+    const clicks = [e ? `${e > 0 ? '▲' : '▼'}${Math.abs(e)}` : null, w ? `${w > 0 ? '>' : '<'}${Math.abs(w)}` : null].filter(Boolean).join(' ');
+    // (while zeroing, the clicks dialled in this zero from the turrets as issued (shot.js zeroingOf): the user's report,
+    // 2026-11-07, "I dialed in the coaches corrections, the UI still says that I'm on zero ?")
+    if (t.zeroing) return clicks ? `ZEROING ${clicks}` : 'ZEROING · NONE';
+    return clicks || 'ON ZERO';
   }
   return String(t.words ?? '').toUpperCase().replace(/[^A-Z0-9 .+\-<>?·%/×=()]/g, '').slice(0, 18).trim();
 }
@@ -385,4 +391,143 @@ export function farLabel(far) {
   if (!far) return null;
   const [head, ...rest] = String(far.label ?? `TARGET ${far.lane ?? '?'} · ${Math.round(far.rangeM ?? 0)} M`).toUpperCase().split(' · ');
   return { text: head, sub: rest.length ? rest.join(' · ') : null, style: 'seen', icon: 'aim', notch: false };
+}
+
+// ---- 0.0.8: the take-in made readable (COMBAT §25.11, §25.15; the build sheet 0.0.8 §2.4, §4's face) ----
+//
+// The window (the marine has seen a target and not yet taken it in) and the pause it ends in, in the picture's pixels:
+//   - windowBracketPixels: hollow amber corner brackets (the palette's lamp amber, 3 px arms, an ink pixel round
+//     them so they read on regolith and on a pale face), round a box bracketScale(k) times the target's: 3× on the
+//     sighting tick, closing linearly to 1× as the window's k goes 0 to 1, so a recruit's close slowly and a tier one's
+//     are shut before they can be seen moving; they say where, never what (one colour for every face);
+//   - stampPixels: at the pause, the take-in over the figure in the 3 × 5 alphabet, "0.80 S", amber from STAMP_AMBER_MS
+//     and pale below, an ink pixel round each letter, for STAMP_S of real time (main.js);
+//   - contactPixels: the plaque's lead at the pause, "CONTACT · TAKEN IN 0.80 S" (and what was identified, "RIFLE",
+//     "HANDS", "HANDS UNSEEN"), with a strip under the words ticked every STRIP_TICK_MS on one scale for every sheet
+//     (STRIP_SPAN_MS, longer only for a longer take-in) and filled to the take-in, so 0.80 and 0.05 differ at a glance;
+//   - rowPartsPixels: a shot row's parts as a plate (the plaque for a row's parts): a segment a part, as wide as its
+//     time, each round's segment its part's glyph and odds, the aim and the press plain, the shift a step: what the
+//     row will do, priced and rolled before you press.
+// The words are react.js's takeInWords (the one formatter of the quantity), given in by the callers.
+/** The brackets open at this many times the target's box on the sighting tick (the build sheet 0.0.8 §4). */
+export const BRACKET_START_K = 3;
+/** The stamp stays this long (s of real time), amber from this take-in (ms), pale below. */
+export const STAMP_S = 2.5, STAMP_AMBER_MS = 500;
+/** The strip's tick (ms), its least span (ms: the slowest sheet's alert take-in fits), its pixels a tick. */
+export const STRIP_TICK_MS = 100, STRIP_SPAN_MS = 2000, STRIP_TICK_PX = 3;
+/** The window's amber (the palette's lamp glow), and the stamp's pale. */
+export const AMBER = GLOWS[0], STAMP_PALE = 0xf6f4ee;
+const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
+/** The brackets' size against the target's box at the window's k (0 the sighting, 1 the pause): 3 → 1, linearly. */
+export const bracketScale = (k) => BRACKET_START_K - (BRACKET_START_K - 1) * clamp01(k);
+/** The window's brackets round a w × h box: { w, h, data, arm, words: 'window' } (3 px arms, amber, inked). */
+export function windowBracketPixels({ w, h }) {
+  w = Math.max(4, Math.round(w)); h = Math.max(4, Math.round(h));
+  const L = Math.max(4, Math.min(Math.round(Math.min(w, h) / 3), 12)), T = 3, buf = pixelBuffer(w + 2 * (T + 1), h + 2 * (T + 1));
+  const X0 = 1, Y0 = 1, X1 = buf.w - 1 - T, Y1 = buf.h - 1 - T;
+  // (the ink first, a pixel wider all round, then the amber arms T thick)
+  for (const [cx, cy, sx, sy] of [[X0, Y0, 1, 1], [X1, Y0, -1, 1], [X0, Y1, 1, -1], [X1, Y1, -1, -1]]) {
+    const ax = sx > 0 ? cx : cx + T - L, ay = sy > 0 ? cy : cy + T - L;
+    buf.px(ax - 1, cy - 1, L + 2, T + 2, INK); buf.px(cx - 1, ay - 1, T + 2, L + 2, INK);
+  }
+  for (const [cx, cy, sx, sy] of [[X0, Y0, 1, 1], [X1, Y0, -1, 1], [X0, Y1, 1, -1], [X1, Y1, -1, -1]]) {
+    const ax = sx > 0 ? cx : cx + T - L, ay = sy > 0 ? cy : cy + T - L;
+    buf.px(ax, cy, L, T, AMBER); buf.px(cx, ay, T, L, AMBER);
+  }
+  return { w: buf.w, h: buf.h, data: buf.data, arm: L, words: 'window', tip: Math.floor(buf.w / 2) };
+}
+/** The stamp's colour for a take-in (ms): amber from STAMP_AMBER_MS, pale below. */
+export const stampColour = (ms) => (ms >= STAMP_AMBER_MS ? AMBER : STAMP_PALE);
+/** The stamp: "0.80 S" in the 3 × 5 alphabet, an ink pixel round every letter: { w, h, data, words, colour }. words: takeInWords(ms). */
+export function stampPixels(ms, words) {
+  const text = `${words} S`, tw = textW(text), buf = pixelBuffer(tw + 2, 7), c = stampColour(ms);
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) writeText(buf.px, 1 + dx, 1 + dy, text, INK);
+  writeText(buf.px, 1, 1, text, c);
+  return { w: buf.w, h: buf.h, data: buf.data, words: text, colour: c, tip: Math.floor(buf.w / 2) };
+}
+/** What was identified, as the plaque says it (contactNow().last.ident's value): 'RIFLE', 'PISTOL', 'HANDS', 'PHONE', 'HANDS UNSEEN'. */
+export const IDENT_WORDS = Object.freeze({ rifle: 'RIFLE', pistol: 'PISTOL', hands: 'HANDS', phone: 'PHONE', unseen: 'HANDS UNSEEN' });
+/** The strip's span for a take-in (ms): STRIP_SPAN_MS, or the next whole second past a longer one. */
+export const stripSpanMs = (ms) => Math.max(STRIP_SPAN_MS, Math.ceil((Number(ms) || 0) / 1000) * 1000);
+/**
+ * The contact's plate (the plaque's lead at the pause): { w, h, data, words, strip: { x, y, w, ticks, filled, spanMs } }:
+ * "CONTACT" and after a seam "TAKEN IN 0.80 S" (and the identification), in the hazard kind's amber enamel, and under
+ * the words the strip, a tick every STRIP_TICK_MS (a taller one each half second), filled to the take-in.
+ */
+export function contactPixels({ ms, words, ident = null, style = 'hazard' }) {
+  const S = STYLES[style] ?? STYLES.hazard, head = 'CONTACT', sub = `${ident && IDENT_WORDS[ident] ? `${IDENT_WORDS[ident]} · ` : ''}TAKEN IN ${words} S`;
+  const spanMs = stripSpanMs(ms), ticks = Math.round(spanMs / STRIP_TICK_MS), sw = ticks * STRIP_TICK_PX + 1;
+  const iw = 5 + 3, textRow = 4 + iw + textW(head) + 4 + textW(sub) + 4;
+  const w = Math.max(textRow, sw + 8), body = 1 + 2 + 5 + 2 + 5 + 2 + 1, buf = pixelBuffer(w + 1, body + 1), { px } = buf;
+  px(1, 1, w, body, SHADOW); px(0, 0, w, body, INK);
+  px(1, 1, w - 2, body - 2, S.face); px(1, 1, w - 2, 1, S.hi); px(1, body - 2, w - 2, 1, S.lo);
+  for (const [x, y] of [[0, 0], [w - 1, 0], [0, body - 1], [w - 1, body - 1]]) buf.clear(x, y);
+  ICONS.eye.forEach((row, j) => [...row].forEach((b, i) => { if (b === '1') px(4 + i, 3 + j, 1, 1, S.glyph); }));
+  let x = 4 + iw;
+  writeText(px, x, 3, head, S.ink); x += textW(head);
+  px(x + 2, 2, 1, 7, S.lo);
+  writeText(px, x + 4, 3, sub, S.ink);
+  // (the strip: a dark track, filled to the take-in in the face's light, its ticks)
+  const sx = Math.floor((w - sw) / 2), sy = 11, filled = Math.max(1, Math.round(Math.min(ms, spanMs) / STRIP_TICK_MS * STRIP_TICK_PX));
+  px(sx - 1, sy - 1, sw + 2, 5, INK);
+  px(sx, sy, sw, 3, mix(S.lo, INK, 0.5));
+  px(sx, sy, filled, 3, S.hi);
+  for (let t = 0; t <= ticks; t++) { const tx = sx + t * STRIP_TICK_PX, tall = t % 5 === 0; px(tx, tall ? sy - 1 : sy + 2, 1, tall ? 4 : 1, INK); }
+  return { w: buf.w, h: buf.h, data: buf.data, tip: Math.floor(w / 2), words: `${head} · ${sub}`, style, strip: { x: sx, y: sy, w: sw, ticks, filled, spanMs } };
+}
+/** The contact's plate on a canvas, cached as the plaques are. */
+export function contactPlaque(spec) {
+  return keep(`c|${spec.ms}|${spec.words}|${spec.ident}|${spec.style ?? ''}`, () => contactPixels(spec));
+}
+/** The window's brackets on a canvas, cached by size. */
+export function windowBracket(spec) {
+  return keep(`w|${Math.round(spec.w)}|${Math.round(spec.h)}`, () => windowBracketPixels(spec));
+}
+/** The stamp on a canvas, cached. */
+export function stamp(ms, words) {
+  return keep(`s|${ms}|${words}`, () => stampPixels(ms, words));
+}
+/** A part's glyph on the row's plate: the aim, the press, a round on the torso or the head, the shift. */
+const PART_GLYPH = Object.freeze({ aim: 'aim', press: 'hold', shift: 'right', torso: 'paper', head: 'eye' });
+/** The plate's pixels a second of a row's time (my call: a 0.8 s Pair 48 px wide, a tier one's 0.5 s 30). */
+export const PARTS_PX_S = 60;
+/**
+ * A shot row's parts as a plate (the plaque for a row's parts): { w, h, data, words, segs: [{ k, part, x, w, odds }] }. row:
+ * stepsOf's shot row ({ label, ms, parts: [{ k: 'aim' | 'press' | 'round' | 'shift', ms, part? }], rounds: [{ part, odds }] }):
+ * its label and time, then a segment a part as wide as its time (at least its glyph), a round's its part's glyph over
+ * its odds' meter. Parts' ms are the intervals of the row's plan (rowPlan), each to the next part.
+ */
+export function rowPartsPixels(row, { style = 'seen', secs = (ms) => (ms / 1000).toFixed(2) } = {}) {
+  const S = STYLES[style] ?? STYLES.seen, parts = row?.parts ?? [], rounds = row?.rounds ?? [];
+  const head = `${String(row?.label ?? '').toUpperCase()} ${secs(row?.ms ?? 0)} S`;
+  let ri = 0;
+  const segs = parts.map(p => {
+    const r = p.k === 'round' ? rounds[ri++] ?? { part: p.part ?? 'torso', odds: null } : null;
+    const glyph = r ? PART_GLYPH[r.part ?? p.part ?? 'torso'] ?? 'paper' : PART_GLYPH[p.k] ?? 'pin';
+    const odds = r && Number.isFinite(r.odds) ? `${Math.round(r.odds * 100)}` : '';
+    const minW = 5 + 2 + (odds ? textW(odds) + 1 : 0);
+    return { k: p.k, part: r?.part ?? p.part ?? null, ms: p.ms ?? 0, glyph, odds, w: Math.max(minW, Math.round((p.ms ?? 0) / 1000 * PARTS_PX_S)) };
+  });
+  const segsW = segs.reduce((a, s) => a + s.w + 1, 0), w = Math.max(4 + textW(head) + 4, 4 + segsW + 3), body = 1 + 2 + 5 + 2 + 7 + 2 + 1;
+  const buf = pixelBuffer(w + 1, body + 1), { px } = buf;
+  px(1, 1, w, body, SHADOW); px(0, 0, w, body, INK);
+  px(1, 1, w - 2, body - 2, S.face); px(1, 1, w - 2, 1, S.hi); px(1, body - 2, w - 2, 1, S.lo);
+  for (const [x, y] of [[0, 0], [w - 1, 0], [0, body - 1], [w - 1, body - 1]]) buf.clear(x, y);
+  writeText(px, 4, 3, head, S.ink);
+  let x = 4;
+  const y = 11, out = [];
+  for (const s of segs) {
+    const round = s.k === 'round', bg = round ? mix(S.face, AMBER, 0.45) : s.k === 'shift' ? mix(S.face, S.lo, 0.6) : mix(S.face, S.lo, 0.3);
+    px(x, y, s.w, 7, bg); px(x, y + 6, s.w, 1, mix(bg, INK, 0.3));
+    (ICONS[s.glyph] ?? ICONS.pin).forEach((row, j) => [...row].forEach((b, i) => { if (b === '1') px(x + 1 + i, y + 1 + j, 1, 1, round ? INK : S.glyph); }));
+    if (s.odds) writeText(px, x + 7, y + 1, s.odds, S.ink);
+    out.push({ k: s.k, part: s.part, x, w: s.w, odds: s.odds });
+    x += s.w + 1;
+  }
+  const words = `${head} · ${segs.map(s => (s.k === 'round' ? `${String(s.part ?? 'torso').toUpperCase()}${s.odds ? ` ${s.odds}%` : ''}` : s.k.toUpperCase())).join(' ')}`;
+  return { w: buf.w, h: buf.h, data: buf.data, tip: Math.floor(w / 2), words, segs: out, style };
+}
+/** A row's parts' plate on a canvas, cached by what it shows. */
+export function rowPartsPlaque(row, opts = {}) {
+  return keep(`r|${row?.id}|${row?.label}|${row?.ms}|${JSON.stringify((row?.parts ?? []).map(p => [p.k, p.ms, p.part]))}|${JSON.stringify((row?.rounds ?? []).map(r => [r.part, Math.round((r.odds ?? 0) * 100)]))}|${opts.style ?? ''}`, () => rowPartsPixels(row, opts));
 }

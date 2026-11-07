@@ -55,10 +55,11 @@ export { playerActor };
  * load, facts }. Options: scenario, seed, mode, hour, startMs, worldId, domains (descriptors that
  * replace built-in domains, for createSim and newGame alike), version (meta.version, 'test' so a
  * golden doesn't move with VERSION), strict (throw on a lost tick or a listener's error), at (an
- * { area, x, z, face } the scenario starts the player at, as the page's ?at= does).
+ * { area, x, z, face } the scenario starts the player at, as the page's ?at= does), setup (a scene's), tier (0.0.8:
+ * test-pairs' test sheet, as the page's ?tier= does).
  */
 export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', hour = null, startMs, worldId = null,
-  domains = {}, version = 'test', strict = true, at = null, setup = null } = {}) {
+  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null } = {}) {
   const errors = [];
   let sim = null, hooks = null, seen = 0;
   const bus = recordingBus({ onError: (e, type) => errors.push(`a listener of '${type}': ${firstLine(e)}`) });
@@ -72,7 +73,7 @@ export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', 
     loop.useSkips = (h) => { hooks = h; return useSkips.call(loop, h); };
   }
   sim = createSim({ loop, bus, domains });
-  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup };
+  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier };
   if (startMs !== undefined) opts.startMs = startMs;
   loop.setState(newGame(opts));
 

@@ -1,5 +1,5 @@
 // The DI on the range (src/sim/skills/instinct/range.js, instinct.js; SKILLS §14, the build sheet 0.0.5 §2.2, §8 item 10): a shooter who only follows T, the line second by second.
-import { assert } from './helpers.mjs';
+import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { stepAct } from './bots/lib.mjs';
 import { instinctNow } from '../src/sim/skills/instinct.js';
@@ -88,6 +88,42 @@ export default [
       const cmds = new Set(lines.map(([, c]) => c));
       assert(['dope', 'police', 'turnIn', 'declare'].every(c => cmds.has(c)), `the KD's commands said: ${[...cmds].join(', ')}`);
       assert(lines.every(([t]) => !/\d+\.\d{2,}/.test(t)), 'no truth\'s decimals in the DI\'s words');
+    },
+  },
+  {
+    name: 'a shooter left behind by a move-on on the KD line is told what is still owed, in the training\'s order, and T does it: idle out of the mode at the 200 m\'s "Sitting, five rounds. LOAD." until the tower moves on to MAKE READY (one \'slow\' fault), the line says "sitting, then LOAD, then MAKE READY", T sits, loads and makes ready before the tower\'s wait runs out again, and the string is fired with no second fault (the player\'s verifier of 0.0.8, seed 2614078355: the line said only "The tower said MAKE READY." to a shooter standing with no magazine, a second \'slow\' fault followed and the rapid string went down not fired)',
+    fn() {
+      const g = createGame({ scenario: 'test-range', seed: 2614078355, setup: 's200' }), s = g.state, R = () => s.armoury.range, kb = kdBot();
+      let n = 0;
+      for (; n < 20 * 600 && R().cmd?.id !== 'sit'; n++) g.step(1, kb);
+      // (out of the mode, where time runs, and nothing done until the tower moves on)
+      for (let k = 0; k < 100 && s.stop; k++, n++) g.step(1, s.stop.phase === 'choose' && !s.stop.doing ? { act: [stepAct('leave')] } : {});
+      for (; n < 20 * 600 && R().cmd?.id !== 'ready'; n++) g.step(1);
+      const L0 = instinctNow(s).line, slow0 = R().faults.filter(f => f.rule === 'slow').length, atReady = s.clock.ms;
+      // (a shooter who presses T for every act the line shows, Fire held where it says to press: tBot's, keyed on the act so
+      // a press at a moment time stands still is not lost)
+      g.me().bot = {};
+      const tb = (state, me, mem) => {
+        const S = state.stop, L = instinctNow(state).line;
+        if (S?.reflex) return { act: [stepAct('reflex:none')] };
+        if (L?.id === 'range-fire' && !L.act && S?.phase === 'choose' && !S.doing && mem.key !== `${state.clock.ms}|fire`) { mem.key = `${state.clock.ms}|fire`; return { act: [stepAct('fire', 'careful')] }; }
+        if (!L?.act || mem.key === `${state.clock.ms}|${L.act}`) return {};
+        mem.key = `${state.clock.ms}|${L.act}`; (mem.ts ??= []).push({ act: L.act, text: L.text });
+        return { act: [{ act: 'instinct', args: { id: L.id, act: L.act } }] };
+      };
+      let readyAt = null;
+      for (let m = 0; m < 20 * 300 && R().cmd?.id !== 'clear'; m++) {
+        g.step(1, tb);
+        if (readyAt === null && R().cmd?.id === 'fire') readyAt = s.clock.ms;
+      }
+      const ts = g.me().bot.ts ?? [], slow = R().faults.filter(f => f.rule === 'slow'), str = R().strings.at(-1);
+      console.log(`      seed 2614078355, point ${R().kdLane}: after the move-on (${slow0} 'slow') the line said "${L0?.text}" (T ${L0?.act}, chip ${L0?.short})`);
+      for (const t of ts.slice(0, 8)) console.log(`        T ${t.act.padEnd(22)} "${t.text}"`);
+      console.log(`      commence fire ${fmt(((readyAt ?? s.clock.ms) - atReady) / 1000, 1)} s after MAKE READY; ${slow.length} 'slow' fault(s) in all; the ${str?.id} string: ${str?.holes?.length ?? 0} rounds fired`);
+      assert(slow0 === 1 && L0?.id === 'range-cmd' && L0.variant === 'owed' && /sitting, then LOAD, then MAKE READY/i.test(L0.text) && L0.act === 'stop:enter', JSON.stringify({ slow0, L0 }));
+      const acts = ts.map(t => t.act);
+      assert(acts.indexOf('stop:stance:sit') >= 0 && acts.indexOf('stop:stance:sit') < acts.indexOf('stop:macro:load') && acts.indexOf('stop:macro:load') < acts.indexOf('stop:macro:ready'), JSON.stringify(acts));
+      assert(readyAt !== null && slow.length === 1 && str?.id === 's200' && (str.holes?.length ?? 0) >= 5, JSON.stringify({ readyAt, slow, holes: str?.holes?.length }));
     },
   },
 ];

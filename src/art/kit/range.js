@@ -42,7 +42,7 @@
 //               the parapet's lip, a duckboard walk, a drain); the faces sink into it as they go down;
 //   kdBerm      'earth', 'terraced': the impact berm, four steps of 2 m rising east away from the line (8 m),
 //               each step's lip pocked where rounds have gone in, its ends the section;
-//   kdFlag      'sleeve', 'timber': a range flag's pole, 4.5 m, its swivel ring at the top (the sleeve is the
+//   kdFlag      'sleeve', 'timber': a range flag's pole, 4.5 m, dark steel, its swivel at the top (the sleeve is the
 //               stage's, blowing by the sim's wind: src/render/range-items.js sleevePixels);
 //   kdPoint     'stake', 'post': a firing point's numbered stake, the lane's number (look.text) on a plate
 //               bigger than life, the kit's way with small things;
@@ -54,7 +54,7 @@
 // The faces' paintings (paintKdFace: the A and B targets, KD_FACES' rings) are here too, as the 25 m card's
 // are: the stage draws the faces from them.
 // Pure.
-import { tex } from './kit.js';
+import { tex, rotPainter } from './kit.js';
 import { C, U, P, bevel, cloth, tone, hash3 } from './common.js';
 import { paintedSteel, concrete, regolith, tile } from '../materials/index.js';
 import { paint } from '../paint.js';
@@ -342,7 +342,7 @@ export function paintKdFace(px, x0, y0, ppm, paper = 'kdA') {
   px(x0, y0, n, 1, BOARD_D); px(x0, y0 + n - 1, n, 1, BOARD_D); px(x0, y0, 1, n, BOARD_D); px(x0 + n - 1, y0, 1, n, tone(BOARD_D, -0.1));
 }
 
-const CONCRETE = 0x9c917a, PIT = 0x49403e;
+const CONCRETE = 0x9c917a, PIT = 0x49403e, POLE_D = 0x3b3f47;
 const steelFace = (c) => tex(`kdsteel:${c}`, (px, w, h) => { px(0, 0, w, h, c); px(0, 0, 1, h, tone(c, 0.1)); px(w - 1, 0, 1, h, tone(c, -0.15)); });
 const timberFace = tex('kdtimber', (px, w, h) => { px(0, 0, w, h, BOARD_D); for (let j = 2; j < h; j += 3) px(0, j, w, 1, tone(BOARD_D, -0.06)); px(0, 0, 1, h, tone(BOARD_D, 0.08)); });
 
@@ -415,10 +415,13 @@ export function kdBerm(k, o) {
 }
 
 export function kdFlag(k, o) {
-  const H = o.H ?? 4.5, make = o.make ?? 'steel', pole = make === 'timber' ? timberFace : tex('kdflagpole', (px, w, h) => { px(0, 0, w, h, 0xd6d0c9); px(w - 1, 0, 1, h, tone(0xd6d0c9, -0.2)); for (let j = 0; j < h; j += 6) px(0, j, w, 1, C.red); });
+  // (the steel pole dark and plain, a pixel wide at 16 px/m: the sleeve's red and white is the sleeve's alone, so the
+  // sleeve hanging along its pole never reads as the pole (it was white banded red every 6 px: the user's report of
+  // v0.0.7, 2026-11-07, read pole and sleeve as one))
+  const H = o.H ?? 4.5, make = o.make ?? 'steel', pole = make === 'timber' ? timberFace : tex('kdflagpole', (px, w, h) => { px(0, 0, w, h, POLE_D); px(w - 1, 0, 1, h, tone(POLE_D, -0.25)); });
   k.comp();
   k.box({ x: 0, z: 0, w: 0.1, d: 0.1, h: 0.2, faces: { front: tex('kdflagbase', (px, w, h, p) => concrete(px, 0, 0, w, h, { c: CONCRETE, ppm: p, seed: 7 })), sides: tone(CONCRETE, -0.15), top: CONCRETE } });
-  k.box({ x: 0, z: 0, y: 0.2, w: 0.06, d: 0.06, h: H - 0.3, faces: { front: pole, sides: 0xb7b0a8, top: 0xd0ac5e } });
+  k.box({ x: 0, z: 0, y: 0.2, w: 0.06, d: 0.06, h: H - 0.3, faces: { front: pole, sides: tone(POLE_D, -0.25), top: POLE_D } });
   k.box({ x: 0, z: 0, y: H - 0.12, w: 0.1, d: 0.1, h: 0.12, faces: { front: STEEL_D, sides: STEEL_D, top: STEEL } });
 }
 
@@ -493,3 +496,88 @@ export function rangeShack(k, o) {
   k.box({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: D / 2, y0: H - 0.3, y1: H, faces: { front: fasciaFace(make === 'store' ? 'RANGE STORE' : 'RANGE'), top: tex('kdshackroof', (px, w, h) => { px(0, 0, w, h, 0x7c736b); for (let j = 3; j < h; j += 4) px(0, j, w, 1, tone(0x7c736b, -0.08)); bevel(px, 0, 0, w, h, 0x7c736b, 1); }), sides: tone(0x7c736b, -0.15) } });
 }
 void P;
+
+// ---------- the 0.0.8 round: the pairs pad on the 25 m bay (the build sheet 0.0.8 §2.3, §2.4; PLACES §4.12) ----------
+//
+// kdTurner   'stand', 'frame': a turning target's stand, 1 m in front of its lane's frame (the scene's PAIRS): a steel
+//            motor box on the regolith, sandbagged, its shaft up through a bearing to the clamp the face hangs on.
+//            The face itself is the stage's (src/render/range.js: it turns, so it is drawn each frame edge-on to
+//            facing over the turner's real TURN_MS, TURNER_K times life size, never a pop); with no face hung (test-
+//            handling, test-range) the stand alone shows: a box at the frame's foot and a thin shaft beside it, so the
+//            card and the line stay as they were scored.
+//   kdPaint  'line', 'worn': a firing line painted across the pad (w its run along the lanes, 0.1 m wide), its
+//            distance stencilled beside it on the piece's front (the line's side when laid facing 'left', as the KD's
+//            long pieces are; look.side −1 its back) in the density's alphabet (look.text '7 M' or '10 M'), at look.at
+//            (metres along the run from its start) or, by default, every 3 m about its middle; the words painted so
+//            they read upright from the camera whichever way the piece is laid.
+/** The turner's motor box and its shaft's clamp height (m: the face hangs on the clamp, PAIRS.face.centreY 1.35 m). */
+export const TURNER_BOX = Object.freeze({ w: 0.42, d: 0.26, h: 0.28 }), TURNER_CLAMP_Y = 1.0;
+/** The motor box's steel by make (grey, not the Corps' olive: in olive at 16 px/m it read as a small marine at the frame's foot). */
+const TURNER_STEEL = Object.freeze({ stand: 0x6e7582, frame: 0x565b67 });
+const motorFace = (make) => tex(`kdturnerbox:${make}`, (px, w, h, ppm) => {
+  // (on every upright face: the piece is laid facing the line, so the camera sees its side)
+  const c = TURNER_STEEL[make] ?? TURNER_STEEL.stand;
+  px(0, 0, w, h, c); bevel(px, 0, 0, w, h, c, 1.0);
+  // (a hazard band along its top, the vent's slots, the cable gland)
+  const b = Math.max(1, Math.round(0.04 * ppm));
+  for (let i = 0; i < w; i++) px(i, 0, 1, b, (Math.floor(i / Math.max(2, b * 2)) % 2) ? C.hazardD : C.hazard);
+  for (let i = Math.round(w * 0.15); i < w * 0.55; i += 2) px(i, b + 2, 1, Math.max(1, h - b - 4), tone(c, -0.18));
+  px(w - Math.max(2, b * 2) - 1, h - Math.max(2, b * 2) - 1, Math.max(2, b * 2), Math.max(2, b * 2), C.gunmetal);
+});
+export function kdTurner(k, o) {
+  const make = o.make ?? 'stand', B = TURNER_BOX, H = o.H ?? 1.75;
+  k.comp();
+  k.box({ x: 0, z: 0, w: B.w, d: B.d, h: B.h, faces: { front: motorFace(make), back: motorFace(make), sides: motorFace(make), top: tone(TURNER_STEEL[make] ?? TURNER_STEEL.stand, 0.08) } });
+  // (a sandbag over its skirt on the face we see)
+  k.box({ x: -B.w / 4, z: B.d / 2 + 0.04, w: 0.2, d: 0.08, h: 0.08, faces: { front: tex('kdturnerbag', (px, w, h, p) => { cloth(px, 0, 0, w, h, 0x9c917a, { u: U(p) }); px(0, 0, w, 1, tone(0x9c917a, 0.06)); }), sides: 0x7f735a, top: 0x9c917a } });
+  // (the shaft, its bearing collar, and the clamp the face hangs on: thin, so a stand with no face hides nothing)
+  k.comp();
+  k.box({ x: 0, z: 0, y: B.h, w: 0.04, d: 0.04, h: TURNER_CLAMP_Y - B.h, faces: { front: tex('kdturnershaft', (px, w, h) => { px(0, 0, w, h, C.steelD); px(0, 0, 1, h, tone(C.steelD, 0.12)); }), sides: C.steelDD, top: C.steel } });
+  k.box({ x: 0, z: 0, y: B.h, w: 0.08, d: 0.08, h: 0.05, faces: { front: C.gunmetal, sides: C.gunmetal, top: C.steelD } });
+  k.box({ x: 0, z: 0, y: TURNER_CLAMP_Y - 0.03, w: 0.3, d: 0.03, h: 0.03, faces: { front: tex('kdturnerclamp', (px, w, h) => { px(0, 0, w, h, C.steelD); px(0, 0, w, 1, tone(C.steelD, 0.15)); }), sides: C.steelDD, top: C.steel } });
+  void H;
+}
+
+/** The painted lines' white, worn and fresh (my calls: the Corps' range paint on regolith). */
+const LINE_WHITE = 0xe6ddc8;
+/** The labels' places along a run of w metres: look.at, else every LABEL_EVERY_M about its middle, an odd count (symmetric, so a run laid either way puts them in the same places). */
+export const LABEL_EVERY_M = 3;
+export function paintLabelsAt(w, at = null) {
+  if (Array.isArray(at) && at.length) return at.filter(Number.isFinite);
+  const n = Math.max(1, Math.floor(w / LABEL_EVERY_M) - (Math.floor(w / LABEL_EVERY_M) % 2 === 0 ? 1 : 0)), out = [];
+  for (let i = 0; i < n; i++) out.push(w / 2 + (i - (n - 1) / 2) * LABEL_EVERY_M);
+  return out;
+}
+const lineTop = (make) => tex(`kdpaintline:${make}`, (px, w, h, ppm) => {
+  // (the run's long axis is whichever of w and h is longer: a top's painting turns with the piece)
+  px(0, 0, w, h, LINE_WHITE);
+  const along = w >= h, n = along ? w : h;
+  for (let i = 0; i < n; i++) {
+    const hsh = hash3(i, make === 'worn' ? 31 : 17, 5) % 100;
+    // (regolith ground into the paint: worn, a gap in three; fresh, a speck now and then)
+    if (hsh < (make === 'worn' ? 30 : 6)) { if (along) px(i, hsh % h, 1, 1, tone(LINE_WHITE, -0.22)); else px(hsh % w, i, 1, 1, tone(LINE_WHITE, -0.22)); }
+  }
+});
+/** The label's painting as seen from the camera (upright), w × h pixels: the words in the density's alphabet, painted on the regolith. */
+const labelWorld = (text, make) => tex(`kdpaintlabel:${make}:${text}`, (px, w, h, ppm) => {
+  const g = fontFor(ppm), c = make === 'worn' ? tone(LINE_WHITE, -0.12) : LINE_WHITE;
+  if (g.width(text) <= w) g.stencil(px, Math.floor((w - g.width(text)) / 2), Math.floor((h - g.h) / 2), text, c);
+});
+export function kdPaint(k, o) {
+  const W = o.W ?? 18.6, D = Math.max(0.05, o.D ?? 0.1), make = o.make ?? 'line', text = String(o.look?.text ?? '').toUpperCase();
+  k.comp();
+  k.ground({ x0: -W / 2, z0: -D / 2, x1: W / 2, z1: D / 2, top: lineTop(make), lift: 0.006 });
+  if (!text) return;
+  // (the words beside the line on the side look.side names: +1 the piece's front (the default), −1 its back; each
+  // painted upright for the camera: a top's painting turns with the piece, so the label goes in turned back by the
+  // piece's own turn, and the two turns cancel)
+  const f = fontFor(o.ppm ?? 16), ppm = o.ppm ?? 16, side = o.look?.side === -1 ? -1 : 1;
+  const lw = (f.width(text) + 4) / ppm, lh = (f.h + 4) / ppm;
+  // (in the world the label is lw wide (x) and lh deep (z); in the piece's frame those swap on a quarter turn)
+  const odd = k.q % 2 === 1, ax = odd ? lh : lw, az = odd ? lw : lh;
+  const painter = rotPainter(labelWorld(text, make), (4 - k.q) & 3);
+  for (const p of paintLabelsAt(W, o.look?.at)) {
+    const x = p - W / 2, z = side * (D / 2 + 0.12 + az / 2);
+    k.ground({ x0: x - ax / 2, z0: z - az / 2, x1: x + ax / 2, z1: z + az / 2, top: painter, lift: 0.006 });
+  }
+}

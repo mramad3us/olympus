@@ -32,6 +32,11 @@
 // (the walk, the pits) moved to its middle and then finished, as the page's splash would; saves made in stop motion at
 // the zero, mid-step, in the middle of the walk's splash, while the pits mark the confirm and in the 200 m string, each
 // started again and played on to the end, end on the straight run's digest, and that digest is node's.
+//
+// (0.0.8) test-pairs in the page, the private and the tier one on seed 48213, driven by tests/bots/pairs.mjs through the
+// handle from the brief to the card: saves made in the middle of a take-in (the window open, every key refused), at a
+// contact's pause in stop motion, in the middle of a shot row between its rounds, during the dry RELOAD and in a Top up
+// between strings, each started again and played on to the end, end on the straight run's digest, and that digest is node's.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { assert, fmt, root } from './helpers.mjs';
@@ -42,6 +47,8 @@ import { WALK_START, walkBot } from './walk-moment2.mjs';
 import { rangeBot } from './bots/range.mjs';
 import { kdBot } from './bots/kd.mjs';
 import { kdNow } from '../src/sim/scenarios/range.js';
+import { pairsBot } from './bots/pairs.mjs';
+import { pairsNow } from '../src/sim/scenarios/pairs.js';
 
 /** Where the page's walk is saved: a tick in each part of it (game-walk's quick ticks, a few). */
 const PAGE_SAVES = Object.freeze([57, 290, 1007, 1009, 2300, 2379, 14916, 20140]);
@@ -266,9 +273,14 @@ export default [
     timeoutMs: 300_000,
     async fn() {
       const version = readFileSync(`${root}/VERSION`, 'utf8').trim(), start = { scenario: 'test-range', seed: 48213 };
-      // (node: each splash opened, moved to its middle, then finished, as the page's run below does)
+      // (node: each splash opened, moved to its middle, then finished, as the page's run below does; a fast-forward (the
+      // 200 m police, 9 cases at 1.2 s, past LIVE_MAX_MS 10 s) ticked on its own input to its end, as the page's ffFrame
+      // does: the loops ticked only outside a skip, so both stood at tick 5244 from v0.0.7 (the tower fixer's, 0.0.7))
       const n = createGame({ ...start, version }), nb = kdBot();
       for (let t = 0; t < 30_000 && !kdNow(n.state)?.end; t++) {
+        // (an 'ff' skip (v0.0.7's policing of the brass, run fast) is the loop's ticks with no keys, as the page runs it: the
+        // loop before stood still on it, the clock never moving, and never reached the card (the integrator's of v0.0.8))
+        if (n.state.skip?.engine === 'ff') { n.step(1); continue; }
         n.tickOpen(nb);
         const sk = n.state.skip;
         if (sk && sk.engine !== 'ff') { n.advance(sk.fromMs + Math.round((sk.toMs - sk.fromMs) / 2 / 50) * 50); for (let k = 0; n.state.skip && k < 1e5; k++) n.advance(); }
@@ -296,7 +308,7 @@ export default [
             onMid?.();
             for (let k = 0; h.state.skip && k < 1e5; k++) if (h.sim.advanceSkip(h.state, Infinity, NB)?.done) break;
           };
-          const play = (onTick = () => {}, onMid = null) => { const b = mk(); let t = 0; for (; t < maxTicks && !done(); t++) { const s = h.state, me = playerActor(s); if (!s.skip) h.step(1, b(s, me, (me.bot ??= {}))); splash(onMid); onTick(); } return t; };
+          const play = (onTick = () => {}, onMid = null) => { const b = mk(); let t = 0; for (; t < maxTicks && !done(); t++) { const s = h.state, me = playerActor(s); if (!s.skip) h.step(1, b(s, me, (me.bot ??= {}))); else if (s.skip.engine === 'ff') h.sim.ffTick(s); splash(onMid); onTick(); } return t; };
           const saves = [], want = new Set(['choosing at the zero', 'mid-step', 'mid-splash', 'the pits marking', 'the 200 m string']);
           const take = (at) => { if (want.has(at)) { want.delete(at); saves.push({ at, tick: h.state.clock.tick, json: h.save() }); } };
           const ticks = play(() => {
@@ -315,7 +327,7 @@ export default [
             await started;
             h.pause(true);
             // (a save made mid-splash starts inside it: its second half first)
-            if (h.state.skip) for (let k = 0; h.state.skip && k < 1e5; k++) if (h.sim.advanceSkip(h.state, Infinity, NB)?.done) break;
+            if (h.state.skip && h.state.skip.engine !== 'ff') for (let k = 0; h.state.skip && k < 1e5; k++) if (h.sim.advanceSkip(h.state, Infinity, NB)?.done) break;
             play();
             back.push({ at: sv.at, tick: sv.tick, kb: sv.json.length / 1024, end: h.state.clock.tick, digest: digest(h.save()) });
           }
@@ -329,6 +341,65 @@ export default [
         const bad = r.back.filter(b => b.end !== r.A.tick || b.digest !== r.A.digest);
         assert(!bad.length, JSON.stringify(bad));
       }, { query: 'play=test-range&seed=48213&nostore=1', timeoutMs: 60_000 });
+    },
+  },
+  {
+    name: 'test-pairs in the page, the pairs bot from the brief to the card as the private and the tier one: saves made in the middle of a take-in, at a contact\'s pause, between a shot row\'s rounds, in the dry RELOAD and in a Top up between strings, started again, carry on byte for byte, and the page\'s game is node\'s',
+    heavy: true,
+    timeoutMs: 300_000,
+    async fn() {
+      const version = readFileSync(`${root}/VERSION`, 'utf8').trim();
+      for (const tier of ['private', 'tierone']) {
+        const start = { scenario: 'test-pairs', seed: 48213, tier };
+        const n = createGame({ ...start, version }), nb = pairsBot();
+        for (let t = 0; t < 30_000 && !pairsNow(n.state)?.end; t++) n.step(1, nb);
+        const nodeDigest = n.digest(), nodeTick = n.state.clock.tick;
+        await withGame(async (page) => {
+          const r = await page.evaluate(async ({ start, maxTicks }) => {
+            const h = window.__olympus;
+            const { pairsBot: mk } = await import('/tests/bots/pairs.mjs');
+            const { pairsNow: P } = await import('/src/sim/scenarios/pairs.js');
+            const { digest } = await import('/src/core/hash.js');
+            const { playerActor } = await import('/src/core/ids.js');
+            h.pause(true);
+            const fresh = h.newGame(start);
+            h.pause(true);
+            await fresh;
+            h.pause(true);
+            const done = () => !!P(h.state)?.end;
+            const play = (onTick = () => {}) => { const b = mk(); let t = 0; for (; t < maxTicks && !done(); t++) { const s = h.state, me = playerActor(s); if (s.skip?.engine === 'ff') h.sim.ffTick(s); else h.step(1, b(s, me, (me.bot ??= {}))); onTick(); } return t; };
+            const saves = [], want = new Set(['mid-take-in', 'at the pause', 'between a row\'s rounds', 'in the dry RELOAD', 'in a Top up between strings']);
+            const take = (at) => { if (want.has(at)) { want.delete(at); saves.push({ at, tick: h.state.clock.tick, json: h.save() }); } };
+            const ticks = play(() => {
+              const s = h.state, S = s.stop, c = s.mind?.contact, p = P(s);
+              if (!p || p.end) return;
+              if (c?.pending && s.clock.ms >= c.pending.seenMs + 100) take('mid-take-in');
+              if (S?.via === 'contact' && S.phase === 'choose' && c?.last?.atMs === s.clock.ms) take('at the pause');
+              if (S?.doing?.kind === 'shot' && S.doing.i > 0) take('between a row\'s rounds');
+              if (S?.doing?.step === 'macro:reload:speed' && S.doing.i > 0) take('in the dry RELOAD');
+              if (S?.doing?.step === 'macro:reload:tactical' && S.doing.i > 0) take('in a Top up between strings');
+            });
+            const A = { digest: digest(h.save()), tick: h.state.clock.tick, ticks, summary: P(h.state)?.summary ?? null, end: !!P(h.state)?.end };
+            const back = [];
+            for (const sv of saves) {
+              const started = h.start(sv.json);
+              h.pause(true);
+              await started;
+              h.pause(true);
+              play();
+              back.push({ at: sv.at, tick: sv.tick, kb: sv.json.length / 1024, end: h.state.clock.tick, digest: digest(h.save()) });
+            }
+            h.pause(false);
+            return { A, back };
+          }, { start, maxTicks: 30_000 });
+          console.log(`      ${tier}: node tick ${nodeTick}, digest ${nodeDigest}; the page straight through: tick ${r.A.tick} (${r.A.ticks} ticks), ${r.A.summary}, digest ${r.A.digest}`);
+          for (const b of r.back) console.log(`        saved ${b.at} at tick ${b.tick} (${fmt(b.kb, 0)} KB), started again: tick ${b.end}, ${b.digest === r.A.digest ? 'the same digest' : `DIGEST ${b.digest}`}`);
+          assert(r.A.end && r.A.tick === nodeTick && r.A.digest === nodeDigest, JSON.stringify({ tier, page: r.A, nodeTick, nodeDigest }));
+          assert(r.back.length === 5, `${tier}: ${r.back.length} saves of 5: ${r.back.map(b => b.at).join(', ')}`);
+          const bad = r.back.filter(b => b.end !== r.A.tick || b.digest !== r.A.digest);
+          assert(!bad.length, JSON.stringify(bad));
+        }, { query: `play=test-pairs&seed=48213&tier=${tier}&nostore=1`, timeoutMs: 60_000 });
+      }
     },
   },
 ];

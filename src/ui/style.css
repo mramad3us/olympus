@@ -93,7 +93,7 @@ body > .toasts { position: fixed; z-index: 5; }
 .instinct.ticker .line.urgent { border-color: var(--red); }
 .instinct.ticker .chip.keys { color: #b8bdc8; }
 
-/* RADIO, 720 × 52 stacked on INSTINCT (layout.js): the radio box later; in a splash the outcome strip,
+/* RADIO, 720 × 60 stacked on INSTINCT (layout.js; the outcome strip 52 at its foot): the radio box later; in a splash the outcome strip,
    each need that moved before and after with a one-pixel arrow between, the look glyph, "carry on". */
 .radio { position: absolute; left: 50%; bottom: calc(var(--m) + (44px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(720px * var(--ui)); height: calc(52px * var(--ui)); display: flex; align-items: center; justify-content: center; gap: calc(14px * var(--ui)); overflow: hidden; white-space: nowrap; font-size: calc(12.5px * var(--ui)); }
 .radio.outcome { background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; }
@@ -326,11 +326,15 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .reflexcard .rx-keep { color: var(--muted); font-size: calc(11px * var(--ui)); }
 .reflexcard .rx-keep.on { color: var(--brass); }
 
-/* The radio box (VIEWS §7.1): who speaks, then what they say; two lines at most, the newest under. */
-.radio.voices { flex-direction: column; align-items: stretch; justify-content: flex-end; gap: calc(2px * var(--ui)); pointer-events: none; }
+/* The radio box (VIEWS §7.1): who speaks, then what they say; two lines at most, the newest under; the tower's standing
+   command kept in its place until it is done, marked NOW (hud/radio.js), so the box is three rows high (RADIO_H_PX 60; the outcome strip stays 52). */
+.radio.voices { height: calc(60px * var(--ui)); flex-direction: column; align-items: stretch; justify-content: flex-end; gap: calc(2px * var(--ui)); pointer-events: none; }
 /* (flex: none: a voice never shrinks to share the box, so a newest line that wraps overflows it and radio.js drops the older one; shrunk, both were clipped to a row each: the 0.0.7 integrator's) */
 .radio.voices .voice { flex: none; display: flex; gap: calc(10px * var(--ui)); align-items: baseline; min-width: 0; background: var(--hud); border-left: 3px solid var(--tone-note); padding: calc(2px * var(--ui)) calc(10px * var(--ui)); overflow: hidden; }
 .radio.voices .voice.pa { border-left-color: var(--brass); }
+/* (the standing command: a brass tint and a NOW tag before its speaker, drawn by CSS so the line's text stays the tower's words) */
+.radio.voices .voice.standing { border-left-width: 5px; background: linear-gradient(90deg, rgba(231, 184, 74, 0.22), rgba(231, 184, 74, 0.08) 60%), var(--hud); }
+.radio.voices .voice.standing::before { content: 'NOW'; flex: none; align-self: center; padding: 0 calc(4px * var(--ui)); font: bold calc(10px * var(--ui))/1.35 var(--mono); letter-spacing: 0.12em; color: var(--ink); background: var(--brass); border-radius: 2px; }
 .radio.voices .voice.speech { border-left-color: #6f9a74; }
 .radio.voices .voice .who { flex: none; color: var(--brass); font-size: calc(11px * var(--ui)); letter-spacing: 0.06em; }
 .radio.voices .voice.speech .who { color: #a8d0ac; }
@@ -385,3 +389,31 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass.end .said.incident { color: var(--warn, #e7b84a); }
 .glass.sheetcard .wound { margin: 2px 0; color: #e8a59a; font-family: var(--type); }
 .plaque-info .pi-terms { color: var(--glass-text); }
+
+/* 0.0.8 (the build sheet 0.0.8 §2.4): the pairs pad. The take-in's amber brackets and the pause's stamp over the picture
+   (pixels, crisp), the plaque's lead and a row's parts stacked over the plaque, the coach's timer's paper in PAPER's place,
+   the shot rows' odds round by round, the contact's answers leading, the sheet picker and the end card's aspects. */
+.plaque.window { z-index: 1; }
+.plaque.stamp { z-index: 2; transition: none; }
+.plaque.contact, .plaque.parts { z-index: 1; }
+.timer { position: absolute; left: 50%; top: calc(var(--m) + (48px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(200px * var(--ui)); height: calc(140px * var(--ui)); border: 1px solid var(--glass-edge); border-radius: 4px; overflow: hidden; pointer-events: none; }
+.timer canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.steps .step.shot .label .name { color: #f6d0c8; letter-spacing: 0.02em; }
+.steps .step.shot.off .label .name { color: var(--faint); }
+.steps .step .odds.rounds { display: flex; gap: calc(4px * var(--ui)); }
+.steps .step .odds.rounds .round { position: relative; padding-bottom: 2px; }
+.steps .step .odds.rounds .round::after { content: ''; position: absolute; left: 0; bottom: 0; height: 1px; width: calc(100% * var(--k, 0)); background: var(--brass); }
+.steps .step .odds.rounds .round.head { color: #f0c870; }
+.steps .step.leads { border-left-color: #a8d0ac; background: rgba(111, 154, 116, 0.10); }
+.pi-takein { color: #e7b84a; }
+#title .sheet.picker .item.sheetpick { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+#title .sheet.picker .item.sheetpick small { flex-basis: 100%; white-space: normal; }
+#title .sheet.picker .item.sheetpick kbd { color: var(--ink); border-color: rgba(26, 18, 20, 0.35); }
+.glass.end .aspects-said { margin: calc(4px * var(--ui)) 0 calc(8px * var(--ui)); border-left: 2px solid var(--glass-edge); padding-left: calc(8px * var(--ui)); }
+.glass.end .aspect-said { margin: 0; color: var(--glass-text); font-size: calc(12px * var(--ui)); line-height: 1.35; }
+.glass.end .aspect-said b { color: var(--brass); font-weight: normal; letter-spacing: 0.04em; }
+/* (0.0.8, the fixer's: this session's runs on this seed, a line a sheet, under the aspects) */
+.glass.end .runs-said { margin: 0 0 calc(8px * var(--ui)); border-left: 2px solid var(--glass-edge); padding-left: calc(8px * var(--ui)); }
+.glass.end .runs-said .runs-head { margin: 0; color: var(--brass); font-size: calc(11px * var(--ui)); letter-spacing: 0.04em; }
+.glass.end .runs-said .run-said { margin: 0; color: var(--glass-text); font-size: calc(11px * var(--ui)); line-height: 1.35; font-variant-numeric: tabular-nums; }
+.instinct .lead.contact { border-left-color: #e7b84a; color: #f8e08a; letter-spacing: 0.02em; }

@@ -51,7 +51,7 @@
 // since TECH §3.7 says they never touch the state (0.0.2 wrote a render error into meta.errors even
 // while paused, so the page's save parted from a node replay exactly when something broke).
 //
-// newGame({ seed, mode, scenario, startMs, hour, worldId, version, domains, at, setup }) makes a fresh
+// newGame({ seed, mode, scenario, startMs, hour, worldId, version, domains, at, setup, tier }) makes a fresh
 // state: core's newState, meta.worldId (w-<seed> unless given), every domain's init in order, then
 // hour (the Mars local hour, a fraction giving minutes) moves the clock and meta.createdMs to the next
 // such time at the longitude of the scenario's site (SCENARIO_SITES), before the scenario's fill, so a
@@ -65,7 +65,12 @@
 // test world has no career (ROADMAP §2.1). The test scenes (src/sim/scenarios/tests.js, 0.0.4) are
 // test-shower and test-night, on Melas: the barracks at their hour with the scene's body and outfit;
 // 0.0.5 adds test-handling, "Show clear" (src/sim/scenarios/handling.js: the 25 m line of the KD range); 0.0.7
-// test-range, "The line at 300 m" (src/sim/scenarios/range.js: the KD range in full, its relay, its pits).
+// test-range, "The line at 300 m" (src/sim/scenarios/range.js: the KD range in full, its relay, its pits); 0.0.8
+// test-pairs, "Pairs" (src/sim/scenarios/pairs.js: the take-in and the shot rows on the bay's turners), whose fill takes
+// newGame's tier (a test sheet: recruit, private, cpl, sgt, raider, tierone; null the scene's own, the private).
+// act()'s first line is the take-in's gate (the build sheet 0.0.8 §2.6, §8 item 25): while a contact's window is open
+// (src/sim/combat/contact.js refusesAct) every sim action is refused and counted (stats.refused), in node and the page
+// alike, so a replay from the state and the inputs pauses where the game did (COMBAT §25.4.5, §25.4.8).
 //
 // The tech domain's actions: debug:skip:<ms> (the debug keys ^ and $ on AZERTY, the codes
 // BracketLeft and BracketRight, [ and ] on QWERTY) marks the save (meta.debugUsed, an honesty mark,
@@ -98,6 +103,8 @@ import { barracks, BARRACKS } from './scenarios/barracks.js';
 import { testShower, testNight, TESTS } from './scenarios/tests.js';
 import { testHandling, HANDLING } from './scenarios/handling.js';
 import { testRange, RANGE } from './scenarios/range.js';
+import { testPairs, PAIRS_SCENE } from './scenarios/pairs.js';
+import { refusesAct } from './combat/contact.js';
 import { weaponsDomain } from './arms/domain.js';
 import { SITES } from '../data/setting/calendar.js';
 import { logEntry } from './log.js';
@@ -109,9 +116,10 @@ const LAYER_NAMES = new Set(FAST_LAYERS.map(L => L.name));
 /** The domains, in the order their contributors run. */
 export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'body', 'people', 'weapons', 'combat', 'world', 'career']);
 /** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
-export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange });
+export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs });
 /** The site each scenario starts on: its longitude sets the start's hour. */
-export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site, 'test-shower': TESTS.site, 'test-night': TESTS.site, 'test-handling': HANDLING.site, 'test-range': RANGE.site });
+export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site, 'test-shower': TESTS.site, 'test-night': TESTS.site, 'test-handling': HANDLING.site, 'test-range': RANGE.site,
+  'test-pairs': PAIRS_SCENE.site });
 
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act);
 /** Whether an error from where (the loop's onError) is the sim's, and so noted in the state: a tick's or a skip's. */
@@ -246,6 +254,8 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
   } });
 
   function act(state, action, b = bus, c = ctx) {
+    // (the take-in's gate (see the header): nothing the player does lands while a contact's window is open)
+    if (refusesAct(state, action)) { stats.refused = (stats.refused ?? 0) + 1; return false; }
     const name = nameOf(action);
     const i = typeof name === 'string' ? name.indexOf(':') : -1;
     const fn = typeof name === 'string' ? actions[i < 0 ? name : name.slice(0, i)] : null;
@@ -298,6 +308,14 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
     beginSkip: (state, req) => skips.beginSkip(state, bus, req),
     advanceSkip: (state, targetMs = Infinity, budget, acts = []) => skips.advanceSkip(state, bus, targetMs, budget, acts),
     finishSkip: (state) => skips.finishSkip(state, bus),
+    /** One fast-forward tick on its own input and its end check, as the loop's ffFrame runs them (a driver stepping the page by hand): whether it ended. */
+    ffTick: (state) => {
+      if (!loop || loop.state !== state) throw new Error('a fast-forward runs lived ticks on the loop playing this state');
+      loop.tick(skips.ffInput(state));
+      return skips.ffCheck(state, bus);
+    },
+    /** After a fast-forward's lived tick: finish it at its end or its stop (the loop's ffFrame does this; a test driving ticks by hand does too). Returns whether it is over. */
+    ffCheck: (state) => skips.ffCheck(state, bus),
     skipNow: (state, req) => skips.skipNow(state, bus, req),
     gridNext: (skip, state, t0) => skips.gridNext(skip, state, t0),
     noteError(state, error, where = 'tick') {
@@ -331,7 +349,7 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
 // ---- a new game ----
 
 /** A new game's state (see the header). */
-export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null } = {}) {
+export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null } = {}) {
   if (seed === undefined || seed === null) throw new Error('newGame(): a seed is needed');
   const fill = SCENARIOS[scenario];
   if (!fill) throw new Error(`no scenario '${scenario}' (${Object.keys(SCENARIOS).join(', ')})`);
@@ -347,7 +365,7 @@ export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs
     const t = msAtMarsTime(s.clock.ms, h, m, lon);
     s.clock.ms = s.meta.createdMs = Math.ceil(t / TICK_MS) * TICK_MS;
   }
-  fill(s, { at, setup });
+  fill(s, { at, setup, tier });
   s.time.slowToMs = s.clock.ms;                                    // (the slow layer has stepped up to the start)
   postJobs(s, createJobs(list));
   for (const d of list) d.start?.(s);

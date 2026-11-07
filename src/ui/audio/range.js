@@ -34,6 +34,17 @@
 //   the berm     the slap-back off the berm in front of you: the bay's on the bay, the KD's past the pits;
 //   the pits     a carrier down or up its rails (the 'pit' fact) where it is, a sound's way late, under the parapet;
 //   the speaker  through the defenders' circuit (low-passed at EARS_LP_HZ) when you wear them.
+// The 0.0.8 round's (the build sheet 0.0.8 §2.4, §8 item 24; src/data/sounds.js's header for the numbers): the pairs pad.
+//   the turner  a 'turner' fact (turn or away): its motor from atMs over the turn, the clack of its stop at toMs, at the
+//               stand, on the game clock (stop motion freezes them; a turn away a little lower);
+//   the timer   the coach's shot timer beeps as the targets turn (one beep for a string's turn, however many turn),
+//               off your left shoulder;
+//   the steel   a shot that rang on the armoured face (the shot fact's ring): the plate's ring at the turner, a flight
+//               and a sound's way later, through the defenders' gate;
+//   the rows    a row's rounds (the shot fact's row: a Pair, a Hammer, the failure drill) are heard at their own formula
+//               time (the fact's atMs): each waits its place in the tick that brought it, on the audio clock, so the
+//               pair's two reports stand a split apart; a single Fire, and every shot of test-handling and test-range,
+//               sounds as it did.
 // The speed of sound is ballistics.js soundMsOf(envOfPlace(…)), the one helper for it; SOUND_SPEED_MS where no
 // place is known (a test's).
 import { playerActor, playerId } from '../../core/ids.js';
@@ -42,7 +53,8 @@ import { airDb } from '../../sim/people/hearing.js';
 import { lowpassHz } from './steps.js';
 import { KD_RANGE } from '../../data/places/range.js';
 import { AIR_KPA, ROLLOFF, PAN_FULL_M, REPORT_SOURCE_DB, MUZZLE_AHEAD_M, ECHO_DB, ECHO_LP_HZ, SOUND_SPEED_MS, EARS_DB, EARS_LP_HZ, CLICK_SOURCE_DB, PA_SOURCE_DB, ACTION_SOUNDS, DRY_WHY,
-  CRACK_SOURCE_DB, IMPACT_SOURCE_DB, CARRIER_SOURCE_DB, DIST_LP_REF_HZ, DIST_LP_REF_M, DIST_LP_MIN_HZ, REPORT_VOICES, REPORT_MERGE_MS, REPORT_HOLD_S, EARS_GATE_DB, PARAPET_DB, PARAPET_LP_HZ } from '../../data/sounds.js';
+  CRACK_SOURCE_DB, IMPACT_SOURCE_DB, CARRIER_SOURCE_DB, DIST_LP_REF_HZ, DIST_LP_REF_M, DIST_LP_MIN_HZ, REPORT_VOICES, REPORT_MERGE_MS, REPORT_HOLD_S, EARS_GATE_DB, PARAPET_DB, PARAPET_LP_HZ,
+  TURNER_SOURCE_DB, BEEP_SOURCE_DB, BEEP_AT, STEEL_SOURCE_DB } from '../../data/sounds.js';
 import * as ballistics from '../../sim/arms/ballistics.js';
 
 /** The berm's face (x, m) and the tower's speaker ({ x, y, z }, m: its deck) on the 25 m bay (PLACES §4.12: src/data/places/range.js, the stage's authored bay). */
@@ -117,6 +129,29 @@ export function carrierVoice({ me, at, soundMs = SOUND_SPEED_MS, ears = false, i
   const raw = CARRIER_SOURCE_DB + airDb(pKpa) + dbOfDist(d) + (inPits ? 0 : PARAPET_DB);
   const e = throughEars(raw, Math.min(distLowpassHz(d, pKpa), inPits ? Infinity : PARAPET_LP_HZ), ears);
   return { gainDb: e.gainDb, lowpassHz: e.lowpassHz, delayS: soundMs > 0 ? d / soundMs : 0, distM: d, pan: panOf(dx) };
+}
+
+/** A turner's motor or clack at the stand { x, z }: { gainDb, lowpassHz, distM, pan, delayS }. */
+export function turnerVoice({ me, at, soundMs = SOUND_SPEED_MS, ears = false, pKpa = AIR_KPA.ground, away = false }) {
+  const dx = at.x - me.x, dz = at.z - me.z, d = Math.hypot(dx, dz);
+  const raw = TURNER_SOURCE_DB + airDb(pKpa) + dbOfDist(d) + (away ? -3 : 0), e = throughEars(raw, distLowpassHz(d, pKpa), ears);
+  return { gainDb: e.gainDb, lowpassHz: e.lowpassHz, distM: d, pan: panOf(dx), delayS: soundMs > 0 ? d / soundMs : 0 };
+}
+/** The coach's timer's beep: { gainDb, lowpassHz, pan } (at BEEP_AT off your shoulder; its electronics pass the defenders). */
+export function beepVoice({ pKpa = AIR_KPA.ground } = {}) {
+  return { gainDb: BEEP_SOURCE_DB + airDb(pKpa) + dbOfDist(BEEP_AT.distM), lowpassHz: lowpassHz(pKpa), pan: BEEP_AT.pan };
+}
+/** A round ringing on steel at { x, z }: { gainDb, lowpassHz, distM, pan, delayS } (its flight, then a sound's way; an impulse through the defenders' gate). */
+export function ringVoice({ me, at, tofS = 0, soundMs = SOUND_SPEED_MS, ears = false, pKpa = AIR_KPA.ground }) {
+  const dx = at.x - me.x, dz = at.z - me.z, d = Math.hypot(dx, dz);
+  const raw = STEEL_SOURCE_DB + airDb(pKpa) + dbOfDist(d), e = throughEars(raw, distLowpassHz(d, pKpa), ears);
+  return { gainDb: e.gainDb, lowpassHz: e.lowpassHz, distM: d, pan: panOf(dx), delayS: (Number(tofS) || 0) + (soundMs > 0 ? d / soundMs : 0) };
+}
+/** Where a shot's turner stands ({ x, z }), from its key in the state's session (the pairs pad), or null. */
+export function turnerAtOf(state, f) {
+  const key = f?.target?.key ?? (typeof f?.target === 'string' ? f.target : null) ?? f?.key ?? f?.turner ?? null;
+  const T = (state?.armoury?.range?.turners ?? []).find(t => t.key === key) ?? null;
+  return T ? { x: T.x, z: T.z } : null;
 }
 
 /**
@@ -206,7 +241,7 @@ export function strikeAt(f, from) {
 export function createRange(engine, { looks = {}, clock = () => (globalThis.performance?.now?.() ?? 0) / 1000 } = {}) {
   const queue = createClickQueue();
   const limiter = createReportLimiter();
-  const stats = { reports: 0, echoes: 0, clicks: 0, dry: 0, cases: 0, chimes: 0, cracks: 0, strikes: 0, carriers: 0, byKind: {}, lastReport: null, lastEcho: null, lastClick: null, lastCase: null, lastChime: null, lastCrack: null, lastStrike: null, lastCarrier: null, queue: queue.stats, voices: limiter.stats };
+  const stats = { reports: 0, echoes: 0, clicks: 0, dry: 0, cases: 0, chimes: 0, cracks: 0, strikes: 0, carriers: 0, motors: 0, clacks: 0, beeps: 0, rings: 0, rowShots: 0, byKind: {}, lastReport: null, lastEcho: null, lastClick: null, lastCase: null, lastChime: null, lastCrack: null, lastStrike: null, lastCarrier: null, lastTurner: null, lastBeep: null, lastRing: null, lastRowShot: null, queue: queue.stats, voices: limiter.stats };
   const seen = new Set();                                          // (a sub-step's clicks scheduled once: step, i, fromMs)
   let lastState = null;
   // (the defenders: the range's earsOn where it has one (0.0.7's ears slot), else the kit's look of the head)
@@ -221,37 +256,70 @@ export function createRange(engine, { looks = {}, clock = () => (globalThis.perf
   const meOf = (state) => { const a = playerActor(state); return a ? { x: a.x, z: a.z } : null; };
   const r1 = (v) => Math.round(v * 10) / 10;
 
+  // (0.0.8: a turn's beep once, however many turners turn on that tick)
+  let beepAtMs = null;
   function fact(type, f, state) {
     if (!state || !f) return false;
-    if (type === 'shot') {
-      if (f.fired === false) {
-        if (!DRY_WHY.includes(f.why) || f.who !== playerId(state)) return false;
-        const v = clickVoice();
-        if (engine.shot('dryClick', { gainDb: v.gainDb, lowHz: v.lowpassHz })) { stats.dry++; stats.lastClick = { kind: 'dryClick', why: f.why }; return true; }
-        return false;
-      }
-      const me = meOf(state), mine = f.who === playerId(state), ears = earsOf(state), c = soundMsAt(state);
-      const muzzle = Array.isArray(f.muzzle) ? { x: f.muzzle[0], z: f.muzzle[1] } : f.muzzle ?? null;
-      const v = reportVoice({ me, muzzle, mine, ears, soundMs: c });
-      const ok = impulse('report', { delayS: v.delayS, gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan });
-      if (ok) { stats.reports++; stats.lastReport = { gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round(v.delayS * 1000) / 1000, ears, mine }; }
-      if (impulse('report', { delayS: v.echo.delayS, gainDb: v.echo.gainDb, lowHz: v.echo.lowpassHz, pan: v.pan, rate: 0.92 })) { stats.echoes++; stats.lastEcho = { gainDb: r1(v.echo.gainDb), lowpassHz: Math.round(v.echo.lowpassHz), delayS: Math.round(v.echo.delayS * 1000) / 1000 }; }
-      // (0.0.7: your own round's crack as it leaves, then its strike coming back a flight and a sound's way later)
-      // (only a shot at a face (the zero card, a KD face) has them: test-handling's card sounds as it was scored)
-      const fl = f.face ? f.flight ?? null : null;
-      if (mine && fl) {
-        const k = crackVoice({ supersonic: fl.supersonic !== false, ears });
-        if (k && engine.shot('crack', { delayS: k.delayS, gainDb: k.gainDb, lowHz: k.lowpassHz })) { stats.cracks++; stats.lastCrack = { gainDb: r1(k.gainDb) }; }
-      }
-      if (fl && Number.isFinite(fl.rangeM) && fl.rangeM > 0) {
-        const at = strikeAt(f, muzzle ?? me);
-        const sv = strikeVoice({ me, at, rangeM: fl.rangeM, tofS: fl.tofS ?? 0, soundMs: c, ears });
-        if (sv.gainDb > STRIKE_FLOOR_DB && impulse('impact', { delayS: sv.delayS, gainDb: sv.gainDb, lowHz: sv.lowpassHz, pan: sv.pan })) { stats.strikes++; stats.lastStrike = { gainDb: r1(sv.gainDb), lowpassHz: Math.round(sv.lowpassHz), delayS: Math.round(sv.delayS * 1000) / 1000, distM: r1(sv.distM), mine }; }
-      }
-      // (the case, a dud or a stripped round: a tick where it lands, when the clock passes its landing)
-      if (f.brass && Number.isFinite(f.brass.landMs)) queue.add(f.brass.landMs, 'caseTick', { at: Array.isArray(f.brass.at) ? { x: f.brass.at[0], z: f.brass.at[1] } : f.brass.at ?? null, what: f.brass.kind });
+    // (0.0.8: a row's round heard at its own formula time: its fact comes on the first tick at or after it, which the picture
+    // draws a tick behind (the effects at their own time), so the report waits the round's place in that tick on the audio
+    // clock, and a Pair's two reports stand its split apart, the tier one's hammer 0.11 s, not a tick's 0.10 or 0.15)
+    if (type === 'shot' && f.row && f.fired !== false && Number.isFinite(f.atMs)) {
+      const lagS = Math.max(0, Math.min(TICK_MS, f.atMs - (state.clock.ms - TICK_MS))) / 1000;
+      const ok = shotSound(f, state, lagS);
+      if (ok) { stats.rowShots++; stats.lastRowShot = { atMs: f.atMs, row: f.row ?? null, lagS: Math.round(lagS * 1000) / 1000 }; }
       return ok;
     }
+    if (type === 'turner') {
+      const at = Number.isFinite(f.x) && Number.isFinite(f.z) ? { x: f.x, z: f.z } : (state.armoury?.range?.turners ?? []).find(t => t.key === f.key) ?? null;
+      if (!at || !Number.isFinite(f.atMs)) return false;
+      const toMs = Number.isFinite(f.toMs) ? f.toMs : f.atMs + 300, away = f.phase === 'away';
+      queue.add(f.atMs, 'turnerMotor', { at: { x: at.x, z: at.z }, away });
+      queue.add(toMs, 'turnerClack', { at: { x: at.x, z: at.z }, away });
+      if (!away && beepAtMs !== f.atMs) { beepAtMs = f.atMs; queue.add(f.atMs, 'timerBeep', {}); }
+      return true;
+    }
+    if (type === 'shot') return shotSound(f, state);
+    return otherFact(type, f, state);
+  }
+  function shotSound(f, state, lagS = 0) {
+    if (f.fired === false) {
+      if (!DRY_WHY.includes(f.why) || f.who !== playerId(state)) return false;
+      const v = clickVoice();
+      if (engine.shot('dryClick', { gainDb: v.gainDb, lowHz: v.lowpassHz })) { stats.dry++; stats.lastClick = { kind: 'dryClick', why: f.why }; return true; }
+      return false;
+    }
+    const me = meOf(state), mine = f.who === playerId(state), ears = earsOf(state), c = soundMsAt(state);
+    const muzzle = Array.isArray(f.muzzle) ? { x: f.muzzle[0], z: f.muzzle[1] } : f.muzzle ?? null;
+    const v = reportVoice({ me, muzzle, mine, ears, soundMs: c });
+    const ok = impulse('report', { delayS: v.delayS + lagS, gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan });
+    if (ok) { stats.reports++; stats.lastReport = { gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round(v.delayS * 1000) / 1000, ears, mine }; }
+    if (impulse('report', { delayS: v.echo.delayS + lagS, gainDb: v.echo.gainDb, lowHz: v.echo.lowpassHz, pan: v.pan, rate: 0.92 })) { stats.echoes++; stats.lastEcho = { gainDb: r1(v.echo.gainDb), lowpassHz: Math.round(v.echo.lowpassHz), delayS: Math.round(v.echo.delayS * 1000) / 1000 }; }
+    // (0.0.7: your own round's crack as it leaves, then its strike coming back a flight and a sound's way later)
+    // (only a shot at a face (the zero card, a KD face) has them: test-handling's card sounds as it was scored)
+    const fl = f.face ? f.flight ?? null : null;
+    if (mine && fl) {
+      const k = crackVoice({ supersonic: fl.supersonic !== false, ears });
+      if (k && engine.shot('crack', { delayS: k.delayS + lagS, gainDb: k.gainDb, lowHz: k.lowpassHz })) { stats.cracks++; stats.lastCrack = { gainDb: r1(k.gainDb) }; }
+    }
+    if (fl && Number.isFinite(fl.rangeM) && fl.rangeM > 0) {
+      const at = strikeAt(f, muzzle ?? me);
+      const sv = strikeVoice({ me, at, rangeM: fl.rangeM, tofS: fl.tofS ?? 0, soundMs: c, ears });
+      if (sv.gainDb > STRIKE_FLOOR_DB && impulse('impact', { delayS: sv.delayS + lagS, gainDb: sv.gainDb, lowHz: sv.lowpassHz, pan: sv.pan })) { stats.strikes++; stats.lastStrike = { gainDb: r1(sv.gainDb), lowpassHz: Math.round(sv.lowpassHz), delayS: Math.round(sv.delayS * 1000) / 1000, distM: r1(sv.distM), mine }; }
+    }
+    // (the case, a dud or a stripped round: a tick where it lands, when the clock passes its landing)
+    if (f.brass && Number.isFinite(f.brass.landMs)) queue.add(f.brass.landMs, 'caseTick', { at: Array.isArray(f.brass.at) ? { x: f.brass.at[0], z: f.brass.at[1] } : f.brass.at ?? null, what: f.brass.kind });
+    // (0.0.8: a round that rang on the armoured face's steel, the plate's ring where it stands)
+    if (f.ring && !f.through && me) {
+      const at = turnerAtOf(state, f);
+      if (at) {
+        const rv = ringVoice({ me, at, tofS: f.flight?.tofS ?? 0, soundMs: c, ears });
+        // (the plate's own voice, not one of the reports' (their limit would merge it into the report it rides behind))
+        if (engine.shot('steelRing', { delayS: rv.delayS + lagS, gainDb: rv.gainDb, lowHz: rv.lowpassHz, pan: rv.pan })) { stats.rings++; stats.lastRing = { gainDb: r1(rv.gainDb), distM: r1(rv.distM), delayS: Math.round(rv.delayS * 1000) / 1000 }; }
+      }
+    }
+    return ok;
+  }
+  function otherFact(type, f, state) {
     if (type === 'step') {
       if (f.who && f.who !== playerId(state)) return false;
       if (f.phase !== 'start' && f.phase !== 'sub') return false;
@@ -286,13 +354,25 @@ export function createRange(engine, { looks = {}, clock = () => (globalThis.perf
 
   /** A frame: the clicks and the ticks the drawn clock has passed (none while time stands still). */
   function frame(state, { alpha = 0 } = {}) {
-    if (state !== lastState) { queue.clear(); seen.clear(); lastState = state; }
+    if (state !== lastState) { queue.clear(); seen.clear(); lastState = state; beepAtMs = null; }
     if (!state || state.skip) return;
     const nowMs = state.clock.ms + (isHeld(state) ? 0 : Math.max(0, Math.min(1, alpha)) * TICK_MS);
     const due = queue.due(nowMs);
     if (!due.length) return;
     const me = meOf(state);
     for (const e of due) {
+      // (0.0.8: the turner's motor and clack; the timer's beep)
+      if (e.kind === 'turnerMotor' || e.kind === 'turnerClack') {
+        if (!me || !e.at) continue;
+        const v = turnerVoice({ me, at: e.at, soundMs: soundMsAt(state), ears: earsOf(state), away: !!e.away });
+        if (engine.shot(e.kind, { delayS: v.delayS, gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan, rate: e.away ? 0.92 : 1 })) { if (e.kind === 'turnerMotor') stats.motors++; else stats.clacks++; stats.lastTurner = { kind: e.kind, gainDb: r1(v.gainDb), distM: r1(v.distM), atMs: e.atMs, away: !!e.away }; }
+        continue;
+      }
+      if (e.kind === 'timerBeep') {
+        const v = beepVoice();
+        if (engine.shot('timerBeep', { gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan })) { stats.beeps++; stats.lastBeep = { gainDb: r1(v.gainDb), atMs: e.atMs }; }
+        continue;
+      }
       if (e.kind === 'caseTick') {
         if (!me) continue;
         // (a live round or the dummy lands duller than an empty case: heavier, no ring (DULL_DB, DULL_HZ: my calls))

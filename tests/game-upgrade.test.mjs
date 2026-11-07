@@ -20,6 +20,10 @@
 // tag (the barracks, seed 48213, at 19:00 after a minute's walk; test-handling setup=hot after two shots). Nothing
 // is written on load: each saves again at once byte for byte, every body reads unhurt (the parts at 0, the blood
 // at 100 %, no injury, no anchor), each plays 600 ticks with no error, and a save after carries on byte for byte.
+// 0.0.8 (the build sheet 0.0.8 §3.2, §3.3): two saves made by v0.0.7's own code from a worktree at its tag (test-range
+// setup=confirm after the bot's first shot, in stop motion; test-handling setup=hot after two shots). Nothing is written
+// on load (no mind.contact, no drills on the sheet: their defaults read): each saves again at once byte for byte, X lets
+// time run, 600 ticks with no error and no contact made (no turners), and a save after carries on byte for byte.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -29,6 +33,7 @@ import { bodyOf } from '../src/sim/body/body.js';
 import { stagesOf } from '../src/sim/body/cues.js';
 import { BODY_V } from '../src/sim/body/record.js';
 import { bloodAt, hasWounds, PART_KEYS } from '../src/sim/body/wounds.js';
+import { rungOf } from '../src/sim/skills/templates.js';
 import { marsClock } from '../src/core/calendar.js';
 import { SITES } from '../src/data/setting/calendar.js';
 
@@ -150,6 +155,30 @@ export default [
         console.log(`      ${name}: saved at ${hm(old.clock.ms)} (${old.meta.scenario}, ${json.length} bytes); saved again at once: ${again === json ? 'byte for byte' : 'DIFFERENT'}; ${ids.length} bodies, ${hurt.length} hurt; 600 ticks, ${g.errors.length} errors; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
         assert(again === json && !hurt.length, JSON.stringify({ same: again === json, hurt: hurt.slice(0, 3) }));
         assert(!g.errors.length && !h.errors.length && h.save() === end, JSON.stringify({ errors: g.errors.slice(0, 3) }));
+      }
+    },
+  },
+  {
+    name: 'a v0.0.7 save loads with nothing written (no contact, no drills: their defaults read): it saves again byte for byte at once, X lets time run, 600 ticks with no error and no contact made, a save after carried on byte for byte',
+    fn() {
+      for (const name of ['v0.0.7-range-confirm', 'v0.0.7-handling-hot']) {
+        const json = read(name), old = JSON.parse(json);
+        assert(old.meta.version === '0.0.7' && !old.mind.contact, `${name}: not a v0.0.7 save (${old.meta.version})`);
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 });
+        const s = g.load(json), again = g.save(), pid = s.player.id;
+        const rung = rungOf(s, pid), drills = !!s.people[pid].skills?.drills;
+        const held = s.clock.holds.join(), t0 = s.clock.ms;
+        g.step(1, { act: ['shoot'] });
+        g.step(299, { mx: 1 });
+        const mid = g.save();
+        g.step(300);
+        const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 });
+        h.load(mid); h.step(300);
+        const contact = !!g.state.mind.contact;
+        console.log(`      ${name}: saved at ${hm(old.clock.ms)} (${old.meta.scenario}, holds [${held}], ${json.length} bytes); saved again at once: ${again === json ? 'byte for byte' : 'DIFFERENT'}; the player's rung ${rung} (${drills ? 'WRITTEN' : 'by rank'}); X, then 600 ticks: ${fmt((g.state.clock.ms - t0) / 1000, 2)} s lived, ${g.errors.length} errors, ${contact ? 'A CONTACT' : 'no contact'}; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+        assert(again === json && !drills && rung === 1 && !contact, JSON.stringify({ same: again === json, drills, rung, contact }));
+        assert(!g.errors.length && !h.errors.length && h.save() === end && g.state.clock.ms > t0, JSON.stringify({ errors: g.errors.slice(0, 3), moved: g.state.clock.ms - t0 }));
       }
     },
   },

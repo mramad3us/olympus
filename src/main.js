@@ -124,17 +124,33 @@
 // sim's far point (shooting.js farPointOf: the aimed, the bracketed, or with E held on a KD line your own face, when
 // outside the frame) is placed by layout.js placeFar against the state's rectangles ('weapon-far': PAPER yields, or
 // 'walking'), handed to the stage (view.setFar: the disc's centre and radius in window CSS px, the optic), and
-// labelled here ("TARGET 10 · 300 M", the plaque's enamel, beside the disc where placeFar left room) with a tick on its
-// ring along the true bearing, both at the stage's dissolve (view.farState().alpha); a far target's brackets and
-// plaque stand on the window. The plaque at distance carries its terms' plate (range, wind, hold, zero and the rings'
-// odds: plaque.js termsPixels) and its hover their words. The weapon card shows the turrets, the believed dope for the
-// line and the hold (art/weaponcard.js); Z S and the arrows dial elevation, Shift with Q D windage (core/keys.js
-// dialOf). PAPER on the KD: the zero card live, the group card once the coach has read a group, your face as the pits
-// mark it while the window is shut, the score card at a string's end (cards/kd.js). The sounds hear the 'pit' fact
-// (the carriers). The end card says the KD's summary and an incident. C lists your wounds in BODY's words, and a
-// casualty's dimming (wounds.js avpuOf: P, U) fades the picture. window.__olympus.range() carries kd() and nd(who).
+// labelled here ("TARGET 10 · 300 M", the plaque's enamel, beside the disc where placeFar left room) with a tick on
+// its ring along the true bearing, both at the stage's dissolve (view.farState().alpha); a far target's brackets and
+// plaque stand on the window (0.0.8: the brackets at the window's scale, the face 32 px at 4×, 8 at 1× framed at
+// 12). The window and its plates keep clear of the nearest wind flag the HUD leaves readable (0.0.8: flagBoxes, the
+// KD's flags within 30 m projected, and layout.js flagToKeep; placed again without it when nowhere else is free). The plaque at distance carries its terms' plate (range, wind, hold, zero and the rings' odds: plaque.js
+// termsPixels) and its hover their words. The weapon card shows the turrets, the believed dope for the line and the
+// hold (art/weaponcard.js); Z S and the arrows dial elevation, Shift with Q D windage (core/keys.js dialOf). PAPER
+// on the KD: the zero card live, the group card once the coach has read a group, your face as the pits mark it while
+// the window is shut, the score card at a string's end (cards/kd.js). The sounds hear the 'pit' fact (the carriers).
+// The end card says the KD's summary and an incident. C lists your wounds in BODY's words, and a casualty's dimming
+// (wounds.js avpuOf: P, U) fades the picture. window.__olympus.range() carries kd() and nd(who).
+// The 0.0.8 round's (the build sheet 0.0.8 §2.4; COMBAT §25.4, §25.6, §25.10.3, §25.11; VIEWS §7.4): test-pairs, "Pairs"
+// (?play=test-pairs&seed=48213[&tier=recruit|private|cpl|sgt|raider|tierone], the Tests menu's entry through its sheet
+// picker, cards/pairs.js). The take-in made readable: while a contact's window is open (contact.js contactNow().pending)
+// hollow amber brackets stand round each target seen, 3 times its box on the sighting tick, closing to it as the
+// window's k goes to 1 on the drawn clock (plaque.js windowBracket), and every key but Space and Esc is refused, in
+// the page as in the sim (game.js act's gate): the keys are the marine's once he has taken it in. At the pause (stop
+// motion entered via 'contact') the brackets snap to the pale pick and the rest of those taken in stay bracketed pale,
+// the stamp "0.55 S" stands on the target for STAMP_S of real time (amber from 0.50 s), the plaque's lead "CONTACT ·
+// RIFLE · TAKEN IN 0.55 S" with its strip over the plaque until a step is chosen, the instinct's line leads "Contact ·
+// 0.55 s.", and the hover lists the take-in's factors. A shot row's parts stand by the target as a plate (the row
+// hovered, else the first offered: plaque.js rowPartsPlaque). The coach's shot timer's paper (hud/timer.js) takes
+// PAPER after each string, in and out of stop motion. The end card says the sheet and the three aspects in the
+// scene's numbers and offers "Again as …" each other sheet on the same seed (the scene's againAs). The sounds hear the
+// 'turner' fact (the motor, the clack, the timer's beep). The handle gains pairs() and contact().
 // For tests and shots, URL parameters skip the title (src/core/debug.js readParams):
-// ?play=sandbox|barracks|test-shower|test-night|test-handling&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench|mixed];
+// ?play=sandbox|barracks|test-shower|test-night|test-handling|test-range|test-pairs&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench|mixed][&tier=…];
 // &ppm=16|24 (the density, 16 by default, the user's pick: src/render/scale.js; 24 a test density);
 // &mood=<name> (else the view's by the hour); &fog=1 (the samples'
 // test fog); &nostore=1; &perf=1 (the GL counters and the GPU's time by pass, in window.__report).
@@ -181,12 +197,18 @@ import * as wounds from './sim/body/wounds.js';
 import * as rangeKit from './sim/arms/kit.js';
 import { plaqueOf } from './sim/arms/shot.js';
 import { rangeNow, STOP_WORDS } from './sim/scenarios/handling.js';
+// (0.0.8: the contact's window and pause, the one formatter of the take-in, the pairs scene, the test sheets)
+import { contactNow } from './sim/combat/contact.js';
+import { takeInWords } from './sim/combat/react.js';
+import * as pairsScene from './sim/scenarios/pairs.js';
+import * as TEMPLATES from './sim/skills/templates.js';
+import { turnerPx } from './render/range-items.js';
 // (a KD face drawn FACE_K times life size in the far window: the stage's own constant, VIEWS §2.12)
 import { FACE_K } from './art/kit/range.js';
 import { KD_RANGE } from './data/places/range.js';
 import { paintWeaponCard } from './art/weaponcard.js';
 import { createBoot } from './ui/boot.js';
-import { applyScale, uiScale, rectsAt, placeFar, farTick, overlaps, STATES as HUD_STATES } from './ui/hud/layout.js';
+import { applyScale, uiScale, rectsAt, placeFar, farTick, overlaps, flagToKeep, FLAG_KEEP_M, STATES as HUD_STATES } from './ui/hud/layout.js';
 import { createWatch } from './ui/hud/watch.js';
 import { createToasts } from './ui/hud/toasts.js';
 import { wantOf } from './ui/hud/offer.js';
@@ -208,8 +230,11 @@ import { createAudio } from './ui/audio/engine.js';
 import { createSteps, createTicks } from './ui/hud/steps.js';
 import { createRadio } from './ui/hud/radio.js';
 import { createPaper, paperModel, faceModel } from './ui/hud/paper.js';
+import { createTimer, timerModel } from './ui/hud/timer.js';
+import { aspectLines, againTiers, runLine } from './ui/cards/pairs.js';
 import { createReflex } from './ui/hud/reflex.js';
-import { plaque, bracket, place, shotPlaque, plaqueWords, plaqueParts, termsPlaque, termLines, farLabel } from './ui/plaque.js';
+import { plaque, bracket, place, shotPlaque, plaqueWords, plaqueParts, termsPlaque, termLines, farLabel,
+  windowBracket, bracketScale, stamp, STAMP_S, contactPlaque, rowPartsPlaque } from './ui/plaque.js';
 import { doll } from './art/doll/doll.js';
 import { createStage } from './render/stage.js';
 import { createView, CUT_MAX_MS, FOG_CELLS } from './render/view.js';
@@ -218,6 +243,7 @@ import { createPainter } from './render/painter.js';
 import { createUploads } from './render/uploads.js';
 import { instrumentGL } from './render/stats.js';
 import { PX_PER_M, RES } from './render/scale.js';
+import { farBracketPx } from './render/far.js';
 
 /** Frames drawn with nothing pending before the page says it is ready; the longest it waits (TECH §13.3). */
 export const READY_FRAMES = 3, READY_LIMIT_MS = 10_000;
@@ -276,7 +302,52 @@ let loop = null, sim = null;
 // (the game owns Tab, Space and the move keys only in play with no card up: on the title they move focus and press buttons)
 // (in stop motion the bare digit is refused: the step panel sends the step it showed, the build sheet 0.0.5 §2.4)
 const inStop = (s = loop?.state) => s?.stop?.mode === 'stop';
-const input = createInput({ accept: (action, kind) => !!loop?.state && !loop.paused && !splash?.active && !(kind === 'digit' && inStop()), swallow: () => !!loop?.state && !boot?.card && !boot?.page });
+// (0.0.8: while a contact is being taken in nothing is accepted: the keys are the marine's once he has taken it in)
+const input = createInput({ accept: (action, kind) => !!loop?.state && !loop.paused && !splash?.active && !(kind === 'digit' && inStop()) && !windowOpen() && !pauseGuarded(action), swallow: () => !!loop?.state && !boot?.card && !boot?.page });
+// ---- the contact (0.0.8: contact.js contactNow, read once a tick) ----
+let contactMemo = { key: null, cn: null };
+/** The contact now (contactNow's { pending, last }), or null: read once a tick, never thrown. */
+function contactRead(s = loop?.state) {
+  if (!s) return null;
+  const key = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}`;
+  if (contactMemo.key === key && contactMemo.state === s) return contactMemo.cn;
+  let cn = null;
+  try { cn = contactNow(s, s.clock.ms); } catch (e) { broke(e, 'the contact'); }
+  contactMemo = { key, state: s, cn };
+  return cn;
+}
+/** Whether a contact's window is open now (the take-in running: every key refused but Space and Esc). */
+function windowOpen(s = loop?.state) { return !!contactRead(s)?.pending; }
+// (0.0.8, the fixer's, after the runtime review: the pause's guard, as the cards' CARD_GUARD_MS. A key pressed by reflex
+// as the target turns lands after a fast sheet's pause (the tier one's 0.05 s, the Raider's 0.10 s): X, the stop-motion
+// key, put him back into real time, and digits mashed in the window chose rows he never saw. So for PAUSE_GUARD_MS of real
+// time from when the page first sees the pause no key acts but Space and Esc, and a key that went down while the take-in
+// ran, or in that guard, does nothing when it comes up (a digit's tap, R, T). The better the sheet, the surer a natural
+// press took away the pause meant as its reward.)
+/** The pause's guard (ms of real time from when the page first sees a contact's pause). */
+const PAUSE_GUARD_MS = 350;
+let guardSeen = { id: null, winT0: -Infinity, pauseT0: -Infinity };
+const keyDownAt = new Map();
+addEventListener('keydown', (e) => { if (!e.repeat) keyDownAt.set(e.code, performance.now()); }, true);
+/** Note when the page first sees a contact's window and its pause (each check and each frame). */
+function guardNote(s = loop?.state) {
+  const cn = contactRead(s), now = performance.now();
+  const id = cn?.pending?.id ?? (s?.stop?.via === 'contact' ? cn?.last?.id : null) ?? null;
+  if (id === null || id === undefined) return guardSeen;
+  if (guardSeen.id !== id) guardSeen = { id, winT0: now, pauseT0: -Infinity };
+  if (!cn?.pending && guardSeen.pauseT0 === -Infinity) guardSeen.pauseT0 = now;
+  return guardSeen;
+}
+/** Whether a key acts now (see above): never Space and Esc; refused inside the guard, or when it went down in the window or the guard. */
+function pauseGuarded(action, e = null) {
+  if (action === 'pause' || action === 'menu') return false;
+  const g = guardNote(), now = performance.now();
+  if (g.pauseT0 === -Infinity) return false;
+  const until = g.pauseT0 + PAUSE_GUARD_MS;
+  if (now < until) return true;
+  const down = e?.code ? keyDownAt.get(e.code) : undefined;
+  return down !== undefined && down >= g.winT0 && down < until;
+}
 const fitInput = () => input.setStage(stage.canvas, stage.W, stage.H);
 fitInput();
 addEventListener('resize', fitInput);
@@ -287,7 +358,7 @@ const label = (a) => input.label(a);
 const instinct = createInstinct(hud, { label });
 // (the weapon mode's HUD: the step panel with its weapon card, the reflex card in its place, the radio box, the PAPER inset, the plaque and its brackets)
 const stepPanel = createSteps(hud, { label, labelOf: (id) => STEP_LABELS[id] ?? id, paintCard: (belief, far = {}) => (belief?.model ? paintWeaponCard({ model: belief.model, belief, k: 1, ...far }) : null),
-  onPick: (step) => { if (!loop.paused && !boot.card && !splash?.active && inStop()) { let st = null; try { st = stopNow(loop.state); } catch { /* (no stop motion: nothing to send) */ } if (st && !st.reflex) sendStep(step, input.peek().run ? 'rushed' : 'normal', st); } } });
+  onPick: (step) => { if (!loop.paused && !boot.card && !splash?.active && inStop() && !windowOpen() && !pauseGuarded('click')) { let st = null; try { st = stopNow(loop.state); } catch { /* (no stop motion: nothing to send) */ } if (st && !st.reflex) sendStep(step, input.peek().run ? 'rushed' : 'normal', st); } } });
 const reflexCard = createReflex(hud, { plaque, label });
 const radio = createRadio(hud);
 const paperInset = createPaper(hud);
@@ -298,6 +369,14 @@ const plaqueInfo = el('div', { className: 'plaque-info', hidden: true });
 const termsPlate = el('canvas', { className: 'plaque terms', hidden: true });
 const farLabelEl = el('canvas', { className: 'plaque farlabel', hidden: true }), farTickEl = el('div', { className: 'fartick', hidden: true });
 hud.append(pickBox, aimBox, aimPlaque, termsPlate, plaqueInfo, farLabelEl, farTickEl);
+// (0.0.8: the take-in's brackets (a pool, one a target taken in), the pale brackets of the others taken in at a pause, the
+// stamp on the target, the plaque's lead (the contact's plate), a shot row's parts' plate, the coach's timer's paper)
+const WINDOW_POOL = 6;
+const windowBoxes = Array.from({ length: WINDOW_POOL }, () => el('canvas', { className: 'plaque bracket window', hidden: true }));
+const takenBoxes = Array.from({ length: WINDOW_POOL }, () => el('canvas', { className: 'plaque bracket', hidden: true }));
+const stampEl = el('canvas', { className: 'plaque stamp', hidden: true }), contactPlate = el('canvas', { className: 'plaque contact', hidden: true }), partsPlate = el('canvas', { className: 'plaque parts', hidden: true });
+hud.append(...windowBoxes, ...takenBoxes, stampEl, contactPlate, partsPlate);
+const timerPaper = createTimer(hud);
 // (a casualty's picture dimming at P and U: BODY §17.2's AVPU, wounds.js avpuOf; under the HUD, over the picture)
 const fadeEl = el('div', { className: 'avpu-fade', hidden: true });
 frameEl.insertBefore(fadeEl, hud);
@@ -360,7 +439,9 @@ const boot = createBoot({ cb: {
   // (the hidden rolls only in debug, once the scene is over: tradecraft's)
   logLines: () => logLines(loop.state, { lonEDeg: lonAt(loop.state), over: !!settings.debug && !!scene?.ended }),
   scenes: () => Object.values(SCENES),
-  playScene: (scene) => playScene(scene),
+  playScene: (scene, { tier = null } = {}) => playScene(scene, { tier }),
+  // (0.0.8: a scene played as a sheet: the picker's sheets and their order, react's templates.js)
+  sheets: () => ({ sheets: TEMPLATES.TEST_SHEETS ?? {}, order: TEMPLATES.PICKER_TIERS ?? null }),
   sound: () => ({ volume: audio.volume, muted: audio.muted }),
   volume: (v) => { audio.setVolume(v); keepSound(); },
   mute: (on) => { audio.setMuted(on); keepSound(); },
@@ -372,11 +453,13 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
 /**
  * A new career's state: { seed, mode, scenario ('barracks', a career's; 'sandbox' the test rooms), hour (the Mars
  * local hour at the live site to start at), at ({ area, x, z, face }: somewhere else than the scenario's start),
- * setup (test-handling's: null, 'hot' at string 1 aimed, 'bench' with one magazine of 15, 'mixed' a fourth of tracer) }.
+ * setup (test-handling's: null, 'hot' at string 1 aimed, 'bench' with one magazine of 15, 'mixed' a fourth of tracer), tier
+ * (test-pairs' sheet, 0.0.8: 'recruit' … 'tierone'; null the scene's private) }.
  */
-function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', hour = null, at = null, setup = null } = {}) {
+function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', hour = null, at = null, setup = null, tier = null } = {}) {
   if (!SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
-  return freshGame({ seed, mode, scenario, hour, at, setup, version: VERSION });
+  // (0.0.8: tier, test-pairs' sheet (null: the scene's private); scenes never write a career)
+  return freshGame({ seed, mode, scenario, hour, at, setup, version: VERSION, ...(tier ? { tier } : {}) });
 }
 /** The URL's start somewhere else (&area=, &at=, &face=), or null: an area alone starts at its spawn. */
 function atParam(scenario) {
@@ -419,9 +502,9 @@ const sceneOf = (s) => {
   const all = Object.values(SCENES).filter(x => x.scenario === s.meta.scenario), setup = s.armoury?.range?.mixed ? 'mixed' : null;
   return all.find(x => (x.setup ?? null) === setup) ?? all[0] ?? null;
 };
-/** Start a scene: a new game of its scenario, at its hour (or the URL's), with the seed given or a new one, and the URL's setup (else the scene's own). */
-function playScene(rec, { seed = randomSeed(), hour = null, setup = null } = {}) {
-  return launch(newGame({ seed, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null }));
+/** Start a scene: a new game of its scenario, at its hour (or the URL's), with the seed given or a new one, the URL's setup (else the scene's own), and a sheet's tier (test-pairs, 0.0.8). */
+function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null } = {}) {
+  return launch(newGame({ seed, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier }));
 }
 
 /** Play a state from here (new, loaded or imported). Resolves with it once its area shows (or the cut gives up). */
@@ -548,6 +631,8 @@ bus.on('log', ({ entry } = {}) => {
   if (entry?.kind === 'roll') { const t = rollToast(entry); if (t && !loop.state?.skip) toast(t.text, t.tone); return; }
   if (!entry?.text) return;
   if (VOICE_KINDS.has(entry.kind)) return;                         // (what was said is in the radio box, and in J)
+  // (0.0.8: a contact's sum is the plaque's lead, the stamp and the line's "Contact · 0.55 s." in the picture, and in J whole: no toast says it again)
+  if (entry.kind === 'contact') return;
   if (loop.state?.skip) { if (entry.kind === 'activity' && debugSkip) return; (heldLog ??= []).push(entry); return; }
   toast(entry.text, entry.tone);
 });
@@ -593,6 +678,9 @@ bus.on('shot', (f) => { try { audio.fact('shot', f, loop.state); } catch (e) { b
 // (0.0.7: the pits' carriers, heard over the berm)
 bus.on('pit', (f) => { try { audio.fact('pit', f, loop.state); } catch (e) { broke(e, 'the sound'); } });
 bus.on('stop-mode', () => { stepPage = 0; hoverKey = null; });
+// (0.0.8: the turner's motor, clack and the timer's beep; a step chosen after a contact's pause ends the plaque's lead)
+bus.on('turner', (f) => { try { audio.fact('turner', f, loop.state); } catch (e) { broke(e, 'the sound'); } });
+bus.on('step', (f) => { if (f?.who === loop.state?.player?.id && f.phase === 'start') stepChosenMs = Number.isFinite(f.fromMs) ? f.fromMs : loop.state?.clock?.ms ?? null; });
 bus.on('reflex', (f) => { if (f?.phase === 'offer') reflexKeep = false; });
 bus.on('range', (f) => {
   if (!f) return;
@@ -705,6 +793,9 @@ input.onAction((action, kind, e) => {
     return;
   }
   if (splash.active) { splashKey(action, kind); return; }
+  // (0.0.8: a contact being taken in: Space and Esc alone, COMBAT §25.4.5; and the pause's guard (see pauseGuarded))
+  if (windowOpen() && action !== 'pause' && action !== 'menu') return;
+  if (pauseGuarded(action, e)) return;
   if (inStop() && !loop.paused && stopKey(action, kind, e)) return;
   if (action === 'pause') loop.togglePause('player');
   else if (action === 'menu') boot.openMenu();
@@ -718,7 +809,7 @@ input.onAction((action, kind, e) => {
 // (stop motion's keys, the build sheet 0.0.5 §2.4: a digit tapped is the step the panel shows on it at its normal
 // tempo, rushed with Shift (read as the key went down), held careful (Fire held: hold and fire); 0 pages the singles
 // past nine; in a reflex card a digit answers it and R flips keep. Returns whether the key was stop motion's)
-let stepPage = 0, digitShift = false, reflexKeep = false, hoverKey = null, lastString = null, plaqueMemo = null;
+let stepPage = 0, digitShift = false, reflexKeep = false, hoverKey = null, lastString = null, plaqueMemo = null, stepChosenMs = null;
 // (the plaque's list of the DC's parts and the modifiers, for the keys as for the mouse: shown PLAQUE_INFO_MS of real
 // time after an aim ends and whenever the brackets move (the design review's: by the keys it never showed); the last
 // input, a key or the mouse, names the plaque's call to fire; the plaque's own rectangle, hovered as its target)
@@ -727,7 +818,7 @@ let infoUntil = 0, lastInput = 'key', plaqueRect = null;
 const showPlaqueInfo = () => { infoUntil = performance.now() + PLAQUE_INFO_MS; };
 addEventListener('keydown', () => { lastInput = 'key'; }, true);
 addEventListener('pointermove', (e) => { if (e.movementX || e.movementY) lastInput = 'mouse'; }, true);
-function resetWeaponHud() { stepPage = 0; digitShift = false; reflexKeep = false; hoverKey = null; lastString = null; plaqueMemo = null; ticks.reset(); radio.clear(); }
+function resetWeaponHud() { stepPage = 0; digitShift = false; reflexKeep = false; hoverKey = null; lastString = null; plaqueMemo = null; stepChosenMs = null; stampSeen = null; ticks.reset(); radio.clear(); }
 function stopKey(action, kind, e) {
   const s = loop.state;
   let st = null;
@@ -753,7 +844,8 @@ function stopKey(action, kind, e) {
 /** A struck step chosen: its row flashed, its reason said (Fire on safe in WEAPONS §4.4's words). */
 function refusedStep(step) {
   stepPanel.flash?.(step.id);
-  toast(step.kind === 'fire' && step.off === 'on safe' ? REFUSALS.safety : `${step.label}: ${step.off}.`, 'warn');
+  // (0.0.8: the shot rows above your Marksmanship, folded into one row: what training buys)
+  toast(step.kind === 'fire' && step.off === 'on safe' ? REFUSALS.safety : step.kind === 'gated' ? `Not yet: your Marksmanship is under ${step.label.replace(/ (\d+)/g, ' (Marksmanship $1)')}.` : `${step.label}: ${step.off}.`, 'warn');
 }
 /** A step chosen (a digit, a click on its row): { act: 'stop', args: { step, tempo, target } }, the aim at the bracketed target, Fire held as hold and fire. */
 function sendStep(step, tempo, st = null) {
@@ -767,7 +859,7 @@ function sendStep(step, tempo, st = null) {
 }
 // (the brackets: Q and D (the codes KeyA and KeyD) and the arrows step them, Enter aims at the bracketed one)
 addEventListener('keydown', (e) => {
-  if (!loop.state || boot.card || splash.active || loop.paused || e.metaKey || e.ctrlKey || !inStop()) return;
+  if (!loop.state || boot.card || splash.active || loop.paused || e.metaKey || e.ctrlKey || !inStop() || windowOpen() || pauseGuarded('pick', e)) return;
   let st = null;
   try { st = stopNow(loop.state); } catch { return; }
   if (!st || st.reflex) return;
@@ -781,7 +873,7 @@ addEventListener('keydown', (e) => {
 });
 // (the mouse in stop motion: a click on a target aims at it, a click on the aimed one fires)
 frameEl.addEventListener('pointerdown', (e) => {
-  if (!loop.state || boot.card || splash.active || loop.paused || e.button !== 0 || !inStop()) return;
+  if (!loop.state || boot.card || splash.active || loop.paused || e.button !== 0 || !inStop() || windowOpen() || pauseGuarded('click')) return;
   if (e.target?.closest?.('.steps, .reflexcard')) return;
   let st = null;
   try { st = stopNow(loop.state); } catch { return; }
@@ -883,18 +975,40 @@ function openLate(view, send) {
   });
   boot.openCard('late', body, lines);
 }
+/** This session's test-pairs runs, by scene and seed, then by sheet: their end card lines (page memory, never saved). */
+const sessionRuns = new Map();
 function openEnd() {
   if (!scene) return;
   const { rec, seed } = scene;
-  let said = null;
+  let said = null, pn = null;
   // (the range's summary, and on the KD an incident on a line of its own: sceneLines)
   try { const s = loop.state, r = s ? rangeNow(s) : null; said = sceneLines(r, r?.course === 'kd' ? kdOf(s) : null, { clockText }); } catch (e) { broke(e, 'the end card'); }
-  const { body, lines } = endCard({ scene: rec, seed, said, on: {
-    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), hour: params.play === rec.scenario ? params.hour : null, setup: params.play === rec.scenario || params.play === rec.id ? params.setup : null }),
+  // (0.0.8: a scene played as a sheet: which sheet, its three aspects in the scene's numbers, "Again as …" the others on the same seed)
+  pn = loop.state ? pairsOf(loop.state) : null;
+  const sheets = TEMPLATES.TEST_SHEETS ?? {}, played = pn?.sheet ?? null;
+  const tier = played ?? scene.tier ?? null;
+  // (this session's runs on this seed, by sheet: page memory only, never the save (the design review of v0.0.8))
+  let runs = [];
+  if (pn && played) {
+    const key = `${rec.id}|${seed}`, m = sessionRuns.get(key) ?? new Map();
+    m.set(played, runLine(pn, { fmt: takeInWords }));
+    sessionRuns.set(key, m);
+    runs = [...m.values()].filter(Boolean);
+  }
+  const { body, lines } = endCard({ scene: rec, seed, said, sheet: played ? sheets[played]?.label ?? played : null, runs,
+    aspects: pn ? aspectLines(pn.card, { fmt: takeInWords }) : [], again: pn ? againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null) : [], on: {
+    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), hour: params.play === rec.scenario ? params.hour : null, setup: params.play === rec.scenario || params.play === rec.id ? params.setup : null, tier }),
+    againAs: (t) => againAs(rec, t),
     score: () => openScore(),
     title: () => quitToTitle(),
   } });
   boot.openCard('end', body, lines);
+}
+/** "Again as …" a sheet on the same seed (the scene's againAs: the same targets at the same gaps). */
+function againAs(rec, tier) {
+  let a = null;
+  try { a = loop.state && pairsScene.againAs ? pairsScene.againAs(loop.state, tier) : null; } catch (e) { broke(e, 'Again as'); }
+  return playScene(rec, { seed: a?.seed ?? scene?.seed ?? randomSeed(), tier: a?.tier ?? tier, hour: params.play === rec.scenario ? params.hour : null });
 }
 function openScore() {
   if (!scene) return;
@@ -1009,13 +1123,19 @@ function render(alpha, s, info) {
   if (handArmedAt !== null && (performance.now() - handArmedAt > HAND_AGAIN_MS || hand?.verb !== 'wait')) handArmedAt = null;
   // (stop motion, the build sheet 0.0.5 §2.4: the step panel or the reflex card, PAPER, the plaque; the radio box in every state but a splash)
   const weapon = weaponHud(s, alpha, { hidden: inSplash });
+  // (0.0.8: the take-in's brackets and the pause's stamp; the coach's timer's paper on the pairs pad)
+  const contact = contactHud(s, alpha, { hidden: inSplash });
+  const timer = timerHud(s, { hidden: inSplash });
   radio.frame(dtMs, !info.paused && !boot.card && !shown && !isHeld(s));
-  const voices = radio.update({ hidden: inSplash, weapon: weapon.on });
-  // (the lead: "Time stands still." in stop motion (VIEWS §7.4), v0.0.4's words while G's stub holds time, the scene's end)
-  const lead = benchLead ?? (weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
+  const voices = radio.update({ hidden: inSplash, weapon: weapon.on, state: s });
+  // (the lead: "Time stands still." in stop motion (VIEWS §7.4), v0.0.4's words while G's stub holds time, the scene's end;
+  // 0.0.8: at a contact's pause, until a step is chosen, "Contact · 0.55 s." in its place)
+  const pause = weapon.on && !s.skip ? pauseOf(s) : null;
+  const lead = benchLead ?? (pause && leadStands(s, pause) ? `Contact · ${takeInWords(pause.ms)} s.` : weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
   const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null, ui: uiK });
   report.hud = { watch: faces, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on, far: weapon.far,
-    terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '' };
+    terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '', timer, contact, lead,
+    contactPlate: contactPlate.hidden ? '' : contactPlate.dataset.text ?? '', parts: partsPlate.hidden ? '' : partsPlate.dataset.text ?? '' };
   avpuFade(s);
   // (the HUD's and the sound's share of the frame: CONTRACTS §7's UI DOM budget is 1 ms)
   report.frame.uiMs = performance.now() - uiT0;
@@ -1084,8 +1204,11 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   // (the far window, in stop motion or by E held on a KD line: placed before PAPER, which yields to it)
   const far = s && !hidden ? farHud(s, sim, on, { paper: keepPaper }) : farHud(null);
   if (!on) { stepPanel.update({ hidden: true }); reflexCard.update(null); paperInset.update(null); aimHud(null); return { ...HIDDEN_WEAPON, far: far?.words ?? '' }; }
+  // (0.0.8: the pairs pad has no card to show close: PAPER is the coach's timer's (timerHud))
+  const onPairs = sim.range?.course === 'pairs';
   let stepsText = '', reflexText = '', paperText = '';
-  const distance = { distance: !!sim.kd, line: kdLineOf(sim.kd), hold: s.stop?.hold ?? null };
+  // (zeroing: on the KD zero until the coach accepts it, the card counts the clicks dialled in this zero: kdNow's, shot.js zeroingOf)
+  const distance = { distance: !!sim.kd, line: kdLineOf(sim.kd), hold: s.stop?.hold ?? null, zeroing: sim.kd?.zeroing ?? null };
   // (0.0.7: the range's own actions at their commands (range.js kdActs: police your brass, rounds to the coach, "No brass,
   // no ammo"), rows of the panel among the commands, the tower's current marked; sent as the range's action, not a step)
   const acts = (sim.kd?.acts ?? []).map(a => ({ id: a.id, kind: 'command', label: a.label, ms: a.ms ?? null, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: true, skill: null, act: a.id }));
@@ -1099,6 +1222,7 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   try {
     if (far?.open && !keepPaper) paperText = paperInset.update(null);
     else if (sim.kd) paperText = paperInset.update(kdModel, { ui: uiK });
+    else if (onPairs) paperText = paperInset.update(null);
     else {
       const mine = sim.look?.lanes?.find(l => l.mine) ?? null;
       paperText = paperInset.update(mine ? paperModel(mine, { last: lastString, hot: !!sim.range?.hot }) : null, { ui: uiK });
@@ -1131,6 +1255,20 @@ let farStack = { plaque: { w: 120, h: 15 }, terms: { w: 170, h: 12 } };
 const STACK_GAP_PX = 2;
 /** The rectangles the far window's hover keeps clear of (layout.js's weapon-far state). */
 const STATES_FAR = HUD_STATES['weapon-far'];
+/** The wind flags near the player on the KD as boxes on the page (layout.js flagToKeep's): the pole's foot projected, FLAG_KEEP_M round it. */
+const FLAG_NEAR_M = 30;
+let farFlag = null;                                                    // (the flag kept clear this frame, for the handle)
+function flagBoxes(s, me, ox, oy, k) {
+  if (s?.places?.live?.area !== KD_RANGE.area) return [];
+  const out = [];
+  for (const f of KD_RANGE.kd.flags) {
+    const dM = Math.hypot(f.x - me.x, f.z - me.z);
+    if (dM > FLAG_NEAR_M) continue;
+    const [ax, ay] = stage.cam.project(f.x - FLAG_KEEP_M.side, 0, f.z - FLAG_KEEP_M.up), [bx, by] = stage.cam.project(f.x + FLAG_KEEP_M.side, 0, f.z + FLAG_KEEP_M.down);
+    out.push({ x: ox + ax * k, y: oy + ay * k, w: (bx - ax) * k, h: (by - ay) * k, dM, fx: f.x, fz: f.z });
+  }
+  return out;
+}
 /** The far window this frame: placed, handed to the stage, labelled and ticked. Returns { open, words } or null. */
 function farHud(s, sim = null, inStopMode = false, { paper = false } = {}) {
   const hideAll = () => { farLabelEl.hidden = farTickEl.hidden = true; try { view.setFar?.(null); } catch (e) { broke(e, 'the far window'); } farNow = null; return null; };
@@ -1147,7 +1285,12 @@ function farHud(s, sim = null, inStopMode = false, { paper = false } = {}) {
   const hudState = inStopMode ? (paper ? (loop.paused ? 'weapon-paused' : 'weapon') : loop.paused ? 'weapon-far-paused' : 'weapon-far') : loop.paused ? 'paused' : 'walking';
   // (in stop motion the stack holds the label, the plaque and the terms; walking (E held), the label alone)
   const stackW = inStopMode ? Math.max(pq.w, farStack.plaque.w, farStack.terms.w) : pq.w, stackH = inStopMode ? pq.h + farStack.plaque.h + farStack.terms.h + 2 * STACK_GAP_PX : pq.h;
-  const p = placeFar(innerWidth, innerHeight, hudState, { bearingRad, rCss: FAR_R_PIC * k, k, frame: { x: ox, y: oy, w: stage.W * k, h: stage.H * k }, from: { x: ox + px * k, y: oy + py * k }, label: { w: stackW * k, h: stackH * k } });
+  const place = { bearingRad, rCss: FAR_R_PIC * k, k, frame: { x: ox, y: oy, w: stage.W * k, h: stage.H * k }, from: { x: ox + px * k, y: oy + py * k }, label: { w: stackW * k, h: stackH * k } };
+  // (the wind flag you read kept clear of the window and its plates as the HUD is; nowhere else to go, the window over it)
+  const flag = flagToKeep(innerWidth, innerHeight, hudState, flagBoxes(s, me, ox, oy, k), place.frame);
+  let p = flag ? placeFar(innerWidth, innerHeight, hudState, { ...place, keep: [flag] }) : null;
+  if (!p || p.hidden) p = placeFar(innerWidth, innerHeight, hudState, place);
+  farFlag = flag && !p.hidden && !overlaps({ x: p.cx - p.RK, y: p.cy - p.RK, w: 2 * p.RK, h: 2 * p.RK }, flag) && !(p.label && overlaps(p.label, flag)) ? flag : null;
   if (p.hidden) return hideAll();
   const optic = (sim?.belief?.optic ?? 1) === 4 ? 4 : 1;
   try { view.setFar?.({ key: far.key, x: far.x, y: far.y ?? 0, z: far.z, rangeM: far.rangeM, cx: p.cx, cy: p.cy, rCss: p.r, optic, hold: s.stop?.hold ?? null }); } catch (e) { broke(e, 'the far window'); }
@@ -1170,21 +1313,28 @@ function farHud(s, sim = null, inStopMode = false, { paper = false } = {}) {
     farTickEl.style.transform = `translate(${Math.round(t.x0)}px, ${Math.round(t.y0)}px) rotate(${p.tickRad}rad)`;
     farTickEl.style.opacity = String(alpha); farTickEl.hidden = !open;
   }
-  farNow = { far, place: p, open, alpha, k, ox, oy };
+  farNow = { far, place: p, open, alpha, k, ox, oy, mag: fs?.mag ?? 4 };
   return { open, words: open ? pq.words : '' };
 }
 // (where the picture lies on the page: its top-left and its CSS pixels a picture pixel; stage.js fit() sets them)
 const pictureBox = () => { const c = stage.canvas.style; return { ox: parseFloat(c.left) || 0, oy: parseFloat(c.top) || 0, k: (parseFloat(c.width) || stage.W) / stage.W }; };
 /**
  * A target's place in the picture: its centre and its frame's size in picture pixels { x, y, w, h } (a card on its backer; a
- * person standing). A far one (0.0.7) stands in the far window: its centre the window's, its frame FACE_K times life size, and
- * the disc's radius (rPic) so the plaque stands clear of the window.
+ * person standing). A far one (0.0.7) stands in the far window: its centre the window's, its frame FACE_K times life size at
+ * the window's density (0.0.8: the lever's scale, far.js farBracketPx, 4 px clear of the face at 1×), and the disc's radius
+ * (rPic) so the plaque stands clear of the window.
  */
 function targetPx(t) {
   if (t.far && farNow?.place && farNow.far?.key === t.key) {
-    const { place: p, k, ox, oy } = farNow, size = Math.round((t.paper === 'kdB' ? 1.2 : 1.0) * FACE_K * PX_PER_M);
+    // (0.0.8: the face as the window draws it at the lever's scale, 16 px/m at 4×, 4 at 1×, the brackets clear of it at 1×)
+    const { place: p, k, ox, oy, mag } = farNow, size = farBracketPx(mag, (t.paper === 'kdB' ? 1.2 : 1.0) * FACE_K, PX_PER_M);
     return { x: (p.cx - ox) / k, y: (p.cy - oy) / k, w: size, h: size, far: true, rPic: p.RK / k, labelSide: p.label?.side ?? null,
       stack: p.label ? { x: (p.label.x - ox) / k, y: (p.label.y - oy) / k, w: p.label.w / k, h: p.label.h / k, side: p.label.side } : null };
+  }
+  // (0.0.8: a turner's face as the stage draws it, TURNER_K times life size about its centre's height: the box the brackets close on)
+  if (t.kind === 'turner') {
+    const [x, y] = stage.cam.project(t.x, t.y ?? 1.35, t.z), tp = turnerPx(PX_PER_M);
+    return { x, y, w: tp.w, h: tp.h };
   }
   const paper = t.kind === 'paper', lane = paper ? KD_RANGE.bay.lanes.find(l => l.lane === t.lane) : null;
   const yM = paper ? t.y ?? lane?.target.centreY ?? 0.6 : (t.y ?? 0) + 0.9, frame = paper ? lane?.target.frameM ?? [1.0, 1.2] : [0.6, 1.8];
@@ -1209,7 +1359,7 @@ function targetUnderPointer(list = null) {
 }
 /** The plaque over what the brackets, the pointer or the aim are on, its brackets, its terms at distance, and its hover's list. Returns the plaque's words. */
 function aimHud(s, st = null, list = [], range = null) {
-  const hide = () => { aimPlaque.hidden = pickBox.hidden = aimBox.hidden = plaqueInfo.hidden = termsPlate.hidden = true; plaqueRect = null; return ''; };
+  const hide = () => { aimPlaque.hidden = pickBox.hidden = aimBox.hidden = plaqueInfo.hidden = termsPlate.hidden = contactPlate.hidden = partsPlate.hidden = true; plaqueRect = null; return ''; };
   if (!s || !st || st.reflex || !stage.cam?.project) return hide();
   // (a cold line, or a handling step running: no plaque counting over the card, the brackets at half strength so the
   // lane stays marked (the design review's: "+4 IN 2.8 S · ON SAFE" jumping through SHOW CLEAR's sub-steps))
@@ -1219,14 +1369,15 @@ function aimHud(s, st = null, list = [], range = null) {
   hoverKey = targetUnderPointer(list);
   const aimedKey = st.aim?.key ?? null, shownKey = hoverKey ?? st.pick ?? aimedKey;
   // (a far target whose window is not open has nowhere in the picture to stand: no brackets, no plaque, until it opens)
-  const placed = (t) => !!t && (!t.far || farNow?.far?.key === t.key);
+  // (0.0.8: a turner edge-on or turned away is no target in the picture: no brackets left round its edge)
+  const placed = (t) => !!t && (!t.far || farNow?.far?.key === t.key) && !(t.kind === 'turner' && (t.facingK ?? 1) < 0.5);
   const shown0 = list.find(t => t.key === shownKey) ?? null, aimed0 = list.find(t => t.key === aimedKey) ?? null;
   const shown = placed(shown0) ? shown0 : null, aimed = placed(aimed0) ? aimed0 : null;
   if (!shown && !aimed) return hide();
   const { ox, oy, k } = pictureBox();
   if (aimed) { const p = targetPx(aimed); place(aimBox, bracket({ w: p.w, h: p.h, style: 'tail' }), p.x, p.y, k, 'centre', { ox, oy }); aimBox.hidden = false; } else aimBox.hidden = true;
   if (shown && shown.key !== aimedKey) { const p = targetPx(shown); place(pickBox, bracket({ w: p.w, h: p.h, style: 'seen' }), p.x, p.y, k, 'centre', { ox, oy }); pickBox.hidden = false; } else pickBox.hidden = true;
-  if (!shown || quiet) { aimPlaque.hidden = plaqueInfo.hidden = termsPlate.hidden = true; plaqueRect = null; return ''; }
+  if (!shown || quiet) { aimPlaque.hidden = plaqueInfo.hidden = termsPlate.hidden = contactPlate.hidden = partsPlate.hidden = true; plaqueRect = null; return ''; }
   // (the plaque's record, once a tick and a target: the shot role's plaqueOf, the roll's own list)
   const memoKey = `${s.clock.ms}|${s.clock.seq}|${shown.key}|${aimedKey}`;
   if (plaqueMemo?.key !== memoKey) {
@@ -1239,10 +1390,14 @@ function aimHud(s, st = null, list = [], range = null) {
   // (by the keys, the plaque names Fire's digit, not a click: '+4 IN 1.4 S · 1 HELD FIRE'; CLICK FIRE after a mouse move)
   const fireKey = lastInput === 'key' ? (simRead.state === s ? stepPanel.slots : []).find(x => x.step?.id === 'fire')?.key ?? '1' : null;
   const rec = plaqueMemo.rec ? { ...plaqueMemo.rec, ...(fireOff ? { fireOff } : {}), ...(fireKey ? { fireKey } : {}) } : null;
-  if (!rec) { aimPlaque.hidden = plaqueInfo.hidden = termsPlate.hidden = true; plaqueRect = null; return ''; }
+  if (!rec) { aimPlaque.hidden = plaqueInfo.hidden = termsPlate.hidden = contactPlate.hidden = partsPlate.hidden = true; plaqueRect = null; return ''; }
   // (a far target's plaque stands in the stack beside the window that placeFar kept free, with no notch: the window is what it names)
   const p = targetPx(shown), st0 = p.far ? p.stack : null;
-  const pq = plaque({ ...shotPlaque(rec, { aimed: shown.key === aimedKey }), ...(st0 ? { notch: false } : {}) });
+  // (0.0.8: a turner's plaque stands beside it, not over it: the pairs pad's lanes are 3 m apart up the picture, and a stack
+  // over one target covered the next; it goes to its right, over the 25 m frames this course leaves unused, or its left
+  // where the picture's edge is near, unnotched, its middle level with the target's)
+  const beside = shown.kind === 'turner' && !st0;
+  const pq = plaque({ ...shotPlaque(rec, { aimed: shown.key === aimedKey }), ...(st0 || beside ? { notch: false } : {}) });
   const tp = rec.terms?.length ? termsPlaque(rec.terms, { ringOdds: rec.kd?.ringOdds ?? null }) : null;
   if (st0) farStack = { plaque: { w: pq.w, h: pq.h }, terms: tp ? { w: tp.w, h: tp.h } : { w: 0, h: 0 } };
   // (kept inside the picture, 2 px from its edges: a card near the frame's edge, or a long reason, ran it off
@@ -1251,8 +1406,9 @@ function aimHud(s, st = null, list = [], range = null) {
   // terms first and the plaque next to the label; beside it, under the label)
   const lh = farLabelEl.$p?.h ?? 12, G = STACK_GAP_PX;
   const sx = st0 ? st0.x + st0.w / 2 : 0;
-  const tipX = st0 ? Math.round(sx - pq.w / 2) + pq.tip : Math.max(pq.tip + 2, Math.min(stage.W - (pq.w - pq.tip) - 2, p.x));
-  const tipY = st0 ? (st0.side === 'above' ? st0.y + (tp ? tp.h + G : 0) + pq.h : st0.y + lh + G + pq.h) : p.y - p.h / 2 - 3;
+  const sideR = beside && p.x + p.w / 2 + 5 + 140 <= stage.W - 2, sideX = beside ? (sideR ? Math.round(p.x + p.w / 2 + 5) : Math.round(p.x - p.w / 2 - 5)) : 0;
+  const tipX = st0 ? Math.round(sx - pq.w / 2) + pq.tip : beside ? (sideR ? sideX : sideX - pq.w) + pq.tip : Math.max(pq.tip + 2, Math.min(stage.W - (pq.w - pq.tip) - 2, p.x));
+  const tipY = st0 ? (st0.side === 'above' ? st0.y + (tp ? tp.h + G : 0) + pq.h : st0.y + lh + G + pq.h) : beside ? Math.round(p.y - pq.h / 2) + pq.h : p.y - p.h / 2 - 3;
   place(aimPlaque, pq, tipX, tipY, k, 'tip', { ox, oy });
   aimPlaque.hidden = false;
   plaqueRect = { key: shown.key, x0: tipX - pq.tip, x1: tipX - pq.tip + pq.w, y0: tipY - pq.h, y1: tipY };
@@ -1268,15 +1424,33 @@ function aimHud(s, st = null, list = [], range = null) {
     termsPlate.style.transform = `translate(${Math.round(ox + tx * k)}px, ${Math.round(oy + ty * k)}px)`;
     termsPlate.hidden = false;
   } else termsPlate.hidden = true;
+  // (0.0.8: over the plaque, a shot row's parts (the row hovered in the panel, else the first offered) and, at a contact's pause
+  // until a step is chosen, the plaque's lead: "CONTACT · RIFLE · TAKEN IN 0.55 S" and its strip; kept inside the picture)
+  const pause0 = pauseOf(s), lead = pause0 && leadStands(s, pause0) && (pause0.ids ?? []).includes(shown.key) ? pause0 : null;
+  const row = !p.far && st.pick === shown.key ? shotRowShown(s) : null;
+  let stackTop = tpRect ? (tpRect.y - oy) / k : tipY - pq.h;
+  const stackAt = (elx, pp) => {
+    // (beside a turner: aligned on the plaque's side; over any other target: centred on the plaque's notch)
+    const cx = beside ? (sideR ? sideX + pp.w / 2 : sideX - pp.w / 2) : Math.max(Math.ceil(pp.w / 2) + 2, Math.min(stage.W - Math.ceil(pp.w / 2) - 2, tipX)), cy = stackTop - 1 - pp.h / 2;
+    place(elx, pp, cx, cy, k, 'centre', { ox, oy });
+    elx.hidden = false;
+    stackTop = cy - pp.h / 2;
+    return { x: ox + (cx - pp.w / 2) * k, y: oy + (cy - pp.h / 2) * k, w: pp.w * k, h: pp.h * k };
+  };
+  let partsRect = null, leadRect = null;
+  if (row) partsRect = stackAt(partsPlate, rowPartsPlaque(row, { secs: (ms) => (ms / 1000).toFixed(2) })); else partsPlate.hidden = true;
+  if (lead) leadRect = stackAt(contactPlate, contactPlaque({ ms: lead.ms, words: takeInWords(lead.ms), ident: lead.ident?.[shown.key] ?? null })); else contactPlate.hidden = true;
   // (hovering it, or just after an aim or a bracket's move by the keys: the DC's parts and every modifier as believed, the list the roll will use)
-  const parts = plaqueParts(rec), terms = termLines(rec), sig = JSON.stringify([parts, terms]);
+  const parts = plaqueParts(rec), terms = termLines(rec), takeIn = lead ? contactFactors(lead) : null, sig = JSON.stringify([parts, terms, takeIn]);
   plaqueInfo.hidden = hoverKey !== shown.key && !(performance.now() < infoUntil && shown.key === (st.pick ?? aimedKey));
   if (!plaqueInfo.hidden) {
     if (plaqueInfo.dataset.sig !== sig) {
       plaqueInfo.dataset.sig = sig;
-      plaqueInfo.replaceChildren(el('div', { className: 'pi-dc', textContent: `${parts.dc}: ${parts.parts.join(' · ')}` }), el('div', { className: 'pi-mods', textContent: parts.mods.length ? `${parts.mods.join(' · ')}` : 'no modifier' }),
+      // (the rows filtered: a null given to replaceChildren is written as the word "null")
+      plaqueInfo.replaceChildren(...[el('div', { className: 'pi-dc', textContent: `${parts.dc}: ${parts.parts.join(' · ')}` }), el('div', { className: 'pi-mods', textContent: parts.mods.length ? `${parts.mods.join(' · ')}` : 'no modifier' }),
         terms.length ? el('div', { className: 'pi-terms', textContent: terms.join(' · ') }) : null,
-        el('div', { className: 'pi-odds', textContent: rec.part === 'FIVE' ? `a five or a V ${parts.odds} · on the paper ${Math.round((rec.kd?.scoreOdds ?? 0) * 100)}%` : `${rec.part === 'PAPER' ? 'on the paper' : 'the odds'} ${parts.odds}` }));
+        takeIn ? el('div', { className: 'pi-takein', textContent: takeIn }) : null,
+        el('div', { className: 'pi-odds', textContent: rec.part === 'FIVE' ? `a five or a V ${parts.odds} · on the paper ${Math.round((rec.kd?.scoreOdds ?? 0) * 100)}%` : `${rec.part === 'PAPER' ? 'on the paper' : 'the odds'} ${parts.odds}` })].filter(Boolean));
     }
     // (below the target and to its left, kept in the free band over the bottom stack: above the plaque if it would reach RADIO)
     const ih = plaqueInfo.offsetHeight, iw = plaqueInfo.offsetWidth;
@@ -1296,16 +1470,119 @@ function aimHud(s, st = null, list = [], range = null) {
       const rects = rectsAt(innerWidth, innerHeight, 'weapon'), blocks = (HUD_STATES.weapon ?? Object.keys(rects).filter(n => n !== 'ui')).map(n => rects[n]).filter(r => r && typeof r === 'object');
       const pqRect = { x: ox + (tipX - pq.tip) * k, y: oy + (tipY - pq.h) * k, w: pq.w * k, h: pq.h * k };
       const left = ox + (p.x - p.w / 2 - 6) * k - iw, right = ox + (p.x + p.w / 2 + 6) * k, below = oy + (p.y + p.h / 2 + 4) * k, level = oy + p.y * k - ih / 2;
-      const top = Math.min(pqRect.y, tpRect?.y ?? Infinity) - ih - 4;
+      const top = Math.min(pqRect.y, tpRect?.y ?? Infinity, partsRect?.y ?? Infinity, leadRect?.y ?? Infinity) - ih - 4;
       const spots = [{ x: left, y: below }, { x: right, y: below }, { x: left, y: level }, { x: right, y: level }, { x: pqRect.x + pqRect.w / 2 - iw / 2, y: top }, { x: left, y: top }, { x: right, y: top }];
       const box = (b) => ({ x: b.x, y: b.y, w: iw, h: ih });
-      const fits = (b) => b.x >= 0 && b.y >= 0 && b.x + iw <= innerWidth && b.y + ih <= innerHeight && !blocks.some(r => overlaps(box(b), r)) && !overlaps(box(b), pqRect) && !(tpRect && !termsPlate.hidden && overlaps(box(b), tpRect));
+      const fits = (b) => b.x >= 0 && b.y >= 0 && b.x + iw <= innerWidth && b.y + ih <= innerHeight && !blocks.some(r => overlaps(box(b), r)) && !overlaps(box(b), pqRect) && !(tpRect && !termsPlate.hidden && overlaps(box(b), tpRect))
+        && !(partsRect && overlaps(box(b), partsRect)) && !(leadRect && overlaps(box(b), leadRect));
       const at = spots.find(fits);
       if (at) plaqueInfo.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
       else plaqueInfo.hidden = true;
     }
   }
   return plaqueWords(rec);
+}
+
+/** The shot row whose parts stand over the target: the row hovered in the panel, else the first one offered (not struck); null if none. */
+function shotRowShown(s) {
+  const steps = simRead.state === s ? simRead.steps ?? [] : [];
+  const hov = stepPanel.hovered ? steps.find(x => x.id === stepPanel.hovered && x.kind === 'shot') : null;
+  return hov ?? steps.find(x => x.kind === 'shot' && !x.off && Array.isArray(x.parts)) ?? null;
+}
+/** The take-in's factors as the hover says them: "taken in in 0.55 s: 0.54 Warfighting 15 · × 1 your sector · noticed". */
+function contactFactors(last) {
+  const parts = (last.parts ?? []).map(p => (p.k !== undefined ? `× ${p.k} ${p.why}` : `${takeInWords(p.ms)} ${p.why}`));
+  return `taken in in ${takeInWords(last.ms)} s${parts.length ? `: ${parts.join(' · ')}` : ''}${last.grade && last.grade !== 'pass' ? ` · the notice ${last.grade}` : ''}`;
+}
+// ---- 0.0.8: the take-in made readable, the pairs pad's paper (the build sheet 0.0.8 §2.4; COMBAT §25.11) ----
+// (test-pairs now, the scene's pairsNow, once a tick: null off its course)
+let pairsMemo = { key: null, pn: null };
+function pairsOf(s) {
+  const key = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}`;
+  if (pairsMemo.key === key && pairsMemo.state === s) return pairsMemo.pn;
+  let pn = null;
+  try { pn = rangeNow(s)?.course === 'pairs' || s.armoury?.range?.course === 'pairs' ? pairsScene.pairsNow(s, s.clock.ms) : null; } catch (e) { broke(e, 'the pairs'); }
+  pairsMemo = { key, state: s, pn };
+  return pn;
+}
+/** The pause the stop motion now came from, or null: contactNow().last while stop motion was entered via 'contact'. */
+function pauseOf(s, cn = contactRead(s)) {
+  return s?.stop?.mode === 'stop' && s.stop.via === 'contact' && cn?.last ? cn.last : null;
+}
+/** Whether the plaque's lead (the contact's plate, the line's "Contact · 0.55 s.") stands: at the pause, until a step is chosen after it. */
+const leadStands = (s, last) => !!last && !(Number.isFinite(stepChosenMs) && stepChosenMs >= last.atMs);
+let stampSeen = null;                                                // ({ id, t0 }: the stamp's real-time start, by the contact's id)
+/** A target's place for the window's brackets, by its key: targetsOf's record (a turner on the pairs pad), or null. */
+function targetByKey(s, key, list = null) {
+  try { return (list ?? targetsOf(s, s.player.id)).find(t => t.key === key) ?? null; } catch { return null; }
+}
+/**
+ * The window and the pause in the picture: the amber brackets closing round each target seen (their size by the window's k on the
+ * drawn clock), at the pause the pale brackets of the others taken in and the stamp on the pick. Returns its words for the report:
+ * { window: { ids, k, scale } | null, pause: { id, ms, words, stamp } | null }.
+ */
+function contactHud(s, alpha, { hidden = false } = {}) {
+  const out = { window: null, pause: null };
+  guardNote(s);                                                      // (the pause's guard counts from the frame that first sees it)
+  const hideAll = () => { for (const b of windowBoxes) b.hidden = true; for (const b of takenBoxes) b.hidden = true; stampEl.hidden = true; };
+  if (!s || hidden || !stage.cam?.project) { hideAll(); return out; }
+  const cn = contactRead(s), P = cn?.pending ?? null, last = pauseOf(s, cn);
+  const { ox, oy, k } = pictureBox();
+  let list = null;
+  try { list = P || last ? targetsOf(s, s.player.id) : null; } catch { list = null; }
+  // (the window: the brackets close on the drawn clock, between the ticks, so a 0.65 s window closes in 39 frames, not 13 steps)
+  if (P) {
+    const ms = s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), span = P.untilMs - P.seenMs, wk = span > 0 ? Math.max(0, Math.min(1, (ms - P.seenMs) / span)) : 1;
+    const sc = bracketScale(wk), ids = P.ids ?? [];
+    // (each bracket, its ink and arms 4 px round it, no taller than the gap to its neighbour's centre less 2 px, so two lanes' brackets never meet in an "E"
+    // (the runtime review of v0.0.8, at 7 m); never under the face itself)
+    const pxs = ids.map(id => { const t = targetByKey(s, id, list); return t ? targetPx(t) : null; });
+    windowBoxes.forEach((b, i) => {
+      const p = i < ids.length ? pxs[i] : null;
+      if (!p) { b.hidden = true; return; }
+      const dy = Math.min(Infinity, ...pxs.filter((q, j) => q && j !== i && Math.abs(q.x - p.x) < (p.w + q.w) * sc).map(q => Math.abs(q.y - p.y)));
+      const h = Math.max(p.h, Math.min(p.h * sc, dy - 2 * 4 - 2));
+      place(b, windowBracket({ w: p.w * sc, h }), p.x, p.y, k, 'centre', { ox, oy });
+      b.hidden = false;
+    });
+    out.window = { ids: ids.slice(), k: Math.round(wk * 1000) / 1000, scale: Math.round(sc * 1000) / 1000, untilMs: P.untilMs, seenMs: P.seenMs };
+  } else for (const b of windowBoxes) b.hidden = true;
+  // (the pause: the others taken in, bracketed pale while they face; the stamp on the pick for STAMP_S of real time)
+  if (last) {
+    const others = (last.ids ?? []).filter(id => id !== s.stop?.pick && id !== s.stop?.aim?.key);
+    takenBoxes.forEach((b, i) => {
+      const t = i < others.length ? targetByKey(s, others[i], list) : null;
+      if (!t || t.down || (t.facingK ?? 1) < 0.5) { b.hidden = true; return; }
+      const p = targetPx(t);
+      place(b, bracket({ w: p.w, h: p.h, style: 'seen' }), p.x, p.y, k, 'centre', { ox, oy });
+      b.hidden = false;
+    });
+    if (stampSeen?.id !== last.id) stampSeen = { id: last.id, t0: performance.now() };
+    const age = (performance.now() - stampSeen.t0) / 1000, pick = targetByKey(s, s.stop?.pick ?? last.ids?.[0], list) ?? targetByKey(s, last.ids?.[0], list);
+    const words = takeInWords(last.ms);
+    // (STAMP_S of real time from when the page first drew the pause, and never once the game clock has run that far past it)
+    // (and gone once a step is chosen: the stamp is the pause's, never over the shots that follow it)
+    if (pick && age < STAMP_S && s.clock.ms - last.atMs <= STAMP_S * 1000 && leadStands(s, last)) {
+      // (above the face and its brackets' top arm, never over the 15 px face (the runtime review of v0.0.8: it covered its left half))
+      const p = targetPx(pick), st = stamp(last.ms, words);
+      place(stampEl, st, p.x, p.y - Math.ceil(p.h / 2) - 4 - Math.ceil(st.h / 2), k, 'centre', { ox, oy });
+      // (its last half second fading: nothing pops out of view)
+      stampEl.style.opacity = String(Math.max(0, Math.min(1, (STAMP_S - age) / 0.5)));
+      stampEl.hidden = false;
+    } else stampEl.hidden = true;
+    out.pause = { id: last.id, ms: last.ms, words, stamp: stampEl.hidden ? null : stampEl.dataset.text ?? null, ids: (last.ids ?? []).slice(), expect: last.expect, n: last.n };
+  } else { for (const b of takenBoxes) b.hidden = true; stampEl.hidden = true; }
+  return out;
+}
+/** The coach's shot timer's paper on the pairs pad: the last string's, until the next string runs (in PAPER, in and out of stop motion). */
+function timerHud(s, { hidden = false } = {}) {
+  const pn = !hidden && s ? pairsOf(s) : null;
+  if (!pn) return timerPaper.update(null);
+  const strs = pn.strs ?? [], running = pn.str && !pn.str.done, last = running ? null : [...strs].reverse().find(x => x.done !== null && x.done !== undefined) ?? null;
+  if (!last) return timerPaper.update(null);
+  const text = typeof last.paper === 'string' ? last.paper : last.paper?.text ?? null;
+  const rec = typeof last.paper === 'object' && last.paper ? { ...last, ...last.paper } : last;
+  return timerPaper.update(timerModel(rec, { text, fmt: takeInWords }), { ui: uiK });
 }
 
 // (every one of a loaded save's first ticks lost: it is damaged; what stands in for it is loaded)
@@ -1393,8 +1670,8 @@ const handleMore = {
   get rangeSound() { return { ...audio.stats.range }; },
   /** The radio box's lines now: [{ head, text, kind }]. */
   get radio() { return radio.lines; },
-  /** The far window now (0.0.7): { far (farPointOf's), place (placeFar's), open, alpha, stage (view.farState()) }, or null. */
-  get far() { return farNow ? { far: farNow.far, place: farNow.place, open: farNow.open, alpha: farNow.alpha, label: farLabelEl.hidden ? null : farLabelEl.dataset.text ?? null, stage: view.farState?.() ?? null } : null; },
+  /** The far window now (0.0.7): { far (farPointOf's), place (placeFar's), open, alpha, stage (view.farState()), flag (the wind flag's box it keeps clear, 0.0.8, or null) }, or null. */
+  get far() { return farNow ? { far: farNow.far, place: farNow.place, open: farNow.open, alpha: farNow.alpha, label: farLabelEl.hidden ? null : farLabelEl.dataset.text ?? null, stage: view.farState?.() ?? null, flag: farFlag } : null; },
   /** The KD course now (range.js kdNow), or null off it. */
   kd() { const s = loop.state; return s && rangeNow(s)?.course === 'kd' ? kdOf(s) : null; },
   /** The step panel's step on a digit now (n 0 to 9), as the key would send it. */
@@ -1445,13 +1722,20 @@ installDebug(createDebugHandle({
       return out;
     },
     stop: (s) => stopNow(s),
+    // (0.0.8: test-pairs now, and the contact with what the page draws of it: the brackets, the stamp, the plate, the paper)
+    pairs: (s) => pairsOf(s),
+    contact: (s) => {
+      const cn = contactRead(s);
+      return { ...(cn ?? { pending: null, last: null }), hud: report.hud?.contact ?? null, plate: contactPlate.hidden ? null : contactPlate.dataset.text ?? null, timer: report.hud?.timer ?? '', lead: report.hud?.lead ?? null,
+        brackets: windowBoxes.filter(b => !b.hidden).map(b => ({ w: b.width, h: b.height, css: b.style.width })) };
+    },
   },
 }));
 loop.start();
 if (benchName) await bench(benchName).catch((e) => broke(e, 'the bench'));
 else if (params.play) {
   const rec = Object.values(SCENES).find(x => x.id === params.play || x.scenario === params.play);
-  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup });
+  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier });
   else if (SCENARIOS[params.play]) launch(newGame({ seed: params.seed ?? 1, scenario: params.play, mode: params.mode, hour: params.hour, at: atParam(params.play) }));
   else { toast(`No scenario '${params.play}': the title instead.`, 'warn'); await showTitle(); }
 } else await showTitle();

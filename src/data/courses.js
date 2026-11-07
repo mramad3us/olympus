@@ -8,7 +8,7 @@
 // five, prone, kneeling, standing, on the 25 m card, alone on the line (the relay beside you comes
 // with gunner.js at 0.0.7).
 // SEQ is the tower's sequence (the Corps' commands, WEAPONS §5.3): each { id, say: [≥ 2 phrasings],
-// ready } where `ready` names what the range officer must see before he gives the next command
+// ready, short? } where `ready` names what the range officer must see before he gives the next command
 // (src/sim/scenarios/handling.js lineReady): 'always' (the brief, +firstGapMs), 'prone', 'magIn',
 // 'cond1' (Condition 1 on safe), 'emptyLocked' (locked back on an empty magazine), 'safe' (on safe,
 // the finger off), 'kneel1' / 'stand1' (the stance and Condition 1 on safe), 'shown' (the coach's
@@ -36,7 +36,22 @@
 // splash landed at the next line), sitMag (sitting, a magazine in), sit1 (sitting, Condition 1 on safe),
 // policed (your brass picked up), turnedIn (no rounds on you), declared; the strings (KD_STRINGS) carry
 // their line, paper, rounds, magazines, time limit and whether the pits mark each shot or all together
-// after. KD_COACH and KD_RO are the coach's and the range officer's new lines (two phrasings or more). Data only.
+// after. A command's `short` is its terms in a line the radio box can keep beside a voice that wraps
+// ("Ten rounds rapid, sixty seconds. Commence fire.": handling.js standingCmd; 0.0.7's tower fixer, so a
+// shortened command never loses its rounds or its time), else the nudge's words. KD_COACH and KD_RO are the coach's and the range officer's new lines (two phrasings or more).
+// 0.0.8 (the build sheet 0.0.8 §2.3, §4; COMBAT §25.10.3): the pairs course, test-pairs' "Pairs": the 25 m bay's 7 m and
+// 10 m lines and its six turners, five strings on the coach's shot timer, the R-7 and three magazines (10, 10 and 2 in
+// chest pouches 1, 2 and 3, ball). SEQ_PAIRS is its sequence, given by the coach beside you (no RO on the tower: his
+// commands are speech, the sheet's §8 item 20): the brief, LOAD, MAKE READY, then each string's "Standby" (the turn
+// comes a drawn gap after it while you wait out of stop motion at low ready) and the coach's "Stop" after it, the walk
+// back to the 10 m line before string 2, the short magazine before string 4, the lull's Top up after it (the lull opens at the last string's end or at "Lull", whichever comes first; at it the
+// coach hands over a fresh magazine of lullMag 10 into a pouch with room, so there is something to top up with: the
+// fixer's, 0.0.8), UNLOAD, SHOW CLEAR and the end. Its readinesses (src/sim/scenarios/pairs.js pairsReady): pairsReady (out of stop motion, still, the
+// rifle at low ready in Condition 1 on safe, the finger off, in the line's box; or dry and on safe), stringDone (the
+// string over), shortReady (pairsReady with the short magazine in), toppedUp (pairsReady with the magazine in believed
+// above half, or a Top up seated since the lull began, or nothing fuller to top up with). One magazine a string is waived
+// on this course (oneMag false, the sheet's §8 item 19: string 4's RELOAD is the point). PAIRS_COACH is the coach's
+// words (two phrasings or more), {paper} the shot timer's line (pairs.js paperText). Data only.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
 /** The tower's commands in order (see the header). */
@@ -44,7 +59,7 @@ export const SEQ = deepFreeze([
   { id: 'brief', ready: 'always', say: ['Range is open. Familiarisation fire, two-five metres: three strings of five, prone, kneeling, standing. The line is cold.',
     'The range is open. Two-five metre familiarisation: three strings of five rounds, prone, kneeling, standing. The line is cold.'] },
   { id: 'prone', ready: 'prone', say: ['Shooters, assume the prone position.', 'Firing line, get down: the prone position.'] },
-  { id: 'load', ready: 'magIn', say: ['With a magazine of five rounds, LOAD.', 'Shooters, with a magazine of five rounds, LOAD.'] },
+  { id: 'load', ready: 'magIn', short: 'Five rounds, LOAD.', say: ['With a magazine of five rounds, LOAD.', 'Shooters, with a magazine of five rounds, LOAD.'] },
   { id: 'ready', ready: 'cond1', say: ['MAKE READY.', 'Shooters, MAKE READY.'] },
   { id: 'fire', ready: 'emptyLocked', string: 0, say: ['Ready on the right. Ready on the left. All ready on the firing line. Commence fire.',
     'Is the line ready? Ready on the right, ready on the left. All ready on the firing line. Commence fire.'] },
@@ -62,7 +77,7 @@ export const SEQ = deepFreeze([
 ]);
 
 /** The readinesses that want rounds in the rifle: the coach checks for none while the tower waits on one (0.0.6). */
-export const NEEDS_ROUNDS = Object.freeze(['magIn', 'cond1', 'kneel1', 'stand1', 'emptyLocked', 'sitMag', 'sit1']);
+export const NEEDS_ROUNDS = Object.freeze(['magIn', 'cond1', 'kneel1', 'stand1', 'emptyLocked', 'sitMag', 'sit1', 'pairsReady', 'shortReady', 'toppedUp']);
 
 /** Which command each macro answers (a macro acted on before its command is given is ahead of the tower). */
 export const MACRO_CMD = deepFreeze({ load: ['load', 'sit'], ready: 'ready', clear: 'clear', cease: 'cease', unload: 'clear',
@@ -89,6 +104,21 @@ export const COURSES = deepFreeze({
     zeroGroupsMax: 4, zeroOkCm: 1.0, relayN: 6, relay2N: 6, kdLaneK: 6, policeM: 4, policeCaseS: 1.2, pitsMin: 20,
     dummyIn: [['confirm', 30], ['s200-1', 35], ['s200-2', 35]], dummyRound: [2, 4],
   },
+  // (0.0.8: test-pairs' course (see the header); the strings' draws by their weights: pairs.js drawStrings)
+  pairs: {
+    word: 'pairs at seven and ten metres', paper: 'man', lanes: [1, 6], lane: { from: 2, to: 5 }, mags: [10, 10, 2], pouches: [1, 2, 3], strings: ['one', 'two', 'noshoot', 'armoured', 'short'],
+    roGapMs: [800, 1600], firstGapMs: 3000, nudgeMs: 30000, checkMs: 3000, moveOnMs: 60000, load: 'ball', kit: 'range-pairs', hour: 11.0, oneMag: false, seq: 'pairs',
+    standbyMs: [1500, 4000], stringMaxMs: 20_000,
+    // (the fresh magazine the coach hands over at "Lull", so the lull has something to top up with (the fixer's, 0.0.8))
+    lullMag: 10,
+    // (Top up offered with the magazine believed empty and a round up: the lull after the dry string's last rounds (drills.js))
+    spoutTopUp: true,
+    // (who turns: the lane offset from yours and its weight; a threat's holds and a no-shoot's)
+    draws: {
+      one: [[0, 50], [-1, 25], [1, 25]], two: [[-1, 50], [1, 50]], armoured: [[0, 50], [-1, 25], [1, 25]], short: [[-1, 50], [1, 50]],
+      threatHolds: [['rifle', 70], ['pistol', 30]], noshootHolds: [['hands', 60], ['phone', 40]],
+    },
+  },
 });
 
 /** The kd course's strings (the build sheet 0.0.7 §4): line, paper, position, rounds, magazines, time limit, marked each shot ('each') or all after ('after'). */
@@ -103,32 +133,32 @@ export const SEQ_KD = deepFreeze([
   { id: 'brief', ready: 'always', stage: 'zero', line: 25, say: ['Range is open. Relay one: zero at two-five metres in three-round groups, confirm at three hundred, then two hundred sitting, rapid. The line is cold.',
     'The range is open. Relay one zeroes at two-five metres, three rounds a group; the three hundred to confirm; ten rapid sitting at the two hundred. The line is cold.'] },
   { id: 'prone', ready: 'prone', stage: 'zero', say: ['Shooters, assume the prone position.', 'Firing line, get down: the prone position.'] },
-  { id: 'load', ready: 'magIn', stage: 'zero', say: ['With a magazine of three rounds, LOAD.', 'Shooters, with a magazine of three rounds, LOAD.'] },
+  { id: 'load', ready: 'magIn', stage: 'zero', short: 'Three rounds, LOAD.', say: ['With a magazine of three rounds, LOAD.', 'Shooters, with a magazine of three rounds, LOAD.'] },
   { id: 'ready', ready: 'cond1', stage: 'zero', say: ['MAKE READY.', 'Shooters, MAKE READY.'] },
-  { id: 'fire', ready: 'emptyLocked', stage: 'zero', string: 'zero', say: ['Three rounds at your zeroing card. All ready on the firing line. Commence fire.', 'Your group of three. Ready on the right, ready on the left. Commence fire.'] },
+  { id: 'fire', ready: 'emptyLocked', stage: 'zero', string: 'zero', short: 'Three rounds. Commence fire.', say: ['Three rounds at your zeroing card. All ready on the firing line. Commence fire.', 'Your group of three. Ready on the right, ready on the left. Commence fire.'] },
   { id: 'cease', ready: 'safe', stage: 'zero', string: 'zero', say: ['CEASE FIRE.', 'CEASE FIRE, CEASE FIRE.'] },
   { id: 'group', ready: 'zeroRead', stage: 'zero', say: ['Shooters, read your groups with your coach.', 'Coaches, read the groups.'] },
   { id: 'dial', ready: 'dialled', stage: 'zero', next: 'zeroLoop', say: ['Make your sight corrections.', 'Shooters, dial your corrections.'] },
-  { id: 'reload', ready: 'cond1', stage: 'zero', next: 'fire', say: ['Your next magazine of three. RELOAD.', 'Shooters, the next three rounds. RELOAD.'] },
+  { id: 'reload', ready: 'cond1', stage: 'zero', next: 'fire', short: 'Three rounds, RELOAD.', say: ['Your next magazine of three. RELOAD.', 'Shooters, the next three rounds. RELOAD.'] },
   { id: 'clear', ready: 'shown', stage: 'zero', say: ['UNLOAD, SHOW CLEAR.', 'Shooters, UNLOAD, SHOW CLEAR to your coach.'] },
   { id: 'police', ready: 'policed', stage: 'zero', say: ['Police your brass.', 'Shooters, police your brass.'] },
   { id: 'turnIn', ready: 'turnedIn', stage: 'zero', say: ['Unused rounds to your coach.', 'Any rounds you have left, to your coach.'] },
-  { id: 'walk', ready: 'arrived', stage: 'walk', line: 300, say: ['Relay one, to the three-hundred-metre line.', 'Relay one, move to the three hundred.'] },
+  { id: 'walk', ready: 'arrived', stage: 'walk', line: 300, short: 'To the three hundred.', say: ['Relay one, to the three-hundred-metre line.', 'Relay one, move to the three hundred.'] },
   { id: 'prone', ready: 'prone', stage: 'confirm', line: 300, say: ['Shooters, assume the prone position.', 'Relay one, get down: the prone position.'] },
   { id: 'optic', ready: 'optic4', stage: 'confirm', say: ['Optics to four power.', 'Shooters, your optics to four power.'] },
-  { id: 'dope', ready: 'dope', stage: 'confirm', line: 300, say: ['Set your dope for three hundred.', 'Shooters, dial your dope for three hundred.'] },
-  { id: 'load', ready: 'magIn', stage: 'confirm', say: ['With a magazine of five rounds, LOAD.', 'Shooters, with a magazine of five rounds, LOAD.'] },
+  { id: 'dope', ready: 'dope', stage: 'confirm', line: 300, short: 'Your dope for three hundred.', say: ['Set your dope for three hundred.', 'Shooters, dial your dope for three hundred.'] },
+  { id: 'load', ready: 'magIn', stage: 'confirm', short: 'Five rounds, LOAD.', say: ['With a magazine of five rounds, LOAD.', 'Shooters, with a magazine of five rounds, LOAD.'] },
   { id: 'ready', ready: 'cond1', stage: 'confirm', say: ['MAKE READY.', 'Shooters, MAKE READY.'] },
-  { id: 'fire', ready: 'emptyLocked', stage: 'confirm', string: 'confirm', say: ['Five rounds slow fire, five minutes. All ready on the firing line. Commence fire.', 'Slow fire, five rounds. Ready on the right, ready on the left. Commence fire.'] },
+  { id: 'fire', ready: 'emptyLocked', stage: 'confirm', string: 'confirm', short: 'Five rounds slow, five minutes. Commence fire.', say: ['Five rounds slow fire, five minutes. All ready on the firing line. Commence fire.', 'Slow fire, five rounds. Ready on the right, ready on the left. Commence fire.'] },
   { id: 'cease', ready: 'safe', stage: 'confirm', string: 'confirm', say: ['CEASE FIRE.', 'CEASE FIRE, CEASE FIRE.'] },
   { id: 'clear', ready: 'shown', stage: 'confirm', say: ['UNLOAD, SHOW CLEAR.', 'Shooters, UNLOAD, SHOW CLEAR to your coach.'] },
   { id: 'police', ready: 'policed', stage: 'confirm', say: ['Police your brass.', 'Shooters, police your brass.'] },
   { id: 'turnIn', ready: 'turnedIn', stage: 'confirm', say: ['Unused rounds to your coach.', 'Any rounds you have left, to your coach.'] },
-  { id: 'pits', ready: 'arrived', stage: 'pits', line: 200, say: ['Relay one to the pits. Relay two, to the line.', 'Relay one, you are pulling butts. Relay two to the three hundred.'] },
-  { id: 'dope', ready: 'dope', stage: 's200', line: 200, say: ['Set your dope for two hundred.', 'Shooters, dial your dope for two hundred.'] },
-  { id: 'sit', ready: 'sitMag', stage: 's200', say: ['The sitting position. With a magazine of five rounds, LOAD.', 'Shooters, sitting. With a magazine of five rounds, LOAD.'] },
+  { id: 'pits', ready: 'arrived', stage: 'pits', line: 200, short: 'Relay one, to the pits.', say: ['Relay one to the pits. Relay two, to the line.', 'Relay one, you are pulling butts. Relay two to the three hundred.'] },
+  { id: 'dope', ready: 'dope', stage: 's200', line: 200, short: 'Your dope for two hundred.', say: ['Set your dope for two hundred.', 'Shooters, dial your dope for two hundred.'] },
+  { id: 'sit', ready: 'sitMag', stage: 's200', short: 'Sitting, five rounds. LOAD.', say: ['The sitting position. With a magazine of five rounds, LOAD.', 'Shooters, sitting. With a magazine of five rounds, LOAD.'] },
   { id: 'ready', ready: 'sit1', stage: 's200', say: ['MAKE READY.', 'Shooters, MAKE READY.'] },
-  { id: 'fire', ready: 'emptyLocked', stage: 's200', string: 's200', say: ['Ten rounds rapid, sixty seconds, your magazine change in the string. Commence fire.', 'Rapid fire, ten rounds, two magazines, sixty seconds. Commence fire.'] },
+  { id: 'fire', ready: 'emptyLocked', stage: 's200', string: 's200', short: 'Ten rounds rapid, sixty seconds. Commence fire.', say: ['Ten rounds rapid, sixty seconds, your magazine change in the string. Commence fire.', 'Rapid fire, ten rounds, two magazines, sixty seconds. Commence fire.'] },
   { id: 'cease', ready: 'safe', stage: 's200', string: 's200', say: ['CEASE FIRE.', 'CEASE FIRE, CEASE FIRE.'] },
   { id: 'clear', ready: 'shown', stage: 's200', say: ['UNLOAD, SHOW CLEAR.', 'Shooters, UNLOAD, SHOW CLEAR to your coach.'] },
   { id: 'police', ready: 'policed', stage: 's200', say: ['Police your brass.', 'Shooters, police your brass.'] },
@@ -145,6 +175,11 @@ export const KD_COACH = deepFreeze({
   notZeroed: ['Close enough for today. We confirm at three hundred.', 'Not there yet, but we will confirm it at three hundred.'],
   wind: ['Wind from the {from}, about {speed}. Hold {hold} {side}.', 'I make it {speed} from the {from}. Hold {hold} {side}.'],
   still: ['No wind to speak of. Hold centre.', 'Flags are limp. Hold centre.'],
+  // (nothing across, but the flags are not limp (wind.js windWords' flags): standing out along the range, or stirring;
+  // "limp" only under FLAG_LIMP_MS, the verifier's of the sleeve fix)
+  front: ['Wind\'s in our faces, straight up the range: nothing across. Hold centre.', 'Flags are standing out toward us: no wind across. Hold centre.'],
+  behind: ['Wind\'s at our backs, straight down the range: nothing across. Hold centre.', 'Flags are standing out toward the targets: no wind across. Hold centre.'],
+  light: ['Nothing across worth holding for. Hold centre.', 'A breath across, no more. Hold centre.'],
   confirm: ['{Call}. Dial it.', 'Come {call}. Dial it in.'],
   confirmed: ['Your zero is good. Leave it.', 'Good zero. Leave it.'],
   dummy: ['That was my dummy. Good drill.', 'An orange dummy: mine. Tap, rack, on. Good.'],
@@ -170,6 +205,53 @@ export const KD_RO = deepFreeze({
   forward: ['Cease fire! Get back behind the line!', 'CEASE FIRE! You, back behind the line!'],
   closed: ['The range is closed.', 'The range is closed. Unload, show clear.'],
   limit: ['CEASE FIRE. Time.', 'Time. CEASE FIRE.'],
+});
+
+/** The pairs course's sequence, the coach's commands (see the header): { id, ready, say, string?, line? }. */
+export const SEQ_PAIRS = deepFreeze([
+  { id: 'brief', ready: 'always', line: 7, say: ["Pairs. Five strings at seven and ten metres on my timer. Wait out of it at low ready; when a target turns, take it in, then your shots. Threats only.",
+    "This is pairs: five strings, seven and ten metres, on the timer. Low ready, on safe, out of it until a target turns. Threats only."] },
+  { id: 'load', ready: 'magIn', say: ['With a magazine of ten, LOAD.', 'Your first magazine, ten rounds. LOAD.'] },
+  { id: 'ready', ready: 'pairsReady', say: ['MAKE READY. Then low ready, on safe, and step out of it.', 'MAKE READY. On safe, low ready, and out of it.'] },
+  { id: 'standby', ready: 'stringDone', string: 0, line: 7, say: ['Shooter ready? Standby.', 'One target. Standby.'] },
+  { id: 'stop', ready: 'pairsReady', string: 0, say: ['Stop. On safe, low ready, out of it.', 'Make safe. Low ready. Step out of it.'] },
+  { id: 'standby', ready: 'stringDone', string: 1, line: 7, say: ['Two this time. Standby.', 'Shooter ready? Standby.'] },
+  { id: 'stop', ready: 'pairsReady', string: 1, say: ['Stop. On safe, low ready, out of it.', 'Make safe. Low ready. Step out of it.'] },
+  { id: 'move10', ready: 'pairsReady', line: 10, say: ['Back to the ten-metre line. Low ready.', 'Three steps back, to the ten. Muzzle downrange.'] },
+  { id: 'standby', ready: 'stringDone', string: 2, line: 10, say: ['Threats only. Standby.', 'Look before you shoot. Standby.'] },
+  { id: 'stop', ready: 'pairsReady', string: 2, say: ['Stop. On safe, low ready, out of it.', 'Make safe. Low ready. Step out of it.'] },
+  { id: 'standby', ready: 'stringDone', string: 3, line: 10, say: ['Shooter ready? Standby.', 'One target. Standby.'] },
+  { id: 'stop', ready: 'pairsReady', string: 3, say: ['Stop. On safe, low ready, out of it.', 'Make safe. Low ready. Step out of it.'] },
+  { id: 'short', ready: 'shortReady', say: ['Top up with the short one: two rounds in it. Then low ready, out of it.', 'Your two-round magazine: top up with it, low ready, and out of it.'] },
+  { id: 'standby', ready: 'stringDone', string: 4, line: 10, say: ['Shooter ready? Standby.', 'Last string. Standby.'] },
+  { id: 'lull', ready: 'toppedUp', say: ['Lull. Top up if you are at half or less, then low ready, out of it.', 'Take the lull. Half or less, top up; then low ready, out of it.'] },
+  { id: 'clear', ready: 'shown', say: ['UNLOAD, SHOW CLEAR.', 'UNLOAD, SHOW CLEAR to me.'] },
+  { id: 'end', ready: 'never', say: ["That's the course. The line is clear.", 'Done. The line is clear.'] },
+]);
+
+/** The pairs coach's words (see the header), each ≥ 2 phrasings; {paper} the shot timer's line. */
+export const PAIRS_COACH = deepFreeze({
+  brief: ["I'm your coach and this is my timer. It starts when the target turns.", "I run the timer. It starts as the target turns; you take him in, then you shoot."],
+  standby: ['Standby.', 'Standby. Wait for it.'],
+  out: ['Out of it. Wait for the turn.', 'Not in the mode. Step out of it and wait for the turn.'],
+  paper: ['Timer: {paper}.', 'On the clock: {paper}.'],
+  // (said only where it is true: the steel rang and he stands, or two in the torso and he stands (pairs.js))
+  stillUp: ["He's still up!", 'Still up! That rang: he is wearing a plate.'],
+  noshoot: ['You shot a no-shoot. That string is over.', 'That one had no weapon. String over.'],
+  time: ["Time. He'd have had you.", 'Time. You never put him down.'],
+  dry: ['Out of rounds. That string is done.', 'Nothing left to fire. String over.'],
+  short: ['The two-round magazine is in. Good.', 'Two in the magazine, one up the spout. Good.'],
+  lull: ['Topped up. Good habit.', 'Topped up in the lull. That is the habit.'],
+  // (0.0.8, the fixer's: the lull's fresh magazine handed over ({pouch} where it went), or none needed above half)
+  hand: ['Fresh ten for you, in your {pouch}.', 'Here. A full one in your {pouch}.'],
+  lullAbove: ['You are above half. Fresh ten in your {pouch} all the same.', 'Above half: that will do. A spare ten in your {pouch}.'],
+  // (a negligent discharge into the berm: a fault on this course, the line carries on (handling.js rangeRules))
+  nd: ['Cease fire! That went into the berm. Finger off until you mean to fire.', 'Cease fire! Negligent discharge, into the dirt. Finger straight, on safe.'],
+  // (the pairs bay has no tower: the coach's own words for a line kept waiting, and for no rounds left)
+  slow: ['I will not wait for you. Keep up.', 'I waited on you there. Be ready on my word.'],
+  dryOut: ['No rounds left. On safe, low ready: you sit the rest out.', 'Nothing left to load. On safe; you sit the rest out.'],
+  declared: ['On safe: you are done with that one. Noted.', 'Safe. That string is yours to call. Noted.'],
+  none: ['No rounds fired that string.', 'Nothing on the timer that string.'],
 });
 
 /**

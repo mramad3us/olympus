@@ -69,21 +69,39 @@
 //               faceOdds), a percentage on a known line when the read's band moves it under 10 points,
 //               else SKILLS §5.11's words at the band's two ends; its terms (the range, the wind as read,
 //               the hold, the turrets against the believed zero) and kd: { aimCm, poiCm, holdMil,
-//               scoreOdds, ringOdds }. The 25 m card's plaque is v0.0.5's.
+//               scoreOdds, ringOdds }. The 25 m card's plaque is v0.0.5's. While the rifle is being zeroed
+//               (zeroingOf: the KD course's 25 m zero, until the coach accepts it) the zero term counts the
+//               clicks dialled in this zero from the turrets' issue setting ("ZEROING ▲4 <2"), not from the
+//               believed zero, which a dialled call moves with the turrets (the user's report, 2026-11-07: "I
+//               dialed in the coaches corrections, the UI still says that I'm on zero ?").
 //   the record  resolveShot on a face: face, aimCm, poiCm (the truth's, with its terms), hole { at, score,
 //               v, onPaper, band }, crossMs (the true wind); every shot gains flight { rangeM, tofS, vMs,
 //               eJ, supersonic } (test-handling's card too: an additive field). The roll's log line lists the
 //               true terms with the shooter's belief beside them (WEAPONS §7.10): "A 4, high left: wind 4.6
 //               m/s (you read 3), held 0.5 mil right."
+//
+// 0.0.8, the shot on a turner (COMBAT §25.6, §25.10.3; WEAPONS §7, §8.5; the build sheet 0.0.8 §2.2, §8 items 11, 14
+// and 15). A turner (src/sim/arms/turners.js) is a man-target: its DC is a person's by the part (torso 0, head +6,
+// no paper term), the hole on its face by the roll (paper.js manHole: the A zone at a margin of A_MARGIN 4 or more,
+// the C zone at a pass, the head; a failed roll into the berm), and a round at a turner standing under SEEN 0.5 of
+// its facing (edge-on, turning, or turned away once down) passes it into the berm, 'past the target'. On an armoured
+// face (steelOf) a torso round meets PLATE_MM 10 mm of armour steel through penetrate.js's contest at the round's
+// speed there (stopped: it rings; through: it holes it; neither puts it down), and a head round knocks the head
+// plate down at A_MARGIN or better, rings at a pass. A shot rows' round (src/sim/arms/specials.js) gives resolveShot
+// its formula time (atMs: the record's, the mods', the flash's and the case's, so a split below a tick reads true on
+// the paper), its part, a climb factor (climbK: the Pair's controlled second ×0.5, modsOf's climb ×climbK) and its
+// row ({ id, n, i }); the record gains part, zone, ring, through, down and row, on a turner only, so test-handling's
+// and test-range's shots stay byte for byte.
 // Pure but resolveShot.
 import { stream } from '../../core/rng.js';
-import { nextId, playerActor } from '../../core/ids.js';
+import { nextId, playerActor, playerId } from '../../core/ids.js';
+import { SEQ_KD } from '../../data/courses.js';
 import { lightLevel } from '../places/light.js';
 import { logEntry } from '../log.js';
 import { paceOf } from '../skills/skills.js';
 import { check, oddsOf, sortMods, TEMPO, checkShort } from '../skills/checks.js';
 import { rollerOf, DARK_BELOW, DIM_BELOW } from '../combat/roll.js';
-import { PAPERS, holeOf, KD_RINGS, isFace, faceHole, faceOdds, poiXY } from './paper.js';
+import { PAPERS, holeOf, KD_RINGS, isFace, faceHole, faceOdds, poiXY, manHole, A_MARGIN } from './paper.js';
 import { MODELS, KINDS, OPTICS, opticSight } from './models.js';
 import { pull, feel, REFUSALS, gunField, sightOf, zeroOfGun, beliefZero, opticOf, beliefOf } from './firearms.js';
 import { flight, envOfPlace, CLICK_MRAD } from './ballistics.js';
@@ -91,6 +109,8 @@ import { pathWind, windWords } from './wind.js';
 import { carryOf, muzzleOf, POSTURES } from './carry.js';
 import { ejectCase } from './look.js';
 import { FACE_DOWN_UP } from './pits.js';
+import { penOf, throughMaterial } from './penetrate.js';
+import { SEEN } from '../people/perception.js';
 
 /** The shot's base DC (tradecraft's SHOT.dc). */
 export const SHOT_DC0 = 6;
@@ -118,6 +138,8 @@ export const AIM = Object.freeze({ sight: 0.6, turn: Object.freeze({ base: 90, p
 export const LIGHT_MOD = Object.freeze({ dark: -4, dim: -2 });
 /** The shooter's recoil anchor at 0.38 G (WEAPONS §7.8: 'planted' standing, kneeling or prone at 0.3 G or more). */
 export const ANCHOR = Object.freeze({ recover: 1, climb: 1 });
+/** An armoured man-target's plates (0.0.8; see the header): mm of armour steel (penetrate.js MATERIALS.steelArmour). */
+export const PLATE_MM = 10, PLATE_MATERIAL = 'steelArmour';
 
 const D2R = Math.PI / 180;
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
@@ -187,7 +209,7 @@ export function heldOf(state, pid, ms = state.clock.ms, key = null) {
  * key, kind, x, z, dM, paper? }. follow: the follow-up's place after the first (a tap). The same list
  * makes the plaque's odds and the roll.
  */
-export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'normal', follow = 0, ms = state.clock.ms, held = null }) {
+export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, ms = state.clock.ms, held = null }) {
   const me = meOf(state, pid), M = gunModel(state, gunId), roller = rollerOf(state, pid, { ms });
   const mrk = roller.value('marksmanship'), stance = me?.stance ?? 'stand', out = [];
   if (POSITION[stance]) out.push({ why: POSITION_WORD[stance], v: POSITION[stance], src: 'task' });
@@ -195,7 +217,7 @@ export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'nor
   const h = held ? { aimed: true, v: held.v } : heldOf(state, pid, ms, target?.key ?? null);
   if (h.aimed && h.v) out.push({ why: h.v > 0 ? 'the aim held' : 'still coming down from the last', v: h.v, src: 'task' });
   if (follow > 0) {
-    const v = -Math.round(BURST_K * follow * M.recoil * climbOf(mrk) * ANCHOR.climb * (SUPPORT[stance] ?? 1));
+    const v = -Math.round(BURST_K * follow * M.recoil * climbOf(mrk) * ANCHOR.climb * (SUPPORT[stance] ?? 1) * climbK);
     if (v) out.push({ why: 'the muzzle still up from the last', v, src: 'task' });
   }
   if (target && state.places?.live?.area) {
@@ -312,6 +334,42 @@ export function holdFor({ windCm = 0, elevCm = 0 }, rangeM) {
   return { xMil: step(windCm), yMil: step(elevCm) };
 }
 
+/** The turrets as the armoury issues them (firearms.js beliefZero's card: 0, 0), the count a zero's clicks start from. */
+export const ISSUE_SIGHT = Object.freeze({ elev: 0, wind: 0 });
+/**
+ * The rifle being zeroed (the user's report, 2026-11-07: "I dialed in the coaches corrections, the UI still says
+ * that I'm on zero ?"): on the KD course's 25 m zero, from the brief until the coach accepts the zero ("Zeroed.
+ * Leave it.": range.js R.zeroed; or written down as it stands at the zero's UNLOAD, SHOW CLEAR), the player's
+ * rifle's turrets counted from their issue setting: { from: ISSUE_SIGHT, dial: { elev, wind } } (clicks, + up,
+ * + right), else null. A dialled call moves the believed zero with the turrets (shooting.js sight:call), so the
+ * dial from the believed zero reads "on zero" after every call: true by the model, and no help to a shooter who
+ * wants to see what they dialled. The issue setting is the count the shooter can follow (my call): it never moves
+ * when a call is dialled, it adds every click on the 25 m line, the coach's and their own, it is the turrets' own
+ * marks (seen, never the true zero), it needs nothing kept in the save, and on this course it is the believed sight
+ * at the zero's start (the rifle comes with the armoury card's zero, the turrets at 0, 0). The plate's zero term
+ * (plaqueOf) and the weapon card (weaponcard.js distanceParts, by range.js kdNow) both read it.
+ */
+export function zeroingOf(state, pid = playerId(state), gunId = state.stop?.gun) {
+  const R = state.armoury?.range;
+  if (!R || R.course !== 'kd' || R.stage !== 'zero' || R.zeroed || pid !== playerId(state)) return null;
+  const clearI = SEQ_KD.findIndex(c => c.id === 'clear' && c.stage === 'zero');
+  if (R.cmd && R.cmd.i >= clearI) return null;
+  const g = gunId ? state.items?.[gunId] : null, s = sightOf(g);
+  return { from: { ...ISSUE_SIGHT }, dial: g ? { elev: s.elev - ISSUE_SIGHT.elev, wind: s.wind - ISSUE_SIGHT.wind } : null };
+}
+
+// (clicks in words: '4 up, 2 left')
+const clicksSaid = ({ elev, wind }) => [elev ? `${Math.abs(elev)} ${elev > 0 ? 'up' : 'down'}` : null, wind ? `${Math.abs(wind)} ${wind > 0 ? 'right' : 'left'}` : null].filter(Boolean).join(', ');
+// (the plate's zero term: the turrets against the believed zero, or while zeroing the clicks dialled in this zero (zeroingOf))
+function zeroTerm(sight, z, zeroing) {
+  if (zeroing?.dial) {
+    const d = zeroing.dial;
+    return { key: 'zero', zeroing: true, words: d.elev || d.wind ? `zeroing: ${clicksSaid(d)} dialled this zero, from the turrets as issued` : 'zeroing: nothing dialled yet this zero', v: { ...d } };
+  }
+  const d = { elev: sight.elev - z.elev, wind: sight.wind - z.wind };
+  return { key: 'zero', words: !d.elev && !d.wind ? 'the turrets on your zero' : `the turrets ${clicksSaid(d)} of your zero`, v: d };
+}
+
 /**
  * The plaque over the bracketed target (WEAPONS §7.10; the build sheet §2.2): { part, rangeM,
  * rangeText, odds, oddsText, words, aimS, held, next, dc, dcParts, mods }, on the shooter's beliefs
@@ -346,7 +404,7 @@ export function plaqueOf(state, pid, { target, part = 'torso', gunId = state.sto
       // (the call's or the read's age in the words: a call goes stale as the wind moves (the design review's of v0.0.7))
       { key: 'wind', words: wb ? `wind ${ww.speedWord} ${ww.fromWord}, ${wb.by === 'coach' ? 'the coach\'s call' : 'your read'}${ageWords(ms - (wb.atMs ?? ms))}` : 'wind not read', v: wb ? wb.crossMs : null, ...(wb ? { by: wb.by } : {}) },
       { key: 'hold', words: `held ${holdWords(hold)}`, v: [hold.xMil ?? 0, hold.yMil ?? 0] },
-      { key: 'zero', words: sight.elev === z.elev && sight.wind === z.wind ? 'the turrets on your zero' : `the turrets ${[sight.elev - z.elev ? `${Math.abs(sight.elev - z.elev)} ${sight.elev > z.elev ? 'up' : 'down'}` : null, sight.wind - z.wind ? `${Math.abs(sight.wind - z.wind)} ${sight.wind > z.wind ? 'right' : 'left'}` : null].filter(Boolean).join(', ')} of your zero`, v: { elev: sight.elev - z.elev, wind: sight.wind - z.wind } },
+      zeroTerm(sight, z, zeroingOf(state, pid, gunId)),
     ];
     kd = { aimCm: [0, 0], poiCm: poiXY(b), holdMil: [hold.xMil ?? 0, hold.yMil ?? 0], scoreOdds: fo.score, fiveOdds: fo.five, ringOdds: fo.rings };
   }
@@ -369,9 +427,9 @@ export const shotStream = (state, pid, gunId, shotId) => stream('shot', state.me
  * (the pull and its recovery when it fired, the press alone when it clicked) and the shot record
  * { id, who, gun, atMs, fired, why, stoppage, set, muzzle, dirRad, target, lane, hole, brass, roll, logSeq, recoverMs }.
  */
-export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', tempo = 'normal', follow = 0, held = null, hold = undefined, log = true }) {
+export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, held = null, hold = undefined, log = true, atMs = state.clock.ms, row = null }) {
   const gun = state.items[gunId], mag = gun.mag ? state.items[gun.mag] : null, M = MODELS[gun.model ?? 'r7'];
-  const ms = state.clock.ms, roller = rollerOf(state, pid, { ms }), wh = roller.value('weapons');
+  const ms = atMs, roller = rollerOf(state, pid, { ms }), wh = roller.value('weapons');
   const id = nextId(state, 'sh');
   const r = shotStream(state, pid, gunId, id);
   const f = pull(r, gun, mag);
@@ -380,10 +438,10 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
   const me = meOf(state, pid);
   const dirRad = me?.headRad ?? muzzle?.yawRad ?? 0;
   const T = TEMPO[tempo] ?? TEMPO.normal;
-  let roll = null, hole = null, brass = null, entry = null, stepMs, recMs = 0, poi = null, after = '', fl = null;
+  let roll = null, hole = null, brass = null, entry = null, stepMs, recMs = 0, poi = null, after = '', fl = null, man = null;
   if (f.fired) {
     const { dc, parts } = dcOf({ model: gun.model ?? 'r7', rangeM: target?.dM ?? 25, part, paper: target?.paper ?? null });
-    const mods = modsOf(state, pid, { gunId, target, part, tempo: 'normal', follow, ms, held });
+    const mods = modsOf(state, pid, { gunId, target, part, tempo: 'normal', follow, climbK, ms, held });
     roll = check(r, { skill: 'marksmanship', value: roller.value('marksmanship'), dc, mods, tempo, pressure: 'evaluated', procedure: false, by: pid, dcParts: parts });
     // (the round as it flies, for every shot: the hud's crack and strike, the far window's delay)
     const fp = poiOf(state, pid, gunId, target ?? { dM: 25 }, { ms, hold, load: f.load ?? 'ball' });
@@ -410,6 +468,17 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
     } else if (target?.kind === 'paper') {
       hole = holeOf(target.paper, roll, id, state.meta.seed);
       roll.verb = hole.word;
+    } else if (target?.kind === 'turner') {
+      // (0.0.8: a turner, a man-target (see the header): past it under SEEN, else the hole by the roll, the steel on an armoured face)
+      const facing = (target.facingK ?? 1) >= SEEN;
+      const h = facing ? manHole(target.face, part, roll, id, state.meta.seed) : { at: null, zone: null, word: 'past the target, into the berm' };
+      man = { part, zone: h.zone, ring: false, through: false, row: row ?? null };
+      // (an armoured face's verdict: down only there, the head plate's; a paper threat's sensor is the scene's)
+      if (target.face === 'armoured') { const st = h.at ? steelOf(state, { id, part, roll, flight: fl, load: f.load ?? 'ball', model: gun.model ?? 'r7' }, target) : null;
+        Object.assign(man, { ring: !!st?.ring, through: !!st?.through, down: !!st?.down }); }
+      hole = { at: h.at, zone: h.zone, word: h.word };
+      roll.verb = man.ring ? (part === 'head' ? (man.down ? 'on the head plate: it rings and falls.' : 'on the head plate: it rings.') : 'on the plate: it rings.')
+        : man.through ? 'through the plate.' : `${h.word}.`;
     } else roll.verb = roll.ok ? 'hit' : 'missed';
     // (a shot that did not cycle keeps its case: caught in the port (a stovepipe) or in the chamber behind the next
     // round (a double), it flies when a step clears it, not here, or it would be drawn twice: the integrator's)
@@ -435,7 +504,7 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
   }
   const shot = { id, who: pid, gun: gunId, atMs: ms, fired: !!f.fired, why: f.why ?? null, stoppage: f.stoppage ?? null, set: f.set ?? null, load: f.fired ? f.load ?? 'ball' : null,
     muzzle: muzzle ? { x: muzzle.x, y: muzzle.y, z: muzzle.z } : null, dirRad, target: target?.key ?? null, lane: target?.lane ?? null,
-    hole: hole ? (poi ? { at: hole.at, score: hole.score, v: hole.v, onPaper: hole.onPaper, band: hole.band } : { at: hole.at, score: hole.score, v: hole.v }) : null, brass: brass ? { kind: brass.kind, landMs: brass.landMs, at: brass.at } : null,
+    hole: hole ? (poi ? { at: hole.at, score: hole.score, v: hole.v, onPaper: hole.onPaper, band: hole.band } : man ? { at: hole.at } : { at: hole.at, score: hole.score, v: hole.v }) : null, brass: brass ? { kind: brass.kind, landMs: brass.landMs, at: brass.at } : null,
     roll, logSeq: entry?.seq ?? null, recoverMs: recMs, empty: !!f.empty, brassRec: brass };
   // (0.0.7: the round's flight on every fired shot; on a face where it went and why, the truth's)
   const extra = {};
@@ -443,9 +512,26 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
   if (poi) Object.assign(extra, { face: { paper: target.paper, lane: target.lane ?? null, line: target.line ?? null }, aimCm: [0, 0], poiCm: { elevCm: poi.elevCm, windCm: poi.windCm, terms: poi.terms }, crossMs: poi.crossMs });
   // (a round over a face down in the pits: nothing for the pits to mark (range.js kdShot))
   if (poi && (target.up ?? 1) < FACE_DOWN_UP) extra.berm = true;
+  // (0.0.8: a turner's round: its part, zone, the steel's verdict and its row, on a turner only (see the header))
+  if (man) Object.assign(extra, man);
   Object.assign(shot, extra);
   bus?.emit('shot', { id, who: pid, gun: gunId, atMs: ms, fired: shot.fired, why: shot.why, stoppage: shot.stoppage, set: shot.set, load: shot.load, muzzle: shot.muzzle, dirRad,
     target: shot.target, lane: shot.lane, hole: shot.hole, brass: shot.brass, logSeq: shot.logSeq,
-    ...(fl ? { flight: fl } : {}), ...(poi ? { face: extra.face, aimCm: extra.aimCm, poiCm: { elevCm: poi.elevCm, windCm: poi.windCm } } : {}) });
+    ...(fl ? { flight: fl } : {}), ...(poi ? { face: extra.face, aimCm: extra.aimCm, poiCm: { elevCm: poi.elevCm, windCm: poi.windCm } } : {}), ...(man ?? {}) });
   return { ms: stepMs, shot };
+}
+
+/**
+ * The steel's verdict on a round at an armoured man-target (see the header): { ring, through, down, penMm, pStop }. shot:
+ * { id, part, roll, flight: { vMs }, load, model } (the round as it struck); T: the turner (its face). A torso round meets
+ * PLATE_MM of armour steel at its speed there (penetrate.js throughMaterial on stream('pen', seed, shotId)); a head round
+ * knocks the head plate down at A_MARGIN or better and rings at a pass. Never down on a torso round.
+ */
+export function steelOf(state, shot, T) {
+  const none = { ring: false, through: false, down: false };
+  if (T?.face !== 'armoured' || !shot?.roll?.ok) return none;
+  if (shot.part === 'head') return { ring: true, through: false, down: shot.roll.margin >= A_MARGIN && shot.roll.nat !== 1 };
+  const M = MODELS[shot.model ?? 'r7'], penMm = penOf(M.cal, shot.load ?? 'ball', shot.flight?.vMs ?? 0);
+  const t = throughMaterial(stream('pen', state.meta.seed, shot.id), { penMm, material: PLATE_MATERIAL, mm: PLATE_MM });
+  return { ring: t.stopped, through: !t.stopped, down: false, penMm: Math.round(penMm * 100) / 100, pStop: Math.round(t.p * 1000) / 1000 };
 }

@@ -32,13 +32,18 @@
 // The 0.0.6 round's (the build sheet 0.0.6 §2.3): the clippers' loop (a 120 Hz motor's hum through a 2 kHz band,
 // seamless) while a shaved head is buzzed, the tap while the hands are washed, and the R menu's sounds (a tick, a
 // latch and a lower latch, two rising notes, a close) rendered by code and played on the UI bus from the 'ui' fact.
+// The 0.0.8 round's (the build sheet 0.0.8 §5.4 ui-audio, §8 item 24): the pairs pad's sounds on the game clock: a turner's
+// motor from its turn and the clack of its stop TURN_MS later, at the stand; the coach's timer beeping once as the targets
+// turn (however many); the steel ringing where the armoured face stands, a sound's way late; a Pair's two reports at its
+// split (each round's formula time), a single Fire's as before; the recipes rendered with their bands where they belong.
 import { assert, near, fmt } from './helpers.mjs';
 import { footfalls, stepVoice, createStepScheduler, weightDb, lowpassHz, HALF_CYCLE_M } from '../src/ui/audio/steps.js';
 import { render, measure } from '../src/ui/audio/synth.js';
 import { STEPS, DOORS, WORLD, RANGE, AIR_KPA, LOOKAHEAD_S, WALL_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, TICK_MAX_HZ, KLAXON_HZ, WORLD_RATE_HZ, EARS_DB, EARS_LP_HZ, ECHO_DB, SOUND_SPEED_MS, REPORT_SOURCE_DB, ACTION_SOUNDS, UI_SOUNDS, CLIPPER_HZ } from '../src/data/sounds.js';
 import { reportVoice, echoOf, caseVoice, chimeVoice, clickVoice, actionSoundsOf, createRange, createClickQueue, BERM_FACE_X, LATE_MS,
   crackVoice, strikeVoice, carrierVoice, throughEars, createReportLimiter, bermFor, KD_BERM_FACE_X, distLowpassHz } from '../src/ui/audio/range.js';
-import { REPORT_VOICES, REPORT_MERGE_MS, EARS_GATE_DB, PARAPET_DB, CRACK_SOURCE_DB, IMPACT_SOURCE_DB } from '../src/data/sounds.js';
+import { REPORT_VOICES, REPORT_MERGE_MS, EARS_GATE_DB, PARAPET_DB, CRACK_SOURCE_DB, IMPACT_SOURCE_DB, TURNER_SOURCE_DB, BEEP_SOURCE_DB, STEEL_SOURCE_DB } from '../src/data/sounds.js';
+import { turnerVoice, beepVoice, ringVoice } from '../src/ui/audio/range.js';
 import { soundMsOf, ENV_CLASSES, flightOf } from '../src/sim/arms/ballistics.js';
 import { klaxonVoice, wallsBetween, duckOf, createTicker, loopsAt, createWorld } from '../src/ui/audio/world.js';
 import { areaOf } from '../src/sim/places/model.js';
@@ -442,6 +447,55 @@ export default [
       const p3 = [], r3 = createRange({ shot: (kind, opts) => { p3.push({ kind, ...opts }); return true; } }, { looks: { kitLook: () => ({ ears: true }) }, clock: () => 0 });
       r3.fact('shot', { who: 'p145', fired: true, muzzle: { x: 1100.9, z: 292.5 }, face: null, flight: { rangeM: 25, tofS: 0.03, supersonic: true } }, { ...state, actors: { list: [{ id: 'a1', who: 'p145', x: 1100, z: 292.5 }] } });
       assert(p3.map(p => p.kind).join() === 'report,report', JSON.stringify(p3));
+    },
+  },
+  {
+    name: 'the pairs pad on the game clock: a turner\'s motor from its turn and its clack TURN_MS later, at the stand; the timer\'s beep once as the targets turn; the steel\'s ring where the armoured face stands, a sound\'s way late; a Pair\'s two reports its split apart (each waiting its place in its tick), a single Fire\'s at once; nothing while time stands still',
+    fn() {
+      const played = [];
+      const engine = { shot: (kind, opts) => { played.push({ kind, ...opts }); return true; } };
+      // (the audio clock running with the game's here, as it does in play: the reports' voices count on it)
+      let nowS = 0;
+      const range = createRange(engine, { looks: { kitLook: () => ({ ears: true }) }, clock: () => nowS });
+      const T2 = { key: 'turner:2', lane: 2, x: 1124, z: 286.5 }, T1 = { key: 'turner:1', lane: 1, x: 1124, z: 283.5 };
+      const state = { player: { id: 'p145', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p145', x: 1117, z: 286.5 }] }, clock: { ms: 1000, holds: [] }, armoury: { range: { course: 'pairs', turners: [T1, T2] } } };
+      const at = (ms, held = false, alpha = 0) => { state.clock.ms = ms; nowS = ms / 1000; state.clock.holds = held ? ['stop'] : []; range.frame(state, { alpha }); return played.map(p => p.kind); };
+      at(1000);
+      // (string 1's two turners turn on one tick: two motors, two clacks, one beep)
+      for (const t of [T1, T2]) range.fact('turner', { key: t.key, lane: t.lane, phase: 'turn', face: 'threat', atMs: 2000, toMs: 2300, why: 'standby', x: t.x, z: t.z }, state);
+      const k0 = at(1990).length, atTurn = at(2000).slice(k0), mid = at(2200).length, atStop = at(2300).slice(mid);
+      const motor = played.find(p => p.kind === 'turnerMotor'), beep = played.find(p => p.kind === 'timerBeep');
+      console.log(`      the turn at 2,000 ms: ${atTurn.join(', ')}; at its stop, 2,300: ${atStop.join(', ')}; the motor ${fmt(motor.gainDb, 1)} dB +${fmt(motor.delayS * 1000, 0)} ms, the beep ${fmt(beep.gainDb, 1)} dB pan ${fmt(beep.pan, 2)}`);
+      assert(atTurn.filter(k => k === 'turnerMotor').length === 2 && atTurn.filter(k => k === 'timerBeep').length === 1 && atStop.join() === 'turnerClack,turnerClack', JSON.stringify({ atTurn, atStop }));
+      const v = turnerVoice({ me: { x: 1117, z: 286.5 }, at: T2 });
+      assert(Math.abs(v.distM - 7) < 1e-9 && Math.abs(v.delayS - 7 / SOUND_SPEED_MS) < 1e-9 && beepVoice().pan < 0, JSON.stringify(v));
+      // (the clock standing a tick short, the frame 90% on: nothing until it runs past the turn)
+      range.fact('turner', { key: T2.key, phase: 'away', atMs: 5000, toMs: 5300, x: T2.x, z: T2.z }, state);
+      const n1 = played.length; at(4990, true, 0.9); const stood = played.length === n1; at(5010); const away = played.slice(n1).map(p => p.kind);
+      assert(stood && away.join() === 'turnerMotor' && !played.slice(n1).some(p => p.kind === 'timerBeep'), JSON.stringify({ stood, away }));
+      // (a Pair: its rounds at their formula times, 8,350 and 8,745 ms, their facts on the ticks at or after them (8,350 and 8,750):
+      // each report waits its round's place in its tick, drawn a tick behind, so they sound 395 ms apart, not the ticks' 400)
+      const shot = (atMs, row, extra = {}) => range.fact('shot', { who: 'p145', fired: true, atMs, muzzle: { x: 1117.9, y: 1.4, z: 286.5 }, row, ...extra }, state);
+      at(8350); const n2 = played.length; shot(8350, { id: 'shot:pair', n: 2, i: 0 }); const r1 = played.slice(n2).find(p => p.kind === 'report');
+      at(8750); const n3 = played.length; shot(8745, { id: 'shot:pair', n: 2, i: 1 }); const r2 = played.slice(n3).find(p => p.kind === 'report');
+      const heard = (8750 + r2.delayS * 1000) - (8350 + r1.delayS * 1000);
+      console.log(`      a Pair at 8,350 and 8,745 ms, its facts on the ticks at 8,350 and 8,750: the reports wait ${fmt(r1.delayS * 1000, 0)} and ${fmt(r2.delayS * 1000, 0)} ms, heard ${fmt(heard, 0)} ms apart (the split 395); ${range.stats.rowShots} rows' rounds`);
+      assert(Math.abs(heard - 395) < 0.5 && range.stats.rowShots === 2, JSON.stringify({ r1, r2, heard }));
+      // (a single Fire, no row: at once, as test-handling's)
+      at(9000); const n4 = played.length; shot(9000, null); const single = played.slice(n4);
+      assert(single[0]?.kind === 'report' && single[0].delayS === 0, JSON.stringify(single));
+      // (the steel: a round that rang on the armoured face at lane 2, its ring there a flight and a sound's way later; one through it rings not)
+      at(9500); const n5 = played.length; shot(9500, null, { ring: true, through: false, target: 'turner:2', flight: { tofS: 0.009 } });
+      const ring = played.slice(n5).find(p => p.kind === 'steelRing');
+      at(10500); const n6 = played.length; shot(10500, null, { ring: true, through: true, target: 'turner:2' });
+      const rv = ringVoice({ me: { x: 1117, z: 286.5 }, at: T2, tofS: 0.009, ears: true });
+      console.log(`      the ring at 7 m: ${fmt(ring.gainDb, 1)} dB (${fmt(rv.gainDb, 1)}), ${fmt(ring.lowHz, 0)} Hz, +${fmt(ring.delayS * 1000, 1)} ms; through the plate: ${played.slice(n6).some(p => p.kind === 'steelRing') ? 'a ring' : 'no ring'}; sources ${TURNER_SOURCE_DB}, ${BEEP_SOURCE_DB}, ${STEEL_SOURCE_DB} dB`);
+      assert(ring && Math.abs(ring.delayS - (0.009 + 7 / SOUND_SPEED_MS)) < 0.002 && !played.slice(n6).some(p => p.kind === 'steelRing'), JSON.stringify(ring));
+      // (the recipes: the beep a 2.9 kHz tone, the ring's partials over a kilohertz, the clack a short knock)
+      const sr = 24000, cen = (k) => measure(render(RANGE[k], { sampleRate: sr, name: k }), sr);
+      const b = cen('timerBeep'), r = cen('steelRing'), c = cen('turnerClack'), m = cen('turnerMotor');
+      console.log(`      the beep ${fmt(b.centroidHz, 0)} Hz (its 2.9 kHz and its third), ${fmt(b.decayS * 1000, 0)} ms to −30 dB; the ring ${fmt(r.centroidHz, 0)} Hz, ${fmt(r.decayS * 1000, 0)} ms; the clack ${fmt(c.centroidHz, 0)} Hz, ${fmt(c.decayS * 1000, 0)} ms; the motor ${fmt(m.centroidHz, 0)} Hz, ${fmt(m.decayS * 1000, 0)} ms`);
+      assert(b.centroidHz > 2500 && b.centroidHz < 4500 && b.decayS >= 0.25 && r.centroidHz > 1200 && r.decayS > 5 * c.decayS && c.decayS < 0.1 && m.decayS >= 0.25, JSON.stringify({ b, r, c, m }));
     },
   },
 ];

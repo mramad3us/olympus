@@ -9,6 +9,7 @@ import { faceRad } from '../src/sim/arms/carry.js';
 import { createGame } from './game.mjs';
 import { kdBot } from './bots/kd.mjs';
 import { kdNow } from '../src/sim/scenarios/range.js';
+import { KD_RANGE } from '../src/data/places/range.js';
 
 // (a step under way, as the shot role's stop motion keeps it: state.stop.doing, read by its stepNow)
 function doing(W, action, k = 0.5) {
@@ -123,7 +124,7 @@ export default [
       }
       const L = rangeLook(s, s.clock.ms).kd;
       console.log(`      the line ${L.line} m; ${L.faces.length} faces, yours went through ${[...ups].sort().join(', ')} (the biggest step a tick ${fmt(maxJump, 3)}); ${L.flags.length} flags, e.g. ${JSON.stringify(L.flags[2])}; fires up to ${seenFire} at once; dust up to ${seenDust}; ${L.tiles.length} tiles of cases (${L.tiles.reduce((t, x) => t + x.n, 0)}); a gunner ${JSON.stringify(gunnerAim)}`);
-      assert(L.faces.length === 20 && L.flags.length === 16, 'every face and flag (sixteen: four down the middle, the fixer\'s of v0.0.7)');
+      assert(L.faces.length === 20 && L.flags.length === KD_RANGE.kd.flags.length && L.flags.length === 26, 'every face and flag (twenty-six: twelve on the sides, a row of four 18 m downrange of each line and two more down the middle, 0.0.8)');
       assert(ups.has(0) && ups.has(1) && maxJump <= 0.05, `a face goes down and up continuously (${maxJump} a tick)`);
       assert(seenFire >= 2 && L.tiles.length > 0, 'the relay\'s fires and cases');
       assert(gunnerAim && gunnerAim.carry === 'aim' && gunnerAim.aim.x === 1600, `a gunner aims at its own face: ${JSON.stringify(gunnerAim)}`);

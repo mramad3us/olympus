@@ -22,6 +22,9 @@
 // The 0.0.6 round's (the build sheet 0.0.6 §2.3, VIEWS §10.1): R's words are on its plate before it is pressed,
 // R held opens the menu of every single action at hand (cards/actions.js), and in it (MENU_KEYS) the digits and
 // the arrows (Z S) move, Q D change a row's choice, Space checks, Enter does it, Esc or R closes.
+// The 0.0.8 round's (the build sheet 0.0.8 §2.4; COMBAT §25.4.5, §25.11): no new key. While a contact's take-in runs (the
+// amber brackets closing round a target) every key is refused but Space and Esc: the marine has seen it and not yet taken
+// it in, and the keys are his once he has (CONTACT_KEYS says so on the card); at the pause the digits are the rows.
 import { bindingOf } from '../../core/keys.js';
 
 /** The actions with a meaning in this build, in the card's order (the walk and the digits are rows of their own). */
@@ -53,6 +56,9 @@ export const STOP_KEYS = Object.freeze([[['Enter'], 'in stop motion: aim at the 
   [['KeyW', 'KeyS'], 'in stop motion: the scope\'s elevation a click up, down (↑ ↓ too)'], [['run', 'KeyA', 'KeyD'], 'in stop motion, Shift held: the windage a click left, right (← → too)'],
   [['look'], 'held on a KD line: the far window on your target']]);
 
+/** In a contact's take-in, the keys mean (COMBAT §25.4.5): [actions, words]. */
+export const CONTACT_KEYS = Object.freeze([[['pause', 'menu'], 'while a target is being taken in (the amber brackets closing): only these; every other key waits for the pause']]);
+
 /** In the R menu, the keys mean (cards/actions.js; the build sheet 0.0.6 §2.3): [codes or actions, words]. */
 export const MENU_KEYS = Object.freeze([[['Space'], 'in the R menu: check a row (the digits and the arrows move to one; Enter does what is checked)'], [['KeyA', 'KeyD'], 'in the R menu: a row\'s choice (how long, which cut)']]);
 
@@ -66,6 +72,7 @@ export function keysRows({ label, says = {}, extra = [] }) {
   }
   for (const [k, words] of SPLASH_KEYS) rows.push([label(k), words]);
   for (const [ks, words] of STOP_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
+  for (const [ks, words] of CONTACT_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
   for (const [ks, words] of MENU_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
   for (const r of extra) rows.push(r);
   return rows;

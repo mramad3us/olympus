@@ -112,7 +112,10 @@ export default [
       let k = 0;
       for (let n = 0; n < 20 * 60 * 40 && k < at.length && !kdNow(g.state).end; n++) {
         // (a splash's moment: the tick that begins it left open, and the skip moved to its middle, as a save in the page's splash)
-        if (at[k][0].includes('splash')) {
+        // (a fast-forward (an activity past LIVE_MAX_MS 10 s, the 200 m police) ticked to its end as the page's ffFrame does:
+        // tickOpen ticks nothing under a skip, so a loop of it alone would stand there)
+        if (g.state.skip?.engine === 'ff') g.step(1, bot);
+        else if (at[k][0].includes('splash')) {
           g.tickOpen(bot);
           const sk = g.state.skip;
           if (sk && sk.engine !== 'ff') g.advance(sk.fromMs + Math.round((sk.toMs - sk.fromMs) / 2 / 50) * 50);
@@ -137,7 +140,7 @@ export default [
       for (const [what, phase] of [['the corpsman running', 'down'], ['the corpsman at work', 'care'], ['the casualty\'s splash', 'evac']]) {
         if (phase === 'down') c.step(20, cb);
         for (let n = 0; n < 20 * 120 && (kdNow(c.state).casualty?.phase !== phase || (phase === 'evac' && !c.state.skip)); n++) {
-          if (phase === 'evac') { c.tickOpen(cb); const sk = c.state.skip; if (sk && sk.engine !== 'ff') c.advance(sk.fromMs + Math.round((sk.toMs - sk.fromMs) / 2 / 50) * 50); }
+          if (phase === 'evac' && c.state.skip?.engine !== 'ff') { c.tickOpen(cb); const sk = c.state.skip; if (sk && sk.engine !== 'ff') c.advance(sk.fromMs + Math.round((sk.toMs - sk.fromMs) / 2 / 50) * 50); }
           else c.step(1, cb);
         }
         const save = c.save(), h = createGame({ scenario: 'test-range', seed: 7, setup: 'confirm' });

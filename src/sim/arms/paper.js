@@ -34,6 +34,15 @@
 // believed offset; cached. groupOf() and callOf() are the coach's: a group's centre and the clicks that
 // move it onto the mark (a low group dials up; y is down on paper); poolOf() every group since the first as
 // one, each hole moved by the clicks dialled since (a coach's best read of a zero).
+//
+// 0.0.8, the man-target (COMBAT §25.10.3, §25.6.3; the build sheet 0.0.8 §2.2, §8 item 15): the turners' face, a
+// man's silhouette 46 × 76 cm, its torso 46 × 56 cm under a head of 8 cm radius, its A zone 16 × 28 cm on the upper
+// chest (PAPERS.man; centres in cm from the face's centre, y down). A turner is a man-target, so its DC is a
+// person's by the part (shot.js dcOf: torso 0, head +6), not a paper's, and where the round lands is the roll's
+// quality, as a shoot house scores it (COMBAT §25.6.3): manHole() puts a torso round at a margin of A_MARGIN 4 or
+// more (SKILLS §5.6's "good") in the A zone, a pass in the C zone (the torso outside A), a head round that passes in
+// the head; a failed roll is past him into the berm. The place inside its zone by hash of the world's seed and the
+// shot's id, as holeOf's, never the dice.
 // Pure.
 import { hash01 } from '../../core/hash.js';
 import { CLICK_MRAD, ZERO25_MARK_CM } from './ballistics.js';
@@ -48,9 +57,13 @@ export const PAPERS = Object.freeze({
   zero25: Object.freeze({ word: 'the 25 m zeroing card', targetDC: 6, sizeCm: Object.freeze([30, 30]), ringCm: 1.0, kind: 'zero', markCm: Object.freeze([0, -ZERO25_MARK_CM]), gridCm: 1 }),
   kdA: Object.freeze({ word: 'the A target', targetDC: -11, sizeCm: Object.freeze([100, 100]), ringCm: 7.5, kind: 'kd', biasRadiusCm: 30, blackCm: 15 }),
   kdB: Object.freeze({ word: 'the B target', targetDC: -13, sizeCm: Object.freeze([120, 120]), ringCm: 11.25, kind: 'kd', biasRadiusCm: 45, blackCm: 22.5 }),
+  // (0.0.8: the turners' man-target (see the header); no targetDC: its DC is the part's; centres the zones' middles, cm)
+  man: Object.freeze({ word: 'the man-target', kind: 'man', sizeCm: Object.freeze([46, 76]),
+    zones: Object.freeze({ A: Object.freeze([16, 28]), torso: Object.freeze([46, 56]), head: Object.freeze({ r: 8, at: Object.freeze([0, -30]) }) }),
+    centres: Object.freeze({ A: Object.freeze([0, 0]), torso: Object.freeze([0, 10]) }) }),
 });
-/** The papers whose holes are placed in real units (faceHole), not by the margin alone (holeOf). */
-export const isFace = (paperId) => !!PAPERS[paperId]?.kind;
+/** The papers whose holes are placed in real units (faceHole), not by the margin alone (holeOf); the man-target is neither. */
+export const isFace = (paperId) => !!PAPERS[paperId]?.kind && PAPERS[paperId].kind !== 'man';
 /** The rings by the roll's margin, best first (WEAPONS §11.1); below the last, a miss. */
 export const KD_RINGS = Object.freeze([
   Object.freeze({ from: 13, score: 5, v: true, band: 'v', word: 'a V, dead centre' }),
@@ -213,4 +226,42 @@ export function callOf(paperId, centreCm, rangeM, { targetCm = PAPERS[paperId]?.
   const k = cmPerClick(rangeM), dx = centreCm[0] - targetCm[0], dy = centreCm[1] - targetCm[1];
   const elev = Math.round(dy / k) || 0, wind = Math.round(-dx / k) || 0;
   return { elev, wind, words: clickWords({ elev, wind }) };
+}
+
+// ---- 0.0.8: the man-target (see the header) ----
+
+/** The margin a torso round needs for the A zone, and a head round for a steel head plate to fall (SKILLS §5.6's "good"). */
+export const A_MARGIN = 4;
+/** A man-target's zones' words. */
+export const MAN_WORDS = Object.freeze({ A: 'in the A zone', C: 'in the C zone', head: 'in the head', miss: 'past him, into the berm' });
+// (whether a point lies in a box of [w, h] centred at c)
+const inBox = ([x, y], [w, h], [cx, cy]) => Math.abs(x - cx) <= w / 2 && Math.abs(y - cy) <= h / 2;
+/** The zone a torso or head round earns by its roll: 'A', 'C', 'head' or null (past him). */
+export function manZone(part, roll) {
+  if (!roll?.ok) return null;
+  if (part === 'head') return 'head';
+  return roll.margin >= A_MARGIN && roll.nat !== 1 ? 'A' : 'C';
+}
+/**
+ * Where a round lands on the man-target (see the header): { at: [xCm, yCm] | null, zone: 'A' | 'C' | 'head' | null, word }.
+ * face: the turner's face ('threat', 'noshoot', 'armoured'): the same silhouette, the words alike.
+ */
+export function manHole(face, part, roll, shotId, seed = 0) {
+  const P = PAPERS.man, Z = P.zones, zone = manZone(part, roll), h = (k, i = 0) => hash01('hole', seed, shotId, k, i);
+  if (!zone) return { at: null, zone: null, word: MAN_WORDS.miss };
+  let at;
+  if (zone === 'head') {
+    const t = h('angle') * Math.PI * 2, d = Math.sqrt(h('radius')) * Z.head.r;
+    at = [Z.head.at[0] + Math.cos(t) * d, Z.head.at[1] + Math.sin(t) * d];
+  } else if (zone === 'A') {
+    at = [P.centres.A[0] + (h('x') - 0.5) * Z.A[0], P.centres.A[1] + (h('y') - 0.5) * Z.A[1]];
+  } else {
+    // (the C zone: the torso outside A, by tries of the hash; never in A, a last try pushed out to the side)
+    for (let i = 0; i < 8 && !at; i++) {
+      const p = [P.centres.torso[0] + (h('x', i) - 0.5) * Z.torso[0], P.centres.torso[1] + (h('y', i) - 0.5) * Z.torso[1]];
+      if (!inBox(p, Z.A, P.centres.A)) at = p;
+    }
+    if (!at) { const s = h('side') < 0.5 ? -1 : 1; at = [P.centres.A[0] + s * (Z.A[0] / 2 + h('x', 9) * (Z.torso[0] - Z.A[0]) / 2), P.centres.torso[1] + (h('y', 9) - 0.5) * Z.torso[1]]; }
+  }
+  return { at: [r1(at[0]), r1(at[1])], zone, word: MAN_WORDS[zone] };
 }

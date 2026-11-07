@@ -26,9 +26,9 @@
 //     the score disk on its pole at the face's right shoulder (a white disc with the value's digit, 10 px across
 //     at 16 px/m, rising on its pole over DISK_RISE_MS and going down the same way), missFlagPixels() the red
 //     flag waved across the face for a miss;
-//   - THE FLAGS: sleevePixels() a range flag's sleeve on its pole's top, blowing toward the sim's wind (flagOf's
-//     towardRad, the way it blows to) and lifted by its strength (liftK 0 limp along the pole to 1 straight out),
-//     in red and white bands, its tail stirring on game time;
+//   - THE FLAGS: sleevePixels() a range flag's sleeve on its hoop at its pole's top, blowing toward the sim's wind
+//     (flagOf's towardRad, the way it blows to), its five red and white bands filling one by one with its strength
+//     (liftK, a band each 1.5 m/s), its shadow on the ground downwind, fluttering on game time (the user's report of v0.0.7: see the function);
 //   - THE RELAY: flashPixels() and dustPixels() for every shooter's fire (sitting as well: drawnMuzzleM's 'sit'),
 //     tilePixels() the cases at rest on a metre tile (rangeLook.kd.tiles: up to TILE_CASES_MAX drawn, scattered by
 //     hash in the tile's half nearest its middle), bermDustPixels() a round's dust off the berm's face.
@@ -265,13 +265,18 @@ export const FACE_UP_Y = 1.9, FACE_DOWN_Y = -0.6;
 export const DISK_PX = 10, DISK_RISE_MS = 300;
 /** The miss's red flag waved across the face: its size (m) and its wave's period (game ms). */
 export const MISS_FLAG_M = Object.freeze([0.9, 0.6]), MISS_WAVE_MS = 700;
-/** A flag's sleeve: its length and its mouth's and tail's diameters (m: drawn bigger than life, the kit's way with small things, so its way and its lift read at 16 px/m), its bands, its stir (game ms). */
-export const SLEEVE_M = Object.freeze({ len: 2.2, mouth: 0.55, tail: 0.25, poleTop: 4.5 }), SLEEVE_BANDS = 5, SLEEVE_STIR_MS = 350;
+/** A flag's sleeve: its length and its mouth's and tail's diameters (m: drawn bigger than life, the kit's way with small things, so its way and its lift read at 16 px/m), its bands (wind.js FLAG_BANDS). */
+export const SLEEVE_M = Object.freeze({ len: 2.8, mouth: 0.5, tail: 0.22, poleTop: 4.5 }), SLEEVE_BANDS = 5;
+/** The sleeve's hoop on its swivel, downwind of the pole (m); a slack band's hang and a full band's sag, each in a calm and in a gale (degrees below level); a slack band's share of its width (0.55 in the first cut: a sleeve blowing toward the camera read the same limp or straight out, the verifier's); the flutter's swing (degrees) and period (game ms). */
+export const SLEEVE_ARM_M = 0.15, SLEEVE_HANG_DEG = Object.freeze([80, 65]), SLEEVE_SAG_DEG = Object.freeze([16, 3]), SLEEVE_SLACK_K = 0.4, SLEEVE_FLUTTER_DEG = 5, SLEEVE_FLUTTER_MS = 900;
+/** The sleeve's shadow: how high it lies over the ground (m: the decals' lift). A slack band's creases: a darker row every SLEEVE_CREASE_PX rows of the picture. */
+export const SHADOW_Y_M = 0.012, SLEEVE_CREASE_PX = 3;
 /** The most cases drawn on a metre tile at rest (a tile's count can be the relay's whole string). */
 export const TILE_CASES_MAX = 10;
 /** A round's dust off the berm: motes, how high they go (m), the whole of it (game ms). */
 export const BERM_DUST_N = 10, BERM_DUST_UP_M = 0.9, BERM_DUST_MS = 1600;
-const SPOT = 0xf08a2a, SPOT_C = 0x1a1214, DISK = 0xf4efe6, DISK_INK = 0x1a1214, POLE = 0xb7b0a8, SLEEVE = [0xe85a3a, 0xf4efe6], MISS = 0xc23b2e;
+const SPOT = 0xf08a2a, SPOT_C = 0x1a1214, DISK = 0xf4efe6, DISK_INK = 0x1a1214, POLE = 0xb7b0a8, SLEEVE = [0xe85a3a, 0xf4efe6], MISS = 0xc23b2e, HOOP = 0x14161a, INSIDE = 0x241010, SHADOW = 0x24191a;
+const DEG = Math.PI / 180;
 /** A face's drawn left edge behind the face's line (m): just clear of the parapet's back. */
 export const FACE_BEHIND_M = 0.06;
 /** How far the face's overlays stand toward the camera from its plane (m: the 25 m card's HOLE_LIFT_M). */
@@ -312,6 +317,29 @@ export function spotterPixels(fa, at, ppm = PX_PER_M) {
     const ring = Math.max(Math.abs(dx), Math.abs(dy));
     if (ring === 2 && Math.abs(dx) === 2 && Math.abs(dy) === 2) continue;   // (its corners off: round)
     out.push({ x: h.x + dx * P, y: h.y - dy * P, z: h.z + 0.01, c: ring === 2 || ring === 0 ? SPOT_C : SPOT });
+  }
+  return out;
+}
+/** The stake's height (m: art/kit/range.js kdPoint's H) and the mark's caret over your own plate (rows, px). */
+export const STAKE_H_M = 0.6, OWN_CARET_ROWS = 3;
+/**
+ * Your own point's mark on its numbered stake (0.0.7's tower fixer; the user's report of 2026-11-07, "did call me line 5
+ * when I'm line 10"): a frame of brass a pixel outside the plate the kit paints (kdPoint: the number on the Corps' red,
+ * its size the font's at ppm), and a caret over it pointing down, so the stake on your row reads as yours among twenty.
+ * own: rangeLook.kd.own ({ x, z, text }). Pixels { x, y, z, c } in metres, unlit by the outline (noLine).
+ */
+export function ownPointPixels(own, ppm = PX_PER_M) {
+  if (!own) return [];
+  const f = fontFor(ppm), P = 1 / ppm, text = String(own.text ?? '');
+  const pw = Math.max(0.3, (f.width(text || '0') + 3) / ppm), ph = Math.max(0.25, (f.h + 3) / ppm), H = STAKE_H_M;
+  const nx = Math.round(pw * ppm) + 2, ny = Math.round(ph * ppm) + 2, x0 = own.x - pw / 2 - P / 2, y0 = H - ph - P / 2, z = own.z + 0.08, out = [];
+  for (let i = 0; i < nx; i++) { out.push({ x: x0 + i * P, y: y0, z, c: BRASS }); out.push({ x: x0 + i * P, y: y0 + (ny - 1) * P, z, c: BRASS }); }
+  for (let j = 1; j < ny - 1; j++) { out.push({ x: x0, y: y0 + j * P, z, c: BRASS }); out.push({ x: x0 + (nx - 1) * P, y: y0 + j * P, z, c: BRASS }); }
+  // (the caret: rows of 5, 3 and 1 pixels over the frame's top, pointing down at the plate)
+  const top = y0 + (ny - 1) * P, cx = own.x;
+  for (let r = 0; r < OWN_CARET_ROWS; r++) {
+    const half = r;
+    for (let dx = -half; dx <= half; dx++) out.push({ x: cx + dx * P, y: top + (2 + r) * P, z, c: BRASS_L });
   }
   return out;
 }
@@ -360,31 +388,122 @@ export function missFlagPixels(fa, k, ms, ppm = PX_PER_M) {
 const tone8 = (c) => (((c >> 16) & 255) * 0.75 << 16) | (((c >> 8) & 255) * 0.75 << 8) | ((c & 255) * 0.75);
 /**
  * A range flag's sleeve on its pole at { x, z } (rangeLook.kd.flags: towardRad the way the wind blows it, x east and
- * z south; liftK 0 limp to 1 straight out) at game time ms: [{ x, y, z, c }] metres. Its axis from the pole's top
- * toward the wind's way, drooping (1 − liftK) × 80° below level; its width tapering from the mouth to the tail; its
- * bands red and white; its tail stirring a pixel on SLEEVE_STIR_MS. Seen from the south at 45°, a point at height y
- * shows where the ground at z − y does, so a sleeve blowing north rises up the picture, one blowing east lies across it.
+ * z south; liftK the share of its SLEEVE_BANDS bands the wind fills, wind.js flagOf: speedMs / FLAG_FULL_MS 7.5, so
+ * a band a FLAG_BAND_MS 1.5 m/s, a real sleeve's 3 knots) at game time ms: [{ x, y, z, c, flat?, shadow? }] metres.
+ * The picture cannot tell north from up (seen from the south at 45°, a point at height y shows where the ground at
+ * z − y does), so a sleeve streaming across the line of fire, the wind that matters on a range firing east, ran up
+ * or down its own pole and read as limp (the user's report of v0.0.7, 2026-11-07: "the wind hose doesn't match the
+ * wind instructions", a 3 m/s wind from the right drawn straight down the pole). It is drawn so that it reads in
+ * every direction, a sleeve as it truly hangs (my calls):
+ *   - THE HOOP: the mouth on a rigid ring at the pole's top, SLEEVE_ARM_M downwind of it on its swivel, upright
+ *     and square to the wind: seen edge-on (a dark bar) in a wind along the line, face-on in a crosswind; a sleeve
+ *     blowing away from the camera (north, a wind from the right of a shooter facing east) shows its open mouth, the
+ *     dark inside ringed by the hoop, at the pole's top; one blowing toward it (south) covers the hoop with its body;
+ *   - THE BANDS FILL as a real sleeve's do: band i full from (i + 1) × FLAG_BAND_MS, a full band out near level
+ *     (SLEEVE_SAG_DEG, 16° below in a breeze to 3° straight out), a slack one hanging SLEEVE_HANG_DEG 80° below in a
+ *     calm (65° as the rest fill), narrower (SLEEVE_SLACK_K of its width) and creased (a darker row every
+ *     SLEEVE_CREASE_PX), a band filling between: so the count of full bands, wide and smooth, is the speed, two at
+ *     3 m/s, limp under 1.5, straight out at 7.5, whichever way it blows. Blowing toward the camera (south, a wind from
+ *     the left) a full band and a hanging one draw the same way down the picture (a point at height y shows where the
+ *     ground at z − y does), so there the width and the creases tell them apart, and a sleeve straight out shows its
+ *     tail's open end, dark, at its foot (an opening is seen when it faces the camera, the mouth's rule); 2.8 m long and 0.5 m across its
+ *     mouth (bigger than life, the kit's way, and longer than 0.0.7's 2.2 m so two bands streaming away from the
+ *     camera still stand clear of the hoop);
+ *   - THE SHADOW: its body's track on the ground straight below it (a blob, the figures' way, not the sun's),
+ *     dark, three pixels in four within and every other one at its edge (every other one throughout in the first
+ *     cut, which read as a smear on the pole's own line in a north or south wind, the verifier's), from under the hoop
+ *     downwind: the ground's plane shows north and south where height cannot;
+ *   - THE FLUTTER: the slack bands' hang swinging a few degrees on SLEEVE_FLUTTER_MS of game time, its phase by the
+ *     pole, and the gusts filling and emptying the bands (flagOf's speed is the gusting wind's).
+ * The body is stamped as discs along its axis, farthest from the camera first, so the nearest band shows, and its
+ * silhouette's edge is a shade darker; the shadow's pixels lie flat (shadow: true, no outline round them).
  */
 export function sleevePixels(flag, ms, ppm = PX_PER_M) {
-  const P = 1 / ppm, lift = Math.max(0, Math.min(1, flag.liftK ?? 0)), droop = (1 - lift) * 80 * Math.PI / 180;
-  const t = flag.towardRad ?? 0, dx = Math.cos(t) * Math.cos(droop), dz = Math.sin(t) * Math.cos(droop), dy = -Math.sin(droop);
-  const L = SLEEVE_M.len, steps = Math.max(8, Math.round(2 * L * ppm)), out = [], seen = new Set();   // (half-pixel steps along and across: a diagonal sleeve with no gaps)
-  const stir = Math.floor(ms / SLEEVE_STIR_MS) % 2;
-  const top = (flag.poleTop ?? SLEEVE_M.poleTop) - 0.05, z0 = flag.z + 0.06;
-  // (the screen's up: what a pixel's offset across the sleeve runs along; its axis in picture pixels: x, and z − y)
-  const sx = dx, sy = dz - dy, sl = Math.hypot(sx, sy) || 1, nx = -sy / sl, ny = sx / sl;
+  const P = 1 / ppm, lift = Math.max(0, Math.min(1, flag.liftK ?? 0)), filled = lift * SLEEVE_BANDS;
+  const t = flag.towardRad ?? 0, hx = Math.cos(t), hz = Math.sin(t), L = SLEEVE_M.len;
+  const top = (flag.poleTop ?? SLEEVE_M.poleTop) - 0.08, r0 = SLEEVE_M.mouth / 2;
+  const cx = flag.x + hx * SLEEVE_ARM_M, cz = flag.z + hz * SLEEVE_ARM_M;
+  const sag = (SLEEVE_SAG_DEG[0] + (SLEEVE_SAG_DEG[1] - SLEEVE_SAG_DEG[0]) * lift) * DEG, hang = (SLEEVE_HANG_DEG[0] + (SLEEVE_HANG_DEG[1] - SLEEVE_HANG_DEG[0]) * lift) * DEG;
+  const ph = 2 * Math.PI * hash01('sleeve', flag.x, flag.z), wave = 2 * Math.PI * ms / SLEEVE_FLUTTER_MS;
+  // (the axis: from the hoop's centre band by band, each at its own angle below level; d the body's diameter there)
+  const steps = Math.max(SLEEVE_BANDS * 4, Math.round(2 * L * ppm)), axis = [];
+  // (a band's width share: 1 full to SLEEVE_SLACK_K slack; the hoop holds the mouth open, so band 0 starts at 1, and
+  // each band eases from the last's over its first third)
+  const fillOf = (i) => Math.max(0, Math.min(1, filled - i)), kOf = (i) => (i < 0 ? 1 : SLEEVE_SLACK_K + (1 - SLEEVE_SLACK_K) * fillOf(i));
+  let x = cx, y = top, z = cz;
   for (let s = 0; s <= steps; s++) {
-    const f = s / steps, wob = f > 0.6 ? (stir ? 1 : -1) * (f - 0.6) * 1.5 * P * (1.2 - lift) : 0;
-    const x = flag.x + dx * L * f + nx * wob, y = top + dy * L * f, z = z0 + dz * L * f;
-    const half = ((SLEEVE_M.mouth + (SLEEVE_M.tail - SLEEVE_M.mouth) * f) * ppm) / 2;
-    const band = Math.min(SLEEVE_BANDS - 1, Math.floor(f * SLEEVE_BANDS)), c = SLEEVE[band % 2];
-    for (let o = -half; o <= half; o += 0.5) {
-      // (across the axis on the picture: a pixel along the normal, put back at the sleeve's own depth)
-      const gx = Math.round((x + nx * o * P) * ppm), gy = Math.round(((z - y) + ny * o * P) * ppm);
-      const key = `${gx},${gy}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ x: (gx + 0.5) * P, y: snap(y, ppm) + 0.5 * P, z: (gy + 0.5) * P + snap(y, ppm) + 0.5 * P, c: Math.abs(o) > half - 1 ? tone8(c) : c });
+    const along = s / steps, i = Math.min(SLEEVE_BANDS - 1, Math.floor(along * SLEEVE_BANDS)), u = along * SLEEVE_BANDS - i;
+    const fill = fillOf(i), k = kOf(i - 1) + (kOf(i) - kOf(i - 1)) * Math.min(1, u * 3);
+    const d = (SLEEVE_M.mouth + (SLEEVE_M.tail - SLEEVE_M.mouth) * along) * k;
+    axis.push({ x, y, z, d, band: i, fill });
+    const a = hang + (sag - hang) * fill + SLEEVE_FLUTTER_DEG * DEG * (1 - 0.8 * fill) * Math.sin(wave + ph + i * 0.9);
+    const ds = L / steps;
+    x += hx * Math.cos(a) * ds; z += hz * Math.cos(a) * ds; y -= Math.sin(a) * ds;
+  }
+  // (the picture: a pixel per (gx, gy), the last stamp kept; depth toward the camera is z + y)
+  const pic = new Map();
+  // (the mouth's side of the picture: a body pixel near the hoop on its upwind side is cut, so the mouth ends square
+  // at the hoop and not in a ball; along the first band's way as the picture has it)
+  const a0 = hang + (sag - hang) * fillOf(0), mx = hx * Math.cos(a0), my = hz * Math.cos(a0) + Math.sin(a0), ml = Math.hypot(mx, my) || 1;
+  const hqx = cx * ppm, hqy = (cz - top) * ppm, NEAR_M = SLEEVE_M.mouth;
+  const stamp = (q, rM, c, cut = false, body = true, crease = false) => {
+    const R = rM * ppm, qx = q.x * ppm, qy = (q.z - q.y) * ppm, yv = snap(q.y, ppm) + 0.5 * P;
+    for (let gy = Math.floor(qy - R); gy <= Math.ceil(qy + R); gy++) for (let gx = Math.floor(qx - R); gx <= Math.ceil(qx + R); gx++) {
+      const e = Math.hypot(gx + 0.5 - qx, gy + 0.5 - qy);
+      if (e > R + 0.15) continue;
+      if (cut && ((gx + 0.5 - hqx) * mx + (gy + 0.5 - hqy) * my) / ml < -0.5) continue;
+      pic.set(`${gx},${gy}`, { x: (gx + 0.5) * P, y: yv, z: (gy + 0.5) * P + yv, c: crease && ((gy % SLEEVE_CREASE_PX) + SLEEVE_CREASE_PX) % SLEEVE_CREASE_PX === 0 ? tone8(c) : c, body });
+    }
+  };
+  // (the hoop: a ring square to the wind; its inside seen when it faces the camera (the wind from the south: hz < 0))
+  const hoop = [], H = 24;
+  for (let j = 0; j < H; j++) {
+    const f = 2 * Math.PI * j / H, a = Math.cos(f) * r0, b = Math.sin(f) * r0;
+    hoop.push({ x: cx - hz * a, y: top + b, z: cz + hx * a });
+  }
+  const facing = -hz, ring = () => { for (const q of hoop) stamp(q, 0.6 / ppm, HOOP, false, false); };
+  if (facing <= 0.2) ring();
+  const order = axis.map((q, i) => ({ q, i, depth: q.z + q.y })).sort((a, b) => a.depth - b.depth || b.i - a.i);
+  for (const { q, i } of order) stamp(q, q.d / 2, SLEEVE[q.band % 2], i * L / steps < NEAR_M, true, q.fill < 0.5);
+  // (the tail's open end, when its last band is full and the tail faces the camera (along its axis, + toward the
+  // south and up: the camera's side): a dark disc inside its rim at the tail's end)
+  const qe = axis.at(-1), qp = axis.at(-2), tl = Math.hypot(qe.x - qp.x, qe.y - qp.y, qe.z - qp.z) || 1, tailFacing = ((qe.z - qp.z) + (qe.y - qp.y)) / tl / Math.SQRT2;
+  if (qe.fill > 0.6 && tailFacing > 0.3) {
+    const R = qe.d / 2 * ppm - 1, qx = qe.x * ppm, qy = (qe.z - qe.y) * ppm, yv = snap(qe.y, ppm) + 0.5 * P;
+    for (let gy = Math.floor(qy - R); gy <= Math.ceil(qy + R); gy++) for (let gx = Math.floor(qx - R); gx <= Math.ceil(qx + R); gx++) {
+      if (Math.hypot(gx + 0.5 - qx, gy + 0.5 - qy) > Math.max(0.75, R)) continue;
+      pic.set(`${gx},${gy}`, { x: (gx + 0.5) * P, y: yv, z: (gy + 0.5) * P + yv, c: INSIDE, body: false });
+    }
+  }
+  if (facing > 0.2) {
+    // (the open mouth: the dark inside, the hoop's disc as the picture has it (an offset (X, Y) from its centre is the
+    // disc's (a, b) with X = −hz·a, Y = hx·a − b), then the hoop round it)
+    const R = r0 * ppm;
+    for (let gy = Math.floor(hqy - 2 * R); gy <= Math.ceil(hqy + 2 * R); gy++) for (let gx = Math.floor(hqx - R); gx <= Math.ceil(hqx + R); gx++) {
+      const a = -(gx + 0.5 - hqx) / hz, b = hx * a - (gy + 0.5 - hqy);
+      if (a * a + b * b > R * R) continue;
+      const yv = snap(top + b * P, ppm) + 0.5 * P;
+      pic.set(`${gx},${gy}`, { x: (gx + 0.5) * P, y: yv, z: (gy + 0.5) * P + yv, c: INSIDE, body: false });
+    }
+    ring();
+  } else if (facing > -0.2) ring();
+  // (the body's silhouette a shade darker at its edge, the bands their own colours within: the stage inks round the lot)
+  const out = [];
+  for (const [key, p] of pic) {
+    const [gx, gy] = key.split(',').map(Number), edge = p.body && !(pic.has(`${gx - 1},${gy}`) && pic.has(`${gx + 1},${gy}`) && pic.has(`${gx},${gy - 1}`) && pic.has(`${gx},${gy + 1}`));
+    out.push({ x: p.x, y: p.y, z: p.z, c: edge ? tone8(p.c) : p.c });
+  }
+  // (the shadow: the body's track on the ground, straight below it, three pixels in four within, every other one at its edge)
+  const ground = new Set();
+  for (const q of axis) {
+    const R = q.d / 2 * ppm, qx = q.x * ppm, qz = q.z * ppm;
+    for (let gz = Math.floor(qz - R); gz <= Math.ceil(qz + R); gz++) for (let gx = Math.floor(qx - R); gx <= Math.ceil(qx + R); gx++) {
+      const e = Math.hypot(gx + 0.5 - qx, gz + 0.5 - qz);
+      if (e > R || (e > R - 1.2 ? (gx + gz) & 1 : (gx & 1) && (gz & 1))) continue;
+      const key = `${gx},${gz}`;
+      if (ground.has(key)) continue;
+      ground.add(key);
+      out.push({ x: (gx + 0.5) * P, y: SHADOW_Y_M, z: (gz + 0.5) * P, c: SHADOW, flat: true, shadow: true });
     }
   }
   return out;
@@ -411,6 +530,219 @@ export function bermDustPixels(d, ms, ppm = PX_PER_M) {
     if (y < 0) continue;
     if (h('stay') > 1 - t * 1000 / BERM_DUST_MS) continue;
     out.push({ x: snap(d.x + back * t, ppm), y: snap(y, ppm) + 0.5 / ppm, z: snap(d.z + side * t, ppm) + 0.05, c: DUST[i % DUST.length], flat: false });
+  }
+  return out;
+}
+
+// ---------- 0.0.8: the pairs pad's turning targets (the build sheet 0.0.8 §2.4, §4's face; VIEWS §7.4, §11) ----------
+//
+// A turner's face (rangeLook.pairs.turners: { key, lane, x, z, y (its centre's height), facingK 0 edge-on to 1 facing,
+// face 'paper' | 'armoured' | null (the threat's and the no-shoot's board alike: see below), holds (what the marine has
+// identified it holding, else null), holes, down, plateAtMs }) is drawn TURNER_K times life size, as
+// the KD faces are FACE_K (a 0.46 × 0.76 m man-target 15 × 24 px at 16 px/m, beside a chibi of 34: man-sized), facing
+// the camera as every target on the range is (the range's convention: src/art/kit/range.js's header), its drawn
+// width the face's × facingK, at least the one pixel of its edge: so it turns over its real TURN_MS, a pixel or two a
+// frame, and never jumps; edge-on it is a thin dark line on its stand, and the face hung on it changes only then (the
+// scene hangs it edge-on). Its painting (turnerFace): a man-target's silhouette cut from board (the head a disc 8 cm
+// across its radius at [0, −30] cm, the shoulders rounding into a torso 46 cm wide, the A zone's perforations 16 × 28
+// cm at its middle where the density parts them), every paper face one board colour, khaki, threat and no-shoot alike,
+// with what it holds painted in the hands only once the marine has identified it (pairs.js seenFace: a rifle across the
+// body, a pistol held out at the chest, open hands raised, a phone at the ear), the armoured silhouette steel-grey with
+// its plate on the chest and its head plate (steel is seen as steel). The picture draws what the character perceives
+// (PEOPLE §7.6; COMBAT §25.4.6; the fixer's of 0.0.8, after the reviews: olive for a threat and pale for a no-shoot
+// from the turn, at 15 × 24 px, gave the answer before the take-in, and the identification and Challenge nothing to do).
+// Holes (turnerHolePixel): where the shot put them on the face (cm from its centre, x right, y down), dark through
+// board, a lead splash where a round rang on steel and a dark hole where one went through it; a new one puffs as the
+// card's do. The steel's spark (sparkPixels): a round that rings throws SPARK_N sparks off the plate for SPARK_MS of
+// game time, flung from the strike and falling, and the strike's white flash for its first tick, drawn unlit (a light
+// of its own). The head plate knocked down (plateAtMs) falls off the face under Mars' gravity, drifting off its hinge, to
+// the ground in front of the stand, where it lies (nothing pops out of view), its hinge left; each round that rings rocks
+// the face a pixel over ROCK_MS (the fixer's of 0.0.8, after the design review: at 16 px/m the steel's moment hardly
+// showed in the picture: a 180 ms spark and a head plate gone in a few pixels).
+/** The turner's face drawn this many times life size (as the KD faces' FACE_K; my call, the build sheet 0.0.8 §4). */
+export const TURNER_K = 2;
+/** The face's size and its centre's height when the look gives none (m: the scene's PAIRS.face, the build sheet 0.0.8 §2.3). */
+export const TURNER_FACE_M = Object.freeze({ wM: 0.46, hM: 0.76, centreY: 1.35 });
+/** The man-target's silhouette (cm from the face's centre, y down: paper.js PAPERS.man's zones, §2.2). */
+export const MAN_CM = Object.freeze({ w: 46, h: 76, head: Object.freeze({ r: 8, at: Object.freeze([0, -30]) }), A: Object.freeze([16, 28]), torsoTop: -18 });
+/** The steel's spark: how long (game ms), how many, how fast they fly (m/s), and the strike's flash (game ms). */
+export const SPARK_MS = 180, SPARK_N = 9, SPARK_V_MS = 6, SPARK_FLASH_MS = 50;
+/** The head plate knocked down: its drift off the hinge (m/s, sideways) as it falls at Mars' gravity, and its fall's end (game ms: from the head's height to the ground). */
+export const PLATE_DRIFT_MPS = 0.35, PLATE_FALL_MS = 1100;
+/** A round that rings rocks the face a pixel one way then back over this long (game ms). */
+export const ROCK_MS = 120;
+/** The face's pixels stand this far off the stand toward the camera (m: as HOLE_LIFT_M, so it wins the depth test against the shaft and clamp), its holes a little more. */
+export const TURNER_LIFT_M = 0.2, TURNER_HOLE_LIFT_M = 0.24;
+/** The outline's parts: a turner's face is its own part (lane + this), so the outline pass inks round its silhouette. */
+export const TURNER_PART = 0xa5a5c1;
+const TURNER_C = Object.freeze({
+  // (every paper face one khaki board, threat or no-shoot, so it stands off the regolith's orange and the cards' white
+  // and says nothing of its kind (see the header); my call)
+  paper: Object.freeze({ face: 0x9c9474, edge: 0x4a4636, zone: 0xb3ab8a, hold: 0x14120f }),
+  threat: Object.freeze({ face: 0x9c9474, edge: 0x4a4636, zone: 0xb3ab8a, hold: 0x14120f }),
+  noshoot: Object.freeze({ face: 0x9c9474, edge: 0x4a4636, zone: 0xb3ab8a, hold: 0x14120f }),
+  armoured: Object.freeze({ face: 0x7c8592, edge: 0x3b3f4a, zone: 0x5b636f, plate: 0x4e5560, head: 0x98a2ae, hold: 0x231c1c }),
+});
+const SKIN = 0xd99a7a, PHONE = 0x1d1d24, SPLASH = 0xc9ccd2, SPARK_C = Object.freeze([0xfff6c8, 0xffd36a, 0xff9a3a]);
+/** Whether a cm point lies on the man-target's silhouette, and on which part ('head', 'neck', 'torso'), or null. */
+export function manPart(xCm, yCm) {
+  const H = MAN_CM.head, w2 = MAN_CM.w / 2;
+  if (Math.hypot(xCm - H.at[0], yCm - H.at[1]) <= H.r) return 'head';
+  if (Math.abs(xCm) <= 4 && yCm >= H.at[1] + H.r - 1 && yCm < MAN_CM.torsoTop) return 'neck';
+  if (yCm >= MAN_CM.torsoTop && yCm <= MAN_CM.h / 2) {
+    // (the shoulders round from 17 cm a side at the torso's top to the full 23 six centimetres down)
+    const half = yCm < MAN_CM.torsoTop + 6 ? w2 - 6 + (yCm - MAN_CM.torsoTop) : w2;
+    if (Math.abs(xCm) <= half) return 'torso';
+  }
+  return null;
+}
+/** The face's size in pixels at the density: { w, h, k (px a cm) } (15 × 24 at 16 px/m). */
+export function turnerPx(ppm = PX_PER_M, F = TURNER_FACE_M) {
+  return { w: Math.max(5, Math.round(F.wM * TURNER_K * ppm)), h: Math.max(8, Math.round(F.hM * TURNER_K * ppm)), k: TURNER_K * ppm / 100 };
+}
+const faceMemo = new Map();
+/**
+ * A face's painting: { w, h, cells: [colour | null] (row by row, null clear), edge (the one pixel seen edge-on, top to
+ * bottom) }, by its kind and what it holds (remembered). kind 'paper' | 'armoured' (and 'threat', 'noshoot': the paper's
+ * board); holds 'rifle' |
+ * 'pistol' | 'hands' | 'phone' | null; head false once its plate is gone (the armoured's).
+ */
+export function turnerFace(kind = 'paper', holds = null, ppm = PX_PER_M, { head = true } = {}) {
+  const key = `${kind}|${holds}|${ppm}|${head}`;
+  if (faceMemo.has(key)) return faceMemo.get(key);
+  const { w, h } = turnerPx(ppm), C0 = TURNER_C[kind] ?? TURNER_C.threat, cells = new Array(w * h).fill(null);
+  const cm = (i, j) => [((i + 0.5) / w - 0.5) * MAN_CM.w, ((j + 0.5) / h - 0.5) * MAN_CM.h];
+  const partAt = (i, j) => (i < 0 || j < 0 || i >= w || j >= h ? null : manPart(...cm(i, j)));
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const p = partAt(i, j);
+    if (!p || (!head && p === 'head')) continue;
+    const [x, y] = cm(i, j);
+    // (the edge where a neighbour is off the silhouette: the board's cut edge, darker)
+    const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([di, dj]) => { const q = partAt(i + di, j + dj); return !q || (!head && q === 'head'); });
+    let c = edge ? C0.edge : C0.face;
+    if (kind === 'armoured' && p === 'head') c = edge ? C0.edge : C0.head;
+    else if (kind === 'armoured' && p === 'torso' && Math.abs(x) <= 12 && y >= -12 && y <= 16 && !edge) c = C0.plate;
+    // (the A zone's perforation, a dotted line where the density gives it three pixels or more inside)
+    else if (!edge && kind !== 'armoured' && w >= 12) {
+      const [aw, ah] = MAN_CM.A, hx = MAN_CM.w / w / 2, hy = MAN_CM.h / h / 2;
+      const onX = Math.abs(Math.abs(x) - aw / 2) < hx && Math.abs(y) <= ah / 2, onY = Math.abs(Math.abs(y) - ah / 2) < hy && Math.abs(x) <= aw / 2;
+      if ((onX || onY) && (i + j) % 2 === 0) c = C0.zone;
+    }
+    cells[j * w + i] = c;
+  }
+  const put = (xCm, yCm, wCm, hCm, c) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const [x, y] = cm(i, j);
+      if (x >= xCm - wCm / 2 && x <= xCm + wCm / 2 && y >= yCm - hCm / 2 && y <= yCm + hCm / 2) cells[j * w + i] = c;
+    }
+  };
+  // (what it holds, painted in its hands: never more than the board would carry)
+  if (holds === 'rifle') { put(2, 8, 40, 3.2, C0.hold); put(-12, 12, 5, 4, C0.hold); }
+  else if (holds === 'pistol') { put(0, 4, 7, 9, C0.hold); put(0, 10, 9, 4, SKIN); }
+  // (open hands raised beside the head, inside the brackets' corners so the pick's brackets never hide them)
+  else if (holds === 'hands') { put(-13, -25, 6, 8, SKIN); put(13, -25, 6, 8, SKIN); }
+  else if (holds === 'phone') { put(7, -29, 4, 8, PHONE); put(8, -24, 6, 5, SKIN); }
+  // (seen edge-on: the board's edge down its middle, where the silhouette is)
+  const mid = Math.floor(w / 2), edge = [];
+  for (let j = 0; j < h; j++) edge.push(cells[j * w + mid] ? C0.edge : null);
+  const out = { w, h, cells, edge, kind };
+  faceMemo.set(key, out);
+  return out;
+}
+/**
+ * Where a turner's face is drawn: { x0, x1 (its drawn columns' edges), cx, yTop, yBot, cy, z, w, h, dw (the drawn
+ * width in pixels: w × facingK, at least 1), k (px a cm), facingK }. The face turns about its middle (the shaft).
+ */
+export function turnerAt(t, ppm = PX_PER_M, F = TURNER_FACE_M) {
+  const { w, h, k } = turnerPx(ppm, F), fk = Math.max(0, Math.min(1, Number(t.facingK) || 0));
+  const dw = Math.max(1, Math.round(w * fk)), cx = snap(t.x, ppm), cy = t.y ?? F.centreY;
+  const yTop = snap(cy + h / ppm / 2, ppm), x0 = cx - Math.floor(dw / 2) / ppm;
+  return { x0, x1: x0 + dw / ppm, cx, yTop, yBot: yTop - h / ppm, cy: yTop - h / ppm / 2, z: snap(t.z, ppm), w, h, dw, k, facingK: fk };
+}
+/** A face's pixel column for a drawn column (0 … dw − 1): the painting's column it shows, foreshortened. */
+const srcCol = (i, dw, w) => Math.min(w - 1, Math.floor((i + 0.5) * w / dw));
+/** A hole's pixel on a turner's face as drawn (cm from its centre, x right, y down): { x, y, z, i, j } or null off the face. */
+export function turnerHolePixel(ta, hole, ppm = PX_PER_M) {
+  const i = Math.floor(ta.w / 2 + hole.xCm * ta.k), j = Math.floor(ta.h / 2 + hole.yCm * ta.k);
+  if (i < 0 || i >= ta.w || j < 0 || j >= ta.h) return null;
+  // (on a face turned part-way, the drawn column that shows the painting's column i)
+  const di = ta.dw >= ta.w ? i : Math.min(ta.dw - 1, Math.floor(i * ta.dw / ta.w));
+  return { x: ta.x0 + (di + 0.5) / ppm, y: ta.yTop - (j + 0.5) / ppm + TURNER_HOLE_LIFT_M, z: ta.z + TURNER_HOLE_LIFT_M, i, j };
+}
+/**
+ * A turner's pixels at game time ms: [{ x, y, z, c, part, noLine }] metres: its face foreshortened by facingK, its holes,
+ * a new hole's puff, the steel's spark and the head plate falling. Nothing for a stand with no face hung.
+ */
+export function turnerPixels(t, ms, ppm = PX_PER_M) {
+  if (!t?.face) return [];
+  const plateGone = t.face === 'armoured' && Number.isFinite(t.plateAtMs) && ms >= t.plateAtMs;
+  const ta = turnerAt(t, ppm), pf = turnerFace(t.face, t.holds ?? null, ppm, { head: !plateGone }), out = [];
+  const part = TURNER_PART + (t.lane ?? 0), P = 1 / ppm, L = TURNER_LIFT_M;
+  // (a round that rang within ROCK_MS: the face rocks a pixel one way, then back (see the header))
+  const rang = (t.holes ?? []).reduce((m, h) => (h.ring && Number.isFinite(h.atMs) && ms >= h.atMs && ms - h.atMs < ROCK_MS ? Math.max(m, ms - h.atMs) : m), -1);
+  const rock = rang < 0 ? 0 : (rang < ROCK_MS / 2 ? 1 : -1) * P;
+  for (let i = 0; i < ta.dw; i++) {
+    const si = ta.dw === 1 ? -1 : srcCol(i, ta.dw, pf.w);
+    for (let j = 0; j < pf.h; j++) {
+      const c = si < 0 ? pf.edge[j] : pf.cells[j * pf.w + si];
+      if (c === null || c === undefined) continue;
+      out.push({ x: ta.x0 + (i + 0.5) * P + rock, y: ta.yTop - (j + 0.5) * P + L, z: ta.z + L, c, part, noLine: false });
+    }
+  }
+  // (the head plate knocked off: it falls at Mars' gravity, drifting off its hinge, to the ground before the stand, and lies
+  // there as a flat disc (see the header); its hinge a dark pixel row left)
+  if (plateGone) {
+    const dt = Math.max(0, ms - t.plateAtMs), H = MAN_CM.head;
+    if (ta.dw > 1) {
+      const r = H.r * ta.k * ta.facingK, cxp = ta.x0 + ta.dw / 2 * P, cyp = ta.yTop - (pf.h / 2 + H.at[1] * ta.k) * P, s0 = dt / 1000;
+      // (where it is: the fall from the head's height, the drift sideways; on the ground (y at its radius) it lies flat)
+      const R0 = Math.round(H.r * ta.k), floor = (Math.ceil(R0 * 0.35) + 1) * P, yFall = cyp - 0.5 * DUST_G_MS2 * s0 * s0, lying = yFall <= floor || dt >= PLATE_FALL_MS;
+      const px0 = snap(cxp + PLATE_DRIFT_MPS * Math.min(s0, PLATE_FALL_MS / 1000), ppm), py0 = lying ? floor : snap(yFall, ppm);
+      const flat = lying ? 0.35 : 1;
+      for (let dy = -R0; dy <= R0; dy++) for (let dx = -Math.round(r); dx <= Math.round(r); dx++) {
+        if (Math.hypot(dx / Math.max(0.5, ta.facingK), dy / flat) > H.r * ta.k) continue;
+        out.push({ x: px0 + (dx + 0.5) * P, y: py0 - (dy + 0.5) * P + L + 0.01, z: ta.z + L + 0.01, c: dy === -R0 && !lying ? TURNER_C.armoured.edge : TURNER_C.armoured.head, part, noLine: false });
+      }
+    }
+    const hy = ta.yTop - (pf.h / 2 + (H.at[1] + H.r) * ta.k) * P;
+    for (let i = Math.max(0, Math.floor(ta.dw / 2) - 1); i <= Math.min(ta.dw - 1, Math.floor(ta.dw / 2) + 1); i++) out.push({ x: ta.x0 + (i + 0.5) * P, y: hy + L, z: ta.z + L, c: TURNER_C.armoured.edge, part, noLine: false });
+  }
+  // (the holes: dark through board and through steel, a lead splash where a round rang; a new one's puff of board)
+  for (const h of t.holes ?? []) {
+    const q = turnerHolePixel(ta, h, ppm);
+    if (!q || (h.zone === 'head' && plateGone && t.face === 'armoured')) continue;
+    // (a hole reads against its face: dark through the khaki board and through steel)
+    out.push({ x: q.x, y: q.y, z: q.z, c: h.ring && !h.through ? SPLASH : DARK, part, noLine: true });
+    const age = Number.isFinite(h.atMs) ? ms - h.atMs : Infinity;
+    if (!h.ring && age >= 0 && age < PUFF_MS) for (const [dx, dy] of age < PUFF_MS / 2 ? [[1, 0], [-1, 0], [0, -1]] : [[1, -1], [-1, -1]]) out.push({ x: q.x + dx * P, y: q.y - dy * P, z: q.z, c: PALE, part, noLine: true });
+  }
+  return out;
+}
+/**
+ * The steel's spark for a round that rang (a hole { xCm, yCm, ring, atMs }) at game time ms: [{ x, y, z, c }] metres, unlit:
+ * the strike's flash (a plus, white) for SPARK_FLASH_MS, then SPARK_N sparks flung off the plate (their ways by hash,
+ * SPARK_V_MS, falling at Mars' 3.7 m/s², fading from white to orange) until SPARK_MS. None off steel or past its time.
+ */
+export function sparkPixels(t, hole, ms, ppm = PX_PER_M) {
+  if (!t || !hole?.ring || !Number.isFinite(hole.atMs)) return [];
+  const dt = ms - hole.atMs;
+  if (!(dt >= 0 && dt < SPARK_MS)) return [];
+  const ta = turnerAt(t, ppm), q = turnerHolePixel(ta, hole, ppm);
+  if (!q) return [];
+  const P = 1 / ppm, out = [], s = dt / 1000, lift = 0.06;
+  if (dt < SPARK_FLASH_MS) for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) out.push({ x: q.x + dx * P, y: q.y + dy * P + lift, z: q.z + lift, c: SPARK_C[0] });
+  for (let n = 0; n < SPARK_N; n++) {
+    const hh = (k) => hash01('spark', hole.atMs, hole.xCm, hole.yCm, n, k);
+    // (sprayed all round the strike in the plate's plane, as the picture shows the plate: a star of streaks, falling)
+    const a = 2 * Math.PI * (n + hh('a')) / SPARK_N, v = SPARK_V_MS * (0.4 + 0.6 * hh('v'));
+    const x = q.x + Math.cos(a) * v * s, y = q.y + Math.sin(a) * v * s * 0.6 - 0.5 * DUST_G_MS2 * s * s;
+    const life = SPARK_MS * (0.5 + 0.5 * hh('l'));
+    if (dt > life) continue;
+    const c = SPARK_C[Math.min(2, Math.floor(dt / life * 3))];
+    out.push({ x: snap(x, ppm) + 0.5 * P, y: snap(y, ppm) + 0.5 * P + lift, z: q.z + lift, c });
+    // (a streak: where it was a frame before, a pixel behind it along its flight, so it reads as moving)
+    const s0 = Math.max(0, s - 0.016), x0 = q.x + Math.cos(a) * v * s0, y0 = q.y + Math.sin(a) * v * s0 * 0.6 - 0.5 * DUST_G_MS2 * s0 * s0;
+    if (Math.round(x0 * ppm) !== Math.round(x * ppm) || Math.round(y0 * ppm) !== Math.round(y * ppm)) out.push({ x: snap(x0, ppm) + 0.5 * P, y: snap(y0, ppm) + 0.5 * P + lift, z: q.z + lift, c: SPARK_C[2] });
   }
   return out;
 }

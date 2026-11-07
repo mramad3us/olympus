@@ -23,6 +23,10 @@
 // 'haircut', groom's bits hands 8 and clip 16, and body-stage the hands' crossings.
 // The 0.0.7 sheet (§2.6) adds WEAPONS' hit and pit, BODY's wound and casualty, and widens shot (the face, the strike,
 // the hole, the flight, the load), nd (ND-4 and ND-5, the hits), range (the KD course's phases) and fx (dust, paper).
+// The 0.0.8 sheet (§2.5) adds COMBAT's contact (the take-in's window, its pause and the identification) and WEAPONS'
+// turner (a turning target facing or turning away), and widens shot (the part, the zone, the ring, the row), range (the
+// pairs course's phases, its string and its paper), fx (spark: a round on steel), stop-mode (via 'contact') and step (the
+// rows' sub-steps and the contact's rows); the pairs coach speaks his commands as 'speech'.
 
 const fact = (owner, payload) => Object.freeze({ owner, payload });
 
@@ -43,7 +47,7 @@ export const FACTS = Object.freeze({
   log: fact('TECH', '{ entry }: a record appended to state.log'),
   line: fact('TECH', '{ text, kind? }: a short line for the player (a toast until the presenter)'),
   roll: fact('SKILLS', '{ roll, who } (SKILLS §15.2\'s record, after it is logged; who the roller)'),
-  say: fact('PEOPLE', "{ who, text, kind: 'speech' | 'radio' | 'bark' | 'pa', durMs }: 'pa' the range tower's, 'speech' a person beside you"),
+  say: fact('PEOPLE', "{ who, text, kind: 'speech' | 'radio' | 'bark' | 'pa', durMs }: 'pa' the range tower's, 'speech' a person beside you (0.0.8: the pairs coach's commands too)"),
   'area-enter': fact('PLACES', '{ site, area, from, portal }'),
   'area-leave': fact('PLACES', '{ site, area, from, portal }'),
   'chunk-in': fact('PLACES', '{ site, area, i, j }'),
@@ -51,17 +55,19 @@ export const FACTS = Object.freeze({
   'path-done': fact('PLACES', '{ reqId, who, ok, lengthM, reason }: a path request answered'),
   door: fact('PLACES', "{ id, area, x, z, state: 'open' | 'closed', kind, who }: a door turned (x, z its middle in its area's frame)"),
   sound: fact('VIEWS (audio), PEOPLE (hearing)', '{ kind, x, y, z, area, db, src }'),
-  fx: fact('WEAPONS, COMBAT, PLACES', "{ kind: 'flash' | 'dust' | 'paper' | …, x, y, z, atMs, dir, size }: a muzzle flash, a round into the berm or the ground (dust), a face holed (paper), an impact, sparks, steam"),
-  'stop-mode': fact('WEAPONS', "{ phase: 'enter' | 'leave', who, gun, via: 'ready' | 'shoot' | null, why }: stop motion entered or left"),
-  step: fact('WEAPONS', "{ phase: 'start' | 'sub' | 'halt' | 'cut' | 'end', who, step, i, action, fromMs, toMs, ok, grade, routine, mishap, text, brass?: [{ kind, landMs, at }] }: a stop-motion or live step and its sub-steps ('sub' as each begins, rolled; brass what it threw out of the port)"),
-  shot: fact('WEAPONS', '{ id, who, gun, atMs, fired, why, stoppage, set, load, muzzle: { x, y, z }, dirRad, target, lane, hole: { at, score, v, onPaper?, band? } | null, brass: { kind, landMs, at } | null, logSeq, flight?: { rangeM, tofS, vMs, eJ, supersonic }, face?: { paper, lane, line } | null, aimCm?, poiCm?: { elevCm, windCm } }: a trigger pulled (0.0.7: the flight on every fired shot; on a KD face or the zero card, where it went)'),
+  fx: fact('WEAPONS, COMBAT, PLACES', "{ kind: 'flash' | 'dust' | 'paper' | 'spark' | …, x, y, z, atMs, dir, size }: a muzzle flash, a round into the berm or the ground (dust), a face holed (paper), a round on steel (spark, 0.0.8), an impact, steam"),
+  'stop-mode': fact('WEAPONS', "{ phase: 'enter' | 'leave', who, gun, via: 'ready' | 'shoot' | 'contact' | null, why, contact?: { id, ms } | null }: stop motion entered or left (0.0.8: entered by a contact's pause, via 'contact', with its id and take-in)"),
+  step: fact('WEAPONS', "{ phase: 'start' | 'sub' | 'halt' | 'cut' | 'end', who, step, i, action, fromMs, toMs, ok, grade, routine, mishap, text, brass?: [{ kind, landMs, at }] }: a stop-motion or live step and its sub-steps ('sub' as each begins, rolled; brass what it threw out of the port; 0.0.8's actions 'press', 'round', 'shift' (a shot row's), 'contact:hold', 'contact:challenge')"),
+  shot: fact('WEAPONS', "{ id, who, gun, atMs, fired, why, stoppage, set, load, muzzle: { x, y, z }, dirRad, target, lane, hole: { at, score, v, onPaper?, band? } | null, brass: { kind, landMs, at } | null, logSeq, flight?: { rangeM, tofS, vMs, eJ, supersonic }, face?: { paper, lane, line } | null, aimCm?, poiCm?: { elevCm, windCm }, part?: 'torso' | 'head', zone?: 'A' | 'C' | 'head' | null, ring?, through?, down?, row?: { id, n, i } | null }: a trigger pulled (0.0.7: the flight on every fired shot; on a KD face or the zero card, where it went; 0.0.8: on a turner the part aimed, the zone, steel rung or holed (down: on an armoured face, the head plate knocked down), the shot row and its round; atMs the round's formula time)"),
+  contact: fact('COMBAT', "{ phase: 'seen' | 'join' | 'pause' | 'ident', id, who, ids, seenMs, untilMs, ms, expect, n, grade, parts, ident: { [key]: 'rifle' | 'pistol' | 'hands' | 'phone' | 'unseen' } | null, armour: { [key]: true } | null, atMs }: the take-in (COMBAT §25.4): a target seen opens its window or joins it, the pause at its end, an identification"),
+  turner: fact('WEAPONS', "{ key, lane, phase: 'turn' | 'away', face, atMs, toMs, why: 'standby' | 'hit' | 'string' }: a turning target faces (over TURN_MS) or turns away (0.0.8, test-pairs)"),
   hit: fact('WEAPONS', "{ kind: 'gunshot', onId, part, fromId, rangeM, load, energyJ, diaMm, w, penLeftMm, through, exitPart, margin, shotId, nd }: WEAPONS §8.7's record of a round in a body"),
   pit: fact('WEAPONS', "{ lane, phase: 'down' | 'marked' | 'up' | 'disk' | 'flag', x, z, atMs, value?, shotIds }: the KD pits: a carrier down, the hole marked, up, the score disk or the red flag"),
   wound: fact('BODY', '{ who, part, kind, name, rate, artery, through, atMs, down, knockS }: a wound taken'),
   casualty: fact('BODY', "{ who, phase: 'down' | 'care' | 'evac' | 'outcome', byId, outcome: null | 'stabilised' | 'evacuated' | 'dead', bloodPct, atMs }: a casualty on the line"),
   muzzle: fact('WEAPONS', "{ who, at, kind: 'near' | 'flag' | 'point', posture, atMs }: a muzzle swept over someone"),
   nd: fact('WEAPONS', "{ who, gun, grade: 'ND-1' … 'ND-5', into, nearId, atMs, during, hits?: [{ onId, part }] }: a negligent discharge (during 'graded': the grade its hits made it once they landed, ND-5 for a death, after the round's own)"),
-  range: fact('WEAPONS', "{ phase: 'cmd' | 'fault' | 'string' | 'dry' | 'spout' | 'clear' | 'stopped' | 'group' | 'zeroed' | 'call' | 'line' | 'mark' | 'brass' | 'declare' | 'casualty' | 'closed', cmd, hot, rule, kind: 'warn' | 'stop', text, n, score, of, v, why, hits?, shots?, list?: [{ score, v, hit }], sat?, over?, via?, line?, group?: { centreCm, call }, call?: { crossMs, holdMil, clicks }, declare?: { brass, rounds, ok }, casualty?: { who, outcome } }: the range session (hits, shots and list on a string's score, list its shots in order, a miss as score 0; sat a string sat out, over one fired with more than its rounds; 'spout' the coach's word on a round left in the chamber, via the sub-step; 0.0.7 the KD course's phases)"),
+  range: fact('WEAPONS', "{ phase: 'cmd' | 'fault' | 'string' | 'dry' | 'spout' | 'clear' | 'stopped' | 'group' | 'zeroed' | 'call' | 'line' | 'mark' | 'brass' | 'declare' | 'casualty' | 'closed' | 'standby' | 'turn' | 'paper' | 'lull' | 'short', cmd, hot, rule, kind: 'warn' | 'stop', text, n, score, of, v, why, hits?, shots?, list?: [{ score, v, hit }], sat?, over?, via?, line?, group?: { centreCm, call }, call?: { crossMs, holdMil, clicks }, declare?: { brass, rounds, ok }, casualty?: { who, outcome }, string?, paper?: { takeInMs, pauseToFirstMs, splitsMs, zones, text } }: the range session (0.0.8: the pairs course's standby, turn, paper, lull and short, with the string and its paper; hits, shots and list on a string's score, list its shots in order, a miss as score 0; sat a string sat out, over one fired with more than its rounds; 'spout' the coach's word on a round left in the chamber, via the sub-step; 0.0.7 the KD course's phases)"),
   reflex: fact('COMBAT', "{ phase: 'offer' | 'chosen' | 'kept', why, title, options, key }: a reflex card"),
   papers: fact('TIME, CAREER', '{ papers: [ … ] }'),
   'body-stage': fact('BODY', "{ who, ledger, from, to, tone, words, atMs } (ledger 'hands' since 0.0.6)"),

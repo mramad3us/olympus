@@ -45,6 +45,9 @@
 // 0.0.7 (the build sheet 0.0.7 §2.3, §3.1): test-range's 'range-kd' issue (the zero's four magazines of three, the ear
 // defenders 'ed1' worn in their own slot, kit.worn.ears: SLOTS gains 'ears', last, so the other templates' items and
 // ids are as before; earsOn reads it), and discard(), the coach taking a magazine back at the turn-in.
+// 0.0.8 (the build sheet 0.0.8 §2.3): test-pairs' 'range-pairs' issue: the R-7 slung front, a carrier of three magazine
+// pouches (no dump pouch), ear defenders in their own slot, magazines of 10, 10 and 2 (the scene puts one in each
+// pouch: chest pouches 1, 2 and 3, the two-round one third, as the coach names it).
 import { nextId, put } from '../../core/ids.js';
 import { q } from '../../core/num.js';
 import { areaOf } from '../places/model.js';
@@ -91,6 +94,13 @@ export const KIT_TEMPLATES = Object.freeze({
     worn: Object.freeze({ carrier: 'pc-m3', sling: 'r7', ears: 'ed1' }),
     carrier: Object.freeze(['pouch-mag2', 'pouch-mag2', 'pouch-dump']),
     mags: Object.freeze([Object.freeze(['had30', 3]), Object.freeze(['had30', 3]), Object.freeze(['had30', 3]), Object.freeze(['had30', 3])]),
+    cond: 0.93, posture: 'slungFront',
+  }),
+  // (0.0.8, test-pairs' issue (see the header))
+  'range-pairs': Object.freeze({
+    worn: Object.freeze({ carrier: 'pc-m3', sling: 'r7', ears: 'ed1' }),
+    carrier: Object.freeze(['pouch-mag2', 'pouch-mag2', 'pouch-mag2']),
+    mags: Object.freeze([Object.freeze(['had30', 10]), Object.freeze(['had30', 10]), Object.freeze(['had30', 2])]),
     cond: 0.93, posture: 'slungFront',
   }),
 });

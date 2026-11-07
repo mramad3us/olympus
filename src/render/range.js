@@ -36,24 +36,33 @@
 //     from the line); on each the holes the pits show, the spotter in the last, the score disk on its pole
 //     (rising and going down over DISK_RISE_MS) and a miss's red flag waved across it;
 //   - THE FLAGS along both sides of the range, each sleeve blowing by flagOf (the sim's wind: its way and its
-//     strength, so the wind reads off them as a marine reads it);
+//     strength, so the wind reads off them as a marine reads it): its hoop, its bands filling with the speed and
+//     its shadow on the ground downwind (range-items.js sleevePixels: the shadow flat, with no line round it);
+//   - YOUR POINT: the numbered stake on your row marked yours, a brass frame round its plate and a caret over it
+//     (range-items.js ownPointPixels; 0.0.7's tower fixer), on the 25 m bay too (rangeLook.own, 0.0.8: stats.own);
 //   - THE RELAY: every shooter's flash star and blast dust from fires (their last 1.2 s), the cases flying and,
 //     at rest, by metre tile (rangeLook.kd.tiles: none lost past the session's 64 live cases), and the dust a
 //     round throws off the berm.
+// 0.0.8 (the build sheet 0.0.8 §2.4; VIEWS §7.4, §11): the pairs pad's turning targets, from rangeLook.pairs (look.js, the
+// scene role's): each turner's face drawn TURNER_K times life size and as wide as it has turned (range-items.js
+// turnerPixels: facingK 0 edge-on, a pixel of its edge, to 1 facing; continuous over the turner's real TURN_MS, so it
+// never jumps), its holes, a new hole's puff, the armoured face's head plate dropping off, and the steel's spark
+// (sparkPixels: unlit, in the blast's draw after the figures) for a round that rang. Stands with no face hung draw
+// nothing here (the kit's stand alone shows), so test-handling and test-range look as they were scored.
 // What is drawn is culled to the views given (the frame, and the far window's while it is open), so a flag 300 m
 // off costs nothing until the window looks at it.
 import { PX_PER_M } from './scale.js';
 import { createPixels } from './decals.js';
 import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART,
-  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp } from './range-items.js';
+  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels } from './range-items.js';
 import { createCollector, buildAreaData } from '../art/jobs.js';
 import { areaFromJob, newPart } from './batch.js';
 import { paintKdFace, facePx } from '../art/kit/range.js';
 import { LINE_FLAGS, LINE_FLAG } from '../data/places/range.js';
 export { cardFace, holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, drawnY, drawnBoreM, drawnMuzzleM, FLAG_HOIST_MS, FLAG_FLAP_MS, PUFF_MS, FLAG_PART } from './range-items.js';
 
-/** The most pixels the range draws a frame (six cards of holes, the flags, 64 cases at two pixels, the dust), and the flash star's. */
-export const MAX_RANGE_PIXELS = 4000, BLAST_PIXELS = 256;
+/** The most pixels the range draws a frame (six cards of holes, the flags, 64 cases at two pixels, the dust; 0.0.8 six turners' faces, 360 px each at 16 px/m), and the flash star's. */
+export const MAX_RANGE_PIXELS = 6000, BLAST_PIXELS = 256;
 /** How far outside a view a thing still drawn may stand (metres: a flag's sleeve 4.5 m up, a face's disk). */
 export const VIEW_MARGIN_M = 8;
 const inViews = (views, x, z) => !views || views.some(v => x > v.x0 - VIEW_MARGIN_M && x < v.x1 + VIEW_MARGIN_M && z > v.z0 - VIEW_MARGIN_M && z < v.z1 + VIEW_MARGIN_M + 6);
@@ -71,7 +80,7 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
   const group = new THREE.Group();
   group.name = 'range';
   group.add(px.mesh, blast.mesh);
-  const stats = { holes: 0, brass: 0, flying: 0, flag: 0, flash: 0, dust: 0, pixels: 0, kd: null };
+  const stats = { holes: 0, brass: 0, flying: 0, flag: 0, flash: 0, dust: 0, own: 0, pixels: 0, kd: null, pairs: null };
   // ---------- the KD's faces: a moving piece each, built once ----------
   let faces = null;                                                 // { built, byLane: Map lane → { group, paper } }
   const discs = new Map(), misses = new Map();                     // (lane → { value, sinceMs, untilMs }: the disk and the flag going down after the look drops them)
@@ -101,7 +110,7 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
   function update(look, { kd = null, ms = 0, tintOf = null, views = null } = {}) {
     let n = 0, nb = 0;
     const put = (p, part = 0, noLine = false) => { if (px.set(n, { ...p, color: p.c, tint: tintOf ? tintOf(p.x, p.z) : [1, 1, 1], part, noLine })) n++; };
-    stats.holes = stats.brass = stats.flying = stats.flag = stats.flash = stats.dust = 0;
+    stats.holes = stats.brass = stats.flying = stats.flag = stats.flash = stats.dust = stats.own = 0;
     if (look && kd) {
       const seen0 = seen;
       if (!seen) { seen = true; hot = !!look.hot; sinceMs = null; }
@@ -124,6 +133,8 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
       for (const p of flagPixels(kd.tower.flag, k, ms, ppm)) { put(p, FLAG_PART); stats.flag++; }
       for (const pole of LINE_FLAGS) for (const p of flagPixels(pole, k, ms, ppm, LINE_FLAG)) { put(p, FLAG_PART + 1); stats.flag++; }
       for (const b of look.brass ?? []) { for (const p of brassPixels(b, ppm, ms)) put(p); stats.brass++; if (!b.rest) stats.flying++; }
+      // (your bay lane's stake marked as yours on the 25 m line, as on the KD's (0.0.8))
+      if (look.own && inViews(views, look.own.x, look.own.z)) for (const q of ownPointPixels(look.own, ppm)) { put(q, 0, true); stats.own++; }
       // (the blast: noLine, so the outline pass draws no line round the star or the motes; the star unlit, a light itself)
       const flash = flashPixels(look.fire, ms, ppm), dust = dustPixels(look.fire, ms, ppm);
       for (const p of dust) put(p, 0, true);
@@ -136,7 +147,7 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
       // ---------- the KD ground (0.0.7) ----------
       const K = look.kd ?? null;
       if (K) {
-        const ks = { faces: 0, up: 0, holes: 0, spotters: 0, disks: 0, misses: 0, flags: 0, fires: 0, cases: 0, tiles: 0, dust: 0, carriers: [] };
+        const ks = { faces: 0, up: 0, holes: 0, spotters: 0, disks: 0, misses: 0, flags: 0, fires: 0, cases: 0, tiles: 0, dust: 0, own: 0, carriers: [] };
         if (!faces && K.faces?.length) faces = buildFaces(K.faces);
         for (const f of K.faces ?? []) {
           const fa = kdFaceAt(f, ppm), e = faces?.byLane.get(f.lane);
@@ -161,7 +172,9 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
           const m = misses.get(f.lane);
           if (m) { const k = poleUp(m.sinceMs, ms, m.untilMs); if (k > 0) { for (const q of missFlagPixels(fa, k, ms, ppm)) put(q, FLAG_PART + 3, false); ks.misses++; } else if (m.untilMs !== null) misses.delete(f.lane); }
         }
-        for (const fl of K.flags ?? []) { if (!inViews(views, fl.x, fl.z)) continue; for (const q of sleevePixels(fl, ms, ppm)) put(q, FLAG_PART + 4); ks.flags++; }
+        // (your own point's stake marked as yours: a brass frame and a caret (range-items.js ownPointPixels))
+        if (K.own && inViews(views, K.own.x, K.own.z)) for (const q of ownPointPixels(K.own, ppm)) { put(q, 0, true); ks.own++; }
+        for (const fl of K.flags ?? []) { if (!inViews(views, fl.x, fl.z)) continue; for (const q of sleevePixels(fl, ms, ppm)) put(q, q.shadow ? 0 : FLAG_PART + 4, !!q.shadow); ks.flags++; }
         for (const fire of K.fires ?? []) {
           if (!inViews(views, fire.x, fire.z)) continue;
           if (look.fire && fire.atMs === look.fire.atMs && Math.abs(fire.x - look.fire.x) < 0.01 && Math.abs(fire.z - look.fire.z) < 0.01) continue;   // (yours: drawn above)
@@ -175,7 +188,25 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
         stats.kd = ks;
         if (faces) faces.built.group.visible = true;
       } else { stats.kd = null; if (faces) faces.built.group.visible = false; }
-    } else { hot = false; sinceMs = null; fromK = 0; seen = false; holesSeen.clear(); if (faces) faces.built.group.visible = false; stats.kd = null; }
+      // ---------- the pairs pad (0.0.8): the turners' faces, their holes, the steel's spark ----------
+      const PR = look.pairs ?? null;
+      if (PR) {
+        const ps = { turners: 0, hung: 0, facing: 0, pixels: 0, holes: 0, sparks: 0, widths: [] };
+        for (const t of PR.turners ?? []) {
+          ps.turners++;
+          if (!t.face) continue;
+          ps.hung++;
+          const ta = turnerAt(t, ppm);
+          ps.widths.push({ lane: t.lane, dw: ta.dw, facingK: Math.round((t.facingK ?? 0) * 1000) / 1000 });
+          if ((t.facingK ?? 0) >= 0.999) ps.facing++;
+          if (!inViews(views, t.x, t.z)) continue;
+          for (const p of turnerPixels(t, ms, ppm)) { put(p, p.part, p.noLine); ps.pixels++; }
+          ps.holes += (t.holes ?? []).length;
+          for (const h of t.holes ?? []) if (h.ring) for (const q of sparkPixels(t, h, ms, ppm)) { if (blast.set(nb, { ...q, color: q.c, part: 0, noLine: true })) { nb++; ps.sparks++; } }
+        }
+        stats.pairs = ps;
+      } else stats.pairs = null;
+    } else { hot = false; sinceMs = null; fromK = 0; seen = false; holesSeen.clear(); if (faces) faces.built.group.visible = false; stats.kd = null; stats.pairs = null; }
     px.count(n);
     blast.count(nb);
     stats.pixels = n + nb;

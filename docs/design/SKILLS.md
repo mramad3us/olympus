@@ -4,7 +4,7 @@ The skill list, the one roll, Warfighting, growth, training, rust, fitness, NPC 
 
 Written 2026-11-05 from DESIGN.md and the research notes: `tradecraft-design-1.md` §10 (skills and checks, growth, rust, fitness), `tradecraft-design-2.md` §5, §6, §12 (the feel, XP, Read), `tradecraft-design-3.md` §6, §7 (tutorial, backgrounds, belief), `tradecraft-sim-combat.md` §1, §10.5, `tradecraft-sim-world.md` §8, §10.2 (perception, Read, instinct), `longhaul-shipboard.md` §13 and `longhaul-setting.md` §14, §17 (rank gates). Code read for the numbers that actually run: tradecraft `src/sim/{skills,checks,xp,training,rust,fitness,know,belief,sense,instinct}.js`, `campaign.js` (BACKGROUNDS), `career.js` (FLOORS). The tables below were computed from those formulas with a scratch script. Aligned the same day with `CONTRACTS.md`, the shared contracts (ids, the fitness module's home, the milestone numbers), which this section cites rather than restates. Revised 2026-11-06 for v0.0.4 as built (the build sheet `docs/build/0.0.4.md`): the instinct's `settle()` and its first eleven rules (§14.3, §14.4, §15.4).
 
-Conventions. "The user, date" is the user's own words or decision. Quotes dated before 2026-11-05 were said about tradecraft and carry over as the user's tastes. "(my call)" marks this section's own choices, which hold until the user overrules them. Every value is an integer unless its name carries a unit. Every person is generated (the user, 2026-11-05: "All people generated"), so the people named in this section's examples (Pvt Okoye, Corporal Diaz, Sergeant Ruiz, Varga on the net) are examples of what PEOPLE's generator draws, never written characters. Revised 2026-11-06: §6.2's line-career rows re-run on the 10-sol standby and the 6.9-day voyage (CONTRACTS §3, §14); the DI generated (§14.1); `hecate-line` at Ophir Chasma (§10.2).
+Conventions. "The user, date" is the user's own words or decision. Quotes dated before 2026-11-05 were said about tradecraft and carry over as the user's tastes. "(my call)" marks this section's own choices, which hold until the user overrules them. Every value is an integer unless its name carries a unit. Every person is generated (the user, 2026-11-05: "All people generated"), so the people named in this section's examples (Pvt Okoye, Corporal Diaz, Sergeant Ruiz, Varga on the net) are examples of what PEOPLE's generator draws, never written characters. Revised 2026-11-07 for COMBAT §5's suppression and hardening (DESIGN.md's log of that day): the new §6.8 (hardening and inoculation), with pointers in the summary, §2.2, §5.3, §5.9, §6.1, §11.1, §15.1 and §17. Revised 2026-11-06: §6.2's line-career rows re-run on the 10-sol standby and the 6.9-day voyage (CONTRACTS §3, §14); the DI generated (§14.1); `hecate-line` at Ophir Chasma (§10.2).
 
 ## Summary
 
@@ -32,6 +32,7 @@ Growth runs on three tracks:
 - **Warfighting grows from XP.** Real operations give most of it. Training gives a little, and stops counting at 25. The cost curve is tradecraft's: each point costs 6.25 times more every 20 points ("heavily logarithmic", the user). Every XP number in the game is in one table here (§6.2); COMBAT and CAREER name kinds and outcomes, never amounts.
 - **Trained bases grow from hours**, capped by the teacher. The hours come from the Plan of the Day's training blocks, courses, manuals and use in the field (field use teaches only up to advanced). Schools also raise every skill they teach to a floor at graduation.
 - **Fitness** keeps tradecraft's band of base and effective fitness, moved by the week's load, which BODY's one gravity helper scores.
+- **Hardening** (2026-11-07; §6.8, COMBAT §5.6), how much of a fight's chaos a body ignores, is derived, never rolled: Warfighting's experience by class, plus an **inoculation** counter earned in training that makes noise, bangs and fire, capped by the teacher.
 
 Skills over 15 rust unless practised twice every 28 sols (`RUST_PERIOD_MS`, the one constant for it).
 
@@ -109,7 +110,7 @@ The two skills share the work as follows. WEAPONS owns every DC and time.
 | `driving` | Driving | Ground and ice vehicles: rovers, trucks, crawlers, sleds under the ice; convoy driving; field repair of vehicles (with Tech) | hazards, dust storms, ice ridges, driving under fire | hands, eyes, head | 0.3 | yes |
 | `fitness` | Fitness | The trained body: strength, endurance, recovery. Its value is *effective* fitness (§8) | marches, carries, climbs, sprints, dragging a casualty (BODY); BODY's capacities | legs, torso, breath, arms | 0 | no (own band) |
 
-There is also one **derived** value that is not trained: **Nerve** = `round(WF × NERVE_K[cls])`. `NERVE_K` is soldier 0.25, cop, criminal and spook 0.2, spacer 0.12, and civilian 0. COMBAT rolls it for suppression, first contact, a grenade landing close and a breach (my call). It is Warfighting's steadiness under fire, with its own name in the log: "Nerve check: 12 + 4 − 4 (shot at) = 12 against 15, failure."
+There is also one **derived** value that is not trained: **Nerve** = `round(WF × NERVE_K[cls])`. `NERVE_K` is soldier 0.25, cop, criminal and spook 0.2, spacer 0.12, and civilian 0. COMBAT rolls it for suppression, first contact, a grenade landing close and a breach (my call). It is Warfighting's steadiness under fire, with its own name in the log: "Nerve check: 12 + 4 = 16 against 19 (pinned), failure." **From 2026-11-07** (COMBAT §5.3) the one `nerveCheck` rolls it against `1 + round(felt / 5)`, felt being the chaos less your hardening, so the modifier "shot at" is gone from it (the chaos is in the DC); hardening's experience term reads the same classes (`HARD_K` = 3 × `NERVE_K`, §6.8). Three words, one meaning each (COMBAT §5.6): **Nerve** this value; **the nerve axis** PEOPLE §3.6's temperament (it adds to hardening only); **resolve** COMBAT §7.10's NPC state.
 
 **Languages** are a separate track with five levels (§9).
 
@@ -285,6 +286,7 @@ Rules (my call, after tradecraft's practice):
 - **Light, gravity and atmosphere come from PLACES's one helper for each.** It is the same helper the renderer uses, so that "what you see is what's rolled" (tradecraft).
 - **Odds and rolls use the same list.** A displayed chance includes the body and needs. This fixes tradecraft quirk 1, where the shot plaque left them out.
 - **No cap on the sum.** Someone in shock, exhausted and one-handed is useless, and the log says why.
+- **The chaos is one entry** (2026-11-07, COMBAT §5.3): `{ why: 'suppressed', v, src: 'env' }` (its words by band: "under fire", "suppressed", "pinned"), −1 a 10 points of felt chaos (the pool less hardening), at most −10, on the hands-and-eyes skills and half on the head-and-voice ones, added by the roller (`combat/roll.js`); it replaces WEAPONS's `fire` −3 and `danger` −1, tradecraft's "shot at" and COMBAT's old bands, so one cause is never counted twice.
 
 ### 5.4 The body and needs: one interface
 
@@ -365,6 +367,8 @@ Every roll carries a `pressure` set by its owner. It decides what the roll may t
 - `evaluated`: graded training or a qualification, an inspection, or someone whose opinion counts watching (your NCO, an instructor).
 - `danger`: a real threat is present (hostiles in the area who are or may be aware, a breach, a fire, a need in its critical band), or an operation is under way.
 - `fire`: you were shot at in the last 5 s, you are in CQC, or you are in a decompression.
+
+**Pressure carries no penalty of its own** (2026-11-07, COMBAT §5.3): `fire` and `danger` still mean nothing is routine and still set what a roll teaches (§6.5), but the chaos's cost is the felt modifier alone (§5.3), so a man shot at by noise he is hardened to is not penalised by the word `fire`. `fire` also holds for 5 s after a blast or a flashbang within its reach (my call).
 
 **As built in v0.0.5** (the build sheet 0.0.5 §8 item 12, my call): every roll on the range is at `evaluated`, the coach and the tower watching, so handling is routine for the trained (§5.1), while the shot, an opposed roll and a rushed step never are. `danger` and `fire` wait for the scenes that reach them (WEAPONS §5.1).
 
@@ -482,6 +486,7 @@ Every roll draws from OLYMPUS's `src/core/rng.js` (sfc32, ported from tradecraft
 |---|---|---|---|
 | **Warfighting** (the over-skill) | XP: operations above all, a little from training and won rolls | cost ×6.25 every 20 points | `xp.js` (adapt) |
 | **Trained bases** | hours: training blocks, courses, manuals, field use; school floors at graduation | `4 + 0.8 × base` hours a point, capped by the teacher | `training.js` (adapt), `career.js` FLOORS (pattern) |
+| **Hardening's inoculation** (2026-11-07, §6.8) | training runs whose chaos reached you (felt 20), finished | +1 a run, at most 4 a sol, capped by the teacher (6 to 25) | new: COMBAT's `src/sim/combat/supp.js` (`noteExposure`; `SUPP_HOME`), on the sheet's `skills.inoc` |
 | **Fitness** | the week's load against what the base asks | a point of effective fitness a week at most; the base moves after two weeks at the band's edge | `fitness.js` (port, as BODY's `src/sim/body/fitness.js`, §16) |
 
 Background points never grow. Rust (§7) takes value away and practice gives it back.
@@ -687,6 +692,36 @@ VIEWS owns the screens. SKILLS supplies the words and numbers:
 - **A skill's row**: name, level word (§2.3), ◆ for background points, rust marks, "×1.17", value, and progress, for example "7.5 of 10.4 h toward 9". At a cap: "as far as unit training goes: a course for more".
 - **After an operation**, in the debrief paper: "+14.4 XP: a contact in Pwyll Deep's Shaft Head, an insurgent cell, done clean (Europa ×1.2)". Then "Warfighting 26, 4 of 14 toward 27".
 - **At the week's end**, on the training paper (TIME): hours by skill, points gained, rust gained or lost, and the fitness week (§8).
+
+### 6.8 Hardening and inoculation
+
+Designed 2026-11-07 for the user's ask of that day (DESIGN.md's log): "suppression should be a roll modifier that picks up on those factors, with "hardening" (can name it differently) being an offset to it. Tier one operator would have such hardening, that having three flashbangs go off right next to him would barely affect his ability to operate his weapon, where a recruit would likely be so supressed that they would be even likely to fail simple actions like thumbing safety off or reloading." COMBAT §5 owns what hardening does; this section owns what it is and how it is earned. Numbers marked [computed] are COMBAT §5's script's (`merged.mjs`, tables T1 and T15).
+
+- **What it is.** How much of a fight's chaos a body has learnt to ignore, in COMBAT §5.1's points: "Hardening 17" means the first 17 points of chaos never reach your hands. It is not a skill and is never rolled; it is derived, never stored, beside Warfighting and Nerve:
+
+  ```
+  hardening = clamp( round(WF × HARD_K[class]) + inoc + 3 × the nerve axis − the body's toll, 0, 100 )        (COMBAT §5.6)
+  HARD_K    = soldier 0.75 · cop, criminal, spook 0.6 · spacer 0.36 · civilian 0                            (3 × NERVE_K, §2.2)
+  ```
+
+- **Its two terms are the user's two words** (the doctrine proposal's split; my call). **Experience** is Warfighting, the fights lived, weighted by the class as Nerve is: a miner's years in suits are not years under fire. **Training** is the **inoculation** counter, `inoc`, 0 to `INOC_MAX` 25.
+- **How inoculation is earned** (my calls; after stress inoculation training, Meichenbaum 1985 and Saunders et al. 1996, and the armies' battle inoculation, COMBAT §5.10): **+1 for each training run** (a string, a room, a lane, a course) **in which your felt chaos reached `INOC_FELT` 20 and you finished it**, at most `INOC_PER_SOL` 4 a sol, up to the teacher's cap. **You cannot inoculate against what no longer reaches you**: a hardened marine's blanks teach nothing, so a drill teaches only up to its own chaos, and the cap does the rest (§6.3's `upTo` in kind).
+
+  | Teacher | Cap | What makes the chaos |
+  |---|---|---|
+  | boot and the School of Infantry | 6 | the infiltration course under fire, live fire overhead, the grenade range (the summary paper's; the player's start) |
+  | unit training | 10 | the squad leader's blanks and the harness, bang simulators, the MRX's cordon and search, the MOUT day |
+  | the shoot house's cadre; the range's stress course | 15 | live fire beside you, bangs in the room (COMBAT §25.18.3's `test-stress` is its strings) |
+  | schools: the AIC, the boarding course, recon's | 20 | the schools' stress houses |
+  | the Raiders' ITC | 25 | three bangs beside you, live rounds past you |
+
+- **A real fight** teaches through Warfighting's XP (§6.2) and never adds to the counter, so a fight is counted once (my call: the judge's finding that a dose model with fights in it counted experience twice).
+- **Lived or skipped, the same** (§6.3's rule): a skipped block gives its representative exposures, the outcome rolling each run's felt as the block's chaos would (the MOUT day's morning about 3).
+- **How it is lost** (my calls): **the body's toll** takes some back while it lasts (BODY §9.3: exhausted 10, frayed 5, a combat stress load over 60: 10, very low morale 5, concussed 5, in pain at "bad" or worse 5, in shock 10; at most 25 together); the experience term **rusts with Warfighting** over 15 (§7's rule); **inoculation's own rust is deferred** with the drills' (my call); a setback from being overwhelmed (sensitisation) is not modelled now, since BODY's combat stress load carries that cost.
+- **Later** (my call; nothing before 0.1 needs it): the systems proposal's dose model (exposure graded by its felt chaos, operations ×8, a reach of 50 points, fading by halves every 180 sols, school floors) may become the source of the counter; nothing is built for it now.
+- **Values** [computed]: the test sheets (§11.1's `TEST_SHEETS`): boot recruit 7 (5 + 2), private 17 (11 + 6), corporal 36 (26 + 10), sergeant 45 (33 + 12), Raider five years 75 (53 + 22), tier one 95 (70 + 25). Along the career (§6.2's Warfighting, inoculation at its teacher's cap): the player's start 17; after the first standby 22; a quiet first tour 33, a hot one 37; a second tour with the cadre's course between 44; recon in year 3 61; a Raider in year 5 78.
+- **What the player sees** (VIEWS §8.2; §6.7's progress words): on C's WHAT YOU ARE, under Warfighting, "Hardening 17 · green · inoculation 6 of 10: as far as unit training goes"; the level words **green** 0 to 19, **settled** 20 to 39, **steady** 40 to 59, **hardened** 60 to 79, **unshakeable** 80 and up; its hover "How much of the noise reaches your hands. It grows with fights lived and with training under noise and bangs."; when the body takes some back, "frayed: the noise reaches you more today."; the week's training paper "Inoculation +3: the MOUT day (bangs, marking rounds)"; the DI the first time you freeze in the career (my wording, SETTING to voice): "Everybody flinches the first time. Train loud and you'll flinch less." Never shown on others: their state shows in their figure (COMBAT §7.11).
+- **NPCs**: generated people read their tier's inoculation (§11.1), written nowhere; persistent people carry the counter as the player does from 0.1.
 
 ---
 
@@ -945,6 +980,24 @@ These sit on tradecraft's scale: "a civilian sits around 0–8 … enemy special
 
 **For close quarters** (COMBAT §25.14): the boot recruit, recon, Raider and tier-one rows join `templates.js` with `test-pairs`, for the test sheets and the NPCs, each with its default drill rungs (private 1; lance corporal and corporal 2; sergeant and staff sergeant 3; second lieutenant 1; recon 3; Raider 4; tier one 4; insurgent cell members 0, cell veterans and pirates 1, UN Marines 2, enemy special forces 4: my calls).
 
+**As built in v0.0.8** (`src/sim/skills/templates.js`; the build sheet 0.0.8 §2.1, §4, §8 item 23; COMBAT §25.3.2, §25.10.3; my calls):
+- **The new tiers** `recruit` (boot week 6), `recon`, `raider` and `tierone`, from the table's rows by v0.0.5's rule, for `rollSheet` on NPCs later; each tier draws on its own record, so nobody's existing draw moves (350 draws digest `0955b6fee56b13`, as v0.0.7's).
+- **`RUNG_OF_TIER`** (COMBAT §25.3.2): recruit 0; private 1; lcpl and cpl 2; sgt, ssgt and gysgt 3; lt 1; recon 3; raider 4; tierone 4. **`rungOf(state, pid, family = 'room')`** reads the sheet's rung where one is written (`person.skills.drills[family].rung`, a test sheet only), else the rank's tier's (1 if none).
+- **`TEST_SHEETS`**, the test scenes' fixed sheets (`test-pairs`' picker), each a Warfighting and the values COMBAT §25.4.3 and §25.6.2 name, the nearest a sheet can hold (a base and its background points times Warfighting's weight, the higher on a tie: `solveOwn`), the other skills at their tier's middle; **`testSheet(tier)`** solves the bases so `value()` gives them exactly (a background point only past `BASE_MAX`) and writes the drill families' rungs (`{ room: { rung }, passage: { rung } }`); it is written on the scene's player only, never a career. **`PICKER_TIERS`**: the picker's order, recruit, private, sgt, raider, tierone; the corporal by the URL only (TECH §15.3).
+
+  | Tier id | Label | WF | MRK | WH | AWR | FIT | rung | on the picker |
+  |---|---|---|---|---|---|---|---|---|
+  | `recruit` | Boot recruit | 6 | 4 | 4 | 2 | 8 | 0 | yes |
+  | `private` | Private | 15 | 10 | 10 | 6 | 12 | 1 | yes (focused) |
+  | `cpl` | Corporal | 34 | 15 | 15 | 11 | 13 | 2 | by URL only |
+  | `sgt` | Sergeant | 44 | 19 | 19 | 14 | 14 | 3 | yes |
+  | `raider` | Raider, five years | 70 | 31 | 31 | 31 | 19 | 4 | yes |
+  | `tierone` | Tier one | 93 | 42 | 42 | 41 | 21 | 4 | yes |
+
+- **A finding, not changed** (react's, for the lead): the tier one's row tops (Marksmanship and Weapon handling 46, Fitness 23) are out of `rollSheet`'s reach, since a base of 20 plus 1 or 2 background points gives at most 44 and 22. The `sheets` test prints it rather than failing; the test sheets are unaffected (their values are solved, not rolled).
+
+**Hardening** (2026-11-07; §6.8, COMBAT §5.6) [computed, COMBAT §5's T1]. `TEST_SHEETS` gain their hardening (by the formula, never stored): recruit 7, private 17, corporal 36, sergeant 45, Raider 75, tier one 95 (the systems proposal's hand-set 3, 12, 25, 35, 70, 84 kept as COMBAT §24's question 17). The templates gain an inoculation by tier, `INOC_OF_TIER` (my calls): civilian, ice miner and insurgent cell member 0; insurgent veteran, pirate and corporate security 3; Navy rating 4; recruit 2; private, second lieutenant and MNI officer 6; lance corporal and UN Marine 8; corporal 10; sergeant and MSS tactical 12; staff or gunnery sergeant 14; recon 18; Raider and enemy special forces 22; tier one 25. At the table's middles that makes an insurgent cell member 8, a veteran 27, corporate security 16, a UN Marine 28, MSS tactical 39 and enemy special forces 82.
+
 ### 11.2 Generating a sheet
 
 - **Persistent people** (PEOPLE's tiers 1 to 3). From `stream('people', id)`, each skill's base is `intIn(lo, hi)` from the template. Two or three skills drawn from the stream get 1 or 2 background points, which gives personality: the corporal who boxes, the private who was a mechanic. Warfighting is `intIn(lo, hi)`, and the rank table in §11.3 refines it by time in service.
@@ -1192,6 +1245,27 @@ Neither nags (the design review's): the hands speak only at a sink or just out o
 
 **As built in v0.0.7** (`src/sim/skills/instinct/base.js`, `range.js`; `src/sim/body/cues.js` `woundLine`; the build sheet 0.0.7 §2.2, §2.3). **The base rules open with `wound`** (urgent or warn by the wound), the body line's wounds in BODY §23.2's order: "Bleeding hard from the left thigh: a tourniquet, now.", "Going into shock: lie flat, keep warm, call the corpsman.", "Bleeding: press on it.", "Still bleeding: keep pressure on.", then the pain; never a number. Its urgent lines speak on the range too, where the base rules keep quiet below urgent. **The range gains `range-kd`** (warn) on `test-range`'s KD course, for the KD's own commands: "Dial the coach's call: four up, two left." (`stop:sight:call`), "Your dope for three hundred is three down.", "Four power.", sitting then LOAD, the zero's RELOAD; on a hot KD line "Wind from the left: the coach says hold a mil left." until held so (`hold:call`, the point of aim into the wind: WEAPONS §7.4's convention, `holdSaid`'s quarters); and **"Police your brass.", "Unused rounds back to the coach.", "Say it: no brass, no ammo.", whose acts are `kd:police`, `kd:turnIn` and `kd:declare`**, done by T through `doAct` (`kdAct`), as their panel rows are (VIEWS §7.4). The KD's own commands (`dial`, `dope`, `optic`, `sit`, `reload`, `police`, `turnIn`, `declare`, and **`group`, `walk` and `pits`, where the coach or a splash does the work**) are `range-kd`'s, not `range-cmd`'s, so the DI says nothing over the last three. On the bay's familiarisation course v0.0.6's rules are unchanged.
 
+**As built in v0.0.8, the DI on the bay of turners** (new `src/sim/skills/instinct/pairs.js` `PAIRS_RULES`, weighed after the range's; the build sheet 0.0.8 §2.3, §10 item 11; COMBAT §25.8.3's lines that fit a range): **twelve rules**, at least four phrasings each, reading only what the character knows (the coach's command as heard, the rifle as believed, the take-in's record once paused: what he identified, never the face's truth; the turners as seen). **All are silent while a take-in's window is open**; T is never the shot nor picks the target (the brackets are the player's), and an act is offered only when its step is in the panel now. The act at the pause goes by the drill rung (`rungOf`): below rung 2 Off safe first, from rung 2 the row's aim does both.
+
+| Id | Tone | When | T does | A line |
+|---|---|---|---|---|
+| `pairs-still-up` | urgent, listed first | "He's still up" (COMBAT §25.6.1: a ring, or two torso hits, and standing) | aim at him if not aimed | "He's still up. Head." |
+| `pairs-contact` | urgent | at the pause, the bracketed a threat still up | the rifle up if slung; off safe below rung 2 with nothing fired yet; aim; then no act. **Cases with no act**: `press` ("You are on him. Now press."), `again` (one torso hit and standing: "Again. Chest."), `point` ("Back on your point first."), `next` and `nextUnseen` (the bracketed down and another he saw still up, its lane named) | "Rifle, your lane. Off safe. Aim. Then press." |
+| `pairs-live-out` | urgent | out of stop motion with a threat of the string facing and standing (X at the pause) | enter the mode | "He's still there. G, and take him." |
+| `pairs-noshoot` | warn | the bracketed identified with empty hands or a phone | Hold him when he is the last one up; with a threat he identified still up, `other`: that one named, no act | "Hands. No weapon. Don't."; "Not him. Rifle, lane one: bracket him (Q, D)." |
+| `pairs-unknown` | warn | the bracketed not identified | Challenge | "Can't see his hands. Challenge him." |
+| `pairs-reload` | warn | the bolt believed locked on an empty, rounds left | RELOAD | "Empty. Reload." |
+| `pairs-short` | warn | the coach's short magazine named and not in | Top up with it (the mode first) | "Top up with the short one." |
+| `pairs-cmd` | warn | the coach's LOAD, MAKE READY or UNLOAD, SHOW CLEAR not done yet | its macro (the mode first) | "The coach said LOAD." |
+| `pairs-reset` | warn | the string done and you in stop motion | on safe, then X | "Done. Safe. Out of it." |
+| `pairs-ready` | warn | a standby to come and the line not ready: the first part lacking (`pairsWant`) | the rifle up, the magazine, MAKE READY, a press check, on safe, low ready, X; none for the point | "No magazine in. Reach for one."; "Not sure what is up the spout. Press check."; "Back on your point first." |
+| `pairs-topup` | note | a lull (`lullOf`), the magazine believed at half or less, a fuller one at hand | Top up | "Lull. Top up." |
+| `pairs-wait` | calm | the turn armed | nothing | "Wait for it." |
+
+**On the pairs course five of the range's rules keep quiet** (`instinct.js` `RANGE_OFF_PAIRS`: `range-cmd`, `range-kd`, `range-reload`, `range-fire`, `range-wait`), since the coach's commands and the turners are the pairs rules'. **At a pause the line's lead** is "Contact · " + `takeInWords(ms)` + " s." ("Contact · 0.55 s.") in place of "Time stands still.", until the first step chosen after it.
+
+**On the KD course the DI names what the line moved on without** (`src/sim/skills/instinct/range.js` `owedOf`, the `range-cmd` rule's variant `'owed'`; the player verifier's finding of 0.0.8, seed 2614078355; my call): at LOAD, MAKE READY and commence fire, what the line has gone on without comes first. What each command needs before it: LOAD the string's position; MAKE READY the position and a magazine; commence fire the position, a magazine and a chambered round (the bolt not locked on an empty). Each is owed only if not done, and a magazine only with rounds left; under fire only before your first round since the command. The words: the owed steps, then the command ("The line has moved on. Sitting, then LOAD, then MAKE READY.", four phrasings), and the chip shows the first step and T does it (`stance:prone` or `stance:sit`, `macro:load`, `macro:ready`; out of the mode, the rifle up first). The move-on's "slow" fault and the tower's pace are unchanged (the user's rule, 2026-11-07: "no watering down but factor in experience", DESIGN.md's log): nothing is done for you and nothing forgiven. `fam25` (test-handling) is unchanged.
+
 ### 14.5 The DI in the field (later milestones; COMBAT supplies the facts)
 
 | Id | Tone | When | T does | Tier 0 / tier 1 / tier 2 (Tactics) |
@@ -1254,6 +1328,7 @@ All plain JSON in the save. Keys starting with `$` are runtime-only and are stri
   "background": "valley-farm",
   "schools": [ { "id": "boot", "endMs": 0, "result": "graduated" }, { "id": "infantry", "endMs": 0, "result": "graduated" } ],
   "drills": { "room": { "rung": 1, "reps": 7, "lived": ["room:stack", "room:open"] }, "passage": { "rung": 1 } },
+  "inoc": { "pts": 6, "n": 0, "sol": 214 },
   "firstFire": false
 }
 ```
@@ -1262,6 +1337,7 @@ All plain JSON in the save. Keys starting with `$` are runtime-only and are stri
 - `train` holds hours toward the next point; `field` holds the sol's field-learning credit (§6.5).
 - `rustAt` is the index `k` of the last rust period rolled, and `fit.week` the index of the training week, both counted from the career's start in `RUST_PERIOD_MS` and `FIT_WEEK_MS` (§7).
 - The crowd has no sheet (§11.2).
+- `inoc` (2026-11-07, §6.8) is the inoculation counter: `pts` 0 to 25, `n` the runs counted on `sol` (at most 4); the player's and persistent people's, NPCs read theirs from the template; `upgradeState` fills an old save's from the summary paper (6). Hardening itself is derived, never stored.
 - `drills[family]` holds a drill family's rung, its clean runs and the bundles lived by hand (COMBAT §25.3); the player's only, NPCs read theirs from the template. `upgradeState` fills an old save's from the summary paper (room 1, passage 1).
 
 ### 15.2 A roll (in the log, as it is)
@@ -1351,6 +1427,7 @@ TECH owns the layout. My proposal is `src/sim/skills/`, all pure, each opening w
 | `instinct` | a scripted morning at Melas (reveille to formation, a safety left off, an officer passing, a full bladder), the line and chip timeline second by second | never more than one line and one chip; no line or chip shorter than 3 s; a hazard behind a failed roll never speaks; the chip's keycaps and count match the rules firing |
 | `instinct.reach` | a scripted moment where three rules fire at once (a full bladder at warning, an officer passing within six paces outdoors, an order relayed on the net), then the same with a muzzle line on top; each key pressed in turn, from a fresh copy of the moment | each rule is reachable with one key: T the line, T held the chip's keyless line, B the order, F the salute, in both moments; the chip shows `{B}` and `{F}` while those wait off the line; a rule done by its own key leaves the ranking that tick |
 | `instinct.net` | an order relayed, acknowledged with T, with B while another line is shown, and ignored for 30 s | the ack events at once for T and B; the repeat and failure events at 10 s and 30 s |
+| `hard` (quick; 2026-11-07) | §6.8's values from the templates and the test sheets; the career's stretches; the toll on a tier one | hardening not monotonic in Warfighting within a class; inoculation past its teacher's cap or past 4 a sol; a real fight adding inoculation |
 | `pace` (with TECH's syntax test) | `paceOf` at 0 to 46; TIME's `clean-rifle` and `suit-up` at the reference marine | §5.12's table; no function or constant with `pace` as a word of its name outside `src/sim/skills/skills.js` |
 
 QUICK mode skips the 100,000-roll grids and the 50-run career, which are marked heavy. `checks.routine`, `checks.steady`, `xp-tables` and `pace` are exact or static and run in QUICK.

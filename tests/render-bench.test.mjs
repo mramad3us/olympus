@@ -28,6 +28,9 @@
 // times: prints the frames, the draw calls (the window's own among them), the uploads, the window's state and its GPU
 // pass, the KD's faces, flags and fires drawn, and holds the same budgets (p95 at most 18 ms on a 60 Hz clock, at most
 // 160 draw calls, no frame over 1 MB, no program linked) with the window open through the scene.
+// 0.0.8 (the user's report of 2026-11-07, "when at 300m, with the scope at 1x, the view still shows the target zoomed
+// in"): range-far again with the lever thrown to 1 first (the window at 4 px/m, its scene pass a 632 px square and the
+// 4 × 4 mean into its 158), the same budgets held.
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { BENCH_SCENES } from '../src/data/bench.js';
@@ -41,6 +44,48 @@ const FAR = BENCH_SCENES['range-far'];
 const farQuery = `play=${FAR.play}&seed=${FAR.seed}&hour=${FAR.hour}&setup=${FAR.setup}&nostore=1&perf=1&ppm=16`;
 const lineQuery = (ppm) => `play=${LINE.play}&seed=${LINE.seed}&hour=${LINE.hour}&setup=${LINE.setup}&nostore=1&perf=1&ppm=${ppm}`;
 const queryOf = (ppm) => `play=${SCENE.play}&seed=${SCENE.seed}&hour=${SCENE.hour}&area=${SCENE.at.area}&at=${SCENE.at.x},${SCENE.at.z}&face=${SCENE.at.face}&nostore=1&perf=1&ppm=${ppm}`;
+
+// (the range-far scene at the lever's power: 4 as the bench has it, or 1 (0.0.8: the window at 4 px/m over four times the ground), the lever thrown first)
+async function farBench(page, errors, optic = 4) {
+  await page.waitForTimeout((FAR.warmS ?? 3) * 1000);
+  if (optic !== 4) {
+    await page.evaluate((o) => window.__olympus.act({ act: 'stop', args: { step: `optic:${o}` } }), optic);
+    await page.waitForFunction((o) => window.__report.view.far?.open && window.__report.view.far?.mag === o, optic, { timeout: 15000 });
+    await page.waitForTimeout(500);
+  }
+  const relayShots = () => { const st = typeof window.__olympus.state === 'function' ? window.__olympus.state() : window.__olympus.state; return { shots: (st?.armoury?.range?.relay ?? []).reduce((t, G) => t + (G.shots ?? 0), 0), ms: st?.clock?.ms ?? 0 }; };
+  const boot = await page.evaluate(() => ({ programs: window.__report.view.programs, far: window.__report.view.far, fire: (window.__olympus.steps?.()?.slots ?? []).find(s => s.id === 'fire') ?? null }));
+  const r0 = await page.evaluate(relayShots);
+  await startSampling(page);
+  const opened = [];
+  for (const [code, ms] of FAR.keys) {
+    if (code) await page.keyboard.down(code);
+    await page.waitForTimeout(ms);
+    if (code) await page.keyboard.up(code);
+    opened.push(await page.evaluate(() => window.__report.view.far?.open ?? false));
+  }
+  const frames = await stopSampling(page);
+  const r1 = await page.evaluate(relayShots);
+  const here = await frameClock(page), b = await burst(page);
+  const after = await page.evaluate(() => ({ programs: window.__report.view.programs, people: window.__report.view.people, far: window.__report.view.far, kd: window.__report.view.range?.kd ?? null, gpu: window.__report.view.gpu }));
+  console.log(`      the game ran ${fmt((r1.ms - r0.ms) / 1000, 1)} s of the bench's 20 (the waits for the marks); the relay fired ${r1.shots - r0.shots} rounds in it`);
+  const dts = frames.map(f => f.dt), calls = Math.max(...frames.map(f => f.calls)), bytes = Math.max(...frames.map(f => f.bytes)), links = frames.reduce((n, f) => n + f.links, 0);
+  const p95 = pct(dts, 0.95), sixty = pct(dts, 0.5) <= 17.5 && here.medianMs <= 17.5;
+  const kd = after.kd ? { ...after.kd, carriers: after.kd.carriers?.length ?? 0 } : null;
+  console.log(`      16 px/m, the window at ${after.far?.mag}× (${after.far?.ppm} px/m, its pass ${after.far?.spanPx} px square): ${frames.length} frames over ${fmt(dts.reduce((a, d) => a + d, 0) / 1000, 1)} s: ${framesLine(dts)}`);
+  console.log(`      draw calls ${calls} at most (the window's own ${after.far?.calls ?? 0}); programs ${boot.programs} → ${after.programs} (${links} linked); uploads ${fmt(bytes / 1024, 1)} KB a frame at most; ${after.people.drawn} drawn`);
+  console.log(`      the far window: at the start ${JSON.stringify({ open: boot.far?.open, ready: boot.far?.ready, chunks: boot.far?.chunks })}, open after each tap ${opened.filter((_, i) => i % 2 === 0).join(', ')}; at the end ${JSON.stringify({ open: after.far?.open, key: after.far?.key, rangeM: after.far?.rangeM, chunks: after.far?.chunks, ms: after.far?.ms })}; Fire ${boot.fire ? (boot.fire.off ? `struck (${boot.fire.off})` : 'offered') : 'not offered'}`);
+  console.log(`      the KD drawn: ${JSON.stringify(kd)}; GPU ${after.gpu ? `scene ${fmt(after.gpu.sceneMs, 2)}, post ${fmt(after.gpu.postMs, 2)} ms (the window's pass in post)` : 'no timer'}`);
+  console.log(`      40 frames back to back, each finished on the GPU: median ${fmt(b.medianMs, 2)} ms, p95 ${fmt(b.p95Ms, 2)} ms; the clock on this page ${fmt(here.medianMs, 1)} ms${sixty ? '' : ' (not 60 Hz: the paced p95 is printed, not held)'}`);
+  assert(after.far?.open && after.far?.mag === optic, `the far window open on your face at ${optic}×: ${JSON.stringify(after.far)}`);
+  assert(r1.ms - r0.ms >= 12_000 && r1.shots > r0.shots, `the game ran ${r1.ms - r0.ms} ms, the relay fired ${r1.shots - r0.shots}`);
+  assert(calls <= 160, `${calls} draw calls`);
+  assert(links === 0 && after.programs === boot.programs, `programs linked in the scene: ${links} (${boot.programs} → ${after.programs})`);
+  assert(bytes <= 1024 * 1024, `a frame sent ${bytes} bytes`);
+  assert(b.medianMs <= 1000 / 60, `a frame and its GPU work: median ${fmt(b.medianMs, 2)} ms`);
+  if (sixty) assert(p95 <= 18, `paced frames: p95 ${fmt(p95, 1)} ms`);
+  assert(!errors.length, errors.join('\n'));
+}
 
 export default [
   {
@@ -154,41 +199,15 @@ export default [
     heavy: true,
     timeoutMs: 180000,
     async fn() {
-      await withGame(async (page, errors) => {
-        await page.waitForTimeout((FAR.warmS ?? 3) * 1000);
-        const relayShots = () => { const st = typeof window.__olympus.state === 'function' ? window.__olympus.state() : window.__olympus.state; return { shots: (st?.armoury?.range?.relay ?? []).reduce((t, G) => t + (G.shots ?? 0), 0), ms: st?.clock?.ms ?? 0 }; };
-        const boot = await page.evaluate(() => ({ programs: window.__report.view.programs, far: window.__report.view.far, fire: (window.__olympus.steps?.()?.slots ?? []).find(s => s.id === 'fire') ?? null }));
-        const r0 = await page.evaluate(relayShots);
-        await startSampling(page);
-        const opened = [];
-        for (const [code, ms] of FAR.keys) {
-          if (code) await page.keyboard.down(code);
-          await page.waitForTimeout(ms);
-          if (code) await page.keyboard.up(code);
-          opened.push(await page.evaluate(() => window.__report.view.far?.open ?? false));
-        }
-        const frames = await stopSampling(page);
-        const r1 = await page.evaluate(relayShots);
-        const here = await frameClock(page), b = await burst(page);
-        const after = await page.evaluate(() => ({ programs: window.__report.view.programs, people: window.__report.view.people, far: window.__report.view.far, kd: window.__report.view.range?.kd ?? null, gpu: window.__report.view.gpu }));
-        console.log(`      the game ran ${fmt((r1.ms - r0.ms) / 1000, 1)} s of the bench's 20 (the waits for the marks); the relay fired ${r1.shots - r0.shots} rounds in it`);
-        const dts = frames.map(f => f.dt), calls = Math.max(...frames.map(f => f.calls)), bytes = Math.max(...frames.map(f => f.bytes)), links = frames.reduce((n, f) => n + f.links, 0);
-        const p95 = pct(dts, 0.95), sixty = pct(dts, 0.5) <= 17.5 && here.medianMs <= 17.5;
-        const kd = after.kd ? { ...after.kd, carriers: after.kd.carriers?.length ?? 0 } : null;
-        console.log(`      16 px/m: ${frames.length} frames over ${fmt(dts.reduce((a, d) => a + d, 0) / 1000, 1)} s: ${framesLine(dts)}`);
-        console.log(`      draw calls ${calls} at most (the window's own ${after.far?.calls ?? 0}); programs ${boot.programs} → ${after.programs} (${links} linked); uploads ${fmt(bytes / 1024, 1)} KB a frame at most; ${after.people.drawn} drawn`);
-        console.log(`      the far window: at the start ${JSON.stringify({ open: boot.far?.open, ready: boot.far?.ready, chunks: boot.far?.chunks })}, open after each tap ${opened.filter((_, i) => i % 2 === 0).join(', ')}; at the end ${JSON.stringify({ open: after.far?.open, key: after.far?.key, rangeM: after.far?.rangeM, chunks: after.far?.chunks, ms: after.far?.ms })}; Fire ${boot.fire ? (boot.fire.off ? `struck (${boot.fire.off})` : 'offered') : 'not offered'}`);
-        console.log(`      the KD drawn: ${JSON.stringify(kd)}; GPU ${after.gpu ? `scene ${fmt(after.gpu.sceneMs, 2)}, post ${fmt(after.gpu.postMs, 2)} ms (the window's pass in post)` : 'no timer'}`);
-        console.log(`      40 frames back to back, each finished on the GPU: median ${fmt(b.medianMs, 2)} ms, p95 ${fmt(b.p95Ms, 2)} ms; the clock on this page ${fmt(here.medianMs, 1)} ms${sixty ? '' : ' (not 60 Hz: the paced p95 is printed, not held)'}`);
-        assert(after.far?.open, 'the far window open on your face');
-        assert(r1.ms - r0.ms >= 12_000 && r1.shots > r0.shots, `the game ran ${r1.ms - r0.ms} ms, the relay fired ${r1.shots - r0.shots}`);
-        assert(calls <= 160, `${calls} draw calls`);
-        assert(links === 0 && after.programs === boot.programs, `programs linked in the scene: ${links} (${boot.programs} → ${after.programs})`);
-        assert(bytes <= 1024 * 1024, `a frame sent ${bytes} bytes`);
-        assert(b.medianMs <= 1000 / 60, `a frame and its GPU work: median ${fmt(b.medianMs, 2)} ms`);
-        if (sixty) assert(p95 <= 18, `paced frames: p95 ${fmt(p95, 1)} ms`);
-        assert(!errors.length, errors.join('\n'));
-      }, { query: farQuery, viewport: { width: 1600, height: 900 }, timeoutMs: 60000 });
+      await withGame((page, errors) => farBench(page, errors, 4), { query: farQuery, viewport: { width: 1600, height: 900 }, timeoutMs: 60000 });
+    },
+  },
+  {
+    name: 'the bench scene range-far with the lever on 1 (the user\'s report, 2026-11-07: the 1× window is the naked eye\'s, 4 px/m over four times the ground): the same budgets, 60 fps (p95 at most 18 ms on a 60 Hz clock), draw calls under 160, no program linked, no frame over 1 MB',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() {
+      await withGame((page, errors) => farBench(page, errors, 1), { query: farQuery, viewport: { width: 1600, height: 900 }, timeoutMs: 60000 });
     },
   },
 ];

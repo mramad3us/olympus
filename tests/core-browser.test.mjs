@@ -45,6 +45,18 @@
 // on it (view.farState().open), labelled "TARGET n · 300 M", its disc and stack apart from every HUD rectangle in the page;
 // Z twice dials two clicks up: the turrets' belief moves, the believed zero does not, the plaque's zero term follows; the
 // bot to the end: the end card's KD summary, Score it at 85, 80, 90, and Copy my scores gives ROADMAP §2.2's line.
+// The 0.0.8 round's (the build sheet 0.0.8 §5.4 core-browser): test-pairs, "Pairs": the Tests menu's entry opens the sheet
+// picker (five sheets, the Private focused); ?play=test-pairs&tier=private&seed=48213 boots with no errors; out of the mode
+// at low ready, the turn draws the amber brackets (three times the face's box at the sighting, closing) and the pause lands
+// on the sim's tick (the sighting + 0.55 s); Z, X and a digit pressed in the window change nothing, Space pauses it; at
+// the pause the stamp, the plaque's lead "CONTACT · … · TAKEN IN 0.55 S" and the line's "Contact · 0.55 s."; Off safe,
+// Aim, then the Pair row with its price and odds, fired: two rounds at the split; the paper's text the sim's; the pairs
+// bot (tests/bots/pairs.mjs, in the page) to the end; the end card's sheet and aspects, "Again as Tier one" on the same
+// seed; the paper and the HUD apart at 1600 × 900 and 1024 × 768; Copy my scores gives "… · test-pairs · seed 48213 · turn
+// 85 · shots 80 · gun 90 · ★ no · note: none".
+// 0.0.7's tower fixer (the user's play of 2026-11-07): the 200 m line on seed 99, the tower's command on top of the radio box
+// at the dope and at commence fire with the coach's lines under it, every voice whole, your stake marked; the command marked
+// NOW and the only tower line in the box, its short form keeping its terms (seed 48213 too: the tower verifier's).
 import { assert, fmt, root } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { rectsAt, overlaps } from '../src/ui/hud/layout.js';
@@ -806,9 +818,12 @@ export default [
         await cmd('fire'); await choose(); await settle(page, 150);
         await page.keyboard.press(`Digit${await keyOf('selector:semi')}`); await settle(page, 150); await choose();
         await page.keyboard.press('Enter'); await settle(page, 150); await choose(); await settle(page, 200);
-        const pl = await page.evaluate((h) => ({ p: window[h].plaque(), drawn: document.querySelector('.plaque.reticle')?.dataset.text ?? null, hidden: document.querySelector('.plaque.reticle')?.hidden }), H);
-        console.log(`      the plaque: '${pl.p?.words}', drawn '${pl.drawn}'; ${pl.p?.parts.dc}: ${pl.p?.parts.parts.join(', ')} | ${pl.p?.parts.mods.join(', ')}`);
+        const pl = await page.evaluate((h) => { const pi = document.querySelector('.plaque-info'); return { p: window[h].plaque(), drawn: document.querySelector('.plaque.reticle')?.dataset.text ?? null, hidden: document.querySelector('.plaque.reticle')?.hidden, info: pi && !pi.hidden ? pi.innerText.split('\n') : null }; }, H);
+        console.log(`      the plaque: '${pl.p?.words}', drawn '${pl.drawn}'; ${pl.p?.parts.dc}: ${pl.p?.parts.parts.join(', ')} | ${pl.p?.parts.mods.join(', ')}; its list after the aim: ${pl.info ? pl.info.join(' | ') : 'hidden'}`);
         assert(/^PAPER · 25 M · \d+% · /.test(pl.p?.words ?? '') && pl.drawn && /^PAPER \d+%/.test(pl.drawn) && pl.hidden === false, JSON.stringify(pl));
+        // (the list has no row of terms on the 25 m bay: none drawn, never the word "null" (the tower fixer's, 0.0.7: an absent row
+        // given to replaceChildren was written out as the text "null" between the modifiers and the odds))
+        assert(pl.info && pl.info.length === 3 && !pl.info.some(l => /\bnull\b|undefined/.test(l)), JSON.stringify(pl.info));
         // (Fire held: hold and fire; a hole in PAPER, the shot's toast, the roll in J)
         const holes0 = Number(await page.evaluate(() => document.querySelector('.paper')?.dataset.holes ?? 0));
         const fk = await keyOf('fire');
@@ -817,13 +832,15 @@ export default [
         const shot = await page.evaluate(() => ({ holes: Number(document.querySelector('.paper')?.dataset.holes ?? 0), paper: document.querySelector('.paper')?.dataset.text, toast: [...document.querySelectorAll('.toasts .toast')].map(t => t.textContent).at(-1) }));
         console.log(`      Fire held: PAPER '${shot.paper}'; the toast '${shot.toast}'`);
         assert(shot.holes === holes0 + 1 && /^Marksmanship \d+ against \d+/.test(shot.toast ?? ''), JSON.stringify(shot));
-        // (the bot, in the page, to the set stoppage: the reflex card in STEPS' place, answered by a digit)
+        // (the bot, in the page, to the set stoppage: the reflex card in STEPS' place, answered by a digit; here and in the KD
+        // bots below, a fast-forward (an activity past LIVE_MAX_MS 10 s) is ticked with no keys and checked, as the loop's
+        // ffFrame does: h.step alone never ends one, and the bot would stand in it to maxTicks)
         const bot = (until, maxTicks = 60000) => page.evaluate(async ([h, until, maxTicks]) => {
           const { rangeBot } = await import('/tests/bots/range.mjs');
           const O = window[h], run = rangeBot(), done = new Function('O', `return (${until});`);
           O.pause(true);
           let n = 0;
-          for (; n < maxTicks && !done(O); n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); O.step(1, run(s, me, (me.bot ??= {}))); }
+          for (; n < maxTicks && !done(O); n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); if (s.skip?.engine === 'ff') { O.step(1); O.sim.ffCheck(s); } else O.step(1, run(s, me, (me.bot ??= {}))); }
           O.pause(false);
           return { ticks: n, done: done(O) };
         }, [H, until, maxTicks]);
@@ -934,7 +951,7 @@ export default [
           const O = window[h], run = kdBot(), done = new Function('O', `return (${until});`);
           O.pause(true);
           let n = 0;
-          for (; n < maxTicks && !done(O); n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); O.step(1, run(s, me, (me.bot ??= {}))); }
+          for (; n < maxTicks && !done(O); n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); if (s.skip?.engine === 'ff') { O.step(1); O.sim.ffCheck(s); } else O.step(1, run(s, me, (me.bot ??= {}))); }
           O.pause(false);
           return { ticks: n, done: done(O) };
         }, [H, until, maxTicks]);
@@ -998,6 +1015,224 @@ export default [
         console.log(`      Copy my scores: '${clip}'`);
         assert(new RegExp(`^OLYMPUS v${await page.evaluate((h) => window[h].version, H)} · test-range · seed 48213 · far window 85 · shot at distance 80 · range safety 90 · ★ no · note: none$`).test(clip), clip);
       }, { query: 'nostore=1', viewport: { width: 1600, height: 900 } });
+    },
+  },
+  {
+    name: 'test-pairs, "Pairs": the Tests menu\'s picker (five sheets, the Private focused); by the URL with no errors; a turn\'s amber brackets closing and the pause on the sim\'s tick (seen + 0.55 s); Z, X and 1 in the window change nothing; the stamp, the plaque\'s lead and "Contact · 0.55 s."; Off safe, Aim, the Pair row priced and fired; the paper the sim\'s; the end card\'s "Again as Tier one" on the same seed; the HUD apart at 1600 × 900 and 1024 × 768; the score line "… · test-pairs · seed 48213 · turn 85 · shots 80 · gun 90 · ★ no · note: none"',
+    heavy: true,
+    timeoutMs: 420000,
+    async fn() {
+      await withGame(async (page, errors, game) => {
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: game.origin });
+        // (the Tests menu's "Pairs": the picker first)
+        await page.click('#title .item.tests');
+        const list = await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].map(b => b.innerText.split('\n')[0]));
+        console.log(`      Tests: ${list.join(' | ')}`);
+        assert(list.includes('Pairs') && list.indexOf('Pairs') === list.indexOf('The line at 300 m') + 1, JSON.stringify(list));
+        await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].find(b => b.innerText.startsWith('Pairs')).click());
+        await page.waitForSelector('#title .sheet.picker');
+        const picker = await page.evaluate(() => ({ rows: [...document.querySelectorAll('#title .item.sheetpick')].map(b => ({ tier: b.dataset.tier, text: b.innerText.replace(/\s+/g, ' ').trim() })), focus: document.activeElement?.dataset?.tier ?? null }));
+        console.log(`      the picker: ${picker.rows.map(r => r.text.split(' Warfighting')[0]).join(' | ')}; focused ${picker.focus}`);
+        assert(picker.rows.map(r => r.tier).join() === 'recruit,private,sgt,raider,tierone' && picker.focus === 'private' && picker.rows.every(r => /Warfighting \d+/.test(r.text)), JSON.stringify(picker));
+        await page.keyboard.press('Escape');
+        await page.waitForSelector('#title .sheet.tests:not(.picker)');
+        // (by the URL: the private on seed 48213)
+        await game.open('play=test-pairs&tier=private&seed=48213&nostore=1');
+        await playing(page);
+        const start = await page.evaluate((h) => ({ scene: window[h].scene, pairs: window[h].pairs() }), H);
+        console.log(`      the scene ${JSON.stringify(start.scene)}: ${start.pairs?.label}, lane ${start.pairs?.lane}, the ${start.pairs?.line} m line`);
+        assert(start.scene?.id === 'test-pairs' && start.pairs?.sheet === 'private', JSON.stringify(start));
+        // (the pairs bot in the page, the loop paused while it steps)
+        const bot = (until, maxTicks = 60000) => page.evaluate(async ([h, until, maxTicks]) => {
+          const { pairsBot } = await import('/tests/bots/pairs.mjs');
+          const O = window[h]; window.__pairsBot ??= pairsBot();
+          const run = window.__pairsBot, done = new Function('O', `return (${until});`);
+          O.pause(true);
+          let n = 0;
+          for (; n < maxTicks && !done(O); n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); O.step(1, run(s, me, (me.bot ??= {}))); }
+          return { ticks: n, done: done(O) };
+        }, [H, until, maxTicks]);
+        // (to the sighting tick of string 1: the window open, the brackets drawn at about three times the face's box)
+        const toWin = await bot('!!O.contact()?.pending');
+        await page.evaluate((h) => window[h].pause(false), H);
+        await page.waitForFunction((h) => (window[h].contact()?.brackets?.length ?? 0) > 0, H, { timeout: 5000 });
+        const win = await page.evaluate((h) => { const c = window[h].contact(), me = window[h].state.actors.list.find(a => a.id === window[h].state.player.actor); return { pending: c.pending, hud: c.hud, brackets: c.brackets, me: { x: me.x, z: me.z }, stop: window[h].stop()?.mode ?? null, refused: window[h].sim?.stats?.refused ?? 0 }; }, H);
+        console.log(`      ${toWin.ticks} ticks to the sighting: the window ${win.pending.seenMs} to ${win.pending.untilMs} (${win.pending.ms} ms, ${win.pending.expect}, n ${win.pending.n}); the brackets × ${win.hud?.window?.scale} at k ${win.hud?.window?.k}: ${JSON.stringify(win.brackets)}`);
+        assert(win.pending.ms === 550 && win.pending.untilMs - win.pending.seenMs === 550 && win.hud?.window?.scale > 1.5, JSON.stringify(win));
+        // (Z, X and 1 in the window: nothing; the keys are the marine's once he has taken it in)
+        await page.keyboard.down('KeyW'); await page.keyboard.press('KeyX'); await page.keyboard.press('Digit1');
+        await page.waitForFunction((h) => window[h].stop()?.mode === 'stop' && !window[h].contact()?.pending, H, { timeout: 5000 });
+        await page.keyboard.up('KeyW');
+        // (past the pause's guard: main.js PAUSE_GUARD_MS 350 of real time, no key acts but Space and Esc)
+        await settle(page, 450);
+        const pause = await page.evaluate((h) => { const O = window[h], c = O.contact(), me = O.state.actors.list.find(a => a.id === O.state.player.actor); return { last: c.last, stop: O.stop(), hud: O.hud, plate: c.plate, me: { x: me.x, z: me.z }, ms: O.state.clock.ms, stamp: document.querySelector('.plaque.stamp')?.dataset.text ?? null, stampShown: !document.querySelector('.plaque.stamp')?.hidden }; }, H);
+        const moved = Math.hypot(pause.me.x - win.me.x, pause.me.z - win.me.z);
+        console.log(`      the pause at ${pause.last.atMs} (seen + ${pause.last.atMs - pause.last.seenMs} ms): the stamp '${pause.stamp}', the plate '${pause.plate}', the line '${pause.hud.lead}'; moved ${fmt(moved, 3)} m in the window, stop ${pause.stop.mode} via ${pause.stop.via ?? '?'}, pick ${pause.stop.pick}`);
+        assert(pause.last.atMs === win.pending.untilMs && pause.last.ms === 550 && pause.stop.mode === 'stop' && pause.stop.pick === pause.last.ids[0], JSON.stringify(pause.last));
+        assert(moved < 0.05 && pause.stamp === '0.55 S' && pause.stampShown && /^CONTACT · .*TAKEN IN 0\.55 S$/.test(pause.plate ?? '') && pause.hud.lead === 'Contact · 0.55 s.', JSON.stringify({ moved, stamp: pause.stamp, plate: pause.plate, lead: pause.hud.lead }));
+        // (Off safe, Aim, then the Pair row: priced, its odds, fired: two rounds a split apart)
+        const digitOf = (pred) => page.evaluate(([h, pred]) => { const f = new Function('s', `return (${pred});`); for (let n = 1; n <= 10; n++) { const s = window[h].stepOn(n % 10); if (s && s !== 'more' && f(s)) return n % 10; } return null; }, [H, pred]);
+        // (a step chosen: time runs while it acts and stands again at its end, so the clock past the press and 'choose' is its end)
+        const press = async (d) => {
+          const ms0 = await page.evaluate((h) => window[h].state.clock.ms, H);
+          await page.keyboard.press(`Digit${d}`);
+          await page.waitForFunction(([h, ms0]) => window[h].state.clock.ms > ms0 && window[h].stop()?.phase === 'choose' && !window[h].stop()?.doing, [H, ms0], { timeout: 10000 });
+          await settle(page, 200);
+        };
+        const offSafe = await digitOf("s.id === 'selector:semi'");
+        assert(offSafe !== null, 'Off safe on the first page');
+        await press(offSafe);
+        const aim = await digitOf("s.kind === 'aim'");
+        if (aim === null) console.log(`      no Aim after Off safe: ${await page.evaluate((h) => window[h].steps()?.text, H)}`);
+        await press(aim);
+        const pairRow = await page.evaluate((h) => window[h].steps().steps.find(x => x.id === 'shot:pair'), H);
+        const pairDigit = await digitOf("s.id === 'shot:pair'"), rowText = await page.evaluate(() => [...document.querySelectorAll('.steps .step')].find(r => r.dataset.step === 'shot:pair')?.innerText.replace(/\s+/g, ' ') ?? '');
+        console.log(`      the Pair on ${pairDigit}: '${rowText}' (${pairRow?.rounds?.map(r => `${r.part} ${Math.round(r.odds * 100)}%`).join(', ')}; parts ${pairRow?.parts?.map(p => `${p.k} ${p.ms}`).join(', ')})`);
+        assert(pairDigit !== null && !pairRow.off && /Pair/.test(rowText) && /\d\.\d\d s/.test(rowText) && /\d+% \d+%/.test(rowText), JSON.stringify({ pairRow, rowText }));
+        const shots0 = await page.evaluate((h) => window[h].state.armoury.range.str?.shots?.length ?? 0, H);
+        await press(pairDigit);
+        const fired = await page.evaluate((h) => (window[h].state.armoury.range.str?.shots ?? []).filter(x => x.fired !== false).map(x => ({ atMs: x.atMs, row: x.row ?? null, zone: x.zone ?? null })), H);
+        console.log(`      the Pair fired: ${JSON.stringify(fired.slice(shots0))}; split ${fired.length >= 2 ? fired.at(-1).atMs - fired.at(-2).atMs : '?'} ms; the rows' reports heard ${JSON.stringify(await page.evaluate((h) => window[h].rangeSound?.rowShots ?? null, H))}`);
+        assert(fired.length - shots0 === 2, JSON.stringify(fired));
+        // (the bot to the string's paper: the paper is the sim's text)
+        await bot('!!O.pairs()?.strs?.at(-1)?.done');
+        await page.evaluate((h) => window[h].pause(false), H);
+        await page.waitForFunction(() => !document.querySelector('.timer')?.hidden, null, { timeout: 5000 });
+        const paper = await page.evaluate((h) => { const p = window[h].pairs(), last = p.strs.at(-1); return { shown: document.querySelector('.timer')?.dataset.text, sim: typeof last.paper === 'string' ? last.paper : last.paper?.text }; }, H);
+        console.log(`      the paper '${paper.shown}' (the sim's '${paper.sim}')`);
+        assert(paper.shown && paper.shown === paper.sim, JSON.stringify(paper));
+        // (the HUD and the paper apart, at two sizes)
+        for (const [w, hh] of [[1600, 900], [1024, 768]]) {
+          await page.setViewportSize({ width: w, height: hh }); await settle(page, 500);
+          const got = await page.evaluate(() => {
+            const r = (sel) => { const e = document.querySelector(sel); if (!e || e.hidden || e.closest('[hidden]') || getComputedStyle(e).display === 'none') return null; const b = e.getBoundingClientRect(); return b.width && b.height ? { x: b.left, y: b.top, w: b.width, h: b.height } : null; };
+            return { TOASTS: r('.toasts'), WATCH: r('.watch'), TIMER: r('.timer'), INSTINCT: r('.instinct'), STEPS: r('.steps'), RADIO: r('.radio.voices'), KEYS: r('.keyshint'), BANNER: r('.banner') };
+          });
+          const names = Object.keys(got).filter(k => got[k]), clash = [];
+          for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if (overlaps(got[names[i]], got[names[j]])) clash.push(`${names[i]} × ${names[j]}`);
+          console.log(`      ${w} × ${hh}: ${names.map(n => `${n} ${fmt(got[n].w, 0)}×${fmt(got[n].h, 0)}@${fmt(got[n].x, 0)},${fmt(got[n].y, 0)}`).join(' ')}; meeting: ${clash.join(', ') || 'none'}`);
+          assert(got.TIMER && !clash.length, JSON.stringify({ got, clash }));
+        }
+        await page.setViewportSize({ width: 1600, height: 900 }); await settle(page, 300);
+        // (the bot to the end; the end card's sheet and aspects, then "Again as Tier one")
+        await bot('!!O.range()?.end', 200000);
+        await page.evaluate((h) => window[h].pause(false), H);
+        await page.waitForFunction((h) => window[h].scene?.ended, H, { timeout: 15000 });
+        for (let w = 0; w < 60 && !(await page.evaluate(() => !!document.querySelector('.glass.end'))); w++) { await page.keyboard.press('Enter'); await settle(page, 300); }
+        await page.waitForFunction(() => document.querySelector('.glass.end'), null, { timeout: 15000 });
+        const end = await page.evaluate(() => ({ text: document.querySelector('.glass.end').innerText, again: [...document.querySelectorAll('.glass.end .again-as')].map(b => /Again as [^\n]+/.exec(b.innerText)?.[0] ?? '') }));
+        console.log(`      the end card: '${end.text.split('\n').filter(Boolean).slice(0, 5).join(' | ')}'; ${end.again.join(', ')}`);
+        assert(/End of the scene: Pairs, as Private/i.test(end.text) && /turn /.test(end.text) && /shots /.test(end.text) && /gun /.test(end.text) && end.again.includes('Again as Tier one') && end.again.length === 4, JSON.stringify(end));
+        // (Score it, 85, 80, 90; Copy my scores; Done; then Again as Tier one: the same seed, the same targets)
+        await settle(page, 400);
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.querySelector('.glass.score'), null, { timeout: 5000 });
+        await page.evaluate(() => { const set = [85, 80, 90]; [...document.querySelectorAll('.glass.score input.score')].forEach((i, n) => { i.value = String(set[n]); i.dispatchEvent(new Event('input')); }); });
+        await page.click('.glass.score .copy');
+        await page.waitForFunction(() => /Copied|failed/.test(document.querySelector('.glass.score .copied').textContent), null, { timeout: 5000 });
+        const clip = await page.evaluate(async () => navigator.clipboard.readText().catch(e => `(no read: ${e.message})`));
+        console.log(`      Copy my scores: '${clip}'`);
+        assert(new RegExp(`^OLYMPUS v${await page.evaluate((h) => window[h].version, H)} · test-pairs · seed 48213 · turn 85 · shots 80 · gun 90 · ★ no · note: none$`).test(clip), clip);
+        await page.keyboard.press('Digit2');
+        await page.waitForFunction(() => document.querySelector('.glass.end'), null, { timeout: 5000 });
+        const strings0 = await page.evaluate((h) => window[h].pairs()?.strs?.map(x => x.keys?.join('+')).join(' / '), H);
+        await page.evaluate(() => [...document.querySelectorAll('.glass.end .again-as')].find(b => /Again as Tier one/.test(b.innerText)).click());
+        await playing(page);
+        const again = await page.evaluate((h) => ({ scene: window[h].scene, sheet: window[h].pairs()?.sheet, lane: window[h].pairs()?.lane }), H);
+        await page.evaluate(() => { window.__pairsBot = null; });
+        const toWin1 = await bot('!!O.contact()?.pending');
+        const pend1 = await page.evaluate((h) => window[h].contact().pending, H);
+        console.log(`      Again as Tier one: ${JSON.stringify(again)}; its first window ${pend1?.ms} ms (${pend1?.expect}) after ${toWin1.ticks} ticks; the private's strings were ${strings0}`);
+        assert(again.scene?.seed === 48213 && again.sheet === 'tierone' && pend1?.ms === 50, JSON.stringify({ again, pend1 }));
+        await page.evaluate((h) => window[h].pause(false), H);
+      }, { query: 'nostore=1', viewport: { width: 1600, height: 900 } });
+    },
+  },
+  {
+    name: 'the pause\'s guard (the runtime review of v0.0.8): X pressed by reflex 150 ms after the brackets appear, as the tier one and the Raider, lands after their pause and does nothing: stop motion is still on 0.5 s later, the clock held at the pause; a digit that went down in the window does nothing when it comes up',
+    heavy: true,
+    timeoutMs: 240000,
+    async fn() {
+      await withGame(async (page, errors, game) => {
+        const rows = [];
+        for (const tier of ['tierone', 'raider']) {
+          await game.open(`play=test-pairs&tier=${tier}&seed=48213&setup=standby&nostore=1`);
+          await page.waitForFunction((h) => window[h].pairs()?.cmd === 'standby' && !window[h].state.stop, H, { timeout: 30000 });
+          await page.waitForFunction((h) => !!window[h].contact()?.pending, H, { timeout: 30000, polling: 'raf' });
+          const t0 = Date.now();
+          await page.waitForTimeout(150);
+          await page.keyboard.press('KeyX');
+          const tX = Date.now() - t0;
+          await page.waitForTimeout(500);
+          const r = await page.evaluate((h) => { const s = window[h].state, c = window[h].contact(); return { stop: s.stop?.mode ?? null, via: s.stop?.via ?? null, take: c?.last?.ms ?? null, past: c?.last ? s.clock.ms - c.last.atMs : null }; }, H);
+          rows.push(`${tier}: take-in ${r.take} ms, X at +${tX} ms; 0.5 s later stop motion ${r.stop ?? 'off'} (via ${r.via}), the clock ${r.past} ms past the pause`);
+          assert(r.stop === 'stop' && r.via === 'contact' && r.past !== null && r.past <= 100, JSON.stringify({ tier, ...r }));
+        }
+        // (a digit down in the window, up after the pause: no row chosen)
+        await game.open('play=test-pairs&tier=tierone&seed=48213&setup=standby&nostore=1');
+        await page.waitForFunction((h) => window[h].pairs()?.cmd === 'standby' && !window[h].state.stop, H, { timeout: 30000 });
+        await page.waitForFunction((h) => !!window[h].contact()?.pending, H, { timeout: 30000, polling: 'raf' });
+        await page.keyboard.down('Digit1');
+        await page.waitForTimeout(120);
+        await page.keyboard.up('Digit1');
+        await page.waitForTimeout(400);
+        const d = await page.evaluate((h) => { const s = window[h].state; return { stop: s.stop?.mode ?? null, doing: s.stop?.doing?.step ?? null, phase: s.stop?.phase ?? null, shots: s.armoury.range.str?.shots?.length ?? 0 }; }, H);
+        rows.push(`a digit down in the tier one's window and up after his pause: ${JSON.stringify(d)}`);
+        for (const l of rows) console.log(`      ${l}`);
+        assert(d.stop === 'stop' && d.phase === 'choose' && !d.doing && d.shots === 0, JSON.stringify(d));
+      }, { query: 'nostore=1', viewport: { width: 1600, height: 900 } });
+    },
+  },
+  {
+    name: 'test-range\'s 200 m line on seed 99 (you on point 11) at 1600 × 900: "Set your dope for two hundred." stays on top of the radio box under the coach\'s dope and wind call, and in stop motion; "Commence fire." with his wind call wrapped beside it, marked NOW, the only tower line in the box, its short form keeping \"sixty seconds\" (and on seed 48213); every voice whole in the box; your stake marked (the user, 2026-11-07: "tower sometimes doesn\'t say anything but we\'re expected to do it ?", their shot of the 200 m line with the coach\'s wind call alone in the box)',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() {
+      await withGame(async (page) => {
+        const box = () => page.evaluate((h) => {
+          const r = document.querySelector('.radio.voices'), b = r.getBoundingClientRect();
+          const voices = [...r.querySelectorAll('.voice')].map(v => ({ text: v.querySelector('.who').innerText + ' ' + v.querySelector('.said').innerText.replace(/\s+/g, ' '), whole: v.querySelector('.said').scrollHeight <= v.querySelector('.said').clientHeight + 1, top: v.getBoundingClientRect().top, standing: v.classList.contains('standing'), tag: getComputedStyle(v, '::before').content }));
+          return { hud: window.__report?.hud?.radio ?? '', voices, inside: voices.every(v => v.top >= b.top - 1), h: b.height, own: window.__report?.view?.range?.kd?.own ?? null, cmd: window[h].kd()?.cmd, kdLane: window[h].kd()?.kdLane };
+        }, H);
+        await page.waitForFunction((h) => window[h].kd()?.cmd === 'dope', H, { timeout: 30000 });
+        await settle(page, 800);
+        const dope = await box();
+        await page.keyboard.press('KeyG');
+        await page.waitForFunction((h) => window[h].stop()?.phase === 'choose', H, { timeout: 10000 });
+        await settle(page, 1500);
+        const held = await box();
+        console.log(`      at the dope, point ${dope.kdLane}: ${dope.voices.map(v => `[${v.text}]`).join(' ')}; stop motion 1.5 s on: ${held.voices.length} voices, the first '${held.voices[0]?.text}'; your stake: ${dope.own} pixels marked`);
+        const towerDope = /^◉ TOWER · .+ (Set your dope for two hundred\.|Shooters, dial your dope for two hundred\.)$/;
+        assert(dope.kdLane === 11 && towerDope.test(dope.voices[0]?.text ?? '') && dope.voices[0].standing && /Wind from|I make it|No wind|Flags are limp/.test(dope.voices.at(-1)?.text ?? ''), JSON.stringify(dope));
+        assert(towerDope.test(held.voices[0]?.text ?? '') && held.voices.every(v => v.whole) && held.inside && dope.own >= 30, JSON.stringify(held));
+        // (the KD bot in the page to commence fire, choosing: the tower's command with the coach's wind call)
+        const toFire = () => page.evaluate(async (h) => {
+          const { kdBot } = await import('/tests/bots/kd.mjs');
+          const O = window[h], run = kdBot();
+          O.pause(true);
+          let k = 0;
+          for (; k < 20000 && !(O.kd()?.cmd === 'fire' && O.kd()?.hot && O.stop()?.phase === 'choose'); k++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); if (s.skip?.engine === 'ff') { O.step(1); O.sim.ffCheck(s); } else O.step(1, run(s, me, (me.bot ??= {}))); }
+          O.pause(false);
+          return k;
+        }, H);
+        const n = await toFire();
+        await settle(page, 1500);
+        const fire = await box();
+        console.log(`      the bot ran ${n} ticks to commence fire: ${fire.voices.map(v => `[${v.text}]`).join(' ')}; the box ${fmt(fire.h, 0)} px high; the command's tag ${fire.voices[0]?.tag}`);
+        // (the command marked NOW, the only tower line in the box: none of the earlier commands under it, the verifier's)
+        const fireOk = (f) => f.cmd === 'fire' && /^◉ TOWER · .+ (.*sixty seconds.*Commence fire\.)$/.test(f.voices[0]?.text ?? '') && f.voices[0].standing && f.voices[0].tag === '"NOW"'
+          && f.voices.filter(v => /^◉ TOWER/.test(v.text)).length === 1 && f.voices.every(v => v.whole) && f.inside;
+        assert(fireOk(fire), JSON.stringify(fire));
+        // (seed 48213, whose command and the coach's wind call both wrap: the command's short form keeps its rounds and its
+        // minute, "Ten rounds rapid, sixty seconds. Commence fire.", never the bare "Commence fire." (the tower verifier's))
+        await page.evaluate((h) => window[h].newGame({ scenario: 'test-range', seed: 48213, setup: 's200' }), H);
+        await page.waitForFunction((h) => window[h].kd()?.cmd, H, { timeout: 30000 });
+        const n2 = await toFire();
+        await settle(page, 1500);
+        const wrap = await box();
+        console.log(`      seed 48213, ${n2} ticks to commence fire: ${wrap.voices.map(v => `[${v.text}]`).join(' ')}`);
+        assert(fireOk(wrap), JSON.stringify(wrap));
+      }, { query: 'play=test-range&seed=99&setup=s200&nostore=1', viewport: { width: 1600, height: 900 } });
     },
   },
 ];

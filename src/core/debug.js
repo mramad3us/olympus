@@ -46,6 +46,10 @@
 //                      forceNd, the build sheet 0.0.7 §6 item 7); and far() the far window (farPointOf, its
 //                      place, the stage's farState)
 //   stop()             stop motion now (the shot role's stopNow: mode, phase, pick, aim, doing, reflex)
+//   pairs()            test-pairs now (0.0.8: the scene's pairsNow: the sheet, the line, the string, the turners, the papers,
+//                      the card, the summary), or null off the pairs course
+//   contact()          the contact now (0.0.8: contact.js contactNow: the window pending, its k, the last pause, its take-in,
+//                      its identification and words), and what the page draws of it (the brackets, the stamp, the plate)
 //   menu()             R held's menu now (places' handMenu: { title, spotId, fixtureId, quick, rows }), or
 //                      null; and the card open, if it is: { …, card: { text, cursor, checked, picks } }
 //                      (the build sheet 0.0.6 §2.3)
@@ -64,7 +68,8 @@
 // with nothing pending (main.js), so a test or a shot knows the page is up.
 //
 // URL parameters skip the title for tests and shots (main.js reads them through readParams()):
-// ?play=<scenario>&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&setup=hot|bench|mixed], hour being the Mars local hour at the
+// ?play=<scenario>&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&setup=hot|bench|mixed][&tier=recruit|private|cpl|sgt|raider|tierone]
+// (tier: test-pairs' sheet, TECH §15.3; else null, the scene's private), hour being the Mars local hour at the
 // start (0-24, a fraction giving minutes), seed a whole number; &area=<id>&at=<x>,<z>&face=<f> a
 // start somewhere else than the scenario's (the barracks' berth): an area, a place in its frame in
 // metres, a facing (up, down, left, right); setup test-handling's start or test-range's ('confirm', 's200',
@@ -79,10 +84,13 @@ import { sorted } from './queue.js';
 import { utcText, marsTimeText } from './calendar.js';
 
 export const FACES = Object.freeze(['up', 'down', 'left', 'right']);
-/** test-handling's setups (the build sheet 0.0.5 §2.2; 'mixed', the 0.0.6 arms role's: one tracer magazine besides the ball); test-range's (0.0.7 §2.3: 'confirm' zeroed at the 300 m line, 's200' sitting at the 200 m line, 'far' the range-far bench's). */
-export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200', 'far']);
+/** test-handling's setups (the build sheet 0.0.5 §2.2; 'mixed', the 0.0.6 arms role's: one tracer magazine besides the ball); test-range's (0.0.7 §2.3: 'confirm' zeroed at the 300 m line, 's200' sitting at the 200 m line, 'far' the range-far bench's); test-pairs' (0.0.8: 'standby' and 'standby:<k>', string k's standby, out of the mode at low ready on safe, the turn armed). */
+export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200', 'far', 'standby', 'standby:1', 'standby:2', 'standby:3', 'standby:4']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup }. */
+/** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
+export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
+
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -102,6 +110,7 @@ export function readParams(search = globalThis.location?.search ?? '') {
     at: pair(q.get('at')),
     face: FACES.includes(q.get('face')) ? q.get('face') : null,
     setup: SETUPS.includes(q.get('setup')) ? q.get('setup') : null,
+    tier: TIERS_URL.includes(q.get('tier')) ? q.get('tier') : null,
   };
 }
 
@@ -194,6 +203,10 @@ export function createDebugHandle({ loop, sim = null, start, newGame, version = 
     range() { return arms?.range && loop.state ? arms.range(loop.state) : null; },
     /** Stop motion now, or null. */
     stop() { return arms?.stop && loop.state ? arms.stop(loop.state) : null; },
+    /** test-pairs now (the scene's pairsNow), or null off its course (0.0.8). */
+    pairs() { return arms?.pairs && loop.state ? arms.pairs(loop.state) : null; },
+    /** The contact now (contact.js contactNow, and what the page draws of it), or null (0.0.8). */
+    contact() { return arms?.contact && loop.state ? arms.contact(loop.state) : null; },
     /** R held's menu now (handMenu's), with the open card's state where it is up, or null (main.js gives the reader). */
     menu() { return menu && loop.state ? menu(loop.state) : null; },
     /** The player's hands: { dirt, why, band, words, k }, or null. */

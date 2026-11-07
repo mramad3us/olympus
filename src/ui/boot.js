@@ -35,7 +35,8 @@
 import { menuCard } from './cards/menu.js';
 import { keysCard } from './cards/keys.js';
 import { logCard } from './cards/log.js';
-import { testsPage } from './cards/tests.js';
+import { testsPage, pickerOf } from './cards/tests.js';
+import { pickerPage } from './cards/pairs.js';
 
 const el = (tag, props = {}, ...kids) => {
   const n = Object.assign(document.createElement(tag), props);
@@ -53,7 +54,8 @@ const ago = (ms) => {
  * cb: { newCareer(mode), continueFrom(slot), loadFile(), resume(), saveFile(), report(), quit(), overlay(name, open),
  * keysRows() (the keys card's [[key, words]…]: cards/keys.js keysRows), logLines() (the log card's lines: cards/log.js
  * logLines), sound() ({ volume, muted } now, or null), volume(v), mute(on), scenes() (the test scenes, src/data/scenes.js's
- * records in order), playScene(scene) }.
+ * records in order), playScene(scene, { tier }), sheets() (0.0.8: a scene played as a sheet's picker: { sheets: templates.js
+ * TEST_SHEETS, order: PICKER_TIERS }) }.
  */
 /** A card ignores Enter and Space this long after it opens (ms; the design review's: a key meant for the screen before). */
 export const CARD_GUARD_MS = 400;
@@ -130,14 +132,24 @@ export function createBoot({ root = document.body, cb }) {
 
   function showTests() {
     page = 'tests';
-    title.replaceChildren(testsPage({ scenes: cb.scenes?.() ?? [], version: titleArgs?.version ?? '?', onPick: (scene) => cb.playScene?.(scene), onBack: () => back() }));
+    // (0.0.8: a scene played as a sheet (test-pairs) opens its picker first; the rest start at once)
+    title.replaceChildren(testsPage({ scenes: cb.scenes?.() ?? [], version: titleArgs?.version ?? '?', onPick: (scene) => (pickerOf(scene) && cb.sheets ? showPicker(scene) : cb.playScene?.(scene)), onBack: () => back() }));
     title.hidden = false;
     title.querySelector('.item.scene')?.focus();
   }
+  /** test-pairs' sheet picker (cards/pairs.js), on the title's paper: a sheet starts the scene as it; Back to the Tests. */
+  function showPicker(scene) {
+    page = 'picker';
+    const { sheets = {}, order = null } = cb.sheets?.() ?? {};
+    const p = pickerPage({ scene, sheets, order, onPick: (tier) => cb.playScene?.(scene, { tier }), onBack: () => back() });
+    title.replaceChildren(p.body);
+    title.hidden = false;
+    (p.body.querySelector('.item.lead') ?? p.body.querySelector('.item'))?.focus();
+  }
 
   const hideTitle = () => { title.hidden = true; page = null; };
-  /** Esc on the title's pages: from enlistment or the tests back to the title. */
-  function back() { if ((page === 'enlist' || page === 'tests') && titleArgs) showTitle(titleArgs); }
+  /** Esc on the title's pages: from enlistment or the tests back to the title, from a scene's picker to the tests. */
+  function back() { if (page === 'picker') showTests(); else if ((page === 'enlist' || page === 'tests') && titleArgs) showTitle(titleArgs); }
 
   // ---- glass cards ----
 
@@ -179,7 +191,7 @@ export function createBoot({ root = document.body, cb }) {
   function openLog() { openCard('log', logCard(cb.logLines?.() ?? [])); }
 
   return {
-    showTitle, showEnlist, showTests, hideTitle, back, openMenu, openKeys, openLog, openCard, closeCard,
+    showTitle, showEnlist, showTests, showPicker, hideTitle, back, openMenu, openKeys, openLog, openCard, closeCard,
     /** A digit while a card is open: its line, if it has one. */
     digit(n) { const b = picks[(n === 0 ? 10 : n) - 1]; if (b) b.click(); return !!b; },
     get card() { return card; },

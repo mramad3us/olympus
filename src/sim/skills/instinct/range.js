@@ -16,7 +16,9 @@
 //                           after it (a look at the port), a double feed seen ("Double feed. Lock,
 //                           strip, rack.": REMEDIAL ACTION)
 //   range-cmd       warn    the tower's command not done yet ("The tower said LOAD.": it, its stance
-//                           first where it has one; out of the mode, the rifle up first)
+//                           first where it has one; out of the mode, the rifle up first); on a KD string,
+//                           what the line moved on without first ("The line has moved on. Sitting, then
+//                           LOAD, then MAKE READY.": owedOf, 0.0.8)
 //   range-reload    note    in the stance the tower called, the bolt locked on an empty: RELOAD; with no
 //                           rounds left anywhere (roundsLeft, the coach's count) "Nothing left to load. Tell your coach."
 //   range-unknown   note    a '?' on the weapon card: a press check
@@ -39,7 +41,7 @@ import { playerActor, playerId } from '../../../core/ids.js';
 import { beliefOf } from '../../arms/firearms.js';
 import { stepsOf, gunOn } from '../../arms/shooting.js';
 import { rangeOf, lineReady, roundsLeft } from '../../scenarios/handling.js';
-import { SEQ } from '../../../data/courses.js';
+import { SEQ, SEQ_KD, KD_STRINGS } from '../../../data/courses.js';
 import { DOPE_CARD } from '../../arms/ballistics.js';
 import { holdSaid } from '../../arms/shot.js';
 import { headOf } from '../../people/perception.js';
@@ -78,6 +80,38 @@ function know(state, me, ms) {
 const actIf = (k, step, tempo = null, target = null) => (k.choosing && k.offered(step) ? `stop:${step}${tempo ? `@${tempo}` : ''}${target ? `>${target}` : ''}` : null);
 // (the reload the panel offers, if any: speed or keep the empty from locked empty, tactical with rounds left)
 const reloadOf = (k) => k.steps.find(s => s.kind === 'command' && String(s.macro).startsWith('reload:') && !s.off) ?? null;
+
+/**
+ * What a KD line moved on without (0.0.8; the player's verifier, seed 2614078355: idle at the 200 m's "Sitting, five
+ * rounds. LOAD.", the move-on gave MAKE READY to a shooter still standing with no magazine, and the line said only
+ * "The tower said MAKE READY.", which T could not do): at LOAD, MAKE READY and commence fire on a KD string, the
+ * string's position not taken, no magazine in (rounds left to load), no round chambered (the bolt not locked on an
+ * empty), each owed only where its command came before this one, in the order the training does them, and under fire
+ * only before your first round since the command. The line names them and the command after them ("The line has
+ * moved on. Sitting, then LOAD, then MAKE READY."), and T does the first.
+ * Nothing is done for you and nothing forgiven: the move-on's fault stands, and the tower waits no longer for it.
+ * The range-cmd ctx (variant 'owed'), or null when nothing is owed.
+ */
+function owedOf(state, k) {
+  const has = OWED_BEFORE[k.cmd], pos = KD_STRINGS[SEQ_KD[k.R.cmd?.i]?.stage]?.position ?? null;
+  if (!has || !pos || !k.b || (k.cmd !== 'fire' && lineReady(state, k.cmd, { relay: false }))) return null;
+  // (under fire, once you have fired since the command the string is begun: a magazine out is a reload or a stoppage's
+  // drill under way, a stance changed is your own, nothing the line moved on without)
+  if (k.cmd === 'fire' && k.R.shots?.some(x => x.who === k.pid && x.atMs >= (k.R.cmd?.atMs ?? 0))) return null;
+  const owed = [], dry = !!k.R.dry || roundsLeft(state) === 0;
+  if (k.stance !== pos) owed.push(pos);
+  const load = has.includes('load') && k.b.mag === 'out' && !dry;
+  if (load) owed.push('load');
+  if (has.includes('ready') && k.b.chamber === 'empty' && !k.b.locked && (load || k.b.mag === 'in')) owed.push('ready');
+  if (!owed.length) return null;
+  const said = SAID[k.cmd] ?? k.cmd, chain = [...owed.map(o => OWED_SAID[o]), said].join(', then ');
+  return { k, variant: 'owed', owed, step: OWED_STEP[owed[0]], said, chain, Chain: chain.replace(/^\w/, c => c.toUpperCase()), short: OWED_SHORT[owed[0]] };
+}
+/** What each KD command needs done before it (owedOf), and their words, steps and chips. */
+const OWED_BEFORE = Object.freeze({ load: ['stance'], ready: ['stance', 'load'], fire: ['stance', 'load', 'ready'] });
+const OWED_SAID = Object.freeze({ prone: 'the prone position', sit: 'sitting', load: 'LOAD', ready: 'MAKE READY' });
+const OWED_STEP = Object.freeze({ prone: 'stance:prone', sit: 'stance:sit', load: 'macro:load', ready: 'macro:ready' });
+const OWED_SHORT = Object.freeze({ prone: 'Prone', sit: 'Sit', load: 'Load', ready: 'Make ready' });
 
 /** The DI's range rules (see the header), most pressing first. */
 export const RANGE_RULES = Object.freeze([
@@ -126,7 +160,11 @@ export const RANGE_RULES = Object.freeze([
     short: (ctx) => ctx.short,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (!k || !k.cmd || k.cmd === 'brief' || k.cmd === 'end' || k.cmd === 'fire' || k.busy || lineReady(state, k.cmd)) return null;
+      if (!k || !k.cmd || k.busy) return null;
+      // (0.0.8, on the KD course: what the line moved on without, named before the command itself)
+      const owed = k.kd ? owedOf(state, k) : null;
+      if (owed) return owed;
+      if (k.cmd === 'brief' || k.cmd === 'end' || k.cmd === 'fire' || lineReady(state, k.cmd)) return null;
       if (k.kd && KD_OWN.has(k.cmd)) return null;
       // (what the command asks first: the stance, then the rest)
       const want = { prone: 'stance:prone', kneel: 'stance:kneel', stand: 'stance:stand' }[k.cmd];
@@ -137,7 +175,8 @@ export const RANGE_RULES = Object.freeze([
       return { k, step, said, Said, short: Said.split(',')[0] };
     },
     act: (ctx) => (!ctx.k.inMode ? 'stop:enter' : ctx.step ? actIf(ctx.k, ctx.step) : null),
-    text: { 1: ['The tower said {said}.', 'You heard the tower: {said}.', '{Said}. The tower means it.', 'The tower is waiting on you: {said}.'] },
+    text: { 1: ['The tower said {said}.', 'You heard the tower: {said}.', '{Said}. The tower means it.', 'The tower is waiting on you: {said}.'],
+      owed: ['The line has moved on. {Chain}.', 'You are behind the line: {chain}.', 'Catch up. {Chain}.', 'The tower went on without you. {Chain}.'] },
   },
   {
     id: 'range-kd', voice: 'di', repeatMs: RANGE_REPEAT_MS, tone: 'warn', reach: null,

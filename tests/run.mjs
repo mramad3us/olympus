@@ -13,7 +13,7 @@
 // A test that never settles would hang a release (tools/release.sh waits on this), so each one
 // gets timeoutMs, else TIMEOUT_MS from the environment, else five minutes (my call), and a run
 // with a test timed out ends the process outright: whatever it left open (a browser, a server)
-// can't keep it alive. A test file that fails to load is a failure, not a crash, so the other
+// can't keep it alive. A test file that fails to load is a failure (whatever the filter), not a crash, so the other
 // files still run. Tests print the numbers that matter, indented six spaces under their line:
 // read them, don't just count passes.
 //
@@ -61,8 +61,10 @@ for (const file of files) {
     tests = (await import(pathToFileURL(path.join(dir, file)).href)).default;
     if (!Array.isArray(tests)) throw new Error(`${file} must default-export an array of { name, fn }`);
   } catch (e) {
-    if (!filter || base.includes(filter)) { fail++; console.log(`  ✗ ${base} (did not load)\n      ${first(e)}`); }
-    else console.log(`  (${file} did not load: ${String(e?.message || e).split('\n')[0]})`);
+    // (a file that does not load is a failure whatever the filter: its tests can't be told apart from the filter's
+    // without it, and a pin that cannot load passed silently with a filter on its tests' names, "0 passed, 0 failed",
+    // the sleeve fix's verifier's of v0.0.7)
+    fail++; console.log(`  ✗ ${base} (did not load)\n      ${first(e)}`);
     continue;
   }
   for (const t of tests) {

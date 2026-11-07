@@ -91,6 +91,10 @@ export const FOOTPRINTS = Object.freeze({
   kdLineBoard: { w: 1.2, d: 0.12, h: 1.3, makes: ['distance', 'frame'] },
   kdCanopy: { w: 6.0, d: 4.0, h: 3.0, makes: ['open', 'tarp'] },
   rangeShack: { w: 12, d: 8, h: 3.5, makes: ['shut', 'store'] },
+  // (0.0.8: the pairs pad's turning targets' stands and its painted 7 m and 10 m lines, equal to the scene role's
+  // RANGE_KINDS (src/data/places/range.js), pinned by places-validate; the line stretched by its own w)
+  kdTurner: { w: 0.5, d: 0.3, h: 1.75, makes: ['stand', 'frame'] },
+  kdPaint: { w: 18.6, d: 0.1, h: 0, makes: ['line', 'worn'] },
   // (0.0.6: the PX barber's pole on its stand, equal to places' catalogue, src/sim/places/fixtures.js)
   barberPole: { w: 0.36, d: 0.36, h: 2.2, makes: ['pole', 'lit'] },
 });
@@ -109,7 +113,7 @@ const MAKERS = {
   wallClock: structure.wallClock, stairs: structure.stairs, stairsWell: structure.stairsWell, lampPost: structure.lampPost, doorLeaf: structure.doorLeaf,
   kdTower: range.kdTower, kdMat: range.kdMat, kdFrame: range.kdFrame, rangeSign: range.rangeSign, berm: range.berm, rangeFence: range.rangeFence,
   kdCarrier: range.kdCarrier, kdParapet: range.kdParapet, kdPits: range.kdPits, kdBerm: range.kdBerm, kdFlag: range.kdFlag, kdPoint: range.kdPoint,
-  kdLineBoard: range.kdLineBoard, kdCanopy: range.kdCanopy, rangeShack: range.rangeShack,
+  kdLineBoard: range.kdLineBoard, kdCanopy: range.kdCanopy, rangeShack: range.rangeShack, kdTurner: range.kdTurner, kdPaint: range.kdPaint,
 };
 /** Every kind the kit builds. */
 export const KINDS = Object.freeze(Object.keys(MAKERS));

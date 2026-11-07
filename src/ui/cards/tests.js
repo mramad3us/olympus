@@ -15,6 +15,9 @@
 // clear.", or the range stopped for a fault), so endOn's phase may be a list; endFacts() names every
 // fact a scene ends on, for main.js to hear; sceneSaid(scene, range) the end card's line for a scene
 // that has one (the range's summary: "Clear at 09:14 · 61 of 75 · 4 V · no faults").
+// 0.0.8 (the build sheet 0.0.8 §2.3, §2.4): "Pairs" (test-pairs) is listed after test-range; a scene played as a sheet
+// (pickerOf: its course 'pairs') opens the sheet picker (cards/pairs.js) before it starts, and its end card's line is
+// the scene's own summary (rangeNow's, from pairsNow: "Private · 5 strings · take-in 0.55 to 1.25 s · …").
 import { lastScore } from './score.js';
 import { stopWords } from '../../sim/scenarios/handling.js';
 
@@ -31,6 +34,9 @@ export function endsScene(endOn, type, payload = {}) {
   if (type === 'activity' && Number.isFinite(payload.fraction) && payload.fraction < 1) return false;
   return true;
 }
+
+/** Whether a scene is played as a sheet, its picker first (test-pairs: the sheets it lists, scenes.js; or its course 'pairs'). */
+export const pickerOf = (scene) => !!scene && ((Array.isArray(scene.sheets) && scene.sheets.length > 0) || scene.course === 'pairs');
 
 /** The facts the scenes end on (SCENES' endOn facts), each once. */
 export const endFacts = (scenes) => [...new Set(Object.values(scenes ?? {}).map(s => s.endOn?.fact).filter(Boolean))];
