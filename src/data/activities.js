@@ -19,20 +19,37 @@
 //   vignette   what the stage draws behind the iris (VIEWS §5.2)
 //   min        the shortest it may be fitted to (the late card's "fit it in")
 //   log        at least four lines in TIME §8.8's voice, picked by hash at its end
+//   legacy     (a record, or a part) kept only so a save made in it finishes: never offered nor planned
 // Durations at Melas (TIME §8.2 to §8.4): the shower 1 + WATER_MIN 3 + 6 = 10 minutes; the head 75 s;
-// a stall 6 min; the basin teeth 2 + a shave 4 where stubble shows + face 1; dressing DRESS_MIN
+// a stall 6 min; at a sink, each a single action (the user, 2026-11-06: "not pre-combined actions like
+// you do now that make lists hard to read"): wash hands 30 s (WASH_HANDS_MS, my call: the CDC's five
+// steps round a 20 s scrub), brush teeth 2 min, shave 4 min, buzz your head CLIP_MIN 10 min (a shaved
+// head only; my call: a guardless pass by feel), wash face 1 min, a drink 30 s; dressing DRESS_MIN
 // (PT kit 2 min, utilities 4, a towel 0) to put on and UNDRESS_K 0.6 of it to take off; sleep to
 // reveille or a chosen time, 20 minutes to 12 hours; a nap 20, 45 or 90 minutes; R's wait 15
 // minutes, TIME §7.3's stand-by; standing fast at your rack's foot until a drill's stand-down (the
 // stand-by of a drill: the wait's, its length the drill's, its mask 'D A O B' so the count and the
-// stand-down, O events, land it); a drink or a snack bar 30 s, lived. In an open drill, dressing into
-// utilities takes TIME §8.2's emergency tempo, DRESS_HURRY_K 0.5 of the normal (the alarm says "now":
-// PT kit to utilities 2.6 min, so it is a brief splash, the watch running, and the squad dresses as
-// fast). My calls: the drink and the snack bar at the machines and the taps (the sheet §8, item 15);
-// urinating TIME §8.2's flat 75 s (item 21); the hurried dress (the review of v0.0.4: the scramble had
-// no tension). The morning routine that bundled the head and a stall into the basin is gone this round
-// (the review of v0.0.4: urinating at a sink, and the figure hidden in place at the basin for the
-// stall's six minutes): the urinal and the stall keep their own R.
+// stand-down, O events, land it); a drink or a snack bar 30 s, lived; a haircut at the barber's pole
+// HAIRCUT_MIN 12 min, seated in the chair inside the PX (my call: the chair, no queue this round). In
+// an open drill, dressing into utilities takes TIME §8.2's emergency tempo, DRESS_HURRY_K 0.5 of the
+// normal (the alarm says "now": PT kit to utilities 2.6 min, so it is a brief splash, the watch
+// running, and the squad dresses as fast). My calls: the drink and the snack bar at the machines and
+// the taps (the sheet §8, item 15); urinating TIME §8.2's flat 75 s (item 21); the hurried dress (the
+// review of v0.0.4: the scramble had no tension).
+// The 0.0.6 round (the build sheet 0.0.6 §2.1): v0.0.4's `basin` bundle (teeth, a shave where stubble
+// showed, the face) is split into its single actions, and the sleep's turn-in (into PT kit first) is
+// gone: you sleep in what you wear, and changing is `dress`. Both stay in the table marked legacy
+// (the record `basin`, the sleep's part `turn-in`): never offered nor planned, so a v0.0.5 save made
+// mid-basin or mid-turn-in finishes as it would have. The head no longer washes your hands (the user,
+// 2026-11-06: "using the head shouldn't wash our hands either afterwards"): the basin does.
+// ROWS gives each kind of spot its single actions in the order one does them in (the menu's order,
+// and a chain's: the build sheet §8 item 11); PRIORITY gives R's quick action at a spot as the first
+// [id, test] whose test holds (the tests are coded in src/sim/places/hand.js: 'hands' dirty hands,
+// 'thirst' thirsty, 'stubble' stubble shows, 'haircut' a shaved head due, 'bowel', 'bladder', and the
+// rack's 'drill', 'night', 'day'), else the first row not struck (the user, 2026-11-06: "R should wash
+// hands if hygiene is low enough, drink if we're thristy and shave if none of the above (use a
+// priority thing and R is the most urgent)"). The barber keeps BARBER_H, 10:00 to 20:00 (PLACES §4.13's
+// PX hours).
 import { HYGIENE } from './body/needs.js';
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
@@ -51,8 +68,16 @@ export const SLEEP_MAX_MS = 43_200_000, SLEEP_MIN_MS = 1_200_000;
 export const NAP_MIN = Object.freeze([20, 45, 90]);
 /** R's wait and its chunk, ms (TIME §7.3's stand-by, chunked: the sheet §8, item 16). */
 export const WAIT_MS = 900_000;
-/** A basin's parts, minutes (TIME §8.2). */
+/** A basin's parts, minutes (TIME §8.2), each now a single action. */
 export const BASIN_MIN = deepFreeze({ teeth: 2, shave: 4, face: 1 });
+/** Washing your hands, ms (my call: the CDC's five steps round a 20 s scrub). */
+export const WASH_HANDS_MS = 30_000;
+/** Buzzing a shaved head at a sink, minutes (my call: a guardless pass by feel); a haircut in the barber's chair, minutes (my call: the chair, no queue). */
+export const CLIP_MIN = 10, HAIRCUT_MIN = 12;
+/** The barber's hours, Melas time (PLACES §4.13's PX, 10:00 to 20:00). */
+export const BARBER_H = Object.freeze([10, 20]);
+/** Out of the head or a stall, the DI sends you to the basins for this long, ms (the build sheet 0.0.6 §2.1). */
+export const HANDS_NAG_MS = 120_000;
 /** Stubble shows (so the basin shaves) from this many hours (BODY §6's STUBBLE_SHOWS_H, BODY's own number). */
 export const STUBBLE_SHOWS_H = HYGIENE.STUBBLE_SHOWS_H;
 /** A drink from a tap or a machine, litres; a snack bar, kcal (BODY §4.1, §3.5). */
@@ -63,9 +88,10 @@ const still = (part, ms, met, posture = 'stand', more = {}) => ({ part, ms, met,
 /** The activities this round, by id (see the header). */
 export const ACTIVITIES = deepFreeze({
   urinate: {
-    id: 'urinate', class: 'toilet', uses: ['urinate', 'toilet'], offer: 'the head', mask: 'D A O* S(k)',
+    // (a verb on R's plate, "use the head", a noun where the log names it; the fixer's, 0.0.6: "R THE HEAD" read as a noun)
+    id: 'urinate', class: 'toilet', uses: ['urinate', 'toilet'], offer: 'use the head', noun: 'the head', mask: 'D A O* S(k)',
     parts: [still('go', 75_000, 1.8)], resumable: false, stoppable: true, chunkMs: 0, vignette: 'head', min: 0,
-    log: ['The head. A minute and change.', 'A minute at the urinal, the water-saver blinking.', 'The head: {dur}, hands washed.', 'Relief, and the recycler took it: {dur}.'],
+    log: ['The head. A minute and change.', 'A minute at the urinal, the water-saver blinking.', 'The head: {dur}. The basins are by the door.', 'Relief, and the recycler took it: {dur}.'],
   },
   bowel: {
     id: 'bowel', class: 'toilet', uses: ['toilet'], offer: 'a stall', mask: 'D A O* S(k)',
@@ -82,8 +108,33 @@ export const ACTIVITIES = deepFreeze({
     resumable: true, stoppable: true, chunkMs: 0, vignette: 'shower', min: 0,
     log: ['Three minutes of water and the dust off your neck: {dur}, dressed.', 'Hot for three minutes, then the timer: {dur}, dry and dressed.', 'The red dust went down the drain: {dur}, boots back on.', 'A Melas shower, every second of the water counted: {dur}.', 'Steam, the timer light, red water at your feet: {dur}.'],
   },
+  'wash-hands': {
+    id: 'wash-hands', class: 'hygiene', uses: ['wash'], offer: 'wash hands', mask: 'D A O* S(k)',
+    parts: [still('hands', WASH_HANDS_MS, 1.8)], resumable: false, stoppable: true, chunkMs: 0, vignette: 'sink', min: 0,
+    log: ['Soap, a scrub, a rinse: {dur}.', 'Hands washed, the way the poster by the mirror says: {dur}.', 'Soap to the wrists and the nails: {dur}.', 'Clean hands, and the recycler took the rest: {dur}.'],
+  },
+  teeth: {
+    id: 'teeth', class: 'hygiene', uses: ['wash'], offer: 'brush teeth', mask: 'D A O* S(k)',
+    parts: [still('teeth', BASIN_MIN.teeth * 60_000, 1.8)], resumable: false, stoppable: true, chunkMs: 0, vignette: 'sink', min: 0,
+    log: ['Two minutes of brushing: {dur}.', 'Teeth brushed, the foam spat into the recycler: {dur}.', 'Brushed and rinsed: {dur}.', 'The mirror, the brush, the count to two minutes: {dur}.'],
+  },
+  shave: {
+    id: 'shave', class: 'hygiene', uses: ['wash'], offer: 'shave', mask: 'D A O* S(k)',
+    parts: [still('shave', BASIN_MIN.shave * 60_000, 1.8)], resumable: false, stoppable: true, chunkMs: 0, vignette: 'sink', min: 0,
+    log: ['The mirror, the foam, the razor: {dur}.', 'Shaved, and no blood this time: {dur}.', 'Foam, razor, cold water: {dur}.', 'A clean scrape: {dur}. An inspection would find nothing.'],
+  },
+  clip: {
+    id: 'clip', class: 'hygiene', uses: ['wash'], offer: 'buzz your head', mask: 'D A O* S(k)',
+    parts: [still('clip', CLIP_MIN * 60_000, 1.8)], resumable: false, stoppable: true, chunkMs: 0, vignette: 'sink', min: 0,
+    log: ['The clippers over the scalp, back to front: {dur}.', 'Buzzed to the skin by feel: {dur}.', 'A guardless pass and the sink rinsed after: {dur}.', 'Head buzzed, the hair brushed off your neck: {dur}.'],
+  },
+  'wash-face': {
+    id: 'wash-face', class: 'hygiene', uses: ['wash'], offer: 'wash face', mask: 'D A O* S(k)',
+    parts: [still('face', BASIN_MIN.face * 60_000, 1.8)], resumable: false, stoppable: true, chunkMs: 0, vignette: 'sink', min: 0,
+    log: ['Cold water on the face and the day looks possible: {dur}.', 'Two handfuls of cold water: {dur}.', 'The dust off your face: {dur}.', 'Face washed, eyes open: {dur}.'],
+  },
   basin: {
-    id: 'basin', class: 'hygiene', uses: ['wash'], offer: 'the basin', mask: 'D A O* S(k)',
+    id: 'basin', class: 'hygiene', uses: ['wash'], offer: 'the basin', mask: 'D A O* S(k)', legacy: true,
     parts: [still('teeth', 120_000, 1.8), still('shave', 240_000, 1.8, 'stand', { optional: 'stubble' }), still('face', 60_000, 1.8)],
     resumable: false, stoppable: true, chunkMs: 0, vignette: 'sink', min: 0,
     log: ['Teeth, a shave, cold water: {dur}.', 'The mirror, the foam, the razor: {dur}.', 'Brushed, scraped and rinsed: {dur}.', 'Cold water on the face and the day looks possible: {dur}.'],
@@ -95,7 +146,7 @@ export const ACTIVITIES = deepFreeze({
   },
   sleep: {
     id: 'sleep', class: 'sleep', uses: ['sleep'], offer: 'sleep', mask: 'D A O B S(w)',
-    parts: [still('turn-in', 'dress', 2.0, 'stand', { optional: 'turn-in' }), still('lie', 'until', 1.0, 'lie', { lie: true })],
+    parts: [still('turn-in', 'dress', 2.0, 'stand', { optional: 'turn-in', legacy: true }), still('lie', 'until', 1.0, 'lie', { lie: true })],
     resumable: false, stoppable: true, chunkMs: 0, vignette: 'rack', min: SLEEP_MIN_MS,
     log: ['Rack at {from}. Up at {to}{slip}: {dur}.', 'Lights out at {from}, eyes open at {to}{slip}: {dur}.', 'The rack from {from} to {to}{slip}. {dur} of it.', 'Down at {from}, up at {to}{slip}: {dur} under the blanket.'],
   },
@@ -113,6 +164,11 @@ export const ACTIVITIES = deepFreeze({
     id: 'snack', class: 'eating', uses: ['buy'], offer: 'a bar', mask: '',
     parts: [still('eat', 30_000, 1.5)], resumable: false, stoppable: true, chunkMs: 0, vignette: null, min: 0,
     log: ['A ration bar from the machine: 250 kilocalories of something.', 'A bar, eaten standing.', 'The machine\'s bar. Chocolate, it says.', 'A bar. It will hold you till chow.'],
+  },
+  haircut: {
+    id: 'haircut', class: 'hygiene', uses: ['haircut'], offer: 'haircut', mask: 'D A O* S(k)',
+    parts: [still('cut', HAIRCUT_MIN * 60_000, 1.3, 'sit', { inside: true })], resumable: false, stoppable: true, chunkMs: 0, vignette: null, min: 0,
+    log: ['The chair, the clippers and the barber\'s opinions: {dur}.', 'Twelve minutes in the chair, the cape shaken out after: {dur}.', 'Cut to regulation, the neck shaved clean: {dur}.', 'Fresh from the barber: {dur}.'],
   },
   wait: {
     id: 'wait', class: 'rest', uses: [], offer: 'wait', mask: 'D A O B S',
@@ -133,3 +189,33 @@ export const ACTIVITIES = deepFreeze({
 
 /** The activity ids, in the table's order. */
 export const ACTIVITY_IDS = Object.freeze(Object.keys(ACTIVITIES));
+
+/**
+ * A spot's single actions by its use, in the order one does them in: the menu's rows and a chain's
+ * steps (the build sheet 0.0.6 §2.1, §8 item 11). 'drill' is your rack's foot while a drill is open;
+ * a machine ('buy') offers the one its make sells. hand.js filters them by who you are (no shave for a
+ * face that grows no beard, the clippers only for a shaved head). At your rack dressing comes first,
+ * since one dresses and then sleeps (the sheet's §8 item 6: "the menu chains dress then sleep"; its §2.1
+ * table listed sleep, nap, dress, which as a chain's order would sleep first: my call, the rule over the
+ * table).
+ */
+export const ROWS = deepFreeze({
+  wash: ['wash-hands', 'teeth', 'shave', 'clip', 'wash-face', 'drink'],
+  shower: ['shower'],
+  urinate: ['urinate'],
+  toilet: ['bowel', 'urinate'],
+  sleep: ['dress', 'sleep', 'nap'],
+  drill: ['dress', 'standfast', 'sleep', 'nap'],
+  dress: ['dress'],
+  drink: ['drink'],
+  buy: ['snack', 'drink'],
+  haircut: ['haircut'],
+});
+/** R's quick action at a spot: the first [id, test] whose test holds and whose row is not struck (the tests: src/sim/places/hand.js). */
+export const PRIORITY = deepFreeze({
+  wash: [['wash-hands', 'hands'], ['drink', 'thirst'], ['shave', 'stubble'], ['clip', 'haircut']],
+  toilet: [['bowel', 'bowel'], ['urinate', 'bladder']],
+  urinate: [['urinate', 'bladder']],
+  sleep: [['dress', 'drill'], ['standfast', 'drill'], ['sleep', 'night'], ['nap', 'day']],
+  drill: [['dress', 'drill'], ['standfast', 'drill'], ['sleep', 'night'], ['nap', 'day']],
+});

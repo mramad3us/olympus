@@ -40,6 +40,11 @@
 // count as known ("3", "≈3" under Weapon handling 15, "?" uncounted, OUT), the bolt locked, a stoppage
 // once felt (CLICK, DEAD, FELT; CASE and DOUBLE once looked at). The ui-weaponcard test feeds a belief
 // whose truth differs and reads the belief in every glyph.
+//
+// 0.0.6 (the user, 2026-11-07): the card carries the magazine in the hand as believed (beliefOf's hand: its count,
+// its kind, its weight's band) and the believed kind of the one in the rifle (magLoad); the line adds "HAND 5",
+// "HAND A FEW", "HAND ?" ("TR" when tracer). A row the scene marks without striking it (step.warn: "one magazine a
+// string") shows its mark in amber where a struck row shows its reason, and stays choosable.
 import { CARD_W, CARD_H } from './layout.js';
 
 /** A struck row chosen lights this long (ms). */
@@ -72,10 +77,10 @@ export function oddsText(step) {
 }
 /** Which time a row shows: rushed while Shift is held (where it can be rushed), else the normal one. */
 export const shownMs = (step, { shift = false } = {}) => (shift && Number.isFinite(step?.rushMs) ? step.rushMs : step?.ms);
-/** A row as one plain line: '3 LOAD · 2.4 s · routine', '1 fire · 0.4 s (on safe)'. */
+/** A row as one plain line: '3 LOAD · 2.4 s · routine', '1 fire · 0.4 s (on safe)', a marked one '5 RELOAD · 3.0 s · routine (! one magazine a string)'. */
 export function rowText(slot, opts = {}) {
   const s = slot.step, t = secs(shownMs(s, opts)), odds = oddsText(s);
-  return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${odds && !s.off ? ` · ${odds}` : ''}${s.off ? ` (${s.off})` : ''}`;
+  return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${odds && !s.off ? ` · ${odds}` : ''}${s.off ? ` (${s.off})` : s.warn ? ` (! ${s.warn})` : ''}`;
 }
 /** A row's hover words: what it rolls, and its rushed and careful times where it has them. */
 export function rowTitle(step, { label = (a) => a } = {}) {
@@ -87,6 +92,7 @@ export function rowTitle(step, { label = (a) => a } = {}) {
   if (step.kind === 'fire') bits.push('held: hold the aim to +4, then fire');
   if (step.subs?.length) bits.push(step.subs.map(x => `${x.label ?? x.id}${Number.isFinite(x.ms) ? ` ${secs(x.ms)}` : ''}`).join(', '));
   if (step.off) bits.push(`not now: ${step.off}`);
+  else if (step.warn) bits.push(step.warn === 'one magazine a string' ? `ahead of the tower: ${step.warn}` : step.warn);
   return bits.join(' · ');
 }
 
@@ -124,7 +130,9 @@ const MODE_WORD = Object.freeze({ safe: 'SAFE', semi: 'SEMI', auto: 'AUTO', burs
 const CHAMBER_WORD = Object.freeze({ live: 'ROUND', empty: 'EMPTY', '?': '?', dud: 'DUD', case: 'CASE' });
 const STOPPAGE_WORD = Object.freeze({ click: 'CLICK', dead: 'DEAD', felt: 'FELT', case: 'CASE', double: 'DOUBLE' });
 /** The keys of beliefOf's record the card reads: nothing else is ever read from it. */
-export const BELIEF_FIELDS = Object.freeze(['model', 'short', 'chamber', 'mag', 'magFam', 'count', 'countApprox', 'mode', 'locked', 'port', 'stoppage', 'condWord', 'cocked']);
+export const BELIEF_FIELDS = Object.freeze(['model', 'short', 'chamber', 'mag', 'magFam', 'count', 'countApprox', 'magLoad', 'mode', 'locked', 'port', 'stoppage', 'condWord', 'cocked', 'hand']);
+const FEEL_LINE = Object.freeze({ none: 'NONE', few: 'A FEW', half: 'HALF', most: 'NEARLY FULL', full: 'FULL' });
+const FEEL_WORDS = Object.freeze({ none: 'feels empty', few: 'a few rounds by its weight', half: 'about half full by its weight', most: 'nearly full by its weight', full: 'full by its weight' });
 /**
  * The card's caption from a belief (beliefOf's record): { short, mode, chamber, count, locked, port, stoppage,
  * cond, line ('SAFE · ROUND + 3'), words (the hover's plain sentence) }. Pure; reads only BELIEF_FIELDS.
@@ -137,11 +145,14 @@ export function weaponCardModel(belief) {
   const count = b.mag === 'out' ? 'OUT' : b.count === null || b.count === undefined || b.count === '?' ? '?' : b.countApprox ? `≈${b.count}` : String(b.count);
   const stoppage = b.stoppage ? STOPPAGE_WORD[b.stoppage] ?? String(b.stoppage).toUpperCase() : null;
   const roundIn = b.chamber === 'live' ? '1' : b.chamber === 'empty' ? '0' : b.chamber === '?' ? '?' : chamber;
-  const line = [mode, `${roundIn} + ${count}`, b.locked ? 'LOCKED' : null, stoppage].filter(Boolean).join(' · ');
+  const H = b.hand ?? null, handCount = H ? (Number.isFinite(H.n) ? `${H.approx ? '≈' : ''}${H.n}` : H.feel ? FEEL_LINE[H.feel] ?? '?' : '?') : null;
+  const hand = H ? `HAND ${handCount}${H.load === 'tracer' ? ' TR' : ''}` : null;
+  const line = [mode, `${roundIn} + ${count}${b.magLoad === 'tracer' && b.mag !== 'out' ? ' TR' : ''}`, b.locked ? 'LOCKED' : null, stoppage, hand].filter(Boolean).join(' · ');
   const chamberWords = { live: 'a round in the chamber', empty: 'the chamber empty', '?': "the chamber: you haven't checked", dud: 'a dud in the chamber', case: 'a case caught in the port' }[b.chamber] ?? 'the chamber: unknown';
   const magWords = b.mag === 'out' ? 'no magazine' : count === '?' ? 'a magazine, uncounted' : `${b.countApprox ? 'about ' : ''}${b.count} in the magazine`;
-  const words = `${b.short ?? 'The rifle'}: ${chamberWords}, ${magWords}, ${b.mode === 'safe' ? 'on safe' : `on ${b.mode ?? '?'}`}${b.locked ? ', the bolt locked back' : ''}${stoppage ? `; ${stoppage.toLowerCase()}` : ''}${b.condWord && b.condWord !== 'fine' ? `; ${b.condWord}` : ''}.`;
-  return { short: b.short ?? null, model: b.model ?? null, mode, chamber, count, locked: !!b.locked, port: b.port ?? null, stoppage, cond: b.condWord ?? null, line, words };
+  const handWords = H ? `; in your hand a magazine, ${Number.isFinite(H.n) ? `${H.approx ? 'about ' : ''}${H.n === 0 ? 'empty' : `${H.n} round${H.n === 1 ? '' : 's'}`}` : H.feel ? FEEL_WORDS[H.feel] ?? 'its count unknown' : 'its count unknown'}${H.load ? `, ${H.load}` : ', its kind not seen'}` : '';
+  const words = `${b.short ?? 'The rifle'}: ${chamberWords}, ${magWords}${b.magLoad && b.mag !== 'out' ? ` of ${b.magLoad}` : ''}, ${b.mode === 'safe' ? 'on safe' : `on ${b.mode ?? '?'}`}${b.locked ? ', the bolt locked back' : ''}${stoppage ? `; ${stoppage.toLowerCase()}` : ''}${b.condWord && b.condWord !== 'fine' ? `; ${b.condWord}` : ''}${handWords}.`;
+  return { short: b.short ?? null, model: b.model ?? null, mode, chamber, count, locked: !!b.locked, port: b.port ?? null, stoppage, cond: b.condWord ?? null, hand, line, words };
 }
 
 /** Pixels onto a canvas: a Pixmap-like { w, h, data | px } (a Uint32Array in ImageData's order, or RGBA bytes). */
@@ -218,7 +229,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     if (doing && doing.kind !== 'wait') return running(v, doing, model);
     const panel = panelOf(v.steps, { page: v.page ?? 0 });
     slots = panel.slots;
-    const rs = JSON.stringify(['panel', !!v.shift, panel.page, panel.pages, doing?.step ?? null, doing?.chain ?? null, panel.slots.map(s => [s.key, s.step.id, s.step.label, s.step.ms, s.step.rushMs, s.step.odds, s.step.routine, s.step.off, s.step.cmd, s.step.subs?.length ?? 0])]);
+    const rs = JSON.stringify(['panel', !!v.shift, panel.page, panel.pages, doing?.step ?? null, doing?.chain ?? null, panel.slots.map(s => [s.key, s.step.id, s.step.label, s.step.ms, s.step.rushMs, s.step.odds, s.step.routine, s.step.off, s.step.warn ?? null, s.step.cmd, s.step.subs?.length ?? 0])]);
     if (rs !== sigRows) {
       sigRows = rs;
       bar = null;
@@ -267,9 +278,9 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     const lab = el('span', { className: 'label' }, el('span', { className: 'name', textContent: s.label }));
     const meta = el('span', { className: 'meta' },
       t ? el('span', { className: `time${v.shift && Number.isFinite(s.rushMs) ? ' rushed' : ''}`, textContent: t }) : null,
-      s.off ? el('span', { className: 'why', textContent: s.off }) : odds ? el('span', { className: `odds${s.routine ? ' routine' : ''}`, textContent: odds }) : null);
+      s.off ? el('span', { className: 'why', textContent: s.off }) : s.warn ? el('span', { className: 'why warn', textContent: `! ${s.warn}` }) : odds ? el('span', { className: `odds${s.routine ? ' routine' : ''}`, textContent: odds }) : null);
     const kids = [el('kbd', { textContent: slot.key }), lab, meta];
-    const r = el('div', { className: `step ${s.kind ?? 'single'}${s.off ? ' off' : ''}${s.cmd ? ' cmd' : ''}${isRunning ? ' running' : ''}`, title: rowTitle(s, { label }) }, ...kids);
+    const r = el('div', { className: `step ${s.kind ?? 'single'}${s.off ? ' off' : ''}${s.warn && !s.off ? ' warned' : ''}${s.cmd ? ' cmd' : ''}${isRunning ? ' running' : ''}`, title: rowTitle(s, { label }) }, ...kids);
     r.dataset.step = s.id; r.dataset.key = slot.key;
     if (onPick && !s.off) r.addEventListener('click', () => onPick(s));
     if (isRunning) {

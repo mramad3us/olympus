@@ -6,18 +6,23 @@
 // rank's range with the service its rank needs, 20 to 40% women, names from SETTING's pools and
 // never its blocklist, unique full names, a squad's given and family names its own, every squad pair
 // apart in two of skin, cut and colour, each placed person's berth in their own bay, the same world
-// the same bytes, another seed another company, and a golden at seed 48213.
+// the same bytes, another seed another company, and a golden at seed 48213. 0.0.6 (the build sheet
+// 0.0.6 §5.2; the user, 2026-11-06: "a soldier with half balding hair would 100% go fully shaved head for
+// service"): only CAREER §2's regulation cuts, a thinning man's the shaved head, thinning by hash against
+// THIN_P by age; the cuts by sex and age band, the thinning share against THIN_P, the shaved share, and
+// the squads that cannot fit (five thinning men or more: four (skin, shaved) pairs) printed.
 import { assert, fmt } from './helpers.mjs';
 import { golden } from './golden.mjs';
 import { createGame } from './game.mjs';
 import { newState, toJSON } from '../src/core/state.js';
 import { initPeople } from '../src/sim/people/domain.js';
-import { rollRoster, fillPlayer, rosterBillets, ROSTER_UNITS, drawCore, tierOf, lookApart, squadLooks, YEAR_D, NAME_REROLLS } from '../src/sim/people/roster.js';
+import { rollRoster, fillPlayer, rosterBillets, ROSTER_UNITS, drawCore, tierOf, lookApart, squadLooks, feasible, thinP, YEAR_D, NAME_REROLLS } from '../src/sim/people/roster.js';
 import { fullName } from '../src/sim/people/names.js';
 import { RANKS } from '../src/data/people/ranks.js';
 import { PLAYER_BILLET, SQUAD } from '../src/data/people/billets.js';
 import { HOMES } from '../src/data/setting/homes.js';
-import { KIT, SKINS, HAIR_STYLES, HEIGHTS_M } from '../src/data/people/looks.js';
+import { KIT, SKINS, HAIR_STYLES, HEIGHTS_M, CUTS, THIN_P } from '../src/data/people/looks.js';
+import { CUT_IDS } from '../src/art/figures/templates.js';
 import { GIVEN_POOLS, FAMILY_POOLS, BLOCKED_FULL, BLOCKED_FAMILY_T12 } from '../src/data/setting/names.js';
 import { START_MS } from '../src/data/setting/calendar.js';
 import { DAY_MS } from '../src/core/clock.js';
@@ -32,10 +37,12 @@ const SEED = 48213;
 /** Worlds the looks sweep rolls (each about 30 ms). */
 const SWEEP_WORLDS = 80;
 // (the roster's people key, digest pinned: PRINT_HASH=1 reprints it, said in CHANGELOG.md when it moves)
-const GOLDEN_ROSTER = '034dbe60c69d1f';   // (0.0.4 re-set from 015b827a61b0dc: every body is written at BODY's record version, v 2)
+const GOLDEN_ROSTER = '15f6fa65311ec5';   // (0.0.6 re-set from 034dbe60c69d1f: CAREER §2's regulation cuts, their weights, thinning by hash (look.hair.thin) and the squad rule over seven cuts, the user's 2026-11-06 ask; 0.0.4 re-set from 015b827a61b0dc: every body is written at BODY's record version, v 2)
 const ageY = (p) => (START_MS - p.bornMs) / DAY_MS / YEAR_D;
 const tisMo = (p) => (START_MS - p.service.enlistedMs) / DAY_MS / (YEAR_D / 12);
 const partsOf = (p) => ({ skin: p.look.skin, style: p.look.hair.style, color: p.look.hair.color });
+// (a squad's members as squadLooks reads them: sex, age, thinning)
+const memberOf = (p) => ({ sex: p.sex, ageY: ageY(p), thin: !!p.look.hair.thin, parts: partsOf(p) });
 const tally = (list, key) => { const m = {}; for (const x of list) { const k = key(x); m[k] = (m[k] ?? 0) + 1; } return m; };
 const line = (m) => Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ');
 const squadIds = (s, unit) => Object.values(s.units[unit].billets);
@@ -138,13 +145,14 @@ export default [
     },
   },
   {
-    name: 'looks are the kit\'s, and every pair of a rifle squad differs in at least two of skin, hair style and hair colour (VIEWS §3.9, the sheet\'s three); a sweep of worlds counts the squads that cannot (thirteen men, or nine women or more)',
+    name: 'looks are the kit\'s, and every pair of a rifle squad differs in at least two of skin, hair style and hair colour (VIEWS §3.9, the sheet\'s three); a sweep of worlds counts the squads that cannot (0.0.6: five thinning men or more), and prints the regulation cuts and the thinning by age (the user, 2026-11-06: "this haircut is not military acceptable")',
     fn() {
       const { s, out } = roll(SEED);
       const people = Object.values(s.people);
       for (const p of people) {
         assert(KIT.skins.includes(p.look.skin) && SKIN[p.look.skin] !== undefined && HAIR[p.look.hair.color] !== undefined, `${p.id}: ${JSON.stringify(p.look)} not the kit's`);
-        assert(HAIR_STYLES[p.sex].some(([st]) => st === p.look.hair.style), `${p.id} (${p.sex}): cut ${p.look.hair.style}`);
+        assert(HAIR_STYLES[p.sex].some(([st]) => st === p.look.hair.style) && CUTS[p.look.hair.style].sex === p.sex && CUT_IDS.includes(p.look.hair.style), `${p.id} (${p.sex}): cut ${p.look.hair.style}`);
+        assert(!p.look.hair.thin || (p.sex === 'm' && p.look.hair.style === 'shaved'), `${p.id}: thinning but ${p.look.hair.style}`);
         assert(p.look.hair.color !== 'grey' || ageY(p) >= 32, `${p.id}: grey at ${fmt(ageY(p))}`);
         const [lo, , hi] = HEIGHTS_M[p.sex];
         assert(p.body.heightM >= lo && p.body.heightM <= hi && p.body.heightM >= KIT.heightM[0] && p.body.heightM <= KIT.heightM[1] && KIT.builds.includes(p.body.build), `${p.id}: ${JSON.stringify(p.body)}`);
@@ -162,26 +170,40 @@ export default [
       }
       const mine = squadIds(s, '2/4-E-2-1').map(id => s.people[id]);
       assert(clashing === 0, `${clashing} squad pairs at seed ${SEED} share two of skin, cut and colour`);
-      // (the sweep: how often a world's squad cannot meet the rule, and that the rest always do)
-      let worlds = 0, cannot = 0, failedFeasible = 0, playerSquadClash = 0;
+      // (the sweep: how often a world's squad cannot meet the rule, and that the rest always do; the cuts and thinning by age band)
+      let worlds = 0, cannot = 0, failedFeasible = 0, playerSquadClash = 0, menAll = 0, thinFive = 0;
+      const bands = [[18, 25], [25, 30], [30, 40], [40, 60]], byBand = bands.map(() => ({ men: 0, thin: 0, p: 0, cuts: {} })), womenCuts = {};
       for (let seed = 1000; seed < 1000 + SWEEP_WORLDS; seed++) {
         const w = roll(seed);
         worlds++;
+        for (const p of Object.values(w.s.people)) {
+          if (p.sex === 'f') { womenCuts[p.look.hair.style] = (womenCuts[p.look.hair.style] ?? 0) + 1; continue; }
+          const a = ageY(p), k = bands.findIndex(([lo, hi]) => a >= lo && a < hi), b = byBand[k < 0 ? bands.length - 1 : k];
+          b.men++; b.thin += p.look.hair.thin ? 1 : 0; b.p += thinP(a); b.cuts[p.look.hair.style] = (b.cuts[p.look.hair.style] ?? 0) + 1;
+        }
         for (const u of ROSTER_UNITS.filter(x => x.split('-').length === 4)) {
           const sq = squadIds(w.s, u).map(id => w.s.people[id]);
           let bad = 0;
           for (let i = 0; i < sq.length; i++) for (let j = i + 1; j < sq.length; j++) if (!lookApart(partsOf(sq[i]), partsOf(sq[j]))) bad++;
-          const men = sq.filter(p => p.sex === 'm').length;
-          if (men === 13 || men <= 4) { cannot++; continue; }          // (thirteen men, or nine women or more: twelve and eight (skin, cut) pairs)
+          if (sq.every(p => p.sex === 'm')) menAll++;
+          if (sq.filter(p => p.look.hair.thin).length >= 5) thinFive++;
+          if (!feasible([], sq.map(memberOf))) { cannot++; continue; }   // (no way to fit at all: five thinning men or more, four (skin, shaved) pairs)
           if (bad) { failedFeasible++; if (u === '2/4-E-2-1') playerSquadClash++; }
         }
       }
       assert(failedFeasible === 0, `${failedFeasible} squads that could fit did not (${playerSquadClash} of them the player's)`);
+      for (const [i, b] of byBand.entries()) {
+        const share = b.thin / Math.max(1, b.men), expect = b.p / Math.max(1, b.men), sd = Math.sqrt(expect * (1 - expect) / Math.max(1, b.men));
+        console.log(`      men ${bands[i][0]} to ${bands[i][1]}: ${b.men}, thinning ${fmt(share * 100, 1)}% (THIN_P there ${fmt(expect * 100, 1)}%), cuts ${line(b.cuts)}`);
+        assert(b.men < 30 || Math.abs(share - expect) <= 4 * sd + 0.01, `thinning ${bands[i].join('-')}: ${fmt(share, 3)} against ${fmt(expect, 3)} (sd ${fmt(sd, 3)})`);
+      }
+      const menTotal = byBand.reduce((a, b) => a + b.men, 0), shaved = byBand.reduce((a, b) => a + (b.cuts.shaved ?? 0), 0);
+      console.log(`      women's cuts: ${line(womenCuts)}; the shaved head ${fmt(shaved / menTotal * 100, 1)}% of men (10% by choice, the rest thinning; THIN_P ${THIN_P.map(([a, q]) => `${a}: ${q}`).join(', ')})`);
       console.log(`      ${people.length} looks within the kit (skins ${KIT.skins.join(' ')}; cuts ${Object.entries(HAIR_STYLES).map(([k, v]) => `${k} ${v.map(x => x[0]).join('/')}`).join(', ')}; heights ${KIT.heightM.join('-')} m)`);
       console.log(`      seed ${SEED}: ${pairs} squad pairs, none sharing two of the three (closest pair differs in ${closest}); looks redrawn ${out.stats.lookRedraws}, picked from what fits ${out.stats.lookPicks}, clashes left ${out.stats.lookClashes}`);
       console.log(`      1st Squad: ${mine.map(p => `${p.name.family} ${p.look.skin}/${p.look.hair.style}/${p.look.hair.color}`).join(', ')}`);
       console.log(`      skins in the company: ${line(tally(people, p => p.look.skin))} (weights ${SKINS.map(x => x.join(' ')).join(', ')}); cuts: ${line(tally(people, p => p.look.hair.style))}; colours: ${line(tally(people, p => p.look.hair.color))}`);
-      console.log(`      sweep: ${worlds} worlds, ${worlds * 9} squads; ${cannot} of thirteen men or nine women or more, which these three attributes cannot set apart (${fmt(cannot / worlds / 9 * 100, 2)}%; 1.31% expected: 0.97% all men, 0.40% nine women or more); every other squad apart`);
+      console.log(`      sweep: ${worlds} worlds, ${worlds * 9} squads; ${cannot} cannot be set apart by these three (${fmt(cannot / worlds / 9 * 100, 2)}%; ${thinFive} with five thinning men or more), ${menAll} all men (v0.0.5's twelve men's pairs could not fit them; sixteen can); every other squad apart`);
     },
   },
   {
@@ -235,20 +257,26 @@ export default [
     },
   },
   {
-    name: 'squadLooks fits a squad that can fit, and keeps a squad of thirteen men to its fewest clashes',
+    name: 'squadLooks fits a squad that can fit, thirteen men now among them, and keeps a squad of five thinning men to its fewest clashes, each still shaved (the user, 2026-11-06: "a soldier with half balding hair would 100% go fully shaved head for service")',
     fn() {
       const r = stream('test', 'looks');
-      const mix = Array.from({ length: 13 }, (_, i) => ({ sex: i % 4 === 0 ? 'f' : 'm', ageY: 20, parts: { skin: 'tan', style: i % 4 === 0 ? 'bun' : 'crew', color: 'dark' } }));
+      const mix = Array.from({ length: 13 }, (_, i) => ({ sex: i % 4 === 0 ? 'f' : 'm', ageY: 20, parts: { skin: 'tan', style: i % 4 === 0 ? 'bun' : 'lowReg', color: 'dark' } }));
       const fit = squadLooks(mix, r);
       let bad = 0;
       for (let i = 0; i < 13; i++) for (let j = i + 1; j < 13; j++) if (!lookApart(fit.looks[i], fit.looks[j])) bad++;
       assert(fit.fits && bad === 0, `a mixed squad of identical looks: ${bad} clashes after the pass`);
-      const men = Array.from({ length: 13 }, () => ({ sex: 'm', ageY: 20, parts: { skin: 'tan', style: 'crew', color: 'dark' } }));
-      const most = squadLooks(men, r);
+      const men = Array.from({ length: 13 }, () => ({ sex: 'm', ageY: 20, parts: { skin: 'tan', style: 'lowReg', color: 'dark' } }));
+      const all = squadLooks(men, r);
       let badMen = 0;
-      for (let i = 0; i < 13; i++) for (let j = i + 1; j < 13; j++) if (!lookApart(most.looks[i], most.looks[j])) badMen++;
-      assert(!most.fits && badMen >= 1 && badMen <= 2, `thirteen men: ${badMen} clashing pairs`);
-      console.log(`      13 identical looks (4 women, 9 men): ${fit.redraws} redraws, ${fit.picks} picks, 0 clashes; 13 men: cannot fit, ${badMen} clashing pair (twelve (skin, cut) pairs for thirteen)`);
+      for (let i = 0; i < 13; i++) for (let j = i + 1; j < 13; j++) if (!lookApart(all.looks[i], all.looks[j])) badMen++;
+      assert(all.fits && badMen === 0, `thirteen men: ${badMen} clashing pairs (sixteen (skin, cut) pairs since 0.0.6)`);
+      // (five thinning men: four (skin, shaved) pairs for five, so one pair at least clashes; each still shaved)
+      const thin = Array.from({ length: 13 }, (_, i) => ({ sex: 'm', ageY: 30, thin: i < 5, parts: { skin: 'tan', style: i < 5 ? 'shaved' : 'lowReg', color: 'dark' } }));
+      const most = squadLooks(thin, r);
+      let badThin = 0;
+      for (let i = 0; i < 13; i++) for (let j = i + 1; j < 13; j++) if (!lookApart(most.looks[i], most.looks[j])) badThin++;
+      assert(!most.fits && badThin >= 1 && badThin <= 2 && most.looks.slice(0, 5).every(L => L.style === 'shaved'), `five thinning men: ${badThin} clashing pairs, cuts ${most.looks.slice(0, 5).map(L => L.style).join(' ')}`);
+      console.log(`      13 identical looks (4 women, 9 men): ${fit.redraws} redraws, ${fit.picks} picks, 0 clashes; 13 men: fit, ${all.redraws} redraws, 0 clashes; 5 thinning men of 13: cannot fit, ${badThin} clashing pair, all five shaved`);
     },
   },
   {

@@ -3,12 +3,13 @@
 // TIME owns four of the state's keys (TECH §6.1): clock { ms, tick, holds, seq } (built by TECH in
 // src/core/clock.js), events (the queue, src/core/queue.js), skip (the running skip, or null:
 // ./skip.js) and time { chapter, voyage, pod, alarms, interrupts, liveSinceSaveMs, slowToMs, drills,
-// doing, lead, resume, attend, prefs }. slowToMs is the game time the slow contributors have been stepped to
+// doing, lead, resume, chain, attend, prefs }. slowToMs is the game time the slow contributors have been stepped to
 // (game.js slowStep): every slow step spans [slowToMs, t] and moves it, the live minute layer's and a
 // skip's alike, so lived and skipped play step each moment of game time once (TIME §5.5's parity).
 // pod is the night posted (./pod.js), drills { open, last, forced } the alert drill, doing the
 // activity under way (./doing.js), lead one waiting while the player lies down in sight before it
-// (./activities.js), resume a cut one R may finish, attend the arrivals at musters (the
+// (./activities.js), resume a cut one R may finish, chain several single actions at one fixture run
+// behind one splash (./chain.js, 0.0.6), attend the arrivals at musters (the
 // last 50), prefs the player's (prefs.mute: the S kinds muted, none this round), interrupts the S
 // stops counted (./interrupts.js). What it does (the 0.0.2 sheet §2.1; the 0.0.4 sheet §2.2.9):
 //   input        an activity lived at 1:1 (under 45 s: a drink, a bar) ends at its time, or is cut
@@ -31,13 +32,17 @@
 //                (./pod.js postNight). start(state) (a new game) and the upgrade 'time:pod' (a
 //                v0.0.3 save) post tonight's too, so a game begun at 23:00 has its reveille.
 //   events       taps, reveille, alert, alert-count, alert-end (./pod.js), activity-part (an
-//                activity's part ended at its second: ./activities.js).
+//                activity's part ended at its second: ./activities.js), chain-next (a chain's step
+//                ended at its second, the next begun: ./chain.js).
 //   actions      (G's ready and the digits moved to WEAPONS's domain at 0.0.5: src/sim/arms/domain.js
 //                keeps v0.0.4's stub for a player with no rifle); skip:stop and skip:chunk: the player's commands to a running
 //                skip, into skip.cmds at the clock, or, just after a chunked skip ended, 'carry on'
-//                (the same activity again for its chunk: TIME §6.4); activity ({ act: 'activity',
-//                args: { id, spotId, args, late, lead } }): an activity started (the late card's
-//                answers, the choices card, tests; lead: the page's, see ./activities.js). R is
+//                (the same activity again for its chunk: TIME §6.4), and while a chain runs
+//                skip:stop is Backspace's "stop after this step" (./chain.js chainStop); activity ({
+//                act: 'activity', args: { id, spotId, args, late, lead } }): an activity started (the
+//                late card's answers, R held's menu sending one row, tests; lead: the page's, see
+//                ./activities.js); chain ({ act: 'chain', args: { spotId, steps: [{ id, args }], late,
+//                force } }): R held's menu sending two rows or more (./chain.js startChain). R is
 //                places' `hand` (src/sim/places/hand.js).
 // A choice or a skip is refused while a skip runs (TIME §5.3, check 1: not in stop motion).
 import { isHeld } from '../../core/clock.js';
@@ -46,6 +51,7 @@ import { playerActor } from '../../core/ids.js';
 import { WAIT_MS } from '../../data/activities.js';
 import { postNight, fillPod, onTaps, onReveille, onAlert, onAlertCount, onAlertEnd, musterCheck } from './pod.js';
 import { startActivity, liveStep, leadStep, onActivityPart, resumeStep } from './activities.js';
+import { startChain, onChainNext, chainStop } from './chain.js';
 import { riseActor, backActor } from '../people/place.js';
 
 export { WAIT_MS };
@@ -88,12 +94,21 @@ function activityInput(state, input, bus, ctx) {
 function skipCommand(state, action, bus, ctx) {
   const cmd = nameOf(action).slice(5);
   if (cmd !== 'stop' && cmd !== 'chunk') return;
+  // (Backspace in a chain: stop after the running step, chain.js; kept in the commands, done, for the record)
+  if (state.skip && cmd === 'stop' && state.skip.chain && state.time?.chain) { chainStop(state, bus); state.skip.cmds.push({ atMs: state.clock.ms, cmd, done: true }); return; }
   if (state.skip) { state.skip.cmds.push({ atMs: state.clock.ms, cmd }); return; }
   const c = state.time?.chunk;
   if (cmd === 'chunk' && c && c.atMs === state.clock.ms) {
     delete state.time.chunk;
     startActivity(state, bus, ctx, { id: c.activity, spotId: c.spotId ?? null, args: c.args ?? {} });
   }
+}
+
+// (R held's menu, two rows or more: one chain at one fixture)
+function chainAction(state, action, bus, ctx) {
+  const a = typeof action === 'object' ? action?.args ?? {} : {};
+  if (!Array.isArray(a.steps) || !a.steps.length) return;
+  startChain(state, bus, ctx, { spotId: a.spotId ?? null, steps: a.steps.map(s => ({ id: s.id, args: s.args ?? {} })), late: a.late ?? null, force: a.force ?? null });
 }
 
 function activityAction(state, action, bus, ctx) {
@@ -132,7 +147,7 @@ export const timeDomain = Object.freeze({
     autosaveDay: Object.freeze({ every: 'local@00:00', prio: 5, run: (state, bus) => askAutosave(state, bus, 'day') }),
     solDirector: Object.freeze({ every: 'local@20:00', prio: 5, run: (state) => postNight(state, state.clock.ms) }),
   }),
-  events: Object.freeze({ taps: onTaps, reveille: onReveille, alert: onAlert, 'alert-count': onAlertCount, 'alert-end': onAlertEnd, 'activity-part': onActivityPart }),
-  actions: Object.freeze({ skip: skipCommand, activity: activityAction }),
+  events: Object.freeze({ taps: onTaps, reveille: onReveille, alert: onAlert, 'alert-count': onAlertCount, 'alert-end': onAlertEnd, 'activity-part': onActivityPart, 'chain-next': onChainNext }),
+  actions: Object.freeze({ skip: skipCommand, activity: activityAction, chain: chainAction }),
   upgrades: Object.freeze([['time:pod', upgradePod]]),
 });

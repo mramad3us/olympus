@@ -3,7 +3,8 @@
 // advanced tick by tick (50 ms, that tick's load, stamina stepped as the fast layer steps it) against
 // skipped (a call a segment) and against the same split at 1,000 random whole seconds: composition to
 // 1e-9 relative; lived against skipped within BODY §25's and TIME §5.5's tolerances (energy and water 1%,
-// 5 kcal, 0.01 L; the bladder 5 mL, the bowel 1 g, grime 0.5, pressure 0.05 h, stamina 0.5). Both bodies
+// 5 kcal, 0.01 L; the bladder 5 mL, the bowel 1 g, grime 0.5, pressure 0.05 h, stamina 0.5; 0.0.6's hands 0.5
+// and hair 0.01 h, the build sheet 0.0.6 §5.2). Both bodies
 // and their differences printed. nextCrossings against stepping second by second: equal, to the
 // second. And in the game: fifteen minutes lived at 20 Hz (the fast layer's live mix, synced each
 // minute) against the same fifteen minutes stepped by the slow layer as an outcome skip steps them;
@@ -34,6 +35,8 @@ const LEDGER = [
   ['gut L', b => b.water.gutL, 0.01, 1], ['balance L', b => b.water.balanceL, 0.01, 1], ['bladder mL', b => b.bladder.ml, 5, 100], ['bowel g', b => b.bowel.g, 1, 100],
   ['transit g', b => b.bowel.transitG, 1, 100], ['grime', b => b.hygiene.grime, 0.5, 10], ['stubble h', b => b.hygiene.stubbleH, 0.01, 1],
   ['pressure h', b => b.sleep.pressureH, 0.05, 1], ['core °C', b => b.thermal.coreC, 0.05, 1], ['stamina', b => b.stamina, 0.5, 10], ['stress', b => b.stress.v, 0.5, 10],
+  // (0.0.6: the hands' dirt, grime's tolerance, and the hair's hours since the cut, the stubble's: the build sheet 0.0.6 §5.2)
+  ['hands', b => b.hands.dirt, 0.5, 10], ['hair h', b => b.hair.h, 0.01, 1],
 ];
 const diffs = (a, b) => LEDGER.map(([k, f, tol, scale]) => ({ k, a: f(a), b: f(b), d: Math.abs(f(a) - f(b)), tol, rel: Math.abs(f(a) - f(b)) / Math.max(scale, Math.abs(f(a))) }));
 const show = (ds) => ds.map(x => `${x.k} ${fmt(x.a, 3)}/${fmt(x.b, 3)}`).join(', ');
@@ -107,7 +110,7 @@ export default [
         const r = bodyAdvance(b, seg, t, t + SEC_MS);
         for (const e of r.events) if (e.kind === 'asleep' || e.kind === 'woke') stepped.push(`sleep:${e.kind}@${ceilSec(e.atMs)}`);
         const now = stagesOf(b, t + SEC_MS, MELAS_LON);
-        for (const k of ['hunger', 'thirst', 'bladder', 'bowel', 'hygiene', 'fatigue', 'stubble', 'stamina', 'stress']) {
+        for (const k of ['hunger', 'thirst', 'bladder', 'bowel', 'hygiene', 'fatigue', 'stubble', 'stamina', 'stress', 'hands']) {
           if (now[k].i === prev[k].i) continue;
           const up = now[k].i > prev[k].i, bands = LEDGERS.find(l => l.key === k).bands;
           for (let i = prev[k].i + (up ? 1 : -1); up ? i <= now[k].i : i >= now[k].i; i += up ? 1 : -1) stepped.push(`${k}:${bands[i].id}@${t + SEC_MS}`);

@@ -44,6 +44,13 @@
 // Chrome sends no keyup for a letter released while Cmd is held, so a move key held into a Cmd
 // shortcut would walk on by itself). This module is imported only by the browser side (main.js):
 // nothing in the sim reads the DOM.
+//
+// A card that reads its own keys (the 0.0.6 round's R menu, cards/actions.js: the build sheet 0.0.6 §2.3)
+// takes them through own(fn): while fn is set every key going down is fn(code, event)'s alone (the move keys,
+// Space, Enter and the arrows lose their browser meaning), and neither the key machine, the queue nor the
+// listeners hear it, so a key pressed in the menu never lands in the world, now or when it closes; keys going
+// up still reach the machine, so a key held into the card (R, held to open it) is let go as it should be and
+// fires nothing more.
 import { createKeyState, label as keyLabel, BINDINGS, TAP_MS } from './keys.js';
 
 const PREVENT = new Set(['Tab', 'Space', 'AltLeft', 'AltRight', ...BINDINGS.filter(b => b.kind === 'move').flatMap(b => b.codes)]);
@@ -73,8 +80,10 @@ export function createInput({ target = globalThis.window, stage = null, stageSiz
   // (a press held TAP_MS fires 'held' while still down: asked on a timer, and at every snapshot)
   const due = (e = null) => { const fired = keys.due(now()); if (fired.length) dispatch(fired, e); };
   const later = globalThis.setTimeout?.bind(globalThis) ?? null;
+  let owner = null;                                                // (a card that reads its own keys, own())
   const onDown = (e) => {
     if (e.metaKey || e.ctrlKey || typing(e)) return;               // (the browser's shortcuts, and text being typed)
+    if (owner) { if (owner(e.code, e) !== false) e.preventDefault(); return; }
     if ((PREVENT.has(e.code) && swallow()) || e.altKey || e.code?.startsWith('Alt')) e.preventDefault();   // (Alt is the stroll: held with a move, it mustn't type or wake a menu)
     if (e.repeat) return;
     const fired = keys.down(e.code, now(), e.key);
@@ -139,6 +148,18 @@ export function createInput({ target = globalThis.window, stage = null, stageSiz
       if (down && later && fired.some(f => f.kind === 'down' || f.kind === 'digit')) later(() => due(null), TAP_MS + 5);
       return fired;
     },
+    /**
+     * A card reads its own keys: every key going down is fn(code, event)'s alone until the release this returns
+     * is called (fn returning false lets a key keep its browser meaning; nothing reaches the machine, the
+     * queue or the listeners either way). Keys going up still reach the machine.
+     */
+    own(fn) {
+      owner = typeof fn === 'function' ? fn : null;
+      const mine = owner;
+      return () => { if (owner === mine) owner = null; };
+    },
+    /** Whether a card owns the keys now. */
+    get owned() { return !!owner; },
     /** Drop the queued actions and clicks (a scene change, a load). */
     drop() { queue = []; clicks = []; wheel = 0; },
     /** Let every key go. */
@@ -151,6 +172,6 @@ export function createInput({ target = globalThis.window, stage = null, stageSiz
     setStage(el, widthPx, heightPx) { stage = el; stageSize = widthPx ? [widthPx, heightPx] : null; },
     get mouse() { return { ...mouse }; },
     keys,
-    dispose() { for (const [type, fn, opt] of listeners) target?.removeEventListener?.(type, fn, opt); handlers.clear(); },
+    dispose() { for (const [type, fn, opt] of listeners) target?.removeEventListener?.(type, fn, opt); handlers.clear(); owner = null; },
   };
 }

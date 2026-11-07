@@ -9,7 +9,10 @@
 // them, every piece inside the ground drawn and X3, none in another, their kinds the kit's FOOTPRINTS, every
 // lane's firing point and coach's place reachable from every other on the ground's C0 grid, and the bay
 // closed (its fence, rope and berm: nothing outside reached), pinned by goldens. The ground grew over X3, so
-// its golden and the site plan's (the bay's zone) were re-set on purpose this round.
+// its golden and the site plan's (the bay's zone) were re-set on purpose in 0.0.5; in 0.0.6 Echo's floors'
+// and its ground floor's grid's, for the flights' guard (fixtures.js flightGuardOf, a flight's `open`
+// side, a rail across its foot), the stair rooms' extinguishers moved off the flights' feet and their
+// night lights, and the up bands 0.3 m north, with the new rule stair-foot.
 import { assert, fmt } from './helpers.mjs';
 import { golden } from './golden.mjs';
 import { createGame } from './game.mjs';
@@ -19,7 +22,7 @@ import { MELAS_PLAN, MELAS_PLAN_AS_WRITTEN } from '../src/sim/places/siteplan.js
 import { ECHO_1, ECHO_2 } from '../src/sim/places/echo.js';
 import { GROUND_AREA } from '../src/sim/places/ground.js';
 import { validateArea, validatePlan, validateGround, DOOR_CLEAR_M, MIN_GAP_M, EXIT_SIGN_M, SEEDS_PER_KIND, LAMPS_MAX } from '../src/sim/places/validate.js';
-import { CATALOGUE, KINDS, berthOf, seatOf } from '../src/sim/places/fixtures.js';
+import { CATALOGUE, KINDS, berthOf, seatOf, spotsOf } from '../src/sim/places/fixtures.js';
 import { buildGrid } from '../src/sim/places/nav.js';
 import { FOOTPRINTS } from '../src/art/kit/index.js';
 import { melasGame } from './bots/walker.mjs';
@@ -30,7 +33,7 @@ import { chunkGrid, cellOf, CHUNK_M, CELL_M } from '../src/sim/places/nav.js';
 const copy = (v) => JSON.parse(JSON.stringify(v));
 const rulesOf = (res) => [...new Set(res.problems.map(p => p.rule))];
 const AREA_RULES = ['ids', 'unique', 'opening', 'room-opening', 'door-clear', 'zone', 'kind', 'overlap', 'in-room', 'spawn'];
-const ECHO_RULES = ['no-seed', 'portal', 'arrive-face', 'stair-top', 'link', 'decor', 'exit-sign', 'seeds', 'heads', 'berths'];
+const ECHO_RULES = ['no-seed', 'portal', 'arrive-face', 'stair-top', 'stair-foot', 'link', 'decor', 'exit-sign', 'seeds', 'heads', 'berths'];
 const GROUND_RULES = ['ids', 'unique', 'no-seed', 'door', 'reveal', 'portal', 'door-sign', 'fixture', 'gate', 'lamps', 'seeds'];
 const PLAN_RULES = ['ids', 'unique', 'ring', 'apart', 'door', 'road', 'gate', 'edge', 'joined', 'daily'];
 
@@ -55,6 +58,7 @@ const ECHO_BREAKS = {
   portal: (a) => { a.portals.find(p => p.id === 'l:echo:stair-e').to.z = 15.0; },          // (0.3 m from floor 2's band back, not 0.6)
   'arrive-face': (a) => { a.portals.find(p => p.id === 'l:echo:stair-e').to.face = 'up'; }, // (arriving upstairs turned back to the well)
   'stair-top': (a) => { fixtureOf(a, 'f:e2:stair-e:flight').face = 'down'; },              // (on floor 2: the open top turned to the north, v0.0.4's picture, the band still at the south)
+  'stair-foot': (a) => { a.portals.find(p => p.id === 'l:echo:stair-e').band.at = 11.0; },  // (the band moved to the foot: the floor changes as one steps on, the user's v0.0.5 report)
   link: (a) => { fixtureOf(a, 'f:e1:stair-e:flight').x += 0.4; },
   decor: (a) => { a.look.decor[0].x = 90; },
   'exit-sign': (a) => { a.fixtures = a.fixtures.filter(f => f.id !== 'f:e1:vestibule:sign-1'); },
@@ -222,10 +226,10 @@ export default [
       const grid = buildGrid(TEST_AREA, 'C0'), e1 = buildGrid(ECHO_1, 'C0', { closed: (o) => o.state === 'closed' });
       const a = golden('places: TEST_AREA', TEST_AREA, '1b598ff4fcfa65');
       const g = golden('places: TEST_AREA C0 grid bytes', grid.cost, '189fefcff571bf');
-      const b = golden('places: ECHO_1', ECHO_1, '0784d8b14248b8');   // (0.0.5 re-set from 11196730cf23f2: the floor's floorName, 'ground floor'; 0.0.4's from 08f56e69dfa150: a drinking fountain in each wing's hall)
-      const c = golden('places: ECHO_2', ECHO_2, '1127fea3c6e702');   // (0.0.5 re-set from 0beba02edd957f: floorName 'upper floor', and its name 'first floor' became 'upper floor'; 0.0.4's from 1afda0fc95253b: the fountains)
-      const d = golden('places: GROUND_AREA', GROUND_AREA, '0620249a3a1ee1');   // (0.0.5 re-set from 000d6d7a726622: the ground grew over X3, the KD range's 25 m bay and its tower; 0.0.3's fixer set that from 131d1b63b7f5b2)
-      const e = golden('places: ECHO_1 C0 grid bytes', e1.cost, '1201fe98a1ceda');   // (0.0.4 re-set from 14b1247ac344b4: the fountains' footprints)
+      const b = golden('places: ECHO_1', ECHO_1, '16a0991afd36f2');   // (0.0.6 re-set from 0784d8b14248b8, by way of 1bfaeadda3e1a7: the doors' openS and closeS 0.4 s and 0.6 s (were 1.0 and 1.2); each flight's open side, the stair rooms' extinguishers moved to the east wall and a night light over each stair, the bands up 0.3 m north and the arrivals down with them; 0.0.5's from 11196730cf23f2: the floor's floorName, 'ground floor'; 0.0.4's from 08f56e69dfa150: a drinking fountain in each wing's hall)
+      const c = golden('places: ECHO_2', ECHO_2, '0d9c4e955d0e04');   // (0.0.6 re-set from 1127fea3c6e702, by way of 1475eb634db564: the doors' openS and closeS 0.4 s and 0.6 s; the stair rooms' extinguishers moved to the east wall, a night light over each well, the arrivals down 0.3 m north; 0.0.5's from 0beba02edd957f: floorName 'upper floor', and its name 'first floor' became 'upper floor'; 0.0.4's from 1afda0fc95253b: the fountains)
+      const d = golden('places: GROUND_AREA', GROUND_AREA, '03f5d7ec1b64b8');   // (0.0.6 re-set from 0620249a3a1ee1: the PX barber's pole on its stand, f:melas:px:barber; 0.0.5 re-set from 000d6d7a726622: the ground grew over X3, the KD range's 25 m bay and its tower; 0.0.3's fixer set that from 131d1b63b7f5b2)
+      const e = golden('places: ECHO_1 C0 grid bytes', e1.cost, '0e95501282079e');   // (0.0.6 re-set from 1201fe98a1ceda: the flights' rails, their closed tops and the rails across their feet, the extinguishers moved; 0.0.4's from 14b1247ac344b4: the fountains' footprints)
       console.log(`      TEST_AREA ${a}; its C0 grid (${grid.nx} × ${grid.nz}) ${g}`);
       console.log(`      ECHO_1 ${b}, ECHO_2 ${c}, GROUND_AREA ${d}; ECHO_1's C0 grid (${e1.nx} × ${e1.nz}, its doors as the template has them) ${e}`);
     },
@@ -337,6 +341,35 @@ export default [
       const a = golden('places: KD_RANGE', KD_RANGE, '09bbbab6c91cad');
       const b = golden('places: RANGE_PIECES', RANGE_PIECES, '0369e5d085a39f');
       console.log(`      KD_RANGE ${a}; RANGE_PIECES ${b}`);
+    },
+  },
+  {
+    name: 'the PX barber\'s pole (0.0.6, the build sheet 0.0.6 §2.2): on its stand by the PX\'s north door, east of it and out from the wall so the camera sees it over the roof, facing north, its spot free and reached from the base\'s walks on the ground\'s C0 grid',
+    fn() {
+      const st = createGame({ scenario: 'sandbox', seed: 48213 }).state;
+      const pole = GROUND_AREA.fixtures.find(f => f.kind === 'barberPole'), spot = spotsOf(pole)[0];
+      // (a window of chunks round the pole, flooded from its spot: it must reach the window's edge, the base beyond)
+      const i0 = Math.floor((spot.x - 24) / CHUNK_M), i1 = Math.floor((spot.x + 24) / CHUNK_M), j0 = Math.floor((spot.z - 24) / CHUNK_M), j1 = Math.floor((spot.z + 24) / CHUNK_M);
+      const grids = new Map();
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) grids.set(`${i},${j}`, chunkGrid(st, GROUND_AREA, i, j, 'C0'));
+      const free = (x, z) => { const g = grids.get(`${Math.floor(x / CHUNK_M)},${Math.floor(z / CHUNK_M)}`); if (!g) return false; const c = cellOf(g, x, z); return c >= 0 && g.cost[c] !== 255; };
+      const snapC = (v) => (Math.floor(v / CELL_M) + 0.5) * CELL_M, key = (x, z) => `${Math.round(x / CELL_M)},${Math.round(z / CELL_M)}`;
+      const start = [snapC(spot.x), snapC(spot.z)], seen = new Set([key(...start)]), todo = [start];
+      let edge = null;
+      assert(free(...start), `the pole's spot (${spot.x}, ${spot.z}) is blocked`);
+      while (todo.length && !edge) {
+        const [x, z] = todo.pop();
+        if (Math.abs(x - spot.x) > 20 || Math.abs(z - spot.z) > 20) { edge = [x, z]; break; }
+        for (const [dx, dz] of [[CELL_M, 0], [-CELL_M, 0], [0, CELL_M], [0, -CELL_M]]) {
+          const nx = x + dx, nz = z + dz, k = key(nx, nz);
+          if (seen.has(k) || !free(nx, nz)) continue;
+          seen.add(k); todo.push([nx, nz]);
+        }
+      }
+      console.log(`      ${pole.id} at (${pole.x}, ${pole.z}) facing ${pole.face}, ${pole.x - 292} m east of the PX's north door (292, 430); its spot ${spot.id} at (${spot.x}, ${spot.z}) facing ${spot.face}, ${spot.use}; flooded ${seen.size} cells to ${edge ? `the window's edge at (${edge.map(v => fmt(v, 1)).join(', ')})` : 'NOWHERE: enclosed'}`);
+      // (the camera looks north: a point at height y and z shows at z − y, and the PX's 4 m roof from z 430 covers the picture to 426, so the tube, 1.3 to 2.1 m up, must stand north of 427.3)
+      assert(pole.face === 'up' && pole.z - 1.3 < 430 - 4.0 && pole.x - 292 >= 2 && pole.x - 292 <= 3 && spot.use === 'haircut' && spot.x < pole.x && spot.z === pole.z && spot.face === 'right', JSON.stringify({ pole, spot }));
+      assert(edge, 'the pole\'s spot is enclosed: not reached from the base');
     },
   },
 ];

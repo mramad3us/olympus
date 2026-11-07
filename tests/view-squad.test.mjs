@@ -113,19 +113,24 @@ export default [
         // (then T, the dressing splash: while it shows the bay (a brief one's lapse, a full one's iris
         // closing), nobody drawn as last seen jumps to where they are; the review of v0.0.5's rack saw
         // seven do so in its first frame)
-        const dressing = page.evaluate(() => new Promise(res => {
-          const out = [], t0 = performance.now();
-          let seen = false;
+        // (the recorder is installed and has drawn a frame before T is pressed: a T that lands before the first
+        // recorded frame showed the splash in it, and the frames were thrown away (a flake seen four times))
+        await page.evaluate(() => new Promise(ready => {
+          const out = [], rec = (window.__dressRec = { out, done: false });
+          let seen = false, t0 = null;
           const f = (t) => {
+            t0 ??= t;
             const v = window.__report.view, sp = v.splash;
             out.push({ phase: sp?.phase ?? null, form: sp?.form ?? null, inkK: sp?.inkK ?? 0, figs: (v.figures ?? []).filter(p => !String(p.id).endsWith(':berth') && !p.own).map(p => ({ id: p.id, x: p.x, z: p.z, lie: p.lie, frame: p.frame, remembered: p.remembered })) });
-            if ((seen && !sp) || t - t0 > 6000) res(out); else { seen ||= !!sp; requestAnimationFrame(f); }
+            if (out.length === 2) ready();
+            if ((seen && !sp) || t - t0 > 8000) rec.done = true; else { seen ||= !!sp; requestAnimationFrame(f); }
           };
           requestAnimationFrame(f);
         }));
         await page.keyboard.press('KeyT');
-        const all = await dressing, first = all.findIndex(fr => fr.phase), jumps = [];
-        const dress = first > 0 ? all.slice(first - 1) : [];        // (from the last frame before the splash)
+        await page.waitForFunction(() => window.__dressRec.done, null, { timeout: 30000 });
+        const all = await page.evaluate(() => window.__dressRec.out), first = all.findIndex(fr => fr.phase), jumps = [];
+        const dress = first > 0 ? all.slice(first - 1) : [];        // (from the last frame before the splash; never 0 now, the recorder runs first)
         const open = (fr) => fr.form !== 'full' || (fr.inkK ?? 0) < 0.999;
         for (let i = 1; i < dress.length; i++) {
           if (!dress[i].phase || !open(dress[i]) || !open(dress[i - 1])) continue;

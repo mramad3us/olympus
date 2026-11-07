@@ -8,8 +8,11 @@
 // balanced, a little dry from the night (−0.2 L [−0.3]), the night's 160 mL in the bladder [380: the
 // last head is at 21:45], yesterday's food in the bowel (180 g) and in transit (100 g [250]: τ 18 h of
 // a 2,800 kcal sol), a day's grime since the morning shower after PT (32, clean [8]), a day's
-// stubble, the night's sleep pressure all but cleared (0.5, the sheet's: a rested marine; the
-// reference week settles at 1.1 to 1.7, body-sleep), the body clock on the site's mean solar time,
+// stubble, the hands washed at the basin at 21:45 and a night's slow dirt on them since (0.0.6:
+// dirt 5, the reference sol's own at reveille, body-hands; why null, the slow rate alone), a cut a
+// day old (0.0.6: hair.h 24 hours, cut the day before shipping, so a new join starts fresh), the
+// night's sleep pressure all but cleared (0.5, the sheet's: a rested marine; the reference week
+// settles at 1.1 to 1.7, body-sleep), the body clock on the site's mean solar time,
 // stamina full, the stress of a new morning, morale steady, the core at 37 °C. `traits` are the
 // reference ones; a generated person draws their own at the first read (stream('body', seed, pid,
 // 'traits'), BODY §2.5). sex, heightM, build and ageY stand in for the person's when the record does
@@ -22,6 +25,8 @@ const ledgers = (more = {}) => ({
   bladder: { ml: 160 },
   bowel: { g: 180, transitG: 100, reflexUntilMs: null },
   hygiene: { grime: 32, stubbleH: 24, wetUntilMs: null, sweatL: 0 },
+  hands: { dirt: 5, why: null },
+  hair: { h: 24 },
   sleep: { pressureH: 0.5, offsetH: 0, bed: null, sinceMs: null, fallMs: null, wokeMs: null, depthK: 1, berthNights: 12, inertia: null },
   stamina: 100, blown: false,
   stress: { v: 10 },
@@ -39,6 +44,6 @@ export const TEMPLATES = deepFreeze({
 /** The template a record without one reads. */
 export const DEFAULT_TMPL = 'm-adult';
 /** The ledger groups a record may hold (the rest of a record is v, tmpl, heightM, build, atMs, held). */
-export const GROUPS = Object.freeze(['energy', 'water', 'bladder', 'bowel', 'hygiene', 'sleep', 'stress', 'morale', 'thermal', 'traits']);
+export const GROUPS = Object.freeze(['energy', 'water', 'bladder', 'bowel', 'hygiene', 'hands', 'hair', 'sleep', 'stress', 'morale', 'thermal', 'traits']);
 /** The scalar ledgers kept at the record's top level. */
 export const SCALARS = Object.freeze(['stamina', 'blown']);

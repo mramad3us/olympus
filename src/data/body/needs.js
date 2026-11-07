@@ -2,7 +2,8 @@
 //
 // The body is physical ledgers, not bars (BODY §0): kilocalories in the gut and in reserve, litres of
 // body water against euhydration, millilitres in the bladder and grams in the bowel, grime from 0 to
-// 100, hours of sleep pressure, a core temperature, a stamina pool, stress. src/sim/body/ advances them
+// 100, the hands' dirt from 0 to 100 and the hours since the last haircut (0.0.6), hours of sleep
+// pressure, a core temperature, a stamina pool, stress. src/sim/body/ advances them
 // by the rates below in closed form on the game's minute grid (BODY §2.6), and turns each into a felt
 // band by the thresholds below (BODY §3.4, §4.3, §5.1, §5.2, §6, §7.3, §8, §9.1). Each band carries
 // the tone the instinct and the strip read ('fine', 'note', 'warn', 'urgent'), the words the
@@ -135,6 +136,39 @@ export const STUBBLE_BANDS = deepFreeze([
   { id: 'smooth', tone: 'fine', fill: 0, words: 'Clean-shaven.' },
   { id: 'shadow', tone: 'fine', fill: 1, h: 12, words: 'A shadow on your jaw.' },
   { id: 'stubble', tone: 'note', fill: 2, h: 20, words: 'Stubble: it would fail an inspection.' },
+]);
+
+// ---- the hands (0.0.6: the build sheet 0.0.6 §2.2, §8 items 3 and 4; the user, 2026-11-06: "using the head shouldn't wash our hands") ----
+/**
+ * The hands' dirt, 0 to 100, a ledger beside grime (my calls): it builds at RATE_K times grime's hourly
+ * rate (the dust and the day on everything you touch), and by events: the head HEAD, a stall STALL, a bar
+ * or a meal FOOD, each rifle handling sub-step RIFLE_SUB (gun oil and carbon), kneeling or prone on
+ * regolith REGOLITH; washed to 0 at a basin or in a shower. R's quick action at a sink washes them from
+ * band WASH_AT_I (dirty) on.
+ */
+export const HANDS = deepFreeze({ RATE_K: 1.0, HEAD: 40, STALL: 60, FOOD: 10, RIFLE_SUB: 1.5, REGOLITH: 15, WASH_AT_I: 2, MAX: 100 });
+/** The hands' bands by dirt (my calls); the words name the last soiling where it shows (cues.js handsWords). */
+export const HANDS_BANDS = deepFreeze([
+  { id: 'clean', tone: 'fine', fill: 0, words: 'Clean hands.' },
+  { id: 'used', tone: 'fine', fill: 1, dirt: 20, words: 'Your hands could do with a wash.' },
+  { id: 'dirty', tone: 'note', fill: 2, dirt: 40, words: 'Dirty hands.' },
+  { id: 'grimy', tone: 'warn', fill: 3, dirt: 70, words: 'Grimy hands.' },
+]);
+
+// ---- the hair (0.0.6: BODY §6; the user, 2026-11-06: "we should have to groom our hair the same way we will have to groom our beards") ----
+/**
+ * Scalp hair grows MM_DAY 0.40 mm an Earth day (Loussouarn et al. 2005: about 0.26 to 0.41 mm a day by
+ * ethnic group; "about a centimetre a month"), 0.411 mm a sol, on every head lived or skipped. A cut's
+ * drawn step and its band are its sols since the cut over the cut's dueSols, against STEP_K: step 1 from
+ * 0.3, 2 from 0.7, 3 (out of regulation) from 1.0.
+ */
+export const HAIR = deepFreeze({ MM_DAY: 0.40, STEP_K: [0.3, 0.7, 1.0] });
+/** The hair's bands, by the share of the cut's dueSols grown (the 'due' line names the day it goes over; a shaved head's own words where it has them, the clippers being its barber). */
+export const HAIR_BANDS = deepFreeze([
+  { id: 'fresh', tone: 'fine', fill: 0, k: 0, words: 'Fresh from the barber.', shaved: 'Freshly buzzed.' },
+  { id: 'growing', tone: 'fine', fill: 1, k: 0.3, words: 'Growing out.' },
+  { id: 'due', tone: 'note', fill: 2, k: 0.7, words: 'Haircut due {day}.' },
+  { id: 'over', tone: 'warn', fill: 3, k: 1.0, words: 'Out of regulation.' },
 ]);
 
 // ---- sleep, the body clock, fatigue (BODY §7) ----

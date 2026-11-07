@@ -9,10 +9,17 @@
 // from a worktree at its tag (the barracks, seed 48213, at 13:00 after a minute's walk; and at 13:30
 // saved while G's 'ready' held time) load as they are, carry on 3,000 ticks, and save and load equal;
 // the 'ready' save's digit lets time go, as v0.0.4's did.
+// 0.0.6 (the build sheet §3.2): two saves made by v0.0.5's own code from a worktree at its tag, each inside
+// an activity this round splits or drops (the barracks, seed 48213: at 19:32 inside the basin bundle's shave
+// part, and at 21:57 inside sleep's turn-in into PT kit, R pressed at the rack in utilities). Loaded, the
+// people's cuts are mapped (people:cuts: v0.0.4's bald men shaved), the body's new groups read the template's
+// (nothing written), and each legacy activity finishes as v0.0.5 finished it (its end, parts, line and
+// outfit, taken from v0.0.5's own run of the same save); 3,000 ticks with no error, a save after carried on
+// byte for byte. The v0.0.3 and v0.0.4 saves pass their own upgrades, then people:cuts.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
-import { assert, root } from './helpers.mjs';
+import { assert, fmt, root } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { bodyOf } from '../src/sim/body/body.js';
 import { stagesOf } from '../src/sim/body/cues.js';
@@ -81,6 +88,41 @@ export default [
         const h = createGame({ scenario: 'barracks', seed: 48213, version: '0.0.5' });
         h.load(mid); h.step(1500, { mz: -1 });
         console.log(`      ${name}: saved at ${hm(old.clock.ms)}, holds [${held}], mig flags [${flags}]${let0 ? `; 20 ticks held moved the clock ${let0.still ? 'not at all' : 'SOME'}, the digit let it go ("${let0.line}")` : ''}; 3,000 ticks on to ${hm(g.state.clock.ms)} with ${g.errors.length} errors; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+        assert(!g.errors.length && !h.errors.length && h.save() === end, JSON.stringify({ errors: g.errors.slice(0, 3) }));
+      }
+    },
+  },
+
+  {
+    name: 'a v0.0.5 save made inside the basin bundle or the sleep\'s turn-in loads: the cuts mapped (people:cuts), the bundle and the turn-in finishing as v0.0.5 finished them, 3,000 ticks with no error, a save after carried on byte for byte',
+    fn() {
+      // (v0.0.5's own continuation of each save, 3,000 ticks in the worktree at its tag, 2026-11-07)
+      const V005 = {
+        'v0.0.5-barracks-basin': { toMs: 23505458000, parts: ['teeth', 'shave', 'face'], line: 'Brushed, scraped and rinsed: 7 min.', outfit: 'utilities', interrupted: false },
+        'v0.0.5-barracks-turnin': { toMs: 23534221000, parts: ['turn-in', 'lie:0.69'], line: 'Lights out at 21:56, eyes open at 02:57, through the slip: 5 h 41 min.', outfit: 'pt', interrupted: true },
+      };
+      for (const [name, want] of Object.entries(V005)) {
+        const json = read(name), old = JSON.parse(json);
+        assert(old.meta.version === '0.0.5' && old.time.doing && old.skip, `${name}: not a v0.0.5 save inside an activity (${old.meta.version})`);
+        const oldCuts = Object.values(old.people).map(p => p.look?.hair?.style).filter(Boolean);
+        const g = createGame({ scenario: 'barracks', seed: 48213, version: '0.0.6' });
+        const s = g.load(json), pid = s.player.id;
+        const cuts = Object.values(s.people).map(p => p.look?.hair?.style).filter(Boolean);
+        const count = (list) => Object.entries(list.reduce((m, c) => ({ ...m, [c]: (m[c] ?? 0) + 1 }), {})).map(([k, v]) => `${k} ${v}`).join(', ');
+        const rec = s.people[pid].body, b = bodyOf(s, pid);
+        g.step(1500);
+        const e = g.facts('skip-end').at(-1), me = g.me();
+        const got = { toMs: e?.toMs, parts: e?.outcome.activity.parts, line: e?.outcome.activity.line, outfit: me.outfit ?? 'utilities', interrupted: e?.interrupted };
+        g.step(1500, { mx: 1 });
+        const mid = g.save();
+        g.step(600, { mz: -1 });
+        const end = g.save();
+        const h = createGame({ scenario: 'barracks', seed: 48213, version: '0.0.6' });
+        h.load(mid); h.step(600, { mz: -1 });
+        console.log(`      ${name}: saved at ${hm(old.clock.ms)} inside ${old.time.doing.activity} (${old.time.doing.parts.map(p => p.part).join(', ')}); cuts ${count(oldCuts)} → ${count(cuts)}, flags ${Object.keys(s.flags).filter(k => k.startsWith('mig:')).join(', ')}; the record without hands or hair (${'hands' in rec || 'hair' in rec ? 'WRITTEN' : 'none'}), read as the template's: dirt ${fmt(b.hands.dirt, 2)}, h ${fmt(b.hair.h, 2)}`);
+        console.log(`        finished at ${hm(got.toMs)}: ${got.parts.join(', ')}, "${got.line}", in ${got.outfit}${got.interrupted ? ', landed by an interrupt' : ''}; v0.0.5: ${hm(want.toMs)}, the same ${JSON.stringify(got) === JSON.stringify(want) ? 'in every field' : 'NOT'}; 3,000 ticks, ${g.errors.length} errors; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+        assert(!cuts.some(c => c === 'bald' || c === 'crew') && s.flags['mig:people-cuts'] && !('hands' in rec) && !('hair' in rec), JSON.stringify({ cuts: count(cuts), flags: s.flags }));
+        assert(JSON.stringify(got) === JSON.stringify(want), JSON.stringify({ got, want }));
         assert(!g.errors.length && !h.errors.length && h.save() === end, JSON.stringify({ errors: g.errors.slice(0, 3) }));
       }
     },

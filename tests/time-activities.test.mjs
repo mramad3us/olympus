@@ -1,20 +1,21 @@
-// The activities (TIME §8; the build sheet 0.0.4 §2.2.1, §2.2.6; TIME's test 7 and R's offers): each
-// activity's length at Melas, its engine and its splash's form; what R offers at every fixture of
-// Head A and bay-2-1, at the mail room's machine, at a door, mid-aisle and lying in the rack, with
-// its price; another marine's rack and locker offering nothing; R's wait away from anything; a door
-// at hand acting at once; an offer that changed kind by its tick doing nothing; a drink lived 30 s at
-// 1:1 and cut by a move key at its fraction.
+// The activities (TIME §8; the build sheet 0.0.4 §2.2.1, §2.2.6; the 0.0.6 sheet §2.1; TIME's test 7 and
+// R's offers): each activity's length at Melas, its engine and its splash's form, the basin's single
+// actions (0.0.6: v0.0.4's bundle split); what R offers at every fixture of Head A and bay-2-1, at the
+// mail room's machine, at a door, mid-aisle and lying in the rack, with its price; another marine's rack
+// and locker offering nothing; R's wait away from anything; a door at hand acting at once; an offer that
+// changed kind by its tick doing nothing; a drink lived 30 s at 1:1 and cut by a move key at its fraction.
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { planOf, startActivity, activitiesAt, kindFor, LIVE_MAX_MS } from '../src/sim/time/activities.js';
 import { activityNow, feetHeld } from '../src/sim/time/doing.js';
 import { splashPlan } from '../src/sim/time/splash.js';
-import { handOffer } from '../src/sim/places/hand.js';
+import { handOffer, handMenu } from '../src/sim/places/hand.js';
 import { areaOf } from '../src/sim/places/model.js';
 import { spotsOf } from '../src/sim/places/fixtures.js';
 import { openingState } from '../src/sim/places/model.js';
 import { setOutfit } from '../src/sim/people/place.js';
 import { bodyOf } from '../src/sim/body/body.js';
+import { stagesOf } from '../src/sim/body/cues.js';
 import { durationText, TICK_MS, MIN_MS } from '../src/core/clock.js';
 
 const SEED = 48213, AREA = 'melas.echo.1';
@@ -26,10 +27,10 @@ const at = (g, id, face) => { const s = spot(id); put(g, s.x, s.z, face ?? s.fac
 
 export default [
   {
-    name: 'each activity\'s length at Melas (TIME §8.2 to §8.4: the shower 10:00, dressing 5:12 and 4:24, the basin 3:00 and 7:00, sleep from 21:55 to reveille 8 h 14 m 35 s, the naps) with its engine and its splash\'s form (test 7)',
+    name: 'each activity\'s length at Melas (TIME §8.2 to §8.4: the shower 10:00, dressing 5:12 and 4:24, the sink\'s single actions 0:30, 2:00, 4:00, 10:00 and 1:00, sleep from 21:55 to reveille 8 h 14 m 35 s in whatever you wear, the naps, the barber 12:00) with its engine and its splash\'s form (test 7)',
     fn() {
       const g = createGame({ scenario: 'test-night', seed: SEED });
-      const s = g.state, me = g.me(), pid = s.player.id;
+      const s = g.state, me = g.me();
       const rows = [], len = {};
       const row = (what, id, spotId, args = {}) => {
         const p = planOf(s, id, { spotId, args });
@@ -38,18 +39,12 @@ export default [
         len[what] = p;
         return p;
       };
-      const body = bodyOf(s, pid);
       row('shower', 'shower', 'f:e1:head-2a:shower-2#1');
       setOutfit(me, 'pt'); row('dress PT kit → utilities', 'dress', 'f:e1:bay-2-1:rack-n1#1', { to: 'utilities' });
       setOutfit(me, 'utilities'); row('dress utilities → PT kit', 'dress', 'f:e1:bay-2-1:rack-n1#1', { to: 'pt' });
       setOutfit(me, 'towel'); row('dress towel → utilities', 'dress', 'f:e1:bay-2-1:locker-n1a#1', { to: 'utilities' });
       setOutfit(me, 'pt');
-      const stub = body.hygiene.stubbleH;
-      s.people[pid].body.hygiene = { ...(s.people[pid].body.hygiene ?? {}), stubbleH: 4 };
-      row('basin (no stubble)', 'basin', 'f:e1:head-2a:sinks-1#1');
-      s.people[pid].body.hygiene = { ...(s.people[pid].body.hygiene ?? {}), stubbleH: 14 };
-      row('basin (stubble 14 h)', 'basin', 'f:e1:head-2a:sinks-1#1');
-      s.people[pid].body.hygiene = { ...(s.people[pid].body.hygiene ?? {}), stubbleH: stub };
+      for (const id of ['wash-hands', 'teeth', 'shave', 'clip', 'wash-face']) row(id, id, 'f:e1:head-2a:sinks-1#1');
       row('urinate', 'urinate', 'f:e1:head-2a:urinal-1#1');
       row('bowel', 'bowel', 'f:e1:head-2a:stall-1#1');
       row('sleep 21:55 to reveille (in PT kit)', 'sleep', 'f:e1:bay-2-1:rack-n1#1', { until: 'reveille' });
@@ -57,6 +52,7 @@ export default [
       for (const m of [20, 45, 90]) row(`nap ${m} min`, 'nap', 'f:e1:bay-2-1:rack-n1#1', { min: m });
       row('a drink at a tap', 'drink', 'f:e1:head-2a:sinks-1#2');
       row('a bar at the mail room\'s machine', 'snack', 'f:e1:mail:vending-1#1');
+      row('a haircut (the barber\'s chair)', 'haircut', null, { cut: 'highTight' });
       row('R\'s wait', 'wait', null);
       // (in an open drill, utilities at the alarm's tempo: TIME §8.2's emergency one, the review of v0.0.4)
       s.time.drills.open = { drill: 0, atMs: s.clock.ms, dueMs: s.clock.ms + 300_000, endMs: s.clock.ms + 1_800_000 };
@@ -65,25 +61,30 @@ export default [
       for (const r of rows) console.log(`      ${r}`);
       assert(len.shower.durMs === 600_000 && len.shower.kind === 'outcome', 'the shower');
       assert(len['dress PT kit → utilities'].durMs === 312_000 && len['dress utilities → PT kit'].durMs === 264_000 && len['dress towel → utilities'].durMs === 240_000, 'dressing');
-      assert(len['basin (no stubble)'].durMs === 180_000 && len['basin (stubble 14 h)'].durMs === 420_000, 'the basin');
+      const sink = ['wash-hands', 'teeth', 'shave', 'clip', 'wash-face'].map(id => len[id].durMs);
+      assert(sink.join() === '30000,120000,240000,600000,60000' && len['wash-hands'].kind === 'live' && len['wash-face'].kind === 'ff' && len.teeth.kind === 'outcome', `the sink: ${sink.join()}`);
+      assert(Object.values(len).every(p => p.parts.length === 1 || ['in', 'turn-in'].includes(p.parts[0].part)), 'a single action of one part, but the shower');
       assert(len['dress PT kit → utilities, in a drill'].durMs === 156_000, `the hurried dress: ${len['dress PT kit → utilities, in a drill'].durMs}`);
       assert(len.urinate.durMs === 75_000 && len.urinate.kind === 'ff' && len.bowel.durMs === 360_000, 'the head');
+      assert(len['a haircut (the barber\'s chair)'].durMs === 720_000 && len['a haircut (the barber\'s chair)'].parts[0].posture === 'sit' && len['a haircut (the barber\'s chair)'].parts[0].inside, 'the barber');
       const night = len['sleep 21:55 to reveille (in PT kit)'];
       assert(night.endMs === 23_543_401_000 && night.durMs === 23_543_401_000 - s.clock.ms && Math.round(night.durMs / 1000) === 8 * 3600 + 14 * 60 + 35, `the night: ${night.durMs}`);
-      assert(len['sleep to reveille, from utilities'].parts[0].part === 'turn-in' && len['sleep to reveille, from utilities'].endMs === night.endMs, 'turn-in fits inside');
+      // (0.0.6: no turn-in, you sleep in what you wear; the build sheet §8 item 6)
+      const fromUt = len['sleep to reveille, from utilities'];
+      assert(fromUt.parts.length === 1 && fromUt.parts[0].part === 'lie' && fromUt.endMs === night.endMs, `the night from utilities: ${fromUt.parts.map(p => p.part)}`);
       assert(len['a drink at a tap'].kind === 'live' && len['a drink at a tap'].durMs === 30_000 && len['R\'s wait'].durMs === 900_000, 'drink and wait');
       assert(kindFor(s, LIVE_MAX_MS - 50) === 'live' && kindFor(s, LIVE_MAX_MS) === 'ff' && kindFor(s, 120_000) === 'outcome', 'the engines by length');
       console.log(`      engines: under ${LIVE_MAX_MS / 1000} s lived, to 120 s a fast-forward (here ${s.actors.list.length} actors × 75 s = ${s.actors.list.length * 75} actor-seconds ≤ 6,000), from 120 s an outcome skip`);
     },
   },
   {
-    name: 'R at each fixture of Head A and bay-2-1, the mail room\'s machine, the hall\'s fountain, a door, mid-aisle and lying in the rack: its verb, its price and its choices; another marine\'s rack and locker offer nothing',
+    name: 'R at each fixture of Head A and bay-2-1, the mail room\'s machine, the hall\'s fountain, a door, mid-aisle and lying in the rack: its verb, its price and its menu\'s rows; another marine\'s rack and locker offer nothing',
     fn() {
       const g = createGame({ scenario: 'barracks', seed: SEED, hour: 19.5 });
       const s = g.state;
       const rows = [], out = {};
-      const look = (what, id, face) => { const o = at(g, id, face); out[what] = o; rows.push(`${what.padEnd(28)} ${o ? `${o.verb.padEnd(8)} ${o.label}${o.more?.length ? `  (R held: ${o.more.map(m => m.label.split(' · ')[0]).join(', ')})` : ''}` : 'null'}`); return o; };
-      // (an empty bladder has nothing for the head: the urinal offers nothing, the stall its stall alone; the review of v0.0.4)
+      const look = (what, id, face) => { const o = at(g, id, face); out[what] = o; const m = handMenu(s); rows.push(`${what.padEnd(28)} ${o ? `${o.verb.padEnd(8)} ${o.label}${o.why ? ` (${o.why})` : ''}${m ? `  [R held, ${m.title}: ${m.rows.map(r => `${r.words}${r.choices ? ` ▾${r.choices[r.pick].words}` : ''}${r.off ? ` (${r.off})` : ''}`).join(' | ')}]` : ''}` : 'null'}`); return o; };
+      // (an empty bladder has nothing for the head: the urinal's row struck, R the wait; the stall its stall; the review of v0.0.4)
       const pid = s.player.id, bl = (ml) => { s.people[pid].body.bladder = { ...(s.people[pid].body.bladder ?? {}), ml }; };
       bl(10);
       look('a urinal, the bladder empty', 'f:e1:head-2a:urinal-2#1');
@@ -100,32 +101,38 @@ export default [
       look('the mail room\'s machine', 'f:e1:mail:vending-1#1');
       look('the lounge\'s machine', 'f:e1:lounge-2:vending-1#1');
       look('the hall\'s fountain', 'f:e1:hall-2:fountain-1#1');
-      put(g, 57.7, 8.6, 'up'); out.door = handOffer(s); rows.push(`${'the bay door from the hall'.padEnd(28)} ${out.door.verb} ${out.door.label}`);
-      put(g, 55.75, 3.95, 'down'); out.aisle = handOffer(s); rows.push(`${'mid-aisle'.padEnd(28)} ${out.aisle.verb} ${out.aisle.label}`);
-      // (the evening: your rack offers the night; the morning: a sink the basin, the morning routine's bundle gone: the review of v0.0.4)
+      put(g, 57.7, 8.6, 'up'); out.door = handOffer(s); rows.push(`${'the bay door from the hall'.padEnd(28)} ${out.door.verb} ${out.door.label}  [R held: ${handMenu(s).rows.map(r => r.words).join(' | ')}]`);
+      put(g, 55.75, 3.95, 'down'); out.aisle = handOffer(s); rows.push(`${'mid-aisle'.padEnd(28)} ${out.aisle.verb} ${out.aisle.label}  [R held, ${handMenu(s).title}: ${handMenu(s).rows.map(r => r.words).join(' | ')}]`);
+      // (the evening: your rack offers the night; the morning: a sink a single action, the morning routine's bundle gone: the review of v0.0.4)
       const g2 = createGame({ scenario: 'barracks', seed: SEED, hour: 21.5 });
       const night = at(g2, 'f:e1:bay-2-1:rack-n1#1');
-      rows.push(`${'your rack\'s foot at 21:30'.padEnd(28)} ${night.verb} ${night.label}`);
+      rows.push(`${'your rack\'s foot at 21:30'.padEnd(28)} ${night.verb} ${night.label} (${night.why})`);
       const g3 = createGame({ scenario: 'barracks', seed: SEED, hour: 6 });
       const morning = at(g3, 'f:e1:head-2a:sinks-1#1');
-      rows.push(`${'a sink at 06:00'.padEnd(28)} ${morning.verb} ${morning.label}`);
+      rows.push(`${'a sink at 06:00'.padEnd(28)} ${morning.verb} ${morning.label} (${morning.why ?? 'the first row not struck'})`);
       // (lying in the rack: get up)
       const g4 = createGame({ scenario: 'test-night', seed: SEED });
       g4.step(1, { act: [{ act: 'hand', args: { want: 'activity' } }] });
       const lying = handOffer(g4.state);
-      rows.push(`${'lying in your rack (02:30)'.padEnd(28)} ${lying?.verb} ${lying?.label}`);
+      rows.push(`${'lying in your rack (02:30)'.padEnd(28)} ${lying?.verb} ${lying?.label}; R held: ${handMenu(g4.state) ?? 'nothing'}`);
       for (const r of rows) console.log(`      ${r}`);
       assert(out['a shower stall'].id === 'shower' && /^shower · 10 min, done 19:4\d$/.test(out['a shower stall'].label), JSON.stringify(out['a shower stall']));
-      assert(out['a sink at 19:30'].id === 'basin' && out['a sink at 19:30'].more.map(m => m.id).join() === 'drink', JSON.stringify(out['a sink at 19:30']));
-      assert(morning.id === 'basin', JSON.stringify(morning));
+      // (the sink: single actions only, R the most urgent by the user's priority: hands, thirst, stubble; time-actions holds the grid)
+      const st = stagesOf(bodyOf(s, pid), s.clock.ms), stub = bodyOf(s, pid).hygiene.stubbleH;
+      const want = st.hands.i >= 2 ? 'wash-hands' : st.thirst.i >= 1 ? 'drink' : stub >= 12 ? 'shave' : 'wait', sk = out['a sink at 19:30'];
+      console.log(`      the sink at 19:30: hands ${st.hands.band} (dirt ${fmt(bodyOf(s, pid).hands.dirt, 1)}), thirst ${st.thirst.band}, stubble ${fmt(stub, 1)} h: R ${sk.id}`);
+      // (nothing due: R the wait, the menu the rest, the plate saying the shave is struck (the fixer's, 0.0.6))
+      assert(sk.id === want && sk.rows === 6 && (want === 'wait' ? sk.struck?.words === 'shave' : [sk.id, ...sk.more.map(m => m.id)].sort().join() === 'drink,shave,teeth,wash-face,wash-hands'), JSON.stringify(sk));
+      assert(['wash-hands', 'drink', 'shave', 'wait'].includes(morning.id), JSON.stringify(morning));
       assert(out['a urinal'].id === 'urinate' && ['bowel', 'urinate'].includes(out['a toilet stall'].id), 'the head');
-      assert(out['a urinal, the bladder empty'].verb === 'wait' && out['a toilet stall, empty'].id === 'bowel' && !(out['a toilet stall, empty'].more ?? []).some(m => m.id === 'urinate'), 'the head with an empty bladder');
+      // (an empty bladder and a bowel with nothing due: R at a stall the wait, never six minutes for nothing; the plate says why (the fixer's, 0.0.6))
+      assert(out['a urinal, the bladder empty'].verb === 'wait' && out['a toilet stall, empty'].verb === 'wait' && out['a toilet stall, empty'].struck?.off === 'nothing to give', JSON.stringify({ urinal: out['a urinal, the bladder empty'], stall: out['a toilet stall, empty'] }));
       assert(out['your rack\'s foot at 19:30'].id === 'nap' && night.id === 'sleep' && /^sleep until reveille · /.test(night.label) && /done 05:30$/.test(night.label), `the rack: ${out['your rack\'s foot at 19:30'].label} / ${night.label}`);
       assert(out['your locker'].id === 'dress' && out['another\'s rack\'s foot'].verb === 'wait' && out['another\'s locker'].verb === 'wait', `others' racks: ${JSON.stringify([out['another\'s rack\'s foot'], out['another\'s locker']])}`);
       assert(out['the mail room\'s machine'].id === 'snack' && out['the lounge\'s machine'].id === 'drink', 'the machines');
-      assert(out['the hall\'s fountain'].id === 'drink' && /^drink · 30 s, done 19:3\d$/.test(out['the hall\'s fountain'].label), JSON.stringify(out['the hall\'s fountain']));
+      assert(out['the hall\'s fountain'].id === 'drink' && out['the hall\'s fountain'].label === 'drink · 30 s', JSON.stringify(out['the hall\'s fountain']));
       assert(out.door.verb === 'open' && out.door.target === 'o:e1:bay-2-1' && out.aisle.verb === 'wait', 'the door and the aisle');
-      assert(lying?.verb === 'rise', JSON.stringify(lying));
+      assert(lying?.verb === 'rise' && handMenu(g4.state) === null, JSON.stringify(lying));
     },
   },
   {

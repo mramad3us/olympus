@@ -17,17 +17,22 @@
 // The 0.0.5 sheet (§2.5) adds WEAPONS' stop-mode, step, shot, muzzle, nd and range, and COMBAT's
 // reflex; say gains its kinds 'pa' (the tower) and 'speech' (the coach), fx its flash, and roll is
 // told after each logged roll with the roller (who).
+// The 0.0.6 sheet (§2.4) adds TIME's chain (several single actions behind one splash) and PEOPLE's look
+// (a cut changed), widens activity (chain: the step of a chain it is), skip-start (chain: its steps) and
+// skip-end (outcome.chain: each step's line), and BODY's body-event gains 'soil' (the hands) and
+// 'haircut', groom's bits hands 8 and clip 16, and body-stage the hands' crossings.
 
 const fact = (owner, payload) => Object.freeze({ owner, payload });
 
 /** Every bus fact: name → { owner, payload } (a one-line description of the payload). */
 export const FACTS = Object.freeze({
   hold: fact('TECH', '{ held, holds }: time stands still (or runs again) for the sim\'s reasons'),
-  'skip-start': fact('TIME', '{ id, activity, kind, engine, fromMs, toMs, where, posture, mask, spotId, vignette, stoppable, chunkMs }'),
+  'skip-start': fact('TIME', '{ id, activity, kind, engine, fromMs, toMs, where, posture, mask, spotId, vignette, stoppable, chunkMs, chain: null | { steps: [id], n } }'),
   'skip-frame': fact('TIME', '{ id, atMs, ticker: [new lines], frame: sample | null }, once per frame of a skip'),
   'skip-interrupt': fact('TIME', '{ id, atMs, by, prio, letter, kind, line, reflex }'),
-  'skip-end': fact('TIME', '{ id, activity, fromMs, toMs, planned, interrupted, by, outcome: { body: { before, after }, look: { outfit, wet }, chunk: { offerMs } | null, lines, failedRoll, activity, held }, papers, minutes }'),
-  activity: fact('TIME', "{ phase: 'start' | 'end', activity, who, spotId, fromMs, toMs, mode: 'live' | 'ff' | 'outcome', fraction, by, outcome }"),
+  'skip-end': fact('TIME', '{ id, activity, fromMs, toMs, planned, interrupted, by, outcome: { body: { before, after }, look: { outfit, wet }, chunk: { offerMs } | null, lines, failedRoll, activity, held, chain: null | [{ id, line, fraction, by }] }, papers, minutes }'),
+  activity: fact('TIME', "{ phase: 'start' | 'end', activity, who, spotId, fromMs, toMs, mode: 'live' | 'ff' | 'outcome', fraction, by, outcome, chain: null | { i, n } }"),
+  chain: fact('TIME', "{ phase: 'start' | 'step' | 'stop' | 'end', spotId, steps: [id], i, n, fromMs, toMs, by: null | 'natural' | 'player' | 'interrupt' | 'refused', dropped: [id], lines: [string] }: several single actions at one fixture behind one splash"),
   alert: fact('TIME', "{ drill, kind: 'drill', phase: 'sound' | 'count' | 'stand-down', atMs, dueMs, endMs, horn: { area, x, z }, here?, of? (the count: present of the squad) }"),
   reveille: fact('TIME', '{ atMs, area, holiday }'),
   late: fact('TIME', "{ who, block, dueMs, arrivedMs, lateMs, class: 'on-time' | 'late-minor' | 'late' | 'very-late' | 'missed' | 'left', leftMs? }"),
@@ -50,11 +55,12 @@ export const FACTS = Object.freeze({
   shot: fact('WEAPONS', '{ id, who, gun, atMs, fired, why, stoppage, set, muzzle: { x, y, z }, dirRad, target, lane, hole: { at, score, v } | null, brass: { kind, landMs, at } | null, logSeq }: a trigger pulled'),
   muzzle: fact('WEAPONS', "{ who, at, kind: 'near' | 'flag' | 'point', posture, atMs }: a muzzle swept over someone"),
   nd: fact('WEAPONS', '{ who, gun, grade, into, nearId, atMs, during }: a negligent discharge'),
-  range: fact('WEAPONS', "{ phase: 'cmd' | 'fault' | 'string' | 'clear' | 'stopped', cmd, hot, rule, kind: 'warn' | 'stop', text, n, score, of, v, why, hits?, shots?, list?: [{ score, v, hit }] }: the range session (hits, shots and list on a string's score, list its shots in order, a miss as score 0)"),
+  range: fact('WEAPONS', "{ phase: 'cmd' | 'fault' | 'string' | 'dry' | 'spout' | 'clear' | 'stopped', cmd, hot, rule, kind: 'warn' | 'stop', text, n, score, of, v, why, hits?, shots?, list?: [{ score, v, hit }], sat?, over?, via? }: the range session (hits, shots and list on a string's score, list its shots in order, a miss as score 0; sat a string sat out, over one fired with more than its rounds; 'spout' the coach's word on a round left in the chamber, via the sub-step)"),
   reflex: fact('COMBAT', "{ phase: 'offer' | 'chosen' | 'kept', why, title, options, key }: a reflex card"),
   papers: fact('TIME, CAREER', '{ papers: [ … ] }'),
-  'body-stage': fact('BODY', '{ who, ledger, from, to, tone, words, atMs }'),
-  'body-event': fact('BODY', "{ who, kind: 'void' | 'bowel' | 'accident' | 'asleep' | 'woke' | 'wash' | 'groom' | 'drink' | 'eat', atMs, amount }"),
+  'body-stage': fact('BODY', "{ who, ledger, from, to, tone, words, atMs } (ledger 'hands' since 0.0.6)"),
+  'body-event': fact('BODY', "{ who, kind: 'void' | 'bowel' | 'accident' | 'asleep' | 'woke' | 'wash' | 'groom' | 'drink' | 'eat' | 'soil' | 'haircut', atMs, amount, why? (soil: 'head' | 'stall' | 'food' | 'rifle' | 'regolith'), cut? (haircut) }: groom's amount its bits, teeth 1, shave 2, face 4, hands 8, clip 16"),
+  look: fact('PEOPLE', "{ who, what: 'cut', from, to, atMs }: a person's look changed (a haircut)"),
   'body-interrupt': fact('BODY', '{ who, ledger, band, atMs }: a crossing event dispatched'),
   'body-dead': fact('BODY', 'BODY §2.4'),
   broke: fact('TECH', '{ where, message }: a lost tick or a failed listener'),

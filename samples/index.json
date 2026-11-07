@@ -1,6 +1,87 @@
 {
- "built": "2026-11-05T19:46",
+ "built": "2026-11-07T00:37",
  "samples": [
+  {
+   "id": "cuts",
+   "title": "The regulation cuts: each at its four steps, on the figure and the doll",
+   "about": "Your ask of 2026-11-06: \"this haircut is not military acceptable, we should have to groom our hair the same way we will have to groom our beards and a soldier with half balding hair would 100% go fully shaved head for service.\" v0.0.4's horseshoe is gone: the cuts are CAREER §2's seven, men high and tight, low regulation, medium regulation or a shaved head (every thinning man's), women a regulation bun, short, or a braid pinned up. Hair grows 0.40 mm a day on every head, lived or skipped, and each cut is drawn at four steps by its sols since the barber over its due (men 10 sols, women's short 21, bun and braid 42): 0 fresh, 1 growing out (from 0.3), 2 due (from 0.7: the DI says \"Haircut's due Thursday.\"), 3 out of regulation (from 1.0). A man's sides go from skin to a shadow, a dark and the hair's colour, his top a pixel taller at 3; a woman's short cut grows a row at the locks a step; a bun or a braid works stray pixels loose at 3. The game draws them as built until you score them. Each picture is the game's own pixels at 16 px/m (the doll at its own scale), steps left to right, each step facing you, side on and from behind.",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "cuts",
+     "title": "The regulation cuts: each at its four steps, on the figure and the doll",
+     "about": "Your ask of 2026-11-06: \"this haircut is not military acceptable, we should have to groom our hair the same way we will have to groom our beards and a soldier with half balding hair would 100% go fully shaved head for service.\" v0.0.4's horseshoe is gone: the cuts are CAREER §2's seven, men high and tight, low regulation, medium regulation or a shaved head (every thinning man's), women a regulation bun, short, or a braid pinned up. Hair grows 0.40 mm a day on every head, lived or skipped, and each cut is drawn at four steps by its sols since the barber over its due (men 10 sols, women's short 21, bun and braid 42): 0 fresh, 1 growing out (from 0.3), 2 due (from 0.7: the DI says \"Haircut's due Thursday.\"), 3 out of regulation (from 1.0). A man's sides go from skin to a shadow, a dark and the hair's colour, his top a pixel taller at 3; a woman's short cut grows a row at the locks a step; a bun or a braid works stray pixels loose at 3. The game draws them as built until you score them. Each picture is the game's own pixels at 16 px/m (the doll at its own scale), steps left to right, each step facing you, side on and from behind.",
+     "sets": null,
+     "views": [
+      {
+       "id": "cuts-a",
+       "name": "The men's four cuts, steps 0 to 3, bare-headed (PT kit)",
+       "query": "set=men",
+       "shot": "cuts/shots/cuts-a.png",
+       "native": [
+        320,
+        140
+       ],
+       "report": {
+        "frame": [
+         320,
+         140
+        ]
+       }
+      },
+      {
+       "id": "cuts-b",
+       "name": "The women's three cuts, steps 0 to 3",
+       "query": "set=women",
+       "shot": "cuts/shots/cuts-b.png",
+       "native": [
+        320,
+        108
+       ],
+       "report": {
+        "frame": [
+         320,
+         108
+        ]
+       }
+      },
+      {
+       "id": "cuts-c",
+       "name": "All seven under the utility cover, steps 0 and 3 (a man's sides show below it)",
+       "query": "set=cover",
+       "shot": "cuts/shots/cuts-c.png",
+       "native": [
+        320,
+        240
+       ],
+       "report": {
+        "frame": [
+         320,
+         240
+        ]
+       }
+      },
+      {
+       "id": "cuts-d",
+       "name": "The doll's head, each cut at steps 0 to 3",
+       "query": "set=doll",
+       "shot": "cuts/shots/cuts-d.png",
+       "native": [
+        272,
+        248
+       ],
+       "report": {
+        "frame": [
+         272,
+         248
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
   {
    "id": "look",
    "title": "The look: five scenes with their people, in the four candidates",

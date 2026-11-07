@@ -25,16 +25,20 @@
 // wallsBetween, duckOf, the ticker's rule, loopsAt) are what the ui-audio test measures in node. The
 // 0.0.5 round's range (the shot, the action's clicks, the brass, the tower's chime) is a presenter of its
 // own beside this one (range.js), on the same world bus, so the splash's muffle takes it too.
+// The 0.0.6 round's (the build sheet 0.0.6 §2.3): the tap runs while the hands are washed (the part 'hands'),
+// the clippers' loop while a shaved head is buzzed (the part 'clip'), and the R menu's sounds (the 'ui' fact
+// main.js hands on: { kind: 'move' | 'check' | 'uncheck' | 'confirm' | 'close' }, UI_SOUNDS' recipes) play on
+// the UI bus, so a splash's muffle never takes them.
 import { playerActor, playerId } from '../../core/ids.js';
 import { MIN_MS } from '../../core/clock.js';
 import { airDb } from '../../sim/people/hearing.js';
 import { roomOf, areaOf } from '../../sim/places/model.js';
 import { activityNow } from '../../sim/time/doing.js';
 import { alertNow, KLAXON_CYCLE_MS } from '../../sim/time/alerts.js';
-import { ROLLOFF, AIR_KPA, WALL_DB, KLAXON_SOURCE_DB, BUGLE_SOURCE_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, WORLD_OPEN_HZ, TICK_MAX_HZ, PAN_FULL_M } from '../../data/sounds.js';
+import { ROLLOFF, AIR_KPA, WALL_DB, KLAXON_SOURCE_DB, BUGLE_SOURCE_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, WORLD_OPEN_HZ, TICK_MAX_HZ, PAN_FULL_M, UI_SOUNDS } from '../../data/sounds.js';
 import { lowpassHz } from './steps.js';
 
-const TAP_PARTS = new Set(['teeth', 'shave', 'face']);
+const TAP_PARTS = new Set(['teeth', 'shave', 'face', 'hands']);
 
 /** Walls between two points of an area by their rooms: 0 the same room, 1 rooms an opening joins, 2 beyond (or no rooms). */
 export function wallsBetween(area, a, b) {
@@ -78,19 +82,19 @@ export function createTicker({ maxHz = TICK_MAX_HZ } = {}) {
   };
 }
 
-/** The loops that should play at ms: { water: bool, tap: bool } from the activity under way (time's activityNow). */
+/** The loops that should play at ms: { water, tap, clippers } from the activity under way (time's activityNow). */
 export function loopsAt(state, ms) {
   let a = null;
   try { a = activityNow(state, ms); } catch { a = null; }
-  if (!a) return { water: false, tap: false };
+  if (!a) return { water: false, tap: false, clippers: false };
   const atSink = /sink|fountain/.test(a.fixtureId ?? '') || /sink|fountain/.test(a.spotId ?? '');
-  return { water: a.id === 'shower' && a.part === 'water', tap: TAP_PARTS.has(a.part) || (a.id === 'drink' && atSink) };
+  return { water: a.id === 'shower' && a.part === 'water', tap: TAP_PARTS.has(a.part) || (a.id === 'drink' && atSink), clippers: a.part === 'clip' };
 }
 
 /** The world's sounds over an engine (engine.js's world handle): { frame(state, { splash, nowS }), fact(type, payload, state), stats }. */
 export function createWorld(engine) {
   const ticker = createTicker();
-  const stats = { water: false, tap: false, flushes: 0, klaxons: 0, bugles: 0, ticks: 0, duckK: 0, lastKlaxon: null, lastBugle: null };
+  const stats = { water: false, tap: false, clippers: false, flushes: 0, klaxons: 0, bugles: 0, ticks: 0, ui: 0, lastUi: null, duckK: 0, lastKlaxon: null, lastBugle: null };
   let lastCycle = null, lastDrill = null, lastSplashId = null;
 
   function frame(state, { splash = null, nowS = 0 } = {}) {
@@ -98,13 +102,14 @@ export function createWorld(engine) {
     const d = duckOf(splash);
     stats.duckK = d.k;
     engine.duck(d);
-    if (!state || !me) { engine.loopOff('water'); engine.loopOff('tap'); stats.water = stats.tap = false; return; }
+    if (!state || !me) { engine.loopOff('water'); engine.loopOff('tap'); engine.loopOff('clippers'); stats.water = stats.tap = stats.clippers = false; return; }
     const ms = splash ? splash.shownMs : state.clock.ms, pKpa = AIR_KPA.floor;
     // (the water and the tap: on while their part runs at the time shown)
     const on = loopsAt(state, ms);
     if (on.water) engine.loopOn('water', 'water', { gainDb: airDb(pKpa), lowHz: lowpassHz(pKpa) }); else engine.loopOff('water');
     if (on.tap) engine.loopOn('tap', 'tap', { gainDb: airDb(pKpa), lowHz: lowpassHz(pKpa) }); else engine.loopOff('tap');
-    stats.water = on.water; stats.tap = on.tap;
+    if (on.clippers) engine.loopOn('clippers', 'clippers', { gainDb: airDb(pKpa), lowHz: lowpassHz(pKpa) }); else engine.loopOff('clippers');
+    stats.water = on.water; stats.tap = on.tap; stats.clippers = on.clippers;
     // (the klaxon: a whoop at each of the horn's cycles while it sounds, heard through the walls)
     let alert = null;
     try { alert = alertNow(state, ms); } catch { alert = null; }
@@ -125,6 +130,13 @@ export function createWorld(engine) {
   }
 
   function fact(type, payload, state) {
+    // (the R menu's sounds, on the UI bus: a card is up and the world paused, so no state is needed)
+    if (type === 'ui') {
+      const kind = UI_SOUNDS[payload?.kind];
+      const ok = !!kind && !!engine.uiShot(kind);
+      if (ok) { stats.ui++; stats.lastUi = payload.kind; }
+      return ok;
+    }
     if (!state) return false;
     const me = playerActor(state);
     if (type === 'body-event' && (payload?.kind === 'void' || payload?.kind === 'bowel') && payload.who === playerId(state) && me) {

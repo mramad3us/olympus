@@ -16,8 +16,9 @@
 //             sheet's §8 item 19: the walk ends at the fences; the gate posts open them at 0.0.12);
 //   fixtures  the street lamps by the data's rule of the plan's lines (a lamp post every 20 m, 40 along
 //             Valley Road, left out where it would stand in a building, on a road or a path, or within
-//             3 m of a door), the fence's floods every 40 m, Echo's street's guidon post and bins, and
-//             the company's plate by each of Echo's outside doors (the exit signs are the floors');
+//             3 m of a door), the fence's floods every 40 m, Echo's street's guidon post and bins,
+//             the company's plate by each of Echo's outside doors (the exit signs are the floors'), and
+//             (0.0.6) the PX barber's pole by its north door, f:melas:px:barber;
 //   portals   Echo's front, east and west exits, into the building: a band on the building's face at
 //             the door (out 'n', into it), arriving 0.7 m inside the floor from its own band;
 //   pieces    (0.0.5) the KD range's 25 m bay and its tower (src/data/places/range.js RANGE_PIECES: the
@@ -38,7 +39,7 @@
 // gates, and each gate as a leaf (closed). Blocking fixtures are the nav's to add (it reads the
 // catalogue, which this module may not import: fixtures.js reads every area). Frozen.
 import { MELAS_PLAN } from './siteplan.js';
-import { GROUND, LAMP_LINES, FLOODS, STREET, DOOR_SIGNS } from '../../data/places/ground.js';
+import { GROUND, LAMP_LINES, FLOODS, STREET, DOOR_SIGNS, BARBER } from '../../data/places/ground.js';
 import { SEEDS } from '../../data/places/echo.js';
 import { LAMP_KINDS } from '../../data/places/sky.js';
 import { ECHO_1, ECHO_ENTRIES } from './echo.js';
@@ -184,6 +185,8 @@ for (const rule of LAMP_LINES) {
 }
 for (const f of STREET.fixtures) fixtures.push({ id: `f:melas:echo-street:${f.name}`, kind: f.kind, make: f.make, x: f.x, z: f.z, face: f.face, seed: seedOf(f.kind), ...(f.look ? { look: { ...f.look } } : {}) });
 for (const s of DOOR_SIGNS) fixtures.push({ id: `f:melas:echo:${s.name}`, kind: 'sign', make: 'plaque', x: s.x, z: s.z, face: s.face, y: s.y, seed: seedOf('sign'), look: { ...s.look } });
+// (0.0.6: the PX barber's pole by its north door)
+fixtures.push({ id: `f:melas:px:${BARBER.name}`, kind: BARBER.kind, make: BARBER.make, x: BARBER.x, z: BARBER.z, face: BARBER.face, seed: seedOf(BARBER.kind) });
 
 // ---- the KD range's 25 m bay: its pieces, and what of them blocks (see the header) ----
 /** What a piece covers on the ground: { x0, z0, x1, z1 } (its kind's w and d, or its own, swapped facing left or right). */

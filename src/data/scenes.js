@@ -6,7 +6,7 @@
 // card asks about ([key, what it is]), the body's ledgers set on top of the start body (grime,
 // sweatL, stubbleH, pressureH, bladderMl), the outfit worn, a forced alert drill ({ hour }: the night's
 // 02:30, in place of the week's draw), a course of fire (course: src/data/courses.js, test-handling's
-// 25 m line, 0.0.5) and the fact that ends it (the end card, once the strip is done; a phase may be a
+// 25 m line, 0.0.5), its setup (test-handling's 'mixed': a scene of its own on the same scenario, 0.0.6) and the fact that ends it (the end card, once the strip is done; a phase may be a
 // list: the range's 'clear' or 'stopped').
 // The hud reads every field; scenes save nothing (the sheet §8, item 24): their scores alone are kept.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
@@ -31,6 +31,15 @@ export const SCENES = deepFreeze({
     id: 'test-handling', title: 'Show clear', scenario: 'test-handling', hour: 9.0,
     goal: "The 25 m line, on the tower's commands: make ready, fire your string, clear the stoppage, unload and show clear.",
     aspects: [['steps', 'every action its time and its roll; the stoppage by its steps'], ['shot', 'the plaque, the roll in the log, the hole in the paper'], ['pace', 'quick to drive by keys, never a wall of text']],
+    body: {}, outfit: 'utilities', course: 'fam25',
+    endOn: { fact: 'range', phase: ['clear', 'stopped'] },
+  },
+  // (0.0.6, the fixer's: setup 'mixed' from the Tests menu, not only by the URL, so the reach and the look have kinds to
+  // choose between in a scene the user plays (their "we may have different types of rounds in inventory"); scored apart)
+  'test-handling-mixed': {
+    id: 'test-handling-mixed', title: 'Show clear, mixed magazines', scenario: 'test-handling', setup: 'mixed', hour: 9.0,
+    goal: "The 25 m line with a fourth magazine of tracer among the ball, its kind not told: reach, look, and load what the course fires.",
+    aspects: [['steps', 'the reach, the look, the choice of magazine'], ['shot', 'the plaque, the roll in the log, the hole in the paper'], ['pace', 'quick to drive by keys, never a wall of text']],
     body: {}, outfit: 'utilities', course: 'fam25',
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },

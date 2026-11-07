@@ -605,6 +605,8 @@ effective hours = hours × teacherK × condK
 
 **Lived or skipped, the hours are the same** (my call; open question 5). A training block skipped with an outcome gives its full hours and its representative rolls (§6.4). A block lived gives the same hours, plus the rolls actually made, which carry their roll XP. Living a block is never a chore you must do to grow.
 
+**Drill rungs** (COMBAT §25.3) are taught the same way, counted in clean runs instead of hours: a unit's training teaches a drill family (room, passage, hatch, void) to rung 2, the shoot house's cadre, the boarding course and the AIC to 3, the Raiders' ITC to 4. Twenty clean runs make rung 2 and sixty rung 3; a run in an operation counts double, at most 5 a sol, to rung 3. A 3 h CQB block is about 12 runs, lived or skipped the same, its representative rolls setting the clean share when skipped (my call).
+
 ### 6.4 What the Plan of the Day trains (the syllabus)
 
 TIME owns the activities: their lengths, splashes and interrupts. SKILLS owns what each training block gives (my call; lengths are typical). "Keeps" counts rust sessions (§7).
@@ -621,7 +623,7 @@ TIME owns the activities: their lengths, splashes and interrupts. SKILLS owns wh
 | Class (first aid, comms, tactics, ROE, a language) | 1 to 2 h | the subject, its hours | the subject 0.5 | 0 | 0 | 1 of the subject |
 | Field exercise (a day) | 8 h | Fieldcraft 3, Tactics 1.5, Awareness 1.5, Comms 0.5, Medicine 0.5, Marksmanship 0.5 | Fieldcraft, Awareness, Tactics 1 each | 15, walk | 3 | 2 Fieldcraft, 1 Awareness, 1 Tactics |
 | Live-fire exercise | 6 h | Marksmanship 2, Weapon handling 1, Tactics 1, Fieldcraft 1 | Marksmanship, Weapon handling, Tactics, Fieldcraft 1 each | 10, walk | 4 | 2 Marksmanship, 1 Weapon handling, 1 Tactics |
-| CQB or boarding drill (shoot house) | 3 h | Weapon handling 1, CQC 0.5, Tactics 0.5, then Zero-g or EVA 1 by setting | Weapon handling, CQC 1 each | 6, work | 2 | 2 Weapon handling, 1 CQC |
+| CQB or boarding drill (shoot house) | 3 h | Weapon handling 1, CQC 0.5, Tactics 0.5, then Zero-g or EVA 1 by setting; about 12 runs toward the drill rungs (COMBAT §25.3) | Weapon handling, CQC 1 each | 6, work | 2 | 2 Weapon handling, 1 CQC |
 | Weapon cleaning (end of day) | 0.5 h | Weapon handling 0.25 | Weapon handling 0.5 | 0 | 0 | 1 Weapon handling (the cleaning, steady where the bench allows; its margin sets what the armourer finds, WEAPONS) |
 | Gym (flywheel and bands), in PT or free time | 1 h | none | none | 10, any g (BODY's resistance gym) | 0 | none |
 | Centrifuge session (exercise at 1 G) | 1 h | none (BODY's G-conditioning) | none | 8, at its own g (BODY) | 0 | none |
@@ -676,6 +678,7 @@ Floors are bases. Lengths are real-world references for CAREER to set.
 
 - A Fitness floor raises the base, and the weekly offset resets to 0.
 - The Warfighting floors of recon and raider mirror the illegal's 80. They are what makes a selection course a turning point you can feel on the sheet (open question 2).
+- **Drill rungs** (COMBAT §25.3) are floors at graduation as the bases are: `infantry` room 1 and passage 1 (taught: on the summary paper, nothing lived); `boarding` room 2, hatch 2, void 2; `aic` room 3, passage 3; `recon` room 3, passage 3; `raider` every family 4; `tier-one` every family 4. A school's test days count its bundles as lived. `breacher` puts the ram and charge breaches on the record (my calls).
 
 ### 6.7 What the player sees
 
@@ -940,6 +943,8 @@ These sit on tradecraft's scale: "a civilian sits around 0–8 … enemy special
 
 **As built in v0.0.5** (`src/sim/skills/templates.js` `TIERS`, `rollSheet`, `sheetOf`; the build sheet 0.0.5 §8 item 11): the soldier rows from Private to Staff or Gunnery Sergeant and the new Second Lieutenant, each holding its Warfighting range and, per skill, the base range its value range comes from at that Warfighting (`[round(lo / (1 + wf × WFhi/100)), round(hi / (1 + wf × WFlo/100))]`, one rule for every tier), so the private's base is Marksmanship 8 to 10, Weapon handling 8 to 10 and Awareness 5 to 6, and **Fitness 11 to 13** (the table's, Fitness carrying no weight; the build sheet's 10 to 12 was one off). **Comms, Tech, Demolitions and Driving**, which the table leaves out, are 1 to 4 at every soldier tier (my call). **A person's sheet comes from their own rank's tier** (`RANK_TIER`: Pvt and PFC the private's, then LCpl, Cpl, Sgt, SSgt and GySgt each their own), read lazily and written nowhere; so a corporal coach reads the corporal's row and his Awareness can fall below the sergeant's 12 to 17 the build sheet gave the coach (seeds 48213, 7 and 1 all drew a sergeant: Awareness 18, 17 and 14). Only the scene's player gets a written sheet (§15.1).
 
+**For close quarters** (COMBAT §25.14): the boot recruit, recon, Raider and tier-one rows join `templates.js` with `test-pairs`, for the test sheets and the NPCs, each with its default drill rungs (private 1; lance corporal and corporal 2; sergeant and staff sergeant 3; second lieutenant 1; recon 3; Raider 4; tier one 4; insurgent cell members 0, cell veterans and pirates 1, UN Marines 2, enemy special forces 4: my calls).
+
 ### 11.2 Generating a sheet
 
 - **Persistent people** (PEOPLE's tiers 1 to 3). From `stream('people', id)`, each skill's base is `intIn(lo, hi)` from the template. Two or three skills drawn from the stream get 1 or 2 background points, which gives personality: the corporal who boxes, the private who was a mechanic. Warfighting is `intIn(lo, hi)`, and the rank table in §11.3 refines it by time in service.
@@ -1088,7 +1093,7 @@ The user, 2026-11-05 (DESIGN.md, Controls): "T: the instinct's line (the drill i
 - **The DI.** Your senior drill instructor from recruit training, in your head. They have a name, and like every person they are generated (the user, 2026-11-05: "All people generated"): CAREER draws them at signing from the world's seed and SETTING's pools (CAREER §4.7; PEOPLE §3.1), and the opening flashback is where you met them. They speak anywhere, from your own training. They are second person, imperative, brief and dry.
 - **The NCO on the net.** In the field, when your radio is up and your team or squad leader is on the net. He is a real person with his own knowledge, Tactics, Leadership and manner (PEOPLE). His words go in the radio box (VIEWS), which is tradecraft's earpiece box: "◉ HALE · EARPIECE" becomes "◉ CPL VARGA · NET".
 - **The body.** BODY's triage line (tradecraft's `aid.js bodyLine()`: collapsed, then arterial, bleeding, shock, and so on) joins the same ladder as a third source.
-- **One line shows** at the foot of the screen, and **T does what it offers.** When an order on the net is the most pressing thing, the DI relays it: "Varga wants you on the berm. {T} Acknowledge and move." So T always acts on the one line shown. R's offer is appended as a chip, except on an urgent line (tradecraft).
+- **One line shows** at the foot of the screen, and **T does what it offers.** When an order on the net is the most pressing thing, the DI relays it: "Varga wants you on the berm. {T} Acknowledge and move." So T always acts on the one line shown. R's offer is appended as a plate on every line, urgent ones included (from v0.0.6; tradecraft's and v0.0.5's "except on an urgent line" is withdrawn: the user, 2026-11-06, "the shave+wash+water when pressing R at a basin without the tootip telling us what is going to happen is no good", so R must say what it does before it is pressed; VIEWS §7.1).
 - **Nothing that matters hides behind the line** (my call, on a critic's finding; the user split T and R in tradecraft because "'T' as a universal key interferes when several things can be done with it", 2026-10-28). The line can be the DI, the body's triage, a relayed order, a custom or a need, and whatever loses the ranking waits. So:
   - **The chip.** Beside the line, a chip carries the next line in short: the most pressing waiting line that has no key of its own (orders and customs have theirs, below). **T held** (`TAP_MS` 220, as E) does the chip's line; T tapped still does the line. Waiting orders and customs that are not the line show on the chip as their keycaps only, and a count gives whatever is queued behind: "{T held} Drink · {B} · {F} · +1". The chip shows on every line, urgent ones included, because it only informs until a key is pressed. R's offer stays a chip of its own, after it.
   - **Orders have their own key.** **B tapped acknowledges the newest order** waiting for an answer, on the net or spoken to you on base, whether or not its line is shown ("Two-one, moving"; "Aye, Sergeant"), and starts its act as T would. B held opens the net panel (VIEWS's B). An order acknowledged by B leaves the ranking at once.
@@ -1112,7 +1117,7 @@ The user, 2026-11-05 (DESIGN.md, Controls): "T: the instinct's line (the drill i
 2. **No flicker** (my call). A line stays at least `LINE_MIN_S` 3 s, unless an urgent line replaces it or its act is done. The chip obeys the same minimum.
 3. **No nagging** (my call). A line that has gone doesn't come back from the same rule within `REPEAT_S` 60 s, unless its tone has risen.
 4. **Only what the character knows**: perception, the feel, what was said on the net, the body as felt. A hazard missed by a failed roll does not exist for the instinct ("we only know what we know"). The DI never says something the character couldn't.
-5. **Skill decides how good the advice is.** The governing skill's value picks the text's tier: under 8, a plain instruction; 8 to 19, specific; 20 and up, it anticipates (open question 4). It never picks the player's choice for them. T only does what the line says, T held what the chip says.
+5. **Skill decides how good the advice is.** The governing skill's value picks the text's tier: under 8, a plain instruction; 8 to 19, specific; 20 and up, it anticipates (open question 4). It never picks the player's choice for them. T only does what the line says, T held what the chip says. **In close quarters training also sets how much the act covers** (COMBAT §25.8): one step a press at drill rungs 0 and 1, and never the walk in; a group at 2; the room at 3; the house at 4. A bundle chooses the steps of an operation the player chose, never a target, a shot, a consumable its row does not name, or a reload; from rung 3 the close-quarters line has no speaker, the marine's own thought.
 6. **Silence.** During a conversation or a menu (time stands still), only urgent lines. During a splash, none: interrupts are TIME's. With nothing to say, a calm line about the situation from the Plan of the Day, or nothing at all.
 7. **Humour** only on calm and note lines, at most one aside every `HUMOUR_GAP_S` 300 s of lived time, never on urgent or warn lines and never about a death. Picked by hash, never by dice.
 8. **The player's setting** (VIEWS): full (the default), quiet (warn and urgent only), or off except urgent.
@@ -1155,10 +1160,20 @@ The user, 2026-11-05 (DESIGN.md, Controls): "T: the instinct's line (the drill i
 | `need-dirt` | warn | unwashed, from 05:00 to 21:50 | a shower, at a stall | |
 | `woke` | note | lying awake in the rack, no drill open | get up; between taps and reveille, back to sleep in the berth, or the head when the bladder is at need | "Back to sleep. Reveille is at 05:30."; "The head, then back in the rack." |
 | `rack` | note | 21:50 to 22:00, away from your rack | none (the line says where) | "Taps at 22:00. Be in your rack for it." |
-| `stubble` | note | over 20 h on a face that grows it (BODY §6), 05:00 to 21:50 | the basin, at a sink | "Shave. Head A has mirrors." |
+| `stubble` | note | over 20 h on a face that grows it (BODY §6), 05:00 to 21:50 | the basin, at a sink (from v0.0.6 `activity:shave`, the shave alone) | "Shave. Head A has mirrors." |
 | `situation` | calm | nothing else applies: in a drill, stand fast at your rack until the stand-down; by day free time; evenings taps; nights sleep | in a drill, standing at your rack in utilities: stand fast | "At your rack, eyes front. The stand-down is at 03:00." |
 
 **While a drill is open nothing sends you from your rack** (the integrator's call: mustered at 02:35 the DI had said "Shave. Head A has mirrors."): the needs, the stubble and taps keep quiet, the bladder and the bowel speaking only at urgent, and the calm line is to stand fast, never with humour. **No grooming lines from 21:50 to 05:00**, and by day the calm line no longer sends you to a squad board you cannot read (the review of v0.0.4). `late` and `next` before Plan of the Day blocks come with the blocks (0.0.14); the walking acts ("walk to the head") with the player's paths.
+
+**As built in v0.0.6, the hands and the hair** (`src/sim/skills/instinct/base.js`, new `src/sim/skills/instinct/groom.js` `GROOM_RULES`, merged by tone after the base rules and before the range's; the build sheet 0.0.6 §2.1, §2.2; the user, 2026-11-06: "using the head shouldn't wash our hands" and "we should have to groom our hair the same way we will have to groom our beards"; at least four phrasings each):
+
+| Id | Tone | When | T does | A line |
+|---|---|---|---|---|
+| `hands` | note, before `stubble` | the hands dirty or past (BODY §6: dirt 40) and a sink at hand; or the hands dirty within `HANDS_NAG_MS` 120 s of the head or a stall (the log's last `activity` record says which, and when), wherever you stand; quiet in a drill, on the range, asleep, busy or not standing | at a sink, `activity:wash-hands`; else none | "Wash your hands."; "A basin, soap, your hands. Now."; "The basins. Wash your hands." |
+| `stubble` | note | as v0.0.4 | `activity:shave` | "Shave. Head A has mirrors." |
+| `haircut` (groom.js) | note at `due` (`hairOf`'s step 2), warn at `over` (step 3) | by day, 05:00 to 21:50; quiet in a drill, on the range, busy, lying or sitting, asleep | `activity:clip` at a sink for a shaved head, `activity:haircut` at the barber's pole, **only where `offOf` allows** (the barber's hours: at 09:00 the pole gives his hours and no T, never "Haircut. Now, while you are here." for a T that would be refused; the fixer's); elsewhere none, the words saying where | "Haircut's due Thursday. The barber's at the PX, 10:00 to 20:00."; "Your cut is due Wednesday. The PX has a barber. Use him."; "That hair would fail an inspection. The barber, today."; "Clippers. Head A has mirrors." |
+
+Neither nags (the design review's): the hands speak only at a sink or just out of the head, the haircut only from its due step, by day.
 
 **As built in v0.0.5, the DI on the range** (`src/sim/skills/instinct/range.js`; the build sheet 0.0.5 §2.2, §8 item 10; at least four phrasings each, the DI's voice; the coach speaks as a person in the radio box and the range officer on the PA, never through this line): eight rules, merged by tone after the base rules, reading only what the character knows (the tower's command as heard, the red flag, the rifle as believed, the finger and the posture as felt, the muzzle's heading, the aim).
 
@@ -1168,7 +1183,7 @@ The user, 2026-11-05 (DESIGN.md, Controls): "T: the instinct's line (the drill i
 | `range-muzzle` | urgent | the rifle in hand and its muzzle past `MUZZLE_WARN_DEG` 45° off downrange; **outside the mode the heading is read from the facing** (the integrator's), so it speaks off the line too | aim at your card | "Muzzle downrange! Your card, nowhere else." |
 | `range-stoppage` | warn | a stoppage felt ("Tap, rack."); the trigger still dead after the tap-rack (a **`look` variant**: a look at the port, not IMMEDIATE ACTION again, which would loop: on a double the charge "won't go into battery"); a double feed seen ("Double feed. Lock, strip, rack."); quiet while a drill runs | IMMEDIATE ACTION; a look at the port; REMEDIAL ACTION | "Tap, rack."; "Stop pulling things. Look at what you have."; "Double feed. Lock, strip, rack." |
 | `range-cmd` | warn | the tower's command not done yet | the command (its stance first where it has one; out of the mode, the rifle up first) | "The tower said LOAD." |
-| `range-reload` | note | in the stance called, the bolt locked on an empty magazine | RELOAD | "Fresh magazine. The bolt goes forward on it." |
+| `range-reload` | note | in the stance called, the bolt locked on an empty magazine | RELOAD; from v0.0.6, with no rounds left anywhere (the coach's `R.dry`, or `roundsLeft` 0: WEAPONS §11.3), a **`dry` variant** with no act | "Fresh magazine. The bolt goes forward on it."; dry: "Nothing left to load. Tell your coach.", "No rounds anywhere. On safe, and tell your coach.", "Every magazine is empty. Safe, and say so.", "Nothing to load. On safe; the coach will see." (in review the line had kept saying "Empty one out, full one in, bolt home." to a dry shooter) |
 | `range-unknown` | note | a `?` on the weapon card | a press check | |
 | `range-fire` | note | the line hot: aim at your card, then off safe, then press | aims and takes the safety off; **never the shot** (the fixer's: 33 presses of T had cleared the scene): the press is always your own digit | "Breathe out. Press." |
 | `range-wait` | calm | nothing to do | wait for the tower | "Wait for the tower." |
@@ -1185,7 +1200,8 @@ The user, 2026-11-05 (DESIGN.md, Controls): "T: the instinct's line (the drill i
 | `bunching` | warn | within 5 m of another marine in the open in a hostile area | spread out | "Spread out. One grenade, two marines." |
 | `ack` | warn | an order on the net awaiting your answer | acknowledge and do it (B too: `reach: 'ack'`) | "Varga wants you on the berm. Acknowledge and move." |
 | `report` | note | a contact you saw that isn't on the net | send a contact report (Comms) | "You saw him. Nobody else did. Tell them." |
-| `reload` | note | magazine low in a lull | reload | "Lull. Fresh magazine while you have one." |
+| `reload` | note | magazine low in a lull | Top up (the tactical RELOAD; COMBAT §25.6.5) | "Lull. Fresh magazine while you have one." |
+| `cqb-*` | | in a clear | by the drill rung | COMBAT §25.8.3's sixteen rules, `src/sim/skills/instinct/cqb.js` |
 
 ### 14.6 The NCO on the net
 
@@ -1235,6 +1251,7 @@ All plain JSON in the save. Keys starting with `$` are runtime-only and are stri
   "langs": { "en": "native", "belta": "basic" },
   "background": "valley-farm",
   "schools": [ { "id": "boot", "endMs": 0, "result": "graduated" }, { "id": "infantry", "endMs": 0, "result": "graduated" } ],
+  "drills": { "room": { "rung": 1, "reps": 7, "lived": ["room:stack", "room:open"] }, "passage": { "rung": 1 } },
   "firstFire": false
 }
 ```
@@ -1243,6 +1260,7 @@ All plain JSON in the save. Keys starting with `$` are runtime-only and are stri
 - `train` holds hours toward the next point; `field` holds the sol's field-learning credit (§6.5).
 - `rustAt` is the index `k` of the last rust period rolled, and `fit.week` the index of the training week, both counted from the career's start in `RUST_PERIOD_MS` and `FIT_WEEK_MS` (§7).
 - The crowd has no sheet (§11.2).
+- `drills[family]` holds a drill family's rung, its clean runs and the bundles lived by hand (COMBAT §25.3); the player's only, NPCs read theirs from the template. `upgradeState` fills an old save's from the summary paper (room 1, passage 1).
 
 ### 15.2 A roll (in the log, as it is)
 

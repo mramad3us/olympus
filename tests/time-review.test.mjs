@@ -5,12 +5,12 @@
 // second (mustered and gone: 12 of 13), stand fast at the rack's foot is R's first offer once
 // mustered and lands at the count and at the stand-down, sleeping in the drill is late; sleep is never
 // offered past reveille, nor "until reveille" where it would not end on it; a woman's body grows no
-// stubble (no band, no cue, no shave at the basin, no line); past the count the klaxon's line says you
+// stubble (no band, no cue, no shave row at the sink, no line); past the count the klaxon's line says you
 // missed it; T with no line seen does nothing. Each check fails without its fix.
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { startActivity, planOf, nextReveilleMs } from '../src/sim/time/activities.js';
-import { handOffer } from '../src/sim/places/hand.js';
+import { handOffer, handMenu } from '../src/sim/places/hand.js';
 import { figureOf } from '../src/sim/people/figure.js';
 import { outfitOf, riseActor, RISE_MS } from '../src/sim/people/place.js';
 import { transPlaying } from '../src/sim/time/doing.js';
@@ -175,22 +175,22 @@ export default [
     },
   },
   {
-    name: 'a woman\'s body grows no stubble: at 30 h no stubble band, no cue, no Shave row, the basin 3 min with no shave and the DI silent about a razor',
+    name: 'a woman\'s body grows no stubble: at 30 h no stubble band, no cue, no Shave row in the words, no shave row at the sink (0.0.6: the basin\'s single actions) and the DI silent about a razor',
     fn() {
       const g = createGame({ scenario: 'test-shower', seed: SEED });
       const s = g.state, pid = s.player.id, p = s.people[pid];
       p.sex = 'f'; p.body.tmpl = 'f-adult';
       p.body.hygiene = { ...(p.body.hygiene ?? {}), stubbleH: 30 };
       const b = bodyOf(s, pid), st = stagesOf(b, s.clock.ms, LON), cu = cuesOf(b, s.clock.ms, LON), wd = wordsOf(b, s.clock.ms, LON);
-      const basin = planOf(s, 'basin', { spotId: 'f:e1:head-2a:sinks-1#1' });
       putAt(g, 'f:e1:head-2a:sinks-1#1');
+      const rows = handMenu(s).rows.map(r => r.id), offer = handOffer(s);
       const lines = firedNow(s).map(l => l.id);
-      // (and a man's, the same 30 h: shown, shaved, named)
+      // (and a man's, the same 30 h: shown, a shave row, named)
       p.sex = 'm'; p.body.tmpl = 'm-adult';
-      const bm = bodyOf(s, pid), stm = stagesOf(bm, s.clock.ms, LON), basinM = planOf(s, 'basin', { spotId: 'f:e1:head-2a:sinks-1#1' });
-      console.log(`      a woman at 30 h: stubble ${st.stubble.band} (i ${st.stubble.i}), stubbleK ${cu.stubbleK}, rows ${wd.needs.map(n => n.need).join(' ')}, the basin ${basin.durMs / 60000} min (${basin.parts.map(x => x.part).join(', ')}); the DI: ${lines.join(', ') || 'nothing'}; a man: ${stm.stubble.band}, the basin ${basinM.durMs / 60000} min`);
-      assert(st.stubble.i === 0 && cu.stubbleK === 0 && !wd.needs.some(n => n.need === 'stubble') && basin.durMs === 180_000 && !lines.includes('stubble'), JSON.stringify({ st: st.stubble, cu: cu.stubbleK, basin: basin.durMs, lines }));
-      assert(stm.stubble.i > 0 && basinM.durMs === 420_000, JSON.stringify({ stm: stm.stubble, basin: basinM.durMs }));
+      const bm = bodyOf(s, pid), stm = stagesOf(bm, s.clock.ms, LON), rowsM = handMenu(s).rows.map(r => r.id), offerM = handOffer(s);
+      console.log(`      a woman at 30 h: stubble ${st.stubble.band} (i ${st.stubble.i}), stubbleK ${cu.stubbleK}, rows ${wd.needs.map(n => n.need).join(' ')}, the sink's rows ${rows.join(', ')} (R ${offer.label}); the DI: ${lines.join(', ') || 'nothing'}; a man: ${stm.stubble.band}, the sink's rows ${rowsM.join(', ')} (R ${offerM.label})`);
+      assert(st.stubble.i === 0 && cu.stubbleK === 0 && !wd.needs.some(n => n.need === 'stubble') && !rows.includes('shave') && offer.id !== 'shave' && !lines.includes('stubble'), JSON.stringify({ st: st.stubble, cu: cu.stubbleK, rows, lines }));
+      assert(stm.stubble.i > 0 && rowsM.includes('shave'), JSON.stringify({ stm: stm.stubble, rowsM }));
     },
   },
   {

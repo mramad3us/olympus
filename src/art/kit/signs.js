@@ -20,6 +20,12 @@
 //   window    'deep' | 'port' | 'slit'; look { sky: a colour, night }
 //   board     'notice' (cork, the Plan of the Day pinned) | 'white' (a whiteboard written on) | 'plan'
 //   sofa      'vinyl' | 'cloth'; vending 'snack' | 'drink'; bin 'bin' | 'mop' (a bucket and mop) | 'extinguisher'
+//   barberPole 'pole' | 'lit' (its tube glowing after dark) (0.0.6; the build sheet 0.0.6 §2.2, §8 item 20): the PX
+//             barber's pole on its stand by the north door: a base plate, a steel post, a glass tube 0.3 m
+//             wide and 0.8 m tall from 1.3 m (chunkier than life, so its spiral reads at 16 px/m), its red, white
+//             and blue spiral painted as diagonal bands on every face (two pixels a band at least), a lit stripe of
+//             glass down its left, steel caps and a ball on the top. It stands free of the PX's wall: on a
+//             north face, the camera would see it only through the wall's cut-away.
 // Pure.
 import { tex } from './kit.js';
 import { C, U, P, oval, cloth, glass, tone, hash3, mixHex } from './common.js';
@@ -130,6 +136,33 @@ export function board(k, o) {
   const { W, H, seed } = o, make = o.make ?? 'notice';
   k.comp();
   k.box({ x: 0, z: 0, w: W, d: 0.03, h: H, faces: { front: boardFace(make, seed), top: 0x573a37, sides: 0x573a37 } });
+}
+
+// ---------- the barber's pole (0.0.6) ----------
+
+/** The pole's colours: the barber's red, white and blue, the caps' steel. */
+export const BARBER = Object.freeze({ red: 0xc23a36, white: 0xece6dc, blue: 0x2e4c8a, cap: 0xb7b0a8 });
+// (the tube's face: diagonal bands, red, white, blue, white, a band about a third of the tube's width, the glass's lit stripe on
+// the left; lit, the 'lit' make's tube glows after dark, as a sodium lamp's head does)
+const poleFace = (lit) => tex(`barberpole:${lit ? 'lit' : 'plain'}`, (px, w, h, ppm) => {
+  const band = Math.max(2, Math.round(w / 3)), seq = [BARBER.red, BARBER.white, BARBER.blue, BARBER.white], g = lit ? GLOW.NIGHT : 0;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) px(i, j, 1, 1, seq[Math.floor((i + j) / band) % seq.length], g);
+  px(0, 0, 1, h, tone(BARBER.white, 0.04), g); px(w - 1, 0, 1, h, tone(BARBER.blue, -0.25), g);   // (the glass: lit on the left, a dark edge on the right)
+  if (w >= 4) for (let j = 1; j < h - 1; j += 2) px(1, j, 1, 1, 0xf6f4ee, g);                    // (the glass's highlight down the tube)
+  void ppm;
+});
+/** The barber's pole on its stand (see the header): a base plate and a post, the tube between two caps, a ball on top. */
+export function barberPole(k, o) {
+  const TUBE_Y = 1.3, TUBE_H = 0.8, TUBE_W = 0.3, CAP_H = 0.06, z = 0, cap = BARBER.cap, dark = tone(cap, -0.28);
+  k.comp();
+  k.box({ x: 0, z: 0, y: 0, w: 0.36, d: 0.36, h: 0.05, faces: { sides: tone(cap, -0.2), top: tone(cap, -0.1) } });
+  k.box({ x: 0, z: 0, y: 0.05, w: 0.125, d: 0.125, h: TUBE_Y - CAP_H - 0.05, faces: { front: tone(cap, -0.04), sides: tone(cap, -0.16), top: cap } });
+  // (the caps the tube's own width, so no ledge shows round it from above; the top one dark, a small ball on it)
+  k.box({ x: 0, z, y: TUBE_Y - CAP_H, w: TUBE_W, d: TUBE_W, h: CAP_H, faces: { sides: dark, top: dark } });
+  const face = poleFace(o.make === 'lit');
+  k.box({ x: 0, z, y: TUBE_Y, w: TUBE_W, d: TUBE_W, h: TUBE_H, faces: { front: face, sides: face, back: face, top: dark } });
+  k.box({ x: 0, z, y: TUBE_Y + TUBE_H, w: TUBE_W, d: TUBE_W, h: CAP_H, faces: { sides: dark, top: tone(dark, 0.06) } });
+  k.box({ x: 0, z, y: TUBE_Y + TUBE_H + CAP_H, w: 0.12, d: 0.12, h: 0.1, faces: { front: tone(cap, 0.04), sides: tone(cap, -0.1), top: tone(cap, 0.1) } });
 }
 
 // ---------- the lounge's odds ----------

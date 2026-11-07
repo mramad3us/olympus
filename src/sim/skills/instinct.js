@@ -27,7 +27,8 @@
 // settles state.$instinct = { line: { id, voice, tone, text, act, short, ms } | null, chip, keys,
 // queued, gone, humourAt } (SKILLS §15.4; runtime only, so a load forgets only the repeat timers).
 // Since 0.0.5 the range's rules (src/sim/skills/instinct/range.js, the DI on the tower's line) are
-// weighed after the base's within each tone, and stop motion's hold ('stop') does not silence the line
+// weighed after the base's within each tone, and since 0.0.6 the grooming rules beyond the face
+// (src/sim/skills/instinct/groom.js, GROOM_RULES: the haircut due) between the two, and stop motion's hold ('stop') does not silence the line
 // (the build sheet §8 item 10: SKILLS §14.3.6's rule holds for every other hold): every tone speaks, T
 // acts, and the line carries its lead, "Time stands still." (lead in $instinct, the hud's to show).
 // instinctAction(state, { act: 'instinct', args: { id, act, chip } }, bus, ctx) does the act the hud
@@ -41,10 +42,11 @@ import { isHeld, SEC_MS } from '../../core/clock.js';
 import { hashPick, hash01 } from '../../core/hash.js';
 import { playerActor } from '../../core/ids.js';
 import { BASE_RULES, doAct } from './instinct/base.js';
+import { GROOM_RULES } from './instinct/groom.js';
 import { RANGE_RULES } from './instinct/range.js';
 
-/** Every rule the instinct weighs: the base's, then the range's (merged by tone in settle(): the range's after the base's within a tone). */
-export const RULES = Object.freeze([...BASE_RULES, ...RANGE_RULES]);
+/** Every rule the instinct weighs: the base's, the grooming's, then the range's (merged by tone in settle(): within a tone, in that order). */
+export const RULES = Object.freeze([...BASE_RULES, ...GROOM_RULES, ...RANGE_RULES]);
 /** The line's lead while stop motion holds time (VIEWS §7.4; the build sheet §8 item 10). */
 export const STOP_LEAD = 'Time stands still.';
 

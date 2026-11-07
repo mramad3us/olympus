@@ -23,11 +23,18 @@
 //   woke          note    lying awake in the rack (T: up); between taps and reveille, back to sleep
 //                         (T: sleep until reveille, in the berth) or, the bladder at need, the head
 //   rack          note    21:50 to 22:00 and away from your rack
-//   stubble       note    stubble over 20 hours on a face that grows it, from 05:00 to 21:50 (T: the
-//                         basin at a sink)
+//   hands         note    (0.0.6) the hands dirty or past (HANDS' band 2, dirt 40) and a sink at hand
+//                         (T: wash hands there), or within HANDS_NAG_MS 120 s of the head or a stall
+//                         wherever you are, the words sending you to the basins (no act): the user,
+//                         2026-11-06, "using the head shouldn't wash our hands"; quiet in a drill, on the
+//                         range, lying or busy
+//   stubble       note    stubble over 20 hours on a face that grows it, from 05:00 to 21:50 (T: shave
+//                         at a sink, the single action since 0.0.6)
 //   situation     calm    the next thing, when nothing else applies (in a drill: stand fast at your
 //                         rack until the stand-down, T standing fast; by day free time, until the
 //                         Plan of the Day and its board exist)
+// The hair's rule (haircut, src/sim/skills/instinct/groom.js) is the hair role's, merged after these by
+// src/sim/skills/instinct.js.
 // The needs speak to a marine on their feet: lying awake, the line is to get up (woke), and in a drill
 // the klaxon's line says it (alarm). While a drill is open nothing sends you from your rack (the
 // integrator's call for 0.0.4: mustered at 02:35 the DI had said "Shave. Head A has mirrors."): the
@@ -44,6 +51,7 @@ import { bodyOf, isAsleep } from '../../body/body.js';
 import { stagesOf, hasBeard } from '../../body/cues.js';
 import { alertNow, mustered, musterOf, rackFootOf } from '../../time/alerts.js';
 import { activitiesAt, startActivity, ownOf, spotOf, nextReveilleMs } from '../../time/activities.js';
+import { HANDS_NAG_MS } from '../../../data/activities.js';
 import { riseActor, outfitOf } from '../../people/place.js';
 import { transPlaying } from '../../time/doing.js';
 import { rangeNow } from '../../scenarios/handling.js';
@@ -58,6 +66,7 @@ const LADDERS = Object.freeze({
   hunger: ['fed', 'peckish', 'hungry', 'very-hungry', 'weak', 'faint', 'starving'],
   hygiene: ['fresh', 'clean', 'grubby', 'unwashed', 'rank', 'filthy'],
   fatigue: ['fine', 'tired', 'exhausted', 'ragged', 'lost'],
+  hands: ['clean', 'used', 'dirty', 'grimy'],
 });
 const norm = (b) => String(b ?? '').toLowerCase().replace(/[\s_]+/g, '-');
 /** Whether a stage of a ledger is at a band or past it (by its name in BODY's ladder, else its index). */
@@ -95,6 +104,12 @@ const actAt = (k, ...ids) => { const a = atFixture(k, ...ids); return a ? `activ
 const hm = (h) => { const H = Math.floor(h) % 24, M = Math.floor((h - Math.floor(h)) * 60); return `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`; };
 // (grooming is a day's business: the DI does not send you to the basins in the night)
 const dayH = (h) => h >= 5 && h < 21 + 50 / 60;
+// (the head or a stall ended within HANDS_NAG_MS: the log's last activity record says which, and when)
+const fromHead = (state, ms) => {
+  const log = state.log ?? [];
+  for (let i = log.length - 1; i >= 0 && ms - log[i].atMs <= HANDS_NAG_MS; i--) if (log[i].kind === 'activity') return log[i].activity === 'urinate' || log[i].activity === 'bowel';
+  return false;
+};
 // (the player's arrival at the open drill, if not since gone from it)
 const arrivedAt = (state, al) => (state.time.attend ?? []).some(a => a.drill === al.drill && a.dueMs === al.dueMs && !Number.isFinite(a.leftMs));
 
@@ -260,13 +275,29 @@ export const BASE_RULES = Object.freeze([
     humour: ['Taps at 22:00. Your rack misses you.'],
   },
   {
+    id: 'hands', voice: 'di', tone: 'note', short: 'Hands', reach: null,
+    // (dirty hands at a sink: wash them, T; just out of the head or a stall: the basins, wherever you stand)
+    when(state, me, ms) {
+      const k = know(state, me, ms);
+      if (k.busy || k.drill || k.range || k.asleep || k.posture !== 'stand' || !atLeast(k.stages, 'hands', 'dirty')) return null;
+      if (actAt(k, 'wash-hands')) return { k, variant: 'here' };
+      return fromHead(state, ms) ? { k, variant: 'go' } : null;
+    },
+    act: (ctx) => (ctx.variant === 'here' ? actAt(ctx.k, 'wash-hands') : null),
+    text: {
+      1: ['Wash your hands.'],
+      here: ['Wash your hands.', 'Soap and water. Thirty seconds.', 'Hands. Wash them before you touch anything else.', 'A basin, soap, your hands. Now.'],
+      go: ['The basins. Wash your hands.', 'Hands. The basins are by the door.', 'You came out of the head. Wash your hands.', 'Basins first. Your hands know where they have been.'],
+    },
+  },
+  {
     id: 'stubble', voice: 'di', tone: 'note', short: 'Shave', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (k.busy || k.drill || k.range || k.posture !== 'stand' || !dayH(k.h) || !k.body || !hasBeard(k.body) || !((k.body.hygiene?.stubbleH ?? 0) > 20)) return null;
-      return { k, variant: actAt(k, 'basin') ? 'here' : 'go' };
+      return { k, variant: actAt(k, 'shave') ? 'here' : 'go' };
     },
-    act: (ctx) => actAt(ctx.k, 'basin'),
+    act: (ctx) => actAt(ctx.k, 'shave'),
     text: {
       1: ['Shave.'],
       go: ['That face has not met a razor since yesterday. The basins, Head A.', 'Stubble. The inspection will find it before you do.', 'Shave. Head A has mirrors.', 'A razor, a basin, five minutes. Find them.'],

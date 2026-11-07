@@ -61,31 +61,31 @@ const hair = (style, color) => ({ style, color });
 /** Every look the casts use, by key (a key is also the renderer's sheet: people dressed alike share one). */
 export const LOOKS = Object.freeze({
   // PT kit
-  ptBrown: { outfit: 'pt', skin: 'brown', hair: hair('crew', 'black'), seed: 11 },
+  ptBrown: { outfit: 'pt', skin: 'brown', hair: hair('lowReg', 'black'), seed: 11 },
   ptLight: { outfit: 'pt', skin: 'light', hair: hair('short', 'auburn'), seed: 12 },
   ptTan: { outfit: 'pt', skin: 'tan', hair: hair('bun', 'dark'), seed: 13 },
-  ptDark: { outfit: 'pt', skin: 'dark', hair: hair('crew', 'black'), seed: 14 },
-  ptBlond: { outfit: 'pt', skin: 'light', hair: hair('crew', 'blond'), seed: 15 },
+  ptDark: { outfit: 'pt', skin: 'dark', hair: hair('lowReg', 'black'), seed: 14 },
+  ptBlond: { outfit: 'pt', skin: 'light', hair: hair('lowReg', 'blond'), seed: 15 },
   // utilities (the Valles pattern), the cover on
-  utilTan: { outfit: 'utilities', skin: 'tan', hair: hair('crew', 'dark'), seed: 21 },
+  utilTan: { outfit: 'utilities', skin: 'tan', hair: hair('lowReg', 'dark'), seed: 21 },
   utilLight: { outfit: 'utilities', skin: 'light', hair: hair('short', 'brown'), seed: 22 },
-  utilBrown: { outfit: 'utilities', skin: 'brown', hair: hair('crew', 'black'), seed: 23 },
-  utilDark: { outfit: 'utilities', skin: 'dark', hair: hair('crew', 'black'), seed: 24 },
+  utilBrown: { outfit: 'utilities', skin: 'brown', hair: hair('lowReg', 'black'), seed: 23 },
+  utilDark: { outfit: 'utilities', skin: 'dark', hair: hair('lowReg', 'black'), seed: 24 },
   utilBun: { outfit: 'utilities', skin: 'tan', hair: hair('bun', 'brown'), seed: 25 },
-  sergeant: { outfit: 'nco', skin: 'light', hair: hair('crew', 'brown'), rank: 'sgt', seed: 26 },
+  sergeant: { outfit: 'nco', skin: 'light', hair: hair('lowReg', 'brown'), rank: 'sgt', seed: 26 },
   // the head
-  towelLight: towel({ skin: 'light', hair: hair('crew', 'brown'), seed: 31 }, TOWELS.olive),
-  towelBrown: towel({ skin: 'brown', hair: hair('crew', 'black'), seed: 32 }, TOWELS.blue),
+  towelLight: towel({ skin: 'light', hair: hair('lowReg', 'brown'), seed: 31 }, TOWELS.olive),
+  towelBrown: towel({ skin: 'brown', hair: hair('lowReg', 'black'), seed: 32 }, TOWELS.blue),
   towelTan: towel({ skin: 'tan', hair: hair('short', 'dark'), seed: 33 }, TOWELS.grey),
   showerTan: showering({ skin: 'tan', hair: hair('short', 'black'), seed: 34 }),
   // the galley
-  cookDark: cook({ skin: 'dark', hair: hair('crew', 'black'), seed: 41 }),
+  cookDark: cook({ skin: 'dark', hair: hair('lowReg', 'black'), seed: 41 }),
   cookLight: cook({ skin: 'light', hair: hair('short', 'blond'), seed: 42 }),
   // the light vac suit (HAD Mk 7): sealed, or the helmet off and clipped to the pack
   vacSlung: { outfit: 'vac', skin: 'tan', weapon: 'rifle', carry: 'slung', seed: 51 },
   vacLow: { outfit: 'vac', skin: 'light', weapon: 'rifle', carry: 'low', seed: 52 },
   vacSealed: { outfit: 'vac', skin: 'dark', seed: 54 },
-  vacOpenDark: { outfit: 'vacOpen', skin: 'dark', hair: hair('crew', 'black'), seed: 55 },
+  vacOpenDark: { outfit: 'vacOpen', skin: 'dark', hair: hair('lowReg', 'black'), seed: 55 },
   vacOpenBun: { outfit: 'vacOpen', skin: 'tan', hair: hair('bun', 'auburn'), seed: 56 },
 });
 

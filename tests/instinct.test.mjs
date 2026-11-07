@@ -1,5 +1,6 @@
 // The instinct (SKILLS §14; the build sheet 0.0.4 §2.2.8; tradecraft's settle() ported): SKILLS's
-// scripted morning (woken by reveille in the rack, up, the head, the basin) and then the drill (the
+// scripted morning (woken by reveille in the rack, up, the head, then "Wash your hands." at the sink and T, then
+// the shave by T: 0.0.6, the head no longer washes them, the user, 2026-11-06) and then the drill (the
 // klaxon, up, utilities, the count), the line and the chip printed second by second. Holds: at most
 // one line and one chip; no line goes in under 3 s but for an urgent one or its own act done; no line
 // back within 60 s of going but at a higher tone; T acts only while its rule fires with that act;
@@ -16,7 +17,7 @@ import { marsClock } from '../src/core/calendar.js';
 import { SITES } from '../src/data/setting/calendar.js';
 import { TICK_MS } from '../src/core/clock.js';
 
-const SEED = 48213, LON = SITES.melas.lonEDeg;
+const SEED = 48213, LON = SITES.melas.lonEDeg, URINAL = 'f:e1:head-2a:urinal-1#1';
 const hm = (ms) => { const c = marsClock(ms, LON); return `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}:${String(c.second).padStart(2, '0')}`; };
 
 // (a monitor of the instinct tick by tick: its lines, their spans, the rules broken)
@@ -74,7 +75,7 @@ export default [
     },
   },
   {
-    name: 'SKILLS\'s scripted morning: woken by reveille in the rack ("Awake. On your feet."), up by T, then each need the DI names heeded where it says (the head across the hall, the basin) and done by T there; the line and the chip second by second, none under 3 s but an urgent one or its act done, none back within 60 s, silence in a splash',
+    name: 'SKILLS\'s scripted morning: woken by reveille in the rack ("Awake. On your feet."), up by T, the head, then "Wash your hands." (the user, 2026-11-06: "using the head shouldn\'t wash our hands") heeded at a sink by T, then the shave by T; the line and the chip second by second, none under 3 s but an urgent one or its act done, none back within 60 s, silence in a splash',
     timeoutMs: 120_000,
     fn() {
       const g = createGame({ scenario: 'barracks', seed: SEED, hour: 23 });
@@ -88,7 +89,10 @@ export default [
       stepWatch(g, m, 20 * 4);
       const bot = plan([
         until(s => instinctNow(s).line?.act === 'rise', 20_000, 'the woke line'), instinctT(), until(s => !(g.me().trans && s.clock.ms < g.me().trans.fromMs + g.me().trans.ms), 10_000, 'up'),
-        until(s => !!instinctNow(s).line, 5_000, 'a line'), heedLine(), pause(4_000), heedLine(), pause(4_000), heedLine(),
+        until(s => !!instinctNow(s).line, 5_000, 'a line'),
+        // (the morning's head, as a marine goes: R at a urinal; then the DI's lines, heeded)
+        goTo(URINAL), hand('activity'), until(s => !s.skip && !s.time.doing, 120_000, 'the head done'),
+        until(s => instinctNow(s).line?.id === 'hands', 5_000, 'the hands line'), heedLine(), pause(4_000), heedLine(),
       ]);
       let ticks = 0;
       const status = () => g.me()?.bot?.plan?.status ?? 'running';
@@ -100,8 +104,9 @@ export default [
       assert(woke === null || !g.state.skip, 'a line while the sleep skipped');
       assert(!m.broken.length && m.splashLines === 0, m.broken.join('; '));
       const done = g.facts('activity').filter(f => f.phase === 'end' && f.activity !== 'sleep').map(f => f.activity);
-      console.log(`      heeded by T where the line sent the player: ${done.join(', ') || 'nothing'}`);
-      assert(m.log.some(l => /woke/.test(l)) && m.log.some(l => /need-|stubble/.test(l)) && done.length >= 1, `the morning's lines, and ${done.length} heeded`);
+      const hands = m.log.find(l => / hands: /.test(l));
+      console.log(`      done in the morning, the head by R, the rest by T where the line sent the player: ${done.join(', ') || 'nothing'}`);
+      assert(m.log.some(l => /woke/.test(l)) && /The basins|hands/i.test(hands ?? '') && done.join() === 'urinate,wash-hands,shave', `the morning's lines (${hands}), and done ${done.join()}`);
     },
   },
   {

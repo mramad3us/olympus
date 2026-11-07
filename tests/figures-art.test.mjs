@@ -30,7 +30,7 @@ export default [
     fn() {
       const prop = 'chibi';
       for (const ppm of PPMS) {
-        const fr = composeFrame({ outfit: 'pt', weapon: null, hair: { style: 'crew' } }, 'down', 'idle0', { ppm });
+        const fr = composeFrame({ outfit: 'pt', weapon: null, hair: { style: 'lowReg' } }, 'down', 'idle0', { ppm });
         const b = box(fr.cells), B = bodyOf(ppm), heightM = b.h / ppm, heads = b.h / B.head.h;
         console.log(`      ${prop} at ${ppm} px/m: ${b.h} px tall (${heightM.toFixed(2)} m with hair), head ${B.head.w} × ${B.head.h} px, ${heads.toFixed(2)} heads; cell ${fr.w} × ${fr.h}`);
         assert(heightM > 1.6 && heightM < 1.95, `${prop}@${ppm}: ${heightM} m`);

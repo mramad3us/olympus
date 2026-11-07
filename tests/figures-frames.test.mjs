@@ -118,7 +118,7 @@ export default [
     name: 'the berth breathes (two paintings at BREATH_HZ), sits up (the blanket thrown back, the pillow empty), and its curtain closes in CURTAIN_STEPS steps: each a painting of its own',
     fn() {
       const ppm = 16, w = Math.round(BERTH_M[0] * ppm), h = Math.round(BERTH_M[1] * ppm);
-      const o = { blanket: 'olive', skin: 'tan', hair: { style: 'crew', color: 'dark' }, seed: 7, ppm };
+      const o = { blanket: 'olive', skin: 'tan', hair: { style: 'lowReg', color: 'dark' }, seed: 7, ppm };
       const pm = (more) => paint(w, h, (px) => paintSleeper(px, w, h, { ...o, ...more }));
       const a = pm({ breath: 0 }), b = pm({ breath: 1 }), up = pm({ up: true }), half = pm({ curtain: 'olive', curtainK: 0.5 }), full = pm({ curtain: 'olive' });
       const keys = new Set([{}, { breath: 1 }, { up: true }, { curtain: 'olive', curtainK: 0.5 }, { curtain: 'olive' }].map(m => sleeperKey({ ...o, ...m })));

@@ -71,6 +71,12 @@
 // slow contributor 'people:place' puts every actor at its whereIs at each step's end by the same rule
 // (an asleep player sees nothing, so a night's sleep moves everyone), and the screen after a skip shows
 // the people you could not see where the time has put them.
+// The hair (0.0.6; the build sheet 0.0.6 §2.2): whereIs gives a placed person their hair's drawn step
+// (`hair`, 0 to 3: src/sim/body/hair.js hairStepOf, the squad's barber in closed form), and an actor
+// takes it only where the player can see neither where it is nor where it would go (lookAt's rule;
+// a transition played in sight keeps the step the actor had), so a squadmate's cut never changes in
+// view: actor.hair is saved, and an actor without it (a v0.0.5 save's) is drawn at the closed form's
+// step until it takes one.
 // The player's own transitions (stepOnto, layPlayer, lieActor, backActor, riseActor) are here too, so
 // one poseAt draws everyone: stepping onto an activity's spot, lying in the rack (behind the splash, or
 // in sight before it: lieActor, the page's R at the rack's foot; taken back by a move key while it
@@ -89,6 +95,7 @@ import { dressMs } from '../time/doing.js';
 import { DRESS_HURRY_K } from '../../data/activities.js';
 import { REVEILLE_H, REVEILLE_HOLIDAY_H, REVEILLE_STAND_MS } from '../../data/pod.js';
 import { eyeOf, visibility } from './perception.js';
+import { hairStepOf } from '../body/hair.js';
 
 /** The fire watch's post in bay-2-1 (the 0.0.3 sheet §2.1's posts). */
 export const FIRE_WATCH_POST = 'fire-watch:2/4-E-2';
@@ -385,9 +392,16 @@ function basePose(state, id, seat, ms) {
 
 /**
  * Where a person is at game time ms (see the header): { area, x, z, y, face, posture, spotId,
- * outfit, curtain, trans?, dress? }, or { away: true } for anyone not placed (they exist, off the map).
+ * outfit, curtain, trans?, dress?, hair }, or { away: true } for anyone not placed (they exist, off the
+ * map); hair the step of a placed person's cut (the player's is the body's: none here).
  */
 export function whereIs(state, personId, ms = state.clock.ms) {
+  const w = poseOfPerson(state, personId, ms);
+  if (w.away || personId === playerId(state) || !state.people?.[personId]?.service) return w;
+  return { ...w, hair: hairStepOf(state, personId, ms) };
+}
+// (where a person is, but their hair: see whereIs)
+function poseOfPerson(state, personId, ms) {
   const p = state.people?.[personId];
   if (!p) return { away: true };
   if (personId === playerId(state)) {
@@ -500,17 +514,19 @@ function between(t, f, e, k) {
 // ---- the actors ----
 
 const DEFAULTS = Object.freeze({ y: 0, posture: 'stand', outfit: 'utilities', curtain: false, spotId: null });
-// (an actor put at a pose: the defaults left out, no glide; its transitions with it)
+// (an actor put at a pose: the defaults left out, no glide; its transitions with it; its hair's step where the pose gives one)
 function setPose(a, w) {
   a.x = w.x; a.z = w.z; a.face = w.face;
   for (const k of Object.keys(DEFAULTS)) { if (w[k] === undefined || w[k] === DEFAULTS[k]) delete a[k]; else a[k] = w[k]; }
   if (w.trans) a.trans = w.trans; else delete a.trans;
   if (w.dress) a.dress = w.dress; else delete a.dress;
+  if (w.hair !== undefined) a.hair = w.hair;
   a.$px = w.x; a.$pz = w.z;
   return a;
 }
 const samePose = (a, w) => a.x === w.x && a.z === w.z && a.face === w.face && (a.y ?? 0) === w.y && (a.posture ?? 'stand') === w.posture
-  && (a.outfit ?? 'utilities') === w.outfit && !!a.curtain === !!w.curtain && (a.spotId ?? null) === (w.spotId ?? null);
+  && (a.outfit ?? 'utilities') === w.outfit && !!a.curtain === !!w.curtain && (a.spotId ?? null) === (w.spotId ?? null)
+  && (w.hair === undefined || a.hair === w.hair);
 // (whereIs's pose is a transition from the pose the actor holds: it may play in sight)
 const fromHere = (a, w) => !!w.trans && w.trans.from && Math.abs(w.trans.from.x - a.x) < 1e-6 && Math.abs(w.trans.from.z - a.z) < 1e-6
   && (w.trans.from.posture ?? 'stand') === (a.posture ?? 'stand') && Math.abs((w.trans.from.y ?? 0) - (a.y ?? 0)) < 1e-6;
@@ -579,6 +595,8 @@ function lookAt(state, a, w, me, eyeRef, ms, st) {
       w = { ...w, trans: { ...w.trans, fromMs: ms } };
       if (w.dress) w.dress = { ...w.dress, fromMs: w.dress.fromMs + lag };
     }
+    // (a transition plays in sight: the hair's step stays the one drawn, the closed form's where the actor has none)
+    if (w.hair !== undefined && a.hair !== undefined && a.hair !== w.hair) w = { ...w, hair: a.hair };
     setPose(a, w);
     st.transitions++;
     return;

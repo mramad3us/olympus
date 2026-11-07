@@ -76,7 +76,16 @@
 // wakes, within TIME §7.4's limits; 5 never. A stop is s.stop = { atMs, by: the event's id, kind,
 // prio, letter } and tells 'skip-interrupt' { id, atMs, by, prio, letter, kind, line, reflex }.
 // beginSkip keeps the activity's spotId on the record and tells 'skip-start' { id, activity, kind,
-// engine, fromMs, toMs, where, posture, mask, spotId, vignette, stoppable, chunkMs }.
+// engine, fromMs, toMs, where, posture, mask, spotId, vignette, stoppable, chunkMs, chain }.
+// A chain's skip (0.0.6: several single actions behind one splash, src/sim/time/chain.js) is one skip
+// over the chain's total, req.chain { steps, n } giving the record chain { n } and skip-start its chain
+// { steps, n } (null for every other skip); its activity, mask and posture follow the running step
+// (chain.js onChainNext writes them at each 'chain-next'), so an interrupt is weighed by the step it
+// lands in. Backspace in a chain ('skip:stop', here in the outcome engine's commands, in the time
+// domain's action in a fast-forward) is chain.js chainStop: the skip's toMs moved to the running step's
+// end, the rest dropped, never a cut mid-step. finishSkip closes the last step, then the chain
+// (chainClose: by 'natural', 'player', 'interrupt' or 'refused'), and skip-end's outcome gains chain
+// [{ id, line, fraction, by }] (null outside a chain), its lines each step's line in order.
 import { nextId, playerId } from '../../core/ids.js';
 import { nextAt, popNext } from '../../core/queue.js';
 import { SEC_MS, MIN_MS, HOUR_MS, TICK_MS, wholeTicks, isHeld } from '../../core/clock.js';
@@ -84,6 +93,7 @@ import { NO_INPUT } from '../../core/loop.js';
 import { askAutosave } from './domain.js';
 import { stops as maskStops, holds, letterOf, noteStop, resetSkipCount } from './interrupts.js';
 import { finishActivity } from './activities.js';
+import { chainStop, chainClose, chainByOf } from './chain.js';
 import { CHUNK_OFFER_S } from './splash.js';
 import { bodyOf, bodySync } from '../body/body.js';
 import { stagesOf, stripOf } from '../body/cues.js';
@@ -168,20 +178,22 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
       ticker: [], frame: [], stop: null, result: {}, cmds: [],
     };
     if (req.spotId) s.spotId = req.spotId;
+    if (req.chain) s.chain = { n: req.chain.n };
     s.held = [];
     if (state.time) resetSkipCount(state);
     const look = bodyLook(state, fromMs);
     if (look) s.result.before = look;
     state.skip = s;
     bus.emit('skip-start', { id: s.id, activity: s.activity, kind, engine, fromMs, toMs: s.toMs, where: s.where, posture: s.posture, mask: s.mask,
-      spotId: s.spotId ?? null, vignette: req.vignette ?? null, stoppable: req.stoppable ?? true, chunkMs: s.chunkMs });
+      spotId: s.spotId ?? null, vignette: req.vignette ?? null, stoppable: req.stoppable ?? true, chunkMs: s.chunkMs, chain: req.chain ? { steps: [...req.chain.steps], n: req.chain.n } : null });
     return s;
   }
 
-  // (the player's skip commands, at the clock the engine has reached)
-  function takeCommands(state, s, acts) {
+  // (the player's skip commands, at the clock the engine has reached; Backspace in a chain stops it at the running step's end, chain.js)
+  function takeCommands(state, bus, s, acts) {
     for (const a of acts ?? []) {
       const name = typeof a === 'string' ? a : a?.act;
+      if (name === 'skip:stop' && s.chain && state.time?.chain) { chainStop(state, bus); s.cmds.push({ atMs: state.clock.ms, cmd: 'stop', done: true }); continue; }
       if (name === 'skip:stop' || name === 'skip:chunk') s.cmds.push({ atMs: state.clock.ms, cmd: name.slice(5) });
     }
   }
@@ -199,7 +211,7 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
     const s = state.skip;
     if (!s) return { steps: 0, done: true };
     if (engineOf(s) === 'ff') throw new Error('advanceSkip() on a fast-forward: the loop runs its ticks');
-    takeCommands(state, s, acts);
+    takeCommands(state, bus, s, acts);
     const newLines = [];
     let steps = 0;
     for (;;) {
@@ -239,6 +251,8 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
     // (TIME §5.8: the activity closes with the fraction lived, the body is brought to the end, the people
     // were placed at each step (the unseen only), papers drained (CAREER's, later))
     const act = finishActivity(state, bus, end, { by: s.stop?.by ?? null, stopKind: s.stop?.kind ?? null });
+    // (a chain's: its last step closed above, then the chain, its steps' outcomes for the strip)
+    const chain = s.chain && state.time?.chain ? chainClose(state, bus, end, act, chainByOf(s)) : null;
     // (an outcome skip's body is brought to its end; a fast-forward's is lived ticks, as live play leaves it: TECH's game-ff)
     if (engineOf(s) !== 'ff' && s.who && bodyOf(state, s.who)) bodySync(state, s.who, end, bus);
     const after = bodyLook(state, end), me = playerActor(state);
@@ -246,7 +260,8 @@ export function createSkips({ slowStep, allSteady = () => true, minNextChange = 
     if (chunk && state.time) state.time.chunk = { activity: s.activity, spotId: s.spotId ?? null, atMs: end };
     else if (state.time) delete state.time.chunk;
     s.result = { ...s.result, body: { before: s.result.before ?? null, after }, look: act?.look ?? { outfit: me?.outfit ?? 'utilities', wet: false }, chunk,
-      lines: [...(s.ticker ?? []).map(r => r.text), ...(act?.line ? [act.line] : [])], failedRoll: false, activity: act, held: [...(s.held ?? [])] };
+      lines: [...(s.ticker ?? []).map(r => r.text), ...(chain ? chain.filter(c => c.line).map(c => c.line) : act?.line ? [act.line] : [])], failedRoll: false, activity: act, held: [...(s.held ?? [])],
+      chain };
     const out = { id: s.id, activity: s.activity, fromMs: s.fromMs, toMs: end, planned: s.toMs, interrupted: !!s.stop,
       by: s.stop?.by ?? null, outcome: s.result, papers: [], minutes: Math.floor((end - s.fromMs) / MIN_MS) };
     lastEnd = out;

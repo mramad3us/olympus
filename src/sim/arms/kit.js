@@ -24,10 +24,24 @@
 // kit.carry = { posture, finger, near } is the carry's own record (carry.js). Saved without defaults
 // (TECH §6.6): hands absent while both are empty, finger absent while off, near absent while empty.
 //
-// sparesOf(state, pid, fam) lists the magazines of a family the person can reach, one held in the hand
-// first (REMEDIAL ACTION's stripped magazine), then the fullest believed, ties in reach order (tradecraft's sparesFor, by the holder's belief: "we only know what we
-// know"). kitView() is the I card's (VIEWS §8.3): believed counts only, each pouch's capacity and reach (the
-// sim's magIn time, given by the caller).
+// sparesOf(state, pid, fam, { load }) lists the magazines of a family the person can reach, one held in the hand
+// first (REMEDIAL ACTION's stripped magazine), then by the drills' rule (rankOf): the kind the gun is meant to
+// fire first (believed so; then a kind not known; then another kind), the fullest believed within it, ties in
+// reach order, one believed empty last of all (tradecraft's sparesFor, by the holder's belief: "we only know what we know"). kitView() is the
+// I card's (VIEWS §8.3): believed counts and kinds only, each pouch by its name, its capacity and its reach (the
+// sim's time for a magazine in from it, given by the caller), the magazine in the hand and those at your feet.
+//
+// 0.0.6, a magazine reached for (the user, 2026-11-07: "putting magazine in should be a "Reach for magazine"
+// (or equivalent)"; WEAPONS §3.3, §5.2): the places a hand reaches into have names, pouchesOf's keys in reach
+// order, 'p1', 'p2' (the chest's magazine pouches: "chest pouch 1", "chest pouch 2"), 'dump' (the dump pouch)
+// and 'ground' (a magazine lying at your feet, within FEET_M: atFeetOf, nearest first). pickMag() is the
+// magazine a reach takes: from a named pouch the one at its front (the order it holds them in; one put back
+// goes in behind, so reaching again brings the next: the player's choice, not the rule's), from the ground the
+// nearest, and by rule (a drill's reach) the first of every pouch's by the drills' rule, never the ground (a
+// drill picks nothing up). handMagOf() is
+// the magazine in a hand. A magazine's belief is { n?, approx?, kind?, feel? } (firearms.js): the kind the
+// holder believes it holds, and the band its weight felt in the hand when the count is not known. The range's
+// meant kind is the session's load (meantLoad: the course's, 'ball').
 import { nextId, put } from '../../core/ids.js';
 import { q } from '../../core/num.js';
 import { areaOf } from '../places/model.js';
@@ -56,7 +70,20 @@ export const KIT_TEMPLATES = Object.freeze({
     mags: Object.freeze([Object.freeze(['had30', 5]), Object.freeze(['had30', 5]), Object.freeze(['had30', 5])]),
     cond: 0.93, posture: 'slungFront',
   }),
+  // (test-handling's setup 'mixed' (my call, the user's ask of 2026-11-07: "we may have different types of rounds in
+  // inventory"): the familiarisation issue and a fourth magazine of five tracer, second in chest pouch 2; the detail
+  // told the counts, not which one is the tracer (unkinded), so the choice is the hand's and the eye's)
+  'range-mixed': Object.freeze({
+    worn: Object.freeze({ carrier: 'pc-m3', head: 'ears-m1', sling: 'r7' }),
+    carrier: Object.freeze(['pouch-mag2', 'pouch-mag2', 'pouch-dump']),
+    mags: Object.freeze([Object.freeze(['had30', 5]), Object.freeze(['had30', 5]), Object.freeze(['had30', 5]), Object.freeze(['had30', 5, 'tracer'])]),
+    unkinded: true, cond: 0.93, posture: 'slungFront',
+  }),
 });
+/** A magazine at your feet is within this of you (m): where a dropped one lands (firearms.js atFeet: 0.25 to 0.45 m ahead) with room to spare. */
+export const FEET_M = 1.2;
+/** The pouches' names by their key (pouchesOf): the chest's magazine pouches in reach order, the dump pouch, the ground. */
+export const PLACE_WORDS = Object.freeze({ p1: 'chest pouch 1', p2: 'chest pouch 2', p3: 'chest pouch 3', p4: 'chest pouch 4', dump: 'the dump pouch', ground: 'at your feet' });
 
 /** The worn slots, in the order a kit is walked. */
 export const SLOTS = Object.freeze(['carrier', 'head', 'sling']);
@@ -198,7 +225,7 @@ export function materialise(state, pid, tmplId, { sets = {} } = {}) {
   const gunId = T.worn.sling ? newGun(state, { model: T.worn.sling, byId: pid, cond: T.cond }) : null;
   const carrierId = T.worn.carrier ? mk(T.worn.carrier) : null;
   const pouchIds = carrierId ? T.carrier.map(mk) : [];
-  const magIds = T.mags.map(([fam, n], i) => newMag(state, { fam, n, set: sets[i + 1] ?? null, told: true }));
+  const magIds = T.mags.map(([fam, n, load = 'ball'], i) => newMag(state, { fam, n, load, set: sets[i + 1] ?? null, told: true, toldKind: !T.unkinded }));
   const wornIds = [];
   for (const slot of SLOTS) {
     if (slot === 'sling' && gunId) move(state, gunId, { pid, slot });
@@ -234,21 +261,87 @@ export function containersOf(state, pid) {
 
 /** A magazine's believed rounds: its own belief's n (unknown: null). */
 export const believedN = (mag) => (mag?.belief && mag.belief.n !== undefined ? mag.belief.n : null);
+/** A magazine's believed kind of round ('ball', 'tracer'), or null when the holder does not know it. */
+export const believedKind = (mag) => mag?.belief?.kind ?? null;
+/** The kind the gun is meant to fire: the range session's load (the course's), else ball. */
+export const meantLoad = (state) => state?.armoury?.range?.load ?? 'ball';
 
-/** The magazines of a family the person can reach (in their pouches), the fullest believed first, ties in reach order (unknown counts after known non-empty ones). */
-export function sparesOf(state, pid, fam) {
-  const out = [];
+// (the drills' rule (see the header): one believed empty (counted 0, or felt so) last, whatever its kind (the
+// arms role's play of setup 'mixed': a RELOAD keeping the empty reached for the empty it had just dumped, known ball
+// over full ones of a kind not known); then the meant kind believed, a kind unknown, another kind; the fullest
+// believed within it (an unknown count between empty and one); ties in the order given)
+const emptyOf = (m) => (believedN(m) === 0 || m?.belief?.feel === 'none' ? 1 : 0);
+const tierOf = (m, load) => { const k = believedKind(m); return !load || k === load ? 0 : k === null ? 1 : 2; };
+const nRank = (m) => { const n = believedN(m); return n === null ? 0.5 : n; };
+/** Item ids sorted by the drills' rule for a kind (see the header), stable in the order given. */
+export function rankOf(state, ids, { load = null } = {}) {
+  return ids.map((id, i) => ({ id, i, m: state.items[id] })).sort((a, b) => emptyOf(a.m) - emptyOf(b.m) || tierOf(a.m, load) - tierOf(b.m, load) || nRank(b.m) - nRank(a.m) || a.i - b.i).map(e => e.id);
+}
+
+/** The magazine in one of the person's hands: { id, hand } or null. */
+export function handMagOf(state, pid) {
+  const hands = state.people?.[pid]?.kit?.hands ?? [];
+  for (let h = 0; h < hands.length; h++) if (hands[h] && state.items[hands[h]]?.type === 'mag') return { id: hands[h], hand: h };
+  return null;
+}
+
+/**
+ * The magazines of a family the person can reach (a hand's first, then in their pouches by the drills' rule
+ * for load: see the header). fam null: any family. Unknown counts rank between an empty and one round.
+ */
+export function sparesOf(state, pid, fam, { load = null } = {}) {
+  const hand = [], pouched = [];
   // (a magazine held in the hand first: REMEDIAL ACTION's, stripped off the double and kept to go back in)
   for (const id of state.people?.[pid]?.kit?.hands ?? []) {
     const m = id ? state.items[id] : null;
-    if (m?.type === 'mag' && (!fam || m.fam === fam)) out.push({ id, n: believedN(m), i: out.length, hand: true });
+    if (m?.type === 'mag' && (!fam || m.fam === fam)) hand.push(id);
   }
   for (const c of containersOf(state, pid)) for (const id of state.items[c].holds ?? []) {
     const m = state.items[id];
-    if (m?.type === 'mag' && (!fam || m.fam === fam)) out.push({ id, n: believedN(m), i: out.length });
+    if (m?.type === 'mag' && (!fam || m.fam === fam)) pouched.push(id);
   }
-  const rank = (e) => (e.n === null ? 0.5 : e.n);
-  return out.sort((a, b) => Number(!!b.hand) - Number(!!a.hand) || rank(b) - rank(a) || a.i - b.i).map(e => e.id);
+  return [...hand, ...rankOf(state, pouched, { load })];
+}
+
+/** The person's magazine pouches in reach order, keyed (see the header): [{ key, id, word, dump, holds (capacity), mags: [ids], room }]. */
+export function pouchesOf(state, pid) {
+  const out = [];
+  let k = 0;
+  for (const c of containersOf(state, pid)) {
+    const C = CONTAINERS[state.items[c].model];
+    if (!C.fits?.includes('mag')) continue;
+    const key = C.dump ? 'dump' : `p${++k}`, mags = [...(state.items[c].holds ?? [])];
+    if (C.dump && out.some(p => p.key === 'dump')) continue;
+    out.push({ key, id: c, word: PLACE_WORDS[key] ?? C.word, dump: !!C.dump, holds: C.holds, mags, room: C.holds - mags.length });
+  }
+  return out;
+}
+/** A pouch by its key ('p1', 'p2', 'dump'), or null. */
+export const pouchOf = (state, pid, key) => pouchesOf(state, pid).find(p => p.key === key) ?? null;
+
+/** The magazines lying at the person's feet (within FEET_M of their actor), nearest first: [{ id, x, z, dM }]. */
+export function atFeetOf(state, pid) {
+  const a = state.actors?.list?.find(x => x.who === pid), area = state.actors?.area ?? state.places?.live?.area;
+  if (!a || !area) return [];
+  return lyingOf(state, area).filter(l => state.items[l.id]?.type === 'mag').map(l => ({ ...l, dM: Math.hypot(l.x - a.x, l.z - a.z) }))
+    .filter(l => l.dM <= FEET_M).sort((p, q2) => p.dM - q2.dM || (p.id < q2.id ? -1 : 1));
+}
+
+/**
+ * The magazine a reach takes (see the header), of the gun's families: from 'p1', 'p2' or 'dump' the one at the
+ * pouch's front, from 'ground' the nearest at your feet, by 'rule' the first of every pouch's by the drills' rule
+ * (sparesOf without the hand). Returns { id, from: key } or null.
+ */
+export function pickMag(state, pid, { from = 'rule', fams = null, load = meantLoad(state) } = {}) {
+  const ok = (id) => state.items[id]?.type === 'mag' && (!fams || fams.includes(state.items[id].fam));
+  if (from === 'ground') { const l = atFeetOf(state, pid).find(x => ok(x.id)); return l ? { id: l.id, from } : null; }
+  if (from === 'rule') {
+    const all = pouchesOf(state, pid).flatMap(p => p.mags.filter(ok).map(id => ({ id, key: p.key })));
+    const id = rankOf(state, all.map(e => e.id), { load })[0];
+    return id ? { id, from: all.find(e => e.id === id).key } : null;
+  }
+  const p = pouchOf(state, pid, from), id = p ? p.mags.find(ok) ?? null : null;
+  return id ? { id, from } : null;
 }
 
 /** The person's dump pouch with room, or null. */
@@ -277,28 +370,29 @@ export function lyingOf(state, area) {
 
 const wordOf = (rec) => (rec?.type === 'mag' ? FAMILIES[rec.fam]?.word ?? 'a magazine' : rec?.type === 'gun' ? MODELS[rec.model]?.name ?? 'a gun' : CONTAINERS[rec?.model]?.word ?? rec?.type ?? '?');
 
+// (a magazine as the holder believes it, for the I card and the weapon card: its count, its kind, its weight's band)
+const magBelief = (id, m, reachS) => ({ id, kind: m?.type, word: wordOf(m), n: believedN(m), approx: !!m?.belief?.approx, load: believedKind(m), feel: m?.belief?.feel ?? null, reachS });
+
 /**
- * The I card's view (VIEWS §8.3): { groups: [{ id, word, holds, reachS, items: [{ id, kind, word, n, approx, reachS }] }],
- * sling: { gunId, posture } }, believed counts only (holds: the container's capacity; reachS the caller's magInS,
- * the sim's time for a magazine in, or 0 when none is given).
+ * The I card's view (VIEWS §8.3): { groups: [{ id, key, word, holds, reachS, items: [{ id, kind, word, n, approx,
+ * load, feel, reachS }] }], hand: an item or null, feet: [items], sling: { gunId, posture } }, believed counts and
+ * kinds only (holds: the container's capacity; reachS the caller's magInS, the sim's time for a magazine in from
+ * a pouch, 0 when none is given; the feet's groundS, a pickup's and the seat's).
  */
-export function kitView(state, pid, { magInS = null } = {}) {
-  const reach = Number.isFinite(magInS) ? magInS : 0;
+export function kitView(state, pid, { magInS = null, groundS = null } = {}) {
+  const reach = Number.isFinite(magInS) ? magInS : 0, ground = Number.isFinite(groundS) ? groundS : 0;
   const kit = state.people?.[pid]?.kit;
-  if (!kit) return { groups: [], sling: null };
+  if (!kit) return { groups: [], hand: null, feet: [], sling: null };
   const worn = [];
   for (const slot of SLOTS) {
     const id = kit.worn?.[slot];
     if (id && slot !== 'sling') worn.push({ id, kind: state.items[id]?.type, word: wordOf(state.items[id]), n: null, approx: false, reachS: 0 });
   }
   const groups = worn.length ? [{ id: 'worn', word: 'worn', items: worn }] : [];
-  for (const c of containersOf(state, pid)) {
-    const C = CONTAINERS[state.items[c].model];
-    if (!C.fits?.includes('mag')) continue;
-    groups.push({ id: c, word: C.word, holds: C.holds, reachS: reach, items: (state.items[c].holds ?? []).map(id => {
-      const m = state.items[id];
-      return { id, kind: m?.type, word: wordOf(m), n: believedN(m), approx: !!m?.belief?.approx, reachS: reach };
-    }) });
-  }
-  return { groups, sling: kit.worn?.sling ? { gunId: kit.worn.sling, posture: kit.carry?.posture ?? 'slungFront' } : null };
+  for (const p of pouchesOf(state, pid)) groups.push({ id: p.id, key: p.key, word: p.word, holds: p.holds, reachS: reach, items: p.mags.map(id => magBelief(id, state.items[id], reach)) });
+  const h = handMagOf(state, pid);
+  return {
+    groups, hand: h ? magBelief(h.id, state.items[h.id], 0) : null, feet: atFeetOf(state, pid).map(l => magBelief(l.id, state.items[l.id], ground)),
+    sling: kit.worn?.sling ? { gunId: kit.worn.sling, posture: kit.carry?.posture ?? 'slungFront' } : null,
+  };
 }

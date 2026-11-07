@@ -44,6 +44,14 @@
 // marine at reveille after a standard night, advanced along REFERENCE_SOL (src/data/body/sol.js) from
 // the last reveille to ms, its meals, drinks, heads, shower and basin applied as they come, and out of
 // any bed at ms (a game starts with you on your feet).
+// 0.0.6 (the build sheet 0.0.6 §2.2, §3.1): two more ledgers in the stepper, the hands' dirt (0 to 100,
+// linear at HANDS.RATE_K times grime's rate, capped, rounded to 1e-9 at each cell's end: hygiene.js)
+// and the hair's hours since the cut (h += dtH, as the stubble, rounded to 1e-12: hair.js reads it);
+// the hands' bands are a ledger of LEDGERS (body-stage crossings, no interrupt). Their doors: soil
+// (an event's dirt and its cause), groom's hands and clip (a sink: the hands washed; a shaved head
+// buzzed), wash (the shower's water takes the hands too), hairCut (the barber's: hair.h to 0). The
+// reference sol's heads, stalls and meals soil the hands and its basins wash them, so startBody gives
+// the same hands lived or skipped.
 import { MIN_MS, HOUR_MS, SEC_MS, DAY_MS, SOL_MS } from '../../core/clock.js';
 import { msAtMarsTime } from '../../core/calendar.js';
 import { q } from '../../core/num.js';
@@ -57,12 +65,12 @@ import { REFERENCE_SOL, HEAD_VOID_FROM_ML, STALL_VOID_FROM_ML } from '../../data
 import {
   MET, GAIT_KIND, HARD_MET, VERY_HARD_MET, G_MELAS, FLOOR_KPA, GROUND_KPA, ROOM_C, OUTDOOR_C, ENERGY, WATER, BLADDER, BOWEL,
   HYGIENE, CELL_MS, CLOCK_STEP_MS, HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, FATIGUE_BANDS, STUBBLE_BANDS,
-  STAMINA_BANDS, STRESS_BANDS,
+  STAMINA_BANDS, STRESS_BANDS, HANDS, HANDS_BANDS,
 } from '../../data/body/needs.js';
 import { metGOf, baseMassOf, massOf, bmrKcalH, energyRates, hungerIndex, eatBody } from './energy.js';
 import { thirstPct, thirstIndex, waterRates, kidneyNight, drinkBody } from './water.js';
 import { bladderIndex, bowelIndex, bowelLowerG, transitStep, voidBody, bladderAccident, bowelAccident } from './elimination.js';
-import { grimeIndex, stubbleIndex, grimeRate, washBody, groomBody } from './hygiene.js';
+import { grimeIndex, stubbleIndex, grimeRate, washBody, groomBody, handsIndex, soilBody } from './hygiene.js';
 import { phiOf, circ, fatigueIndex, asleepAt, qualityOf, pressureRate, beginSleepBody, endSleepBody, wakeAt, clockStep, lonMsOf, depthOf } from './sleep.js';
 import { stressRate, stressIndex } from './stress.js';
 import { settleTo, coreAfter } from './thermal.js';
@@ -92,7 +100,8 @@ export function bodyOf(state, pid, ms = state?.clock?.ms) {
 export function withLedgers(body, flat = {}) {
   const map = { gutKcal: ['energy', 'gutKcal'], reserveKcal: ['energy', 'reserveKcal'], emptyH: ['energy', 'emptyH'], balanceL: ['water', 'balanceL'], gutL: ['water', 'gutL'],
     bladderMl: ['bladder', 'ml'], bowelG: ['bowel', 'g'], transitG: ['bowel', 'transitG'], grime: ['hygiene', 'grime'], sweatL: ['hygiene', 'sweatL'], stubbleH: ['hygiene', 'stubbleH'],
-    pressureH: ['sleep', 'pressureH'], offsetH: ['sleep', 'offsetH'], coreC: ['thermal', 'coreC'], stress: ['stress', 'v'], morale: ['morale', 'v'] };
+    pressureH: ['sleep', 'pressureH'], offsetH: ['sleep', 'offsetH'], coreC: ['thermal', 'coreC'], stress: ['stress', 'v'], morale: ['morale', 'v'],
+    handsDirt: ['hands', 'dirt'], handsWhy: ['hands', 'why'], hairH: ['hair', 'h'] };
   for (const [k, v] of Object.entries(flat)) {
     if (k === 'stamina') { body.stamina = v; continue; }
     const at = map[k];
@@ -153,16 +162,16 @@ export function segOf(state, pid, ms = state?.clock?.ms) {
 // (the ledgers the stepper evolves, flat)
 const flatOf = (b) => ({ gut: b.energy.gutKcal, res: b.energy.reserveKcal, emptyH: b.energy.emptyH, gutL: b.water.gutL, bal: b.water.balanceL, ml: b.bladder.ml,
   g: b.bowel.g, tr: b.bowel.transitG, grime: b.hygiene.grime, sweat: b.hygiene.sweatL, stub: b.hygiene.stubbleH, p: b.sleep.pressureH, core: b.thermal.coreC,
-  stam: b.stamina, stress: b.stress.v });
+  stam: b.stamina, stress: b.stress.v, hands: b.hands.dirt, hair: b.hair.h });
 function writeFlat(b, f) {
   b.energy.gutKcal = f.gut; b.energy.reserveKcal = f.res; b.energy.emptyH = f.emptyH; b.water.gutL = f.gutL; b.water.balanceL = f.bal; b.bladder.ml = f.ml;
   b.bowel.g = f.g; b.bowel.transitG = f.tr; b.hygiene.grime = f.grime; b.hygiene.sweatL = f.sweat; b.hygiene.stubbleH = f.stub; b.sleep.pressureH = f.p;
-  b.thermal.coreC = f.core; b.stamina = f.stam; b.stress.v = f.stress;
+  b.thermal.coreC = f.core; b.stamina = f.stam; b.stress.v = f.stress; b.hands.dirt = f.hands; b.hair.h = f.hair;
 }
 // (each ledger's resolution, for the rounding at a cell's end: TECH §8.1 rule 11)
-const ROUND = Object.freeze({ gut: 1e-9, res: 1e-9, emptyH: 1e-12, gutL: 1e-12, bal: 1e-12, ml: 1e-9, g: 1e-9, tr: 1e-9, grime: 1e-9, sweat: 1e-12, stub: 1e-12, p: 1e-12, core: 1e-12, stam: 1e-9, stress: 1e-9 });
+const ROUND = Object.freeze({ gut: 1e-9, res: 1e-9, emptyH: 1e-12, gutL: 1e-12, bal: 1e-12, ml: 1e-9, g: 1e-9, tr: 1e-9, grime: 1e-9, sweat: 1e-12, stub: 1e-12, p: 1e-12, core: 1e-12, stam: 1e-9, stress: 1e-9, hands: 1e-9, hair: 1e-12 });
 const K9 = Math.round(1 / 1e-9), K12 = Math.round(1 / 1e-12);
-// (num.js q()'s rounding with its factor precomputed: the stepper rounds fifteen ledgers at every cell's end)
+// (num.js q()'s rounding with its factor precomputed: the stepper rounds seventeen ledgers at every cell's end)
 const rq = (x, k) => { const v = Math.round(x * k) / k; return v === 0 ? 0 : v; };
 function roundBody(b) {
   const e = b.energy, w = b.water, h = b.hygiene;
@@ -171,6 +180,7 @@ function roundBody(b) {
   b.bowel.g = rq(b.bowel.g, K9); b.bowel.transitG = rq(b.bowel.transitG, K9);
   h.grime = rq(h.grime, K9); h.sweatL = rq(h.sweatL, K12); h.stubbleH = rq(h.stubbleH, K12);
   b.sleep.pressureH = rq(b.sleep.pressureH, K12); b.thermal.coreC = rq(b.thermal.coreC, K12); b.stamina = rq(b.stamina, K9); b.stress.v = rq(b.stress.v, K9);
+  b.hands.dirt = rq(b.hands.dirt, K9); b.hair.h = rq(b.hair.h, K12);
 }
 
 /** The rates at a rate point t (see the header): plain numbers, held to the cell's end. */
@@ -202,6 +212,7 @@ function evolve(f, R, dtMs) {
     g: f.g + tr.movedG, tr: tr.transitG, grime: Math.min(100, f.grime + R.grimeH * dtH), sweat: f.sweat * Math.exp(-dtH / HYGIENE.SWEAT_DRY_TAU_H),
     stub: f.stub + dtH, p: Math.max(0, f.p + R.pH * dtH), core: coreAfter(f.core, R.coreT, R.coreTau, dtMin),
     stam: Math.max(0, Math.min(100, f.stam + R.stamS * dtMs / SEC_MS)), stress: Math.max(0, Math.min(100, f.stress + R.stressM * dtMin)),
+    hands: Math.min(HANDS.MAX, f.hands + R.grimeH * HANDS.RATE_K * dtH), hair: f.hair + dtH,
   };
 }
 
@@ -216,6 +227,7 @@ export const LEDGERS = Object.freeze([
   { key: 'stubble', bands: STUBBLE_BANDS },
   { key: 'stamina', bands: STAMINA_BANDS },
   { key: 'stress', bands: STRESS_BANDS },
+  { key: 'hands', bands: HANDS_BANDS },
   { key: 'wake', as: 'bladder', bands: Object.freeze([{ id: 'asleep' }, { id: 'wake', words: 'Your bladder wakes you.' }]), interrupt: 1, pseudo: true },
 ].map(s => Object.freeze(s)));
 const staminaIndex = (v) => { for (let i = STAMINA_BANDS.length - 1; i >= 1; i--) if (v < STAMINA_BANDS[i].below) return i; return 0; };
@@ -231,6 +243,7 @@ function bandAt(i, f, t, d) {
     case 6: return d.beard === false ? 0 : stubbleIndex(f.stub);
     case 7: return staminaIndex(f.stam);
     case 8: return stressIndex(f.stress);
+    case 9: return handsIndex(f.hands);
     default: return d.asleep && f.ml >= BLADDER.WAKE_ML ? 1 : 0;
   }
 }
@@ -498,9 +511,22 @@ export function relieve(state, pid, { bladderK = 0, bowelK = 0 } = {}, ms = stat
 export function wash(state, pid, { waterMin = 0, cold = false } = {}, ms = state?.clock?.ms, bus = null) {
   return change(state, pid, ms, bus, (body) => { const r = washBody(body, { waterMin, cold }, ms); tell(bus, pid, 'wash', ms, waterMin, { grime: r.after }); return r; });
 }
-/** The basin (BODY §6): { teeth, shave, face }. */
-export function groom(state, pid, { teeth = false, shave = false, face = false } = {}, ms = state?.clock?.ms, bus = null) {
-  return change(state, pid, ms, bus, (body) => { const r = groomBody(body, { teeth, shave, face }, ms); tell(bus, pid, 'groom', ms, (teeth ? 1 : 0) + (shave ? 2 : 0) + (face ? 4 : 0), r); return r; });
+/** The basin (BODY §6): { teeth, shave, face, hands, clip } (0.0.6: the hands washed; a shaved head buzzed); the event's amount their bits 1, 2, 4, 8, 16. */
+export function groom(state, pid, { teeth = false, shave = false, face = false, hands = false, clip = false } = {}, ms = state?.clock?.ms, bus = null) {
+  return change(state, pid, ms, bus, (body) => {
+    const r = groomBody(body, { teeth, shave, face, hands, clip }, ms);
+    tell(bus, pid, 'groom', ms, (teeth ? 1 : 0) + (shave ? 2 : 0) + (face ? 4 : 0) + (hands ? 8 : 0) + (clip ? 16 : 0), r);
+    return r;
+  });
+}
+/** Soil the hands (0.0.6, the build sheet §2.2): { k, why } (HANDS' events: the head 40, a stall 60, a bar 10, a rifle sub-step 1.5, regolith 15). Returns { before, after } dirt. */
+export function soil(state, pid, { k = 0, why = null } = {}, ms = state?.clock?.ms, bus = null) {
+  if (!(k > 0)) return null;
+  return change(state, pid, ms, bus, (body) => { const r = soilBody(body, k, why); tell(bus, pid, 'soil', ms, k, { why: why ?? null }); return r; });
+}
+/** The barber's chair or the clippers done (0.0.6): the hair's hours since the cut to 0. hair.js cutHair is the door the activities call (it sets the cut too). Returns { before } hours. */
+export function hairCut(state, pid, { cut = null } = {}, ms = state?.clock?.ms, bus = null) {
+  return change(state, pid, ms, bus, (body) => { const before = body.hair?.h ?? 0; (body.hair ??= { h: 0 }).h = 0; tell(bus, pid, 'haircut', ms, 0, { cut }); return { before }; });
 }
 /** Lie down with intent to sleep (BODY §7.1): latency and depth fixed now. Returns { fallMs, depthK, latencyMs }. */
 export function sleepBegin(state, pid, ms = state?.clock?.ms, { bed = 'own-rack' } = {}, bus = null) {
@@ -563,17 +589,24 @@ export function rowSeg(row, lonEDeg, massKg = 75, lived = false, gG = G_MELAS) {
 export function rowActs(body, span, t, lonEDeg) {
   const row = span.row, done = [], lonMs = lonMsOf(lonEDeg);
   if (span.first && body.sleep.bed) { const r = endSleepBody(body, t, { by: 'reveille' }); done.push({ act: 'wake', ...r }); }
+  let stalled = false;
   if (row.stall) {
     const phi = phiOf(t, lonMs, body.sleep.offsetH);
-    if (bowelIndex(body.bowel.g, bowelLowerG(body.bowel.reflexUntilMs, t, phi)) >= 1) done.push({ act: 'bowel', ...voidBody(body, { bowelK: BOWEL.RELIEF_K }) });
+    if (bowelIndex(body.bowel.g, bowelLowerG(body.bowel.reflexUntilMs, t, phi)) >= 1) { done.push({ act: 'bowel', ...voidBody(body, { bowelK: BOWEL.RELIEF_K }) }); stalled = true; }
   }
-  if (body.bladder.ml > 0 && (row.head === 'always' || (row.head && body.bladder.ml >= HEAD_VOID_FROM_ML) || (row.stall && body.bladder.ml >= STALL_VOID_FROM_ML))) done.push({ act: 'void', ...voidBody(body, { bladderK: 1 }) });
-  if (row.eat) { const ate = eatBody(body, row.eat, t); const w = drinkBody(body, row.eat.waterL ?? 0); done.push({ act: 'eat', kcal: ate.kcal, waterL: row.eat.waterL ?? 0, foodWaterL: ate.foodWaterL, inL: w }); }
+  if (body.bladder.ml > 0 && (row.head === 'always' || (row.head && body.bladder.ml >= HEAD_VOID_FROM_ML) || (row.stall && body.bladder.ml >= STALL_VOID_FROM_ML))) {
+    done.push({ act: 'void', ...voidBody(body, { bladderK: 1 }) });
+    if (!stalled) soilBody(body, HANDS.HEAD, 'head');
+  }
+  if (stalled) soilBody(body, HANDS.STALL, 'stall');                                     // (0.0.6: the head and the stall soil the hands; the basin washes them)
+  if (row.eat) { const ate = eatBody(body, row.eat, t); const w = drinkBody(body, row.eat.waterL ?? 0); soilBody(body, HANDS.FOOD, 'food'); done.push({ act: 'eat', kcal: ate.kcal, waterL: row.eat.waterL ?? 0, foodWaterL: ate.foodWaterL, inL: w }); }
   if (row.drink) done.push({ act: 'drink', waterL: drinkBody(body, row.drink) });
   if (row.wash) done.push({ act: 'wash', ...washBody(body, { waterMin: row.wash }, t) });
   if (row.groom) done.push({ act: 'groom', ...groomBody(body, row.groom, t) });
   if (row.bed) done.push({ act: 'bed', ...beginSleepBody(body, t, { bed: row.bed, lonMs }) });
-  if (done.length) body.held.rp = null;
+  // (a writer is a rate point; the hands washed alone move no rate (none reads the hands), so the 0.0.6 rows that only wash
+  // them leave the rate point where v0.0.5's sol had it, and every other ledger as v0.0.5 lived it)
+  if (done.some(a => !(a.act === 'groom' && a.hands && !a.teeth && !a.shave && !a.face && !a.clip))) body.held.rp = null;
   return done;
 }
 /** Follow a sol's plan from fromMs to toMs on a whole body, skipped a span at a time (startBody's way). Returns the acts done. */

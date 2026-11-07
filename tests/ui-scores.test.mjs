@@ -53,7 +53,10 @@ export default [
         [shower, 'activity', { phase: 'end', activity: 'shower', fraction: 0.2, by: 'player' }, false],
         [shower, 'activity', { phase: 'start', activity: 'shower' }, false],
         [shower, 'activity', { phase: 'end', activity: 'dress', fraction: 1 }, true],
-        [shower, 'activity', { phase: 'end', activity: 'basin', fraction: 1 }, false],
+        // (the 0.0.6 round's single actions at the sink end nothing; a shower done whole inside a chain still ends the scene)
+        [shower, 'activity', { phase: 'end', activity: 'wash-hands', fraction: 1 }, false],
+        [shower, 'activity', { phase: 'end', activity: 'shave', fraction: 1, chain: { i: 1, n: 3 } }, false],
+        [shower, 'activity', { phase: 'end', activity: 'shower', fraction: 1, chain: { i: 0, n: 2 } }, true],
         [night, 'alert', { phase: 'sound' }, false],
         [night, 'alert', { phase: 'stand-down' }, true],
       ];

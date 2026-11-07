@@ -24,12 +24,15 @@
 // at 3 and 6 m; the action's clicks at their fractions of each sub-step on the game clock, a case's tick at
 // its landMs as the clock passes it, the dry click of a dud, the tower's chime on a pa line; nothing new
 // while time stands still, nothing a skip jumped over; and RANGE's recipes rendered and measured.
+// The 0.0.6 round's (the build sheet 0.0.6 §2.3): the clippers' loop (a 120 Hz motor's hum through a 2 kHz band,
+// seamless) while a shaved head is buzzed, the tap while the hands are washed, and the R menu's sounds (a tick, a
+// latch and a lower latch, two rising notes, a close) rendered by code and played on the UI bus from the 'ui' fact.
 import { assert, near, fmt } from './helpers.mjs';
 import { footfalls, stepVoice, createStepScheduler, weightDb, lowpassHz, HALF_CYCLE_M } from '../src/ui/audio/steps.js';
 import { render, measure } from '../src/ui/audio/synth.js';
-import { STEPS, DOORS, WORLD, RANGE, AIR_KPA, LOOKAHEAD_S, WALL_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, TICK_MAX_HZ, KLAXON_HZ, WORLD_RATE_HZ, EARS_DB, EARS_LP_HZ, ECHO_DB, SOUND_SPEED_MS, REPORT_SOURCE_DB, ACTION_SOUNDS } from '../src/data/sounds.js';
+import { STEPS, DOORS, WORLD, RANGE, AIR_KPA, LOOKAHEAD_S, WALL_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, TICK_MAX_HZ, KLAXON_HZ, WORLD_RATE_HZ, EARS_DB, EARS_LP_HZ, ECHO_DB, SOUND_SPEED_MS, REPORT_SOURCE_DB, ACTION_SOUNDS, UI_SOUNDS, CLIPPER_HZ } from '../src/data/sounds.js';
 import { reportVoice, echoOf, caseVoice, chimeVoice, clickVoice, actionSoundsOf, createRange, createClickQueue, BERM_FACE_X, LATE_MS } from '../src/ui/audio/range.js';
-import { klaxonVoice, wallsBetween, duckOf, createTicker, loopsAt } from '../src/ui/audio/world.js';
+import { klaxonVoice, wallsBetween, duckOf, createTicker, loopsAt, createWorld } from '../src/ui/audio/world.js';
 import { areaOf } from '../src/sim/places/model.js';
 import { ALERT_DRILL } from '../src/data/pod.js';
 import { lapseS, ease } from '../src/sim/time/splash.js';
@@ -347,6 +350,26 @@ export default [
       const q = createClickQueue();
       q.add(300, 'b'); q.add(100, 'a'); q.add(200, 'c');
       assert(q.due(250).map(e => e.kind).join() === 'a,c' && q.size === 1, 'the queue in time order');
+    },
+  },
+  {
+    name: 'the 0.0.6 round\'s sounds: the clippers loop seamlessly while a shaved head is buzzed (its hum at 120 Hz, its centroid in the 2 kHz band), the tap while the hands are washed; the R menu\'s five on the UI bus from the \'ui\' fact, the check above the uncheck, never with no context',
+    fn() {
+      const doing = (activity, spotId, part) => ({ time: { doing: { activity, spotId, mode: 'outcome', fromMs: 0, toMs: 60_000, parts: [{ part, toMs: 60_000 }] } }, clock: { ms: 0 } });
+      const clip = loopsAt(doing('clip', 'f:e1:head-2a:sinks-1#1', 'clip'), 10_000), hands = loopsAt(doing('wash-hands', 'f:e1:head-2a:sinks-1#1', 'hands'), 10_000), shave = loopsAt(doing('shave', 'f:e1:head-2a:sinks-1#1', 'shave'), 10_000);
+      console.log(`      buzzing: ${JSON.stringify(clip)}; washing the hands: ${JSON.stringify(hands)}; shaving: ${JSON.stringify(shave)}`);
+      assert(clip.clippers && !clip.water && hands.tap && !hands.clippers && shave.tap && !shave.clippers, JSON.stringify({ clip, hands, shave }));
+      const c = render(WORLD.clippers, { sampleRate: WORLD_RATE_HZ, name: 'clippers' }), m = measure(c, WORLD_RATE_HZ);
+      console.log(`      the clippers: ${fmt(m.durS * 1000, 0)} ms loop at ${CLIPPER_HZ} Hz, centroid ${fmt(m.centroidHz, 0)} Hz, peak ${fmt(m.peakDb, 1)} dBFS`);
+      assert(CLIPPER_HZ === 120 && m.centroidHz > 800 && m.centroidHz < 3500 && WORLD.clippers.loop, JSON.stringify(m));
+      const cen = (k) => measure(render(WORLD[k], { sampleRate: 48000, name: k }), 48000).centroidHz;
+      const ui = Object.fromEntries(Object.entries(UI_SOUNDS).map(([kind, rec]) => [kind, { rec, durMs: Math.round(WORLD[rec].durS * 1000), centroidHz: Math.round(cen(rec)) }]));
+      console.log(`      the menu's: ${Object.entries(ui).map(([k, v]) => `${k} (${v.rec}) ${v.durMs} ms, centroid ${v.centroidHz} Hz`).join('; ')}`);
+      assert(Object.keys(UI_SOUNDS).join() === 'move,check,uncheck,confirm,close' && ui.move.durMs === 12 && ui.check.centroidHz > ui.uncheck.centroidHz, JSON.stringify(ui));
+      // (the 'ui' fact through the world's presenter: on the UI bus, its kind's recipe, counted)
+      const shots = [], world = createWorld({ uiShot: (k) => { shots.push(k); return true; }, oneShot: () => true, loopOn: () => true, loopOff: () => true, duck: () => {} });
+      for (const kind of ['move', 'check', 'uncheck', 'confirm', 'close', 'nonsense']) world.fact('ui', { kind }, null);
+      assert(shots.join() === 'uiMove,uiCheck,uiUncheck,uiConfirm,uiClose' && world.stats.ui === 5 && world.stats.lastUi === 'close', JSON.stringify({ shots, stats: world.stats }));
     },
   },
 ];

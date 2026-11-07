@@ -27,7 +27,8 @@
 // (west or north first on a tie), and slides toward it by at most a step; pressing into a flat wall
 // finds none. A walker whose own point it may not stand on (a door closed on it, a save from before a
 // template moved a wall or a fixture, a load in a wider class) is put on the nearest free cell's
-// centre within NEAREST_FREE_M 2 m at once, keys held or not (settle), and collides from there; with
+// centre within NEAREST_FREE_M 2 m at once (the nearest a straight line reaches through no wall or rail,
+// from 0.0.6), keys held or not (settle), and collides from there; with
 // none so near, it may only take steps that stay on the grid and bring it no farther from the nearest
 // free cell anywhere on it (0.0.2 let such a walker step anywhere, so it walked through walls and off
 // the grid for good). Positions are rounded to POS_STEP_M 0.1 mm (q: TECH §8.1 rule 11), so a long
@@ -52,7 +53,7 @@
 // the next area if it did (moveTo: the facts, the autosave, the cut that is main.js's).
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
-import { navOf, navAhead, nearestFree, centreOf, cellOf } from './nav.js';
+import { navOf, navAhead, nearestFree, nearestFreeInReach, centreOf, cellOf } from './nav.js';
 import { standOk, sweep, onFloor } from './collide.js';
 import { doorsStep } from './doors.js';
 import { portalCrossed, moveTo } from './portals.js';
@@ -100,11 +101,12 @@ export function faceOf(mx, mz, face) {
 
 /**
  * Put a walker on a point it may stand on: where its own is not (collide.js standOk), on the nearest
- * free cell's centre within NEAREST_FREE_M. Returns whether it moved. Pure but for the actor.
+ * free cell's centre within NEAREST_FREE_M that a straight line reaches through no wall or rail (nav.js
+ * nearestFreeInReach, from 0.0.6), else the nearest. Returns whether it moved. Pure but for the actor.
  */
 export function settle(actor, grid) {
   if (standOk(grid, actor.x, actor.z)) return false;
-  const c = nearestFree(grid, actor.x, actor.z);
+  const c = nearestFreeInReach(grid, actor.x, actor.z);
   if (c < 0) return false;
   [actor.x, actor.z] = centreOf(grid, c);
   return true;

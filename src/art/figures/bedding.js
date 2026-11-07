@@ -7,8 +7,12 @@
 // (src/art/kit/quarters.js asleep()): flat on the mattress, its top seen from above and foreshortened as
 // the floor is, which no eye reads as standing: the blanket drawn up to the shoulders with the body's
 // ridge down it, the knees and the feet's hump at the foot, the sheet's collar turned over its edge, the
-// pillow, and on it the head seen from above in the person's own hair and skin (crew, short and bun
-// cuts, bald; a face turned aside), the shoulder of the arm on top. A drawn rack curtain (PLACES's
+// pillow, and on it the head seen from above in the person's own hair and skin (0.0.6: the regulation
+// cuts at their drawn step, hair.step: a man's top a patch on the crown, high and tight the smallest,
+// medium regulation the largest, the scalp round it skin when fresh and then a shadow, a dark and the
+// hair's colour as it grows out, the shaved head all scalp; a woman's short cut over the crown, longer a
+// row a step; a bun's knob or a braid's band, with stray pixels out of regulation; a face turned aside),
+// the shoulder of the arm on top. A drawn rack curtain (PLACES's
 // "behind rack curtains") covers the berth: its fabric hangs from the rail in folds and the sleeper is
 // not shown (perception sees them only within a metre, people's sightOf).
 //
@@ -24,8 +28,8 @@
 //   - curtainK (0..1): the curtain part drawn, from the aisle side (CURTAIN_MS: a curtain closing after a
 //     sleeper lies down is seen closing), in CURTAIN_STEPS steps so a berth is a few cells, not one a frame.
 // Pure.
-import { tone, hash3 } from '../tone.js';
-import { SKIN, HAIR } from './outfits.js';
+import { tone, hash3, mixHex } from '../tone.js';
+import { SKIN, HAIR, cutOf, SIDES_K } from './outfits.js';
 
 /** The racks' blankets (the kit's: src/art/kit/quarters.js), and the curtains' fabric. */
 export const BLANKETS = Object.freeze({ olive: 0x4c633d, grey: 0x625854, tan: 0x96694f, red: 0x6e272f });
@@ -38,7 +42,9 @@ export const BREATH_HZ = 0.2, CURTAIN_STEPS = 4;
 
 const colourOf = (v, table, dflt) => (typeof v === 'number' ? v : table[v] ?? dflt);
 /** The name of a sleeper's painting (what the cells are cached by). */
-export const sleeperKey = (o) => `sleeper:${o.blanket ?? 'olive'}:${o.skin ?? 'tan'}:${o.hair?.style ?? 'crew'}:${o.hair?.color ?? 'dark'}:${o.curtain ?? '-'}:${(o.seed ?? 0) % 4}:${o.breath ? 1 : 0}:${o.up ? 'u' : ''}:${curtainStep(o)}`;
+export const sleeperKey = (o) => `sleeper:${o.blanket ?? 'olive'}:${o.skin ?? 'tan'}:${cutOf(o.hair?.style)}${o.hair?.step || ''}:${o.hair?.color ?? 'dark'}:${o.curtain ?? '-'}:${(o.seed ?? 0) % 4}:${o.breath ? 1 : 0}:${o.up ? 'u' : ''}:${curtainStep(o)}`;
+/** A man's top on the pillow, its radius as a share of the head's (0.0.6: high and tight the smallest patch; the shaved head none). */
+export const CAP_K = Object.freeze({ highTight: 0.42, lowReg: 0.58, medReg: 0.74, shaved: 0 });
 /** The curtain's step (0..CURTAIN_STEPS) for a berth: CURTAIN_STEPS when drawn and no curtainK is given. */
 export const curtainStep = (o) => (!o.curtain ? 0 : o.curtainK === undefined || o.curtainK === null ? CURTAIN_STEPS : Math.max(0, Math.min(CURTAIN_STEPS, Math.round(o.curtainK * CURTAIN_STEPS))));
 
@@ -71,7 +77,7 @@ function sleeperUp(px, w, h, o, ppm, k, seed) {
 /** The sleeper lying under the blanket (0.0.3's), breathing: the chest's ridge a pixel fuller at breath 1. */
 function sleeperDown(px, w, h, o, ppm, k, seed) {
   const b = colourOf(o.blanket, BLANKETS, BLANKETS.olive), skin = colourOf(o.skin, SKIN, SKIN.tan);
-  const hair = colourOf(o.hair?.color, HAIR, HAIR.dark), style = o.hair?.style ?? 'crew';
+  const hair = colourOf(o.hair?.color, HAIR, HAIR.dark), style = cutOf(o.hair?.style), step = Math.max(0, Math.min(3, o.hair?.step ?? 0));
   const pillow = Math.max(4, Math.round(0.34 * ppm)), collar = pillow + Math.max(2, Math.round(0.16 * ppm));
   const lean = ((seed % 3) - 1) * w * 0.07, cx = w / 2 + lean;
   // (the pillow at the head of the berth, its seam)
@@ -98,18 +104,31 @@ function sleeperDown(px, w, h, o, ppm, k, seed) {
   // read as a stain on the pillow), inked round as the figures are: its hair by cut over the crown, the
   // face below with its eyes shut, an ear on the side it is turned from)
   const hcx = cx + (seed % 2 ? -1 : 1) * w * 0.03, rx = Math.max(2.6, 0.155 * ppm), ry = Math.max(2.6, 0.145 * ppm), hcy = Math.min(pillow * 0.55, ry + 1);
-  const bald = style === 'bald', crew = style === 'crew', hairLine = hcy - ry * (crew ? 0.2 : style === 'bun' ? -0.05 : 0.1);
+  // (a man's cut: the top a patch on the crown (CAP_K, a pixel wider out of regulation), the scalp round it by the step's
+  // tone; a woman's: the hair over the crown to its line, a short cut's line a row lower a step)
+  const men = CAP_K[style] !== undefined, side = mixHex(skin, hair, SIDES_K[step]);
+  const capR = (CAP_K[style] ?? 0) * Math.min(rx, ry) + (step >= 3 && CAP_K[style] ? 1 : 0), capY = hcy - ry * 0.42;
+  const hairLine = hcy - ry * (men ? 0.1 : style === 'bun' || style === 'braid' ? -0.05 : 0.1 - (style === 'short' ? 0.08 * step : 0));
   for (let j = Math.floor(hcy - ry) - 1; j <= Math.ceil(hcy + ry) + 1; j++) for (let i = Math.floor(hcx - rx) - 1; i <= Math.ceil(hcx + rx) + 1; i++) {
     const a = (i + 0.5 - hcx) / rx, c = (j + 0.5 - hcy) / ry, d = a * a + c * c;
     if (d > 1) { const a2 = (i + 0.5 - hcx) / (rx + 1), c2 = (j + 0.5 - hcy) / (ry + 1); if (a2 * a2 + c2 * c2 <= 1) px(i, j, 1, 1, 0x1a1214); continue; }
-    const top = j + 0.5 < hairLine || (!bald && Math.abs(a) > 0.82 && c < 0.3);
-    let col = top && !bald ? (crew && (i + j) % 2 ? tone(hair, 0.05) : hair) : (c > 0.62 ? tone(skin, -0.08) : skin);
-    if (top && !bald && c < -0.7) col = tone(hair, -0.08);
+    const scalp = j + 0.5 < hairLine || (Math.abs(a) > 0.82 && c < 0.3);
+    let col = c > 0.62 ? tone(skin, -0.08) : skin;
+    if (scalp && men) {
+      const inCap = capR > 0 && Math.hypot(i + 0.5 - hcx, j + 0.5 - capY) <= capR;
+      col = inCap ? (style === 'medReg' && (i + j) % 2 ? tone(hair, 0.05) : hair) : step ? side : col;
+      if (inCap && c < -0.7) col = tone(hair, -0.08);
+    } else if (scalp) {
+      col = style === 'braid' && Math.abs(c + 0.55) < 0.12 ? ((i + j) % 2 ? tone(hair, -0.12) : tone(hair, 0.06)) : hair;   // (a braid's band across the crown)
+      if (c < -0.7) col = tone(hair, -0.08);
+    }
     px(i, j, 1, 1, col);
   }
   const ey = Math.round(hcy + ry * 0.2), ex = Math.max(1, Math.round(rx * 0.42));
   px(Math.round(hcx) - ex, ey, Math.max(1, Math.round(k)), 1, tone(skin, -0.3)); px(Math.round(hcx) + ex - Math.max(1, Math.round(k)) + 1, ey, Math.max(1, Math.round(k)), 1, tone(skin, -0.3));
   if (style === 'bun') { const bx = Math.round(hcx), by = Math.round(hcy - ry) - 1; px(bx - 1, by - 1, 3, 2, hair); px(bx - 1, by - 1, 3, 1, tone(hair, 0.08)); }
+  // (out of regulation, pinned-up hair works loose: stray pixels at the temples)
+  if ((style === 'bun' || style === 'braid') && step >= 3) { px(Math.round(hcx - rx) - 1, Math.round(hcy - ry * 0.1), 1, 1, hair); px(Math.round(hcx + rx), Math.round(hcy), 1, 1, hair); }
   px(Math.round(hcx - rx), Math.round(hcy + ry) + 2, Math.round(rx * 2), 1, tone(PILLOW, -0.07));   // (the pillow's dent under the head)
 }
 

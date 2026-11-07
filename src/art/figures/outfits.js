@@ -30,15 +30,27 @@
 // A look also carries the body's cues the figure shows (VIEWS §7.3, BODY's cuesOf): wet (the hair darker
 // with a sheen, for WET_HAIR_MS after a wash) and tired (fatigue at or past tired: the head down, the
 // arms swinging less: poses.js). Both change the drawing, so they are part of the look's shape.
+// The hair (0.0.6): one of the regulation cuts (templates.js CUT_IDS; DEFAULT_CUT low regulation when a look
+// names none, or a cut v0.0.5 drew: LEGACY) and its drawn step, hair.step 0 to 3 (src/sim/body/hair.js
+// hairOf: the sides grown from skin to a shadow (ĥ, the skin a third of the way to the hair's colour), to
+// a dark (ħ, two thirds) and to the hair's colour, the top a pixel taller out of regulation).
 // The Valles pattern is painted at pixel scale by valles(): value noise cut into bands, in blocks of a
 // pixel at 16 px/m and two at 24 (a pattern a few centimetres a block either way), its coordinates
 // those of the body part it is on, so it moves with the part and never swims across a walking figure.
 // Colours here are base tones; shade.js makes each one's light, shade and dark by rule. Pure.
-import { noise, tone } from '../tone.js';
+import { noise, tone, mixHex } from '../tone.js';
+import { CUT_IDS } from './templates.js';
 
 /** Skin tones (tradecraft's SKIN). */
 export const SKIN = Object.freeze({ light: 0xedc39c, tan: 0xc48a62, brown: 0x8c5a3f, dark: 0x5e3a2a });
 export const HAIR = Object.freeze({ black: 0x23252f, dark: 0x2a1c18, brown: 0x5e3a2a, auburn: 0x7a3a26, blond: 0xb9862e, grey: 0x8f96a6 });
+/** The cut a look reads when it names none (src/data/people/looks.js DEFAULT_CUT), and v0.0.5's cuts as the art reads them (a look made before the upgrade: the samples, a test). */
+export const DEFAULT_CUT = 'lowReg';
+export const LEGACY = Object.freeze({ crew: 'lowReg', bald: 'shaved' });
+/** How far the short sides' tones are from the skin toward the hair's colour, by the cut's step (ĥ at 1, ħ at 2; the hair's own at 3). */
+export const SIDES_K = Object.freeze([0, 0.34, 0.67, 1]);
+/** A look's cut as the kit draws it: a cut it knows, v0.0.5's mapped, else the default. */
+export const cutOf = (style) => (CUT_IDS.includes(style) ? style : LEGACY[style] ?? DEFAULT_CUT);
 
 /** The Valles pattern's colours (SETTING 5.7): ochre, dust pink, rust, umber, basalt grey. */
 // (darker and redder than they look in a painter: the stage's warm grade and palette snap turned a lighter
@@ -93,7 +105,7 @@ export function wear(look = {}) {
   const L = {
     outfit, seed,
     skin: SKIN[look.skin] ?? look.skin ?? SKIN.tan,
-    hair: { style: look.hair?.style ?? 'crew', color: HAIR[look.hair?.color] ?? look.hair?.color ?? HAIR.dark },
+    hair: { style: cutOf(look.hair?.style), color: HAIR[look.hair?.color] ?? look.hair?.color ?? HAIR.dark, step: Math.max(0, Math.min(3, Math.round(look.hair?.step ?? 0))) },
     weapon: look.weapon ?? null, carry: look.carry ?? (look.weapon ? 'low' : null),
     top: null, legs: null, boots: TAN_BOOT, gloves: null, head: null, armour: null, pack: null, rank: look.rank ?? null, belt: null,
     accents: {}, closedEyes: false, wet: !!look.wet, tired: !!look.tired, sex: look.sex === 'f' ? 'f' : 'm',
@@ -136,7 +148,7 @@ export function wear(look = {}) {
       L.boots = 0x47302a; L.gloves = 0x47302a;
       L.accents.bands = MINER_BAND;
       L.head = { kind: 'hardhat', color: HARDHAT };
-      L.hair = { style: look.hair?.style ?? 'short', color: HAIR[look.hair?.color] ?? look.hair?.color ?? HAIR.brown };
+      L.hair = { style: look.hair?.style ? cutOf(look.hair.style) : 'short', color: HAIR[look.hair?.color] ?? look.hair?.color ?? HAIR.brown, step: L.hair.step };
       break;
   }
   return L;
@@ -147,6 +159,7 @@ export function coloursOf(L, ppm) {
   const pat = (layer) => (layer?.pattern === 'valles' ? (u, v) => valles(u, v, ppm, layer.seed ?? 1) : layer?.color ?? 0x8f96a6);
   return {
     s: L.skin, h: L.wet ? tone(L.hair.color, -0.06) : L.hair.color, t: pat(L.top), p: pat(L.legs), f: L.boots, a: pat(L.head),
+    ĥ: mixHex(L.skin, L.wet ? tone(L.hair.color, -0.06) : L.hair.color, SIDES_K[1]), ħ: mixHex(L.skin, L.wet ? tone(L.hair.color, -0.06) : L.hair.color, SIDES_K[2]),
     r: L.hair.color, y: L.belt ?? 0x47302a, w: 0xf6f4ee, x: 0x6b4636,
     ø: L.armour?.color ?? DRAB, æ: L.armour?.pouches ?? DRAB_DARK,
     c: L.top?.kind === 'suit' ? L.top.color : (L.legs?.shell ?? SHELL), ð: L.accents.rings ?? SUIT_RING, þ: 0x1b2541,

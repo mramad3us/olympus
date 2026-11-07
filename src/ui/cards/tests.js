@@ -38,15 +38,18 @@ export const endFacts = (scenes) => [...new Set(Object.values(scenes ?? {}).map(
 const DEFAULT_CLOCK = (ms) => String(ms);
 /**
  * The end card's line for a scene, or null: a range scene's summary from rangeNow(state) ({ summary: { score, of,
- * v, shots, faults, clearAtMs }, end: { phase, atMs, why } }): "Clear at 09:14 · 61 of 75 · 4 V · no faults", or
- * "Stopped: <why> · 21 of 75 · 2 faults".
+ * v, shots, faults, clearAtMs, sat }, end: { phase, atMs, why } }): "Clear at 09:14 · 61 of 75 · 4 V · no faults", or
+ * "Stopped: <why> · 21 of 75 · 2 faults", a string sat out "· 1 string not fired" (0.0.6).
  */
 export function sceneSaid(range, { clockText = DEFAULT_CLOCK } = {}) {
   const sm = range?.summary;
   if (!sm) return null;
   const faults = Number(sm.faults) || 0, stopped = (range.end?.phase ?? range.phase) === 'stopped', why = range.end?.why ?? range.why ?? null;
   const head = stopped ? `Stopped${why ? `: ${why}` : ''}` : Number.isFinite(sm.clearAtMs) ? `Clear at ${clockText(sm.clearAtMs)}` : 'The line';
-  return [head, `${sm.score ?? 0} of ${sm.of ?? 0}`, sm.v ? `${sm.v} V` : null, faults ? `${faults} fault${faults === 1 ? '' : 's'}` : 'no faults'].filter(Boolean).join(' · ');
+  // (0.0.6: a string sat out for want of rounds is said, so 70 of 75 with one string unfired reads as it was; one fired
+  // with more than its rounds too, "1 string over-fired" (the fixer's))
+  const sat = Number(sm.sat) || 0, over = Number(sm.over) || 0;
+  return [head, `${sm.score ?? 0} of ${sm.of ?? 0}`, sm.v ? `${sm.v} V` : null, sat ? `${sat} string${sat === 1 ? '' : 's'} not fired` : null, over ? `${over} string${over === 1 ? '' : 's'} over-fired` : null, faults ? `${faults} fault${faults === 1 ? '' : 's'}` : 'no faults'].filter(Boolean).join(' · ');
 }
 
 /** The page's body: a paper sheet. scenes: SCENES' records in order; onPick(scene); onBack(); storage (the scores). */

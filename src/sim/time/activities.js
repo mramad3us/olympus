@@ -1,13 +1,25 @@
 // OLYMPUS sim: the activities' rules, how long each takes here and now, what it needs, how it runs and what it leaves (TIME §5.3, §8; the build sheet 0.0.4 §2.2.1).
 //
 // The table is src/data/activities.js (frozen data); its rules live here by the same id (TECH §2.4).
-// activitiesAt(state, x, z) lists what the spots within SPOT_REACH_M 0.6 m let the player do: a
-// shower stall a shower; a sink the basin and a drink; a urinal the head; a
-// toilet stall a stall or the head; the foot of the player's own rack sleep, a nap and dressing; the
-// player's own wall locker dressing; a machine a bar or a drink by its make. Another marine's rack or
-// locker offers nothing; a spot with someone else within FIXTURE_FREE_M 0.5 m of it is not free.
-// planOf(state, id, { spotId, args }) is the price on the tag: { ok, why, durMs, parts: [{ part,
-// fromMs, toMs, …rec }], endMs, kind, late }, its parts laid end to end from now, every end but the
+// activitiesAt(state, x, z) lists what the spots within SPOT_REACH_M 0.6 m let the player do, each
+// a single action in ROWS' order (src/data/activities.js; the build sheet 0.0.6 §2.1): a shower stall
+// a shower; a sink wash hands, brush teeth, shave (a face that grows a beard), buzz your head (a
+// shaved head), wash face and a drink; a urinal the head; a toilet stall a stall or the head; the
+// foot of the player's own rack sleep, a nap and dressing (in a drill: dressing, standing fast, then
+// sleep and a nap); the player's own wall locker dressing; a machine a bar or a drink by its make; the
+// barber's pole a haircut. Another marine's rack or locker offers nothing; a spot with someone else
+// within FIXTURE_FREE_M 0.5 m of it is not free.
+// offOf(state, id, spot, args, { atMs, wearing, bladderMl }) is why a single action is struck there now (shown
+// with its row, never done, and startActivity refuses it with these words): 'taken' (someone at the
+// spot), 'clean-shaven' (a shave under STUBBLE_SHOWS_H 12 h), 'buzzed today' (the clippers within a sol
+// of the last cut) and 'freshly buzzed' (while the shaved head is at its first step, hairOf's step 0),
+// 'fresh from the barber' (a haircut while the cut is at its first step), 'nothing to give' (the head with URINATE_MIN_ML 50 mL or less), 'already in PT
+// kit' or 'already in utilities' (dressing into what you wear), 'reveille comes first' (a sleep or a
+// nap that would run past the next reveille, or reveille under SLEEP_MIN_MS 20 minutes away), 'the
+// barber opens at 10:00' and 'the barber shut at 20:00' (BARBER_H); else null.
+// planOf(state, id, { spotId, args, fromMs, wearing }) is the price on the tag: { ok, why, durMs,
+// parts: [{ part, fromMs, toMs, …rec }], endMs, kind, late }, its parts laid end to end from now (or
+// fromMs, wearing the outfit given: a chain's later steps, src/sim/time/chain.js), every end but the
 // last on its first whole second (the activity-part events sit there; a part the plan shortens, by a
 // resume from its front or a fit from its end, keeps its full length, fullMs, and what was done of it
 // before, doneMs, so its effects go by the share lived of the whole part), plan.fullMs the length
@@ -17,12 +29,12 @@
 // lengths (TIME §8.2 to §8.4): the shower's water minutes by site (Melas 3); dressing 0.6 × the
 // outfit taken off plus the one put on (DRESS_MIN: PT kit 2 min, utilities 4, a towel 0: PT kit to
 // utilities 5.2 min), × DRESS_HURRY_K 0.5 into utilities while a drill is open (doing.js dressTempo);
-// sleep's turn-in (to PT kit) where you are not in it, then the rack until reveille (the next
-// reveille event) or a chosen time, 20 minutes to 12 hours; a nap of 20, 45 or 90 minutes; the
-// basin's shave only where stubble shows (BODY's STUBBLE_SHOWS_H, 12 h, on a body that grows a beard);
-// standing fast until the open drill's stand-down. args: dress { to }, sleep { until: 'reveille' | a
-// game ms, forMs }, nap { min }, idle { ms }, resume { remainingMs, outfit } (time.resume's: "finish
-// your shower", in what you wore into it).
+// the rack until reveille (the next reveille event) or a chosen time, 20 minutes to 12 hours, in
+// whatever you wear (0.0.6: the turn-in into PT kit was a bundle); a nap of 20, 45 or 90 minutes;
+// standing fast until the open drill's stand-down. A legacy part (the sleep's turn-in) is never
+// planned: it is kept so a v0.0.5 save made in it finishes. args: dress { to }, sleep { until:
+// 'reveille' | a game ms, forMs }, nap { min }, idle { ms }, haircut { cut }, resume { remainingMs,
+// outfit } (time.resume's: "finish your shower", in what you wore into it).
 // lateCheck(state, id, spotId, durMs) is TIME §9.5's obligation check, cut to this round's one
 // obligation, an open alert drill, mustered for or not: before the count, an activity that ends after
 // the count's due time less the walk back to the rack's foot (the open grid's path at BODY's walk,
@@ -30,18 +42,21 @@
 // stand-down every activity is (leaving the muster before the stand-down: the review of v0.0.4).
 // { block: 'drill', dueMs, walkMs, dressMs, endMs, fitMs, label }, fitMs the length that would still
 // make it ('fit it in'; 0 after the count). Dressing into utilities and standing fast are never
-// late: they are how one musters; nor is the debug's idle.
+// late: they are how one musters; nor is the debug's idle. A chain is checked as a whole (args.landing:
+// the outfit its steps leave you in).
 // startActivity(state, bus, ctx, { id, spotId, args, late, force }) runs TIME §5.3's checks (not in
 // stop motion or a skip or another activity, nor while one of the player's transitions plays (R pressed
 // again as the rise plays: the review of v0.0.4); standing, at the spot, the fixture free (lying
 // awake in your own rack, sleep and a nap may begin there); its own
-// preconditions, your own rack and locker; the obligation, refused 'late' unless late is 'fit' (the
+// preconditions, your own rack and locker, a struck action refused with offOf's words (a legacy record
+// never begins); the obligation, refused 'late' unless late is 'fit' (the
 // activity shortened to fitMs, refused under its min) or 'accepted'), writes time.doing (doing.js),
 // steps the player onto the spot (a 'step' transition of STEP_IN_MS, src/sim/people/place.js), posts
 // each part's end but the last as an 'activity-part' event (prio 5, src 'time:activity', with the
 // part's line for the ticker), and then lives it (mode 'live': the feet held, a move key cuts it at
 // its fraction) or hands it to the skip engine (ctx.sim.beginSkip, kind 'ff' or 'outcome' as above;
-// force: 'live' | 'ff' | 'outcome' for the tests), telling the bus 'activity' { phase: 'start' }.
+// force: 'live' | 'ff' | 'outcome' for the tests), telling the bus 'activity' { phase: 'start', chain:
+// null }. beginDoing is that start without the skip: a chain's steps begin through it (chain.js).
 // lead (the page's R, the choices and the late card ask for it: the user, 2026-11-06, "slightly slower
 // animations on getting in and out of rack"): a sleep or a nap begun standing at your rack's foot, its
 // first part lying, first lies you down in sight (people/place.js lieActor, the rise backwards, 4.8 s
@@ -55,16 +70,22 @@
 // the part under way given its share (whole parts were given theirs at their events), the landing
 // pose and outfit (TIME §7.5: a shower cut or fitted short of its whole dress part lands you in a
 // towel; sleep always in the rack), the log line at its end (TIME §8.8's voice, by hashPick(lines,
-// id, pid, floor(ms / 12,000))), a cut resumable one (cut by a key, an interrupt or a fit) left in
+// id, pid, floor(ms / 12,000)); the record names its activity, 0.0.6, so the DI knows you came from
+// the head), a cut resumable one (cut by a key, an interrupt or a fit) left in
 // time.resume { activity, spotId, remainingMs, untilMs, outfit } for RESUME_MS 10 minutes or until
 // the player is 2 m from it (R offers "finish your shower · 7 min"; the outfit worn into it is the one
-// its dress part puts back), and 'activity' { phase: 'end' }. Its fraction is of the whole plan
-// before a fit, so a fitted shower is cut short.
+// its dress part puts back), and 'activity' { phase: 'end', chain: null | { i, n } }. Its fraction is
+// of the whole plan before a fit, so a fitted shower is cut short. A lived step of a chain ends at its
+// 'chain-next' event, not here (liveStep leaves it); the chain's last, here, closes the chain too.
 // The effects, each through BODY's own door (every change calls its bodySync first, so lived and
 // skipped meet the same body): the head relieve(bladder 1.0 × the share); a stall the bowel 0.9 and
-// the bladder 1.0, × the share; the shower wash(the water minutes lived) at the water's end or its cut,
-// a towel until the dress part ends whole and the outfit worn in after it; the basin groom by the
-// parts done whole; dressing the outfit at its end (past half-way, cut: the new one);
+// the bladder 1.0, × the share; the shower wash(the water minutes lived) at the water's end or its cut
+// (the hands washed with you), a towel until the dress part ends whole and the outfit worn in after
+// it; at a sink each single action whole: the hands groom { hands }, the teeth, the shave, the face
+// groom { face } (the hands untouched), the clippers groom { clip }; the barber's chair whole
+// cutHair { cut }; a cut or a buzz cut short changes nothing (the build sheet 0.0.6 §8 item 9); the head
+// soils the hands (HANDS.HEAD 40), a stall more (HANDS.STALL 60), a bar a little (HANDS.FOOD 10), each
+// whatever share was done (BODY's soil); dressing the outfit at its end (past half-way, cut: the new one);
 // sleep and a nap sleepBegin as the rack part starts and sleepEnd as it ends or is cut (the cause:
 // reveille, the klaxon, the body, the player, or natural); a drink and a bar intake × the share.
 import { isHeld, SEC_MS, MIN_MS, TICK_MS, wholeTicks, durationText } from '../../core/clock.js';
@@ -72,7 +93,9 @@ import { playerActor, playerId, cmpId } from '../../core/ids.js';
 import { post, cancel, sorted } from '../../core/queue.js';
 import { hashPick } from '../../core/hash.js';
 import { marsClock } from '../../core/calendar.js';
-import { ACTIVITIES, WATER_MIN, SLEEP_MAX_MS, SLEEP_MIN_MS, NAP_MIN, STUBBLE_SHOWS_H, DRINK_L, SNACK_KCAL, DRESS_HURRY_K } from '../../data/activities.js';
+import { ACTIVITIES, WATER_MIN, SLEEP_MAX_MS, SLEEP_MIN_MS, NAP_MIN, STUBBLE_SHOWS_H, DRINK_L, SNACK_KCAL, DRESS_HURRY_K, ROWS, BARBER_H } from '../../data/activities.js';
+import { HANDS } from '../../data/body/needs.js';
+import { CUTS } from '../../data/people/looks.js';
 import { areaOf } from '../places/model.js';
 import { spotsOf, seatOf } from '../places/fixtures.js';
 import { openNavOf, path } from '../places/nav.js';
@@ -82,12 +105,14 @@ import { logEntry } from '../log.js';
 import { FF_MAX_MS } from './skip.js';
 import { activityNow, activityOf, dressMs, dressTempo, transPlaying } from './doing.js';
 import { musterOf } from './alerts.js';
+import { chainClose } from './chain.js';
 
 export { dressMs };
 import { nightOf } from './pod.js';
 import { stepOnto, layPlayer, lieActor, outfitOf, setOutfit } from '../people/place.js';
-import { bodyOf, intake, relieve, wash, groom, sleepBegin, sleepEnd } from '../body/body.js';
+import { bodyOf, intake, relieve, wash, groom, soil, sleepBegin, sleepEnd } from '../body/body.js';
 import { stagesOf, hasBeard } from '../body/cues.js';
+import { hairOf, cutsFor, cutHair, SOL_H } from '../body/hair.js';
 
 /** Under this an activity is lived at 1:1 (TIME §8.1), ms. */
 export const LIVE_MAX_MS = 45_000;
@@ -127,18 +152,24 @@ export function ownOf(state, pid = playerId(state)) {
   return { rackId: seat?.fixture ?? null, lockerId: seat?.lockerId ?? null, seatId: berth };
 }
 
-// (the activities a spot takes, by its use and its fixture, for this player)
-function idsAt(state, sp) {
+/** The head is offered while the bladder holds more than this, mL (my call: an empty bladder has nothing to give). */
+export const URINATE_MIN_ML = 50;
+
+// (who the player is, for the rows a sink offers: a face that grows a beard shaves, a shaved head buzzes)
+const beardOf = (state) => { const b = bodyOf(state, playerId(state)); return !!b && hasBeard(b); };
+const shavedHead = (state) => hairOf(state, playerId(state))?.cut === 'shaved';
+// (your rack's foot in an open drill: dressing and standing fast first)
+const inDrill = (state, ms = state.clock.ms) => { const d = state.time?.drills?.open; return !!d && ms < d.endMs; };
+
+/** The single actions a spot takes for this player, in ROWS' order (see the header). */
+export function idsAt(state, sp) {
   const own = ownOf(state);
   switch (sp.use) {
-    case 'shower': return ['shower'];
-    case 'wash': return ['basin', 'drink'];
-    case 'urinate': return ['urinate'];
-    case 'toilet': return ['bowel', 'urinate'];
-    case 'drink': return ['drink'];
-    case 'buy': return [sp.fx.make === 'snack' ? 'snack' : 'drink'];
-    case 'sleep': return sp.fixture === own.rackId ? ['sleep', 'nap', 'dress'] : [];
-    case 'dress': return sp.fixture === own.lockerId ? ['dress'] : [];
+    case 'wash': return ROWS.wash.filter(id => (id !== 'shave' || beardOf(state)) && (id !== 'clip' || shavedHead(state)));
+    case 'buy': return [sp.fx?.make === 'snack' ? 'snack' : 'drink'];
+    case 'sleep': return sp.fixture === own.rackId ? [...(inDrill(state) ? ROWS.drill : ROWS.sleep)] : [];
+    case 'dress': return sp.fixture === own.lockerId ? [...ROWS.dress] : [];
+    case 'shower': case 'urinate': case 'toilet': case 'drink': case 'haircut': return [...ROWS[sp.use]];
     default: return [];
   }
 }
@@ -181,24 +212,23 @@ export function nextReveilleMs(state, fromMs = state.clock.ms) {
   return n.reveilleMs;
 }
 
-// (does an optional part happen: the shave where stubble shows on a face that grows it, the stall where the bowel could go, the turn-in out of PT kit)
-function wants(state, opt) {
-  const pid = playerId(state), body = bodyOf(state, pid);
+// (does an optional part happen: the stall where the bowel could go; a legacy part never does (the sleep's turn-in is kept only for a save made in it))
+function wants(state, def) {
+  if (def.legacy) return false;
+  const opt = def.optional, pid = playerId(state), body = bodyOf(state, pid);
   if (opt === 'stubble') return !!body && hasBeard(body) && (body.hygiene?.stubbleH ?? 0) >= STUBBLE_SHOWS_H;
   if (opt === 'bowel') return !!body && (stagesOf(body, state.clock.ms, siteLonEDeg(state))?.bowel?.i ?? 0) >= 1;
-  if (opt === 'turn-in') return outfitOf(playerActor(state)) !== 'pt';
   return true;
 }
 
-// (a part's length by its rule)
-function partMs(state, id, def, args, atMs) {
+// (a part's length by its rule, at atMs, wearing what the steps before leave you in)
+function partMs(state, id, def, args, atMs, wearing) {
   if (typeof def.ms === 'number') return def.ms;
-  const me = playerActor(state);
   switch (def.ms) {
     case 'water': return Math.round((WATER_MIN[state.places?.live?.site] ?? WATER_MIN.melas) * MIN_MS);
     case 'dress': {
-      const to = id === 'sleep' ? 'pt' : args.to ?? defaultDressTo(state);
-      return dressMs(outfitOf(me), to, dressTempo(state, to, atMs));
+      const to = id === 'sleep' ? 'pt' : args.to ?? defaultDressTo(state, wearing);
+      return dressMs(wearing, to, dressTempo(state, to, atMs));
     }
     case 'until': {
       const until = args.until === undefined || args.until === 'reveille' ? nextReveilleMs(state, atMs) : Number(args.until);
@@ -212,9 +242,9 @@ function partMs(state, id, def, args, atMs) {
   }
 }
 
-/** What dressing at your locker or rack puts on by default: utilities while a drill is open, from PT kit or a towel; else PT kit. */
-export function defaultDressTo(state) {
-  const o = outfitOf(playerActor(state));
+/** What dressing at your locker or rack puts on by default: utilities while a drill is open, from PT kit or a towel; else PT kit (wearing: the outfit to dress from, the player's by default). */
+export function defaultDressTo(state, wearing = null) {
+  const o = wearing ?? outfitOf(playerActor(state));
   if (state.time?.drills?.open) return 'utilities';
   return o === 'pt' || o === 'towel' ? 'utilities' : 'pt';
 }
@@ -228,14 +258,15 @@ export function kindFor(state, durMs) {
 }
 
 /** The price on the tag (see the header). */
-export function planOf(state, id, { spotId = null, args = {} } = {}) {
+export function planOf(state, id, { spotId = null, args = {}, fromMs = null, wearing = null } = {}) {
   const rec = ACTIVITIES[id];
-  if (!rec) return { ok: false, why: 'unknown', durMs: 0, parts: [], endMs: state.clock.ms, kind: null, late: null };
-  const t0 = state.clock.ms, raw = [];
+  const t0 = fromMs ?? state.clock.ms;
+  if (!rec) return { ok: false, why: 'unknown', durMs: 0, parts: [], endMs: t0, kind: null, late: null };
+  const raw = [], outfit = wearing ?? outfitOf(playerActor(state));
   let at = t0;
   for (const def of rec.parts) {
-    if (def.optional && !wants(state, def.optional)) continue;
-    const ms = partMs(state, id, def, args, at);
+    if ((def.optional || def.legacy) && !wants(state, def)) continue;
+    const ms = partMs(state, id, def, args, at, outfit);
     if (ms <= 0) continue;
     raw.push({ def, ms });
     at += ms;
@@ -268,7 +299,74 @@ export function planOf(state, id, { spotId = null, args = {} } = {}) {
     if (last) break;
   }
   const durMs = total;
-  return { ok: true, why: null, durMs, fullMs: Math.max(fullMs, durMs), parts, endMs: t0 + durMs, kind: kindFor(state, durMs), late: lateCheck(state, id, spotId, durMs, args) };
+  // (a later step of a chain is not checked late alone: the chain is, as a whole)
+  return { ok: true, why: null, durMs, fullMs: Math.max(fullMs, durMs), parts, endMs: t0 + durMs, kind: kindFor(state, durMs), late: fromMs === null ? lateCheck(state, id, spotId, durMs, args) : null };
+}
+
+// ---- why not (the struck rows: the build sheet 0.0.6 §2.1) ----
+
+// (the Melas hour at ms, 0 to 24; the slip reads 24)
+const hourAt = (state, ms) => { const c = marsClock(ms, siteLonEDeg(state)); return c.timeslip ? 24 : c.civilMs / 3_600_000; };
+
+/** Why a single action is struck at a spot now, or null (see the header): words for the row and the refusal. */
+export function offOf(state, id, spot = null, args = {}, { atMs = state.clock.ms, wearing = null, plan = null, bladderMl = null } = {}) {
+  const rec = ACTIVITIES[id];
+  if (!rec) return 'unknown';
+  if (spot && !spotFree(state, spot)) return 'taken';
+  const pid = playerId(state), body = bodyOf(state, pid);
+  switch (id) {
+    case 'shave': return !body || !hasBeard(body) || (body.hygiene?.stubbleH ?? 0) < STUBBLE_SHOWS_H ? 'clean-shaven' : null;
+    case 'clip': {
+      // (struck while the cut is at its first step, as a shave is under 12 h: R never offers ten minutes for nothing; the fixer's, 0.0.6)
+      const hr = hairOf(state, pid, atMs);
+      return (hr?.h ?? 0) < SOL_H ? 'buzzed today' : (hr?.step ?? 1) === 0 ? 'freshly buzzed' : null;
+    }
+    case 'urinate': return (bladderMl ?? body?.bladder?.ml ?? 0) <= URINATE_MIN_ML ? 'nothing to give' : null;
+    case 'dress': {
+      const o = wearing ?? outfitOf(playerActor(state)), to = args.to ?? defaultDressTo(state, o);
+      return to === o ? `already in ${to === 'pt' ? 'PT kit' : to}` : null;
+    }
+    case 'sleep': case 'nap': {
+      const p = plan ?? planOf(state, id, { spotId: spot?.id ?? null, args, fromMs: atMs === state.clock.ms ? null : atMs, wearing });
+      return p.ok && p.endMs > nextReveilleMs(state, atMs) ? 'reveille comes first' : null;
+    }
+    case 'haircut': {
+      if ((hairOf(state, pid, atMs)?.step ?? 1) === 0) return 'fresh from the barber';
+      const h = hourAt(state, atMs);
+      if (h < BARBER_H[0]) return `the barber opens at ${String(BARBER_H[0]).padStart(2, '0')}:00`;
+      if (h >= BARBER_H[1]) return `the barber shut at ${BARBER_H[1]}:00`;
+      return args.cut && !cutsFor(state.people?.[pid]).includes(args.cut) ? 'not your cut' : null;
+    }
+    default: return null;
+  }
+}
+
+// ---- the words (TIME §8.1's price; the build sheet 0.0.6 §2.1) ----
+
+// (a clock time as the watch shows it: the slip as '24:00 +12', so one moment shows one number on every screen)
+const watchHm = (ms, lon) => { const c = marsClock(ms, lon); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / 60_000)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
+
+/**
+ * An offer's words, TIME §8.1's price: 'wash hands · 30 s', 'shave · 4 min, done 19:46' (', done HH:MM'
+ * only at or over LIVE_MAX_MS 45 s: a lived action ends in front of you, the build sheet 0.0.6 §8 item 8),
+ * ', the count 02:35' while a drill's count is to come.
+ */
+export function priceOf(state, word, durMs) {
+  const lon = siteLonEDeg(state), d = state.time?.drills?.open;
+  const count = d && state.clock.ms < d.dueMs ? `, the count ${watchHm(d.dueMs, lon)}` : '';
+  const done = durMs >= LIVE_MAX_MS ? `, done ${watchHm(state.clock.ms + durMs, lon)}` : '';
+  return `${word} · ${durationText(durMs)}${done}${count}`;
+}
+
+/** What a single action is called with its parameter: 'wash hands', 'dress (PT kit)', 'sleep until reveille', 'sleep', 'nap', 'haircut (high and tight)', 'finish your shower'. */
+export function actionWords(state, id, args = {}) {
+  const rec = ACTIVITIES[id];
+  if (!rec) return id;
+  if (args.resume) return `finish your ${rec.offer}`;
+  if (id === 'dress') { const to = args.to ?? defaultDressTo(state); return `dress (${to === 'pt' ? 'PT kit' : to})`; }
+  if (id === 'sleep' && (args.until === undefined || args.until === 'reveille') && !Number.isFinite(args.forMs)) return 'sleep until reveille';
+  if (id === 'haircut' && args.cut) return `haircut (${CUTS[args.cut]?.word ?? args.cut})`;
+  return rec.offer;
 }
 
 // ---- the obligation (TIME §9.5) ----
@@ -302,17 +400,19 @@ export function lateCheck(state, id, spotId, durMs, args = {}) {
   const walk = state.places?.live?.area === m.area ? walkMs(m.area, x, z, m.x, m.z) : 600_000;
   const lon = siteLonEDeg(state);
   const endMs = now + durMs;
+  // (what it leaves you wearing, whole and cut half-way: a chain's is given, args.landing)
+  const land = (f) => args.landing ?? landingOutfit(state, id, f, null, args);
   // (from the count to the stand-down: whatever takes you from the muster is late for it, counted or not)
   if (now >= d.dueMs) {
-    const dress = dressMs(landingOutfit(state, id, 1, null, args), 'utilities', DRESS_TEMPO_DRILL);
+    const dress = dressMs(land(1), 'utilities', DRESS_TEMPO_DRILL);
     return { block: 'drill', dueMs: d.dueMs, walkMs: walk, dressMs: dress, endMs, fitMs: 0, label: `the stand-down at your rack, ${hhmm(d.endMs, lon)}` };
   }
   // (before it: late when it ends after the count less the walk back and the dressing it leaves; a
   // fitted shower lands you in a towel, so the fit is reckoned from the towel)
-  const dressFull = dressMs(landingOutfit(state, id, 1, null, args), 'utilities', DRESS_TEMPO_DRILL);
+  const dressFull = dressMs(land(1), 'utilities', DRESS_TEMPO_DRILL);
   const by = d.dueMs - walk - dressFull;
   if (endMs <= by) return null;
-  const dressCut = dressMs(landingOutfit(state, id, 0.5, null, args), 'utilities', DRESS_TEMPO_DRILL);
+  const dressCut = dressMs(land(0.5), 'utilities', DRESS_TEMPO_DRILL);
   return { block: 'drill', dueMs: d.dueMs, walkMs: walk, dressMs: dressFull, endMs, fitMs: Math.max(0, d.dueMs - walk - dressCut - now), label: `the count at your rack, ${hhmm(d.dueMs, lon)}` };
 }
 // (the tempo of the dressing an open drill leaves to do: hurried)
@@ -323,7 +423,6 @@ function landingOutfit(state, id, fraction, doing = null, args = null) {
   const now = outfitOf(playerActor(state)), from = doing?.from?.outfit ?? args?.resume?.outfit ?? (args?.resume ? state.time?.resume?.outfit : null) ?? now;
   if (id === 'shower') return fraction >= 1 ? from : 'towel';
   if (id === 'dress') return fraction >= 0.5 ? (doing?.args?.to ?? defaultDressTo(state)) : from;
-  if (id === 'sleep') return fraction > 0 || from === 'pt' ? 'pt' : from;
   return now;
 }
 
@@ -334,9 +433,9 @@ const refuse = (bus, why, text) => { if (text) bus?.emit('line', { text, kind: '
 /** TIME §5.3's start (see the header). Returns { ok, why } (and lead: true where it lies the player down first). */
 export function startActivity(state, bus, ctx, { id, spotId = null, args = {}, late = null, force = null, lead = false } = {}) {
   const rec = activityOf(id);
-  if (!rec) return refuse(bus, 'unknown', null);
+  if (!rec || rec.legacy) return refuse(bus, 'unknown', null);
   if (isHeld(state) || state.skip || state.time?.doing) return refuse(bus, 'busy', null);
-  const me = playerActor(state), pid = playerId(state);
+  const me = playerActor(state);
   if (!me) return refuse(bus, 'nobody', null);
   // (a transition playing, the rise from the rack above all: nothing starts until it has, so a second R never cuts it)
   if (id !== 'idle' && transPlaying(me, state.clock.ms)) return refuse(bus, 'busy', null);
@@ -346,14 +445,13 @@ export function startActivity(state, bus, ctx, { id, spotId = null, args = {}, l
   let sp = null;
   if (rec.uses.length) {
     sp = spotOf(state, spotId);
-    if (!sp) return refuse(bus, 'no spot', null);
-    if (!inBerth && dist(me.x, me.z, sp.x, sp.z) > SPOT_REACH_M) return refuse(bus, 'not here', null);
-    if (!rec.uses.includes(sp.use) && !(id === 'dress' && (sp.use === 'sleep' || sp.use === 'dress'))) return refuse(bus, 'not here', null);
-    if (!idsAt(state, sp).includes(id)) return refuse(bus, 'not yours', 'Not your rack. Not your locker.');
-    if (!spotFree(state, sp)) return refuse(bus, 'taken', 'Taken.');
+    const why = spotCheck(state, me, sp, id, inBerth);
+    if (why) return refuse(bus, why, WHY_WORDS[why] ?? null);
   }
-  if (id === 'dress' && dressMs(outfitOf(me), args.to ?? defaultDressTo(state)) <= 0) return refuse(bus, 'dressed', 'Already dressed for it.');
   let plan = planOf(state, id, { spotId, args });
+  // (a struck action is never done: its row's words, TIME §5.3's preconditions)
+  const off = offOf(state, id, inBerth ? null : sp, args, { plan: plan.ok ? plan : null });
+  if (off) return refuse(bus, off, `${cap(off)}.`);
   if (!plan.ok) return refuse(bus, plan.why, null);
   if (plan.late) {
     if (late === 'fit') {
@@ -373,6 +471,37 @@ export function startActivity(state, bus, ctx, { id, spotId = null, args = {}, l
       return { ok: true, why: null, kind, durMs: plan.durMs, lead: true };
     }
   }
+  beginDoing(state, bus, { id, sp, plan, kind, args, late, step: !inBerth });
+  if (kind !== 'live') {
+    const posture = plan.parts.at(-1).posture ?? 'stand';
+    ctx.sim.beginSkip(state, { activity: id, planMs: plan.durMs, kind, spotId: sp?.id ?? null, posture, mask: rec.mask || 'D A', chunkMs: rec.chunkMs,
+      vignette: rec.vignette, stoppable: rec.stoppable });
+  }
+  return { ok: true, why: null, kind, durMs: plan.durMs };
+}
+
+// (the words a refusal at the spot says, for the page's line)
+const WHY_WORDS = Object.freeze({ 'not yours': 'Not your rack. Not your locker.', taken: 'Taken.' });
+
+/** Whether the player may do an activity at a spot now (TIME §5.3: at it, it takes the activity, yours, free): null, or why not ('no spot', 'not here', 'not yours', 'taken'). */
+export function spotCheck(state, me, sp, id, inBerth = false) {
+  const rec = activityOf(id);
+  if (!sp) return 'no spot';
+  if (!inBerth && dist(me.x, me.z, sp.x, sp.z) > SPOT_REACH_M) return 'not here';
+  if (!rec.uses.includes(sp.use) && !(id === 'dress' && (sp.use === 'sleep' || sp.use === 'dress'))) return 'not here';
+  if (!idsAt(state, sp).includes(id)) return 'not yours';
+  if (!spotFree(state, sp)) return 'taken';
+  return null;
+}
+
+/**
+ * An activity begun from its plan, without its skip (see the header): time.doing written (with the
+ * chain's step index where one runs), the player stepped onto the spot (step), each part's end but the
+ * last posted, the first part begun, and 'activity' { phase: 'start' } told. startActivity and a
+ * chain's steps (src/sim/time/chain.js) both begin here, so a step begins as a single would.
+ */
+export function beginDoing(state, bus, { id, sp = null, plan, kind, args = {}, late = null, step = true, chain = null }) {
+  const me = playerActor(state), pid = playerId(state), t0 = plan.parts[0]?.fromMs ?? state.clock.ms;
   // (a resumed shower: what was worn into it, not the towel it was cut in)
   const wornIn = args.resume ? args.resume.outfit ?? state.time.resume?.outfit ?? null : null;
   const from = { outfit: wornIn ?? outfitOf(me), x: me.x, z: me.z, face: me.face ?? 'down' };
@@ -383,21 +512,17 @@ export function startActivity(state, bus, ctx, { id, spotId = null, args = {}, l
   };
   if (plan.fullMs > plan.durMs) state.time.doing.fullMs = plan.fullMs;
   if (late) state.time.doing.late = late;
+  if (chain) state.time.doing.chain = chain.i;
   delete state.time.resume;
-  if (sp && !inBerth) stepOnto(state, me, sp, t0);
+  if (sp && step) stepOnto(state, me, sp, t0);
   // (each part's end but the last, on its whole second: the outcome steps end there, lived and skipped read the same boundaries)
   for (let i = 0; i < plan.parts.length - 1; i++) {
     const p = plan.parts[i];
     post(state, { atMs: p.toMs, prio: 5, kind: 'activity-part', src: ACTIVITY_SRC, line: p.line ?? undefined, payload: { activity: id, part: p.part, i } });
   }
   partStart(state, bus, state.time.doing, plan.parts[0].part, t0);
-  bus.emit('activity', { phase: 'start', activity: id, who: pid, spotId: sp?.id ?? null, fromMs: t0, toMs: plan.endMs, mode: kind, fraction: 0, by: null, outcome: null });
-  if (kind !== 'live') {
-    const posture = plan.parts.at(-1).posture ?? 'stand';
-    ctx.sim.beginSkip(state, { activity: id, planMs: plan.durMs, kind, spotId: sp?.id ?? null, posture, mask: rec.mask || 'D A', chunkMs: rec.chunkMs,
-      vignette: rec.vignette, stoppable: rec.stoppable });
-  }
-  return { ok: true, why: null, kind, durMs: plan.durMs };
+  bus.emit('activity', { phase: 'start', activity: id, who: pid, spotId: sp?.id ?? null, fromMs: t0, toMs: plan.endMs, mode: kind, fraction: 0, by: null, outcome: null, chain: chain ? { i: chain.i, n: chain.n } : null });
+  return state.time.doing;
 }
 
 // ---- the parts' effects ----
@@ -422,14 +547,19 @@ function partEnd(state, bus, d, part, f, ms, whole = f) {
   f = Math.max(0, Math.min(1, f)); whole = Math.max(0, Math.min(1, whole));
   if (f <= 0 && whole <= 0 && part !== 'lie') return;
   switch (part) {
-    case 'go': relieve(state, pid, { bladderK: 1.0 * f }, ms, bus); break;
-    case 'sit': relieve(state, pid, { bowelK: 0.9 * f, bladderK: 1.0 * f }, ms, bus); break;
+    // (the head and a stall soil the hands, whatever share was done: the user, 2026-11-06, "using the head shouldn't wash our hands")
+    case 'go': relieve(state, pid, { bladderK: 1.0 * f }, ms, bus); if (f > 0) soil(state, pid, { k: HANDS.HEAD, why: 'head' }, ms, bus); break;
+    case 'sit': relieve(state, pid, { bowelK: 0.9 * f, bladderK: 1.0 * f }, ms, bus); if (f > 0) soil(state, pid, { k: HANDS.STALL, why: 'stall' }, ms, bus); break;
     case 'water': if (f > 0) wash(state, pid, { waterMin: (WATER_MIN[state.places?.live?.site] ?? WATER_MIN.melas) * f }, ms, bus); break;
+    case 'hands': if (whole >= 1) groom(state, pid, { hands: true }, ms, bus); break;
     case 'teeth': if (whole >= 1) groom(state, pid, { teeth: true }, ms, bus); break;
     case 'shave': if (whole >= 1) groom(state, pid, { shave: true }, ms, bus); break;
     case 'face': if (whole >= 1) groom(state, pid, { face: true }, ms, bus); break;
+    // (a buzz or a cut short changes nothing: the build sheet 0.0.6 §8 item 9)
+    case 'clip': if (whole >= 1) groom(state, pid, { clip: true }, ms, bus); break;
+    case 'cut': if (whole >= 1) cutHair(state, pid, { cut: d.args?.cut ?? null }, ms, bus); break;
     case 'drink': intake(state, pid, { waterL: DRINK_L * f, food: 'water' }, ms, bus); break;
-    case 'eat': intake(state, pid, { kcal: SNACK_KCAL * f, food: 'bar' }, ms, bus); break;
+    case 'eat': intake(state, pid, { kcal: SNACK_KCAL * f, food: 'bar' }, ms, bus); if (f > 0) soil(state, pid, { k: HANDS.FOOD, why: 'food' }, ms, bus); break;
     case 'dress':
       if (d.activity === 'shower') { if (whole >= 1 && me) setOutfit(me, d.from.outfit); }
       else if (me && whole >= 0.5) setOutfit(me, d.args?.to ?? defaultDressTo(state));
@@ -479,7 +609,7 @@ export function causeOf(by, stopKind = null) {
 function lineOf(state, d, endMs, fraction) {
   const rec = activityOf(d.activity), pid = playerId(state), lon = siteLonEDeg(state);
   const durMs = endMs - d.fromMs;
-  if (fraction < 1 && !['sleep', 'nap', 'wait', 'standfast', 'idle'].includes(d.activity)) return `${cap(rec.offer)}, cut short after ${durationText(durMs)}.`;
+  if (fraction < 1 && !['sleep', 'nap', 'wait', 'standfast', 'idle'].includes(d.activity)) return `${cap(rec.noun ?? rec.offer)}, cut short after ${durationText(durMs)}.`;
   const tmpl = hashPick(rec.log, d.activity, pid, Math.floor(endMs / 12_000));
   // (beside the clock times it prints, the duration is theirs: "Down at 21:55, up at 23:00: 1 h 5 min", never rounded past them)
   const durText = /\{(from|to)\}/.test(tmpl) ? durationText(shownMinuteMs(endMs, lon) - shownMinuteMs(d.fromMs, lon)) : durationText(durMs);
@@ -514,21 +644,29 @@ export function finishActivity(state, bus, endMs = state.clock.ms, { by = null, 
     if (cut && d.activity === 'shower' && !(d.done ?? []).includes('dress')) setOutfit(me, 'towel');
   }
   const line = lineOf(state, d, endMs, f);
-  logEntry(state, bus, { kind: 'activity', tone: 'note', text: line });
+  logEntry(state, bus, { kind: 'activity', tone: 'note', text: line, activity: d.activity });
   if (cut && rec.resumable && d.spotId) state.time.resume = { activity: d.activity, spotId: d.spotId, remainingMs: wholeTicks(Math.max(TICK_MS, planMs - (endMs - d.fromMs))), untilMs: endMs + RESUME_MS, outfit: d.from.outfit };
   const outcome = { activity: d.activity, fraction: f, by: d.stopBy, parts: [...(d.done ?? [])], line, look: { outfit: outfitOf(me), wet: d.activity === 'shower' && (d.done ?? []).some(x => x.startsWith('water')) },
     ...(d.result ?? {}) };
   delete state.time.doing;
-  bus.emit('activity', { phase: 'end', activity: d.activity, who: pid, spotId: d.spotId, fromMs: d.fromMs, toMs: endMs, mode: d.mode, fraction: f, by: d.stopBy, outcome });
+  const n = state.time.chain?.steps?.length ?? 0;
+  bus.emit('activity', { phase: 'end', activity: d.activity, who: pid, spotId: d.spotId, fromMs: d.fromMs, toMs: endMs, mode: d.mode, fraction: f, by: d.stopBy, outcome,
+    chain: Number.isInteger(d.chain) && n ? { i: d.chain, n } : null });
   return outcome;
 }
 
-/** The time domain's input layer's part for a lived activity: a move key cuts it at its fraction, its end closes it. */
+/**
+ * The time domain's input layer's part for a lived activity: a move key cuts it at its fraction, its
+ * end closes it. A lived chain's step but the last ends at its 'chain-next' event (the due layer runs
+ * first); a move key cuts the step and drops the rest, and the last step's end closes the chain.
+ */
 export function liveStep(state, input, bus) {
   const d = state.time?.doing;
   if (!d || d.mode !== 'live' || state.skip) return;
-  if (input?.mx || input?.mz) { finishActivity(state, bus, state.clock.ms, { by: 'player' }); return; }
-  if (state.clock.ms >= d.toMs) finishActivity(state, bus, d.toMs);
+  const C = Number.isInteger(d.chain) ? state.time.chain : null;
+  if (input?.mx || input?.mz) { const out = finishActivity(state, bus, state.clock.ms, { by: 'player' }); if (C) chainClose(state, bus, state.clock.ms, out, 'player'); return; }
+  if (C && d.chain < C.steps.length - 1) return;
+  if (state.clock.ms >= d.toMs) { const out = finishActivity(state, bus, d.toMs); if (C) chainClose(state, bus, d.toMs, out, 'natural'); }
 }
 
 /**

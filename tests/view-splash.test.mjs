@@ -148,8 +148,10 @@ export default [
       // (each: where to stand and what to begin; the rack and the locker are the player's own, found by R's offer there)
       const cases = [
         ['shower', 'test-shower', ['melas.echo.1', 58.95, 16.27, 'down'], 'shower', 'f:e1:head-2a:shower-2#1', {}],
-        ['sink', 'test-shower', ['melas.echo.1', 58.08, 12.3, 'left'], 'basin', 'f:e1:head-2a:sinks-1#2', {}],
-        ['head', 'test-shower', ['melas.echo.1', 60.6, 10.88, 'up'], 'urinate', 'f:e1:head-2a:urinal-1#1', {}],
+        // (0.0.6: the sink's vignette by a single action, the shave (4 min; v0.0.5's basin bundle is legacy, never begun), and the
+        // head where the bladder has something to give: the barracks at 20:00 holds 103 mL, test-shower's 19:3x under URINATE_MIN_ML)
+        ['sink', 'test-shower', ['melas.echo.1', 58.08, 12.3, 'left'], 'shave', 'f:e1:head-2a:sinks-1#2', {}],
+        ['head', 'barracks&hour=20', ['melas.echo.1', 60.6, 10.88, 'up'], 'urinate', 'f:e1:head-2a:urinal-1#1', {}],
         ['stall', 'test-shower', ['melas.echo.1', 62.67, 11.5, 'right'], 'bowel', 'f:e1:head-2a:stall-1#1', {}],
         ['rack', 'test-night', null, 'sleep', null, { until: 'reveille' }],
         ['locker', 'test-night', null, 'dress', null, { to: 'utilities' }],
@@ -182,7 +184,8 @@ export default [
       console.log(`      ${rows.join('\n      ')}`);
       console.log(`      shots in ${SHOTS}: vignette-*.png, splash-*.png (look at them)`);
       const shot = rows.filter(r => !r.includes('no splash'));
-      assert(shot.length >= 6, `${shot.length} of ${rows.length} vignettes splashed`);
+      // (0.0.6: every vignette has a single action that splashes; v0.0.5 let one pass without)
+      assert(shot.length === rows.length, `${shot.length} of ${rows.length} vignettes splashed`);
     },
   },
 ];

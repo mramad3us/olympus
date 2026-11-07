@@ -15,6 +15,15 @@
 //   - a stoppage: felt and not yet looked at (a click, a dead trigger, a shot that did not cycle), an amber
 //     "!" by the port; looked at, what was seen: a case standing up out of the port (a stovepipe) or two
 //     rounds in it (a double feed).
+//   - 0.0.6 (the user, 2026-11-07: "on the gun drawing, the magazines are very long, if they could be a bit
+//     slicker it would be nice"): the HAD-30 drawn slimmer and shorter, in proportion to the 0.92 m rifle (the
+//     whole magazine 0.21 m, WEAPONS §3.3, of which MAG_HIDDEN_M sits up in the well: MAG_SHOWN_M below it,
+//     MAG_W_PX wide, MAG_CURVE_PX forward over its length; v0.0.5 drew all 0.21 m below the well, 9 px wide,
+//     curving 14), the believed kind's tip on its top round (a tracer's red);
+//   - the magazine in the hand (the user's "when we have the mag we reached for, we see if it has ammo in and
+//     which kind"): drawn held under the handguard, its window to its believed count, its top round's tip
+//     when its kind is known, "?" on its plate when nothing is known, and under it its count ("5", "≈5"), its
+//     weight's band ("A FEW") or "?", and "TR" when it is believed tracer.
 // The optic (the SO-4) and the sling are drawn as fitted; dust and carbon wait for 0.0.8.
 // paintWeaponCard({ model, belief, k = 1 }) → { w, h, data, px } (a Pixmap: little-endian RGBA words,
 // ImageData's order, alpha 255 or 0; px the same array, the sheet's name for it), k an integer scale.
@@ -32,10 +41,14 @@ export const CARD_PX_PER_M = 144;
 const BG = 0x2b2e3a, WALL = 0x383c4a, SHADOW = 0x1f2029, INK = 0x14151c;
 const POLY = 0x282b34, POLY_L = 0x3e424d, STEEL = 0x6e7582, STEEL_L = 0x9aa1ae, STEEL_D = 0x49403e;
 const BRASS = 0xd0ac5e, BRASS_L = 0xf0d48a, DUMMY = 0xe08a3a, AMBER = 0xe7b84a, RED = 0xb45150, MARK = 0xdad0bc, DIM = 0x565b67, SLING = 0x4c633d;
+const COPPER = 0xb8643a, TRACER_TIP = 0xc23b2e, SKIN = 0xb0806a, SKIN_D = 0x8a5e4c;
 /** The HAD-30's capacity (the arms role's FAMILIES.had30.n): the window's full height. */
 const MAG_N = 30;
+/** The HAD-30 as drawn (see the header): metres shown below the well, metres hidden in it, its width and its forward curve in card pixels. */
+export const MAG_SHOWN_M = 0.165, MAG_HIDDEN_M = 0.045, MAG_W_PX = 7, MAG_CURVE_PX = 8;
+const FEEL_CARD = Object.freeze({ none: 'NONE', few: 'A FEW', half: 'HALF', most: 'NEARLY', full: 'FULL' });
 
-/** What the card draws, read from the belief alone: { mag, count, approx, chamber, port, locked, mode, mark, seen }. */
+/** What the card draws, read from the belief alone: { mag, count, approx, load, chamber, port, locked, mode, mark, seen, hand }. */
 export function cardParts(belief = {}) {
   const b = belief ?? {};
   const magIn = b.mag !== 'out';
@@ -46,7 +59,8 @@ export function cardParts(belief = {}) {
   return {
     mag: magIn ? 'in' : 'out', count: known ? Math.max(0, Math.min(MAG_N, b.count)) : null, approx: known && !!b.countApprox,
     chamber: b.chamber ?? '?', port: portOpen ? 'open' : 'shut', locked: !!b.locked, mode: b.mode ?? 'safe',
-    mark: felt ? '!' : b.chamber === '?' ? '?' : null, seen,
+    mark: felt ? '!' : b.chamber === '?' ? '?' : null, seen, load: magIn ? b.magLoad ?? null : null,
+    hand: b.hand ? { count: Number.isFinite(b.hand.n) ? Math.max(0, Math.min(MAG_N, b.hand.n)) : null, approx: !!b.hand.approx, load: b.hand.load ?? null, feel: b.hand.feel ?? null } : null,
   };
 }
 
@@ -76,8 +90,8 @@ export function paintWeaponCard({ model = 'r7', belief = {}, k = 1 } = {}) {
   const base = paint(CARD_W, CARD_H, (px, w, h) => {
     // The backdrop: the doll's wall and floor (VIEWS §4.1), the rifle's shadow thrown a little right.
     px(0, 0, w, h, BG);
-    px(0, 0, w, Math.round(h * 0.62), WALL);
-    px(0, Math.round(h * 0.62), w, 1, tone(WALL, -0.15));
+    px(0, 0, w, Math.round(h * FLOOR_K), WALL);
+    px(0, Math.round(h * FLOOR_K), w, 1, tone(WALL, -0.15));
     const layer = paint(w, h, (q) => rifle(q, P, model));
     // (the shadow: the silhouette, offset, on the floor's colour)
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -102,8 +116,12 @@ export function paintWeaponCard({ model = 'r7', belief = {}, k = 1 } = {}) {
   return { w: W, h: H, data, px: data };
 }
 
-// The R-7 at CARD_PX_PER_M, its bore along y = Y0, its butt at x = X0.
-const X0 = 22, Y0 = 62;
+// The R-7 at CARD_PX_PER_M, its bore along y = Y0, its butt at x = X0. (0.0.6, the fixer's: the rifle 6 px higher and the
+// floor's line at FLOOR_K of the card, so the magazine seated or in the hand hangs clear of the line and the words under it:
+// its baseplate had crossed into the SAFE / 5 TR row)
+const X0 = 22, Y0 = 56;
+/** The wall's share of the card's height, its floor's line under it (v0.0.6's 0.62). */
+const FLOOR_K = 0.69;
 const at = (m) => X0 + M(m);
 
 function rifle(px, P, model) {
@@ -146,9 +164,10 @@ function rifle(px, P, model) {
   px(at(0.39), Y0 - 19, 4, 3, POLY_L);
   px(at(0.51) - 1, Y0 - 17, 1, 8, 0x3c5d84);
   px(at(0.30) - 1, Y0 - 15, 1, 4, 0x3c5d84);
-  // The magazine: in its well, curving forward, its window to the count believed.
-  if (P.mag === 'in') magazine(px, P);
+  // The magazine: in its well, curving forward, its window to the count believed; one in the hand under the handguard.
+  if (P.mag === 'in') magazine(px, at(0.40), Y0 + 8, { count: P.count, approx: P.approx, load: P.load });
   else px(at(0.40), Y0 + 8, M(0.07), 2, 0x14151c);
+  if (P.hand) handMag(px, P.hand);
   // The selector, above the grip: its lever toward the believed mode.
   const sx = at(0.30), sy = Y0 + 4;
   px(sx - 1, sy - 1, 3, 3, STEEL_D);
@@ -180,31 +199,44 @@ function rifle(px, P, model) {
   }
 }
 
-function magazine(px, P) {
-  // (the HAD-30's body, 0.21 m long, curving forward; a polymer window along its side)
-  const len = M(0.21), w = 9;
+// (a HAD-30 hanging from (x0, y0) (see the header): its body MAG_SHOWN_M long and MAG_W_PX wide, curving forward, a
+// polymer window along its side with the rounds believed in it from the top (the top one's tip by its kind), its
+// baseplate; a count unknown, "?" on it. Returns its baseplate's place.)
+function magazine(px, x0, y0, { count = null, approx = false, load = null } = {}) {
+  const len = M(MAG_SHOWN_M), w = MAG_W_PX;
   const cells = [];
   for (let j = 0; j < len; j++) {
-    const t = j / len, x = at(0.40) + Math.round(t * t * 14), y = Y0 + 8 + j;
+    const t = j / len, x = x0 + Math.round(t * t * MAG_CURVE_PX), y = y0 + j;
     px(x, y, w, 1, POLY);
     px(x, y, 1, 1, POLY_L);
-    cells.push([x + 3, y]);
+    cells.push([x + 2, y]);
   }
-  const bx = cells.at(-1)[0] - 3, by = cells.at(-1)[1] + 1;
-  px(bx - 1, by, w + 2, 3, POLY_L);                                              // (the baseplate)
+  const bx = cells.at(-1)[0] - 2, by = cells.at(-1)[1] + 1;
+  px(bx - 1, by, w + 2, 2, POLY_L);                                              // (the baseplate)
   // (the window: a strip down the body; the rounds believed in it, from the top, brass)
-  const top = 3, rows = len - top - 4;
+  const top = 2, rows = len - top - 3;
   for (let j = 0; j < rows; j++) { const [x, y] = cells[top + j]; px(x, y, 3, 1, 0x1d2b46); }
-  if (P.count === null) {
-    say(px, bx + 3, by - 9, '?', AMBER);
-    return;
+  if (count === null) {
+    say(px, bx + 2, by - 8, '?', AMBER);
+    return { bx, by };
   }
-  const fill = Math.round(rows * P.count / MAG_N);
+  const fill = count > 0 ? Math.max(1, Math.round(rows * count / MAG_N)) : 0;
   for (let j = 0; j < fill; j++) {
-    const [x, y] = cells[top + j], last = j >= fill - 2 && P.approx;
+    const [x, y] = cells[top + j], last = j >= fill - 2 && approx;
     if (last && (x + y) % 2) continue;                                          // (an approximate count: its top dithered)
     px(x, y, 3, 1, j % 2 ? BRASS : BRASS_L);
   }
+  // (the top round's nose at the feed lips: a tracer's red, ball's bare copper, when the kind is believed)
+  if (fill && load) { const [x, y] = cells[top]; px(x + 2, y, 1, 1, load === 'tracer' ? TRACER_TIP : COPPER); }
+  return { bx, by };
+}
+
+// (the magazine in the support hand, held under the handguard as it comes to the well: its knuckles round its middle)
+const HAND_X = 116, HAND_Y = Y0 + 16;
+function handMag(px, H) {
+  magazine(px, HAND_X, HAND_Y, { count: H.count, approx: H.approx, load: H.load });
+  const my = HAND_Y + Math.round(M(MAG_SHOWN_M) * 0.45);
+  px(HAND_X - 2, my, MAG_W_PX + 4, 4, SKIN); px(HAND_X - 2, my + 3, MAG_W_PX + 4, 1, SKIN_D); px(HAND_X - 2, my, 1, 4, SKIN_D);
 }
 
 function marks(px, P) {
@@ -218,6 +250,15 @@ function marks(px, P) {
   if (P.mark) say(px, at(0.43), Y0 - 13, P.mark, AMBER);
   // The magazine's believed count beside its baseplate ("≈" when it is a guess), "MAG OUT" with none, in the
   // words' colour (it had been the dim grey of an unlit mark, hard to read on the slate).
-  const label = P.mag === 'out' ? 'MAG OUT' : P.count === null ? '' : `${P.approx ? '≈' : ''}${P.count}`;
-  if (label) say(px, P.mag === 'out' ? CARD_W - 4 - sayWidth(label) * WORD_K : at(0.40) + 14, WORD_Y, label, MARK, WORD_K);
+  // (with a magazine in the hand the empty well says MAG OUT by itself, and the hand's words take the right)
+  const label = P.mag === 'out' ? (P.hand ? '' : 'MAG OUT') : P.count === null ? '' : `${P.approx ? '≈' : ''}${P.count}`;
+  if (label) say(px, P.mag === 'out' ? CARD_W - 4 - sayWidth(label) * WORD_K : at(0.40) + 12, WORD_Y, label, MARK, WORD_K);
+  if (label && P.mag === 'in' && P.load === 'tracer' && !P.hand) say(px, at(0.40) + 12 + (sayWidth(label) + 2) * WORD_K, WORD_Y, 'TR', RED, WORD_K);
+  // (the hand's magazine: its count believed, else its weight's band, else "?"; "TR" in red when believed tracer)
+  if (P.hand) {
+    const H = P.hand, word = H.count !== null ? `${H.approx ? '≈' : ''}${H.count}` : H.feel ? FEEL_CARD[H.feel] ?? '?' : '?';
+    const x = HAND_X - 4;
+    say(px, x, WORD_Y, word, MARK, WORD_K);
+    if (H.load === 'tracer') say(px, x + (sayWidth(word) + 2) * WORD_K, WORD_Y, 'TR', RED, WORD_K);
+  }
 }

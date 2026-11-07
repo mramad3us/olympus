@@ -33,6 +33,12 @@
 // made −10 for a closed door, my call), two rooms away fainter still. In a splash the world goes
 // muffled (SPLASH_LP_HZ, SPLASH_DUCK_DB, eased with the iris) and the watch ticks once a shown
 // minute, at most TICK_MAX_HZ.
+//
+// The 0.0.6 round's (the build sheet 0.0.6 §2.3, VIEWS §11.3; my calls, unscored, VIEWS §11.5's sound set to come):
+// the clippers, a loop while a shaved head is buzzed at a sink (a 120 Hz motor's sawtooth hum, CLIPPER_HZ,
+// through a 2 kHz band, its fundamental under it and the blades' hiss); and the R menu's sounds on the UI bus:
+// uiMove a 12 ms tick as the cursor moves, uiCheck a latch's click as a box is checked and uiUncheck the same
+// lower, uiConfirm two rising notes (660 then 880 Hz) on DO IT, uiClose a falling blip.
 
 /** At most this many voices at once; a sound past it is dropped (VIEWS §11.2's 48). */
 export const VOICES_MAX = 48;
@@ -128,6 +134,8 @@ export const LOOP_FADE_S = 0.25;
  * the first key (the flush's 3.2 s, the bugle's 3.9 s).
  */
 export const WORLD_RATE_HZ = 24000;
+/** The clippers' motor hum (Hz): a vibrating motor at twice a 60 Hz mains (my call, unscored). */
+export const CLIPPER_HZ = 120;
 /** Bugle notes (Hz): the call is on the bugle's harmonics in C. */
 const G4 = 392, C5 = 523.25, E5 = 659.26, G5 = 783.99;
 
@@ -181,7 +189,53 @@ export const WORLD = Object.freeze({
       Object.freeze({ kind: 'tone', hz: 3200, toHz: 3000, attackS: 0.0002, decayS: 0.0018, db: -6 }),
     ]),
   }),
+  // (the 0.0.6 round's, below: the clippers' loop and the R menu's sounds)
+  clippers: Object.freeze({
+    levelDb: -24, durS: 1.0, loop: true, variants: 1, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'glide', hz: CLIPPER_HZ, toHz: CLIPPER_HZ, durS: 1.2, attackS: 0.002, releaseS: 0.002, formant: Object.freeze([2000, 0.9]), db: 0 }),
+      Object.freeze({ kind: 'tone', hz: CLIPPER_HZ, toHz: CLIPPER_HZ, attackS: 0, decayS: 1e6, db: -10 }),
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([2400, 1.4]), attackS: 0, decayS: 1e6, db: -22 }),
+    ]),
+  }),
+  uiMove: Object.freeze({
+    levelDb: -34, durS: 0.012, variants: 1,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', highpass: 3000, attackS: 0.0002, decayS: 0.0012, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 2400, toHz: 2300, attackS: 0.0002, decayS: 0.0016, db: -8 }),
+    ]),
+  }),
+  uiCheck: Object.freeze({
+    levelDb: -24, durS: 0.04, variants: 1,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([1800, 2]), attackS: 0.0003, decayS: 0.003, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 1100, toHz: 900, attackS: 0.0005, decayS: 0.006, db: -4 }),
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([2600, 3]), attackS: 0.0003, decayS: 0.002, delayS: 0.012, db: -10 }),
+    ]),
+  }),
+  uiUncheck: Object.freeze({
+    levelDb: -25, durS: 0.04, variants: 1,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([1200, 2]), attackS: 0.0003, decayS: 0.003, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 700, toHz: 560, attackS: 0.0005, decayS: 0.006, db: -4 }),
+    ]),
+  }),
+  uiConfirm: Object.freeze({
+    levelDb: -22, durS: 0.24, variants: 1,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'notes', notes: Object.freeze([Object.freeze([660, 0.07]), Object.freeze([880, 0.11])]), formant: Object.freeze([1500, 0.8]), lowpass: 3500, attackS: 0.004, releaseS: 0.03, gapS: 0.012, vibratoK: 0, scoopK: 0, db: 0 }),
+    ]),
+  }),
+  uiClose: Object.freeze({
+    levelDb: -27, durS: 0.08, variants: 1,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'tone', hz: 700, toHz: 420, attackS: 0.001, decayS: 0.03, db: 0 }),
+      Object.freeze({ kind: 'noise', lowpass: 900, attackS: 0.0005, decayS: 0.01, db: -8 }),
+    ]),
+  }),
 });
+/** The R menu's sounds by the list's kinds (src/ui/kit/list.js): WORLD's recipes, played on the UI bus, never muffled. */
+export const UI_SOUNDS = Object.freeze({ move: 'uiMove', check: 'uiCheck', uncheck: 'uiUncheck', confirm: 'uiConfirm', close: 'uiClose' });
 
 // ---- the 0.0.5 round: the range (the build sheet §2.4, VIEWS §11.3; my calls, unscored) ----
 //
@@ -221,6 +275,9 @@ export const PA_SOURCE_DB = 20;
 /** The click's sound at a fraction of each action's time (the sheet's §2.4 and mine): action id (or a family 'magOut:*') → [[kind, fraction]]. */
 export const ACTION_SOUNDS = Object.freeze({
   magIn: Object.freeze([Object.freeze(['magSeat', 0.8])]),
+  // (0.0.6: LOAD's magazine in is a reach and a seat (firearms.js); the seat clicks at the same moment of LOAD as magIn's
+  // 0.8 did: 0.8 × 1,610 ms = 690 + 0.65 × 920)
+  seat: Object.freeze([Object.freeze(['magSeat', 0.65])]),
   charge: Object.freeze([Object.freeze(['chargePull', 0.35]), Object.freeze(['chargeSlam', 0.9])]),
   rack: Object.freeze([Object.freeze(['chargePull', 0.3]), Object.freeze(['chargeSlam', 0.85])]),
   release: Object.freeze([Object.freeze(['boltSlam', 0.5])]),

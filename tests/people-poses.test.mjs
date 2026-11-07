@@ -20,6 +20,7 @@ import { SITES } from '../src/data/setting/calendar.js';
 import { canSee, eyeOf } from '../src/sim/people/perception.js';
 import { figureOf } from '../src/sim/people/figure.js';
 import { placed, whereIs, fireWatchOf, actorsStep, placeStats, inSight, CURTAIN_FRAC, FIRE_WATCH_POST, POSE_PERIOD_MS } from '../src/sim/people/place.js';
+import { hairStepOf } from '../src/sim/body/hair.js';
 import { postOf } from '../src/sim/places/fixtures.js';
 
 const SEED = 48213;
@@ -236,6 +237,51 @@ export default [
       const me2 = playerActor(bay.state);
       assert(me2.x === 54.8 && me2.face === 'right' && bay.state.actors.list.length === 14 && squadmates(bay.state).every(a => a.posture === 'lie'), JSON.stringify(me2));
       console.log(`      at the street (530, 224): ${out.state.actors.list.length} actor, the player's; at the aisle (54.8, ${aisle()}) facing right: ${bay.state.actors.list.length} actors, the squad asleep (the bench's squadbay-night start)`);
+    },
+  },
+  {
+    name: 'a squadmate\'s hair step (0.0.6: the barber\'s closed form, actor.hair) changes only out of sight: watched through the moment it grows a step or is cut, the drawn step holds; turned away, it takes the new one within a game second (the build sheet 0.0.6 §2.2)',
+    fn() {
+      // (the first squadmate whose step changes within three sols of the career's start, by day, at a whole minute)
+      const g0 = createGame({ scenario: 'barracks', seed: SEED, hour: 13 }), s0 = g0.state;
+      let best = null;
+      for (const a of squadmates(s0)) {
+        let prev = hairStepOf(s0, a.who, s0.clock.ms);
+        for (let t = s0.clock.ms + MIN_MS; t < s0.clock.ms + 3 * 88_775_244; t += MIN_MS) {
+          const st = hairStepOf(s0, a.who, t), h = marsClock(t, LON).hour;
+          if (st !== prev && h >= 9 && h < 20) { if (!best || t < best.t) best = { who: a.who, t, from: prev, to: st }; break; }
+          prev = st;
+        }
+      }
+      assert(best, 'no squadmate\'s step changes by day within three sols');
+      // (to the tick: the step changed within the minute before t)
+      let lo = best.t - MIN_MS, hi = best.t;
+      while (hi - lo > TICK_MS) { const m = Math.floor((lo + hi) / 2 / TICK_MS) * TICK_MS; if (hairStepOf(s0, best.who, m) === best.to) hi = m; else lo = m; }
+      best.t = hi;
+      // (a game a little before it, the player in the aisle facing that squadmate's rack)
+      const startMs = Math.floor((best.t - 20_000) / TICK_MS) * TICK_MS;
+      const g = createGame({ scenario: 'barracks', seed: SEED, startMs }), s = g.state, me = playerActor(s);
+      const actor = () => s.actors.list.find(x => x.who === best.who);
+      const a = actor();
+      put(me, a.x, aisle(), a.z < aisle() ? 'up' : 'down');
+      const drawn = () => figureOf(s, actor(), s.clock.ms).look.hair.step ?? 0;
+      const first = drawn();
+      assert(first === best.from, `drawn at the start ${first}, the closed form's ${best.from}`);
+      let seenTicks = 0, changedSeen = 0;
+      for (let i = 0; i < 20 * 60; i++) {
+        const seen = inSight(s, eyeOf(s, me), actor().x, actor().z), before = drawn();
+        g.step(1);
+        if (seen) { seenTicks++; if (drawn() !== before) changedSeen++; }
+      }
+      const held = drawn(), closed = hairStepOf(s, best.who, s.clock.ms);
+      // (turned away: the bay door, facing the hall)
+      const d = door();
+      put(me, (d.a + d.b) / 2, d.at - 0.45, 'down');
+      g.step(20);
+      const after = actor().hair;
+      console.log(`      ${s.people[best.who].name.family}'s ${s.people[best.who].look.hair.style}: step ${best.from} → ${best.to} at ${clockText(best.t)} (closed form); watched ${seenTicks} ticks across it: drawn ${first} → ${held}, ${changedSeen} changes in sight (the closed form ${closed}); turned away a second: actor.hair ${after}`);
+      assert(seenTicks > 20 * 30 && changedSeen === 0 && held === first, JSON.stringify({ seenTicks, changedSeen, first, held }));
+      assert(after === closed, `turned away: ${after}, the closed form ${closed}`);
     },
   },
 ];

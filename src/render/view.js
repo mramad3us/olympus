@@ -202,8 +202,8 @@ const FACE = { right: [1, 0], left: [-1, 0], down: [0, 1], up: [0, -1] };
 const GAIT = { run: 'run', walk: 'walk', stroll: 'stroll', bound: 'bound', idle: 'idle' };
 /** A dressing figure's two frames, each held this long (game ms: a shirt over the head, a leg into the trousers). */
 export const DRESS_FRAME_MS = 900;
-/** An activity's part, the frame it shows (the sink's three, undressing and dressing); anything else is the gait's. */
-const PART_FRAME = Object.freeze({ teeth: 'brush', shave: 'shave', face: 'basin', in: 'dress', dress: 'dress', 'turn-in': 'dress' });
+/** An activity's part, the frame it shows (the sink's: 0.0.6's hands washed as the face is, the clippers in the razor's frame; undressing and dressing); anything else is the gait's. */
+const PART_FRAME = Object.freeze({ teeth: 'brush', shave: 'shave', face: 'basin', hands: 'basin', clip: 'shave', in: 'dress', dress: 'dress', 'turn-in': 'dress' });
 /** The beacon's red pool (the stage's dynamic lamp slots: a lamp of kind 'beacon', VIEWS §2.7's hard-edged pool). */
 export const BEACON_LAMP = Object.freeze({ y: 2.4, r: 2.2, color: 0xff4a3a, core: 0.55, ring: 0.22, kind: 'beacon' });
 const HEAD_OF_FACE = { down: 'n', up: 's', right: 'w', left: 'e' };
@@ -519,7 +519,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     const curtainK = fig.curtain && downAt !== null && msA - downAt < CURTAIN_MS ? Math.max(0, (msA - downAt) / CURTAIN_MS) : null;
     return {
       x: rack ? rack.x : a.x, z: rack ? rack.z : a.z, rack, head,
-      lie: { y: deck !== null ? deck + BERTH_TOP_M + 0.005 : (fig.y ?? 0) + 0.12, head, blanket: rack ? rackBlanket(rack) : 'olive', skin: look.skin ?? 'tan', hair: look.hair ?? { style: 'crew', color: 'dark' },
+      lie: { y: deck !== null ? deck + BERTH_TOP_M + 0.005 : (fig.y ?? 0) + 0.12, head, blanket: rack ? rackBlanket(rack) : 'olive', skin: look.skin ?? 'tan', hair: look.hair ?? { style: 'lowReg', color: 'dark' },
         curtain: fig.curtain && !up ? (rack?.look?.curtain ?? 'olive') : null, curtainK, breath, up, seed, who: person ?? a.who },
     };
   }

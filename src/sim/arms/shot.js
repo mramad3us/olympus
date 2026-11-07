@@ -261,11 +261,11 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
     entry = logEntry(state, bus, { kind: 'note', tone: 'note', text: REFUSALS[f.why] ?? 'Click.', who: pid });
     stepMs = Math.round(TRIGGER_S * 1000);
   }
-  const shot = { id, who: pid, gun: gunId, atMs: ms, fired: !!f.fired, why: f.why ?? null, stoppage: f.stoppage ?? null, set: f.set ?? null,
+  const shot = { id, who: pid, gun: gunId, atMs: ms, fired: !!f.fired, why: f.why ?? null, stoppage: f.stoppage ?? null, set: f.set ?? null, load: f.fired ? f.load ?? 'ball' : null,
     muzzle: muzzle ? { x: muzzle.x, y: muzzle.y, z: muzzle.z } : null, dirRad, target: target?.key ?? null, lane: target?.lane ?? null,
     hole: hole ? { at: hole.at, score: hole.score, v: hole.v } : null, brass: brass ? { kind: brass.kind, landMs: brass.landMs, at: brass.at } : null,
     roll, logSeq: entry?.seq ?? null, recoverMs: recMs, empty: !!f.empty, brassRec: brass };
-  bus?.emit('shot', { id, who: pid, gun: gunId, atMs: ms, fired: shot.fired, why: shot.why, stoppage: shot.stoppage, set: shot.set, muzzle: shot.muzzle, dirRad,
+  bus?.emit('shot', { id, who: pid, gun: gunId, atMs: ms, fired: shot.fired, why: shot.why, stoppage: shot.stoppage, set: shot.set, load: shot.load, muzzle: shot.muzzle, dirRad,
     target: shot.target, lane: shot.lane, hole: shot.hole, brass: shot.brass, logSeq: shot.logSeq });
   return { ms: stepMs, shot };
 }

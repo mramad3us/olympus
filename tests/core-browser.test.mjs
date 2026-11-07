@@ -32,7 +32,14 @@
 // weapon card showing the belief, pixel for pixel, while the debug handle makes the truth differ; the bot
 // on through SHOW CLEAR to "The line is clear."; the end card's summary, Score and Copy my scores. And the
 // weapon state's rectangles in the page at 1024 × 768, 1280 × 600, 1600 × 900 and 1920 × 1080, none meeting.
-import { assert, fmt } from './helpers.mjs';
+// The 0.0.6 round's (the build sheet 0.0.6 §5.3; the user, 2026-11-06: "the shave+wash+water when pressing R at a
+// basin without the tootip telling us what is going to happen is no good"): R's plate on the instinct's line, in
+// the kit's pixels, on every line (the klaxon's urgent one too); at Head A's sink after the urinal the plate reads
+// "R WASH HANDS · 30 S" before R, and R does that alone; R held opens the R menu (a canvas of the kit's pixels,
+// its keys its own), the digits and Space check brush teeth, shave and wash face, Enter: one splash, three lines
+// in its strip; the mouse the same (a click on each box, DO IT); Esc and R close it; the card inside the window
+// at four sizes; at the rack mid-drill, R held, the sleep's row and Enter bring the late card.
+import { assert, fmt, root } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { rectsAt, overlaps } from '../src/ui/hud/layout.js';
 
@@ -84,7 +91,10 @@ const sampleSplash = (page, { maxS = 30 } = {}) => page.evaluate(([h, maxS]) => 
 }), [H, maxS]);
 const phasesOf = (tl) => { const p = {}; for (let i = 1; i < tl.length; i++) p[tl[i - 1].phase] = (p[tl[i - 1].phase] ?? 0) + (tl[i].t - tl[i - 1].t); return p; };
 const fmtPhases = (p) => ['in', 'lapse', 'decel', 'beat', 'strip', 'out'].filter(k => p[k]).map(k => `${k} ${fmt(p[k], 2)}`).join(', ');
-const lineOf = () => ({ line: document.querySelector('.instinct .line')?.textContent ?? '', tone: document.querySelector('.instinct .line')?.className ?? '', offer: document.querySelector('.instinct .chip.offer')?.textContent ?? '', all: document.querySelector('.instinct')?.textContent ?? '' });
+const lineOf = () => ({ line: document.querySelector('.instinct .line')?.textContent ?? '', tone: document.querySelector('.instinct .line')?.className ?? '', offer: document.querySelector('.instinct .plate:not([hidden]) .words')?.textContent?.trim() ?? '', plate: document.querySelector('.instinct .plate:not([hidden])')?.dataset.text ?? '', all: document.querySelector('.instinct')?.textContent ?? '' });
+// (R held: down, past TAP_MS, up; then the R menu's card, its words as the player reads them)
+const holdR = async (page) => { await page.keyboard.down('KeyR'); await page.waitForTimeout(350); await page.keyboard.up('KeyR'); };
+const menuText = (page) => page.waitForFunction(() => document.querySelector('.glass.actions')?.dataset.text, null, { timeout: 3000 }).then(h => h.jsonValue()).catch(() => '');
 const playing = (page) => page.waitForFunction((h) => window[h].state && !window[h].loop.paused && !window[h].splash() && document.querySelector('.watch .t')?.textContent, H, { timeout: 30000 });
 
 export default [
@@ -273,7 +283,8 @@ export default [
         for (const w of want) assert(keys.some(k => (w instanceof RegExp ? w.test(k) : k === w)), `no row for ${w}: ${keys.join(', ')}`);
         for (const not of ['F', 'H', 'Tab', 'E', 'K', 'L', 'M']) assert(!keys.includes(not), `${not} does nothing in this build, yet it is on the card`);
         assert(/Shift rushed/.test(rows.find(r => r[0] === '1 … 0')[1]) && /held careful/.test(rows.find(r => r[0] === '1 … 0')[1]) && /stance/.test(rows.find(r => r[0] === 'A W')[1]), 'the digits\' tempo and the stance keys');
-        assert(/door/.test(rows.find(r => r[0] === 'R')[1]) && /wait 15 min/.test(rows.find(r => r[0] === 'R')[1]) && /held: the choices/.test(rows.find(r => r[0] === 'R')[1]), `R's words: ${rows.find(r => r[0] === 'R')[1]}`);
+        assert(/door/.test(rows.find(r => r[0] === 'R')[1]) && /wait 15 min/.test(rows.find(r => r[0] === 'R')[1]) && /held: the menu/.test(rows.find(r => r[0] === 'R')[1]), `R's words: ${rows.find(r => r[0] === 'R')[1]}`);
+        assert(rows.some(([k, w]) => k === 'Space' && /R menu/.test(w)) && rows.some(([k, w]) => k === 'Q D' && /R menu/.test(w)), 'the R menu\'s keys');
         assert(/instinct/.test(rows.find(r => r[0] === 'T')[1]) && /character sheet/.test(rows.find(r => r[0] === 'C')[1]) && rows.some(([k, w]) => k === 'Space' && /to the end/.test(w)), 'T, C and the splash\'s Space');
         assert(!keys.includes('^') && !keys.includes('$'), 'the debug keys show only in debug mode');
         await page.goto(page.url().replace(/\?.*$/, '') + '?play=barracks&seed=2&nostore=1&debug=1');
@@ -516,7 +527,7 @@ export default [
     },
   },
   {
-    name: 'test-night: at the rack in PT kit at 21:55, R held shows the choices; R: the night\'s splash stopped at the klaxon\'s exact second (02:30:00.091), ALARM; the urgent line, T rises, T dresses, the count; R held mid-drill and "sleep until reveille" brings the late card; a debug hour to the stand-down, the end card; the splash\'s rectangles apart at three window sizes',
+    name: 'test-night: at the rack in PT kit at 21:55, R held opens the R menu; R: the night\'s splash stopped at the klaxon\'s exact second (02:30:00.091), ALARM; the urgent line keeps R\'s plate, T rises, T dresses, the count; R held mid-drill, the sleep\'s row and Enter bring the late card; a debug hour to the stand-down, the end card; the splash\'s rectangles apart at three window sizes',
     heavy: true,
     timeoutMs: 240000,
     async fn() {
@@ -542,22 +553,35 @@ export default [
         }
         await page.setViewportSize({ width: 1280, height: 720 });
         await settle(page, 300);
-        // (R held: the choices card, Esc for nothing)
-        await page.keyboard.down('KeyR'); await page.waitForTimeout(350); await page.keyboard.up('KeyR');
-        await page.waitForFunction(() => document.querySelector('.glass.choose'), null, { timeout: 3000 });
-        const choices = await page.evaluate(() => [...document.querySelectorAll('.glass.choose .item')].map(b => b.innerText.replace(/\s+/g, ' ')));
+        // (R held: the R menu, Esc for nothing)
+        await holdR(page);
+        const choices = await menuText(page);
         await page.keyboard.press('Escape');
-        console.log(`      R held: ${choices.join(' | ')}`);
-        assert(choices.length >= 4 && choices.some(c => /nap/.test(c)), JSON.stringify(choices));
+        await settle(page, 200);
+        const shut = await page.evaluate((h) => ({ card: !document.querySelector('.overlay').hidden, paused: window[h].loop.pauseReasons }), H);
+        console.log(`      R held: ${choices.split('\n').join(' | ')}; Esc: ${JSON.stringify(shut)}`);
+        assert(/YOUR RACK/.test(choices) && /SLEEP \[UNTIL REVEILLE ▾\]/.test(choices) && /NAP \[45 MIN ▾\]/.test(choices) && !shut.card && !shut.paused.length, JSON.stringify({ choices, shut }));
         // (R: the night, sampled; the klaxon stops it at its second)
         const tl0 = sampleSplash(page, { maxS: 40 });
         await page.keyboard.press('KeyR');
         const tl = await tl0, ph = phasesOf(tl);
-        const land = await page.evaluate((h) => ({ ms: window[h].state.clock.ms, ticks: window[h].state.clock.ms % 50, time: document.querySelector('.watch .t').textContent, line: document.querySelector('.instinct .line')?.textContent ?? '', tone: document.querySelector('.instinct .line')?.className ?? '' }), H);
+        await page.waitForFunction(() => !!document.querySelector('.instinct .plate:not([hidden])'), null, { timeout: 5000 }).catch(() => {});
+        const land = await page.evaluate((h) => ({ ms: window[h].state.clock.ms, ticks: window[h].state.clock.ms % 50, time: document.querySelector('.watch .t').textContent, line: document.querySelector('.instinct .line')?.textContent ?? '', tone: document.querySelector('.instinct .line')?.className ?? '', plate: document.querySelector('.instinct .plate:not([hidden])')?.dataset.text ?? '' }), H);
         const plaques = [...new Set(tl.map(x => x.plaque).filter(Boolean))], slips = tl.filter(x => /^24:00/.test(x.clock)).length;
         console.log(`      the night: ${fmt(tl.at(-1).t - tl[0].t, 2)} s (${fmtPhases(ph)}); through the slip in ${slips} frames; plaques ${plaques.join(', ')}; landed at ${land.ms} (${land.time}, on the tick grid: ${land.ticks === 0}); the line '${land.line}' (${land.tone})`);
         assert(land.ms === 23532601000 && plaques.includes('ALARM') && ph.beat > 0.4 && !ph.strip && slips > 0, JSON.stringify({ land, plaques, ph }));
-        assert(/urgent/.test(land.tone) && /Klaxon/i.test(land.line), `the urgent line: ${JSON.stringify(land)}`);
+        assert(/urgent/.test(land.tone) && /Klaxon/i.test(land.line) && /^R /.test(land.plate), `the urgent line, R's plate on it: ${JSON.stringify(land)}`);
+        // (an urgent line is never cut for R's plate, at 1024 × 768 too: the plate short and giving way (the fixer's, 0.0.6, after
+        // "PT kit is not th…" in review); the window put back after)
+        const cutAt = [];
+        for (const [w, h] of [[1024, 768], [1600, 900]]) {
+          await page.setViewportSize({ width: w, height: h }); await settle(page, 500);
+          const m = await page.evaluate(() => { const e = document.querySelector('.instinct .line.urgent'); return e ? { sw: e.scrollWidth, cw: e.clientWidth, plate: document.querySelector('.instinct .plate:not([hidden])')?.dataset.text ?? '' } : null; });
+          cutAt.push(`${w} × ${h}: the line ${m?.sw} of ${m?.cw} px, the plate '${m?.plate}'`);
+          assert(m && m.sw <= m.cw + 1 && /^R /.test(m.plate), JSON.stringify({ w, h, m }));
+        }
+        await page.setViewportSize({ width: 1280, height: 720 }); await settle(page, 300);
+        console.log(`      the urgent line whole: ${cutAt.join('; ')}`);
         // (T: rise, once the line offers it; then R held at the rack's foot, "sleep until reveille": the late card, not now; then T: dress)
         const tWhenKeyed = async () => {
           await page.waitForFunction(() => !!document.querySelector('.instinct .row.top .line kbd'), null, { timeout: 10000 }).catch(() => {});
@@ -568,16 +592,19 @@ export default [
         const t1 = await tWhenKeyed();
         await page.waitForFunction((h) => { const s = window[h].state, a = s.actors.list.find(x => x.id === s.player.actor); return (a.posture ?? 'stand') === 'stand' && !(a.trans && s.clock.ms < a.trans.fromMs + a.trans.ms); }, H, { timeout: 10000 }).catch(() => {});
         await settle(page, 300);
-        await page.keyboard.down('KeyR'); await page.waitForTimeout(350); await page.keyboard.up('KeyR');
-        const chose = await page.waitForFunction(() => document.querySelector('.glass.choose'), null, { timeout: 3000 }).then(() => true).catch(() => false);
+        await holdR(page);
+        const mid = await menuText(page);
         let lateText = '';
-        if (chose) {
-          await page.evaluate(() => [...document.querySelectorAll('.glass.choose .item')].find(b => /sleep until reveille/.test(b.innerText))?.click());
+        if (mid) {
+          // (the sleep's row by its digit, its pick until reveille, Enter: the late card)
+          const n = mid.split('\n').slice(1).findIndex(l => / SLEEP /.test(l)) + 1;
+          await page.keyboard.press(`Digit${n % 10}`);
+          await page.keyboard.press('Enter');
           await page.waitForFunction(() => document.querySelector('.glass.late'), null, { timeout: 3000 }).catch(() => {});
           lateText = await page.evaluate(() => document.querySelector('.glass.late')?.innerText ?? '');
           await page.keyboard.press('Digit3');
         }
-        console.log(`      T (rise) on '${t1.line}'; then R held at the rack's foot and "sleep until reveille": '${lateText.split('\n').filter(Boolean).join(' | ')}'`);
+        console.log(`      T (rise) on '${t1.line}'; then R held at the rack's foot (${mid.split('\n').slice(1, -2).join(' | ')}) and the sleep, Enter: '${lateText.split('\n').filter(Boolean).join(' | ')}'`);
         assert(/Late for/i.test(lateText) && /do it anyway/.test(lateText) && /not now/.test(lateText), lateText);
         const t2 = await tWhenKeyed();
         console.log(`      T (dress) on '${t2.line}'`);
@@ -600,6 +627,109 @@ export default [
         console.log(`      the stand-down: the end card '${end.card.split('\n').filter(Boolean).slice(0, 2).join(' | ')}'`);
         assert(/End of the scene: The klaxon at 02:30/i.test(end.card) && end.scene.ended, JSON.stringify(end));
       }, { query: 'play=test-night&seed=48213&nostore=1&debug=1' });
+    },
+  },
+  {
+    name: 'R says what it does (the user, 2026-11-06: "the shave+wash+water when pressing R at a basin without the tootip telling us what is going to happen is no good"): after the urinal, at Head A\'s sink the plate reads "R WASH HANDS · 30 S" before R, and R washes the hands alone; R held: the R menu; 2 Space 3 Space 5 Space by row, Enter: one splash, three lines in its strip; the mouse the same; Esc and R close; the card inside the window at four sizes',
+    heavy: true,
+    timeoutMs: 240000,
+    async fn() {
+      await withGame(async (page, errors, game) => {
+        const go = async (id) => { const sp = await spotIn(page, id); await page.evaluate(([h, p]) => window[h].go('melas.echo.1', p.x, p.z, p.face ?? 'up'), [H, sp]); await settle(page, 600); };
+        const done = () => page.waitForFunction((h) => !window[h].splash() && !window[h].state.time?.doing && !window[h].state.skip, H, { timeout: 90000 });
+        await playing(page);
+        // (the urinal: R there is the head, which no longer washes the hands; half hours of debug time first, until the
+        // bladder has something to give (over URINATE_MIN_ML 50 mL: an empty one makes the urinal's row struck))
+        for (let i = 0; i < 8 && (await page.evaluate((h) => window[h].body()?.body?.bladder?.ml ?? 0, H)) <= 80; i++) {
+          await page.evaluate((h) => window[h].act('debug:skip:1800000'), H);
+          await page.waitForFunction((h) => !!window[h].splash(), H, { timeout: 5000 }).catch(() => {});
+          await done();
+        }
+        await go('f:e1:head-2a:urinal-1#1');
+        const atUrinal = await page.evaluate(lineOf);
+        await page.keyboard.press('KeyR');
+        await page.waitForFunction((h) => !!window[h].state.time?.doing || !!window[h].state.skip, H, { timeout: 5000 }).catch(() => {});
+        await done();
+        const handsAfter = await page.evaluate((h) => window[h].hands(), H);
+        // (the sink: its plate before R, then R)
+        await go('f:e1:head-2a:sinks-1#1');
+        await page.waitForFunction(() => /wash hands/.test(document.querySelector('.instinct .plate .words')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {});
+        const atSink = await page.evaluate(lineOf), menu0 = await page.evaluate((h) => window[h].menu(), H);
+        console.log(`      at the urinal: '${atUrinal.plate}'; after the head: ${JSON.stringify(handsAfter)}; at the sink: the plate '${atSink.plate}', the line '${atSink.line}'; the menu's rows ${menu0?.rows?.map(r => r.key).join(', ')}`);
+        assert(/^R USE THE HEAD/.test(atUrinal.plate) && (handsAfter?.i ?? 0) >= 2, JSON.stringify({ atUrinal, handsAfter }));
+        assert(atSink.plate === 'R WASH HANDS · 30 S', `the sink's plate: ${JSON.stringify(atSink)}`);
+        const b0 = await page.evaluate((h) => ({ ms: window[h].state.clock.ms, body: window[h].body()?.body, hands: window[h].hands() }), H);
+        await page.keyboard.press('KeyR');
+        await page.waitForFunction((h) => !!window[h].state.time?.doing, H, { timeout: 5000 }).catch(() => {});
+        await done();
+        const b1 = await page.evaluate((h) => ({ ms: window[h].state.clock.ms, body: window[h].body()?.body, hands: window[h].hands(), plate: document.querySelector('.instinct .plate')?.dataset.text }), H);
+        console.log(`      R: ${fmt((b1.ms - b0.ms) / 1000, 1)} s lived; the hands ${b0.hands?.band} (${fmt(b0.hands?.dirt ?? NaN, 1)}) → ${b1.hands?.band} (${fmt(b1.hands?.dirt ?? NaN, 1)}); stubble ${fmt(b0.body?.hygiene?.stubbleH ?? NaN, 2)} → ${fmt(b1.body?.hygiene?.stubbleH ?? NaN, 2)} h; the plate now '${b1.plate}'`);
+        // (the hands washed and nothing else: no shave, no drink, lived in half a minute)
+        assert(b1.hands?.dirt < 1 && b1.body.hygiene.stubbleH >= b0.body.hygiene.stubbleH && (b1.ms - b0.ms) <= 45_000 && (b1.body.water?.balanceL ?? 0) <= (b0.body.water?.balanceL ?? 0) + 1e-6, JSON.stringify({ b0: b0.hands, b1: b1.hands }));
+        // (R held: the menu; the keys check brush teeth, shave and wash face by their rows; Enter: one chain, one splash)
+        await holdR(page);
+        const card = await menuText(page);
+        const rowOf = (id) => card.split('\n').slice(1).findIndex(l => new RegExp(`^.\\d \\[.\\] ${id}\\b`).test(l)) + 1;
+        const rows = ['BRUSH TEETH', 'SHAVE', 'WASH FACE'].map(rowOf);
+        await page.screenshot({ path: `${root}/.run/core-browser-menu.png` }).catch(() => {});
+        for (const n of rows) await page.keyboard.press(`Digit${n}`);              // (a digit checks its row: the fixer's, 0.0.6)
+        const checked = await page.evaluate(() => document.querySelector('.glass.actions')?.dataset.text ?? '');
+        console.log(`      R held:\n${card.split('\n').map(l => `        ${l}`).join('\n')}\n      ${rows.join(', ')} by their digits: ${checked.split('\n').filter(l => /\[x\]|TOTAL/.test(l)).join(' | ')}`);
+        assert(rows.every(n => n > 0) && /TOTAL 7 MIN · DONE/.test(checked), JSON.stringify({ rows, checked }));
+        const starts = [];
+        await page.exposeFunction('__menuSkip', (e) => starts.push(e)).catch(() => {});
+        await page.evaluate((h) => { window[h].bus.on('skip-start', (e) => window.__menuSkip({ activity: e.activity, chain: e.chain ?? null, toMs: e.toMs, fromMs: e.fromMs })); }, H);
+        const tl0 = sampleSplash(page);
+        await page.keyboard.press('Enter');
+        const tl = await tl0, strip = tl.filter(x => x.strip.length).at(-1)?.strip ?? [];
+        const after = await page.evaluate((h) => ({ ms: window[h].state.clock.ms, stubbleH: window[h].body()?.body?.hygiene?.stubbleH, log: window[h].state.log?.list?.slice(-4)?.map(e => e.text) }), H);
+        console.log(`      Enter: ${starts.length} skip-start (${JSON.stringify(starts[0]?.chain)}), ${fmt((tl.at(-1)?.t ?? 0) - (tl[0]?.t ?? 0), 2)} s of splash (${fmtPhases(phasesOf(tl))}); its strip: ${strip.join(' | ')}; stubble ${fmt(after.stubbleH, 2)} h`);
+        assert(starts.length === 1 && starts[0].chain?.n === 3 && strip.filter(x => /^✓ /.test(x)).length === 3 && after.stubbleH < 0.1, JSON.stringify({ starts, strip, after }));
+        // (Esc and R close the menu, the game paused only while it is up)
+        for (const key of ['Escape', 'KeyR']) {
+          await holdR(page);
+          await menuText(page);
+          await page.keyboard.press(key);
+          await settle(page, 200);
+          const c = await page.evaluate((h) => ({ card: !document.querySelector('.overlay').hidden, paused: window[h].loop.pauseReasons.length, owned: !!document.querySelector('.glass.actions') }), H);
+          assert(!c.card && !c.paused && !c.owned, `${key} closes: ${JSON.stringify(c)}`);
+        }
+        // (the mouse: a fresh career at the sink, R held, a click on each box, DO IT)
+        await game.open('play=barracks&seed=48213&hour=19.5&nostore=1&debug=1');
+        await playing(page);
+        await go('f:e1:head-2a:sinks-1#1');
+        await holdR(page);
+        const card2 = await menuText(page);
+        const geo = await page.evaluate(async () => {
+          const c = document.querySelector('.glass.actions canvas'), r = c.getBoundingClientRect();
+          const { createList } = await import('/src/ui/kit/list.js'), { menuRows } = await import('/src/ui/cards/actions.js');
+          const m = window.__olympus.menu(), l = createList({ rows: menuRows(m), title: m.title });
+          const L = l.layout();
+          return { k: r.width / c.width, x: r.x, y: r.y, boxes: L.rects.boxes.map(b => ({ key: b.key, x: b.x + b.w / 2, y: b.y + b.h / 2 })), doIt: { x: L.rects.doIt.x + L.rects.doIt.w / 2, y: L.rects.doIt.y + L.rects.doIt.h / 2 } };
+        });
+        for (const key of ['teeth', 'shave', 'wash-face']) { const b = geo.boxes.find(x => x.key === key); await page.mouse.click(geo.x + b.x * geo.k, geo.y + b.y * geo.k); await page.waitForTimeout(60); }
+        const byMouse = await page.evaluate(() => document.querySelector('.glass.actions')?.dataset.text ?? '');
+        const starts2 = starts.length, tl2p = sampleSplash(page);
+        await page.mouse.click(geo.x + geo.doIt.x * geo.k, geo.y + geo.doIt.y * geo.k);
+        const tl2 = await tl2p, strip2 = tl2.filter(x => x.strip.length).at(-1)?.strip ?? [];
+        console.log(`      by the mouse: ${byMouse.split('\n').filter(l => /\[x\]|TOTAL/.test(l)).join(' | ')}; DO IT: a splash of ${fmt((tl2.at(-1)?.t ?? 0) - (tl2[0]?.t ?? 0), 2)} s, its strip ${strip2.length} steps`);
+        assert((byMouse.match(/\[x\]/g) ?? []).length === 3 && strip2.filter(x => /^✓ /.test(x)).length === 3, JSON.stringify({ byMouse, strip2 }));
+        // (the card inside the window at four sizes, the HUD hidden under it)
+        const fits = [];
+        for (const [w, hgt] of [[1024, 768], [1280, 600], [1600, 900], [1920, 1080]]) {
+          await page.setViewportSize({ width: w, height: hgt });
+          await settle(page, 300);
+          await holdR(page);
+          await menuText(page);
+          const r = await page.evaluate(() => { const b = document.querySelector('.glass.actions').getBoundingClientRect(), c = document.querySelector('.glass.actions canvas').getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, cw: c.width, ch: c.height, hud: document.querySelector('#hud').hidden }; });
+          fits.push(`${w} × ${hgt}: the card ${fmt(r.w, 0)} × ${fmt(r.h, 0)} at (${fmt(r.x, 0)}, ${fmt(r.y, 0)}), its pixels ${fmt(r.cw, 0)} × ${fmt(r.ch, 0)}`);
+          assert(r.x >= 0 && r.y >= 0 && r.x + r.w <= w && r.y + r.h <= hgt && r.hud, JSON.stringify({ w, hgt, r }));
+          await page.screenshot({ path: `${root}/.run/core-browser-menu-${w}.png` }).catch(() => {});
+          await page.keyboard.press('Escape');
+          await settle(page, 200);
+        }
+        console.log(`      ${fits.join('; ')}`);
+      }, { query: 'play=barracks&seed=48213&hour=19.5&nostore=1&debug=1' });
     },
   },
   {
@@ -662,7 +792,7 @@ export default [
         const loading = await page.evaluate(() => ({ ticks: [...document.querySelectorAll('.steps .running-view .rv-sub b')].map(b => b.textContent).join(''), name: document.querySelector('.steps .running-view .rv-name')?.textContent ?? '', subs: document.querySelector('.steps .running-view .rv-subs')?.textContent ?? '', acting: document.querySelector('.steps')?.classList.contains('acting') }));
         await choose();
         console.log(`      LOAD said: ${load.radio.at(-1)}; on ${load.panel.find(p => /LOAD/.test(p))}; running: '${loading.name}', '${loading.subs}'`);
-        assert(load.radio.some(l => /LOAD/.test(l)) && loading.acting && loading.name === 'LOAD' && /^[✓◦✗]{1,3}·{0,2}$/.test(loading.ticks) && loading.ticks.length === 3, JSON.stringify(loading));
+        assert(load.radio.some(l => /LOAD/.test(l)) && loading.acting && loading.name === 'LOAD' && /^[✓◦✗]{1,4}·{0,3}$/.test(loading.ticks) && loading.ticks.length === 4, JSON.stringify(loading));   // (0.0.6: safe, reach, seat, port)
         await cmd('ready'); await choose();
         await page.keyboard.press(`Digit${await keyOf('macro:ready')}`);
         await cmd('fire'); await choose(); await settle(page, 150);

@@ -15,7 +15,13 @@
 // "Clear." on an empty chamber); and each command hands the next a gap from roGapMs. The words
 // carry {lane}, the lane in words. COACH holds the coach's lines (the voice beside you: the brief,
 // the strings, the set stoppage after it is cleared, the faults), each ≥ 2 phrasings picked by hash.
-// Data only.
+// 0.0.6 (the user, 2026-11-07; DESIGN.md's log: "A scene never dead-ends", "One magazine a string"):
+// NEEDS_ROUNDS names the readinesses that want rounds, so the coach's check (checkMs of a command
+// waited, no rounds anywhere) lets a dry shooter sit the strings out; moveOnMs is how long of lived
+// time the tower waits on one lane before it goes on (the nudge at nudgeMs before it); load is the
+// course's kind of round (familiarisation fire is ball); kitMixed is setup 'mixed''s issue; the
+// coach's new lines say the dry check, a string sat out or never fired, one magazine a string, the
+// line moving on and the rifle he clears himself. Data only.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
 /** The tower's commands in order (see the header). */
@@ -40,6 +46,9 @@ export const SEQ = deepFreeze([
   { id: 'end', ready: 'never', say: ['The line is clear.', 'The line is clear. Make your way off the line.'] },
 ]);
 
+/** The readinesses that want rounds in the rifle: the coach checks for none while the tower waits on one (0.0.6). */
+export const NEEDS_ROUNDS = Object.freeze(['magIn', 'cond1', 'kneel1', 'stand1', 'emptyLocked']);
+
 /** Which command each macro answers (a macro acted on before its command is given is ahead of the tower). */
 export const MACRO_CMD = deepFreeze({ load: 'load', ready: 'ready', clear: 'clear', cease: 'cease', unload: 'clear',
   'reload:speed': ['kneel', 'stand'], 'reload:retain': ['kneel', 'stand'], 'reload:tactical': ['kneel', 'stand'] });
@@ -56,7 +65,7 @@ export const COURSES = deepFreeze({
   fam25: {
     word: 'familiarisation fire, 25 m', paper: 'card25', lanes: [1, 6], lane: { from: 2, to: 5 }, mags: [5, 5, 5], strings: ['prone', 'kneel', 'stand'],
     set: { mags: [2, 3], rounds: [2, 4], kinds: [['dud', 40], ['stovepipe', 35], ['double', 25]] },
-    roGapMs: [1500, 4000], firstGapMs: 3000, nudgeMs: 30000, kit: 'range-fam', hour: 9.0,
+    roGapMs: [1500, 4000], firstGapMs: 3000, nudgeMs: 30000, checkMs: 3000, moveOnMs: 60000, load: 'ball', kit: 'range-fam', kitMixed: 'range-mixed', hour: 9.0,
   },
 });
 
@@ -68,6 +77,7 @@ export const COURSES = deepFreeze({
  */
 export const COACH = deepFreeze({
   brief: ["I'm your coach. Wait for the tower.", "I'm your coach today. Nothing happens until the tower says so."],
+  briefMixed: ["I'm your coach. One of your magazines is tracer: the course is ball. Wait for the tower.", "I'm your coach today. One of those four is tracer, and we fire ball. Nothing happens until the tower says so."],
   string: {
     0: ['{Hits} of {shots} on the paper. Keep doing that.', 'All {shots} on the paper. Same again.'],
     1: ['{Hits} of {shots}. Breathe out, then press.', '{Hits} on the paper. Let the shot surprise you.'],
@@ -77,7 +87,23 @@ export const COACH = deepFreeze({
     // shooter told "You are snatching the trigger" for what the dice did); one natural 1 alone, owned)
     held: ['{Hits} of {shots}. You held every one; keep that press.', '{Hits} on the paper. The hold was right. Same again.'],
     luck: ['One went wide. That happens; the rest were good.', 'One got away. It happens to everybody. The rest were sound.'],
+    // (0.0.6: a string with no shot in it, sat out for want of rounds or never fired)
+    sat: ['That string goes down as not fired.', 'Not fired. It counts for nothing on the card.'],
+    none: ['Nothing on the paper: you never fired.', 'No shots that string. The tower will not wait for you.'],
+    // (0.0.6: a string fired with more than its rounds, remarked on, never praised as normal (DESIGN.md 2026-11-07, my
+    // call); {shots} the shots fired, {rounds} the string's magazine)
+    over: ['{Shots} rounds in a {rounds}-round string. {Rounds} a string, on the tower\'s word.', 'That was {shots} for a string of {rounds}. One magazine, {rounds} rounds.'],
   },
+  // (0.0.6: the magazine empty with a round still chambered, said before the change (DESIGN.md 2026-11-07: the user's
+  // run-out began with "0 in the magazine" and the fifth round in the chamber); once a string)
+  // (0.0.6: a magazine of another kind than the course's seated (setup mixed's tracer), said once, no fault)
+  kind: ['That\'s your {kind}. The course is {load}: change it before you fire.', 'That one is {kind}. We fire {load} today: change it.'],
+  spout: ['You\'ve one left up the spout. Fire it.', 'There\'s still one in the chamber. Fire it before you change.'],
+  // (each short enough for one line of the radio box at 1600 × 900: a second line was cut under the next voice)
+  dry: ['No rounds left. You sit this string out, on safe.', 'Nothing left to load. You sit this one out, on safe.'],
+  onemag: ['One magazine a string. You reload on the tower\'s word.', 'One magazine a string. Reload when the tower says.'],
+  slow: ['The tower will not wait for you. Keep up.', 'The line waited on you. Be ready on the word.'],
+  take: ['Give it here. I will clear it.', 'Hand it over. I will show it clear myself.'],
   set: {
     dud: ['That was my dummy. Good.', 'An orange dummy: mine. You cleared it. Good.'],
     stovepipe: ['A light round: it short-stroked. You cleared it.', 'That one I loaded light. It did not cycle, and you sorted it.'],

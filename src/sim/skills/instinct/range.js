@@ -17,7 +17,8 @@
 //                           strip, rack.": REMEDIAL ACTION)
 //   range-cmd       warn    the tower's command not done yet ("The tower said LOAD.": it, its stance
 //                           first where it has one; out of the mode, the rifle up first)
-//   range-reload    note    in the stance the tower called, the bolt locked on an empty: RELOAD
+//   range-reload    note    in the stance the tower called, the bolt locked on an empty: RELOAD; with no
+//                           rounds left anywhere (roundsLeft, the coach's count) "Nothing left to load. Tell your coach."
 //   range-unknown   note    a '?' on the weapon card: a press check
 //   range-fire      note    the line hot: aim at your card, then off safe, then "Breathe out. Press."
 //                           (T aims and goes off safe; the press is never T's, always your own digit)
@@ -29,7 +30,7 @@
 import { playerActor, playerId } from '../../../core/ids.js';
 import { beliefOf } from '../../arms/firearms.js';
 import { stepsOf, gunOn } from '../../arms/shooting.js';
-import { rangeOf, lineReady } from '../../scenarios/handling.js';
+import { rangeOf, lineReady, roundsLeft } from '../../scenarios/handling.js';
 import { SEQ } from '../../../data/courses.js';
 import { headOf } from '../../people/perception.js';
 
@@ -132,10 +133,14 @@ export const RANGE_RULES = Object.freeze([
       const k = know(state, me, ms);
       if (!k || (k.cmd !== 'kneel' && k.cmd !== 'stand') || k.busy || lineReady(state, k.cmd)) return null;
       if (k.stance !== (k.cmd === 'kneel' ? 'kneel' : 'stand')) return null;
+      // (nothing left anywhere, as the coach counts it: never "Empty one out, full one in" with no full one to be had
+      // (the fixer's, 0.0.6, after the user's run-out: the line read it throughout; my call, the count the coach's own)
+      if (k.R.dry || roundsLeft(state) === 0) return { k, reload: null, variant: 'dry' };
       return { k, reload: reloadOf(k)?.id ?? null };
     },
     act: (ctx) => (ctx.reload ? actIf(ctx.k, ctx.reload) : null),
-    text: { 1: ['RELOAD. A fresh magazine, and close the bolt on it.', 'Fresh magazine. The bolt goes forward on it.', 'The tower said RELOAD. That means now.', 'Empty one out, full one in, bolt home.'] },
+    text: { 1: ['RELOAD. A fresh magazine, and close the bolt on it.', 'Fresh magazine. The bolt goes forward on it.', 'The tower said RELOAD. That means now.', 'Empty one out, full one in, bolt home.'],
+      dry: ['Nothing left to load. Tell your coach.', 'No rounds anywhere. On safe, and tell your coach.', 'Every magazine is empty. Safe, and say so.', 'Nothing to load. On safe; the coach will see.'] },
   },
   {
     id: 'range-unknown', voice: 'di', repeatMs: RANGE_REPEAT_MS, tone: 'note', short: 'Press check', reach: null,

@@ -14,6 +14,9 @@ import { marsClock } from '../src/core/calendar.js';
 import { createGame } from './game.mjs';
 import { scriptInput } from './game-dummy.mjs';
 import { STUB_DOMAINS } from '../src/sim/game.js';
+import { FACTS, isFact } from '../src/core/facts.js';
+import { areaOf } from '../src/sim/places/model.js';
+import { spotsOf } from '../src/sim/places/fixtures.js';
 
 const throwsWith = (fn, re) => { try { fn(); } catch (e) { assert(re.test(e.message), `threw "${e.message}", not ${re}`); return e.message; } throw new Error(`did not throw ${re}`); };
 
@@ -96,11 +99,11 @@ export default [
     },
   },
   {
-    name: 'the actions table: routed by prefix to their owners (R\'s hand and the door to places, 0.0.3; the activity to time and the instinct\'s T to people, 0.0.4; G, the digits, X, the steps, V and the stances to weapons, 0.0.5), the people and body domains built, the stubs doing what the sheet says; an unknown action counted, never thrown',
+    name: 'the actions table: routed by prefix to their owners (R\'s hand and the door to places, 0.0.3; the activity to time and the instinct\'s T to people, 0.0.4; G, the digits, X, the steps, V and the stances to weapons, 0.0.5; R held\'s chain to time, 0.0.6), the people and body domains built, the stubs doing what the sheet says; an unknown action counted, never thrown',
     fn() {
       const g = createGame({ seed: 4 });
       const table = g.sim.actions;
-      const want = { debug: 'tech', skip: 'time', activity: 'time', hand: 'places', door: 'places', people: 'people', instinct: 'people',
+      const want = { debug: 'tech', skip: 'time', activity: 'time', chain: 'time', hand: 'places', door: 'places', people: 'people', instinct: 'people',
         ready: 'weapons', digit: 'weapons', shoot: 'weapons', stop: 'weapons', carry: 'weapons', stance: 'weapons', hit: 'combat', grab: 'combat', guard: 'combat' };
       assert(JSON.stringify(Object.keys(table).sort()) === JSON.stringify(Object.keys(want).sort()) && Object.entries(want).every(([a, d]) => table[a] === d), JSON.stringify(table));
       const people = g.sim.domains.find(d => d.name === 'people');
@@ -202,7 +205,7 @@ export default [
   },
 
   {
-    name: 'the weapons domain (0.0.5) replaces its stub and a gunless game does not change by one byte: its keys filled as the stub filled them, its layers and its event; the sandbox, the barracks and both test scenes made as v0.0.4 made them (digests from v0.0.4\'s own code), and a barracks played with G and a digit too',
+    name: 'the weapons domain (0.0.5) replaces its stub and a gunless game does not change by one byte: its keys filled as the stub filled them, its layers and its event; the sandbox, the barracks and both test scenes made as v0.0.4 made them (digests from v0.0.4\'s own code, moved in 0.0.6 by the hair and the hands alone), and a barracks played with G and a digit too',
     fn() {
       const sim = createSim({ bus: recordingBus() });
       const w = sim.domains.find(d => d.name === 'weapons');
@@ -212,9 +215,14 @@ export default [
       assert(JSON.stringify(s) === JSON.stringify({ stop: null, items: {}, armoury: { guns: {}, ammoIssues: [] } }), JSON.stringify(s));
       const layers = sim.layers.filter(L => L.contributors.includes('weapons')).map(L => L.name);
       assert(layers.join() === 'input,rules,second', layers.join());
-      // (v0.0.4's own digests, made by its code in a scratch worktree of the tag, 2026-11-06)
+      // (v0.0.4's own digests, made by its code in a scratch worktree of the tag, 2026-11-06; v0.0.5 made the same)
       const V004 = { 'sandbox|4|null': '03bf21fea193f8', 'sandbox|48213|null': '0d3ad82fd1c184', 'barracks|48213|null': '0ce4d2a7f4b363', 'barracks|48213|21.9': '11013be0e1a17f',
         'test-shower|48213|null': '157083cd7cf59e', 'test-night|7|null': '0a5f3c0639a9f0', 'barracks|48213|21.9|played': '08234d7efc6892' };
+      // (0.0.6 moved every one on purpose, none by the weapons domain: the build sheet 0.0.6 §3.3, the roster's regulation cuts
+      // and thinning by hash, the player's body's hands and hair groups, the squad's drawn hair step, the sandbox's look's cut;
+      // diffed against v0.0.5's own code in a worktree of its tag, 2026-11-07, those paths and no others. Pinned here as the round's)
+      const V006 = { 'sandbox|4|null': '1d9c208248c285', 'sandbox|48213|null': '13270604d2b6c8', 'barracks|48213|null': '09eaa02234bb43', 'barracks|48213|21.9': '16e6b7d0b2357f',
+        'test-shower|48213|null': '07fa6cfc006c28', 'test-night|7|null': '15e6c9a56307aa', 'barracks|48213|21.9|played': '177fe08a16d6a0' };
       const now = {};
       for (const key of Object.keys(V004)) {
         const [scenario, seed, hour, played] = key.split('|');
@@ -228,9 +236,52 @@ export default [
           now[key] = digest(JSON.stringify(saved));
         } else now[key] = digest(toJSON(newGame({ seed: Number(seed), scenario, hour: hour === 'null' ? null : Number(hour), version: 'test' })));
       }
-      for (const [k, d] of Object.entries(V004)) console.log(`      ${k.padEnd(28)} v0.0.4 ${d}, now ${now[k]}${now[k] === d ? '' : '  DIFFERENT'}`);
+      for (const [k, d] of Object.entries(V004)) console.log(`      ${k.padEnd(28)} v0.0.4 ${d}, v0.0.6 ${V006[k]}, now ${now[k]}${now[k] === V006[k] ? '' : '  DIFFERENT'}`);
       console.log(`      the weapons domain: keys ${w.keys.join(', ')}; layers ${layers.join(', ')}; events ${Object.keys(domainsOf().find(d => d.name === 'weapons').events).join(', ')}`);
-      assert(Object.entries(V004).every(([k, d]) => now[k] === d), JSON.stringify(now));
+      assert(Object.entries(V006).every(([k, d]) => now[k] === d), JSON.stringify(now));
+    },
+  },
+  {
+    name: 'the round\'s facts (the build sheet 0.0.6 §2.4) registered and emitted: chain at its four phases, activity and skip-start with their chain, skip-end\'s outcome.chain, body-event\'s soil and haircut, groom\'s hands and clip bits, body-stage\'s hands, look',
+    fn() {
+      const SINK = 'f:e1:head-2a:sinks-1#1', URINAL = 'f:e1:head-2a:urinal-1#1', ctx = (g) => ({ held: false, tickMs: 50, sim: g.sim });
+      const spot = (area, id) => { const fx = areaOf(area).fixtures.find(f => id.startsWith(f.id + '#')); return spotsOf(fx).find(x => x.id === id); };
+      const put = (g, area, id) => { const sp = spot(area, id); Object.assign(g.me(), { x: sp.x, z: sp.z, face: sp.face, $px: sp.x, $pz: sp.z }); };
+      const g = createGame({ scenario: 'barracks', seed: 48213, hour: 14 });
+      const s = g.state, b = s.people[s.player.id].body;
+      b.hands = { dirt: 19.999, why: null }; b.bladder = { ...(b.bladder ?? {}), ml: 300 }; b.hygiene = { ...(b.hygiene ?? {}), stubbleH: 14 };
+      g.step(20 * 70);                                                               // (the slow rate across 'used': a body-stage of the hands)
+      put(g, 'melas.echo.1', URINAL);
+      g.step(1, { act: [{ act: 'hand', args: { want: 'activity' } }] });
+      for (let n = 0; (s.skip || s.time.doing) && n < 4000; n++) g.step(1);
+      put(g, 'melas.echo.1', SINK);
+      g.sim.act(s, { act: 'chain', args: { spotId: SINK, steps: [{ id: 'wash-hands' }, { id: 'teeth' }, { id: 'shave' }] } }, g.bus, ctx(g));
+      g.advance(s.clock.ms + 60_000);
+      g.advance(Infinity, undefined, ['skip:stop']);
+      // (the shaved head's clippers, and the barber's cut changing the look)
+      const shaved = createGame({ scenario: 'barracks', seed: 48213, hour: 14 }), sb = shaved.state.people[shaved.state.player.id];
+      sb.look = { ...sb.look, hair: { ...sb.look.hair, style: 'shaved' } }; sb.body.hair = { h: 200 };      // (past the first step: a fresh head's clippers are struck, 0.0.6's fixer)
+      put(shaved, 'melas.echo.1', SINK);
+      shaved.step(1, { act: [{ act: 'activity', args: { id: 'clip', spotId: SINK, lead: true } }] });
+      const pole = spot('melas.ground', 'f:melas:px:barber#1');
+      const cut = createGame({ scenario: 'barracks', seed: 48213, hour: 14, at: { area: 'melas.ground', x: pole.x, z: pole.z, face: pole.face } });
+      cut.state.people[cut.state.player.id].body.hair = { h: 200 };                 // (a cut grown out: a fresh one's haircut is struck)
+      cut.step(1, { act: [{ act: 'activity', args: { id: 'haircut', spotId: pole.id, args: { cut: 'medReg' }, lead: true } }] });
+      const all = [...g.facts(), ...shaved.facts(), ...cut.facts()];
+      const of = (t) => all.filter(([k]) => k === t).map(([, d]) => d);
+      const seen = {
+        'chain start': of('chain').some(c => c.phase === 'start' && c.n === 3), 'chain step': of('chain').some(c => c.phase === 'step'),
+        'chain stop': of('chain').some(c => c.phase === 'stop' && c.dropped.length), 'chain end': of('chain').some(c => c.phase === 'end' && c.by === 'player'),
+        'activity chain': of('activity').some(a => a.chain?.n === 3) && of('activity').some(a => a.chain === null), 'skip-start chain': of('skip-start').some(x => x.chain?.n === 3),
+        'skip-end outcome.chain': of('skip-end').some(x => x.outcome.chain?.length === 3) && of('skip-end').some(x => x.outcome.chain === null),
+        'body-event soil': of('body-event').some(e => e.kind === 'soil' && e.why === 'head' && e.amount === 40), 'body-event haircut': of('body-event').some(e => e.kind === 'haircut' && e.cut === 'medReg'),
+        'groom hands 8': of('body-event').some(e => e.kind === 'groom' && e.amount === 8), 'groom clip 16': of('body-event').some(e => e.kind === 'groom' && e.amount === 16),
+        'body-stage hands': of('body-stage').some(x => x.ledger === 'hands'), look: of('look').some(l => l.what === 'cut' && l.to === 'medReg'),
+      };
+      const registered = ['chain', 'look', 'activity', 'skip-start', 'skip-end', 'body-event', 'body-stage'].filter(isFact);
+      for (const [k, v] of Object.entries(seen)) console.log(`      ${k.padEnd(24)} ${v ? 'emitted' : 'NOT SEEN'}`);
+      console.log(`      registered: ${registered.join(', ')}; chain's payload: ${FACTS.chain.payload}`);
+      assert(registered.length === 7 && Object.values(seen).every(Boolean), JSON.stringify(seen));
     },
   },
 ];

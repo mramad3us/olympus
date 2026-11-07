@@ -11,8 +11,8 @@
 //
 // place(area, spec) builds the piece with the kit builder (kit.js) into the area (src/render/batch.js,
 // or any object with the same box(), ground(), lamp(), glowLine() and part()), and returns its world
-// boxes and lamps (and a clock's dials, where the stage lays its hands, and a stair's landing and mark,
-// which the stairs test holds to the sim's: structure.js). Nothing here holds GPU objects: painters are plain functions, remembered by key.
+// boxes and lamps (and a clock's dials, where the stage lays its hands, and a stair's landing, guard,
+// arrow and word, which the stairs test holds to the sim's: structure.js). Nothing here holds GPU objects: painters are plain functions, remembered by key.
 // Pure.
 import { builder, pieceRng, variant } from './kit.js';
 import * as quarters from './quarters.js';
@@ -80,6 +80,8 @@ export const FOOTPRINTS = Object.freeze({
   rangeSign: { w: 2.4, d: 0.12, h: 1.3, makes: ['lane', 'distance', 'notice', 'flagpole'] },
   berm: { w: 19.5, d: 6.0, h: 3.0, makes: ['earth', 'sandbag'] },
   rangeFence: { w: 6.0, d: 0.1, h: 2.4, makes: ['mesh', 'rope'] },
+  // (0.0.6: the PX barber's pole on its stand, equal to places' catalogue, src/sim/places/fixtures.js)
+  barberPole: { w: 0.36, d: 0.36, h: 2.2, makes: ['pole', 'lit'] },
 });
 
 const MAKERS = {
@@ -92,7 +94,7 @@ const MAKERS = {
   gymRack: training.gymRack, centrifuge: training.centrifuge, rangeBooth: training.rangeBooth, targetCarrier: training.targetCarrier,
   suitLocker: ship.suitLocker, airlockDoor: ship.airlockDoor, pressureDoor: ship.pressureDoor, hatch: ship.hatch,
   ladderWell: ship.ladderWell, crashCouch: ship.crashCouch, conduit: ship.conduit, handhold: ship.handhold, emergencyLight: ship.emergencyLight,
-  sign: signs.sign, window: signs.wallWindow, board: signs.board, sofa: signs.sofa, vending: signs.vending, bin: signs.bin,
+  sign: signs.sign, window: signs.wallWindow, board: signs.board, sofa: signs.sofa, vending: signs.vending, bin: signs.bin, barberPole: signs.barberPole,
   wallClock: structure.wallClock, stairs: structure.stairs, stairsWell: structure.stairsWell, lampPost: structure.lampPost, doorLeaf: structure.doorLeaf,
   kdTower: range.kdTower, kdMat: range.kdMat, kdFrame: range.kdFrame, rangeSign: range.rangeSign, berm: range.berm, rangeFence: range.rangeFence,
 };
@@ -102,14 +104,14 @@ export const KINDS = Object.freeze(Object.keys(MAKERS));
 /**
  * Put a piece into an area: { kind, x, z, y = 0 (a floor's height, or a fixture's mounting height for
  * wall pieces that take it), face, make, look, seed, w, d (a piece that stretches: a conduit's run, a
- * serving line's length) }. Returns { kind, boxes, lamps, footprint, face, dials, stair }.
+ * serving line's length), dir and open (a flight's) }. Returns { kind, boxes, lamps, footprint, face, dials, stair }.
  */
 export function place(area, spec) {
   const { kind, x = 0, z = 0, y = 0, face = 'down', seed = 1 } = spec;
   const fp = FOOTPRINTS[kind], make = MAKERS[kind];
   if (!fp || !make) throw new Error(`kit: no kind '${kind}'`);
   const k = builder(area, { x, z, y, face });
-  const o = { W: spec.w ?? fp.w, D: spec.d ?? fp.d, H: spec.h ?? fp.h, ppm: area.ppm, seed, v: variant(seed, 4), r: pieceRng(kind, seed), make: spec.make ?? fp.makes[0], look: spec.look ?? {}, kind, faces: spec.faces, dir: spec.dir };
+  const o = { W: spec.w ?? fp.w, D: spec.d ?? fp.d, H: spec.h ?? fp.h, ppm: area.ppm, seed, v: variant(seed, 4), r: pieceRng(kind, seed), make: spec.make ?? fp.makes[0], look: spec.look ?? {}, kind, faces: spec.faces, dir: spec.dir, open: spec.open };
   make(k, o);
   return { kind, boxes: k.boxes, lamps: k.lamps, footprint: { w: o.W, d: o.D, h: o.H }, face, dials: k.dials ?? null, stair: k.stair ?? null };
 }

@@ -17,7 +17,8 @@
 // cards/menu.js, with the sound's volume and mute), the keys ('?': cards/keys.js, every key this
 // build gives a meaning, labelled AZERTY), the log (J: cards/log.js, its last lines), the bench's
 // result (cards/bench.js), and the 0.0.4 round's, opened by main.js through openCard: PERSONNEL (C:
-// cards/sheet.js), the choices (R held: cards/choose.js), the late card (cards/late.js), a test
+// cards/sheet.js), the R menu (R held: cards/actions.js, the 0.0.6 round's pixel menu of single actions,
+// which reads its own keys while it is up and has no button to focus), the late card (cards/late.js), a test
 // scene's end card and its score card (cards/end.js, cards/score.js); and the 0.0.5 round's what you
 // carry (I: cards/inventory.js, tradecraft's pockets ported, the gear's tiles by arms' kitView). The
 // step panel and the reflex card of stop motion are the HUD's (src/ui/hud/steps.js, reflex.js), not
@@ -27,7 +28,7 @@
 // card's lines are numbered and a digit picks one (read by code: AZERTY's top row types & é " '
 // without Shift). A card opens with the focus on its lead line (the end card's Score it), and for its
 // first CARD_GUARD_MS it takes no Enter or Space, so a key meant for the screen before never presses
-// its focused line. The title's pages answer the arrows (and Z, S) by moving between their buttons.
+// its focused line (but the R menu, opened by R held for it: its first Space checks, its first Enter does). The title's pages answer the arrows (and Z, S) by moving between their buttons.
 //
 // The screens never change the state: every choice goes back to main.js through cb, which acts.
 // Plain DOM, built here and in the cards' modules and nowhere else; the look is src/ui/style.css.
@@ -61,12 +62,12 @@ export function createBoot({ root = document.body, cb }) {
   const title = el('div', { id: 'title', hidden: true });
   const veil = el('div', { className: 'overlay', hidden: true });
   root.append(title, veil);
-  let card = null, picks = [], page = null, titleArgs = null, openedAt = -Infinity;
+  let card = null, picks = [], page = null, titleArgs = null, openedAt = -Infinity, guard = true;
   const nowMs = () => globalThis.performance?.now?.() ?? Date.now();
   // (a key pressed for the screen before never lands on a card that has just opened: Enter and Space do nothing
   // for its first CARD_GUARD_MS (the design review's: Enter, read as the HUD's "end the scene", pressed the end
   // card's Again and threw the run away); a digit names its line, so it is never pressed by accident)
-  const guarded = () => nowMs() - openedAt < CARD_GUARD_MS;
+  const guarded = () => guard && nowMs() - openedAt < CARD_GUARD_MS;
   root.ownerDocument?.addEventListener?.('keydown', (e) => {
     if (!card || !guarded()) return;
     if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') { e.preventDefault(); e.stopPropagation(); }
@@ -140,9 +141,10 @@ export function createBoot({ root = document.body, cb }) {
 
   // ---- glass cards ----
 
-  function openCard(name, body, lines = []) {
+  // (guard false: a card opened by a key held down for it, the R menu, whose first Space or Enter is meant for it)
+  function openCard(name, body, lines = [], { guard: g = true } = {}) {
     if (card) closeCard();
-    card = name; picks = lines; openedAt = nowMs();
+    card = name; picks = lines; openedAt = nowMs(); guard = g !== false;
     veil.replaceChildren(body);
     veil.hidden = false;
     cb.overlay(name, true);

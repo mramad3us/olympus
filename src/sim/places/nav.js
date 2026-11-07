@@ -9,8 +9,9 @@
 //     state.$places.nav[areaId][cls] (navOf): runtime only, rebuilt from the saved state after a load.
 //     A cell's byte is its cost: COSTS by surface (10 is a metre of floor; regolith 13, stairs 15…),
 //     255 blocked. Blockers are a plan's wall rects (plan.js wallsOf, wallRect: the very walls the
-//     cutaway draws), the footprints of fixtures that block (fixtures.js), and closed door leaves
-//     (plan.js leafRect). People never block the grid ("a crowd would trap the player", tradecraft).
+//     cutaway draws), what fixtures stop walkers on (fixtures.js blockRectsOf: a blocking piece's
+//     footprint, a stair well but its landing, from 0.0.6 a flight's rails and closed high end), and
+//     closed door leaves (plan.js leafRect). People never block the grid ("a crowd would trap the player", tradecraft).
 //     A cell whose centre lies in no room is blocked too (the dark between rooms); where rooms share
 //     an edge on a cell's centre, the last room listed gives the cell its cost, by one rule
 //     (cellSpan) that buildGrid paints with and remarkOpening reads back, so a door toggled in play
@@ -64,7 +65,7 @@
 // Lengths are rounded to the millimetre (q, TECH §8.1 rule 11) and taken by Math.sqrt, which IEEE
 // rounds exactly, never Math.hypot, which engines may compute differently.
 import { planOf, wallsOf, wallRect, leafRect, roomAt, PORCH_M } from './plan.js';
-import { footprintOf, blocks, blockRectOf, kindOf as catalogueKind } from './fixtures.js';
+import { footprintOf, blocks, blockRectsOf, kindOf as catalogueKind } from './fixtures.js';
 import { createHeap } from './heap.js';
 import { areaOf, leafClosed } from './model.js';
 import { nextId, numOf, playerActor } from '../../core/ids.js';
@@ -146,12 +147,12 @@ function surface(grid, r, cost, { over = false } = {}) {
 const roomRect = (room) => ({ x0: room.rect[0], z0: room.rect[1], x1: room.rect[2], z1: room.rect[3] });
 const roomCost = (room) => COSTS[room.surface ?? 'floor'] ?? COSTS.floor;
 
-/** The rects that block a floor area whatever its doors: its wall runs and its blocking fixtures (a stairs well but its top), each tagged. */
+/** The rects that block a floor area whatever its doors: its wall runs and its fixtures' (fixtures.js blockRectsOf: a stairs well but its top, a flight's rails and closed end), each tagged. */
 export function staticBlockers(area) {
   const plan = planOf(area);
   return [
     ...wallsOf(plan).map(w => ({ ...wallRect(w), tag: 'wall' })),
-    ...(area.fixtures ?? []).filter(blocks).map(f => ({ ...blockRectOf(f), tag: f.id })),
+    ...(area.fixtures ?? []).flatMap(f => blockRectsOf(f).map(r => ({ ...r, tag: f.id }))),
   ];
 }
 
@@ -483,6 +484,54 @@ export function nearestFree(grid, x, z, maxM = NEAREST_FREE_M) {
     }
   }
   return best;
+}
+
+// (whether a segment passes through a rect's inside: Liang–Barsky's clip, a touch along an edge not counted)
+function crosses(ax, az, bx, bz, r) {
+  let t0 = 0, t1 = 1;
+  const dx = bx - ax, dz = bz - az;
+  for (const [p, q] of [[-dx, ax - r.x0], [dx, r.x1 - ax], [-dz, az - r.z0], [dz, r.z1 - az]]) {
+    if (p === 0) { if (q <= 0) return false; continue; }
+    const t = q / p;
+    if (p < 0) { if (t > t0) t0 = t; } else if (t < t1) t1 = t;
+    if (t0 >= t1) return false;
+  }
+  return t1 - t0 > 1e-9;
+}
+/**
+ * The free cell nearest a point within maxM on the point's own side of every blocker: of the cells a
+ * flood from the point's cell reaches, cell to cell across no blocker (a wall run, a fixture's rects, a
+ * closed leaf; one that holds the point itself excepted), the free one nearest, else nearestFree's.
+ * Where a walker who may not stand where it is gets put (move.js settle), so it is never put through a
+ * wall or over a flight's rail (the review of 0.0.6: a walker squeezed between a flight's closed top and
+ * the vestibule's wall was settled across the top into the lane, a step from its band). Ties as
+ * nearestFree's.
+ */
+export function nearestFreeInReach(grid, x, z, maxM = NEAREST_FREE_M) {
+  const C = grid.cellM, ci = Math.floor((x - grid.x0) / C), cj = Math.floor((z - grid.z0) / C), R = Math.ceil(maxM / C);
+  if (ci < 0 || cj < 0 || ci >= grid.nx || cj >= grid.nz) return nearestFree(grid, x, z, maxM);
+  const near = { x0: x - maxM - C, z0: z - maxM - C, x1: x + maxM + C, z1: z + maxM + C };
+  const walls = [...(grid.blockers ?? []), ...(grid.leaves ?? []).filter(l => l.closed).map(l => l.rect)]
+    .filter(b => overlaps(b, near) && !(x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1));
+  const i0 = Math.max(0, ci - R), j0 = Math.max(0, cj - R), i1 = Math.min(grid.nx - 1, ci + R), j1 = Math.min(grid.nz - 1, cj + R), W = i1 - i0 + 1;
+  const seen = new Uint8Array(W * (j1 - j0 + 1)), queue = [[ci, cj]];
+  seen[(cj - j0) * W + (ci - i0)] = 1;
+  let best = -1, bd = Infinity;
+  for (let h = 0; h < queue.length; h++) {
+    const [i, j] = queue[h], k = j * grid.nx + i, [px, pz] = h === 0 ? [x, z] : centreOf(grid, k);
+    if (grid.cost[k] !== BLOCKED) {
+      const dx = grid.x0 + (i + 0.5) * C - x, dz = grid.z0 + (j + 0.5) * C - z, d = dx * dx + dz * dz;
+      if (d <= maxM * maxM && (d < bd || (d === bd && k < best))) { bd = d; best = k; }
+    }
+    for (const [ni, nj] of [[i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]]) {
+      if (ni < i0 || nj < j0 || ni > i1 || nj > j1 || seen[(nj - j0) * W + (ni - i0)]) continue;
+      const [tx, tz] = centreOf(grid, nj * grid.nx + ni);
+      if ((tx - x) * (tx - x) + (tz - z) * (tz - z) > (maxM + C) * (maxM + C) || walls.some(b => crosses(px, pz, tx, tz, b))) continue;
+      seen[(nj - j0) * W + (ni - i0)] = 1;
+      queue.push([ni, nj]);
+    }
+  }
+  return best >= 0 ? best : nearestFree(grid, x, z, maxM);
 }
 
 // ---- A* ----

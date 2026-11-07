@@ -222,6 +222,8 @@ Signing the paper (a stamp, a sound) starts the career, and the flashback plays 
 
 Height: women 152–185 cm (mean 166), men 160–198 (mean 178), Belter-born +12 cm; mass follows BMI 20–27 by build. These are BODY's inputs; the ranges are mine.
 
+**The cuts, as built in v0.0.6** (`src/data/people/looks.js` `CUTS`, `HAIR_STYLES`, `THIN_P`, `LEGACY_CUTS`; `src/sim/people/roster.js`; the build sheet 0.0.6 §8 items 16 to 18; the user, 2026-11-06: "this haircut is not military acceptable ... a soldier with half balding hair would 100% go fully shaved head for service"). The hairstyle is one of this table's seven regulation cuts, with ids `highTight`, `lowReg`, `medReg`, `shaved` (men) and `bun`, `short`, `braid` (women); men and women share none. Their lengths at the cut and due periods are BODY §6's table; **the weights are men 30/35/25/10 and women 55/30/15** (my calls). **A man whose hair is thinning shaves his head**: thinning is drawn by hash (`hashFloat('hairline', seed, lookSeed)`, cosmetic, so no dice stream moves) against **`THIN_P` by age, 0.10 at 18, 0.16 at 25, 0.30 at 30, 0.50 at 40** (linear between; after Norwood 1975: type III or more in about a sixth of men under 30, half by their forties), stored as `look.hair.thin`, and his only cut is `shaved` (`cutsFor`, the barber's drop-down offering him the shaved head alone); every shaved head is drawn alike, never as a horseshoe. Seed 48213's company has 22 of 101 men thinning, all shaved; over 60 seeds 902 of 6,119 men (14.7%), the shaved head 24.5% of men. **Old saves map their cuts** in people's `people:cuts` upgrade (`LEGACY_CUTS`: v0.0.4's `crew` to `lowReg`, a man's `short` to `medReg`, `bald` to `shaved`; women's as they are) and draw no thinning, so v0.0.4's bald men are the shaved ones (TECH §6.6). The enlistment paper (0.1) offers the cuts by sex, a thinning man the shaved head only.
+
 ### 4.3 Birthplaces (working list; SETTING owns their lore and names)
 
 Each birthplace gives BODY a **childhood gravity** and an **altitude band**, and gives this section a home town (for leave, letters and the family's place). **A birthplace gives no skill points of its own** (my call): SKILLS's sheet has no practice slot (SKILLS §3), and the user's "+4" belongs to the background. Its mark on the sheet is the background it makes likely (each listed background drawn at ×3 weight), and its mark on the body is BODY's.
@@ -302,12 +304,13 @@ SKILLS §10.4's rifleman from the valley is the worked example.
 
 ### 4.6 The flashback: Argyre, the last week
 
-A **playable cold open of three to five minutes** (my call, after a critic's case that the first ten minutes were forms and errands with no hook; SKILLS §14.1: "the opening flashback is where you met them"). It plays once the paper is signed, at MCRD Argyre ("the Argyre icebox", SETTING §4.7) in the depot's last week, with the real controls, the real body and stop motion where it applies, and one of two scenes dealt by the seed (`flags.flashback`):
+A **playable cold open of three to five minutes** (my call, after a critic's case that the first ten minutes were forms and errands with no hook; SKILLS §14.1: "the opening flashback is where you met them"). It plays once the paper is signed, at MCRD Argyre ("the Argyre icebox", SETTING §4.7) in the depot's last week, with the real controls, the real body and stop motion where it applies, and one of three scenes dealt by the seed (`flags.flashback`):
 
 | Scene | What you do | What it teaches in five minutes | Ends on |
 |---|---|---|---|
 | `breach` | The vacuum module's final test: a buddy's suit holed in the depot chamber, your patch kit, the leak hissing on the HUD, a clock on the wall | the suit's readouts, a timed step in the panel, a buddy's life in your hands | the senior DI's line |
 | `string` | The qualification's last string at the Argyre range in the evening wind: four magazines, positions by command, and the dummy round the DI loaded into your third magazine | stop motion (G, X, the digits), a stoppage cleared by its steps, the log of rolls | the senior DI's line |
+| `house` | A recruit's first room in the depot's MOUT house, a DI on the catwalk: one door, two figures, one of them a no-shoot (COMBAT §25.10.1) | the stack, the door, X and the walk in by the keys, the take-in (0.95 s and more), shoot or no-shoot | the senior DI's line |
 
 Nothing in it can kill (the agency rule's easiest case, 19.1): the chamber's instructor repressurises at once if the patch fails, and a failed string is a worse line in the summary. Its result is cosmetic: one line in the training summary ("cleared the dummy round in four seconds"; "patched Ortega's suit at 31 kPa, with nine seconds to spare"). It **ends on the senior drill instructor's line**, in the voice that becomes the T line for the whole career (5.3), and cuts to the training summary.
 
@@ -321,6 +324,7 @@ The rest of boot camp and the School of Infantry are not played; they are a pape
 - Final PFT (computed by section 7.1 from the sheet); the rifle qualification class at boot, rolled in closed form by WEAPONS's course on **Marksmanship** (SKILLS §2.1) as it stood at Argyre (boot's floor, MRK 6, plus the background), so a `shooting-league` recruit is usually Expert and most others Marksman or Sharpshooter (section 7.4's bands); MCMAP tan belt; the vacuum and water survival quals.
 - One line of the DI's remarks, dealt from a pool by the sheet's strongest and weakest skills ("Holloway: shoots well, talks back, runs like she's late for something"), and the flashback's line.
 - **Meritorious PFC** at graduation if the boot composite (rifle class points + PFT/3 + a d20) reaches 150 (about 1 in 6, my call), unless already PFC by credits.
+- The School of Infantry's MOUT package: "MOUT: stack and clear, dry and with blanks". It gives the `room` and `passage` drill families rung 1, taught (COMBAT §25.3), and nothing lived: the first room the player clears is lived, step by step.
 
 ### 4.8 Family (generated at signing)
 
@@ -409,10 +413,10 @@ Standby sols are counted from 0, the arrival Monday (Sol 590 MY 211 in a new wor
 | 4 Fri | PT; pay day: the LES reaches the wrist at 00:00Z, about 07:40 Melas, just before the inspection (12.5) | **the platoon sergeant's inspection, 08:00–10:00** (uniform, haircut, shave, locker, the bay, the gear layout: BODY's hygiene, PEOPLE §11.10; a test of what is already known); then, in the short `train-a`, rules of engagement and escalation of force (COMBAT §9) and the Europa brief (SETTING): MSF-E's ROE card issued as a paper | the G-house: two hours at 1 G in the Ring, then your appointment on the Long Arm (the G-qualification, 7.3) | liberty on base from the end of `maintenance` | the rules of force; G |
 | 5 Sat | holiday routine | one rest-sol set piece (5.4.1) | | liberty on base | free time as a currency |
 | 6 Sun | holiday routine | one rest-sol set piece (5.4.1) | | the squad leader's word in the evening (6.4) | |
-| 7 Mon | PT | MCMAP on the mat (CQC, COMBAT §10, Mars gravity); then the MRX's orders: the squad leader's patrol order on the sand table, rehearsals, the pre-combat inspection of gear | **the mission rehearsal exercise begins** (5.8) | in the field | close combat; the exercise |
+| 7 Mon | PT | MCMAP on the mat (CQC, COMBAT §10, Mars gravity); then the MRX's orders: the squad leader's patrol order on the sand table, rehearsals (with the squad leader's dry walk-through of the dawn's house in the training village: the first-time teaching of the stack, the door, the corner and the sector, COMBAT §25.10), the pre-combat inspection of gear | **the mission rehearsal exercise begins** (5.8) | in the field | close combat; the exercise |
 | 8 Tue | in the field | the MRX | end-ex and the hot wash | weapons cleaned and turned in; **the billets named** (5.7); the floor vote that night (5.9) | none: everything together |
 | 9 Wed | PT | `morning-formation`: the certification and **the warning order** (5.9); predeploy begins | | | |
-| the weekdays of 9 to 13, only when the floor vote slips (5.9) | PT | the second week's blocks, dealt by the world seed: a combat marksmanship day (movers and positions; scored for the DM billet), MOUT in the training village (stack and clear with marking rounds), the CBRN class with the mask and the gas chamber, a battalion run, the commanding officer's inspection, an 8 km hump | | | (none new) |
+| the weekdays of 9 to 13, only when the floor vote slips (5.9) | PT | the second week's blocks, dealt by the world seed: a combat marksmanship day (movers and positions; scored for the DM billet), MOUT (the morning in the shoot house, a 3 h CQB block, COMBAT §25.10; the afternoon in the training village, stack and clear with marking rounds), the CBRN class with the mask and the gas chamber, a battalion run, the commanding officer's inspection, an 8 km hump | | | (none new) |
 
 No rifle qualification is shot in the standby: the boot qualification is current (shot at Argyre about four months earlier, and section 7.4 keeps qualifications at least 300 days apart), so sol 2's string is familiarisation and the combat marksmanship day is training; both are scored for the DM billet. The PFT and CFT are not in the standby either: the boot summary's PFT is the current one.
 
@@ -494,7 +498,7 @@ Every standby ends with a **mission rehearsal exercise** (MRX), the real Corps' 
 | The evening | rations, the patrol base's routine, the watch roster | activities | the body in the field |
 | The night: the patrol | a night patrol through the Talus at −30 °C; contact with a blank-firing cell on the harness (COMBAT §22); a casualty (a role-player's moulage, or a squadmate scored "hit"): the tourniquet, the casualty card and the 9-line on the net | contact and the casualty lived | stop motion, suppression, orders on the net, first aid with cold hands (BODY §10.5) |
 | The small hours | a watch in the patrol base; sleep in a bag on the ground (BODY §7.1: quality 0.85) | the handover lived, the sleep a skip | fatigue as a named modifier |
-| Dawn: cordon and search | a house in the village with Star Helix role-players and an observer; stack and clear with marking rounds | lived | the Accord's search rules (SETTING §7.6), CQC |
+| Dawn: cordon and search | a house in the village with Star Helix role-players and an observer; stack and clear with marking rounds, the player #3 or #4 in the stack, the rooms by hand (COMBAT §25.10) | lived | the Accord's search rules (SETTING §7.6), CQC, close quarters |
 | Sol 8, about 12:00: end-ex | trucks back | the arrival lived | |
 | Sol 8, after `noon-chow`: the hot wash | COMBAT §17.2's hot wash; each squad's grades read out | lived, 3 to 5 minutes | the after-action |
 
@@ -894,20 +898,20 @@ The Marine Corps Martial Arts Programme (MCMAP, SETTING §5.5, which names the b
 | `cplcourse` | Corporals Course | Base Melas | 3 weeks | Corporal | PME; SKILLS `corporal` (Leadership 6, Tactics 6); +25 composite |
 | `sgtcourse` | Sergeants Course | the Mariner Valley institutes' Corps campus | 7 weeks | Sergeant | PME; SKILLS `sergeant` (Leadership 10, Tactics 9, Comms 5) |
 | `careercourse` | Career Course | the same | 7 weeks | Staff Sergeant | PME; proposed: Leadership 12, Tactics 11, Comms 6 |
-| `aic` | Advanced Infantry Course | Base Melas | 10 weeks | Sergeant–Staff Sergeant, 03xx | proposed: Tactics 12, Marksmanship 12, Weapon handling 12 |
+| `aic` | Advanced Infantry Course | Base Melas | 10 weeks | Sergeant–Staff Sergeant, 03xx | proposed: Tactics 12, Marksmanship 12, Weapon handling 12; drill rungs room 3, passage 3 (COMBAT §25.3) |
 | `cls` | Combat Lifesaver | Base Melas | 1 week | any | SKILLS `cls` (Medicine 7) |
 | `cmc` | Combat Marksmanship Coach | Base Melas range | 2 weeks | LCpl+, Expert | proposed: Marksmanship 12, Leadership 5; 8531 |
 | `mai` | MCMAP Instructor | Base Melas | 3 weeks | Corporal+, green belt | proposed: CQC 12, Leadership 6; 0916 |
 | `void` | Void Operations Course | Phobos Naval Yard | 4 weeks | PFC+, vacuum qual, G-2 | SKILLS `eva-qual` (EVA 10, Zero-g 8, Tech 4); V |
-| `breacher` | Breacher Course | Phobos Naval Yard | 3 weeks | LCpl+, V | proposed: Demolitions 9, EVA 10, Zero-g 9; B |
+| `breacher` | Breacher Course | Phobos Naval Yard | 3 weeks | LCpl+, V | proposed: Demolitions 9, EVA 10, Zero-g 9; B; the ram and charge breaches (COMBAT §25.5.6) |
 | `lang` | Lang Belta | Base Melas, evenings, or full time at the institutes | 12 weeks full time to working (my call: a creole with an English base, tradecraft's FSI category I is 30 weeks for a full language) | any | Lang Belta working |
 | `ssbc` | Scout Sniper Basic Course | Base Melas range and the valley | 12 weeks, 3 phases | LCpl–Sgt, Expert, PFT first class, G-1 | SKILLS `sniper` (Marksmanship 15, Fieldcraft 14, Awareness 12, Tactics 8, Comms 6; Warfighting 30); 0317 |
-| `brc` | Basic Reconnaissance Course | Recon school, Melas | 12 weeks, 3 phases | section 11.1 | SKILLS `recon` (section 11.1) |
+| `brc` | Basic Reconnaissance Course | Recon school, Melas | 12 weeks, 3 phases | section 11.1 | SKILLS `recon` (section 11.1); drill rungs room 3, passage 3 |
 | `oic` | Orbital Insertion Course | Melas and the Tharsis drop zones | 4 weeks | recon or Raider | proposed: EVA 12, Zero-g 10; insertion wings |
 | `dive` | Under-ice Combat Diver Course | Hellas lake, then Europa | 6 weeks | recon or Raider, water advanced | water survival master; dive badge |
 | `sere` | Survival, Evasion, Resistance and Escape | the Tharsis back-country | 3 weeks | recon, Raider, aircrew | proposed: Fieldcraft 12; the resistance phase lived |
 | `as` | Raider Assessment and Selection | the Raider school, Melas | 3 weeks | section 11.2 | section 11.2 |
-| `itc` | Raider Individual Training Course | the Raider school, then Phobos and Deimos | 9 months, 4 phases | selected at A&S | SKILLS `raider` (section 11.2) |
+| `itc` | Raider Individual Training Course | the Raider school, then Phobos and Deimos | 9 months, 4 phases | selected at A&S | SKILLS `raider` (section 11.2); every drill family at rung 4 |
 | `di` | Drill Instructor School | the recruit depot | 11 weeks | Sergeant–Gunnery Sergeant | proposed: Leadership 12; 8511; a 3-year tour |
 | `recruiter` | Recruiters School | the institutes | 7 weeks | Sergeant–Staff Sergeant | proposed: Social 12; 8411; a 3-year tour |
 | `msg` | Consulate Guard School | the institutes | 8 weeks | LCpl–SSgt, conduct ≥ 4.5, single below E-6 | 8156; two posts (10.2) |
@@ -1092,7 +1096,7 @@ The top of the curve is the injury rate (4% a phase). A typical candidate (an ow
 
 **The bar is 18** (my call): a sum of 21 or more is selected; 14 or less is not; between, the board (the selection cadre's commander and two operators) adds 2d10 − 11, and 18 is selected. Naturals count (each event is an act), no recycle. Measured in the scratch model (2026-11-05; roll modifiers 12 to 20, F 0 to 4, Warfighting 30 to 49, a fifth of them recon graduates, uniform): **42% of gate-qualified applicants are selected** (target 30–45%; real special-operations selection runs at about a third), and preparation explains **65%** of the score's variance. With F 2 and Warfighting in the 30s, not a recon graduate: roll modifiers of 14 are selected 14% of the time, 16 are 33%, 18 are 60%, 20 are 76%. Not selected: back to the unit, no standing loss, reapply after 12 months, twice in a career.
 
-**The Individual Training Course**: 9 months, 4 phases (special-operations fundamentals: shooting and trauma medicine; small-unit tactics and surface operations; close quarters battle and boarding in every gravity; irregular warfare and the final exercise across Phobos and Deimos), DCs **20, 21, 21, 22**, each phase its test day and exam roll at 6 or more (9.4), one recycle. Measured (scratch model): modifier 14 graduates 22%, 16 is 66%, 18 is 81%, 20 is 83% (target 60–80% for the selected, who sit mostly at 16 to 20).
+**The Individual Training Course**: 9 months, 4 phases (special-operations fundamentals: shooting and trauma medicine; small-unit tactics and surface operations; close quarters battle and boarding in every gravity, which gives every drill family rung 4, COMBAT §25.3; irregular warfare and the final exercise across Phobos and Deimos), DCs **20, 21, 21, 22**, each phase its test day and exam roll at 6 or more (9.4), one recycle. Measured (scratch model): modifier 14 graduates 22%, 16 is 66%, 18 is 81%, 20 is 83% (target 60–80% for the selected, who sit mostly at 16 to 20).
 
 **Floors at graduation** are SKILLS §6.6's `raider` (Marksmanship 17, Weapon handling 17, CQC 16, Fieldcraft 17, Awareness 16, Tactics 13, Leadership 10, Comms 10, Medicine 11, EVA 15, Zero-g 15, Demolitions 11, Driving 6, Fitness 18; **Warfighting 65**, tradecraft's illegal's school raised Tradecraft to 80, and the tier-one operator stays above), and Lang Belta basic. PMOS 0372, the Raider badge, Raider pay (12.3).
 

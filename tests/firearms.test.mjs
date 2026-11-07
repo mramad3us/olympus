@@ -212,7 +212,8 @@ export default [
       assert(b.chamber === 'live' && b.count === 2, `a press check and a magazine check copy the truth: ${said(b)}`);
       console.log(`      before the checks: believed empty and 5; after: ${said(b)}`);
       const keys = Object.keys(b).sort().join(',');
-      assert(keys === 'chamber,cocked,condWord,count,countApprox,locked,mag,magFam,mode,model,port,short,stoppage', `beliefOf's fields: ${keys}`);
+      // (0.0.6: the believed kind of the magazine in (magLoad) and the magazine in the hand as believed (hand), the user's ask of 2026-11-07)
+      assert(keys === 'chamber,cocked,condWord,count,countApprox,hand,locked,mag,magFam,magLoad,mode,model,port,short,stoppage', `beliefOf's fields: ${keys}`);
       for (const k of ['set', 'jam', 'n', 'cond', 'rounds', 'dust', 'foul', 'lube', 'byId', 'belief']) assert(!(k in b), `no truth field ${k}`);
     },
   },

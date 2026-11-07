@@ -1,8 +1,8 @@
 // OLYMPUS places: doors, opened and closed by a hand, their leaves swinging in game time (PLACES §1.6; the build sheet 0.0.3 §2.1).
 //
-// A door's leaf takes its kind's time to move (PLACES §1.6: an interior door 1.0 s, a weather door
-// 1.2 s, the opening's openS and closeS). toggleDoor(state, id, bus, { who }) turns a door the other
-// way: opening, the leaf keeps blocking until it has swung clear (the delta's atMs, now plus what is
+// A door's leaf takes its kind's time to move (PLACES §1.6: an interior door 0.4 s, a weather door
+// 0.6 s, the opening's openS and closeS; from 1.0 and 1.2 s in v0.0.6, the user, 2026-11-07: "doors
+// open and close much too slow"). toggleDoor(state, id, bus, { who }) turns a door the other way: opening, the leaf keeps blocking until it has swung clear (the delta's atMs, now plus what is
 // left of its openS), then its cells are re-marked free; closing, it blocks at once (a walker in its
 // cells is settled out by the player layer, as built) while its picture swings shut over closeS. A
 // toggle in mid-swing turns from where the leaf is, so leafAt never jumps: leafAt(state, id, ms) is
@@ -28,7 +28,7 @@ import { remarkSight } from './sight.js';
 /** Leaves that turn (PLACES §1.6's kinds with a leaf); a doorway, a gate or a curtain does not. */
 export const LEAF_KINDS = Object.freeze(['door', 'extDoor', 'fireDoor', 'pressureDoor', 'bulkheadDoor', 'airlockDoor', 'vehicleDoor', 'blastDoor', 'hatch']);
 /** A leaf's open and close seconds where the opening gives none (PLACES §1.6's interior door). */
-export const DOOR_S = 1.0;
+export const DOOR_S = 0.4;
 
 const middleOf = (o) => (o.axis === 'x' ? [(o.a + o.b) / 2, o.at] : [o.at, (o.a + o.b) / 2]);
 // (where a door is heard: the live area's side when the live area holds it, else the opening's floor)

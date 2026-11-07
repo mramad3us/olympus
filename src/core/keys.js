@@ -15,7 +15,8 @@
 //          TAP_MS while still held, never both: down(code) fires { action, kind: 'down' } (so the UI
 //          can keep what the line said when the key went down), up(code) under TAP_MS fires
 //          { action, kind: 'tap' }, and due(tMs) fires { action, kind: 'held' } once a press has been
-//          held TAP_MS (input.js asks it on a timer). R tapped is what's at hand, held the choices;
+//          held TAP_MS (input.js asks it on a timer). R tapped is what's at hand, held the menu of
+//          every single action there (the 0.0.6 round: cards/actions.js);
 //          T tapped is the instinct's line, held its chip (SKILLS §14.1). The UI turns each into the
 //          sim's action with its arguments, so these are never queued for the sim by themselves
 //   sim    an action for the sim, fired once on the key going down (F people, G ready, X shoot,
@@ -48,7 +49,7 @@ export const BINDINGS = Object.freeze([
   { action: 'stroll', codes: ['AltLeft', 'AltRight'], kind: 'mod', say: 'stroll, held' },
   { action: 'look', codes: ['KeyE'], kind: 'hold', tap: 'glance', say: 'look, held; glance back, tapped' },
   { action: 'people', codes: ['KeyF'], kind: 'sim', say: 'whoever is at hand' },
-  { action: 'hand', codes: ['KeyR'], kind: 'press', say: 'what is at hand; held: the choices' },
+  { action: 'hand', codes: ['KeyR'], kind: 'press', say: 'what is at hand; held: the menu' },
   { action: 'instinct', codes: ['KeyT'], kind: 'press', say: 'what the instinct says; held: the next' },
   { action: 'ready', codes: ['KeyG'], kind: 'sim', say: 'weapon ready' },
   { action: 'shoot', codes: ['KeyX'], kind: 'sim', say: 'shooting mode' },

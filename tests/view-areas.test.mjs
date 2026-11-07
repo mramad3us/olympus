@@ -41,11 +41,15 @@ export default [
         await leg('through the bay door (R)', walkTo(page, 57.7, 8.8, { zFirst: true, log: say }));
         await leg('east along hall-2', walkTo(page, 83.1, 8.8, { run: true, log: say }));
         await leg('into the stair (R)', walkTo(page, 83.1, 11.2, { zFirst: true, log: say }));
-        await leg('to the flight', walkTo(page, 80.95, 12.6, { log: say }));
+        // (onto the flight at its foot, from the room's side through the opening in its rail, the only way on from 0.0.6:
+        // the user, 2026-11-07, "we can get on the upwards staircase from the wrong end")
+        await leg('to the flight\'s foot', walkTo(page, 80.95, 11.15, { zFirst: true, log: say }));
+        await leg('onto the flight', walkTo(page, 80.95, 12.6, { zFirst: true, log: say }));
         await leg('up the east stair', crossPortal(page, portalOf('melas.echo.1', 'l:echo:stair-e'), { log: say }));
         await page.waitForTimeout(700);
         await leg('down the east stair', crossPortal(page, portalOf('melas.echo.2', 'l:echo:stair-e'), { log: say }));
         await page.waitForTimeout(700);
+        await leg('down the flight to its foot', walkTo(page, 80.95, 10.65, { zFirst: true, log: say }));
         await leg('out of the stair', walkTo(page, 83.1, 8.8, { log: say }));
         await leg('west along the hallways to the core', walkTo(page, 43.6, 8.8, { run: true, log: say }));
         await leg('through the lobby, east of the duty desk', walkTo(page, 43.6, 20.3, { zFirst: true, log: say }));

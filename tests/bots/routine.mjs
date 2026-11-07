@@ -17,6 +17,13 @@
 //   heedLine()           walk where the instinct's line (or its chip) sends you (HEED_SPOTS: Head A's
 //                        fixtures, the mail room's machine) and T there: the DI's scripted morning
 //   pause(ms)            stand still for ms of game time
+//   menuOf(state)        (0.0.6) R held's menu now: places' handMenu, read as the card reads it
+//   chainAct(state, ids) (0.0.6) what R held's card sends for those rows checked: one row the single
+//                        ({ act: 'activity', …, lead: true }), two or more one { act: 'chain', args:
+//                        { spotId, steps } } (each row's own args, its drop-down's pick), or null where a
+//                        row is missing or struck
+//   chain(ids)           (0.0.6) R held, those rows checked and Enter: chainAct pressed once, failing
+//                        'no-rows' where a row is missing or struck
 // and the drivers the moments run:
 //   showerRoutine({ stall })   to Head A's stall from the rack's foot, R at it: the shower skipped
 //                              behind its splash (the game runs the outcome skip to its end at once)
@@ -24,8 +31,14 @@
 //                              and T (utilities at the rack), and wait for the count
 //   dawdleRoutine({ stall })   the same night, but at the klaxon up, out to the showers and R there:
 //                              the late card's "do it anyway", then back to the rack, dressed, late
+//   basinRoutine({ urinal, stall, sink })   (0.0.6, moment-basin) from the rack's foot to Head A's
+//                              urinal and R there (the head; with the bladder at URINATE_MIN_ML or
+//                              under the urinal's row is struck, so on to a stall and R there, the bot's
+//                              memory saying so), then to a sink and R: the hands washed (the user,
+//                              2026-11-06: the head no longer washes them); the menu's chain is the
+//                              test's, so it can save and stop inside it
 import { goTo, plan, waitUntil } from './lib.mjs';
-import { handOffer } from '../../src/sim/places/hand.js';
+import { handOffer, handMenu } from '../../src/sim/places/hand.js';
 import { instinctNow } from '../../src/sim/skills/instinct.js';
 
 /** An action pressed once: done on the tick after. */
@@ -80,6 +93,7 @@ export function instinctT(chip = false) {
 export const HEED_SPOTS = Object.freeze({
   'need-bladder': 'f:e1:head-2a:urinal-1#1', 'need-bowel': 'f:e1:head-2a:stall-1#1', 'need-thirst': 'f:e1:head-2a:sinks-1#3',
   'need-dirt': 'f:e1:head-2a:shower-1#1', stubble: 'f:e1:head-2a:sinks-1#2', 'need-hunger': 'f:e1:mail:vending-1#1',
+  hands: 'f:e1:head-2a:sinks-1#2', haircut: 'f:e1:head-2a:sinks-1#2',
 });
 
 /**
@@ -167,5 +181,74 @@ export function dawdleRoutine({ stall = STALL } = {}) {
     goTo(RACK_FOOT),
     hand('activity', { id: 'dress', args: { to: 'utilities' } }),
     until((s) => (s.time.attend ?? []).length > 0, 15 * 60_000, 'mustered'),
+  ]);
+}
+
+/** R held's menu now (places' handMenu), as the card reads it. */
+export const menuOf = (state) => handMenu(state);
+
+/** What R held's card sends for the rows of these ids checked (see the header), or null. */
+export function chainAct(state, ids) {
+  const m = handMenu(state);
+  const rows = ids.map(id => m?.rows.find(r => r.id === id && r.verb === 'activity') ?? null);
+  if (!m || rows.some(r => !r || r.off)) return null;
+  if (rows.length === 1) return { act: 'activity', args: { id: rows[0].id, spotId: rows[0].spotId, args: rows[0].args ?? {}, lead: true } };
+  return { act: 'chain', args: { spotId: m.spotId, steps: rows.map(r => ({ id: r.id, args: r.args ?? {} })) } };
+}
+
+/** R held, rows checked, Enter (see the header). */
+export function chain(ids) {
+  return {
+    name: `R held: ${ids.join(', ')}`,
+    start() { return { pressed: false }; },
+    step(state, me, m) {
+      if (m.pressed) return { done: true };
+      const act = chainAct(state, ids);
+      if (!act) return { fail: 'no-rows' };
+      m.pressed = true;
+      return { input: { act: [act] } };
+    },
+  };
+}
+
+/** Head A's first urinal, its first stall and its second sink: the basin moment's fixtures. */
+export const URINAL = 'f:e1:head-2a:urinal-1#1', HEAD_STALL = 'f:e1:head-2a:stall-1#1', SINK = 'f:e1:head-2a:sinks-1#2';
+const idle = (s) => !s.skip && !s.time?.doing && !s.time?.lead;
+
+// (R at the urinal if it offers the head; else a stall, its row the first not struck: the memory says which)
+function theHead({ stall = HEAD_STALL } = {}) {
+  return {
+    name: 'the head',
+    start() { return { phase: 'look', walk: null, via: null, label: null }; },
+    step(state, me, m) {
+      if (m.phase === 'look') {
+        const o = handOffer(state);
+        if (o?.verb === 'activity' && o.id === 'urinate') { m.via = 'urinal'; m.label = o.label; m.phase = 'busy'; return { input: { act: [{ act: 'hand', args: { want: 'activity', lead: true } }] } }; }
+        m.via = 'stall'; m.struck = handMenu(state)?.rows.find(r => r.id === 'urinate')?.off ?? null; m.phase = 'walk';
+      }
+      if (m.phase === 'walk') {
+        const prim = goTo(stall);
+        m.walk ??= prim.start(state, me);
+        const r = prim.step(state, me, m.walk);
+        if (r.input) return r;
+        if (r.fail) return { fail: `to ${stall}: ${r.fail}` };
+        const o = handOffer(state);
+        if (o?.verb === 'activity') { m.label = o.label; m.phase = 'busy'; return { input: { act: [{ act: 'hand', args: { want: 'activity', lead: true } }] } }; }
+        // (nothing due at the stall: R there is the wait since 0.0.6's fixer, so the stall is taken from R held's menu, its own row)
+        const row = handMenu(state)?.rows.find(r => r.id === 'bowel' && !r.off);
+        if (!row) return { fail: `no-offer at the stall (${o?.verb ?? 'none'})` };
+        m.label = row.label; m.phase = 'busy';
+        return { input: { act: [{ act: 'activity', args: { id: 'bowel', spotId: row.spotId, args: {}, lead: true } }] } };
+      }
+      return idle(state) ? { done: true } : { input: {} };
+    },
+  };
+}
+
+/** The basin moment's walk (see the header): the head, then the sink and R there. */
+export function basinRoutine({ urinal = URINAL, stall = HEAD_STALL, sink = SINK } = {}) {
+  return plan([
+    goTo(urinal), theHead({ stall }), until(idle, 10 * 60_000, 'the head done'),
+    goTo(sink), hand('activity'), until(idle, 60_000, 'the hands washed'),
   ]);
 }

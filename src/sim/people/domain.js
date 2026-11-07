@@ -14,12 +14,33 @@
 // people domain held its prefix): the fast layer 'offers' settles the instinct's line each second
 // (instinctStep), and the action 'instinct' (T) does what the line offers (instinctAction). The
 // action 'people' (talk and orders, 0.0.10) is still a stub, routed and doing nothing.
+// Its one upgrade (0.0.6; the build sheet 0.0.6 §3.2): 'people:cuts' maps every look's cut that v0.0.5
+// drew to a regulation cut (LEGACY_CUTS: crew to low regulation, a man's short to medium regulation,
+// bald to the shaved head; a woman's as they are), drawing no thinning (v0.0.4's bald men are the shaved
+// ones); the squad rule still holds, the map being one to one within a sex. Flag mig:people-cuts, set
+// only where a look changed, so a new save loads unchanged.
 import { fillDomain } from '../../core/state.js';
+import { CUTS, LEGACY_CUTS } from '../../data/people/looks.js';
 import { actorsStep, placeSlowStep } from './place.js';
 import { instinctStep, instinctAction } from '../skills/instinct.js';
 
 const KEYS = Object.freeze(['player', 'people', 'units', 'happenings', 'actors', 'mind', 'talk', 'names']);
 const noop = () => {};
+
+/** The upgrade 'people:cuts' (see the header): v0.0.5's cuts mapped to the regulation cuts. Returns how many looks changed. */
+export function upgradeCuts(state) {
+  let n = 0;
+  for (const p of Object.values(state.people ?? {})) {
+    const hair = p?.look?.hair, style = hair?.style, sex = p?.sex === 'f' ? 'f' : 'm';
+    if (!hair || !style || CUTS[style]?.sex === sex) continue;
+    const to = LEGACY_CUTS[sex]?.[style];
+    if (!to) continue;
+    p.look = { ...p.look, hair: { ...hair, style: to } };
+    n++;
+  }
+  if (n) (state.flags ??= {})['mig:people-cuts'] = true;
+  return n;
+}
 
 /** The people domain's fill (??=): every key at its empty default, kept where set. */
 export function initPeople(state) {
@@ -40,5 +61,5 @@ export const peopleDomain = Object.freeze({
   slow: Object.freeze([Object.freeze({ name: 'people:place', step: placeSlowStep, steady: () => true })]),
   jobs: Object.freeze({}),
   actions: Object.freeze({ people: noop, instinct: instinctAction }),
-  upgrades: Object.freeze([]),
+  upgrades: Object.freeze([['people:cuts', upgradeCuts]]),
 });

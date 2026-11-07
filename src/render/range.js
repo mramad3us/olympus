@@ -29,9 +29,9 @@
 // One instanced draw of pixels (src/render/decals.js createPixels), lit where each pixel is.
 import { PX_PER_M } from './scale.js';
 import { createPixels } from './decals.js';
-import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART } from './range-items.js';
+import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART } from './range-items.js';
 import { LINE_FLAGS, LINE_FLAG } from '../data/places/range.js';
-export { cardFace, holePixel, flagPixels, brassPixels, flashPixels, dustPixels, drawnY, drawnBoreM, drawnMuzzleM, FLAG_HOIST_MS, FLAG_FLAP_MS, PUFF_MS, FLAG_PART } from './range-items.js';
+export { cardFace, holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, drawnY, drawnBoreM, drawnMuzzleM, FLAG_HOIST_MS, FLAG_FLAP_MS, PUFF_MS, FLAG_PART } from './range-items.js';
 
 /** The most pixels the range draws a frame (six cards of holes, the flags, 64 cases at two pixels, the dust), and the flash star's. */
 export const MAX_RANGE_PIXELS = 1700, BLAST_PIXELS = 32;
@@ -83,6 +83,9 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
       // (the blast: noLine, so the outline pass draws no line round the star or the motes; the star unlit, a light itself)
       const flash = flashPixels(look.fire, ms, ppm), dust = dustPixels(look.fire, ms, ppm);
       for (const p of dust) put(p, 0, true);
+      // (a tracer's ember to its card (0.0.6): unlit, a light of its own, no outline)
+      const lane = look.fire?.lane ? lanes.get(look.fire.lane) : null;
+      for (const p of tracePixels(look.fire, ms, ppm, lane?.target ?? null)) put(p, 0, true);
       flash.forEach((p, i) => blast.set(i, { ...p, color: p.c, part: 0, noLine: true }));
       nb = flash.length;
       stats.flash = flash.length; stats.dust = dust.length;

@@ -14,9 +14,14 @@
 // strip with the partial outcome; T on a chunked strip takes another chunk and the splash goes on
 // zoomed; the outcome strip's items from an outcome (each need that moved, the look). Prints each
 // phase's real seconds, the totals and the clock's ticks.
+// The 0.0.6 round's chain (the build sheet 0.0.6 §2.3; the user, 2026-11-06: "the ability to select several
+// actions"): brush teeth, shave and wash face behind ONE splash over their 7 minutes; each step's part joins the
+// splash's as it begins (the vignette's part follows the chain); Backspace during the shave, the sim's chainStop
+// moving the end to the shave's end, decelerates the shown clock to it over DECEL_S (never past the sim, never
+// back), and the strip lists the steps in order, the dropped wash face named.
 import { assert, near, fmt } from './helpers.mjs';
 import * as T from '../src/sim/time/splash.js';
-import { createSplashControl, outcomeItems, partAt, plaqueOf, PHASES } from '../src/ui/hud/splash.js';
+import { createSplashControl, outcomeItems, partAt, plaqueOf, PHASES, chainSteps, STEP_MARKS } from '../src/ui/hud/splash.js';
 import { MIN_MS } from '../src/core/clock.js';
 
 const SHOWER_FROM = 23_505_105_700, SHOWER_TO = SHOWER_FROM + 600_000;
@@ -169,6 +174,70 @@ export default [
       const plaques = [plaqueOf({ kind: 'alert', letter: 'A' }), plaqueOf({ kind: 'reveille', letter: 'O' }), plaqueOf({ kind: 'body', letter: 'B', band: 'urgent' })];
       console.log(`      plaques: ${plaques.join(', ')}`);
       assert(plaques.join() === 'ALARM,REVEILLE,URGENT', plaques.join());
+    },
+  },
+  {
+    name: 'a chain of brush teeth, shave and wash face behind one splash (the user, 2026-11-06: "the ability to select several actions"): each step\'s part joins as it begins; Backspace in the shave decelerates the clock to the shave\'s end over DECEL_S, never past the sim nor back; the strip lists the three in order, wash face dropped',
+    fn() {
+      const F = SHOWER_FROM, STEPS = [['teeth', 120_000], ['shave', 360_000], ['wash-face', 420_000]], TO = F + 420_000;
+      const go = ({ stopAtMin = null, frameMs = 1000 / 60 } = {}) => {
+        const ctl = createSplashControl({ timing: T });
+        ctl.start({ id: 'k9', activity: 'teeth', kind: 'outcome', engine: 'outcome', fromMs: F, toMs: TO, spotId: 'f:e1:head-2a:sinks-1#1', vignette: 'sink', stoppable: true, chunkMs: 0, chain: { steps: STEPS.map(x => x[0]), n: 3 } },
+          { centre: { x: 0, z: 0 }, parts: { fromMs: F, list: [{ part: 'teeth', toMs: F + 120_000 }] } });
+        let clock = F, toMs = TO, target = F, paused = false, t = 0, step = 0, stopped = false, prev = -Infinity, back = 0, ahead = 0, decelS = null, ended = false;
+        const parts = { teeth: 'teeth', shave: 'shave', 'wash-face': 'face' }, seen = [], keycap = [];
+        for (let n = 0; n < 100_000; n++) {
+          if (!paused && !ended) {
+            while (clock < toMs) {
+              const t1 = Math.min(toMs, Math.floor(clock / MIN_MS) * MIN_MS + MIN_MS);
+              if (t1 > target) break;
+              clock = t1;
+              // (a step's end: the next begins, its part joining the splash's: chain.js's 'chain' { phase: 'step' })
+              while (step < 2 && clock >= F + STEPS[step][1] && clock < toMs) { step++; ctl.steps({ fromMs: F, list: [{ part: parts[STEPS[step][0]], toMs: F + STEPS[step][1] }] }); }
+            }
+            if (clock >= toMs) {
+              ended = true;
+              const chain = STEPS.map(([id, end], i) => (F + end <= toMs ? { id, line: `${id} done.`, fraction: 1, by: 'natural' } : { id, line: null, fraction: 0, by: 'dropped' }));
+              ctl.end({ id: 'k9', toMs: clock, planned: toMs, interrupted: false, by: null, outcome: { body: null, look: null, chain } });
+            }
+          }
+          const f = ctl.frame(frameMs / 1000, { clockMs: clock, skipToMs: ended ? null : toMs });
+          if (!f) break;
+          t += frameMs / 1000;
+          if (f.target !== null) target = f.target;
+          paused = f.pause;
+          // (Backspace once the shown clock passes stopAtMin: the sim's chainStop on its next tick, the 'stop' fact to the splash)
+          if (stopAtMin !== null && !stopped && f.view.shownMs >= F + stopAtMin * MIN_MS && ctl.stop()) {
+            stopped = true;
+            const run = STEPS.find(([, end]) => clock < F + end) ?? STEPS[2];
+            toMs = F + run[1];
+            ctl.chainStop({ toMs });
+            decelS = { at: t, fromMs: f.view.shownMs };
+          }
+          if (decelS && decelS.done === undefined && f.view.shownMs >= toMs) decelS.done = t - decelS.at;
+          if (f.view.shownMs < prev) back++;
+          prev = f.view.shownMs; ahead = Math.max(ahead, f.view.shownMs - clock);
+          seen.push({ t, ms: f.view.shownMs, part: f.view.part, phase: f.view.phase, chain: f.view.chain, strip: f.view.outcome ? outcomeItems(f.view.outcome).filter(i => i.kind === 'step') : null });
+          keycap.push(f.view.chain?.stopped ? 'stops after this step' : f.view.stoppable && (f.view.phase === 'in' || f.view.phase === 'lapse') ? 'Backspace stop after this step' : '');
+          if (f.done) break;
+        }
+        return { t, clock, seen, back, ahead, decelS, keycap };
+      };
+      const whole = go(), partsAt = (r, min) => r.seen.find(x => x.ms >= F + min * MIN_MS)?.part;
+      const strip = whole.seen.find(x => x.strip?.length)?.strip ?? [];
+      console.log(`      the whole chain: ${fmt(whole.t, 2)} s of splash, the sim at +${(whole.clock - F) / MIN_MS} min; the part at minutes 1, 4 and 6.5: ${[1, 4, 6.5].map(m => partsAt(whole, m)).join(', ')}; the strip: ${strip.map(i => `${i.mark} ${i.line}`).join(' | ')}`);
+      assert(whole.clock === TO && whole.back === 0 && whole.ahead <= 0 && partsAt(whole, 1) === 'teeth' && partsAt(whole, 4) === 'shave' && partsAt(whole, 6.5) === 'face', JSON.stringify({ clock: whole.clock, back: whole.back }));
+      assert(strip.length === 3 && strip.every(i => i.mark === STEP_MARKS.whole) && whole.seen[0].chain?.n === 3, JSON.stringify(strip));
+      const bs = go({ stopAtMin: 3 });
+      const strip2 = bs.seen.find(x => x.strip?.length)?.strip ?? [];
+      console.log(`      Backspace at minute 3 (the shave): the end moved to +${(bs.clock - F) / MIN_MS} min, the clock decelerated there in ${fmt(bs.decelS?.done ?? NaN, 3)} s (DECEL_S ${T.DECEL_S}) from +${fmt((bs.decelS.fromMs - F) / MIN_MS, 2)} min; ${fmt(bs.t, 2)} s of splash; the keycap '${bs.keycap.find(Boolean)}' then '${bs.keycap.find(k => k.startsWith('stops'))}'; the strip: ${strip2.map(i => `${i.mark} ${i.line}`).join(' | ')}`);
+      assert(bs.clock === F + 360_000 && bs.back === 0 && bs.ahead <= 0, JSON.stringify({ clock: bs.clock, back: bs.back, ahead: bs.ahead }));
+      assert(bs.decelS.done !== undefined && bs.decelS.done <= T.DECEL_S + 2 / 60 && bs.decelS.done >= T.DECEL_S - 2 / 60, `the deceleration took ${bs.decelS.done} s`);
+      assert(strip2.map(i => i.mark).join('') === `${STEP_MARKS.whole}${STEP_MARKS.whole}${STEP_MARKS.dropped}` && strip2[2].dropped && strip2[2].line === 'wash face: dropped.', JSON.stringify(strip2));
+      assert(bs.keycap[0] === 'Backspace stop after this step' && bs.keycap.includes('stops after this step'), JSON.stringify(bs.keycap.slice(0, 3)));
+      // (the chain's steps from skip-end's outcome.chain alone, a cut one marked as cut)
+      const cs = chainSteps({ chain: [{ id: 'shower', line: 'Water off early.', fraction: 0.4, by: 'interrupt' }, { id: 'dress', line: null, fraction: 0, by: 'dropped' }] });
+      assert(cs[0].mark === STEP_MARKS.cut && cs[1].dropped && cs[1].line === 'dress: dropped.', JSON.stringify(cs));
     },
   },
 ];

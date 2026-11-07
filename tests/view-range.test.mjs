@@ -94,7 +94,7 @@ export default [
         assert(seen?.frame === 'slungFront', `on the line the rifle slung front: ${seen?.frame}`);
         await page.keyboard.press('KeyG');
         for (let t = 0; t < 4000; t += 100) { await page.waitForTimeout(100); if ((await page.evaluate(() => window.__olympus.stop?.()?.phase)) === 'choose') break; }
-        const plan = [['posture:highReady', 'highReady'], ['stance:kneel', 'kneelHigh'], ['posture:lowReady', 'kneelLow'], ['magIn', 'kneelLow'], ['charge', 'kneelLow'], ['pressCheck', 'kneelLow'], ['magOut:drop', 'kneelLow'], ['stance:prone', 'proneLow']];
+        const plan = [['posture:highReady', 'highReady'], ['stance:kneel', 'kneelHigh'], ['posture:lowReady', 'kneelLow'], ['reach@p1', 'kneelLow'], ['seat', 'kneelLow'], ['charge', 'kneelLow'], ['pressCheck', 'kneelLow'], ['magOut:drop', 'kneelLow'], ['stance:prone', 'proneLow']];
         let n = 11;
         const g = await peek(page);
         rows.push(`G: ${g.arms?.carry} ${g.arms?.stance} → ${g.arms?.frame}`);

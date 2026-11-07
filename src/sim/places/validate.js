@@ -43,6 +43,13 @@
 //                openTopOf, the landing the kit draws): one who steps onto the drawn landing goes down,
 //                and nowhere else does (the user, 2026-11-06: "cannot cross the space to head downstairs
 //                again, is it intentional ?", from a landing drawn at the well's other end; from 0.0.5)
+//   stair-foot   every flight has a link's portal across it, and is entered only at its foot (the user,
+//                2026-11-07, of v0.0.5's flights: "we can get on the upwards staircase from the wrong
+//                end"; from 0.0.6): its portal's firing zone meets the flight only in its top STAIR_TOP_M
+//                (fixtures.js flightFarOf); wherever a walker of any class may stand in that zone, it
+//                stands in the flight's lane (flightLaneOf: between its rails, short of its closed end);
+//                and a C0 walker stepping on within FLIGHT_FOOT_M of the foot walks the lane's middle
+//                straight up into the zone (each class's grid with every door open)
 //   link         a link's stops have the same x and z on both floors, a flight on the floor below and a
 //                well on the floor above at them, the same face (the stair keeps its place on screen)
 //   decor        every decor piece sits on a full-height wall: a run of the north boundary
@@ -60,8 +67,8 @@
 // most LAMPS_MAX 256 lamps (TECH §9.6's table); seeds as a floor's.
 import { isId } from '../../core/ids.js';
 import { planOf, wallsOf, wallRect, roomAt, WALL_H_M } from './plan.js';
-import { CATALOGUE, footprintOf, blocks, mountOf, openTopOf } from './fixtures.js';
-import { buildGrid, cellOf, chunkGrid, CHUNK_M } from './nav.js';
+import { CATALOGUE, footprintOf, blocks, mountOf, openTopOf, flightLaneOf, flightFarOf, FLIGHT_FOOT_M } from './fixtures.js';
+import { buildGrid, cellOf, chunkGrid, CHUNK_M, CLASSES } from './nav.js';
 import { standOk } from './collide.js';
 import { areaOf } from './model.js';
 import { pastBand } from './portals.js';
@@ -199,6 +206,15 @@ export function validateArea(area) {
     if (!across.length) { c.fail('stair-top', f.id, 'has no link\'s portal across it'); continue; }
     for (const p of across) { const z = zoneRectOf(p.band); if (!inside(z, top, 0.01)) c.fail('stair-top', f.id, `${p.id} fires at ${JSON.stringify(z)}, not on the well's open top ${JSON.stringify(top)}`); }
   }
+  // a flight entered only at its foot
+  const known = fx.length === (area.fixtures ?? []).length ? area : { ...area, fixtures: fx };
+  const grids = {}, gridOf = (cls) => (grids[cls] ??= buildGrid(known, cls, { closed: () => false }));
+  for (const f of fx.filter(x => x.kind === 'stairs')) {
+    c.check('stair-foot');
+    const across = (area.portals ?? []).filter(p => (area.links ?? []).some(l => l.id === p.via) && bandAcross(p.band, f));
+    if (!across.length) { c.fail('stair-foot', f.id, 'has no link\'s portal across it'); continue; }
+    for (const p of across) { const why = stairFootProblem(f, zoneRectOf(p.band), gridOf); if (why) c.fail('stair-foot', f.id, `${p.id}: ${why}`); }
+  }
   // links aligned through the floors
   for (const l of area.links ?? []) {
     c.check('link');
@@ -260,6 +276,39 @@ function zoneRectOf(b) {
   const lo = Math.min(p, q), hi = Math.max(p, q);
   return b.axis === 'x' ? { x0: b.a, x1: b.b, z0: lo, z1: hi } : { x0: lo, x1: hi, z0: b.a, z1: b.b };
 }
+/** The step the stair-foot rule samples a zone and a lane at, metres. */
+const STAIR_SAMPLE_M = 0.02;
+// (why a flight with this firing zone is entered other than at its foot, or null: see stair-foot in the header)
+function stairFootProblem(f, zone, gridOf) {
+  const fp = footprintOf(f), top = flightFarOf(f), lane = flightLaneOf(f);
+  const on = { x0: Math.max(zone.x0, fp.x0), z0: Math.max(zone.z0, fp.z0), x1: Math.min(zone.x1, fp.x1), z1: Math.min(zone.z1, fp.z1) };
+  if (!(on.x1 > on.x0 && on.z1 > on.z0) || !inside(on, top, 0.01)) return `fires at ${JSON.stringify(zone)}, not on the flight's top ${JSON.stringify(top)}`;
+  // (no class stands in the zone off the lane)
+  const n = (a, b) => Math.max(1, Math.round((b - a) / STAIR_SAMPLE_M));
+  for (const cls of Object.keys(CLASSES)) {
+    const g = gridOf(cls), nx = n(zone.x0, zone.x1), nz = n(zone.z0, zone.z1);
+    for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+      const x = zone.x0 + (zone.x1 - zone.x0) * i / nx, z = zone.z0 + (zone.z1 - zone.z0) * j / nz;
+      if (standOk(g, x, z) && !inside({ x0: x, z0: z, x1: x, z1: z }, lane)) return `a ${cls} walker stands in its zone off the lane, at (${x.toFixed(2)}, ${z.toFixed(2)})`;
+    }
+  }
+  // (C0 up the lane's middle, from the first point it stands on near the foot to as deep as it goes toward the top)
+  const g = gridOf('C0'), r = CLASSES.C0, alongZ = lane.z1 - lane.z0 >= lane.x1 - lane.x0;
+  const lo = alongZ ? lane.z0 : lane.x0, hi = alongZ ? lane.z1 : lane.x1, m = alongZ ? (lane.x0 + lane.x1) / 2 : (lane.z0 + lane.z1) / 2;
+  const topHi = alongZ ? top.z1 >= hi - 0.01 : top.x1 >= hi - 0.01, foot = topHi ? lo : hi, end = topHi ? hi - r : lo + r, s = topHi ? 1 : -1;
+  const at = (u) => (alongZ ? [m, u] : [u, m]), steps = n(Math.min(foot, end), Math.max(foot, end));
+  let first = null;
+  for (let k = 0; k <= steps; k++) {
+    const u = foot + s * Math.abs(end - foot) * k / steps, [x, z] = at(u), ok = standOk(g, x, z);
+    if (first === null) { if (ok) first = u; continue; }
+    if (!ok) return `a C0 walker up the lane is stopped at (${x.toFixed(2)}, ${z.toFixed(2)})`;
+  }
+  if (first === null || Math.abs(first - foot) > FLIGHT_FOOT_M + 1e-9) return `a C0 walker steps onto the lane only ${first === null ? 'nowhere' : `${Math.abs(first - foot).toFixed(2)} m from its foot`}`;
+  const [ex, ez] = at(end);
+  if (!(ex >= zone.x0 - 1e-9 && ex <= zone.x1 + 1e-9 && ez >= zone.z0 - 1e-9 && ez <= zone.z1 + 1e-9)) return `a C0 walker up the lane stops at (${ex.toFixed(2)}, ${ez.toFixed(2)}), short of its zone ${JSON.stringify(zone)}`;
+  return null;
+}
+
 /** The face one arrives with through a band crossed toward its out side. */
 const FACE_OF_OUT = Object.freeze({ n: 'up', s: 'down', e: 'right', w: 'left' });
 // (a scratch state for the grids a check builds: every opening as its template has it)

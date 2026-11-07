@@ -9,8 +9,12 @@
 // outfit; and what is done at its start: eat { kcal, waterL, food }, drink (litres), head (a void from
 // HEAD_VOID_FROM_ML 300 mL, between could-go and need; 'always' at reveille and before the rack,
 // whatever the bladder holds), stall (the bowel when it could go, and a void), wash (water minutes), groom
-// { teeth, shave, face }, bed (lying down to sleep: the next reveille ends it). Times run forward
-// through the slip: a row after 24:00 is on the next sol.
+// { teeth, shave, face, hands }, bed (lying down to sleep: the next reveille ends it). Times run forward
+// through the slip: a row after 24:00 is on the next sol. 0.0.6: a head that voids soils the hands
+// (HANDS.HEAD), a stall that moves the bowel (HANDS.STALL), a meal (HANDS.FOOD); the reference marine
+// washes them after every head and stall that has basins (groom.hands: the range's portable heads have
+// none), at the basins at reveille and at 21:45 and before noon chow, and the shower's water takes them
+// too, so a career starts with the hands of the day's last wash (body-hands prints them).
 //
 // The body uses it twice: startBody (src/sim/body/body.js) advances the template, a marine at
 // reveille after a standard night, along REFERENCE_SOL to the hour a game starts (the sheet §8, item
@@ -25,13 +29,15 @@
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
 const walk = (at, what = 'walking about', more = {}) => ({ at, what, met: 3.0, kind: 'walk', out: true, ...more });
+// (0.0.6: a marine washes after the head or a stall where it has basins: the barracks', the mess's; the range's portable heads have none)
+const HANDS_WASHED = Object.freeze({ hands: true });
 const still = (at, what, met, more = {}) => ({ at, what, met, kind: 'still', ...more });
 
 /** BODY §3.2's range sol on TIME §9.2's training sol (see the header). */
 export const REFERENCE_SOL = deepFreeze({
   id: 'range', reveille: '05:30', taps: '22:00',
   rows: [
-    still('05:30', 'the head and the basin', 1.8, { head: 'always', groom: { teeth: true, shave: true, face: true } }),
+    still('05:30', 'the head and the basin', 1.8, { head: 'always', groom: { teeth: true, shave: true, face: true, hands: true } }),
     { at: '05:45', what: 'PT: a run and calisthenics in a 15 kg vest', met: 8.0, kind: 'run', loadKg: 15, out: true, outfit: 'sweats' },
     walk('06:45', 'back from the track', { outfit: 'sweats' }),
     still('06:50', 'into the shower', 1.8, { head: true, outfit: 'towel' }),
@@ -39,35 +45,35 @@ export const REFERENCE_SOL = deepFreeze({
     still('06:54', 'dried and dressed', 2.0, { wash: 3, outfit: 'towel' }),
     walk('07:00', 'to the mess'),
     still('07:05', 'breakfast', 1.5, { eat: { kcal: 900, waterL: 0.5, food: 'mess' } }),
-    still('07:30', 'a stall', 1.5, { stall: true }),
+    still('07:30', 'a stall', 1.5, { stall: true, groom: HANDS_WASHED }),
     walk('07:36', 'to formation'),
     still('07:45', 'formation', 1.8, { out: true }),
     { at: '08:00', what: 'the range: walking, prone, kneeling, with the rifle and the rig', met: 2.2, kind: 'walk', loadKg: 10, out: true },
     { at: '09:30', what: 'the range, a canteen', met: 2.2, kind: 'walk', loadKg: 10, out: true, drink: 0.5 },
     { at: '10:45', what: 'the range, the portable heads', met: 2.2, kind: 'walk', loadKg: 10, out: true, head: true },
     walk('11:30', 'back from the range'),
-    still('11:40', 'washing up', 1.8),
+    still('11:40', 'washing up', 1.8, { groom: { hands: true } }),
     still('11:45', 'noon chow', 1.5, { eat: { kcal: 900, waterL: 0.5, food: 'mess' } }),
     walk('12:15', 'to formation'),
     still('12:25', 'formation', 1.8, { out: true }),
     still('12:45', 'classes', 1.3),
-    walk('13:00', 'a break, the head', { out: false, head: true }),
+    walk('13:00', 'a break, the head', { out: false, head: true, groom: HANDS_WASHED }),
     still('13:05', 'classes', 1.3),
-    walk('15:20', 'a break, the head', { out: false, head: true }),
+    walk('15:20', 'a break, the head', { out: false, head: true, groom: HANDS_WASHED }),
     still('15:25', 'classes', 1.3),
-    still('16:30', 'the head', 1.8, { head: true }),
+    still('16:30', 'the head', 1.8, { head: true, groom: HANDS_WASHED }),
     still('16:35', 'maintenance: rifle cleaning', 1.8),
     walk('17:15', 'to the mess'),
     still('17:25', 'evening chow', 1.5, { eat: { kcal: 1000, waterL: 0.5, food: 'mess' } }),
     walk('17:55', 'back to the barracks'),
-    still('18:05', 'the head, the evening', 1.4, { head: true }),
+    still('18:05', 'the head, the evening', 1.4, { head: true, groom: HANDS_WASHED }),
     still('18:30', 'mail call', 1.8),
     still('18:40', 'the evening', 1.4),
-    still('19:15', 'the head, the evening', 1.4, { head: true }),
-    walk('20:00', 'walking about, the head', { out: false, head: true }),
+    still('19:15', 'the head, the evening', 1.4, { head: true, groom: HANDS_WASHED }),
+    walk('20:00', 'walking about, the head', { out: false, head: true, groom: HANDS_WASHED }),
     still('20:10', 'the evening', 1.4),
-    still('21:00', 'the head, the evening', 1.4, { head: true }),
-    still('21:45', 'the head, the basin, PT kit', 2.0, { head: 'always', groom: { teeth: true } }),
+    still('21:00', 'the head, the evening', 1.4, { head: true, groom: HANDS_WASHED }),
+    still('21:45', 'the head, the basin, PT kit', 2.0, { head: 'always', groom: { teeth: true, hands: true } }),
     still('22:00', 'the rack', 1.0, { posture: 'lie', bed: 'own-rack', outfit: 'pt' }),
   ],
 });
@@ -76,28 +82,28 @@ export const REFERENCE_SOL = deepFreeze({
 export const HOLIDAY_SOL = deepFreeze({
   id: 'holiday', reveille: '07:00', taps: '22:00',
   rows: [
-    still('07:00', 'the head and the basin', 1.8, { head: 'always', groom: { teeth: true, shave: true, face: true } }),
+    still('07:00', 'the head and the basin', 1.8, { head: 'always', groom: { teeth: true, shave: true, face: true, hands: true } }),
     still('07:15', 'the bay, a slow morning', 1.4),
     walk('07:50', 'to the mess'),
     still('08:00', 'brunch', 1.5, { eat: { kcal: 1200, waterL: 0.5, food: 'mess' } }),
-    still('09:00', 'a stall', 1.5, { stall: true }),
+    still('09:00', 'a stall', 1.5, { stall: true, groom: HANDS_WASHED }),
     walk('09:06', 'back to the barracks'),
     still('09:16', 'the bay', 1.4),
-    walk('12:00', 'walking about, the head', { head: true }),
+    walk('12:00', 'walking about, the head', { head: true, groom: HANDS_WASHED }),
     still('12:30', 'the bay', 1.4),
-    still('14:00', 'the bay, a drink', 1.4, { drink: 0.5, head: true }),
+    still('14:00', 'the bay, a drink', 1.4, { drink: 0.5, head: true, groom: HANDS_WASHED }),
     still('15:30', 'into the shower', 1.8, { head: true, outfit: 'towel' }),
     still('15:31', 'the water', 2.0, { outfit: 'towel', wet: true }),
     still('15:34', 'dried and dressed', 2.0, { wash: 3, outfit: 'towel' }),
     still('15:40', 'the bay', 1.4),
-    walk('16:50', 'the head, to the mess', { head: true }),
+    walk('16:50', 'the head, to the mess', { head: true, groom: HANDS_WASHED }),
     still('17:00', 'dinner', 1.5, { eat: { kcal: 1100, waterL: 0.5, food: 'mess' } }),
     walk('17:30', 'back to the barracks'),
-    still('17:40', 'the head, the evening', 1.4, { head: true }),
-    still('18:40', 'the head, the evening', 1.4, { head: true }),
-    still('19:30', 'the evening, a drink', 1.4, { drink: 0.5, head: true }),
-    still('20:45', 'the head, the evening', 1.4, { head: true }),
-    still('21:45', 'the head, the basin, PT kit', 2.0, { head: 'always', groom: { teeth: true } }),
+    still('17:40', 'the head, the evening', 1.4, { head: true, groom: HANDS_WASHED }),
+    still('18:40', 'the head, the evening', 1.4, { head: true, groom: HANDS_WASHED }),
+    still('19:30', 'the evening, a drink', 1.4, { drink: 0.5, head: true, groom: HANDS_WASHED }),
+    still('20:45', 'the head, the evening', 1.4, { head: true, groom: HANDS_WASHED }),
+    still('21:45', 'the head, the basin, PT kit', 2.0, { head: 'always', groom: { teeth: true, hands: true } }),
     still('22:00', 'the rack', 1.0, { posture: 'lie', bed: 'own-rack', outfit: 'pt' }),
   ],
 });

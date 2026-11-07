@@ -15,8 +15,11 @@
 // need's words. A body without a beard (hasBeard: a woman's) has no stubble stage past 0, no stubbleK
 // and no Shave row in the words. A record may be given whole or as its saved deltas. The site's longitude places the
 // body clock (Melas's by default, where every career starts).
+// 0.0.6: the hands (the build sheet 0.0.6 §2.2): stagesOf's hands band, its words naming the last soiling
+// from dirty on ("Dirty hands, since the head.", "Gun oil and carbon on your hands.", "Regolith ground into
+// your palms."; handsWords), cuesOf's handsK (dirt / 100) and handsWhy for the doll, and the words' hands row.
 // Pure.
-import { HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, FATIGUE_BANDS, STAMINA_BANDS, STUBBLE_BANDS, STRESS_BANDS, MORALE_BANDS, HYGIENE } from '../../data/body/needs.js';
+import { HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, FATIGUE_BANDS, STAMINA_BANDS, STUBBLE_BANDS, STRESS_BANDS, MORALE_BANDS, HYGIENE, HANDS_BANDS } from '../../data/body/needs.js';
 import { SITES, START } from '../../data/setting/calendar.js';
 import { HOUR_MS, MIN_MS } from '../../core/clock.js';
 import { withDefaults, hasBeard } from './record.js';
@@ -25,7 +28,7 @@ export { hasBeard };
 import { massOf, hungerIndex } from './energy.js';
 import { thirstPct, thirstIndex } from './water.js';
 import { bladderIndex, bowelIndex, bowelLowerG } from './elimination.js';
-import { grimeIndex, stubbleIndex } from './hygiene.js';
+import { grimeIndex, stubbleIndex, handsIndex } from './hygiene.js';
 import { phiOf, circ, fatigueIndex, lonMsOf } from './sleep.js';
 import { stressIndex, moraleIndex } from './stress.js';
 import { stageOf } from './thermal.js';
@@ -38,6 +41,17 @@ export const STRIP_NEEDS = Object.freeze(['water', 'food', 'bladder', 'bowel', '
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const staminaIndex = (v) => { for (let i = STAMINA_BANDS.length - 1; i >= 1; i--) if (v < STAMINA_BANDS[i].below) return i; return 0; };
 const stage = (bands, i) => { const b = bands[i]; return { band: b.id, i, tone: b.tone, words: b.words, fill: b.fill }; };
+
+// (the hands' words by band and the last soiling: from dirty on, the cause named; my calls)
+const HANDS_WHY = Object.freeze({
+  head: Object.freeze(['Clean hands.', 'Your hands could do with a wash.', 'Dirty hands, since the head.', 'Grimy hands, since the head.']),
+  stall: Object.freeze(['Clean hands.', 'Your hands could do with a wash.', 'Dirty hands, since the stall.', 'Filthy hands, since the stall.']),
+  food: Object.freeze(['Clean hands.', 'Crumbs on your fingers.', 'Sticky fingers.', 'Grimy, sticky hands.']),
+  rifle: Object.freeze(['Clean hands.', 'A smear of gun oil on your fingers.', 'Gun oil and carbon on your hands.', 'Black with gun oil and carbon.']),
+  regolith: Object.freeze(['Clean hands.', 'Red dust in the creases of your hands.', 'Regolith ground into your palms.', 'Regolith ground into your palms, red to the wrists.']),
+});
+/** The hands' words at a band index and a cause ('head', 'stall', 'food', 'rifle', 'regolith', or null: the band's own). */
+export const handsWords = (i, why) => HANDS_WHY[why]?.[i] ?? HANDS_BANDS[i]?.words ?? '';
 
 /** The body's effective sleep pressure at ms (BODY §7.3): the pressure and the body clock's term. */
 export function pEffOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
@@ -60,7 +74,14 @@ export function stagesOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
     stubble: stage(STUBBLE_BANDS, hasBeard(b) ? stubbleIndex(b.hygiene.stubbleH) : 0),
     stress: stage(STRESS_BANDS, stressIndex(b.stress.v)),
     morale: stage(MORALE_BANDS, moraleIndex(b.morale.v)),
+    hands: handsStage(b),
   };
+}
+// (the hands' stage, its words naming the cause)
+function handsStage(b) {
+  const i = handsIndex(b.hands?.dirt ?? 0), st = stage(HANDS_BANDS, i);
+  st.words = handsWords(i, b.hands?.why ?? null);
+  return st;
 }
 
 const HUNGER_K = Object.freeze([0, 0.2, 0.6, 0.8, 1, 1, 1]);
@@ -73,6 +94,7 @@ export function cuesOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
     tiredK: clamp01((pEffOf(b, ms, lonEDeg) - 12) / 8), stubbleK: hasBeard(b) ? clamp01(h.stubbleH / 48) : 0,
     bladderK: clamp01((b.bladder.ml - 200) / 500), hungerK: HUNGER_K[hungerIndex(e.gutKcal, e.emptyH, e.reserveKcal)] ?? 1,
     thirstK: clamp01(thirstPct(b.water.balanceL, massOf(b)) / 6),
+    handsK: clamp01((b.hands?.dirt ?? 0) / 100), handsWhy: b.hands?.why ?? null,
   };
 }
 
@@ -102,7 +124,7 @@ const lower = (w) => w.replace(/\.$/, '').replace(/^./, c => c.toLowerCase());
 export function wordsOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
   const b = withDefaults(body), s = stagesOf(b, ms, lonEDeg), wet = cuesOf(b, ms, lonEDeg).wetK > 0;
   const food = s.hunger.i === 0 ? fedPhrase(b.energy.ateMs, ms) : s.hunger.words.replace(/\.$/, '');
-  const order = [['bladder', s.bladder], ['bowel', s.bowel], ['water', s.thirst], ['sleep', s.fatigue], ['grime', s.hygiene], ['stubble', s.stubble], ['stamina', s.stamina], ['stress', s.stress], ['morale', s.morale]];
+  const order = [['bladder', s.bladder], ['bowel', s.bowel], ['water', s.thirst], ['sleep', s.fatigue], ['grime', s.hygiene], ['hands', s.hands], ['stubble', s.stubble], ['stamina', s.stamina], ['stress', s.stress], ['morale', s.morale]];
   const notes = order.filter(([, st]) => st.tone !== 'fine' && st.words).map(([, st]) => lower(st.words));
   let line;
   if (notes.length) line = `${food}; ${notes.join('; ')}.`;

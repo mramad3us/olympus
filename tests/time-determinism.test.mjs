@@ -53,18 +53,20 @@ export default [
       const end = a.g.facts('skip-end').at(-1);
       console.log(`      the sleep: ${end.activity}, ${end.minutes} min, ${end.interrupted ? `stopped by ${end.by}` : 'its full length'}; the player at (${fmt(a.g.me().x, 2)}, ${fmt(a.g.me().z, 2)}) ${a.g.me().posture ?? 'stand'}`);
       assert(a.digest === b.digest && a.digest === c.digest, `digests ${a.digest} ${b.digest} ${c.digest}`);
-      assert(Math.abs(a.t.skipMin - (120 + 4.4)) < 0.01 && end.activity === 'sleep', `the sleep ran ${a.t.skipMin} min (the turn-in into PT kit, 4.4 min, and two hours)`);
-      // (an 8-hour sleep from 22:00, timed whole and with the body inert: the time role's own share, the placing of the squad, the queue)
+      // (0.0.6: no turn-in into PT kit before it, 4.4 min in v0.0.5: you sleep in what you wear, the build sheet 0.0.6 §8 item 6)
+      assert(Math.abs(a.t.skipMin - 120) < 0.01 && end.activity === 'sleep', `the sleep ran ${a.t.skipMin} min (two hours)`);
+      // (an 8-hour sleep, 21:30 to reveille, timed whole and with the body inert: the time role's own share, the placing of the squad, the
+      // queue; 0.0.6: a sleep past reveille is struck, so v0.0.5's 22:00 for 8 hours became 21:30 until reveille, eight hours still)
       const sleep8 = (domains) => {
-        const g = createGame({ ...START, hour: 22, domains });
-        g.sim.act(g.state, { act: 'activity', args: { id: 'sleep', spotId: 'f:e1:bay-2-1:rack-n1#1', args: { forMs: 8 * 3_600_000 } } }, g.bus, { held: false, tickMs: TICK_MS, sim: g.sim });
+        const g = createGame({ ...START, hour: 21.5, domains });
+        g.sim.act(g.state, { act: 'activity', args: { id: 'sleep', spotId: 'f:e1:bay-2-1:rack-n1#1', args: { until: 'reveille' } } }, g.bus, { held: false, tickMs: TICK_MS, sim: g.sim });
         const t0 = performance.now(); g.advance(); const ms = performance.now() - t0;
         return { ms, min: g.facts('skip-end').at(-1).minutes };
       };
       sleep8({}); sleep8({ body: { owner: 'BODY', keys: [] } });                       // (warm)
       const whole = sleep8({}), own = sleep8({ body: { owner: 'BODY', keys: [] } });
       const ownUs = own.ms * 1000 / own.min;
-      console.log(`      an 8-hour sleep from 22:00: ${fmt(whole.ms, 1)} ms whole (${fmt(whole.ms * 1000 / whole.min, 1)} µs a minute; TIME §5.10's budget ${BUDGET_8H_MS} ms × k ${fmt(k, 2)}: ${whole.ms <= BUDGET_8H_MS * k ? 'within' : 'over, by the body\'s minute step'}), ${fmt(own.ms, 1)} ms with the body inert (${fmt(ownUs, 1)} µs a minute: the queue, the slow mark, the squad's placing)`);
+      console.log(`      an 8-hour sleep from 21:30 (${whole.min} min): ${fmt(whole.ms, 1)} ms whole (${fmt(whole.ms * 1000 / whole.min, 1)} µs a minute; TIME §5.10's budget ${BUDGET_8H_MS} ms × k ${fmt(k, 2)}: ${whole.ms <= BUDGET_8H_MS * k ? 'within' : 'over, by the body\'s minute step'}), ${fmt(own.ms, 1)} ms with the body inert (${fmt(ownUs, 1)} µs a minute: the queue, the slow mark, the squad's placing)`);
       assert(tickUs <= TICK_US_MAX * k && minUs <= SKIP_MIN_US_MAX * k && ownUs <= OWN_MIN_US_MAX * k, `cost: ${fmt(tickUs, 1)} µs a tick, ${fmt(minUs, 1)} µs a minute, ${fmt(ownUs, 1)} µs a minute without the body`);
     },
   },

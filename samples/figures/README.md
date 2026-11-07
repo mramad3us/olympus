@@ -88,7 +88,7 @@ A look is plain data a person carries; `outfits.js wear(look)` expands it into l
 
 ```js
 { outfit: 'utilities' | 'nco' | 'pt' | 'vac' | 'vacOpen' | 'carrier' | 'civilian',
-  skin: 'light' | 'tan' | 'brown' | 'dark' | 0xrrggbb, hair: { style: 'crew' | 'short' | 'bun' | 'bald', color },
+  skin: 'light' | 'tan' | 'brown' | 'dark' | 0xrrggbb, hair: { style: 'highTight' | 'lowReg' | 'medReg' | 'shaved' | 'bun' | 'short' | 'braid', color, step: 0 to 3 },
   weapon: 'rifle' | 'pistol' | null, carry: 'low' | 'high' | 'slung', rank, head: null (bare-headed), seed }
 ```
 

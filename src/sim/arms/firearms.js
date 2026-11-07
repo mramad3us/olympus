@@ -55,6 +55,29 @@
 // stream. feed() is the single place a round enters the chamber (tradecraft's), and where a magazine's
 // set round becomes the chambered round's.
 //
+// **A magazine reached for** (0.0.6; the user, 2026-11-07: "putting magazine in should be a "Reach for
+// magazine" (or equivalent) and when we have the mag we reached for, we see if it has ammo in and which kind
+// before we decide to either put it away again, drop it or put it in"; WEAPONS §5.2). v0.0.5's magIn (1.4 s
+// at value 10, DC 9: a spare taken by rule and seated with the tug) is split into its two motions: `reach`
+// (REACH_S 0.6 s, no roll: the hand to a named pouch, kit.js pickMag's 'p1', 'p2', 'dump', or 'ground', a
+// pickup off the ground, PICKUP_S 1.0 s and no LONG_K, WEAPONS §5.5) brings a magazine to the support hand,
+// and `seat` (SEAT_S 0.8 s, DC 9, the old roll whole) puts the one in the hand into the well. Both take
+// LONG_K, so reach and seat make the old 1.61 s at value 10 and the drills' times stand (LOAD 2.41 s, the
+// RELOADs 2.53 / 2.99 / 3.22 s). magIn stays as it was, the two in one, for v0.0.5's saves and REMEDIAL
+// ACTION (its stripped magazine brought back from the hand that racked, in the reach's time). An action id
+// may carry its place after '@' ('reach@p1', 'stowMag@p2'): actionKey() gives its ACTIONS key. In the hand
+// the magazine is felt: its weight's band (FEEL: 'none', 'few', 'half', 'most', 'full' of its capacity, the
+// truth's, no roll), written to its belief when the count is not known, and a band that contradicts a
+// believed count makes the count unknown and halts a drill ("It feels empty. You thought five."). Then the
+// steps for a magazine in hand: `lookMag` (LOOK_MAG_S 0.6 s, DC 4, dark +4: the witness holes give the
+// count as a magazine check does, the feed lips the top round's kind, ball's bare copper or tracer's red
+// tip, or the coach's orange dummy), `seat`, `stowMag@<pouch>` (put it back, 1.0 s, DC 5), `dumpMag` (0.7
+// s, DC 4) and `dropMag` (0.3 s, no roll). A magazine's belief gains `kind` (the kind of round it holds, as
+// told or seen) and `feel`; the gun's gains `load`, the believed kind of the magazine in it, moving with the
+// magazine as its count does. A round carries its kind into the chamber (gun.load, feed()), out of the
+// muzzle (pull()'s load: the shot's look draws a tracer's trace) and out of the port ('tracer', a live
+// tracer round thrown by a hand).
+//
 // doAction() is the state's way in: the roller (combat/roll.js rollerOf: the skill, the body, the needs,
 // the light), the main stream, the spares in reach, the observer; the items moved by kit.move, the
 // posture and the finger on kit.carry, the roll logged { kind: 'roll', roll, step, gun } and told
@@ -73,7 +96,8 @@ import { check, TEMPO } from '../skills/checks.js';
 import { paceOf } from '../skills/skills.js';
 import { rollerOf, DARK_BELOW } from '../combat/roll.js';
 import { MODELS, FAMILIES, modelOf, isLong, famCap } from './models.js';
-import { move, sparesOf, dumpOf, pouchFor, ownerOf, believedN } from './kit.js';
+import { move, sparesOf, dumpOf, pouchFor, ownerOf, holderOf, believedN, believedKind, handMagOf, pickMag, pouchesOf, pouchOf, atFeetOf, meantLoad, PLACE_WORDS } from './kit.js';
+import { CALIBRES, loadOf } from './calibres.js';
 import { ndOf, SLUNG } from './carry.js';
 import { surfaceAt } from '../places/model.js';
 
@@ -101,12 +125,33 @@ export const WEAR = 0.00004;
 export const DOUBLE_SHARE = 0.3;
 /** A magazine's condition fresh, and what a drop on a hard floor takes off it (tradecraft's; WEAPONS §5.5: on paving, a deck or a floor, not loose regolith). */
 export const MAG_FRESH = 0.95, MAG_DROP_WEAR = 0.04;
+/** A magazine picked up off regolith takes its dust (WEAPONS §5.5: +0.1). */
+export const PICKUP_DUST = 0.1;
 /** The observer's look at UNLOAD, SHOW CLEAR: SHOW_LOOK_S × paceOf(their Awareness), Awareness against SHOW_DC, DARK_DC more in the dark. */
 export const SHOW_LOOK_S = 1.0, SHOW_DC = 6, DARK_DC = 4;
 /** The count (WEAPONS §4.2): exact at Weapon handling COUNT_EXACT_FROM and up, approximate from COUNT_KEPT_FROM, lost in a burst below; a witness window reads exact to WINDOW_EXACT_TO rounds, ±1 above. */
 export const COUNT_EXACT_FROM = 15, COUNT_KEPT_FROM = 8, WINDOW_EXACT_TO = 20;
-/** A gun's fields at their defaults: written as absent (TECH §6.6). */
-export const GUN_DEFAULTS = Object.freeze({ chamber: null, jam: null, locked: false, mode: 'safe', cocked: true, portOpen: false, set: null, foul: 0, dust: 0, lube: 'wet', rounds: 0 });
+/** A gun's fields at their defaults: written as absent (TECH §6.6). load: the chambered round's kind (0.0.6), ball unless said. */
+export const GUN_DEFAULTS = Object.freeze({ chamber: null, jam: null, locked: false, mode: 'safe', cocked: true, portOpen: false, set: null, foul: 0, dust: 0, lube: 'wet', rounds: 0, load: 'ball' });
+/** The magazine in hand (0.0.6, see the header): the reach and the seat, base seconds at value 10 (with LONG_K they make magIn's 1.61 s), a pickup off the ground, the look at a magazine. */
+export const REACH_S = 0.6, SEAT_S = 0.8, PICKUP_S = 1.0, LOOK_MAG_S = 0.6;
+/** A magazine's weight felt in the hand, by its share of the capacity: none, then up to each fraction (the truth's band, no roll). */
+export const FEEL = Object.freeze([['few', 0.25], ['half', 0.6], ['most', 0.9999]]);
+/** The bands in words, as the hand says them (the user's "about how many"). */
+export const FEEL_WORDS = Object.freeze({ none: 'none', few: 'a few', half: 'about half', most: 'nearly full', full: 'full' });
+/** A magazine of n rounds of a capacity: its weight's band. */
+export function feelOf(n, cap) {
+  if (!(n > 0)) return 'none';
+  if (n >= cap) return 'full';
+  for (const [band, k] of FEEL) if (n <= cap * k) return band;
+  return 'most';
+}
+/** An action id's ACTIONS key: the id before its place ('reach@p1' → 'reach'). */
+export const actionKey = (id) => (typeof id === 'string' && id.includes('@') ? id.slice(0, id.indexOf('@')) : id);
+/** An action id's place ('reach@p1' → 'p1'), or null. */
+export const actionPlace = (id) => (typeof id === 'string' && id.includes('@') ? id.slice(id.indexOf('@') + 1) : null);
+/** An action's record by its id (a placed id by its key), or null. */
+export const actionOf = (id) => ACTIONS[id] ?? ACTIONS[actionKey(id)] ?? null;
 
 /** The observer's word after a show (SHOW CLEAR's look): the 'say' fact and its log line (J shows the coach's "Clear."). */
 export function sayObserved(state, bus, { who, text }) {
@@ -145,6 +190,14 @@ export const ACTIONS = Object.freeze({
   'magOut:strip': A('Strip the magazine', 0.85, 6, { tempo: R, frame: 'magout', to: 'hand' }),
   rack: A('Rack it clear', 0.45, 5, { tempo: R, frame: 'charge' }),
   magIn: A('Magazine in', 1.4, 9, { tempo: R, frame: 'magin' }),
+  // (0.0.6: magIn's two motions, the reach to a named pouch or the ground and the seat with the tug (see the header),
+  // and what a hand does with the magazine it holds: a look at it, put back, dumped, dropped)
+  reach: A('Reach for a magazine', REACH_S, null, { tempo: R, frame: 'magout', ground: Object.freeze({ s: PICKUP_S, long: false }) }),
+  seat: A('Magazine in', SEAT_S, 9, { tempo: R, frame: 'magin' }),
+  lookMag: A('Look at the magazine', LOOK_MAG_S, 4, { long: false, tempo: C, frame: 'magout', dark: DARK_DC, look: true }),
+  stowMag: A('Put it back', 1.0, 5, { long: false, tempo: R, frame: 'magout' }),
+  dumpMag: A('Into the dump pouch', 0.7, 4, { long: false, tempo: R, frame: 'magout' }),
+  dropMag: A('Drop it', 0.3, null, { long: false, frame: 'magout' }),
   tap: A('Tap the magazine', 0.3, 4, { tempo: R, frame: 'magin' }),
   pressCheck: A('Press check', 1.2, 6, { tempo: C, frame: 'check' }),
   magCheck: A('Magazine check', 2.0, 7, { tempo: C, frame: 'magout' }),
@@ -158,9 +211,11 @@ export const ACTIONS = Object.freeze({
 /** The actions that move the chamber or a magazine: a miss leaves that part '?' (WEAPONS §5.4). */
 const UNSURE = new Set(['charge', 'rack', 'lockBack', 'magOut:drop', 'magOut:dump', 'magOut:pouch', 'magOut:strip', 'inspect', 'clearDouble']);
 /** A hand at the trigger or the action: a disaster with the gun ready fires it (tradecraft's list, by OLYMPUS's names). */
-export const DISCHARGE_ACTIONS = new Set(['up', 'draw', 'stow', 'selector:safe', 'selector:semi', 'selector:auto', 'pressCheck', 'magIn', 'charge', 'rack', 'release']);
-/** A fumble that drops the magazine, not the gun. */
-const MAG_ACTIONS = new Set(['magIn', 'magOut:drop', 'magOut:dump', 'magOut:pouch', 'magOut:strip', 'magCheck']);
+export const DISCHARGE_ACTIONS = new Set(['up', 'draw', 'stow', 'selector:safe', 'selector:semi', 'selector:auto', 'pressCheck', 'magIn', 'seat', 'charge', 'rack', 'release']);
+/** A fumble that drops the magazine, not the gun (the magazine in the hand, for the hand's own steps). */
+const MAG_ACTIONS = new Set(['magIn', 'seat', 'magOut:drop', 'magOut:dump', 'magOut:pouch', 'magOut:strip', 'magCheck', 'stowMag', 'dumpMag']);
+/** The steps of a magazine held in the hand (0.0.6): each needs one there. */
+export const HELD_ACTIONS = new Set(['seat', 'lookMag', 'stowMag', 'dumpMag', 'dropMag']);
 
 // ---- the records ----
 
@@ -184,13 +239,15 @@ export function newGun(state, { model = 'r7', byId = null, cond = 0.93 } = {}) {
   return id;
 }
 
-/** A new box magazine (w) of a family with n rounds of a load; set: the coach's set round { n, kind }; told: the holder knows its count. Returns its id. */
-export function newMag(state, { fam = 'had30', n = null, load = 'ball', set = null, told = true } = {}) {
+/** A new box magazine (w) of a family with n rounds of a load; set: the coach's set round { n, kind }; told: the holder knows its count; toldKind: and its kind (0.0.6). Returns its id. */
+export function newMag(state, { fam = 'had30', n = null, load = 'ball', set = null, told = true, toldKind = told } = {}) {
   if (!FAMILIES[fam]) throw new Error(`firearms.newMag(): no family '${fam}'`);
   const id = nextId(state, 'i'), rounds = Math.max(0, Math.min(famCap(fam), n ?? famCap(fam)));
   const m = { type: 'mag', fam, n: rounds, load };
   if (set) m.set = { n: set.n, kind: set.kind };
-  if (told) m.belief = { n: rounds };
+  if (told || toldKind) m.belief = {};
+  if (told) m.belief.n = rounds;
+  if (toldKind) m.belief.kind = load;
   put(state, state.items, id, m);
   return id;
 }
@@ -221,6 +278,7 @@ export function feed(gun, mag) {
   if (mag.set && (set || mag.set.n > mag.n)) delete mag.set;
   setG(gun, 'chamber', 'live');
   setG(gun, 'set', set);
+  setG(gun, 'load', mag.load ?? 'ball');
 }
 
 /** Whether a trigger pull would fire it: a live round chambered, the bolt closed and in battery, cocked, off safe, not broken. */
@@ -250,24 +308,25 @@ export function pull(rng, gun, mag = null, { model = null, wh = 10 } = {}) {
   const set = gunField(gun, 'set');
   if (set === 'dud') { setG(gun, 'chamber', 'dud'); setG(gun, 'cocked', false); return { fired: false, why: 'dud', set: 'dud', dummy: true }; }
   if (chance(rng, misfireP(gun, mag, M))) { setG(gun, 'chamber', 'dud'); setG(gun, 'cocked', false); return { fired: false, why: 'dud' }; }
-  // (it fires: the round counted, the condition worn, the port cover opens itself)
+  // (it fires: the round counted, the condition worn, the port cover opens itself; its kind leaves with it)
+  const load = gunField(gun, 'load');
   setG(gun, 'rounds', gunField(gun, 'rounds') + 1);
   gun.cond = q(Math.max(0, (gun.cond ?? 0.95) - WEAR), 1e-6);
   setG(gun, 'portOpen', true);
   setG(gun, 'set', null);
   const left = !!mag && mag.n > 0;
-  if (set === 'stovepipe' || (set === 'double' && !left)) { setG(gun, 'chamber', 'case'); return { fired: true, why: null, stoppage: 'case', set }; }
-  if (set === 'double') { mag.n -= 1; setG(gun, 'chamber', 'case'); setG(gun, 'jam', 'double'); return { fired: true, why: null, stoppage: 'double', set }; }
+  if (set === 'stovepipe' || (set === 'double' && !left)) { setG(gun, 'chamber', 'case'); setG(gun, 'load', null); return { fired: true, why: null, stoppage: 'case', set, load }; }
+  if (set === 'double') { mag.n -= 1; setG(gun, 'chamber', 'case'); setG(gun, 'jam', 'double'); setG(gun, 'load', null); return { fired: true, why: null, stoppage: 'double', set, load }; }
   if (chance(rng, jamP(gun, mag, { wh, M }))) {
     const double = chance(rng, DOUBLE_SHARE) && left;
-    setG(gun, 'chamber', 'case');
+    setG(gun, 'chamber', 'case'); setG(gun, 'load', null);
     if (double) { mag.n -= 1; setG(gun, 'jam', 'double'); }
-    return { fired: true, why: null, stoppage: double ? 'double' : 'case' };
+    return { fired: true, why: null, stoppage: double ? 'double' : 'case', load };
   }
-  if (left) { feed(gun, mag); return { fired: true, why: null }; }
-  setG(gun, 'chamber', null);
+  if (left) { feed(gun, mag); return { fired: true, why: null, load }; }
+  setG(gun, 'chamber', null); setG(gun, 'load', null);
   setG(gun, 'locked', !!mag && !!M?.holdOpen);
-  return { fired: true, why: null, empty: true, locked: !!mag && !!M?.holdOpen };
+  return { fired: true, why: null, empty: true, locked: !!mag && !!M?.holdOpen, load };
 }
 
 /**
@@ -301,16 +360,17 @@ export function feel(b, r, { wh = 10, burst = false } = {}) {
 
 // ---- times ----
 
-/** An action's base { s, dc } on a model (up from the back, a pistol's stow, the draw from a holster). */
+/** An action's base { s, dc, long } on a model (up from the back, a pistol's stow, a reach to the ground). */
 export function baseOf(M, action, { posture = null } = {}) {
-  const a = ACTIONS[action];
+  const a = actionOf(action);
   if (!a) return null;
-  if (action === 'up' && posture === 'slungBack') return a.fromBack;
-  if (action === 'stow' && !isLong(M)) return a.pistol;
-  return { s: a.s, dc: a.dc };
+  if (action === 'up' && posture === 'slungBack') return { ...a.fromBack, long: a.long };
+  if (action === 'stow' && !isLong(M)) return { ...a.pistol, long: a.long };
+  if (actionKey(action) === 'reach' && actionPlace(action) === 'ground') return { s: a.ground.s, dc: a.dc, long: a.ground.long };
+  return { s: a.s, dc: a.dc, long: a.long };
 }
 /** The tempo an action takes when asked for one: rushed only where rushable, careful only where careful, else normal. */
-export const tempoFor = (action, tempo = 'normal') => ((tempo === 'rushed' || tempo === 'careful') && ACTIONS[action]?.tempo.includes(tempo) ? tempo : 'normal');
+export const tempoFor = (action, tempo = 'normal') => ((tempo === 'rushed' || tempo === 'careful') && actionOf(action)?.tempo.includes(tempo) ? tempo : 'normal');
 const timeK = (tempo) => TEMPO[tempo]?.timeK ?? 1;
 
 /**
@@ -324,26 +384,39 @@ export function actionMs(roller, gun, action, opts = {}) {
 }
 // (the same, in seconds, unrounded: the fumble multiplies it before the one rounding, as tradecraft's act() does)
 function actionS(roller, gun, action, { tempo = 'normal', posture = null, pace = null, observer = null, model = null } = {}) {
-  const M = model ?? modelOf(gun), a = ACTIONS[action], base = baseOf(M, action, { posture });
+  const M = model ?? modelOf(gun), a = actionOf(action), base = baseOf(M, action, { posture });
   if (!a || !base) return 0;
   if (a.observer) return SHOW_LOOK_S * paceOf(observer ? observer.value('awareness') : 10);
   const p = a.paced === false ? 1 : pace ?? paceOf(roller.value('weapons'));
-  const s0 = base.s * (a.long && isLong(M) ? LONG_K : 1);
+  const s0 = base.s * (base.long && isLong(M) ? LONG_K : 1);
   return s0 * (a.thumb ? p * p : p) * timeK(tempoFor(action, tempo));
 }
 
 // ---- the pure core: one action ----
 
 const isDark = (ctx, roller) => ctx.dark ?? (roller?.light === 'dark' || (typeof roller?.light === 'number' && roller.light < DARK_BELOW) || (typeof ctx.light === 'number' && ctx.light < DARK_BELOW));
-const ejectedOf = (ch, set) => (ch === 'case' ? 'case' : ch === 'dud' || ch === 'live' ? (set === 'dud' ? 'dummy' : 'round') : null);
+// (a live tracer thrown out shows its red tip: its own kind, 'tracer')
+const ejectedOf = (ch, set, load = 'ball') => (ch === 'case' ? 'case' : ch === 'dud' || ch === 'live' ? (set === 'dud' ? 'dummy' : load === 'tracer' ? 'tracer' : 'round') : null);
 // (what the chamber shows a look: a round, the orange dummy, a case, nothing)
 const seen = (g) => { const ch = gunField(g, 'chamber'); return ch === 'case' ? 'case' : ch === 'dud' && gunField(g, 'set') === 'dud' ? 'dud' : ch ? 'live' : 'empty'; };
 // (the chamber's content out of the port: the record cleared, the kind thrown)
 function eject(g) {
-  const kind = ejectedOf(gunField(g, 'chamber'), gunField(g, 'set'));
-  setG(g, 'chamber', null); setG(g, 'set', null);
+  const kind = ejectedOf(gunField(g, 'chamber'), gunField(g, 'set'), gunField(g, 'load'));
+  setG(g, 'chamber', null); setG(g, 'set', null); setG(g, 'load', null);
   return kind;
 }
+// (a magazine's weight in the hand (see the header): the band written to its belief; a band that contradicts the count
+// believed (by more than its ±1 when it is a guess) makes the count unknown: { band, surprise, was })
+function feelIn(mag) {
+  const cap = famCap(mag.fam), band = feelOf(mag.n, cap), was = believedN(mag), B = (mag.belief ??= {});
+  const fits = was === null || [was, ...(B.approx ? [was - 1, was + 1] : [])].some(n => feelOf(Math.max(0, n), cap) === band);
+  if (was === null || !fits) { B.feel = band; delete B.n; delete B.approx; } else delete B.feel;
+  return { band, surprise: !fits, was };
+}
+const FEEL_SAID = Object.freeze({ none: 'It feels empty.', few: 'Light: a few rounds in it.', half: 'About half full, by the weight.', most: 'Heavy: nearly full.', full: 'Full, by the weight.' });
+const placeWord = (from) => (from === 'ground' ? 'Off the ground' : from === 'rule' ? null : `From ${PLACE_WORDS[from] ?? from}`);
+const capital = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+const roundsWord = (n) => (n === 0 ? 'empty' : n === 1 ? 'one round' : `${n} rounds`);
 
 /**
  * Do one action on a gun (the pure core; w the gun, its magazine and the spare going in): one roll,
@@ -357,7 +430,7 @@ function eject(g) {
  * finger, halts, silent, refused, observed: { roll, said } }.
  */
 export function act(rng, roller, gun, mag, action, ctx = {}) {
-  const a = ACTIONS[action], M = ctx.model ?? modelOf(gun);
+  const a = actionOf(action), key = actionKey(action), M = ctx.model ?? modelOf(gun);
   if (!a || !M || !gun) return { ms: 0, ok: false, refused: true, halts: true, text: 'Nothing to do that with.' };
   const out = { ms: 0, ok: true, grade: 'pass', routine: false, roll: null, mishap: null, fired: null, text: '', ejected: null, ejects: [], magId: gun.mag ?? null, magOut: null, magIn: null, posture: null, finger: null, halts: false, silent: false, refused: false };
   const refuse = (text) => ({ ...out, ok: false, refused: true, halts: true, text });
@@ -365,6 +438,12 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
   // (what can't be tried at all: the hand finds nothing to do it with)
   if (action === 'magIn' && gun.mag) return refuse('There\'s a magazine in.');
   if (action === 'magIn' && !ctx.spares?.length) return refuse('No magazine to put in.');
+  // (the magazine in the hand (0.0.6): a reach needs the hand free and something there; its steps need one in it)
+  if (key === 'reach' && ctx.held) return refuse('Your hand holds a magazine already.');
+  if (key === 'reach' && !ctx.reach) return refuse(ctx.reachWhy ?? 'No magazine there to reach for.');
+  if (HELD_ACTIONS.has(key) && !ctx.held) return refuse('No magazine in your hand: reach for one first.');
+  if (key === 'seat' && gun.mag) return refuse('There\'s a magazine in.');
+  if ((key === 'stowMag' || key === 'dumpMag') && !ctx.to) return refuse(key === 'dumpMag' ? 'The dump pouch is full.' : 'No room in that pouch.');
   if (action.startsWith('magOut:') && !gun.mag) return refuse('There\'s no magazine in it.');
   if (action === 'magCheck' && !gun.mag) return refuse('There\'s no magazine in it.');
   if (action === 'inspect' && !t('locked')) return refuse('The bolt is closed: lock it back to look in.');
@@ -423,6 +502,24 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
       out.found = B.chamber !== 'empty' && B.chamber !== '?';
       return out;
     }
+    // (a look at the magazine in the hand: its witness holes give the count, as a magazine check's window does, and
+    // its feed lips the top round's kind; a failure learns nothing and says so)
+    if (key === 'lookMag') {
+      const m = ctx.held.mag, Bm = (m.belief ??= {});
+      if (bites) { out.text = 'You can\'t make out the witness holes.'; out.halts = true; return out; }
+      const n = m.n, exact = n <= WINDOW_EXACT_TO || !!FAMILIES[m.fam]?.counter;
+      const read = exact ? n : Math.max(0, Math.min(famCap(m.fam), n + hashInt(3, 'window', ctx.held.id, n) - 1));
+      const top = n === 0 ? null : m.set && m.set.n === n && m.set.kind === 'dud' ? 'dummy' : m.load ?? 'ball';
+      Bm.n = read; if (exact) delete Bm.approx; else Bm.approx = true;
+      delete Bm.feel;
+      if (top && top !== 'dummy') Bm.kind = top;
+      out.seen = { n: read, approx: !exact, top };
+      out.found = true;
+      const L = top && top !== 'dummy' ? loadOf(CALIBRES[FAMILIES[m.fam]?.cal] ? FAMILIES[m.fam].cal : '6.5x40r', top) : null;
+      out.text = n === 0 ? 'Empty: the follower is up at the lips.' : top === 'dummy' ? `${capital(roundsWord(read))}, an orange dummy on top.`
+        : `${exact ? '' : 'About '}${roundsWord(read)}, ${L?.word ?? top} on top: ${L?.tipWord ?? 'a round'}.`;
+      return out;
+    }
     // observe: the port shows what's there
     if (bites) { out.silent = true; roll.hidden = true; out.text = 'You look at the port.'; return out; }
     const st = B.stoppage;
@@ -445,7 +542,7 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
     const shot = roll.margin <= -(DISCHARGE_BY + (da ? DA_GUARD : 0)) || (!da && roll.value < NAT1_SHOT_BELOW && u < NAT1_SHOT);
     const drop = shot || roll.margin <= -DROP_BY || u < (roll.value < NAT1_SHOT_BELOW ? NAT1_SHOT : 0) + NAT1_DROP;
     if (drop) {
-      if (shot && ready(gun) && DISCHARGE_ACTIONS.has(action)) {
+      if (shot && ready(gun) && DISCHARGE_ACTIONS.has(key)) {
         out.mishap = 'discharge';
         out.fired = pull(rng, gun, mag, { model: M, wh });
         out.text = 'Your finger is inside the trigger guard, and it goes off.';
@@ -453,11 +550,12 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
         B.chamber = '?';
         return out;
       }
-      if (MAG_ACTIONS.has(action)) {
+      if (MAG_ACTIONS.has(key)) {
         out.mishap = 'dropMag';
         out.text = 'The magazine slips out of your fingers and falls.';
         out.halts = true;
         if (action === 'magIn') { out.magIn = ctx.spares[0].id; out.dropSpare = true; return out; }
+        if (HELD_ACTIONS.has(key)) { out.dropHeld = true; return out; }
         if (action === 'magCheck') { out.magOut = 'drop'; moveCount(gun, mag, true); return out; }
         out.magOut = 'drop'; moveCount(gun, mag, true);
         return out;
@@ -475,7 +573,7 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
 
   // ---- what the action does: the truth, then the belief as the holder expects ----
   const before = { ...B };
-  switch (action) {
+  switch (key) {
     case 'up': out.posture = 'lowReady'; out.text = `${M.short} up, at low ready.`; break;
     case 'draw': out.text = `${M.short} out.`; break;
     case 'stow': out.posture = isLong(M) ? 'slungFront' : null; out.text = `${M.short} slung.`; break;
@@ -557,16 +655,28 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
       out.magOut = a.to; moveCount(gun, mag, false);
       out.text = { drop: 'The magazine drops.', dump: 'Magazine out, into the dump pouch.', pouch: 'Magazine out, into a pouch.', hand: 'The magazine stripped out, held in the other hand.' }[a.to];
       break;
-    case 'magIn': {
-      const sp = ctx.spares[0];
+    case 'magIn': case 'seat': {
+      const sp = key === 'seat' ? ctx.held : ctx.spares[0];
       out.magIn = sp.id;
-      // (its count, as the holder believes it, goes into the gun with it)
-      const n = believedN(sp.mag);
+      // (its count and its kind, as the holder believes them, go into the gun with it)
+      const n = believedN(sp.mag), kind = believedKind(sp.mag);
       if (n === null) { delete B.count; delete B.countApprox; } else { B.count = n; if (sp.mag.belief?.approx) B.countApprox = true; else delete B.countApprox; }
+      if (kind) B.load = kind; else delete B.load;
       delete sp.mag.belief;
-      out.text = n === null ? 'A magazine in.' : `A magazine in: ${n === 0 ? 'empty' : n === 1 ? 'one round' : `${n} rounds`}.`;
+      out.text = n === null ? 'A magazine in.' : `A magazine in: ${roundsWord(n)}${n > 0 && kind && kind !== 'ball' ? ` of ${kind}` : ''}.`;
       break;
     }
+    case 'reach': {
+      const r = ctx.reach, f = feelIn(r.mag), where = placeWord(r.from);
+      out.reach = { id: r.id, from: r.from };
+      out.feel = f.band;
+      out.text = `${where ? `${where}. ` : ''}${FEEL_SAID[f.band]}${f.surprise ? ` You thought ${roundsWord(f.was)}.` : ''}`;
+      // (a weight that is not what you believed stops a drill: the next step is yours to choose)
+      if (f.surprise) out.halts = true;
+      break;
+    }
+    case 'stowMag': case 'dumpMag': out.stowTo = ctx.to; out.text = key === 'dumpMag' ? 'Into the dump pouch.' : `Back in ${ctx.toWord ?? 'its pouch'}.`; break;
+    case 'dropMag': out.dropHeld = true; out.text = 'You let it fall.'; break;
     case 'tap': out.text = 'Tap: the magazine seated.'; break;
     case 'pressCheck':
       if (t('jam') === 'double') { B.stoppage = 'double'; B.chamber = 'case'; out.text = 'It won\'t open: two rounds in the action.'; break; }
@@ -620,14 +730,16 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
   if (B.count === undefined || B.count === null) delete B.count;
   return out;
 }
-// (a magazine coming out takes its count belief with it; dropped or fumbled, it's unknown)
+// (a magazine coming out takes its count belief with it, and its kind; dropped or fumbled, its count is unknown, its kind still known)
 function moveCount(gun, mag, lost) {
   const B = beliefRec(gun);
   if (mag) {
-    if (!lost && typeof B.count === 'number') mag.belief = B.countApprox ? { n: B.count, approx: true } : { n: B.count };
-    else delete mag.belief;
+    const mb = {};
+    if (!lost && typeof B.count === 'number') { mb.n = B.count; if (B.countApprox) mb.approx = true; }
+    if (B.load) mb.kind = B.load;
+    if (Object.keys(mb).length) mag.belief = mb; else delete mag.belief;
   }
-  delete B.count; delete B.countApprox;
+  delete B.count; delete B.countApprox; delete B.load;
 }
 // (a test's forced grade on a roll: the numbers kept as rolled, the outcome what the test asks)
 function forced(roll, grade) {
@@ -666,18 +778,22 @@ export function condWord(gun) {
 
 /**
  * The gun as its holder believes it (the only view the HUD reads): { model, short, chamber, mag
- * ('in' | 'out' | '?'), magFam, count (null: unknown), countApprox, mode, locked, port ('open' |
- * 'closed'), stoppage, condWord, cocked }. The magazine in or out, the mode, the port and the hammer
- * are felt under the holder's hand (read from the truth for the gun's own holder, '?' for anyone else's).
+ * ('in' | 'out' | '?'), magFam, count (null: unknown), countApprox, magLoad (the believed kind of the
+ * magazine in it, null unknown), mode, locked, port ('open' | 'closed'), stoppage, condWord, cocked, hand
+ * (the magazine in the holder's hand as believed: { fam, n, approx, load, feel, cap } or null) }. The
+ * magazine in or out, the mode, the port and the hammer are felt under the holder's hand (read from the
+ * truth for the gun's own holder, '?' for anyone else's); a held magazine is in the holder's own hand.
  */
 export function beliefOf(state, gunId) {
   const g = state.items?.[gunId];
   if (!g || g.type !== 'gun') return null;
-  const M = modelOf(g), B = g.belief ?? {}, mine = !!ownerOf(state, gunId), mag = g.mag ? state.items[g.mag] : null;
+  const M = modelOf(g), B = g.belief ?? {}, owner = ownerOf(state, gunId), mine = !!owner, mag = g.mag ? state.items[g.mag] : null;
+  const h = owner ? handMagOf(state, owner) : null, hm = h ? state.items[h.id] : null;
   return {
     model: g.model, short: M?.short ?? g.model, chamber: B.chamber ?? '?', mag: mine ? (mag ? 'in' : 'out') : '?', magFam: mine ? mag?.fam ?? null : null,
-    count: typeof B.count === 'number' ? B.count : null, countApprox: !!B.countApprox, mode: mine ? gunField(g, 'mode') : '?', locked: !!B.locked,
+    count: typeof B.count === 'number' ? B.count : null, countApprox: !!B.countApprox, magLoad: B.load ?? null, mode: mine ? gunField(g, 'mode') : '?', locked: !!B.locked,
     port: gunField(g, 'portOpen') ? 'open' : 'closed', stoppage: B.stoppage ?? null, condWord: condWord(g), cocked: !!gunField(g, 'cocked'),
+    hand: hm ? { fam: hm.fam, n: believedN(hm), approx: !!hm.belief?.approx, load: believedKind(hm), feel: hm.belief?.feel ?? null, cap: famCap(hm.fam) } : null,
   };
 }
 
@@ -705,7 +821,7 @@ export function canDo(state, pid, gunId) {
   const posture = kit.carry?.posture ?? 'slungFront';
   if (SLUNG.has(posture)) return ['up'];
   const b = beliefOf(state, gunId), out = [];
-  const spares = sparesOf(state, pid, null).filter(id => (modelOf(g)?.fams ?? []).includes(state.items[id]?.fam));
+  const fams = modelOf(g)?.fams ?? [];
   const hammerDown = !b.cocked && !!modelOf(g)?.safeNeedsCocked, round = b.chamber === 'live' || b.chamber === 'dud' || b.chamber === 'case';
   if (b.stoppage) { out.push('observe', 'tap', 'charge'); if (b.stoppage === 'double') out.push('clearDouble'); }
   if (b.chamber === '?' && !b.locked) out.push('pressCheck');
@@ -722,7 +838,18 @@ export function canDo(state, pid, gunId) {
     if (dumpOf(state, pid)) out.push('magOut:dump');
     out.push('magOut:drop');
     if (pouchFor(state, pid)) out.push('magOut:pouch');
-  } else if (spares.length) out.push('magIn');
+  }
+  // (0.0.6: a magazine in the hand, its steps; a hand free, a reach to each place that holds one: see the header)
+  if (b.hand) {
+    if (b.mag !== 'in') out.push('seat');
+    out.push('lookMag');
+    for (const p of pouchesOf(state, pid)) if (!p.dump && p.room > 0) out.push(`stowMag@${p.key}`);
+    if (dumpOf(state, pid)) out.push('dumpMag');
+    out.push('dropMag');
+  } else {
+    for (const p of pouchesOf(state, pid)) if (p.mags.some(id => fams.includes(state.items[id]?.fam))) out.push(`reach@${p.key}`);
+    if (atFeetOf(state, pid).some(l => fams.includes(state.items[l.id]?.fam))) out.push('reach@ground');
+  }
   if (!b.locked && b.chamber !== '?') out.push('pressCheck');
   if (b.mag === 'in') out.push('magCheck');
   if (b.locked) out.push('inspect');
@@ -772,9 +899,19 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
   if (!SLUNG.has(posture) && action === 'up') return refuse(`${M.short} is up already.`);
   const ms = state.clock.ms, roller = rollerOf(state, pid, { ms });
   const observer = observerId ? rollerOf(state, observerId, { ms }) : null;
-  const mag = gun.mag ? state.items[gun.mag] : null;
-  const spares = action === 'magIn' ? sparesOf(state, pid, null).filter(id => (M.fams ?? []).includes(state.items[id]?.fam)).map(id => ({ id, mag: state.items[id] })) : [];
-  const ctx = { spares, pressure, tempo, light: roller.light, observer, observerId, posture, finger: carry.finger ?? 'off', mods: [...(PRESSURE_MODS[pressure] ?? []), ...(mods ?? [])], force };
+  const mag = gun.mag ? state.items[gun.mag] : null, key = actionKey(action), place = actionPlace(action), load = meantLoad(state);
+  const spares = action === 'magIn' ? sparesOf(state, pid, null, { load }).filter(id => (M.fams ?? []).includes(state.items[id]?.fam)).map(id => ({ id, mag: state.items[id] })) : [];
+  // (0.0.6: the magazine in the hand, the one a reach would take, and where a magazine put back goes: see the header)
+  const h = handMagOf(state, pid), held = h ? { id: h.id, mag: state.items[h.id], hand: h.hand } : null;
+  let reach = null, reachWhy = null, to = null, toWord = null;
+  if (key === 'reach' && !held) {
+    const pk = pickMag(state, pid, { from: place ?? 'rule', fams: M.fams ?? null, load });
+    if (pk) reach = { id: pk.id, mag: state.items[pk.id], from: pk.from };
+    else reachWhy = place === 'ground' ? 'No magazine at your feet.' : place ? `No magazine in ${PLACE_WORDS[place] ?? place}.` : 'No magazine left in your pouches.';
+  }
+  if (key === 'stowMag') { const p = pouchOf(state, pid, place ?? 'p1'); if (p && !p.dump && p.room > 0) { to = p.id; toWord = p.word; } }
+  if (key === 'dumpMag') { const d = dumpOf(state, pid); if (d) { to = d; toWord = PLACE_WORDS.dump; } }
+  const ctx = { spares, held, reach, reachWhy, to, toWord, pressure, tempo, light: roller.light, observer, observerId, posture, finger: carry.finger ?? 'off', mods: [...(PRESSURE_MODS[pressure] ?? []), ...(mods ?? [])], force };
   const r = act(rngOf(state, 'main'), roller, gun, mag, action, ctx);
   r.nd = null;
   if (r.refused) return r;
@@ -796,6 +933,19 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
     else move(state, r.magIn, { gun: gunId });
     r.magId = r.magIn;
   }
+  // (the magazine in the hand: reached for into the free hand (the support hand first), picked up off regolith with its
+  // dust (WEAPONS §5.5: +0.1); put back or dumped into its pouch; dropped at your feet)
+  if (r.reach) {
+    const hands = kit.hands ?? [null, null], free = !hands[1] ? 1 : !hands[0] ? 0 : 1, from = holderOf(state, r.reach.id);
+    move(state, r.reach.id, { pid, hand: free });
+    if (from?.ground && surfaceAt(state, from.ground.x, from.ground.z, from.ground.area) === 'regolith') {
+      const m = state.items[r.reach.id];
+      m.dust = q(Math.min(1, (m.dust ?? 0) + PICKUP_DUST), 1e-6);
+    }
+    r.magId = r.reach.id;
+  }
+  if (held && r.stowTo) { move(state, held.id, { container: r.stowTo }); r.magId = held.id; }
+  if (held && r.dropHeld) { const g = atFeet(state, pid, gunId); if (g) { move(state, held.id, { ground: g }); dropWear(state, held.id, g); } r.magId = held.id; }
   if (r.posture) carry.posture = r.posture;
   if (r.finger) { if (r.finger === 'off') delete carry.finger; else carry.finger = r.finger; }
   // (the rolls, logged and told: the holder's in full, the observer's short; a silent failure hidden)
@@ -803,10 +953,14 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
   // (each roll's entry carries what the action did in words (the parity review's: the look's finding, the charge's,
   // a fumble's never reached J), but a silent failure's: hidden, it leaves no trace (SKILLS §5.14))
   if (r.roll) {
-    const e = logEntry(state, bus, { kind: 'roll', tone: r.ok || r.routine || r.silent ? 'note' : 'warn', roll: r.roll, step: action, gun: gunId, who: pid, area,
+    const e = logEntry(state, bus, { kind: 'roll', tone: r.ok || r.routine || r.silent ? 'note' : 'warn', roll: r.roll, step: key, ...(place ? { place } : {}), gun: gunId, who: pid, area,
       ...(r.text && !r.silent ? { text: r.text } : {}), ...(r.silent ? { hidden: true } : {}), ...(r.found ? { found: true } : {}), ...(action.startsWith('posture:') ? { filter: 'habit' } : {}) });
     r.logSeq = e.seq;
     bus?.emit('roll', { roll: r.roll, who: pid });
+  } else if (r.text && ((key === 'reach' && (place || r.halts)) || key === 'dropMag')) {
+    // (no roll, but what the hand felt is the holder's to read again: J keeps it, and the line says it; a drill's own
+    // reach by rule says nothing unless the weight surprised it, its seat's "A magazine in: 5 rounds." saying the rest)
+    r.logSeq = logEntry(state, bus, { kind: 'note', tone: r.halts ? 'warn' : 'note', text: r.text, step: key, ...(place ? { place } : {}), gun: gunId, who: pid, area }).seq;
   }
   if (r.observed) {
     const o = state.people?.[observerId], name = o ? `${o.service?.rank ?? ''} ${o.name?.family ?? ''}`.trim() : null;

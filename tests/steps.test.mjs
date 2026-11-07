@@ -79,7 +79,8 @@ export default [
       assert(load.subs.join() === MACROS.load.subs.join() && ready.subs.join() === MACROS.ready.subs.join(), 'the sub-steps in order');
       const logged = g.state.log.filter(e => e.kind === 'roll' && e.step && e.who === g.state.player.id).map(e => e.step);
       const want = [...MACROS.load.subs, ...MACROS.ready.subs].filter(a => a !== 'finger');
-      assert(want.every((a, i) => logged.includes(a)) && logged.indexOf('magIn') < logged.indexOf('charge'), `logged: ${logged.join(', ')}`);
+      // (0.0.6: LOAD's magazine in is a reach (no roll: the hand to the pouch) and a seat (the old roll, DC 9), the user's ask of 2026-11-07)
+      assert(want.filter(a => a !== 'reach').every((a, i) => logged.includes(a)) && !logged.includes('reach') && logged.indexOf('seat') < logged.indexOf('charge'), `logged: ${logged.join(', ')}`);
       console.log(`      the rolls logged in order: ${logged.join(', ')}`);
     },
   },
@@ -104,10 +105,10 @@ export default [
       const subMs = (r, action) => { const f = r.facts.find(x => x.phase === 'sub' && x.action === action); return f.toMs - f.fromMs; };
       const fits = (ms, clean) => Math.abs(ms - clean) <= 1 || Math.abs(ms - Math.round(clean * 1.6)) <= 1;
       const rushed = run(h, 'macro:load', 'rushed');
-      const magIn = h.state.log.filter(e => e.kind === 'roll' && e.step === 'magIn').at(-1).roll;
+      const magIn = h.state.log.filter(e => e.kind === 'roll' && e.step === 'seat').at(-1).roll;
       const careful = run(h, 'macro:ready', 'careful');
       const press = h.state.log.filter(e => e.kind === 'roll' && e.step === 'pressCheck').at(-1).roll;
-      const mi = { got: subMs(rushed, 'magIn'), normal: actionMs(hr, hg, 'magIn'), rushed: actionMs(hr, hg, 'magIn', { tempo: 'rushed' }) };
+      const mi = { got: subMs(rushed, 'seat'), normal: actionMs(hr, hg, 'seat'), rushed: actionMs(hr, hg, 'seat', { tempo: 'rushed' }) };
       const pc = { got: subMs(careful, 'pressCheck'), normal: actionMs(hr, hg, 'pressCheck'), careful: actionMs(hr, hg, 'pressCheck', { tempo: 'careful' }) };
       console.log(`      LOAD rushed lived ${rushed.lived} ms: the magazine in ${mi.got} ms (normal ${mi.normal}, rushed ${mi.rushed}), its roll ${magIn.tempo}, ${magIn.routine ? 'routine' : 'not routine'}, ${magIn.mods.map(m => `${m.v} ${m.why}`).join(', ')}`);
       console.log(`      MAKE READY careful lived ${careful.lived} ms: the press check ${pc.got} ms (normal ${pc.normal}, careful ${pc.careful}), its roll ${press.tempo}, ${press.mods.map(m => `+${m.v} ${m.why}`).join(', ')}`);

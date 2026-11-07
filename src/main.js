@@ -37,17 +37,21 @@
 // --ui by the window): the wrist terminal's watch top right (watch.js: Melas time large, the weekday
 // and the sol, UTC on its second line, the place, the body strip folded in: only the needs that have
 // left fine, strip.js), the log's last lines top left (toasts.js), the instinct's line bottom centre
-// (instinct.js: SKILLS' line with its tone and T's keycap, its chip on T held, then R's offer as a
-// chip, offer.js: "R shower · 10 min, done 19:41", "R open the door", else "R wait 15 min", and "R
-// again: wait 15 min" for HAND_AGAIN_MS after a first R there), "? keys" bottom right, PAUSED at the
-// top centre. A card (Esc the menu, ? the keys, J the log, C PERSONNEL, R held the choices, the late
-// card, a scene's end and score cards, the bench's result) pauses and hides the HUD under it.
+// (instinct.js: SKILLS' line with its tone and T's keycap, its chip on T held, then R's plate at its
+// right, in the kit's pixels, on every line, offer.js: "R WASH HANDS · 30 S", "R SHAVE · 4 MIN, DONE
+// 19:46", "R OPEN THE DOOR", else "R WAIT 15 MIN", and "R AGAIN: WAIT 15 MIN" for HAND_AGAIN_MS after a
+// first R there), "? keys" bottom right, PAUSED at the top centre. A card (Esc the menu, ? the keys, J the
+// log, C PERSONNEL, R held the menu of single actions, the late card, a scene's end and score cards, the
+// bench's result) pauses and hides the HUD under it.
 //
 // R and T are press keys (core/keys.js): tapped they act on the key going up, held 220 ms they act
-// then (the build sheet 0.0.4 §2.4). R tapped sends what its offer said when the key went down (a door,
-// an activity, getting up, the resume, the wait asked twice); held at an offer with more, the choices
-// card (cards/choose.js); an offer that would make you late for a call opens the late card
-// (cards/late.js: fit it in, do it anyway, not now) instead. T tapped sends the line shown when the key
+// then (the build sheet 0.0.4 §2.4). R tapped sends what its plate said when the key went down (a door,
+// the quick action, getting up, the resume, the wait asked twice); held wherever handMenu has a row, the
+// menu of every single action at hand (cards/actions.js, the 0.0.6 round: the user, 2026-11-06, "long
+// pressing R should open the menu with all the possible interractions as single actions, with the ability
+// to select several actions"), its keys its own while it is up (input.own), what it sends the single or
+// one chain ({ act: 'chain' }); an offer or a plan that would make you late for a call opens the late card
+// (cards/late.js: fit it in, do it anyway, not now) first. T tapped sends the line shown when the key
 // went down ({ act: 'instinct', args: { id, act } }: the sim does it only if that rule still fires),
 // T held the chip's.
 //
@@ -57,7 +61,9 @@
 // clock, the vignette's part) and from the landing to the end of the zoom out holds the pause reason
 // 'splash' (PAUSED never shows for it). The splash's own HUD (CLOCK, the outcome strip in RADIO, the
 // ticker in INSTINCT) shows alone. Its keys: Space, Enter or a click to the end; Backspace stop here
-// (skip:stop); Esc the menu, which pauses it; T on the strip's "carry on" one more chunk (skip:chunk).
+// (skip:stop); Esc the menu, which pauses it; T on the strip's "carry on" one more chunk (skip:chunk). A
+// chain's splash (the 0.0.6 round) hears TIME's chain facts: each step's parts join the splash's as it
+// begins, and Backspace's stop ({ phase: 'stop' }) decelerates the shown clock to the running step's end.
 //
 // Test scenes (ROADMAP §2.2; src/data/scenes.js): the title's Tests, or ?play=test-shower and
 // ?play=test-night (&seed, &hour to override the scene's), start a scene with no saves; its goal shows
@@ -109,11 +115,12 @@
 // not routine and the looks that find something, in the action's words, never a hidden roll; a range fault
 // is a short tag, its words the coach's in the radio box; a struck row's digit says why; the
 // range's sounds (audio/range.js) hear the shot, step and say facts. test-handling ("Show clear") is
-// a scene of the Tests menu and ?play=test-handling&seed=48213[&setup=hot|bench]; it ends on the range
+// a scene of the Tests menu and ?play=test-handling&seed=48213[&setup=hot|bench|mixed] (mixed: the Tests menu's
+// "Show clear, mixed magazines" too); it ends on the range
 // fact at 'clear' or 'stopped', its end card saying the range's summary.
 //
 // For tests and shots, URL parameters skip the title (src/core/debug.js readParams):
-// ?play=sandbox|barracks|test-shower|test-night|test-handling&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench];
+// ?play=sandbox|barracks|test-shower|test-night|test-handling&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench|mixed];
 // &ppm=16|24 (the density, 16 by default, the user's pick: src/render/scale.js; 24 a test density);
 // &mood=<name> (else the view's by the hour); &fog=1 (the samples'
 // test fog); &nostore=1; &perf=1 (the GL counters and the GPU's time by pass, in window.__report).
@@ -142,7 +149,9 @@ import { lookFor, indoorsNow } from './sim/people/figure.js';
 import { areaOf, lonOf } from './sim/places/model.js';
 import { lightLevel } from './sim/places/light.js';
 import { sunAt } from './sim/places/sun.js';
-import { handOffer } from './sim/places/hand.js';
+import { handOffer, handMenu } from './sim/places/hand.js';
+import { planChain } from './sim/time/chain.js';
+import { hairOf } from './sim/body/hair.js';
 import { eyeOf, sightMask, canSee } from './sim/people/perception.js';
 import { BARRACKS } from './sim/scenarios/barracks.js';
 import { BENCH_SCENES, BENCH_DEFAULT } from './data/bench.js';
@@ -166,7 +175,7 @@ import { createSplashControl, createSplashHud, splashContext } from './ui/hud/sp
 import { keysRows } from './ui/cards/keys.js';
 import { logLines, rollLine, hiddenRec } from './ui/cards/log.js';
 import { runBench, benchResult, benchCard } from './ui/cards/bench.js';
-import { chooseCard } from './ui/cards/choose.js';
+import { actionsCard } from './ui/cards/actions.js';
 import { lateCard } from './ui/cards/late.js';
 import { sheetOf, sheetCard } from './ui/cards/sheet.js';
 import { endCard } from './ui/cards/end.js';
@@ -308,6 +317,8 @@ const boot = createBoot({ cb: {
   overlay: (name, open) => {
     if (open) releases.set(name, loop.pauseFor(`overlay:${name}`));
     else { releases.get(name)?.(); releases.delete(name); }
+    // (the R menu's keys and its listeners go with it, whatever closed it: its own Esc, a load, the title)
+    if (!open && name === 'actions') closedActions();
     // (a card shows alone: the HUD and the toasts hidden under it at once, VIEWS §7.5; the frame keeps them so)
     hud.hidden = !!open || !loop.state;
     toasts.el.hidden = !!open;
@@ -315,7 +326,7 @@ const boot = createBoot({ cb: {
   keysRows: () => keysRows({
     label: (a) => input.label(a),
     // (R's words in this build, from the sim's own number)
-    says: { hand: `what's at hand: an appliance, a door, else wait ${durationText(WAIT_MS)} (R twice); held: the choices` },
+    says: { hand: `what's at hand, as its plate says: an action, a door, else wait ${durationText(WAIT_MS)} (R twice); held: the menu of every action there` },
     extra: settings.debug ? DEBUG_SKIPS.map(([code, ms]) => [input.label(code), `debug: ${durationText(ms)} pass (marks the save)`]) : [],
   }),
   // (the hidden rolls only in debug, once the scene is over: tradecraft's)
@@ -333,7 +344,7 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
 /**
  * A new career's state: { seed, mode, scenario ('barracks', a career's; 'sandbox' the test rooms), hour (the Mars
  * local hour at the live site to start at), at ({ area, x, z, face }: somewhere else than the scenario's start),
- * setup (test-handling's: null, 'hot' at string 1 aimed, 'bench' with one magazine of 15) }.
+ * setup (test-handling's: null, 'hot' at string 1 aimed, 'bench' with one magazine of 15, 'mixed' a fourth of tracer) }.
  */
 function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', hour = null, at = null, setup = null } = {}) {
   if (!SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
@@ -374,10 +385,15 @@ function holdCut(work, what) {
 
 // ---- the test scenes: a goal on arrival, no saves, the end card once the scene's fact has come ----
 let scene = null;                                                    // ({ rec: SCENES', seed, ended: false, shown: false } while a scene plays)
-const sceneOf = (s) => (s?.meta?.scenario ? Object.values(SCENES).find(x => x.scenario === s.meta.scenario) ?? null : null);
-/** Start a scene: a new game of its scenario, at its hour (or the URL's), with the seed given or a new one, and the URL's setup. */
+// (two scenes share test-handling's scenario: the mixed one is the game whose range issued the tracer)
+const sceneOf = (s) => {
+  if (!s?.meta?.scenario) return null;
+  const all = Object.values(SCENES).filter(x => x.scenario === s.meta.scenario), setup = s.armoury?.range?.mixed ? 'mixed' : null;
+  return all.find(x => (x.setup ?? null) === setup) ?? all[0] ?? null;
+};
+/** Start a scene: a new game of its scenario, at its hour (or the URL's), with the seed given or a new one, and the URL's setup (else the scene's own). */
 function playScene(rec, { seed = randomSeed(), hour = null, setup = null } = {}) {
-  return launch(newGame({ seed, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup }));
+  return launch(newGame({ seed, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null }));
 }
 
 /** Play a state from here (new, loaded or imported). Resolves with it once its area shows (or the cut gives up). */
@@ -517,15 +533,24 @@ function rollToast(entry) {
   if (!line || !r || hiddenRec(entry) || entry.short) return null;
   if (r.skill === 'marksmanship') return { text: entry.text ?? line.short, tone: entry.paper !== undefined ? entry.tone : r.ok ? 'note' : 'warn' };
   if (r.kind === 'check' && !r.ok && !r.routine) return { text: line.words ?? line.short, tone: 'warn' };
-  if (entry.found && line.words) return { text: line.words, tone: 'warn' };
+  // (a look that found something: a stoppage or a round is a warning; what a magazine in the hand holds is news (0.0.6))
+  if (entry.found && line.words) return { text: line.words, tone: entry.step === 'lookMag' ? 'note' : 'warn' };
   return null;
 }
 bus.on('line', ({ text, kind = '' }) => toast(text, kind));
 // (an activity's own log line says what passed; the plain skips, which have none, still say how long)
+// (a chain is one errand: one toast for it, "Brush teeth, shave, wash face · 7 min.", its steps' own lines kept in J
+// and the splash's strip; the fixer's, 0.0.6: three toasts listed it as a list again)
 bus.on('skip-end', (e) => {
   const held = heldLog ?? [];
   heldLog = null;
-  for (const entry of held) if (entry.kind === 'activity' || entry.kind === 'debug' || entry.atMs >= e.toMs) toast(entry.text, entry.tone);
+  const chain = Array.isArray(e.outcome?.chain) && e.outcome.chain.length > 1 ? e.outcome.chain : null;
+  if (chain) {
+    const word = (c) => ACTIVITIES[c.id]?.offer ?? c.id, done = chain.filter(c => c.by !== 'dropped').map(word), dropped = chain.filter(c => c.by === 'dropped').map(word);
+    const said = done.join(', ');
+    toast(`${said.charAt(0).toUpperCase()}${said.slice(1)} · ${durationText(e.toMs - e.fromMs)}${dropped.length ? `; ${dropped.join(', ')} dropped` : ''}.`);
+  }
+  for (const entry of held) if ((entry.kind === 'activity' && !chain) || entry.kind === 'debug' || entry.atMs >= e.toMs && entry.kind !== 'activity') toast(entry.text, entry.tone);
   if (debugSkip) { debugSkip = false; return; }
   if (e.toMs > e.fromMs && (!e.activity || e.activity === 'idle' || !ACTIVITIES[e.activity])) toast(`${durationText(e.toMs - e.fromMs)} pass (${e.minutes ?? Math.floor((e.toMs - e.fromMs) / MIN_MS)} minutes stepped).`);
 });
@@ -549,7 +574,8 @@ bus.on('range', (f) => {
 });
 /** A range fault's tag (carry.js rangeSafety's rules, the scene's own): rule → words. */
 const FAULT_WORD = Object.freeze({ muzzle: 'the muzzle off downrange', uprange: 'the muzzle uprange', person: 'aimed at a person', lane: 'another lane\'s card',
-  walk: 'off the firing point', cold: 'a shot on a cold line', ahead: 'ahead of the tower', finger: 'the finger on, moving', coach: 'the muzzle on the coach', nd: 'a negligent discharge' });
+  walk: 'off the firing point', cold: 'a shot on a cold line', ahead: 'ahead of the tower', finger: 'the finger on, moving', coach: 'the muzzle on the coach', nd: 'a negligent discharge',
+  onemag: 'one magazine a string', slow: 'the line waited on you' });
 // (the splash hears TIME's facts at once: on skip-start the target is held at its start, so the loop's first outcome frame never runs the whole skip)
 bus.on('skip-start', (e) => {
   const s = loop.state;
@@ -557,6 +583,11 @@ bus.on('skip-start', (e) => {
   loop.skipTarget(e.engine === 'ff' ? null : e.fromMs);
 });
 bus.on('skip-frame', (e) => splash.lines(e.ticker));
+// (a chain's steps: each one's parts join the splash's as it begins; Backspace's stop decelerates its clock to the running step's end)
+bus.on('chain', (f) => {
+  if (f?.phase === 'step' && loop.state) splash.steps(splashContext(loop.state, {}).parts);
+  else if (f?.phase === 'stop') splash.chainStop(f);
+});
 bus.on('skip-interrupt', (e) => splash.interrupt(e));
 bus.on('skip-end', (e) => splash.end(e));
 for (const type of ['body-event', 'reveille']) bus.on(type, (f) => { try { audio.fact(type, f, loop.state); } catch (e) { broke(e, 'the sound'); } });
@@ -594,11 +625,12 @@ function broke(e, where = 'tick') {
 }
 
 // ---- the keys ----
-// (R: what its offer said when the key went down. A door, an activity, getting up, the resume go on the
-// tap (the key going up under TAP_MS); the wait asks for a second R within HAND_AGAIN_MS, "R again: wait
-// 15 min", so R a step short of a door, or just past one, never waits by accident. Held TAP_MS at an
-// offer with more: the choices card. An offer that would make you late: the late card. The sim drops
-// the action if the offer has changed kind by its tick: places' hand.js)
+// (R: what its plate said when the key went down. A door, the quick action, getting up, the resume go on
+// the tap (the key going up under TAP_MS); the wait asks for a second R within HAND_AGAIN_MS, "R again:
+// wait 15 min", so R a step short of a door, or just past one, never waits by accident. Held TAP_MS
+// wherever handMenu has a row: the menu (cards/actions.js); with none (lying: R gets you up) what the tap
+// does. An offer that would make you late: the late card. The sim drops the action if the offer has
+// changed kind by its tick: places' hand.js)
 let handArmedAt = null, handDown = null, tDown = null;
 const currentOffer = () => { try { return loop.state ? handOffer(loop.state) : null; } catch { return null; } };
 const canAct = () => !!loop.state && !loop.paused && !splash.active;
@@ -607,8 +639,8 @@ function handPress(kind) {
   const o = handDown;
   handDown = null;
   if (!o || !canAct()) return;
-  if (kind === 'held' && o.more?.length) { openChoices(o); return; }
-  if (o.late) { openLate(o, o); return; }
+  if (kind === 'held' && openActions()) return;
+  if (o.late) { openLate(singleLate(o), (late) => ({ act: 'activity', args: { id: o.id, spotId: o.spotId ?? null, args: o.args ?? {}, late, lead: true } })); return; }
   if (o.verb === 'wait') {
     const now = performance.now();
     if (handArmedAt !== null && now - handArmedAt <= HAND_AGAIN_MS) { handArmedAt = null; input.queue(wantOf(o)); }
@@ -741,13 +773,15 @@ addEventListener('keydown', (e) => {
 });
 
 // ---- the cards of this round: PERSONNEL, the choices, the late card, a scene's end and score ----
-const BODY = Object.freeze({ bodyOf, stagesOf, stripOf, wordsOf, cuesOf });
+const BODY = Object.freeze({ bodyOf, stagesOf, stripOf, wordsOf, cuesOf, hairOf });
+// (the player's hair's drawn step, hairOf's: the sheet's and the inventory's dolls wear the cut as it has grown)
+const hairStep = (s) => { try { return hairOf(s, s.player?.id, s.clock.ms)?.step ?? 0; } catch { return 0; } };
 const clockText = (ms) => { const c = marsClock(ms, lonAt(loop.state)); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
 function openSheet() {
   const s = loop.state, me = s ? playerActor(s) : null, p = s?.people?.[s.player?.id];
   if (!s) return;
   let sheet;
-  try { sheet = sheetOf(s, { body: BODY, lonEDeg: lonAt(s), look: p?.look ? lookFor(p.look, me?.outfit ?? 'utilities', indoorsNow(s)) : null }); }
+  try { sheet = sheetOf(s, { body: BODY, lonEDeg: lonAt(s), look: p?.look ? lookFor(p.look, me?.outfit ?? 'utilities', indoorsNow(s), hairStep(s)) : null }); }
   catch (e) { broke(e, 'the character sheet'); return; }
   boot.openCard('sheet', sheetCard(sheet, { dollOf: (args) => doll(args) }));
 }
@@ -759,30 +793,58 @@ function openInventory() {
   try {
     // (the reach the sim's own: a magazine in, at your Weapon handling, as the step panel shows it)
     const gunId = s.people?.[s.player.id]?.kit?.worn?.sling, g0 = gunId ? s.items?.[gunId] : null;
-    view = kitView(s, s.player.id, { magInS: g0 ? actionMs(rollerOf(s, s.player.id), g0, 'magIn') / 1000 : null });
+    view = kitView(s, s.player.id, { magInS: g0 ? actionMs(rollerOf(s, s.player.id), g0, 'magIn') / 1000 : null,
+      groundS: g0 ? (actionMs(rollerOf(s, s.player.id), g0, 'reach@ground') + actionMs(rollerOf(s, s.player.id), g0, 'seat')) / 1000 : null });
     const gun = view?.sling?.gunId ? s.items?.[view.sling.gunId] : null;
     if (view?.sling && gun) view = { ...view, sling: { ...view.sling, word: `Your ${MODELS[gun.model]?.short ?? 'rifle'}` } };
   } catch (e) { broke(e, 'the inventory'); return; }
-  const look = p?.look ? lookFor(p.look, me?.outfit ?? 'utilities', indoorsNow(s)) : null;
+  const look = p?.look ? lookFor(p.look, me?.outfit ?? 'utilities', indoorsNow(s), hairStep(s)) : null;
   const { body, lines } = inventoryCard(view, { label: (a) => input.label(a), dollOf: look ? () => doll({ look, sex: p.sex, outfit: me?.outfit ?? 'utilities' }) : null });
   boot.openCard('inventory', body, lines);
 }
-function openChoices(o) {
-  const { body, lines } = chooseCard({ offer: o, onPick: (m) => {
-    boot.closeCard();
-    if (m.late) { openLate(m, o); return; }
-    input.queue({ act: 'activity', args: { id: m.id, spotId: m.spotId ?? o.spotId ?? null, args: m.args ?? {}, lead: true } });
-  } });
-  boot.openCard('choose', body, lines);
+// (R held: the menu of every single action at hand, cards/actions.js; its keys its own while it is up)
+let actions = null, actionsKeys = null;
+function openActions() {
+  const s = loop.state;
+  let menu = null;
+  try { menu = s ? handMenu(s) : null; } catch (e) { broke(e, 'the R menu'); return false; }
+  if (!menu?.rows?.length) return false;
+  const card = actionsCard({
+    menu, nowMs: s.clock.ms, clockText, ui: uiK,
+    planChain: (steps) => planChain(s, { spotId: menu.spotId, steps }),
+    onSound: (kind) => { try { audio.fact('ui', { kind }, loop.state); } catch (e) { broke(e, 'the sound'); } },
+    onClose: () => boot.closeCard(),
+    onSend: (action, { late }) => {
+      boot.closeCard();
+      // (a plan that would make you late: the late card first, its answer added to the same input; the wait
+      // goes as time's activity, a door is never late)
+      if (late) {
+        openLate(late, (answer) => ({ ...action, args: { ...action.args, late: answer } }));
+        return;
+      }
+      input.queue(action);
+    },
+  });
+  boot.openCard('actions', card.body, [], { guard: false });
+  actions = card;
+  actionsKeys = input.own((code, e) => card.key(code, e));
+  return true;
 }
-// (what: the choice or the offer, its id, spotId, args, durMs, label and late; o the offer it came from)
-function openLate(what, o) {
-  const head = String(what.label ?? what.id ?? '').split(' · ')[0];
+// (the R menu closed, whatever closed it: its keys given back, its listeners gone)
+function closedActions() {
+  actionsKeys?.(); actionsKeys = null;
+  actions?.destroy(); actions = null;
+}
+/** The late card's view of a single offer: cards/late.js's what (its head words, length, least) and late. */
+const singleLate = (o) => ({ what: { id: o.id, label: String(o.label ?? o.id ?? '').split(' · ')[0], durMs: o.durMs, min: ACTIVITIES[o.id]?.min ?? 0 }, late: o.late });
+// (view: { what: { label, durMs, min }, late } (a single's, or a chain's from cards/actions.js lateView: "fit it in"
+// the leading whole steps); send(answer) the input to queue for 'fit' or 'accepted')
+function openLate(view, send) {
   const { body, lines } = lateCard({
-    what: { label: head, durMs: what.durMs, min: ACTIVITIES[what.id]?.min ?? 0 }, late: what.late, nowMs: loop.state?.clock.ms ?? null, clockText,
+    what: view.what, late: view.late, nowMs: loop.state?.clock.ms ?? null, clockText,
     onAnswer: (answer) => {
       boot.closeCard();
-      if (answer === 'fit' || answer === 'accepted') input.queue({ act: 'activity', args: { id: what.id, spotId: what.spotId ?? o?.spotId ?? null, args: what.args ?? {}, late: answer, lead: true } });
+      if (answer === 'fit' || answer === 'accepted') input.queue(send(answer));
     },
   });
   boot.openCard('late', body, lines);
@@ -916,8 +978,8 @@ function render(alpha, s, info) {
   const voices = radio.update({ hidden: inSplash, weapon: weapon.on });
   // (the lead: "Time stands still." in stop motion (VIEWS §7.4), v0.0.4's words while G's stub holds time, the scene's end)
   const lead = benchLead ?? (weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
-  const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null });
-  report.hud = { watch: faces, offer: line, line, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on };
+  const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null, ui: uiK });
+  report.hud = { watch: faces, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on };
   // (the HUD's and the sound's share of the frame: CONTRACTS §7's UI DOM budget is 1 ms)
   report.frame.uiMs = performance.now() - uiT0;
 }
@@ -1132,7 +1194,19 @@ installDebug(createDebugHandle({
     const b = bodyOf(s, s.player?.id), ms = s.clock.ms;
     return b ? { body: b, stages: stagesOf(b, ms, lonAt(s)), strip: stripOf(b, ms), words: wordsOf(b, ms), cues: cuesOf(b, ms) } : null;
   },
-  instinct: (s) => ({ ...instinctNow(s), parts: instinct.parts }),
+  instinct: (s) => ({ ...instinctNow(s), parts: instinct.parts, plate: instinct.plate }),
+  // (the 0.0.6 round's readers: R held's menu and the card up, the hands, the hair)
+  menu: (s) => {
+    const m = handMenu(s);
+    if (!m && !actions) return null;
+    const L = actions?.list;
+    return { ...(m ?? {}), card: L ? { text: actions.text, cursor: L.cursor, checked: [...L.checked], picks: L.picks, open: L.open, chosen: L.chosen(), plan: actions.plan } : null };
+  },
+  hands: (s) => {
+    const b = bodyOf(s, s.player?.id), st = b ? stagesOf(b, s.clock.ms, lonAt(s))?.hands : null, c = b ? cuesOf(b, s.clock.ms) : null;
+    return b ? { dirt: b.hands?.dirt ?? null, why: b.hands?.why ?? null, band: st?.id ?? st?.band ?? null, i: st?.i ?? null, words: st?.words ?? null, k: c?.handsK ?? null } : null;
+  },
+  hair: (s) => hairOf(s, s.player?.id, s.clock.ms),
   splash: () => splash.info,
   scores: () => readScores(),
   // (the weapon mode's readers, the build sheet 0.0.5 §2.4: the gun's truth beside its belief, the panel, the plaque, the range, stop motion)

@@ -42,7 +42,7 @@ export default [
           await worker.run('sheet', { look: {}, band: 'gait', ppm: 16 }, { priority: 'own' });
           const startMs = performance.now() - t0;
           const looks = [
-            { outfit: 'utilities', skin: 'tan', hair: { style: 'crew', color: 'dark' }, seed: 21 },
+            { outfit: 'utilities', skin: 'tan', hair: { style: 'lowReg', color: 'dark' }, seed: 21 },
             { outfit: 'pt', skin: 'brown', hair: { style: 'bun', color: 'black' }, seed: 11 },
             { outfit: 'nco', skin: 'light', hair: { style: 'short', color: 'auburn' }, rank: 'sgt', seed: 26 },
           ];

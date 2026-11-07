@@ -40,6 +40,11 @@
 // is a wrap drawn over both thighs as one part, so it reads as cloth, not shorts; wet hair (the look's
 // cue after a shower) is the hair's own colour darker, with a wet sheen on its crown, and on a shaved
 // head a glint on the scalp.
+// 0.0.6 (the build sheet 0.0.6 §2.2; the user, 2026-11-06, of v0.0.4's horseshoe: "this haircut is not
+// military acceptable"): the regulation cuts at their drawn steps (look.hair.step 0 to 3): the short sides
+// painted on the head by the step (skin, a shadow, a dark, the hair's colour), the top a part over it, a
+// pixel taller at step 3, a woman's short cut longer at the locks a row a step, a bun's or a braid's stray
+// pixels at step 3; under a cover the men's tops hide and their sides show below it.
 // 0.0.5 (the build sheet 0.0.5 §2.3 (b)): the rifle's handling rigs (poses.js HELD_RIFLE): 'front' (slung
 // across the chest, the muzzle at the left knee, the hands free, the sling over the left shoulder),
 // 'raise' (both hands bringing it off the sling), 'charge' (the rifle level under the right arm, the right
@@ -750,6 +755,10 @@ function straps(g, J, pp, B) {
   g.put(b[0], b[1], 'g');
 }
 
+/** The cuts whose top a cover hides (0.0.6: the men's four and a woman's short; a bun or a braid shows below it). */
+const CROPPED = new Set(['highTight', 'lowReg', 'medReg', 'shaved', 'short']);
+/** The short sides' letter by the cut's step: skin, a shadow, a dark, the hair's colour (outfits.js coloursOf). */
+const SIDE_ROLE = Object.freeze(['s', 'ĥ', 'ħ', 'h']);
 /** The head and what's on it, as templates centred on the neck (side on, a little forward of it). */
 function head(g, Lk, J, P, pp, B, dir, pose) {
   // (which view of the head, and a quarter turn: lying on the back, the face to the sky; elsewhere upright)
@@ -783,14 +792,38 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
     const f = T(pose.eyes === 'shut' ? K.shut : K.face).t, sx = pose.head === 'glance' && view === 'down' ? -1 : 0;
     if (f) f.rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.') g.on(head, x0 + f.x + i + sx, y0 + f.y + j, ch); }));
   }
-  const style = Lk.hair?.style ?? 'crew', cropped = ['short', 'crew'].includes(style);
+  const style = K.hair[Lk.hair?.style] !== undefined ? Lk.hair.style : 'lowReg', step = Lk.hair?.step ?? 0, cropped = CROPPED.has(style);
   const covering = hat && hat !== 'ring';
   if (!sealed) {
-    if (!covering) { const t = T(K.hair[style]).t; g.begin(x0, y0); g.tpl(t, x0, y0); }
-    // (under a hat, longer hair shows below it; a short cut only at the temples, a crew cut not at all: tradecraft, the user 2026-11-03)
-    else if (!cropped) { const t = T(K.hair[style]).t; g.begin(x0, y0); g.tpl(t, x0, y0); }
-    else if (style !== 'crew' && view !== 'up') { g.begin(x0, y0); g.tpl(T(K.temples).t, x0, y0); }
-    else if (view === 'up') { g.begin(x0, y0); g.tpl(T(K.nape).t, x0, y0); }
+    // (the short sides, painted on the head's own skin by the cut's step: a shadow, a dark, the hair's colour; under
+    // a cover they show where it leaves the head bare, and the face's brows, eyes and ear are never painted over)
+    const sd = K.sides[style] ? T(K.sides[style]).t : null;
+    if (sd && step > 0) sd.rows.forEach((row, j) => [...row].forEach((ch, i) => {
+      if (ch === '.') return;
+      const c = g.cells[y0 + sd.y + j]?.[x0 + sd.x + i];
+      if (c && c.part === head && c.ch === 's') g.on(head, x0 + sd.x + i, y0 + sd.y + j, SIDE_ROLE[step]);
+    }));
+    const top = K.hair[style] ? T(K.hair[style]).t : null;
+    const drawTop = () => {
+      if (!top) return;
+      g.begin(x0, y0);
+      g.tpl(top, x0, y0);
+      if (step >= 3) g.tpl(top, x0, y0 - 1);                       // (out of regulation: the top a pixel taller)
+      const gr = K.grow[style];
+      if (gr) for (let k = 0; k < Math.min(step, gr.length); k++) g.tpl(T(gr[k]).t, x0, y0);
+      if (step >= 3 && K.stray[style]) g.tpl(T(K.stray[style]).t, x0, y0);
+    };
+    if (!covering) drawTop();
+    // (under a hat, pinned-up hair shows below it; a woman's short cut only at the temples or the nape (tradecraft, the
+    // user 2026-11-03); a man's top lies flat under the cover, painted on the head where it reaches below it, behind and
+    // side on, and never stands over the cover's edge)
+    else if (!cropped) drawTop();
+    else if (style === 'short' && view !== 'up') { g.begin(x0, y0); g.tpl(T(K.temples).t, x0, y0); }
+    else if (style === 'short') { g.begin(x0, y0); g.tpl(T(K.nape).t, x0, y0); }
+    else if (top) top.rows.forEach((row, j) => [...row].forEach((ch, i) => {
+      const c = g.cells[y0 + top.y + j]?.[x0 + top.x + i];
+      if (ch !== '.' && c && c.part === head && /^[sĥħ]$/.test(c.ch)) g.on(head, x0 + top.x + i, y0 + top.y + j, 'h');
+    }));
   }
   if (covering) { const t = T(K.hat[hat]).t; g.begin(x0, y0); g.tpl(t, x0, y0); }
   if ((Lk.ears || Lk.headset) && !sealed && pose.stance !== 'supine') earCups(g, Lk, view, x0, y0, W, H, B);
@@ -807,16 +840,16 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
     }
   }
   // (wet hair: a sheen on the crown, two pixels of the lens' glint toward the light, the upper left)
-  if (Lk.wet && !covering && !sealed && style !== 'bald') {
+  if (Lk.wet && !covering && !sealed && style !== 'shaved') {
     const hp = g.part, t = T(K.hair[style]).t, pts = [];
     t.rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === 'h' && pts.length < 64) pts.push([x0 + t.x + i, y0 + t.y + j]); }));
     const top = Math.min(...pts.map(p => p[1])), row1 = pts.filter(p => p[1] <= top + 1).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     const mid = row1[Math.floor(row1.length * 0.3)];
     if (mid) { g.on(hp, mid[0], mid[1] + 1, 'l'); g.on(hp, mid[0] + 1, mid[1] + 1, 'l'); if (B.ppm >= 20) g.on(hp, mid[0] + 2, mid[1] + 2, 'l'); }
   }
-  // (a wet shaved head: the same glint on the scalp, on the head's own top skin pixels, so the shower
-  // shows on a bald marine too: seed 48213's player is one, and moment 3 asks for the wet head)
-  if (Lk.wet && !covering && !sealed && style === 'bald') {
+  // (a wet shaved head: the same glint on the scalp, on the head's own top pixels, so the shower shows
+  // on a shaved head too: moment 3 asks for the wet head)
+  if (Lk.wet && !covering && !sealed && style === 'shaved') {
     const skin = [];
     box.t.rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === 's') skin.push([x0 + box.t.x + i, y0 + box.t.y + j]); }));
     if (skin.length) {
@@ -895,11 +928,11 @@ function gunCells(g, rig, pp, P, B) {
   return { muzzle: [Math.round(m[0] - 0.5), Math.round(m[1] - 0.5)], flash: { kind: ratio > 0.65 ? 'side' : nearer ? 'front' : 'back', th } };
 }
 
-/** A magazine out of the well, in the left hand. */
+/** A magazine out of the well, in the left hand: as long as the one in the well shows, a pixel wide at 16 px/m and two at 24 (0.0.6: slimmer, the user's 2026-11-07). */
 function looseMag(g, rig, pp, B) {
-  const a = pp(rig.loose.at), b = pp(add(rig.loose.at, mul(rig.loose.dir, B.magM)));
+  const a = pp(rig.loose.at), b = pp(add(rig.loose.at, mul(rig.loose.dir, B.magM * 0.75)));
   g.begin();
-  const th = B.ppm >= 20 ? 2 : 2;
+  const th = B.ppm >= 20 ? 2 : 1;
   g.capsule(snap2(a, th), snap2(b, th), th / 2, 'u');
 }
 

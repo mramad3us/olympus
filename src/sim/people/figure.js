@@ -25,6 +25,11 @@
 // thirst: 0 to 1, for the wet head and the tired walk); everyone else's cues are zeros this round
 // (their needs come at 0.0.9). A person without the roster's record (the sandbox's player: a look and
 // a name) draws as before: their look as it is, standing.
+// 0.0.6 (the build sheet 0.0.6 §2.2): the look carries the hair's drawn step (look.hair.step, 1 to 3,
+// left out at 0, a fresh cut): the player's is the body's (src/sim/body/hair.js hairStepOf), anyone
+// else's the actor's (actor.hair, which people's actors layer writes only out of the player's sight), or
+// the closed form's while an actor has none; lookFor's memo is keyed by it too. The cues gain the hands
+// (handsK, handsWhy: the doll's).
 // Pure.
 import { seatOf } from '../places/fixtures.js';
 import { areaOf } from '../places/model.js';
@@ -32,21 +37,23 @@ import { activityNow } from '../time/doing.js';
 import { bodyOf } from '../body/body.js';
 import { cuesOf } from '../body/cues.js';
 import { poseAt } from './place.js';
+import { hairStepOf } from '../body/hair.js';
 
 const memo = new WeakMap();                                        // (a person's look record → Map(variant → the frozen wear() spec))
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 /** An NPC's body cues this round: none move (their needs come at 0.0.9). */
-export const NO_CUES = Object.freeze({ wetK: 0, grimeK: 0, sweatK: 0, tiredK: 0, stubbleK: 0, bladderK: 0, hungerK: 0, thirstK: 0 });
+export const NO_CUES = Object.freeze({ wetK: 0, grimeK: 0, sweatK: 0, tiredK: 0, stubbleK: 0, bladderK: 0, hungerK: 0, thirstK: 0, handsK: 0, handsWhy: null });
 
-/** The wear() spec for a person's look in an outfit, under a roof or not: the same object while the look is unchanged. */
-export function lookFor(look, outfit = 'utilities', indoors = false) {
+/** The wear() spec for a person's look in an outfit, under a roof or not, at the hair's drawn step (0 to 3): the same object while the look is unchanged. */
+export function lookFor(look, outfit = 'utilities', indoors = false, step = 0) {
   if (!look) return null;
   let m = memo.get(look);
   if (!m) memo.set(look, (m = new Map()));
-  const key = `${outfit}|${indoors ? 1 : 0}`;
+  const st = Math.max(0, Math.min(3, Math.round(step || 0)));
+  const key = `${outfit}|${indoors ? 1 : 0}|${st}`;
   let spec = m.get(key);
   if (!spec) {
-    spec = { outfit, skin: look.skin, hair: { style: look.hair?.style, color: look.hair?.color }, seed: look.seed };
+    spec = { outfit, skin: look.skin, hair: { style: look.hair?.style, color: look.hair?.color, ...(st ? { step: st } : {}) }, seed: look.seed };
     if (indoors) spec.head = null;
     m.set(key, (spec = deepFreeze(spec)));
   }
@@ -75,8 +82,9 @@ export function figureOf(state, actor, ms = state?.clock?.ms ?? 0) {
   const p = poseAt(actor, ms, headNow);
   const still = p.k >= 1;
   const now = isPlayer ? activityNow(state, ms) : null;
+  const step = isPlayer || !Number.isFinite(actor.hair) ? hairStepOf(state, actor.who, ms) : actor.hair;
   return {
-    look: lookFor(person.look, p.outfit, indoorsNow(state)),
+    look: lookFor(person.look, p.outfit, indoorsNow(state), step),
     posture: p.posture, frame: p.frame, k: p.k, x: p.x, z: p.z, y: p.y, face: p.face, head: p.head, spotId: p.spotId ?? null,
     ...(p.upK !== undefined ? { upK: p.upK, edgeX: p.edgeX, edgeZ: p.edgeZ } : {}),
     curtain: !!actor.curtain && still,

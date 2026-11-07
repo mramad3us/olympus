@@ -19,7 +19,9 @@
 // at or after it, so a step lives ceil(Σ ms / TICK_MS) ticks: LOAD at WH 10 is 2,412 ms of formula and
 // 2,450 lived. The boundaries are taken in the input layer (stopInput, which runs while time stands
 // still, before anything that moves the world): on the first tick at or past one, the sub-step ends
-// (its effects land: the aim settles, the stance is taken), the next is rolled and applied there, a
+// (its effects land: the aim settles, the stance is taken; 0.0.6, the hands: a handling sub-step leaves
+// gun oil and carbon on them, HANDS.RIFLE_SUB, and kneeling or lying prone outdoors regolith,
+// HANDS.REGOLITH, through BODY's soil), the next is rolled and applied there, a
 // failure that is not routine halts the macro (the rest into stop.queue), and with none left the step
 // ends; ending it there and holding 'stop' in the same layer freezes that very tick, so the clock
 // stands exactly at the step's end and the body counts no tick the clock did not pass (the sheet put
@@ -47,6 +49,12 @@
 // shooter kept EDGE_KEEP_M inside the frame's FRAME_HALF_M, or the page's own state.$frame).
 // Outside the mode, V, A and W are live steps (liveStep: state.stop { mode: 'live' } for one step,
 // nothing held, null after), and a move key while kneeling or prone stands you first.
+// 0.0.6 (the user, 2026-11-07; DESIGN.md's log): the magazine reached for is single steps in the panel ("Reach:
+// chest pouch 1 (5 ball · front of 2)", "(5, kind not seen)", "Magazine in", "Look at it", "Put back: pouch 2",
+// "Dump it", "Drop it":
+// firearms.js canDo), a reach's row saying what the holder believes it would bring. While a string is fired a
+// step that would seat another magazine than the one the string began with is marked, not struck (warn: "one
+// magazine a string"): the player may still do it, and the scene counts it (handling.js magSeated).
 // stepNow(state, pid, ms) is what the stage reads of a step (src/sim/arms/look.js: the action's frame
 // and its share k); stopNow(state) is the hud's view. The range session's bookkeeping is the scene's
 // (handling.js: lineReady, recordShot, afterStep, aheadOf, coachOf).
@@ -60,13 +68,17 @@ import { rollerOf } from '../combat/roll.js';
 import { stanceMs, WAIT_MAX_MS, STANCES, stanceStep } from '../combat/steps.js';
 import { offerReflex, chosenReflex } from '../combat/reflex.js';
 import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, tapsOf, TAP_SPLIT_S, HELD_MAX } from './shot.js';
-import { ACTIONS, canDo, doAction, beliefOf, actionMs, REFUSALS, sayObserved } from './firearms.js';
+import { canDo, doAction, beliefOf, actionMs, REFUSALS, sayObserved, actionOf, actionKey, actionPlace } from './firearms.js';
+import { handMagOf, pickMag, pouchOf, atFeetOf, meantLoad, believedN, believedKind } from './kit.js';
 import { modelOf } from './models.js';
 import { macrosFor, subsOf, macroMs } from './drills.js';
 import { POSTURES } from './carry.js';
 import { AIM_LEAD_K, EDGE_KEEP_M, FRAME_HALF_M } from './look.js';
 import { KD_RANGE } from '../../data/places/range.js';
-import { lineReady, recordShot, recordEjects, recordDischarge, afterStep, aheadOf, coachOf, rangeOf, markOfMacro, onStepStart, noteTick } from '../scenarios/handling.js';
+import { HANDS } from '../../data/body/needs.js';
+import { soil } from '../body/body.js';
+import { areaOf } from '../places/model.js';
+import { lineReady, recordShot, recordEjects, recordDischarge, afterStep, aheadOf, coachOf, rangeOf, markOfMacro, onStepStart, noteTick, magSeated, oneMagWarn, kindWarn, spoutCheck } from '../scenarios/handling.js';
 
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 /** A heading as a sprite's facing. */
@@ -79,6 +91,12 @@ export const LABELS = Object.freeze({
   'magOut:dump': 'Magazine to the dump pouch', 'magOut:pouch': 'Magazine to a pouch', magIn: 'Magazine in', tap: 'Tap', pressCheck: 'Press check',
   magCheck: 'Magazine check', inspect: 'Inspect the chamber', observe: 'Look at the port', functionCheck: 'Function check', clearDouble: 'Clear the double feed',
   'magOut:strip': 'Strip the magazine', rack: 'Rack it clear',
+  // (0.0.6: the magazine in the hand: see the header)
+  reach: 'Reach for a magazine', seat: 'Magazine in', lookMag: 'Look at it', dumpMag: 'Dump it', dropMag: 'Drop it',
+  'reach@p1': 'Reach: chest pouch 1', 'reach@p2': 'Reach: chest pouch 2', 'reach@p3': 'Reach: chest pouch 3', 'reach@p4': 'Reach: chest pouch 4',
+  'reach@dump': 'Reach: the dump pouch', 'reach@ground': 'Reach: at your feet',
+  // (short enough for the panel's column at 1600 × 900: "…chest pouch 1" wrapped its digit onto a line of its own (the fixer's, 0.0.6))
+  'stowMag@p1': 'Put back: pouch 1', 'stowMag@p2': 'Put back: pouch 2', 'stowMag@p3': 'Put back: pouch 3', 'stowMag@p4': 'Put back: pouch 4',
   show: 'Show clear', finger: 'Finger off', fire: 'Fire', aim: 'Aim', hold: 'Hold the aim', wait: 'Wait for the tower', leave: 'Stand easy',
   'stance:stand': 'Stand', 'stance:kneel': 'Kneel', 'stance:prone': 'Prone',
 });
@@ -89,7 +107,7 @@ export const LABELS = Object.freeze({
  * keep the aim (the parity review's: every step had reset it).
  */
 export const HANDS_OFF = Object.freeze(new Set(['magIn', 'magOut:drop', 'magOut:dump', 'magOut:pouch', 'magOut:strip', 'charge', 'rack', 'release', 'lockBack', 'clearDouble',
-  'pressCheck', 'magCheck', 'tap', 'inspect', 'show', 'functionCheck']));
+  'pressCheck', 'magCheck', 'tap', 'inspect', 'show', 'functionCheck', 'reach', 'seat', 'lookMag', 'stowMag', 'dumpMag', 'dropMag']));
 /** The stances' keys: A up, W down (VIEWS §10). */
 export const STANCE_KEYS = Object.freeze({ up: 'A', down: 'W' });
 
@@ -186,9 +204,9 @@ export function leaveStop(state, bus, why = 'player') {
 
 // ---- the steps ----
 
-const tempoOk = (action, tempo) => (tempo === 'normal' ? true : (ACTIONS[action]?.tempo ?? []).includes(tempo));
+const tempoOk = (action, tempo) => (tempo === 'normal' ? true : (actionOf(action)?.tempo ?? []).includes(tempo));
 const subOdds = (roller, action, pressure = 'evaluated') => {
-  const A = ACTIONS[action];
+  const A = actionOf(action);
   if (!A || A.dc === undefined || A.dc === null) return { odds: null, routine: null };
   const wh = roller.value('weapons'), mods = roller.mods('weapons');
   return { odds: oddsOf(wh, A.dc, mods), routine: isRoutine({ value: wh, dc: A.dc, mods, pressure, procedure: true }) };
@@ -200,6 +218,19 @@ const actionStep = (state, roller, gun, action, kind = 'single') => {
     carefulMs: tempoOk(action, 'careful') ? actionMs(roller, gun, action, { tempo: 'careful' }) : null,
     odds: o.routine ? null : o.odds, routine: o.routine, off: null, subs: [{ id: action, label: LABELS[action] ?? action, ms: actionMs(roller, gun, action, { tempo: 'normal' }) }], cmd: false, skill: o.odds === null ? null : 'weapons' };
 };
+
+// (what a reach's row says it would bring, as believed: "(5 ball)", "(5)", "(a few)", "(?)")
+const FEEL_ROW = Object.freeze({ none: 'empty', few: 'a few', half: 'about half', most: 'nearly full', full: 'full' });
+function reachLabel(state, pid, gun, id) {
+  const place = actionPlace(id), fams = modelOf(gun)?.fams ?? null;
+  const pk = place ? pickMag(state, pid, { from: place, fams, load: meantLoad(state) }) : null, m = pk ? state.items[pk.id] : null;
+  if (!m) return LABELS[id] ?? id;
+  const n = believedN(m), k = believedKind(m), more = place === 'ground' ? atFeetOf(state, pid).length : place ? (pouchOf(state, pid, place)?.mags.length ?? 1) : 1;
+  // (in the I card's words: "5 ball", "5, kind not seen", "empty", a weight's band; "front of 2" the first of two in
+  // the pouch, never the cryptic "1 of 2" (the fixer's, 0.0.6))
+  const what = n !== null ? (n === 0 ? 'empty' : k ? `${n} ${k}` : `${n}, kind not seen`) : m.belief?.feel ? `${FEEL_ROW[m.belief.feel]} by its weight` : '?';
+  return `${LABELS[id] ?? id} (${what}${more > 1 ? ` · front of ${more}` : ''})`;
+}
 
 /** The steps the panel offers now (see the header). */
 export function stepsOf(state, ms = state.clock.ms) {
@@ -269,6 +300,20 @@ export function stepsOf(state, ms = state.clock.ms) {
   out.push(...stances);
   for (const a of singles) if (a.startsWith('posture:')) out.push(actionStep(state, roller, gun, a, 'posture'));
   out.push(wait, leave);
+  // (a reach's row says what it would bring; a step that would seat another magazine mid-string is marked, not struck)
+  for (const st of out) if (actionKey(st.id) === 'reach' && actionPlace(st.id)) st.label = reachLabel(state, pid, gun, st.id);
+  const hold = handMagOf(state, pid)?.id ?? null;
+  for (const st of out) {
+    const subs = st.kind === 'command' ? (st.queue ?? (st.macro ? subsOf(st.macro, belief) : [])) : [st.id];
+    if (!subs.some(a => a === 'seat' || a === 'magIn')) continue;
+    // (a drill that strips the rifle's own magazine into the hand first seats that one again (REMEDIAL ACTION's double
+    // feed drill): no other magazine, no mark (the fixer's, 0.0.6: it was marked "! one magazine a string")
+    const strips = subs.findIndex(a => a === 'magOut:strip'), seats = subs.findIndex(a => a === 'seat' || a === 'magIn');
+    const would = strips >= 0 && strips < seats && gun.mag ? gun.mag
+      : hold ?? (subs.includes('reach') || subs.includes('magIn') ? pickMag(state, pid, { from: 'rule', fams: modelOf(gun)?.fams ?? null, load: meantLoad(state) })?.id ?? null : null);
+    const w = oneMagWarn(state, would) ?? kindWarn(state, would ? state.items[would] : null);
+    if (w) st.warn = w;
+  }
   return out;
 }
 
@@ -350,7 +395,10 @@ function runSub(state, bus, d, i, atMs) {
     text = 'Not with a round in it: clear it and look again.';
     bus?.emit('line', { text, kind: 'warn' });
   } else {
+    // (a magazine about to come out with one still up the spout: the coach says so first, once a string (handling.js spoutCheck))
+    if (actionKey(id) === 'reach' || id.startsWith('magOut')) spoutCheck(state, bus, id);
     const r = doAction(state, bus, { pid, gunId, action: id, tempo: d.tempo, pressure: 'evaluated', observerId: id === 'show' ? coachOf(state) : null, deferSay: id === 'show' });
+    if (id === 'magCheck') spoutCheck(state, bus, id);
     if (r.say) d.say = r.say;                                       // (the coach's word when his look ends: endSub)
     if (id.startsWith('posture:') || id === 'up' || id === 'stow') noteTick(state, { moving: true });
     if (r.nd) noteTick(state, { nd: true });
@@ -364,7 +412,9 @@ function runSub(state, bus, d, i, atMs) {
     if (r.ejects?.length) rec.brass = [...(rec.brass ?? []), ...recordEjects(state, pid, r.ejects, atMs, `${d.step}:${i}`)];
     if (id === 'finger') setFinger(state, pid, 'off');
     if (id.startsWith('posture:') || id === 'stow' || id === 'up') S.aim = null;
-    else if (S.aim && HANDS_OFF.has(id)) S.aim.settledMs = Math.max(S.aim.settledMs, atMs + rec.ms);   // (hands off the aim: it settles again after: tradecraft)
+    else if (S.aim && HANDS_OFF.has(actionKey(id))) S.aim.settledMs = Math.max(S.aim.settledMs, atMs + rec.ms);   // (hands off the aim: it settles again after: tradecraft)
+    // (a magazine seated: the scene's one magazine a string)
+    if (r.magIn && !r.dropSpare && !r.refused) magSeated(state, bus, r.magIn);
   }
   const brass = rec.brass?.length ? rec.brass : null;
   delete rec.brass;
@@ -374,8 +424,23 @@ function runSub(state, bus, d, i, atMs) {
 }
 
 // (a sub-step's end: its effects that land there)
+// (the sub-steps that touch nothing of the rifle's working parts: the hands stay as they were; 0.0.6's magazine in the
+// hand too, all but the seat, which is the old magazine in's hand on the well, so a LOAD soils the hands as v0.0.5's did)
+const CLEAN_SUBS = new Set(['aim', 'hold', 'fire', 'wait', 'finger', 'show', 'observe', 'reach', 'lookMag', 'stowMag', 'dumpMag', 'dropMag']);
+// (the hands after a sub-step: the rifle's oil and carbon, or the ground's regolith; the build sheet 0.0.6 §2.1)
+function soilOf(state, bus, id, stanceTo) {
+  if (!id) return;
+  const pid = playerId(state);
+  if (id.startsWith('stance:')) {
+    if ((stanceTo === 'kneel' || stanceTo === 'prone') && areaOf(state.places?.live?.area)?.kind === 'ground') soil(state, pid, { k: HANDS.REGOLITH, why: 'regolith' }, state.clock.ms, bus);
+    return;
+  }
+  if (!CLEAN_SUBS.has(actionKey(id))) soil(state, pid, { k: HANDS.RIFLE_SUB, why: 'rifle' }, state.clock.ms, bus);
+}
+
 function endSub(state, bus, d) {
   const S = state.stop, me = meOf(state), id = d.list[d.i];
+  soilOf(state, bus, id, d.stanceTo);
   if (id === 'aim' && d.aimKey) {
     if (me) { me.headRad = d.aimTo; me.face = faceOfHead(d.aimTo); }
     S.aim = { key: d.aimKey, settledMs: d.untilMs };

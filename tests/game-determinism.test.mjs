@@ -40,7 +40,7 @@ const SLICE_STEPS = 5;                                             // (a slice o
 const CHECK_EVERY_TICKS = 250;                                     // (save, load, save again; ids: TECH §6.3)
 const GOLDEN_SEED = 48213;
 // (the sandbox's new game: set with PRINT_HASH=1 when it changes on purpose, and said in CHANGELOG.md)
-const GOLDEN_SANDBOX = '0d3ad82fd1c184';                          // (pinned 2026-11-05, v0.0.2's sandbox: p1 and a1 at the spawn, one job; re-set for TIME §2.4's calendar and the slow mark; 0.0.3 re-set for the site seed's removal alone: putting places.sites.test.seed back gives 05fa96c32a3dbf; 0.0.4 re-set from 06e4132f321ebc: the player's start body and its posted crossing, time's pod, drills, attend and prefs, the solDirector job)
+const GOLDEN_SANDBOX = '13270604d2b6c8';                          // (pinned 2026-11-05, v0.0.2's sandbox: p1 and a1 at the spawn, one job; re-set for TIME §2.4's calendar and the slow mark; 0.0.3 re-set for the site seed's removal alone: putting places.sites.test.seed back gives 05fa96c32a3dbf; 0.0.4 re-set from 06e4132f321ebc: the player's start body and its posted crossing, time's pod, drills, attend and prefs, the solDirector job; 0.0.6 re-set from 0d3ad82fd1c184: the look's crew cut is low regulation, and the start body carries the hands and hair ledgers, nothing else: the build sheet 0.0.6 §3.3)
 
 export const newRun = (opts = {}) => createGame({ seed: SEED, domains: { world: dummyWorld }, ...opts });
 

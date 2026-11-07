@@ -85,7 +85,7 @@ export default [
       const door = g.facts('door').at(-1), freedAt = [];
       // (the tick a step runs is at the clock before it: the leaf is freed by the tick at t0 + openS)
       for (let t = 0; t < 40 && !freedAt.length; t++) { const before = g.state.clock.ms; g.step(1); if (leafCell() !== 255) freedAt.push(before - t0); }
-      const fracs = [0, 500, 1000].map(dt => leafAt(g.state, D, t0 + dt));
+      const fracs = [0, 0.5, 1].map(k => leafAt(g.state, D, t0 + k * o.openS * 1000));
       const offer2 = handOffer(g.state);
       // (closing blocks at once; a walker standing in the leaf is put out on the next tick)
       put(g, 'melas.echo.1', mid[0], mid[1], 'up');
@@ -93,7 +93,7 @@ export default [
       const blockedNow = leafCell() === 255, out = [g.me().x, g.me().z], settled = standOk(grid(), out[0], out[1]) && Math.abs(out[1] - mid[1]) > 0.27;
       console.log(`      closed: the request from the bay to the hallway answered '${answer?.reason}'`);
       console.log(`      from the hallway facing it, R offers "${offer?.label}" (${offer?.target}); pressed: the door fact ${JSON.stringify(door)}`);
-      console.log(`      its cells free ${freedAt[0]} ms after R (openS ${o.openS} s); the leaf at 0, 0.5 and 1.0 s open ${fracs.map(f => fmt(f, 2)).join(', ')}; then R offers "${offer2?.label}"`);
+      console.log(`      its cells free ${freedAt[0]} ms after R (openS ${o.openS} s); the leaf at 0, half and all of openS open ${fracs.map(f => fmt(f, 2)).join(', ')}; then R offers "${offer2?.label}"`);
       console.log(`      closed on a walker in it: blocked at once ${blockedNow}, the walker put out to (${fmt(out[0], 3)}, ${fmt(out[1], 3)}), standing clear ${settled}`);
       assert(answer?.reason === 'locked', JSON.stringify(answer));
       assert(offer?.verb === 'open' && offer.target === D && door?.id === D && door.state === 'open' && door.area === 'melas.echo.1', JSON.stringify({ offer, door }));

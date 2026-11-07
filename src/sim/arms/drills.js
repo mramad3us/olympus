@@ -30,6 +30,15 @@
 //
 // runMacro() plays a macro whole through doAction (the tests', and 0.0.7's gunner's): each sub-step
 // rolled and logged in order, halting where the macro halts.
+//
+// 0.0.6 (the user, 2026-11-07: "putting magazine in should be a "Reach for magazine" (or equivalent)"):
+// LOAD and the RELOADs are built from the single steps, the magazine in being a reach and a seat
+// (firearms.js: 0.6 and 0.8 s at value 10, v0.0.5's 1.4 s whole, so every drill's time stands). A drill's
+// reach takes the magazine by rule (kit.js pickMag 'rule': the kind the gun is meant to fire first, the
+// fullest believed, ties in reach order); with a magazine already in the hand subsOf leaves the reach out
+// and the drill seats that one. A reach whose weight contradicts the count believed halts the drill
+// (firearms.js: "It feels empty. You thought five."), its rest queued. REMEDIAL ACTION keeps v0.0.5's
+// magIn for its stripped magazine (brought back from the hand that racked, in the reach's time).
 import { actionMs, doAction, beliefOf, conditionOf, tempoFor } from './firearms.js';
 import { sparesOf } from './kit.js';
 import { modelOf, MODELS } from './models.js';
@@ -37,13 +46,13 @@ import { rollerOf } from '../combat/roll.js';
 
 /** The macros (WEAPONS §5.3): id → { label, subs, observer? }. */
 export const MACROS = Object.freeze({
-  load: Object.freeze({ label: 'LOAD', subs: Object.freeze(['selector:safe', 'magIn', 'port']) }),
+  load: Object.freeze({ label: 'LOAD', subs: Object.freeze(['selector:safe', 'reach', 'seat', 'port']) }),
   ready: Object.freeze({ label: 'MAKE READY', subs: Object.freeze(['selector:safe', 'charge', 'pressCheck', 'port']) }),
   unload: Object.freeze({ label: 'UNLOAD', subs: Object.freeze(['selector:safe', 'magOut:pouch', 'lockBack', 'inspect', 'release', 'selector:safe', 'port']) }),
   clear: Object.freeze({ label: 'UNLOAD, SHOW CLEAR', observer: true, subs: Object.freeze(['selector:safe', 'magOut:pouch', 'lockBack', 'inspect', 'show', 'release', 'selector:semi', 'functionCheck', 'charge', 'selector:safe', 'port']) }),
-  'reload:speed': Object.freeze({ label: 'RELOAD', subs: Object.freeze(['magOut:drop', 'magIn', 'release']) }),
-  'reload:retain': Object.freeze({ label: 'RELOAD, keep the empty', subs: Object.freeze(['magOut:dump', 'magIn', 'release']) }),
-  'reload:tactical': Object.freeze({ label: 'RELOAD', subs: Object.freeze(['magOut:pouch', 'magIn']) }),
+  'reload:speed': Object.freeze({ label: 'RELOAD', subs: Object.freeze(['magOut:drop', 'reach', 'seat', 'release']) }),
+  'reload:retain': Object.freeze({ label: 'RELOAD, keep the empty', subs: Object.freeze(['magOut:dump', 'reach', 'seat', 'release']) }),
+  'reload:tactical': Object.freeze({ label: 'RELOAD', subs: Object.freeze(['magOut:pouch', 'reach', 'seat']) }),
   ia: Object.freeze({ label: 'IMMEDIATE ACTION', subs: Object.freeze(['tap', 'charge', 'observe']) }),
   remedial: Object.freeze({ label: 'REMEDIAL ACTION', subs: Object.freeze(['lockBack', 'magOut:strip', 'rack', 'rack', 'rack', 'magIn', 'charge', 'observe']) }),
   cease: Object.freeze({ label: 'CEASE FIRE', subs: Object.freeze(['finger', 'selector:safe']) }),
@@ -52,14 +61,16 @@ export const MACROS = Object.freeze({
 /** The actions that cock the hammer on the way (the R-7's lever reaches safe only after one: see the header). */
 const COCKS = new Set(['charge', 'rack', 'lockBack', 'clearDouble']);
 /**
- * A macro's sub-steps for a belief (beliefOf's view): skipping only a magazine out with none believed in and a
- * lock back with the bolt believed locked on an empty (or unsure) chamber; with the hammer believed down on a
+ * A macro's sub-steps for a belief (beliefOf's view): skipping only a magazine out with none believed in, a
+ * lock back with the bolt believed locked on an empty (or unsure) chamber, and a reach with a magazine already
+ * in the hand (0.0.6); with the hammer believed down on a
  * model whose lever needs it cocked, the first safe after the first step that cocks it, or a charge before it.
  */
 export function subsOf(macroId, belief) {
   const m = MACROS[macroId];
   if (!m) return [];
-  const subs = m.subs.filter(a => !(a.startsWith('magOut:') && belief?.mag === 'out') && !(a === 'lockBack' && belief?.locked && (belief.chamber === 'empty' || belief.chamber === '?')));
+  const subs = m.subs.filter(a => !(a.startsWith('magOut:') && belief?.mag === 'out') && !(a === 'lockBack' && belief?.locked && (belief.chamber === 'empty' || belief.chamber === '?'))
+    && !(a === 'reach' && belief?.hand));
   if (belief?.cocked === false && MODELS[belief.model]?.safeNeedsCocked) {
     const s = subs.indexOf('selector:safe'), c = subs.findIndex(a => COCKS.has(a));
     if (s >= 0 && (c < 0 || c > s)) {
@@ -81,7 +92,8 @@ export function macrosFor(state, pid, gunId, { observerId = null } = {}) {
   if (!b || !g) return [];
   const kit = state.people?.[pid]?.kit, finger = kit?.carry?.finger ?? 'off';
   const fams = modelOf(g)?.fams ?? [], spares = sparesOf(state, pid, null).filter(id => fams.includes(state.items[id]?.fam));
-  const withRounds = spares.filter(id => state.items[id]?.belief?.n !== 0);
+  // (a magazine not believed empty: an unknown count, or one felt to hold some)
+  const withRounds = spares.filter(id => state.items[id]?.belief?.n !== 0 && state.items[id]?.belief?.feel !== 'none');
   const ids = [];
   if (b.stoppage === 'double') ids.push('remedial');
   else if (b.stoppage) ids.push('ia');

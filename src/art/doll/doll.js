@@ -48,10 +48,19 @@
 //   - and the outfits the body is in for them: PT kit (the oxblood tee, its short sleeves, the grey
 //     shorts, running shoes and socks), the towel (at the waist, bare chested, or at the chest for a
 //     woman; shower shoes).
+// The hair and the hands (0.0.6; the build sheet 0.0.6 §2.2; the user, 2026-11-06: "we should have to
+// groom our hair the same way we will have to groom our beards"): the regulation cuts as the figures
+// draw them, at the look's drawn step (hair.step): a man's top a patch on the crown (high and tight the
+// smallest, medium regulation the fullest, the shaved head none), the scalp round it skin when fresh,
+// then a shadow, a dark and the hair's colour as it grows out (outfits.js SIDES_K), the top a pixel
+// taller out of regulation; a woman's short cut a row longer at the locks a step, a bun or a braid
+// pinned up with stray pixels out of regulation. The hands (handsK, handsWhy: cuesOf's) dirty a share of
+// the hands' pixels by their band (used, dirty, grimy: HANDS_SHARE), in the cause's colour: grey for the
+// slow rate, the head, a stall and food, black-grey gun oil for the rifle, rust for regolith.
 // Pure: it returns a Pixmap (src/art/paint.js words), opaque, the backdrop round the figure.
 import { PX_PER_M } from '../../render/scale.js';
 import { word } from '../paint.js';
-import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE } from '../figures/outfits.js';
+import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE, cutOf, SIDES_K } from '../figures/outfits.js';
 import { shapeAt, turned } from '../figures/templates.js';
 import { REF, INK, mix, lum, cloth, flesh, smooth, ribbon, edgeOf, grid, halo, TONES } from './grid.js';
 
@@ -66,6 +75,9 @@ const GOLD = 0xe7b84a, RUST = 0xe8896a;
 const OXBLOOD = 0x6e2a2e, PT_GREY = 0x8f96a6, RUNNER = 0xc4c8d0, SOCK = 0xe8e6e0, SHEEN = 0xb8d8ec, DUST = 0x7a5a44;
 /** Where a cue starts to show on the doll's posture (VIEWS §4.2, the build sheet §2.3 (d)). */
 export const TIRED_SHOWS_K = 0.5, BLADDER_SHOWS_K = 0.6, HUNGER_SHOWS_K = 0.6;
+/** The hands' dirt (0.0.6): the share of the hands' pixels marked by band ([handsK from, share]: used from 0.2, dirty from 0.4, grimy from 0.7, HANDS_BANDS' dirt over 100), and the colours by cause. */
+export const HANDS_SHARE = Object.freeze([[0.2, 0.18], [0.4, 0.4], [0.7, 0.65]]);
+export const HANDS_DIRT = Object.freeze({ slow: 0x6e6862, head: 0x6e6862, stall: 0x5f5a54, food: 0x7a6650, rifle: 0x2b2d33, regolith: 0xa04a2c });
 const WAIST_Y = 52, BELT_Y = 58, CROTCH_Y = 72, KNEE_Y = 101, ANKLE_Y = 124, FLOOR_Y = 132;
 const lf = (pts) => pts.map(([d, y]) => [MID - d, y]);
 const rt = (pts) => pts.map(([d, y]) => [MID + d, y]);
@@ -300,7 +312,7 @@ function arms(g, B, kit) {
     if (!bare) folds(g, id, [[side([[e + 3.4, 49.6], [e, 52], [e - 3.4, 51]]), 1.5], [side([[e + 3.4, 54], [e + 0.4, 56.4], [e - 3.4, 55]]), 1.5]], dark);
     if (kit.pt) sleeveCap(g, id, side, out, inn, far);
     if (!kit.suit && !bare) kit.camoParts.add(id);
-    hands(g, B, flat, kit.gloves ? cloth(kit.gloves) : S, far, !!kit.gloves);
+    kit.handIds.push(hands(g, B, flat, kit.gloves ? cloth(kit.gloves) : S, far, !!kit.gloves));
     if (kit.suit) {
       // (the shell's shoulder cap; the wrist's seal ring)
       const sh = cloth(kit.shell), red = cloth(0x9e3c36);
@@ -337,6 +349,7 @@ function bentArm(g, B, kit, side, far, to, out, inn) {
   if (!kit.suit && !bare) kit.camoParts.add(fid);
   // (the fist at the end, skin, lit on its top)
   const hand = g.add(g.scan(side(smooth([[to[0] - 3, to[1] - 2.6], [to[0] + 2.4, to[1] - 2.8], [to[0] + 3, to[1] + 1.6], [to[0] - 2.6, to[1] + 2.2]], 3)).map(([x, y]) => [x, y - far])), kit.gloves ? cloth(kit.gloves).base : S.base);
+  kit.handIds.push(hand);
   g.on(hand, g.scan(side([[to[0] - 3, to[1] - 3], [to[0] + 3, to[1] - 3], [to[0] + 3, to[1] - 1.6], [to[0] - 3, to[1] - 1.6]]).map(([x, y]) => [x, y - far])), kit.gloves ? cloth(kit.gloves).light : S.light);
 }
 const HAND = ['.bbbbbs..', '.lbbbbbs.', 'lbbbbbbbs', 'lbbbbbsbs', 'lbbbbbsbs', 'lbbbbsbbs', 'lbbbbsbs.', 'lbsbbsss.', 'bbsbsbs..', 'bbsbsb...', '.bbbb....'];
@@ -349,6 +362,7 @@ function hands(g, B, side, S, far, gloved) {
     const c = { l: far ? S.base : S.light, b: S.base, s: far ? S.deep : S.shade }[ch];
     g.put(side === lf ? x0 + x : REF.W - 1 - x0 - x, y0 + y, c, id);
   }
+  return id;
 }
 
 // ---------- the head ----------
@@ -362,6 +376,7 @@ function head(g, B, kit, look) {
   for (const [side, c] of [[lf, S.base], [rt, S.shade]]) { const e = g.add(g.scan(side([[7.4, 12.6], [9.8, 13], [10, 16], [9, 18.8], [7.2, 19]])), c); g.on(e, g.scan(side([[8, 14.4], [9, 14.4], [9, 17], [8, 17]])), side === lf ? S.shade : S.deep); }
   const half = [[0, 5.4], [3.4, 5.8], [6, 7.2], [7.8, 10], [8.2, 13.5], [8, 17.5], [7.2, 20.5], [5.6, 23.4], [3, 25.2], [0, 25.6]];
   const face = g.add(g.scan(smooth([...lf(half.slice(0, -1)), ...rt(half.slice(1)).reverse()], 4)), S.base);
+  kit.faceId = face;
   g.on(face, g.scan(smooth([[MID + 5, 6], [MID + 6, 11], [MID + 5, 17], [MID + 3.4, 21], [MID, 25], [MID + 3, 27], [MID + 10, 22], [MID + 10, 8]], 3)), S.shade);
   g.on(face, g.scan(smooth([[MID - 6.4, 8.6], [MID - 2, 6.6], [MID + 1, 7], [MID - 3, 9], [MID - 6, 11.6]], 3)), S.light);
   g.on(face, g.scan(smooth([[MID - 6.8, 17], [MID - 5.4, 16.8], [MID - 5, 18.4], [MID - 6.4, 19]], 2)), S.soft);
@@ -374,16 +389,56 @@ function head(g, B, kit, look) {
   g.span(22, MID - 2, MID + 1, S.deep); g.put(MID - 3, 22, S.shade); g.put(MID + 2, 22, S.shade); g.span(23, MID - 1, MID, S.shade);
   void look;
 }
-// (hair: a high and tight, the Corps' cut, or a short cut; drawn in clumps, its lit top, a dark where it turns)
+// (hair: the regulation cuts (0.0.6) at their step, drawn in clumps, its lit top, a dark where it turns; see the header)
+// (a man's top on the crown, by cut: [x, y] in reference pixels, the hairline at its foot; the shaved head has none)
+const CAPS = Object.freeze({
+  highTight: [[26.4, 8.2], [26.6, 6.4], [28.4, 4.8], [31, 4.2], [34.4, 4.4], [36.6, 5.4], [37.6, 7], [37.4, 8.2], [35.6, 7.6], [32, 7.4], [28.2, 7.8]],
+  lowReg: [[24.8, 10.6], [24.6, 8.4], [25.8, 6.2], [28, 4.6], [31, 4], [35.8, 4.2], [38.4, 5.6], [39.4, 8], [39.2, 10.6], [38.4, 9.4], [36.4, 8.4], [32, 8.2], [27.6, 8.6], [25.6, 9.6]],
+  medReg: [[24.2, 12], [24, 9.4], [25.2, 6.6], [27.6, 4.4], [31, 3.6], [36, 3.8], [38.6, 5.2], [39.8, 8.2], [39.8, 12], [39.2, 12], [38.6, 9.6], [36.6, 8.6], [32, 8.4], [27.4, 8.8], [25.4, 9.8], [24.8, 12]],
+});
+const SHORT_CAP = [[23.6, 15], [23.2, 11], [24, 7.6], [26.6, 4.8], [31, 3.4], [36, 3.8], [39, 5.6], [40.6, 8.6], [40.8, 12], [40.2, 15], [39.2, 15], [38.8, 11.6], [36.6, 10.4], [33, 10.6], [29, 9.2], [26.8, 10.4], [25.6, 11.6], [24.8, 15]];
+const PINNED_CAP = [[24.2, 12.6], [23.8, 9.4], [25, 6.4], [27.8, 4.4], [31, 3.8], [35.6, 4], [38.6, 5.6], [40, 8.8], [39.8, 12.6], [39, 12.6], [38.4, 10], [36.4, 8.8], [32, 8.6], [27.6, 9], [25.6, 10], [25, 12.6]];
+// (the scalp a man's cut leaves short, painted on the face's own skin by the step: the crown above the hairline, the temples
+// down to the brows; skin when fresh, then toward the hair's colour, SIDES_K)
+function scalp(g, kit, cut, step) {
+  if (!step || kit.faceId === undefined) return;
+  const S = flesh(kit.skin), k = SIDES_K[step], skinTones = new Map([[S.base, 'base'], [S.light, 'light'], [S.soft, 'soft'], [S.shade, 'shade'], [S.deep, 'deep']]);
+  const crownY = cut === 'shaved' ? 9.6 : 9, templeY = 12.2, templeD = cut === 'highTight' ? 5.4 : 6.2;
+  for (let y = 0; y < g.T(templeY); y++) for (let x = 0; x < g.W; x++) {
+    if (g.part[y]?.[x] !== kit.faceId) continue;
+    const t = skinTones.get(g.col[y][x]);
+    if (!t) continue;
+    const ry = y / g.S, dx = Math.abs(x / g.S - MID);
+    if (!(ry < crownY || dx >= templeD)) continue;
+    g.col[y][x] = mix(S[t], t === 'shade' || t === 'deep' ? cloth(kit.hair.color).shade : kit.hair.color, k);
+  }
+}
 function hair(g, kit) {
-  const style = kit.hair.style, T = cloth(kit.hair.color);
-  if (style === 'bald') return;
-  const cap = style === 'short'
-    ? [[23.6, 15], [23.2, 11], [24, 7.6], [26.6, 4.8], [31, 3.4], [36, 3.8], [39, 5.6], [40.6, 8.6], [40.8, 12], [40.2, 15], [39.2, 15], [38.8, 11.6], [36.6, 10.4], [33, 10.6], [29, 9.2], [26.8, 10.4], [25.6, 11.6], [24.8, 15]]
-    : [[24.2, 12], [24, 9.6], [25.2, 7], [27.6, 5], [31, 4.2], [36, 4.4], [38.6, 5.8], [39.8, 8.4], [39.8, 12], [39.2, 12], [38.6, 9.6], [36.6, 8.6], [32, 8.4], [27.4, 8.8], [25.4, 9.8], [24.8, 12]];
-  const id = g.add(g.scan(smooth(cap, 2)), T.base);
+  const cut = cutOf(kit.hair.style), step = kit.hair.step ?? 0, T = cloth(kit.hair.color);
+  if (CAPS[cut] !== undefined || cut === 'shaved') scalp(g, kit, cut, step);
+  if (cut === 'shaved') return;
+  // (out of regulation the top stands a pixel taller: the cap's upper points lifted)
+  const lift = (pts) => (step >= 3 ? pts.map(([x, y]) => [x, y < 7 ? y - 1 : y]) : pts);
+  // (a woman's short cut grows at the locks: the cap's foot a row lower a step)
+  const grow = (pts) => pts.map(([x, y]) => [x, y >= 14 ? y + 1.2 * step : y]);
+  const cap = CAPS[cut] ?? (cut === 'short' ? grow(SHORT_CAP) : PINNED_CAP);
+  const id = g.add(g.scan(smooth(lift(cap), 2)), T.base);
   g.on(id, g.scan(smooth([[26, 6.6], [30, 4.6], [34.6, 4.8], [31, 6.4], [27.6, 8.4]], 3)), T.light);
   g.on(id, g.scan(rt([[3.6, 2], [5.6, 8], [6, 14], [6.4, 24], [12, 24], [12, 2]])), T.shade);
+  if (cut === 'bun') {
+    // (the bun on the crown, behind it: a knot of hair, lit on top)
+    const b = g.add(g.scan(smooth([[MID - 3.4, 4.2], [MID - 3, 1.4], [MID, 0.4], [MID + 3, 1.4], [MID + 3.4, 4.2]], 3)), T.base);
+    g.on(b, g.rows(1, MID - 2, MID + 1), T.light); g.on(b, g.rows(3, MID + 1, MID + 3), T.shade);
+  }
+  if (cut === 'braid') {
+    // (the braid pinned across the crown: a band of crossings, light and dark)
+    for (let x = MID - 6; x <= MID + 5; x++) g.put(x, x % 2 ? 4 : 5, x % 2 ? T.light : T.shade, id);
+    for (let x = MID - 6; x <= MID + 5; x++) g.put(x, x % 2 ? 5 : 4, T.base, id);
+  }
+  if ((cut === 'bun' || cut === 'braid') && step >= 3) {
+    // (out of regulation, pinned-up hair works loose: strays at the temples)
+    g.put(MID - 9, 11, T.base); g.put(MID - 9, 13, T.shade); g.put(MID + 8, 12, T.base); g.put(MID + 9, 14, T.shade);
+  }
 }
 const dim = (g, y, a, b, k) => { for (const [yy, x0, x1] of g.rows(y, a, b)) for (let x = x0; x <= x1; x++) if (g.col[yy]?.[x] !== null && g.col[yy]?.[x] !== undefined) g.col[yy][x] = mix(g.col[yy][x], INK, k); };
 function hat(g, kit) {
@@ -666,6 +721,17 @@ function wetHair(g, kit) {
   g.put(MID - 9, 14, SHEEN); g.put(MID - 9, 15, mix(SHEEN, 0x5d9db1, 0.3));
   g.put(MID + 12, 31, SHEEN);
 }
+/** The hands' dirt (0.0.6; see the header): a share of the hands' pixels by band, in the cause's colour, cosmetic by position. */
+function dirtyHands(g, kit, k, why) {
+  let share = 0;
+  for (const [from, sh] of HANDS_SHARE) if (k >= from - 1e-9) share = sh;
+  if (!share || !kit.handIds.length) return;
+  const dirt = HANDS_DIRT[why ?? 'slow'] ?? HANDS_DIRT.slow, ids = new Set(kit.handIds);
+  for (let y = 0; y < g.ROWS; y++) for (let x = 0; x < g.W; x++) {
+    if (!ids.has(g.part[y]?.[x]) || g.col[y][x] === null) continue;
+    if (h3(x, y, 29) < share) g.col[y][x] = mix(g.col[y][x], dirt, why === 'rifle' ? 0.62 : 0.5);
+  }
+}
 /** Stubble: the jaw, the chin and the lip dotted in the hair's colour over the skin (density by stubbleK). */
 function stubble(g, kit, k) {
   const S = flesh(kit.skin), dot = mix(kit.hair.color, S.shade, 0.35);
@@ -717,7 +783,8 @@ function kitOf(look = {}, marks = {}, body = null) {
   const skin = SKIN[look.skin] ?? look.skin ?? SKIN.tan;
   const kit = {
     outfit, suit, skin, marks, camoParts: new Set(), glow: new Set(), late: [], seed: look.seed ?? 3,
-    hair: { style: look.hair?.style ?? 'crew', color: HAIR[look.hair?.color] ?? look.hair?.color ?? HAIR.dark },
+    hair: { style: cutOf(look.hair?.style), color: HAIR[look.hair?.color] ?? look.hair?.color ?? HAIR.dark, step: Math.max(0, Math.min(3, Math.round(look.hair?.step ?? 0))) },
+    handIds: [],
     top: 0x9a6a4a, legs: 0x9a6a4a, sleeve: 0x9a6a4a, boots: 0x9a7650, bloused: !suit, rank: outfit === 'nco' || !!look.rank,
     head: look.head === null ? null : suit ? { kind: outfit === 'vac' ? 'vac' : 'ring', color: 0xc8c0ae } : outfit === 'carrier' ? { kind: 'helmet', color: 0x5f6646 } : { kind: 'cover' },
     armour: outfit === 'carrier' ? { color: 0x545e40, pouch: 0x4a5236 } : null,
@@ -728,7 +795,7 @@ function kitOf(look = {}, marks = {}, body = null) {
   if (outfit === 'towel') Object.assign(kit, { towel: true, top: kit.skin, sleeve: kit.skin, legs: TOWEL, boots: SHOWER_SHOE, bloused: false, rank: false, head: null, bareLegs: true, bareArms: true });
   // (the body's cues: VIEWS §4.2, see the header)
   const cue = (k) => Math.max(0, Math.min(1, body?.[k] ?? 0));
-  kit.cues = { wet: cue('wetK'), grime: cue('grimeK'), sweat: cue('sweatK'), stubble: cue('stubbleK'), tired: cue('tiredK'), bladder: cue('bladderK'), hunger: cue('hungerK') };
+  kit.cues = { wet: cue('wetK'), grime: cue('grimeK'), sweat: cue('sweatK'), stubble: cue('stubbleK'), tired: cue('tiredK'), bladder: cue('bladderK'), hunger: cue('hungerK'), hands: cue('handsK'), handsWhy: body?.handsWhy ?? null };
   if (kit.cues.wet > 0) kit.hair = { ...kit.hair, color: mix(kit.hair.color, 0x14151c, 0.18) };
   if (kit.cues.tired >= TIRED_SHOWS_K) kit.drop = 1;
   if (kit.cues.bladder >= BLADDER_SHOWS_K) { kit.knees = 1.6; kit.bendR = [4, 60]; }
@@ -766,6 +833,7 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
   const C = kit.cues;
   if (C.sweat > 0.05) sweatMarks(g, kit, C.sweat);
   if (C.grime > 0.05) grimeMarks(g, C.grime);
+  if (C.hands > 0 && !kit.gloves) dirtyHands(g, kit, C.hands, C.handsWhy);
   if (C.stubble > 0.05 && kit.head?.kind !== 'vac') stubble(g, kit, C.stubble);
   if (C.tired >= TIRED_SHOWS_K && kit.head?.kind !== 'vac') tiredEyes(g, kit);
   if (C.wet > 0 && kit.head?.kind !== 'vac' && !kit.head) wetHair(g, kit);

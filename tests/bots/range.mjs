@@ -17,18 +17,32 @@
 // A stoppage felt or seen: a click is answered "Tap, rack" on the card, a shot that did not cycle
 // "Look at the port"; then IMMEDIATE ACTION, or REMEDIAL ACTION once a double feed is seen. faulty: the
 // careless shooter of the build sheet: MAKE READY before the tower (a warning), then an aim at the coach
-// (the stop). Its memory (me.bot) is plain data: the decisions it made ({ atMs, step, tempo, target,
+// (the stop). early: n (0.0.6, the user's run of 2026-11-07: "I shoot two prone, two kneeling and when I have to
+// shoot standing, I don't have any mags left"; their save: four fired, the magazine changed, six more): in the
+// first string, after n shots, the magazine changed by the singles (to the dump pouch, a reach, a magazine in: the
+// seat's row marked "one magazine a string", its warn kept in mem.marked), then fire on. Its memory (me.bot) is plain data: the decisions it made ({ atMs, step, tempo, target,
 // cmd }), so it saves and loads with the game.
+//
+// fuzzBot({ seed }) (0.0.6, the user's 2026-11-07: "when I have to shoot standing, I don't have any mags left"):
+// a shooter who presses random legal keys, hunting the scene's dead ends. Out of the mode it stands a while
+// (up to FUZZ_OUT_MS) and presses G; on a reflex card it answers at random (keeping the answer half the time);
+// choosing, it takes any step the panel offers unstruck, at a random tempo where the step has one, and cuts the
+// chained wait now and then (Fire, the tower's marked command, the aim and Off safe on a hot line weigh more:
+// FUZZ_W); it never aims at
+// anything but its own card nor fires on a cold line (the range's own
+// stops, not dead ends, which the careless shooter above already pins). Its dice are hashes of its seed and its
+// count of decisions (mem.n), so it saves and loads with the game; mem.log counts the steps it took.
 import { rangeNow } from '../../src/sim/scenarios/handling.js';
 import { stepsOf } from '../../src/sim/arms/shooting.js';
 import { beliefOf } from '../../src/sim/arms/firearms.js';
 import { stepAct } from './lib.mjs';
+import { hashInt } from '../../src/core/hash.js';
 
 /** A decision's modelled real time: a player reads the panel and presses a key (my call, the sheet's THINK_S). */
 export const THINK_S = 6;
 
 /** The range bot (see the header). */
-export function rangeBot({ faulty = false } = {}) {
+export function rangeBot({ faulty = false, early = null } = {}) {
   return (state, me, mem) => {
     mem.log ??= [];
     const R = rangeNow(state);
@@ -60,6 +74,11 @@ export function rangeBot({ faulty = false } = {}) {
       case 'load': if (has('macro:load')) return choose('macro:load'); break;
       case 'ready': if (has('macro:ready')) return choose('macro:ready'); break;
       case 'fire': {
+        // (the user's run: a magazine changed partway through the first string)
+        if (early !== null && R.string === 0 && (mem.early ?? 0) < 3 && R.strings[0].shots >= early) {
+          const want = ['magOut:dump', 'reach', 'seat'][mem.early ?? 0], st = steps.find(x => !x.off && (want === 'reach' ? x.id.startsWith('reach@p') : x.id === want));
+          if (st) { mem.early = (mem.early ?? 0) + 1; if (want === 'seat') mem.marked = st.warn ?? null; return choose(st.id); }
+        }
         if (b.locked && b.count === 0) break;
         if (S.aim?.key !== own) return choose('aim', 'normal', own);
         if (b.mode === 'safe' && has('selector:semi')) return choose('selector:semi');
@@ -79,5 +98,41 @@ export function rangeBot({ faulty = false } = {}) {
     }
     if (has('wait') && (mem.waitAtMs ?? -1) !== state.clock.ms) { mem.waitAtMs = state.clock.ms; return choose('wait'); }
     return {};
+  };
+}
+
+/** The longest a fuzz shooter stands out of the mode before it presses G (ms of game time). */
+export const FUZZ_OUT_MS = 20_000;
+/** The fuzz shooter's weights: Fire, the tower's marked command, and the aim (and Off safe on a hot line) against 1 for every other step (my calls). */
+export const FUZZ_W = Object.freeze({ fire: 12, cmd: 4, aim: 4 });
+/** The fuzz bot (see the header). */
+export function fuzzBot({ seed = 1 } = {}) {
+  return (state, me, mem) => {
+    mem.n ??= 0; mem.steps ??= {};
+    const R = rangeNow(state);
+    if (!R || R.end) { mem.done = true; return {}; }
+    const S = state.stop, now = state.clock.ms, die = (k) => hashInt(k, 'fuzz', seed, mem.n++);
+    const choose = (step, tempo = 'normal', target = null) => { mem.steps[step] = (mem.steps[step] ?? 0) + 1; return { act: [stepAct(step, tempo, target)] }; };
+    if (!S) {
+      if (mem.outUntil === undefined) mem.outUntil = now + die(FUZZ_OUT_MS);
+      if (now < mem.outUntil) return {};
+      delete mem.outUntil;
+      mem.steps.G = (mem.steps.G ?? 0) + 1;
+      return { act: ['ready'] };
+    }
+    if (S.reflex) { const o = S.reflex.options[die(S.reflex.options.length)]; mem.steps[`reflex:${o.key}`] = (mem.steps[`reflex:${o.key}`] ?? 0) + 1; return { act: [{ act: 'stop', args: { step: `reflex:${o.key}`, tempo: 'normal', keep: die(2) === 1 } }] }; }
+    if (S.mode !== 'stop') return {};
+    if (S.phase !== 'choose' && !(S.doing?.kind === 'wait' && die(10) === 0)) return {};
+    const own = `paper:${R.lane}`;
+    const steps = stepsOf(state).filter(st => !st.off && !(st.kind === 'fire' && !R.hot) && !(st.kind === 'aim' && st.target && st.target !== own));
+    if (!steps.length) return {};
+    // (every legal step can come up; the tower's marked command, Fire and the aim at its own card weigh more, so its
+    // strings are fired often enough to run its magazines dry)
+    const w = steps.map(x => (x.kind === 'fire' ? FUZZ_W.fire : x.cmd ? FUZZ_W.cmd : x.kind === 'aim' || (R.hot && x.id === 'selector:semi') ? FUZZ_W.aim : 1));
+    let roll = die(w.reduce((a, b) => a + b, 0)), k = 0;
+    while (roll >= w[k]) roll -= w[k++];
+    const st = steps[k];
+    const tempos = ['normal', ...(Number.isFinite(st.rushMs) ? ['rushed'] : []), ...(Number.isFinite(st.carefulMs) ? ['careful'] : [])];
+    return choose(st.id, tempos[die(tempos.length)], st.kind === 'aim' ? own : null);
   };
 }

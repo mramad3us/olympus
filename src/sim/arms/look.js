@@ -15,7 +15,8 @@
 //                    brass in flight and at rest (caseAt, each with the stance it left), the magazines
 //                    lying, the bracketed target and whether the shooter is aimed, and the last shot's
 //                    blast within DUST_MS (fire: where the shooter lies or kneels, facing, the stance, its
-//                    game time) for the stage's flash star and the dust off the regolith.
+//                    game time, and 0.0.6's load and lane, a tracer's ember drawn to its card) for the
+//                    stage's flash star and the dust off the regolith.
 // caseAt(rec, ms) is a case's flight at Mars' gravity (WEAPONS §2.8): launched from the port
 // horizontally at EJECT_MS ± 0.3 m/s (by hash), EJECT_DEG ± 20° (by hash) to the right of the bore,
 // from the port's height by the stance (PORT_H_M), falling at G_MS2 until it lands and rests where it
@@ -31,6 +32,7 @@ import { q } from '../../core/num.js';
 import { ACTIONS, gunField } from './firearms.js';
 import { muzzleOf, carryOf, faceRad } from './carry.js';
 import { lyingOf, CONTAINERS } from './kit.js';
+import { loadOf } from './calibres.js';
 import { stepNow, targetsOf } from './shooting.js';
 
 /** Mars' surface gravity (m/s²: 0.38 g). */
@@ -157,7 +159,10 @@ export function rangeLook(state, ms = state?.clock?.ms ?? 0) {
   const pick = state.stop?.pick ?? null, pid = state.stop?.who ?? null;
   // (the last shot's blast: the shooter's place and stance now, which a string never moves; its game time)
   const last = shots.length ? shots[shots.length - 1] : null, me = state.actors?.list?.find(a => a.who === (s.who ?? state.player?.id)) ?? null;
-  const fire = last && me && ms - last.atMs >= 0 && ms - last.atMs < DUST_MS ? { atMs: last.atMs, x: me.x, z: me.z, face: me.face ?? 'right', stance: me.stance ?? 'stand' } : null;
+  // (a tracer's: its kind, its lane, and where its trace lights and how fast it flies, the calibre's own numbers)
+  const L = last?.load ? loadOf('6.5x40r', last.load) : null;
+  const fire = last && me && ms - last.atMs >= 0 && ms - last.atMs < DUST_MS ? { atMs: last.atMs, x: me.x, z: me.z, face: me.face ?? 'right', stance: me.stance ?? 'stand',
+    ...(last.load ? { load: last.load, lane: last.lane, ...(L?.traceFromM ? { traceFromM: L.traceFromM, vMs: L.vRefMs } : {}) } : {}) } : null;
   return {
     hot: !!s.hot, lanes,
     brass: (s.brass ?? []).map(rec => ({ ...caseAt(rec, ms), kind: rec.kind, stance: STANCE_OF_PORT[rec.y0] ?? 'stand', atMs: rec.atMs })),

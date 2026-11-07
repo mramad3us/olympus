@@ -17,6 +17,9 @@
 // stance up and down; V the carry posture; I what you carry; and in stop motion (STOP_KEYS) Enter aim at
 // the bracketed target, Q and D (the move keys' codes KeyA and KeyD) the brackets to the next target, a
 // click to aim and a click on the aimed one to fire, and in a reflex card R to keep the answer.
+// The 0.0.6 round's (the build sheet 0.0.6 §2.3, VIEWS §10.1): R's words are on its plate before it is pressed,
+// R held opens the menu of every single action at hand (cards/actions.js), and in it (MENU_KEYS) the digits and
+// the arrows (Z S) move, Q D change a row's choice, Space checks, Enter does it, Esc or R closes.
 import { bindingOf } from '../../core/keys.js';
 
 /** The actions with a meaning in this build, in the card's order (the walk and the digits are rows of their own). */
@@ -25,7 +28,7 @@ export const KEYS_IN_BUILD = Object.freeze(['run', 'stroll', 'hand', 'instinct',
 export const KEY_WORDS = Object.freeze({
   run: 'run, held',
   stroll: 'stroll, held',
-  hand: "what's at hand: an appliance, a door, else wait; held: the choices",
+  hand: "what's at hand, as its plate says (an action, a door, else wait); held: the menu of every action there",
   instinct: 'what the instinct says; held: the next',
   ready: 'weapon ready: the rifle up, time stands still while you choose',
   shoot: 'the shooting mode, on and off (with a rifle)',
@@ -45,6 +48,9 @@ export const SPLASH_KEYS = Object.freeze([['pause', 'in a splash: to the end (En
 /** In stop motion, the keys mean (VIEWS §10.2; the build sheet 0.0.5 §2.4): [codes or actions, words]. */
 export const STOP_KEYS = Object.freeze([[['Enter'], 'in stop motion: aim at the bracketed target (a click too; a click on the aimed one fires)'], [['KeyA', 'KeyD'], 'in stop motion: the brackets to the next target'], [['hand'], 'in a reflex card: keep the answer two minutes']]);
 
+/** In the R menu, the keys mean (cards/actions.js; the build sheet 0.0.6 §2.3): [codes or actions, words]. */
+export const MENU_KEYS = Object.freeze([[['Space'], 'in the R menu: check a row (the digits and the arrows move to one; Enter does what is checked)'], [['KeyA', 'KeyD'], 'in the R menu: a row\'s choice (how long, which cut)']]);
+
 /** The card's rows: [[keys, words]…]. label(action or code) names a key; says overrides words; extra adds rows (the debug keys). */
 export function keysRows({ label, says = {}, extra = [] }) {
   const rows = [[`${label('up')} ${label('left')} ${label('down')} ${label('right')}`, 'walk (the arrows too)']];
@@ -55,6 +61,7 @@ export function keysRows({ label, says = {}, extra = [] }) {
   }
   for (const [k, words] of SPLASH_KEYS) rows.push([label(k), words]);
   for (const [ks, words] of STOP_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
+  for (const [ks, words] of MENU_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
   for (const r of extra) rows.push(r);
   return rows;
 }

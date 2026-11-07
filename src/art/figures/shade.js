@@ -9,7 +9,8 @@
 //     that part's shadow;
 //   - a pixel on its part's right or bottom edge is in shade, on its top edge lit;
 //   - where a part lies over an earlier one, its edge pixel takes its role's darkest tone: a line inside
-//     the figure, softer than the outline;
+//     the figure, softer than the outline; but hair's lowest pixel over the face's skin, the hairline, takes
+//     the skin's shade (0.0.6: a dark hairline read as a cap's brim);
 //   - an outline of ink round the whole silhouette (every empty 4-neighbour).
 // Each role's tones are its ramp: tone() (src/art/tone.js, the pixel artist's hue shift: shadows toward
 // violet, lights toward yellow) steps of 0.085 OKLCH L down and 0.065 up, about a palette family's
@@ -77,6 +78,9 @@ export function shade(cells, col, { outline = INK } = {}) {
       else if (!same(c, r, x + 1, y) || !same(c, r, x, y + 1)) t = 'shade';                         // (the right and bottom edges)
       else if (!same(c, r, x, y - 1) && same(c, r, x + 1, y)) t = 'light';                          // (the top edge)
     }
+    // (the hairline, hair just over the face's skin, in the skin's shadow, not the hair's darkest: a dark row there read as a
+    // cap's brim on a fresh blond cut in the bay's light (the fixer's, 0.0.6, after the design review's 2× shot))
+    if (!c.t && r === 'h' && roleAt(x, y + 1) === 's' && at(x, y + 1)?.part < c.part && typeof col.s === 'number') { data[y * W + x] = word(rampOf(col.s).shade); continue; }
     if (!c.t) for (const [dx, dy] of INNER) {                                                       // (an edge over an earlier part: an inner line)
       const o = at(x + dx, y + dy);
       if (o && o.part < c.part && roleAt(x + dx, y + dy)) { t = 'dark'; break; }

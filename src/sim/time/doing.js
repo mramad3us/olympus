@@ -3,12 +3,14 @@
 // An activity under way is state.time.doing (src/sim/time/activities.js writes it when it starts and
 // closes it when it ends):
 //     { activity, spotId, mode: 'live' | 'ff' | 'outcome', fromMs, toMs,
-//       parts: [{ part, toMs }], from: { outfit, x, z, face }, args }
+//       parts: [{ part, toMs }], from: { outfit, x, z, face }, args, chain? }
+// (chain, since 0.0.6: the step's index while it runs as a step of a chain, src/sim/time/chain.js)
 // each part spanning from the one before's end (fromMs for the first) to its own toMs, every end but
 // the last on its first whole second (the activity-part events sit there, and an outcome step ends on
 // them), the last at toMs. activityNow(state, ms) reads which part runs at ms and what it asks of the
 // body, from src/data/activities.js: { id, part, met, kind, posture, sleepIntent, wet, inside,
-// fixtureId, spotId, fromMs, toMs, k } (k the share of the part done), the same whether the time is
+// fixtureId, spotId, fromMs, toMs, k, chain } (k the share of the part done; chain null, or { i, n }
+// the step of a chain it is, so the hud and the stage read a chained step as its own activity), the same whether the time is
 // lived, fast-forwarded or skipped, so the body's load (BODY's segOf), the stage's vignette and the
 // hud's strip agree. feetHeld(state) is whether the player's feet stay put this tick (places'
 // move.js asks it each tick): while an activity runs (lived, a fast-forward or a skip), while the
@@ -50,6 +52,7 @@ export function activityNow(state, ms = state?.clock?.ms) {
     id: d.activity, part: p?.part ?? null, met: def.met ?? 1.5, kind: def.kind ?? 'still', posture: def.posture ?? 'stand',
     sleepIntent: !!def.lie, wet: !!def.wet, inside: !!def.inside, fixtureId: fixtureOfSpot(d.spotId), spotId: d.spotId ?? null,
     fromMs: from, toMs: to, k, index: i, mode: d.mode,
+    chain: Number.isInteger(d.chain) && state.time?.chain ? { i: d.chain, n: state.time.chain.steps.length } : null,
   };
 }
 

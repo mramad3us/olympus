@@ -7,7 +7,8 @@
 // data), at load, the same in every career (nothing here reads a seed of the world):
 //   - each wing is laid in the east wing's frame, its bays' layouts placed at the room's north-west
 //     corner, then the west wing mirrored about the core's centre line (x' = 84 − x, a face turned left
-//     for right), so a mirrored bay is its layout mirrored;
+//     for right, and a side a piece names in its own frame, a flight's `open`, left for right), so a
+//     mirrored bay is its layout mirrored;
 //   - ids: a room `<code>.<key>` (e1.bay-2-1), its zone `<code>.z.<key>` (the hallways and the lobby,
 //     joined by doorways, share `<code>.z.hall`), an opening `o:<code>:<key>` (o:e1:bay-2-1, the outside
 //     doors o:e1:front, o:e1:east-exit, o:e1:west-exit), a fixture `f:<code>:<room key>:<name>`;
@@ -18,13 +19,14 @@
 //     (PLACES §9.6's "one lamp per 12 m²"), a night light at every night emergencyLight, an exit glow at
 //     every exit sign, and the tables' desk and red lamps; the squads' stencils on the north wall;
 //   - the links (the three stairs, stops at the flight's middle on both floors) and the portals: each
-//     stair's band on floor 1 across the flight 0.8 m below its top (out 's', the way up), on floor 2
+//     stair's band on floor 1 across the flight 1.1 m below its top (out 's', the way up; 0.8 m to 0.0.5), on floor 2
 //     the well's top edge (out 'n', the way down), each arriving 0.7 m past the other floor's band; the
 //     outside doors' bands on their walls (out 's'), arriving 0.9 m out on the ground.
 // The records keep TEST_AREA's shape with the sheet's additions (rooms' surface, lighting, owner,
 // layout, windows; openings' leaf, openS, closeS; fixtures' berths, lockerIds, footlockerIds, faces,
-// dir; links, portals, posts; look.decor and look.lamps with kinds; from 0.0.5 the floor's floorName,
-// 'ground floor' or 'upper floor', which the HUD's place line names). Frozen.
+// dir, open (a flight's, from 0.0.6); links, portals, posts; look.decor and look.lamps with kinds;
+// from 0.0.5 the floor's floorName, 'ground floor' or 'upper floor', which the HUD's place line
+// names). Frozen.
 import {
   ECHO, SEEDS, WINGS, BAY_LAYOUTS, BERTH_ORDER, HQ_BERTHS, LAYOUTS, WING_ROOMS, WING_DOORS, WING_FIXTURES,
   CORE_ROOMS, CORE_DOORS, CORE_FIXTURES, LAMPS, POSTS, STAIRS, STAIR_BANDS, EXITS, SPAWNS, FINISH,
@@ -34,11 +36,13 @@ import { LAMP_KINDS } from '../../data/places/sky.js';
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 const r4 = (v) => { const r = Math.round(v * 10000) / 10000; return r === 0 ? 0 : r; };
 const MIRROR_FACE = Object.freeze({ left: 'right', right: 'left', up: 'up', down: 'down' });
+// (a side named in a piece's own frame, a flight's `open`: the mirror flips the piece's x, whatever its face)
+const MIRROR_SIDE = Object.freeze({ left: 'right', right: 'left' });
 /** A room's clear height, metres (PLACES §1.1: base buildings 3.0 m). */
 export const CEILING_M = 3.0;
 /** A ceiling panel lights at most this much floor (PLACES §9.6: one lamp per 12 m²). */
 export const LAMP_AREA_M2 = 12;
-const OPEN_S = Object.freeze({ door: 1.0, extDoor: 1.2 });         // (PLACES §1.6: open and close seconds)
+const OPEN_S = Object.freeze({ door: 0.4, extDoor: 0.6 });         // (PLACES §1.6: open and close seconds; v0.0.6 from 1.0 and 1.2, the user 2026-11-07: "doors open and close much too slow")
 
 // (a template's keys filled: {p} the platoon, {P} its name, {s} the stair's side letter, {S} its name, {side} the side's word)
 const fill = (t, w) => t.replace(/\{p\}/g, w.p).replace(/\{P\}/g, w.platoon).replace(/\{s\}/g, w.stair).replace(/\{S\}/g, w.stair === 'e' ? 'East' : 'West').replace(/\{side\}/g, w.stair === 'e' ? 'east' : 'west');
@@ -70,7 +74,7 @@ function mirror(part) {
   return {
     rooms: part.rooms.map(r => ({ ...r, rect: [mx(r.rect[2]), r.rect[1], mx(r.rect[0]), r.rect[3]] })),
     openings: part.openings.map(o => (o.axis === 'x' ? { ...o, a: mx(o.b), b: mx(o.a) } : { ...o, at: mx(o.at) })),
-    pieces: part.pieces.map(p => ({ ...p, x: mx(p.x), face: MIRROR_FACE[p.face] })),
+    pieces: part.pieces.map(p => ({ ...p, x: mx(p.x), face: MIRROR_FACE[p.face], ...(p.open ? { open: MIRROR_SIDE[p.open] } : {}) })),
     lamps: part.lamps.map(l => ({ ...l, x: mx(l.x) })),
     decor: part.decor.map(d => ({ ...d, x: mx(d.x) })),
   };
@@ -117,7 +121,7 @@ export function buildFloor(floor) {
   const fid = (p) => `f:${code}:${p.room}:${p.name}`;
   const fixtures = pieces.map(p => {
     const rec = { id: fid(p), kind: p.kind, make: p.make, x: r4(p.x), z: r4(p.z), face: p.face, room: rid(p.room), seed: seedOf(p.kind) };
-    for (const k of ['y', 'mount', 'dir']) if (p[k] !== undefined) rec[k] = p[k];
+    for (const k of ['y', 'mount', 'dir', 'open']) if (p[k] !== undefined) rec[k] = p[k];
     if (p.faces) rec.faces = [...p.faces];
     if (p.look) rec.look = { ...p.look };
     return rec;

@@ -12,7 +12,11 @@
 // placed at the reference's fractions of the head and sized to it (one by two pixels on the reference,
 // two by three with a glint on the chibi at 24 px/m).
 //
-// Letters (VIEWS.md 3.1, shade.js): s skin, h hair, a hat, ð seal rings, þ visor glass, ¤ a lamp (glows),
+// The cuts (0.0.6): each regulation cut is its top (a part over the head, h) and its sides (k, painted on the head by the
+// cut's drawn step: skin fresh, then ĥ a shadow, ħ a dark, h the hair's colour; compose.js head()), a woman's short cut its
+// growth at the locks and the nape a row a step, a bun or a braid stray pixels out of regulation (step 3); every top a pixel
+// taller at step 3 (compose.js draws it twice).
+// Letters (VIEWS.md 3.1, shade.js): s skin, h hair, ĥ and ħ short hair over skin (0.0.6), a hat, ð seal rings, þ visor glass, ¤ a lamp (glows),
 // and fixed: e an eye, o its glint, b a brow (the hair's darkest), z the mouth (the skin's darkest), l a
 // lens' glint. An upper-case role letter is forced into shade.
 //
@@ -20,6 +24,11 @@
 // top, the optic OLYMPUS adds, grip, a magazine curving forward, handguard, barrel, front sight), each
 // part [along0, along1, across0, across1, letter] (spans inclusive; across is down when level), scaled to
 // the gun's length and the density by shapeAt(). The flash is tradecraft's FLASH, scaled the same way.
+// 0.0.6 (the user, 2026-11-07: "the magazines are very long, if they could be a bit slicker"): the rifle's
+// magazine is one reference pixel wide, stepping forward a pixel as it goes down, two below the receiver
+// (v0.0.5's was a four-pixel hook, three along): at 16 px/m two pixels on a 16-pixel rifle (each 6.25 cm of
+// the 1.0 m drawn rifle: 12.5 cm below the well, 6 cm front to back, the HAD-30's own 6.5), at 24 px/m a
+// 2 × 3 band; the doll's rifle (doll.js, acrossK 2.4) takes the same shape.
 // Pure.
 
 // ---------- the reference (tradecraft's 15 × 12 head at [4, 7] facing the camera, 14 × 12 at [5, 7] side on) ----------
@@ -33,31 +42,86 @@ export const REF = Object.freeze({ w: 15, sideW: 14, h: 12 });
 
 // Templates as [dx, dy, rows] from the head box's top-left (tradecraft's [x, y] less the head's [4, 7] or [5, 7]).
 const T = {
+  // The regulation cuts (0.0.6; CAREER §2; the user, 2026-11-06: "this haircut is not military acceptable"): each cut's top,
+  // the hair a barber leaves long, as a part over the head (the shaved head has none). The men's tops grow from high and tight
+  // (a narrow patch on the crown, the sides bare high) through low regulation to medium regulation (v0.0.4's crew); the
+  // women's short (v0.0.4's), the regulation bun (v0.0.4's) and a braid pinned up round the crown, its crossings in shade (H).
   hair: {
-    short: {
-      down: [0, -2, ['....hhhhhhh....', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhh.hhhhhhh.hhh', 'hh...........hh']],
-      up: [0, -2, ['....hhhhhhh....', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'shhhhhhhhhhhhhs', 'shhhhhhhhhhhhhs', '.hhhhhhhhhhhhh.', '..hhhhhhhhhhh..']],
-      right: [-1, -2, ['.....hhhhhh....', '...hhhhhhhhhh..', '..hhhhhhhhhhhh.', '.hhhhhhhhhhhhhh', 'hhhhhhhhhhhhhh.', 'hhhhhhhhhhhhh..', 'hhhhhhhhhhhh...', 'hhhhhhhh.......', 'hhhhh..........', 'hhhh...........', '.hhh...........']],
+    // (0.0.6, the fixer's: the fronts narrower than the head, skin at the temples, so a fresh cut never reads as a cap)
+    highTight: {
+      down: [0, -1, ['.....hhhhh.....', '....hhhhhhh....', '....hhhhhhh....', '.....hhhhh.....']],
+      up: [0, -1, ['.....hhhhh.....', '....hhhhhhh....', '...hhhhhhhhh...', '...hhhhhhhhh...', '.....hhhhh.....']],
+      right: [0, -1, ['....hhhhhh....', '...hhhhhhhhh..', '...hhhhhhhhhh.', '....hhhhhhhh..']],
     },
-    crew: {
-      down: [0, -1, ['....hhhhhhh....', '...hhhhhhhhh...', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhhh.', '.h...........h.']],
-      up: [0, -1, ['....hhhhhhh....', '...hhhhhhhhh...', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhhh.', '..hhhhhhhhhhh..']],
-      right: [-1, -1, ['.....hhhhhh....', '...hhhhhhhhhh..', '..hhhhhhhhhhhh.', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhh..', '.hhhhhhhhh.....', '.hhhhh.........', '.hhhh..........', '..hh...........']],
+    lowReg: {
+      down: [0, -1, ['....hhhhhhh....', '...hhhhhhhhh...', '...hhhhhhhhh...', '...hhhhhhhhh...']],
+      up: [0, -1, ['....hhhhhhh....', '...hhhhhhhhh...', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhhh.', '..hhhhhhhhhhh..']],
+      right: [-1, -1, ['.....hhhhhh....', '...hhhhhhhhhh..', '..hhhhhhhhhhhh.', '..hhhhhhhhhhhh.', '...hhhhhhhhh...']],
     },
+    medReg: {
+      down: [0, -1, ['....hhhhhhh....', '...hhhhhhhhh...', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhhh.']],
+      up: [0, -1, ['....hhhhhhh....', '...hhhhhhhhh...', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhhh.']],
+      right: [-1, -1, ['.....hhhhhh....', '...hhhhhhhhhh..', '..hhhhhhhhhhhh.', '.hhhhhhhhhhhhh.', '.hhhhhhhhhhhh..', '.hhhhhhhhh.....']],
+    },
+    shaved: {},
     bun: {
       down: [0, -5, ['......hhh......', '.....hhhhh.....', '......hhh......', '....hhhhhhh....', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhh.......hhhh', 'hh...........hh']],
       up: [0, -5, ['......hhh......', '.....hhhhh.....', '......hhh......', '....hhhhhhh....', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'shhhhhhhhhhhhhs', '.hhhhhhhhhhhhh.', '..hhhhhhhhhhh..']],
       right: [-3, -4, ['.hhh.............', 'hhhhh............', '.hhhhhhhhhhh.....', '.hhhhhhhhhhhhh...', '...hhhhhhhhhhhh..', '..hhhhhhhhhhhhhh.', '..hhhhhhhhhhhhh..', '..hhhhhhhhhhhh...', '..hhhhhhhhh......', '..hhhhhh.........', '..hhhh...........']],
     },
-    bald: {
-      down: [0, 5, ['hh...........hh', 'h.............h']],
-      up: [0, 5, ['hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', '.hhhhhhhhhhhhh.']],
-      right: [0, 5, ['hhhh..........', 'hhh...........', 'hh............']],
+    short: {
+      down: [0, -2, ['....hhhhhhh....', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhh.hhhhhhh.hhh', 'hh...........hh']],
+      up: [0, -2, ['....hhhhhhh....', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'shhhhhhhhhhhhhs', 'shhhhhhhhhhhhhs', '.hhhhhhhhhhhhh.', '..hhhhhhhhhhh..']],
+      right: [-1, -2, ['.....hhhhhh....', '...hhhhhhhhhh..', '..hhhhhhhhhhhh.', '.hhhhhhhhhhhhhh', 'hhhhhhhhhhhhhh.', 'hhhhhhhhhhhhh..', 'hhhhhhhhhhhh...', 'hhhhhhhh.......', 'hhhhh..........', 'hhhh...........', '.hhh...........']],
+    },
+    braid: {
+      down: [0, -3, ['....hHhHhHh....', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhh.......hhhh', 'hh...........hh']],
+      up: [0, -3, ['....hHhHhHh....', '..hhhhhhhhhhh..', '.hhhhhhhhhhhhh.', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'hhhHhHhHhHhHhhh', 'hhHhhhhhhhhhHhh', 'hhhHhHhHhHhHhhh', 'hhhhhhhhhhhhhhh', 'hhhhhhhhhhhhhhh', 'shhhhhhhhhhhhhs', '.hhhhhhhhhhhhh.', '..hhhhhhhhhhh..']],
+      right: [-2, -3, ['...hHhHhHhh.....', '..hhhhhhhhhhhh..', '.hHhhhhhhhhhhhh.', '.Hhhhhhhhhhhhhh.', 'hHhhhhhhhhhhhh..', 'Hhhhhhhhhhhhh...', 'hHhhhhhhhhh.....', 'Hhhhhhhh........', 'hHhhhh..........', '.hhh............']],
     },
   },
-  // (under a hat, a short cut shows only at the temples, inside the head's outline; a crew cut not at all: tradecraft, the user 2026-11-03)
+  // The sides a cut leaves short, painted on the head itself (k): skin when fresh, then by the cut's drawn step a shadow (ĥ), a
+  // dark (ħ) and the hair's own colour (h) as they grow out (VIEWS §3; the build sheet 0.0.6 §2.2); under a cover they show
+  // where the cover leaves the head bare. The shaved head's is the whole scalp.
+  sides: {
+    highTight: {
+      down: [0, 1, ['...k.......k...', '..kk.......kk..', '.kkk.......kkk.', '.kk.........kk.', '.k...........k.']],
+      up: [0, 1, ['kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk']],
+      right: [0, 1, ['..k...........', '.kkk..........', 'kkkkkkkk......', 'kkkkkkkk......', 'kkkkkkk.......', 'kkkk..........', 'kkkk..........', 'kkkk..........', '.kkk..........']],
+    },
+    lowReg: {
+      down: [0, 3, ['.kk.........kk.', '.kk.........kk.', '.k...........k.']],
+      up: [0, 4, ['kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk']],
+      right: [0, 3, ['kk............', 'kkkkkkkk......', 'kkkkkkk.......', 'kkkk..........', 'kkkk..........', 'kkkk..........', '.kkk..........']],
+    },
+    medReg: {
+      down: [0, 4, ['.kk.........kk.', '.k...........k.']],
+      up: [0, 6, ['kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk']],
+      right: [0, 5, ['kkkkkk........', 'kkkk..........', 'kkkk..........', 'kkkk..........', '.kkk..........']],
+    },
+    shaved: {
+      down: [0, 0, ['kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkk.......kkkk', '.kk.........kk.', '.k...........k.']],
+      up: [0, 0, ['kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkk']],
+      right: [0, 0, ['kkkkkkkkkkkkkk', 'kkkkkkkkkkkkkk', 'kkkkkkkkkkkk..', 'kkkkkkkkkk....', 'kkkkkkkk......', 'kkkkkkk.......', 'kkkk..........', 'kkkk..........', 'kkkk..........', '.kkk..........']],
+    },
+  },
+  // A woman's short cut growing out: a row more at the side locks and the nape for each step (steps 1 to 3, each a template).
+  grow: {
+    short: {
+      down: [[0, 6, ['hh...........hh']], [0, 7, ['hh...........hh']], [0, 8, ['h.............h']]],
+      up: [[0, 10, ['..hhhhhhhhhhh..']], [0, 11, ['....hhhhhhh....']], [0, 12, ['.....hhhhh.....']]],
+      right: [[-1, 9, ['hhhh...........']], [-1, 10, ['hhhh...........']], [-1, 11, ['.hhh...........']]],
+    },
+  },
+  // Out of regulation, pinned-up hair works loose: stray pixels at the hairline and the nape (a bun's or a braid's step 3).
+  stray: {
+    bun: { down: [0, 3, ['h.............h', '...............', '.h...........h.']], up: [0, 7, ['h.............h', '...............', '.h...........h.']], right: [0, 5, ['h.............', '..............', 'h.............', '.h............']] },
+    braid: { down: [0, 3, ['h.............h', '...............', '.h...........h.']], up: [0, 8, ['h.............h', '...............', '.h...........h.']], right: [0, 5, ['h.............', '..............', 'h.............', '.h............']] },
+  },
+  // (under a hat, a woman's short cut shows only at the temples, inside the head's outline; the men's tops not at all: tradecraft,
+  // the user 2026-11-03; their sides show where the cover leaves the head bare)
   temples: { down: [0, 5, ['.h...........h.', 'h.............h']], right: [0, 5, ['hh.', 'h..']] },
-  // (from behind, under a hat, a cropped cut is a line of hair at the nape, or the head reads as bald)
+  // (from behind, under a hat, a woman's short cut is a line of hair at the nape)
   nape: { up: [0, 4, ['.hhhhhhhhhhhhh.']], down: [0, 4, ['...............']], right: [0, 4, ['hhhh..........']] },
   hat: {
     // (the combat helmet: tradecraft's ballistic helmet, a dome to the brow, its sides over the ears, the rim darker)
@@ -117,13 +181,16 @@ export function resample([dx, dy, rows], bw, bh, rw = REF.w, rh = REF.h) {
   }
   return { x: x0, y: y0, rows: out };
 }
-/** A template seen from the other side (left from right): its rows mirrored about the head box (bw wide). */
-export const mirror = (t, bw) => ({ x: bw - (t.x + t.rows[0].length), y: t.y, rows: t.rows.map(r => [...r].reverse().join('')) });
+/** A template seen from the other side (left from right): its rows mirrored about the head box (bw wide); null stays null. */
+export const mirror = (t, bw) => (t ? { x: bw - (t.x + t.rows[0].length), y: t.y, rows: t.rows.map(r => [...r].reverse().join('')) } : null);
 
 const kits = new Map();
+/** The cuts the kit draws (src/data/people/looks.js CUTS' ids, written twice: the art may not import the data's sim side). */
+export const CUT_IDS = Object.freeze(Object.keys(T.hair));
 /**
  * Everything on a head of `w` × `h` (sideW wide side on), by view ('down', 'up', 'right', 'left'):
- * { box: [w, h], head, face(eyes), hair[style], temples, hat[kind] }, each { x, y, rows } from the box's top-left.
+ * { box: [w, h], head, face(eyes), hair[cut] (the top, null for the shaved head), sides[cut] (the short sides, k),
+ * grow[cut] (steps 1 to 3), stray[cut], temples, nape, hat[kind] }, each { x, y, rows } from the box's top-left.
  */
 export function headKit(w, sideW, h) {
   const key = `${w}x${sideW}x${h}`;
@@ -136,6 +203,9 @@ export function headKit(w, sideW, h) {
       box: [bw, h],
       head: R([0, 0, view === 'right' ? HEAD_RIGHT : HEAD_DOWN]),
       hair: Object.fromEntries(Object.entries(T.hair).map(([k, s]) => [k, R(s[view] ?? s.down)])),
+      sides: Object.fromEntries(Object.entries(T.sides).map(([k, s]) => [k, R(s[view] ?? s.down)])),
+      grow: Object.fromEntries(Object.entries(T.grow).map(([k, s]) => [k, (s[view] ?? s.down).map(R)])),
+      stray: Object.fromEntries(Object.entries(T.stray).map(([k, s]) => [k, R(s[view] ?? s.down)])),
       temples: R(T.temples[view] ?? T.temples.down),
       nape: R(T.nape[view] ?? T.nape.down),
       hat: Object.fromEntries(Object.entries(T.hat).map(([k, s]) => [k, R(s[view] ?? s.down)])),
@@ -148,6 +218,9 @@ export function headKit(w, sideW, h) {
   kit.left = {
     box: r.box, head: mirror(r.head, r.box[0]),
     hair: Object.fromEntries(Object.entries(r.hair).map(([k, t]) => [k, mirror(t, r.box[0])])),
+    sides: Object.fromEntries(Object.entries(r.sides).map(([k, t]) => [k, mirror(t, r.box[0])])),
+    grow: Object.fromEntries(Object.entries(r.grow).map(([k, ts]) => [k, ts.map(t => mirror(t, r.box[0]))])),
+    stray: Object.fromEntries(Object.entries(r.stray).map(([k, t]) => [k, mirror(t, r.box[0])])),
     temples: mirror(r.temples, r.box[0]), nape: mirror(r.nape, r.box[0]),
     hat: Object.fromEntries(Object.entries(r.hat).map(([k, t]) => [k, mirror(t, r.box[0])])),
     face: mirror(r.face, r.box[0]), shut: mirror(r.shut, r.box[0]),
@@ -205,7 +278,7 @@ export const GUNS = Object.freeze({
     len: 16, grip: 4.5, fore: 10.5, muzzle: 16, magwell: 8,
     parts: [[0, 3, 0, 0, 'n'], [0, 1, 1, 1, 'n'], [4, 8, 0, 1, 'n'], [5, 5, 2, 2, 'n'], [9, 11, 0, 0, 'n'], [9, 10, 1, 1, 'n'],
       [12, 15, 0, 0, 'n'], [13, 13, -1, -1, 'n'], [5, 7, -1, -1, 'u'], [5, 8, 0, 0, 'v']],
-    mag: [[7, 7, 2, 2, 'u'], [8, 8, 2, 3, 'u'], [9, 9, 3, 3, 'u']],
+    mag: [[8, 8, 2, 2, 'u'], [9, 9, 3, 3, 'u']],
   },
   pistol: {
     len: 5, grip: 1, fore: 1.5, muzzle: 5, magwell: 1,

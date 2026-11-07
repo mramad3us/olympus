@@ -25,13 +25,31 @@
 // their use, the kinds are the barracks' and the base's (the military catalogue grows with each
 // template), seats and staff spots wait for booking (0.0.5) and PEOPLE's posts (0.0.9).
 //
+// 0.0.6 adds the barber's pole (barberPole: on its own stand, 0.36 m square, its one spot 0.65 m beside it,
+// used for 'haircut'; the PX's chairs wait for its building, PLACES §4.13).
 // 0.0.3 (the build sheet 0.0.3 §2.1) adds the building's own kinds: wallClock (hung on a wall, or
-// standing on a desk, `mount: 'desk'` on the fixture), stairs (a flight a floor walks, at cost 15,
-// blocking nothing), stairsWell (the floor above's view of it: blocks but its top STAIR_TOP_M 1.0 m,
-// openTopOf, the landing) and lampPost; a flight's front (+z as it faces down) is its foot and its back
-// its top (the kit's rule, src/art/kit/structure.js stairEnd, which draws a well's landing and its mark
-// where blockRectOf leaves it open: v0.0.4 drew them at the front, and the user stood on a drawn landing
-// the sim blocked, 2026-11-06). Kinds gain `seats`, numbered after the spots: { n, dx, dz, y, use,
+// standing on a desk, `mount: 'desk'` on the fixture), stairs (a flight a floor walks, at cost 15),
+// stairsWell (the floor above's view of it: blocks but its top STAIR_TOP_M 1.0 m, openTopOf, the
+// landing) and lampPost; a flight's front (+z as it faces down) is its foot and its back its top (the
+// kit's rule, src/art/kit/structure.js stairEnd, which draws a well's landing where blockRectOf leaves
+// it open: v0.0.4 drew it at the front, and the user stood on a drawn landing the sim blocked,
+// 2026-11-06). From 0.0.6 a flight is entered only at its foot (PLACES §1.5; the user, 2026-11-07,
+// playing v0.0.5: "we can get on the upwards staircase from the wrong end", since v0.0.5's flight
+// blocked nothing and its open side beside its top lay one step from the floor's band): flightGuardOf
+// gives what it stops walkers on, its closed high end (FLIGHT_END_M across its back) and a rail
+// FLIGHT_RAIL_M wide along each long side from the top to the foot, but on the side the fixture names
+// `open` ('left', its −x as it faces down; 'right', its +x; both when it names none), where the rail
+// stops FLIGHT_FOOT_M short of the foot so the foot is stepped onto from that side. A flight that names
+// its open side is stepped onto from that side only: a rail runs across its foot too (Echo's feet stand
+// 0.42 m from a wall, too close to walk in front of, and a fresh pair of eyes on the shots took that
+// strip for the way on). The walker on it walks its lane (flightLaneOf), and its band, near the top
+// (flightFarOf), is reached only up the lane; the kit draws the rails and the end from the same rule
+// (structure.js flightGuard), and the stairs test holds the two equal. A flight that goes down from its
+// floor (dir 'down') is the same turned end for end. A stairsWell's rail runs on along its landing's
+// two long sides (landingRailsOf, from 0.0.6: v0.0.5's open sides let a walker crossing the room past
+// the landing slide onto it and down), so its landing is walked onto only across its far edge.
+// blockRectsOf is every rect a fixture stops walkers on, the one list the nav grid and collision read.
+// Kinds gain `seats`, numbered after the spots: { n, dx, dz, y, use,
 // head } (rack2: #2 the lower berth at y 0.45 and #3 the upper at 1.35; rack1 #2; a footlocker #2
 // at 0.40; a stool's and a chair's #1 spot is its seat, at 0.47 and 0.45), head the end the sleeper's
 // head lies at as the piece faces down ('n': its back), turned with it. Seats are not walking spots.
@@ -54,6 +72,16 @@ const ST = (n, dx, dz, y, use, head = null) => Object.freeze({ n, dx, dz, y, use
 
 /** A stair's walkable top in the well above, metres (the sheet's §4; the kit's STAIR_TOP_M). */
 export const STAIR_TOP_M = 1.0;
+/**
+ * A flight's guard, metres (the kit's FLIGHT_*): its rails' width (the handrail's stringer as drawn), the
+ * stretch of its foot left open on its open side, and the depth of its closed high end (my calls: the
+ * foot open over its first 1.2 m, four treads, so the widest clearance class, C2's 0.8 m, passes on the
+ * 0.25 m grid between the rail across its foot and the newel (1.14 m: at 1.0 m the grid shut C2 out),
+ * and the opening shows on the screen past the handrail's picture; the end thin).
+ */
+export const FLIGHT_RAIL_M = 0.06, FLIGHT_FOOT_M = 1.2, FLIGHT_END_M = 0.06;
+/** A stairsWell's guard rail's width by make, metres (the kit's: a rail's bar 0.05, a parapet 0.12); it runs on along the landing's two sides. */
+export const WELL_RAIL_M = Object.freeze({ rail: 0.05, wall: 0.12 });
 
 /** The core kinds (PLACES §1.5; sizes equal to the kit's FOOTPRINTS). */
 export const CATALOGUE = Object.freeze({
@@ -91,6 +119,10 @@ export const CATALOGUE = Object.freeze({
   stairs: K(1.2, 4.8, 3.4, false, false, ['climb'], [], null, { sightH: 0, cost: 15 }),
   stairsWell: K(1.2, 4.8, 1.0, true, false, ['climb'], [], null, { cost: 15 }),
   lampPost: K(0.25, 0.25, 4.0, true, false, [], [], null, { sightH: 0 }),
+  // (0.0.6: the PX barber's pole on its stand; its spot 0.65 m beside it (0.47 m clear of its stand), on its left as it
+  // faces you (the door's side by the PX), facing it, so the pole never stands between you and the camera; it hides
+  // nobody: my calls)
+  barberPole: K(0.36, 0.36, 2.2, true, false, ['haircut'], [S(1, 0.65, 0, 'haircut', 'left')], null, { sightH: 0 }),
 });
 
 /** The catalogue's kinds, in its order. */
@@ -157,6 +189,66 @@ export function blockRectOf(fx) {
   if (face === 'up') return { ...r, z1: r4(r.z1 - STAIR_TOP_M) };
   if (face === 'left') return { ...r, x1: r4(r.x1 - STAIR_TOP_M) };
   return { ...r, x0: r4(r.x0 + STAIR_TOP_M) };
+}
+
+// (a rect in a piece's own frame, as it faces down, put into the area by its centre and face)
+function placed(fx, r) {
+  const face = fx.face ?? 'down', [ax, az] = turn(face, r.x0, r.z0), [bx, bz] = turn(face, r.x1, r.z1);
+  return { x0: r4(fx.x + Math.min(ax, bx)), z0: r4(fx.z + Math.min(az, bz)), x1: r4(fx.x + Math.max(ax, bx)), z1: r4(fx.z + Math.max(az, bz)) };
+}
+// (a flight's width and length as it faces down, and its rects in its own frame as one that climbs from
+// its floor has them: stepped onto at its front, closed at its back; one that goes down (dir 'down', a
+// flight drawn on its upper floor) is the same turned end for end, stepped onto at its top)
+const flightWD = (fx) => { const k = kindOf(fx.kind); return [fx.w ?? k.w, fx.d ?? k.d]; };
+const flightRect = (fx, r) => placed(fx, fx.dir === 'down' ? { x0: r.x0, x1: r.x1, z0: -r.z1, z1: -r.z0 } : r);
+
+/**
+ * What a flight stops walkers on (see the header): [its closed far end, its −x rail, its +x rail, and
+ * where it names an open side, the rail across its foot] as area rects, in that order (the kit draws
+ * them in the same order: structure.js flightGuard). Empty for any other kind.
+ */
+export function flightGuardOf(fx) {
+  if (fx.kind !== 'stairs') return [];
+  const [W, D] = flightWD(fx), far = -D / 2 + FLIGHT_END_M, short = D / 2 - FLIGHT_FOOT_M, open = fx.open ?? null;
+  const foot = open ? D / 2 - FLIGHT_RAIL_M : D / 2;
+  return [
+    { x0: -W / 2, z0: -D / 2, x1: W / 2, z1: far },
+    { x0: -W / 2, z0: far, x1: -W / 2 + FLIGHT_RAIL_M, z1: open === 'right' ? D / 2 : short },
+    { x0: W / 2 - FLIGHT_RAIL_M, z0: far, x1: W / 2, z1: open === 'left' ? D / 2 : short },
+    ...(open ? [{ x0: open === 'right' ? -W / 2 + FLIGHT_RAIL_M : -W / 2, z0: foot, x1: open === 'right' ? W / 2 : W / 2 - FLIGHT_RAIL_M, z1: D / 2 }] : []),
+  ].map(r => flightRect(fx, r));
+}
+
+/** A flight's lane, the treads between its rails from the end one steps onto (or the rail across it) to its closed end: an area rect; null for any other kind. */
+export function flightLaneOf(fx) {
+  if (fx.kind !== 'stairs') return null;
+  const [W, D] = flightWD(fx);
+  return flightRect(fx, { x0: -W / 2 + FLIGHT_RAIL_M, z0: -D / 2 + FLIGHT_END_M, x1: W / 2 - FLIGHT_RAIL_M, z1: fx.open ? D / 2 - FLIGHT_RAIL_M : D / 2 });
+}
+
+/**
+ * A stairsWell's guard along its landing's two long sides (the rail round the well carried on to the
+ * floor's edge, so the landing is walked onto only across its far edge, from 0.0.6): [its −x, its +x]
+ * as area rects, WELL_RAIL_M wide by make; empty for any other kind.
+ */
+export function landingRailsOf(fx) {
+  if (fx.kind !== 'stairsWell') return [];
+  const k = kindOf(fx.kind), W = fx.w ?? k.w, D = fx.d ?? k.d, t = WELL_RAIL_M[fx.make] ?? WELL_RAIL_M.rail;
+  return [{ x0: -W / 2, x1: -W / 2 + t }, { x0: W / 2 - t, x1: W / 2 }].map(r => placed(fx, { ...r, z0: -D / 2, z1: -D / 2 + STAIR_TOP_M }));
+}
+
+/** A flight's far end, its last STAIR_TOP_M (the top of one that climbs from its floor), where its band may fire: an area rect; null for any other kind. */
+export function flightFarOf(fx) {
+  if (fx.kind !== 'stairs') return null;
+  const [W, D] = flightWD(fx);
+  return flightRect(fx, { x0: -W / 2, z0: -D / 2, x1: W / 2, z1: -D / 2 + STAIR_TOP_M });
+}
+
+/** Every rect a fixture stops walkers on: a flight's guard, a blocking piece's blockRectOf (a well's with its landing's rails), else none (the nav grid's and collision's one list). */
+export function blockRectsOf(fx) {
+  if (fx.kind === 'stairs') return flightGuardOf(fx);
+  if (fx.kind === 'stairsWell') return [blockRectOf(fx), ...landingRailsOf(fx)];
+  return blocks(fx) ? [blockRectOf(fx)] : [];
 }
 
 /** A stairsWell's open top, the landing one walks onto from its floor: its footprint less blockRectOf, { x0, z0, x1, z1 }; null for any other kind. */

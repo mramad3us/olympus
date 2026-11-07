@@ -56,7 +56,18 @@
 // after TICKER_HOLD_GAPS of those with nothing after it, and at the strip, so 'Water off.' does not sit
 // under the result) with the splash's keycaps (Space to the end, Backspace stop here where it may, Esc
 // the menu).
+//
+// The 0.0.6 round's chain (the build sheet 0.0.6 §2.3, TIME §8.1: R held, several single actions checked and
+// done one after another behind ONE splash over their total): skip-start's chain ({ steps, n }) marks the
+// splash a chain's; the ticker's keycap reads "Backspace stop after this step" (the sim's chainStop: the
+// running step runs to its end, the rest dropped, never a step cut mid-way); on the chain fact { phase:
+// 'stop', toMs } chainStop() moves the end there and the shown clock decelerates to it over DECEL_S (0.35 s, as
+// an interrupt's does, TIME §6.5), the sim's target the new end at once; as each step begins its parts join
+// the splash's (steps(), from the new time.doing), so the vignette's part follows the chain; and the outcome
+// strip lists each step's line in order from skip-end's outcome.chain, ✓ a step done whole, ◐ one cut, the
+// dropped ones named ("wash face: dropped").
 import * as T from '../../sim/time/splash.js';
+import { ACTIVITIES } from '../../data/activities.js';
 import { MIN_MS } from '../../core/clock.js';
 import { playerActor } from '../../core/ids.js';
 import { areaOf } from '../../sim/places/model.js';
@@ -134,6 +145,7 @@ export function createSplashControl({ timing = T, short = false, shortFor = () =
       n: ++seq, id: e.id, e, plan: p, phase: p.inS > 0 && !zoomed ? 'in' : 'lapse', t: 0, lapseT: 0,
       fromMs: e.fromMs, toMs: e.toMs, segFrom: e.fromMs, shownMs: e.fromMs, whirr: null, ended: null, interrupt: null,
       decelFrom: null, chunkTaken: false, waits: false, ticker, ctx, outS: p.outS, holdS: p.holdS, done: false,
+      chain: e.chain ? { n: e.chain.n ?? e.chain.steps?.length ?? null, steps: e.chain.steps ?? null, stopped: false } : null,
     };
     return sp;
   }
@@ -171,11 +183,13 @@ export function createSplashControl({ timing = T, short = false, shortFor = () =
   function shownIn(clockMs) {
     if (sp.plan.engine === 'ff') return Math.max(sp.shownMs, Math.min(clockMs, sp.toMs));
     let ms;
-    if (sp.whirr) ms = sp.whirr.fromMs + (sp.toMs - sp.whirr.fromMs) * Math.min(1, (sp.lapseT - sp.whirr.atS) / timing.WHIRR_S);
+    if (sp.whirr) { const k = Math.min(1, (sp.lapseT - sp.whirr.atS) / whirrS()); ms = sp.whirr.fromMs + (sp.toMs - sp.whirr.fromMs) * (sp.whirr.decel ? 1 - (1 - k) ** 2 : k); }
     else ms = sp.segFrom + timing.ease(sp.plan.lapseS > 0 ? sp.lapseT / sp.plan.lapseS : 1) * (sp.toMs - sp.segFrom);
     return Math.max(sp.shownMs, Math.min(ms, clockMs, sp.toMs));
   }
-  const lapseOver = () => sp.plan.engine === 'ff' || (sp.whirr ? sp.lapseT - sp.whirr.atS >= timing.WHIRR_S : sp.lapseT >= sp.plan.lapseS);
+  // (a whirr's length: Space's WHIRR_S, or a chain's stop decelerating over DECEL_S)
+  const whirrS = () => (sp.whirr?.decel ? timing.DECEL_S ?? 0.35 : timing.WHIRR_S);
+  const lapseOver = () => sp.plan.engine === 'ff' || (sp.whirr ? sp.lapseT - sp.whirr.atS >= whirrS() : sp.lapseT >= sp.plan.lapseS);
 
   /**
    * A frame: dtS real seconds (0 when frozen), sim = { clockMs, skipToMs } (the sim's clock now; the
@@ -207,7 +221,7 @@ export function createSplashControl({ timing = T, short = false, shortFor = () =
           sp.lapseT += left;
           sp.shownMs = shownIn(Math.max(clockMs, sp.ended.toMs));
           if (!lapseOver()) { left = 0; break; }
-          const endS = sp.whirr ? sp.whirr.atS + timing.WHIRR_S : sp.plan.lapseS;
+          const endS = sp.whirr ? sp.whirr.atS + whirrS() : sp.plan.lapseS;
           left = Math.max(0, sp.lapseT - Math.max(before, endS));
           sp.shownMs = sp.interrupt.atMs; sp.phase = 'beat'; sp.t = 0;
           continue;
@@ -219,7 +233,7 @@ export function createSplashControl({ timing = T, short = false, shortFor = () =
         sp.shownMs = shownIn(Math.max(clockMs, sp.ended.toMs));
         if (!lapseOver()) { left = 0; break; }
         // (the rest of the frame past the lapse's end goes to the strip)
-        const endS = sp.plan.engine === 'ff' ? before : sp.whirr ? sp.whirr.atS + timing.WHIRR_S : sp.plan.lapseS;
+        const endS = sp.plan.engine === 'ff' ? before : sp.whirr ? sp.whirr.atS + whirrS() : sp.plan.lapseS;
         left = Math.max(0, sp.lapseT - Math.max(before, endS));
         sp.shownMs = sp.ended.toMs; sp.phase = 'strip'; sp.t = 0;
         continue;
@@ -289,6 +303,7 @@ export function createSplashControl({ timing = T, short = false, shortFor = () =
       planEnd: !!sp.ended?.planEnd,
       ticker: sp.ticker.shown, outcome: sp.ended?.outcome ?? null,
       stoppable: sp.e.stoppable !== false && !sp.ended, chunkOffer: chunkOffered() ? (sp.e.chunkMs || null) : null,
+      chain: sp.chain ? { n: sp.chain.n, stopped: sp.chain.stopped } : null,
     };
   }
 
@@ -316,6 +331,26 @@ export function createSplashControl({ timing = T, short = false, shortFor = () =
       sp.chunkTaken = true;                                      // (held on the strip, up to CHUNK_WAIT_S more, for the next chunk's skip-start)
       return true;
     },
+    /**
+     * A chain stopped by Backspace (TIME's chain fact { phase: 'stop', toMs }): the end moves to the running step's
+     * end and the shown clock decelerates to it over DECEL_S, the sim's target there at once. Returns whether it moved.
+     */
+    chainStop({ toMs } = {}) {
+      if (!sp?.chain || sp.ended) return false;
+      sp.chain.stopped = true;
+      if (!Number.isFinite(toMs) || toMs >= sp.toMs) return false;
+      if (sp.phase === 'in') { sp.phase = 'lapse'; sp.t = 0; }
+      sp.toMs = Math.max(toMs, sp.shownMs);
+      sp.whirr = { atS: sp.lapseT, fromMs: sp.shownMs, decel: true };
+      return true;
+    },
+    /** A chain's next step has begun: its parts (splashContext's, from the new time.doing) join the splash's, so its part follows the chain. */
+    steps(parts) {
+      if (!sp || !parts?.list?.length) return;
+      const ctx = sp.ctx ?? (sp.ctx = {}), have = ctx.parts ?? (ctx.parts = { fromMs: parts.fromMs, list: [] });
+      const last = have.list.at(-1)?.toMs ?? -Infinity;
+      for (const p of parts.list) if (p.toMs > last) have.list.push({ part: p.part, toMs: p.toMs });
+    },
     /** Whether T during the lapse asks the engine for another chunk (the skip is chunked and still runs). */
     chunkable() { return !!sp && !sp.ended && (sp.e.chunkMs ?? 0) > 0; },
     /** A splash is showing. */
@@ -323,7 +358,7 @@ export function createSplashControl({ timing = T, short = false, shortFor = () =
     get phase() { return sp?.phase ?? null; },
     get plan() { return sp?.plan ?? null; },
     /** The running splash's numbers (the debug handle's splash()). */
-    get info() { return sp ? { id: sp.id, activity: sp.e.activity, plan: sp.plan, phase: sp.phase, t: sp.t, lapseT: sp.lapseT, shownMs: sp.shownMs, fromMs: sp.fromMs, toMs: sp.toMs, ended: sp.ended, interrupt: sp.interrupt, chunkTaken: sp.chunkTaken } : null; },
+    get info() { return sp ? { id: sp.id, activity: sp.e.activity, plan: sp.plan, phase: sp.phase, t: sp.t, lapseT: sp.lapseT, shownMs: sp.shownMs, fromMs: sp.fromMs, toMs: sp.toMs, ended: sp.ended, interrupt: sp.interrupt, chunkTaken: sp.chunkTaken, chain: sp.chain ? { ...sp.chain } : null } : null; },
     /** Forget the splash (a load, the title). */
     clear() { sp = null; },
   };
@@ -331,9 +366,24 @@ export function createSplashControl({ timing = T, short = false, shortFor = () =
 
 // ---- the splash's HUD ----
 
-/** The outcome strip's items: [{ kind: 'need', need, before, after } | { kind: 'look', glyph, words } | { kind: 'chunk', min }]. */
+/** A chain's step on the strip: ✓ done whole, ◐ cut, ✗ dropped. */
+export const STEP_MARKS = Object.freeze({ whole: '✓', cut: '◐', dropped: '✗' });
+/** A chain's steps as the strip lists them: [{ kind: 'step', id, line, mark, dropped, fraction, by }], from skip-end's outcome.chain (and its dropped ids, where named apart). */
+export function chainSteps(outcome) {
+  const list = Array.isArray(outcome?.chain) ? outcome.chain : [];
+  const out = list.map(c => {
+    const dropped = c.by === 'dropped' || (!c.line && !(c.fraction > 0));
+    const mark = dropped ? STEP_MARKS.dropped : (c.fraction ?? 1) >= 1 ? STEP_MARKS.whole : STEP_MARKS.cut;
+    const word = ACTIVITIES[c.id]?.offer ?? c.id;
+    return { kind: 'step', id: c.id, line: dropped ? `${word}: dropped.` : c.line ?? `${word}.`, mark, dropped, fraction: c.fraction ?? (dropped ? 0 : 1), by: c.by ?? null };
+  });
+  for (const id of outcome?.dropped ?? []) if (!out.some(s => s.dropped && s.id === id)) out.push({ kind: 'step', id, line: `${ACTIVITIES[id]?.offer ?? id}: dropped.`, mark: STEP_MARKS.dropped, dropped: true, fraction: 0, by: 'dropped' });
+  return out;
+}
+
+/** The outcome strip's items: [{ kind: 'step', … } | { kind: 'need', need, before, after } | { kind: 'look', glyph, words } | { kind: 'chunk', min }], a chain's steps first. */
 export function outcomeItems(outcome, { chunkOffer = null } = {}) {
-  const items = [];
+  const items = [...chainSteps(outcome)];
   if (outcome?.body) for (const m of movedOf(outcome.body.before, outcome.body.after)) items.push({ kind: 'need', need: m.need, before: m.before, after: m.after });
   const look = outcome?.look;
   if (look?.wet) items.push({ kind: 'look', glyph: 'wet', words: 'Hair wet.' });
@@ -375,10 +425,13 @@ export function createSplashHud(hud, { label = (a) => a } = {}) {
     // (the outcome strip, on the strip and the zoom out after it)
     const showStrip = (f.phase === 'strip' || (f.phase === 'out' && (!f.interrupt || f.planEnd))) && !!f.outcome;
     const items = showStrip ? outcomeItems(f.outcome, { chunkOffer: f.chunkOffer }) : [];
-    const sig = JSON.stringify(items.map(i => [i.kind, i.need ?? i.glyph ?? i.min, i.before?.fill, i.after?.fill, i.before?.tone, i.after?.tone]));
+    const sig = JSON.stringify(items.map(i => [i.kind, i.need ?? i.glyph ?? i.min ?? i.id, i.before?.fill, i.after?.fill, i.before?.tone, i.after?.tone, i.line]));
     if (sig !== stripSig) {
       stripSig = sig;
-      radio.replaceChildren(...items.map(i => {
+      // (a chain's steps in a column of their own at the strip's left, each its mark and its line)
+      const steps = items.filter(i => i.kind === 'step');
+      const stepsEl = steps.length ? el('span', { className: `steps-done${steps.length > 3 ? ' two' : ''}` }, ...steps.map(i => el('span', { className: `step${i.dropped ? ' dropped' : ''}`, title: i.line }, el('b', { textContent: i.mark }), ` ${i.line}`))) : null;
+      radio.replaceChildren(...(stepsEl ? [stepsEl] : []), ...items.filter(i => i.kind !== 'step').map(i => {
         if (i.kind === 'need') return el('span', { className: 'moved', title: `${wordsFor(i.before)} → ${wordsFor(i.after)}` },
           glyphEl({ name: glyphFor(i.before), fill: i.before.fill ?? 0, tone: i.before.tone, scale: OUTCOME_SCALE }),
           glyphEl({ name: 'arrow', fill: 5, tone: 'fine', scale: OUTCOME_SCALE / 2, border: false }),
@@ -390,18 +443,19 @@ export function createSplashHud(hud, { label = (a) => a } = {}) {
     radio.hidden = !items.length;
     // (the ticker, and the splash's keycaps: to the end, stop here where it may, the menu)
     const tk = f.ticker?.text ?? '';
-    const tsig = `${tk}|${f.stoppable}|${f.phase}|${f.ticker?.tone ?? ''}`;
+    const tsig = `${tk}|${f.stoppable}|${f.phase}|${f.ticker?.tone ?? ''}|${f.chain ? `${f.chain.n}:${f.chain.stopped}` : ''}`;
     if (tsig !== tickSig) {
       tickSig = tsig;
       const kids = [];
       if (tk) kids.push(el('span', { className: `line ${f.ticker.tone ?? 'note'}` }, tk));
       const keys = el('span', { className: 'chip keys' }, kbd(label('pause')), ' to the end');
-      if (f.stoppable && (f.phase === 'in' || f.phase === 'lapse')) keys.append(' · ', kbd('Backspace'), ' stop here');
+      if (f.chain?.stopped && (f.phase === 'in' || f.phase === 'lapse')) keys.append(' · stops after this step');
+      else if (f.stoppable && (f.phase === 'in' || f.phase === 'lapse')) keys.append(' · ', kbd('Backspace'), f.chain ? ' stop after this step' : ' stop here');
       keys.append(' · ', kbd(label('menu')), ' menu');
       kids.push(keys);
       ticker.replaceChildren(...kids);
     }
-    return { clock: t, plaque, ticker: tk, strip: items.map(i => (i.kind === 'need' ? `${i.need} ${i.before.fill}→${i.after.fill}` : i.kind === 'look' ? i.glyph : `carry on ${i.min}`)) };
+    return { clock: t, plaque, ticker: tk, keys: ticker.querySelector('.chip.keys')?.textContent ?? '', strip: items.map(i => (i.kind === 'step' ? `${i.mark} ${i.line}` : i.kind === 'need' ? `${i.need} ${i.before.fill}→${i.after.fill}` : i.kind === 'look' ? i.glyph : `carry on ${i.min}`)) };
   }
   return { update, els: { clock, radio, ticker } };
 }

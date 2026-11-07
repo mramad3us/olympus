@@ -23,7 +23,15 @@
 //                 (2nd Platoon's at w:echo:street, (530, 224): the walk test's);
 //   DOOR_SIGNS    by each of Echo's outside doors on the ground, on the building's face beside it: the
 //                 company's plate, ECHO in the Corps' red (the exit signs hang inside, over the doors
-//                 out: v0.0.3's review, a green EXIT over the front entrance read wrong from the street).
+//                 out: v0.0.3's review, a green EXIT over the front entrance read wrong from the street);
+//   BARBER        (0.0.6; the build sheet 0.0.6 §2.2, §8 item 20) the PX barber's pole on its stand by the
+//                 PX's north door, 2.5 m east of the door (292, 430) and 4.4 m out from the wall, facing
+//                 north: R at its spot is the haircut (the chairs inside wait for the PX's building, PLACES
+//                 §4.13). Out from the wall, not on it: the camera looks north, so anything on a north face
+//                 hides behind the building's roof (z − y over the roof's edge: a 4 m roof at z 430 covers
+//                 the picture to 426, so the tube, 1.3 to 2.1 m up, is clear of it from z 427.3 north), and
+//                 the marine at its spot half a metre north of it stands clear of the roof's edge too, so the
+//                 view's see-through never cuts the pole away round him (my calls).
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
@@ -65,6 +73,9 @@ export const STREET = deepFreeze({
     { kind: 'mark', x: 522.0, z: 230.0, text: 'W', name: "the Weapons Platoon's mark" },
   ],
 });
+
+/** The PX barber's pole (0.0.6): on its stand north of the PX's wall (z 430), east of its door, facing north. */
+export const BARBER = deepFreeze({ name: 'barber', kind: 'barberPole', make: 'pole', x: 294.5, z: 425.6, face: 'up' });
 
 /** The company's plates by Echo's outside doors, on the building's face beside each (the site frame). */
 export const DOOR_SIGNS = deepFreeze([

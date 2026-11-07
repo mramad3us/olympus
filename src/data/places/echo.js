@@ -28,7 +28,15 @@
 //   WING_FIXTURES  the wing's other rooms' pieces in the east wing's frame (the platoon office, the HQ
 //                  rack room, the two heads, the laundry, the cleaning locker, the lounge, the stair and
 //                  its vestibule, the hallway's bins, night lights and drinking fountain: 0.0.4, on the
-//                  south wall between Head A's door and the bin, so R has a fountain to drink at).
+//                  south wall between Head A's door and the bin, so R has a fountain to drink at). A
+//                  flight names its `open` side (0.0.6, places' fixtures.js flightGuardOf): 'left', its
+//                  −x as it faces down, the room's side (east, since the flights face up), where its
+//                  foot is stepped onto beside the north wall; the rail on its wall side runs to the
+//                  foot. The west wing's mirror turns it to 'right' (src/sim/places/echo.js). The stair
+//                  room's extinguisher stands on its east wall (0.0.6: v0.0.5's, on the north wall at
+//                  x 82.1, left 0.70 m between it and the newel, too narrow for C2 and cut on the grid),
+//                  and a night light on its north wall over the stair, on both floors (0.0.6, my call:
+//                  a stair is a way out and lit at night; at 23:00 the well's DOWN lay in the dark).
 //   CORE_1, CORE_2 the core's rooms, doors and pieces on each floor (the company's offices, the lobby
 //                  with the duty desk and its two-faced clock, the vestibule, the main stair, the duty
 //                  room and the mail room; upstairs the classroom and the study room).
@@ -53,8 +61,8 @@
 //   A head names how many it serves (PLACES §4.4: side A about 31 of the platoon's 44, side B the
 //   other 13, SETTING §4.7's 30% women), which the validator holds to PLACES §9.6's standard.
 //   The lamps: a bay's six ceiling panels (the fill, no pool: the sheet's §8 item 7), the halls' night
-//   lights every 6 m at 0.3 m, the duty desk's lamp, the fire watch's red lamp at bay-2-1's study
-//   table, and an exit sign at every way out.
+//   lights every 6 m at 0.3 m (and one over each stair, from 0.0.6), the duty desk's lamp, the fire
+//   watch's red lamp at bay-2-1's study table, and an exit sign at every way out.
 // Seeds (a piece's look) are authored constants: each kind takes them in turn from SEEDS (6 values,
 // the sheet's SEEDS_PER_KIND), never from a world. The layouts' pieces and the rooms' fixtures were
 // laid out with a scratch tool from the rules above (the hub's way: a tool proposes, the literal is
@@ -365,11 +373,12 @@ export const WING_FIXTURES = deepFreeze([
   F('lounge-{p}', 'chair-3', 'chair', 'steel', 76.6, 14.25, 'up'),
   F('lounge-{p}', 'chair-4', 'chair', 'steel', 77.4, 14.25, 'up'),
   F('lounge-{p}', 'vending-1', 'vending', 'drink', 75.08, 11.5, 'right'),
-  F('stair-{s}', 'flight', 'stairs', 'concrete', 80.95, 12.9, 'up', { floor1: {  }, dir: 'up' }),
+  F('stair-{s}', 'flight', 'stairs', 'concrete', 80.95, 12.9, 'up', { floor1: {  }, dir: 'up', open: 'left' }),
   F('stair-{s}', 'flight', 'stairsWell', 'rail', 80.95, 12.9, 'up', { floor2: {  }, dir: 'down' }),
   F('stair-{s}', 'sign-1', 'sign', 'exit', 80.095, 14.7, 'right', { y: 2, floor1: {  } }),
   F('stair-{s}', 'sign-1', 'sign', 'exit', 80.095, 15.5, 'right', { y: 2, floor2: {  } }),
-  F('stair-{s}', 'extinguisher-1', 'bin', 'extinguisher', 82.1, 10.3, 'down'),
+  F('stair-{s}', 'extinguisher-1', 'bin', 'extinguisher', 83.5, 12.0, 'left'),
+  F('stair-{s}', 'night-1', 'emergencyLight', 'night', 80.95, 10.14, 'down', { y: 0.3 }),
   F('vest-{s}', 'sign-1', 'sign', 'exit', 83, 17.605, 'up', { y: 0.8, floor1: {  } }),
   F('hall-{p}', 'fountain-1', 'waterFountain', 'wall', 61, 9.775, 'up'),
   F('hall-{p}', 'bin-1', 'bin', 'bin', 63, 9.72, 'up'),
@@ -461,8 +470,9 @@ export const CORE_FIXTURES = deepFreeze({
     F('lobby', 'bench-1', 'sofa', 'vinyl', 39.505, 17.8, 'right'),
     F('lobby', 'honours-1', 'wallLocker', 'mesh', 44.645, 12, 'left'),
     F('vestibule', 'sign-1', 'sign', 'exit', 43.2, 23.605, 'up', { y: 0.8 }),
-    F('stair-main', 'flight', 'stairs', 'concrete', 45.95, 12.9, 'up', { dir: 'up' }),
+    F('stair-main', 'flight', 'stairs', 'concrete', 45.95, 12.9, 'up', { dir: 'up', open: 'left' }),
     F('stair-main', 'sign-1', 'sign', 'exit', 45.095, 14.7, 'right', { y: 2 }),
+    F('stair-main', 'night-1', 'emergencyLight', 'night', 45.95, 10.14, 'down', { y: 0.3 }),
     F('duty-room', 'rack-1', 'rack1', 'steel', 36.105, 18.675, 'right'),
     F('duty-room', 'locker-1', 'wallLocker', 'single', 35.355, 20, 'right'),
     F('duty-room', 'desk-1', 'desk', 'steel', 36.6, 22.95, 'up'),
@@ -540,6 +550,7 @@ export const CORE_FIXTURES = deepFreeze({
     F('study', 'books-2', 'wallLocker', 'tier', 35.355, 12.6, 'right'),
     F('stair-main', 'flight', 'stairsWell', 'rail', 45.95, 12.9, 'up', { dir: 'down' }),
     F('stair-main', 'sign-1', 'sign', 'exit', 45.095, 15.5, 'right', { y: 2 }),
+    F('stair-main', 'night-1', 'emergencyLight', 'night', 45.95, 10.14, 'down', { y: 0.3 }),
   ],
 });
 
@@ -561,7 +572,9 @@ export const POSTS = deepFreeze({
 /**
  * The three stairs between the floors (a link's stops are the flight's middle on both floors, so the
  * stair keeps its place on screen) and the portals across each: on floor 1 a band across the flight
- * 0.8 m below its top, on floor 2 the well's top edge; each arrival 0.7 m past the other floor's band.
+ * 1.1 m below its top (0.0.6: v0.0.5's 0.8 m left a zone the widest walker, C2, could not reach against
+ * the flight's closed top, and C1 by a centimetre; now the floor changes 0.7 m short of the top), on
+ * floor 2 the well's top edge; each arrival 0.7 m past the other floor's band.
  */
 export const STAIRS = deepFreeze([
   { key: 'stair-e', link: 'l:echo:stair-e', x: 80.95, z: 12.9, a: 80.35, b: 81.55, room: 'stair-e' },
@@ -569,7 +582,7 @@ export const STAIRS = deepFreeze([
   { key: 'stair-w', link: 'l:echo:stair-w', mirrorOf: 'stair-e', room: 'stair-w' },
 ]);
 /** Where a flight's bands and arrivals lie, as z in the area frame (the flights run z 10.5 to 15.3, foot north, top south). */
-export const STAIR_BANDS = deepFreeze({ upBandZ: 14.5, downBandZ: 15.3, arriveUpZ: 16.0, arriveDownZ: 13.8 });
+export const STAIR_BANDS = deepFreeze({ upBandZ: 14.2, downBandZ: 15.3, arriveUpZ: 16.0, arriveDownZ: 13.5 });
 
 /** The outside doors and the ground's points they lead to (the site frame: the ground's), with the faces. */
 export const EXITS = deepFreeze([

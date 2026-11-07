@@ -12,7 +12,13 @@
 // to 0; stubble is the hours since the last shave (it shows from STUBBLE_SHOWS_H 12, my call, and over
 // 20 h fails an inspection). The sweat on the skin and the cloth (this round only a scene's: the shower
 // test begins after PT) dries with τ 1 h (my call), a closed form, and the doll shows it.
-import { HYGIENE, GRIME_BANDS, STUBBLE_BANDS } from '../../data/body/needs.js';
+// The hands (0.0.6; the build sheet 0.0.6 §8 items 3 and 4): their dirt, 0 to 100, builds at HANDS.RATE_K
+// times grime's rate (the stepper's) and by events, soilBody: the head +40, a stall +60, a bar +10, a
+// rifle handling sub-step +1.5, kneeling or prone on regolith +15, capped at 100, with `why` the last
+// soiling ('head', 'stall', 'food', 'rifle', 'regolith'; null from the slow rate alone); washed to 0 at a
+// basin (groomBody's hands) and in a shower (washBody: the water takes them too). The basin's clippers
+// (groomBody's clip) set the hair's hours since the cut to 0 (a shaved head buzzed: src/sim/body/hair.js).
+import { HYGIENE, GRIME_BANDS, STUBBLE_BANDS, HANDS, HANDS_BANDS } from '../../data/body/needs.js';
 
 /** Grime's band index in GRIME_BANDS. */
 export function grimeIndex(grime) {
@@ -24,6 +30,25 @@ export function stubbleIndex(stubbleH) {
   for (let i = STUBBLE_BANDS.length - 1; i >= 1; i--) if (stubbleH >= STUBBLE_BANDS[i].h) return i;
   return 0;
 }
+/** The hands' band index in HANDS_BANDS. */
+export function handsIndex(dirt) {
+  for (let i = HANDS_BANDS.length - 1; i >= 1; i--) if (dirt >= HANDS_BANDS[i].dirt) return i;
+  return 0;
+}
+/** Soil the hands by k (capped at HANDS.MAX), naming the cause. Writes body. Returns { before, after }. */
+export function soilBody(body, k, why = null) {
+  const hd = (body.hands ??= { dirt: 0, why: null }), before = hd.dirt ?? 0;
+  if (!(k > 0)) return { before, after: before };
+  hd.dirt = Math.min(HANDS.MAX, before + k);
+  hd.why = why ?? null;
+  return { before, after: hd.dirt };
+}
+/** The hands washed: the dirt to 0, the cause forgotten. Writes body. */
+export function cleanHands(body) {
+  const hd = (body.hands ??= { dirt: 0, why: null });
+  hd.dirt = 0; hd.why = null;
+}
+
 /** The smell's range, metres (BODY §6's smellOf): 0 below unwashed. */
 export const smellM = (grime) => GRIME_BANDS[grimeIndex(grime)].smellM ?? 0;
 
@@ -44,16 +69,19 @@ export function washBody(body, { waterMin = 0, cold = false }, ms) {
   if (!(waterMin > 0)) return { before, after: before };
   h.grime = washLeft(h.grime, waterMin);
   h.sweatL = 0;
+  cleanHands(body);
   h.wetUntilMs = ms + HYGIENE.WET_HAIR_MS;
   body.stress.v = cold ? Math.min(100, body.stress.v + HYGIENE.COLD_SHOWER_STRESS) : Math.max(0, body.stress.v - HYGIENE.SHOWER_CALM);
   return { before, after: h.grime };
 }
 
-/** The basin: a shave sets the stubble to 0, face and hands take grime × 0.9, teeth noted. Writes body. */
-export function groomBody(body, { teeth = false, shave = false, face = false }, ms) {
+/** The basin: a shave sets the stubble to 0, the face takes grime × 0.9, teeth noted, the hands washed, a shaved head buzzed (hair.h 0). Writes body. */
+export function groomBody(body, { teeth = false, shave = false, face = false, hands = false, clip = false }, ms) {
   const h = body.hygiene;
   if (shave) h.stubbleH = 0;
   if (face) h.grime *= HYGIENE.FACE_K;
   if (teeth) h.teethMs = ms;
-  return { shave, face, teeth };
+  if (hands) cleanHands(body);
+  if (clip) (body.hair ??= { h: 0 }).h = 0;
+  return { shave, face, teeth, hands, clip };
 }

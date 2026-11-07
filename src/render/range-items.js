@@ -11,7 +11,12 @@
 // flashPixels() a star at the drawn muzzle, 9 × 5 for its first tick and 5 × 3 for its second, lifted
 // toward the camera and drawn after the figures so it lies over the head; dustPixels() the regolith the blast throws up in front of
 // a prone or kneeling muzzle, grey-ochre motes up to DUST_UP_M that fall at Mars' 0.38 g and settle,
-// DUST_MS in all. Every pixel is a centre in metres on the stage's pixel grid.
+// DUST_MS in all. 0.0.6 (the user, 2026-11-07: "different types of rounds"): a live tracer thrown out of the port
+// lies with its red tip (brassPixels' and decalPixels' 'tracer'), and a tracer shot draws tracePixels(): by day at
+// 25 m the trace proper has not lit (calibres.js traceFromM 30 m), so what shows is the igniter's dim ember, a dotted
+// dull-red streak TRACE_STREAK_M long behind the round as it flies at its 790 m/s to the card (32 ms at 25 m, one or
+// two frames at 60 Hz), every other pixel, and the bright trace only past traceFromM. Every pixel is a centre in
+// metres on the stage's pixel grid.
 // Pure: no three.js, no DOM.
 import { PX_PER_M } from './scale.js';
 import { hash01 } from '../core/hash.js';
@@ -60,7 +65,9 @@ export function drawnY(y, ppm = PX_PER_M, stance = null) {
 export const FLAG_PART = 0xa5a5b1;
 /** A hole through the black (the paper's fibres) and through the white (the dark behind it). */
 export const PALE = 0xdfe2e8, DARK = 0x23252f;
-const RED = 0xff4a3a, RED_D = 0xb45150, BRASS = 0xd0ac5e, BRASS_L = 0xf6e3a0, COPPER = 0xb45b3a, DUMMY = 0xe08a3a;
+const RED = 0xff4a3a, RED_D = 0xb45150, BRASS = 0xd0ac5e, BRASS_L = 0xf6e3a0, COPPER = 0xb45b3a, DUMMY = 0xe08a3a, TRACER_TIP = 0xc23b2e;
+/** A tracer's ember (see the header): the streak behind the round (m), its speed (TRACE_V_MS, m/s) and where the bright trace lights (m) when the look gives none (rangeLook's fire carries the calibre's own: calibres.js), their colours. */
+export const TRACE_STREAK_M = 3, TRACE_V_MS = 790, TRACE_FROM_M = 30, EMBER = 0x8a3a2e, TRACE = 0xff6a3a;
 
 const snap = (v, ppm) => Math.round(v * ppm) / ppm;
 /**
@@ -119,7 +126,7 @@ export function brassPixels(b, ppm = PX_PER_M, ms = null) {
     return [{ x: gx, y, z: gz, c: fresh ? 0xffffff : glint ? BRASS_L : BRASS, flat: false }, { x: gx + dx, y: y + dy, z: gz, c: glint ? BRASS : BRASS_L, flat: false }];
   }
   const along = Math.abs(Math.cos(b.rotRad ?? 0)) > Math.SQRT1_2, dx = along ? P : 0, dz = along ? 0 : P;
-  const [c0, c1] = b.kind === 'dummy' ? [DUMMY, BRASS] : b.kind === 'round' ? [BRASS, COPPER] : [BRASS, BRASS_L];
+  const [c0, c1] = b.kind === 'dummy' ? [DUMMY, BRASS] : b.kind === 'round' ? [BRASS, COPPER] : b.kind === 'tracer' ? [BRASS, TRACER_TIP] : [BRASS, BRASS_L];
   return [{ x: gx, y: 0.014, z: gz, c: c0, flat: true }, { x: gx + dx, y: 0.014, z: gz + dz, c: c1, flat: true }];
 }
 
@@ -160,6 +167,25 @@ export function flashPixels(fire, ms, ppm = PX_PER_M) {
   }));
   return out;
 }
+/**
+ * A tracer's flight (rangeLook's fire with load 'tracer'; target: its lane's card { x, z, centreY }) at game time ms:
+ * [{ x, y, z, c }] metres, see the header: the dotted ember from the drawn muzzle along the line to the card's
+ * centre, the TRACE_STREAK_M behind the round, until it arrives; none for ball, none after.
+ */
+export function tracePixels(fire, ms, ppm = PX_PER_M, target = null) {
+  if (!fire || fire.load !== 'tracer' || !target || (fire.face !== 'right' && fire.face !== 'left')) return [];
+  const dt = (ms - fire.atMs) / 1000, m = drawnMuzzleM(ppm)[fire.stance] ?? drawnMuzzleM(ppm).stand, sgn = fire.face === 'left' ? -1 : 1;
+  const x0 = fire.x + sgn * m.aheadM, y0 = m.upM, toM = Math.abs(target.x - x0), y1 = target.centreY ?? y0;
+  const d = (fire.vMs ?? TRACE_V_MS) * dt, from = fire.traceFromM ?? TRACE_FROM_M;
+  if (!(dt >= 0) || d - TRACE_STREAK_M > toM) return [];
+  const out = [], P = 1 / ppm, z = snap(fire.z, ppm) + FLASH_LIFT_M;
+  for (let i = Math.max(0, Math.floor((d - TRACE_STREAK_M) * ppm)); i <= Math.min(d, toM) * ppm; i++) {
+    if (i % 2) continue;
+    const s = i / ppm, k = toM > 0 ? s / toM : 0;
+    out.push({ x: snap(x0 + sgn * s, ppm) + 0.5 * P, y: snap(y0 + (y1 - y0) * k, ppm) + 0.5 * P + FLASH_LIFT_M, z, c: s >= from ? TRACE : EMBER });
+  }
+  return out;
+}
 const DUST = Object.freeze([0xc8b28c, 0xb59c74, 0xd6c29c, 0xa89070]);
 /**
  * The blast's dust in front of a prone or kneeling muzzle (rangeLook's fire) at game time ms: [{ x, y, z, c,
@@ -189,12 +215,13 @@ export function dustPixels(fire, ms, ppm = PX_PER_M) {
 }
 
 const INK = 0x14151c;
-const COLOURS = Object.freeze({ u: 0x23252f, U: 0x3e424d, b: 0xd0ac5e, B: 0xf0d48a, c: 0xb45b3a, o: 0xe08a3a, k: INK, g: 0x6e7582 });
+const COLOURS = Object.freeze({ u: 0x23252f, U: 0x3e424d, b: 0xd0ac5e, B: 0xf0d48a, c: 0xb45b3a, o: 0xe08a3a, r: 0xc23b2e, k: INK, g: 0x6e7582 });
 /** Each kind lying along x, its tip to the east (rows north to south); letters are COLOURS. */
 export const SHAPES = Object.freeze({
   mag: ['uuuuU', ' uuuu'],                                          // (the HAD-30: its body curving, the baseplate at its end)
   round: ['bbbc'],                                                  // (a live round: brass and its copper tip)
   dummy: ['ooob'],                                                  // (the orange dummy)
+  tracer: ['bbbr'],                                                 // (a live tracer: brass and its red tip, 0.0.6)
   case: ['bB'],                                                     // (a spent case, short and bright)
 });
 

@@ -11,7 +11,9 @@
 // 23:00, the aisle walked east, west and back, then still (TECH §13.4's 0.1 scene, brought forward so
 // the user can judge Windows; the other scenes come with 0.1). splash-sleep (0.0.4, the build sheet
 // §2.3 (e)): R at your rack's foot at 21:57, the night's full splash (the zoom, the iris, the night going
-// by to reveille's landing) timed frame by frame; its result's splash row is the splash's frames alone
+// by to reveille's landing) timed frame by frame (0.0.6: you sleep in what you wear, so R in utilities lies
+// you down in sight first, about 4.8 s, before the splash: its wait 9 s to 14 s, the build sheet 0.0.6 §8
+// item 6, so it still times the whole night's splash); its result's splash row is the splash's frames alone
 // ({ frames, medianMs, p95Ms, over25 }), its p95 held at 18 ms as the bay's walk is. range-line (0.0.5, the
 // build sheet 0.0.5 §2.3 (g)): test-handling's 'bench' setup (prone on the 25 m line, the line hot, the
 // mode entered and aimed at your card, one magazine of 15), Digit1 tapped for 120 ms and then still for
@@ -29,7 +31,7 @@ export const BENCH_SCENES = Object.freeze({
   'splash-sleep': Object.freeze({
     play: 'barracks', seed: 48213, hour: 21.95,
     at: Object.freeze({ area: 'melas.echo.1', x: 52.075, z: 3.3, face: 'up' }),
-    keys: Object.freeze([Object.freeze(['KeyR', 100]), Object.freeze([null, 9000])]),
+    keys: Object.freeze([Object.freeze(['KeyR', 100]), Object.freeze([null, 14000])]),
     warmS: 2, splash: true,
   }),
   'range-line': Object.freeze({

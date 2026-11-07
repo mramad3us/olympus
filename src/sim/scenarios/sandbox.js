@@ -6,8 +6,8 @@
 // p1, never an alias; the person put into people through core/ids.js so the map's sorted ids hold),
 // their actor a1 on the live area at the test rooms' spawn, facing as the spawn says, idle, and the
 // test site entered (places.live = { site: 'test', area: 'test.rooms' }). The person carries a look
-// for the view (VIEWS's wear() spec: utilities, a crew cut; the seed picks what the look leaves
-// open) and the sandbox's name; a test world has no career (career: null, ROADMAP §2.1), so nothing
+// for the view (VIEWS's wear() spec: utilities, a low regulation cut since 0.0.6; the seed picks what
+// the look leaves open) and the sandbox's name; a test world has no career (career: null, ROADMAP §2.1), so nothing
 // else of a person exists yet.
 //
 // A save from 0.0.1 is a sandbox state without a player (its `sites.sandbox` carried nothing, and
@@ -24,7 +24,7 @@ export const SANDBOX = Object.freeze({ site: 'test', area: 'test.rooms' });
 /** The sandbox player's look (a wear() spec) and name. */
 export const SANDBOX_PLAYER = Object.freeze({
   name: 'Private (sandbox)',
-  look: Object.freeze({ outfit: 'utilities', skin: 'tan', hair: Object.freeze({ style: 'crew', color: 'dark' }), seed: 21 }),
+  look: Object.freeze({ outfit: 'utilities', skin: 'tan', hair: Object.freeze({ style: 'lowReg', color: 'dark' }), seed: 21 }),
 });
 
 /** Fill a new state with the sandbox: the player p1, their actor a1 at the spawn, the test rooms live. */

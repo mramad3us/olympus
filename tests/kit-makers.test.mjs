@@ -143,7 +143,8 @@ export default [
       const two = place(recordingArea(ppm), { kind: 'wallClock', make: 'station', x: 5, z: 5, y: 1.12, face: 'down', faces: ['melas', 'utc'] });
       assert(two.dials?.map(x => x.which).join() === 'front,back', 'a two-faced clock has a front and a back dial');
       const st = recordingArea(ppm); place(st, { kind: 'stairs', make: 'concrete', x: 82, z: 12, face: 'up', dir: 'up' });
-      assert(st.grounds.length === 2 && st.boxes.length >= 6, `a flight: ${st.grounds.length} grounds (its treads and its mark), ${st.boxes.length} boxes`);
+      // (open both sides: its treads, its arrow, its word, the two openings' step edges, its shadow beside each side and past its high end)
+      assert(st.grounds.length === 8 && st.boxes.length >= 6, `a flight: ${st.grounds.length} grounds (its treads, its arrow, its word, its step edges and its shadows), ${st.boxes.length} boxes`);
       const w = recordingArea(ppm); place(w, { kind: 'stairsWell', make: 'rail', x: 82, z: 12, face: 'up', dir: 'down' });
       const lp = recordingArea(ppm); place(lp, { kind: 'lampPost', make: 'sodium', x: 530, z: 220 });
       const tall = Math.max(...lp.boxes.map(({ b }) => b.y1));

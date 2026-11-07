@@ -43,6 +43,32 @@
 // line is clear." ends it: range { phase: 'clear' }, the mode left, the rifle slung front (the sheet §8
 // item 25: the end card's seconds of play pass). rangeNow(state) is the hud's and the bots' view, its
 // summary the end card's ("Clear at 09:14 · 61 of 70 · 4 V · no faults").
+//
+// 0.0.6, a scene never dead-ends (the user, 2026-11-07: "I shoot two prone, two kneeling and when I have to
+// shoot standing, I don't have any mags left"; DESIGN.md's log). Their save: four fired, a magazine change,
+// six more in the prone string, and the tower waited for ever at 'stand' for a loaded rifle. Now:
+//   - **the coach's check**: while the tower waits on a command that wants rounds (LOAD, MAKE READY, a
+//     string's RELOAD, a string being fired) and the line is not ready, once checkMs of it is lived (still or
+//     not: the fixer's, 0.0.6; before the move-on, which then waits its moveOnMs again and passes a dry shooter
+//     over with no fault) the coach counts what the shooter has (roundsLeft: the chamber, the magazine in, the hand's, the pouches', those at
+//     their feet); none, and he says so in his voice and the session is dry (R.dry): the RO's readiness then
+//     takes "no rounds" (on safe, in the stance) for every string left, each sat out (R.sat), scoring as not
+//     fired, and the course runs on to UNLOAD, SHOW CLEAR and its end;
+//   - **the line moves on**: a command the shooter has not answered after moveOnMs of lived time (the nudge
+//     at nudgeMs before it) is passed over with a 'slow' fault in the coach's words, the RO's next command
+//     posted; at UNLOAD, SHOW CLEAR the coach takes the rifle and clears and shows it himself (coachClears),
+//     so a stance never taken, a rifle slung or a magazine never found ends at the end card all the same;
+//   - **one magazine a string**: the magazine in the rifle at a string's commence fire (or the first seated
+//     in it) is the string's (R.strMag); seating another before the tower's RELOAD is ahead of the tower, a
+//     fault 'onemag' each time, the coach's "One magazine a string. You reload on the tower's word." the
+//     first (magSeated); the panel marks the steps that would do it (oneMagWarn), never strikes them. The
+//     magazine read 0 by a check, or about to come out, with a round still chambered in a hot string, the coach
+//     says so first, once a string ("You've one left up the spout. Fire it.": spoutCheck); a string fired with
+//     more shots than its rounds is remarked on at its CEASE FIRE ("Ten rounds in a five-round string."), never
+//     praised, and goes down on the end card as over-fired (R.over; the fixer's, 0.0.6, DESIGN.md 2026-11-07).
+// setup 'mixed' (my call) issues the 'range-mixed' kit: the three magazines of ball and a fourth of tracer,
+// their counts told and their kinds not (one of them is tracer, the coach says), each kind its own ammunition
+// issue. The course's load is ball (R.load, kit.js meantLoad: what the drills reach for first).
 import { TICK_MS, holdTime, isHeld } from '../../core/clock.js';
 import { msAtMarsTime } from '../../core/calendar.js';
 import { stream, int, intIn, pick, weighted } from '../../core/rng.js';
@@ -51,7 +77,7 @@ import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { post } from '../../core/queue.js';
 import { START_MS, SITES } from '../../data/setting/calendar.js';
 import { SCENES } from '../../data/scenes.js';
-import { COURSES, SEQ, COACH, MACRO_CMD, MACRO_MARK } from '../../data/courses.js';
+import { COURSES, SEQ, COACH, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
 import { KD_RANGE } from '../../data/places/range.js';
 import { logEntry } from '../log.js';
 import { siteOf } from '../places/model.js';
@@ -62,7 +88,7 @@ import { deltaOf } from '../body/record.js';
 import { rollSheet, tierOfRank } from '../skills/templates.js';
 import { barracks } from './barracks.js';
 import { setLedgers } from './tests.js';
-import { materialise, move } from '../arms/kit.js';
+import { materialise, move, pouchFor, handMagOf, containersOf, atFeetOf } from '../arms/kit.js';
 import { newMag, feed, conditionOf, gunField } from '../arms/firearms.js';
 import { rangeSafety, carryOf } from '../arms/carry.js';
 import { scoreOf, PAPERS } from '../arms/paper.js';
@@ -120,7 +146,7 @@ export function drawSet(seed, course = 'fam25') {
 /** The lane drawn for a course. */
 export const drawLane = (seed, course = 'fam25') => { const L = COURSES[course].lane; return L.from + int(stream(seed, 'range:lane', course), L.to - L.from + 1); };
 
-/** The fill of 'test-handling' (see the header). setup: null | 'hot' | 'bench'. */
+/** The fill of 'test-handling' (see the header). setup: null | 'hot' | 'bench' | 'mixed'. */
 export function testHandling(state, { at = null, setup = null } = {}) {
   const scene = SCENES['test-handling'], C = COURSES[scene.course ?? HANDLING.course], seed = state.meta.seed, lon = lonOf();
   if (state.clock.ms === START_MS && scene.hour !== null) {
@@ -134,7 +160,7 @@ export function testHandling(state, { at = null, setup = null } = {}) {
   person.body = deltaOf(setLedgers(startBody(person, state.clock.ms, lon, seed), scene.body ?? {}));
   person.skills = rollSheet(seed, pid, tierOfRank(person.service?.rank));
   const set = setup === 'bench' ? null : drawSet(seed, HANDLING.course);
-  const kit = materialise(state, pid, C.kit, { sets: set ? { [set.mag]: { n: set.n, kind: set.kind } } : {} });
+  const kit = materialise(state, pid, setup === 'mixed' ? C.kitMixed : C.kit, { sets: set ? { [set.mag]: { n: set.n, kind: set.kind } } : {} });
   const roId = drawStaff(state, 'melas:kd-ro'), coachId = drawStaff(state, 'melas:kd-coach');
   const T = KD_RANGE.tower;
   setPost(state, roId, { area: KD_RANGE.area, x: T.ro.x, z: T.ro.z, y: T.deckY, face: T.ro.face });
@@ -150,12 +176,23 @@ export function startRange(state, bus, { course = 'fam25', lane, setup = null, k
   const gunId = kit?.gunId ?? gunOn(state, pid);
   const issueId = nextId(state, 'ai');
   const rounds = C.mags.reduce((a, b) => a + b, 0);
-  state.armoury.ammoIssues.push({ id: issueId, atMs: now, area: KD_RANGE.area, toId: pid, cal: '6.5x40r', load: 'ball', n: rounds, fired: 0 });
+  state.armoury.ammoIssues.push({ id: issueId, atMs: now, area: KD_RANGE.area, toId: pid, cal: '6.5x40r', load: C.load ?? 'ball', n: rounds, fired: 0 });
   const R = state.armoury.range = {
     course, lane, fp: L.fixtures.fp, roId, coachId, issueId, setMagId: set && kit ? kit.magIds[set.mag - 1] : null,
     set: set ? { mag: set.mag, n: set.n, kind: set.kind } : null, phase: 'brief', string: -1, hot: false, cmd: null, next: null,
     shots: [], brass: [], faults: [], warned: {}, end: null, livedMs: 0, nudged: false, stoppage: null, shown: false,
   };
+  // (0.0.6: the course's kind, and the mixed setup's tracer magazine issued on its own line (see the header))
+  if (C.load && C.load !== 'ball') R.load = C.load;
+  if (setup === 'mixed' && kit) {
+    const extra = kit.magIds.slice(C.mags.length).map(id => state.items[id]).filter(m => m?.load && m.load !== 'ball');
+    if (extra.length) {
+      const id = nextId(state, 'ai');
+      state.armoury.ammoIssues.push({ id, atMs: now, area: KD_RANGE.area, toId: pid, cal: '6.5x40r', load: extra[0].load, n: extra.reduce((a, m) => a + m.n, 0), fired: 0 });
+      R.issueIds = { [extra[0].load]: id };
+      R.mixed = true;
+    }
+  }
   if (setup === 'hot' || setup === 'bench') {
     const me = playerActor(state), gun = state.items[gunId];
     let magId = kit.magIds[0];
@@ -186,24 +223,29 @@ export function startRange(state, bus, { course = 'fam25', lane, setup = null, k
 
 // ---- what the range officer sees ----
 
+/** Whether the shooter is still, as the RO sees it: no step under way but the wait (stop motion's chained wait too). */
+export const stillOf = (state) => { const S = state.stop; return !S || !S.doing || S.doing.kind === 'wait'; };
+
 /** Whether the line is ready for a command's next (see the header: what the RO can see). */
 export function lineReady(state, cmdId = rangeOf(state)?.cmd?.id) {
   const R = rangeOf(state);
   if (!R || !R.cmd) return false;
   const def = SEQ[R.cmd.i] ?? SEQ.find(c => c.id === cmdId);
   const pid = playerId(state), me = playerActor(state), gun = state.items?.[gunOn(state, pid)];
-  const S = state.stop, still = !S || !S.doing || S.doing.kind === 'wait';
+  const still = stillOf(state);
   if (!me || !gun) return false;
   const mag = gun.mag ? state.items[gun.mag] : null, finger = state.people[pid]?.kit?.carry?.finger ?? 'off';
+  const safe = gunField(gun, 'mode') === 'safe' && finger !== 'on';
   switch (def.ready) {
     case 'always': return true;
     case 'prone': return still && me.stance === 'prone';
-    case 'magIn': return still && !!gun.mag;
-    case 'cond1': return still && conditionOf(gun) === 1;
-    case 'emptyLocked': return still && !!gunField(gun, 'locked') && !!mag && mag.n === 0;
-    case 'safe': return still && gunField(gun, 'mode') === 'safe' && finger !== 'on';
-    case 'kneel1': return still && me.stance === 'kneel' && conditionOf(gun) === 1;
-    case 'stand1': return still && !me.stance && conditionOf(gun) === 1;
+    // (0.0.6: once the coach has found no rounds (R.dry), "no rounds, on safe" stands for a loaded rifle (see the header))
+    case 'magIn': return still && (!!gun.mag || (!!R.dry && safe));
+    case 'cond1': return still && (conditionOf(gun) === 1 || (!!R.dry && safe));
+    case 'emptyLocked': return still && ((!!gunField(gun, 'locked') && !!mag && mag.n === 0) || !!R.dry);
+    case 'safe': return still && safe;
+    case 'kneel1': return still && me.stance === 'kneel' && (conditionOf(gun) === 1 || (!!R.dry && safe));
+    case 'stand1': return still && !me.stance && (conditionOf(gun) === 1 || (!!R.dry && safe));
     case 'shown': return still && !!R.shown;
     default: return false;
   }
@@ -221,8 +263,14 @@ export function onRangeCmd(state, bus, ev) {
   const now = state.clock.ms;
   R.cmd = { id: cmd, i, atMs: now }; R.next = null; R.livedMs = 0; R.nudged = false;
   sayOn(state, bus, { who: R.roId, text: hashPick(def.say, 'range-cmd', state.meta.seed, i), kind: 'pa' });
-  if (cmd === 'brief') { R.phase = 'brief'; coachSays(state, bus, COACH.brief, 'brief'); }
-  else if (cmd === 'fire') { R.hot = true; R.phase = 'string'; R.string = def.string; }
+  if (cmd === 'brief') { R.phase = 'brief'; coachSays(state, bus, R.mixed ? COACH.briefMixed : COACH.brief, 'brief'); }
+  else if (cmd === 'fire') {
+    R.hot = true; R.phase = 'string'; R.string = def.string;
+    // (the string's magazine: the one in the rifle now, or the first seated in it (magSeated); a dry shooter sits it out)
+    const gun = state.items[gunOn(state, playerId(state))];
+    if (gun?.mag) R.strMag = gun.mag; else delete R.strMag;
+    if (R.dry) (R.sat ??= []).push(def.string);
+  }
   else if (cmd === 'cease') { R.hot = false; R.phase = 'cmd'; stringScore(state, bus, def.string); }
   else if (cmd !== 'end') R.phase = 'cmd';
   bus?.emit('range', { phase: 'cmd', cmd, hot: R.hot, rule: null, kind: null, text: null });
@@ -242,11 +290,24 @@ export function onRangeCmd(state, bus, ev) {
 function stringScore(state, bus, k) {
   const R = rangeOf(state);
   const mine = R.shots.filter(s => s.string === k && s.lane === R.lane), holes = mine.map(s => ({ at: s.hole, score: s.score, v: s.v }));
-  const s = scoreOf(holes);
+  const s = scoreOf(holes), sat = !!R.sat?.includes(k);
+  delete R.strMag;
   // (the string shot by shot, a miss as 0, so PAPER's line reads every shot in order (the runtime review's: it read
   // the holes on the card, leaving the misses out))
-  bus?.emit('range', { phase: 'string', cmd: 'cease', hot: false, n: k + 1, score: s.score, of: s.of, v: s.v, hits: s.hits, shots: s.shots, list: mine.map(x => ({ score: x.score ?? 0, v: !!x.v, hit: !!x.hole })) });
+  const over = mine.length > (COURSES[R.course].mags[k] ?? Infinity);
+  bus?.emit('range', { phase: 'string', cmd: 'cease', hot: false, n: k + 1, score: s.score, of: s.of, v: s.v, hits: s.hits, shots: s.shots, list: mine.map(x => ({ score: x.score ?? 0, v: !!x.v, hit: !!x.hole })), ...(sat ? { sat: true } : {}), ...(over ? { over: true } : {}) });
+  // (a string sat out, or one never fired: said so, never "None of none on the paper" (0.0.6))
+  if (!mine.length) { coachSays(state, bus, sat ? COACH.string.sat : COACH.string.none, 'string', k); return; }
   // (the tip by how the string was shot: haste lines only where a shot was rushed or unheld (see courses.js COACH))
+  // (more shots than the string's rounds: remarked on, never praised (0.0.6, DESIGN.md 2026-11-07; the user's run fired ten
+  // in the prone string and was told "All ten on the paper. Same again.")
+  const rounds = COURSES[R.course].mags[k] ?? null;
+  if (Number.isFinite(rounds) && mine.length > rounds) {
+    (R.over ??= []).push(k);
+    const fill = (l) => l.replaceAll('{Shots}', capital(countWord(mine.length))).replaceAll('{shots}', countWord(mine.length)).replaceAll('{Rounds}', capital(countWord(rounds))).replaceAll('{rounds}', countWord(rounds));
+    coachSays(state, bus, COACH.string.over.map(fill), 'string', k);
+    return;
+  }
   const misses = s.shots - s.hits, careful = mine.length > 0 && mine.every(x => x.care === 'held');
   const nat1 = mine.filter(x => !x.hole && x.nat1).length;
   const lines = !misses ? COACH.string[0] : careful && misses === 1 && nat1 === 1 ? COACH.string.luck : careful ? COACH.string.held : COACH.string[misses] ?? COACH.string.low;
@@ -276,6 +337,134 @@ export function rangeSecond(state, input, bus) {
     R.nudged = true;
     sayOn(state, bus, { who: R.roId, text: `Lane ${LANE_WORD[R.lane] ?? R.lane}, ${NUDGE[R.cmd.id]}`, kind: 'pa' });
   }
+  // (0.0.6: the coach's check, once a command that wants rounds has waited checkMs of lived time with no stoppage in
+  // the rifle (a double's loose round is being cleared, not missing): none anywhere, the session dry. No stillness
+  // asked: with nothing anywhere no reload can be under way, a magazine in the hand or at the feet being counted, so
+  // a shooter hunting step by step for a magazine hears it before any move-on (the fixer's, 0.0.6, after the user's
+  // own save played by the keys: reach at your feet, look, drop, and the line moved on with a 'slow' fault first))
+  const gun = state.items?.[gunOn(state, playerId(state))];
+  const clean = !!gun && !gunField(gun, 'jam') && !['case', 'dud'].includes(gunField(gun, 'chamber'));
+  // (a string fired to its last round is the one wait where none left is the end of the work, not a want of it: its
+  // bolt locks back on the empty, so there the check still waits for the shooter to be still)
+  const firing = SEQ[i].ready === 'emptyLocked' && R.shots.some(x => x.string === R.string && x.lane === R.lane);
+  if (!R.next && !R.dry && NEEDS_ROUNDS.includes(SEQ[i].ready) && R.livedMs >= C.checkMs && clean && (!firing || stillOf(state)) && roundsLeft(state) === 0) {
+    R.dry = { atMs: state.clock.ms, cmd: R.cmd.id };
+    R.livedMs = 0;                                   // (the move-on's wait starts again from the coach's word)
+    // (found dry while a string is called and none of it fired: that string is sat out too)
+    if (R.hot && !R.shots.some(x => x.string === R.string && x.lane === R.lane) && !(R.sat ??= []).includes(R.string)) R.sat.push(R.string);
+    coachSays(state, bus, COACH.dry, 'dry', i);
+    bus?.emit('range', { phase: 'dry', cmd: R.cmd.id, hot: R.hot, rule: null, kind: null, text: null });
+    return;
+  }
+  // (0.0.6: the line waits on one lane no longer than moveOnMs of lived time: see the header; a dry shooter's
+  // never a 'slow' fault, the coach having said why the rifle is not loaded)
+  if (!R.next && i > 0 && i + 1 < SEQ.length && R.livedMs >= C.moveOnMs) moveOn(state, bus, { quiet: !!R.dry && NEEDS_ROUNDS.includes(SEQ[i].ready) });
+}
+
+/** What the shooter has to fire (the coach's count, the truth: see the header): the chamber's live round, the magazine in, the hand's, the pouches', those at their feet. */
+export function roundsLeft(state, pid = playerId(state)) {
+  const gun = state.items?.[gunOn(state, pid)];
+  let n = gun && gunField(gun, 'chamber') === 'live' ? 1 : 0;
+  const count = (id) => { const m = state.items?.[id]; if (m?.type === 'mag') n += m.n ?? 0; };
+  if (gun?.mag) count(gun.mag);
+  const h = handMagOf(state, pid);
+  if (h) count(h.id);
+  for (const c of containersOf(state, pid)) for (const id of state.items[c].holds ?? []) count(id);
+  for (const l of atFeetOf(state, pid)) count(l.id);
+  return n;
+}
+
+/** The line moves on (see the header): a 'slow' fault (none when quiet: a dry shooter's), the next command posted; at UNLOAD, SHOW CLEAR the coach clears the rifle. */
+export function moveOn(state, bus, { quiet = false } = {}) {
+  const R = rangeOf(state), i = R.cmd.i, C = COURSES[R.course];
+  if (SEQ[i].ready === 'shown') { coachClears(state, bus); return; }
+  if (!quiet) fault(state, bus, 'slow', 'warn', hashPick(COACH.slow, 'coach', state.meta.seed, 'slow', i));
+  const atMs = state.clock.ms + intIn(stream(state.meta.seed, 'range:gap', i + 1), C.roGapMs[0], C.roGapMs[1]);
+  post(state, { atMs, prio: 2, kind: 'range-cmd', src: 'arms:range', payload: { cmd: SEQ[i + 1].id, i: i + 1 } });
+  R.next = { id: SEQ[i + 1].id, i: i + 1, atMs: Math.floor(atMs / 1000) * 1000 };
+}
+
+/**
+ * The coach takes the rifle never shown and clears it himself (see the header): a 'slow' fault in his words, the
+ * mode left, the magazine out to a pouch (or the ground), the chamber emptied (its round thrown), the bolt home, the
+ * hammer cocked, on safe, the port shut, the rifle slung front and shown: his "Clear.", the line ready to be called clear.
+ */
+export function coachClears(state, bus) {
+  const R = rangeOf(state), pid = playerId(state), gunId = gunOn(state, pid), gun = state.items?.[gunId];
+  // (once: a shooter not still at the next whole second after it (a step under way) gave the move-on again, a 'slow'
+  // fault and "Clear." each second until still; the fixer's, 0.0.6)
+  if (!R || R.end || R.shown || !gun) return;
+  fault(state, bus, 'slow', 'warn', hashPick(COACH.take, 'coach', state.meta.seed, 'take'));
+  if (state.stop) leaveStop(state, bus, 'coach');
+  if (state.stop) state.stop = null;
+  if (gun.mag) {
+    const c = pouchFor(state, pid), me = playerActor(state);
+    if (c) move(state, gun.mag, { container: c });
+    else if (me) move(state, gun.mag, { ground: { area: KD_RANGE.area, x: me.x + 0.3, z: me.z + 0.1 } });
+  }
+  // (what was in the action comes out as he racks it: a double's loose round, then the chamber's content)
+  const ch = gunField(gun, 'chamber'), kinds = gunField(gun, 'jam') ? ['round'] : [];
+  if (ch) kinds.push(ch === 'case' ? 'case' : gunField(gun, 'set') === 'dud' ? 'dummy' : gunField(gun, 'load') === 'tracer' ? 'tracer' : 'round');
+  if (kinds.length) recordEjects(state, pid, kinds, state.clock.ms, 'coach');
+  for (const k of ['chamber', 'set', 'jam', 'locked', 'load', 'portOpen']) delete gun[k];
+  delete gun.cocked; delete gun.mode;
+  gun.belief = { chamber: 'empty' };
+  const carry = state.people[pid]?.kit?.carry;
+  if (carry) { carry.posture = 'slungFront'; delete carry.finger; }
+  coachSays(state, bus, COACH.clear, 'clear', 'coach');
+  R.shown = true;
+}
+
+/**
+ * The coach on a magazine about to come out (or read 0 by a magazine check) with a round still chambered in a hot string
+ * (0.0.6, DESIGN.md 2026-11-07: "You've one left up the spout. Fire it."): said once a string, before the change.
+ * id the sub-step about to run ('magCheck' after its read). Writes R.spoutAt.
+ */
+export function spoutCheck(state, bus, id) {
+  const R = rangeOf(state);
+  if (!R || R.end || !R.hot || R.spoutAt === R.string) return;
+  const gun = state.items?.[gunOn(state, playerId(state))], mag = gun?.mag ? state.items[gun.mag] : null;
+  if (!mag || (mag.n ?? 0) > 0 || gunField(gun, 'chamber') !== 'live' || gunField(gun, 'jam')) return;
+  R.spoutAt = R.string;
+  coachSays(state, bus, COACH.spout, 'spout', R.string);
+  bus?.emit('range', { phase: 'spout', cmd: R.cmd?.id ?? null, hot: R.hot, rule: null, kind: null, text: null, via: id });
+}
+
+/** The magazine the string began with and the one about to be seated: the mark the panel shows (see the header), or null. */
+export function oneMagWarn(state, magId) {
+  const R = rangeOf(state);
+  return R && !R.end && R.hot && R.strMag && magId && magId !== R.strMag ? 'one magazine a string' : null;
+}
+
+/**
+ * A magazine of another kind than the course fires about to be seated (the panel's mark, the fixer's, 0.0.6): '<kind>:
+ * the course is <load>' when the magazine is believed of another kind, else null. Never struck: firing it is no fault.
+ */
+export function kindWarn(state, mag) {
+  const R = rangeOf(state), want = R?.load ?? 'ball', k = mag?.belief?.kind ?? null;
+  return R && !R.end && k && k !== want ? `${k}: the course is ${want}` : null;
+}
+
+/** A magazine seated in the rifle (shooting.js runSub): one magazine a string, and a kind the course does not fire said once (see the header). */
+export function magSeated(state, bus, magId) {
+  const R = rangeOf(state);
+  if (!R || R.end) return;
+  // (the setup's tracer seated where the course fires ball: the coach says so once, no fault (the user's 2026-11-07 "we see
+  // if it has ammo in and which kind before we decide" given its moment; the fixer's, 0.0.6))
+  const m = state.items?.[magId], want = R.load ?? 'ball';
+  if (m?.load && m.load !== want && !R.kindSaid) {
+    R.kindSaid = true;
+    coachSays(state, bus, COACH.kind.map(l => l.replaceAll('{kind}', m.load).replaceAll('{load}', want)), 'kind');
+  }
+  if (!R.hot) return;
+  if (!R.strMag) { R.strMag = magId; return; }
+  if (magId === R.strMag) return;
+  R.strMag = magId;
+  R.faults.push({ rule: 'onemag', kind: 'warn', atMs: state.clock.ms });
+  const first = !R.oneMagSaid;
+  R.oneMagSaid = true;
+  if (first) sayOn(state, bus, { who: R.coachId, text: hashPick(COACH.onemag, 'coach', state.meta.seed, 'onemag'), kind: 'speech' });
+  bus?.emit('range', { phase: 'fault', cmd: R.cmd?.id ?? null, hot: R.hot, rule: 'onemag', kind: 'warn', text: first ? COACH.onemag[0] : null });
 }
 
 // ---- faults and the stop ----
@@ -364,22 +553,27 @@ export function aheadOf(state, bus, macroId) {
   const wants = Array.isArray(want) ? want : [want];
   // (given already: the tower has said that command at some point of the sequence so far)
   if (R.cmd && SEQ.slice(0, R.cmd.i + 1).some(c => wants.includes(c.id))) return false;
+  // (a RELOAD while a string is fired is one magazine a string's fault, counted when the magazine is seated (0.0.6))
+  if (R.hot && macroId.startsWith('reload:')) return false;
   noteTick(state, { ahead: true });
   return true;
 }
 
 // ---- the shots and the steps ----
 
+// (the ammunition issue a round of a kind was counted on: the course's, or the mixed setup's tracer line)
+const issueOf = (state, R, load) => state.armoury.ammoIssues.find(a => a.id === (load && R.issueIds?.[load] ? R.issueIds[load] : R.issueId));
+
 /** A shot resolved (shot.js resolveShot): the session's records, the issue's count, a cold line's fault, the stoppage noted. */
 export function recordShot(state, bus, shot) {
   const R = rangeOf(state);
   if (!R) return;
   if (shot.fired) {
-    const issue = state.armoury.ammoIssues.find(a => a.id === R.issueId);
+    const issue = issueOf(state, R, shot.load);
     if (issue) issue.fired += 1;
     // (how it was shot, for the coach's tip: held to +4, unheld, or rushed; a natural 1)
     const mods = shot.roll?.mods ?? [], care = mods.some(m => m.src === 'tempo' && m.v < 0) ? 'rushed' : mods.some(m => m.why === 'the aim held' && m.v >= 4) ? 'held' : 'unheld';
-    R.shots.push({ id: shot.id, atMs: shot.atMs, lane: shot.lane, string: R.string, hole: shot.hole?.at ?? null, score: shot.hole?.score ?? 0, v: !!shot.hole?.v, logSeq: shot.logSeq, care, ...(shot.roll?.nat === 1 ? { nat1: true } : {}) });
+    R.shots.push({ id: shot.id, atMs: shot.atMs, lane: shot.lane, string: R.string, hole: shot.hole?.at ?? null, score: shot.hole?.score ?? 0, v: !!shot.hole?.v, logSeq: shot.logSeq, care, ...(shot.roll?.nat === 1 ? { nat1: true } : {}), ...(shot.load && shot.load !== 'ball' ? { load: shot.load } : {}) });
     if (R.shots.length > SHOTS_KEPT) R.shots.splice(0, R.shots.length - SHOTS_KEPT);
     if (shot.brassRec) { R.brass.push(shot.brassRec); if (R.brass.length > BRASS_LIVE) R.brass.splice(0, R.brass.length - BRASS_LIVE); }
     if (R.end) return;
@@ -415,7 +609,7 @@ export function recordEjects(state, pid, ejects, atMs, key) {
 export function recordDischarge(state, bus, pid, f, atMs, key) {
   const R = rangeOf(state);
   if (!R || !f?.fired) return [];
-  const issue = state.armoury.ammoIssues.find(a => a.id === R.issueId);
+  const issue = issueOf(state, R, f.load);
   if (issue) issue.fired += 1;
   return f.stoppage ? [] : recordEjects(state, pid, ['case'], atMs, `nd:${key}`);
 }
@@ -449,13 +643,14 @@ export function rangeNow(state, ms = state.clock.ms) {
   if (!R) return null;
   const mine = R.shots.filter(s => s.lane === R.lane);
   const s = scoreOf(mine.map(h => ({ at: h.hole, score: h.score, v: h.v })));
-  const strings = [0, 1, 2].map(k => scoreOf(mine.filter(h => h.string === k).map(h => ({ at: h.hole, score: h.score, v: h.v }))));
+  const strings = [0, 1, 2].map(k => ({ ...scoreOf(mine.filter(h => h.string === k).map(h => ({ at: h.hole, score: h.score, v: h.v }))), ...(R.sat?.includes(k) ? { sat: true } : {}), ...(R.over?.includes(k) ? { over: true } : {}) }));
   const L = laneOf(R.lane);
   return {
     course: R.course, lane: R.lane, phase: R.phase, string: R.string, cmd: R.cmd?.id ?? null, cmdI: R.cmd?.i ?? null, cmdAtMs: R.cmd?.atMs ?? null, hot: R.hot,
     observerId: R.coachId, roId: R.roId, paper: PAPERS[COURSES[R.course].paper] ? COURSES[R.course].paper : 'card25',
     line: { lane: R.lane, box: L.box, fp: L.fp, target: L.target, downrangeRad: KD_RANGE.downrangeRad },
     strings, end: R.end,
-    summary: { score: s.score, of: s.of, v: s.v, shots: s.shots, hits: s.hits, groupCm: s.groupCm, faults: R.faults.length, clearAtMs: R.end?.phase === 'clear' ? R.end.atMs : null },
+    summary: { score: s.score, of: s.of, v: s.v, shots: s.shots, hits: s.hits, groupCm: s.groupCm, faults: R.faults.length, clearAtMs: R.end?.phase === 'clear' ? R.end.atMs : null, sat: R.sat?.length ?? 0, over: R.over?.length ?? 0 },
+    dry: !!R.dry,
   };
 }

@@ -5,6 +5,10 @@
 // W the stance up and down by code (KeyQ, KeyZ, labelled A and W on AZERTY, Q and Z on QWERTY), queued
 // as carry, stance:up and stance:down; the digits a press key for the step panel (tapped under TAP_MS,
 // held at TAP_MS while still down, never both), their key-down 'digit' kept for menus and G's stub.
+// The 0.0.6 round's (the build sheet 0.0.6 §5.3): R held at 220 ms opens the R menu (cards/actions.js), which reads
+// its own keys by code while it is up (input.own): every key going down is the card's alone, nothing queued, no
+// listener told, so a key pressed in the menu never lands in the world, now or when it closes; R let go after its
+// hold, a key held into the menu, still lets go in the machine.
 import { assert } from './helpers.mjs';
 import { BINDINGS, TAP_MS, label, actionOf, bindingOf, createKeyState, AZERTY_LABELS, isDigitCode } from '../src/core/keys.js';
 import { createInput } from '../src/core/input.js';
@@ -222,6 +226,42 @@ export default [
       win.dispatchEvent(mouse('mousedown', 10, 10));
       assert(off.snapshot().mouse.clicks.length === 0, 'a click with no stage');
       console.log(`      page (740, 410) → stage (320, 180); a right click at page (102, 54) → [2, 1, 2]; wheel 120`);
+    },
+  },
+  {
+    name: 'a card\'s own keys (the R menu, the build sheet 0.0.6 §2.3): R held 220 ms fires held while still down; then while the card owns the keys, Space, the digits, Enter, Z, the arrows and R are its alone (none queued, no listener told, Space and the arrows prevented), its release gives them back, and R let go fires nothing more',
+    fn() {
+      const win = new EventTarget(), heard = [], card = [];
+      let t = 0;
+      const inp = createInput({ target: win, now: () => t });
+      inp.onAction((a, kind) => heard.push(`${a}/${kind}`));
+      win.dispatchEvent(key('keydown', 'KeyR'));
+      t = TAP_MS;
+      const s0 = inp.snapshot();
+      assert(heard.join() === 'hand/down,hand/held' && !s0.act.length, `R held: ${heard.join()}`);
+      // (the page opens the menu on the hold: from here its keys are its own)
+      const release = inp.own((code, e) => { card.push(`${code}${e.repeat ? '*' : ''}`); return true; });
+      const evs = ['Digit2', 'Space', 'Digit3', 'Space', 'KeyW', 'ArrowDown', 'Enter', 'KeyF', 'KeyG', 'Escape'].map(c => key('keydown', c));
+      for (const e of evs) { win.dispatchEvent(e); win.dispatchEvent(key('keyup', e.code)); }
+      win.dispatchEvent(key('keydown', 'ArrowDown', { repeat: true }));
+      t = TAP_MS + 600; win.dispatchEvent(key('keyup', 'KeyR'));
+      const s1 = inp.snapshot();
+      console.log(`      R held: ${heard.slice(0, 2).join(', ')}; the card heard ${card.join(' ')}; the world heard ${heard.slice(2).join(', ') || 'nothing'}, queued [${s1.act.join(', ')}], walking ${s1.mz}; R let go: nothing`);
+      assert(card.join(' ') === 'Digit2 Space Digit3 Space KeyW ArrowDown Enter KeyF KeyG Escape ArrowDown*' && inp.owned, card.join(' '));
+      assert(heard.length === 2 && !s1.act.length && s1.mz === 0 && evs.every(e => e.defaultPrevented), JSON.stringify({ heard, act: s1.act, mz: s1.mz }));
+      // (the card closed: the keys are the world's again, and R works as before)
+      release();
+      win.dispatchEvent(key('keydown', 'KeyF')); win.dispatchEvent(key('keyup', 'KeyF'));
+      t = 2000; win.dispatchEvent(key('keydown', 'KeyR')); t = 2100; win.dispatchEvent(key('keyup', 'KeyR'));
+      const s2 = inp.snapshot();
+      assert(!inp.owned && s2.act.join() === 'people' && heard.slice(2).join() === 'people/sim,hand/down,hand/tap', JSON.stringify({ act: s2.act, heard }));
+      // (a stale release never takes back a newer owner)
+      const r1 = inp.own(() => true), r2 = inp.own(() => true);
+      r1();
+      assert(inp.owned, 'the newer owner kept');
+      r2();
+      assert(!inp.owned, 'released');
+      inp.dispose();
     },
   },
 ];

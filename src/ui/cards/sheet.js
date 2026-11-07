@@ -12,9 +12,15 @@
 // skills) comes with SKILLS at 0.0.6. The card pauses the game, as every card does; C or Esc closes it.
 //
 // sheetOf(state, { body }) is the pure part (the ui-sheet test reads it in node): body is BODY's
-// readers ({ bodyOf, stagesOf, stripOf, wordsOf, cuesOf }, src/sim/body/), given by main.js so this card
+// readers ({ bodyOf, stagesOf, stripOf, wordsOf, cuesOf, hairOf }, src/sim/body/), given by main.js so this card
 // holds no body rule (but one of words: a shaved head's "Hair wet." reads "Head wet.", since BODY
 // knows the body and not the haircut). sheetCard(sheet, { dollOf }) is the DOM; dollOf(args) the stage's doll().
+//
+// The 0.0.6 round's (the build sheet 0.0.6 §2.3): a Hands row (BODY's wordsOf, "Dirty hands, since the head.":
+// the head no longer washes them, the basin does, the user's ask of 2026-11-06) and a Haircut row from the
+// hair's one helper, hairOf ("High and tight · growing out", "Haircut due Thursday.", "Out of regulation."):
+// grooming the hair as the beard is groomed (the user, 2026-11-06: "we should have to groom our hair the same
+// way we will have to groom our beards"). "Head wet." now for the shaved cut (v0.0.4's bald is gone).
 import { RANKS } from '../../data/people/ranks.js';
 import { COMPANY } from '../../data/people/billets.js';
 import { unitName, billetDef } from '../../sim/people/roster.js';
@@ -28,7 +34,7 @@ import { valueOf } from '../../sim/skills/templates.js';
 export const ROW_SCALE = 4;
 
 /** The needs' names on the sheet, in the strip's order (VIEWS §7.6), and the rest of what BODY's wordsOf reports. */
-export const NEED_NAMES = Object.freeze({ water: 'Thirst', food: 'Hunger', bladder: 'Bladder', bowel: 'Bowel', sleep: 'Sleep', grime: 'Hygiene', heat: 'Heat', air: 'Air', pain: 'Pain', stubble: 'Shave', stamina: 'Breath', stress: 'Nerves', morale: 'Morale', hair: 'Hair' });
+export const NEED_NAMES = Object.freeze({ water: 'Thirst', food: 'Hunger', bladder: 'Bladder', bowel: 'Bowel', sleep: 'Sleep', grime: 'Hygiene', heat: 'Heat', air: 'Air', pain: 'Pain', stubble: 'Shave', stamina: 'Breath', stress: 'Nerves', morale: 'Morale', hair: 'Hair', hands: 'Hands', haircut: 'Haircut' });
 /** What a need at its first band feels like where BODY's band has no words (nothing to feel: my calls). */
 export const FINE_WORDS = Object.freeze({ water: 'Not thirsty.', bladder: 'Nothing pressing.', bowel: 'Nothing pressing.', stamina: 'Breathing easy.' });
 const nameOf = (n) => (!n ? '?' : typeof n === 'string' ? n : [n.given, n.nick ? `'${n.nick}'` : null, n.family].filter(Boolean).join(' '));
@@ -51,9 +57,12 @@ export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg 
   const tones = new Map((strip ?? []).map(e => [e.need, e.tone]));
   const order = (n) => { const i = STRIP_ORDER.indexOf(n); return i < 0 ? 99 : i; };
   // (BODY's words know the body, not the haircut: a shaved head is wet, not its hair)
-  const bald = (look ?? p?.look)?.hair?.style === 'bald', said = (t) => (bald && t ? t.replace(/Hair wet\./g, 'Head wet.') : t);
+  const shaved = (look ?? p?.look)?.hair?.style === 'shaved', said = (t) => (shaved && t ? t.replace(/Hair wet\./g, 'Head wet.') : t);
   const needs = [...byNeed.values()].sort((a, b) => order(a.need) - order(b.need))
-    .map(n => ({ need: n.need, name: bald && n.need === 'hair' ? 'Head' : NEED_NAMES[n.need] ?? n.need, band: n.band ?? null, words: said(n.words || FINE_WORDS[n.need] || ''), tone: tones.get(n.need) ?? n.tone ?? 'fine' }));
+    .map(n => ({ need: n.need, name: shaved && n.need === 'hair' ? 'Head' : NEED_NAMES[n.need] ?? n.need, band: n.band ?? null, words: said(n.words || FINE_WORDS[n.need] || ''), tone: tones.get(n.need) ?? n.tone ?? 'fine' }));
+  // (the haircut, from the hair's one helper: the cut and how it has grown, or when it is due)
+  const hair = body.hairOf ? body.hairOf(state, pid, ms) : null;
+  if (hair?.band) needs.push({ need: 'haircut', name: NEED_NAMES.haircut, band: hair.band.id, words: haircutWords(hair), tone: hair.band.tone ?? 'fine', title: hair.word ?? null });
   const billet = svc.unitId && svc.billet ? billetDef(svc.unitId, svc.billet) : null;
   const enlisted = Number.isFinite(svc.enlistedMs) ? Math.max(0, ms - svc.enlistedMs) : null;
   const file = [
@@ -73,6 +82,13 @@ export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg 
     name: nameOf(p?.name), file, strip: strip ?? [], line: said(words?.line ?? ''), needs, stages,
     doll: { look: look ?? p?.look ?? null, sex: p?.sex ?? 'm', body: cues, outfit: me?.outfit ?? 'utilities' },
   };
+}
+
+/** The Haircut row's words from hairOf's record: 'High and tight · growing out' while fresh or growing, the band's own once due ('Haircut due Thursday.', 'Out of regulation.'). */
+export function haircutWords(hair) {
+  const cut = hair?.word ? `${hair.word[0].toUpperCase()}${hair.word.slice(1)}` : 'Your cut', words = String(hair?.band?.words ?? '');
+  if ((hair?.band?.i ?? 0) >= 2) return words;
+  return `${cut} · ${words.replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase())}`;
 }
 
 // ('f:e1:bay-2-1:rack-n1#2' → 'bay 2-1, rack n1, lower berth')
@@ -105,7 +121,7 @@ export function sheetCard(sheet, { dollOf = null, scale = 2 } = {}) {
   }
   // (each glyph at the head of its need's row, in the strip's order; then the needs no glyph shows)
   const byNeed = new Map(sheet.needs.map(n => [n.need, n]));
-  const row = (n, glyph) => el('div', { className: `need ${n.tone}`, title: n.band ? `${n.name}: ${n.band}` : n.name },
+  const row = (n, glyph) => el('div', { className: `need ${n.tone}`, title: n.title ?? (n.band ? `${n.name}: ${n.band}` : n.name) },
     glyph ?? el('span', { className: 'g' }), el('span', { className: 'k', textContent: n.name }), el('span', { className: 'v', textContent: n.words || n.band || '' }));
   const rows = [
     ...sheet.strip.map(e => { const n = byNeed.get(e.need) ?? { need: e.need, name: NEED_NAMES[e.need] ?? e.need, band: e.band ?? null, words: e.words ?? '', tone: e.tone ?? 'fine' }; return row(n, entryEl({ ...e, words: n.words || e.words }, ROW_SCALE)); }),

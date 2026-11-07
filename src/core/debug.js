@@ -41,6 +41,11 @@
 //   plaque()           the plaque now: { rec (plaqueOf's record for the target shown), words, parts }
 //   range()            the range session now (the shot role's rangeNow), or null
 //   stop()             stop motion now (the shot role's stopNow: mode, phase, pick, aim, doing, reflex)
+//   menu()             R held's menu now (places' handMenu: { title, spotId, fixtureId, quick, rows }), or
+//                      null; and the card open, if it is: { …, card: { text, cursor, checked, picks } }
+//                      (the build sheet 0.0.6 §2.3)
+//   hands()            the player's hands: { dirt, why, band, words, k } (BODY's ledger and its stage)
+//   hair()             the player's hair: hairOf's { cut, word, h, sols, mm, step, band, dueDay, … }
 //   loop, bus, sim     the machinery, for tests that listen
 // and what main.js adds through more (property descriptors, so getters stay getters), since core
 // may not import the sim (TECH §2.2): area (the live area's id), go(area, x, z, face) (the debug
@@ -54,12 +59,12 @@
 // with nothing pending (main.js), so a test or a shot knows the page is up.
 //
 // URL parameters skip the title for tests and shots (main.js reads them through readParams()):
-// ?play=<scenario>&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&setup=hot|bench], hour being the Mars local hour at the
+// ?play=<scenario>&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&setup=hot|bench|mixed], hour being the Mars local hour at the
 // start (0-24, a fraction giving minutes), seed a whole number; &area=<id>&at=<x>,<z>&face=<f> a
 // start somewhere else than the scenario's (the barracks' berth): an area, a place in its frame in
 // metres, a facing (up, down, left, right); setup test-handling's start ('hot': string 1 in Condition 1,
 // prone, the line hot, aimed at your card; 'bench': the same with one magazine of 15, the build sheet
-// 0.0.5 §2.2's fill); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
+// 0.0.5 §2.2's fill; 'mixed', 0.0.6: the course from its brief with a fourth magazine, of tracer); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
 // agents' smoke runs) and &perf=1 (the GL counters and pass times). ?bench=<scene> (or ?bench=1, the
 // default scene) runs the bench card (main.js; src/data/bench.js holds the scenes).
 import { toJSON, fromJSON } from './state.js';
@@ -68,8 +73,8 @@ import { sorted } from './queue.js';
 import { utcText, marsTimeText } from './calendar.js';
 
 export const FACES = Object.freeze(['up', 'down', 'left', 'right']);
-/** test-handling's setups (the build sheet 0.0.5 §2.2). */
-export const SETUPS = Object.freeze(['hot', 'bench']);
+/** test-handling's setups (the build sheet 0.0.5 §2.2; 'mixed', the 0.0.6 arms role's: one tracer magazine besides the ball). */
+export const SETUPS = Object.freeze(['hot', 'bench', 'mixed']);
 
 /** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup }. */
 export function readParams(search = globalThis.location?.search ?? '') {
@@ -110,7 +115,7 @@ function pair(v) {
  * queue(action) the input's (an action for the next tick the loop runs); more, members main.js adds
  * (an object whose property descriptors are copied onto the handle).
  */
-export function createDebugHandle({ loop, sim = null, start, newGame, version = '?', store = null, bus = null, about = () => 'debug', view = null, solText = null, report = null, queue = null, more = null, body = null, instinct = null, splash = null, scores = null, arms = null }) {
+export function createDebugHandle({ loop, sim = null, start, newGame, version = '?', store = null, bus = null, about = () => 'debug', view = null, solText = null, report = null, queue = null, more = null, body = null, instinct = null, splash = null, scores = null, arms = null, menu = null, hands = null, hair = null }) {
   const inputOf = (inp) => (inp ? { ...NO_INPUT, ...inp, act: inp.act ?? [] } : NO_INPUT);
   const slotOf = (name) => {
     const s = String(name);
@@ -183,6 +188,12 @@ export function createDebugHandle({ loop, sim = null, start, newGame, version = 
     range() { return arms?.range && loop.state ? arms.range(loop.state) : null; },
     /** Stop motion now, or null. */
     stop() { return arms?.stop && loop.state ? arms.stop(loop.state) : null; },
+    /** R held's menu now (handMenu's), with the open card's state where it is up, or null (main.js gives the reader). */
+    menu() { return menu && loop.state ? menu(loop.state) : null; },
+    /** The player's hands: { dirt, why, band, words, k }, or null. */
+    hands() { return hands && loop.state ? hands(loop.state) : null; },
+    /** The player's hair (hairOf's record), or null. */
+    hair() { return hair && loop.state ? hair(loop.state) : null; },
     loop,
     bus,
     sim,

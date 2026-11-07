@@ -170,7 +170,7 @@ export function createRange(engine, { looks = {} } = {}) {
       if (e.kind === 'caseTick') {
         if (!me) continue;
         // (a live round or the dummy lands duller than an empty case: heavier, no ring (DULL_DB, DULL_HZ: my calls))
-        const v = caseVoice({ me, at: e.at ?? me }), dull = e.what === 'round' || e.what === 'dummy';
+        const v = caseVoice({ me, at: e.at ?? me }), dull = e.what === 'round' || e.what === 'tracer' || e.what === 'dummy';
         if (engine.shot('caseTick', { gainDb: v.gainDb + (dull ? DULL_DB : 0), lowHz: dull ? Math.min(v.lowpassHz, DULL_HZ) : v.lowpassHz, pan: v.pan, rate: dull ? 0.8 : 1 })) { stats.cases++; stats.lastCase = { gainDb: r1(v.gainDb), distM: r1(v.distM), what: e.what ?? 'case' }; }
         continue;
       }

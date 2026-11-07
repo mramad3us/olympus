@@ -38,11 +38,17 @@
 // empty billet counted, with the sex and age fillPlayer will draw, so the player's look always fits):
 // a look that clashes with one placed before, or leaves the rest of the squad no way to fit (an exact
 // search, feasible()), is redrawn on the squad's stream ('looks') up to LOOK_REROLLS 10 times, then
-// picked by weight from every look that fits. A squad of thirteen men, or of nine women or more,
-// cannot meet the rule on these three alone (the kit's three men's cuts by four skins make twelve
-// (skin, cut) pairs, the women's two cuts eight), about 1.7% of squads at 30% women (1.67% in the
-// integrator's count, v0.0.3): there the
-// clashes are kept fewest and counted (stats.lookClashes).
+// picked by weight from every look that fits. Where no way fits, the clashes are kept fewest and
+// counted (stats.lookClashes).
+// The cuts (0.0.6; the build sheet 0.0.6 §2.2, §8 items 16 and 17; the user, 2026-11-06: "a soldier with
+// half balding hair would 100% go fully shaved head for service") are CAREER §2's seven regulation cuts,
+// men's four and women's three, sharing none: sixteen (skin, cut) pairs for men where v0.0.5's three cuts
+// made twelve, twelve for women where its two made eight, so a squad of thirteen men can now fit. A man
+// is thinning when hash01('hairline', seed, lookSeed) < THIN_P at his age at the roster's reference time
+// (cosmetic, by hash: no stream moves), and his only cut is the shaved head (look.hair.thin, saved): the
+// style drawn on his stream is still drawn (so his stream's later draws stay where they were) and then set
+// to shaved, and in the squad's rule his options are the shaved head's only (a (skin, shaved) pair of his
+// own: four in a squad).
 //
 // fillPlayer(state, { unitId, billet }) draws the player as any billet's person (their own stream),
 // tier 1, without personality axes, tags, quirk or nickname (PEOPLE §3.12: the player plays the
@@ -54,6 +60,7 @@
 // as before), and admitStaff makes a staff post's person (src/sim/people/staff.js: the range officer,
 // the coach) on the staff's streams, after the roster and the player, with no billet.
 import { stream, next, int, range, pick, chance, weighted } from '../../core/rng.js';
+import { hash01 } from '../../core/hash.js';
 import { DAY_MS } from '../../core/clock.js';
 import { nextId, put } from '../../core/ids.js';
 import { START_MS } from '../../data/setting/calendar.js';
@@ -64,7 +71,7 @@ import { RANKS, AGE_MODE_FRAC, ENTRY_AGE_Y, AGE_REDRAWS } from '../../data/peopl
 import { AXES, TRAIT_WEIGHTS, TRAIT_MIN, TRAIT_MAX, NCOS_ADD, TAGS, TAGS_T12 } from '../../data/people/traits.js';
 import { BACKGROUNDS, BG_W_FIT, BG_W_ANY, MARS_KINDS } from '../../data/people/backgrounds.js';
 import { QUIRKS, QUIRK_FRAC } from '../../data/people/quirks.js';
-import { SKINS, HAIR_STYLES, HAIR_COLOURS, GREY_FROM_Y, GREY_W, HEIGHTS_M, BUILDS, BODY_TMPL, LOOK_SEED_MAX, LOOK_REROLLS } from '../../data/people/looks.js';
+import { SKINS, HAIR_STYLES, HAIR_COLOURS, GREY_FROM_Y, GREY_W, HEIGHTS_M, BUILDS, BODY_TMPL, LOOK_SEED_MAX, LOOK_REROLLS, CUTS, THIN_P, THIN_CUT } from '../../data/people/looks.js';
 import { personName, middleName, fullName, registerName, nameRejected } from './names.js';
 import { berthOf } from '../places/fixtures.js';
 import { BODY_V } from '../body/record.js';
@@ -164,12 +171,22 @@ export function hairColours(skin, ageY) {
   return ageY >= GREY_FROM_Y ? [...base, ['grey', GREY_W]] : base;
 }
 
-/** A look's three attributes drawn on r for a person of sex and age: { skin, style, color }. */
-export function drawLookParts(r, sex, ageY) {
+/** A look's three attributes drawn on r for a person of sex and age: { skin, style, color } (a thinning man's style drawn, then the shaved head). */
+export function drawLookParts(r, sex, ageY, thin = false) {
   const skin = weighted(r, SKINS);
-  const style = weighted(r, HAIR_STYLES[sex]);
-  return { skin, style, color: weighted(r, hairColours(skin, ageY)) };
+  const drawn = weighted(r, HAIR_STYLES[sex]);
+  return { skin, style: thin && sex === 'm' ? THIN_CUT : drawn, color: weighted(r, hairColours(skin, ageY)) };
 }
+
+/** A man's chance his hair is thinning at an age in years (THIN_P, linear between its points, flat past its ends). */
+export function thinP(ageY) {
+  const P = THIN_P;
+  if (!(ageY > P[0][0])) return P[0][1];
+  for (let i = 1; i < P.length; i++) if (ageY <= P[i][0]) { const [a0, p0] = P[i - 1], [a1, p1] = P[i]; return p0 + (p1 - p0) * (ageY - a0) / (a1 - a0); }
+  return P[P.length - 1][1];
+}
+/** Whether a man is thinning (by hash: the world's seed and his look seed against thinP at his age; a woman never). */
+export const isThinning = (seed, sex, lookSeed, ageY) => sex === 'm' && hash01('hairline', seed >>> 0, lookSeed) < thinP(ageY);
 
 // (the tags, drawn by weight without replacement, minding exclusions and needs)
 function drawTags(r, n, traits, homeKind, bg) {
@@ -212,8 +229,11 @@ export function drawCore(seed, unitId, def, tier, r = stream('roster', seed, uni
   const ageY = ageD / YEAR_D;
   const parts = drawLookParts(r, sex, ageY);
   const lookSeed = 1 + int(r, LOOK_SEED_MAX);
+  // (thinning by hash on the look seed, drawn after it: the stream moves as before; a thinning man shaves his head)
+  const thin = isThinning(seed, sex, lookSeed, ageY);
+  if (thin) parts.style = THIN_CUT;
   return { sex, rank, ageD, tisD, ageRedraws: redraws, ageRaised: raised, home, place, bg, traits, tags, hasQuirk, hasNick,
-    body: { heightM, build }, parts, lookSeed, ageY };
+    body: { heightM, build }, parts, lookSeed, ageY, thin };
 }
 
 // ---- the squad's looks (VIEWS §3.9) ----
@@ -224,22 +244,28 @@ export const lookApart = (a, b) => differs(a, b) >= 2;
 
 // Looks as codes: two looks are apart exactly when they share no pair of (skin, style), (skin,
 // colour), (style, colour), so a squad's looks so far are three sets of pairs, and a look is free
-// when none of its three pairs is taken: one test a look, not one a placed look.
+// when none of its three pairs is taken: one test a look, not one a placed look. The styles are the
+// seven cuts (0.0.6), men's 0 to 3 (the shaved head 3), women's 4 to 6.
 const SKIN_I = Object.fromEntries(SKINS.map(([k], i) => [k, i]));
-const STYLE_I = { crew: 0, short: 1, bald: 2, bun: 3 };
+const STYLES = Object.freeze(Object.keys(CUTS));
+const STYLE_I = Object.fromEntries(STYLES.map((k, i) => [k, i]));
+const NS = STYLES.length, MEN_I = Object.freeze(STYLES.map((k, i) => (CUTS[k].sex === 'm' ? i : -1)).filter(i => i >= 0)), WOMEN_I = Object.freeze(STYLES.map((k, i) => (CUTS[k].sex === 'f' ? i : -1)).filter(i => i >= 0));
+const SHAVED_I = STYLE_I[THIN_CUT];
 const COLOUR_I = { black: 0, dark: 1, brown: 2, auburn: 3, blond: 4, grey: 5 };
-const codeOf = (L) => ({ s: SKIN_I[L.skin], t: STYLE_I[L.style], c: COLOUR_I[L.color] });
-const taken = () => ({ st: new Uint8Array(16), sc: new Uint8Array(24), tc: new Uint8Array(24) });
-const isFree = (T, k) => !T.st[k.s * 4 + k.t] && !T.sc[k.s * 6 + k.c] && !T.tc[k.t * 6 + k.c];
-const mark = (T, k, v) => { T.st[k.s * 4 + k.t] = v; T.sc[k.s * 6 + k.c] = v; T.tc[k.t * 6 + k.c] = v; };
-// (every look a member may take, by weight: [{ skin, style, color, w, k }])
+const codeOf = (L) => ({ s: SKIN_I[L.skin], t: STYLE_I[L.style] ?? 0, c: COLOUR_I[L.color] });
+const taken = () => ({ st: new Uint8Array(4 * NS), sc: new Uint8Array(24), tc: new Uint8Array(NS * 6) });
+const isFree = (T, k) => !T.st[k.s * NS + k.t] && !T.sc[k.s * 6 + k.c] && !T.tc[k.t * 6 + k.c];
+const mark = (T, k, v) => { T.st[k.s * NS + k.t] = v; T.sc[k.s * 6 + k.c] = v; T.tc[k.t * 6 + k.c] = v; };
+// (every look a member may take, by weight: [{ skin, style, color, w, k }]; a thinning man's the shaved head's only)
 const optionCache = new Map();
 function looksFor(m) {
-  const key = `${m.sex}|${m.ageY >= GREY_FROM_Y ? 'g' : ''}`;
+  const thin = !!m.thin && m.sex === 'm';
+  const key = `${m.sex}|${m.ageY >= GREY_FROM_Y ? 'g' : ''}|${thin ? 't' : ''}`;
   let out = optionCache.get(key);
   if (out) return out;
   out = [];
-  for (const [skin, ws] of SKINS) for (const [style, wst] of HAIR_STYLES[m.sex]) for (const [color, wc] of hairColours(skin, m.ageY)) {
+  const styles = thin ? [[THIN_CUT, 1]] : HAIR_STYLES[m.sex];
+  for (const [skin, ws] of SKINS) for (const [style, wst] of styles) for (const [color, wc] of hairColours(skin, m.ageY)) {
     const L = { skin, style, color, w: ws * wst * wc };
     L.k = codeOf(L);
     out.push(Object.freeze(L));
@@ -250,13 +276,18 @@ function looksFor(m) {
 const FEASIBLE_NODES = 20_000;
 // (whether the members still to come can each take a free look, given the pairs taken: an exact
 // search, the member with the fewest looks left first, capped at FEASIBLE_NODES nodes)
-// (a quick necessary test first: each still to come needs a (skin, cut) pair of their own, men's
-// in the crew and bald columns or the short one, women's in the bun column or the short one)
+// (a quick necessary test first: each still to come needs a (skin, cut) pair of their own, a man's in
+// the men's columns (a thinning man's in the shaved head's), a woman's in the women's: men and women
+// share no cut since 0.0.6)
 function cellsFit(T, rest, done) {
-  let men = 0, women = 0, cb = 0, sh = 0, bun = 0;
-  for (let i = 0; i < rest.length; i++) if (!done[i]) { if (rest[i].sex === 'f') women++; else men++; }
-  for (let sk = 0; sk < 4; sk++) { cb += !T.st[sk * 4] + !T.st[sk * 4 + 2]; sh += !T.st[sk * 4 + 1]; bun += !T.st[sk * 4 + 3]; }
-  return Math.max(0, men - cb) + Math.max(0, women - bun) <= sh;
+  let men = 0, thin = 0, women = 0, mc = 0, sc = 0, wc = 0;
+  for (let i = 0; i < rest.length; i++) if (!done[i]) { if (rest[i].sex === 'f') women++; else { men++; if (rest[i].thin) thin++; } }
+  for (let sk = 0; sk < 4; sk++) {
+    for (const t of MEN_I) mc += !T.st[sk * NS + t];
+    for (const t of WOMEN_I) wc += !T.st[sk * NS + t];
+    sc += !T.st[sk * NS + SHAVED_I];
+  }
+  return men <= mc && thin <= sc && women <= wc;
 }
 function feasibleFrom(T, rest) {
   if (!rest.length) return true;
@@ -299,7 +330,7 @@ function placeLook(T, placedList, m, rest, r, stats, ahead) {
   let L = m.parts;
   if (!ok(L)) {
     let found = false;
-    for (let n = 0; n < LOOK_REROLLS && !found; n++) { stats.redraws++; L = drawLookParts(r, m.sex, m.ageY); found = ok(L); }
+    for (let n = 0; n < LOOK_REROLLS && !found; n++) { stats.redraws++; L = drawLookParts(r, m.sex, m.ageY, m.thin); found = ok(L); }
     if (!found) {
       const fits = looksFor(m).filter(ok);
       if (fits.length) { stats.picks++; const c = weighted(r, fits.map(f => [f, f.w])); L = { skin: c.skin, style: c.style, color: c.color }; }
@@ -318,7 +349,7 @@ function placeLook(T, placedList, m, rest, r, stats, ahead) {
 }
 
 /**
- * Each member's look made apart from the squad's (see the header). members: [{ sex, ageY, parts }]
+ * Each member's look made apart from the squad's (see the header). members: [{ sex, ageY, parts, thin }]
  * in billet order, placed: looks already fixed (fillPlayer's squadmates); r the squad's stream.
  * Returns { looks: [parts…] for the members, redraws, picks, clashes }.
  */
@@ -388,7 +419,7 @@ function makePerson(state, ctx, { unitId, def, squad }, core, tier, { player = f
     service: { branch: def.branch, rank: core.rank, grade: rk.grade, mos: def.mos, unitId, billet: def.key, enlistedMs: ctx.refMs - core.tisD * DAY_MS },
     background: core.bg.id,
     body: { v: BODY_V, tmpl: BODY_TMPL[core.sex], heightM: core.body.heightM, build: core.body.build },   // (BODY's record at its version: its ledgers from the template, src/sim/body/record.js)
-    look: { skin: core.parts.skin, hair: { style: core.parts.style, color: core.parts.color }, seed: core.lookSeed },
+    look: { skin: core.parts.skin, hair: { style: core.parts.style, color: core.parts.color, ...(core.thin ? { thin: true } : {}) }, seed: core.lookSeed },
   };
   if (name.middle) rec.name.middle = name.middle;
   if (!player) {
@@ -487,7 +518,7 @@ export function rollRoster(state, { companyId = COMPANY.id, leave = PLAYER_BILLE
       return { b, tier, core, empty: b.unitId === leave.unitId && b.def.key === leave.billet };
     });
     if (g.squad) {
-      const out = squadLooks(cores.map(c => ({ sex: c.core.sex, ageY: c.core.ageY, parts: c.core.parts })), stream('roster', seed, g.squad, 'looks'));
+      const out = squadLooks(cores.map(c => ({ sex: c.core.sex, ageY: c.core.ageY, parts: c.core.parts, thin: c.core.thin })), stream('roster', seed, g.squad, 'looks'));
       out.looks.forEach((L, i) => { cores[i].core.parts = L; });
       ctx.stats.lookRedraws += out.redraws; ctx.stats.lookPicks += out.picks; ctx.stats.lookClashes += out.clashes;
     }
@@ -521,7 +552,7 @@ export function fillPlayer(state, { unitId = PLAYER_BILLET.unitId, billet = PLAY
     // (the look: the player's own, else one that fits the squad, picked on the player's look stream)
     const mates = Object.values(state.units[squad].billets).map(id => state.people[id]).filter(Boolean)
       .map(p => ({ skin: p.look.skin, style: p.look.hair.style, color: p.look.hair.color }));
-    const out = squadLooks([{ sex: core.sex, ageY: core.ageY, parts: core.parts }], stream('roster', seed, unitId, 'looks', 'player'), mates);
+    const out = squadLooks([{ sex: core.sex, ageY: core.ageY, parts: core.parts, thin: core.thin }], stream('roster', seed, unitId, 'looks', 'player'), mates);
     core.parts = out.looks[0];
     ctx.stats.lookRedraws += out.redraws; ctx.stats.lookPicks += out.picks; ctx.stats.lookClashes += out.clashes;
   }
