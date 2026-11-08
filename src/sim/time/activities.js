@@ -37,8 +37,8 @@
 // outfit } (time.resume's: "finish your shower", in what you wore into it).
 // lateCheck(state, id, spotId, durMs) is TIME §9.5's obligation check, cut to this round's one
 // obligation, an open alert drill, mustered for or not: before the count, an activity that ends after
-// the count's due time less the walk back to the rack's foot (the open grid's path at BODY's walk,
-// 1.14 m/s) and the dressing into utilities it leaves to do is late; from the count to the
+// the count's due time less the walk back to the rack's foot (the open grid's path at BODY's walk at
+// the place's gravity, motion.js placeGaits: 1.14 m/s at Melas) and the dressing into utilities it leaves to do is late; from the count to the
 // stand-down every activity is (leaving the muster before the stand-down: the review of v0.0.4).
 // { block: 'drill', dueMs, walkMs, dressMs, endMs, fitMs, label }, fitMs the length that would still
 // make it ('fit it in'; 0 after the count). Dressing into utilities and standing fast are never
@@ -102,8 +102,10 @@ import { CUTS } from '../../data/people/looks.js';
 import { areaOf } from '../places/model.js';
 import { spotsOf, seatOf } from '../places/fixtures.js';
 import { openNavOf, path } from '../places/nav.js';
-import { PLAYER_CLS, WALK_MS } from '../places/move.js';
+import { PLAYER_CLS } from '../places/move.js';
+import { placeGaits } from '../body/motion.js';
 import { siteLonEDeg } from '../jobs.js';
+import { siteAt, waterOf } from '../places/env.js';
 import { logEntry } from '../log.js';
 import { FF_MAX_MS } from './skip.js';
 import { activityNow, activityOf, dressMs, dressTempo, transPlaying } from './doing.js';
@@ -235,7 +237,7 @@ function wants(state, def) {
 function partMs(state, id, def, args, atMs, wearing) {
   if (typeof def.ms === 'number') return def.ms;
   switch (def.ms) {
-    case 'water': return Math.round((WATER_MIN[state.places?.live?.site] ?? WATER_MIN.melas) * MIN_MS);
+    case 'water': return Math.round(waterMinOf(state) * MIN_MS);
     case 'dress': {
       const to = id === 'sleep' ? 'pt' : args.to ?? defaultDressTo(state, wearing);
       return dressMs(wearing, to, dressTempo(state, to, atMs));
@@ -316,6 +318,12 @@ export function planOf(state, id, { spotId = null, args = {}, fromMs = null, wea
 // ---- why not (the struck rows: the build sheet 0.0.6 §2.1) ----
 
 // (the Melas hour at ms, 0 to 24; the slip reads 24)
+// (the shower's water minutes at the live site: its record's water, WATER_MIN's row (TIME §8.2); an unknown one throws)
+function waterMinOf(state) {
+  const w = waterOf(siteAt(state)), min = WATER_MIN[w];
+  if (!Number.isFinite(min)) throw new Error(`activities: no water minutes for '${w}' (${Object.keys(WATER_MIN).join(', ')})`);
+  return min;
+}
 const hourAt = (state, ms) => { const c = marsClock(ms, siteLonEDeg(state)); return c.timeslip ? 24 : c.civilMs / 3_600_000; };
 
 /** Why a single action is struck at a spot now, or null (see the header): words for the row and the refusal. */
@@ -382,16 +390,16 @@ export function actionWords(state, id, args = {}) {
 // ---- the obligation (TIME §9.5) ----
 
 const walkMemo = new Map();
-/** The walk between two points of an area on its open grid, ms at BODY's walk (memoised by the pair). */
-export function walkMs(areaId, ax, az, bx, bz) {
+/** The walk between two points of an area on its open grid, ms at speedMs (BODY's walk at the place's gravity, motion.js placeGaits: required; the path memoised by the pair). */
+export function walkMs(areaId, ax, az, bx, bz, speedMs) {
+  if (!(speedMs > 0)) throw new Error(`walkMs(): the walk's speed at the place, not ${speedMs}`);
   const key = `${areaId}|${ax}|${az}|${bx}|${bz}`;
-  let v = walkMemo.get(key);
-  if (v === undefined) {
+  let m = walkMemo.get(key);
+  if (m === undefined) {
     const grid = openNavOf(areaId, PLAYER_CLS), r = grid ? path(grid, [ax, az], [bx, bz]) : null;
-    const m = r && !r.fail ? r.lengthM : dist(ax, az, bx, bz) * 1.4;
-    walkMemo.set(key, (v = Math.ceil((m / WALK_MS) * SEC_MS)));
+    walkMemo.set(key, (m = r && !r.fail ? r.lengthM : dist(ax, az, bx, bz) * 1.4));
   }
-  return v;
+  return Math.ceil((m / speedMs) * SEC_MS);
 }
 
 // (a clock time as the watch shows it, the slip as '24:00 +12'; and the moment its shown minute began)
@@ -407,7 +415,7 @@ export function lateCheck(state, id, spotId, durMs, args = {}) {
   const m = musterOf(state, pid), me = playerActor(state);
   if (!m) return null;
   const sp = spotOf(state, spotId), x = sp?.x ?? me?.x ?? m.x, z = sp?.z ?? me?.z ?? m.z;
-  const walk = state.places?.live?.area === m.area ? walkMs(m.area, x, z, m.x, m.z) : 600_000;
+  const walk = state.places?.live?.area === m.area ? walkMs(m.area, x, z, m.x, m.z, placeGaits(state, m.area).walkMs) : 600_000;
   const lon = siteLonEDeg(state);
   const endMs = now + durMs;
   // (what it leaves you wearing, whole and cut half-way: a chain's is given, args.landing)
@@ -560,7 +568,7 @@ function partEnd(state, bus, d, part, f, ms, whole = f) {
     // (the head and a stall soil the hands, whatever share was done: the user, 2026-11-06, "using the head shouldn't wash our hands")
     case 'go': relieve(state, pid, { bladderK: 1.0 * f }, ms, bus); if (f > 0) soil(state, pid, { k: HANDS.HEAD, why: 'head' }, ms, bus); break;
     case 'sit': relieve(state, pid, { bowelK: 0.9 * f, bladderK: 1.0 * f }, ms, bus); if (f > 0) soil(state, pid, { k: HANDS.STALL, why: 'stall' }, ms, bus); break;
-    case 'water': if (f > 0) wash(state, pid, { waterMin: (WATER_MIN[state.places?.live?.site] ?? WATER_MIN.melas) * f }, ms, bus); break;
+    case 'water': if (f > 0) wash(state, pid, { waterMin: waterMinOf(state) * f }, ms, bus); break;
     case 'hands': if (whole >= 1) groom(state, pid, { hands: true }, ms, bus); break;
     case 'teeth': if (whole >= 1) groom(state, pid, { teeth: true }, ms, bus); break;
     case 'shave': if (whole >= 1) groom(state, pid, { shave: true }, ms, bus); break;

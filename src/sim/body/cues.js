@@ -14,7 +14,8 @@
 // (VIEWS §8.2, BODY's belief in words: "Fed two hours ago; thirsty.", "Fresh. Hair wet.") and each
 // need's words. A body without a beard (hasBeard: a woman's) has no stubble stage past 0, no stubbleK
 // and no Shave row in the words. A record may be given whole or as its saved deltas. The site's longitude places the
-// body clock (Melas's by default, where every career starts).
+// body clock, and every reader takes it: a missing or non-finite lonEDeg throws (TECH §1.4: no quiet Melas; the
+// callers pass the live site's, places/model.js lonOf, which throws off Mars's clock in turn).
 // 0.0.6: the hands (the build sheet 0.0.6 §2.2): stagesOf's hands band, its words naming the last soiling
 // from dirty on ("Dirty hands, since the head.", "Gun oil and carbon on your hands.", "Regolith ground into
 // your palms."; handsWords), cuesOf's handsK (dirt / 100) and handsWhy for the doll, and the words' hands row.
@@ -25,7 +26,6 @@
 // (fine 0, in pain 2, bad pain 3, agony 5). An unwounded body reads as before, word for word.
 // Pure.
 import { HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, FATIGUE_BANDS, STAMINA_BANDS, STUBBLE_BANDS, STRESS_BANDS, MORALE_BANDS, HYGIENE, HANDS_BANDS } from '../../data/body/needs.js';
-import { SITES, START } from '../../data/setting/calendar.js';
 import { HOUR_MS, MIN_MS } from '../../core/clock.js';
 import { withDefaults, hasBeard } from './record.js';
 
@@ -41,8 +41,8 @@ import { woundWords, painOf, painBand, bandOf, bleeding, hasWounds, LIMB_CAP_PM 
 
 export { woundWords };
 
-/** Melas's east longitude, the readers' default. */
-export const MELAS_LON_E_DEG = SITES[START.site].lonEDeg;
+// (the site's east longitude every reader is given: required, never a default)
+const lonNeed = (lonEDeg, who) => { if (!Number.isFinite(lonEDeg)) throw new Error(`${who}(): the site's east longitude (places/model.js lonOf), not ${lonEDeg}`); return lonEDeg; };
 /** VIEWS §7.6's strip, in its order. */
 export const STRIP_NEEDS = Object.freeze(['water', 'food', 'bladder', 'bowel', 'sleep', 'grime', 'heat', 'air', 'pain']);
 
@@ -62,13 +62,15 @@ const HANDS_WHY = Object.freeze({
 export const handsWords = (i, why) => HANDS_WHY[why]?.[i] ?? HANDS_BANDS[i]?.words ?? '';
 
 /** The body's effective sleep pressure at ms (BODY §7.3): the pressure and the body clock's term. */
-export function pEffOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
+export function pEffOf(body, ms, lonEDeg) {
+  lonNeed(lonEDeg, 'pEffOf');
   const b = withDefaults(body);
   return b.sleep.pressureH + circ(phiOf(ms, lonMsOf(lonEDeg), b.sleep.offsetH));
 }
 
 /** Each ledger's felt band at ms (see the header). */
-export function stagesOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
+export function stagesOf(body, ms, lonEDeg) {
+  lonNeed(lonEDeg, 'stagesOf');
   const b = withDefaults(body), lonMs = lonMsOf(lonEDeg), phi = phiOf(ms, lonMs, b.sleep.offsetH), mass = massOf(b);
   const e = b.energy;
   return {
@@ -94,7 +96,8 @@ function handsStage(b) {
 
 const HUNGER_K = Object.freeze([0, 0.2, 0.6, 0.8, 1, 1, 1]);
 /** What the figure and the doll draw, each 0 to 1 (see the header). */
-export function cuesOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
+export function cuesOf(body, ms, lonEDeg) {
+  lonNeed(lonEDeg, 'cuesOf');
   const b = withDefaults(body), h = b.hygiene, wet = h.wetUntilMs !== null && h.wetUntilMs !== undefined && ms < h.wetUntilMs ? (h.wetUntilMs - ms) / HYGIENE.WET_HAIR_MS : 0;
   const e = b.energy;
   return {
@@ -107,7 +110,8 @@ export function cuesOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
 }
 
 /** VIEWS §7.6's strip: [{ need, band, fill, tone }] in STRIP_NEEDS's order. */
-export function stripOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
+export function stripOf(body, ms, lonEDeg) {
+  lonNeed(lonEDeg, 'stripOf');
   const s = stagesOf(body, ms, lonEDeg), b = withDefaults(body), cold = stageOf(b.thermal.coreC);
   const of = (need, st) => ({ need, band: st.band, fill: st.fill, tone: st.tone });
   return [
@@ -149,7 +153,8 @@ export function fedPhrase(ateMs, ms) {
 }
 const lower = (w) => w.replace(/\.$/, '').replace(/^./, c => c.toLowerCase());
 /** The sheet's words (VIEWS §8.2): { line, needs: [{ need, band, words }] }. */
-export function wordsOf(body, ms, lonEDeg = MELAS_LON_E_DEG) {
+export function wordsOf(body, ms, lonEDeg) {
+  lonNeed(lonEDeg, 'wordsOf');
   const b = withDefaults(body), s = stagesOf(b, ms, lonEDeg), wet = cuesOf(b, ms, lonEDeg).wetK > 0;
   const food = s.hunger.i === 0 ? fedPhrase(b.energy.ateMs, ms) : s.hunger.words.replace(/\.$/, '');
   const order = [['bladder', s.bladder], ['bowel', s.bowel], ['water', s.thirst], ['sleep', s.fatigue], ['grime', s.hygiene], ['hands', s.hands], ['stubble', s.stubble], ['stamina', s.stamina], ['stress', s.stress], ['morale', s.morale]];

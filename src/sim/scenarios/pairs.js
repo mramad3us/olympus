@@ -95,17 +95,15 @@
 // test-pairs or "Three bangs" unless the player does, so their bots run to the tick.
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
-import { msAtMarsTime } from '../../core/calendar.js';
 import { stream, intIn, int, weighted } from '../../core/rng.js';
 import { hashPick, hash01 } from '../../core/hash.js';
 import { playerActor, playerId } from '../../core/ids.js';
 import { cancel } from '../../core/queue.js';
-import { START_MS, SITES } from '../../data/setting/calendar.js';
 import { SCENES } from '../../data/scenes.js';
 import { COURSES, PAIRS_COACH, STRESS_COACH } from '../../data/courses.js';
 import { KD_RANGE, PAIRS, pairsLaneOf } from '../../data/places/range.js';
-import { siteOf } from '../places/model.js';
-import { WALK_MS } from '../places/move.js';
+import { lonOfSite } from '../places/env.js';
+import { placeGaits } from '../body/motion.js';
 import { setOutfit, syncActors } from '../people/place.js';
 import { drawStaff, setPost } from '../people/staff.js';
 import { startBody } from '../body/body.js';
@@ -131,7 +129,7 @@ import { ROWS } from '../arms/specials.js';
 import { rungOf } from '../skills/templates.js';
 
 /** Where the scene plays (the build sheet §2.3). */
-export const PAIRS_SCENE = Object.freeze({ site: 'melas', area: KD_RANGE.area, course: 'pairs' });
+export const PAIRS_SCENE = Object.freeze({ site: SCENES['test-pairs'].host.site, area: KD_RANGE.area, course: 'pairs' });
 const C = COURSES.pairs;
 /** The gap from "Standby" to the turn (ms, whole ticks), and a string's limit lived since the turn (ms): the sheet's §4. */
 export const STANDBY_MS = C.standbyMs, STRING_MAX_MS = C.stringMaxMs;
@@ -152,7 +150,7 @@ export const ZONES = Object.freeze(['A', 'C', 'head', 'ring', 'headDown', 'miss'
 const ZONE_PAPER = Object.freeze({ A: 'A', C: 'C', head: 'HEAD', ring: 'RING', headDown: 'HEAD DOWN', miss: 'MISS', noshoot: 'NO-SHOOT HIT' });
 const ZONE_CARD = Object.freeze({ A: 'A', C: 'C', head: 'head', ring: 'ring', headDown: 'head down', miss: 'miss', noshoot: 'no-shoot hit' });
 
-const lonOf = () => SITES[siteOf(PAIRS_SCENE.site)?.geo]?.lonEDeg ?? 0;
+const lonOf = () => lonOfSite(PAIRS_SCENE.site);
 const whole = (ms) => Math.ceil(ms / TICK_MS) * TICK_MS;
 const isPairs = (state) => rangeOf(state)?.course === 'pairs';
 const tierOf = (tier) => (tier && TEST_SHEETS[tier] ? tier : PAIRS_SHEET);
@@ -240,10 +238,6 @@ const turnerOf = (R, key) => (R?.turners ?? []).find(T => T.key === key) ?? null
 /** The fill of 'test-pairs' (see the header). tier: a TEST_SHEETS id (the private by default); setup: null | 'standby' | 'standby:<k>' | 'bangs' | 'bangs:standby'. */
 export function testPairs(state, { at = null, setup = null, tier = null } = {}) {
   const scene = SCENES['test-pairs'], seed = state.meta.seed, lon = lonOf(), sheet = tierOf(tier);
-  if (state.clock.ms === START_MS && scene.hour !== null) {
-    const h = Math.floor(scene.hour), m = Math.round((scene.hour - h) * 60);
-    state.clock.ms = state.meta.createdMs = Math.ceil(msAtMarsTime(state.clock.ms, h, m, lon) / TICK_MS) * TICK_MS;
-  }
   const lane = drawLane(seed, 'pairs'), L = pairsLaneOf(lane), P = L.points[7];
   barracks(state, { at: { area: KD_RANGE.area, x: P.fp.x, z: P.fp.z, face: 'right', ...(at ?? {}) } });
   const me = playerActor(state), pid = playerId(state), person = state.people[pid];
@@ -579,11 +573,11 @@ function turnString(state, bus, s) {
   bus?.emit('range', { phase: 'turn', cmd: R.cmd?.id ?? null, hot: true, rule: null, kind: null, text: null, line: s.line, string: s.k });
 }
 
-// (the coach's walk to his new place, at the walk on Mars, one tick at a time)
+// (the coach's walk to his new place, at the walk at the place's gravity (motion.js placeGaits), one tick at a time)
 function coachStep(state, R) {
   const c = actorOf(state, R.coachId), w = R.coachWalk;
   if (!c) { delete R.coachWalk; return; }
-  const dx = w.x - c.x, dz = w.z - c.z, d = Math.hypot(dx, dz), step = WALK_MS * TICK_MS / 1000;
+  const dx = w.x - c.x, dz = w.z - c.z, d = Math.hypot(dx, dz), step = placeGaits(state).walkMs * TICK_MS / 1000;
   c.$px = c.x; c.$pz = c.z;
   if (d <= step) {
     c.x = w.x; c.z = w.z; c.face = w.face; c.gait = 'idle';

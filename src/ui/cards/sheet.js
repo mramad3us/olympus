@@ -77,13 +77,14 @@ export function hardeningRow(state, pid, ms, supp = null) {
 /** The skills the file shows where the sheet is written (the range's two). */
 export const SHEET_SKILLS = Object.freeze(['marksmanship', 'weapons']);
 
-export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg = 0, look = null, supp = null } = {}) {
+export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg, look = null, supp = null } = {}) {
   const pid = playerId(state), p = state?.people?.[pid] ?? null, svc = p?.service ?? {};
   const rec = body.bodyOf ? body.bodyOf(state, pid) : null;
-  const strip = rec && body.stripOf ? body.stripOf(rec, ms) : [];
-  const words = rec && body.wordsOf ? body.wordsOf(rec, ms) : { line: '', needs: [] };
+  // (the site's longitude, for the body clock: the caller's (main.js lonAt), never a default; BODY's readers throw without it)
+  const strip = rec && body.stripOf ? body.stripOf(rec, ms, lonEDeg) : [];
+  const words = rec && body.wordsOf ? body.wordsOf(rec, ms, lonEDeg) : { line: '', needs: [] };
   const stages = rec && body.stagesOf ? body.stagesOf(rec, ms, lonEDeg) : null;
-  const cues = rec && body.cuesOf ? body.cuesOf(rec, ms) : null;
+  const cues = rec && body.cuesOf ? body.cuesOf(rec, ms, lonEDeg) : null;
   const byNeed = new Map((words?.needs ?? []).map(n => [n.need, n]));
   const tones = new Map((strip ?? []).map(e => [e.need, e.tone]));
   const order = (n) => { const i = STRIP_ORDER.indexOf(n); return i < 0 ? 99 : i; };

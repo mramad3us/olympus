@@ -93,7 +93,8 @@ import { lightingOf } from '../places/light.js';
 import { weekdayOf } from '../time/dates.js';
 import { dressMs } from '../time/doing.js';
 import { DRESS_HURRY_K } from '../../data/activities.js';
-import { REVEILLE_H, REVEILLE_HOLIDAY_H, REVEILLE_STAND_MS } from '../../data/pod.js';
+import { REVEILLE_STAND_MS } from '../../data/pod.js';
+import { siteAt, routineOf } from '../places/env.js';
 import { eyeOf, visibility } from './perception.js';
 import { hairStepOf } from '../body/hair.js';
 
@@ -129,7 +130,6 @@ export const UPPER_FOOT_M = 0.6;
 export const STAND_DOWN_SETTLE_MS = 300_000;
 
 const FIRE_WATCH_RANKS = new Set(['Pvt', 'PFC', 'LCpl']);
-const HOLIDAY = new Set([5, 6]);
 const FACE_OF = (dx, dz) => (Math.abs(dx) > Math.abs(dz) ? (dx < 0 ? 'left' : 'right') : (dz < 0 ? 'up' : 'down'));
 const FOOT = Object.freeze({ down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] });
 const BACK = Object.freeze({ down: 'up', up: 'down', left: 'right', right: 'left' });
@@ -313,13 +313,13 @@ function climbOf(stand, rack) {
   return { x: r4(stand.x - fx * 0.5), z: r4(stand.z - fz * 0.5) };
 }
 
-// (reveille's time on the morning of a local sol: its first whole second, as the event's)
-function reveilleOfSol(ms, lon) {
-  const h = holidayAt(ms, lon) ? REVEILLE_HOLIDAY_H : REVEILLE_H;
+// (reveille's time on the morning of a local sol by the site's Plan of the Day (R, env.js routineOf): its first whole second, as the event's)
+function reveilleOfSol(ms, lon, R) {
+  const h = holidayAt(ms, lon, R) ? R.reveilleHolidayH : R.reveilleH;
   return Math.ceil((solStartMs(ms, lon) + Math.round(h * HOUR_MS)) / SEC_MS) * SEC_MS;
 }
-// (the local sol of ms is a Saturday or a Sunday: the holiday routine's reveille, which nothing hurries)
-const holidayAt = (ms, lon) => HOLIDAY.has(weekdayOf(localSol(ms, lon).sol));
+// (the local sol of ms keeps the routine's holiday hours (Melas's Saturday and Sunday): its reveille, which nothing hurries)
+const holidayAt = (ms, lon, R) => R.holidays.includes(weekdayOf(localSol(ms, lon).sol));
 
 /**
  * Whether the player's own rack transitions go at the alarm's tempo at ms: while a drill is open, and
@@ -329,8 +329,8 @@ const holidayAt = (ms, lon) => HOLIDAY.has(weekdayOf(localSol(ms, lon).sol));
 export function hurriedAt(state, ms = state.clock.ms) {
   const d = state.time?.drills?.open;
   if (d && ms >= d.atMs && ms < d.endMs) return true;
-  const lon = lonOf(state), R = reveilleOfSol(ms, lon);
-  return ms >= R && ms < R + REVEILLE_STAND_MS && !holidayAt(ms, lon);
+  const lon = lonOf(state), P = routineOf(siteAt(state)), R = reveilleOfSol(ms, lon, P);
+  return ms >= R && ms < R + REVEILLE_STAND_MS && !holidayAt(ms, lon, P);
 }
 
 // (the drill record covering ms, if one: the open drill, or the last one while its people settle)
@@ -379,12 +379,12 @@ function postDrillPose(sitting, id, ms, d, seed) {
 // (a placed person's pose but for a drill: lights out, reveille's stand, the day's)
 function basePose(state, id, seat, ms) {
   const lights = lit(state, seat.area, seat.room, ms);
-  const lon = lonOf(state), R = reveilleOfSol(ms, lon);
+  const lon = lonOf(state), P = routineOf(siteAt(state)), R = reveilleOfSol(ms, lon, P);
   if (lights === 'lightsOut' || (ms < R && ms > R - HOUR_MS)) return nightPose(state, id, seat, ms);
   if (ms >= R && ms < R + REVEILLE_STAND_MS) {
     // (a training sol's reveille is an order with a muster ten minutes on; the weekend's, nothing hurries)
     const before = nightPose(state, id, seat, R - TICK_MS), stand = footPose(seat, 'pt');
-    const t = transBetween(before, stand, R + callDelay(id, 'reveille', R, state.meta?.seed ?? 0), seat, !holidayAt(ms, lon));
+    const t = transBetween(before, stand, R + callDelay(id, 'reveille', R, state.meta?.seed ?? 0), seat, !holidayAt(ms, lon, P));
     return playing(t, ms) || ms < t.fromMs ? { ...stand, trans: t } : stand;
   }
   return dayPose(state, id, seat, ms);

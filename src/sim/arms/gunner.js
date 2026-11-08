@@ -36,6 +36,7 @@ import { stream, d20 } from '../../core/rng.js';
 import { playerId } from '../../core/ids.js';
 import { rollerOf } from '../combat/roll.js';
 import { stanceMs } from '../combat/steps.js';
+import { gravityAt } from '../places/env.js';
 import { subsOf } from './drills.js';
 import { doAction, beliefOf, gunField, beliefZero, dialMs, sightOf, setSight, believeZero, OPTIC_S } from './firearms.js';
 import { aimMsOf, resolveShot, poiOf, holdFor, HELD_RATE0, dcOf } from './shot.js';
@@ -125,7 +126,7 @@ function runSub(state, bus, G, action, now) {
   if (action.startsWith('stance:')) {
     const to = action.slice(7);
     if (kit?.carry?.posture === 'aimed') kit.carry.posture = 'lowReady';
-    return stanceMs(a?.stance ?? 'stand', to, { fitness: roller.value('fitness') });
+    return stanceMs(a?.stance ?? 'stand', to, { gG: gravityAt(state, null, a?.x ?? 0, a?.z ?? 0).gG, fitness: roller.value('fitness') });
   }
   if (action === 'aim') {
     const T = gunnerTarget(state, G);

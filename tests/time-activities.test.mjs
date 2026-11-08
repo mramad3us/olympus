@@ -11,6 +11,7 @@ import { activityNow, feetHeld } from '../src/sim/time/doing.js';
 import { splashPlan } from '../src/sim/time/splash.js';
 import { handOffer, handMenu } from '../src/sim/places/hand.js';
 import { areaOf } from '../src/sim/places/model.js';
+import { lonOf } from '../src/sim/places/model.js';
 import { spotsOf } from '../src/sim/places/fixtures.js';
 import { openingState } from '../src/sim/places/model.js';
 import { setOutfit } from '../src/sim/people/place.js';
@@ -119,7 +120,7 @@ export default [
       for (const r of rows) console.log(`      ${r}`);
       assert(out['a shower stall'].id === 'shower' && /^shower · 10 min, done 19:4\d$/.test(out['a shower stall'].label), JSON.stringify(out['a shower stall']));
       // (the sink: single actions only, R the most urgent by the user's priority: hands, thirst, stubble; time-actions holds the grid)
-      const st = stagesOf(bodyOf(s, pid), s.clock.ms), stub = bodyOf(s, pid).hygiene.stubbleH;
+      const st = stagesOf(bodyOf(s, pid), s.clock.ms, lonOf(s)), stub = bodyOf(s, pid).hygiene.stubbleH;
       const want = st.hands.i >= 2 ? 'wash-hands' : st.thirst.i >= 1 ? 'drink' : stub >= 12 ? 'shave' : 'wait', sk = out['a sink at 19:30'];
       console.log(`      the sink at 19:30: hands ${st.hands.band} (dirt ${fmt(bodyOf(s, pid).hands.dirt, 1)}), thirst ${st.thirst.band}, stubble ${fmt(stub, 1)} h: R ${sk.id}`);
       // (nothing due: R the wait, the menu the rest, the plate saying the shave is struck (the fixer's, 0.0.6))

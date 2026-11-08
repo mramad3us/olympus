@@ -27,7 +27,7 @@
 // lounge's). The mess is walked door to door until its floor is built (0.0.9).
 import { siteGraph, route } from '../../src/sim/places/graph.js';
 import { groundGrid, path, octileM } from '../../src/sim/places/nav.js';
-import { WALK_MS } from '../../src/sim/places/move.js';
+import { WALK_MS } from '../mars-gaits.mjs';
 import { spotsOfArea } from '../../src/sim/places/fixtures.js';
 import { areaOf } from '../../src/sim/places/model.js';
 import { moveTo } from '../../src/sim/places/portals.js';

@@ -8,7 +8,10 @@
 // head never washes them.
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
-import { templateBody, runSols, weekOf, MELAS_LON, REF_REVEILLE } from './bots/sol.mjs';
+import { templateBody, runSols, weekOf, MELAS_LON, REF_REVEILLE, MELAS_PLACE } from './bots/sol.mjs';
+
+// (Melas's indoor and outdoor environments as the body reads them: src/sim/places/env.js bodyPlaceOf)
+const INDOORS = envOf({ gG: MELAS_PLACE.gG, ...MELAS_PLACE.in }), OUTDOORS = envOf({ gG: MELAS_PLACE.gG, ...MELAS_PLACE.out, outdoors: true });
 import { marsTimeText } from '../src/core/calendar.js';
 import { HOUR_MS, MIN_MS, SEC_MS } from '../src/core/clock.js';
 import { playerId } from '../src/core/ids.js';
@@ -87,7 +90,7 @@ export default [
     name: 'the slow rate (HANDS.RATE_K × grime\'s): the times from clean to each band awake indoors, asleep and outdoors; a split at 1,000 random seconds equals one call to 1e-9; the dirt is capped at 100',
     fn() {
       const rows = [];
-      for (const [what, env, load] of [['awake indoors, idle', envOf({}), loadOf({ met: 1.5 })], ['outdoors, walking', envOf({ outdoors: true }), loadOf({ met: 3.0, kind: 'walk', out: true })], ['hard work over MET 5 outdoors', envOf({ outdoors: true }), loadOf({ met: 6, kind: 'walk', out: true })]]) {
+      for (const [what, env, load] of [['awake indoors, idle', INDOORS, { met: 1.5 }], ['outdoors, walking', OUTDOORS, { met: 3.0, kind: 'walk', out: true }], ['hard work over MET 5 outdoors', OUTDOORS, { met: 6, kind: 'walk', out: true }]]) {
         const b = withLedgers(templateBody(REF_REVEILLE), { handsDirt: 0 }), seg = { env, load: loadOf({ ...load, out: env.outdoors }, env) };
         const out = bodyAdvance(b, seg, REF_REVEILLE, REF_REVEILLE + 120 * HOUR_MS);
         const hits = out.crossed.filter(c => c.ledger === 'hands').map(c => `${c.to} ${fmt((c.atMs - REF_REVEILLE) / HOUR_MS, 1)} h`);
@@ -102,7 +105,7 @@ export default [
       rows.push(`asleep, a night of 7.5 h: ${fmt(n0, 2)} → ${fmt(night.hands.dirt, 2)} (${fmt((night.hands.dirt - n0) / 7.5, 2)} an hour, grime's ${HYGIENE.GRIME_ASLEEP_H})`);
       for (const r of rows) console.log(`      ${r}`);
       // (composition: one call against the same span split at random seconds)
-      const b1 = withLedgers(templateBody(REF_REVEILLE), { handsDirt: 3 }), b2 = copy(b1), seg = { env: envOf({ outdoors: true }), load: loadOf({ met: 3, kind: 'walk', out: true }) };
+      const b1 = withLedgers(templateBody(REF_REVEILLE), { handsDirt: 3 }), b2 = copy(b1), seg = { env: OUTDOORS, load: loadOf({ met: 3, kind: 'walk', out: true }, OUTDOORS) };
       bodyAdvance(b1, seg, REF_REVEILLE, REF_REVEILLE + 9 * HOUR_MS);
       const cuts = Array.from({ length: 1000 }, (_, i) => REF_REVEILLE + Math.round(((i * 7919) % 32400) + 1) * SEC_MS).sort((a, c) => a - c);
       let t = REF_REVEILLE;

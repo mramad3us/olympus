@@ -3,8 +3,9 @@
 //   await withGame(async (page, errors, game) => { ... }, { port: 8223, query: 'play=walk&seed=4' })
 //
 // One call is one fresh world: it starts tools/serve.py on a port of its own (by default the
-// browser tests' 8223, so its own browser origin and its own saves: never the play copy's :8200,
-// whose origin holds the user's saves, nor the dev tree's :8201), waits until /VERSION answers,
+// browser tests' 8223, or OLYMPUS_TEST_PORT: an agent's of 8230 to 8239, a runner worker's of
+// POOL_PORTS, 8240 to 8249; so its own browser origin and its own saves: never the play copy's
+// :8200, whose origin holds the user's saves, the dev tree's :8201 nor the gallery's :8212), waits until /VERSION answers,
 // launches the system Chrome headless through playwright-core with the GPU on ANGLE's Metal backend
 // (WebGL then renders as it does for the player, not in software), opens /?<query> and waits for
 // window.__ready (the game sets it once its third frame is drawn). Then fn gets the page, the list
@@ -25,10 +26,13 @@ import { root as ROOT } from './helpers.mjs';
 
 export const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 export const CHROME_ARGS = ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'];
-// OLYMPUS_TEST_PORT moves the default, so parallel agents (8230 to 8239) each run the heavy tests on their own.
+// OLYMPUS_TEST_PORT moves the default, so parallel agents (8230 to 8239) each run the heavy tests on their own,
+// and tests/run.mjs gives each of its browser workers one of POOL_PORTS.
 export const BROWSER_TEST_PORT = Number(process.env.OLYMPUS_TEST_PORT) || 8223;
-// The user's play copy and dev tree, and the sibling projects' ports (longhaul, tradecraft).
-const NOT_OURS = new Set([8200, 8201, 8090, 8100, 8101, 8112, 8123]);
+/** The parallel runner's browser ports (v0.0.11), one a worker, each claimed by a lock file so two runs at once never share one. */
+export const POOL_PORTS = Object.freeze([8240, 8241, 8242, 8243, 8244, 8245, 8246, 8247, 8248, 8249]);
+// The user's play copy, dev tree and gallery, and the sibling projects' ports (longhaul, tradecraft).
+const NOT_OURS = new Set([8200, 8201, 8212, 8090, 8100, 8101, 8112, 8123]);
 const SERVER_WAIT_MS = 5000, STEP_MS = 100, ERROR_GRACE_MS = 500;
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -40,7 +44,7 @@ export async function withGame(fn, {
   port = BROWSER_TEST_PORT, query = '', at = '/', root = ROOT, viewport = { width: 1280, height: 720 },
   ready = 'window.__ready === true', timeoutMs = 30000, init = null, initArg = undefined, navigate = true, strict = true,
 } = {}) {
-  if (NOT_OURS.has(port)) throw new Error(`port ${port} is not for tests (8200 and 8201 are the user's; 8090, 8100, 8101, 8112 and 8123 the other projects')`);
+  if (NOT_OURS.has(port)) throw new Error(`port ${port} is not for tests (8200, 8201 and 8212 are the user's; 8090, 8100, 8101, 8112 and 8123 the other projects')`);
   if (await answers(port)) throw new Error(`port ${port} already answers: some other server is there (lsof -nP -iTCP:${port} -sTCP:LISTEN)`);
 
   const server = spawn('python3', [path.join(ROOT, 'tools', 'serve.py'), String(port), root], { stdio: ['ignore', 'ignore', 'pipe'] });

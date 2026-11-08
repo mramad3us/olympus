@@ -81,7 +81,10 @@
 // 'far': the build sheet 0.0.7 §2.3; test-pairs' 'standby[:k]', and 0.0.9's 'bangs' and 'bangs:standby'; 0.0.10's test-stress takes 'standby' and 'standby:1' to 'standby:4', string k's standby, 'standby:4' with the one-round magazine in); &flashes=reduced (VIEWS
 // §12: a bang's white a grey veil, no startle's pale frame); for test-handling ('hot': string 1 in Condition 1,
 // prone, the line hot, aimed at your card; 'bench': the same with one magazine of 15, the build sheet
-// 0.0.5 §2.2's fill; 'mixed', 0.0.6: the course from its brief with a fourth magazine, of tracer); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
+// 0.0.5 §2.2's fill; 'mixed', 0.0.6: the course from its brief with a fourth magazine, of tracer); &env=<preset> (ROADMAP
+// "anywhere" step 2: any scene under a named environment, src/data/places/env.js ENV_PRESETS, such as ship-1g, wheel (the Wheel's 1 G),
+// earth-temperate, europa-surface, ship-coast or freefall-vacuum: the sim's newGame sets it live on the scene's host before the fill, and
+// an unknown name throws there, core knowing no preset); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
 // agents' smoke runs) and &perf=1 (the GL counters and pass times). ?bench=<scene> (or ?bench=1, the
 // default scene) runs the bench card (main.js; src/data/bench.js holds the scenes).
 import { toJSON, fromJSON } from './state.js';
@@ -98,7 +101,7 @@ export const FLASHES = Object.freeze(['reduced']);
 /** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
 export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, flashes }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, flashes, env }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -120,6 +123,7 @@ export function readParams(search = globalThis.location?.search ?? '') {
     setup: SETUPS.includes(q.get('setup')) ? q.get('setup') : null,
     tier: TIERS_URL.includes(q.get('tier')) ? q.get('tier') : null,
     flashes: FLASHES.includes(q.get('flashes')) ? q.get('flashes') : null,
+    env: /^[a-z0-9-]{1,32}$/.test(q.get('env') ?? '') ? q.get('env') : null,
   };
 }
 

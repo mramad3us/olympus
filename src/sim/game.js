@@ -51,15 +51,24 @@
 // since TECH §3.7 says they never touch the state (0.0.2 wrote a render error into meta.errors even
 // while paused, so the page's save parted from a node replay exactly when something broke).
 //
-// newGame({ seed, mode, scenario, startMs, hour, worldId, version, domains, at, setup, tier }) makes a fresh
-// state: core's newState, meta.worldId (w-<seed> unless given), every domain's init in order, then
-// hour (the Mars local hour, a fraction giving minutes) moves the clock and meta.createdMs to the next
-// such time at the longitude of the scenario's site (SCENARIO_SITES), before the scenario's fill, so a
-// barracks started at 23:00 places the squad asleep (the 0.0.3 build sheet §8, item 20); then the fill
+// newGame({ seed, mode, scenario, scene, startMs, hour, worldId, version, domains, at, setup, tier, env }) makes a fresh
+// state from a scene's spec (src/data/scenes.js; ROADMAP "anywhere", step 4): scene names one (SCENES or STARTS),
+// else scenario's own (STARTS, or the first built scene that plays it: specOf, which also checks that scenes
+// sharing a scenario share its host and env). Then core's newState, meta.worldId (w-<seed> unless given), every
+// domain's init in order; then hour (null: the spec's; the local hour on the host site's clock, a fraction
+// giving minutes) moves the clock and meta.createdMs to the next such time by src/sim/places/env.js msAtLocal at
+// the spec's host, before the scenario's fill, so a barracks started at 23:00 places the squad asleep (the 0.0.3
+// build sheet §8, item 20; the fills no longer move it themselves); then the environment: env (a preset of
+// src/data/places/env.js ENV_PRESETS, the debug's &env=, ROADMAP "anywhere" step 2) or else the spec's own when
+// it names one ({ preset: 'site' } names none: every shipped scene, which so writes nothing) is set live on the
+// host site before the fill (its site entered first, src/sim/places/model.js enterSite, which keeps the
+// environment while the fill moves within that site; src/sim/places/env.js setLiveEnv: saved; an unknown preset
+// throws), so the fill and the scene's first tick read its gravity and air; then the fill
 // (SCENARIOS: the sandbox, src/sim/scenarios/sandbox.js, the test rooms; the barracks,
 // src/sim/scenarios/barracks.js, Echo Company drawn from the seed and the player in 1st Squad's bay),
 // given { at, setup } (an { area, x, z, face } to start at; a scene's setup, test-handling's 'hot' or
-// 'bench' for the tests and the bench), then each recurring job's first occurrence is
+// 'bench' for the tests and the bench), which must leave the host's site live (and the environment set on it:
+// both checked, so a fill that wanders off its host throws), then each recurring job's first occurrence is
 // posted, then each domain's start(state) in order (a new game's own: the body's start body, the
 // night's taps, reveille and drill). The start is START_MS, 2351-12-19 02:20 UTC (SETTING §3.7); a
 // test world has no career (ROADMAP §2.1). The test scenes (src/sim/scenarios/tests.js, 0.0.4) are
@@ -85,7 +94,6 @@
 // (620 lines; its body is rewritten, TECH §12.3).
 import { newState, registerDomain, resetDomains, fillDomain, addUpgrade, ERRORS_MAX } from '../core/state.js';
 import { popNext } from '../core/queue.js';
-import { msAtMarsTime } from '../core/calendar.js';
 import { MIN_MS, TICK_MS, isHeld, durationText } from '../core/clock.js';
 import { START_MS } from '../data/setting/calendar.js';
 import { createJobs, dispatch as dispatchJob, postJobs, ensureJobs, siteLonEDeg } from './jobs.js';
@@ -96,19 +104,20 @@ import { startActivity } from './time/activities.js';
 import { postNight } from './time/pod.js';
 import { bodyDomain } from './body/domain.js';
 import { placesDomain } from './places/domain.js';
-import { siteOf } from './places/model.js';
+import { enterSite } from './places/model.js';
+import { setLiveEnv, msAtLocal } from './places/env.js';
 import { moveTo } from './places/portals.js';
 import { peopleDomain } from './people/domain.js';
-import { sandbox, SANDBOX } from './scenarios/sandbox.js';
-import { barracks, BARRACKS } from './scenarios/barracks.js';
-import { testShower, testNight, TESTS } from './scenarios/tests.js';
-import { testHandling, HANDLING } from './scenarios/handling.js';
-import { testRange, RANGE } from './scenarios/range.js';
-import { testPairs, PAIRS_SCENE } from './scenarios/pairs.js';
+import { sandbox } from './scenarios/sandbox.js';
+import { barracks } from './scenarios/barracks.js';
+import { testShower, testNight } from './scenarios/tests.js';
+import { testHandling } from './scenarios/handling.js';
+import { testRange } from './scenarios/range.js';
+import { testPairs } from './scenarios/pairs.js';
 import { testStress } from './scenarios/stress.js';
 import { refusesAct } from './combat/contact.js';
 import { weaponsDomain } from './arms/domain.js';
-import { SITES } from '../data/setting/calendar.js';
+import { SCENES, STARTS } from '../data/scenes.js';
 import { logEntry } from './log.js';
 
 /** The fast layers of a tick, in order (TECH §3.1); input and offers run while time stands still. */
@@ -119,9 +128,30 @@ const LAYER_NAMES = new Set(FAST_LAYERS.map(L => L.name));
 export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'body', 'people', 'weapons', 'combat', 'world', 'career']);
 /** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
 export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs, 'test-stress': testStress });
-/** The site each scenario starts on: its longitude sets the start's hour. */
-export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site, 'test-shower': TESTS.site, 'test-night': TESTS.site, 'test-handling': HANDLING.site, 'test-range': RANGE.site,
-  'test-pairs': PAIRS_SCENE.site, 'test-stress': PAIRS_SCENE.site });
+
+// (one host and one environment a scenario: the scenes that share a fill differ only in the hud's fields and their setup)
+const sameStand = (a, b) => JSON.stringify([a.host, a.env]) === JSON.stringify([b.host, b.env]);
+/**
+ * The spec a new game starts from (src/data/scenes.js): { scene } a SCENES or STARTS id; else { scenario }'s own start
+ * (STARTS) or the first built scene that plays it. Throws for an unknown one, a stub (built false: no layout yet), a
+ * spec whose scenario has no fill, and scenes of one scenario that stand at different hosts or environments.
+ */
+export function specOf({ scene = null, scenario = null } = {}) {
+  let spec = null;
+  if (scene) {
+    spec = SCENES[scene] ?? STARTS[scene] ?? null;
+    if (!spec) throw new Error(`no scene '${scene}' (${[...Object.keys(SCENES), ...Object.keys(STARTS)].join(', ')})`);
+    if (spec.built === false) throw new Error(`the scene '${scene}' is a stub: its layout and fill are not built yet`);
+  } else {
+    spec = STARTS[scenario] ?? Object.values(SCENES).find(x => x.scenario === scenario && x.built !== false) ?? null;
+    if (!spec) throw new Error(`no scenario '${scenario}' (${Object.keys(SCENARIOS).join(', ')})`);
+  }
+  if (!SCENARIOS[spec.scenario]) throw new Error(`the scene '${spec.id}' plays no known scenario ('${spec.scenario}')`);
+  if (!spec.host?.site || !spec.env?.preset) throw new Error(`the scene '${spec.id}' names no host site or env`);
+  const odd = Object.values(SCENES).find(x => x.scenario === spec.scenario && !sameStand(x, spec));
+  if (odd) throw new Error(`the scenes '${spec.id}' and '${odd.id}' play '${spec.scenario}' at different hosts or environments`);
+  return spec;
+}
 
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act);
 /** Whether an error from where (the loop's onError) is the sim's, and so noted in the state: a tick's or a skip's. */
@@ -351,23 +381,27 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
 // ---- a new game ----
 
 /** A new game's state (see the header). */
-export function newGame({ seed, mode = 'standard', scenario = 'sandbox', startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null } = {}) {
+export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene = null, startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null, env = null } = {}) {
   if (seed === undefined || seed === null) throw new Error('newGame(): a seed is needed');
-  const fill = SCENARIOS[scenario];
-  if (!fill) throw new Error(`no scenario '${scenario}' (${Object.keys(SCENARIOS).join(', ')})`);
-  const s = newState(seed, { version, mode, scenario, startMs });
+  const spec = specOf({ scene, scenario }), fill = SCENARIOS[spec.scenario], site = spec.host.site;
+  const s = newState(seed, { version, mode, scenario: spec.scenario, startMs });
   s.meta.worldId = worldId ?? `w-${s.meta.seed}`;
   const list = domainsOf(domains);
   for (const d of list) d.init?.(s);
-  // (the clock to the start's hour before the fill, at the scenario's site: the sheet §8, item 20)
-  if (hour !== null && hour !== undefined) {
-    const h = Math.max(0, Math.min(24, Math.floor(hour)));
-    const m = Math.min(h === 24 ? 39 : 59, Math.round((hour - Math.floor(hour)) * 60));
-    const lon = SITES[siteOf(SCENARIO_SITES[scenario])?.geo]?.lonEDeg ?? siteLonEDeg(s);
-    const t = msAtMarsTime(s.clock.ms, h, m, lon);
-    s.clock.ms = s.meta.createdMs = Math.ceil(t / TICK_MS) * TICK_MS;
+  // (the clock to the start's hour on the host's clock, before the fill: the sheet §8, item 20)
+  const at0 = hour ?? spec.hour ?? null;
+  if (at0 !== null) {
+    const h = Math.max(0, Math.min(24, Math.floor(at0)));
+    const m = Math.min(h === 24 ? 39 : 59, Math.round((at0 - Math.floor(at0)) * 60));
+    s.clock.ms = s.meta.createdMs = Math.ceil(msAtLocal(site, s.clock.ms, h, m) / TICK_MS) * TICK_MS;
   }
-  fill(s, { at, setup, tier });
+  // (the scene's environment, live on its host before the fill: the debug's &env= over the spec's own; 'site' sets none)
+  const { preset, ...over } = spec.env;
+  const live = env ? { preset: env } : preset !== 'site' ? { preset, ...over } : null;
+  if (live) { enterSite(s, site, spec.host.area); setLiveEnv(s, live); }
+  fill(s, { at, setup: setup ?? spec.setup ?? null, tier });
+  if (s.places.live?.site !== site) throw new Error(`the scene '${spec.id}' stands on '${site}', and its fill left '${s.places.live?.site}' live`);
+  if (live && !s.places.live.env) throw new Error(`the scene '${spec.id}''s fill dropped its environment ('${live.preset}')`);
   s.time.slowToMs = s.clock.ms;                                    // (the slow layer has stepped up to the start)
   postJobs(s, createJobs(list));
   for (const d of list) d.start?.(s);

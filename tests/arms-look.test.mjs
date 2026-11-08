@@ -3,7 +3,12 @@ import { assert, fmt, near } from './helpers.mjs';
 import { armsWorld, LANE } from './arms-world.mjs';
 import { digest } from '../src/core/hash.js';
 import { toJSON } from '../src/core/state.js';
-import { gunLook, kitLook, rangeLook, caseAt, ejectCase, ACTION_FRAMES, CARRY_RIGS, FLASH_MS, KICK_MS, G_MS2, PORT_H_M } from '../src/sim/arms/look.js';
+import { gunLook, kitLook, rangeLook, caseAt, ejectCase, caseGMs2, CASE_G_STEP_MS2, ACTION_FRAMES, CARRY_RIGS, FLASH_MS, KICK_MS, PORT_H_M } from '../src/sim/arms/look.js';
+import { presetEnv } from '../src/sim/places/env.js';
+import { q } from '../src/core/num.js';
+
+// (a case's gravity on the Melas valley floor, as look.js caseGMs2 reads it there: the preset's at CASE_G_STEP_MS2)
+const G_MS2 = q(presetEnv('melas-ground').gravity.gMs2, CASE_G_STEP_MS2);
 import { holeOf } from '../src/sim/arms/paper.js';
 import { faceRad } from '../src/sim/arms/carry.js';
 import { createGame } from './game.mjs';
@@ -59,17 +64,20 @@ export default [
     name: 'a case\'s flight at 0.38 G (WEAPONS §2.8): 0.87 s and 3.5 m from a standing port, 0.37 s and 1.5 m prone, horizontal at 4 m/s, 60° to the right of the bore, resting where it lands',
     fn() {
       const lines = [];
+      // (the place's gravity at the case's resolution is v0.0.10's 3.727 m/s² on Mars: ROADMAP "anywhere"'s step 1 changes no case)
+      console.log(`      the case's gravity on the valley floor: ${G_MS2} m/s² (the preset's ${presetEnv('melas-ground').gravity.gMs2} at ${CASE_G_STEP_MS2})`);
+      assert(G_MS2 === 3.727, `the case's gravity on Mars: ${G_MS2}`);
       for (const stance of ['stand', 'kneel', 'prone']) {
         let tMin = Infinity, tMax = 0, dMin = Infinity, dMax = 0;
         for (let i = 0; i < 200; i++) {
-          const rec = ejectCase({ model: 'r7' }, { x: 1100, z: 292.5, headRad: 0, stance }, { atMs: 1_000_000, kind: 'case', key: `k${i}` });
+          const rec = ejectCase({ model: 'r7' }, { x: 1100, z: 292.5, headRad: 0, stance }, { atMs: 1_000_000, kind: 'case', key: `k${i}`, gMs2: G_MS2 });
           const t = (rec.landMs - rec.atMs) / 1000, d = Math.hypot(rec.at[0] - rec.x0, rec.at[1] - rec.z0);
           tMin = Math.min(tMin, t); tMax = Math.max(tMax, t); dMin = Math.min(dMin, d); dMax = Math.max(dMax, d);
           const right = Math.atan2(rec.v[2], rec.v[0]) * 180 / Math.PI;
           assert(right >= 40 - 1e-6 && right <= 80 + 1e-6 && rec.v[1] === 0, `60° ± 20° to the right, level: ${right}`);
         }
-        const one = ejectCase({ model: 'r7' }, { x: 1100, z: 292.5, headRad: 0, stance }, { atMs: 0, kind: 'case', key: 'k0' });
-        const path = [0, 250, 500, one.landMs, one.landMs + 1000].map(ms => { const c = caseAt(one, ms); return `${ms} ms (${fmt(c.x, 2)}, ${fmt(c.y, 2)}, ${fmt(c.z, 2)})${c.rest ? ' at rest' : ''}`; });
+        const one = ejectCase({ model: 'r7' }, { x: 1100, z: 292.5, headRad: 0, stance }, { atMs: 0, kind: 'case', key: 'k0', gMs2: G_MS2 });
+        const path = [0, 250, 500, one.landMs, one.landMs + 1000].map(ms => { const c = caseAt(one, ms, G_MS2); return `${ms} ms (${fmt(c.x, 2)}, ${fmt(c.y, 2)}, ${fmt(c.z, 2)})${c.rest ? ' at rest' : ''}`; });
         lines.push(`${stance}: from ${PORT_H_M[stance]} m, ${fmt(tMin, 3)} to ${fmt(tMax, 3)} s, ${fmt(dMin, 2)} to ${fmt(dMax, 2)} m; ${path.join(', ')}`);
         const tWant = Math.sqrt(2 * PORT_H_M[stance] / G_MS2);
         near(tMin, tWant, 0.001, `${stance} time`);
@@ -78,10 +86,10 @@ export default [
       }
       console.log(`      ${lines.join('\n      ')}`);
       // (the sheet's own sample: kneeling at (1100, 292.5) facing east, the case from the port at (1100.30, 0.95, 292.62))
-      const s = ejectCase({ model: 'r7' }, { x: 1100, z: 292.5, face: 'right', stance: 'kneel' }, { atMs: 23520060130, kind: 'case', key: 'sample' });
+      const s = ejectCase({ model: 'r7' }, { x: 1100, z: 292.5, face: 'right', stance: 'kneel' }, { atMs: 23520060130, kind: 'case', key: 'sample', gMs2: G_MS2 });
       console.log(`      the sheet's kneeling sample: from (${s.x0}, ${s.y0}, ${s.z0}) at ${fmt(Math.hypot(...s.v), 2)} m/s, lands ${s.landMs - s.atMs} ms on at (${s.at.map(v => fmt(v, 2)).join(', ')})`);
       assert(s.x0 === 1100.3 && s.z0 === 292.62 && s.y0 === 0.95 && s.landMs - s.atMs === 714, `the port and the fall as the sheet's sample: ${JSON.stringify(s)}`);
-      const thrown = ejectCase({ model: 'r7' }, { x: 0, z: 0, yawRad: faceRad('right'), stance: 'stand', hand: true }, { atMs: 0, kind: 'dummy', key: 'd' });
+      const thrown = ejectCase({ model: 'r7' }, { x: 0, z: 0, yawRad: faceRad('right'), stance: 'stand', hand: true }, { atMs: 0, kind: 'dummy', key: 'd', gMs2: G_MS2 });
       console.log(`      the dummy thrown by a hand on the charging handle: ${fmt(Math.hypot(thrown.at[0] - thrown.x0, thrown.at[1] - thrown.z0), 2)} m`);
     },
   },
@@ -91,8 +99,8 @@ export default [
       const W = armsWorld({ posture: 'aimed' }), { state } = W, ms = state.clock.ms;
       const rolls = [{ margin: 14, nat: 0 }, { margin: 6, nat: 0 }, { margin: 2, nat: 0 }, { margin: -2, nat: 0 }, { margin: -8, nat: 0 }, { margin: 3, nat: 0 }];
       const shots = rolls.map((roll, i) => { const id = `sh${i + 1}`, h = holeOf('card25', roll, id); return { id, atMs: ms - 6000 + i * 1000, lane: LANE, string: i < 5 ? 0 : 1, hole: h.at, score: h.score, v: h.v }; });
-      const brass = [ejectCase({ model: 'r7' }, { x: W.actor.x, z: W.actor.z, headRad: 0, stance: 'stand' }, { atMs: ms - 300, kind: 'case', key: 'b1' }),
-        ejectCase({ model: 'r7' }, { x: W.actor.x, z: W.actor.z, headRad: 0, stance: 'stand', hand: true }, { atMs: ms - 2000, kind: 'dummy', key: 'b2' })];
+      const brass = [ejectCase({ model: 'r7' }, { x: W.actor.x, z: W.actor.z, headRad: 0, stance: 'stand' }, { atMs: ms - 300, kind: 'case', key: 'b1', gMs2: caseGMs2(state) }),
+        ejectCase({ model: 'r7' }, { x: W.actor.x, z: W.actor.z, headRad: 0, stance: 'stand', hand: true }, { atMs: ms - 2000, kind: 'dummy', key: 'b2', gMs2: caseGMs2(state) })];
       state.armoury.range = { lane: LANE, hot: true, shots, brass };
       const before = digest(toJSON(state));
       const look = rangeLook(state, ms);

@@ -380,11 +380,11 @@ export function mobilityOf(rec, ms) {
   if ((rec?.injuries ?? []).some(i => i.gunshot && ms - i.ms < GUNSHOT_DAYS * DAY_MS)) k *= MOBILITY.gunshot;
   return { k: q(k, 0.001), runOk: k >= RUN_BELOW && band !== 'shock' && band !== 'collapsed' };
 }
-/** How much harder a body bleeds for how its actor moves (× the rate): crawling, walking, running; still, 1. */
+/** How much harder a body bleeds for how its actor moves (× the rate): crawling, walking, running (the low-g bound is a run); still or floating, 1. */
 export function exertionOf(actor) {
   const g = actor?.gait;
-  if (g !== 'run' && g !== 'walk' && g !== 'stroll') return 1;
-  return actor.stance === 'down' ? EXERTION.crawl : g === 'run' ? EXERTION.run : EXERTION.walk;
+  if (g !== 'run' && g !== 'bound' && g !== 'walk' && g !== 'stroll') return 1;
+  return actor.stance === 'down' ? EXERTION.crawl : g === 'run' || g === 'bound' ? EXERTION.run : EXERTION.walk;
 }
 
 // ---- the intake ----

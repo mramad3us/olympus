@@ -1,13 +1,13 @@
 // OLYMPUS places: the data model's registry, and the state's places record (PLACES §1.2, §1.3, §1.10).
 //
 // The world is a set of sites; a site is made of areas; one area is live at a time (PLACES's summary).
-// Sites and areas are authored once, as frozen data (the test rooms, Base Melas's tables in
-// src/data/places, Echo's floors and the ground built from them at load: src/sim/places/areas.js),
+// Sites and areas are authored once, as frozen data (the site registry, src/data/places/sites.js; the
+// test rooms, Base Melas's tables in src/data/places, Echo's floors and the ground built from them at load: src/sim/places/areas.js),
 // and found here by id: siteOf('melas'), areaOf('melas.echo.1'). A template carries a version and a
 // site instance pins template@version (TECH §2.4, PLACES §9.1), so a changed template is a new version.
 //
 // The save holds only what changed (PLACES §1.10): state.places is
-//   { live: { site, area } | null,               where the player is
+//   { live: { site, area, env? } | null,         where the player is, and a scene's environment (env.js)
 //     nav: { queue, pending, debtNodes },        path requests in flight (nav.js; saved for determinism)
 //     sites: { <siteId>: { template,             each site that has been entered: its template,
 //              openings: { <openingId>: { state, atMs } } } } }   and the openings whose state differs
@@ -23,15 +23,18 @@
 // leaf, read on both sides).
 //
 // lonOf(state) is the live site's east longitude, read from SETTING's one site record
-// (src/data/setting/calendar.js SITES, through the site's geo), which the clocks and the recurring
-// jobs' `local@` times read (the hub: one quantity, one helper). Before any site is entered it is
-// Melas's, where every career starts (SETTING §3.7). placeLine(state) is the HUD's place line (the
+// (src/data/setting/calendar.js SITES, through the site's geo), which the readers still written in
+// Mars longitudes take (the body clock, the activities, the night's calls; the clocks, the light and
+// the jobs read env.js localTime, the site's own clock). Before any site is entered it is the start
+// site's, where every career starts (SETTING §3.7). It throws for an unknown site and for a site that
+// is not on Mars's clock (TECH §1.4: no quiet Melas; ROADMAP "anywhere"'s step 3); siteLonOf(site) is that
+// rule's one home, which env.js lonOfSite reads too. placeLine(state) is the HUD's place line (the
 // live area's building, its floor in a building of floors (the area's floorName: 'upper floor'), and
 // the room or ground zone the player stands in), roomOf(area, x, z) the room
 // at a point, surfaceAt(state, x, z) what the feet are on (the audio's footsteps, BODY's grip later).
-import { TEST_SITE } from '../../data/places/testroom.js';
-import { MELAS_SITE } from '../../data/places/melas.js';
-import { SITES } from '../../data/setting/calendar.js';
+import { SITE_LIST } from '../../data/places/sites.js';
+import { SITES, START } from '../../data/setting/calendar.js';
+import { BODIES } from '../../data/places/env.js';
 import { put, playerActor } from '../../core/ids.js';
 import { AREA_LIST } from './areas.js';
 import { remarkLeaf } from './nav.js';
@@ -40,7 +43,7 @@ import { footprintOf } from './fixtures.js';
 
 const byId = (list) => Object.freeze(Object.fromEntries(list.map(r => [r.id, r])));
 /** Every site the game knows, by id. */
-export const SITE_RECORDS = byId([TEST_SITE, MELAS_SITE]);
+export const SITE_RECORDS = byId(SITE_LIST);
 /** Every area with a record, by id. */
 export const AREA_RECORDS = byId(AREA_LIST);
 // (an opening's area, for the openings' deltas: opening ids are unique across the areas)
@@ -60,10 +63,18 @@ export const openingOf = (id) => OPENING_REC[id] ?? null;
 /** The area an opening belongs to, or null. */
 export const openingArea = (id) => areaOf(OPENING_AREA[id]);
 
-/** The live site's east longitude in degrees (SETTING's site record); Melas's before any site is entered. */
+/** A site record's east longitude in degrees (SETTING's geo record): the rule's one home (env.js lonOfSite reads it). Throws for a site that is not on Mars's clock (see the header). */
+export function siteLonOf(site) {
+  if (site.body !== 'mars' || site.clock !== 'mars-local') throw new Error(`places: site '${site.id}' is not on Mars's clock (body ${site.body}, clock ${site.clock}): it has no longitude`);
+  const geo = SITES[site.geo];
+  if (!geo) throw new Error(`places: site '${site.id}' names no known geo ('${site.geo}')`);
+  return geo.lonEDeg;
+}
+/** The live site's east longitude in degrees (siteLonOf); the start site's before any is entered. Throws for an unknown site and off Mars (see the header). */
 export function lonOf(state) {
-  const site = liveSite(state);
-  return (SITES[site?.geo] ?? SITES.melas).lonEDeg;
+  const id = state?.places?.live?.site ?? START.site, site = siteOf(id);
+  if (!site) throw new Error(`places: no site '${id}'`);
+  return siteLonOf(site);
 }
 
 /** The places domain's fill (??=): the record's empty shape, kept where it is already set. */
@@ -79,14 +90,16 @@ export function initPlaces(state) {
 // (a site's saved record, made once: its template, no seed)
 const siteRec = (state, siteId) => { const P = initPlaces(state); return P.sites[siteId] ?? put(state, P.sites, siteId, { template: siteOf(siteId).template }); };
 
-/** Make a site and area live: places.live = { site, area }, the site's record made once (its template). */
+/** Make a site and area live: places.live = { site, area } (and a scene's env, kept within its site), the site's record made once (its template). */
 export function enterSite(state, siteId, areaId) {
   const site = siteOf(siteId);
   if (!site) throw new Error(`places: no site '${siteId}'`);
   if (areaId && !site.areas.includes(areaId)) throw new Error(`places: site '${siteId}' has no area '${areaId}'`);
   const P = initPlaces(state);
   siteRec(state, siteId);
-  P.live = { site: siteId, area: areaId ?? site.areas[0] };
+  // (a scene's environment, live.env (src/sim/places/env.js), goes with it from area to area of its site, and stays behind at another site)
+  const env = P.live?.site === siteId ? P.live.env : undefined;
+  P.live = env ? { site: siteId, area: areaId ?? site.areas[0], env } : { site: siteId, area: areaId ?? site.areas[0] };
   return P.live;
 }
 
@@ -178,11 +191,19 @@ export function placeLine(state) {
   return where?.name ? `${head} · ${where.name}` : head;
 }
 
+// (a ground area's own surface: the area's, else its site's body's ground)
+function groundOf(a) {
+  const own = a.surface ?? BODIES[siteOf(a.site)?.body]?.ground;
+  if (!own) throw new Error(`places: the ground '${a.id}' names no surface, and its site's body ('${siteOf(a.site)?.body}') no ground`);
+  return own;
+}
 const segDist = (px, pz, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], L = dx * dx + dz * dz; let t = L ? ((px - a[0]) * dx + (pz - a[1]) * dz) / L : 0; t = t < 0 ? 0 : t > 1 ? 1 : t; const ex = a[0] + t * dx - px, ez = a[1] + t * dz - pz; return Math.sqrt(ex * ex + ez * ez); };
 const STAIR_KINDS = new Set(['stairs', 'stairsWell']);
 /**
  * What the feet are on at a point: 'tile' | 'vinyl' | 'concrete' (a floor's rooms; a flight 'stairs')
- * or 'paving' | 'regolith' (a ground: its paved zones, roads and paths, else the valley floor).
+ * or, on a ground, 'paving' (its paved zones, roads and paths) else the ground's own: the area's `surface`,
+ * else its site's body's (src/data/places/env.js BODIES' ground: Mars's regolith, Europa's ice). A ground
+ * with neither throws (TECH §1.4: no quiet regolith off Mars). null with no area.
  */
 export function surfaceAt(state, x, z, areaId = state?.places?.live?.area) {
   const a = areaOf(areaId);
@@ -191,7 +212,7 @@ export function surfaceAt(state, x, z, areaId = state?.places?.live?.area) {
     for (const s of a.surfaces ?? []) {
       if (s.rect ? inRect(s.rect, x, z) : s.pts.some((p, k) => k + 1 < s.pts.length && segDist(x, z, p, s.pts[k + 1]) <= s.widthM / 2)) return 'paving';
     }
-    return 'regolith';
+    return groundOf(a);
   }
   for (const f of a.fixtures ?? []) {
     if (!STAIR_KINDS.has(f.kind)) continue;

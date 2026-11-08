@@ -262,7 +262,7 @@ export const TEST_FOG = Object.freeze({ nearM: 2.5, cone: 0.8, reachM: 14 });
 /** The startle's flinch on your own figure (0.0.9, my call): ducked this many pixels, and a pixel's tremble side to side every so many ms of real time. */
 export const FLINCH_DUCK_PX = 1, FLINCH_STEP_MS = 70;
 const FACE = { right: [1, 0], left: [-1, 0], down: [0, 1], up: [0, -1] };
-const GAIT = { run: 'run', walk: 'walk', stroll: 'stroll', bound: 'bound', idle: 'idle' };
+const GAIT = { run: 'run', walk: 'walk', stroll: 'stroll', bound: 'bound', float: 'float', idle: 'idle' };
 /** A dressing figure's two frames, each held this long (game ms: a shirt over the head, a leg into the trousers). */
 export const DRESS_FRAME_MS = 900;
 /** An activity's part, the frame it shows (the sink's: 0.0.6's hands washed as the face is, the clippers in the razor's frame; undressing and dressing); anything else is the gait's. */

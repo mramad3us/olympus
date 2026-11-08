@@ -231,6 +231,8 @@ Tempo (SKILLS §5.9): rush, dash, crawl and the grenade throw are `rushable` (×
 
 **As built in v0.0.6, a step marked, not struck** (`src/sim/arms/shooting.js`, `src/ui/hud/steps.js`; the build sheet 0.0.6 §9 item 29, my call): a step that breaks a rule of the line without being impossible is **marked** (`warn`: an amber "!" and its words on its row, "! one magazine a string", "! tracer: the course is ball"), never struck, and stays choosable; a struck step is one the gun or the body cannot do ("(on safe)"). So the choice and its cost stay the player's, and the rule is said before it is broken (WEAPONS §6.4).
 
+**As built in v0.0.11**: `stanceMs`, `stanceBaseMs` and `tFallMs` take the place's gG (required); `shooting.js` `stanceMsOf(from, to, fitness, gG)` and `gunner.js` read `gravityAt`. On Mars kneel to prone is 819 ms at value 10 (base 818.02 ms x `paceOf(10)`, rounded; the `steps.js` header says 818, the base). In the page: kneel to prone 850 ms at Melas, 650 at 1 G, 1,150 on Europa, 1,700 to 1,750 in free fall; stand to prone 901 ms at Fitness 10 at 1 G and 1,033 at Melas; stand to kneel 550 everywhere; prone to kneel 1,000 to 1,050 everywhere; kneel to stand 550 everywhere (only getting down follows gravity: prone to stand 1,254 ms and stand to kneel 482 ms are the same from 0 to 1 G). Under 0.05 G getting down is an orientation and anchor change (BODY §14.8), timed as the fall at 0.05 G (stand to prone 2,321 ms, kneel to prone 1,729 at pace 1.001): finite at 0 G and continuous across the edge (my call, until step 7). **Proposed**: rising against g and an orientation change under 0.05 G, decided before `test-shoothouse` is scored (BODY §14.1).
+
 ### 3.5 Reflex cards in combat
 
 Tradecraft's `reflex.js` is ported as is (offer, chosen, `KEEP_S` 120 s kept answers, "Nothing: let it come" always present). A reflex is offered only out of stop motion, when the player perceives the moment coming (the check in the second column). Each option is a step of §3.4 or WEAPONS, and choosing a fighting step enters stop motion.
@@ -417,6 +419,8 @@ Where a round passes is the shot's line: for an aimed miss, the miss distance at
 - **The forewarning by `heardCall(state, pid, call, atMs)`.** A "Bang!" heard within `CALL_HEARD_MS` 3,000 before a burst makes the bang forewarned (×0.6 and the startle ×0.5, `STARTLE_FOREWARNED_K`): 21.6 points in ear defenders against 36 unwarned. The call counts only if it is heard (`hearsVoice`, its first reader); in electronic ear defenders it always is. String 3 of test-stress is forewarned, not prepared as §25.18.3 designed ("Bang out!", ×0.25): the recruit flinches about 0.85 s and nobody else does.
 - **`SUPP_MIN_PTS` gates only the making of a block** (supp's departure): an input under 1 point on a person with no block makes none; once the block exists every input lands (the din in ear defenders, 0.3 a second, would otherwise never count).
 - **Only the coach's blanks are posted as shots** (the sheet's item 5): `shotNoise` is built for any shot, but the player's own rounds post nothing, since they would put the coach at his shoulder into the pool on test-pairs and move its saved state for nothing he reads. Calm test-pairs, test-handling and test-range write no combat block, to the digest.
+
+**As built in v0.0.11**: the chaos's inputs read the live place's air (`supp.js` `kOf`; `VACUUM_K` wired). In vacuum the sound-borne inputs pool 0, a round x0.4, a bang deafens no one, and its flash still blinds by the angle. Conducted sound (your own hands, the rifle and suit, the deck through your boots) is not built: in vacuum you hear nothing (ROADMAP "anywhere", later steps).
 
 ### 5.2 Decay, Stay down and Breathe
 
@@ -1297,6 +1301,8 @@ Effects on everyone in the compartment, by QSP, as a game proxy for the peak and
 - **Your own team's bang** is prepared: called ("Bang out!") and heard, or in your bundle's beat, with you outside its room or your eyes away: ×0.25 and no startle, no flash [computed, T7]: one bang leaves a boot recruit at felt 8 (−1) and a private at 0; three, the recruit 33 (−3), the private 23 (−2), the corporal 4. **The enemy's bang on your stack** is unprepared unless you saw it land (§3.5's `grenade` card, whose new option **Turn away**, 0.3 s, makes you forewarned with your eyes off it): unprepared, one bang leaves the recruit at felt 53 (−5) and startled 1.94 s, the private 43 (−4) and 1.55 s, the sergeant 15 and 0.68 s; forewarned, the recruit 29 (−3) and 0.97 s, the private 19 and 0.77 s, the corporal and up nothing.
 - **Concussion** (blast only): §11.3; the room-clearing grenade aboard ship. Its stun (QSP ≥ 20 kPa: 2 to 6 s, CQC's stunned) is overpressure, not a startle: it reaches anyone in the compartment, the tier one included, and hardening does not touch it (my call); its +40 is an input to the pool like any other.
 - **Smoke**: a concealment cloud of 8 m radius in 10 s, lasting 60–120 s in still air, cleared by ventilation in 30 s aboard ship (PLACES's air movement); a CS or OC filler adds §9.4's effect.
+
+**As built in v0.0.11**: the bang's noise and deafness need air (section 5.1): with none it is its flash alone. At Melas nothing changes (in test-pairs on 48213 the same bang behind the unprotected marine is felt 43 and startles him 1.45 s).
 
 ### 11.5 Vacuum
 
@@ -2608,6 +2614,8 @@ The cheapest scene that tells whether the pause reads as the marine's or as lag,
 - **Aspects scored** (ROADMAP §2.2): **the pause** (the take-in's feel and readability: the brackets, the stamp, the brake, the log), **the drill** (step by step against T's bundle, and whether the decisions that matter stayed yours), **the shots** (the rows and the reloads, offered when relevant).
 - **The end card**: "LANE A · PRIVATE · 3 ROOMS · 58.4 S · 4 OF 4 THREATS · 2 NO-SHOOTS UNTOUCHED · FIRED FIRST ON YOU: ROOM 3 · TAKE-IN 0.80 TO 1.20 S · BASIC: MET".
 - **Teaching**: the scene explains nothing beyond its goal line and the instructor's in-world calls (DESIGN.md, 2026-11-06: "Test scenes explain nothing more than their goal line"). In the career, the take-in is explained once, the first time its stamp appears, by one line of the DI's (my wording, SETTING to voice): "That's how long your eyes took. It gets shorter. You won't notice it getting shorter."
+
+**As built in v0.0.11**: `test-shoothouse`'s spec exists as a stub (PLACES §4.15): host `melas.wheel.s4`, env `wheel`, hour 10:00 (my call), `built: false`, outside the Tests menu and refused by `newGame` until the layout and the fill are built. Next round: the layout, with the Wheel's 1 G on the `melas.wheel.*` area records (PLACES §3.16), then the spec's env becomes `{ preset: 'site' }`.
 
 ### 25.11 The interface
 

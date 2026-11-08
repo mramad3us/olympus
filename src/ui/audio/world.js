@@ -35,7 +35,8 @@ import { airDb } from '../../sim/people/hearing.js';
 import { roomOf, areaOf } from '../../sim/places/model.js';
 import { activityNow } from '../../sim/time/doing.js';
 import { alertNow, KLAXON_CYCLE_MS } from '../../sim/time/alerts.js';
-import { ROLLOFF, AIR_KPA, WALL_DB, KLAXON_SOURCE_DB, BUGLE_SOURCE_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, WORLD_OPEN_HZ, TICK_MAX_HZ, PAN_FULL_M, UI_SOUNDS } from '../../data/sounds.js';
+import { airAt } from '../../sim/places/env.js';
+import { ROLLOFF, WALL_DB, KLAXON_SOURCE_DB, BUGLE_SOURCE_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, WORLD_OPEN_HZ, TICK_MAX_HZ, PAN_FULL_M, UI_SOUNDS } from '../../data/sounds.js';
 import { lowpassHz } from './steps.js';
 
 const TAP_PARTS = new Set(['teeth', 'shave', 'face', 'hands']);
@@ -54,7 +55,7 @@ export function wallsBetween(area, a, b) {
  * The klaxon as you hear it: { gainDb, lowpassHz, distM, walls, pan } for the horn at horn { x, z },
  * you at me { x, z }, in an area of kind kind ('floor'), with walls between, in air of pKpa.
  */
-export function klaxonVoice({ horn, me, walls = 0, pKpa = AIR_KPA.floor, kind = 'floor' }) {
+export function klaxonVoice({ horn, me, walls = 0, pKpa, kind = 'floor' }) {
   const dx = horn.x - me.x, dz = horn.z - me.z, d = Math.hypot(dx, dz);
   const roll = ROLLOFF[kind] ?? ROLLOFF.default, distK = 1 / (1 + roll * Math.max(0, d - 1));
   const gainDb = KLAXON_SOURCE_DB + airDb(pKpa) + 20 * Math.log10(distK) + WALL_DB * walls;
@@ -103,7 +104,8 @@ export function createWorld(engine) {
     stats.duckK = d.k;
     engine.duck(d);
     if (!state || !me) { engine.loopOff('water'); engine.loopOff('tap'); engine.loopOff('clippers'); stats.water = stats.tap = stats.clippers = false; return; }
-    const ms = splash ? splash.shownMs : state.clock.ms, pKpa = AIR_KPA.floor;
+    // (the air of where you are, the place's (src/sim/places/env.js airAt): the loops, the tap and the klaxon play only indoors, where you are)
+    const ms = splash ? splash.shownMs : state.clock.ms, pKpa = airAt(state, null, me.x, me.z).pKpa;
     // (the water and the tap: on while their part runs at the time shown)
     const on = loopsAt(state, ms);
     if (on.water) engine.loopOn('water', 'water', { gainDb: airDb(pKpa), lowHz: lowpassHz(pKpa) }); else engine.loopOff('water');
@@ -142,12 +144,12 @@ export function createWorld(engine) {
     if (type === 'body-event' && (payload?.kind === 'void' || payload?.kind === 'bowel') && payload.who === playerId(state) && me) {
       const room = roomOf(state.places?.live?.area, me.x, me.z);
       if (!room || !/head/.test(room.id)) return false;
-      const ok = engine.oneShot('flush', { gainDb: airDb(AIR_KPA.floor), lowHz: lowpassHz(AIR_KPA.floor) });
+      const pKpa = airAt(state, null, me.x, me.z).pKpa, ok = engine.oneShot('flush', { gainDb: airDb(pKpa), lowHz: lowpassHz(pKpa) });
       if (ok) stats.flushes++;
       return ok;
     }
     if (type === 'reveille' && me && areaOf(state.places?.live?.area)?.kind === 'floor') {
-      const ok = engine.oneShot('bugle', { gainDb: BUGLE_SOURCE_DB + airDb(AIR_KPA.floor), lowHz: lowpassHz(AIR_KPA.floor) });
+      const pKpa = airAt(state, null, me.x, me.z).pKpa, ok = engine.oneShot('bugle', { gainDb: BUGLE_SOURCE_DB + airDb(pKpa), lowHz: lowpassHz(pKpa) });
       if (ok) { stats.bugles++; stats.lastBugle = { atMs: payload?.atMs ?? null }; }
       return ok;
     }

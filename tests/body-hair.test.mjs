@@ -6,6 +6,7 @@
 // barber reset them; a thinning man is offered the shaved head only; New career's player starts fresh; the
 // squad is never out of regulation; v0.0.5's cuts are mapped on load (people:cuts) and a new save loads unchanged.
 import { assert, fmt, root } from './helpers.mjs';
+import { bodyPlaceOf } from '../src/sim/places/env.js';
 import { createGame } from './game.mjs';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
@@ -55,7 +56,7 @@ export default [
   {
     name: 'the hours since the cut grow in the stepper as the stubble does: one 8-hour call equals 28,800 one-second calls, and in the game an 8-hour skip moves them 8 hours',
     fn() {
-      const b = withDefaults({ v: 2, tmpl: 'm-adult' }), seg = { env: envOf({}), load: loadOf({ met: 1.5 }) };
+      const b = withDefaults({ v: 2, tmpl: 'm-adult' }), env = envOf({ gG: bodyPlaceOf('melas').gG, ...bodyPlaceOf('melas').in }), seg = { env, load: loadOf({ met: 1.5 }, env) };
       b.atMs = START_MS;
       const a = copy(b);
       bodyAdvance(a, seg, START_MS, START_MS + 8 * HOUR_MS);

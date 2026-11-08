@@ -2,12 +2,14 @@
 //
 // Every marine wears a wrist terminal, so the watch is always on the HUD this round (TIME §3.2's
 // clock rule: the suit HUD when sealed, else the wrist terminal; the suit comes later). Its faces
-// are TIME §3.1's, from the same helpers the wall clocks read (src/sim/time/dates.js marsClock over
-// SETTING's calendar, core's utcText), so a wall clock and the watch never disagree (ROADMAP §4.4's
-// moment 2: "the wall clock and the watch agree"; places/clocks.js wallClockAt is the wall's side):
+// are TIME §3.1's, from the same helper the wall clocks read (src/sim/places/env.js timeAt: the live
+// site's clock, localTime, over SETTING's calendar at Melas; core's utcText), so a wall clock and the
+// watch never disagree (ROADMAP §4.4's moment 2: "the wall clock and the watch agree"; places/clocks.js
+// wallClockAt is the wall's side). The face is the site's (ROADMAP "anywhere"'s step 3): at Melas
 //   time     'HH:MM' on Melas time, large; through the timeslip it reads '24:00' (the wall clock's
 //            hands stand at 12) with a TIMESLIP badge and the minutes into it ('+12');
 //   weekday and sol: 'Monday · Sol 590 · MY 211' (SETTING's week and year);
+// and on a ship's UTC 'HH:MM' with 'Thursday · 22 Mar 2351' (no slip);
 //   utc      'Wed 19 Dec 2351 02:20 UTC', its second line, the clock ships and the Corps keep;
 //   place    the place as you know it: places' placeLine, the live area's building, its floor and the
 //            room you stand in ('Echo Company barracks, ground floor · 1st Squad, 2nd Platoon'), shown on
@@ -18,27 +20,29 @@
 //            the time row's left, where the large right-aligned time leaves room (my call: the watch keeps
 //            its four lines inside its 132 px).
 // watchFaces(state) is the pure part (the ui-watch test compares it with wallClockAt on a thousand
-// times); { ms } reads another time than the clock's, the splash's clock plaque the time shown
+// times); { site } reads another site's clock, { lonEDeg } Mars's at a longitude (the tests' form),
+// neither the live site's (the start site's before one is entered); { ms } reads another time than
+// the clock's, the splash's clock plaque the time shown
 // (hud/splash.js), from the same helper, so the plaque and the watch never disagree. createWatch(parent)
 // the DOM, in the WATCH rectangle (layout.js), written only when a face changes, so a frame costs a
 // string compare; update(state, { strip }) takes the strip's entries (BODY's stripOf, folded by main.js).
-import { marsClock, weekdayName } from '../../sim/time/dates.js';
 import { utcText } from '../../core/calendar.js';
 import { MIN_MS } from '../../core/clock.js';
 import * as places from '../../sim/places/model.js';
+import { timeAt, siteAt } from '../../sim/places/env.js';
 import { createStrip, foldedOf } from './strip.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
-/** The watch's faces now (or at ms): { time 'HH:MM', slip, slipMin, sol 'Sol 590 · MY 211', weekday 'Monday', utc, place }. */
-export function watchFaces(state, { lonEDeg = null, ms: atMs = null } = {}) {
-  const ms = atMs ?? state.clock.ms, lon = lonEDeg ?? places.lonOf(state), c = marsClock(ms, lon);
+/** The watch's faces now (or at ms): { time 'HH:MM', slip, slipMin, sol 'Sol 590 · MY 211' (a day's date on UTC), weekday 'Monday', utc, place, face }. */
+export function watchFaces(state, { lonEDeg = null, site = null, ms: atMs = null } = {}) {
+  const ms = atMs ?? state.clock.ms, c = timeAt(site ?? lonEDeg ?? siteAt(state), ms);
   let place = '';
   try { place = places.placeLine?.(state) || ''; } catch { place = ''; }
   if (!place) place = places.liveArea(state)?.name ?? '';
   return {
     time: `${pad2(c.hour)}:${pad2(c.minute)}`, slip: !!c.timeslip, slipMin: c.timeslip ? Math.floor(c.slipMs / MIN_MS) : 0,
-    sol: `Sol ${c.solOfYear} · MY ${c.my}`, weekday: weekdayName(c.sol), utc: utcText(ms), place,
+    sol: c.dateLabel, weekday: c.weekdayName, utc: utcText(ms), place, face: c.face,
   };
 }
 

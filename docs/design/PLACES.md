@@ -55,7 +55,9 @@ A site is authored once as a template and is the same in every career: it carrie
   "geo": "melas",
   "clock": "mars-local",
   "outside": { "kind": "air", "air": "mars-melas", "weather": "mars-weather" },
-  "gravity": { "regime": "surface", "gG": 0.380, "down": [0, -1, 0] },
+  "gravity": { "regime": "surface", "down": [0, -1, 0] },
+  "inside": { "air": "martian-indoor" },
+  "routine": "melas",
   "lighting": "base",
   "water": "melas",
   "palette": "mars",
@@ -78,6 +80,8 @@ A site is authored once as a template and is the same in every career: it carrie
 | `field` | the Talus training area, a crash site | `surface` | by body |
 
 Sites far from the player are never simulated. Their places exist only as template plus deltas until the player arrives (LONGHAUL's rule: "far-away things get outcomes, not simulation"); what happens there meanwhile is procedural, an outcome written into those deltas (section 3.1).
+
+**As built in v0.0.11** (`src/data/places/sites.js`, `SITE_LIST`; `TEST_SITE` and `MELAS_SITE` live there, no longer in melas.js and testroom.js). The record has `gravity: { regime, down }`, and a `surface` site reads its gG from its body (`BODIES.mars.gG` 0.38: one home for the number), so the example's old `gG: 0.380` is gone; a site may override it. A site also carries `inside: { air }`, the air of its buildings and decks (`martian-indoor` at Melas), `routine` (a row of `src/data/pod.js` `ROUTINES`, its Plan of the Day: `reveilleH`, `reveilleHolidayH`, `tapsH`, `holidays`) beside `water` (a row of `src/data/activities.js` `WATER_MIN`). `CLOCKS` rows carry `day` (`'sol'` or `'day'`) and `built`; `'earth-local'` is not built and throws where a site names it. A site with no routine or no water throws where it is read. `model.js` `lonOf` throws for an unknown site and for a site not on Mars's clock; before any site is entered it returns the start site's. Hours of the Plan of the Day have one home, `ROUTINES.melas` (reveille 5.5 h, 7.0 h on holidays 5 and 6, taps 22.0 h); the evening's 18.0 h is `LIGHT_REGIMES.base.hours.eveningH`. The DI's hours (grooming from reveille minus 0.5 h to taps minus 10 min, the taps window, the evening at taps minus 1 h, the night) are read from the site's routine; his words still say "Taps at 22:00" as literal text until a site keeps other hours.
 
 ### 1.3 Areas
 
@@ -365,6 +369,8 @@ The authored data rebuilds everything; the save holds only what changed. `state.
 - Lists are capped: `items` 2,000 per site (oldest litter goes first; nothing a person owns is dropped), `marks` 500 (scorch, bullet holes, blood are kept until repaired or cleaned; LONGHAUL's rule after the user's "BURNED for good" complaint, 2026-10-31: everything has a life cycle).
 - Footprints and tracks are runtime only (`$marks`), never saved (my call; the user wanted them "without it being too heavy in performance", tradecraft 2026-11-04).
 
+**As built in v0.0.11**: `live.env` is absent for the site's own environment, not null: `{ live: { site, area, env? } }`. The upgrade `places:env` (`src/sim/places/env.js` `upgradeEnv`) turns a null into the absence, because a null in every save would have changed every digest and broken the step 1 proof. The env record is `{ preset, gravity?, air?, airC?, rev }`; `enterSite` keeps it within its site and drops it at another. `setLiveEnv` resolves an override before it writes it, and `upgradeEnv` resolves a saved one (preset, gravity, air, airC), so a malformed override throws at load and never at the first tick.
+
 ---
 
 ## 2. Navigation
@@ -459,6 +465,8 @@ Every cell or room can carry a surface for locomotion: `{ frictionMu, grip: 'non
 
 **Surfaces are ids** (2026-11-08, TECH §1.4): a cell's or room's `surface` names a row of `SURFACES` (`src/data/places/env.js`): regolith, paving, concrete, tile, vinyl, deckPlate, grating, ice-100K, ice-263K, soil, grass, rock. A row carries `muDry` and `muWet` (the values above), `ferrous` (whether mag boots hold: a ship's metal plating, the Pens' steel, not a ceramic tile or ice), `grip` (`none`, `handholds`, `magStrip`, `loops`), `step` (the footstep recipe), `dust` and `soilWord` (the word for what gets on your hands: regolith, soil, grease, frost). `surfaceAt(state, area, x, z)` is the one reader (section 3.16); BODY's footing, the audio's steps and the soiling lines read it and nothing else.
 
+**As built in v0.0.11**: `SURFACES` adds a `stairs` row (concrete treads: `model.js` `surfaceAt` names flights `stairs`) beside the twelve ids. Friction (dry, then wet) for tile 0.5/0.25, vinyl 0.55/0.3, concrete 0.6/0.3, grating 0.7/0.5, soil 0.6/0.4, grass 0.55/0.35 and rock 0.7/0.5 are my calls. `surfaceAt` returns `mu` as the dry value this round. A ground off its authored paths takes its body's ground (`BODIES[body].ground`), never regolith by default.
+
 ---
 
 ## 3. The environment
@@ -491,6 +499,8 @@ Each zone holds the masses of O₂, N₂ (with argon), CO₂, H₂O, CO and soot
 Three consequences worth playing. Martian standard air is 32% oxygen, so **fire runs about 2.3 times faster** than in Earth air (section 3.7). Its nitrogen is only 44 kPa, so the light vac suit at 34 kPa of oxygen (BODY §19) needs little or no prebreathe (a tissue ratio of 1.36 against NASA's 1.4 guide, BODY §11.7; BODY owns the decompression sickness model). And **Ice standard is the thinner breath at the higher pressure**: its inspired oxygen, (75 − 6.3) × 0.22 = 15.1 kPa, sits just above BODY's 15 kPa mountain-sickness line, so a Martian from Melas's 19.1 kPa of inspired O₂ feels the towns as a 2,000 m day (SETTING's "a Martian datum breath"), and the poor streets' CO₂ adds the headache; fire in it burns about as in Earth air (f_O₂ 1.10, section 3.7). Crossing from the forward operating base into a town is a step **up** in pressure, 66 to 75 kPa, and the ears pop (CP-A's air break, section 7.6).
 
 **Alarms** a zone raises (PLACES raises them; BODY owns what the air does to a body): low oxygen when pO₂ falls below 85% of the zone's set point (17.9 kPa in Martian standard, 14.0 in Ice standard); high CO₂ pCO₂ > 1.0 kPa; CO > 50 ppm; decompression when P falls below 76% of the zone's set pressure (50 kPa in Martian standard, 57 kPa in Ice standard) or faster than 0.5 kPa/min; fire (section 3.7); radiation over 100 µSv/h in an occupied zone. An alarm sets the zone's `alarm`, sounds the room's horn, posts a priority-A event for TIME (§7.1, "fire, decompression or radiation alarm elsewhere in the site"), and drives automatic doors (section 1.6).
+
+**As built in v0.0.11**: an `AIRS` row's `airC` is the air's set point and its default; a layer's `airC` overrides it. A live override's `airC` with no air re-reads the air under it at that temperature; a non-numeric `airC` throws. Molar masses where the table gives none are my calls: Ice standard 28.90 g/mol and belt station 29.16 (summed from their partial pressures), Condition Vac 29.62 (Martian air's mix). New rows: `earth-sea-level` (101.325 kPa, 15 °C, WEAPONS' Earth class) and `mars-datum` (52 kPa, -25 °C). Melas's valley air carries -10 °C as its temperature this round (the cool season, the 0.0.4 sheet's call) until the weather sets it.
 
 ### 3.3 Life support
 
@@ -633,6 +643,8 @@ Lamps are fixtures (`lightKind`: `panel`, `strip`, `nightLight`, `emergencyLamp`
 
 A windowed room's daylight (`WINDOW_K` 0.3 × the sky) can beat only the lights-out fill, never the day's 0.75 or the evening's 0.65, so a windowed room's eyes follow the sky only at lights out (BODY §2.6).
 
+**As built in v0.0.11 (step 3)**: a room's state comes from the site's clock (`localTime`) and its lighting regime's hours (`LIGHT_REGIMES[...].hours`; `env.js` `lightHoursOf`). A base takes day from reveille and lights out from taps (its Plan of the Day), with evening from 18:00. A ship has day from 06:00 to 22:00 UTC and lights out otherwise; `normal` and `shipNight` are drawn with the day and lights-out moods until VIEWS gives a ship its own (my call). Town and emergency have no hours yet and throw. A site whose sky is none has `NO_SKY` (level 0, no sun), so its windows show nothing and its `dark` lamps burn.
+
 ### 3.10 Radiation fields: `doseAt`, the one helper
 
 `doseAt(state, x, z, who)` in µSv/h is **the** dose rate of the game. BODY's ledgers, the dosimeter, the aid station's badge reader, COMBAT's dose rules and SETTING's tables all read it; no other section keeps a rate table (the hub: one quantity, one number, one helper). It sums the radiation fields the place lies in, each through its own shielding law, plus point sources (a reactor's shield face 10 µSv/h falling as 1/r², a damaged reactor, a source in a lab), plus a floor:
@@ -701,6 +713,8 @@ What this means for play (cross-references to TIME, COMBAT, CAREER and SETTING):
 Changes are events: a burn starting, a cut, a flip, the Ring spinning up. Loose things (`secured: false` fixtures and items) fall aft at a burn and float in free fall; BODY and TECH own their motion.
 
 **Gravity is a vector with a regime, and a ship's is a profile** (the user, 2026-11-08: "gravity (can include high G maneuvers in some rare cases with alert 'brace' sirens on ships mid flight)"). The live value is `{ regime, gG, down, onsetGs, spin }` in `state.places.live.env`, with `down` a unit vector in the area's frame (−y for a floor; for a deck under thrust it points aft, which is −y once the deck is drawn as a floor; a lateral part, such as an RCS throw or a Ring car's tilt, is a push on whatever is not secured). A ship's gravity is not a constant: it follows a **profile**, a list of events `{ atMs, kind: burn | cut | flip | jink | brace, toG, onsetGs, holdS, warnS }`, given by the scene's spec or, for a voyage, by TIME §12's `feltAt`. Each event is posted to TIME's queue as `grav:*`. **A `brace` event sounds the siren and the 1MC's "Brace, brace, brace" `warnS` before `atMs`**: a change of 1.5 G or less that is announced is braced against and a surprise of 0.5 G or less is survived (BODY's `BRACE_G` and `SURPRISE_G`), and above them a marine is in a couch (the `couched` footing mode) or is thrown (COMBAT §14.8's feet-aft rule, `√(2·a·h)`). The regimes' effect on a body is BODY's `footingOf(state, pid)` (`src/sim/body/footing.js`: `walk` from 0.3 G, `bound` from 0.05, `heavy` above about 1.5 G, `couched` above about 2.5 G or in a seat, `magWalk` on a ferrous plate below 0.05 G with boots on, `handhold`, `braced`, `float`), whose anchor is WEAPONS §7.8's row: footing holds the recoil. The thresholds are my calls, BODY sets the numbers.
+
+**As built in v0.0.11**: Europa's ballistic class is 0.134 G times G0, 1.31409 m/s² (it was a flat 1.314). The `ceres-drum` preset spins at 0.3 G (my call: belt stations' usual spin; BODY or SETTING may set it). The Wheel's floor is the `wheel` preset (section 3.16); its `spin` field is data only until BODY's Coriolis and WEAPONS §2.9's spin bias read it.
 
 ### 3.12 Water, power and utilities
 
@@ -790,6 +804,8 @@ A pure function of the site, the time and the world's seed (tradecraft's `weathe
   I kept SETTING's profile and withdrew my earlier one (a crest 14 km away and 7 km up, 27° of sky due south): Highrim stands on the south rim at 11.3° S, about 47 km from the base (SETTING §4.7), which fits a crest at 45 km, and an 8 km rise over a wall about 15 km deep is a slope near 28°, as Valles Marineris's walls are, where mine needed 60°. The Talus does not need the wall near: it is the old landslide's lobe that runs out across the floor south of the base (section 4.12; SETTING §4.9's "flat outwash below an old landslide"). The walls are never in the stage's picture (the camera looks down); they are felt as late light, the night wind, the field's talus slopes, and in a scope or a terminal (VIEWS).
 - **Europa and other airless places** have no weather; their light is the Sun at 5.2 AU (50 W/m²) and Jupiter's shine (on Europa's Jupiter-facing side about 30 lux at full phase, from Jupiter's 0.034 sr of sky at albedo 0.5, my estimate), with Jupiter eclipsing the Sun once an orbit (TIME's `sunAt`).
 
+**As built in v0.0.11**: `sun.js` serves only Martian sites with a known geo and throws otherwise, with no Melas fallback; the sun by body waits for Europa. It reads Mars's obliquity and radius from `BODIES`. `BODIES.mars.dayH` is 24.65979 h, `SOL_MS` exactly (it said 24.6597, 0.36 s a sol short); Mars's day, obliquity and radius have one home in `BODIES`.
+
 ### 3.16 The environment in a skip, and the helpers
 
 - `placesStep(state, t0, t1)` over at most 60 s: every zone of the current site (exact exponentials, limited exchange), fires (a skip is refused while any fire burns in the site: COMBAT's `threatKnown` counts alarms, CONTRACTS §13), hot water tanks (closed form), grime and dust (linear), machine wear (linear).
@@ -813,6 +829,14 @@ noiseAt(state, x, z)          → dB (the room's noiseDb by its use now, plus ma
 
   `airAt.open` is true only where the air is open and has weather (wind blows only there, not on a deck or indoors); `soundMs` 0 means no airborne path (the audio then uses a contact bus); `rhoKgM3` and `soundMs` come from the gas law in `src/core/phys.js`. Two derived readers mix the place with the person: `footingOf(state, pid)` (BODY, section 3.11) and `anchorOf(state, pid)` (WEAPONS §7.8's row, in `src/sim/arms/shot.js`, replacing the constant `'planted'`). **Who reads what**: ballistics, penetration and the shot read `airAt` and `gravityAt` (their Melas literals go; a missing air throws); the wind reads `airAt.open`; the body's ledgers and the gaits read `envAt` and `footingOf` (the low-g law is clamped at 1 G, with a `heavy` branch above it and a `float` mode at 0 G, and no stance change is ever Infinity ms); brass and the range's dust take `gMs2`; the audio takes the pressure, the speed of sound, the weight and the step recipe; light, sun and sky take `skyOf`, `localTime` and the lighting regime; clocks, jobs and the body clock take `localTime(site)` (a ship's clock is UTC, Melas's the sol, and `lonOf` throws for a site that is not on Mars); soiling lines take `soilWord`; palette and ground art take `area.palette ?? site.palette ?? body.palette`. An unknown site, geo, air, palette or surface **throws** (`env-fallback`).
 - **What the player knows.** These helpers are the truth; the player reads it only through things in the world (the hub's "what they show is only what that screen could know"; tradecraft's "we only know what we know"): a door's or an airlock's panel gauge in view, a room's alarm horn and strobe, the suit's own sensor once worn, a dosimeter badge read at the aid station or a survey meter in the hand, a wall clock, a thermometer by the gate. A breach elsewhere is a sound, a draught toward a door, a pressure door slamming, an announcement. VIEWS draws only those readings; BODY gives the body's own signs (a headache, breathlessness, ears popping).
+
+**As built in v0.0.11**, the helpers (`src/sim/places/env.js`; the code is the truth, and CONTRACTS §21 names them):
+
+- `localTime(site, ms)` gives `{ face, hour, minute, second, civilMs, h, timeslip, slipMs, dayIndex, dayMs, dayLenMs, weekday (Monday 0), weekdayName, dayLabel, dateLabel, dayShort, mars }`. `timeAt(where, ms)` takes a site or a number read as a Mars east longitude. `msAtLocal(site, fromMs, hour, minute)`. `skyOf(state, site, area?)` gives `{ cls, outside, sunBody }`: `cls` is `'none'` where the area is under no sky, `outside` the body's class, `'none'` for deep space. `lonOfSite(site)` throws off Mars. Also `clockOf`, `routineOf`, `waterOf`, `siteAt` (the live site, or SETTING's start site), `lightHoursOf`, `soundMsAt`, `presetEnv`, `bodyPlaceOf` (what a body skipped along a plan breathes and weighs at a site), `setLiveEnv` and `upgradeEnv`. Each takes a site id or a record. `skyOf` and `localTime` were step 3's.
+- **A live preset is scene-wide** (the audit's findings 1, 3 and 12; the lead to confirm the rule). It is meant for whole-scene overrides (ships, debug runs, the tests' matrix) and changes only gravity and air, never the sky or the sun; the sim (`envAt`'s sky, `skyOf`) and the light (`skyAt`) agree on that. An environment for one area is area data: `area.gravity`, `area.air`, `area.sky`, `area.surface`. The Wheel's 1 G belongs on the `melas.wheel.*` area records (`{ regime: 'spin', gG: 1, spin: { radiusM: 500, omegaRadS: 0.1347 } }`, air `martian-indoor`, sky `none`), authored with the shoot house's layout next round; `test-shoothouse`'s spec then becomes env `{ preset: 'site' }`. The brief's check "nothing Mars in the sky indoors on a ship preset" holds only for a scene hosted on a ship site, not for a preset over a Mars host.
+- **Open, for the lead (no change made)**: under a live preset with sky none (`wheel`, `ship-1g`, `ship-coast`), `skyOf` gives `none` even on the open range ground, while step 3's note said `&env=ship-1g` on the range keeps Mars's sky; Europa's preset (sky open) shows Mars's sky (`mars-air`), because the sky is the host site's. Reconcile before a scene stands on an outdoor host under a ship preset. Also, `body.js` decides outdoors from `area.kind` while `envAt` takes it from the preset; the area-level rule above settles both.
+- **Presets as built**: the nine named in CONTRACTS §21, plus `mars-datum` and `earth-ship` (WEAPONS §2.1's table classes) and `wheel` (the Wheel's floor under Base Melas: body mars, gravity spin 1 G, air martian-indoor, open false, sky none; it stands in for the Wheel's areas' own spin field until those are authored). `ENV_CLASS_PRESET` maps a class to its preset, so `ENV_CLASSES` is a view.
+- **Wind**: `windBlowsAt(state, area, x, z)` is `airAt`'s open flag.
 
 ### 3.17 Where this bends reality
 
@@ -1310,6 +1334,8 @@ Added 2026-11-08 for the user's rule of that day: "Yes 1G martian marines always
 
 - **Physics on the floor** (BODY and WEAPONS read the area's `spin`): a body's Coriolis `2ω × v` (along the spin, heavier with it and lighter against it, 4% at a walk, 6% at the Assault walk, 10% at a run; across, a third of that sideways), a dropped body's 4 cm drift over a 1 m fall; a round's offset by WEAPONS §2.9's `ω d² / v`, entered as its spin bias (1.7 cm at 10 m for frangible, 5.5 cm at 7 m for a marking round along the spin). The basic weapons training's ranges stay outdoors at Melas's 0.38 G (§4.12), by the user's rule.
 - **Its people**: the Wheel's operators (control, 24 h, 3), the galley's crew, the houses' chief and cadre (COMBAT §25.10.2), the PT instructors, the corpsman; posts in §4.14's table when built.
+
+**As built in v0.0.11**: the shoot house has its place and a stub spec, not a layout. `test-shoothouse` is `{ host: { site: 'melas', area: 'melas.wheel.s4' }, env: wheel, hour 10:00 (my call), outfit utilities until the combat EVA suit joins, sheets private/cpl/sgt/raider/tierone (default private), built: false }`. The Wheel is Base Melas's, so the shoot house runs on Melas's site and sol (areas `melas.wheel.s1` to `s12`). It is left out of the Tests menu and refused by `newGame` until its layout and fill are built; `?play=test-shoothouse` shows the title with a toast.
 
 ---
 

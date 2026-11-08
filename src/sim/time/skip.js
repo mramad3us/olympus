@@ -118,7 +118,9 @@ export const defaultStops = (mask, ev, state = null) => maskStops(mask, ev, stat
 /** The player's body as the strip reads it ({ strip, stages }), or null without one. */
 export function bodyLook(state, ms = state.clock.ms) {
   const b = state.player?.id ? bodyOf(state, state.player.id) : null;
-  return b ? { strip: stripOf(b, ms), stages: stagesOf(b, ms, siteLonEDeg(state)) } : null;
+  if (!b) return null;
+  const lon = siteLonEDeg(state);
+  return { strip: stripOf(b, ms, lon), stages: stagesOf(b, ms, lon) };
 }
 
 /**

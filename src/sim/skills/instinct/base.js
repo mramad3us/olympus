@@ -49,6 +49,7 @@
 import { marsClock } from '../../../core/calendar.js';
 import { playerActor, playerId } from '../../../core/ids.js';
 import { siteLonEDeg } from '../../jobs.js';
+import { routineOf, siteAt } from '../../places/env.js';
 import { bodyOf, isAsleep } from '../../body/body.js';
 import { stagesOf, hasBeard, woundLine } from '../../body/cues.js';
 import { alertNow, mustered, musterOf, rackFootOf } from '../../time/alerts.js';
@@ -94,7 +95,8 @@ function know(state, me, ms) {
   const nearRack = !!m && state.places?.live?.area === m.area && Math.hypot(me.x - m.x, me.z - m.z) <= 2;
   const own = ownOf(state);
   const atLocker = !!own.lockerId && at.some(a => a.fixtureId === own.lockerId);
-  const v = { pid, body, stages, h, at, atRack, nearRack, atLocker, posture: me.posture ?? 'stand', moving: transPlaying(me, ms), outfit: outfitOf(me),
+  const R = routineOf(siteAt(state));
+  const v = { pid, body, stages, h, R, at, atRack, nearRack, atLocker, posture: me.posture ?? 'stand', moving: transPlaying(me, ms), outfit: outfitOf(me),
     busy: !!state.skip || !!state.time?.doing, asleep: isAsleep(state, pid, ms), drill: state.time?.drills?.open ?? null, range: onRange(state) };
   memo = { state, ms, v };
   return v;
@@ -105,8 +107,11 @@ const onRange = (state) => !!rangeNow(state);
 const atFixture = (k, ...ids) => k.at.find(a => ids.includes(a.id)) ?? null;
 const actAt = (k, ...ids) => { const a = atFixture(k, ...ids); return a ? `activity:${a.id}` : null; };
 const hm = (h) => { const H = Math.floor(h) % 24, M = Math.floor((h - Math.floor(h)) * 60); return `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`; };
-// (grooming is a day's business: the DI does not send you to the basins in the night)
-const dayH = (h) => h >= 5 && h < 21 + 50 / 60;
+// (grooming is a day's business: the DI does not send you to the basins in the night. The day is the site's Plan of the
+// Day (env.js routineOf, src/data/pod.js ROUTINES): from GROOM_EARLY_H before a working day's reveille to TAPS_WARN_H
+// before taps, Melas's 05:00 to 21:50 as before; the holidays' later reveille does not move it)
+const GROOM_EARLY_H = 0.5, TAPS_WARN_H = 10 / 60;
+const dayH = (k) => k.h >= k.R.reveilleH - GROOM_EARLY_H && k.h < k.R.tapsH - TAPS_WARN_H;
 // (the head or a stall ended within HANDS_NAG_MS: the log's last activity record says which, and when)
 const fromHead = (state, ms) => {
   const log = state.log ?? [];
@@ -169,7 +174,7 @@ export const BASE_RULES = Object.freeze([
       const k = know(state, me, ms);
       if (k.busy || k.posture !== 'stand' || ((k.drill || k.range) && !atLeast(k.stages, 'bladder', 'urgent'))) return null;
       if (atLeast(k.stages, 'bladder', 'need')) return { k, variant: actAt(k, 'urinate') ? 'here' : 'go' };
-      if (atLeast(k.stages, 'bladder', 'could-go') && k.nearRack && k.h >= 21 && k.h < 24.7) return { k, variant: actAt(k, 'urinate') ? 'here' : 'night' };
+      if (atLeast(k.stages, 'bladder', 'could-go') && k.nearRack && k.h >= k.R.tapsH - 1 && k.h < 24.7) return { k, variant: actAt(k, 'urinate') ? 'here' : 'night' };
       return null;
     },
     act: (ctx) => actAt(ctx.k, 'urinate'),
@@ -229,9 +234,9 @@ export const BASE_RULES = Object.freeze([
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (k.busy || k.drill || k.range || k.posture === 'lie') return null;
-      const tired = atLeast(k.stages, 'fatigue', 'tired') && (k.h >= 21 || k.h < 4), exhausted = atLeast(k.stages, 'fatigue', 'exhausted');
+      const tired = atLeast(k.stages, 'fatigue', 'tired') && (k.h >= k.R.tapsH - 1 || k.h < 4), exhausted = atLeast(k.stages, 'fatigue', 'exhausted');
       if (!tired && !exhausted) return null;
-      const evening = !exhausted && k.h >= 21 && k.h < 22;
+      const evening = !exhausted && k.h >= k.R.tapsH - 1 && k.h < k.R.tapsH;
       return { k, evening, variant: actAt(k, 'sleep') ? 'here' : evening ? 'evening' : 'go' };
     },
     act: (ctx) => actAt(ctx.k, 'sleep'),
@@ -246,7 +251,7 @@ export const BASE_RULES = Object.freeze([
     id: 'need-dirt', voice: 'di', tone: 'warn', short: 'Shower', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.drill || k.range || k.posture !== 'stand' || !dayH(k.h) || !atLeast(k.stages, 'hygiene', 'unwashed')) return null;
+      if (k.busy || k.drill || k.range || k.posture !== 'stand' || !dayH(k) || !atLeast(k.stages, 'hygiene', 'unwashed')) return null;
       return { k, variant: actAt(k, 'shower') ? 'here' : 'go' };
     },
     act: (ctx) => actAt(ctx.k, 'shower'),
@@ -263,7 +268,7 @@ export const BASE_RULES = Object.freeze([
       if (k.busy || k.moving || k.posture !== 'lie' || k.asleep || state.time?.drills?.open) return null;
       // (between taps and reveille: back to sleep, or the head first)
       const rev = nextReveilleMs(state, ms), left = rev - ms;
-      const night = (k.h >= 22 || k.h < 12) && left > 20 * 60_000 && left < 9 * 3_600_000;
+      const night = (k.h >= k.R.tapsH || k.h < 12) && left > 20 * 60_000 && left < 9 * 3_600_000;
       if (!night) return { k };
       if (atLeast(k.stages, 'bladder', 'need')) return { k, variant: 'head', night: true };
       return { k, variant: 'back', night: true, rev: hm(k.h + left / 3_600_000) };
@@ -279,7 +284,7 @@ export const BASE_RULES = Object.freeze([
     id: 'rack', voice: 'di', tone: 'note', short: 'Taps', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.drill || k.range || k.nearRack || !(k.h >= 21 + 50 / 60 && k.h < 22)) return null;
+      if (k.busy || k.drill || k.range || k.nearRack || !(k.h >= k.R.tapsH - TAPS_WARN_H && k.h < k.R.tapsH)) return null;
       return { k };
     },
     act: () => null,
@@ -306,7 +311,7 @@ export const BASE_RULES = Object.freeze([
     id: 'stubble', voice: 'di', tone: 'note', short: 'Shave', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (k.busy || k.drill || k.range || k.posture !== 'stand' || !dayH(k.h) || !k.body || !hasBeard(k.body) || !((k.body.hygiene?.stubbleH ?? 0) > 20)) return null;
+      if (k.busy || k.drill || k.range || k.posture !== 'stand' || !dayH(k) || !k.body || !hasBeard(k.body) || !((k.body.hygiene?.stubbleH ?? 0) > 20)) return null;
       return { k, variant: actAt(k, 'shave') ? 'here' : 'go' };
     },
     act: (ctx) => actAt(ctx.k, 'shave'),
@@ -323,7 +328,7 @@ export const BASE_RULES = Object.freeze([
       const k = know(state, me, ms);
       if (k.busy || k.range) return null;
       if (k.drill) return { k, variant: 'drill', noHumour: true, end: hm(k.h + (k.drill.endMs - ms) / 3_600_000) };
-      const variant = k.h >= 18 && k.h < 22 ? 'evening' : k.h >= 22 || k.h < 5.5 ? 'night' : 'day';
+      const variant = k.h >= 18 && k.h < k.R.tapsH ? 'evening' : k.h >= k.R.tapsH || k.h < k.R.reveilleH ? 'night' : 'day';
       return { k, variant };
     },
     // (in a drill, standing at your rack: T stands fast there until the stand-down)

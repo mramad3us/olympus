@@ -52,6 +52,24 @@
 // constant of its own. The rule's named exceptions, each its own quantity: react.js's SUPP_MS (the take-in's 200 ms a band),
 // look.js's FLASH_MS (a muzzle flash's life), wounds.js's HARD_BLEED_PM (a hard bleed), needs.js's HARD_MET (hard work's metabolic rate). The page's modules (render, ui,
 // art) are left out: their FLASH_ names are the muzzle flash and the panel's highlight, not the bang's physics (my call).
+// The environment foundation (ROADMAP "anywhere", step 1; TECH §1.4, PLACES §3.16, CONTRACTS §21): ENV_HOME, the
+// environment's one home. Outside src/data/places/env.js (the tables), src/data/places/sites.js (the site records)
+// and src/core/phys.js (G0, R, γ), no module in src holds a gravity or air number: the literals 0.38, 3.727,
+// 9.80665, 65.9, 66.0 and 322 are refused in code (comments and strings blanked), but in src/art, whose numbers are
+// pixel geometry and tones, never physics (my call), and for ENV_EXCEPT's named properties, each its own quantity
+// (the sky's 0.38 skyK, a 9 mm load's 0.38 g of propellant); the old Melas constants' names (G_MELAS, FLOOR_KPA,
+// GROUND_KPA, ROOM_C, OUTDOOR_C, MARS_G, G_MS2, DUST_G_MS2, AIR_KPA, SOUND_SPEED_MS, MARS_AIR_KG_MOL,
+// EARTH_AIR_KG_MOL; from step 2 the Mars gaits' MARS_GAITS and KD_WALK_MS, the gaits being the place's) appear nowhere in src's code; G0_MS2, R_GAS and GAMMA_AIR are defined only in phys.js; and no
+// parameter in src/sim defaults its gravity (`gG =` after a bracket or a comma), so no Mars default can hide a
+// missing wire. From step 3 (the clock and the sky by site), ENV_QUIET: no code in src falls back to Melas by name
+// (`?? 'melas'`, `|| 'melas'`, `?? SITES.melas`, `?? WATER_MIN.melas` and the like: an unknown site throws; from the
+// fixer's pass of step 4 also `?? MELAS_*` and a parameter defaulted to one, `lonEDeg = MELAS_LON_E_DEG)`), and the
+// readers routed through env.js localTime (CLOCK_READERS: the light, the wall clocks, the watch, the log, the stage's
+// clocks) import no Mars clock of their own (marsClock, msAtMarsTime), so a ship's clock is UTC everywhere they show.
+// From step 4 (the scene specs), SCENE_HOST: a scene's site is its spec's host (src/data/scenes.js), so the name
+// SCENARIO_SITES is gone from src, no scenario fill (src/sim/scenarios) or src/sim/game.js moves the clock by a Mars
+// clock of its own (msAtMarsTime: newGame moves it once, by env.js msAtLocal on the host's clock), and no fill names
+// a site by a literal (`site: 'melas'`: its place constant reads its spec's host).
 import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -200,6 +218,22 @@ const hasPace = (name) => wordsOf(name).includes('pace');
 const REACT_HOME = 'src/sim/combat/react.js';
 const hasReact = (name) => { const w = wordsOf(name); return w.includes('takein') || (w.includes('take') && w.includes('in')) || (w.includes('react') && w.includes('ms')); };
 /** COMBAT §5.9: suppression's one home; its prefixes, and the named exceptions (file: name). */
+/** The environment's one home (TECH §1.4): the tables, the site records and the physical constants. */
+const ENV_HOME = Object.freeze(new Set(['src/data/places/env.js', 'src/data/places/sites.js', 'src/core/phys.js']));
+const ENV_LITERALS = /(?<![\w.$])(0\.38|3\.727|9\.80665|65\.9|66\.0|322)(?![\w.])/g;
+/** Named properties outside the home that happen to hold one of the literals, each its own quantity (not a gravity or an air). */
+const ENV_EXCEPT = Object.freeze(new Set(['src/data/places/sky.js: skyK 0.38', 'src/sim/arms/calibres.js: propG 0.38']));
+const ENV_OLD = Object.freeze(['G_MELAS', 'FLOOR_KPA', 'GROUND_KPA', 'ROOM_C', 'OUTDOOR_C', 'MARS_G', 'G_MS2', 'DUST_G_MS2', 'AIR_KPA', 'SOUND_SPEED_MS', 'MARS_AIR_KG_MOL', 'EARTH_AIR_KG_MOL', 'MARS_GAITS', 'KD_WALK_MS']);
+const ENV_PHYS = Object.freeze(['G0_MS2', 'R_GAS', 'GAMMA_AIR']);
+const ENV_G_DEFAULT = /[({,]\s*gG\s*=(?![=>])/g;
+/** A quiet Melas: a fallback to the site by name (step 3). */
+const ENV_QUIET = /(\?\?|\|\|)\s*(['"]melas['"]|[\w$]+\.melas(?![\w$])|MELAS_[A-Z0-9_]+)|(?<=[\w$]\s*)=\s*MELAS_[A-Z0-9_]+(?=\s*[,)])/g;
+/** The readers routed through env.js localTime: no Mars clock of their own. */
+const CLOCK_READERS = Object.freeze(['src/sim/places/light.js', 'src/sim/places/clocks.js', 'src/ui/hud/watch.js', 'src/ui/cards/log.js', 'src/render/clocks.js']);
+const MARS_CLOCKS = /(?<![\w$])(marsClock|msAtMarsTime)(?![\w$])/g;
+/** The scene specs' guard (step 4): the old table's name, a fill's own Mars clock, a literal site in a fill. */
+const SCENE_TABLE = /(?<![\w$])SCENARIO_SITES(?![\w$])/g, SCENE_CLOCK = /(?<![\w$])msAtMarsTime(?![\w$])/g, SCENE_SITE = /(?<![\w$])site\s*:\s*['"`]/g;
+const SCENE_FILLS = (r) => r.startsWith('src/sim/scenarios/') || r === 'src/sim/game.js';
 const SUPP_HOME = 'src/sim/combat/supp.js';
 const SUPP_PREFIXES = Object.freeze(['SUPP_', 'HARD_', 'STARTLE_', 'INOC_', 'FLASH_', 'DEAF_', 'NERVE_']);
 const SUPP_EXCEPT = Object.freeze(new Set(['src/sim/combat/react.js: SUPP_MS', 'src/sim/arms/look.js: FLASH_MS', 'src/sim/body/wounds.js: HARD_BLEED_PM', 'src/data/body/needs.js: HARD_MET']));
@@ -491,6 +525,72 @@ export default [
       console.log(`      ${files.length} modules; defined in ${SUPP_HOME}: ${home.length} (${home.slice(0, 8).join(', ')}, …); excepted: ${excepted.join('; ') || 'none'}${gone.length ? `; listed but gone: ${gone.join('; ')}` : ''}`);
       assert(home.includes('SUPP_MAX') && home.includes('HARD_K') && home.includes('STARTLE_FROM') && home.includes('INOC_CAP') && home.includes('FLASH_PTS') && home.includes('DEAF_K') && home.includes('NERVE_DC0'), `the home's names: ${home.join(', ')}`);
       assert(!hits.length, hits.join('\n'));
+    },
+  },
+  {
+    name: 'rules: the environment\'s one home (TECH §1.4, ENV_HOME): no gravity or air literal in src\'s code outside src/data/places/env.js, sites.js and src/core/phys.js (src/art and the named properties apart), no old Melas constant, G0, R and γ only in phys.js, and no gG default in src/sim',
+    fn() {
+      const files = srcFiles(), lits = [], excepted = [], old = [], phys = [], defaults = [];
+      const lineOf = (code, at) => code.slice(0, at).split('\n').length;
+      for (const f of files) {
+        const r = rel(f), code = codeOnly(readFileSync(f, 'utf8'));
+        if (!ENV_HOME.has(r) && folderOf(r) !== 'art') for (const m of code.matchAll(ENV_LITERALS)) {
+          const prop = /([A-Za-z_$][\w$]*)\s*:\s*$/.exec(code.slice(Math.max(0, m.index - 40), m.index))?.[1] ?? '', key = `${r}: ${prop} ${m[1]}`;
+          (ENV_EXCEPT.has(key) ? excepted : lits).push(ENV_EXCEPT.has(key) ? key : `${r}:${lineOf(code, m.index)}: ${m[1]}`);
+        }
+        for (const n of ENV_OLD) for (const m of code.matchAll(new RegExp(`(?<![\\w$])${n}(?![\\w$])`, 'g'))) old.push(`${r}:${lineOf(code, m.index)}: ${n}`);
+        if (r !== 'src/core/phys.js') for (const d of definedNames(code)) if (ENV_PHYS.includes(d.name)) phys.push(`${r}:${lineOf(code, d.at)}: ${d.name}`);
+        if (folderOf(r) === 'sim') for (const m of code.matchAll(ENV_G_DEFAULT)) defaults.push(`${r}:${lineOf(code, m.index)}: gG =`);
+      }
+      // (the probe: the patterns find what they are for)
+      const probe = [[ENV_LITERALS, 'const g = 3.727, p = 65.9;', 2], [ENV_LITERALS, 'x = 0.385 + 10.38 + 1322', 0], [ENV_G_DEFAULT, 'function f(h, gG = 1) {} const { gG = 2 } = o;', 2], [ENV_G_DEFAULT, 'const gG = 1; if (gG === 2) {}', 0]]
+        .map(([re, text, want]) => ({ text, want, got: [...text.matchAll(re)].length }));
+      const homeNames = definedNames(codeOnly(readFileSync(path.join(root, 'src/core/phys.js'), 'utf8'))).map(d => d.name);
+      report({ 'a gravity or air literal outside the home': lits, 'an old Melas constant': old, 'G0, R or γ defined outside phys.js': phys, 'a gG default in src/sim': defaults });
+      console.log(`      ${files.length} modules; the home: ${[...ENV_HOME].join(', ')}; phys.js defines ${homeNames.join(', ')}; excepted: ${excepted.join('; ') || 'none'}; the probe ${probe.map(p => `${p.got}/${p.want}`).join(', ')}`);
+      assert(probe.every(p => p.got === p.want), JSON.stringify(probe));
+      assert(ENV_PHYS.every(n => homeNames.includes(n)), `phys.js defines ${homeNames.join(', ')}`);
+      assert(!lits.length && !old.length && !phys.length && !defaults.length, [...lits, ...old, ...phys, ...defaults].join('\n'));
+    },
+  },
+  {
+    name: 'rules: no quiet Melas (ROADMAP "anywhere" step 3, ENV_QUIET): no fallback to Melas by name in src\'s code, and the light, the wall clocks, the watch, the log and the stage\'s clocks keep no Mars clock of their own (env.js localTime is theirs)',
+    fn() {
+      const files = srcFiles(), quiet = [], clocks = [];
+      const lineOf = (code, at) => code.slice(0, at).split('\n').length;
+      for (const f of files) {
+        const raw = readFileSync(f, 'utf8'), r = rel(f), code = codeOnly(raw);
+        // (on the raw text, as codeOnly blanks the strings: a match counts where its operator is code, not a comment's or a string's)
+        for (const m of raw.matchAll(ENV_QUIET)) if (code[m.index] === raw[m.index]) quiet.push(`${r}:${lineOf(raw, m.index)}: ${m[0]}`);
+        if (CLOCK_READERS.includes(r)) for (const m of code.matchAll(MARS_CLOCKS)) clocks.push(`${r}:${lineOf(code, m.index)}: ${m[1]}`);
+      }
+      const probe = [[ENV_QUIET, "a ?? 'melas'; b || \"melas\"; c ?? SITES.melas; d ?? WATER_MIN.melas; e ?? MELAS_LON_E_DEG; function f(x, lonEDeg = MELAS_LON_E_DEG) {} g({ lon = MELAS_LON, k })", 7], [ENV_QUIET, "a ?? 'melas.ground'; b ?? x.melasWalls; c === 'melas'; const W = MELAS_WALLS; x === MELAS_LON", 0], [MARS_CLOCKS, 'marsClock(ms, lon); msAtMarsTime(a); marsClocks', 2]]
+        .map(([re, text, want]) => ({ text, want, got: [...text.matchAll(re)].length }));
+      report({ 'a fallback to Melas by name': quiet, 'a Mars clock in a reader routed through localTime': clocks });
+      console.log(`      ${files.length} modules; ${CLOCK_READERS.length} clock readers (${CLOCK_READERS.map(r => r.split('/').slice(-2).join('/')).join(', ')}); the probe ${probe.map(p => `${p.got}/${p.want}`).join(', ')}`);
+      assert(probe.every(p => p.got === p.want), JSON.stringify(probe));
+      assert(!quiet.length && !clocks.length, [...quiet, ...clocks].join('\n'));
+    },
+  },
+  {
+    name: 'rules: a scene stands where its spec says (ROADMAP "anywhere" step 4, SCENE_HOST): no SCENARIO_SITES in src, no Mars clock in a scenario\'s fill or newGame (env.js msAtLocal at the host moves the clock), no literal site in a fill',
+    fn() {
+      const files = srcFiles(), table = [], clock = [], sites = [];
+      const lineOf = (code, at) => code.slice(0, at).split('\n').length;
+      for (const f of files) {
+        const raw = readFileSync(f, 'utf8'), r = rel(f), code = codeOnly(raw);
+        for (const m of code.matchAll(SCENE_TABLE)) table.push(`${r}:${lineOf(code, m.index)}`);
+        if (!SCENE_FILLS(r)) continue;
+        for (const m of code.matchAll(SCENE_CLOCK)) clock.push(`${r}:${lineOf(code, m.index)}`);
+        // (on the raw text, as codeOnly blanks the string: a match counts where its key is code)
+        for (const m of raw.matchAll(SCENE_SITE)) if (code[m.index] === raw[m.index]) sites.push(`${r}:${lineOf(raw, m.index)}: ${m[0]}`);
+      }
+      const probe = [[SCENE_TABLE, 'SCENARIO_SITES[x]; MY_SCENARIO_SITES', 1], [SCENE_CLOCK, 'msAtMarsTime(a); msAtMarsTimes', 1], [SCENE_SITE, "{ site: 'melas' }, { site: x.host.site }, { mysite: 'a' }", 1]]
+        .map(([re, text, want]) => ({ text, want, got: [...text.matchAll(re)].length }));
+      report({ 'the old SCENARIO_SITES': table, 'a Mars clock in a fill or newGame': clock, 'a literal site in a fill': sites });
+      console.log(`      ${files.length} modules, ${files.map(rel).filter(SCENE_FILLS).length} of them fills or newGame; the probe ${probe.map(p => `${p.got}/${p.want}`).join(', ')}`);
+      assert(probe.every(p => p.got === p.want), JSON.stringify(probe));
+      assert(!table.length && !clock.length && !sites.length, [...table, ...clock, ...sites].join('\n'));
     },
   },
 ];

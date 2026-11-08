@@ -22,8 +22,8 @@
 // frame(state, alpha, nowS) (every frame, after the view): the player's actor's stride, gait and
 // step through the footsteps' scheduler (steps.js), each foot-fall played at its moment on the
 // audio clock (its offset from the frame's real time nowS, a tick ahead at most), with stepVoice's
-// recipe, gain and filter for the surface under the feet (places' surfaceAt), the site's gravity
-// (its record's gravity.gG) and the air (src/data/sounds.js AIR_KPA by the area's kind). Nothing
+// recipe, gain and filter for the surface under the feet (places' surfaceAt), the place's gravity
+// and air (src/sim/places/env.js envAt: the one helper for each, TECH §1.4). Nothing
 // plays while time stands still, while a skip runs, or before start(). door(fact) (the places' door
 // fact { id, area, x, z, state, kind }) plays the leaf opening or closing where it is: inverse
 // distance from 1 m with the area's rolloff (1.5 indoors, 1 outdoors, VIEWS §11.2), panned by its
@@ -70,10 +70,11 @@ import { hash01, hashInt } from '../../core/hash.js';
 import { isHeld, TICK_MS } from '../../core/clock.js';
 import { playerActor } from '../../core/ids.js';
 import * as places from '../../sim/places/model.js';
+import { envAt } from '../../sim/places/env.js';
 import { airDb } from '../../sim/people/hearing.js';
-import { STEPS, DOORS, WORLD, RANGE, CHAOS, STRESS, VOICES_MAX, MASTER_DEFAULT, AIR_KPA, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
+import { STEPS, DOORS, WORLD, RANGE, CHAOS, STRESS, VOICES_MAX, MASTER_DEFAULT, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
 import { renderSteps } from './synth.js';
-import { createStepScheduler, stepVoice, lowpassHz, MARS_G } from './steps.js';
+import { createStepScheduler, stepVoice, lowpassHz } from './steps.js';
 import { createWorld } from './world.js';
 import { createRange } from './range.js';
 import { createBang } from './bang.js';
@@ -186,11 +187,10 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     return true;
   }
 
-  // (where the player stands: the site's gravity and the air of the area's kind)
+  // (where the player stands: the place's gravity and air (env.js envAt), and the rolloff's kind, a ground's or a floor's)
   function here(state) {
-    const live = state.places?.live, area = live ? places.areaOf(live.area) : null, site = live ? places.siteOf(live.site) : null;
-    const kind = area?.kind === 'ground' ? 'ground' : area ? 'floor' : 'default';
-    return { area, kind, gG: site?.gravity?.gG ?? MARS_G, pKpa: AIR_KPA[kind] ?? AIR_KPA.default };
+    const live = state.places?.live, area = live ? places.areaOf(live.area) : null, a = playerActor(state), E = envAt(state, null, a?.x ?? 0, a?.z ?? 0);
+    return { area, kind: area?.kind === 'ground' ? 'ground' : 'floor', gG: E.gravity.gG, pKpa: E.air.pKpa };
   }
 
   // ---- the world's loops and one-shots (world.js asks for them) ----
@@ -365,11 +365,13 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     stats.late = steps.stats.dropped;
     if (!falls.length) return;
     const h = here(state);
-    let surface = 'concrete';
-    try { surface = places.surfaceAt?.(state, a.x, a.z) ?? surface; } catch { /* (no surface known here: concrete) */ }
+    // (what the feet are on: the place's, never a quiet concrete. model.js surfaceAt throws for a ground with no surface, and
+    // the error goes to the frame's caller; null only with no live area, where nothing walks)
+    const surface = places.surfaceAt(state, a.x, a.z);
+    if (!surface) return;
     for (const f of falls) {
       const voice = stepVoice(surface, f.gait, { gG: h.gG, pKpa: h.pKpa }), set = buffers.step[voice.kind];
-      if (!set?.length) continue;
+      if (!set?.length || !Number.isFinite(voice.gainDb)) continue;                      // (no weight or no air: no airborne step)
       const atS = ctx.currentTime + Math.max(0, f.atS - nowS);
       const jitterDb = (hash01('step-db', f.n) - 0.5) * 3, rate = 1 + (hash01('step-rate', f.n) - 0.5) * 0.08;
       if (play(set[hashInt(set.length, 'step', f.n)], { atS, gainDb: voice.gainDb + jitterDb, lowHz: voice.lowpassHz, rate, pan: f.n % 2 ? 0.05 : -0.05 })) {
@@ -381,8 +383,8 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
 
   /** A door's leaf moving (the door fact): its sound where it is, if it is in your area. */
   function door(fact, state = null) {
-    if (!running() || !fact) return false;
-    const me = state ? playerActor(state) : null, h = state ? here(state) : { kind: 'default', pKpa: AIR_KPA.default };
+    if (!running() || !fact || !state) return false;
+    const me = playerActor(state), h = here(state);
     if (state && fact.area && state.places?.live?.area && fact.area !== state.places.live.area) return false;
     const dx = me && Number.isFinite(fact.x) ? fact.x - me.x : 0, dz = me && Number.isFinite(fact.z) ? fact.z - me.z : 0, d = Math.hypot(dx, dz);
     const roll = ROLLOFF[h.kind] ?? ROLLOFF.default, distK = 1 / (1 + roll * Math.max(0, d - 1));

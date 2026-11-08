@@ -18,9 +18,10 @@ import { nextId, put } from '../../core/ids.js';
 import { addUpgrade, emptyDomain } from '../../core/state.js';
 import { TEST_AREA } from '../../data/places/testroom.js';
 import { enterSite } from '../places/model.js';
+import { STARTS } from '../../data/scenes.js';
 
-/** Where the sandbox plays. */
-export const SANDBOX = Object.freeze({ site: 'test', area: 'test.rooms' });
+/** Where the sandbox plays (its site its start's host, src/data/scenes.js STARTS). */
+export const SANDBOX = Object.freeze({ site: STARTS.sandbox.host.site, area: 'test.rooms' });
 /** The sandbox player's look (a wear() spec) and name. */
 export const SANDBOX_PLAYER = Object.freeze({
   name: 'Private (sandbox)',

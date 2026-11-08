@@ -76,19 +76,17 @@
 // count the line's wait on you alone (kdWaitOnYou: never the relay's, a timed string's, a splash's or a casualty's;
 // 0.0.7's tower fixer), and the walks' are the tower's own, passed over with no fault.
 import { TICK_MS } from '../../core/clock.js';
-import { msAtMarsTime } from '../../core/calendar.js';
 import { stream, intIn, weighted, int, range as rnd, d20 } from '../../core/rng.js';
 import { hashPick } from '../../core/hash.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { post, cancel } from '../../core/queue.js';
-import { START_MS, SITES } from '../../data/setting/calendar.js';
 import { SCENES } from '../../data/scenes.js';
 import { COURSES, SEQ_KD, KD_STRINGS, KD_COACH, KD_RO } from '../../data/courses.js';
 import { KD_RANGE, kdLaneOf } from '../../data/places/range.js';
 import { logEntry } from '../log.js';
-import { siteOf } from '../places/model.js';
+import { lonOfSite } from '../places/env.js';
 import { marsClock } from '../time/dates.js';
-import { RUN_MS } from '../places/move.js';
+import { placeGaits } from '../body/motion.js';
 import { setOutfit, syncActors } from '../people/place.js';
 import { drawStaff, setPost, staffName } from '../people/staff.js';
 import { startBody } from '../body/body.js';
@@ -117,7 +115,7 @@ import { pitView, CARRIER_S } from '../arms/pits.js';
 export { CARRIER_S };
 
 /** Where the scene plays. */
-export const RANGE = Object.freeze({ site: 'melas', area: KD_RANGE.area, course: 'kd' });
+export const RANGE = Object.freeze({ site: SCENES['test-range'].host.site, area: KD_RANGE.area, course: 'kd' });
 /** The relay (you and five), relay 2 (six more, in the pits), a KD lane from a bay lane (the build sheet §8 item 10). */
 export const RELAY_N = 6, RELAY2_N = 6, KD_LANE_K = 6;
 /** Groups at most before the zero is written down as it stands; a group's centre this close to the mark, each axis, is zeroed (cm). */
@@ -125,8 +123,8 @@ export const ZERO_GROUPS_MAX = 4, ZERO_OK_CM = 1.0;
 /** The pits (W §11.5, my calls on the times): the reaction (s), the carrier's travel (s), the marking's DC and its times by grade (s), the disk and the flag (s), a rapid string's marking (s). */
 export const PIT_REACT_S = Object.freeze([0.8, 2.0]), MARK_DC = 6, MARK_BLACK = 3, MARK_NEAR = 2, MARK_NEAR_CM = 5;
 export const MARK_S = Object.freeze({ superb: 2, good: 3, pass: 4, fail: 6 }), DISK_S = 4, FLAG_S = 3, RAPID_MARK_S = 12;
-/** The walk between lines at BODY's walk (m/s: the splash's length), the pits' outcome (min), the casualty's edge (s) and its evacuation (min). */
-export const KD_WALK_MS = 1.14, PITS_MIN = 20, CARE_EDGE_S = 20, EVAC_MIN = 12;
+/** The pits' outcome (min), the casualty's edge (s) and its evacuation (min). The walk between lines is BODY's walk at the place's gravity (motion.js placeGaits: the splash's length). */
+export const PITS_MIN = 20, CARE_EDGE_S = 20, EVAC_MIN = 12;
 /** The coach's call on the confirm comes after this many marked hits of yours (the sheet's §6 item 4: "after two marks"; a miss tells him nothing of the zero). */
 export const CONFIRM_CALL_AFTER = 2;
 /** The pits NCO's post in the trench (m). */
@@ -136,7 +134,7 @@ export const COLD_GRACE_MS = 6_000;
 /** The corpsman's place behind a line (6 m behind it, at its north end; behind the bay's line on the 25 m). */
 export const corpsmanAt = (line) => (line === 25 ? { x: 1090, z: 282.5, face: 'right' } : { x: KD_RANGE.kd.lines[line].x - 6, z: 304, face: 'right' });
 
-const lonOf = () => SITES[siteOf(RANGE.site)?.geo]?.lonEDeg ?? 0;
+const lonOf = () => lonOfSite(RANGE.site);
 const actorOf = (state, pid) => (pid === playerId(state) ? playerActor(state) : state.actors?.list?.find(a => a.who === pid) ?? null);
 const fill = (lines, map) => lines.map(l => Object.entries(map).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, String(v)), l));
 const capital = (w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w);
@@ -190,10 +188,6 @@ const zeroRifle = (state, gunId) => { const g = state.items[gunId], z = drawZero
 /** The fill of 'test-range' (see the header). setup: null | 'confirm' | 's200' | 'far'. */
 export function testRange(state, { at = null, setup = null } = {}) {
   const scene = SCENES['test-range'], seed = state.meta.seed, lon = lonOf();
-  if (state.clock.ms === START_MS && scene.hour !== null) {
-    const h = Math.floor(scene.hour), m = Math.round((scene.hour - h) * 60);
-    state.clock.ms = state.meta.createdMs = Math.ceil(msAtMarsTime(state.clock.ms, h, m, lon) / TICK_MS) * TICK_MS;
-  }
   const lane = drawLane(seed, 'kd'), L = laneOf(lane);
   barracks(state, { at: { area: KD_RANGE.area, x: L.fp.x, z: L.fp.z, face: 'right', ...(at ?? {}) } });
   const me = playerActor(state), pid = playerId(state), person = state.people[pid];
@@ -434,7 +428,7 @@ export function kdOnCmd(state, bus, def, i) {
     case 'walk': case 'pits': {
       leaveStop(state, bus, 'scene');
       const me = playerActor(state), P = pointOn(def.line, R.lane), dist = me ? Math.hypot(P.fp.x - me.x, P.fp.z - me.z) : 0;
-      const ms = def.id === 'pits' ? PITS_MIN * 60_000 : Math.max(60_000, Math.round(dist / KD_WALK_MS / 1) * 1000);
+      const ms = def.id === 'pits' ? PITS_MIN * 60_000 : Math.max(60_000, Math.round(dist / placeGaits(state).walkMs / 1) * 1000);
       R.splash = { id: def.id === 'pits' ? 'kd-pits' : 'kd-walk', ms, line: def.line, i };
       break;
     }
@@ -962,7 +956,7 @@ export function kdActors(state, input, bus) {
   if (C && (C.phase === 'down' || C.phase === 'care')) {
     const now = state.clock.ms, c = actorOf(state, R.staff.corpsman);
     if (C.phase === 'down' && c && C.run) {
-      const [tx, tz] = C.run.to, dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz), step = RUN_MS * TICK_MS / 1000;
+      const [tx, tz] = C.run.to, dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz), step = placeGaits(state).runMs * TICK_MS / 1000;
       if (d <= step) {
         c.x = tx; c.z = tz; c.stance = 'kneel'; c.gait = 'idle'; C.phase = 'care'; C.careAtMs = now;
         for (const w of [C.who, ...(C.others ?? [])]) { const rec = state.people[w]?.body; if (rec) state.people[w].body = careOf(rec, now, { tier: 'corpsman' }) ?? rec; }

@@ -6,7 +6,7 @@
 // body clock continuous through the slip (no step over 0.02 h a minute) and its offset over a week;
 // the latency and the depth of a night; natural waking; sleep inertia.
 import { assert, near, fmt } from './helpers.mjs';
-import { templateBody, runSols, weekOf, MELAS_LON, lastReveille, STAGE_TEST } from './bots/sol.mjs';
+import { templateBody, runSols, weekOf, MELAS_LON, lastReveille, STAGE_TEST, MELAS_PLACE } from './bots/sol.mjs';
 import { START_MS } from '../src/data/setting/calendar.js';
 import { marsTimeText, msAtMarsTime, marsClock } from '../src/core/calendar.js';
 import { HOUR_MS, MIN_MS } from '../src/core/clock.js';
@@ -106,7 +106,7 @@ export default [
       const b = templateBody(REV); b.sleep.pressureH = 18;
       b.atMs = taps;
       beginSleepBody(b, taps, { bed: 'own-rack', lonMs: LON_MS });
-      const r = bodyAdvance(b, rowSeg({ met: 1.0, kind: 'still', posture: 'lie' }, MELAS_LON, massOf(b)), taps, taps + 13 * HOUR_MS);
+      const r = bodyAdvance(b, rowSeg({ met: 1.0, kind: 'still', posture: 'lie' }, MELAS_LON, massOf(b), false, MELAS_PLACE), taps, taps + 13 * HOUR_MS);
       const fell = r.events.find(e => e.kind === 'asleep'), woke = r.events.find(e => e.kind === 'woke');
       console.log(`      lying down at 22:00 at 18 h: asleep at ${T(fell.atMs)}, depth ${fmt(b.sleep.depthK, 3)} (at the onset's pressure), woke naturally at ${woke ? T(woke.atMs) : 'never'} (body ${woke ? fmt(phiOf(woke.atMs, LON_MS, 0), 2) : '-'} h, pressure ${fmt(SLEEP.WAKE_P_H, 1)})`);
       assert(woke && phiOf(woke.atMs, LON_MS, 0) >= 5 && phiOf(woke.atMs, LON_MS, 0) < 10, 'natural waking in the body\'s morning');

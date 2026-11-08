@@ -40,13 +40,16 @@
 //     dot sits where the hold puts it (a hold 0.5 mil right puts the target 0.5 mil left of the crosshair: HOLD_PX_PER_MIL
 //     a mil, 0.5 mil ticks). The turrets are seen, so the clicks are the gun's own (beliefOf passes them through); the
 //     zero and the dope are beliefs, never the rifle's true zero (ui-truth).
-// paintWeaponCard({ model, belief, k = 1, distance = false, line = null, hold = null, zeroing = null }) → { w, h, data, px } (a Pixmap: little-endian RGBA words,
-// ImageData's order, alpha 255 or 0; px the same array, the sheet's name for it), k an integer scale.
+// paintWeaponCard({ model, drawing = null, belief, k = 1, distance = false, line = null, hold = null, zeroing = null }) → { w, h, data, px } (a Pixmap: little-endian RGBA words,
+// ImageData's order, alpha 255 or 0; px the same array, the sheet's name for it), k an integer scale. The rifle is the model's drawing
+// (rifles.js DRAWN_AS: the R-7's is v0.0.9's own, below) or the drawing named (the gun samples' candidates, samples/guns, 2026-11-08):
+// a design draws its body and says where its well, selector, port and turrets are, and the state parts are drawn there.
 // cardParts(belief) → the glyphs it will draw (for the tests: every glyph read from the belief alone).
 // Pure: no DOM, no three.js.
 import { paint } from './paint.js';
 import { text, textWidth } from './font.js';
 import { tone } from './tone.js';
+import { drawingOf } from './rifles.js';
 
 /** The card, pixels (the hud's STEPS card: the sheet's §4). */
 export const CARD_W = 180, CARD_H = 148;
@@ -137,14 +140,17 @@ export const WORD_K = 2, WORD_Y = 112;
 const M = (m) => Math.round(m * CARD_PX_PER_M);
 
 /** The card for a belief (see the header). */
-export function paintWeaponCard({ model = 'r7', belief = {}, k = 1, distance = false, line = null, hold = null, zeroing = null } = {}) {
+export function paintWeaponCard({ model = 'r7', drawing = null, belief = {}, k = 1, distance = false, line = null, hold = null, zeroing = null } = {}) {
   const P = cardParts(belief, { distance, line, hold, zeroing });
+  // (the model's drawing (rifles.js DRAWN_AS), or a drawing named outright: the samples' candidates)
+  const D = drawingOf(drawing ?? model);
+  let S = null;
   const base = paint(CARD_W, CARD_H, (px, w, h) => {
     // The backdrop: the doll's wall and floor (VIEWS §4.1), the rifle's shadow thrown a little right.
     px(0, 0, w, h, BG);
     px(0, 0, w, Math.round(h * FLOOR_K), WALL);
     px(0, Math.round(h * FLOOR_K), w, 1, tone(WALL, -0.15));
-    const layer = paint(w, h, (q) => rifle(q, P, model));
+    const layer = paint(w, h, (q) => { S = rifle(q, P, D); });
     // (the shadow: the silhouette, offset, on the floor's colour)
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const v = layer.data[y * w + x];
@@ -160,7 +166,7 @@ export function paintWeaponCard({ model = 'r7', belief = {}, k = 1, distance = f
       const v = layer.data[y * w + x];
       if ((v >>> 24) >= 128) px(x, y, 1, 1, ((v & 0xff) << 16) | (v & 0xff00) | ((v >>> 16) & 0xff));
     }
-    marks(px, P);
+    marks(px, P, S);
     if (P.far) farMarks(px, P.far);
   });
   // (opaque everywhere, alpha 255: the hud puts it straight into an ImageData)
@@ -177,8 +183,15 @@ const X0 = 22, Y0 = 56;
 const FLOOR_K = 0.69;
 const at = (m) => X0 + M(m);
 
-function rifle(px, P, model) {
-  void model;
+// The rifle and what the holder believes of it: a design's body from rifles.js (its card() returns its stations), or the
+// R-7 as v0.0.9 draws it, below; then the state parts at the stations. Returns the stations, for marks().
+function rifle(px, P, D) {
+  if (D.card) {
+    const S = D.card({ px, at, M, Y0 });
+    if (P.far && S.turrets) turrets(px, P.far, S.turrets);
+    stateParts(px, P, S, D.mag);
+    return S;
+  }
   // (the sling under it, stock to handguard, slack)
   for (let x = at(0.08); x < at(0.62); x++) { const t = (x - at(0.08)) / (at(0.62) - at(0.08)), y = Y0 + 14 + Math.round(Math.sin(t * Math.PI) * 9); px(x, y, 1, 2, SLING); }
   // The stock: a butt pad, the body tapering to the receiver, a cheek riser.
@@ -217,27 +230,44 @@ function rifle(px, P, model) {
   px(at(0.39), Y0 - 19, 4, 3, POLY_L);
   // (0.0.7: the turrets, where the card shows the distance: the elevation's knob on the tube and the windage's beside it, each
   // with its mark turned by its clicks (a click a pixel round its face, so a dial is seen to move))
-  if (P.far) {
-    const ex = at(0.37), ey = Y0 - 22;
-    px(ex, ey, 7, 5, POLY); px(ex, ey, 7, 1, POLY_L); px(ex + 1, ey + 5, 5, 1, STEEL_D);
-    px(ex + ((P.far.sight.elev % 7) + 7) % 7, ey + 1, 1, 2, MARK);
-    const wx = at(0.41), wy = Y0 - 15;
-    px(wx, wy, 5, 5, POLY_L); px(wx, wy, 5, 1, STEEL_L);
-    px(wx + 2, wy + 1 + ((P.far.sight.wind % 3) + 3) % 3, 1, 1, MARK);
-  }
+  if (P.far) turrets(px, P.far, R7_STATIONS.turrets);
   px(at(0.51) - 1, Y0 - 17, 1, 8, 0x3c5d84);
   px(at(0.30) - 1, Y0 - 15, 1, 4, 0x3c5d84);
-  // The magazine: in its well, curving forward, its window to the count believed; one in the hand under the handguard.
-  if (P.mag === 'in') magazine(px, at(0.40), Y0 + 8, { count: P.count, approx: P.approx, load: P.load });
-  else px(at(0.40), Y0 + 8, M(0.07), 2, 0x14151c);
-  if (P.hand) handMag(px, P.hand);
+  stateParts(px, P, R7_STATIONS, R7_MAG);
+  return R7_STATIONS;
+}
+
+/** The R-7's stations on the card (rifles.js's designs keep theirs to these): the well, the selector, the port, its mark, the count's words, the turrets. */
+const R7_STATIONS = Object.freeze({
+  well: [at(0.40), Y0 + 8], sel: [at(0.30), Y0 + 4], port: [at(0.40), Y0 - 3, M(0.08), 4], mark: [at(0.43), Y0 - 13], label: at(0.40) + 12,
+  turrets: { e: [at(0.37), Y0 - 22], w: [at(0.41), Y0 - 15] },
+});
+/** The HAD-30 as the R-7's card draws it (see the header); a design's magazine look (rifles.js) takes the same keys. */
+const R7_MAG = Object.freeze({ body: POLY, edge: POLY_L, win: 0x1d2b46, plate: POLY_L, w: MAG_W_PX, curvePx: MAG_CURVE_PX, shownM: MAG_SHOWN_M, clear: false, rib: null });
+
+// (0.0.7: the turrets, where the card shows the distance: the elevation's knob on the tube and the windage's beside it, each
+// with its mark turned by its clicks (a click a pixel round its face, so a dial is seen to move))
+function turrets(px, F, { e: [ex, ey], w: [wx, wy] }) {
+  px(ex, ey, 7, 5, POLY); px(ex, ey, 7, 1, POLY_L); px(ex + 1, ey + 5, 5, 1, STEEL_D);
+  px(ex + ((F.sight.elev % 7) + 7) % 7, ey + 1, 1, 2, MARK);
+  px(wx, wy, 5, 5, POLY_L); px(wx, wy, 5, 1, STEEL_L);
+  px(wx + 2, wy + 1 + ((F.sight.wind % 3) + 3) % 3, 1, 1, MARK);
+}
+
+// The state parts at a design's stations: the magazine in its well (its window to the count believed) or the empty well,
+// one in the hand under the handguard, the selector's lever, the ejection port and what is seen in it.
+function stateParts(px, P, S, look) {
+  const [wellX, wellY] = S.well;
+  if (P.mag === 'in') magazine(px, wellX, wellY, { count: P.count, approx: P.approx, load: P.load }, look);
+  else px(wellX, wellY, M(0.07), 2, 0x14151c);
+  if (P.hand) handMag(px, P.hand, look);
   // The selector, above the grip: its lever toward the believed mode.
-  const sx = at(0.30), sy = Y0 + 4;
+  const [sx, sy] = S.sel;
   px(sx - 1, sy - 1, 3, 3, STEEL_D);
   const lever = { safe: [1, 0], semi: [0, -1], auto: [-1, 0] }[P.mode] ?? [1, 0];
   for (let i = 1; i <= 4; i++) px(sx + lever[0] * i - (lever[1] ? 0 : 0), sy + lever[1] * i, lever[1] ? 2 : 1, lever[1] ? 1 : 2, i === 4 ? MARK : STEEL_L);
   // The ejection port: its cover shut or open; what is seen in it.
-  const portX = at(0.40), portY = Y0 - 3, portW = M(0.08), portH = 4;
+  const [portX, portY, portW, portH] = S.port;
   if (P.port === 'open') {
     px(portX, portY, portW, portH, 0x14151c);
     px(portX, portY + portH, portW, 2, STEEL_L);                                 // (the cover, hinged down)
@@ -265,58 +295,66 @@ function rifle(px, P, model) {
 // (a HAD-30 hanging from (x0, y0) (see the header): its body MAG_SHOWN_M long and MAG_W_PX wide, curving forward, a
 // polymer window along its side with the rounds believed in it from the top (the top one's tip by its kind), its
 // baseplate; a count unknown, "?" on it. Returns its baseplate's place.)
-function magazine(px, x0, y0, { count = null, approx = false, load = null } = {}) {
-  const len = M(MAG_SHOWN_M), w = MAG_W_PX;
+// A design's magazine (rifles.js) may be drawn otherwise (`look`: its colours, width, curve, shown length, its window's
+// width (winW, 3 if not said), ribs on its lower third, or clear: the rounds believed seen through a smoked body, each
+// with its nose (by the believed kind, else dull) on its front pixel, the rows staggered as a double stack lies, so the
+// noses zigzag down the body rather than run as a stripe; and a count unknown frosted, not seen through).
+function magazine(px, x0, y0, { count = null, approx = false, load = null } = {}, look = R7_MAG) {
+  const len = M(look.shownM), w = look.w;
   const cells = [];
   for (let j = 0; j < len; j++) {
-    const t = j / len, x = x0 + Math.round(t * t * MAG_CURVE_PX), y = y0 + j;
-    px(x, y, w, 1, POLY);
-    px(x, y, 1, 1, POLY_L);
+    const t = j / len, x = x0 + Math.round(t * t * look.curvePx), y = y0 + j;
+    px(x, y, w, 1, look.body);
+    px(x, y, 1, 1, look.edge);
+    if (look.rib && j > len * 0.67 && j % 2) px(x + 1, y, w - 1, 1, look.rib);
     cells.push([x + 2, y]);
   }
   const bx = cells.at(-1)[0] - 2, by = cells.at(-1)[1] + 1;
-  px(bx - 1, by, w + 2, 2, POLY_L);                                              // (the baseplate)
+  px(bx - 1, by, w + 2, 2, look.plate);                                          // (the baseplate)
   // (the window: a strip down the body; the rounds believed in it, from the top, brass)
-  const top = 2, rows = len - top - 3;
-  for (let j = 0; j < rows; j++) { const [x, y] = cells[top + j]; px(x, y, 3, 1, 0x1d2b46); }
+  const top = 2, rows = len - top - 3, clear = !!look.clear, winW = look.winW ?? 3, span = clear ? w - 2 : winW, at0 = clear ? -1 : 0;
+  for (let j = 0; j < rows; j++) { const [x, y] = cells[top + j]; px(x + at0, y, span, 1, look.win); }
   if (count === null) {
+    if (clear) for (let j = 0; j < rows; j++) { const [x, y] = cells[top + j]; for (let i = 0; i < span; i++) if ((x + i + y) % 2) px(x + at0 + i, y, 1, 1, look.edge); }
     say(px, bx + 2, by - 8, '?', AMBER);
     return { bx, by };
   }
   const fill = count > 0 ? Math.max(1, Math.round(rows * count / MAG_N)) : 0;
+  const nose = load === 'tracer' ? TRACER_TIP : load ? COPPER : tone(BRASS, -0.25);
   for (let j = 0; j < fill; j++) {
     const [x, y] = cells[top + j], last = j >= fill - 2 && approx;
     if (last && (x + y) % 2) continue;                                          // (an approximate count: its top dithered)
-    px(x, y, 3, 1, j % 2 ? BRASS : BRASS_L);
+    if (clear) { const s = j % 2; px(x + at0 + s, y, span - 2, 1, s ? BRASS : BRASS_L); px(x + at0 + s + span - 2, y, 1, 1, nose); continue; }
+    px(x, y, winW, 1, j % 2 ? BRASS : BRASS_L);
   }
   // (the top round's nose at the feed lips: a tracer's red, ball's bare copper, when the kind is believed)
-  if (fill && load) { const [x, y] = cells[top]; px(x + 2, y, 1, 1, load === 'tracer' ? TRACER_TIP : COPPER); }
+  if (fill && load && !clear) { const [x, y] = cells[top]; px(x + winW - 1, y, 1, 1, load === 'tracer' ? TRACER_TIP : COPPER); }
   return { bx, by };
 }
 
 // (the magazine in the support hand, held under the handguard as it comes to the well: its knuckles round its middle)
 const HAND_X = 116, HAND_Y = Y0 + 16;
-function handMag(px, H) {
-  magazine(px, HAND_X, HAND_Y, { count: H.count, approx: H.approx, load: H.load });
-  const my = HAND_Y + Math.round(M(MAG_SHOWN_M) * 0.45);
-  px(HAND_X - 2, my, MAG_W_PX + 4, 4, SKIN); px(HAND_X - 2, my + 3, MAG_W_PX + 4, 1, SKIN_D); px(HAND_X - 2, my, 1, 4, SKIN_D);
+function handMag(px, H, look = R7_MAG) {
+  magazine(px, HAND_X, HAND_Y, { count: H.count, approx: H.approx, load: H.load }, look);
+  const my = HAND_Y + Math.round(M(look.shownM) * 0.45);
+  px(HAND_X - 2, my, look.w + 4, 4, SKIN); px(HAND_X - 2, my + 3, look.w + 4, 1, SKIN_D); px(HAND_X - 2, my, 1, 4, SKIN_D);
 }
 
-function marks(px, P) {
+function marks(px, P, S = R7_STATIONS) {
   // The selector's marks round its pivot (S forward, 1 up, A back: a dot each, the believed one lit), and
   // the mode's word on the floor under the stock, white on safe and red off it.
-  const sx = at(0.30), sy = Y0 + 4, dots = { safe: [sx + 6, sy], semi: [sx, sy - 6], auto: [sx - 6, sy] };
+  const [sx, sy] = S.sel, dots = { safe: [sx + 6, sy], semi: [sx, sy - 6], auto: [sx - 6, sy] };
   for (const [mode, [x, y]] of Object.entries(dots)) px(x, y, 1, 1, mode === P.mode ? (mode === 'safe' ? MARK : RED) : DIM);
   const word = { safe: 'SAFE', semi: 'SEMI', auto: 'AUTO' }[P.mode] ?? String(P.mode).toUpperCase();
   say(px, X0 - 6, WORD_Y, word, P.mode === 'safe' ? MARK : RED, WORD_K);
   // The port's "?" (never checked) or "!" (a stoppage felt, not yet looked at), above the receiver over the port.
-  if (P.mark) say(px, at(0.43), Y0 - 13, P.mark, AMBER);
+  if (P.mark) say(px, S.mark[0], S.mark[1], P.mark, AMBER);
   // The magazine's believed count beside its baseplate ("≈" when it is a guess), "MAG OUT" with none, in the
   // words' colour (it had been the dim grey of an unlit mark, hard to read on the slate).
   // (with a magazine in the hand the empty well says MAG OUT by itself, and the hand's words take the right)
   const label = P.mag === 'out' ? (P.hand ? '' : 'MAG OUT') : P.count === null ? '' : `${P.approx ? '≈' : ''}${P.count}`;
-  if (label) say(px, P.mag === 'out' ? CARD_W - 4 - sayWidth(label) * WORD_K : at(0.40) + 12, WORD_Y, label, MARK, WORD_K);
-  if (label && P.mag === 'in' && P.load === 'tracer' && !P.hand) say(px, at(0.40) + 12 + (sayWidth(label) + 2) * WORD_K, WORD_Y, 'TR', RED, WORD_K);
+  if (label) say(px, P.mag === 'out' ? CARD_W - 4 - sayWidth(label) * WORD_K : S.label, WORD_Y, label, MARK, WORD_K);
+  if (label && P.mag === 'in' && P.load === 'tracer' && !P.hand) say(px, S.label + (sayWidth(label) + 2) * WORD_K, WORD_Y, 'TR', RED, WORD_K);
   // (the hand's magazine: its count believed, else its weight's band, else "?"; "TR" in red when believed tracer)
   if (P.hand) {
     const H = P.hand, word = H.count !== null ? `${H.approx ? '≈' : ''}${H.count}` : H.feel ? FEEL_CARD[H.feel] ?? '?' : '?';

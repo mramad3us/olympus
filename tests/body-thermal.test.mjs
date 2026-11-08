@@ -5,7 +5,7 @@
 // in the sweats on a dawn run (BODY §10.4: 36.9 °C after the hour) and in PT kit standing; the closed
 // form against tradecraft's own minute-by-minute live(), and the closed form composed exactly.
 import { assert, near, fmt } from './helpers.mjs';
-import { templateBody, lastReveille, MELAS_LON, STAGE_TEST } from './bots/sol.mjs';
+import { templateBody, lastReveille, MELAS_LON, STAGE_TEST, MELAS_PLACE } from './bots/sol.mjs';
 import { START_MS } from '../src/data/setting/calendar.js';
 import { HOUR_MS } from '../src/core/clock.js';
 import { CORE, STAGES, TAU_COLD, TAU_HEAT, TAU_IN, COLD_K, HEAT_K, RUN_C, CLO, warmthOf, settleTo, coreAfter, tradecraftLive, stageOf, TRADECRAFT_WARMTH } from '../src/sim/body/thermal.js';
@@ -32,13 +32,13 @@ export default [
   {
     name: 'indoors nothing moves (8 h at 20 °C: 37.0 °C); an hour out at −10 °C: utilities hold, the sweats on a run finish at 36.9 (BODY §10.4), PT kit standing gets cold; the closed form against tradecraft\'s live()',
     fn() {
-      const b = templateBody(REV), seg = rowSeg({ met: 1.5, kind: 'still' }, MELAS_LON, massOf(b));
+      const b = templateBody(REV), seg = rowSeg({ met: 1.5, kind: 'still' }, MELAS_LON, massOf(b), false, MELAS_PLACE);
       bodyAdvance(b, seg, REV, REV + 8 * HOUR_MS);
       const rows = [];
       for (const [what, outfit, met, kind] of [['utilities, walking', 'utilities', 3.0, 'walk'], ['the sweats, a PT run', 'sweats', 8.0, 'run'], ['PT kit, standing', 'pt', 1.8, 'still']]) {
-        const c = templateBody(REV), s = rowSeg({ met, kind, out: true, outfit }, MELAS_LON, massOf(c));
+        const c = templateBody(REV), s = rowSeg({ met, kind, out: true, outfit }, MELAS_LON, massOf(c), false, MELAS_PLACE);
         bodyAdvance(c, s, REV, REV + HOUR_MS);
-        const st = settleTo({ outdoors: true, outfit }, kind === 'run' ? 1 : 0), tc = tradecraftLive(37, st.target, st.tauMin, 60);
+        const st = settleTo({ outdoors: true, airC: MELAS_PLACE.out.airC, outfit }, kind === 'run' ? 1 : 0), tc = tradecraftLive(37, st.target, st.tauMin, 60);
         rows.push({ what, core: c.thermal.coreC, target: st.target, tau: st.tauMin, tc, stage: stageOf(c.thermal.coreC)?.id ?? 'fine' });
       }
       console.log(`      8 h indoors: ${fmt(b.thermal.coreC, 6)} °C`);

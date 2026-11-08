@@ -50,7 +50,7 @@ export default [
       const start = g.facts('activity').find(f => f.phase === 'start' && f.activity === 'shower');
       const sk = g.facts('skip-start').find(f => f.activity === 'shower'), end = g.facts('skip-end').find(f => f.activity === 'shower');
       save(g, '1-landed');
-      const b1 = bodyOf(s, pid), after = ledgers(b1), st1 = stagesOf(b1, s.clock.ms, LON), cues = cuesOf(b1, s.clock.ms), fig = figureOf(s, g.me(), s.clock.ms);
+      const b1 = bodyOf(s, pid), after = ledgers(b1), st1 = stagesOf(b1, s.clock.ms, LON), cues = cuesOf(b1, s.clock.ms, LON), fig = figureOf(s, g.me(), s.clock.ms);
       const plan = splashPlan(sk);
       const parts = g.facts('body-event').filter(e => e.atMs >= sk.fromMs && e.atMs <= end.toMs).map(e => `${e.kind} ${hm(e.atMs)}`);
       console.log(`      ${hm(t0)} at the rack's foot (${scene.goal}); walked ${fmt(r.log[0]?.lengthM ?? 0, 1)} m in ${r.ticks} ticks to ${STALL}; R offered "${offer?.label}"`);

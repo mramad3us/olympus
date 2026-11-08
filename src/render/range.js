@@ -16,7 +16,7 @@
 //     or out; a line first seen hot, a scene that opens hot, shows it flying), its cloth stirring between
 //     two shapes every FLAG_FLAP_MS of game time;
 //   - THE BLAST: your shot's flash star at the drawn muzzle, over the figure's head, for two ticks, and the
-//     regolith it throws up in front of a prone or kneeling muzzle, motes falling at 0.38 g and settling
+//     regolith it throws up in front of a prone or kneeling muzzle, motes falling at the place's gravity (the look's gMs2) and settling
 //     (range-items.js flashPixels, dustPixels: the design review's, a shot that did not read at 16 px/m);
 //   - THE BRASS: each case where caseAt has it, in flight two bright pixels turning end over end (its glint
 //     by its spin, white on its first tick out of the port), at rest a two-pixel case lying along its spin
@@ -136,7 +136,7 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
       // (your bay lane's stake marked as yours on the 25 m line, as on the KD's (0.0.8))
       if (look.own && inViews(views, look.own.x, look.own.z)) for (const q of ownPointPixels(look.own, ppm)) { put(q, 0, true); stats.own++; }
       // (the blast: noLine, so the outline pass draws no line round the star or the motes; the star unlit, a light itself)
-      const flash = flashPixels(look.fire, ms, ppm), dust = dustPixels(look.fire, ms, ppm);
+      const flash = flashPixels(look.fire, ms, ppm), dust = dustPixels(look.fire, ms, ppm, look.gMs2);
       for (const p of dust) put(p, 0, true);
       // (a tracer's ember to its card (0.0.6): unlit, a light of its own, no outline)
       const lane = look.fire?.lane ? lanes.get(look.fire.lane) : null;
@@ -179,12 +179,12 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
           if (!inViews(views, fire.x, fire.z)) continue;
           if (look.fire && fire.atMs === look.fire.atMs && Math.abs(fire.x - look.fire.x) < 0.01 && Math.abs(fire.z - look.fire.z) < 0.01) continue;   // (yours: drawn above)
           ks.fires++;
-          for (const q of dustPixels(fire, ms, ppm)) put(q, 0, true);
+          for (const q of dustPixels(fire, ms, ppm, look.gMs2)) put(q, 0, true);
           for (const q of flashPixels(fire, ms, ppm)) { if (blast.set(nb, { ...q, color: q.c, part: 0, noLine: true })) nb++; }
         }
         for (const b of K.brass ?? []) { if (!inViews(views, b.x, b.z)) continue; for (const q of brassPixels(b, ppm, ms)) put(q); ks.cases++; }
         for (const t of K.tiles ?? []) { if (!inViews(views, t.x, t.z)) continue; for (const q of tilePixels(t, ppm)) put(q); ks.tiles++; }
-        for (const d of K.dust ?? []) { if (!inViews(views, d.x, d.z)) continue; for (const q of bermDustPixels(d, ms, ppm)) { put(q, 0, true); ks.dust++; } }
+        for (const d of K.dust ?? []) { if (!inViews(views, d.x, d.z)) continue; for (const q of bermDustPixels(d, ms, ppm, look.gMs2)) { put(q, 0, true); ks.dust++; } }
         stats.kd = ks;
         if (faces) faces.built.group.visible = true;
       } else { stats.kd = null; if (faces) faces.built.group.visible = false; }
@@ -200,9 +200,9 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
           ps.widths.push({ lane: t.lane, dw: ta.dw, facingK: Math.round((t.facingK ?? 0) * 1000) / 1000 });
           if ((t.facingK ?? 0) >= 0.999) ps.facing++;
           if (!inViews(views, t.x, t.z)) continue;
-          for (const p of turnerPixels(t, ms, ppm)) { put(p, p.part, p.noLine); ps.pixels++; }
+          for (const p of turnerPixels(t, ms, ppm, look.gMs2)) { put(p, p.part, p.noLine); ps.pixels++; }
           ps.holes += (t.holes ?? []).length;
-          for (const h of t.holes ?? []) if (h.ring) for (const q of sparkPixels(t, h, ms, ppm)) { if (blast.set(nb, { ...q, color: q.c, part: 0, noLine: true })) { nb++; ps.sparks++; } }
+          for (const h of t.holes ?? []) if (h.ring) for (const q of sparkPixels(t, h, ms, ppm, look.gMs2)) { if (blast.set(nb, { ...q, color: q.c, part: 0, noLine: true })) { nb++; ps.sparks++; } }
         }
         stats.pairs = ps;
       } else stats.pairs = null;

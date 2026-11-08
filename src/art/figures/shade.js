@@ -27,6 +27,7 @@
 // Pure.
 import { tone } from '../tone.js';
 import { word, GLOW } from '../paint.js';
+import { HELD_LETTERS } from '../rifles.js';
 
 export const INK = 0x14151c;
 const FIXED = {
@@ -35,7 +36,8 @@ const FIXED = {
 };
 /** The fixed letters that glow, and their class. */
 export const GLOWING = Object.freeze({ '¤': GLOW.ALWAYS, '°': GLOW.ALWAYS, '¦': GLOW.ALWAYS });
-const HELD = new Set(['v', 'n', 'u']);
+// (and the rifle drawings' furniture and clear magazine, src/art/rifles.js: held things all)
+const HELD = new Set(['v', 'n', 'u', ...HELD_LETTERS]);
 /** A ramp's steps, OKLCH L (see the header). */
 export const STEP_DOWN_L = 0.085, STEP_UP_L = 0.065;
 

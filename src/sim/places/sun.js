@@ -29,18 +29,21 @@
 // the disc wholly under the horizon: the key light's off, the sky still follows the sun's geometric
 // elevation (VIEWS §2.7). sunTimes finds a sol's rise and set by stepping a minute
 // at a time and halving to the millisecond, with the terrain or on a flat horizon.
-// Angles are rounded to 0.001° (q, TECH §8.1 rule 11) before anyone keeps them. Pure.
+// Angles are rounded to 0.001° (q, TECH §8.1 rule 11) before anyone keeps them. This is Mars's sun:
+// a site has a sun here only if it stands on Mars with a geo SETTING knows; any other site throws (no
+// quiet Melas: TECH §1.4), and light.js asks env.js skyOf first, so a ship's sky is none and never
+// reaches here (the sun by body waits for Europa: ROADMAP "anywhere"). Pure.
 import { marsClock, yearsOf, lsDeg as lsOf, solStartMs } from '../../core/calendar.js';
 import { SOL_MS, HOUR_MS, MIN_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import * as SETTING from '../../data/setting/calendar.js';
-import { MELAS_SITE, MELAS_WALLS } from '../../data/places/melas.js';
-import { TEST_SITE } from '../../data/places/testroom.js';
+import { MELAS_WALLS } from '../../data/places/melas.js';
+import { SITE_LIST } from '../../data/places/sites.js';
+import { BODIES } from '../../data/places/env.js';
 
-/** Mars's obliquity, degrees (TIME §1). */
-export const MARS_OBLIQUITY_DEG = 25.19;
-/** Mars's mean radius, km (PLACES §3.15's curvature). */
-export const MARS_R_KM = 3389.5;
+/** Mars's obliquity, degrees (TIME §1), and its mean radius, km (PLACES §3.15's curvature): BODIES.mars's, their one home (src/data/places/env.js). */
+export const MARS_OBLIQUITY_DEG = BODIES.mars.obliquityDeg;
+export const MARS_R_KM = BODIES.mars.radiusKm;
 /** The horizon is never under this where a site has walls: the far floor's mesas and fans, degrees (PLACES §3.15). */
 export const HORIZON_MIN_DEG = 1;
 /** Angles kept to this, degrees. */
@@ -53,8 +56,8 @@ export const VISIBLE_STEP = 0.0001;
 const YEARS = yearsOf(SETTING), D2R = Math.PI / 180;
 // (each site's latitude, longitude and walls: SETTING's site record, PLACES's walls)
 const HORIZONS = Object.freeze({ melas: MELAS_WALLS });
-const SITE_GEO = Object.freeze(Object.fromEntries([MELAS_SITE, TEST_SITE].map(s => [s.id, Object.freeze({ ...SETTING.SITES[s.geo], walls: HORIZONS[s.horizon] ?? null })])));
-const geoOf = (siteId) => SITE_GEO[siteId] ?? SITE_GEO.melas;
+const SITE_GEO = Object.freeze(Object.fromEntries(SITE_LIST.filter(s => s.body === 'mars' && SETTING.SITES[s.geo]).map(s => [s.id, Object.freeze({ ...SETTING.SITES[s.geo], walls: HORIZONS[s.horizon] ?? null })])));
+const geoOf = (siteId) => { const g = SITE_GEO[siteId]; if (!g) throw new Error(`sun: no Martian site '${siteId}' with a known geo`); return g; };
 
 /** The solar declination at a game time, degrees: asin(sin 25.19° × sin Ls). */
 export const declinationDeg = (ms) => Math.asin(Math.sin(MARS_OBLIQUITY_DEG * D2R) * Math.sin(lsOf(ms, YEARS) * D2R)) / D2R;

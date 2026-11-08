@@ -40,6 +40,7 @@
 // Colours here are base tones; shade.js makes each one's light, shade and dark by rule. Pure.
 import { noise, tone, mixHex } from '../tone.js';
 import { CUT_IDS } from './templates.js';
+import { drawingOf } from '../rifles.js';
 
 /** Skin tones (tradecraft's SKIN). */
 export const SKIN = Object.freeze({ light: 0xedc39c, tan: 0xc48a62, brown: 0x8c5a3f, dark: 0x5e3a2a });
@@ -111,6 +112,8 @@ export function wear(look = {}) {
     accents: {}, closedEyes: false, wet: !!look.wet, tired: !!look.tired, sex: look.sex === 'f' ? 'f' : 'm',
     ears: !!look.ears, headset: !!look.headset, brassard: false, magOut: !!look.magOut,
   };
+  // (the rifle's drawing, when a look names one (src/art/rifles.js: a drawing's id or a model's name); none, the R-7's)
+  if (look.model) L.model = look.model;
   const camo = { pattern: 'valles' };
   switch (outfit) {
     case 'utilities': case 'nco': case 'carrier': case 'rangeStaff':
@@ -166,5 +169,7 @@ export function coloursOf(L, ppm) {
     j: L.pack?.color ?? PACK, i: L.accents.bands ?? L.accents.band ?? 0xdfe2e8, d: L.gloves ?? 0x353947,
     // (what's in the hand: steel, the dark of a gun's metal, black polymer; socks)
     v: 0x9aa1ae, n: 0x353947, u: 0x23252f, ŝ: L.accents.socks ?? 0xe8e6e0,
+    // (the rifle drawing's furniture and clear magazine, if it has them: rifles.js)
+    ...drawingOf(L.model ?? 'r7').colours,
   };
 }

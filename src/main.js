@@ -178,7 +178,7 @@
 // scene's againAsStress) led by its hardening word; Score asks the scene's three aspects (chaos, contrast, hands). The handle
 // gains stress(). ?bench=stress-din: the din's standby as the Boot recruit, its frames at a blank counted as at a bang.
 // For tests and shots, URL parameters skip the title (src/core/debug.js readParams):
-// ?play=sandbox|barracks|test-shower|test-night|test-handling|test-range|test-pairs&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench|mixed][&tier=…];
+// ?play=sandbox|barracks|test-shower|test-night|test-handling|test-range|test-pairs&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench|mixed][&tier=…][&env=<preset>];
 // &ppm=16|24 (the density, 16 by default, the user's pick: src/render/scale.js; 24 a test density);
 // &mood=<name> (else the view's by the hour); &fog=1 (the samples'
 // test fog); &nostore=1; &perf=1 (the GL counters and the GPU's time by pass, in window.__report).
@@ -194,17 +194,18 @@ import { createDebugHandle, installDebug, readParams } from './core/debug.js';
 import { MIN_MS, HOUR_MS, TICK_MS, durationText, isHeld } from './core/clock.js';
 import { utcClockText } from './core/calendar.js';
 import { playerActor, setIdsCheck } from './core/ids.js';
-import { solText, marsClock } from './sim/time/dates.js';
+import { solText } from './sim/time/dates.js';
 import { createSim, newGame as freshGame, SCENARIOS } from './sim/game.js';
 import { WAIT_MS } from './sim/time/domain.js';
 import * as splashTiming from './sim/time/splash.js';
 import { ACTIVITIES } from './data/activities.js';
-import { SCENES } from './data/scenes.js';
+import { SCENES, SCENE_IDS } from './data/scenes.js';
 import { instinctNow } from './sim/skills/instinct.js';
 import { bodyOf } from './sim/body/body.js';
 import { stagesOf, stripOf, wordsOf, cuesOf } from './sim/body/cues.js';
 import { lookFor, indoorsNow } from './sim/people/figure.js';
 import { areaOf, lonOf } from './sim/places/model.js';
+import { timeAt, siteAt, isPreset } from './sim/places/env.js';
 import { lightLevel } from './sim/places/light.js';
 import { sunAt } from './sim/places/sun.js';
 import { handOffer, handMenu } from './sim/places/hand.js';
@@ -304,6 +305,10 @@ const WHY_RANK = { live: 0, skip: 1, area: 1, launch: 1, day: 2, edge: 3 };
 const VERSION = (await fetch('VERSION', { cache: 'no-store' }).then(r => (r.ok ? r.text() : '?')).catch(() => '?')).trim() || '?';
 store.setVersion(VERSION);
 const params = readParams();
+// (&env names a preset (src/data/places/env.js ENV_PRESETS): an unknown one, 'vacuum' (an air, not a preset) or a typo, is
+// dropped here and said in a toast once the page is up, as an unknown ?play is, never a throw in newGame and a dark page)
+const envUnknown = params.env && !isPreset(params.env) ? params.env : null;
+if (envUnknown) params.env = null;
 const readLocal = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const benchName = params.bench ? (params.bench === '1' ? BENCH_DEFAULT : params.bench) : null;
 const settings = {
@@ -545,8 +550,8 @@ const boot = createBoot({ cb: {
     extra: settings.debug ? DEBUG_SKIPS.map(([code, ms]) => [input.label(code), `debug: ${durationText(ms)} pass (marks the save)`]) : [],
   }),
   // (the hidden rolls only in debug, once the scene is over: tradecraft's)
-  logLines: () => logLines(loop.state, { lonEDeg: lonAt(loop.state), over: !!settings.debug && !!scene?.ended }),
-  scenes: () => Object.values(SCENES),
+  logLines: () => logLines(loop.state, { over: !!settings.debug && !!scene?.ended }),
+  scenes: () => SCENE_IDS.map(id => SCENES[id]),                    // (the built scenes: a stub's spec, ROADMAP "anywhere" step 4, waits for its layout)
   playScene: (scene, { tier = null } = {}) => playScene(scene, { tier }),
   // (0.0.8: a scene played as a sheet: the picker's sheets and their order, react's templates.js)
   sheets: () => ({ sheets: TEMPLATES.TEST_SHEETS ?? {}, order: TEMPLATES.PICKER_TIERS ?? null, hard: hardOfSheet }),
@@ -562,12 +567,14 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
  * A new career's state: { seed, mode, scenario ('barracks', a career's; 'sandbox' the test rooms), hour (the Mars
  * local hour at the live site to start at), at ({ area, x, z, face }: somewhere else than the scenario's start),
  * setup (test-handling's: null, 'hot' at string 1 aimed, 'bench' with one magazine of 15, 'mixed' a fourth of tracer), tier
- * (test-pairs' sheet, 0.0.8: 'recruit' … 'tierone'; null the scene's private) }.
+ * (test-pairs' sheet, 0.0.8: 'recruit' … 'tierone'; null the scene's private), scene (a scene's spec, src/data/scenes.js:
+ * its host, environment, hour and setup; ROADMAP "anywhere" step 4) }.
  */
-function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', hour = null, at = null, setup = null, tier = null } = {}) {
-  if (!SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
+function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, env = params.env } = {}) {
+  if (!scene && !SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
   // (0.0.8: tier, test-pairs' sheet (null: the scene's private); scenes never write a career)
-  return freshGame({ seed, mode, scenario, hour, at, setup, version: VERSION, ...(tier ? { tier } : {}) });
+  // (ROADMAP "anywhere" step 2: the URL's &env=<preset> runs every game this page starts under that environment)
+  return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(env ? { env } : {}) });
 }
 /** The URL's start somewhere else (&area=, &at=, &face=), or null: an area alone starts at its spawn. */
 function atParam(scenario) {
@@ -611,9 +618,9 @@ const sceneOf = (s) => {
   const all = Object.values(SCENES).filter(x => x.scenario === s.meta.scenario), setup = s.armoury?.range?.mixed ? 'mixed' : String(s.armoury?.range?.setup ?? '').startsWith('bangs') ? 'bangs' : null;
   return all.find(x => (x.setup ?? null) === setup) ?? all[0] ?? null;
 };
-/** Start a scene: a new game of its scenario, at its hour (or the URL's), with the seed given or a new one, the URL's setup (else the scene's own), and a sheet's tier (test-pairs, 0.0.8). */
+/** Start a scene: a new game from its spec, at its hour (or the URL's), with the seed given or a new one, the URL's setup (else the scene's own), and a sheet's tier (test-pairs, 0.0.8). */
 function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null } = {}) {
-  return launch(newGame({ seed, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier }));
+  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier }));
 }
 
 /** Play a state from here (new, loaded or imported). Resolves with it once its area shows (or the cut gives up). */
@@ -698,13 +705,14 @@ async function showTitle() {
 }
 
 // ---- saves ----
-const lonAt = (s) => { try { return lonOf(s); } catch { return 0; } };
+// (the live site's longitude, which the body's readers take: lonOf throws off Mars's clock, never a quiet 0)
+const lonAt = (s) => lonOf(s);
 /** The line a save shows in the lists: 'Standard · Sol 590 MY 211 · 12:44 · 02:24Z · Echo Company barracks, ground floor'. */
 function about(s) {
-  const lon = lonAt(s), c = marsClock(s.clock.ms, lon), pad = (n) => String(n).padStart(2, '0');
-  // (the slip as the watch shows it, '24:00 +24': one moment, one number on every screen)
+  const c = timeAt(siteAt(s), s.clock.ms), pad = (n) => String(n).padStart(2, '0');
+  // (the slip as the watch shows it, '24:00 +24': one moment, one number on every screen; the day on the site's clock)
   const hhmm = c.timeslip ? `24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `${pad(c.hour)}:${pad(c.minute)}`;
-  return [s.meta.mode === 'ironman' ? 'Ironman' : 'Standard', `Sol ${c.solOfYear} MY ${c.my}`, hhmm, `${utcClockText(s.clock.ms)}Z`, liveArea(s)?.name ?? '?'].join(' · ');
+  return [s.meta.mode === 'ironman' ? 'Ironman' : 'Standard', c.mars ? `Sol ${c.mars.solOfYear} MY ${c.mars.my}` : c.dateLabel, hhmm, `${utcClockText(s.clock.ms)}Z`, liveArea(s)?.name ?? '?'].join(' · ');
 }
 let saving = null, due = null;
 async function autosaveNow(why = 'live') {
@@ -1057,7 +1065,7 @@ function hardOfSheet(tier) {
 }
 // (the player's hair's drawn step, hairOf's: the sheet's and the inventory's dolls wear the cut as it has grown)
 const hairStep = (s) => { try { return hairOf(s, s.player?.id, s.clock.ms)?.step ?? 0; } catch { return 0; } };
-const clockText = (ms) => { const c = marsClock(ms, lonAt(loop.state)); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
+const clockText = (ms) => { const c = timeAt(siteAt(loop.state), ms); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
 function openSheet() {
   const s = loop.state, me = s ? playerActor(s) : null, p = s?.people?.[s.player?.id];
   if (!s) return;
@@ -1250,7 +1258,7 @@ function stripNow(s) {
   const key = `${s.meta?.seed}|${Math.floor(s.clock.ms / 1000)}|${s.clock.seq}`;
   if (stripMemo.key !== key) {
     let strip = null;
-    try { const b = bodyOf(s, s.player?.id); strip = b ? stripOf(b, s.clock.ms) : null; } catch (e) { broke(e, 'the body strip'); }
+    try { const b = bodyOf(s, s.player?.id); strip = b ? stripOf(b, s.clock.ms, lonAt(s)) : null; } catch (e) { broke(e, 'the body strip'); }
     stripMemo = { key, strip };
   }
   return stripMemo.strip;
@@ -1314,7 +1322,7 @@ function render(alpha, s, info) {
   // (a splash: CLOCK, the outcome strip in RADIO, the ticker in INSTINCT; everything else hidden, VIEWS §7.5)
   const inSplash = !!shown;
   watch.el.hidden = inSplash; keysHint.hidden = inSplash;
-  const splashText = splashHud.update(shown, { state: s, lonEDeg: lon });
+  const splashText = splashHud.update(shown, { state: s });
   const faces = inSplash ? null : watch.update(s, { strip: stripNow(s) });
   const showBanner = !inSplash && !cutHeld && loop.pauseReasons.some(r => r !== 'splash' && r !== 'cut');
   banner.hidden = !showBanner;
@@ -2025,7 +2033,8 @@ installDebug(createDebugHandle({
   loop, sim, start: launch, newGame, version: VERSION, store, bus, about, view, solText, report: buildReport, queue: (a) => input.queue(a), more: handleMore,
   body: (s) => {
     const b = bodyOf(s, s.player?.id), ms = s.clock.ms;
-    return b ? { body: b, stages: stagesOf(b, ms, lonAt(s)), strip: stripOf(b, ms), words: wordsOf(b, ms), cues: cuesOf(b, ms) } : null;
+    const lon = b ? lonAt(s) : null;
+    return b ? { body: b, stages: stagesOf(b, ms, lon), strip: stripOf(b, ms, lon), words: wordsOf(b, ms, lon), cues: cuesOf(b, ms, lon) } : null;
   },
   instinct: (s) => ({ ...instinctNow(s), parts: instinct.parts, plate: instinct.plate }),
   // (the 0.0.6 round's readers: R held's menu and the card up, the hands, the hair)
@@ -2036,7 +2045,7 @@ installDebug(createDebugHandle({
     return { ...(m ?? {}), card: L ? { text: actions.text, cursor: L.cursor, checked: [...L.checked], picks: L.picks, open: L.open, chosen: L.chosen(), plan: actions.plan } : null };
   },
   hands: (s) => {
-    const b = bodyOf(s, s.player?.id), st = b ? stagesOf(b, s.clock.ms, lonAt(s))?.hands : null, c = b ? cuesOf(b, s.clock.ms) : null;
+    const b = bodyOf(s, s.player?.id), st = b ? stagesOf(b, s.clock.ms, lonAt(s))?.hands : null, c = b ? cuesOf(b, s.clock.ms, lonAt(s)) : null;
     return b ? { dirt: b.hands?.dirt ?? null, why: b.hands?.why ?? null, band: st?.id ?? st?.band ?? null, i: st?.i ?? null, words: st?.words ?? null, k: c?.handsK ?? null } : null;
   },
   hair: (s) => hairOf(s, s.player?.id, s.clock.ms),
@@ -2076,10 +2085,13 @@ installDebug(createDebugHandle({
   },
 }));
 loop.start();
-if (benchName) await bench(benchName).catch((e) => broke(e, 'the bench'));
+// (said once the start is made: launch clears the toasts)
+const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); };
+if (benchName) { await bench(benchName).catch((e) => broke(e, 'the bench')); sayEnv(); }
 else if (params.play) {
-  const rec = Object.values(SCENES).find(x => x.id === params.play || x.scenario === params.play);
+  const rec = SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play);
   if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier });
   else if (SCENARIOS[params.play]) launch(newGame({ seed: params.seed ?? 1, scenario: params.play, mode: params.mode, hour: params.hour, at: atParam(params.play) }));
   else { toast(`No scenario '${params.play}': the title instead.`, 'warn'); await showTitle(); }
-} else await showTitle();
+  sayEnv();
+} else { await showTitle(); sayEnv(); }

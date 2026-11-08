@@ -2,7 +2,7 @@
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { settle, police, policeOf, brassNear, brassLeft, tilesLook, POLICE_M } from '../src/sim/arms/brass.js';
-import { BRASS_LIVE, ejectCase } from '../src/sim/arms/look.js';
+import { BRASS_LIVE, ejectCase, caseGMs2 } from '../src/sim/arms/look.js';
 
 export default [
   {
@@ -14,7 +14,7 @@ export default [
       let thrown = 0, peak = 0;
       for (let k = 0; k < 50; k++) for (const who of shooters) {
         const a = s.actors.list.find(x => x.who === who);
-        R.brass.push({ ...ejectCase({ model: 'r7' }, { x: a.x, z: a.z, headRad: 0, stance: 'prone' }, { atMs: t0 + k * 100, kind: 'case', key: `${who}:${k}` }), who });
+        R.brass.push({ ...ejectCase({ model: 'r7' }, { x: a.x, z: a.z, headRad: 0, stance: 'prone' }, { atMs: t0 + k * 100, kind: 'case', key: `${who}:${k}`, gMs2: caseGMs2(s) }), who });
         thrown++;
         if (R.brass.length > BRASS_LIVE) { peak = Math.max(peak, R.brass.length); settle(s, t0 + k * 100 + 5000); }
       }

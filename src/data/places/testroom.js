@@ -29,11 +29,7 @@
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
-/** The sandbox's site: the test rooms on Melas's clock and gravity. */
-export const TEST_SITE = deepFreeze({
-  id: 'test', kind: 'base', template: 'test@1', name: 'Test rooms', geo: 'melas',
-  gravity: { kind: 'surface', gG: 0.38 }, areas: ['test.rooms'],
-});
+// (The sandbox's site record, TEST_SITE, lives in the site registry, src/data/places/sites.js: PLACES §1.2.)
 
 // (a fixture spec: id, kind, make, x, z, face, room, seed, and what else the kit reads)
 const fx = (id, kind, make, x, z, face, room, seed, more = {}) => ({ id, kind, make, x, z, face, room, seed, ...more });

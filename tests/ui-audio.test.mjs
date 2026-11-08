@@ -45,7 +45,7 @@
 import { assert, near, fmt } from './helpers.mjs';
 import { footfalls, stepVoice, createStepScheduler, weightDb, lowpassHz, HALF_CYCLE_M } from '../src/ui/audio/steps.js';
 import { render, measure } from '../src/ui/audio/synth.js';
-import { STEPS, DOORS, WORLD, RANGE, AIR_KPA, LOOKAHEAD_S, WALL_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, TICK_MAX_HZ, KLAXON_HZ, WORLD_RATE_HZ, EARS_DB, EARS_LP_HZ, ECHO_DB, SOUND_SPEED_MS, REPORT_SOURCE_DB, ACTION_SOUNDS, UI_SOUNDS, CLIPPER_HZ } from '../src/data/sounds.js';
+import { STEPS, DOORS, WORLD, RANGE, LOOKAHEAD_S, WALL_DB, SPLASH_LP_HZ, SPLASH_DUCK_DB, TICK_MAX_HZ, KLAXON_HZ, WORLD_RATE_HZ, EARS_DB, EARS_LP_HZ, ECHO_DB, REPORT_SOURCE_DB, ACTION_SOUNDS, UI_SOUNDS, CLIPPER_HZ } from '../src/data/sounds.js';
 import { reportVoice, echoOf, caseVoice, chimeVoice, clickVoice, actionSoundsOf, createRange, createClickQueue, BERM_FACE_X, LATE_MS,
   crackVoice, strikeVoice, carrierVoice, throughEars, createReportLimiter, bermFor, KD_BERM_FACE_X, distLowpassHz } from '../src/ui/audio/range.js';
 import { REPORT_VOICES, REPORT_MERGE_MS, EARS_GATE_DB, PARAPET_DB, CRACK_SOURCE_DB, IMPACT_SOURCE_DB, TURNER_SOURCE_DB, BEEP_SOURCE_DB, STEEL_SOURCE_DB } from '../src/data/sounds.js';
@@ -62,6 +62,13 @@ import { STRIDE_WRAP_M } from '../src/data/body/gait.js';
 // (0.0.10: the din through the ear defenders)
 import { hornVoice, blankVoice, nearPan, createStress } from '../src/ui/audio/stress.js';
 import { STRESS, HORN_SOURCE_DB, HORN_EARS_DB, HORN_EARS_LP_HZ, HORN_HZ, HORN_S, BREATHE_DB } from '../src/data/sounds.js';
+import { airAt, gravityAt } from '../src/sim/places/env.js';
+
+// (the place's air and gravity, as the presenters read them (src/sim/places/env.js: TECH §1.4): Melas's valley floor and
+// a building's floor; every voice takes them, none assumes one)
+const GROUND = airAt(null, 'melas.ground'), FLOOR = airAt(null, 'melas.echo.1');
+const AIR_KPA = Object.freeze({ ground: GROUND.pKpa, floor: FLOOR.pKpa }), SOUND_SPEED_MS = GROUND.soundMs;
+const AIR = Object.freeze({ pKpa: GROUND.pKpa, soundMs: GROUND.soundMs }), STEP_AIR = Object.freeze({ gG: gravityAt(null, 'melas.ground').gG, pKpa: GROUND.pKpa });
 
 const TICK_S = 0.05;
 const q = (v) => Math.round(v * 10000) / 10000;                  // (move.js's POS_STEP_M rounding)
@@ -144,18 +151,18 @@ export default [
     name: 'stepVoice: tile and vinyl tick, concrete, paving and stairs slap, regolith crunches; −4.2 dB of weight and −1.9 dB of air, −6.1 dB walking at Melas, low-passed at 5,204 Hz',
     fn() {
       const kinds = {};
-      for (const s of ['tile', 'vinyl', 'concrete', 'paving', 'stairs', 'regolith', 'something-new']) kinds[s] = stepVoice(s, 'walk').kind;
+      for (const s of ['tile', 'vinyl', 'concrete', 'paving', 'stairs', 'regolith', 'something-new']) kinds[s] = stepVoice(s, 'walk', STEP_AIR).kind;
       console.log(`      surfaces: ${Object.entries(kinds).map(([s, k]) => `${s} → ${k}`).join(', ')}`);
       assert(kinds.tile === 'tile' && kinds.vinyl === 'tile' && kinds.concrete === 'concrete' && kinds.paving === 'concrete' && kinds.stairs === 'concrete' && kinds.regolith === 'regolith' && kinds['something-new'] === 'concrete', JSON.stringify(kinds));
       const v = stepVoice('tile', 'walk', { gG: 0.38, pKpa: AIR_KPA.ground }), inside = stepVoice('tile', 'walk', { gG: 0.38, pKpa: AIR_KPA.floor });
       console.log(`      against Earth's 0 dB: weight ${fmt(v.weightDb, 2)} dB (0.38 G), air ${fmt(v.airDb, 2)} dB (${AIR_KPA.ground} kPa), total ${fmt(v.gainDb, 2)} dB walking; low-pass ${v.lowpassHz} Hz (${inside.lowpassHz} Hz in a building's ${AIR_KPA.floor} kPa, ${fmt(inside.gainDb, 2)} dB)`);
-      console.log(`      by gait at Melas: ${['stroll', 'walk', 'run'].map(g => `${g} ${fmt(stepVoice('concrete', g).gainDb, 1)} dB`).join(', ')}; on Earth (1 G, 101.3 kPa) a walk is ${fmt(stepVoice('concrete', 'walk', { gG: 1, pKpa: 101.3 }).gainDb, 1)} dB at ${lowpassHz(101.3)} Hz`);
+      console.log(`      by gait at Melas: ${['stroll', 'walk', 'run'].map(g => `${g} ${fmt(stepVoice('concrete', g, STEP_AIR).gainDb, 1)} dB`).join(', ')}; on Earth (1 G, 101.3 kPa) a walk is ${fmt(stepVoice('concrete', 'walk', { gG: 1, pKpa: 101.3 }).gainDb, 1)} dB at ${lowpassHz(101.3)} Hz`);
       near(weightDb(0.38), -4.2, 0.01, 'the weight');
       near(airDb(65.9), -1.9, 0.05, 'the air');
       near(v.gainDb, -6.1, 0.05, 'the total');
       assert(v.lowpassHz === 5204, `low-pass ${v.lowpassHz}`);
       assert(stepVoice('concrete', 'walk', { gG: 1, pKpa: 101.3 }).gainDb === 0, 'Earth is the reference');
-      assert(stepVoice('tile', 'run').gainDb > v.gainDb && stepVoice('tile', 'stroll').gainDb < v.gainDb, 'a run strikes harder, a stroll softer');
+      assert(stepVoice('tile', 'run', STEP_AIR).gainDb > v.gainDb && stepVoice('tile', 'stroll', STEP_AIR).gainDb < v.gainDb, 'a run strikes harder, a stroll softer');
     },
   },
   {
@@ -227,7 +234,7 @@ export default [
       for (const g of got) console.log(`      ${g.what}: ${fmt(g.v.distM, 1)} m, ${g.w} wall${g.w === 1 ? '' : 's'}: ${fmt(g.v.gainDb, 1)} dB against its recipe's peak, low-pass ${fmt(g.v.lowpassHz, 0)} Hz`);
       assert(got[0].w === 0 && got[1].w === 1 && got[2].w === 1 && got[3].w === 2, JSON.stringify(got.map(g => g.w)));
       assert(got[0].v.gainDb > got[1].v.gainDb && got[0].v.gainDb > got[2].v.gainDb && got[2].v.gainDb > got[3].v.gainDb, JSON.stringify(got.map(g => g.v.gainDb)));
-      const same = klaxonVoice({ horn, me: at[1][1], walls: 0 }), thru = klaxonVoice({ horn, me: at[1][1], walls: 1 }), two = klaxonVoice({ horn, me: at[1][1], walls: 2 });
+      const same = klaxonVoice({ horn, me: at[1][1], walls: 0, pKpa: AIR_KPA.floor }), thru = klaxonVoice({ horn, me: at[1][1], walls: 1, pKpa: AIR_KPA.floor }), two = klaxonVoice({ horn, me: at[1][1], walls: 2, pKpa: AIR_KPA.floor });
       near(same.gainDb - thru.gainDb, -WALL_DB, 1e-9, 'a wall');
       near(thru.gainDb - two.gainDb, -WALL_DB, 1e-9, 'a second wall');
       assert(Math.abs(thru.lowpassHz * 2 - same.lowpassHz) < 1e-9 && Math.abs(two.lowpassHz * 4 - same.lowpassHz) < 1e-9, 'the low-pass halved a wall');
@@ -295,7 +302,7 @@ export default [
   {
     name: 'the R-7\'s report at the shooter in 65.9 kPa: −1.9 dB of air, the muzzle 0.9 m off; ear defenders take it 25 dB down and low-pass it at 2 kHz; the berm\'s slap-back 12 dB under it 0.17 s later; a neighbour\'s at 3 and 6 m',
     fn() {
-      const me = { x: 1100, z: 292.5 }, open = reportVoice({ me, mine: true, ears: false }), ears = reportVoice({ me, mine: true, ears: true });
+      const me = { x: 1100, z: 292.5 }, open = reportVoice({ ...AIR, me, mine: true, ears: false }), ears = reportVoice({ ...AIR, me, mine: true, ears: true });
       console.log(`      yours, no defenders: ${fmt(open.gainDb, 1)} dB over the recipe's peak at ${fmt(open.lowpassHz, 0)} Hz (source +${REPORT_SOURCE_DB}, the air ${fmt(airDb(65.9), 2)}); with them: ${fmt(ears.gainDb, 1)} dB at ${fmt(ears.lowpassHz, 0)} Hz`);
       console.log(`      the echo: ${fmt(ears.echo.gainDb, 1)} dB at ${fmt(ears.echo.lowpassHz, 0)} Hz, ${fmt(ears.echo.delayS * 1000, 1)} ms after (${fmt(ears.echo.pathM, 1)} m of path at ${SOUND_SPEED_MS} m/s to the berm's face at x ${BERM_FACE_X} and back)`);
       near(open.gainDb, REPORT_SOURCE_DB + airDb(65.9), 1e-9, 'the report at 0.9 m: no distance loss inside a metre');
@@ -304,10 +311,10 @@ export default [
       assert(open.lowpassHz > 5000 && ears.lowpassHz === EARS_LP_HZ, `${open.lowpassHz} / ${ears.lowpassHz}`);
       near(ears.echo.gainDb - ears.gainDb, ECHO_DB, 1e-9, 'the echo under the report');
       near(ears.echo.delayS, 0.174, 0.002, 'the echo 2 × 28 m at 322 m/s');
-      const n3 = reportVoice({ me, muzzle: { x: 1100.9, z: 295.5 }, mine: false, ears: true }), n6 = reportVoice({ me, muzzle: { x: 1100.9, z: 298.5 }, mine: false, ears: true });
+      const n3 = reportVoice({ ...AIR, me, muzzle: { x: 1100.9, z: 295.5 }, mine: false, ears: true }), n6 = reportVoice({ ...AIR, me, muzzle: { x: 1100.9, z: 298.5 }, mine: false, ears: true });
       console.log(`      a neighbour 3 m off: ${fmt(n3.gainDb, 1)} dB (${fmt(n3.distM, 2)} m, pan ${fmt(n3.pan, 2)}); 6 m: ${fmt(n6.gainDb, 1)} dB; their echoes ${fmt(n3.echo.delayS * 1000, 0)} and ${fmt(n6.echo.delayS * 1000, 0)} ms after`);
       assert(n3.gainDb < ears.gainDb && n6.gainDb < n3.gainDb && n3.echo.delayS < ears.echo.delayS, JSON.stringify({ n3: n3.gainDb, n6: n6.gainDb }));
-      const pa = chimeVoice({ me }), tick = caseVoice({ me, at: { x: 1101.73, z: 295.09 } });
+      const pa = chimeVoice({ ...AIR, me }), tick = caseVoice({ ...AIR, me, at: { x: 1101.73, z: 295.09 } });
       console.log(`      the tower's chime from its deck: ${fmt(pa.distM, 1)} m, ${fmt(pa.gainDb, 1)} dB, pan ${fmt(pa.pan, 2)}; a case landing 3.1 m off to the right: ${fmt(tick.gainDb, 1)} dB, pan ${fmt(tick.pan, 2)}`);
       assert(pa.distM > 20 && pa.pan < 0 && tick.pan > 0, JSON.stringify({ pa, tick }));
     },
@@ -318,7 +325,7 @@ export default [
       const played = [];
       const engine = { shot: (kind, opts) => { played.push({ kind, ...opts }); return true; } };
       const range = createRange(engine, { looks: { kitLook: () => ({ ears: true }) } });
-      const state = { player: { id: 'p145', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p145', x: 1100, z: 292.5 }] }, clock: { ms: 1000, holds: [] } };
+      const state = { player: { id: 'p145', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p145', x: 1100, z: 292.5 }] }, clock: { ms: 1000, holds: [] }, places: { live: { area: 'melas.ground' } } };
       const at = (ms, held = false, alpha = 0) => { state.clock.ms = ms; state.clock.holds = held ? ['stop'] : []; range.frame(state, { alpha }); return played.map(p => p.kind); };
       at(1000);
       // (LOAD's magIn from 1,400 to 3,010 ms; then a shot at 4,000 with its case landing at 4,870)
@@ -369,7 +376,7 @@ export default [
       }
       const clicks = ['magSeat', 'chargeSlam', 'boltSlam', 'selector', 'dryClick'];
       assert(clicks.every(k => m.report.peakDb > m[k].peakDb) && m.selector.centroidHz > m.palm.centroidHz && m.report.decayS > m.chargeSlam.decayS, JSON.stringify(Object.fromEntries(Object.entries(m).map(([k, v]) => [k, [Math.round(v.peakDb), Math.round(v.centroidHz)]]))));
-      const v = clickVoice();
+      const v = clickVoice(AIR);
       console.log(`      a click at the hands: ${fmt(v.gainDb, 1)} dB at ${fmt(v.lowpassHz, 0)} Hz (not muffled: the defenders pass what is not an impulse)`);
       const q = createClickQueue();
       q.add(300, 'b'); q.add(100, 'a'); q.add(200, 'c');
@@ -401,28 +408,28 @@ export default [
     fn() {
       const env = ENV_CLASSES['mars-valley'], c = soundMsOf(env), fl = flightOf('r7', 'ball', env, 300);
       const me = { x: 1300, z: 334.5 };
-      const sv = strikeVoice({ me, at: { x: 1600, z: 334.5 }, rangeM: 300, tofS: fl.tofS, soundMs: c, ears: true }), open = strikeVoice({ me, at: { x: 1600, z: 334.5 }, tofS: fl.tofS, soundMs: c });
+      const sv = strikeVoice({ ...AIR, me, at: { x: 1600, z: 334.5 }, rangeM: 300, tofS: fl.tofS, soundMs: c, ears: true }), open = strikeVoice({ ...AIR, me, at: { x: 1600, z: 334.5 }, tofS: fl.tofS, soundMs: c });
       console.log(`      the valley's air: ${fmt(c, 1)} m/s; the round to 300 m: ${fmt(fl.tofS, 3)} s at ${fmt(fl.vMs, 0)} m/s, ${fl.supersonic ? 'supersonic' : 'subsonic'}; the strike back at ${fmt(sv.delayS, 3)} s (${fmt(sv.gainDb, 1)} dB at ${fmt(sv.lowpassHz, 0)} Hz with the defenders, ${fmt(open.gainDb, 1)} without)`);
       near(c, 322, 1.5, 'the speed of sound on the valley floor');
       near(sv.delayS, 1.35, 0.01, 'the strike 1.35 s after the shot');
       near(sv.delayS, fl.tofS + 300 / c, 1e-9, 'its flight plus its distance at c');
       assert(sv.gainDb === open.gainDb && sv.gainDb < EARS_GATE_DB, `the far strike passes the defenders' gate: ${sv.gainDb}`);
-      const near5 = strikeVoice({ me, at: { x: 1305, z: 334.5 }, tofS: 0.007, soundMs: c, ears: true }), near5o = strikeVoice({ me, at: { x: 1305, z: 334.5 }, tofS: 0.007, soundMs: c });
+      const near5 = strikeVoice({ ...AIR, me, at: { x: 1305, z: 334.5 }, tofS: 0.007, soundMs: c, ears: true }), near5o = strikeVoice({ ...AIR, me, at: { x: 1305, z: 334.5 }, tofS: 0.007, soundMs: c });
       console.log(`      a strike 5 m off: ${fmt(near5o.gainDb, 1)} dB open, ${fmt(near5.gainDb, 1)} through the defenders (an impulse over their gate ${EARS_GATE_DB} dB: down to it at most, low-passed at ${near5.lowpassHz} Hz)`);
       assert(near5o.gainDb > EARS_GATE_DB && near5.gainDb === Math.max(EARS_GATE_DB, near5o.gainDb + EARS_DB) && near5.lowpassHz === EARS_LP_HZ, JSON.stringify({ near5, near5o }));
-      const k0 = crackVoice({ supersonic: true }), k1 = crackVoice({ supersonic: true, ears: true }), sub = crackVoice({ supersonic: false });
+      const k0 = crackVoice({ ...AIR, supersonic: true }), k1 = crackVoice({ ...AIR, supersonic: true, ears: true }), sub = crackVoice({ ...AIR, supersonic: false });
       console.log(`      the crack leaving: ${fmt(k0.gainDb, 1)} dB open (source +${CRACK_SOURCE_DB}), ${fmt(k1.gainDb, 1)} through the defenders; a subsonic round: ${sub}`);
       assert(Math.abs(k0.gainDb - k1.gainDb + EARS_DB) < 1e-9 && sub === null && k0.gainDb < REPORT_SOURCE_DB, JSON.stringify({ k0, k1 }));
-      const mine = reportVoice({ me, mine: true, ears: true, soundMs: c }), n5 = reportVoice({ me, muzzle: { x: 1300.9, z: 339.5 }, mine: false, ears: true, soundMs: c });
+      const mine = reportVoice({ ...AIR, me, mine: true, ears: true, soundMs: c }), n5 = reportVoice({ ...AIR, me, muzzle: { x: 1300.9, z: 339.5 }, mine: false, ears: true, soundMs: c });
       console.log(`      your report ${fmt(mine.gainDb, 1)} dB at once; a neighbour 5 m off ${fmt(n5.gainDb, 1)} dB, ${fmt(n5.delayS * 1000, 1)} ms late, pan ${fmt(n5.pan, 2)}; the echo off the KD's berm (x ${KD_BERM_FACE_X}) ${fmt(mine.echo.delayS, 3)} s after (${fmt(mine.echo.pathM, 0)} m)`);
       near(n5.delayS, n5.distM / c, 1e-9, 'a neighbour a sound\'s way late');
       assert(mine.delayS === 0 && bermFor(1300) === KD_BERM_FACE_X && bermFor(1100) === BERM_FACE_X && Math.abs(mine.echo.pathM - 2 * (KD_BERM_FACE_X - 1300)) < 1e-9, JSON.stringify(mine.echo));
-      const pa0 = chimeVoice({ me: { x: 1100, z: 292.5 } }), pa1 = chimeVoice({ me: { x: 1100, z: 292.5 }, ears: true });
+      const pa0 = chimeVoice({ ...AIR, me: { x: 1100, z: 292.5 } }), pa1 = chimeVoice({ ...AIR, me: { x: 1100, z: 292.5 }, ears: true });
       console.log(`      the tower's speaker: ${fmt(pa0.lowpassHz, 0)} Hz open, ${fmt(pa1.lowpassHz, 0)} Hz through the defenders' circuit, ${fmt(pa1.gainDb, 1)} dB both`);
       assert(pa1.lowpassHz === EARS_LP_HZ && pa1.gainDb === pa0.gainDb, JSON.stringify({ pa0, pa1 }));
-      const car = carrierVoice({ me, at: { x: 1603.5, z: 334.5 }, soundMs: c, ears: true }), carIn = carrierVoice({ me: { x: 1605, z: 334.5 }, at: { x: 1603.5, z: 334.5 }, soundMs: c, ears: true, inPits: true });
+      const car = carrierVoice({ ...AIR, me, at: { x: 1603.5, z: 334.5 }, soundMs: c, ears: true }), carIn = carrierVoice({ ...AIR, me: { x: 1605, z: 334.5 }, at: { x: 1603.5, z: 334.5 }, soundMs: c, ears: true, inPits: true });
       console.log(`      a carrier at 303.5 m under the parapet: ${fmt(car.gainDb, 1)} dB at ${fmt(car.lowpassHz, 0)} Hz, ${fmt(car.delayS, 2)} s late; in the pits beside it: ${fmt(carIn.gainDb, 1)} dB`);
-      assert(car.gainDb < carIn.gainDb + PARAPET_DB && near1(car.delayS, 303.5 / c) && distLowpassHz(300) < distLowpassHz(40), JSON.stringify(car));
+      assert(car.gainDb < carIn.gainDb + PARAPET_DB && near1(car.delayS, 303.5 / c) && distLowpassHz(300, AIR_KPA.ground) < distLowpassHz(40, AIR_KPA.ground), JSON.stringify(car));
       const t = throughEars(-30, 4000, true);
       assert(t.gainDb === -30 && t.lowpassHz === 4000, 'a quiet sound passes the defenders untouched');
     },
@@ -469,7 +476,7 @@ export default [
       let nowS = 0;
       const range = createRange(engine, { looks: { kitLook: () => ({ ears: true }) }, clock: () => nowS });
       const T2 = { key: 'turner:2', lane: 2, x: 1124, z: 286.5 }, T1 = { key: 'turner:1', lane: 1, x: 1124, z: 283.5 };
-      const state = { player: { id: 'p145', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p145', x: 1117, z: 286.5 }] }, clock: { ms: 1000, holds: [] }, armoury: { range: { course: 'pairs', turners: [T1, T2] } } };
+      const state = { player: { id: 'p145', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p145', x: 1117, z: 286.5 }] }, clock: { ms: 1000, holds: [] }, places: { live: { area: 'melas.ground' } }, armoury: { range: { course: 'pairs', turners: [T1, T2] } } };
       const at = (ms, held = false, alpha = 0) => { state.clock.ms = ms; nowS = ms / 1000; state.clock.holds = held ? ['stop'] : []; range.frame(state, { alpha }); return played.map(p => p.kind); };
       at(1000);
       // (string 1's two turners turn on one tick: two motors, two clacks, one beep)
@@ -478,8 +485,8 @@ export default [
       const motor = played.find(p => p.kind === 'turnerMotor'), beep = played.find(p => p.kind === 'timerBeep');
       console.log(`      the turn at 2,000 ms: ${atTurn.join(', ')}; at its stop, 2,300: ${atStop.join(', ')}; the motor ${fmt(motor.gainDb, 1)} dB +${fmt(motor.delayS * 1000, 0)} ms, the beep ${fmt(beep.gainDb, 1)} dB pan ${fmt(beep.pan, 2)}`);
       assert(atTurn.filter(k => k === 'turnerMotor').length === 2 && atTurn.filter(k => k === 'timerBeep').length === 1 && atStop.join() === 'turnerClack,turnerClack', JSON.stringify({ atTurn, atStop }));
-      const v = turnerVoice({ me: { x: 1117, z: 286.5 }, at: T2 });
-      assert(Math.abs(v.distM - 7) < 1e-9 && Math.abs(v.delayS - 7 / SOUND_SPEED_MS) < 1e-9 && beepVoice().pan < 0, JSON.stringify(v));
+      const v = turnerVoice({ ...AIR, me: { x: 1117, z: 286.5 }, at: T2 });
+      assert(Math.abs(v.distM - 7) < 1e-9 && Math.abs(v.delayS - 7 / SOUND_SPEED_MS) < 1e-9 && beepVoice(AIR).pan < 0, JSON.stringify(v));
       // (the clock standing a tick short, the frame 90% on: nothing until it runs past the turn)
       range.fact('turner', { key: T2.key, phase: 'away', atMs: 5000, toMs: 5300, x: T2.x, z: T2.z }, state);
       const n1 = played.length; at(4990, true, 0.9); const stood = played.length === n1; at(5010); const away = played.slice(n1).map(p => p.kind);
@@ -499,7 +506,7 @@ export default [
       at(9500); const n5 = played.length; shot(9500, null, { ring: true, through: false, target: 'turner:2', flight: { tofS: 0.009 } });
       const ring = played.slice(n5).find(p => p.kind === 'steelRing');
       at(10500); const n6 = played.length; shot(10500, null, { ring: true, through: true, target: 'turner:2' });
-      const rv = ringVoice({ me: { x: 1117, z: 286.5 }, at: T2, tofS: 0.009, ears: true });
+      const rv = ringVoice({ ...AIR, me: { x: 1117, z: 286.5 }, at: T2, tofS: 0.009, ears: true });
       console.log(`      the ring at 7 m: ${fmt(ring.gainDb, 1)} dB (${fmt(rv.gainDb, 1)}), ${fmt(ring.lowHz, 0)} Hz, +${fmt(ring.delayS * 1000, 1)} ms; through the plate: ${played.slice(n6).some(p => p.kind === 'steelRing') ? 'a ring' : 'no ring'}; sources ${TURNER_SOURCE_DB}, ${BEEP_SOURCE_DB}, ${STEEL_SOURCE_DB} dB`);
       assert(ring && Math.abs(ring.delayS - (0.009 + 7 / SOUND_SPEED_MS)) < 0.002 && !played.slice(n6).some(p => p.kind === 'steelRing'), JSON.stringify(ring));
       // (the recipes: the beep a 2.9 kHz tone, the ring's partials over a kilohertz, the clack a short knock)
@@ -513,7 +520,7 @@ export default [
     name: 'the bang (0.0.9): its report where it went off, 1.5 m behind the shooter, BANG_SOURCE_DB through Melas\'s air and the distance, the bay\'s echo off the berm; through the defenders 25 dB down; played at its moment from the fx fact, its echo after',
     fn() {
       const me = { x: 1117.0, z: 292.5 }, at = { x: 1115.5, z: 292.3 };
-      const v = bangVoice({ me, at, soundMs: SOUND_SPEED_MS }), e = bangVoice({ me, at, ears: true, soundMs: SOUND_SPEED_MS });
+      const v = bangVoice({ ...AIR, me, at, soundMs: SOUND_SPEED_MS }), e = bangVoice({ ...AIR, me, at, ears: true, soundMs: SOUND_SPEED_MS });
       const want = BANG_SOURCE_DB + airDb(AIR_KPA.ground) + 20 * Math.log10(1 / (1 + Math.max(0, Math.hypot(1.5, 0.2) - 1)));
       console.log(`      the bang at ${fmt(v.distM, 2)} m: ${fmt(v.gainDb, 1)} dB (${BANG_SOURCE_DB} + air ${fmt(airDb(AIR_KPA.ground), 1)} + distance), ${fmt(v.lowpassHz, 0)} Hz, pan ${fmt(v.pan, 2)}; its echo ${fmt(v.echo.gainDb, 1)} dB +${fmt(v.echo.delayS * 1000, 0)} ms; through the defenders ${fmt(e.gainDb, 1)} dB at ${e.lowpassHz} Hz`);
       const berm = BERM_FACE_X, echoS = ((berm - at.x) + (berm - me.x)) / SOUND_SPEED_MS;
@@ -574,11 +581,11 @@ export default [
     name: 'the din through the ear defenders (0.0.10; VIEWS §11.2, §11.3): the air horn at the coach\'s hand HORN_SOURCE_DB less the air, through the defenders\' limiter −20 dB and cut at 2 kHz, panned left; each blank the R-7\'s report 0.9 m off through the defenders\' gate (−25 dB, 2 kHz) at its moment on the audio clock, its echo after; the called bang gated, no whine (nobody is deafened in defenders); Breathe\'s box breath on the body bus in place of the quick one',
     fn() {
       const rows = [], me = { x: 1116.1, z: 286.0, face: 'right' }, coach = { x: 1116.1, z: 285.1 }, muzzle = { x: 1116.9, z: 285.1 };
-      const bare = hornVoice({ me, at: coach, ears: false }), worn = hornVoice({ me, at: coach, ears: true });
+      const bare = hornVoice({ ...AIR, me, at: coach, ears: false }), worn = hornVoice({ ...AIR, me, at: coach, ears: true });
       rows.push(`the horn ${fmt(worn.distM, 2)} m off: bare ${fmt(bare.gainDb, 1)} dB under ${Math.round(bare.lowpassHz)} Hz; in defenders ${fmt(worn.gainDb, 1)} dB under ${Math.round(worn.lowpassHz)} Hz; pan ${fmt(worn.pan, 2)} (the coach at your left shoulder)`);
       assert(near1(worn.gainDb, bare.gainDb + HORN_EARS_DB) && worn.lowpassHz === Math.min(bare.lowpassHz, HORN_EARS_LP_HZ) && HORN_EARS_DB === -20 && HORN_EARS_LP_HZ === 2000 && worn.pan < 0, JSON.stringify({ bare, worn }));
       assert(near1(bare.gainDb, HORN_SOURCE_DB + airDb(AIR_KPA.ground)), 'within a metre the horn is its source level through the air');
-      const bb = blankVoice({ me, at: muzzle, ears: false }), bw = blankVoice({ me, at: muzzle, ears: true });
+      const bb = blankVoice({ ...AIR, me, at: muzzle, ears: false }), bw = blankVoice({ ...AIR, me, at: muzzle, ears: true });
       rows.push(`a blank ${fmt(bw.distM, 2)} m off: bare ${fmt(bb.gainDb, 1)} dB, in defenders ${fmt(bw.gainDb, 1)} dB under ${Math.round(bw.lowpassHz)} Hz, a sound's way ${fmt(bw.delayS * 1000, 1)} ms; its echo ${fmt(bw.echo.gainDb, 1)} dB ${fmt(bw.echo.delayS * 1000, 0)} ms on`);
       assert(near1(bw.gainDb, bb.gainDb + EARS_DB) && bw.lowpassHz <= EARS_LP_HZ && bw.echo.delayS > bw.delayS, JSON.stringify(bw));
       assert(nearPan({ x: 0, z: 0, face: 'right' }, { x: 0, z: -1 }) < 0 && nearPan({ x: 0, z: 0, face: 'left' }, { x: 0, z: -1 }) > 0, 'the pan by your facing');
@@ -604,7 +611,7 @@ export default [
       rows.push(`Breathe: the box breath ${loops.map(d => (d === null ? 'off' : `${d} dB`)).join(' → ')} on the body bus; the band's quick breath ${quick.map(d => (d === null ? 'off' : `${d} dB`)).join(' → ')}`);
       assert(loops[0] === BREATHE_DB && loops[1] === null && quick[0] === null && quick[1] === BAND_BODY_DB[2] - 3, JSON.stringify({ loops, quick }));
       // (the called bang through the defenders: gated, and no whine, since suppNow gives no deafness in defenders)
-      const v = bangVoice({ me, at: { x: 1114.6, z: 286.0 }, ears: true }), vb = bangVoice({ me, at: { x: 1114.6, z: 286.0 }, ears: false });
+      const v = bangVoice({ ...AIR, me, at: { x: 1114.6, z: 286.0 }, ears: true }), vb = bangVoice({ ...AIR, me, at: { x: 1114.6, z: 286.0 }, ears: false });
       const m = chaosMix({ bandN: 1, deaf: null }, 0);
       rows.push(`the called bang 1.5 m behind: ${fmt(vb.gainDb, 1)} dB bare, ${fmt(v.gainDb, 1)} dB in defenders under ${Math.round(v.lowpassHz)} Hz; whine ${m.deaf ? 'on' : 'none'}`);
       assert(near1(v.gainDb, vb.gainDb + EARS_DB) && !m.deaf, JSON.stringify({ v, m }));

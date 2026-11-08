@@ -7,7 +7,7 @@
 // spells and starving; and a night's sleep moving the gut and the reserve (the user, 2026-10-28:
 // "when sleeping, the hunger meter is frozen that's a bug").
 import { assert, near, fmt } from './helpers.mjs';
-import { templateBody, runSols, weekOf, MELAS_LON, stageTimes, lastReveille, STAGE_TEST } from './bots/sol.mjs';
+import { templateBody, runSols, weekOf, MELAS_LON, stageTimes, lastReveille, STAGE_TEST, MELAS_PLACE } from './bots/sol.mjs';
 import { START_MS } from '../src/data/setting/calendar.js';
 import { marsTimeText } from '../src/core/calendar.js';
 import { HOUR_MS } from '../src/core/clock.js';
@@ -72,7 +72,7 @@ export default [
       for (const [what, met, kind] of [['at rest', 1.5, 'still'], ['walking about', 3.0, 'walk'], ['at PT', 8.0, 'run']]) {
         const b = templateBody(REV);
         b.energy.gutKcal = 900; b.energy.reserveKcal = 0; b.energy.emptyH = 0;
-        const seg = rowSeg({ met, kind, out: false }, MELAS_LON, massOf(b));
+        const seg = rowSeg({ met, kind, out: false }, MELAS_LON, massOf(b), false, MELAS_PLACE);
         let t = REV, empty = null, hungry = null;
         for (let k = 0; k < 24 && hungry === null; k++) {
           const r = bodyAdvance(b, seg, t, t + HOUR_MS);

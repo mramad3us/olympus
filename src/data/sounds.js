@@ -48,11 +48,8 @@ export const MASTER_DEFAULT = 0.8;
 export const LOOKAHEAD_S = 0.1;
 /** VIEWS §11.2's air filter: the low-pass corner at a pressure, 8 kHz at Earth's 101.3 kPa, scaled with P. */
 export const LOWPASS_REF_HZ = 8000, LOWPASS_REF_KPA = 101.3;
-/**
- * The air a sound is heard in, by area kind, until PLACES's zones carry their own (0.1): the ground
- * is Melas's valley air, 65.9 kPa, a building the Martian indoor standard, 66.0 kPa (CONTRACTS §16).
- */
-export const AIR_KPA = Object.freeze({ ground: 65.9, floor: 66.0, default: 65.9 });
+// (The air a sound is heard in is the place's: src/sim/places/env.js airAt, the one helper, TECH §1.4. Melas's valley
+// air is 65.9 kPa, a building's Martian indoor standard 66.0 kPa: src/data/places/env.js AIRS.)
 /** A gait's foot strikes harder or softer than the walk's (dB, my calls; the bound's landing is BODY's at 0.0.5). */
 export const GAIT_DB = Object.freeze({ walk: 0, stroll: -4, run: 4, bound: 6 });
 /** What the feet hear on each surface PLACES names (surfaceAt): tile and vinyl tick, concrete and paving slap, regolith crunches. */
@@ -245,7 +242,7 @@ export const UI_SOUNDS = Object.freeze({ move: 'uiMove', check: 'uiCheck', unche
 // at REPORT_SOURCE_DB over its recipe's peak at 1 m (a rifle at a metre is some 100 dB over a foot-fall:
 // the limiter catches the rest, as it does the klaxon), heard from MUZZLE_AHEAD_M 0.9 m ahead of the
 // ear, through Melas's air (airDb(65.9) −1.9 dB, the low-pass at 5.2 kHz). The berm gives it back:
-// ECHO_DB −12 dB and low-passed at ECHO_LP_HZ, 2 × its distance at SOUND_SPEED_MS 322 m/s later (the
+// ECHO_DB −12 dB and low-passed at ECHO_LP_HZ, 2 × its distance at the air's speed of sound (321.6 m/s) later (the
 // line at x 1,100 and the berm's face at 1,128: 0.17 s). The range's rule is ear defenders (ears-m1):
 // electronic ones, which pass the range's voices and take every impulse (a report, its echo) down
 // EARS_DB −25 dB and low-pass it at EARS_LP_HZ 2 kHz, so the shot is a dull, heavy thump and the coach
@@ -264,8 +261,7 @@ export const REPORT_SOURCE_DB = 24;
 export const MUZZLE_AHEAD_M = 0.9;
 /** The berm's slap-back: its level against the report, and its low-pass (dB, Hz). */
 export const ECHO_DB = -12, ECHO_LP_HZ = 1500;
-/** The speed of sound in Melas's air (m/s: the build sheet's, 2 × 28 m in 0.17 s). */
-export const SOUND_SPEED_MS = 322;
+// (The speed of sound is the place's too: airAt's soundMs, 321.6 m/s in Melas's valley air, from the gas law.)
 /** Ear defenders (ears-m1, electronic): every impulse taken down this far and low-passed here (dB, Hz: the range's rule, VIEWS §11.3's 25 dB). */
 export const EARS_DB = -25, EARS_LP_HZ = 2000;
 /** A click of your own gun's action at your hands, against its recipe's peak (dB). */
@@ -298,7 +294,7 @@ export const DRY_WHY = Object.freeze(['dud', 'empty']);
 // The R-7 at distance, by the air it flies through. Your report at once, then the crack of your own round as it leaves
 // (supersonic: a 1 ms N-wave riding the blast, CRACK_SOURCE_DB over its peak, an impulse the defenders take down as the
 // report), and the strike coming back to you a flight and a sound's way later: the round's time of flight (the shot
-// fact's flight.tofS) plus the distance over the speed of sound in that air (ballistics.js soundMsOf: 322 m/s on the
+// fact's flight.tofS) plus the distance over the speed of sound in that air (src/sim/places/env.js airAt: 321.6 m/s on the
 // valley floor), so at 300 m 0.42 + 0.93 = 1.35 s after the shot, a low thump of the berm taking it (IMPACT_SOURCE_DB
 // over its peak at 1 m: a 6.5 mm round into packed regolith), inverse with distance and low-passed further by it
 // (DIST_LP_REF_M: the corner falls with the distance past it, never under DIST_LP_MIN_HZ). A neighbour's report comes a

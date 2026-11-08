@@ -27,8 +27,11 @@ import { solPlan, rowSeg, rowActs, bodyAdvance, lastReveille } from '../../src/s
 import { massOf } from '../../src/sim/body/energy.js';
 import { staminaTick } from '../../src/sim/body/motion.js';
 import { SITES, START_MS } from '../../src/data/setting/calendar.js';
+import { bodyPlaceOf } from '../../src/sim/places/env.js';
 
 export const MELAS_LON = SITES.melas.lonEDeg;
+/** What the reference sol's body breathes and weighs at Melas (src/sim/places/env.js bodyPlaceOf: the valley's air out, the indoor standard in, 0.38 G). */
+export const MELAS_PLACE = bodyPlaceOf('melas');
 /** Monday Sol 590's reveille, 05:30 Melas (the career's first sol). */
 export const REF_REVEILLE = lastReveille(START_MS, SITES.melas.lonEDeg);
 /** The reference man (BODY §3.1: 75 kg, 178 cm, 21 years; medium build at 1.78 m is 74.5 kg). */
@@ -67,8 +70,8 @@ const dropRow = (row, drop) => {
 };
 
 /** Walk a body along sols (see the header). Writes body. */
-export function runSols({ body, sols, lon = MELAS_LON, gG = 0.38, mode = 'skip', untilMs = Infinity, fromMs = null, drop = null, splits = 1000, seed = 1, onSpan = null }) {
-  const acts = [], crossed = [], events = [], take = (r) => { crossed.push(...r.crossed); events.push(...r.events); };
+export function runSols({ body, sols, lon = MELAS_LON, gG = MELAS_PLACE.gG, mode = 'skip', untilMs = Infinity, fromMs = null, drop = null, splits = 1000, seed = 1, onSpan = null }) {
+  const place = { ...MELAS_PLACE, gG }, acts = [], crossed = [], events = [], take = (r) => { crossed.push(...r.crossed); events.push(...r.events); };
   const spans = [];
   for (let i = 0; i < sols.length; i++) spans.push(...solPlan(sols[i].sol, sols[i].reveilleMs, lon, sols[i + 1]?.reveilleMs ?? null));
   const start = fromMs ?? spans[0].fromMs, end = Math.min(untilMs, spans[spans.length - 1].toMs);
@@ -88,7 +91,7 @@ export function runSols({ body, sols, lon = MELAS_LON, gG = 0.38, mode = 'skip',
     const a = Math.max(start, span.fromMs), b = Math.min(end, span.toMs), mass = massOf(body);
     onSpan?.(span, body);
     if (mode === 'tick') {
-      const seg = rowSeg(row, lon, mass, true, gG);
+      const seg = rowSeg(row, lon, mass, true, place);
       for (let t = a; t < b; t += TICK_MS) {
         const t1 = Math.min(b, t + TICK_MS);
         const st = staminaTick(body.stamina, !!body.blown, seg.load.metG, (t1 - t) / SEC_MS);
@@ -96,11 +99,11 @@ export function runSols({ body, sols, lon = MELAS_LON, gG = 0.38, mode = 'skip',
         take(bodyAdvance(body, seg, t, t1));
       }
     } else if (mode === 'split') {
-      const seg = rowSeg(row, lon, mass, false, gG);
+      const seg = rowSeg(row, lon, mass, false, place);
       let t = a;
       for (const c of cuts) if (c > a && c < b) { take(bodyAdvance(body, seg, t, c)); t = c; }
       take(bodyAdvance(body, seg, t, b));
-    } else take(bodyAdvance(body, rowSeg(row, lon, mass, false, gG), a, b));
+    } else take(bodyAdvance(body, rowSeg(row, lon, mass, false, place), a, b));
   }
   crossed.sort((x, y) => x.atMs - y.atMs);
   return { body, acts, crossed, events, fromMs: start, toMs: end };
@@ -122,11 +125,13 @@ export { copy, lastReveille, SOL_MS };
  * A minimal state round one body (no game: the readers' fixture): the player p1 with the body, actor
  * a1, no live site (Melas's longitude), the clock at ms. The body is stored as its deltas.
  */
+// (the fixture stands in Echo's barracks, ground floor: its gravity and air are the place's, src/sim/places/env.js, read
+// as the game reads them; a state with no live place has none, and the sim assumes none, TECH §1.4)
 export function fixtureState(body, ms = body.atMs, { seed = 1, outfit = 'utilities', posture = 'stand' } = {}) {
   const b = copy(body);
   delete b.sex; delete b.ageY;
   return { meta: { seed, next: {} }, clock: { ms, tick: 0, holds: [], seq: 0 }, events: [], skip: null, time: {}, people: { p1: { id: 'p1', sex: 'm', body: b } },
-    player: { id: 'p1', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p1', x: 0, z: 0, face: 'down', gait: 'idle', outfit, posture }] }, places: { live: null }, flags: {}, log: [] };
+    player: { id: 'p1', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p1', x: 0, z: 0, face: 'down', gait: 'idle', outfit, posture }] }, places: { live: { site: 'melas', area: 'melas.echo.1' } }, flags: {}, log: [] };
 }
 
 /**

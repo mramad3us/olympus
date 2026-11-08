@@ -5,7 +5,7 @@
 // second lived (the game ticked at 20 Hz) and skipped (the slow layer stepped a minute at a time, as an
 // outcome skip steps it), drawn once from its own stream.
 import { assert, near, fmt } from './helpers.mjs';
-import { templateBody, runSols, weekOf, MELAS_LON, stageTimes, lastReveille, STAGE_TEST } from './bots/sol.mjs';
+import { templateBody, runSols, weekOf, MELAS_LON, stageTimes, lastReveille, STAGE_TEST, MELAS_PLACE } from './bots/sol.mjs';
 import { createGame } from './game.mjs';
 import { START_MS } from '../src/data/setting/calendar.js';
 import { marsTimeText } from '../src/core/calendar.js';
@@ -50,7 +50,7 @@ export default [
     fn() {
       const b = templateBody(REV);
       b.bladder.ml = 0; b.water.balanceL = 0; b.water.gutL = 0; drinkBody(b, 1.0);
-      const r = bodyAdvance(b, rowSeg({ met: 1.5, kind: 'still' }, MELAS_LON, massOf(b)), REV, REV + 4 * HOUR_MS);
+      const r = bodyAdvance(b, rowSeg({ met: 1.5, kind: 'still' }, MELAS_LON, massOf(b), false, MELAS_PLACE), REV, REV + 4 * HOUR_MS);
       const st = stageTimes(r.crossed).bladder ?? [];
       console.log(`      ${st.map(x => `${x.band} after ${fmt((x.atMs - REV) / MIN_MS, 0)} min`).join(', ')}; ${fmt(b.bladder.ml, 0)} mL after 4 h`);
       assert(st.some(x => x.band === 'need'), JSON.stringify(st));
@@ -80,7 +80,7 @@ export default [
     fn() {
       const b = templateBody(REV);
       b.bladder.ml = 800; b.water.balanceL = 0.6; b.water.gutL = 0;
-      const seg = rowSeg({ met: 1.5, kind: 'still' }, MELAS_LON, massOf(b)), g0 = b.hygiene.grime, start = copy(b);
+      const seg = rowSeg({ met: 1.5, kind: 'still' }, MELAS_LON, massOf(b), false, MELAS_PLACE), g0 = b.hygiene.grime, start = copy(b);
       const r = bodyAdvance(b, seg, REV, REV + HOUR_MS);
       const acc = r.events.find(e => e.kind === 'accident');
       // (the closed form inside the accident's own minute cell: the kidneys' rate is held from the cell's start)

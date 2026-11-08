@@ -12,7 +12,8 @@ import { TEST_AREA } from '../src/data/places/testroom.js';
 import { CLASSES, navOf, isFree, cellOf, buildGrid } from '../src/sim/places/nav.js';
 import { setOpening } from '../src/sim/places/model.js';
 import { standOk, overlaps, sweep } from '../src/sim/places/collide.js';
-import { moveActor, settle, PLAYER_CLS, WALK_MS, NUDGE_M } from '../src/sim/places/move.js';
+import { moveActor, settle, PLAYER_CLS, NUDGE_M } from '../src/sim/places/move.js';
+import { WALK_MS } from './mars-gaits.mjs';
 import { TICK_MS } from '../src/core/clock.js';
 
 const R0 = CLASSES[PLAYER_CLS];

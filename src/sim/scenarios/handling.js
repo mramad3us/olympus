@@ -9,7 +9,7 @@
 // generated people of their posts (src/sim/people/staff.js; the user, 2026-11-05: "All people
 // generated").
 //
-// The fill (testHandling): the barracks drawn (Echo Company, the player), the clock at 09:00, the player
+// The fill (testHandling): the barracks drawn (Echo Company, the player) at 09:00 (newGame's, the scene's spec), the player
 // at their lane's firing point facing downrange in utilities and the start body, their sheet written by
 // their rank's tier (SKILLS §15.1: the scene's player only), the 'range-fam' issue materialised (the R-7
 // slung front, three magazines of five in the pouches, the set riding on its magazine), the RO posted on
@@ -90,17 +90,15 @@
 // 0.0.10 (the build sheet 0.0.10 §2.2): test-stress's stress course runs on the pairs course (R.course 'pairs'), its own
 // sequence courses.js SEQ_STRESS where the session carries R.stress (seqOf); everything else is pairs.js's.
 import { TICK_MS, holdTime, isHeld } from '../../core/clock.js';
-import { msAtMarsTime } from '../../core/calendar.js';
 import { stream, int, intIn, pick, weighted } from '../../core/rng.js';
 import { hashPick } from '../../core/hash.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { post } from '../../core/queue.js';
-import { START_MS, SITES } from '../../data/setting/calendar.js';
 import { SCENES } from '../../data/scenes.js';
 import { COURSES, SEQ, SEQ_KD, SEQ_PAIRS, SEQ_STRESS, KD_STRINGS, COACH, PAIRS_COACH, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
 import { KD_RANGE } from '../../data/places/range.js';
 import { logEntry } from '../log.js';
-import { siteOf } from '../places/model.js';
+import { lonOfSite } from '../places/env.js';
 import { setOutfit, syncActors } from '../people/place.js';
 import { drawStaff, setPost, staffName } from '../people/staff.js';
 import { startBody } from '../body/body.js';
@@ -113,14 +111,14 @@ import { newMag, feed, conditionOf, gunField } from '../arms/firearms.js';
 import { rangeSafety, carryOf } from '../arms/carry.js';
 import { scoreOf, PAPERS } from '../arms/paper.js';
 import { enterStop, leaveStop, gunOn } from '../arms/shooting.js';
-import { BRASS_LIVE, ejectCase } from '../arms/look.js';
+import { BRASS_LIVE, ejectCase, caseGMs2 } from '../arms/look.js';
 import { feetHeld } from '../time/doing.js';
 import { feetOf } from '../combat/contact.js';
 import { kdReady, kdRelayReady, kdOnCmd, kdNextI, kdSecond, kdStringEnd, kdShot, kdMoveOn, kdPoint, kdNow, kdWaitOnYou } from './range.js';
 import { pairsReady, pairsOnCmd, pairsSecond, pairsShot, pairsAfterStep, pairsBox, pairsPoint, pairsRangeNow, pairsWant, PAIRS_NUDGE, pairsStepStart } from './pairs.js';
 
 /** Where the scene plays. */
-export const HANDLING = Object.freeze({ site: 'melas', area: KD_RANGE.area, course: 'fam25' });
+export const HANDLING = Object.freeze({ site: SCENES['test-handling'].host.site, area: KD_RANGE.area, course: 'fam25' });
 /** The session keeps this many shots and this many cases (the build sheet §3, §4). */
 export const SHOTS_KEPT = 100;
 /** A rule's warning again no sooner than this (tradecraft's WARN_AGAIN_S), ms. */
@@ -167,7 +165,7 @@ const coachSays = (state, bus, lines, ...key) => { const R = rangeOf(state); if 
 
 // ---- the fill ----
 
-const lonOf = () => SITES[siteOf(HANDLING.site)?.geo]?.lonEDeg ?? 0;
+const lonOf = () => lonOfSite(HANDLING.site);
 
 /** The set stoppage drawn for a course (see the header): { mag (its place, 1 to 3), n (the round, counted down the magazine), kind }. */
 export function drawSet(seed, course = 'fam25') {
@@ -183,10 +181,6 @@ export const drawLane = (seed, course = 'fam25') => { const L = COURSES[course].
 /** The fill of 'test-handling' (see the header). setup: null | 'hot' | 'bench' | 'mixed'. */
 export function testHandling(state, { at = null, setup = null } = {}) {
   const scene = SCENES['test-handling'], C = COURSES[scene.course ?? HANDLING.course], seed = state.meta.seed, lon = lonOf();
-  if (state.clock.ms === START_MS && scene.hour !== null) {
-    const h = Math.floor(scene.hour), m = Math.round((scene.hour - h) * 60);
-    state.clock.ms = state.meta.createdMs = Math.ceil(msAtMarsTime(state.clock.ms, h, m, lon) / TICK_MS) * TICK_MS;
-  }
   const lane = drawLane(seed, HANDLING.course), L = laneOf(lane);
   barracks(state, { at: { area: KD_RANGE.area, x: L.fp.x, z: L.fp.z, face: 'right', ...(at ?? {}) } });
   const me = playerActor(state), pid = playerId(state), person = state.people[pid];
@@ -766,7 +760,7 @@ function recordKdShot(state, bus, shot) {
 export function recordEjects(state, pid, ejects, atMs, key) {
   const R = rangeOf(state), me = playerActor(state), gun = state.items?.[gunOn(state, pid)];
   if (!R || !me || !gun || !ejects?.length) return [];
-  const recs = ejects.map(kind => ejectCase(gun, { ...carryOf(state, pid), x: me.x, z: me.z, hand: kind !== 'case' }, { atMs, kind, key: `${key}:${atMs}:${kind}` }));
+  const recs = ejects.map(kind => ejectCase(gun, { ...carryOf(state, pid), x: me.x, z: me.z, hand: kind !== 'case' }, { atMs, kind, key: `${key}:${atMs}:${kind}`, gMs2: caseGMs2(state) }));
   if (R.course === 'kd') for (const r of recs) r.who = pid;
   R.brass.push(...recs);
   if (R.brass.length > BRASS_LIVE) R.brass.splice(0, R.brass.length - BRASS_LIVE);

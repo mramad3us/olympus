@@ -10,7 +10,9 @@
 //
 // The advance (BODY §2.6; TIME §5.5). bodyAdvance(body, seg, fromMs, toMs) moves every ledger under
 // one constant segment, seg = { env, load }: the environment (the felt g, the air's pressure and
-// temperature, outdoors or not, the outfit, the site's longitude) and the load (the MET felt at g and
+// temperature, outdoors or not, the outfit, the site's longitude: envOf, every value the place's, read by
+// envAt through src/sim/places/env.js, or along a plan by bodyPlaceOf at the sol's site; none is
+// defaulted here, TECH §1.4) and the load (the MET felt at g and
 // load, the shares of time over MET 4 and 5, running, outdoors, lying; lived or not). Time is cut on
 // the game's own grid, minute cells since the epoch (CELL_MS), and inside a cell at the body's own
 // transitions: the gut emptying, falling asleep, natural waking, an accident at 850 mL or 550 g.
@@ -63,7 +65,7 @@ import { BODY_V, withDefaults, deltaOf, drawTraits, tmplOf, copy, hasBeard } fro
 import { BODY_TMPL } from '../../data/people/looks.js';
 import { REFERENCE_SOL, HEAD_VOID_FROM_ML, STALL_VOID_FROM_ML } from '../../data/body/sol.js';
 import {
-  MET, GAIT_KIND, HARD_MET, VERY_HARD_MET, G_MELAS, FLOOR_KPA, GROUND_KPA, ROOM_C, OUTDOOR_C, ENERGY, WATER, BLADDER, BOWEL,
+  MET, GAIT_KIND, HARD_MET, VERY_HARD_MET, ENERGY, WATER, BLADDER, BOWEL,
   HYGIENE, CELL_MS, CLOCK_STEP_MS, HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, FATIGUE_BANDS, STUBBLE_BANDS,
   STAMINA_BANDS, STRESS_BANDS, HANDS, HANDS_BANDS,
 } from '../../data/body/needs.js';
@@ -76,7 +78,8 @@ import { stressRate, stressIndex } from './stress.js';
 import { settleTo, coreAfter } from './thermal.js';
 import { staminaRate } from './motion.js';
 import { activityNow } from '../time/doing.js';
-import { areaOf, roomOf } from '../places/model.js';
+import { roomOf } from '../places/model.js';
+import { envAt as placeEnvAt, bodyPlaceOf } from '../places/env.js';
 import { siteLonEDeg } from '../jobs.js';
 import { logEntry } from '../log.js';
 
@@ -114,22 +117,31 @@ export function withLedgers(body, flat = {}) {
 
 // ---- the segment: where the body is and what it does ----
 
+// (the segment's key: what a rate reads. Pressure is left out while no rate reads it: before 2026-11-08 it followed
+// from outdoors, and now two places can differ in pressure alone (martian-indoor's 66 kPa and Condition Vac's 20 kPa,
+// both at 20 °C under a roof). When BODY §11's SpO₂ first reads pKpa it joins this key, with an upgrade that clears
+// held.rp (saved: the key is in every save's bytes) or a term added only where the pressure differs from the
+// place's standard air, so tests/saves/ still load byte for byte)
 const envKey = (e) => `${e.gG}|${e.airC}|${e.outdoors ? 1 : 0}|${e.outfit}|${e.lonEDeg}`;
-/** An environment record for a site's longitude: indoors at Melas unless told (outdoors, outfit). */
-export function envOf({ gG = G_MELAS, outdoors = false, airC = outdoors ? OUTDOOR_C : ROOM_C, pKpa = outdoors ? GROUND_KPA : FLOOR_KPA, outfit = 'utilities', lonEDeg = 0, area = null, room = null } = {}) {
+/** An environment record: gG, pKpa and airC the place's (required: no place is assumed), outdoors, the outfit, the site's longitude. */
+export function envOf({ gG, outdoors = false, airC, pKpa, outfit = 'utilities', lonEDeg = 0, area = null, room = null } = {}) {
+  if (!Number.isFinite(gG) || !Number.isFinite(pKpa) || !Number.isFinite(airC)) throw new Error(`envOf(): a place's gravity, pressure and temperature, not ${JSON.stringify({ gG, pKpa, airC })}`);
   const e = { gG, pKpa, airC, outdoors: !!outdoors, outfit, lonEDeg, area, room };
   e.key = envKey(e);
   return e;
 }
-/** Where a person is, as the body reads it (the sheet §2.1: floors 66.0 kPa and ROOM_C; the ground 65.9 kPa and OUTDOOR_C). */
+/** Where a person is, as the body reads it: the live area's gravity, air and outdoors (src/sim/places/env.js envAt: one answer, a live preset's included). */
 export function envAt(state, pid, { room = false } = {}) {
   const a = pid === playerId(state) ? playerActor(state) : (state?.actors?.list ?? []).find(x => x.who === pid) ?? null;
-  const area = state?.places?.live?.area ?? null, rec = area ? areaOf(area) : null, outdoors = rec?.kind === 'ground';
-  return envOf({ outdoors, outfit: a?.outfit ?? 'utilities', lonEDeg: siteLonEDeg(state), area, room: room && !outdoors && a ? roomOf(area, a.x, a.z)?.id ?? null : null });
+  const area = state?.places?.live?.area ?? null;
+  const E = placeEnvAt(state, area, a?.x ?? 0, a?.z ?? 0), outdoors = E.outdoors;
+  return envOf({ gG: E.gravity.gG, pKpa: E.air.pKpa, airC: E.air.airC, outdoors, outfit: a?.outfit ?? 'utilities', lonEDeg: siteLonEDeg(state), area,
+    room: room && !outdoors && a ? roomOf(area, a.x, a.z)?.id ?? null : null });
 }
 
 /** A load from what the body does (BODY §3.1, §3.2): met at 1 G, its kind, the load carried, posture, outdoors, wet; lived (stamina stepped by the fast layer). */
-export function loadOf({ met = MET.idle, kind = 'still', loadKg = 0, posture = 'stand', out = false, wet = false, lived = false } = {}, env = envOf(), massKg = 75) {
+export function loadOf({ met = MET.idle, kind = 'still', loadKg = 0, posture = 'stand', out = false, wet = false, lived = false } = {}, env, massKg = 75) {
+  if (!env) throw new Error('loadOf(): the environment it is carried in (envOf)');
   const metG = metGOf(met, kind, env.gG, loadKg, massKg);
   const L = { met, kind, metG, hiFrac: met > HARD_MET ? 1 : 0, vhFrac: met > VERY_HARD_MET ? 1 : 0, runFrac: kind === 'run' ? 1 : 0, outFrac: out ? 1 : 0,
     wetFrac: wet ? 1 : 0, lieFrac: posture === 'lie' ? 1 : 0, posture, lived: !!lived };
@@ -577,9 +589,11 @@ export function solPlan(sol, reveilleMs, lonEDeg, nextReveilleMs = null) {
   for (let i = 0; i < spans.length; i++) spans[i].toMs = i + 1 < spans.length ? spans[i + 1].fromMs : end;
   return spans;
 }
-/** A row's segment: its load and environment (outdoors, the outfit) at a site. */
-export function rowSeg(row, lonEDeg, massKg = 75, lived = false, gG = G_MELAS) {
-  const env = envOf({ gG, outdoors: !!row.out, outfit: row.outfit ?? 'utilities', lonEDeg });
+/** A row's segment: its load and environment (outdoors, the outfit) at a place (bodyPlaceOf's { gG, in, out }: required). */
+export function rowSeg(row, lonEDeg, massKg = 75, lived = false, place = null) {
+  if (!place) throw new Error('rowSeg(): the place the row is lived at (src/sim/places/env.js bodyPlaceOf)');
+  const air = row.out ? place.out : place.in;
+  const env = envOf({ gG: place.gG, pKpa: air.pKpa, airC: air.airC, outdoors: !!row.out, outfit: row.outfit ?? 'utilities', lonEDeg });
   return { env, load: loadOf({ met: row.met, kind: row.kind, loadKg: row.loadKg ?? 0, posture: row.posture ?? 'stand', out: !!row.out, wet: !!row.wet, lived }, env, massKg) };
 }
 /**
@@ -609,13 +623,13 @@ export function rowActs(body, span, t, lonEDeg) {
   if (done.some(a => !(a.act === 'groom' && a.hands && !a.teeth && !a.shave && !a.face && !a.clip))) body.held.rp = null;
   return done;
 }
-/** Follow a sol's plan from fromMs to toMs on a whole body, skipped a span at a time (startBody's way). Returns the acts done. */
-export function followPlan(body, plan, fromMs, toMs, lonEDeg, gG = G_MELAS) {
+/** Follow a sol's plan from fromMs to toMs on a whole body at a place (bodyPlaceOf's), skipped a span at a time (startBody's way). Returns the acts done. */
+export function followPlan(body, plan, fromMs, toMs, lonEDeg, place) {
   const acts = [], mass = massOf(body);
   for (const span of plan) {
     if (span.toMs <= fromMs || span.fromMs >= toMs) continue;
     if (span.fromMs >= fromMs) acts.push(...rowActs(body, span, span.fromMs, lonEDeg).map(a => ({ ...a, atMs: span.fromMs, what: span.row.what })));
-    bodyAdvance(body, rowSeg(span.row, lonEDeg, mass, false, gG), Math.max(fromMs, span.fromMs), Math.min(toMs, span.toMs));
+    bodyAdvance(body, rowSeg(span.row, lonEDeg, mass, false, place), Math.max(fromMs, span.fromMs), Math.min(toMs, span.toMs));
   }
   return acts;
 }
@@ -634,7 +648,7 @@ export function startBody(person, ms, lonEDeg = 0, seed = null) {
   body.atMs = rev;
   body.energy.emptySinceMs = rev - Math.round(t.energy.emptyForH * HOUR_MS);
   body.energy.ateMs = rev - Math.round(t.energy.ateAgoH * HOUR_MS);
-  followPlan(body, solPlan(REFERENCE_SOL, rev, lonEDeg), rev, ms, lonEDeg);
+  followPlan(body, solPlan(REFERENCE_SOL, rev, lonEDeg), rev, ms, lonEDeg, bodyPlaceOf(REFERENCE_SOL.site));
   body.atMs = ms;
   if (body.sleep.bed) endSleepBody(body, ms, { by: 'natural' });
   body.held = {};

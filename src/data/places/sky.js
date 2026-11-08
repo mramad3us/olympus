@@ -20,8 +20,11 @@
 //                §2.7, pixel art's pool of light), their colours, radii and when they are lit; and the
 //                kinds that make none (a ceiling panel is the room's fill, the sheet's §8 item 7; an
 //                exit sign only glows).
-//   TIMES        the lighting's hours by Melas time (CONTRACTS §4, PLACES §3.9): reveille 05:30 on a
-//                weekday, 07:00 on Saturday and Sunday; evening from 18:00; taps at 22:00.
+//   TIMES        the base's lighting hours at Melas (CONTRACTS §4, PLACES §3.9), a view of their homes:
+//                reveille 05:30 on a weekday, 07:00 on Saturday and Sunday, and taps at 22:00 are Melas's
+//                Plan of the Day (src/data/pod.js ROUTINES.melas), the evening from 18:00 the base
+//                regime's (src/data/places/env.js LIGHT_REGIMES.base). light.js reads the homes, by the
+//                site's routine and regime; TIMES is kept for the readers that name Melas's hours.
 //   sp           each light's scotopic to photopic ratio (S/P: the rods' share of a light against the
 //                cones', K'm ∫V'(λ)S(λ) over Km ∫V(λ)S(λ), K'm 1,700 and Km 683 lm/W), which the eyes'
 //                rods follow (src/sim/body/eyes.js; 0.0.5's dark adaptation). The broad white sources
@@ -40,6 +43,9 @@
 //                redder sky (both my calls).
 // Numbers marked (my call) in the sheet: WINDOW_K, the pools' radii and strengths but the night
 // light's and the red lamp's, which are VIEWS's.
+
+import { ROUTINES } from '../pod.js';
+import { LIGHT_REGIMES } from './env.js';
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
@@ -91,5 +97,5 @@ export const LAMP_KINDS = deepFreeze({
 /** The open air's scotopic to photopic ratio on Mars, every row (my call: see the header). */
 export const SKY_SP = 2.0;
 
-/** The lighting's hours by Melas civil time, decimal hours (CONTRACTS §4, PLACES §3.9). */
-export const TIMES = deepFreeze({ REVEILLE_H: 5.5, REVEILLE_WEEKEND_H: 7.0, EVENING_H: 18.0, TAPS_H: 22.0 });
+/** The base's lighting hours at Melas, decimal hours on its civil clock (CONTRACTS §4, PLACES §3.9): a view of ROUTINES.melas and LIGHT_REGIMES.base. */
+export const TIMES = deepFreeze({ REVEILLE_H: ROUTINES.melas.reveilleH, REVEILLE_WEEKEND_H: ROUTINES.melas.reveilleHolidayH, EVENING_H: LIGHT_REGIMES.base.hours.eveningH, TAPS_H: ROUTINES.melas.tapsH });

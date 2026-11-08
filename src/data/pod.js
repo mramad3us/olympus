@@ -1,8 +1,10 @@
 // OLYMPUS data: the night's Plan of the Day at Base Melas, as far as this round lives it: taps, reveille and the weekly alert drill (TIME §9.2, §9.5; the build sheet 0.0.4 §2.2.4).
 //
-// The hours are the lamps' (src/data/places/sky.js TIMES, re-exported here: one record, so the bay's
-// lights and the calls agree to the second): taps at 22:00, reveille at 05:30 on a training sol and
-// 07:00 on Saturday and Sunday, the holiday routine (TIME §9.2's week). The alert drill is the
+// The Plan of the Day is the site's (PLACES §1.2: a site record's `routine` names a row of ROUTINES,
+// ROADMAP "anywhere"'s step 3): Melas's taps at 22:00, reveille at 05:30 on a training sol and 07:00
+// on Saturday and Sunday, the holiday routine (TIME §9.2's week), its hours on the site's own clock.
+// The base's lamps read the same row (src/sim/places/light.js, by the site's lighting regime), so the
+// bay's lights and the calls agree to the second; src/data/places/sky.js TIMES is a view of it. The alert drill is the
 // standby's weekly unannounced drill (TIME §9.2, CAREER §5.2) and an A interrupt (TIME §7.1's "base
 // alert"; the sheet §8, item 3): which night of the week, and which minute of it, are drawn from the
 // world's seed (the user, 2026-11-05: "events and world politics, assignments, opportunities, mission
@@ -16,16 +18,23 @@
 // Echo's first floor, which the stage draws as a red beacon and the audio sounds from (the sheet §8,
 // item 23; my calls). The lateness classes are TIME §9.5's, from the due time: an alarm has no early
 // class, and a marine not mustered by the stand-down has missed it (the sheet §8, item 5).
-import { TIMES } from './places/sky.js';
+const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
-export { TIMES };
+/**
+ * The Plans of the Day by id (a site's `routine`): reveilleH on a working day, reveilleHolidayH on a
+ * holiday, tapsH, decimal hours on the site's clock; holidays the weekdays of the holiday routine
+ * (Monday 0: Saturday and Sunday).
+ */
+export const ROUTINES = deepFreeze({
+  melas: { word: 'Base Melas\'s Plan of the Day', reveilleH: 5.5, reveilleHolidayH: 7.0, tapsH: 22.0, holidays: [5, 6] },
+});
 
-/** Reveille on a training sol, Melas civil hours (CONTRACTS §4). */
-export const REVEILLE_H = TIMES.REVEILLE_H;
-/** Reveille on Saturday and Sunday, the holiday routine (TIME §9.2). */
-export const REVEILLE_HOLIDAY_H = TIMES.REVEILLE_WEEKEND_H;
-/** Taps: lights out (TIME §9.2). */
-export const TAPS_H = TIMES.TAPS_H;
+/** Reveille on a training sol at Melas, civil hours (CONTRACTS §4): ROUTINES.melas's. */
+export const REVEILLE_H = ROUTINES.melas.reveilleH;
+/** Reveille on Saturday and Sunday at Melas, the holiday routine (TIME §9.2). */
+export const REVEILLE_HOLIDAY_H = ROUTINES.melas.reveilleHolidayH;
+/** Taps at Melas: lights out (TIME §9.2). */
+export const TAPS_H = ROUTINES.melas.tapsH;
 /** The squad stands at their racks' feet in PT kit this long after reveille, until the muster (05:40: TIME §9.2), ms. */
 export const REVEILLE_STAND_MS = 600_000;
 

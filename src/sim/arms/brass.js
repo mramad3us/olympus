@@ -1,6 +1,6 @@
 // OLYMPUS arms: the brass on the KD range, every case that came to rest kept and counted on its tile, and the brass call (WEAPONS §2.8, §10.4; the build sheet 0.0.7 §2.3, §8 item 19).
 //
-// A fired case flies from the port as v0.0.5's does (look.js ejectCase, caseAt: Mars' gravity), held in the
+// A fired case flies from the port as v0.0.5's does (look.js ejectCase, caseAt: the place's gravity), held in the
 // session's live list R.brass (at most BRASS_LIVE 64, the stage's flying cases). On the KD course (test-range)
 // a case at rest leaves that list for R.brassTiles, a count on the area's 1 m tiles ({ '<ix>,<iz>': { n, mine } },
 // mine the player's), so every case of the relay stays drawn and counted however many are fired (settle, each

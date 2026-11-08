@@ -66,7 +66,7 @@ export default [
       const struck = g.facts('activity').length && theHead?.activity === 'bowel' ? 'the urinal\'s row struck "nothing to give": on to a stall' : 'the urinal';
       lines.push(`${hm(theHead.fromMs)} ${struck}: R "${seen.find(x => x.id === theHead.activity)?.label}" (${theHead.activity}), done ${hm(theHead.toMs)}: "${theHead.outcome.line}"; the hands soiled ${soiled.map(e => `+${e.amount} (${e.why})`).join(', ')}, never washed by it`);
       lines.push(`${hm(hands.fromMs)} at the sink: R "${atSink.label}" (${atSink.why}), lived ${hands.mode === 'live'}, done ${hm(hands.toMs)}: "${hands.outcome.line}"`);
-      const b1 = bodyOf(s, pid), st1 = stagesOf(b1, s.clock.ms);
+      const b1 = bodyOf(s, pid), st1 = stagesOf(b1, s.clock.ms, LON);
       const o2 = handOffer(s), menu = menuOf(s);
       lines.push(`${hm(s.clock.ms)} R "${o2.label}" (${o2.why}); R held, ${menu.title}: ${menu.rows.map(x => `${x.words}${x.off ? ` (${x.off})` : ''}`).join(' | ')}`);
       save(g, '1-at-sink');
@@ -106,7 +106,7 @@ export default [
       console.log('      v0.0.5, the same walk (the bundle):');
       for (const l of V005) console.log(`        ${l}`);
       // (check 3)
-      assert(atSink && atSink.label === 'wash hands · 30 s' && atSink.why === 'hands' && hands.mode === 'ff' && hands.fraction === 1 && stagesOf(bodyOf(s, pid), hands.toMs).hands.i === 0, JSON.stringify({ atSink, hands: hands && [hands.mode, hands.fraction] }));
+      assert(atSink && atSink.label === 'wash hands · 30 s' && atSink.why === 'hands' && hands.mode === 'ff' && hands.fraction === 1 && stagesOf(bodyOf(s, pid), hands.toMs, LON).hands.i === 0, JSON.stringify({ atSink, hands: hands && [hands.mode, hands.fraction] }));
       assert(soiled.length >= 1 && soiled[0].atMs === theHead.toMs && groomed.length === 1 && groomed[0].amount === 8, JSON.stringify({ soiled, groomed }));
       assert(Math.abs(b1.hygiene.stubbleH - stub0) < 1e-9 && acts.filter(f => f.fromMs >= hands.fromMs).every(f => f.activity === 'wash-hands'), 'washing the hands did something else');
       assert((o2.id === 'shave' && /^shave · 4 min, done \d\d:\d\d$/.test(o2.label)) || (o2.id === 'drink' && o2.label === 'drink · 30 s'), o2.label);

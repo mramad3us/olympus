@@ -13,9 +13,10 @@ import { areaOf, enterSite } from '../places/model.js';
 import { seatOf, spotsOf } from '../places/fixtures.js';
 import { rollRoster, fillPlayer } from '../people/roster.js';
 import { syncActors } from '../people/place.js';
+import { STARTS } from '../../data/scenes.js';
 
-/** Where the barracks plays. */
-export const BARRACKS = Object.freeze({ site: 'melas', area: 'melas.echo.1' });
+/** Where the barracks plays (its site its start's host, src/data/scenes.js STARTS). */
+export const BARRACKS = Object.freeze({ site: STARTS.barracks.host.site, area: 'melas.echo.1' });
 
 // (where the player starts: their berth's foot facing down, else the area's spawn)
 function startOf(state, pid) {

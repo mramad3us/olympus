@@ -20,6 +20,7 @@ import { sheetOf, NEED_NAMES, FINE_WORDS } from '../src/ui/cards/sheet.js';
 import { STRIP_ORDER } from '../src/ui/hud/strip.js';
 import { HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, FATIGUE_BANDS } from '../src/data/body/needs.js';
 import { newGame } from '../src/sim/game.js';
+import { lonOf } from '../src/sim/places/model.js';
 import { haircutWords } from '../src/ui/cards/sheet.js';
 import { hairAt, hairOf, SOL_H } from '../src/sim/body/hair.js';
 import { woundWords } from '../src/sim/body/wounds.js';
@@ -72,7 +73,7 @@ export default [
       const [{ bodyOf }, cues] = await Promise.all([import('../src/sim/body/body.js'), import('../src/sim/body/cues.js')]);
       for (const hour of [12.66, 21.95]) {
         const s = newGame({ seed: 48213, scenario: 'barracks', hour });
-        const sh = sheetOf(s, { body: { bodyOf, stagesOf: cues.stagesOf, stripOf: cues.stripOf, wordsOf: cues.wordsOf, cuesOf: cues.cuesOf } });
+        const sh = sheetOf(s, { body: { bodyOf, stagesOf: cues.stagesOf, stripOf: cues.stripOf, wordsOf: cues.wordsOf, cuesOf: cues.cuesOf }, lonEDeg: lonOf(s) });
         console.log(`      at ${hour} h: '${sh.line}'; ${sh.needs.map(n => `${n.name} ${n.band} '${n.words}'`).join(' · ')}; strip ${sh.strip.map(e => `${e.need}:${e.fill}`).join(' ')}`);
         assert(sh.strip.length === 9 && sh.needs.length >= 6 && sh.needs.every(n => !/\d/.test(n.words) && n.words && NEED_NAMES[n.need]), JSON.stringify(sh.needs));
       }
@@ -84,7 +85,7 @@ export default [
       const [{ bodyOf }, cues] = await Promise.all([import('../src/sim/body/body.js'), import('../src/sim/body/cues.js')]);
       const s = newGame({ seed: 48213, scenario: 'barracks', hour: 19.5 });
       const real = { bodyOf, stagesOf: cues.stagesOf, stripOf: cues.stripOf, wordsOf: cues.wordsOf, cuesOf: cues.cuesOf, hairOf };
-      const sh = sheetOf(s, { body: real });
+      const sh = sheetOf(s, { body: real, lonEDeg: lonOf(s) });
       const hands = sh.needs.find(n => n.need === 'hands'), cut = sh.needs.find(n => n.need === 'haircut');
       console.log(`      a new career at 19:30: Hands '${hands?.words}' (${hands?.tone}); Haircut '${cut?.words}' (${cut?.tone})`);
       assert(hands && hands.name === 'Hands' && hands.words && !/\d/.test(hands.words), JSON.stringify(hands));
@@ -92,7 +93,7 @@ export default [
       // (the cut as it grows: a high and tight at 0, 3, 7 and 10 sols, read through the sheet with hairAt's records)
       const rows = [0.5, 3, 7, 10].map(sols => {
         const rec = hairAt('highTight', sols * SOL_H, s.clock.ms);
-        const one = sheetOf(s, { body: { ...real, hairOf: () => rec } }).needs.find(n => n.need === 'haircut');
+        const one = sheetOf(s, { body: { ...real, hairOf: () => rec }, lonEDeg: lonOf(s) }).needs.find(n => n.need === 'haircut');
         return { sols, band: rec.band.id, words: one.words, tone: one.tone, said: haircutWords(rec) };
       });
       for (const r of rows) console.log(`      ${r.sols} sols: ${r.band}, '${r.words}' (${r.tone})`);

@@ -40,7 +40,8 @@
 //   waitStill()             a primitive: no input until stop motion stands still for a choice (or no
 //                           step plays), or fails 'timeout'.
 import { navOf, openNavOf, path, centreOf, CLASSES } from '../../src/sim/places/nav.js';
-import { PLAYER_CLS, WALK_MS } from '../../src/sim/places/move.js';
+import { PLAYER_CLS } from '../../src/sim/places/move.js';
+import { WALK_MS } from '../mars-gaits.mjs';
 import { areaOf } from '../../src/sim/places/model.js';
 import { spotsOfArea } from '../../src/sim/places/fixtures.js';
 import { handOffer, DOOR_REACH_M } from '../../src/sim/places/hand.js';

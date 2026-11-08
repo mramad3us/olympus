@@ -21,8 +21,8 @@ import { playerActor } from '../../core/ids.js';
 import { TICK_MS } from '../../core/clock.js';
 import { airDb } from '../../sim/people/hearing.js';
 import { lowpassHz } from './steps.js';
-import { bermFor, soundMsAt } from './range.js';
-import { AIR_KPA, ROLLOFF, PAN_FULL_M, ECHO_DB, ECHO_LP_HZ, EARS_DB, EARS_LP_HZ, WORLD_OPEN_HZ, BANG_SOURCE_DB, BAND_DUCK_DB, BAND_LP_HZ, BAND_BODY_DB,
+import { bermFor, airHere, needSound } from './range.js';
+import { ROLLOFF, PAN_FULL_M, ECHO_DB, ECHO_LP_HZ, EARS_DB, EARS_LP_HZ, WORLD_OPEN_HZ, BANG_SOURCE_DB, BAND_DUCK_DB, BAND_LP_HZ, BAND_BODY_DB,
   MUFFLE_LP_HZ, MUFFLE_DB, MUFFLE_RECOVER_S, WHINE_LOUD_DB, WHINE_FLOOR_DB, WHINE_LOUD_S, WHINE_FALL_S, WHINE_CAPTION, VOICE_NEAR_M } from '../../data/sounds.js';
 
 const dbOfDist = (dM, roll = ROLLOFF.ground) => 20 * Math.log10(1 / (1 + roll * Math.max(0, dM - 1)));
@@ -33,12 +33,13 @@ const r1 = (v) => Math.round(v * 10) / 10;
  * The bang as you hear it: { gainDb, lowpassHz, distM, pan, echo: { gainDb, lowpassHz, delayS } }. me { x, z }; at { x, z } the
  * bang; ears: the defenders worn (their gate: EARS_DB, low-passed at EARS_LP_HZ); soundMs: the speed of sound; pKpa the air.
  */
-export function bangVoice({ me = null, at = null, ears = false, soundMs = 322, pKpa = AIR_KPA.ground } = {}) {
+export function bangVoice({ me = null, at = null, ears = false, soundMs, pKpa } = {}) {
+  needSound(soundMs);
   const dx = me && at ? at.x - me.x : 0, dz = me && at ? at.z - me.z : 0, distM = Math.hypot(dx, dz);
   let gainDb = BANG_SOURCE_DB + airDb(pKpa) + dbOfDist(distM), lp = lowpassHz(pKpa);
   if (ears) { gainDb += EARS_DB; lp = Math.min(lp, EARS_LP_HZ); }
   const berm = bermFor(at?.x ?? me?.x ?? 0), there = Math.max(1, berm - (at?.x ?? 0)), back = Math.max(1, berm - (me?.x ?? 0));
-  const echo = { gainDb: gainDb + ECHO_DB, lowpassHz: Math.min(lp, ECHO_LP_HZ), delayS: (there + back) / soundMs };
+  const echo = { gainDb: gainDb + ECHO_DB, lowpassHz: Math.min(lp, ECHO_LP_HZ), delayS: soundMs > 0 ? (there + back) / soundMs : 0 };
   return { gainDb, lowpassHz: lp, distM, pan: Math.max(-1, Math.min(1, dx / PAN_FULL_M)), echo };
 }
 
@@ -89,10 +90,10 @@ export function createBang(engine, { looks = {} } = {}) {
     if (type !== 'fx' || f?.kind !== 'bang' || !state) return false;
     const a = playerActor(state), me = a ? { x: a.x, z: a.z } : null;
     if (f.area && state.places?.live?.area && f.area !== state.places.live.area) return false;
-    const v = bangVoice({ me, at: { x: f.x, z: f.z }, ears: earsOf(state), soundMs: soundMsAt(state) });
+    const air = airHere(state), v = bangVoice({ me, at: { x: f.x, z: f.z }, ears: earsOf(state), soundMs: air.soundMs, pKpa: air.pKpa });
     // (its place in the tick that brought it, as the row shots' reports)
     const lagS = Number.isFinite(f.atMs) ? Math.max(0, Math.min(TICK_MS, f.atMs - (state.clock.ms - TICK_MS))) / 1000 : 0;
-    const flight = v.distM / soundMsAt(state);
+    const flight = air.soundMs > 0 ? v.distM / air.soundMs : 0;
     const ok = engine.bang('bangReport', { delayS: lagS + flight, gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan });
     if (ok) { stats.bangs++; stats.lastBang = { id: f.id ?? null, atMs: f.atMs ?? null, gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round((lagS + flight) * 1000) / 1000 }; }
     if (engine.bang('bangReport', { delayS: lagS + v.echo.delayS, gainDb: v.echo.gainDb, lowHz: v.echo.lowpassHz, pan: v.pan, rate: 0.85 })) { stats.echoes++; stats.lastEcho = { gainDb: r1(v.echo.gainDb), lowpassHz: Math.round(v.echo.lowpassHz), delayS: Math.round(v.echo.delayS * 1000) / 1000 }; }

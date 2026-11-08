@@ -18,8 +18,8 @@ import { playerActor } from '../../core/ids.js';
 import { TICK_MS } from '../../core/clock.js';
 import { airDb } from '../../sim/people/hearing.js';
 import { lowpassHz } from './steps.js';
-import { reportVoice, soundMsAt } from './range.js';
-import { AIR_KPA, ROLLOFF, HORN_SOURCE_DB, HORN_EARS_DB, HORN_EARS_LP_HZ, STRESS_AT, BREATHE_DB } from '../../data/sounds.js';
+import { reportVoice, airHere } from './range.js';
+import { ROLLOFF, HORN_SOURCE_DB, HORN_EARS_DB, HORN_EARS_LP_HZ, STRESS_AT, BREATHE_DB } from '../../data/sounds.js';
 
 const dbOfDist = (dM, roll = ROLLOFF.ground) => 20 * Math.log10(1 / (1 + roll * Math.max(0, dM - 1)));
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -34,14 +34,14 @@ export function nearPan(me, at) {
 }
 
 /** The horn as you hear it: { gainDb, lowpassHz, distM, pan }. ears: the defenders worn (their limiter). */
-export function hornVoice({ me = null, at = null, ears = false, pKpa = AIR_KPA.ground } = {}) {
+export function hornVoice({ me = null, at = null, ears = false, pKpa } = {}) {
   const distM = me && at ? Math.hypot(at.x - me.x, at.z - me.z) : STRESS_AT.distM;
   let gainDb = HORN_SOURCE_DB + airDb(pKpa) + dbOfDist(distM), lp = lowpassHz(pKpa);
   if (ears) { gainDb += HORN_EARS_DB; lp = Math.min(lp, HORN_EARS_LP_HZ); }
   return { gainDb, lowpassHz: lp, distM, pan: nearPan(me, at) };
 }
 /** A blank's report as you hear it: range.js reportVoice's for a neighbour's muzzle (gated by the defenders), panned near: { gainDb, lowpassHz, distM, pan, delayS, echo }. */
-export function blankVoice({ me = null, at = null, ears = false, soundMs = 322, pKpa = AIR_KPA.ground } = {}) {
+export function blankVoice({ me = null, at = null, ears = false, soundMs, pKpa } = {}) {
   const v = reportVoice({ me, muzzle: at, mine: false, ears, pKpa, soundMs });
   return { ...v, pan: nearPan(me, at) };
 }
@@ -60,15 +60,15 @@ export function createStress(engine, { looks = {} } = {}) {
   function fact(type, f, state) {
     if (type !== 'fx' || !state || !f || (f.kind !== 'horn' && f.kind !== 'blank')) return false;
     if (f.area && state.places?.live?.area && f.area !== state.places.live.area) return false;
-    const me = meOf(state), at = Number.isFinite(f.x) ? { x: f.x, z: f.z } : null, ears = earsOf(state), lag = lagOf(f, state);
+    const me = meOf(state), at = Number.isFinite(f.x) ? { x: f.x, z: f.z } : null, ears = earsOf(state), lag = lagOf(f, state), air = airHere(state);
     if (f.kind === 'horn') {
       if (f.phase && f.phase !== 'on') return false;
-      const v = hornVoice({ me, at, ears });
+      const v = hornVoice({ me, at, ears, pKpa: air.pKpa });
       const ok = engine.stress('hornBlast', { delayS: lag, gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan });
       if (ok) { stats.horns++; stats.lastHorn = { key: f.key ?? null, atMs: f.atMs ?? null, gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), pan: r1(v.pan), ears }; }
       return ok;
     }
-    const soundMs = soundMsAt(state), v = blankVoice({ me, at, ears, soundMs });
+    const v = blankVoice({ me, at, ears, soundMs: air.soundMs, pKpa: air.pKpa });
     const ok = engine.shot('report', { delayS: lag + v.delayS, gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan });
     if (ok) { stats.blanks++; stats.lastBlank = { key: f.key ?? null, atMs: f.atMs ?? null, gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round((lag + v.delayS) * 1000) / 1000, pan: r1(v.pan), ears }; }
     if (engine.shot('report', { delayS: lag + v.echo.delayS, gainDb: v.echo.gainDb, lowHz: v.echo.lowpassHz, pan: v.pan, rate: 0.9 })) stats.echoes++;

@@ -11,17 +11,20 @@
 // The every grammar (TECH §4.3; the slot table is TIME §11.3's, CONTRACTS §5):
 //   hour@:MMZ              every UTC hour at minute MM
 //   day@HH:MMZ             every UTC day at HH:MM
-//   local@HH:MM            every sol at that Mars local time, at the live site's longitude (places'
-//                          lonOf; Melas, SETTING's start site, before any site is live)
-//   week@<weekday>/HH:MM   weekly, on SETTING's week: the local sol's weekday by dates.js weekdayOf,
+//   local@HH:MM            every local day at that time on the live site's clock (places' env.js
+//                          localTime and msAtLocal; the start site's, SETTING §3.7, before any site is
+//                          live): a sol at Melas, the timeslip in it (local@24:10 is ten minutes into
+//                          it), and a UTC day on a ship (ROADMAP "anywhere"'s step 3: env-clock)
+//   week@<weekday>/HH:MM   weekly, on the site's week: at Melas SETTING's, the local sol's weekday by
 //                          its number plus WEEK_OFFSET mod 7, Monday 0 (MSD 0 was a Monday, SETTING
-//                          §3.4), the watch's own helper
+//                          §3.4), the watch's own helper; on UTC the calendar's
 //   every@<ms>             an absolute period from the career's start (meta.createdMs until CAREER
 //                          keeps its own): fitness weeks, rust's periods
-// nextOccurrence(every, afterMs, { lonEDeg, originMs }) gives the first whole second strictly after
+// nextOccurrence(every, afterMs, { site, lonEDeg, originMs }) gives the first whole second strictly after
 // afterMs at which the slot falls: a local time is rounded up to its second, so local@00:00 falls on
 // the sol's 00:00 just after the slip, never in it. UTC hours and days fall on whole seconds as they
-// are (game time 0 is 08:00:00 UTC).
+// are (game time 0 is 08:00:00 UTC). `site` (an id or a record) names the clock local@ and week@ are
+// read on; without it, Mars's at lonEDeg (the tests' form). postJob always gives the live site.
 //
 // createJobs(domains) merges the domains' tables: each descriptor's jobs { <name>: { every?, prio?,
 // src?, payload?, run(state, bus, ev) } } (a job without every runs only when posted by hand) and
@@ -30,10 +33,9 @@
 // autosaveDay is 'time:autosave-day').
 import { post, cancel } from '../core/queue.js';
 import { SEC_MS, MIN_MS, HOUR_MS, DAY_MS } from '../core/clock.js';
-import { UNIX_MS_AT_EPOCH, msAtMarsTime, localSol, WEEKDAYS } from '../core/calendar.js';
-import { SITES, START } from '../data/setting/calendar.js';
+import { UNIX_MS_AT_EPOCH, WEEKDAYS, msAtMarsTime } from '../core/calendar.js';
 import { lonOf } from './places/model.js';
-import { weekdayOf } from './time/dates.js';
+import { siteAt, msAtLocal, timeAt, marsTime } from './places/env.js';
 
 const ceilSec = (ms) => Math.ceil(ms / SEC_MS) * SEC_MS;
 // (game time of a UTC midnight, modulo a day: the epoch is 08:00 UTC, so midnights fall at -8 h mod 24 h)
@@ -66,8 +68,11 @@ export function parseEvery(every) {
 }
 
 /** The first whole second strictly after afterMs at which an every slot falls (see the header). */
-export function nextOccurrence(every, afterMs, { lonEDeg = 0, originMs = 0 } = {}) {
+export function nextOccurrence(every, afterMs, { site = null, lonEDeg = 0, originMs = 0 } = {}) {
   const p = parseEvery(every);
+  // (the clock local@ and week@ read: the site's, or Mars's at lonEDeg)
+  const at = (from) => (site !== null ? msAtLocal(site, from, p.hour, p.minute) : msAtMarsTime(from, p.hour, p.minute, lonEDeg));
+  const weekdayAt = (t) => (site !== null ? timeAt(site, t) : marsTime(t, lonEDeg)).weekday;
   switch (p.kind) {
     case 'hour': {
       let t = Math.floor(afterMs / HOUR_MS) * HOUR_MS + p.minute * MIN_MS;
@@ -79,15 +84,15 @@ export function nextOccurrence(every, afterMs, { lonEDeg = 0, originMs = 0 } = {
       if (t <= afterMs) t += DAY_MS;
       return t;
     }
-    case 'local': return ceilSec(msAtMarsTime(afterMs + 1, p.hour, p.minute, lonEDeg));
+    case 'local': return ceilSec(at(afterMs + 1));
     case 'week': {
       let from = afterMs + 1;
       for (let k = 0; k < 8; k++) {
-        const t = msAtMarsTime(from, p.hour, p.minute, lonEDeg);
-        if (weekdayOf(localSol(t, lonEDeg).sol) === p.weekday) return ceilSec(t);
+        const t = at(from);
+        if (weekdayAt(t) === p.weekday) return ceilSec(t);
         from = t + 1;
       }
-      throw new Error(`no ${every} in eight sols after ${afterMs}`);
+      throw new Error(`no ${every} in eight local days after ${afterMs}`);
     }
     case 'every': {
       const k = Math.floor((afterMs - originMs) / p.periodMs) + 1;
@@ -123,14 +128,14 @@ export function createJobs(domains) {
   return Object.freeze({ handlers: Object.freeze(handlers), jobs: Object.freeze(jobs), recurring: Object.freeze(recurring), events: Object.freeze(events) });
 }
 
-/** The live site's east longitude, or the start site's before any site is live. */
+/** The live site's east longitude, or the start site's before any site is live (places' lonOf: throws off Mars). */
 export function siteLonEDeg(state) {
-  return state.places?.live?.site ? lonOf(state) : SITES[START.site].lonEDeg;
+  return lonOf(state);
 }
 
 /** Post a job's next occurrence after afterMs (the clock by default): { job, every, src, prio = 5, payload }. Returns its id. */
 export function postJob(state, { job, every, src, prio = 5, payload = null }, afterMs = state.clock.ms) {
-  const atMs = nextOccurrence(every, afterMs, { lonEDeg: siteLonEDeg(state), originMs: state.meta.createdMs ?? 0 });
+  const atMs = nextOccurrence(every, afterMs, { site: siteAt(state), originMs: state.meta.createdMs ?? 0 });
   return post(state, { atMs, prio, kind: 'job', src, payload: { ...(payload ?? {}), job, every } });
 }
 

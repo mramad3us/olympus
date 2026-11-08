@@ -112,6 +112,7 @@ import { isRoutine, oddsOf, TEMPO } from '../skills/checks.js';
 import { rollerOf } from '../combat/roll.js';
 import { suppMod, bandOf, SHAKING_ODDS, breatheOffer, breatheStart, breatheEnd, BREATHE_MS, BREATHE_SUB_MS } from '../combat/supp.js';
 import { stanceMs, WAIT_MAX_MS, STANCES, stanceStep } from '../combat/steps.js';
+import { gravityAt } from '../places/env.js';
 import { offerReflex, chosenReflex } from '../combat/reflex.js';
 import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, HELD_MAX, poiOf, holdFor, holdWords, windBeliefOf, HOLD_STEP_MRAD, HOLD_MAX_MRAD, HOLD_SHIFT_MS } from './shot.js';
 import { canDo, doAction, beliefOf, actionMs, REFUSALS, sayObserved, actionOf, actionKey, actionPlace, dial, dialMs, opticMs, readMs, setOptic, believeZero, beliefZero, sightOf, TURRET_MAX_CLK } from './firearms.js';
@@ -176,8 +177,10 @@ export function stepLabel(id) {
 }
 /** Sitting's times (my calls; COMBAT §3.4's stances have none): from and to each stance, ms at pace 1, × paceOf(Fitness). */
 export const SIT_MS = Object.freeze({ 'stand>sit': 2000, 'kneel>sit': 1500, 'prone>sit': 1800, 'sit>stand': 1200, 'sit>kneel': 1000, 'sit>prone': 1500 });
-/** A stance change's time with sitting in it (steps.js stanceMs for the rest), ms. */
-export const stanceMsOf = (from, to, fitness = 10) => (from === 'sit' || to === 'sit' ? (from === to ? 0 : Math.round((SIT_MS[`${from}>${to}`] ?? 1500) * paceOf(fitness))) : stanceMs(from, to, { fitness }));
+/** A stance change's time with sitting in it (steps.js stanceMs for the rest, at gG: the place's gravity, src/sim/places/env.js gravityAt), ms. */
+export const stanceMsOf = (from, to, fitness, gG) => (from === 'sit' || to === 'sit' ? (from === to ? 0 : Math.round((SIT_MS[`${from}>${to}`] ?? 1500) * paceOf(fitness))) : stanceMs(from, to, { gG, fitness }));
+// (the gravity where an actor stands, for its stance times)
+const gHere = (state, a) => gravityAt(state, null, a?.x ?? 0, a?.z ?? 0).gG;
 /**
  * The handling that takes a hand off the rifle's grip or the cheek off the stock, so the held aim settles again
  * after it (tradecraft's list: its dropMag, insertMag, release, rack, clear, chamber1; WEAPONS §7.1's "magazine,
@@ -488,7 +491,7 @@ export function lineRow(state, id, ms = state.clock.ms) {
     const mag = Number(id.slice(6));
     return row(id, 'optic', LABELS[id], opticMs(), { off: b.optic === mag ? 'set already' : null, mag });
   }
-  if (id === 'stance:sit') return row(id, 'stance', LABELS['stance:sit'], stanceMsOf(me.stance ?? 'stand', 'sit', roller.value('fitness')), { off: me.stance === 'sit' ? 'sitting already' : null });
+  if (id === 'stance:sit') return row(id, 'stance', LABELS['stance:sit'], stanceMsOf(me.stance ?? 'stand', 'sit', roller.value('fitness'), gHere(state, me)), { off: me.stance === 'sit' ? 'sitting already' : null });
   return null;
 }
 // (the line's rows the panel lists, on a KD line or the zero card's line only (test-handling's panel unchanged))
@@ -534,7 +537,7 @@ export function stepsOf(state, ms = state.clock.ms) {
   const stance = me.stance ?? 'stand', fit = roller.value('fitness');
   // (knocked down by a wound: no stance while wounds.js downOf holds you down, then each stance as from prone)
   const down = stance === 'down', lying = down && downOf(state.people?.[pid]?.body, ms).down, from = down ? 'prone' : stance;
-  const stances = lying ? [] : STANCES.filter(s => s !== stance).map(to => ({ id: `stance:${to}`, kind: 'stance', label: LABELS[`stance:${to}`], ms: stanceMsOf(from, to, fit), rushMs: null, carefulMs: null,
+  const stances = lying ? [] : STANCES.filter(s => s !== stance).map(to => ({ id: `stance:${to}`, kind: 'stance', label: LABELS[`stance:${to}`], ms: stanceMsOf(from, to, fit, gHere(state, me)), rushMs: null, carefulMs: null,
     odds: null, routine: null, off: null, subs: [], cmd: false, skill: null, key: stance === 'sit' || down ? null : STANCES.indexOf(to) > STANCES.indexOf(stance) ? STANCE_KEYS.down : STANCE_KEYS.up }));
   // (0.0.8: the pairs bay has no tower: the coach runs it, and in a standby you wait for the turn)
   const R0 = rangeOf(state), waitLabel = R0?.course === 'pairs' && !R0.end ? (R0.cmd?.id === 'standby' && R0.str && !R0.str.done ? 'Wait for the turn' : 'Wait for the coach') : LABELS.wait;
@@ -802,7 +805,7 @@ function runSub(state, bus, d, i, atMs) {
     }
   } else if (id.startsWith('stance:')) {
     const to = id.slice(7), from = me?.stance ?? 'stand';
-    rec.ms = stanceMsOf(from, to, rollerOf(state, pid).value('fitness'));
+    rec.ms = stanceMsOf(from, to, rollerOf(state, pid).value('fitness'), gHere(state, me));
     d.stanceTo = to;
     noteTick(state, { moving: true });
     S.aim = null;

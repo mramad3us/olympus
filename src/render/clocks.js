@@ -5,8 +5,9 @@
 // every dial of the live area gets a quad a millimetre proud of it, all of them one mesh and one draw,
 // reading a small atlas of HANDS_CELLS cells (one an s × s dial: structure.js dialPx, 9 px at both
 // densities, bigger than life at 16 px/m so the two hands read). Each frame
-// the clocks ask places' wallClockAt(fixture, ms, lonEDeg) (src/sim/places/clocks.js, the watch's own
-// helpers: marsClock and utc), and a dial whose hour or minute changed has its cell repainted
+// the clocks ask places' wallClockAt(fixture, ms, where) (src/sim/places/clocks.js, the watch's own
+// helper: env.js timeAt on the live site's clock, the sol at Melas, UTC on a ship; ROADMAP
+// "anywhere"'s step 3), and a dial whose hour or minute changed has its cell repainted
 // (structure.js paintHands: the hands as whole pixels, the rest a hole) and the atlas sent again (a few
 // kilobytes, once a game minute). Through the timeslip the Melas face reads 24:00 with its hands at 12
 // (wallClockAt's slip). The hands are lit as the wall they hang on (the patched toon material: the room's
@@ -18,21 +19,13 @@ import * as CLOCKS from '../sim/places/clocks.js';
 import { olyMaterial, RAMP } from './materials.js';
 import { paintHands, dialPx } from '../art/kit/structure.js';
 import { paint } from '../art/paint.js';
-import { marsClock, utc } from '../core/calendar.js';
 
 /** Dials the atlas holds (a live area's clocks: Echo's floor has a clock a bay and the duty desk's two). */
 export const HANDS_CELLS = 64;
 const COLS = 8;
 
-// (a clock's faces when places has no wallClockAt yet: the watch's helpers, as it will call them)
-function facesOf(fx, ms, lonEDeg) {
-  if (typeof CLOCKS.wallClockAt === 'function') return CLOCKS.wallClockAt(fx, ms, lonEDeg).faces;
-  return (fx.faces ?? ['melas']).map(face => {
-    const c = face === 'utc' ? utc(ms) : marsClock(ms, lonEDeg), slip = face !== 'utc' && !!c.timeslip;
-    const hour = slip ? 24 : c.hour, minute = slip ? 0 : c.minute;
-    return { face, hour, minute, slip, hourDeg: slip ? 0 : ((hour % 12) + minute / 60) * 30, minuteDeg: slip ? 0 : minute * 6 };
-  });
-}
+// (a clock's faces: places' wallClockAt on the live site's clock, or on Mars's at a longitude where no site is live)
+const facesOf = (fx, ms, where) => CLOCKS.wallClockAt(fx, ms, where).faces;
 
 /** The clocks of the live area: { group, setClocks(list, ppm), frame(state, lonEDeg), stats, dispose() }. */
 export function createClocks() {
@@ -96,10 +89,10 @@ export function createClocks() {
   /** Each frame: the faces now; a dial whose time moved repainted. Returns the faces (stats). */
   function frame(state, lonEDeg = 0) {
     if (!list.length || !state) return shown;
-    const ms = state.clock.ms;
+    const ms = state.clock.ms, where = state.places?.live?.site ?? lonEDeg;
     let dirty = false;
     shown = list.map(c => {
-      const faces = facesOf(c.fixture, ms, lonEDeg);
+      const faces = facesOf(c.fixture, ms, where);
       c.faces.forEach((f, i) => {
         const t = faces[i] ?? faces[0];
         if (!t || (t.hour === f.hour && t.minute === f.minute && !!t.slip === !!f.slip)) return;
@@ -109,7 +102,7 @@ export function createClocks() {
         for (let j = 0; j < s; j++) data.set(new Uint8Array(pm.data.buffer, j * s * 4, s * 4), ((cy + j) * W + cx) * 4);
         dirty = true;
       });
-      return { id: c.id, faces: c.faces.map((f, i) => ({ face: faces[i]?.face ?? 'melas', hour: f.hour, minute: f.minute, slip: f.slip })) };
+      return { id: c.id, faces: c.faces.map((f, i) => ({ face: (faces[i] ?? faces[0])?.face ?? null, hour: f.hour, minute: f.minute, slip: f.slip })) };
     });
     if (dirty) tex.needsUpdate = true;
     return shown;

@@ -36,7 +36,7 @@
 // 'sit' passed on as stance for the rifle's seated frames. Nothing else of the figure changes.
 // Pure.
 import { seatOf } from '../places/fixtures.js';
-import { areaOf } from '../places/model.js';
+import { areaOf, lonOf } from '../places/model.js';
 import { activityNow } from '../time/doing.js';
 import { bodyOf } from '../body/body.js';
 import { cuesOf } from '../body/cues.js';
@@ -70,7 +70,7 @@ export const indoorsNow = (state) => areaOf(state.places?.live?.area)?.kind === 
 // (the body's cues for the player, zeros where the body says nothing)
 function cuesFor(state, pid, ms) {
   const b = bodyOf(state, pid);
-  return b ? { ...NO_CUES, ...cuesOf(b, ms) } : NO_CUES;
+  return b ? { ...NO_CUES, ...cuesOf(b, ms, lonOf(state)) } : NO_CUES;
 }
 
 /** What the stage draws for an actor at ms (see the header). */

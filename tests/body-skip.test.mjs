@@ -10,7 +10,7 @@
 // minute) against the same fifteen minutes stepped by the slow layer as an outcome skip steps them;
 // and a save taken mid-minute carries on byte for byte.
 import { assert, fmt } from './helpers.mjs';
-import { templateBody, runSols, weekOf, MELAS_LON, lastReveille, STAGE_TEST } from './bots/sol.mjs';
+import { templateBody, runSols, weekOf, MELAS_LON, lastReveille, STAGE_TEST, MELAS_PLACE } from './bots/sol.mjs';
 import { createGame } from './game.mjs';
 import { START_MS } from '../src/data/setting/calendar.js';
 import { marsTimeText, msAtMarsTime } from '../src/core/calendar.js';
@@ -102,7 +102,7 @@ export default [
       const start = templateBody(REV), sols = SOLS(), t0 = ceilSec(msAtMarsTime(REV, 12, 40, MELAS_LON));
       runSols({ body: start, sols, untilMs: t0 });
       start.bladder.ml = 150; start.water.balanceL = 0.4;                // (a bladder and a thirst that move inside the 8 hours)
-      const seg = rowSeg({ met: 1.5, kind: 'still' }, MELAS_LON, massOf(start)), until = t0 + 8 * HOUR_MS;
+      const seg = rowSeg({ met: 1.5, kind: 'still' }, MELAS_LON, massOf(start), false, MELAS_PLACE), until = t0 + 8 * HOUR_MS;
       const tc = performance.now(), predicted = nextCrossings(start, seg, t0, { untilMs: until }), predMs = performance.now() - tc;
       const b = copy(start), stepped = [];
       let prev = stagesOf(b, t0, MELAS_LON);

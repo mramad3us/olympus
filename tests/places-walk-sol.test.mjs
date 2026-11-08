@@ -18,7 +18,7 @@
 import { assert, fmt } from './helpers.mjs';
 import { MELAS_COMPACTION } from '../src/data/places/melas.js';
 import { MELAS_PLAN, MELAS_PLAN_AS_WRITTEN } from '../src/sim/places/siteplan.js';
-import { WALK_MS } from '../src/sim/places/move.js';
+import { WALK_MS } from './mars-gaits.mjs';
 import { walkPlan, resetWalker, REF_SOL, GYM_EVENING, SOL_WALK_MAX_MIN, GYM_EVENING_MAX_MIN, SPEEDS_MS } from './bots/walker.mjs';
 import { siteGraph, route } from '../src/sim/places/graph.js';
 import { openNavOf, path } from '../src/sim/places/nav.js';

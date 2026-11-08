@@ -35,6 +35,10 @@
 // fact 'end' carries the whole freeze (FROZE), the log says it, and in stop motion with nothing running time stands
 // still again.
 //
+// The air (ROADMAP "anywhere"; COMBAT §11.4, BODY §17.3): every input is scaled by the live place's air (kOf reads
+// env.js airAt unless the input says): in vacuum the sound-borne inputs (the bang's blast, a muzzle beside you, the din)
+// pool VACUUM_K.bang 0 and a round VACUUM_K.round, and a bang deafens no one: its flash is all that reaches you. At Melas
+// nothing changes (its air is never vacuum).
 // The bang's physics (COMBAT §11.4; BODY §17.3): bang() writes the chaos into everyone on the live area within reach
 // (the thrower's own and a called bang prepared), the flash by the angle between the facing and the burst (under
 // FLASH_CONE_DEG blind for FLASH_BLIND_MS, to FLASH_DAZZLE_DEG dazzled for FLASH_DAZZLE_MS; a filtered visor none) and
@@ -78,6 +82,7 @@ import { q } from '../../core/num.js';
 import { SOL_MS, holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { playerActor, playerId } from '../../core/ids.js';
 import { check, oddsOf } from '../skills/checks.js';
+import { airAt } from '../places/env.js';
 import { sheetOf, tierOfRank } from '../skills/templates.js';
 import { bodyMods, needMods } from '../body/mods.js';
 import { addStress } from '../body/stress.js';
@@ -269,10 +274,14 @@ export function protOf(state, pid) {
   return { visor, ears };
 }
 
-/** An input's multiplier for a person (see inputK): their worn protection read from the kit. */
+/** An input's multiplier for a person (see inputK): their worn protection read from the kit; vacuum the input's, else the live place's air (env.js airAt). */
 export function kOf(state, pid, input) {
-  return inputK({ kind: input?.kind, prep: input?.prep ?? 'unprepared', sound: input?.sound !== false, ears: protOf(state, pid).ears, vacuum: !!input?.vacuum, blanks: !!input?.blanks });
+  const vacuum = input?.vacuum ?? vacuumHere(state);
+  return inputK({ kind: input?.kind, prep: input?.prep ?? 'unprepared', sound: input?.sound !== false, ears: protOf(state, pid).ears, vacuum: !!vacuum, blanks: !!input?.blanks });
 }
+// (whether the live place has no air: every noise input and the bang's deafness read it, so a bang in vacuum is its flash
+// alone. The listener and the source stand in the one live area, so one air serves both)
+const vacuumHere = (state) => airAt(state).vacuum;
 
 // ---- hardening ----
 
@@ -483,7 +492,7 @@ export function flashOf(state, pid, { x, z }, { indoor = false } = {}) {
  */
 export function bang(state, bus, { id, x, z, atMs = state.clock.ms, byId = null, kind = 'training', indoor = false, called = false, call = null }) {
   const me = playerActor(state), list = [...(me ? [me] : []), ...(state.actors?.list ?? []).filter(a => a !== me && a.who !== me?.who)];
-  const written = [];
+  const written = [], vacuum = vacuumHere(state);
   for (const a of list) {
     // (indoors the room's 60 points, bounded by FLASH_REACH_M until PLACES gives the bang its room)
     const pid = a.who, rM = Math.hypot(a.x - x, a.z - z), pts = indoor && rM > FLASH_REACH_M ? 0 : inputPts('flash', { rM, indoor });
@@ -494,7 +503,7 @@ export function bang(state, bus, { id, x, z, atMs = state.clock.ms, byId = null,
     let flash = null, deafUntilMs = rec0?.deafUntilMs ?? null;
     if (prep !== 'prepared') flash = flashOf(state, pid, { x, z }, { indoor });
     const near = indoor ? rM <= FLASH_REACH_M : rM <= DEAF_REACH_M;
-    if (prot.ears === 'none' && near) {
+    if (prot.ears === 'none' && near && !vacuum) {                  // (no air, no blast at the ear: the flash alone)
       const u = next(stream(state.meta.seed, 'combat:deaf', pid, id));
       deafUntilMs = Math.max(deafUntilMs ?? 0, atMs + Math.round(DEAF_MIN_MS + (DEAF_MAX_MS - DEAF_MIN_MS) * u));
     }

@@ -4,7 +4,7 @@
 // template; thirst's stage times without drinking (the meals eaten dry); a drink's absorption with τ
 // 20 min; the night's kidneys at half rate.
 import { assert, near, fmt } from './helpers.mjs';
-import { templateBody, runSols, weekOf, MELAS_LON, stageTimes, lastReveille, STAGE_TEST } from './bots/sol.mjs';
+import { templateBody, runSols, weekOf, MELAS_LON, stageTimes, lastReveille, STAGE_TEST, MELAS_PLACE } from './bots/sol.mjs';
 import { START_MS } from '../src/data/setting/calendar.js';
 import { marsTimeText } from '../src/core/calendar.js';
 import { HOUR_MS, MIN_MS } from '../src/core/clock.js';
@@ -69,7 +69,7 @@ export default [
     fn() {
       const b = templateBody(REV);
       b.water.gutL = 0; drinkBody(b, 0.5);
-      const seg = rowSeg({ met: 1.5, kind: 'still' }, MELAS_LON, massOf(b));
+      const seg = rowSeg({ met: 1.5, kind: 'still' }, MELAS_LON, massOf(b), false, MELAS_PLACE);
       bodyAdvance(b, seg, REV, REV + 20 * MIN_MS);
       const day = waterRates(-0.1, 100, 1.5, 0, kidneyNight(14)), night = waterRates(-0.1, 100, 1.5, 0, kidneyNight(2)), low = waterRates(-0.6, 100, 1.5, 0, false), wet = waterRates(0.6, 100, 1.5, 0, false);
       console.log(`      0.5 L drunk: ${fmt(b.water.gutL, 3)} L still in the gut after 20 min (e^−1 of it: ${fmt(0.5 * Math.exp(-1), 3)}); urine at a −0.1 L balance ${fmt(day.urineL * 1000, 1)} mL/h by day, ${fmt(night.urineL * 1000, 1)} by night, ${fmt(low.urineL * 1000, 1)} at −0.6 L, ${fmt(wet.urineL * 1000, 0)} at +0.6 L; insensible at rest ${fmt(day.insL * 1000, 1)} mL/h indoors`);

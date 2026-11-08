@@ -19,10 +19,14 @@
 // nothing of a place is rolled), marking flags['mig:no-site-seed'] where it dropped one, so a fresh
 // state loads unchanged. A path request's `who` is walked by name (TECH §2.3.1), so idFields need not
 // list places.nav.pending[].who.
+// The environment foundation (ROADMAP "anywhere", step 1; PLACES §3.16): the upgrade 'places:env' (src/sim/places/env.js
+// upgradeEnv) reads places.live.env, a scene's override of the site's environment, absent for the site's own: a null
+// there is written as its absence, so every save made before it loads, and saves again, byte for byte.
 import { initPlaces } from './model.js';
 import { playerStep } from './move.js';
 import { pathsStep } from './nav.js';
 import { handAction, doorAction } from './hand.js';
+import { upgradeEnv } from './env.js';
 
 /** Drop v0.0.2's site seeds from an older save (see the header). */
 export function dropSiteSeeds(state) {
@@ -44,5 +48,5 @@ export const placesDomain = Object.freeze({
   slow: Object.freeze([]),
   jobs: Object.freeze({}),
   actions: Object.freeze({ hand: handAction, door: doorAction }),
-  upgrades: Object.freeze([['places:no-site-seed', dropSiteSeeds]]),
+  upgrades: Object.freeze([['places:no-site-seed', dropSiteSeeds], ['places:env', upgradeEnv]]),
 });

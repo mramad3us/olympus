@@ -14,6 +14,7 @@ import { createGame } from './game.mjs';
 import { handOffer, handMenu, titleOf } from '../src/sim/places/hand.js';
 import { planOf, startActivity } from '../src/sim/time/activities.js';
 import { areaOf } from '../src/sim/places/model.js';
+import { lonOf } from '../src/sim/places/model.js';
 import { spotsOf } from '../src/sim/places/fixtures.js';
 import { setOutfit } from '../src/sim/people/place.js';
 import { bodyOf } from '../src/sim/body/body.js';
@@ -113,7 +114,7 @@ export default [
         const g = createGame({ scenario: 'barracks', seed: SEED, hour: 14 });
         setBody(g, { dirt: dirty ? 55 : 5, balanceL: thirsty ? -1.4 : 0.3, stubbleH: stubble ? 14 : 3, cut: due ? 'shaved' : 'lowReg', hairH: due ? 8 * SOL_H : 30 });
         putAt(g, SINK);
-        const s = g.state, b = bodyOf(s, s.player.id), st = stagesOf(b, s.clock.ms), o = handOffer(s);
+        const s = g.state, b = bodyOf(s, s.player.id), st = stagesOf(b, s.clock.ms, lonOf(s)), o = handOffer(s);
         const want = dirty ? 'wash-hands' : thirsty ? 'drink' : stubble ? 'shave' : due ? 'clip' : 'wait';
         const why = dirty ? 'hands' : thirsty ? 'thirst' : stubble ? 'stubble' : due ? 'haircut' : null;
         const ok = o.id === want && o.why === why && st.hands.i >= 2 === dirty && st.thirst.i >= 1 === thirsty;
@@ -138,14 +139,14 @@ export default [
       const o = handOffer(s);
       g.step(1, { act: [{ act: 'hand', args: { want: 'activity' } }] });
       for (let n = 0; (s.skip || s.time.doing) && n < 4000; n++) g.step(1);
-      const b1 = bodyOf(s, pid), st1 = stagesOf(b1, s.clock.ms);
+      const b1 = bodyOf(s, pid), st1 = stagesOf(b1, s.clock.ms, lonOf(s));
       const groomed = g.facts('body-event').filter(e => e.kind === 'groom'), soiled = g.facts('body-event').filter(e => e.kind === 'soil');
       putAt(g, SINK);
       const o2 = handOffer(s), stub0 = b1.hygiene.stubbleH, grime0 = b1.hygiene.grime;
       g.step(1, { act: [{ act: 'hand', args: { want: 'activity' } }] });
       const lived = s.time.doing?.mode ?? (s.skip ? s.skip.engine : null);   // (a fast-forward behind the brief splash: 30 s is over LIVE_MAX_MS 10 s, the user, 2026-11-07)
       g.run(31_000);
-      const b2 = bodyOf(s, pid), st2 = stagesOf(b2, s.clock.ms), end = g.facts('activity').at(-1);
+      const b2 = bodyOf(s, pid), st2 = stagesOf(b2, s.clock.ms, lonOf(s)), end = g.facts('activity').at(-1);
       const line = s.log.filter(e => e.kind === 'activity').at(-1);
       console.log(`      the urinal: R "${o.label}"; after: hands ${st1.hands.band} (dirt ${fmt(b1.hands.dirt, 1)}, ${b1.hands.why}), soil events ${soiled.map(e => `${e.amount} (${e.why})`).join(', ')}, groom events ${groomed.length}`);
       console.log(`      the sink: R "${o2.label}" (${o2.why}), lived ${lived}: hands ${st2.hands.band} (dirt ${fmt(b2.hands.dirt, 2)}), stubble ${fmt(stub0, 2)} → ${fmt(b2.hygiene.stubbleH, 2)} h, grime ${fmt(grime0, 2)} → ${fmt(b2.hygiene.grime, 2)}; "${line?.text}"`);

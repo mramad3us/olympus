@@ -19,7 +19,8 @@ import {
   navStats, navOf, requestPath, pathEstimate, cellOf, remarkOpening, CHUNK_M, NAV_EDGE_M, WINDOW_CHUNKS, groundStats, resetGroundStats, navAhead,
 } from '../src/sim/places/nav.js';
 import { setOpening } from '../src/sim/places/model.js';
-import { WALK_MS, RUN_MS, STROLL_MS, POS_STEP_M, faceOf, speedOf } from '../src/sim/places/move.js';
+import { POS_STEP_M, faceOf, speedOf } from '../src/sim/places/move.js';
+import { MARS_GAITS, WALK_MS, RUN_MS, STROLL_MS } from './mars-gaits.mjs';
 import { WAYPOINT_AGREE_FRAC } from '../src/sim/places/graph.js';
 import { measureEdges } from './bots/walker.mjs';
 import { stream, int } from '../src/core/rng.js';
@@ -262,7 +263,7 @@ export default [
       const stopped = g.me().x;
       rows.push(`diagonal ${fmt(diagMs, 3)} m/s; against the north wall z held at ${fmt(slid.z, 3)} while x slid to ${fmt(slid.x, 2)}; south through the doorway to z ${fmt(through, 2)}; west against the bay's wall stopped at x ${fmt(stopped, 3)}`);
       const faces = [['right', 1, 0], ['right', 0, -1], ['up', 1, -1], ['up', -1, 0], ['left', 1, 1], ['down', 0, 0]].map(([f, mx, mz]) => `${f}+(${mx},${mz})→${faceOf(mx, mz, f)}`);
-      rows.push(`facing: ${faces.join(' ')}; speedOf(no keys) ${speedOf({ mx: 0, mz: 0, run: true })}; positions on a ${POS_STEP_M} m step`);
+      rows.push(`facing: ${faces.join(' ')}; speedOf(no keys) ${speedOf({ mx: 0, mz: 0, run: true }, MARS_GAITS)}; positions on a ${POS_STEP_M} m step`);
       for (const r of rows) console.log(`      ${r}`);
       near(diagMs, WALK_MS, WALK_MS * 0.005, 'diagonal:');
       assert(slid.z < 0.6 && slid.z >= 0.25 && slid.x > 16.3, JSON.stringify(slid));

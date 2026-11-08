@@ -4,9 +4,12 @@
 // class, and the actor's facing, gait and stride kept for the view. The speeds are BODY's gait helper
 // (src/sim/body/motion.js gaitSpeeds, BODY §16.1 and §16.3, rounded to 0.01 m/s; the build sheet 0.0.4
 // §8 item 11), read for the player each tick (gaitsOf: the felt g, the load, stamina, and the needs
-// that forbid a run); WALK_MS 1.14 m/s, RUN_MS 2.69 and STROLL_MS 0.75 stay exported as its Mars row,
-// unloaded and rested (MARS_GAITS), which the bots and the walk tests read. Shift runs, while the body
-// can run (a blown marine walks), and wins over Alt, which strolls; with no direction the speed is 0.
+// that forbid a run) at the place's gravity (src/sim/places/env.js gravityAt: no Mars constant is left
+// here, ROADMAP "anywhere" step 2). Shift runs, while the body can run (a blown marine walks), and wins
+// over Alt, which strolls; with no direction the speed is 0. The gravity's mode (gaitSpeeds' `mode`)
+// names what is drawn: under 0.3 G the run is BODY §16.7's 'bound' (its 2.8 m four-frame cycle, the
+// art's), and under 0.05 G every move is a 'float' at BODY §16.6's push-off speeds (a stub until
+// free-fall motion: no foot falls, src/ui/audio/steps.js).
 // While TIME's feetHeld (src/sim/time/doing.js: an activity under way, lying or sitting, a transition
 // playing) the keys only turn a standing player (not while a transition plays: the rise keeps its
 // facing) and nothing settles the feet, so a berth or a stall
@@ -39,7 +42,7 @@
 // keys even against a wall, but on the range's firing line with the rifle in the hands (a range session
 // open, the rifle off its sling: lineStrafe) the keys move without turning, the muzzle held downrange as
 // the Corps holds it (the design review of v0.0.5: a 120 ms tap of S turned the figure and the muzzle
-// 90°, a fault; a tap of Q turned it 180° and stopped the line at once); slung, the keys turn as anywhere. Gait is 'idle' when nothing moved, else 'run', 'stroll' or 'walk', and
+// 90°, a fault; a tap of Q turned it 180° and stopped the line at once); slung, the keys turn as anywhere. Gait is 'idle' when nothing moved, else 'run', 'stroll' or 'walk' ('bound' or 'float' by the gravity), and
 // strideM counts the metres walked modulo STRIDE_WRAP_M 201.6 m (src/data/body/gait.js, the view's
 // number too), which the walk's, the run's and the bound's four-step cycles (0.64, 1.8 and 2.8 m) all
 // divide (my calls), so the view picks the frame from strideM and a wrap never jumps a frame. The
@@ -62,12 +65,10 @@ import { doorsStep } from './doors.js';
 import { portalCrossed, moveTo } from './portals.js';
 import { playerActor, playerId } from '../../core/ids.js';
 import { STRIDE_WRAP_M } from '../../data/body/gait.js';
-import { MARS_GAITS, gaitsOf } from '../body/motion.js';
+import { gaitsOf } from '../body/motion.js';
 import { feetHeld, transPlaying } from '../time/doing.js';
 import { feetOf } from '../combat/contact.js';
 
-/** The Mars gaits, unloaded and rested (BODY §16.1 by motion.js gaitSpeeds: 1.14, 2.69, 0.75 m/s). */
-export const WALK_MS = MARS_GAITS.walkMs, RUN_MS = MARS_GAITS.runMs, STROLL_MS = MARS_GAITS.strollMs;
 /** The player's clearance class (PLACES §2.1: C0, PT kit or uniform, until kit sets it). */
 export const PLAYER_CLS = 'C0';
 export const POS_STEP_M = 0.0001;
@@ -82,15 +83,22 @@ const toward = (from, v) => (v >= from ? Math.floor(v * K + 1e-7) / K : Math.cei
 const at = (actor, axis) => (axis === 'x' ? actor.x : actor.z);
 const okAt = (grid, actor, axis, v) => (axis === 'x' ? standOk(grid, v, actor.z) : standOk(grid, actor.x, v));
 
-/** The gait the keys ask for, as the body allows: 'run' (Shift, while it can run), 'stroll' (Alt), 'walk', or 'idle' with no direction. */
-export function gaitOf(input, gaits = MARS_GAITS) {
+// (the pace the keys ask for, as the body allows: 'run' (Shift, while it can run), 'stroll' (Alt), 'walk', or 'idle' with no direction)
+function keysGaitOf(input, gaits) {
   if (!input || (!sgn(input.mx) && !sgn(input.mz))) return 'idle';
   return input.run && gaits.runOk ? 'run' : input.stroll && !input.run ? 'stroll' : 'walk';
 }
+/** The gait drawn for the keys (gaits: motion.js gaitsOf's, the place's; required): the pace, but a run is a 'bound' in the bound band and every move a 'float' under 0.05 G (gaits.mode). */
+export function gaitOf(input, gaits) {
+  const p = keysGaitOf(input, gaits);
+  if (p === 'idle') return p;
+  if (gaits.mode === 'float') return 'float';
+  return p === 'run' && gaits.mode === 'bound' ? 'bound' : p;
+}
 /** The speed the keys ask for, m/s: 0 with no direction; Shift (run) wins over Alt (stroll). */
-export function speedOf(input, gaits = MARS_GAITS) {
-  const g = gaitOf(input, gaits);
-  return g === 'idle' ? 0 : g === 'run' ? gaits.runMs : g === 'stroll' ? gaits.strollMs : gaits.walkMs;
+export function speedOf(input, gaits) {
+  const p = keysGaitOf(input, gaits);
+  return p === 'idle' ? 0 : p === 'run' ? gaits.runMs : p === 'stroll' ? gaits.strollMs : gaits.walkMs;
 }
 
 /** The facing the keys give: east–west only right or left, north–south only up or down, a diagonal keeps one of its two. */

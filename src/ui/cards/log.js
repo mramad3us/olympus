@@ -5,7 +5,8 @@
 // whole scene on the range, which writes some 70; the parity review's, where the last 40 had lost
 // string 1 before the scene was scored), newest first with VIEWS §8.6's filter by kind (everything,
 // the rolls, what was said, the rest), each stamped in the clock you live by, TIME's face helper on the
-// live site's clock: 'S590 06:12:33' (VIEWS §8.6), 'S590 24:00 +12' in the timeslip; its tone as its
+// live site's clock (src/sim/places/env.js timeAt, ROADMAP "anywhere"'s step 3): 'S590 06:12:33' at
+// Melas (VIEWS §8.6), 'S590 24:00 +12' in the timeslip, '22Mar 06:12:33' on a ship's UTC; its tone as its
 // border, as on the toasts. A record with no text shows its kind. A record or a roll marked hidden (a
 // failed look that leaves no trace: SKILLS §5.14, "a failed roll to notice something leaves no trace")
 // is left out, as tradecraft's J left it out. The card pauses, as every card does, and opens at its top.
@@ -35,8 +36,8 @@
 // The 0.0.10 round's Breathe (the build sheet 0.0.10 §2.4; COMBAT §5.2): a record of kind 'breathe' (supp.js breatheEnd: "Breathed
 // 4.0 s: the chaos 79 → 63.") reads as a startle's does, its head what was done ("Breathed 4.0 s.") over the chaos's fall
 // (breatheLine); the Rolls filter shows it beside the startles (the chaos's own records).
-import { marsClock } from '../../sim/time/dates.js';
 import { MIN_MS } from '../../core/clock.js';
+import { timeAt, siteAt } from '../../sim/places/env.js';
 import { checkShort, checkText, partsText } from '../../sim/skills/checks.js';
 import { ACTIONS } from '../../sim/arms/firearms.js';
 
@@ -53,10 +54,10 @@ export const LOG_FILTERS = Object.freeze({
 export const hiddenRec = (rec) => !!(rec?.hidden || rec?.roll?.hidden);
 const pad2 = (n) => String(n).padStart(2, '0');
 
-/** A record's time on the live site's clock: 'S590 06:12:33', 'S590 24:00 +12' in the slip. */
-export function logStamp(ms, lonEDeg) {
-  const c = marsClock(ms, lonEDeg);
-  return c.timeslip ? `S${c.solOfYear} 24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `S${c.solOfYear} ${pad2(c.hour)}:${pad2(c.minute)}:${pad2(c.second)}`;
+/** A record's time on a site's clock (where: a site, or a Mars east longitude): 'S590 06:12:33', 'S590 24:00 +12' in the slip, '22Mar 06:12:33' on UTC. */
+export function logStamp(ms, where) {
+  const c = timeAt(where, ms);
+  return c.timeslip ? `${c.dayShort} 24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `${c.dayShort} ${pad2(c.hour)}:${pad2(c.minute)}:${pad2(c.second)}`;
 }
 
 /** A roll's line, folded and open: { short, full, parts, tone } (SKILLS' checkShort and checkText), or null for a record with no roll. */
@@ -128,13 +129,15 @@ export function breatheLine(rec) {
 }
 /**
  * The card's lines: [{ seq, stamp, text, sub?, tone, kind, roll?: { short, full, parts } }], the last n records of
- * state.log that are not hidden (see the header), newest first. over: the hidden ones too (debug, after the scene).
+ * state.log that are not hidden (see the header), newest first, stamped on the site's clock (site, or Mars at lonEDeg,
+ * else the live site's). over: the hidden ones too (debug, after the scene).
  */
-export function logLines(state, { lonEDeg = 0, n = LOG_CARD_LINES, over = false } = {}) {
+export function logLines(state, { lonEDeg = null, site = null, n = LOG_CARD_LINES, over = false } = {}) {
+  const where = site ?? lonEDeg ?? siteAt(state);                  // (the live site's clock, the start site's before one)
   return (state?.log ?? []).filter(r => over || !hiddenRec(r)).slice(-n).reverse().map(r => {
     const roll = r.kind === 'roll' ? rollLine(r) : r.kind === 'contact' ? contactLine(r) : r.kind === 'startle' ? startleLine(r) : r.kind === 'breathe' ? breatheLine(r) : null;
     const text = roll ? roll.words ?? roll.short : r.text ?? `(${r.kind})`;
-    return { seq: r.seq, stamp: logStamp(r.atMs, lonEDeg), text, ...(roll?.words ? { sub: roll.short } : {}), tone: roll?.tone ?? r.tone ?? 'note', kind: r.kind, ...(roll ? { roll } : {}) };
+    return { seq: r.seq, stamp: logStamp(r.atMs, where), text, ...(roll?.words ? { sub: roll.short } : {}), tone: roll?.tone ?? r.tone ?? 'note', kind: r.kind, ...(roll ? { roll } : {}) };
   });
 }
 

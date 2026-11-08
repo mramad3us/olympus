@@ -2,8 +2,10 @@
 //
 // nightOf(state, ms) is the night beginning on the local sol of ms, or the one in progress (before
 // that sol's reveille it is the night that began the sol before): { sol, tapsMs, reveilleMs, holiday },
-// taps at TAPS_H 22:00 on its sol, reveille on the next at REVEILLE_H 05:30, or 07:00 when that
-// morning is a Saturday or a Sunday (holiday). A clock time lands on its first whole second at or
+// by the live site's Plan of the Day (its record's `routine`, src/data/pod.js ROUTINES; env.js
+// routineOf: ROADMAP "anywhere"'s step 3): at Melas taps at 22:00 on its sol, reveille on the next at
+// 05:30, or 07:00 when that morning is a Saturday or a Sunday (holiday). The night is still counted in
+// sols at the site's longitude (siteLonEDeg throws off Mars: a ship's night waits for its routine). A clock time lands on its first whole second at or
 // after it (jobs.js's rule, so the watch reads it: tonight's 02:30 is 02:30:00.091).
 // drillOfWeek(seed, week, lonEDeg, firstNight) draws the week's alert drill from the world's seed (the
 // user, 2026-11-05: what happens in the places is procedural): r = stream(seed, 'time:alert-drill',
@@ -46,25 +48,27 @@ import { localSol, lonMs, HALF_SLIP_MS, MSD_EPOCH_MS } from '../../core/calendar
 import { stream, int } from '../../core/rng.js';
 import { playerId } from '../../core/ids.js';
 import { siteLonEDeg } from '../jobs.js';
+import { siteAt, routineOf } from '../places/env.js';
 import { weekdayOf } from './dates.js';
 import { logEntry } from '../log.js';
 import { hasRoster, squadCall, placed } from '../people/place.js';
 import { mustered } from './alerts.js';
-import { REVEILLE_H, REVEILLE_HOLIDAY_H, TAPS_H, ALERT_DRILL, LATE_CLASSES, POD_LINES } from '../../data/pod.js';
+import { ALERT_DRILL, LATE_CLASSES, POD_LINES } from '../../data/pod.js';
 
 /** The events of the night share this source (postNight cancels it); the open drill's count and stand-down theirs. */
 export const NIGHT_SRC = 'time:night', ALERT_SRC = 'time:alert';
 /** time.attend keeps the last this many arrivals. */
 export const ATTEND_MAX = 50;
-const HOLIDAY = new Set([5, 6]);                                   // (Saturday and Sunday: SETTING's week, Monday 0)
 
 const ceilSec = (ms) => Math.ceil(ms / SEC_MS) * SEC_MS;
 /** The game ms at which a local sol begins (civil 00:00) at an east longitude. */
 export const solStartOf = (sol, lonEDeg) => sol * SOL_MS - MSD_EPOCH_MS - lonMs(lonEDeg) + HALF_SLIP_MS;
 /** The first whole second at or after a local sol's civil hour (decimal hours; 24 and over run into the slip). */
 export const atLocal = (sol, hour, lonEDeg) => ceilSec(solStartOf(sol, lonEDeg) + Math.round(hour * HOUR_MS));
-/** Reveille's hour on the morning of a sol: 07:00 on Saturday and Sunday, else 05:30. */
-export const reveilleH = (sol) => (HOLIDAY.has(weekdayOf(sol)) ? REVEILLE_HOLIDAY_H : REVEILLE_H);
+/** Whether a sol's morning keeps a routine's holiday hours (Melas's: Saturday and Sunday, SETTING's week, Monday 0). */
+export const holidayOf = (sol, R) => R.holidays.includes(weekdayOf(sol));
+/** Reveille's hour on the morning of a sol by a routine (ROUTINES' row): at Melas 07:00 on Saturday and Sunday, else 05:30. */
+export const reveilleH = (sol, R) => (holidayOf(sol, R) ? R.reveilleHolidayH : R.reveilleH);
 /** The absolute week of a local sol (SETTING's week, Monday first). */
 export const weekOf = (sol) => Math.floor((sol - weekdayOf(sol)) / 7);
 /** The Monday of an absolute week. */
@@ -72,11 +76,11 @@ export const mondayOf = (week) => { let s = week * 7; while (weekdayOf(s) !== 0)
 
 /** The night beginning on the local sol of ms, or the one in progress (see the header). */
 export function nightOf(state, ms = state.clock.ms) {
-  const lon = siteLonEDeg(state);
+  const lon = siteLonEDeg(state), R = routineOf(siteAt(state));
   let sol = localSol(ms, lon).sol;
-  if (ms < atLocal(sol, reveilleH(sol), lon)) sol -= 1;
+  if (ms < atLocal(sol, reveilleH(sol, R), lon)) sol -= 1;
   const morning = sol + 1;
-  return { sol, tapsMs: atLocal(sol, TAPS_H, lon), reveilleMs: atLocal(morning, reveilleH(morning), lon), holiday: HOLIDAY.has(weekdayOf(morning)) };
+  return { sol, tapsMs: atLocal(sol, R.tapsH, lon), reveilleMs: atLocal(morning, reveilleH(morning, R), lon), holiday: holidayOf(morning, R) };
 }
 
 /** The week's alert drill: { drill: the sol it sounds on, night: the sol its night began, atMs } (see the header). */

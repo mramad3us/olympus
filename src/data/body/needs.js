@@ -9,29 +9,23 @@
 // the tone the instinct and the strip read ('fine', 'note', 'warn', 'urgent'), the words the
 // character feels (VIEWS §8.2: no numbers), and the strip's fill, 0 to 5 rows (VIEWS §7.6).
 //
-// The environment this round (CONTRACTS §16; the build sheet §4): Mars's 0.38 G, Melas's 66.0 kPa
-// floors and 65.9 kPa ground, ROOM_C 20 °C indoors and OUTDOOR_C −10 °C out (the cool season, my call
-// in the sheet), SpO₂ 97% (BODY §8's reference, so capacity is the sheet's 12.5 MET at Fitness 10;
-// BODY §11's partial pressures come later). The MET of the player's own motion (idle 1.5, stroll 2.5,
+// The environment is the place's (src/sim/places/env.js over src/data/places/env.js's tables: TECH §1.4):
+// the gravity, the air's pressure and temperature come from where the body is, never from here. SpO₂ 97%
+// (BODY §8's reference, so capacity is the sheet's 12.5 MET at Fitness 10; BODY §11's partial pressures
+// come later). The MET of the player's own motion (idle 1.5, stroll 2.5,
 // walk 3.0, run 8.0, lying 1.0) are the sheet's calls; seated 1.3 is BODY §3.2's low end (my call).
 // Marked (my call) below where neither BODY nor the sheet gives the number.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
 // ---- the environment ----
-/** Mars's surface gravity in G (CONTRACTS §16, BODY §16.1). */
-export const G_MELAS = 0.38;
-/** Melas's indoor air and the valley floor's (CONTRACTS §16), kPa. */
-export const FLOOR_KPA = 66.0, GROUND_KPA = 65.9;
-/** Indoors (PLACES §3.2's Martian standard) and outdoors this round (the cool season: my call in the sheet), °C. */
-export const ROOM_C = 20, OUTDOOR_C = -10;
 /** Arterial saturation at Melas this round (BODY §8's reference value; §11.2's curve comes with the air), %. */
 export const SPO2_PCT = 97;
 
 // ---- motion and burn (BODY §3.1, §3.2) ----
 /** MET at 1 G of the player's own motion and postures (the sheet's calls; seated BODY §3.2's low end). */
-export const MET = deepFreeze({ idle: 1.5, stroll: 2.5, walk: 3.0, run: 8.0, lie: 1.0, sit: 1.3, asleep: 0.95 });
-/** The kind of each gait (BODY §3.1's gravity scaling: still kinds carry no g term). */
-export const GAIT_KIND = deepFreeze({ idle: 'still', stroll: 'walk', walk: 'walk', run: 'run', lie: 'still', sit: 'still' });
+export const MET = deepFreeze({ idle: 1.5, stroll: 2.5, walk: 3.0, run: 8.0, bound: 8.0, float: 1.5, lie: 1.0, sit: 1.3, asleep: 0.95 });
+/** The kind of each gait (BODY §3.1's gravity scaling: still kinds carry no g term). The low-g bound is the run's (BODY §16.7); a float is a drift between push-offs, its work in the push (my call until BODY §16.6's push-off is built). */
+export const GAIT_KIND = deepFreeze({ idle: 'still', stroll: 'walk', walk: 'walk', run: 'run', bound: 'run', float: 'still', lie: 'still', sit: 'still' });
 /** MET above which sleep pressure builds faster (×1.3), and above which grime builds faster (+1/h) (BODY §6, §7.1). */
 export const HARD_MET = 4, VERY_HARD_MET = 5;
 /** Mass by build: body-mass index × height² (the sheet §3: lean 21, medium 23.5, heavy 26; the roster's slight and broad read as lean and heavy: my call). */
@@ -238,6 +232,26 @@ export const MORALE_BANDS = deepFreeze([
 // ---- gaits (BODY §16.1, §16.3) ----
 /** The 1 G anchors (tradecraft's Earth speeds) and the exponents of g, m/s. */
 export const GAIT = deepFreeze({ STROLL_MS: 0.95, WALK_MS: 1.45, RUN_MS: 3.6, SPRINT_MS: 6.0, STROLL_EXP: 0.25, WALK_EXP: 0.25, RUN_EXP: 0.3, SPRINT_EXP: 0.35, FIT_BASE: 0.85, FIT_K: 0.015, SPEED_STEP_MS: 0.01 });
+/**
+ * The gaits by gravity (ROADMAP "anywhere" step 2; BODY §14.1, §16.1, §16.6, §16.7; CONTRACTS §21's footing
+ * thresholds): the law of GAIT above holds from FLOAT_BELOW_G to LAW_MAX_G 1 G and is clamped there, so no
+ * gravity walks faster than 1 G; above it the heavy branch multiplies the 1 G speeds by BODY §14.1's band at
+ * r = gG / COND_G (a marine conditioned to 1 G, the Wheel's week: gCond 1.00, until BODY's conditioning
+ * reaches the gait); under FLOAT_BELOW_G 0.05 G there is no stride to take and the keys pick BODY §16.6's
+ * push-off speeds (FLOAT_MS, m/s: a stub until free-fall motion, step 7), never 0. From FLOAT_BELOW_G up to
+ * BOUND_BELOW_G 0.3 G the run is BODY §16.7's two-footed bound. The bands: [from r, id, speed ×, run, sprint];
+ * past 2.8 "can't stand for long" walks at 0.4 with no run (my call: a few steps to the couch, step 6's).
+ */
+export const GAIT_G = deepFreeze({
+  FLOAT_BELOW_G: 0.05, BOUND_BELOW_G: 0.3, LAW_MAX_G: 1, COND_G: 1,
+  FLOAT_MS: { stroll: 0.3, walk: 0.6, run: 1.2, sprint: 2.0 },
+  HEAVY_BANDS: [
+    { id: 'heavy', fromR: 1.15, k: 0.95, run: true, sprint: true },
+    { id: 'very-heavy', fromR: 1.5, k: 0.85, run: true, sprint: false },
+    { id: 'crushing', fromR: 2.0, k: 0.65, run: false, sprint: false },
+    { id: 'cannot-stand', fromR: 2.8, k: 0.4, run: false, sprint: false },
+  ],
+});
 /** Load by weight against strength (BODY §16.3): [from ratio, id, walk ×, run, sprint, mod]. */
 export const LOAD_BANDS = deepFreeze([
   { id: 'unladen', from: 0, walkK: 1, run: true, sprint: true, mod: 0 },

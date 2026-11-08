@@ -1,34 +1,36 @@
 // body-gait: the gaits in every gravity, by load, and stamina (BODY §8, §16.1, §16.3; the build sheet
-// 0.0.4 §5.1, §8 item 11). BODY §16.1's six rows from gaitSpeeds; Mars's 0.75, 1.14 and 2.69 m/s exactly,
-// equal to move.js's STROLL_MS, WALK_MS and RUN_MS (so places-walk-sol and the bots keep their speed);
+// 0.0.4 §5.1, §8 item 11). BODY §16.1's six rows from gaitSpeeds (Ceres's surface, 0.029 G, is under the
+// float band's 0.05 G since ROADMAP "anywhere" step 2: BODY §16.6's push-off speeds, the law's printed beside
+// them); Mars's 0.75, 1.14 and 2.69 m/s exactly, the bots' and the walk tests' row (tests/mars-gaits.mjs);
 // a load's bands on Mars and on a 1 G deck; stamina over 60 s of running at Fitness 0, 10 and 20; and in
 // the game, Shift runs while the body can, a blown marine walks, and the feet stay put while an
 // activity holds them.
 import { STAGE_TEST } from './bots/sol.mjs';
 import { assert, near, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
-import { gaitSpeeds, MARS_GAITS, staminaTick, capMetOf, loadBandOf, gaitsOf } from '../src/sim/body/motion.js';
-import { WALK_MS, RUN_MS, STROLL_MS, speedOf } from '../src/sim/places/move.js';
+import { gaitSpeeds, staminaTick, capMetOf, loadBandOf, gaitsOf } from '../src/sim/body/motion.js';
+import { speedOf } from '../src/sim/places/move.js';
+import { MARS_GAITS, WALK_MS, RUN_MS, STROLL_MS } from './mars-gaits.mjs';
 import { metGOf } from '../src/sim/body/energy.js';
 import { playerId } from '../src/core/ids.js';
 import { TICK_MS } from '../src/core/clock.js';
 
 const ROWS = [['Earth, a 1 G deck', 1.0, [0.95, 1.45, 3.60, 6.00]], ['a 0.3 G deck', 0.3, [0.70, 1.07, 2.51, 3.94]], ['Mars', 0.38, [0.75, 1.14, 2.69, 4.28]],
-  ['Ganymede', 0.146, [0.59, 0.90, 2.02, 3.06]], ['Europa', 0.134, [0.57, 0.88, 1.97, 2.97]], ['Ceres', 0.029, [0.39, 0.60, 1.24, 1.73]]];
+  ['Ganymede', 0.146, [0.59, 0.90, 2.02, 3.06]], ['Europa', 0.134, [0.57, 0.88, 1.97, 2.97]], ['Ceres', 0.029, [0.39, 0.60, 1.24, 1.73], [0.30, 0.60, 1.20, 2.00]]];
 
 export default [
   STAGE_TEST,
   {
-    name: 'BODY §16.1\'s six rows come out of gaitSpeeds, and Mars\'s stroll, walk and run are exactly move.js\'s 0.75, 1.14 and 2.69 m/s',
+    name: 'BODY §16.1\'s six rows come out of gaitSpeeds (Ceres\'s surface in the float band: the push-off\'s), and Mars\'s stroll, walk and run are exactly 0.75, 1.14 and 2.69 m/s',
     fn() {
-      for (const [where, g, want] of ROWS) {
-        const s = gaitSpeeds({ gG: g }), got = [s.strollMs, s.walkMs, s.runMs, s.sprintMs];
-        console.log(`      ${where.padEnd(18)} ${g} G: stroll ${got[0]}, walk ${got[1]}, run ${got[2]}, sprint ${got[3]} m/s (BODY ${want.join(', ')})`);
+      for (const [where, g, law, float] of ROWS) {
+        const s = gaitSpeeds({ gG: g }), got = [s.strollMs, s.walkMs, s.runMs, s.sprintMs], want = float ?? law;
+        console.log(`      ${where.padEnd(18)} ${g} G: stroll ${got[0]}, walk ${got[1]}, run ${got[2]}, sprint ${got[3]} m/s, ${s.mode} (BODY ${law.join(', ')}${float ? `; the float band's push-off ${float.join(', ')}` : ''})`);
         for (let i = 0; i < 4; i++) near(got[i], want[i], 0.0101, `${where}:`);
       }
-      console.log(`      move.js: STROLL_MS ${STROLL_MS}, WALK_MS ${WALK_MS}, RUN_MS ${RUN_MS}; the run at Fitness 0, 10, 20 on Mars: ${[0, 10, 20].map(f => gaitSpeeds({ gG: 0.38, effFitness: f }).runMs).join(', ')} m/s`);
-      assert(MARS_GAITS.strollMs === 0.75 && MARS_GAITS.walkMs === 1.14 && MARS_GAITS.runMs === 2.69, JSON.stringify(MARS_GAITS));
-      assert(STROLL_MS === MARS_GAITS.strollMs && WALK_MS === MARS_GAITS.walkMs && RUN_MS === MARS_GAITS.runMs, 'move.js reads the helper');
+      console.log(`      the walk tests' Mars row: STROLL_MS ${STROLL_MS}, WALK_MS ${WALK_MS}, RUN_MS ${RUN_MS}; the run at Fitness 0, 10, 20 on Mars: ${[0, 10, 20].map(f => gaitSpeeds({ gG: 0.38, effFitness: f }).runMs).join(', ')} m/s`);
+      assert(MARS_GAITS.strollMs === 0.75 && MARS_GAITS.walkMs === 1.14 && MARS_GAITS.runMs === 2.69 && MARS_GAITS.mode === 'walk', JSON.stringify(MARS_GAITS));
+      assert(STROLL_MS === MARS_GAITS.strollMs && WALK_MS === MARS_GAITS.walkMs && RUN_MS === MARS_GAITS.runMs, 'the Mars row reads the helper');
     },
   },
   {

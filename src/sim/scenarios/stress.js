@@ -53,15 +53,13 @@
 // "Again as …" starts. The fill is testStress. Pure but testStress, the hooks and stressActors, which write the session.
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
-import { msAtMarsTime } from '../../core/calendar.js';
 import { stream, intIn, weighted } from '../../core/rng.js';
 import { hashPick, hash01 } from '../../core/hash.js';
 import { playerActor, playerId } from '../../core/ids.js';
-import { START_MS, SITES } from '../../data/setting/calendar.js';
 import { SCENES } from '../../data/scenes.js';
 import { COURSES, STRESS_COACH } from '../../data/courses.js';
 import { KD_RANGE, PAIRS, pairsLaneOf } from '../../data/places/range.js';
-import { siteOf } from '../places/model.js';
+import { lonOfSite } from '../places/env.js';
 import { setOutfit, syncActors } from '../people/place.js';
 import { drawStaff, setPost } from '../people/staff.js';
 import { startBody } from '../body/body.js';
@@ -100,7 +98,7 @@ const RELOAD_SINGLE = /^(magOut:(drop|pouch)|reach@\w+|seat|release|charge|queue
 const SHOT_PARTS = new Set(['aim', 'hold', 'press', 'round', 'shift', 'fire', 'wait']);
 const LABELS_OF = Object.freeze({ 'selector:semi': 'Off safe', 'selector:safe': 'On safe', reach: 'Reach', seat: 'Seat', release: 'Bolt home', 'magOut:drop': 'Drop the magazine', 'magOut:pouch': 'Magazine to a pouch', charge: 'Charge', up: 'Rifle up' });
 
-const lonOf = () => SITES[siteOf('melas')?.geo]?.lonEDeg ?? 0;
+const lonOf = () => lonOfSite(SCENES['test-stress'].host.site);
 const whole = (ms) => Math.ceil(ms / TICK_MS) * TICK_MS;
 const tierOf = (tier) => (tier && TEST_SHEETS[tier] ? tier : SCENES['test-stress'].sheet);
 const laneKey = (lane, off) => turnerKey(lane + off);
@@ -144,10 +142,6 @@ export const gapOf = (seed, k, attempt = 0) => whole(intIn(stream(seed, 'stress:
 /** The fill of 'test-stress' (see the header). tier: a TEST_SHEETS id (the boot recruit by default); setup: null | 'standby' | 'standby:<k>'. */
 export function testStress(state, { at = null, setup = null, tier = null } = {}) {
   const scene = SCENES['test-stress'], seed = state.meta.seed, lon = lonOf(), sheet = tierOf(tier);
-  if (state.clock.ms === START_MS && scene.hour !== null) {
-    const h = Math.floor(scene.hour), m = Math.round((scene.hour - h) * 60);
-    state.clock.ms = state.meta.createdMs = Math.ceil(msAtMarsTime(state.clock.ms, h, m, lon) / TICK_MS) * TICK_MS;
-  }
   const lane = drawLane(seed, 'stress'), L = pairsLaneOf(lane), P = L.points[7];
   barracks(state, { at: { area: KD_RANGE.area, x: P.fp.x, z: P.fp.z, face: 'right', ...(at ?? {}) } });
   const me = playerActor(state), pid = playerId(state), person = state.people[pid];

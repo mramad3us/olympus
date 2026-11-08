@@ -3,9 +3,11 @@
 // One model answers every ballistic question: a point mass with the standard G7 drag function (the
 // long-range shooter's model), its retardation a = ρ v² Cd_G7(M) π / (8 BC), BC the load's G7
 // coefficient in lb/in² × 703.07 (kg/m²), the Mach number on the local speed of sound. The air is
-// the place's: ρ = P M / (R T) and c = √(1.4 R T / M), M 29.62 g/mol for Martian air (outdoors and
-// in: the hub's mix) and 28.96 for Earth's (ENV_CLASSES, WEAPONS §2.1's table); vacuum has no air and
-// no sound. The muzzle velocity is the load's at its reference barrel, scaled by (barrel / ref)^vExp.
+// the place's: ρ = P M / (R T) and c = √(1.4 R T / M) (src/core/phys.js gasOf, the one gas law), M
+// 29.62 g/mol for Martian air (outdoors and in: the hub's mix) and 28.96 for Earth's (src/data/places/
+// env.js AIRS); vacuum has no air and no sound. ENV_CLASSES, WEAPONS §2.1's table, is a view of the
+// environment's presets (ENV_CLASS_PRESET), and envOfPlace reads the place through src/sim/places/env.js
+// (gravityAt, airAt: TECH §1.4), so nothing here holds a place's number. The muzzle velocity is the load's at its reference barrel, scaled by (barrel / ref)^vExp.
 //
 // **The tables are on the bore line** (WEAPONS §2.1, the review's): for each calibre, load and barrel,
 // boreTable() integrates, once and with no gravity and no angle, the time of flight t(d), the speed v(d)
@@ -24,7 +26,7 @@
 // **The zero** (WEAPONS §2.5) is a sight angle set in one environment: tan θ = (h + g_z D_z(R)) / R,
 // kept with where it came from (zeroOf: { rangeM, gMs2, rhoKgM3, soundMs, v0Ms, angleMrad }). The
 // Corps' battle-sight zero is BZO_M 400 m on the valley floor (BZO_ENV 'mars-valley': 65.9 kPa, −10 °C,
-// 0.38 g, the ground's air in src/data/body/needs.js). A turret click is CLICK_MRAD 0.1 (my call, the
+// 0.38 g, the preset 'melas-ground' of src/data/places/env.js). A turret click is CLICK_MRAD 0.1 (my call, the
 // metric turret: 1 cm at 100 m, 3 cm at 300 m); dopeOf() gives the clicks from the BZO that put the path
 // at 0 at a range (DOPE_CARD, what the Corps prints for the R-7 on the valley floor: 200 m 6 down, 300 m
 // 3 down, 500 m 4 up), and ZERO25_MARK_CM the BZO's path at 25 m (about 3 cm low), where the 25 m
@@ -34,13 +36,12 @@
 // the wound factor w = (E / 500 J)^0.36 × (dia / 9 mm)^0.3 × woundK (woundFactor). Supersonic while
 // v > c; in vacuum nothing cracks (WEAPONS §2.7).
 // Pure (the tables are a module cache of derived numbers, never state).
-import { G_MELAS, GROUND_KPA, OUTDOOR_C, FLOOR_KPA, ROOM_C } from '../../data/body/needs.js';
-import { areaOf } from '../places/model.js';
+import { gasOf } from '../../core/phys.js';
+import { ENV_CLASS_PRESET } from '../../data/places/env.js';
+import { envAt, presetEnv } from '../places/env.js';
 import { CALIBRES, loadOf } from './calibres.js';
 import { MODELS } from './models.js';
 
-/** Earth's standard gravity (m/s²), the gas constant (J/mol/K), air's ratio of heats, the molar masses of Martian and Earth air (kg/mol). */
-export const G0_MS2 = 9.80665, R_GAS = 8.314462618, GAMMA_AIR = 1.4, MARS_AIR_KG_MOL = 0.02962, EARTH_AIR_KG_MOL = 0.02896;
 /** A G7 coefficient in lb/in² to kg/m². */
 export const BC_KG_M2 = 703.07;
 /** The optic's height over the bore (WEAPONS §2.5), m. */
@@ -55,21 +56,14 @@ export const INTEGRATE_DX_M = 1;
 /** A turret click (my call: the metric turret), mrad. */
 export const CLICK_MRAD = 0.1;
 
+// (a resolved environment, src/sim/places/env.js's, as the round reads it)
+const roundEnvOf = (E) => ({ gMs2: E.gravity.gMs2, pKpa: E.air.pKpa, airC: E.air.airC, molarKgMol: E.air.molarKgMol, vacuum: E.air.vacuum });
 /**
- * The places' air and gravity by class (WEAPONS §2.1's table): { word, gMs2, pKpa, airC, molarKgMol, vacuum }.
- * The classes name the tables WEAPONS prints; the sim reads a place's own env (envOfPlace).
+ * The places' air and gravity by class (WEAPONS §2.1's table): { word, gMs2, pKpa, airC, molarKgMol, vacuum }, each the
+ * preset ENV_CLASS_PRESET names (src/data/places/env.js). The classes name the tables WEAPONS prints; the sim reads a
+ * place's own env (envOfPlace).
  */
-export const ENV_CLASSES = Object.freeze({
-  earth: Object.freeze({ word: 'Earth at sea level', gMs2: 9.80665, pKpa: 101.325, airC: 15, molarKgMol: EARTH_AIR_KG_MOL, vacuum: false }),
-  'mars-valley': Object.freeze({ word: 'the Melas valley floor', gMs2: G_MELAS * G0_MS2, pKpa: GROUND_KPA, airC: OUTDOOR_C, molarKgMol: MARS_AIR_KG_MOL, vacuum: false }),
-  'mars-datum': Object.freeze({ word: 'Mars at the datum', gMs2: G_MELAS * G0_MS2, pKpa: 52, airC: -25, molarKgMol: MARS_AIR_KG_MOL, vacuum: false }),
-  'ship-thrust': Object.freeze({ word: 'an MCRN hull under 1 g', gMs2: 9.80665, pKpa: 66, airC: 20, molarKgMol: MARS_AIR_KG_MOL, vacuum: false }),
-  'ship-light': Object.freeze({ word: 'an MCRN hull under 0.3 g', gMs2: 0.3 * 9.80665, pKpa: 66, airC: 20, molarKgMol: MARS_AIR_KG_MOL, vacuum: false }),
-  'freefall-air': Object.freeze({ word: 'a coasting MCRN deck', gMs2: 0, pKpa: 66, airC: 20, molarKgMol: MARS_AIR_KG_MOL, vacuum: false }),
-  'earth-ship': Object.freeze({ word: 'a UN hull at Earth standard', gMs2: 9.80665, pKpa: 101.3, airC: 21, molarKgMol: EARTH_AIR_KG_MOL, vacuum: false }),
-  europa: Object.freeze({ word: 'Europa\'s surface', gMs2: 1.314, pKpa: 0, airC: -170, molarKgMol: 0, vacuum: true }),
-  'freefall-vacuum': Object.freeze({ word: 'free fall in vacuum', gMs2: 0, pKpa: 0, airC: 0, molarKgMol: 0, vacuum: true }),
-});
+export const ENV_CLASSES = Object.freeze(Object.fromEntries(Object.entries(ENV_CLASS_PRESET).map(([cls, id]) => { const E = presetEnv(id); return [cls, Object.freeze({ word: E.word, ...roundEnvOf(E) })]; })));
 
 /** The G7 standard drag function: [Mach, Cd] (the published table, Mach 0 to 5). */
 export const G7 = Object.freeze([
@@ -96,23 +90,20 @@ export function cdG7(mach) {
   return G7_CD[lo] + (G7_CD[hi] - G7_CD[lo]) * (mach - G7_M[lo]) / (G7_M[hi] - G7_M[lo]);
 }
 
-/** A place's air (WEAPONS §2.1): { rhoKgM3, soundMs }; vacuum { 0, 0 }. */
+/** A place's air (WEAPONS §2.1): { rhoKgM3, soundMs }; vacuum { 0, 0 }. An air with no molar mass throws (src/core/phys.js gasOf). */
 export function airOf(env) {
   if (!env || env.vacuum || !(env.pKpa > 0)) return { rhoKgM3: 0, soundMs: 0 };
-  const T = env.airC + 273.15, M = env.molarKgMol || MARS_AIR_KG_MOL;
-  return { rhoKgM3: env.pKpa * 1000 * M / (R_GAS * T), soundMs: Math.sqrt(GAMMA_AIR * R_GAS * T / M) };
+  return gasOf(env.pKpa, env.airC, env.molarKgMol);
 }
 /** The speed of sound in a place (m/s), 0 in vacuum: the hud's delays. */
 export const soundMsOf = (env) => airOf(env).soundMs;
 
 /**
- * Where a place stands as the round sees it (the build sheet §2.1): the body's own env (src/sim/body/body.js
- * envOf: the ground 65.9 kPa and −10 °C outdoors, the floors 66.0 kPa and 20 °C in), Martian air, 0.38 g.
- * On the range: 'mars-valley' exactly.
+ * Where a place stands as the round sees it: { gMs2, pKpa, airC, molarKgMol, vacuum }, the place's gravity and air
+ * (src/sim/places/env.js envAt, the one reader; area null: the live area). On the range: 'mars-valley' exactly.
  */
-export function envOfPlace(state, area = state?.places?.live?.area ?? null, x = 0, z = 0) {
-  const outdoors = (area ? areaOf(area)?.kind : 'ground') === 'ground';
-  return { gMs2: G_MELAS * G0_MS2, pKpa: outdoors ? GROUND_KPA : FLOOR_KPA, airC: outdoors ? OUTDOOR_C : ROOM_C, molarKgMol: MARS_AIR_KG_MOL, vacuum: false };
+export function envOfPlace(state, area = null, x = 0, z = 0) {
+  return roundEnvOf(envAt(state, area, x, z));
 }
 
 /** A load's muzzle velocity from a barrel (WEAPONS §2.1: v = vRef × (barrel / ref)^vExp), m/s. */

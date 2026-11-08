@@ -16,7 +16,9 @@
 // none), at the basins at reveille and at 21:45 and before noon chow, and the shower's water takes them
 // too, so a career starts with the hands of the day's last wash (body-hands prints them).
 //
-// The body uses it twice: startBody (src/sim/body/body.js) advances the template, a marine at
+// Each sol names the site it is lived at (`site`: Base Melas's, so its rows breathe the valley's air out
+// of doors and the Martian indoor standard in, under Mars's gravity, read through src/sim/places/env.js
+// bodyPlaceOf: TECH §1.4, nothing in the body holds a place's number). The body uses it twice: startBody (src/sim/body/body.js) advances the template, a marine at
 // reveille after a standard night, along REFERENCE_SOL to the hour a game starts (the sheet §8, item
 // 10), and the body tests live it tick by tick and skip it a segment at a time (tests/bots/sol.mjs).
 // The numbers it must give are BODY's: 2,770 kcal at 0.38 G, 3,280 at 1 G, 2,570 at 0.134 G (±3%);
@@ -35,7 +37,7 @@ const still = (at, what, met, more = {}) => ({ at, what, met, kind: 'still', ...
 
 /** BODY §3.2's range sol on TIME §9.2's training sol (see the header). */
 export const REFERENCE_SOL = deepFreeze({
-  id: 'range', reveille: '05:30', taps: '22:00',
+  id: 'range', site: 'melas', reveille: '05:30', taps: '22:00',
   rows: [
     still('05:30', 'the head and the basin', 1.8, { head: 'always', groom: { teeth: true, shave: true, face: true, hands: true } }),
     { at: '05:45', what: 'PT: a run and calisthenics in a 15 kg vest', met: 8.0, kind: 'run', loadKg: 15, out: true, outfit: 'sweats' },
@@ -80,7 +82,7 @@ export const REFERENCE_SOL = deepFreeze({
 
 /** TIME §9.2's holiday routine, Saturday and Sunday (see the header). */
 export const HOLIDAY_SOL = deepFreeze({
-  id: 'holiday', reveille: '07:00', taps: '22:00',
+  id: 'holiday', site: 'melas', reveille: '07:00', taps: '22:00',
   rows: [
     still('07:00', 'the head and the basin', 1.8, { head: 'always', groom: { teeth: true, shave: true, face: true, hands: true } }),
     still('07:15', 'the bay, a slow morning', 1.4),

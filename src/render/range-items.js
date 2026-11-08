@@ -10,8 +10,11 @@
 // figure's own 4 × 3 flash sat under the chibi's chin for one tick, and nothing showed the planet):
 // flashPixels() a star at the drawn muzzle, 9 × 5 for its first tick and 5 × 3 for its second, lifted
 // toward the camera and drawn after the figures so it lies over the head; dustPixels() the regolith the blast throws up in front of
-// a prone or kneeling muzzle, grey-ochre motes up to DUST_UP_M that fall at Mars' 0.38 g and settle,
-// DUST_MS in all. 0.0.6 (the user, 2026-11-07: "different types of rounds"): a live tracer thrown out of the port
+// a prone or kneeling muzzle, grey-ochre motes up to DUST_UP_M that fall at the place's gravity (rangeLook's gMs2: Mars'
+// 0.38 g on the range; every falling thing here, the dust, the berm's, the sparks and the head plate, takes it) and settle,
+// DUST_MS in all. Under the float band (look.js CASE_FLOAT_MS2, src/data/body/needs.js GAIT_G's 0.05 G: a coasting deck, free fall) a mote is
+// thrown as at the band's edge and never comes down: it drifts on and fades over its life (throwOf: no 0/0 at 0 G;
+// ROADMAP "anywhere" step 2, the drift to the grille being free-fall motion's). 0.0.6 (the user, 2026-11-07: "different types of rounds"): a live tracer thrown out of the port
 // lies with its red tip (brassPixels' and decalPixels' 'tracer'), and a tracer shot draws tracePixels(): by day at
 // 25 m the trace proper has not lit (calibres.js traceFromM 30 m), so what shows is the igniter's dim ember, a dotted
 // dull-red streak TRACE_STREAK_M long behind the round as it flies at its 790 m/s to the card (32 ms at 25 m, one or
@@ -39,6 +42,7 @@
 // Pure: no three.js, no DOM.
 import { PX_PER_M } from './scale.js';
 import { hash01 } from '../core/hash.js';
+import { CASE_FLOAT_MS2, DUST_MS, DUST_UP_M, DUST_LAG_MS, dustMsOf } from '../sim/arms/look.js';
 import { cardPx, cardPxPerCm, CARD_AT_M, CARD_RINGS_CM, FACE_K, KD_FACES, facePx, facePxPerCm } from '../art/kit/range.js';
 import { fontFor } from '../art/kit/type.js';
 import { composeFrame } from '../art/figures/compose.js';
@@ -49,8 +53,17 @@ import { COURSES } from '../data/courses.js';
 export const FLAG_HOIST_MS = 600, FLAG_FLAP_MS = 400;
 /** A new hole's puff of paper, game milliseconds. */
 export const PUFF_MS = 200;
-/** The blast's dust: how high the motes are thrown (m), how many prone and kneeling, Mars' gravity (m/s²), and the whole of it (game ms: look.js DUST_MS). */
-export const DUST_UP_M = 0.3, DUST_N = Object.freeze({ prone: 9, kneel: 5, sit: 5 }), DUST_G_MS2 = 3.727, DUST_LIFE_MS = 1200;
+/** The blast's dust: how high the motes are thrown (m: look.js DUST_UP_M), how many prone and kneeling, and the whole of it at the least (game ms: look.js DUST_MS; at a place's gravity dustMsOf). */
+export { DUST_UP_M };
+export const DUST_N = Object.freeze({ prone: 9, kneel: 5, sit: 5 }), DUST_LIFE_MS = DUST_MS;
+// (a falling thing's gravity: rangeLook's gMs2, the place's (look.js caseGMs2); required, TECH §1.4)
+const needG = (gMs2) => { if (!Number.isFinite(gMs2) || gMs2 < 0) throw new Error(`range-items: the place's gravity (rangeLook's gMs2), not ${gMs2}`); return gMs2; };
+const FLOAT_MS2 = CASE_FLOAT_MS2;                                   // (the float band as rangeLook's gMs2 reads it: look.js)
+// (a mote thrown up to upM at gMs2: its launch speed and its time in the air; under the float band thrown as at the band's edge, and never down)
+function throwOf(upM, gMs2) {
+  const free = gMs2 < FLOAT_MS2, v0 = Math.sqrt(2 * (free ? FLOAT_MS2 : gMs2) * upM);
+  return { v0, flight: free ? Infinity : 2 * v0 / gMs2, free };
+}
 /** The flash's first tick and its whole (game ms: look.js FLASH_MS). */
 export const FLASH_STAR_MS = 50, FLASH_LIFE_MS = 100;
 /**
@@ -211,26 +224,28 @@ const DUST = Object.freeze([0xc8b28c, 0xb59c74, 0xd6c29c, 0xa89070]);
 /**
  * The blast's dust in front of a prone or kneeling muzzle (rangeLook's fire) at game time ms: [{ x, y, z, c,
  * flat }] metres. Each mote by hash of the shot's time: thrown up to DUST_UP_M from 0.5 to 1.6 m ahead of the
- * muzzle (past the firing point's paving, on the regolith) and a little to either side, falling at Mars' gravity (a mote's flight 1.6 times an Earth fall's), then
- * lying until DUST_LIFE_MS, fewer at the end (settled into the regolith).
+ * muzzle (past the firing point's paving, on the regolith) and a little to either side, falling at gMs2 (the place's: on Mars a mote's flight 1.6 times an Earth fall's), then
+ * lying until the dust's life at that gravity (look.js dustMsOf: DUST_LIFE_MS at Mars, longer where the highest mote is
+ * still in the air at it), fewer at the end (settled into the regolith).
  */
-export function dustPixels(fire, ms, ppm = PX_PER_M) {
+export function dustPixels(fire, ms, ppm, gMs2) {
   if (!fire || !DUST_N[fire.stance] || (fire.face !== 'right' && fire.face !== 'left')) return [];
-  const t = (ms - fire.atMs) / 1000;
-  if (!(t >= 0 && t * 1000 < DUST_LIFE_MS)) return [];
+  const t = (ms - fire.atMs) / 1000, lifeMs = dustMsOf(needG(gMs2));
+  if (!(t >= 0 && t * 1000 < lifeMs)) return [];
   const m = drawnMuzzleM(ppm)[fire.stance], sgn = fire.face === 'left' ? -1 : 1, out = [];
   for (let i = 0; i < DUST_N[fire.stance]; i++) {
     const h = (k) => hash01('dust', fire.atMs, i, k);
-    const up = DUST_UP_M * (0.45 + 0.55 * h('up')) * (fire.stance === 'prone' ? 1 : 0.6), v0 = Math.sqrt(2 * DUST_G_MS2 * up), flight = 2 * v0 / DUST_G_MS2;
+    const up = DUST_UP_M * (0.45 + 0.55 * h('up')) * (fire.stance === 'prone' ? 1 : 0.6), { v0, flight, free } = throwOf(up, gMs2);
     // (each mote leaves a little after the blast, the farthest last)
-    const t0 = 0.03 * h('t0'), tt = t - t0;
+    const t0 = DUST_LAG_MS / 1000 * h('t0'), tt = t - t0;
     if (tt < 0) continue;
+    if (free && h('stay') > 1 - tt / (lifeMs / 1000)) continue;                         // (in free fall: drifting, fading)
     const ahead = m.aheadM + 0.5 + 1.1 * h('x'), side = (h('z') - 0.5) * 0.7, drift = 0.25 * h('drift') * Math.min(tt, flight);
     const x = fire.x + sgn * (ahead + drift), z = fire.z + side;
     if (tt < flight) {
-      const y = Math.max(0.02, v0 * tt - 0.5 * DUST_G_MS2 * tt * tt);
+      const y = Math.max(0.02, v0 * tt - 0.5 * gMs2 * tt * tt);
       out.push({ x: snap(x, ppm), y: snap(y, ppm) + 0.5 / ppm, z: snap(z, ppm) + 0.05, c: DUST[i % DUST.length], flat: false });
-    } else if (h('stay') < 1 - tt / (DUST_LIFE_MS / 1000)) out.push({ x: snap(x, ppm), y: 0.016, z: snap(z, ppm), c: DUST[(i + 1) % DUST.length], flat: true });
+    } else if (h('stay') < 1 - tt / (lifeMs / 1000)) out.push({ x: snap(x, ppm), y: 0.016, z: snap(z, ppm), c: DUST[(i + 1) % DUST.length], flat: true });
   }
   return out;
 }
@@ -523,15 +538,16 @@ export function tilePixels(t, ppm = PX_PER_M) {
   }
   return out;
 }
-/** A round's dust off the berm (rangeLook.kd.dust: { x, y, z, atMs }) at game time ms: motes thrown up and back toward the line, falling at 0.38 g. */
-export function bermDustPixels(d, ms, ppm = PX_PER_M) {
+/** A round's dust off the berm (rangeLook.kd.dust: { x, y, z, atMs }) at game time ms: motes thrown up and back toward the line, falling at gMs2 (the place's). */
+export function bermDustPixels(d, ms, ppm, gMs2) {
+  needG(gMs2);
   const t = (ms - d.atMs) / 1000;
   if (!(t >= 0 && t * 1000 < BERM_DUST_MS)) return [];
   const out = [];
   for (let i = 0; i < BERM_DUST_N; i++) {
     const h = (k) => hash01('berm', d.atMs, d.x, i, k);
-    const up = BERM_DUST_UP_M * (0.3 + 0.7 * h('u')), v0 = Math.sqrt(2 * DUST_G_MS2 * up), back = -(0.2 + 0.8 * h('b')), side = (h('s') - 0.5) * 0.8;
-    const y = (d.y ?? 1) + v0 * t - 0.5 * DUST_G_MS2 * t * t;
+    const up = BERM_DUST_UP_M * (0.3 + 0.7 * h('u')), { v0 } = throwOf(up, gMs2), back = -(0.2 + 0.8 * h('b')), side = (h('s') - 0.5) * 0.8;
+    const y = (d.y ?? 1) + v0 * t - 0.5 * gMs2 * t * t;
     if (y < 0) continue;
     if (h('stay') > 1 - t * 1000 / BERM_DUST_MS) continue;
     out.push({ x: snap(d.x + back * t, ppm), y: snap(y, ppm) + 0.5 / ppm, z: snap(d.z + side * t, ppm) + 0.05, c: DUST[i % DUST.length], flat: false });
@@ -560,7 +576,7 @@ export function bermDustPixels(d, ms, ppm = PX_PER_M) {
 // board, a lead splash where a round rang on steel and a dark hole where one went through it; a new one puffs as the
 // card's do. The steel's spark (sparkPixels): a round that rings throws SPARK_N sparks off the plate for SPARK_MS of
 // game time, flung from the strike and falling, and the strike's white flash for its first tick, drawn unlit (a light
-// of its own). The head plate knocked down (plateAtMs) falls off the face under Mars' gravity, drifting off its hinge, to
+// of its own). The head plate knocked down (plateAtMs) falls off the face under the place's gravity, drifting off its hinge, to
 // the ground in front of the stand, where it lies (nothing pops out of view), its hinge left; each round that rings rocks
 // the face a pixel over ROCK_MS (the fixer's of 0.0.8, after the design review: at 16 px/m the steel's moment hardly
 // showed in the picture: a 180 ms spark and a head plate gone in a few pixels).
@@ -572,7 +588,13 @@ export const TURNER_FACE_M = Object.freeze({ wM: 0.46, hM: 0.76, centreY: 1.35 }
 export const MAN_CM = Object.freeze({ w: 46, h: 76, head: Object.freeze({ r: 8, at: Object.freeze([0, -30]) }), A: Object.freeze([16, 28]), torsoTop: -18 });
 /** The steel's spark: how long (game ms), how many, how fast they fly (m/s), and the strike's flash (game ms). */
 export const SPARK_MS = 180, SPARK_N = 9, SPARK_V_MS = 6, SPARK_FLASH_MS = 50;
-/** The head plate knocked down: its drift off the hinge (m/s, sideways) as it falls at Mars' gravity, and its fall's end (game ms: from the head's height to the ground). */
+/**
+ * The head plate knocked down: its drift off the hinge (m/s, sideways) as it falls at the place's gravity, and the drift's
+ * end at the least (game ms). It lands when the fall from the head's height reaches the ground, √(2h / g) (Mars: 0.93 s,
+ * inside PLATE_FALL_MS, so it drifts on the ground to 1.1 s as in v0.0.10; Europa's 1.314 m/s²: 1.56 s, drifting till it
+ * lands). Under the float band (look.js CASE_FLOAT_MS2) it never lands: it drifts off its hinge at the face's height for
+ * PLATE_FALL_MS and is gone from the picture (my call: no fade on the stage's pixels), never snapped to the ground.
+ */
 export const PLATE_DRIFT_MPS = 0.35, PLATE_FALL_MS = 1100;
 /** A round that rings rocks the face a pixel one way then back over this long (game ms). */
 export const ROCK_MS = 120;
@@ -678,8 +700,9 @@ export function turnerHolePixel(ta, hole, ppm = PX_PER_M) {
  * A turner's pixels at game time ms: [{ x, y, z, c, part, noLine }] metres: its face foreshortened by facingK, its holes,
  * a new hole's puff, the steel's spark and the head plate falling. Nothing for a stand with no face hung.
  */
-export function turnerPixels(t, ms, ppm = PX_PER_M) {
+export function turnerPixels(t, ms, ppm, gMs2) {
   if (!t?.face) return [];
+  needG(gMs2);
   const plateGone = t.face === 'armoured' && Number.isFinite(t.plateAtMs) && ms >= t.plateAtMs;
   const ta = turnerAt(t, ppm), pf = turnerFace(t.face, t.holds ?? null, ppm, { head: !plateGone }), out = [];
   const part = TURNER_PART + (t.lane ?? 0), P = 1 / ppm, L = TURNER_LIFT_M;
@@ -694,17 +717,18 @@ export function turnerPixels(t, ms, ppm = PX_PER_M) {
       out.push({ x: ta.x0 + (i + 0.5) * P + rock, y: ta.yTop - (j + 0.5) * P + L, z: ta.z + L, c, part, noLine: false });
     }
   }
-  // (the head plate knocked off: it falls at Mars' gravity, drifting off its hinge, to the ground before the stand, and lies
+  // (the head plate knocked off: it falls at the place's gravity, drifting off its hinge, to the ground before the stand, and lies
   // there as a flat disc (see the header); its hinge a dark pixel row left)
   if (plateGone) {
     const dt = Math.max(0, ms - t.plateAtMs), H = MAN_CM.head;
     if (ta.dw > 1) {
       const r = H.r * ta.k * ta.facingK, cxp = ta.x0 + ta.dw / 2 * P, cyp = ta.yTop - (pf.h / 2 + H.at[1] * ta.k) * P, s0 = dt / 1000;
       // (where it is: the fall from the head's height, the drift sideways; on the ground (y at its radius) it lies flat)
-      const R0 = Math.round(H.r * ta.k), floor = (Math.ceil(R0 * 0.35) + 1) * P, yFall = cyp - 0.5 * DUST_G_MS2 * s0 * s0, lying = yFall <= floor || dt >= PLATE_FALL_MS;
-      const px0 = snap(cxp + PLATE_DRIFT_MPS * Math.min(s0, PLATE_FALL_MS / 1000), ppm), py0 = lying ? floor : snap(yFall, ppm);
+      const R0 = Math.round(H.r * ta.k), floor = (Math.ceil(R0 * 0.35) + 1) * P, yFall = cyp - 0.5 * gMs2 * s0 * s0, free = gMs2 < FLOAT_MS2;
+      const fallS = free ? Infinity : Math.sqrt(2 * Math.max(0, cyp - floor) / gMs2), lying = !free && yFall <= floor;
+      const px0 = snap(cxp + PLATE_DRIFT_MPS * Math.min(s0, Math.max(PLATE_FALL_MS / 1000, fallS)), ppm), py0 = lying ? floor : snap(yFall, ppm);
       const flat = lying ? 0.35 : 1;
-      for (let dy = -R0; dy <= R0; dy++) for (let dx = -Math.round(r); dx <= Math.round(r); dx++) {
+      if (!(free && dt >= PLATE_FALL_MS)) for (let dy = -R0; dy <= R0; dy++) for (let dx = -Math.round(r); dx <= Math.round(r); dx++) {
         if (Math.hypot(dx / Math.max(0.5, ta.facingK), dy / flat) > H.r * ta.k) continue;
         out.push({ x: px0 + (dx + 0.5) * P, y: py0 - (dy + 0.5) * P + L + 0.01, z: ta.z + L + 0.01, c: dy === -R0 && !lying ? TURNER_C.armoured.edge : TURNER_C.armoured.head, part, noLine: false });
       }
@@ -726,10 +750,11 @@ export function turnerPixels(t, ms, ppm = PX_PER_M) {
 /**
  * The steel's spark for a round that rang (a hole { xCm, yCm, ring, atMs }) at game time ms: [{ x, y, z, c }] metres, unlit:
  * the strike's flash (a plus, white) for SPARK_FLASH_MS, then SPARK_N sparks flung off the plate (their ways by hash,
- * SPARK_V_MS, falling at Mars' 3.7 m/s², fading from white to orange) until SPARK_MS. None off steel or past its time.
+ * SPARK_V_MS, falling at gMs2, the place's (Mars' 3.7 m/s² on the pad), fading from white to orange) until SPARK_MS. None off steel or past its time.
  */
-export function sparkPixels(t, hole, ms, ppm = PX_PER_M) {
+export function sparkPixels(t, hole, ms, ppm, gMs2) {
   if (!t || !hole?.ring || !Number.isFinite(hole.atMs)) return [];
+  needG(gMs2);
   const dt = ms - hole.atMs;
   if (!(dt >= 0 && dt < SPARK_MS)) return [];
   const ta = turnerAt(t, ppm), q = turnerHolePixel(ta, hole, ppm);
@@ -740,13 +765,13 @@ export function sparkPixels(t, hole, ms, ppm = PX_PER_M) {
     const hh = (k) => hash01('spark', hole.atMs, hole.xCm, hole.yCm, n, k);
     // (sprayed all round the strike in the plate's plane, as the picture shows the plate: a star of streaks, falling)
     const a = 2 * Math.PI * (n + hh('a')) / SPARK_N, v = SPARK_V_MS * (0.4 + 0.6 * hh('v'));
-    const x = q.x + Math.cos(a) * v * s, y = q.y + Math.sin(a) * v * s * 0.6 - 0.5 * DUST_G_MS2 * s * s;
+    const x = q.x + Math.cos(a) * v * s, y = q.y + Math.sin(a) * v * s * 0.6 - 0.5 * gMs2 * s * s;
     const life = SPARK_MS * (0.5 + 0.5 * hh('l'));
     if (dt > life) continue;
     const c = SPARK_C[Math.min(2, Math.floor(dt / life * 3))];
     out.push({ x: snap(x, ppm) + 0.5 * P, y: snap(y, ppm) + 0.5 * P + lift, z: q.z + lift, c });
     // (a streak: where it was a frame before, a pixel behind it along its flight, so it reads as moving)
-    const s0 = Math.max(0, s - 0.016), x0 = q.x + Math.cos(a) * v * s0, y0 = q.y + Math.sin(a) * v * s0 * 0.6 - 0.5 * DUST_G_MS2 * s0 * s0;
+    const s0 = Math.max(0, s - 0.016), x0 = q.x + Math.cos(a) * v * s0, y0 = q.y + Math.sin(a) * v * s0 * 0.6 - 0.5 * gMs2 * s0 * s0;
     if (Math.round(x0 * ppm) !== Math.round(x * ppm) || Math.round(y0 * ppm) !== Math.round(y * ppm)) out.push({ x: snap(x0, ppm) + 0.5 * P, y: snap(y0, ppm) + 0.5 * P + lift, z: q.z + lift, c: SPARK_C[2] });
   }
   return out;

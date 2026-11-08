@@ -291,10 +291,11 @@ export const GUNS = Object.freeze({
 /**
  * A gun's shape at a length of `lenPx` pixels along (foreshortened as it is seen) and `acrossK` pixels a
  * reference pixel across: cells [[along, across, letter]] (nearest resampling of each span). withMag:
- * the magazine drawn in its well.
+ * the magazine drawn in its well. tpl: another template of GUNS' form to draw instead (a rifle drawing of
+ * src/art/rifles.js, the gun samples' candidates of 2026-11-08), at the kind's stations.
  */
-export function shapeAt(kind, lenPx, acrossK, withMag = true) {
-  const g = GUNS[kind], ka = lenPx / g.len, out = new Map();
+export function shapeAt(kind, lenPx, acrossK, withMag = true, tpl = null) {
+  const g = tpl ?? GUNS[kind], ka = lenPx / g.len, out = new Map();
   const span = ([a0, a1, c0, c1, ch]) => {
     const A0 = Math.floor(a0 * ka + 1e-6), A1 = Math.max(A0, Math.ceil((a1 + 1) * ka - 1e-6) - 1);
     const C0 = Math.floor(c0 * acrossK + 1e-6), C1 = Math.max(C0, Math.ceil((c1 + 1) * acrossK - 1e-6) - 1);

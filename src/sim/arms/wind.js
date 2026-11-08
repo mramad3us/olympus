@@ -35,12 +35,16 @@
 // (FLAG_LIMP_MS or more), 'light' otherwise (the verifier's of the sleeve fix: "Flags are limp" said under a 3.6 m/s
 // tailwind that stood every sleeve out, the user's report's own kind, flags against words). What the flags do is plain
 // to see, so it is the truth's (the steady wind's); only the crosswind is judged.
+// The wind blows only where the air is open (windBlowsAt: src/sim/places/env.js airAt's open, out of doors
+// under an air with weather; ROADMAP "anywhere" step 2): on a deck, in a building or in vacuum a shot's
+// truth and a read are still (0 m/s), whatever the day's draw.
 // Pure.
 import { stream, range } from '../../core/rng.js';
 import { hash01 } from '../../core/hash.js';
 import { SOL_MS } from '../../core/clock.js';
 import { playerActor } from '../../core/ids.js';
 import { rollerOf } from '../combat/roll.js';
+import { airAt } from '../places/env.js';
 
 /** The day's mean wind (m/s), drawn on the sol's stream (my call: a morning breeze). */
 export const WIND_MEAN_MS = Object.freeze([2, 6]);
@@ -106,6 +110,9 @@ export function pathWind(seed, ms, from, to, { gust = true } = {}) {
   return { crossMs: c / WIND_SAMPLES, headMs: h / WIND_SAMPLES };
 }
 
+/** Whether the wind blows at a place (area null: the live one): out of doors under an air with weather only (airAt's open). */
+export const windBlowsAt = (state, area = null, x = 0, z = 0) => airAt(state, area, x, z).open;
+
 /** A flag at a point (the stage's, through look.js): { towardRad (the way it blows to), liftK (the share of its bands filled, 0 limp to 1 straight out), speedMs }. */
 export function flagOf(seed, ms, x, z) {
   const w = windAt(seed, ms, x, z);
@@ -147,7 +154,7 @@ export function windWords(crossMs, headMs = 0, speedMs = Math.hypot(crossMs, hea
 export function readWind(state, pid, { atMs = state.clock.ms, bearingRad = 0, coach = false, rangeM = 300, from = null, mrkMin = null } = {}) {
   const me = from ?? (playerActor(state)?.who === pid ? playerActor(state) : state.actors?.list?.find(a => a.who === pid)) ?? { x: 0, z: 0 };
   const to = { x: me.x + Math.cos(bearingRad) * rangeM, z: me.z + Math.sin(bearingRad) * rangeM };
-  const { crossMs: truth, headMs } = steadyPath(state.meta.seed, atMs, me, to);
+  const { crossMs: truth, headMs } = windBlowsAt(state, null, me.x, me.z) ? steadyPath(state.meta.seed, atMs, me, to) : { crossMs: 0, headMs: 0 };
   const mrk = Math.max(mrkMin ?? -Infinity, rollerOf(state, pid, { ms: atMs }).value('marksmanship')), corr = windCorrOf(mrk, { coach });
   const e = range(stream('judge', state.meta.seed, pid, 'wind', atMs), -(1 - corr), 1 - corr);
   const est = truth * (1 + e), lo = est * corr, hi = est * (2 - corr);

@@ -108,9 +108,9 @@ import { PAPERS, holeOf, KD_RINGS, isFace, faceHole, faceOdds, poiXY, manHole, A
 import { MODELS, KINDS, OPTICS, opticSight } from './models.js';
 import { pull, feel, REFUSALS, gunField, sightOf, zeroOfGun, beliefZero, opticOf, beliefOf } from './firearms.js';
 import { flight, envOfPlace, CLICK_MRAD } from './ballistics.js';
-import { pathWind, windWords } from './wind.js';
+import { pathWind, windWords, windBlowsAt } from './wind.js';
 import { carryOf, muzzleOf, POSTURES } from './carry.js';
-import { ejectCase } from './look.js';
+import { ejectCase, caseGMs2 } from './look.js';
 import { FACE_DOWN_UP } from './pits.js';
 import { penOf, throughMaterial } from './penetrate.js';
 import { SEEN } from '../people/perception.js';
@@ -292,7 +292,7 @@ export function poiOf(state, pid, gunId, target, { ms = state.clock.ms, belief =
   const d = target?.dM ?? 25, env = envOfPlace(state, state.places?.live?.area ?? null, me.x, me.z), load = fired === 'tracer' ? 'tracer' : fired ? 'ball' : flyingLoad(state, gunId, belief);
   const cm = CLICK_MRAD * d / 10, sight = sightOf(gun), z = belief ? beliefZero(gun) : zeroOfGun(gun);
   let cross = crossMs;
-  if (cross === undefined) cross = belief ? windBeliefOf(state, pid)?.crossMs ?? 0 : (target ? pathWind(state.meta.seed, ms, me, target).crossMs : 0);
+  if (cross === undefined) cross = belief ? windBeliefOf(state, pid)?.crossMs ?? 0 : (target && windBlowsAt(state, null, me.x, me.z) ? pathWind(state.meta.seed, ms, me, target).crossMs : 0);
   const f = flight(M.cal, load, M.barrelMm, env, d, { crossMs: cross });
   const h = hold === undefined ? holdOf(state, pid) : hold, hx = h?.xMil ?? 0, hy = h?.yMil ?? 0;
   const terms = [
@@ -486,7 +486,7 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
     } else roll.verb = roll.ok ? 'hit' : 'missed';
     // (a shot that did not cycle keeps its case: caught in the port (a stovepipe) or in the chamber behind the next
     // round (a double), it flies when a step clears it, not here, or it would be drawn twice: the integrator's)
-    brass = f.stoppage ? null : ejectCase(gun, { ...carryOf(state, pid), x: me?.x ?? 0, z: me?.z ?? 0, headRad: dirRad }, { atMs: ms, kind: 'case', key: id });
+    brass = f.stoppage ? null : ejectCase(gun, { ...carryOf(state, pid), x: me?.x ?? 0, z: me?.z ?? 0, headRad: dirRad }, { atMs: ms, kind: 'case', key: id, gMs2: caseGMs2(state) });
     // (on a card the tone is the hole's, not the pass at the DC: a 2 on the edge at margin −1 is on the paper, as at 0)
     // (a KD face's line keeps a note's tone whatever the hole: the pits tell the shooter, not the colour of the line)
     const far = !!poi && (target?.dM ?? 25) > NEAR_CARD_M;

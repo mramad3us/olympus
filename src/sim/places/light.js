@@ -13,11 +13,16 @@
 //                     and the tint at most the 0° row's; the sky follows the row, so the street
 //                     brightens a little before sunrise and comes up over the minute and a half the
 //                     disc takes to clear the rim (not in a frame: v0.0.3's review).
-//   lightingOf(...)   a room's state by Melas civil time (TIMES: day from reveille, 05:30 on a weekday
-//                     and 07:00 on Saturday and Sunday, the weekday SETTING's week as the watch reads
-//                     it (its years and WEEK_OFFSET: dates.js's one helper), to 18:00; evening to taps at 22:00; lights out
-//                     from taps to reveille and through the slip), as its lighting class takes it (a
-//                     head's 'evening' at every hour: heads stay lit).
+//   lightingOf(...)   a room's state by the site's clock and lighting regime (env.js localTime and
+//                     lightHoursOf, ROADMAP "anywhere"'s step 3): at a base, day from reveille (Melas's
+//                     Plan of the Day: 05:30 on a weekday and 07:00 on Saturday and Sunday, the weekday
+//                     SETTING's week as the watch reads it), to 18:00; evening to taps at 22:00; lights
+//                     out from taps to reveille and through the slip; on a ship, day 06:00 to 22:00 UTC
+//                     and lights out otherwise. As its lighting class takes it (a head's 'evening' at
+//                     every hour: heads stay lit).
+//   The sky is the site's (env.js skyOf): Mars's open air has the rows below; a site with no sky (a
+//   ship: deep space) has NO_SKY, no sun and no daylight, so its windows show nothing and its 'dark'
+//   lamps burn; an Earth or airless sky has no rows yet and throws.
 //   lampsOf(...)      an area's lamps as the stage tables them (TECH §9.6): { i, x, z, y, r, core, ring,
 //                     kind, color, room, on }, each kind's pool from LAMP_KINDS and lit by its rule
 //                     (ceiling panels while their room's overheads are, night lights and the fire
@@ -48,12 +53,10 @@
 // bins are kept per (area, ms) (one frame's calls share them; the sky for two instants, a frame's clock
 // and its game minute, which the eyes read together), so the per-call work is small and allocates
 // nothing. Pure (its caches are of pure functions).
-import { marsClock, yearsOf } from '../../core/calendar.js';
-import { HOUR_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
-import * as SETTING from '../../data/setting/calendar.js';
 import { MARS_ROWS, MOODS, CLASSES, CLASS_OF_KIND, WINDOW_K, LAMP_KINDS, TIMES, SKY_SP } from '../../data/places/sky.js';
-import { areaOf, siteOf, roomOf } from './model.js';
+import { areaOf, roomOf } from './model.js';
+import { siteRecOf, localTime, lightHoursOf, skyOf } from './env.js';
 import { sunAt } from './sun.js';
 
 /** The open air's brightest level (the sky's rows' highest). */
@@ -64,9 +67,6 @@ export { WINDOW_K, TIMES };
 export const LEVEL_STEP = 0.0001;
 /** The pools' bin, metres (TECH §9.6's 4 m grid). */
 export const POOL_BIN_M = 4;
-const WEEKEND = new Set([5, 6]);                                   // (Saturday and Sunday: SETTING's week, Monday 0)
-// (SETTING's years, WEEK_OFFSET with them: the weekday the watch and the weekly jobs read, src/sim/time/dates.js)
-const YEARS = yearsOf(SETTING), SITES = SETTING.SITES;
 
 const lerp = (a, b, k) => a + (b - a) * k;
 const lerpHex = (a, b, k) => {
@@ -74,30 +74,40 @@ const lerpHex = (a, b, k) => {
   const ch = (h, s) => (h >> s) & 255;
   return (Math.round(lerp(ch(a, 16), ch(b, 16), k)) << 16) | (Math.round(lerp(ch(a, 8), ch(b, 8), k)) << 8) | Math.round(lerp(ch(a, 0), ch(b, 0), k));
 };
-const lonOfSite = (siteId) => (SITES[siteOf(siteId)?.geo] ?? SITES.melas).lonEDeg;
-
-/** The clock's lighting state at a site by Melas civil time: 'day' | 'evening' | 'lightsOut' (see the header). */
-export function clockLighting(siteId, ms) {
-  const c = marsClock(ms, lonOfSite(siteId), YEARS);
-  if (c.timeslip) return 'lightsOut';
-  const h = c.civilMs / HOUR_MS, reveille = WEEKEND.has(c.weekday) ? TIMES.REVEILLE_WEEKEND_H : TIMES.REVEILLE_H;
-  return h < reveille || h >= TIMES.TAPS_H ? 'lightsOut' : h < TIMES.EVENING_H ? 'day' : 'evening';
+/** The clock's lighting state at a site (an id or a record) by its clock and regime: 'day' | 'evening' | 'lightsOut' (see the header). */
+export function clockLighting(site, ms) {
+  const s = siteRecOf(site), t = localTime(s, ms);
+  if (t.timeslip) return 'lightsOut';
+  const h = t.h, H = lightHoursOf(s, t);
+  return h < H.dayH || h >= H.outH ? 'lightsOut' : h < H.eveningH ? 'day' : 'evening';
 }
 const classOf = (room) => room?.lighting ?? CLASS_OF_KIND[room?.kind] ?? 'office';
 
-/** A room's lighting state at a game time: 'day' | 'evening' | 'lightsOut', as its lighting class takes the clock's. */
+/** A room's lighting state at a game time: 'day' | 'evening' | 'lightsOut', as its lighting class takes the clock's. Throws for an unknown area. */
 export function lightingOf(state, areaId, roomId, ms) {
-  const area = areaOf(areaId), room = area?.rooms?.find(r => r.id === roomId) ?? null;
-  return CLASSES[classOf(room)]?.always ?? clockLighting(area?.site ?? 'melas', ms);
+  const area = areaOf(areaId);
+  if (!area) throw new Error(`light: no area '${areaId}'`);
+  const room = area.rooms?.find(r => r.id === roomId) ?? null;
+  return CLASSES[classOf(room)]?.always ?? clockLighting(area.site, ms);
 }
 
 // ---- the open air ----
 
+/** The open air where there is no sky (a ship, deep space): no sun, no sky light, level 0. */
+export const NO_SKY = Object.freeze({
+  elevDeg: -90, azDeg: 0, visible: 0, eclipsed: true, sunColor: null, sunK: 0, skyColor: 0x000000, skyK: 0, ground: 0x000000,
+  tint: Object.freeze([0, 0, 0]), glow: 0, shadow: 0, level: 0,
+});
+
 let skyLast = { site: null, ms: NaN, out: null }, skyPrev = { site: null, ms: NaN, out: null };   // (two slots: a frame's clock and its minute, lightFrame's two)
-/** The open air at a site: { elevDeg, azDeg, visible, eclipsed, sunColor, sunK, skyColor, skyK, ground, tint: [r, g, b], glow, shadow, level }. */
-export function skyAt(siteId, ms) {
+/** The open air at a site (an id or a record): { elevDeg, azDeg, visible, eclipsed, sunColor, sunK, skyColor, skyK, ground, tint: [r, g, b], glow, shadow, level }; NO_SKY where it has none. */
+export function skyAt(site, ms) {
+  const siteId = typeof site === 'string' ? site : site?.id;
   if (skyLast.site === siteId && skyLast.ms === ms) return skyLast.out;
   if (skyPrev.site === siteId && skyPrev.ms === ms) { const t = skyLast; skyLast = skyPrev; skyPrev = t; return skyLast.out; }
+  const cls = skyOf(null, site).outside;
+  if (cls === 'none') return NO_SKY;
+  if (cls !== 'mars-air') throw new Error(`light: no sky rows for '${cls}' yet (site '${siteId}'): VIEWS §2.7 has Mars's only`);
   const s = sunAt(siteId, ms), e = s.elevDeg;
   let i = 0;
   while (i < MARS_ROWS.length - 1 && e < MARS_ROWS[i + 1].elevDeg) i++;

@@ -6,6 +6,28 @@ Shots and drivers stay in the scratch folders named below, outside the repo; wha
 
 ---
 
+## v0.0.11, 2026-11-08: the environment foundation, the parallel runner, the gun samples
+
+**What was played.** ROADMAP "anywhere" steps 1 to 4, built, then two reviews of the merged tree (runtime, code) and the fixer's pass. Headless Chrome on the GPU through playwright-core, keys sent by physical code. Each review compared against a copy of v0.0.10 made with `git archive` in its own scratch folder (`/private/tmp/claude-501/olympus-build/r11/review-code/`, `review-runtime/`).
+
+**The proof of no change at Mars.**
+- **The code review** ran its own digest script (`dig.mjs`) on v0.0.10's tree and the new one over 10 runs: sandbox, barracks twice (once at 23:00), test-shower, test-night, test-range, test-pairs, test-stress, and test-handling under the range bot on seeds 48213 and 7. The clock, the digests and the brass records' lengths are identical. The quick suite passed (876 tests in 19.0 s against the runner's 60 s); `env`, `env-matrix` and `syntax` (`ENV_HOME`, `ENV_QUIET`, `SCENE_HOST`) passed.
+- **The runtime review** (port 8237): the Tests menu lists the same 8 scenes and leaves out the `test-shoothouse` stub; each scene starts from the menu with no errors, and so does New career. `?play=test-shoothouse` falls back to the title with the "No scenario" toast. Played by keys (seed 48213): test-handling, test-range, test-pairs, "Three bangs" and "Bang" match v0.0.10 exactly on the radio lines, hint lines, plaques, the game time at the end and the 5 brass landing times. The first frames of the barracks and test-pairs are pixel-identical. Bench cards range-line, squadbay-night and stress-din: median and p95 16.7 ms on both trees, 0 frames over 25 ms, the same draw calls, triangles and uploads.
+
+**The matrix, recomputed by hand** (the code review): Martian air at -10 °C is rho 0.892 kg/m³ and c 321.6 m/s; the indoor standard at 20 °C rho 0.802 and c 339.4; Earth at 15 °C 1.225 and 340.3. Gaits at Mars 1.14 / 2.69 / 4.28 m/s and at Europa 0.88 / 1.97 / 2.97. Stance 1,033 ms at Mars, 901 at 1 G, 1,535 at Europa. Cases 867 / 534 / 1,460 ms standing and 366 / 226 / 617 prone. At Europa the drop is 9.5 cm at 25 m, exact in vacuum.
+
+**Under the presets** (runtime): kneel to prone 850 ms at Melas, 650 at the Wheel and ship-1g, 1,150 on Europa, 1,700 to 1,750 in free fall; walk and run 1.14 / 2.69 at Melas, 1.45 / 3.60 at 1 G, 0.88 / 1.97 on Europa (the run drawn as the bound), 0.60 / 1.20 in free fall (drawn as float); the step sound -6.06 dB at Melas, -1.86 dB at 1 G, none on Europa or in free fall. On the range-line bench under ship-1g the first case lands 1,176 ms after the start against 1,316 at Melas, at 1.2 m instead of 1.7 m.
+
+**What turned up, and what was done** (the CHANGELOG's "fixer's pass" holds the fixes). Both reviews' findings are in; the fixer closed the audit's findings 1 to 16 except the ones left open:
+- **Fixed**: the body clock's readers' Melas default; the unknown `&env` toast (a blank page or a dead New career button before); the sky the sim and the light disagreed on under a preset; bangs in vacuum silent yet deafening (supp.js `kOf`); the dust's and the plate's ends; setLiveEnv and `upgradeEnv` checking their input; the DI's hours; the parallel runner's stderr order, crashed-worker counts and filtered ports; a ground's surface; the old 3 G sprint (8.81 m/s).
+- **Left open, in the docs**: the area-level against scene-level environment rule and the sky under a ship preset (PLACES §3.16); rising and kneeling not following gravity (BODY §14.1, COMBAT §3.4); conducted sound in vacuum; `envKey` leaving out pressure (TECH §6.1); `range-items` timings; the longitude readers (ROADMAP §4.2).
+
+**Gallery** (`./samples/index.html` on 8237): all 47 sample images load. The guns sample shows G0, G1, the black G2, V1 and M1, both views each; at full size the receiver and handguard of g2-a and g2-b read a step lighter than the stock, scope and magazine, and on the figures the rifle reads as one black against both the floor and the red ground. G0's title read "as v0.0.9 draws it" and is now v0.0.10's. The hitcard sample's 9 views load.
+
+**Process notes.** A server of the runtime review's was left on 8237 for a while; it was killed, the helper now refuses a busy port, and the comparisons were re-run with each run checked to be on the right tree. The code review started no server (a python server on 8237 at its start was not its own). The user's play server on 8200 came up at 10:17; no heavy runs followed. Scripts and shots are in `/private/tmp/claude-501/olympus-build/r11/review-runtime/` (scripts/, shots/, scenes/, tdrive/, gallery/, logs td-*.log, td2-*.log, cur.json, old.json).
+
+---
+
 ## v0.0.10, 2026-11-08: "Bang", `test-stress`
 
 **What was played.** ROADMAP §4.2's 0.0.7c row, second patch (the build sheet `docs/build/0.0.10.md`), built by three roles (supp, scene, face), integrated, then three reviews of the merged tree (runtime, design, code) and the fixer's replays. Every browser run in headless Chrome on the GPU at 16 px/m, keys sent by physical code, the stress bot choosing and the keys carrying it out. Shots under `/private/tmp/claude-501/olympus-build/r10/lead/`; the reviews' under `r10/review-runtime/`, `r10/review-design/` and `r10/review-code/`.
@@ -34,6 +56,9 @@ Shots and drivers stay in the scratch folders named below, outside the repo; wha
 - **Found by the integrator, fixed**: string 5's paper cut its zones line at 1024 × 768 (sized by its lines, 174 → 189 px, item 25); T did nothing on any DI line naming a reach, since v0.0.8 (`stepOfAct`, item 24).
 - **From the design review, fixed**: the recruit was still calm at the din's turn (felt 15 over 12 seeds; the turn moved to 8.5 to 10 s, item 34); the tier one's din paper read fewer blanks than the recruit's (the paper by its plan, "DIN 30 BLANKS · 22 HEARD", item 35); "Breathe 1 (0.0 shed)" on the card ("cut before it shed", item 36); the pool carrying from string 4 into string 5 and the wait to sit through (the coach's 20 s rest, behind the splash, item 33).
 - **Left, for the user**: the horn (3 × 2 px) reads as a small salmon blob at 16 px/m; the bang's smoke hides the coach but for his cap; the radio box keeps the stale "Shooter ready? Standby."; one 50 to 67 ms frame when the end card opens and one dropped frame at the hit card's first paint (time stopped both times); the score line reads v0.0.9 until `release.sh` stamps it; the quick suite takes 159 s in the background band; no "at a blank" row in the bench card; **Windows (`play.cmd --dev`) not played**. Not taken: the design review's 2× crop of the doll to the waist (it would cut the man-target's C zone and low hits).
+
+**The user's scores.**
+- `test-stress` ("Bang"), 2026-11-08, v0.0.10, seed 4104381905: chaos 100, contrast 100, hands 100, ★ yes, "Excellent". With "Three bangs" (100, ★) and "Pairs" (100/100/100, ★), the whole 0.0.7b to 0.0.7c road is scored full and starred: suppression and hardening as built carry into the shoot house.
 
 ---
 

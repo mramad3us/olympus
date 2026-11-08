@@ -39,7 +39,7 @@ import * as FX from '../src/sim/places/fixtures.js';
 import { buildGrid, CLASSES } from '../src/sim/places/nav.js';
 import { standOk } from '../src/sim/places/collide.js';
 import { STEP_M, PORTAL_DEPTH_M } from '../src/sim/places/plan.js';
-import { WALK_MS } from '../src/sim/places/move.js';
+import { WALK_MS } from './mars-gaits.mjs';
 import { TICK_MS } from '../src/core/clock.js';
 import { areaOf, placeLine, roomOf, surfaceAt } from '../src/sim/places/model.js';
 import { watchFaces } from '../src/ui/hud/watch.js';

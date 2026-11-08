@@ -12,6 +12,7 @@
 // belief to (7, −2), the read set to 2.6 m/s: the real stepsOf, plaqueOf, beliefOf, farPointOf and kdNow through the
 // same renderers, and the true wind at that moment (wind.js pathWind) nowhere in what they say.
 import { assert, fmt } from './helpers.mjs';
+import { lonOf } from '../src/sim/places/model.js';
 import { createGame } from './game.mjs';
 import { weaponCardModel, rowText, rowTitle, panelOf, BELIEF_FIELDS } from '../src/ui/hud/steps.js';
 import { plaqueWords, plaqueParts, termsPixels, termLines, farLabel, plaquePixels, shotPlaque } from '../src/ui/plaque.js';
@@ -93,7 +94,7 @@ export default [
       const b = beliefOf(s, gunId), card = weaponCardModel(b, { distance: true, line: 300, hold: s.stop.hold ?? null });
       const rec = plaqueOf(s, pid, { target: face }), rows = shooting.stepsOf(s);
       const fp = shooting.farPointOf(s, pid), kd = kdScene.kdNow(s);
-      const sheet = sheetOf(s, { body: { bodyOf, stagesOf, stripOf, wordsOf, cuesOf, woundWords } });
+      const sheet = sheetOf(s, { body: { bodyOf, stagesOf, stripOf, wordsOf, cuesOf, woundWords }, lonEDeg: lonOf(s) });
       const strs = [card.line, card.words, card.far, plaqueWords(rec), ...stringsOf(plaqueParts(rec)), ...termLines(rec), termsPixels(rec.terms ?? [], { ringOdds: rec.kd?.ringOdds }).words,
         ...panelOf(rows).slots.flatMap(x => [rowText(x), rowTitle(x.step)]), ...panelOf(rows, { page: 1 }).slots.flatMap(x => [rowText(x), rowTitle(x.step)]),
         fp ? plaquePixels(farLabel(fp)).words : '', kdLiveModel(kd?.pits?.[kd?.kdLane], { lane: kd?.kdLane, line: 300 }).words, groupCardModel(kd?.groups ?? [], { lane: kd?.lane }).words,

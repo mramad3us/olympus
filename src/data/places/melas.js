@@ -233,8 +233,4 @@ export const MELAS_TABLES = deepFreeze({ BUILDINGS, ZONES, ROADS, WALKS, GATES, 
  */
 export const MELAS_WALLS = deepFreeze({ southKm: 45, southRiseM: 8000, northKm: 150, northRiseM: 8000 });
 
-/** The site record of Base Melas (PLACES §1.2): its areas grow with the buildings that get interiors; horizon names its walls. */
-export const MELAS_SITE = deepFreeze({
-  id: 'melas', kind: 'base', template: 'melas@1', name: 'Marine Corps Base Melas', geo: 'melas', horizon: 'melas',
-  gravity: { kind: 'surface', gG: 0.38 }, areas: ['melas.ground', 'melas.echo.1', 'melas.echo.2'],
-});
+// (The site record of Base Melas, MELAS_SITE, lives in the site registry, src/data/places/sites.js: PLACES §1.2.)

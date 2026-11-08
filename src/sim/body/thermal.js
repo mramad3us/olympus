@@ -6,7 +6,8 @@
 // constants TAU_COLD 60, TAU_HEAT 45, TAU_IN 30 minutes, and settleTo(): out of doors the core settles
 // toward CORE less COLD_K a degree the felt air is below the comfort of what you wear, or more HEAT_K
 // a degree above it, RUN_C more running; indoors back to 37 with τ 30 min. Changed: the felt air is the
-// environment's (ROOM_C 20 °C indoors, OUTDOOR_C −10 °C at Melas this round; no wind, wet or sun yet);
+// environment's, the place's air temperature (src/sim/places/env.js airAt: 20 °C in Melas's buildings, the
+// valley's −10 °C at Melas this round; no wind, wet or sun yet);
 // warmth comes from OLYMPUS's outfits by BODY §10.3's clo, `warmth = min(4, 3.3 × clo)` (PT kit 0.3
 // clo, the sweats 0.8, utilities 0.9; a towel 0: my call, so the sweats at a −10 °C dawn run finish at
 // 36.8 °C after the hour, BODY §10.4's 36.9); tradecraft's live() stepped a minute at a time with its
@@ -14,7 +15,6 @@
 // closed form over any span (`T* + (T − T*)e^(−Δ/τ)`), exact under composition (TIME §5.5). BODY
 // §10.2's Gagge two-node balance, clothing by clo, the night sky and sweat replace settleTo() with
 // Mars's weather (0.0.12). Indoors nothing moves: a core at 37 stays at 37.
-import { ROOM_C, OUTDOOR_C } from '../../data/body/needs.js';
 
 export const CORE = 37;
 export const COLD_K = 0.25, HEAT_K = 0.12, RUN_C = 1.2, TAU_COLD = 60, TAU_HEAT = 45, TAU_IN = 30;
@@ -43,9 +43,10 @@ export const TRADECRAFT_WARMTH = Object.freeze({ tee: 0, robe: 1, jacket: 2, uni
 export const warmthOf = (outfit) => Math.min(4, CLO_WARMTH_K * (CLO[outfit] ?? CLO.utilities));
 const comfortAt = (w, end) => { const v = Math.min(4, Math.max(0, w)), i = Math.floor(v), f = v - i; return COMFORT[i][end] + (COMFORT[Math.min(4, i + 1)][end] - COMFORT[i][end]) * f; };
 
-/** Where the core would settle (tradecraft's settleTo): { target °C, tauMin }. env: { outdoors, airC, outfit }; runK the share of time running. */
-export function settleTo({ outdoors = false, airC = outdoors ? OUTDOOR_C : ROOM_C, outfit = 'utilities' } = {}, runK = 0) {
+/** Where the core would settle (tradecraft's settleTo): { target °C, tauMin }. env: { outdoors, airC (the place's, required out of doors), outfit }; runK the share of time running. */
+export function settleTo({ outdoors = false, airC, outfit = 'utilities' } = {}, runK = 0) {
   if (!outdoors) return { target: CORE, tauMin: TAU_IN };
+  if (!Number.isFinite(airC)) throw new Error(`settleTo(): out of doors, the air's temperature, not ${airC}`);
   const w = warmthOf(outfit), lo = comfortAt(w, 0), hi = comfortAt(w, 1), t = airC, run = RUN_C * runK;
   if (t < lo) return { target: CORE - COLD_K * (lo - t) + run, tauMin: TAU_COLD };
   if (t > hi) return { target: CORE + HEAT_K * (t - hi) + run, tauMin: TAU_HEAT };

@@ -185,6 +185,8 @@ The peacekeepers on Europa run their Plan of the Day on UTC, with patrol and che
 | Suit consumables | `O₂ 6h 40m` | | BODY supplies the closed form; TIME formats |
 | Body clock | never a number: words in the mind (Tab) and the sheet (C): "your body says the small hours" | | §3.4 |
 
+**As built in v0.0.11**: the watch reads the site's clock (`localTime`). At Melas nothing changes. On a ship it reads `HH:MM` over `Thursday · 22 Mar 2351` with no timeslip. `watchFaces` gains `{ site }` and returns `face`.
+
 ### 3.2 Devices
 
 The HUD shows only what the character carries or can see (the hub; tradecraft DESIGN: "A clock only if the character carries something that tells the time").
@@ -917,6 +919,8 @@ On ships, the detachment's PoD runs on UTC with the same shape (reveille 06:00Z,
 
 **Who cites this table.** CAREER §5.4's earlier working-sol times (formation 07:30, chow 11:30–13:00, training 13:00–16:30, maintenance to 17:00, evening chow from 17:00), CAREER §14.3's mail call "16:30, names called in formation", BODY §7.1's earlier 06:00 reveille (BODY now reads 05:30 and 8 h 09 m 35 s in the rack), and PEOPLE §4.2's and §11.10's "sol 6" inspection are replaced by the times above. PLACES §4.3's walking times take their speed from BODY's gait helper (1.14 m/s on Mars, BODY §16.1), not 1.2 m/s.
 
+**As built in v0.0.11**: the Plan of the Day's hours have one home, `src/data/pod.js` `ROUTINES.melas` (reveille 5.5 h, 7.0 h on holidays 5 and 6, taps 22.0 h), named by the site's `routine`; `sky.js` `TIMES` and `pod.js` `REVEILLE_H`, `REVEILLE_HOLIDAY_H` and `TAPS_H` are views of it, and `time/pod.js` `nightOf` and `people/place.js`'s reveille read the live site's routine. `ALERT_DRILL` stays global rather than part of each routine.
+
 ### 9.3 Living a block or skipping it
 
 A block is attended in person: you walk to its muster point by its start (no block is attended from a distance). Once there, it plays in up to four parts:
@@ -975,6 +979,8 @@ A block's owner supplies its resolver: `resolveBlock(block, person, stance, rngS
 - **Sleeping through it:** reveille wakes everyone in the bay (an O event; BODY's sleep depth decides whether it works). Asleep somewhere else (the rec room, a bench), nobody wakes you unless PEOPLE sends someone: being missed is a story.
 - **As built in v0.0.4, at the alert drill** (`src/sim/time/pod.js`, `alerts.js`, `activities.js` `lateCheck`; the build sheet's §8 items 4, 5 and 19, §9 items 31 to 33). **Mustered** is standing within `MUSTER_M` 0.6 m of your own rack's foot, in utilities, with no activity running but `standfast`, checked on whole seconds while the drill is open. The classes are this table's, counted **from the due**, the count at +5 minutes (02:35 for a drill at 02:30): on time to 0, late-minor to 2 minutes, late to 10, very late to 30, else missed; an alarm has no early class, and a marine not mustered by the stand-down has missed it. The record is `{ block: 'drill', who, dueMs, arrivedMs, lateMs, class }`, kept in `time.attend` (the last 50) until PEOPLE's discipline reads it (0.0.15), not on the person, and told as the `late` fact and in the log. **The count counts only who stands mustered at its second** (the review of v0.0.4: mustered and gone to the showers, the count had said 13 of 13): an arrival gone from the rack at the count or the stand-down is marked left (`leftMs`, the `late` fact's class `left`), and coming back before the stand-down arrives again, late. **The late check**: an activity that would end after the due less the walk back opens the late card ("fit it in · 2 min", "do it anyway", "not now", each with its end time; a shower at 02:30); it counts the dressing into utilities the activity leaves still to do, and never applies to dressing into utilities itself, since that is how one musters. From the count to the stand-down every activity but `standfast` or dressing into utilities is late ("the stand-down at your rack, 03:00", nothing to fit). T, T from the klaxon's landing musters you at 02:32:40, 140 s early; a shower taken anyway at 02:30 brings you back to the rack at 02:43:09, late by 8.2 minutes. From v0.0.5, with the rise at 4.0 s (PEOPLE §4.6), T, T musters you at 02:32:42.091, 138 s early, and the shower taken anyway brings you back at 02:43:10.091, late by 8.2 minutes; the count at 02:35 and the stand-down at 03:00 hold (`moment-night` prints the timeline beside v0.0.4's).
 - **As built in v0.0.6, a chain** (§8.1; the build sheet 0.0.6 §8 item 13, my call): **a chain is checked for lateness as a whole**, its landing the outfit its steps leave you in, so a chain of musters (dressing into utilities, standing fast) is never late; the late card comes first, as for a single action; **"fit it in" keeps the leading whole steps that end by the fit**, none fitting refusing it ("No time for it."); a step is never shortened inside a chain.
+
+**As built in v0.0.11**: `activities.js` `walkMs(area, ax, az, bx, bz, speedMs)` takes the walk's speed (`placeGaits` at the muster's area); `range.js`' `KD_WALK_MS` is deleted, and the walk splash between lines reads the place's walk.
 
 ### 9.6 Duties and watches
 

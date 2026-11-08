@@ -53,14 +53,14 @@ export default [
     fn() {
       const b = templateBody(REV); b.hygiene.grime = 40;
       washBody(b, { waterMin: 3 }, REV);
-      const wet = [0, 10, 19, 20, 21].map(m => `${m} min ${fmt(cuesOf(b, REV + m * MIN_MS).wetK, 2)}`);
-      const words = stagesOf(b, REV).hygiene.words;
+      const wet = [0, 10, 19, 20, 21].map(m => `${m} min ${fmt(cuesOf(b, REV + m * MIN_MS, MELAS_LON).wetK, 2)}`);
+      const words = stagesOf(b, REV, MELAS_LON).hygiene.words;
       b.hygiene.stubbleH = 21; b.hygiene.grime = 30;
       const st = [6, 12, 20, 21].map(h => `${h} h ${['smooth', 'shadow', 'stubble'][stubbleIndex(h)]}`);
       groomBody(b, { shave: true, face: true, teeth: true }, REV);
       console.log(`      wet hair: ${wet.join(', ')} (WET_HAIR_MS ${HYGIENE.WET_HAIR_MS / MIN_MS} min); "${words}"; stubble: ${st.join(', ')}; shaved and washed at the basin: stubble ${b.hygiene.stubbleH} h, grime 30 → ${fmt(b.hygiene.grime, 1)}`);
-      assert(cuesOf(b, REV).wetK === 1 && cuesOf(b, REV + 20 * MIN_MS).wetK === 0, 'wet for 20 minutes');
-      near(cuesOf(b, REV + 10 * MIN_MS).wetK, 0.5, 1e-9, 'half dry at 10 minutes:');
+      assert(cuesOf(b, REV, MELAS_LON).wetK === 1 && cuesOf(b, REV + 20 * MIN_MS, MELAS_LON).wetK === 0, 'wet for 20 minutes');
+      near(cuesOf(b, REV + 10 * MIN_MS, MELAS_LON).wetK, 0.5, 1e-9, 'half dry at 10 minutes:');
       assert(b.hygiene.stubbleH === 0 && Math.abs(b.hygiene.grime - 27) < 1e-9, JSON.stringify(b.hygiene));
     },
   },

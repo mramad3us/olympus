@@ -5,7 +5,11 @@
 // gaitFrame: STEP_M a frame, four frames a cycle, the walk's 0.64 m and the run's 1.8 m), and its
 // frames 0 and 2 are the two contacts, so a foot falls each time the stride crosses a whole half
 // cycle: every 0.32 m walking or strolling (the stroll draws the walk's frames), 0.9 m running,
-// 1.4 m bounding. STRIDE_WRAP_M (201.6 m, where actor.strideM wraps) is a whole number of every
+// 1.4 m bounding (the low-g run below 0.3 G: src/sim/places/move.js gaitOf). The cadence is the gait's
+// speed over these, so it follows the place's gravity with the speed (src/sim/body/motion.js gaitSpeeds: a
+// walk's 3.56 foot-falls a second at Melas, 4.53 at 1 G; a bound's 1.41 at Europa's 1.97 m/s); a 'float'
+// (under 0.05 G) has no feet on anything and schedules none (VIEWS §11's "zero g, no steps"), however far
+// it goes. STRIDE_WRAP_M (201.6 m, where actor.strideM wraps) is a whole number of every
 // half cycle (630, 224, 144), so a wrap never adds or loses a foot-fall. footfalls(prev, now, gait)
 // gives the fractions of the way from prev to now at which they fall.
 //
@@ -23,10 +27,13 @@
 // and keeps doneM on the stride, so nothing bursts out when play goes on; a jump in the stride of
 // more than RESYNC_M (a load, a debug move) is taken as a new start.
 //
-// stepVoice(surface, gait) is what the foot-fall sounds like: the surface PLACES names under the
+// stepVoice(surface, gait, { gG, pKpa }) is what the foot-fall sounds like (gG and pKpa the place's,
+// src/sim/places/env.js's, required: TECH §1.4; lowpassHz refuses a pressure that is not a number, so no
+// voice in the audio plays in an assumed air): the surface PLACES names under the
 // feet (places/model.js surfaceAt) as one of three recipes (tile and vinyl tick, concrete, paving
 // and stairs slap, regolith crunches: src/data/sounds.js), and its level and filter by the physics,
-// against the same step on Earth: the weight on the foot, VIEWS §11.3's 10 log10(g / 9.81) (−4.2 dB
+// against the same step on Earth: the weight on the foot, VIEWS §11.3's 10 log10(g / 9.81) at the place's
+// gravity (src/sim/places/env.js gravityAt: +4.8 dB at 3 G; no weight, no sound: −Infinity, never played) (−4.2 dB
 // at 0.38 G), plus the air's PEOPLE §7.3 law, airDb(P) = 10 log10(P / 101.3) (−1.9 dB in Melas's
 // 65.9 kPa: the one air law, which replaces VIEWS §11.2's −3.7 dB, build sheet 0.0.3 §8 item 16),
 // plus the gait's own (src/data/sounds.js GAIT_DB): −6.1 dB walking at Melas; and low-passed at
@@ -34,20 +41,23 @@
 import { STEP_M } from '../../art/figures/poses.js';
 import { STRIDE_WRAP_M } from '../../data/body/gait.js';
 import { airDb } from '../../sim/people/hearing.js';
-import { GAIT_DB, SURFACE_STEP, LOOKAHEAD_S, LOWPASS_REF_HZ, LOWPASS_REF_KPA, AIR_KPA } from '../../data/sounds.js';
+import { GAIT_DB, SURFACE_STEP, LOOKAHEAD_S, LOWPASS_REF_HZ, LOWPASS_REF_KPA } from '../../data/sounds.js';
 
 /** The metres between foot-falls by gait: half the four-frame cycle (the stroll draws the walk's frames). */
 export const HALF_CYCLE_M = Object.freeze({ walk: 2 * STEP_M.walk, stroll: 2 * STEP_M.walk, run: 2 * STEP_M.run, bound: 2 * STEP_M.bound });
 /** A stride that moves further than this between frames is a new start, not a walk (metres). */
 export const RESYNC_M = 3;
-/** Mars's surface gravity where no site says otherwise (G). */
-export const MARS_G = 0.38;
+/** The gaits whose feet touch nothing: no foot-falls (the float under 0.05 G). */
+export const NO_FEET = Object.freeze(['float']);
 const EPS = 1e-7;
 
 /** The weight on the foot, in dB against Earth's 1 G: 10 log10(g / 9.81) (VIEWS §11.3; −4.2 dB at 0.38 G). */
 export const weightDb = (gG) => (gG > 0 ? 10 * Math.log10(gG) : -Infinity);
-/** VIEWS §11.2's air filter: the low-pass corner at a pressure, in whole Hz. */
-export const lowpassHz = (pKpa) => Math.round((LOWPASS_REF_HZ * pKpa) / LOWPASS_REF_KPA);
+/** VIEWS §11.2's air filter: the low-pass corner at a pressure (the place's, required), in whole Hz. */
+export function lowpassHz(pKpa) {
+  if (!Number.isFinite(pKpa)) throw new Error(`audio: the place's air pressure (src/sim/places/env.js airAt), not ${pKpa}`);
+  return Math.round((LOWPASS_REF_HZ * pKpa) / LOWPASS_REF_KPA);
+}
 
 // (whole half cycles up to a stride: a threshold met exactly belongs to the stride that reaches it)
 const halves = (m, half) => Math.floor(m / half + EPS);
@@ -72,7 +82,8 @@ export function footfalls(prevStrideM, strideM, gait) {
  * What a foot-fall sounds like: { kind ('tile' | 'concrete' | 'regolith'), gainDb (against the same
  * step on Earth at 1 G), lowpassHz, weightDb, airDb, gaitDb }. gG the site's gravity, pKpa the air.
  */
-export function stepVoice(surface, gait, { gG = MARS_G, pKpa = AIR_KPA.default } = {}) {
+export function stepVoice(surface, gait, { gG, pKpa } = {}) {
+  if (!Number.isFinite(gG)) throw new Error(`stepVoice(): the place's gravity in G, not ${gG}`);
   const kind = SURFACE_STEP[surface] ?? 'concrete';
   const w = weightDb(gG), a = airDb(pKpa), g = GAIT_DB[gait] ?? 0;
   return { kind, gainDb: Math.round((w + a + g) * 100) / 100, lowpassHz: lowpassHz(pKpa), weightDb: Math.round(w * 100) / 100, airDb: Math.round(a * 100) / 100, gaitDb: g };
@@ -99,6 +110,7 @@ export function createStepScheduler({ lookaheadS = LOOKAHEAD_S, jumpM = 1.5 } = 
         doneM = u;
         return [];
       }
+      if (NO_FEET.includes(gait)) { doneM = u; return []; }      // (floating: the stride moves, the feet do not fall)
       if (HALF_CYCLE_M[gait]) moving = gait;
       if (u === doneM) return [];
       // (the gait of the last tick that moved: its frames are the ones drawn, even if the feet stopped since)

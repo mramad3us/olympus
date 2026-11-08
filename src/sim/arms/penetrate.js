@@ -250,7 +250,8 @@ function slab(fx, fz, cx, cz, [x0, z0, x1, z1]) {
  * yCm] }], nearMisses: [{ who, passM, crack }] }. from: the muzzle { x, y, z }; yawRad and pitchRad its line.
  */
 export function traceRound(state, { shooterId = null, from, yawRad = 0, pitchRad = 0, cal = '6.5x40r', load = 'ball', barrelMm = 460, env = null, maxM = 2000, rngKey = '', margin = 0, nd = false, shotId = null } = {}) {
-  const E = env ?? envOfPlace(state), air = airOf(E), g = E.gMs2 ?? 0, T = boreTable(cal, load, barrelMm), L = loadOf(cal, load) ?? {};
+  const E = env ?? envOfPlace(state), air = airOf(E), g = E.gMs2, T = boreTable(cal, load, barrelMm), L = loadOf(cal, load) ?? {};
+  if (!Number.isFinite(g)) throw new Error(`traceRound(): the place's gravity (env.gMs2, envOfPlace), not ${g}`);   // (TECH §1.4: never a quiet 0 G)
   const r = stream('pen', state.meta?.seed ?? 0, rngKey), cx = Math.cos(yawRad), cz = Math.sin(yawRad), tp = Math.tan(pitchRad);
   const maxS = Math.min(maxM, T.maxM);
   const yAt = (s) => from.y + s * tp - g * T.at(air.rhoKgM3, air.soundMs, 1, s).dS2;

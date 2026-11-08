@@ -14,6 +14,7 @@ import { MIN_MS, SEC_MS } from '../src/core/clock.js';
 import * as W from '../src/sim/body/wounds.js';
 import { bodyMods } from '../src/sim/body/mods.js';
 import { stripOf, woundLine } from '../src/sim/body/cues.js';
+import { lonOf } from '../src/sim/places/model.js';
 
 // (tradecraft's numbers, its scratch run: part, force, injuries, rate %/min, pain points, band, knock s, collapse s, death s, killed outright)
 const TRADECRAFT = [
@@ -95,7 +96,7 @@ export default [
     name: 'a thigh wound in words, never a number, as it bleeds: "A gunshot wound in the left thigh, bleeding hard."; AVPU A to P to U; the knock and down; BODY §22\'s mods on the uses; the corpsman\'s tourniquet stops it; an unwounded body\'s mods and strip unchanged',
     fn() {
       const g = createGame({ scenario: 'test-handling', seed: 48213, hour: 9 }), s = g.state, pid = s.player.id, ms = s.clock.ms;
-      const clean = { mods: JSON.stringify(bodyMods(s, pid, ['hands', 'eyes'])), strip: JSON.stringify(stripOf(s.people[pid].body, ms)) };
+      const clean = { mods: JSON.stringify(bodyMods(s, pid, ['hands', 'eyes'])), strip: JSON.stringify(stripOf(s.people[pid].body, ms, lonOf(s))) };
       const rec = s.people[pid].body;
       rec.fitness = 10; rec.blood = 100; rec.bloodMs = ms;
       rec.parts = { legL: 9.8 };
@@ -121,7 +122,7 @@ export default [
       console.log(`      the corpsman at +1 min: "${W.woundWords(rec, at(2)).join(' ')}"; the outcome ${out.outcome} at +${fmt((out.atMs - ms) / MIN_MS, 1)} min, blood ${fmt(out.bloodPct, 1)}%`);
       assert(!W.bleeding(rec, at(2)) && out.outcome === 'evacuated', JSON.stringify(out));
       const g2 = createGame({ scenario: 'test-handling', seed: 48213, hour: 9 });
-      const again = { mods: JSON.stringify(bodyMods(g2.state, pid, ['hands', 'eyes'])), strip: JSON.stringify(stripOf(g2.state.people[pid].body, ms)) };
+      const again = { mods: JSON.stringify(bodyMods(g2.state, pid, ['hands', 'eyes'])), strip: JSON.stringify(stripOf(g2.state.people[pid].body, ms, lonOf(g2.state))) };
       assert(JSON.stringify(again) === JSON.stringify(clean), JSON.stringify({ clean, again }));
     },
   },

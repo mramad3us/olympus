@@ -394,7 +394,8 @@ export function outcomeItems(outcome, { chunkOffer = null } = {}) {
 }
 
 /**
- * The splash's own HUD in hud: { update(frame, { state, lonEDeg, label }) → { clock, plaque, ticker, strip } }.
+ * The splash's own HUD in hud: { update(frame, { state, lonEDeg, site, label }) → { clock, plaque, ticker, strip } } (the clock: the
+ * watch's faces on the live site's clock, or site's, or Mars's at lonEDeg).
  * Hidden when frame is null.
  */
 export function createSplashHud(hud, { label = (a) => a } = {}) {
@@ -410,12 +411,12 @@ export function createSplashHud(hud, { label = (a) => a } = {}) {
   let stripSig = null, tickSig = null;
   const kbd = (k) => el('kbd', { textContent: k });
 
-  function update(f, { state = null, lonEDeg = null } = {}) {
+  function update(f, { state = null, lonEDeg = null, site = null } = {}) {
     const on = !!f;
     clock.hidden = !on; ticker.hidden = !on;
     if (!on) { radio.hidden = true; stripSig = tickSig = null; return null; }
     // (the clock plaque: the wrist face at the time shown, the slip as '24:00 +12'; on an interrupt its plaque)
-    const faces = state ? watchFaces(state, { lonEDeg, ms: f.shownMs }) : null;
+    const faces = state ? watchFaces(state, { lonEDeg, site, ms: f.shownMs }) : null;
     const t = faces ? (faces.slip ? `24:00 +${faces.slipMin}` : faces.time) : '';
     put(time, t);
     const plaque = f.interrupt?.plaque ?? null;

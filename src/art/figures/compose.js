@@ -58,6 +58,7 @@ import { bodyOf } from './body.js';
 import { poseOf, cellKind, AIM_TILT, KICK_TILT } from './poses.js';
 import { headKit, shapeAt, turned, GUNS } from './templates.js';
 import { wear } from './outfits.js';
+import { drawingOf } from '../rifles.js';
 
 /** How much of the camera's depth a sprite shows: along the facing, across it, and for a body lying along the depth. */
 export const DEPTH_K = 0.4, SIDE_K = 0.12, LYING_K = 1.0;
@@ -524,8 +525,10 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
   let muzzle = null, flash = null;
   if (rig) {
     const gd = rig.mode === 'slung' ? P.depth(rig.butt) : P.depth(add(rig.butt, mul(rig.dir, rig.lenM * 0.3))) - 0.012;
-    op(gd, () => { const m = gunCells(g, rig, pp, P, B); muzzle = m.muzzle; flash = m.flash; });
-    if (rig.loose) op(P.depth(rig.loose.at) + 0.03, () => looseMag(g, rig, pp, B));
+    // (a rifle as its drawing has it: rifles.js, by the look's model; none, the R-7's GUNS.rifle)
+    const fig = rig.gun === 'rifle' ? drawingOf(Lk.model ?? 'r7').fig : null;
+    op(gd, () => { const m = gunCells(g, rig, pp, P, B, fig); muzzle = m.muzzle; flash = m.flash; });
+    if (rig.loose) op(P.depth(rig.loose.at) + 0.03, () => looseMag(g, rig, pp, B, fig?.loose ?? 'u'));
     if (rig.strap) op(torsoDepth + 0.01, () => { const a = pp(rig.strap[0]), b = pp(rig.strap[1]); g.begin(); g.capsule(snap2(a, 1), snap2(b, 1), 0.5 + (B.ppm >= 20 ? 0.5 : 0), 'y'); });
   }
   // The head: the skull, the face painted on it, the hair, the hat; turned to lie with a lying body.
@@ -893,7 +896,7 @@ function earCups(g, Lk, view, x0, y0, W, H, B) {
 }
 
 /** The gun's cells: its shape turned along its line as the picture shows it, or seen end on, its muzzle a ring. */
-function gunCells(g, rig, pp, P, B) {
+function gunCells(g, rig, pp, P, B, fig = null) {
   const a = pp(rig.butt), m = pp(rig.muzzle), lenPx = rig.lenM * B.ppm;
   let dx = m[0] - a[0], dy = m[1] - a[1];
   const seen = Math.hypot(dx, dy), ratio = seen / lenPx;
@@ -915,25 +918,29 @@ function gunCells(g, rig, pp, P, B) {
     const cx = Math.round(a[0] + dx * k - 0.5), cy = Math.round(a[1] + dy * k - 0.5), r = Math.max(1, Math.round(kA));
     dx *= k; dy *= k;
     const ux = dx / (seen || 1), uy = dy / (seen || 1);
-    for (let j = 1; j <= Math.max(2, Math.round(Math.hypot(dx, dy))); j++) g.put(cx - ux * j, cy - uy * j, 'n');
-    if (rig.gun === 'rifle' && rig.withMag) { const d = pp(add(rig.magwell, mul(rig.down, rig.lenM * 0.08))); g.put(d[0], d[1], 'u'); g.put(d[0], d[1] + 1, 'u'); }
-    for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) g.put(cx + i, cy + j, i === 0 && j === 0 ? 'k' : Math.abs(i) + Math.abs(j) > r ? 'n' : 'v');
+    // (a drawing with furniture (rifles.js): its muzzle device black round the bore and the handguard's end in the
+    // furniture round that, at the ring's corners, and the furniture behind it; the R-7's gun metal and steel checker
+    // would make every design the same gun from the front)
+    const furn = fig?.furn ?? null, body = furn ?? 'n', ring = furn ? 'n' : 'v', corner = furn ?? 'n';
+    for (let j = 1; j <= Math.max(2, Math.round(Math.hypot(dx, dy))); j++) g.put(cx - ux * j, cy - uy * j, body);
+    if (rig.gun === 'rifle' && rig.withMag) { const d = pp(add(rig.magwell, mul(rig.down, rig.lenM * 0.08))), m = fig?.loose ?? 'u'; g.put(d[0], d[1], m); g.put(d[0], d[1] + 1, m); }
+    for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) g.put(cx + i, cy + j, i === 0 && j === 0 ? 'k' : Math.abs(i) + Math.abs(j) > r ? corner : ring);
     return { muzzle: [cx, cy], flash: { kind: 'front', th: 0 } };
   }
   // (along its line: the shape turned about the butt, flipped so its magazine hangs the way the gun's down points)
   const th = Math.atan2(dy, dx), dn = sub(pp(add(rig.butt, mul(rig.down, 0.1))), a);
   const flip = (-Math.sin(th) * dn[0] + Math.cos(th) * dn[1]) < 0;
-  const shape = shapeAt(rig.gun, Math.max(3, seen), kA, rig.withMag);
+  const shape = shapeAt(rig.gun, Math.max(3, seen), kA, rig.withMag, fig);
   for (const [x, y, ch] of turned(shape, Math.floor(a[0]), Math.floor(a[1]), th, flip)) g.put(x, y, ch);
   return { muzzle: [Math.round(m[0] - 0.5), Math.round(m[1] - 0.5)], flash: { kind: ratio > 0.65 ? 'side' : nearer ? 'front' : 'back', th } };
 }
 
 /** A magazine out of the well, in the left hand: as long as the one in the well shows, a pixel wide at 16 px/m and two at 24 (0.0.6: slimmer, the user's 2026-11-07). */
-function looseMag(g, rig, pp, B) {
+function looseMag(g, rig, pp, B, ch = 'u') {
   const a = pp(rig.loose.at), b = pp(add(rig.loose.at, mul(rig.loose.dir, B.magM * 0.75)));
   g.begin();
   const th = B.ppm >= 20 ? 2 : 1;
-  g.capsule(snap2(a, th), snap2(b, th), th / 2, 'u');
+  g.capsule(snap2(a, th), snap2(b, th), th / 2, ch);
 }
 
 // ---------- 5. a tumble: the grid turned in the picture ----------
