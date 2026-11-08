@@ -48,6 +48,15 @@
 // carrier's rattle, baked with the rest; the reports and echoes go through range.js's voices' limit on this
 // context's clock (REPORT_VOICES at once), under the engine's own VOICES_MAX; fact() hears the 'pit' fact too.
 //
+// The 0.0.9 round's (bang.js, the build sheet 0.0.9 §2.3; VIEWS §11.2): CHAOS's recipes (the bang's report, the whine, the
+// heart, the breath) baked after the range's; the world bus runs on through a second stage, the chaos's (a low-pass and a
+// gain: felt's band and the deafness, chaos({ lowpassHz, gainDb }), eased), after the splash's muffle, so the two compose;
+// three buses beside it straight to the master: the body's (your breath and heart), the ear's (the whine: in the head, so
+// no muffle of the world takes it) and the voice's (a voice round the deafness, bang.js voiceRoute). bang(kind, opts) plays
+// a CHAOS recipe on the world bus now or delayS later; loop(key, kind, bus, gainDb) holds a looping CHAOS voice on a bus at
+// a level (null: faded out). fact() hands the 'fx' fact to it; frame(state, alpha, nowS, { splash, chaos }) the reading
+// (main.js's supp.js suppNow), and caption() the deafness's caption once.
+//
 // stats: { state (the context's, or 'none'), started, baked (every sound rendered), steps, doors,
 // dropped (past VOICES_MAX), late (foot-falls too late to play), voices, voicesMax, volume, muted,
 // master (the master gain's target), sampleRate, last, prepareMs (the context's making, at boot),
@@ -57,11 +66,12 @@ import { isHeld, TICK_MS } from '../../core/clock.js';
 import { playerActor } from '../../core/ids.js';
 import * as places from '../../sim/places/model.js';
 import { airDb } from '../../sim/people/hearing.js';
-import { STEPS, DOORS, WORLD, RANGE, VOICES_MAX, MASTER_DEFAULT, AIR_KPA, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
+import { STEPS, DOORS, WORLD, RANGE, CHAOS, VOICES_MAX, MASTER_DEFAULT, AIR_KPA, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
 import { renderSteps } from './synth.js';
 import { createStepScheduler, stepVoice, lowpassHz, MARS_G } from './steps.js';
 import { createWorld } from './world.js';
 import { createRange } from './range.js';
+import { createBang } from './bang.js';
 
 /** The limiter's knee on the master (dBFS). */
 export const LIMIT_DB = -3;
@@ -73,8 +83,9 @@ const clamp01 = (v) => Math.min(1, Math.max(0, Number(v)));
 /** The audio presenter (see the header). profile: { volume, muted } (the saved profile's audio); looks: { kitLook } (arms' readers, for the range). */
 export function createAudio({ profile = null, looks = {}, AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext } = {}) {
   let ctx = null, master = null, world = null, limiter = null, worldLp = null, duckGain = null, uiBus = null;
+  let chaosLp = null, chaosGain = null, bodyBus = null, earBus = null, voiceBus = null, chaosSig = '';
   let volume = Number.isFinite(profile?.volume) ? clamp01(profile.volume) : MASTER_DEFAULT, muted = !!profile?.muted;
-  const buffers = { step: {}, door: {}, world: {}, range: {} };
+  const buffers = { step: {}, door: {}, world: {}, range: {}, chaos: {} };
   const loops = new Map();                                         // (key → a looping voice: { src, g, lp, kind })
   let duckSig = '';
   const steps = createStepScheduler();
@@ -124,9 +135,13 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
       // (the world through the splash's muffle: a low-pass, open at WORLD_OPEN_HZ, and a duck gain; the UI bus beside it)
       worldLp = ctx.createBiquadFilter(); worldLp.type = 'lowpass'; worldLp.frequency.value = WORLD_OPEN_HZ; worldLp.Q.value = Math.SQRT1_2;
       duckGain = ctx.createGain(); uiBus = ctx.createGain();
-      world.connect(worldLp); worldLp.connect(duckGain); duckGain.connect(master); uiBus.connect(master);
+      // (0.0.9: the chaos's stage after the splash's muffle; the body's, the ear's and the voice's buses beside the world's)
+      chaosLp = ctx.createBiquadFilter(); chaosLp.type = 'lowpass'; chaosLp.frequency.value = WORLD_OPEN_HZ; chaosLp.Q.value = Math.SQRT1_2;
+      chaosGain = ctx.createGain(); bodyBus = ctx.createGain(); earBus = ctx.createGain(); voiceBus = ctx.createGain();
+      world.connect(worldLp); worldLp.connect(duckGain); duckGain.connect(chaosLp); chaosLp.connect(chaosGain); chaosGain.connect(master); uiBus.connect(master);
+      bodyBus.connect(master); earBus.connect(master); voiceBus.connect(master);
       master.connect(limiter); limiter.connect(ctx.destination);
-      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door], [WORLD, buffers.world], [RANGE, buffers.range]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
+      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door], [WORLD, buffers.world], [RANGE, buffers.range], [CHAOS, buffers.chaos]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
       applyMaster();
       stats.sampleRate = ctx.sampleRate; stats.prepareMs = perfNow() - t0;
       ctx.onstatechange = () => { stats.state = ctx.state; };
@@ -251,14 +266,70 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
       return ok;
     },
   };
+  // ---- 0.0.9: the bang and the chaos (bang.js asks for them) ----
+  const busOf = (name) => (name === 'body' ? bodyBus : name === 'ear' ? earBus : name === 'voice' ? voiceBus : world);
+  const chaosLoops = new Map();                                    // (key → { src, g, kind, bus })
+  const bangOps = {
+    /** A CHAOS recipe on the world bus now or delayS later: { delayS, gainDb, lowHz, pan, rate }. */
+    bang(kind, { delayS = 0, gainDb = 0, lowHz = WORLD_OPEN_HZ, pan = 0, rate = 1, bus = 'world' } = {}) {
+      if (!running()) return false;
+      const set = buffers.chaos[kind];
+      if (!set?.length) return false;
+      const n = (stats.bangShots = (stats.bangShots ?? 0) + 1);
+      return play(set[hashInt(set.length, 'chaos', kind, n)], { atS: ctx.currentTime + Math.max(0, delayS), gainDb, lowHz, pan, rate, bus: busOf(bus) });
+    },
+    /** The chaos's stage on the world bus: { lowpassHz, gainDb } (bang.js chaosMix's world), eased; written only when it changes. */
+    chaos({ lowpassHz: hz = WORLD_OPEN_HZ, gainDb = 0 } = {}) {
+      if (!ctx || !chaosLp) return;
+      const sig = `${Math.round(hz)}|${gainDb.toFixed(1)}`;
+      if (sig === chaosSig) return;
+      chaosSig = sig;
+      const t = ctx.currentTime;
+      chaosLp.frequency.setTargetAtTime(hz, t, 0.08);
+      chaosGain.gain.setTargetAtTime(dbToK(gainDb), t, 0.08);
+      stats.chaos = { lowpassHz: Math.round(hz), gainDb: Math.round(gainDb * 10) / 10 };
+    },
+    /** A looping CHAOS voice on a bus ('body', 'ear', 'voice', else the world's) at gainDb, or faded out (null). */
+    loop(key, kind, bus, gainDb) {
+      const L = chaosLoops.get(key);
+      if (gainDb === null || gainDb === undefined || !Number.isFinite(gainDb)) {
+        if (!L || !ctx) return false;
+        chaosLoops.delete(key);
+        const t = ctx.currentTime;
+        L.g.gain.cancelScheduledValues(t); L.g.gain.setTargetAtTime(0, t, LOOP_FADE_S / 3);
+        try { L.src.stop(t + LOOP_FADE_S * 2); } catch { /* (already stopped) */ }
+        stats.loopsChaos = chaosLoops.size;
+        return true;
+      }
+      if (!running()) return false;
+      const k = dbToK(gainDb), t = ctx.currentTime;
+      if (L) { if (Math.abs((L.db ?? 0) - gainDb) > 0.05) { L.g.gain.setTargetAtTime(k, t, 0.15); L.db = gainDb; } return true; }
+      const set = buffers.chaos[kind];
+      if (!set?.length || voices >= VOICES_MAX) { if (set?.length) stats.dropped++; return false; }
+      const src = ctx.createBufferSource(), g = ctx.createGain();
+      src.buffer = set[0]; src.loop = true;
+      g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(k, t, LOOP_FADE_S / 3);
+      src.connect(g); g.connect(busOf(bus));
+      src.start(t);
+      voices++; stats.voices = voices; stats.voicesMax = Math.max(stats.voicesMax, voices);
+      src.onended = () => { voices--; stats.voices = voices; src.disconnect(); g.disconnect(); };
+      chaosLoops.set(key, { src, g, kind, bus, db: gainDb });
+      stats.loopsChaos = chaosLoops.size;
+      return true;
+    },
+  };
+  const bangSounds = createBang(bangOps, { looks });
+  stats.bang = bangSounds.stats;
   // (the voices' limit counts on the audio clock, where the reports will sound)
   const rangeSounds = createRange(rangeOps, { looks, clock: () => (ctx ? ctx.currentTime : 0) });
   stats.range = rangeSounds.stats;
 
   let lastState = null;
   /** A frame: the foot-falls the player's walk has reached, played where the drawn feet fall; the world's sounds; the splash's muffle. */
-  function frame(state, alpha = 0, nowS = 0, { splash = null } = {}) {
+  function frame(state, alpha = 0, nowS = 0, { splash = null, chaos = null } = {}) {
     if (toBake.length || baking) bakeSome();
+    // (0.0.9: the chaos's mix by the reading now; nothing of it in a splash (the splash's muffle has the world))
+    if (running()) { try { bangSounds.frame(state, splash ? null : chaos); } catch (e) { stats.bangError = String(e?.message ?? e); } }
     if (running()) { try { worldSounds.frame(state, { splash, nowS }); } catch (e) { stats.worldError = String(e?.message ?? e); } }
     if (running() && !splash) { try { rangeSounds.frame(state, { alpha }); } catch (e) { stats.rangeError = String(e?.message ?? e); } }
     const a = state ? playerActor(state) : null;
@@ -306,8 +377,14 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     fact(type, payload, state) {
       if (!running()) return false;
       const w = worldSounds.fact(type, payload, state);
+      // (0.0.9: a bang's report)
+      if (type === 'fx') return bangSounds.fact(type, payload, state) || w;
       return rangeSounds.fact(type, payload, state) || w;
     },
+    /** The deafness's caption once a deafness ('[a high whine]'), else null (0.0.9). */
+    caption() { return bangSounds.caption(); },
+    /** The 0.0.9 presenter (bang.js), for the tests. */
+    get bang() { return bangSounds; },
     /** The master volume, 0 to 1. */
     setVolume(v) { volume = clamp01(v); applyMaster(); },
     /** Mute, or not. */
@@ -318,6 +395,6 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     /** The master gain's value now (0 when muted), as the graph has it. */
     get masterGain() { return master ? master.gain.value : gainOf(); },
     stats,
-    dispose() { try { ctx?.close(); } catch { /* (already closed) */ } ctx = null; master = world = limiter = worldLp = duckGain = uiBus = null; loops.clear(); stats.state = 'closed'; },
+    dispose() { try { ctx?.close(); } catch { /* (already closed) */ } ctx = null; master = world = limiter = worldLp = duckGain = uiBus = chaosLp = chaosGain = bodyBus = earBus = voiceBus = null; loops.clear(); chaosLoops.clear(); stats.state = 'closed'; },
   };
 }

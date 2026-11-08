@@ -1,4 +1,4 @@
-// The DI's rules on test-pairs' bay (src/sim/skills/instinct/pairs.js; SKILLS §14; COMBAT §25.8.3; the build sheet 0.0.8 §2.3, §5.3): each rule fires in its scripted state with its act, by the drills' rung at the pause; nothing fires while a take-in's window is open; the line's lead at the pause is "Contact · 0.55 s."; T is never the shot.
+// The DI's rules on test-pairs' bay (src/sim/skills/instinct/pairs.js; SKILLS §14; COMBAT §25.8.3; the build sheet 0.0.8 §2.3, §5.3; 0.0.9 §2.2, §5.2): each rule fires in its scripted state with its act, by the drills' rung at the pause; nothing fires while a take-in's window is open, nor while the marine is startled ("Three bangs"); the line's lead at the pause is "Contact · 0.55 s."; T is never the shot.
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { pairsBot } from './bots/pairs.mjs';
@@ -9,6 +9,9 @@ import { PAIRS_RULES } from '../src/sim/skills/instinct/pairs.js';
 import { contactNow } from '../src/sim/combat/contact.js';
 import { contactOf, noteContact } from '../src/sim/people/mind.js';
 import { gunOn } from '../src/sim/arms/shooting.js';
+import { startled, feltOf, bandOf, hearingOf, blockOf } from '../src/sim/combat/supp.js';
+import { bangDue } from '../src/sim/scenarios/pairs.js';
+import { instinctStep } from '../src/sim/skills/instinct.js';
 
 const ids = (state) => firedNow(state, state.clock.ms, RULES).map(l => l.id);
 const rule = (state, id) => firedNow(state, state.clock.ms, RULES).find(l => l.id === id) ?? null;
@@ -122,6 +125,64 @@ export default [
     },
   },
   {
+    name: '"Three bangs" (0.0.9): nothing fires while the boot recruit is startled; at its end pairs-froze ("You flinched. Everybody does. Your lane.", no act) until a step, a pause or 3 s; at the pause, pinned, on safe, below rung 2: pairs-shaking is the line and pairs-contact\'s own Off safe stands down ("Thumb it off.", T Off safe; the chip never says it twice), "Again. Thumb it off." after a failed one, "Rifle up. Then thumb it off." (T the rifle up) slung; never the shot',
+    fn() {
+      const g = createGame({ scenario: 'test-pairs', seed: 48213, tier: 'recruit', setup: 'bangs:standby' }), s = g.state, pid = s.player.id;
+      let ticks = 0, said = 0, gaps = 0;
+      until(g, (st) => startled(st, pid));
+      // (the three bangs' freezes, joined: pairs-froze waits for the series' end (bangDue), said once)
+      for (; ticks < 400 && (startled(s, pid) || bangDue(s)); ticks++) { said += ids(s).length; if (!startled(s, pid)) gaps++; g.step(1); }
+      g.step(1);
+      const f = seeAct(rule(s, 'pairs-froze'));
+      console.log(`      startled or a bang still due ${ticks} ticks (${gaps} free between): ${said} rules fired in it; after it: ${ids(s).join(', ')}; pairs-froze (${f?.tone}, ${f?.ctx?.variant}) "${f?.rule.text[f?.ctx?.variant]?.[0]}" act ${f?.act}`);
+      assert(ticks >= 2 && said === 0 && f && f.tone === 'warn' && f.ctx.variant === 'first' && f.act === null, JSON.stringify({ ticks, said, f: f && { tone: f.tone, v: f.ctx.variant } }));
+      until(g, paused);
+      g.step(1);
+      const felt = feltOf(s, pid), sh = seeAct(rule(s, 'pairs-shaking')), line = instinctNow(s).line;
+      console.log(`      at the pause (felt ${felt}, ${bandOf(felt)}): ${ids(s).join(', ')}; the line ${line?.id} "${line?.text}"; act ${sh?.act}`);
+      assert(sh && sh.tone === 'urgent' && sh.act === 'stop:selector:semi' && line?.id === 'pairs-shaking' && !ids(s).includes('pairs-contact') && !ids(s).includes('pairs-froze') && instinctNow(s).chip?.act !== sh.act, JSON.stringify({ ids: ids(s), line, chip: instinctNow(s).chip }));
+      // (a failed Off safe since this pause, the lever still on safe as believed: "Again.")
+      const R = s.armoury.range;
+      R.bangs.offSafe = { atMs: s.clock.ms, ok: false };
+      g.step(1);
+      const again = seeAct(rule(s, 'pairs-shaking'));
+      s.people[pid].kit.carry.posture = 'slungFront';
+      g.step(1);
+      const up = seeAct(rule(s, 'pairs-shaking'));
+      console.log(`      after a failed Off safe: "${again?.ctx?.variant}" act ${again?.act}; slung: "${up?.ctx?.variant}" act ${up?.act}`);
+      assert(again?.ctx?.variant === 'again' && again.act === 'stop:selector:semi' && up?.ctx?.variant === 'up' && up.act === 'stop:up', JSON.stringify({ again: again?.ctx, up: up?.ctx }));
+    },
+  },
+  {
+    name: '"Three bangs" (0.0.9): T\'s Off safe is offered only below rung 2 at the pause: the private pinned gets pairs-shaking, the sergeant suppressed (rung 3: the row\'s aim takes the safe off) and the tier one at felt 10 never do, and their T is the aim',
+    fn() {
+      const out = [];
+      for (const tier of ['private', 'sgt', 'tierone']) {
+        const g = createGame({ scenario: 'test-pairs', seed: 48213, tier, setup: 'bangs:standby' }), s = g.state;
+        until(g, paused);
+        g.step(1);
+        const sh = seeAct(rule(s, 'pairs-shaking')), c = seeAct(rule(s, 'pairs-contact')), f = feltOf(s, s.player.id);
+        out.push({ tier, felt: f, band: bandOf(f), shaking: sh?.act ?? null, contact: c?.act ?? null });
+      }
+      for (const o of out) console.log(`      ${o.tier} at the pause, felt ${o.felt} (${o.band}): pairs-shaking ${o.shaking ?? 'silent'}, pairs-contact ${o.contact ?? 'silent'}`);
+      assert(out[0].shaking === 'stop:selector:semi' && out[0].contact === null && out[1].shaking === null && out[2].shaking === null && /^stop:aim>/.test(out[1].contact ?? '') && /^stop:aim>/.test(out[2].contact ?? ''), JSON.stringify(out));
+    },
+  },
+  {
+    name: '"Three bangs" (0.0.9): deafened, in the first standby after the bangs with its turn armed, pairs-deaf ("Ears ringing. Watch your lane.", a note, no act); not in the banged standby itself nor in the ones after',
+    fn() {
+      const g = createGame({ scenario: 'test-pairs', seed: 48213, tier: 'private', setup: 'bangs' }), s = g.state, bot = pairsBot(), by = {};
+      for (let n = 0; n < 20 * 60 * 5 && !pairsNow(s).end && (s.armoury.range.str?.k ?? 0) <= 2; n++) {
+        g.step(1, bot);
+        const d = rule(s, 'pairs-deaf'), k = s.armoury.range.str?.k;
+        if (d) { seeAct(d); by[k] = (by[k] ?? 0) + 1; }
+      }
+      const deaf = hearingOf(s, s.player.id);
+      console.log(`      deaf until +${Math.round((deaf.untilMs - s.clock.ms) / 60000)} min; pairs-deaf fired on string ${JSON.stringify(by)} (ticks); its words "${PAIRS_RULES.find(r => r.id === 'pairs-deaf').text[1][0]}"`);
+      assert(deaf.deaf && by[1] > 0 && !by[0] && !by[2], JSON.stringify(by));
+    },
+  },
+  {
     name: 'every pairs rule has at least four phrasings for each of its cases, and no act any rule offered here is the shot (v0.0.5: "T aims and goes off safe but never takes the shot")',
     fn() {
       for (const r of PAIRS_RULES) {
@@ -228,6 +289,32 @@ export default [
       const u = seeAct(rule(s, 'pairs-contact'));
       console.log(`      on the point, the rifle slung by a fumble: pairs-contact "${u?.ctx?.variant}" act ${u?.act}`);
       assert(u?.ctx?.variant === 'up' && u.act === 'stop:up', JSON.stringify({ v: u?.ctx?.variant, act: u?.act }));
+    },
+  },
+  {
+    name: '"Three bangs" (0.0.9, the runtime review): the tier one\'s one-tick flinch and the Raider\'s 0.15 s get no "Flinched. Everybody does, the first time." (FROZE_SAY_MIN_MS 0.3 s); the boot recruit\'s first series is "first", the sergeant\'s steadier words never say "the first time"; nothing is said while a planned bang is still to join the freeze; the DI\'s line goes on the bang\'s own tick, not at the next whole second',
+    fn() {
+      const out = {};
+      for (const tier of ['recruit', 'sgt', 'raider', 'tierone']) {
+        const g = createGame({ scenario: 'test-pairs', seed: 48213, tier, setup: 'bangs:standby' }), s = g.state, pid = s.player.id;
+        const seen = [];
+        let lineAtBang = 'none', saidDue = 0;
+        for (let n = 0; n < 20 * 30; n++) {
+          const was = startled(s, pid);
+          g.step(1);
+          if (!was && startled(s, pid) && lineAtBang === 'none') lineAtBang = s.$instinct?.line?.id ?? null;
+          const f = rule(s, 'pairs-froze');
+          if (f && bangDue(s)) saidDue++;
+          if (f && !seen.some(x => x.variant === f.ctx.variant)) seen.push({ variant: f.ctx.variant, words: f.rule.text[f.ctx.variant][0], froze: blockOf(s, pid)?.startleMs ?? 0 });
+          if (paused(s)) break;
+        }
+        out[tier] = { seen, lineAtBang, saidDue, froze: blockOf(s, pid)?.startleMs ?? 0 };
+        console.log(`      ${tier}: froze ${out[tier].froze} ms in all; pairs-froze ${seen.map(x => `${x.variant} "${x.words}"`).join(', ') || 'never'}; the line on the first startled tick: ${lineAtBang ?? 'none'}; said with a bang due: ${saidDue}`);
+      }
+      assert(!out.tierone.seen.length && !out.raider.seen.length, JSON.stringify({ tierone: out.tierone, raider: out.raider }));
+      assert(out.recruit.seen[0]?.variant === 'first' && out.sgt.seen.length && out.sgt.seen.every(x => !/first time|Everybody/.test(x.words)), JSON.stringify({ recruit: out.recruit.seen, sgt: out.sgt.seen }));
+      // (the tier one's one-tick startle is over before a tick's end sees it: 'none')
+      assert(Object.values(out).every(o => o.saidDue === 0 && (o.lineAtBang === null || o.lineAtBang === 'none')) && out.recruit.lineAtBang === null, JSON.stringify(out));
     },
   },
 ];

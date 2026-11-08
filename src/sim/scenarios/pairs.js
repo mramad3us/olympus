@@ -56,6 +56,30 @@
 // · take-in 0.55 to 1.25 s · 14 A, 1 ring, 1 head down, 4 miss · no-shoot untouched · RELOAD 2.55 s · topped up";
 // the steel's zones RING and HEAD DOWN beside A, C and HEAD); againAs(state, tier)
 // what "Again as …" starts (the same seed, another sheet); pairsLook(state, ms) the stage's (look.js rangeLook's pairs).
+//
+// 0.0.9, "Three bangs" (setup 'bangs'; the build sheet 0.0.9 §2.2, §8 items 4 to 6, 18 to 22; COMBAT §25.18.3): test-pairs
+// as built, with one change: during string 0's armed standby ("string 1" in the user's counting) the coach throws three
+// training bangs (COURSES.pairs.bangs: BANGS.n, BANGS.gapMs 1 s apart) onto the pad BANGS.behindM 1.5 m behind your point,
+// each spread ±BANGS.spreadM across it by hash, your ears unprotected (the issue's ear defenders taken off the game on this
+// setup alone, so supp.js protOf reads bare ears), and the turn comes BANGS.turnMs 2 s after the third. The plan (planBangs, R.bangs.plan) is made at the first arming of that string's turn:
+// the first bang a whole-tick lead into the armed standby (stream(seed, 'pairs:bang', k, attempt), BANGS.leadMs), the
+// coach's throw BANGS.throwMs before each from his hand at your shoulder; drawn from the seed alone, so "Again as …" every
+// sheet hears the same bangs at the same times. Entering the mode, or no longer ready, before the first bang drops the
+// plan (attempt + 1), made again at the next arming; after the first, the rest go off on time, and a re-armed turn comes
+// no earlier than BANGS.turnMs after the third. Each bang is supp.js bang() at its atMs (pairsActors, lived ticks): the
+// pool, the startle, the deafness and the flash are COMBAT §5's, the scene keeps only its record: the felt peak, the
+// freeze in all (FROZE: the startles the bangs began, overlaps counted once, as COMBAT §5.7's T5 counts "startled in all";
+// not their span from the first's start to the last's end, which made a Raider's two one-tick startles a second apart
+// read "FROZE 1.05 S": my call, against the sheet's §8 item 11), and, while the felt stays at
+// BANG_FELT 20 or more, every rolled handling sub-step (R.bangs.steps: Off safe, the reloads' parts) for the card. The
+// banged string's paper leads "BANGS 3 · FROZE 2.45 S · " and adds "OFF SAFE ✗ ✗ ✓" after PAUSE TO FIRST (the Off
+// safe single, below rung 2); every other paper is as built to the character. bangsNow(state, ms) is the end card's
+// (pairsNow's .bangs): the plan, the felt peak and its band (the summary gives its sum, "the chaos 105 − hardening 7 (green)
+// = felt 98", the fixer's), the freeze, the steps that failed under the chaos, the turn to the first round (turnToFirstMs,
+// COMBAT §5.8's T14) and, on the card, the first round from the sighting (seenToFirstMs: the paper's TURN TO PAUSE + PAUSE
+// TO FIRST, so the card and the paper show one number) against the same sheet's calm figure by the book (no dice: the
+// take-in at band 0, Off safe, the aim and the press at timeK 1), and its summary line. The coach says noise, never "Bang"
+// (that would forewarn: the sheet's §8 item 5): PAIRS_COACH.bangsBrief at the brief, bangsAfter after the banged paper.
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { msAtMarsTime } from '../../core/calendar.js';
@@ -77,7 +101,7 @@ import { testSheet, TEST_SHEETS } from '../skills/templates.js';
 import { barracks } from './barracks.js';
 import { setLedgers } from './tests.js';
 import { rangeOf, sayOn, drawLane, startRange, fault, roundsLeft, stillOf, noteTick, stopWords } from './handling.js';
-import { materialise, move, pouchesOf, believedN } from '../arms/kit.js';
+import { materialise, move, pouchesOf, believedN, discard } from '../arms/kit.js';
 import { gunField, feed, beliefOf, newMag } from '../arms/firearms.js';
 import { macrosFor } from '../arms/drills.js';
 import { gunOn } from '../arms/shooting.js';
@@ -86,6 +110,11 @@ import { TURN_MS, turnerKey, facingOf, turnTo, turnAway } from '../arms/turners.
 import { takeInWords, takeInOf } from '../combat/react.js';
 import { contactNow, pendingOf, lullOf } from '../combat/contact.js';
 import { contactOf, noteContact } from '../people/mind.js';
+import { bang, blockOf, feltOf, bandOf, suppTimeK, suppAt, hardOf, hardWord, STARTLE_JOIN_MS } from '../combat/supp.js';
+import { actionMs, ACTIONS } from '../arms/firearms.js';
+import { aimMsOf, TRIGGER_S } from '../arms/shot.js';
+import { ROWS } from '../arms/specials.js';
+import { rungOf } from '../skills/templates.js';
 
 /** Where the scene plays (the build sheet §2.3). */
 export const PAIRS_SCENE = Object.freeze({ site: 'melas', area: KD_RANGE.area, course: 'pairs' });
@@ -96,6 +125,10 @@ export const STANDBY_MS = C.standbyMs, STRING_MAX_MS = C.stringMaxMs;
 export const STOP_TORSO = 2, STOP_HEAD = 1, SENSOR_MS = 100;
 /** A magazine believed above this many rounds is "above half" of the course's ten-round magazines (toppedUp; my call). */
 export const HALF_N = 5;
+/** "Three bangs" (setup 'bangs'; see the header): the course's bangs; the felt from which a handling sub-step counts as under them. */
+export const BANGS = C.bangs, BANG_FELT = 20;
+/** The setups of test-pairs (debug.js SETUPS' share): the calm course's standbys and the bangs'. */
+export const PAIRS_SETUPS = Object.freeze(['standby', ...[0, 1, 2, 3, 4].map(k => `standby:${k}`), 'bangs', 'bangs:standby']);
 /** The sheets the start card offers, in its order; the default. */
 export const PAIRS_SHEETS = Object.freeze(SCENES['test-pairs'].sheets), PAIRS_SHEET = SCENES['test-pairs'].sheet;
 /** The paper's zones in their order, and their words on the paper and on the card. */
@@ -171,11 +204,25 @@ export function pairsBox(state) {
   return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
 }
 const inBox = (b, x, z) => x >= b[0] && x <= b[2] && z >= b[1] && z <= b[3];
+/**
+ * The range a shot row's reach is judged at for a turner (m; specials.js reachOf, COMBAT §25.6.1): your own lane's turner
+ * counts at your line's nominal distance (7 or 10) wherever you stand inside that line's point's box (the session's line
+ * first, then the other's: the walk back to the ten); null for a neighbour's turner, off the boxes or off the course (the
+ * measured range then). The fix of 2026-11-07 (the user's report: "am i supposed to aim for the head ? How do I do that ?"):
+ * a metre back in the 10 m box the turner was 11 m off and both head rows, then 10 m, vanished.
+ */
+export function pairsReachM(state, key, x, z) {
+  const R = rangeOf(state);
+  if (!R || R.course !== 'pairs' || key !== turnerKey(R.lane)) return null;
+  const L = pairsLaneOf(R.lane), line = R.line ?? 7;
+  for (const d of [line, line === 7 ? 10 : 7]) if (L?.points?.[d] && inBox(L.points[d].box, x, z)) return d;
+  return null;
+}
 const turnerOf = (R, key) => (R?.turners ?? []).find(T => T.key === key) ?? null;
 
 // ---- the fill ----
 
-/** The fill of 'test-pairs' (see the header). tier: a TEST_SHEETS id (the private by default); setup: null | 'standby' | 'standby:<k>'. */
+/** The fill of 'test-pairs' (see the header). tier: a TEST_SHEETS id (the private by default); setup: null | 'standby' | 'standby:<k>' | 'bangs' | 'bangs:standby'. */
 export function testPairs(state, { at = null, setup = null, tier = null } = {}) {
   const scene = SCENES['test-pairs'], seed = state.meta.seed, lon = lonOf(), sheet = tierOf(tier);
   if (state.clock.ms === START_MS && scene.hour !== null) {
@@ -190,6 +237,9 @@ export function testPairs(state, { at = null, setup = null, tier = null } = {}) 
   // (the test sheet, on the scene's player only: scenes never write a career)
   person.skills = testSheet(sheet);
   const kit = materialise(state, pid, C.kit);
+  // (0.0.9, "Three bangs": no ear defenders on this setup alone, the user's case ("three flashbangs go off right next to
+  // him"; the build sheet 0.0.9 §8 item 5): the issue's pair taken off the game, so supp.js protOf reads bare ears)
+  if (setup === 'bangs' || setup === 'bangs:standby') { const ears = person.kit?.worn?.ears; if (ears) { discard(state, ears); delete person.kit.worn.ears; } }
   // (one magazine a pouch: chest pouches 1, 2 and 3, the short one third, as the coach names it)
   const pouches = pouchesOf(state, pid).filter(p => !p.dump);
   kit.magIds.forEach((id, i) => { const p = pouches[(C.pouches[i] ?? i + 1) - 1]; if (p && !p.mags.includes(id)) move(state, id, { container: p.id }); });
@@ -203,7 +253,10 @@ export function testPairs(state, { at = null, setup = null, tier = null } = {}) 
     turners: PAIRS.lanes.map(T => ({ key: turnerKey(T.lane), lane: T.lane, x: T.turner.x, z: T.turner.z, y: PAIRS.face.centreY, face: null, holds: null, turnAtMs: null, awayAtMs: null, hits: [], stoppedAtMs: null })),
     str: null, strs: [], reloads: [], lull: null,
   });
-  if (setup && /^standby(:\d)?$/.test(setup)) setupStandby(state, Number(setup.split(':')[1] ?? 0));
+  // (0.0.9: "Three bangs": the session's setup and its record (see the header); 'bangs:standby' the banged string's standby given)
+  if (setup === 'bangs' || setup === 'bangs:standby') Object.assign(R, { setup: 'bangs', bangs: { attempt: 0, plan: [], steps: [], froze: [], feltPeak: 0, offSafe: null, lastStepMs: null, calm: null } });
+  if (setup === 'bangs:standby') setupStandby(state, BANGS.string);
+  else if (setup && /^standby(:\d)?$/.test(setup)) setupStandby(state, Number(setup.split(':')[1] ?? 0));
   return state;
 }
 
@@ -243,7 +296,11 @@ export function pairsOnCmd(state, bus, def, i) {
   // (any command but the string's own closes an open string: the move-on passed it over)
   if (def.id !== 'standby' && R.str && !R.str.done) closeString(state, bus, 'moved');
   switch (def.id) {
-    case 'brief': coachSay(state, bus, PAIRS_COACH.brief, 'brief'); break;
+    case 'brief':
+      coachSay(state, bus, PAIRS_COACH.brief, 'brief');
+      // (the bangs' brief: noise, never "Bang" (see the header))
+      if (R.bangs) coachSay(state, bus, PAIRS_COACH.bangsBrief, 'bangsBrief');
+      break;
     case 'standby': openString(state, bus, def.string); break;
     case 'stop': R.hot = false; awayAll(state, bus, 'string'); break;
     case 'move10': {
@@ -303,7 +360,62 @@ function openString(state, bus, k) {
   if (!state.stop && readyForTurn(state)) arm(state, R.str);
   bus?.emit('range', { phase: 'standby', cmd: 'standby', hot: false, rule: null, kind: null, text: null, line: d.line, string: k });
 }
-const arm = (state, s) => { s.turnAtMs = whole(state.clock.ms + gapOf(state.meta.seed, s.k, s.attempt)); };
+// (the turn armed: the drawn gap; on the banged string, BANGS.turnMs after the third bang, the plan made at the first arming)
+function arm(state, s) {
+  const R = rangeOf(state), at = whole(state.clock.ms + gapOf(state.meta.seed, s.k, s.attempt));
+  if (!bangsOn(R, s)) { s.turnAtMs = at; return; }
+  if (!R.bangs.plan.length) planBangs(state, s);
+  const third = R.bangs.plan.at(-1).atMs + BANGS.turnMs;
+  s.turnAtMs = R.bangs.plan.some(b => b.done) ? Math.max(at, third) : third;
+}
+// (the string the bangs belong to, on the setup)
+const bangsOn = (R, s) => !!R?.bangs && !!s && s.k === BANGS.string;
+// (the plan dropped before its first bang: made again, attempt + 1, at the next arming)
+function dropBangs(R) {
+  if (!R?.bangs?.plan.length || R.bangs.plan.some(b => b.done)) return;
+  R.bangs.plan = []; R.bangs.attempt += 1;
+}
+
+/**
+ * The bangs' plan (w R.bangs.plan; see the header): at the first arming of the banged string's turn, BANGS.n bangs, the
+ * first a whole-tick lead into the armed standby on stream(seed, 'pairs:bang', k, attempt), then BANGS.gapMs apart; each
+ * BANGS.behindM behind the point, ±BANGS.spreadM across it by hash; thrown from the coach's hand BANGS.throwMs before.
+ * Returns [{ key, i, x, z, fromX, fromZ, throwAtMs, atMs, done }] (key the bang's input id, 'pairs:<k>:<i>': not 'id', which a
+ * save keeps for counted ids alone (tests/ids-check.mjs); the views give it as id).
+ */
+export function planBangs(state, s) {
+  const R = rangeOf(state), seed = state.meta.seed, P = pairsPoint(state), a = R.bangs.attempt;
+  const first = whole(state.clock.ms + intIn(stream(seed, 'pairs:bang', s.k, a), BANGS.leadMs[0], BANGS.leadMs[1]));
+  R.bangs.plan = Array.from({ length: BANGS.n }, (_, j) => {
+    const i = j + 1, atMs = first + j * BANGS.gapMs;
+    return { key: `pairs:${s.k}:${i}`, i, x: q(P.fp.x - BANGS.behindM, 0.01), z: q(P.fp.z + (hash01(seed, 'pairs:bang-at', a, i) - 0.5) * 2 * BANGS.spreadM, 0.01),
+      fromX: q(P.coach.x, 0.01), fromZ: q(P.coach.z, 0.01), throwAtMs: atMs - BANGS.throwMs, atMs, done: false };
+  });
+  return R.bangs.plan;
+}
+
+// (each planned bang at its time (lived ticks): supp.js bang(), and the scene's record of what it did to the shooter)
+function fireBangs(state, bus, R, now) {
+  const pid = playerId(state);
+  for (const b of R.bangs.plan) {
+    if (b.done || b.atMs > now) continue;
+    b.done = true;
+    const out = bang(state, bus, { id: b.key, x: b.x, z: b.z, atMs: b.atMs, byId: R.coachId, kind: 'training' });
+    if (out.some(r => r.who === pid)) {
+      R.bangs.feltPeak = Math.max(R.bangs.feltPeak, feltOf(state, pid, b.atMs));
+      // (the chaos itself at its peak, for the card's sum: "the chaos 105 − hardening 7 = felt 98"; 0.0.9's fixer)
+      R.bangs.poolPeak = Math.max(R.bangs.poolPeak ?? 0, Math.round(suppAt(blockOf(state, pid), b.atMs)));
+    }
+    // (the freeze: every startle the bangs began, overlapping ones merged (see the header))
+    const k = blockOf(state, pid);
+    if (k && Number.isFinite(k.startleUntilMs) && k.startleUntilMs > b.atMs) {
+      const f = R.bangs.froze, from = Math.max(b.atMs, k.startleFromMs ?? b.atMs);
+      const last = f.at(-1);
+      if (last && from <= last.untilMs) last.untilMs = Math.max(last.untilMs, k.startleUntilMs);
+      else f.push({ fromMs: from, untilMs: k.startleUntilMs });
+    }
+  }
+}
 
 // (every turner still facing, or turning, turned away now)
 function awayAll(state, bus, why, keys = null) {
@@ -388,6 +500,7 @@ export function pairsActors(state, input, bus) {
   if (!R || R.course !== 'pairs' || R.end || state.skip) return;
   const now = state.clock.ms;
   if (R.coachWalk) coachStep(state, R);
+  if (R.bangs) fireBangs(state, bus, R, now);
   // (stood in the 10 m point's box once: the line's box is its own from now on (pairsBox))
   if (R.line === 10 && !R.at10) { const me = playerActor(state), b = pairsLaneOf(R.lane).points[10].box; if (me && inBox(b, me.x, me.z)) R.at10 = true; }
   const s = R.str;
@@ -397,10 +510,12 @@ export function pairsActors(state, input, bus) {
     if (s.turnAtMs !== null && inMode && now < s.turnAtMs) {
       // (into the mode before the turn: no turn on a shooter already in it; again with the next attempt's gap once out)
       s.turnAtMs = null; s.attempt += 1;
+      if (bangsOn(R, s)) dropBangs(R);
       if (!s.outSaid) { s.outSaid = true; coachSay(state, bus, PAIRS_COACH.out, 'out', s.k); }
     } else if (s.turnAtMs !== null && now < s.turnAtMs && !readyForTurn(state)) {
       // (off the point, or no longer ready, before the turn: no turn on him; again with the next attempt's gap once ready)
       s.turnAtMs = null; s.attempt += 1;
+      if (bangsOn(R, s)) dropBangs(R);
     } else if (s.turnAtMs === null && !state.stop && readyForTurn(state)) {
       arm(state, s);
       // (a re-armed turn is a fresh cue: the held sector runs VIGIL_MS from now, so a long idle in the mode never
@@ -461,6 +576,30 @@ function noteStrContact(state, s) {
   const c = contactNow(state)?.last;
   if (!c || c.seenMs === undefined || c.seenMs < s.turnedMs || !(c.ids ?? []).some(k => s.keys.includes(k))) return;
   Object.assign(s, { contactId: c.id, seenMs: c.seenMs, pauseMs: c.atMs, takeInMs: c.ms, expect: c.expect ?? null, n: c.n ?? (c.ids ?? []).length });
+  const R = rangeOf(state);
+  if (bangsOn(R, s) && !R.bangs.calm) R.bangs.calm = calmOf(state, R, s, c);
+}
+
+/**
+ * The banged string's calm figure by the book (the sheet's §8 item 20: the formula, no dice), taken at its pause: the
+ * turn's sighting as it was (physics: the turner's face coming round), the take-in at band 0 for the same case
+ * (react.js takeInOf, the roll passed), Off safe below rung 2 (firearms.js actionMs), the aim from where the rifle was
+ * (shot.js aimMsOf) at timeK 1 (the chaos's time factor taken back out), and the press before the round: the Pair row's
+ * TRIGGER_S where its Marksmanship gate is met (specials.js rowPlan), none with Fire (its round leaves as its pull begins).
+ */
+function calmOf(state, R, s, c) {
+  const pid = playerId(state), gunId = gunOn(state, pid), gun = state.items?.[gunId], wf = TEST_SHEETS[R.sheet]?.wf ?? 0;
+  const k = suppTimeK(feltOf(state, pid, state.clock.ms));
+  const T = turnerOf(R, (c.ids ?? []).find(key => s.keys.includes(key)) ?? s.keys[0]);
+  const values = TEST_SHEETS[R.sheet]?.values ?? {}, roller = { pid, light: 1, timeK: 1, value: (sk) => values[sk] ?? 0, mods: () => [] };
+  const sightMs = s.seenMs - s.turnedMs, takeInMs = takeInOf({ wf, expect: s.expect ?? 'sector', n: s.n ?? 1 }).ms;
+  const rung = rungOf(state, pid, 'room'), offSafeMs = rung < 2 && gun ? actionMs(roller, gun, 'selector:semi') : 0;
+  const aimMs = T && gun ? Math.round(aimMsOf(state, pid, gunId, T) / k) : 0, fireMs = (values.marksmanship ?? 0) >= ROWS.pair.gate ? Math.round(TRIGGER_S * 1000) : 0;
+  // (the game's own clock: the first step at the pause; below rung 2 Off safe, the aim and the shot each its own step,
+  // chosen on the first tick after the last ended; from rung 2 the row's aim and press run on in one step)
+  const go = sightMs + takeInMs;
+  const turnToFirstMs = rung < 2 ? whole(whole(go + offSafeMs) + aimMs) + fireMs : go + aimMs + fireMs;
+  return { sightMs, takeInMs, offSafeMs, aimMs, fireMs, turnToFirstMs };
 }
 
 /** The string's end if it is over and you are still (see the header): called on each lived second and after each step. */
@@ -490,16 +629,20 @@ export function stringEnd(state, bus, why) {
   s.done = why; s.doneAtMs = state.clock.ms;
   R.hot = false;
   awayAll(state, bus, 'string', s.keys);
+  // (0.0.9: the banged string's record of the bangs (see the header), on its paper and the card)
+  if (bangsOn(R, s)) s.bangs = bangRec(state, R, s);
   const paper = paperOf(s);
   const rows = [];
   for (const x of s.shots) if (x.row && !x.rowI) rows.push(x.row);
-  const rec = { k: s.k, line: s.line, keys: [...s.keys], expect: s.expect, n: s.n, takeInMs: s.takeInMs, pauseToFirstMs: paper.pauseToFirstMs, splitsMs: paper.splitsMs, zones: paper.zones, rows, done: why, paper: paper.text };
+  const rec = { k: s.k, line: s.line, keys: [...s.keys], expect: s.expect, n: s.n, takeInMs: s.takeInMs, pauseToFirstMs: paper.pauseToFirstMs, splitsMs: paper.splitsMs, zones: paper.zones, rows, done: why, paper: paper.text,
+    ...(s.bangs ? { bangs: { ...s.bangs, offSafe: [...s.bangs.offSafe] } } : {}) };
   R.strs.push(rec);
   bus?.emit('range', { phase: 'paper', cmd: R.cmd?.id ?? null, hot: false, rule: null, kind: null, text: paper.text, line: s.line, string: s.k, why, paper });
   if (why === 'time') fault(state, bus, 'time', 'warn', hashPick(PAIRS_COACH.time, 'pairs-coach', state.meta.seed, 'time', s.k));
   if (why === 'dry') coachSay(state, bus, PAIRS_COACH.dry, 'dry', s.k);
   if (why === 'declared') coachSay(state, bus, PAIRS_COACH.declared, 'declared', s.k);
   coachSay(state, bus, s.shots.some(x => x.fired) ? fill(PAIRS_COACH.paper, { paper: paper.text }) : PAIRS_COACH.none, 'paper', s.k);
+  if (s.bangs?.n) coachSay(state, bus, PAIRS_COACH.bangsAfter, 'bangsAfter');
   if (s.k === LAST_STRING) openLull(state, bus);
   return rec;
 }
@@ -508,6 +651,7 @@ export function stringEnd(state, bus, why) {
 function closeString(state, bus, why) {
   const R = rangeOf(state), s = R.str;
   if (s.turnedMs === null) {
+    if (bangsOn(R, s)) dropBangs(R);
     s.done = why; s.doneAtMs = state.clock.ms;
     R.strs.push({ k: s.k, line: s.line, keys: [...s.keys], expect: null, n: 0, takeInMs: null, pauseToFirstMs: null, splitsMs: [], zones: {}, rows: [], done: why, paper: '' });
     if (s.k === LAST_STRING) openLull(state, bus);
@@ -518,21 +662,41 @@ function closeString(state, bus, why) {
 
 // ---- the paper ----
 
-/** The shot timer's record of a string (see the header): { takeInMs, pauseToFirstMs, splitsMs, zones, text }. */
+// (the freeze in all: the startles the bangs began, each counted once where they overlap, to ms (see the header))
+const frozeOf = (f, ms = Infinity) => f.reduce((a, x) => a + Math.max(0, Math.min(x.untilMs, ms) - x.fromMs), 0);
+// (the banged string's bangs as its paper and the card keep them: how many went off, the freeze, the felt peak and its band,
+// Off safe's tries as ✓ and ✗ (the single, below rung 2), the turn to the first round)
+function bangRec(state, R, s) {
+  const plan = R.bangs.plan, f = R.bangs.froze, first = s.shots.filter(x => x.fired).sort((a, b) => a.atMs - b.atMs)[0] ?? null;
+  return { n: plan.filter(b => b.done).length, feltPeak: R.bangs.feltPeak, band: bandOf(R.bangs.feltPeak), frozeMs: frozeOf(f),
+    offSafe: [...(s.offSafe ?? [])], turnToFirstMs: first && s.turnedMs !== null ? first.atMs - s.turnedMs : null,
+    // (the paper's own sum, TURN TO PAUSE + PAUSE TO FIRST: the card's first round, so one quantity shows one number (the runtime
+    // review of v0.0.9: the card said 5.20 s from the turner moving beside a paper summing to 5.10 s from the sighting))
+    seenToFirstMs: first && Number.isFinite(s.takeInMs) && Number.isFinite(s.pauseMs) ? s.takeInMs + first.atMs - s.pauseMs : null };
+}
+
+/** The shot timer's record of a string (see the header): { takeInMs, pauseToFirstMs, splitsMs, zones, text } (the banged string's with bangs, frozeMs, offSafe). */
 export function paperOf(str) {
   const fired = (str?.shots ?? []).filter(x => x.fired).sort((a, b) => a.atMs - b.atMs || (a.id < b.id ? -1 : 1));
   const zones = {};
   for (const x of fired) { const z = x.noshoot ? 'noshoot' : x.down ? 'headDown' : x.ring && !x.through ? 'ring' : x.zone ?? 'miss'; zones[z] = (zones[z] ?? 0) + 1; }
   const splitsMs = fired.slice(1).map((x, i) => x.atMs - fired[i].atMs);
   const pauseToFirstMs = fired.length && str.pauseMs !== null && str.pauseMs !== undefined ? fired[0].atMs - str.pauseMs : null;
-  const paper = { takeInMs: str?.takeInMs ?? null, pauseToFirstMs, splitsMs, zones };
+  const paper = { takeInMs: str?.takeInMs ?? null, pauseToFirstMs, splitsMs, zones, ...(str?.bangs ? { bangs: str.bangs.n, frozeMs: str.bangs.frozeMs, offSafe: [...str.bangs.offSafe] } : {}) };
   return { ...paper, text: paperText(paper) };
 }
 
-/** The paper's line, the one helper of the coach, the paper and the card: 'TURN TO PAUSE 0.55 · PAUSE TO FIRST 1.45 · SPLITS 0.40 · 2 A'. */
-export function paperText({ takeInMs = null, pauseToFirstMs = null, splitsMs = [], zones = {} } = {}) {
+/**
+ * The paper's line, the one helper of the coach, the paper and the card: 'TURN TO PAUSE 0.55 · PAUSE TO FIRST 1.45 · SPLITS
+ * 0.40 · 2 A'; the banged string's (0.0.9) 'BANGS 3 · FROZE 2.45 S · TURN TO PAUSE 1.25 · PAUSE TO FIRST 3.20 · OFF SAFE ✗ ✗ ✓ ·
+ * SPLITS 0.75 · 2 A' (FROZE left out when nothing froze; "OFF SAFE IN THE AIM" when the row's aim took the safe off, rung 2 up).
+ */
+export function paperText({ takeInMs = null, pauseToFirstMs = null, splitsMs = [], zones = {}, bangs = null, frozeMs = 0, offSafe = [] } = {}) {
   const z = ZONES.filter(k => zones[k]).map(k => `${zones[k]} ${ZONE_PAPER[k]}`).join(', ');
-  return [takeInMs === null ? 'NO PAUSE' : `TURN TO PAUSE ${takeInWords(takeInMs)}`, pauseToFirstMs === null ? 'NO ROUNDS' : `PAUSE TO FIRST ${takeInWords(pauseToFirstMs)}`,
+  return [bangs ? `BANGS ${bangs}` : null, bangs && frozeMs ? `FROZE ${takeInWords(frozeMs)} S` : null,
+    takeInMs === null ? 'NO PAUSE' : `TURN TO PAUSE ${takeInWords(takeInMs)}`, pauseToFirstMs === null ? 'NO ROUNDS' : `PAUSE TO FIRST ${takeInWords(pauseToFirstMs)}`,
+    // (the fixer's: from rung 2 the row's aim takes the safe off, said so, so the tier one's paper has the step the recruit failed)
+    bangs && offSafe?.length ? `OFF SAFE ${offSafe.map(ok => (ok ? '✓' : '✗')).join(' ')}` : bangs && pauseToFirstMs !== null ? 'OFF SAFE IN THE AIM' : null,
     splitsMs.length ? `SPLITS ${splitsMs.map(takeInWords).join(' ')}` : null, z || null].filter(Boolean).join(' · ');
 }
 
@@ -596,10 +760,40 @@ function stopTurner(state, bus, T, atMs) {
  */
 export function pairsStepStart(state, bus, d) {
   const R = rangeOf(state);
-  if (!R || R.course !== 'pairs' || R.end || !/^macro:reload:(speed|retain|tactical)$/.test(d?.step ?? '')) return;
+  if (!R || R.course !== 'pairs' || R.end) return;
+  // (0.0.9: a step begun: the DI's line after a startle lasts until one (instinct/pairs.js pairs-froze); on the banged
+  // string the take-in noted first, so its calm figure reads the rifle where it was at the pause, before the step moves it)
+  if (R.bangs) {
+    R.bangs.lastStepMs = d.fromMs;
+    if (bangsOn(R, R.str) && !R.str.done && R.str.turnedMs !== null) noteStrContact(state, R.str);
+  }
+  if (!/^macro:reload:(speed|retain|tactical)$/.test(d?.step ?? '')) return;
   const b = beliefOf(state, gunOn(state, playerId(state))), mid = !!R.str && !R.str.done && R.str.turnedMs !== null;
   d.reloadWhy = R.lull && !mid ? 'lull' : b?.locked && b.count === 0 ? 'dry' : mid ? 'topUp' : 'between';
 }
+
+// (the handling sub-steps rolled while the felt stood at BANG_FELT or more, each at its start (the step's from plus the subs
+// before it), into R.bangs.steps (the card's "under the bangs"); Off safe's tries on the banged string's live string, its
+// paper's ✓ and ✗ (below rung 2, where Off safe is a step of its own); the last Off safe, the DI's "Again. Thumb it off."
+// (see the header))
+const SHOT_PARTS = new Set(['aim', 'hold', 'press', 'round', 'shift', 'fire', 'wait']);
+function noteBangSteps(state, R, d, pid) {
+  const s = R.str, live = !!s && !s.done && s.turnedMs !== null && rungOf(state, pid, 'room') < 2;
+  let at = d.fromMs;
+  for (const rec of d.subs ?? []) {
+    const atMs = at;
+    at += rec.ms ?? 0;
+    if (!rec.action || SHOT_PARTS.has(rec.action) || rec.action.startsWith('contact:') || rec.action.startsWith('stance:') || rec.grade === null || rec.grade === undefined) continue;
+    if (rec.action === 'selector:semi') {
+      R.bangs.offSafe = { atMs, ok: rec.ok !== false };
+      if (live && bangsOn(R, s)) (s.offSafe ??= []).push(rec.ok !== false);
+    }
+    const felt = feltOf(state, pid, atMs);
+    if (felt < BANG_FELT) continue;
+    R.bangs.steps.push({ step: d.step, action: rec.action, label: LABELS_OF[rec.action] ?? ACTIONS[rec.action]?.label ?? rec.action, grade: rec.grade, ok: rec.ok !== false, mishap: rec.mishap ?? null, felt, atMs, fromMs: d.fromMs });
+  }
+}
+const LABELS_OF = Object.freeze({ 'selector:semi': 'Off safe', 'selector:safe': 'On safe', reach: 'Reach', seat: 'Seat', release: 'Bolt home', 'magOut:drop': 'Drop the magazine', 'magOut:pouch': 'Magazine to a pouch', charge: 'Charge', up: 'Rifle up' });
 
 // (a paper threat that took STOP_TORSO in the torso, or the steel that rang on a torso round, and still stands: "Still up!")
 const stillUpT = (T, since) => T.stoppedAtMs === null && T.face !== 'noshoot'
@@ -610,6 +804,7 @@ export function pairsAfterStep(state, bus, d, why) {
   const R = rangeOf(state);
   if (!R || R.course !== 'pairs' || R.end) return;
   const pid = playerId(state), gun = state.items?.[gunOn(state, pid)], now = state.clock.ms;
+  if (R.bangs) noteBangSteps(state, R, d, pid);
   const kind = /^macro:reload:(speed|retain|tactical)$/.exec(d.step ?? '')?.[1] ?? null;
   if (kind && why === 'end') {
     // (its purpose: the short one named, else as read at its start (pairsStepStart; a step of an older save: 'between'))
@@ -684,11 +879,63 @@ export function pairsNow(state, ms = state.clock.ms) {
     str: s ? { k: s.k, keys: [...s.keys], line: s.line, done: s.done, armed: s.turnAtMs !== null && s.turnedMs === null, turned: s.turnedMs !== null, turnAtMs: s.turnAtMs, paper: s.done ? R.strs.at(-1)?.paper ?? null : null } : null,
     strs: R.strs.map(x => ({ ...x })), turners, reloads: R.reloads.map(r => ({ ...r })), lull: R.lull ? { ...R.lull, on: lullOf(state, playerId(state), ms) } : null,
     wantMag: R.wantMag ?? null, mags: { ...R.mags }, rounds: card.gun.rounds, point: pairsPoint(state), card, end: R.end, summary: summaryOf(state, R, card),
+    setup: R.setup ?? null, bangs: R.bangs ? bangsNow(state, ms) : null,
   };
 }
 
-/** What the end card's "Again as …" starts: the same seed, another sheet (scenes never write a career). */
-export const againAs = (state, tier) => ({ scenario: 'test-pairs', seed: state.meta.seed, tier: tierOf(tier) });
+/**
+ * Whether a planned bang not yet gone off will land within STARTLE_JOIN_MS of the player's startle's end (supp.js joins
+ * such a startle to the freeze): the face holds FROZE and the DI holds "You flinched." until the series is over, so the
+ * stamp shows once with the whole freeze (the reviews of v0.0.9: "FROZE 1.90 S", then "FROZE 2.40 S" 0.1 s later).
+ */
+export function bangDue(state) {
+  const R = rangeOf(state), B = R?.bangs, k = blockOf(state, playerId(state));
+  if (!B?.plan?.length || !Number.isFinite(k?.startleUntilMs)) return false;
+  return B.plan.some(b => !b.done && b.atMs <= k.startleUntilMs + STARTLE_JOIN_MS);
+}
+
+/**
+ * "Three bangs" as the end card reads it (see the header), or null off the setup: { plan: [{ id, atMs, done }], feltPeak,
+ * band, frozeMs, turnToFirstMs, steps: { offSafe: { tries, fails, drops }, reload: { tries, fails, drops }, failed: [{
+ * action, label, grade, mishap, felt, atMs }] }, calm: { sightMs, takeInMs, offSafeMs, aimMs, fireMs, turnToFirstMs } | null,
+ * seenToFirstMs (the paper's TURN TO PAUSE + PAUSE TO FIRST), summary: 'Boot recruit · three bangs · the chaos 105 − hardening 7
+ * (green) = felt 98, pinned · froze 2.45 s · Off safe 3 tries, 2 failed · first round 7.10 s after you saw him (calm 2.50 s)' }. The steps are those rolled while the felt stood at BANG_FELT or more; a RELOAD is a
+ * try of RELOAD (speed or keep the empty) and its "Carry on", failed when any of its parts failed.
+ */
+export function bangsNow(state, ms = state.clock.ms) {
+  const R = rangeOf(state);
+  if (!R?.bangs) return null;
+  const B = R.bangs, s = R.str && bangsOn(R, R.str) ? R.str : null, rec = R.strs.find(x => x.k === BANGS.string && x.bangs)?.bangs ?? (s ? bangRec(state, R, s) : null);
+  const frozeMs = frozeOf(B.froze, ms);
+  const off = B.steps.filter(x => x.action === 'selector:semi');
+  // (a RELOAD try by its step; a "Carry on" of a halted one is the same try)
+  const rl = [];
+  let cur = null;
+  for (const x of B.steps) {
+    if (/^macro:reload:(speed|retain)$/.test(x.step)) { if (cur?.fromMs !== x.fromMs) rl.push(cur = { fromMs: x.fromMs, fail: false, drop: false }); }
+    else if (!(x.step === 'queue' && cur && RELOAD_PARTS.has(x.action))) { cur = null; continue; }
+    cur.fail ||= !x.ok; cur.drop ||= x.mishap === 'dropMag';
+  }
+  const steps = { offSafe: { tries: off.length, fails: off.filter(x => !x.ok).length, drops: off.filter(x => x.mishap === 'dropped').length },
+    reload: { tries: rl.length, fails: rl.filter(t => t.fail).length, drops: rl.filter(t => t.drop).length },
+    failed: B.steps.filter(x => !x.ok).map(x => ({ action: x.action, label: x.label, grade: x.grade, mishap: x.mishap, felt: x.felt, atMs: x.atMs })) };
+  const turnToFirstMs = rec?.turnToFirstMs ?? null, calm = B.calm ? { ...B.calm } : null;
+  // (the first round from the sighting, the paper's TURN TO PAUSE + PAUSE TO FIRST, beside the book's same sum)
+  const seenToFirstMs = rec?.seenToFirstMs ?? null, calmSeenMs = calm ? calm.turnToFirstMs - (calm.sightMs ?? 0) : null;
+  const label = TEST_SHEETS[R.sheet]?.label ?? R.sheet, n = B.plan.filter(b => b.done && b.atMs <= ms).length;
+  // (the chaos's sum at its peak, the same on every sheet's line, its hardening the offset: the lesson (the design review))
+  const H = hardOf(state, playerId(state), ms), f = B.feltPeak, chaos = f > 0 && f < 100 ? f + H : B.poolPeak ?? f + H;
+  const summary = [label, n ? `${NUM_WORDS[n] ?? n} bang${n === 1 ? '' : 's'}` : 'no bangs yet', n ? `the chaos ${chaos} − hardening ${H} (${hardWord(H)}) = felt ${f}, ${bandOf(f)}` : null, frozeMs ? `froze ${takeInWords(frozeMs)} s` : n ? 'never froze' : null,
+    steps.offSafe.tries ? `Off safe ${steps.offSafe.tries} ${steps.offSafe.tries === 1 ? 'try' : 'tries'}, ${steps.offSafe.fails} failed` : null,
+    steps.reload.tries ? `RELOAD ${steps.reload.tries} ${steps.reload.tries === 1 ? 'try' : 'tries'}, ${steps.reload.fails} failed` : null,
+    seenToFirstMs !== null ? `first round ${takeInWords(seenToFirstMs)} s after you saw him${calm ? ` (calm ${takeInWords(calmSeenMs)} s)` : ''}` : null].filter(Boolean).join(' · ');
+  return { plan: B.plan.map(b => ({ id: b.key, atMs: b.atMs, done: b.done && b.atMs <= ms })), feltPeak: B.feltPeak, band: bandOf(B.feltPeak), frozeMs, turnToFirstMs, seenToFirstMs, steps, calm, summary };
+}
+const NUM_WORDS = Object.freeze(['none', 'one', 'two', 'three', 'four', 'five']);
+const RELOAD_PARTS = new Set(['reach', 'seat', 'release', 'magOut:drop', 'magOut:pouch']);
+
+/** What the end card's "Again as …" starts: the same seed, another sheet, the same setup (0.0.9: 'bangs', or null; scenes never write a career). */
+export const againAs = (state, tier) => ({ scenario: 'test-pairs', seed: state.meta.seed, tier: tierOf(tier), setup: rangeOf(state)?.setup ?? null });
 
 /**
  * What the picture may show of a turner's face (PEOPLE §7.6: the picture draws whoever the character perceives; COMBAT
@@ -713,7 +960,9 @@ export function pairsLook(state, ms = state.clock.ms) {
     holes: T.hits.filter(h => h.at && h.atMs <= ms).map(h => ({ xCm: h.at[0], yCm: h.at[1], zone: h.zone, ring: !!h.ring, atMs: h.atMs })),
     down: T.stoppedAtMs !== null && T.stoppedAtMs <= ms, plateAtMs: T.face === 'armoured' ? T.stoppedAtMs : null,
   }));
-  return { line: R.line, turners, lines: [7, 10].map(d => ({ x: PAIRS.lines[d].x, label: `${d} M` })) };
+  // (0.0.9: the bangs as planned: the throw's arc from the coach's hand, the body on the pad, done at its time)
+  const bangs = (R.bangs?.plan ?? []).map(b => ({ id: b.key, x: b.x, z: b.z, fromX: b.fromX, fromZ: b.fromZ, throwAtMs: b.throwAtMs, atMs: b.atMs, done: b.done && b.atMs <= ms }));
+  return { line: R.line, turners, lines: [7, 10].map(d => ({ x: PAIRS.lines[d].x, label: `${d} M` })), bangs };
 }
 
 /** rangeNow's shape on the pairs course (handling.js rangeNow), its summary the end card's line. */

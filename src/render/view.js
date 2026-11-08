@@ -150,6 +150,14 @@
 // and the armoured face's plate) drawn by the range layer (src/render/range.js: each face as wide as it has turned, at the
 // moment drawn, so a turn plays over its real 0.3 s and never jumps; the steel's spark in the blast's draw); the stands and
 // the painted lines are the ground's kit pieces.
+// 0.0.9 (the build sheet 0.0.9 §2.3; VIEWS §7.3): the training bangs, rangeLook's pairs.bangs drawn by the bangs layer
+// (src/render/bangs.js: the body thrown from the coach's hand and lying on the pad, the flash at its real size and time on
+// at least one frame with its 4 m light pool as a moving lamp, the smoke growing and fading by its time, drifting with the
+// bay's wind, wind.js windAt); and the chaos on the picture (setChaos, main.js's reading of supp.js suppNow made into the
+// post pass's numbers by src/render/chaos.js: the band's corners and drain eased over CHAOS_EASE_S, the startle's dark and
+// its one pale frame on the first frame drawn at or after its start, the flash's white over the cone the eyes faced, its
+// afterimage at the burst, the dazzle's veil), each frame after the eye. view.stats.chaos says what was drawn. The smoke's
+// wind is main.js's (info.wind: wind.js windAt at the pad, the sim's, which the render may not import).
 // idle and pending say what still waits (an area's build, the chunks in the picture, uploads, a sheet,
 // the worker, the warm-up), so main.js sets window.__ready only once nothing does. stats: the last
 // frame's draw calls, triangles, programs, CPU ms, uploads, people drawn and put off (people: { drawn,
@@ -205,6 +213,9 @@ import { createBlood } from './decals.js';
 import { kdFaceAt } from './range-items.js';
 import { FACE_K } from '../art/kit/range.js';
 import { lightLevel } from '../sim/places/light.js';
+import { createBangs } from './bangs.js';
+import { chaosOf, easeChaos, CALM as CHAOS_CALM } from './chaos.js';
+import { AFTER_R_M } from './chaos.js';
 import * as BLOOD from '../sim/body/blood.js';
 
 /** The pieces' sizes the far window reads to find a long piece reaching into it (the range's kinds and the kit's). */
@@ -239,6 +250,8 @@ export const TALL_MASS_M = 3.2, SEE_WIDE_M = 3.5;
 export const LIFT_FROM_M = 2.2;
 /** The test fog's shape: near (m), cone half-angle (rad), reach (m); the samples' look/main.js. */
 export const TEST_FOG = Object.freeze({ nearM: 2.5, cone: 0.8, reachM: 14 });
+/** The startle's flinch on your own figure (0.0.9, my call): ducked this many pixels, and a pixel's tremble side to side every so many ms of real time. */
+export const FLINCH_DUCK_PX = 1, FLINCH_STEP_MS = 70;
 const FACE = { right: [1, 0], left: [-1, 0], down: [0, 1], up: [0, -1] };
 const GAIT = { run: 'run', walk: 'walk', stroll: 'stroll', bound: 'bound', idle: 'idle' };
 /** A dressing figure's two frames, each held this long (game ms: a shirt over the head, a leg into the trousers). */
@@ -303,7 +316,11 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const splash = createSplash(stage), vignettes = createVignettes(stage, { ppm });
   const rangeLayer = createRange(stage, { ppm }), decals = createDecals(stage, { ppm });
   const blood = createBlood(stage, { ppm });
-  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group);
+  // (0.0.9: the training bangs: their bodies, flashes and smoke)
+  const bangs = createBangs(stage, { ppm });
+  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group, bangs.group);
+  // (0.0.9: the chaos on the picture: the reading main.js gives (setChaos), the numbers shown (eased), the startle whose pale frame was drawn)
+  let chaosWant = null, chaosShown = null, paleDone = null, movingSig = '';
   // (the far window: its own camera, post, fog and chunks; drawn inside the stage's composite, before the blit)
   const far = createFar(stage, { createCamera, createPost, createFogMask, areaFromJob, reserveParts: reserveParts2, partsPerChunk: PARTS_PER_CHUNK, ensurePart, olyMaterial, isOly },
     { painter, uploads, ppm, chunksGroup: chunks.group, opticS: ARMS.OPTIC_S ?? 0.5 });
@@ -676,6 +693,25 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       shown: { gain: Math.round(Math.exp(eyeShown.g) * 1e4) / 1e4, coneGain: Math.round(Math.exp(eyeShown.c) * 1e4) / 1e4, rod: Math.round(eyeShown.rod * 1e4) / 1e4, glare: Math.round(eyeShown.glare * 1e4) / 1e4 } };
   }
 
+  // ---------- the chaos on the picture (0.0.9) ----------
+  // (main.js's reading (setChaos: chaosOf's, or null) eased toward and put on the post pass; the startle's pale frame on
+  // the first frame drawn at or after its start, once, none under "reduce flashes"; nothing while a splash shows)
+  function chaosFrame(state, you, dtS, info = {}) {
+    const want = state && !info.splash && chaosWant ? chaosWant : CHAOS_CALM;
+    chaosShown = !chaosShown || chaosShown.state !== state ? { ...want, state } : { ...easeChaos(chaosShown, want, dtS), state };
+    const st = want.startle, ms = state ? state.clock.ms : 0;
+    let pale = 0;
+    if (st && Number.isFinite(st.fromMs) && ms >= st.fromMs && paleDone !== `${st.fromMs}` && !want.reduce) { pale = 1; paleDone = `${st.fromMs}`; }
+    const proj = (x, y, z) => { const [px, py] = stage.cam.project(x, y, z); return { x: px, y: py }; };
+    const eye = you ? proj(you.x, 1.2, you.z) : null;
+    const b = want.burst, burst = b && Number.isFinite(b.x) ? { ...proj(b.x, 0.3, b.z), r: AFTER_R_M * ppm } : null;
+    stage.post?.setChaos?.(chaosShown, { eye, burst, pale });
+    stats.chaos = chaosShown.bandN || chaosShown.vignette || chaosShown.dark || chaosShown.white || chaosShown.grey || chaosShown.veil || pale
+      ? { band: want.band, bandN: want.bandN, vignette: r4(chaosShown.vignette), drain: r4(chaosShown.drain), dither: r4(chaosShown.dither), dark: chaosShown.dark, pale, white: r4(chaosShown.white), grey: r4(chaosShown.grey), veil: r4(chaosShown.veil), after: r4(chaosShown.after), startle: st ? { fromMs: st.fromMs, untilMs: st.untilMs } : null, face: want.face }
+      : null;
+  }
+  const r4 = (v) => Math.round((Number(v) || 0) * 1e4) / 1e4;
+
   // ---------- the stair's wipe ----------
   function wipeFrame(dtS) {
     if (!wipe) return;
@@ -856,11 +892,13 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         }
       } else stats.vignette = null;
       const alert = typeof ALERTS.alertNow === 'function' ? ALERTS.alertNow(state, msA) : null;
+      // (the moving lamps: the alert's beacon, a bang's flash (0.0.9); set on the stage once both are known, and only when they change)
+      const moving = [];
       if (alert && alert.horn?.area === live.id) {
         vigItems.push({ name: 'beacon', opts: { on: alert.hornOn ? 1 : 0 }, x: alert.horn.x, y: BEACON_Y_M, z: alert.horn.z });
-        stage.lights.setLamps(alert.hornOn ? [{ ...BEACON_LAMP, x: alert.horn.x, z: alert.horn.z }] : []);
+        if (alert.hornOn) moving.push({ ...BEACON_LAMP, x: alert.horn.x, z: alert.horn.z });
         stats.beacon = { on: !!alert.hornOn, phase: alert.phase };
-      } else { if (stats.beacon) stage.lights.setLamps([]); stats.beacon = null; }
+      } else stats.beacon = null;
       if (sp?.phase === 'beat' && (sp.interrupt?.kind === 'alert' || sp.interrupt?.letter === 'A')) vigRed = Math.sin(Math.PI * ((sp.k ?? 0) * 2 % 1)) * 0.8;
       // (the iris's inside, shown as seen while it is closed: its centre and radius for the fog)
       if (sp && sp.form === 'full' && sp.centre && (sp.inkK ?? 0) > 0.5 && sp.phase !== 'out') fogLift = { x: sp.centre.x, z: sp.centre.z, r: (Number.isFinite(sp.irisM) ? sp.irisM : 3.5) + 1.5 };
@@ -900,7 +938,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       }
       stats.clocks = clocks.frame(state, info.lonEDeg ?? 0);
       // 8. tints where each stands: places' level through the eye's exposure
-      const beacon = stats.beacon?.on ? stage.lights.lamps[0] : null;
+      const beacon = stats.beacon?.on ? moving[0] ?? null : null;
       const tintAt = (x, z) => {
         const t = heldMood ? stage.lightAt(x, z) : lighting.tintAt(state, x, z, lightMs);
         if (!beacon) return t;
@@ -918,6 +956,13 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const camAt = stage.cam.at, views = [{ x0: camAt.x - cw / 2, x1: camAt.x + cw / 2, z0: camAt.z - ch / 2, z1: camAt.z + ch / 2 + 8 }];
       if (farView) { const m = far.radiusM; views.push({ x0: farView.x - m, x1: farView.x + m, z0: farView.z - farView.y - m, z1: farView.z - farView.y + m + 8 }); }
       stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views }) : (rangeLayer.update(null), null);
+      // (0.0.9: the bangs on the pad, at the moment drawn; a flash's light pool among the moving lamps)
+      const bangList = rl?.pairs?.bangs ?? null;
+      const bs = bangs.update(bangList ?? [], { ms: fxMs, tintOf: tintAt, wind: bangList?.length ? info.wind ?? null : null, figures: bangList?.length ? people.filter(q => !q.lie && !q.remembered).map(q => ({ x: q.x, z: q.z })) : [] });
+      stats.bangs = bangList?.length ? { bangs: bs.bangs, flashing: bs.flashing.slice(), body: bs.body, smoke: bs.smoke, flash: bs.flash, ms: Math.round(fxMs * 10) / 10 } : null;
+      moving.push(...bs.lamps);
+      const sig = moving.map(l => `${l.kind}:${l.x},${l.z}`).join('|');
+      if (sig !== movingSig) { movingSig = sig; stage.lights.setLamps(moving); }
       // (blood on the ground, and the wounds' marks on the figures drawn)
       const bl = typeof BLOOD.bloodLook === 'function' ? BLOOD.bloodLook(state, live.id, fxMs) : null;
       stats.blood = blood.update(bl, { ms: fxMs, figures: people.filter(q => !q.remembered).map(q => ({ id: q.id, x: q.x, z: q.z, face: q.face, lie: q.frame === 'hurt' || !!q.lie, kneel: /kneel|aid/.test(q.frame ?? '') })), tintOf: tintAt });
@@ -931,6 +976,14 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     }
     // 11. the people (an empty update off the stage, so nothing old stays drawn). Behind a cut, only those
     // whose frames are up: the player's own is on its way from the worker
+    // (0.0.9: the startle in the body: your own figure ducks FLINCH_DUCK_PX and trembles a pixel side to side every
+    // FLINCH_STEP_MS while it lasts, so the freeze is seen as the marine's from its first frame (the design review of v0.0.9:
+    // "the only cue is a picture 12% darker"); a pixel each way at 16 px/m, the sim's figure where it stands (my call))
+    const stl = state && chaosWant?.startle, sms = state?.clock.ms ?? 0;
+    stats.flinch = false;
+    if (stl && sms >= stl.fromMs && sms < stl.untilMs) for (const p of people) if (p.own && !p.lie) {
+      p.z += FLINCH_DUCK_PX / ppm; p.x += (Math.floor(realS * 1000 / FLINCH_STEP_MS) % 2 ? 1 : -1) / ppm; stats.flinch = true;
+    }
     figures.update(info.cut ? people.filter(p => p.lie || figures.ready(p.key, bandOf(p))) : people);
     for (const p of people) if (!p.lie && !figures.ready(p.key, bandOf(p))) waitingSheets.add(p.key);
     drawnNow = people.map(p => ({ id: p.id, x: p.x, z: p.z, y: p.y ?? 0, lie: !!p.lie, sit: p.frame === 'sit', frame: p.lie ? (p.lie.up ? 'berthUp' : 'berth') : p.frame ?? p.gait, face: p.face, fig: p.fig ?? null,
@@ -941,6 +994,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       passes: splash.stats.drawn, lift: !!fogLift, centre: sp.centre ?? null } : null;
     // 12. the upload queue
     const up = uploads ? uploads.drain() : { n: 0, bytes: 0, ms: 0 };
+    // 12c. the chaos on the picture (0.0.9): the reading eased, the eyes and the burst in the picture's pixels
+    chaosFrame(state, you, dtS, info);
     // 13. the picture
     stage.setFocus(you ? { x: you.x, z: you.z, h: SEE_FIGURE_M[1], w: SEE_FIGURE_M[0] + 2 * SEE_MARGIN_PX / ppm - 0.3 } : null);
     stage.render();
@@ -992,7 +1047,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
 
   /** Compile the stage's programs (warm.js): once, at boot. */
   function warm() {
-    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1], rangeLayer.pixels.mesh, decals.pixels.mesh, blood.pixels.mesh, blood.marks.mesh] }).then((r) => { far.warm(); warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
+    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1], rangeLayer.pixels.mesh, decals.pixels.mesh, blood.pixels.mesh, blood.marks.mesh, bangs.pixels.mesh, bangs.smoke.mesh, bangs.flash.mesh] }).then((r) => { far.warm(); warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
       (e) => { warmed = true; console.warn('view: the warm-up failed', e); return null; });
     return warming;
   }
@@ -1010,7 +1065,13 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   };
 
   return {
-    setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks, splash, vignettes, range: rangeLayer, decals, blood, far,
+    setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks, splash, vignettes, range: rangeLayer, decals, blood, far, bangs,
+    /**
+     * The chaos on the picture (0.0.9): main.js's reading each frame, { sn (supp.js suppNow's record, or null), reduce (the
+     * "reduce flashes" setting), face (the player's facing), burst ({ x, z }: the last bang's) }, or null; made into the post
+     * pass's numbers by chaos.js chaosOf and eased here (chaosFrame).
+     */
+    setChaos(r = null) { chaosWant = r?.sn ? { ...chaosOf(r.sn, { ms: r.ms ?? null, reduce: !!r.reduce, face: r.face ?? 'right', burst: r.burst ?? null }), reduce: !!r.reduce } : null; },
     /**
      * The far window's point each frame (main.js, from the ballistics role's farPointOf placed by the hud's placeFar), or
      * null: { key, x, y, z, rangeM, cx, cy, rCss (the disc in the window's CSS pixels), optic (1 | 4), hold?: [xMil, yMil],
@@ -1036,7 +1097,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       endWipe();
       for (const c of cache.values()) c.built?.dispose();
       cache.clear(); live = null;
-      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); blood.dispose(); far.dispose();
+      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); blood.dispose(); far.dispose(); bangs.dispose();
     },
   };
 }

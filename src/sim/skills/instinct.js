@@ -38,6 +38,8 @@
 // take-in's window is open nothing fires at all (src/sim/combat/contact.js pendingOf: no words in the window, COMBAT
 // §25.4.5), and at the pause the line's lead, until the first step chosen after it, is "Contact · 0.55 s." (react.js
 // takeInWords, the quantity's one formatter) in place of "Time stands still.".
+// 0.0.9 (the build sheet 0.0.9 §2.2; COMBAT §5.7): nothing fires while the player is startled either (supp.js startled: the
+// startle is the take-in's window re-used, its keys taken, so no words in it); the DI's line after it is pairs-froze's.
 // instinctAction(state, { act: 'instinct', args: { id, act, chip } }, bus, ctx) does the act the hud
 // saw when T went down, if rule id still fires with that act now ('rise': get up from the rack;
 // 'dress:utilities': dress at your rack or locker; 'activity:<id>': the activity of the fixture you
@@ -55,6 +57,7 @@ import { PAIRS_RULES } from './instinct/pairs.js';
 import { rangeOf } from '../scenarios/handling.js';
 import { contactNow, pendingOf } from '../combat/contact.js';
 import { takeInWords } from '../combat/react.js';
+import { startled } from '../combat/supp.js';
 
 /** The range's rules that keep quiet on the pairs course (see the header): the tower's commands and the card are the coach's and the turners' there. */
 export const RANGE_OFF_PAIRS = Object.freeze(new Set(['range-cmd', 'range-kd', 'range-reload', 'range-fire', 'range-wait']));
@@ -116,17 +119,20 @@ export function settle(prev, fired, ms, { urgentOnly = false } = {}) {
 function fire(rule, ctx, state, ms) {
   return { id: rule.id, voice: rule.voice ?? 'di', tone: typeof rule.tone === 'function' ? rule.tone(ctx) : rule.tone, act: rule.act ? rule.act(ctx, state) : null, short: typeof rule.short === 'function' ? rule.short(ctx) : rule.short ?? null, reach: rule.reach ?? null, repeatMs: rule.repeatMs ?? null, ctx, rule };
 }
+// (the words by the variant, or by ctx.words where a rule names its entry apart: the variant then carries all that should
+// pick the words again when it changes (pairs-still-up's key, reason and remedy; the fix of 2026-11-07), present() keeping
+// them while it stands)
 const wordsOf = (rule, ctx, ms) => {
   const tier = rule.text?.[ctx?.tier ?? 1] ?? rule.text?.[1] ?? [];
-  const lines = (ctx?.variant && rule.text?.[ctx.variant]) || tier;
+  const lines = (ctx?.variant && rule.text?.[ctx.words ?? ctx.variant]) || tier;
   const pick = lines.length ? hashPick(lines, rule.id, Math.floor(ms / WORDS_MS)) : '';
   return typeof pick === 'function' ? pick(ctx) : String(pick).replace(/\{(\w+)\}/g, (_, k) => ctx?.[k] ?? '');
 };
 
-/** The rules that fire now for the player, most pressing first within a tone (the rules' order); none while a take-in's window is open. */
+/** The rules that fire now for the player, most pressing first within a tone (the rules' order); none while a take-in's window is open or the player is startled. */
 export function firedNow(state, ms = state.clock.ms, rules = RULES) {
   const me = playerActor(state);
-  if (!me || pendingOf(state)) return [];
+  if (!me || pendingOf(state) || startled(state, me.who, ms)) return [];
   const out = [];
   for (const r of rules) {
     const ctx = r.when(state, me, ms);
@@ -157,7 +163,10 @@ export function instinctStep(state, input, bus, ctx) {
   if (state.skip) { state.$instinct = { ...(prev ?? instinctNow(state)), line: null, chip: null, keys: [], queued: 0, quiet: 'splash' }; return; }
   // (stop motion's phase and step: a step that ends between whole seconds leaves the clock standing there, so its end is due too)
   // (0.0.8: a take-in's window opening or closing is due at once too: its silence starts on the sighting tick, not the next second)
-  const S = state.stop, win = pendingOf(state) ? 'w' : '', stopKey = `${S ? `${S.mode}|${S.phase}|${S.doing?.step ?? ''}|${S.doing?.i ?? ''}|${S.reflex ? 'r' : ''}` : ''}${win ? `|${win}` : ''}`;
+  // (0.0.9: a startle's start and end are due at once too: the line goes on the bang's tick, not the next second (the design
+  // review: "Let it come." stood 0.6 s into the startle))
+  const S = state.stop, win = pendingOf(state) ? 'w' : '', jolt = state.player?.id && startled(state, state.player.id, ms) ? '|s' : '';
+  const stopKey = `${S ? `${S.mode}|${S.phase}|${S.doing?.step ?? ''}|${S.doing?.i ?? ''}|${S.reflex ? 'r' : ''}` : ''}${win ? `|${win}` : ''}${jolt}`;
   const due = !prev || prev.quiet === 'splash' || ms % SEC_MS === 0 || (input?.act?.length ?? 0) > 0 || prev.atMs === undefined || prev.atMs > ms || (prev.stopKey ?? '') !== stopKey;
   if (!due) return;
   const fired = firedNow(state, ms);

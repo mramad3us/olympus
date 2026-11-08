@@ -149,6 +149,20 @@
 // PAPER after each string, in and out of stop motion. The end card says the sheet and the three aspects in the
 // scene's numbers and offers "Again as …" each other sheet on the same seed (the scene's againAs). The sounds hear the
 // 'turner' fact (the motor, the clack, the timer's beep). The handle gains pairs() and contact().
+// The 0.0.9 round's (the build sheet 0.0.9 §2.3; COMBAT §5, §25.18.3; VIEWS §7.3, §7.4, §11.2, §12): "Three bangs"
+// (?play=test-pairs&setup=bangs[&tier=…], the Tests menu's entry through the picker, the Boot recruit focused; setup
+// 'bangs:standby' the tests' and the bench's). COMBAT §5's state is read once a tick (supp.js suppNow: suppRead) and drawn:
+// the view's chaos (view.setChaos: the band's corners and drain, the startle's dark and its pale frame, a flash's white and
+// its afterimage, the dazzle's veil; "reduce flashes" (&flashes=reduced, the Esc menu, or localStorage olympus.flashes), a grey veil and no
+// pale frame), the sound's (audio.frame's chaos: the ducking, the deafness and its whine, captioned "[a high whine]" once);
+// the bangs on the pad are rangeLook's (the view's bangs layer), their report the 'fx' fact's. While the marine is startled
+// every key but Space and Esc is refused, in the page as in the sim (contact.js refusesAct), a key that went down in it does
+// nothing on its way up, and at its end in stop motion the pause's guard (PAUSE_GUARD_MS) holds; "FROZE 2.45 S" stands beside
+// your own figure's head for STAMP_S of real time at its end (plaque.js frozeStamp), gone once a step is chosen. A row the chaos
+// shakes is marked "! shaking" with its term and the arithmetic on its hover, the plaque's hover adds the chaos's sum (plaque.js
+// chaosSum), C gives Hardening in words, the picker each sheet's word. The end card leads with the bangs' lines (the scene's
+// bangsNow, and this session's calm run of the sheet on the seed where the page remembers one); "Again as …" keeps the setup;
+// the score card asks one aspect, bangs. The handle gains supp().
 // For tests and shots, URL parameters skip the title (src/core/debug.js readParams):
 // ?play=sandbox|barracks|test-shower|test-night|test-handling|test-range|test-pairs&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench|mixed][&tier=…];
 // &ppm=16|24 (the density, 16 by default, the user's pick: src/render/scale.js; 24 a test density);
@@ -190,7 +204,7 @@ import { kitView } from './sim/arms/kit.js';
 import { rollerOf } from './sim/combat/roll.js';
 import { kitLook, rangeLook } from './sim/arms/look.js';
 import { MODELS } from './sim/arms/models.js';
-import { stepsOf, stopNow, targetsOf, LABELS as STEP_LABELS } from './sim/arms/shooting.js';
+import { stepsOf, stopNow, targetsOf, LABELS as STEP_LABELS, stepLabel } from './sim/arms/shooting.js';
 import * as shooting from './sim/arms/shooting.js';
 import * as kdScene from './sim/scenarios/range.js';
 import * as wounds from './sim/body/wounds.js';
@@ -202,6 +216,9 @@ import { contactNow } from './sim/combat/contact.js';
 import { takeInWords } from './sim/combat/react.js';
 import * as pairsScene from './sim/scenarios/pairs.js';
 import * as TEMPLATES from './sim/skills/templates.js';
+// (0.0.9: COMBAT §5's model, the chaos: the HUD's reading, hardening for C and the picker)
+import * as SUPP from './sim/combat/supp.js';
+import { windAt } from './sim/arms/wind.js';
 import { turnerPx } from './render/range-items.js';
 // (a KD face drawn FACE_K times life size in the far window: the stage's own constant, VIEWS §2.12)
 import { FACE_K } from './art/kit/range.js';
@@ -216,7 +233,7 @@ import { createInstinct } from './ui/hud/instinct.js';
 import { createSplashControl, createSplashHud, splashContext } from './ui/hud/splash.js';
 import { keysRows } from './ui/cards/keys.js';
 import { logLines, rollLine, hiddenRec } from './ui/cards/log.js';
-import { runBench, benchResult, benchCard } from './ui/cards/bench.js';
+import { runBench, benchResult, benchCard, BANG_FRAMES_MS } from './ui/cards/bench.js';
 import { actionsCard } from './ui/cards/actions.js';
 import { lateCard } from './ui/cards/late.js';
 import { sheetOf, sheetCard } from './ui/cards/sheet.js';
@@ -231,10 +248,10 @@ import { createSteps, createTicks } from './ui/hud/steps.js';
 import { createRadio } from './ui/hud/radio.js';
 import { createPaper, paperModel, faceModel } from './ui/hud/paper.js';
 import { createTimer, timerModel } from './ui/hud/timer.js';
-import { aspectLines, againTiers, runLine } from './ui/cards/pairs.js';
+import { aspectLines, againTiers, runLine, bangLines } from './ui/cards/pairs.js';
 import { createReflex } from './ui/hud/reflex.js';
 import { plaque, bracket, place, shotPlaque, plaqueWords, plaqueParts, termsPlaque, termLines, farLabel,
-  windowBracket, bracketScale, stamp, STAMP_S, contactPlaque, rowPartsPlaque } from './ui/plaque.js';
+  windowBracket, bracketScale, stamp, STAMP_S, contactPlaque, rowPartsPlaque, frozeStamp, chaosSum, feltMod } from './ui/plaque.js';
 import { doll } from './art/doll/doll.js';
 import { createStage } from './render/stage.js';
 import { createView, CUT_MAX_MS, FOG_CELLS } from './render/view.js';
@@ -268,6 +285,8 @@ const settings = {
   debug: params.debug || readLocal('olympus.debug') === '1',
   nostore: !!params.nostore || !!benchName, perf: !!params.perf, fog: !!params.fog,
   mood: params.mood || null,
+  // (0.0.9: VIEWS §12's "reduce flashes": a bang's white a grey veil, no startle's pale frame)
+  reduceFlashes: params.flashes === 'reduced' || readLocal('olympus.flashes') === 'reduced',
 };
 // (debug mode: an id map's cached sorted order checked against a fresh sort every 64th call, TECH §2.3.1)
 if (settings.debug) setIdsCheck(64);
@@ -303,7 +322,7 @@ let loop = null, sim = null;
 // (in stop motion the bare digit is refused: the step panel sends the step it showed, the build sheet 0.0.5 §2.4)
 const inStop = (s = loop?.state) => s?.stop?.mode === 'stop';
 // (0.0.8: while a contact is being taken in nothing is accepted: the keys are the marine's once he has taken it in)
-const input = createInput({ accept: (action, kind) => !!loop?.state && !loop.paused && !splash?.active && !(kind === 'digit' && inStop()) && !windowOpen() && !pauseGuarded(action), swallow: () => !!loop?.state && !boot?.card && !boot?.page });
+const input = createInput({ accept: (action, kind) => !!loop?.state && !loop.paused && !splash?.active && !(kind === 'digit' && inStop()) && !windowOpen() && !startledNow() && !pauseGuarded(action), swallow: () => !!loop?.state && !boot?.card && !boot?.page });
 // ---- the contact (0.0.8: contact.js contactNow, read once a tick) ----
 let contactMemo = { key: null, cn: null };
 /** The contact now (contactNow's { pending, last }), or null: read once a tick, never thrown. */
@@ -318,6 +337,20 @@ function contactRead(s = loop?.state) {
 }
 /** Whether a contact's window is open now (the take-in running: every key refused but Space and Esc). */
 function windowOpen(s = loop?.state) { return !!contactRead(s)?.pending; }
+// ---- the chaos (0.0.9: supp.js suppNow, read once a tick) ----
+let suppMemo = { key: null, sn: null };
+/** COMBAT §5's state of the player now (suppNow's record: the band, the startle, the flash, the deafness, the sum), or null: read once a tick, never thrown. */
+function suppRead(s = loop?.state) {
+  if (!s) return null;
+  const key = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}`;
+  if (suppMemo.key === key && suppMemo.state === s) return suppMemo.sn;
+  let sn = null;
+  try { sn = SUPP.suppNow ? SUPP.suppNow(s, s.player?.id, s.clock.ms) : null; } catch (e) { broke(e, 'the chaos'); }
+  suppMemo = { key, state: s, sn };
+  return sn;
+}
+/** Whether the marine is startled now (COMBAT §5.7: every key refused but Space and Esc, as in a contact's window). */
+function startledNow(s = loop?.state) { return !!suppRead(s)?.startle; }
 // (0.0.8, the fixer's, after the runtime review: the pause's guard, as the cards' CARD_GUARD_MS. A key pressed by reflex
 // as the target turns lands after a fast sheet's pause (the tier one's 0.05 s, the Raider's 0.10 s): X, the stop-motion
 // key, put him back into real time, and digits mashed in the window chose rows he never saw. So for PAUSE_GUARD_MS of real
@@ -338,14 +371,31 @@ function guardNote(s = loop?.state) {
   if (!cn?.pending && guardSeen.pauseT0 === -Infinity) guardSeen.pauseT0 = now;
   return guardSeen;
 }
+// (0.0.9: the startle's guard, the pause's twin: from when the page first sees a startle to its end, and for PAUSE_GUARD_MS
+// after it in stop motion, no key acts but Space and Esc, and a key that went down in it does nothing on its way up)
+let startleSeen = { id: null, t0: -Infinity, endT0: -Infinity, stop: false };
+/** Note when the page first sees a startle and its end (each check and each frame). */
+function startleNote(s = loop?.state) {
+  const st = suppRead(s)?.startle ?? null, now = performance.now();
+  if (st) { const id = `${st.fromMs}|${st.untilMs}`; if (startleSeen.id !== id) startleSeen = { id, t0: startleSeen.endT0 === -Infinity && startleSeen.id ? startleSeen.t0 : now, endT0: -Infinity, stop: false }; }
+  else if (startleSeen.id && startleSeen.endT0 === -Infinity) { startleSeen.endT0 = now; startleSeen.stop = inStop(s); }
+  return startleSeen;
+}
 /** Whether a key acts now (see above): never Space and Esc; refused inside the guard, or when it went down in the window or the guard. */
 function pauseGuarded(action, e = null) {
   if (action === 'pause' || action === 'menu') return false;
-  const g = guardNote(), now = performance.now();
+  const g = guardNote(), now = performance.now(), down = e?.code ? keyDownAt.get(e.code) : undefined;
+  // (0.0.9: the startle's)
+  const sg = startleNote();
+  if (sg.id && sg.endT0 === -Infinity) { frozePulseT0 = performance.now(); return true; }
+  if (sg.id) {
+    const until = sg.endT0 + (sg.stop || inStop() ? PAUSE_GUARD_MS : 0);
+    if (now < until) return true;
+    if (down !== undefined && down >= sg.t0 && down < Math.max(until, sg.endT0)) return true;
+  }
   if (g.pauseT0 === -Infinity) return false;
   const until = g.pauseT0 + PAUSE_GUARD_MS;
   if (now < until) return true;
-  const down = e?.code ? keyDownAt.get(e.code) : undefined;
   return down !== undefined && down >= g.winT0 && down < until;
 }
 const fitInput = () => input.setStage(stage.canvas, stage.W, stage.H);
@@ -357,8 +407,8 @@ sim = createSim({ loop, bus });
 const label = (a) => input.label(a);
 const instinct = createInstinct(hud, { label });
 // (the weapon mode's HUD: the step panel with its weapon card, the reflex card in its place, the radio box, the PAPER inset, the plaque and its brackets)
-const stepPanel = createSteps(hud, { label, labelOf: (id) => STEP_LABELS[id] ?? id, paintCard: (belief, far = {}) => (belief?.model ? paintWeaponCard({ model: belief.model, belief, k: 1, ...far }) : null),
-  onPick: (step) => { if (!loop.paused && !boot.card && !splash?.active && inStop() && !windowOpen() && !pauseGuarded('click')) { let st = null; try { st = stopNow(loop.state); } catch { /* (no stop motion: nothing to send) */ } if (st && !st.reflex) sendStep(step, input.peek().run ? 'rushed' : 'normal', st); } } });
+const stepPanel = createSteps(hud, { label, labelOf: (id) => stepLabel(id), paintCard: (belief, far = {}) => (belief?.model ? paintWeaponCard({ model: belief.model, belief, k: 1, ...far }) : null),
+  onPick: (step) => { if (!loop.paused && !boot.card && !splash?.active && inStop() && !windowOpen() && !startledNow() && !pauseGuarded('click')) { let st = null; try { st = stopNow(loop.state); } catch { /* (no stop motion: nothing to send) */ } if (st && !st.reflex) sendStep(step, input.peek().run ? 'rushed' : 'normal', st); } } });
 const reflexCard = createReflex(hud, { plaque, label });
 const radio = createRadio(hud);
 const paperInset = createPaper(hud);
@@ -374,8 +424,10 @@ hud.append(pickBox, aimBox, aimPlaque, termsPlate, plaqueInfo, farLabelEl, farTi
 const WINDOW_POOL = 6;
 const windowBoxes = Array.from({ length: WINDOW_POOL }, () => el('canvas', { className: 'plaque bracket window', hidden: true }));
 const takenBoxes = Array.from({ length: WINDOW_POOL }, () => el('canvas', { className: 'plaque bracket', hidden: true }));
+// (0.0.9: the FROZE stamp beside your own figure's head at a startle's end)
+const frozeEl = el('canvas', { className: 'plaque stamp froze', hidden: true });
 const stampEl = el('canvas', { className: 'plaque stamp', hidden: true }), contactPlate = el('canvas', { className: 'plaque contact', hidden: true }), partsPlate = el('canvas', { className: 'plaque parts', hidden: true });
-hud.append(...windowBoxes, ...takenBoxes, stampEl, contactPlate, partsPlate);
+hud.append(...windowBoxes, ...takenBoxes, stampEl, frozeEl, contactPlate, partsPlate);
 const timerPaper = createTimer(hud);
 // (a casualty's picture dimming at P and U: BODY §17.2's AVPU, wounds.js avpuOf; under the HUD, over the picture)
 const fadeEl = el('div', { className: 'avpu-fade', hidden: true });
@@ -420,6 +472,12 @@ const boot = createBoot({ cb: {
   saveFile: () => { if (loop.state) toast(`Saved to ${store.exportFile(loop.state)}.`); },
   report: () => reportProblem(),
   resume: () => loop.pause(false, 'player'),
+  // (0.0.9, the fixer's: a test scene ended from the Esc menu goes to its end card at once, as Enter does at its end)
+  scene: () => (scene ? { id: scene.rec.id, ended: !!scene.ended } : null),
+  // (0.0.9, the fixer's: "reduce flashes" turned from the menu, kept in this browser unless nostore)
+  flashes: () => settings.reduceFlashes,
+  setFlashes: (on) => { settings.reduceFlashes = !!on; if (!settings.nostore) { try { localStorage.setItem('olympus.flashes', on ? 'reduced' : 'full'); } catch { /* (a private window: this session only) */ } } },
+  endScene: () => { if (!scene || scene.ended) return; scene.ended = true; scene.endNow = true; scene.byMenu = true; loop.pause(false, 'player'); },
   quit: () => quitToTitle(),
   overlay: (name, open) => {
     if (open) releases.set(name, loop.pauseFor(`overlay:${name}`));
@@ -441,7 +499,7 @@ const boot = createBoot({ cb: {
   scenes: () => Object.values(SCENES),
   playScene: (scene, { tier = null } = {}) => playScene(scene, { tier }),
   // (0.0.8: a scene played as a sheet: the picker's sheets and their order, react's templates.js)
-  sheets: () => ({ sheets: TEMPLATES.TEST_SHEETS ?? {}, order: TEMPLATES.PICKER_TIERS ?? null }),
+  sheets: () => ({ sheets: TEMPLATES.TEST_SHEETS ?? {}, order: TEMPLATES.PICKER_TIERS ?? null, hard: hardOfSheet }),
   sound: () => ({ volume: audio.volume, muted: audio.muted }),
   volume: (v) => { audio.setVolume(v); keepSound(); },
   mute: (on) => { audio.setMuted(on); keepSound(); },
@@ -499,7 +557,8 @@ let scene = null;                                                    // ({ rec: 
 // (two scenes share test-handling's scenario: the mixed one is the game whose range issued the tracer)
 const sceneOf = (s) => {
   if (!s?.meta?.scenario) return null;
-  const all = Object.values(SCENES).filter(x => x.scenario === s.meta.scenario), setup = s.armoury?.range?.mixed ? 'mixed' : null;
+  // (0.0.9: the banged pairs the game whose session has the setup 'bangs')
+  const all = Object.values(SCENES).filter(x => x.scenario === s.meta.scenario), setup = s.armoury?.range?.mixed ? 'mixed' : String(s.armoury?.range?.setup ?? '').startsWith('bangs') ? 'bangs' : null;
   return all.find(x => (x.setup ?? null) === setup) ?? all[0] ?? null;
 };
 /** Start a scene: a new game of its scenario, at its hour (or the URL's), with the seed given or a new one, the URL's setup (else the scene's own), and a sheet's tier (test-pairs, 0.0.8). */
@@ -633,6 +692,8 @@ bus.on('log', ({ entry } = {}) => {
   if (VOICE_KINDS.has(entry.kind)) return;                         // (what was said is in the radio box, and in J)
   // (0.0.8: a contact's sum is the plaque's lead, the stamp and the line's "Contact · 0.55 s." in the picture, and in J whole: no toast says it again)
   if (entry.kind === 'contact') return;
+  // (0.0.9: a startle's sum is FROZE in the picture and in J whole: felt is never a number on the HUD)
+  if (entry.kind === 'startle') return;
   if (loop.state?.skip) { if (entry.kind === 'activity' && debugSkip) return; (heldLog ??= []).push(entry); return; }
   toast(entry.text, entry.tone);
 });
@@ -680,6 +741,13 @@ bus.on('pit', (f) => { try { audio.fact('pit', f, loop.state); } catch (e) { bro
 bus.on('stop-mode', () => { stepPage = 0; hoverKey = null; });
 // (0.0.8: the turner's motor, clack and the timer's beep; a step chosen after a contact's pause ends the plaque's lead)
 bus.on('turner', (f) => { try { audio.fact('turner', f, loop.state); } catch (e) { broke(e, 'the sound'); } });
+// (0.0.9: a bang's report, and where it went off: the white's afterimage stands there)
+let lastBurst = null;
+bus.on('fx', (f) => {
+  if (f?.kind !== 'bang') return;
+  lastBurst = Number.isFinite(f.x) && Number.isFinite(f.z) ? { x: f.x, z: f.z, atMs: f.atMs ?? null } : lastBurst;
+  try { audio.fact('fx', f, loop.state); } catch (e) { broke(e, 'the sound'); }
+});
 bus.on('step', (f) => { if (f?.who === loop.state?.player?.id && f.phase === 'start') stepChosenMs = Number.isFinite(f.fromMs) ? f.fromMs : loop.state?.clock?.ms ?? null; });
 bus.on('reflex', (f) => { if (f?.phase === 'offer') reflexKeep = false; });
 bus.on('range', (f) => {
@@ -794,7 +862,7 @@ input.onAction((action, kind, e) => {
   }
   if (splash.active) { splashKey(action, kind); return; }
   // (0.0.8: a contact being taken in: Space and Esc alone, COMBAT §25.4.5; and the pause's guard (see pauseGuarded))
-  if (windowOpen() && action !== 'pause' && action !== 'menu') return;
+  if ((windowOpen() || startledNow()) && action !== 'pause' && action !== 'menu') return;
   if (pauseGuarded(action, e)) return;
   if (inStop() && !loop.paused && stopKey(action, kind, e)) return;
   if (action === 'pause') loop.togglePause('player');
@@ -818,7 +886,7 @@ let infoUntil = 0, lastInput = 'key', plaqueRect = null;
 const showPlaqueInfo = () => { infoUntil = performance.now() + PLAQUE_INFO_MS; };
 addEventListener('keydown', () => { lastInput = 'key'; }, true);
 addEventListener('pointermove', (e) => { if (e.movementX || e.movementY) lastInput = 'mouse'; }, true);
-function resetWeaponHud() { stepPage = 0; digitShift = false; reflexKeep = false; hoverKey = null; lastString = null; plaqueMemo = null; stepChosenMs = null; stampSeen = null; ticks.reset(); radio.clear(); }
+function resetWeaponHud() { stepPage = 0; digitShift = false; reflexKeep = false; hoverKey = null; lastString = null; plaqueMemo = null; stepChosenMs = null; stampSeen = null; frozeSeen = null; lastBurst = null; startleSeen = { id: null, t0: -Infinity, endT0: -Infinity, stop: false }; ticks.reset(); radio.clear(); }
 function stopKey(action, kind, e) {
   const s = loop.state;
   let st = null;
@@ -859,7 +927,7 @@ function sendStep(step, tempo, st = null) {
 }
 // (the brackets: Q and D (the codes KeyA and KeyD) and the arrows step them, Enter aims at the bracketed one)
 addEventListener('keydown', (e) => {
-  if (!loop.state || boot.card || splash.active || loop.paused || e.metaKey || e.ctrlKey || !inStop() || windowOpen() || pauseGuarded('pick', e)) return;
+  if (!loop.state || boot.card || splash.active || loop.paused || e.metaKey || e.ctrlKey || !inStop() || windowOpen() || startledNow() || pauseGuarded('pick', e)) return;
   let st = null;
   try { st = stopNow(loop.state); } catch { return; }
   if (!st || st.reflex) return;
@@ -873,7 +941,7 @@ addEventListener('keydown', (e) => {
 });
 // (the mouse in stop motion: a click on a target aims at it, a click on the aimed one fires)
 frameEl.addEventListener('pointerdown', (e) => {
-  if (!loop.state || boot.card || splash.active || loop.paused || e.button !== 0 || !inStop() || windowOpen() || pauseGuarded('click')) return;
+  if (!loop.state || boot.card || splash.active || loop.paused || e.button !== 0 || !inStop() || windowOpen() || startledNow() || pauseGuarded('click')) return;
   if (e.target?.closest?.('.steps, .reflexcard')) return;
   let st = null;
   try { st = stopNow(loop.state); } catch { return; }
@@ -900,6 +968,19 @@ addEventListener('keydown', (e) => {
 
 // ---- the cards of this round: PERSONNEL, the choices, the late card, a scene's end and score ----
 const BODY = Object.freeze({ bodyOf, stagesOf, stripOf, wordsOf, cuesOf, hairOf, woundWords: wounds.woundWords });
+// (0.0.9: hardening's readers for C, supp.js's)
+const SUPP_READERS = Object.freeze({ hardParts: SUPP.hardParts, hardWord: SUPP.hardWord, inocOf: SUPP.inocOf });
+/** A test sheet's hardening in words (the picker's: supp.js hardFrom over the sheet's Warfighting and inoculation, hardWord), or null. */
+function hardWordOfSheet(tier) {
+  return hardOfSheet(tier)?.word ?? null;
+}
+/** A test sheet's hardening for the picker and "Again as …": { word, title } ("Hardening 7: experience 5, training 2" on the hover; the fixer's). */
+function hardOfSheet(tier) {
+  const t = TEMPLATES.TEST_SHEETS?.[tier];
+  if (!t || !SUPP.hardFrom || !SUPP.hardWord) return null;
+  const inoc = t.inoc ?? SUPP.INOC_OF_TIER?.[tier] ?? 0, H = SUPP.hardFrom({ wf: t.wf, cls: 'soldier', inoc }), exp = SUPP.hardFrom({ wf: t.wf, cls: 'soldier', inoc: 0 });
+  return { word: SUPP.hardWord(H), title: `Hardening ${H}: experience ${exp}, training ${inoc}` };
+}
 // (the player's hair's drawn step, hairOf's: the sheet's and the inventory's dolls wear the cut as it has grown)
 const hairStep = (s) => { try { return hairOf(s, s.player?.id, s.clock.ms)?.step ?? 0; } catch { return 0; } };
 const clockText = (ms) => { const c = marsClock(ms, lonAt(loop.state)); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
@@ -907,7 +988,7 @@ function openSheet() {
   const s = loop.state, me = s ? playerActor(s) : null, p = s?.people?.[s.player?.id];
   if (!s) return;
   let sheet;
-  try { sheet = sheetOf(s, { body: BODY, lonEDeg: lonAt(s), look: p?.look ? lookFor(p.look, me?.outfit ?? 'utilities', indoorsNow(s), hairStep(s)) : null }); }
+  try { sheet = sheetOf(s, { body: BODY, supp: SUPP_READERS, lonEDeg: lonAt(s), look: p?.look ? lookFor(p.look, me?.outfit ?? 'utilities', indoorsNow(s), hairStep(s)) : null }); }
   catch (e) { broke(e, 'the character sheet'); return; }
   boot.openCard('sheet', sheetCard(sheet, { dollOf: (args) => doll(args) }));
 }
@@ -977,6 +1058,8 @@ function openLate(view, send) {
 }
 /** This session's test-pairs runs, by scene and seed, then by sheet: their end card lines (page memory, never saved). */
 const sessionRuns = new Map();
+/** This session's calm test-pairs runs: the first string's turn to first round (ms), by seed and sheet (0.0.9: the banged card's calm line; page memory). */
+const calmRuns = new Map();
 function openEnd() {
   if (!scene) return;
   const { rec, seed } = scene;
@@ -988,15 +1071,31 @@ function openEnd() {
   const sheets = TEMPLATES.TEST_SHEETS ?? {}, played = pn?.sheet ?? null;
   const tier = played ?? scene.tier ?? null;
   // (this session's runs on this seed, by sheet: page memory only, never the save (the design review of v0.0.8))
+  // (0.0.9: the banged scene's lines first: the scene's bangsNow summary and this session's calm run on the seed and sheet; a calm
+  // run's first string's first round from the sighting (the paper's sum) kept for it, by seed and sheet)
+  let bangs = [], bn = null;
+  const banged = String(loop.state?.armoury?.range?.setup ?? '').startsWith('bangs');
+  try {
+    const s = loop.state;
+    if (pn && played && !banged) { const f = pn.strs?.[0], t1 = Number.isFinite(f?.takeInMs) && Number.isFinite(f?.pauseToFirstMs) ? f.takeInMs + f.pauseToFirstMs : null; if (Number.isFinite(t1)) calmRuns.set(`${seed}|${played}`, t1); }
+    bn = banged && s && pairsScene.bangsNow ? pairsScene.bangsNow(s, s.clock.ms) : null;
+    if (bn) bangs = bangLines(bn, { calmRunMs: calmRuns.get(`${seed}|${played}`) ?? null, fmt: takeInWords });
+  } catch (e) { broke(e, 'the end card'); }
+  // (this session's runs on this seed, by sheet: page memory only, never the save (the design review of v0.0.8); on "Three bangs"
+  // each sheet's bangs line, so the recruit's and the tier one's sit side by side (the design review of v0.0.9), the sheet just
+  // played marked and its line not said twice above)
   let runs = [];
   if (pn && played) {
     const key = `${rec.id}|${seed}`, m = sessionRuns.get(key) ?? new Map();
-    m.set(played, runLine(pn, { fmt: takeInWords }));
+    m.set(played, bn ? bn.summary : runLine(pn, { fmt: takeInWords }));
     sessionRuns.set(key, m);
-    runs = [...m.values()].filter(Boolean);
+    runs = [...m.entries()].filter(([, t]) => t).map(([t, text]) => ({ text, now: t === played }));
+    if (bn && runs.length > 1) bangs = bangs.slice(1);
   }
-  const { body, lines } = endCard({ scene: rec, seed, said, sheet: played ? sheets[played]?.label ?? played : null, runs,
-    aspects: pn ? aspectLines(pn.card, { fmt: takeInWords }) : [], again: pn ? againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null) : [], on: {
+  const again = pn ? againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null) : [];
+  if (banged) for (const a of again) a.hard = hardWordOfSheet(a.tier);
+  const { body, lines } = endCard({ scene: rec, seed, said, sheet: played ? sheets[played]?.label ?? played : null, runs, bangs,
+    aspects: pn ? aspectLines(pn.card, { fmt: takeInWords }) : [], again, on: {
     again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), hour: params.play === rec.scenario ? params.hour : null, setup: params.play === rec.scenario || params.play === rec.id ? params.setup : null, tier }),
     againAs: (t) => againAs(rec, t),
     score: () => openScore(),
@@ -1008,7 +1107,8 @@ function openEnd() {
 function againAs(rec, tier) {
   let a = null;
   try { a = loop.state && pairsScene.againAs ? pairsScene.againAs(loop.state, tier) : null; } catch (e) { broke(e, 'Again as'); }
-  return playScene(rec, { seed: a?.seed ?? scene?.seed ?? randomSeed(), tier: a?.tier ?? tier, hour: params.play === rec.scenario ? params.hour : null });
+  // (0.0.9: with the setup it was played with: "Three bangs" again as the tier one is three bangs)
+  return playScene(rec, { seed: a?.seed ?? scene?.seed ?? randomSeed(), tier: a?.tier ?? tier, hour: params.play === rec.scenario ? params.hour : null, setup: a?.setup ?? rec.setup ?? null });
 }
 function openScore() {
   if (!scene) return;
@@ -1072,12 +1172,17 @@ function render(alpha, s, info) {
     if (s?.skip) loop.skipTarget(null);                              // (a skip with no splash to pace it runs on to its end)
   }
   const shown = sf?.done ? null : sf?.view ?? null;
-  view.frame(alpha, s, { ...info, lonEDeg: lon, cut: cutHeld > 0, splash: shown });
+  // (0.0.9: the chaos on the picture, the reading of this tick; the burst the last bang's)
+  const sn = s ? suppRead(s) : null;
+  { const me = s ? playerActor(s) : null; view.setChaos?.(sn ? { sn, ms: s.clock.ms, reduce: settings.reduceFlashes, face: me?.face ?? 'right', burst: lastBurst } : null); }
+  // (0.0.9: the bay's wind for the bangs' smoke, the sim's own (wind.js windAt at the pad), only while a bang is planned)
+  const bangsNow0 = s?.armoury?.range?.bangs?.plan ?? null, windNow = bangsNow0?.length ? windAt(s.meta.seed, s.clock.ms, bangsNow0[0].x, bangsNow0[0].z, { gust: false }) : null;
+  view.frame(alpha, s, { ...info, lonEDeg: lon, cut: cutHeld > 0, splash: shown, wind: windNow });
   // (the frame's main-thread work: its ticks and the view; the frame clock itself is the browser's)
   report.frame = { ticks: info.ticks ?? 0, tickMs: (info.ticks ?? 0) * (loop.stats.tickMs ?? 0), viewMs: view.stats.viewMs, splash: shown ? shown.phase : null };
   counters && (report.gl = { last: counters.frame(), max: counters.max, total: { bytes: counters.total.bytes, uploads: counters.total.uploads, links: counters.total.links, compiles: counters.total.compiles } });
   const uiT0 = performance.now();
-  if (s) { try { audio.frame(s, alpha, t / 1000, { splash: shown }); } catch (e) { broke(e, 'the sound'); } }
+  if (s) { try { audio.frame(s, alpha, t / 1000, { splash: shown, chaos: sn }); const cap = audio.caption?.(); if (cap) toast(cap, 'calm'); } catch (e) { broke(e, 'the sound'); } }
   autosaveDue(info);
   if (s && launched && !launched.checked && loop.stats.ticks - launched.ticks >= RECOVER_TICKS) {
     launched.checked = true;
@@ -1125,6 +1230,7 @@ function render(alpha, s, info) {
   const weapon = weaponHud(s, alpha, { hidden: inSplash });
   // (0.0.8: the take-in's brackets and the pause's stamp; the coach's timer's paper on the pairs pad)
   const contact = contactHud(s, alpha, { hidden: inSplash });
+  const froze = frozeHud(s, { hidden: inSplash });
   const timer = timerHud(s, { hidden: inSplash });
   radio.frame(dtMs, !info.paused && !boot.card && !shown && !isHeld(s));
   const voices = radio.update({ hidden: inSplash, weapon: weapon.on, state: s });
@@ -1134,7 +1240,7 @@ function render(alpha, s, info) {
   const lead = benchLead ?? (pause && leadStands(s, pause) ? `Contact · ${takeInWords(pause.ms)} s.` : weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
   const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null, ui: uiK });
   report.hud = { watch: faces, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on, far: weapon.far,
-    terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '', timer, contact, lead,
+    terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '', timer, contact, lead, froze, chaos: view.stats.chaos ?? null,
     contactPlate: contactPlate.hidden ? '' : contactPlate.dataset.text ?? '', parts: partsPlate.hidden ? '' : partsPlate.dataset.text ?? '' };
   avpuFade(s);
   // (the HUD's and the sound's share of the frame: CONTRACTS §7's UI DOM budget is 1 ms)
@@ -1217,7 +1323,7 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   if (st.reflex) { stepPanel.update({ cardOnly: true, steps: [], belief: sim.belief, ui: uiK, ...distance }); reflexText = reflexCard.update(st.reflex, { keep: reflexKeep }); }
   else {
     reflexCard.update(null);
-    stepsText = stepPanel.update({ phase: st.phase, steps, page: stepPage, shift: input.peek().run, doing: st.doing, nowMs: s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), belief: sim.belief, ticks, ui: uiK, ...distance });
+    stepsText = stepPanel.update({ phase: st.phase, steps, page: stepPage, shift: input.peek().run, doing: st.doing, nowMs: s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), belief: sim.belief, ticks, ui: uiK, chaos: suppRead(s), ...distance });
   }
   try {
     if (far?.open && !keepPaper) paperText = paperInset.update(null);
@@ -1441,7 +1547,9 @@ function aimHud(s, st = null, list = [], range = null) {
   if (row) partsRect = stackAt(partsPlate, rowPartsPlaque(row, { secs: (ms) => (ms / 1000).toFixed(2) })); else partsPlate.hidden = true;
   if (lead) leadRect = stackAt(contactPlate, contactPlaque({ ms: lead.ms, words: takeInWords(lead.ms), ident: lead.ident?.[shown.key] ?? null })); else contactPlate.hidden = true;
   // (hovering it, or just after an aim or a bracket's move by the keys: the DC's parts and every modifier as believed, the list the roll will use)
-  const parts = plaqueParts(rec), terms = termLines(rec), takeIn = lead ? contactFactors(lead) : null, sig = JSON.stringify([parts, terms, takeIn]);
+  // (0.0.9: the felt term's arithmetic, "pinned −9: the chaos 105 − your hardening 17 = felt 88", where the roll's list carries one)
+  const chaosLine = chaosSum(feltMod(rec.mods), suppRead(s));
+  const parts = plaqueParts(rec), terms = termLines(rec), takeIn = lead ? contactFactors(lead) : null, sig = JSON.stringify([parts, terms, takeIn, chaosLine]);
   plaqueInfo.hidden = hoverKey !== shown.key && !(performance.now() < infoUntil && shown.key === (st.pick ?? aimedKey));
   if (!plaqueInfo.hidden) {
     if (plaqueInfo.dataset.sig !== sig) {
@@ -1450,6 +1558,7 @@ function aimHud(s, st = null, list = [], range = null) {
       plaqueInfo.replaceChildren(...[el('div', { className: 'pi-dc', textContent: `${parts.dc}: ${parts.parts.join(' · ')}` }), el('div', { className: 'pi-mods', textContent: parts.mods.length ? `${parts.mods.join(' · ')}` : 'no modifier' }),
         terms.length ? el('div', { className: 'pi-terms', textContent: terms.join(' · ') }) : null,
         takeIn ? el('div', { className: 'pi-takein', textContent: takeIn }) : null,
+        chaosLine ? el('div', { className: 'pi-chaos', textContent: chaosLine }) : null,
         el('div', { className: 'pi-odds', textContent: rec.part === 'FIVE' ? `a five or a V ${parts.odds} · on the paper ${Math.round((rec.kd?.scoreOdds ?? 0) * 100)}%` : `${rec.part === 'PAPER' ? 'on the paper' : 'the odds'} ${parts.odds}` })].filter(Boolean));
     }
     // (below the target and to its left, kept in the free band over the bottom stack: above the plaque if it would reach RADIO)
@@ -1574,6 +1683,39 @@ function contactHud(s, alpha, { hidden = false } = {}) {
   } else { for (const b of takenBoxes) b.hidden = true; stampEl.hidden = true; }
   return out;
 }
+// ---- 0.0.9: the FROZE stamp (VIEWS §7.4; COMBAT §5.7) ----
+/** The FROZE stamp beside your head: its left edge this far right of your feet (picture px) and its middle this high (m: the chibi's head). */
+const FROZE_BESIDE_PX = 8, FROZE_HEAD_M = 1.45;
+let frozeSeen = null;                                                // ({ atMs, t0 }: the stamp's real-time start, by the startle's end)
+/** A refused key's pulse on the counting stamp (ms of real time). */
+const FROZE_PULSE_MS = 220;
+let frozePulseT0 = -Infinity;
+/**
+ * "FROZE 2.45 S" beside your own figure's head at a startle's end (suppNow().froze: the whole freeze), in the take-in stamp's alphabet and
+ * amber, for STAMP_S of real time from when the page first sees it, never once the game clock has run that far past it, gone once a
+ * step is chosen after it; its last half second fading. Returns { ms, atMs, text } while it stands, else null.
+ */
+function frozeHud(s, { hidden = false } = {}) {
+  startleNote(s);                                                    // (the startle's guard counts from the frame that first sees it)
+  // (0.0.9, the design review: the stamp counts up while the startle lasts, so the freeze is seen as it happens, and
+  // holds its figure while a planned bang is still to join it; then the whole freeze stands for STAMP_S, shown once)
+  const sn = !hidden && s ? suppRead(s) : null, live = sn?.startle ?? null, held = !live && !!sn?.froze && pairsScene.bangDue(s);
+  const fz = live ? (live.soFarMs > 0 ? { ms: live.soFarMs, atMs: live.untilMs } : null) : sn?.froze ?? null;
+  if (!fz || !stage.cam?.project) { frozeEl.hidden = true; return null; }
+  const now = performance.now();
+  if (live || held || frozeSeen?.atMs !== fz.atMs) frozeSeen = { atMs: fz.atMs, t0: now };
+  const age = (now - frozeSeen.t0) / 1000, chosen = !live && !held && Number.isFinite(stepChosenMs) && stepChosenMs >= fz.atMs;
+  const me = playerActor(s);
+  if (!me || chosen || age >= STAMP_S || (!live && !held && s.clock.ms - fz.atMs > STAMP_S * 1000)) { frozeEl.hidden = true; return null; }
+  const { ox, oy, k } = pictureBox(), [px, py] = stage.cam.project(me.x, 0, me.z), st = frozeStamp(fz.ms, takeInWords(fz.ms));
+  // (beside the head, downrange of it: over the head it met the coach at your shoulder; the take-in stamp's alphabet and size)
+  place(frozeEl, st, Math.round(px) + FROZE_BESIDE_PX, Math.round(py) - Math.round(FROZE_HEAD_M * PX_PER_M), k, 'left', { ox, oy });
+  frozeEl.style.opacity = String(Math.max(0, Math.min(1, (STAMP_S - age) / 0.5)));
+  // (a key refused inside the startle pulses the stamp, as the brackets answer one in the take-in's window)
+  frozeEl.classList.toggle('pulse', live !== null && now - frozePulseT0 < FROZE_PULSE_MS);
+  frozeEl.hidden = false;
+  return { ms: fz.ms, atMs: fz.atMs, live: !!live, held, text: frozeEl.dataset.text ?? null };
+}
 /** The coach's shot timer's paper on the pairs pad: the last string's, until the next string runs (in PAPER, in and out of stop motion). */
 function timerHud(s, { hidden = false } = {}) {
   const pn = !hidden && s ? pairsOf(s) : null;
@@ -1595,13 +1737,15 @@ async function recoverBroken(slot) {
 async function bench(name) {
   const scene = BENCH_SCENES[name];
   if (!scene || !SCENARIOS[scene.play]) { toast(`No bench scene '${name}': the title instead.`, 'warn'); await showTitle(); return null; }
-  await launch(newGame({ seed: scene.seed, scenario: scene.play, hour: scene.hour, at: scene.at ?? null, setup: scene.setup ?? null }));
+  await launch(newGame({ seed: scene.seed, scenario: scene.play, hour: scene.hour, at: scene.at ?? null, setup: scene.setup ?? null, tier: scene.tier ?? null }));
   while (!window.__ready) await sleep(50);
   const me = () => { const a = playerActor(loop.state); return a ? { x: a.x, z: a.z } : null; };
   // (the scene's keys through the input, so a press key (R at the rack) reaches the page's listeners as a real one would)
   const run = await runBench({
     scene, keys: { down: (code) => input.key(code, true), up: (code) => input.key(code, false) }, where: me,
-    sample: () => ({ calls: view.stats.calls, triangles: view.stats.triangles, programs: view.stats.programs, viewMs: view.stats.viewMs, ticks: report.frame?.ticks ?? 0, tickMs: report.frame?.tickMs ?? 0, bytes: report.gl?.last?.bytes ?? 0, splash: report.frame?.splash ?? null }),
+    sample: () => ({ calls: view.stats.calls, triangles: view.stats.triangles, programs: view.stats.programs, viewMs: view.stats.viewMs, ticks: report.frame?.ticks ?? 0, tickMs: report.frame?.tickMs ?? 0, bytes: report.gl?.last?.bytes ?? 0, splash: report.frame?.splash ?? null,
+      // (0.0.9: a frame at a bang, within BANG_FRAMES_MS of game time after the last went off)
+      bang: !!(lastBurst && Number.isFinite(lastBurst.atMs) && loop.state && loop.state.clock.ms - lastBurst.atMs >= 0 && loop.state.clock.ms - lastBurst.atMs < BANG_FRAMES_MS) }),
     onLeft: (left) => { benchLead = `Bench: ${name}, ${left} s left`; },
   });
   benchLead = null;
@@ -1674,6 +1818,17 @@ const handleMore = {
   get far() { return farNow ? { far: farNow.far, place: farNow.place, open: farNow.open, alpha: farNow.alpha, label: farLabelEl.hidden ? null : farLabelEl.dataset.text ?? null, stage: view.farState?.() ?? null, flag: farFlag } : null; },
   /** The KD course now (range.js kdNow), or null off it. */
   kd() { const s = loop.state; return s && rangeNow(s)?.course === 'kd' ? kdOf(s) : null; },
+  /**
+   * The chaos now (0.0.9): { now (supp.js suppNow), hard (hardParts), inoc (inocOf), picture (the view's chaos as drawn),
+   * bangs (the view's bangs layer), froze (the stamp as shown), mix (the sound's), reduce (the "reduce flashes" setting) }.
+   */
+  supp() {
+    const s = loop.state;
+    if (!s) return null;
+    let hard = null, inoc = null;
+    try { hard = SUPP.hardParts(s, s.player.id, s.clock.ms); inoc = SUPP.inocOf(s, s.player.id); } catch { /* (no sheet: none) */ }
+    return { now: suppRead(s), hard, inoc, picture: view.stats.chaos ?? null, bangs: view.stats.bangs ?? null, froze: report.hud?.froze ?? null, frozeText: frozeEl.hidden ? null : frozeEl.dataset.text ?? null, mix: audio.stats.bang ? { ...audio.stats.bang } : null, chaosStage: audio.stats.chaos ?? null, reduce: settings.reduceFlashes };
+  },
   /** The step panel's step on a digit now (n 0 to 9), as the key would send it. */
   stepOn(n) { const st = stepPanel.stepFor(n); return st && st !== 'more' ? { id: st.id, kind: st.kind, label: st.label } : st; },
 };

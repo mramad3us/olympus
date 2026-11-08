@@ -10,11 +10,22 @@
 //                 the split one single pull (fireMs: the second sight picture), the second's climb × CONTROLLED_CLIMB_K 0.5.
 //   Hammer        (12, within HAMMER_MAX_M 7 m) two on one sight picture, the split TAP_SPLIT_S 0.25 × paceOf(WH), the full climb.
 //   Triple        (18, within 7 m) three, two hammer splits.
-//   Failure drill (12, within FAILURE_MAX_M 10 m) the hammer, the assessment and the shift to the head (HEAD_SHIFT_S
+//   Failure drill (12, within FAILURE_MAX_M 15 m) the hammer, the assessment and the shift to the head (HEAD_SHIFT_S
 //                 0.3 × pace), a head round (follow 2, climb × 0.5); the third not fired when the target is down after
 //                 the pair (assessDown, at the shift's end: the look is the shift's time).
-//   To the head   (no gate, within HEAD_MAX_M 10 m) only after "He's still up" (a torso round rang on a plate this
+//   To the head   (no gate, within HEAD_MAX_M 25 m) only after "He's still up" (a torso round rang on a plate this
 //                 contact, or STILL_UP_TORSO 2 torso hits, and still standing): the shift, then the round.
+// The reach (the fix of 2026-11-07, the user's report on the armoured string: "am i supposed to aim for the head ? How do
+// I do that ?"; the coach and the DI called for the head and the panel had no head row, the shooter a metre back in the
+// 10 m point's box, the turner 11 m off, both head rows then at 10 m and compared on the rounded range): a turner in your
+// own lane counts at your line's nominal distance (7 or 10 m) wherever you stand inside that line's box (pairs.js
+// pairsReachM); any other target (a neighbour's turner, a person) at its measured range, unrounded, so a neighbour's
+// turner at 7.6 m stays out of the Hammer. A rifle's head shot is no 10 m thing: HEAD_MAX_M 25 (the bay's length) and
+// FAILURE_MAX_M 15, where they were 10; Hammer and Triple stay at 7 m (close-range drills). The odds are the measured
+// range's (the roll's, dcOf by range), never the nominal's. **Never silent**: after "He's still up" To the head is in the
+// panel, offered and first, or struck with its reason where it truly cannot be ("27 m, past 25", "a stoppage", "empty,
+// RELOAD first", "chamber empty"), so the coach's "Still up!" and the DI's head line always point at a row (the DI names
+// its key: instinct/pairs.js, panel.js digitOf).
 // The parts, cumulative from the row's start as the sub-steps of stop motion (TIME §4.3: each taken on the first tick
 // at or after its boundary, the round's record on its formula time): 'aim' (from rung 2, and only when not aimed at the
 // target: aimMsOf, the selector to semi at the row's start at no time, the thumb during the mount: §8 item 3), 'hold'
@@ -23,10 +34,11 @@
 // and each round −3. Below rung 2 (the private, the recruit) a row is struck "off safe first" on safe and "aim first"
 // when not aimed at the target: the recruit does everything step by step (the user's words). Below its gate a row is
 // struck with the gate's words ("Marksmanship 12"), listed after those offered, so the recruit sees what training buys;
-// out of range or not relevant it is absent (§8 item 12). The rounds after a row's first carry its held aim (the climb is
-// the cost, not a fresh settle); a round after a shift holds nothing (a new sight picture). A row halts on a click or a
-// stoppage (the reflex card, as Fire's) and on the bolt locking back (the gun dry: no more rounds, its recovery the
-// last part); a target turned away takes its rounds into the berm, no fault (§8 item 21).
+// out of range or not relevant it is absent (§8 item 12), but To the head after "He's still up" (struck, never absent).
+// The rounds after a row's first carry its held aim (the climb is the cost, not a fresh settle); a round after a shift
+// holds nothing (a new sight picture). A row halts on a click or a stoppage (the reflex card, as Fire's) and on the bolt
+// locking back (the gun dry: no more rounds, its recovery the last part); a target turned away takes its rounds into the
+// berm, no fault (§8 item 21).
 // The order (COMBAT §25.6.1): To the head first after "He's still up"; the failure drill first where armour was seen at
 // the pause or torso hits stand; else Pair, Hammer, Triple, Failure drill. Rows are offered on a turner facing (SEEN) and
 // standing, or a person bracketed in a contact; the coach in the frame on a range never offers one (test-handling's panel
@@ -38,6 +50,9 @@
 // empty (reload:retain). When the session names a magazine (R.wantMag: the coach's short one, §8 item 18), Top up's
 // queue reaches for its pouch and its label says so ("Top up: the two-round magazine, chest pouch 3"). Nothing is done
 // unasked: these are rows; T may press one only because a line asked (the DI's).
+// 0.0.9 (the build sheet 0.0.9 §2.1, §8 item 9; COMBAT §25.18.1): a row's aim, press, splits, shift and recovery are ×
+// the roller's timeK at the row's start (combat/supp.js suppTimeK, exactly 1 when calm), each round's odds carry the
+// chaos's one entry through the roller, so a pinned recruit's Pair is slower and its odds the roll's.
 // Pure but runRound, runRowSub and endRowSub.
 import { logEntry } from '../log.js';
 import { paceOf } from '../skills/skills.js';
@@ -54,11 +69,12 @@ import { famCap, MODELS } from './models.js';
 import { turnersOf, turnerTargets } from './turners.js';
 import { contactNow, lullOf } from '../combat/contact.js';
 import { recordShot, rangeOf } from '../scenarios/handling.js';
+import { pairsReachM } from '../scenarios/pairs.js';
 import { targetOf, gunOn, macroRow, LABELS } from './shooting.js';
 
 export { A_MARGIN, PLATE_MM };
-/** The rows' reaches (m), COMBAT §25.6.1: the Pair, the Hammer and the Triple, the failure drill, To the head. */
-export const PAIR_MAX_M = 25, HAMMER_MAX_M = 7, TRIPLE_MAX_M = 7, FAILURE_MAX_M = 10, HEAD_MAX_M = 10;
+/** The rows' reaches (m), COMBAT §25.6.1: the Pair, the Hammer and the Triple, the failure drill, To the head (15 and 25 from the fix of 2026-11-07; were 10 and 10). */
+export const PAIR_MAX_M = 25, HAMMER_MAX_M = 7, TRIPLE_MAX_M = 7, FAILURE_MAX_M = 15, HEAD_MAX_M = 25;
 /** The controlled pair's second round: its climb × this (a second sight picture). */
 export const CONTROLLED_CLIMB_K = 0.5;
 /** The shift to the head (s × paceOf(Weapon handling)); a re-sighted head round's climb × HEAD_CLIMB_K. */
@@ -143,11 +159,12 @@ export function rowPlan(state, pid, rowId, target, { tempo = 'normal', atMs = st
   if (!R || !target) return null;
   const roller = rollerOf(state, pid, { ms: atMs }), wh = roller.value('weapons'), mrk = roller.value('marksmanship'), pace = paceOf(wh);
   const gun = state.items?.[gunId], M = MODELS[gun?.model ?? 'r7'], recoil = M.recoil, rpm = M.rpm ?? 700;
-  const k = tempo === 'rushed' ? TEMPO.rushed.timeK : 1, t = (ms) => Math.round(ms * k);
+  // (0.0.9: the parts × the chaos's time, the roller's at the row's start (exactly 1 when calm); the aim's own is aimMsOf's)
+  const kt = tempo === 'rushed' ? TEMPO.rushed.timeK : 1, k = kt * roller.timeK, t = (ms) => Math.round(ms * k), tt = (ms) => Math.round(ms * kt);
   const aimed = state.stop?.aim?.key === target.key, rung = rungOfShooter(state, pid), b = beliefOf(state, gunId);
   const parts = [];
   const aim = !aimed && rung >= RUNG_AIM;
-  if (aim) parts.push({ k: 'aim', ms: t(aimMsOf(state, pid, gunId, target)) });
+  if (aim) parts.push({ k: 'aim', ms: tt(aimMsOf(state, pid, gunId, target, { ms: atMs })) });
   const rate = HELD_RATE0 + mrk / 10;
   if (tempo === 'careful') {
     const h = aimed ? heldOf(state, pid, atMs, target.key) : null;
@@ -188,6 +205,17 @@ const NUM = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight
 // (a magazine believed out is known: only the chamber's round is left (the code review of v0.0.8: a Pair was offered, unstruck,
 // with the magazine out, and fired one round))
 const believedLeft = (b) => (b.mag === 'out' ? (b.chamber === 'live' ? 1 : 0) : typeof b.count === 'number' && !b.countApprox ? (b.chamber === 'live' ? 1 : 0) + b.count : null);
+/**
+ * The range a row's reach is judged at (m; see the header): a turner in your own lane on the pairs course at your line's
+ * nominal distance while you stand in that line's box (pairs.js pairsReachM), else the measured range, unrounded.
+ */
+export function reachOf(state, pid, T) {
+  const me = state.actors?.list?.find(a => a.who === pid) ?? null;
+  const line = T?.kind === 'turner' && me ? pairsReachM(state, T.key, me.x, me.z) : null;
+  return line ?? T?.dM ?? Infinity;
+}
+// (why a gun believed unable cannot take the head row: the words it is struck with (see the header))
+const unableWords = (b) => (!b ? 'no rifle' : b.stoppage || b.chamber === 'dud' || b.chamber === 'case' ? 'a stoppage' : b.locked ? 'empty, RELOAD first' : b.chamber === '?' ? 'chamber unknown' : 'chamber empty');
 /** Whether a target may take a shot row (see the header): a turner facing and standing, or a person bracketed in a contact. */
 export function rowTarget(state, T) {
   if (!T) return false;
@@ -205,18 +233,24 @@ export function shotRows(state, pid, ms = state.clock.ms) {
   const S = state.stop;
   if (!S || S.mode !== 'stop' || !S.pick) return [];
   const T = targetOf(state, S.pick, pid), gunId = S.gun, b = beliefOf(state, gunId);
-  if (!rowTarget(state, T) || !ableOf(b)) return [];
+  if (!rowTarget(state, T)) return [];
+  const up = stillUp(state, T.key), able = ableOf(b);
+  // (the gun believed unable: no row, but To the head after "He's still up", struck with why (see the header: never silent))
+  if (!able && !up) return [];
   const mrk = rollerOf(state, pid, { ms }).value('marksmanship'), rung = rungOfShooter(state, pid), aimed = S.aim?.key === T.key;
-  const dM = Math.round(T.dM ?? 99), up = stillUp(state, T.key), armour = armourSeen(state, T.key);
-  const order = up ? ['head', 'failure', 'pair', 'hammer', 'triple'] : armour ? ['failure', 'pair', 'hammer', 'triple'] : ['pair', 'hammer', 'triple', 'failure'];
-  const left = believedLeft(b), offered = [], struck = [];
+  const reachM = reachOf(state, pid, T), armour = armourSeen(state, T.key);
+  const order = !able ? ['head'] : up ? ['head', 'failure', 'pair', 'hammer', 'triple'] : armour ? ['failure', 'pair', 'hammer', 'triple'] : ['pair', 'hammer', 'triple', 'failure'];
+  const left = able ? believedLeft(b) : null, offered = [], struck = [];
   for (const key of order) {
     const R = ROWS[key];
-    if (dM > R.maxM) continue;
     if (key === 'head' && !up) continue;
+    const far = reachM > R.maxM;
+    if (far && key !== 'head') continue;
     const plan = rowPlan(state, pid, R.id, T, { atMs: ms, gunId }), rush = rowPlan(state, pid, R.id, T, { atMs: ms, gunId, tempo: 'rushed', odds: false }), care = rowPlan(state, pid, R.id, T, { atMs: ms, gunId, tempo: 'careful', odds: false });
     let off = null;
-    if (R.gate && mrk < R.gate) off = `Marksmanship ${R.gate}`;
+    if (!able) off = unableWords(b);
+    else if (far) off = `${Math.round(reachM)} m, past ${R.maxM}`;
+    else if (R.gate && mrk < R.gate) off = `Marksmanship ${R.gate}`;
     else if (left !== null && left < R.rounds.length) off = `${NUM[left] ?? left} left`;
     else if (b.mode === 'auto') off = 'on auto';
     else if (rung < RUNG_AIM && b.mode === 'safe') off = 'off safe first';
@@ -255,8 +289,8 @@ export function runRound(state, bus, d, i, atMs) {
     row: { id: d.step, n: R?.rounds.length ?? 1, i: p.i } });
   recordShot(state, bus, shot);
   let ms = p.ms;
-  const gun = state.items[gunId], pace = paceOf(rollerOf(state, pid, { ms: atMs }).value('weapons')), M = MODELS[gun?.model ?? 'r7'];
-  const rec = Math.round(recoverMs({ recoil: M.recoil, pace }) * (tempo === 'rushed' ? TEMPO.rushed.timeK : 1));
+  const gun = state.items[gunId], ro = rollerOf(state, pid, { ms: atMs }), pace = paceOf(ro.value('weapons')), M = MODELS[gun?.model ?? 'r7'];
+  const rec = Math.round(recoverMs({ recoil: M.recoil, pace }) * (tempo === 'rushed' ? TEMPO.rushed.timeK : 1) * ro.timeK);
   if (!shot.fired) { d.gunStop = 'click'; ms = 0; }
   else if (shot.stoppage) { d.gunStop = 'stop'; ms = rec; }
   else if (shot.empty && p.i < (R?.rounds.length ?? 1) - 1) { d.cut = true; d.dry = true; ms = rec; }

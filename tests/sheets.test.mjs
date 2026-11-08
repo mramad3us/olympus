@@ -12,6 +12,7 @@ import { TIERS, TEST_SHEETS, PICKER_TIERS, RUNG_OF_TIER, testSheet, rungOf, roll
 import { createGame } from './game.mjs';
 import { digest } from '../src/core/hash.js';
 
+
 // (the digest of rollSheet(seed, 'p<seed>', tier) for seeds 1 to 50 of the seven v0.0.7 tiers, by v0.0.7's own code)
 const V007_DRAWS = '0955b6fee56b13';
 
@@ -98,6 +99,14 @@ export default [
       assert(!bad.length, bad.join('\n'));
       assert(dig === V007_DRAWS, `the existing tiers' draws moved: ${dig}`);
       assert(TIERS.private.base.marksmanship.join() === '8,10' && TIERS.sgt.wf.join() === '38,50', 'the existing tiers');
+    },
+  },
+  {
+    name: '0.0.9: each test row carries its inoculation (recruit 2, private 6, corporal 10, sergeant 12, Raider 22, tier one 25: SKILLS §11.1\'s by tier) and testSheet writes it fixed (scenes never write a career)',
+    fn() {
+      const rows = Object.entries(TEST_SHEETS).map(([t, s]) => `${t} ${s.inoc}`), w = testSheet('sgt');
+      console.log(`      ${rows.join(', ')}; testSheet('sgt').inoc ${JSON.stringify(w.inoc)}`);
+      assert(rows.join() === 'recruit 2,private 6,cpl 10,sgt 12,raider 22,tierone 25' && JSON.stringify(w.inoc) === JSON.stringify({ pts: 12, n: 0, sol: 0, fixed: true }), rows.join());
     },
   },
 ];

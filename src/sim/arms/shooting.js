@@ -92,6 +92,9 @@
 // A shot row is a step of parts ('aim', 'hold', 'press', 'round', 'shift': runSub hands them to
 // specials.js, the rounds on their formula times); a contact row's 'contact:*' sub-steps are contact.js's. While a
 // contact's window is open (contact.js pendingOf) no step's end holds time: the window runs at 1:1 to its pause.
+// 0.0.9 (the build sheet 0.0.9 §2.1, §8 item 17; COMBAT §25.18.1): a row whose odds are under SHAKING_ODDS 0.70 while the
+// chaos's modifier on its skill is below 0 is marked, never struck: shaking { v, felt, band } and, with no warn of its own,
+// warn 'shaking' ("! shaking"); such a row is never routine.
 // Pure but enterStop, leaveStop, liveStep, chooseStep, stopInput, stopRules.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { q } from '../../core/num.js';
@@ -100,6 +103,7 @@ import { headOf } from '../people/perception.js';
 import { downOf } from '../body/wounds.js';
 import { isRoutine, oddsOf, TEMPO } from '../skills/checks.js';
 import { rollerOf } from '../combat/roll.js';
+import { suppMod, bandOf, SHAKING_ODDS } from '../combat/supp.js';
 import { stanceMs, WAIT_MAX_MS, STANCES, stanceStep } from '../combat/steps.js';
 import { offerReflex, chosenReflex } from '../combat/reflex.js';
 import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, HELD_MAX, poiOf, holdFor, holdWords, windBeliefOf, HOLD_STEP_MRAD, HOLD_MAX_MRAD, HOLD_SHIFT_MS } from './shot.js';
@@ -109,7 +113,7 @@ import { clickWords } from './paper.js';
 import { paceOf } from '../skills/skills.js';
 import { handMagOf, pickMag, pouchOf, atFeetOf, meantLoad, believedN, believedKind } from './kit.js';
 import { modelOf } from './models.js';
-import { macrosFor, subsOf, macroMs } from './drills.js';
+import { macrosFor, subsOf, macroMs, MACROS } from './drills.js';
 import { POSTURES } from './carry.js';
 import { faceUpAt, markedFor, FACE_DOWN_UP } from './pits.js';
 import { AIM_LEAD_K, EDGE_KEEP_M, FRAME_HALF_M } from './look.js';
@@ -121,8 +125,8 @@ import { areaOf } from '../places/model.js';
 import { logEntry } from '../log.js';
 import { lineReady, recordShot, recordEjects, recordDischarge, afterStep, aheadOf, coachOf, rangeOf, markOfMacro, onStepStart, noteTick, magSeated, oneMagWarn, kindWarn, spoutCheck } from '../scenarios/handling.js';
 import { turnerTargets } from './turners.js';
-import { shotRows, reloadRows, rowPlan, keptPlan, runRowSub, endRowSub, RELOAD_PURPOSE, rungOfShooter, RUNG_AIM, halfOrLess, fullerAtHand } from './specials.js';
-import { contactRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive } from '../combat/contact.js';
+import { shotRows, reloadRows, rowPlan, keptPlan, runRowSub, endRowSub, RELOAD_PURPOSE, rungOfShooter, RUNG_AIM, halfOrLess, fullerAtHand, ROWS } from './specials.js';
+import { contactRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive, CONTACT_LABELS } from '../combat/contact.js';
 
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 /** A heading as a sprite's facing. */
@@ -146,6 +150,19 @@ export const LABELS = Object.freeze({
   // (0.0.7: the turrets, the hold, the read and the lever (see the header))
   read: 'Read the flags', 'optic:1': 'One power', 'optic:4': 'Four power', 'hold:centre': 'Hold centre', 'sight:call': 'Dial the coach\'s call',
 });
+/**
+ * A step's words from its id alone, for a step whose row the panel never drew (a load, an "Again", T's step): the single's
+ * LABELS, a command's macro label ('macro:ready' → "MAKE READY"), a shot row's ('shot:pair' → "Pair"), "Carry on", else the
+ * id (the runtime review of v0.0.9: the weapon card showed "macro:ready ◦◦✗◦").
+ */
+export function stepLabel(id) {
+  if (!id) return '';
+  if (LABELS[id]) return LABELS[id];
+  if (id.startsWith('macro:')) return MACROS[id.slice(6)]?.label ?? id;
+  if (id.startsWith('shot:')) return Object.values(ROWS).find(r => r.id === id)?.label ?? id;
+  if (id === 'queue') return 'Carry on';
+  return CONTACT_LABELS[id] ?? id;
+}
 /** Sitting's times (my calls; COMBAT §3.4's stances have none): from and to each stance, ms at pace 1, × paceOf(Fitness). */
 export const SIT_MS = Object.freeze({ 'stand>sit': 2000, 'kneel>sit': 1500, 'prone>sit': 1800, 'sit>stand': 1200, 'sit>kneel': 1000, 'sit>prone': 1500 });
 /** A stance change's time with sitting in it (steps.js stanceMs for the rest), ms. */
@@ -510,7 +527,7 @@ export function stepsOf(state, ms = state.clock.ms) {
   const R0 = rangeOf(state), waitLabel = R0?.course === 'pairs' && !R0.end ? (R0.cmd?.id === 'standby' && R0.str && !R0.str.done ? 'Wait for the turn' : 'Wait for the coach') : LABELS.wait;
   const wait = { id: 'wait', kind: 'wait', label: waitLabel, ms: WAIT_MAX_MS, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
   const leave = { id: 'leave', kind: 'leave', label: LABELS.leave, ms: 0, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
-  if (slung(posture)) return [...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, wait, leave];
+  if (slung(posture)) return shaking(roller, [...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, wait, leave]);
   // (1 Fire: at the aim, the gun as the holder believes it)
   const aimT = S.aim ? targetOf(state, S.aim.key, pid) : null, pull = pullMsOf(state, pid, S.gun);
   const h = aimT ? heldOf(state, pid, ms, aimT.key) : null;
@@ -603,6 +620,20 @@ export function stepsOf(state, ms = state.clock.ms) {
       : hold ?? (subs.includes('reach') || subs.includes('magIn') ? pickMag(state, pid, { from: 'rule', fams: modelOf(gun)?.fams ?? null, load: meantLoad(state) })?.id ?? null : null);
     const w = oneMagWarn(state, would) ?? kindWarn(state, would ? state.items[would] : null);
     if (w) st.warn = w;
+  }
+  return shaking(roller, out);
+}
+
+// (0.0.9: a row whose odds the chaos holds under SHAKING_ODDS is marked "! shaking", never struck (combat/supp.js; COMBAT
+// §25.18.1); the slung panel's rows too, its Rifle up the first a recruit dropped onto his sling needs (the code review's))
+function shaking(roller, out) {
+  if (roller.felt > 0) for (const st of out) {
+    if (st.odds === null || st.odds === undefined || st.odds >= SHAKING_ODDS || !st.skill) continue;
+    const m = suppMod(roller.felt, st.skill);
+    if (!m) continue;
+    st.shaking = { v: m.v, felt: roller.felt, band: bandOf(roller.felt) };
+    if (!st.warn) st.warn = 'shaking';
+    st.routine = false;
   }
   return out;
 }

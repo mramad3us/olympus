@@ -37,7 +37,7 @@
 // value 3, 1.02 at 30). actionMs() is its time before any fumble. act() is the pure core: one Weapon handling
 // roll (SKILLS' check, procedure, at the caller's pressure), then the ladder (§5.4): a failure costs
 // FUMBLE_K more time; a failure that bites (not routine) on a chamber or magazine action leaves its
-// part '?', worse by DROP_BY drops the magazine (a magazine action) or the gun (a long gun swings on
+// part '?', on the selector leaves the lever where it was (the thumb slipped: v0.0.9), worse by DROP_BY drops the magazine (a magazine action) or the gun (a long gun swings on
 // its two-point sling, SLING_RECOVER_S to recover: §5.5), worse by DISCHARGE_BY with the gun ready and
 // a hand at the trigger (DISCHARGE_ACTIONS) fires it; a natural 1 draws its own die (tradecraft's: under
 // NAT1_DROP_BELOW a drop NAT1_DROP of the time, under NAT1_SHOT_BELOW a shot NAT1_SHOT of the time too).
@@ -99,6 +99,10 @@
 // What a step throws out of the port (result.ejected, ejects: 'round' | 'dummy' | 'case') is for the
 // caller to store as brass (look.js ejectCase), as resolveShot does a fired case. Positions are metres,
 // times game ms; a condition is rounded to 1e-6 before it is saved (core/num.js).
+// 0.0.9 (the build sheet 0.0.9 §2.1, §8 items 8, 9; COMBAT §5.3, §5.9): the chaos reaches the hands through the roller
+// only. WEAPONS §5.1's flat 'fire' −3 (PRESSURE_MODS, never applied: no caller passed 'fire') is retired for the roller's
+// one felt entry (combat/supp.js suppMod), and an action's time is × roller.timeK (supp.js suppTimeK: exactly 1 at felt 0),
+// the roller taken at the sub-step's start. Pressure stays 'evaluated' on the range: routine emerges from value + mods.
 import { q } from '../../core/num.js';
 import { hashInt } from '../../core/hash.js';
 import { nextId, put } from '../../core/ids.js';
@@ -463,7 +467,8 @@ function actionS(roller, gun, action, { tempo = 'normal', posture = null, pace =
   if (a.observer) return SHOW_LOOK_S * paceOf(observer ? observer.value('awareness') : 10);
   const p = a.paced === false ? 1 : pace ?? paceOf(roller.value('weapons'));
   const s0 = base.s * (base.long && isLong(M) ? LONG_K : 1);
-  return s0 * (a.thumb ? p * p : p) * timeK(tempoFor(action, tempo));
+  // (× the chaos's time factor, the roller's: exactly 1 when calm, and x × 1 is x to the bit)
+  return s0 * (a.thumb ? p * p : p) * timeK(tempoFor(action, tempo)) * (roller?.timeK ?? 1);
 }
 
 // ---- the pure core: one action ----
@@ -497,11 +502,11 @@ const roundsWord = (n) => (n === 0 ? 'empty' : n === 1 ? 'one round' : `${n} rou
  * the ladder, the truth and the belief changed. roller: { value, mods, light } (combat/roll.js);
  * mag: the magazine record in the gun (gun.mag's) or null; ctx: { spares: [{ id, mag }] (in reach, the
  * one to go in first), pressure, tempo, light, dark, observer (a roller, for show), posture (the
- * carry's now), finger, mods (the moment's: pressure's stress), pace (an override), model (a fixture),
+ * carry's now), finger, mods (the caller's own: the chaos is the roller's), pace (an override), model (a fixture),
  * force ({ <action>: grade }: a test's lever, the roll kept and marked forced), wh }.
  * Returns { ms, ok, grade, routine, roll, mishap: null | 'dropMag' | 'dropped' | 'discharge', fired,
  * text, ejected, ejects, magId, magOut: 'drop' | 'dump' | 'pouch' | null, magIn: id | null, posture,
- * finger, halts, silent, refused, observed: { roll, said } }.
+ * finger, halts, silent, refused, observed: { roll, said }, slipped (the selector left where it was) }.
  */
 export function act(rng, roller, gun, mag, action, ctx = {}) {
   const a = actionOf(action), key = actionKey(action), M = ctx.model ?? modelOf(gun);
@@ -656,6 +661,14 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
       const ring = M.ring ?? ['safe', 'semi'];
       if (!ring.includes(a.mode) && M.safety !== 'none') { out.text = `${M.short} has no ${a.mode}.`; out.halts = true; break; }
       const was = t('mode');
+      // (a thumb that slips on the lever leaves it where it was: a biting failure on the selector costs its slow time and
+      // moves nothing, so "OFF SAFE ✗" means still on safe; the user, 2026-11-07: "likely to fail simple actions like
+      // thumbing safety off"; the fixer's call of v0.0.9, WEAPONS §5.4. A drop is the ladder's, above)
+      if (bites && M.safety !== 'none' && was !== a.mode) {
+        out.slipped = true;
+        out.text = `Your thumb slipped off the lever: still ${was === 'safe' ? 'on safe' : `on ${was}`}.`;
+        break;
+      }
       if (M.safety !== 'none') setG(gun, 'mode', a.mode);
       out.text = was === a.mode ? (a.mode === 'safe' ? 'On safe.' : `On ${a.mode}.`) : a.mode === 'safe' ? 'Safe.' : `Off safe: ${a.mode}.`;
       break;
@@ -940,8 +953,6 @@ export function canDo(state, pid, gunId) {
 
 // ---- the state's way in ----
 
-/** The moment's stress on handling, by the pressure (WEAPONS §5.1: tradecraft's stress(); shot at in the last 5 s, −3). */
-export const PRESSURE_MODS = Object.freeze({ fire: Object.freeze([Object.freeze({ why: 'under fire', v: -3, src: 'env' })]) });
 const actorOf = (state, pid) => state.actors?.list?.find(a => a.who === pid) ?? null;
 // (a magazine that hits a hard surface: its lips and spring take MAG_DROP_WEAR; loose regolith takes nothing)
 function dropWear(state, magId, g) {
@@ -988,7 +999,7 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
   }
   if (key === 'stowMag') { const p = pouchOf(state, pid, place ?? 'p1'); if (p && !p.dump && p.room > 0) { to = p.id; toWord = p.word; } }
   if (key === 'dumpMag') { const d = dumpOf(state, pid); if (d) { to = d; toWord = PLACE_WORDS.dump; } }
-  const ctx = { spares, held, reach, reachWhy, to, toWord, pressure, tempo, light: roller.light, observer, observerId, posture, finger: carry.finger ?? 'off', mods: [...(PRESSURE_MODS[pressure] ?? []), ...(mods ?? [])], force };
+  const ctx = { spares, held, reach, reachWhy, to, toWord, pressure, tempo, light: roller.light, observer, observerId, posture, finger: carry.finger ?? 'off', mods: [...(mods ?? [])], force };
   const r = act(rngOf(state, rng), roller, gun, mag, action, ctx);
   r.nd = null;
   if (r.refused) return r;

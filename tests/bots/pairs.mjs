@@ -27,6 +27,14 @@
 // with the clock standing still (a stall, said at once, never a test that hangs). Its memory (me.bot) is plain data, so it
 // saves and loads with the game; mem.log keeps each decision ({ atMs, step, cmd }).
 //
+// 0.0.9, "Three bangs" (setup 'bangs'): while the marine is startled (supp.js suppNow's startle: the page refuses every key
+// but Space and Esc) the bot presses nothing, as a player whose keys are taken; after it, it tries what it tried before,
+// and a failed Off safe is tried again, a rifle swung onto its sling brought up (the dice fail the hands, never the bot).
+// The fuzz bot mashes keys through the startle (each refused: game.js act()'s gate). bangsFuzzBot({ seed }) is "Three
+// bangs"' fuzz: the pairs bot until the banged standby is armed (the fuzz alone rarely stands ready long enough for it),
+// pressing G in it now and then before the first bang (the plan put off) and after it (the turn put off), then the fuzz
+// bot from the first bang on, mashing through the startle.
+//
 // pairsFuzzBot({ seed }) hunts the scene's dead ends (the build sheet §5.3): random legal steps (the shot rows and the
 // contact's weigh more), aims at the no-shoot, never reloading (odd seeds), idling out of the mode for a random while,
 // entering the mode in the standby, walking off the point now and then; its dice are hashes of its seed and its count
@@ -34,8 +42,9 @@
 import { pairsNow, HALF_N } from '../../src/sim/scenarios/pairs.js';
 import { stepsOf } from '../../src/sim/arms/shooting.js';
 import { beliefOf } from '../../src/sim/arms/firearms.js';
-import { pouchesOf, believedN } from '../../src/sim/arms/kit.js';
+import { pouchesOf, believedN, atFeetOf } from '../../src/sim/arms/kit.js';
 import { contactNow } from '../../src/sim/combat/contact.js';
+import { suppNow } from '../../src/sim/combat/supp.js';
 import { stepAct, pressToward } from './lib.mjs';
 import { hashInt } from '../../src/core/hash.js';
 
@@ -64,6 +73,8 @@ export function pairsBot() {
     const P = pairsNow(state);
     if (!P || P.end) { mem.done = true; return {}; }
     if (state.skip || contactNow(state)?.pending) return {};
+    // (startled: the keys are not his (see the header))
+    if (suppNow(state)?.startle) return {};
     const S = state.stop, pid = state.player.id, gunId = state.people[pid]?.kit?.worn?.sling, gun = state.items[gunId];
     const b = beliefOf(state, gunId), cmd = P.cmd, str = P.str;
     const choose = (step, tempo = 'normal', target = null) => {
@@ -80,12 +91,16 @@ export function pairsBot() {
     const fuller = pouchesOf(state, pid).flatMap(p => p.mags).some(id => (believedN(state.items[id]) ?? 0) > (magN ?? 0));
     // (Top up between strings, the magazine in believed at half or less and a fuller one at hand: the lull's habit)
     const between = !!cmd && !['brief', 'load', 'ready', 'short', 'clear', 'end'].includes(cmd) && !live && !shortIn;
-    const wantTopUp = between && magN !== null && magN <= HALF_N && fuller && b.chamber === 'live' && mem.noTopUp !== P.cmdI;
+    // (0.0.9, the fixer's: a count not known counts as not above half, as the lull's readiness has it)
+    const unsureN = b.mag === 'in' && magN === null && pouchesOf(state, pid).flatMap(p => p.mags).some(id => (believedN(state.items[id]) ?? 0) > 0);
+    const wantTopUp = between && ((magN !== null && magN <= HALF_N && fuller) || unsureN) && b.chamber === 'live' && mem.noTopUp !== P.cmdI;
     const wantShort = cmd === 'short' && !shortIn && !!state.items[P.mags.short];
     // (in the mode for: the commands' macros, a reload, the safe and the low ready the coach wants before X)
     const finger = state.people[pid]?.kit?.carry?.finger ?? 'off';
     // (nothing left to load, as the bot believes it: the card's count 0 and every pouch believed empty)
-    const none = (b.count === 0 || b.mag !== 'in') && b.chamber !== 'live' && !pouchesOf(state, pid).some(p => p.mags.some(id => (believedN(state.items[id]) ?? 1) > 0));
+    // (0.0.9, the fixer's: a magazine at your feet with rounds in it counts, so an empty one seated off the ground is swapped for it)
+    const feetFull = atFeetOf(state, pid).some(m => (believedN(state.items[m.id]) ?? 1) > 0);
+    const none = (b.count === 0 || b.mag !== 'in') && b.chamber !== 'live' && !feetFull && !pouchesOf(state, pid).some(p => p.mags.some(id => (believedN(state.items[id]) ?? 1) > 0));
     const settled = b.mode === 'safe' && finger !== 'on' && (none || (posture(state) === 'lowReady' && b.chamber === 'live' && b.mag === 'in' && !b.locked));
     const wantMode = (cmd === 'load' && b.mag !== 'in') || cmd === 'clear' || wantShort || wantTopUp
       || (['ready', 'stop', 'move10', 'short', 'lull', 'standby'].includes(cmd) && !live && !settled);
@@ -111,7 +126,9 @@ export function pairsBot() {
     // (a fumble put right first (see the header): the rifle up off its sling; the magazine back in)
     if (['slungFront', 'slungBack'].includes(posture(state)) && has('up') && cmd !== 'clear') return choose('up');
     if (b.mag === 'out' && !['clear', 'load', 'brief', 'end'].includes(cmd) && !(cmd === 'short' && wantShort)) {
-      const reachP = steps.filter(x => /^reach@p\d$/.test(x.id) && !x.off).sort((a, z) => (bestIn(state, pid, z.id) - bestIn(state, pid, a.id)))[0];
+      // (a pouch only for a magazine believed to hold rounds; else the ground's, where one does (the fixer's of 0.0.9: an empty one
+      // pouched was reached for again and again))
+      const reachP = steps.filter(x => /^reach@p\d$/.test(x.id) && !x.off && (pouchesOf(state, pid).find(p => p.key === x.id.slice(6))?.mags ?? []).some(id => (believedN(state.items[id]) ?? 1) > 0)).sort((a, z) => (bestIn(state, pid, z.id) - bestIn(state, pid, a.id)))[0];
       const fixMag = ['queue', 'macro:load', 'seat'].find(has) ?? reachP?.id ?? (has('reach@ground') ? 'reach@ground' : null);
       if (fixMag) return choose(fixMag);
     }
@@ -124,6 +141,10 @@ export function pairsBot() {
       if (b.chamber === 'empty' && has('macro:ready')) return 'macro:ready';
       // (not sure what is in the chamber (a discharge, a fumble): a press check tells)
       if (b.chamber === '?' && has('pressCheck')) return 'pressCheck';
+      // (0.0.9, the fixer's: an empty magazine in with the bolt let go on it: swapped, as pairs-reload's 'swap' names (the
+      // runtime review's seed that stood in the lull, entering and leaving the mode, "no reload when dry"))
+      const fuller = feetFull || pouchesOf(state, pid).some(p => p.mags.some(id => (believedN(state.items[id]) ?? 1) > 0));
+      if (b.count === 0 && !b.locked && b.chamber === 'empty' && fuller) return ['macro:reload:tactical', 'magOut:pouch', 'magOut:drop'].find(has) ?? null;
       return null;
     };
     if (live) {
@@ -149,7 +170,9 @@ export function pairsBot() {
     }
     // (a chained wait after a command answered: nothing until the next, but the walk out of the mode the coach wants)
     const waiting = S.doing?.kind === 'wait';
-    if (waiting && (cmd === 'load' || cmd === 'clear' || cmd === 'brief')) return {};
+    // (0.0.9, the fixer's: a command halted by a fumble ("Carry on" in the panel) is carried on, never waited out: the runtime
+    // seed whose UNLOAD, SHOW CLEAR halted and the bot waited a minute for the line, faulted slow)
+    if (waiting && (cmd === 'load' || cmd === 'clear' || cmd === 'brief') && !has('queue') && !(cmd === 'clear' && ['slungFront', 'slungBack'].includes(posture(state)) && has('up') && (b.mag === 'in' || b.chamber !== 'empty'))) return {};
     switch (cmd) {
       case 'load': if (b.mag !== 'in' && has('macro:load')) return choose('macro:load'); break;
       case 'ready': if (b.chamber !== 'live' && has('macro:ready')) return choose('macro:ready'); break;
@@ -162,6 +185,9 @@ export function pairsBot() {
         if (b.mag === 'in' && has('magOut:pouch')) return choose('magOut:pouch');
         if (key && has(`reach@${key}`)) return choose(`reach@${key}`);
         if (has('seat')) return choose('seat');
+        // (0.0.9, the fixer's: the short one dropped at your feet, the nearest there: the reach, as pairs-short names it (the
+        // runtime review's seed that entered and left the mode every half second for 30 s))
+        if (!key && b.mag !== 'in' && atFeetOf(state, pid)[0]?.id === P.mags.short && has('reach@ground')) return choose('reach@ground');
         break;
       }
       default: break;
@@ -172,7 +198,10 @@ export function pairsBot() {
     // (no Top up in the panel now (a magazine believed empty: the drills offer none): not asked again at this command)
     if (wantTopUp) mem.noTopUp = P.cmdI;
     switch (cmd) {
-      case 'clear': if (has('macro:clear')) return choose('macro:clear'); return has('wait') && S.doing?.kind !== 'wait' ? choose('wait') : {};
+      case 'clear': if (has('queue')) return choose('queue'); if (has('macro:clear')) return choose('macro:clear');
+        // (the rifle dropped onto its sling in the clear, the coach still waiting on it: up, then the clear (the fixer's of 0.0.9))
+        if (['slungFront', 'slungBack'].includes(posture(state)) && has('up') && (b.mag === 'in' || b.chamber !== 'empty')) return choose('up');
+        return has('wait') && S.doing?.kind !== 'wait' ? choose('wait') : {};
       default: break;
     }
     // (the coach wants low ready, on safe, the finger off, out of it: CEASE FIRE's two singles in one)
@@ -198,6 +227,12 @@ export function pairsFuzzBot({ seed = 1 } = {}) {
     if (state.skip || contactNow(state)?.pending) return {};
     const S = state.stop, now = state.clock.ms, die = (k) => hashInt(k, 'pairs-fuzz', seed, mem.n++);
     const count = (id) => { mem.steps[id] = (mem.steps[id] ?? 0) + 1; };
+    // (startled: keys mashed, every one refused (see the header): G, a step, X, a walk)
+    if (suppNow(state)?.startle) {
+      count('mash');
+      const k = die(4);
+      return k === 0 ? { act: ['ready'] } : k === 1 ? { act: [stepAct('selector:semi', 'normal', null)] } : k === 2 ? { act: [stepAct('leave', 'normal', null)] } : { mx: die(3) - 1, mz: die(3) - 1 };
+    }
     const noReload = seed % 2 === 1;
     if (!S) {
       // (a walk now and then: off the point, or back to it)
@@ -230,5 +265,18 @@ export function pairsFuzzBot({ seed = 1 } = {}) {
     const tempos = ['normal', ...(Number.isFinite(st.rushMs) ? ['rushed'] : []), ...(Number.isFinite(st.carefulMs) ? ['careful'] : [])];
     count(st.id);
     return { act: [stepAct(st.id, tempos[die(tempos.length)], st.target ?? null)] };
+  };
+}
+
+/** "Three bangs"' fuzz bot (see the header): the pairs bot to the banged standby, G in it by its dice, the fuzz bot from the first bang. */
+export function bangsFuzzBot({ seed = 1 } = {}) {
+  const calm = pairsBot(), fuzz = pairsFuzzBot({ seed });
+  return (state, me, mem) => {
+    const R = state.armoury?.range, B = R?.bangs;
+    if (!B || B.plan.some(b => b.done && b.atMs <= state.clock.ms) || R.strs.length) return fuzz(state, me, (mem.fuzz ??= {}));
+    // (in the armed standby, out of the mode: G by the dice, at most twice a run, before or after the first bang)
+    mem.g ??= 0; mem.n ??= 0;
+    if (R.str?.turnAtMs !== null && R.str?.turnedMs === null && !state.stop && mem.g < 2 && hashInt(40, 'bangs-fuzz', seed, mem.n++) === 0) { mem.g++; return { act: ['ready'] }; }
+    return calm(state, me, (mem.calm ??= {}));
   };
 }

@@ -21,7 +21,11 @@
 // A scene with a splash in it (src/data/bench.js's splash-sleep: R at your rack, the night's full
 // splash, the build sheet 0.0.4 §2.3) also gives result.splash = { frames, medianMs, p95Ms, over25 },
 // the frames drawn while the splash showed (each sample's splash: the phase, or null), and a seventh line.
-import { BENCH_SLOW_MS } from '../../data/bench.js';
+// A scene with bangs in it (0.0.9's pairs-bangs: "Three bangs" from its first standby) gives result.bang = { frames, medianMs,
+// maxMs, over25 }, the frames drawn within BANG_FRAMES_MS of game time after a bang went off (each sample's bang: true), and
+// an eighth line: the build sheet 0.0.9's no frame over 25 ms at a bang.
+import { BENCH_SLOW_MS, BANG_FRAMES_MS } from '../../data/bench.js';
+export { BANG_FRAMES_MS };
 
 const pct = (xs, p) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(s.length * p))] : NaN; };
 const r2 = (v) => (Number.isFinite(v) ? Math.round(v * 100) / 100 : null);
@@ -75,7 +79,7 @@ export function benchResult({ frames, walkedM }, env) {
     drawCallsMax: max('calls'), trianglesMax: max('triangles'), programs: max('programs'), uploadsMaxBytes: max('bytes'),
     viewMedianMs: r2(pct(views, 0.5)), viewP95Ms: r2(pct(views, 0.95)), ticks, simMsPerTick: ticks ? Math.round((tickMs / ticks) * 1000) / 1000 : 0, walkedM: r2(walkedM),
     renderer: env.renderer ?? '?', dpr: env.dpr, window: env.window, picture: env.picture, threads: env.threads ?? null,
-    splash: splashOf(frames),
+    splash: splashOf(frames), bang: bangOf(frames),
   };
 }
 
@@ -84,6 +88,13 @@ export function splashOf(frames) {
   const dts = frames.filter(f => f.splash).map(f => f.dt);
   if (!dts.length) return null;
   return { frames: dts.length, medianMs: r2(pct(dts, 0.5)), p95Ms: r2(pct(dts, 0.95)), over25: dts.filter(d => d > BENCH_SLOW_MS).length };
+}
+
+/** The frames drawn at a bang (0.0.9): { frames, medianMs, maxMs, over25 }, or null with none. */
+export function bangOf(frames) {
+  const dts = frames.filter(f => f.bang).map(f => f.dt);
+  if (!dts.length) return null;
+  return { frames: dts.length, medianMs: r2(pct(dts, 0.5)), maxMs: r2(Math.max(...dts)), over25: dts.filter(d => d > BENCH_SLOW_MS).length };
 }
 
 const kb = (bytes) => (bytes >= 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${bytes} B`);
@@ -98,6 +109,7 @@ export function benchText(r) {
     `renderer ${r.renderer}`,
     `window ${r.window?.[0]} x ${r.window?.[1]} CSS px at DPR ${r.dpr}, picture ${r.picture?.[0]} x ${r.picture?.[1]}; ${r.threads ?? '?'} threads`,
     ...(r.splash ? [`splash frames ${r.splash.frames}: median ${r.splash.medianMs} ms, p95 ${r.splash.p95Ms} ms; ${r.splash.over25} over ${BENCH_SLOW_MS} ms`] : []),
+    ...(r.bang ? [`bang frames ${r.bang.frames}: median ${r.bang.medianMs} ms, max ${r.bang.maxMs} ms; ${r.bang.over25} over ${BENCH_SLOW_MS} ms`] : []),
   ].join('\n');
 }
 
@@ -116,6 +128,7 @@ export function benchCard(r, { onCopy, onAgain = null } = {}) {
     ['renderer', r.renderer],
     ['screen', `${r.window?.[0]} × ${r.window?.[1]} CSS px · DPR ${r.dpr} · picture ${r.picture?.[0]} × ${r.picture?.[1]} · ${r.threads ?? '?'} threads`],
     ...(r.splash ? [['splash', `${r.splash.frames} frames: median ${r.splash.medianMs} ms · p95 ${r.splash.p95Ms} · ${r.splash.over25} over ${BENCH_SLOW_MS} ms`]] : []),
+    ...(r.bang ? [['at a bang', `${r.bang.frames} frames: median ${r.bang.medianMs} ms · max ${r.bang.maxMs} · ${r.bang.over25} over ${BENCH_SLOW_MS} ms`]] : []),
   ];
   const said = el('span', { className: 'copied', textContent: '' });
   const copy = el('button', { className: 'item lead copy', type: 'button', textContent: 'Copy results' });
@@ -125,6 +138,6 @@ export function benchCard(r, { onCopy, onAgain = null } = {}) {
     el('div', { className: 'keylist benchlist' }, ...rows.flatMap(([k, v]) => [el('span', { className: 'k', textContent: k }), el('span', { className: 'v', textContent: v })])),
     el('div', { className: 'glass-list' }, copy, onAgain ? el('button', { className: 'item', type: 'button', textContent: 'Run it again', onclick: onAgain }) : null),
     said,
-    el('textarea', { className: 'benchtext', readOnly: true, rows: r.splash ? 7 : 6, value: benchText(r) }),
+    el('textarea', { className: 'benchtext', readOnly: true, rows: 6 + (r.splash ? 1 : 0) + (r.bang ? 1 : 0), value: benchText(r) }),
     el('p', { className: 'note', textContent: 'Run it on the Mac and on Windows (play.cmd --dev, the same address) and paste each result back.' }));
 }

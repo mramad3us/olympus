@@ -34,8 +34,8 @@ export const INTERIOR_RIG = Object.freeze({ sky: 0xe8eaf0, ground: 0x8f8a80, sky
 /** The background round a cutaway (the dark) and beyond a ground's apron. */
 export const BG_INDOOR = 0x14151c, BG_OUTDOOR = 0x2a1f22;
 const DAY_FROM_H = 6, NIGHT_FROM_H = 19;
-/** The moving lights the stage's lamp slots take (the static pools are the lamp table's): 0.0.4's alert beacon, at full strength in every rig. */
-export const MOVING_LAMPS = Object.freeze({ beacon: 1 });
+/** The moving lights the stage's lamp slots take (the static pools are the lamp table's): 0.0.4's alert beacon, 0.0.9's bang's flash (its light pool over the frames it lights), at full strength in every rig. */
+export const MOVING_LAMPS = Object.freeze({ beacon: 1, bang: 1 });
 
 const lumaLin = (hex) => { const c = linear(hex); return 0.30 * c[0] + 0.59 * c[1] + 0.11 * c[2]; };
 /** The calibrated rig's light (VIEWS §2.7's ≥ 20° row: a sky fill of 0.6 and a key of 0.79), as the luma both give. */

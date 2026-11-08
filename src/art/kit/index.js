@@ -95,6 +95,8 @@ export const FOOTPRINTS = Object.freeze({
   // RANGE_KINDS (src/data/places/range.js), pinned by places-validate; the line stretched by its own w)
   kdTurner: { w: 0.5, d: 0.3, h: 1.75, makes: ['stand', 'frame'] },
   kdPaint: { w: 18.6, d: 0.1, h: 0, makes: ['line', 'worn'] },
+  // (0.0.9: the training bang's body, equal to the scene role's RANGE_KINDS (src/data/places/range.js); none placed)
+  kdBang: { w: 0.05, d: 0.05, h: 0.12, makes: ['olive', 'spent'] },
   // (0.0.6: the PX barber's pole on its stand, equal to places' catalogue, src/sim/places/fixtures.js)
   barberPole: { w: 0.36, d: 0.36, h: 2.2, makes: ['pole', 'lit'] },
 });
@@ -113,7 +115,7 @@ const MAKERS = {
   wallClock: structure.wallClock, stairs: structure.stairs, stairsWell: structure.stairsWell, lampPost: structure.lampPost, doorLeaf: structure.doorLeaf,
   kdTower: range.kdTower, kdMat: range.kdMat, kdFrame: range.kdFrame, rangeSign: range.rangeSign, berm: range.berm, rangeFence: range.rangeFence,
   kdCarrier: range.kdCarrier, kdParapet: range.kdParapet, kdPits: range.kdPits, kdBerm: range.kdBerm, kdFlag: range.kdFlag, kdPoint: range.kdPoint,
-  kdLineBoard: range.kdLineBoard, kdCanopy: range.kdCanopy, rangeShack: range.rangeShack, kdTurner: range.kdTurner, kdPaint: range.kdPaint,
+  kdLineBoard: range.kdLineBoard, kdCanopy: range.kdCanopy, rangeShack: range.rangeShack, kdTurner: range.kdTurner, kdPaint: range.kdPaint, kdBang: range.kdBang,
 };
 /** Every kind the kit builds. */
 export const KINDS = Object.freeze(Object.keys(MAKERS));

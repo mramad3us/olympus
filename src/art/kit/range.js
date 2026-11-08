@@ -581,3 +581,16 @@ export function kdPaint(k, o) {
     k.ground({ x0: x - ax / 2, z0: z - az / 2, x1: x + ax / 2, z1: z + az / 2, top: painter, lift: 0.006 });
   }
 }
+
+// ---------- the 0.0.9 round: the training bang (the build sheet 0.0.9 §2.2, §2.3; COMBAT §11.4) ----------
+// kdBang: a reloadable training bang's body, a 5 × 12 cm olive canister with its pale band and black caps, lying on its
+// side ('olive'), or spent and scorched ('spent'). RANGE_KINDS lists it (the scene role's, no instance placed: the
+// ground's golden is unchanged); the bang thrown and lying on the pad is the stage's (src/render/bangs.js), drawn bigger
+// than life as the kit draws small things.
+const BANG_OLIVE = 0x4f5638, BANG_BAND = 0xc9c09a, BANG_CAP = 0x23252f, BANG_SCORCH = 0x2c2b27;
+export function kdBang(k, o) {
+  const make = o.make ?? 'olive', W = o.W ?? 0.05, D = o.D ?? 0.05, H = o.H ?? 0.12, body = make === 'spent' ? BANG_SCORCH : BANG_OLIVE;
+  k.comp();
+  // (lying along x: its length H across, its width the height; a band round its middle, the caps at its ends)
+  k.box({ x: 0, z: 0, w: H, d: D, h: W, faces: { front: tex(`kdbang:${make}`, (px, w, h) => { px(0, 0, w, h, body); px(Math.floor(w / 2) - 1, 0, 2, h, make === 'spent' ? tone(BANG_BAND, -0.4) : BANG_BAND); px(0, 0, 1, h, BANG_CAP); px(w - 1, 0, 1, h, BANG_CAP); }), sides: BANG_CAP, top: tone(body, 0.08) } });
+}

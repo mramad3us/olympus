@@ -34,6 +34,12 @@
 // HUD keeps (window.__olympus.far.flag) is the one on your lane's side 18 m downrange, its box in the picture and clear
 // of every HUD rectangle, the far window's disc and its plates, its sleeve's white bands in the screenshot; the shots
 // flag-<size>-lane<n>.
+// 0.0.9 (the build sheet 0.0.9 §5.3 view-range): "Three bangs" on the pairs pad (the Boot recruit, 'bangs:standby' on 48213):
+// each bang's flash drawn on the first frame at or after its moment and on no frame past its 30 ms but that one, at its spot (the
+// plan's, 1.5 m behind the point) and its size; the smoke sampled every frame from the first bang to 8 s past the last, growing
+// and fading with no frame's step over 12% of its peak; the picture's chaos each frame the sim's band (VIEWS §7.3: the corners
+// eased to 24% and the colour drained 20% at pinned), the startle's dark only inside its span; the shots bangs-00-flash and
+// bangs-01-smoke.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { assert, fmt } from './helpers.mjs';
@@ -41,7 +47,7 @@ import { withGame } from './browser.mjs';
 import { frameClock, startSampling, stopSampling, burst, framesLine, pct } from './stage-drive.mjs';
 import { KD_RANGE } from '../src/data/places/range.js';
 import * as PLACES_RANGE from '../src/data/places/range.js';
-import { turnerPx } from '../src/render/range-items.js';
+import { turnerPx, BANG_FLASH_MS, BANG_SMOKE_MS, BANG_FLASH_R_M } from '../src/render/range-items.js';
 import { PNG } from './png-read.mjs';
 
 const SHOTS = process.env.OLYMPUS_SHOTS ?? null;
@@ -63,6 +69,53 @@ const peek = (page) => page.evaluate(() => {
 });
 
 export default [
+  {
+    name: 'the bangs on the pairs pad at 16 px/m (0.0.9): each flash drawn on the first frame at or after its moment, on no later one past its 30 ms, at its spot behind the point; the smoke growing and fading frame by frame, no step a pop; the picture\'s band and the startle\'s dark as the sim\'s',
+    heavy: true,
+    timeoutMs: 300000,
+    async fn() {
+      await withGame(async (page, errors) => {
+        await page.waitForFunction(() => window.__ready && window.__olympus.state.armoury?.range?.bangs, null, { timeout: 60000 });
+        // (every frame: the bangs drawn, the picture's chaos, the sim's reading, the clock)
+        await page.evaluate(() => {
+          window.__bf = [];
+          const f = (t) => { if (!window.__bf) return; const O = window.__olympus, s = O.supp(); window.__bf.push({ t, ms: O.state.clock.ms, bangs: s?.bangs ?? null, pic: s?.picture ?? null, now: s?.now ? { bandN: s.now.bandN, startle: s.now.startle } : null, plan: (O.state.armoury.range.bangs?.plan ?? []).map(b => ({ id: b.key ?? b.id, atMs: b.atMs, x: b.x, z: b.z, done: b.done })) }); requestAnimationFrame(f); };
+          requestAnimationFrame(f);
+        });
+        await page.waitForFunction(() => { const p = window.__olympus.state.armoury.range.bangs?.plan ?? []; return p.length === 3 && p.every(b => b.done); }, null, { timeout: 30000 });
+        await page.waitForTimeout(400);
+        await save(page, 'bangs-01-smoke');
+        // (on to 8 s past the last bang, or the turn's pause, which holds the clock)
+        await page.waitForFunction(() => { const p = window.__olympus.state.armoury.range.bangs.plan; return window.__olympus.state.clock.ms > p[2].atMs + 8200 || window.__olympus.state.stop; }, null, { timeout: 30000 });
+        const bf = await page.evaluate(() => { const b = window.__bf; window.__bf = null; return b; });
+        const plan = bf.at(-1).plan, fp = await page.evaluate(() => window.__olympus.range()?.line?.fp ?? null);
+        const rows = [];
+        let bad = 0;
+        for (const b of plan) {
+          const drawn = bf.filter(f => (f.bangs?.flashing ?? []).includes(b.id)), first = bf.find(f => (f.bangs?.ms ?? -Infinity) >= b.atMs);
+          const late = drawn.filter(f => f.bangs.ms - b.atMs >= BANG_FLASH_MS).length;
+          rows.push(`${b.id} at ${b.atMs} (${fmt(b.x, 2)}, ${fmt(b.z, 2)}; ${fp ? `${fmt(fp.x - b.x, 2)} m behind the point` : '?'}): its flash on ${drawn.length} frame${drawn.length === 1 ? '' : 's'}, the first at +${drawn.length ? fmt(drawn[0].bangs.ms - b.atMs, 1) : '?'} ms (the first frame drawn at or after it +${first ? fmt(first.bangs.ms - b.atMs, 1) : '?'}), ${late} past ${BANG_FLASH_MS} ms`);
+          if (!drawn.length || late > 1 || (first && drawn[0] !== first && drawn[0].bangs.ms > first.bangs.ms)) bad++;
+          if (fp && Math.abs(fp.x - b.x - 1.5) > 0.05) bad++;
+        }
+        // (the smoke: the drawn pixels frame by frame; its biggest step against its peak)
+        const smoke = bf.filter(f => f.bangs).map(f => f.bangs.smoke ?? 0), peak = Math.max(...smoke);
+        let jump = 0; for (let i = 1; i < smoke.length; i++) jump = Math.max(jump, Math.abs(smoke[i] - smoke[i - 1]));
+        rows.push(`the smoke over ${smoke.length} frames: at most ${peak} px, the biggest step a frame ${jump} px (${fmt(jump / Math.max(1, peak) * 100, 1)}%); at the end ${smoke.at(-1)}`);
+        // (the picture: the sim's band each frame, eased; the dark only while startled)
+        const darkOut = bf.filter(f => f.pic?.dark && !f.now?.startle).length, darkIn = bf.filter(f => f.now?.startle && f.pic && !f.pic.dark).length;
+        const pinned = bf.filter(f => f.now?.bandN === 3).at(-1)?.pic;
+        rows.push(`the picture: the startle's dark on ${bf.filter(f => f.pic?.dark).length} frames (${darkOut} outside its span, ${darkIn} inside without it); pinned at the end ${JSON.stringify(pinned && { vignette: pinned.vignette, drain: pinned.drain, dither: pinned.dither })}`);
+        for (const l of rows) console.log(`      ${l}`);
+        assert(bad === 0, rows.join(' | '));
+        // (the smoke gone once the clock is BANG_SMOKE_MS past the last bang; the pause at the turn holds the clock short of it)
+        const past = bf.at(-1).ms - plan[2].atMs >= BANG_SMOKE_MS;
+        assert(peak > 0 && jump / peak < 0.15 && (!past || smoke.at(-1) === 0), JSON.stringify({ peak, jump, last: smoke.at(-1), past }));
+        assert(darkOut <= 1 && darkIn <= 1 && (!pinned || (pinned.vignette === 0.24 && pinned.drain === 0.2)), JSON.stringify({ darkOut, darkIn, pinned }));
+        assert(!errors.length, errors.join('\n'));
+      }, { port: Number(process.env.OLYMPUS_TEST_PORT) || 8223, query: 'play=test-pairs&setup=bangs:standby&tier=recruit&seed=48213&nostore=1&ppm=16', viewport: { width: 1280, height: 720 }, timeoutMs: 90000 });
+    },
+  },
   {
     name: 'the 25 m line through a string of five at 16 px/m: 60 fps (p95 at most 18 ms on a 60 Hz clock), the camera on the weapon mode\'s lead, the card in the frame, a hole for every shot on the card and a case for every shot, nobody appearing or vanishing (the build sheet 0.0.5 §5.3)',
     heavy: true,

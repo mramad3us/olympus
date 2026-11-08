@@ -95,6 +95,8 @@ export const MARKS = Object.freeze({
   ')': ['10', '01', '01', '01', '10'], '=': ['000', '111', '000', '111', '000'], '−': ['00', '00', '11', '00', '00'],
   '◉': ['010', '111', '111', '111', '010'], '>': ['100', '010', '001', '010', '100'], '<': ['001', '010', '100', '010', '001'],
   '▲': ['000', '010', '111', '000', '000'], '▼': ['000', '111', '010', '000', '000'], '✓': ['000', '001', '101', '010', '000'],
+  // (0.0.9: a failed try on the banged string's paper, "OFF SAFE ✗ ✗ ✓")
+  '✗': ['101', '101', '010', '101', '101'],
 });
 const rowsOf = (ch) => MARKS[ch] ?? glyphOf(ch);
 
@@ -530,4 +532,43 @@ export function rowPartsPixels(row, { style = 'seen', secs = (ms) => (ms / 1000)
 /** A row's parts' plate on a canvas, cached by what it shows. */
 export function rowPartsPlaque(row, opts = {}) {
   return keep(`r|${row?.id}|${row?.label}|${row?.ms}|${JSON.stringify((row?.parts ?? []).map(p => [p.k, p.ms, p.part]))}|${JSON.stringify((row?.rounds ?? []).map(r => [r.part, Math.round((r.odds ?? 0) * 100)]))}|${opts.style ?? ''}`, () => rowPartsPixels(row, opts));
+}
+
+// ---- 0.0.9: the chaos at the pause (VIEWS §7.4; COMBAT §5.7, §5.9; the build sheet 0.0.9 §2.3) ----
+//   - frozePixels: the FROZE stamp, "FROZE 2.45 S", amber (the take-in's amber, whatever its length: a freeze is never
+//     the pale of a quick take-in), in the take-in stamp's 3 × 5 alphabet with its ink round every letter; main.js stands
+//     it beside your own figure's head at a startle's end for STAMP_S of real time, gone once a step is chosen. The figure is the
+//     whole freeze, from the first startle's start to the last one's end (supp.js suppNow().froze.ms), in react.js
+//     takeInWords' form (the one formatter of a span of the marine's own time);
+//   - chaosSum: the roll's hover line for the felt modifier in a roll's list (the entry suppMod puts there, src 'env' with
+//     its felt): "pinned −9: the chaos 105 − your hardening 17 = felt 88", the band's word and the term as the list has
+//     it, then the arithmetic in supp.js suppWords' words (suppNow().sum, the one formatter of felt: never a number on
+//     the HUD but here and in J, as tradecraft gives every term).
+/** The FROZE stamp's colour: the take-in's amber, always. */
+export const FROZE_COLOUR = AMBER;
+/** The FROZE stamp: "FROZE 2.45 S" in the 3 × 5 alphabet, an ink pixel round every letter: { w, h, data, words, colour, tip }. words: takeInWords(ms). */
+export function frozePixels(ms, words) {
+  const text = `FROZE ${words} S`, tw = textW(text), buf = pixelBuffer(tw + 2, 7);
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) writeText(buf.px, 1 + dx, 1 + dy, text, INK);
+  writeText(buf.px, 1, 1, text, FROZE_COLOUR);
+  return { w: buf.w, h: buf.h, data: buf.data, words: text, colour: FROZE_COLOUR, tip: Math.floor(buf.w / 2), ms };
+}
+/** The FROZE stamp on a canvas, cached. */
+export function frozeStamp(ms, words) {
+  return keep(`f|${ms}|${words}`, () => frozePixels(ms, words));
+}
+/** The felt modifier among a roll's modifiers (suppMod's entry: src 'env' with its felt), or null. */
+export const feltMod = (mods = []) => (mods ?? []).find(m => m && m.src === 'env' && Number.isFinite(m.felt)) ?? null;
+/** The sum's arithmetic alone, "the chaos 105 − your hardening 17 = felt 88" (suppNow's sum before its band and term), or ''. */
+export function chaosArithmetic(sn) {
+  if (!sn) return '';
+  const s = String(sn.sum ?? '');
+  if (s) return s.split(':')[0].trim();
+  return Number.isFinite(sn.pool) ? `the chaos ${Math.round(sn.pool)} − your hardening ${Math.round(sn.H ?? 0)} = felt ${Math.round(sn.felt ?? 0)}` : '';
+}
+/** The hover's line for a felt term (see the section's header): "pinned −9: the chaos 105 − your hardening 17 = felt 88", or null with none. */
+export function chaosSum(mod, sn) {
+  if (!mod) return null;
+  const v = Number(mod.v) || 0, head = `${mod.why} ${v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0'}`, sum = chaosArithmetic(sn);
+  return sum ? `${head}: ${sum}` : head;
 }

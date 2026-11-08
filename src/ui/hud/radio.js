@@ -29,7 +29,7 @@
 //
 // lineOf(fact, state) and standingLine(state) are the pure part (the ui tests read them in node), createRadio(parent) the DOM.
 import { playerId } from '../../core/ids.js';
-import { standingCmd } from '../../sim/scenarios/handling.js';
+import { standingCmd, rangeOf } from '../../sim/scenarios/handling.js';
 
 /** A line holds this long, plus this much a word (s: tradecraft's earpiece). */
 export const HOLD_S = 3.5, WORD_S = 0.33;
@@ -72,7 +72,9 @@ export function lineOf(fact, state = null) {
 export function standingLine(state) {
   const c = state ? standingCmd(state) : null;
   if (!c) return null;
-  const l = lineOf({ who: c.who, text: c.text, kind: 'pa' }, state);
+  // (0.0.9, the fixer's: on the pairs bay the coach runs the line beside you, so his command stands as his speech, not the
+  // tower's: it stood twice, "◉ TOWER … NOW" over his own "BESIDE YOU" line (the integrator's, from v0.0.8))
+  const l = lineOf({ who: c.who, text: c.text, kind: rangeOf(state)?.course === 'pairs' ? 'speech' : 'pa' }, state);
   return l ? { ...l, atMs: c.atMs, short: c.short, standing: true, key: `${c.i}` } : null;
 }
 /**
@@ -84,7 +86,7 @@ export function standingLine(state) {
 export function boxLines(lines, standing = null) {
   if (!standing) return lines;
   const at = (l) => l.atMs ?? -Infinity;
-  const kept = lines.filter(l => !(l.kind === 'pa' && (at(l) < standing.atMs || (l.text === standing.text && l.head === standing.head))));
+  const kept = lines.filter(l => !((l.kind === 'pa' && at(l) < standing.atMs) || (l.text === standing.text && l.head === standing.head)));
   const k = kept.findIndex(l => at(l) >= standing.atMs);
   return k < 0 ? [...kept, standing] : [...kept.slice(0, k), standing, ...kept.slice(k)];
 }

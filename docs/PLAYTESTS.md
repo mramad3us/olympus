@@ -6,6 +6,42 @@ Shots and drivers stay in the scratch folders named below, outside the repo; wha
 
 ---
 
+## v0.0.9, 2026-11-08: "Three bangs", `test-pairs&setup=bangs`
+
+**What was played.** ROADMAP §4.2's 0.0.7c row, first patch (the build sheet `docs/build/0.0.9.md`), built by three roles, integrated, then three reviews of the merged tree (runtime, design, code) and the fixers' replays. Every browser run in headless Chrome on the GPU at 16 px/m, keys sent by physical code; no page errors in any run.
+- **My play, from the title** (Tests, "Three bangs", the picker, Enter) at 1600 × 900, menu seed 1214592378: the recruit froze 2.40 s in all, his keys refused in the startle, Off safe at 50% marked "! shaking" and failed, his first round 4.60 s against 2.60 s calm; "Again as Tier one": 0.05 s frozen, first round 0.72 s against 0.70 s.
+- **My play by the URL**, seed 48213 at 1024 × 768: the recruit 2.55 s frozen, first round 5.20 s against 2.60 s; the tier one 0.72 s against 0.70 s. Both runs reached the card with no errors, nothing overlapping, 60 fps. **Windows (`play.cmd --dev`) not played.**
+- **The runtime review** played "Three bangs" in headless Chrome against the working tree on port 8237 (the server stopped after). It used every sheet by "Again as …" on seed 48213, plus the menu's picker, at 1600 × 900 and 1024 × 768. Keys by physical code: mashed through the startle, Off safe pressed repeatedly, G and X during the standby, D held through the startle. It also ran the bangs fuzz bot (never reloading) on three seeds for two sheets: all six runs reached the card. Shots in `/private/tmp/claude-501/olympus-build/r9/review-runtime/shots/` (r2 to r14), scripts beside them.
+- **The design review**, port 8239, 1600 × 900 (`/private/tmp/claude-501/olympus-build/r9/review-design/`: `play.mjs`, `startle.mjs`, `course.mjs`, `loop.mjs`, `shots-r1/`, `startle-recruit-1600/`): seed 31337 (a fresh seed), the boot recruit then "Again as Tier one" by its key; seed 48213, the banged standby by the URL with a shot every 250 ms through the startle; then node runs of the whole course, calm and banged, and a probe of the log records. Both page runs reached the card.
+- **The code review** (`/private/tmp/claude-501/olympus-build/r9/review-code/`): `git diff HEAD` against COMBAT §5, §25.18 and the build sheet, findings confirmed by scratch scripts; nothing committed, no ports touched.
+
+**The numbers.**
+- **The gradient reads** (the design review, first round after the turn against calm, seed 31337): recruit 5.25 s (2.60), private 3.31 (2.15), sergeant 1.78 (1.15), Raider 1.13 (0.84), tier one 0.72 (0.70): the user's "drop more sharply for a recruit … mostly unaffected" for the tier one.
+- **The bang in the page** (the runtime review): each flash drawn on the first frame at or after its moment (one tick late); the report sounds at its moment (28.6 dB, 1.5 m, echo 73 ms); the pale frame on the first startle only, the screen 12% darker until it ends. Keys pressed in the startle are all refused (0 m moved, stop motion off). FROZE matches the sim: 2.55 s for the recruit, 0.05 s for the tier one. "! shaking" with its odds: Off safe 1.0 s 50%, Top up 16%, Sling it 55%. The penalty matches everywhere: the plaque's hover, the row's hover and the J log all say pinned −9 at felt 91.
+- **Deafness**: the world cut to 1.5 kHz and −18 dB (−30 dB when pinned), the whine loud, the caption "[a high whine]" once. The coach is still heard as text; there is no voice audio yet. The instinct line is silent through the startle.
+- **The take-in's sum is honest** (the design review): the recruit's pause reads "Contact · 1.90 s.", 0.65 × 2 (slow to notice, Awareness −5 pinned) + 0.60 (pinned). The tier one's panel stays calm: pair 95% 95% at 0.41 + 0.55 s, Off safe "routine", the take-in 0.05 s, his picture unchanged. The recruit's picture at the pause is measurably drained and darker (downrange corner luminance 91 against 109, saturation 115 against 135).
+- **The paper** reads "BANGS 3 · FROZE 2.10 S · TURN TO PAUSE 1.90 · PAUSE TO FIRST 3.25 · OFF SAFE ✗ · …", followed by the coach's "That's what noise does to your hands."; the DI's "You flinched. Everybody does. Your lane." lands in the standby. The sergeant, Raider and tier one never pinned; nothing contradicts the overrule of question 6 on the range in utilities.
+- **C and the picker**: C's Hardening row reads "green · inoculation 2 of 6: as far as boot camp goes"; the picker shows the hardening words; "Again", "Again with a new seed" and "Again as" all keep the setup. No HUD rectangles overlap at either size.
+- **Frame times**: median 16.7 ms, p95 16.7 to 16.8 ms through the bangs at both sizes. The bench `?bench=pairs-bangs`: 1,199 frames, median 16.7, 68 frames at a bang with a maximum of 16.8 ms, one 33 ms frame elsewhere (the machine shared with the user's game on :8200). test-pairs (calm and standby), test-range confirm, test-handling hot and mixed, barracks (New career), test-shower and test-night all boot with no errors at 16.7 ms.
+- **The copied score line** read "OLYMPUS v0.0.8 …" only because VERSION had not been bumped; `release.sh` stamps it.
+
+**What works, and should not change** (the design review). The startle lands in the standby, so it is a moment, not a punishment; the DI's "You flinched. Everybody does. Your lane." is kind and teaches; the pause tells the recruit why ("Contact · 1.90 s"); the paper is a good debrief; the bangs' white flash on the pad and the whine at −22 dB (moderate) read.
+
+**What turned up, and what was done** (the build sheet 0.0.9 §9, §10).
+- **The head-row fix was not in the tree** (the code review, high): DESIGN.md's log said "Fixed in v0.0.9" while `HEAD_MAX_M` and `FAILURE_MAX_M` were still 10 and the fix waited uncommitted in a worktree. It is merged (`head.patch` on v0.0.8's files; the new `panel.js` and `pairs-head`), and the log's entry now says so.
+- **The startle halted only Corps commands** (the code review): a shot row kept firing through the freeze (the private's Pair fired two rounds inside his 1.7 s startle). Now any step with sub-steps left is cut at its sub-step's end and a command halts with "Carry on".
+- **A take-in window already open when a bang landed** paused only after the startle yet reported the planned take-in (the pause 1.50 s after the sighting, the log "Contact · 0.55 s."): the pause now reports the sighting with a "startled" part.
+- **A fumbled Off safe still took the safe off** (the design and code reviews, and the integrator): the paper's "OFF SAFE ✗" stood beside "Off safe: semi." A slipped thumb now leaves the lever where it was (WEAPONS §5.4).
+- **Nothing on screen showed the freeze while it happened** (the design review): a key pressed in the startle read as lag. FROZE now counts up beside the head, the figure ducks and trembles, a refused key pulses the stamp.
+- **Comparing the sheets was slow** (the design review): the end card's session block left out the bangs, and each "Again as" costs the whole course. The card now lists the session's bangs lines side by side from the second sheet and leads with the hardening word. The RELOAD half of the user's anchor stays untested under the chaos, for `test-stress`.
+- **COMBAT §25.5.5 and §25.18.2 printed the scratch's cells** (the code review): reprinted from `combat-race` (the tier one against an aimed insurgent 53%, not 100%; the sergeant against an aimed UN Marine 47%, not 3%) and §25.18.2's T11 to T13 rewritten under the overrule.
+- **The "first time" flinch line told the tier one he flinched like a first-timer** (the fixers): never under 0.3 s of freeze now.
+- **Left**: the smoke covers the coach for a few seconds when the wind carries it over his post; FROZE shows twice if the second startle ends just before the third bang; Windows.
+
+**The user's scores.** Not yet: `test-pairs-bangs`' one aspect, bangs, awaits the user's score on the Mac and on Windows (`play.cmd --dev`, `?bench=pairs-bangs`).
+
+---
+
 ## v0.0.8, 2026-11-07: "Pairs", `test-pairs`
 
 **What was played.** ROADMAP §4.2's 0.0.7b row (the build sheet `docs/build/0.0.8.md`), built by four roles and integrated, then three reviews of the merged tree (runtime, design, code) and the fixer's replays of what they found. Every browser run in headless Chrome on the GPU at 16 px/m by physical codes, the pairs bot deciding and the keys pressing, shots looked at; no page errors in any run.

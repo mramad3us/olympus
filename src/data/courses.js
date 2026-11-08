@@ -51,7 +51,13 @@
 // string over), shortReady (pairsReady with the short magazine in), toppedUp (pairsReady with the magazine in believed
 // above half, or a Top up seated since the lull began, or nothing fuller to top up with). One magazine a string is waived
 // on this course (oneMag false, the sheet's §8 item 19: string 4's RELOAD is the point). PAIRS_COACH is the coach's
-// words (two phrasings or more), {paper} the shot timer's line (pairs.js paperText). Data only.
+// words (two phrasings or more), {paper} the shot timer's line (pairs.js paperText).
+// 0.0.9 (the build sheet 0.0.9 §2.2, §4, §8 items 4 and 5; COMBAT §25.18.3): "Three bangs", test-pairs' setup 'bangs':
+// COURSES.pairs.bangs is the coach's three training bangs in the first string's standby (string 0, "string 1" in the
+// user's counting): n of them gapMs apart, the first a lead drawn from leadMs into the armed standby, each behindM behind
+// the point and spread ±spreadM across it, thrown throwMs before it goes off, the turn turnMs after the third. The coach's
+// bangsBrief says noise, never "Bang" (a shooter told "Bang" is forewarned: COMBAT §5.1's ×0.6), and bangsAfter follows
+// the banged string's paper. Data only.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
 /** The tower's commands in order (see the header). */
@@ -113,6 +119,8 @@ export const COURSES = deepFreeze({
     lullMag: 10,
     // (Top up offered with the magazine believed empty and a round up: the lull after the dry string's last rounds (drills.js))
     spoutTopUp: true,
+    // (0.0.9: setup 'bangs': the coach's three training bangs in string 0's armed standby (see the header))
+    bangs: { string: 0, n: 3, leadMs: [1500, 3000], gapMs: 1000, turnMs: 2000, behindM: 1.5, spreadM: 0.5, throwMs: 600 },
     // (who turns: the lane offset from yours and its weight; a threat's holds and a no-shoot's)
     draws: {
       one: [[0, 50], [-1, 25], [1, 25]], two: [[-1, 50], [1, 50]], armoured: [[0, 50], [-1, 25], [1, 25]], short: [[-1, 50], [1, 50]],
@@ -252,6 +260,10 @@ export const PAIRS_COACH = deepFreeze({
   dryOut: ['No rounds left. On safe, low ready: you sit the rest out.', 'Nothing left to load. On safe; you sit the rest out.'],
   declared: ['On safe: you are done with that one. Noted.', 'Safe. That string is yours to call. Noted.'],
   none: ['No rounds fired that string.', 'Nothing on the timer that string.'],
+  // (0.0.9, setup 'bangs' (see the header): noise, never "Bang", at the brief; after the banged string's paper)
+  bangsBrief: ["First string, I make some noise behind you. No ear pro today: that's the lesson. Your lane.",
+    "On the first string I'll be making noise behind you. No ear defenders today; that is the point. Watch your lane."],
+  bangsAfter: ["That's what noise does to your hands.", 'That is noise. Feel your hands? That is what it does to them.'],
 });
 
 /**

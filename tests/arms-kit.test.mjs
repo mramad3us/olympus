@@ -6,7 +6,7 @@ import { armsWorld } from './arms-world.mjs';
 import { checkIds, checkHolders } from './ids-check.mjs';
 import { codeOnly } from './syntax.test.mjs';
 import { root } from './helpers.mjs';
-import { copyState, toJSON } from '../src/core/state.js';
+import { copyState, resetDomains, toJSON } from '../src/core/state.js';
 import { move, holderOf, rebuildHolders, sparesOf, dumpOf, pouchFor, lyingOf, kitView, KIT_TEMPLATES } from '../src/sim/arms/kit.js';
 import { doAction } from '../src/sim/arms/firearms.js';
 import { runMacro } from '../src/sim/arms/drills.js';
@@ -51,6 +51,7 @@ export default [
       runMacro(state, bus, { macro: 'load', pid, gunId });
       doAction(state, bus, { pid, gunId, action: 'magOut:drop', force: { 'magOut:drop': 'pass' } });
       const before = JSON.stringify(Object.fromEntries(Object.entries(state.$items.holder).sort()));
+      resetDomains();  // (a bare state: no game's domains on its load; a createGame earlier in the run leaves its registry)
       const loaded = copyState(state);
       assert(!loaded.$items, 'the index is runtime: not in the save');
       rebuildHolders(loaded);

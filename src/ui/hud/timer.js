@@ -12,6 +12,10 @@
 // HIT). Its words (data-text) are the scene's paperText exactly, so a test reads the same line the coach said.
 // timerModel(rec, { text }) is the pure part (the rows and their numbers from the string's record: takeInMs,
 // pauseToFirstMs, splitsMs, zones), drawTimer(g, model, s) draws it, createTimer(parent) the DOM, redrawn on change.
+// 0.0.9 (the build sheet 0.0.9 §2.2, §8 item 18; COMBAT §25.18.3): the banged string's paper (its record's bangs, frozeMs and
+// offSafe, the scene's paperOf) leads "BANGS 3 · FROZE 2.45" and adds "OFF SAFE ✗ ✗ ✓" after PAUSE TO FIRST, each try of
+// the safety in its order, a failed one a red ✗ ("OFF SAFE IN THE AIM" where the row's aim took it off, rung 2 up: the
+// fixer's); the freeze on the take-in's amber band, as the marine's own time. Every other paper is drawn as before, to the pixel.
 import { textW, writeText } from '../plaque.js';
 import { GLOWS } from '../../art/palette.js';
 
@@ -32,14 +36,22 @@ export function timerModel(rec, { text = null, fmt = two } = {}) {
   if (!rec) return null;
   const splits = Array.isArray(rec.splitsMs) ? rec.splitsMs : [];
   const zones = ZONE_ORDER.map(([k, word]) => ({ k, n: Number(rec.zones?.[k]) || 0, word })).filter(z => z.n > 0);
+  // (0.0.9: the banged string's rows round the take-in's and the first round's: the bangs and the freeze, the safety's tries)
+  // (the record's bangs a count with frozeMs and offSafe beside it (the paper's, paperOf), or the session's record { n, frozeMs, offSafe } (strs[k].bangs))
+  const bg = rec.bangs && typeof rec.bangs === 'object' ? rec.bangs : { n: rec.bangs, frozeMs: rec.frozeMs, offSafe: rec.offSafe };
+  const banged = Number(bg.n) > 0, tries = Array.isArray(bg.offSafe) ? bg.offSafe : [];
+  rec = { ...rec, bangs: Number(bg.n) || 0, frozeMs: bg.frozeMs ?? null };
   const rows = [
+    ...(banged ? [{ label: `BANGS ${Number(rec.bangs)}`, value: Number.isFinite(rec.frozeMs) ? `FROZE ${fmt(rec.frozeMs)}` : 'FROZE -', mark: 'froze' }] : []),
     { label: 'TURN TO PAUSE', value: Number.isFinite(rec.takeInMs) ? fmt(rec.takeInMs) : '-', mark: 'takein' },
     { label: 'PAUSE TO FIRST', value: Number.isFinite(rec.pauseToFirstMs) ? fmt(rec.pauseToFirstMs) : '-' },
+    ...(banged && tries.length ? [{ label: 'OFF SAFE', value: tries.map(ok => (ok ? '✓' : '✗')).join(' '), mark: 'tries' }]
+      : banged && Number.isFinite(rec.pauseToFirstMs) ? [{ label: 'OFF SAFE', value: 'IN THE AIM' }] : []),
     { label: 'SPLITS', value: splits.length ? splits.map(fmt).join(' ') : '-' },
   ];
   const head = `STRING ${Number.isFinite(rec.k) ? rec.k + 1 : '?'}${Number.isFinite(rec.line) ? ` · ${rec.line} M` : ''}`;
   const said = text ?? [`TURN TO PAUSE ${rows[0].value}`, `PAUSE TO FIRST ${rows[1].value}`, `SPLITS ${rows[2].value}`, zones.length ? zones.map(z => `${z.n} ${z.word}`).join(', ') : null].filter(Boolean).join(' · ');
-  return { head, rows, zones, text: said, numbers: { takeInMs: rec.takeInMs ?? null, pauseToFirstMs: rec.pauseToFirstMs ?? null, splitsMs: splits.slice() } };
+  return { head, rows, zones, text: said, numbers: { takeInMs: rec.takeInMs ?? null, pauseToFirstMs: rec.pauseToFirstMs ?? null, splitsMs: splits.slice(), ...(banged ? { bangs: Number(rec.bangs), frozeMs: rec.frozeMs ?? null, offSafe: tries.slice() } : {}) } };
 }
 
 /** Draw the paper on a Canvas2D at s device pixels a paper pixel (crisp at every --ui and device ratio). */
@@ -66,9 +78,11 @@ export function drawTimer(g, m, s = 1) {
     // (a value too long for the label's line (a string's many splits) goes on the line under it, right-aligned)
     if (L + (textW(r.label) + 3) * k + vw > Rt) y += lineH - 2;
     const vx = Rt - vw;
-    // (the take-in, the scored thing, on an amber band: the marine's own time)
-    if (r.mark === 'takein' && r.value !== '-') R(vx - 3, y - 2, vw + 6, 5 * k + 4, AMBER_C);
-    putC(vx, y, r.value, INKC);
+    // (the take-in, the scored thing, on an amber band: the marine's own time; 0.0.9 the freeze too)
+    if ((r.mark === 'takein' || r.mark === 'froze') && !/-$/.test(r.value)) R(vx - 3, y - 2, vw + 6, 5 * k + 4, AMBER_C);
+    // (0.0.9: the safety's tries, a failed one red)
+    if (r.mark === 'tries') { let tx = vx; for (const ch of r.value) { putC(tx, y, ch, ch === '✗' ? RED_C : INKC); tx += (textW(ch) + 1) * k; } }
+    else putC(vx, y, r.value, INKC);
     y += lineH;
   }
   R(L, y - 3, pw - 12, 1, PAPER_SHADE);

@@ -66,86 +66,50 @@
 // purpose as stepsOf labels them (RELOAD, Top up, RELOAD, keep the empty). The shot and the contact's rows stay on
 // every page. Running, a shot row's sub-steps are its parts (the aim, the press, each round by its part, the shift),
 // ticked as each is rolled. The tap is retired (COMBAT §25.6.4): no follow-up is offered in Fire's recovery.
+//
+// 0.0.9 (the build sheet 0.0.9 §2.1, §2.3; VIEWS §7.4; COMBAT §5.9): a row whose roll the chaos cut under SHAKING_ODDS
+// (stepsOf's step.shaking: { v, felt, band }, its warn 'shaking') is marked, never struck: "Fire · 0.70 s · 45% ! shaking",
+// its odds kept beside the amber mark, and its hover says the term and the arithmetic, "pinned −10: the chaos 105 − your
+// hardening 7 = felt 98" (shakingWords: the band's word and the row's own term, then supp.js suppNow's sum, the one
+// formatter of felt; view.chaos is that reading). Felt is never a number on the row itself. The step last run keeps its
+// sub-steps' marks on its row until another is chosen ("Off safe ✗": a single's one roll had no ticks to show it failed,
+// the running view leaving with the step; lastMarks), and the weapon card carries the step last run with its marks for
+// LAST_SHOW_MS of real time ("Off safe ✗", .wc-last), whatever its row became (Off safe gives way to Safe), so a thumb that
+// slipped on the safety is seen on the panel.
 import { CARD_W, CARD_H } from './layout.js';
 import { distanceParts, dialWords } from '../../art/weaponcard.js';
+// (the panel's numbering is the sim's (src/sim/arms/panel.js), so the DI's line can name the digit a row is on: re-exported here)
+import { PANEL_KEYS, FIXED_KINDS, isFixed, FIXED_MAX, FIXED_REPEAT, isGated, gatedRow, panelList, panelOf, isShotRow } from '../../sim/arms/panel.js';
+export { PANEL_KEYS, FIXED_KINDS, isFixed, FIXED_MAX, FIXED_REPEAT, isGated, gatedRow, panelList, panelOf, isShotRow };
 
+/** A row's mark when the chaos shakes it (stepsOf's warn). */
+export const SHAKING = 'shaking';
+/** Whether a row is marked as shaking (stepsOf's shaking record, or its warn). */
+export const isShaking = (s) => !!s && !s.off && (!!s.shaking || s.warn === SHAKING);
+/**
+ * A shaking row's hover words: "pinned −10: the chaos 105 − your hardening 7 = felt 98" (the band's word and the row's
+ * term, then the arithmetic in suppNow's sum's words); chaos: suppNow's record (or null: the term alone).
+ */
+export function shakingWords(step, chaos = null) {
+  const sh = step?.shaking;
+  if (!sh) return '';
+  const v = Number(sh.v) || 0, head = `${sh.band ?? chaos?.band ?? 'shaking'} ${v < 0 ? `−${-v}` : v > 0 ? `+${v}` : '0'}`;
+  const sum = chaos?.sum ? String(chaos.sum).split(':')[0].trim() : '';
+  return sum ? `${head}: ${sum}` : head;
+}
+/** The marks of the step last run, for its row (createTicks' last, once it has ended or halted): '✗', '✓◦✗', or '' (none, another step's, or still running). */
+export function lastMarks(ticks, stepId) {
+  const lt = ticks?.last;
+  if (!lt || !(lt.ended || lt.halted) || lt.step !== stepId) return '';
+  return lt.marks.filter(Boolean).join('');
+}
+/** The step last run stays on the weapon card this long (ms of real time), or until another starts. */
+export const LAST_SHOW_MS = 3000;
 /** A struck row chosen lights this long (ms). */
 export const FLASH_MS = 220;
 
-/** The digits, in the panel's order: two columns of five. */
-export const PANEL_KEYS = Object.freeze(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
-/** The kinds that stay on every page: the shot, the shot rows, the contact's answers and the tower's commands (the rest page under 0). */
-export const FIXED_KINDS = Object.freeze(['fire', 'aim', 'hold', 'command', 'shot', 'contact']);
-/**
- * Whether a step stays on every page (a fixed kind, or a contact's answer by its id); a command stepsOf marks later (at a
- * contact's pause, no answer to the man facing you: UNLOAD, a Top up with nothing to gain) pages with the rest, and a
- * single it brought to the head (Off safe below rung 2) stays (the fixer's of 0.0.8).
- */
-export const isFixed = (s) => (FIXED_KINDS.includes(s?.kind) && !s?.later) || String(s?.id ?? '').startsWith('contact:') || !!s?.promoted;
-
-/** The most fixed rows a page keeps, so a page always has room for some of the rest (0.0.8: at a contact's pause the rows are many). */
-export const FIXED_MAX = 8;
-/** Up to this many fixed rows repeat on every page; past it they hold the first page alone (0.0.8). */
-export const FIXED_REPEAT = 5;
-/** Whether a shot row is struck by its gate (the sheet below it: "Marksmanship 12"), not by a step to take first. */
-export const isGated = (s) => isShotRow(s) && !!s.off && !!s.gate && /^marksmanship/i.test(String(s.off));
-/**
- * The shot rows struck by their gates folded into one row (0.0.8: what training buys, seen at a glance and costing one
- * slot): { id: 'gated', kind: 'gated', label: 'Hammer 12 · Triple 18 · Failure drill 12', off: 'Marksmanship', rows }.
- */
-export function gatedRow(list) {
-  const g = list.filter(isGated);
-  if (!g.length) return null;
-  return { id: 'gated', kind: 'gated', label: g.map(r => `${r.label} ${r.gate?.v ?? String(r.off).replace(/\D+/g, '')}`).join(' · '), ms: null, off: 'Marksmanship', rows: g, odds: null, routine: null };
-}
-/**
- * The panel's order (0.0.8): the shot rows struck by their gates folded into one row after the offered ones, and a single that a
- * struck row names as its first step ("off safe first": Off safe) brought up beside it, so it is on the first page.
- */
-export function panelList(steps = []) {
-  const list = steps ?? [];
-  if (!list.some(isShotRow)) return list;
-  const gated = gatedRow(list), out = [];
-  const named = (s) => (/off safe/.test(String(s.off ?? '')) ? list.find(x => /^selector:(semi|auto)$/.test(x.id) && !x.off) ?? null : null);
-  const promoted = new Set();
-  let gatedAt = -1;
-  for (const s of list) {
-    if (isGated(s)) { if (gatedAt < 0) { gatedAt = out.length; out.push(gated); } continue; }
-    if (promoted.has(s.id)) continue;
-    out.push(s);
-    // (a single stepsOf already brought to the head (promoted): kept where it stands, never named twice)
-    if (s.promoted) promoted.add(s.id);
-    const n = isShotRow(s) ? named(s) : null;
-    if (n && !promoted.has(n.id)) { promoted.add(n.id); out.push({ ...n, kind: n.kind ?? 'single', promoted: true }); }
-  }
-  return out;
-}
-/**
- * The panel's slots: { slots: [{ key: '1', digit: 1, step }], more: { key: '0', page, pages } | null, page, pages }.
- * Ten steps or fewer take 1 to 9 and 0; more, and 1 to 9 hold the fixed kinds (FIXED_MAX at most) then a page of the rest, 0 pages.
- */
-export function panelOf(steps = [], { page = 0 } = {}) {
-  const list = panelList(steps ?? []);
-  if (list.length <= PANEL_KEYS.length) return { slots: list.map((step, i) => ({ key: PANEL_KEYS[i], digit: Number(PANEL_KEYS[i]), step })), more: null, page: 0, pages: 1 };
-  const fixed0 = list.filter(s => isFixed(s) || s.kind === 'gated'), fixed = fixed0.slice(0, FIXED_MAX), over = new Set(fixed0.slice(FIXED_MAX));
-  const rest = list.filter(s => !fixed.includes(s) || over.has(s)).filter(s => !fixed.includes(s));
-  // (a few fixed rows stay on every page (the 25 m line's Fire, Aim and the tower's commands); more than FIXED_REPEAT of them
-  // (a contact's pause: the rows, the contact's answers, the reloads) hold the first page, and the pages after it are the
-  // rest nine at a time, so the singles are not one a page)
-  if (fixed.length > FIXED_REPEAT) {
-    const first = 9 - fixed.length, pages = 1 + Math.max(0, Math.ceil((rest.length - first) / 9)), p = ((page % pages) + pages) % pages;
-    const shown = p === 0 ? [...fixed, ...rest.slice(0, first)] : rest.slice(first + (p - 1) * 9, first + p * 9);
-    return { slots: shown.map((step, i) => ({ key: PANEL_KEYS[i], digit: i + 1, step })), more: { key: '0', digit: 0, page: p, pages }, page: p, pages };
-  }
-  const per = Math.max(1, 9 - fixed.length), pages = Math.max(1, Math.ceil(rest.length / per)), p = ((page % pages) + pages) % pages;
-  const shown = [...fixed, ...rest.slice(p * per, p * per + per)].slice(0, 9);
-  return { slots: shown.map((step, i) => ({ key: PANEL_KEYS[i], digit: i + 1, step })), more: { key: '0', digit: 0, page: p, pages }, page: p, pages };
-}
-
 const secs = (ms) => (Number.isFinite(ms) ? `${(Math.max(0, ms) / 1000).toFixed(1)} s` : '');
 const secs2 = (ms) => (Math.max(0, ms) / 1000).toFixed(2);
-/** Whether a step is a shot row (specials.js: kind 'shot', its rounds and parts). */
-export const isShotRow = (s) => s?.kind === 'shot' && Array.isArray(s.rounds);
 /** A shot row's odds, round by round in order: [0.95, 0.95, 0.75]. */
 export const roundOdds = (s) => (isShotRow(s) ? s.rounds.map(r => r.odds) : []);
 /** A step's odds as the row says them: 'routine', '85%', a shot row's every round '95% 95% 75%', or '' where no roll is in doubt. */
@@ -171,12 +135,16 @@ export const shownMs = (step, { shift = false } = {}) => (shift && Number.isFini
 /** A row as one plain line: '3 LOAD · 2.4 s · routine', '1 fire · 0.4 s (on safe)', a marked one '5 RELOAD · 3.0 s · routine (! one magazine a string)'. */
 export function rowText(slot, opts = {}) {
   const s = slot.step, t = timeText(s, opts), odds = oddsText(s);
+  // (0.0.9: a shaking row "1 Fire · 0.70 s · 45% ! shaking": its odds, then the mark)
+  if (isShaking(s)) return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${odds ? ` · ${odds}` : ''} ! ${SHAKING}`;
   return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${odds && !s.off ? ` · ${odds}` : ''}${s.off ? ` (${s.off})` : s.warn ? ` (! ${s.warn})` : ''}`;
 }
 /** A row's hover words: what it rolls, and its rushed and careful times where it has them. */
-export function rowTitle(step, { label = (a) => a } = {}) {
+export function rowTitle(step, { label = (a) => a, chaos = null } = {}) {
   if (!step) return '';
   const bits = [];
+  // (0.0.9: shaking, the term and its arithmetic first)
+  if (isShaking(step)) bits.push(shakingWords(step, chaos) || SHAKING);
   if (step.skill) bits.push(`rolls ${step.skill}`);
   if (Number.isFinite(step.rushMs)) bits.push(`${label('run')} + digit: rushed, ${secs(step.rushMs)} (−3, never routine)`);
   if (Number.isFinite(step.carefulMs)) bits.push(`held: careful, ${secs(step.carefulMs)} (+2)`);
@@ -186,7 +154,7 @@ export function rowTitle(step, { label = (a) => a } = {}) {
   if (step.gate && step.off) bits.push(`needs ${step.off}`);
   if (step.words && step.words !== step.label) bits.push(step.words);
   if (step.off) bits.push(`not now: ${step.off}`);
-  else if (step.warn) bits.push(step.warn === 'one magazine a string' ? `ahead of the tower: ${step.warn}` : step.warn);
+  else if (step.warn && step.warn !== SHAKING) bits.push(step.warn === 'one magazine a string' ? `ahead of the tower: ${step.warn}` : step.warn);
   return bits.join(' · ');
 }
 
@@ -324,7 +292,10 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   const root = el('div', { className: 'steps', hidden: true });
   const cardBox = el('div', { className: 'wcard' }), cardCanvas = el('canvas', { className: 'wcard-pic' }), caption = el('div', { className: 'wcard-cap' });
   cardBox.style.setProperty('--card-w', String(CARD_W)); cardBox.style.setProperty('--card-h', String(CARD_H));
-  cardBox.append(cardCanvas, caption);
+  // (0.0.9: the step last run and its marks over the card's top)
+  const lastEl = el('div', { className: 'wc-last', hidden: true });
+  cardBox.append(cardCanvas, caption, lastEl);
+  let lastSeen = { sig: null, t0: 0 };
   const list = el('div', { className: 'steplist' });
   root.append(cardBox, list);
   parent.append(root);
@@ -363,11 +334,19 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     for (const st of v.steps) known.set(st.id, st);
     while (known.size > 64) known.delete(known.keys().next().value);
     const doing = v.phase === 'act' ? v.doing ?? null : null;
+    // (0.0.9: the step last run with its marks on the card, LAST_SHOW_MS from when it ended, gone once another runs)
+    const lt = v.ticks?.last, marks = lt && (lt.ended || lt.halted) ? lt.marks.filter(Boolean).join('') : '';
+    const nowT = globalThis.performance?.now?.() ?? 0;
+    if (marks) { const sg = `${lt.step}|${marks}|${lt.who}`; if (sg !== lastSeen.sig) lastSeen = { sig: sg, t0: nowT }; }
+    const showLast = !!marks && !doing && nowT - lastSeen.t0 < LAST_SHOW_MS;
+    const lastText = showLast ? `${known.get(lt.step)?.label ?? labelOf(lt.step)} ${marks}` : '';
+    if (lastEl.dataset.text !== lastText) { lastEl.dataset.text = lastText; lastEl.textContent = lastText; lastEl.classList.toggle('bad', marks.includes('✗')); }
+    lastEl.hidden = !showLast;
     // (a step running, the chained wait apart (any step chosen cuts it, so its panel stays): the running view)
     if (doing && doing.kind !== 'wait') return running(v, doing, model);
     const panel = panelOf(v.steps, { page: v.page ?? 0 });
     slots = panel.slots;
-    const rs = JSON.stringify(['panel', !!v.shift, panel.page, panel.pages, doing?.step ?? null, doing?.chain ?? null, panel.slots.map(s => [s.key, s.step.id, s.step.label, s.step.ms, s.step.rushMs, s.step.odds, s.step.routine, s.step.off, s.step.warn ?? null, s.step.cmd, s.step.subs?.length ?? 0, roundOdds(s.step), s.step.lead ?? false])]);
+    const rs = JSON.stringify(['panel', !!v.shift, panel.page, panel.pages, doing?.step ?? null, doing?.chain ?? null, panel.slots.map(s => [s.key, s.step.id, s.step.label, s.step.ms, s.step.rushMs, s.step.odds, s.step.routine, s.step.off, s.step.warn ?? null, s.step.cmd, s.step.subs?.length ?? 0, roundOdds(s.step), s.step.lead ?? false, s.step.shaking ? [s.step.shaking.v, s.step.shaking.band] : null, lastMarks(v.ticks, s.step.id)]), v.chaos?.sum ?? null]);
     if (rs !== sigRows) {
       sigRows = rs;
       bar = null;
@@ -414,16 +393,25 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   // the chained wait's row marked as it runs, its time gone as a bar along its foot)
   function row(slot, v, doing) {
     const s = slot.step, isRunning = !!doing && doing.step === s.id, odds = oddsText(s), t = timeText(s, v);
-    const lab = el('span', { className: 'label' }, el('span', { className: 'name', textContent: s.label }));
-    const meta = el('span', { className: 'meta' },
-      t ? el('span', { className: `time${v.shift && Number.isFinite(s.rushMs) ? ' rushed' : ''}`, textContent: t }) : null,
-      s.off ? el('span', { className: 'why', textContent: s.off }) : s.warn ? el('span', { className: 'why warn', textContent: `! ${s.warn}` })
-        // (a shot row: each round's odds, a meter under each, the head's marked: graphics beside the numbers)
-        : isShotRow(s) ? el('span', { className: 'odds rounds' }, ...s.rounds.map(r => { const o = el('span', { className: `round ${r.part === 'head' ? 'head' : 'torso'}`, textContent: Number.isFinite(r.odds) ? `${Math.round(r.odds * 100)}%` : '?' }); o.style.setProperty('--k', String(Number.isFinite(r.odds) ? r.odds : 0)); return o; }))
-        : odds ? el('span', { className: `odds${s.routine ? ' routine' : ''}`, textContent: odds }) : null);
+    // (0.0.9: the step last run, its marks after its name until another is chosen)
+    const done = lastMarks(v.ticks, s.id);
+    const lab = el('span', { className: 'label' }, el('span', { className: 'name', textContent: s.label }, done ? el('span', { className: `lasttry${done.includes('✗') ? ' bad' : ''}`, textContent: ` ${done}` }) : null));
+    const shaking = isShaking(s);
+    const rounds = () => el('span', { className: 'odds rounds' }, ...s.rounds.map(r => { const o = el('span', { className: `round ${r.part === 'head' ? 'head' : 'torso'}`, textContent: Number.isFinite(r.odds) ? `${Math.round(r.odds * 100)}%` : '?' }); o.style.setProperty('--k', String(Number.isFinite(r.odds) ? r.odds : 0)); return o; }));
+    const timeEl = t ? el('span', { className: `time${v.shift && Number.isFinite(s.rushMs) ? ' rushed' : ''}`, textContent: t }) : null;
+    // (0.0.9: a shaking row: its time and its odds on one line, the amber mark under them (marked, never struck), so the
+    // row keeps its height; three lines had run out of it at 1600 × 900)
+    const meta = shaking
+      ? el('span', { className: 'meta shake' }, el('span', { className: 'line1' }, timeEl, isShotRow(s) ? rounds() : odds ? el('span', { className: 'odds', textContent: odds }) : null), el('span', { className: 'why warn shake', textContent: `! ${SHAKING}` }))
+      : el('span', { className: 'meta' }, timeEl,
+        s.off ? el('span', { className: 'why', textContent: s.off }) : s.warn ? el('span', { className: 'why warn', textContent: `! ${s.warn}` })
+          // (a shot row: each round's odds, a meter under each, the head's marked: graphics beside the numbers)
+          : isShotRow(s) ? rounds()
+          : odds ? el('span', { className: `odds${s.routine ? ' routine' : ''}`, textContent: odds }) : null);
     const kids = [el('kbd', { textContent: slot.key }), lab, meta];
-    const r = el('div', { className: `step ${s.kind ?? 'single'}${s.off ? ' off' : ''}${s.warn && !s.off ? ' warned' : ''}${s.cmd ? ' cmd' : ''}${s.lead ? ' leads' : ''}${s.first ? ' first' : ''}${isRunning ? ' running' : ''}`, title: rowTitle(s, { label }) }, ...kids);
+    const r = el('div', { className: `step ${s.kind ?? 'single'}${s.off ? ' off' : ''}${s.warn && !s.off ? ' warned' : ''}${shaking ? ' shaking' : ''}${s.cmd ? ' cmd' : ''}${s.lead ? ' leads' : ''}${s.first ? ' first' : ''}${isRunning ? ' running' : ''}`, title: rowTitle(s, { label, chaos: v.chaos ?? null }) }, ...kids);
     r.dataset.step = s.id; r.dataset.key = slot.key;
+    if (done) r.dataset.last = done;
     if (onPick && !s.off) r.addEventListener('click', () => onPick(s));
     // (the row under the pointer: a shot row's parts stand over the target as a plate (main.js), the plaque for a row's parts)
     r.addEventListener('mouseenter', () => { hovered = s.id; });

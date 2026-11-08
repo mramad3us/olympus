@@ -466,7 +466,8 @@ export default [
       console.log(`      from lane 1's 25 m point: ${spots.length - missed.length} of ${spots.length} points and coaches reached; stands stood on: ${onStand.length ? onStand.join(', ') : 'none'}`);
       assert(!missed.length, `not reached: ${missed.join(', ')}`);
       assert(!onStand.length, `walked through: ${onStand.join(', ')}`);
-      const g = golden('places: PAIRS', PAIRS, '1e36cce2a670a5');   // (0.0.8, set on purpose: test-pairs' ground)
+      // (0.0.8, set on purpose: test-pairs' ground; 0.0.9, re-set on purpose: PAIRS.bang, where the coach's training bangs land)
+      const g = golden('places: PAIRS', PAIRS, '0957dd557b1ff6');
       console.log(`      PAIRS ${g}`);
     },
   },

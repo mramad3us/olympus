@@ -26,6 +26,10 @@
 // four times in 20 s: four shots at 300 m, the pits marking in the window while the relay fires and waits for its own
 // marks round you, the game running the whole bench rather than for the five taps alone (the integrator's of v0.0.7:
 // the far setup is stop motion, so five taps of Fire ran about 2 s of the line), timed frame by frame (its p95 held at 18 ms).
+// pairs-bangs (0.0.9, the build sheet 0.0.9 §2.3, §8 item 25; ROADMAP's bang-room, here on the bay): test-pairs' 'bangs:standby'
+// on seed 48213 as the Boot recruit, 20 s still: the coach's three bangs behind you, their flashes and smoke, the startle's
+// dark and FROZE, the picture closing at its edges, the turn and the pause; its frames within BANG_FRAMES_MS of a bang a row
+// of their own (cards/bench.js bangOf), no frame there over 25 ms.
 
 /** The bench scenes by name (the build sheet's §2.4). */
 export const BENCH_SCENES = Object.freeze({
@@ -46,6 +50,11 @@ export const BENCH_SCENES = Object.freeze({
     keys: Object.freeze(Array.from({ length: 15 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 1180])]).flat()),
     warmS: 2,
   }),
+  'pairs-bangs': Object.freeze({
+    play: 'test-pairs', seed: 48213, hour: 11, setup: 'bangs:standby', tier: 'recruit',
+    keys: Object.freeze([Object.freeze([null, 20000])]),
+    warmS: 2,
+  }),
   'range-far': Object.freeze({
     play: 'test-range', seed: 48213, hour: 10, setup: 'far',
     keys: Object.freeze(Array.from({ length: 4 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 3880])]).flat()),
@@ -59,3 +68,5 @@ export const BENCH_DEFAULT = 'squadbay-night';
 export const BENCH_S = 20, BENCH_WARM_S = 2;
 /** A frame slower than this counts as a hitch on the card (CONTRACTS §7's p99 walking budget). */
 export const BENCH_SLOW_MS = 25;
+/** A frame drawn within this long of game time after a bang went off is a bang's frame (0.0.9: the bench's row; ms). */
+export const BANG_FRAMES_MS = 500;

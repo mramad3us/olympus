@@ -13,6 +13,14 @@
 // the rows chosen), the gun (RELOAD's time, the Top up in the lull, the short magazine). The runs of this session on
 // this seed (page memory, never the save: main.js) are listed under them, one line a sheet (runLine), so "Again as Tier
 // one" shows the gulf on the card itself (the design review of v0.0.8).
+//
+// 0.0.9 (the build sheet 0.0.9 §2.3, §8 items 16, 20, 21; COMBAT §25.18.3): "Three bangs" (test-pairs-bangs, the setup 'bangs')
+// opens the same picker on the Boot recruit (the scene's sheet), each sheet's line ending with its hardening in words
+// ("Boot recruit · Hardening: green · Warfighting 6 · …", labelled and leading on "Three bangs", closing the line on Pairs:
+// supp.js hardWord of the sheet's hardening, main.js's reader; the number and its parts only on the word's hover, "Hardening
+// 7: experience 5, training 2"), and the setup's line under the title (SETUP_LINES). The end card leads with the bangs'
+// summary (the scene's bangsNow().summary, the chaos's sum and the calm figure by the book in it) and this session's calm run
+// on the seed and the sheet where the page remembers one (bangLines).
 
 /** The tiers on the picker, in its order, when the sim's PICKER_TIERS is not given. */
 export const PICKER_ORDER = Object.freeze(['recruit', 'private', 'sgt', 'raider', 'tierone']);
@@ -25,25 +33,45 @@ export function sheetLine(t) {
   return [`Warfighting ${t.wf}`, Number.isFinite(v.marksmanship) ? `Marksmanship ${v.marksmanship}` : null, Number.isFinite(v.weapons) ? `Weapon handling ${v.weapons}` : null,
     Number.isFinite(v.awareness) ? `Awareness ${v.awareness}` : null, Number.isFinite(t.rung) ? `rung ${t.rung}` : null].filter(Boolean).join(' · ');
 }
-/** The picker's rows: [{ tier, label, line, wf, focus }] from TEST_SHEETS, in order (the scene's sheets, else PICKER_TIERS), focus the scene's default sheet. */
-export function pickerRows(sheets = {}, order = null, focus = PICKER_DEFAULT) {
+/**
+ * The picker's rows: [{ tier, label, line, wf, focus, hard }] from TEST_SHEETS, in order (the scene's sheets, else PICKER_TIERS), focus
+ * the scene's default sheet; hard(tier) → the sheet's hardening in words (0.0.9, main.js's: supp.js hardWord), added to its line.
+ */
+export function pickerRows(sheets = {}, order = null, focus = PICKER_DEFAULT, { hard = null, lead = false } = {}) {
   const tiers = (order?.length ? order : PICKER_ORDER).filter(t => sheets[t]);
-  return tiers.map(t => ({ tier: t, label: sheets[t].label ?? t, wf: sheets[t].wf, line: sheetLine(sheets[t]), focus: t === (focus ?? PICKER_DEFAULT) }));
+  return tiers.map(t => {
+    let got = null;
+    try { got = hard ? hard(t) ?? null : null; } catch { got = null; }
+    // (hard gives the word, or { word, title }: the hover's number and parts; the fixer's: labelled "Hardening: green", leading
+    // the line where the scene is about it (lead: "Three bangs"), else closing it)
+    const word = typeof got === 'string' ? got : got?.word ?? null, hardLine = word ? `Hardening: ${word}` : null;
+    const line = (lead ? [hardLine, sheetLine(sheets[t])] : [sheetLine(sheets[t]), hardLine]).filter(Boolean).join(' · ');
+    return { tier: t, label: sheets[t].label ?? t, wf: sheets[t].wf, line, focus: t === (focus ?? PICKER_DEFAULT), hard: word, hardTitle: typeof got === 'object' ? got?.title ?? null : null, lead };
+  });
 }
+/** A setup's line under the picker's title (0.0.9; my words). */
+export const SETUP_LINES = Object.freeze({ bangs: 'Utilities, no ear defenders. In the first standby the coach makes some noise behind you; the rest is Pairs as built. Esc, End the scene, takes you to the card after the first string.' });
 
 /** The picker as a page on the title's paper: { body, buttons }. scene: SCENES' record; onPick(tier); onBack(). */
-export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack }) {
+export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
   // (the scene's own list and default where it names them (scenes.js: sheets, sheet), else the sim's picker order)
-  const rows = pickerRows(sheets, Array.isArray(scene?.sheets) ? scene.sheets : order, scene?.sheet ?? PICKER_DEFAULT);
+  const rows = pickerRows(sheets, Array.isArray(scene?.sheets) ? scene.sheets : order, scene?.sheet ?? PICKER_DEFAULT, { hard, lead: scene?.setup === 'bangs' });
+  // (the hardening's words emphasised, its number and parts on their hover)
+  const small = (r) => {
+    if (!r.hard) return el('small', { textContent: r.line });
+    const h = el('b', { className: 'hard', textContent: `Hardening: ${r.hard}`, ...(r.hardTitle ? { title: r.hardTitle } : {}) }), rest = sheetLine(sheets[r.tier]);
+    return r.lead ? el('small', {}, h, rest ? ` · ${rest}` : '') : el('small', {}, rest ? `${rest} · ` : '', h);
+  };
   const buttons = rows.map((r, i) => {
-    const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}`, type: 'button', onclick: () => onPick?.(r.tier) }, el('kbd', { textContent: String(i + 1) }), r.label, el('small', { textContent: r.line }));
+    const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}`, type: 'button', onclick: () => onPick?.(r.tier) }, el('kbd', { textContent: String(i + 1) }), r.label, small(r));
     b.dataset.tier = r.tier;
     return b;
   });
   const body = el('div', { className: 'sheet tests picker' },
     el('h2', { textContent: String(scene?.title ?? 'Pairs').toUpperCase() }),
     el('p', { className: 'sub', textContent: 'Play it as a sheet: each its own experience, its own hands and eyes. The same targets turn on the same seed whichever you choose.' }),
+    SETUP_LINES[scene?.setup] ? el('p', { className: 'sub setup', textContent: SETUP_LINES[scene.setup] }) : null,
     el('hr'),
     ...buttons,
     el('hr'),
@@ -95,4 +123,17 @@ export function runLine(pn, { fmt = two } = {}) {
 /** The "Again as …" lines' sheets: every picker sheet but the one played, in the picker's order. */
 export function againTiers(sheets = {}, played = null, order = null) {
   return pickerRows(sheets, order).filter(r => r.tier !== played).map(r => ({ tier: r.tier, label: r.label, wf: r.wf }));
+}
+
+/**
+ * The end card's lines for the banged scene (0.0.9): [summary, calm] from the scene's bangsNow ({ summary }): its summary ("Boot
+ * recruit · three bangs · the chaos 105 − hardening 7 (green) = felt 98, pinned · froze 2.45 s · … (calm 2.50 s)"), then, where
+ * the page remembers one, this session's calm run of the same sheet on the same seed ("Your calm run on this seed: first round
+ * 2.61 s after you saw him"). calmRunMs: that run's first string's TURN TO PAUSE + PAUSE TO FIRST (ms), or null. fmt: takeInWords.
+ */
+export function bangLines(bn, { calmRunMs = null, fmt = two } = {}) {
+  if (!bn) return [];
+  // (the book's calm figure is in the summary already: the calm line only for this session's own calm run (the design review
+  // of v0.0.9: it repeated "(calm 2.60 s)"), measured as the paper's TURN TO PAUSE + PAUSE TO FIRST, as the summary's is)
+  return [bn.summary ?? null, Number.isFinite(calmRunMs) ? `Your calm run on this seed: first round ${fmt(calmRunMs)} s after you saw him` : null].filter(Boolean);
 }

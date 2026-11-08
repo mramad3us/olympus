@@ -23,8 +23,12 @@
 // 'look' the detector (a turner newly seen opens the take-in's window or joins it; lived ticks only) and 'input' the
 // window's end (the pause on its tick, which runs while time stands still). Neither writes anything where the range
 // session has no turners, so a gunless game, test-handling and test-range are unchanged.
+// 0.0.9 (the build sheet 0.0.9 §2.1; COMBAT §5.7): the startle's end runs first in 'input' (src/sim/combat/supp.js
+// suppInput: the stop hold let go inside a startle, the 'startle' fact 'end' and the log at its end), then the contact's,
+// so a pause that waited for a startle comes on the tick it ends. It writes nothing where nobody has a combat block.
 import { fillDomain } from '../../core/state.js';
 import { contactLook, contactInput } from '../combat/contact.js';
+import { suppInput } from '../combat/supp.js';
 import { CUTS, LEGACY_CUTS } from '../../data/people/looks.js';
 import { actorsStep, placeSlowStep } from './place.js';
 import { instinctStep, instinctAction } from '../skills/instinct.js';
@@ -47,6 +51,12 @@ export function upgradeCuts(state) {
   return n;
 }
 
+/** The fast layer 'input' (see the header): the startle's, then the contact's. */
+function peopleInput(state, input, bus, ctx) {
+  suppInput(state, input, bus, ctx);
+  contactInput(state, input, bus, ctx);
+}
+
 /** The people domain's fill (??=): every key at its empty default, kept where set. */
 export function initPeople(state) {
   for (const k of KEYS) fillDomain(state, k);
@@ -62,7 +72,7 @@ export const peopleDomain = Object.freeze({
   idMaps: Object.freeze({ people: 'p', units: 'unit' }),
   idFields: Object.freeze({ 'player.id': 'p', 'player.actor': 'a', 'actors.area': 'place' }),
   init: initPeople,
-  fast: Object.freeze({ input: contactInput, actors: actorsStep, look: contactLook, offers: instinctStep }),
+  fast: Object.freeze({ input: peopleInput, actors: actorsStep, look: contactLook, offers: instinctStep }),
   slow: Object.freeze([Object.freeze({ name: 'people:place', step: placeSlowStep, steady: () => true })]),
   jobs: Object.freeze({}),
   actions: Object.freeze({ people: noop, instinct: instinctAction }),

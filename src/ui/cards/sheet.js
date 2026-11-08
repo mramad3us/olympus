@@ -25,6 +25,13 @@
 // The 0.0.7 round's (the build sheet 0.0.7 §2.2, §2.5): a wound is on the sheet in BODY's words (wounds.js
 // woundWords(rec, ms): "A gunshot wound in the left thigh, bleeding hard."), under the line and over the needs,
 // never a number (blood, points, rates are the body's, not the character's); body.woundWords is given by main.js.
+//
+// The 0.0.9 round's (the build sheet 0.0.9 §2.3, §8 item 16; SKILLS §6.8; VIEWS §8.2): where the sheet is written, THE FILE
+// gives Hardening under the skills, in words (the user's answer of 2026-11-07: "shown in words from green to unshakeable"):
+// "Hardening · green · inoculation 6 of 10: as far as unit training goes", the level word (supp.js hardWord), the training
+// under noise counted against its teacher's cap (inocOf), "frayed: the noise reaches you more today" while the body's
+// toll takes some back; its number and its parts only on the hover ("Hardening 17: experience 11, training 6"). The
+// readers are given by main.js (supp: { hardParts, hardWord, inocOf }), so this card holds no rule of the chaos.
 import { RANKS } from '../../data/people/ranks.js';
 import { COMPANY } from '../../data/people/billets.js';
 import { unitName, billetDef } from '../../sim/people/roster.js';
@@ -47,10 +54,30 @@ const nameOf = (n) => (!n ? '?' : typeof n === 'string' ? n : [n.given, n.nick ?
  * The sheet's contents now: { name, file: [[label, value]…], strip, line, needs: [{ need, name, band, words, tone }],
  * doll: { look, sex, body, outfit } }. body: BODY's readers; ms the clock (state.clock.ms).
  */
+/** Inoculation's teachers in words (SKILLS §6.8's caps: boot camp 6, the unit 10, the cadre 15, the schools 20, the training command 25; my words). */
+export const TEACHER_WORDS = Object.freeze({ boot: 'as far as boot camp goes', unit: 'as far as unit training goes', cadre: 'as far as the cadre\'s courses go', school: 'as far as the schools go', itc: 'as far as the training command goes' });
+/** Hardening's hover: what it is (VIEWS §8.2's words). */
+export const HARDENING_ABOUT = 'How much of the noise reaches your hands. It grows with fights lived and with training under noise and bangs.';
+/**
+ * The Hardening row: { label, value, title, word, H } or null. supp: { hardParts(state, pid, ms), hardWord(H), inocOf(state, pid) }
+ * (supp.js's readers, from main.js). The value is words alone but the inoculation's count; the number is the hover's.
+ */
+export function hardeningRow(state, pid, ms, supp = null) {
+  if (!supp?.hardParts || !supp?.hardWord) return null;
+  let parts = null, inoc = null;
+  try { parts = supp.hardParts(state, pid, ms); inoc = supp.inocOf ? supp.inocOf(state, pid) : null; } catch { return null; }
+  if (!parts || !Number.isFinite(parts.H)) return null;
+  const word = supp.hardWord(parts.H), toll = (parts.toll ?? []).filter(t => Number(t.v) > 0);
+  const taught = inoc && Number.isFinite(inoc.pts) ? `inoculation ${inoc.pts} of ${inoc.cap ?? '?'}${TEACHER_WORDS[inoc.teacher] ? `: ${TEACHER_WORDS[inoc.teacher]}` : ''}` : null;
+  const value = [word, taught, toll.length ? 'frayed: the noise reaches you more today' : null].filter(Boolean).join(' · ');
+  const sign = (v) => (v < 0 ? `−${-v}` : `+${v}`);
+  const title = `Hardening ${Math.round(parts.H)}: experience ${Math.round(parts.exp ?? 0)}, training ${Math.round(parts.inoc ?? 0)}${parts.axis ? `, nerve ${sign(Math.round(parts.axis))}` : ''}${toll.length ? `, ${toll.map(t => `${t.why} −${Math.round(t.v)}`).join(', ')}` : ''}. ${HARDENING_ABOUT}`;
+  return { label: 'Hardening', value, title, word, H: parts.H };
+}
 /** The skills the file shows where the sheet is written (the range's two). */
 export const SHEET_SKILLS = Object.freeze(['marksmanship', 'weapons']);
 
-export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg = 0, look = null } = {}) {
+export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg = 0, look = null, supp = null } = {}) {
   const pid = playerId(state), p = state?.people?.[pid] ?? null, svc = p?.service ?? {};
   const rec = body.bodyOf ? body.bodyOf(state, pid) : null;
   const strip = rec && body.stripOf ? body.stripOf(rec, ms) : [];
@@ -81,6 +108,9 @@ export function sheetOf(state, { body = {}, ms = state?.clock?.ms ?? 0, lonEDeg 
     // sums showed them (the design review's); the value with its trained level)
     ...(p?.skills ? SHEET_SKILLS.map(k => [SKILLS[k].name, `${valueOf(state, pid, k)} · ${levelOf(p.skills.skills?.[k]?.[0] ?? 0)}`]) : []),
   ];
+  // (0.0.9: Hardening under the skills, in words; its number on the hover)
+  const hard = p?.skills ? hardeningRow(state, pid, ms, supp) : null;
+  if (hard) file.push([hard.label, hard.value, hard.title]);
   const me = state ? playerActor(state) : null;
   // (0.0.7: the wounds in BODY's words, none when unhurt; numbers never shown)
   let wounds = [];
@@ -135,7 +165,7 @@ export function sheetCard(sheet, { dollOf = null, scale = 2 } = {}) {
     ...sheet.needs.filter(n => !sheet.strip.some(e => e.need === n.need)).map(n => row(n, null)),
   ];
   const needs = el('div', { className: 'needs' }, ...rows);
-  const file = el('div', { className: 'keylist file' }, ...sheet.file.flatMap(([k, v]) => [el('span', { className: 'k', textContent: k }), el('span', { className: 'v', textContent: v })]));
+  const file = el('div', { className: 'keylist file' }, ...sheet.file.flatMap(([k, v, title]) => [el('span', { className: 'k', textContent: k, ...(title ? { title } : {}) }), el('span', { className: `v${title ? ' hover' : ''}`, textContent: v, ...(title ? { title } : {}) })]));
   return el('div', { className: 'glass sheetcard' },
     el('h3', { textContent: 'Personnel' }),
     el('div', { className: 'cols' },

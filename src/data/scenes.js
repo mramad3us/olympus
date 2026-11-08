@@ -10,6 +10,9 @@
 // list: the range's 'clear' or 'stopped'; 0.0.7's test-range also 'closed', the range closed after a casualty).
 // 0.0.8's test-pairs (the build sheet 0.0.8 §2.3; COMBAT §25.10.3) plays on a test sheet the start card picks (pairs.js
 // testPairs' tier: boot recruit, private, sergeant, Raider, tier one; `sheets` the picker's order, `sheet` its default).
+// 0.0.9's test-pairs-bangs, "Three bangs" (the build sheet 0.0.9 §2.2; COMBAT §25.18.3): test-pairs' scenario with its
+// setup 'bangs', scored apart on one aspect, the picker opening on the boot recruit (the anchor's first half; "Again as Tier
+// one" its second, the sheet's §8 item 21).
 // The hud reads every field; scenes save nothing (the sheet §8, item 24): their scores alone are kept.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
@@ -60,6 +63,15 @@ export const SCENES = deepFreeze({
     goal: "Five strings at 7 and 10 m on the coach's timer. Wait out of it at low ready; when a target turns, take it in, then your shots. Threats only.",
     aspects: [['turn', 'the turn: the take-in, its time, the brackets and the stamp'], ['shots', 'the shots: the rows, their price, odds and holes'], ['gun', 'the gun: RELOAD when dry, Top up in the lull']],
     body: {}, outfit: 'utilities', course: 'pairs', sheets: ['recruit', 'private', 'sgt', 'raider', 'tierone'], sheet: 'private',
+    endOn: { fact: 'range', phase: ['clear', 'stopped'] },
+  },
+  // (0.0.9: "Three bangs", test-pairs with the coach's three bangs behind you in the first standby, ears unprotected: the
+  // user's anchor, 2026-11-07, "three flashbangs go off right next to him" (ROADMAP §4.2's 0.0.7c row, its first patch))
+  'test-pairs-bangs': {
+    id: 'test-pairs-bangs', title: 'Three bangs', scenario: 'test-pairs', setup: 'bangs', hour: 11.0,
+    goal: 'Three bangs behind you in the first standby, ears unprotected. Then Pairs as built.',
+    aspects: [['bangs', "the bangs: does the recruit's hand fail and the tier one's not, as the marine's, not as lag"]],
+    body: {}, outfit: 'utilities', course: 'pairs', sheets: ['recruit', 'private', 'sgt', 'raider', 'tierone'], sheet: 'recruit',
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
 });

@@ -1,6 +1,7 @@
 // Carry postures, the muzzle's cone, the habit check and range safety (src/sim/arms/carry.js; WEAPONS §6.1, §6.3, §6.4; the build sheet 0.0.5 §4, §5.1): each posture's cone by stance, §6.3's per-approach table by the habit's own rolls, one roll an approach however long it lasts, no habit decided by a natural, and every range rule's verdict.
 import { assert, fmt } from './helpers.mjs';
 import { armsWorld, heard, LANE } from './arms-world.mjs';
+import * as CARRY from '../src/sim/arms/carry.js';
 import { POSTURES, STANCE_H, SPAN_M, muzzleOf, inCone, habitStep, rangeSafety, WARN_AGAIN_S, OUT_GRACE_S } from '../src/sim/arms/carry.js';
 
 const RAD = Math.PI / 180;
@@ -163,6 +164,23 @@ export default [
       console.log(`      STANCE_H: ${Object.entries(STANCE_H).map(([k, v]) => `${k} ${v}`).join(', ')}; SPAN_M: ${Object.entries(SPAN_M).map(([k, v]) => `${k} ${v[0]}–${v[1]}`).join(', ')}`);
       assert(STANCE_H.sit > STANCE_H.prone && STANCE_H.sit < STANCE_H.stand && SPAN_M.sit[1] > SPAN_M.kneel[1] && SPAN_M.sit[1] < SPAN_M.stand[1], 'sitting between kneeling and standing');
       assert(JSON.stringify(SPAN_M.down) === JSON.stringify(SPAN_M.prone) && STANCE_H.down === STANCE_H.prone, 'a casualty lying as prone');
+    },
+  },
+  {
+    name: 'the habit carries no flat "under fire" term of its own (v0.0.9, COMBAT §5: one cause, one entry; the code review): at pressure \'fire\' its DC is the posture\'s as at \'evaluated\', the chaos reaching it only through the roller\'s felt entry; FIRE_DC is gone',
+    fn() {
+      const dcs = {};
+      for (const pressure of ['evaluated', 'fire']) {
+        const W = armsWorld({ wh: 4, posture: 'lowReady', coach: false, seed: 91 }), { state, bus, actor } = W;
+        state.people.p3 = { id: 'p3', name: { given: 'B', family: 'Walker' }, service: { rank: 'Pvt' } };
+        state.actors.list.push({ id: 'a3', who: 'p3', x: actor.x + 1.2, z: actor.z, face: 'left', gait: 'idle' });
+        habitStep(state, null, bus, { pressure });
+        const r = heard(bus, 'roll').find(f => f.roll.verb === 'habit')?.roll;
+        dcs[pressure] = r ? { dc: r.dc, parts: r.dcParts.map(p => `${p.why} ${p.v}`).join(', ') } : null;
+      }
+      console.log(`      the recruit at low ready, the coach 1.2 m ahead: evaluated DC ${dcs.evaluated?.dc} (${dcs.evaluated?.parts}); 'fire' DC ${dcs.fire?.dc} (${dcs.fire?.parts})`);
+      assert(dcs.evaluated && dcs.fire && dcs.fire.dc === dcs.evaluated.dc && !/under fire/.test(dcs.fire.parts), JSON.stringify(dcs));
+      assert(!('FIRE_DC' in CARRY), 'FIRE_DC still exported');
     },
   },
 ];

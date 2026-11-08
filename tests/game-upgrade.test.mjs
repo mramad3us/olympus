@@ -24,6 +24,11 @@
 // setup=confirm after the bot's first shot, in stop motion; test-handling setup=hot after two shots). Nothing is written
 // on load (no mind.contact, no drills on the sheet: their defaults read): each saves again at once byte for byte, X lets
 // time run, 600 ticks with no error and no contact made (no turners), and a save after carries on byte for byte.
+// 0.0.9 (the build sheet 0.0.9 §3.2): two saves made by v0.0.8's own code from a worktree at its tag (test-pairs, the
+// private on setup=standby at string 0's pause; the tier one inside the lull's Top up). Nothing is written on load (no
+// combat block: calm, felt 0, timeK 1; no inoculation on the sheet: the rank's tier's read; no setup: the calm course):
+// each saves again at once byte for byte, plays 600 ticks by the pairs bot with no error and no combat block made, and a
+// save after carries on byte for byte.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -34,6 +39,9 @@ import { stagesOf } from '../src/sim/body/cues.js';
 import { BODY_V } from '../src/sim/body/record.js';
 import { bloodAt, hasWounds, PART_KEYS } from '../src/sim/body/wounds.js';
 import { rungOf } from '../src/sim/skills/templates.js';
+import { feltOf, inocOf, hardOf } from '../src/sim/combat/supp.js';
+import { rollerOf } from '../src/sim/combat/roll.js';
+import { pairsBot } from './bots/pairs.mjs';
 import { marsClock } from '../src/core/calendar.js';
 import { SITES } from '../src/data/setting/calendar.js';
 
@@ -178,6 +186,29 @@ export default [
         const contact = !!g.state.mind.contact;
         console.log(`      ${name}: saved at ${hm(old.clock.ms)} (${old.meta.scenario}, holds [${held}], ${json.length} bytes); saved again at once: ${again === json ? 'byte for byte' : 'DIFFERENT'}; the player's rung ${rung} (${drills ? 'WRITTEN' : 'by rank'}); X, then 600 ticks: ${fmt((g.state.clock.ms - t0) / 1000, 2)} s lived, ${g.errors.length} errors, ${contact ? 'A CONTACT' : 'no contact'}; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
         assert(again === json && !drills && rung === 1 && !contact, JSON.stringify({ same: again === json, drills, rung, contact }));
+        assert(!g.errors.length && !h.errors.length && h.save() === end && g.state.clock.ms > t0, JSON.stringify({ errors: g.errors.slice(0, 3), moved: g.state.clock.ms - t0 }));
+      }
+    },
+  },
+  {
+    name: 'a v0.0.8 save loads with nothing written (no combat block: calm, felt 0, timeK 1; no inoculation on the sheet: the rank\'s tier\'s; no setup): it saves again byte for byte at once, the pairs bot plays 600 ticks with no error and no combat block made, a save after carried on byte for byte',
+    fn() {
+      for (const name of ['v0.0.8-pairs-pause', 'v0.0.8-pairs-lull']) {
+        const json = read(name), old = JSON.parse(json);
+        assert(old.meta.version === '0.0.8' && old.meta.scenario === 'test-pairs' && !old.people[old.player.id].skills?.inoc, `${name}: not a v0.0.8 test-pairs save (${old.meta.version})`);
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 });
+        const s = g.load(json), again = g.save(), pid = s.player.id, t0 = s.clock.ms;
+        const felt = feltOf(s, pid), r = rollerOf(s, pid), inoc = inocOf(s, pid), H = hardOf(s, pid);
+        const bot = pairsBot();
+        g.step(300, bot);
+        const mid = g.save();
+        g.step(300, bot);
+        const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 });
+        h.load(mid); h.step(300, bot);
+        const blocks = [g.state.actors.list, [g.me()]].flat().filter(a => a?.combat).length;
+        console.log(`      ${name}: saved at ${hm(old.clock.ms)} (${old.meta.scenario}, the ${old.armoury.range.sheet}, cmd ${old.armoury.range.cmd?.id}, holds [${old.clock.holds.join()}], ${json.length} bytes); saved again at once: ${again === json ? 'byte for byte' : 'DIFFERENT'}; felt ${felt}, timeK ${r.timeK}, ${inoc.words} (read, not written), hardening ${H}; 600 ticks by the pairs bot: ${fmt((g.state.clock.ms - t0) / 1000, 2)} s lived, ${g.errors.length} errors, ${blocks} combat blocks; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+        assert(again === json && felt === 0 && r.timeK === 1 && !blocks && !g.state.people[pid].skills?.inoc, JSON.stringify({ same: again === json, felt, timeK: r.timeK, blocks }));
         assert(!g.errors.length && !h.errors.length && h.save() === end && g.state.clock.ms > t0, JSON.stringify({ errors: g.errors.slice(0, 3), moved: g.state.clock.ms - t0 }));
       }
     },

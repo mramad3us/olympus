@@ -20,6 +20,8 @@ import { decalPixels } from './range-items.js';
 import { bloodPixels, markPixels, MAX_BLOOD_PIXELS } from './blood.js';
 export { decalPixels, SHAPES } from './range-items.js';
 
+/** The part IDs' flag (their alpha) a pixel of light writes (0.0.9: a bang's flash): the post pass draws it with no line and never dims it as unseen (post.js). */
+export const LIGHT_FLAG = 0.9;
 /** The most pixels the things lying take (a magazine is about 25 with its outline). */
 export const MAX_DECAL_PIXELS = 1200;
 /**
@@ -45,7 +47,7 @@ export function createPixels(THREE, max, { ppm = PX_PER_M, order = 1 } = {}) {
     fragmentShader: /* glsl */`
       ${FRAG_DECL}
       varying vec3 vColor;
-      void main() { gl_FragColor = vec4(vColor, 1.0); pc_fragId = vOlyPart > 0.5 ? olyId(vOlyPart, olyFlag) : vOlyPart < -0.5 ? olyId(0.0, 0.5) : vec4(0.0); }`,
+      void main() { gl_FragColor = vec4(vColor, 1.0); pc_fragId = vOlyPart > 0.5 ? olyId(vOlyPart, olyFlag) : vOlyPart < -1.5 ? olyId(0.0, ${LIGHT_FLAG.toFixed(2)}) : vOlyPart < -0.5 ? olyId(0.0, 0.5) : vec4(0.0); }`,
   });
   material.userData.oly = { pixels: true };
   const mesh = new THREE.InstancedMesh(geo, material, max);
@@ -54,13 +56,16 @@ export function createPixels(THREE, max, { ppm = PX_PER_M, order = 1 } = {}) {
   const rgb = (c) => [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255];
   return {
     mesh, max,
-    /** Pixel i: its centre (x, y, z, metres), flat on the ground or upright, its colour (0xrrggbb), the light's tint, its part (noLine: none, and no line round it). */
-    set(i, { x, y = 0, z, flat = false, color, tint = [1, 1, 1], part = 0, noLine = false }) {
+    /**
+     * Pixel i: its centre (x, y, z, metres), flat on the ground or upright, its colour (0xrrggbb), the light's tint, its part (noLine:
+     * none, and no line round it; light (0.0.9): light itself, a bang's flash: no line, and the fog of awareness never dims it, LIGHT_FLAG).
+     */
+    set(i, { x, y = 0, z, flat = false, color, tint = [1, 1, 1], part = 0, noLine = false, light = false }) {
       if (i >= max) return false;
       m4.compose(pos.set(x, y, z), flat ? flatQ : upQ, one);
       mesh.setMatrixAt(i, m4);
       const [r, g, b] = rgb(color);
-      aColor.setXYZ(i, r, g, b); aTint.setXYZ(i, tint[0], tint[1], tint[2]); aPart.setX(i, noLine ? -1 : part);
+      aColor.setXYZ(i, r, g, b); aTint.setXYZ(i, tint[0], tint[1], tint[2]); aPart.setX(i, light ? -2 : noLine ? -1 : part);
       return true;
     },
     count(n) {

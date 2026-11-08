@@ -13,6 +13,9 @@ import { PAPERS } from '../src/sim/arms/paper.js';
 import { actionMs } from '../src/sim/arms/firearms.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { oddsOf } from '../src/sim/skills/checks.js';
+import { hardOf, suppTimeK } from '../src/sim/combat/supp.js';
+// (0.0.9: a person's chaos written so their felt is f at ms: the pool f + their hardening, fresh)
+const feltTo = (state, pid, f, ms = state.clock.ms) => { const a = state.actors.list.find(x => x.who === pid); a.combat = { supp: f ? f + hardOf(state, pid, ms) : 0, suppAtMs: ms, suppRate: 2, startleFromMs: null, startleUntilMs: null, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: null }; };
 
 const s2 = (ms) => (ms === null || ms === undefined ? '-' : (ms / 1000).toFixed(2));
 // (the build sheet §4's row-time table, seconds: Fire, Pair and its split, Hammer and its split, Triple, Failure, To the head,
@@ -299,6 +302,20 @@ export default [
       console.log(`      before: Pair ${before?.off ?? 'offered'}; magOut:pouch (${g.steps.map(x => x.phase).join(', ')}), the gun's magazine ${b.mag ?? 'out'}: Pair ${pair?.off ?? 'offered'}, Fire ${fire?.off ?? 'offered'}`);
       assert(before && !before.off, 'the Pair offered with the magazine in');
       assert(!b.mag && pair?.off === 'one left' && fire && !fire.off, JSON.stringify({ mag: b.mag, pair: pair?.off ?? null, fire: fire?.off ?? null }));
+    },
+  },
+  {
+    name: '0.0.9: a row\'s parts are × timeK at the row\'s start (COMBAT §25.18.1): the sergeant\'s Pair and failure drill at felt 0 and 60 (×1.30), the calm figures unchanged, each part within a millisecond of calm × the factor, the odds the roll\'s with the chaos\'s entry',
+    fn() {
+      const lines = [], bad = [];
+      for (const id of [ROWS.pair.id, ROWS.failure.id]) {
+        const plans = [0, 60].map(f => { const w = pairsWorld({ tier: 'sgt', aimAt: 4, turned: [4] }); feltTo(w.s, w.pid, f); const T = targetOf(w.s, w.key(4), w.pid); return rowPlan(w.s, w.pid, id, T); });
+        const k = suppTimeK(60);
+        plans[0].parts.forEach((p, i) => { const q = plans[1].parts[i]; if (Math.abs(q.ms - Math.round(p.ms * k)) > 1) bad.push({ id, k: p.k, calm: p.ms, felt: q.ms }); });
+        lines.push(`${id}: ${plans[0].ms} → ${plans[1].ms} ms (${plans[0].parts.map((p, i) => `${p.k} ${p.ms}→${plans[1].parts[i].ms}`).join(', ')}); first round ${Math.round(plans[0].rounds[0].odds * 100)}% → ${Math.round(plans[1].rounds[0].odds * 100)}%`);
+      }
+      for (const l of lines) console.log(`      the sergeant (felt 0 → 60, ×${suppTimeK(60)}): ${l}`);
+      assert(!bad.length, JSON.stringify(bad));
     },
   },
 ];

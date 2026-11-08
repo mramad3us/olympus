@@ -54,6 +54,15 @@
 // bot (tests/bots/pairs.mjs, in the page) to the end; the end card's sheet and aspects, "Again as Tier one" on the same
 // seed; the paper and the HUD apart at 1600 × 900 and 1024 × 768; Copy my scores gives "… · test-pairs · seed 48213 · turn
 // 85 · shots 80 · gun 90 · ★ no · note: none".
+// The 0.0.9 round's (the build sheet 0.0.9 §5.3 core-browser): "Three bangs": the Tests menu lists it after "Pairs" and its
+// picker opens on the Boot recruit with each sheet's hardening in words; ?play=test-pairs&setup=bangs&tier=recruit&seed=48213
+// boots with no errors, its goal shown; on 'bangs:standby' each bang's flash drawn on a frame at or after the sim's atMs,
+// X, Z and a digit pressed while startled change nothing (no stop motion, no step), FROZE drawn at the startle's end with the
+// sim's figure, the picture at the pinned band; at the pause the Off safe row "! shaking" with its odds, and on 48213 its first
+// try failing (found in node: the recruit's first Off safe after the bangs fails on 48213, 48215, 48217, 48219, 48220 and
+// 48223 of the twelve from 48213), the panel's ticks showing ✗; the paper the scene's; the bot to the end, the end card's
+// bangs lines and "Again as Tier one" keeping the seed and the setup (his FROZE 0.05 S); Copy my scores gives "… ·
+// test-pairs-bangs · seed 48213 · bangs 80 · ★ no · note: none".
 // 0.0.7's tower fixer (the user's play of 2026-11-07): the 200 m line on seed 99, the tower's command on top of the radio box
 // at the dope and at commence fire with the coach's lines under it, every voice whole, your stake marked; the command marked
 // NOW and the only tower line in the box, its short form keeping its terms (seed 48213 too: the tower verifier's).
@@ -362,7 +371,9 @@ export default [
         // (0.30 set, then the slider taken by the keyboard: → one step up, 0.35; the digit 6 and Esc still the card's while it has focus)
         await page.evaluate(() => { const s = document.querySelector('.glass.menu input.vol'); s.value = '0.3'; s.dispatchEvent(new Event('input', { bubbles: true })); s.focus(); });
         await page.keyboard.press('ArrowRight');
-        await page.keyboard.press('Digit6');                          // (6: Sound on → muted)
+        // (the mute's digit as the menu numbers it (6 to v0.0.8; 0.0.9 put "Reduce flashes" above it): Sound on → muted)
+        const muteKey = await page.evaluate(() => document.querySelector('.glass.menu .item.mute kbd')?.textContent ?? '6');
+        await page.keyboard.press(`Digit${muteKey}`);
         const set = await read();
         await page.keyboard.press('Escape');
         const closed = await page.evaluate(() => document.querySelector('.overlay').hidden);
@@ -1145,6 +1156,120 @@ export default [
         console.log(`      Again as Tier one: ${JSON.stringify(again)}; its first window ${pend1?.ms} ms (${pend1?.expect}) after ${toWin1.ticks} ticks; the private's strings were ${strings0}`);
         assert(again.scene?.seed === 48213 && again.sheet === 'tierone' && pend1?.ms === 50, JSON.stringify({ again, pend1 }));
         await page.evaluate((h) => window[h].pause(false), H);
+      }, { query: 'nostore=1', viewport: { width: 1600, height: 900 } });
+    },
+  },
+  {
+    name: '"Three bangs" (0.0.9; the user, 2026-11-07: "a recruit would likely be so supressed that they would be even likely to fail simple actions like thumbing safety off"): the Tests menu\'s entry and its picker (the Boot recruit focused, the hardening words); by the URL with no errors; each bang\'s flash at or after its moment; keys refused while startled; FROZE at its end with the sim\'s figure; the picture pinned; "! shaking" on Off safe, its first try failing on the panel\'s ticks; the paper the scene\'s; the end card\'s bangs, "Again as Tier one" with the setup; the score line',
+    heavy: true,
+    timeoutMs: 480000,
+    async fn() {
+      await withGame(async (page, errors, game) => {
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: game.origin });
+        // (the Tests menu: "Three bangs" after "Pairs", its picker on the Boot recruit with the words)
+        await page.click('#title .item.tests');
+        const list = await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].map(b => b.innerText.split('\n')[0]));
+        assert(list.indexOf('Three bangs') === list.indexOf('Pairs') + 1, JSON.stringify(list));
+        await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].find(b => b.innerText.startsWith('Three bangs')).click());
+        await page.waitForSelector('#title .sheet.picker');
+        const picker = await page.evaluate(() => ({ rows: [...document.querySelectorAll('#title .item.sheetpick')].map(b => ({ tier: b.dataset.tier, text: b.innerText.replace(/\s+/g, ' ').trim() })), focus: document.activeElement?.dataset?.tier ?? null, setup: document.querySelector('#title .sheet.picker .sub.setup')?.textContent ?? null }));
+        console.log(`      Tests: ${list.join(' | ')}\n      the picker: ${picker.rows.map(r => r.text.split(' · ')[0]).join(' | ')}; focused ${picker.focus}; '${picker.setup}'`);
+        const words = { recruit: 'green', private: 'green', sgt: 'steady', raider: 'hardened', tierone: 'unshakeable' };
+        // (the fixer's of v0.0.9: labelled and leading on "Three bangs")
+        assert(picker.focus === 'recruit' && picker.rows.every(r => r.text.includes(`Hardening: ${words[r.tier]}`)) && picker.setup, JSON.stringify(picker));
+        await page.keyboard.press('Escape');
+        // (by the URL, from its brief: no errors, the goal)
+        await game.open('play=test-pairs&setup=bangs&tier=recruit&seed=48213&nostore=1');
+        await playing(page);
+        const boot = await page.evaluate((h) => ({ scene: window[h].scene, setup: window[h].state.armoury.range.setup, toasts: window[h].hud?.toasts ?? [] }), H);
+        console.log(`      by the URL: ${JSON.stringify(boot.scene)}, setup ${boot.setup}; toasts ${JSON.stringify(boot.toasts)}`);
+        assert(boot.scene?.id === 'test-pairs-bangs' && boot.setup === 'bangs', JSON.stringify(boot));
+        // (the banged standby, every frame sampled: the bangs drawn, the startle, FROZE)
+        await game.open('play=test-pairs&setup=bangs:standby&tier=recruit&seed=48213&nostore=1');
+        await page.waitForFunction((h) => window[h].state?.armoury?.range?.bangs && window.__ready, H, { timeout: 30000 });
+        await page.evaluate((h) => {
+          window.__bs = [];
+          const f = () => { if (!window.__bs) return; const O = window[h], s = O.supp(); window.__bs.push({ ms: s?.bangs?.ms ?? null, flashing: s?.bangs?.flashing ?? [], startle: s?.now?.startle ?? null, froze: s?.now?.froze ?? null, frozeText: s?.frozeText ?? null, band: s?.picture?.bandN ?? 0, stop: O.state.stop?.mode ?? null }); requestAnimationFrame(f); };
+          requestAnimationFrame(f);
+        }, H);
+        // (the first startle: X, Z and 1 pressed in it)
+        await page.waitForFunction((h) => !!window[h].supp()?.now?.startle, H, { timeout: 30000, polling: 'raf' });
+        const steps0 = await page.evaluate((h) => window[h].state.armoury.range.str?.shots?.length ?? 0, H);
+        await page.keyboard.down('KeyW'); await page.keyboard.press('KeyX'); await page.keyboard.press('Digit1'); await page.keyboard.up('KeyW');
+        const inIt = await page.evaluate((h) => ({ startle: !!window[h].supp()?.now?.startle, stop: window[h].state.stop?.mode ?? null, me: (() => { const s = window[h].state, a = s.actors.list.find(x => x.id === s.player.actor); return { x: a.x, z: a.z }; })() }), H);
+        // (the stamp counts up while he is startled (the fixer's of v0.0.9): its standing figure at the startle's end)
+        await page.waitForFunction((h) => { const s = window[h].supp(); return !!s?.frozeText && !!s.now?.froze && !s.now?.startle; }, H, { timeout: 15000, polling: 'raf' });
+        const fz = await page.evaluate((h) => { const s = window[h].supp(); return { froze: s.now.froze, text: s.frozeText, band: s.picture?.bandN, stop: window[h].state.stop?.mode ?? null }; }, H);
+        const takeIn = await page.evaluate(async (ms) => (await import('/src/sim/combat/react.js')).takeInWords(ms), fz.froze.ms);
+        console.log(`      keys pressed while startled: stop motion ${inIt.stop ?? 'off'}, startled ${inIt.startle}; FROZE '${fz.text}' (the sim's ${fz.froze.ms} ms), the picture's band ${fz.band}, stop ${fz.stop ?? 'off'}`);
+        assert(inIt.startle && inIt.stop === null && fz.stop === null && fz.text === `FROZE ${takeIn} S` && fz.band === 3, JSON.stringify({ inIt, fz }));
+        // (on to the pause; the bangs' frames read)
+        await page.waitForFunction((h) => window[h].state.stop?.mode === 'stop' && window[h].contact()?.last && !window[h].contact()?.pending, H, { timeout: 30000 });
+        await settle(page, 450);
+        const bs = await page.evaluate(() => { const b = window.__bs; window.__bs = null; return b; });
+        const plan = await page.evaluate((h) => window[h].state.armoury.range.bangs.plan.map(b => ({ id: b.key ?? b.id, atMs: b.atMs })), H);
+        const flashes = plan.map(b => { const f = bs.find(x => x.flashing.includes(b.id)); return { id: b.id, atMs: b.atMs, drawnMs: f?.ms ?? null }; });
+        console.log(`      the flashes: ${flashes.map(f => `${f.id} at ${f.atMs} drawn at +${f.drawnMs === null ? '?' : fmt(f.drawnMs - f.atMs, 1)} ms`).join(', ')}`);
+        assert(flashes.every(f => f.drawnMs !== null && f.drawnMs >= f.atMs && f.drawnMs - f.atMs < 500), JSON.stringify(flashes));
+        // (the pause: Off safe "! shaking" with its odds; its first try fails on 48213, the panel's ticks ✗)
+        const off = await page.evaluate((h) => { const r = [...document.querySelectorAll('.steps .step')].find(x => x.dataset.step === 'selector:semi'); return r ? { text: r.innerText.replace(/\s+/g, ' '), key: r.dataset.key, title: r.title, cls: r.className } : null; }, H);
+        console.log(`      Off safe: '${off?.text}' (${off?.cls}); its hover '${off?.title}'`);
+        assert(off && /! shaking/.test(off.text) && /\d+%/.test(off.text) && /shaking/.test(off.cls) && /felt \d+/.test(off.title), JSON.stringify(off));
+        await page.evaluate(() => { window.__ticks = []; const f = () => { if (!window.__ticks) return; const t = [...document.querySelectorAll('.steps .running-view .rv-sub b')].map(b => b.textContent).join('') || (document.querySelector('.steps .wc-last:not([hidden])')?.dataset.text ?? ''); if (t) window.__ticks.push(t); requestAnimationFrame(f); }; requestAnimationFrame(f); });
+        const ms0 = await page.evaluate((h) => window[h].state.clock.ms, H);
+        await page.keyboard.press(`Digit${off.key}`);
+        await page.waitForFunction(([h, ms0]) => window[h].state.clock.ms > ms0 && window[h].stop()?.phase === 'choose' && !window[h].stop()?.doing, [H, ms0], { timeout: 10000 });
+        await settle(page, 300);
+        const ticks = await page.evaluate(() => { const t = window.__ticks; window.__ticks = null; return t; });
+        const failed = await page.evaluate((h) => (window[h].state.log ?? []).filter(r => r.kind === 'roll' && r.step === 'selector:semi').map(r => ({ ok: r.roll?.ok, text: r.text })), H);
+        console.log(`      Off safe's ticks on the panel: ${[...new Set(ticks)].map(t => `'${t}'`).join(' → ')}; the rolls: ${JSON.stringify(failed)}`);
+        assert(ticks.some(t => t.includes('✗')), JSON.stringify({ ticks, failed }));
+        // (the bot to the banged paper: the paper the scene's)
+        const bot = (until, maxTicks = 60000) => page.evaluate(async ([h, until, maxTicks]) => {
+          const { pairsBot } = await import('/tests/bots/pairs.mjs');
+          const O = window[h]; window.__pairsBot ??= pairsBot();
+          const run = window.__pairsBot, done = new Function('O', `return (${until});`);
+          O.pause(true);
+          let n = 0;
+          for (; n < maxTicks && !done(O); n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); O.step(1, run(s, me, (me.bot ??= {}))); }
+          return { ticks: n, done: done(O) };
+        }, [H, until, maxTicks]);
+        await bot('!!O.pairs()?.strs?.[0]?.done');
+        await page.evaluate((h) => window[h].pause(false), H);
+        await page.waitForFunction(() => !document.querySelector('.timer')?.hidden, null, { timeout: 5000 });
+        const paper = await page.evaluate((h) => { const p = window[h].pairs(), first = p.strs[0]; return { shown: document.querySelector('.timer')?.dataset.text, sim: typeof first.paper === 'string' ? first.paper : first.paper?.text }; }, H);
+        console.log(`      the banged paper '${paper.shown}' (the sim's '${paper.sim}')`);
+        assert(paper.shown === paper.sim && /^BANGS 3/.test(paper.shown), JSON.stringify(paper));
+        // (to the end: the card's bangs lines; Score it at 80; Copy my scores; Again as Tier one)
+        await bot('!!O.range()?.end', 200000);
+        await page.evaluate((h) => window[h].pause(false), H);
+        await page.waitForFunction((h) => window[h].scene?.ended, H, { timeout: 15000 });
+        for (let w = 0; w < 60 && !(await page.evaluate(() => !!document.querySelector('.glass.end'))); w++) { await page.keyboard.press('Enter'); await settle(page, 300); }
+        const end = await page.evaluate(() => ({ bangs: [...document.querySelectorAll('.glass.end .bang-said')].map(p => p.textContent), again: [...document.querySelectorAll('.glass.end .again-as')].map(b => /Again as [^\n]+/.exec(b.innerText)?.[0] ?? ''), score: [...document.querySelectorAll('.glass.end .item')].find(b => /Score it/.test(b.innerText))?.innerText.replace(/\s+/g, ' ') }));
+        console.log(`      the end card: ${end.bangs.map(t => `'${t}'`).join(' | ')}; '${end.score}'; ${end.again.join(', ')}`);
+        assert(end.bangs.length >= 1 && /Boot recruit · three bangs/.test(end.bangs[0]) && /one aspect/.test(end.score) && end.again.includes('Again as Tier one'), JSON.stringify(end));
+        await settle(page, 400);
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.querySelector('.glass.score'), null, { timeout: 5000 });
+        await page.evaluate(() => { const i = document.querySelector('.glass.score input.score'); i.value = '80'; i.dispatchEvent(new Event('input')); });
+        await page.click('.glass.score .copy');
+        await page.waitForFunction(() => /Copied|failed/.test(document.querySelector('.glass.score .copied').textContent), null, { timeout: 5000 });
+        const clip = await page.evaluate(async () => navigator.clipboard.readText().catch(e => `(no read: ${e.message})`));
+        console.log(`      Copy my scores: '${clip}'`);
+        assert(new RegExp(`^OLYMPUS v${await page.evaluate((h) => window[h].version, H)} · test-pairs-bangs · seed 48213 · bangs 80 · ★ no · note: none$`).test(clip), clip);
+        await page.keyboard.press('Digit2');
+        await page.waitForFunction(() => document.querySelector('.glass.end'), null, { timeout: 5000 });
+        await page.evaluate(() => [...document.querySelectorAll('.glass.end .again-as')].find(b => /Again as Tier one/.test(b.innerText)).click());
+        await playing(page);
+        const again = await page.evaluate((h) => ({ scene: window[h].scene, sheet: window[h].pairs()?.sheet, setup: window[h].state.armoury.range.setup }), H);
+        await page.evaluate(() => { window.__pairsBot = null; });
+        await bot('!!O.supp()?.now?.froze');
+        await page.evaluate((h) => window[h].pause(false), H);
+        await page.waitForFunction((h) => window[h].supp()?.frozeText, H, { timeout: 10000, polling: 'raf' }).catch(() => null);
+        const t1 = await page.evaluate((h) => ({ froze: window[h].supp()?.now?.froze, text: window[h].supp()?.frozeText, band: window[h].supp()?.now?.bandN }), H);
+        console.log(`      Again as Tier one: ${JSON.stringify(again)}; his FROZE '${t1.text}' (${t1.froze?.ms} ms), band ${t1.band}`);
+        assert(again.scene?.id === 'test-pairs-bangs' && again.scene.seed === 48213 && again.sheet === 'tierone' && again.setup === 'bangs' && t1.froze && t1.froze.ms <= 100 && t1.band === 0, JSON.stringify({ again, t1 }));
+        assert(!errors.length, errors.join('\n'));
       }, { query: 'nostore=1', viewport: { width: 1600, height: 900 } });
     },
   },

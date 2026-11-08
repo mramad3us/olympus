@@ -28,6 +28,10 @@
 // RUNG_OF_TIER is COMBAT §25.3.2's rung of each tier, written nowhere for NPCs; rungOf(state, pid, family) reads
 // the sheet's rung where one is written (a test sheet), else the rank's tier's. Scenes never write a career:
 // testSheet is written on the scene's player only (the scene's fill).
+// 0.0.9 (the build sheet 0.0.9 §2.1, §8 item 13; SKILLS §6.8, §11.1; COMBAT §5.6): each test row carries its inoculation (the
+// training term of hardening: recruit 2, private 6, corporal 10, sergeant 12, Raider 22, tier one 25, the number in the row
+// since skills may not import combat), TEST_SHEETS[t].inoc, and testSheet writes it fixed, inoc { pts, n: 0, sol: 0, fixed:
+// true }: scenes never write a career, so "Again as" and later strings compare like with like.
 // Pure.
 import { stream, int, intIn } from '../../core/rng.js';
 import { SKILLS, SKILL_KEYS, BASE_MAX, BG_MAX, OWN_MAX, value } from './skills.js';
@@ -115,15 +119,16 @@ export const RUNG_OF_TIER = Object.freeze({ recruit: 0, private: 1, lcpl: 2, cpl
 /** The drill families (COMBAT §25.3.1); a test sheet writes room and passage. */
 export const DRILL_FAMILIES = Object.freeze(['room', 'passage', 'hatch', 'void']);
 
-// (a test sheet's row: its tier (the other skills at the tier's middle), its label, Warfighting, the named values, its rung, on the picker or by URL only)
-const TS = (tier, label, wf, named, rung, picker) => ({ tier, label, wf, named, rung, picker });
+// (a test sheet's row: its tier (the other skills at the tier's middle), its label, Warfighting, the named values, its rung, on the
+// picker or by URL only, and (0.0.9) its inoculation, SKILLS §11.1's by tier)
+const TS = (tier, label, wf, named, rung, picker, inoc) => ({ tier, label, wf, named, rung, picker, inoc });
 const SHEET_ROWS = [
-  TS('recruit', 'Boot recruit', 6, { marksmanship: 4, weapons: 4, awareness: 2, fitness: 8 }, 0, true),
-  TS('private', 'Private', 15, { marksmanship: 10, weapons: 10, awareness: 6, fitness: 12 }, 1, true),
-  TS('cpl', 'Corporal', 34, { marksmanship: 15, weapons: 15, awareness: 11, fitness: 13 }, 2, false),
-  TS('sgt', 'Sergeant', 44, { marksmanship: 19, weapons: 19, awareness: 14, fitness: 14 }, 3, true),
-  TS('raider', 'Raider, five years', 70, { marksmanship: 31, weapons: 31, awareness: 31, fitness: 19 }, 4, true),
-  TS('tierone', 'Tier one', 93, { marksmanship: 42, weapons: 42, awareness: 41, fitness: 21 }, 4, true),
+  TS('recruit', 'Boot recruit', 6, { marksmanship: 4, weapons: 4, awareness: 2, fitness: 8 }, 0, true, 2),
+  TS('private', 'Private', 15, { marksmanship: 10, weapons: 10, awareness: 6, fitness: 12 }, 1, true, 6),
+  TS('cpl', 'Corporal', 34, { marksmanship: 15, weapons: 15, awareness: 11, fitness: 13 }, 2, false, 10),
+  TS('sgt', 'Sergeant', 44, { marksmanship: 19, weapons: 19, awareness: 14, fitness: 14 }, 3, true, 12),
+  TS('raider', 'Raider, five years', 70, { marksmanship: 31, weapons: 31, awareness: 31, fitness: 19 }, 4, true, 22),
+  TS('tierone', 'Tier one', 93, { marksmanship: 42, weapons: 42, awareness: 41, fitness: 21 }, 4, true, 25),
 ];
 
 /**
@@ -143,20 +148,21 @@ export function solveOwn(k, want, wf) {
 // (a tier's middle value of a skill, the table's (lo + hi) / 2 rounded)
 const middleOf = (tier, k) => { const r = VALUES[tier]?.v[k] ?? [0, 0]; return Math.round((r[0] + r[1]) / 2); };
 
-/** The test sheets (see the header): { [tier]: { label, wf, values: { <skill>: value }, rung, picker } }, values as value() reads them. */
+/** The test sheets (see the header): { [tier]: { label, wf, values: { <skill>: value }, rung, picker, inoc } }, values as value() reads them. */
 export const TEST_SHEETS = deepFreeze(Object.fromEntries(SHEET_ROWS.map(r => {
   const sheet = { cls: 'soldier', os: r.wf, skills: {} };
   for (const k of SKILL_KEYS) sheet.skills[k] = solveOwn(k, r.named[k] ?? middleOf(r.tier, k), r.wf);
   const values = Object.fromEntries(SKILL_KEYS.map(k => [k, value(sheet, k)]));
-  return [r.tier, { label: r.label, wf: r.wf, values, rung: r.rung, picker: r.picker, skills: sheet.skills }];
+  return [r.tier, { label: r.label, wf: r.wf, values, rung: r.rung, picker: r.picker, inoc: r.inoc, skills: sheet.skills }];
 })));
 /** The tiers on the test scenes' picker, in its order (the corporal by URL only). */
 export const PICKER_TIERS = Object.freeze(SHEET_ROWS.filter(r => r.picker).map(r => r.tier));
 
-/** A test sheet to write on a scene's player (see the header): { cls, os, skills: { k: [base, bg] }, drills: { room: { rung }, passage: { rung } } }; an unknown tier is the private's. */
+/** A test sheet to write on a scene's player (see the header): { cls, os, skills: { k: [base, bg] }, drills: { room: { rung }, passage: { rung } }, inoc: { pts, n, sol, fixed } }; an unknown tier is the private's. */
 export function testSheet(tier = 'private') {
   const t = TEST_SHEETS[tier] ?? TEST_SHEETS.private;
-  return { cls: 'soldier', os: t.wf, skills: Object.fromEntries(SKILL_KEYS.map(k => [k, [...t.skills[k]]])), drills: { room: { rung: t.rung }, passage: { rung: t.rung } } };
+  return { cls: 'soldier', os: t.wf, skills: Object.fromEntries(SKILL_KEYS.map(k => [k, [...t.skills[k]]])), drills: { room: { rung: t.rung }, passage: { rung: t.rung } },
+    inoc: { pts: t.inoc, n: 0, sol: 0, fixed: true } };
 }
 
 /** A person's rung in a drill family (see the header): the sheet's where written, else the rank's tier's (0 to 4). */

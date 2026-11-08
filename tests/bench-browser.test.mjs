@@ -16,7 +16,7 @@
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { BENCH_SCENES, BENCH_DEFAULT, BENCH_S, BENCH_WARM_S } from '../src/data/bench.js';
-import { benchResult, benchText, splashOf } from '../src/ui/cards/bench.js';
+import { benchResult, benchText, splashOf, bangOf } from '../src/ui/cards/bench.js';
 
 const FIELDS = ['scene', 'version', 'ppm', 'seconds', 'frames', 'medianMs', 'p95Ms', 'p99Ms', 'maxMs', 'over25', 'drawCallsMax', 'trianglesMax', 'programs', 'uploadsMaxBytes', 'viewMedianMs', 'viewP95Ms', 'ticks', 'simMsPerTick', 'walkedM', 'renderer', 'dpr', 'window', 'picture', 'threads'];
 
@@ -115,6 +115,34 @@ export default [
         assert(r.scene === 'range-line' && range.scenario === 'test-handling' && r.frames >= 100, JSON.stringify(r));
         assert(range.summary?.shots === taps, `the taps fired ${range.summary?.shots} of ${taps}: ${JSON.stringify(range.summary)}`);
       }, { query: 'bench=range-line', timeoutMs: 90000 });
+    },
+  },
+  {
+    name: '?bench=pairs-bangs (0.0.9; ROADMAP\'s bang-room, on the bay): the Boot recruit\'s banged standby on 48213, 20 s: the three bangs drawn, the startle, the turn; 60 fps at the median, p95 at most 18 ms, no frame over 25 ms at a bang (the card\'s bang row)',
+    heavy: true,
+    timeoutMs: 150000,
+    async fn() {
+      const sc = BENCH_SCENES['pairs-bangs'];
+      assert(sc && sc.play === 'test-pairs' && sc.setup === 'bangs:standby' && sc.tier === 'recruit', JSON.stringify(sc ?? null));
+      await withGame(async (page) => {
+        await page.waitForFunction(() => window.__bench && document.querySelector('.glass.bench'), null, { timeout: 90000 });
+        const r = await page.evaluate(() => window.__bench), text = await page.evaluate(() => document.querySelector('.glass.bench .benchtext').value);
+        const scene = await page.evaluate((h) => ({ bangs: (window[h].state.armoury.range.bangs?.plan ?? []).filter(b => b.done).length, sheet: window[h].pairs()?.sheet, froze: window[h].supp()?.now?.froze ?? null }), '__olympus');
+        console.log(`      pairs-bangs: ${r.frames} frames, median ${r.medianMs} ms, p95 ${r.p95Ms} ms, max ${r.maxMs} ms, over 25 ms ${r.over25}; at a bang ${JSON.stringify(r.bang)}; ${scene.bangs} bangs on the ${scene.sheet}, froze ${scene.froze?.ms} ms`);
+        for (const line of text.split('\n')) console.log(`        ${line}`);
+        // (a CPU or frame ceiling under load: the machine's band is the runner's, said at its start; rerun alone before believing it)
+        assert(r.scene === 'pairs-bangs' && scene.bangs === 3 && r.bang && r.bang.frames >= 3 && /bang frames/.test(text), JSON.stringify({ r, scene }));
+        assert(r.medianMs <= 17.5 && r.p95Ms <= 18 && r.bang.over25 === 0, JSON.stringify({ median: r.medianMs, p95: r.p95Ms, bang: r.bang }));
+      }, { query: 'bench=pairs-bangs', timeoutMs: 90000 });
+    },
+  },
+  {
+    name: 'a scene with bangs adds its row: the frames at a bang alone, { frames, medianMs, maxMs, over25 }, and a line of its own',
+    fn() {
+      const frames = Array.from({ length: 300 }, (_, i) => ({ dt: i === 120 ? 26 : 16.7, bang: i >= 100 && i < 130 }));
+      const b = bangOf(frames), r = benchResult({ frames, walkedM: 0 }, { name: 'pairs-bangs', version: 'test', ppm: 16 }), lines = benchText(r).split('\n');
+      console.log(`      ${JSON.stringify(b)}; '${lines.at(-1)}'`);
+      assert(b.frames === 30 && b.over25 === 1 && b.maxMs === 26 && /^bang frames 30/.test(lines.at(-1)) && bangOf([{ dt: 16 }]) === null, JSON.stringify({ b, lines }));
     },
   },
 ];

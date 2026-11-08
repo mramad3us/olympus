@@ -486,3 +486,64 @@ export const RANGE = Object.freeze({
     ]),
   }),
 });
+
+// ---- the 0.0.9 round: the bang and the chaos in the ears (the build sheet 0.0.9 §2.3; VIEWS §11.2; BODY §17.3; my calls, unscored) ----
+//
+// A training bang's report as a man 1.5 m from it hears it (COMBAT §11.4: a flashbang's physics, the M84's class): the
+// crack of the charge (high-passed noise of a few ms), the pressure's thump (a sine falling 70 to 28 Hz over 0.15 s: felt in
+// the chest more than heard), the blast's body (low-passed noise) and the open air's tail, BANG_SOURCE_DB over its recipe's
+// peak at 1 m (far over a rifle's report: the limiter takes the rest, as it does the klaxon's), through Melas's air, and the
+// bay's late echo off the berm (ECHO_DB under it, low-passed, 2 × the distance at the speed of sound). Ears unprotected
+// within DEAF_REACH_M (supp.js's deafness, suppNow().deaf): the whine (WHINE_HZ 6 kHz and a beat 9 Hz above it) on its
+// own bus, in the head, at WHINE_LOUD_DB for WHINE_LOUD_S, then falling over WHINE_FALL_S to WHINE_FLOOR_DB, and the world
+// low-passed to MUFFLE_LP_HZ and MUFFLE_DB down for the deafness's length, both easing back over its last MUFFLE_RECOVER_S;
+// captioned "[a high whine]" (WHINE_CAPTION). Felt's band ducks the world (BAND_DUCK_DB) and cuts its highs (BAND_LP_HZ),
+// and raises your breath and heart on the body bus (BAND_BODY_DB): auditory exclusion (Artwohl 2002, COMBAT §5.10); a
+// tier one at felt 10 hears the bay as it is. A voice within DEAF_VOICE_M (the coach at your shoulder) goes to the voice
+// bus, round the deafness; the voices are words in the radio box (VIEWS §11.1), so this round nothing but the routing.
+/** The bang's report at 1 m against its recipe's peak (dB: a flashbang's 170 dB class, far over the limiter's knee). */
+export const BANG_SOURCE_DB = 34;
+/** Felt's band (0 calm, 1 under fire, 2 suppressed, 3 pinned): the world ducked (dB) and its low-pass (Hz), your breath and heart (dB against their recipes, null silent). */
+export const BAND_DUCK_DB = Object.freeze([0, -3, -6, -12]), BAND_LP_HZ = Object.freeze([20000, 6000, 4000, 2500]), BAND_BODY_DB = Object.freeze([null, -12, -6, 0]);
+/** Deafened: the world's low-pass (Hz) and its level (dB), easing back to open over the deafness's last MUFFLE_RECOVER_S (s). */
+export const MUFFLE_LP_HZ = 1500, MUFFLE_DB = -18, MUFFLE_RECOVER_S = 60;
+/** The whine: its tone (Hz), loud for WHINE_LOUD_S, falling over WHINE_FALL_S to its floor (dB against its recipe; s). */
+export const WHINE_HZ = 6000, WHINE_LOUD_DB = 0, WHINE_FLOOR_DB = -24, WHINE_LOUD_S = 20, WHINE_FALL_S = 60;
+/** The deafness's caption (VIEWS §7.3, §11.4). */
+export const WHINE_CAPTION = '[a high whine]';
+/** A voice heard round the deafness within this (m: supp.js DEAF_VOICE_M's 2, where supp has none). */
+export const VOICE_NEAR_M = 2;
+/** The chaos's recipes (see the header). */
+export const CHAOS = Object.freeze({
+  bangReport: Object.freeze({
+    levelDb: -3, durS: 1.4, variants: 2, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', highpass: 2200, attackS: 0.0001, decayS: 0.004, db: 0 }),
+      Object.freeze({ kind: 'noise', lowpass: 2600, attackS: 0.0004, decayS: 0.045, db: -1 }),
+      Object.freeze({ kind: 'tone', hz: 70, toHz: 28, attackS: 0.002, decayS: 0.15, db: 0 }),
+      Object.freeze({ kind: 'noise', lowpass: 450, attackS: 0.012, decayS: 0.4, delayS: 0.01, db: -9 }),
+    ]),
+  }),
+  whine: Object.freeze({
+    levelDb: -22, durS: 2.0, loop: true, variants: 1, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'tone', hz: WHINE_HZ, toHz: WHINE_HZ, attackS: 0.05, decayS: 1e6, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: WHINE_HZ + 9, toHz: WHINE_HZ + 9, attackS: 0.05, decayS: 1e6, db: -8 }),
+    ]),
+  }),
+  heart: Object.freeze({
+    levelDb: -20, durS: 0.5, loop: true, variants: 1, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'tone', hz: 58, toHz: 42, attackS: 0.004, decayS: 0.05, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 72, toHz: 52, attackS: 0.004, decayS: 0.04, delayS: 0.17, db: -3 }),
+      Object.freeze({ kind: 'noise', lowpass: 160, attackS: 0.003, decayS: 0.03, db: -10 }),
+    ]),
+  }),
+  breath: Object.freeze({
+    levelDb: -28, durS: 1.6, loop: true, variants: 1, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([1100, 0.8]), attackS: 0.35, decayS: 0.25, db: 0 }),
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([700, 0.8]), attackS: 0.15, decayS: 0.3, delayS: 0.75, db: -2 }),
+    ]),
+  }),
+});

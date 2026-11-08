@@ -46,6 +46,12 @@
 // 0.0.8 (the build sheet 0.0.8 §2.6; COMBAT §25.4.2): the take-in's one helper, REACT_HOME: no function and no top-level
 // const or let whose name's words include "take" and "in" (or "takein"), or "react" with "ms", is defined outside
 // src/sim/combat/react.js, so no module grows a reaction delay of its own (§3.2's reactMs is retired).
+// 0.0.9 (the build sheet 0.0.9 §2.1, §8 item 24; COMBAT §5.9): suppression's one home, SUPP_HOME: no top-level const or let
+// whose name starts SUPP_, HARD_, STARTLE_, INOC_, FLASH_, DEAF_ or NERVE_ is defined in the sim, core or data outside
+// src/sim/combat/supp.js, so no module grows a suppression, hardening, startle, inoculation, flash, deafness or nerve
+// constant of its own. The rule's named exceptions, each its own quantity: react.js's SUPP_MS (the take-in's 200 ms a band),
+// look.js's FLASH_MS (a muzzle flash's life), wounds.js's HARD_BLEED_PM (a hard bleed), needs.js's HARD_MET (hard work's metabolic rate). The page's modules (render, ui,
+// art) are left out: their FLASH_ names are the muzzle flash and the panel's highlight, not the bang's physics (my call).
 import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -193,6 +199,11 @@ const hasPace = (name) => wordsOf(name).includes('pace');
 /** COMBAT §25.4.2: the take-in's one home (takeInMs, coreMs, EXPECT); a name with "take in" or "react … ms" in its words is defined nowhere else in src. */
 const REACT_HOME = 'src/sim/combat/react.js';
 const hasReact = (name) => { const w = wordsOf(name); return w.includes('takein') || (w.includes('take') && w.includes('in')) || (w.includes('react') && w.includes('ms')); };
+/** COMBAT §5.9: suppression's one home; its prefixes, and the named exceptions (file: name). */
+const SUPP_HOME = 'src/sim/combat/supp.js';
+const SUPP_PREFIXES = Object.freeze(['SUPP_', 'HARD_', 'STARTLE_', 'INOC_', 'FLASH_', 'DEAF_', 'NERVE_']);
+const SUPP_EXCEPT = Object.freeze(new Set(['src/sim/combat/react.js: SUPP_MS', 'src/sim/arms/look.js: FLASH_MS', 'src/sim/body/wounds.js: HARD_BLEED_PM', 'src/data/body/needs.js: HARD_MET']));
+const hasSupp = (name) => SUPP_PREFIXES.some(p => name.startsWith(p));
 /** The names a module defines at its top level or as a function anywhere: function declarations, top-level const and let. */
 function definedNames(code) {
   const out = [];
@@ -458,6 +469,27 @@ export default [
       report({ 'a take-in defined outside react.js': hits });
       console.log(`      ${files.length} modules; defined in ${REACT_HOME}: ${home.join(', ') || 'none yet'}; the word test: ${probe.join(', ')}`);
       assert(hasReact('takeInMs') && hasReact('TAKEIN_FLOOR_MS') && hasReact('reactMs') && hasReact('REACT_MS') && hasReact('reactUntilMs') && !hasReact('takeOff') && !hasReact('reaction') && !hasReact('reactK'), 'the word test');
+      assert(!hits.length, hits.join('\n'));
+    },
+  },
+  {
+    name: 'rules: suppression\'s one home (COMBAT §5.9, SUPP_HOME): no top-level SUPP_, HARD_, STARTLE_, INOC_, FLASH_, DEAF_ or NERVE_ name in the sim, core or data outside src/sim/combat/supp.js, but the rule\'s named exceptions',
+    fn() {
+      const files = [...simFiles(), ...walk(path.join(root, 'src', 'data'))], hits = [], excepted = [];
+      for (const f of files) {
+        if (rel(f) === SUPP_HOME) continue;
+        const code = codeOnly(readFileSync(f, 'utf8'));
+        for (const d of definedNames(code)) {
+          if (!hasSupp(d.name)) continue;
+          const key = `${rel(f)}: ${d.name}`;
+          (SUPP_EXCEPT.has(key) ? excepted : hits).push(SUPP_EXCEPT.has(key) ? key : `${rel(f)}:${code.slice(0, d.at).split('\n').length}: ${d.name}`);
+        }
+      }
+      const home = existsSync(path.join(root, SUPP_HOME)) ? definedNames(codeOnly(readFileSync(path.join(root, SUPP_HOME), 'utf8'))).filter(d => hasSupp(d.name)).map(d => d.name) : [];
+      const gone = [...SUPP_EXCEPT].filter(k => !excepted.includes(k));
+      report({ 'a suppression constant defined outside supp.js': hits });
+      console.log(`      ${files.length} modules; defined in ${SUPP_HOME}: ${home.length} (${home.slice(0, 8).join(', ')}, …); excepted: ${excepted.join('; ') || 'none'}${gone.length ? `; listed but gone: ${gone.join('; ')}` : ''}`);
+      assert(home.includes('SUPP_MAX') && home.includes('HARD_K') && home.includes('STARTLE_FROM') && home.includes('INOC_CAP') && home.includes('FLASH_PTS') && home.includes('DEAF_K') && home.includes('NERVE_DC0'), `the home's names: ${home.join(', ')}`);
       assert(!hits.length, hits.join('\n'));
     },
   },

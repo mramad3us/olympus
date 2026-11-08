@@ -92,10 +92,12 @@ export default [
         // (mute in the menu: the master gain at 0; unmuted, the volume's square again)
         await page.keyboard.press('Escape');
         await page.waitForFunction(() => document.querySelector('.glass.menu .item.mute'));
-        await page.keyboard.press('Digit6');
+        // (the mute's digit as the menu numbers it: 0.0.9 put "Reduce flashes" above it)
+        const muteKey = await page.evaluate(() => document.querySelector('.glass.menu .item.mute kbd')?.textContent ?? '6');
+        await page.keyboard.press(`Digit${muteKey}`);
         await page.waitForTimeout(100);
         const muted = await page.evaluate((h) => window[h].audio, H);
-        await page.keyboard.press('Digit6');
+        await page.keyboard.press(`Digit${muteKey}`);
         await page.waitForTimeout(100);
         const back = await page.evaluate((h) => window[h].audio, H);
         await page.keyboard.press('Escape');

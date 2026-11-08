@@ -11,9 +11,21 @@
 // is offered only when its step is in the panel now. The act at the pause goes by the drills' rung (templates.js rungOf,
 // COMBAT §25.8.1): below rung 2 Off safe is its own step and comes first, from rung 2 the row's aim takes the safe off.
 // Most pressing first within a tone:
+//   pairs-shaking    urgent  (0.0.9, "Three bangs") at the pause on a threat he identified, his felt suppressed or pinned
+//                            (supp.js bandN 2 or 3: his hands shake), below rung 2, the rifle on safe: "Thumb it off."; after
+//                            an Off safe that failed (the lever fumbled: R.bangs.offSafe since this pause) "Again. Thumb it
+//                            off."; the rifle on its sling "Rifle up. Then thumb it off."; T Off safe (or the rifle up),
+//                            never more: the DI does nothing for you but what T asks (SKILLS §14); listed first, so it is
+//                            the line over pairs-contact's off safe while the chaos holds
 //   pairs-still-up   urgent  "He's still up" (specials.js stillUp: a torso round rang on a plate, or two in the torso, and
-//                            he stands): aim at him if not aimed ("He's still up. Head."); listed first, so at the steel's
-//                            ring this is the line, not pairs-contact's "press" (the design review of v0.0.8)
+//                            he stands): the line names To the head's key in the panel ("He's still up. To the head: 1."),
+//                            or its key and why it is struck ("To the head (1): aim first."; the fix of 2026-11-07, the
+//                            user's report: "am i supposed to aim for the head ? How do I do that ?": the DI said "Head."
+//                            with no head row in the panel); struck, the step that lifts it named with its key too
+//                            ("aim first. Aim at ...: 3.", "chamber unknown. Press check: 7."; on another page, 0) and
+//                            the act that step (headFix: off safe, the aim, RELOAD, IMMEDIATE ACTION, a press check,
+//                            MAKE READY or the bolt release or Charge); offered, the aim if not aimed; listed first, so at
+//                            the steel's ring this is the line, not pairs-contact's "press" (the design review of v0.0.8)
 //   pairs-contact    urgent  at the pause, the bracketed a threat still up: the rifle up if it is slung (a fumble), "Back
 //                            on your point first" off it (no act), off safe (below rung 2, nothing fired at him yet), aim
 //                            at him, then "Press." with no act (the shot is the player's); one torso hit and still
@@ -24,33 +36,62 @@
 //   pairs-noshoot    warn    the bracketed identified with empty hands or a phone: Hold him ("Hands. No weapon. Don't.")
 //                            when he is the last one up; with a threat he identified still up, "Not him", that one named,
 //                            no act (the design review: Hold him for 2.35 s with two rifles up was the wrong drill)
-//   pairs-unknown    warn    the bracketed not identified ("Can't see his hands."): Challenge
-//   pairs-reload     warn    the bolt believed locked on an empty with rounds left: RELOAD
-//   pairs-short      warn    the coach's short magazine named and not in: Top up with it
+//   pairs-unknown    warn    the bracketed not identified ("Can't see his hands."): Challenge; the rifle slung, up first;
+//                            silent once he is still up or rounds have gone at him this pause (the shooting answered it)
+//   pairs-reload     warn    the bolt believed locked on an empty with rounds left: RELOAD; where the panel has no RELOAD
+//                            (nothing in the pouches), the single that gets a magazine in: seat, the empty out, the reach;
+//                            (0.0.9) an empty magazine in with the bolt forward on an empty chamber: 'swap', Top up, else
+//                            the magazine out (the fixer's: the bot and a player stood there, "no reload when dry")
+//   pairs-short      warn    the coach's short magazine named and not in: Top up with it; where the panel has no Top up
+//                            (no magazine in the rifle, one in the hand), the single it offers that gets the short one in
+//                            (seat it, stow the other, the magazine out to a pouch, the reach for its pouch or at your
+//                            feet), named (the fix of 2026-11-07: a line never calls for a row the panel lacks)
 //   pairs-cmd        warn    the coach's LOAD, MAKE READY or UNLOAD, SHOW CLEAR not done yet: its macro (out of the mode,
-//                            the rifle up first); the range's own range-cmd keeps quiet on this course (instinct.js)
+//                            the rifle up first); in the mode with no such row, the rifle up if slung, MAKE READY on a
+//                            bolt locked back the bolt release or Charge (chamberSingle), pairs-reload's on an empty, LOAD
+//                            magSingle's (seat, the reach), or "dry" naming no row; the range's own range-cmd keeps quiet on this course (instinct.js)
 //   pairs-reset      warn    the string done and you in stop motion: on safe, then X
 //   pairs-ready      warn    a standby to come and the line not ready: what is lacking (pairs.js pairsWant): a magazine
 //                            in, a round up, on safe, low ready, X out, back on the point (out of the mode with work to
-//                            do in it: G first)
-//   pairs-topup      note    a lull (contact.js lullOf), the magazine believed at half or less, a fuller one at hand: Top up
+//                            do in it: G first); at a choice in the mode the single the panel offers is the step named:
+//                            the rifle up if slung, magSingle's for a magazine, a press check on a bolt forward, MAKE
+//                            READY, else chamberSingle's, or "dry" naming no row (the verifier's sweep of 2026-11-07)
+//   pairs-deaf       note    (0.0.9) deafened by the bangs (supp.js hearingOf), the first standby after them, its turn armed,
+//                            out of the mode: "Ears ringing. Watch your lane." (nothing for T); once a run, by its string
+//   pairs-topup      note    a lull (contact.js lullOf), the magazine believed at half or less (or its count not known:
+//                            'unsure', 0.0.9's fixer), a fuller one at hand: Top up
+//   pairs-froze      warn    (0.0.9) a startle ended (supp.js's block: startleUntilMs), for FROZE_SAY_MS 3 s or until a step
+//                            or a contact's pause; never for a freeze under FROZE_SAY_MIN_MS 0.3 s, nor while a planned bang
+//                            is still to join it (pairs.js bangDue):
+//                            "You flinched. Everybody does. Your lane." after the first series (green or settled hardening;
+//                            "Flinched. Your lane." steadier), "Flinched again. Your lane." after another;
+//                            nothing for T
 //   pairs-wait       calm    the turn armed: nothing ("Wait for it.")
+// All of them, these three too, are silent while he is startled (instinct.js firedNow: the startle takes the keys and the
+// words, as the take-in's window does).
 // Pure.
 import { playerId } from '../../../core/ids.js';
 import { beliefOf } from '../../arms/firearms.js';
 import { stepsOf, gunOn } from '../../arms/shooting.js';
-import { pouchesOf, believedN } from '../../arms/kit.js';
+import { pouchesOf, believedN, handMagOf, atFeetOf } from '../../arms/kit.js';
 import { rangeOf, lineReady, roundsLeft } from '../../scenarios/handling.js';
 import { HALF_N, pairsWant, onPoint } from '../../scenarios/pairs.js';
 import { stillUp } from '../../arms/specials.js';
+import { digitOf, remedyOf } from '../../arms/panel.js';
 import { SEQ_PAIRS } from '../../../data/courses.js';
 import { facingOf, turnerKey } from '../../arms/turners.js';
 import { contactNow, lullOf } from '../../combat/contact.js';
 import { rungOf } from '../templates.js';
+import { blockOf, feltOf, bandN, hearingOf, hardOf, hardWord, STARTLE_JOIN_MS } from '../../combat/supp.js';
+import { BANGS, bangDue } from '../../scenarios/pairs.js';
 
 /** The pairs rules may speak again as soon as they fire again (the range's rule: each turn new advice). */
 export const PAIRS_REPEAT_MS = 0;
 const NOSHOOT = new Set(['hands', 'phone']);
+/** How long after a startle's end the DI's "You flinched." stands, unless a step comes first (ms; my call). */
+export const FROZE_SAY_MS = 3000;
+/** The shortest whole freeze the DI calls a flinch (ms; my call, the fixer of v0.0.9: the tier one's 0.05 s and the Raider's 0.15 s are not). */
+export const FROZE_SAY_MIN_MS = 300;
 const LANE_WORD = Object.freeze(['', 'lane one', 'lane two', 'lane three', 'lane four', 'lane five', 'lane six']);
 const HOLD_WORD = Object.freeze({ rifle: 'Rifle', pistol: 'Pistol' });
 // (the commands whose readiness is the shooter's own: low ready, on safe, out of it)
@@ -62,7 +103,9 @@ function know(state, me, ms) {
   const S0 = state.stop, R = rangeOf(state);
   const L0 = contactNow(state, ms)?.last ?? null;
   const c0 = state.people?.[playerId(state)]?.kit?.carry, me0 = state.actors?.list?.find(a => a.id === state.player?.actor);
-  const key = `${ms}|${state.clock.tick ?? ''}|${c0?.posture ?? ''}|${c0?.finger ?? ''}|${me0 ? `${me0.x}|${me0.z}` : ''}|${S0 ? `${S0.mode}|${S0.phase}|${S0.doing?.step ?? ''}|${S0.doing?.i ?? ''}|${S0.pick ?? ''}|${S0.aim?.key ?? ''}` : ''}|${R?.cmd?.i ?? ''}|${R?.str?.done ?? ''}|${L0 ? `${L0.id}|${JSON.stringify(L0.ident ?? null)}` : ''}`;
+  // (the rifle as believed in the key too: a belief that changes with the clock standing still (a set state, a load) is a new panel)
+  const g0 = state.items?.[S0?.gun ?? gunOn(state, playerId(state))], b0 = g0?.belief ?? null;
+  const key = `${ms}|${state.clock.tick ?? ''}|${c0?.posture ?? ''}|${c0?.finger ?? ''}|${me0 ? `${me0.x}|${me0.z}` : ''}|${g0 ? `${g0.mode}|${g0.mag ?? ''}|${b0?.chamber ?? ''}|${b0?.count ?? ''}|${b0?.locked ? 1 : 0}|${b0?.stoppage ?? ''}` : ''}|${S0 ? `${S0.mode}|${S0.phase}|${S0.doing?.step ?? ''}|${S0.doing?.i ?? ''}|${S0.pick ?? ''}|${S0.aim?.key ?? ''}` : ''}|${R?.cmd?.i ?? ''}|${R?.str?.done ?? ''}|${L0 ? `${L0.id}|${JSON.stringify(L0.ident ?? null)}` : ''}`;
   if (memo.state === state && memo.key === key) return memo.v;
   let v = null;
   if (R && R.course === 'pairs' && !R.end) {
@@ -88,20 +131,79 @@ function know(state, me, ms) {
 const actIf = (k, step, target = null) => (k.choosing && k.offered(step) ? `stop:${step}${target ? `>${target}` : ''}` : null);
 const reloadRow = (k) => k.steps.find(s => /^macro:reload:(speed|retain)$/.test(s.id) && !s.off) ?? null;
 const topUpRow = (k) => k.steps.find(s => s.id === 'macro:reload:tactical' && !s.off) ?? null;
+const slungNow = (k) => k.posture === 'slungFront' || k.posture === 'slungBack';
+// (a round up where MAKE READY is not in the panel (drills.js offers it only on a bolt forward): the bolt locked back on a
+// magazine believed to hold rounds, the bolt release, else Charge; locked on an empty, pairs-reload's line while rounds are
+// left (null here), else dry, no row to name; { variant, step } or null (the verifier's sweep of 2026-11-07: "Empty chamber.
+// Charge it." and "MAKE READY" over a panel with neither, T doing nothing))
+function chamberSingle(state, k) {
+  if (k.b?.locked && k.b.count === 0) return roundsLeft(state) > 0 ? null : { variant: 'dry' };
+  const id = ['release', 'charge'].find(x => k.offered(x));
+  return id ? { variant: id, step: id } : roundsLeft(state) > 0 ? null : { variant: 'dry' };
+}
+// (a magazine in: the queue carried on, LOAD, seat the one in the hand, the reach for a pouch's, then the ground's)
+const magSingle = (k) => ['queue', 'macro:load', 'seat'].find(x => k.offered(x)) ?? k.steps.find(st => /^reach@p\d$/.test(st.id) && !st.off)?.id ?? (k.offered('reach@ground') ? 'reach@ground' : null);
+// (To the head's lines by the key it is on (a variant a key, so the words are picked again when the row moves): offered, struck)
+const HEAD_LINES = Object.freeze(["He's still up. To the head: {key}.", 'Still standing. To the head: {key}.', 'It rang and he is up. To the head: {key}.', 'Plate. To the head: {key}.']);
+const HEAD_STRUCK = Object.freeze(["He's still up. To the head ({key}): {off}.{then}", 'Still standing. To the head ({key}) is struck: {off}.{then}', 'It rang and he is up. To the head ({key}): {off}.{then}', 'Plate. To the head ({key}): {off}.{then}']);
+// (the step that lifts To the head's strike, by its reason (specials.js shotRows): the aim, else panel.js remedyOf, the one
+// the panel brings up beside the row (Off safe, RELOAD, IMMEDIATE ACTION, Press check, MAKE READY or the bolt release or
+// Charge); null for the reach)
+function headFix(k, off) {
+  if (off === 'aim first') return k.steps.find(st => st.id === 'aim' && st.target === k.pick && !st.off) ?? null;
+  return remedyOf(k.steps, off);
+}
 // (the bracketed one still standing and facing: a decision to make about him)
 const standing = (k) => !!k.T && k.facing >= 0.5 && k.T.stoppedAtMs === null;
+// (0.0.9: his hands shake (felt suppressed or pinned) with the safe his own step: pairs-shaking says the safe, and
+// pairs-contact's own "Off safe" stands down, so the line and the chip never say it twice)
+const shakes = (state, k, ms) => k.rung < 2 && k.b?.mode === 'safe' && bandN(feltOf(state, k.pid, ms)) >= 2;
 
 /** The DI's pairs rules (see the header), most pressing first within a tone. */
 export const PAIRS_RULES = Object.freeze([
+  {
+    id: 'pairs-shaking', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'urgent', reach: null,
+    short: (ctx) => (ctx.variant === 'up' ? 'Rifle up' : 'Off safe'),
+    when(state, me, ms) {
+      const k = know(state, me, ms);
+      if (!k || !k.atPause || k.busy || k.rung >= 2 || !standing(k) || !HOLD_WORD[k.ident] || k.b?.mode !== 'safe') return null;
+      // (his hands shake: the felt suppressed or pinned, as the body feels it, never a number)
+      if (!shakes(state, k, ms)) return null;
+      if (k.posture === 'slungFront' || k.posture === 'slungBack') return { k, variant: 'up' };
+      if (!onPoint(state)) return null;
+      const o = k.R.bangs?.offSafe;
+      return { k, variant: o && !o.ok && o.atMs >= k.last.atMs ? 'again' : 'off' };
+    },
+    act: (ctx) => (ctx.variant === 'up' ? actIf(ctx.k, 'up') : actIf(ctx.k, 'selector:semi')),
+    text: {
+      1: ['Thumb it off.'],
+      off: ['Thumb it off.', 'Safe. Thumb it off.', 'Your thumb. Off safe.', 'Thumb on the lever. Off.'],
+      again: ['Again. Thumb it off.', 'Again. Off safe.', 'It slipped. Thumb it off.', 'Again. Push it off.'],
+      up: ['Rifle up. Then thumb it off.', 'It swung. Rifle up, then the safe.', 'Rifle up. Then off safe.', 'Get it up. Then thumb it off.'],
+    },
+  },
   {
     id: 'pairs-still-up', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'urgent', short: 'Head', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k || !k.atPause || k.busy || !standing(k) || !stillUp(state, k.pick)) return null;
-      return { k };
+      // (the panel's head row and its key (panel.js digitOf: the hud's own numbering); struck, its reason said)
+      const head = k.steps.find(st => st.id === 'shot:head' && st.target === k.pick) ?? null, key = head ? digitOf(k.steps, head.id) : null;
+      if (!head || !key) return { k, head };
+      if (!head.off) return { k, head, key, off: null, variant: `head${key}`, words: 'head' };
+      // (struck: the step that lifts it named with its key (another page: 0), so the line never leaves the player looking;
+      // the variant carries the key, the reason and the remedy's key, so the words are picked again when any of them moves)
+      const fix = headFix(k, head.off), fkey = fix ? digitOf(k.steps, fix.id) : null;
+      const then = !fix ? '' : fkey ? ` ${fix.label}: ${fkey}.` : ` ${fix.label}: 0, then look.`;
+      return { k, head, key, off: head.off, fix: fix?.id ?? null, then, variant: `struck${key}|${head.off}|${fix?.id ?? ''}|${fkey ?? ''}`, words: 'struck' };
     },
-    act: (ctx) => (ctx.k.S.aim?.key !== ctx.k.pick ? actIf(ctx.k, 'aim', ctx.k.pick) : null),
-    text: { 1: ["He's still up. Head.", 'Still standing. Go to the head.', 'It rang and he is up. Head.', 'Plate. Head.'] },
+    act: (ctx) => {
+      const k = ctx.k;
+      if (ctx.fix) return actIf(k, ctx.fix, ctx.fix === 'aim' ? k.pick : null);
+      if (ctx.off) return null;
+      return k.S.aim?.key !== k.pick ? actIf(k, 'aim', k.pick) : null;
+    },
+    text: { 1: ["He's still up. Head.", 'Still standing. Go to the head.', 'It rang and he is up. Head.', 'Plate. Head.'], head: HEAD_LINES, struck: HEAD_STRUCK },
   },
   {
     id: 'pairs-contact', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'urgent', reach: null,
@@ -127,7 +229,7 @@ export const PAIRS_RULES = Object.freeze([
       // (below rung 2 the safe is its own step, first; from rung 2 the row's aim does both: the aim alone)
       const words = { what: HOLD_WORD[k.ident], thing: k.ident, where: k.pick === k.own ? 'your lane' : LANE_WORD[k.lane] };
       // (nothing fired at him yet: the safe, then the aim; once rounds have gone at him, the aim and the press only)
-      if (k.rung < 2 && k.b?.mode === 'safe' && !k.firedAt) return { k, variant: 'safe', ...words };
+      if (k.rung < 2 && k.b?.mode === 'safe' && !k.firedAt) return shakes(state, k, ms) ? null : { k, variant: 'safe', ...words };
       // (on him and off safe: the shot is the player's, so the line says so and offers nothing)
       const able = k.b?.chamber === 'live' && !k.b.locked && !k.b.stoppage && k.b.mode !== 'safe';
       // (one torso hit on him and still standing: another to the chest, not the head (paper needs two))
@@ -182,44 +284,104 @@ export const PAIRS_RULES = Object.freeze([
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k || !k.atPause || k.busy || !standing(k) || k.ident !== 'unseen') return null;
+      // (still up, or rounds already put on him this pause: the take-in's question is answered by the shooting, and
+      // "Challenge" under "To the head" is two drills at once (the verifier, 2026-11-07))
+      if (k.firedAt || stillUp(state, k.pick)) return null;
+      // (the rifle slung by a fumble: no Challenge in that panel, the rifle up first (the fix of 2026-11-07: never a line without its row))
+      if (k.posture === 'slungFront' || k.posture === 'slungBack') return { k, variant: 'up' };
       return { k };
     },
-    act: (ctx) => actIf(ctx.k, 'contact:challenge'),
-    text: { 1: ["Can't see his hands. Challenge him.", 'Hands not seen. Challenge.', 'What is in his hands? Make him show you.', 'You do not know yet. Challenge.'] },
+    act: (ctx) => actIf(ctx.k, ctx.variant === 'up' ? 'up' : 'contact:challenge'),
+    text: { 1: ["Can't see his hands. Challenge him.", 'Hands not seen. Challenge.', 'What is in his hands? Make him show you.', 'You do not know yet. Challenge.'],
+      up: ["Rifle up. Then challenge him: you can't see his hands.", 'Get the rifle up. Hands not seen.', 'Rifle up first, then make him show you.', 'Up. Then challenge.'] },
   },
   {
     id: 'pairs-reload', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'warn', short: 'Reload', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (!k || !k.b || k.busy || !k.b.locked || k.b.count !== 0 || roundsLeft(state) === 0) return null;
-      return { k };
+      if (!k || !k.b || k.busy || k.b.count !== 0 || roundsLeft(state) === 0) return null;
+      // (0.0.9, the fixer's: an empty magazine in with the bolt forward on an empty chamber (the bolt let go on it): no RELOAD
+      // in the panel, the bot and a player stood there; the step that swaps it, named (Top up, else the magazine out))
+      if (!k.b.locked) {
+        if (k.b.mag !== 'in' || k.b.chamber !== 'empty') return null;
+        const swap = k.choosing ? ['macro:reload:tactical', 'magOut:pouch', 'magOut:drop'].find(id => k.steps.some(st => st.id === id && !st.off)) ?? null : null;
+        return { k, variant: 'swap', step: swap };
+      }
+      if (!k.choosing || k.steps.some(st => /^macro:reload:(speed|retain)$/.test(st.id))) return { k };
+      // (no RELOAD in the panel (nothing in the pouches: the rounds left are in the hand or at your feet): the single that
+      // gets a magazine in, named (the fix of 2026-11-07: never a line without its row))
+      const has = (id) => k.steps.some(st => st.id === id && !st.off), hand = handMagOf(state, k.pid);
+      if (hand && has('seat')) return { k, variant: 'seat', step: 'seat' };
+      if (!hand && k.b.mag === 'in' && has('magOut:drop')) return { k, variant: 'drop', step: 'magOut:drop' };
+      const reachP = k.steps.find(st => /^reach@p\d$/.test(st.id) && !st.off && (pouchesOf(state, k.pid).find(p => p.key === st.id.slice(6))?.mags ?? []).some(id => (believedN(state.items[id]) ?? 1) > 0));
+      if (!hand && k.b.mag !== 'in' && (reachP || has('reach@ground'))) return { k, variant: reachP ? 'reach' : 'ground', step: reachP?.id ?? 'reach@ground' };
+      return { k, variant: 'none' };
     },
-    act: (ctx) => { const r = reloadRow(ctx.k); return r ? actIf(ctx.k, r.id) : null; },
-    text: { 1: ['Empty. Reload.', 'Bolt locked. RELOAD.', 'Dry. Fresh magazine, bolt home.', 'Empty gun. Reload it now.'] },
+    act: (ctx) => { if (ctx.step) return actIf(ctx.k, ctx.step); if (ctx.variant === 'swap') return null; const r = reloadRow(ctx.k); return r ? actIf(ctx.k, r.id) : null; },
+    text: { 1: ['Empty. Reload.', 'Bolt locked. RELOAD.', 'Dry. Fresh magazine, bolt home.', 'Empty gun. Reload it now.'],
+      swap: ['Empty magazine in, the bolt home on nothing. Out with it, a fresh one in.', 'That magazine is empty. Swap it.', 'Nothing in the chamber, nothing in the magazine. Fresh one.', 'Empty. Magazine out, a full one in, then make it ready.'],
+      seat: ['Empty. Seat that magazine, then the bolt home.', 'Seat it. Then the bolt release.', 'In it goes: seat it.', 'Seat, tug, bolt home.'],
+      drop: ['Empty. Drop it, then a fresh one.', 'Bolt locked on an empty. Magazine out.', 'Dry. Let the empty go.', 'Empty. Out with it.'],
+      reach: ['Empty. Reach for a magazine.', 'Dry. A fresh one from your pouch.', 'Reach. Then seat it.', 'Empty. Your pouch: a magazine.'],
+      ground: ['Empty. There is a magazine at your feet: reach for it.', 'Dry. Pick that one up off the ground.', 'At your feet: reach.', 'Empty. The ground: a magazine.'],
+      none: ['Empty, and nothing in your pouches.', 'Dry. No magazine to hand.', 'Bolt locked. Nothing to reload with.', 'Empty. Nothing left to hand.'] },
   },
   {
     id: 'pairs-short', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'warn', short: 'Short one', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k || k.busy || k.cmd !== 'short' || !k.R.wantMag || state.items[k.gunId]?.mag === k.R.wantMag) return null;
-      return { k };
+      if (!k.choosing || k.steps.some(st => st.id === 'macro:reload:tactical')) return { k };
+      // (no Top up in the panel (no magazine in the rifle, one in the hand): the singles that get the short one in, the one
+      // the panel offers named, never "Top up" with no such row (the fix of 2026-11-07: never a line without its row))
+      const want = k.R.wantMag, hand = handMagOf(state, k.pid), pouch = pouchesOf(state, k.pid).find(p => p.mags.includes(want)) ?? null;
+      const has = (id) => k.steps.some(st => st.id === id && !st.off);
+      const stow = hand && hand.id !== want ? k.steps.find(st => /^stowMag@/.test(st.id) && !st.off) ?? null : null;
+      if (hand?.id === want && has('seat')) return { k, variant: 'seat', step: 'seat' };
+      if (stow) return { k, variant: 'stow', step: stow.id };
+      if (!hand && k.b?.mag === 'in' && has('magOut:pouch')) return { k, variant: 'out', step: 'magOut:pouch' };
+      if (!hand && pouch && has(`reach@${pouch.key}`)) return { k, variant: 'reach', step: `reach@${pouch.key}`, pouch: pouch.word };
+      // (dropped: at your feet, the nearest there, so the reach brings that one)
+      if (!hand && !pouch && atFeetOf(state, k.pid)[0]?.id === want && has('reach@ground')) return { k, variant: 'ground', step: 'reach@ground' };
+      return pouch ? { k, variant: 'want', pouch: pouch.word } : { k, variant: 'lost' };
     },
-    act: (ctx) => (!ctx.k.inMode ? 'stop:enter' : topUpRow(ctx.k) ? actIf(ctx.k, 'macro:reload:tactical') : null),
-    text: { 1: ['Top up with the short one.', 'The two-round magazine. Top up with it.', 'The coach wants the short one in. Top up.', 'Short magazine in. Top up.'] },
+    act: (ctx) => (!ctx.k.inMode ? 'stop:enter' : ctx.step ? actIf(ctx.k, ctx.step) : topUpRow(ctx.k) ? actIf(ctx.k, 'macro:reload:tactical') : null),
+    text: {
+      1: ['Top up with the short one.', 'The two-round magazine. Top up with it.', 'The coach wants the short one in. Top up.', 'Short magazine in. Top up.'],
+      seat: ['The short one is in your hand. Seat it.', 'Seat the two-round magazine.', 'In it goes: seat it.', 'Seat it, then tug it.'],
+      stow: ['Not that one. Stow it, then the short one.', 'Wrong magazine in your hand. Stow it.', 'That is not the short one. Into a pouch with it.', 'Stow it. The coach wants the two-round one.'],
+      out: ['Magazine out to a pouch, then the short one.', 'That one out, into a pouch. Then the short one.', 'Out with it, into a pouch.', 'Pouch that magazine. The short one next.'],
+      reach: ['The short one: reach for it, {pouch}.', 'The two-round magazine is in your {pouch}. Reach.', 'Reach: {pouch}.', 'Your {pouch}: the short one.'],
+      want: ['The coach wants the short one in, from your {pouch}.', 'The two-round magazine, from your {pouch}.', 'Short one in. It is in your {pouch}.', 'The coach is waiting on the short one.'],
+      ground: ['The short one is at your feet. Reach for it.', 'You dropped the two-round one. Pick it up.', 'At your feet: the short one. Reach.', 'Ground. The short one.'],
+      lost: ['The coach wants the short one in. Where did it go?', 'The two-round magazine: find it.', 'The short one is not in your pouches.', 'The coach is waiting on the short one.'],
+    },
   },
   {
     id: 'pairs-cmd', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'warn', reach: null,
-    short: (ctx) => ({ load: 'Load', ready: 'Make ready', clear: 'Show clear' }[ctx.variant]),
+    short: (ctx) => ({ load: 'Load', ready: 'Make ready', clear: 'Show clear', raise: 'Rifle up', release: 'Bolt release', charge: 'Charge', dry: 'Dry' }[ctx.variant]),
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k || !k.b || k.busy || !['load', 'ready', 'clear'].includes(k.cmd) || lineReady(state, k.cmd)) return null;
       if (k.cmd === 'load' && k.b.mag === 'in') return null;
       if (k.cmd === 'ready' && (k.b.chamber === 'live' || k.b.mag !== 'in')) return null;
-      return { k, variant: k.cmd, step: { load: 'macro:load', ready: 'macro:ready', clear: 'macro:clear' }[k.cmd] };
+      const step = { load: 'macro:load', ready: 'macro:ready', clear: 'macro:clear' }[k.cmd];
+      // (in the mode with no such row: the rifle up first if slung; MAKE READY on a bolt locked back, the single that puts a
+      // round up, or pairs-reload's on an empty (the fix of 2026-11-07: never a line without its row))
+      if (k.choosing && !k.offered(step)) {
+        if (slungNow(k)) return { k, variant: 'raise', step: 'up' };
+        if (k.cmd === 'ready') { const c = chamberSingle(state, k); return c ? { k, ...c } : null; }
+        if (k.cmd === 'load') { const st = magSingle(k); return st ? { k, variant: 'load', step: st } : roundsLeft(state) > 0 ? null : { k, variant: 'dry' }; }
+      }
+      return { k, variant: k.cmd, step };
     },
-    act: (ctx) => (!ctx.k.inMode ? 'stop:enter' : actIf(ctx.k, ctx.step)),
+    act: (ctx) => (!ctx.k.inMode ? 'stop:enter' : ctx.step ? actIf(ctx.k, ctx.step) : null),
     text: {
       1: ['The coach said LOAD.'],
+      raise: ['Rifle up. Then what the coach said.', 'Get the rifle up first.', 'Rifle up, then his command.', 'Up. Then do it.'],
+      release: ['MAKE READY: the bolt is locked back. Bolt release, a round up.', 'Bolt release: that puts one up.', 'The bolt is back on a loaded magazine. Release it.', 'Bolt home: release it. Then on safe.'],
+      charge: ['MAKE READY: charge it.', 'Charge it. A round up.', 'Charging handle: one up.', 'Charge it, then on safe.'],
+      dry: ['Dry, and nothing to load. Tell the coach.', 'Nothing left to load.', 'Dry. Nothing to put in it.', 'The coach wants rounds you do not have.'],
       load: ['The coach said LOAD.', 'A magazine of ten. LOAD.', 'LOAD. The coach is waiting.', 'Magazine in: LOAD.'],
       ready: ['MAKE READY. A round up, on safe.', 'The coach said MAKE READY.', 'Charge it, check it: MAKE READY.', 'MAKE READY, then low ready.'],
       clear: ['UNLOAD, SHOW CLEAR to the coach.', 'Show him an empty chamber.', 'The coach said UNLOAD, SHOW CLEAR.', 'Clear it and show him.'],
@@ -238,7 +400,7 @@ export const PAIRS_RULES = Object.freeze([
   },
   {
     id: 'pairs-ready', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'warn', reach: null,
-    short: (ctx) => ({ safe: 'Safe', low: 'Low ready', out: 'Out of it', outCmd: 'Out of it', up: 'Rifle up', mag: 'Magazine', chamber: 'Make ready', check: 'Press check', point: 'Your point' }[ctx.variant] ?? 'Ready'),
+    short: (ctx) => ({ safe: 'Safe', low: 'Low ready', out: 'Out of it', outCmd: 'Out of it', up: 'Rifle up', mag: 'Magazine', chamber: 'Make ready', check: 'Press check', point: 'Your point', raise: 'Rifle up', release: 'Bolt release', charge: 'Charge', dry: 'Dry' }[ctx.variant] ?? 'Ready'),
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k || k.busy || k.live) return null;
@@ -257,6 +419,18 @@ export const PAIRS_RULES = Object.freeze([
       const want = k.want;
       if (!want || want === 'still') return null;
       if (!k.inMode && (want === 'safe' || want === 'low')) return { k, variant: 'up' };
+      // (at a choice in the mode, the single the panel offers named as the step (the fix of 2026-11-07: never a line without
+      // its row): the rifle up first if slung; a magazine in by the first of magSingle's; not sure what is in the chamber (a
+      // discharge, a fumble), a press check, which the panel offers only on a bolt forward; an empty chamber, MAKE READY, else
+      // chamberSingle's (the bolt release, Charge, pairs-reload's on an empty, or dry))
+      if (k.choosing && k.inMode && (want === 'mag' || want === 'chamber')) {
+        if (slungNow(k)) return { k, variant: 'raise', step: 'up' };
+        if (want === 'mag') { const st = magSingle(k); return st ? { k, variant: 'mag', step: st } : roundsLeft(state) > 0 ? { k, variant: 'mag' } : { k, variant: 'dry' }; }
+        if (k.b?.chamber === '?' && k.offered('pressCheck')) return { k, variant: 'check', step: 'pressCheck' };
+        if (k.offered('macro:ready')) return { k, variant: 'chamber', step: 'macro:ready' };
+        const c = chamberSingle(state, k);
+        return c ? { k, ...c } : null;
+      }
       // (not sure what is in the chamber (a discharge, a fumble): a press check before anything else)
       if (want === 'chamber' && k.b?.chamber === '?') return { k, variant: 'check' };
       return { k, variant: want === 'out' && !waiting ? 'outCmd' : want };
@@ -264,7 +438,8 @@ export const PAIRS_RULES = Object.freeze([
     act: (ctx) => {
       const k = ctx.k;
       if (ctx.variant === 'up') return 'stop:enter';
-      if (ctx.variant === 'point') return null;
+      if (ctx.variant === 'point' || ctx.variant === 'dry') return null;
+      if (ctx.step) return actIf(k, ctx.step);
       if (!k.inMode && (ctx.variant === 'mag' || ctx.variant === 'chamber' || ctx.variant === 'check')) return 'stop:enter';
       if (ctx.variant === 'check') return actIf(k, 'pressCheck');
       if (ctx.variant === 'mag') return actIf(k, 'queue') ?? actIf(k, 'macro:load') ?? actIf(k, 'seat') ?? (k.steps.find(st => /^reach@p\d$/.test(st.id) && !st.off) ? actIf(k, k.steps.find(st => /^reach@p\d$/.test(st.id) && !st.off).id) : actIf(k, 'reach@ground'));
@@ -284,24 +459,70 @@ export const PAIRS_RULES = Object.freeze([
       out: ['Low ready, on safe. Out of it: X. Let it come.', 'Out of it: X. The turn only comes when you are out.', 'X. Wait for it standing, not in the mode.', 'Out of the mode. Let it come.'],
       outCmd: ['On safe, low ready. Now out of it: X.', 'Out of it: X. The coach is waiting.', 'X, and stand easy at low ready.', 'Out of the mode, low ready.'],
       point: ['Back on your point. Walk it, muzzle downrange.', 'Off your point. Back on it.', 'Your point is behind you. Walk back to it.', 'On your point first. The turn waits for you.'],
+      raise: ['Rifle up first. Then get it ready.', 'Get the rifle up. Then the rest.', 'Rifle up. You cannot load it slung.', 'Up first.'],
+      release: ['Bolt locked back on a loaded magazine. Bolt release.', 'Release the bolt: a round up.', 'The bolt is back. Release it, then on safe.', 'Bolt home. That puts one up.'],
+      charge: ['Empty chamber. Charge it.', 'Charge it: a round up.', 'Nothing up the spout. Charge it.', 'Charge it, then on safe.'],
+      dry: ['Dry, and nothing to load.', 'No rounds left to hand. Tell the coach.', 'Empty, and nothing to put in it.', 'Dry. Nothing left.'],
     },
+  },
+  {
+    id: 'pairs-froze', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'warn', short: 'Your lane', reach: null,
+    when(state, me, ms) {
+      const R = rangeOf(state);
+      if (!R?.bangs || R.course !== 'pairs' || R.end) return null;
+      const b = blockOf(state, me.who), until = b?.startleUntilMs;
+      if (!Number.isFinite(until) || ms < until || ms >= until + FROZE_SAY_MS || (R.bangs.lastStepMs ?? -Infinity) >= until) return null;
+      // (a contact's pause since: the decision there is the line's, not the flinch)
+      if (state.stop?.mode === 'stop' && (contactNow(state, ms)?.last?.atMs ?? -Infinity) >= until) return null;
+      // (a flinch too short to call one: a tier one's tick or a Raider's 0.15 s is not "Everybody does"; and a bang still to
+      // come that will join this freeze: the line waits for the series' end, said once (the reviews of v0.0.9))
+      if ((b.startleMs ?? 0) < FROZE_SAY_MIN_MS || bangDue(state)) return null;
+      // (the first series of the run, the freezes joined within STARTLE_JOIN_MS counting as one; "the first time" only
+      // for a green or settled hardening, a steadier man told plainly)
+      const f = R.bangs.froze;
+      let j = f.length - 1;
+      while (j > 0 && f[j].fromMs - f[j - 1].untilMs <= STARTLE_JOIN_MS) j--;
+      if (j > 0) return { variant: 'again', noHumour: true };
+      return { variant: ['green', 'settled'].includes(hardWord(hardOf(state, me.who, ms))) ? 'first' : 'steady', noHumour: true };
+    },
+    act: () => null,
+    text: { 1: ['You flinched. Everybody does. Your lane.'],
+      first: ['You flinched. Everybody does. Your lane.', 'You flinched. Everybody flinches. Eyes on your lane.', 'Flinched. Everybody does, the first time. Your lane.', 'That was a flinch. Everybody does it. Watch your lane.'],
+      steady: ['Flinched. Your lane.', 'Shake it off. Your lane.', 'Flinch. Eyes downrange.', 'Back in it. Your lane.'],
+      again: ['Flinched. Your lane.', 'Flinched again. Your lane.', 'Flinch. Eyes downrange.', 'Again. Your lane.'] },
+  },
+  {
+    id: 'pairs-deaf', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'note', short: 'Your lane', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms);
+      // (the first standby after the bangs, its turn armed: once a run, by its string)
+      if (!k || !k.R.bangs || k.inMode || !k.str || k.str.done || k.str.turnedMs !== null || k.str.turnAtMs === null || k.str.k !== BANGS.string + 1) return null;
+      if (!hearingOf(state, k.pid, ms).deaf) return null;
+      return { k, noHumour: true };
+    },
+    act: () => null,
+    text: { 1: ['Ears ringing. Watch your lane.', 'You will not hear him turn. Watch your lane.', 'Ringing ears. Your eyes do the work: your lane.', 'You cannot hear much. Watch your lane.'] },
   },
   {
     id: 'pairs-topup', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'note', short: 'Top up', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (!k || !k.b || k.busy || k.live || k.b.mag !== 'in' || !Number.isFinite(k.b.count) || k.b.count > HALF_N || k.b.chamber !== 'live') return null;
+      // (0.0.9, the fixer's: a count not known (a fumbled magazine) is not "above half": the lull waits on a Top up (pairs.js
+      // toppedUp), so the DI says so, 'unsure', where it stood silent and the line faulted the shooter slow)
+      const unsure = k?.b?.mag === 'in' && !Number.isFinite(k.b.count);
+      if (!k || !k.b || k.busy || k.live || k.b.mag !== 'in' || (!unsure && k.b.count > HALF_N) || k.b.chamber !== 'live') return null;
       // (not in a standby still to turn: going into the mode there puts the turn off; between strings, the coach's commands)
       if (k.cmd === 'short' || (k.cmd === 'standby' && k.str && !k.str.done) || !lullOf(state, k.pid, ms)) return null;
       // (the coach's short magazine, seated for string 4: it stays in until that string is fired)
       if (state.items[k.gunId]?.mag === k.R.mags?.short && !k.R.strs.some(x => x.k === 4)) return null;
-      const fuller = pouchesOf(state, k.pid).flatMap(p => p.mags).some(id => (believedN(state.items[id]) ?? 0) > k.b.count);
+      const fuller = pouchesOf(state, k.pid).flatMap(p => p.mags).some(id => (believedN(state.items[id]) ?? 0) > (unsure ? 0 : k.b.count));
       if (!fuller) return null;
       if (k.inMode && !topUpRow(k)) return null;
-      return { k, n: k.b.count };
+      return unsure ? { k, variant: 'unsure' } : { k, n: k.b.count };
     },
     act: (ctx) => (!ctx.k.inMode ? 'stop:enter' : actIf(ctx.k, 'macro:reload:tactical')),
-    text: { 1: ['Lull. Top up.', 'Quiet now. Top up while you can.', '{n} left in it. Top up.', 'A lull is for a fuller magazine. Top up.'] },
+    text: { 1: ['Lull. Top up.', 'Quiet now. Top up while you can.', '{n} left in it. Top up.', 'A lull is for a fuller magazine. Top up.'],
+      unsure: ['Not sure what is left in it. Top up.', 'Lull. You lost the count: Top up.', 'Count unknown. A fresh magazine, now.', 'You do not know what is in it. Top up.'] },
   },
   {
     id: 'pairs-wait', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'calm', short: 'Wait', reach: null,

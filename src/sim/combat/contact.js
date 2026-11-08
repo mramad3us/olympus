@@ -47,6 +47,11 @@
 // window open, no threat facing and standing, and LULL_MS 3 s since the latest of your last shot, the last
 // pause and the last turner gone edge-on. contactNow(state, ms) is the HUD's view: the window's k (the brackets
 // closing) and the last contact (the stamp, the plaque's lead, the log).
+// 0.0.9 (the build sheet 0.0.9 §2.1, §8 items 9, 11; COMBAT §5.3, §5.7): the window's take-in reads felt's band at its
+// first sighting (supp.js bandN(feltOf(state, pid, seenMs)), kept on the window as pending.band so a target joining it
+// is taken in on the same band); a startle is the window re-used: refusesAct is true and feetOf stops the feet while the
+// player is startled, no sighting is taken while he is startled or flash-blind (the detector looks again on the first
+// tick after, with the felt of that moment), and a window open when it came pauses only once it is over.
 // Pure but contactLook, contactInput, identify, runContactSub and endContactSub, which write the mind, the stop
 // and the log.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
@@ -64,6 +69,7 @@ import { takeInMs, goMs, takeInWords, takeInText, windowK } from './react.js';
 import { enterStop, stopInput, targetOf } from '../arms/shooting.js';
 import { heldOf, aimMsOf, HELD_MAX, HELD_RATE0 } from '../arms/shot.js';
 import { logEntry } from '../log.js';
+import { startled, feltOf, bandN, blockOf } from './supp.js';
 
 /** The identification's DC (COMBAT §25.4.6): IDENT_DC0 + round(range / IDENT_PER_M), IDENT_DARK in the dark. */
 export const IDENT_DC0 = 6, IDENT_PER_M = 5, IDENT_DARK = 4;
@@ -85,14 +91,15 @@ const threatFace = (face) => face === 'threat' || face === 'armoured' || face ==
 /** The window open, or null. */
 export function pendingOf(state) { return contactOf(state)?.pending ?? null; }
 
-/** Whether a sim action is refused: every one while a window is open (COMBAT §25.4.5; game.js act()'s gate). */
-export function refusesAct(state, action) { return !!pendingOf(state); }
+/** Whether a sim action is refused: every one while a window is open or the player is startled (COMBAT §25.4.5, §5.7; game.js act()'s gate). */
+export function refusesAct(state, action) { return !!pendingOf(state) || startled(state, playerId(state), state.clock.ms); }
 
 /**
  * The feet while a window is open (see the header): the move held at the sighting until seenMs + goMs, then
  * stopped; pre-armed, the held move all through. With no window, the input's own. Returns { mx, mz, run, stroll }.
  */
 export function feetOf(state, input) {
+  if (startled(state, playerId(state), state.clock.ms)) return ZERO_FEET;
   const P = pendingOf(state);
   if (!P) return { mx: sgn(input?.mx), mz: sgn(input?.mz), run: !!input?.run, stroll: !!input?.stroll };
   if (P.armed || state.clock.ms < P.seenMs + P.goMs) return { mx: P.mx, mz: P.mz, run: !!P.run, stroll: false };
@@ -107,11 +114,15 @@ function targetsAt(state, keys, ms) {
 }
 
 // (the take-in of a window's targets, from its first sighting: one notice check, keyed by the contact)
-function windowOf(state, pid, id, keys, seenMs, roll = null) {
+// (band: the window's, felt's band at its first sighting, given on a join)
+function windowOf(state, pid, id, keys, seenMs, roll = null, band = null) {
   const targets = targetsAt(state, keys, seenMs);
-  const t = takeInMs(state, pid, { id, targets, seenMs, roll });
-  return { t, rangeM: targets[0]?.rangeM ?? 0 };
+  const b = band ?? bandN(feltOf(state, pid, seenMs));
+  const t = takeInMs(state, pid, { id, targets, seenMs, roll, band: b });
+  return { t, rangeM: targets[0]?.rangeM ?? 0, band: b };
 }
+// (the player's eyes taken by a flash at ms)
+const blindAt = (state, pid, ms) => { const r = blockOf(state, pid); return !!r && Number.isFinite(r.blindUntilMs) && ms < r.blindUntilMs; };
 
 // (the 'contact' fact's payload)
 const fact = (phase, pid, rec, extra = {}) => ({ phase, id: rec.id, who: pid, ids: [...rec.ids], seenMs: rec.seenMs, untilMs: rec.untilMs ?? rec.atMs ?? null, ms: rec.ms, expect: rec.expect, n: rec.n,
@@ -124,6 +135,8 @@ export function contactLook(state, input, bus, ctx) {
   const me = playerActor(state);
   if (!me) return;
   const pid = me.who, ms = state.clock.ms;
+  // (startled or flash-blind, nothing is taken in: the detector looks again on the first tick after)
+  if (startled(state, pid, ms) || blindAt(state, pid, ms)) return;
   const c0 = contactOf(state);
   // (a turner turned away is forgotten: its next turn is a fresh sighting)
   if (c0) for (const key of Object.keys(c0.known)) { const T = list.find(x => x.key === key); if (!T || facingOf(T, ms) < SEEN) delete c0.known[key]; }
@@ -140,17 +153,17 @@ export function contactLook(state, input, bus, ctx) {
   for (const key of fresh) c.known[key] = ms;
   const P = c.pending;
   if (!P) {
-    const id = c.n + 1, { t, rangeM } = windowOf(state, pid, id, fresh, ms);
+    const id = c.n + 1, { t, rangeM, band } = windowOf(state, pid, id, fresh, ms);
     c.n = id;
     c.pending = { id, ids: fresh, seenMs: ms, untilMs: ms + t.ms, ms: t.ms, expect: t.expect, n: t.n, grade: t.grade, roll: t.roll, parts: t.parts, rangeM, whoK: t.whoK,
-      armed: false, goMs: goMs(sheetOf(state, pid)?.os ?? 0), mx: sgn(input?.mx), mz: sgn(input?.mz), run: !!input?.run };
+      armed: false, goMs: goMs(sheetOf(state, pid)?.os ?? 0), mx: sgn(input?.mx), mz: sgn(input?.mz), run: !!input?.run, ...(band ? { band } : {}) };
     bus?.emit('contact', fact('seen', pid, c.pending));
     return;
   }
   // (a turner of this window turned away and back inside it is known again, not taken in twice)
   const more = fresh.filter(k => !P.ids.includes(k));
   if (!more.length) return;
-  const ids = [...P.ids, ...more], { t } = windowOf(state, pid, P.id, ids, P.seenMs, P.roll);
+  const ids = [...P.ids, ...more], { t } = windowOf(state, pid, P.id, ids, P.seenMs, P.roll, P.band ?? 0);
   Object.assign(P, { ids, untilMs: Math.max(P.untilMs, P.seenMs + t.ms), ms: Math.max(P.ms, t.ms), expect: t.expect, n: t.n, parts: t.parts, whoK: t.whoK });
   bus?.emit('contact', fact('join', pid, P, { atMs: ms }));
 }
@@ -180,7 +193,12 @@ function cutWait(state, bus) {
 function pause(state, bus, c) {
   const P = c.pending, pid = playerId(state), now = state.clock.ms;
   const pick = pickOf(state, pid, P.ids, now);
-  const last = { id: P.id, ids: [...P.ids], seenMs: P.seenMs, atMs: now, ms: P.ms, expect: P.expect, n: P.n, grade: P.grade, parts: P.parts, pick, ident: {}, armour: {}, words: takeInText(P) };
+  // (a startle that landed inside the window held the pause to its end (contactInput): the time it added is part of the
+  // take-in the stamp, J and the paper report, named, so "Contact · 1.50 s" is the sighting to the pause (the code review of
+  // v0.0.9: it said the planned 0.55 s); nothing moves without a startle past the window's end)
+  const B = blockOf(state, pid), late = Number.isFinite(B?.startleUntilMs) ? Math.max(0, Math.min(now, B.startleUntilMs) - P.untilMs) : 0;
+  const ms = P.ms + late, parts = late ? [...(P.parts ?? []), { why: 'startled', ms: late }] : P.parts;
+  const last = { id: P.id, ids: [...P.ids], seenMs: P.seenMs, atMs: now, ms, expect: P.expect, n: P.n, grade: P.grade, parts, pick, ident: {}, armour: {}, words: takeInText({ ...P, ms, parts }) };
   noteContact(state, { pending: null, last });
   const S = state.stop;
   if (S?.mode === 'stop') {
@@ -188,7 +206,7 @@ function pause(state, bus, c) {
     S.pick = pick; S.via = 'contact';
     holdTime(state, 'stop');
   } else {
-    const r = enterStop(state, bus, { pid, via: 'contact', pick, contact: { id: P.id, ms: P.ms } });
+    const r = enterStop(state, bus, { pid, via: 'contact', pick, contact: { id: P.id, ms } });
     if (r?.ok && state.stop?.mode === 'stop') { state.stop.pick = pick; state.stop.via = 'contact'; }
   }
   for (const key of last.ids) identify(state, pid, key, { atMs: now });
@@ -201,6 +219,8 @@ function pause(state, bus, c) {
 export function contactInput(state, input, bus, ctx) {
   const c = contactOf(state), P = c?.pending;
   if (!P || state.skip) return;
+  // (startled: the pause waits for its end (supp.js suppInput lets a stop hold go while it lasts))
+  if (startled(state, playerId(state), state.clock.ms)) return;
   if (state.clock.ms < P.untilMs) {
     // (time held inside the window would freeze the game on a person not yet taken in, every action refused: a stop-motion
     // step that ended here lets the clock run on, the body idle (COMBAT §25.4.5); any other hold (a reflex card) ends the

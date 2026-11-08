@@ -12,6 +12,9 @@ import { grade } from '../src/sim/skills/checks.js';
 import { TEST_SHEETS } from '../src/sim/skills/templates.js';
 import { contactNow } from '../src/sim/combat/contact.js';
 import { bayGame, turn, runTo, LANE, laneZ, TURNER_X } from './contact-world.mjs';
+import { feltOf, bandN, hardOf } from '../src/sim/combat/supp.js';
+// (0.0.9: a person's chaos written so their felt is f at ms: the pool f + their hardening, fresh)
+const feltTo = (state, pid, f, ms = state.clock.ms) => { const a = state.actors.list.find(x => x.who === pid); a.combat = { supp: f ? f + hardOf(state, pid, ms) : 0, suppAtMs: ms, suppRate: 2, startleFromMs: null, startleUntilMs: null, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: null }; };
 
 // (the build sheet's §4 bay table: core, sector, alert, alert 2, sector 2, sector 3, sector a miss, alert a miss, area, surprise)
 const BAY = {
@@ -167,6 +170,22 @@ export default [
       console.log(`      SECTOR_HALF_DEG ${SECTOR_HALF_DEG}, VIGIL_MS ${VIGIL_MS}:`);
       for (const r of rows) console.log(`        ${r}`);
       assert(!bad.length, bad.join('\n'));
+    },
+  },
+  {
+    name: '0.0.9: the take-in\'s band is felt\'s (COMBAT §5.3, §25.18.1): its parts read "under fire", "suppressed", "pinned", 200 ms a band; §4\'s column at 7 m in the sector, calm → three bangs, the recruit 650 → 1,250 and the tier one 50 → 50',
+    fn() {
+      const words = [1, 2, 3].map(b => takeInOf({ wf: 15, expect: 'sector', band: b }).parts.at(-1).why);
+      const col = Object.entries(TEST_SHEETS).map(([t, s]) => { const H = Math.round(s.wf * 0.75) + s.inoc, f = Math.max(0, Math.min(100, Math.round(105 - H))); return `${t} ${takeInOf({ wf: s.wf, expect: 'sector' }).ms} → ${takeInOf({ wf: s.wf, expect: 'sector', band: bandN(f) }).ms}`; });
+      // (a window on the fixture bay at felt 53: its record carries band 2, its take-in the 400 ms)
+      const { g, pid } = bayGame({ tier: 'private' });
+      feltTo(g.state, pid, 53);
+      turn(g, [LANE], g.state.clock.ms);
+      runTo(g, s => !!contactNow(s)?.pending);
+      const P = g.state.mind.contact.pending;
+      console.log(`      the band's words: ${words.join(', ')}; §4's take-in column: ${col.join(' · ')}; a window at felt ${feltOf(g.state, pid, P.seenMs)}: band ${P.band}, ${P.ms} ms (${P.parts.map(p => `${p.why} ${p.k ?? p.ms}`).join(', ')})`);
+      assert(words.join() === 'under fire,suppressed,pinned' && col.join() === 'recruit 650 → 1250,private 550 → 1150,cpl 350 → 750,sgt 250 → 650,raider 100 → 300,tierone 50 → 50', col.join());
+      assert(P.band === 2 && P.parts.some(p => p.why === 'suppressed' && p.ms === 400), JSON.stringify(P.parts));
     },
   },
 ];

@@ -11,6 +11,9 @@ import { macroMs } from '../src/sim/arms/drills.js';
 import { pouchesOf, atFeetOf, handMagOf, discard } from '../src/sim/arms/kit.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { roundsLeft } from '../src/sim/scenarios/handling.js';
+import { hardOf, suppTimeK } from '../src/sim/combat/supp.js';
+// (0.0.9: a person's chaos written so their felt is f at ms: the pool f + their hardening, fresh)
+const feltTo = (state, pid, f, ms = state.clock.ms) => { const a = state.actors.list.find(x => x.who === pid); a.combat = { supp: f ? f + hardOf(state, pid, ms) : 0, suppAtMs: ms, suppRate: 2, startleFromMs: null, startleUntilMs: null, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: null }; };
 
 // (the gun put in a state: its magazine's count n (0 with the bolt locked back on the empty), the belief the holder has)
 function gunState(w, { n, locked = false, approx = false }) {
@@ -105,6 +108,22 @@ export default [
       const steps = g.facts('step').slice(f0), gun = s.items[w.gunId];
       console.log(`      ${steps.length} step facts in 800 ticks (${[...new Set(steps.map(f => f.action))].join(', ') || 'none'}); the bolt ${gun.locked ? 'still locked back' : 'FORWARD'}, the magazine in ${s.items[gun.mag]?.n}; rounds ${n0} → ${rounds(w)}; the mode ${s.stop ? s.stop.mode : 'left'}`);
       assert(!steps.some(f => ['reach', 'seat', 'magOut:drop', 'magOut:dump', 'magOut:pouch', 'release'].includes(f.action)) && gun.locked && rounds(w) === n0, JSON.stringify(steps.map(f => f.action)));
+    },
+  },
+  {
+    name: '0.0.9: the reloads by purpose take × timeK (COMBAT §5.3): the private\'s RELOAD, Top up and keep-the-empty rows at felt 0 and 98, each within a few milliseconds of calm × 1.49, the calm figures unchanged',
+    fn() {
+      const res = {};
+      for (const f of [0, 98]) {
+        const w = pairsWorld({ tier: 'private', turned: [] });
+        const gun = w.s.items[w.gunId];
+        gun.locked = true; gun.chamber = null; w.s.items[gun.mag].n = 0; gun.belief = { chamber: 'empty', locked: true, count: 0, mag: 'in' };
+        feltTo(w.s, w.pid, f);
+        res[f] = reloadRows(w.s, w.pid).map(r => ({ id: r.id, ms: r.ms }));
+      }
+      const k = suppTimeK(98), pairs = res[0].map((r, i) => ({ id: r.id, calm: r.ms, felt: res[98][i]?.ms }));
+      console.log(`      ×${k}: ${pairs.map(p => `${p.id} ${p.calm} → ${p.felt} ms (× ${fmt(p.felt / p.calm, 3)})`).join('; ')}`);
+      assert(pairs.length && pairs.every(p => Math.abs(p.felt - p.calm * k) <= 6), JSON.stringify(pairs));
     },
   },
 ];

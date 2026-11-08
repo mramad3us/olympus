@@ -37,6 +37,12 @@
 // handle from the brief to the card: saves made in the middle of a take-in (the window open, every key refused), at a
 // contact's pause in stop motion, in the middle of a shot row between its rounds, during the dry RELOAD and in a Top up
 // between strings, each started again and played on to the end, end on the straight run's digest, and that digest is node's.
+//
+// (0.0.9) "Three bangs" in the page (test-pairs, setup 'bangs', from its brief), the boot recruit and the tier one on seed
+// 48213, the same bot: saves made one tick into a startle, in its middle, the tick after it, mid-pool at the banged
+// pause (the chaos draining, the turn's take-in done), in the middle of a row under the chaos and at string 2's pause
+// with the pool still above 0, each started again and played on to the end, end on the straight run's digest, and
+// that digest is node's: the pool, the startle and the deafness are saved state, never the page's.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { assert, fmt, root } from './helpers.mjs';
@@ -399,6 +405,75 @@ export default [
           const bad = r.back.filter(b => b.end !== r.A.tick || b.digest !== r.A.digest);
           assert(!bad.length, JSON.stringify(bad));
         }, { query: `play=test-pairs&seed=48213&tier=${tier}&nostore=1`, timeoutMs: 60_000 });
+      }
+    },
+  },
+  {
+    name: '"Three bangs" in the page (0.0.9), the pairs bot from the brief to the card as the boot recruit and the tier one: saves made a tick into a startle, in its middle, the tick after it, at the banged pause with the pool draining, between a row\'s rounds under the chaos and at the next pause with the pool still up, started again, carry on byte for byte, and the page\'s game is node\'s',
+    heavy: true,
+    timeoutMs: 300_000,
+    async fn() {
+      const version = readFileSync(`${root}/VERSION`, 'utf8').trim();
+      for (const tier of ['recruit', 'tierone']) {
+        const start = { scenario: 'test-pairs', seed: 48213, tier, setup: 'bangs' };
+        const n = createGame({ ...start, version }), nb = pairsBot();
+        for (let t = 0; t < 40_000 && !pairsNow(n.state)?.end; t++) n.step(1, nb);
+        const nodeDigest = n.digest(), nodeTick = n.state.clock.tick;
+        await withGame(async (page) => {
+          const r = await page.evaluate(async ({ start, maxTicks }) => {
+            const h = window.__olympus;
+            const { pairsBot: mk } = await import('/tests/bots/pairs.mjs');
+            const { pairsNow: P } = await import('/src/sim/scenarios/pairs.js');
+            const { suppNow, blockOf } = await import('/src/sim/combat/supp.js');
+            const { digest } = await import('/src/core/hash.js');
+            const { playerActor } = await import('/src/core/ids.js');
+            h.pause(true);
+            const fresh = h.newGame(start);
+            h.pause(true);
+            await fresh;
+            h.pause(true);
+            const done = () => !!P(h.state)?.end;
+            const play = (onTick = () => {}) => { const b = mk(); let t = 0; for (; t < maxTicks && !done(); t++) { const s = h.state, me = playerActor(s); if (s.skip?.engine === 'ff') h.sim.ffTick(s); else h.step(1, b(s, me, (me.bot ??= {}))); onTick(); } return t; };
+            const saves = [], want = new Set(['a tick into a startle', 'mid-startle', 'the tick after it', 'at the banged pause', 'between a row\'s rounds, the pool up', 'the next pause, the pool up']);
+            const take = (at, why) => { if (want.has(at)) { want.delete(at); saves.push({ at, why, tick: h.state.clock.tick, json: h.save() }); } };
+            let firstPauseDone = false;
+            const ticks = play(() => {
+              const s = h.state, S = s.stop, c = s.mind?.contact, p = P(s), u = suppNow(s);
+              if (!p || p.end || !u) return;
+              const st = u.startle, why = `pool ${u.pool.toFixed(2)}, felt ${u.felt}`, until = blockOf(s, s.player.id)?.startleUntilMs;
+              if (st && s.clock.ms === st.fromMs + 50) take('a tick into a startle', why);
+              if (st && s.clock.ms >= (st.fromMs + st.untilMs) / 2) take('mid-startle', why);
+              // (the block's own end: a tier one's one-tick startle is over before a driver sees it)
+              if (!st && Number.isFinite(until) && s.clock.ms >= until && s.clock.ms < until + 50) take('the tick after it', why);
+              const pause = S?.via === 'contact' && S.phase === 'choose' && c?.last?.atMs === s.clock.ms;
+              if (pause && !firstPauseDone) { firstPauseDone = true; take('at the banged pause', why); }
+              else if (pause && u.pool > 0) take('the next pause, the pool up', why);
+              if (S?.doing?.kind === 'shot' && S.doing.i > 0 && u.pool > 0) take('between a row\'s rounds, the pool up', why);
+            });
+            const A = { digest: digest(h.save()), tick: h.state.clock.tick, ticks, summary: P(h.state)?.bangs?.summary ?? null, end: !!P(h.state)?.end };
+            const back = [];
+            for (const sv of saves) {
+              const started = h.start(sv.json);
+              h.pause(true);
+              await started;
+              h.pause(true);
+              play();
+              back.push({ at: sv.at, why: sv.why, tick: sv.tick, kb: sv.json.length / 1024, end: h.state.clock.tick, digest: digest(h.save()) });
+            }
+            h.pause(false);
+            return { A, back, missed: [...want] };
+          }, { start, maxTicks: 40_000 });
+          console.log(`      ${tier}: node tick ${nodeTick}, digest ${nodeDigest}; the page straight through: tick ${r.A.tick} (${r.A.ticks} ticks), ${r.A.summary}, digest ${r.A.digest}`);
+          for (const b of r.back) console.log(`        saved ${b.at} at tick ${b.tick} (${b.why}; ${fmt(b.kb, 0)} KB), started again: tick ${b.end}, ${b.digest === r.A.digest ? 'the same digest' : `DIGEST ${b.digest}`}`);
+          if (r.missed.length) console.log(`        not reached as ${tier}: ${r.missed.join(', ')}`);
+          assert(r.A.end && r.A.tick === nodeTick && r.A.digest === nodeDigest, JSON.stringify({ tier, page: r.A, nodeTick, nodeDigest }));
+          // (the recruit's startle of seconds gives its three and the pool still up at the next pause; the tier one's lasts a
+          // tick, so its end and the banged pause; a row's rounds with the pool up only where the bot chooses a row then)
+          const must = tier === 'recruit' ? ['a tick into a startle', 'mid-startle', 'the tick after it', 'at the banged pause', 'the next pause, the pool up'] : ['the tick after it', 'at the banged pause'];
+          assert(must.every(m => r.back.some(b => b.at === m)), JSON.stringify({ tier, saved: r.back.map(b => b.at), missed: r.missed }));
+          const bad = r.back.filter(b => b.end !== r.A.tick || b.digest !== r.A.digest);
+          assert(!bad.length, JSON.stringify(bad));
+        }, { query: `play=test-pairs&setup=bangs&seed=48213&tier=${tier}&nostore=1`, timeoutMs: 60_000 });
       }
     },
   },

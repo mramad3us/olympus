@@ -14,6 +14,9 @@ import { contactOf } from '../src/sim/people/mind.js';
 import { turnAway, turnerTargets } from '../src/sim/arms/turners.js';
 import { TEST_SHEETS } from '../src/sim/skills/templates.js';
 import { bayGame, turn, runTo, LANE } from './contact-world.mjs';
+import { hardOf, startled } from '../src/sim/combat/supp.js';
+// (0.0.9: a person's chaos written so their felt is f at ms: the pool f + their hardening, fresh)
+const feltTo0 = (state, pid, f, ms = state.clock.ms) => { const a = state.actors.list.find(x => x.who === pid); a.combat = { supp: f ? f + hardOf(state, pid, ms) : 0, suppAtMs: ms, suppRate: 2, startleFromMs: null, startleUntilMs: null, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: null }; };
 
 const ACTIONS = ['shoot', 'ready', 'carry', 'stance:down', 'stance:up', 'stop:fire', 'stop:aim', 'digit:1', 'instinct', 'debug:skip:60000', 'people', 'kd:police'];
 const paused = (s) => !!contactOf(s)?.last && !contactOf(s)?.pending;
@@ -203,6 +206,26 @@ export default [
       const sighting = time(() => { c().known = {}; c().pending = null; });
       console.log(`      ${N} calls each: edge-on ${fmt(edgeOn * 1000, 2)} µs, six facing and known (${known}) ${fmt(facing * 1000, 2)} µs, a sighting of six ${fmt(sighting * 1000, 1)} µs (the machine ×${fmt(k, 2)}); the player at (${fmt(me.x, 1)}, ${fmt(me.z, 1)})`);
       assert(known === 6 && edgeOn < 0.005 * k && facing < 0.02 * k && sighting < 0.5 * k, JSON.stringify({ known, edgeOn, facing, sighting, k }));
+    },
+  },
+  {
+    name: '0.0.9: a window opened under a felt band carries it, a target joining it taken in on the same band, and a startle refuses every action and stops the feet as the window does (COMBAT §5.7: "the take-in\'s window re-used")',
+    fn() {
+      const { g, pid } = bayGame({ tier: 'private' });
+      feltTo0(g.state, pid, 88);
+      turn(g, [LANE], g.state.clock.ms);
+      runTo(g, s => !!contactOf(s)?.pending);
+      const P0 = { ...contactOf(g.state).pending };
+      turn(g, [LANE + 1], g.state.clock.ms);
+      runTo(g, s => (contactOf(s)?.pending?.n ?? 1) > 1 || !!contactOf(s)?.last);
+      const P = contactOf(g.state).pending ?? contactOf(g.state).last;
+      const { g: h, pid: hp } = bayGame({ tier: 'private' });
+      const a = h.state.actors.list.find(x => x.who === hp), t = h.state.clock.ms;
+      a.combat = { supp: 0, suppAtMs: t, suppRate: 2, startleFromMs: t, startleUntilMs: t + 500, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: null };
+      const refused = ACTIONS.filter(x => refusesAct(h.state, x)).length, feet = feetOf(h.state, { mz: 1, mx: 1 });
+      console.log(`      a window at felt 88 (pinned): band ${P0.band}, ${P0.ms} ms; a second target joined: n ${P.n}, ${P.ms} ms, its parts ${P.parts.map(p => `${p.why} ${p.k ?? p.ms}`).join(', ')}; startled: ${refused} of ${ACTIONS.length} actions refused, the feet ${JSON.stringify(feet)}, startled ${startled(h.state, hp)}`);
+      assert(P0.band === 3 && P0.parts.some(p => p.why === 'pinned' && p.ms === 600) && P.parts.some(p => p.why === 'pinned' && p.ms === 600), JSON.stringify({ P0, P }));
+      assert(refused === ACTIONS.length && !feet.mx && !feet.mz, JSON.stringify({ refused, feet }));
     },
   },
 ];

@@ -40,7 +40,10 @@
 // 0.0.8 (the build sheet 0.0.8 §2.4): on test-pairs' pairs course rangeLook gains pairs: { line, turners (each lane's: its
 // place, how far it faces (turners.js facingOf, a closed form over TURN_MS: never a jump), the face hung and what it
 // holds, its holes with their zone and whether the steel rang, down, the plate's fall), lines (the 7 m and 10 m paint) },
-// src/sim/scenarios/pairs.js pairsLook: the stage's only door to the turners.
+// src/sim/scenarios/pairs.js pairsLook: the stage's only door to the turners. 0.0.9 (the build sheet 0.0.9 §2.2, §2.3): on
+// "Three bangs" pairs gains bangs: [{ id, x, z, fromX, fromZ, throwAtMs, atMs, done }], the coach's training bangs as
+// planned (the throw's arc from his hand at throwAtMs, the body on the pad, the flash and the smoke at atMs; done once
+// atMs is past), [] on every other course.
 // A sitting port is PORT_H_M.sit high.
 // AIM_LEAD_K, EDGE_KEEP_M and FRAME_HALF_M are VIEWS §2.4's weapon-mode lead, shared by the camera and
 // the shot role's targetsOf: the frame's centre AIM_LEAD_K of the way from the player to the bracketed

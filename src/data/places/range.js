@@ -59,6 +59,8 @@
 //   - THE LINES at 7 and 10 m from the turners (x 1,117.0 and 1,114.0), painted across a sintered pad (x 1,112.6 to
 //     1,118.6, the bay's width: kdPaint, '7 M' and '10 M'), each lane a point on each line with the bay's shapes: fp,
 //     the box (fp.x − 1.4 to + 2.2, fp.z ± 1.0) and the coach's place at your left shoulder (fp.x − 0.9, fp.z − 1.4);
+//   - THE BANG (0.0.9, "Three bangs"): where the coach's training bangs land, PAIRS.bang: 1.5 m behind your point on the
+//     pad, ±0.5 m across it (kdBang, 0.05 × 0.05 × 0.12 m, thrown by the scene, never placed as a piece);
 //   - the pad is the last of KD_PADS (my call: the ground reads that list into its surfaces, so the pad needs no new
 //     reader there), 's:kd:pairs'.
 // kdLaneOf(lane) gives a lane's record; which line holds a person is the scene's (src/sim/scenarios/range.js
@@ -185,6 +187,9 @@ export const RANGE_KINDS = deepFreeze({
   // (0.0.8, the build sheet 0.0.8 §2.3, §4: test-pairs' turner stands and the painted lines across their pad (flat: h 0))
   kdTurner: { w: 0.5, d: 0.3, h: 1.75 },
   kdPaint: { w: 18.6, d: 0.1, h: 0 },
+  // (0.0.9, the build sheet 0.0.9 §2.2: the coach's training bang, a body thrown onto the pad by the scene (pairs.js
+  // planBangs), none placed as a piece, so the ground's golden is unchanged)
+  kdBang: { w: 0.05, d: 0.05, h: 0.12 },
 });
 
 // ---- 0.0.7: the KD ground (see the header) ----
@@ -290,9 +295,10 @@ export const TURNER_X = 1124.0, PAIRS_LINES = deepFreeze({ 7: { x: 1117.0 }, 10:
 /** A turner's face (its width and height, its centre's height) and its stand (metres). */
 export const TURNER_FACE = deepFreeze({ wM: 0.46, hM: 0.76, centreY: 1.35 }), TURNER_STAND = deepFreeze({ w: 0.5, d: 0.3, h: 1.75 });
 const pairsPoint = (x, z) => ({ fp: { x, z }, box: [x - 1.4, z - 1.0, x + 2.2, z + 1.0], coach: { x: x - 0.9, z: z - 1.4, face: 'right' } });
-/** test-pairs' ground (see the header): the turners' line, the two lines, the pad, the face, the stand, each bay lane's turner and points. */
+/** test-pairs' ground (see the header): the turners' line, the two lines, the pad, the face, the stand, each bay lane's turner and points; 0.0.9's bang, where the coach's training bangs land (behindM behind your point, ±spreadM across it: courses.js COURSES.pairs.bangs the same). */
 export const PAIRS = deepFreeze({
   turnerX: TURNER_X, lines: { 7: { ...PAIRS_LINES[7] }, 10: { ...PAIRS_LINES[10] } }, pad: [...PAIRS_PAD_RECT], face: { ...TURNER_FACE }, stand: { ...TURNER_STAND },
+  bang: { behindM: 1.5, spreadM: 0.5, kind: 'kdBang' },
   lanes: KD_RANGE_025.bay.lanes.map(l => ({
     lane: l.lane, z: l.fp.z,
     turner: { x: TURNER_X, z: l.fp.z, fixture: `f:kd:turner-${l.lane}` },

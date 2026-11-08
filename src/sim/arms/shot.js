@@ -92,6 +92,9 @@
 // the paper), its part, a climb factor (climbK: the Pair's controlled second ×0.5, modsOf's climb ×climbK) and its
 // row ({ id, n, i }); the record gains part, zone, ring, through, down and row, on a turner only, so test-handling's
 // and test-range's shots stay byte for byte.
+// 0.0.9 (the build sheet 0.0.9 §2.1, §8 item 9; COMBAT §5.3): aimMsOf and pullMsOf take the roller at their ms (the
+// sub-step's start: resolveShot's atMs) and multiply by its timeK (combat/supp.js suppTimeK, exactly 1 when calm, so a
+// calm time is unchanged to the millisecond); the round's roll carries the chaos's entry through the roller's mods.
 // Pure but resolveShot.
 import { stream } from '../../core/rng.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
@@ -234,22 +237,23 @@ export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'nor
   return sortMods(out);
 }
 
-/** The aim's time at a target from where the shooter faces and holds the rifle, ms (WEAPONS §7.1). */
-export function aimMsOf(state, pid, gunId, target) {
-  const me = meOf(state, pid), M = gunModel(state, gunId), K = KINDS[M.kind], roller = rollerOf(state, pid);
+/** The aim's time at a target from where the shooter faces and holds the rifle, ms (WEAPONS §7.1); × the chaos's time (0.0.9: the roller's timeK at ms). */
+export function aimMsOf(state, pid, gunId, target, { ms = state.clock.ms } = {}) {
+  const me = meOf(state, pid), M = gunModel(state, gunId), K = KINDS[M.kind], roller = rollerOf(state, pid, { ms });
   const wh = roller.value('weapons');
   const head = me?.headRad ?? 0, to = Math.atan2(target.z - (me?.z ?? 0), target.x - (me?.x ?? 0));
   const posture = state.people?.[pid]?.kit?.carry?.posture ?? 'lowReady';
   const optic = M.optic ? OPTICS[M.optic] : null;
   const s = aimS({ pace: paceOf(wh), kindSight: K.sight, opticSight: optic ? opticSight(optic, opticOf(state.items?.[gunId])) : 1, turnDeg: Math.abs(wrap(to - head)) / D2R, value: wh, kindTurn: K.turn,
     toAimS: posture === 'aimed' ? 0 : POSTURES[posture]?.toAimS ?? 0 });
-  return Math.round(s * 1000);
+  return Math.round(s * roller.timeK * 1000);
 }
 
-/** A pull's time for this shooter and gun, ms (n rounds), and its recovery alone. */
-export function pullMsOf(state, pid, gunId, n = 1) {
-  const M = gunModel(state, gunId), pace = paceOf(rollerOf(state, pid).value('weapons'));
-  return { ms: fireMs({ recoil: M.recoil, pace, n, rpm: M.rpm ?? 700 }), recoverMs: recoverMs({ recoil: M.recoil, pace, n }) };
+/** A pull's time for this shooter and gun, ms (n rounds), and its recovery alone; × the chaos's time (0.0.9: the roller's timeK at ms; exactly the calm figures at 1). */
+export function pullMsOf(state, pid, gunId, n = 1, { ms = state.clock.ms } = {}) {
+  const M = gunModel(state, gunId), roller = rollerOf(state, pid, { ms }), pace = paceOf(roller.value('weapons')), k = roller.timeK;
+  const f = fireMs({ recoil: M.recoil, pace, n, rpm: M.rpm ?? 700 }), r = recoverMs({ recoil: M.recoil, pace, n });
+  return k === 1 ? { ms: f, recoverMs: r } : { ms: Math.round(f * k), recoverMs: Math.round(r * k) };
 }
 
 // ---- 0.0.7: the strike at distance (see the header) ----
@@ -493,7 +497,7 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
       bus?.emit('roll', { roll, who: pid });
     }
     bus?.emit('fx', { kind: 'flash', x: muzzle?.x ?? me?.x ?? 0, y: muzzle?.y ?? 1, z: muzzle?.z ?? me?.z ?? 0, atMs: ms, dir: dirRad, size: 1.2 });
-    const p = pullMsOf(state, pid, gunId);
+    const p = pullMsOf(state, pid, gunId, 1, { ms });
     recMs = Math.round(p.recoverMs * T.timeK);
     stepMs = Math.round(p.ms * T.timeK);
     // (the last round: the bolt locks back, felt and seen, said as tradecraft said it (the parity review's))

@@ -271,4 +271,24 @@ export default [
       assert(lists['locked, empty magazine'].includes('magOut:dump') && !lists['locked, empty magazine'].includes('release'), 'locked on an empty magazine: no release offered');
     },
   },
+  {
+    name: 'a thumb that slips on the selector leaves the lever where it was (the user, 2026-11-07: "likely to fail simple actions like thumbing safety off"; the fixer of v0.0.9): a forced miss on Off safe costs its slow time, halts, says so and leaves the rifle on safe, so OFF SAFE ✗ means still on safe; a pass takes it off; a miss on Safe leaves it on semi; a miss already on the mode moves nothing',
+    fn() {
+      const rows = [];
+      const run = (st, action, grade) => {
+        const W = armsWorld({ wh: 4 }); setup(W, st);
+        const r = doAction(W.state, W.bus, { pid: W.pid, gunId: W.gunId, action, force: { [action]: grade } });
+        const mode = gunField(W.state.items[W.gunId], 'mode');
+        rows.push(`${st}, ${action} ${grade}: ${mode}, ${(r.ms / 1000).toFixed(2)} s, halts ${r.halts}, slipped ${!!r.slipped}: "${r.text}"`);
+        return { r, mode };
+      };
+      const miss = run('C1 safe', 'selector:semi', 'miss'), pass = run('C1 safe', 'selector:semi', 'pass');
+      const back = run('C1 semi', 'selector:safe', 'miss');
+      for (const l of rows) console.log(`      ${l}`);
+      assert(miss.mode === 'safe' && miss.r.ok === false && miss.r.slipped && miss.r.halts && /still on safe/.test(miss.r.text), JSON.stringify({ mode: miss.mode, r: { ok: miss.r.ok, text: miss.r.text, halts: miss.r.halts } }));
+      assert(Math.abs(miss.r.ms - pass.r.ms * 1.6) <= 1, JSON.stringify({ miss: miss.r.ms, pass: pass.r.ms }));
+      assert(pass.mode === 'semi' && !pass.r.slipped, JSON.stringify(pass));
+      assert(back.mode === 'semi' && back.r.slipped && /still on semi/.test(back.r.text), JSON.stringify(back));
+    },
+  },
 ];

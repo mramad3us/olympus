@@ -746,3 +746,128 @@ export function sparkPixels(t, hole, ms, ppm = PX_PER_M) {
   }
   return out;
 }
+
+// ---- 0.0.9: the training bang (the build sheet 0.0.9 §2.3; VIEWS §7.3; COMBAT §11.4) ----
+//
+// rangeLook().pairs.bangs (the scene role's look.js): [{ id, x, z, fromX, fromZ, throwAtMs, atMs, done }], a bang thrown
+// from the coach's hand at throwAtMs and going off on the pad at atMs. Each drawn at its real size and time:
+//   - bangBodyPixels: its body, a reloadable training bang's olive canister, drawn bigger than life (BANG_BODY_PX 3 × 2,
+//     the kit's rule for small things; the sim's kdBang is 5 × 12 cm), from his hand (BANG_HAND_Y_M) on a low arc
+//     (BANG_ARC_M over the straight line) to the pad, then lying on it, scorched, for the rest of the scene;
+//   - bangFlashPixels: the flash, white, BANG_FLASH_R_M 1.2 m in radius (19 px at 16 px/m): the half above the pad
+//     upright and its light flat on the pad round it, for BANG_FLASH_MS 30 of game time; at least one frame (force: the
+//     view's, for a frame that comes after the 30 ms, my call), never two once its time is past; the light pool
+//     (BANG_POOL_M 4 m) is the view's lamp over the same frames;
+//   - bangSmokePixels: the smoke, BANG_PUFFS grey puffs growing from BANG_PUFF_R_M 0.3 to 1.5 m in radius over
+//     BANG_PUFF_MS 1.5 s, rising BANG_RISE_MS and drifting with the bay's wind (SMOKE_DRIFT_K of it, at most
+//     SMOKE_DRIFT_MAX_MS), thinning by an ordered dither from 1.5 s and gone at BANG_SMOKE_MS 8 s: it grows and fades
+//     by its time, never a pop. At most SMOKE_PX_MAX pixels a bang. 0.0.9's fixer: it thins once the wind has carried it
+//     SMOKE_OFF_PAD_M off the pad, and is a checker's half over a standing figure's box (figures), so the shooter and the coach
+//     show through it; the thrown body has an ink outline in flight.
+/** The flash's time (game ms), its radius (m), the light pool's (m) and the smoke's whole life (game ms) (the build sheet's my calls). */
+export const BANG_FLASH_MS = 30, BANG_FLASH_R_M = 1.2, BANG_POOL_M = 4, BANG_SMOKE_MS = 8000;
+/** The smoke's puffs a bang, their radius from and to (m) over BANG_PUFF_MS, their rise (m/s), the wind's share they drift with and its most (m/s). */
+export const BANG_PUFFS = 3, BANG_PUFF_R_M = Object.freeze([0.3, 1.5]), BANG_PUFF_MS = 1500, BANG_RISE_MS = 0.12, SMOKE_DRIFT_K = 0.35, SMOKE_DRIFT_MAX_MS = 1.2;
+/** At most this many smoke pixels a bang (a frame's budget: the bench's no frame over 25 ms at a bang). */
+export const SMOKE_PX_MAX = 2400;
+/** The smoke thins from this much drift to none at the second (m; the fixer's of v0.0.9), and a standing figure's box it is a checker's half over (m). */
+export const SMOKE_OFF_PAD_M = Object.freeze([1.0, 2.5]), SMOKE_FIG_HALF_W_M = 0.4, SMOKE_FIG_H_M = 1.85;
+/** The thrown body's ink outline (0.0.9, the fixer's: 5 by 4 px in flight, so the throw reads at 16 px/m). */
+const BANG_INK = 0x24201f;
+/** The body as drawn (px), the throw's start height (m: the coach's hand) and its arc over the line (m). */
+export const BANG_BODY_PX = Object.freeze([3, 2]), BANG_HAND_Y_M = 1.1, BANG_ARC_M = 0.6;
+/** How far the bang's pixels stand toward the camera from their place (m), so the flash and the smoke draw over the pad and the boots. */
+export const BANG_LIFT_M = 0.2;
+const BANG_C = Object.freeze({ body: 0x4f5638, band: 0xc9c09a, burnt: 0x2c2b27, ember: 0x5a4a3a, core: 0xffffff, mid: 0xfff4d6, edge: 0xffdc8c, pool: 0xfff0c4 });
+const SMOKE_C = Object.freeze([0x9b968e, 0x86817a, 0xaaa59c, 0x77736c]);
+const BAYER4 = Object.freeze([0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]);
+const bayer4 = (i, j) => (BAYER4[(i & 3) + 4 * (j & 3)] + 0.5) / 16;
+
+/** Where the bang's body is at ms: { x, y, z, flying } or null (before the throw). */
+export function bangBodyAt(b, ms) {
+  if (!b || !Number.isFinite(b.atMs) || ms < (b.throwAtMs ?? b.atMs)) return null;
+  if (ms >= b.atMs || !Number.isFinite(b.throwAtMs) || b.atMs <= b.throwAtMs) return { x: b.x, y: 0.03, z: b.z, flying: false };
+  const u = (ms - b.throwAtMs) / (b.atMs - b.throwAtMs), fx = b.fromX ?? b.x, fz = b.fromZ ?? b.z;
+  return { x: fx + (b.x - fx) * u, y: BANG_HAND_Y_M * (1 - u) + 0.03 * u + 4 * BANG_ARC_M * u * (1 - u), z: fz + (b.z - fz) * u, flying: true };
+}
+/** The bang's body at ms: [{ x, y, z, c, flat }] metres (see the section's header). */
+export function bangBodyPixels(b, ms, ppm = PX_PER_M) {
+  const at = bangBodyAt(b, ms);
+  if (!at) return [];
+  const P = 1 / ppm, [w, h] = BANG_BODY_PX, out = [], x0 = snap(at.x, ppm) - Math.floor(w / 2) * P;
+  for (let i = at.flying ? -1 : 0; i < w + (at.flying ? 1 : 0); i++) for (let j = at.flying ? -1 : 0; j < h + (at.flying ? 1 : 0); j++) {
+    // (in flight, an ink pixel round the body, behind it: the throw reads against the pad and the bay)
+    const edge = i < 0 || j < 0 || i >= w || j >= h;
+    if (at.flying) out.push({ x: x0 + (i + 0.5) * P, y: snap(at.y, ppm) + (h - j - 0.5) * P, z: snap(at.z, ppm) + (edge ? 0.04 : 0.05), c: edge ? BANG_INK : i === 1 ? BANG_C.band : BANG_C.body, flat: false });
+    else out.push({ x: x0 + (i + 0.5) * P, y: 0.018, z: snap(at.z, ppm) + (j - Math.floor(h / 2) + 0.5) * P, c: i === 1 && j === 0 ? BANG_C.ember : BANG_C.burnt, flat: true });
+  }
+  return out;
+}
+/** Whether the flash shows at ms (its BANG_FLASH_MS, or force: the first frame drawn after it, once). */
+export const bangFlashOn = (b, ms, force = false) => !!b && Number.isFinite(b.atMs) && ms >= b.atMs && (ms - b.atMs < BANG_FLASH_MS || !!force);
+/** The flash at ms: [{ x, y, z, c, flat }] metres, the upright half-disc over the pad and its light flat on the pad; none outside its time (force: see bangFlashOn). */
+export function bangFlashPixels(b, ms, ppm = PX_PER_M, { force = false } = {}) {
+  if (!bangFlashOn(b, ms, force)) return [];
+  const P = 1 / ppm, R = Math.round(BANG_FLASH_R_M * ppm), cx = snap(b.x, ppm), cz = snap(b.z, ppm), out = [];
+  for (let i = -R; i <= R; i++) for (let j = 0; j <= R; j++) {
+    const d = Math.hypot(i, j) / R;
+    if (d > 1) continue;
+    // (the core white, the rim warm, dithered at its very edge so the disc is round at 19 px)
+    if (d > 0.85 && bayer4(i + R, j) > (1 - d) / 0.15) continue;
+    out.push({ x: cx + (i + 0.5) * P, y: (j + 0.5) * P, z: cz + BANG_LIFT_M, c: d < 0.5 ? BANG_C.core : d < 0.8 ? BANG_C.mid : BANG_C.edge, flat: false });
+  }
+  for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) {
+    const d = Math.hypot(i, j) / R;
+    if (d > 1 || bayer4(i + R, j + R) > 1.15 - d) continue;
+    out.push({ x: cx + (i + 0.5) * P, y: 0.02, z: cz + (j + 0.5) * P, c: d < 0.45 ? BANG_C.core : BANG_C.pool, flat: true });
+  }
+  return out;
+}
+/** A puff's radius (m) at t s after the bang: BANG_PUFF_R_M over BANG_PUFF_MS (eased out), then a little more as it thins. */
+export function puffRadiusM(t) {
+  if (!(t >= 0)) return 0;
+  const [r0, r1] = BANG_PUFF_R_M, u = Math.min(1, t * 1000 / BANG_PUFF_MS), e = 1 - (1 - u) * (1 - u);
+  return r0 + (r1 - r0) * e + 0.04 * Math.max(0, t - BANG_PUFF_MS / 1000);
+}
+/** The smoke's density at t s after the bang: 0.85 to BANG_PUFF_MS, falling to 0 at BANG_SMOKE_MS. */
+export function smokeDensity(t) {
+  if (!(t >= 0) || t * 1000 >= BANG_SMOKE_MS) return 0;
+  const a = BANG_PUFF_MS / 1000, z = BANG_SMOKE_MS / 1000;
+  return t <= a ? 0.85 : 0.85 * (1 - (t - a) / (z - a));
+}
+/**
+ * The smoke at ms: [{ x, y, z, c }] metres (upright), the bang's puffs at their size and density (see the header); wind:
+ * { towardRad, speedMs } (wind.js windAt's), the puffs drifting with SMOKE_DRIFT_K of it. None before the bang or after
+ * BANG_SMOKE_MS.
+ */
+export function bangSmokePixels(b, ms, ppm = PX_PER_M, wind = null, { figures = [] } = {}) {
+  if (!b || !Number.isFinite(b.atMs)) return [];
+  const t = (ms - b.atMs) / 1000;
+  const P = 1 / ppm, v = Math.min(SMOKE_DRIFT_MAX_MS, SMOKE_DRIFT_K * (wind?.speedMs ?? 0)), dx = Math.cos(wind?.towardRad ?? 0) * v * t, dz = Math.sin(wind?.towardRad ?? 0) * v * t;
+  // (0.0.9, the fixer's: the puff thins once the wind has carried it off the pad, gone by SMOKE_OFF_PAD_M[1] of drift, so it
+  // never lies across the line of fire where the sim gives it no effect on sight (the design review))
+  const drift = v * t, dens = smokeDensity(t) * Math.max(0, Math.min(1, 1 - (drift - SMOKE_OFF_PAD_M[0]) / (SMOKE_OFF_PAD_M[1] - SMOKE_OFF_PAD_M[0])));
+  if (!(dens > 0)) return [];
+  // (a standing figure's box in the picture, its feet's row and its head's, where the smoke is drawn at a checker's half so the
+  // figure shows through it, outline and all (the reviews of v0.0.9: the smoke hid the shooter and the coach at the moments that count))
+  const boxes = (figures ?? []).map(f => ({ x0: f.x - SMOKE_FIG_HALF_W_M, x1: f.x + SMOKE_FIG_HALF_W_M, r0: f.z - SMOKE_FIG_H_M, r1: f.z + 0.15 }));
+  const out = [];
+  for (let p = 0; p < BANG_PUFFS; p++) {
+    const h = (k) => hash01('bang-puff', String(b.id ?? b.atMs), p, k);
+    const tp = t - 0.08 * h('t0');
+    if (tp <= 0) continue;
+    const r = puffRadiusM(tp) * (0.75 + 0.3 * h('r')), R = Math.max(1, Math.round(r * ppm));
+    const px = snap(b.x + dx + (h('x') - 0.5) * 0.8, ppm), pz = snap(b.z + dz + (h('z') - 0.5) * 0.5, ppm), py = r * 0.7 + BANG_RISE_MS * tp + 0.1 * p;
+    const yc = Math.round(py * ppm), off = Math.round(h('o') * 4);
+    for (let i = -R; i <= R && out.length < SMOKE_PX_MAX * (p + 1) / BANG_PUFFS; i++) for (let j = -R; j <= R; j++) {
+      const d = Math.hypot(i, j) / R;
+      if (d > 1 || yc + j < 0) continue;
+      // (denser in the middle, an ordered dither for the rest: the puff thins by its time, pixel by pixel)
+      if (bayer4(i + off, j + R) > dens * (1.15 - d * d)) continue;
+      const qx = px + (i + 0.5) * P, qy = (yc + j + 0.5) * P, qz = pz + BANG_LIFT_M + 0.02 * p, row = qz - qy;
+      if (boxes.length && ((Math.round(qx * ppm) + Math.round(row * ppm)) & 1) && boxes.some(f => qx > f.x0 && qx < f.x1 && row > f.r0 && row < f.r1)) continue;
+      out.push({ x: qx, y: qy, z: qz, c: SMOKE_C[((i >> 2) + (j >> 2) + p) & 3] });
+    }
+  }
+  return out;
+}

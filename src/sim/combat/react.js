@@ -20,7 +20,9 @@
 // 1 + 0.15 × log2(n) for n taken in at one pause (Hick and Hyman), stanceK (Relaxed 1.25, Combat 1, Assault
 // 1.1: Combat this round), lightK 1 + 0.4 × (1 − min(1, Le / 0.6)) (Piéron; 1 on the lit bay this round),
 // bodyK 1 + 0.06 × −Σ the roller's Awareness modifiers at most ×2 (tired 1.06, exhausted 1.18), behindK 1.3
-// outside the view cone, and SUPP_MS 200 a suppression band, added (nobody fires at you this round).
+// outside the view cone, and SUPP_MS 200 a suppression band, added (0.0.9: felt's band, supp.js bandN, which contact.js
+// passes as contact.band, fixed at the window's first sighting; the chaos's own Awareness entry is left out of bodyK,
+// its band being its term here, and kept on the notice roll, the one list).
 //
 // On a course of fire the muzzle at the ready is a held sector (the build sheet's §8 item 5: COMBAT §25.4.2's
 // "an aim held on a point", widened to low and high ready), refreshed by the coach's latest command (R.cmd.atMs)
@@ -78,8 +80,10 @@ export const LIGHT_K = 0.4, LE_FULL = 0.6;
 export const BODY_K = 0.06, BODY_K_MAX = 2;
 /** Outside the view cone: the head turns before the eyes work. */
 export const BEHIND_K = 1.3;
-/** Suppression, added a band (COMBAT §5.3's bands 0 to 3). */
+/** Suppression, added a band (COMBAT §5.3's bands 0 to 3: felt's, supp.js bandN, fixed at the window's first sighting). */
 export const SUPP_MS = 200;
+/** The bands above calm in the take-in's words (supp.js BANDS's). */
+const BAND_WORDS = Object.freeze(['under fire', 'suppressed', 'pinned']);
 /** A held sector: its half-angle, and how long it holds with no new cue (COMBAT §25.4.2). */
 export const SECTOR_HALF_DEG = 20, VIGIL_MS = 30_000;
 /** The body's go (COMBAT §25.4.5): max(GO_MIN_MS, GO_BASE_MS − WF) ms of feet carrying on. */
@@ -127,7 +131,7 @@ export function takeInOf({ wf, expect = 'surprise', grade = 'pass', n = 1, whoK 
   k(bk >= 1.15 ? 'exhausted' : 'tired', bk);
   k('behind you', behindK);
   if (E.floorMs && raw < E.floorMs) parts.push({ why: `at least ${takeInWords(E.floorMs)} s, ${expect === 'alert' ? 'alert' : 'surprised'}`, ms: E.floorMs });
-  if (band > 0) parts.push({ why: band >= 3 ? 'pinned' : 'under fire', ms: SUPP_MS * band });
+  if (band > 0) parts.push({ why: BAND_WORDS[Math.min(3, band | 0) - 1], ms: SUPP_MS * band });
   return { ms, rawMs: Math.round(floored + SUPP_MS * Math.max(0, band | 0)), parts };
 }
 
@@ -188,11 +192,13 @@ export function takeInMs(state, pid, contact) {
   const parts0 = dcParts.filter(p => p.v);
   const dc = parts0.reduce((a, p) => a + p.v, 0);
   const mods = roller.mods('awareness', { ms: seenMs });
+  // (0.0.9: the chaos is its band below (SUPP_MS), so its entry on the notice roll is left out of the body's lapses)
+  const lapses = mods.filter(m => m.felt === undefined);
   // (a window's notice check, given: a target joining it never re-rolls it)
   const roll = contact?.roll ?? check(stream(state.meta.seed, 'combat:notice', pid, contact?.id ?? 0, seenMs), { skill: 'awareness', value: roller.value('awareness'), dc, mods,
     pressure: 'evaluated', by: pid, dcParts: parts0, verb: null });
   const n = Math.max(1, targets.length);
-  const t = takeInOf({ wf, expect, grade: roll.grade, n, whoK, stanceK: STANCE_K.combat, lightK: 1, bodyK: bodyK(mods), behindK: behind ? BEHIND_K : 1, band: 0 });
+  const t = takeInOf({ wf, expect, grade: roll.grade, n, whoK, stanceK: STANCE_K.combat, lightK: 1, bodyK: bodyK(lapses), behindK: behind ? BEHIND_K : 1, band: contact?.band ?? 0 });
   return { ms: t.ms, rawMs: t.rawMs, expect, grade: roll.grade, roll, parts: t.parts, n, whoK, dc: roll.dc ?? dc };
 }
 

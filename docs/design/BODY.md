@@ -431,6 +431,7 @@ COMBAT §5 pools the chaos of a fight (rounds cracking close, blasts, flashbangs
   | in shock (blood under 70, §17.1) | −10 |
 
   [computed, COMBAT §5's T16] Three flashbangs beside a tier one: rested (H 95) felt 10, calm, −1; exhausted (85) felt 20, under fire, −2; exhausted with a heavy load and very low morale (70) felt 35, under fire, −4. Nobody is invulnerable.
+- **As built in v0.0.9** (the build sheet 0.0.9 §8 items 12 and 14; my calls): the toll counts exhaustion, a frayed day, pain, shock and **morale very low (−5)**, since `needMods` has it; the combat stress load and concussion terms stay 0 until built, and **the stress terms above wait for `test-stress`** (`stress.js` is a stub with no danger yet). The bang's physics (see §17.3) live on the actor's combat block, not on this record.
 - **Being hit** is +25 to the pool (COMBAT §5.1) as well as pain and stress, and a hit can startle (a jump of felt of 10 or more, COMBAT §5.7). Pain's own roll modifiers stay §17.1's.
 - **The crash** (§9.1) reads the stress peak as it always did; the startle at loud noises that a combat stress load over 60 brings (§9.1) is BODY's own, separate from COMBAT's startle.
 
@@ -823,13 +824,19 @@ Timers: tradecraft's 60 s down for a head knocked out by blows and 90 s to come 
 | bends | 11.7 | 11.7 | 12 | recompression, O₂ | 6 to 24 h |
 | sprain | a bad landing, a missed grab, a slide | −1 body (ankle) or hands (wrist) | 6 | rest, compression | 7 to 14 days |
 | acoustic trauma | an unprotected shot or blast over 140 dB at the ear in a closed space (WEAPONS.md gives the level) | hearing ×0.5 for 1 to 24 h; each one leaves a permanent −0.02 of hearing (tinnitus at −0.1) | | ear protection | |
-| a flashbang's deafness (2026-11-07, COMBAT §11.4) | a flashbang in your room with no ear defenders (about 170 to 180 dB at 1.5 m) | hearing ×0.1 for 1 to 6 h and the whine (VIEWS §11.2), then acoustic trauma's permanent −0.02; a voice within about 2 m still heard. Hardening does not touch it | | ear defenders | |
-| flash-blind (2026-11-07, COMBAT §11.4) | facing a flashbang within 60° with no filtered visor | 5 s: the eyes' picture white, no new sighting (§23.4's adapted eye reset to the glare), looks fail, handling by feel (−2); 60° to 120°, dazzled 2 s at −3 to sight. Hardening does not touch it | | a filtered visor; eyes away | seconds |
+| a flashbang's deafness (2026-11-07, COMBAT §11.4) | a flashbang in your room with no ear defenders (about 170 to 180 dB at 1.5 m) | hearing ×0.1 for 1 to 6 h and the whine (VIEWS §11.2), then acoustic trauma's permanent −0.02; a voice within about 2 m still heard. Hardening does not touch it | | ear defenders; a combat EVA suit's sound filtering | |
+| flash-blind (2026-11-07, COMBAT §11.4) | facing a flashbang within 60° with no filtered visor | 5 s: the eyes' picture white, no new sighting (§23.4's adapted eye reset to the glare), looks fail, handling by feel (−2); 60° to 120°, dazzled 2 s at −3 to sight. Hardening does not touch it | | a filtered visor (a combat EVA suit's); eyes away | seconds |
 | eye injury | visor fragments, blast debris | −3 eyes, one eye | 8 | eye shield; hospital | 2 weeks, or a scar |
 | anoxic brain injury | 11.2 | head damage that never heals aboard (longhaul's brain damage); −2 mind for good | | full hospital | partial |
 | stroke | juice (13.6), embolism | head damage, one side weak (−4 hands or body) | | full hospital | months |
 | aspiration | vomit in a helmet (14.4) | coughing, −2 all, pneumonia hazard | 4 | antibiotics | 7 days |
 | skin trouble | 6 | −1 body moving | 3 | wash | 4 sols |
+
+**As built in v0.0.9, the bang's two rows** (COMBAT §11.4; `src/sim/combat/supp.js` `bang`, the build sheet 0.0.9 §8 items 3, 5, 12; each my call unless named):
+- **They live on the actor's combat block** (`blindUntilMs`, `dazzleUntilMs`, `deafUntilMs`), not on this section's record: nothing but the page reads hearing yet, and the permanent acoustic-trauma loss (−0.02) waits for hearing as perception (0.0.10).
+- **Flash-blind** by geometry: facing within `FLASH_CONE_DEG` 60° blind `FLASH_BLIND_MS` 5 s; 60° to `FLASH_DAZZLE_DEG` 120° dazzled `FLASH_DAZZLE_MS` 2 s at `DAZZLE_SIGHT` −3; back to it nothing. **Deafened**: an unprotected ear within `DEAF_REACH_M` 5 m, `DEAF_K` 0.1 for `DEAF_MIN_MS` to `DEAF_MAX_MS` (1 to 6 h of game time; 4.61 h in the `combat-race` print); a voice within `DEAF_VOICE_M` 2 m is still heard. Indoors a bang reaches `FLASH_REACH_M` 10 m. Hardening touches none of it.
+- **Filtering** (the user's overrule of COMBAT §24 question 6, 2026-11-07: "standard issue combat gear will be combat EVA suits with serious targetting and filtering, night vision"): a combat EVA suit's filtered visor and sound filtering take the flash and the deafness whole (the man in utilities beside a suited one: pool 60, felt 54, blind, deaf 4.61 h; the suited one pool 36, felt 24, no flash, not deafened). The suit's **night vision** is §23's device (`body.eyes.nv`, `setNightVision`, not built: ROADMAP 0.6), which the suit sets as a worn item; the eyes adapt underneath as that section has it. The range scene's recruit wears utilities and no ear defenders (the user's case).
+- **The coach, the thrower, is prepared** (×0.25, no startle) but is deafened if unprotected; nothing reads it this round.
 
 ## 18. Medicine: TCCC and MARCH
 

@@ -27,7 +27,8 @@
 //      pixel; gain 1, cone 1, rod 0 and glare 0 leave the picture exactly as it was;
 //   1. the colour at the pixel, gamma-encoded (tradecraft's pow(1/2.2), the look the user approved;
 //      `gamma: 'srgb'` takes the exact curve instead);
-//   2. the fog of awareness: the world under the pixel rebuilt from depth (invVP), looked up on a
+//   2. the fog of awareness (a pixel of light, the ID's flag LIGHT_FLAG, 0.0.9's bang's flash, is never dimmed, nor
+//      outlined): the world under the pixel rebuilt from depth (invVP), looked up on a
 //      ground mask (red: seen 1 … unseen 0; green: felt, not seen), a surface above the ground taking
 //      the mask half a metre south of it per metre up (a façade reads as the ground at its foot: the
 //      user, tradecraft 2026-11-03, "the flickering shadows on the buildings"), dithered against a 4 × 4
@@ -43,6 +44,12 @@
 //      reads through the checkerboard;
 //   4. the grade (tradecraft's fine look, grade 1): 18% toward grey, light a touch warmer, shadows
 //      under luma 0.35 toward violet;
+//   4b. the chaos (0.0.9, setChaos: src/render/chaos.js's numbers, VIEWS §7.3): felt's band as darker corners
+//      (chaosVig, the edge dithered against the Bayer matrix from suppressed, chaosDither) and the colour drained
+//      (chaosDrain, pinned); the startle's dark (chaosDark) and its one pale frame (chaosPale); a flash's white over
+//      the cone the eyes faced (chaosWhite; chaosGrey in its place under "reduce flashes"), its dark afterimage round
+//      the burst (chaosAfter), the dazzle's pale veil (chaosVeil, chaosVeilGrey). Before the snap, so all of it stays
+//      in the palette; every uniform 0 leaves the picture exactly as it was;
 //   5. the palette snap. tradecraft looped over up to 128 colours per pixel (padded to 128 because
 //      three uploads a uniform array at its declared size). Here the four palette colours nearest each
 //      cell of a 64-level colour cube are baked once per palette on the GPU (bake(): a 512 × 512 pass,
@@ -58,6 +65,8 @@
 // Every read is a texelFetch at the pixel's own texel: the post pass never filters.
 import * as THREE from 'three';
 import { LUT_LEVELS, LUT_TILES, lutSize } from '../art/palette.js';
+import { PALE_K as PALE_MIX } from './chaos.js';
+import { LIGHT_FLAG } from './decals.js';
 
 /** How far a kept pixel over the figure behind a mass goes toward the ink (VIEWS §2.10: its silhouette at 60%). */
 export const SILHOUETTE_K = 0.6;
@@ -75,6 +84,8 @@ const POST_FRAG = /* glsl */`
   uniform vec2 res; uniform float near, far, outline, grade, fogOn, dimK, srgb, eyeGain, eyeCone, eyeRod, eyeGlare;
   uniform vec4 fogBox; uniform mat4 invVP; uniform vec3 peoplePart;
   uniform int lutN, lutTiles, palCount, snapMode;
+  uniform float chaosVig, chaosDither, chaosDrain, chaosDark, chaosPale, chaosWhite, chaosGrey, chaosAfter, chaosVeil, chaosVeilGrey;
+  uniform vec2 chaosEye, chaosFace; uniform vec3 chaosBurst;
   float lin(float d) { return near + d * (far - near); }
   // A 4 × 4 ordered dither: the threshold for this pixel.
   float bayer(vec2 p) {
@@ -131,14 +142,16 @@ const POST_FRAG = /* glsl */`
     vec2 uv = (vec2(ip) + 0.5) / res;
     vec4 w4 = invVP * vec4(uv * 2.0 - 1.0, raw * 2.0 - 1.0, 1.0);
     vec3 wp = w4.xyz / w4.w;
-    if (fogOn > 0.5 && raw < 0.99999) {
+    // (0.0.9: a pixel of light (the ID's flag LIGHT_FLAG: a bang's flash) is never dimmed as unseen: a flash behind you lights what you see)
+    vec4 id = texelFetch(tId, ip, 0);
+    bool light = id.a > ${(LIGHT_FLAG - 0.05).toFixed(2)} && id.a < ${(LIGHT_FLAG + 0.05).toFixed(2)};
+    if (fogOn > 0.5 && raw < 0.99999 && !light) {
       vec2 fp = wp.xz + vec2(0.0, clamp(wp.y, 0.0, 1.0) * 0.5);
       vec2 fv = texture(tFog, (fp - fogBox.xy) / fogBox.zw).rg;
       if (fv.r < bayer(gl_FragCoord.xy)) col = dim(encode(clamp(eyeC * min(eyeCone, 1.0), 0.0, 1.0)));   // (the memory: darker to a light-adapted eye, never lit by a dark-adapted one)
       else if (fv.g > bayer(gl_FragCoord.xy + vec2(2.0, 1.0))) col = feltTint(col);
     }
-    vec4 id = texelFetch(tId, ip, 0);
-    if (outline > 0.5 && !(id.a > 0.25 && id.a < 0.75)) {
+    if (outline > 0.5 && !(id.a > 0.25 && id.a < 0.75) && !light) {
       float edge = 1.0;
       ivec2 o[4] = ivec2[4](ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1));
       for (int i = 0; i < 4; i++) {
@@ -163,6 +176,26 @@ const POST_FRAG = /* glsl */`
       col = mix(col, vec3(l), 0.18 * grade) * mix(vec3(1.0), vec3(1.05, 1.0, 0.9), grade);
       col += grade * max(0.0, 0.35 - l) * vec3(0.03, -0.01, 0.05);
     }
+    // (4b. the chaos: see the header; the positions in picture pixels from the bottom-left, as gl_FragCoord)
+    if (chaosVig > 0.0 || chaosDrain > 0.0) {
+      vec2 q = (gl_FragCoord.xy / res - 0.5) * 2.0;
+      float e = smoothstep(0.45, 1.35, length(q));
+      if (chaosDither > 0.0) e = mix(e, e > bayer(gl_FragCoord.xy + vec2(1.0, 3.0)) ? 1.0 : e * 0.5, clamp(chaosDither, 0.0, 1.0));
+      col *= 1.0 - chaosVig * e;
+      col = mix(col, vec3(dot(col, vec3(0.30, 0.59, 0.11))), chaosDrain);
+    }
+    if (chaosWhite > 0.0 || chaosGrey > 0.0 || chaosAfter > 0.0) {
+      vec2 dv = gl_FragCoord.xy - chaosEye; float dl = length(dv);
+      float c = dl < 1.0 ? 1.0 : dot(dv / dl, chaosFace);
+      float cone = smoothstep(${Math.cos(120 * Math.PI / 180).toFixed(4)}, ${Math.cos(60 * Math.PI / 180).toFixed(4)}, c);
+      if (chaosAfter > 0.0 && chaosBurst.z > 0.0) col *= 1.0 - chaosAfter * (1.0 - smoothstep(chaosBurst.z * 0.6, chaosBurst.z, length(gl_FragCoord.xy - chaosBurst.xy)));
+      col = mix(col, vec3(1.0, 0.99, 0.95), chaosWhite * cone);
+      col = mix(col, vec3(0.5, 0.5, 0.52), chaosGrey * cone);
+    }
+    if (chaosVeil > 0.0) col = mix(col, vec3(0.93, 0.92, 0.88), chaosVeil);
+    if (chaosVeilGrey > 0.0) col = mix(col, vec3(0.5, 0.5, 0.52), chaosVeilGrey);
+    if (chaosDark > 0.0 && !light) col *= 1.0 - chaosDark;
+    if (chaosPale > 0.0) col = mix(col, vec3(0.95, 0.94, 0.9), chaosPale);
     col = clamp(col, 0.0, 1.0);
     if (snapMode == 0) col = snapLut(col); else if (snapMode == 1) col = snapLoop(col);
     outColor = vec4(col, 1.0);
@@ -238,6 +271,8 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
     res: { value: new THREE.Vector2(W, H) }, near: { value: near }, far: { value: far },
     outline: { value: outline ? 1 : 0 }, grade: { value: grade }, srgb: { value: gamma === 'srgb' ? 1 : 0 },
     tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, dimK: { value: 0.48 }, eyeGain: { value: 1 }, eyeCone: { value: 1 }, eyeRod: { value: 0 }, eyeGlare: { value: 0 },
+    chaosVig: { value: 0 }, chaosDither: { value: 0 }, chaosDrain: { value: 0 }, chaosDark: { value: 0 }, chaosPale: { value: 0 }, chaosWhite: { value: 0 }, chaosGrey: { value: 0 }, chaosAfter: { value: 0 }, chaosVeil: { value: 0 }, chaosVeilGrey: { value: 0 },
+    chaosEye: { value: new THREE.Vector2(W / 2, H / 2) }, chaosFace: { value: new THREE.Vector2(1, 0) }, chaosBurst: { value: new THREE.Vector3(0, 0, 0) },
     invVP: { value: new THREE.Matrix4() }, peoplePart: { value: new THREE.Vector3(...PEOPLE_ID) },
   };
   const post = new THREE.Scene(), out = new THREE.Scene(), bakeScene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -291,12 +326,27 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
     U.eyeCone.value = Number.isFinite(cone) ? Math.min(cone, U.eyeGain.value) : U.eyeGain.value;
     U.eyeRod.value = Math.max(0, Math.min(1, rod || 0)); U.eyeGlare.value = Math.max(0, glare || 0);
   };
+  /**
+   * The chaos on the picture (0.0.9; see the header, 4b): c is src/render/chaos.js's (eased by the view) with, in picture
+   * pixels from the top-left, eye ({ x, y }: the player's eyes), burst ({ x, y, r }: the flash, its afterimage's radius);
+   * pale: this frame is the startle's pale one (0 or 1). null: nothing.
+   */
+  function setChaos(c = null, { eye = null, burst = null, pale = 0 } = {}) {
+    const n = (v) => (Number.isFinite(v) ? v : 0);
+    U.chaosVig.value = n(c?.vignette); U.chaosDither.value = n(c?.dither); U.chaosDrain.value = n(c?.drain); U.chaosDark.value = n(c?.dark);
+    U.chaosWhite.value = n(c?.white); U.chaosGrey.value = n(c?.grey); U.chaosAfter.value = burst ? n(c?.after) : 0; U.chaosVeil.value = n(c?.veil); U.chaosVeilGrey.value = n(c?.veilGrey);
+    U.chaosPale.value = pale ? PALE_MIX : 0;
+    if (eye) U.chaosEye.value.set(eye.x, ph - eye.y);
+    const f = { right: [1, 0], left: [-1, 0], up: [0, 1], down: [0, -1] }[c?.face] ?? [1, 0];   // (gl_FragCoord's y is up the picture: north)
+    U.chaosFace.value.set(f[0], f[1]);
+    if (burst) U.chaosBurst.value.set(burst.x, ph - burst.y, burst.r); else U.chaosBurst.value.set(0, 0, 0);
+  }
   function dispose() {
     for (const t of [rt, rtOut, rtLut]) t.dispose();
     rt.depthTexture.dispose(); pal.dispose();
     for (const m of [composite, baker, blit]) { m.geometry.dispose(); m.material.dispose(); }
   }
-  return { rt, rtOut, rtLut, U, bake, compose, present, size, setFog, setEye, setCrop, dispose,
+  return { rt, rtOut, rtLut, U, bake, compose, present, size, setFog, setEye, setCrop, setChaos, dispose,
     get crop() { return cropped; },
     setSnap: (s) => { U.snapMode.value = SNAP[s] ?? 0; }, setGamma: (g) => { U.srgb.value = g === 'srgb' ? 1 : 0; } };
 }

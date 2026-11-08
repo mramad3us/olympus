@@ -55,8 +55,27 @@ const ago = (ms) => {
  * keysRows() (the keys card's [[key, words]…]: cards/keys.js keysRows), logLines() (the log card's lines: cards/log.js
  * logLines), sound() ({ volume, muted } now, or null), volume(v), mute(on), scenes() (the test scenes, src/data/scenes.js's
  * records in order), playScene(scene, { tier }), sheets() (0.0.8: a scene played as a sheet's picker: { sheets: templates.js
- * TEST_SHEETS, order: PICKER_TIERS }) }.
+ * TEST_SHEETS, order: PICKER_TIERS }), scene() (0.0.9: the test scene playing, { id, ended }, or null), endScene() (to its end card),
+ * flashes() and setFlashes(on) (0.0.9: "reduce flashes") }.
  */
+/**
+ * The Esc menu's acts, [[words, fn, key]…]: "Reduce flashes: on | off" where flashes is given; a test scene still running adds "End the scene" before Quit, which goes to its end
+ * card at once (the design review of v0.0.9: every "Again as …" of "Three bangs" cost the whole five-string course for about
+ * 15 s of scored play; the user's rule: never a dead end). scene: main.js's { id, ended } or null; on: the acts' functions.
+ */
+export function menuActs({ scene = null, flashes = null } = {}, on = {}) {
+  return [
+    ['Resume', on.resume, 'Esc'],
+    ['Save to a file', on.save, null],
+    ['Load a save file…', on.load, null],
+    ['Report a problem', on.report, null],
+    // (VIEWS §12's "reduce flashes" (0.0.9), turned here as well as by the URL (the integrator's: it had no toggle))
+    ...(flashes === null ? [] : [[`Reduce flashes: ${flashes ? 'on' : 'off'}`, on.flashes, null]]),
+    ...(scene && !scene.ended ? [['End the scene: to its card', on.end, null]] : []),
+    ['Quit to the title', on.quit, null],
+  ];
+}
+
 /** A card ignores Enter and Space this long after it opens (ms; the design review's: a key meant for the screen before). */
 export const CARD_GUARD_MS = 400;
 
@@ -140,8 +159,9 @@ export function createBoot({ root = document.body, cb }) {
   /** test-pairs' sheet picker (cards/pairs.js), on the title's paper: a sheet starts the scene as it; Back to the Tests. */
   function showPicker(scene) {
     page = 'picker';
-    const { sheets = {}, order = null } = cb.sheets?.() ?? {};
-    const p = pickerPage({ scene, sheets, order, onPick: (tier) => cb.playScene?.(scene, { tier }), onBack: () => back() });
+    const { sheets = {}, order = null, hard = null } = cb.sheets?.() ?? {};
+    // (0.0.9: each sheet's hardening in words, main.js's reader (supp.js hardWord))
+    const p = pickerPage({ scene, sheets, order, hard, onPick: (tier) => cb.playScene?.(scene, { tier }), onBack: () => back() });
     title.replaceChildren(p.body);
     title.hidden = false;
     (p.body.querySelector('.item.lead') ?? p.body.querySelector('.item'))?.focus();
@@ -174,13 +194,12 @@ export function createBoot({ root = document.body, cb }) {
   function openMenu() {
     const sound = cb.sound?.() ?? null;
     const { body, lines } = menuCard({
-      acts: [
-        ['Resume', () => { closeCard(); cb.resume(); }, 'Esc'],
-        ['Save to a file', () => cb.saveFile(), null],
-        ['Load a save file…', () => { closeCard(); cb.loadFile(); }, null],
-        ['Report a problem', () => { closeCard(); cb.report?.(); }, null],
-        ['Quit to the title', () => { closeCard(); cb.quit(); }, null],
-      ],
+      acts: menuActs({ scene: cb.scene?.() ?? null, flashes: cb.flashes ? !!cb.flashes() : null }, {
+        resume: () => { closeCard(); cb.resume(); }, save: () => cb.saveFile(), load: () => { closeCard(); cb.loadFile(); },
+        report: () => { closeCard(); cb.report?.(); }, end: () => { closeCard(); cb.endScene?.(); }, quit: () => { closeCard(); cb.quit(); },
+        // (the setting turned, the menu opened again on its new words)
+        flashes: () => { cb.setFlashes?.(!cb.flashes?.()); openMenu(); },
+      }),
       sound: sound && { ...sound, onVolume: (v) => cb.volume?.(v), onMute: (on) => cb.mute?.(on) },
       note: 'An autosave after every five minutes of play, after time passes, on changing place, at the start of each sol, on leaving the page, and on quitting to the title. Report a problem writes a file with the last autosave and what went wrong.',
     });

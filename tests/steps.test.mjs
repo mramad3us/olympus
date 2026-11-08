@@ -5,7 +5,7 @@ import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { stepAct } from './bots/lib.mjs';
 import { rangeBot } from './bots/range.mjs';
-import { stepsOf, stopNow, enterStop } from '../src/sim/arms/shooting.js';
+import { stepsOf, stopNow, enterStop, stepLabel } from '../src/sim/arms/shooting.js';
 import { actionMs } from '../src/sim/arms/firearms.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { aimMsOf, pullMsOf, heldOf } from '../src/sim/arms/shot.js';
@@ -14,6 +14,10 @@ import { MACROS } from '../src/sim/arms/drills.js';
 import { SEQ } from '../src/data/courses.js';
 import { post } from '../src/core/queue.js';
 import { TICK_MS } from '../src/core/clock.js';
+import { hardOf, SHAKING_ODDS } from '../src/sim/combat/supp.js';
+import { pairsWorld } from './specials-world.mjs';
+// (0.0.9: a person's chaos written so their felt is f at ms: the pool f + their hardening, fresh)
+const feltTo = (state, pid, f, ms = state.clock.ms) => { const a = state.actors.list.find(x => x.who === pid); a.combat = { supp: f ? f + hardOf(state, pid, ms) : 0, suppAtMs: ms, suppRate: 2, startleFromMs: null, startleUntilMs: null, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: null }; };
 
 const T = 20;
 // (the scene at the line, its player at value 10 in the three skills; session: keep the range's (the tower, the chained wait) or drop it)
@@ -210,6 +214,50 @@ export default [
         assert(b.save() === end, sv.at);
       }
       assert(saves.length === 2, `${saves.length} saves made`);
+    },
+  },
+  {
+    name: '0.0.9: "! shaking" (COMBAT §25.18.1): the recruit\'s Off safe and Fire marked at felt 98, their odds under 0.70, warn \'shaking\', never struck and never routine; the tier one\'s never at felt 10 or 98; the times × timeK (Off safe 0.40 s → ×1.49)',
+    fn() {
+      const out = {};
+      for (const [tier, f] of [['recruit', 0], ['recruit', 98], ['tierone', 10], ['tierone', 98]]) {
+        const w = pairsWorld({ tier, safe: true, aimAt: 4, turned: [4] });
+        feltTo(w.s, w.pid, f);
+        const rows = stepsOf(w.s), off = rows.find(r => r.id === 'selector:semi'), fire = rows.find(r => r.id === 'fire');
+        const marked = rows.filter(r => r.shaking).map(r => r.id);
+        out[`${tier} ${f}`] = { marked, off, fire };
+        console.log(`      the ${tier} at felt ${f}: Off safe ${off.ms} ms ${off.odds === null ? 'routine' : `${Math.round(off.odds * 100)}%`}${off.shaking ? ` ! ${off.warn} (${off.shaking.band} ${off.shaking.v})` : ''}; Fire ${fire.ms} ms ${fire.odds === null ? '-' : `${Math.round(fire.odds * 100)}%`}${fire.off ? ` struck "${fire.off}"` : ''}${fire.shaking ? ` ! ${fire.warn} (${fire.shaking.band} ${fire.shaking.v})` : ''}; marked ${marked.join(', ') || 'none'}`);
+      }
+      const r98 = out['recruit 98'], r0 = out['recruit 0'];
+      assert(r98.off.shaking && r98.off.warn === 'shaking' && !r98.off.off && r98.off.routine === false && r98.off.odds < SHAKING_ODDS, JSON.stringify(r98.off));
+      assert(r98.fire.shaking && r98.fire.odds < SHAKING_ODDS && !r0.marked.length, JSON.stringify({ fire: r98.fire, calm: r0.marked }));
+      assert(!out['tierone 10'].marked.length && !out['tierone 98'].marked.length, JSON.stringify(out['tierone 98'].marked));
+      assert(Math.abs(r98.off.ms - Math.round(r0.off.ms * 1.49)) <= 1, JSON.stringify({ calm: r0.off.ms, pinned: r98.off.ms }));
+    },
+  },
+  {
+    name: '0.0.9: "! shaking" on the slung panel too (the code review of v0.0.9): the recruit dropped onto his sling at felt 98 sees Rifle up marked, its odds under 0.70, never routine (the case pairs-shaking\'s "Rifle up. Then thumb it off." exists for); calm, unmarked',
+    fn() {
+      const got = {};
+      for (const f of [0, 98]) {
+        const w = pairsWorld({ tier: 'recruit', safe: true, turned: [4], posture: 'slungFront' });
+        feltTo(w.s, w.pid, f);
+        const up = stepsOf(w.s).find(r => r.id === 'up');
+        got[f] = up;
+        console.log(`      the recruit slung at felt ${f}: Rifle up ${up?.ms} ms ${up?.odds == null ? 'routine' : `${Math.round(up.odds * 100)}%`}${up?.shaking ? ` ! ${up.warn} (${up.shaking.band} ${up.shaking.v})` : ''}`);
+      }
+      assert(got[98] && got[98].shaking && got[98].warn === 'shaking' && got[98].odds < SHAKING_ODDS && got[98].routine === false, JSON.stringify(got[98]));
+      assert(got[0] && !got[0].shaking, JSON.stringify(got[0]));
+    },
+  },
+  {
+    name: 'every step has words from its id alone (the runtime review of v0.0.9: the weapon card showed "macro:ready ◦◦✗◦" at the tier one\'s pause, a step whose row the panel never drew): each command\'s macro label, each shot row\'s, the contact\'s answers, "Carry on", the singles',
+    fn() {
+      const ids = [...Object.keys(MACROS).map(m => `macro:${m}`), 'shot:pair', 'shot:hammer', 'shot:triple', 'shot:failure', 'shot:head', 'contact:hold', 'contact:challenge', 'queue', 'selector:semi', 'up'];
+      const got = ids.map(id => [id, stepLabel(id)]);
+      console.log(`      ${got.map(([id, w]) => `${id} → ${w}`).join(' · ')}`);
+      assert(got.every(([id, w]) => w && w !== id && !/^(macro|shot|contact):/.test(w)), JSON.stringify(got.filter(([id, w]) => !w || w === id)));
+      assert(stepLabel('macro:ready') === 'MAKE READY' && stepLabel('shot:head') === 'To the head', JSON.stringify(got));
     },
   },
 ];

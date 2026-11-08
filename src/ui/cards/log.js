@@ -26,6 +26,11 @@
 // pause: "Contact: the target, lane 4, 7 m: a rifle.") carries the take-in's sum under it as a roll's line does, folded
 // open to the whole sum, factor by factor ("Taken in in 0.55 s: 0.54 (Warfighting 15) × 1 (your sector); Awareness 6 + 14
 // = 20 against 7, noticed."); the Rolls filter shows it with the rolls (its notice check is one).
+//
+// The 0.0.9 round's startle (the build sheet 0.0.9 §2.4; COMBAT §5.7): a record of kind 'startle' (supp.js, at a startle's end:
+// "Startled 1.20 s: the bang, the chaos 60 − your hardening 17 = felt 43.") reads as a roll's line does, its head what
+// happened ("Startled 1.20 s: the bang.") over the chaos's sum, folded open to the whole record (startleLine); the Rolls
+// filter shows it, as it is the one place but the roll's hover where felt is a number (tradecraft's every term).
 import { marsClock } from '../../sim/time/dates.js';
 import { MIN_MS } from '../../core/clock.js';
 import { checkShort, checkText, partsText } from '../../sim/skills/checks.js';
@@ -36,9 +41,9 @@ export const LOG_CARD_LINES = 400;
 /** VIEWS §8.6's filters by kind: id → [the button's words, a record's test]. */
 export const LOG_FILTERS = Object.freeze({
   all: Object.freeze(['Everything', () => true]),
-  rolls: Object.freeze(['Rolls', (r) => r.kind === 'roll' || r.kind === 'contact']),
+  rolls: Object.freeze(['Rolls', (r) => r.kind === 'roll' || r.kind === 'contact' || r.kind === 'startle']),
   said: Object.freeze(['Said', (r) => r.kind === 'say']),
-  other: Object.freeze(['The rest', (r) => r.kind !== 'roll' && r.kind !== 'say' && r.kind !== 'contact']),
+  other: Object.freeze(['The rest', (r) => r.kind !== 'roll' && r.kind !== 'say' && r.kind !== 'contact' && r.kind !== 'startle']),
 });
 /** Whether a record stays out of J and the toasts: hidden, or its roll hidden (see the header). */
 export const hiddenRec = (rec) => !!(rec?.hidden || rec?.roll?.hidden);
@@ -96,12 +101,24 @@ export function contactLine(rec) {
 }
 
 /**
+ * A startle's line (a record of kind 'startle', 0.0.9): { short, full, parts, tone, words }, its head "Startled 1.20 s: the bang."
+ * over the sum "the chaos 60 − your hardening 17 = felt 43" (the record's words where it gives them, else read off its text);
+ * null for any other record.
+ */
+export function startleLine(rec) {
+  if (rec?.kind !== 'startle') return null;
+  const text = String(rec.text ?? 'Startled.'), m = /^(.*?),\s*(the chaos [^]*?)\.?$/.exec(text);
+  const sum = rec.words ?? m?.[2] ?? null, head = m ? `${m[1]}.` : text;
+  if (!sum) return { short: text, full: text, parts: null, tone: rec.tone ?? 'warn', words: null };
+  return { short: sum, full: text, parts: null, tone: rec.tone ?? 'warn', words: head };
+}
+/**
  * The card's lines: [{ seq, stamp, text, sub?, tone, kind, roll?: { short, full, parts } }], the last n records of
  * state.log that are not hidden (see the header), newest first. over: the hidden ones too (debug, after the scene).
  */
 export function logLines(state, { lonEDeg = 0, n = LOG_CARD_LINES, over = false } = {}) {
   return (state?.log ?? []).filter(r => over || !hiddenRec(r)).slice(-n).reverse().map(r => {
-    const roll = r.kind === 'roll' ? rollLine(r) : r.kind === 'contact' ? contactLine(r) : null;
+    const roll = r.kind === 'roll' ? rollLine(r) : r.kind === 'contact' ? contactLine(r) : r.kind === 'startle' ? startleLine(r) : null;
     const text = roll ? roll.words ?? roll.short : r.text ?? `(${r.kind})`;
     return { seq: r.seq, stamp: logStamp(r.atMs, lonEDeg), text, ...(roll?.words ? { sub: roll.short } : {}), tone: roll?.tone ?? r.tone ?? 'note', kind: r.kind, ...(roll ? { roll } : {}) };
   });

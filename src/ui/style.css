@@ -416,4 +416,27 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass.end .runs-said { margin: 0 0 calc(8px * var(--ui)); border-left: 2px solid var(--glass-edge); padding-left: calc(8px * var(--ui)); }
 .glass.end .runs-said .runs-head { margin: 0; color: var(--brass); font-size: calc(11px * var(--ui)); letter-spacing: 0.04em; }
 .glass.end .runs-said .run-said { margin: 0; color: var(--glass-text); font-size: calc(11px * var(--ui)); line-height: 1.35; font-variant-numeric: tabular-nums; }
+/* (0.0.9, the fixer's: the sheet just played, marked in the session's list; the picker's hardening, emphasised with its number on the hover) */
+.glass.end .runs-said .run-said.now { color: var(--brass); }
+#title .sheet.picker .item.sheetpick small b.hard { font-weight: 600; color: var(--ink); cursor: help; }
 .instinct .lead.contact { border-left-color: #e7b84a; color: #f8e08a; letter-spacing: 0.02em; }
+/* 0.0.9 (the build sheet 0.0.9 §2.3; VIEWS §7.4, §8.2): the FROZE stamp over your figure; a row the chaos shakes, its odds kept
+   beside the amber mark (marked, never struck); the chaos's sum on the plaque's hover; Hardening on C's file, its number on its
+   hover; the picker's setup line; the end card's bangs lines over the course's own. */
+.plaque.stamp.froze { z-index: 2; }
+/* (the fixer's: a key refused inside the startle pulses the counting stamp, as the brackets answer one in the window) */
+.plaque.stamp.froze.pulse { filter: brightness(1.7) drop-shadow(0 0 calc(2px * var(--ui)) #e7b84a); }
+.steps .step.shaking { box-shadow: inset calc(2px * var(--ui)) 0 0 #e7b84a; }
+.steps .step .meta.shake .line1 { display: flex; gap: calc(5px * var(--ui)); align-items: baseline; }
+.steps .step .why.warn.shake { color: #e7b84a; letter-spacing: 0.02em; }
+.pi-chaos { color: #e7b84a; }
+.glass .keylist.file .v.hover { cursor: help; text-decoration: underline dotted rgba(231, 184, 74, 0.5); }
+#title .sheet.picker .sub.setup { color: var(--ink); font-style: italic; }
+.glass.end .bangs-said { margin: calc(4px * var(--ui)) 0 calc(8px * var(--ui)); border-left: 2px solid #e7b84a; padding-left: calc(8px * var(--ui)); }
+.glass.end .bang-said { margin: 0; color: var(--paper); font-size: calc(12px * var(--ui)); line-height: 1.35; font-variant-numeric: tabular-nums; }
+.glass.end .bang-said.calm { color: var(--glass-text); font-size: calc(11px * var(--ui)); }
+.steps .step .lasttry { color: var(--brass); letter-spacing: 0.08em; }
+.steps .step .lasttry.bad { color: #f0a090; }
+.steps .wcard { position: relative; }
+.steps .wcard .wc-last { position: absolute; left: calc(6px * var(--ui)); top: calc(5px * var(--ui)); padding: 0 calc(5px * var(--ui)); font-size: calc(11px * var(--ui)); letter-spacing: 0.04em; color: var(--paper); background: rgba(20, 21, 28, 0.82); border-left: 2px solid var(--brass); white-space: nowrap; max-width: calc(166px * var(--ui)); overflow: hidden; text-overflow: ellipsis; }
+.steps .wcard .wc-last.bad { border-left-color: #f0a090; color: #f6d0c8; }

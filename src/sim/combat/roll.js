@@ -12,13 +12,19 @@
 // { noLight: false } to leave the light's term out (a look at a chamber held open to the light, say).
 // A roller is what every handling step, every shot and every plaque is computed from, so the plaque's
 // odds and the roll's are one list (SKILLS §5.3). fixedRoller(values, { mods, light }) is the tests'
-// own: fixed values and a fixed list, no state.
+// own: fixed values and a fixed list, no state, calm (felt 0, timeK 1).
+// 0.0.9 (the build sheet 0.0.9 §2.1; COMBAT §5.3, §5.9): the chaos is the roller's one entry. rollerOf reads felt at its
+// ms (supp.js feltOf: 0 at once with no combat block, hardening never computed) and carries { felt, timeK } (suppTimeK:
+// exactly 1 at felt 0, the factor on handling, the aim and the rows' parts); mods appends suppMod(felt, skill) as one
+// 'env' entry (absent at 0), in place of firearms.js's retired PRESSURE_MODS.fire; while flash-blind "no light to see it
+// by" −2 on handling (once: never twice with the dark), while dazzled 'dazzled' DAZZLE_SIGHT on Awareness.
 // Pure.
 import { lightLevel } from '../places/light.js';
 import { bodyMods, needMods } from '../body/mods.js';
 import { SKILLS } from '../skills/skills.js';
 import { valueOf } from '../skills/templates.js';
 import { playerActor } from '../../core/ids.js';
+import { feltOf, suppMod, suppTimeK, blockOf, DAZZLE_SIGHT } from './supp.js';
 
 /** Below this light a hand cannot see the gun it works (tradecraft's lightBand 'dark'). */
 export const DARK_BELOW = 0.25;
@@ -43,14 +49,20 @@ export function lightOf(state, pid, ms = state.clock.ms) {
 
 /** A person's roller (see the header). */
 export function rollerOf(state, pid, { ms = state.clock.ms } = {}) {
-  const light = lightOf(state, pid, ms);
+  const light = lightOf(state, pid, ms), felt = feltOf(state, pid, ms), timeK = suppTimeK(felt);
+  // (the flash's eyes: blind or dazzled at ms, from the combat block; none without one)
+  const rec = blockOf(state, pid), blind = !!rec && Number.isFinite(rec.blindUntilMs) && ms < rec.blindUntilMs;
+  const dazzled = !!rec && !blind && Number.isFinite(rec.dazzleUntilMs) && ms < rec.dazzleUntilMs;
   return Object.freeze({
-    pid, light,
+    pid, light, felt, timeK,
     value: (skill) => valueOf(state, pid, skill),
     mods(skill, ctx = {}) {
       const uses = SKILLS[skill]?.uses ?? 'all', c = { ms, ...ctx };
       const out = [...bodyMods(state, pid, uses, c), ...needMods(state, pid, uses, c)];
-      if (LIGHT_SKILLS.has(skill) && ctx.noLight !== false && light < DARK_BELOW) out.push({ why: 'no light to see it by', v: -2, src: 'env' });
+      if (LIGHT_SKILLS.has(skill) && ((ctx.noLight !== false && light < DARK_BELOW) || blind)) out.push({ why: 'no light to see it by', v: -2, src: 'env' });
+      if (skill === 'awareness' && dazzled) out.push({ why: 'dazzled', v: DAZZLE_SIGHT, src: 'env' });
+      const s = suppMod(felt, skill);
+      if (s) out.push(s);
       return out;
     },
   });
@@ -58,5 +70,5 @@ export function rollerOf(state, pid, { ms = state.clock.ms } = {}) {
 
 /** The tests' roller: fixed values ({ <skill>: n }), a fixed list of mods for every skill, a light. */
 export function fixedRoller(values = { weapons: 10, marksmanship: 10, awareness: 14, fitness: 13 }, { mods = [], light = 1, pid = null } = {}) {
-  return Object.freeze({ pid, light, value: (skill) => values[skill] ?? 0, mods: () => [...mods] });
+  return Object.freeze({ pid, light, felt: 0, timeK: 1, value: (skill) => values[skill] ?? 0, mods: () => [...mods] });
 }

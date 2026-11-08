@@ -19,7 +19,8 @@
 // cone opens an approach record (kit.carry.near[pid], saved), rolled once for as long as the approach
 // lasts (they stay within APPROACH_M; it closes when they leave or the posture changes to one with a
 // higher habit DC: a fresh decision, a fresh roll). The DC is the posture's (+2 in a crowd of three or
-// more within APPROACH_M, +2 under fire); v is the holder's Weapon handling with their modifiers. When
+// more within APPROACH_M); v is the holder's Weapon handling with their modifiers, the chaos among them
+// (roll.js's one felt entry: v0.0.9 retired the flat +2 under fire, one cause, one entry, COMBAT §5). When
 // dc ≤ v + 1 the habit is automatic: no roll. Else d20 + v against dc with naturals as their numbers
 // only (like SKILLS' opposed rolls): a success indexes the muzzle away; a failure by 1 or 2 by someone
 // who passes on an average roll (v + 10 ≥ dc) is a near miss, seen and fixed ('muzzle' kind 'near');
@@ -89,7 +90,7 @@ export const STANCE_H = Object.freeze({ stand: 1.0, kneel: 0.68, prone: 0.2, sit
 export const SPAN_M = Object.freeze({ stand: Object.freeze([0, 1.75]), kneel: Object.freeze([0, 1.0]), prone: Object.freeze([0, 0.4]), sit: Object.freeze([0, 1.1]), down: Object.freeze([0, 0.4]) });
 export const BODY_R_M = 0.25;
 /** The habit (WEAPONS §6.3): an approach lasts while the other stays within APPROACH_M; a failed habit flags after FLAG_MS in the cone; the context's DCs. */
-export const APPROACH_M = 3, FLAG_MS = 300, CROWD_N = 3, CROWD_DC = 2, FIRE_DC = 2, NEAR_BY = 2;
+export const APPROACH_M = 3, FLAG_MS = 300, CROWD_N = 3, CROWD_DC = 2, NEAR_BY = 2;
 /** Range safety (WEAPONS §6.4, tradecraft's): degrees off downrange, the grace off the box, a warning's repeat. */
 export const WARN_DEG = 60, UPRANGE_DEG = 100, OUT_GRACE_S = 8, WARN_AGAIN_S = 20;
 /** A negligent discharge: the spread (rad) an untrained hand gives the posture's line; within ND_NEAR_M of the path is near someone; ND_PAST_M how far a line that meets nothing is followed. */
@@ -215,7 +216,7 @@ function openApproach(state, bus, A, B, cone, ms, ctx, list) {
   const pid = A.who, P = POSTURES[cone.posture], who = nameOf(state, B.who), word = POSTURE_WORDS[cone.posture];
   if (P.habitDC === null) return { atMs: ms, result: 'point', posture: cone.posture };
   const crowd = list.filter(o => o !== A && Math.hypot(o.x - A.x, o.z - A.z) <= APPROACH_M).length >= CROWD_N;
-  const dc = P.habitDC + (crowd ? CROWD_DC : 0) + (ctx.pressure === 'fire' ? FIRE_DC : 0);
+  const dc = P.habitDC + (crowd ? CROWD_DC : 0);
   const roller = rollerOf(state, pid, { ms }), mods = [...(roller.mods('weapons', {}) ?? []), ...(ctx.mods ?? [])];
   const v = roller.value('weapons') + mods.reduce((s, m) => s + m.v, 0);
   const ctxWords = crowd ? `${word}, crowd` : word;
@@ -225,7 +226,7 @@ function openApproach(state, bus, A, B, cone, ms, ctx, list) {
   }
   // (one d20, naturals as their numbers only: a habit is not decided by a die's face)
   const die = d20(rngOf(state, 'habit')), total = die + v, margin = total - dc;
-  const roll = { kind: 'check', skill: 'weapons', value: roller.value('weapons'), roll: die, mods, total, nat: 0, dc, dcParts: [{ why: word, v: P.habitDC }, ...(crowd ? [{ why: 'a crowd', v: CROWD_DC }] : []), ...(ctx.pressure === 'fire' ? [{ why: 'under fire', v: FIRE_DC }] : [])],
+  const roll = { kind: 'check', skill: 'weapons', value: roller.value('weapons'), roll: die, mods, total, nat: 0, dc, dcParts: [{ why: word, v: P.habitDC }, ...(crowd ? [{ why: 'a crowd', v: CROWD_DC }] : [])],
     hook: false, tempo: 'normal', steady: false, routine: false, pressure: ctx.pressure ?? 'none', ok: margin >= 0, margin, grade: grade(margin, 0), by: pid, them: false, hidden: false, verb: 'habit' };
   const result = margin >= 0 ? 'pass' : (margin >= -NEAR_BY && v + 10 >= dc) ? 'near' : 'fail';
   logEntry(state, bus, { kind: 'roll', tone: result === 'pass' ? 'note' : 'warn', filter: 'habit', roll, step: 'habit', who: pid, other: B.who, posture: cone.posture, result,

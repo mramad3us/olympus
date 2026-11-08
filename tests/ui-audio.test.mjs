@@ -36,6 +36,12 @@
 // motor from its turn and the clack of its stop TURN_MS later, at the stand; the coach's timer beeping once as the targets
 // turn (however many); the steel ringing where the armoured face stands, a sound's way late; a Pair's two reports at its
 // split (each round's formula time), a single Fire's as before; the recipes rendered with their bands where they belong.
+// The 0.0.9 round's (the build sheet 0.0.9 §5.3 ui-audio; VIEWS §11.2; BODY §17.3; audio/bang.js): a training bang's report at
+// its moment where it went off (1.5 m behind the shooter: BANG_SOURCE_DB, the air, the distance) and the bay's late echo off the
+// berm; felt's band ducking the world −3, −6, −12 dB and cutting it at 6, 4, 2.5 kHz, the breath and heart up on the body bus,
+// nothing at calm (the tier one's felt 10); the deafness from the bang to the card: the world at 1.5 kHz and −18 dB, the whine
+// at 6 kHz loud for 20 s then falling over 60 s to its floor, both easing back over its last minute, the caption once; the coach's
+// voice at your shoulder round the deafness, the tower's 20 m off not; CHAOS's recipes rendered and measured.
 import { assert, near, fmt } from './helpers.mjs';
 import { footfalls, stepVoice, createStepScheduler, weightDb, lowpassHz, HALF_CYCLE_M } from '../src/ui/audio/steps.js';
 import { render, measure } from '../src/ui/audio/synth.js';
@@ -50,6 +56,8 @@ import { areaOf } from '../src/sim/places/model.js';
 import { ALERT_DRILL } from '../src/data/pod.js';
 import { lapseS, ease } from '../src/sim/time/splash.js';
 import { airDb } from '../src/sim/people/hearing.js';
+import { bangVoice, chaosMix, whineDb, voiceRoute, createBang } from '../src/ui/audio/bang.js';
+import { CHAOS, BANG_SOURCE_DB, BAND_DUCK_DB, BAND_LP_HZ, BAND_BODY_DB, MUFFLE_LP_HZ, MUFFLE_DB, MUFFLE_RECOVER_S, WHINE_HZ, WHINE_LOUD_S, WHINE_FALL_S, WHINE_FLOOR_DB, WHINE_CAPTION } from '../src/data/sounds.js';
 import { STRIDE_WRAP_M } from '../src/data/body/gait.js';
 
 const TICK_S = 0.05;
@@ -496,6 +504,67 @@ export default [
       const b = cen('timerBeep'), r = cen('steelRing'), c = cen('turnerClack'), m = cen('turnerMotor');
       console.log(`      the beep ${fmt(b.centroidHz, 0)} Hz (its 2.9 kHz and its third), ${fmt(b.decayS * 1000, 0)} ms to −30 dB; the ring ${fmt(r.centroidHz, 0)} Hz, ${fmt(r.decayS * 1000, 0)} ms; the clack ${fmt(c.centroidHz, 0)} Hz, ${fmt(c.decayS * 1000, 0)} ms; the motor ${fmt(m.centroidHz, 0)} Hz, ${fmt(m.decayS * 1000, 0)} ms`);
       assert(b.centroidHz > 2500 && b.centroidHz < 4500 && b.decayS >= 0.25 && r.centroidHz > 1200 && r.decayS > 5 * c.decayS && c.decayS < 0.1 && m.decayS >= 0.25, JSON.stringify({ b, r, c, m }));
+    },
+  },
+  {
+    name: 'the bang (0.0.9): its report where it went off, 1.5 m behind the shooter, BANG_SOURCE_DB through Melas\'s air and the distance, the bay\'s echo off the berm; through the defenders 25 dB down; played at its moment from the fx fact, its echo after',
+    fn() {
+      const me = { x: 1117.0, z: 292.5 }, at = { x: 1115.5, z: 292.3 };
+      const v = bangVoice({ me, at, soundMs: SOUND_SPEED_MS }), e = bangVoice({ me, at, ears: true, soundMs: SOUND_SPEED_MS });
+      const want = BANG_SOURCE_DB + airDb(AIR_KPA.ground) + 20 * Math.log10(1 / (1 + Math.max(0, Math.hypot(1.5, 0.2) - 1)));
+      console.log(`      the bang at ${fmt(v.distM, 2)} m: ${fmt(v.gainDb, 1)} dB (${BANG_SOURCE_DB} + air ${fmt(airDb(AIR_KPA.ground), 1)} + distance), ${fmt(v.lowpassHz, 0)} Hz, pan ${fmt(v.pan, 2)}; its echo ${fmt(v.echo.gainDb, 1)} dB +${fmt(v.echo.delayS * 1000, 0)} ms; through the defenders ${fmt(e.gainDb, 1)} dB at ${e.lowpassHz} Hz`);
+      const berm = BERM_FACE_X, echoS = ((berm - at.x) + (berm - me.x)) / SOUND_SPEED_MS;
+      assert(Math.abs(v.gainDb - want) < 1e-9 && v.pan < 0 && Math.abs(v.echo.delayS - echoS) < 1e-9 && Math.abs(e.gainDb - (v.gainDb + EARS_DB)) < 1e-9 && e.lowpassHz === EARS_LP_HZ, JSON.stringify({ v, e }));
+      // (the presenter: the fx fact at 2,000 ms on its tick 2,000; the report and the echo asked of the engine)
+      const asked = [], engine = { bang: (kind, o) => { asked.push({ kind, ...o }); return true; }, chaos: () => {}, loop: () => true };
+      const B = createBang(engine), state = { clock: { ms: 2000 }, player: { id: 'p1', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p1', x: me.x, z: me.z }] }, places: { live: { area: 'melas.ground' } }, people: {} };
+      const ok = B.fact('fx', { kind: 'bang', id: 'pairs:0:1', x: at.x, z: at.z, atMs: 1980 }, state);
+      console.log(`      the fx fact at 1,980 ms on the tick of 2,000: ${asked.map(a => `${a.kind} ${fmt(a.gainDb, 1)} dB +${fmt(a.delayS * 1000, 1)} ms`).join(', ')}`);
+      assert(ok && asked.length === 2 && asked[0].kind === 'bangReport' && Math.abs(asked[0].delayS - (0.03 + v.distM / 322)) < 0.002 && asked[1].delayS > asked[0].delayS, JSON.stringify(asked));
+      assert(!B.fact('fx', { kind: 'spark', x: 0, z: 0 }, state), 'a spark is not a bang');
+    },
+  },
+  {
+    name: 'felt\'s band in the ears (VIEWS §11.2): the world ducked −3, −6, −12 dB and cut at 6, 4, 2.5 kHz, breath and heart up on the body bus; calm (the tier one at felt 10) the bay as it is; the deafness from the bang to the card: 1.5 kHz and −18 dB, the whine loud for 20 s and falling over 60 s to its floor, easing back over its last minute; the caption once; the coach\'s voice at your shoulder round it',
+    fn() {
+      const rows = [];
+      for (const n of [0, 1, 2, 3]) {
+        const m = chaosMix({ bandN: n }, 0);
+        rows.push(`band ${n}: ${fmt(m.world.gainDb, 0)} dB, ${m.world.lowpassHz} Hz, breath and heart ${m.body.gainDb === null ? 'silent' : `${m.body.gainDb} dB`}`);
+        assert(m.world.gainDb === BAND_DUCK_DB[n] && m.world.lowpassHz === BAND_LP_HZ[n] && m.body.gainDb === BAND_BODY_DB[n], JSON.stringify(m));
+      }
+      assert(BAND_DUCK_DB.join() === '0,-3,-6,-12' && BAND_LP_HZ.slice(1).join() === '6000,4000,2500', 'the sheet\'s numbers');
+      // (deafened at 0 for an hour, pinned; read through: the bang, the turn, the course, the card, its last minute)
+      const untilMs = 3_600_000, at = (t) => chaosMix({ bandN: t < 60_000 ? 3 : 0, deaf: { untilMs } }, t, { fromMs: 0 });
+      const cuts = [0, 10_000, 20_000, 50_000, 80_000, 600_000, untilMs - 30_000, untilMs].map(t => [t, at(t)]);
+      for (const [t, m] of cuts) rows.push(`t ${fmt(t / 1000, 0)} s: the world ${fmt(m.world.gainDb, 1)} dB at ${fmt(m.world.lowpassHz, 0)} Hz, the whine ${m.deaf ? `${fmt(m.deaf.whineDb, 1)} dB` : 'gone'}`);
+      assert(cuts[0][1].world.lowpassHz === MUFFLE_LP_HZ && cuts[0][1].world.gainDb === BAND_DUCK_DB[3] + MUFFLE_DB && cuts[2][1].deaf.whineDb === 0 && Math.abs(cuts[3][1].deaf.whineDb - WHINE_FLOOR_DB * 0.5) < 1e-9 && Math.abs(cuts[4][1].deaf.whineDb - WHINE_FLOOR_DB) < 1e-9, JSON.stringify(cuts.slice(0, 5)));
+      assert(cuts[6][1].deaf.k === 0.5 && cuts[6][1].world.lowpassHz > MUFFLE_LP_HZ && cuts[7][1].deaf === null && cuts[7][1].world.gainDb === 0, JSON.stringify(cuts.slice(6)));
+      assert(whineDb(WHINE_LOUD_S) === 0 && whineDb(WHINE_LOUD_S + WHINE_FALL_S) === WHINE_FLOOR_DB && WHINE_HZ === 6000 && MUFFLE_RECOVER_S === 60, 'the whine\'s curve');
+      // (the presenter over frames: the chaos stage, the loops, the caption once)
+      const calls = { chaos: [], loop: [] }, engine = { bang: () => true, chaos: (m) => calls.chaos.push(m), loop: (key, kind, bus, db) => { calls.loop.push({ key, bus, db }); return true; } };
+      const B = createBang(engine), st = (ms) => ({ clock: { ms } });
+      B.frame(st(0), null); const c0 = B.caption();
+      B.frame(st(100), { bandN: 3, deaf: { untilMs } }); const c1 = B.caption(), c2 = B.caption();
+      B.frame(st(30_000), { bandN: 2, deaf: { untilMs } });
+      const whine = calls.loop.filter(l => l.key === 'whine').map(l => l.db), heart = calls.loop.filter(l => l.key === 'heart');
+      rows.push(`the presenter: the caption '${c1}' once (then ${c2}), none before (${c0}); the whine ${whine.map(d => (d === null ? 'off' : `${fmt(d, 1)} dB`)).join(' → ')} on the ${calls.loop.find(l => l.key === 'whine' && l.db !== null)?.bus} bus; the heart on the ${heart.at(-1)?.bus} bus at ${heart.at(-1)?.db} dB`);
+      assert(c0 === null && c1 === WHINE_CAPTION && c2 === null && whine[0] === null && whine[1] === 0 && whine[2] < 0 && heart.at(-1).bus === 'body', JSON.stringify({ whine, c1 }));
+      // (the coach's voice at 0.9 m round the deafness; the tower's speaker 20 m off through it; not deaf, the world's)
+      const routes = [[true, 0.9], [true, 2], [true, 20], [false, 0.9]].map(([deaf, d]) => `${deaf ? 'deaf' : 'hearing'} at ${d} m: ${voiceRoute({ deaf, distM: d })}`);
+      rows.push(routes.join(', '));
+      assert(voiceRoute({ deaf: true, distM: 0.9 }) === 'voice' && voiceRoute({ deaf: true, distM: 20 }) === 'world' && voiceRoute({ deaf: false, distM: 0.9 }) === 'world' && voiceRoute({ deaf: true, distM: 20, near: true }) === 'voice', routes.join());
+      for (const l of rows) console.log(`      ${l}`);
+    },
+  },
+  {
+    name: 'CHAOS\'s recipes rendered and measured (0.0.9, unscored): the bang\'s report loud and low with a crack on it, the whine a 6 kHz tone seamless as a loop, the heart under 200 Hz, the breath a soft band',
+    fn() {
+      const sr = 24000, m = (k) => measure(render(CHAOS[k], { sampleRate: sr, name: k }), sr);
+      const b = m('bangReport'), w = m('whine'), h = m('heart'), br = m('breath');
+      const ws = render(CHAOS.whine, { sampleRate: sr, name: 'whine' }), seam = Math.abs(ws[ws.length - 1] - ws[0]), step = Math.max(...Array.from({ length: 200 }, (_, i) => Math.abs(ws[i + 1] - ws[i])));
+      console.log(`      the report: peak ${fmt(b.peakDb, 1)} dB, centroid ${fmt(b.centroidHz, 0)} Hz, ${fmt(b.decayS * 1000, 0)} ms to −30 dB; the whine ${fmt(w.centroidHz, 0)} Hz (its seam ${fmt(seam, 4)}, a sample's step ${fmt(step, 4)}); the heart ${fmt(h.centroidHz, 0)} Hz; the breath ${fmt(br.centroidHz, 0)} Hz`);
+      assert(b.decayS > 0.2 && b.centroidHz < 3000 && Math.abs(w.centroidHz - WHINE_HZ) < 300 && seam <= step * 1.5 && h.centroidHz < 200 && br.centroidHz > 400 && br.centroidHz < 3500, JSON.stringify({ b, w, h, br, seam, step }));
     },
   },
 ];
