@@ -28,6 +28,7 @@ function turnsOf(seed, tier, setup = null) {
 export default [
   {
     name: '"Three bangs" (0.0.9) on one seed as each sheet: the same lane, the same three bangs at the same times from the standby and the same places, the same turners at the same gaps; againAs keeps the setup; the scene writes no career (a scene saves nothing: scenes.js)',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const seed = 48213, runs = PAIRS_SHEETS.map(tier => ({ tier, ...turnsOf(seed, tier, 'bangs') }));
       const ref = JSON.stringify({ lane: runs[0].lane, out: runs[0].out, bangs: runs[0].bangs });
@@ -46,6 +47,7 @@ export default [
   },
   {
     name: 'the same seed as each sheet turns the same targets at the same gaps, faces and holds alike, the lane alike (the build sheet §8 item 22: the strings drawn from the seed alone); only the sheet\'s numbers differ',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       for (const seed of [48213, 7]) {
         const runs = PAIRS_SHEETS.map(tier => ({ tier, ...turnsOf(seed, tier) }));

@@ -66,7 +66,16 @@
 //                            "You flinched. Everybody does. Your lane." after the first series (green or settled hardening;
 //                            "Flinched. Your lane." steadier), "Flinched again. Your lane." after another;
 //                            nothing for T
-//   pairs-wait       calm    the turn armed: nothing ("Wait for it.")
+//   stress-breathe   warn    (0.0.10, test-stress) Breathe offered (supp.js breatheOffer: felt 20 or more, no window, not
+//                            startled, not breathing) with no threat of the string standing (the standby, between strings,
+//                            a pause with nobody up and the rifle in Condition 1: dry, the RELOAD first); out of the mode "Hands shaking. Breathe: T." (T Breathe, a live step:
+//                            instinct.js), in it its digit ("Breathe: 4.", panel.js digitOf: never a row the panel lacks);
+//                            suppressed or pinned "Bangs. Your hands are shaking. Breathe: T."; once a minute; never done but by T
+//   pairs-wait       calm    the turn armed: nothing ("Wait for it."; on the stress course and "Three bangs" never naming Breathe, its own step)
+// 0.0.10 (test-stress, the stress course on this bay: the build sheet 0.0.10 §2.2): pairs-shaking and pairs-froze read the
+// stress course's record as they read "Three bangs"' (R.stress: the last Off safe, the last step, the session's freezes);
+// pairs-ready reads the course's own sequence (handling.js seqOf); pairs-short names the one-round magazine there
+// ({rounds}); after a failed RELOAD try on the stress course pairs-reload says "Again. RELOAD." ('again').
 // All of them, these three too, are silent while he is startled (instinct.js firedNow: the startle takes the keys and the
 // words, as the take-in's window does).
 // Pure.
@@ -74,15 +83,15 @@ import { playerId } from '../../../core/ids.js';
 import { beliefOf } from '../../arms/firearms.js';
 import { stepsOf, gunOn } from '../../arms/shooting.js';
 import { pouchesOf, believedN, handMagOf, atFeetOf } from '../../arms/kit.js';
-import { rangeOf, lineReady, roundsLeft } from '../../scenarios/handling.js';
+import { rangeOf, lineReady, roundsLeft, seqOf } from '../../scenarios/handling.js';
 import { HALF_N, pairsWant, onPoint } from '../../scenarios/pairs.js';
 import { stillUp } from '../../arms/specials.js';
 import { digitOf, remedyOf } from '../../arms/panel.js';
-import { SEQ_PAIRS } from '../../../data/courses.js';
 import { facingOf, turnerKey } from '../../arms/turners.js';
 import { contactNow, lullOf } from '../../combat/contact.js';
 import { rungOf } from '../templates.js';
-import { blockOf, feltOf, bandN, hearingOf, hardOf, hardWord, STARTLE_JOIN_MS } from '../../combat/supp.js';
+import { blockOf, feltOf, bandN, hearingOf, hardOf, hardWord, breatheOffer, STARTLE_JOIN_MS } from '../../combat/supp.js';
+import { recOf, RELOAD_STRING } from '../../scenarios/stress.js';
 import { BANGS, bangDue } from '../../scenarios/pairs.js';
 
 /** The pairs rules may speak again as soon as they fire again (the range's rule: each turn new advice). */
@@ -90,6 +99,8 @@ export const PAIRS_REPEAT_MS = 0;
 const NOSHOOT = new Set(['hands', 'phone']);
 /** How long after a startle's end the DI's "You flinched." stands, unless a step comes first (ms; my call). */
 export const FROZE_SAY_MS = 3000;
+/** How long the DI waits before offering Breathe again (ms; the sheet 0.0.10 §2.2: once a minute). */
+export const OFFER_AGAIN_MS = 60_000;
 /** The shortest whole freeze the DI calls a flinch (ms; my call, the fixer of v0.0.9: the tier one's 0.05 s and the Raider's 0.15 s are not). */
 export const FROZE_SAY_MIN_MS = 300;
 const LANE_WORD = Object.freeze(['', 'lane one', 'lane two', 'lane three', 'lane four', 'lane five', 'lane six']);
@@ -171,7 +182,7 @@ export const PAIRS_RULES = Object.freeze([
       if (!shakes(state, k, ms)) return null;
       if (k.posture === 'slungFront' || k.posture === 'slungBack') return { k, variant: 'up' };
       if (!onPoint(state)) return null;
-      const o = k.R.bangs?.offSafe;
+      const o = k.R.bangs?.offSafe ?? k.R.stress?.offSafe;
       return { k, variant: o && !o.ok && o.atMs >= k.last.atMs ? 'again' : 'off' };
     },
     act: (ctx) => (ctx.variant === 'up' ? actIf(ctx.k, 'up') : actIf(ctx.k, 'selector:semi')),
@@ -307,7 +318,9 @@ export const PAIRS_RULES = Object.freeze([
         const swap = k.choosing ? ['macro:reload:tactical', 'magOut:pouch', 'magOut:drop'].find(id => k.steps.some(st => st.id === id && !st.off)) ?? null : null;
         return { k, variant: 'swap', step: swap };
       }
-      if (!k.choosing || k.steps.some(st => /^macro:reload:(speed|retain)$/.test(st.id))) return { k };
+      // (0.0.10: on the stress course, after a failed RELOAD try on string 5: "Again. RELOAD.")
+      const again = !!k.R.stress && k.str?.k === RELOAD_STRING && recOf(k.R, RELOAD_STRING)?.reload?.tries.at(-1) === false;
+      if (!k.choosing || k.steps.some(st => /^macro:reload:(speed|retain)$/.test(st.id))) return again && (!k.choosing || reloadRow(k)) ? { k, variant: 'again' } : { k };
       // (no RELOAD in the panel (nothing in the pouches: the rounds left are in the hand or at your feet): the single that
       // gets a magazine in, named (the fix of 2026-11-07: never a line without its row))
       const has = (id) => k.steps.some(st => st.id === id && !st.off), hand = handMagOf(state, k.pid);
@@ -319,6 +332,7 @@ export const PAIRS_RULES = Object.freeze([
     },
     act: (ctx) => { if (ctx.step) return actIf(ctx.k, ctx.step); if (ctx.variant === 'swap') return null; const r = reloadRow(ctx.k); return r ? actIf(ctx.k, r.id) : null; },
     text: { 1: ['Empty. Reload.', 'Bolt locked. RELOAD.', 'Dry. Fresh magazine, bolt home.', 'Empty gun. Reload it now.'],
+      again: ['Again. RELOAD.', 'Again. Fresh magazine, bolt home.', 'Again. RELOAD, slow is smooth.', 'Again. RELOAD. Seat it, tug it.'],
       swap: ['Empty magazine in, the bolt home on nothing. Out with it, a fresh one in.', 'That magazine is empty. Swap it.', 'Nothing in the chamber, nothing in the magazine. Fresh one.', 'Empty. Magazine out, a full one in, then make it ready.'],
       seat: ['Empty. Seat that magazine, then the bolt home.', 'Seat it. Then the bolt release.', 'In it goes: seat it.', 'Seat, tug, bolt home.'],
       drop: ['Empty. Drop it, then a fresh one.', 'Bolt locked on an empty. Magazine out.', 'Dry. Let the empty go.', 'Empty. Out with it.'],
@@ -331,30 +345,33 @@ export const PAIRS_RULES = Object.freeze([
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k || k.busy || k.cmd !== 'short' || !k.R.wantMag || state.items[k.gunId]?.mag === k.R.wantMag) return null;
-      if (!k.choosing || k.steps.some(st => st.id === 'macro:reload:tactical')) return { k };
+      // (the short one by its rounds: the pairs course's two, the stress course's one (0.0.10))
+      const rounds = k.R.stress ? 'one-round' : 'two-round';
+      if (!k.choosing || k.steps.some(st => st.id === 'macro:reload:tactical')) return { k, rounds };
       // (no Top up in the panel (no magazine in the rifle, one in the hand): the singles that get the short one in, the one
       // the panel offers named, never "Top up" with no such row (the fix of 2026-11-07: never a line without its row))
       const want = k.R.wantMag, hand = handMagOf(state, k.pid), pouch = pouchesOf(state, k.pid).find(p => p.mags.includes(want)) ?? null;
       const has = (id) => k.steps.some(st => st.id === id && !st.off);
       const stow = hand && hand.id !== want ? k.steps.find(st => /^stowMag@/.test(st.id) && !st.off) ?? null : null;
-      if (hand?.id === want && has('seat')) return { k, variant: 'seat', step: 'seat' };
-      if (stow) return { k, variant: 'stow', step: stow.id };
-      if (!hand && k.b?.mag === 'in' && has('magOut:pouch')) return { k, variant: 'out', step: 'magOut:pouch' };
-      if (!hand && pouch && has(`reach@${pouch.key}`)) return { k, variant: 'reach', step: `reach@${pouch.key}`, pouch: pouch.word };
+      if (hand?.id === want && has('seat')) return { k, variant: 'seat', step: 'seat', rounds };
+      if (stow) return { k, variant: 'stow', step: stow.id, rounds };
+      if (!hand && k.b?.mag === 'in' && has('magOut:pouch')) return { k, variant: 'out', step: 'magOut:pouch', rounds };
+      if (!hand && pouch && has(`reach@${pouch.key}`)) return { k, variant: 'reach', step: `reach@${pouch.key}`, pouch: pouch.word, rounds };
       // (dropped: at your feet, the nearest there, so the reach brings that one)
-      if (!hand && !pouch && atFeetOf(state, k.pid)[0]?.id === want && has('reach@ground')) return { k, variant: 'ground', step: 'reach@ground' };
-      return pouch ? { k, variant: 'want', pouch: pouch.word } : { k, variant: 'lost' };
+      // (0.0.10: at your feet behind another, the reach brings the nearer first, stowed after (the 'stow' case), then this one)
+      if (!hand && !pouch && atFeetOf(state, k.pid).some(m => m.id === want) && has('reach@ground')) return { k, variant: 'ground', step: 'reach@ground', rounds };
+      return pouch ? { k, variant: 'want', pouch: pouch.word, rounds } : { k, variant: 'lost', rounds };
     },
     act: (ctx) => (!ctx.k.inMode ? 'stop:enter' : ctx.step ? actIf(ctx.k, ctx.step) : topUpRow(ctx.k) ? actIf(ctx.k, 'macro:reload:tactical') : null),
     text: {
-      1: ['Top up with the short one.', 'The two-round magazine. Top up with it.', 'The coach wants the short one in. Top up.', 'Short magazine in. Top up.'],
-      seat: ['The short one is in your hand. Seat it.', 'Seat the two-round magazine.', 'In it goes: seat it.', 'Seat it, then tug it.'],
-      stow: ['Not that one. Stow it, then the short one.', 'Wrong magazine in your hand. Stow it.', 'That is not the short one. Into a pouch with it.', 'Stow it. The coach wants the two-round one.'],
+      1: ['Top up with the short one.', 'The {rounds} magazine. Top up with it.', 'The coach wants the short one in. Top up.', 'Short magazine in. Top up.'],
+      seat: ['The short one is in your hand. Seat it.', 'Seat the {rounds} magazine.', 'In it goes: seat it.', 'Seat it, then tug it.'],
+      stow: ['Not that one. Stow it, then the short one.', 'Wrong magazine in your hand. Stow it.', 'That is not the short one. Into a pouch with it.', 'Stow it. The coach wants the {rounds} one.'],
       out: ['Magazine out to a pouch, then the short one.', 'That one out, into a pouch. Then the short one.', 'Out with it, into a pouch.', 'Pouch that magazine. The short one next.'],
-      reach: ['The short one: reach for it, {pouch}.', 'The two-round magazine is in your {pouch}. Reach.', 'Reach: {pouch}.', 'Your {pouch}: the short one.'],
-      want: ['The coach wants the short one in, from your {pouch}.', 'The two-round magazine, from your {pouch}.', 'Short one in. It is in your {pouch}.', 'The coach is waiting on the short one.'],
-      ground: ['The short one is at your feet. Reach for it.', 'You dropped the two-round one. Pick it up.', 'At your feet: the short one. Reach.', 'Ground. The short one.'],
-      lost: ['The coach wants the short one in. Where did it go?', 'The two-round magazine: find it.', 'The short one is not in your pouches.', 'The coach is waiting on the short one.'],
+      reach: ['The short one: reach for it, {pouch}.', 'The {rounds} magazine is in your {pouch}. Reach.', 'Reach: {pouch}.', 'Your {pouch}: the short one.'],
+      want: ['The coach wants the short one in, from your {pouch}.', 'The {rounds} magazine, from your {pouch}.', 'Short one in. It is in your {pouch}.', 'The coach is waiting on the short one.'],
+      ground: ['The short one is at your feet. Reach for it.', 'You dropped the {rounds} one. Pick it up.', 'At your feet: the short one. Reach.', 'Ground. The short one.'],
+      lost: ['The coach wants the short one in. Where did it go?', 'The {rounds} magazine: find it.', 'The short one is not in your pouches.', 'The coach is waiting on the short one.'],
     },
   },
   {
@@ -411,7 +428,7 @@ export const PAIRS_RULES = Object.freeze([
         if (k.cmd === 'short' && k.R.wantMag && state.items[k.gunId]?.mag !== k.R.wantMag) return null;
         // (MAKE READY not done yet: pairs-cmd's)
         if (k.cmd === 'ready' && k.b?.mag === 'in' && k.b.chamber !== 'live') return null;
-        const def = SEQ_PAIRS[k.R.cmd.i];
+        const def = seqOf(k.R)[k.R.cmd.i];
         if (!def || !['pairsReady', 'shortReady', 'toppedUp'].includes(def.ready)) return null;
       }
       // (what is lacking, in the order it is put right (pairs.js pairsWant; the design review of v0.0.8: with the magazine
@@ -426,7 +443,9 @@ export const PAIRS_RULES = Object.freeze([
       if (k.choosing && k.inMode && (want === 'mag' || want === 'chamber')) {
         if (slungNow(k)) return { k, variant: 'raise', step: 'up' };
         if (want === 'mag') { const st = magSingle(k); return st ? { k, variant: 'mag', step: st } : roundsLeft(state) > 0 ? { k, variant: 'mag' } : { k, variant: 'dry' }; }
-        if (k.b?.chamber === '?' && k.offered('pressCheck')) return { k, variant: 'check', step: 'pressCheck' };
+        // (unsure, or sure of a round the coach says is not up (a fumble's belief: 0.0.10, the stress bot's recruit on seed
+        // 2024 stood a minute believing it live): a press check tells)
+        if ((k.b?.chamber === '?' || k.b?.chamber === 'live') && k.offered('pressCheck')) return { k, variant: 'check', step: 'pressCheck' };
         if (k.offered('macro:ready')) return { k, variant: 'chamber', step: 'macro:ready' };
         const c = chamberSingle(state, k);
         return c ? { k, ...c } : null;
@@ -468,10 +487,10 @@ export const PAIRS_RULES = Object.freeze([
   {
     id: 'pairs-froze', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'warn', short: 'Your lane', reach: null,
     when(state, me, ms) {
-      const R = rangeOf(state);
-      if (!R?.bangs || R.course !== 'pairs' || R.end) return null;
+      const R = rangeOf(state), B = R?.bangs ?? R?.stress;
+      if (!B || R.course !== 'pairs' || R.end) return null;
       const b = blockOf(state, me.who), until = b?.startleUntilMs;
-      if (!Number.isFinite(until) || ms < until || ms >= until + FROZE_SAY_MS || (R.bangs.lastStepMs ?? -Infinity) >= until) return null;
+      if (!Number.isFinite(until) || ms < until || ms >= until + FROZE_SAY_MS || (B.lastStepMs ?? -Infinity) >= until) return null;
       // (a contact's pause since: the decision there is the line's, not the flinch)
       if (state.stop?.mode === 'stop' && (contactNow(state, ms)?.last?.atMs ?? -Infinity) >= until) return null;
       // (a flinch too short to call one: a tier one's tick or a Raider's 0.15 s is not "Everybody does"; and a bang still to
@@ -479,7 +498,7 @@ export const PAIRS_RULES = Object.freeze([
       if ((b.startleMs ?? 0) < FROZE_SAY_MIN_MS || bangDue(state)) return null;
       // (the first series of the run, the freezes joined within STARTLE_JOIN_MS counting as one; "the first time" only
       // for a green or settled hardening, a steadier man told plainly)
-      const f = R.bangs.froze;
+      const f = B.froze;
       let j = f.length - 1;
       while (j > 0 && f[j].fromMs - f[j - 1].untilMs <= STARTLE_JOIN_MS) j--;
       if (j > 0) return { variant: 'again', noHumour: true };
@@ -525,13 +544,46 @@ export const PAIRS_RULES = Object.freeze([
       unsure: ['Not sure what is left in it. Top up.', 'Lull. You lost the count: Top up.', 'Count unknown. A fresh magazine, now.', 'You do not know what is in it. Top up.'] },
   },
   {
+    id: 'stress-breathe', voice: 'di', repeatMs: OFFER_AGAIN_MS, tone: 'warn', short: 'Breathe', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms);
+      // (the stress course; never with a threat of the string standing, never over a step under way; on a live string only
+      // with the rifle in Condition 1 (a dry rifle is pairs-reload's first: the RELOAD, then the breath))
+      if (!k || !k.R.stress || k.busy || (k.live && (k.up.length || k.b?.chamber !== 'live' || k.b.locked || k.b.mag !== 'in'))) return null;
+      const o = breatheOffer(state, k.pid, ms);
+      if (!o.ok || o.up) return null;
+      const hard = bandN(feltOf(state, k.pid, ms)) >= 2;
+      if (!k.inMode) return { k, variant: hard ? 'shaking' : 'out', noHumour: true };
+      // (in the mode, only where the panel has its row, by its key: the panel read now, since its Breathe row follows the felt,
+      // which the memo's key does not carry)
+      if (!k.choosing) return null;
+      const steps = stepsOf(state, ms);
+      if (!steps.some(st => st.id === 'breathe' && !st.off)) return null;
+      const key = digitOf(steps, 'breathe');
+      if (!key) return null;
+      const words = hard ? 'keyShaking' : 'key';
+      return { k, variant: `${words}${key}`, words, key, noHumour: true };
+    },
+    act: (ctx) => (ctx.k.inMode ? 'stop:breathe' : 'breathe'),
+    text: {
+      1: ['Hands shaking. Breathe: T.'],
+      out: ['Hands shaking. Breathe: T.', 'Shaky hands. Breathe it down: T.', 'Your hands are going. Breathe: T.', 'Box breathing, now: T.'],
+      shaking: ['Bangs. Your hands are shaking. Breathe: T.', 'That shook you. Breathe: T.', 'Hands shaking hard. Breathe it down: T.', 'In, hold, out, hold. Breathe: T.'],
+      key: ['Breathe: {key}.', 'Hands shaking. Breathe: {key}.', 'Breathe it down: {key}.', 'In, hold, out, hold: {key}.'],
+      keyShaking: ['Bangs. Your hands are shaking. Breathe: {key}.', 'That shook you. Breathe: {key}.', 'Hands shaking hard. Breathe: {key}.', 'Box it. Breathe: {key}.'],
+    },
+  },
+  {
     id: 'pairs-wait', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'calm', short: 'Wait', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k || k.inMode || !k.str || k.str.done || k.str.turnedMs !== null || k.str.turnAtMs === null) return null;
-      return { k, noHumour: true };
+      // (where the chaos runs (the stress course, "Three bangs") Breathe is a step with its own row, so a wait line with no act
+      // never names it (the design review of 0.0.10: "Breathe. It turns when it turns." at felt 0, where T did nothing))
+      return k.R.stress || k.R.bangs ? { k, variant: 'stress', noHumour: true } : { k, noHumour: true };
     },
     act: () => null,
-    text: { 1: ['Wait for it.', 'Let it come.', 'Eyes downrange. Wait for it.', 'Breathe. It turns when it turns.'] },
+    text: { 1: ['Wait for it.', 'Let it come.', 'Eyes downrange. Wait for it.', 'Breathe. It turns when it turns.'],
+      stress: ['Wait for it.', 'Let it come.', 'Eyes downrange. Wait for it.', 'Easy. It turns when it turns.'] },
   },
 ]);

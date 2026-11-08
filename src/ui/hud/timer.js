@@ -16,11 +16,19 @@
 // offSafe, the scene's paperOf) leads "BANGS 3 · FROZE 2.45" and adds "OFF SAFE ✗ ✗ ✓" after PAUSE TO FIRST, each try of
 // the safety in its order, a failed one a red ✗ ("OFF SAFE IN THE AIM" where the row's aim took it off, rung 2 up: the
 // fixer's); the freeze on the take-in's amber band, as the marine's own time. Every other paper is drawn as before, to the pixel.
+// 0.0.10 (the build sheet 0.0.10 §2.2's papers, §2.4; COMBAT §25.18.3): the stress course's papers (the scene's paperOf: the record's
+// noise, blanks, bangs, frozeMs, offSafe, reload { ms, tries }, secondMs): the din's string leads "DIN 30 BLANKS", the called
+// bang's "BANG CALLED" with FROZE beside it only when a startle froze him, three bangs' "BANGS 3 · FROZE 2.40"; OFF SAFE's tries
+// after PAUSE TO FIRST on every noisy string; the last string adds "RELOAD 4.85 S ✗ ✓" (each try, a failed one red) and "SECOND
+// 1.15" (the second turner's take-in, on the amber band as the first's) after the splits. A paper of more rows than TIMER_H holds
+// grows to PAPER's 200 (TIMER_H_MAX), its strip longer.
 import { textW, writeText } from '../plaque.js';
 import { GLOWS } from '../../art/palette.js';
 
 /** The paper's size (CSS px at --ui 1: within layout.js RECTS.PAPER's 200 × 200), its letters' scale (paper px a font px). */
 export const TIMER_W = 200, TIMER_H = 140, TIMER_K = 2;
+/** The paper at its longest (CSS px at --ui 1: PAPER's height), and the rows TIMER_H holds. */
+export const TIMER_H_MAX = 200, TIMER_ROWS = 5;
 /** The zones in the paper's order, and their words (the scene's paperText's order). */
 // (0.0.8, the fixer's: the steel's own, a round that rang on a plate and the head plate down, as the scene's paper says them)
 export const ZONE_ORDER = Object.freeze([['A', 'A'], ['C', 'C'], ['head', 'HEAD'], ['ring', 'RING'], ['headDown', 'HEAD DOWN'], ['miss', 'MISS'], ['noshoot', 'NO-SHOOT HIT']]);
@@ -34,29 +42,69 @@ const two = (ms) => (Number.isFinite(ms) ? (Math.max(0, ms) / 1000).toFixed(2) :
  */
 export function timerModel(rec, { text = null, fmt = two } = {}) {
   if (!rec) return null;
+  // (0.0.10: a stress string's record keeps its paper's fields under stress (pairs.js R.strs[].stress): read as the paper's own)
+  if (rec.stress && typeof rec.stress === 'object') rec = { ...rec, ...rec.stress };
   const splits = Array.isArray(rec.splitsMs) ? rec.splitsMs : [];
   const zones = ZONE_ORDER.map(([k, word]) => ({ k, n: Number(rec.zones?.[k]) || 0, word })).filter(z => z.n > 0);
   // (0.0.9: the banged string's rows round the take-in's and the first round's: the bangs and the freeze, the safety's tries)
   // (the record's bangs a count with frozeMs and offSafe beside it (the paper's, paperOf), or the session's record { n, frozeMs, offSafe } (strs[k].bangs))
   const bg = rec.bangs && typeof rec.bangs === 'object' ? rec.bangs : { n: rec.bangs, frozeMs: rec.frozeMs, offSafe: rec.offSafe };
-  const banged = Number(bg.n) > 0, tries = Array.isArray(bg.offSafe) ? bg.offSafe : [];
+  // (0.0.10: on the stress course the noise says which lead: a called bang's one bang is "BANG CALLED", not "BANGS 1")
+  const banged = rec.noise ? (rec.noise === 'bangs' || rec.noise === 'reload') && Number(bg.n) > 0 : Number(bg.n) > 0, tries = Array.isArray(bg.offSafe) ? bg.offSafe : [];
   rec = { ...rec, bangs: Number(bg.n) || 0, frozeMs: bg.frozeMs ?? null };
+  // (0.0.10: the stress course's noise: the din's blanks, a called bang; its RELOAD and its second turner)
+  const noise = rec.noise ?? null, din = noise === 'din', called = noise === 'called';
+  const noisy = banged || din || called, froze = Number.isFinite(rec.frozeMs) && rec.frozeMs > 0;
+  const rl = rec.reload && typeof rec.reload === 'object' ? rec.reload : null, rlTries = Array.isArray(rl?.tries) ? rl.tries : [];
   const rows = [
-    ...(banged ? [{ label: `BANGS ${Number(rec.bangs)}`, value: Number.isFinite(rec.frozeMs) ? `FROZE ${fmt(rec.frozeMs)}` : 'FROZE -', mark: 'froze' }] : []),
+    // (FROZE and its amber only when he froze, as paperText leaves it out and the called bang's row does (the design review of
+    // 0.0.10: the tier one's drawn paper marked "FROZE 0.00" where its text said nothing))
+    ...(banged ? [{ label: `BANGS ${Number(rec.bangs)}`, value: froze ? `FROZE ${fmt(rec.frozeMs)}` : '', mark: froze ? 'froze' : null }] : []),
+    // (the din's plan, and the blanks heard when the string ended first: the scene's stressLead)
+    ...(din ? [Number.isFinite(rec.blanksPlan) && (Number(rec.blanks) || 0) < rec.blanksPlan ? { label: `DIN ${rec.blanksPlan} BLANKS`, value: `${Number(rec.blanks) || 0} HEARD` } : { label: `DIN ${Number(rec.blanks) || 0} BLANKS`, value: '' }] : []),
+    ...(called ? [{ label: 'BANG CALLED', value: froze ? `FROZE ${fmt(rec.frozeMs)}` : '', mark: froze ? 'froze' : null }] : []),
     { label: 'TURN TO PAUSE', value: Number.isFinite(rec.takeInMs) ? fmt(rec.takeInMs) : '-', mark: 'takein' },
     { label: 'PAUSE TO FIRST', value: Number.isFinite(rec.pauseToFirstMs) ? fmt(rec.pauseToFirstMs) : '-' },
-    ...(banged && tries.length ? [{ label: 'OFF SAFE', value: tries.map(ok => (ok ? '✓' : '✗')).join(' '), mark: 'tries' }]
-      : banged && Number.isFinite(rec.pauseToFirstMs) ? [{ label: 'OFF SAFE', value: 'IN THE AIM' }] : []),
+    ...(noisy && tries.length ? [{ label: 'OFF SAFE', value: tries.map(ok => (ok ? '✓' : '✗')).join(' '), mark: 'tries' }]
+      : noisy && Number.isFinite(rec.pauseToFirstMs) ? [{ label: 'OFF SAFE', value: 'IN THE AIM' }] : []),
     { label: 'SPLITS', value: splits.length ? splits.map(fmt).join(' ') : '-' },
+    ...(rl ? [{ label: 'RELOAD', value: [Number.isFinite(rl.ms) ? `${fmt(rl.ms)} S` : '-', ...rlTries.map(ok => (ok ? '✓' : '✗'))].join(' '), mark: 'tries' }] : []),
+    ...(Number.isFinite(rec.secondMs) ? [{ label: 'SECOND', value: fmt(rec.secondMs), mark: 'takein' }] : []),
   ];
   const head = `STRING ${Number.isFinite(rec.k) ? rec.k + 1 : '?'}${Number.isFinite(rec.line) ? ` · ${rec.line} M` : ''}`;
   const said = text ?? [`TURN TO PAUSE ${rows[0].value}`, `PAUSE TO FIRST ${rows[1].value}`, `SPLITS ${rows[2].value}`, zones.length ? zones.map(z => `${z.n} ${z.word}`).join(', ') : null].filter(Boolean).join(' · ');
-  return { head, rows, zones, text: said, numbers: { takeInMs: rec.takeInMs ?? null, pauseToFirstMs: rec.pauseToFirstMs ?? null, splitsMs: splits.slice(), ...(banged ? { bangs: Number(rec.bangs), frozeMs: rec.frozeMs ?? null, offSafe: tries.slice() } : {}) } };
+  // (0.0.10: a long paper grows to PAPER's height; every paper whose lines fit TIMER_H is TIMER_H, as before. The lines are counted
+  // as drawTimer lays them, a value wrapped under its label and the zones' wrapped line included: the integrator's fix, as string
+  // 5's five splits wrapped and pushed its zones off the foot of a paper sized by its rows alone)
+  const bottom = paperFoot(rows, zones), h = bottom + PAPER_FOOT_PAD <= TIMER_H ? TIMER_H : Math.min(TIMER_H_MAX, bottom + PAPER_FOOT_PAD);
+  return { head, rows, zones, text: said, h, bottom, numbers: { takeInMs: rec.takeInMs ?? null, pauseToFirstMs: rec.pauseToFirstMs ?? null, splitsMs: splits.slice(), ...(banged ? { bangs: Number(rec.bangs), frozeMs: rec.frozeMs ?? null, offSafe: tries.slice() } : {}), ...(din || called ? { noise, frozeMs: rec.frozeMs ?? null, offSafe: tries.slice() } : {}), ...(rl ? { reload: { ms: rl.ms ?? null, tries: rlTries.slice() } } : {}), ...(Number.isFinite(rec.secondMs) ? { secondMs: rec.secondMs } : {}) } };
+}
+
+// (the paper's layout in paper px, drawTimer's: the strip's margins, the rows' left and right, a line's height; and the room kept
+// under the last line, TIMER_H less the foot of a five-row paper's zones)
+const LAY = Object.freeze({ L: 14, Rt: TIMER_W - 14, lineH: 5 * TIMER_K + 7, top: 29 });
+const PAPER_FOOT_PAD = 14;
+/** The foot of the paper's last line (paper px), its rows and zones laid out as drawTimer lays them. */
+export function paperFoot(rows, zones) {
+  const k = TIMER_K, { L, Rt, lineH } = LAY;
+  let y = LAY.top;
+  for (const r of rows) {
+    const vw = textW(r.value ?? '') * k;
+    if (vw && L + (textW(r.label) + 3) * k + vw > Rt) y += lineH - 2;
+    y += lineH;
+  }
+  let x = L;
+  for (const z of zones) {
+    const tw = textW(`${z.n} ${z.word}`) * k;
+    if (x + tw > Rt && x > L) { x = L; y += lineH - 2; }
+    x += tw + 10;
+  }
+  return y + 2 + 5 * k;
 }
 
 /** Draw the paper on a Canvas2D at s device pixels a paper pixel (crisp at every --ui and device ratio). */
 export function drawTimer(g, m, s = 1) {
-  const W = TIMER_W, H = TIMER_H, k = TIMER_K;
+  const W = TIMER_W, H = m.h ?? TIMER_H, k = TIMER_K;
   const R = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x * s), Math.round(y * s), Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s))); };
   // (the font's pixels at k paper pixels each, through writeText's px)
   const put = (x, y, text, c) => writeText((px, py, w, h) => R(x + (px - x) * k, y + (py - y) * k, w * k, h * k, c), x, y, text, null);
@@ -76,10 +124,10 @@ export function drawTimer(g, m, s = 1) {
     putC(L, y, r.label, INKC);
     const vw = textW(r.value) * k;
     // (a value too long for the label's line (a string's many splits) goes on the line under it, right-aligned)
-    if (L + (textW(r.label) + 3) * k + vw > Rt) y += lineH - 2;
+    if (vw && L + (textW(r.label) + 3) * k + vw > Rt) y += lineH - 2;
     const vx = Rt - vw;
     // (the take-in, the scored thing, on an amber band: the marine's own time; 0.0.9 the freeze too)
-    if ((r.mark === 'takein' || r.mark === 'froze') && !/-$/.test(r.value)) R(vx - 3, y - 2, vw + 6, 5 * k + 4, AMBER_C);
+    if ((r.mark === 'takein' || r.mark === 'froze') && r.value && !/-$/.test(r.value)) R(vx - 3, y - 2, vw + 6, 5 * k + 4, AMBER_C);
     // (0.0.9: the safety's tries, a failed one red)
     if (r.mark === 'tries') { let tx = vx; for (const ch of r.value) { putC(tx, y, ch, ch === '✗' ? RED_C : INKC); tx += (textW(ch) + 1) * k; } }
     else putC(vx, y, r.value, INKC);
@@ -110,10 +158,12 @@ export function createTimer(parent) {
     update(m, { ui = 1, dpr = globalThis.devicePixelRatio ?? 1 } = {}) {
       if (!m) { root.hidden = true; words = ''; return ''; }
       root.hidden = false;
-      const s = Math.max(1, ui * dpr), sg = JSON.stringify([Math.round(s * 100), m.head, m.rows, m.zones]);
+      const s = Math.max(1, ui * dpr), H = m.h ?? TIMER_H, sg = JSON.stringify([Math.round(s * 100), m.head, m.rows, m.zones, H]);
       if (sg !== sig) {
         sig = sg;
-        cv.width = Math.round(TIMER_W * s); cv.height = Math.round(TIMER_H * s);
+        cv.width = Math.round(TIMER_W * s); cv.height = Math.round(H * s);
+        // (0.0.10: a long paper's strip longer, within PAPER)
+        root.style.height = H === TIMER_H ? '' : `calc(${H}px * var(--ui))`;
         const g = cv.getContext('2d');
         if (g) { g.imageSmoothingEnabled = false; drawTimer(g, m, s); }
         words = m.text;

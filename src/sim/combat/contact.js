@@ -52,6 +52,8 @@
 // is taken in on the same band); a startle is the window re-used: refusesAct is true and feetOf stops the feet while the
 // player is startled, no sighting is taken while he is startled or flash-blind (the detector looks again on the first
 // tick after, with the felt of that moment), and a window open when it came pauses only once it is over.
+// 0.0.10 (the build sheet 0.0.10 §2.1, §8 item 13): a sighting that opens a window while a Breathe runs (shooting.js, in the
+// mode or out of it) cuts it at its sub-step's end, as the startle does; the pause comes then.
 // Pure but contactLook, contactInput, identify, runContactSub and endContactSub, which write the mind, the stop
 // and the log.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
@@ -221,6 +223,10 @@ export function contactInput(state, input, bus, ctx) {
   if (!P || state.skip) return;
   // (startled: the pause waits for its end (supp.js suppInput lets a stop hold go while it lasts))
   if (startled(state, playerId(state), state.clock.ms)) return;
+  // (0.0.10: a Breathe running is cut at its sub-step's end from the sighting on, as a startle cuts it: nobody breathes on
+  // through a man seen)
+  const b = state.stop?.doing;
+  if (b && b.kind === 'breathe' && b.i + 1 < b.list.length) b.cut = true;
   if (state.clock.ms < P.untilMs) {
     // (time held inside the window would freeze the game on a person not yet taken in, every action refused: a stop-motion
     // step that ended here lets the clock run on, the body idle (COMBAT §25.4.5); any other hold (a reflex card) ends the

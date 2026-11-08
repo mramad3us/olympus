@@ -49,6 +49,11 @@ import { mountPixels, plateScale } from '../kit/mount.js';
  * R's plate takes at most this share of INSTINCT's width (my call: the line is shortened before the plate, the sheet's
  * rule, and keeps a quarter; at 0.6 the sleep's ", done 05:30" was cut at 1024 × 768, the first shot).
  */
+/** Breathe's lead out of the mode (0.0.10; COMBAT §5.2): its words, and the four counts of the box, the one running in capitals. */
+export const BREATHE_LEAD = 'Breathe · ';
+export const BREATHE_STEPS = Object.freeze(['in', 'hold', 'out', 'hold']);
+/** The lead while Breathe runs: "Breathe · in · HOLD · out · hold" (i the sub-step running, 0 to 3). */
+export const breatheLead = (i = 0) => `${BREATHE_LEAD}${BREATHE_STEPS.map((w, j) => (j === i ? w.toUpperCase() : w)).join(' · ')}`;
 export const PLATE_SHARE = 0.75;
 /** INSTINCT's width at --ui 1 (layout.js RECTS.INSTINCT). */
 const INSTINCT_W = 720;
@@ -66,7 +71,8 @@ export function partsOf({ lead = null, now = null, offer = null, label = (a) => 
   const out = [];
   const T = label('instinct'), line = now?.line ?? null, chip = now?.chip ?? null;
   // (0.0.8: a contact's pause leads "Contact · 0.55 s." in the take-in's amber: COMBAT §25.4.6)
-  if (lead) out.push({ part: 'lead', tone: /^Contact · /.test(String(lead)) ? 'contact' : 'note', keys: [], text: String(lead) });
+  // (0.0.10: Breathe running out of the mode leads "Breathe · in · HOLD · out · hold", the count now in capitals: BREATHE_LEAD)
+  if (lead) out.push({ part: 'lead', tone: /^Contact · /.test(String(lead)) ? 'contact' : String(lead).startsWith(BREATHE_LEAD) ? 'breathe' : 'note', keys: [], text: String(lead) });
   if (line?.text) out.push({ part: 'line', tone: toneOf(line.tone), keys: line.act ? [T] : [], text: line.text, id: line.id ?? null, act: line.act ?? null });
   // (the chip: the next keyless line in short, T held does it; the keycaps of lines with keys of their own; the rest counted)
   const keyed = (now?.keys ?? []).map(k => label(k)), queued = Math.max(0, Number(now?.queued) || 0);
@@ -114,7 +120,7 @@ export function createInstinct(parent, { label = (a) => a } = {}) {
   }
   function partEls(list) {
     return list.map(p => {
-      if (p.part === 'lead') return el('span', { className: `lead${p.tone === 'contact' ? ' contact' : ''}` }, p.text);
+      if (p.part === 'lead') return el('span', { className: `lead${p.tone === 'contact' ? ' contact' : p.tone === 'breathe' ? ' breathe' : ''}` }, p.text);
       if (p.part === 'line') return el('span', { className: `line ${p.tone}` }, ...(p.keys.length ? [kbd(p.keys[0]), ' '] : []), p.text);
       const kids = p.keys.length ? [kbd(p.keys[0]), ' '] : [];
       // (a waiting line's own key as its keycap: "[B]" in the words)

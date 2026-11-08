@@ -48,6 +48,7 @@ function fuzzTable(seeds) {
 export default [
   {
     name: 'a fuzz shooter on "Three bangs" (keys mashed through the startle, the mode entered in the standby before and after the bangs, random rows, never reloading on odd seeds, walking off the point, idling) reaches the card on 4 runs within 30 game minutes, every item held once',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() { fuzzTable([1, 2, 3, 4]); },
   },
   {
@@ -130,6 +131,7 @@ export default [
   },
   {
     name: 'the pairs bot\'s whole banged course as the boot recruit on the reviews\' seeds (31337, 1, 10, 17) reaches the card with no enter-and-leave loop: the mode entered at most 15 times (they were 125: an empty magazine seated off the ground with the bolt home, the short one dropped at the feet, a halted UNLOAD, SHOW CLEAR waited out, the rifle dropped onto its sling in the clear) and no lull waited out on a count not known; the DI names the swap (pairs-reload \'swap\') and the Top up (pairs-topup \'unsure\')',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       for (const seed of [31337, 1, 10, 17]) {
         const g = createGame({ scenario: 'test-pairs', seed, tier: 'recruit', setup: 'bangs' }), s = g.state;

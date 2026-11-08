@@ -57,7 +57,22 @@
 // user's counting): n of them gapMs apart, the first a lead drawn from leadMs into the armed standby, each behindM behind
 // the point and spread ±spreadM across it, thrown throwMs before it goes off, the turn turnMs after the third. The coach's
 // bangsBrief says noise, never "Bang" (a shooter told "Bang" is forewarned: COMBAT §5.1's ×0.6), and bangsAfter follows
-// the banged string's paper. Data only.
+// the banged string's paper.
+// 0.0.10 (the build sheet 0.0.10 §2.2, §4, §8 items 2 to 10; COMBAT §25.18.3): the stress course, test-stress's "Bang", run on
+// pairs.js's engine (R.course 'pairs', R.stress selecting it): COURSES.stress has every field of COURSES.pairs with its value
+// but the magazines (10, 10 and the coach's one-round one), the strings (calm, the din, a bang called, three bangs, the
+// three bangs again on the short magazine), every string at 7 m with one threat (draws.one), the teacher whose cap the
+// inoculation reaches ('cadre', SKILLS §6.8) and the noise: din (an air horn of hornS seconds at the din's start and after
+// every hornEvery-th blank, blanks blanks fired by the coach at your shoulder, the first firstBlankMs into the din, then a
+// gap drawn from gapMs each, his muzzle muzzleFwdM downrange of him; the din a lead drawn from leadMs into the armed
+// standby, the turn a draw from turnMs into it), call (the coach's "Bang!" callMs before the burst, the burst a lead from
+// leadMs, the turn turnMs after it), bangs (pairs' three, the same numbers), reload (string 5's second turner, a draw from
+// turnMs after the RELOAD's start, or maxMs after the first turn if no RELOAD came); restMs, the least the coach lets pass
+// after his last noise before the next string's "Standby" (his "Stop" waits for it), so each string's chaos starts from
+// a pool mostly drained (my call: from three bangs at 79 the pool is 39 after 20 s). SEQ_STRESS is its sequence: SEQ_PAIRS'
+// commands without the walk back to the ten, every standby on the 7 m line, its words naming the noise but on strings 4
+// and 5 ("Standby." only: unannounced), the one-round magazine before string 5. STRESS_COACH is the coach's words (two
+// phrasings or more): "Bang!" is a call, never "Bang out" (that would be prepared: COMBAT §5.1). Data only.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
 /** The tower's commands in order (see the header). */
@@ -126,6 +141,17 @@ export const COURSES = deepFreeze({
       one: [[0, 50], [-1, 25], [1, 25]], two: [[-1, 50], [1, 50]], armoured: [[0, 50], [-1, 25], [1, 25]], short: [[-1, 50], [1, 50]],
       threatHolds: [['rifle', 70], ['pistol', 30]], noshootHolds: [['hands', 60], ['phone', 40]],
     },
+  },
+  // (0.0.10: test-stress's course, on pairs.js's engine (see the header); src/sim/scenarios/stress.js)
+  stress: {
+    word: 'the stress course at seven metres', paper: 'man', lanes: [1, 6], lane: { from: 2, to: 5 }, mags: [10, 10, 1], pouches: [1, 2, 3], strings: ['calm', 'din', 'called', 'bangs', 'reload'],
+    roGapMs: [800, 1600], firstGapMs: 3000, nudgeMs: 30000, checkMs: 3000, moveOnMs: 60000, load: 'ball', kit: 'range-pairs', hour: 11.0, oneMag: false, seq: 'stress',
+    standbyMs: [1500, 4000], stringMaxMs: 20_000, lullMag: 10, spoutTopUp: true, teacher: 'cadre', restMs: 20_000,
+    din: { leadMs: [500, 1500], hornS: 2, hornEvery: 10, blanks: 30, firstBlankMs: 500, gapMs: [250, 450], turnMs: [8500, 10_000], muzzleFwdM: 0.8 },
+    call: { leadMs: [1500, 3000], callMs: 1000, turnMs: 2000 },
+    bangs: { n: 3, leadMs: [1500, 3000], gapMs: 1000, turnMs: 2000, behindM: 1.5, spreadM: 0.5, throwMs: 600 },
+    reload: { turnMs: [1500, 2500], maxMs: 10_000 },
+    draws: { one: [[0, 50], [-1, 25], [1, 25]], threatHolds: [['rifle', 70], ['pistol', 30]], noshootHolds: [['hands', 60], ['phone', 40]] },
   },
 });
 
@@ -311,4 +337,43 @@ export const COACH = deepFreeze({
   ahead: ['Wait for the tower.', 'Not yet. The tower gives the commands.'],
   stop: ['Cease fire! Cease fire!', 'CEASE FIRE! Cease fire!'],
   cold: ['The line is cold. Finger off, on safe.', 'Nobody fires on a cold line.'],
+});
+
+/** The stress course's sequence (see the header): SEQ_PAIRS' commands without the walk back, every standby at 7 m. */
+export const SEQ_STRESS = deepFreeze([
+  { id: 'brief', ready: 'always', line: 7, say: ["Five strings at seven metres, on my timer. Wait out of it at low ready; when a target turns, take it in, then your shots. Threats only.",
+    "This is the stress course: five strings at seven metres, on the timer. Low ready, on safe, out of it until a target turns."] },
+  { id: 'load', ready: 'magIn', say: ['With a magazine of ten, LOAD.', 'Your first magazine, ten rounds. LOAD.'] },
+  { id: 'ready', ready: 'pairsReady', say: ['MAKE READY. Then low ready, on safe, and step out of it.', 'MAKE READY. On safe, low ready, and out of it.'] },
+  { id: 'standby', ready: 'stringDone', string: 0, line: 7, say: ['A quiet one first. Standby.', 'No noise this time. Standby.'] },
+  { id: 'stop', ready: 'pairsReady', string: 0, say: ['Stop. On safe, low ready, out of it.', 'Make safe. Low ready. Step out of it.'] },
+  { id: 'standby', ready: 'stringDone', string: 1, line: 7, say: ['Horn and blanks beside you this time. Standby.', 'Noise this time: the horn, and blanks at your shoulder. Standby.'] },
+  { id: 'stop', ready: 'pairsReady', string: 1, say: ['Stop. On safe, low ready, out of it.', 'Make safe. Low ready. Step out of it.'] },
+  { id: 'standby', ready: 'stringDone', string: 2, line: 7, say: ["One bang this time, and I'll call it. Standby.", 'A bang, and I shout it first. Standby.'] },
+  { id: 'stop', ready: 'pairsReady', string: 2, say: ['Stop. On safe, low ready, out of it.', 'Make safe. Low ready. Step out of it.'] },
+  { id: 'standby', ready: 'stringDone', string: 3, line: 7, say: ['Standby.', 'Shooter ready? Standby.'] },
+  { id: 'stop', ready: 'pairsReady', string: 3, say: ['Stop. On safe, low ready, out of it.', 'Make safe. Low ready. Step out of it.'] },
+  { id: 'short', ready: 'shortReady', say: ['The one-round magazine: top up with it. Then low ready, out of it.', 'Top up with the one-round magazine. Then low ready, and out of it.'] },
+  { id: 'standby', ready: 'stringDone', string: 4, line: 7, say: ['Standby.', 'Shooter ready? Standby.'] },
+  { id: 'lull', ready: 'toppedUp', say: ['Lull. Top up if you are at half or less, then low ready, out of it.', 'Take the lull. Half or less, top up; then low ready, out of it.'] },
+  { id: 'clear', ready: 'shown', say: ['UNLOAD, SHOW CLEAR.', 'UNLOAD, SHOW CLEAR to me.'] },
+  { id: 'end', ready: 'never', say: ["That's the course. The line is clear.", 'Done. The line is clear.'] },
+]);
+
+/** The stress coach's words (see the header), each ≥ 2 phrasings: "Bang!" a call, never "Bang out". */
+export const STRESS_COACH = deepFreeze({
+  brief: ['Five strings at seven metres, and I make noise: a horn, blanks, bangs. Ear defenders stay on. Threats down.',
+    'Five strings, all at seven metres. I will be making noise: the horn, blanks, bangs. Ear defenders on. Put the threats down.'],
+  din: ['Horn and blanks beside you this time. Standby.', 'Noise this time: the horn, and blanks at your shoulder. Standby.'],
+  call: ['Bang!', 'Bang! Bang!'],
+  dinAfter: ['That is what a line sounds like with a friend firing beside you.', 'Noise, and your lane all the same. That is the drill.'],
+  calledAfter: ['You heard it coming. A warning is worth having.', 'Called, so you knew. That is what a shout buys you.'],
+  bangsAfter: ["That's what noise does to your hands.", 'Three, no warning. Feel your hands? That is what it does to them.'],
+  reloadAfter: ['That is a reload under noise. Again tomorrow.', 'A reload with the noise on you. We do that again tomorrow.'],
+  // (at "Stop" after a noisy string, the rest's reason (the design review of 0.0.10: 20 s on the screen with nothing said))
+  rest: ['Let the smoke clear. Twenty seconds.', 'Twenty seconds for the noise to settle. Stay ready.'],
+  short: ['The one-round magazine is in. Good.', 'That is the one-round magazine in. Good.'],
+  // (the step's four counts of a second each, in, hold, out, hold: never "for four" (the design review of 0.0.10: the words
+  // promised a 16 s box the 4 s step is not))
+  breathe: ['Breathe. Box it: in, hold, out, hold.', 'Breathe. In, hold, out, hold.'],
 });

@@ -76,12 +76,24 @@
 // the running view leaving with the step; lastMarks), and the weapon card carries the step last run with its marks for
 // LAST_SHOW_MS of real time ("Off safe ✗", .wc-last), whatever its row became (Off safe gives way to Safe), so a thumb that
 // slipped on the safety is seen on the panel.
+// 0.0.10 (the build sheet 0.0.10 §2.1, §2.3; COMBAT §5.2; VIEWS §7.4): Breathe's row is the shot role's ("Breathe · 4.0 s", no odds:
+// no roll), fixed on the first page with nothing facing you, else a single marked "! he's up" (step.warn 'up': WARN_WORDS; never
+// struck, pillar 3); while it runs, the running view counts its four sub-steps as the box: in · hold · out · hold (BREATHE_COUNTS),
+// each filled (•) as it is breathed, the one running lit, its bar the game clock's.
 import { CARD_W, CARD_H } from './layout.js';
 import { distanceParts, dialWords } from '../../art/weaponcard.js';
 // (the panel's numbering is the sim's (src/sim/arms/panel.js), so the DI's line can name the digit a row is on: re-exported here)
 import { PANEL_KEYS, FIXED_KINDS, isFixed, FIXED_MAX, FIXED_REPEAT, isGated, gatedRow, panelList, panelOf, isShotRow } from '../../sim/arms/panel.js';
 export { PANEL_KEYS, FIXED_KINDS, isFixed, FIXED_MAX, FIXED_REPEAT, isGated, gatedRow, panelList, panelOf, isShotRow };
 
+/** A warn's words where the sim's id is short (0.0.10: Breathe with a threat up). */
+export const WARN_WORDS = Object.freeze({ up: "he's up" });
+/** A row's warning as the row says it. */
+export const warnWords = (w) => WARN_WORDS[w] ?? w;
+/** Breathe's four sub-steps as the running view counts them (COMBAT §5.2's box: in, hold, out, hold). */
+export const BREATHE_COUNTS = Object.freeze(['in', 'hold', 'out', 'hold']);
+/** Whether a step is Breathe (the shot role's id). */
+export const isBreathe = (id) => id === 'breathe' || String(id ?? '').startsWith('breathe');
 /** A row's mark when the chaos shakes it (stepsOf's warn). */
 export const SHAKING = 'shaking';
 /** Whether a row is marked as shaking (stepsOf's shaking record, or its warn). */
@@ -137,7 +149,7 @@ export function rowText(slot, opts = {}) {
   const s = slot.step, t = timeText(s, opts), odds = oddsText(s);
   // (0.0.9: a shaking row "1 Fire · 0.70 s · 45% ! shaking": its odds, then the mark)
   if (isShaking(s)) return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${odds ? ` · ${odds}` : ''} ! ${SHAKING}`;
-  return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${odds && !s.off ? ` · ${odds}` : ''}${s.off ? ` (${s.off})` : s.warn ? ` (! ${s.warn})` : ''}`;
+  return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${odds && !s.off ? ` · ${odds}` : ''}${s.off ? ` (${s.off})` : s.warn ? ` (! ${warnWords(s.warn)})` : ''}`;
 }
 /** A row's hover words: what it rolls, and its rushed and careful times where it has them. */
 export function rowTitle(step, { label = (a) => a, chaos = null } = {}) {
@@ -154,7 +166,9 @@ export function rowTitle(step, { label = (a) => a, chaos = null } = {}) {
   if (step.gate && step.off) bits.push(`needs ${step.off}`);
   if (step.words && step.words !== step.label) bits.push(step.words);
   if (step.off) bits.push(`not now: ${step.off}`);
-  else if (step.warn && step.warn !== SHAKING) bits.push(step.warn === 'one magazine a string' ? `ahead of the tower: ${step.warn}` : step.warn);
+  else if (step.warn && step.warn !== SHAKING) bits.push(step.warn === 'one magazine a string' ? `ahead of the tower: ${step.warn}` : step.warn === 'up' ? "he's up: four seconds of your time with a threat facing you" : step.warn);
+  // (0.0.10: Breathe's own words: what it buys and what it costs)
+  if (isBreathe(step.id) && !step.words) bits.push('box breathing, in, hold, out, hold: the chaos drains twice as fast while it runs; never free');
   return bits.join(' · ');
 }
 
@@ -370,7 +384,10 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   // recovery offers nothing)
   function running(v, d, model) {
     const st = known.get(d.step) ?? { id: d.step, kind: d.kind, label: labelOf(d.step) };
-    const subs = d.list ?? st.subs?.map(x => x.id) ?? [d.step], marks = v.ticks?.of(d.step, subs.length) ?? subs.map(() => '·');
+    const subs = d.list ?? st.subs?.map(x => x.id) ?? [d.step];
+    // (0.0.10: Breathe has no roll to tick: its counts fill as they are breathed)
+    const breathe = isBreathe(d.step), marks = breathe ? subs.map((_, i) => (i < (d.i ?? 0) ? '•' : '·')) : v.ticks?.of(d.step, subs.length) ?? subs.map(() => '·');
+    const subWord = (i) => (breathe ? BREATHE_COUNTS[i] ?? labelOf(subs[i]) : subWords(st, subs, i, labelOf));
     const fire = null;
     slots = [];
     const rs = JSON.stringify(['run', d.step, d.tempo, d.i, marks.join(''), !!fire]);
@@ -378,13 +395,13 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
       sigRows = rs;
       bar = el('i', { className: 'bar' });
       const tempo = d.tempo && d.tempo !== 'normal' ? d.tempo : null;
-      rowsEls = [el('div', { className: `running-view ${d.kind ?? ''}` },
+      rowsEls = [el('div', { className: `running-view ${d.kind ?? ''}${breathe ? ' breathe' : ''}` },
         el('div', { className: 'rv-head' }, el('span', { className: 'rv-name', textContent: st.label }), tempo ? el('span', { className: `rv-tempo ${tempo}`, textContent: tempo }) : null),
-        subs.length > 1 ? el('div', { className: 'rv-subs' }, ...subs.map((id, i) => el('span', { className: `rv-sub${i === d.i ? ' now' : ''}${marks[i] === '✗' ? ' bad' : ''}` }, el('b', { textContent: marks[i] }), ` ${subWords(st, subs, i, labelOf)}`))) : null,
+        subs.length > 1 ? el('div', { className: 'rv-subs' }, ...subs.map((id, i) => el('span', { className: `rv-sub${i === d.i ? ' now' : ''}${marks[i] === '✗' ? ' bad' : ''}` }, el('b', { textContent: marks[i] }), ` ${subWord(i)}`))) : null,
         el('span', { className: 'track' }, bar))];
       list.replaceChildren(...rowsEls);
       root.classList.add('acting');
-      text = [model.line, `running: ${st.label}${subs.length > 1 ? ` ${subs.map((id, i) => `${marks[i]} ${subWords(st, subs, i, labelOf)}`).join(', ')}` : ''}`].filter(Boolean).join(' | ');
+      text = [model.line, `running: ${st.label}${subs.length > 1 ? ` ${subs.map((id, i) => `${marks[i]} ${subWord(i)}`).join(', ')}` : ''}`].filter(Boolean).join(' | ');
     }
     bar.style.width = `${Math.round(progress(d, v.nowMs) * 100)}%`;
     return text;
@@ -404,7 +421,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     const meta = shaking
       ? el('span', { className: 'meta shake' }, el('span', { className: 'line1' }, timeEl, isShotRow(s) ? rounds() : odds ? el('span', { className: 'odds', textContent: odds }) : null), el('span', { className: 'why warn shake', textContent: `! ${SHAKING}` }))
       : el('span', { className: 'meta' }, timeEl,
-        s.off ? el('span', { className: 'why', textContent: s.off }) : s.warn ? el('span', { className: 'why warn', textContent: `! ${s.warn}` })
+        s.off ? el('span', { className: 'why', textContent: s.off }) : s.warn ? el('span', { className: 'why warn', textContent: `! ${warnWords(s.warn)}` })
           // (a shot row: each round's odds, a meter under each, the head's marked: graphics beside the numbers)
           : isShotRow(s) ? rounds()
           : odds ? el('span', { className: `odds${s.routine ? ' routine' : ''}`, textContent: odds }) : null);

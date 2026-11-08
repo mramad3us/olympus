@@ -440,3 +440,33 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .steps .wcard { position: relative; }
 .steps .wcard .wc-last { position: absolute; left: calc(6px * var(--ui)); top: calc(5px * var(--ui)); padding: 0 calc(5px * var(--ui)); font-size: calc(11px * var(--ui)); letter-spacing: 0.04em; color: var(--paper); background: rgba(20, 21, 28, 0.82); border-left: 2px solid var(--brass); white-space: nowrap; max-width: calc(166px * var(--ui)); overflow: hidden; text-overflow: ellipsis; }
 .steps .wcard .wc-last.bad { border-left-color: #f0a090; color: #f6d0c8; }
+/* 0.0.10 (the build sheet 0.0.10 §2.3, §8 item 18; VIEWS §7.7): the hit card in HITCARD, 200 × 200 at the left edge under TOASTS
+   (layout.js: GAP_PX under it), its canvas at whole device pixels a card pixel (hud/hitcard.js hitFit) centred in its box; the
+   stress course's end card, the strings' lines, the hot wash beside it (one string's truth card at the HUD's size, a button a
+   string) and the session's grid; Breathe's running count. */
+.hitcard { position: absolute; left: var(--m); top: calc(var(--m) + (84px + 6px) * var(--ui)); width: calc(200px * var(--ui)); height: calc(200px * var(--ui)); display: flex; align-items: flex-start; justify-content: flex-start; overflow: hidden; pointer-events: none; }
+.hitcard canvas { display: block; image-rendering: pixelated; }
+.glass.end .stress-said { margin: calc(4px * var(--ui)) 0 calc(8px * var(--ui)); border-left: 2px solid #e7b84a; padding-left: calc(8px * var(--ui)); }
+.glass.end .stress-said p { margin: 0; color: var(--glass-text); font-size: calc(11px * var(--ui)); line-height: 1.35; font-variant-numeric: tabular-nums; }
+.glass.end .stress-said p.head { color: var(--paper); font-size: calc(12px * var(--ui)); }
+.glass.end .stress-said p.inoc { color: var(--brass); }
+.end-wrap { display: flex; align-items: flex-start; gap: calc(12px * var(--ui)); max-height: 92vh; }
+.end-wrap > .glass { max-height: 92vh; }
+.glass.end.wide { width: min(calc(680px * var(--ui)), calc(92vw - 200px * var(--ui))); }
+.glass.end.wide .glass-list { display: grid; grid-template-columns: 1fr 1fr; gap: calc(4px * var(--ui)); }
+.glass.end.wide .glass-list .item { margin: 0; }
+.stress-wash { display: flex; flex-direction: column; align-items: center; gap: calc(6px * var(--ui)); padding: calc(8px * var(--ui)); background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 4px; font-family: var(--mono); }
+.stress-wash figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: calc(4px * var(--ui)); }
+.stress-wash canvas { display: block; image-rendering: pixelated; }
+.stress-wash figcaption { color: var(--glass-text); font-size: calc(11px * var(--ui)); letter-spacing: 0.04em; }
+.stress-wash .wash-tabs { display: flex; gap: calc(4px * var(--ui)); }
+.stress-wash .wash-tab { min-width: calc(24px * var(--ui)); padding: calc(2px * var(--ui)) calc(6px * var(--ui)); font: inherit; font-size: calc(11px * var(--ui)); color: var(--paper); background: transparent; border: 1px solid var(--glass-edge); border-radius: 3px; cursor: pointer; }
+.stress-wash .wash-tab.on { border-color: #e7b84a; color: #e7b84a; }
+.stress-wash .wash-tab:disabled { opacity: 0.35; cursor: default; }
+.glass.end .stress-grid { border-collapse: collapse; font-size: calc(11px * var(--ui)); font-variant-numeric: tabular-nums; color: var(--glass-text); margin: 0 0 calc(6px * var(--ui)); }
+.glass.end .stress-grid th, .glass.end .stress-grid td { text-align: left; padding: 0 calc(8px * var(--ui)) 0 0; font-weight: normal; vertical-align: top; line-height: 1.35; }
+.glass.end .stress-grid tr:first-child th { color: var(--brass); }
+.glass.end .stress-grid .now { color: var(--paper); }
+.instinct .lead.breathe { border-left-color: #8fb8d8; color: #d8e8f4; letter-spacing: 0.04em; }
+.instinct .lead.breathe b { color: #ffffff; font-weight: 600; }
+.steps .running-view.breathe .rv-sub.now { color: #d8e8f4; }

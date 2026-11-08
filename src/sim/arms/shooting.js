@@ -95,7 +95,14 @@
 // 0.0.9 (the build sheet 0.0.9 §2.1, §8 item 17; COMBAT §25.18.1): a row whose odds are under SHAKING_ODDS 0.70 while the
 // chaos's modifier on its skill is below 0 is marked, never struck: shaking { v, felt, band } and, with no warn of its own,
 // warn 'shaking' ("! shaking"); such a row is never routine.
-// Pure but enterStop, leaveStop, liveStep, chooseStep, stopInput, stopRules.
+// 0.0.10 (the build sheet 0.0.10 §2.1, §8 items 11 to 13; COMBAT §5.2): Breathe ('breathe', "Breathe · 4.0 s") is a single
+// stepsOf offers while supp.js breatheOffer allows it (felt 20 up, no window open, not startled): with no threat of the
+// string facing, a fixed row (promoted, on the first page); with one up, a single paged with the rest and marked warn 'up'
+// ("! he's up", never struck). Its plan is four sub-steps 'breathe' of BREATHE_SUB_MS (in, hold, out, hold), no roll and
+// never × the chaos's time factor (breathing is not the hands); supp.js breatheStart at its first, breatheEnd at its end
+// or its cut (a startle or a sighting cuts it at its sub-step's end, as any step). Out of the mode it is a live step
+// (breatheAction: in the mode chooseStep, out of it liveStep), and it leaves the hands as they were.
+// Pure but enterStop, leaveStop, liveStep, chooseStep, breatheAction, stopInput, stopRules.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { playerActor, playerId } from '../../core/ids.js';
@@ -103,7 +110,7 @@ import { headOf } from '../people/perception.js';
 import { downOf } from '../body/wounds.js';
 import { isRoutine, oddsOf, TEMPO } from '../skills/checks.js';
 import { rollerOf } from '../combat/roll.js';
-import { suppMod, bandOf, SHAKING_ODDS } from '../combat/supp.js';
+import { suppMod, bandOf, SHAKING_ODDS, breatheOffer, breatheStart, breatheEnd, BREATHE_MS, BREATHE_SUB_MS } from '../combat/supp.js';
 import { stanceMs, WAIT_MAX_MS, STANCES, stanceStep } from '../combat/steps.js';
 import { offerReflex, chosenReflex } from '../combat/reflex.js';
 import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, HELD_MAX, poiOf, holdFor, holdWords, windBeliefOf, HOLD_STEP_MRAD, HOLD_MAX_MRAD, HOLD_SHIFT_MS } from './shot.js';
@@ -149,7 +156,11 @@ export const LABELS = Object.freeze({
   'stance:stand': 'Stand', 'stance:kneel': 'Kneel', 'stance:prone': 'Prone', 'stance:sit': 'Sitting',
   // (0.0.7: the turrets, the hold, the read and the lever (see the header))
   read: 'Read the flags', 'optic:1': 'One power', 'optic:4': 'Four power', 'hold:centre': 'Hold centre', 'sight:call': 'Dial the coach\'s call',
+  // (0.0.10: Breathe (see the header))
+  breathe: 'Breathe',
 });
+/** Breathe's four sub-steps' words, in order (box breathing: in, hold, out, hold). */
+export const BREATHE_WORDS = Object.freeze(['Breathe in.', 'Hold it.', 'Breathe out.', 'Hold it.']);
 /**
  * A step's words from its id alone, for a step whose row the panel never drew (a load, an "Again", T's step): the single's
  * LABELS, a command's macro label ('macro:ready' → "MAKE READY"), a shot row's ('shot:pair' → "Pair"), "Carry on", else the
@@ -331,6 +342,8 @@ export function leaveStop(state, bus, why = 'player') {
   if (why === 'player' && S.reflex) return false;
   releaseTime(state, 'stop');
   releaseTime(state, 'reflex');
+  // (0.0.10: a Breathe the scene's exit cut short (the line stopped under it) closes its window where it stands)
+  if (S.doing?.kind === 'breathe') breatheEnd(state, bus, S.doing.who, Math.min(state.clock.ms, S.doing.untilMs), { cut: true, fromPts: S.doing.breathePool ?? null });
   const me = meOf(state);
   if (me && me.headRad !== undefined) { me.face = faceOfHead(me.headRad); delete me.headRad; }
   state.stop = null;
@@ -527,7 +540,9 @@ export function stepsOf(state, ms = state.clock.ms) {
   const R0 = rangeOf(state), waitLabel = R0?.course === 'pairs' && !R0.end ? (R0.cmd?.id === 'standby' && R0.str && !R0.str.done ? 'Wait for the turn' : 'Wait for the coach') : LABELS.wait;
   const wait = { id: 'wait', kind: 'wait', label: waitLabel, ms: WAIT_MAX_MS, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
   const leave = { id: 'leave', kind: 'leave', label: LABELS.leave, ms: 0, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
-  if (slung(posture)) return shaking(roller, [...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, wait, leave]);
+  // (0.0.10: Breathe where the model offers it: fixed with nothing facing you, a single marked "! he's up" with a threat up (see the header))
+  const br = breatheRow(state, pid, ms);
+  if (slung(posture)) return shaking(roller, [...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, ...(br?.later ? [br] : []), wait, leave]);
   // (1 Fire: at the aim, the gun as the holder believes it)
   const aimT = S.aim ? targetOf(state, S.aim.key, pid) : null, pull = pullMsOf(state, pid, S.gun);
   const h = aimT ? heldOf(state, pid, ms, aimT.key) : null;
@@ -560,6 +575,7 @@ export function stepsOf(state, ms = state.clock.ms) {
   const singles0 = canDo(state, pid, S.gun), offSafe = stepwise && belief.mode === 'safe' && singles0.includes('selector:semi') ? { ...actionStep(state, roller, gun, 'selector:semi'), promoted: true } : null;
   if (stepwise && aimRow.kind === 'aim' && !aimRow.off) out.push(...cRows.filter(r => r.lead), ...(offSafe ? [offSafe] : []), aimRow, ...sRows.filter(r => !gated(r)), fire, ...cRows.filter(r => !r.lead), ...sRows.filter(gated));
   else out.push(...cRows.filter(r => r.lead), ...(offSafe ? [offSafe] : []), ...sRows.filter(r => !gated(r)), fire, aimRow, ...cRows.filter(r => !r.lead), ...sRows.filter(gated));
+  if (br && !br.later) out.push(br);
   // (the Corps' commands, the tower's current first)
   // (UNLOAD, SHOW CLEAR is shown to the coach on the tower's command, so the panel offers it only once the
   // tower has said it: before then the coach is not looking, and the row would sit in the panel all course)
@@ -603,7 +619,7 @@ export function stepsOf(state, ms = state.clock.ms) {
     if (a === 'selector:safe' && hammerDown) st.off = 'hammer down: charge first';
     (noAnswer(a) ? tail : out).push(noAnswer(a) ? Object.assign(st, { later: true }) : st);
   }
-  out.push(...stances, ...later, ...tail);
+  out.push(...stances, ...later, ...tail, ...(br?.later ? [br] : []));
   for (const a of singles) if (a.startsWith('posture:')) out.push(actionStep(state, roller, gun, a, 'posture'));
   if (mw) out.push({ ...wait, id: 'wait:mark', label: LABELS['wait:mark'], ms: MARK_WAIT_MS });
   out.push(wait, leave);
@@ -622,6 +638,17 @@ export function stepsOf(state, ms = state.clock.ms) {
     if (w) st.warn = w;
   }
   return shaking(roller, out);
+}
+
+/**
+ * Breathe's row (see the header), or null where supp.js breatheOffer does not offer it: { id: 'breathe', kind: 'breathe',
+ * label, ms: BREATHE_MS, subs: its four, promoted } with nothing facing, { …, later, warn: 'up' } with a threat up.
+ */
+export function breatheRow(state, pid = playerId(state), ms = state.clock.ms) {
+  const o = breatheOffer(state, pid, ms);
+  if (!o.ok) return null;
+  const subs = BREATHE_WORDS.map(w => ({ id: 'breathe', label: w.replace(/\.$/, ''), ms: BREATHE_SUB_MS }));
+  return o.up ? row('breathe', 'breathe', LABELS.breathe, BREATHE_MS, { subs, later: true, warn: 'up' }) : row('breathe', 'breathe', LABELS.breathe, BREATHE_MS, { subs, promoted: true });
 }
 
 // (0.0.9: a row whose odds the chaos holds under SHAKING_ODDS is marked "! shaking", never struck (combat/supp.js; COMBAT
@@ -676,8 +703,9 @@ function startStep(state, bus, st, { tempo = 'normal', target = null, mode = 'st
   // (0.0.8: a shot row's parts, planned at its start (specials.js rowPlan); the row's off safe at no time from rung 2)
   const plan = st.kind === 'shot' ? rowPlan(state, S.who, st.id, targetOf(state, st.target, S.who), { tempo, atMs: now, gunId: S.gun, odds: false }) : null;
   const list = st.queue ? [...st.queue] : plan ? plan.parts.map(p => p.k) : st.kind === 'command' ? subsOf(st.macro, beliefOf(state, S.gun))
-    : st.kind === 'fire' ? (tempo === 'careful' ? ['hold', 'fire'] : ['fire']) : st.kind === 'contact' && st.subs?.length ? st.subs.map(x => (typeof x === 'string' ? x : x.id)) : [st.id];
-  const t = tempo === 'careful' && (st.kind === 'fire' || st.kind === 'shot') ? 'normal' : tempo;
+    : st.kind === 'fire' ? (tempo === 'careful' ? ['hold', 'fire'] : ['fire']) : st.kind === 'contact' && st.subs?.length ? st.subs.map(x => (typeof x === 'string' ? x : x.id))
+    : st.kind === 'breathe' ? Array.from({ length: Math.round(BREATHE_MS / BREATHE_SUB_MS) }, () => 'breathe') : [st.id];
+  const t = (tempo === 'careful' && (st.kind === 'fire' || st.kind === 'shot')) || st.kind === 'breathe' ? 'normal' : tempo;
   // (taps: v0.0.5's follow-ups, retired (COMBAT §25.6.4); the field kept so a step's saved record keeps its shape)
   const d = { who: S.who, step: st.id, kind: st.kind, tempo: t, list, subs: [], i: 0, fromMs: now, subFromMs: now, untilMs: now, cmd: st.cmd ? rangeOf(state)?.cmd?.id ?? null : null,
     chain: false, target: target ?? st.target ?? null, taps: 0 };
@@ -779,6 +807,11 @@ function runSub(state, bus, d, i, atMs) {
     noteTick(state, { moving: true });
     S.aim = null;
     if (postureOf(state, pid) === 'aimed') setPosture(state, pid, 'lowReady');
+  } else if (id === 'breathe') {
+    // (0.0.10: a sub-step of Breathe: its fixed time, no roll, never × the chaos's time factor; the window at its first)
+    rec.ms = BREATHE_SUB_MS;
+    if (i === 0) { const b = breatheStart(state, bus, pid, atMs); d.breathePool = b?.pool ?? null; }
+    text = BREATHE_WORDS[i] ?? BREATHE_WORDS[0];
   } else if (id === 'wait') {
     rec.ms = WAIT_MAX_MS;
   } else if (id === 'wait:mark') {
@@ -823,7 +856,7 @@ function runSub(state, bus, d, i, atMs) {
 // (a sub-step's end: its effects that land there)
 // (the sub-steps that touch nothing of the rifle's working parts: the hands stay as they were; 0.0.6's magazine in the
 // hand too, all but the seat, which is the old magazine in's hand on the well, so a LOAD soils the hands as v0.0.5's did)
-const CLEAN_SUBS = new Set(['aim', 'hold', 'fire', 'wait', 'finger', 'show', 'observe', 'reach', 'lookMag', 'stowMag', 'dumpMag', 'dropMag']);
+const CLEAN_SUBS = new Set(['aim', 'hold', 'fire', 'wait', 'finger', 'show', 'observe', 'reach', 'lookMag', 'stowMag', 'dumpMag', 'dropMag', 'breathe']);
 // (the hands after a sub-step: the rifle's oil and carbon, or the ground's regolith; the build sheet 0.0.6 §2.1)
 function soilOf(state, bus, id, stanceTo) {
   if (!id) return;
@@ -890,6 +923,8 @@ function endStep(state, bus, why = 'end') {
   const S = state.stop, d = S?.doing;
   if (!d) return;
   const t = state.clock.ms;
+  // (0.0.10: Breathe's window closed at its last sub-step's end, or where a cut stopped it (see the header))
+  if (d.kind === 'breathe') d.shedPts = breatheEnd(state, bus, d.who, Math.min(t, d.untilMs), { cut: why !== 'end', fromPts: d.breathePool ?? null })?.shedPts ?? 0;
   bus?.emit('step', stepFact(d, why === 'halt' ? 'halt' : why === 'cut' ? 'cut' : 'end', { ok: why === 'end' || why === 'stop', grade: null, routine: null, mishap: null, text: why }));
   S.doing = null;
   if (S.mode === 'live') { state.stop = null; afterStep(state, bus, d, why); return; }
@@ -983,6 +1018,11 @@ export function liveStep(state, bus, { pid = playerId(state), step } = {}) {
     const to = step.slice(7), from = me.stance ?? 'stand';
     if (to === from || !STANCES.includes(to)) return { ok: false, why: 'already' };
     st = { id: step, kind: 'stance' };
+  } else if (step === 'breathe') {
+    // (0.0.10: Breathe out of the mode, a live step with no rifle needed (see the header))
+    const o = breatheOffer(state, pid, state.clock.ms);
+    if (!o.ok) return { ok: false, why: o.why };
+    st = { id: 'breathe', kind: 'breathe', label: LABELS.breathe };
   } else {
     if (!gunId || !canDo(state, pid, gunId).includes(step)) return { ok: false, why: 'not offered' };
     st = { id: step, kind: 'single' };
@@ -990,6 +1030,12 @@ export function liveStep(state, bus, { pid = playerId(state), step } = {}) {
   state.stop = { mode: 'live', who: pid, gun: gunId, phase: 'act', pick: null, aim: null, doing: null, queue: [], reflex: null, keep: {} };
   startStep(state, bus, st, { mode: 'live' });
   return { ok: true, why: null };
+}
+
+/** Breathe (the action 'breathe', the DI's T): a step in the mode, a live step out of it (see the header). Returns { ok, why }. */
+export function breatheAction(state, bus) {
+  if (state.stop?.mode === 'stop') return chooseStep(state, bus, { step: 'breathe' });
+  return liveStep(state, bus, { pid: playerId(state), step: 'breathe' });
 }
 
 /** The carry action (V): the posture's other in the mode, a live step out of it; slung, the rifle up. */

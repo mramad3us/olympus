@@ -48,6 +48,7 @@ function watch({ seed, setup, until = 'clear' }) {
 export default [
   {
     name: 'the relay fires the confirm at 300 m and the rapid string at 200 m beside you on 12 seeds: each gunner answers every command (its time by Weapon handling), on safe after CEASE FIRE, never a shot on a cold line, never forward of the line while hot, every string fired to its end',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const by = { 300: [], 200: [] }, ready = {}, tot = { cold: 0, forward: 0, unsafe: 0, stops: 0, nds: 0, shots: 0 }, short = [];
       let limited = 0, misfired = 0;

@@ -88,6 +88,7 @@ export default [
   },
   {
     name: 'their odds at 7 and 10 m (planted, lit, the aim fresh): the row\'s figure within 3 points of 4,000 rolls each, torso, its A zone, the head, the Pair\'s and the Hammer\'s second, the failure drill\'s head and the plate down; everyone 95% on the torso but the recruit\'s A (80%) and head (70%), the plate down 50%, 80%, then 95% (the build sheet §4)',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const N = 4000, out = [], bad = [];
       for (const tier of ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']) for (const line of [7, 10]) {

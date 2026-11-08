@@ -158,6 +158,13 @@
 // its one pale frame on the first frame drawn at or after its start, the flash's white over the cone the eyes faced, its
 // afterimage at the burst, the dazzle's veil), each frame after the eye. view.stats.chaos says what was drawn. The smoke's
 // wind is main.js's (info.wind: wind.js windAt at the pad, the sim's, which the render may not import).
+// 0.0.10 (the build sheet 0.0.10 §2.3; VIEWS §7.3): the stress course's din, rangeLook().stress drawn by the din layer (here:
+// two instanced draws of decals.js createPixels): the coach's air horn in his hand while it sounds and his short rifle at his
+// hip, muzzle downrange, over his figure; each blank's flash at that muzzle, light (the fog never dims it), drawn after the
+// figures like the bang's, on the first frame at or after its moment even when that frame is past its BLANK_FLASH_MS 30, and
+// once (range-items.js hornPixels, coachRiflePixels, blankFlashPixels). Written only when what it shows changes (a blank's
+// flash on or off, the horn on or off): the bench's thirty blanks upload a few hundred bytes each. The stress course's bangs
+// are the bangs layer's, as Three bangs'. view.stats.din says what was drawn ({ horn, rifle, flashing: [keys], flashes }).
 // idle and pending say what still waits (an area's build, the chunks in the picture, uploads, a sheet,
 // the worker, the warm-up), so main.js sets window.__ready only once nothing does. stats: the last
 // frame's draw calls, triangles, programs, CPU ms, uploads, people drawn and put off (people: { drawn,
@@ -214,6 +221,8 @@ import { kdFaceAt } from './range-items.js';
 import { FACE_K } from '../art/kit/range.js';
 import { lightLevel } from '../sim/places/light.js';
 import { createBangs } from './bangs.js';
+import { createPixels } from './decals.js';
+import { hornPixels, coachRiflePixels, blankFlashPixels, blankFlashOn, BLANK_FLASH_MS } from './range-items.js';
 import { chaosOf, easeChaos, CALM as CHAOS_CALM } from './chaos.js';
 import { AFTER_R_M } from './chaos.js';
 import * as BLOOD from '../sim/body/blood.js';
@@ -318,7 +327,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const blood = createBlood(stage, { ppm });
   // (0.0.9: the training bangs: their bodies, flashes and smoke)
   const bangs = createBangs(stage, { ppm });
-  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group, bangs.group);
+  // (0.0.10: the din: the coach's horn and rifle among the figures, the blanks' flashes over them)
+  const din = createDin(stage, { ppm });
+  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group, bangs.group, din.group);
   // (0.0.9: the chaos on the picture: the reading main.js gives (setChaos), the numbers shown (eased), the startle whose pale frame was drawn)
   let chaosWant = null, chaosShown = null, paleDone = null, movingSig = '';
   // (the far window: its own camera, post, fog and chunks; drawn inside the stage's composite, before the blit)
@@ -957,7 +968,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       if (farView) { const m = far.radiusM; views.push({ x0: farView.x - m, x1: farView.x + m, z0: farView.z - farView.y - m, z1: farView.z - farView.y + m + 8 }); }
       stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views }) : (rangeLayer.update(null), null);
       // (0.0.9: the bangs on the pad, at the moment drawn; a flash's light pool among the moving lamps)
-      const bangList = rl?.pairs?.bangs ?? null;
+      // (0.0.10: the stress course's bangs, the same layer; its din, the din layer)
+      const bangList = rl?.stress?.bangs?.length ? [...(rl?.pairs?.bangs ?? []), ...rl.stress.bangs] : rl?.pairs?.bangs ?? null;
+      stats.din = din.update(rl?.stress ?? null, { ms: fxMs, tintOf: tintAt });
       const bs = bangs.update(bangList ?? [], { ms: fxMs, tintOf: tintAt, wind: bangList?.length ? info.wind ?? null : null, figures: bangList?.length ? people.filter(q => !q.lie && !q.remembered).map(q => ({ x: q.x, z: q.z })) : [] });
       stats.bangs = bangList?.length ? { bangs: bs.bangs, flashing: bs.flashing.slice(), body: bs.body, smoke: bs.smoke, flash: bs.flash, ms: Math.round(fxMs * 10) / 10 } : null;
       moving.push(...bs.lamps);
@@ -1047,7 +1060,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
 
   /** Compile the stage's programs (warm.js): once, at boot. */
   function warm() {
-    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1], rangeLayer.pixels.mesh, decals.pixels.mesh, blood.pixels.mesh, blood.marks.mesh, bangs.pixels.mesh, bangs.smoke.mesh, bangs.flash.mesh] }).then((r) => { far.warm(); warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
+    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1], rangeLayer.pixels.mesh, decals.pixels.mesh, blood.pixels.mesh, blood.marks.mesh, bangs.pixels.mesh, bangs.smoke.mesh, bangs.flash.mesh, din.pixels.mesh, din.flash.mesh] }).then((r) => { far.warm(); warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
       (e) => { warmed = true; console.warn('view: the warm-up failed', e); return null; });
     return warming;
   }
@@ -1065,7 +1078,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   };
 
   return {
-    setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks, splash, vignettes, range: rangeLayer, decals, blood, far, bangs,
+    setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks, splash, vignettes, range: rangeLayer, decals, blood, far, bangs, din,
     /**
      * The chaos on the picture (0.0.9): main.js's reading each frame, { sn (supp.js suppNow's record, or null), reduce (the
      * "reduce flashes" setting), face (the player's facing), burst ({ x, z }: the last bang's) }, or null; made into the post
@@ -1097,7 +1110,59 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       endWipe();
       for (const c of cache.values()) c.built?.dispose();
       cache.clear(); live = null;
-      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); blood.dispose(); far.dispose(); bangs.dispose();
+      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); blood.dispose(); far.dispose(); bangs.dispose(); din.dispose();
     },
   };
+}
+
+/** The din's pixels a draw: the horn and the rifle; the flashes (a few blanks at once at most). */
+export const DIN_PIXELS = 32, DIN_FLASH_PIXELS = 64;
+/** A blank's flash first drawn later than this after its moment is not drawn at all (game ms: a load, a skip). */
+export const DIN_FLASH_LATE_MS = 500;
+/**
+ * The stress course's din on a stage (see the header): { group, update(look, { ms, tintOf }) → stats, pixels, flash, dispose }.
+ * look: rangeLook().stress ({ coach, horn, blanks }) or null.
+ */
+export function createDin(stage, { ppm = PX_PER_M } = {}) {
+  // (both drawn after the figures, as the bang's flash and the muzzle's star are: three.js draws the figures' cards in its transparent
+  // pass, and the horn and the rifle are in the coach's hands, in front of him)
+  const THREE = stage.THREE, px = createPixels(THREE, DIN_PIXELS, { ppm, order: 3 }), flash = createPixels(THREE, DIN_FLASH_PIXELS, { ppm, order: 3 });
+  // (and over his figure's card, whose depth is toward the camera from his place: no depth test, so the rifle at his hip and the
+  // horn at his face show where they cross him (the face's shot of v0.0.10: the rifle showed only past his body))
+  for (const m of [px.mesh, flash.mesh]) { m.material.transparent = true; m.material.depthWrite = false; m.material.depthTest = false; }
+  const group = new THREE.Group();
+  group.name = 'din';
+  group.add(px.mesh, flash.mesh);
+  const flashed = new Map();                                         // (a blank's key → the game ms its flash was first drawn)
+  let sig = '';
+  const stats = { horn: false, rifle: false, flashing: [], flashes: 0, writes: 0 };
+  function update(look = null, { ms = 0, tintOf = null } = {}) {
+    if (!look?.coach) {
+      if (sig !== 'none') { sig = 'none'; px.count(0); flash.count(0); flashed.clear(); Object.assign(stats, { horn: false, rifle: false, flashing: [], flashes: 0 }); }
+      return null;
+    }
+    const c = look.coach, tint = tintOf ? tintOf(c.x, c.z) : [1, 1, 1];
+    // (the flashes this frame: in their time, or the first frame after it once; never again)
+    const on = [];
+    for (const b of look.blanks ?? []) {
+      const key = String(b.key ?? b.atMs), first = flashed.get(key);
+      if (ms < b.atMs) { flashed.delete(key); continue; }
+      const force = first === undefined && ms - b.atMs >= BLANK_FLASH_MS && ms - b.atMs < DIN_FLASH_LATE_MS;
+      if (blankFlashOn(b, ms, force) && (first === undefined || ms - first < BLANK_FLASH_MS)) { if (first === undefined) flashed.set(key, ms); on.push(b); }
+    }
+    const horn = hornPixels(c, look.horn, ms, ppm);
+    const s = `${c.x},${c.z}|${horn.length}|${on.map(b => b.key ?? b.atMs).join(',')}|${tint.map(v => v.toFixed(3)).join(',')}`;
+    if (s === sig) return stats;
+    sig = s;
+    let n = 0, nf = 0;
+    // (the light flag on his horn and rifle too: drawn up at his hand, they lie in the picture over ground the fog of awareness
+    // may dim, where his own figure, which you see, is never dimmed; the flag only spares them the fog and the ink line)
+    for (const q of [...coachRiflePixels(c, ppm), ...horn]) if (px.set(n, { x: q.x, y: q.y, z: q.z, flat: q.flat, color: q.c, tint, light: true })) n++;
+    for (const b of on) for (const q of blankFlashPixels(b, ms, ppm, { force: true })) if (flash.set(nf, { x: q.x, y: q.y, z: q.z, flat: q.flat, color: q.c, part: 0, light: true })) nf++;
+    px.count(n); flash.count(nf);
+    Object.assign(stats, { horn: horn.length > 0, rifle: true, flashing: on.map(b => String(b.key ?? b.atMs)), flashes: nf });
+    stats.writes++;
+    return stats;
+  }
+  return { group, update, stats, pixels: px, flash, dispose() { px.dispose(); flash.dispose(); group.removeFromParent(); } };
 }

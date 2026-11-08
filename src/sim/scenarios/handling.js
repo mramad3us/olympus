@@ -87,6 +87,8 @@
 // to pairsAfterStep (the reloads by purpose, the string's end), the box the line holds you in the current line's
 // (pairs.js pairsBox) with no lane rule (every lane's turner is yours), no 'onemag' fault nor mark (COURSES.pairs.oneMag
 // false), no ahead-of-the-tower for a reload (Top up is the shooter's own), no spout word, and rangeNow pairsNow's.
+// 0.0.10 (the build sheet 0.0.10 §2.2): test-stress's stress course runs on the pairs course (R.course 'pairs'), its own
+// sequence courses.js SEQ_STRESS where the session carries R.stress (seqOf); everything else is pairs.js's.
 import { TICK_MS, holdTime, isHeld } from '../../core/clock.js';
 import { msAtMarsTime } from '../../core/calendar.js';
 import { stream, int, intIn, pick, weighted } from '../../core/rng.js';
@@ -95,7 +97,7 @@ import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { post } from '../../core/queue.js';
 import { START_MS, SITES } from '../../data/setting/calendar.js';
 import { SCENES } from '../../data/scenes.js';
-import { COURSES, SEQ, SEQ_KD, SEQ_PAIRS, KD_STRINGS, COACH, PAIRS_COACH, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
+import { COURSES, SEQ, SEQ_KD, SEQ_PAIRS, SEQ_STRESS, KD_STRINGS, COACH, PAIRS_COACH, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
 import { KD_RANGE } from '../../data/places/range.js';
 import { logEntry } from '../log.js';
 import { siteOf } from '../places/model.js';
@@ -137,8 +139,8 @@ export const NUDGE = Object.freeze({ prone: 'the prone position.', load: 'LOAD.'
 
 /** The session, or null. */
 export const rangeOf = (state) => state.armoury?.range ?? null;
-/** The tower's sequence of a session's course (0.0.7: SEQ_KD on the kd course; 0.0.8: SEQ_PAIRS on the pairs course). */
-export const seqOf = (R) => (R?.course === 'kd' ? SEQ_KD : R?.course === 'pairs' ? SEQ_PAIRS : SEQ);
+/** The tower's sequence of a session's course (0.0.7: SEQ_KD on the kd course; 0.0.8: SEQ_PAIRS on the pairs course; 0.0.10: SEQ_STRESS on it with the stress course's R.stress). */
+export const seqOf = (R) => (R?.course === 'kd' ? SEQ_KD : R?.course === 'pairs' ? (R.stress ? SEQ_STRESS : SEQ_PAIRS) : SEQ);
 // (the command after i: the next, or the kd course's own (its zero's loop); null at the end)
 const nextIOf = (state, R, i) => (R.course === 'kd' ? kdNextI(state, i) : i + 1 < seqOf(R).length ? i + 1 : null);
 // (a shot is the player's: v0.0.6's by their lane; the kd course's by its shooter, the relay's never; the pairs course's all)
@@ -581,12 +583,12 @@ export function magSeated(state, bus, magId) {
 // ---- faults and the stop ----
 
 /** A fault on the line (the coach's word, the record, the fact): kind 'warn' or 'stop'. */
-export function fault(state, bus, rule, kind, text) {
+export function fault(state, bus, rule, kind, text, more = null) {
   const R = rangeOf(state);
   if (!R || R.end) return;
   R.faults.push({ rule, kind, atMs: state.clock.ms });
   if (text) sayOn(state, bus, { who: R.coachId, text, kind: 'speech' });
-  bus?.emit('range', { phase: 'fault', cmd: R.cmd?.id ?? null, hot: R.hot, rule, kind, text: text ?? null });
+  bus?.emit('range', { phase: 'fault', cmd: R.cmd?.id ?? null, hot: R.hot, rule, kind, text: text ?? null, ...(more ?? {}) });
 }
 
 /** The stop: "Cease fire! Cease fire!", the coach takes the rifle, the end (see the header). */
@@ -600,7 +602,10 @@ export const STOP_WORDS = Object.freeze({ muzzle: 'the muzzle off downrange', up
   onemag: 'one magazine a string', slow: 'the line waited on you', forward: 'forward of the line', coldSafe: 'off safe on a cold line', flagged: 'the muzzle over a neighbour',
   declare: 'a false declaration', casualty: 'a casualty on the line', dry: 'out of rounds',
   // (0.0.8: the pairs course's)
-  noshoot: 'a no-shoot hit', time: 'a string not engaged in its time' });
+  noshoot: 'a no-shoot hit', time: 'a string not engaged in its time',
+  // (0.0.10, the runtime review's: the 'time' fault on a string fired at, its fact's fired (pairs.js stringEnd), so a shooter who
+  // engaged is not told he did not)
+  timeFired: 'time, and he was still up' });
 /** A rule's words, or the rule itself if it has none. */
 export const stopWords = (rule) => (rule ? STOP_WORDS[rule] ?? rule : null);
 

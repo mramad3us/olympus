@@ -67,7 +67,8 @@
 // 0.0.5 adds test-handling, "Show clear" (src/sim/scenarios/handling.js: the 25 m line of the KD range); 0.0.7
 // test-range, "The line at 300 m" (src/sim/scenarios/range.js: the KD range in full, its relay, its pits); 0.0.8
 // test-pairs, "Pairs" (src/sim/scenarios/pairs.js: the take-in and the shot rows on the bay's turners), whose fill takes
-// newGame's tier (a test sheet: recruit, private, cpl, sgt, raider, tierone; null the scene's own, the private).
+// newGame's tier (a test sheet: recruit, private, cpl, sgt, raider, tierone; null the scene's own, the private); 0.0.10
+// test-stress, "Bang" (src/sim/scenarios/stress.js: the stress course on pairs.js's engine), its fill taking the tier too.
 // act()'s first line is the take-in's gate (the build sheet 0.0.8 §2.6, §8 item 25): while a contact's window is open
 // (src/sim/combat/contact.js refusesAct) every sim action is refused and counted (stats.refused), in node and the page
 // alike, so a replay from the state and the inputs pauses where the game did (COMBAT §25.4.5, §25.4.8).
@@ -104,6 +105,7 @@ import { testShower, testNight, TESTS } from './scenarios/tests.js';
 import { testHandling, HANDLING } from './scenarios/handling.js';
 import { testRange, RANGE } from './scenarios/range.js';
 import { testPairs, PAIRS_SCENE } from './scenarios/pairs.js';
+import { testStress } from './scenarios/stress.js';
 import { refusesAct } from './combat/contact.js';
 import { weaponsDomain } from './arms/domain.js';
 import { SITES } from '../data/setting/calendar.js';
@@ -116,10 +118,10 @@ const LAYER_NAMES = new Set(FAST_LAYERS.map(L => L.name));
 /** The domains, in the order their contributors run. */
 export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'body', 'people', 'weapons', 'combat', 'world', 'career']);
 /** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
-export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs });
+export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs, 'test-stress': testStress });
 /** The site each scenario starts on: its longitude sets the start's hour. */
 export const SCENARIO_SITES = Object.freeze({ sandbox: SANDBOX.site, barracks: BARRACKS.site, 'test-shower': TESTS.site, 'test-night': TESTS.site, 'test-handling': HANDLING.site, 'test-range': RANGE.site,
-  'test-pairs': PAIRS_SCENE.site });
+  'test-pairs': PAIRS_SCENE.site, 'test-stress': PAIRS_SCENE.site });
 
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act);
 /** Whether an error from where (the loop's onError) is the sim's, and so noted in the state: a tick's or a skip's. */

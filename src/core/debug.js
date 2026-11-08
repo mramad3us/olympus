@@ -52,6 +52,9 @@
 //                      its identification and words), and what the page draws of it (the brackets, the stamp, the plate)
 //   supp()             (main.js's, 0.0.9) the chaos now: supp.js suppNow, hardParts, inocOf, and what the page makes of it (the
 //                      picture's chaos, the bangs drawn, the FROZE stamp, the sound's mix)
+//   stress()           (main.js's, 0.0.10) "Bang" now: the scene's stressNow and stressLook (the coach, the horn, the blanks, the
+//                      bangs), the hit card as shown (its string, turner, phase, words and drawn marks), the din as drawn, the din's
+//                      sound, Breathe's offer and whether it runs; null off the stress course
 //   menu()             R held's menu now (places' handMenu: { title, spotId, fixtureId, quick, rows }), or
 //                      null; and the card open, if it is: { …, card: { text, cursor, checked, picks } }
 //                      (the build sheet 0.0.6 §2.3)
@@ -75,7 +78,7 @@
 // start (0-24, a fraction giving minutes), seed a whole number; &area=<id>&at=<x>,<z>&face=<f> a
 // start somewhere else than the scenario's (the barracks' berth): an area, a place in its frame in
 // metres, a facing (up, down, left, right); setup test-handling's start or test-range's ('confirm', 's200',
-// 'far': the build sheet 0.0.7 §2.3; test-pairs' 'standby[:k]', and 0.0.9's 'bangs' and 'bangs:standby'); &flashes=reduced (VIEWS
+// 'far': the build sheet 0.0.7 §2.3; test-pairs' 'standby[:k]', and 0.0.9's 'bangs' and 'bangs:standby'; 0.0.10's test-stress takes 'standby' and 'standby:1' to 'standby:4', string k's standby, 'standby:4' with the one-round magazine in); &flashes=reduced (VIEWS
 // §12: a bang's white a grey veil, no startle's pale frame); for test-handling ('hot': string 1 in Condition 1,
 // prone, the line hot, aimed at your card; 'bench': the same with one magazine of 15, the build sheet
 // 0.0.5 §2.2's fill; 'mixed', 0.0.6: the course from its brief with a fourth magazine, of tracer); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
@@ -87,7 +90,7 @@ import { sorted } from './queue.js';
 import { utcText, marsTimeText } from './calendar.js';
 
 export const FACES = Object.freeze(['up', 'down', 'left', 'right']);
-/** test-handling's setups (the build sheet 0.0.5 §2.2; 'mixed', the 0.0.6 arms role's: one tracer magazine besides the ball); test-range's (0.0.7 §2.3: 'confirm' zeroed at the 300 m line, 's200' sitting at the 200 m line, 'far' the range-far bench's); test-pairs' (0.0.8: 'standby' and 'standby:<k>', string k's standby, out of the mode at low ready on safe, the turn armed; 0.0.9: 'bangs', "Three bangs" from its brief, and 'bangs:standby', its first string's standby with the bangs planned). */
+/** (0.0.10: test-stress's setups are 'standby' and 'standby:<k>', test-pairs' names: the list holds them already.) test-handling's setups (the build sheet 0.0.5 §2.2; 'mixed', the 0.0.6 arms role's: one tracer magazine besides the ball); test-range's (0.0.7 §2.3: 'confirm' zeroed at the 300 m line, 's200' sitting at the 200 m line, 'far' the range-far bench's); test-pairs' (0.0.8: 'standby' and 'standby:<k>', string k's standby, out of the mode at low ready on safe, the turn armed; 0.0.9: 'bangs', "Three bangs" from its brief, and 'bangs:standby', its first string's standby with the bangs planned). */
 export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200', 'far', 'standby', 'standby:1', 'standby:2', 'standby:3', 'standby:4', 'bangs', 'bangs:standby']);
 /** VIEWS §12's "reduce flashes" by the URL (&flashes=reduced: 0.0.9). */
 export const FLASHES = Object.freeze(['reduced']);

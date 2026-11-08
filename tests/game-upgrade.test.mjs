@@ -29,6 +29,12 @@
 // combat block: calm, felt 0, timeK 1; no inoculation on the sheet: the rank's tier's read; no setup: the calm course):
 // each saves again at once byte for byte, plays 600 ticks by the pairs bot with no error and no combat block made, and a
 // save after carries on byte for byte.
+// 0.0.10 (the build sheet 0.0.10 §3.2): two saves made by v0.0.9's own code from a worktree at its tag ("Three bangs", the
+// boot recruit at the banged string's pause with the pool up; calm test-pairs, the private, setup=standby:1). Nothing is
+// written on load (no Breathe window: none; no stressAtMs: the fold from suppAtMs, so the banged save gains its stress at
+// its first fold, honestly; no R.stress: test-pairs): each saves again at once byte for byte, plays 600 ticks by the pairs
+// bot with no error (the calm one with no combat block made), the banged recruit's body taking the chaos's stress, and a
+// save after carries on byte for byte.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -39,7 +45,7 @@ import { stagesOf } from '../src/sim/body/cues.js';
 import { BODY_V } from '../src/sim/body/record.js';
 import { bloodAt, hasWounds, PART_KEYS } from '../src/sim/body/wounds.js';
 import { rungOf } from '../src/sim/skills/templates.js';
-import { feltOf, inocOf, hardOf } from '../src/sim/combat/supp.js';
+import { feltOf, inocOf, hardOf, blockOf, suppAt } from '../src/sim/combat/supp.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { pairsBot } from './bots/pairs.mjs';
 import { marsClock } from '../src/core/calendar.js';
@@ -209,6 +215,32 @@ export default [
         const blocks = [g.state.actors.list, [g.me()]].flat().filter(a => a?.combat).length;
         console.log(`      ${name}: saved at ${hm(old.clock.ms)} (${old.meta.scenario}, the ${old.armoury.range.sheet}, cmd ${old.armoury.range.cmd?.id}, holds [${old.clock.holds.join()}], ${json.length} bytes); saved again at once: ${again === json ? 'byte for byte' : 'DIFFERENT'}; felt ${felt}, timeK ${r.timeK}, ${inoc.words} (read, not written), hardening ${H}; 600 ticks by the pairs bot: ${fmt((g.state.clock.ms - t0) / 1000, 2)} s lived, ${g.errors.length} errors, ${blocks} combat blocks; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
         assert(again === json && felt === 0 && r.timeK === 1 && !blocks && !g.state.people[pid].skills?.inoc, JSON.stringify({ same: again === json, felt, timeK: r.timeK, blocks }));
+        assert(!g.errors.length && !h.errors.length && h.save() === end && g.state.clock.ms > t0, JSON.stringify({ errors: g.errors.slice(0, 3), moved: g.state.clock.ms - t0 }));
+      }
+    },
+  },
+  {
+    name: 'a v0.0.9 save loads with nothing written (the build sheet 0.0.10 §3.2: no Breathe window, no stressAtMs, no R.stress): it saves again byte for byte at once, the pairs bot plays 600 ticks with no error, the banged recruit\'s pool folding its stress into his body from suppAtMs, the calm one making no combat block; a save after carried on byte for byte',
+    fn() {
+      for (const name of ['v0.0.9-bangs-pause', 'v0.0.9-pairs-standby']) {
+        const json = read(name), old = JSON.parse(json), banged = name.includes('bangs');
+        assert(old.meta.version === '0.0.9' && old.meta.scenario === 'test-pairs' && !old.armoury.range.stress, `${name}: not a v0.0.9 test-pairs save (${old.meta.version})`);
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 });
+        const s = g.load(json), again = g.save(), pid = s.player.id, t0 = s.clock.ms;
+        const rec0 = blockOf(s, pid), pool0 = suppAt(rec0, t0), felt0 = feltOf(s, pid), st0 = bodyOf(s, pid).stress.v;
+        const fields0 = rec0 ? ['breatheFromMs', 'breatheUntilMs', 'stressAtMs'].filter(f => f in rec0) : [];
+        const bot = pairsBot();
+        let gained = 0;
+        for (let i = 0; i < 300; i++) { g.step(1, bot); for (const [t, d] of g.bus.events) if (t === 'body-event' && d.kind === 'stress') gained += d.amount; g.clearFacts(); }
+        const mid = g.save();
+        g.step(300, bot);
+        const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 });
+        h.load(mid); h.step(300, bot);
+        const blocks = [g.state.actors.list, [g.me()]].flat().filter(a => a?.combat).length;
+        console.log(`      ${name}: saved at ${hm(old.clock.ms)} (the ${old.armoury.range.sheet}, cmd ${old.armoury.range.cmd?.id}, setup ${old.armoury.range.bangs ? 'bangs' : 'calm'}, holds [${old.clock.holds.join()}], ${json.length} bytes); saved again at once: ${again === json ? 'byte for byte' : 'DIFFERENT'}; the block's new fields on load: ${fields0.join(', ') || 'none'}; pool ${fmt(pool0, 2)}, felt ${felt0}, hardening ${hardOf(s, pid)}, stress ${fmt(st0, 2)}; 300 ticks by the pairs bot: stress +${fmt(gained, 2)} from the chaos; 600: ${fmt((g.state.clock.ms - t0) / 1000, 2)} s lived, ${g.errors.length} errors, ${blocks} combat blocks; saved and loaded again: ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+        assert(again === json && !fields0.length && !g.state.armoury.range.stress, JSON.stringify({ same: again === json, fields0 }));
+        assert(banged ? pool0 > 45 + hardOf(s, pid) && gained > 1 : !blocks && felt0 === 0 && gained === 0, JSON.stringify({ banged, pool0, gained, blocks, felt0 }));
         assert(!g.errors.length && !h.errors.length && h.save() === end && g.state.clock.ms > t0, JSON.stringify({ errors: g.errors.slice(0, 3), moved: g.state.clock.ms - t0 }));
       }
     },

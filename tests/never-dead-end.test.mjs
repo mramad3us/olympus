@@ -40,6 +40,7 @@ const report = (rows) => {
 export default [
   {
     name: 'the fuzz shooter on four seeds from the brief reaches the card every time within 60 game minutes, no command waited on past the move-on (the user\'s "A scene never dead-ends", 2026-11-07)',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const rows = [1, 2, 3, 4].map(k => fuzzRun(k));
       report(rows);

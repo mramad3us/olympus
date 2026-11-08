@@ -40,6 +40,8 @@
 // takeInWords, the quantity's one formatter) in place of "Time stands still.".
 // 0.0.9 (the build sheet 0.0.9 §2.2; COMBAT §5.7): nothing fires while the player is startled either (supp.js startled: the
 // startle is the take-in's window re-used, its keys taken, so no words in it); the DI's line after it is pairs-froze's.
+// 0.0.10 (the build sheet 0.0.10 §2.2): the act 'breathe' (test-stress's stress-breathe out of the mode) is Breathe as a
+// live step (shooting.js breatheAction), the one act instinctAction does itself; every other goes to base.js doAct.
 // instinctAction(state, { act: 'instinct', args: { id, act, chip } }, bus, ctx) does the act the hud
 // saw when T went down, if rule id still fires with that act now ('rise': get up from the rack;
 // 'dress:utilities': dress at your rack or locker; 'activity:<id>': the activity of the fixture you
@@ -58,6 +60,7 @@ import { rangeOf } from '../scenarios/handling.js';
 import { contactNow, pendingOf } from '../combat/contact.js';
 import { takeInWords } from '../combat/react.js';
 import { startled } from '../combat/supp.js';
+import { breatheAction } from '../arms/shooting.js';
 
 /** The range's rules that keep quiet on the pairs course (see the header): the tower's commands and the card are the coach's and the turners' there. */
 export const RANGE_OFF_PAIRS = Object.freeze(new Set(['range-cmd', 'range-kd', 'range-reload', 'range-fire', 'range-wait']));
@@ -202,7 +205,7 @@ export function instinctAction(state, action, bus, ctx) {
   }
   if (!target?.act) return false;
   if (isHeld(state) && !isHeld(state, 'stop') && target.tone !== 'urgent') return false;
-  const ok = doAct(state, bus, ctx, target.act);
+  const ok = target.act === 'breathe' ? !!breatheAction(state, bus)?.ok : doAct(state, bus, ctx, target.act);
   if (ok) { const inst = state.$instinct; if (inst) inst.atMs = undefined; }   // (settled again on the next tick, not the next second)
   return ok;
 }

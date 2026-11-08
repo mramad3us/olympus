@@ -286,6 +286,9 @@ export const RANGE_RULES = Object.freeze([
   },
 ]);
 
+/** The tempos an act may name after '@' (checks.js TEMPO). */
+const STEP_TEMPOS = Object.freeze(['normal', 'rushed', 'careful', 'steady']);
+
 /** The step an act names: { step, tempo, target } ('stop:fire@careful', 'stop:aim>paper:4'), or null. */
 export function stepOfAct(act) {
   if (typeof act !== 'string' || !act.startsWith('stop:')) return null;
@@ -293,7 +296,8 @@ export function stepOfAct(act) {
   const gt = rest.indexOf('>');
   if (gt >= 0) { target = rest.slice(gt + 1); rest = rest.slice(0, gt); }
   const at = rest.indexOf('@');
-  if (at >= 0) { tempo = rest.slice(at + 1); rest = rest.slice(0, at); }
+  // a tempo after '@' ('fire@careful'); otherwise the '@' is the row's place ('reach@p3', 'reach@ground': v0.0.10's fix, T did nothing)
+  if (at >= 0 && STEP_TEMPOS.includes(rest.slice(at + 1))) { tempo = rest.slice(at + 1); rest = rest.slice(0, at); }
   return { step: rest, tempo, target };
 }
 

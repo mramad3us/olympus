@@ -228,6 +228,7 @@ export default [
   },
   {
     name: 'the DI\'s other calls each with their row (the fix of 2026-11-07, the same rule): over the whole course, the fuzz shooter (never reloading on odd seeds, dropping magazines, slinging the rifle) on two seeds a sheet, RELOAD and Top up with the short one are in the panel whenever the DI calls for them, or the single that gets there is named (seat it, the empty out, the reach, the rifle up); the readiness and the coach\'s MAKE READY and LOAD at a choice always have their act in the panel (the bolt release, Charge, the rifle up), or say "dry" and name no row',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const runs = [];
       for (const tier of PAIRS_SHEETS) for (const seed of [3101, 3104]) runs.push({ seed, tier, full: true, fuzz: true });

@@ -44,6 +44,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
+// (0.0.10: the din's pixels, pure)
+import { blankFlashPixels, blankFlashOn, blankMuzzle, hornPixels, coachRiflePixels, BLANK_FLASH_MS, BLANK_FLASH_R_M, COACH_MUZZLE_M, HORN_PX } from '../src/render/range-items.js';
 import { frameClock, startSampling, stopSampling, burst, framesLine, pct } from './stage-drive.mjs';
 import { KD_RANGE } from '../src/data/places/range.js';
 import * as PLACES_RANGE from '../src/data/places/range.js';
@@ -377,6 +379,21 @@ export default [
         for (const r of rows) console.log(`      ${r}`);
         assert(!errors.length, errors.join('\n'));
       }, { port: Number(process.env.OLYMPUS_TEST_PORT) || 8223, query: 'play=test-range&seed=2&setup=far&hour=10&nostore=1', viewport: { width: 1280, height: 720 }, timeoutMs: 90000 });
+    },
+  },
+  {
+    name: 'the din drawn at its size and time (0.0.10; VIEWS §7.3): a blank\'s flash a star of BLANK_FLASH_R_M 0.15 m (2 px at 16 px/m) at the coach\'s muzzle, 0.8 m downrange of him where the sim posts the report, for BLANK_FLASH_MS 30 and on one forced frame after, never later; his rifle at his hip with its muzzle there; the horn 3 × 2 px in his hand only while it sounds',
+    fn() {
+      const ppm = 16, coach = { x: 1116.1, z: 285.1 }, b = { key: 'stress:1:1', x: coach.x + COACH_MUZZLE_M, z: coach.z, atMs: 10_000 };
+      const at0 = blankFlashPixels(b, 10_000, ppm), at29 = blankFlashPixels(b, 10_029, ppm), at30 = blankFlashPixels(b, 10_030, ppm), forced = blankFlashPixels(b, 10_040, ppm, { force: true }), before = blankFlashPixels(b, 9_999, ppm);
+      const xs = at0.map(q => Math.round(q.x * ppm)), span = Math.max(...xs) - Math.min(...xs) + 1, m = blankMuzzle(b, ppm);
+      const rifle = coachRiflePixels(coach, ppm), muzzleX = Math.max(...rifle.map(q => q.x));
+      const horn = hornPixels(coach, { on: true, fromMs: 10_000, untilMs: 12_000 }, 11_000, ppm), silent = hornPixels(coach, { on: false, fromMs: 10_000, untilMs: 12_000 }, 12_500, ppm);
+      console.log(`      the flash: ${at0.length} px across ${span} px at ${fmt(m.x, 3)}, ${fmt(m.y, 3)} m (the blank at x ${fmt(b.x, 3)}); at 29 ms ${at29.length}, at 30 ms ${at30.length}, forced at 40 ms ${forced.length}, before ${before.length}; the rifle ${rifle.length} px, its muzzle at x ${fmt(muzzleX, 3)}; the horn ${horn.length} px while it sounds, ${silent.length} after`);
+      assert(at0.length > 0 && at29.length === at0.length && !at30.length && forced.length === at0.length && !before.length && span === 2 * Math.round(BLANK_FLASH_R_M * ppm) + 1, JSON.stringify({ n: at0.length, span }));
+      assert(blankFlashOn(b, 10_000) && !blankFlashOn(b, 10_000 + BLANK_FLASH_MS) && blankFlashOn(b, 10_100, true), 'blankFlashOn');
+      assert(Math.abs(muzzleX - b.x) <= 1 / ppm && Math.abs(m.x - b.x) <= 1.5 / ppm, JSON.stringify({ muzzleX, m }));
+      assert(horn.length === HORN_PX[0] * HORN_PX[1] && !silent.length, JSON.stringify({ horn: horn.length, silent: silent.length }));
     },
   },
 ];

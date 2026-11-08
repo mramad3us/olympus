@@ -186,6 +186,23 @@ export default [
     },
   },
   {
+    name: 'the hit card\'s samples (0.0.10; VIEWS §7.7, §18 question 21): index.json lists its nine views (A, B and C at 1024 × 768, 1600 × 900 and 1920 × 1080), each shot twice its picture, every picture pixel a clean 2 × 2, the page\'s frame its picture',
+    fn() {
+      const S = index().samples.find(s => s.id === 'hitcard');
+      assert(S, 'index.json has no hitcard sample: run node tools/gallery.mjs hitcard');
+      const views = S.groups.flatMap(g => g.views), rows = [];
+      assert(views.length === 9 && ['A', 'B', 'C'].every(l => ['1024', '1600', '1920'].every(w => views.some(v => v.query === `look=${l}&win=${w}`))), JSON.stringify(views.map(v => v.query)));
+      for (const v of views) {
+        const { w, h, px } = readPng(path.join(SAMPLES, v.shot)), native = v.native;
+        let soft = 0;
+        for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) { const c = px[y * w + x]; if (px[y * w + x + 1] !== c || px[(y + 1) * w + x] !== c || px[(y + 1) * w + x + 1] !== c) soft++; }
+        rows.push(`${v.id}: ${w}×${h} (its picture ${native.join('×')}, the page's frame ${JSON.stringify(v.report?.frame)}), every picture pixel whole`);
+        assert(w === native[0] * KEEP_X && h === native[1] * KEEP_X && soft === 0 && JSON.stringify(v.report?.frame) === JSON.stringify(native), `${v.id}: ${w}×${h}, ${soft} soft`);
+      }
+      for (const l of rows) console.log(`      ${l}`);
+    },
+  },
+  {
     name: 'look page: a whole cast drawn in one go, nobody waiting, in a handful of draw calls, with no errors',
     heavy: true,
     async fn() {

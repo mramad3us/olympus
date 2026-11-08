@@ -37,10 +37,12 @@
 // 0.0.8 (the build sheet 0.0.8 §2.6): test-pairs' pairs course (src/sim/scenarios/pairs.js) adds to the actors layer, after
 // kdActors, pairsActors (lived: the coach's walk, the turn armed, disarmed and taken, the string's time), and its id fields
 // the session's named magazines (armoury.range.mags{}, the short one named for Top up: armoury.range.wantMag).
+// 0.0.10 (the build sheet 0.0.10 §2.1; COMBAT §5.2): the action 'breathe', Breathe in the mode or out of it (shooting.js
+// breatheAction; the act gate refuses it while a take-in window is open or the marine is startled).
 import { fillDomain } from '../../core/state.js';
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { playerId } from '../../core/ids.js';
-import { enterStop, chooseStep, stopInput, stopRules, carryAction, stanceAction, gunOn } from './shooting.js';
+import { enterStop, chooseStep, stopInput, stopRules, carryAction, stanceAction, breatheAction, gunOn } from './shooting.js';
 import { habitStep } from './carry.js';
 import { onRangeCmd, rangeRules, rangeSecond } from '../scenarios/handling.js';
 import { onPitEvent, safety, kdActors, kdAct } from '../scenarios/range.js';
@@ -83,6 +85,9 @@ function stop(state, action, bus, ctx) {
 
 function carry(state, action, bus) { carryAction(state, bus); }
 
+// (0.0.10: Breathe, in the mode or out of it (shooting.js breatheAction); the act gate refuses it in a window or a startle)
+function breathe(state, action, bus) { breatheAction(state, bus); }
+
 // (0.0.7: the KD's range actions, 'kd:<id>' (police, turnIn, declare))
 function kd(state, action, bus, ctx) {
   const name = nameOf(action), id = argsOf(action).id ?? (name.length > 3 ? name.slice(3) : null);
@@ -116,6 +121,6 @@ export const weaponsDomain = Object.freeze({
   slow: Object.freeze([]),
   jobs: Object.freeze({}),
   events: Object.freeze({ 'range-cmd': onRangeCmd, pit: onPitEvent }),
-  actions: Object.freeze({ ready, digit, shoot, stop, carry, stance, kd }),
+  actions: Object.freeze({ ready, digit, shoot, stop, carry, stance, kd, breathe }),
   upgrades: Object.freeze([]),
 });

@@ -11,6 +11,10 @@
 // commands kept on the first page past ten, the singles paged.
 import { assert, fmt } from './helpers.mjs';
 import { panelOf, panelList, rowText, oddsText, shownMs, rowTitle, createTicks, markOf, PANEL_KEYS, timeText, partsWords, subWords, gatedRow, isGated, FIXED_MAX } from '../src/ui/hud/steps.js';
+// (0.0.10: Breathe's row and its running count)
+import { warnWords, BREATHE_COUNTS, isBreathe } from '../src/ui/hud/steps.js';
+import { createGame } from './game.mjs';
+import { stepsOf } from '../src/sim/arms/shooting.js';
 import { reflexOf } from '../src/ui/hud/reflex.js';
 import { lineOf, holdS, createRadioQueue, HOLD_S, WORD_S } from '../src/ui/hud/radio.js';
 import { paperModel, PAPER_K, ringR, RINGS } from '../src/ui/hud/paper.js';
@@ -269,6 +273,25 @@ export default [
       assert(subWords(ONE[0], ['aim', 'press', 'round', 'round'], 3) === 'round 2 · torso' && subWords(ONE[2], ['aim', 'press', 'round', 'round', 'shift', 'round'], 5) === 'round 3 · head', 'the rounds by part');
       // (fed lists in fam25's shape page as before: no shot row, nothing folded)
       assert(panelList(STEPS_C4) === STEPS_C4 && FIXED_MAX === 8, 'fam25 untouched');
+    },
+  },
+  {
+    name: 'Breathe\'s row (0.0.10; COMBAT §5.2): "Breathe · 4.0 s" with no odds (no roll), fixed on the first page with nothing facing you, "! he\'s up" marked and never struck with a threat up; its hover says what it buys; its running count in · hold · out · hold; the shot role\'s row on a real run of "Bang" (the recruit after three bangs)',
+    async fn() {
+      const quiet = { id: 'breathe', kind: 'breathe', label: 'Breathe', ms: 4000, subs: BREATHE_COUNTS.map(w => ({ id: 'breathe', label: w, ms: 1000 })) }, up = { ...quiet, warn: 'up' };
+      const a = rowText({ key: '5', step: quiet }), b = rowText({ key: '0', step: up });
+      console.log(`      '${a}' · '${b}' · hover '${rowTitle(up)}'`);
+      assert(a === '5 Breathe · 4.0 s' && b === "0 Breathe · 4.0 s (! he's up)" && !up.off && warnWords('up') === "he's up" && isBreathe('breathe') && BREATHE_COUNTS.join() === 'in,hold,out,hold', JSON.stringify({ a, b }));
+      // (the sim's row: the recruit in the mode with felt 20 up and nothing facing him, at string 4's banged standby)
+      const { stressBot } = await import('./bots/stress.mjs');
+      const g = createGame({ scenario: 'test-stress', seed: 48213, tier: 'recruit', setup: 'standby:3' }), bot = stressBot({ breathe: false });
+      let row = null, n = 0;
+      for (; n < 20000 && !row; n++) { g.step(1, bot); if (g.state.stop?.mode === 'stop' && g.state.stop.phase === 'choose') row = stepsOf(g.state).find(x => isBreathe(x.id)) ?? null; }
+      if (row) {
+        const p = panelOf(stepsOf(g.state), { page: 0 }), slot = p.slots.find(x => isBreathe(x.step.id)) ?? null;
+        console.log(`      the sim's row after ${n} ticks: '${slot ? rowText(slot) : rowText({ key: '?', step: row })}' (${slot ? `page ${p.page + 1} of ${p.pages}` : 'on a later page'}), ${row.subs?.length ?? 0} sub-steps, odds ${oddsText(row) || 'none'}`);
+        assert(row.ms === 4000 && !oddsText(row) && !row.off && (row.warn === 'up' || !!slot), JSON.stringify(row));
+      } else console.log(`      the sim offered no Breathe in ${n} ticks in the mode (the bot never waited in it with felt 20 up)`);
     },
   },
 ];

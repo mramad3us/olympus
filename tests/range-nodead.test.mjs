@@ -262,6 +262,7 @@ export default [
   },
   {
     name: 'the fuzz shooter (random legal steps, the user\'s 2026-11-07 "A scene never dead-ends") reaches the end card on 4 quick runs: from the brief twice, from the hot line, and from the user\'s own save',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       fuzzTable([fuzzRun(1, 'brief'), fuzzRun(2, 'brief'), fuzzRun(3, 'hot'), fuzzRun(4, 'save')]);
     },

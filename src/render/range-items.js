@@ -32,6 +32,10 @@
 //   - THE RELAY: flashPixels() and dustPixels() for every shooter's fire (sitting as well: drawnMuzzleM's 'sit'),
 //     tilePixels() the cases at rest on a metre tile (rangeLook.kd.tiles: up to TILE_CASES_MAX drawn, scattered by
 //     hash in the tile's half nearest its middle), bermDustPixels() a round's dust off the berm's face.
+// 0.0.10 (the build sheet 0.0.10 §2.3; VIEWS §7.3): the stress course's din, from rangeLook().stress ({ coach: { x, z, face },
+// horn: { on, fromMs, untilMs } | null, blanks: [{ key, x, z, atMs }], bangs }): the coach's air horn in his hand while it sounds
+// (hornPixels: HORN_PX 3 × 2, red, its bell's white rim), his short rifle at his hip, muzzle downrange (coachRiflePixels), and
+// each blank's flash at that muzzle (blankFlashPixels: BLANK_FLASH_R_M 0.15 m for BLANK_FLASH_MS 30, at least one frame, light).
 // Pure: no three.js, no DOM.
 import { PX_PER_M } from './scale.js';
 import { hash01 } from '../core/hash.js';
@@ -39,6 +43,7 @@ import { cardPx, cardPxPerCm, CARD_AT_M, CARD_RINGS_CM, FACE_K, KD_FACES, facePx
 import { fontFor } from '../art/kit/type.js';
 import { composeFrame } from '../art/figures/compose.js';
 import { FLAG, TOWER } from '../data/places/range.js';
+import { COURSES } from '../data/courses.js';
 
 /** The flag's hoist and lowering, and its flutter's step, game milliseconds. */
 export const FLAG_HOIST_MS = 600, FLAG_FLAP_MS = 400;
@@ -868,6 +873,62 @@ export function bangSmokePixels(b, ms, ppm = PX_PER_M, wind = null, { figures = 
       if (boxes.length && ((Math.round(qx * ppm) + Math.round(row * ppm)) & 1) && boxes.some(f => qx > f.x0 && qx < f.x1 && row > f.r0 && row < f.r1)) continue;
       out.push({ x: qx, y: qy, z: qz, c: SMOKE_C[((i >> 2) + (j >> 2) + p) & 3] });
     }
+  }
+  return out;
+}
+
+// ---- 0.0.10: the din (the build sheet 0.0.10 §2.3; VIEWS §7.3) ----
+//
+// The coach at your left shoulder makes the noise (rangeLook().stress, the scene role's look.js): an air horn held up in his
+// hand while it sounds, and a short rifle at his hip with its muzzle downrange, firing blanks. Each drawn at its size, bigger
+// than life where it is small (the kit's rule): the horn HORN_PX 3 × 2 in the range flag's red with its dark bell, held out at
+// arm's length before his chest (HORN_ALONG_M, HORN_Y_M: on the face it read as a red nose, over the head the fog took it, at
+// the brim the figure's ink line did); the rifle COACH_RIFLE_PX long at the drawn hip (COACH_RIFLE_Y_M); a blank's flash a small star
+// at the muzzle (the blank's x, z: muzzleFwdM downrange of him), BLANK_FLASH_R_M 0.15 m (2.4 px at 16 px/m: a 5 px star)
+// for BLANK_FLASH_MS 30 of game time, its first frame forced (as the bang's: a 30 ms flash between two frames is never
+// skipped), light (the fog never dims it). No hole and no brass: a blank's case is the coach's (§2.3).
+/** A blank's flash: its time (game ms) and radius (m); the horn as drawn (px) and where it is held (m up, m along from his centre); the rifle (px) and its height (m). */
+export const BLANK_FLASH_MS = 30, BLANK_FLASH_R_M = 0.15, HORN_PX = Object.freeze([3, 2]), HORN_Y_M = 1.1, HORN_ALONG_M = 0.55, COACH_RIFLE_PX = 9, COACH_RIFLE_Y_M = 0.75;
+/** How far the din's pixels stand toward the camera from his place (m: up and toward it alike, as the muzzle's star's FLASH_LIFT_M, so they keep their place in the picture and draw over his figure). */
+export const DIN_LIFT_M = 0.18;
+/** The coach's muzzle downrange of him (m: the course's din.muzzleFwdM, where the sim puts each blank's report). */
+export const COACH_MUZZLE_M = COURSES.stress?.din?.muzzleFwdM ?? 0.8;
+// (the horn the range flag's red, RED and RED_D, which the stage's palette keeps red; its bell the flag's dark, not white, so it
+// never reads as the lane's painted line beside it (the face's grab of v0.0.10))
+const DIN_C = Object.freeze({ horn: RED, hornDark: RED_D, bell: 0x231c1c, rifle: 0x2b2d33, rifleLight: 0x4c5060, core: 0xffffff, mid: 0xfff2c8, edge: 0xffc860 });
+/** Which way is downrange from him (the bay's turners stand east of the line): +1 east. */
+const DOWNRANGE = 1;
+/** The horn in his hand while it sounds (horn: rangeLook's { on, fromMs, untilMs }): [{ x, y, z, c, flat }] metres; none when it is silent at ms. */
+export function hornPixels(coach, horn, ms, ppm = PX_PER_M) {
+  if (!coach || !horn || !(horn.on || (Number.isFinite(horn.fromMs) && ms >= horn.fromMs && ms < (horn.untilMs ?? -Infinity)))) return [];
+  const P = 1 / ppm, [w, h] = HORN_PX, x0 = snap(coach.x + DOWNRANGE * HORN_ALONG_M, ppm), y0 = snap(HORN_Y_M, ppm) + DIN_LIFT_M, z = snap(coach.z, ppm) + DIN_LIFT_M, out = [];
+  for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) out.push({ x: x0 + (i + 0.5) * P, y: y0 + (h - j - 0.5) * P, z, c: i === w - 1 ? (j === 0 ? DIN_C.bell : DIN_C.horn) : j === 1 ? DIN_C.hornDark : DIN_C.horn, flat: false });
+  return out;
+}
+/** The coach's short rifle at his hip, its muzzle COACH_MUZZLE_M downrange of him where the blanks' reports are: [{ x, y, z, c, flat }] metres (drawn on the stress course). */
+export function coachRiflePixels(coach, ppm = PX_PER_M) {
+  if (!coach) return [];
+  const P = 1 / ppm, xm = snap(coach.x + DOWNRANGE * COACH_MUZZLE_M, ppm), y0 = snap(COACH_RIFLE_Y_M, ppm) + DIN_LIFT_M, z = snap(coach.z, ppm) + DIN_LIFT_M, out = [];
+  // (from the muzzle back COACH_RIFLE_PX pixels: the barrel dark, the stock lighter)
+  for (let i = 0; i < COACH_RIFLE_PX; i++) out.push({ x: xm - DOWNRANGE * (i + 0.5) * P, y: y0 + 0.5 * P, z, c: i >= COACH_RIFLE_PX - 3 ? DIN_C.rifleLight : DIN_C.rifle, flat: false });
+  // (the magazine under the receiver, a pixel down)
+  out.push({ x: xm - DOWNRANGE * 5.5 * P, y: y0 - 0.5 * P, z, c: DIN_C.rifle, flat: false });
+  return out;
+}
+/** Where a blank's flash is drawn: a pixel past the blank's x (the muzzle's end), at the rifle's height. */
+export const blankMuzzle = (b, ppm = PX_PER_M) => ({ x: snap(b.x, ppm) + DOWNRANGE / ppm, y: snap(COACH_RIFLE_Y_M, ppm) + 0.5 / ppm + DIN_LIFT_M + 0.02, z: snap(b.z, ppm) + DIN_LIFT_M + 0.02 });
+/** Whether a blank's flash shows at ms (its BLANK_FLASH_MS, or force: the first frame drawn after it, once). */
+export const blankFlashOn = (b, ms, force = false) => !!b && Number.isFinite(b.atMs) && ms >= b.atMs && (ms - b.atMs < BLANK_FLASH_MS || !!force);
+/** A blank's flash at ms: [{ x, y, z, c, flat }] metres, a star at the muzzle; none outside its time (force: see blankFlashOn). */
+export function blankFlashPixels(b, ms, ppm = PX_PER_M, { force = false } = {}) {
+  if (!blankFlashOn(b, ms, force)) return [];
+  const P = 1 / ppm, m = blankMuzzle(b, ppm), R = Math.max(1, Math.round(BLANK_FLASH_R_M * ppm)), out = [];
+  for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) {
+    const d = Math.abs(i) + Math.abs(j);
+    // (a star: the cross whole, the diagonals' first pixel; the core white)
+    if (!(i === 0 || j === 0 || (Math.abs(i) === 1 && Math.abs(j) === 1))) continue;
+    if (d > R + (i === 0 || j === 0 ? 0 : 0)) continue;
+    out.push({ x: m.x + (DOWNRANGE * i + 0.5) * P, y: m.y + j * P, z: m.z, c: d === 0 ? DIN_C.core : d === 1 ? DIN_C.mid : DIN_C.edge, flat: false });
   }
   return out;
 }

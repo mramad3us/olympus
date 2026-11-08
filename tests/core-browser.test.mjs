@@ -66,6 +66,13 @@
 // 0.0.7's tower fixer (the user's play of 2026-11-07): the 200 m line on seed 99, the tower's command on top of the radio box
 // at the dope and at commence fire with the coach's lines under it, every voice whole, your stake marked; the command marked
 // NOW and the only tower line in the box, its short form keeping its terms (seed 48213 too: the tower verifier's).
+// 0.0.10 (the build sheet 0.0.10 §5.3): "Bang" (test-stress) from the Tests menu through its picker (the Boot recruit focused,
+// the hardening leading), boots with no errors; on 'standby:1' every blank's flash drawn on the first frame at or after its
+// moment and once, the horn in the coach's hand while it sounds (the view's din layer, frame by frame in real time); on
+// 'standby:2' the coach's "Bang!" in the radio box (and "[a shout: Bang!]" captioned) before the burst; Breathe's row in the
+// mode and T doing it out of the mode in a standby with the turn still armed, its lead counting the box; the hit card in
+// belief at a pause after a hit (no hole), in truth at the string's end beside the timer (the sim's holes); "Again as Tier one"
+// keeps the seed; Copy my scores gives "… · test-stress · seed 48213 · chaos 80 · contrast 80 · hands 80 · ★ no · note: none".
 import { assert, fmt, root } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { rectsAt, overlaps } from '../src/ui/hud/layout.js';
@@ -1358,6 +1365,116 @@ export default [
         console.log(`      seed 48213, ${n2} ticks to commence fire: ${wrap.voices.map(v => `[${v.text}]`).join(' ')}`);
         assert(fireOk(wrap), JSON.stringify(wrap));
       }, { query: 'play=test-range&seed=99&setup=s200&nostore=1', viewport: { width: 1600, height: 900 } });
+    },
+  },
+  {
+    name: '"Bang" in the page (0.0.10, heavy): the Tests menu\'s entry and its picker on the Boot recruit; the din\'s blanks each flashed on the first frame at or after their moment, once, and the horn in the coach\'s hand while it sounds; "Bang!" in the radio box before the burst; Breathe out of the mode in a standby with the turn armed; the hit card in belief at a pause, in truth at the string\'s end; "Again as Tier one" keeps the seed; Copy my scores in ROADMAP §2.2\'s form',
+    heavy: true,
+    timeoutMs: 600000,
+    async fn() {
+      await withGame(async (page, errors, game) => {
+        const rows = [];
+        // (the Tests menu and the picker)
+        await page.waitForSelector('#title .item.tests');
+        await page.click('#title .item.tests');
+        const bang = await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].map(b => b.innerText.split('\n')[0]));
+        await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].find(b => b.innerText.startsWith('Bang')).click());
+        await page.waitForSelector('#title .sheet.picker');
+        const pk = await page.evaluate(() => [...document.querySelectorAll('#title .item.sheetpick')].map(b => ({ tier: b.dataset.tier, lead: b.classList.contains('lead') })));
+        rows.push(`the Tests menu: ${bang.join(' | ')}; the picker: ${pk.map(r => `${r.tier}${r.lead ? ' (focused)' : ''}`).join(', ')}`);
+        assert(bang.includes('Bang') && pk[0]?.tier === 'recruit' && pk[0].lead, JSON.stringify({ bang, pk }));
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.stress, null, { timeout: 60000 });
+        rows.push(`Enter: the scene ${JSON.stringify(await page.evaluate(() => window.__olympus.scene))}`);
+        // (the din in real time: every frame's din as drawn, with the game's ms; the plan's blanks)
+        await game.open('play=test-stress&setup=standby:1&tier=recruit&seed=48213&nostore=1');
+        await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.stress, null, { timeout: 60000 });
+        await page.evaluate(() => { window.__din = []; const f = () => { if (!window.__din) return; const st = window.__olympus.stress(); if (st) window.__din.push({ ms: window.__olympus.state.clock.ms, horn: !!st.din?.horn, flashing: st.din?.flashing ?? [], look: !!st.look?.horn }); requestAnimationFrame(f); }; requestAnimationFrame(f); });
+        // (to the turn, where stop motion holds the clock, or to the last blank)
+        await page.waitForFunction(() => { const R = window.__olympus.state.armoury.range, p = (R.stress?.plan ?? []).filter(e => e.kind === 'blank'); return p.length && p.filter(e => e.done).length >= 10 && (R.str?.turnedMs !== null && R.str?.turnedMs !== undefined || p.every(e => e.done)); }, null, { timeout: 60000, polling: 250 });
+        await page.waitForTimeout(1500);
+        const din = await page.evaluate(() => { const d = window.__din; window.__din = null; const p = window.__olympus.state.armoury.range.stress.plan; return { frames: d, blanks: p.filter(e => e.kind === 'blank' && e.done).map(e => ({ key: e.key, atMs: e.atMs })), horns: p.filter(e => e.kind === 'horn').map(e => ({ atMs: e.atMs, untilMs: e.untilMs })) }; });
+        const firstOf = new Map(), counts = new Map();
+        for (const f of din.frames) for (const k of f.flashing) { if (!firstOf.has(k)) firstOf.set(k, f.ms); counts.set(k, (counts.get(k) ?? 0) + 1); }
+        const late = din.blanks.filter(b => firstOf.has(b.key) && firstOf.get(b.key) - b.atMs > 500), early = din.blanks.filter(b => firstOf.has(b.key) && firstOf.get(b.key) < b.atMs - 50), missed = din.blanks.filter(b => !firstOf.has(b.key));
+        const hornFrames = din.frames.filter(f => f.horn).length, hornWrong = din.frames.filter(f => f.horn && !din.horns.some(h => f.ms >= h.atMs - 100 && f.ms <= h.untilMs + 100)).length;
+        rows.push(`the din: ${din.frames.length} frames, ${din.blanks.length} blanks gone off, ${firstOf.size} flashed (on ${[...counts.values()].reduce((a, b) => a + b, 0)} frames), missed ${missed.length}, early ${early.length}, late ${late.length}; the horn ${din.horns.length} blasts, drawn on ${hornFrames} frames, ${hornWrong} outside its time`);
+        assert(din.blanks.length >= 10 && !missed.length && !early.length && !late.length && hornFrames > 0 && !hornWrong, JSON.stringify({ missed, early, late, hornWrong }));
+        // (the called bang: "Bang!" in the radio box before the burst)
+        await game.open('play=test-stress&setup=standby:2&tier=recruit&seed=48213&nostore=1');
+        await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.stress, null, { timeout: 60000 });
+        await page.evaluate(() => { window.__said = []; const f = () => { if (!window.__said) return; const O = window.__olympus, p = O.state.armoury.range.stress?.plan ?? []; const said = (O.radio ?? []).map(l => l.text).join(' | '); window.__said.push({ ms: O.state.clock.ms, bang: /Bang!/.test(said), burst: p.find(e => e.kind === 'bang')?.atMs ?? null, toast: (O.hud?.toasts ?? []).map(t => t.text ?? t).join(' | ') }); requestAnimationFrame(f); }; requestAnimationFrame(f); });
+        await page.waitForFunction(() => { const p = window.__olympus.state.armoury.range.stress?.plan ?? []; const b = p.find(e => e.kind === 'bang'); return b && b.done; }, null, { timeout: 60000, polling: 200 });
+        const said = await page.evaluate(() => { const s = window.__said; window.__said = null; return s; });
+        const burst = said.find(x => x.burst)?.burst ?? null, firstBang = said.find(x => x.bang)?.ms ?? null, cap = said.some(x => /\[a shout: Bang!/.test(x.toast));
+        rows.push(`the called bang: "Bang!" in the radio box at ${firstBang}, the burst at ${burst} (${firstBang !== null && burst !== null ? fmt((burst - firstBang) / 1000, 2) : '?'} s before), captioned ${cap}`);
+        assert(firstBang !== null && burst !== null && firstBang < burst && cap, JSON.stringify({ firstBang, burst, cap }));
+        // (Breathe out of the mode in a standby: the DI's T after the bangs on string 4's standby, the turn still armed)
+        await game.open('play=test-stress&setup=standby:3&tier=recruit&seed=48213&nostore=1');
+        await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.stress, null, { timeout: 60000 });
+        await page.waitForFunction(() => { const O = window.__olympus, I = O.instinct(); return I?.line?.id === 'stress-breathe' || I?.chip?.id === 'stress-breathe' || O.state.armoury.range.str?.turnedMs !== null && O.state.armoury.range.str?.turnedMs !== undefined; }, null, { timeout: 60000, polling: 50 });
+        const offer = await page.evaluate(() => { const O = window.__olympus, I = O.instinct(); return { line: I?.line?.id ?? null, chip: I?.chip?.id ?? null, text: I?.line?.text ?? I?.chip?.text ?? null, felt: O.supp()?.now?.felt ?? null }; });
+        let breathed = null;
+        if (offer.line === 'stress-breathe' || offer.chip === 'stress-breathe') {
+          await page.waitForFunction(() => !window.__olympus.supp()?.now?.startle, null, { timeout: 10000 });
+          await page.keyboard.down('KeyT');
+          if (offer.line !== 'stress-breathe') await page.waitForTimeout(300);
+          await page.keyboard.up('KeyT');
+          await page.waitForFunction(() => window.__olympus.stress()?.breathe?.running, null, { timeout: 5000 }).catch(() => null);
+          await page.waitForTimeout(600);
+          breathed = await page.evaluate(() => { const O = window.__olympus, st = O.stress(), s = O.state.armoury.range.str; return { running: st.breathe.running, lead: O.hud?.lead ?? null, armed: !!s && s.turnAtMs !== null && s.turnedMs === null, mode: O.state.stop?.mode ?? null, box: O.stress().sound?.breathing ?? null }; });
+        }
+        rows.push(`Breathe: the DI's ${offer.line ?? offer.chip ?? 'nothing'} '${offer.text ?? ''}'; T: ${JSON.stringify(breathed)}`);
+        assert(breathed && breathed.running && breathed.live !== false && /^Breathe · /.test(breathed.lead ?? '') && breathed.armed, JSON.stringify({ offer, breathed }));
+        // (the hit card: the stress bot to a pause after a round on him, then to the string's end)
+        const bot = (until, maxTicks = 60000) => page.evaluate(async ([until, maxTicks]) => {
+          const { stressBot } = await import('/tests/bots/stress.mjs');
+          const O = window.__olympus; window.__bot = window.__bot ?? stressBot();
+          const run = window.__bot, done = new Function('O', `return (${until});`);
+          let n = 0; O.pause(true);
+          for (; n < maxTicks && !done(O); n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); O.step(1, run(s, me, (me.bot ??= {}))); }
+          return n;
+        }, [until, maxTicks]);
+        await game.open('play=test-stress&tier=recruit&seed=48213&nostore=1');
+        await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.stress, null, { timeout: 60000 });
+        await bot("O.state.stop?.mode === 'stop' && O.state.stop.phase === 'choose' && O.state.armoury.range.str && !O.state.armoury.range.str.done && O.state.armoury.range.str.shots?.some(x => x.fired)");
+        await page.waitForTimeout(300);
+        const belief = await page.evaluate(() => window.__olympus.stress().hit);
+        await bot("O.state.armoury.range.strs.some(x => x.k === 0 && x.done !== 'setup')");
+        await page.waitForTimeout(300);
+        const truth = await page.evaluate(() => ({ hit: window.__olympus.stress().hit, timer: !document.querySelector('.timer').hidden, holes: (window.__olympus.state.armoury.range.stress.strs.find(x => x.k === 0)?.holes ?? []).filter(h => h.at).length }));
+        rows.push(`the hit card: belief '${belief?.text}' ${JSON.stringify(belief?.marks)}; truth '${truth.hit?.text}' ${JSON.stringify(truth.hit?.marks)}, the timer beside it ${truth.timer}, the record's holes ${truth.holes}`);
+        assert(belief?.phase === 'belief' && belief.marks.length && belief.marks.every(m => m[1] !== 'hole' && m[2] === null), JSON.stringify(belief));
+        assert(truth.hit?.phase === 'truth' && truth.timer && truth.hit.marks.length === truth.holes && truth.hit.marks.every(m => m[1] === 'hole'), JSON.stringify(truth));
+        // (the end card, "Again as Tier one", the score line)
+        await bot('O.scene?.ended', 200000);
+        await page.evaluate(() => window.__olympus.pause(false));
+        await page.keyboard.press('Enter');
+        await page.waitForSelector('.glass.end', { timeout: 30000 });
+        const endText = await page.evaluate(() => document.querySelector('.glass.end').innerText);
+        const asOne = await page.evaluate(() => [...document.querySelectorAll('.glass.end .again-as')].findIndex(b => /Tier one/.test(b.innerText)));
+        await page.evaluate((i) => document.querySelectorAll('.glass.end .again-as')[i].click(), asOne);
+        await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.sheet === 'tierone', null, { timeout: 60000 });
+        const again = await page.evaluate(() => ({ scene: window.__olympus.scene, sheet: window.__olympus.state.armoury.range.sheet }));
+        rows.push(`the end card: '${endText.split('\n').slice(1, 3).join(' / ')}'; "Again as Tier one": ${JSON.stringify(again)}`);
+        assert(again.scene?.id === 'test-stress' && again.scene.seed === 48213 && again.sheet === 'tierone', JSON.stringify(again));
+        await page.evaluate(() => { window.__bot = null; });
+        await bot('O.scene?.ended', 200000);
+        await page.evaluate(() => window.__olympus.pause(false));
+        await page.keyboard.press('Enter');
+        await page.waitForSelector('.glass.end', { timeout: 30000 });
+        await page.keyboard.press('Digit3');
+        await page.waitForSelector('.glass.score', { timeout: 10000 });
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: game.origin });
+        for (const [k, v] of [['chaos', 80], ['contrast', 80], ['hands', 80]]) await page.evaluate(([k, v]) => { const i = document.querySelector(`.glass.score input[data-aspect="${k}"]`); i.value = String(v); i.dispatchEvent(new Event('input')); }, [k, v]);
+        await page.click('.glass.score .copy');
+        await page.waitForTimeout(200);
+        const clip = await page.evaluate(async () => navigator.clipboard.readText().catch(e => `(no read: ${e.message})`));
+        rows.push(`Copy my scores: '${clip}'`);
+        assert(/^OLYMPUS v[\d.]+ · test-stress · seed 48213 · chaos 80 · contrast 80 · hands 80 · ★ no · note: none$/.test(clip), clip);
+        for (const l of rows) console.log(`      ${l}`);
+        assert(!errors.length, errors.join('\n'));
+      }, { query: 'nostore=1', viewport: { width: 1600, height: 900 } });
     },
   },
 ];

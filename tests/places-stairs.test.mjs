@@ -315,6 +315,7 @@ export default [
   },
   {
     name: 'a walker crossing the room past a well\'s landing, pressed against its side, stays on its floor: the landing is railed along both sides and walked onto across its far edge only (the review of 0.0.6: v0.0.5\'s open sides let the door assist slide a walker going west at z 14.2 to 14.9 onto the landing, and down)',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const lines = [];
       for (const { a, f } of wells()) {

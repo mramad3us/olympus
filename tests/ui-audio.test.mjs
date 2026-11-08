@@ -59,6 +59,9 @@ import { airDb } from '../src/sim/people/hearing.js';
 import { bangVoice, chaosMix, whineDb, voiceRoute, createBang } from '../src/ui/audio/bang.js';
 import { CHAOS, BANG_SOURCE_DB, BAND_DUCK_DB, BAND_LP_HZ, BAND_BODY_DB, MUFFLE_LP_HZ, MUFFLE_DB, MUFFLE_RECOVER_S, WHINE_HZ, WHINE_LOUD_S, WHINE_FALL_S, WHINE_FLOOR_DB, WHINE_CAPTION } from '../src/data/sounds.js';
 import { STRIDE_WRAP_M } from '../src/data/body/gait.js';
+// (0.0.10: the din through the ear defenders)
+import { hornVoice, blankVoice, nearPan, createStress } from '../src/ui/audio/stress.js';
+import { STRESS, HORN_SOURCE_DB, HORN_EARS_DB, HORN_EARS_LP_HZ, HORN_HZ, HORN_S, BREATHE_DB } from '../src/data/sounds.js';
 
 const TICK_S = 0.05;
 const q = (v) => Math.round(v * 10000) / 10000;                  // (move.js's POS_STEP_M rounding)
@@ -565,6 +568,57 @@ export default [
       const ws = render(CHAOS.whine, { sampleRate: sr, name: 'whine' }), seam = Math.abs(ws[ws.length - 1] - ws[0]), step = Math.max(...Array.from({ length: 200 }, (_, i) => Math.abs(ws[i + 1] - ws[i])));
       console.log(`      the report: peak ${fmt(b.peakDb, 1)} dB, centroid ${fmt(b.centroidHz, 0)} Hz, ${fmt(b.decayS * 1000, 0)} ms to −30 dB; the whine ${fmt(w.centroidHz, 0)} Hz (its seam ${fmt(seam, 4)}, a sample's step ${fmt(step, 4)}); the heart ${fmt(h.centroidHz, 0)} Hz; the breath ${fmt(br.centroidHz, 0)} Hz`);
       assert(b.decayS > 0.2 && b.centroidHz < 3000 && Math.abs(w.centroidHz - WHINE_HZ) < 300 && seam <= step * 1.5 && h.centroidHz < 200 && br.centroidHz > 400 && br.centroidHz < 3500, JSON.stringify({ b, w, h, br, seam, step }));
+    },
+  },
+  {
+    name: 'the din through the ear defenders (0.0.10; VIEWS §11.2, §11.3): the air horn at the coach\'s hand HORN_SOURCE_DB less the air, through the defenders\' limiter −20 dB and cut at 2 kHz, panned left; each blank the R-7\'s report 0.9 m off through the defenders\' gate (−25 dB, 2 kHz) at its moment on the audio clock, its echo after; the called bang gated, no whine (nobody is deafened in defenders); Breathe\'s box breath on the body bus in place of the quick one',
+    fn() {
+      const rows = [], me = { x: 1116.1, z: 286.0, face: 'right' }, coach = { x: 1116.1, z: 285.1 }, muzzle = { x: 1116.9, z: 285.1 };
+      const bare = hornVoice({ me, at: coach, ears: false }), worn = hornVoice({ me, at: coach, ears: true });
+      rows.push(`the horn ${fmt(worn.distM, 2)} m off: bare ${fmt(bare.gainDb, 1)} dB under ${Math.round(bare.lowpassHz)} Hz; in defenders ${fmt(worn.gainDb, 1)} dB under ${Math.round(worn.lowpassHz)} Hz; pan ${fmt(worn.pan, 2)} (the coach at your left shoulder)`);
+      assert(near1(worn.gainDb, bare.gainDb + HORN_EARS_DB) && worn.lowpassHz === Math.min(bare.lowpassHz, HORN_EARS_LP_HZ) && HORN_EARS_DB === -20 && HORN_EARS_LP_HZ === 2000 && worn.pan < 0, JSON.stringify({ bare, worn }));
+      assert(near1(bare.gainDb, HORN_SOURCE_DB + airDb(AIR_KPA.ground)), 'within a metre the horn is its source level through the air');
+      const bb = blankVoice({ me, at: muzzle, ears: false }), bw = blankVoice({ me, at: muzzle, ears: true });
+      rows.push(`a blank ${fmt(bw.distM, 2)} m off: bare ${fmt(bb.gainDb, 1)} dB, in defenders ${fmt(bw.gainDb, 1)} dB under ${Math.round(bw.lowpassHz)} Hz, a sound's way ${fmt(bw.delayS * 1000, 1)} ms; its echo ${fmt(bw.echo.gainDb, 1)} dB ${fmt(bw.echo.delayS * 1000, 0)} ms on`);
+      assert(near1(bw.gainDb, bb.gainDb + EARS_DB) && bw.lowpassHz <= EARS_LP_HZ && bw.echo.delayS > bw.delayS, JSON.stringify(bw));
+      assert(nearPan({ x: 0, z: 0, face: 'right' }, { x: 0, z: -1 }) < 0 && nearPan({ x: 0, z: 0, face: 'left' }, { x: 0, z: -1 }) > 0, 'the pan by your facing');
+      // (the presenter: the facts as the scene posts them, on their tick; the engine asked)
+      const asked = [], engine = { stress: (kind, o) => { asked.push({ kind, ...o }); return true; }, shot: (kind, o) => { asked.push({ kind, ...o }); return true; }, loop: (key, kind, bus, db) => { asked.push({ loop: key, bus, db }); return true; } };
+      const S = createStress(engine, { looks: { earsOn: () => true } });
+      const state = { clock: { ms: 5000 }, player: { id: 'p1', actor: 'a1' }, actors: { list: [{ id: 'a1', who: 'p1', ...me }] }, places: { live: { area: 'melas.ground' } }, people: {}, meta: { seed: 1 } };
+      const h = S.fact('fx', { kind: 'horn', key: 'stress:1:h0', phase: 'on', x: coach.x, z: coach.z, atMs: 4980, untilMs: 6980 }, state);
+      const off = S.fact('fx', { kind: 'horn', key: 'stress:1:h0', phase: 'off', x: coach.x, z: coach.z, atMs: 6980 }, state);
+      const b = S.fact('fx', { kind: 'blank', key: 'stress:1:1', x: muzzle.x, y: 1.3, z: muzzle.z, atMs: 4990 }, state);
+      rows.push(`the facts on the tick of 5,000: ${asked.map(a => a.kind ? `${a.kind} ${fmt(a.gainDb, 1)} dB < ${Math.round(a.lowHz)} Hz +${fmt(a.delayS * 1000, 1)} ms` : '').filter(Boolean).join(', ')}; the horn's off fact plays nothing (${off})`);
+      assert(h && b && !off && asked[0].kind === 'hornBlast' && Math.abs(asked[0].delayS - 0.03) < 1e-9 && asked[1].kind === 'report' && asked[1].delayS >= 0.04 && asked[2].kind === 'report' && asked[2].delayS > asked[1].delayS, JSON.stringify(asked));
+      assert(S.stats.horns === 1 && S.stats.blanks === 1 && S.stats.lastBlank.ears && S.stats.lastHorn.gainDb === Math.round(worn.gainDb * 10) / 10, JSON.stringify(S.stats));
+      assert(!S.fact('fx', { kind: 'bang', x: 0, z: 0 }, state), 'a bang is bang.js\'s');
+      // (Breathe: the box breath on the body bus while it runs, none after; the band's quick breath held off meanwhile)
+      asked.length = 0;
+      S.frame(state, { breathing: true }); S.frame(state, { breathing: false });
+      const loops = asked.filter(a => a.loop === 'breathBox').map(a => a.db);
+      const calls = [], bengine = { bang: () => true, chaos: () => {}, loop: (key, kind, bus, db) => { calls.push({ key, db }); return true; } };
+      const B = createBang(bengine);
+      B.frame({ clock: { ms: 0 } }, { bandN: 2 }, { breathing: true }); B.frame({ clock: { ms: 50 } }, { bandN: 2 }, { breathing: false });
+      const quick = calls.filter(c => c.key === 'breath').map(c => c.db);
+      rows.push(`Breathe: the box breath ${loops.map(d => (d === null ? 'off' : `${d} dB`)).join(' → ')} on the body bus; the band's quick breath ${quick.map(d => (d === null ? 'off' : `${d} dB`)).join(' → ')}`);
+      assert(loops[0] === BREATHE_DB && loops[1] === null && quick[0] === null && quick[1] === BAND_BODY_DB[2] - 3, JSON.stringify({ loops, quick }));
+      // (the called bang through the defenders: gated, and no whine, since suppNow gives no deafness in defenders)
+      const v = bangVoice({ me, at: { x: 1114.6, z: 286.0 }, ears: true }), vb = bangVoice({ me, at: { x: 1114.6, z: 286.0 }, ears: false });
+      const m = chaosMix({ bandN: 1, deaf: null }, 0);
+      rows.push(`the called bang 1.5 m behind: ${fmt(vb.gainDb, 1)} dB bare, ${fmt(v.gainDb, 1)} dB in defenders under ${Math.round(v.lowpassHz)} Hz; whine ${m.deaf ? 'on' : 'none'}`);
+      assert(near1(v.gainDb, vb.gainDb + EARS_DB) && !m.deaf, JSON.stringify({ v, m }));
+      for (const l of rows) console.log(`      ${l}`);
+    },
+  },
+  {
+    name: 'STRESS\'s recipes rendered and measured (0.0.10, unscored): the air horn two detuned sawtooths (440 and 554 Hz) through a 1.2 kHz formant for HORN_S 2 s, loud and bright; Breathe\'s box breath a soft 4 s loop, its in and its out two seconds apart',
+    fn() {
+      const sr = 24000, m = (k) => measure(render(STRESS[k], { sampleRate: sr, name: k }), sr);
+      const horn = m('hornBlast'), box = m('breathBox');
+      console.log(`      hornBlast: ${fmt(horn.durS, 2)} s, peak ${fmt(horn.peakDb, 1)} dBFS, RMS ${fmt(horn.rmsDb, 1)}, centroid ${Math.round(horn.centroidHz)} Hz (tones ${HORN_HZ.join(' and ')} Hz)\n      breathBox: ${fmt(box.durS, 2)} s, peak ${fmt(box.peakDb, 1)}, RMS ${fmt(box.rmsDb, 1)}, centroid ${Math.round(box.centroidHz)} Hz`);
+      assert(Math.abs(horn.durS - HORN_S) < 0.01 && horn.rmsDb > -20 && horn.centroidHz > 800 && horn.centroidHz < 3500, JSON.stringify(horn));
+      assert(Math.abs(box.durS - 4) < 0.01 && box.peakDb < -20 && STRESS.breathBox.loop, JSON.stringify(box));
     },
   },
 ];

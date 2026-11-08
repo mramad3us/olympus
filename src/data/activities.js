@@ -204,6 +204,14 @@ export const ACTIVITIES = deepFreeze({
     parts: [still('kd-casualty', 'asked', 1.5, 'stand', { line: 'The ambulance came for the casualty.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
     log: ['The range held while the casualty went to the aid station: {dur}.', '{dur} on safe while the corpsman and the ambulance did their work.', 'Cease fire for {dur}: a casualty off the range.', 'The range closed behind the ambulance: {dur}.'],
   },
+  // (0.0.10, the fixer's (the design review): "Bang"'s coach's rest after his noise, behind the brief splash once the shooter
+  // stands ready and still with no Breathe offered (src/sim/scenarios/stress.js stressRestSecond); its length the rest left, a
+  // fast-forward of lived ticks, so the pool and the stress come out as lived)
+  'stress-rest': {
+    id: 'stress-rest', class: 'day', uses: [], offer: 'the rest', noun: 'the rest', mask: 'D A',
+    parts: [still('stress-rest', 'asked', 1.5, 'stand')], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['The noise settled: {dur} at low ready.', '{dur} at low ready while the smoke cleared.', 'The coach let it settle: {dur}.', '{dur}, ready and still, for the noise to clear.'],
+  },
   idle: {
     id: 'idle', class: 'day', uses: [], offer: 'idle', mask: 'D A',
     parts: [still('idle', 'asked', 1.5)], resumable: false, stoppable: true, chunkMs: 0, vignette: null, min: 0,

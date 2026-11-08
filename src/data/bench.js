@@ -30,6 +30,9 @@
 // on seed 48213 as the Boot recruit, 20 s still: the coach's three bangs behind you, their flashes and smoke, the startle's
 // dark and FROZE, the picture closing at its edges, the turn and the pause; its frames within BANG_FRAMES_MS of a bang a row
 // of their own (cards/bench.js bangOf), no frame there over 25 ms.
+// stress-din (0.0.10, the build sheet 0.0.10 §2.3, §8 item 22): test-stress's 'standby:1' (the din's standby, armed, out of the mode) on
+// seed 48213 as the Boot recruit, 20 s still: the coach's air horn and his thirty blanks at your shoulder, their flashes, the turn
+// and the pause; its frames within BANG_FRAMES_MS of a blank are the bench's "at a bang" row (main.js), no frame there over 25 ms.
 
 /** The bench scenes by name (the build sheet's §2.4). */
 export const BENCH_SCENES = Object.freeze({
@@ -52,6 +55,11 @@ export const BENCH_SCENES = Object.freeze({
   }),
   'pairs-bangs': Object.freeze({
     play: 'test-pairs', seed: 48213, hour: 11, setup: 'bangs:standby', tier: 'recruit',
+    keys: Object.freeze([Object.freeze([null, 20000])]),
+    warmS: 2,
+  }),
+  'stress-din': Object.freeze({
+    play: 'test-stress', seed: 48213, hour: 11, setup: 'standby:1', tier: 'recruit',
     keys: Object.freeze([Object.freeze([null, 20000])]),
     warmS: 2,
   }),

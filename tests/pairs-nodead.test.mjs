@@ -41,6 +41,7 @@ function fuzzTable(runs) {
 export default [
   {
     name: 'a fuzz shooter (random rows, the brackets on the no-shoot, never reloading on odd seeds, idling out of the mode, entering it in the standby, walking off the point) reaches the card on 4 runs within 30 game minutes, every item held once (the user, 2026-11-07: "a scene never dead-ends")',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() { fuzzTable([1, 2, 3, 4].map(seed => fuzzRun(seed))); },
   },
   {

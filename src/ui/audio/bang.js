@@ -98,8 +98,8 @@ export function createBang(engine, { looks = {} } = {}) {
     if (engine.bang('bangReport', { delayS: lagS + v.echo.delayS, gainDb: v.echo.gainDb, lowHz: v.echo.lowpassHz, pan: v.pan, rate: 0.85 })) { stats.echoes++; stats.lastEcho = { gainDb: r1(v.echo.gainDb), lowpassHz: Math.round(v.echo.lowpassHz), delayS: Math.round(v.echo.delayS * 1000) / 1000 }; }
     return ok;
   }
-  /** A frame: the mix for the reading now (main.js's suppNow, or null), on the engine's chaos stage and loops. */
-  function frame(state, sn = null) {
+  /** A frame: the mix for the reading now (main.js's suppNow, or null), on the engine's chaos stage and loops; breathing (0.0.10: Breathe running) holds the quick breath off, stress.js's box breath in its place. */
+  function frame(state, sn = null, { breathing = false } = {}) {
     const ms = state?.clock?.ms ?? 0, d = sn?.deaf;
     // (a deafness's start: the first reading of it (the bang's tick); a new one when its end moves past the old)
     if (d && Number.isFinite(d.untilMs) && ms < d.untilMs) {
@@ -109,7 +109,7 @@ export function createBang(engine, { looks = {} } = {}) {
     const m = chaosMix(sn, ms, { fromMs: deafFrom });
     engine.chaos(m.world);
     engine.loop('heart', 'heart', 'body', m.body.gainDb);
-    engine.loop('breath', 'breath', 'body', m.body.gainDb === null ? null : m.body.gainDb - 3);
+    engine.loop('breath', 'breath', 'body', m.body.gainDb === null || breathing ? null : m.body.gainDb - 3);
     engine.loop('whine', 'whine', 'ear', m.deaf?.whineDb ?? null);
     stats.mix = { bandN: m.bandN, lowpassHz: Math.round(m.world.lowpassHz), gainDb: r1(m.world.gainDb), deafK: m.deaf ? Math.round(m.deaf.k * 1000) / 1000 : 0 };
     stats.whine = m.deaf?.whineDb === null || m.deaf?.whineDb === undefined ? null : { db: r1(m.deaf.whineDb), sinceS: r1(m.deaf.sinceS) };

@@ -1,0 +1,16 @@
+{
+ "title": "The hit card: a turner hit, drawn as a range target is (A the doll, B the khaki board, C the casualty card)",
+ "about": "Your words of 2026-11-07: \"Targets in game should be represented with the same logic we represent the shooting range targets, drawn with impact points drawn as well, using similar to inventory and character menu drawings of people.\" One string's marks on a turner at 7 m: a Pair to the chest, a third round high, a fourth missed. Left, what the marine could tell during the string (belief): a hollow ring where his sight was at each break, filled when he saw it strike, numbered. Right, the debrief (truth): the holes where they went, coloured by zone (A red, C orange, the head crimson), the calls faint under them, the coach's line. A is the doll of PERSONNEL and the inventory in colour, the man-target's zones over it at 25% (the game draws A until you score them); B the khaki man-target board, the outline and kit in its two tones, holes in ink; C the casualty card's front and back outlines. Each in the hit card's box at 1024 × 768 (--ui 0.85: the card drawn at 170 px, its whole pixels), 1600 × 900 (--ui 1.25) and 1920 × 1080 (--ui 1.5), at whole pixels where they fit. Star the look you want; the card goes where it shows, at the top left under the toasts on Bang.",
+ "pixel": "506x250",
+ "views": [
+  { "id": "hitcard-a-1024", "name": "A, the doll in colour, at 1024 × 768", "query": "look=A&win=1024", "pixel": "346x170" },
+  { "id": "hitcard-a-1600", "name": "A, the doll in colour, at 1600 × 900", "query": "look=A&win=1600", "pixel": "506x250" },
+  { "id": "hitcard-a-1920", "name": "A, the doll in colour, at 1920 × 1080", "query": "look=A&win=1920", "pixel": "606x300" },
+  { "id": "hitcard-b-1024", "name": "B, the khaki man-target board, at 1024 × 768", "query": "look=B&win=1024", "pixel": "346x170" },
+  { "id": "hitcard-b-1600", "name": "B, the khaki man-target board, at 1600 × 900", "query": "look=B&win=1600", "pixel": "506x250" },
+  { "id": "hitcard-b-1920", "name": "B, the khaki man-target board, at 1920 × 1080", "query": "look=B&win=1920", "pixel": "606x300" },
+  { "id": "hitcard-c-1024", "name": "C, the casualty card's outlines, at 1024 × 768", "query": "look=C&win=1024", "pixel": "346x170" },
+  { "id": "hitcard-c-1600", "name": "C, the casualty card's outlines, at 1600 × 900", "query": "look=C&win=1600", "pixel": "506x250" },
+  { "id": "hitcard-c-1920", "name": "C, the casualty card's outlines, at 1920 × 1080", "query": "look=C&win=1920", "pixel": "606x300" }
+ ]
+}

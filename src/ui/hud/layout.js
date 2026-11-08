@@ -51,6 +51,12 @@
 // The 0.0.8 round's (the build sheet 0.0.8 §2.4): on the pairs pad the coach's shot timer's paper (hud/timer.js) takes
 // PAPER, where the 25 m card stands on the other courses, in stop motion and out of it: the states 'walking-paper' and
 // 'paused-paper' are walking's and paused's with PAPER, which clears TOASTS, WATCH and PAUSED at every size the tests use.
+// The 0.0.10 round's (the build sheet 0.0.10 §2.3, §8 item 18; VIEWS §7.7): the hit card, HITCARD 200 × 200, a turner hit drawn
+// as the doll with its marks, stands at the top left under TOASTS (below), so the coach's timer keeps PAPER exactly as built and
+// the debrief shows both. The sheet put it left of PAPER (leftOf, still read: GAP_PX to the other's left, moved under the one it
+// must clear); played at 1600 × 900 it lay over the coach at your shoulder, where the din's horn and flashes are, the camera
+// leading the shooter left of the middle, so it takes the window's left edge instead (my call: the picture's middle stays clear). The states that show it are the paper ones with HITCARD: 'weapon-hit', 'weapon-hit-paused',
+// 'walking-hit' and 'paused-hit' (the stress course's alone, so test-pairs and the other courses keep their states to the pixel).
 import { frameFor } from '../../render/scale.js';
 
 /** The rectangles at --ui 1 (CSS px): size and anchor (VIEWS §7.5). */
@@ -58,12 +64,14 @@ export const RECTS = Object.freeze({
   TOASTS: Object.freeze({ w: 460, h: 84, anchor: 'top-left' }),
   WATCH: Object.freeze({ w: 280, h: 132, anchor: 'top-right' }),
   INSTINCT: Object.freeze({ w: 720, h: 44, anchor: 'bottom-centre' }),
-  RADIO: Object.freeze({ w: 720, h: 60, anchor: 'bottom-centre', on: 'INSTINCT', onIn: Object.freeze({ weapon: 'STEPS', 'weapon-paused': 'STEPS', 'weapon-far': 'STEPS', 'weapon-far-paused': 'STEPS' }) }),
+  RADIO: Object.freeze({ w: 720, h: 60, anchor: 'bottom-centre', on: 'INSTINCT', onIn: Object.freeze({ weapon: 'STEPS', 'weapon-paused': 'STEPS', 'weapon-far': 'STEPS', 'weapon-far-paused': 'STEPS', 'weapon-hit': 'STEPS', 'weapon-hit-paused': 'STEPS' }) }),
   STEPS: Object.freeze({ w: 720, h: 148, anchor: 'bottom-centre', on: 'INSTINCT' }),
   KEYS: Object.freeze({ w: 120, h: 32, anchor: 'bottom-right' }),
   PAUSED: Object.freeze({ w: 240, h: 48, anchor: 'top-centre' }),
   CLOCK: Object.freeze({ w: 260, h: 72, anchor: 'top-centre' }),
   PAPER: Object.freeze({ w: 200, h: 200, anchor: 'top-centre', below: 'PAUSED' }),
+  // (0.0.10: the hit card, under TOASTS at the left edge: see the header)
+  HITCARD: Object.freeze({ w: 200, h: 200, anchor: 'top-left', below: 'TOASTS' }),
 });
 /** The weapon card's share of STEPS, at its left (CSS px at --ui 1; VIEWS §4.4, §7.5). */
 export const CARD_W = 180, CARD_H = 148;
@@ -80,6 +88,11 @@ export const STATES = Object.freeze({
   // (0.0.8: the shot timer's paper out of stop motion, on the pairs pad)
   'walking-paper': Object.freeze(['TOASTS', 'WATCH', 'INSTINCT', 'RADIO', 'KEYS', 'PAPER']),
   'paused-paper': Object.freeze(['TOASTS', 'WATCH', 'INSTINCT', 'RADIO', 'KEYS', 'PAUSED', 'PAPER']),
+  // (0.0.10: the stress course's, the hit card beside the coach's timer)
+  'weapon-hit': Object.freeze(['TOASTS', 'WATCH', 'PAPER', 'HITCARD', 'INSTINCT', 'STEPS', 'RADIO', 'KEYS']),
+  'weapon-hit-paused': Object.freeze(['TOASTS', 'WATCH', 'PAPER', 'HITCARD', 'INSTINCT', 'STEPS', 'RADIO', 'KEYS', 'PAUSED']),
+  'walking-hit': Object.freeze(['TOASTS', 'WATCH', 'INSTINCT', 'RADIO', 'KEYS', 'PAPER', 'HITCARD']),
+  'paused-hit': Object.freeze(['TOASTS', 'WATCH', 'INSTINCT', 'RADIO', 'KEYS', 'PAUSED', 'PAPER', 'HITCARD']),
 });
 /** The margin from the window's edges, and between stacked rectangles (CSS px at --ui 1). */
 export const MARGIN_PX = 12, GAP_PX = 6;
@@ -103,6 +116,12 @@ export function rectsAt(w, h, state = 'walking') {
   const placeOne = (name) => {
     if (out[name]) return out[name];
     const r = RECTS[name], rw = r.w * ui, rh = r.h * ui;
+    // (0.0.10: beside another, GAP_PX to its left at its top; moved down GAP_PX under the one it must clear where they would meet)
+    if (r.leftOf) {
+      const L = placeOne(r.leftOf), c = r.clear ? placeOne(r.clear) : null, at = { x: L.x - GAP_PX * ui - rw, y: L.y, w: rw, h: rh };
+      if (c && overlaps(at, c)) at.y = c.y + c.h + GAP_PX * ui;
+      return (out[name] = at);
+    }
     const x = r.anchor.endsWith('left') ? m : r.anchor.endsWith('right') ? w - m - rw : (w - rw) / 2;
     const onName = r.onIn?.[state] ?? r.on, under = onName ? placeOne(onName) : null, over = r.below ? placeOne(r.below) : null;
     const y = under ? under.y - GAP_PX * ui - rh : over ? over.y + over.h + GAP_PX * ui : r.anchor.startsWith('top') ? m : h - m - rh;

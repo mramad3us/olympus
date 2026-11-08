@@ -80,6 +80,19 @@
 // TO FIRST, so the card and the paper show one number) against the same sheet's calm figure by the book (no dice: the
 // take-in at band 0, Off safe, the aim and the press at timeK 1), and its summary line. The coach says noise, never "Bang"
 // (that would forewarn: the sheet's §8 item 5): PAIRS_COACH.bangsBrief at the brief, bangsAfter after the banged paper.
+//
+// 0.0.10, "Bang" (test-stress; the build sheet 0.0.10 §2.2, §8 items 2 to 13): the stress course runs on this engine, the
+// session's course 'pairs' and armoury.range.stress selecting its strings, its sequence (handling.js seqOf), its magazines
+// and its noise (src/sim/scenarios/stress.js, the course's own module). Each hook is guarded by R.stress, so test-pairs and
+// "Three bangs" run to the tick: the strings drawn by drawStress; the turn armed at stressArm's time (the noise's plan);
+// pairsActors runs stressActors; the turn notes the felt at it (stressTurn) and leaves string 5's second turner edge-on
+// (it turns alone, stress.js); the take-in's calm figure by the book (calmOf) kept on the stress record; the steps go to
+// stressStepStart and stressAfterStep; string 5 neither ends by the safe nor by its time while its second turner is to turn
+// (stressWaits, stressTimeUp); the string's end writes its stress paper fields (stressPaper: the noise's lead, OFF SAFE,
+// RELOAD and SECOND, paperText's) and calls stressEnd; a closed string drops its noise; bangDue reads the stress plan's
+// bangs too. One change holds on every pairs course, the sheet's §8 item 13: a live Breathe (supp.js's step 'breathe' out of
+// stop motion) counts as out of it and still (outOfIt), so breathing in a standby keeps the turn armed; nobody breathes on
+// test-pairs or "Three bangs" unless the player does, so their bots run to the tick.
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { msAtMarsTime } from '../../core/calendar.js';
@@ -89,7 +102,7 @@ import { playerActor, playerId } from '../../core/ids.js';
 import { cancel } from '../../core/queue.js';
 import { START_MS, SITES } from '../../data/setting/calendar.js';
 import { SCENES } from '../../data/scenes.js';
-import { COURSES, SEQ_PAIRS, PAIRS_COACH } from '../../data/courses.js';
+import { COURSES, PAIRS_COACH, STRESS_COACH } from '../../data/courses.js';
 import { KD_RANGE, PAIRS, pairsLaneOf } from '../../data/places/range.js';
 import { siteOf } from '../places/model.js';
 import { WALK_MS } from '../places/move.js';
@@ -100,7 +113,8 @@ import { deltaOf } from '../body/record.js';
 import { testSheet, TEST_SHEETS } from '../skills/templates.js';
 import { barracks } from './barracks.js';
 import { setLedgers } from './tests.js';
-import { rangeOf, sayOn, drawLane, startRange, fault, roundsLeft, stillOf, noteTick, stopWords } from './handling.js';
+import { rangeOf, sayOn, drawLane, startRange, fault, roundsLeft, stillOf, noteTick, stopWords, seqOf } from './handling.js';
+import { drawStress, stressOpen, stressArm, dropNoise, stressActors, stressTurn, stressContact, stressWaits, stressTimeUp, stressStepStart, stressAfterStep, stressPaper, stressEnd, stressBangDue, stressNow, stressRested, stressRestSecond, againAsStress } from './stress.js';
 import { materialise, move, pouchesOf, believedN, discard } from '../arms/kit.js';
 import { gunField, feed, beliefOf, newMag } from '../arms/firearms.js';
 import { macrosFor } from '../arms/drills.js';
@@ -154,7 +168,8 @@ const fill = (lines, map) => lines.map(l => Object.entries(map).reduce((t, [k, v
 // ---- the draws (the seed alone) ----
 
 const laneKey = (lane, off) => turnerKey(lane + off);
-const holdOf = (seed, k, key, face) => {
+/** What a turner's face holds on string k, by hash (the draws' weights): a threat's rifle or pistol, a no-shoot's hands or phone. */
+export const holdOf = (seed, k, key, face) => {
   const list = face === 'noshoot' ? C.draws.noshootHolds : C.draws.threatHolds, h = hash01('pairs:hold', seed, k, key) * 100;
   let acc = 0;
   for (const [v, w] of list) { acc += w; if (h < acc) return v; }
@@ -260,10 +275,10 @@ export function testPairs(state, { at = null, setup = null, tier = null } = {}) 
   return state;
 }
 
-// (a setup: string k's "Standby" given, the player at its line's point out of stop motion at low ready in Condition 1 on safe)
-function setupStandby(state, k) {
-  const R = rangeOf(state), pid = playerId(state), me = playerActor(state), gun = state.items[gunOn(state, pid)], now = state.clock.ms;
-  const i = SEQ_PAIRS.findIndex(c => c.id === 'standby' && c.string === k), def = SEQ_PAIRS[i];
+/** A setup (w): string k's "Standby" given, the player at its line's point out of stop motion at low ready in Condition 1 on safe (0.0.10: the stress course's fill too). */
+export function setupStandby(state, k) {
+  const R = rangeOf(state), pid = playerId(state), me = playerActor(state), gun = state.items[gunOn(state, pid)], now = state.clock.ms, SQ = seqOf(R);
+  const i = SQ.findIndex(c => c.id === 'standby' && c.string === k), def = SQ[i];
   if (i < 0) return;
   R.line = def.line;
   const P = pairsPoint(state);
@@ -282,7 +297,7 @@ function setupStandby(state, k) {
   cancel(state, 'arms:range');
   R.cmd = { id: def.id, i, atMs: now }; R.next = null; R.phase = 'cmd'; R.livedMs = 0;
   // (the strings before it as sat out: nothing on their papers)
-  for (let j = 0; j < k; j++) R.strs.push({ k: j, line: j < 2 ? 7 : 10, keys: [], expect: null, n: 0, takeInMs: null, pauseToFirstMs: null, splitsMs: [], zones: {}, rows: [], done: 'setup', paper: '' });
+  for (let j = 0; j < k; j++) R.strs.push({ k: j, line: j < 2 || R.stress ? 7 : 10, keys: [], expect: null, n: 0, takeInMs: null, pauseToFirstMs: null, splitsMs: [], zones: {}, rows: [], done: 'setup', paper: '' });
   openString(state, null, k);
 }
 
@@ -300,6 +315,8 @@ export function pairsOnCmd(state, bus, def, i) {
       coachSay(state, bus, PAIRS_COACH.brief, 'brief');
       // (the bangs' brief: noise, never "Bang" (see the header))
       if (R.bangs) coachSay(state, bus, PAIRS_COACH.bangsBrief, 'bangsBrief');
+      // (0.0.10: the stress course's brief names the noise)
+      if (R.stress) coachSay(state, bus, STRESS_COACH.brief, 'stressBrief');
       break;
     case 'standby': openString(state, bus, def.string); break;
     case 'stop': R.hot = false; awayAll(state, bus, 'string'); break;
@@ -309,7 +326,12 @@ export function pairsOnCmd(state, bus, def, i) {
       R.coachWalk = { x: P.coach.x, z: P.coach.z, face: P.coach.face };
       break;
     }
-    case 'short': R.wantMag = R.mags.short; bus?.emit('range', { phase: 'short', cmd: def.id, hot: false, rule: null, kind: null, text: null, line: R.line }); break;
+    case 'short':
+      // (0.0.10: on the stress course the one-round magazine already in (a Top up between strings took it): the coach's
+      // "Good" now, nothing named, so his word never lands inside the next string)
+      if (R.stress && state.items[gunOn(state, playerId(state))]?.mag === R.mags.short) { R.shortIn = true; coachSay(state, bus, STRESS_COACH.short, 'short'); }
+      else R.wantMag = R.mags.short;
+      bus?.emit('range', { phase: 'short', cmd: def.id, hot: false, rule: null, kind: null, text: null, line: R.line }); break;
     case 'lull': openLull(state, bus); bus?.emit('range', { phase: 'lull', cmd: def.id, hot: false, rule: null, kind: null, text: null, line: R.line }); break;
     case 'clear': R.shown = false; R.wantMag = null; break;
     default: break;
@@ -343,7 +365,7 @@ function handOver(state, bus, R) {
 
 // (string k opened at its "Standby": its faces hung on the edge-on turners, its record, the turn armed if you are out of the mode)
 function openString(state, bus, k) {
-  const R = rangeOf(state), d = drawStrings(state.meta.seed, R.lane)[k];
+  const R = rangeOf(state), d = (R.stress ? drawStress : drawStrings)(state.meta.seed, R.lane)[k];
   if (!d) return;
   for (const key of d.keys) {
     const T = turnerOf(R, key);
@@ -356,13 +378,17 @@ function openString(state, bus, k) {
   if (c?.known && d.keys.some(key => key in c.known)) noteContact(state, { known: Object.fromEntries(Object.entries(c.known).filter(([key]) => !d.keys.includes(key))) });
   R.string = k; R.hot = false;
   R.str = { k, line: d.line, keys: [...d.keys], attempt: 0, turnAtMs: null, turnedMs: null, seenMs: null, pauseMs: null, takeInMs: null, expect: null, n: 0, contactId: null,
-    shots: [], done: null, livedMs: 0 };
-  if (!state.stop && readyForTurn(state)) arm(state, R.str);
+    shots: [], done: null, livedMs: 0, ...(d.second ? { second: d.second } : {}) };
+  if (R.stress) stressOpen(state, bus, R.str, d);
+  if (outOfIt(state) && readyForTurn(state)) arm(state, R.str);
   bus?.emit('range', { phase: 'standby', cmd: 'standby', hot: false, rule: null, kind: null, text: null, line: d.line, string: k });
 }
 // (the turn armed: the drawn gap; on the banged string, BANGS.turnMs after the third bang, the plan made at the first arming)
 function arm(state, s) {
-  const R = rangeOf(state), at = whole(state.clock.ms + gapOf(state.meta.seed, s.k, s.attempt));
+  const R = rangeOf(state);
+  // (0.0.10: the stress course's turn, from its noise's plan (stress.js))
+  if (R.stress) { s.turnAtMs = stressArm(state, s); return; }
+  const at = whole(state.clock.ms + gapOf(state.meta.seed, s.k, s.attempt));
   if (!bangsOn(R, s)) { s.turnAtMs = at; return; }
   if (!R.bangs.plan.length) planBangs(state, s);
   const third = R.bangs.plan.at(-1).atMs + BANGS.turnMs;
@@ -442,10 +468,12 @@ export function pairsReady(state, def, { gun, safe, me } = {}) {
   if (!['pairsReady', 'shortReady', 'toppedUp'].includes(def.ready)) return null;
   if (!gun || !me) return false;
   const pid = playerId(state), carry = state.people[pid]?.kit?.carry ?? {}, P = pairsPoint(state);
-  const out = !state.stop && !state.time?.doing && (me.gait ?? 'idle') === 'idle';
+  const out = outOfIt(state) && !state.time?.doing && (me.gait ?? 'idle') === 'idle';
   const cond1 = gunField(gun, 'chamber') === 'live' && !!gun.mag && gunField(gun, 'mode') === 'safe';
   const ready = out && inBox(P.box, me.x, me.z) && (carry.finger ?? 'off') !== 'on' && ((carry.posture === 'lowReady' && cond1) || (!!R.dry && safe));
   if (!ready) return false;
+  // (0.0.10: on the stress course the coach's "Stop" waits out his rest after the noise (stress.js stressRested))
+  if (R.stress && def.id === 'stop' && !stressRested(state)) return false;
   if (def.ready === 'shortReady') return gun.mag === R.mags.short || !!R.dry || !state.items[R.mags.short];
   if (def.ready === 'toppedUp') return toppedUp(state, R, gun);
   return true;
@@ -465,7 +493,7 @@ export function pairsWant(state) {
   if (!dry && gunField(gun, 'chamber') !== 'live') return 'chamber';
   if (gunField(gun, 'mode') !== 'safe' || (carry.finger ?? 'off') === 'on') return 'safe';
   if (!dry && carry.posture !== 'lowReady') return 'low';
-  if (state.stop || state.time?.doing) return 'out';
+  if (!outOfIt(state) || state.time?.doing) return 'out';
   if (!inBox(P.box, me.x, me.z)) return 'point';
   if ((me.gait ?? 'idle') !== 'idle') return 'still';
   return null;
@@ -477,6 +505,9 @@ export function onPoint(state) {
 }
 /** The coach's nudge by what is lacking (pairsWant): "Shooter, a magazine in." */
 export const PAIRS_NUDGE = Object.freeze({ mag: 'a magazine in.', chamber: 'a round up: MAKE READY.', safe: 'on safe, finger off.', low: 'low ready.', out: 'out of it.', point: 'back on your point.', still: 'stand still.' });
+// (out of stop motion, as the coach sees it: no stop motion, or a live Breathe (supp.js's step 'breathe' outside the mode: the
+// sheet 0.0.10's §8 item 13, so breathing in the standby keeps the turn armed; a sighting cuts it))
+const outOfIt = (state) => !state.stop || (state.stop.mode === 'live' && state.stop.doing?.step === 'breathe');
 // (whether the turn may be armed: the line ready as the coach sees it, on the point of the string's line (the design review of
 // v0.0.8: the turn came while the shooter stood off his point, and the stop that followed was for a place the move-on put him))
 const readyForTurn = (state) => pairsWant(state) === null;
@@ -501,6 +532,7 @@ export function pairsActors(state, input, bus) {
   const now = state.clock.ms;
   if (R.coachWalk) coachStep(state, R);
   if (R.bangs) fireBangs(state, bus, R, now);
+  if (R.stress) stressActors(state, input, bus);
   // (stood in the 10 m point's box once: the line's box is its own from now on (pairsBox))
   if (R.line === 10 && !R.at10) { const me = playerActor(state), b = pairsLaneOf(R.lane).points[10].box; if (me && inBox(b, me.x, me.z)) R.at10 = true; }
   const s = R.str;
@@ -511,12 +543,14 @@ export function pairsActors(state, input, bus) {
       // (into the mode before the turn: no turn on a shooter already in it; again with the next attempt's gap once out)
       s.turnAtMs = null; s.attempt += 1;
       if (bangsOn(R, s)) dropBangs(R);
+      if (R.stress) dropNoise(R, s);
       if (!s.outSaid) { s.outSaid = true; coachSay(state, bus, PAIRS_COACH.out, 'out', s.k); }
     } else if (s.turnAtMs !== null && now < s.turnAtMs && !readyForTurn(state)) {
       // (off the point, or no longer ready, before the turn: no turn on him; again with the next attempt's gap once ready)
       s.turnAtMs = null; s.attempt += 1;
       if (bangsOn(R, s)) dropBangs(R);
-    } else if (s.turnAtMs === null && !state.stop && readyForTurn(state)) {
+      if (R.stress) dropNoise(R, s);
+    } else if (s.turnAtMs === null && outOfIt(state) && readyForTurn(state)) {
       arm(state, s);
       // (a re-armed turn is a fresh cue: the held sector runs VIGIL_MS from now, so a long idle in the mode never
       // drops your own lane to 'alert' (react.js expectOf reads R.cueAtMs beside the command's time))
@@ -534,12 +568,14 @@ function turnString(state, bus, s) {
   const R = rangeOf(state);
   for (const key of s.keys) {
     const T = turnerOf(R, key);
-    if (!T) continue;
+    // (0.0.10: string 5's second turner turns alone, in the RELOAD (stress.js))
+    if (!T || key === s.second) continue;
     turnTo(T, s.turnAtMs);
     bus?.emit('turner', { key: T.key, lane: T.lane, phase: 'turn', face: T.face, atMs: T.turnAtMs, toMs: T.turnAtMs + TURN_MS, why: 'standby' });
   }
   s.turnedMs = s.turnAtMs;
   R.hot = true; R.phase = 'string';
+  if (R.stress) stressTurn(state, bus, s);
   bus?.emit('range', { phase: 'turn', cmd: R.cmd?.id ?? null, hot: true, rule: null, kind: null, text: null, line: s.line, string: s.k });
 }
 
@@ -567,6 +603,8 @@ export function pairsSecond(state, bus, ctx) {
   const R = rangeOf(state);
   if (!R || R.course !== 'pairs' || R.end) return false;
   checkString(state, bus);
+  // (0.0.10, the fixer's: "Bang"'s rest after the noise, said and put behind the brief splash once he stands ready (stress.js))
+  if (R.stress && stressRestSecond(state, bus, ctx)) return true;
   return false;
 }
 
@@ -578,6 +616,7 @@ function noteStrContact(state, s) {
   Object.assign(s, { contactId: c.id, seenMs: c.seenMs, pauseMs: c.atMs, takeInMs: c.ms, expect: c.expect ?? null, n: c.n ?? (c.ids ?? []).length });
   const R = rangeOf(state);
   if (bangsOn(R, s) && !R.bangs.calm) R.bangs.calm = calmOf(state, R, s, c);
+  if (R.stress) stressContact(state, R, s, c);
 }
 
 /**
@@ -587,7 +626,7 @@ function noteStrContact(state, s) {
  * (shot.js aimMsOf) at timeK 1 (the chaos's time factor taken back out), and the press before the round: the Pair row's
  * TRIGGER_S where its Marksmanship gate is met (specials.js rowPlan), none with Fire (its round leaves as its pull begins).
  */
-function calmOf(state, R, s, c) {
+export function calmOf(state, R, s, c) {
   const pid = playerId(state), gunId = gunOn(state, pid), gun = state.items?.[gunId], wf = TEST_SHEETS[R.sheet]?.wf ?? 0;
   const k = suppTimeK(feltOf(state, pid, state.clock.ms));
   const T = turnerOf(R, (c.ids ?? []).find(key => s.keys.includes(key)) ?? s.keys[0]);
@@ -614,9 +653,9 @@ export function checkString(state, bus) {
   let why = null;
   if (s.noshootHit) why = 'noshoot';
   else if (threats.length && threats.every(T => T.stoppedAtMs !== null)) why = 'stopped';
-  else if (s.livedMs >= STRING_MAX_MS) why = 'time';
+  else if (R.stress ? stressTimeUp(R, s) : s.livedMs >= STRING_MAX_MS) why = 'time';
   else if (roundsLeft(state) === 0) why = 'dry';
-  else if (s.shots.some(x => x.fired) && gun && gunField(gun, 'mode') === 'safe') why = 'declared';
+  else if (s.shots.some(x => x.fired) && gun && gunField(gun, 'mode') === 'safe' && !(R.stress && stressWaits(R, s))) why = 'declared';
   if (why) stringEnd(state, bus, why);
   return why;
 }
@@ -631,18 +670,22 @@ export function stringEnd(state, bus, why) {
   awayAll(state, bus, 'string', s.keys);
   // (0.0.9: the banged string's record of the bangs (see the header), on its paper and the card)
   if (bangsOn(R, s)) s.bangs = bangRec(state, R, s);
+  // (0.0.10: the stress string's noise on its paper (stress.js stressPaper))
+  if (R.stress) s.stress = stressPaper(state, R, s);
   const paper = paperOf(s);
   const rows = [];
   for (const x of s.shots) if (x.row && !x.rowI) rows.push(x.row);
   const rec = { k: s.k, line: s.line, keys: [...s.keys], expect: s.expect, n: s.n, takeInMs: s.takeInMs, pauseToFirstMs: paper.pauseToFirstMs, splitsMs: paper.splitsMs, zones: paper.zones, rows, done: why, paper: paper.text,
-    ...(s.bangs ? { bangs: { ...s.bangs, offSafe: [...s.bangs.offSafe] } } : {}) };
+    ...(s.bangs ? { bangs: { ...s.bangs, offSafe: [...s.bangs.offSafe] } } : {}),
+    ...(s.stress ? { stress: { ...s.stress, offSafe: [...s.stress.offSafe], reload: s.stress.reload ? { ms: s.stress.reload.ms, tries: [...s.stress.reload.tries] } : null } } : {}) };
   R.strs.push(rec);
   bus?.emit('range', { phase: 'paper', cmd: R.cmd?.id ?? null, hot: false, rule: null, kind: null, text: paper.text, line: s.line, string: s.k, why, paper });
-  if (why === 'time') fault(state, bus, 'time', 'warn', hashPick(PAIRS_COACH.time, 'pairs-coach', state.meta.seed, 'time', s.k));
+  if (why === 'time') fault(state, bus, 'time', 'warn', hashPick(PAIRS_COACH.time, 'pairs-coach', state.meta.seed, 'time', s.k), { fired: s.shots.some(x => x.fired) });
   if (why === 'dry') coachSay(state, bus, PAIRS_COACH.dry, 'dry', s.k);
   if (why === 'declared') coachSay(state, bus, PAIRS_COACH.declared, 'declared', s.k);
   coachSay(state, bus, s.shots.some(x => x.fired) ? fill(PAIRS_COACH.paper, { paper: paper.text }) : PAIRS_COACH.none, 'paper', s.k);
   if (s.bangs?.n) coachSay(state, bus, PAIRS_COACH.bangsAfter, 'bangsAfter');
+  if (R.stress) stressEnd(state, bus, s, why);
   if (s.k === LAST_STRING) openLull(state, bus);
   return rec;
 }
@@ -654,6 +697,7 @@ function closeString(state, bus, why) {
     if (bangsOn(R, s)) dropBangs(R);
     s.done = why; s.doneAtMs = state.clock.ms;
     R.strs.push({ k: s.k, line: s.line, keys: [...s.keys], expect: null, n: 0, takeInMs: null, pauseToFirstMs: null, splitsMs: [], zones: {}, rows: [], done: why, paper: '' });
+    if (R.stress) stressEnd(state, bus, s, why);
     if (s.k === LAST_STRING) openLull(state, bus);
     return;
   }
@@ -682,7 +726,10 @@ export function paperOf(str) {
   for (const x of fired) { const z = x.noshoot ? 'noshoot' : x.down ? 'headDown' : x.ring && !x.through ? 'ring' : x.zone ?? 'miss'; zones[z] = (zones[z] ?? 0) + 1; }
   const splitsMs = fired.slice(1).map((x, i) => x.atMs - fired[i].atMs);
   const pauseToFirstMs = fired.length && str.pauseMs !== null && str.pauseMs !== undefined ? fired[0].atMs - str.pauseMs : null;
-  const paper = { takeInMs: str?.takeInMs ?? null, pauseToFirstMs, splitsMs, zones, ...(str?.bangs ? { bangs: str.bangs.n, frozeMs: str.bangs.frozeMs, offSafe: [...str.bangs.offSafe] } : {}) };
+  const paper = { takeInMs: str?.takeInMs ?? null, pauseToFirstMs, splitsMs, zones, ...(str?.bangs ? { bangs: str.bangs.n, frozeMs: str.bangs.frozeMs, offSafe: [...str.bangs.offSafe] } : {}),
+    // (0.0.10: the stress course's fields (stress.js stressPaper): the noise, its blanks and bangs, the freeze, Off safe, string 5's RELOAD and SECOND)
+    ...(str?.stress ? { noise: str.stress.noise, blanks: str.stress.blanks, ...(Number.isFinite(str.stress.blanksPlan) ? { blanksPlan: str.stress.blanksPlan } : {}), bangs: str.stress.bangs, frozeMs: str.stress.frozeMs, offSafe: [...str.stress.offSafe],
+      reload: str.stress.reload ? { ms: str.stress.reload.ms, tries: [...str.stress.reload.tries] } : null, secondMs: str.stress.secondMs } : {}) };
   return { ...paper, text: paperText(paper) };
 }
 
@@ -691,13 +738,29 @@ export function paperOf(str) {
  * 0.40 · 2 A'; the banged string's (0.0.9) 'BANGS 3 · FROZE 2.45 S · TURN TO PAUSE 1.25 · PAUSE TO FIRST 3.20 · OFF SAFE ✗ ✗ ✓ ·
  * SPLITS 0.75 · 2 A' (FROZE left out when nothing froze; "OFF SAFE IN THE AIM" when the row's aim took the safe off, rung 2 up).
  */
-export function paperText({ takeInMs = null, pauseToFirstMs = null, splitsMs = [], zones = {}, bangs = null, frozeMs = 0, offSafe = [] } = {}) {
+export function paperText({ takeInMs = null, pauseToFirstMs = null, splitsMs = [], zones = {}, bangs = null, frozeMs = 0, offSafe = [], noise = null, blanks = 0, blanksPlan = null, reload = null, secondMs = null } = {}) {
   const z = ZONES.filter(k => zones[k]).map(k => `${zones[k]} ${ZONE_PAPER[k]}`).join(', ');
-  return [bangs ? `BANGS ${bangs}` : null, bangs && frozeMs ? `FROZE ${takeInWords(frozeMs)} S` : null,
+  // (0.0.10: the stress course's lead by its noise (calm: none, as pairs'), and any noisy string's Off safe)
+  const lead = noise ? stressLead({ noise, blanks, blanksPlan, bangs, frozeMs }) : [bangs ? `BANGS ${bangs}` : null, bangs && frozeMs ? `FROZE ${takeInWords(frozeMs)} S` : null];
+  const noisy = noise ? noise !== 'calm' : !!bangs;
+  const ticks = (xs) => xs.map(ok => (ok ? '✓' : '✗')).join(' ');
+  return [...lead,
     takeInMs === null ? 'NO PAUSE' : `TURN TO PAUSE ${takeInWords(takeInMs)}`, pauseToFirstMs === null ? 'NO ROUNDS' : `PAUSE TO FIRST ${takeInWords(pauseToFirstMs)}`,
     // (the fixer's: from rung 2 the row's aim takes the safe off, said so, so the tier one's paper has the step the recruit failed)
-    bangs && offSafe?.length ? `OFF SAFE ${offSafe.map(ok => (ok ? '✓' : '✗')).join(' ')}` : bangs && pauseToFirstMs !== null ? 'OFF SAFE IN THE AIM' : null,
-    splitsMs.length ? `SPLITS ${splitsMs.map(takeInWords).join(' ')}` : null, z || null].filter(Boolean).join(' · ');
+    noisy && offSafe?.length ? `OFF SAFE ${ticks(offSafe)}` : noisy && pauseToFirstMs !== null ? 'OFF SAFE IN THE AIM' : null,
+    splitsMs.length ? `SPLITS ${splitsMs.map(takeInWords).join(' ')}` : null,
+    reload ? `RELOAD ${reload.ms === null || reload.ms === undefined ? '-' : `${takeInWords(reload.ms)} S`}${reload.tries?.length ? ` ${ticks(reload.tries)}` : ''}` : null,
+    secondMs !== null && secondMs !== undefined ? `SECOND ${takeInWords(secondMs)}` : null, z || null].filter(Boolean).join(' · ');
+}
+// (the stress paper's lead (0.0.10): 'DIN 30 BLANKS', 'BANG CALLED · FROZE 0.85 S', 'BANGS 3 · FROZE 2.40 S'; nothing on the calm string.
+// The din leads with its plan, the blanks heard after it when the string ended first ('DIN 30 BLANKS · 22 HEARD': the design
+// review of 0.0.10, as the tier one's shorter string read "DIN 22 BLANKS" beside the recruit's 30, as if he had faced less))
+function stressLead({ noise, blanks, blanksPlan = null, bangs, frozeMs }) {
+  const froze = frozeMs ? `FROZE ${takeInWords(frozeMs)} S` : null;
+  if (noise === 'din') return Number.isFinite(blanksPlan) && blanks < blanksPlan ? [`DIN ${blanksPlan} BLANKS`, `${blanks} HEARD`] : [`DIN ${blanks} BLANKS`];
+  if (noise === 'called') return ['BANG CALLED', froze];
+  if (noise === 'bangs' || noise === 'reload') return [`BANGS ${bangs}`, froze];
+  return [];
 }
 
 // ---- the shots ----
@@ -763,10 +826,9 @@ export function pairsStepStart(state, bus, d) {
   if (!R || R.course !== 'pairs' || R.end) return;
   // (0.0.9: a step begun: the DI's line after a startle lasts until one (instinct/pairs.js pairs-froze); on the banged
   // string the take-in noted first, so its calm figure reads the rifle where it was at the pause, before the step moves it)
-  if (R.bangs) {
-    R.bangs.lastStepMs = d.fromMs;
-    if (bangsOn(R, R.str) && !R.str.done && R.str.turnedMs !== null) noteStrContact(state, R.str);
-  }
+  if (R.bangs) R.bangs.lastStepMs = d.fromMs;
+  if ((bangsOn(R, R.str) || (R.stress && R.str)) && !R.str.done && R.str.turnedMs !== null) noteStrContact(state, R.str);
+  if (R.stress) stressStepStart(state, bus, d);
   if (!/^macro:reload:(speed|retain|tactical)$/.test(d?.step ?? '')) return;
   const b = beliefOf(state, gunOn(state, playerId(state))), mid = !!R.str && !R.str.done && R.str.turnedMs !== null;
   d.reloadWhy = R.lull && !mid ? 'lull' : b?.locked && b.count === 0 ? 'dry' : mid ? 'topUp' : 'between';
@@ -805,6 +867,7 @@ export function pairsAfterStep(state, bus, d, why) {
   if (!R || R.course !== 'pairs' || R.end) return;
   const pid = playerId(state), gun = state.items?.[gunOn(state, pid)], now = state.clock.ms;
   if (R.bangs) noteBangSteps(state, R, d, pid);
+  if (R.stress) stressAfterStep(state, bus, d, why);
   const kind = /^macro:reload:(speed|retain|tactical)$/.exec(d.step ?? '')?.[1] ?? null;
   if (kind && why === 'end') {
     // (its purpose: the short one named, else as read at its start (pairsStepStart; a step of an older save: 'between'))
@@ -814,7 +877,7 @@ export function pairsAfterStep(state, bus, d, why) {
     if (purpose === 'lull' && R.lull && !R.lull.topUp) { R.lull.topUp = { atMs: d.fromMs, ms: now - d.fromMs }; coachSay(state, bus, PAIRS_COACH.lull, 'lull'); }
   }
   // (the short magazine seated, by Top up or any other way: the coach's "Good", his name for it done with)
-  if (R.wantMag && gun?.mag === R.wantMag) { R.wantMag = null; R.shortIn = true; coachSay(state, bus, PAIRS_COACH.short, 'short'); }
+  if (R.wantMag && gun?.mag === R.wantMag) { R.wantMag = null; R.shortIn = true; coachSay(state, bus, R.stress ? STRESS_COACH.short : PAIRS_COACH.short, 'short'); }
   // (an armoured face, or a paper one, hit in the torso and still standing after a row: the coach's "Still up!", once a string)
   const s = R.str;
   // (only what should have put him down and did not: the steel's ring, or two in the torso; one round on paper is not it
@@ -879,7 +942,7 @@ export function pairsNow(state, ms = state.clock.ms) {
     str: s ? { k: s.k, keys: [...s.keys], line: s.line, done: s.done, armed: s.turnAtMs !== null && s.turnedMs === null, turned: s.turnedMs !== null, turnAtMs: s.turnAtMs, paper: s.done ? R.strs.at(-1)?.paper ?? null : null } : null,
     strs: R.strs.map(x => ({ ...x })), turners, reloads: R.reloads.map(r => ({ ...r })), lull: R.lull ? { ...R.lull, on: lullOf(state, playerId(state), ms) } : null,
     wantMag: R.wantMag ?? null, mags: { ...R.mags }, rounds: card.gun.rounds, point: pairsPoint(state), card, end: R.end, summary: summaryOf(state, R, card),
-    setup: R.setup ?? null, bangs: R.bangs ? bangsNow(state, ms) : null,
+    setup: R.setup ?? null, bangs: R.bangs ? bangsNow(state, ms) : null, ...(R.stress ? { stress: stressNow(state, ms) } : {}),
   };
 }
 
@@ -890,7 +953,10 @@ export function pairsNow(state, ms = state.clock.ms) {
  */
 export function bangDue(state) {
   const R = rangeOf(state), B = R?.bangs, k = blockOf(state, playerId(state));
-  if (!B?.plan?.length || !Number.isFinite(k?.startleUntilMs)) return false;
+  if (!Number.isFinite(k?.startleUntilMs)) return false;
+  // (0.0.10: the stress course's planned bangs too)
+  if (R?.stress) return stressBangDue(R, k.startleUntilMs, STARTLE_JOIN_MS);
+  if (!B?.plan?.length) return false;
   return B.plan.some(b => !b.done && b.atMs <= k.startleUntilMs + STARTLE_JOIN_MS);
 }
 
@@ -935,7 +1001,7 @@ const NUM_WORDS = Object.freeze(['none', 'one', 'two', 'three', 'four', 'five'])
 const RELOAD_PARTS = new Set(['reach', 'seat', 'release', 'magOut:drop', 'magOut:pouch']);
 
 /** What the end card's "Again as …" starts: the same seed, another sheet, the same setup (0.0.9: 'bangs', or null; scenes never write a career). */
-export const againAs = (state, tier) => ({ scenario: 'test-pairs', seed: state.meta.seed, tier: tierOf(tier), setup: rangeOf(state)?.setup ?? null });
+export const againAs = (state, tier) => (rangeOf(state)?.stress ? againAsStress(state, tier) : { scenario: 'test-pairs', seed: state.meta.seed, tier: tierOf(tier), setup: rangeOf(state)?.setup ?? null });
 
 /**
  * What the picture may show of a turner's face (PEOPLE §7.6: the picture draws whoever the character perceives; COMBAT

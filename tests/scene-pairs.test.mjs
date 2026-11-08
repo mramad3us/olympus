@@ -79,6 +79,7 @@ export const V008_PAPERS = Object.freeze([
 export default [
   {
     name: 'calm test-pairs plays to the tick as v0.0.8 did (the build sheet 0.0.9 §3.3; the user\'s rule: "test-pairs as built must not get worse"): every sheet on seed 48213 and the private on 7 and 99, the ticks to the card, the summary, each string\'s take-in, paper, rows and end equal to v0.0.8\'s',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const diffs = [];
       for (const want of V008_PAPERS) {
@@ -93,6 +94,7 @@ export default [
   },
   {
     name: 'the pairs bot plays test-pairs by its actions to the card for each sheet on seed 48213 (boot recruit, private, sergeant, Raider, tier one) and the private on seeds 7 and 99: no fault, the no-shoot untouched, string 4 dry and its RELOAD, the lull\'s Top up, every round counted, every item held once, each paper the record\'s',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const t = performance.now(), runs = [];
       for (const [tier, seed] of [...SHEETS.map(x => [x, 48213]), ['private', 7], ['private', 99]]) {
@@ -123,6 +125,7 @@ export default [
   },
   {
     name: 'each take-in is the one helper\'s for its case (react.js takeInOf: the sheet\'s Warfighting, the expectation, the notice roll\'s grade, how many), and the recruit\'s is the tier one\'s × §4\'s ratio in the same case on the same seed: 13 in his sector (650 against 50), 8.7 alert (1,300 against 150)',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const by = {};
       for (const tier of SHEETS) {
@@ -151,6 +154,7 @@ export default [
   },
   {
     name: 'no first round ever leaves earlier than the sighting + 0.15 s + the aim (COMBAT §25.4.4\'s body floor), on every sheet and every string',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       let n = 0, worst = Infinity;
       for (const tier of SHEETS) {

@@ -547,3 +547,43 @@ export const CHAOS = Object.freeze({
     ]),
   }),
 });
+
+// ---- the 0.0.10 round: the din, through the ear defenders (the build sheet 0.0.10 §2.3; VIEWS §11.2, §11.3; my calls, unscored) ----
+//
+// The stress course's coach makes the noise at your left shoulder (STRESS_AT: 0.9 m off, panned to the left by your facing),
+// and you wear the range's electronic ear defenders (COMBAT §24 question 23's default: they stay on). The air horn: two
+// detuned sawtooths (HORN_HZ 440 and 554 Hz: a marine air horn's minor third) through a 1.2 kHz formant, HORN_SOURCE_DB over
+// its recipe's peak at 1 m (an air horn is 120 dB at a metre), for the fact's own length (the course's hornS 2 s: the recipe
+// is HORN_S long); the defenders hold a long loud sound down by their limiter, HORN_EARS_DB −20 dB and low-passed at
+// HORN_EARS_LP_HZ 2 kHz (an impulse is gated harder: EARS_DB). Each blank is the R-7's report as a neighbour's at the
+// coach's muzzle, 0.9 m off (no crack, no strike: a blank carries no bullet), with its berm echo, through the defenders'
+// gate (EARS_DB −25, EARS_LP_HZ 2 kHz, as built). The called bang is the bang's report as built, through the defenders
+// (bang.js: gated, no whine, since in defenders nobody is deafened). Breathe (COMBAT §5.2) slows the breath on the body bus to
+// its four counts while it runs (BREATHE_BOX: in 1 s, hold 1 s, out 1 s, hold 1 s, a loop of 4 s), at BREATHE_DB, in
+// place of the band's quick breathing.
+/** The air horn at 1 m against its recipe's peak (dB), its two tones (Hz), its formant (Hz, Q) and its recipe's length (s). */
+export const HORN_SOURCE_DB = 26, HORN_HZ = Object.freeze([440, 554]), HORN_FORMANT = Object.freeze([1200, 1.4]), HORN_S = 2;
+/** The defenders' limiter on a long loud sound (dB, Hz). */
+export const HORN_EARS_DB = -20, HORN_EARS_LP_HZ = 2000;
+/** Where the coach's noise comes from: 0.9 m off your left shoulder (m; pan −1 to 1). */
+export const STRESS_AT = Object.freeze({ distM: 0.9, pan: -0.45 });
+/** Breathe's box breathing on the body bus (dB against its recipe). */
+export const BREATHE_DB = -6;
+/** The stress course's recipes (see the header). */
+export const STRESS = Object.freeze({
+  hornBlast: Object.freeze({
+    levelDb: -3, durS: HORN_S, variants: 1, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'glide', hz: HORN_HZ[0], toHz: HORN_HZ[0] * 0.985, durS: HORN_S - 0.05, attackS: 0.02, releaseS: 0.12, formant: HORN_FORMANT, db: 0 }),
+      Object.freeze({ kind: 'glide', hz: HORN_HZ[1], toHz: HORN_HZ[1] * 0.985, durS: HORN_S - 0.05, attackS: 0.03, releaseS: 0.12, formant: HORN_FORMANT, db: -2 }),
+      Object.freeze({ kind: 'glide', hz: HORN_HZ[0] * 2, toHz: HORN_HZ[0] * 2 * 0.985, durS: HORN_S - 0.05, attackS: 0.02, releaseS: 0.12, formant: Object.freeze([2600, 1.6]), db: -10 }),
+    ]),
+  }),
+  breathBox: Object.freeze({
+    levelDb: -26, durS: 4.0, loop: true, variants: 1, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([900, 0.8]), attackS: 0.8, decayS: 0.15, db: 0 }),
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([650, 0.8]), attackS: 0.2, decayS: 0.45, delayS: 2.0, db: -2 }),
+    ]),
+  }),
+});

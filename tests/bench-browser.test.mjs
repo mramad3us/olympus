@@ -137,6 +137,25 @@ export default [
     },
   },
   {
+    name: '?bench=stress-din (0.0.10; the build sheet 0.0.10 §2.3, §8 item 22): the Boot recruit in the din\'s standby on 48213, 20 s: the air horn, the thirty blanks\' flashes at the coach\'s muzzle, the turn; 60 fps at the median, p95 at most 18 ms, no frame over 25 ms at a blank (the card\'s "at a bang" row counts the blanks\' frames)',
+    heavy: true,
+    timeoutMs: 150000,
+    async fn() {
+      const sc = BENCH_SCENES['stress-din'];
+      assert(sc && sc.play === 'test-stress' && sc.setup === 'standby:1' && sc.tier === 'recruit' && sc.seed === 48213, JSON.stringify(sc ?? null));
+      await withGame(async (page) => {
+        await page.waitForFunction(() => window.__bench && document.querySelector('.glass.bench'), null, { timeout: 90000 });
+        const r = await page.evaluate(() => window.__bench), text = await page.evaluate(() => document.querySelector('.glass.bench .benchtext').value);
+        const scene = await page.evaluate((h) => { const p = window[h].state.armoury.range.stress?.plan ?? []; return { blanks: p.filter(e => e.kind === 'blank' && e.done).length, horns: p.filter(e => e.kind === 'horn' && e.done).length, sheet: window[h].pairs()?.sheet, din: window[h].stress()?.din ?? null }; }, '__olympus');
+        console.log(`      stress-din: ${r.frames} frames, median ${r.medianMs} ms, p95 ${r.p95Ms} ms, max ${r.maxMs} ms, over 25 ms ${r.over25}, draw calls ${r.drawCallsMax}, uploads ${r.uploadsMaxBytes} B; at a blank ${JSON.stringify(r.bang)}; ${scene.blanks} blanks and ${scene.horns} horns on the ${scene.sheet}; the din layer ${JSON.stringify(scene.din)}`);
+        for (const line of text.split('\n')) console.log(`        ${line}`);
+        // (a CPU or frame ceiling under load: rerun alone before believing it)
+        assert(r.scene === 'stress-din' && scene.blanks >= 10 && r.bang && r.bang.frames >= 10, JSON.stringify({ r, scene }));
+        assert(r.medianMs <= 17.5 && r.p95Ms <= 18 && r.bang.over25 === 0, JSON.stringify({ median: r.medianMs, p95: r.p95Ms, bang: r.bang }));
+      }, { query: 'bench=stress-din', timeoutMs: 90000 });
+    },
+  },
+  {
     name: 'a scene with bangs adds its row: the frames at a bang alone, { frames, medianMs, maxMs, over25 }, and a line of its own',
     fn() {
       const frames = Array.from({ length: 300 }, (_, i) => ({ dt: i === 120 ? 26 : 16.7, bang: i >= 100 && i < 130 }));

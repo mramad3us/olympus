@@ -63,6 +63,7 @@ function hands(roller, pressure) {
 export default [
   {
     name: 'anchors: three bangs beside him, COMBAT §5.8 from the code ("having three flashbangs go off right next to him would barely affect his ability to operate his weapon", the user, 2026-11-07): the tier one at felt 10 or less, startled 0.1 s at most, his Off safe and RELOAD failing as calm; the boot recruit\'s Off safe failing over half the time and his RELOAD four times in five; the private between',
+    heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const rows = {};
       console.log(`      sheet (H): pool → felt (band), mod, time × | startled in all (${N} draws: mean, range; FROZE, the first start to the last end) | take-in 7 m, sector, calm → bangs | Off safe fails / drops, calm → bangs | RELOAD fails / drops, calm → bangs (at 'danger'; at 'evaluated')`);

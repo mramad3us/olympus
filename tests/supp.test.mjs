@@ -6,23 +6,37 @@
 // and a lived run against a skip, and every handling and shot roll's list at felt 0, 10, 53 and 98 with its one entry.
 // A calm game is the same to the byte: the v0.0.8 save at a test-pairs pause gives v0.0.8's panel, rolls and times
 // (CALM_DIGEST, printed by v0.0.8's own code from a worktree at its tag, the same digest of the same JSON).
+// 0.0.10 (the build sheet 0.0.10 §2.1, §5.1; COMBAT §5.1): the inputs posted, each printed from the code: a blank's report
+// beside the head (the open and indoors, bare and in ear defenders), shots in the room, the din a second, a bang forewarned
+// by a heard "Bang!" (and the call unheard while deafened, or heard too early: unprepared); the din string replayed from
+// the sheet's §4 numbers on seed 48213 (the pool at the turn and at the din's end); the shooter's own blank posting
+// nothing to him and BLANKS_K never on a blank's report; lived and skipped pools and stress gains equal; and no posting in
+// a calm test-pairs or test-handling run.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
 import { assert, fmt, root } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { bayGame } from './contact-world.mjs';
+import { testSheet } from '../src/sim/skills/templates.js';
 import { digest } from '../src/core/hash.js';
-import { TICK_MS } from '../src/core/clock.js';
+import { TICK_MS, releaseTime } from '../src/core/clock.js';
 import * as FIREARMS from '../src/sim/arms/firearms.js';
 import { doAction, actionMs } from '../src/sim/arms/firearms.js';
 import { stepsOf, targetOf } from '../src/sim/arms/shooting.js';
+import { stream, intIn } from '../src/core/rng.js';
+import { COURSES } from '../src/data/courses.js';
+import { bodyOf, bodySync } from '../src/sim/body/body.js';
+import { addStress } from '../src/sim/body/stress.js';
+import { pairsBot } from './bots/pairs.mjs';
+import { rangeBot } from './bots/range.mjs';
 import { aimMsOf, pullMsOf, modsOf, plaqueOf } from '../src/sim/arms/shot.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { checkText } from '../src/sim/skills/checks.js';
 import {
   inputPts, inputK, poolAdd, suppAt, feltFrom, feltOf, bandOf, suppMod, suppTimeK, hardOf, blockOf, bang, flashOf, hearingOf, hearsVoice, nerveCheck, suppNow,
-  SUPP_MAX, SUPP_GRACE_MS, SUPP_DECAY, PREP_K, EARPRO_K, DEAF_VOICE_M, FLASH_BLIND_MS,
+  shotNoise, dinOf, protOf, heardCall, stressGainOf,
+  SUPP_MAX, SUPP_GRACE_MS, SUPP_DECAY, PREP_K, EARPRO_K, DEAF_VOICE_M, FLASH_BLIND_MS, CALL_HEARD_MS, BLANKS_K, MUZZLE_M, DIN_M,
 } from '../src/sim/combat/supp.js';
 
 /** v0.0.8's calm panel at the v0.0.8-pairs-pause save: stepsOf, the roller's lists, the aim, the pull, the shot's mods, the plaque and six actions' times (see the header). */
@@ -35,6 +49,28 @@ function feltTo(state, pid, f, ms = state.clock.ms) {
   return H;
 }
 const suppEntries = (list) => (list ?? []).filter(m => m.felt !== undefined);
+// (the fixture's ear defenders off: the ears unprotected)
+const earsOff = (state, pid) => { const w = state.people[pid].kit.worn; for (const [slot, id] of Object.entries(w)) if (state.items[id]?.type === 'ears') delete w[slot]; };
+// (the pool a posting leaves in a fresh fixture: { pool, out }; ears 'defenders' (the fixture's issue) or 'none'; pre: a pool up first)
+function posted(fn, { ears = 'defenders', tier = 'private', pre = 0 } = {}) {
+  const w = bayGame({ tier });
+  if (ears === 'none') earsOff(w.state, w.pid);
+  if (pre) w.me.combat = { supp: pre, suppAtMs: w.state.clock.ms, suppRate: SUPP_DECAY.exposed, startleFromMs: null, startleUntilMs: null, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: null };
+  const out = fn(w);
+  return { pool: suppAt(blockOf(w.state, w.pid), w.state.clock.ms) - pre, out, w };
+}
+/** The din string from the sheet's §4 numbers (COURSES.stress.din: the lead, 30 blanks from 0.5 s in at 250 to 450 ms, the horn 2 s at its start and after every 10th, the turn COURSES.stress.din.turnMs in: 8.5 to 10 s from the fixer's of 0.0.10, 6 to 8 s before), on seed and attempt: [{ kind, atMs }] from the din's start, and the turn. */
+export function dinReplay(seed, a = 0) {
+  const r = stream(seed, 'stress:noise', 2, a), leadMs = Math.round(intIn(r, 500, 1500) / 50) * 50, turnMs = Math.round(intIn(r, ...COURSES.stress.din.turnMs) / 50) * 50;
+  const ev = [{ kind: 'horn', atMs: 0 }];
+  let t = 500;
+  for (let i = 0; i < 30; i++) {
+    if (i) t += Math.round(intIn(stream(seed, 'stress:din', a, i), 250, 450) / 50) * 50;
+    ev.push({ kind: 'blank', atMs: t, i });
+    if ((i + 1) % 10 === 0 && i + 1 < 30) ev.push({ kind: 'horn', atMs: t + 50 });
+  }
+  return { leadMs, turnMs, ev, endMs: t };
+}
 
 export default [
   {
@@ -183,6 +219,144 @@ export default [
       for (const r of rows) console.log(`      ${r}`);
       assert(cells.recruit[0].startsWith('felt 53, DC 12: 55% (65%') && cells.recruit[1].startsWith('felt 98, DC 21: 10% (20%') && cells.private[1].startsWith('felt 88, DC 19: 30%'), JSON.stringify(cells));
       assert(cells.raider.every(c => c.endsWith('not asked')) && cells.tierone.every(c => c.endsWith('not asked')) && cells.private[0].endsWith('not asked'), JSON.stringify(cells));
+    },
+  },
+  {
+    name: 'supp: the inputs posted (COMBAT §5.1; the build sheet 0.0.10 §2.1): a blank\'s report 0.9 m from the head 2 in the open, 4 indoors, × 0.6 in ear defenders (1.2, 2.4); shots in the room 1 a shot at 4 m indoors (0.6 in defenders, into a pool already up), 0 in the open; the din 0.5 a second (0.3 in defenders); BLANKS_K never on a blank\'s report; the shooter\'s own blank nothing to him',
+    fn() {
+      const muzzle = (w, o = {}) => shotNoise(w.state, w.g.bus, { id: 'test:blank', x: w.me.x + 0.9, z: w.me.z, ...o });
+      const cells = {
+        openBare: posted(w => muzzle(w), { ears: 'none' }), openDef: posted(w => muzzle(w)),
+        inBare: posted(w => muzzle(w, { indoor: true }), { ears: 'none' }), inDef: posted(w => muzzle(w, { indoor: true })),
+        blankFlag: posted(w => muzzle(w, { blank: true })), blankIn: posted(w => muzzle(w, { blank: true, indoor: true }), { ears: 'none' }),
+        roomBare: posted(w => shotNoise(w.state, w.g.bus, { id: 'test:room', x: w.me.x + 4, z: w.me.z, indoor: true }), { ears: 'none' }),
+        roomDef: posted(w => shotNoise(w.state, w.g.bus, { id: 'test:room', x: w.me.x + 4, z: w.me.z, indoor: true }), { pre: 10 }),
+        roomDefFresh: posted(w => shotNoise(w.state, w.g.bus, { id: 'test:room', x: w.me.x + 4, z: w.me.z, indoor: true })),
+        roomOpen: posted(w => shotNoise(w.state, w.g.bus, { id: 'test:room', x: w.me.x + 4, z: w.me.z }), { ears: 'none' }),
+        dinBareFresh: posted(w => dinOf(w.state, w.g.bus, { id: 'test:din', x: w.me.x + 3, z: w.me.z })),
+        dinBare: posted(w => dinOf(w.state, w.g.bus, { id: 'test:din', x: w.me.x + 3, z: w.me.z }), { ears: 'none', pre: 10 }),
+        dinDef: posted(w => dinOf(w.state, w.g.bus, { id: 'test:din', x: w.me.x + 3, z: w.me.z }), { pre: 10 }),
+        dinFar: posted(w => dinOf(w.state, w.g.bus, { id: 'test:din', x: w.me.x + DIN_M + 0.5, z: w.me.z }), { ears: 'none', pre: 10 }),
+        own: posted(w => shotNoise(w.state, w.g.bus, { id: 'test:own', x: w.me.x + 0.5, z: w.me.z, byId: w.pid, blank: true }), { ears: 'none' }),
+      };
+      const v = Object.fromEntries(Object.entries(cells).map(([k, c]) => [k, Math.round(c.pool * 1000) / 1000]));
+      const facts = cells.openDef.w.g.facts('supp').map(f => `${f.input.kind} ${f.input.pts} × ${f.input.k} → ${f.supp}`);
+      console.log(`      a blank 0.9 m from the head: the open ${v.openBare} bare, ${v.openDef} in ear defenders; indoors ${v.inBare} bare, ${v.inDef} in defenders (blank: true ${v.blankFlag} and ${v.blankIn} indoors bare: BLANKS_K ×${BLANKS_K} never on it)`);
+      console.log(`      shots in the room at 4 m: indoors ${v.roomBare} bare, ${v.roomDef} in defenders into a pool of 10 (the pool kept to 0.01; ${v.roomDefFresh} with no pool: under SUPP_MIN_PTS it makes no block); the open ${v.roomOpen}`);
+      console.log(`      the din a second at 3 m: ${v.dinBare} bare, ${v.dinDef} in defenders (into a pool up; ${v.dinBareFresh} with none), ${v.dinFar} at ${DIN_M + 0.5} m; the shooter's own blank at 0.5 m: ${v.own} to him, ${cells.own.out.length} written`);
+      console.log(`      the facts: ${facts.join('; ')}; ear defenders read from the kit: ${protOf(cells.openDef.w.state, cells.openDef.w.pid).ears}`);
+      assert(v.openBare === 2 && v.openDef === 1.2 && v.inBare === 4 && v.inDef === 2.4 && v.blankFlag === 1.2 && v.blankIn === 4, JSON.stringify(v));
+      assert(v.roomBare === 1 && Math.abs(v.roomDef - 0.6 * (1 - 10 / SUPP_MAX)) < 0.0051 && v.roomDefFresh === 0 && v.roomOpen === 0, JSON.stringify(v));
+      assert(Math.abs(v.dinBare - 0.5 * (1 - 10 / SUPP_MAX)) < 0.0051 && Math.abs(v.dinDef - 0.3 * (1 - 10 / SUPP_MAX)) < 0.0051 && v.dinBareFresh === 0 && v.dinFar === 0 && v.own === 0 && !cells.own.out.length, JSON.stringify(v));
+      assert(inputK({ kind: 'muzzle', ears: 'defenders' }) === EARPRO_K && inputK({ kind: 'din', ears: 'defenders' }) === EARPRO_K && facts.length === 1, JSON.stringify(facts));
+    },
+  },
+  {
+    name: 'supp: a bang forewarned by a heard "Bang!" (COMBAT §5.1; the build sheet 0.0.10 §8 item 7): ×0.6 on top of ear defenders, 21.6 at 1.5 m, its startle halved; the call heard 3.1 s before, or unheard (deafened, the thrower beyond DEAF_VOICE_M), leaves it unprepared, 36; the thrower\'s own and a called bang prepared',
+    fn() {
+      const at = (w) => ({ x: w.me.x - 1.5, z: w.me.z });
+      const run = (label, call, { deaf = false, tier = 'recruit' } = {}) => {
+        const w = bayGame({ tier }), T = w.state.clock.ms;
+        if (deaf) w.me.combat = { supp: 0, suppAtMs: T, suppRate: SUPP_DECAY.exposed, startleFromMs: null, startleUntilMs: null, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: T + 3_600_000 };
+        const c = call ? call(w, T) : null;
+        const heard = heardCall(w.state, w.pid, c, T);
+        const out = bang(w.state, w.g.bus, { id: `test:${label}`, ...at(w), atMs: T, call: c });
+        const me = out.find(o => o.who === w.pid), f = w.g.facts('supp').find(x => x.who === w.pid);
+        return { label, pool: blockOf(w.state, w.pid).supp, felt: me.felt, startleMs: me.startleMs, prep: f?.input?.prep ?? 'unprepared', heard };
+      };
+      const rows = [
+        run('heard', (w, T) => ({ ...at(w), atMs: T - 1000 })),
+        run('heard at once', (w, T) => ({ ...at(w), atMs: T })),
+        run('3.1 s before', (w, T) => ({ ...at(w), atMs: T - 3100 })),
+        run('3.0 s before', (w, T) => ({ ...at(w), atMs: T - CALL_HEARD_MS })),
+        run('deafened, 3 m off', (w, T) => ({ x: w.me.x - 3, z: w.me.z, atMs: T - 1000 }), { deaf: true }),
+        run('deafened, at his shoulder', (w, T) => ({ x: w.me.x - 1, z: w.me.z, atMs: T - 1000 }), { deaf: true }),
+        run('no call', null),
+        run('heard, private', (w, T) => ({ ...at(w), atMs: T - 1000 }), { tier: 'private' }),
+        run('no call, private', null, { tier: 'private' }),
+      ];
+      for (const r of rows) console.log(`      ${r.label}: ${r.prep}, pool ${r.pool}, felt ${r.felt}, startled ${r.startleMs} ms`);
+      const by = Object.fromEntries(rows.map(r => [r.label, r]));
+      assert(by.heard.pool === 21.6 && by.heard.prep === 'forewarned' && by['heard at once'].prep === 'forewarned' && by['3.0 s before'].prep === 'forewarned', JSON.stringify(by.heard));
+      assert(by['3.1 s before'].pool === 36 && by['3.1 s before'].prep === 'unprepared' && by['deafened, 3 m off'].prep === 'unprepared' && by['deafened, 3 m off'].pool === 36 && by['deafened, at his shoulder'].prep === 'forewarned', JSON.stringify(rows));
+      assert(by['no call'].pool === 36 && by['heard, private'].startleMs <= by['no call, private'].startleMs / 2 + 50, JSON.stringify(rows));
+    },
+  },
+  {
+    name: 'supp: the din string replayed on seed 48213 from the sheet\'s §4 numbers (thirty blanks at the coach\'s muzzle 1.4 m from the head, the horn 2 s at a time, ear defenders on): the pool at the turn and at the din\'s end, felt by sheet; never a startle; every input on lived ticks',
+    fn() {
+      const R = dinReplay(48213), rows = [];
+      for (const tier of ['recruit', 'private', 'sgt', 'tierone']) {
+        const w = bayGame({ tier }), s = w.state, t0 = s.clock.ms, muz = { x: w.me.x - 0.1, z: w.me.z - 1.4 }, horn = { x: w.me.x - 0.9, z: w.me.z - 1.4 };
+        const due = R.ev.flatMap(e => (e.kind === 'horn' ? [{ ...e }, { ...e, atMs: e.atMs + 1000 }] : [e])).sort((a, b) => a.atMs - b.atMs);
+        let turnPool = null, turnFelt = null, k = 0;
+        // (the fixture's point is off the line's box: range safety may stop the line and hold the clock, so the clock is let go)
+        for (let n = 0; n <= (R.endMs + 50) / 50; n++) {
+          if (s.clock.holds.length) for (const h of [...s.clock.holds]) releaseTime(s, h);
+          const now = s.clock.ms - t0;
+          for (; k < due.length && due[k].atMs <= now; k++) {
+            const e = due[k];
+            if (e.kind === 'blank') shotNoise(s, w.g.bus, { id: `din:${e.i}`, ...muz, atMs: s.clock.ms, blank: true });
+            else dinOf(s, w.g.bus, { id: `horn:${e.atMs}`, ...horn, s: 1, atMs: s.clock.ms });
+          }
+          if (turnPool === null && now >= R.turnMs) { turnPool = suppAt(blockOf(s, w.pid), s.clock.ms); turnFelt = feltOf(s, w.pid); }
+          w.g.step(1);
+        }
+        const endPool = suppAt(blockOf(s, w.pid), s.clock.ms), endFelt = feltOf(s, w.pid), starts = w.g.facts('startle').length;
+        rows.push({ tier, H: hardOf(s, w.pid), turnPool, turnFelt, endPool, endFelt, starts, inputs: w.g.facts('supp').filter(f => f.who === w.pid).length });
+      }
+      console.log(`      the replay: the turn ${R.turnMs} ms into the din, its last blank at ${R.endMs} ms; ${R.ev.filter(e => e.kind === 'blank').length} blanks, ${R.ev.filter(e => e.kind === 'horn').length} horn blasts of 2 s`);
+      for (const r of rows) console.log(`      ${r.tier} (H ${r.H}): pool ${fmt(r.turnPool, 2)} at the turn (felt ${r.turnFelt}, ${bandOf(r.turnFelt)}, ${suppMod(r.turnFelt, 'weapons')?.v ?? 0}), ${fmt(r.endPool, 2)} at the din's end (felt ${r.endFelt}, ${bandOf(r.endFelt)}, ${suppMod(r.endFelt, 'weapons')?.v ?? 0}); ${r.inputs} inputs written, ${r.starts} startles`);
+      const rec = rows[0], tier1 = rows.at(-1);
+      assert(rec.turnPool > 15 && rec.turnPool < 30 && rec.endPool > 25 && rec.endPool < 40 && rows.every(r => r.starts === 0), JSON.stringify(rows));
+      assert(tier1.turnFelt === 0 && tier1.endFelt === 0 && rows.every((r, i) => i === 0 || r.endFelt <= rows[i - 1].endFelt), JSON.stringify(rows));
+    },
+  },
+  {
+    name: 'supp: lived and skipped give the same pool and the same stress (BODY §9.3): three bangs\' pool (105) on the recruit lived 120 s tick by tick, folded every 5 s, against a 120 s skip (the outcome engine) folded once at its end: the gains equal the closed form to 0.01; the body\'s stress equal too from 30 (off BODY\'s floor at 0, where the lived body decays what it gained and the skipped one, at 0 throughout, cannot: printed)',
+    fn() {
+      const out = [];
+      for (const from of [30, 0]) for (const how of ['lived', 'skipped']) {
+        // (the sandbox, the recruit's test sheet: nothing turns, nothing holds the clock)
+        const g = createGame({ scenario: 'sandbox', seed: 7 }), s = g.state, pid = s.player.id;
+        s.people[pid].skills = testSheet('recruit');
+        g.step(2);
+        if (from) addStress(s, pid, from, s.clock.ms);
+        g.me().combat = { supp: 105, suppAtMs: s.clock.ms, suppRate: SUPP_DECAY.exposed, startleFromMs: null, startleUntilMs: null, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: null };
+        g.clearFacts();
+        const t0 = s.clock.ms, v0 = bodyOf(s, pid).stress.v, ref = stressGainOf(g.me().combat, hardOf(s, pid, t0), t0, t0 + 120_000);
+        if (how === 'lived') g.step(120 * 20); else g.skipNow({ activity: 'idle', planMs: 120_000, mask: 'D' });
+        // (to the next whole fold: the skip's is the first after its end)
+        for (let n = 0; n < 200 && s.clock.ms % 5000 !== 0; n++) g.step(1);
+        g.step(1);
+        bodySync(s, pid, s.clock.ms);                                   // (both bodies brought to the same clock before they are read)
+        const st = g.facts('body-event').filter(f => f.kind === 'stress' && f.who === pid);
+        out.push({ from, how, engine: g.facts('skip-start').map(f => f.engine).join() || 'none', ms: s.clock.ms - t0, pool: suppAt(blockOf(s, pid), s.clock.ms), gained: st.reduce((a, f) => a + f.amount, 0), ref, v0, v1: bodyOf(s, pid).stress.v, folds: st.length, errors: g.errors.length });
+      }
+      for (const o of out) console.log(`      from ${o.from}, ${o.how} (skip engine ${o.engine}): to T + ${o.ms / 1000} s, pool ${fmt(o.pool, 2)}; the body's stress ${fmt(o.v0, 3)} → ${fmt(o.v1, 3)}, +${fmt(o.gained, 4)} from the chaos in ${o.folds} folds (the closed form over the 120 s: ${fmt(o.ref, 4)})`);
+      const [a, b, c, d] = out;
+      assert(out.every(o => Math.abs(o.gained - o.ref) < 0.01 && !o.errors && o.ms === a.ms) && Math.abs(a.pool - b.pool) < 0.01 && a.folds > b.folds && b.engine === 'outcome', JSON.stringify(out));
+      assert(Math.abs(a.v1 - b.v1) < 0.01 && c.v1 <= d.v1, JSON.stringify({ off: [a.v1, b.v1], floor: [c.v1, d.v1] }));
+    },
+  },
+  {
+    name: 'supp: a calm game posts nothing: calm test-pairs (the pairs bot through its first strings) and test-handling (the range bot from its brief) end with no combat block and no supp fact, the player\'s own rounds included (own: 0)',
+    fn() {
+      const runs = [];
+      {
+        const g = createGame({ scenario: 'test-pairs', seed: 48213, tier: 'private' }), s = g.state, bot = pairsBot();
+        let supp = 0, shots = 0;
+        for (let i = 0; i < 20 * 60 * 3 && !s.armoury.range.end; i++) { g.step(1, bot); supp += g.facts('supp').length; shots += g.facts('shot').filter(f => f.fired).length; g.clearFacts(); }
+        runs.push({ scene: 'test-pairs', shots, supp, blocks: [g.me(), ...s.actors.list].filter(a => a?.combat).length, errors: g.errors.length });
+      }
+      {
+        const g = createGame({ scenario: 'test-handling', seed: 48213, hour: 9 }), s = g.state, bot = rangeBot();
+        let supp = 0, shots = 0;
+        for (let i = 0; i < 20 * 60 * 3 && !s.armoury.range.end; i++) { g.step(1, bot); supp += g.facts('supp').length; shots += g.facts('shot').filter(f => f.fired).length; g.clearFacts(); }
+        runs.push({ scene: 'test-handling', shots, supp, blocks: [g.me(), ...s.actors.list].filter(a => a?.combat).length, errors: g.errors.length });
+      }
+      for (const r of runs) console.log(`      ${r.scene}: ${r.shots} rounds fired, ${r.supp} supp facts, ${r.blocks} combat blocks, ${r.errors} errors`);
+      assert(runs.every(r => r.shots > 0 && !r.supp && !r.blocks && !r.errors), JSON.stringify(runs));
     },
   },
 ];

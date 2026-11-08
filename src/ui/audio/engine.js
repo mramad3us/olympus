@@ -57,6 +57,11 @@
 // a level (null: faded out). fact() hands the 'fx' fact to it; frame(state, alpha, nowS, { splash, chaos }) the reading
 // (main.js's supp.js suppNow), and caption() the deafness's caption once.
 //
+// The 0.0.10 round's (stress.js, the build sheet 0.0.10 §2.3; VIEWS §11.2, §11.3): STRESS's recipes (the air horn's blast, Breathe's
+// box breath) baked after the chaos's; stress(kind, opts) plays one on the world bus now or delayS later, the blanks' reports are
+// the range's 'report' through shot(); fact() hands the 'fx' facts of kind 'horn' and 'blank' to it, and frame(…, { breathing })
+// holds the box breath on the body bus while Breathe runs, the band's quick breath held off then (bang.js).
+//
 // stats: { state (the context's, or 'none'), started, baked (every sound rendered), steps, doors,
 // dropped (past VOICES_MAX), late (foot-falls too late to play), voices, voicesMax, volume, muted,
 // master (the master gain's target), sampleRate, last, prepareMs (the context's making, at boot),
@@ -66,12 +71,13 @@ import { isHeld, TICK_MS } from '../../core/clock.js';
 import { playerActor } from '../../core/ids.js';
 import * as places from '../../sim/places/model.js';
 import { airDb } from '../../sim/people/hearing.js';
-import { STEPS, DOORS, WORLD, RANGE, CHAOS, VOICES_MAX, MASTER_DEFAULT, AIR_KPA, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
+import { STEPS, DOORS, WORLD, RANGE, CHAOS, STRESS, VOICES_MAX, MASTER_DEFAULT, AIR_KPA, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
 import { renderSteps } from './synth.js';
 import { createStepScheduler, stepVoice, lowpassHz, MARS_G } from './steps.js';
 import { createWorld } from './world.js';
 import { createRange } from './range.js';
 import { createBang } from './bang.js';
+import { createStress } from './stress.js';
 
 /** The limiter's knee on the master (dBFS). */
 export const LIMIT_DB = -3;
@@ -85,7 +91,7 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
   let ctx = null, master = null, world = null, limiter = null, worldLp = null, duckGain = null, uiBus = null;
   let chaosLp = null, chaosGain = null, bodyBus = null, earBus = null, voiceBus = null, chaosSig = '';
   let volume = Number.isFinite(profile?.volume) ? clamp01(profile.volume) : MASTER_DEFAULT, muted = !!profile?.muted;
-  const buffers = { step: {}, door: {}, world: {}, range: {}, chaos: {} };
+  const buffers = { step: {}, door: {}, world: {}, range: {}, chaos: {}, stress: {} };
   const loops = new Map();                                         // (key → a looping voice: { src, g, lp, kind })
   let duckSig = '';
   const steps = createStepScheduler();
@@ -141,7 +147,7 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
       world.connect(worldLp); worldLp.connect(duckGain); duckGain.connect(chaosLp); chaosLp.connect(chaosGain); chaosGain.connect(master); uiBus.connect(master);
       bodyBus.connect(master); earBus.connect(master); voiceBus.connect(master);
       master.connect(limiter); limiter.connect(ctx.destination);
-      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door], [WORLD, buffers.world], [RANGE, buffers.range], [CHAOS, buffers.chaos]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
+      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door], [WORLD, buffers.world], [RANGE, buffers.range], [CHAOS, buffers.chaos], [STRESS, buffers.stress]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
       applyMaster();
       stats.sampleRate = ctx.sampleRate; stats.prepareMs = perfNow() - t0;
       ctx.onstatechange = () => { stats.state = ctx.state; };
@@ -304,7 +310,8 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
       if (!running()) return false;
       const k = dbToK(gainDb), t = ctx.currentTime;
       if (L) { if (Math.abs((L.db ?? 0) - gainDb) > 0.05) { L.g.gain.setTargetAtTime(k, t, 0.15); L.db = gainDb; } return true; }
-      const set = buffers.chaos[kind];
+      // (0.0.10: a STRESS loop too, Breathe's box breath)
+      const set = buffers.chaos[kind] ?? buffers.stress[kind];
       if (!set?.length || voices >= VOICES_MAX) { if (set?.length) stats.dropped++; return false; }
       const src = ctx.createBufferSource(), g = ctx.createGain();
       src.buffer = set[0]; src.loop = true;
@@ -320,16 +327,32 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
   };
   const bangSounds = createBang(bangOps, { looks });
   stats.bang = bangSounds.stats;
+  // ---- 0.0.10: the din (stress.js asks for them): a STRESS recipe on the world bus, the blanks' reports through the range's ----
+  const stressOps = {
+    stress(kind, { delayS = 0, gainDb = 0, lowHz = WORLD_OPEN_HZ, pan = 0, rate = 1 } = {}) {
+      if (!running()) return false;
+      const set = buffers.stress[kind];
+      if (!set?.length) return false;
+      const n = (stats.stressShots = (stats.stressShots ?? 0) + 1);
+      return play(set[hashInt(set.length, 'stress', kind, n)], { atS: ctx.currentTime + Math.max(0, delayS), gainDb, lowHz, pan, rate });
+    },
+    shot: (kind, o) => rangeOps.shot(kind, o),
+    loop: (key, kind, bus, gainDb) => bangOps.loop(key, kind, bus, gainDb),
+  };
+  const stressSounds = createStress(stressOps, { looks });
+  stats.stress = stressSounds.stats;
   // (the voices' limit counts on the audio clock, where the reports will sound)
   const rangeSounds = createRange(rangeOps, { looks, clock: () => (ctx ? ctx.currentTime : 0) });
   stats.range = rangeSounds.stats;
 
   let lastState = null;
   /** A frame: the foot-falls the player's walk has reached, played where the drawn feet fall; the world's sounds; the splash's muffle. */
-  function frame(state, alpha = 0, nowS = 0, { splash = null, chaos = null } = {}) {
+  function frame(state, alpha = 0, nowS = 0, { splash = null, chaos = null, breathing = false } = {}) {
     if (toBake.length || baking) bakeSome();
     // (0.0.9: the chaos's mix by the reading now; nothing of it in a splash (the splash's muffle has the world))
-    if (running()) { try { bangSounds.frame(state, splash ? null : chaos); } catch (e) { stats.bangError = String(e?.message ?? e); } }
+    // (0.0.10: Breathe's box breath in place of the band's quick one while it runs)
+    if (running()) { try { bangSounds.frame(state, splash ? null : chaos, { breathing: !splash && breathing }); } catch (e) { stats.bangError = String(e?.message ?? e); } }
+    if (running()) { try { stressSounds.frame(state, { breathing: !splash && breathing }); } catch (e) { stats.stressError = String(e?.message ?? e); } }
     if (running()) { try { worldSounds.frame(state, { splash, nowS }); } catch (e) { stats.worldError = String(e?.message ?? e); } }
     if (running() && !splash) { try { rangeSounds.frame(state, { alpha }); } catch (e) { stats.rangeError = String(e?.message ?? e); } }
     const a = state ? playerActor(state) : null;
@@ -377,14 +400,16 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     fact(type, payload, state) {
       if (!running()) return false;
       const w = worldSounds.fact(type, payload, state);
-      // (0.0.9: a bang's report)
-      if (type === 'fx') return bangSounds.fact(type, payload, state) || w;
+      // (0.0.9: a bang's report; 0.0.10: the horn and a blank)
+      if (type === 'fx') return (payload?.kind === 'horn' || payload?.kind === 'blank' ? stressSounds.fact(type, payload, state) : bangSounds.fact(type, payload, state)) || w;
       return rangeSounds.fact(type, payload, state) || w;
     },
     /** The deafness's caption once a deafness ('[a high whine]'), else null (0.0.9). */
     caption() { return bangSounds.caption(); },
     /** The 0.0.9 presenter (bang.js), for the tests. */
     get bang() { return bangSounds; },
+    /** The 0.0.10 presenter (stress.js), for the tests. */
+    get stress() { return stressSounds; },
     /** The master volume, 0 to 1. */
     setVolume(v) { volume = clamp01(v); applyMaster(); },
     /** Mute, or not. */

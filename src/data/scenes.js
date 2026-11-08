@@ -13,6 +13,8 @@
 // 0.0.9's test-pairs-bangs, "Three bangs" (the build sheet 0.0.9 §2.2; COMBAT §25.18.3): test-pairs' scenario with its
 // setup 'bangs', scored apart on one aspect, the picker opening on the boot recruit (the anchor's first half; "Again as Tier
 // one" its second, the sheet's §8 item 21).
+// 0.0.10's test-stress, "Bang" (the build sheet 0.0.10 §2.2; COMBAT §25.18.3): five strings at 7 m with the coach's noise in ear
+// defenders, on the stress course (src/sim/scenarios/stress.js), scored on three aspects, the picker opening on the boot recruit.
 // The hud reads every field; scenes save nothing (the sheet §8, item 24): their scores alone are kept.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
@@ -72,6 +74,14 @@ export const SCENES = deepFreeze({
     goal: 'Three bangs behind you in the first standby, ears unprotected. Then Pairs as built.',
     aspects: [['bangs', "the bangs: does the recruit's hand fail and the tier one's not, as the marine's, not as lag"]],
     body: {}, outfit: 'utilities', course: 'pairs', sheets: ['recruit', 'private', 'sgt', 'raider', 'tierone'], sheet: 'recruit',
+    endOn: { fact: 'range', phase: ['clear', 'stopped'] },
+  },
+  // (0.0.10: "Bang", the stress course: ROADMAP §4.2's 0.0.7c row, its second patch (the build sheet 0.0.10 §2.2))
+  'test-stress': {
+    id: 'test-stress', title: 'Bang', scenario: 'test-stress', hour: 11.0,
+    goal: "Five strings at 7 m with the coach's noise. Threats down.",
+    aspects: [['chaos', "the chaos: do the horn, the blanks and the bangs feel like a fight, as the marine's and not as lag"], ['contrast', 'the contrast: the recruit overwhelmed, the tier one calm, by "Again as …"'], ['hands', 'the hands: the fumbles, the RELOAD and Breathe, fair and readable']],
+    body: {}, outfit: 'utilities', course: 'stress', sheets: ['recruit', 'private', 'sgt', 'raider', 'tierone'], sheet: 'recruit',
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
 });

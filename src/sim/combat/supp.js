@@ -47,8 +47,32 @@
 //
 // suppNow(state, pid, ms) is the HUD's view and suppWords the one formatter of the sum ("the chaos 105 − your hardening
 // 17 = felt 88: pinned, −9"): the roll's hover, J and the card read it, so the quantity reads one way on every screen.
-// Pure but addSupp, bang, noteExposure and suppInput, which write the block, the sheet's counter, the clock's hold and
-// the log.
+//
+// 0.0.10, "Bang" (the build sheet 0.0.10 §2.1, §8 items 4 to 8, 11 to 14, 19, 20; COMBAT §5.1 to §5.3; BODY §9.3): the
+// inputs v0.0.9 built pure are posted. shotNoise is a shot's report at its muzzle: 'muzzle' to everyone but the shooter
+// within MUZZLE_M, indoors 'roomShot' to the rest of the room (FLASH_REACH_M until PLACES gives rooms); a blank's report is
+// a muzzle blast like any (BLANKS_K is the harness's near-miss tone in place of a crack, never a blank's report). dinOf is
+// the din (an air horn, an alarm, shouting) a whole second at a time to everyone within DIN_M. Called this round by the
+// stress course's coach alone: the player's own rounds post nothing (own: 0). A block is made only by an input of
+// SUPP_MIN_PTS or more; once one is there every input above 0 pools, so the din in ear defenders (0.3 a second) adds to
+// a pool the blanks began and never makes one by itself. A bang may carry the thrower's "Bang!" (call { x, z, atMs }): a
+// person who heard it (hearsVoice at its time) within CALL_HEARD_MS before the burst is forewarned (×0.6, the startle
+// ×0.5), a called bang stays prepared.
+// Breathe (COMBAT §5.2) is a step of BREATHE_MS in four sub-steps (shooting.js), offered from felt BREATHE_FROM with no
+// window open and not startled (breatheOffer, up when a threat of the string stands facing); while it runs the pool falls
+// BREATHE_K times as fast, kept as the window { breatheFromMs, breatheUntilMs } on the block and read by suppAt in the
+// closed form (the decay × BREATHE_K over the window's part past the grace), so it is never a free reset: 4 s of your
+// time for 8 points exposed. A second Breathe since the last input folds the first one's drain into supp first. Its
+// shed (breatheShedPts while it runs, null once its end is written) is the pool under the same run without it: an input
+// landing in the window keeps the gap so far, × (1 − pts / SUPP_MAX), as the saturating add narrows it.
+// The stress (BODY §9.3): SUPP_STRESS_PER_S a second by felt's band (0.3 suppressed, 0.6 pinned), integrated in closed form
+// over the pool's linear pieces (stressGainOf: the bands' crossing times solved, exact) and folded into the body through
+// BODY's own door (body/stress.js addStress) before every input written, at a startle's end, and every
+// SUPP_STRESS_FOLD_MS of the game clock while the pool is up (suppSecond, the people domain's 'second'; lived ticks, so a
+// skip folds once at its end, the same total). stressAtMs keeps the last fold. The body's stress feeds back through the
+// toll (frayed, 75, takes HARD_TOLL.frayed off hardening), as built.
+// Pure but addSupp, bang, shotNoise, dinOf, breatheStart, breatheEnd, foldStress, suppSecond, noteExposure and
+// suppInput, which write the block, the body's stress, the sheet's counter, the clock's hold and the log.
 import { stream, next } from '../../core/rng.js';
 import { q } from '../../core/num.js';
 import { SOL_MS, holdTime, releaseTime, isHeld } from '../../core/clock.js';
@@ -56,15 +80,25 @@ import { playerActor, playerId } from '../../core/ids.js';
 import { check, oddsOf } from '../skills/checks.js';
 import { sheetOf, tierOfRank } from '../skills/templates.js';
 import { bodyMods, needMods } from '../body/mods.js';
-import { headOf, wrap } from '../people/perception.js';
+import { addStress } from '../body/stress.js';
+import { headOf, wrap, SEEN } from '../people/perception.js';
+import { contactOf } from '../people/mind.js';
+import { turnersOf, facingOf } from '../arms/turners.js';
 import { logEntry } from '../log.js';
 import { ticks } from './react.js';
 
 // ---- the pool (COMBAT §5.1, §5.2) ----
 
-/** The pool's ceiling, the grace before it falls, its fall a second by where you are (exposed this round), the least input written. */
+/** The pool's ceiling, the grace before it falls, its fall a second by where you are (exposed this round), the least input that makes a block. */
 export const SUPP_MAX = 120, SUPP_GRACE_MS = 1500, SUPP_MIN_PTS = 1;
 export const SUPP_DECAY = Object.freeze({ cover: 4, exposed: 2, down: 6 });
+/** Breathe (COMBAT §5.2): its time in four sub-steps (in, hold, out, hold), the decay's factor while it runs, the felt it is offered from. */
+export const BREATHE_MS = 4000, BREATHE_SUB_MS = 1000, BREATHE_K = 2, BREATHE_FROM = 20;
+/** A thrower's "Bang!" heard this long before the burst forewarns; the din's reach (COMBAT §5.1). */
+export const CALL_HEARD_MS = 3000, DIN_M = 10;
+/** BODY §9.3: the body's stress a second by felt's band, folded at least every SUPP_STRESS_FOLD_MS of the game clock while the pool is up. */
+export const SUPP_STRESS_PER_S = Object.freeze({ calm: 0, 'under fire': 0, suppressed: 0.3, pinned: 0.6 });
+export const SUPP_STRESS_FOLD_MS = 5000;
 /** A round past the head: full within FULL_M, linear to 0 at its zero (COMBAT §5.1). */
 export const FULL_M = 1, CRACK_PTS = 8, CRACK_HEAVY_PTS = 11, CRACK_ZERO_M = 5, SUBSONIC_PTS = 5, SUBSONIC_ZERO_M = 3;
 /** An impact you see or hear within IMPACT_M; a shot fired by someone else within MUZZLE_M of your head; a shot in your room. */
@@ -157,10 +191,22 @@ function actorOf(state, pid) {
 /** A person's combat block on the live actor, or null (none until a first input). */
 export function blockOf(state, pid) { return actorOf(state, pid)?.combat ?? null; }
 
-/** The pool at ms in closed form (see the header). */
+// (a record as if no Breathe had run, and whether one is running: its window open and its end not yet written)
+const plainOf = (rec) => ({ ...rec, breatheFromMs: null, breatheUntilMs: null });
+const running = (rec) => Number.isFinite(rec.breatheFromMs) && rec.breatheShedPts !== null;
+// (the length of [a0, a1] ∩ [b0, b1], ms; 0 with no window)
+const overlapMs = (a0, a1, b0, b1) => (Number.isFinite(b0) && Number.isFinite(b1) ? Math.max(0, Math.min(a1, b1) - Math.max(a0, b0)) : 0);
+// (the decay's ms at ms, Breathe's window counted BREATHE_K times: dec(ms) + (BREATHE_K − 1) × its overlap with [d0, ms])
+function drainMs(rec, ms) {
+  const dec = Math.max(0, ms - (rec.suppAtMs ?? ms) - SUPP_GRACE_MS);
+  if (!Number.isFinite(rec.breatheFromMs)) return dec;
+  const d0 = (rec.suppAtMs ?? ms) + SUPP_GRACE_MS;
+  return dec + (BREATHE_K - 1) * overlapMs(d0, ms, rec.breatheFromMs, rec.breatheUntilMs);
+}
+/** The pool at ms in closed form (see the header): max(0, supp − rate × drain / 1000), Breathe's window draining BREATHE_K times as fast. */
 export function suppAt(rec, ms) {
   if (!rec || !rec.supp) return 0;
-  return Math.max(0, rec.supp - (rec.suppRate ?? SUPP_DECAY.exposed) * Math.max(0, ms - (rec.suppAtMs ?? ms) - SUPP_GRACE_MS) / 1000);
+  return Math.max(0, rec.supp - (rec.suppRate ?? SUPP_DECAY.exposed) * drainMs(rec, ms) / 1000);
 }
 /** The pool after an input of pts (already × k), saturating at SUPP_MAX. */
 export const poolAdd = (s0, pts) => Math.min(SUPP_MAX, s0 + pts * (1 - s0 / SUPP_MAX));
@@ -345,16 +391,27 @@ function haltCommand(state, pid) {
 }
 
 // (one input written into a person's pool, the facts deferred: { who, input, before, after, jump, supp, startleMs, startle, H } or null)
-function pool(state, pid, input) {
+function pool(state, pid, input, bus = null) {
   const a = actorOf(state, pid);
   if (!a) return null;
   const atMs = input.atMs ?? state.clock.ms, k = kOf(state, pid, input), pts = (input.pts ?? 0) * k;
-  const rec0 = a.combat ?? null, s0 = suppAt(rec0, atMs);
-  if (pts < SUPP_MIN_PTS) return { who: pid, written: false, input: { id: input.id, kind: input.kind, pts: r2(input.pts ?? 0), k: q(k, 0.001) }, before: null, after: null, jump: 0, supp: r2(s0), startleMs: 0, startle: null, H: null };
+  const rec0 = a.combat ?? null, s0 = suppAt(rec0, atMs), prep0 = input.prep ?? 'unprepared';
+  // (0.0.10: SUPP_MIN_PTS makes a block; once one is there every input above 0 pools: the din in ear defenders, 0.3 a
+  // second, adds to a pool the blanks began and never makes one by itself (see the header))
+  if (rec0 ? !(pts > 0) : pts < SUPP_MIN_PTS) return { who: pid, written: false, input: { id: input.id, kind: input.kind, pts: r2(input.pts ?? 0), k: q(k, 0.001), ...(prep0 !== 'unprepared' ? { prep: prep0 } : {}) }, before: null, after: null, jump: 0, supp: r2(s0), startleMs: 0, startle: null, H: null };
+  // (BODY §9.3: the stress of the pool so far, folded on the record it was read on, before the input changes it)
+  if (rec0) foldStress(state, bus, pid, atMs);
   const H = hardOf(state, pid, atMs), before = feltFrom(s0, H);
+  // (a Breathe running: how far its window has put the pool under the same run without it, kept before the record is
+  // rewritten (the code review of 0.0.10: read at the end alone, the drain before an input's grace was lost from its
+  // shed). The input then adds pts × (1 − s / SUPP_MAX) to each run's pool, so the gap carries on × (1 − pts / SUPP_MAX))
+  if (rec0 && running(rec0)) {
+    const gap = (rec0.breatheShedPts ?? 0) + Math.max(0, suppAt(plainOf(rec0), atMs) - s0);
+    rec0.breatheShedPts = r2(gap * Math.max(0, 1 - pts / SUPP_MAX));
+  }
   const rec = (a.combat ??= {});
   const s1 = poolAdd(s0, pts);
-  rec.supp = r2(s1); rec.suppAtMs = atMs; rec.suppRate = SUPP_DECAY.exposed;
+  rec.supp = r2(s1); rec.suppAtMs = atMs; rec.suppRate = SUPP_DECAY.exposed; rec.stressAtMs = atMs;
   // (the bangs and blasts in a row: each within STARTLE_REPEAT_MS of the one before is a repeat)
   let n = 0;
   if (PREPPED.has(input.kind)) {
@@ -379,7 +436,7 @@ function pool(state, pid, input) {
     startle = { phase: 'start', who: pid, ms: startleMs, fromMs: rec.startleFromMs, untilMs: rec.startleUntilMs, why: rec.startleWhy, inputId: input.id ?? null };
     haltCommand(state, pid);
   }
-  return { who: pid, written: true, input: { id: input.id ?? null, kind: input.kind, pts: r2(input.pts ?? 0), k: q(k, 0.001) }, why: input.why ?? INPUT_WORDS[input.kind] ?? input.kind,
+  return { who: pid, written: true, input: { id: input.id ?? null, kind: input.kind, pts: r2(input.pts ?? 0), k: q(k, 0.001), ...(prep !== 'unprepared' ? { prep } : {}) }, why: input.why ?? INPUT_WORDS[input.kind] ?? input.kind,
     before, after, jump, supp: rec.supp, startleMs, startle, H, atMs };
 }
 
@@ -392,7 +449,7 @@ const suppFact = (w, rec) => ({ who: w.who, input: w.input, why: w.why, supp: w.
  * vacuum, blanks }. Under SUPP_MIN_PTS (pts × k) nothing is written. Returns { supp, before, after, jump, startleMs }.
  */
 export function addSupp(state, bus, pid, input) {
-  const w = pool(state, pid, input);
+  const w = pool(state, pid, input, bus);
   if (!w) return null;
   if (w.written) {
     bus?.emit('supp', suppFact(w, blockOf(state, pid)));
@@ -417,19 +474,21 @@ export function flashOf(state, pid, { x, z }, { indoor = false } = {}) {
 }
 
 /**
- * A bang (w; see the header): { id, x, z, atMs, byId, kind: 'training', indoor, called }. Every actor on the live area
- * within reach takes inputPts('flash', { rM, indoor }) (the thrower's own and a called bang prepared: ×0.25, no startle,
- * no flash), the flash by facing, the deafness of an unprotected ear within DEAF_REACH_M; the 'fx' fact 'bang' once, then
- * the 'supp' and 'startle' facts per person. Returns [{ who, pts, felt, startleMs, flash, deafUntilMs }].
+ * A bang (w; see the header): { id, x, z, atMs, byId, kind: 'training', indoor, called, call }. Every actor on the live
+ * area within reach takes inputPts('flash', { rM, indoor }) (the thrower's own and a called bang prepared: ×0.25, no
+ * startle, no flash; 0.0.10: one who heard the thrower's "Bang!", call { x, z, atMs }, within CALL_HEARD_MS before it
+ * forewarned: ×0.6, the startle ×0.5, the flash by facing as ever), the flash by facing, the deafness of an unprotected
+ * ear within DEAF_REACH_M; the 'fx' fact 'bang' once, then the 'supp' and 'startle' facts per person. Returns [{ who,
+ * pts, felt, startleMs, flash, deafUntilMs }].
  */
-export function bang(state, bus, { id, x, z, atMs = state.clock.ms, byId = null, kind = 'training', indoor = false, called = false }) {
+export function bang(state, bus, { id, x, z, atMs = state.clock.ms, byId = null, kind = 'training', indoor = false, called = false, call = null }) {
   const me = playerActor(state), list = [...(me ? [me] : []), ...(state.actors?.list ?? []).filter(a => a !== me && a.who !== me?.who)];
   const written = [];
   for (const a of list) {
     // (indoors the room's 60 points, bounded by FLASH_REACH_M until PLACES gives the bang its room)
     const pid = a.who, rM = Math.hypot(a.x - x, a.z - z), pts = indoor && rM > FLASH_REACH_M ? 0 : inputPts('flash', { rM, indoor });
-    const prep = called || (byId && pid === byId) ? 'prepared' : 'unprepared';
-    const w = pool(state, pid, { id: `${id}`, kind: 'flash', pts, prep, why: 'the bang', atMs });
+    const prep = called || (byId && pid === byId) ? 'prepared' : heardCall(state, pid, call, atMs) ? 'forewarned' : 'unprepared';
+    const w = pool(state, pid, { id: `${id}`, kind: 'flash', pts, prep, why: 'the bang', atMs }, bus);
     if (!w) continue;
     const prot = protOf(state, pid), rec0 = a.combat;
     let flash = null, deafUntilMs = rec0?.deafUntilMs ?? null;
@@ -455,6 +514,62 @@ export function bang(state, bus, { id, x, z, atMs = state.clock.ms, byId = null,
     if (w.written || w.flash || w.deafNew) bus?.emit('supp', suppFact(w, a.combat));
     if (w.startle) bus?.emit('startle', w.startle);
     out.push({ who: w.who, pts: w.input.pts, felt: w.after ?? feltOf(state, w.who, atMs), startleMs: w.startleMs, flash: w.flash ?? null, deafUntilMs: a.combat?.deafUntilMs ?? null });
+  }
+  return out;
+}
+
+/** Whether a person heard a thrower's "Bang!" (call { x, z, atMs }) in time to be forewarned of a burst at atMs: within CALL_HEARD_MS before it, his ears letting the voice through then. */
+export function heardCall(state, pid, call, atMs) {
+  if (!call || !Number.isFinite(call.atMs) || call.atMs > atMs || atMs - call.atMs > CALL_HEARD_MS) return false;
+  return hearsVoice(state, pid, call, call.atMs);
+}
+
+// ---- the shots and the din (COMBAT §5.1; 0.0.10) ----
+
+// (each written input's line of what shotNoise and dinOf return)
+const noiseOut = (w, rec) => ({ who: w.who, pts: w.input.pts, k: w.input.k, felt: w.after ?? 0, supp: rec?.supp ?? 0, startleMs: w.startleMs });
+
+/**
+ * A shot's report at its muzzle (w; see the header): { id, x, z, byId, atMs, indoor, blank }. 'muzzle' (inputPts by the
+ * distance from the muzzle) to every actor within MUZZLE_M of it but the shooter; indoors 'roomShot' to every other
+ * actor within FLASH_REACH_M (the room, until PLACES gives rooms); kOf as built (ear defenders ×0.6). blank changes
+ * nothing in the points (BLANKS_K is never a blank's report: the build sheet 0.0.10 §8 item 6). The 'supp' and 'startle'
+ * facts per person written. Returns [{ who, pts, k, felt, supp, startleMs }] for the persons written.
+ */
+export function shotNoise(state, bus, { id, x, z, byId = null, atMs = state.clock.ms, indoor = false, blank = false }) {
+  const me = playerActor(state), list = [...(me ? [me] : []), ...(state.actors?.list ?? []).filter(a => a !== me && a.who !== me?.who)];
+  const out = [];
+  for (const a of list) {
+    if (!a.who || (byId && a.who === byId)) continue;
+    const rM = Math.hypot(a.x - x, a.z - z);
+    const kind = rM <= MUZZLE_M ? 'muzzle' : indoor && rM <= FLASH_REACH_M ? 'roomShot' : null;
+    if (!kind) continue;
+    const pts = inputPts(kind, { rM, indoor });
+    if (!(pts > 0)) continue;
+    const w = pool(state, a.who, { id: `${id}`, kind, pts, why: blank && kind === 'muzzle' ? 'a blank beside your ear' : INPUT_WORDS[kind], atMs }, bus);
+    if (!w?.written) continue;
+    bus?.emit('supp', suppFact(w, a.combat));
+    if (w.startle) bus?.emit('startle', w.startle);
+    out.push(noiseOut(w, a.combat));
+  }
+  return out;
+}
+
+/**
+ * The din (w; see the header): { id, x, z, s, atMs }: 'din' (DIN_PTS_S × s) to every actor within DIN_M of its source, a
+ * whole second at a time (the caller folds it once a second, never per tick). Returns [{ who, pts, k, felt, supp,
+ * startleMs }] for the persons written.
+ */
+export function dinOf(state, bus, { id, x, z, s = 1, atMs = state.clock.ms }) {
+  const me = playerActor(state), list = [...(me ? [me] : []), ...(state.actors?.list ?? []).filter(a => a !== me && a.who !== me?.who)];
+  const out = [];
+  for (const a of list) {
+    if (!a.who || Math.hypot(a.x - x, a.z - z) > DIN_M) continue;
+    const w = pool(state, a.who, { id: `${id}`, kind: 'din', pts: inputPts('din', { s }), atMs }, bus);
+    if (!w?.written) continue;
+    bus?.emit('supp', suppFact(w, a.combat));
+    if (w.startle) bus?.emit('startle', w.startle);
+    out.push(noiseOut(w, a.combat));
   }
   return out;
 }
@@ -509,6 +624,152 @@ export function noteExposure(state, pid, { feltPeak, teacher = null, atMs = stat
   return { counted: true, pts: inoc.pts, why: INOC_TEACHER_WORDS[teacher] };
 }
 
+// ---- Breathe (COMBAT §5.2; 0.0.10) ----
+
+/** Whether a threat of the string stands facing at ms (a turner with a threat's face, not stopped, facing: the row's "! he's up"). */
+function threatUp(state, ms) {
+  for (const T of turnersOf(state)) {
+    if ((T.face === 'threat' || T.face === 'armoured' || T.face === 'unknown') && (T.stoppedAtMs === null || T.stoppedAtMs === undefined) && facingOf(T, ms) >= SEEN) return true;
+  }
+  return false;
+}
+/** Whether a person is doing Breathe at ms (the step running, or its window open). */
+function breathing(state, pid, ms) {
+  const d = state.stop?.who === pid ? state.stop.doing : null;
+  if (d?.kind === 'breathe') return true;
+  const rec = blockOf(state, pid);
+  return !!rec && Number.isFinite(rec.breatheUntilMs) && Number.isFinite(rec.breatheFromMs) && ms >= rec.breatheFromMs && ms < rec.breatheUntilMs;
+}
+
+/**
+ * Whether Breathe is offered (see the header): { ok, why: null | 'calm' | 'startled' | 'taking in' | 'breathing', up }; ok
+ * from felt BREATHE_FROM, not startled, no take-in window open, not already breathing; up: a threat of the string stands
+ * facing (the row then a single marked "! he's up", never struck).
+ */
+export function breatheOffer(state, pid = playerId(state), ms = state.clock.ms) {
+  const up = threatUp(state, ms);
+  if (startled(state, pid, ms)) return { ok: false, why: 'startled', up };
+  if (contactOf(state)?.pending) return { ok: false, why: 'taking in', up };
+  if (breathing(state, pid, ms)) return { ok: false, why: 'breathing', up };
+  if (feltOf(state, pid, ms) < BREATHE_FROM) return { ok: false, why: 'calm', up };
+  return { ok: true, why: null, up };
+}
+
+/**
+ * Breathe begun (w; see the header): the window { breatheFromMs: atMs, breatheUntilMs: atMs + BREATHE_MS } written on the
+ * block, the closed form carrying the drain; a window already past since the last input has its drain folded into supp
+ * first (with the stress over it), so the pool never rises when the next one is written. The 'breathe' fact 'start'.
+ * Returns { fromMs, untilMs, pool } (the pool at its start, for its end's line), or null with no block.
+ */
+export function breatheStart(state, bus, pid, atMs = state.clock.ms) {
+  const rec = blockOf(state, pid);
+  if (!rec) return null;
+  if (Number.isFinite(rec.breatheFromMs)) {
+    const d0 = (rec.suppAtMs ?? atMs) + SUPP_GRACE_MS, ov = overlapMs(d0, atMs, rec.breatheFromMs, rec.breatheUntilMs);
+    if (ov > 0) {
+      foldStress(state, bus, pid, atMs);
+      rec.supp = r2(Math.max(0, rec.supp - (rec.suppRate ?? SUPP_DECAY.exposed) * (BREATHE_K - 1) * ov / 1000));
+    }
+  }
+  const pool = r2(suppAt(rec, atMs));
+  rec.breatheFromMs = atMs; rec.breatheUntilMs = atMs + BREATHE_MS; rec.breatheShedPts = 0;
+  bus?.emit('breathe', { phase: 'start', who: pid, fromMs: atMs, untilMs: rec.breatheUntilMs, atMs, cut: false, shedPts: 0 });
+  return { fromMs: atMs, untilMs: rec.breatheUntilMs, pool };
+}
+
+/**
+ * Breathe over (w; see the header): at its end, or cut (a sighting, a startle) at atMs, the window's end moved there. The
+ * 'breathe' fact 'end' and the log's "Breathed 4.0 s: the chaos 79 → 63." Returns { shedPts } (the pool under the same
+ * run without Breathe, to 0.01), or null with no window.
+ */
+export function breatheEnd(state, bus, pid, atMs = state.clock.ms, { cut = false, fromPts = null } = {}) {
+  const rec = blockOf(state, pid);
+  if (!rec || !Number.isFinite(rec.breatheFromMs)) return null;
+  rec.breatheUntilMs = Math.max(rec.breatheFromMs, Math.min(rec.breatheUntilMs ?? atMs, atMs));
+  // (the shed: the pool under the same run without Breathe, its gap at the last input carried (pool keeps it) and the
+  // window's part since; the end written, nothing more is kept)
+  const plain = plainOf(rec), now = suppAt(rec, atMs);
+  const shedPts = r2((rec.breatheShedPts ?? 0) + Math.max(0, suppAt(plain, atMs) - now)), fromMs = rec.breatheFromMs, s = (rec.breatheUntilMs - fromMs) / 1000;
+  rec.breatheShedPts = null;
+  bus?.emit('breathe', { phase: 'end', who: pid, fromMs, untilMs: rec.breatheUntilMs, atMs, cut: !!cut, shedPts });
+  if (pid === playerId(state)) {
+    logEntry(state, bus, { kind: 'breathe', tone: 'note', who: pid, ms: rec.breatheUntilMs - fromMs, shedPts,
+      text: `Breathed ${s.toFixed(1)} s${cut ? ', cut short' : ''}: the chaos ${Math.round(fromPts ?? suppAt(plain, fromMs))} → ${Math.round(now)}.` });
+  }
+  return { shedPts };
+}
+
+// ---- the body's stress (BODY §9.3; 0.0.10) ----
+
+// (the times at which a pool read on its record last stands at or above p, between aMs and bMs: the measure, ms)
+function aboveMs(rec, p, aMs, bMs) {
+  if (!(bMs > aMs)) return 0;
+  const X = (rec.supp ?? 0) - p;                                   // (the drain, in points, the pool can take and still stand at p)
+  if (X < 0) return 0;
+  const r = (rec.suppRate ?? SUPP_DECAY.exposed) / 1000, d0 = (rec.suppAtMs ?? aMs) + SUPP_GRACE_MS;
+  let until;
+  if (!(r > 0)) until = Infinity;
+  else {
+    // (the drain's pieces after the grace: plain, Breathe's window at BREATHE_K, plain again)
+    const wf = Number.isFinite(rec.breatheFromMs) && Number.isFinite(rec.breatheUntilMs) ? Math.max(d0, rec.breatheFromMs) : Infinity;
+    const wu = wf === Infinity ? Infinity : Math.max(wf, rec.breatheUntilMs);
+    const Df = r * (wf - d0), Du = Df + r * BREATHE_K * (wu - wf);
+    until = X <= Df ? d0 + X / r : X <= Du ? wf + (X - Df) / (r * BREATHE_K) : wu + (X - Du) / r;
+  }
+  return Math.max(0, Math.min(bMs, until) - aMs);
+}
+
+/**
+ * The stress the chaos adds over [fromMs, toMs] (pure; BODY §9.3): ∫ SUPP_STRESS_PER_S[band(felt(t))] dt, felt(t) =
+ * feltFrom(suppAt(rec, t), H), the bands' crossing times solved on the pool's linear pieces (the grace, the plain decay,
+ * Breathe's window). Exact to float rounding. Returns points.
+ */
+export function stressGainOf(rec, H, fromMs, toMs) {
+  if (!rec || !rec.supp || !(toMs > fromMs)) return 0;
+  let gain = 0;
+  for (let i = 0; i < BANDS.length; i++) {
+    const per = SUPP_STRESS_PER_S[BANDS[i][0]] ?? 0;
+    if (!per) continue;
+    // (felt ≥ F ⇔ round(pool − H) ≥ F ⇔ pool ≥ F − 0.5 + H: Math.round takes the half up)
+    const lo = aboveMs(rec, BANDS[i][1] - 0.5 + H, fromMs, toMs), hi = i + 1 < BANDS.length ? aboveMs(rec, BANDS[i + 1][1] - 0.5 + H, fromMs, toMs) : 0;
+    gain += per * Math.max(0, lo - hi) / 1000;
+  }
+  return gain;
+}
+
+/**
+ * The stress of a person's pool so far into the body (w; see the header): stressGainOf from stressAtMs (else suppAtMs) to
+ * ms, hardening read at its start, through body/stress.js addStress (BODY's door); stressAtMs = ms. Nothing while the
+ * pool read 0 at the last fold. Returns the points added.
+ */
+export function foldStress(state, bus, pid, ms = state.clock.ms) {
+  const rec = blockOf(state, pid);
+  if (!rec) return 0;
+  const from = rec.stressAtMs ?? rec.suppAtMs;
+  if (!Number.isFinite(from) || !(ms > from) || !(suppAt(rec, from) > 0)) return 0;
+  const pts = stressGainOf(rec, hardOf(state, pid, from), from, ms);
+  rec.stressAtMs = ms;
+  if (pts > 0) addStress(state, pid, pts, ms, bus);
+  return pts;
+}
+
+/**
+ * The people domain's fast layer 'second' (w; lived ticks; see the header): at each whole SUPP_STRESS_FOLD_MS of the game
+ * clock, every live actor whose pool was up at its last fold has its stress folded; the first fold that finds the pool
+ * empty is its last until the next input.
+ */
+export function suppSecond(state, input, bus, ctx) {
+  const ms = state.clock.ms;
+  if (ms % SUPP_STRESS_FOLD_MS !== 0) return;
+  const me = playerActor(state), list = [...(me ? [me] : []), ...(state.actors?.list ?? []).filter(a => a !== me && a.who !== me?.who)];
+  for (const a of list) {
+    const rec = a.combat;
+    if (!rec || !a.who) continue;
+    const from = rec.stressAtMs ?? rec.suppAtMs;
+    if (Number.isFinite(from) && ms > from && suppAt(rec, from) > 0) foldStress(state, bus, a.who, ms);
+  }
+}
+
 // ---- the fast layer and the view ----
 
 /** The sum's words (the one formatter: the hover, J, the card): "the chaos 105 − your hardening 17 = felt 88: pinned, −9". */
@@ -537,6 +798,7 @@ export function suppInput(state, input, bus, ctx) {
   }
   if (rec.frozeAtMs === rec.startleUntilMs) return;
   rec.frozeAtMs = rec.startleUntilMs;
+  foldStress(state, bus, pid, ms);
   const froze = rec.startleMs ?? rec.startleUntilMs - (rec.startleFromMs ?? rec.startleUntilMs);
   const H = hardOf(state, pid, rec.suppAtMs ?? ms), felt = feltFrom(rec.supp ?? 0, H);
   bus?.emit('startle', { phase: 'end', who: pid, ms: froze, fromMs: rec.startleFromMs, untilMs: rec.startleUntilMs, why: rec.startleWhy ?? null, inputId: null });

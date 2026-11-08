@@ -21,6 +21,8 @@
 // 7: experience 5, training 2"), and the setup's line under the title (SETUP_LINES). The end card leads with the bangs'
 // summary (the scene's bangsNow().summary, the chaos's sum and the calm figure by the book in it) and this session's calm run
 // on the seed and the sheet where the page remembers one (bangLines).
+// 0.0.10 (the build sheet 0.0.10 §2.3, §8 item 21): "Bang" (test-stress) opens the same picker on the Boot recruit, its lines led by
+// the hardening (leadsHard), its scene's line under the title (SCENE_LINES).
 
 /** The tiers on the picker, in its order, when the sim's PICKER_TIERS is not given. */
 export const PICKER_ORDER = Object.freeze(['recruit', 'private', 'sgt', 'raider', 'tierone']);
@@ -51,12 +53,16 @@ export function pickerRows(sheets = {}, order = null, focus = PICKER_DEFAULT, { 
 }
 /** A setup's line under the picker's title (0.0.9; my words). */
 export const SETUP_LINES = Object.freeze({ bangs: 'Utilities, no ear defenders. In the first standby the coach makes some noise behind you; the rest is Pairs as built. Esc, End the scene, takes you to the card after the first string.' });
+/** A scene's line under the picker's title where it has no setup (0.0.10: "Bang"; my words). */
+export const SCENE_LINES = Object.freeze({ 'test-stress': 'Ear defenders on. Five strings at 7 m: one calm, then the coach makes noise beside you (a horn and blanks, a bang he calls, three he does not), the last on a one-round magazine. Breathe when you can. Esc, End the scene, takes you to the card.' });
+/** Whether a scene's picker leads with the hardening (its lesson: "Three bangs" and "Bang"). */
+export const leadsHard = (scene) => scene?.setup === 'bangs' || scene?.id === 'test-stress' || scene?.course === 'stress';
 
 /** The picker as a page on the title's paper: { body, buttons }. scene: SCENES' record; onPick(tier); onBack(). */
 export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
   // (the scene's own list and default where it names them (scenes.js: sheets, sheet), else the sim's picker order)
-  const rows = pickerRows(sheets, Array.isArray(scene?.sheets) ? scene.sheets : order, scene?.sheet ?? PICKER_DEFAULT, { hard, lead: scene?.setup === 'bangs' });
+  const rows = pickerRows(sheets, Array.isArray(scene?.sheets) ? scene.sheets : order, scene?.sheet ?? PICKER_DEFAULT, { hard, lead: leadsHard(scene) });
   // (the hardening's words emphasised, its number and parts on their hover)
   const small = (r) => {
     if (!r.hard) return el('small', { textContent: r.line });
@@ -71,7 +77,7 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
   const body = el('div', { className: 'sheet tests picker' },
     el('h2', { textContent: String(scene?.title ?? 'Pairs').toUpperCase() }),
     el('p', { className: 'sub', textContent: 'Play it as a sheet: each its own experience, its own hands and eyes. The same targets turn on the same seed whichever you choose.' }),
-    SETUP_LINES[scene?.setup] ? el('p', { className: 'sub setup', textContent: SETUP_LINES[scene.setup] }) : null,
+    SETUP_LINES[scene?.setup] ? el('p', { className: 'sub setup', textContent: SETUP_LINES[scene.setup] }) : SCENE_LINES[scene?.id] ? el('p', { className: 'sub setup', textContent: SCENE_LINES[scene.id] }) : null,
     el('hr'),
     ...buttons,
     el('hr'),

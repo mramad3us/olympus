@@ -7,6 +7,7 @@ Written 2026-11-05 against `docs/DESIGN.md` (the hub) and the research notes in 
 Revised 2026-11-06 for v0.0.2 as built and CONTRACTS §19's settlements of that day: the calendar as built (§1), 12:40 at 25.7 s past the start (§2.4), the debug skip keys ^ and $ (§4.1), the slow mark `time.slowToMs` (§5.4, §13), an `out` skip in a fight on the `ff` engine (§4.5), the splash's last target `toMs` (§6.2), nobody dissolving in the iris (§6.3, as VIEWS §5.1), the body's ledgers as BODY §2.6 keeps them (§5.5), SKILLS' one pace helper (§8.1), and every person generated (the user, 2026-11-05: "All people generated"; the names in this section's examples stand for whoever the roster drew).
 
 Revised 2026-11-06 for v0.0.4 as built (the build sheet `docs/build/0.0.4.md`, §8 and §9; DESIGN.md's log of that day): the files (§1), the skip record's `spotId` and `held` (§5.3), the landing and the body's sync (§5.8), the night's sleep measured with a body (§5.10), the ease and the `'splash'` pause (§6.2), the splash's keys and the chunk (§6.4), an interrupt's phases (§6.5), the interrupts' sources (§7.1), the counts (§7.4), the resume (§7.5), the activities as built (§8.1 to §8.4), the alert drill drawn between 00:30 and 04:30 (§9.2), lateness at a drill (§9.5) and the suites (§15). Where this section's planned numbers and the built ones differ, the built ones are marked "as built in v0.0.4".
+Revised 2026-11-08 for the user's rule "martian marines always train at 1G except for basic weapons training" (DESIGN.md's log; SETTING §5.11; PLACES §4.15): §9.2's PT row and training blocks at the Wheel (1 G), and the evening Ring seat withdrawn as a routine choice (§8.9, §13); and for the standing rule that nothing assumes Mars (TECH §1.4): a block's gravity is its place's, and a ship's clock is UTC.
 
 ## The model in short
 
@@ -734,7 +735,7 @@ A standard night at Melas, taps 22:00 to reveille 05:30, is 7 h 30 m on the cloc
 
 | Activity | Where | Duration rule | What it changes | Mask |
 |---|---|---|---|---|
-| `pt` | the valley track, the field house, the Ring (rotation by sol) | 60 min | fitness load, fatigue, sweat, thirst (BODY); standing (PEOPLE); by stance (§9.3) | block |
+| `pt` | from the Wheel's join, the Wheel's lane and halls at 1 G (PLACES §4.15), every training sol; until then the valley track and the field house at 0.38 G | 60 min | fitness load, fatigue, sweat, thirst (BODY); standing (PEOPLE); by stance (§9.3) | block |
 | `gym` | gym | 45, 60 or 90 min; one hard session per 18 h (tradecraft `WORKOUT_GAP_H`; BODY §7.3 greys it after PT) | fitness load (BODY) | `D A O B S` |
 | `centrifuge` | the G-house's Ring (PLACES §4.9): a scheduled session only, as a block or a booked evening seat (§8.9); the doors lock while it spins, so it cannot be dropped into or left | 6 min spin-up seated + the session at the prescribed G (**at least 45 min**, so that it counts as the day's G stimulus, BODY §14.1: 45, 60 or 120 min; the conditioning block is 120 min) + 6 min spin-down seated (PLACES §4.9) | G-conditioning, Coriolis lurch and nausea (BODY); laps, weights or study inside at 1 G | `D A O* B` (orders wait for the spin-down; on D or A the operator stops the train, which still takes PLACES's spin-down, and you land live in your car, seated); "stop here" not offered |
 | `long-arm` | the G-house's Long Arm (PLACES §4.9), by appointment | the physiologist's brief 5 min (lived), the profile (lived, BODY §13: every second of it matters), recovery 10 min | the G-qualification class (CAREER §7.3), acute G (BODY) | `D A O B` |
@@ -793,7 +794,7 @@ The log voice is the house voice: dry, specific, numbers where they matter (trad
 | `barber` | the clippers, hair on the cape | "High and tight: {dur} in the chair." |
 | `suit-service` | the scrubber canister, the O₂ gauge | "Suit serviced: new canister, seals greased, {dur}." |
 | `field-day` | mops, the deck shining | "Field day: two hours, and a deck you could eat off." |
-| `pt` | boots on the track, the cadence, red dust | "PT: {km} km under 0.38 G, the platoon in step. An hour." |
+| `pt` | boots on the lane, the cadence; before the Wheel, the track and the red dust | "PT: {km} km under {g} G, the platoon in step. An hour." ({g} is the place's: 1.00 in the Wheel, 0.38 on the track) |
 | `gym` | the bar, plates, the mirror | "{dur} in the gym." |
 | `centrifuge` | the Ring's car, its floor swung square to the weight, the hum, the G meter at {g} | "The Ring: {dur} at {g} G. Your knees know." |
 | `long-arm` | the gondola's hatch, the physiologist's console, the grey edge of vision | "The Long Arm: {profile}. {result}." |
@@ -830,7 +831,7 @@ The log voice is the house voice: dry, specific, numbers where they matter (trad
 | `hip-pocket` class | the squad bay, evenings, when an NCO offers one (PEOPLE: the squad leader's or a fire team leader's choice, a hashed evening or two a week) | 30 or 60 min | instruction hours in the subject at a unit block's cap, `min(12, teacher − 2)` (SKILLS §6.3), and the NCO's regard (PEOPLE) | `D A O B S` |
 | `drill-rounds` | your rack or the bay's cleaning table, with dummy rounds from the platoon's drill box | 30 min | Weapon handling hours (SKILLS §6.4's "weapons drill" row, pro rata) and one rust session kept (SKILLS §7) | `D A O B S` |
 | `bounding` (the base's low-g bounding league) and pick-up games | the field house or the parade deck, evenings and rest sols | 60 or 90 min | fitness load (BODY §15), stress down, gauges with whoever plays (PEOPLE); not a hard session unless you push | `D A O B S` |
-| a `centrifuge` evening seat | the Ring, booked at the G-house desk a sol ahead, 19:00 or 20:00 (PLACES §4.9: 60 seats a session) | 6 + 60 + 6 min, plus the 7.5 min walk | the day's G stimulus at 1 G (BODY §14.1: at least 45 min), so G-conditioning before a week at 1 G aboard; study or weights inside | `D A O* B` |
+| a `centrifuge` evening seat | the Ring, booked at the G-house desk a sol ahead, 19:00 or 20:00 (PLACES §4.9: 60 seats a session); **no longer a routine choice from the Wheel's join** (2026-11-08: a training sol is already about 8.7 h at 1 G and the evening needs no Ring seat, BODY §14.1), kept for 1.2 and 1.5 G conditioning and the remedial programme, and for the standby before the Wheel joins | 6 + 60 + 6 min, plus the 7.5 min walk | the day's G stimulus at 1 G (BODY §14.1: at least 45 min); study or weights inside | `D A O* B` |
 | `call` home from the comm booth | the comm booths (PEOPLE §4.5), to Mars only (light lag under 1 s) | 15 or 30 min, a queue in the evening | family ties and morale (CAREER §14) | `D A O B S` |
 | an MCI correspondence course | any seat with a reading light, in 10-minute chunks | 6 to 12 h in all (CAREER §8.3) | 15 composite points a course, at most 75 (CAREER §8.3): surfaced as an offer on the terminal so that the player knows it exists | `D A O B S` |
 | mentoring a struggling boot | wherever they are, when PEOPLE's "screw-up" arc runs (PEOPLE §15.3) | 30 to 60 min, evenings | your instruction gives them hours (SKILLS), the arc's lever, gauges (PEOPLE) | `D A O B S` |
@@ -877,10 +878,10 @@ Melas time (my calls; PEOPLE and CAREER fill the content, SETTING the names). Th
 |---|---|---|---|---|---|
 | 05:30 | `reveille` | Reveille: lights, the duty NCO's call | squad bay | everyone | the wake event (O) for everyone in the bay |
 | 05:40 | `muster` | Muster, accountability | squad bay | squad | lived (30–60 s) |
-| 05:45–06:45 | `pt` | PT: run, circuit or the Ring by rotation | track, field house, G-house | platoon | opening lived; the body carried on with a stance (§9.3) |
+| 05:45–06:45 | `pt` | PT: run or circuit at 1 G in the Wheel (until it joins: the track, the field house and the Ring by rotation at 0.38 G) | the Wheel's lane and halls (PLACES §4.15) | platoon | opening lived; the body carried on with a stance (§9.3) |
 | 06:45–07:45 | `hygiene-chow` | Hygiene; chow window 06:50–07:40 | head, mess | individual | activities (§8) |
 | 07:50 | `morning-formation` | Formation, the squad leader's inspection of shave, haircut and uniform; morning colours at 08:00 | company street (outdoors) | platoon | lived (1–2 min) |
-| 08:00–11:30 | `train-a` | Training A (class, range, drill, suit drill, field, the Ring) | per block | platoon | live or carry on |
+| 08:00–11:30 | `train-a` | Training A (class, drill, suit drill, field and the shoot houses at 1 G in the Wheel; basic weapons training on the range and the bay at 0.38 G) | per block | platoon | live or carry on |
 | 11:30–12:30 | `noon-chow` | Noon chow window (line closes 12:20) | mess | window | activity |
 | 12:40 | `noon-formation` | Formation | company street | platoon | lived |
 | 12:45–16:30 | `train-b` | Training B | per block | platoon | live or carry on |
@@ -895,6 +896,8 @@ Melas time (my calls; PEOPLE and CAREER fill the content, SETTING the names). Th
 | 00:00–02:00, 02:00–04:00, 04:00–05:30 | `night` | Fire watches 2–4 | squad bay post | roster | `watch` |
 
 The night is 7 h 30 m on the clock and 8 h 9 m 35 s in the rack, because the slip falls inside it. The watch that holds the slip is the longest of the night: marines trade for it, or are given it (my call: a small piece of lore SETTING may keep).
+
+**The Wheel's sol** (from 2026-11-08, the user's "always at 1G except for basic weapons training"; BODY §14.1's two weights, my calls): the platoon rides to the Wheel twice a training sol (about 12 minutes door to floor, PLACES §4.15: a ride is a short splash with its opening lived, inside the blocks), PT's hour holds about 36 minutes at weight, and `train-a`, the noon chow in the Wheel's galley, the noon formation and `train-b` are one stay of about 8 hours: about 8.7 h at 1 G a training sol, 33 h a week. The basic weapons blocks (the KD range, the 25 m bay, `train-a` or `train-b` on a range day) stay outdoors at 0.38 G, and a day's blocks in the PoD carry their place's gravity, so the clock does not change and the weight does (the step out of the lift at 0.38 G is BODY's). The evening, the rack, breakfast and supper are at Mars's weight.
 
 **The week**, by weekday (SETTING §3.4: Monday to Friday train, Saturday and Sunday rest):
 
@@ -1373,7 +1376,7 @@ Runtime structures (`$`-prefixed: the queue's `$events.bySrc` index, caches) are
 
 ## 17. Fun
 
-**The decisions time creates.** Every sol has about three free hours and a body that wants more than three hours of things. An evening seat on the Ring (G-conditioning before a week at 1 G aboard), drill rounds and the rifle (the armourer's inspection tomorrow), the squad leader's hip-pocket class (hours you can't get from a manual), a chapter of an MCI course (composite points toward Lance Corporal), a letter (it takes 19 minutes to reach Earth and a week to be answered), cards with the squad (the friend you'll need on Europa), the barber (Friday's inspection), or sleep (the debt from last night's fire watch). Every offer shows its price in minutes and what it leaves before the next formation (§8.1, §8.9). The Plan of the Day is the frame; the free time is the game. Inside the frame, how hard you go is a choice too: push the run and risk the ankle, coast the class and risk the instructor's eye (§9.3).
+**The decisions time creates.** Every sol has about three free hours and a body that wants more than three hours of things. Drill rounds and the rifle (the armourer's inspection tomorrow), the squad leader's hip-pocket class (hours you can't get from a manual), a chapter of an MCI course (composite points toward Lance Corporal), a letter (it takes 19 minutes to reach Earth and a week to be answered), cards with the squad (the friend you'll need on Europa), the barber (Friday's inspection), or sleep (the debt from last night's fire watch). Every offer shows its price in minutes and what it leaves before the next formation (§8.1, §8.9). The Plan of the Day is the frame; the free time is the game. Inside the frame, how hard you go is a choice too: push the run and risk the ankle, coast the class and risk the instructor's eye (§9.3).
 
 **The stories it makes.**
 - The alarm in the shower: a towel, wet boots, general quarters, and the walk to your couch at 1 G with your utilities in your arms.

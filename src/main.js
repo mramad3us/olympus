@@ -163,6 +163,20 @@
 // chaosSum), C gives Hardening in words, the picker each sheet's word. The end card leads with the bangs' lines (the scene's
 // bangsNow, and this session's calm run of the sheet on the seed where the page remembers one); "Again as …" keeps the setup;
 // the score card asks one aspect, bangs. The handle gains supp().
+// The 0.0.10 round's (the build sheet 0.0.10 §2.3; COMBAT §5.2, §25.18.3; VIEWS §7.3, §7.4, §7.7, §11.2): "Bang" (?play=test-stress
+// [&tier=…][&setup=standby[:k]], the Tests menu's entry through the picker, the Boot recruit focused). The coach's din is the
+// stage's (rangeLook().stress: the view's din layer, the horn in his hand and the blanks' flashes at his muzzle; the stress
+// course's bangs the bangs layer's) and the sound's (the 'fx' facts horn and blank: audio/stress.js, through the ear
+// defenders); his "Bang!" in the radio box, captioned "[a shout: Bang!]" in the toasts. Breathe (COMBAT §5.2) is the shot role's
+// row in the panel; out of the mode, while it runs, the instinct's lead counts the box ("Breathe · in · HOLD · out · hold":
+// hud/instinct.js breatheLead), and the body bus breathes it (audio.frame's breathing); the picture eases as the pool drains (the
+// band's vignette as built). The hit card (hud/hitcard.js, the art's src/art/doll/hitcard.js) stands in HITCARD at the top
+// left, under the log's lines (the coach's timer keeps PAPER): during a string what the marine could tell of each turner he fired at (marks.js hitMarks' belief), at the
+// pause in stop motion and HIT_HOLD_MS out of it; from the string's end the holes (truth), until the next string runs; two
+// turners hit on the last string, the card follows the brackets' pick, its tabs newest first. The end card leads with the
+// stress course's lines and a small truth card a string (cards/stress.js), "Again as …" each sheet on the same seed (the
+// scene's againAsStress) led by its hardening word; Score asks the scene's three aspects (chaos, contrast, hands). The handle
+// gains stress(). ?bench=stress-din: the din's standby as the Boot recruit, its frames at a blank counted as at a bang.
 // For tests and shots, URL parameters skip the title (src/core/debug.js readParams):
 // ?play=sandbox|barracks|test-shower|test-night|test-handling|test-range|test-pairs&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench|mixed][&tier=…];
 // &ppm=16|24 (the density, 16 by default, the user's pick: src/render/scale.js; 24 a test density);
@@ -241,7 +255,8 @@ import { endCard } from './ui/cards/end.js';
 import { scoreCard, readScores } from './ui/cards/score.js';
 import { GOAL_S, END_HOLD_S, endsScene, endFacts, sceneLines } from './ui/cards/tests.js';
 import { groupCardModel, kdScoreModel, kdLiveModel, atOf } from './ui/cards/kd.js';
-import { dialOf } from './core/keys.js';
+import { dialOf, BINDINGS } from './core/keys.js';
+import { checkShort } from './sim/skills/checks.js';
 import { inventoryCard } from './ui/cards/inventory.js';
 import { createAudio } from './ui/audio/engine.js';
 import { createSteps, createTicks } from './ui/hud/steps.js';
@@ -249,6 +264,16 @@ import { createRadio } from './ui/hud/radio.js';
 import { createPaper, paperModel, faceModel } from './ui/hud/paper.js';
 import { createTimer, timerModel } from './ui/hud/timer.js';
 import { aspectLines, againTiers, runLine, bangLines } from './ui/cards/pairs.js';
+// (0.0.10: "Bang": the stress course's view, the hit card's marks and its picture, the strings' end card, Breathe's lead)
+import * as stressScene from './sim/scenarios/stress.js';
+import { COURSES } from './data/courses.js';
+import * as MARKS from './sim/arms/marks.js';
+import { createHitcard, cardModel, hitShown, hitTabs, HIT_LOOK } from './ui/hud/hitcard.js';
+import { paintHitcard, warmHitcard } from './art/doll/hitcard.js';
+import { stressLines, hotWash, sessionGrid, gridTable } from './ui/cards/stress.js';
+import { hitFit } from './ui/hud/hitcard.js';
+import { breatheLead } from './ui/hud/instinct.js';
+import { isBreathe } from './ui/hud/steps.js';
 import { createReflex } from './ui/hud/reflex.js';
 import { plaque, bracket, place, shotPlaque, plaqueWords, plaqueParts, termsPlaque, termLines, farLabel,
   windowBracket, bracketScale, stamp, STAMP_S, contactPlaque, rowPartsPlaque, frozeStamp, chaosSum, feltMod } from './ui/plaque.js';
@@ -398,11 +423,34 @@ function pauseGuarded(action, e = null) {
   if (now < until) return true;
   return down !== undefined && down >= g.winT0 && down < until;
 }
+// (0.0.10, the runtime review's: a walk key that went down in a startle or its guard and was held past it walked him once the
+// startle ended (0.285 m off the 7 m point). It is let go in the key machine where it went down, so it walks only when
+// released and pressed again, as a tap that went down in it does nothing; a key held from before the startle walks on)
+const MOVE_CODES = new Set(BINDINGS.filter(b => b.kind === 'move').flatMap(b => b.codes));
+const movesHeld = new Map();
+addEventListener('keydown', (e) => { if (!e.repeat && MOVE_CODES.has(e.code)) movesHeld.set(e.code, performance.now()); }, true);
+addEventListener('keyup', (e) => { movesHeld.delete(e.code); }, true);
+addEventListener('blur', () => movesHeld.clear());
+/** The walk keys that went down in the startle or its guard let go (each tick's poll, before the snapshot): the codes let go. */
+function dropStartleMoves() {
+  if (!movesHeld.size) return [];
+  const sg = startleNote(), out = [];
+  if (!sg.id) return out;
+  // (pauseGuarded's own rule for a key's way up: down from the startle's first sight to the end of its guard)
+  const until = sg.endT0 === -Infinity ? Infinity : Math.max(sg.endT0, sg.endT0 + (sg.stop || inStop() ? PAUSE_GUARD_MS : 0));
+  for (const [code, at] of movesHeld) {
+    if (at < sg.t0 || at >= until) continue;
+    input.key(code, false);
+    movesHeld.delete(code);
+    out.push(code);
+  }
+  return out;
+}
 const fitInput = () => input.setStage(stage.canvas, stage.W, stage.H);
 fitInput();
 addEventListener('resize', fitInput);
 // (every error is told; sim.noteError writes only a tick's or a skip's into the state: a render's never touches it, TECH §3.7)
-loop = createLoop({ render, poll: () => input.snapshot(), bus, onError: (e, where) => { try { sim?.noteError(loop.state, e, where); } catch { /* (an error note that fails mustn't stop the game) */ } broke(e, where); } });
+loop = createLoop({ render, poll: () => { dropStartleMoves(); return input.snapshot(); }, bus, onError: (e, where) => { try { sim?.noteError(loop.state, e, where); } catch { /* (an error note that fails mustn't stop the game) */ } broke(e, where); } });
 sim = createSim({ loop, bus });
 const label = (a) => input.label(a);
 const instinct = createInstinct(hud, { label });
@@ -429,6 +477,8 @@ const frozeEl = el('canvas', { className: 'plaque stamp froze', hidden: true });
 const stampEl = el('canvas', { className: 'plaque stamp', hidden: true }), contactPlate = el('canvas', { className: 'plaque contact', hidden: true }), partsPlate = el('canvas', { className: 'plaque parts', hidden: true });
 hud.append(...windowBoxes, ...takenBoxes, stampEl, frozeEl, contactPlate, partsPlate);
 const timerPaper = createTimer(hud);
+// (0.0.10: the hit card on the stress course, at the top left under the log's lines)
+const hitCard = createHitcard(hud, { paint: paintHitcard });
 // (a casualty's picture dimming at P and U: BODY §17.2's AVPU, wounds.js avpuOf; under the HUD, over the picture)
 const fadeEl = el('div', { className: 'avpu-fade', hidden: true });
 frameEl.insertBefore(fadeEl, hud);
@@ -583,6 +633,8 @@ function launch(s, { from = null } = {}) {
   const rec = sceneOf(s);
   scene = rec ? { rec, seed: s.meta.seed, ended: false, shown: false } : null;
   if (rec?.goal) toasts.push(rec.goal, 'calm', { s: GOAL_S });
+  // (0.0.10, the runtime review's: "Bang"'s hit card dolls made at the load, so the first card of a string paints in one frame)
+  if (s.armoury?.range?.stress) { try { warmHitcard(); } catch (e) { broke(e, 'the hit card'); } }
   launched = { from, ticks: loop.stats.ticks, lost: loop.stats.lostTicks, checked: false };
   anchor = { json: toJSON(s), seq: s.clock.seq ?? null };            // (the state played from is the report's first anchor, until an autosave)
   // (a new career, or an imported file, is saved at once, so a reload's Continue finds it: v0.0.3's
@@ -694,6 +746,8 @@ bus.on('log', ({ entry } = {}) => {
   if (entry.kind === 'contact') return;
   // (0.0.9: a startle's sum is FROZE in the picture and in J whole: felt is never a number on the HUD)
   if (entry.kind === 'startle') return;
+  // (0.0.10: a Breathe's record says the chaos's fall, a number: its head alone in the toasts ("Breathed 4.0 s."), the whole in J)
+  if (entry.kind === 'breathe') { const m = /^(.*?):/.exec(entry.text); toast(m ? `${m[1]}.` : entry.text, 'calm'); return; }
   if (loop.state?.skip) { if (entry.kind === 'activity' && debugSkip) return; (heldLog ??= []).push(entry); return; }
   toast(entry.text, entry.tone);
 });
@@ -705,11 +759,20 @@ bus.on('log', ({ entry } = {}) => {
 function rollToast(entry) {
   const line = rollLine(entry), r = entry.roll;
   if (!line || !r || hiddenRec(entry) || entry.short) return null;
+  // (0.0.10, the runtime review's: on the stress course, while a string runs, the hit card is the marine's belief, so a round at
+  // a turner says only what he could tell, seen to strike or not, with the roll's numbers; the zone stays in J and in the truth
+  // from the string's end (the paper, the card): the user's answer A, "belief then truth")
+  if (r.skill === 'marksmanship' && entry.paper !== undefined && beliefNow()) return { text: checkShort({ ...r, verb: entry.paper ? 'seen to strike.' : 'not seen.' }), tone: 'note' };
   if (r.skill === 'marksmanship') return { text: entry.text ?? line.short, tone: entry.paper !== undefined ? entry.tone : r.ok ? 'note' : 'warn' };
   if (r.kind === 'check' && !r.ok && !r.routine) return { text: line.words ?? line.short, tone: 'warn' };
   // (a look that found something: a stoppage or a round is a warning; what a magazine in the hand holds is news (0.0.6))
   if (entry.found && line.words) return { text: line.words, tone: entry.step === 'lookMag' ? 'note' : 'warn' };
   return null;
+}
+/** Whether the hit card is in belief now: the stress course, a string turned and not over. */
+function beliefNow(s = loop?.state) {
+  const R = s?.armoury?.range, st = R?.stress ? R.str : null;
+  return !!st && !st.done && st.turnedMs !== null && st.turnedMs !== undefined;
 }
 bus.on('line', ({ text, kind = '' }) => toast(text, kind));
 // (an activity's own log line says what passed; the plain skips, which have none, still say how long)
@@ -730,7 +793,12 @@ bus.on('skip-end', (e) => {
 });
 bus.on('door', (f) => { try { audio.door(f, loop.state); } catch (e) { broke(e, 'the sound'); } });
 // (the weapon mode's facts: the voices to the radio box and the tower's chime, the steps' ticks and clicks, the shot's report, the range's faults and strings)
-bus.on('say', (f) => { radio.say(f, loop.state); try { audio.fact('say', f, loop.state); } catch (e) { broke(e, 'the sound'); } });
+bus.on('say', (f) => {
+  radio.say(f, loop.state);
+  // (0.0.10: the coach's "Bang!" is a shout, captioned (VIEWS §11.4): the radio box has his words, the toast what it sounded like)
+  if (loop.state?.armoury?.range?.stress && /^Bang!/.test(String(f?.text ?? ''))) toast(`[a shout: ${String(f.text).trim()}]`, 'warn');
+  try { audio.fact('say', f, loop.state); } catch (e) { broke(e, 'the sound'); }
+});
 bus.on('step', (f) => {
   if (f?.who === loop.state?.player?.id) { ticks.fact(f); if (f.phase === 'end' && f.step === 'aim') showPlaqueInfo(); }
   try { audio.fact('step', f, loop.state); } catch (e) { broke(e, 'the sound'); }
@@ -742,8 +810,14 @@ bus.on('stop-mode', () => { stepPage = 0; hoverKey = null; });
 // (0.0.8: the turner's motor, clack and the timer's beep; a step chosen after a contact's pause ends the plaque's lead)
 bus.on('turner', (f) => { try { audio.fact('turner', f, loop.state); } catch (e) { broke(e, 'the sound'); } });
 // (0.0.9: a bang's report, and where it went off: the white's afterimage stands there)
-let lastBurst = null;
+let lastBurst = null, lastBlank = null;
 bus.on('fx', (f) => {
+  // (0.0.10: the stress course's horn and blanks, heard through the defenders; a blank's moment for the bench's row)
+  if (f?.kind === 'horn' || f?.kind === 'blank') {
+    if (f.kind === 'blank') lastBlank = { atMs: f.atMs ?? loop.state?.clock?.ms ?? null };
+    try { audio.fact('fx', f, loop.state); } catch (e) { broke(e, 'the sound'); }
+    return;
+  }
   if (f?.kind !== 'bang') return;
   lastBurst = Number.isFinite(f.x) && Number.isFinite(f.z) ? { x: f.x, z: f.z, atMs: f.atMs ?? null } : lastBurst;
   try { audio.fact('fx', f, loop.state); } catch (e) { broke(e, 'the sound'); }
@@ -756,7 +830,7 @@ bus.on('range', (f) => {
   else if (f.phase === 'cmd' && f.hot) lastString = null;
   // (a fault's words are the coach's, in the radio box: the toast is a short tag, so the sentence is not on the
   // screen twice (the runtime review's))
-  else if (f.phase === 'fault') toast(`${f.kind === 'stop' ? 'Stopped' : 'Fault'}: ${FAULT_WORD[f.rule] ?? f.rule ?? 'the line'}`, f.kind === 'stop' ? 'bad' : 'warn');
+  else if (f.phase === 'fault') toast(`${f.kind === 'stop' ? 'Stopped' : 'Fault'}: ${(f.rule === 'time' && f.fired ? FAULT_WORD.timeFired : null) ?? FAULT_WORD[f.rule] ?? f.rule ?? 'the line'}`, f.kind === 'stop' ? 'bad' : 'warn');
 });
 /** A range fault's tag (carry.js rangeSafety's rules, the scene's own): rule → words (handling.js STOP_WORDS, the end card's too). */
 const FAULT_WORD = STOP_WORDS;
@@ -886,7 +960,7 @@ let infoUntil = 0, lastInput = 'key', plaqueRect = null;
 const showPlaqueInfo = () => { infoUntil = performance.now() + PLAQUE_INFO_MS; };
 addEventListener('keydown', () => { lastInput = 'key'; }, true);
 addEventListener('pointermove', (e) => { if (e.movementX || e.movementY) lastInput = 'mouse'; }, true);
-function resetWeaponHud() { stepPage = 0; digitShift = false; reflexKeep = false; hoverKey = null; lastString = null; plaqueMemo = null; stepChosenMs = null; stampSeen = null; frozeSeen = null; lastBurst = null; startleSeen = { id: null, t0: -Infinity, endT0: -Infinity, stop: false }; ticks.reset(); radio.clear(); }
+function resetWeaponHud() { stepPage = 0; digitShift = false; reflexKeep = false; hoverKey = null; lastString = null; plaqueMemo = null; stepChosenMs = null; stampSeen = null; frozeSeen = null; lastBurst = null; lastBlank = null; hitSeen = { sig: null, t: -Infinity, stop: false, shown: null }; startleSeen = { id: null, t0: -Infinity, endT0: -Infinity, stop: false }; ticks.reset(); radio.clear(); }
 function stopKey(action, kind, e) {
   const s = loop.state;
   let st = null;
@@ -1060,6 +1134,8 @@ function openLate(view, send) {
 const sessionRuns = new Map();
 /** This session's calm test-pairs runs: the first string's turn to first round (ms), by seed and sheet (0.0.9: the banged card's calm line; page memory). */
 const calmRuns = new Map();
+// (0.0.10: "Bang"'s sheets this session on each seed, stressNow's strings by sheet: page memory only, the session's grid)
+const sessionStress = new Map();
 function openEnd() {
   if (!scene) return;
   const { rec, seed } = scene;
@@ -1093,9 +1169,33 @@ function openEnd() {
     if (bn && runs.length > 1) bangs = bangs.slice(1);
   }
   const again = pn ? againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null) : [];
-  if (banged) for (const a of again) a.hard = hardWordOfSheet(a.tier);
-  const { body, lines } = endCard({ scene: rec, seed, said, sheet: played ? sheets[played]?.label ?? played : null, runs, bangs,
-    aspects: pn ? aspectLines(pn.card, { fmt: takeInWords }) : [], again, on: {
+  // (0.0.10: "Bang": the stress course's lines and a small truth card a string lead; its sheets' hardening words lead "Again as …";
+  // the pairs course's own summary and aspects are not said (they are test-pairs' three, not this scene's))
+  const sn = loop.state ? stressRead(loop.state) : null;
+  let stress = [], cards = null, grid = null;
+  if (sn) {
+    try {
+      stress = stressLines(sn, { fmt: takeInWords, cap: SUPP.INOC_CAP?.[COURSES.stress?.teacher ?? 'cadre'] ?? null });
+      const s = loop.state, cardsOf = (sn.strings ?? []).map(x => {
+        const keys = pn?.strs?.find(p => p.k === x.k && p.done !== 'setup')?.keys ?? s.armoury.range.stress?.strs?.find(r => r.k === x.k)?.holes?.map(h => h.key) ?? [];
+        const key = [...new Set(keys)].map(k => ({ k, hm: hitMarksRead(s, k, x.k, 'truth') })).find(y => y.hm?.marks?.length)?.k ?? null;
+        return { k: x.k, model: key ? hitModelOf(s, key, x.k, 'truth') : null };
+      });
+      cards = hotWash(cardsOf, { paint: paintHitcard, fit: hitFit(uiK, globalThis.devicePixelRatio ?? 1) });
+    } catch (e) { broke(e, 'the end card'); }
+    said = null;
+    if (played) { const key = `${rec.id}|${seed}`, m = sessionRuns.get(key) ?? new Map(); m.set(played, `${sn.word ? `${sn.word} · ` : ''}${sn.summary}`); sessionRuns.set(key, m); runs = [...m.entries()].filter(([, t]) => t).map(([t, text]) => ({ text, now: t === played })); }
+    // (the session's sheets on this seed side by side, a row a string, from the second sheet (the design review of 0.0.10))
+    if (played) {
+      const key = `${rec.id}|${seed}`, m = sessionStress.get(key) ?? new Map();
+      m.set(played, { label: sn.label, word: sn.word, strings: sn.strings });
+      sessionStress.set(key, m);
+      if (m.size > 1) { try { const sheetsNow = [...m.entries()]; grid = gridTable(sessionGrid(sheetsNow.map(([, v]) => v), { fmt: takeInWords }), { now: sheetsNow.findIndex(([t]) => t === played) }); } catch (e) { broke(e, 'the end card'); } }
+    }
+  }
+  if (banged || sn) for (const a of again) a.hard = hardWordOfSheet(a.tier);
+  const { body, lines } = endCard({ scene: rec, seed, said, sheet: played ? sheets[played]?.label ?? played : null, runs, bangs, stress, cards, grid,
+    aspects: pn && !sn ? aspectLines(pn.card, { fmt: takeInWords }) : [], again, on: {
     again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), hour: params.play === rec.scenario ? params.hour : null, setup: params.play === rec.scenario || params.play === rec.id ? params.setup : null, tier }),
     againAs: (t) => againAs(rec, t),
     score: () => openScore(),
@@ -1106,7 +1206,8 @@ function openEnd() {
 /** "Again as …" a sheet on the same seed (the scene's againAs: the same targets at the same gaps). */
 function againAs(rec, tier) {
   let a = null;
-  try { a = loop.state && pairsScene.againAs ? pairsScene.againAs(loop.state, tier) : null; } catch (e) { broke(e, 'Again as'); }
+  // (0.0.10: the stress course's own, which keeps the scene)
+  try { a = loop.state?.armoury?.range?.stress && stressScene.againAsStress ? stressScene.againAsStress(loop.state, tier) : loop.state && pairsScene.againAs ? pairsScene.againAs(loop.state, tier) : null; } catch (e) { broke(e, 'Again as'); }
   // (0.0.9: with the setup it was played with: "Three bangs" again as the tier one is three bangs)
   return playScene(rec, { seed: a?.seed ?? scene?.seed ?? randomSeed(), tier: a?.tier ?? tier, hour: params.play === rec.scenario ? params.hour : null, setup: a?.setup ?? rec.setup ?? null });
 }
@@ -1182,7 +1283,9 @@ function render(alpha, s, info) {
   report.frame = { ticks: info.ticks ?? 0, tickMs: (info.ticks ?? 0) * (loop.stats.tickMs ?? 0), viewMs: view.stats.viewMs, splash: shown ? shown.phase : null };
   counters && (report.gl = { last: counters.frame(), max: counters.max, total: { bytes: counters.total.bytes, uploads: counters.total.uploads, links: counters.total.links, compiles: counters.total.compiles } });
   const uiT0 = performance.now();
-  if (s) { try { audio.frame(s, alpha, t / 1000, { splash: shown, chaos: sn }); const cap = audio.caption?.(); if (cap) toast(cap, 'calm'); } catch (e) { broke(e, 'the sound'); } }
+  // (0.0.10: Breathe running, in or out of the mode: the box breath on the body bus)
+  const breath = s ? breatheRun(s) : null;
+  if (s) { try { audio.frame(s, alpha, t / 1000, { splash: shown, chaos: sn, breathing: !!breath }); const cap = audio.caption?.(); if (cap) toast(cap, 'calm'); } catch (e) { broke(e, 'the sound'); } }
   autosaveDue(info);
   if (s && launched && !launched.checked && loop.stats.ticks - launched.ticks >= RECOVER_TICKS) {
     launched.checked = true;
@@ -1232,15 +1335,18 @@ function render(alpha, s, info) {
   const contact = contactHud(s, alpha, { hidden: inSplash });
   const froze = frozeHud(s, { hidden: inSplash });
   const timer = timerHud(s, { hidden: inSplash });
+  // (0.0.10: the hit card on the stress course)
+  const hit = hitHud(s, { hidden: inSplash, inStop: weapon.on });
   radio.frame(dtMs, !info.paused && !boot.card && !shown && !isHeld(s));
   const voices = radio.update({ hidden: inSplash, weapon: weapon.on, state: s });
   // (the lead: "Time stands still." in stop motion (VIEWS §7.4), v0.0.4's words while G's stub holds time, the scene's end;
   // 0.0.8: at a contact's pause, until a step is chosen, "Contact · 0.55 s." in its place)
   const pause = weapon.on && !s.skip ? pauseOf(s) : null;
-  const lead = benchLead ?? (pause && leadStands(s, pause) ? `Contact · ${takeInWords(pause.ms)} s.` : weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
+  // (0.0.10: Breathe running out of the mode counts the box on the lead; in the mode the panel's running view has it)
+  const lead = benchLead ?? (pause && leadStands(s, pause) ? `Contact · ${takeInWords(pause.ms)} s.` : breath && !weapon.on ? breatheLead(breath.i) : weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
   const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null, ui: uiK });
   report.hud = { watch: faces, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on, far: weapon.far,
-    terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '', timer, contact, lead, froze, chaos: view.stats.chaos ?? null,
+    terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '', timer, contact, lead, froze, chaos: view.stats.chaos ?? null, hit,
     contactPlate: contactPlate.hidden ? '' : contactPlate.dataset.text ?? '', parts: partsPlate.hidden ? '' : partsPlate.dataset.text ?? '' };
   avpuFade(s);
   // (the HUD's and the sound's share of the frame: CONTRACTS §7's UI DOM budget is 1 ms)
@@ -1727,6 +1833,73 @@ function timerHud(s, { hidden = false } = {}) {
   return timerPaper.update(timerModel(rec, { text, fmt: takeInWords }), { ui: uiK });
 }
 
+// ---- 0.0.10: "Bang", the stress course (the build sheet 0.0.10 §2.3) ----
+/** Breathe running for the player now, in or out of the mode: { i (its sub-step, 0 to 3), live (out of the mode) }, or null. */
+function breatheRun(s) {
+  const d = s?.stop?.doing;
+  if (!d || !isBreathe(d.step) || (d.who && d.who !== s.player?.id)) return null;
+  return { i: Math.max(0, Math.min(3, d.i ?? 0)), live: s.stop.mode !== 'stop' };
+}
+// (the stress course's view, stressNow, once a tick: null off its course)
+let stressMemo = { key: null, sn: null };
+function stressRead(s) {
+  if (!s?.armoury?.range?.stress || !stressScene.stressNow) return null;
+  const key = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}`;
+  if (stressMemo.key === key && stressMemo.state === s) return stressMemo.sn;
+  let sn = null;
+  try { sn = stressScene.stressNow(s, s.clock.ms); } catch (e) { broke(e, 'the stress course'); }
+  stressMemo = { key, state: s, sn };
+  return sn;
+}
+// (hitMarks for a turner and a string, once a tick)
+const hitMemo = new Map();
+function hitMarksRead(s, key, k, phase) {
+  const mk = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}|${key}|${k}|${phase}`;
+  if (hitMemo.has(mk)) return hitMemo.get(mk);
+  let hm = null;
+  try { hm = MARKS.hitMarks ? MARKS.hitMarks(s, key, { k, phase }) : null; } catch (e) { broke(e, 'the hit card'); }
+  if (hitMemo.size > 32) hitMemo.clear();
+  hitMemo.set(mk, hm);
+  return hm;
+}
+/** The hit card's model for a turner of a string (paintHitcard's input: cardModel), its face and holds the turner's. */
+function hitModelOf(s, key, k, phase, tabs = []) {
+  const hm = hitMarksRead(s, key, k, phase);
+  if (!hm) return null;
+  const T = (s.armoury?.range?.turners ?? []).find(t => t.key === key) ?? null;
+  return cardModel(hm, { look: HIT_LOOK, face: hm.face ?? T?.face ?? 'threat', holds: hm.holds ?? T?.holds ?? 'rifle', tabs });
+}
+// (when the card in belief last changed or stop motion was left: its hold out of the mode counts from there)
+let hitSeen = { sig: null, t: -Infinity, stop: false, shown: null };
+/**
+ * The hit card now (VIEWS §7.7; the build sheet 0.0.10 §2.3): on the stress course, while a string runs, the belief of the turners
+ * of that string fired at, at the pause in stop motion and HIT_HOLD_MS after its last change or the mode's end out of it; from
+ * the string's end until the next runs, the truth. Two hit: the brackets' pick if it is one, else the newest. Returns its words.
+ */
+function hitHud(s, { hidden = false, inStop = false } = {}) {
+  const R = s?.armoury?.range, pn = !hidden && R?.stress ? pairsOf(s) : null;
+  if (!pn) { hitSeen.shown = null; return hitCard.update(null); }
+  const running = !!pn.str && !pn.str.done;
+  const last = running ? null : [...(pn.strs ?? [])].reverse().find(x => x.done !== null && x.done !== undefined && x.done !== 'setup') ?? null;
+  const k = running ? pn.str.k : last?.k, keys = running ? pn.str.keys ?? [] : last?.keys ?? R.stress?.strs?.find(x => x.k === last?.k)?.holes?.map(h => h.key) ?? [];
+  if (!Number.isFinite(k) || !keys.length) { hitSeen.shown = null; return hitCard.update(null); }
+  const phase = running ? 'belief' : 'truth';
+  const hit = [...new Set(keys)].map(key => ({ key, hm: hitMarksRead(s, key, k, phase) })).filter(x => x.hm?.marks?.length);
+  if (!hit.length) { hitSeen.shown = null; return hitCard.update(null); }
+  // (newest first: the turner whose last round came last; the brackets' pick shows its own)
+  const lastShot = (x) => Math.max(...x.hm.marks.map(m => m.n ?? 0));
+  hit.sort((a, b) => keys.indexOf(b.key) - keys.indexOf(a.key) || lastShot(b) - lastShot(a));
+  const shownKey = hit.some(x => x.key === s.stop?.pick) ? s.stop.pick : hit[0].key;
+  const tabs = hit.length > 1 ? hitTabs(hit.map(x => x.key), shownKey, (key) => (R.turners ?? []).find(t => t.key === key)?.lane ?? null) : [];
+  const m = hitModelOf(s, shownKey, k, phase, tabs);
+  const now = performance.now(), sig = JSON.stringify([k, phase, shownKey, m?.marks?.map(x => [x.n, x.seen])]);
+  if (sig !== hitSeen.sig || (hitSeen.stop && !inStop)) hitSeen.t = now;
+  hitSeen.sig = sig; hitSeen.stop = inStop;
+  const on = hitShown({ phase, n: m?.marks?.length ?? 0, inStop, lastT: hitSeen.t, nowT: now });
+  hitSeen.shown = on ? { k, key: shownKey, phase } : null;
+  return hitCard.update(on ? m : null, { ui: uiK });
+}
+
 // (every one of a loaded save's first ticks lost: it is damaged; what stands in for it is loaded)
 async function recoverBroken(slot) {
   try { const { state, from } = await store.recover(slot); toast(`That save is damaged: ${from} instead.`, 'warn'); await launch(state, { from }); }
@@ -1745,7 +1918,8 @@ async function bench(name) {
     scene, keys: { down: (code) => input.key(code, true), up: (code) => input.key(code, false) }, where: me,
     sample: () => ({ calls: view.stats.calls, triangles: view.stats.triangles, programs: view.stats.programs, viewMs: view.stats.viewMs, ticks: report.frame?.ticks ?? 0, tickMs: report.frame?.tickMs ?? 0, bytes: report.gl?.last?.bytes ?? 0, splash: report.frame?.splash ?? null,
       // (0.0.9: a frame at a bang, within BANG_FRAMES_MS of game time after the last went off)
-      bang: !!(lastBurst && Number.isFinite(lastBurst.atMs) && loop.state && loop.state.clock.ms - lastBurst.atMs >= 0 && loop.state.clock.ms - lastBurst.atMs < BANG_FRAMES_MS) }),
+      // (0.0.10: a frame at a blank of the din counts as at a bang: the stress-din bench's no frame over 25 ms at a blank)
+      bang: [lastBurst, lastBlank].some(b => b && Number.isFinite(b.atMs) && loop.state && loop.state.clock.ms - b.atMs >= 0 && loop.state.clock.ms - b.atMs < BANG_FRAMES_MS) }),
     onLeft: (left) => { benchLead = `Bench: ${name}, ${left} s left`; },
   });
   benchLead = null;
@@ -1828,6 +2002,21 @@ const handleMore = {
     let hard = null, inoc = null;
     try { hard = SUPP.hardParts(s, s.player.id, s.clock.ms); inoc = SUPP.inocOf(s, s.player.id); } catch { /* (no sheet: none) */ }
     return { now: suppRead(s), hard, inoc, picture: view.stats.chaos ?? null, bangs: view.stats.bangs ?? null, froze: report.hud?.froze ?? null, frozeText: frozeEl.hidden ? null : frozeEl.dataset.text ?? null, mix: audio.stats.bang ? { ...audio.stats.bang } : null, chaosStage: audio.stats.chaos ?? null, reduce: settings.reduceFlashes };
+  },
+  /**
+   * "Bang" now (0.0.10): { now (stress.js stressNow), look (stressLook: the coach, the horn, the blanks, the bangs), hit (the hit card
+   * as shown: { k, key, phase, text, marks (drawn: [n, kind, zone, x, y]) } or null), din (the view's din layer), sound (audio/stress.js
+   * stats), breathe ({ offer (supp.js breatheOffer), running (breatheRun) }) }, or null off the course.
+   */
+  stress() {
+    const s = loop.state;
+    if (!s?.armoury?.range?.stress) return null;
+    let look = null, offer = null;
+    try { look = stressScene.stressLook ? stressScene.stressLook(s, s.clock.ms) : null; } catch { /* (none) */ }
+    try { offer = SUPP.breatheOffer ? SUPP.breatheOffer(s, s.player.id, s.clock.ms) : null; } catch { /* (none) */ }
+    const hel = hitCard.el;
+    return { now: stressRead(s), look, hit: hitSeen.shown && !hel.hidden ? { ...hitSeen.shown, text: hel.dataset.text ?? '', marks: JSON.parse(hel.dataset.marks ?? '[]'), scale: Number(hel.dataset.k ?? 1), smooth: !!hel.dataset.smooth, rect: (() => { const r = hel.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })() } : null,
+      din: view.stats.din ? { ...view.stats.din, flashing: [...(view.stats.din.flashing ?? [])] } : null, sound: audio.stats.stress ? { ...audio.stats.stress } : null, breathe: { offer, running: breatheRun(s) } };
   },
   /** The step panel's step on a digit now (n 0 to 9), as the key would send it. */
   stepOn(n) { const st = stepPanel.stepFor(n); return st && st !== 'more' ? { id: st.id, kind: st.kind, label: st.label } : st; },
