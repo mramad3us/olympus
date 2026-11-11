@@ -353,7 +353,8 @@ export function cardFit(ui = 1, dpr = 1) {
  * (createTicks()), hidden }. paintCard(belief) → the card's pixels (the stage's paintWeaponCard), or null;
  * onPick(step) a row clicked (main.js sends it as a tapped digit would); labelOf(actionId) an action's words
  * (shooting.js LABELS), for the running step's sub-steps. 0.0.7: view.distance (a course at distance: the card's
- * turrets shown), view.line (the KD line you are on: its dope), view.hold (the stop's hold, { xMil, yMil }).
+ * turrets shown), view.line (the KD line you are on: its dope), view.hold (the stop's hold, { xMil, yMil }). 0.0.12:
+ * view.finish, the gun's finish (src/data/finishes.js), read by the caller from the item, passed to paintCard(belief, far, finish).
  */
 export function createSteps(parent, { label = (a) => a, paintCard = null, onPick = null, labelOf = (id) => id } = {}) {
   const doc = globalThis.document;
@@ -380,11 +381,13 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     if (k !== cardK) { cardK = k; cardCanvas.style.width = `${CARD_W * k}px`; cardCanvas.style.height = `${CARD_H * k}px`; cardCanvas.style.imageRendering = fit.smooth ? 'auto' : ''; }
     const far = { distance: !!v.distance, line: v.line ?? null, hold: v.hold ?? null, zeroing: v.zeroing ?? null };
     const model = weaponCardModel(v.belief, far);
-    const cs = JSON.stringify([BELIEF_FIELDS.map(k => v.belief?.[k]), far]);
+    // (0.0.12: the gun's finish, its colours on the card: the caller's, read from the item by id, never from the belief)
+    const finish = v.finish ?? null;
+    const cs = JSON.stringify([BELIEF_FIELDS.map(k => v.belief?.[k]), far, finish]);
     if (cs !== sigCard) {
       sigCard = cs;
       let drawn = false;
-      try { drawn = !!paintCard && putPixels(cardCanvas, paintCard(v.belief, far)); } catch (e) { console.warn('the weapon card was not painted', e); }
+      try { drawn = !!paintCard && putPixels(cardCanvas, paintCard(v.belief, far, finish)); } catch (e) { console.warn('the weapon card was not painted', e); }
       cardCanvas.hidden = !drawn;
       // (the card's picture says it all, its marks and its count included; the words only stand in when it can't be painted)
       caption.hidden = drawn;

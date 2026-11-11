@@ -21,12 +21,15 @@
 //   cqb-funnel    warn    standing in the doorway (room.js inFunnel, still): from rung 2 Enter; below it, once past the
 //                         threshold Move to your point, else "Out of the door. Keys, in." and X, as cqb-go (the fixer's of
 //                         0.0.12: the same advice did nothing on T in the doorway and X at the open door)
-//   cqb-flag      urgent  the muzzle across the #2 within FLAG_REACH_M 5 m, the rifle in hand and not at high ready: High ready
+//   cqb-flag      urgent  the muzzle across the #2 within FLAG_REACH_M 5 m, the rifle in hand and neither at high ready nor
+//                         at low ready (carry.js flagsAt, the house's fault's rule too): High ready
 //   cqb-contact   urgent  a threat he took in still up and facing in the room, at the pause or after it (every man of the
 //                         room he identified, at any of his pauses: the scene's record keeps each, his own corner's first):
 //                         below rung 2 Off safe, then Aim (T aims); from rung 2 the row's name and no act ("Rifle. Pair.");
 //                         the bracket on another man (a second contact's, a reflex's, a no-shoot): the aim onto him, at
-//                         every rung (the fixer's of 0.0.12: the line went quiet, or said "No shot" with a threat up)
+//                         every rung (the fixer's of 0.0.12: the line went quiet, or said "No shot" with a threat up);
+//                         from rung 2 with every shot row struck (one round left): Aim (T aims), then Press (Fire), as
+//                         below rung 2; none at all (the bolt locked on an empty): quiet, cqb-reload leads (2026-11-11)
 //   cqb-hostage   urgent  the hostage card bracketed: "Hostage. Head only, or hold.": the aim if not aimed
 //   cqb-noshoot   warn    identified with empty hands or a phone: "Hands. No weapon. Don't." No act, at the pause only; with a
 //                         halted bundle to carry on and nobody up, "No shot. Carry on." and T carries on
@@ -49,9 +52,10 @@
 //   cqb-stoppage  urgent  a stoppage believed: IMMEDIATE ACTION
 // (COMBAT's cqb-method and cqb-unknown wait: the flash and the unknown faces are not in this round, §7.) Pure.
 import { playerId, playerActor } from '../../../core/ids.js';
+import { COURSES } from '../../../data/courses.js';
 import { beliefOf } from '../../arms/firearms.js';
 import { stepsOf, gunOn, inHouse, ASKS } from '../../arms/shooting.js';
-import { muzzleOf } from '../../arms/carry.js';
+import { muzzleOf, flagsAt } from '../../arms/carry.js';
 import { stillUp, halfOrLess, fullerAtHand } from '../../arms/specials.js';
 import { sparesOf, believedN } from '../../arms/kit.js';
 import { facingOf } from '../../arms/turners.js';
@@ -63,8 +67,8 @@ import { openingState } from '../../places/model.js';
 
 /** The house's rules repeat as each case comes (the door, the room, the contact are each new advice). */
 export const CQB_REPEAT_MS = 0;
-/** The flag: the muzzle's line within FLAG_M of the #2's body, he within FLAG_REACH_M (the build sheet 0.0.12 §4). */
-export const FLAG_M = 0.3, FLAG_REACH_M = 5;
+/** The flag: the muzzle's line within FLAG_M of the #2's body, he within FLAG_REACH_M (the build sheet 0.0.12 §4): the house course's numbers, one place. */
+export const FLAG_M = COURSES.house.flagM, FLAG_REACH_M = COURSES.house.flagReachM;
 /** Words tiered by a skill: under TIER_2 tier 1, under TIER_3 tier 2, else 3 (SKILLS §14.3 rule 5). */
 export const TIER_2 = 8, TIER_3 = 20;
 const tierOf = (v) => (v < TIER_2 ? 1 : v < TIER_3 ? 2 : 3);
@@ -168,11 +172,9 @@ export const CQB_RULES = Object.freeze([
     id: 'cqb-flag', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'urgent', short: 'Muzzle', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms), two = k?.R.house?.two;
-      if (!k || !two?.pid || k.posture === 'highReady' || k.posture === 'slungFront' || k.posture === 'slungBack') return null;
-      const a = state.actors?.list?.find(x => x.who === two.pid), m = muzzleOf(state, k.pid);
-      if (!a || !m) return null;
-      const dx = a.x - m.ox, dz = a.z - m.oz, along = dx * Math.cos(m.yawRad) + dz * Math.sin(m.yawRad), off = Math.abs(-dx * Math.sin(m.yawRad) + dz * Math.cos(m.yawRad));
-      if (along <= 0 || along > FLAG_REACH_M || off > FLAG_M) return null;
+      if (!k || !two?.pid) return null;
+      const a = state.actors?.list?.find(x => x.who === two.pid);
+      if (!a || !flagsAt(muzzleOf(state, k.pid), a.x, a.z, FLAG_M, FLAG_REACH_M)) return null;
       return { k, tier: k.tier, voice: k.voice };
     },
     act: (ctx) => actIf(ctx.k, 'posture:highReady'),
@@ -218,7 +220,17 @@ export const CQB_RULES = Object.freeze([
       const on = up.find(u => u.T.key === k.T?.key) ?? null, U = on ?? up[0];
       if (on && stillUp(state, on.T.key)) return null;
       const aimed = k.S.aim?.key === U.T.key;
-      const variant = !on ? 'onto' : k.rung < 2 ? (k.b?.mode === 'safe' ? 'safe' : aimed ? 'press' : 'aim') : 'row';
+      let variant = !on ? 'onto' : k.rung < 2 ? (k.b?.mode === 'safe' ? 'safe' : aimed ? 'press' : 'aim') : 'row';
+      // ("Pair." only while a shot row is there to take: with one round left they are all struck ("one left"), and with the
+      // bolt locked on an empty so is Fire; the line, with no act, held the lead for the rest of the lane and T did nothing
+      // (the bugs auditor of 2026-11-11: the tier one by T in the hall on seeds 7 and 1489397426, the lane ended by time).
+      // So the one round as the rung below takes it, Aim then Press (the Fire row), and with none, nothing here:
+      // cqb-reload's "Reload." leads)
+      if (variant === 'row' && !k.steps.some(s => s.id.startsWith('shot:') && !s.off)) {
+        if (!aimed && k.offered('aim')) variant = 'aim';
+        else if (aimed && k.offered('fire')) variant = 'press';
+        else return null;
+      }
       return { k, variant, words: variant === 'onto' ? `onto${k.shotTier}` : `${variant}${k.shotTier}`, hold: HOLD[U.hold], Hold: HOLD[U.hold], key: U.T.key, who: U.T.name ?? 'him', Who: cap(U.T.name ?? 'him'), voice: k.voice };
     },
     act: (ctx) => (ctx.variant === 'safe' ? actIf(ctx.k, 'selector:semi') : ctx.variant === 'aim' || ctx.variant === 'onto' ? aimOnto(ctx.k, ctx.key)

@@ -14,7 +14,8 @@
 // 'case' | absent), jam ('double' | absent), locked (the bolt held open), mode (the selector's: 'safe',
 // 'semi', 'auto'; a manual safety reads 'safe' or 'semi', a gun with none 'semi'), cocked (the hammer;
 // absent: cocked), portOpen, set (the chambered round is the coach's: 'dud' | 'stovepipe' | 'double'),
-// cond, foul, dust, lube, barrelC, rounds (fired, the armourer's book), byId, belief }, saved without
+// cond, foul, dust, lube, barrelC, rounds (fired, the armourer's book), byId, finish (0.0.12: its colours, an id of
+// src/data/finishes.js, absent for the issue's, the Corps' black; read through finishOf), belief }, saved without
 // its defaults (TECH §6.6: setG writes a default as an absent field). A magazine is { type: 'mag', fam,
 // n, load, cond?, dust?, set?: { n, kind }, belief?: { n, approx } }.
 //
@@ -117,6 +118,7 @@ import { move, sparesOf, dumpOf, pouchFor, ownerOf, holderOf, believedN, believe
 import { CALIBRES, loadOf } from './calibres.js';
 import { ndOf, SLUNG } from './carry.js';
 import { surfaceAt } from '../places/model.js';
+import { ISSUE_FINISH, isFinish, finishId } from '../../data/finishes.js';
 
 // ---- constants (WEAPONS §4.3, §5.1, §5.4, §5.5; the build sheet's §4) ----
 
@@ -301,17 +303,25 @@ export function dopeFrom(model, z) {
   if (!card || !z) return null;
   return Object.fromEntries(Object.entries(card).map(([d, c]) => [d, { elev: z.elev + c.elev, wind: z.wind + c.wind }]));
 }
+/** A gun's finish as drawn (an id of src/data/finishes.js): its own, else the issue's black; a gun's colours are seen, not believed, and read from the item. */
+export const finishOf = (gun) => finishId(gun?.finish);
 const BELIEF_DEFAULTS = Object.freeze({ locked: false, stoppage: null, countApprox: false });
 function setB(b, k, v) { if (v === undefined || v === null && k === 'count' || v === BELIEF_DEFAULTS[k]) delete b[k]; else b[k] = v; }
 const beliefRec = (g) => (g.belief ??= { chamber: 'empty' });
 
-/** A new gun (w): its record in state.items, Condition 4 (no magazine, the chamber empty, the bolt closed and cocked, on safe, the port shut), its holder's belief known. Returns its id. */
-export function newGun(state, { model = 'r7', byId = null, cond = 0.93 } = {}) {
+/**
+ * A new gun (w): its record in state.items, Condition 4 (no magazine, the chamber empty, the bolt closed and cocked, on safe, the
+ * port shut), its holder's belief known; finish its colours (src/data/finishes.js, the issue's black written as no field, an
+ * unknown id refused). Returns its id.
+ */
+export function newGun(state, { model = 'r7', byId = null, cond = 0.93, finish = null } = {}) {
   const M = MODELS[model];
   if (!M) throw new Error(`firearms.newGun(): no model '${model}'`);
+  if (finish !== null && finish !== undefined && !isFinish(finish)) throw new Error(`firearms.newGun(): no finish '${finish}'`);
   const id = nextId(state, 'i'), g = { type: 'gun', model, cond };
   if (M.safety === 'none') g.mode = 'semi';
   if (byId) g.byId = byId;
+  if (finish && finish !== ISSUE_FINISH) g.finish = finish;
   g.belief = { chamber: 'empty' };
   put(state, state.items, id, g);
   return id;

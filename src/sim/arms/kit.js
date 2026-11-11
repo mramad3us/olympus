@@ -277,16 +277,17 @@ export function discard(state, itemId) {
 /**
  * Give a person a template's kit: the items made (ids in a fixed order: the slung gun, the carrier,
  * its pouches, the magazines, the other worn things), worn and filled, and person.kit written. sets:
- * { <the magazine's place, 1 to 3>: { n, kind } } (the coach's set stoppage). Returns { gunId, magIds,
- * containerIds, wornIds }.
+ * { <the magazine's place, 1 to 3>: { n, kind } } (the coach's set stoppage); finish: the squad's
+ * finish (src/data/finishes.js; one kit per squad, WEAPONS §3.10: a squad's issue is materialised with
+ * one finish, none the Corps' black). Returns { gunId, magIds, containerIds, wornIds }.
  */
-export function materialise(state, pid, tmplId, { sets = {} } = {}) {
+export function materialise(state, pid, tmplId, { sets = {}, finish = null } = {}) {
   const T = KIT_TEMPLATES[tmplId], p = state.people?.[pid];
   if (!T) throw new Error(`kit.materialise(): no template '${tmplId}'`);
   if (!p) throw new Error(`kit.materialise(): no person ${pid}`);
   p.kit = { tmpl: tmplId, carry: { posture: T.posture } };
   const mk = (model) => { const id = nextId(state, 'i'); put(state, state.items, id, { type: CONTAINERS[model].type, model }); return id; };
-  const gunId = T.worn.sling ? newGun(state, { model: T.worn.sling, byId: pid, cond: T.cond }) : null;
+  const gunId = T.worn.sling ? newGun(state, { model: T.worn.sling, byId: pid, cond: T.cond, finish }) : null;
   const carrierId = T.worn.carrier ? mk(T.worn.carrier) : null;
   const pouchIds = carrierId ? T.carrier.map(mk) : [];
   const magIds = T.mags.map(([fam, n, load = 'ball'], i) => newMag(state, { fam, n, load, set: sets[i + 1] ?? null, told: true, toldKind: !T.unkinded }));

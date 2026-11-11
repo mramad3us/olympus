@@ -50,7 +50,7 @@ function postTwo(w, x, z, rung = 2) {
 }
 
 /** The lane on a seed by T alone (see the header): { g, N, card, mem, says, carryLabels, ms }. */
-export function tLane(tier, seed = 48213) {
+export function tLane(tier, seed = 48213, more = null) {
   const g = createGame({ scenario: 'test-shoothouse', seed, tier, setup: 'go' });
   const says = [], carryLabels = new Set(), halts = [], pid = g.state.player.id, t0 = g.state.clock.ms;
   const r = runHouse(g, houseTBot(), {
@@ -60,6 +60,7 @@ export function tLane(tier, seed = 48213) {
       for (const f of game.facts('bundle')) if (f.who === pid && f.phase === 'halt') halts.push({ atMs: f.atMs, why: f.why });
       const c = game.state.stop?.carry ? carryRow(game.state) : null;
       if (c) carryLabels.add(c.label);
+      more?.(game);
     },
   });
   const N = houseNow(g.state), sheet = runSheetOf(g.state);
@@ -287,18 +288,22 @@ export default [
     },
   },
   {
-    name: 'a door the bundle asks about from the doorway ("Door, east wall. Hold it or clear it?"): Hold it is offered there, and neither the line nor a moving-on round carries on past it; by T alone on seed 1703 the tier one holds room 2\'s closet and takes no door fault (the fixer\'s second pass of 0.0.12)',
+    name: 'a door the bundle asks about from the doorway ("Door, east wall. Hold it or clear it?"): Hold it is offered there, and neither the line nor a moving-on round carries on past it; by T alone on seeds 1703 and 9 the tier one holds room 2\'s closet and takes no door fault (the fixer\'s second pass of 0.0.12)',
     timeoutMs: 120_000,
     fn() {
-      const run = tLane('tierone', 1703), doors = run.N.legs.flatMap(L => L.faults.filter(f => f.kind === 'door').map(() => L.word));
-      const held = run.says.filter(x => x.text === 'Hold that door.').length;
+      // (the question met wherever a run meets it: T and the house bot hold a door seen from inside by its row before the
+      // sector asks, so on 1703 neither is asked since the routing of 2026-11-11 moved the walk; on 9 T is, and wherever
+      // asked, Hold it is on the panel)
+      const asked = [], ask = (game) => { const s = game.state; if (s.stop?.carry?.why === 'door-unplanned' && s.stop.phase === 'choose') asked.push(stepsOf(s).some(r => r.id.startsWith('door:hold>'))); };
+      const run = tLane('tierone', 1703, ask), run9 = tLane('tierone', 9, ask), doors = [run, run9].flatMap(R => R.N.legs.flatMap(L => L.faults.filter(f => f.kind === 'door').map(() => L.word)));
+      const held = Math.min(...[run, run9].map(R => R.says.filter(x => x.text === 'Hold that door.').length));
       // (and the panel's own row there, as the house bot answers a hand-back by its row: Hold it offered in the doorway)
-      const g = createGame({ scenario: 'test-shoothouse', seed: 1703, tier: 'tierone', setup: 'go' }), asked = [];
-      runHouse(g, houseBot({ mode: 'T' }), { maxMs: 12 * 60_000, each: (game) => { const s = game.state; if (s.stop?.carry?.why === 'door-unplanned' && s.stop.phase === 'choose') asked.push(stepsOf(s).some(r => r.id.startsWith('door:hold>'))); } });
+      const g = createGame({ scenario: 'test-shoothouse', seed: 1703, tier: 'tierone', setup: 'go' });
+      runHouse(g, houseBot({ mode: 'T' }), { maxMs: 12 * 60_000, each: ask });
       const doors2 = houseNow(g.state).legs.flatMap(L => L.faults.filter(f => f.kind === 'door').map(() => L.word));
-      console.log(`      by T on 1703: "Hold that door." ${held} time(s); door faults ${doors.join(', ') || 'none'}; ${run.card}`);
+      console.log(`      by T on 1703 and 9: "Hold that door." ${held} time(s) at least; door faults ${doors.join(', ') || 'none'}; ${run.card}; ${run9.card}`);
       console.log(`      the house bot: Hold it offered at the question ${asked.join(', ') || '-'}; door faults ${doors2.join(', ') || 'none'}`);
-      assert(run.done && held >= 1 && !doors.length && asked.length && asked.every(Boolean) && !doors2.length, JSON.stringify({ held, doors, asked, doors2, card: run.card }));
+      assert(run.done && run9.done && held >= 1 && !doors.length && asked.length && asked.every(Boolean) && !doors2.length, JSON.stringify({ held, doors, asked, doors2, card: run.card }));
     },
   },
   {

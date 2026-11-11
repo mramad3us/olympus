@@ -749,7 +749,7 @@ Multipliers on speed: tradecraft's wound mobility (legs, torso, blood, a fresh g
 
 **As built in v0.0.4** (`src/sim/body/motion.js`: `gaitSpeeds({ gG, loadKg, massKg, effFitness, stamina })` and `gaitsOf(state, pid)`, which the walk reads each tick in place of 0.0.3's three constants). The run carries CAREER's fitness term, `3.6 × (0.85 + 0.015 × effFitness) × gG^0.3` (equal to the formula above at Fitness 10), and every gait is **rounded to 0.01 m/s** (`SPEED_STEP_MS`), so Mars stays exactly 0.75, 1.14 and 2.69 m/s, `STROLL_MS`, `WALK_MS` and `RUN_MS` in `src/sim/places/move.js`, and no golden or walk test moved (my call, the build sheet's §8 item 11). The feet stay put while you lie, sit, do something or a transition plays (TIME's `feetHeld`).
 
-**Movement stances** (the user, 2026-11-06; DESIGN.md's log): each of Relaxed, Combat and Assault has its own walk and run. Relaxed is the table above as built; Combat's walk is a little under it (the glide with the rifle up) and its run the rush between covers; Assault's walk is well above it, past Mars's walk-to-lope line at 1.33 m/s, so a low lope at 0.38 G. The multipliers proposed (COMBAT §25.9, my call), measured when the stances are built with `test-shoothouse` in 0.1.x: Combat's walk ×0.85 (0.97 m/s on Mars), Assault's ×1.4 (1.60 m/s, a low lope); the runs as BODY sets them then. The gait helper takes the stance as an input from then. A stop and a restart cost `v / a` (§16.2): 0.43 s at the Combat walk and 0.71 s at the Assault lope on a dry Martian floor (μ 0.6, 2.24 m/s² with 25 kg of kit), the physical price of a seam in close quarters (COMBAT §25.5.1).
+**Movement stances** (the user, 2026-11-06; DESIGN.md's log): each of Relaxed, Combat and Assault has its own walk and run. Relaxed is the table above as built; Combat's walk is a little under it (the glide with the rifle up) and its run the rush between covers; Assault's walk is well above it, past Mars's walk-to-lope line at 1.33 m/s, so a low lope at 0.38 G. The multipliers proposed (COMBAT §25.9, my call), measured when the stances are built with `test-shoothouse` in 0.1.x: Combat's walk ×0.85 (0.97 m/s on Mars), Assault's ×1.4 (1.60 m/s, a low lope); the runs as BODY sets them then. The gait helper takes the stance as an input from then. A stop and a restart cost `v / a` (§16.2): 0.43 s at the Combat walk and 0.71 s at the Assault lope on a dry Martian floor (μ 0.6, 2.24 m/s² with 25 kg of kit), the physical price of a seam in close quarters (COMBAT §25.5.1). **Designed 2026-11-11 (the user's note on v0.0.12)**: every mover reports one locomotion record with a gait phase and a body yaw, and flight comes from the gravity (§16.8).
 
 **As built in v0.0.11** (step 2; `src/data/body/needs.js` `GAIT_G`): `WALK_MS`, `RUN_MS` and `STROLL_MS` in `move.js` are gone (Mars's row lives in `tests/mars-gaits.mjs`, and `gaitSpeeds` at `BODIES.mars.gG` gives it). The law is clamped at 1 G (`LAW_MAX_G`); above it the section 14.1 bands apply at r = gG / gCond, with gCond 1.00 until conditioning reaches the gait (`COND_G` 1); the float stub is under 0.05 G (`FLOAT_BELOW_G`; section 16.6's push-off speeds 0.30, 0.60, 1.20, 2.00 m/s); the bound is drawn from 0.05 to 0.3 G (`BOUND_BELOW_G`). `gaitSpeeds` gains `mode` and `gBand`; `placeGaits(state, area)` is new, and `motion.js` `gaitsOf` reads `gravityAt`, so the player's gaits follow a live override. At 1 G: walk 1.45, run 3.60, sprint 6.00 m/s; on Europa 0.88 / 1.97 / 2.97. **The Ceres row** (0.029 G) in the table above is below the 0.05 G float threshold of CONTRACTS §21, so in the game it is a float at push-off speeds; move the threshold if the user wants Ceres walkable. **Open**: `MARS_GAITS` is now `gaitSpeeds` at `BODIES.mars.gG`; `scenarios/range.js` (the corpsman's run), `pairs.js` (the coach's walk) and `activities.js` `walkMs` have moved to `placeGaits`.
 
@@ -792,6 +792,35 @@ Crossings on the combat pack, cruising at 2 m/s: 50 m in 0.6 min, 200 m in 1.9, 
 
 ### 16.7 Low-g bounding
 On Europa, Callisto and Ganymede the run is a two-footed bound. Direction changes only on landing; each landing at bounding speed on rough ice is a Fitness roll (DC 8, +4 heavy, +2 on surface ice and +4 on a town's ice without cleats) every 5 s, failure a slow fall (3 s to stand). VIEWS.md draws the airtime the table gives.
+
+### 16.8 The gait as the view reads it: one locomotion record for every mover
+
+**Designed 2026-11-11 (the user's note on v0.0.12)**, to build in the shoot house rework (ROADMAP §4.2's rework row, stages R2 and R8; COMBAT §25.19.7; the drawing is VIEWS §3.10). The user: "saying that the walking about is goofy is an understatement, the animation is really not there yet." The sim side of the cure: every body that moves reports the same plain record, and the view draws only from it ("visuals obey the sim"). The #2 in v0.0.12 reported nothing (idle on all 496 of his moving ticks, his drawn place a 20 Hz sawtooth).
+
+**The record** (plain data on the actor, set by whatever moves the body: `places/move.js` for the keys, `bundle.js` `runSlot` and `placeAt` for the drill, the instructor's catwalk walk; runtime fields marked `$`):
+
+| Field | Meaning | v0.0.12 |
+|---|---|---|
+| `$px`, `$pz` | where the body was at the tick's start, set **before** the move, every tick it moves | the player only; the #2's stale from `place()` |
+| `gait` | the drawn pace: `idle`, `walk`, `run`, `bound`, `float` | the #2 always `idle` |
+| `moveStance` | `relaxed`, `combat`, `assault` | the player only |
+| `v` | the body's velocity [vx, vz] m/s (§16.2) | the player in a stance only |
+| `gp` (new) | **the gait phase** in steps, wrapping at 2: right foot leading in [0, 1), left in [1, 2) | none: `strideM` mod a fixed `STEP_M` |
+| `bodyRad` (new) | the body's yaw, which the facing is drawn from | only `headRad`, which snaps up to 168° in a tick |
+
+`strideM` stays, for the footfalls' sounds. Additive fields, no `SAVE_SCHEMA` bump; `upgradeState` fills `gp` 0 and `bodyRad` from `headRad`.
+
+**The gait phase.** `gp` advances each tick by `d / stepM(band, v, g)`, `d` the metres moved that tick. `stepM` is the band's planted travel S (the chosen cycle's, VIEWS §3.10.4) plus `v × tFlight` in a gait with flight. A band change (Combat to Assault, or the walk to the lope as the speed crosses Froude 0.5) **keeps `gp`**, so the same foot stays forward. The step table lives in `src/data/body/gait.js` beside `STRIDE_WRAP_M`: the one number both sides read (TECH §2.2).
+
+**Flight from physics, not from a picture** (my calls). At or above Froude 0.5 (§16.1's line) a walk-type gait becomes a lope; the run always has flight. Each takes off at a vertical speed, **`LOPE_VZ_MS` 0.5** and **`RUN_VZ_MS` 0.9** m/s; flight time `2 vz / g`, apex `vz² / 2g`. The same legs therefore give a short skim on Earth (the 1 G run: 183 ms, 0.7 px of lift), a lope on Mars (Assault 268 ms; the run 483 ms, 1.7 px) and a bound on Europa (the walk lopes, 763 ms; the run 1,374 ms, 4.9 px), with no constant per planet ("nothing assumes Mars"). Under 0.3 G the run stays §16.7's bound (its computed 3.0 m step is close to the built 2.8 m cycle).
+
+**The body's yaw.** `bodyRad` follows the muzzle when the rifle is in hand and at the ready or aimed, the travel direction otherwise, turning at a capped rate: **90° in 0.25 s for an operator, 0.4 s for a recruit**, scaled by `paceOf` (my calls, until COMBAT §25 names a turn cost to share). The eyes (`headRad`) may snap; the muzzle swings at the sim's own rate; the body follows (TC 3-22.9 §9-12).
+
+**The brake, never the cut.** Every drill move has the trapezoid profile end to end: a contact halt brakes at the body's brake (5.07 m/s² for the private, 0.24 s from Combat and 0.40 s from Assault: §16.2 as built) instead of the stepper's `cut`, which dropped 0.8 m/s to 0 in one tick (8 times for the player and 9 for the #2 in one lane). From rung 2 a contact does not stop the feet at all (COMBAT §25.19.3). The instructor's walk takes the same push and brake.
+
+**The cadence it gives** (VIEWS §3.10.4's table, by candidate): in every candidate cadence and step rise with speed, Combat is slower-legged than Assault (v0.0.12 had it inverted, 5.1 against 2.26 steps a second), Mars runs at about half Earth's cadence, and the 1 G run falls in 3.0 to 4.0 steps a second through flight; human walking is about 1.8 to 2.0 steps a second and running 2.8 to 3.0.
+
+**Tests**: the #2's `gait` non-idle and `$px` set at the tick's start on 100% of his moving ticks (COMBAT §25.19.8's F19); no speed drop over 1.5 m/s in one tick on any mover but a hit or a fall; a bot walking each stance at 1 G, on Mars and on Europa prints steps a second and the band (VIEWS §3.10.9).
 
 ## 17. Wounds, bleeding, pain, shock, consciousness
 

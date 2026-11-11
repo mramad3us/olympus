@@ -1,106 +1,59 @@
 {
- "title": "The rifles' drawings: the standard issue and the variety, on the weapon card and the figure",
- "about": "Your lore of 2026-11-08: the Corps trains on the ground with atmospheric firearms not far from the 2020s' (it trains to fight the UN on Earth), so \"Martian standard issue would look more like\" your first reference, \"but we would have varyiety in the guns marines carry like\" your second. Five drawings, each a group: G0 the R-7 as the game draws it now, G1 and G2 the standard issue (in the reference's flat dark earth, and in the Corps' black: your decision of 2026-11-08, the Corps red and black, armour black), V1 the variety carbine, M1 the standard issue's squad marksman's rifle, a look for the R-7M. Each is drawn by the game's code (src/art/rifles.js), not painted: view a is the weapon card at its size (180 × 148) in three beliefs, on the line (28 known, chambered, on semi), at 300 m (the scope at 4×, its turrets, the dope and a hold, about 12 believed tracer) and a stovepipe looked at with a magazine of 5 tracer in the hand; view b is the chibi at 16 px/m prone, kneeling, standing aimed, at the low ready and slung, facing right, left, down and up on the bay's floor and right and left on the regolith, with the rifle alone at 16 px/m, four times larger, and at 24 px/m, and the doll holding it. View b's figures are snapped to the Mars palette as the stage snaps them (before its light and grade, which aren't applied); the card and the doll are page pictures, raw as in the game. No gun's data changes: the R-7 stays the R-7, and whichever drawing you pick becomes its drawing on the card, the figures and the doll. Star and score, then Copy my picks.",
+ "title": "The rifles as you picked them: the R-7, its finishes, and the designs kept",
+ "about": "Your scores of 2026-11-08 applied. The R-7 is G2 in the Corps' black with V1's sight (\"I would prefer this gun with the scope of the V1, for short and mid range engagements\"): G2's skeleton stock, receivers, slotted handguard, angled foregrip, light and brake, with V1's carry handle, its rail and the boxed red dot. A red dot alone is 1×, and the SO-4 has always had its 4× lever, so the SO-4 is drawn as the dot with a 4× flip magnifier behind it (my call, to score): in line with the box when you believe the lever at 4×, swung down beside its mount at 1×; at 300 m its turrets sit on the box. No card draws the green arch any more (\"get rid of the green arch it serves no purpose\"). The finishes (\"multiple colors so we can equip ourselves to camo in environments depending on deployments\"): the Corps' black (the issue's), flat dark earth, Mars rust (the regolith's own red dust), Earth desert, Europa ice, Earth woodland and urban grey, one per squad, any design in any of them. G1 is kept as an alternate, V1 kept (here in black), M1 is the R-7M's drawing, G0 is gone. The magazine is 9 px wide, as you scored it with G2 (7 px since your \"bit slicker\" of 2026-11-07). Each view is drawn by the game's code: a is the weapon card in three beliefs (on the line at 1×, at 300 m at 4×, a stovepipe with a magazine in the hand), b the chibi at 16 px/m in five poses and four facings on the bay's floor and the regolith, the rifle alone and the doll; the figures snapped to the Mars palette as the stage snaps them, the card and the doll raw as in the game.",
  "pixel": true,
  "groups": [
   {
-   "id": "G0",
-   "title": "G0: the R-7 as the game draws it (v0.0.10, for comparison)",
-   "about": "The game's R-7 today, unchanged: black polymer furniture and steel, the SO-4 scope, the HAD-30 with its window, the vented handguard; on the figure, tradecraft's 16-pixel rifle with the scope on top. Every other group is drawn against this one.",
-   "query": "d=g0",
+   "id": "R7",
+   "title": "R7: the R-7 as the game now draws it (G2's body, V1's sight, the SO-4's flip magnifier), the Corps' black",
+   "about": "The standard issue as you picked it, in the issue's black. On the card, left, the lever believed at 1×: the magnifier swung down beside its mount behind the box; middle, at 4×: the magnifier in line, its glass at both ends, the turrets on the box (the elevation's on its hood, the windage's at its front). On the figure the box and its glint on the carry handle's hump over G2's body.",
+   "query": "d=r7",
    "views": [
-    {
-     "id": "G0-a",
-     "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand",
-     "query": "set=card",
-     "pixel": "556x156"
-    },
-    {
-     "id": "G0-b",
-     "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll",
-     "query": "set=figures",
-     "pixel": "304x270"
-    }
+    { "id": "R7-a", "name": "The weapon card: on the line (1×), at 300 m (4×), a stovepipe with a magazine in the hand", "query": "set=card", "pixel": "556x156" },
+    { "id": "R7-b", "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll", "query": "set=figures", "pixel": "304x270" }
    ]
   },
   {
-   "id": "G1",
-   "title": "G1: standard issue, after the first reference (flat dark earth)",
-   "about": "The first reference redrawn as the R-7: flat dark earth receivers and a slim handguard with slanted slots and a rail along its top, the low-power scope on a cantilever mount (its throw lever, the offset dot at its front), the angled foregrip, a light on the rail's front, the short ported brake, the black side-folding skeleton stock, a flared well, the black polymer magazine, bulkier than the grip, ribbed low. The tan is the Mars palette's butterscotch dust, its light, base and dark one step apart, so the stage keeps them. On the figure: the black stock to the receiver, the body tan and lit along its top to the brake, the scope dark with a glint of glass at its front, the grip and the foregrip tan, the magazine in gun metal so it shows against the outline.",
-   "query": "d=g1",
+   "id": "R7F",
+   "title": "R7F: the R-7 in every finish",
+   "about": "One sheet of the seven finishes, each the card on the line and the chibi aimed and prone on the bay's floor and on the regolith. Mars rust's base is the regolith's own colour; Europa ice's metal is a mid grey so nothing on it is black against snow; urban grey is the steel greys' middle steps. The figures' stock and sight stay gun metal at 16 px/m (a finish there colours the furniture).",
+   "query": "d=r7",
    "views": [
-    {
-     "id": "G1-a",
-     "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand",
-     "query": "set=card",
-     "pixel": "556x156"
-    },
-    {
-     "id": "G1-b",
-     "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll",
-     "query": "set=figures",
-     "pixel": "304x270"
-    }
-   ]
-  },
-  {
-   "id": "G2",
-   "title": "G2: standard issue in the Corps' black",
-   "about": "G1's rifle all black, for your decision of 2026-11-08 (the factions' colours: the MCRN and the Corps red and black, armour black, ceremonial red and black): black receivers and handguard over the black polymer stock, scope and magazine. Black is drawn as the steel greys' lowest steps, so the parts stay apart: the receivers and the handguard a step lighter than the stock and the scope, lit along the top, the slots the darkest, the brake and the light on the rail as on G1. On the figure the stage's snap puts the body's base and the gun metal of the stock and the scope on one colour, the steel greys' 0.38 step, so the rifle is one black, a step clear of the ink outline so the outline doesn't swallow it, with its top lit a step lighter from the receiver to the brake to give its line against the utilities and the floor. No red on it (my call): the Corps' red is ceremonial and this is field kit, black like the armour; and red already means something on the card (the selector's fire mark, the SEMI and TR words, the tracer noses) and, on a 16 px/m figure, a red pixel reads as a tracer or a wound, so a red band or badge would read as a signal or as decoration, not as the Corps'. Everything else as G1.",
-   "query": "d=g2",
-   "views": [
-    {
-     "id": "G2-a",
-     "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand",
-     "query": "set=card",
-     "pixel": "556x156"
-    },
-    {
-     "id": "G2-b",
-     "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll",
-     "query": "set=figures",
-     "pixel": "304x270"
-    }
+    { "id": "R7F-a", "name": "The R-7 in black, flat dark earth, Mars rust, Earth desert, Europa ice, Earth woodland and urban grey", "query": "set=finishes", "pixel": "740x408" }
    ]
   },
   {
    "id": "V1",
-   "title": "V1: variety carbine, after the second reference (sand, clear magazine)",
-   "about": "A different carbine a marine may carry, a step lighter than the standard issue so the two read apart by value as well as shape: one sand polymer body (the receiver and the handguard together, rounded at its front, thin vents), the carry handle with a rail on it and a boxed holographic sight on the rail, the skeleton folding stock with its web, a short rail on the handguard's side, the black vertical grip, a pronged flash hider, and the clear smoked magazine with the believed rounds seen through it, staggered, each with its nose (red when believed tracer). On the figure: the sight dark with its glint on the handle's hump, the handle's opening under it, the stock's hole, the vertical grip, the smoked magazine.",
-   "query": "d=v1",
+   "title": "V1: the variety carbine, in black (\"This in black would be a serious contender for standard issue\")",
+   "about": "V1 kept, drawn in the Corps' black, the clear smoked magazine kept in every finish. No sling arch.",
+   "query": "d=v1&f=black",
    "views": [
-    {
-     "id": "V1-a",
-     "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand",
-     "query": "set=card",
-     "pixel": "556x156"
-    },
-    {
-     "id": "V1-b",
-     "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll",
-     "query": "set=figures",
-     "pixel": "304x270"
-    }
+    { "id": "V1-a", "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand", "query": "set=card", "pixel": "556x156" },
+    { "id": "V1-b", "name": "The chibi at 16 px/m, snapped to the Mars palette; the rifle alone; the doll", "query": "set=figures", "pixel": "304x270" }
+   ]
+  },
+  {
+   "id": "G1",
+   "title": "G1: the alternate standard issue (its low-power scope), in flat dark earth and in Earth woodland",
+   "about": "Kept as an alternate weapons asset, not the R-7 (your words): drawn as no issued gun. In its reference's flat dark earth and in a camouflage finish, no sling arch.",
+   "query": "d=g1",
+   "views": [
+    { "id": "G1-a", "name": "The weapon card in flat dark earth", "query": "f=fde&set=card", "pixel": "556x156" },
+    { "id": "G1-b", "name": "The chibi in flat dark earth", "query": "f=fde&set=figures", "pixel": "304x270" },
+    { "id": "G1-c", "name": "The weapon card in Earth woodland", "query": "f=woodland&set=card", "pixel": "556x156" },
+    { "id": "G1-d", "name": "The chibi in Earth woodland", "query": "f=woodland&set=figures", "pixel": "304x270" }
    ]
   },
   {
    "id": "M1",
-   "title": "M1: the squad marksman's rifle, a look for the R-7M (my design)",
-   "about": "The standard issue's family stretched to the R-7M's row in WEAPONS §3.2 (101 cm, a heavy free-floated barrel, the HAD-30, a 3 to 12× scope with a rangefinder, a bipod; no suppressor, which is the S-9's): flat dark earth receivers, a fixed precision stock (an adjustable cheek riser, a butt with spacers, a monopod's knob), a longer slotted handguard with the bipod folded forward under it (hinge block, legs, feet), the heavy barrel and a ported brake, the bigger scope with its rangefinder's box. The R-7M is not the R-7: it would be its drawing only if you want the marksman's rifle to have one; no data changes.",
+   "title": "M1: the R-7M, the squad marksman's rifle, in the Corps' black and in Mars rust",
+   "about": "\"Long gun standard for marksmanship for sure. Scope is perfect for this\": M1 is the R-7M's drawing, its scope unchanged. In the issue's black and in Mars rust, no sling arch.",
    "query": "d=m1",
    "views": [
-    {
-     "id": "M1-a",
-     "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand",
-     "query": "set=card",
-     "pixel": "556x156"
-    },
-    {
-     "id": "M1-b",
-     "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll",
-     "query": "set=figures",
-     "pixel": "304x270"
-    }
+    { "id": "M1-a", "name": "The weapon card in the Corps' black", "query": "f=black&set=card", "pixel": "556x156" },
+    { "id": "M1-b", "name": "The chibi in the Corps' black", "query": "f=black&set=figures", "pixel": "304x270" },
+    { "id": "M1-c", "name": "The weapon card in Mars rust", "query": "f=mars&set=card", "pixel": "556x156" },
+    { "id": "M1-d", "name": "The chibi in Mars rust", "query": "f=mars&set=figures", "pixel": "304x270" }
    ]
   }
  ]

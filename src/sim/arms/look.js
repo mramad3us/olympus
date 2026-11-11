@@ -2,7 +2,7 @@
 //
 // The stage draws what is there (the world's truth, at a game time ms = clock.ms + alpha × TICK_MS)
 // and reads it only through here (TECH §2.2's SIM_FOR_VIEW), never the state's arms records direct:
-//   gunLook(state, actor, ms)  the rifle on a figure: the model; carry, the art's rig ('front' slung on
+//   gunLook(state, actor, ms)  the rifle on a figure: the model; its finish (0.0.12, only when not the issue's black); carry, the art's rig ('front' slung on
 //                    its two-point sling, 'slung' on the back, 'low', 'high', 'aim'); the stance; the
 //                    aim's point and since when; the last shot's game time; the action under way (the
 //                    shot role's stepNow through ACTION_FRAMES, a list walked by the sub-step's k); the
@@ -66,7 +66,7 @@
 // target, the player kept EDGE_KEEP_M inside the frame's half-size at 16 px/m.
 import { hash01 } from '../../core/hash.js';
 import { q } from '../../core/num.js';
-import { ACTIONS, gunField } from './firearms.js';
+import { ACTIONS, gunField, finishOf } from './firearms.js';
 // (0.0.8: the lever's time, for the far window's ease between its scales: render reads the sim through this module only)
 export { OPTIC_S } from './firearms.js';
 import { muzzleOf, carryOf, faceRad } from './carry.js';
@@ -169,6 +169,8 @@ export function gunLook(state, actor, ms = state?.clock?.ms ?? 0) {
     action: step ? { frame: frameAt(step.action, step.k ?? 0), k: step.k ?? 0 } : null,
     flash: shotMs === null ? 0 : fade(ms - shotMs, FLASH_MS), kick: shotMs === null ? 0 : fade(ms - shotMs, KICK_MS),
     muzzle: m ? { x: m.x, y: m.y, z: m.z } : null, finger: c.finger, mag: !!gun.mag, locked: !!gunField(gun, 'locked'),
+    // (its finish, from the item: only when not the issue's black, so a black rifle's look is as before)
+    ...(gun.finish ? { finish: finishOf(gun) } : {}),
   };
 }
 

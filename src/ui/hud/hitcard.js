@@ -5,20 +5,22 @@
 // string only what the marine could tell, the called rings and the seen ones filled ('belief'), at the pause after a round on
 // him in stop motion and held HIT_HOLD_MS of real time out of it; from the string's end to the next string's start the holes
 // themselves, numbered and coloured by zone, the calls faint under them, and the coach's line ('truth'). The picture is
-// src/art/doll/hitcard.js's (paintHitcard, look A until the user scores the samples); this module chooses when, paints it at its
+// src/art/doll/hitcard.js's (paintHitcard: B, the khaki board, the user's pick of 2026-11-08, its figure at the turner's range band
+// when the model carries rangeM, else the near band's); this module chooses when, paints it at its
 // box's whole pixels (cardSize: 200 from --ui 1, 170 at 1024 × 768) shown at whole device pixels a card pixel where they fit
 // (hitFit), and keeps its words on data-text for the tests.
 //   hitShown({ phase, n, inStop, lastT, nowT })   whether the card shows (pure)
-//   cardModel(hm, { look, face, holds, tabs })    paintHitcard's input from hitMarks' record (pure)
+//   cardModel(hm, { look, face, holds, tabs, rangeM })    paintHitcard's input from hitMarks' record (pure)
+//   hitRangeM(T, at, lineM)                       the turner's range, the card's band's input: the line's, else the ground's (pure)
 //   hitTabs(keys, shown, laneOf)                  the tabs of a string with two turners hit, newest first (pure)
 //   createHitcard(parent, { paint })              the DOM: update(model | null, { ui, dpr }) → its words
-import { CARD_W, cardSize } from '../../art/doll/hitcard.js';
+import { CARD_W, cardSize, bandOf } from '../../art/doll/hitcard.js';
 import { PAPERS } from '../../sim/arms/paper.js';
 
 /** Out of stop motion the card in belief stays this long after its last change or the mode's end (ms of real time: VIEWS §7.7). */
 export const HIT_HOLD_MS = 6000;
-/** The look drawn until the user scores the samples (VIEWS §7.7's answer A). */
-export const HIT_LOOK = 'A';
+/** The look drawn (the user's scores of 2026-11-08: B ★ 99, "Second set is perfect"; A and C are gone from the art). */
+export const HIT_LOOK = 'B';
 /** Under this share of its box a card at whole device pixels is drawn smooth at the box's size instead (my call: 1920 × 1080's 200 in 300 is 0.67, kept crisp). */
 export const HIT_FIT_MIN = 0.66;
 
@@ -45,10 +47,23 @@ export function hitTabs(keys = [], shown = null, laneOf = () => null) {
   return keys.map(key => ({ key, label: `L${laneOf(key) ?? '?'}`, on: key === shown }));
 }
 
-/** paintHitcard's input from hitMarks' record ({ key, k, face, holds, phase, marks, words, line }), the look and the tabs. */
-export function cardModel(hm, { look = HIT_LOOK, face = null, holds = null, tabs = [] } = {}) {
+/**
+ * The turner's range, in metres, the input of the card's band (bandOf: near up to 10 m, mid up to 25 m, far beyond). On a
+ * course it is the line the shooter stands on (lineM: the range's R.line), as the coach calls it: "Bang"'s six turners are all
+ * on its 7 m line though lane 6 is 13.9 m from lane 2 on the ground. With no line, the distance on the ground (x and z, to a
+ * tenth of a metre); null when there is neither, so the card draws the near band.
+ */
+export function hitRangeM(T, at, lineM = null) {
+  if (Number.isFinite(lineM) && lineM > 0) return lineM;
+  if (!T || !at || ![T.x, T.z, at.x, at.z].every(Number.isFinite)) return null;
+  return Math.round(Math.hypot(T.x - at.x, T.z - at.z) * 10) / 10;
+}
+
+/** paintHitcard's input from hitMarks' record ({ key, k, face, holds, phase, marks, words, line, rangeM? }), the look, the tabs and the turner's range (metres: its band; none, the near band). */
+export function cardModel(hm, { look = HIT_LOOK, face = null, holds = null, tabs = [], rangeM = null } = {}) {
   if (!hm) return null;
-  return { look, man: PAPERS.man, key: hm.key, k: hm.k, face: face ?? hm.face ?? 'threat', holds: holds ?? hm.holds ?? 'rifle', phase: hm.phase, marks: (hm.marks ?? []).map(m => ({ ...m })), words: hm.words ?? '', line: hm.line ?? null, tabs };
+  const range = Number.isFinite(rangeM) ? rangeM : Number.isFinite(hm.rangeM) ? hm.rangeM : null;
+  return { look, man: PAPERS.man, key: hm.key, k: hm.k, face: face ?? hm.face ?? 'threat', holds: holds ?? hm.holds ?? 'rifle', phase: hm.phase, marks: (hm.marks ?? []).map(m => ({ ...m })), words: hm.words ?? '', line: hm.line ?? null, tabs, rangeM: range };
 }
 
 /** The card's words as the tests read them: "PAIR · A · C | Two in the chest. He went down." (the line in truth only). */
@@ -70,7 +85,7 @@ export function createHitcard(parent, { paint } = {}) {
       root.hidden = false;
       const fit = hitFit(ui, dpr), fs = `${fit.size}|${fit.k}|${fit.smooth}`;
       if (fs !== fitSig) { fitSig = fs; sig = null; cv.width = fit.size; cv.height = fit.size; cv.style.width = `${fit.size * fit.k}px`; cv.style.height = `${fit.size * fit.k}px`; cv.style.imageRendering = fit.smooth ? 'auto' : 'pixelated'; root.dataset.k = String(fit.k); root.dataset.size = String(fit.size); root.dataset.smooth = fit.smooth ? '1' : ''; }
-      const sg = JSON.stringify([m.look, m.face, m.holds, m.phase, m.marks.map(x => [x.n, x.called, x.seen, x.hole, x.zone]), m.words, m.line, m.tabs]);
+      const sg = JSON.stringify([m.look, bandOf(m.rangeM ?? null).id, m.face, m.holds, m.phase, m.marks.map(x => [x.n, x.called, x.seen, x.hole, x.zone]), m.words, m.line, m.tabs]);
       if (sg !== sig && paint) {
         sig = sg;
         const pm = paint({ ...m, size: fit.size });

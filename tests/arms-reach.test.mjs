@@ -193,7 +193,7 @@ export default [
     },
   },
   {
-    name: 'the magazines drawn shorter and slimmer (the user, 2026-11-07: "on the gun drawing, the magazines are very long, if they could be a bit slicker it would be nice"): on the weapon card at 144 px/m the HAD-30\'s 0.21 m is 0.045 m up in the well and 0.165 m below it, 7 px wide, against v0.0.5\'s whole 0.21 m below the well, 9 px wide; on the figure\'s rifle 2 cells at 16 px/m and 7 at 24, against 4 and 12',
+    name: 'the magazines drawn shorter (the user, 2026-11-07: "on the gun drawing, the magazines are very long, if they could be a bit slicker it would be nice") and as wide as they scored the standard issue\'s (2026-11-08, G2 ★ 95, "make this the standard issue"): on the weapon card at 144 px/m the HAD-30\'s 0.21 m is 0.045 m up in the well and 0.165 m below it, 9 px wide, curving 5, against v0.0.5\'s whole 0.21 m below the well, 9 px wide, curving 14; on the figure\'s rifle 2 cells at 16 px/m and 7 at 24, against 4 and 12',
     fn() {
       const b = { model: 'r7', short: 'R-7', chamber: 'live', mag: 'in', count: 5, mode: 'safe', port: 'closed' };
       const a = paintWeaponCard({ model: 'r7', belief: b }), o = paintWeaponCard({ model: 'r7', belief: { ...b, mag: 'out', count: null } });
@@ -203,7 +203,10 @@ export default [
       const shownPx = Math.round(MAG_SHOWN_M * CARD_PX_PER_M), rifle = MODELS.r7.lenCm, magCm = FAMILIES.had30.lenCm;
       console.log(`      the card (${CARD_PX_PER_M} px/m, the ${rifle} cm rifle ${Math.round(rifle / 100 * CARD_PX_PER_M)} px): the magazine ${shownPx} px below the well (${fmt(MAG_SHOWN_M * 100, 1)} cm) + a 2-px baseplate, ${MAG_W_PX} px wide (${fmt(MAG_W_PX / CARD_PX_PER_M * 100, 1)} cm), curving ${MAG_CURVE_PX} px; ${fmt(MAG_HIDDEN_M * 100, 1)} cm up in the well make its ${magCm} cm`);
       console.log(`      its pixels with the shadow and the ink: ${n} in a ${x1 - x0 + 1} × ${y1 - y0 + 1} box (v0.0.5: ${V005.cardPx} in ${V005.cardBox.join(' × ')}); the figure's magazine ${fig16} cells at 16 px/m and ${fig24} at 24 (v0.0.5: ${V005.fig16} and ${V005.fig24})`);
-      assert(Math.abs(MAG_SHOWN_M + MAG_HIDDEN_M - magCm / 100) < 1e-9 && n < V005.cardPx * 0.75 && y1 - y0 + 1 < V005.cardBox[1] && x1 - x0 + 1 < V005.cardBox[0] && fig16 === 2 && fig24 === 7, JSON.stringify({ n, box: [x1 - x0 + 1, y1 - y0 + 1], fig16, fig24 }));
+      // (0.0.12, my call: the later pick wins, so the magazine is G2's 9 px, not v0.0.6's 7; the bound of v0.0.6 to v0.0.11, under
+      // 0.75 of v0.0.5's pixels (312), is superseded by 0.9 (374: 353 drawn), the box under 0.85 of v0.0.5's height and 0.75 of its
+      // width; MAG_W_PX back to 7 in src/art/rifles.js undoes it, should the user's 2026-11-07 ask win)
+      assert(Math.abs(MAG_SHOWN_M + MAG_HIDDEN_M - magCm / 100) < 1e-9 && n < V005.cardPx * 0.9 && y1 - y0 + 1 < V005.cardBox[1] * 0.85 && x1 - x0 + 1 < V005.cardBox[0] * 0.75 && fig16 === 2 && fig24 === 7, JSON.stringify({ n, box: [x1 - x0 + 1, y1 - y0 + 1], fig16, fig24 }));
     },
   },
   {

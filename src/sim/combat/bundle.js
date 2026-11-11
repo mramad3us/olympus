@@ -7,7 +7,9 @@
 // beats one at a time to rung 2 and lets the hands and the voice (rung 3) and the eyes (rung 4) work while the feet move.
 //
 // The beats' times (the build sheet's §4, each my call, reproducing §4's 1 G table):
-//   move     the plan's path at the stance's walk (motion.js gaitSpeeds: Combat 1.23, Assault 2.03 m/s at 1 G), pushing
+//   move     the plan's path, routed round the walls on the nav (route.js routed: from 2026-11-11 every leg not clear at
+//            the walker's C0 goes the nav's way, the bundle's own doors counted open), at the stance's walk
+//            (motion.js gaitSpeeds: Combat 1.23, Assault 2.03 m/s at 1 G), pushing
 //            and braking at BODY §16.2's legs (motion.js tractionOf: the private 3.12 and 5.07 m/s² with 25 kg on 75), as
 //            a closed-form trapezoid (moveAt): rest to rest below rung 4, the approach flowing into the entry at rung 4
 //            (it leaves the stack at the Combat walk and the entry speeds up into the Assault lope); its arriveMs is when
@@ -78,6 +80,7 @@ import { goMs } from './react.js';
 import { registerKind, useBeats, advanceBeats, halt as haltDoing, flowOf, profileOf, profileAt, profileWhen, moveAt, moveNow, pathLen } from './stepper.js';
 import { ENTER_AND_CLEAR, bundleDef, beatsOf, BUNDLES, ARRIVE_M, PASS_SHARE } from './drills/enter-and-clear.js';
 import { roomPlanOf, lanePlanOf, pastThreshold, inFunnel } from './room.js';
+import { routed } from './route.js';
 
 /** The beats' times (see the header), s at pace 1 unless named. */
 export const HIGH_READY_S = 0.3, HIGH_READY_K = 1.15, DOOR_HAND_S = 0.2, PULL_STEP_S = 0.3, KICK_S = 1.2, READ_S = 0.7, CALL_S = 0.8, CALL_FLOW_S = 0.2, MARK_S = 0.6;
@@ -133,6 +136,15 @@ export function legsOf(state, pid, x, z) {
 
 /** The lane's plans, in order, or null where no lane is laid (room.js lanePlanOf). */
 export const laneOf = (state) => { try { return lanePlanOf(state); } catch { return null; } };
+/**
+ * A move's polyline made walkable on the area's grid (route.js routed: every leg the nav's where its line is not clear,
+ * the doors in `open` counted open: the bundle's own, whose door beat swings the leaf first). The user, 2026-11-11:
+ * "Operators path through walls when automatic pathing" (every move here was straight lines between the plan's points
+ * and the body, placed with no collision).
+ */
+export const wayOf = (state, pts, open = []) => routed(state, pts, { area: state.places?.live?.area ?? laneOf(state)?.area ?? null, open });
+// (the doors a bundle's beats open: their plans' doors)
+const doorsOf = (beats) => [...new Set(beats.map(b => b.door).filter(Boolean))];
 /** A plan by door id ('hall' the last leg), or null. */
 export const planOf = (state, door) => { if (!door) return null; try { return door === 'hall' ? laneOf(state)?.plans?.hall ?? null : roomPlanOf(state, door); } catch { return null; } };
 // (the scene's room records, if the house rides the range session: shoothouse.js R.house.rooms)
@@ -254,7 +266,7 @@ export function planBundle(state, pid, bundleId, { door = null, slot = 1, varian
   const lane = laneOf(state), out = [];
   const doors = B.lane ? (() => { const i = lane?.order.indexOf(door ?? doorNow(state, pid)?.door) ?? -1; return i >= 0 ? lane.order.slice(i) : door ? [door] : []; })() : [door ?? doorNow(state, pid)?.door].filter(Boolean);
   let pos = here, vNow = v0, prevTail = null, prevPlan = null, odds = 1;
-  const k = tempo === 'rushed' ? RUSH_K : 1;
+  const k = tempo === 'rushed' ? RUSH_K : 1, open = doors.map(dr => planOf(state, dr)?.door).filter(Boolean);
   doors.forEach((dr, n) => {
     const plan = planOf(state, dr);
     if (!plan) return;
@@ -273,7 +285,7 @@ export function planBundle(state, pid, bundleId, { door = null, slot = 1, varian
       const beat = { key: id(bid), k: D.k, ch: D.ch, after, cut: !!D.cut, door: plan.door ?? null, plan: dr, slot, st: 'wait', fromMs: null, untilMs: null };
       if (D.k === 'move' && bid === 'far') {
         // (the far leg's walk from wherever the body stands, at Combat, braking to a stop where the leg is seen)
-        const path = pathFrom(plan.far.path, pos), legs2 = legsOf(state, pid, pos[0], pos[1]);
+        const path = wayOf(state, pathFrom(plan.far.path, pos), open), legs2 = legsOf(state, pid, pos[0], pos[1]);
         const P = profileOf(pathLen(path), legs2.walk.combat, legs2.pushMs2, legs2.brakeMs2, { v0: vNow, v1: 0 });
         Object.assign(beat, { path, stance: 'combat', prof: P, ms: Math.round(P.T * 1000), arriveMs: Math.round(profileWhen(P, Math.max(0, P.L - ARRIVE_M)) * 1000) });
         const h = plan.hot.find(x => x.id === plan.far.hot);
@@ -288,7 +300,7 @@ export function planBundle(state, pid, bundleId, { door = null, slot = 1, varian
         const to = bid === 'approach' ? stackOf(plan, slot) : pointOf(plan, slot);
         // (the approach from the last room's point goes out the way it came in: its entry path reversed, then along the hall)
         const back = bid === 'approach' && prevPlan ? [...entryPath(prevPlan, slot)].reverse().slice(1) : [];
-        const path = bid === 'approach' ? [pos, ...back, to] : pathFrom(entryPath(plan, slot), pos);
+        const path = wayOf(state, bid === 'approach' ? [pos, ...back, to] : pathFrom(entryPath(plan, slot), pos), open);
         const st = bid === 'approach' ? 'combat' : stance;
         const vMax = legs.walk[st];
         const v1 = bid === 'approach' && flowIn ? legs.walk.combat : 0;
@@ -348,7 +360,7 @@ registerKind('move', {
     // (from where the body is now, at the speed it has: the plan's path re-timed, never a jump)
     if (a) {
       const here = [a.x, a.z], v0 = Math.hypot(a.v?.[0] ?? 0, a.v?.[1] ?? 0), legs = legsOf(state, d.who, a.x, a.z);
-      const path = dist(here, b.path[0]) > 0.02 ? [here, ...b.path.slice(dist(here, b.path[1] ?? here) < dist(b.path[0], b.path[1] ?? here) ? 1 : 0)] : [here, ...b.path.slice(1)];
+      const path = wayOf(state, dist(here, b.path[0]) > 0.02 ? [here, ...b.path.slice(dist(here, b.path[1] ?? here) < dist(b.path[0], b.path[1] ?? here) ? 1 : 0)] : [here, ...b.path.slice(1)], doorsOf(d.beats));
       const P = profileOf(pathLen(path), legs.walk[b.stance] ?? legs.walk.combat, legs.pushMs2, legs.brakeMs2, { v0, v1: b.prof?.v1 ?? 0 });
       b.path = path.map(p => [q(p[0], 0.0001), q(p[1], 0.0001)]); b.prof = P;
       a.moveStance = b.stance;
@@ -599,19 +611,19 @@ export function singleRows(state, pid = playerId(state), ms = state.clock.ms) {
   }
   // (Move: inside a room to the slot's point; along the hall to its end; never through a door's plane below rung 2 (see the header))
   if (inside) {
-    const pt = pointOf(plan, 1), legs = legsOf(state, pid), P = profileOf(dist(me, pt), legs.walk.combat, legs.pushMs2, legs.brakeMs2);
-    if (dist(me, pt) > STACK_NEAR_M) out.push(row('move:point', 'move', 'Move to your point', P.T * 1000, { to: pt }));
+    const pt = pointOf(plan, 1), legs = legsOf(state, pid), way = wayOf(state, [me, pt]), P = profileOf(pathLen(way), legs.walk.combat, legs.pushMs2, legs.brakeMs2);
+    if (dist(me, pt) > STACK_NEAR_M) out.push(row('move:point', 'move', 'Move to your point', P.T * 1000, { to: pt, path: way }));
     // (a far leg not yet seen: the walk up to where it is (the plan's far path from where you stand), by a press as by the keys)
     const far = plan.far, farEnd = far?.path?.at(-1) ?? null;
     if (far && !here.rec?.covered?.[far.hot] && dist(me, farEnd) > STACK_NEAR_M) {
-      const fp = pathFrom(far.path, me), FP = profileOf(pathLen(fp), legs.walk.combat, legs.pushMs2, legs.brakeMs2);
+      const fp = wayOf(state, pathFrom(far.path, me)), FP = profileOf(pathLen(fp), legs.walk.combat, legs.pushMs2, legs.brakeMs2);
       out.push(row('move:far', 'move', 'Move: the far leg', FP.T * 1000, { to: farEnd, path: fp }));
     }
     out.push(row('call:clear', 'call', 'Clear!', (rung >= 3 ? CALL_FLOW_S : CALL_S) * 1000, { say: 'clear' }));
     out.push(row('mark', 'mark', 'Mark the room', MARK_S * paceOf(sk.wh) * 1000));
   } else if (here.door === 'hall') {
-    const pt = pointOf(plan, 1), legs = legsOf(state, pid), P = profileOf(dist(me, pt), legs.walk.combat, legs.pushMs2, legs.brakeMs2);
-    if (pt && dist(me, pt) > STACK_NEAR_M) out.push(row('move:hallEnd', 'move', 'Move to the hall\'s end', P.T * 1000, { to: pt }));
+    const pt = pointOf(plan, 1), legs = legsOf(state, pid), way = pt ? wayOf(state, [me, pt]) : null, P = way ? profileOf(pathLen(way), legs.walk.combat, legs.pushMs2, legs.brakeMs2) : null;
+    if (pt && dist(me, pt) > STACK_NEAR_M) out.push(row('move:hallEnd', 'move', 'Move to the hall\'s end', P.T * 1000, { to: pt, path: way }));
     out.push(row('call:clear', 'call', 'Clear!', (rung >= 3 ? CALL_FLOW_S : CALL_S) * 1000, { say: 'clear' }));
   }
   // (the stances: the others than the body's)
@@ -734,15 +746,19 @@ function carryPlan(state, pid, C, ms) {
   const firstMove = beats.find(b => b.k === 'move');
   if (firstMove && a) {
     const legs = legsOf(state, pid), cut = C.paths?.[firstMove.key];
-    const path = cut ? [[a.x, a.z], ...cut.slice(1)] : [[a.x, a.z], ...firstMove.path.slice(1)], P = profileOf(pathLen(path), legs.walk[firstMove.stance], legs.pushMs2, legs.brakeMs2, { v0, v1: firstMove.prof.v1 });
+    // (taken up from the body's place along the cut path, never back to a waypoint already behind it, and routed)
+    const path = wayOf(state, pathFrom(cut ?? firstMove.path, [a.x, a.z]), doorsOf(beats)), P = profileOf(pathLen(path), legs.walk[firstMove.stance], legs.pushMs2, legs.brakeMs2, { v0, v1: firstMove.prof.v1 });
     Object.assign(firstMove, { path, prof: P, ms: Math.round(P.T * 1000), arriveMs: Math.round(profileWhen(P, P.L - ARRIVE_M) * 1000) });
   }
   // (a dependency on a beat already done is met: dropped)
   for (const b of beats) b.after = b.after.filter(x => keep.has(x.split('@')[0]));
   // (the rifle still at the aim after the shots: the rest starts with the muzzle up to high ready, a hands beat that flows
   // with the feet from rung 3, so the walk on never sweeps the #2 (the fixer's second pass of 0.0.12: the sergeant's Carry
-  // on walked room 1 aimed and took the muzzle fault on his own #2, the line "Muzzle. Up." in the middle of T's bundle))
-  if (state.people?.[pid]?.kit?.carry?.posture === 'aimed' && !beats.some(b => b.k === 'posture')) {
+  // on walked room 1 aimed and took the muzzle fault on his own #2, the line "Muzzle. Up." in the middle of T's bundle).
+  // First whatever the rest holds: a lane's rest holds the next room's own high ready, which waits on the approach's
+  // 60%, so asked only where the rest held no posture beat the tier one walked out of room 2 aimed across his still #2
+  // for 2.35 s and took the fault (the user, 2026-11-11: "we still get flagged a fault for muzzle"))
+  if (state.people?.[pid]?.kit?.carry?.posture === 'aimed' && beats[0]?.k !== 'posture') {
     const pre = /^\d+:/.test(beats[0].key) ? beats[0].key.split(':')[0] + ':' : '', wh = skillsOf(state, pid).wh;
     beats.unshift({ key: `${pre}up`, k: 'posture', ch: 'hands', to: 'highReady', after: [], cut: false, door: beats[0].door ?? null, plan: beats[0].plan, slot: 1, st: 'wait', fromMs: null, untilMs: null,
       ms: Math.round(HIGH_READY_S * HIGH_READY_K * paceOf(wh) * 1000) });
@@ -805,7 +821,7 @@ export function startSingle(state, bus, pid, row, { tempo = 'normal' } = {}) {
     beat = { key: `look:${row.hot}`, k: 'scan', ch: 'eyes', hot: row.hot, deg: 0, ms: row.ms, after: [] };
     if (a && h) a.headRad = q(bearing([a.x, a.z], hotXZ(h)), 1e-6);
   } else if (row.kind === 'move') {
-    const legs = legsOf(state, pid), path = row.path ? row.path.map(p => [...p]) : [[a.x, a.z], row.to], st = a.moveStance === 'assault' ? 'assault' : 'combat';
+    const legs = legsOf(state, pid), path = wayOf(state, row.path ? pathFrom(row.path, [a.x, a.z]) : [[a.x, a.z], row.to]), st = a.moveStance === 'assault' ? 'assault' : 'combat';
     const P = profileOf(pathLen(path), legs.walk[st], legs.pushMs2, legs.brakeMs2);
     beat = { key: 'move', k: 'move', ch: 'feet', stance: st, path, prof: P, ms: Math.round(P.T * 1000), after: [], cut: true };
     // (the far leg's walk: the body turns onto the leg as it comes into view, as the bundle's does)

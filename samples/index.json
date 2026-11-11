@@ -1,5 +1,5 @@
 {
- "built": "2026-11-08T07:57",
+ "built": "2026-11-11T22:35",
  "samples": [
   {
    "id": "cuts",
@@ -84,22 +84,22 @@
   },
   {
    "id": "guns",
-   "title": "The rifles' drawings: the standard issue and the variety, on the weapon card and the figure",
-   "about": "Your lore of 2026-11-08: the Corps trains on the ground with atmospheric firearms not far from the 2020s' (it trains to fight the UN on Earth), so \"Martian standard issue would look more like\" your first reference, \"but we would have varyiety in the guns marines carry like\" your second. Five drawings, each a group: G0 the R-7 as the game draws it now, G1 and G2 the standard issue (in the reference's flat dark earth, and in the Corps' black: your decision of 2026-11-08, the Corps red and black, armour black), V1 the variety carbine, M1 the standard issue's squad marksman's rifle, a look for the R-7M. Each is drawn by the game's code (src/art/rifles.js), not painted: view a is the weapon card at its size (180 × 148) in three beliefs, on the line (28 known, chambered, on semi), at 300 m (the scope at 4×, its turrets, the dope and a hold, about 12 believed tracer) and a stovepipe looked at with a magazine of 5 tracer in the hand; view b is the chibi at 16 px/m prone, kneeling, standing aimed, at the low ready and slung, facing right, left, down and up on the bay's floor and right and left on the regolith, with the rifle alone at 16 px/m, four times larger, and at 24 px/m, and the doll holding it. View b's figures are snapped to the Mars palette as the stage snaps them (before its light and grade, which aren't applied); the card and the doll are page pictures, raw as in the game. No gun's data changes: the R-7 stays the R-7, and whichever drawing you pick becomes its drawing on the card, the figures and the doll. Star and score, then Copy my picks.",
+   "title": "The rifles as you picked them: the R-7, its finishes, and the designs kept",
+   "about": "Your scores of 2026-11-08 applied. The R-7 is G2 in the Corps' black with V1's sight (\"I would prefer this gun with the scope of the V1, for short and mid range engagements\"): G2's skeleton stock, receivers, slotted handguard, angled foregrip, light and brake, with V1's carry handle, its rail and the boxed red dot. A red dot alone is 1×, and the SO-4 has always had its 4× lever, so the SO-4 is drawn as the dot with a 4× flip magnifier behind it (my call, to score): in line with the box when you believe the lever at 4×, swung down beside its mount at 1×; at 300 m its turrets sit on the box. No card draws the green arch any more (\"get rid of the green arch it serves no purpose\"). The finishes (\"multiple colors so we can equip ourselves to camo in environments depending on deployments\"): the Corps' black (the issue's), flat dark earth, Mars rust (the regolith's own red dust), Earth desert, Europa ice, Earth woodland and urban grey, one per squad, any design in any of them. G1 is kept as an alternate, V1 kept (here in black), M1 is the R-7M's drawing, G0 is gone. The magazine is 9 px wide, as you scored it with G2 (7 px since your \"bit slicker\" of 2026-11-07). Each view is drawn by the game's code: a is the weapon card in three beliefs (on the line at 1×, at 300 m at 4×, a stovepipe with a magazine in the hand), b the chibi at 16 px/m in five poses and four facings on the bay's floor and the regolith, the rifle alone and the doll; the figures snapped to the Mars palette as the stage snaps them, the card and the doll raw as in the game.",
    "pixel": true,
    "matrix": null,
    "groups": [
     {
-     "id": "G0",
-     "title": "G0: the R-7 as the game draws it (v0.0.10, for comparison)",
-     "about": "The game's R-7 today, unchanged: black polymer furniture and steel, the SO-4 scope, the HAD-30 with its window, the vented handguard; on the figure, tradecraft's 16-pixel rifle with the scope on top. Every other group is drawn against this one.",
+     "id": "R7",
+     "title": "R7: the R-7 as the game now draws it (G2's body, V1's sight, the SO-4's flip magnifier), the Corps' black",
+     "about": "The standard issue as you picked it, in the issue's black. On the card, left, the lever believed at 1×: the magnifier swung down beside its mount behind the box; middle, at 4×: the magnifier in line, its glass at both ends, the turrets on the box (the elevation's on its hood, the windage's at its front). On the figure the box and its glint on the carry handle's hump over G2's body.",
      "sets": null,
      "views": [
       {
-       "id": "G0-a",
-       "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand",
-       "query": "d=g0&set=card",
-       "shot": "guns/shots/g0-a.png",
+       "id": "R7-a",
+       "name": "The weapon card: on the line (1×), at 300 m (4×), a stovepipe with a magazine in the hand",
+       "query": "d=r7&set=card",
+       "shot": "guns/shots/r7-a.png",
        "native": [
         556,
         156
@@ -112,10 +112,10 @@
        }
       },
       {
-       "id": "G0-b",
+       "id": "R7-b",
        "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll",
-       "query": "d=g0&set=figures",
-       "shot": "guns/shots/g0-b.png",
+       "query": "d=r7&set=figures",
+       "shot": "guns/shots/r7-b.png",
        "native": [
         304,
         270
@@ -130,80 +130,24 @@
      ]
     },
     {
-     "id": "G1",
-     "title": "G1: standard issue, after the first reference (flat dark earth)",
-     "about": "The first reference redrawn as the R-7: flat dark earth receivers and a slim handguard with slanted slots and a rail along its top, the low-power scope on a cantilever mount (its throw lever, the offset dot at its front), the angled foregrip, a light on the rail's front, the short ported brake, the black side-folding skeleton stock, a flared well, the black polymer magazine, bulkier than the grip, ribbed low. The tan is the Mars palette's butterscotch dust, its light, base and dark one step apart, so the stage keeps them. On the figure: the black stock to the receiver, the body tan and lit along its top to the brake, the scope dark with a glint of glass at its front, the grip and the foregrip tan, the magazine in gun metal so it shows against the outline.",
+     "id": "R7F",
+     "title": "R7F: the R-7 in every finish",
+     "about": "One sheet of the seven finishes, each the card on the line and the chibi aimed and prone on the bay's floor and on the regolith. Mars rust's base is the regolith's own colour; Europa ice's metal is a mid grey so nothing on it is black against snow; urban grey is the steel greys' middle steps. The figures' stock and sight stay gun metal at 16 px/m (a finish there colours the furniture).",
      "sets": null,
      "views": [
       {
-       "id": "G1-a",
-       "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand",
-       "query": "d=g1&set=card",
-       "shot": "guns/shots/g1-a.png",
+       "id": "R7F-a",
+       "name": "The R-7 in black, flat dark earth, Mars rust, Earth desert, Europa ice, Earth woodland and urban grey",
+       "query": "d=r7&set=finishes",
+       "shot": "guns/shots/r7f-a.png",
        "native": [
-        556,
-        156
+        740,
+        408
        ],
        "report": {
         "frame": [
-         556,
-         156
-        ]
-       }
-      },
-      {
-       "id": "G1-b",
-       "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll",
-       "query": "d=g1&set=figures",
-       "shot": "guns/shots/g1-b.png",
-       "native": [
-        304,
-        270
-       ],
-       "report": {
-        "frame": [
-         304,
-         270
-        ]
-       }
-      }
-     ]
-    },
-    {
-     "id": "G2",
-     "title": "G2: standard issue in the Corps' black",
-     "about": "G1's rifle all black, for your decision of 2026-11-08 (the factions' colours: the MCRN and the Corps red and black, armour black, ceremonial red and black): black receivers and handguard over the black polymer stock, scope and magazine. Black is drawn as the steel greys' lowest steps, so the parts stay apart: the receivers and the handguard a step lighter than the stock and the scope, lit along the top, the slots the darkest, the brake and the light on the rail as on G1. On the figure the stage's snap puts the body's base and the gun metal of the stock and the scope on one colour, the steel greys' 0.38 step, so the rifle is one black, a step clear of the ink outline so the outline doesn't swallow it, with its top lit a step lighter from the receiver to the brake to give its line against the utilities and the floor. No red on it (my call): the Corps' red is ceremonial and this is field kit, black like the armour; and red already means something on the card (the selector's fire mark, the SEMI and TR words, the tracer noses) and, on a 16 px/m figure, a red pixel reads as a tracer or a wound, so a red band or badge would read as a signal or as decoration, not as the Corps'. Everything else as G1.",
-     "sets": null,
-     "views": [
-      {
-       "id": "G2-a",
-       "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand",
-       "query": "d=g2&set=card",
-       "shot": "guns/shots/g2-a.png",
-       "native": [
-        556,
-        156
-       ],
-       "report": {
-        "frame": [
-         556,
-         156
-        ]
-       }
-      },
-      {
-       "id": "G2-b",
-       "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll",
-       "query": "d=g2&set=figures",
-       "shot": "guns/shots/g2-b.png",
-       "native": [
-        304,
-        270
-       ],
-       "report": {
-        "frame": [
-         304,
-         270
+         740,
+         408
         ]
        }
       }
@@ -211,14 +155,14 @@
     },
     {
      "id": "V1",
-     "title": "V1: variety carbine, after the second reference (sand, clear magazine)",
-     "about": "A different carbine a marine may carry, a step lighter than the standard issue so the two read apart by value as well as shape: one sand polymer body (the receiver and the handguard together, rounded at its front, thin vents), the carry handle with a rail on it and a boxed holographic sight on the rail, the skeleton folding stock with its web, a short rail on the handguard's side, the black vertical grip, a pronged flash hider, and the clear smoked magazine with the believed rounds seen through it, staggered, each with its nose (red when believed tracer). On the figure: the sight dark with its glint on the handle's hump, the handle's opening under it, the stock's hole, the vertical grip, the smoked magazine.",
+     "title": "V1: the variety carbine, in black (\"This in black would be a serious contender for standard issue\")",
+     "about": "V1 kept, drawn in the Corps' black, the clear smoked magazine kept in every finish. No sling arch.",
      "sets": null,
      "views": [
       {
        "id": "V1-a",
        "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand",
-       "query": "d=v1&set=card",
+       "query": "d=v1&f=black&set=card",
        "shot": "guns/shots/v1-a.png",
        "native": [
         556,
@@ -233,8 +177,8 @@
       },
       {
        "id": "V1-b",
-       "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll",
-       "query": "d=v1&set=figures",
+       "name": "The chibi at 16 px/m, snapped to the Mars palette; the rifle alone; the doll",
+       "query": "d=v1&f=black&set=figures",
        "shot": "guns/shots/v1-b.png",
        "native": [
         304,
@@ -250,15 +194,87 @@
      ]
     },
     {
+     "id": "G1",
+     "title": "G1: the alternate standard issue (its low-power scope), in flat dark earth and in Earth woodland",
+     "about": "Kept as an alternate weapons asset, not the R-7 (your words): drawn as no issued gun. In its reference's flat dark earth and in a camouflage finish, no sling arch.",
+     "sets": null,
+     "views": [
+      {
+       "id": "G1-a",
+       "name": "The weapon card in flat dark earth",
+       "query": "d=g1&f=fde&set=card",
+       "shot": "guns/shots/g1-a.png",
+       "native": [
+        556,
+        156
+       ],
+       "report": {
+        "frame": [
+         556,
+         156
+        ]
+       }
+      },
+      {
+       "id": "G1-b",
+       "name": "The chibi in flat dark earth",
+       "query": "d=g1&f=fde&set=figures",
+       "shot": "guns/shots/g1-b.png",
+       "native": [
+        304,
+        270
+       ],
+       "report": {
+        "frame": [
+         304,
+         270
+        ]
+       }
+      },
+      {
+       "id": "G1-c",
+       "name": "The weapon card in Earth woodland",
+       "query": "d=g1&f=woodland&set=card",
+       "shot": "guns/shots/g1-c.png",
+       "native": [
+        556,
+        156
+       ],
+       "report": {
+        "frame": [
+         556,
+         156
+        ]
+       }
+      },
+      {
+       "id": "G1-d",
+       "name": "The chibi in Earth woodland",
+       "query": "d=g1&f=woodland&set=figures",
+       "shot": "guns/shots/g1-d.png",
+       "native": [
+        304,
+        270
+       ],
+       "report": {
+        "frame": [
+         304,
+         270
+        ]
+       }
+      }
+     ]
+    },
+    {
      "id": "M1",
-     "title": "M1: the squad marksman's rifle, a look for the R-7M (my design)",
-     "about": "The standard issue's family stretched to the R-7M's row in WEAPONS §3.2 (101 cm, a heavy free-floated barrel, the HAD-30, a 3 to 12× scope with a rangefinder, a bipod; no suppressor, which is the S-9's): flat dark earth receivers, a fixed precision stock (an adjustable cheek riser, a butt with spacers, a monopod's knob), a longer slotted handguard with the bipod folded forward under it (hinge block, legs, feet), the heavy barrel and a ported brake, the bigger scope with its rangefinder's box. The R-7M is not the R-7: it would be its drawing only if you want the marksman's rifle to have one; no data changes.",
+     "title": "M1: the R-7M, the squad marksman's rifle, in the Corps' black and in Mars rust",
+     "about": "\"Long gun standard for marksmanship for sure. Scope is perfect for this\": M1 is the R-7M's drawing, its scope unchanged. In the issue's black and in Mars rust, no sling arch.",
      "sets": null,
      "views": [
       {
        "id": "M1-a",
-       "name": "The weapon card: on the line, at 300 m, a stovepipe with a magazine in the hand",
-       "query": "d=m1&set=card",
+       "name": "The weapon card in the Corps' black",
+       "query": "d=m1&f=black&set=card",
        "shot": "guns/shots/m1-a.png",
        "native": [
         556,
@@ -273,9 +289,41 @@
       },
       {
        "id": "M1-b",
-       "name": "The chibi at 16 px/m, snapped to the Mars palette: prone, kneeling, standing, low ready, slung; the rifle alone at 16, x4 and 24 px/m; the doll",
-       "query": "d=m1&set=figures",
+       "name": "The chibi in the Corps' black",
+       "query": "d=m1&f=black&set=figures",
        "shot": "guns/shots/m1-b.png",
+       "native": [
+        304,
+        270
+       ],
+       "report": {
+        "frame": [
+         304,
+         270
+        ]
+       }
+      },
+      {
+       "id": "M1-c",
+       "name": "The weapon card in Mars rust",
+       "query": "d=m1&f=mars&set=card",
+       "shot": "guns/shots/m1-c.png",
+       "native": [
+        556,
+        156
+       ],
+       "report": {
+        "frame": [
+         556,
+         156
+        ]
+       }
+      },
+      {
+       "id": "M1-d",
+       "name": "The chibi in Mars rust",
+       "query": "d=m1&f=mars&set=figures",
+       "shot": "guns/shots/m1-d.png",
        "native": [
         304,
         270
@@ -293,69 +341,21 @@
   },
   {
    "id": "hitcard",
-   "title": "The hit card: a turner hit, drawn as a range target is (A the doll, B the khaki board, C the casualty card)",
-   "about": "Your words of 2026-11-07: \"Targets in game should be represented with the same logic we represent the shooting range targets, drawn with impact points drawn as well, using similar to inventory and character menu drawings of people.\" One string's marks on a turner at 7 m: a Pair to the chest, a third round high, a fourth missed. Left, what the marine could tell during the string (belief): a hollow ring where his sight was at each break, filled when he saw it strike, numbered. Right, the debrief (truth): the holes where they went, coloured by zone (A red, C orange, the head crimson), the calls faint under them, the coach's line. A is the doll of PERSONNEL and the inventory in colour, the man-target's zones over it at 25% (the game draws A until you score them); B the khaki man-target board, the outline and kit in its two tones, holes in ink; C the casualty card's front and back outlines. Each in the hit card's box at 1024 × 768 (--ui 0.85: the card drawn at 170 px, its whole pixels), 1600 × 900 (--ui 1.25) and 1920 × 1080 (--ui 1.5), at whole pixels where they fit. Star the look you want; the card goes where it shows, at the top left under the toasts on Bang.",
+   "title": "The hit card: B, the khaki man-target board, at three window sizes and three ranges",
+   "about": "Your scores of 2026-11-08: A 10, B ★ 99, C 0, \"Second set is perfect, keep all three to represent varying ranges.\" B is now the hit card at every window size, and A and C are gone from the game. One string's marks on a turner: a Pair to the chest, a third round high, a fourth missed. Left, what the marine could tell during the string (belief): a hollow amber ring where his sight was at each break, filled when he saw it strike, numbered. Right, the debrief (truth): the holes in ink where they went, the calls faint under them, the coach's line. Each in the hit card's box at 1024 × 768 (--ui 0.85: the card drawn at 170 px, its whole pixels), 1600 × 900 (--ui 1.25) and 1920 × 1080 (--ui 1.5), at whole pixels where they fit. \"Keep all three to represent varying ranges\" is read (my reading, to confirm) as one board seen at three ranges: the last view is the debrief's card at 7, 20 and 50 m, the board's figure at 96, 80 and 64 px a metre (up to 10 m, up to 25 m, beyond), a farther board lower on longer stakes, the marks at their own sizes. If you meant the three looks, A and C come back with a revert.",
    "pixel": true,
    "matrix": null,
    "groups": [
     {
      "id": "hitcard",
-     "title": "The hit card: a turner hit, drawn as a range target is (A the doll, B the khaki board, C the casualty card)",
-     "about": "Your words of 2026-11-07: \"Targets in game should be represented with the same logic we represent the shooting range targets, drawn with impact points drawn as well, using similar to inventory and character menu drawings of people.\" One string's marks on a turner at 7 m: a Pair to the chest, a third round high, a fourth missed. Left, what the marine could tell during the string (belief): a hollow ring where his sight was at each break, filled when he saw it strike, numbered. Right, the debrief (truth): the holes where they went, coloured by zone (A red, C orange, the head crimson), the calls faint under them, the coach's line. A is the doll of PERSONNEL and the inventory in colour, the man-target's zones over it at 25% (the game draws A until you score them); B the khaki man-target board, the outline and kit in its two tones, holes in ink; C the casualty card's front and back outlines. Each in the hit card's box at 1024 × 768 (--ui 0.85: the card drawn at 170 px, its whole pixels), 1600 × 900 (--ui 1.25) and 1920 × 1080 (--ui 1.5), at whole pixels where they fit. Star the look you want; the card goes where it shows, at the top left under the toasts on Bang.",
+     "title": "The hit card: B, the khaki man-target board, at three window sizes and three ranges",
+     "about": "Your scores of 2026-11-08: A 10, B ★ 99, C 0, \"Second set is perfect, keep all three to represent varying ranges.\" B is now the hit card at every window size, and A and C are gone from the game. One string's marks on a turner: a Pair to the chest, a third round high, a fourth missed. Left, what the marine could tell during the string (belief): a hollow amber ring where his sight was at each break, filled when he saw it strike, numbered. Right, the debrief (truth): the holes in ink where they went, the calls faint under them, the coach's line. Each in the hit card's box at 1024 × 768 (--ui 0.85: the card drawn at 170 px, its whole pixels), 1600 × 900 (--ui 1.25) and 1920 × 1080 (--ui 1.5), at whole pixels where they fit. \"Keep all three to represent varying ranges\" is read (my reading, to confirm) as one board seen at three ranges: the last view is the debrief's card at 7, 20 and 50 m, the board's figure at 96, 80 and 64 px a metre (up to 10 m, up to 25 m, beyond), a farther board lower on longer stakes, the marks at their own sizes. If you meant the three looks, A and C come back with a revert.",
      "sets": null,
      "views": [
       {
-       "id": "hitcard-a-1024",
-       "name": "A, the doll in colour, at 1024 × 768",
-       "query": "look=A&win=1024",
-       "shot": "hitcard/shots/hitcard-a-1024.png",
-       "native": [
-        346,
-        170
-       ],
-       "report": {
-        "frame": [
-         346,
-         170
-        ]
-       }
-      },
-      {
-       "id": "hitcard-a-1600",
-       "name": "A, the doll in colour, at 1600 × 900",
-       "query": "look=A&win=1600",
-       "shot": "hitcard/shots/hitcard-a-1600.png",
-       "native": [
-        506,
-        250
-       ],
-       "report": {
-        "frame": [
-         506,
-         250
-        ]
-       }
-      },
-      {
-       "id": "hitcard-a-1920",
-       "name": "A, the doll in colour, at 1920 × 1080",
-       "query": "look=A&win=1920",
-       "shot": "hitcard/shots/hitcard-a-1920.png",
-       "native": [
-        606,
-        300
-       ],
-       "report": {
-        "frame": [
-         606,
-         300
-        ]
-       }
-      },
-      {
        "id": "hitcard-b-1024",
-       "name": "B, the khaki man-target board, at 1024 × 768",
-       "query": "look=B&win=1024",
+       "name": "B at 1024 × 768",
+       "query": "win=1024",
        "shot": "hitcard/shots/hitcard-b-1024.png",
        "native": [
         346,
@@ -370,8 +370,8 @@
       },
       {
        "id": "hitcard-b-1600",
-       "name": "B, the khaki man-target board, at 1600 × 900",
-       "query": "look=B&win=1600",
+       "name": "B at 1600 × 900",
+       "query": "win=1600",
        "shot": "hitcard/shots/hitcard-b-1600.png",
        "native": [
         506,
@@ -386,8 +386,8 @@
       },
       {
        "id": "hitcard-b-1920",
-       "name": "B, the khaki man-target board, at 1920 × 1080",
-       "query": "look=B&win=1920",
+       "name": "B at 1920 × 1080",
+       "query": "win=1920",
        "shot": "hitcard/shots/hitcard-b-1920.png",
        "native": [
         606,
@@ -401,50 +401,18 @@
        }
       },
       {
-       "id": "hitcard-c-1024",
-       "name": "C, the casualty card's outlines, at 1024 × 768",
-       "query": "look=C&win=1024",
-       "shot": "hitcard/shots/hitcard-c-1024.png",
+       "id": "hitcard-b-ranges",
+       "name": "B's debrief at 7, 20 and 50 m (96, 80 and 64 px a metre), at 1600 × 900",
+       "query": "set=ranges&win=1600",
+       "shot": "hitcard/shots/hitcard-b-ranges.png",
        "native": [
-        346,
-        170
-       ],
-       "report": {
-        "frame": [
-         346,
-         170
-        ]
-       }
-      },
-      {
-       "id": "hitcard-c-1600",
-       "name": "C, the casualty card's outlines, at 1600 × 900",
-       "query": "look=C&win=1600",
-       "shot": "hitcard/shots/hitcard-c-1600.png",
-       "native": [
-        506,
+        762,
         250
        ],
        "report": {
         "frame": [
-         506,
+         762,
          250
-        ]
-       }
-      },
-      {
-       "id": "hitcard-c-1920",
-       "name": "C, the casualty card's outlines, at 1920 × 1080",
-       "query": "look=C&win=1920",
-       "shot": "hitcard/shots/hitcard-c-1920.png",
-       "native": [
-        606,
-        300
-       ],
-       "report": {
-        "frame": [
-         606,
-         300
         ]
        }
       }
@@ -1357,6 +1325,632 @@
         "figureUploads": 4,
         "figureKB": 1134,
         "figurePaintMs": 143
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "panel",
+   "title": "The step panel, three layouts: the core always on screen, the rest grouped by type (rework1)",
+   "about": "Your ask of 2026-11-11: \"If We're going to keep this system of numbered options, we need to find a way to group them by type and find a clever way to make this manageable with top of the head core gameplay options being always visible and accessible (even if grayed out, like hammer if you only have one bullet).\" The designer's three layouts of one model: every row in a fixed group and slot (FIRE, DRILL outside a door or inside a room, GUN, BODY, TEAM), the core of five on fixed keys, and a row the situation could offer never removed: greyed, with a badge that says why and points to the fix (→ a keycap: the key that comes first; ▮ and a count: rounds; MKS: the Marksmanship gate; ▲▲ and a rung: not yet taught; a struck silhouette: not issued, the house issues no pistol, charge or flash; a padlock; a struck eye: nothing to act on; ✓ already done, the sample's own mark, my call). Each layout is drawn over the same five true moments, captured from the game by the bots on your seed 1489397426 (the 25 m line on 48213): stepsOf's rows, their times and odds as the panel says them, the believed gun on the weapon card (the stage's own painting, fitted as the HUD fits it), the DI's line; the rows the proposal adds (Stack up and take point, Breach, Flash, Fix, Stop here, the TEAM rows, Transition: pistol) in the state it gives them, with no time where the game has none yet. Each picture is the bottom of the window at its own pixels, STEPS and INSTINCT where the HUD puts them, over a 16 px/m floor with a metre's grid: at 1600 × 900 (--ui 1.25) the verbs in full with their times; at 1024 × 768 (--ui 0.85) one word a key and the times left to the hover, as the proposal has it. Score them here, and in play once the chosen one has its toggle.",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "P1",
+     "title": "P1: layout A, \"Home and drawers\": the core on 1 to 5, the groups as drawers on 6 to 0",
+     "about": "The core on fixed keys, 1 the shot (Pair, Fire on a paper line), 2 Aim ⇄ Hold, 3 Fix (the remedy for the gun's state: IMMEDIATE ACTION, Off safe, a reload by purpose), 4 Muzzle (Low ⇄ High ready), 5 NEXT (T's act, its T keycap struck where T cannot act); under them the five groups as drawers on 6 to 0, FIRE, DRILL, GUN, BODY, TEAM, each with its count of live rows and an amber dot when it holds the row the DI's line names. A drawer opens on its digit and lays its fixed nine on 1 to 9, 0 back home. FIRE's drawer opens by itself at a contact's pause, so the shots are one press as in Pairs and Bang; with a stoppage it stays home, so Fix is one press (the sample's reading, my call: the proposal does not say). The DI's line names the path: \"7 › 3\". Open view: DRILL's drawer, outside a door. The designer's score 16 of 20; the press model 1.35 presses a choice on the lane, 1.07 at a contact, never more than 2 (today 1.84, up to 8).",
+     "sets": null,
+     "views": [
+      {
+       "id": "P1-a",
+       "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1600 × 900",
+       "query": "layout=a&state=stack&win=1600",
+       "shot": "panel/shots/p1-a.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P1-b",
+       "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1024 × 768",
+       "query": "layout=a&state=stack&win=1024",
+       "shot": "panel/shots/p1-b.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P1-c",
+       "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1600 × 900",
+       "query": "layout=a&state=contact&win=1600",
+       "shot": "panel/shots/p1-c.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P1-d",
+       "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1024 × 768",
+       "query": "layout=a&state=contact&win=1024",
+       "shot": "panel/shots/p1-d.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P1-e",
+       "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1600 × 900",
+       "query": "layout=a&state=stoppage&win=1600",
+       "shot": "panel/shots/p1-e.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P1-f",
+       "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1024 × 768",
+       "query": "layout=a&state=stoppage&win=1024",
+       "shot": "panel/shots/p1-f.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P1-g",
+       "name": "The 25 m line under the tower's LOAD, at 1600 × 900",
+       "query": "layout=a&state=load&win=1600",
+       "shot": "panel/shots/p1-g.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P1-h",
+       "name": "The 25 m line under the tower's LOAD, at 1024 × 768",
+       "query": "layout=a&state=load&win=1024",
+       "shot": "panel/shots/p1-h.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P1-i",
+       "name": "The second level held open, at the stack, at 1600 × 900",
+       "query": "layout=a&state=open&win=1600",
+       "shot": "panel/shots/p1-i.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P1-j",
+       "name": "The second level held open, at the stack, at 1024 × 768",
+       "query": "layout=a&state=open&win=1024",
+       "shot": "panel/shots/p1-j.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "P2",
+     "title": "P2: layout B, \"The fixed ten and the letter banks\": the same ten verbs on the ten digits in every scene",
+     "about": "The shots on 1 to 5 (Pair, Hammer, Triple, Failure drill, To the head) and the core on 6 to 0 (Fire one round, Aim ⇄ Hold, Fix, Muzzle, NEXT), never paged, never reordered: Hammer stays on 2, struck ▮1 with one round left, your example. On a paper line the shots are struck with the eye (no man): a digit never changes meaning. The other groups are banks on letters under the left index finger, R the room (DRILL), C the gun, B the body, F friends, at STEPS' right edge with their counts; a bank opens on its letter and closes on Esc. The DI's line: \"R › 3\". Open view: bank R, outside a door. The designer's score 15 of 20; 1.36 presses a choice on the lane, 1.10 at a contact, never more than 2. R and C would be taken in the mode (the sheet then through Esc).",
+     "sets": null,
+     "views": [
+      {
+       "id": "P2-a",
+       "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1600 × 900",
+       "query": "layout=b&state=stack&win=1600",
+       "shot": "panel/shots/p2-a.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P2-b",
+       "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1024 × 768",
+       "query": "layout=b&state=stack&win=1024",
+       "shot": "panel/shots/p2-b.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P2-c",
+       "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1600 × 900",
+       "query": "layout=b&state=contact&win=1600",
+       "shot": "panel/shots/p2-c.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P2-d",
+       "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1024 × 768",
+       "query": "layout=b&state=contact&win=1024",
+       "shot": "panel/shots/p2-d.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P2-e",
+       "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1600 × 900",
+       "query": "layout=b&state=stoppage&win=1600",
+       "shot": "panel/shots/p2-e.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P2-f",
+       "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1024 × 768",
+       "query": "layout=b&state=stoppage&win=1024",
+       "shot": "panel/shots/p2-f.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P2-g",
+       "name": "The 25 m line under the tower's LOAD, at 1600 × 900",
+       "query": "layout=b&state=load&win=1600",
+       "shot": "panel/shots/p2-g.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P2-h",
+       "name": "The 25 m line under the tower's LOAD, at 1024 × 768",
+       "query": "layout=b&state=load&win=1024",
+       "shot": "panel/shots/p2-h.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P2-i",
+       "name": "The second level held open, at the stack, at 1600 × 900",
+       "query": "layout=b&state=open&win=1600",
+       "shot": "panel/shots/p2-i.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P2-j",
+       "name": "The second level held open, at the stack, at 1024 × 768",
+       "query": "layout=b&state=open&win=1024",
+       "shot": "panel/shots/p2-j.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "P3",
+     "title": "P3: layout C, \"Five that follow the situation\": 1 to 5 the situation's five, named, 6 to 0 the core, Tab held for the rest",
+     "about": "1 to 5 are a fixed five for each situation, named with its picture at the band's left: AT THE DOOR (Stack up, Stack up and take point, Open, Kick door, Breach), CONTACT (Pair, Hammer, Failure drill, To the head, Challenge: Pair stays on 1 as in Pairs and Bang), STOPPAGE (Gun down: knee, tap, rack; Transition: pistol; Step to cover, clear; REMEDIAL; Cover me), THE TOWER (LOAD, MAKE READY, UNLOAD, SHOW CLEAR, Stop); 6 to 0 the core as in B. Tab held turns STEPS into a fan of the five groups (a half-wheel at its left, inside STEPS, never over the picture): a digit picks the group, a second the row; let go of Tab and it closes. The DI's line names one key at the door: \"3\". Open view: the fan on DRILL. The designer's lean, 17 of 20; 1.09 presses a choice on the lane (96% in one), 1.13 at a contact, at most 3 from the keys.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P3-a",
+       "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1600 × 900",
+       "query": "layout=c&state=stack&win=1600",
+       "shot": "panel/shots/p3-a.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P3-b",
+       "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1024 × 768",
+       "query": "layout=c&state=stack&win=1024",
+       "shot": "panel/shots/p3-b.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P3-c",
+       "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1600 × 900",
+       "query": "layout=c&state=contact&win=1600",
+       "shot": "panel/shots/p3-c.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P3-d",
+       "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1024 × 768",
+       "query": "layout=c&state=contact&win=1024",
+       "shot": "panel/shots/p3-d.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P3-e",
+       "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1600 × 900",
+       "query": "layout=c&state=stoppage&win=1600",
+       "shot": "panel/shots/p3-e.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P3-f",
+       "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1024 × 768",
+       "query": "layout=c&state=stoppage&win=1024",
+       "shot": "panel/shots/p3-f.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P3-g",
+       "name": "The 25 m line under the tower's LOAD, at 1600 × 900",
+       "query": "layout=c&state=load&win=1600",
+       "shot": "panel/shots/p3-g.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P3-h",
+       "name": "The 25 m line under the tower's LOAD, at 1024 × 768",
+       "query": "layout=c&state=load&win=1024",
+       "shot": "panel/shots/p3-h.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      },
+      {
+       "id": "P3-i",
+       "name": "The second level held open, at the stack, at 1600 × 900",
+       "query": "layout=c&state=open&win=1600",
+       "shot": "panel/shots/p3-i.png",
+       "native": [
+        1600,
+        281
+       ],
+       "report": {
+        "frame": [
+         1600,
+         281
+        ]
+       }
+      },
+      {
+       "id": "P3-j",
+       "name": "The second level held open, at the stack, at 1024 × 768",
+       "query": "layout=c&state=open&win=1024",
+       "shot": "panel/shots/p3-j.png",
+       "native": [
+        1024,
+        190
+       ],
+       "report": {
+        "frame": [
+         1024,
+         190
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "walk",
+   "title": "The walk: today's cycle and three candidates, animated, on the marine in the combat EVA suit with the R-7",
+   "about": "Your word of 2026-11-11 on the shoot house: \"saying that the walking about is goofy is an understatement, the animation is really not there yet.\" The animation designer's three answers to the chibi's problem (legs of 0.25 m from hip to ankle at a human's speed), beside W0, the cycle v0.0.12 draws. All are the game's own figure code (src/art/figures/cycles.js, not wired into the game), at 16 px/m, in the black combat EVA suit with its carrier and the R-7, at 1 G on the shoot house's slab floor, snapped to the Mars palette as the stage snaps them. Two bands each: the Combat glide at the low ready (1.23 m/s) and Assault aimed (2.03 m/s), the speeds the body walks. Each candidate's frames follow the metres walked in its own steps, and side on its card is placed by the planted foot, so no boot slides (the plant lock: each frame's travel baked in whole pixels); seen from the front or behind the card follows the body, and the slip that leaves is measured and printed. Open a view live (O): Space runs and stops time, S slows it to a quarter, F hides the footprints, R starts again. The questions, with your scores: which cycle reads as a marine in each band (score each); is a bob on the gun line wanted at all in Combat and Assault (B says no); and the front and back views, where the feet slide in every candidate (see W-e's numbers).",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "W",
+     "title": "W: one cycle a view, its frames side on, from the front and from behind, a treadmill leading each row, and two lanes of footprints",
+     "about": "Each view: the glide (Combat, low ready) then Assault (aimed), each a row side on, a row facing you and a row from behind (the stage's 45° camera makes these the three-quarter views), led by a treadmill (live, the figure walks in place over the floor's moving marks: the camera on the body); then each band walking across the floor, its prints left on the way (the right foot's on the first row, light, the left's below it, dark: each sole where it lay flat, so a clean dash is a foot that held and a long smear one that slid). The line under each band's name: speed, step, steps a second, frames a second; then the slip side on and from the front (px a step), the head's and the muzzle's rows (px, side on). W0's glide is the stroll's four frames at 5.1 steps a second and its Assault the run's four at 2.3 (the legs slower as the body speeds up), both at the low ready even when the sim holds the aim. A, eight frames planted: flat feet, short exact steps (4 and 5 px), the body 1 px down on Down, 4.9 and 6.5 steps a second. B, eight frames rolling: the boot rolls heel to toe, longer steps (6 and 7 px), the head and the muzzle on one row (the turret), 3.3 and 4.6 steps a second. C, six frames bold: three keys a step, the body down a pixel at the passing (5 and 6 px), 3.9 and 5.4 steps a second.",
+     "sets": null,
+     "views": [
+      {
+       "id": "W-a",
+       "name": "W0, v0.0.12 as built (the reference)",
+       "query": "set=cycle&c=W0",
+       "shot": "walk/shots/w-a.png",
+       "native": [
+        304,
+        378
+       ],
+       "report": {
+        "frame": [
+         304,
+         378
+        ]
+       }
+      },
+      {
+       "id": "W-b",
+       "name": "A, eight frames, planted",
+       "query": "set=cycle&c=A",
+       "shot": "walk/shots/w-b.png",
+       "native": [
+        304,
+        378
+       ],
+       "report": {
+        "frame": [
+         304,
+         378
+        ]
+       }
+      },
+      {
+       "id": "W-c",
+       "name": "B, eight frames, rolling",
+       "query": "set=cycle&c=B",
+       "shot": "walk/shots/w-c.png",
+       "native": [
+        304,
+        378
+       ],
+       "report": {
+        "frame": [
+         304,
+         378
+        ]
+       }
+      },
+      {
+       "id": "W-d",
+       "name": "C, six frames, bold",
+       "query": "set=cycle&c=C",
+       "shot": "walk/shots/w-d.png",
+       "native": [
+        304,
+        378
+       ],
+       "report": {
+        "frame": [
+         304,
+         378
+        ]
+       }
+      },
+      {
+       "id": "W-e",
+       "name": "The four side by side: treadmills in both bands and three facings, then each side on every 1/12 s for a second",
+       "query": "set=lanes",
+       "shot": "walk/shots/w-e.png",
+       "native": [
+        428,
+        452
+       ],
+       "report": {
+        "frame": [
+         428,
+         452
+        ]
+       }
+      },
+      {
+       "id": "W-f",
+       "name": "The same four in utilities, the range's look, where the legs show against the trousers' camouflage",
+       "query": "set=lanes&look=util",
+       "shot": "walk/shots/w-f.png",
+       "native": [
+        428,
+        452
+       ],
+       "report": {
+        "frame": [
+         428,
+         452
+        ]
        }
       }
      ]

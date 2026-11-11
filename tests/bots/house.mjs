@@ -261,7 +261,8 @@ export function houseTBot() {
     if (S?.mode === 'stop' && S.phase === 'choose' && line && !line.act && ['cqb-contact', 'cqb-still-up', 'cqb-hostage'].includes(line.id)) {
       const T = N.turners.find(t => t.key === S.pick);
       if (T && !T.down && T.facingK >= 0.5 && (T.slot ?? 1) === 1 && mem.shotAt !== now) {
-        const rows = stepsOf(state).filter(x => isShotRow(x) && !x.off && (x.target ?? T.key) === T.key);
+        // (the line's Press on the one round left: the Fire row, the shot rows all struck "one left" (2026-11-11))
+        const rows = stepsOf(state).filter(x => (isShotRow(x) || (line.variant === 'press' && x.id === 'fire')) && !x.off && (x.target ?? T.key) === T.key);
         const r = line.id === 'cqb-contact' ? rows[0] : rows.find(x => /head/.test(x.id)) ?? rows[0];
         if (r) { mem.shotAt = now; (mem.shots ??= []).push({ atMs: now, row: r.id, key: T.key }); return { act: [stepAct(r.id, 'normal', T.key)] }; }
       }

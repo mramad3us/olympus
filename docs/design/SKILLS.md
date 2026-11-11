@@ -16,6 +16,7 @@ A marine is a sheet of sixteen skills and one over-skill, **Warfighting**. There
 Everything uncertain uses tradecraft's one roll: **d20 + value + named modifiers against a DC**. The DCs are easy 10, average 15, hard 20, very hard 25, expert 30 and elite 40.
 - In a check, a natural 20 always succeeds and a natural 1 always fails.
 - **Routine work** keeps the natural 1 from turning competence into friction: out of danger, on work you would make without the die, a natural 1 costs time and nothing else (§5.1). In danger, under fire and in contests the dice keep their teeth.
+- **Caught 1s** (designed 2026-11-11, to build in the shoot house rework; §5.1): a natural 1 on routine work, or on any check a roller of value 15 or more would make by 10 without the die, is **caught**. It succeeds at ×1.5 of its time, so a highly skilled marine's 1 is a late shot, not a miss. A natural 20 on timed work is **clean** (×2/3), and both are drawn as plainly as each other.
 - An opposed roll is decided by the two totals, and ties go to the player's side.
 - Every modifier carries its reason and appears in the log.
 - The body and its needs (BODY) enter every roll through one interface.
@@ -223,7 +224,7 @@ Ported from tradecraft `src/sim/checks.js` with its maths unchanged:
 **Routine work** (my call, on a critic's finding; the user: "high skill makes this virtually instant", 2026-11-03). Without it, "a natural 1 always fails" makes every trained hand fumble one step in twenty. WEAPONS's UNLOAD is seven rolled sub-steps and UNLOAD SHOW CLEAR about eleven, so 30% and 43% of them would halt on a fumble whatever the skill, and the armoury's serial readback (Awareness DC 5) or a posture change (DC 3) would go wrong one time in twenty for a sergeant. So:
 - A check is **routine** for the roller when `value + Σmods ≥ dc + ROUTINE_AT`, with `ROUTINE_AT` 0: they would make it without the die. The sum leaves out `tempo` modifiers (a way of working doesn't make a task routine), and a `rushed` roll is never routine.
 - It applies only at pressure `none` or `evaluated` (§5.9), and only to **procedure**: work whose failure the owner prices in time (handling steps, bench and armoury work, the habit check of carry, the suit check, aid steps, repairs). It never applies to a shot's hit roll or a throw (a flier is part of shooting), to noticing and spotting (a failure there already costs only the next look), or to opposed rolls (which have no naturals).
-- The roll records `routine: true` whenever the check was routine (§15.2). A routine natural 1 is still a `miss` (no roll XP, logged as such). The owner charges the miss's time (×1.6 on timed work, §5.12) and **nothing else**: no `?` on the weapon card, no drop, no flag, no lost rounds, no bent lip. The step is done, so a macro does not halt on it and there is nothing to retry.
+- The roll records `routine: true` whenever the check was routine (§15.2). A routine natural 1 is still a `miss` (no roll XP, logged as such). The owner charges the miss's time (×1.6 on timed work, §5.12) and **nothing else**: no `?` on the weapon card, no drop, no flag, no lost rounds, no bent lip. The step is done, so a macro does not halt on it and there is nothing to retry. **From the shoot house rework it is caught** (below, designed 2026-11-11): `ok: true` at ×1.5 time, drawn `~`, never ✗.
 - At `danger` and `fire`, naturals keep their teeth for everyone, and so does every check that is not routine: a recruit at the bench, a private exhausted and cold in the dark.
 - The step panel may mark a routine step with the word "routine" instead of its 95% (VIEWS). The log: "Weapon handling check: 1 + 10 = 11 against 8, a natural 1: routine, it only cost time."
 
@@ -238,6 +239,75 @@ The critic proposed `ROUTINE_AT` 10. I rejected that number: no handling DC is l
 | sergeant, 18 | 43%, 19% | **0%, 0%** | 43%, 19% | 0%, 0% |
 
 A recruit still needs luck, a tired private in the dark still drops magazines and loses track of his chamber, and a trained hand in good conditions is only ever slow. In danger, nothing is routine.
+
+#### Caught 1s: a natural 1 a trained hand recovers
+
+**Designed 2026-11-11, to build in the shoot house rework.** The user, 2026-11-11, playing v0.0.12's shoot house: "nat 1s are insanely frequent, much much more than nat 20s. Besides, there should be some kind of perk of high skilled operators preventing a nat 1 from making them miss, maybe they take 50% longer to shoot instead of missing altogether" (DESIGN.md's log).
+
+**What the count found** [measured 2026-11-11: 352,722 d20s counted at `d20()` over 6,600 headless runs of the shoot house, Pairs and test-handling on every sheet, and 800 runs read through the panel's own marks; the scratch scripts in `.run/nat1/`]. **There is no bug in the dice.** Natural 1s came up on 4.92% of rolls and natural 20s on 5.00%. Once the draws that seeds share across sheets are counted once, the 152,788 distinct draws give 4.99% and 5.02%. Ten million draws of the generator alone give 5.007% and 4.999%. Nothing re-rolls, keeps the lower die or draws again on a 1, except the fumble ladder's own die (WEAPONS §5.4), which is not a d20. The cause is the rule and what the screen shows:
+- **From the private up, every failure is a 1 and no 20 does anything.** Faces 2 to 19 pass on 99.5 to 100% of shots and on every routine handling roll. So natural 1s make 93 to 100% of the misses and every fumble. A natural 20 turned a failure into a success 0 times in about 259,000 player checks. In the house the tier one misses 5.6% of his shots and the corporal 5.1%, so skill above the private's bought nothing against the 1.
+- **Every 1 is drawn and no 20 is.** A routine 1 is a red ✗ on the panel's ticks (1,254 of 1,254). It stays on the row and on the weapon card for 3 s, its bar runs long, and J says "routine, slow". A shot's 1 is an amber toast and a miss on the hit card. A 20 shows ◦ or ✓ like any other pass, and only J and a hit's toast name it.
+- **One press rolls several dice.** LOAD rolls 3, MAKE READY 4 and UNLOAD SHOW CLEAR 9, so 14%, 18.5% and 37% of those presses show a ✗, for the private and the tier one alike. The house adds a ✗ of its own once a lane: the instructor's dummy round clicks, a stoppage drawn as if it were a fumble.
+
+**The rule.** A natural 1 is **caught** when the roller would have made the roll without the die, by enough. Either:
+- **routine** (above): procedure at pressure `none` or `evaluated`, not rushed, with value + modifiers ≥ DC + `ROUTINE_AT` 0, whatever the value; or
+- **mastered**: any check with a DC (never an opposed roll), at any pressure, not rushed, by a roller whose value is at least **`MASTERY_MIN` 15** and whose value + modifiers reach **DC + `MASTERY_AT` 10**. The modifiers are the roll's own list, the felt chaos's entry included and the tempo's left out (as for routine work).
+
+**What a catch does.**
+- **It succeeds.** The record keeps `roll: 1` and `nat: 1` and gains `caught: true` and `ok: true`. Its total and margin stand as rolled, and its grade comes from the margin alone. A routine catch is at least a `pass`; a mastered catch is `superb`, since its margin is at least 11.
+- **It costs ×1.5 of the action's own time** (`CATCH_K` 0.5, the user's "50% longer") **and nothing else**: no `?`, no drop, no halt, no flag, no lost round.
+- **It earns no roll XP**, because the die taught nothing, and it counts as use for rust (§7).
+- **The owner says what "the action's own time" is**: a handling sub-step's time; a round's part of its row (WEAPONS §7.6, §7.10); a take-in's time. A natural 1 on a take-in already cost ×1.5 (COMBAT §25.4.2), so its figure is unchanged and only its words become the catch's.
+- **It replaces the routine natural 1's `miss` at ×1.6**, so a caught 1 has one number. `FUMBLE_K`'s ×1.6 stays for every failure.
+- **A caught 1 is late, not certain.** The time is spent before the action lands, so a shot whose 1 is caught leaves late and is judged by the world when it leaves. A turner that has turned away takes it into the berm, and a man who fires in that time fires first.
+
+**Why these numbers** (my call):
+- **A margin, not a rank.** The test is the roll's own sum, so the perk follows the task. A sergeant's 1 is caught on a torso at 4 m, but a 1 on a head under fire still misses. The felt chaos's entry is in the sum, so suppression takes the perk away before it takes the hit: in the live room (felt 40, −4) the corporal keeps none of it and the Raider all of it. 10 is §5.6's `superb`: a roll the marine would make by ten without the die. (It is the number the critic proposed for `ROUTINE_AT`, rejected there because routine work must cover the private; here it marks the expert, which is what it measures.)
+- **The floor of 15** keeps it a perk of the highly trained, as the user asked ("high skilled operators"). Without it, a private at 10, prone with his aim held (+8), on a torso at 7 m (DC 6) would clear the margin. He keeps his 1s: that is the gap a corporal's training closes.
+- **Not rushed.** Rushing trades the recovery for time, so a rushed roll is neither routine nor caught. Shift on a Raider's Pair buys 0.6 of its time and puts the natural 1's miss back in.
+- **At every pressure.** Routine work stays out of danger. Mastery is the skilled man's in the fight as well, which is where the user wants it.
+- **For everyone.** The rule is in `check()`, so it holds for NPCs too: the #2, the instructor, and a tier-one enemy, whose 1 is a late shot, not a free miss.
+- **It does not reach the scored scenes' character.** The recruit (4) and the private (10) never reach `MASTERY_MIN`. Their hands still fail under chaos, and the suppression and hardening scored 100 rest on those two sheets.
+
+**Natural 20s, as plain as 1s** (my call; open question 8).
+- **On timed procedure, a natural 20 is clean**: the action takes ×2/3 of its time (`CLEAN_K` 1/3, the catch's inverse). Together, caught 1s and clean 20s move a long run's mean time by +0.8%.
+- **Its tick is a ★** (VIEWS §7.4).
+- **On a shot**, a natural 20 is shown (★ on the round's tick, and "(a natural 20)" in its toast) and lands where its margin puts it. It has no time effect, because the round has already gone.
+- **A natural 20 that would have failed** is still a `pass` at margin 0, and the toast says so: "saved by a natural 20".
+
+**The numbers** [shots and handling measured on the counted checks of the shoot house's bot and Pairs' bot (300 seeds a sheet each), with the rule applied to each recorded roll's sum (`.run/nat1/design/rule.mjs`); the live room and the show-clear computed]:
+
+| Sheet (Marksmanship, Weapon handling) | A round in the shoot house: missed, before → after | A round in Pairs | Rounds whose 1 would be caught, house / Pairs | A catch on Fire from aimed (COMBAT §25.6.2) | The live room at 4 m (−8, COMBAT §25.6.3): torso, head missed, before → after |
+|---|---|---|---|---|---|
+| boot recruit (4, 4) | 16.9% → 16.9% | 6.8% → 6.8% | 0 / 0 | (never) | (not in COMBAT §25.6.3's table) |
+| private (10, 10) | 5.8% → 5.8% | 4.6% → 4.6% | 0 / 0 | (never) | 15%, 45% → 15%, 45% |
+| corporal (15, 15) | 5.1% → 3.8% | 4.5% → 0.3% | 27% / 94% | +0.18 s | 5%, 20% → 5%, 20% |
+| sergeant (19, 19) | 5.5% → 1.4% | 4.5% → 0.3% | 73% / 94% | +0.17 s | 5%, 5% → 5%, 5% |
+| Raider (31, 31) | 5.6% → 0% | 4.5% → 0% | 100% / 100% | +0.15 s | 5%, 5% → 0%, 0% |
+| tier one (42, 42) | 5.7% → 0% | 4.5% → 0% | 100% / 100% | +0.13 s | 5%, 5% → 0%, 0% |
+
+**UNLOAD SHOW CLEAR's eleven rolls (the table above), the share that halts on a failure**:
+
+| Weapon handling | On the range, rested, in the light (`evaluated`) | At `fire`, calm hands | At `fire`, felt 40 (−4) |
+|---|---|---|---|
+| recruit, 4 | 47% → 47% | 52% → 52% | 95% → 95% |
+| private, 10 | 0% → 0% (a ✗ shown on 43% → 0%) | 43% → 43% | 43% → 43% |
+| corporal, 15 | 0% → 0% | 43% → 37% (the port covers, DC 3, caught) | 43% → 43% |
+| sergeant, 19 | 0% → 0% | 43% → 0% | 43% → 37% |
+| Raider, 31; tier one, 42 | 0% → 0% | 43% → 0% | 43% → 0% |
+
+**What the panel shows, per run** [the 800 runs above, re-marked by VIEWS §7.4's new marks]:
+
+| Play | ✗, before → after | Caught 1s (`~`) | Natural 20s (★) |
+|---|---|---|---|
+| house, private by the keys | 2.38 → 0.53 (his shot misses, now on the round's tick; the routine 1s become catches and the dummy click a `!`) | 1.38 | 1.77 |
+| house, tier one by T | 2.00 → 0 | 1.42 | 1.39 |
+| Pairs, private | 2.07 → 1.04 (his shot misses) | 2.07 | 2.96 |
+| Pairs, tier one | 1.82 → 0 | 2.86 | 2.69 |
+
+So the 1 and the 20 are now seen about equally often. A ✗ means a failure that cost something, and from the corporal up it is the margin, not the die, that decides how often a shot misses. **Rolls per press are kept** (WEAPONS §5.3: each sub-step rolled, the user's rule in tradecraft, "All actions on a weapon should require rolls against weapon handling"). With caught 1s no longer drawn as failures, the count costs a trained hand time, not crosses, and the recruit keeps his texture.
+
+**Tests** (to build with it, each printing its numbers): `catches` holds the rule's two tests (routine; mastered at `MASTERY_MIN` and `MASTERY_AT`, not rushed, any pressure, never opposed) and the record's fields. Over 400 seeded rolls a cell, it holds that a mastered 1 never fails and costs ×1.5, that the recruit's and the private's rates do not move, and it prints the first table's shoot house column on 100 seeds of the house bot. `catch-marks` holds that a routine or mastered 1 draws `~` and never ✗, a 20 draws ★, and the dummy click draws `!`. Pinned digests and goldens of the corporal's sheet and above move, and are reprinted and said so in CHANGELOG.md.
 
 ### 5.2 DCs, and what each feels like by skill
 
@@ -332,7 +402,7 @@ The common contests (owners may add more; the second column is the active side):
 | `good` | 4 to 9 | done well (Read: class known; the feel: clear) |
 | `superb` | ≥ 10 | done perfectly (the feel: sure; a paper target: the X) |
 
-A natural 20 that would have failed counts as a `pass` with margin 0. Owners read `r.grade` rather than redrawing the bands.
+A natural 20 that would have failed counts as a `pass` with margin 0. Owners read `r.grade` rather than redrawing the bands. **A caught 1** (§5.1, designed 2026-11-11) is graded by its margin alone, never as a `miss`: an owner that reads `nat === 1` as a failure reads `nat === 1 && !caught`.
 
 ### 5.7 Hooks (leverage), and edges
 
@@ -407,6 +477,7 @@ The same task, on the same thing, by the same person, within the same scene (`RE
 ### 5.11 Odds the player is shown
 
 There is one helper, `oddsOf(value, dc, mods)` (§5.1), and it always includes every modifier the roll will use.
+- **Where a natural 1 would be caught** (§5.1, designed 2026-11-11, to build in the shoot house rework), the odds of failing are 0: `oddsOf` takes the roll's `{ procedure, pressure, tempo }` and returns 1. The panel's row reads "sure" in place of 95%, as a routine row reads "routine", and the plaque reads "SURE" (VIEWS §7.4). The hover gives the catch's price: "a natural 1 is caught: +0.13 s".
 - **Exact percentages** appear only where the character could know them: their own action against a fixed DC (a shot's plaque, a step's chance where WEAPONS shows it, an aid step).
 - **Against someone whose value is known only as a range** (§12), the odds are computed at both ends of the range and shown in words:
   - "good odds" if both ends are at least 70%;
@@ -432,6 +503,7 @@ paceOf(value) = max(0.45, 1.6 / (1 + value / 16.7))          time = base time (a
 - It replaces tradecraft's gun pace (`1.6 − WH/30`), which gave 1.27 at value 10 and touched its 0.5 floor at 33. The hyperbola is gentler at the bottom and keeps a little room at the top: the last tenth of speed is the hardest to get.
 - **Owners set base times at value 10**, a trained line marine, which is pace 1.00. WEAPONS may square the pace for thumb work (safety, selector), as tradecraft did ("high skill makes this virtually instant": 0.45² × 0.4 s is 0.08 s).
 - Failure costs ×1.6 time (tradecraft's `FUMBLE_K`). That is the owners' rule, applied after pace.
+- **A caught 1 costs ×1.5 and a clean natural 20 ×2/3** (`CATCH_K` 0.5, `CLEAN_K` 1/3; §5.1, designed 2026-11-11, to build in the shoot house rework), applied after pace like a failure's ×1.6, which they replace on the rolls they decide.
 - Tempo multiplies on top (§5.9).
 - **The chores use it too.** TIME's activities that scale with a skill (`suit-up` by EVA, `clean-rifle` by Weapon handling, and the rest) take `paceOf()` of that skill on their base time at value 10. TIME's draft curve, `chorePace(v) = clamp(1.3 − 0.025v, 0.7, 1.3)`, was anchored at value 12 and flattened at 24: two curves for one quantity, against the hub's "one quantity, one number, one helper". For TIME's test 7: `paceOf` is 1.18 at 6, 1.04 at 9, 1.00 at 10 and 0.93 at 12, so `clean-rifle` after a range day (30 min × 1.3) takes 39:00 at value 10 and 40:33 at 9, and `suit-up` (8 min) takes 9:25 at EVA 6.
 - **Checked.** `paceOf` lives in `src/sim/skills/skills.js` and nowhere else: the syntax test (TECH) fails on any function or constant defined outside that module whose name has `pace` as a word of its own (`chorePace`, `gunPace`, `PACE_K`; not `space`, nor a distance in `paces`), so no owner can grow a local curve. Owners pass a skill value and a base time; they never compute a factor.
@@ -457,7 +529,7 @@ mitigated(base, value, fullAt = 24, keepK = 0.15) = round(base × max(keepK, 1 �
 ### 5.14 The log, and rolls the player doesn't see
 
 Formatting is tradecraft's, kept as two single formatters:
-- **`checkText(r)`, for the log (J):** "Marksmanship check: 14 + 11 − 1 (dusk) − 1 (tired) = 23 against 18, success." An opposed roll: "Fieldcraft against the sentry's Awareness: 12 + 10 = 22, against 9 + 6 − 2 (dark) = 13. You win." A natural, a routine natural, a hook, help, tempo and taken-steady each get their phrase.
+- **`checkText(r)`, for the log (J):** "Marksmanship check: 14 + 11 − 1 (dusk) − 1 (tired) = 23 against 18, success." An opposed roll: "Fieldcraft against the sentry's Awareness: 12 + 10 = 22, against 9 + 6 − 2 (dark) = 13. You win." A natural, a routine natural, a hook, help, tempo and taken-steady each get their phrase. **From the shoot house rework** (§5.1, designed 2026-11-11), a caught 1 reads "Weapon handling check: 1 + 10 = 11 against 8, a natural 1, caught (+0.2 s)." and "Marksmanship check: 1 + 42 + 2 (the aim held) = 45 against 6 (…), a natural 1, caught (+0.13 s). In the A zone."; a clean 20 reads "…, a natural 20: clean (−0.1 s)."; a 20 that saved a failure reads "…, a natural 20: saved.". `checkShort` reads "Weapon handling 11 against 8 (a natural 1) · caught, +0.2 s" and "… (a natural 20) · clean, −0.1 s".
 - **`checkShort(r)`, for the top-left line (16 s):** "Marksmanship 23 against 18 · passed", or "Fieldcraft 22 against Awareness 13 · you win".
   - Owners may swap the verb for their own ("hit", "clear", "spotted").
   - Never "made": tradecraft's rule, "made is what you are when they've spotted you".
@@ -1176,7 +1248,7 @@ The user, 2026-11-05 (DESIGN.md, Controls): "T: the instinct's line (the drill i
 2. **No flicker** (my call). A line stays at least `LINE_MIN_S` 3 s, unless an urgent line replaces it or its act is done. The chip obeys the same minimum.
 3. **No nagging** (my call). A line that has gone doesn't come back from the same rule within `REPEAT_S` 60 s, unless its tone has risen.
 4. **Only what the character knows**: perception, the feel, what was said on the net, the body as felt. A hazard missed by a failed roll does not exist for the instinct ("we only know what we know"). The DI never says something the character couldn't.
-5. **Skill decides how good the advice is.** The governing skill's value picks the text's tier: under 8, a plain instruction; 8 to 19, specific; 20 and up, it anticipates (open question 4). It never picks the player's choice for them. T only does what the line says, T held what the chip says. **In close quarters training also sets how much the act covers** (COMBAT §25.8): one step a press at drill rungs 0 and 1, and never the walk in; a group at 2; the room at 3; the house at 4. A bundle chooses the steps of an operation the player chose, never a target, a shot, a consumable its row does not name, or a reload; from rung 3 the close-quarters line has no speaker, the marine's own thought.
+5. **Skill decides how good the advice is.** The governing skill's value picks the text's tier: under 8, a plain instruction; 8 to 19, specific; 20 and up, it anticipates (open question 4). It never picks the player's choice for them. T only does what the line says, T held what the chip says. **In close quarters training also sets how much the act covers** (COMBAT §25.8): one step a press at drill rungs 0 and 1, and never the walk in; a group at 2; the room at 3; the house at 4. **Designed 2026-11-11 (the user's note on v0.0.12)**: the house at 4 is withdrawn; rungs 3 and 4 do the room, to "Room clear!", and every line names a live row (COMBAT §25.19.2, §25.19.4). A bundle chooses the steps of an operation the player chose, never a target, a shot, a consumable its row does not name, or a reload; from rung 3 the close-quarters line has no speaker, the marine's own thought.
 6. **Silence.** During a conversation or a menu (time stands still), only urgent lines. During a splash, none: interrupts are TIME's. With nothing to say, a calm line about the situation from the Plan of the Day, or nothing at all.
 7. **Humour** only on calm and note lines, at most one aside every `HUMOUR_GAP_S` 300 s of lived time, never on urgent or warn lines and never about a death. Picked by hash, never by dice.
 8. **The player's setting** (VIEWS): full (the default), quiet (warn and urgent only), or off except urgent.
@@ -1373,6 +1445,8 @@ All plain JSON in the save. Keys starting with `$` are runtime-only and are stri
   "total": 23, "nat": 0, "dc": 18, "hook": false, "tempo": "normal", "steady": false, "routine": false,
   "pressure": "fire", "ok": true, "margin": 5, "grade": "good", "by": "p233", "them": false, "hidden": false }
 ```
+
+**From the shoot house rework** (§5.1, designed 2026-11-11), a check gains two additive fields: `caught: true` on a natural 1 that was caught (then `ok: true`, and the grade by the margin) and `clean: true` on a natural 20 on timed work. Each is absent otherwise, so saves made before keep their records as they are.
 
 An opposed roll is `{ "kind": "opposed", "ours": side, "theirs": side, "ok", "margin", "grade", "them", "hidden" }`, where each side is `{ skill, value, roll, mods, total, nat, by }` (tradecraft's shape, plus `by`, `grade` and `hidden`). `by` is the roller's person id; the player's is an ordinary `p<n>`, as everyone's (CONTRACTS §10).
 
@@ -1580,3 +1654,5 @@ ROADMAP owns the milestones (§3.4 there holds over this section's earlier propo
 5. **Living a training block or skipping it: the same growth?** Or a bonus for living it? **Default: the same.** Living it is for its own sake, and a skip is never a penalty.
 6. **Your own sheet: exact numbers or words only?** Tradecraft showed exact values; other people are always ranges. **Default: exact numbers for your own sheet.**
 7. **Routine work: how forgiving out of danger?** A natural 1 costs a trained hand only time when the job is one he would make without the die (§5.1), so a private at 10 never fumbles a show-clear in good conditions and a recruit still fumbles about half of them. The stricter option counts the natural only as routine with two points to spare (`ROUTINE_AT` 2): a private fresh from school at 9 then fumbles his charge one show-clear in twenty. **Default: `ROUTINE_AT` 0.**
+8. **Natural 20s: shown, or shown and clean?** (designed 2026-11-11, §5.1) A natural 20 on timed work takes ×2/3 of its time and draws a ★, the mirror of the catch's ×1.5 and `~`, so the two are seen equally often and a long run's mean time moves by +0.8%. The other option is a ★ alone, with no time effect: the 20 is then seen but still does nothing for a trained hand. **Default: clean (×2/3).** **Answered 2026-11-11: the default** (the user: "good defaults").
+9. **Where mastery starts.** A natural 1 is caught for a roller at value 15 or more who would make the roll by 10 without the die (§5.1): the Raider and the tier one never miss on a 1, the sergeant rarely and the corporal on easy shots, while the private and the recruit keep theirs. A wider rule (a margin of 5) gives the corporal and sergeant nearly all of it; a narrower one (a value of 25) gives it to the Raider and the tier one alone. **Default: value 15, margin 10.** **Answered 2026-11-11: the default** (the user: "good defaults").

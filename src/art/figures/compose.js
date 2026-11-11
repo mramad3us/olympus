@@ -101,8 +101,9 @@ export function solve(pose, B) {
   const o = ORIENT[pose.stance] ?? null, lean = pose.lean ?? 0;
   const spine = [Math.sin(lean), 0, Math.cos(lean)], chestF = [Math.cos(lean), 0, -Math.sin(lean)];
   const torso = B.shoulderTop - B.hipJoint, J = { o, spine: orient(o, spine), chestF: orient(o, chestF) };
-  const bob = (pose.bob ?? 0) / B.ppm;
-  const up = (h) => mul(spine, h - bob * (h > 0.001 ? 1 : 0));
+  const bob = (pose.bob ?? 0) / B.ppm, sway = (pose.sway ?? 0) / B.ppm;
+  // (sway: the upper body moved to the body's left that many pixels, a candidate walk's weight over its stance leg; 0 in the game's frames)
+  const up = (h) => { const v = mul(spine, h - bob * (h > 0.001 ? 1 : 0)); if (sway && h > 0.001) v[1] += sway; return v; };
   J.pelvis = [0, 0, 0];
   J.neckBase = up(torso);
   J.neckTop = up(torso + B.neck);
@@ -123,7 +124,8 @@ export function solve(pose, B) {
     const shin = [Math.sin(phi - kap) * Math.cos(abd), side * Math.sin(abd) * 0.6, -Math.cos(phi - kap) * Math.cos(abd)];
     const knee = add(hip, mul(thigh, B.thigh)), ankle = add(knee, mul(norm(shin), B.shin));
     // (the boot: flat on the ground while the shin stands; tipped with it, heel down, when swung forward or kicked back)
-    const tilt = phi - kap, psi = Math.abs(tilt) < 0.25 ? 0 : Math.max(-1.2, Math.min(0.9, tilt * 0.9));
+    // (a pose may give each boot's pitch outright (feet.r, feet.l: radians, toes up positive): the candidate walks' heel strike and roll)
+    const tilt = phi - kap, psi = typeof pose.feet?.[s] === 'number' ? pose.feet[s] : Math.abs(tilt) < 0.25 ? 0 : Math.max(-1.2, Math.min(0.9, tilt * 0.9));
     const fdir = [Math.cos(psi), 0, Math.sin(psi)];
     const sole = add(ankle, mul(rotUp(fdir), -B.footH));
     J.hip[s] = hip; J.knee[s] = knee; J.ankle[s] = ankle;
@@ -435,9 +437,10 @@ const ROLE_ARM = { blouse: ['t', 't'], tee: ['t', 's'], suit: ['p', 'p'], covera
  * or null), w, h, ax, ay (the anchor), kind (the cell), muzzle ([x, y] or null), flash ({ kind, th } or
  * null), look }.
  */
-export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
+export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = null } = {}) {
   const Lk = look?.top ? look : wear(look);
-  const B = bodyOf(ppm), pose = poseOf(frame, { weapon: Lk.weapon, carry: Lk.carry, tired: !!Lk.tired });
+  // (given: a pose written outright, not one of FRAMES: the walk sample's candidate cycles, src/art/figures/cycles.js; the game's frames never pass one)
+  const B = bodyOf(ppm), pose = given ? { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, ...given } : poseOf(frame, { weapon: Lk.weapon, carry: Lk.carry, tired: !!Lk.tired });
   const kind = cellKind(frame, dir), cell = B.cell[kind];
   const J = solve(pose, B), rig = rigOf(pose, J, B, Lk, dir);
   if (rig) for (const s of ['r', 'l']) if (rig.hand[s]) {
@@ -458,20 +461,25 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
   const T = B.thick;
 
   // Legs: thigh and shin one part, the boot its own (a dark line where the trouser meets it).
+  // (pose.farShade: the leg farther from the camera, by its hip and ankle, drawn a shade darker (upper-case letters), so the
+  // second half of a candidate walk's cycle is a different picture; the game's frames never set it)
+  const legDepth = (s) => P.depth(J.hip[s]) + P.depth(J.ankle[s]);
+  const farLeg = pose.farShade && !pose.noLegs ? (legDepth('r') < legDepth('l') ? 'r' : 'l') : null;
   for (const s of pose.noLegs ? [] : ['r', 'l']) {
     const hip = J.hip[s], knee = J.knee[s], ankle = J.ankle[s], ft = J.foot[s];
     const d = (P.depth(hip) + P.depth(knee) + P.depth(ankle)) / 3 - 0.04;
+    const dark = (r) => (s !== farLeg ? r : typeof r === 'function' ? (kk) => r(kk).toUpperCase() : r.toUpperCase());
     op(d, () => {
       const a = pp(hip), k = pp(knee), b = pp(ankle);
       g.begin(a[0], a[1]);
       const legRole = legsKind === 'shorts' ? (kk) => (kk < 0.55 ? 'p' : 's') : legsKind === 'towel' ? (kk) => (kk < 0.7 ? 'p' : 's') : 'p';
-      g.capsule(snap2(a, T.thigh), snap2(k, T.thigh), T.thigh / 2, legRole);
+      g.capsule(snap2(a, T.thigh), snap2(k, T.thigh), T.thigh / 2, dark(legRole));
       const shinRole = legsKind === 'shorts' ? (kk) => (kk > 0.62 ? 'ŝ' : 's') : legsKind === 'towel' ? 's' : legsKind === 'coverall' ? (kk) => (kk > 0.35 && kk < 0.55 ? 'i' : 'p') : 'p';
-      g.capsule(snap2(k, T.shin), snap2(b, T.shin), T.shin / 2, shinRole);
+      g.capsule(snap2(k, T.shin), snap2(b, T.shin), T.shin / 2, dark(shinRole));
     });
     op(P.depth(ft.toe) / 2 + P.depth(ft.heel) / 2 - 0.035, () => {
       g.begin();
-      box(g, pp, ft.heel, ft.toe, J.left, B.footW, B.footH, ft.dir, 'f');
+      box(g, pp, ft.heel, ft.toe, J.left, B.footW, B.footH, ft.dir, dark('f'));
     });
   }
   // The torso: slices along the spine, joined into a polygon; its details by where they lie on it.
@@ -525,7 +533,7 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
   let muzzle = null, flash = null;
   if (rig) {
     const gd = rig.mode === 'slung' ? P.depth(rig.butt) : P.depth(add(rig.butt, mul(rig.dir, rig.lenM * 0.3))) - 0.012;
-    // (a rifle as its drawing has it: rifles.js, by the look's model; none, the R-7's GUNS.rifle)
+    // (a rifle as its design has it: rifles.js, by the look's model; none, the R-7's (its finish is a colour: outfits.js))
     const fig = rig.gun === 'rifle' ? drawingOf(Lk.model ?? 'r7').fig : null;
     op(gd, () => { const m = gunCells(g, rig, pp, P, B, fig); muzzle = m.muzzle; flash = m.flash; });
     if (rig.loose) op(P.depth(rig.loose.at) + 0.03, () => looseMag(g, rig, pp, B, fig?.loose ?? 'u'));
@@ -547,7 +555,9 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
   }
   const out = Array.from({ length: cell.h }, (_, y) => Array.from({ length: cell.w }, (_, x) => cells[y + dy]?.[x + dx] ?? null));
   if (muzzle) muzzle = [muzzle[0] - dx, muzzle[1] - dy];
-  return { cells: out, w: cell.w, h: cell.h, ax: Math.floor(ax) - dx, ay: ay - dy, kind, muzzle, flash: muzzle ? flash : null, look: Lk, pose };
+  // (a given pose's boots reported in the cell's pixels, heel and toe on the sole, as the muzzle is: the walk sample locks the planted one)
+  const feet = given && !pose.noLegs ? Object.fromEntries(['r', 'l'].map(s => { const h = pp(J.foot[s].heel), t = pp(J.foot[s].toe); return [s, { heel: [h[0] - dx, h[1] - dy], toe: [t[0] - dx, t[1] - dy] }]; })) : undefined;
+  return { cells: out, w: cell.w, h: cell.h, ax: Math.floor(ax) - dx, ay: ay - dy, kind, muzzle, flash: muzzle ? flash : null, look: Lk, pose, ...(feet ? { feet } : {}) };
 }
 
 /** A boot: the box from heel to toe, footW wide and footH tall, projected corner by corner and filled. */

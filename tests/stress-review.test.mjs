@@ -164,7 +164,7 @@ export default [
       ];
       const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
       for (const size of [200, 170]) for (const phase of ['belief', 'truth']) {
-        const pm = paintHitcard({ look: 'A', size, phase, man: PAPERS.man, marks: MARKS, words: phase === 'truth' ? 'FIRE · A · A · HEAD · A' : 'FIRE · 4 SEEN', line: 'Three in the chest, one in the head. He went down.' });
+        const pm = paintHitcard({ size, phase, man: PAPERS.man, marks: MARKS, words: phase === 'truth' ? 'FIRE · A · A · HEAD · A' : 'FIRE · 4 SEEN', line: 'Three in the chest, one in the head. He went down.' });
         const tags = pm.marks.map(d => d.tag), clash = tags.flatMap((t, i) => tags.slice(i + 1).filter(u => hit(t, u)).map(() => i + 1));
         // (the line's glyphs: rows of the strip in its colour, a 5-row glyph at WORDS_K is 10 rows tall)
         const said = new Set();

@@ -568,8 +568,8 @@ function carrier(g, B, kit) {
 /** A rifle hanging from the right hand (the viewer's left), muzzle down, drawn to its length. */
 function rifleIn(g, B, kit) {
   const S = g.S, lenPx = Math.round(85 * PX_PER_CM * S), hx = (MID - B.hand) * S, hy = (B.armIn[0][1] + 3) * S;
-  // (the rifle as its drawing has it, src/art/rifles.js: the look's model, else the R-7's; its furniture in its own colours)
-  const D = drawingOf(kit.model ?? 'r7'), shape = shapeAt('rifle', lenPx, 2.4 * S, true, D.fig);
+  // (the rifle as its drawing has it, src/art/rifles.js: the look's model, else the R-7's; its furniture in its finish's colours)
+  const D = drawingOf(kit.model ?? 'r7', kit.finish), shape = shapeAt('rifle', lenPx, 2.4 * S, true, D.fig);
   // (lighter than the sprites' rifle: against the doll's dark wall gun metal would vanish)
   const C = { n: cloth(0x5c6270), u: cloth(0x2e313c), v: cloth(0xa0a8b4), ...Object.fromEntries(Object.entries(D.colours).map(([k, c]) => [k, cloth(c)])) };
   // (the grip in the fist: the butt above it, the barrel down past the knee)
@@ -803,6 +803,7 @@ function kitOf(look = {}, marks = {}, body = null) {
   if (kit.cues.bladder >= BLADDER_SHOWS_K) { kit.knees = 1.6; kit.bendR = [4, 60]; }
   if (kit.cues.hunger >= HUNGER_SHOWS_K) kit.bendL = [3, 49];
   if (look.model) kit.model = look.model;                          // (the rifle's drawing: rifleIn)
+  if (look.finish) kit.finish = look.finish;                       // (and its finish, src/data/finishes.js)
   return kit;
 }
 

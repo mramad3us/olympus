@@ -186,12 +186,12 @@ export default [
     },
   },
   {
-    name: 'the hit card\'s samples (0.0.10; VIEWS §7.7, §18 question 21): index.json lists its nine views (A, B and C at 1024 × 768, 1600 × 900 and 1920 × 1080), each shot twice its picture, every picture pixel a clean 2 × 2, the page\'s frame its picture',
+    name: 'the hit card\'s samples (VIEWS §7.7; the user\'s pick of 2026-11-08, B): index.json lists its four views (B at 1024 × 768, 1600 × 900 and 1920 × 1080, and its debrief at 7, 20 and 50 m), each shot twice its picture, every picture pixel a clean 2 × 2, the page\'s frame its picture',
     fn() {
       const S = index().samples.find(s => s.id === 'hitcard');
       assert(S, 'index.json has no hitcard sample: run node tools/gallery.mjs hitcard');
       const views = S.groups.flatMap(g => g.views), rows = [];
-      assert(views.length === 9 && ['A', 'B', 'C'].every(l => ['1024', '1600', '1920'].every(w => views.some(v => v.query === `look=${l}&win=${w}`))), JSON.stringify(views.map(v => v.query)));
+      assert(views.length === 4 && ['1024', '1600', '1920'].every(w => views.some(v => v.query === `win=${w}`)) && views.some(v => v.query === 'set=ranges&win=1600'), JSON.stringify(views.map(v => v.query)));
       for (const v of views) {
         const { w, h, px } = readPng(path.join(SAMPLES, v.shot)), native = v.native;
         let soft = 0;

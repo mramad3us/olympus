@@ -31,7 +31,9 @@
 // And what the kit puts on anyone (0.0.5, the arms role's kitLook): ear defenders over the cover (look.ears:
 // drab cups on a band), the plate carrier with its magazine pouches over utilities (look.carrier, as the
 // carrier outfit's but under the cover, not the helmet: the 25 m line's dress); and look.magOut, the rifle
-// drawn with its magazine out of the well (gunLook's mag), in every frame but the magazine's own.
+// drawn with its magazine out of the well (gunLook's mag), in every frame but the magazine's own; look.model and
+// look.finish, the rifle's design and its finish (src/art/rifles.js, src/data/finishes.js; none, the R-7 in the
+// Corps' black): a finish changes the furniture's colours, never the shape.
 // A look also carries the body's cues the figure shows (VIEWS §7.3, BODY's cuesOf): wet (the hair darker
 // with a sheen, for WET_HAIR_MS after a wash) and tired (fatigue at or past tired: the head down, the
 // arms swinging less: poses.js). Both change the drawing, so they are part of the look's shape.
@@ -122,8 +124,10 @@ export function wear(look = {}) {
     accents: {}, closedEyes: false, wet: !!look.wet, tired: !!look.tired, sex: look.sex === 'f' ? 'f' : 'm',
     ears: !!look.ears, headset: !!look.headset, brassard: false, magOut: !!look.magOut,
   };
-  // (the rifle's drawing, when a look names one (src/art/rifles.js: a drawing's id or a model's name); none, the R-7's)
+  // (the rifle's drawing, when a look names one (src/art/rifles.js: a drawing's id or a model's name); none, the R-7's;
+  // and its finish, when it is not the issue's black)
   if (look.model) L.model = look.model;
+  if (look.finish) L.finish = look.finish;
   const camo = { pattern: 'valles' };
   switch (outfit) {
     case 'utilities': case 'nco': case 'carrier': case 'rangeStaff':
@@ -192,7 +196,7 @@ export function coloursOf(L, ppm) {
     j: L.pack?.color ?? PACK, i: L.accents.bands ?? L.accents.band ?? 0xdfe2e8, d: L.gloves ?? 0x353947,
     // (what's in the hand: steel, the dark of a gun's metal, black polymer; socks)
     v: 0x9aa1ae, n: 0x353947, u: 0x23252f, ŝ: L.accents.socks ?? 0xe8e6e0,
-    // (the rifle drawing's furniture and clear magazine, if it has them: rifles.js)
-    ...drawingOf(L.model ?? 'r7').colours,
+    // (the rifle drawing's furniture and clear magazine in its finish: rifles.js)
+    ...drawingOf(L.model ?? 'r7', L.finish).colours,
   };
 }

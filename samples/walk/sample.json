@@ -1,0 +1,20 @@
+{
+ "title": "The walk: today's cycle and three candidates, animated, on the marine in the combat EVA suit with the R-7",
+ "about": "Your word of 2026-11-11 on the shoot house: \"saying that the walking about is goofy is an understatement, the animation is really not there yet.\" The animation designer's three answers to the chibi's problem (legs of 0.25 m from hip to ankle at a human's speed), beside W0, the cycle v0.0.12 draws. All are the game's own figure code (src/art/figures/cycles.js, not wired into the game), at 16 px/m, in the black combat EVA suit with its carrier and the R-7, at 1 G on the shoot house's slab floor, snapped to the Mars palette as the stage snaps them. Two bands each: the Combat glide at the low ready (1.23 m/s) and Assault aimed (2.03 m/s), the speeds the body walks. Each candidate's frames follow the metres walked in its own steps, and side on its card is placed by the planted foot, so no boot slides (the plant lock: each frame's travel baked in whole pixels); seen from the front or behind the card follows the body, and the slip that leaves is measured and printed. Open a view live (O): Space runs and stops time, S slows it to a quarter, F hides the footprints, R starts again. The questions, with your scores: which cycle reads as a marine in each band (score each); is a bob on the gun line wanted at all in Combat and Assault (B says no); and the front and back views, where the feet slide in every candidate (see W-e's numbers).",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "W",
+   "title": "W: one cycle a view, its frames side on, from the front and from behind, a treadmill leading each row, and two lanes of footprints",
+   "about": "Each view: the glide (Combat, low ready) then Assault (aimed), each a row side on, a row facing you and a row from behind (the stage's 45° camera makes these the three-quarter views), led by a treadmill (live, the figure walks in place over the floor's moving marks: the camera on the body); then each band walking across the floor, its prints left on the way (the right foot's on the first row, light, the left's below it, dark: each sole where it lay flat, so a clean dash is a foot that held and a long smear one that slid). The line under each band's name: speed, step, steps a second, frames a second; then the slip side on and from the front (px a step), the head's and the muzzle's rows (px, side on). W0's glide is the stroll's four frames at 5.1 steps a second and its Assault the run's four at 2.3 (the legs slower as the body speeds up), both at the low ready even when the sim holds the aim. A, eight frames planted: flat feet, short exact steps (4 and 5 px), the body 1 px down on Down, 4.9 and 6.5 steps a second. B, eight frames rolling: the boot rolls heel to toe, longer steps (6 and 7 px), the head and the muzzle on one row (the turret), 3.3 and 4.6 steps a second. C, six frames bold: three keys a step, the body down a pixel at the passing (5 and 6 px), 3.9 and 5.4 steps a second.",
+   "views": [
+    { "id": "W-a", "name": "W0, v0.0.12 as built (the reference)", "query": "set=cycle&c=W0", "pixel": "304x378" },
+    { "id": "W-b", "name": "A, eight frames, planted", "query": "set=cycle&c=A", "pixel": "304x378" },
+    { "id": "W-c", "name": "B, eight frames, rolling", "query": "set=cycle&c=B", "pixel": "304x378" },
+    { "id": "W-d", "name": "C, six frames, bold", "query": "set=cycle&c=C", "pixel": "304x378" },
+    { "id": "W-e", "name": "The four side by side: treadmills in both bands and three facings, then each side on every 1/12 s for a second", "query": "set=lanes", "pixel": "428x412" },
+    { "id": "W-f", "name": "The same four in utilities, the range's look, where the legs show against the trousers' camouflage", "query": "set=lanes&look=util", "pixel": "428x412" }
+   ]
+  }
+ ]
+}

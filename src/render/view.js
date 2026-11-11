@@ -532,15 +532,17 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     return o;
   }
   // (a look with a rifle in hand and the kit worn: the gait's carry, the magazine out, ear defenders, the
-  // carrier, a headset; one object per look and variant, so the caches key on it)
+  // carrier, a headset; the rifle's design when its model is not the R-7 and its finish when not the issue's black
+  // (0.0.12: gunLook's, read from the item, src/data/finishes.js); one object per look and variant, so the caches key on it)
   const armed = new WeakMap();
   function armedLook(look, v) {
     if (!look) return look;
     let m = armed.get(look);
     if (!m) armed.set(look, (m = new Map()));
-    const k = `${v.weapon ?? '-'}|${v.carry ?? '-'}|${v.magOut ? 1 : 0}|${v.ears ? 1 : 0}|${v.carrier ? 1 : 0}|${v.headset ? 1 : 0}`;
+    const model = v.weapon && v.model && v.model !== 'r7' ? v.model : null, finish = v.weapon && v.finish ? v.finish : null;
+    const k = `${v.weapon ?? '-'}|${v.carry ?? '-'}|${v.magOut ? 1 : 0}|${v.ears ? 1 : 0}|${v.carrier ? 1 : 0}|${v.headset ? 1 : 0}|${model ?? '-'}|${finish ?? '-'}`;
     let o = m.get(k);
-    if (!o) m.set(k, (o = Object.freeze({ ...look, ...(v.weapon ? { weapon: v.weapon, carry: v.carry } : {}), ...(v.magOut ? { magOut: true } : {}), ...(v.ears ? { ears: true } : {}), ...(v.carrier ? { carrier: true } : {}), ...(v.headset ? { headset: true } : {}) })));
+    if (!o) m.set(k, (o = Object.freeze({ ...look, ...(v.weapon ? { weapon: v.weapon, carry: v.carry } : {}), ...(model ? { model } : {}), ...(finish ? { finish } : {}), ...(v.magOut ? { magOut: true } : {}), ...(v.ears ? { ears: true } : {}), ...(v.carrier ? { carrier: true } : {}), ...(v.headset ? { headset: true } : {}) })));
     return o;
   }
   // (the carry a figure's gait frames are painted with: the one it last walked with, so standing still in
@@ -559,7 +561,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     }
     const headset = !!person?.post && RO_POST.test(person.post.key ?? '');
     if (!gl && !kit?.ears && !kit?.carrier && !headset) return { gl: null, look, kit };
-    const v = { weapon: gl ? 'rifle' : null, carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset };
+    const v = { weapon: gl ? 'rifle' : null, carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset, model: gl?.model ?? null, finish: gl?.finish ?? null };
     // (the twin: the same look with the magazine the other way, whose sheet the figures draw while this one's band paints)
     return { gl, kit, look: armedLook(look, v), twin: gl ? armedLook(look, { ...v, magOut: !v.magOut }) : null };
   }
@@ -1065,7 +1067,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // (the look as held first, everyone's, then the twins: rifle sheets are taken while free (8 at 16 px/m), so the
         // relay's figures in sight have theirs and a twin waits for a sheet another look leaves)
         for (const magOut of arms.gl.mag === false ? [true, false] : [false, true]) {
-          const L = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: gaitCarry.get(a.id), magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false });
+          const L = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: gaitCarry.get(a.id), magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null });
           const { key: k2 } = lookOf(L, `${a.who}${magOut ? ':magout' : ''}`);
           (magOut === (arms.gl.mag === false) ? jobs : twins).push(() => figures.prepare(k2, L, { bands: rifleBands, own }));
         }

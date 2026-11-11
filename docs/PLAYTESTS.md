@@ -6,6 +6,23 @@ Shots and drivers stay in the scratch folders named below, outside the repo; wha
 
 ---
 
+## v0.0.13, 2026-11-11: the shoot house audits (no new scene)
+
+**What was played.** Five audits of v0.0.12's "Stack and clear" before the rework is built: the bugs (walls and the muzzle fault), the AI (the pure-T lanes over 100 seeds), the animation, the step panel (832 bot presses) and the doctrine (FM 3-06.11, TC 3-22.9, MCRP 3-01A), plus the gun looks' judge crops. Scripts and data stay in the scratch folders (`.run/rework1/`), outside the repo.
+
+**What turned up.**
+- **Walls.** No drill move used the nav: authored polylines and straight lines from wherever the body stood, placed with no collision. 13 to 20 wall overlaps a run (0.26 to 0.35 m, the body centre inside the wall) on seeds 48213, 1489397426 and 7. In `x4-plans.js`, 7 of 15 legs fail the clear-line test at C0. Fixed in v0.0.13 by routing (`route.js`; COMBAT §25.19.1, §25.19.3.4); room 1 stays within 15% of §4's reference (Raider 5.48 s, tier one 5.27 s).
+- **The muzzle fault.** The tier one walked out of room 2 aimed across the stationary #2 for about 2.35 s (a `ready` beat waiting on the approach). 6 of 20 lanes faulted (the Raider and the tier one on five seeds by T and the house bot; all six by T: the Raider on 4 of 5 seeds, the tier one on 2 of 5); 0 of 20 with the fix. The user saw low ready because `gaitCarryOf('aim')` draws an aimed walk at low ready: visuals do not obey the sim (owed, R8).
+- **The pure-T lane.** The tier one reached the card on 100 of 100 seeds but 21 only by the 600 s limit; 163.6 s a lane against 44 s for the existing bot, which presses High ready, reloads and fires on its own judgement. 46 doorway faults came from room 2's dead end (no-shoot pause, then "Carry on" handing back for the closet, T with no act, about 15 s waiting) and from contact cuts in the doorway (60% of pauses). One round left in the hall was a dead end (fixed).
+- **Animation.** The #2 is never animated and strobes (only 8 of 496 moving ticks drawn correctly); the four-frame cycles read as two; no bob; tiptoe; foot slide 0.28 m a step; Combat and Assault use the wrong cycles; turns snap with no hysteresis; the stack's outlines merge into one blob.
+- **The panel.** 33.6 rows on 4.8 pages on the lane; 31% of presses past page 1; no digit stable (Fire held 33 places); High ready, the muzzle-up the bot chose 44 times, was never on page 1; Top up never chosen because `halfOrLess` halves the capacity, not the load.
+- **Doctrine.** Flow is doctrine and the build stops it (the entry beat is `cut: true`); low ready is the safest carry; a jam has three doctrinal answers; "clear the house" is not doctrine; the #2 acts on his own.
+- **Gun looks.** Judge crops (2026-11-11) showed Earth desert and Europa ice alike at 16 px/m, hence the desert figure ramp.
+
+**What was done.** The design is COMBAT §25.19, VIEWS §3.10 and §7.8, written 2026-11-11 and not rewritten here; v0.0.13 ships stage R1's first part (routing, the muzzle rule, the hall's dead end, the cut scan) and the gun looks. `house-walls`' heavy test takes about 190 s alone (600 + 60 lanes); its two-seed variant in the quick suite about 5 s.
+
+---
+
 ## v0.0.12, 2026-11-11: Stack and clear (`test-shoothouse`, 0.0.7d)
 
 **What was played.** The round built by four roles in parallel (drill, house, scene, face) and integrated by the lead, then three reviews of the merged tree (code, design play, runtime play) and the fixer's pass, which found the first pass's fixes in the tree and added to them. Node with `tests/game.mjs` and the house bot (the boot recruit and the private by the keys, the corporal to the tier one by T), and headless Chrome on the GPU through playwright-core at 1600 x 900 and 1024 x 768 (16 px/m), seed 48213 unless said. The sound could not be heard in headless Chrome. Shots stay in the scratch folders: the lead's under `/private/tmp/claude-501/olympus-build/r12/lead/shots/`, the reviews' under `.../r12/review-code/`, `review-design/` and `review-runtime/`, the fixer's under the session scratchpad's `r12-fix/shots/`.
@@ -23,6 +40,9 @@ Shots and drivers stay in the scratch folders named below, outside the repo; wha
 **Rejected, in the docs** (each a decision for the user or a later round): the funnel fault stays common for the private by the keys (settled design, COMBAT §25.5.2; balance for the score); the player's eye cone follows the cardinal facing (`eyeOf`), so a Q+Z walk-in sights the far man late (a perception rule, COMBAT §25.10.4); the #2 at 0.65 m in the stack draws as one blob at 16 px/m, the instructor over a doorway and the catwalk's rails (a look question for the samples, VIEWS §7.4); the stands do not block walkers and X4's other five rooms are voids (PLACES §9.9, a later round); the `house` fact `stacked` names the player only (the #2's stack is heard through his "Ready."); the score line reads the previous VERSION until the release stamps it.
 
 **Process notes.** The sheet's `actor.gait` collided with the walk animation's field and became `actor.moveStance`; three syntax and domain tests failed on the merged tree until the lead's files caught up (the scene spec's `site`, `ENV_HOME`, `game-domains`' new routes). Servers were killed after each run.
+
+**The user's scores.**
+- `test-shoothouse` ("Stack and clear"), 2026-11-11, v0.0.12, seed 1489397426: pause 25, drill 25, shots 25, not starred: "This is the first thing that feels REALLY undercooked." The full note and what it decides are DESIGN.md's log entry of 2026-11-11: max priority, the pilot for everything else.
 
 ---
 

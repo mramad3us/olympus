@@ -148,7 +148,8 @@ import { turnerTargets } from './turners.js';
 import { shotRows, reloadRows, rowPlan, keptPlan, runRowSub, endRowSub, RELOAD_PURPOSE, rungOfShooter, RUNG_AIM, halfOrLess, fullerAtHand, ROWS } from './specials.js';
 import { contactRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive, CONTACT_LABELS } from '../combat/contact.js';
 import { useList, begin, advance, endStep, stepFact } from '../combat/stepper.js';
-import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant } from '../combat/bundle.js';
+import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant, wayOf, pathFrom } from '../combat/bundle.js';
+import { clipped } from '../combat/route.js';
 import { rungOf } from '../skills/templates.js';
 import { MOVE_STANCES, gaitsOf } from '../body/motion.js';
 import { profileOf, pathLen } from '../combat/stepper.js';
@@ -792,7 +793,10 @@ function rowFeet(state, pid, way, now) {
   if (!me || v <= 0) return null;
   const head = Math.atan2(me.v[1], me.v[0]), L = legsHere(state, pid, me.x, me.z), cut = Object.values(state.stop?.carry?.paths ?? {})[0] ?? null;
   const walk = gaitsOf(state, pid, { gait: me.moveStance ?? 'combat' }).walkMs;
-  const path = way === 'moving' && cut ? [[me.x, me.z], ...cut.slice(1)] : [[me.x, me.z], [me.x + Math.cos(head) * v * v / (2 * L.brakeMs2), me.z + Math.sin(head) * v * v / (2 * L.brakeMs2)]];
+  // (moving on: the rest of the cut path from where the body is, routed round the walls; planted: the brake along the
+  // heading, cut short at a wall (route.js; the user, 2026-11-11: "Operators path through walls when automatic pathing"))
+  const brake = [me.x + Math.cos(head) * v * v / (2 * L.brakeMs2), me.z + Math.sin(head) * v * v / (2 * L.brakeMs2)];
+  const path = way === 'moving' && cut ? wayOf(state, pathFrom(cut, [me.x, me.z])) : [[me.x, me.z], clipped(state, [me.x, me.z], brake)];
   const P = way === 'moving' ? profileOf(pathLen(path), Math.max(v, walk), L.pushMs2, L.brakeMs2, { v0: v, v1: 0 }) : profileOf(pathLen(path), v, L.pushMs2, L.brakeMs2, { v0: v, v1: 0 });
   return { id: 'feet', k: 'move', ch: 'feet', stance: me.moveStance ?? 'combat', path: path.map(p => [q(p[0], 0.0001), q(p[1], 0.0001)]), prof: P, fromMs: now, untilMs: now + Math.round(P.T * 1000), way };
 }

@@ -24,7 +24,14 @@
 //     which kind"): drawn held under the handguard, its window to its believed count, its top round's tip
 //     when its kind is known, "?" on its plate when nothing is known, and under it its count ("5", "≈5"), its
 //     weight's band ("A FEW") or "?", and "TR" when it is believed tracer.
-// The optic (the SO-4) and the sling are drawn as fitted; dust and carbon wait for 0.0.8.
+// The optic (the SO-4) is drawn as fitted, no sling (the user, 2026-11-08: "get rid of the green arch it serves no
+// purpose"); dust and carbon wait.
+//   - 0.0.12 (the user's gallery picks of 2026-11-08): the rifle is its model's design in its gun's finish (src/art/rifles.js
+//     drawingOf(model, finish); the R-7 the standard issue they picked, G2's body with V1's sight and the SO-4's flip
+//     magnifier, drawn in line at the believed 4× and folded at 1×), the finish a property of the issued item that the
+//     caller reads from the item by id (src/data/finishes.js; firearms.js finishOf), never from the belief, which the card
+//     reads only for what the holder believes (ui-truth); the HAD-30 MAG_W_PX 9 wide and curving MAG_CURVE_PX 5 (rifles.js),
+//     as scored with G2;
 //   - 0.0.7 (the build sheet 0.0.7 §2.5 (a): the shot at distance): the SO-4's turrets and what the holder believes of
 //     them, drawn only where they matter (a course at distance, the lever at 4×, a turret off its zero, a hold; so
 //     test-handling's card stays as scored): the elevation turret on the tube and the windage on its side, each
@@ -40,16 +47,17 @@
 //     dot sits where the hold puts it (a hold 0.5 mil right puts the target 0.5 mil left of the crosshair: HOLD_PX_PER_MIL
 //     a mil, 0.5 mil ticks). The turrets are seen, so the clicks are the gun's own (beliefOf passes them through); the
 //     zero and the dope are beliefs, never the rifle's true zero (ui-truth).
-// paintWeaponCard({ model, drawing = null, belief, k = 1, distance = false, line = null, hold = null, zeroing = null }) → { w, h, data, px } (a Pixmap: little-endian RGBA words,
-// ImageData's order, alpha 255 or 0; px the same array, the sheet's name for it), k an integer scale. The rifle is the model's drawing
-// (rifles.js DRAWN_AS: the R-7's is v0.0.9's own, below) or the drawing named (the gun samples' candidates, samples/guns, 2026-11-08):
-// a design draws its body and says where its well, selector, port and turrets are, and the state parts are drawn there.
+// paintWeaponCard({ model, drawing = null, finish = null, belief, k = 1, distance = false, line = null, hold = null, zeroing = null }) → { w, h, data, px }
+// (a Pixmap: little-endian RGBA words, ImageData's order, alpha 255 or 0; px the same array, the sheet's name for it), k an integer
+// scale. The rifle is the model's design (rifles.js DRAWN_AS) or the design named (the gun samples, samples/guns), in the finish
+// given (none: the issue's, the Corps' black): a design draws its body and says where its well, selector, port and turrets are,
+// and the state parts are drawn there.
 // cardParts(belief) → the glyphs it will draw (for the tests: every glyph read from the belief alone).
 // Pure: no DOM, no three.js.
 import { paint } from './paint.js';
 import { text, textWidth } from './font.js';
 import { tone } from './tone.js';
-import { drawingOf } from './rifles.js';
+import { drawingOf, MAG_SHOWN_M, MAG_HIDDEN_M, MAG_W_PX, MAG_CURVE_PX } from './rifles.js';
 
 /** The card, pixels (the hud's STEPS card: the sheet's §4). */
 export const CARD_W = 180, CARD_H = 148;
@@ -58,12 +66,12 @@ export const CARD_PX_PER_M = 144;
 
 const BG = 0x2b2e3a, WALL = 0x383c4a, SHADOW = 0x1f2029, INK = 0x14151c;
 const POLY = 0x282b34, POLY_L = 0x3e424d, STEEL = 0x6e7582, STEEL_L = 0x9aa1ae, STEEL_D = 0x49403e;
-const BRASS = 0xd0ac5e, BRASS_L = 0xf0d48a, DUMMY = 0xe08a3a, AMBER = 0xe7b84a, RED = 0xb45150, MARK = 0xdad0bc, DIM = 0x565b67, SLING = 0x4c633d;
+const BRASS = 0xd0ac5e, BRASS_L = 0xf0d48a, DUMMY = 0xe08a3a, AMBER = 0xe7b84a, RED = 0xb45150, MARK = 0xdad0bc, DIM = 0x565b67;
 const COPPER = 0xb8643a, TRACER_TIP = 0xc23b2e, SKIN = 0xb0806a, SKIN_D = 0x8a5e4c;
 /** The HAD-30's capacity (the arms role's FAMILIES.had30.n): the window's full height. */
 const MAG_N = 30;
-/** The HAD-30 as drawn (see the header): metres shown below the well, metres hidden in it, its width and its forward curve in card pixels. */
-export const MAG_SHOWN_M = 0.165, MAG_HIDDEN_M = 0.045, MAG_W_PX = 7, MAG_CURVE_PX = 8;
+/** The HAD-30 as drawn (see the header; rifles.js holds the numbers): metres shown below the well, metres hidden in it, its width and its forward curve in card pixels. */
+export { MAG_SHOWN_M, MAG_HIDDEN_M, MAG_W_PX, MAG_CURVE_PX };
 const FEEL_CARD = Object.freeze({ none: 'NONE', few: 'A FEW', half: 'HALF', most: 'NEARLY', full: 'FULL' });
 
 /** The reticle's pixels a mil of hold, and its half-width in mils (the stop's HOLD_MAX_MRAD 3: the sheet's §4). */
@@ -96,7 +104,7 @@ export function distanceParts(belief = {}, { distance = false, line = null, hold
   return { dial, zeroing: !!zeroing?.from, sight, zero, optic, line: at ? line : null, dope, toGo, onDope: !!toGo && !toGo.elev && !toGo.wind, hold: h };
 }
 
-/** What the card draws, read from the belief alone: { mag, count, approx, load, chamber, port, locked, mode, mark, seen, hand, far }. */
+/** What the card draws, read from the belief alone: { mag, count, approx, load, chamber, port, locked, mode, mark, seen, hand, optic (the lever believed: the R-7's magnifier), far }. */
 export function cardParts(belief = {}, opts = {}) {
   const b = belief ?? {};
   const magIn = b.mag !== 'out';
@@ -109,7 +117,7 @@ export function cardParts(belief = {}, opts = {}) {
     chamber: b.chamber ?? '?', port: portOpen ? 'open' : 'shut', locked: !!b.locked, mode: b.mode ?? 'safe',
     mark: felt ? '!' : b.chamber === '?' ? '?' : null, seen, load: magIn ? b.magLoad ?? null : null,
     hand: b.hand ? { count: Number.isFinite(b.hand.n) ? Math.max(0, Math.min(MAG_N, b.hand.n)) : null, approx: !!b.hand.approx, load: b.hand.load ?? null, feel: b.hand.feel ?? null } : null,
-    far: distanceParts(b, opts),
+    optic: b.optic === 4 ? 4 : 1, far: distanceParts(b, opts),
   };
 }
 
@@ -140,10 +148,10 @@ export const WORD_K = 2, WORD_Y = 112;
 const M = (m) => Math.round(m * CARD_PX_PER_M);
 
 /** The card for a belief (see the header). */
-export function paintWeaponCard({ model = 'r7', drawing = null, belief = {}, k = 1, distance = false, line = null, hold = null, zeroing = null } = {}) {
+export function paintWeaponCard({ model = 'r7', drawing = null, finish = null, belief = {}, k = 1, distance = false, line = null, hold = null, zeroing = null } = {}) {
   const P = cardParts(belief, { distance, line, hold, zeroing });
-  // (the model's drawing (rifles.js DRAWN_AS), or a drawing named outright: the samples' candidates)
-  const D = drawingOf(drawing ?? model);
+  // (the model's design (rifles.js DRAWN_AS), or a design named outright: the samples'; in the gun's finish, the caller's)
+  const D = drawingOf(drawing ?? model, finish ?? undefined);
   let S = null;
   const base = paint(CARD_W, CARD_H, (px, w, h) => {
     // The backdrop: the doll's wall and floor (VIEWS §4.1), the rifle's shadow thrown a little right.
@@ -183,67 +191,21 @@ const X0 = 22, Y0 = 56;
 const FLOOR_K = 0.69;
 const at = (m) => X0 + M(m);
 
-// The rifle and what the holder believes of it: a design's body from rifles.js (its card() returns its stations), or the
-// R-7 as v0.0.9 draws it, below; then the state parts at the stations. Returns the stations, for marks().
+// The rifle and what the holder believes of it: its design's body (rifles.js: its card() returns its stations), then the
+// state parts at the stations; the turrets on the optic where the card shows the distance. Returns the stations, for marks().
 function rifle(px, P, D) {
-  if (D.card) {
-    const S = D.card({ px, at, M, Y0 });
-    if (P.far && S.turrets) turrets(px, P.far, S.turrets);
-    stateParts(px, P, S, D.mag);
-    return S;
-  }
-  // (the sling under it, stock to handguard, slack)
-  for (let x = at(0.08); x < at(0.62); x++) { const t = (x - at(0.08)) / (at(0.62) - at(0.08)), y = Y0 + 14 + Math.round(Math.sin(t * Math.PI) * 9); px(x, y, 1, 2, SLING); }
-  // The stock: a butt pad, the body tapering to the receiver, a cheek riser.
-  for (let x = at(0); x < at(0.24); x++) {
-    const t = (x - at(0)) / M(0.24), top = Math.round(Y0 - 9 + t * 4), bot = Math.round(Y0 + 10 - t * 6);
-    px(x, top, 1, bot - top, POLY);
-    px(x, top, 1, 1, POLY_L);
-  }
-  px(at(0), Y0 - 9, 3, 19, 0x14151c);
-  px(at(0.07), Y0 + 1, M(0.1), 2, tone(POLY, -0.2));
-  // The lower receiver: the pistol grip angled back, the trigger and its guard, the magazine well.
-  for (let j = 0; j < M(0.11); j++) px(at(0.28) - Math.round(j * 0.35), Y0 + 6 + j, 6, 1, j % 5 === 0 ? POLY_L : POLY);
-  px(at(0.24), Y0 + 2, M(0.25), 7, STEEL_D);
-  px(at(0.24), Y0 + 2, M(0.25), 1, STEEL);
-  px(at(0.33), Y0 + 9, M(0.06), 1, STEEL_D); px(at(0.39), Y0 + 7, 1, 3, STEEL_D);
-  px(at(0.345), Y0 + 7, 1, 3, STEEL_L);
-  // The upper receiver: the bore's body, the charging handle at its back, the port on its right side.
-  px(at(0.24), Y0 - 6, M(0.28), 9, STEEL);
-  px(at(0.24), Y0 - 6, M(0.28), 1, STEEL_L);
-  px(at(0.24) - 3, Y0 - 6, 4, 2, STEEL_L);
-  // (the forward assist and the case deflector, small)
-  px(at(0.375), Y0 - 3, 3, 3, STEEL_D);
-  // The handguard, vented, the gas block, the barrel, the muzzle device.
-  px(at(0.52), Y0 - 5, M(0.26), 10, POLY);
-  px(at(0.52), Y0 - 5, M(0.26), 1, POLY_L);
-  for (let x = at(0.55); x < at(0.76); x += 5) px(x, Y0 - 2, 3, 2, 0x14151c);
-  px(at(0.78), Y0 - 2, M(0.1), 4, STEEL_D);
-  px(at(0.78), Y0 - 2, M(0.1), 1, STEEL);
-  px(at(0.88), Y0 - 3, M(0.04), 6, STEEL_D);
-  px(at(0.88), Y0 - 3, M(0.04), 1, STEEL_L);
-  // The SO-4 on its mount: the tube, the turret, the objective's bell, the glass.
-  px(at(0.31), Y0 - 10, M(0.18), 4, STEEL_D);
-  px(at(0.30), Y0 - 16, M(0.2), 6, POLY);
-  px(at(0.30), Y0 - 16, M(0.2), 1, POLY_L);
-  px(at(0.47), Y0 - 18, M(0.04), 10, POLY);
-  px(at(0.39), Y0 - 19, 4, 3, POLY_L);
-  // (0.0.7: the turrets, where the card shows the distance: the elevation's knob on the tube and the windage's beside it, each
-  // with its mark turned by its clicks (a click a pixel round its face, so a dial is seen to move))
-  if (P.far) turrets(px, P.far, R7_STATIONS.turrets);
-  px(at(0.51) - 1, Y0 - 17, 1, 8, 0x3c5d84);
-  px(at(0.30) - 1, Y0 - 15, 1, 4, 0x3c5d84);
-  stateParts(px, P, R7_STATIONS, R7_MAG);
-  return R7_STATIONS;
+  const S = D.card({ px, at, M, Y0, optic: P.optic });
+  if (P.far && S.turrets) turrets(px, P.far, S.turrets);
+  stateParts(px, P, S, D.mag);
+  return S;
 }
 
-/** The R-7's stations on the card (rifles.js's designs keep theirs to these): the well, the selector, the port, its mark, the count's words, the turrets. */
+/** The stations on the card (rifles.js's designs keep theirs to these): the well, the selector, the port, its mark, the count's words. */
 const R7_STATIONS = Object.freeze({
-  well: [at(0.40), Y0 + 8], sel: [at(0.30), Y0 + 4], port: [at(0.40), Y0 - 3, M(0.08), 4], mark: [at(0.43), Y0 - 13], label: at(0.40) + 12,
-  turrets: { e: [at(0.37), Y0 - 22], w: [at(0.41), Y0 - 15] },
+  well: [at(0.40), Y0 + 8], sel: [at(0.30), Y0 + 4], port: [at(0.40), Y0 - 3, M(0.08), 4], mark: [at(0.43), Y0 - 13], label: at(0.40) + 12, turrets: null,
 });
-/** The HAD-30 as the R-7's card draws it (see the header); a design's magazine look (rifles.js) takes the same keys. */
-const R7_MAG = Object.freeze({ body: POLY, edge: POLY_L, win: 0x1d2b46, plate: POLY_L, w: MAG_W_PX, curvePx: MAG_CURVE_PX, shownM: MAG_SHOWN_M, clear: false, rib: null });
+/** The HAD-30 as the R-7's card draws it in the issue's finish (see the header): a design's magazine look takes the same keys. */
+const R7_MAG = drawingOf('r7').mag;
 
 // (0.0.7: the turrets, where the card shows the distance: the elevation's knob on the tube and the windage's beside it, each
 // with its mark turned by its clicks (a click a pixel round its face, so a dial is seen to move))

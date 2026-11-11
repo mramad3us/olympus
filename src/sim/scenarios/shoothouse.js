@@ -42,7 +42,7 @@
 // "Don't stop in the door!"; COMBAT §25.3.2's "standing in a doorway": the fixer's of 0.0.12, a walk through the door
 // counted, so a corporal's entry from rest 0.5 m off the frame was faulted in every room), the corners (room.js
 // coveredNow for you and the #2: covered once, by whom), the flag (the muzzle's line within FLAG_M of the #2's body
-// within FLAG_REACH_M, the rifle in hand and not at high ready: "Muzzle!", once a room), Relaxed inside ("Weapon up.
+// within FLAG_REACH_M, the rifle in hand and neither at high ready nor at low ready: "Muzzle!", once a room), Relaxed inside ("Weapon up.
 // You're in their house."), and the safety stop at any time (an aim at the #2 or the instructor: the range's 'person'
 // stop, "Cease fire! Cease fire!", the card). At "Clear!" the leg's faults: a hot spot covered by neither of you
 // ('corner', "Your corner!"), a threat of the room still up ('standing'), an inner door neither held nor cleared
@@ -108,7 +108,7 @@ import { rangeOf, sayOn, startRange, fault, roundsLeft, stillOf, stopRange } fro
 import { materialise, move } from '../arms/kit.js';
 import { feed, gunField } from '../arms/firearms.js';
 import { enterStop, leaveStop, gunOn, faceOfHead } from '../arms/shooting.js';
-import { muzzleOf } from '../arms/carry.js';
+import { muzzleOf, flagsAt } from '../arms/carry.js';
 import { BRASS_LIVE } from '../arms/look.js';
 import { turnTo, turnAway, facingOf, turnerTargets, TURN_MS } from '../arms/turners.js';
 import { resolveShot, aimMsOf } from '../arms/shot.js';
@@ -709,7 +709,7 @@ export function houseRules(state, input, bus) {
     }
     if ((me.moveStance ?? 'relaxed') === 'relaxed' && !hasFault(L, 'relaxed')) houseFault(state, bus, 'relaxed', HOUSE_CHIEF.relaxed, L);
   }
-  // (the flag: the muzzle's line over the #2, in hand, not at high ready, FLAG_MS at once while he stands (the #2 walking
+  // (the flag: the muzzle's line over the #2, in hand, not at high or low ready, FLAG_MS at once while he stands (the #2 walking
   // across a muzzle held still is his crossing, not your sweep: my call))
   const twoAt = two ? [q(two.x, 0.01), q(two.z, 0.01)] : null, twoStill = !!twoAt && H.two.at?.[0] === twoAt[0] && H.two.at?.[1] === twoAt[1];
   if (twoAt) H.two.at = twoAt;
@@ -722,14 +722,9 @@ export function houseRules(state, input, bus) {
   stall(state, bus, R, H, L, now);
 }
 
-// (the muzzle's line within FLAG_M of the #2's body within FLAG_REACH_M, the rifle in hand and not at high ready)
-function flagged(state, pid, two) {
-  const m = muzzleOf(state, pid);
-  if (!m || !m.inHand || m.posture === 'highReady') return false;
-  const dx = two.x - m.ox, dz = two.z - m.oz, ux = Math.cos(m.yawRad), uz = Math.sin(m.yawRad), t = dx * ux + dz * uz;
-  if (t <= 0 || t > FLAG_REACH_M) return false;
-  return Math.abs(dx * uz - dz * ux) <= FLAG_M;
-}
+// (the muzzle's line within FLAG_M of the #2's body within FLAG_REACH_M, the rifle in hand and neither at high ready nor
+// at low ready: carry.js flagsAt, the DI's rule too)
+const flagged = (state, pid, two) => flagsAt(muzzleOf(state, pid), two.x, two.z, FLAG_M, FLAG_REACH_M);
 
 // (a leg's state moved on, its time noted, the fact)
 function progress(state, bus, H, L, to, now) {

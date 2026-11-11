@@ -225,7 +225,7 @@ import { hairOf } from './sim/body/hair.js';
 import { eyeOf, sightMask, canSee } from './sim/people/perception.js';
 import { BARRACKS } from './sim/scenarios/barracks.js';
 import { BENCH_SCENES, BENCH_DEFAULT } from './data/bench.js';
-import { beliefOf, REFUSALS, actionMs } from './sim/arms/firearms.js';
+import { beliefOf, finishOf, REFUSALS, actionMs } from './sim/arms/firearms.js';
 import { kitView } from './sim/arms/kit.js';
 import { rollerOf } from './sim/combat/roll.js';
 import { kitLook, rangeLook } from './sim/arms/look.js';
@@ -280,7 +280,7 @@ import { aspectLines, againTiers, runLine, bangLines } from './ui/cards/pairs.js
 import * as stressScene from './sim/scenarios/stress.js';
 import { COURSES } from './data/courses.js';
 import * as MARKS from './sim/arms/marks.js';
-import { createHitcard, cardModel, hitShown, hitTabs, HIT_LOOK } from './ui/hud/hitcard.js';
+import { createHitcard, cardModel, hitShown, hitTabs, hitRangeM, HIT_LOOK } from './ui/hud/hitcard.js';
 import { paintHitcard, warmHitcard } from './art/doll/hitcard.js';
 import { stressLines, hotWash, sessionGrid, gridTable } from './ui/cards/stress.js';
 // (0.0.12: "Stack and clear": the scene's views (shoothouse.js), the drill's running bundle (bundle.js), the instructor's lane timer, the
@@ -488,7 +488,7 @@ sim = createSim({ loop, bus });
 const label = (a) => input.label(a);
 const instinct = createInstinct(hud, { label });
 // (the weapon mode's HUD: the step panel with its weapon card, the reflex card in its place, the radio box, the PAPER inset, the plaque and its brackets)
-const stepPanel = createSteps(hud, { label, labelOf: (id) => stepLabel(id), paintCard: (belief, far = {}) => (belief?.model ? paintWeaponCard({ model: belief.model, belief, k: 1, ...far }) : null),
+const stepPanel = createSteps(hud, { label, labelOf: (id) => stepLabel(id), paintCard: (belief, far = {}, finish = null) => (belief?.model ? paintWeaponCard({ model: belief.model, finish, belief, k: 1, ...far }) : null),
   onPick: (step) => { if (!loop.paused && !boot.card && !splash?.active && inStop() && !windowOpen() && !startledNow() && !pauseGuarded('click')) { let st = null; try { st = stopNow(loop.state); } catch { /* (no stop motion: nothing to send) */ } if (st && !st.reflex) sendStep(step, input.peek().run ? 'rushed' : 'normal', st); } } });
 const reflexCard = createReflex(hud, { plaque, label });
 const radio = createRadio(hud);
@@ -1512,12 +1512,14 @@ const kdOf = (s) => { try { return kdScene.kdNow ? kdScene.kdNow(s, s.clock.ms) 
 function readSim(s) {
   const key = `${s.clock.tick}|${s.clock.seq}|${s.clock.ms}|${s.stop?.phase}|${s.stop?.pick}|${s.stop?.aim?.key}`;
   if (simRead.key === key && simRead.state === s) return simRead;
-  const r = { key, state: s, st: null, steps: [], belief: null, range: null, look: null, targets: [], kd: null, far: null };
+  const r = { key, state: s, st: null, steps: [], belief: null, finish: null, range: null, look: null, targets: [], kd: null, far: null };
   try { r.st = stopNow(s); } catch (e) { broke(e, 'stop motion'); }
   try { r.range = rangeNow(s); r.kd = r.range?.course === 'kd' ? kdOf(s) : null; } catch (e) { broke(e, 'the range'); }
   if (r.st?.mode === 'stop') {
     if (!r.st.reflex) { try { r.steps = stepsOf(s); } catch (e) { broke(e, 'the step panel'); } }
     try { r.belief = s.stop?.gun ? beliefOf(s, s.stop.gun) : null; } catch (e) { broke(e, 'the weapon card'); }
+    // (the gun's finish, the card's colours: the item's own by its id, never the belief's, which the card reads only for what is believed)
+    r.finish = s.stop?.gun && s.items?.[s.stop.gun] ? finishOf(s.items[s.stop.gun]) : null;
     try { r.look = r.range ? rangeLook(s, s.clock.ms) : null; } catch (e) { broke(e, 'the PAPER inset'); }
     try { r.targets = targetsOf(s, s.player.id); } catch (e) { broke(e, 'the targets'); }
   }
@@ -1567,7 +1569,7 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   const onPairs = sim.range?.course === 'pairs' || sim.range?.course === 'house' || s.armoury?.range?.course === 'house';
   let stepsText = '', reflexText = '', paperText = '';
   // (zeroing: on the KD zero until the coach accepts it, the card counts the clicks dialled in this zero: kdNow's, shot.js zeroingOf)
-  const distance = { distance: !!sim.kd, line: kdLineOf(sim.kd), hold: s.stop?.hold ?? null, zeroing: sim.kd?.zeroing ?? null };
+  const distance = { distance: !!sim.kd, line: kdLineOf(sim.kd), hold: s.stop?.hold ?? null, zeroing: sim.kd?.zeroing ?? null, finish: sim.finish };
   // (0.0.7: the range's own actions at their commands (range.js kdActs: police your brass, rounds to the coach, "No brass,
   // no ammo"), rows of the panel among the commands, the tower's current marked; sent as the range's action, not a step)
   const acts = (sim.kd?.acts ?? []).map(a => ({ id: a.id, kind: 'command', label: a.label, ms: a.ms ?? null, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: true, skill: null, act: a.id }));
@@ -2023,7 +2025,8 @@ function hitModelOf(s, key, k, phase, tabs = []) {
   const hm = hitMarksRead(s, key, k, phase);
   if (!hm) return null;
   const T = (s.armoury?.range?.turners ?? []).find(t => t.key === key) ?? null;
-  return cardModel(hm, { look: HIT_LOOK, face: hm.face ?? T?.face ?? 'threat', holds: hm.holds ?? T?.holds ?? 'rifle', tabs });
+  // (the board's figure at the turner's range band, the line's ("keep all three to represent varying ranges", the user, 2026-11-08))
+  return cardModel(hm, { look: HIT_LOOK, face: hm.face ?? T?.face ?? 'threat', holds: hm.holds ?? T?.holds ?? 'rifle', tabs, rangeM: hitRangeM(T, meAt(s), s.armoury?.range?.line) });
 }
 // (when the card in belief last changed or stop motion was left: its hold out of the mode counts from there)
 let hitSeen = { sig: null, t: -Infinity, stop: false, shown: null };

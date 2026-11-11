@@ -362,7 +362,7 @@ Suppression is fear made into numbers: the chaos arriving at a body (rounds crac
 3. **Felt is a roll modifier**, as asked: −1 a 10 points, at most −10, on every hands-and-eyes roll, half on head-and-voice rolls. It slows the hands and the aim ×(1 + felt / 200), adds the take-in's built 200 ms a band (§25.4.2), and names the band (calm, under fire, suppressed, pinned) for the words, the nerve check and the NPC's choice. Calm at room range nothing changes a hit: "it's ok that only speed changes" (the user; §25.6.3).
 4. **The startle** (§5.7): an input that raises felt by 10 or more at once freezes the body for `U(1.5, 3) s × (1 − H / 100)²`, halved for each bang or blast within 10 s of the last, the keys taken as in the take-in: at most about 3 s. Then the man tries, and the dice decide; the recruit fails at his hands, he is not locked out of them.
 5. **The flash and the bang are physics** (§11.4): flash-blind by facing and a filtered visor, deafened without ear defenders, a concussion grenade's overpressure stuns anyone. Hardening touches none of them.
-6. **The user's anchors hold** [computed, T4]: three flashbangs beside a **tier one** leave him at felt 10 (calm), −1, startled one tick (0.05 s), his Off safe and his RELOAD failing exactly as often as calm (5%, 14%: the natural 1s at `danger`) and 0.06 s slower. Beside a **boot recruit**: felt 98 (pinned), −10, startled 2.45 s in all, **Off safe failing 57% of the time and a RELOAD 93%** (as built in v0.0.9, §5.8); three Off safe attempts in ten slip off the lever (the rifle stays on safe, §5.8), and nearly half the reloads drop the fresh magazine.
+6. **The user's anchors hold** [computed, T4]: three flashbangs beside a **tier one** leave him at felt 10 (calm), −1, startled one tick (0.05 s), his Off safe and his RELOAD failing exactly as often as calm (5%, 14%: the natural 1s at `danger`; 0% and 0% once his 1s are caught, SKILLS §5.1, designed 2026-11-11) and 0.06 s slower. Beside a **boot recruit**: felt 98 (pinned), −10, startled 2.45 s in all, **Off safe failing 57% of the time and a RELOAD 93%** (as built in v0.0.9, §5.8); three Off safe attempts in ten slip off the lever (the rifle stays on safe, §5.8), and nearly half the reloads drop the fresh magazine.
 7. **NPCs run the same pool, the same offset and one nerve check** (§7.11): on a loud entry they turn to the noise, take the entrant in with the same helper, and fight, rush for cover, fire blind, freeze, flee or surrender by their felt band, their Nerve and their doctrine; a choice holds until the band changes, so nothing flickers.
 
 ### 5.1 Inputs
@@ -603,6 +603,7 @@ The same at `evaluated` as at `danger` (the range's pressure): the tier one's ra
 - **The tier one**: every rate equal to calm's, 0.09 s to thumb off safe instead of 0.08, a RELOAD 0.06 s longer, one tick lost to the startle: "having three flashbangs go off right next to him would barely affect his ability to operate his weapon".
 - **The recruit**: thumbing the safety off fails more often than not and swings the rifle onto its sling three times in ten; a RELOAD fails nine times in ten and drops the fresh magazine nearly half the time: "likely to fail simple actions like thumbing safety off or reloading". He is startled 2.45 s and then tries: the dice, not the keys, fail him.
 - **Between**: the private fails his RELOAD more often than not; from the corporal up the hands hold and only time and the take-in pay. The 5% and 14% are the natural 1s at `danger`, which bite everyone in an operation (SKILLS §5.1).
+- **Designed 2026-11-11, to build in the shoot house rework: caught 1s** (SKILLS §5.1; the user's "perk of high skilled operators"). A natural 1 at `danger` is caught, a success at ×1.5 of that sub-step's time, when the hand's Weapon handling is 15 or more and the step is made by 10 without the die, the felt modifier counted. The table's 5% and 14% then become, for Off safe and the RELOAD: **tier one 0% and 0%** calm, at one bang and at three (each 1 costs ×1.5 on its sub-step: Off safe 0.08 → 0.12 s on a 1 in 20); **Raider 0% and 0%** at 0, 1 and 3 bangs; **sergeant** 0% and 5% at one bang (the seat, DC 9, stays short of the margin), 5% and 14% at three (felt 60, −6); **corporal** 5% and 14% at one and three; the private and the recruit unchanged. So the user's anchors hold more sharply: the tier one under three flashbangs fails exactly as often as calm, which is now never, and the recruit's 57% and 93% stand.
 - **With ear defenders** (×0.6 on the bangs; pool 79) [T4]: the recruit is at felt 72, −7 (Off safe fails 40%, RELOAD 82%), the private 62, −6 (5%, 28%), the corporal 43, the sergeant 34, the Raider 4 and the tier one 0: ear defenders are worth wearing, and the shoot house's strings are fired in them (§25.18).
 - **Turn to the first round**, the string turned 2 s after the third bang (`test-pairs&setup=bangs`, §25.18) [T14]: the boot recruit **6.98 s on average (14.6 s at the 95th percentile)** against 2.64 s calm, his Off safe failing at least once 55% of the time; the private 3.39 s (1.99 calm); the corporal 1.89 (1.24); the sergeant 1.65 (1.06); the Raider 1.01 (0.74); **the tier one 0.61 s (0.60 calm)**.
 
@@ -2018,6 +2019,8 @@ Designed 2026-11-07 for the user's close-quarters ask (DESIGN.md's log of that d
 9. **Training first, then the career**: `test-pairs` on the built 25 m bay (turning targets at 7 and 10 m: the take-in and the shot rows, scored before anything depends on them), then `test-shoothouse` "Stack and clear" in X4 as a new 0.1.x scene before `test-patrol`, with a sheet picker from private to tier one and "Again as …" on the same seed (§25.10).
 10. **Five questions for the user** (§25.16): the tap as rows; the tier one past 1.0; the feet during the take-in; "under 0.1 s" where it is expected; a first room at Argyre.
 
+**Designed 2026-11-11 (the user's note on v0.0.12)**: §25.19 reworks this model and wins where they disagree. Item 3's rung 4 no longer clears the house: the furthest one press reaches is one room, to "Room clear!". Item 5's pause **suspends** a trained man's bundle (the feet carry on to his point and the shot runs on the hands) instead of cutting it. Item 6's shots are one row each, the feet by the drill. Item 8's bundles become the muscle-memory catalogue by phase (stack, door, room, weapon, team). A stoppage gains Gun down, Off the line and the transition to the P-12. The #2 works as doctrine says and does the tower's commands.
+
 ### 25.1 The user's words this chapter obeys
 
 - 2026-11-07, the ask (DESIGN.md's log): CQB training; the recruit step by step; T as the experienced operator's automation; "game unpaused with X"; the pause after the marine's own time, "sub .1s for tier 1 operator vs maybe 0.8+ for recruit"; "much faster and smoother and pause faster"; double and triple taps, the Mozambique, combat reloads "as special actions when relevant"; "Please build on this idea".
@@ -2076,6 +2079,8 @@ A **drill family** is a kind of space cleared, each with its own rung on the she
 
 The rung decides the grain and the flow; Warfighting decides the take-in (§25.4); the skills decide each step's time and odds. Two drilled sergeants clear at the same grain, and the one with more Warfighting pauses sooner.
 
+**Designed 2026-11-11 (the user's note on v0.0.12)**: rung 4's "Clear the house" is withdrawn (the user: "the option to clear the whole house should not exist"). Rung 4 clears the room as rung 3 does, the eyes flowing too, and every row ends at "Room clear!". Rung 2's groups become "Stack up, take point", "Open, in: your corner" and "Dominate". The rung sets how far a row reaches, and every row is offered at every rung (§25.19.2).
+
 #### 25.3.2 How a rung is earned (my calls)
 
 - **Taught (1)** by a lesson: the School of Infantry's MOUT package, on every new join's summary paper (CAREER §4.7 gains the line), gives `room` 1 and `passage` 1.
@@ -2084,7 +2089,7 @@ The rung decides the grain and the flow; Warfighting decides the take-in (§25.4
 - **Each teacher teaches only so far** (SKILLS §6.3's `upTo`, in kind): unit training (the squad leader, the platoon's drills, the voyage's passageways) to 2; the shoot house's cadre, the boarding course and the AIC to 3; the ITC to 4. **Field repetitions** (a room cleared in an operation) count double, at most 5 a sol, and teach to 3.
 - **Lived or skipped, the same** (SKILLS §6.3's rule): a 3 h CQB block (SKILLS §6.4) is about 12 runs; skipped, its representative rolls set the clean share. Two blocks give rung 2, so nothing is a grind the player must live (the objection to the systems proposal's counts, answered by the skip rule, my call).
 - **Schools' floors** (SKILLS §6.6 gains a column): `infantry` room 1, passage 1; `boarding` room 2, hatch 2, void 2; `aic` room 3, passage 3; `recon` room 3, passage 3; `raider` all 4; `tier-one` all 4. `breacher` puts the ram and charge breaches on the record (§25.5.6).
-- **Lived once** (the doctrine proposal; TIME's "the first time is lived"; the user's "once we did it once, remember it", 2026-10-26): a bundle is offered only once its own steps have been done by hand, start to end, at least once, in training or for real, or on a school's test day. The first time it would be offered and is not yet lived, it shows struck, "by hand first", once; an untaught bundle never shows.
+- **Lived once** (the doctrine proposal; TIME's "the first time is lived"; the user's "once we did it once, remember it", 2026-10-26): a bundle is offered only once its own steps have been done by hand, start to end, at least once, in training or for real, or on a school's test day. The first time it would be offered and is not yet lived, it shows struck, "by hand first", once; an untaught bundle never shows. **Designed 2026-11-11 (the user's note on v0.0.12)**: an untaught or unlived row shows greyed with its rung or "by hand first", never hidden (the user's "even if grayed out"; §25.19.2, VIEWS §7.8; my call).
 - **Rust** is deferred (both judges): a later layer once the career has gaps long enough to matter, never in the first scene.
 - **NPCs** carry rungs in their tier's template, written nowhere (my calls): private 1; lance corporal and corporal 2; sergeant and staff sergeant 3; second lieutenant 1; recon 3; Raider 4; tier one 4; insurgent cell members 0; cell veterans and pirates 1; UN Marines 2; enemy special forces 4. Every NPC's bundles count as lived.
 - **The sheet shows it** (C): "Close-quarters battle: rooms, taught (rung 1) · 7 of 20 clean runs toward practised", in SKILLS §6.7's progress words.
@@ -2114,7 +2119,7 @@ ticks(ms)  = max(1, round(ms / TICK_MS)) × TICK_MS                        (50 m
 |---|---|---|---|
 | **experience** | `coreMs(WF)` | WF 6: 649 ms · 15: 536 · 27: 403 · 34: 335 · 44: 250 · 56: 166 · 70: 93 · 86: 44 · 93: 33 | Warfighting "is combat experience" (SKILLS §4.2), the user's word; quadratic, so the first tour is felt and the last points are hard (the power law of practice) |
 | **expectation** | `EXPECT[e]` | `sector` ×1, no floor; `area` ×1.5, no floor; `alert` ×2, floor 150 ms; `surprise` ×3, floor `SURPRISE_FLOOR_MS` 250 | knowing where is anticipation; knowing that (a room being cleared) halves the search; choice time grows with the choices (Hick, Hyman); a true surprise never beats simple reaction time (Welford) |
-| **the dice** | `NOTICE_K[grade]` | an Awareness check against `8 + round(rangeM / 10)`, +4 behind, −2 in a held sector, graded as SKILLS §5.6: pass ×1, miss ×1.5, bad ×2, disaster ×3; a natural 1 is a miss whatever the margin | pillar 3: the dice decide how fast he noticed, in the log. A multiplier, so a tier one's natural 1 costs a tick, not §3.3's 2,000 ms (the map's defect) |
+| **the dice** | `NOTICE_K[grade]` | an Awareness check against `8 + round(rangeM / 10)`, +4 behind, −2 in a held sector, graded as SKILLS §5.6: pass ×1, miss ×1.5, bad ×2, disaster ×3; a natural 1 is a miss whatever the margin (from the shoot house rework, designed 2026-11-11: a natural 1 SKILLS §5.1 catches, Awareness 15 or more and the check made by 10 without the die, is graded by its margin and costs the catch's ×1.5, so the figure stands and J's "a natural 1, noticed late" reads "a natural 1, caught: noticed late") | pillar 3: the dice decide how fast he noticed, in the log. A multiplier, so a tier one's natural 1 costs a tick, not §3.3's 2,000 ms (the map's defect) |
 | **who** | `whoK` | ×1.5 when his hands are unseen, a no-shoot or hostage stands within 1 m of him, or the area is among civilians; else ×1 | the shoot or no-shoot choice: officers about 0.31 s from a light to the trigger, about 0.56 s with that choice (Lewinski and Hudson) |
 | **how many** | `severalK` | `1 + 0.15 × log2(n)`, n the people taken in at one pause: 2 ×1.15, 4 ×1.30 | Hick and Hyman |
 | **stance** | `stanceK` | Relaxed ×1.25; Combat ×1; Assault ×1.1, ×1 from rung 2 | the weapon slung and the mind elsewhere; the eyes on the footing at a lope unless drilled |
@@ -2288,7 +2293,7 @@ A room of 5.0 × 4.0 m, its door 0.9 m wide in the middle of the near (5 m) wall
 
 Thinking is free in stop motion, so the recruit is slow for five reasons, each of which training removes (my model, merging the three proposals): **the take-in** (0.80 s against 0.05); **the aim** (a 45° turn from where he guessed, 1.05 s, against 0.10 s on a sector the drill held); **the seams** (each step ends with the body stopped, 0.43 s to stop and start again at the Combat walk, and twice the human's own start at 1:1 after X); **the flow** (a bundle's hands and eyes work while the feet move, §25.7); **the lope** (Assault at 1.60 m/s against Combat's 0.97, with the close-quarters shot the training eases, §25.9). And `paceOf` on every step. "Nothing in combat is taken steady" (§3.4) stands; a rushed bundle (Shift with T or its digit) takes ×0.6 and −3 on its rolls, never routine.
 
-**As built in v0.0.12** (measured on seed 48213 at 1 G in the Wheel's house 1, room 1 as §25.5.1's reference room, the setup `ref`; the figures are #1's own time to his "Clear!", with no #2 beside him, as the tables above are). Against the computed table: the boot recruit by the keys 16.35 s (the table 15.33; take-in 0.95 s, first round 3.15 s after the sighting against 2.98); the private by the keys 14.55 s (13.79; 0.80 s, 2.55 s against 2.00, his Off safe and the second man's take-in included); the corporal by T 9.28 s (8.82); the sergeant by T 6.47 s (6.13); the Raider 5.29 s (5.19); the tier one 5.11 s (4.98; take-in 0.05 s, first round 0.28 s against 0.30). The scene's tolerance is +-0.10 s on the first round by T and +-0.15 s by the keys; the room against the table is held to 15% for every sheet but the corporal's, whose figure is printed only (his three-group flow is the drill's). **With a #2** the room's "Clear!" comes when both sectors are clear, 1.0 to 1.3 s later by T (corporal 10.35 s against 9.28 own, sergeant 7.75 against 6.47, Raider 6.35 against 5.29, tier one 6.30 against 5.11). **The lane** (three rooms and the hall, GO to the card) on 48213: recruit 87.7 s, private 73.5, corporal 62.5, sergeant 48.0, Raider 49.3, tier one 44.0 s, the private to the tier one 1.67; over 100 seeds the private 75.1 s, the sergeant 46.7 and the tier one 44.2 s, a ratio of 1.70. (The first integrated table, 16.80 s for the recruit and a ratio of 1.77, was measured before the reviews' fixes and is replaced.) The corporal misses the advanced par on room 1's off-corner man by 0.03 s (1.53 s against 1.5): kept as honest, a Watch or his #2 meets it (my call).
+**As built in v0.0.12** (measured on seed 48213 at 1 G in the Wheel's house 1, room 1 as §25.5.1's reference room, the setup `ref`; the figures are #1's own time to his "Clear!", with no #2 beside him, as the tables above are). Against the computed table: the boot recruit by the keys 16.35 s (the table 15.33; take-in 0.95 s, first round 3.15 s after the sighting against 2.98); the private by the keys 14.55 s (13.79; 0.80 s, 2.55 s against 2.00, his Off safe and the second man's take-in included); the corporal by T 9.28 s (8.82); the sergeant by T 6.47 s (6.13); the Raider 5.29 s (5.19); the tier one 5.11 s (4.98; take-in 0.05 s, first round 0.28 s against 0.30). The scene's tolerance is +-0.10 s on the first round by T and +-0.15 s by the keys; the room against the table is held to 15% for every sheet but the corporal's, whose figure is printed only (his three-group flow is the drill's). **With a #2** the room's "Clear!" comes when both sectors are clear, 1.0 to 1.3 s later by T (corporal 10.35 s against 9.28 own, sergeant 7.75 against 6.47, Raider 6.35 against 5.29, tier one 6.30 against 5.11). **The lane** (three rooms and the hall, GO to the card) on 48213: recruit 87.7 s, private 73.5, corporal 62.5, sergeant 48.0, Raider 49.3, tier one 44.0 s, the private to the tier one 1.67; over 100 seeds the private 75.1 s, the sergeant 46.7 and the tier one 44.2 s, a ratio of 1.70. (The first integrated table, 16.80 s for the recruit and a ratio of 1.77, was measured before the reviews' fixes and is replaced.) The corporal misses the advanced par on room 1's off-corner man by 0.03 s (1.53 s against 1.5): kept as honest, a Watch or his #2 meets it (my call). **After v0.0.12's routing** (the fixer's, 2026-11-11, in the tree): room 1 for the Raider 5.48 s and the tier one 5.27 s, within 15% of the table; lanes on 48213 recruit 95.2, private 78.3, corporal 61.6, sergeant 50.5, Raider 48.8, tier one 46.4 s (§25.19.1).
 
 #### 25.5.5 The race at the door [computed]
 
@@ -2348,6 +2353,7 @@ Each is a row of the step panel, priced and rolled up front, each round its own 
 - **As built in v0.0.9, the reaches and the head row** (the fixer's, the user's report of 2026-11-07: "am i supposed to aim for the head ? How do I do that ?"; each my call; `specials.js`, `pairs.js`, `panel.js`): the reaches are `PAIR_MAX_M` 25, `HAMMER_MAX_M` and `TRIPLE_MAX_M` 7, **`FAILURE_MAX_M` 15 and `HEAD_MAX_M` 25** (a rifle's head shot is not a 10 m thing; Hammer and Triple stay close-range drills).
   - **The reach is judged by the line**: your own lane's turner counts at the line's nominal 7 or 10 m anywhere in that line's box (`pairs.js pairsReachM`: the session's line first, then the other line; `specials.js reachOf`), so standing a metre back in the 10 m point's box no longer drops the head row. Every other target uses its measured range, unrounded, so a neighbour's turner at 7.30 m is out of the Hammer (v0.0.8 compared the rounded range). The odds use the measured range.
   - **Never silent**: after "He's still up", To the head is offered first, or struck with its reason ("aim first", "off safe first", "empty, RELOAD first", "a stoppage", "chamber unknown", "chamber empty", "N m, past 25") and its remedy is brought up beside it on the first page (Off safe, RELOAD, IMMEDIATE ACTION, Press check, or MAKE READY, else Bolt release, else Charge: `panel.js remedyOf`). A rifle that cannot fire no longer drops the head row. The DI names the row's key and T does the remedy (SKILLS §14); To the head keeps its key on every page.
+- **Designed 2026-11-11, to build in the shoot house rework: a caught 1 in a row** (SKILLS §5.1, WEAPONS §7.10). A round whose natural 1 is caught (Marksmanship 15 or more, the round made by 10 without the die, the row not rushed) leaves late by half its own part of the row: the aim the row holds, its press or split, its shift. The row's later parts move with it, and the round is judged by the world when it leaves. A row is not halted by a caught 1, the round's tick reads `~` (VIEWS §7.4), and the PAPER's split shows the late round as it was. A rushed row (Shift) catches nothing, which is the price of its ×0.6.
 - **"He's still up"** (the fixer's, `specials.js stillUp`, `STILL_UP_TORSO` 2): standing after a torso round that rang on a plate this contact, or after two torso hits; one hit on paper is not it (the DI says "Again. Chest." and Pair stays first). In review, one round in a paper man had been "still up", and the recruit went to the head on paper (8 head hits to the tier one's 2).
 
 **As built in v0.0.8** (`src/sim/arms/specials.js` `ROWS`, `shotRows`, `rowPlan`, `runRound`; the build sheet 0.0.8 §8 items 3, 10 to 16; each my call unless named): the five rows (ids `shot:pair`, `shot:hammer`, `shot:triple`, `shot:failure`, `shot:head`) with the table's gates and reaches (`PAIR_MAX_M` 25, `HAMMER_MAX_M` and `TRIPLE_MAX_M` 7, `FAILURE_MAX_M` and `HEAD_MAX_M` 10; Hammer and Triple compared on the rounded range, so a neighbour's turner at 7.6 m is out), each made of parts (`aim` from rung 2 when not aimed at the target, the selector to semi at no time inside it; `hold` when careful; `press`; `round`; `shift`), each round resolved at its own formula time (`atMs`) with its own roll, part, zone and hole, so the paper's splits read true under a tick. The row reads "Pair · 0.40 + 0.52 s · 95% 95%".
@@ -2393,6 +2399,8 @@ So the failure drill and the head rows earn their place where it matters (the ar
 
 **As built in v0.0.9, the head's odds at the new reaches** (`specials`, `pairs-head`; the head's DC by range: 12 up to 10 m, 13 at 11 m, 15 at 15 m, 17 at 20 m, 19 at 25 m): To the head at 10 / 11 / 15 / 25 m: boot recruit 70 / 65 / 55 / 35%, private 95 / 95 / 85 / 65%, corporal 95 / 95 / 95 / 90%, sergeant and above 95%. The failure drill's head round at 15 m: recruit 45%, private 80%, the rest 95%. The aim plaque keeps reporting Fire's torso shot (the head's odds are on To the head's own preview plaque), so one quantity shows one number (my call). The private's To the head at 11.3 m is 0.55 s, 95%.
 
+**Designed 2026-11-11, to build in the shoot house rework: the caught 1 at room range** (SKILLS §5.1; the user, 2026-11-11: "some kind of perk of high skilled operators preventing a nat 1 from making them miss"). The d20 saturates here, so from the private up every miss on a still face was a natural 1, and the sheets differed in time alone. With caught 1s the margin decides who still misses. On the bay a round misses 4.6% for the private, and 0.3%, 0.3%, 0% and 0% for the corporal, sergeant, Raider and tier one, against 4.5 to 4.6% for every one of them before (Pairs' bot, 300 seeds a sheet). In the shoot house the figures are 5.8%, 3.8%, 1.4%, 0% and 0%, against 5.1 to 5.8% before. In the live room above (−8), the Raider's and the tier one's torso and head rounds are caught (5% → 0%), while the corporal's and sergeant's are not (their margins are 1 to 4 on the torso), so under fire the perk is the operators', as the user put it. Each caught round costs half its part of the row, +0.13 to +0.18 s on Fire from aimed (§25.6.2's Fire, halved).
+
 #### 25.6.4 The tap becomes the rows (§24, question 9)
 
 As built, a follow-up is "Fire again inside the recovery" (v0.0.5's `tap()`), a press inside a window of about 0.395 s of real time while the clock runs, whose game-time cost depends on when the finger pressed: a reflex input, and the user's own tradecraft design (2026-11-04). The user now asks for the taps "as special actions", so (my call, the default of question 1): **the rows replace the window** when `test-pairs` builds them; until then the built tap stays as it is, scored. `TAP_SKILL` and `climbOf` stay; `TAP_SPLIT_S` becomes the hammer's split on Weapon handling's pace. Rejected: the doctrine proposal's alias that keeps the real-time window (the finger still decides), and the play proposal's "1 1" chord typed in still time (every single Fire would wait `CHORD_MS` 300 ms of real time to see whether a second 1 follows). On the range the single stays the default; the Pair is offered where a course of fire calls for it.
@@ -2413,7 +2421,7 @@ The Corps' RELOADs as built (WEAPONS §5.3; v0.0.6's reach and seat inside each)
 - **"Reloading!"** is called free with a reload in a team (§8.4), so a buddy covers. **"Gun down!"** (the doctrine proposal): in a stack or a room with a buddy, from rung 1, a 0.5 s step: a knee or a step off the line with the call, the buddy takes the sector, then the drill.
 - **The strict tactical reload** (the fresh magazine to the support hand first, `magOut:hand`, the gun without a magazine for about a third of the time, from Weapon handling 12) comes later under a new id; nothing scored is renamed (my call, after judge 2; the systems proposal's terminology is right and can wait).
 - **As built in v0.0.8** (`specials.js reloadRows`; WEAPONS §5.3; the build sheet 0.0.8 §8 items 17, 18): the three rows by purpose everywhere, ids unchanged (test-handling's panel says "Top up" where the tactical RELOAD read "RELOAD", its course to the tick); the times to the table's ±0.02 s. **RELOAD** first with the bolt believed locked on an empty (on the bay of turners at the panel's head, over Fire struck and the aim; test-handling's and test-range's panels keep their order). **Top up** first only in a lull (`lullOf`: no window, no threat facing, `LULL_MS` 3,000 since your last shot, the last pause and the last turner gone edge-on), with the magazine believed at half or less **and a fuller one believed at hand** (specials' call: the pairs magazines are thirties loaded with ten, so "half" alone would lead with Top up on a full load). On the pairs course it is offered with the magazine believed empty and a round chambered too (`COURSES.pairs.spoutTopUp`, the fixer's: the lull after the dry string); test-handling keeps the coach's "fire it" (WEAPONS §11). When the session names a magazine (`R.wantMag`, the coach's two-round one), Top up's queue reaches for its pouch and says so ("Top up: the two-round magazine, chest pouch 3"). Nothing is done unasked. The scene counts each reload by its purpose as believed at its start: 'dry', 'lull', 'topUp' (inside a string), 'between', 'short'.
-- **The transition** (WEAPONS §5.2: 0.3 s and the draw; 1.40 s at WH 10, 0.64 at 42 [computed]) is offered beside RELOAD with its time when a person is within 10 m and a pistol is carried, and first in the stoppage card when the threat is close. The player carries no pistol before the boarding party's and the Raiders' kit (0.5 and 0.7), so it is built with the sidearm.
+- **The transition** (WEAPONS §5.2: 0.3 s and the draw; 1.40 s at WH 10, 0.64 at 42 [computed]) is offered beside RELOAD with its time when a person is within 10 m and a pistol is carried, and first in the stoppage card when the threat is close. The player carries no pistol before the boarding party's and the Raiders' kit (0.5 and 0.7), so it is built with the sidearm. **Designed 2026-11-11 (the user's note on v0.0.12)**: the shoot house issues the P-12 from the Sergeant up, and the transition is built there, first on the stoppage card with a threat facing within 10 m (§25.19.6; WEAPONS §3.2).
 
 #### 25.6.6 Stoppages
 
@@ -2469,11 +2477,13 @@ export const ENTER_AND_CLEAR = {
 - **Its gate**: `offered(p, b) = rungOf(p, family) ≥ b.rung && lived(p, b.id)`; `rungOf` reads the sheet's `drills` and the schools' floors (§25.3.2). **The single steps are always in the panel** (the door's rows, the moves, the looks, the calls), one by one.
 - The other families follow at their milestones: `clear-passage` (0.2), `hatch` and `void` (0.5, the Hulk and `test-zerocqb`), each a data module of beats.
 
+**Designed 2026-11-11 (the user's note on v0.0.12)**: `bundles` is replaced by `MUSCLE`, the muscle-memory catalogue by phase, and the beats gain `read`, `tell`, `breach`, `inner`, `roomclear` and `reorg`; `ready` goes by slot (the #2 at low ready), `enter` is suspended by a contact from rung 2, never cut, and `house:clear` is removed (§25.19.2).
+
 #### 25.7.3 The room plan
 
 The beats read a **room plan**: `roomPlanOf(state, doorId) → { threshold, stack[4], points[4], corners, sectors, dead, paths }`. **For the first scene the plans of X4's three layouts are authored as data** (`src/data/places/x4-plans.js`, held by a golden hash; my call after judge 2); **from 0.3** (Europa's buildings) they are derived from PLACES's room polygons by the systems proposal's method (the corners walked from the door's wall; the threshold 0.3 m in; the stack on the leaf's open side, #1 0.5 m from the frame and 0.45 m off the wall, the next each 0.65 m behind; #1's and #2's points 1.0 m from their corners and 0.5 m off the wall, #3's and #4's a third into the room; sectors to the far wall's middle; dead space by `clearLine` from the points; paths by the nav grid's A*), checked against the authored ones. Built at the area's load, cached by door and layout in `$rooms`, never saved.
 
-**As built in v0.0.12** (`src/sim/combat/stepper.js`, `bundle.js`, `drills/enter-and-clear.js`, `room.js`; the build sheet `docs/build/0.0.12.md`). v0.0.5's step machinery moved out of `shooting.js` unchanged, with channels added (feet, hands, eyes, voice): one beat at a time to rung 2, the hands and the voice beside the feet from rung 3, the eyes too at rung 4. A beat's record is named by `key`, never `id` (the save's id walk treats any `id` field as an id); a turner's trigger is `{ kind, on, gapMs }` for the same reason. `room:stack` includes the #2's squeeze (his whispered "Ready."); the muzzle-onto-the-door beat is at rungs 0 and 1 only; Dominate walks the rest of the way to its point; the far leg is the room's own, not a branch: the beats `far` and `farlook` (#1 only, after his sector, before "Clear!"). **Plans** gain `parts`, the hall's `gate`, the derived `plane`, `dead` (counted as cleared space) and `far: { path, hot }` (room 3: up the near leg to (18.7, 7.3)). **Carry on from the aim** starts with a posture beat (`up`, the muzzle up, on the hands channel, flowing with the feet from rung 3) when the rifle is at the aim. **The #2** waits at the door by his walk's closed form (`twoArriveMs`, within `TWO_SLOT_M` 1.5 m of his slot, at most `TWO_WAIT_MS` 3 s), his entry is cued on your first step into the open doorway, he takes only his own men (at most `TWO_FOLLOW_N` 2 follow-ups on a man still up), and the room's "Clear!" waits on his man and his sector, at most `CLEAR_WAIT_MS` 5 s and ending at his group's planned end; `TWO_POLL_MS` 500. The call beat's wait on the #2 is `onMan` plus his sweep. A rushed bundle's walks are the legs' profile, never scaled by time alone (a time-scaled walk stopped 40% short); its hands, eyes and voice are rushed. A stall hand-back never fires for a #2 already in place. The `ASKS` ("door-unplanned", "refused") are never carried past by T or by a moving-on row, and "door-unplanned" is asked from the doorway, where Hold it is offered. (My calls, the fixer's, for the user to overrule.)
+**As built in v0.0.12** (`src/sim/combat/stepper.js`, `bundle.js`, `drills/enter-and-clear.js`, `room.js`; the build sheet `docs/build/0.0.12.md`). v0.0.5's step machinery moved out of `shooting.js` unchanged, with channels added (feet, hands, eyes, voice): one beat at a time to rung 2, the hands and the voice beside the feet from rung 3, the eyes too at rung 4. A beat's record is named by `key`, never `id` (the save's id walk treats any `id` field as an id); a turner's trigger is `{ kind, on, gapMs }` for the same reason. `room:stack` includes the #2's squeeze (his whispered "Ready."); the muzzle-onto-the-door beat is at rungs 0 and 1 only; Dominate walks the rest of the way to its point; the far leg is the room's own, not a branch: the beats `far` and `farlook` (#1 only, after his sector, before "Clear!"). **Plans** gain `parts`, the hall's `gate`, the derived `plane`, `dead` (counted as cleared space) and `far: { path, hot }` (room 3: up the near leg to (18.7, 7.3)). **Carry on from the aim** starts with a posture beat (`up`, the muzzle up, on the hands channel, flowing with the feet from rung 3) when the rifle is at the aim. **The #2** waits at the door by his walk's closed form (`twoArriveMs`, within `TWO_SLOT_M` 1.5 m of his slot, at most `TWO_WAIT_MS` 3 s), his entry is cued on your first step into the open doorway, he takes only his own men (at most `TWO_FOLLOW_N` 2 follow-ups on a man still up), and the room's "Clear!" waits on his man and his sector, at most `CLEAR_WAIT_MS` 5 s and ending at his group's planned end; `TWO_POLL_MS` 500. The call beat's wait on the #2 is `onMan` plus his sweep. A rushed bundle's walks are the legs' profile, never scaled by time alone (a time-scaled walk stopped 40% short); its hands, eyes and voice are rushed. A stall hand-back never fires for a #2 already in place. The `ASKS` ("door-unplanned", "refused") are never carried past by T or by a moving-on row, and "door-unplanned" is asked from the doorway, where Hold it is offered. (My calls, the fixer's, for the user to overrule.) **After v0.0.12, in the tree** (the rework's fixer, 2026-11-11, my call): every drill move is routed by the nav on the walker's C0 class (`src/sim/combat/route.js`, `ROUTE_CLS` 'C0', `CORNER_KEEP_M` 0.005, `CORNER_DEPTH` 4, `CLIP_STEP_M` 0.01), shut doors blocking but the bundle's own; the authored paths are not walkable at C0 as drawn (7 of 15 legs cut a door frame) and routing goes round them with the points kept (§25.19.1). **Designed 2026-11-11 (the user's note on v0.0.12)**: the paths gain each door's outer middle and a lane per slot, the #2 is cued by distance and never asked from the doorway (§25.19.3.4).
 
 ### 25.8 T's automation, and where it hands the decision back
 
@@ -2493,6 +2503,7 @@ T does what the line offers (SKILLS §14.3), and the line offers as much as the 
 - **The voice becomes his own** (the play proposal; my call): to rung 2 the line is the DI's, in the radio box's manner; from rung 3 it has no speaker, a plain thought, because the drill is no longer someone's voice in your head but your own. The user's "the drill instructor's voice in your head" (DESIGN.md) becomes the marine's, and the player sees it happen.
 - §3.1's "a firefight can be ridden out in real time by following T" stands for fights in the open (orders on the line); in a room a rung 0 or 1 marine works step by step.
 - **T held** stays the chip (SKILLS §14.1) and, above 3 G, the anti-G strain (VIEWS §7.3), where no room is cleared. No preview key is needed: the line names the bundle and its time, and its row shows every beat before it is pressed.
+- **Designed 2026-11-11 (the user's note on v0.0.12)**: rung 4's "the house" is withdrawn; T at rungs 3 and 4 does the room, to "Room clear!", and at "Room clear!" the line offers the next door's stack row. The pause policy of §25.19.4 decides where T stops.
 
 #### 25.8.2 Where it stops and hands back
 
@@ -2506,6 +2517,8 @@ A running bundle stops, the rest offered first in the panel and on T as "Carry o
 
 The player stops it by **Backspace** (v0.0.6's chain key: stop after this beat) or X, at the end of the current beat. Space pauses.
 
+**As built in v0.0.13** (the fixer's, 2026-11-11): a contact that cuts a scan counts it done, but not the far leg's look, which stays owed until "Carry on" does it. **Designed 2026-11-11 (the user's note on v0.0.12)**: from rung 2 a contact inside an entry suspends the bundle rather than stopping it, a shot row with nobody left up ends with no stop, a man in the #2's sector is his, the inner door is asked from the point, and "Room clear!" ends every room: §25.19.4's table is the full list of stops, each naming why and a live row.
+
 #### 25.8.3 The DI's close-quarters rules (`src/sim/skills/instinct/cqb.js`)
 
 Tiers by Tactics for the drill's lines and Marksmanship for the shots' (SKILLS §14.3 rule 5: under 8, 8 to 19, 20 and up); the act by the rung; at least four phrasings each (SKILLS §14.7). The act grammar grows by one form, `stop:drill:<bundle>[@<variant>][><doorId>]`, offered only when its row is in the panel now (`actIf`).
@@ -2516,7 +2529,7 @@ Tiers by Tactics for the drill's lines and Marksmanship for the shots' (SKILLS �
 | `cqb-door` | note | stacked, the door shut | Open (the breach set) |
 | `cqb-go` | note | the door open, not entered | rung 0 and 1: **nothing** (X and the keys as keycaps); 2: Enter and your corner |
 | `cqb-funnel` | warn | standing within 0.5 m of a door's plane over 1.0 s | rung 2 up: Enter; else nothing: "Out of the door. You're a target in it." |
-| `cqb-flag` | urgent | the muzzle across a buddy in a stack or a room | high ready |
+| `cqb-flag` | urgent | the muzzle across a buddy in a stack or a room | high ready; **low ready ("Muzzle down.") from the rework** (§25.19.3.5), neither posture flagging |
 | `cqb-contact` | urgent | at the pause | aims at the contact; **never the shot** |
 | `cqb-unknown` | warn | the hands not seen | Challenge |
 | `cqb-noshoot` | warn | identified with empty hands, or a hostage beside him | nothing: "Hands. No weapon. Don't." |
@@ -2530,6 +2543,8 @@ Tiers by Tactics for the drill's lines and Marksmanship for the shots' (SKILLS �
 | `cqb-stoppage` | urgent | a stoppage felt, a contact within 10 m | the transition if a pistol is carried, else IMMEDIATE ACTION |
 
 **As built in v0.0.12** (`src/sim/skills/instinct/cqb.js`; SKILLS §14). The far leg is the room's own; the hand-backs are as §25.8.2 lists them, with `R.house.asked`, `.broken` and `.read` recording the door questions, the kicked locks and the reads. T at rungs 0 and 1 at the open door is X (leave): the panel's "X go" row, never the feet; below rung 2 nothing but the movement keys crosses a door's plane into a room not yet cleared (the user's rule that T does every row a DI line names overrides §25.8.1's "T does nothing", sheet item 9). cqb.js holds 20 rules (`CQB_RULES`), cqb-corner with its `far` variant. After the fixes: `cqb-two` fires only while `twoAway` and `cqb-carryon` allows why `two` once he is in place ("He's on you. Carry on."); `cqb-dominate`; `cqb-hall`; `cqb-still-up` never on a no-shoot; `cqb-noshoot` `on` (a no-shoot hit twice never asks for his head); `cqb-locked` `again` ("held. Kick it again."); `cqb-stack` `r4rest`; `cqb-go`'s `walkWords` name each room's own keys and your corner's side ("S and D" into room 2, "corner right" in room 3). The range's rules quiet on the pairs course (`range-cmd`, `range-kd`, `range-reload`, `range-fire`, `range-wait`) and its `range-muzzle` are quiet in the house (`RANGE_OFF_HOUSE`), and `HOUSE_CMDS` makes `range-cmd` speak for LOAD, MAKE READY and UNLOAD SHOW CLEAR off the lane, so before GO and after the lane the instructor's commands lead and T does them. After a second contact the line remembers every man you identified who is still up, yours first; the corporal inside a room is offered Dominate.
+
+**As built in v0.0.13** (the fixer's, 2026-11-11): from rung 2 with every shot row struck (one round left), `cqb-contact` says Aim (T aims) then Press (the Fire row); with the bolt locked on an empty it is quiet and `cqb-reload`'s "Reload." leads: never a dead end. **Designed 2026-11-11 (the user's note on v0.0.12)**: `cqb-stack`'s `r4rest` goes with "Clear the house"; `cqb-stoppage`'s act is the card's first answer; new `cqb-gunup` ("Up. Carry on.") and `cqb-two-down` ("Your two's down. His sector."); every rule obeys §25.19.4's no-dead-end rules.
 
 ### 25.9 The movement stances in the room
 
@@ -2614,7 +2629,7 @@ The cheapest scene that tells whether the pause reads as the marine's or as lag,
 - **The goal line** (8 s, as every scene's): "Lane A of the shoot house with Corporal [name] as your number two, on the instructor's GO: three rooms and the hall. Threats down, no-shoots untouched."
 - **People**: your #2, generated, of your sheet's tier, running his slot by the same bundle engine (no brain needed; the lane places at most one target in his sector, which he engages by his own take-in); the instructor on the catwalk.
 - **The sheet picker** (the scene's heart, the play proposal): **Private** (WF 15, rung 1), **Corporal** (34, rung 2), **Sergeant** (44, rung 3), **Raider** (70, rung 4), **Tier one** (93, rung 4, SKILLS' NPC template, for the test only); each at its tier's middle values; on a test sheet every bundle of its rung counts as lived (my call). `?play=test-shoothouse&tier=private|cpl|sgt|raider|tierone&seed=<n>`; from the Tests menu, Private. **The end card offers "Again as …"** each other sheet on the same seed, with the runs side by side room by room.
-- **The kit**: two magazines of 10 practice rounds and a third with the coach's dummy at a drawn position (the range's set stoppage, carried over); a flashbang from the Sergeant up; ear defenders.
+- **The kit**: two magazines of 10 practice rounds and a third with the coach's dummy at a drawn position (the range's set stoppage, carried over); a flashbang from the Sergeant up; ear defenders. **Designed 2026-11-11 (the user's note on v0.0.12)**: the P-12 in a thigh holster with 10 frangible and a spare magazine from the Sergeant up; the #2 issued in Condition 4 and loading on the tower's command (§25.19.5, §25.19.6).
 - **Pars, not wounds**: the instructor's timer counts from the first tick a threat target could see the marine to his first round on it; past the par the harness tone sounds and the sheet says "he fired first" (§2.3's harness as a tone). Pars (my calls): basic 3.0 s (the Private's default), advanced 1.5 s (Corporal, Sergeant), operator 0.8 s (Raider, tier one), selectable; a bang adds 3 s to each turner's par in that room (a little less than it buys a man waiting at the door, §25.18.2).
 - **Length** (my estimate): the Private 4 to 6 real minutes with the brief and the hot wash; the Raider 2 to 3; the tier one 1.5 to 2.5.
 - **Aspects scored** (ROADMAP §2.2): **the pause** (the take-in's feel and readability: the brackets, the stamp, the brake, the log), **the drill** (step by step against T's bundle, and whether the decisions that matter stayed yours), **the shots** (the rows and the reloads, offered when relevant).
@@ -2623,7 +2638,7 @@ The cheapest scene that tells whether the pause reads as the marine's or as lag,
 
 **As built in v0.0.11**: `test-shoothouse`'s spec exists as a stub (PLACES §4.15): host `melas.wheel.s4`, env `wheel`, hour 10:00 (my call), `built: false`, outside the Tests menu and refused by `newGame` until the layout and the fill are built. Next round: the layout, with the Wheel's 1 G on the `melas.wheel.*` area records (PLACES §3.16), then the spec's env becomes `{ preset: 'site' }`.
 
-**As built in v0.0.12** (supersedes the v0.0.11 note above: the scene is playable, `?play=test-shoothouse`, the Tests menu's "Stack and clear" after "Bang"; its aspects the pause, the drill and the shots; the room 1 and lane figures are in §25.5.4's note). The shoot house rides the range session (`state.armoury.range` with course `house`, the lane's record in `R.house`), as "Bang" rode the pairs course; the pairs engine is not used. Calls the build made, each (my call): GO puts you in stop motion and the lane's time runs from GO, the stack timed from 4 m down the hall as §25.5's tables time it; the lane runs east to west, so #1 (stacked right of the door) never crosses the closed door's funnel; stand 1a is 4.09 m from the threshold (not 4.4), the door's plane falls at 0.73 m and the threshold at 1.21 m along #1's 2.72 m path. **The stops** use BODY §16.2's push and brake as written: the private stops in 0.24 s from Combat and 0.40 s from Assault (his legs brake at 5.07 m/s2); this section's 0.21 and 0.35 s are the floor's grip limit, which only Fitness 21 (the tier one) reaches. **The #2** is a marine of your fire team drawn from the seed (the same man on every sheet), given your tier's test sheet, engaging only the stands of his sector, never sweeping you with his muzzle; his seams cost his reaction time. **The instructor** is a generated staff sergeant of a new post, `melas:wheel-house-chief`, on the catwalk above your room, commanding on the PA, faulting as speech and silent during a take-in. **Pars** run from the threat's sighting to the first round on it by either of you: `PAR_MS` 3000 / 1500 / 800 (basic, advanced, operator), `PAR_OF_TIER` per sheet, set on the picker or by `&par=`; a low tone when the par runs out, a double beep for a room cleared within par. The dummy round rides in the magazine you load (its 3rd to 6th round) so every sheet meets it; frangible is the house's load (three magazines of 10; the `range: false` flag stays for Melas's outdoor ranges); the hostage card is one turner (any torso round, or a head round graded bad or worse, strikes the hostage; To the head leads the rows; the take-in's who factor is x1.5); the closet behind room 2's inner door is locked (kick DC 14) and empty. **Rules of the lane**: the muzzle flag needs the muzzle within 0.3 m of the #2 within 5 m, rifle in hand and not at high ready, for 300 ms at once with the #2 standing still, once a room; aiming at the #2 or the instructor stops the lane; the funnel fault (`FUNNEL_M` 0.5, `THRESHOLD_M` 0.3) counts your feet stopped in the doorway, never a walk through; `SECTOR_HALF_DEG` 20, `NEAR_M` 0.6; a "Clear!" is void if it overlapped a take-in window, if a man turned less than 1 s ago has not been seen, if a door- or zone-triggered turner has met its trigger but not turned, or, in the hall, if its zone has not been reached; the #2's "Clear!" never ends a room, only yours; rooms cleared by a setup show "SET UP" on the run sheet; a lane whose hall was passed ends with why `passed`; a running bundle is handed back at the lane's end (`lane-end`). **Never a dead end**: after 60 s with no progress the instructor says "Move on."; 30 s later the room moves on with a time fault; the lane has 10 minutes (`STALL_MS`, `LANE_MAX_MS`); the hot wash runs `WASH_MS` behind the brief splash with the take-in bars and the instructor's lines, no camera frames, and its advice reads your corner's men only. The take-in's light factor comes from the light level at the target: lit rooms and the 25 m bay by day read x1 (the pins hold), room 3's dim fill 0.40 gives -2 on the shot and x1.13 on the take-in. Moving shots: -4 walking in Combat (-2 from Marksmanship 15); in Assault, from rung 2 and within 10 m, the penalty is mitigated (-8, MRK, 30, 0.25); below rung 2 Assault's shot rows plant first. Test sheets' clean repetitions never count up; the career player's drills record and its upgrade wait for the MOUT day's join. **Setups** (`&setup=`, `debug.js` `SETUPS`): `go`, `room:2`, `room:3`, `hall`, `contact`; none starts at the brief, before LOAD. `ref` (§25.5.1's reference room) is a fill setup for the tests (`createGame`, `HOUSE_SETUPS`), not taken from the URL. **Open for a decision** (a perception rule, not this round's): the player's eye cone follows the cardinal facing (`eyeOf` with `PLAYER_AWARENESS` 5, a 55 degree half-cone), so a Q+Z walk-in from facing left keeps the far-left man out of the cone until 2.4 m along the path and counts 1a "behind you" (x1.3): the private's keys sighting comes at 6.85 s rather than the table's 6.40; bundles face into the room and avoid it. Whether a #2-slot man joining #1's window should keep #1's expectation was weighed and left as the settled "slowest expectation" (§25.4.5). The funnel fault stays common for the private by the keys (about one a room: he stops at his take-in's brake, as §25.5.2 has him; the Watch is the decision that keeps his feet going; with the stopped-feet rule the sergeant's are 35 in 100 seeds and the tier one's 25), left as balance for the user's score.
+**As built in v0.0.12** (supersedes the v0.0.11 note above: the scene is playable, `?play=test-shoothouse`, the Tests menu's "Stack and clear" after "Bang"; its aspects the pause, the drill and the shots; the room 1 and lane figures are in §25.5.4's note). The shoot house rides the range session (`state.armoury.range` with course `house`, the lane's record in `R.house`), as "Bang" rode the pairs course; the pairs engine is not used. Calls the build made, each (my call): GO puts you in stop motion and the lane's time runs from GO, the stack timed from 4 m down the hall as §25.5's tables time it; the lane runs east to west, so #1 (stacked right of the door) never crosses the closed door's funnel; stand 1a is 4.09 m from the threshold (not 4.4), the door's plane falls at 0.73 m and the threshold at 1.21 m along #1's 2.72 m path. **The stops** use BODY §16.2's push and brake as written: the private stops in 0.24 s from Combat and 0.40 s from Assault (his legs brake at 5.07 m/s2); this section's 0.21 and 0.35 s are the floor's grip limit, which only Fitness 21 (the tier one) reaches. **The #2** is a marine of your fire team drawn from the seed (the same man on every sheet), given your tier's test sheet, engaging only the stands of his sector, never sweeping you with his muzzle; his seams cost his reaction time. **The instructor** is a generated staff sergeant of a new post, `melas:wheel-house-chief`, on the catwalk above your room, commanding on the PA, faulting as speech and silent during a take-in. **Pars** run from the threat's sighting to the first round on it by either of you: `PAR_MS` 3000 / 1500 / 800 (basic, advanced, operator), `PAR_OF_TIER` per sheet, set on the picker or by `&par=`; a low tone when the par runs out, a double beep for a room cleared within par. The dummy round rides in the magazine you load (its 3rd to 6th round) so every sheet meets it; frangible is the house's load (three magazines of 10; the `range: false` flag stays for Melas's outdoor ranges); the hostage card is one turner (any torso round, or a head round graded bad or worse, strikes the hostage; To the head leads the rows; the take-in's who factor is x1.5); the closet behind room 2's inner door is locked (kick DC 14) and empty. **Rules of the lane**: the muzzle flag needs the muzzle within 0.3 m of the #2 within 5 m, rifle in hand and not at high ready (**neither at high ready nor at low ready** after v0.0.12, the fixer's `SWEEP_SAFE`; the 3-D capsule from the rework, §25.19.3.5), for 300 ms at once with the #2 standing still, once a room; aiming at the #2 or the instructor stops the lane; the funnel fault (`FUNNEL_M` 0.5, `THRESHOLD_M` 0.3) counts your feet stopped in the doorway, never a walk through; `SECTOR_HALF_DEG` 20, `NEAR_M` 0.6; a "Clear!" is void if it overlapped a take-in window, if a man turned less than 1 s ago has not been seen, if a door- or zone-triggered turner has met its trigger but not turned, or, in the hall, if its zone has not been reached; the #2's "Clear!" never ends a room, only yours; rooms cleared by a setup show "SET UP" on the run sheet; a lane whose hall was passed ends with why `passed`; a running bundle is handed back at the lane's end (`lane-end`). **Never a dead end**: after 60 s with no progress the instructor says "Move on."; 30 s later the room moves on with a time fault; the lane has 10 minutes (`STALL_MS`, `LANE_MAX_MS`); the hot wash runs `WASH_MS` behind the brief splash with the take-in bars and the instructor's lines, no camera frames, and its advice reads your corner's men only. The take-in's light factor comes from the light level at the target: lit rooms and the 25 m bay by day read x1 (the pins hold), room 3's dim fill 0.40 gives -2 on the shot and x1.13 on the take-in. Moving shots: -4 walking in Combat (-2 from Marksmanship 15); in Assault, from rung 2 and within 10 m, the penalty is mitigated (-8, MRK, 30, 0.25); below rung 2 Assault's shot rows plant first. Test sheets' clean repetitions never count up; the career player's drills record and its upgrade wait for the MOUT day's join. **Setups** (`&setup=`, `debug.js` `SETUPS`): `go`, `room:2`, `room:3`, `hall`, `contact`; none starts at the brief, before LOAD. `ref` (§25.5.1's reference room) is a fill setup for the tests (`createGame`, `HOUSE_SETUPS`), not taken from the URL. **Open for a decision** (a perception rule, not this round's): the player's eye cone follows the cardinal facing (`eyeOf` with `PLAYER_AWARENESS` 5, a 55 degree half-cone), so a Q+Z walk-in from facing left keeps the far-left man out of the cone until 2.4 m along the path and counts 1a "behind you" (x1.3): the private's keys sighting comes at 6.85 s rather than the table's 6.40; bundles face into the room and avoid it. Whether a #2-slot man joining #1's window should keep #1's expectation was weighed and left as the settled "slowest expectation" (§25.4.5). The funnel fault stays common for the private by the keys (about one a room: he stops at his take-in's brake, as §25.5.2 has him; the Watch is the decision that keeps his feet going; with the stopped-feet rule the sergeant's are 35 in 100 seeds and the tier one's 25), left as balance for the user's score.
 
 ### 25.11 The interface
 
@@ -2643,6 +2658,8 @@ The cheapest scene that tells whether the pause reads as the marine's or as lag,
 - **The keys**: no new key. T, the line (one step, a group, the room, the house); the digits, the rows; **X, the built toggle** ("game unpaused with X", the user's own words), so VIEWS §10.2's design row "X get down behind the nearest cover; X held leaves the mode" is withdrawn (cover is a row, getting down is W); **Backspace** stops a bundle after its beat; **Space** pauses everywhere, the window included; Esc the menu.
 
 **As built in v0.0.12** (VIEWS §7.4, §10, §11). The drill's and the door's rows lead the panel (`FIXED_KINDS`); on the house's lane the struck Fire and Aim and the idle commands (UNLOAD, a Top up with nothing to gain) page last, so at GO the stack, the door and the Watches hold the first keys. A bundle's row shows its beats as dots grouped by channel (at most 6 between seams), the running bundle its four lanes and a time bar, the instinct line "T: <row> · <s>"; the corners' ticks on the floor, pale until covered; the lane timer in the PAPER (tenths running, hundredths stopped, the par counting down); the hot spots are named from the door (`HOT_NEAR_M` 1.5, `HOT_AHEAD_M` 0.3); a stand is drawn only once seen, and in the house nothing is bracketed until a man is seen. At a pause the bracket goes to your own corner's man first, the #2's after, and the move keys in stop motion never bracket the #2 or the instructor. The HUD plates beside a turner go to the side clear of the other turners (house only). The brief names the deck's gravity from where you stand ("Full G here: your kit weighs what it weighs on Earth."; 0.38 G under `&env=mars-datum`, held within `GRAVITY_FULL_TOL_G` 0.02) and the card's head says "AT 1 G".
+
+**Designed 2026-11-11 (the user's note on v0.0.12)**: the panel is regrouped by type, with the core actions on fixed keys and greyed when off, in three layouts for the user to score (VIEWS §7.8); the running bundle's lanes and dots stay.
 
 ### 25.12 State, modules and the tick
 
@@ -2706,6 +2723,8 @@ The cheapest scene that tells whether the pause reads as the marine's or as lag,
 | `scene-shoothouse` (heavy) | **the CQB bot** (`tests/bots/cqb.mjs`) on lane A (B and C when built), 100 seeds, at three levels: the private by the keys (rung 1, a seeded human start of 0.3 to 0.8 s and a line 10% long), the sergeant by T (rung 3), the tier one by T (rung 4). Per level: the lane's game time (mean, p5, p95) and each room's; the take-in by expectation; the sighting to the first round; rounds, hits, A-zone share; no-shoots hit; presses per room and the share about a person or an unplanned door; seconds in doorways; faults; a real-minutes estimate | the tier one's lane not at least 1.5 times as quick as the private's; T ever firing; take-ins out of §25.4.3's bands; one seed's two runs differing in digest; **presses in a room below the persons seen + 1, or under half about a person or a door at rungs 3 and 4** (the guard against press-T-to-win, the play proposal) |
 | `browser` (heavy) | a lane through the real page: the brackets, the stamp and the strip at the pause, the running view's lanes | page errors; a frame over 25 ms at the pause |
 
+**Designed 2026-11-11 (the user's note on v0.0.12)**: "flawless" is §25.19.8's criteria F1 to F24 over an honest bot that presses only T and the shot the line names; `scene-shoothouse`'s press guard stays.
+
 ### 25.14 Build order
 
 ROADMAP's rows name an order, not a release (CONTRACTS §18).
@@ -2724,6 +2743,8 @@ ROADMAP's rows name an order, not a release (CONTRACTS §18).
 | 0.5 | `hatch` and the rest of `void` (the Hulk at 1 G, the boarding scenes); ram and charge; the sidearm and the transition; the boarding and breacher floors | |
 | 0.7 | rung 4 by the ITC; `test-hostage`; the tier-one template for NPCs | |
 
+**Designed 2026-11-11 (the user's note on v0.0.12)**: the shoot house's rework (§25.19.10's stages R1 to R9) comes before every other row; the sidearm and the transition move from 0.5 into it.
+
 ### 25.15 Risks
 
 | Risk | What holds it |
@@ -2740,7 +2761,7 @@ ROADMAP's rows name an order, not a release (CONTRACTS §18).
 
 ### 25.16 Open questions for the user
 
-Five, asked of the user on 2026-11-07, are §24's items 9 to 13, **all answered the same day with their defaults** (the user, 2026-11-07: "All good defaults"): the double and triple tap as rows (9); the tier one past 1.0, the Raider the career's top (10); the feet during the take-in (11); "under 0.1 s" where it is expected, with a floor for a true surprise (12); a first room at Argyre (13). Two more were raised by v0.0.8's reviews, §24's items 14 and 15, each with its default until the user answers: whether time is enough for the shots aspect when the d20 saturates (14), answered by the user the same day (DESIGN.md's log); a turn in the lull (15), restated plainly after the user asked what it meant. Eight more came with §5's redesign (§24's items 16 to 23), each with its default.
+Five, asked of the user on 2026-11-07, are §24's items 9 to 13, **all answered the same day with their defaults** (the user, 2026-11-07: "All good defaults"): the double and triple tap as rows (9); the tier one past 1.0, the Raider the career's top (10); the feet during the take-in (11); "under 0.1 s" where it is expected, with a floor for a true surprise (12); a first room at Argyre (13). Two more were raised by v0.0.8's reviews, §24's items 14 and 15, each with its default until the user answers: whether time is enough for the shots aspect when the d20 saturates (14), answered by the user the same day (DESIGN.md's log); a turn in the lull (15), restated plainly after the user asked what it meant. Eight more came with §5's redesign (§24's items 16 to 23), each with its default. Four came with the shoot house's rework, 2026-11-11 (§25.19.11), each with its default.
 
 ### 25.17 Numbers and their sources
 
@@ -2921,3 +2942,365 @@ T13, the window (the bang this long before the first man is seen, the defender a
 | **NPCs flicker or all run** | a choice holds until the band changes (T10: 29% fled by 10 s after two bangs, not 89%); calm fighters never roll |
 | **The bang reads as weak against professionals** | it buys about four seconds against any man waiting at the door without a filtered visor (T11); against the visored it is a doorbell, said by the DI before the door ("They're in visors. Slice it.") and in the hot wash |
 | **The race is unsettled** | `combat-race` settles it on the built helpers before any constant here is tuned |
+
+### 25.19 The shoot house reworked: the drill, the flow, the pauses, the #2 and the stoppage
+
+**Designed 2026-11-11 (the user's note on v0.0.12)**, to build in the shoot house rework (ROADMAP §4.2's 0.0.7d rework row, ahead of everything). The user scored "Stack and clear" 25 / 25 / 25, not starred, and ruled that the shoot house is the pilot for everything that matters (DESIGN.md's log, 2026-11-11, quoted in full there). This section is the rule the build follows; where it and §25.0 to §25.18 disagree, it wins, and each changed section carries a pointer here. It was written from five audits of v0.0.12 (bugs, the AI, the animation, the panel, doctrine, all 2026-11-11, in `.run/rework1/`) and three designs (the drill, the panel, the animation). Doctrine is cited as the doctrine audit extracted it: FM 3-06.11 (2002), MCWP 3-35.3, MCRP 3-01A, TC 3-22.9, CALL 97-20. Every number is an audit's, the built code's, or marked (my call). The panel's layout is VIEWS §7.8; the walk and the figures' animation are BODY §16.8 and VIEWS §3.10; the sidearm is WEAPONS §3.2's note.
+
+#### 25.19.0 The design in one page
+
+1. **A bundle is muscle memory of doctrinal size, never a mission.** "Clear the house" (`house:clear`) is withdrawn: the furthest one press reaches is one room, ending at "Room clear!", and the next door is always the player's press (the user: "the option to clear the whole house should not exist"; doctrine: after each room the leader decides whether to go on, FM 3-06.11 §3-22c(12)). The catalogue (§25.19.2) is arranged by the phases of a room, **stack, door, room, weapon, team**, and holds the user's own examples: "Stack up", "Stack up, take point", "Kick door", "Breach (explosive)".
+2. **The recruit and the operator use the same beats.** The rung decides how far one press reaches; the operator's hands, voice and eyes overlap his feet. Nothing is skipped and nothing is watered down.
+3. **A contact never stops a trained man's feet.** From rung 2, inside an entry, the take-in's pause **suspends** the bundle instead of cutting it: time stands still for the decision, the chosen shot runs on the hands while the feet carry on to the point of domination, and when the row ends the drill goes on by itself, with no "Carry on" press (FM §3-21c: "They engage targets as they move to their designated point"; the user: "trained operators know to flow in and take shots when they're in position").
+4. **A pause is a decision only the player can make, and it names why.** Every stop has a live act, or a live row its line names. No pause is a dead end (§25.19.4).
+5. **The #2 works as doctrine says**, does every tower command through the same Corps macros you do, and is drawn doing it (§25.19.5).
+6. **A stoppage under contact has three realistic answers**: Transition: pistol (from the Sergeant up, who carry the P-12), Gun down (knee, tap, rack, the #2 covers), and Off the line (a step to the wall, then clear) (§25.19.6).
+7. **"Flawless" is a set of tests** over 100 seeds a sheet, run by an honest bot that presses only T and the shot the line names (§25.19.8).
+
+**Kept unchanged**: the take-in and its numbers; the shot rows, their gates, reaches and modifiers; the reloads by purpose; suppression and hardening (scored 100 in Pairs, Three bangs and Bang); the rungs and how they are earned; the recruit's walk in by the keys after X; "T never takes the shot" (one opt-in for the user to rule on, §25.19.4); every DI line names a row the panel has; nothing assumes Mars; AZERTY by physical keys.
+
+#### 25.19.1 What the audits measured, and what the rework must beat
+
+The tier one by pure T over 100 seeds unless named (the AI audit, `.run/rework1/auditor-ai/t1-100.json`).
+
+| Measure | v0.0.12 | Target (§25.19.8) |
+|---|---|---|
+| wall passages | the #2 6 a lane; #1 grazes the jamb 5 a lane; the sergeant 6 a lane (fixed in v0.0.13, below) | 0 (the C0 circle against wall rects, 0.005 m tolerance) |
+| #1 and #2 within 0.45 m | 1.8 s a lane (a shared threshold waypoint; #2 cued on #1's first step in the door) | never under 0.50 m |
+| contact pauses with #1 in the doorway | 60% (355 of 594); 31% of rounds fired from the doorway | 0 from rung 2 |
+| "Carry on" stops after a shot row | 2.4 a lane | 0 when nobody of the contact stands |
+| dead ends (the line has no act and T does nothing) | 818 per 100 lanes | 0 |
+| hangs to `LANE_MAX_MS` | 21 (tier one), 12 (Raider), 12 (sergeant) | 0 |
+| muzzle faults | 30 (tier one), 54 (Raider) | 0 by T; in fuzz only where the 3-D rule holds |
+| doorway faults | 46 (tier one), 66 (Raider) | 0 from rung 2 |
+| stops a lane | 21.3 for 8.4 presses of T | at most 14, one press each |
+| lane time | mean 163.6 s, p95 600 s | mean 46 s or less, every lane under 60 s |
+| the #2 drawn walking | 0 of 49,600 moving ticks | 99% or more |
+| the #2's tower admin | none (loaded at the fill) | every command done and drawn |
+
+**Already fixed, as built in v0.0.13** (the fixer's, 2026-11-11, my calls; this is part of stage R1 below, ahead of the rework proper):
+- **Routing**: every drill move is routed by the nav on the walker's C0 class (0.27 m), because C1 cannot pass the house's 0.9 m doors on the 0.25 m grid; shut doors block, except the bundle's own; a leg that clips a wall corner gets a waypoint 0.005 m beyond the clearance (`CORNER_KEEP_M`), at most 4 splits a leg (`CORNER_DEPTH`), `CLIP_STEP_M` 0.01 (`src/sim/combat/route.js`, `tests/house-walls.test.mjs`). The authored paths are not walkable at C0 as drawn (every stack-to-threshold leg cuts its door frame, and room 2's #1 threshold-to-point leg: 7 of 15 legs); routing goes round them with the plan's points kept, the data unchanged, no golden moved. R1's remainder makes the data walkable (each door's outer middle added to its paths, §25.19.3.4).
+- **The muzzle**: a muzzle at low ready over the #2 is no fault and the instructor gives no "Muzzle!" for it, joining high ready (`carry.js` `SWEEP_SAFE` {highReady, lowReady} and `flagsAt`, read by `shoothouse.js` and `cqb.js` `cqb-flag`; `tests/house-muzzle.test.mjs`): the user's "goes low ready when sweeping their partner (which is good)".
+- **One round left**: from rung 2 with every shot row struck, `cqb-contact` says Aim (T aims) then Press (the Fire row); with the bolt locked on an empty it is quiet and `cqb-reload`'s "Reload." leads.
+- **A cut scan** counts as done, but not the far leg's look, which stays owed until "Carry on" does it.
+- **The muzzle fault's root** (the fixer): `carryPlan` inserted its muzzle-up beat only when no `posture` beat was in the plan, but the lane carry's rest already held the next room's `ready` beat, which waits for approach at 0.6, so the tier one walked out of room 2 aimed across the stationary #2 for about 2.35 s. With the muzzle-up beat put first unless the rest already starts with a posture beat (`beats[0]?.k !== 'posture'`), 0 of 20 lanes fault (the Raider and the tier one on five seeds, by T and by the house bot), against 6 of 20 before, all by T: the Raider on 4 of 5 seeds, the tier one on 2 of 5 (1489397426 and 7). The same muzzle-up-first is still owed in `planBundle` for bundles started aimed.
+- **Still owed, from the same audit**: `gaitCarryOf('aim')` (`src/art/figures/poses.js`) returns `'low'` because `CARRY_RIG` has no aim rig, so an aimed walk is drawn at low ready while the sim holds the rifle aimed (this is why the user saw low ready): it breaks "visuals obey the sim" and needs an aimed walk rig, or `'aim'` mapped to a posture the sim holds (stage R8, §25.19.8's walk). `FLAG_M` 0.3 and `FLAG_REACH_M` 5 are defined once, in the house course's data (`src/data/courses.js` `flagM`, `flagReachM`), and read by `shoothouse.js` and `cqb.js` through `carry.js` `flagsAt` (fixed in v0.0.13: `cqb.js` had its own copy); the one 3-D flag helper (`FLAG_BODY_R_M`, §25.19.3.5) is still to build (stage R1), and `FLAG_MS` 300 is still written twice (`carry.js`, `shoothouse.js`).
+- **The reference times after routing**: room 1 to your own "Clear!" for the Raider 5.48 s (5.29 before) and the tier one 5.27 s (5.11 before), within 15% of §25.5.4's 5.19 and 4.98. Lanes on 48213: recruit 95.2 s, private 78.3, corporal 61.6, sergeant 50.5, Raider 48.8, tier one 46.4 s. Over 100 seeds: private 78.42 s (74.10 to 83.20), sergeant 48.68 s, tier one 45.60 s. `house-walls`' heavy test takes about 190 s alone (600 + 60 lanes); its two-seed variant in the quick suite about 5 s.
+
+#### 25.19.2 The muscle-memory catalogue
+
+**Rules** (my calls, after doctrine and the user's note):
+- **Doctrinal size.** A row covers at most one phase of one room (stack, door, room), or the whole room from wherever you stand at rung 3 and up, and ends at "Room clear!" at the latest. The next door, the next room and "Coming out" are new presses. No row is named after a mission, a house or a lane.
+- **One list of beats.** Every catalogue entry is a list of beat ids from `ENTER_AND_CLEAR.beats`. **The rung sets the row's reach, not which rows exist** (the panel design, my call): every row is offered at every rung, and the rung decides where it hands back (§25.19.2.3). The flow (the stepper's channels) decides how the beats overlap. Same beats, same skills, same dice: "no watering down but factor in experience in how smooth and fast we do things" (the user, 2026-11-07).
+- **Its label is a verb phrase a marine would say**, and names its reach: "Kick door" (rungs 0 and 1), "Kick, in: your corner" (rung 2), "Kick, clear the room" (rung 3 and up). Variants are set on the row at no time: Push ⇄ Pull ⇄ Kick, Cross ⇄ Hook, Careful ⇄ Fast (the stances' names after DESIGN.md's log of 2026-11-11).
+- **A row never fires, picks a target, spends what it does not name, or crosses a door the plan does not take** (§25.2's table, unchanged). A row that names a reload ("Stack up · top up on the way") is the asking.
+- **Every row has a `group`**: `stack`, `door`, `room`, `shot`, `weapon`, `team` (doctrine's phases; the panel audit's data splits the same way: room and door 39% of choices, shots 33%, weapon 17%), and a fixed slot within it (VIEWS §7.8).
+- **An untaught or unlived row shows greyed** with its rung (`▲▲ 2`) or "by hand first", never hidden (the user's "even if grayed out"; this replaces §25.3.2's "an untaught bundle never shows", which was my call).
+
+##### 25.19.2.1 The beats, amended (`src/sim/combat/drills/enter-and-clear.js`)
+
+| Beat | Kind, channel | Slots | After | Change |
+|---|---|---|---|---|
+| `approach` | move, feet | all | none | from wherever you stand, routed (`route.js`); "Coming out!" said on it when leaving a cleared room (voice, 0.2 s from rung 3) |
+| `ready` | posture, hands | all | `approach@0.6` | **by slot**: #1 high ready, then on the door; #2 and later **low ready, muzzle down** (CALL 97-20: "weapons are pointed down with the exception of the 1-Man"), replacing everyone at high ready |
+| `muzzle` | aim:point, hands | 1 | `ready` | rungs 0 and 1 only (as built) |
+| **`read`** (new; today a single) | read, eyes | 1 | `approach@arrive` | hinge, swing, lock; 0.7 s × pace |
+| **`tell`** (new) | call, voice | 1 | `read` | "Opens in, I go left." (MCWP §19b: One tells Two); `CALL_S` 0.8, `CALL_FLOW_S` 0.2 from rung 3 |
+| `squeeze` | call, voice | 2 | `approach` | the #2's "Ready." and his hand; the door waits on it at every rung |
+| `door` | door, hands | 1 | `approach@arrive`, `ready`, `muzzle`, `squeeze` | push, pull, kick; **a failed kick warns the room**: every turner with a `door` trigger on this door starts its gap at the failed kick (MCWP §19b: "rarely works the first time, thereby giving … ample warning"; my call) |
+| **`breach`** (new; data only this round) | breach, hands then world | the breacher | `squeeze` | place, back, "Breaching!", a count of 2 to 3 s, the blast (a game abstraction: doctrine gives no charge data) |
+| `enter` | move, feet | all | slot 1 `door@pass`; slot 2 **`enter#1@gap`** | **never cut by a contact from rung 2** (§25.19.3); the #2 cued by distance, not by #1's first step |
+| `corner`, `sector` | scan, eyes | all | as built | suspended, not cut, by a contact |
+| **`inner`** (new) | scan, then hold, eyes | the slot whose sector holds the inner door | `sector` | the inner door covered and held; "Hold it or clear it?" is asked **here, from the point**, never from the doorway |
+| `far`, `farlook` | move, scan | 1 | `sector` | as built (room 3's L) |
+| `clear` | call, voice | each slot | `sector`, `farlook`, `inner`, and **the scene's ready-to-clear predicate** | the drill never calls a void "Clear!": it waits while a window is open, while a man turned less than 1 s ago is unseen, or while a turner whose trigger has fired has not turned, up to `CLEAR_HOLD_MS` 4,000, then hands back |
+| **`roomclear`** (new) | call, voice | the leader (you as #1) | both slots' `clear` | "Room clear!"; **every room row ends here** |
+| `mark` | mark, hands | 1 | `roomclear` | as built |
+| **`reorg`** (new) | reload, hands | each | `roomclear`, or on the next approach | Top up when the magazine is believed at half or less **of its load** and a fuller one is at hand; runs only when a row names it (FM §3-22c(11): "redistributes ammunition"); the #2 does his by himself |
+
+**The crossing rule** (the move kind's own rule, not an authored beat; my call): when the next 0.5 s of a move would carry the muzzle's level line across a teammate within `FLAG_REACH_M` 5 m, the hands bring the rifle to low ready for the crossing and back after, a posture beat flowing with the feet at every rung. The user's "goes low ready when sweeping their partner (which is good)", made what the sim holds and not only what the picture shows (TC 3-22.9 §1-10).
+
+##### 25.19.2.2 The catalogue as data
+
+`MUSCLE` replaces `ENTER_AND_CLEAR.bundles`. `rung` is the lowest rung at which the whole entry is one press; `band` is doctrine's time band in game seconds, a sanity check the tests print against, never a timer.
+
+```js
+export const MUSCLE = {
+  // STACK
+  'stack:up':     { group: 'stack', rung: 0, label: 'Stack up', beats: ['approach', 'ready', 'muzzle', 'squeeze'],
+                    variants: { reorg: 'auto' }, band: { recruit: [4.0, 7.0], operator: [2.5, 4.0] } },
+  'stack:point':  { group: 'stack', rung: 1, label: 'Stack up, take point', beats: ['approach', 'ready', 'muzzle', 'read', 'tell', 'squeeze'],
+                    variants: { reorg: 'auto' }, slot: 1, band: { recruit: [4.5, 7.5], operator: [2.5, 4.0] } },
+  'stack:on-him': { group: 'stack', rung: 1, label: 'Stack up on him', slot: 2, offeredNow: false },   // you as #2: question 4
+  // DOOR
+  'door:read':    { group: 'door', rung: 0, label: 'Read the door', beats: ['read'] },
+  'door:open':    { group: 'door', rung: 0, label: 'Open the door', beats: ['door'], variants: { breach: ['push', 'pull'] } },
+  'door:kick':    { group: 'door', rung: 0, label: 'Kick door', beats: ['door'], variants: { breach: ['kick'] }, band: { recruit: [1.3, 1.8], operator: [0.8, 1.2] } },
+  'door:breach':  { group: 'door', rung: 2, label: 'Breach (explosive)', beats: ['breach'], needs: 'charge', offeredNow: 'struck' },  // "no charge issued": question 3
+  'door:flash':   { group: 'door', rung: 2, label: 'Flash, then in', needs: 'flashbang', offeredNow: false },                       // test-breach
+  // ROOM
+  'room:in':      { group: 'room', rung: 2, label: '{door}, in: your corner', beats: ['door', 'enter', 'corner'],
+                    variants: { breach: ['push', 'pull', 'kick'], entry: ['cross', 'hook'], stance: ['assault', 'combat'] } },
+  'room:dominate':{ group: 'room', rung: 2, label: 'Dominate', beats: ['enter', 'sector', 'inner', 'far', 'farlook', 'clear', 'roomclear', 'mark'] },
+  'room:clear':   { group: 'room', rung: 3, label: '{door}, clear the room', beats: 'all-but-breach',
+                    variants: { breach: ['push', 'pull', 'kick'], entry: ['cross', 'hook'], stance: ['assault', 'combat'], reorg: 'auto' },
+                    band: { recruit: [12, 18], operator: [5, 6] } },
+  'room:watch':   { group: 'room', rung: 0, label: 'Watch: {spot}', beats: ['watch'] },        // one row; the spot stepped by Q and D
+  'room:point':   { group: 'room', rung: 0, label: 'Move to your point', beats: ['enter'], past: 'threshold' },
+  'room:clearcall':{ group: 'room', rung: 0, label: '"Clear!"', beats: ['clear'] },
+  'room:mark':    { group: 'room', rung: 0, label: 'Mark the room', beats: ['mark'] },
+  'room:hold':    { group: 'room', rung: 0, label: 'Hold it', beats: ['inner'], when: 'inner door' },
+  'room:slice':   { group: 'room', rung: 2, label: 'Slice the pie', offeredNow: false },        // test-breach
+  'room:limited': { group: 'room', rung: 2, label: 'Limited penetration', offeredNow: false },  // test-breach
+  // WEAPON (under contact: §25.19.6)
+  'weapon:gun-down':   { group: 'weapon', rung: 0, label: 'Gun down: {ia}', beats: ['call:gundown', 'posture:kneel', 'ia', 'call:gunup'], when: 'stoppage' },
+  'weapon:transition': { group: 'weapon', rung: 0, label: 'Transition: pistol', beats: ['sling', 'draw', 'present'], needs: 'pistol', when: 'stoppage or empty' },
+  'weapon:offline':    { group: 'weapon', rung: 0, label: 'Off the line: to the wall, {ia}', beats: ['call:stoppage', 'step:cover', 'ia', 'call:up'], when: 'stoppage' },
+  'weapon:rifle-up':   { group: 'weapon', rung: 0, label: 'Rifle up: holster, {ia}', beats: ['holster', 'ia'], when: 'pistol in hand, rifle stopped, nobody facing' },
+  // TEAM (§25.19.5)
+  'team:cover':   { group: 'team', rung: 0, label: 'Cover his sector', when: '#2 gun down' },
+  'team:on-me':   { group: 'team', rung: 0, label: 'On me', when: '#2 off his slot' },   // replaces the 'two' hand-back as a row
+  'team:hold':    { group: 'team', rung: 1, label: 'Hold that door', when: 'inner door, #2 nearer' },
+};
+```
+
+**Removed**: `house:clear` with its `lane: true` and every `r4rest` line of `cqb-stack`; `room:stack` (now `stack:up`); `room:open` (now `door:open` and `door:kick`); `room:stack-open` (its beats split between `stack:point` and `room:in`, so the corporal still clears in three presses); `room:enter` (now `room:in`). **Saves** (the pre-1.0 rule): `upgradeState` maps a running `drill:house:clear` onto `room:clear` for the current leg's door; any other removed id loads as 'choose'.
+
+##### 25.19.2.3 What each rung's one press reaches
+
+| Rung (sheet) | Stack | Door | Room | Presses a room by T |
+|---|---|---|---|---|
+| 0 (boot recruit) | Stack up (one step) | Read, Open or Kick (one step each) | X, then the keys; Watch, Move to your point, "Clear!", Mark, each a single | the next single the DI names; never the walk in |
+| 1 (private) | Stack up; Stack up, take point | as 0 | as 0 | as 0; T on the go line presses X (as built) |
+| 2 (corporal) | Stack up, take point | **"Open, in: your corner"** (door, enter, corner; the moving shot rows open) | **Dominate** (point, sector, inner door, far leg, "Clear!", "Room clear!", mark) | 3 |
+| 3 (sergeant) | Stack up, take point (to stack and wait deliberately) | **"Open, clear the room"**: from wherever you stand to "Room clear!", hands and voice flowing with the feet | (inside it) | 1 |
+| 4 (Raider, tier one) | as 3 | as 3, the eyes flowing too | (inside it) | 1 |
+
+The singles stay at every rung, so a trained man can deviate (a Watch before X, Hold it, a Look). **Below a row's own rung it does only its first group** and hands back at the seam, drawn as the seam bar (`│`) in its dots: a private's "Kick door" from 4 m down the hall stacks and hands back. **A recruit pays** every seam (0.21 s to stop from Combat at 1 G, and his own start after X), his take-in and his aim from where he guessed; **the operator pays none of the seams**, and his hands, voice and eyes overlap his feet. What each does and what is rolled is identical. An emergency drill (Gun down, Off the line) is never grained: one press at every rung.
+
+#### 25.19.3 The flow: through the door to the point, shooting as he goes
+
+##### 25.19.3.1 Suspend, not cut (the core change; my call, from FM §3-21c and §3-22c(5))
+
+v0.0.12 had `enter: { …, cut: true }`: at the pause `contact.js` halted the bundle and cut the feet where they stood, which for a tier one (take-in 0.05 s) is the doorway: "drop you in the doors and leave you there to aim" (the user). Now:
+1. **Rungs 0 and 1** (the walk by the keys): as built. The feet carry the body for `goMs`, brake and stand (the recruit's orienting freeze; the Watch row is the decision that cures it).
+2. **Rung 2 and up, a row's `enter`, `dominate`, `far` or `approach` running**: the window runs at 1:1 with the feet carrying on along the path (pre-armed, §25.4.5); at the window's end time is held ('stop') **without halting the bundle**: the doing gains `suspended: { why: 'contact', atMs }`, its beats untouched. The player chooses; a shot row then runs **inside** the suspended bundle as a hands beat (the `shot` kind, wrapping `specials.js rowPlan`), and the feet beat resumes at the same tick. The closed-form move needs nothing new: the clock did not run while time stood still, so the trapezoid resumes at the speed it had.
+3. **Rows that need the feet halt the bundle as today**, the rest becoming "Carry on: …": Hold him, Challenge, Back out, Get down, Gun down, Off the line, and a shot with **Stop here** set.
+4. **The scans** (`corner`, `sector`) are suspended, not cut: while the shot runs the eyes hold on the man, and the scan resumes where it stood.
+
+##### 25.19.3.2 One shot row, the feet by the drill
+
+**One row per shot, not two** (the panel design, my call): the moving and planted twins (`specials.js`) become one row, and the feet follow the drill's rule below, shown on the row as a variant set at no time (`moving on ⇄ at your point ⇄ stop here`). BODY's **Stop here** (VIEWS §7.8's BODY group) plants the feet on purpose.
+
+| The feet | What they do | Modifiers (unchanged from v0.0.12) | The drill's default when |
+|---|---|---|---|
+| **moving on** | carry on to the point while the rounds go | Assault, rung 2 and up, within 10 m: `mitigated(−8, MRK, 30, 0.25)` (tier one −2, Raider −2, sergeant −4); Combat −4, −2 from Marksmanship 15 | **an immediate threat** (FM §3-21c): armed and facing, or within 1.5 m of the path ahead, or within arm's reach |
+| **at your point** (new) | carry on to the point (or `POINT_MIN_M` 1.0 m past the threshold along the path, whichever first), plant with the stop's braking (0.21 s from Combat, 0.35 s from Assault at 1 G), then the rounds | planted | the man is not facing, or beyond 7 m, and the point is under `POINT_REACH_S` 0.8 s away: the user's "take shots when they're in position" |
+| **stop here** | stop where you are | planted | never the default while a flow runs; a free choice |
+
+Each round still leaves at its formula time and is rolled with its modifiers; the take-in still decides when the player sees the man; the rows' gates, reaches and odds are the scored ones. **Projected**: the tier one in room 1 sights 1a at the door's plane (0.73 m along his 2.72 m path), takes him in in 0.05 s, chooses the Pair moving on, and fires his first round about 0.30 s later, about 1.3 m along the path, past the 1.21 m threshold. The doorway rounds (31% today) go to 0 from rung 2; room 1's time is unchanged (a pause costs no game time).
+
+##### 25.19.3.3 After the row, the drill goes on by itself
+
+At rung 2 and up, when the row's last round has gone and nobody of the contact still stands (or faces), the suspension ends: no stop, no "Carry on". **A man still up** (§25.6.1's rule) is a decision, so it pauses ("He's still up. Head."): the only follow-up pause. At rungs 0 and 1 a shot row ends in 'choose', as every single does.
+
+##### 25.19.3.4 The paths: along the wall, never through it, never through each other
+
+- **Routed**: every move uses `route.js` on the C0 open grid (built), including the approach from the last room, the carry, the "Move to …" rows and the #2's `runSlot`.
+- **The authored data made walkable** (the bugs audit; a data change, the golden `X4_PLANS` reprinted on purpose): each `paths[slot]` gains the door's outer middle (the threshold mirrored 0.3 m out), and each slot passes the door on its own lane, offset `LANE_OFFSET_M` 0.12 m toward the side it turns to (room 1: #1 crossing left through (28.88, 11.7), #2 hooking right through (29.12, 11.7)); a 0.9 m door leaves a 0.27 m body a 0.18 m band each side of the middle. A test holds every authored and planned path `clearLine` on the C0 grid.
+- **Separation**: the #2's `enter` waits for `enter#1@gap`, #1's centre `ENTRY_GAP_M` 0.75 m past his own threshold waypoint (about 0.4 s behind him at the tier one's lope: doctrine's "almost simultaneously"); each tick of a team member's move also holds `BODY_GAP_M` 0.50 m from every other team body, braking on its path until the gap opens. The guard should never act with the cue right; the test counts the times it does, and if it ever holds more than 0.3 s the cue is fixed, not the guard.
+- **Out of the centre, never in front of a door**: the points are 0.5 m off the wall and 1.0 m from the corner (FM §3-22c(6), (9)), and `inFunnel` is never a point.
+
+##### 25.19.3.5 Muzzle discipline, as the sim holds it
+
+- **Postures by slot** (`ready`): in the stack #1 on the door, #2 and later at low ready, muzzle down.
+- **The crossing rule** (§25.19.2.1): low ready while the line would sweep a teammate.
+- **One flag helper**, shared by `shoothouse.js` and `cqb.js` (the two copies of `FLAG_M` and `FLAG_REACH_M` merged into `carry.js`): the muzzle's **3-D line**, pitch included, meets the teammate's body as a capsule (radius `FLAG_BODY_R_M` 0.3 m, floor to head) within `FLAG_REACH_M` 5 m, for `FLAG_MS` 300 ms at once; low ready, high ready and slung are exempt (TC 3-22.9 §6-16, §6-19; `SWEEP_SAFE`, built).
+- **The DI's cure** for `cqb-flag` becomes **Low ready** ("Muzzle down."), not high ready.
+- **The picture draws the posture the sim holds** (VIEWS §3.10): v0.0.12 drew an aimed walk at low ready (`poses.js gaitCarryOf('aim') → 'low'`), the other half of the user's report.
+
+#### 25.19.4 The pause policy
+
+**The rule** (my call, framing the user's "game would pause on contact with enemy", 2026-11-07, and "the automatic pauses are awkward in general", 2026-11-11): **the game stands still only where the player has a decision his training does not make for him. Every stop says why in the line's lead, and every stop's line names a live row, or T does a live act.**
+
+| Event | Stops? | The line's lead | T's act, or the row the line names |
+|---|---|---|---|
+| GO | yes | "GO." | the stack row of your rung |
+| a person newly seen in your sector or nobody's, at the take-in | **yes** (the user's rule, kept) | "Contact · 0.05 s." | the shot row with its key (T: none for a threat, Challenge for unseen hands, Carry on for a no-shoot) |
+| a person in **the #2's sector** while he is up, his gun working, on or entering his slot, and the person is not within 20° of your own muzzle | **no** (my call): the brackets close thin, the log says "His. Taken in 0.05 s." | none; you are paused only if he goes down or the man crosses into your sector (re-tested every tick) |
+| a no-shoot in your sector | yes (the pause never says who is hostile) | "Hands. No weapon." | Carry on (T): at rung 2 and up the flow resumes |
+| a man still up after the row | yes | "He's still up." | the head row, named |
+| a shot row ends, nobody up | **no** at rung 2 and up; 'choose' at 0 and 1 | | |
+| the hostage | yes | "Hostage. Head only." | To the head (the aim inside it from rung 2) |
+| a stoppage (the click) | yes: the reflex card (§25.19.6) | "Stoppage." | the card's first answer; R keeps an answer, as built |
+| IA ends, nobody facing | **no** at rung 2 and up: the flow resumes | | |
+| IA ends, a man facing | yes | "Back on him." | the shot row |
+| an inner door the plan does not take | yes, **from the point** after the sectors (the `inner` beat) | "Door, east wall." | **Hold it** (T), the DI's choice for a team of two; "Kick, clear it" offered |
+| a locked lane door, or a kick that held | yes | "Locked." / "It held." | Kick door again |
+| "Room clear!" | yes (doctrine: the leader decides) | "Room clear. Next: room 2, 6.2 m." | the next door's stack row, with "top up on the way" when half or less is believed |
+| the #2 lagging (the 'two' hand-back) | **no**: the #2 is never 1.5 m off his slot (§25.19.5); the hand-back stays as a guard and its firing fails a test | | (`team:on-me` as T if it ever does) |
+| a seam below the rung | yes (the grain of rungs 0 to 2) | "Done: stacked." etc. | the next single or group |
+| the tower's command | yes, outside the lane | the command | the macro (`HOUSE_CMDS`, as built) |
+| Backspace or X | yes | "Stopped." | Carry on |
+| the lane's end | yes | "Stop." | **Make safe** (one row, the Stop macro: safe, finger off, low ready) |
+
+**No dead ends** (rules for `cqb.js`): a line whose act is null names a row live now and on the panel's core (VIEWS §7.8); the shot line reads the rounds (fewer believed than the lead row's `n`: Fire or the row that fits; none: RELOAD, or Transition with a pistol and the man within 10 m); `cqb-noshoot` at the pause's own ms no longer outranks a door question or "Carry on", its act being Carry on; `halfOrLess` counts the magazine's load, not the family's capacity (10 of 30 read "half or less" in v0.0.12, so Top up never left page one); the stall clock counts progress only (a new cover, a round, a leg's state, a door), never a Wait.
+
+**What the tier one's lane costs by T after this** (projected): GO; room 1's contact; "Room clear"; room 2's contact (2a and 2b in one window); the dummy's card; back on the rifle or "Rifle up"; the closet question; "Room clear"; room 3's hostage; "Room clear"; the hall man; "Stop": **12 stops, one press each**, against 21.3 and 818 dead ends per 100 lanes. The sergeant the same; the corporal 2 more a room; the private his grain by hand.
+
+**The standing order** (offered, off by default, for the user to rule on: question 1). "T never takes the shot" was v0.0.5's call (mine), not the user's; the user asks for an operator who flows in and shoots in position, and for the AI to clear flawlessly. A row variant set at the stack at no time, **"Engage: armed, my sector"**, offered from rung 4 (struck "rung 4" below): with it on, a person in your sector does not pause the game when the identification named a rifle or a pistol, nobody else stands within 1 m of him and he is facing. The take-in still runs with its brackets and stamp, the drill's doctrinal row fires at its end (the failure drill on armour, the hammer within 7 m, else the pair, moving on), and the log reads "By your order: pair, moving on". A failed identification withholds and never shows a weapon that is not there (§25.4.6), so the order can never fire on a no-shoot or a hostage; every other person, and a man still up, still pauses. It is a rule of engagement given before the room, not a kept reflex answer. Off by default keeps the user's 2026-11-07 rule until they say otherwise.
+
+#### 25.19.5 The #2
+
+| Doctrine (source) | v0.0.12 | The rework |
+|---|---|---|
+| tight behind #1, muzzle down (CALL 97-20) | high ready | low ready in the stack (`ready` by slot) |
+| the squeeze, rear to front (CALL 97-20; FM §3-22c(3)) | "Ready." whispered | kept, drawn (`stackTap`, VIEWS §3.10); the door waits on it at every rung |
+| enters almost at once, opposite #1, along the wall (FM §3-22c(6)) | cued on #1's first step; a shared waypoint; through #1's body 1.8 s a lane | cued at `ENTRY_GAP_M`; his own door lane; `BODY_GAP_M` held |
+| clears his corner, holds his sector, engages in it unasked (FM §3-21d) | yes (0.70 s mean lag) | kept; his sector is his for the pause policy |
+| moves with #1 between rooms | starts on a poll; the sergeant's #2 is 2.06 m off his slot at room 2 in 100 of 100 lanes | starts his approach to the next door's slot-2 stack **the tick yours starts**, routed, at your stance |
+| takes a down man's sector (FM §3-15d; CALL 97-20) | never | on "Gun down!" (§25.19.6) |
+| calls "Ready", "Clear!", "Up", "Reloading!", "Covering!" (FM table 3-2) | "Ready", "Clear!" | all five, voice beats on his doing (`CALL_FLOW_S` 0.2 from rung 3) |
+| reorganises after the room (FM §3-22c(11)) | never reloads | at "Room clear!" he tops up himself when half or less (a teammate's own decision; "nothing unasked" binds the player's rows), "Reloading!" then "Up." |
+| never through walls; never flags | 6 wall passages a lane | routed; his own moves obey the crossing rule |
+
+**His entry, timed** (rung 4, room 1, projected): #1 crosses his threshold waypoint; 0.75 m further along #1's path (about 0.37 s) the #2's entry starts on his own lane, hooking right; with #1 at his point the #2 is about 1.2 m from his; both scan corner then sector; the two "Clear!" calls, then your "Room clear!". The room's "Clear!" with a #2 (1.0 to 1.3 s after your own in v0.0.12) shortens by his earlier approach, never by a change to the scans.
+
+**The tower's commands, done and seen** (MCRP 3-01A §§3002 to 3010):
+- **The fill**: the #2 is issued in **Condition 4** (magazine in his pouch, chamber empty, on safe), not loaded at the fill (`shoothouse.js` today).
+- **Each command goes to both marines.** `houseOnCmd` gains a #2 branch: each command starts his macro on his own list doing (`R.house.two.doing`, the stepper's list machinery, the same Corps macros as yours, `drills.js MACROS`), at the command plus his `goMs(WF)` (150 to 235 ms), its time and rolls from his own Weapon handling. **The tower waits on him as on you**: `houseWant` names what he lacks ("Number two, a round up.").
+
+| Command | His macro | What is drawn (the sub-steps) | His time |
+|---|---|---|---|
+| **LOAD** (4 → 3) | `load` | thumb on the selector; the hand to the pouch; the magazine up to the eye; seated, tugged; the port cover | 1.93 s at WH 15; about 1.0 s at 42 |
+| **MAKE READY** (3 → 1) | `makeReady` | the support hand racks; a glance into the port; head to the optic | 2.51 s at WH 15 |
+| **Standby** ("get ready") | to his mark behind you, low ready, still; "Ready." | the nod, the whispered word | his walk |
+| **Stop** (the lane's end) | the Stop macro (safe, finger off, low ready) | thumb, finger, muzzle down | about 0.6 s |
+| **UNLOAD** | `unload` | port rolled down; the round caught; bolt locked; the look in | 4.05 s at WH 15 |
+| **UNLOAD, SHOW CLEAR** | `showClear` | the tilt held toward the instructor until "Clear.", the bolt released at the word | as built (7.90 s at the sheet's WH) |
+
+The instructor acknowledges each marine ("Number one, clear." / "Number two, clear."); SHOW CLEAR ends when both are shown. His sub-step is readable as yours is, `handsOf(state, pid)` (the doing's current sub id), one helper for both, and the renderer draws exactly what it draws for you on the same sub-step (VIEWS §3.10).
+
+**Animated, the sim side** (BODY §16.8): `runSlot` sets everything the player's mover sets, every tick he moves: `$px` and `$pz` at the tick's start (the 20 Hz strobe the animation audit measured, median 9.9 px, goes), `gait`, `strideM`, `moveStance`, `v`, `gp` and `bodyRad`; `people/figure.js` lets a non-player keep his gait while he moves (today it forces 'idle'); the instructor's catwalk walk takes the same trapezoid profile.
+
+**His own stoppage** (low priority, my call): his magazine carries no dummy, so "Again as …" stays identical. If his rifle stops by the built jam chance, he calls "Gun down!" and kneels; you get one stop, "Your two: gun down.", whose act is **Cover his sector** (`team:cover`): your muzzle on his sector, his stands yours until his "Gun up!".
+
+#### 25.19.6 The stoppage under contact, and the sidearm
+
+**The kit** (WEAPONS §3.2's note): the **P-12** in a thigh holster on the right (`compose.js` already draws one), one HAD-17 in it with 10 frangible 9×21 and a spare in the holster's pouch, ten being the house's rule as for the rifle (my call); **from the Sergeant up** (Sergeant, Raider, tier one; my call after the flashbang's precedent; question 2). The boot recruit, the private and the corporal carry none and have Gun down and Off the line; Transition shows struck with the pistol's silhouette ("not issued"). LOAD and MAKE READY cover both guns (rifle, then the pistol made ready and holstered on safe), UNLOAD and SHOW CLEAR both (pistol last), one macro each; the lane's 'dry' end counts the pistol's rounds too.
+
+**The answers, first to last on the reflex card** (on the click, as built, with R's kept answer):
+
+| Situation | 1 | 2 | 3 | 4 | then |
+|---|---|---|---|---|---|
+| a threat facing within `TRANSITION_NEAR_M` 10 m, pistol carried | **Transition: pistol** | Gun down: tap, rack | Tap, rack (standing) | Off the line | Look at the port; Nothing |
+| a threat facing, no pistol, your #2 up in the room | **Gun down: tap, rack** (he covers) | Tap, rack | Off the line | Look at the port | Nothing |
+| nobody facing, in a clear with a buddy (FM §3-15d: "should immediately announce gun down and drop to one knee") | **Gun down: tap, rack** | Tap, rack | Look at the port | | Nothing |
+| not in a clear (the bay, alone) | Tap, rack | Look at the port | | | Nothing (as built) |
+
+From Weapon handling 15 the card names what the hands felt (as built, §25.6.6), and "Gun down" carries the right drill ("Gun down: remedial" for a double feed); below 15 it says "Gun down: tap, rack".
+
+| Answer | Beats (channel) | Times (each the built action's formula at the sheet's WH) | Doctrine band (a sanity check) |
+|---|---|---|---|
+| **Transition: pistol** | the rifle to the sling 0.3 s (hands); the draw from the thigh (hands); the present, `aimS` with the pistol's sight and turn ×1.0; then the pistol's shot row | the sergeant about 1.05 s to the draw's end, the Raider about 0.78, the tier one **0.64 s** (§25.6.5; WEAPONS §5.2's table) | 1.0 to 1.6 s trained; 1.02 s an instructor |
+| **Gun down: tap, rack** | "Gun down!" (voice, 0.2 s, flowing); the knee (standing to kneeling, `stanceMsOf`); IMMEDIATE ACTION as built; "Gun up!" | the knee + 1.27 s (private), 1.07 (corporal), about 0.95 (sergeant), 0.70 (Raider), 0.55 (tier one) | IA 1.5 to 2.2 s operator, 3 to 5 s recruit |
+| **Off the line** | "Stoppage!" (voice); a step to the point 0.4 m off the nearest wall face square to the threat's line, at most `COVER_STEP_M` 1.5 m, routed (feet); IA (hands, flowing with the step from rung 3) | the step + the IA | 2.0 to 3.0 s operator (TC 3-22.9 §8-26) |
+| **Rifle up** (after a transition, the threat down) | the pistol to the holster (`stow` 1.3 s × pace, DC 6); IA on the rifle | | |
+
+- **Kneeling** gives +2 to the shot (WEAPONS §7's position table) and keeps the shooter below the #2's line. After "Gun up!" you stay kneeling until the #2's **"Up."**, said `UP_WAIT_MS` 400 ms after your "Gun up!" when no window is open and nobody of your sector faces, or once the man he engaged for you is down (FM §3-15d: "until directed to stand up"). The next row carries the stand beat first.
+- **The pistol in hand runs every drill row** (the rows read `muzzleOf`); the DI: "Pistol up. Clear the rifle when he's down."; "Rifle up" leads at the next stop with nobody facing.
+- **The #2 covering**: on your "Gun down!" or "Stoppage!", if he is up and not on a man, he says "Covering!", his watch goes to your sector's middle or your bracketed man, and **your sector's stands become his** until your "Gun up!". His take-in on them is `sector` for the man you bracketed (you showed him), `area` for the others; his row is his own (`twoPlan`); the par counts either man's first round (as built). If he is on a man he finishes his row first. He pivots, never walks: a man he cannot see stays yours.
+- **The DI** (`cqb.js`): `cqb-stoppage`'s act is the card's first answer; **`cqb-gunup`** (new): "Up. Carry on.", its act Carry on or the next row; **`cqb-two-down`** (new): "Your two's down. His sector.", its act Cover his sector; `cqb-reload` with a pistol and a man within 10 m names Transition.
+
+#### 25.19.7 The panel and the walk
+
+**The panel** is redesigned in VIEWS §7.8: five groups each with a fixed map of slots, the core five actions always visible on fixed keys and greyed with their reason and their remedy's key when off, and three layouts for the user to score in the gallery (`samples/panel/`, P1 to P3) and in play (`&panel=a|b|c`). This section guarantees the panel: every row has a group and a slot; the core five exist at every stop (the shot, Aim ⇄ Hold, Fix, the muzzle, NEXT as T's act); a struck row carries its reason; the DI names only live rows.
+
+**The walk and the figures' animation** are rebuilt in BODY §16.8 (the sim's locomotion record and gait phase) and VIEWS §3.10 (the cycle, the plant lock, the stances, turning, the close-quarters beats), with three walk cycles for the user to score (`samples/walk/`, W0 as built and A, B and C). The sim guarantees the picture: the #2's gait, stride and tween are set by the sim; the posture held while walking (aimed, low ready, high ready) is drawn as held, and the crossing's low ready is a real posture change; `handsOf` sub-steps are drawn the same for you and the #2; the kneel, the transition (rifle hanging, pistol up) and the holster are new frames.
+
+#### 25.19.8 "Flawless", as tests
+
+**The bots** (`tests/bots/house.mjs`): **`houseTBot`**, honest (new): T, and at a stop whose line names a shot on his own man that row; nothing else, never a Wait. `houseBot({ mode: 'T' })` stays for its numbers but is **no longer the flawless test** (it covered for the automation with 251 High-ready presses in 100 lanes). `houseKeysBot` (the recruit and private by the keys) holds the grain; `houseFuzzBot` holds that faults are deserved and that nothing dead-ends; **`stoppageBot`** (new) is the honest bot with each card answer forced in turn.
+
+**The criteria**: 100 seeds a sheet at `setup=go` (seed 0 the user's 1489397426, then 1000 + 37i), heavy; 10 seeds of the tier one and the private in the quick suite. In `tests/house-flawless.test.mjs` (heavy) and `house-flawless-quick`; `scene-shoothouse` stays for its numbers.
+
+| # | Criterion | Who | Threshold | Prints |
+|---|---|---|---|---|
+| F1 | no wall paths: every team body's C0 circle against the area's wall rects and closed leaves, every tick | all bots, all sheets | 0 overlaps over 0.005 m | the worst overlap, where, who |
+| F2 | no bodies through each other: #1 and #2 centre to centre | all | never under `BODY_GAP_M` 0.50 m | min distance; the guard's holds a lane |
+| F3 | authored paths walkable: every `paths[slot]`, `far.path` and planned beat path `clearLine` on the C0 grid | data | all clear | the worst leg |
+| F4 | no doorway stops: #1's feet under 0.3 m/s inside `inFunnel`, a chosen Stop here or Gun down excepted | honest T, rung 2 and up | 0 ticks; 0 funnel faults | doorway s a room |
+| F5 | the first round out of the door: #1's place at his first round on each man of his | honest T, rung 3 and up | past the threshold in 100% | metres past, mean and min |
+| F6 | the feet never stop between the stack and the point (unless a stop's row needs them) | honest T, rung 3 and up | above 0.3 m/s every tick | min speed |
+| F7 | no missed corners | honest bots | 0 corner faults; every hot spot covered before "Clear!" | coverage by whom |
+| F8 | faults only when deserved | honest T: no muzzle, funnel, time, standing, no-shoot or hostage fault; fuzz: each fault's evidence recomputed independently (the 3-D capsule; the feet) | 0 (T); 100% evidenced (fuzz) | faults by kind |
+| F9 | every threat engaged in its sector: slot 1's first round by #1, slot 2's by #2 (or by #2 for #1's while #1 is gun down) | honest T | 100%; threats left up 0 | by stand |
+| F10 | pars | honest T: tier one and Raider the operator par; sergeant and corporal the advanced | met on every man but the one the dummy stops | par by stand |
+| F11 | no dead ends: at every stop T does a live act, or the line names a live row on the core | honest T, all sheets; fuzz | 0 | stops by why |
+| F12 | no "Carry on" stop after a shot row with nobody up | honest T, rung 2 and up | 0 | |
+| F13 | stops a lane | honest T, tier one | at most 14 at p95, one press each | by why |
+| F14 | no hangs | all | 0 lanes to `LANE_MAX_MS`; 0 stalls by the honest bot | lane time mean, p95, max |
+| F15 | lane time | honest T, tier one | mean 46 s or less, max 60 s | room by room |
+| F16 | no row, line or act names a lane or a house | static, and all runs | none | |
+| F17 | the #2 at his slot: within `TWO_SLOT_M` 1.5 m of his stack when you are stacked; the 'two' hand-back never fires | all | 100%; 0 | distance at your stack |
+| F18 | the #2's admin: after each tower command his condition is the command's within his macro time + 0.5 s; his sub-steps follow the macro's list | all sheets, 5 seeds | 100% | his times by command |
+| F19 | the #2 animated: on his moving ticks `gait` is not idle, `$px` and `$pz` were set at the tick's start, `figureOf` keeps his stride | all | 99% or more; tween error 0 | |
+| F20 | the stoppage | `stoppageBot`, each answer, 100 seeds | each ends live; Transition's first pistol round within its time + the present + 0.1 s; under Gun down the #2 engages the bracketed man whenever he can see him; you stand only after his "Up." | times by sheet |
+| F21 | no watering down: the recruit and private by the keys | keys bot | room 1 and the lane within 10% of the routed v0.0.12 figures (§25.19.1) | before and after |
+| F22 | the operator's room against doctrine: the tier one's room 1 to his own "Clear!" | honest T | 5.27 s ±15% (the routed figure), printed against doctrine's 5 to 6 s | |
+| F23 | determinism: a save at every stop and at three ticks inside a suspended flow loads and carries on byte for byte | honest T, 3 seeds | 100% | |
+| F24 | every DI line names a row the panel has, live (the struck rows included) | all stops | 100% | |
+
+The doctrine bands are sanity checks, not timers: a sheet outside its band is printed, not failed, except F22.
+
+#### 25.19.9 Constants (new; each my call)
+
+| Name | Value | Home | Why |
+|---|---|---|---|
+| `ENTRY_GAP_M` | 0.75 m | `bundle.js` | #1 past his threshold waypoint before #2 steps in: about 0.4 s at the lope |
+| `BODY_GAP_M` | 0.50 m | `bundle.js` | two C0 radii (0.54 m) less a touch; the stack's 0.65 m stays above it |
+| `LANE_OFFSET_M` | 0.12 m | `x4-plans.js` (data), `room.js` (the test) | inside the 0.18 m band a 0.9 m door leaves a 0.27 m body |
+| `POINT_MIN_M` | 1.0 m | `specials.js` | "at your point" plants no sooner than 1.0 m past the threshold: twice `FUNNEL_M` |
+| `POINT_REACH_S` | 0.8 s | `specials.js` | "at your point" is the default only when the point is this close |
+| `CLEAR_HOLD_MS` | 4,000 | `bundle.js` | how long "Clear!" waits on the ready-to-clear predicate before it hands back |
+| `FLAG_BODY_R_M` | 0.3 m | `carry.js` (the one flag helper) | the teammate's body as a capsule; replaces the two copies of `FLAG_M` |
+| `COVER_STEP_M` | 1.5 m | `bundle.js` | Off the line's longest step |
+| `UP_WAIT_MS` | 400 | `shoothouse.js` | the #2's "Up." after your "Gun up!" |
+| `TRANSITION_NEAR_M` | 10 m (§25.6.5's) | `specials.js` | Transition leads the card within it |
+
+#### 25.19.10 Build order (ROADMAP §4.2's rework row holds the stages)
+
+| Stage | What | Modules |
+|---|---|---|
+| **R1, the floor** (partly built in v0.0.13: routing, the muzzle fix, the hall's dead end, the cut scan; the rest to build) | routed everywhere; the muzzle fix (`SWEEP_SAFE`); the hall's dead end; then the paths made walkable, the one 3-D flag helper, `halfOrLess`, the stall clock | `route.js`, `bundle.js`, `x4-plans.js`, `shoothouse.js`, `cqb.js`, `specials.js`, `carry.js` |
+| **R2, the bodies fed to the view** | BODY §16.8's locomotion record for every mover (the #2, the instructor), the brake in place of the cut, the aim drawn as an aim, every band pre-painted before GO, one outline per person (VIEWS §3.10 part 1) | `bundle.js runSlot`, `people/figure.js`, `poses.js`, `figures.js`, `cards.js`, `post.js` |
+| **R3, the flow** | suspend, not cut; the shot as a hands beat inside the bundle; one shot row, the feet by the drill; no "Carry on" after a row; the `clear` beat's wait; the inner door from the point; `ready` by slot; the crossing rule | `stepper.js`, `contact.js`, `bundle.js`, `specials.js`, `enter-and-clear.js` |
+| **R4, the catalogue and the pauses** | `MUSCLE`; `house:clear` gone; rung 2 regrouped; "Room clear" as the end; the reorg variant; the saves' mapping; the #2's sector; every stop's why; the dead-end rules; the standing order (off) | `enter-and-clear.js`, `bundle.js`, `cqb.js`, `contact.js`, `shooting.js` `stepsOf`, `templates.js`, the upgrade |
+| **R5, the #2** | the entry gap, lanes and body gap, the approach with you, the calls, the reorg, the cover; the tower's macros on his doing; Condition 4 at the fill | `bundle.js runSlot`, `shoothouse.js` (`twoTick`, `houseOnCmd`, `houseWant`) |
+| **R6, the stoppage and the sidearm** | the P-12 issue from the Sergeant up; the card's answers; Gun down, Off the line, Transition, Rifle up; the #2's cover | `kit.js` 'house-cqb', `reflex.js` callers in `shooting.js`, `bundle.js`, `shoothouse.js` |
+| **R7, the panel** | VIEWS §7.8's model once, its three layouts behind `&panel=` until the user's pick, then the others deleted | `stepsOf`'s groups and slots, `src/ui/hud/steps.js`, `keys.js` |
+| **R8, the walk** | BODY §16.8 and VIEWS §3.10's machinery, then the chosen cycle, the stance pool and the close-quarters beats, then turning | `src/data/body/gait.js`, `compose.js`, `poses.js`, `atlas.js`, `view.js` |
+| **R9, flawless** | §25.19.8's suites, written first as gauges (printing, not failing) from R1 and made to fail from R6 | `tests/bots/house.mjs`, `tests/house-flawless*.test.mjs` |
+| later | "Stack up on him": you as #2, the #2 leads (the career's new man is #3 or #4, §25.5.5) | `runSlot` for slot 1, the stands' slots by role |
+
+R2 and R3 to R6 may run in parallel (different files); R7 and R8 wait for the user's scores only for their last step (the drawing layer and the chosen cycle), so neither blocks the sim.
+
+#### 25.19.11 Questions for the user (each with its default, which the build follows until answered)
+
+1. **The standing order** (§25.19.4): may the operator set "Engage: armed, my sector" at the stack, so a clean armed man in his sector is shot without a pause? *Default: built, offered from rung 4, off.*
+2. **The pistol**: from the Sergeant up, or on every sheet? *Default: from the Sergeant up; the lower sheets have Gun down and Off the line.*
+3. **Breach (explosive)**: shown struck in this lane ("no charge issued") and built live in `test-breach`, or a breach door in this lane now? *Default: struck here, live in `test-breach`.*
+4. **You as #2** ("Stack up on him"): in this scene now, or after the #1 flow is scored? *Default: after.*
+
+The panel's layout and the walk cycle are scored in the gallery (VIEWS §7.8, §3.10).
+
+#### 25.19.12 Risks
+
+| Risk | What holds it |
+|---|---|
+| a suspended bundle is a new state for the stepper | F23; built behind `scene-handling`'s byte-for-byte guard, as the stepper was |
+| the #2's sector rule hides a man from you | the 20° muzzle cone re-tested every tick; F9 checks who fired first |
+| the pistol lengthens the tower's admin for three sheets | measured against the user's patience: they asked for the #2's admin to be seen, not for theirs to be longer |
+| the body gap's guard stalls the #2 in a doorway | F4 counts his doorway ticks too; a hold over 0.3 s fixes the cue, not the guard |
+| one shot row with the feet by the drill hides the planted choice | the feet are a variant on the row, set at no time, and Stop here is on the core's BODY group |
+| three panels and three walks built at once | one model under each, three drawing layers; the losers deleted on the user's pick (tradecraft's way) |

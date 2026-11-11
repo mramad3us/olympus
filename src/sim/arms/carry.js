@@ -129,6 +129,25 @@ export function muzzleOf(state, pid, actor = actorOf(state, pid), posture = null
   };
 }
 
+/**
+ * The postures a muzzle may pass over a partner in without a flag (the shoot house's "Muzzle!" fault and the DI's line):
+ * high ready, the muzzle up over him, and low ready, the muzzle down before his feet (the user, 2026-11-11: "tier one
+ * operator automatically goes low ready when sweeping their partner (which is good) but we still get flagged a fault for
+ * muzzle"). Aimed is the flag; a slung rifle is not in the hands.
+ */
+export const SWEEP_SAFE = Object.freeze(new Set(['highReady', 'lowReady']));
+/**
+ * Whether a muzzle (muzzleOf's) flags a body standing at (x, z): the rifle in the hands and not in a SWEEP_SAFE posture,
+ * the body ahead within reachM, the muzzle's line within lineM of it in plan. The one rule the house's fault and the DI's
+ * cqb-flag read (each had its own copy until 2026-11-11).
+ */
+export function flagsAt(m, x, z, lineM, reachM) {
+  if (!m || !m.inHand || SWEEP_SAFE.has(m.posture)) return false;
+  const dx = x - m.ox, dz = z - m.oz, ux = Math.cos(m.yawRad), uz = Math.sin(m.yawRad), t = dx * ux + dz * uz;
+  if (t <= 0 || t > reachM) return false;
+  return Math.abs(dx * uz - dz * ux) <= lineM;
+}
+
 /** Whether a body is in a cone (muzzleOf's): a BODY_R_M circle at (x, z) whose height span [y0, y1] the muzzle's widened line passes through. */
 export function inCone(cone, { x, z, spanM = SPAN_M.stand }) {
   if (!cone) return false;

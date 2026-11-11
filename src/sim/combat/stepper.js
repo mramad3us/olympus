@@ -214,7 +214,10 @@ export function advanceBeats(state, bus, d, ms) {
     if (!d.halt) d.halt = { why: 'stop', words: null, atMs: d.atMs };
     // (a contact's halt: a scan cut by it is done, and the corner's look still to come of the room he is in, the contact having
     // taken the eyes there (my call); the rest is what waits and the cut moves)
-    const took = (b) => d.halt.why === 'contact' && b.k === 'scan' && (b.st === 'cut' || (b.st === 'wait' && b.key.endsWith('corner') && b.plan === d.beats.find(x => x.st === 'cut' && x.k === 'move')?.plan));
+    // (but the far leg's look: the man seen took the eyes onto him, not onto the dead space's middle, so the look down the leg
+    // is still owed and the carry on gives it (the tier one by T on 48213, room 3: his eyes on the far leg's man 20.6° off
+    // its middle, "Corner! You never looked." once the routing of 2026-11-11 moved his walk a tick; 19.0° before, by chance))
+    const took = (b) => d.halt.why === 'contact' && b.k === 'scan' && !b.key.endsWith('farlook') && (b.st === 'cut' || (b.st === 'wait' && b.key.endsWith('corner') && b.plan === d.beats.find(x => x.st === 'cut' && x.k === 'move')?.plan));
     d.rest = d.beats.filter(b => (b.st === 'wait' || b.st === 'cut') && !took(b)).map(b => b.key);
     d.untilMs = Math.max(d.atMs ?? d.fromMs, d.halt.atMs ?? 0);
     return 'halted';

@@ -1,21 +1,26 @@
-// OLYMPUS sample: the hit card's three looks, belief left and truth right, at the card's size in three windows, for the user to star and score (VIEWS §7.7, §18 question 21; the build sheet 0.0.10 §2.3).
+// OLYMPUS sample: the hit card as the user picked it, B the khaki man-target board, belief left and truth right, at the card's size in three windows, and its figure at three ranges (VIEWS §7.7; the user's scores of 2026-11-08).
 //
 // The user's words of 2026-11-07: "Targets in game should be represented with the same logic we represent the shooting range
-// targets, drawn with impact points drawn as well, using similar to inventory and character menu drawings of people." One
-// string's marks on a turner at 7 m (MARKS: a Pair to the chest, a third round high, a fourth missed), as hitMarks gives them
-// (src/sim/arms/marks.js: called points by the shooter's Marksmanship, the holes the sim's), drawn by the game's own
-// src/art/doll/hitcard.js paintHitcard in ?look= A (the doll in colour), B (the khaki man-target board) or C (the casualty card's
-// outlines), belief (what the marine could tell during the string) at the left and truth (the holes at the debrief) at the
+// targets, drawn with impact points drawn as well, using similar to inventory and character menu drawings of people." Their
+// scores of 2026-11-08: A 10, B ★ 99, C 0, "Second set is perfect, keep all three to represent varying ranges." One string's
+// marks on a turner (MARKS: a Pair to the chest, a third round high, a fourth missed), as hitMarks gives them (src/sim/arms/
+// marks.js: called points by the shooter's Marksmanship, the holes the sim's), drawn by the game's own src/art/doll/hitcard.js
+// paintHitcard: belief (what the marine could tell during the string) at the left and truth (the holes at the debrief) at the
 // right, each in the HITCARD box a window of ?win= 1024 (1024 × 768, --ui 0.85), 1600 (1600 × 900, --ui 1.25) or 1920
-// (1920 × 1080, --ui 1.5) gives it: the card painted at its box's whole pixels (200, or 170 at 1024 × 768) and shown at whole device
-// pixels a card pixel where it fits, else scaled smooth into its box (src/ui/hud/hitcard.js hitFit, at a device pixel ratio of 1). The picture is drawn at its own size (sample.json's pixel) and
-// scaled up by a whole number to fill the window, so the gallery shoots it crisply; window.__report.frame is its size.
+// (1920 × 1080, --ui 1.5) gives it: the card painted at its box's whole pixels (200, or 170 at 1024 × 768) and shown at whole
+// device pixels a card pixel where it fits, else scaled smooth into its box (src/ui/hud/hitcard.js hitFit, at a device pixel
+// ratio of 1). ?set=ranges is "keep all three" as built (my reading, to confirm): the truth's card at 7, 20 and 50 m side by
+// side at 1600 × 900, the board's figure at its band's density (HIT_BANDS: 96, 80 and 64 px a metre), the marks at their own
+// sizes. The picture is drawn at its own size (sample.json's pixel) and scaled up by a whole number to fill the window, so the
+// gallery shoots it crisply; window.__report.frame is its size.
 import { paintHitcard } from '../../src/art/doll/hitcard.js';
 import { hitFit } from '../../src/ui/hud/hitcard.js';
 import { uiScale, RECTS } from '../../src/ui/hud/layout.js';
 import { PAPERS } from '../../src/sim/arms/paper.js';
 
-const params = new URLSearchParams(location.search), look = ['A', 'B', 'C'].includes(params.get('look')) ? params.get('look') : 'A';
+const params = new URLSearchParams(location.search), ranges = params.get('set') === 'ranges';
+/** The ranges of ?set=ranges (metres: one in each band). */
+export const RANGES_M = Object.freeze([7, 20, 50]);
 /** The windows the views are shot for (their --ui from layout.js uiScale). */
 export const WINDOWS = Object.freeze({ 1024: [1024, 768], 1600: [1600, 900], 1920: [1920, 1080] });
 const win = WINDOWS[params.get('win')] ? params.get('win') : '1600', [ww, wh] = WINDOWS[win];
@@ -30,7 +35,7 @@ export const MARKS = Object.freeze([
 const BELIEF = Object.freeze({ phase: 'belief', marks: MARKS, words: 'PAIR · HAMMER · 3 SEEN', line: null });
 const TRUTH = Object.freeze({ phase: 'truth', marks: MARKS, words: 'PAIR · A · C · HEAD · MISS', line: 'Two in the chest, one in the head. He went down.' });
 
-const W = box * 2 + GAP, H = box;
+const W = ranges ? box * RANGES_M.length + GAP * (RANGES_M.length - 1) : box * 2 + GAP, H = box;
 const buf = new Uint32Array(W * H).fill(0xff000000 | abgr(BG));
 function abgr(c) { return ((c & 0xff) << 16) | (c & 0xff00) | ((c >>> 16) & 0xff); }
 // (a card into its box at x0: at whole pixels centred where hitFit keeps them, else resampled to the box (bilinear, as a browser's smooth scaling))
@@ -50,9 +55,14 @@ function place(pm, x0) {
   }
   return fit;
 }
-const size = hitFit(ui, 1).size, b = paintHitcard({ look, size, man: PAPERS.man, ...BELIEF }), t = paintHitcard({ look, size, man: PAPERS.man, ...TRUTH });
-const fit = place(b, 0);
-place(t, box + GAP);
+const size = hitFit(ui, 1).size;
+let fit = null, b = null, t = null;
+if (ranges) RANGES_M.forEach((rangeM, i) => { const pm = paintHitcard({ size, man: PAPERS.man, rangeM, ...TRUTH }); fit = place(pm, i * (box + GAP)); t ??= pm; });
+else {
+  b = paintHitcard({ size, man: PAPERS.man, ...BELIEF }); t = paintHitcard({ size, man: PAPERS.man, ...TRUTH });
+  fit = place(b, 0);
+  place(t, box + GAP);
+}
 
 const cv = document.getElementById('pic'), g = cv.getContext('2d');
 cv.width = W; cv.height = H;
@@ -65,5 +75,5 @@ function fitWin() {
 }
 fitWin();
 addEventListener('resize', fitWin);
-window.__report = { frame: [W, H], look, win: Number(win), ui, box, card: { k: fit.k, smooth: fit.smooth }, marks: { belief: b.marks, truth: t.marks } };
+window.__report = { frame: [W, H], look: 'B', set: ranges ? 'ranges' : 'card', win: Number(win), ui, box, card: { k: fit.k, smooth: fit.smooth }, marks: { belief: b?.marks ?? null, truth: t.marks } };
 requestAnimationFrame(() => requestAnimationFrame(() => { window.__ready = true; }));

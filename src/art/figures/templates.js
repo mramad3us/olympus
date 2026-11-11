@@ -20,16 +20,19 @@
 // and fixed: e an eye, o its glint, b a brow (the hair's darkest), z the mouth (the skin's darkest), l a
 // lens' glint. An upper-case role letter is forced into shade.
 //
-// The guns are shapes in tradecraft's pixels at 16 px/m (its rifle 16 long: stock, receiver with its lit
-// top, the optic OLYMPUS adds, grip, a magazine curving forward, handguard, barrel, front sight), each
-// part [along0, along1, across0, across1, letter] (spans inclusive; across is down when level), scaled to
-// the gun's length and the density by shapeAt(). The flash is tradecraft's FLASH, scaled the same way.
+// The guns are shapes in tradecraft's pixels at 16 px/m, each part [along0, along1, across0, across1, letter]
+// (spans inclusive; across is down when level), scaled to the gun's length and the density by shapeAt(). The
+// rifle's shape is its design's (src/art/rifles.js: the R-7's unless a look names another; 0.0.12, the user's
+// picks of 2026-11-08, G0's tradecraft rifle purged), GUNS.rifle holding only the stations every design keeps:
+// 16 along, the grip, the support hand, the muzzle and the well. The flash is tradecraft's FLASH, scaled the same way.
 // 0.0.6 (the user, 2026-11-07: "the magazines are very long, if they could be a bit slicker"): the rifle's
 // magazine is one reference pixel wide, stepping forward a pixel as it goes down, two below the receiver
 // (v0.0.5's was a four-pixel hook, three along): at 16 px/m two pixels on a 16-pixel rifle (each 6.25 cm of
 // the 1.0 m drawn rifle: 12.5 cm below the well, 6 cm front to back, the HAD-30's own 6.5), at 24 px/m a
-// 2 × 3 band; the doll's rifle (doll.js, acrossK 2.4) takes the same shape.
+// 2 × 3 band; the doll's rifle (doll.js, acrossK 2.4) takes the same shape. Every design keeps it.
 // Pure.
+
+import { drawingOf } from '../rifles.js';
 
 // ---------- the reference (tradecraft's 15 × 12 head at [4, 7] facing the camera, 14 × 12 at [5, 7] side on) ----------
 
@@ -274,12 +277,8 @@ function faceOf(view, w, h, shut) {
 
 /** Shapes: [along0, along1, across0, across1, letter], spans inclusive, across down when level; len: the reference length. */
 export const GUNS = Object.freeze({
-  rifle: {
-    len: 16, grip: 4.5, fore: 10.5, muzzle: 16, magwell: 8,
-    parts: [[0, 3, 0, 0, 'n'], [0, 1, 1, 1, 'n'], [4, 8, 0, 1, 'n'], [5, 5, 2, 2, 'n'], [9, 11, 0, 0, 'n'], [9, 10, 1, 1, 'n'],
-      [12, 15, 0, 0, 'n'], [13, 13, -1, -1, 'n'], [5, 7, -1, -1, 'u'], [5, 8, 0, 0, 'v']],
-    mag: [[8, 8, 2, 2, 'u'], [9, 9, 3, 3, 'u']],
-  },
+  // (the rifle's stations only: its shape is its design's, src/art/rifles.js)
+  rifle: { len: 16, grip: 4.5, fore: 10.5, muzzle: 16, magwell: 8 },
   pistol: {
     len: 5, grip: 1, fore: 1.5, muzzle: 5, magwell: 1,
     parts: [[0, 4, -1, -1, 'n'], [0, 2, 0, 0, 'n'], [0, 1, 1, 1, 'n'], [3, 3, -1, -1, 'v']],
@@ -291,11 +290,11 @@ export const GUNS = Object.freeze({
 /**
  * A gun's shape at a length of `lenPx` pixels along (foreshortened as it is seen) and `acrossK` pixels a
  * reference pixel across: cells [[along, across, letter]] (nearest resampling of each span). withMag:
- * the magazine drawn in its well. tpl: another template of GUNS' form to draw instead (a rifle drawing of
- * src/art/rifles.js, the gun samples' candidates of 2026-11-08), at the kind's stations.
+ * the magazine drawn in its well. tpl: a template of GUNS' form to draw (a rifle design's of
+ * src/art/rifles.js); a rifle with none, the R-7's.
  */
 export function shapeAt(kind, lenPx, acrossK, withMag = true, tpl = null) {
-  const g = tpl ?? GUNS[kind], ka = lenPx / g.len, out = new Map();
+  const g = tpl ?? (kind === 'rifle' ? drawingOf('r7').fig : GUNS[kind]), ka = lenPx / g.len, out = new Map();
   const span = ([a0, a1, c0, c1, ch]) => {
     const A0 = Math.floor(a0 * ka + 1e-6), A1 = Math.max(A0, Math.ceil((a1 + 1) * ka - 1e-6) - 1);
     const C0 = Math.floor(c0 * acrossK + 1e-6), C1 = Math.max(C0, Math.ceil((c1 + 1) * acrossK - 1e-6) - 1);

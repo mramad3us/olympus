@@ -1,0 +1,181 @@
+{
+ "title": "The step panel, three layouts: the core always on screen, the rest grouped by type (rework1)",
+ "about": "Your ask of 2026-11-11: \"If We're going to keep this system of numbered options, we need to find a way to group them by type and find a clever way to make this manageable with top of the head core gameplay options being always visible and accessible (even if grayed out, like hammer if you only have one bullet).\" The designer's three layouts of one model: every row in a fixed group and slot (FIRE, DRILL outside a door or inside a room, GUN, BODY, TEAM), the core of five on fixed keys, and a row the situation could offer never removed: greyed, with a badge that says why and points to the fix (→ a keycap: the key that comes first; ▮ and a count: rounds; MKS: the Marksmanship gate; ▲▲ and a rung: not yet taught; a struck silhouette: not issued, the house issues no pistol, charge or flash; a padlock; a struck eye: nothing to act on; ✓ already done, the sample's own mark, my call). Each layout is drawn over the same five true moments, captured from the game by the bots on your seed 1489397426 (the 25 m line on 48213): stepsOf's rows, their times and odds as the panel says them, the believed gun on the weapon card (the stage's own painting, fitted as the HUD fits it), the DI's line; the rows the proposal adds (Stack up and take point, Breach, Flash, Fix, Stop here, the TEAM rows, Transition: pistol) in the state it gives them, with no time where the game has none yet. Each picture is the bottom of the window at its own pixels, STEPS and INSTINCT where the HUD puts them, over a 16 px/m floor with a metre's grid: at 1600 × 900 (--ui 1.25) the verbs in full with their times; at 1024 × 768 (--ui 0.85) one word a key and the times left to the hover, as the proposal has it. Score them here, and in play once the chosen one has its toggle.",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "P1",
+   "title": "P1: layout A, \"Home and drawers\": the core on 1 to 5, the groups as drawers on 6 to 0",
+   "about": "The core on fixed keys, 1 the shot (Pair, Fire on a paper line), 2 Aim ⇄ Hold, 3 Fix (the remedy for the gun's state: IMMEDIATE ACTION, Off safe, a reload by purpose), 4 Muzzle (Low ⇄ High ready), 5 NEXT (T's act, its T keycap struck where T cannot act); under them the five groups as drawers on 6 to 0, FIRE, DRILL, GUN, BODY, TEAM, each with its count of live rows and an amber dot when it holds the row the DI's line names. A drawer opens on its digit and lays its fixed nine on 1 to 9, 0 back home. FIRE's drawer opens by itself at a contact's pause, so the shots are one press as in Pairs and Bang; with a stoppage it stays home, so Fix is one press (the sample's reading, my call: the proposal does not say). The DI's line names the path: \"7 › 3\". Open view: DRILL's drawer, outside a door. The designer's score 16 of 20; the press model 1.35 presses a choice on the lane, 1.07 at a contact, never more than 2 (today 1.84, up to 8).",
+   "query": "layout=a",
+   "views": [
+    {
+     "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1600 × 900",
+     "query": "state=stack&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1024 × 768",
+     "query": "state=stack&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1600 × 900",
+     "query": "state=contact&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1024 × 768",
+     "query": "state=contact&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1600 × 900",
+     "query": "state=stoppage&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1024 × 768",
+     "query": "state=stoppage&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "The 25 m line under the tower's LOAD, at 1600 × 900",
+     "query": "state=load&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "The 25 m line under the tower's LOAD, at 1024 × 768",
+     "query": "state=load&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "The second level held open, at the stack, at 1600 × 900",
+     "query": "state=open&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "The second level held open, at the stack, at 1024 × 768",
+     "query": "state=open&win=1024",
+     "pixel": "1024x190"
+    }
+   ]
+  },
+  {
+   "id": "P2",
+   "title": "P2: layout B, \"The fixed ten and the letter banks\": the same ten verbs on the ten digits in every scene",
+   "about": "The shots on 1 to 5 (Pair, Hammer, Triple, Failure drill, To the head) and the core on 6 to 0 (Fire one round, Aim ⇄ Hold, Fix, Muzzle, NEXT), never paged, never reordered: Hammer stays on 2, struck ▮1 with one round left, your example. On a paper line the shots are struck with the eye (no man): a digit never changes meaning. The other groups are banks on letters under the left index finger, R the room (DRILL), C the gun, B the body, F friends, at STEPS' right edge with their counts; a bank opens on its letter and closes on Esc. The DI's line: \"R › 3\". Open view: bank R, outside a door. The designer's score 15 of 20; 1.36 presses a choice on the lane, 1.10 at a contact, never more than 2. R and C would be taken in the mode (the sheet then through Esc).",
+   "query": "layout=b",
+   "views": [
+    {
+     "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1600 × 900",
+     "query": "state=stack&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1024 × 768",
+     "query": "state=stack&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1600 × 900",
+     "query": "state=contact&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1024 × 768",
+     "query": "state=contact&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1600 × 900",
+     "query": "state=stoppage&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1024 × 768",
+     "query": "state=stoppage&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "The 25 m line under the tower's LOAD, at 1600 × 900",
+     "query": "state=load&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "The 25 m line under the tower's LOAD, at 1024 × 768",
+     "query": "state=load&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "The second level held open, at the stack, at 1600 × 900",
+     "query": "state=open&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "The second level held open, at the stack, at 1024 × 768",
+     "query": "state=open&win=1024",
+     "pixel": "1024x190"
+    }
+   ]
+  },
+  {
+   "id": "P3",
+   "title": "P3: layout C, \"Five that follow the situation\": 1 to 5 the situation's five, named, 6 to 0 the core, Tab held for the rest",
+   "about": "1 to 5 are a fixed five for each situation, named with its picture at the band's left: AT THE DOOR (Stack up, Stack up and take point, Open, Kick door, Breach), CONTACT (Pair, Hammer, Failure drill, To the head, Challenge: Pair stays on 1 as in Pairs and Bang), STOPPAGE (Gun down: knee, tap, rack; Transition: pistol; Step to cover, clear; REMEDIAL; Cover me), THE TOWER (LOAD, MAKE READY, UNLOAD, SHOW CLEAR, Stop); 6 to 0 the core as in B. Tab held turns STEPS into a fan of the five groups (a half-wheel at its left, inside STEPS, never over the picture): a digit picks the group, a second the row; let go of Tab and it closes. The DI's line names one key at the door: \"3\". Open view: the fan on DRILL. The designer's lean, 17 of 20; 1.09 presses a choice on the lane (96% in one), 1.13 at a contact, at most 3 from the keys.",
+   "query": "layout=c",
+   "views": [
+    {
+     "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1600 × 900",
+     "query": "state=stack&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "At the stack: a private (rung 1) stacked on room 2's door, \"Open it. Pull.\", at 1024 × 768",
+     "query": "state=stack&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1600 × 900",
+     "query": "state=contact&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "At a contact: a corporal at the hall room's pistol man, one round left (Hammer struck ▮1), \"Press.\", at 1024 × 768",
+     "query": "state=contact&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1600 × 900",
+     "query": "state=stoppage&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "A stoppage under contact: the corporal's click on the instructor's dummy in room 2, \"Immediate action.\", at 1024 × 768",
+     "query": "state=stoppage&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "The 25 m line under the tower's LOAD, at 1600 × 900",
+     "query": "state=load&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "The 25 m line under the tower's LOAD, at 1024 × 768",
+     "query": "state=load&win=1024",
+     "pixel": "1024x190"
+    },
+    {
+     "name": "The second level held open, at the stack, at 1600 × 900",
+     "query": "state=open&win=1600",
+     "pixel": "1600x281"
+    },
+    {
+     "name": "The second level held open, at the stack, at 1024 × 768",
+     "query": "state=open&win=1024",
+     "pixel": "1024x190"
+    }
+   ]
+  }
+ ]
+}
