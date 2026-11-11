@@ -583,3 +583,95 @@ export const STRESS = Object.freeze({
     ]),
   }),
 });
+
+// ---- the 0.0.12 round: the shoot house (the build sheet 0.0.12 §2.7; COMBAT §25.10.4; VIEWS §11.2, §11.3; my calls, unscored) ----
+// The Wheel's house 1 is a hall of ballistic panels under a roof, not open air: every sound in it is heard dry and then through the
+// hall's reverb (HALL: RT60 0.6 s, early reflections off the panels 2 to 5 m away, a send of HALL.sendDb from the world bus,
+// src/ui/audio/engine.js's convolver over an impulse made by code: hallImpulse), so a shot rings in the room it is fired in and
+// the berm's slap-back of the range is not heard. A shot reaches you through the suit's hearing filter (SUIT_EARS_DB, its limiter's
+// gate: the combat EVA suit filters; no ear defenders, the build sheet's §2.1), as defenders did on the range. The instructor's
+// words are the PA's: "Standby", "GO" and "Stop" (PA_WORDS: voiced syllables, a sawtooth at the voice's pitch through two
+// formants, its consonants band-passed noise), his faults as speech in the radio box; the stack's whispered "Ready" (the #2's: the
+// same syllables as noise through the formants, no pitch, a hand's breadth from your ear); "Clear!" shouted. The timer is the
+// instructor's: a 2.4 kHz beep at GO (TIMER_HZ), its double beep for a room cleared within par, and the harness's low tone
+// (HARNESS_HZ 400 Hz, 0.4 s) at a par missed. The doors: the push (a latch and a quick swing), the pull (the latch, a step back,
+// the swing), the kick (a boot's thump on the leaf and the frame's crack), a lock's rattle when a leaf will not give. The suit's
+// footsteps are the built cadence and weight (steps.js: 4.53 foot-falls a second walking at 1 G) with a rubber sole's scuff over
+// them (SUIT_SCUFF_DB), on the house's concrete and the apron's deck plate alike.
+/** The hall's reverb: its RT60 (s), the early reflections' paths (m, from you to a panel and back), its send from the world bus (dB). */
+export const HALL = Object.freeze({ rt60S: 0.6, earlyM: Object.freeze([2, 2.8, 3.6, 4.4, 5]), earlyDb: -6, sendDb: -8, lenS: 0.9, lowpassHz: 6000 });
+/** The suit's hearing filter on an impulse (a report, a kick): dB and its low-pass (Hz). */
+export const SUIT_EARS_DB = -20, SUIT_EARS_LP_HZ = 3000;
+/** The instructor's timer (Hz) and the harness's tone (Hz, s). */
+export const TIMER_HZ = 2400, HARNESS_HZ = 400, HARNESS_S = 0.4;
+/** The PA's voice at 1 m against its recipe (dB), from the catwalk; a whisper at your ear (dB); a shout at 1 m (dB). */
+export const PA_VOICE_DB = 14, WHISPER_DB = -14, SHOUT_DB = 8;
+/** A suit's footfall's scuff over the built step (dB against the step's recipe). */
+export const SUIT_SCUFF_DB = -6;
+/** What a 'house' fact's phase plays (src/ui/audio/house.js). */
+export const HOUSE_CUES = Object.freeze({ go: 'paGo', stop: 'paStop', clear: 'shoutClear', par: 'harnessTone' });
+// (a voiced syllable: a sawtooth at the voice's pitch gliding down, through two formants of a vowel; my numbers, from the vowels' textbook
+// formants: "oh" 500 and 900 Hz, "ah" 700 and 1,200, "eh" 550 and 1,800, "ee" 300 and 2,300)
+const syl = (delayS, durS, hz, f1, f2, db = 0) => [
+  Object.freeze({ kind: 'glide', hz, toHz: hz * 0.88, durS, delayS, attackS: 0.02, releaseS: 0.06, formant: Object.freeze([f1, 4]), db }),
+  Object.freeze({ kind: 'glide', hz, toHz: hz * 0.88, durS, delayS, attackS: 0.02, releaseS: 0.06, formant: Object.freeze([f2, 5]), db: db - 6 }),
+];
+// (a whispered syllable: noise through the vowel's two formants, no pitch)
+const whisp = (delayS, durS, f1, f2, db = 0) => [
+  Object.freeze({ kind: 'noise', bandpass: Object.freeze([f1, 3]), attackS: 0.03, decayS: durS * 0.6, delayS, db }),
+  Object.freeze({ kind: 'noise', bandpass: Object.freeze([f2, 4]), attackS: 0.03, decayS: durS * 0.5, delayS, db: db - 3 }),
+];
+const cons = (delayS, hz, decayS, db) => Object.freeze({ kind: 'noise', bandpass: Object.freeze([hz, 1.5]), attackS: 0.002, decayS, delayS, db });
+/** The shoot house's recipes (see the header). */
+export const HOUSE = Object.freeze({
+  timerGo: Object.freeze({ levelDb: -14, durS: 0.5, variants: 1, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    Object.freeze({ kind: 'tone', hz: TIMER_HZ, toHz: TIMER_HZ, attackS: 0.003, decayS: 2.0, db: 0 }),
+    Object.freeze({ kind: 'tone', hz: TIMER_HZ * 3, toHz: TIMER_HZ * 3, attackS: 0.003, decayS: 1.5, db: -18 }),
+  ]) }),
+  timerDouble: Object.freeze({ levelDb: -14, durS: 0.42, variants: 1, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    Object.freeze({ kind: 'tone', hz: TIMER_HZ, toHz: TIMER_HZ, attackS: 0.003, decayS: 0.09, db: 0 }),
+    Object.freeze({ kind: 'tone', hz: TIMER_HZ, toHz: TIMER_HZ, attackS: 0.003, decayS: 0.09, delayS: 0.2, db: 0 }),
+  ]) }),
+  harnessTone: Object.freeze({ levelDb: -12, durS: HARNESS_S, variants: 1, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    Object.freeze({ kind: 'tone', hz: HARNESS_HZ, toHz: HARNESS_HZ, attackS: 0.01, decayS: 3.0, db: 0 }),
+    Object.freeze({ kind: 'tone', hz: HARNESS_HZ * 2, toHz: HARNESS_HZ * 2, attackS: 0.01, decayS: 2.0, db: -14 }),
+  ]) }),
+  doorPush: Object.freeze({ levelDb: -10, durS: 0.5, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    Object.freeze({ kind: 'noise', bandpass: Object.freeze([2600, 3]), attackS: 0.0005, decayS: 0.004, db: 0 }),
+    Object.freeze({ kind: 'noise', lowpass: 600, attackS: 0.03, decayS: 0.12, delayS: 0.02, db: -6 }),
+    Object.freeze({ kind: 'tone', hz: 95, toHz: 70, attackS: 0.002, decayS: 0.05, delayS: 0.36, db: -10 }),
+  ]) }),
+  doorPull: Object.freeze({ levelDb: -10, durS: 0.75, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    Object.freeze({ kind: 'noise', bandpass: Object.freeze([2400, 3]), attackS: 0.0005, decayS: 0.005, db: 0 }),
+    Object.freeze({ kind: 'noise', lowpass: 500, attackS: 0.05, decayS: 0.15, delayS: 0.25, db: -7 }),
+    Object.freeze({ kind: 'sweep', hz: 380, toHz: 700, q: 8, attackS: 0.05, decayS: 0.2, delayS: 0.3, durS: 0.4, db: -14 }),
+  ]) }),
+  doorKick: Object.freeze({ levelDb: -4, durS: 0.6, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    Object.freeze({ kind: 'noise', lowpass: 420, attackS: 0.001, decayS: 0.07, db: 0 }),
+    Object.freeze({ kind: 'tone', hz: 68, toHz: 44, attackS: 0.001, decayS: 0.09, db: -2 }),
+    Object.freeze({ kind: 'noise', bandpass: Object.freeze([1800, 1.2]), attackS: 0.0005, decayS: 0.02, delayS: 0.004, db: -6 }),
+  ]) }),
+  lockRattle: Object.freeze({ levelDb: -14, durS: 0.35, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    Object.freeze({ kind: 'grains', n: 6, spreadS: 0.22, bandpass: Object.freeze([2300, 2.5]), decayS: 0.006, db: 0 }),
+    Object.freeze({ kind: 'tone', hz: 1700, toHz: 1650, attackS: 0.0005, decayS: 0.01, db: -8 }),
+  ]) }),
+  paStandby: Object.freeze({ levelDb: -12, durS: 0.8, variants: 1, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    cons(0, 5000, 0.05, -6), cons(0.07, 3000, 0.01, -10), ...syl(0.09, 0.2, 130, 700, 1200), cons(0.32, 1800, 0.012, -10), ...syl(0.36, 0.34, 118, 550, 1800, -2),
+  ]) }),
+  paGo: Object.freeze({ levelDb: -8, durS: 0.55, variants: 1, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    cons(0, 1500, 0.012, -8), ...syl(0.03, 0.42, 150, 500, 900),
+  ]) }),
+  paStop: Object.freeze({ levelDb: -10, durS: 0.55, variants: 1, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    cons(0, 5200, 0.06, -6), cons(0.09, 3200, 0.008, -10), ...syl(0.1, 0.28, 140, 700, 1100), cons(0.4, 1200, 0.01, -12),
+  ]) }),
+  shoutClear: Object.freeze({ levelDb: -10, durS: 0.6, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    cons(0, 2600, 0.012, -6), ...syl(0.04, 0.18, 165, 300, 2300, -2), ...syl(0.2, 0.3, 150, 650, 1500),
+  ]) }),
+  whisperReady: Object.freeze({ levelDb: -24, durS: 0.55, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    ...whisp(0, 0.2, 550, 1800), cons(0.2, 2800, 0.01, -8), ...whisp(0.22, 0.24, 300, 2300, -2),
+  ]) }),
+  suitScuff: Object.freeze({ levelDb: -16, durS: 0.09, variants: 3, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    Object.freeze({ kind: 'noise', lowpass: 700, attackS: 0.004, decayS: 0.025, db: 0 }),
+    Object.freeze({ kind: 'noise', bandpass: Object.freeze([1400, 1.4]), attackS: 0.01, decayS: 0.02, delayS: 0.01, db: -10 }),
+  ]) }),
+});

@@ -72,13 +72,14 @@ import { playerActor } from '../../core/ids.js';
 import * as places from '../../sim/places/model.js';
 import { envAt } from '../../sim/places/env.js';
 import { airDb } from '../../sim/people/hearing.js';
-import { STEPS, DOORS, WORLD, RANGE, CHAOS, STRESS, VOICES_MAX, MASTER_DEFAULT, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
+import { STEPS, DOORS, WORLD, RANGE, CHAOS, STRESS, HOUSE, HALL, SUIT_SCUFF_DB, VOICES_MAX, MASTER_DEFAULT, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
 import { renderSteps } from './synth.js';
 import { createStepScheduler, stepVoice, lowpassHz } from './steps.js';
 import { createWorld } from './world.js';
 import { createRange } from './range.js';
 import { createBang } from './bang.js';
 import { createStress } from './stress.js';
+import { createHouse } from './house.js';
 
 /** The limiter's knee on the master (dBFS). */
 export const LIMIT_DB = -3;
@@ -88,11 +89,37 @@ const dbToK = (db) => 10 ** (db / 20);
 const clamp01 = (v) => Math.min(1, Math.max(0, Number(v)));
 
 /** The audio presenter (see the header). profile: { volume, muted } (the saved profile's audio); looks: { kitLook } (arms' readers, for the range). */
+/**
+ * The hall's impulse response (0.0.12; HALL: RT60 0.6 s, early reflections off panels 2 to 5 m away): { left, right } Float32Arrays at
+ * sampleRate, lenS long: each early reflection a click at its path's delay (there and back at 343 m/s) at HALL.earlyDb less its path's
+ * spreading, then a diffuse tail of hashed noise decaying by 60 dB over rt60S, low-passed by a one-pole at HALL.lowpassHz, the two
+ * channels decorrelated by their seeds. Pure, deterministic: no Math.random (the hash's own noise).
+ */
+export function hallImpulse(sampleRate = 48000, hall = HALL) {
+  const n = Math.max(1, Math.round(hall.lenS * sampleRate)), out = { left: new Float32Array(n), right: new Float32Array(n) };
+  const k = Math.exp(-6.907755 / (hall.rt60S * sampleRate)), a = Math.exp(-2 * Math.PI * hall.lowpassHz / sampleRate);
+  for (const [ch, buf] of [['l', out.left], ['r', out.right]]) {
+    let env = 1, y = 0;
+    for (let i = 0; i < n; i++) { const x = (hash01('hall', ch, i) * 2 - 1) * env; y = (1 - a) * x + a * y; buf[i] = y * 0.35; env *= k; }
+    for (const [j, m] of hall.earlyM.entries()) {
+      const at = Math.round((2 * m / 343) * sampleRate) + (ch === 'r' ? j * 7 : 0);
+      if (at < n) buf[at] += 10 ** (hall.earlyDb / 20) / m * (j % 2 ? -1 : 1);
+    }
+  }
+  return out;
+}
+// (the impulse as an AudioBuffer of the context)
+function hallBuffer(ctx) {
+  const r = hallImpulse(ctx.sampleRate), b = ctx.createBuffer(2, r.left.length, ctx.sampleRate);
+  b.getChannelData(0).set(r.left); b.getChannelData(1).set(r.right);
+  return b;
+}
+
 export function createAudio({ profile = null, looks = {}, AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext } = {}) {
-  let ctx = null, master = null, world = null, limiter = null, worldLp = null, duckGain = null, uiBus = null;
+  let ctx = null, master = null, world = null, limiter = null, worldLp = null, duckGain = null, uiBus = null, hallIn = null, hallConv = null;
   let chaosLp = null, chaosGain = null, bodyBus = null, earBus = null, voiceBus = null, chaosSig = '';
   let volume = Number.isFinite(profile?.volume) ? clamp01(profile.volume) : MASTER_DEFAULT, muted = !!profile?.muted;
-  const buffers = { step: {}, door: {}, world: {}, range: {}, chaos: {}, stress: {} };
+  const buffers = { step: {}, door: {}, world: {}, range: {}, chaos: {}, stress: {}, house: {} };
   const loops = new Map();                                         // (key → a looping voice: { src, g, lp, kind })
   let duckSig = '';
   const steps = createStepScheduler();
@@ -146,9 +173,15 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
       chaosLp = ctx.createBiquadFilter(); chaosLp.type = 'lowpass'; chaosLp.frequency.value = WORLD_OPEN_HZ; chaosLp.Q.value = Math.SQRT1_2;
       chaosGain = ctx.createGain(); bodyBus = ctx.createGain(); earBus = ctx.createGain(); voiceBus = ctx.createGain();
       world.connect(worldLp); worldLp.connect(duckGain); duckGain.connect(chaosLp); chaosLp.connect(chaosGain); chaosGain.connect(master); uiBus.connect(master);
+      // (0.0.12: the hall's reverb, a send from the world bus through a convolver over hallImpulse's response, into the splash's muffle
+      // with the dry; its send shut (0) until the house asks for it, eased)
+      try {
+        hallIn = ctx.createGain(); hallIn.gain.value = 0; hallConv = ctx.createConvolver(); hallConv.normalize = false; hallConv.buffer = hallBuffer(ctx);
+        world.connect(hallIn); hallIn.connect(hallConv); hallConv.connect(duckGain);
+      } catch (e) { stats.hallError = String(e?.message ?? e); hallIn = null; hallConv = null; }
       bodyBus.connect(master); earBus.connect(master); voiceBus.connect(master);
       master.connect(limiter); limiter.connect(ctx.destination);
-      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door], [WORLD, buffers.world], [RANGE, buffers.range], [CHAOS, buffers.chaos], [STRESS, buffers.stress]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
+      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door], [WORLD, buffers.world], [RANGE, buffers.range], [CHAOS, buffers.chaos], [STRESS, buffers.stress], [HOUSE, buffers.house]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
       applyMaster();
       stats.sampleRate = ctx.sampleRate; stats.prepareMs = perfNow() - t0;
       ctx.onstatechange = () => { stats.state = ctx.state; };
@@ -341,6 +374,24 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
   };
   const stressSounds = createStress(stressOps, { looks });
   stats.stress = stressSounds.stats;
+  // ---- 0.0.12: the shoot house (house.js asks for them): a HOUSE recipe on the world bus now or delayS later; the hall's send on or off ----
+  const houseOps = {
+    house(kind, { delayS = 0, gainDb = 0, lowHz = WORLD_OPEN_HZ, pan = 0, rate = 1 } = {}) {
+      if (!running()) return false;
+      const set = buffers.house[kind];
+      if (!set?.length) return false;
+      const n = (stats.houseShots = (stats.houseShots ?? 0) + 1);
+      return play(set[hashInt(set.length, 'house', kind, n)], { atS: ctx.currentTime + Math.max(0, delayS), gainDb, lowHz, pan, rate });
+    },
+    hall(on) {
+      stats.hallOn = !!on;
+      if (!ctx || !hallIn) return;
+      const want = on ? 10 ** (HALL.sendDb / 20) : 0;
+      hallIn.gain.setTargetAtTime(want, ctx.currentTime, 0.05);
+    },
+  };
+  const houseSounds = createHouse(houseOps);
+  stats.house = houseSounds.stats;
   // (the voices' limit counts on the audio clock, where the reports will sound)
   const rangeSounds = createRange(rangeOps, { looks, clock: () => (ctx ? ctx.currentTime : 0) });
   stats.range = rangeSounds.stats;
@@ -355,6 +406,7 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     if (running()) { try { stressSounds.frame(state, { breathing: !splash && breathing }); } catch (e) { stats.stressError = String(e?.message ?? e); } }
     if (running()) { try { worldSounds.frame(state, { splash, nowS }); } catch (e) { stats.worldError = String(e?.message ?? e); } }
     if (running() && !splash) { try { rangeSounds.frame(state, { alpha }); } catch (e) { stats.rangeError = String(e?.message ?? e); } }
+    if (running()) { try { houseSounds.frame(splash ? null : state); } catch (e) { stats.houseError = String(e?.message ?? e); } }
     const a = state ? playerActor(state) : null;
     // (another state, a load or a new career: the feet start afresh, never a burst of the strides between)
     if (state !== lastState) { steps.reset(); lastState = state; }
@@ -376,6 +428,9 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
       const jitterDb = (hash01('step-db', f.n) - 0.5) * 3, rate = 1 + (hash01('step-rate', f.n) - 0.5) * 0.08;
       if (play(set[hashInt(set.length, 'step', f.n)], { atS, gainDb: voice.gainDb + jitterDb, lowHz: voice.lowpassHz, rate, pan: f.n % 2 ? 0.05 : -0.05 })) {
         stats.steps++;
+        // (0.0.12: the combat EVA suit's sole scuffs under the built step, a heavier body's)
+        const sc = a.outfit === 'combatSuit' ? buffers.house.suitScuff : null;
+        if (sc?.length && play(sc[hashInt(sc.length, 'scuff', f.n)], { atS, gainDb: voice.gainDb + SUIT_SCUFF_DB + jitterDb, lowHz: voice.lowpassHz, rate, pan: f.n % 2 ? 0.05 : -0.05 })) stats.scuffs = (stats.scuffs ?? 0) + 1;
         stats.last = { what: 'step', surface, kind: voice.kind, gainDb: voice.gainDb, lowpassHz: voice.lowpassHz, gait: f.gait, aheadS: Math.round((atS - ctx.currentTime) * 1000) / 1000 };
       }
     }
@@ -384,6 +439,8 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
   /** A door's leaf moving (the door fact): its sound where it is, if it is in your area. */
   function door(fact, state = null) {
     if (!running() || !fact || !state) return false;
+    // (0.0.12: in the shoot house a door the drill opens is heard by its verb: a push, a pull, a kick)
+    if (fact.how && houseSounds.door(fact, state)) return true;
     const me = playerActor(state), h = here(state);
     if (state && fact.area && state.places?.live?.area && fact.area !== state.places.live.area) return false;
     const dx = me && Number.isFinite(fact.x) ? fact.x - me.x : 0, dz = me && Number.isFinite(fact.z) ? fact.z - me.z : 0, d = Math.hypot(dx, dz);
@@ -402,6 +459,9 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     fact(type, payload, state) {
       if (!running()) return false;
       const w = worldSounds.fact(type, payload, state);
+      // (0.0.12: the house's facts; the instructor's 'say' and the drill's 'bundle' heard by the house as well as the range)
+      const hs = type === 'house' || type === 'bundle' || type === 'say' ? houseSounds.fact(type, payload, state) : false;
+      if (type === 'house' || type === 'bundle') return hs || w;
       // (0.0.9: a bang's report; 0.0.10: the horn and a blank)
       if (type === 'fx') return (payload?.kind === 'horn' || payload?.kind === 'blank' ? stressSounds.fact(type, payload, state) : bangSounds.fact(type, payload, state)) || w;
       return rangeSounds.fact(type, payload, state) || w;
@@ -412,6 +472,8 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     get bang() { return bangSounds; },
     /** The 0.0.10 presenter (stress.js), for the tests. */
     get stress() { return stressSounds; },
+    /** The 0.0.12 presenter (house.js), for the tests. */
+    get house() { return houseSounds; },
     /** The master volume, 0 to 1. */
     setVolume(v) { volume = clamp01(v); applyMaster(); },
     /** Mute, or not. */
@@ -422,6 +484,6 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     /** The master gain's value now (0 when muted), as the graph has it. */
     get masterGain() { return master ? master.gain.value : gainOf(); },
     stats,
-    dispose() { try { ctx?.close(); } catch { /* (already closed) */ } ctx = null; master = world = limiter = worldLp = duckGain = uiBus = chaosLp = chaosGain = bodyBus = earBus = voiceBus = null; loops.clear(); chaosLoops.clear(); stats.state = 'closed'; },
+    dispose() { try { ctx?.close(); } catch { /* (already closed) */ } ctx = null; hallIn = hallConv = null; master = world = limiter = worldLp = duckGain = uiBus = chaosLp = chaosGain = bodyBus = earBus = voiceBus = null; loops.clear(); chaosLoops.clear(); stats.state = 'closed'; },
   };
 }

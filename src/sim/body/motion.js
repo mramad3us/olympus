@@ -29,6 +29,13 @@
 // gaitSpeeds takes the gravity (required: no place is assumed); gaitsOf reads the person now: the felt g
 // (the live area's, src/sim/places/env.js gravityAt, unless given), their mass, stamina and the needs that forbid a run or a
 // sprint (BODY §3.4 weak, starving; §4.3 dehydrated; §10.1 the cold's and the heat's slows).
+// 0.0.12, the movement stances (BODY §16.1, §16.2; COMBAT §25.9; the build sheet 0.0.12 §2.2, §4, §8 items 4 to 6, 15):
+// gaitSpeeds takes the stance (`gait`: 'relaxed', 'combat', 'assault'; absent or 'relaxed' the built row), whose walk is
+// GAIT_K's share of the rounded walk, rounded again to SPEED_STEP_MS (1 G: Combat 1.23, Assault 2.03 m/s; Melas 0.97 and
+// 1.60), the runs unchanged. tractionOf is BODY §16.2's legs against the grip: speeding up at min(μ g, PUSH_MS2 × (0.8 +
+// 0.02 F) / r), slowing at min(μ g, BRAKE_MS2 × (0.8 + 0.02 F) / r), r = (massKg + loadKg) / massKg (the private at 1 G
+// with 25 kg on 75: 3.12 and 5.07 m/s², the tier one 3.66 and the grip's 5.88). The body's stance is the actor's
+// `moveStance` (places/move.js reads it; the drawn `gait` stays the view's 'idle', 'walk', 'run'), absent read as Relaxed.
 import { GAIT, GAIT_G, LOAD_BANDS, STAMINA, SPO2_PCT, BMI_BY_BUILD, KCAL_PER_KG } from '../../data/body/needs.js';
 import { gravityAt } from '../places/env.js';
 import { TEMPLATES, DEFAULT_TMPL } from '../../data/body/templates.js';
@@ -60,8 +67,25 @@ export function gaitModeOf(gG, condG = GAIT_G.COND_G) {
   return heavyBandOf(gG, condG) ? 'heavy' : 'walk';
 }
 
-/** The gaits at gravity gG (BODY §16.1, §16.3, §16.6, §14.1; see the header): m/s, rounded to SPEED_STEP_MS, whether a run and a sprint are possible, the load's band, the gravity's mode and band. */
-export function gaitSpeeds({ gG, loadKg = 0, massKg = 75, effFitness = STAMINA.FITNESS, stamina = 100, blown = false, condG = GAIT_G.COND_G } = {}) {
+/** The movement stances' share of the walk and the run (BODY §16.1; COMBAT §25.9): Combat the glide, Assault the lope. */
+export const GAIT_K = Object.freeze({ relaxed: Object.freeze({ walk: 1, run: 1 }), combat: Object.freeze({ walk: 0.85, run: 1 }), assault: Object.freeze({ walk: 1.4, run: 1 }) });
+/** The movement stances, in V's cycle (the build sheet 0.0.12 §2.2). */
+export const MOVE_STANCES = Object.freeze(['relaxed', 'combat', 'assault']);
+/** The legs' push and brake at strength 1 (BODY §16.2), m/s². */
+export const PUSH_MS2 = 4.0, BRAKE_MS2 = 6.5;
+
+/**
+ * BODY §16.2's traction (see the header): { pushMs2, brakeMs2, gripMs2 }, the legs' share capped by the grip μ g. gMs2 the
+ * felt gravity in m/s² and mu the floor's friction (required: no place is assumed).
+ */
+export function tractionOf({ gMs2, mu, effFitness = STAMINA.FITNESS, massKg = 75, loadKg = 0 } = {}) {
+  if (!Number.isFinite(gMs2) || !Number.isFinite(mu)) throw new Error(`tractionOf(): the felt gravity and the floor's μ, not ${gMs2}, ${mu}`);
+  const grip = mu * gMs2, legs = 0.8 + 0.02 * effFitness, r = (massKg + Math.max(0, loadKg)) / massKg;
+  return { pushMs2: Math.min(grip, PUSH_MS2 * legs / r), brakeMs2: Math.min(grip, BRAKE_MS2 * legs / r), gripMs2: grip };
+}
+
+/** The gaits at gravity gG (BODY §16.1, §16.3, §16.6, §14.1; see the header): m/s, rounded to SPEED_STEP_MS, whether a run and a sprint are possible, the load's band, the gravity's mode and band; gait the movement stance (0.0.12). */
+export function gaitSpeeds({ gG, loadKg = 0, massKg = 75, effFitness = STAMINA.FITNESS, stamina = 100, blown = false, condG = GAIT_G.COND_G, gait = 'relaxed' } = {}) {
   if (!Number.isFinite(gG) || gG < 0) throw new Error(`gaitSpeeds(): the felt gravity in G, not ${gG}`);
   const fitK = GAIT.FIT_BASE + GAIT.FIT_K * effFitness, L = loadBandOf(loadKg, gG, massKg, effFitness), r = (v) => q(v, GAIT.SPEED_STEP_MS);
   const mode = gaitModeOf(gG, condG), H = mode === 'heavy' ? heavyBandOf(gG, condG) : null;
@@ -70,11 +94,13 @@ export function gaitSpeeds({ gG, loadKg = 0, massKg = 75, effFitness = STAMINA.F
     const F = GAIT_G.FLOAT_MS;
     return { strollMs: r(F.stroll * L.walkK), walkMs: r(F.walk * L.walkK), runMs: r(F.run * L.walkK), sprintMs: r(F.sprint * L.walkK), runOk, sprintOk, load: L.id, mode, gBand: null };
   }
-  const g = Math.min(gG, GAIT_G.LAW_MAX_G), k = L.walkK * (H ? H.k : 1);
+  const g = Math.min(gG, GAIT_G.LAW_MAX_G), k = L.walkK * (H ? H.k : 1), S = GAIT_K[gait] ?? GAIT_K.relaxed;
+  // (a stance's walk is its share of the rounded walk, rounded again: Combat 1.23 at 1 G from the 1.45, never 1.2325)
+  const walk = r(GAIT.WALK_MS * g ** GAIT.WALK_EXP * k), run = r(GAIT.RUN_MS * fitK * g ** GAIT.RUN_EXP * k);
   return {
     strollMs: r(GAIT.STROLL_MS * g ** GAIT.STROLL_EXP * k),
-    walkMs: r(GAIT.WALK_MS * g ** GAIT.WALK_EXP * k),
-    runMs: r(GAIT.RUN_MS * fitK * g ** GAIT.RUN_EXP * k),
+    walkMs: S.walk === 1 ? walk : r(walk * S.walk),
+    runMs: S.run === 1 ? run : r(run * S.run),
     sprintMs: r(GAIT.SPRINT_MS * fitK * g ** GAIT.SPRINT_EXP * k),
     runOk, sprintOk, load: L.id, mode, gBand: H?.id ?? null,
   };
@@ -107,12 +133,12 @@ const tmplOf = (rec) => TEMPLATES[rec?.tmpl] ?? TEMPLATES[DEFAULT_TMPL];
 const field = (rec, g, k) => rec?.[g]?.[k] ?? tmplOf(rec)[g][k];
 
 /** The person's gaits now (BODY §16.1 with the body's gates), for move.js each tick: at gG, else the live area's gravity. */
-export function gaitsOf(state, pid, { gG: given, loadKg = 0 } = {}) {
+export function gaitsOf(state, pid, { gG: given, loadKg = 0, gait = 'relaxed' } = {}) {
   const gG = given ?? gravityAt(state).gG, rec = state?.people?.[pid]?.body;
-  if (!rec) return gaitSpeeds({ gG });
+  if (!rec) return gaitSpeeds({ gG, gait });
   const t = tmplOf(rec), h = rec.heightM ?? t.heightM, res = field(rec, 'energy', 'reserveKcal');
   const massKg = (BMI_BY_BUILD[rec.build ?? t.build] ?? BMI_BY_BUILD.medium) * h * h + Math.min(0, res) / KCAL_PER_KG;
-  const g = gaitSpeeds({ gG, loadKg, massKg, stamina: rec.stamina ?? t.stamina, blown: rec.blown ?? false });
+  const g = gaitSpeeds({ gG, loadKg, massKg, stamina: rec.stamina ?? t.stamina, blown: rec.blown ?? false, gait });
   const hunger = hungerIndex(field(rec, 'energy', 'gutKcal'), field(rec, 'energy', 'emptyH'), res);
   const thirst = thirstIndex(thirstPct(field(rec, 'water', 'balanceL'), massKg));
   const cold = stageOf(field(rec, 'thermal', 'coreC'));

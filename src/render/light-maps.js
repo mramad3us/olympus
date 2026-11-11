@@ -43,7 +43,7 @@ export const ROOM_CELL_M = 0.25;
 /** Lamps a table row holds (two texels each: 256 texels a row), and the rows the table may grow to. */
 export const LAMPS_PER_ROW = 128, LAMP_ROWS_MAX = 16;
 /** The interior fills' colours by lighting state: places' sky table's (src/data/places/sky.js MOODS, one table), lights out (no overheads) the cold of the night lights' surround (my call). */
-export const FILL_COLOURS = Object.freeze({ day: INTERIOR.day?.color ?? 0xf2f0ea, evening: INTERIOR.evening?.color ?? 0xf6e6cc, lightsOut: INTERIOR.lightsOut?.color ?? 0x8a96c8 });
+export const FILL_COLOURS = Object.freeze({ day: INTERIOR.day?.color ?? 0xf2f0ea, evening: INTERIOR.evening?.color ?? 0xf6e6cc, lightsOut: INTERIOR.lightsOut?.color ?? 0x8a96c8, dim: INTERIOR.dim?.color ?? 0xe4e0d6 });
 
 /** The picture's light for a level: the eye adapted to a lit room (see the header). */
 export const exposure = (L) => Math.min(1, (Math.max(0, L) / ADAPT_L) ** ADAPT_GAMMA);

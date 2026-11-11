@@ -296,6 +296,8 @@ What follows (my calls):
 - **The throw**: the step panel (§12.2) solves the real path and shows its landing point and flight time; the roll is against §12.2's DC with the unfamiliar-gravity +3 for a thrower new to spin. Thrown against the spin in a small ring a grenade hangs in the air for seconds, and the fuse (4.0 to 4.8 s) may beat it to the floor: the panel says so.
 - **The Ring at Melas** never sees live fire (weapons drill only, dummies: CAREER's G-qualification work); its 45 m radius limits a sight line to about 21 m and its ω of 0.449 rad/s would put a 20 m shot along the spin about a quarter of a metre low.
 
+**As built in v0.0.12** (`src/sim/places/spin.js`, `src/sim/arms/shot.js`): the spin's bias **moves the hole, not the odds**. A frangible round's whole offset is 0.15, 0.43, 0.84 and 1.71 cm at 3, 5, 7 and 10 m (omega d2 / v at 790 m/s): 0.925 of it low fired prograde (high retrograde; 0.14, 0.39, 0.77 and 1.58 cm), none along it fired across the spin, and 0.38 of it sideways to the shooter's right on every bearing (0.65 cm at 10 m), within 0.03 cm of an inertial integration; it moves a turner's hole as the wind does (the fixer's pass: it first moved only paper's holes), never his zone. The hot wash says it once: "The Wheel drops a round low along the spin. Not enough to miss by, in a room." (my call).
+
 ### 2.10 Data shapes
 
 ```json
@@ -619,6 +621,8 @@ Added 2026-11-08 for the user's words of that day (DESIGN.md's log): "About gun 
 **The samples to score** (for VIEWS's look round, the method's way: CLAUDE.md, `samples/`; not built here): the weapon card at 144 px/m and the figure's carried gun at 16 px/m, numbered, of (1) the R-7 as the first reference in Melas tan and black; (2) the same with an olive drab in place of the tan; (3) the same all black; (4) the C-7, (5) the R-7M and (6) the L-20 in the family's look; (7) the R-5 as the second reference; (8) two R-7s with different fits side by side; (9) the void kit's two in naval grey, the V-5 and the J-12; (10) the black take (below). The user stars and scores them; the winners become the card's and the sprites' look.
 
 ---
+
+**As built in v0.0.12** (`src/sim/arms/kit.js`: `ces-1`, `house-cqb`): the combat EVA suit is worn unpressurised with the visor down: 16 kg, black, no red, CLO 1.2, ears `suit` (a training bang at 2 m reads 36 points against 60 bare; 3 kHz low-pass, -20 dB), no flash and no dazzle; it costs nothing on the rolls or the gait in air, and `protOf` reads its visor and sound filtering. The `suit` slot is placed before `ears`. The house's issue: the plate carrier, two magazine pouches and a dump pouch, the R-7 and three magazines of 10 frangible, at low ready, 25.68 kg in all. Drawn black with a sealed helmet and a smoked visor (`COMBAT_SUIT` colours).
 
 ## 4. The gun as a state machine
 
@@ -994,6 +998,8 @@ So the Corps' slung-front rule inside the wire is safe for anyone trained, all d
 **What a flag does** (PEOPLE §7.5 and §11.3 own the consequences): a weight-1 event for the one flagged, fear +1, a bark ("Watch your muzzle!"), from an NCO an on-the-spot correction or corrective training; severity 1, 2 if repeated within 30 sols. A near miss is nothing to anyone else: the other person did not see it (it lasted under `FLAG_MS`). **Pointing** (aimed at someone not a target) is an event of its own, which I propose at severity 2, and 3 if the gun was in Condition 1 (PEOPLE decides). NPCs run the same check with their own skill and the same rules, so trained NPCs never flag each other in a queue, recruits and the exhausted sometimes do, and the player can call it out (F: "Watch your muzzle").
 
 **As built in v0.0.5** (`carry.js` `habitStep`, in the fast `rules` layer; the approach records on `kit.carry.near`, saved; the rolls on their own stream, `rngOf('habit')`): the algorithm above with the crowd's +2 (three or more within 3 m) and fire's +2; the stairs, hatch and turn-rate terms wait for their places. **The habit runs for slung rifles too**, and at the slung postures' DCs (2 and 4) it is automatic for anyone trained. A flag, a near miss and a point are `muzzle` facts (CONTRACTS §11); PEOPLE's consequences wait for its events, so on the range a flag is the coach's word (§6.4).
+
+**As built in v0.0.12**: a teammate's muzzle habit is checked but never logged in the player's second person ("Muzzle past Pvt Nyberg", yourself, by your #2's rifle was the bug); the house's flag is COMBAT §25.10.4's.
 
 ### 6.4 Range safety (tradecraft's, kept)
 

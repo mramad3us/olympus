@@ -131,6 +131,9 @@ const holdR = async (page) => { await page.keyboard.down('KeyR'); await page.wai
 const menuText = (page) => page.waitForFunction(() => document.querySelector('.glass.actions')?.dataset.text, null, { timeout: 3000 }).then(h => h.jsonValue()).catch(() => '');
 const playing = (page) => page.waitForFunction((h) => window[h].state && !window[h].loop.paused && !window[h].splash() && document.querySelector('.watch .t')?.textContent, H, { timeout: 30000 });
 
+/** The pause's own frame in the house, ms: three frames at 60 Hz (my call; Pairs' shipped pause frame measured 30 to 37 ms, see the house's test). */
+const PAUSE_FRAME_MS = 50;
+
 export default [
   {
     name: 'layout.js reserves VIEWS §7.5\'s rectangles apart at 1920 × 1080, 1440 × 900 and 1024 × 768, --ui 1.5, 1.13 and 0.85 (VIEWS\'s table: the bottom stack 1,080, 814 and 612 px, clear of KEYS by 222, 164 and 94)',
@@ -1475,6 +1478,98 @@ export default [
         for (const l of rows) console.log(`      ${l}`);
         assert(!errors.length, errors.join('\n'));
       }, { query: 'nostore=1', viewport: { width: 1600, height: 900 } });
+    },
+  },
+  {
+    name: '"Stack and clear" in the page (0.0.12, heavy; the build sheet 0.0.12 §5.4): the Tests menu\'s entry and its picker (six sheets, the Private focused, the par chooser); GO in stop motion with the lane timer up; a door opened by its row, its leaf swung by its swing into its room; the pause in a room at the sheet\'s take-in (the private\'s, its wall time within a frame and a tick, no frame of the window over 25 ms, the pause\'s own frame at most 50); "T: Clear the house" shown as the tier one\'s line before the press, then run, the bundle\'s lanes in the panel; the run sheet and the hot wash on the end card; the score line in ROADMAP §2.2\'s form; no page errors',
+    heavy: true,
+    timeoutMs: 600000,
+    async fn() {
+      const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined;
+      await withGame(async (page, errors, game) => {
+        const rows = [];
+        // (the Tests menu and the picker)
+        await page.waitForSelector('#title .item.tests');
+        await page.click('#title .item.tests');
+        const menu = await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].map(b => b.innerText.split('\n')[0]));
+        await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].find(b => b.innerText.startsWith('Stack and clear')).click());
+        await page.waitForSelector('#title .sheet.picker');
+        const pk = await page.evaluate(() => ({ sheets: [...document.querySelectorAll('#title .item.sheetpick')].map(b => ({ tier: b.dataset.tier, lead: b.classList.contains('lead') })), pars: [...document.querySelectorAll('#title .item.parpick')].map(b => b.textContent) }));
+        rows.push(`the Tests menu: ${menu.join(' | ')}; the picker: ${pk.sheets.map(r => `${r.tier}${r.lead ? ' (focused)' : ''}`).join(', ')}; the pars: ${pk.pars.join(' | ')}`);
+        assert(menu.includes('Stack and clear') && pk.sheets.length === 6 && pk.sheets[0].tier === 'recruit' && pk.sheets.find(r => r.lead)?.tier === 'private' && pk.pars.length === 4, JSON.stringify({ menu, pk }));
+        // (GO in stop motion, the private: the lane timer up; Stack on the door, then the door's row: the leaf by its swing)
+        await game.open('play=test-shoothouse&setup=go&tier=private&seed=48213&nostore=1');
+        await page.waitForFunction(() => window.__ready && window.__olympus.house?.() && window.__olympus.state.stop?.phase === 'choose', null, { timeout: 60000 });
+        const go = await page.evaluate(() => ({ timer: document.querySelector('.timer')?.dataset.text ?? '', steps: window.__report.hud.steps, line: window.__report.hud.line }));
+        rows.push(`at GO: the timer '${go.timer}'; the panel '${go.steps.slice(0, 160)}…'; the line '${go.line}'`);
+        assert(/^LANE A · GO /.test(go.timer) && /Stack on the door · \d\.\d s/.test(go.steps), JSON.stringify(go));
+        const stackKey = await page.evaluate(() => document.querySelector('.steps .step[data-step^="drill:room:stack"]')?.dataset.key ?? null);
+        await page.keyboard.press(`Digit${stackKey}`);
+        await page.waitForFunction(() => window.__olympus.state.stop?.phase === 'choose' && document.querySelector('.steps .step[data-step^="door:"]'), null, { timeout: 20000 });
+        const doorRow = await page.evaluate(() => { const r = [...document.querySelectorAll('.steps .step[data-step^="door:"]')].find(e => /^door:(push|pull)>/.test(e.dataset.step)); return r ? { key: r.dataset.key, id: r.dataset.step, text: r.innerText.replace(/\s+/g, ' ') } : null; });
+        await page.keyboard.press(`Digit${doorRow.key}`);
+        const door = doorRow.id.split('>')[1];
+        await page.waitForFunction((id) => window.__olympus.state.places?.sites?.melas?.openings?.[id]?.state === 'open', door, { timeout: 10000 });
+        await page.waitForTimeout(600);
+        const leaf = await page.evaluate((id) => { const L = window.__olympus.leaves?.(id) ?? null; const o = window.__olympus.state.places.sites.melas.openings[id]; return { state: o.state, leaf: L }; }, door);
+        rows.push(`the door's row '${doorRow.text}': ${door} ${leaf.state}; its leaf ${JSON.stringify(leaf.leaf)}`);
+        // (room 1's door opens inward, north of the hall's wall at z 12: its free edge stands in the room once it has swung)
+        assert(leaf.state === 'open' && leaf.leaf && Math.abs(leaf.leaf.rotY - leaf.leaf.base) > 1.4 && (door !== 'o:w4:r1' || leaf.leaf.openEnd[1] < 11.5), JSON.stringify(leaf));
+        // (the pause in a room at the sheet's take-in: the private's window open at room 1's sighting, the pause's wall time)
+        await game.open('play=test-shoothouse&setup=contact&tier=private&seed=48213&nostore=1');
+        await page.waitForFunction(() => window.__ready && window.__olympus.house?.(), null, { timeout: 60000 });
+        const pause = await page.evaluate(async () => {
+          const O = window.__olympus, t0 = performance.now(), frames = [];
+          let last = t0, open = null, shut = null;
+          while (performance.now() - t0 < 6000) {
+            await new Promise(r => requestAnimationFrame(r));
+            const now = performance.now(); frames.push(now - last); last = now;
+            const c = O.contact?.() ?? null, pend = c?.pending ?? null;
+            if (pend && open === null) open = { t: now, ms: O.state.clock.ms, k: pend.takeInMs ?? null };
+            if (open && !pend && O.state.stop?.via === 'contact') { shut = { t: now, ms: O.state.clock.ms, takeInMs: c?.last?.ms ?? null }; break; }
+          }
+          const after = frames.slice(-30).sort((a, b) => b - a)[0] ?? null;
+          // (the window's frames, the world moving at 1:1, apart from the pause's own frame, the one that stops it: in that frame
+          // the panel, the plates and the weapon card are drawn afresh while nothing moves; Pairs' (v0.0.8, scored) takes 30 to
+          // 37 ms there on the user's Mac too (the fixer's of 0.0.12, measured), so it is held to PAUSE_FRAME_MS, the motion to 25)
+          return { open, shut, wallMs: open && shut ? Math.round(shut.t - open.t) : null, gameMs: open && shut ? shut.ms - open.ms : null, maxFrameMs: Math.round(Math.max(...frames.slice(1, -1)) * 10) / 10,
+            pauseFrameMs: Math.round((frames.at(-1) ?? 0) * 10) / 10, lead: document.querySelector('.instinct .lead')?.textContent ?? '', after };
+        });
+        rows.push(`the pause in room 1, the private: the window ${pause.gameMs} ms of game time, ${pause.wallMs} ms of wall time, taken in ${pause.shut?.takeInMs} ms; the lead '${pause.lead}'; the longest frame of the window ${pause.maxFrameMs} ms, the pause's own ${pause.pauseFrameMs} ms (at most ${PAUSE_FRAME_MS})`);
+        assert(pause.shut && Math.abs(pause.wallMs - pause.shut.takeInMs) <= 50 + 34 && /^Contact · \d\.\d\d s\./.test(pause.lead) && pause.maxFrameMs <= 25 && pause.pauseFrameMs <= PAUSE_FRAME_MS, JSON.stringify(pause));
+        // (the tier one: "T: Clear the house" before the press, then run, its lanes)
+        await game.open('play=test-shoothouse&setup=go&tier=tierone&seed=48213&nostore=1');
+        await page.waitForFunction(() => window.__ready && window.__olympus.house?.() && window.__olympus.state.stop?.phase === 'choose', null, { timeout: 60000 });
+        await page.waitForTimeout(500);
+        const before = await page.evaluate(() => window.__report.hud.line);
+        await page.keyboard.press('KeyT');
+        await page.waitForFunction(() => document.querySelector('.steps .running-view.bundle'), null, { timeout: 10000 });
+        const lanes = await page.evaluate(() => [...document.querySelectorAll('.steps .running-view.bundle .rv-lane-name')].map(e => `${e.textContent} ${e.nextElementSibling.textContent.trim()}`));
+        rows.push(`the tier one before T: '${before}'; running: ${lanes.join(' · ')}`);
+        assert(/T: Clear the house/.test(before) && lanes.length >= 2, JSON.stringify({ before, lanes }));
+        // (to the end by the scene's bot: the run sheet, the hot wash, the score line)
+        const ended = await page.evaluate(async () => {
+          const O = window.__olympus; let bot = null;
+          try { bot = (await import('/tests/bots/house.mjs')).houseBot({ mode: 'T' }); } catch { return false; }
+          O.pause(true);
+          for (let n = 0; n < 400000 && !O.scene?.ended; n++) { const s = O.state, me = s.actors.list.find(a => a.id === s.player.actor); if (s.skip?.engine === 'ff') O.sim.ffTick(s); else O.step(1, bot(s, me, (me.bot ??= {}))); }
+          O.pause(false);
+          return !!O.scene?.ended;
+        });
+        assert(ended, 'the scene\'s bot reaches the end');
+        await page.keyboard.press('Enter');
+        await page.waitForSelector('.glass.end', { timeout: 30000 });
+        const end = await page.evaluate(() => ({ said: [...document.querySelectorAll('.glass.end .said')].map(p => p.textContent), sheet: document.querySelector('.runsheet')?.dataset.text ?? null, wash: document.querySelector('.house-wash')?.dataset.text ?? null, again: [...document.querySelectorAll('.glass.end .again-as')].map(b => b.textContent) }));
+        rows.push(`the end card: '${end.said.join(' | ')}'; the run sheet '${end.sheet}'; the hot wash '${end.wash?.slice(0, 160)}…'; ${end.again.length} "Again as …"`);
+        assert(end.sheet && end.wash && /^LANE A · TIER ONE/.test(end.said[0] ?? '') && end.again.length === 5, JSON.stringify(end));
+        await page.keyboard.press('Digit3');
+        await page.waitForSelector('.glass.score', { timeout: 10000 });
+        const line = await page.evaluate(() => document.querySelector('.glass.score .score-line').value);
+        rows.push(`the score line: '${line}'`);
+        assert(/^OLYMPUS v\d+\.\d+\.\d+ · test-shoothouse · seed 48213 · pause \d+ · drill \d+ · shots \d+ · ★ (yes|no) · note: /.test(line), line);
+        for (const r of rows) console.log(`      ${r}`);
+        assert(!errors.length, errors.join(' | '));
+      }, { port, query: 'nostore=1', viewport: { width: 1600, height: 900 } });
     },
   },
 ];

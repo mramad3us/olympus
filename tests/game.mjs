@@ -57,10 +57,10 @@ export { playerActor };
  * golden doesn't move with VERSION), strict (throw on a lost tick or a listener's error), at (an
  * { area, x, z, face } the scenario starts the player at, as the page's ?at= does), setup (a scene's), tier (0.0.8:
  * test-pairs' test sheet, as the page's ?tier= does), env (a preset the scene runs under, as the page's ?env= does:
- * ROADMAP "anywhere" step 2).
+ * ROADMAP "anywhere" step 2), par (0.0.12: test-shoothouse's instructor's par, as the page's ?par= does).
  */
 export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', hour = null, startMs, worldId = null,
-  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null, env = null } = {}) {
+  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null, env = null, par = null } = {}) {
   const errors = [];
   let sim = null, hooks = null, seen = 0;
   const bus = recordingBus({ onError: (e, type) => errors.push(`a listener of '${type}': ${firstLine(e)}`) });
@@ -74,7 +74,7 @@ export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', 
     loop.useSkips = (h) => { hooks = h; return useSkips.call(loop, h); };
   }
   sim = createSim({ loop, bus, domains });
-  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier, env };
+  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier, env, ...(par ? { par } : {}) };
   if (startMs !== undefined) opts.startMs = startMs;
   loop.setState(newGame(opts));
 

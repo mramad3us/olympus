@@ -54,6 +54,13 @@
 // tick after, with the felt of that moment), and a window open when it came pauses only once it is over.
 // 0.0.10 (the build sheet 0.0.10 §2.1, §8 item 13): a sighting that opens a window while a Breathe runs (shooting.js, in the
 // mode or out of it) cuts it at its sub-step's end, as the startle does; the pause comes then.
+// 0.0.12 (the build sheet 0.0.12 §2.2, §8 items 4, 9; COMBAT §25.4.5, §25.8.2): in Combat and Assault the feet's stop is the
+// body's (places/move.js: the wanted velocity zero after the go, the legs' brake: BODY §16.2's 0.24 m for the private at
+// 1 G); a marine is pre-armed (pending.armed) when a bundle runs (state.stop.doing with beats) or a Watch is held (the
+// actor's watch, src/sim/combat/bundle.js), so his feet carry on through the window. At the window's end a running bundle
+// is handed back ('contact': its moves and scans cut where they stand, its other beats let end, the pause on the last's
+// end), its rest the panel's "Carry on: …" (bundle.js carryRow, drill:carry); a Watch puts the muzzle on its spot at the
+// pause. A target's name in the log is its record's (T.name, the house's stands), else its lane's.
 // Pure but contactLook, contactInput, identify, runContactSub and endContactSub, which write the mind, the stop
 // and the log.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
@@ -72,6 +79,7 @@ import { enterStop, stopInput, targetOf } from '../arms/shooting.js';
 import { heldOf, aimMsOf, HELD_MAX, HELD_RATE0 } from '../arms/shot.js';
 import { logEntry } from '../log.js';
 import { startled, feltOf, bandN, blockOf } from './supp.js';
+import { halt as haltDoing } from './stepper.js';
 
 /** The identification's DC (COMBAT §25.4.6): IDENT_DC0 + round(range / IDENT_PER_M), IDENT_DARK in the dark. */
 export const IDENT_DC0 = 6, IDENT_PER_M = 5, IDENT_DARK = 4;
@@ -158,7 +166,7 @@ export function contactLook(state, input, bus, ctx) {
     const id = c.n + 1, { t, rangeM, band } = windowOf(state, pid, id, fresh, ms);
     c.n = id;
     c.pending = { id, ids: fresh, seenMs: ms, untilMs: ms + t.ms, ms: t.ms, expect: t.expect, n: t.n, grade: t.grade, roll: t.roll, parts: t.parts, rangeM, whoK: t.whoK,
-      armed: false, goMs: goMs(sheetOf(state, pid)?.os ?? 0), mx: sgn(input?.mx), mz: sgn(input?.mz), run: !!input?.run, ...(band ? { band } : {}) };
+      armed: armedOf(state, me), goMs: goMs(sheetOf(state, pid)?.os ?? 0), mx: sgn(input?.mx), mz: sgn(input?.mz), run: !!input?.run, ...(band ? { band } : {}) };
     bus?.emit('contact', fact('seen', pid, c.pending));
     return;
   }
@@ -170,9 +178,17 @@ export function contactLook(state, input, bus, ctx) {
   bus?.emit('contact', fact('join', pid, P, { atMs: ms }));
 }
 
+// (0.0.12: pre-armed at the sighting: a bundle's beats running, or a Watch held (see the header))
+const armedOf = (state, me) => !!state.stop?.doing?.beats || !!me?.watch;
+
 // (the window's target nearest the muzzle's yaw: the pause's bracket)
 function pickOf(state, pid, keys, ms) {
-  const m = muzzleOf(state, pid), list = targetsAt(state, keys, ms);
+  const m = muzzleOf(state, pid), R = state.armoury?.range, all = targetsAt(state, keys, ms);
+  // (0.0.12: in a clear with a #2, the men of your own corner first: his are his (the fixer's, after the runtime review: the
+  // bracket and "Aim at" went to his man, across his sector, while the DI named yours))
+  const slot = (key) => R?.turners?.find(T => T.key === key)?.slot ?? 1;
+  const own = R?.course === 'house' && R.house?.twoPid ? all.filter(t => slot(t.key) === 1) : [];
+  const list = own.length ? own : all;
   if (!list.length) return keys[0] ?? null;
   if (!m) return list[0].key;
   let best = null;
@@ -211,6 +227,10 @@ function pause(state, bus, c) {
     const r = enterStop(state, bus, { pid, via: 'contact', pick, contact: { id: P.id, ms } });
     if (r?.ok && state.stop?.mode === 'stop') { state.stop.pick = pick; state.stop.via = 'contact'; }
   }
+  // (0.0.12: a Watch held puts the muzzle on its spot at the pause (see the header))
+  const me = playerActor(state);
+  if (me?.watch && state.stop?.mode === 'stop') me.headRad = q(Math.atan2(me.watch.z - me.z, me.watch.x - me.x), 1e-6);
+  if (me?.watch) delete me.watch;
   for (const key of last.ids) identify(state, pid, key, { atMs: now });
   const seen = last.ids.map(k => `${targetName(state, k)}: ${identWords(last, k)}`).join('; ');
   logEntry(state, bus, { kind: 'contact', tone: 'warn', text: `Contact · ${takeInWords(last.ms)} s. ${last.words} ${seen.charAt(0).toUpperCase()}${seen.slice(1)}.`, contact: last.id });
@@ -238,9 +258,11 @@ export function contactInput(state, input, bus, ctx) {
   // (a step still running: its boundary taken now if due, and the pause at its end; a command (a macro) finishes the
   // sub-step under way and halts there, its rest queued as "Carry on" (COMBAT §25.4.5: never cut mid-sub-step))
   let d = state.stop?.doing;
+  // (0.0.12: a bundle handed back at the window's end: its moves and scans cut where they stand, the rest let end (see the header))
+  if (d?.beats && !d.halt) haltDoing(state, bus, d, 'contact', null, state.clock.ms);
   if (d && d.kind === 'command' && state.stop.mode === 'stop' && d.i + 1 < d.list.length) d.halt = true;
   if (d && d.kind !== 'wait') {
-    if (state.clock.ms >= d.untilMs) stopInput(state, input, bus, ctx);
+    if (d.beats || state.clock.ms >= d.untilMs) stopInput(state, input, bus, ctx);
     d = state.stop?.doing;
     if (d && d.kind !== 'wait') return;
   }
@@ -248,7 +270,7 @@ export function contactInput(state, input, bus, ctx) {
 }
 
 // (a target's name in the log's words)
-const targetName = (state, key) => { const T = turnerOf(state, key); return T ? `lane ${T.lane}` : key; };
+const targetName = (state, key) => { const T = turnerOf(state, key); return T ? T.name ?? `lane ${T.lane}` : key; };
 // (what was seen of a target, in words)
 const identWords = (last, key) => `${IDENT_WORDS[last.ident?.[key] ?? 'unseen']}${last.armour?.[key] ? ', plate armour' : ''}`;
 

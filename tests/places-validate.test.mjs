@@ -24,6 +24,11 @@
 // turner stands 1 m in front of the frames (block 'see', clear of the cards and the 25 m line), every point and coach
 // reached from the 25 m line's points on the ground's C0 grid; GROUND_AREA and RANGE_PIECES re-set on purpose for it,
 // PAIRS pinned by its own golden.
+// 0.0.12 (the build sheet 0.0.12 §2.1, §5.1; PLACES §4.15, §9.6, §9.9; COMBAT §25.5.1): the Wheel's sector 4, house 1 of
+// the shoot houses in X4's layout A and its apron (src/data/places/wheel.js WHEEL_S4, HOUSE1), a `deck` at 1 G of spin
+// with no sky: every rule of §9.6, a swing on every leaf, the closet locked; every point, stack and start of the lane
+// reached from the start mark on the C0 grid with the doors open, the house closed to the apron but by its doors; the
+// start's 4.00 m to room 1's stack and room 1 as COMBAT §25.5.1 draws it; room 3 dim at 10:00; new goldens on purpose.
 import { assert, fmt } from './helpers.mjs';
 import { golden } from './golden.mjs';
 import { createGame } from './game.mjs';
@@ -40,6 +45,12 @@ import { melasGame } from './bots/walker.mjs';
 import { KD_RANGE, RANGE_PIECES, RANGE_KINDS, LINE_FLAGS, TOWER, PAIRS, KD_PADS, KD_FLAG_AHEAD_M } from '../src/data/places/range.js';
 import { pieceRect } from '../src/sim/places/ground.js';
 import { chunkGrid, cellOf, CHUNK_M, CELL_M } from '../src/sim/places/nav.js';
+import { WHEEL_S4, HOUSE1, X4_CHUNKS, LAYOUT_A, KICK_DC } from '../src/data/places/wheel.js';
+import { X4_PLANS } from '../src/data/places/x4-plans.js';
+import { gravityAt, envAt, msAtLocal } from '../src/sim/places/env.js';
+import { lightLevel } from '../src/sim/places/light.js';
+import { newState } from '../src/core/state.js';
+import { START_MS } from '../src/data/setting/calendar.js';
 
 const copy = (v) => JSON.parse(JSON.stringify(v));
 const rulesOf = (res) => [...new Set(res.problems.map(p => p.rule))];
@@ -199,7 +210,7 @@ export default [
   {
     name: 'no place holds a seed: no area or room record carries one, and a new game\'s places.sites hold only their template (the user, 2026-11-05: "game world is handcrafted")',
     fn() {
-      const records = [TEST_AREA, ECHO_1, ECHO_2, GROUND_AREA];
+      const records = [TEST_AREA, ECHO_1, ECHO_2, GROUND_AREA, WHEEL_S4];
       const seeded = records.flatMap(a => [a, ...a.rooms].filter(r => 'seed' in r || 'siteSeed' in r || 'dressSeed' in r).map(r => r.id));
       const sandbox = createGame({ scenario: 'sandbox', seed: 48213 }), melas = melasGame(createGame, { seed: 48213 });
       const sites = [sandbox, melas].map(g => g.state.places.sites);
@@ -498,6 +509,107 @@ export default [
       // (the camera looks north: a point at height y and z shows at z − y, and the PX's 4 m roof from z 430 covers the picture to 426, so the tube, 1.3 to 2.1 m up, must stand north of 427.3)
       assert(pole.face === 'up' && pole.z - 1.3 < 430 - 4.0 && pole.x - 292 >= 2 && pole.x - 292 <= 3 && spot.use === 'haircut' && spot.x < pole.x && spot.z === pole.z && spot.face === 'right', JSON.stringify({ pole, spot }));
       assert(edge, 'the pole\'s spot is enclosed: not reached from the base');
+    },
+  },
+
+  {
+    name: 'the Wheel\'s sector 4 (PLACES §4.15, the build sheet 0.0.12 §2.1): house 1 in X4\'s layout A and its apron keep every rule of PLACES §9.6, a `deck` at 1 G of spin under no sky; every leaf records its swing, the lane\'s doors closed at the template, the closet locked; each rule fails on a sample made to break it',
+    fn() {
+      const res = validateArea(WHEEL_S4), c = res.counts;
+      console.log(`      ${WHEEL_S4.id} (${WHEEL_S4.kind}, ${WHEEL_S4.boundsM.x1} × ${WHEEL_S4.boundsM.z1} m): ${c.rooms} rooms, ${c.openings} openings, ${c.fixtures} fixtures, ${c.zones} zones, ${c.lamps} lamps; checks: ${[...AREA_RULES, 'no-seed', 'decor', 'seeds'].map(r => `${r} ${c[r] ?? 0}`).join(', ')}`);
+      for (const r of WHEEL_S4.rooms) console.log(`        ${r.id} '${r.name}' ${r.kind} [${r.rect.join(', ')}] ${fmt((r.rect[2] - r.rect[0]) * (r.rect[3] - r.rect[1]), 1)} m², ${r.floor.kind}${r.lighting ? `, lit ${r.lighting}` : ''}`);
+      for (const o of WHEEL_S4.openings) console.log(`        ${o.id} ${o.kind} on ${o.axis} ${o.at} from ${o.a} to ${o.b} (${fmt(o.b - o.a, 2)} m) ${o.rooms.join(' | ')}${o.swing ? `, hinged ${o.swing.hinge} into ${o.rooms[o.swing.into]}, ${o.state}, kick DC ${o.kickDc}${o.lock ? `, locked (${o.lock.kind})` : ''}` : ''}`);
+      assert(res.ok, JSON.stringify(res.problems));
+      const leaves = WHEEL_S4.openings.filter(o => o.kind === 'door');
+      assert(leaves.length === 5 && leaves.every(o => (o.swing?.hinge === 'a' || o.swing?.hinge === 'b') && (o.swing.into === 0 || o.swing.into === 1) && o.state === 'closed' && o.kickDc === (o.lock ? KICK_DC.locked : KICK_DC.door) && o.openS === 0.4), 'a swing, a kick and a closed leaf on every door');
+      assert(leaves.filter(o => o.lock).map(o => o.id).join() === 'o:w4:closet' && WHEEL_S4.openings.find(o => o.id === 'o:w4:r2').swing.into === 0, 'the closet locked; room 2 opens outward, a pull');
+      // (the place's environment: the Wheel's spin from the area's own record, the Martian indoor standard, no sky)
+      const st = newState(1);
+      st.places.live = { site: 'melas', area: WHEEL_S4.id };
+      const G = gravityAt(st, WHEEL_S4.id), E = envAt(st, WHEEL_S4.id);
+      console.log(`      gravity ${G.regime} ${G.gG} G (${fmt(G.gMs2, 3)} m/s²), spin ${JSON.stringify(G.spin)}; the air ${E.air.air} ${E.air.pKpa} kPa; sky ${E.sky}; outdoors ${E.outdoors}`);
+      assert(G.regime === 'spin' && G.gG === 1 && G.spin.radiusM === 500 && G.spin.omegaRadS === 0.1347 && G.spin.alongRad === 0 && E.sky === 'none' && !E.outdoors && E.air.air === 'martian-indoor', JSON.stringify({ G, E }));
+      // (the chunks: four rooms' chunks and the hall placed by layout A, every room of the house from one of them)
+      const fromChunks = LAYOUT_A.flatMap(P => Object.values(P.rooms));
+      console.log(`      ${Object.keys(X4_CHUNKS).length} chunks (${Object.values(X4_CHUNKS).map(k => `${k.id} ${k.rooms.length} room${k.rooms.length > 1 ? 's' : ''}, ${k.sockets.length} socket`).join('; ')}); layout A places ${LAYOUT_A.length}: ${LAYOUT_A.map(P => `${P.chunk} at (${P.at.join(', ')})`).join(', ')}`);
+      assert(WHEEL_S4.rooms.filter(r => r.zone === 'w4.z.house').map(r => r.id).sort().join() === fromChunks.sort().join(), 'the house is its chunks');
+      // (the rules broken on the house: a leaf's room missing, a fixture in a door's clear zone, a seed on a room)
+      const caught = [];
+      for (const [rule, br] of [['opening', (a) => { a.openings.find(o => o.id === 'o:w4:r1').at = 12.5; }], ['door-clear', (a) => { a.fixtures.find(f => f.id === 'f:w4:bin:01').z = 10.0; a.fixtures.find(f => f.id === 'f:w4:bin:01').x = 34.6; }], ['no-seed', (a) => { a.rooms[0].seed = 48213; }], ['zone', (a) => { a.zones[1].rooms.push('w4.r1'); }]]) {
+        const a = copy(WHEEL_S4);
+        br(a);
+        const got = rulesOf(validateArea(a));
+        caught.push(`${rule}: ${got.join('+') || 'none'}`);
+        assert(got.includes(rule), `breaking '${rule}' on the house was not caught: ${got.join(', ')}`);
+      }
+      console.log(`      broken on purpose: ${caught.join('; ')}`);
+    },
+  },
+  {
+    name: 'lane A of house 1 stands as the build sheet 0.0.12 §2.1 draws it: the start mark 4.00 m from room 1\'s #1 stack point, the #2 0.65 m behind, room 1 COMBAT §25.5.1\'s reference room, the stands in their rooms, the catwalk at 3 m; every point, stack and threshold reached from the start on the C0 grid with the doors open, and with them shut only the hall and the apron',
+    fn() {
+      const H = HOUSE1, P = X4_PLANS.A.plans, r1 = P['o:w4:r1'], room1 = WHEEL_S4.rooms.find(r => r.id === 'w4.r1'), d1 = WHEEL_S4.openings.find(o => o.id === 'o:w4:r1');
+      const startToStack = Math.hypot(H.start.x - r1.stack[0][0], H.start.z - r1.stack[0][1]), behind = Math.hypot(H.two.x - H.start.x, H.two.z - H.start.z);
+      const w = room1.rect[2] - room1.rect[0], d = room1.rect[3] - room1.rect[1], mid = (d1.a + d1.b) / 2;
+      console.log(`      the start (${H.start.x}, ${H.start.z}) facing ${H.start.face} on the hall's axis z ${H.hall.axisZ}: ${fmt(startToStack, 3)} m to room 1's #1 stack (${r1.stack[0].join(', ')}); the #2 at (${H.two.x}, ${H.two.z}), ${fmt(behind, 2)} m behind`);
+      console.log(`      room 1: ${w} × ${d} m, its door ${fmt(d1.b - d1.a, 2)} m centred ${fmt(mid - room1.rect[0], 2)} m along the near wall (z ${d1.at}), opening ${d1.swing.into === 1 ? 'inward' : 'outward'}, hinged at its ${d1.swing.hinge} end (x ${d1[d1.swing.hinge]}: the left as seen from the hall); #1's stack ${fmt(r1.stack[0][0] - d1.b, 2)} m from the frame and ${fmt(r1.stack[0][1] - d1.at, 2)} m off the wall; his point ${fmt(r1.points[0][0] - room1.rect[0], 2)} m along the near wall from the near-left corner and ${fmt(d1.at - r1.points[0][1], 2)} m off it`);
+      assert(Math.abs(startToStack - 4.0) <= 0.05 && Math.abs(behind - 0.65) < 1e-9 && H.start.z === H.hall.axisZ, 'the start 4.0 ± 0.05 m from the stack, the #2 0.65 m behind');
+      assert(w === 5 && d === 4 && Math.abs(d1.b - d1.a - 0.9) < 1e-9 && Math.abs(mid - (room1.rect[0] + 2.5)) < 1e-9 && d1.swing.into === 1 && d1.swing.hinge === 'a' && d1.at === room1.rect[3], 'room 1: 5 × 4, the door 0.9 m in the middle of the near wall, inward, hinged left');
+      assert(Math.abs(r1.stack[0][0] - d1.b - 0.5) < 1e-9 && Math.abs(r1.stack[0][1] - d1.at - 0.45) < 1e-9 && Math.abs(r1.points[0][0] - room1.rect[0] - 1.0) < 1e-9 && Math.abs(d1.at - r1.points[0][1] - 0.5) < 1e-9, 'room 1: the stack and the point as §25.5.1 places them');
+      // (the stands: inside their rooms, each with its slot, trigger and faces)
+      const roomOfId = (id) => WHEEL_S4.rooms.find(r => r.id === id);
+      for (const s of H.stands) {
+        const p = s.door ? P[s.door] : P.hall, inPart = p.parts.some(id => { const r = roomOfId(id).rect; return s.x > r[0] && s.x < r[2] && s.z > r[1] && s.z < r[3]; });
+        console.log(`        ${s.key} ${s.stand} '${s.name}' in ${s.room} at (${s.x}, ${s.z}) y ${s.y}, slot ${s.slot}, ${s.faces.join('|')}, ${s.trigger.kind}${s.trigger.gapMs ? ` ${s.trigger.id} + ${s.trigger.gapMs.join(' to ')} ms` : ''}, facing ${fmt(s.faceRad, 3)} rad; ${fmt(Math.hypot(s.x - p.threshold[0], s.z - p.threshold[1]), 2)} m from the threshold`);
+        assert(inPart, `${s.stand} outside its room's plan`);
+      }
+      const hs = H.stands.find(s => s.stand === 'H'), d3 = WHEEL_S4.openings.find(o => o.id === 'o:w4:r3'), hFrom3 = Math.hypot(hs.x - (d3.a + d3.b) / 2, hs.z - d3.at);
+      console.log(`      H ${fmt(hFrom3, 2)} m from room 3's door; the hall's west zone ${JSON.stringify(H.zones.hallWest)}; the catwalk at y ${H.catwalk.y} m along ${JSON.stringify(H.catwalk.path)}, its stairs ${JSON.stringify(H.catwalk.stairs)}; the booth (${H.booth.x}, ${H.booth.z})`);
+      assert(H.stands.length === 7 && Math.abs(hFrom3 - 10.0) <= 0.05 && H.catwalk.y === 3.0 && WHEEL_S4.zones.some(z => z.id === H.zones.hallWest.id), 'seven stands, H 10 m from room 3\'s door, the catwalk at 3 m');
+      assert(H.stands.map(s => s.stand).join() === '1a,1b,2a,2b,3a,3b,H' && H.stands.filter(s => s.slot === 2).map(s => s.stand).join() === '1b,3a', 'the #2\'s stands are 1b and 3a');
+      // (reached: the doors open, every point, stack and threshold from the start; shut, the hall and the apron only)
+      const flood = (closed) => {
+        const g = buildGrid(WHEEL_S4, 'C0', { closed: () => closed }), seen = new Uint8Array(g.nx * g.nz), c0 = cellOf(g, H.start.x, H.start.z), todo = [c0];
+        seen[c0] = 1;
+        while (todo.length) {
+          const k = todo.pop(), i = k % g.nx, j = Math.floor(k / g.nx);
+          for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const ii = i + di, jj = j + dj, kk = jj * g.nx + ii;
+            if (ii < 0 || jj < 0 || ii >= g.nx || jj >= g.nz || seen[kk] || g.cost[kk] === 255) continue;
+            seen[kk] = 1; todo.push(kk);
+          }
+        }
+        return { g, n: seen.reduce((a, b) => a + b, 0), at: (x, z) => seen[cellOf(g, x, z)] === 1 };
+      };
+      const open = flood(false), shut = flood(true);
+      const spots = [{ what: 'the start', ...H.start }, { what: 'the #2\'s start', ...H.two }, ...Object.entries(P).flatMap(([k, p]) => [...p.stack.map((q, i) => ({ what: `${k}'s stack ${i + 1}`, x: q[0], z: q[1] })), ...p.points.map((q, i) => ({ what: `${k}'s point ${i + 1}`, x: q[0], z: q[1] })), { what: `${k}'s threshold`, x: p.threshold[0], z: p.threshold[1] }])];
+      const missed = spots.filter(q => !open.at(q.x, q.z)).map(q => q.what);
+      const inHouseShut = [[29, 10], [22, 17], [17, 8], [21, 7], [26.1, 16.9], [33, 10.5]].filter(([x, z]) => shut.at(x, z));
+      console.log(`      the C0 grid ${open.g.nx} × ${open.g.nz}: from the start with the doors open ${open.n} cells (${fmt(open.n * CELL_M * CELL_M, 0)} m²), ${spots.length - missed.length} of ${spots.length} points, stacks and thresholds reached; shut, ${shut.n} cells (the hall and the apron), rooms reached ${inHouseShut.length ? JSON.stringify(inHouseShut) : 'none'}`);
+      assert(!missed.length, `not reached: ${missed.join(', ')}`);
+      assert(!inHouseShut.length && shut.at(36, 2) && shut.at(2, 26), 'with the doors shut, the rooms are closed and the apron is round the house');
+    },
+  },
+  {
+    name: 'house 1\'s light at 10:00 (the build sheet 0.0.12 §2.1, §8 item 25): the lit rooms and the hall at the day\'s 0.75, room 3 and its far leg at MOODS.dim\'s 0.40 at every hour (class cqbDim)',
+    fn() {
+      const st = newState(1);
+      st.places.live = { site: 'melas', area: WHEEL_S4.id };
+      const at10 = msAtLocal('melas', START_MS, 10, 0), at23 = msAtLocal('melas', at10, 23, 0);
+      const probe = [['hall', 25, 13.2], ['room 1', 29, 10], ['room 2', 22.75, 17], ['room 3', 17.5, 8.6], ['the far leg', 21.25, 7.2], ['the booth', 33.5, 10.5]];
+      const rows = probe.map(([w, x, z]) => [w, lightLevel(st, x, z, at10), lightLevel(st, x, z, at23)]);
+      console.log(`      at 10:00 (and 23:00): ${rows.map(([w, a, b]) => `${w} ${a} (${b})`).join(', ')}`);
+      const by = Object.fromEntries(rows.map(([w, a, b]) => [w, [a, b]]));
+      assert(by['room 1'][0] === 0.75 && by['room 2'][0] === 0.75 && by['room 3'][0] === 0.4 && by['the far leg'][0] === 0.4 && by['room 3'][1] === 0.4, JSON.stringify(by));
+    },
+  },
+  {
+    name: 'the Wheel\'s sector 4 and lane A are pinned by goldens (melas@1\'s template: set on purpose in 0.0.12)',
+    fn() {
+      const a = golden('places: WHEEL_S4', WHEEL_S4, '05f066607e544d')   // (0.0.12, set on purpose: house 1 of the Wheel's sector 4 and its apron);
+      const b = golden('places: HOUSE1', HOUSE1, '04447e988e6958')   // (0.0.12, set on purpose: lane A's start, stands, catwalk and booth);
+      const g = golden('places: WHEEL_S4 C0 grid bytes', buildGrid(WHEEL_S4, 'C0', { closed: (o) => o.state === 'closed' }).cost, '1dd12b42226e54')   // (0.0.12, set on purpose);
+      console.log(`      WHEEL_S4 ${a}; HOUSE1 ${b}; its C0 grid (the doors as the template has them) ${g}`);
     },
   },
 ];

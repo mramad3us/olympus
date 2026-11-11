@@ -33,8 +33,8 @@ export const WORDS = Object.freeze({
   hot: 'Too hot: the sweat\'s running down your back.', exhaustion: 'The heat\'s got into you: dizzy, sick, slow.',
   stroke: 'The heat takes your thoughts.', warm: 'Warm again.',
 });
-/** BODY §10.3's clo by outfit (the towel my call); warmth = min(4, CLO_WARMTH_K × clo). */
-export const CLO = Object.freeze({ pt: 0.3, sweats: 0.8, utilities: 0.9, towel: 0, service: 1.0 });
+/** BODY §10.3's clo by outfit (the towel my call; 0.0.12's combatSuit, the combat EVA suit worn unpressurised over utilities, 1.2: the build sheet 0.0.12 §4); warmth = min(4, CLO_WARMTH_K × clo). */
+export const CLO = Object.freeze({ pt: 0.3, sweats: 0.8, utilities: 0.9, towel: 0, service: 1.0, combatSuit: 1.2 });
 export const CLO_WARMTH_K = 3.3;
 /** Tradecraft's warmth of a few of its tops, printed beside the port's by body-thermal. */
 export const TRADECRAFT_WARMTH = Object.freeze({ tee: 0, robe: 1, jacket: 2, uniform: 2, coat: 3, parka: 4 });

@@ -58,6 +58,7 @@ import { ROLLOFF, PAN_FULL_M, REPORT_SOURCE_DB, MUZZLE_AHEAD_M, ECHO_DB, ECHO_LP
   CRACK_SOURCE_DB, IMPACT_SOURCE_DB, CARRIER_SOURCE_DB, DIST_LP_REF_HZ, DIST_LP_REF_M, DIST_LP_MIN_HZ, REPORT_VOICES, REPORT_MERGE_MS, REPORT_HOLD_S, EARS_GATE_DB, PARAPET_DB, PARAPET_LP_HZ,
   TURNER_SOURCE_DB, BEEP_SOURCE_DB, BEEP_AT, STEEL_SOURCE_DB } from '../../data/sounds.js';
 import { airAt } from '../../sim/places/env.js';
+import { inHouse } from './house.js';
 
 /** The berm's face (x, m) and the tower's speaker ({ x, y, z }, m: its deck) on the 25 m bay (PLACES §4.12: src/data/places/range.js, the stage's authored bay). */
 export const BERM_FACE_X = KD_RANGE.bay.berm[0], TOWER_AT = Object.freeze({ x: KD_RANGE.tower.ro.x, y: KD_RANGE.tower.deckY, z: KD_RANGE.tower.ro.z });
@@ -256,6 +257,8 @@ export function createRange(engine, { looks = {}, clock = () => (globalThis.perf
   let lastState = null;
   // (the defenders: the range's earsOn where it has one (0.0.7's ears slot), else the kit's look of the head)
   const earsOf = (state) => {
+    // (0.0.12: the combat EVA suit's hearing filter is the defenders' gate on an impulse: the build sheet 0.0.12 §2.7)
+    if (playerActor(state)?.outfit === 'combatSuit') return true;
     try { const pid = playerId(state); return looks.earsOn ? !!looks.earsOn(state, pid) || !!looks.kitLook?.(state, pid)?.ears : !!looks.kitLook?.(state, pid)?.ears; } catch { return false; }
   };
   // (a report or an echo through the voices' limit, at its moment on the audio clock)
@@ -303,7 +306,8 @@ export function createRange(engine, { looks = {}, clock = () => (globalThis.perf
     const v = reportVoice({ me, muzzle, mine, ears, soundMs: c, pKpa });
     const ok = impulse('report', { delayS: v.delayS + lagS, gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan });
     if (ok) { stats.reports++; stats.lastReport = { gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round(v.delayS * 1000) / 1000, ears, mine }; }
-    if (impulse('report', { delayS: v.echo.delayS + lagS, gainDb: v.echo.gainDb, lowHz: v.echo.lowpassHz, pan: v.pan, rate: 0.92 })) { stats.echoes++; stats.lastEcho = { gainDb: r1(v.echo.gainDb), lowpassHz: Math.round(v.echo.lowpassHz), delayS: Math.round(v.echo.delayS * 1000) / 1000 }; }
+    // (0.0.12: in the shoot house there is no berm 28 m off: the hall's reverb is the room's answer (house.js, engine.js's send))
+    if (!inHouse(state) && impulse('report', { delayS: v.echo.delayS + lagS, gainDb: v.echo.gainDb, lowHz: v.echo.lowpassHz, pan: v.pan, rate: 0.92 })) { stats.echoes++; stats.lastEcho = { gainDb: r1(v.echo.gainDb), lowpassHz: Math.round(v.echo.lowpassHz), delayS: Math.round(v.echo.delayS * 1000) / 1000 }; }
     // (0.0.7: your own round's crack as it leaves, then its strike coming back a flight and a sound's way later)
     // (only a shot at a face (the zero card, a KD face) has them: test-handling's card sounds as it was scored)
     const fl = f.face ? f.flight ?? null : null;

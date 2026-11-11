@@ -11,7 +11,7 @@
 // service"): only CAREER §2's regulation cuts, a thinning man's the shaved head, thinning by hash against
 // THIN_P by age; the cuts by sex and age band, the thinning share against THIN_P, the shaved share, and
 // the squads that cannot fit (five thinning men or more: four (skin, shaved) pairs) printed.
-import { assert, fmt } from './helpers.mjs';
+import { assert, fmt, machineK } from './helpers.mjs';
 import { golden } from './golden.mjs';
 import { createGame } from './game.mjs';
 import { newState, toJSON } from '../src/core/state.js';
@@ -95,7 +95,10 @@ export default [
       // (the player plays the personality: no axes, tags, quirk or nickname, PEOPLE §3.12)
       const me = s.people[pid];
       assert(!me.traits && !me.tags && !me.quirks && !me.name.nick && me.tier === 1, JSON.stringify(me));
-      assert(times[2] <= 50 && kb <= 120, `generation median ${fmt(times[2])} ms, people ${fmt(kb)} KB`);
+      // (a CPU-time ceiling, scaled by helpers.mjs machineK() as CLAUDE.md's rule has the others: the 50 ms is the user's
+      // Mac in the foreground, and the background band or a loaded machine runs this 3.5 to 4 times slower (the fixer's of 0.0.12))
+      const genK = machineK();
+      assert(times[2] <= 50 * genK && kb <= 120, `generation median ${fmt(times[2])} ms (limit ${fmt(50 * genK)} at k ${fmt(genK, 2)}), people ${fmt(kb)} KB`);
       console.log(`      ${billets.length} billets on ${ROSTER_UNITS.length} units; ${out.people} generated and the player ${pid}; empty before fillPlayer: ${empty.join(', ')}`);
       console.log(`      ranks: ${line(tally(people, p => p.service.rank))}`);
       console.log(`      by unit: ${line(tally(people, p => p.service.unitId))}`);
@@ -106,7 +109,7 @@ export default [
       console.log(`      backgrounds: ${line(tally(people, p => p.background))}`);
       console.log(`      tags: ${line(tally(people.flatMap(p => p.tags ?? []), x => x))}`);
       console.log(`      ages by rank (min / mean / max): ${Object.keys(RANKS).filter(k => people.some(p => p.service.rank === k)).map(k => { const a = people.filter(p => p.service.rank === k).map(ageY); return `${k} ${fmt(Math.min(...a))}/${fmt(a.reduce((x, y) => x + y, 0) / a.length)}/${fmt(Math.max(...a))}`; }).join(', ')}`);
-      console.log(`      ages redrawn ${out.stats.ageRedraws}, raised ${out.stats.ageRaised}; generation ${fmt(times[0])} ms the first, ${fmt(times[2])} ms the median of 5 (limit 50); the people key ${fmt(kb)} KB (limit 120), ${fmt(kb * 1024 / people.length, 0)} bytes a person`);
+      console.log(`      ages redrawn ${out.stats.ageRedraws}, raised ${out.stats.ageRaised}; generation ${fmt(times[0])} ms the first, ${fmt(times[2])} ms the median of 5 (limit 50 × k ${fmt(genK, 2)}); the people key ${fmt(kb)} KB (limit 120), ${fmt(kb * 1024 / people.length, 0)} bytes a person`);
       console.log(`      tier 1 (${tier1.length}):`);
       for (const p of tier1) {
         console.log(`        ${p.id.padEnd(5)}${(p.service.unitId + ' ' + p.service.billet).padEnd(20)}${p.service.rank.padEnd(7)}${(fullName(p.name) + (p.name.nick ? ` "${p.name.nick}"` : '')).padEnd(34)}${fmt(ageY(p))}  ${p.sex}  ${p.home.place}, ${p.background}; ${(p.tags ?? []).join('/') || 'no tags'}; ${p.quirks?.[0] ?? 'no quirk'}; ${p.look.skin} ${p.look.hair.style} ${p.look.hair.color}, ${p.body.heightM} m ${p.body.build}`);

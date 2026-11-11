@@ -41,6 +41,9 @@
 // and rebuilt then, so an urgent line's three blinks start again with each new line. The plate is a canvas
 // at round(2 × --ui) CSS pixels a pixel (kit/mount.js plateScale), with its words in plain text beside it for
 // a reader (hidden from sight): the rectangle's text is what the player reads.
+// 0.0.12 (the build sheet 0.0.12 §2.4; COMBAT §25.8, §25.11): where the line's act is a row of the panel, the keycap names it and its planned
+// time before the press, "T: Stack on the door · 4.7 s", then the DI's words (actWords: main.js reads the row the act names off the panel
+// it shows, so the time is the panel's, the sim's, one number); the tier one's "T: Clear the house · 3 rooms and the hall · 13.6 s".
 import { offerWords } from './offer.js';
 import { keyPlatePixels } from '../kit/pixels.js';
 import { mountPixels, plateScale } from '../kit/mount.js';
@@ -67,13 +70,13 @@ const toneOf = (t) => (LINE_TONES.includes(t) ? t : 'note');
  * instinctNow(state) ({ line, chip, keys, queued }) or null; offer handOffer(state) or null; lead a
  * string or null; label(action) names a key; armed: R's wait asked once.
  */
-export function partsOf({ lead = null, now = null, offer = null, label = (a) => a, armed = false } = {}) {
+export function partsOf({ lead = null, now = null, offer = null, label = (a) => a, armed = false, actWords = null } = {}) {
   const out = [];
   const T = label('instinct'), line = now?.line ?? null, chip = now?.chip ?? null;
   // (0.0.8: a contact's pause leads "Contact · 0.55 s." in the take-in's amber: COMBAT §25.4.6)
   // (0.0.10: Breathe running out of the mode leads "Breathe · in · HOLD · out · hold", the count now in capitals: BREATHE_LEAD)
   if (lead) out.push({ part: 'lead', tone: /^Contact · /.test(String(lead)) ? 'contact' : String(lead).startsWith(BREATHE_LEAD) ? 'breathe' : 'note', keys: [], text: String(lead) });
-  if (line?.text) out.push({ part: 'line', tone: toneOf(line.tone), keys: line.act ? [T] : [], text: line.text, id: line.id ?? null, act: line.act ?? null });
+  if (line?.text) out.push({ part: 'line', tone: toneOf(line.tone), keys: line.act ? [T] : [], text: line.text, id: line.id ?? null, act: line.act ?? null, ...(line.act && actWords ? { what: String(actWords) } : {}) });
   // (the chip: the next keyless line in short, T held does it; the keycaps of lines with keys of their own; the rest counted)
   const keyed = (now?.keys ?? []).map(k => label(k)), queued = Math.max(0, Number(now?.queued) || 0);
   if (chip?.text || chip?.short || keyed.length || queued) {
@@ -96,7 +99,7 @@ export function textOf(parts) {
   return parts.map(p => {
     if (p.part === 'offer') return `${p.note ? `${p.note} · ` : ''}${p.keys[0]} ${p.text}${p.more ? ` · ${p.moreKey}: the menu` : ''}`;
     if (p.part === 'chip') return `${p.keys.length ? `${p.keys[0]} ` : ''}${p.text.replace(/\[([^\]]+)\]/g, '$1')}`;
-    return `${p.keys.length ? `${p.keys[0]} ` : ''}${p.text}`;
+    return `${p.keys.length ? `${p.keys[0]}${p.what ? `: ${p.what}.` : ''} ` : ''}${p.text}`;
   }).join('  ');
 }
 
@@ -121,7 +124,7 @@ export function createInstinct(parent, { label = (a) => a } = {}) {
   function partEls(list) {
     return list.map(p => {
       if (p.part === 'lead') return el('span', { className: `lead${p.tone === 'contact' ? ' contact' : p.tone === 'breathe' ? ' breathe' : ''}` }, p.text);
-      if (p.part === 'line') return el('span', { className: `line ${p.tone}` }, ...(p.keys.length ? [kbd(p.keys[0]), ' '] : []), p.text);
+      if (p.part === 'line') return el('span', { className: `line ${p.tone}` }, ...(p.keys.length ? [kbd(p.keys[0]), p.what ? el('span', { className: 'act', textContent: `: ${p.what}.` }) : null, ' '].filter(Boolean) : []), p.text);
       const kids = p.keys.length ? [kbd(p.keys[0]), ' '] : [];
       // (a waiting line's own key as its keycap: "[B]" in the words)
       for (const [i, w] of p.text.split(' · ').entries()) {

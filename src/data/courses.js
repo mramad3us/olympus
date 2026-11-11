@@ -72,7 +72,20 @@
 // a pool mostly drained (my call: from three bangs at 79 the pool is 39 after 20 s). SEQ_STRESS is its sequence: SEQ_PAIRS'
 // commands without the walk back to the ten, every standby on the 7 m line, its words naming the noise but on strings 4
 // and 5 ("Standby." only: unannounced), the one-round magazine before string 5. STRESS_COACH is the coach's words (two
-// phrasings or more): "Bang!" is a call, never "Bang out" (that would be prepared: COMBAT §5.1). Data only.
+// phrasings or more): "Bang!" is a call, never "Bang out" (that would be prepared: COMBAT §5.1).
+// 0.0.12 (the build sheet 0.0.12 §2.3, §4; COMBAT §25.10.4): the house course, test-shoothouse's "Stack and clear", lane A of
+// house 1 in the Wheel's sector 4 at 1 G (src/sim/scenarios/shoothouse.js, on handling.js's engine with R.course 'house'):
+// the 'house-cqb' issue (three magazines of ten frangible, the dummy riding in the first as its round dummyRound 3 to 6, so
+// 29 rounds are issued), the instructor on the catwalk (no RO on a tower: his commands are the PA's). SEQ_HOUSE is its
+// sequence: the brief, LOAD, MAKE READY (its readiness houseStart: on the start mark, still, Condition 1, on safe, the
+// finger off, low ready, gait Combat, the #2 in place), Standby (goArm: the scene arms GO itself, standbyMs after it),
+// GO (laneDone: the lane over), Stop (houseSafe: on safe, the finger off, still), UNLOAD, SHOW CLEAR, the hot wash (washed:
+// washMs lived or behind the brief splash) and the end. pars are the instructor's timer's (basic, advanced, operator: from a
+// threat's sighting to the first round on it by either of you), parOfTier each sheet's default; draws the stands' faces and
+// holds and the #2's pick (by weight); gaps the turners' (a door's after its leaf is open, the hall's after the zone). The
+// rest are the scene's numbers (the sheet's §4). HOUSE_CHIEF is the instructor's words (two phrasings or more): his faults
+// as he calls them from the catwalk ("Don't stop in the door!", "Your corner!", "Muzzle!"), the hot wash's lines; HOUSE_NUDGE
+// what he says to a shooter the line waits on. Data only.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
 /** The tower's commands in order (see the header). */
@@ -98,7 +111,7 @@ export const SEQ = deepFreeze([
 ]);
 
 /** The readinesses that want rounds in the rifle: the coach checks for none while the tower waits on one (0.0.6). */
-export const NEEDS_ROUNDS = Object.freeze(['magIn', 'cond1', 'kneel1', 'stand1', 'emptyLocked', 'sitMag', 'sit1', 'pairsReady', 'shortReady', 'toppedUp']);
+export const NEEDS_ROUNDS = Object.freeze(['magIn', 'cond1', 'kneel1', 'stand1', 'emptyLocked', 'sitMag', 'sit1', 'pairsReady', 'shortReady', 'toppedUp', 'houseStart']);
 
 /** Which command each macro answers (a macro acted on before its command is given is ahead of the tower). */
 export const MACRO_CMD = deepFreeze({ load: ['load', 'sit'], ready: 'ready', clear: 'clear', cease: 'cease', unload: 'clear',
@@ -141,6 +154,22 @@ export const COURSES = deepFreeze({
       one: [[0, 50], [-1, 25], [1, 25]], two: [[-1, 50], [1, 50]], armoured: [[0, 50], [-1, 25], [1, 25]], short: [[-1, 50], [1, 50]],
       threatHolds: [['rifle', 70], ['pistol', 30]], noshootHolds: [['hands', 60], ['phone', 40]],
     },
+  },
+  // (0.0.12: test-shoothouse's course, on handling.js's engine with the scene's own readinesses (see the header))
+  house: {
+    word: 'the shoot house, lane A', paper: 'man', lanes: [1, 7], mags: [10, 10, 10], strings: ['lane'],
+    roGapMs: [800, 1600], firstGapMs: 3000, nudgeMs: 30000, checkMs: 3000, moveOnMs: 60000, load: 'frangible', kit: 'house-cqb', hour: 10.0, oneMag: false, seq: 'house',
+    standbyMs: [1500, 4000], dummyRound: [3, 6],
+    pars: { basic: 3000, advanced: 1500, operator: 800 },
+    parOfTier: { recruit: 'basic', private: 'basic', lcpl: 'advanced', cpl: 'advanced', sgt: 'advanced', ssgt: 'advanced', raider: 'operator', tierone: 'operator' },
+    draws: {
+      two: [['ft2-tl', 40], ['ft2-ar', 30], ['ft2-aar', 30]],
+      faces: { '1b': [['threat', 50], ['noshoot', 50]], '3a': [['threat', 50], ['noshoot', 50]] },
+      threatHolds: [['rifle', 70], ['pistol', 30]], noshootHolds: [['hands', 60], ['phone', 40]],
+    },
+    gaps: { door: { 'w4.r2': [300, 1200], 'w4.r3': [500, 1500] }, doorOther: [300, 1200], zone: [1500, 3000] },
+    funnelM: 0.5, funnelFaultMs: 1000, flagM: 0.3, flagReachM: 5, twoSlotM: 1.5, twoWaitMs: 3000, twoBehindM: 0.65, stackM: 0.4,
+    stallMs: 60_000, stallMoreMs: 30_000, laneMaxMs: 600_000, washMs: 90_000,
   },
   // (0.0.10: test-stress's course, on pairs.js's engine (see the header); src/sim/scenarios/stress.js)
   stress: {
@@ -376,4 +405,69 @@ export const STRESS_COACH = deepFreeze({
   // (the step's four counts of a second each, in, hold, out, hold: never "for four" (the design review of 0.0.10: the words
   // promised a 16 s box the 4 s step is not))
   breathe: ['Breathe. Box it: in, hold, out, hold.', 'Breathe. In, hold, out, hold.'],
+});
+
+/** The house course's sequence (see the header): the instructor's commands on the PA, { id, ready, say, short? }. */
+export const SEQ_HOUSE = deepFreeze([
+  { id: 'brief', ready: 'always', say: ["Lane A. Three rooms and the hall, you and your number two. Full G in the Wheel: your kit weighs what it weighs on Earth. On my GO you stack and clear. Threats down, no-shoots untouched. My timer, not your wounds.",
+    "This is lane A: three rooms, then the hall, at one G. You and your number two clear it on my GO. Put the threats down and leave the no-shoots alone. I run the timer."] },
+  { id: 'load', ready: 'magIn', short: 'Ten rounds, LOAD.', say: ['Practice rounds. With a magazine of ten, LOAD.', 'Frangible today. Your first magazine, ten rounds. LOAD.'] },
+  { id: 'ready', ready: 'houseStart', short: 'MAKE READY. Low ready, on safe, on your mark.', say: ['MAKE READY. Low ready, on safe, on your mark. Combat.', 'MAKE READY. On safe, low ready, on your mark, and your number two behind you.'] },
+  { id: 'standby', ready: 'goArm', say: ['Standby.', 'Lane A. Standby.'] },
+  { id: 'go', ready: 'laneDone', say: ['GO!', 'GO, GO, GO!'] },
+  { id: 'stop', ready: 'houseSafe', short: 'Stop. On safe.', say: ['Stop. On safe, finger off.', 'Stop, stop. Make safe.'] },
+  { id: 'clear', ready: 'shown', say: ['UNLOAD, SHOW CLEAR.', 'UNLOAD, SHOW CLEAR to me.'] },
+  { id: 'wash', ready: 'washed', say: ['The lane is clear. Hot wash, in the booth.', 'The lane is clear. Into the booth: hot wash.'] },
+  { id: 'end', ready: 'never', say: ["That's your lane.", 'Done. Off the floor.'] },
+]);
+
+/** What the instructor says to a shooter the line waits on ("Shooter, back on your mark."), by what is lacking (shoothouse.js houseWant). */
+export const HOUSE_NUDGE = deepFreeze({ mag: 'a magazine in.', chamber: 'a round up: MAKE READY.', safe: 'on safe, finger off.', low: 'low ready.', out: 'out of it.',
+  mark: 'back on your mark.', still: 'stand still.', gait: 'Combat. Weapon up.', two: 'wait for your number two.', show: 'show me clear.' });
+
+/**
+ * The instructor's words (see the header), each ≥ 2 phrasings: his faults from the catwalk as they happen, at most one
+ * other line a room, nothing while a take-in runs; the hot wash's lines ({room} a room's word, {s} seconds, {n} a count).
+ */
+export const HOUSE_CHIEF = deepFreeze({
+  brief: ['Your number two takes the far corner of every room you cross. Muzzles up in the stack.', 'Two of you, one lane. He goes where you do not. Muzzle up, never across him.'],
+  // (the brief's second sentence, by the floor's gravity where you stand (shoothouse.js gravityWords): {g} in G)
+  full: ['Full G here: your kit weighs what it weighs on Earth.', 'One G on this deck. Your kit weighs its full weight.'],
+  gravity: ['{g} G on this deck.', 'This deck pulls {g} G.'],
+  back: ['Back on your mark. Wait for GO.', 'Not yet. Back on your mark and wait for GO.'],
+  funnel: ["Don't stop in the door!", 'Out of the door! You are a target in it.'],
+  corner: ['Your corner!', 'Corner! You never looked.'],
+  muzzle: ['Muzzle!', 'Muzzle! Not across your number two.'],
+  relaxed: ["Weapon up. You're in their house.", "Weapon up! You're in their house."],
+  noshoot: ['No-shoot! He had nothing.', 'That was a no-shoot. Look before you press.'],
+  hostage: ['You hit the hostage!', 'Hostage hit! Head only, or hold.'],
+  standing: ['He is still standing in there.', 'You left one up.'],
+  door: ['That door was never held.', 'You left a door at your back.'],
+  stall: ['Move on.', 'Move. You are clearing, not visiting.'],
+  time: ['Time. On to the next.', 'Time on that room. Next door.'],
+  par: ['He fired first.', 'Too slow. He fired first.'],
+  clear: ['Clear.', 'Good. Clear.'],
+  dry: ['You are dry. That is the lane.', 'Nothing left to fire. Lane over.'],
+  laneTime: ['Ten minutes. That is the lane.', 'Time on the lane. Stop.'],
+  two: ["Your number two's not with you.", 'Wait for your number two.'],
+  dummy: ['That was my dummy. Tap, rack, back on him.', 'My dummy. Cleared. Good.'],
+  stop: ['Cease fire! Cease fire!', 'CEASE FIRE! Cease fire!'],
+  wash: ['Hot wash. Sit down, look at the board.', 'Hot wash. Here is your lane, room by room.'],
+  spin: ['The Wheel puts a round low along the spin.', 'The Wheel drops a round low along the spin. Not enough to miss by, in a room.'],
+  // (the one thing to do differently, by the worst number of the run (COMBAT §17.2): the hot wash's last line)
+  one: {
+    funnel: ['You stood in the doorway. Through it, to your point, and stop there.', 'The door is where they shoot you. Keep moving through it.'],
+    // (below rung 2, where the take-in's brake stops you in the door: the one decision that keeps the feet going (COMBAT §25.5.2; the fixer's of 0.0.12))
+    funnelKeys: ['You stood in the doorway. Set a Watch on your corner before X: your feet keep going through the door.', 'The door is where they shoot you. Watch your corner before you go, and the pause will not stop you in it.'],
+    par: ['He fired first. Set a Watch on your corner before you go: your eyes are there when he is.', 'Too slow off the sighting. Muzzle on the corner before you cross the door.'],
+    corner: ['You called clear with a corner unlooked. Every corner, then the call.', 'Look into every corner before you call it.'],
+    muzzle: ['Your muzzle crossed your number two. High ready in the stack, always.', 'Never across your number two. Muzzle up when he is in front of it.'],
+    noshoot: ['You shot a no-shoot. Identify, then press.', 'Hands first. Then the trigger.'],
+    hostage: ['You hit the hostage. With a hostage it is the head or nothing.', 'Hostage: head only, or hold.'],
+    standing: ['You left a man standing. Down, then on.', 'Never leave one up behind you.'],
+    door: ['You left the inner door. Hold it, or clear it.', 'A closed door at your back is a man at your back. Hold it.'],
+    dummy: ['The click: tap, rack, back on him. It should be quicker.', 'The dummy cost you. Tap, rack, and back on target without thinking.'],
+    time: ['Too slow through the rooms. The same drill, quicker hands.', 'Faster between the rooms. The pause is the only time you get.'],
+    clean: ['Clean lane. Again, faster.', 'Clean. Now do it again, and quicker.'],
+  },
 });

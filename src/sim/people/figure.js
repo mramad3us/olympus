@@ -64,8 +64,9 @@ export function lookFor(look, outfit = 'utilities', indoors = false, step = 0) {
   return spec;
 }
 
-/** Whether the live area has a roof (a floor of a building, a deck): covers off. */
-export const indoorsNow = (state) => areaOf(state.places?.live?.area)?.kind === 'floor';
+/** Whether the live area has a roof (a floor of a building, a deck: the Wheel's, 0.0.12): covers off. */
+export const ROOFED_KINDS = Object.freeze(new Set(['floor', 'deck']));
+export const indoorsNow = (state) => ROOFED_KINDS.has(areaOf(state.places?.live?.area)?.kind);
 
 // (the body's cues for the player, zeros where the body says nothing)
 function cuesFor(state, pid, ms) {

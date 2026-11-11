@@ -53,12 +53,21 @@
 // 0.0.9 (the build sheet 0.0.9 §2.1, §8 item 9; COMBAT §25.18.1): a row's aim, press, splits, shift and recovery are ×
 // the roller's timeK at the row's start (combat/supp.js suppTimeK, exactly 1 when calm), each round's odds carry the
 // chaos's one entry through the roller, so a pinned recruit's Pair is slower and its odds the roll's.
+// 0.0.12 (the build sheet 0.0.12 §2.2, §8 items 14, 26; COMBAT §25.6.1, §25.9): with the body moving at the pause in Combat
+// or Assault (the actor's velocity over MOVING_MS, as a bundle's entry cut by the contact leaves it), each shot row comes
+// in two: '<row>@moving' ("Pair, moving on · −2": the feet carry on along the rest of the path while the rounds go, each
+// round at movingMod: Combat −4, −2 from Marksmanship 15; Assault from rung 2 within ASSAULT_FIRE_M 10 m mitigated(−8,
+// Marksmanship, 30, 0.25), below rung 2 struck "plant first", beyond 10 m struck "area fire only") and '<row>@planted'
+// (the body brakes to a stop first: a 'brake' part of v / the legs' brake, BODY §16.2). A hostage card puts To the head
+// first, offered without "He's still up", and strikes the torso rows "the hostage".
 // Pure but runRound, runRowSub and endRowSub.
 import { logEntry } from '../log.js';
 import { paceOf } from '../skills/skills.js';
 import { oddsOf, TEMPO } from '../skills/checks.js';
 import { rollerOf } from '../combat/roll.js';
 import * as TEMPLATES from '../skills/templates.js';
+import { mitigated } from '../skills/skills.js';
+import { legsHere } from '../places/move.js';
 import { SEEN } from '../people/perception.js';
 import { aimMsOf, heldOf, dcOf, modsOf, resolveShot, fireMs, recoverMs, TRIGGER_S, TAP_SPLIT_S, HELD_MAX, HELD_RATE0, climbOf, BURST_K, ANCHOR, SUPPORT, PLATE_MM } from './shot.js';
 import { A_MARGIN } from './paper.js';
@@ -99,7 +108,13 @@ export const ROWS = Object.freeze({
 /** The rows' base order (COMBAT §25.6.1). */
 export const ROW_ORDER = Object.freeze(['pair', 'hammer', 'triple', 'failure', 'head']);
 /** A row by its step id ('shot:pair'), or null. */
-export const rowOf = (id) => (typeof id === 'string' && id.startsWith('shot:') ? ROWS[id.slice(5)] ?? null : null);
+export const rowOf = (id) => (typeof id === 'string' && id.startsWith('shot:') ? ROWS[id.slice(5).split('@')[0]] ?? null : null);
+/** A row id's way of moving: 'moving', 'planted' or null ('shot:pair@moving'). */
+export const rowWay = (id) => (typeof id === 'string' && id.includes('@') ? id.split('@')[1] : null);
+/** The body moves at the pause above this speed (m/s), and Assault's close-quarters fire holds within ASSAULT_FIRE_M. */
+export const MOVING_MS = 0.1, ASSAULT_FIRE_M = 10;
+/** Fire on the move (COMBAT §25.9): Combat's −4, −2 from Marksmanship 15; Assault's mitigated(−8, MRK, 30, 0.25) from rung 2. */
+export const MOVE_FIRE = Object.freeze({ combat: -4, combatEased: -2, easedFrom: 15, assault: -8, assaultFull: 30, assaultKeep: 0.25 });
 /** The parts' words (the panel's sub-steps). */
 export const PART_LABELS = Object.freeze({ aim: 'Aim', hold: 'Hold the aim', press: 'Press', round: 'Round', shift: 'Shift to the head' });
 /** The reloads' purposes and their labels by macro id (COMBAT §25.6.5). */
@@ -143,6 +158,23 @@ function rangOn(state, key) {
 export const stillUp = (state, key) => !(turnerRec(state, key)?.stoppedAtMs != null) && (rangOn(state, key) > 0 || torsoHits(state, key) >= STILL_UP_TORSO);
 /** Armour seen on the target at the pause (contact.js's identification). */
 const armourSeen = (state, key) => !!contactNow(state)?.last?.armour?.[key];
+/** The body's motion at the pause (see the header): { vMs, stance } over MOVING_MS in Combat or Assault, else null. */
+export function movingOf(state, pid) {
+  const me = state.actors?.list?.find(a => a.who === pid) ?? null, v = Math.hypot(me?.v?.[0] ?? 0, me?.v?.[1] ?? 0);
+  if (!me || v <= MOVING_MS || (me.moveStance !== 'combat' && me.moveStance !== 'assault')) return null;
+  return { vMs: v, stance: me.moveStance };
+}
+/** The modifier on a round fired moving on (see the header): { v, why } or { off } (the row struck). */
+export function movingMod(state, pid, stance, reachM) {
+  const mrk = rollerOf(state, pid).value('marksmanship');
+  if (stance === 'assault') {
+    if (rungOfShooter(state, pid) < RUNG_AIM) return { off: 'plant first' };
+    if (reachM > ASSAULT_FIRE_M) return { off: 'area fire only' };
+    return { v: mitigated(MOVE_FIRE.assault, mrk, MOVE_FIRE.assaultFull, MOVE_FIRE.assaultKeep), why: 'at a lope' };
+  }
+  return { v: mrk >= MOVE_FIRE.easedFrom ? MOVE_FIRE.combatEased : MOVE_FIRE.combat, why: 'moving' };
+}
+
 /** The failure drill's assessment: the target down after the pair (the scene's hit sensor: T.stoppedAtMs at or before atMs). */
 export function assessDown(state, key, atMs = state.clock.ms) {
   const T = turnerRec(state, key);
@@ -155,14 +187,17 @@ export function assessDown(state, key, atMs = state.clock.ms) {
  * tempo 'normal' | 'rushed' | 'careful'; atMs the row's start (the held aim's clock); odds false for the times alone (the panel's rushed and careful).
  */
 export function rowPlan(state, pid, rowId, target, { tempo = 'normal', atMs = state.clock.ms, gunId = state.stop?.gun ?? gunOn(state, pid), odds = true } = {}) {
-  const R = rowOf(rowId) ?? ROWS[rowId];
+  const R = rowOf(rowId) ?? ROWS[rowId], way = rowWay(rowId), mv = way ? movingOf(state, pid) : null;
+  const moving = way === 'moving' && mv ? movingMod(state, pid, mv.stance, target?.dM ?? Infinity) : null;
   if (!R || !target) return null;
   const roller = rollerOf(state, pid, { ms: atMs }), wh = roller.value('weapons'), mrk = roller.value('marksmanship'), pace = paceOf(wh);
   const gun = state.items?.[gunId], M = MODELS[gun?.model ?? 'r7'], recoil = M.recoil, rpm = M.rpm ?? 700;
   // (0.0.9: the parts × the chaos's time, the roller's at the row's start (exactly 1 when calm); the aim's own is aimMsOf's)
   const kt = tempo === 'rushed' ? TEMPO.rushed.timeK : 1, k = kt * roller.timeK, t = (ms) => Math.round(ms * k), tt = (ms) => Math.round(ms * kt);
-  const aimed = state.stop?.aim?.key === target.key, rung = rungOfShooter(state, pid), b = beliefOf(state, gunId);
+  const aimed = state.stop?.who === pid && state.stop?.aim?.key === target.key, rung = rungOfShooter(state, pid), b = beliefOf(state, gunId);
   const parts = [];
+  // (0.0.12: planted, the body brakes to a stop first (see the header))
+  if (way === 'planted' && mv) { const me = state.actors?.list?.find(a => a.who === pid); parts.push({ k: 'brake', ms: Math.round(mv.vMs / legsHere(state, pid, me.x, me.z).brakeMs2 * 1000) }); }
   const aim = !aimed && rung >= RUNG_AIM;
   if (aim) parts.push({ k: 'aim', ms: tt(aimMsOf(state, pid, gunId, target, { ms: atMs })) });
   const rate = HELD_RATE0 + mrk / 10;
@@ -182,7 +217,7 @@ export function rowPlan(state, pid, rowId, target, { tempo = 'normal', atMs = st
   for (const p of parts) { p.at = at; at += p.ms; }
   // (each round's odds on the roll's own list: the held aim at its time (the first's from the aim's settle; the rest
   // carry the first's; after a shift none), its climb, the tempo's −3)
-  if (!odds) return { ms: at, parts, rounds: [], aim, offSafe: rung >= RUNG_AIM && b?.mode === 'safe', tempo };
+  if (!odds) return { ms: at, parts, rounds: [], aim, offSafe: rung >= RUNG_AIM && b?.mode === 'safe', tempo, way, moving: moving?.v ? moving : null };
   const aimEnd = aim ? parts[0].ms : null, roundTempo = tempo === 'rushed' ? 'rushed' : 'normal';
   const dcs = { torso: dcOf({ model: gun?.model ?? 'r7', rangeM: target.dM ?? 7, part: 'torso' }).dc, head: dcOf({ model: gun?.model ?? 'r7', rangeM: target.dM ?? 7, part: 'head' }).dc };
   let held0 = 0;
@@ -191,11 +226,11 @@ export function rowPlan(state, pid, rowId, target, { tempo = 'normal', atMs = st
     let held;
     if (p.i === 0 && !shifted) held0 = held = aimEnd !== null ? Math.round(Math.min(HELD_MAX, Math.max(0, (p.at - aimEnd) / 1000) * rate)) : heldOf(state, pid, abs, target.key).v;
     else held = shifted ? 0 : held0;
-    const mods = modsOf(state, pid, { gunId, target, part: p.part, tempo: roundTempo, follow: p.follow, climbK: p.climbK, ms: abs, held: { v: held } });
+    const mods = modsOf(state, pid, { gunId, target, part: p.part, tempo: roundTempo, follow: p.follow, climbK: p.climbK, ms: abs, held: { v: held }, moving: moving?.v ? moving : null });
     const climb = mods.find(m => m.why === 'the muzzle still up from the last')?.v ?? 0;
     return { part: p.part, follow: p.follow, climbK: p.climbK, at: p.at, odds: oddsOf(mrk, dcs[p.part], mods), climb, held, dc: dcs[p.part] };
   });
-  return { ms: at, parts, rounds, aim, offSafe: rung >= RUNG_AIM && b?.mode === 'safe', tempo };
+  return { ms: at, parts, rounds, aim, offSafe: rung >= RUNG_AIM && b?.mode === 'safe', tempo, way, moving: moving?.v ? moving : null };
 }
 
 // (the gun believed able: in the hands, a round believed chambered, no stoppage, the bolt forward)
@@ -234,16 +269,17 @@ export function shotRows(state, pid, ms = state.clock.ms) {
   if (!S || S.mode !== 'stop' || !S.pick) return [];
   const T = targetOf(state, S.pick, pid), gunId = S.gun, b = beliefOf(state, gunId);
   if (!rowTarget(state, T)) return [];
-  const up = stillUp(state, T.key), able = ableOf(b);
+  // (still up only on a man meant to go down: a no-shoot hit twice never asks for his head (the fixer's of 0.0.12))
+  const up = T.face !== 'noshoot' && T.face !== 'hostage' && stillUp(state, T.key), able = ableOf(b);
   // (the gun believed unable: no row, but To the head after "He's still up", struck with why (see the header: never silent))
   if (!able && !up) return [];
   const mrk = rollerOf(state, pid, { ms }).value('marksmanship'), rung = rungOfShooter(state, pid), aimed = S.aim?.key === T.key;
-  const reachM = reachOf(state, pid, T), armour = armourSeen(state, T.key);
-  const order = !able ? ['head'] : up ? ['head', 'failure', 'pair', 'hammer', 'triple'] : armour ? ['failure', 'pair', 'hammer', 'triple'] : ['pair', 'hammer', 'triple', 'failure'];
+  const reachM = reachOf(state, pid, T), armour = armourSeen(state, T.key), hostage = T.face === 'hostage';
+  const order = !able ? ['head'] : up || hostage ? ['head', 'failure', 'pair', 'hammer', 'triple'] : armour ? ['failure', 'pair', 'hammer', 'triple'] : ['pair', 'hammer', 'triple', 'failure'];
   const left = able ? believedLeft(b) : null, offered = [], struck = [];
   for (const key of order) {
     const R = ROWS[key];
-    if (key === 'head' && !up) continue;
+    if (key === 'head' && !up && !hostage) continue;
     const far = reachM > R.maxM;
     if (far && key !== 'head') continue;
     const plan = rowPlan(state, pid, R.id, T, { atMs: ms, gunId }), rush = rowPlan(state, pid, R.id, T, { atMs: ms, gunId, tempo: 'rushed', odds: false }), care = rowPlan(state, pid, R.id, T, { atMs: ms, gunId, tempo: 'careful', odds: false });
@@ -255,6 +291,7 @@ export function shotRows(state, pid, ms = state.clock.ms) {
     else if (b.mode === 'auto') off = 'on auto';
     else if (rung < RUNG_AIM && b.mode === 'safe') off = 'off safe first';
     else if (rung < RUNG_AIM && !aimed) off = 'aim first';
+    else if (hostage && key !== 'head') off = 'the hostage';
     const row = { id: R.id, kind: 'shot', label: R.label, ms: plan.ms, rushMs: rush.ms, carefulMs: care.ms, odds: plan.rounds[0].odds, routine: false, off,
       subs: plan.parts.map(p => ({ id: p.k, label: p.k === 'round' ? `${p.part === 'head' ? 'Head' : 'Round'} ${p.i + 1}` : PART_LABELS[p.k], ms: p.ms })),
       cmd: false, skill: 'marksmanship', target: T.key, rounds: plan.rounds.map(r => ({ part: r.part, odds: r.odds, climb: r.climb, follow: r.follow, climbK: r.climbK })),
@@ -262,14 +299,32 @@ export function shotRows(state, pid, ms = state.clock.ms) {
     (off && off.startsWith('Marksmanship') ? struck : offered).push(row);
   }
   const lead = offered.find(r => !r.off);
-  if (lead && (up || armour)) lead.first = true;
-  return [...offered, ...struck];
+  if (lead && (up || armour || hostage)) lead.first = true;
+  // (0.0.12: moving at the pause, each row comes in two, moving on and planted (see the header))
+  const mv = movingOf(state, pid);
+  if (!mv) return [...offered, ...struck];
+  const two = (row) => {
+    const m = movingMod(state, pid, mv.stance, reachM), out = [];
+    const variant = (way) => {
+      const id = `${row.id}@${way}`, plan = rowPlan(state, pid, id, T, { atMs: ms, gunId });
+      return { ...row, id, ms: plan.ms, odds: plan.rounds[0]?.odds ?? row.odds, rounds: plan.rounds.map(r => ({ part: r.part, odds: r.odds, climb: r.climb, follow: r.follow, climbK: r.climbK })),
+        parts: plan.parts.map(p => ({ k: p.k, ms: p.ms, ...(p.part ? { part: p.part } : {}) })), subs: plan.parts.map(p => ({ id: p.k, label: p.k === 'round' ? `${p.part === 'head' ? 'Head' : 'Round'} ${p.i + 1}` : PART_LABELS[p.k] ?? p.k, ms: p.ms })), way };
+    };
+    const moving = variant('moving');
+    moving.label = m.off ? `${row.label}, moving on` : `${row.label}, moving on · ${m.v}`;
+    if (m.off && !row.off) moving.off = m.off;
+    const planted = variant('planted');
+    planted.label = `${row.label}, planted`;
+    out.push(moving, planted);
+    return out;
+  };
+  return [...offered.flatMap(two), ...struck];
 }
 
 // ---- the row played (shooting.js runSub, endSub) ----
 
 /** The plan a step keeps (saved, so whole numbers and words only): parts { k, ms, i?, part?, follow?, climbK? }. */
-export const keptPlan = (plan) => ({ ms: plan.ms, offSafe: !!plan.offSafe, parts: plan.parts.map(p => ({ k: p.k, ms: p.ms, ...(p.k === 'round' ? { i: p.i, part: p.part, follow: p.follow, climbK: p.climbK } : {}) })) });
+export const keptPlan = (plan) => ({ ms: plan.ms, offSafe: !!plan.offSafe, ...(plan.moving ? { moving: { v: plan.moving.v, why: plan.moving.why } } : {}), ...(plan.way ? { way: plan.way } : {}), parts: plan.parts.map(p => ({ k: p.k, ms: p.ms, ...(p.k === 'round' ? { i: p.i, part: p.part, follow: p.follow, climbK: p.climbK } : {}) })) });
 
 /**
  * One 'round' sub-step (w; see the header): resolveShot on the round's formula time, its part, follow and climb, the
@@ -286,7 +341,7 @@ export function runRound(state, bus, d, i, atMs) {
   else held = { v: shifted ? 0 : d.held0 ?? 0 };
   const tempo = d.tempo === 'rushed' ? 'rushed' : 'normal';
   const { shot } = resolveShot(state, bus, { pid, gunId, target: T, part: p.part, tempo, follow: p.follow, climbK: p.climbK, held, atMs,
-    row: { id: d.step, n: R?.rounds.length ?? 1, i: p.i } });
+    row: { id: d.step, n: R?.rounds.length ?? 1, i: p.i }, ...(d.plan.moving ? { moving: d.plan.moving } : {}) });
   recordShot(state, bus, shot);
   let ms = p.ms;
   const gun = state.items[gunId], ro = rollerOf(state, pid, { ms: atMs }), pace = paceOf(ro.value('weapons')), M = MODELS[gun?.model ?? 'r7'];
@@ -304,6 +359,7 @@ export function runRowSub(state, bus, d, i, atMs) {
   const p = d.plan.parts[i];
   if (p.k === 'round') return runRound(state, bus, d, i, atMs);
   if (p.k === 'shift') return { ms: p.ms, text: 'To the head.' };
+  if (p.k === 'brake') return { ms: p.ms, text: 'Planted.' };
   if (p.k === 'press') return { ms: p.ms, text: 'The press.' };
   return { ms: p.ms, text: PART_LABELS[p.k] ?? p.k };
 }

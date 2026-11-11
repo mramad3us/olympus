@@ -39,6 +39,16 @@
 // the session's named magazines (armoury.range.mags{}, the short one named for Top up: armoury.range.wantMag).
 // 0.0.10 (the build sheet 0.0.10 §2.1; COMBAT §5.2): the action 'breathe', Breathe in the mode or out of it (shooting.js
 // breatheAction; the act gate refuses it while a take-in window is open or the marine is startled).
+// 0.0.12 (the build sheet 0.0.12 §2.6): test-shoothouse's house course (src/sim/scenarios/shoothouse.js) adds to the tick:
+//   input    shoothouse.js houseInputBefore and houseInput round stopInput (your "Clear!" by a beat, the presses counted);
+//   actors   houseActors after pairsActors (lived: GO armed at the standby, the turners' triggers, the #2's slot and rows,
+//            the instructor's walk on the catwalk);
+//   rules    houseRules in place of handling.js rangeRules on the house course (the funnel, the flag, the corners, the
+//            stalls, the safety stop: the range's ND rule is not the house's);
+//   actions  gait (V in the house: shooting.js gaitAction, the drill's) and drill:stop (Backspace: bundle.js stopBundle,
+//            the bundle stopped after its beat);
+// and its id fields the house's people and the dummy's magazine (armoury.range.house.twoPid, .chiefPid, .two.pid,
+// .two.aid, .dummy.magId).
 import { fillDomain } from '../../core/state.js';
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { playerId } from '../../core/ids.js';
@@ -47,6 +57,9 @@ import { habitStep } from './carry.js';
 import { onRangeCmd, rangeRules, rangeSecond } from '../scenarios/handling.js';
 import { onPitEvent, safety, kdActors, kdAct } from '../scenarios/range.js';
 import { pairsActors } from '../scenarios/pairs.js';
+import { houseActors, houseRules, houseInput, houseInputBefore } from '../scenarios/shoothouse.js';
+import { stopBundle } from '../combat/bundle.js';
+import * as SHOOTING from './shooting.js';
 
 const KEYS = Object.freeze(['stop', 'items', 'armoury']);
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act ?? '');
@@ -100,12 +113,24 @@ function stance(state, action, bus) {
   stanceAction(state, bus, dir);
 }
 
-// (the rules layer's one contributor: stop motion's, the carry habit's, the range's, in that order)
+// (0.0.12: V in the house, the movement stance cycled (the drill's shooting.js gaitAction; nothing where it is not built))
+function gait(state, action, bus) { if (typeof SHOOTING.gaitAction === 'function') SHOOTING.gaitAction(state, bus); }
+// (0.0.12: Backspace, a running bundle stopped after its beat)
+function drill(state, action, bus) { const name = nameOf(action); if (name === 'drill:stop' || argsOf(action).id === 'stop') stopBundle(state, bus); }
+
+// (the rules layer's one contributor: stop motion's, the carry habit's, the range's (0.0.12: the house's on its course), in that order)
 function rules(state, input, bus, ctx) {
   stopRules(state, input, bus, ctx);
   habitStep(state, input, bus, ctx);
-  rangeRules(state, input, bus, ctx);
+  if (state.armoury?.range?.course === 'house') houseRules(state, input, bus, ctx);
+  else rangeRules(state, input, bus, ctx);
   safety(state, input, bus, ctx);
+}
+// (the input layer: stop motion's, the house's round it)
+function input(state, inp, bus, ctx) {
+  houseInputBefore(state);
+  stopInput(state, inp, bus, ctx);
+  houseInput(state, inp, bus, ctx);
 }
 
 /** WEAPONS' domain descriptor (see the header). */
@@ -115,12 +140,13 @@ export const weaponsDomain = Object.freeze({
   keys: KEYS,
   idMaps: Object.freeze({ items: 'i', 'armoury.guns': 'i' }),
   idFields: Object.freeze({ 'people{}.kit.worn{}': 'i', 'people{}.kit.hands[]': 'i', 'items{}.mag': 'i', 'items{}.holds[]': 'i', 'stop.gun': 'i', 'places.sites{}.items[].id': 'i',
-    'armoury.range.relay[].gunId': 'i', 'armoury.range.relay[].magIds[]': 'i', 'armoury.range.dummy.magId': 'i', 'armoury.range.mags{}': 'i', 'armoury.range.wantMag': 'i' }),
+    'armoury.range.relay[].gunId': 'i', 'armoury.range.relay[].magIds[]': 'i', 'armoury.range.dummy.magId': 'i', 'armoury.range.mags{}': 'i', 'armoury.range.wantMag': 'i',
+    'armoury.range.house.twoPid': 'p', 'armoury.range.house.chiefPid': 'p', 'armoury.range.house.two.pid': 'p', 'armoury.range.house.two.aid': 'a', 'armoury.range.house.dummy.magId': 'i' }),
   init(state) { for (const k of KEYS) fillDomain(state, k); },
-  fast: Object.freeze({ input: stopInput, actors: (s, i, b, c) => { kdActors(s, i, b, c); pairsActors(s, i, b); }, rules, second: rangeSecond }),
+  fast: Object.freeze({ input, actors: (s, i, b, c) => { kdActors(s, i, b, c); pairsActors(s, i, b); houseActors(s, i, b); }, rules, second: rangeSecond }),
   slow: Object.freeze([]),
   jobs: Object.freeze({}),
   events: Object.freeze({ 'range-cmd': onRangeCmd, pit: onPitEvent }),
-  actions: Object.freeze({ ready, digit, shoot, stop, carry, stance, kd, breathe }),
+  actions: Object.freeze({ ready, digit, shoot, stop, carry, stance, kd, breathe, gait, drill }),
   upgrades: Object.freeze([]),
 });

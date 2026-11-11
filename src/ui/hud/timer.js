@@ -22,6 +22,10 @@
 // after PAUSE TO FIRST on every noisy string; the last string adds "RELOAD 4.85 S ✗ ✓" (each try, a failed one red) and "SECOND
 // 1.15" (the second turner's take-in, on the amber band as the first's) after the splits. A paper of more rows than TIMER_H holds
 // grows to PAPER's 200 (TIMER_H_MAX), its strip longer.
+// 0.0.12 (the build sheet 0.0.12 §2.3, §2.4; COMBAT §25.10.4): in the shoot house the same paper is the instructor's lane timer (laneModel):
+// the lane's time from GO running ("LANE A · 12.4", whole tenths while it runs so the paper is drawn again ten times a second at most,
+// hundredths once stopped), a row a room ("ROOM 1 7.40", the room now running), the par of the threat in front of you counting down
+// ("PAR 3.00 · 1.2 LEFT"; "HE FIRED FIRST" in red past it, the harness's tone), and the lane's hits as marks; every number houseNow's.
 import { textW, writeText } from '../plaque.js';
 import { GLOWS } from '../../art/palette.js';
 
@@ -116,7 +120,7 @@ export function drawTimer(g, m, s = 1) {
   for (let i = 0; i < pw; i += 4) R(px0 + i, 4, 2, 1, GLASS);
   R(px0 + pw - 2, 6, 2, H - 10, PAPER_SHADE);
   const L = px0 + 6, Rt = px0 + pw - 6, lineH = 5 * k + 7;
-  putC(L, 10, 'TIMER', FAINT);
+  putC(L, 10, m.title ?? 'TIMER', FAINT);
   putC(Rt - textW(m.head) * k, 10, m.head, FAINT);
   R(L, 23, pw - 12, 1, PAPER_SHADE);
   let y = 29;
@@ -128,8 +132,10 @@ export function drawTimer(g, m, s = 1) {
     const vx = Rt - vw;
     // (the take-in, the scored thing, on an amber band: the marine's own time; 0.0.9 the freeze too)
     if ((r.mark === 'takein' || r.mark === 'froze') && r.value && !/-$/.test(r.value)) R(vx - 3, y - 2, vw + 6, 5 * k + 4, AMBER_C);
+    // (0.0.12: the lane's par missed, red; met, the ink's)
+    if (r.mark === 'late') putC(vx, y, r.value, RED_C);
     // (0.0.9: the safety's tries, a failed one red)
-    if (r.mark === 'tries') { let tx = vx; for (const ch of r.value) { putC(tx, y, ch, ch === '✗' ? RED_C : INKC); tx += (textW(ch) + 1) * k; } }
+    else if (r.mark === 'tries') { let tx = vx; for (const ch of r.value) { putC(tx, y, ch, ch === '✗' ? RED_C : INKC); tx += (textW(ch) + 1) * k; } }
     else putC(vx, y, r.value, INKC);
     y += lineH;
   }
@@ -158,7 +164,7 @@ export function createTimer(parent) {
     update(m, { ui = 1, dpr = globalThis.devicePixelRatio ?? 1 } = {}) {
       if (!m) { root.hidden = true; words = ''; return ''; }
       root.hidden = false;
-      const s = Math.max(1, ui * dpr), H = m.h ?? TIMER_H, sg = JSON.stringify([Math.round(s * 100), m.head, m.rows, m.zones, H]);
+      const s = Math.max(1, ui * dpr), H = m.h ?? TIMER_H, sg = JSON.stringify([Math.round(s * 100), m.title ?? null, m.head, m.rows, m.zones, H]);
       if (sg !== sig) {
         sig = sg;
         cv.width = Math.round(TIMER_W * s); cv.height = Math.round(H * s);
@@ -176,4 +182,43 @@ export function createTimer(parent) {
     },
     get text() { return root.hidden ? '' : words; },
   };
+}
+
+// ---- 0.0.12: the instructor's lane timer in the shoot house (houseNow's numbers) ----
+const tenth = (ms) => (Number.isFinite(ms) ? (Math.max(0, ms) / 1000).toFixed(1) : '-');
+/** A room's name on the paper: the leg's own word ("ROOM 1", "HALL"), else by its place. */
+export const roomWord = (r, i = 0) => r?.word ?? (r?.id === 'hall' || r?.door === 'hall' || r?.hall ? 'HALL' : `ROOM ${i + 1}`);
+/** The faces a par runs on (the scene's THREAT_FACES: a threat, the armoured, the man with the hostage). */
+const PAR_FACES = new Set(['threat', 'armoured', 'hostage']);
+/**
+ * The lane timer's model (drawTimer's shape): { title 'LANE TIMER', head 'LANE A', rows, zones, text, h }. hn: houseNow(state, ms)
+ * ({ lane, timerMs, parMs, legs (or rooms and hall): [{ word, state, ms, par, parMissed, zones }], contacts: [{ seenMs, firstAtMs,
+ * parMet, face }], end }); nowMs the game clock. Every number the scene's (a leg's ms is its own); the running ones in tenths, the
+ * stopped in hundredths; null before GO.
+ */
+export function laneModel(hn, nowMs = 0) {
+  if (!hn || !Number.isFinite(hn.timerMs)) return null;
+  const done = !!hn.end, t = hn.timerMs;
+  const rows = [{ label: done ? 'LANE' : 'GO', value: (done ? two : tenth)(t), mark: null }];
+  const legs = hn.legs ?? [...(hn.rooms ?? []), ...(hn.hall ? [{ ...hn.hall, hall: true }] : [])];
+  // (a leg once it has begun, its time the scene's: the one running in tenths)
+  for (const [i, r] of legs.entries()) {
+    if (!Number.isFinite(r.ms) || r.state === 'ahead') continue;
+    const over = r.state === 'clear' || r.state === 'passed' || done, late = r.par === 'missed' || Number(r.parMissed) > 0 || (r.contacts ?? []).some(c => c.parMet === false);
+    rows.push({ label: roomWord(r, i), value: (over ? two : tenth)(r.ms), mark: late ? 'late' : null });
+  }
+  // (the par of a threat still waiting for a round, counting down; past it, "HE FIRED FIRST")
+  const parMs = hn.parMs, open = (hn.contacts ?? []).filter(c => Number.isFinite(c.seenMs) && (c.face === undefined || PAR_FACES.has(c.face)) && (c.parMet === null || c.parMet === undefined) && !Number.isFinite(c.firstAtMs));
+  if (Number.isFinite(parMs) && open.length && !done) {
+    const c = open[open.length - 1], left = c.seenMs + parMs - nowMs;
+    rows.push(left > 0 ? { label: `PAR ${two(parMs)}`, value: `${tenth(left)} LEFT`, mark: null } : { label: 'PAR', value: 'HE FIRED FIRST', mark: 'late' });
+  }
+  // (at most TIMER_ROWS + 2 rows: the oldest legs give way)
+  while (rows.length > TIMER_ROWS + 2) rows.splice(1, 1);
+  const z = {};
+  for (const r of legs) for (const [k, n] of Object.entries(r.zones ?? {})) z[k] = (z[k] ?? 0) + (Number(n) || 0);
+  const zones = [...ZONE_ORDER, ['hostage', 'HOSTAGE HIT']].map(([k, word]) => ({ k: k === 'hostage' ? 'noshoot' : k, n: Number(z[k]) || 0, word })).filter(x => x.n > 0);
+  const head = `LANE ${hn.lane ?? 'A'}`, text = `${head} · ${rows.map(r => `${r.label} ${r.value}`).join(' · ')}${zones.length ? ` · ${zones.map(x => `${x.n} ${x.word}`).join(', ')}` : ''}`;
+  const h = Math.min(TIMER_H_MAX, Math.max(TIMER_H, paperFoot(rows, zones) + PAPER_FOOT_PAD));
+  return { title: 'LANE TIMER', head, rows, zones, text, h, numbers: { timerMs: t } };
 }

@@ -178,6 +178,17 @@
 // scene's againAsStress) led by its hardening word; Score asks the scene's three aspects (chaos, contrast, hands). The handle
 // gains stress(). ?bench=stress-din: the din's standby as the Boot recruit, its frames at a blank counted as at a bang.
 // For tests and shots, URL parameters skip the title (src/core/debug.js readParams):
+// The 0.0.12 round's (the build sheet 0.0.12 §2.4; COMBAT §25.7 to §25.11; VIEWS §7.4, §10, §11): "Stack and clear" (?play=
+// test-shoothouse[&tier=…][&par=basic|advanced|operator][&setup=go|room:2|room:3|hall|contact], the Tests menu's entry through the
+// picker, the Private focused, the par chooser under the sheets). PAPER is the instructor's lane timer (timer.js laneModel over the
+// scene's houseNow), in and out of stop motion; the panel's bundle rows and the running bundle's lanes (steps.js, the drill's bundleNow);
+// the instinct line's "T: <what> · <s>" (the row its act names, off the panel shown: actWordsOf); V cycles the movement stances where
+// the scene's spec sets stances (the sim's 'gait', in place of the carry), Backspace stops a running bundle after its beat ('drill:stop'),
+// and GO's guard holds the keys PAUSE_GUARD_MS from GO as the contact's pause does, so a key pressed in anticipation never spends the
+// first choice. The end card says the run sheet's card and the instructor's one thing, the three aspects, this session's runs room by
+// room, with the run sheet and the hot wash beside it (cards/house.js), and "Again as …" each sheet on the same seed (againAsHouse).
+// The sounds hear the 'house' and 'bundle' facts (audio/house.js), and the hall's reverb holds while you are in the house. The
+// handle gains house().
 // ?play=sandbox|barracks|test-shower|test-night|test-handling|test-range|test-pairs&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&area=<id>&at=<x>,<z>&face=<f>][&setup=hot|bench|mixed][&tier=…][&env=<preset>];
 // &ppm=16|24 (the density, 16 by default, the user's pick: src/render/scale.js; 24 a test density);
 // &mood=<name> (else the view's by the hour); &fog=1 (the samples'
@@ -272,6 +283,12 @@ import * as MARKS from './sim/arms/marks.js';
 import { createHitcard, cardModel, hitShown, hitTabs, HIT_LOOK } from './ui/hud/hitcard.js';
 import { paintHitcard, warmHitcard } from './art/doll/hitcard.js';
 import { stressLines, hotWash, sessionGrid, gridTable } from './ui/cards/stress.js';
+// (0.0.12: "Stack and clear": the scene's views (shoothouse.js), the drill's running bundle (bundle.js), the instructor's lane timer, the
+// run sheet and the hot wash (cards/house.js))
+import * as houseScene from './sim/scenarios/shoothouse.js';
+import * as BUNDLE from './sim/combat/bundle.js';
+import { laneModel } from './ui/hud/timer.js';
+import { runSheetEl, hotWashEl, houseRunLine, houseAspects, houseEndLines } from './ui/cards/house.js';
 import { hitFit } from './ui/hud/hitcard.js';
 import { breatheLead } from './ui/hud/instinct.js';
 import { isBreathe } from './ui/hud/steps.js';
@@ -348,11 +365,14 @@ view.warm();
 // ---- the engine ----
 const bus = createBus({ onError: (e, type) => broke(e, `a listener of '${type}'`) });
 let loop = null, sim = null;
+/** The house's fault tags owed while a take-in's window runs (shown at its end). */
+const faultsOwed = [];
 // (the game owns Tab, Space and the move keys only in play with no card up: on the title they move focus and press buttons)
 // (in stop motion the bare digit is refused: the step panel sends the step it showed, the build sheet 0.0.5 §2.4)
 const inStop = (s = loop?.state) => s?.stop?.mode === 'stop';
 // (0.0.8: while a contact is being taken in nothing is accepted: the keys are the marine's once he has taken it in)
-const input = createInput({ accept: (action, kind) => !!loop?.state && !loop.paused && !splash?.active && !(kind === 'digit' && inStop()) && !windowOpen() && !startledNow() && !pauseGuarded(action), swallow: () => !!loop?.state && !boot?.card && !boot?.page });
+// (0.0.12: V is the movement stances where the scene's spec sets stances: the carry is not queued there, the gait is (onAction))
+const input = createInput({ accept: (action, kind) => !!loop?.state && !loop.paused && !splash?.active && !(kind === 'digit' && inStop()) && !windowOpen() && !startledNow() && !pauseGuarded(action) && !(action === 'carry' && stancesNow()), swallow: () => !!loop?.state && !boot?.card && !boot?.page });
 // ---- the contact (0.0.8: contact.js contactNow, read once a tick) ----
 let contactMemo = { key: null, cn: null };
 /** The contact now (contactNow's { pending, last }), or null: read once a tick, never thrown. */
@@ -389,6 +409,8 @@ function startledNow(s = loop?.state) { return !!suppRead(s)?.startle; }
 // press took away the pause meant as its reward.)
 /** The pause's guard (ms of real time from when the page first sees a contact's pause). */
 const PAUSE_GUARD_MS = 350;
+/** When the page first heard the shoot house's GO (performance.now(); 0.0.12: GO's guard), or -Infinity. */
+let goSeenT0 = -Infinity;
 let guardSeen = { id: null, winT0: -Infinity, pauseT0: -Infinity };
 const keyDownAt = new Map();
 addEventListener('keydown', (e) => { if (!e.repeat) keyDownAt.set(e.code, performance.now()); }, true);
@@ -422,6 +444,12 @@ function pauseGuarded(action, e = null) {
     const until = sg.endT0 + (sg.stop || inStop() ? PAUSE_GUARD_MS : 0);
     if (now < until) return true;
     if (down !== undefined && down >= sg.t0 && down < Math.max(until, sg.endT0)) return true;
+  }
+  // (0.0.12: GO's guard: GO puts you in stop motion, so a key pressed in anticipation of it acts on nothing for PAUSE_GUARD_MS)
+  if (goSeenT0 > -Infinity) {
+    const goUntil = goSeenT0 + PAUSE_GUARD_MS;
+    if (now < goUntil) return true;
+    if (down !== undefined && down >= goSeenT0 - PAUSE_GUARD_MS && down < goUntil) return true;
   }
   if (g.pauseT0 === -Infinity) return false;
   const until = g.pauseT0 + PAUSE_GUARD_MS;
@@ -552,9 +580,11 @@ const boot = createBoot({ cb: {
   // (the hidden rolls only in debug, once the scene is over: tradecraft's)
   logLines: () => logLines(loop.state, { over: !!settings.debug && !!scene?.ended }),
   scenes: () => SCENE_IDS.map(id => SCENES[id]),                    // (the built scenes: a stub's spec, ROADMAP "anywhere" step 4, waits for its layout)
-  playScene: (scene, { tier = null } = {}) => playScene(scene, { tier }),
+  playScene: (scene, { tier = null, par = null } = {}) => playScene(scene, { tier, par }),
   // (0.0.8: a scene played as a sheet: the picker's sheets and their order, react's templates.js)
-  sheets: () => ({ sheets: TEMPLATES.TEST_SHEETS ?? {}, order: TEMPLATES.PICKER_TIERS ?? null, hard: hardOfSheet }),
+  sheets: () => ({ sheets: TEMPLATES.TEST_SHEETS ?? {}, order: TEMPLATES.PICKER_TIERS ?? null, hard: hardOfSheet,
+    // (0.0.12: the shoot house's pars, the course's own numbers, and each sheet's default)
+    parMs: COURSES.house?.pars ?? {}, parOf: (t) => COURSES.house?.parOfTier?.[t] ?? null }),
   sound: () => ({ volume: audio.volume, muted: audio.muted }),
   volume: (v) => { audio.setVolume(v); keepSound(); },
   mute: (on) => { audio.setMuted(on); keepSound(); },
@@ -570,11 +600,12 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
  * (test-pairs' sheet, 0.0.8: 'recruit' … 'tierone'; null the scene's private), scene (a scene's spec, src/data/scenes.js:
  * its host, environment, hour and setup; ROADMAP "anywhere" step 4) }.
  */
-function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, env = params.env } = {}) {
+function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env } = {}) {
   if (!scene && !SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
   // (0.0.8: tier, test-pairs' sheet (null: the scene's private); scenes never write a career)
   // (ROADMAP "anywhere" step 2: the URL's &env=<preset> runs every game this page starts under that environment)
-  return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(env ? { env } : {}) });
+  // (0.0.12: par, the shoot house's (null: the sheet's own))
+  return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}) });
 }
 /** The URL's start somewhere else (&area=, &at=, &face=), or null: an area alone starts at its spawn. */
 function atParam(scenario) {
@@ -619,8 +650,8 @@ const sceneOf = (s) => {
   return all.find(x => (x.setup ?? null) === setup) ?? all[0] ?? null;
 };
 /** Start a scene: a new game from its spec, at its hour (or the URL's), with the seed given or a new one, the URL's setup (else the scene's own), and a sheet's tier (test-pairs, 0.0.8). */
-function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null } = {}) {
-  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier }));
+function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null } = {}) {
+  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par }));
 }
 
 /** Play a state from here (new, loaded or imported). Resolves with it once its area shows (or the cut gives up). */
@@ -639,7 +670,10 @@ function launch(s, { from = null } = {}) {
   if (s.skip) splash.start({ id: s.skip.id, activity: s.skip.activity, kind: s.skip.kind, engine: s.skip.engine, fromMs: s.clock.ms, toMs: s.skip.toMs, where: s.skip.where, posture: s.skip.posture, mask: s.skip.mask, spotId: s.skip.spotId ?? null, chunkMs: s.skip.chunkMs ?? 0 }, splashContext(s, s.skip));
   const rec = sceneOf(s);
   scene = rec ? { rec, seed: s.meta.seed, ended: false, shown: false } : null;
-  if (rec?.goal) toasts.push(rec.goal, 'calm', { s: GOAL_S });
+  // (0.0.12: the shoot house's goal names your number two: the scene's houseGoal)
+  let goal = rec?.goal ?? null;
+  if (goal && s.armoury?.range?.course === 'house' && houseScene.houseGoal) { try { goal = houseScene.houseGoal(s) ?? goal; } catch (e) { broke(e, 'the goal'); } }
+  if (goal) toasts.push(goal, 'calm', { s: GOAL_S });
   // (0.0.10, the runtime review's: "Bang"'s hit card dolls made at the load, so the first card of a string paints in one frame)
   if (s.armoury?.range?.stress) { try { warmHitcard(); } catch (e) { broke(e, 'the hit card'); } }
   launched = { from, ticks: loop.stats.ticks, lost: loop.stats.lostTicks, checked: false };
@@ -832,6 +866,16 @@ bus.on('fx', (f) => {
 });
 bus.on('step', (f) => { if (f?.who === loop.state?.player?.id && f.phase === 'start') stepChosenMs = Number.isFinite(f.fromMs) ? f.fromMs : loop.state?.clock?.ms ?? null; });
 bus.on('reflex', (f) => { if (f?.phase === 'offer') reflexKeep = false; });
+// (0.0.12: the shoot house's lane and the drill's bundles: heard (audio/house.js); GO's guard from the page's first sight of GO; the
+// instructor's faults as tags, his words in the radio box)
+bus.on('house', (f) => {
+  if (f?.phase === 'go') goSeenT0 = performance.now();
+  // (the fault's tag in its words (FAULT_WORDS: "Fault: stopped in the door"), held while a take-in's window runs and shown at
+  // its end, as the sim holds the instructor's word (COMBAT §25.4.5: no words in the window; the fixer's of 0.0.12))
+  if (f?.phase === 'fault' && f.text) { const t = `Fault: ${houseScene.FAULT_WORDS?.[f.kind] ?? f.kind ?? 'the lane'}`; if (windowOpen()) faultsOwed.push(t); else toast(t, 'warn'); }
+  try { audio.fact('house', f, loop.state); } catch (e) { broke(e, 'the sound'); }
+});
+bus.on('bundle', (f) => { try { audio.fact('bundle', f, loop.state); } catch (e) { broke(e, 'the sound'); } });
 bus.on('range', (f) => {
   if (!f) return;
   if (f.phase === 'string') lastString = { n: f.n, score: f.score, of: f.of, v: f.v, shots: f.list ?? [] };
@@ -946,6 +990,8 @@ input.onAction((action, kind, e) => {
   // (0.0.8: a contact being taken in: Space and Esc alone, COMBAT §25.4.5; and the pause's guard (see pauseGuarded))
   if ((windowOpen() || startledNow()) && action !== 'pause' && action !== 'menu') return;
   if (pauseGuarded(action, e)) return;
+  // (0.0.12: V in the house cycles the movement stances, Relaxed, Combat, Assault (the sim's gait), in and out of stop motion)
+  if (action === 'carry' && kind !== 'up' && stancesNow() && !loop.paused) { input.queue('gait'); return; }
   if (inStop() && !loop.paused && stopKey(action, kind, e)) return;
   if (action === 'pause') loop.togglePause('player');
   else if (action === 'menu') boot.openMenu();
@@ -1033,6 +1079,15 @@ frameEl.addEventListener('pointerdown', (e) => {
   else input.queue({ act: 'stop', args: { step: 'aim', target: key, tempo: 'normal' } });
 });
 
+// (0.0.12: Backspace stops a running bundle at the end of its beat, the rest offered as "Carry on" (VIEWS §10's row; the drill's
+// 'drill:stop'), outside a splash and a card; in stop motion and out of it)
+addEventListener('keydown', (e) => {
+  if (e.code !== 'Backspace' || e.repeat || !loop?.state || boot?.card || boot?.page || splash?.active) return;
+  const d = loop.state.stop?.doing ?? null, bn = bundleRead(loop.state);
+  if (!bn && d?.kind !== 'bundle') return;
+  e.preventDefault();
+  if (!windowOpen() && !startledNow() && !pauseGuarded('drill:stop', e)) input.queue('drill:stop');
+});
 // (in a splash: Enter to the end, Backspace stop here; on the strip any key unbound there closes it, never T or Backspace)
 const SPLASH_OWN = new Set(['Space', 'KeyT', 'Backspace', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight', 'ControlLeft', 'ControlRight']);
 addEventListener('keydown', (e) => {
@@ -1147,6 +1202,8 @@ const sessionStress = new Map();
 function openEnd() {
   if (!scene) return;
   const { rec, seed } = scene;
+  // (0.0.12: the shoot house's own card)
+  if (loop.state?.armoury?.range?.course === 'house') return openHouseEnd(rec, seed);
   let said = null, pn = null;
   // (the range's summary, and on the KD an incident on a line of its own: sceneLines)
   try { const s = loop.state, r = s ? rangeNow(s) : null; said = sceneLines(r, r?.course === 'kd' ? kdOf(s) : null, { clockText }); } catch (e) { broke(e, 'the end card'); }
@@ -1211,8 +1268,85 @@ function openEnd() {
   } });
   boot.openCard('end', body, lines);
 }
+// ---- 0.0.12: "Stack and clear" (the build sheet 0.0.12 §2.3, §2.4) ----
+/** This session's shoot house runs, by seed, then by sheet: their lines room by room (page memory, never saved). */
+const sessionHouse = new Map();
+/** The shoot house's view now (houseNow), once a tick: null off its course. */
+let houseMemo = { key: null, hn: null };
+function houseRead(s) {
+  if (s?.armoury?.range?.course !== 'house' || !houseScene.houseNow) return null;
+  const key = `${s.clock.tick}|${s.clock.seq}|${s.clock.ms}`;
+  if (houseMemo.key === key && houseMemo.state === s) return houseMemo.hn;
+  let hn = null;
+  try { hn = houseScene.houseNow(s, s.clock.ms); } catch (e) { broke(e, 'the shoot house'); }
+  houseMemo = { key, state: s, hn };
+  return hn;
+}
+/** The running bundle now (the drill's bundleNow), once a tick, or null. */
+let bundleMemo = { key: null, bn: null };
+function bundleRead(s) {
+  if (!s || !BUNDLE.bundleNow) return null;
+  const key = `${s.clock.tick}|${s.clock.seq}|${s.clock.ms}|${s.stop?.doing?.step ?? ''}`;
+  if (bundleMemo.key === key && bundleMemo.state === s) return bundleMemo.bn;
+  let bn = null;
+  try { bn = BUNDLE.bundleNow(s, s.player.id); } catch (e) { broke(e, 'the bundle'); }
+  bundleMemo = { key, state: s, bn };
+  return bn;
+}
+/** Whether the scene being played turns V into the movement stances (its spec's stances: the build sheet 0.0.12 §8 item 7). */
+const stancesNow = (s = loop?.state) => !!(s && sceneOf(s)?.stances);
+/**
+ * The words T's keycap names before the press (0.0.12; COMBAT §25.11): the panel's row the line's act names ('stop:<row>'), its label
+ * and its time, "Stack on the door · 4.7 s"; the lane's bundle its rooms too ("Clear the house · 3 rooms and the hall · 13.6 s"); null
+ * where the act is no row of the panel shown (the act's own words are the line's).
+ */
+function actWordsOf(act, steps) {
+  const id = typeof act === 'string' ? act.replace(/^stop:/, '') : act?.args?.step ?? null;
+  if (!id || !steps?.length) return null;
+  const row = steps.find(x => x.id === id && !x.off);
+  if (!row) return null;
+  const secs = Number.isFinite(row.ms) && row.ms > 0 ? `${(row.ms / 1000).toFixed(1)} s` : null;
+  return [row.label, row.lane ?? null, secs].filter(Boolean).join(' · ');
+}
+/** The shoot house's end card: the run sheet's card line and the instructor's one thing, the aspects, the session's runs, the run sheet and the hot wash beside it. */
+function openHouseEnd(rec, seed) {
+  const s = loop.state, hn = houseRead(s), sheets = TEMPLATES.TEST_SHEETS ?? {};
+  let rs = null, hw = null;
+  try { rs = houseScene.runSheetOf ? houseScene.runSheetOf(s) : null; } catch (e) { broke(e, 'the run sheet'); }
+  try { hw = houseScene.hotWashOf ? houseScene.hotWashOf(s) : null; } catch (e) { broke(e, 'the hot wash'); }
+  const played = hn?.tier ?? s?.armoury?.range?.house?.tier ?? null, label = played ? sheets[played]?.label ?? played : null;
+  let runs = [];
+  if (played) {
+    const key = `${rec.id}|${seed}`, m = sessionHouse.get(key) ?? new Map();
+    m.set(played, houseRunLine(hn, { fmt: takeInWords, label }));
+    sessionHouse.set(key, m);
+    runs = [...m.entries()].filter(([, t]) => t).map(([t, text]) => ({ text, now: t === played }));
+  }
+  let side = null;
+  try {
+    const said = new Set([...(rs?.rows ?? []).map(r => r.words), typeof rs?.one === 'string' ? rs.one : rs?.one?.text].filter(Boolean));
+    const stand = new Map((hn?.turners ?? []).map(T => [T.key, T.stand]));
+    const sheetEl = runSheetEl(rs), washEl = hotWashEl(hw, { fmt: takeInWords, skip: said, nameOf: (k) => stand.get(k) ?? k });
+    if (sheetEl || washEl) { side = document.createElement('div'); side.className = 'house-side'; side.append(...[sheetEl, washEl].filter(Boolean)); }
+  } catch (e) { broke(e, 'the run sheet'); }
+  const again = againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null);
+  const par = s?.armoury?.range?.house?.par ?? null;
+  const { body, lines } = endCard({ scene: rec, seed, said: houseEndLines(hn, rs), sheet: label, runs, cards: side, aspects: houseAspects(hn, { fmt: takeInWords }), again, on: {
+    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null }),
+    againAs: (t) => againAs(rec, t),
+    score: () => openScore(),
+    title: () => quitToTitle(),
+  } });
+  boot.openCard('end', body, lines);
+}
 /** "Again as …" a sheet on the same seed (the scene's againAs: the same targets at the same gaps). */
 function againAs(rec, tier) {
+  // (0.0.12: the shoot house's own, the same draws on the seed; the par kept where it was chosen)
+  if (loop.state?.armoury?.range?.course === 'house') {
+    let h = null;
+    try { h = houseScene.againAsHouse ? houseScene.againAsHouse(loop.state, tier) : null; } catch (e) { broke(e, 'Again as'); }
+    return playScene(rec, { seed: h?.seed ?? scene?.seed ?? randomSeed(), tier: h?.tier ?? tier, par: h?.par ?? null, setup: null });
+  }
   let a = null;
   // (0.0.10: the stress course's own, which keeps the scene)
   try { a = loop.state?.armoury?.range?.stress && stressScene.againAsStress ? stressScene.againAsStress(loop.state, tier) : loop.state && pairsScene.againAs ? pairsScene.againAs(loop.state, tier) : null; } catch (e) { broke(e, 'Again as'); }
@@ -1264,6 +1398,7 @@ function stripNow(s) {
   return stripMemo.strip;
 }
 function render(alpha, s, info) {
+  if (faultsOwed.length && !windowOpen()) for (const t of faultsOwed.splice(0)) toast(t, 'warn');
   const t = performance.now(), dtMs = lastFrameT === null ? 0 : t - lastFrameT;
   lastFrameT = t;
   const lon = s ? lonAt(s) : 0;
@@ -1352,7 +1487,10 @@ function render(alpha, s, info) {
   const pause = weapon.on && !s.skip ? pauseOf(s) : null;
   // (0.0.10: Breathe running out of the mode counts the box on the lead; in the mode the panel's running view has it)
   const lead = benchLead ?? (pause && leadStands(s, pause) ? `Contact · ${takeInWords(pause.ms)} s.` : breath && !weapon.on ? breatheLead(breath.i) : weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
-  const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null, ui: uiK });
+  // (0.0.12: T's keycap names the row its act is and its time, from the panel shown)
+  let actWords = null;
+  if (weapon.on && now?.line?.act) { try { actWords = actWordsOf(now.line.act, readSim(s).steps); } catch (e) { broke(e, 'the instinct'); } }
+  const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null, ui: uiK, actWords });
   report.hud = { watch: faces, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on, far: weapon.far,
     terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '', timer, contact, lead, froze, chaos: view.stats.chaos ?? null, hit,
     contactPlate: contactPlate.hidden ? '' : contactPlate.dataset.text ?? '', parts: partsPlate.hidden ? '' : partsPlate.dataset.text ?? '' };
@@ -1425,7 +1563,8 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   const far = s && !hidden ? farHud(s, sim, on, { paper: keepPaper }) : farHud(null);
   if (!on) { stepPanel.update({ hidden: true }); reflexCard.update(null); paperInset.update(null); aimHud(null); return { ...HIDDEN_WEAPON, far: far?.words ?? '' }; }
   // (0.0.8: the pairs pad has no card to show close: PAPER is the coach's timer's (timerHud))
-  const onPairs = sim.range?.course === 'pairs';
+  // (0.0.12: the shoot house's PAPER is the instructor's lane timer too)
+  const onPairs = sim.range?.course === 'pairs' || sim.range?.course === 'house' || s.armoury?.range?.course === 'house';
   let stepsText = '', reflexText = '', paperText = '';
   // (zeroing: on the KD zero until the coach accepts it, the card counts the clicks dialled in this zero: kdNow's, shot.js zeroingOf)
   const distance = { distance: !!sim.kd, line: kdLineOf(sim.kd), hold: s.stop?.hold ?? null, zeroing: sim.kd?.zeroing ?? null };
@@ -1437,7 +1576,7 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   if (st.reflex) { stepPanel.update({ cardOnly: true, steps: [], belief: sim.belief, ui: uiK, ...distance }); reflexText = reflexCard.update(st.reflex, { keep: reflexKeep }); }
   else {
     reflexCard.update(null);
-    stepsText = stepPanel.update({ phase: st.phase, steps, page: stepPage, shift: input.peek().run, doing: st.doing, nowMs: s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), belief: sim.belief, ticks, ui: uiK, chaos: suppRead(s), ...distance });
+    stepsText = stepPanel.update({ phase: st.phase, steps, page: stepPage, shift: input.peek().run, doing: st.doing, nowMs: s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), belief: sim.belief, ticks, ui: uiK, chaos: suppRead(s), bundle: bundleRead(s), ...distance });
   }
   try {
     if (far?.open && !keepPaper) paperText = paperInset.update(null);
@@ -1626,7 +1765,13 @@ function aimHud(s, st = null, list = [], range = null) {
   // terms first and the plaque next to the label; beside it, under the label)
   const lh = farLabelEl.$p?.h ?? 12, G = STACK_GAP_PX;
   const sx = st0 ? st0.x + st0.w / 2 : 0;
-  const sideR = beside && p.x + p.w / 2 + 5 + 140 <= stage.W - 2, sideX = beside ? (sideR ? Math.round(p.x + p.w / 2 + 5) : Math.round(p.x - p.w / 2 - 5)) : 0;
+  // (0.0.12: and to the side with no other card under the stack's column: in the house room 1's second man stood just right
+  // of the first, and the contact's plate, the row's and the plaque covered him as he turned (the fixer's, after the runtime
+  // review); a turner still edge-on counts, his turn may come under the plates)
+  const others = beside && range?.course === 'house' ? list.filter(t => t.key !== shown.key && t.kind === 'turner' && !t.far).map(targetPx) : [];
+  const blockedAt = (right) => others.some(o => (right ? o.x > p.x && o.x - o.w / 2 < p.x + p.w / 2 + 150 : o.x < p.x && o.x + o.w / 2 > p.x - p.w / 2 - 150) && o.y + o.h / 2 > p.y - 90 && o.y - o.h / 2 < p.y + 20);
+  const fitsR = p.x + p.w / 2 + 5 + 140 <= stage.W - 2, fitsL = p.x - p.w / 2 - 5 - 140 >= 2;
+  const sideR = beside && fitsR && (!fitsL || !blockedAt(true) || blockedAt(false)), sideX = beside ? (sideR ? Math.round(p.x + p.w / 2 + 5) : Math.round(p.x - p.w / 2 - 5)) : 0;
   const tipX = st0 ? Math.round(sx - pq.w / 2) + pq.tip : beside ? (sideR ? sideX : sideX - pq.w) + pq.tip : Math.max(pq.tip + 2, Math.min(stage.W - (pq.w - pq.tip) - 2, p.x));
   const tipY = st0 ? (st0.side === 'above' ? st0.y + (tp ? tp.h + G : 0) + pq.h : st0.y + lh + G + pq.h) : beside ? Math.round(p.y - pq.h / 2) + pq.h : p.y - p.h / 2 - 3;
   place(aimPlaque, pq, tipX, tipY, k, 'tip', { ox, oy });
@@ -1832,6 +1977,9 @@ function frozeHud(s, { hidden = false } = {}) {
 }
 /** The coach's shot timer's paper on the pairs pad: the last string's, until the next string runs (in PAPER, in and out of stop motion). */
 function timerHud(s, { hidden = false } = {}) {
+  // (0.0.12: the shoot house's lane timer, the instructor's, from GO)
+  const hn = !hidden && s ? houseRead(s) : null;
+  if (hn) { try { return timerPaper.update(laneModel(hn, s.clock.ms), { ui: uiK }); } catch (e) { broke(e, 'the lane timer'); return timerPaper.update(null); } }
   const pn = !hidden && s ? pairsOf(s) : null;
   if (!pn) return timerPaper.update(null);
   const strs = pn.strs ?? [], running = pn.str && !pn.str.done, last = running ? null : [...strs].reverse().find(x => x.done !== null && x.done !== undefined) ?? null;
@@ -1985,7 +2133,7 @@ const handleMore = {
   /** R's offer now (places' handOffer). */
   offer() { const s = loop.state; return s ? handOffer(s) : null; },
   /** The sound's numbers (src/ui/audio/engine.js stats), and its master gain as the graph has it. */
-  get audio() { return { ...audio.stats, masterGain: audio.masterGain, contextState: audio.context?.state ?? 'none' }; },
+  get audio() { return { ...audio.stats, masterGain: audio.masterGain, contextState: audio.context?.state ?? 'none', hallOn: !!audio.stats.hallOn }; },
   /** The HUD's lines now: the watch's faces, the instinct's line, the toasts, the splash's plaque, ticker and strip. */
   get hud() { return report.hud; },
   /** The test scene playing ({ id, seed, ended }), or null. */
@@ -2016,6 +2164,21 @@ const handleMore = {
    * as shown: { k, key, phase, text, marks (drawn: [n, kind, zone, x, y]) } or null), din (the view's din layer), sound (audio/stress.js
    * stats), breathe ({ offer (supp.js breatheOffer), running (breatheRun) }) }, or null off the course.
    */
+  /**
+   * "Stack and clear" now (0.0.12): { now (houseNow), look (houseLook), sheet (runSheetOf), wash (hotWashOf), bundle (bundleNow), timer
+   * (the lane timer's words as drawn), steps (the panel's words), instinct (the line's words, T's act named), sound (audio/house.js stats) },
+   * or null off the course.
+   */
+  /** The live area's door leaves as the stage turns them (0.0.12: view.js leaves), or the one an opening names. */
+  leaves(id = null) { return view.leaves ? view.leaves(id) : null; },
+  house() {
+    const s = loop.state;
+    if (s?.armoury?.range?.course !== 'house') return null;
+    const safe = (fn) => { try { return fn(); } catch { return null; } };
+    return { now: houseRead(s), look: safe(() => houseScene.houseLook?.(s, s.clock.ms) ?? null), sheet: safe(() => houseScene.runSheetOf?.(s) ?? null), wash: safe(() => houseScene.hotWashOf?.(s) ?? null),
+      bundle: bundleRead(s), timer: timerPaper.text, steps: stepPanel.text, instinct: instinct.text, sound: audio.stats.house ? { ...audio.stats.house, byKind: { ...audio.stats.house.byKind } } : null,
+      corners: view.stats.range?.house ?? null, gait: playerActor(s)?.moveStance ?? playerActor(s)?.gait ?? null, goGuard: goSeenT0 > -Infinity ? Math.round(performance.now() - goSeenT0) : null };
+  },
   stress() {
     const s = loop.state;
     if (!s?.armoury?.range?.stress) return null;
@@ -2090,7 +2253,7 @@ const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': th
 if (benchName) { await bench(benchName).catch((e) => broke(e, 'the bench')); sayEnv(); }
 else if (params.play) {
   const rec = SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play);
-  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier });
+  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier, par: params.par });
   else if (SCENARIOS[params.play]) launch(newGame({ seed: params.seed ?? 1, scenario: params.play, mode: params.mode, hour: params.hour, at: atParam(params.play) }));
   else { toast(`No scenario '${params.play}': the title instead.`, 'warn'); await showTitle(); }
   sayEnv();

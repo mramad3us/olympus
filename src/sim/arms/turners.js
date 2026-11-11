@@ -1,4 +1,4 @@
-// OLYMPUS sim: the turning targets of the 25 m bay, their record and their facing as a closed form (COMBAT §25.10.2, §25.10.3; the build sheet 0.0.8 §2.1, §3.1, §8 items 2, 4, 14).
+// OLYMPUS arms: the turning targets of the 25 m bay and the shoot house, their record and their facing as a closed form (COMBAT §25.10.2, §25.10.3, §25.10.4; the build sheets 0.0.8 §2.1, §3.1, §8 items 2, 4, 14 and 0.0.12 §2.1).
 //
 // A turner is a man-target on a stand in front of a bay frame (PLACES §4.12: x 1124.0 on each lane's axis), its
 // face hung by the scene: a threat with a painted rifle or pistol, a no-shoot with its hands or a phone, or the
@@ -7,8 +7,15 @@
 // session's (state.armoury.range.turners, written by the scene through turnTo and turnAway, read by the
 // detector, the shot, the stage and the scene alike: this module is their contract):
 //     { key: 'turner:<lane>', lane, x, z, y (the face's centre), face: 'threat' | 'noshoot' | 'armoured' |
-//       'unknown', holds: 'rifle' | 'pistol' | 'hands' | 'phone', turnAtMs, awayAtMs, hits: [...], stoppedAtMs }
+//       'hostage' | 'unknown', holds: 'rifle' | 'pistol' | 'hands' | 'phone', turnAtMs, awayAtMs, hits: [...], stoppedAtMs }
 // Times are absolute game ms on whole ticks; positions to 0.01 m.
+// 0.0.12 (the build sheet 0.0.12 §2.1, §3.1; COMBAT §25.10.4): the shoot house's turners stand in rooms, not on a
+// bay's lanes, and their record gains room (the room id), stand ('1a': src/data/places/wheel.js HOUSE1's), name (the
+// words the sheet and the DI say: 'the far left target'), slot (the stack's #1 or #2 whose sector holds it), trigger
+// ({ kind: 'go' | 'door' | 'zone', id, gapMs }: what turns it, the scene's) and the face 'hostage' (the hostage card,
+// a threat behind a hostage, one turner: the sheet's §8 item 14). `lane` stays the key's number. turnerTargets reads
+// T.name where it is given and carries room, stand and slot where they are; the bay's turners give none of them, so
+// their targets, their words and every pinned digest are as built.
 //
 // facingOf(T, ms) is the facing as a closed form, so the picture and the sim read the same number at any
 // moment and a save carries nothing of it: edge-on 0 before turnAtMs, then sin(π/2 × k) over TURN_MS to 1
@@ -72,10 +79,17 @@ export function turnAway(T, atMs) {
   return T;
 }
 
-/** The bay's turners as targets at ms (see the header). */
+/** The session's turners as targets at ms (see the header): the bay's as built, the house's with their room, stand and slot. */
 export function turnerTargets(state, ms = state.clock.ms) {
-  return turnersOf(state).map(T => ({
-    key: T.key, kind: 'turner', lane: T.lane, name: `the target, lane ${T.lane}`, x: T.x, y: T.y ?? 1.35, z: T.z, face: T.face, holds: T.holds,
-    facingK: facingOf(T, ms), down: T.stoppedAtMs !== null && T.stoppedAtMs !== undefined,
-  }));
+  return turnersOf(state).map(T => {
+    const t = {
+      key: T.key, kind: 'turner', lane: T.lane, name: T.name ?? `the target, lane ${T.lane}`, x: T.x, y: T.y ?? 1.35, z: T.z, face: T.face, holds: T.holds,
+      facingK: facingOf(T, ms), down: T.stoppedAtMs !== null && T.stoppedAtMs !== undefined,
+    };
+    // (the house's: its room, its stand and its slot, only where the record has them, so a bay's target is as built)
+    if (T.room !== undefined) t.room = T.room;
+    if (T.stand !== undefined) t.stand = T.stand;
+    if (T.slot !== undefined) t.slot = T.slot;
+    return t;
+  });
 }

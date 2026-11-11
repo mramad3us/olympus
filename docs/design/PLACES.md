@@ -283,6 +283,8 @@ Interlocks stop both doors being open at once unless overridden. The panel reads
 
 The **vehicle lock** is 12 × 6 × 5 m (360 m³): pump to 10 kPa at 3 m³/s in 3 min 46 s, vent 15 s, repress 60 s (my call).
 
+**As built in v0.0.12**: the stage reads `swing` from the area's own openings (a door's hinge side and the way the leaf swings, drawn from the opening, not a render table); `src/sim/places/validate.js` has no `swing` rule yet (`places-validate` checks a swing on every leaf by itself).
+
 ### 1.7 Vertical links: stairs, ladders, lifts, trunks
 
 ```json
@@ -1339,6 +1341,8 @@ Added 2026-11-08 for the user's rule of that day: "Yes 1G martian marines always
 
 ---
 
+**As built in v0.0.12** (`src/data/places/wheel.js`, `x4-plans.js`; `src/sim/places/spin.js`). Area `melas.wheel.s4` holds only house 1 and its apron (40 x 28 m), 1 G on the area record, so the scene spec's environment is `{ preset: 'site' }` (the rest of the sector waits for the Wheel's join; sheet item 18). Frame: the hall runs along the spin and the rooms' depths across the band (the sentence of this section read as being about the rooms; item 17), +z outboard. Layout A is built as chunks: **11 rooms and 11 openings**, room 1 §25.5.1's room exactly (5 x 4 m, a 0.9 m door inward, the path in 2.72 m, the start mark 4.00 m from the stack), room 2 a pull door out into the hall with a locked closet (kick DC 14), room 3 an L, dim (0.40 fill) at every hour, with its far leg; the catwalk at 3 m, its stairs and the booth. The doors swing by their plans' swings: room 1 pushes in (leaf free edge at (28.55, 11.1)), room 2 pulls out into the hall (to (20.15, 13.5)), room 3 pushes in (to (17.05, 11.1)). Goldens: WHEEL_S4 `05f066607e544d`, HOUSE1 `04447e988e6958`, the nav grid `1dd12b42226e54`, X4_PLANS `122fbb741feb40`. **Not built**: X4's other five rooms (layouts B and C stand as solid voids between the lane's rooms). **The spin** is one module, `spin.js` (the one home of omega: a syntax rule `SPIN_HOME`, with `env.js` holding R and omega as data): R 500 m, omega 0.1347 rad/s from the `wheel` preset; `spinOf(state, area)` is null off a spin floor and `spinBiasCm` gives `{ cm, upCm, sideCm }`. A deck is roofed (`figure.js` `ROOFED_KINDS`: under the Wheel's roof no cap is drawn).
+
 ## 5. Ships and Phobos
 
 ### 5.1 Shared conventions
@@ -1775,6 +1779,8 @@ Added 2026-11-08 for the user's standing rule (DESIGN.md's log): "We will play i
 - **The shoot house is the first chunk set**, authored as chunks from the start: layout A is four chunks and a hall, and layouts B and C are then assemblies rather than new maps. It **stands in the Wheel** (section 4.15, sector 4), not on *Testudo*'s deck and not at X4 (the audit's question 0, settled by §4.15 on 2026-11-08), at the `spin` regime of 1 G.
 
 ---
+
+**As built in v0.0.12**: the chunks of house 1 live in `wheel.js` (`X4_CHUNKS`, `LAYOUT_A`), hand-joined, until `src/sim/scenes/assemble.js` and `src/data/chunks/` exist; the assembler is still a later round.
 
 ## 10. What is ported, adapted or only referenced
 

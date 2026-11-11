@@ -48,10 +48,23 @@
 // 0.0.8 (the build sheet 0.0.8 §2.3): test-pairs' 'range-pairs' issue: the R-7 slung front, a carrier of three magazine
 // pouches (no dump pouch), ear defenders in their own slot, magazines of 10, 10 and 2 (the scene puts one in each
 // pouch: chest pouches 1, 2 and 3, the two-round one third, as the coach names it).
+// 0.0.12 (the build sheet 0.0.12 §2.1, §4, §8 items 11, 12, 15; WEAPONS §3, §8.3; BODY §17.3): the combat EVA suit as
+// worn kit, 'ces-1', in its own slot (kit.worn.suit: SLOTS gains 'suit' before 'ears', so 'ears' stays last and no
+// other template's items or ids move): black (the Corps' armour colour, no red), 16 kg, its visor down (flash
+// filtered: supp.js protOf reads a worn item of type 'suit' as { visor: true, ears: 'suit' }, EARPRO_K ×0.6, never
+// deafened), worn unpressurised in the Wheel's air, so no glove or bulk penalty (WEAPONS §3: the gloves' penalty
+// "worn down"). test-shoothouse's issue 'house-cqb': the suit, the plate carrier with two magazine pouches and a dump
+// pouch, the R-7 slung, three magazines of 10 frangible (the house's load: the scene sets the instructor's dummy in
+// the first, the one a LOAD takes first, by `sets`), at low ready; no ear defenders (the suit filters). Every worn
+// thing now has its massKg (my calls but the suit's, the sheet's; the carrier's 4.0 kg is WEAPONS §8.3's soft panel,
+// its plates not in for training), and kitMassKg(state, pid) is what a person carries: the worn items, what they
+// hold, the rifle and its optic, the magazines and their rounds (6.5×40's case, powder and bullet by the load:
+// src/sim/arms/calibres.js), 25.7 kg in 'house-cqb' (BODY §16.2's 25 kg of kit, the push and the brake's r).
 import { nextId, put } from '../../core/ids.js';
 import { q } from '../../core/num.js';
 import { areaOf } from '../places/model.js';
-import { FAMILIES, MODELS } from './models.js';
+import { FAMILIES, MODELS, OPTICS } from './models.js';
+import { CALIBRES, loadOf } from './calibres.js';
 import { newGun, newMag } from './firearms.js';
 
 /**
@@ -62,12 +75,14 @@ import { newGun, newMag } from './firearms.js';
  * the game charged nowhere, against the panel's 1.6 s).
  */
 export const CONTAINERS = Object.freeze({
-  'pc-m3': Object.freeze({ type: 'carrier', word: 'plate carrier', slot: 'carrier', holds: 3, fits: Object.freeze(['pouch']) }),
-  'pouch-mag2': Object.freeze({ type: 'pouch', word: 'magazine pouch', holds: 2, fits: Object.freeze(['mag']) }),
-  'pouch-dump': Object.freeze({ type: 'pouch', word: 'dump pouch', holds: 4, fits: Object.freeze(['mag']), dump: true }),
-  'ears-m1': Object.freeze({ type: 'ears', word: 'ear defenders', slot: 'head' }),
+  'pc-m3': Object.freeze({ type: 'carrier', word: 'plate carrier', slot: 'carrier', holds: 3, fits: Object.freeze(['pouch']), massKg: 4.0 }),
+  'pouch-mag2': Object.freeze({ type: 'pouch', word: 'magazine pouch', holds: 2, fits: Object.freeze(['mag']), massKg: 0.15 }),
+  'pouch-dump': Object.freeze({ type: 'pouch', word: 'dump pouch', holds: 4, fits: Object.freeze(['mag']), dump: true, massKg: 0.2 }),
+  'ears-m1': Object.freeze({ type: 'ears', word: 'ear defenders', slot: 'head', massKg: 0.35 }),
   // (0.0.7: the KD's ear defenders, worn in their own slot, kit.worn.ears (the build sheet 0.0.7 §3.1, §8 item 18))
-  ed1: Object.freeze({ type: 'ears', word: 'ear defenders', slot: 'ears' }),
+  ed1: Object.freeze({ type: 'ears', word: 'ear defenders', slot: 'ears', massKg: 0.35 }),
+  // (0.0.12: the combat EVA suit, worn unpressurised with its visor down (see the header))
+  'ces-1': Object.freeze({ type: 'suit', word: 'combat EVA suit', slot: 'suit', visor: true, massKg: 16, colour: 'black' }),
 });
 
 /** The issue templates: worn (slot → model), the carrier's pouches in reach order, the magazines ([family, rounds]) filling the pouches in order. */
@@ -103,14 +118,21 @@ export const KIT_TEMPLATES = Object.freeze({
     mags: Object.freeze([Object.freeze(['had30', 10]), Object.freeze(['had30', 10]), Object.freeze(['had30', 2])]),
     cond: 0.93, posture: 'slungFront',
   }),
+  // (0.0.12, test-shoothouse's issue (see the header): the suit, no ear defenders, three magazines of 10 frangible, low ready)
+  'house-cqb': Object.freeze({
+    worn: Object.freeze({ suit: 'ces-1', carrier: 'pc-m3', sling: 'r7' }),
+    carrier: Object.freeze(['pouch-mag2', 'pouch-mag2', 'pouch-dump']),
+    mags: Object.freeze([Object.freeze(['had30', 10, 'frangible']), Object.freeze(['had30', 10, 'frangible']), Object.freeze(['had30', 10, 'frangible'])]),
+    cond: 0.93, posture: 'lowReady',
+  }),
 });
 /** A magazine at your feet is within this of you (m): where a dropped one lands (firearms.js atFeet: 0.25 to 0.45 m ahead) with room to spare. */
 export const FEET_M = 1.2;
 /** The pouches' names by their key (pouchesOf): the chest's magazine pouches in reach order, the dump pouch, the ground. */
 export const PLACE_WORDS = Object.freeze({ p1: 'chest pouch 1', p2: 'chest pouch 2', p3: 'chest pouch 3', p4: 'chest pouch 4', dump: 'the dump pouch', ground: 'at your feet' });
 
-/** The worn slots, in the order a kit is walked. */
-export const SLOTS = Object.freeze(['carrier', 'head', 'sling', 'ears']);
+/** The worn slots, in the order a kit is walked (0.0.12's 'suit' before 'ears', so 'ears' stays last and the other kits' ids stand). */
+export const SLOTS = Object.freeze(['carrier', 'head', 'sling', 'suit', 'ears']);
 /** Whether a person wears ear defenders in their own slot (0.0.7: the KD's; the sound is heard through them). */
 export const earsOn = (state, pid) => !!state.people?.[pid]?.kit?.worn?.ears;
 
@@ -299,6 +321,42 @@ export function containersOf(state, pid) {
   };
   for (const slot of SLOTS) if (kit?.worn?.[slot]) walk(kit.worn[slot], 0);
   return out;
+}
+
+// ---- what a person carries ----
+
+/** A round's mass, grams: its calibre's case and powder and its load's bullet (a dummy or a blank: the case and a ball bullet, no powder). */
+export function roundMassG(cal, load = 'ball') {
+  const C = CALIBRES[cal];
+  if (!C) throw new Error(`kit.roundMassG(): no calibre '${cal}'`);
+  const L = loadOf(cal, load), ball = loadOf(cal, 'ball');
+  return C.caseG + (L?.massG !== undefined ? C.propG + L.massG : ball?.massG ?? 0);
+}
+/** A magazine's mass, grams: its family's empty mass and its rounds (the set round counted as one of its kind). */
+export function magMassG(mag) {
+  const F = FAMILIES[mag?.fam];
+  if (!F) return 0;
+  return F.emptyG + (mag.n ?? 0) * roundMassG(F.cal, mag.load ?? 'ball');
+}
+// (an item's own mass and what it holds, kilograms: a gun with its optic and the magazine in it, a container with its contents)
+function itemKg(state, id, depth = 0) {
+  const rec = state.items?.[id];
+  if (!rec || depth > 6) return 0;
+  if (rec.type === 'mag') return magMassG(rec) / 1000;
+  if (rec.type === 'gun') {
+    const M = MODELS[rec.model];
+    return (M?.massKg ?? 0) + (OPTICS[M?.optic]?.massG ?? 0) / 1000 + (rec.mag ? itemKg(state, rec.mag, depth + 1) : 0);
+  }
+  return (CONTAINERS[rec.model]?.massKg ?? 0) + (rec.holds ?? []).reduce((n, c) => n + itemKg(state, c, depth + 1), 0);
+}
+/** What a person carries, kilograms to 0.01 (see the header): the worn items with what they hold, the rifle, the magazines in the hands. */
+export function kitMassKg(state, pid) {
+  const kit = state.people?.[pid]?.kit;
+  if (!kit) return 0;
+  let kg = 0;
+  for (const slot of SLOTS) if (kit.worn?.[slot]) kg += itemKg(state, kit.worn[slot]);
+  for (const id of kit.hands ?? []) if (id) kg += itemKg(state, id);
+  return q(kg, 0.01);
 }
 
 /** A magazine's believed rounds: its own belief's n (unknown: null). */

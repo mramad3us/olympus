@@ -42,6 +42,11 @@
 // startle is the take-in's window re-used, its keys taken, so no words in it); the DI's line after it is pairs-froze's.
 // 0.0.10 (the build sheet 0.0.10 §2.2): the act 'breathe' (test-stress's stress-breathe out of the mode) is Breathe as a
 // live step (shooting.js breatheAction), the one act instinctAction does itself; every other goes to base.js doAct.
+// 0.0.12 (the build sheet 0.0.12 §2.6): the house's rules (src/sim/skills/instinct/cqb.js, CQB_RULES) are weighed after the
+// pairs', and fire only in the house; on the house course the range's rules about the tower and the card keep quiet
+// (RANGE_OFF_HOUSE, as on the pairs course), but for range-cmd on LOAD, MAKE READY and UNLOAD, SHOW CLEAR off the lane
+// (HOUSE_CMDS: before GO and after the lane, T does the instructor's command); a rule's voice may be a function of its case (from rung 3 'self': the marine's
+// own thought, COMBAT §25.8.1).
 // instinctAction(state, { act: 'instinct', args: { id, act, chip } }, bus, ctx) does the act the hud
 // saw when T went down, if rule id still fires with that act now ('rise': get up from the rack;
 // 'dress:utilities': dress at your rack or locker; 'activity:<id>': the activity of the fixture you
@@ -56,6 +61,7 @@ import { BASE_RULES, doAct } from './instinct/base.js';
 import { GROOM_RULES } from './instinct/groom.js';
 import { RANGE_RULES } from './instinct/range.js';
 import { PAIRS_RULES } from './instinct/pairs.js';
+import { CQB_RULES } from './instinct/cqb.js';
 import { rangeOf } from '../scenarios/handling.js';
 import { contactNow, pendingOf } from '../combat/contact.js';
 import { takeInWords } from '../combat/react.js';
@@ -66,8 +72,17 @@ import { breatheAction } from '../arms/shooting.js';
 export const RANGE_OFF_PAIRS = Object.freeze(new Set(['range-cmd', 'range-kd', 'range-reload', 'range-fire', 'range-wait']));
 // (a range rule kept quiet on the pairs course: the same rule, its when() answering nothing there)
 const offPairs = (r) => (RANGE_OFF_PAIRS.has(r.id) ? Object.freeze({ ...r, when: (state, me, ms) => (rangeOf(state)?.course === 'pairs' ? null : r.when(state, me, ms)) }) : r);
+/** The range's rules that keep quiet in the house (0.0.12): the tower's commands, the card and the bay's moves are the instructor's and the drill's there, and so is the muzzle (the bay's "downrange" is a bearing; in the house the muzzle's rule is the #2's flag, cqb-flag). */
+export const RANGE_OFF_HOUSE = Object.freeze(new Set(['range-cmd', 'range-kd', 'range-reload', 'range-fire', 'range-wait', 'range-muzzle']));
+// (a range rule kept quiet in the house: the same rule, its when() answering nothing there)
+/** The instructor's commands in the house that range-cmd still names off the lane (before GO and after it): LOAD, MAKE READY, UNLOAD, SHOW CLEAR. */
+export const HOUSE_CMDS = Object.freeze(new Set(['load', 'ready', 'clear']));
+// (the fixer's of 0.0.12: range-cmd silenced in the whole house left LOAD, MAKE READY and UNLOAD with no line and T doing
+// nothing; on the lane, from GO to its end, it stays quiet: the drill's rules speak there)
+const houseOff = (R) => !(HOUSE_CMDS.has(R.cmd?.id) && !(R.house?.goAtMs !== null && R.house?.goAtMs !== undefined && !R.house?.end));
+const offHouse = (r) => (RANGE_OFF_HOUSE.has(r.id) ? Object.freeze({ ...r, when: (state, me, ms) => { const R = rangeOf(state); return R?.course === 'house' && (r.id !== 'range-cmd' || houseOff(R)) ? null : r.when(state, me, ms); } }) : r);
 /** Every rule the instinct weighs: the base's, the grooming's, the range's, then the pairs' (merged by tone in settle(): within a tone, in that order). */
-export const RULES = Object.freeze([...BASE_RULES, ...GROOM_RULES, ...RANGE_RULES.map(offPairs), ...PAIRS_RULES]);
+export const RULES = Object.freeze([...BASE_RULES, ...GROOM_RULES, ...RANGE_RULES.map(offHouse).map(offPairs), ...PAIRS_RULES, ...CQB_RULES]);
 /** The line's lead while stop motion holds time (VIEWS §7.4; the build sheet §8 item 10). */
 export const STOP_LEAD = 'Time stands still.';
 
@@ -120,7 +135,7 @@ export function settle(prev, fired, ms, { urgentOnly = false } = {}) {
 
 // (a rule's firing now, as a line: its words picked at the moment it first shows)
 function fire(rule, ctx, state, ms) {
-  return { id: rule.id, voice: rule.voice ?? 'di', tone: typeof rule.tone === 'function' ? rule.tone(ctx) : rule.tone, act: rule.act ? rule.act(ctx, state) : null, short: typeof rule.short === 'function' ? rule.short(ctx) : rule.short ?? null, reach: rule.reach ?? null, repeatMs: rule.repeatMs ?? null, ctx, rule };
+  return { id: rule.id, voice: typeof rule.voice === 'function' ? rule.voice(ctx) : rule.voice ?? 'di', tone: typeof rule.tone === 'function' ? rule.tone(ctx) : rule.tone, act: rule.act ? rule.act(ctx, state) : null, short: typeof rule.short === 'function' ? rule.short(ctx) : rule.short ?? null, reach: rule.reach ?? null, repeatMs: rule.repeatMs ?? null, ctx, rule };
 }
 // (the words by the variant, or by ctx.words where a rule names its entry apart: the variant then carries all that should
 // pick the words again when it changes (pairs-still-up's key, reason and remedy; the fix of 2026-11-07), present() keeping

@@ -32,6 +32,15 @@
 // training term of hardening: recruit 2, private 6, corporal 10, sergeant 12, Raider 22, tier one 25, the number in the row
 // since skills may not import combat), TEST_SHEETS[t].inoc, and testSheet writes it fixed, inoc { pts, n: 0, sol: 0, fixed:
 // true }: scenes never write a career, so "Again as" and later strings compare like with like.
+// 0.0.12 (the build sheet 0.0.12 §2.2, §8 items 8, 24; COMBAT §25.3.2, §25.7.2): a bundle is offered (offered(state, pid, b), b
+// the drill data's { id, family, rung }) when the person's rung in its family reaches the bundle's and it has been lived
+// once by hand (rung 0's singles need no living: they are the hand). Lived: the sheet's drills.<family>.lived where it is
+// written; a sheet with a rung and no list (the test sheets as testSheet writes them, fixed: "on a test sheet every bundle
+// of its rung counts as lived", COMBAT §25.10.4) and an NPC (no drills written: "every NPC's bundles count as lived") count
+// every bundle as lived. drillsRecord(tier, bundleIds) is the full record a scene may write instead ({ rung, reps: 0,
+// lived, atMs: null, fixed: true }); testSheet itself is unchanged, so the shipped scenes' saves and digests do not move
+// (§3.3). REPS_PRACTISED 20 and REPS_DRILLED 60 are the clean repetitions to rungs 2 and 3, counted only on a sheet that is
+// not fixed (none this round: the career's record waits for the MOUT day's join, §8 item 24).
 // Pure.
 import { stream, int, intIn } from '../../core/rng.js';
 import { SKILLS, SKILL_KEYS, BASE_MAX, BG_MAX, OWN_MAX, value } from './skills.js';
@@ -171,4 +180,32 @@ export function rungOf(state, pid, family = 'room') {
   const r = p?.skills?.drills?.[family]?.rung;
   if (Number.isInteger(r)) return r;
   return RUNG_OF_TIER[tierOfRank(p?.service?.rank)] ?? 1;
+}
+
+// ---- 0.0.12: what is offered by the rung and what was lived (see the header) ----
+
+/** The clean repetitions to practised (2) and drilled (3) (COMBAT §25.3.2), counted only on a sheet that is not fixed. */
+export const REPS_PRACTISED = 20, REPS_DRILLED = 60;
+
+/** A person's drill record in a family as written ({ rung, reps?, lived?, atMs?, fixed? }), or null (an NPC's, written nowhere). */
+export const drillsOf = (state, pid, family = 'room') => state?.people?.[pid]?.skills?.drills?.[family] ?? null;
+
+/** Whether a bundle has been lived once by hand (see the header): b { id, family, rung }. */
+export function livedOf(state, pid, b) {
+  const rec = drillsOf(state, pid, b?.family ?? 'room');
+  if (!rec || !Array.isArray(rec.lived)) return true;
+  return rec.lived.includes(b.id);
+}
+
+/** Whether a bundle is offered to a person (see the header): rungOf ≥ b.rung, and lived (rung 0 is the hand itself). */
+export function offered(state, pid, b) {
+  if (!b) return false;
+  if (rungOf(state, pid, b.family ?? 'room') < (b.rung ?? 0)) return false;
+  return (b.rung ?? 0) === 0 || livedOf(state, pid, b);
+}
+
+/** The full drill record a scene may write for a test sheet's tier (see the header): every bundle id given lived, fixed. */
+export function drillsRecord(tier = 'private', bundleIds = []) {
+  const t = TEST_SHEETS[tier] ?? TEST_SHEETS.private;
+  return { rung: t.rung, reps: 0, lived: [...bundleIds], atMs: null, fixed: true };
 }

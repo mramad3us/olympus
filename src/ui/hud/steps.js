@@ -80,6 +80,13 @@
 // no roll), fixed on the first page with nothing facing you, else a single marked "! he's up" (step.warn 'up': WARN_WORDS; never
 // struck, pillar 3); while it runs, the running view counts its four sub-steps as the box: in · hold · out · hold (BREATHE_COUNTS),
 // each filled (•) as it is breathed, the one running lit, its bar the game clock's.
+// 0.0.12 (the build sheet 0.0.12 §2.2, §2.4; COMBAT §25.7, §25.11; VIEWS §7.4): in the shoot house the panel gains the door's rows, the
+// stack's and the drill's singles (labels and times the drill's, as any row's), and the bundles: a bundle's row (kind 'bundle') reads like a
+// command, its name and time, then its beats as dots grouped by channel (FEET, HANDS, EYES, VOICE: a gap where the channel changes) with a
+// seam drawn as a bar where the rung stops it ("Clear it · 4.0 s ● ● ● │ ● ● ●", bundleDots), struck once "by hand first" where it is taught
+// and not yet lived; its variants (kind 'variant', or a row the drill marks free) are set at no time, so they show none. While a bundle
+// runs the panel shows it alone with four short lanes of glyph ticks (bundleNow's lanes: ✓ passed, ◦ routine, ✗ fumbled, · to come, ▸
+// running), FEET HANDS EYES VOICE, filling one at a time below rung 3 and together above, and a bar of its time on the game clock.
 import { CARD_W, CARD_H } from './layout.js';
 import { distanceParts, dialWords } from '../../art/weaponcard.js';
 // (the panel's numbering is the sim's (src/sim/arms/panel.js), so the DI's line can name the digit a row is on: re-exported here)
@@ -137,10 +144,56 @@ export function oddsText(step) {
  */
 export function timeText(step, { shift = false } = {}) {
   const ms = shownMs(step, { shift });
-  if (!Number.isFinite(ms)) return '';
+  if (!Number.isFinite(ms) || isFree(step)) return '';
   if (!isShotRow(step)) return secs(ms);
   const aim = (step.parts ?? []).find(p => p.k === 'aim'), aimMs = aim && !(shift && Number.isFinite(step.rushMs)) ? aim.ms : 0;
   return aimMs > 0 && aimMs < ms ? `${secs2(aimMs)} + ${secs2(ms - aimMs)} s` : `${secs2(ms)} s`;
+}
+/**
+ * A row's kind as its class (0.0.12): the kind itself, but a kind that is also a HUD element's class ('watch': the house's Watch row met
+ * the wrist terminal's .watch, its time drawn at the watch's size) is prefixed, so no HUD rule reaches a row.
+ */
+export const HUD_CLASSES = Object.freeze(['watch', 'timer', 'paper', 'radio', 'steps', 'instinct', 'plaque', 'toasts', 'hitcard', 'keyshint', 'banner']);
+export const kindClass = (kind) => (HUD_CLASSES.includes(kind ?? '') ? `kind-${kind}` : kind ?? 'single');
+/** The channels of a bundle's beats, in the lanes' order (COMBAT §25.7.1; the drill's CHANNELS less 'world'), and their lanes' names. */
+export const LANES = Object.freeze(['feet', 'hands', 'eyes', 'voice']);
+export const LANE_WORDS = Object.freeze({ feet: 'FEET', hands: 'HANDS', eyes: 'EYES', voice: 'VOICE' });
+/** Whether a row is set at no time (a bundle's variant: "Cross ⇄ Hook"), so its row shows no time. */
+export const isFree = (s) => !!s && (s.kind === 'variant' || s.free === true || (s.kind !== 'bundle' && /⇄/.test(String(s.label ?? '')) && !(s.ms > 0)));
+/** A bundle's dots between seams at most (the lane's bundle has thirty-odd beats: the rest are its hover's), then "…". */
+export const DOTS_SEG_MAX = 6;
+/**
+ * A bundle's beats as dots (0.0.12): '● ● ● │ ● ● ●', a dot a beat in its order, a gap where the channel changes, a bar after each
+ * seam's beat (bundleRows' seams: the beat indices where the rung stops the bundle), at most DOTS_SEG_MAX dots between two bars and
+ * then '…' (the beats in words are the row's hover). '' for a row that is not a bundle.
+ */
+export function bundleDots(step) {
+  if (step?.kind !== 'bundle' || !Array.isArray(step.beats) || !step.beats.length) return '';
+  const seams = new Set(step.seams ?? []), segs = [[]];
+  step.beats.forEach((b, i) => { segs[segs.length - 1].push(b); if (seams.has(i) && i < step.beats.length - 1) segs.push([]); });
+  return segs.map(seg => {
+    let out = '', ch = null;
+    seg.slice(0, DOTS_SEG_MAX).forEach((b, i) => { if (i) out += ch !== null && b.ch !== ch ? '  ' : ' '; out += '●'; ch = b.ch ?? null; });
+    return seg.length > DOTS_SEG_MAX ? `${out} …` : out;
+  }).join(' │ ');
+}
+/** A bundle's beats in words, its row's hover: "feet: the approach 3.4 s, the entry 0.4 s · hands: …" by channel, the seams named. */
+export function beatsWords(step) {
+  if (step?.kind !== 'bundle' || !Array.isArray(step.beats)) return '';
+  const by = new Map();
+  for (const b of step.beats) { const c = b.ch ?? 'world'; if (!by.has(c)) by.set(c, []); by.get(c).push(`${b.label ?? b.k ?? b.id}${Number.isFinite(b.ms) ? ` ${secs(b.ms)}` : ''}`); }
+  const seams = (step.seams ?? []).length;
+  return `${[...by.entries()].map(([c, l]) => `${c}: ${l.join(', ')}`).join(' · ')}${seams ? ` · ${seams} seam${seams === 1 ? '' : 's'}: it stops there below rung ${(step.rung ?? 0) + 1}` : ''}`;
+}
+/**
+ * A running bundle's lanes (bundleNow's): [{ ch, name, glyphs: [{ key, glyph }] }] in LANES' order, the lanes with a beat; or from the
+ * doing record's beats when bundleNow gives none (st: wait ·, run ▸, done ✓, cut ✗).
+ */
+export function laneRows(bn, doing = null) {
+  const lanes = bn?.lanes ?? null;
+  if (lanes) return LANES.filter(c => (lanes[c] ?? []).length).map(c => ({ ch: c, name: LANE_WORDS[c], glyphs: lanes[c] }));
+  const beats = doing?.beats ?? [], G = { wait: '·', run: '▸', done: '✓', cut: '✗' };
+  return LANES.map(c => ({ ch: c, name: LANE_WORDS[c], glyphs: beats.filter(b => b.ch === c).map(b => ({ key: b.key, glyph: G[b.st] ?? '·' })) })).filter(l => l.glyphs.length);
 }
 /** Which time a row shows: rushed while Shift is held (where it can be rushed), else the normal one. */
 export const shownMs = (step, { shift = false } = {}) => (shift && Number.isFinite(step?.rushMs) ? step.rushMs : step?.ms);
@@ -149,7 +202,8 @@ export function rowText(slot, opts = {}) {
   const s = slot.step, t = timeText(s, opts), odds = oddsText(s);
   // (0.0.9: a shaking row "1 Fire · 0.70 s · 45% ! shaking": its odds, then the mark)
   if (isShaking(s)) return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${odds ? ` · ${odds}` : ''} ! ${SHAKING}`;
-  return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${odds && !s.off ? ` · ${odds}` : ''}${s.off ? ` (${s.off})` : s.warn ? ` (! ${warnWords(s.warn)})` : ''}`;
+  const dots = bundleDots(s);
+  return `${slot.key} ${s.label}${t ? ` · ${t}` : ''}${dots ? ` ${dots}` : ''}${odds && !s.off ? ` · ${odds}` : ''}${s.off ? ` (${s.off})` : s.warn ? ` (! ${warnWords(s.warn)})` : ''}`;
 }
 /** A row's hover words: what it rolls, and its rushed and careful times where it has them. */
 export function rowTitle(step, { label = (a) => a, chaos = null } = {}) {
@@ -162,6 +216,7 @@ export function rowTitle(step, { label = (a) => a, chaos = null } = {}) {
   if (Number.isFinite(step.carefulMs)) bits.push(`held: careful, ${secs(step.carefulMs)} (+2)`);
   if (step.kind === 'fire') bits.push('held: hold the aim to +4, then fire');
   if (isShotRow(step)) bits.push(partsWords(step));
+  else if (step.kind === 'bundle') bits.push(beatsWords(step));
   else if (step.subs?.length) bits.push(step.subs.map(x => `${x.label ?? x.id}${Number.isFinite(x.ms) ? ` ${secs(x.ms)}` : ''}`).join(', '));
   if (step.gate && step.off) bits.push(`needs ${step.off}`);
   if (step.words && step.words !== step.label) bits.push(step.words);
@@ -360,7 +415,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     if (doing && doing.kind !== 'wait') return running(v, doing, model);
     const panel = panelOf(v.steps, { page: v.page ?? 0 });
     slots = panel.slots;
-    const rs = JSON.stringify(['panel', !!v.shift, panel.page, panel.pages, doing?.step ?? null, doing?.chain ?? null, panel.slots.map(s => [s.key, s.step.id, s.step.label, s.step.ms, s.step.rushMs, s.step.odds, s.step.routine, s.step.off, s.step.warn ?? null, s.step.cmd, s.step.subs?.length ?? 0, roundOdds(s.step), s.step.lead ?? false, s.step.shaking ? [s.step.shaking.v, s.step.shaking.band] : null, lastMarks(v.ticks, s.step.id)]), v.chaos?.sum ?? null]);
+    const rs = JSON.stringify(['panel', !!v.shift, panel.page, panel.pages, doing?.step ?? null, doing?.chain ?? null, panel.slots.map(s => [s.key, s.step.id, s.step.label, s.step.ms, s.step.rushMs, s.step.odds, s.step.routine, s.step.off, s.step.warn ?? null, s.step.cmd, s.step.subs?.length ?? 0, roundOdds(s.step), s.step.lead ?? false, s.step.shaking ? [s.step.shaking.v, s.step.shaking.band] : null, lastMarks(v.ticks, s.step.id), bundleDots(s.step)]), v.chaos?.sum ?? null]);
     if (rs !== sigRows) {
       sigRows = rs;
       bar = null;
@@ -384,6 +439,8 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   // recovery offers nothing)
   function running(v, d, model) {
     const st = known.get(d.step) ?? { id: d.step, kind: d.kind, label: labelOf(d.step) };
+    // (0.0.12: a bundle running: its lanes, not its sub-steps)
+    if (d.kind === 'bundle' || Array.isArray(d.beats)) return runningBundle(v, d, st, model);
     const subs = d.list ?? st.subs?.map(x => x.id) ?? [d.step];
     // (0.0.10: Breathe has no roll to tick: its counts fill as they are breathed)
     const breathe = isBreathe(d.step), marks = breathe ? subs.map((_, i) => (i < (d.i ?? 0) ? '•' : '·')) : v.ticks?.of(d.step, subs.length) ?? subs.map(() => '·');
@@ -395,7 +452,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
       sigRows = rs;
       bar = el('i', { className: 'bar' });
       const tempo = d.tempo && d.tempo !== 'normal' ? d.tempo : null;
-      rowsEls = [el('div', { className: `running-view ${d.kind ?? ''}${breathe ? ' breathe' : ''}` },
+      rowsEls = [el('div', { className: `running-view ${d.kind ? kindClass(d.kind) : ''}${breathe ? ' breathe' : ''}` },
         el('div', { className: 'rv-head' }, el('span', { className: 'rv-name', textContent: st.label }), tempo ? el('span', { className: `rv-tempo ${tempo}`, textContent: tempo }) : null),
         subs.length > 1 ? el('div', { className: 'rv-subs' }, ...subs.map((id, i) => el('span', { className: `rv-sub${i === d.i ? ' now' : ''}${marks[i] === '✗' ? ' bad' : ''}` }, el('b', { textContent: marks[i] }), ` ${subWord(i)}`))) : null,
         el('span', { className: 'track' }, bar))];
@@ -406,13 +463,41 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     bar.style.width = `${Math.round(progress(d, v.nowMs) * 100)}%`;
     return text;
   }
+  // (0.0.12: the running bundle, alone: its name and tempo, its four lanes of glyphs, a bar of its time on the game clock)
+  function runningBundle(v, d, st, model) {
+    // (the row's own label where the panel listed it; bundleNow's where it names the bundle in words, never an id)
+    const bn = v.bundle ?? null, lanes = laneRows(bn, d), idLike = (t) => !t || /[>:]/.test(String(t)) && !/\s/.test(String(t));
+    const label = [known.has(d.step) ? st.label : null, bn?.label, st.label, labelOf(d.step)].find(t => !idLike(t)) ?? st.label ?? d.step;
+    slots = [];
+    const rs = JSON.stringify(['bundle', d.step, d.tempo, label, lanes.map(l => [l.ch, l.glyphs.map(g => g.glyph).join('')])]);
+    if (rs !== sigRows) {
+      sigRows = rs;
+      bar = el('i', { className: 'bar' });
+      const tempo = d.tempo && d.tempo !== 'normal' ? d.tempo : null;
+      const laneEls = lanes.flatMap(l => [el('span', { className: 'rv-lane-name', textContent: l.name }),
+        el('span', { className: 'rv-lane' }, ...l.glyphs.map(g => el('b', { className: g.glyph === '▸' ? 'now' : g.glyph === '✗' ? 'bad' : '', textContent: `${g.glyph} ` })))]);
+      rowsEls = [el('div', { className: 'running-view bundle' },
+        el('div', { className: 'rv-head' }, el('span', { className: 'rv-name', textContent: label }), tempo ? el('span', { className: `rv-tempo ${tempo}`, textContent: tempo }) : null),
+        el('div', { className: 'rv-lanes' }, ...laneEls),
+        el('span', { className: 'track' }, bar))];
+      list.replaceChildren(...rowsEls);
+      root.classList.add('acting');
+      text = [model.line, `running: ${label} ${lanes.map(l => `${l.name} ${l.glyphs.map(g => g.glyph).join('')}`).join(' ')}`].join(' | ');
+    }
+    const from = bn?.fromMs ?? d.fromMs, to = bn?.untilMs ?? d.untilMs;
+    const k = Number.isFinite(from) && Number.isFinite(to) && to > from ? Math.max(0, Math.min(1, ((v.nowMs ?? from) - from) / (to - from))) : 0;
+    bar.style.width = `${Math.round(k * 100)}%`;
+    return text;
+  }
   // (a row: its key, its label (two lines at most), and at its right its time over its odds or its reason;
   // the chained wait's row marked as it runs, its time gone as a bar along its foot)
   function row(slot, v, doing) {
     const s = slot.step, isRunning = !!doing && doing.step === s.id, odds = oddsText(s), t = timeText(s, v);
     // (0.0.9: the step last run, its marks after its name until another is chosen)
     const done = lastMarks(v.ticks, s.id);
-    const lab = el('span', { className: 'label' }, el('span', { className: 'name', textContent: s.label }, done ? el('span', { className: `lasttry${done.includes('✗') ? ' bad' : ''}`, textContent: ` ${done}` }) : null));
+    const dots = bundleDots(s);
+    const lab = el('span', { className: 'label' }, el('span', { className: 'name', textContent: s.label }, done ? el('span', { className: `lasttry${done.includes('✗') ? ' bad' : ''}`, textContent: ` ${done}` }) : null),
+      dots ? el('span', { className: 'dots' }, ...dots.split('│').flatMap((part, i) => (i ? [el('span', { className: 'seam', textContent: '│' }), part] : [part]))) : null);
     const shaking = isShaking(s);
     const rounds = () => el('span', { className: 'odds rounds' }, ...s.rounds.map(r => { const o = el('span', { className: `round ${r.part === 'head' ? 'head' : 'torso'}`, textContent: Number.isFinite(r.odds) ? `${Math.round(r.odds * 100)}%` : '?' }); o.style.setProperty('--k', String(Number.isFinite(r.odds) ? r.odds : 0)); return o; }));
     const timeEl = t ? el('span', { className: `time${v.shift && Number.isFinite(s.rushMs) ? ' rushed' : ''}`, textContent: t }) : null;
@@ -426,7 +511,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
           : isShotRow(s) ? rounds()
           : odds ? el('span', { className: `odds${s.routine ? ' routine' : ''}`, textContent: odds }) : null);
     const kids = [el('kbd', { textContent: slot.key }), lab, meta];
-    const r = el('div', { className: `step ${s.kind ?? 'single'}${s.off ? ' off' : ''}${s.warn && !s.off ? ' warned' : ''}${shaking ? ' shaking' : ''}${s.cmd ? ' cmd' : ''}${s.lead ? ' leads' : ''}${s.first ? ' first' : ''}${isRunning ? ' running' : ''}`, title: rowTitle(s, { label, chaos: v.chaos ?? null }) }, ...kids);
+    const r = el('div', { className: `step ${kindClass(s.kind)}${isFree(s) ? ' variant' : ''}${s.off ? ' off' : ''}${s.warn && !s.off ? ' warned' : ''}${shaking ? ' shaking' : ''}${s.cmd ? ' cmd' : ''}${s.lead ? ' leads' : ''}${s.first ? ' first' : ''}${isRunning ? ' running' : ''}`, title: rowTitle(s, { label, chaos: v.chaos ?? null }) }, ...kids);
     r.dataset.step = s.id; r.dataset.key = slot.key;
     if (done) r.dataset.last = done;
     if (onPick && !s.off) r.addEventListener('click', () => onPick(s));

@@ -156,6 +156,29 @@ export default [
     },
   },
   {
+    name: '?bench=shoothouse (0.0.12; the build sheet 0.0.12 §5.4): the Tier one at GO on 48213, "Clear the house" by its row, then the shot row and T in turn every 2 s for 20 s: the lane\'s rooms at his pace, the doors swinging, the #2, the shots in the hall; 60 fps at the median, p95 at most 18 ms, no frame over 50 ms and at most three over 25 (a pause\'s own frames)',
+    heavy: true,
+    timeoutMs: 150000,
+    async fn() {
+      const sc = BENCH_SCENES.shoothouse;
+      assert(sc && sc.play === 'test-shoothouse' && sc.setup === 'go' && sc.tier === 'tierone' && sc.seed === 48213 && sc.keys.reduce((a, k) => a + k[1], 0) === 20000, JSON.stringify(sc ?? null));
+      const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined;
+      await withGame(async (page) => {
+        await page.waitForFunction(() => window.__bench && document.querySelector('.glass.bench'), null, { timeout: 90000 });
+        const r = await page.evaluate(() => window.__bench), text = await page.evaluate(() => document.querySelector('.glass.bench .benchtext').value);
+        const lane = await page.evaluate((h) => { const H = window[h].house(); return { timer: H?.timer ?? null, legs: (H?.now?.legs ?? []).map(L => `${L.word} ${L.state}`), shots: H?.now?.aspects?.shots?.rounds ?? null, sound: H?.sound ? { cues: H.sound.cues, hall: H.sound.hall } : null }; }, '__olympus');
+        console.log(`      shoothouse: ${r.frames} frames, median ${r.medianMs} ms, p95 ${r.p95Ms} ms, max ${r.maxMs} ms, over 25 ms ${r.over25}, draw calls ${r.drawCallsMax}, uploads ${r.uploadsMaxBytes} B; the lane ${JSON.stringify(lane)}`);
+        for (const line of text.split('\n')) console.log(`        ${line}`);
+        // (a frame ceiling under load: rerun alone before believing it)
+        assert(r.scene === 'shoothouse' && lane.legs.some(l => !/ahead$/.test(l)), JSON.stringify({ r, lane }));
+        // (the tier one pauses at each man in these 20 s, and a pause's own frame, where time stops and the panel, the plates and
+        // the weapon card are drawn afresh, takes 28 to 37 ms on the Mac, as Pairs' shipped pause does (the fixer's of 0.0.12,
+        // measured): the motion is held to 60 fps, a frame at most PAUSE_FRAME_MS 50, never more than one a pause)
+        assert(r.medianMs <= 17.5 && r.p95Ms <= 18 && r.maxMs <= 50 && r.over25 <= 3, JSON.stringify({ median: r.medianMs, p95: r.p95Ms, max: r.maxMs, over25: r.over25 }));
+      }, { query: 'bench=shoothouse', timeoutMs: 90000, port });
+    },
+  },
+  {
     name: 'a scene with bangs adds its row: the frames at a bang alone, { frames, medianMs, maxMs, over25 }, and a line of its own',
     fn() {
       const frames = Array.from({ length: 300 }, (_, i) => ({ dt: i === 120 ? 26 : 16.7, bang: i >= 100 && i < 130 }));

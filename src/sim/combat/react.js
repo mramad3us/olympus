@@ -40,6 +40,14 @@
 // the quantity ('0.55'): the stamp, the plaque, the line, the paper, the log and the card read it, so the
 // quantity shows one number on every screen (CLAUDE.md). goMs(WF) = max(GO_MIN_MS 150, GO_BASE_MS 250 − WF) is
 // the body's go: how long an untrained marine's feet carry on before they stop (COMBAT §25.4.5).
+// 0.0.12 (the build sheet 0.0.12 §2.2, §4, §8 items 6, 14, 25; COMBAT §25.4.2, §25.9): the terms built. stanceK reads the
+// actor's movement stance (actor.moveStance): Relaxed ×1.25 only when it is set and the rifle is slung, Assault ×1.1 below
+// rung 2 (templates.js rungOf), else ×1 (absent: the built ×1, so the shipped scenes do not move). lightK reads the light
+// at the first target (places/light.js lightLevel: the lit bay and lit rooms 1, room 3's dim fill 0.40 ×1.13). whoK is
+// ×1.5 for a face whose hands are hidden and for the hostage card. heldSectorOf(state, pid, ms) is a sector held without
+// the muzzle's rule: a Watch (the actor's watch, its spot), or a running bundle's eyes on its slot's corner (a beat's eyes:
+// the entry from rung 3 and the corner's scan, src/sim/combat/bundle.js), the player's or the #2's (the house's record);
+// expectOf reads it beside the muzzle's rule. state.mind.clearing (the scene's, at GO) gives 'area'.
 // Pure.
 import { TICK_MS } from '../../core/clock.js';
 import { stream } from '../../core/rng.js';
@@ -50,6 +58,8 @@ import { sheetOf } from '../skills/templates.js';
 import { rollerOf } from './roll.js';
 import { muzzleOf, angleDiff } from '../arms/carry.js';
 import { eyeOf } from '../people/perception.js';
+import { rungOf } from '../skills/templates.js';
+import { lightLevel } from '../places/light.js';
 
 /** The core's terms (COMBAT §25.4.2): coreMs = TAKEIN_FLOOR_MS + TAKEIN_SPAN_MS × (1 − WF/100)^TAKEIN_EXP. */
 export const TAKEIN_FLOOR_MS = 30, TAKEIN_SPAN_MS = 700, TAKEIN_EXP = 2;
@@ -68,8 +78,12 @@ export const EXPECT_WORDS = Object.freeze({ sector: 'your sector', area: 'a room
 export const NOTICE_K = Object.freeze({ superb: 1, good: 1, pass: 1, miss: 1.5, bad: 2, disaster: 3 });
 /** The notice check's DC: NOTICE_DC0 + round(range / NOTICE_PER_M), NOTICE_BEHIND outside the cone, NOTICE_SECTOR in a held sector. */
 export const NOTICE_DC0 = 8, NOTICE_PER_M = 10, NOTICE_BEHIND = 4, NOTICE_SECTOR = -2;
-/** Who it might be: a face whose hands are hidden (COMBAT §25.4.2; §8 item 6: 'unknown' only this round). */
+/** Who it might be: a face whose hands are hidden, or the hostage card (COMBAT §25.4.2; the build sheet 0.0.12 §8 item 14). */
 export const WHO_K = 1.5;
+/** The faces whose who-it-might-be is ×WHO_K. */
+export const WHO_FACES = Object.freeze(new Set(['unknown', 'hostage']));
+/** Assault's ×STANCE_K.assault holds below this rung (COMBAT §25.9: ×1 from rung 2). */
+export const ASSAULT_RUNG = 2;
 /** How many at once: 1 + SEVERAL_K × log2(n). */
 export const SEVERAL_K = 0.15;
 /** The movement stances (BODY §16.1): Relaxed, Combat, Assault (Assault ×1 from rung 2). Combat this round. */
@@ -148,6 +162,12 @@ const threatKnown = (state) => !!state.mind?.threat?.known;
  */
 export function expectOf(state, pid, target, ms = state.clock.ms) {
   const R = courseOf(state);
+  // (0.0.12: a Watch or a bundle's eyes hold a sector without the muzzle's rule (see the header))
+  const H = target ? heldSectorOf(state, pid, ms) : null;
+  if (H) {
+    const a = actorOfPid(state, pid), b = Math.atan2(target.z - (a?.z ?? 0), target.x - (a?.x ?? 0));
+    if (Math.abs(angleDiff(b, H.yawRad)) <= SECTOR_HALF_DEG * D2R + 1e-9) return 'sector';
+  }
   const m = target ? muzzleOf(state, pid) : null;
   if (m && m.inHand) {
     const cue = Math.max(R?.cmd?.atMs ?? -Infinity, R?.cueAtMs ?? -Infinity);
@@ -158,6 +178,31 @@ export function expectOf(state, pid, target, ms = state.clock.ms) {
   if (state.mind?.clearing) return 'area';
   if (R || threatKnown(state)) return 'alert';
   return 'surprise';
+}
+
+// (a person's actor: the player's or an NPC's)
+const actorOfPid = (state, pid) => (playerActor(state)?.who === pid ? playerActor(state) : state.actors?.list?.find(a => a.who === pid) ?? null);
+
+/**
+ * A sector held without the muzzle's rule (see the header): { yawRad, why: 'watch' | 'bundle' } or null. A Watch is the
+ * actor's (its spot's bearing from where he stands now); a bundle's eyes are its running beat's (the slot's corner).
+ */
+export function heldSectorOf(state, pid, ms = state.clock.ms) {
+  const a = actorOfPid(state, pid);
+  if (!a) return null;
+  if (a.watch && Number.isFinite(a.watch.x)) return { yawRad: Math.atan2(a.watch.z - a.z, a.watch.x - a.x), why: 'watch' };
+  const two = state.armoury?.range?.house?.two;
+  const d = state.stop?.who === pid ? state.stop?.doing : two?.pid === pid ? two.doing : null;
+  const b = d?.beats?.find(x => x.st === 'run' && x.eyes);
+  return b ? { yawRad: Math.atan2(b.eyes[1] - a.z, b.eyes[0] - a.x), why: 'bundle' } : null;
+}
+
+/** The stance's factor for a person now (see the header): Relaxed with the rifle slung 1.25, Assault below rung 2 1.1, else 1. */
+export function stanceKOf(state, pid) {
+  const a = actorOfPid(state, pid), s = a?.moveStance;
+  if (s === 'relaxed') { const p = state.people?.[pid]?.kit?.carry?.posture ?? 'slungFront'; return p === 'slungFront' || p === 'slungBack' ? STANCE_K.relaxed : 1; }
+  if (s === 'assault') return rungOf(state, pid, 'room') < ASSAULT_RUNG ? STANCE_K.assault : 1;
+  return 1;
 }
 
 // (whether a point lies outside an eye's cone: the head must turn first)
@@ -180,7 +225,7 @@ export function takeInMs(state, pid, contact) {
   const each = targets.map(t => ({ t, e: expectOf(state, pid, t, seenMs) }));
   for (const { t, e } of each) {
     if (EXPECT_ORDER.indexOf(e) > EXPECT_ORDER.indexOf(expect)) expect = e;
-    if (t.face === 'unknown') whoK = Math.max(whoK, WHO_K);
+    if (WHO_FACES.has(t.face)) whoK = Math.max(whoK, WHO_K);
   }
   if (!each.length) expect = 'surprise';
   // (the notice check: the first target's, the one that drew the eye)
@@ -198,7 +243,9 @@ export function takeInMs(state, pid, contact) {
   const roll = contact?.roll ?? check(stream(state.meta.seed, 'combat:notice', pid, contact?.id ?? 0, seenMs), { skill: 'awareness', value: roller.value('awareness'), dc, mods,
     pressure: 'evaluated', by: pid, dcParts: parts0, verb: null });
   const n = Math.max(1, targets.length);
-  const t = takeInOf({ wf, expect, grade: roll.grade, n, whoK, stanceK: STANCE_K.combat, lightK: 1, bodyK: bodyK(lapses), behindK: behind ? BEHIND_K : 1, band: contact?.band ?? 0 });
+  // (0.0.12: the stance and the light at the first target (see the header))
+  const lk = first ? lightK(lightLevel(state, first.t.x, first.t.z, seenMs)) : 1;
+  const t = takeInOf({ wf, expect, grade: roll.grade, n, whoK, stanceK: stanceKOf(state, pid), lightK: lk, bodyK: bodyK(lapses), behindK: behind ? BEHIND_K : 1, band: contact?.band ?? 0 });
   return { ms: t.ms, rawMs: t.rawMs, expect, grade: roll.grade, roll, parts: t.parts, n, whoK, dc: roll.dc ?? dc };
 }
 

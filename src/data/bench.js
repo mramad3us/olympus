@@ -33,6 +33,10 @@
 // stress-din (0.0.10, the build sheet 0.0.10 §2.3, §8 item 22): test-stress's 'standby:1' (the din's standby, armed, out of the mode) on
 // seed 48213 as the Boot recruit, 20 s still: the coach's air horn and his thirty blanks at your shoulder, their flashes, the turn
 // and the pause; its frames within BANG_FRAMES_MS of a blank are the bench's "at a bang" row (main.js), no frame there over 25 ms.
+// shoothouse (0.0.12, the build sheet 0.0.12 §5.4): test-shoothouse's 'go' setup (at GO, in stop motion) on seed 48213 as the Tier one,
+// Digit5 (the panel's "Clear the house" at GO, the tier one's fifth row), then Digit1 (the shot row that leads a pause) and T (the DI's
+// line: its carry on after each pause) in turn, every 2 s for 20 s: the lane's rooms 1 and 2 at the tier one's pace, the doors swinging, the stack and the #2, the shots in a hall,
+// timed frame by frame (no frame over 25 ms, its p95 held at 18 ms as the others').
 
 /** The bench scenes by name (the build sheet's §2.4). */
 export const BENCH_SCENES = Object.freeze({
@@ -61,6 +65,13 @@ export const BENCH_SCENES = Object.freeze({
   'stress-din': Object.freeze({
     play: 'test-stress', seed: 48213, hour: 11, setup: 'standby:1', tier: 'recruit',
     keys: Object.freeze([Object.freeze([null, 20000])]),
+    warmS: 2,
+  }),
+  shoothouse: Object.freeze({
+    play: 'test-shoothouse', seed: 48213, hour: 10, setup: 'go', tier: 'tierone',
+    keys: Object.freeze([Object.freeze(['Digit5', 120]), Object.freeze([null, 1880]),
+      ...Array.from({ length: 4 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 1880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 1880])]).flat(),
+      Object.freeze(['Digit1', 120]), Object.freeze([null, 1880])]),
     warmS: 2,
   }),
   'range-far': Object.freeze({

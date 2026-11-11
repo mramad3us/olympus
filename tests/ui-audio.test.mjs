@@ -42,6 +42,11 @@
 // nothing at calm (the tier one's felt 10); the deafness from the bang to the card: the world at 1.5 kHz and −18 dB, the whine
 // at 6 kHz loud for 20 s then falling over 60 s to its floor, both easing back over its last minute, the caption once; the coach's
 // voice at your shoulder round the deafness, the tower's 20 m off not; CHAOS's recipes rendered and measured.
+// The 0.0.12 round's (the build sheet 0.0.12 §2.7, §5.4; audio/house.js): the shoot house in the ears: the hall's reverb (its impulse made by
+// code: RT60 0.6 s measured off its decay, its early reflections at their paths' delays), the house's voices (the PA from the catwalk 3 m over
+// you, the #2's whisper at your ear, a kick through the suit's filter), each 'house' fact's cue (GO the PA and the 2.4 kHz start beep, the
+// stack's "Ready" the #2's alone, a door by its verb, "Clear!" and the double beep for a room within par, the harness's 400 Hz tone at a par
+// missed, a lock's rattle on a refusal), nothing off the house; and HOUSE's recipes rendered and measured where they belong.
 import { assert, near, fmt } from './helpers.mjs';
 import { footfalls, stepVoice, createStepScheduler, weightDb, lowpassHz, HALF_CYCLE_M } from '../src/ui/audio/steps.js';
 import { render, measure } from '../src/ui/audio/synth.js';
@@ -63,6 +68,11 @@ import { STRIDE_WRAP_M } from '../src/data/body/gait.js';
 import { hornVoice, blankVoice, nearPan, createStress } from '../src/ui/audio/stress.js';
 import { STRESS, HORN_SOURCE_DB, HORN_EARS_DB, HORN_EARS_LP_HZ, HORN_HZ, HORN_S, BREATHE_DB } from '../src/data/sounds.js';
 import { airAt, gravityAt } from '../src/sim/places/env.js';
+// (0.0.12: the shoot house's ear: audio/house.js, the hall's impulse (engine.js), HOUSE's recipes)
+import { houseVoice, inHouse, createHouse, PA_DIST_M } from '../src/ui/audio/house.js';
+import { hallImpulse } from '../src/ui/audio/engine.js';
+import { createGame } from './game.mjs';
+import { HOUSE, HALL, TIMER_HZ, HARNESS_HZ, HARNESS_S, SUIT_EARS_DB, PA_VOICE_DB, WHISPER_DB } from '../src/data/sounds.js';
 
 // (the place's air and gravity, as the presenters read them (src/sim/places/env.js: TECH §1.4): Melas's valley floor and
 // a building's floor; every voice takes them, none assumes one)
@@ -626,6 +636,70 @@ export default [
       console.log(`      hornBlast: ${fmt(horn.durS, 2)} s, peak ${fmt(horn.peakDb, 1)} dBFS, RMS ${fmt(horn.rmsDb, 1)}, centroid ${Math.round(horn.centroidHz)} Hz (tones ${HORN_HZ.join(' and ')} Hz)\n      breathBox: ${fmt(box.durS, 2)} s, peak ${fmt(box.peakDb, 1)}, RMS ${fmt(box.rmsDb, 1)}, centroid ${Math.round(box.centroidHz)} Hz`);
       assert(Math.abs(horn.durS - HORN_S) < 0.01 && horn.rmsDb > -20 && horn.centroidHz > 800 && horn.centroidHz < 3500, JSON.stringify(horn));
       assert(Math.abs(box.durS - 4) < 0.01 && box.peakDb < -20 && STRESS.breathBox.loop, JSON.stringify(box));
+    },
+  },
+  {
+    name: 'the hall\'s reverb (engine.js hallImpulse, 0.0.12): its RT60 measured off the impulse\'s decay is HALL\'s 0.6 s (±10%), its early reflections at their paths\' delays (2 to 5 m off the panels and back at 343 m/s), the two channels decorrelated, the same impulse twice (no Math.random)',
+    fn() {
+      const sr = 48000, r = hallImpulse(sr), r2 = hallImpulse(sr);
+      // (the decay: the energy in 20 ms windows, a line through the dB from 50 ms to 400 ms, its slope to −60 dB)
+      const win = Math.round(0.02 * sr), db = [];
+      for (let i = 0; i + win <= r.left.length; i += win) { let e = 0; for (let j = i; j < i + win; j++) e += r.left[j] ** 2; db.push(10 * Math.log10(e / win + 1e-30)); }
+      const pts = db.map((d, k) => [(k + 0.5) * 0.02, d]).filter(([t]) => t > 0.05 && t < 0.4);
+      const n = pts.length, mx = pts.reduce((a, p) => a + p[0], 0) / n, my = pts.reduce((a, p) => a + p[1], 0) / n;
+      const slope = pts.reduce((a, p) => a + (p[0] - mx) * (p[1] - my), 0) / pts.reduce((a, p) => a + (p[0] - mx) ** 2, 0), rt60 = -60 / slope;
+      const early = HALL.earlyM.map(m => Math.round((2 * m / 343) * sr)), peaks = early.map(i => Math.abs(r.left[i]));
+      let corr = 0, nl = 0, nr = 0;
+      for (let i = 0; i < r.left.length; i++) { corr += r.left[i] * r.right[i]; nl += r.left[i] ** 2; nr += r.right[i] ** 2; }
+      const rho = corr / Math.sqrt(nl * nr);
+      console.log(`      ${r.left.length} samples (${(r.left.length / sr).toFixed(2)} s); RT60 ${rt60.toFixed(3)} s off the decay (HALL ${HALL.rt60S} s); early reflections at ${early.map(i => `${(i / sr * 1000).toFixed(1)} ms`).join(', ')}, ${peaks.map(p => p.toFixed(3)).join(', ')}; the channels' correlation ${rho.toFixed(3)}`);
+      assert(Math.abs(rt60 - HALL.rt60S) <= HALL.rt60S * 0.1, `RT60 ${rt60}`);
+      assert(peaks.every(p => p > 0.02) && Math.abs(rho) < 0.3 && r.left.every((v, i) => v === r2.left[i]), JSON.stringify({ peaks, rho }));
+    },
+  },
+  {
+    name: 'the house\'s voices (audio/house.js houseVoice, 0.0.12): the PA from the catwalk 3 m over you, the #2\'s whisper at your ear, a door and a kick where they are (the kick through the suit\'s filter), the timer and the harness in the suit at 0 dB; in the bay\'s air (65.9 kPa: the gains are the air\'s law)',
+    fn() {
+      const g = createGame({ scenario: 'test-handling', seed: 48213 }).state, pKpa = airAt(g, null, 0, 0).pKpa, me = { x: 30, z: 13.2 };
+      const v = { pa: houseVoice('pa', { me, pKpa }), whisper: houseVoice('whisper', { me, at: { x: 30.65, z: 13.2 }, pKpa }), door: houseVoice('door', { me, at: { x: 29, z: 12 }, pKpa }), kick: houseVoice('kick', { me, at: { x: 29, z: 12 }, pKpa }), kickBare: houseVoice('kick', { me, at: { x: 29, z: 12 }, pKpa, suit: false }), timer: houseVoice('timer', { pKpa }) };
+      for (const [k, x] of Object.entries(v)) console.log(`      ${k}: ${fmt(x.gainDb, 1)} dB, low-pass ${Math.round(x.lowpassHz)} Hz, pan ${fmt(x.pan, 2)}, ${fmt(x.distM, 2)} m`);
+      near(v.pa.distM, PA_DIST_M, 1e-9);
+      assert(v.pa.gainDb < PA_VOICE_DB && v.whisper.gainDb <= WHISPER_DB + 0.01 && v.whisper.pan > 0, JSON.stringify(v));
+      near(v.kickBare.gainDb - v.kick.gainDb, -SUIT_EARS_DB / 2, 1e-9);
+      assert(v.timer.gainDb === 0 && v.door.pan < 0, JSON.stringify(v));
+    },
+  },
+  {
+    name: 'each \'house\' fact\'s cue (audio/house.js createHouse, 0.0.12): GO the PA and the start beep; the #2\'s stack his whisper ("Ready"), yours none; a push, a pull, a kick by their verbs; "Clear!" shouted and the double beep for a room within par; the harness\'s tone at a par missed, none at one met; a lock\'s rattle on a refusal; the instructor\'s "Standby"; nothing off the house, and the hall\'s send on in it and off out of it',
+    fn() {
+      const played = [], hall = [];
+      const H = createHouse({ house: (kind, o) => { played.push([kind, Math.round((o.delayS ?? 0) * 100) / 100]); return true; }, hall: (on) => hall.push(on) });
+      const g = createGame({ scenario: 'test-handling', seed: 48213 }).state;
+      const house = { ...g, armoury: { ...g.armoury, range: { ...(g.armoury?.range ?? {}), course: 'house' } } }, me = g.player.id;
+      const facts = [['house', { phase: 'go' }], ['house', { phase: 'stacked', who: 'p:two' }], ['house', { phase: 'stacked', who: me }], ['house', { phase: 'open', kind: 'push' }], ['house', { phase: 'open', kind: 'pull' }], ['house', { phase: 'open', kind: 'kick' }], ['house', { phase: 'open' }], ['say', { who: 'p:two', text: 'Ready.', call: 'ready' }], ['say', { who: me, text: 'Ready.', call: 'ready' }],
+        ['house', { phase: 'clear', who: me, met: true }], ['house', { phase: 'clear', who: 'p:two', met: false }], ['house', { phase: 'par', met: false }], ['house', { phase: 'par', met: true }], ['bundle', { phase: 'halt', why: 'refused' }], ['say', { text: 'Standby.' }], ['house', { phase: 'stop' }]];
+      for (const [t, f] of facts) H.fact(t, f, house);
+      const off = played.length;
+      H.fact('house', { phase: 'go' }, g);
+      H.frame(house); H.frame(g);
+      console.log(`      ${played.map(([k, d]) => `${k}${d ? ` +${d} s` : ''}`).join(', ')}; off the house ${played.length - off}; the hall's send ${hall.join(' → ')}`);
+      const kinds = played.map(p => p[0]);
+      const doors = ['push', 'pull', 'kick'].map(how => H.door({ how, state: 'open', x: 29, z: 12 }, house)), doorOff = H.door({ how: 'push', state: 'open' }, g);
+      console.log(`      the door facts by their verbs: ${doors.join(', ')}; off the house ${doorOff}`);
+      assert(doors.every(Boolean) && !doorOff, 'the doors');
+      assert(kinds.join() === 'paGo,timerGo,whisperReady,doorPush,doorPull,doorKick,whisperReady,shoutClear,timerDouble,shoutClear,harnessTone,lockRattle,paStandby,paStop', kinds.join());
+      assert(played.length === off + 3 && hall.join() === 'true,false' && inHouse(house) && !inHouse(g), JSON.stringify({ hall }));
+    },
+  },
+  {
+    name: 'HOUSE\'s recipes rendered and measured (0.0.12): the timer\'s beep at 2.4 kHz and its double beep 0.2 s apart, the harness\'s 400 Hz tone over 0.4 s, the voices\' syllables in a voice\'s band, the whisper quieter and pitchless, the kick the loudest and lowest of the doors, the suit\'s scuff short; the same samples twice, the variants different',
+    fn() {
+      const m = {};
+      for (const [k, r] of Object.entries(HOUSE)) { const a = render(r, { sampleRate: WORLD_RATE_HZ, name: k }), b = render(r, { sampleRate: WORLD_RATE_HZ, name: k }); m[k] = { ...measure(a.samples ?? a, WORLD_RATE_HZ), same: (a.samples ?? a).every((v, i) => v === (b.samples ?? b)[i]) }; if ((r.variants ?? 1) > 1) { const c = render(r, { sampleRate: WORLD_RATE_HZ, name: k, variant: 1 }); m[k].differs = (c.samples ?? c).some((v, i) => v !== (a.samples ?? a)[i]); } }
+      for (const [k, x] of Object.entries(m)) console.log(`      ${k}: peak ${fmt(x.peakDb, 1)} dB, RMS ${fmt(x.rmsDb, 1)}, centroid ${Math.round(x.centroidHz)} Hz, ${fmt(x.durS, 2)} s${x.differs !== undefined ? `, variants differ ${x.differs}` : ''}`);
+      assert(Math.abs(m.timerGo.centroidHz - TIMER_HZ) < 700 && Math.abs(m.harnessTone.centroidHz - HARNESS_HZ) < 120 && HOUSE.harnessTone.durS === HARNESS_S, JSON.stringify([m.timerGo.centroidHz, m.harnessTone.centroidHz]));
+      assert(m.doorKick.peakDb > m.doorPush.peakDb && m.doorKick.centroidHz < m.doorPush.centroidHz && m.whisperReady.peakDb < m.paGo.peakDb && m.suitScuff.durS < 0.1, 'the doors, the voices');
+      assert(Object.values(m).every(x => x.same) && Object.values(m).filter(x => x.differs !== undefined).every(x => x.differs), 'deterministic, variants differ');
     },
   },
 ];

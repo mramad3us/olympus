@@ -1,4 +1,4 @@
-// OLYMPUS data: the staff posts of Base Melas, who stands where and of what rank (PEOPLE §3.13, §4.3's range detail; the build sheet 0.0.5 §2.2, §8 item 24).
+// OLYMPUS data: the staff posts of Base Melas, who stands where and of what rank (PEOPLE §3.13, §4.3's range detail; the build sheet 0.0.5 §2.2, §8 item 24; 0.0.12's shoot house instructor, §8 item 19).
 //
 // A post is authored, the same in every career (the user, 2026-11-05: "game world is handcrafted"):
 // what it is, the rank weights it takes, its MOS and the unit it belongs to. Who fills it is generated
@@ -15,4 +15,7 @@ export const POSTS = deepFreeze({
   // (0.0.7: the range's corpsman, behind the line, and the pits' NCO (the build sheet 0.0.7 §1, §2.3))
   'melas:kd-corpsman': { site: 'melas', key: 'kd-corpsman', what: 'range corpsman', ranks: [['HLH', 50], ['HPO2', 35], ['HAR', 15]], mos: '8404', unitId: '2/4', branch: 'navy', outfit: 'rangeStaff' },
   'melas:kd-pits': { site: 'melas', key: 'kd-pits', what: 'pits NCO', ranks: [['Sgt', 55], ['Cpl', 45]], mos: '0311', unitId: '2/4', branch: 'marines', outfit: 'rangeStaff' },
+  // (0.0.12: the shoot house's chief instructor, on the catwalk of house 1 in the Wheel's sector 4 (COMBAT §25.10.2; the build
+  // sheet 0.0.12 §8 item 19): a generated staff sergeant, as the range's staff are)
+  'melas:wheel-house-chief': { site: 'melas', key: 'wheel-house-chief', what: 'shoot house instructor', ranks: [['SSgt', 70], ['GySgt', 20], ['Sgt', 10]], mos: '0369', unitId: '2/4', branch: 'marines', outfit: 'rangeStaff' },
 });

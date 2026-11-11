@@ -957,3 +957,22 @@ export function blankFlashPixels(b, ms, ppm = PX_PER_M, { force = false } = {}) 
   }
   return out;
 }
+
+// ---------- 0.0.12: the shoot house's corners as covered (the build sheet 0.0.12 §2.4; COMBAT §25.11) ----------
+//
+// A hot spot of a room's plan (room.js: a corner, the space behind the door, the far leg) is drawn on the floor as a tick two
+// pixels long, along the floor's x, in the run sheet's language and no more (sparing at 16 px/m: no zones painted, no
+// rings): pale (CORNER_PALE) until you or your #2 has covered it (houseLook's covered), then brass (CORNER_COVERED, the mark of
+// a thing done), the #2's a step lighter so whose eyes took it reads to one who looks; gone once the room is called clear (the
+// look leaves it out, or marks it gone).
+/** A corner's tick: pale until covered, brass once covered (yours), a lighter brass (the #2's). */
+export const CORNER_PALE = 0xb8b4a8, CORNER_COVERED = 0xd8a640, CORNER_TWO = 0xead08a;
+/** The tick's length (px) and its height off the floor (m: over the floor's own pixels, under every figure's feet). */
+export const CORNER_PX = 2, CORNER_Y_M = 0.012;
+/** A hot spot's tick: [{ x, y, z, c }] (houseLook's corner: { x, z, covered, by: 'you' | 'two' | … }). */
+export function cornerPixels(c, ppm = PX_PER_M) {
+  if (!c || !Number.isFinite(c.x) || !Number.isFinite(c.z)) return [];
+  const P = 1 / ppm, col = !c.covered ? CORNER_PALE : c.by === 'two' || c.by === 2 ? CORNER_TWO : CORNER_COVERED;
+  const x0 = Math.floor(c.x * ppm) / ppm, z = Math.floor(c.z * ppm) / ppm;
+  return Array.from({ length: CORNER_PX }, (_, i) => ({ x: x0 + i * P, y: CORNER_Y_M, z, c: col }));
+}

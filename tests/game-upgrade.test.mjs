@@ -35,6 +35,11 @@
 // its first fold, honestly; no R.stress: test-pairs): each saves again at once byte for byte, plays 600 ticks by the pairs
 // bot with no error (the calm one with no combat block made), the banged recruit's body taking the chaos's stress, and a
 // save after carries on byte for byte.
+// 0.0.12 (the build sheet 0.0.12 §3.2): two saves made by v0.0.11's own code from a worktree at its tag (the barracks at
+// 13:00; test-pairs at a contact's pause with a step under way, the stepper's extraction's riskiest case: v0.0.5's step
+// machinery moved out of shooting.js into src/sim/combat/stepper.js). Nothing is written on load (no moveStance, no watch,
+// no drills on the sheet: their defaults read): each saves again at once byte for byte, plays 600 ticks with no error (the
+// pairs one by the pairs bot), and a save after carries on byte for byte.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -242,6 +247,23 @@ export default [
         assert(again === json && !fields0.length && !g.state.armoury.range.stress, JSON.stringify({ same: again === json, fields0 }));
         assert(banged ? pool0 > 45 + hardOf(s, pid) && gained > 1 : !blocks && felt0 === 0 && gained === 0, JSON.stringify({ banged, pool0, gained, blocks, felt0 }));
         assert(!g.errors.length && !h.errors.length && h.save() === end && g.state.clock.ms > t0, JSON.stringify({ errors: g.errors.slice(0, 3), moved: g.state.clock.ms - t0 }));
+      }
+    },
+  },
+  {
+    name: 'a v0.0.11 save loads with nothing written (the build sheet 0.0.12 §3.2: the barracks at 13:00, and test-pairs at a contact\'s pause with a step under way, the stepper\'s extraction\'s riskiest case): it saves again byte for byte at once, plays 600 ticks with no error, and a save made after carries on byte for byte',
+    timeoutMs: 120_000,
+    fn() {
+      for (const name of ['v0.0.11-barracks-1300', 'v0.0.11-pairs-pause']) {
+        const json = read(name), old = JSON.parse(json);
+        assert(old.meta.version === '0.0.11', `${name}: ${old.meta.version}`);
+        const bot = () => (old.meta.scenario === 'test-pairs' ? pairsBot() : {});
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), again = g.save(), b = bot();
+        const doing = s.stop?.doing ? `${s.stop.doing.step} sub ${s.stop.doing.i}` : 'nothing';
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, bot());
+        console.log(`      ${name}: ${old.meta.scenario}, saved at ${hm(old.clock.ms)}, ${doing} under way, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}; 600 ticks, ${g.errors.length} errors; carried on from a save ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+        assert(again === json && !g.errors.length && !h.errors.length && h.save() === end, name);
       }
     },
   },

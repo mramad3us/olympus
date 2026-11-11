@@ -15,8 +15,8 @@
 export const PANEL_KEYS = Object.freeze(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
 /** Whether a step is a shot row (specials.js: kind 'shot', its rounds and parts). */
 export const isShotRow = (s) => s?.kind === 'shot' && Array.isArray(s.rounds);
-/** The kinds that stay on every page: the shot, the shot rows, the contact's answers and the tower's commands (the rest page under 0). */
-export const FIXED_KINDS = Object.freeze(['fire', 'aim', 'hold', 'command', 'shot', 'contact']);
+/** The kinds that stay on every page: the shot, the shot rows, the contact's answers and the tower's commands (the rest page under 0); 0.0.12: the house's drill rows and its door's rows too, so the stack, the bundle T names and the door lead the panel at GO and at the door, as a Corps command does on the bay (the build sheet 0.0.12 §2.2). */
+export const FIXED_KINDS = Object.freeze(['fire', 'aim', 'hold', 'command', 'shot', 'contact', 'bundle', 'door']);
 /**
  * Whether a step stays on every page (a fixed kind, or a contact's answer by its id); a command stepsOf marks later (at a
  * contact's pause, no answer to the man facing you: UNLOAD, a Top up with nothing to gain) pages with the rest, and a

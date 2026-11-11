@@ -24,10 +24,14 @@
 // one" its second, the sheet's §8 item 21).
 // 0.0.10's test-stress, "Bang" (the build sheet 0.0.10 §2.2; COMBAT §25.18.3): five strings at 7 m with the coach's noise in ear
 // defenders, on the stress course (src/sim/scenarios/stress.js), scored on three aspects, the picker opening on the boot recruit.
-// test-shoothouse, "Stack and clear" (COMBAT §25.10.4; ROADMAP §4.2's 0.0.7d), is a stub: its spec stands at house 1 of the
-// Wheel's sector 4 (PLACES §4.15: the Wheel is Base Melas's, so its host is the Melas site and its clock the sol) under the
-// `wheel` preset at 1 G, with no scenario and `built: false` until the next round authors its layout; SCENE_IDS (the Tests
-// menu) leaves it out and newGame refuses it. STARTS are the two starts that are not test scenes: the career's barracks
+// 0.0.12's test-shoothouse, "Stack and clear" (COMBAT §25.10.4; ROADMAP §4.2's 0.0.7d; the build sheet 0.0.12 §2.6): lane A of
+// house 1 in the Wheel's sector 4 (PLACES §4.15: the Wheel is Base Melas's, so its host is the Melas site and its clock the
+// sol), its environment the site's own (env { preset: 'site' }: the area carries its 1 G of spin, src/data/places/wheel.js),
+// played in the combat EVA suit on the house course (src/sim/scenarios/shoothouse.js) with the movement stances (stances: V
+// cycles Relaxed, Combat, Assault here only, the sheet's §8 item 7), the picker's sheets from the boot recruit to the tier one
+// and its pars (the instructor's timer: basic, advanced, operator; pars). Its goal line is the picker's, with no blank to
+// fill (the fixer's of 0.0.12: the picker showed "{two}"); the scene's toast names your number two (shoothouse.js houseGoal). A stub's spec (built false) is left out of SCENE_IDS (the Tests menu) and refused by
+// newGame. STARTS are the two starts that are not test scenes: the career's barracks
 // and the sandbox's test rooms (the title and ?play= start them; the Tests menu never lists them).
 // The hud reads every field; scenes save nothing (the sheet §8, item 24): their scores alone are kept.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
@@ -100,15 +104,16 @@ export const SCENES = deepFreeze({
     body: {}, outfit: 'utilities', course: 'stress', sheets: ['recruit', 'private', 'sgt', 'raider', 'tierone'], sheet: 'recruit',
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
-  // (ROADMAP "anywhere", step 4: the next scene's spec, a stub until the next round builds its layout and its fill (COMBAT
-  // §25.10.4; PLACES §4.15): house 1 of the Wheel's sector 4 at 1 G of spin; its hour (a morning training block) is my call)
+  // (0.0.12: stack and clear on the instructor's GO, ROADMAP §4.2's 0.0.7d row (the build sheet 0.0.12 §2.6): house 1 of the
+  // Wheel's sector 4 at 1 G of spin, the area's own; its hour (a morning training block) is my call)
   'test-shoothouse': {
-    id: 'test-shoothouse', title: 'Stack and clear', scenario: null, built: false,
-    host: { site: 'melas', area: 'melas.wheel.s4' }, env: { preset: 'wheel' }, hour: 10.0,
-    goal: "Lane A of the shoot house with your number two, on the instructor's GO: three rooms and the hall. Threats down, no-shoots untouched.",
+    id: 'test-shoothouse', title: 'Stack and clear', scenario: 'test-shoothouse',
+    host: { site: 'melas', area: 'melas.wheel.s4' }, env: SITE_ENV, hour: 10.0,
+    goal: 'Lane A at 1 G with your number two, on GO: three rooms and the hall. Threats down, no-shoots untouched.',
     aspects: [['pause', "the pause: the take-in's feel, the brackets, the stamp, the brake, the log"], ['drill', 'the drill: step by step against the bundle, and the decisions that matter yours'], ['shots', 'the shots: the rows and the reloads']],
-    body: {}, outfit: 'utilities', course: null, sheets: ['private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
-    endOn: null,
+    body: {}, outfit: 'combatSuit', course: 'house', stances: true, sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
+    pars: ['basic', 'advanced', 'operator'],
+    endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
 });
 

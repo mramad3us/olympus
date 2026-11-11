@@ -12,10 +12,14 @@
 //                shadows 0 whatever the row says, the level and the tint at most the 0° row's (the
 //                sky follows the row: it brightens before the sun clears the rim).
 //   MOODS        an interior's fill by its lighting state (VIEWS §2.7's Base Melas interiors): day's
-//                overheads 0.75, evening's warmer 0.65, lights out 0.04 (the overheads off).
+//                overheads 0.75, evening's warmer 0.65, lights out 0.04 (the overheads off); from 0.0.12
+//                dim, the shoot house's overheads turned down by the instructor (COMBAT §25.10.4: room 3's
+//                "dim light the instructor sets"), fill 0.40, the day's lamps (the build sheet 0.0.12 §2.1:
+//                the take-in's ×1.13 and the shot's −2 read it through lightLevel).
 //   CLASSES      what a room's lighting class does with the state (the sheet's §4): berthing as the
 //                state says; a head at the evening's 0.65 at every hour (heads stay lit); a hall as
-//                berthing with its night lights lit at lights out; an office as berthing.
+//                berthing with its night lights lit at lights out; an office as berthing; from 0.0.12
+//                cqbDim, a shoot-house room the instructor keeps dim, at every hour (house 1's room 3).
 //   LAMP_KINDS   the lamps that make pools, each a hard two-ring disc (core to r, ring to 1.5 r: VIEWS
 //                §2.7, pixel art's pool of light), their colours, radii and when they are lit; and the
 //                kinds that make none (a ceiling panel is the room's fill, the sheet's §8 item 7; an
@@ -64,6 +68,7 @@ export const MOODS = deepFreeze({
   day: { color: 0xf2f0ea, fill: 0.75, sp: 1.5 },
   evening: { color: 0xf6e6cc, fill: 0.65, sp: 1.25 },
   lightsOut: { color: null, fill: 0.04, sp: 1.0 },
+  dim: { color: 0xe4e0d6, fill: 0.40, sp: 1.5 },
 });
 
 /** What a room's lighting class makes of the clock's state (the sheet's §4). */
@@ -72,6 +77,7 @@ export const CLASSES = deepFreeze({
   head: { always: 'evening', nightLights: false },
   hall: { always: null, nightLights: true },
   office: { always: null, nightLights: false },
+  cqbDim: { always: 'dim', nightLights: false },
 });
 /** A room's lighting class by its kind, where the room does not name one. */
 export const CLASS_OF_KIND = deepFreeze({ squadBay: 'berthing', rackRoom: 'berthing', head: 'head', shower: 'head', hall: 'hall', lobby: 'hall', vestibule: 'hall', stairs: 'hall', mail: 'hall' });

@@ -24,12 +24,12 @@ export const TEST_SITE = deepFreeze({
   areas: ['test.rooms'],
 });
 
-/** The site record of Base Melas (PLACES §1.2, §4.1): its areas grow with the buildings that get interiors; horizon names its walls. */
+/** The site record of Base Melas (PLACES §1.2, §4.1): its areas grow with the buildings that get interiors (0.0.12: the Wheel's sector 4, PLACES §4.15, under the base); horizon names its walls. */
 export const MELAS_SITE = deepFreeze({
   id: 'melas', kind: 'base', template: 'melas@1', name: 'Marine Corps Base Melas', body: 'mars', geo: 'melas', horizon: 'melas', clock: 'mars-local',
   outside: { kind: 'air', air: 'mars-melas', weather: 'mars-weather' }, inside: { air: 'martian-indoor' },
   gravity: { regime: 'surface', down: [0, -1, 0] }, lighting: 'base', water: 'melas', routine: 'melas', palette: 'mars',
-  areas: ['melas.ground', 'melas.echo.1', 'melas.echo.2'],
+  areas: ['melas.ground', 'melas.echo.1', 'melas.echo.2', 'melas.wheel.s4'],
 });
 
 /** Every site record, in the registry's order. */

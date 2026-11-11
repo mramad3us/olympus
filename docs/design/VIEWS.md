@@ -1068,6 +1068,8 @@ Tradecraft's stop-motion overlays, kept as the user approved them (tradecraft 20
 - **PAPER's timer: a long paper grows by its laid-out lines**, up to 200 px (`timer.js paperFoot`). String 5's paper, with five splits wrapped under SPLITS and its RELOAD and SECOND rows, was sized by its rows alone (174 px) and cut its zones line at the foot; it is now 189 px. One "Three bangs" paper of v0.0.9 was cut too (the recruit on seed 1: 140 → 155 px); the 249 other Pairs and "Three bangs" papers over 25 runs stay 140 px. The din's paper leads with its plan, "DIN 30 BLANKS · 22 HEARD" when the string ended first.
 - **A walk key that went down in a startle or its guard is let go** in the key machine (`main.js dropStartleMoves`, each poll), so held past the startle it does not walk the marine (0.285 m before the fix; 0 m now).
 
+**As built in v0.0.12** (COMBAT §25.11 holds the panel): bundle dots capped at 6 between seams, the running bundle's four lanes, "T: <row> · <s>" on the instinct line, the lane timer in the PAPER, a stand drawn only once seen, the plates beside a turner on the side clear of the others (house only). **A look question for the user's samples**: the #2 at 0.65 m in the stack draws as one blob at 16 px/m (a tag or an outline?), the instructor on the catwalk reads over a doorway, and the catwalk's rails run across the rooms.
+
 ### 7.5 The layout: a reserved rectangle for everything
 
 The user complained of "overlapping UI elements" in tradecraft (the hunt's HUD icons had to be moved: `tradecraft-design-3.md` §2.6), and LONGHAUL's rule is "nothing floats over a display" (v0.19.0, 2026-10-22). So every HUD element owns a fixed rectangle, reserved per state; no two rectangles of one state meet; and everything drawn in the picture (the far window, heard, felt and waypoint plaques at the frame's edge, name plaques, speech balloons, the talk box, the splash's close plate) is placed by LONGHAUL's `labels.js` with every rectangle of the state given to it as a `block()`, so it goes round the HUD or is left off, never drawn over it (my call).
@@ -1425,6 +1427,8 @@ The keys card lists G, X, the digits (tap, Shift, held), A and W, V, Enter, Q an
 
 **As built in v0.0.7** (`keys.js` `DIAL_ELEV_CODES`, `DIAL_WIND_CODES`, `dialOf`; `main.js`; the build sheet 0.0.7 §2.5). In the mode, where they walk nowhere, **Z and S (KeyW, KeyS) and ↑ ↓ dial a click of elevation** up and down, and **Shift with Q and D (KeyA, KeyD) or ← → a click of windage** left and right (Q and D alone still step the brackets); each is the step `sight:elev:±1` or `sight:wind:±1`, timed and unrolled (WEAPONS §3.5). **E held on a KD line** opens the far window on your own face (section 2.4), as aim and bracket do. Free holds have no key; the panel's rows set the hold (section 7.4). The keys card lists the dial keys.
 
+**As built in v0.0.12**: V cycles the movement stances (Relaxed, Combat, Assault) where a scene spec sets `stances: true` (the shoot house); elsewhere V is the carry cycle. Backspace stops a bundle after its beat (`HOUSE_KEYS` on the keys card). GO has a 350 ms key guard, so a press made as the instructor says GO does not act.
+
 ### 10.3 Everywhere else
 
 | Context | Keys |
@@ -1526,6 +1530,8 @@ A synthesised sound is tuned by ear, and Claude, who builds it, cannot listen; t
 **Measured, not only heard.** The `audio` test renders each scored sound offline (`OfflineAudioContext`) in its conditions and prints its peak and RMS level in dBFS, its loudness in LUFS, its spectral centroid, its energy in octave bands from 63 Hz to 8 kHz and its decay to −30 dB. It compares them with the numbers stored beside the scored parameters, so a change to the synthesiser that alters a scored sound fails the test without anyone listening.
 
 ---
+
+**As built in v0.0.12** (`src/ui/audio/house.js`): the hall's reverb is made by code (RT60 0.6 s), the `HOUSE` cues, the suit's ear filter, no berm echo indoors, the instructor's PA and the low par tone with the double beep for a room within par, and the #2's whispered "Ready." on every stack (your own single's stack said nothing before). The bay's range noise stays out of the house.
 
 ## 12. Accessibility
 

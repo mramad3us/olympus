@@ -230,4 +230,37 @@ export default [
       }, { query: 'play=test-handling&seed=48213&nostore=1' });
     },
   },
+  {
+    name: 'the shoot house by ear (0.0.12, the build sheet 0.0.12 §2.7): the hall\'s reverb on in the Wheel (its send open) and off at the title; the stack\'s doors by their verbs; the #2\'s whispered "Ready" on his stack; a shot in the hall through the suit\'s filter with no berm echo; the suit\'s steps scuffing at 1 G\'s cadence; the timer\'s beeps and the harness\'s tone on their facts',
+    heavy: true,
+    timeoutMs: 240000,
+    async fn() {
+      const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined;
+      await withGame(async (page, errors) => {
+        const H = '__olympus';
+        await page.waitForFunction(() => window.__ready && window.__olympus.house?.(), null, { timeout: 60000 });
+        await page.keyboard.press('ShiftLeft');                       // (a key: the context resumes)
+        await page.waitForTimeout(400);
+        const s0 = await page.evaluate((h) => { const a = window[h].audio; return { state: a.contextState, hall: a.hallOn, house: a.house ? { ...a.house } : null }; }, H);
+        // (the stack: Stack on the door, the #2 stacks behind: his whisper; then the door's row)
+        const keyOf = async (re) => page.evaluate((src) => document.querySelector('.steps .step') && [...document.querySelectorAll('.steps .step')].find(e => new RegExp(src).test(e.dataset.step))?.dataset.key, re);
+        await page.keyboard.press(`Digit${await keyOf('^drill:room:stack')}`);
+        await page.waitForFunction(() => window.__olympus.state.stop?.phase === 'choose' && document.querySelector('.steps .step[data-step^="door:"]'), null, { timeout: 20000 });
+        await page.waitForTimeout(3500);                              // (the #2's stack after yours: TWO_WAIT_MS at most)
+        const k = await keyOf('^door:(push|pull)>');
+        await page.keyboard.press(`Digit${k}`);
+        await page.waitForTimeout(1200);
+        // (out of stop motion: the walk in, the suit's steps)
+        await page.keyboard.press('KeyX');
+        await page.keyboard.down('KeyW'); await page.waitForTimeout(1500); await page.keyboard.up('KeyW');
+        await page.waitForTimeout(800);
+        const s1 = await page.evaluate((h) => { const a = window[h].audio; return { hall: a.hallOn, house: a.house ? { ...a.house, byKind: { ...a.house.byKind } } : null, steps: a.steps, scuffs: a.scuffs ?? 0, last: a.range?.lastReport ?? null, echoes: a.range?.echoes ?? 0 }; }, H);
+        console.log(`      at GO: the context ${s0.state}, the hall's send ${s0.hall}; after the stack, the door and the walk: the hall ${s1.hall}, the house's cues ${JSON.stringify(s1.house?.byKind)}, ${s1.steps} steps with ${s1.scuffs} suit scuffs, berm echoes ${s1.echoes}`);
+        assert(s0.state === 'running' && s1.hall === true && s1.house && s1.house.doors >= 1 && (s1.house.byKind.doorPush ?? 0) + (s1.house.byKind.doorPull ?? 0) >= 1, JSON.stringify(s1));
+        assert(s1.house.whispers >= 1 && s1.echoes === 0, JSON.stringify(s1.house));
+        assert(s1.steps === 0 || s1.scuffs >= 1, JSON.stringify({ steps: s1.steps, scuffs: s1.scuffs }));
+        assert(!errors.length, errors.join(' | '));
+      }, { port, query: 'play=test-shoothouse&setup=go&tier=private&seed=48213&nostore=1' });
+    },
+  },
 ];

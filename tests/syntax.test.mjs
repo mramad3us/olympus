@@ -235,6 +235,13 @@ const MARS_CLOCKS = /(?<![\w$])(marsClock|msAtMarsTime)(?![\w$])/g;
 const SCENE_TABLE = /(?<![\w$])SCENARIO_SITES(?![\w$])/g, SCENE_CLOCK = /(?<![\w$])msAtMarsTime(?![\w$])/g, SCENE_SITE = /(?<![\w$])site\s*:\s*['"`]/g;
 const SCENE_FILLS = (r) => r.startsWith('src/sim/scenarios/') || r === 'src/sim/game.js';
 const SUPP_HOME = 'src/sim/combat/supp.js';
+/** COMBAT §25.7.1: the stepper's one home (the build sheet 0.0.12 §2.6): the sub-steps' and the beats' boundaries are scheduled there alone. */
+const STEPPER_HOME = 'src/sim/combat/stepper.js';
+const STEPPER_NAMES = Object.freeze(['runSub', 'advanceBeats', 'endStep']);
+/** The NPC gunner's own step clock (COMBAT §2, v0.0.7), older than the stepper: named, to join it with the fighter brains (0.1.x; my call). */
+const STEPPER_EXCEPT = Object.freeze(new Set(['src/sim/arms/gunner.js: runSub']));
+/** PLACES §4.15: the spin's one home (the build sheet 0.0.12 §2.6): ω and the Coriolis terms in src/sim/places/spin.js alone. */
+const SPIN_HOME = 'src/sim/places/spin.js';
 const SUPP_PREFIXES = Object.freeze(['SUPP_', 'HARD_', 'STARTLE_', 'INOC_', 'FLASH_', 'DEAF_', 'NERVE_']);
 const SUPP_EXCEPT = Object.freeze(new Set(['src/sim/combat/react.js: SUPP_MS', 'src/sim/arms/look.js: FLASH_MS', 'src/sim/body/wounds.js: HARD_BLEED_PM', 'src/data/body/needs.js: HARD_MET']));
 const hasSupp = (name) => SUPP_PREFIXES.some(p => name.startsWith(p));
@@ -486,6 +493,44 @@ export default [
       report({ 'pace defined outside skills.js': hits });
       console.log(`      ${files.length} modules; defined in ${PACE_HOME}: ${home.join(', ') || 'none yet'}; the word test: ${probe.join(', ')}`);
       assert(hasPace('paceOf') && hasPace('PACE_K') && hasPace('slow_pace') && !hasPace('space') && !hasPace('paced'), 'the word test');
+      assert(!hits.length, hits.join('\n'));
+    },
+  },
+  {
+    name: 'rules: the stepper\'s one home (COMBAT §25.7.1, STEPPER_HOME): no module but src/sim/combat/stepper.js sets a sub-step\'s start (subFromMs) or defines runSub, advanceBeats or endStep, but the NPC gunner\'s own step clock (named)',
+    fn() {
+      const files = srcFiles(), hits = [], excepted = [];
+      for (const f of files) {
+        const r = rel(f);
+        if (r === STEPPER_HOME) continue;
+        const code = codeOnly(readFileSync(f, 'utf8')), lineAt = (at) => code.slice(0, at).split('\n').length;
+        for (const m of code.matchAll(/\.subFromMs\s*=(?!=)/g)) hits.push(`${r}:${lineAt(m.index)}: subFromMs =`);
+        for (const d of definedNames(code)) {
+          if (!STEPPER_NAMES.includes(d.name)) continue;
+          const key = `${r}: ${d.name}`;
+          (STEPPER_EXCEPT.has(key) ? excepted : hits).push(STEPPER_EXCEPT.has(key) ? key : `${r}:${lineAt(d.at)}: ${d.name}`);
+        }
+      }
+      const home = definedNames(codeOnly(readFileSync(path.join(root, STEPPER_HOME), 'utf8'))).map(d => d.name).filter(n => STEPPER_NAMES.includes(n) || ['begin', 'advance', 'halt', 'flowOf', 'registerKind'].includes(n));
+      report({ 'a sub-step scheduled outside the stepper': hits });
+      console.log(`      ${files.length} modules; ${STEPPER_HOME} defines ${home.join(', ')}; excepted: ${excepted.join('; ') || 'none'}`);
+      assert(STEPPER_NAMES.every(n => home.includes(n)), `the home's names: ${home.join(', ')}`);
+      assert(!hits.length, hits.join('\n'));
+    },
+  },
+  {
+    name: 'rules: the spin\'s one home (PLACES §4.15, SPIN_HOME): no module but src/sim/places/spin.js reads a spin\'s ω (omegaRadS) or defines a name with "omega" or "coriolis" in it, the environment\'s data apart',
+    fn() {
+      const files = srcFiles(), hits = [];
+      for (const f of files) {
+        const r = rel(f);
+        if (r === SPIN_HOME || ENV_HOME.has(r)) continue;
+        const code = codeOnly(readFileSync(f, 'utf8')), lineAt = (at) => code.slice(0, at).split('\n').length;
+        for (const m of code.matchAll(/(?<![\w$])omegaRadS(?![\w$])/g)) hits.push(`${r}:${lineAt(m.index)}: omegaRadS`);
+        for (const d of definedNames(code)) if (/omega|coriolis/i.test(d.name)) hits.push(`${r}:${lineAt(d.at)}: ${d.name}`);
+      }
+      report({ 'a spin term outside spin.js': hits });
+      console.log(`      ${files.length} modules; the home: ${SPIN_HOME} and the environment's data`);
       assert(!hits.length, hits.join('\n'));
     },
   },

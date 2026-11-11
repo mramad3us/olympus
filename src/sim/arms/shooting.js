@@ -102,11 +102,23 @@
 // never × the chaos's time factor (breathing is not the hands); supp.js breatheStart at its first, breatheEnd at its end
 // or its cut (a startle or a sighting cuts it at its sub-step's end, as any step). Out of the mode it is a live step
 // (breatheAction: in the mode chooseStep, out of it liveStep), and it leaves the hands as they were.
-// Pure but enterStop, leaveStop, liveStep, chooseStep, breatheAction, stopInput, stopRules.
+// 0.0.12 (the build sheet 0.0.12 §2.2, §8 items 7, 9; COMBAT §25.7, §25.11): the step machinery lives in src/sim/combat/
+// stepper.js (begin, runSub, advance, endStep: the timing), this module its list handler (rifleSub, endSub, queueAfter,
+// the end's chained wait and reflex); scene-handling passes byte for byte through it. In the house (the live area is the
+// lane's: src/sim/combat/room.js lanePlanOf) stepsOf leads with the drill's rows (src/sim/combat/bundle.js: a halted
+// bundle's "Carry on", the rung's bundles at the lane's door, then the singles: Stack on the door, the door's rows, Watch,
+// Look, Move, Hold it, "Clear!", Mark, the stances), after the contact's and the shot rows at a live pause; X at a door
+// below rung 2 is labelled "go: the clock runs, the keys move you"; a chosen bundle or single runs as a beat doing through
+// the stepper (bundle.js startBundle, startSingle, carryOn). targetsOf lists the session's turners wherever the session's
+// area (R.area) is the live one, by their record's name. gaitAction is V where a spec sets stances (the house): Relaxed →
+// Combat → Assault, the posture following (slung, low ready, high ready). A Watch held is the actor's watch ({ hotId, x, z,
+// yawRad, fromMs }, kept out of the mode while the keys walk him in; react.js reads it as a held sector).
+// Pure but enterStop, leaveStop, liveStep, chooseStep, breatheAction, gaitAction, stopInput, stopRules.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { playerActor, playerId } from '../../core/ids.js';
-import { headOf } from '../people/perception.js';
+import { headOf, clearLine } from '../people/perception.js';
+import { sightGridOf } from '../places/sight.js';
 import { downOf } from '../body/wounds.js';
 import { isRoutine, oddsOf, TEMPO } from '../skills/checks.js';
 import { rollerOf } from '../combat/roll.js';
@@ -135,9 +147,17 @@ import { lineReady, recordShot, recordEjects, recordDischarge, afterStep, aheadO
 import { turnerTargets } from './turners.js';
 import { shotRows, reloadRows, rowPlan, keptPlan, runRowSub, endRowSub, RELOAD_PURPOSE, rungOfShooter, RUNG_AIM, halfOrLess, fullerAtHand, ROWS } from './specials.js';
 import { contactRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive, CONTACT_LABELS } from '../combat/contact.js';
+import { useList, begin, advance, endStep, stepFact } from '../combat/stepper.js';
+import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant } from '../combat/bundle.js';
+import { rungOf } from '../skills/templates.js';
+import { MOVE_STANCES, gaitsOf } from '../body/motion.js';
+import { profileOf, pathLen } from '../combat/stepper.js';
+import { legsHere } from '../places/move.js';
 
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 /** A heading as a sprite's facing. */
+/** The bundle's hand-backs that ask the player a decision: a moving-on shot row never carries the bundle past them (the fixer's of 0.0.12). */
+export const ASKS = Object.freeze(new Set(['door-unplanned', 'refused']));
 export const faceOfHead = (h) => { const a = wrap(h); return Math.abs(a) <= Math.PI / 4 ? 'right' : Math.abs(a) >= 3 * Math.PI / 4 ? 'left' : a > 0 ? 'down' : 'up'; };
 
 /** The words of the singles in the panel. */
@@ -267,6 +287,17 @@ export function targetsOf(state, pid = playerId(state)) {
         paper: R?.course === 'kd' ? 'zero25' : 'card25', ...(line === 25 ? { line } : {}) });
     }
   }
+  // (0.0.12: a session's turners wherever its area is the live one (the house), by their record's name (see the header))
+  else {
+    const R = rangeOf(state);
+    // (only a man you could see: a clear line from you, and turned toward you at least in part; an edge-on card behind a
+    // trigger, or one beyond a wall, is not yet a target to aim at, so nothing is aimed before its take-in)
+    const grid = R?.turners?.length && R.area === area ? sightGridOf(state, area) : null;
+    if (grid) for (const t of turnerTargets(state, state.clock.ms)) {
+      if (!inLeadFrame(me, t.x, t.z, half) || !(t.facingK > 0) || !clearLine(grid, me.x, me.z, t.x, t.z, 'stand')) continue;
+      out.push({ ...t, dM: Math.hypot(t.x - me.x, t.z - me.z), name: t.name ?? `the target, lane ${t.lane}` });
+    }
+  }
   out.sort((a, b) => a.x - b.x || a.z - b.z);
   const people = [];
   for (const a of state.actors?.list ?? []) {
@@ -324,10 +355,11 @@ export function enterStop(state, bus, { pid = playerId(state), gunId = gunOn(sta
   if (state.stop?.mode === 'live' || state.time?.doing) return { ok: false, why: 'busy' };
   if (rangeOf(state)?.end) return { ok: false, why: 'the line is clear' };
   me.headRad ??= headOf(me.face ?? 'right');
-  // (your own: on a KD line your face (KD lane 6 + your bay lane, the session's kdLane), on the bay your card)
+  // (your own: on a KD line your face (KD lane 6 + your bay lane, the session's kdLane), on the bay your card; 0.0.12: in the
+  // house nothing is bracketed until a man is seen, never your #2 or the instructor by default)
   const list = targetsOf(state, pid), R = rangeOf(state);
   const own = (pick ? list.find(t => t.key === pick) : null) ?? list.find(t => t.key === `face:${R?.kdLane ?? kdLaneAt(state, pid)}`) ?? list.find(t => t.kind === 'paper' && t.lane === R?.lane)
-    ?? list.find(t => t.kind === 'turner' && t.lane === R?.lane) ?? list[0] ?? null;
+    ?? list.find(t => t.kind === 'turner' && t.lane === R?.lane) ?? (R?.course === 'house' ? list.find(t => t.kind !== 'person') : list[0]) ?? null;
   state.stop = { mode: 'stop', who: pid, gun: gunId, phase: 'choose', pick: own?.key ?? null, aim: null, doing: null, queue: [], reflex: null, keep: {} };
   if (via === 'contact') state.stop.via = 'contact';
   holdTime(state, 'stop');
@@ -527,6 +559,19 @@ export function markWaitOf(state, pid, aimT, ms = state.clock.ms) {
   return { down };
 }
 
+// (the house's lane live: its GO given and its end not come; any other session (the drill's bench) always)
+const laneLive = (R) => R?.course !== 'house' || (R.house?.goAtMs !== null && R.house?.goAtMs !== undefined && !R.house?.end);
+/** Whether the live area is the house's lane (0.0.12; src/sim/combat/room.js lanePlanOf). */
+export const inHouse = (state) => { const L = laneOf(state); return !!L && !!L.area && state.places?.live?.area === L.area; };
+// (the drill's rows in the house: { rows, go } (go: X at a door below rung 2, the keys' walk in))
+function houseRows(state, pid, ms) {
+  const carry = carryRow(state, pid, ms), b = bundleRows(state, pid, ms), sg = singleRows(state, pid, ms);
+  const rows = [...(carry ? [carry] : []), ...b, ...sg];
+  // (at a door below rung 2: outside the room, X is the walk in by the keys)
+  const go = rungOf(state, pid, 'room') < 2 && sg.some(r => r.kind === 'watch');
+  return { rows, go };
+}
+
 /** The steps the panel offers now (see the header). */
 export function stepsOf(state, ms = state.clock.ms) {
   const S = state.stop;
@@ -540,12 +585,17 @@ export function stepsOf(state, ms = state.clock.ms) {
   const stances = lying ? [] : STANCES.filter(s => s !== stance).map(to => ({ id: `stance:${to}`, kind: 'stance', label: LABELS[`stance:${to}`], ms: stanceMsOf(from, to, fit, gHere(state, me)), rushMs: null, carefulMs: null,
     odds: null, routine: null, off: null, subs: [], cmd: false, skill: null, key: stance === 'sit' || down ? null : STANCES.indexOf(to) > STANCES.indexOf(stance) ? STANCE_KEYS.down : STANCE_KEYS.up }));
   // (0.0.8: the pairs bay has no tower: the coach runs it, and in a standby you wait for the turn)
-  const R0 = rangeOf(state), waitLabel = R0?.course === 'pairs' && !R0.end ? (R0.cmd?.id === 'standby' && R0.str && !R0.str.done ? 'Wait for the turn' : 'Wait for the coach') : LABELS.wait;
+  const R0 = rangeOf(state), waitLabel = R0?.course === 'pairs' && !R0.end ? (R0.cmd?.id === 'standby' && R0.str && !R0.str.done ? 'Wait for the turn' : 'Wait for the coach')
+    : R0?.course === 'house' && !R0.end ? (R0.house?.goAtMs !== null && R0.house?.goAtMs !== undefined && !R0.house?.end ? 'Wait' : 'Wait for the instructor') : LABELS.wait;
   const wait = { id: 'wait', kind: 'wait', label: waitLabel, ms: WAIT_MAX_MS, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
-  const leave = { id: 'leave', kind: 'leave', label: LABELS.leave, ms: 0, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
+  // (0.0.12: in the house, the drill's rows; X at a door below rung 2 says what it does (see the header))
+  // (the drill's rows only on the lane, from GO to its end: before GO and after it the instructor's commands are the panel's
+  // (the fixer's of 0.0.12: at LOAD the panel led with "Stack on the door" and T walked a cold rifle to room 1))
+  const house = inHouse(state) && laneLive(R0), hRows = house ? houseRows(state, pid, ms) : null;
+  const leave = { id: 'leave', kind: 'leave', label: hRows?.go ? 'go: the clock runs, the keys move you' : LABELS.leave, ms: 0, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
   // (0.0.10: Breathe where the model offers it: fixed with nothing facing you, a single marked "! he's up" with a threat up (see the header))
   const br = breatheRow(state, pid, ms);
-  if (slung(posture)) return shaking(roller, [...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, ...(br?.later ? [br] : []), wait, leave]);
+  if (slung(posture)) return shaking(roller, [...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, ...(br?.later ? [br] : []), wait, leave]);
   // (1 Fire: at the aim, the gun as the holder believes it)
   const aimT = S.aim ? targetOf(state, S.aim.key, pid) : null, pull = pullMsOf(state, pid, S.gun);
   const h = aimT ? heldOf(state, pid, ms, aimT.key) : null;
@@ -570,14 +620,21 @@ export function stepsOf(state, ms = state.clock.ms) {
     ...(pickT.kind === 'person' && Rl && !Rl.end ? { warn: 'a person: the range stops' } : {}) };
   else if (aimT) aimRow = { id: 'hold', kind: 'hold', label: LABELS.hold, ms: h?.toFullMs ?? 0, rushMs: null, carefulMs: null, odds: null, routine: null, off: h && h.v >= HELD_MAX ? 'steady' : null, subs: [], cmd: false, skill: 'marksmanship', target: aimT.key };
   else aimRow = { id: 'aim', kind: 'aim', label: LABELS.aim, ms: null, rushMs: null, carefulMs: null, odds: null, routine: null, off: 'nothing in the frame to aim at', subs: [], cmd: false, skill: 'weapons' };
+  // (0.0.12: on the lane with no man bracketed and nothing aimed, Fire and the aim, both struck, go to the panel's end before
+  // Wait and X, so the drill's, the door's and the Watch rows hold the first keys (the integrator's list of 0.0.12: struck Fire
+  // and Aim took two of the first page's slots at GO))
+  const struckLast = !!hRows && !aimT && !pickT, fireAim = (rows) => (struckLast ? rows.filter(r => r !== fire && r !== aimRow) : rows);
   // (0.0.8: the contact's rows that lead (a no-shoot identified), the shot rows, Fire and the aim, the contact's others (see the header))
   const cRows = contactRows(state, pid, ms) ?? [];
   // (a row struck by its gate goes after the contact's, so the recruit's Fire and Aim stay on the panel's first rows)
   const sRows = shotRows(state, pid, ms), gated = (r) => !!r.gate && r.off === `Marksmanship ${r.gate.v}`;
   // (below rung 2 at the pause, step by step: Off safe on safe, then the aim, then the rows and Fire (see the header))
   const singles0 = canDo(state, pid, S.gun), offSafe = stepwise && belief.mode === 'safe' && singles0.includes('selector:semi') ? { ...actionStep(state, roller, gun, 'selector:semi'), promoted: true } : null;
-  if (stepwise && aimRow.kind === 'aim' && !aimRow.off) out.push(...cRows.filter(r => r.lead), ...(offSafe ? [offSafe] : []), aimRow, ...sRows.filter(r => !gated(r)), fire, ...cRows.filter(r => !r.lead), ...sRows.filter(gated));
-  else out.push(...cRows.filter(r => r.lead), ...(offSafe ? [offSafe] : []), ...sRows.filter(r => !gated(r)), fire, aimRow, ...cRows.filter(r => !r.lead), ...sRows.filter(gated));
+  // (0.0.12: the drill's rows lead in the house, after the contact's answers at a live pause (see the header))
+  if (hRows && !live) out.push(...hRows.rows);
+  if (stepwise && aimRow.kind === 'aim' && !aimRow.off) out.push(...fireAim([...cRows.filter(r => r.lead), ...(offSafe ? [offSafe] : []), aimRow, ...sRows.filter(r => !gated(r)), fire, ...cRows.filter(r => !r.lead), ...sRows.filter(gated)]));
+  else out.push(...fireAim([...cRows.filter(r => r.lead), ...(offSafe ? [offSafe] : []), ...sRows.filter(r => !gated(r)), fire, aimRow, ...cRows.filter(r => !r.lead), ...sRows.filter(gated)]));
+  if (hRows && live) out.push(...hRows.rows);
   if (br && !br.later) out.push(br);
   // (the Corps' commands, the tower's current first)
   // (UNLOAD, SHOW CLEAR is shown to the coach on the tower's command, so the panel offers it only once the
@@ -603,7 +660,9 @@ export function stepsOf(state, ms = state.clock.ms) {
   // (a man facing you: the commands that are no answer to him wait after the singles; Top up stays where it answers, at
   // half or less with a fuller one at hand (the runtime review: "Top up 4.2 s" fifth with a full magazine in))
   const answers = (r) => r.queue || r.cmd || r.purpose === 'speed' || r.purpose === 'retain' || (r.purpose === 'tactical' && halfOrLess(belief) && fullerAtHand(state, pid, S.gun, belief));
-  const later = live ? macros.filter(r => !answers(r)).map(r => Object.assign(r, { later: true })) : [];
+  // (0.0.12: on the house's lane too, where no command is given until Stop: UNLOAD and a Top up with nothing to gain page with
+  // the rest, so the stack, the door and the Watches hold the first keys at GO)
+  const later = live || hRows ? macros.filter(r => !answers(r)).map(r => Object.assign(r, { later: true })) : [];
   out.push(...macros.filter(r => !later.includes(r)));
   // (0.0.7: the line's rows: the call, the dope, the hold, the read, the lever, the turrets, sitting (see the header))
   out.push(...lineRows(state, pid));
@@ -625,6 +684,7 @@ export function stepsOf(state, ms = state.clock.ms) {
   out.push(...stances, ...later, ...tail, ...(br?.later ? [br] : []));
   for (const a of singles) if (a.startsWith('posture:')) out.push(actionStep(state, roller, gun, a, 'posture'));
   if (mw) out.push({ ...wait, id: 'wait:mark', label: LABELS['wait:mark'], ms: MARK_WAIT_MS });
+  if (struckLast) out.push(Object.assign(fire, { later: true }), Object.assign(aimRow, { later: true }));
   out.push(wait, leave);
   // (a reach's row says what it would bring; a step that would seat another magazine mid-string is marked, not struck)
   for (const st of out) if (actionKey(st.id) === 'reach' && actionPlace(st.id)) st.label = reachLabel(state, pid, gun, st.id);
@@ -692,13 +752,15 @@ export function macroRow(state, roller, gun, belief, m) {
 export function stepNow(state, pid = playerId(state), ms = state.clock.ms) {
   const d = state.stop?.who === pid ? state.stop.doing : null;
   if (!d) return null;
+  // (0.0.12: a bundle's beat doing: the hands' running beat as the action, its share of the bundle's planned time)
+  if (d.beats) {
+    const b = d.beats.find(x => x.st === 'run' && x.ch === 'hands') ?? d.beats.find(x => x.st === 'run') ?? null, to = d.untilPlanMs ?? d.untilMs;
+    return { step: d.step, i: null, action: b ? `${b.k}` : null, k: to > d.fromMs ? Math.max(0, Math.min(1, (ms - d.fromMs) / (to - d.fromMs))) : 1, fromMs: d.fromMs, toMs: to, frame: null };
+  }
   const action = d.list[d.i] ?? null, from = d.subFromMs ?? d.fromMs, to = d.untilMs;
   const k = to > from ? Math.max(0, Math.min(1, (ms - from) / (to - from))) : 1;
   return { step: d.step, i: d.i, action, k, fromMs: from, toMs: to, frame: null };
 }
-
-// (a step's record as the 'step' fact carries it)
-const stepFact = (d, phase, extra = {}) => ({ phase, who: d.who, step: d.step, i: d.i, action: d.list?.[d.i] ?? null, fromMs: d.subFromMs ?? d.fromMs, toMs: d.untilMs, ...extra });
 
 /** Begin a step (the panel's or a live one): its first sub-step rolled and applied at the clock. */
 function startStep(state, bus, st, { tempo = 'normal', target = null, mode = 'stop' } = {}) {
@@ -712,31 +774,37 @@ function startStep(state, bus, st, { tempo = 'normal', target = null, mode = 'st
   // (taps: v0.0.5's follow-ups, retired (COMBAT §25.6.4); the field kept so a step's saved record keeps its shape)
   const d = { who: S.who, step: st.id, kind: st.kind, tempo: t, list, subs: [], i: 0, fromMs: now, subFromMs: now, untilMs: now, cmd: st.cmd ? rangeOf(state)?.cmd?.id ?? null : null,
     chain: false, target: target ?? st.target ?? null, taps: 0 };
+  if (S.feet) S.feet = null;
   if (plan) {
     d.plan = keptPlan(plan);
     const g = gunOf(state, S.gun);
     if (plan.offSafe && g) g.mode = 'semi';
+    // (0.0.12: a row fired moving on keeps the feet on the rest of the path; planted, they brake to a stop (specials.js))
+    if (plan.way) S.feet = rowFeet(state, S.who, plan.way, now);
   }
-  S.doing = d;
-  S.phase = 'act';
-  S.queue = [];
-  releaseTime(state, 'stop');
-  bus?.emit('step', stepFact(d, 'start', { ok: null, grade: null, routine: null, mishap: null, text: st.label ?? st.id, mode }));
-  onStepStart(state, bus, d);
-  runSub(state, bus, d, 0, now);
-  advance(state, bus);
-  return d;
+  // (the stepper (src/sim/combat/stepper.js) sets it doing, releases 'stop', rolls its first sub-step at the clock: begin)
+  return begin(state, bus, d, { mode, text: st.label ?? st.id });
 }
 
-/** Roll and apply sub-step i at atMs (its boundary): its time, its effects at once, the rest at its end. */
-function runSub(state, bus, d, i, atMs) {
+// (the feet under a moving or a planted row: the rest of the cut entry at the stance's walk, or a stop along the heading)
+function rowFeet(state, pid, way, now) {
+  const me = meOf(state), v = Math.hypot(me?.v?.[0] ?? 0, me?.v?.[1] ?? 0);
+  if (!me || v <= 0) return null;
+  const head = Math.atan2(me.v[1], me.v[0]), L = legsHere(state, pid, me.x, me.z), cut = Object.values(state.stop?.carry?.paths ?? {})[0] ?? null;
+  const walk = gaitsOf(state, pid, { gait: me.moveStance ?? 'combat' }).walkMs;
+  const path = way === 'moving' && cut ? [[me.x, me.z], ...cut.slice(1)] : [[me.x, me.z], [me.x + Math.cos(head) * v * v / (2 * L.brakeMs2), me.z + Math.sin(head) * v * v / (2 * L.brakeMs2)]];
+  const P = way === 'moving' ? profileOf(pathLen(path), Math.max(v, walk), L.pushMs2, L.brakeMs2, { v0: v, v1: 0 }) : profileOf(pathLen(path), v, L.pushMs2, L.brakeMs2, { v0: v, v1: 0 });
+  return { id: 'feet', k: 'move', ch: 'feet', stance: me.moveStance ?? 'combat', path: path.map(p => [q(p[0], 0.0001), q(p[1], 0.0001)]), prof: P, fromMs: now, untilMs: now + Math.round(P.T * 1000), way };
+}
+
+/** Roll and apply sub-step i at atMs (its boundary; the stepper's runSub times it): its effects at once, the rest at its end. Returns { rec, text, extra }. */
+function rifleSub(state, bus, d, i, atMs) {
   const S = state.stop, pid = S.who, gunId = S.gun, me = meOf(state), id = d.list[i];
-  d.i = i; d.subFromMs = atMs;
   const rec = { action: id, ms: 0, ok: null, grade: null, routine: null, mishap: null };
   let text = LABELS[id] ?? id;
-  if (d.plan && (id === 'press' || id === 'round' || id === 'shift')) {
+  if (d.plan && (id === 'press' || id === 'round' || id === 'shift' || id === 'brake')) {
     // (0.0.8: a shot row's part (specials.js): the finger on for the press and the rounds)
-    if (id !== 'shift') setFinger(state, pid, 'on');
+    if (id !== 'shift' && id !== 'brake') setFinger(state, pid, 'on');
     const r = runRowSub(state, bus, d, i, atMs);
     rec.ms = r.ms; text = r.text;
     if (r.shot) { rec.shot = r.shot.id; rec.ok = r.shot.fired; }
@@ -851,9 +919,7 @@ function runSub(state, bus, d, i, atMs) {
   if (d.plan && (id === 'aim' || id === 'hold') && !d.cut) rec.ms = d.plan.parts[i]?.ms ?? rec.ms;
   const brass = rec.brass?.length ? rec.brass : null;
   delete rec.brass;
-  d.subs.push(rec);
-  d.untilMs = atMs + rec.ms;
-  bus?.emit('step', stepFact(d, 'sub', { ok: rec.ok, grade: rec.grade, routine: rec.routine, mishap: rec.mishap, text, ...(brass ? { brass } : {}) }));
+  return { rec, text, extra: brass ? { brass } : null };
 }
 
 // (a sub-step's end: its effects that land there)
@@ -888,23 +954,6 @@ function endSub(state, bus, d) {
   else if (d.plan && id === 'shift') endRowSub(state, bus, d);
 }
 
-/** The doing advanced to the clock (see the header): boundaries taken, sub-steps rolled, the step ended. */
-function advance(state, bus) {
-  const S = state.stop;
-  let d = S?.doing;
-  const t = state.clock.ms;
-  while (state.stop && S.doing === d && d && t >= d.untilMs) {
-    if (d.kind === 'wait') { endStep(state, bus, 'end'); break; }
-    endSub(state, bus, d);
-    if (d.gunStop) { endStep(state, bus, 'stop'); break; }
-    if (d.halt) { S.queue = queueAfter(state, d); endStep(state, bus, 'halt'); break; }
-    if (d.cut) { endStep(state, bus, 'cut'); break; }
-    if (d.i + 1 < d.list.length) runSub(state, bus, d, d.i + 1, d.untilMs);
-    else { endStep(state, bus, 'end'); break; }
-    d = S.doing;
-  }
-}
-
 /**
  * The rest of a macro that halted, as the panel's "Carry on" (see the header). A look that found a round in the
  * chamber (the inspection, or the coach's "Hold. There's a round in it.") puts the round out and the look again
@@ -921,15 +970,15 @@ function queueAfter(state, d) {
   return rest;
 }
 
-/** The step over (see the header): the chained wait, the reflex, or choosing again. */
-function endStep(state, bus, why = 'end') {
-  const S = state.stop, d = S?.doing;
-  if (!d) return;
-  const t = state.clock.ms;
-  // (0.0.10: Breathe's window closed at its last sub-step's end, or where a cut stopped it (see the header))
-  if (d.kind === 'breathe') d.shedPts = breatheEnd(state, bus, d.who, Math.min(t, d.untilMs), { cut: why !== 'end', fromPts: d.breathePool ?? null })?.shedPts ?? 0;
-  bus?.emit('step', stepFact(d, why === 'halt' ? 'halt' : why === 'cut' ? 'cut' : 'end', { ok: why === 'end' || why === 'stop', grade: null, routine: null, mishap: null, text: why }));
-  S.doing = null;
+// (the step's end before its fact (the stepper's endStep): Breathe's window closed at its last sub-step's end, or where a cut
+// stopped it (0.0.10, see the header))
+function beforeEnd(state, bus, d, why) {
+  if (d.kind === 'breathe') d.shedPts = breatheEnd(state, bus, d.who, Math.min(state.clock.ms, d.untilMs), { cut: why !== 'end', fromPts: d.breathePool ?? null })?.shedPts ?? 0;
+}
+
+/** The step over, after the stepper's fact (see the header): the chained wait, the reflex, or choosing again. */
+function afterEnd(state, bus, d, why = 'end') {
+  const S = state.stop, t = state.clock.ms;
   if (S.mode === 'live') { state.stop = null; afterStep(state, bus, d, why); return; }
   afterStep(state, bus, d, why);
   if (state.stop !== S) return;                                     // (the scene ended the mode: the line clear, or stopped)
@@ -949,11 +998,18 @@ function endStep(state, bus, why = 'end') {
     return;
   }
   S.phase = 'choose';
+  // (0.0.12: a row fired moving on carries the halted bundle on as it ends, nobody of the contact standing: "the drill carries
+  // on" (COMBAT §25.5.3); one he still faces leaves the choice to you, and so does a decision the bundle handed back (a door it
+  // does not take, one that will not open: the fixer's of 0.0.12, a moving-on round walked the tier one past room 2's closet)
+  if (why === 'end' && d.plan?.way === 'moving' && S.carry && !ASKS.has(S.carry.why) && !windowOpen && !contactLive(state, t) && carryOn(state, bus, S.who).ok) return;
   if (!windowOpen) holdTime(state, 'stop');
 }
 
 // (whether the line is ready for the tower's current command: a step that made it so waits for the next)
 const chainable = (state) => { const R = rangeOf(state); return !!R && !R.end && R.cmd && R.cmd.id !== 'end' && lineReady(state, R.cmd.id); };
+
+// (0.0.12: the rifle's sub-kinds are the stepper's list handler: it times them, this module says what each does)
+useList({ run: rifleSub, endSub, queueAfter, before: beforeEnd, end: afterEnd, onStart: (state, bus, d) => onStepStart(state, bus, d) });
 
 /** The gun stopped mid-step (a click, a shot that did not cycle): the reflex card. */
 function offerGunStop(state, bus, why) {
@@ -984,13 +1040,17 @@ export function chooseStep(state, bus, { step, tempo = 'normal', target = null, 
   }
   if (S.reflex) return { ok: false, why: 'a reflex card waits' };
   if (step === 'pick:-1' || step === 'pick:+1' || step.startsWith('pick=')) {
-    const list = targetsOf(state, S.who);
+    // (in the house the brackets go round the stands you can see, never your #2 or the instructor: an Aim row on a teammate
+    // is the range's safety stop (the fixer's of 0.0.12: D before X bracketed SSgt Martinez); a free aim still trips it)
+    const list = targetsOf(state, S.who).filter(t => !(t.kind === 'person' && inHouse(state)));
     if (!list.length) return { ok: true, why: null };
     if (step.startsWith('pick=')) { const k = step.slice(5); if (list.some(t => t.key === k)) S.pick = k; return { ok: true, why: null }; }
     const i = list.findIndex(t => t.key === S.pick), n = step === 'pick:-1' ? -1 : 1;
     S.pick = list[(i < 0 ? 0 : i + n + list.length) % list.length].key;
     return { ok: true, why: null };
   }
+  // (0.0.12: Backspace ('drill:stop') or X on a running bundle stops it after its beat (COMBAT §25.8.2))
+  if (S.phase === 'act' && S.doing?.beats && (step === 'drill:stop' || step === 'leave')) return { ok: stopBundle(state, bus, S.who), why: null };
   if (S.phase === 'act') {
     // (Fire during a fire step is busy like any other: v0.0.5's tap is retired for the shot rows (see the header))
     const d = S.doing;
@@ -1001,10 +1061,17 @@ export function chooseStep(state, bus, { step, tempo = 'normal', target = null, 
   if (step === 'leave') return { ok: leaveStop(state, bus, 'player'), why: null };
   if (target && step === 'aim') { if (targetOf(state, target, S.who)) S.pick = target; else return { ok: false, why: 'not in the frame' }; }
   // (0.0.7: a line's row asked by id though the panel does not list it (the hud's keys, the bots): taken as asked, on a line)
-  const st = stepsOf(state).find(x => x.id === step) ?? (/^(sight:|hold:|optic:|read$|stance:sit$)/.test(step) && lineOf(state, S.who) ? lineRow(state, step) : null);
+  // (0.0.12: a drill row whose id carries its door ('drill:room:stack>o:w4:r1', 'door:push>…'), asked as the step and its target (an act's grammar))
+  const all = stepsOf(state);
+  const st = all.find(x => x.id === step) ?? (target ? all.find(x => x.id === `${step}>${target}`) : null) ?? (/^(sight:|hold:|optic:|read$|stance:sit$)/.test(step) && lineOf(state, S.who) ? lineRow(state, step) : null);
   if (!st) { if (S.phase === 'choose') holdTime(state, 'stop'); return { ok: false, why: 'not offered' }; }
   if (st.off) { if (S.phase === 'choose') holdTime(state, 'stop'); return { ok: false, why: st.off }; }
   const t = tempo === 'rushed' && st.rushMs !== null && st.rushMs !== undefined ? 'rushed' : tempo === 'careful' && st.carefulMs !== null && st.carefulMs !== undefined ? 'careful' : 'normal';
+  // (0.0.12: the drill's rows run as beat doings through the stepper (see the header))
+  if (st.carry) return carryOn(state, bus, S.who, { tempo: t });
+  if (st.kind === 'variant') { const r = setVariant(state, st); holdTime(state, 'stop'); return r; }
+  if (st.kind === 'bundle') { const r = startBundle(state, bus, S.who, st.id, { tempo: t, row: st }); if (!r.ok && S.phase === 'choose') holdTime(state, 'stop'); return r; }
+  if (['door', 'watch', 'look', 'move', 'call', 'mark', 'gait'].includes(st.kind)) { const r = startSingle(state, bus, S.who, st, { tempo: t }); if (S.phase === 'choose') holdTime(state, 'stop'); return r; }
   if (st.kind === 'command' && st.macro) aheadOf(state, bus, st.macro);
   startStep(state, bus, st, { tempo: t, target });
   return { ok: true, why: null };
@@ -1049,6 +1116,28 @@ export function carryAction(state, bus) {
   return liveStep(state, bus, { pid, step });
 }
 
+/** The movement stances' postures (0.0.12, V in the house): Relaxed slung, Combat low ready, Assault high ready. */
+export const STANCE_POSTURE = Object.freeze({ relaxed: 'slungFront', combat: 'lowReady', assault: 'highReady' });
+/**
+ * V where a spec sets stances (the house, see the header): the body's movement stance to the next (Relaxed → Combat →
+ * Assault → Relaxed), the posture following, as a single step's posture change in the mode or at once out of it (my call:
+ * the change of carry is the rifle's posture step, WEAPONS §6.1, taken by the posture's own single where one is offered).
+ * Returns { ok, why, to }.
+ */
+export function gaitAction(state, bus) {
+  const me = meOf(state), pid = playerId(state);
+  if (!me) return { ok: false, why: 'nobody' };
+  const from = me.moveStance ?? 'relaxed', to = MOVE_STANCES[(MOVE_STANCES.indexOf(from) + 1) % MOVE_STANCES.length];
+  setStance(state, bus, pid, to);
+  const want = STANCE_POSTURE[to], now = postureOf(state, pid);
+  if (want === now) return { ok: true, why: null, to };
+  const step = slung(want) ? 'stow' : slung(now) ? 'up' : `posture:${want}`;
+  if (state.stop?.mode === 'stop') { if (step !== 'stow') chooseStep(state, bus, { step }); else setPosture(state, pid, want); }
+  else if (step === 'stow') setPosture(state, pid, want);
+  else liveStep(state, bus, { pid, step });
+  return { ok: true, why: null, to };
+}
+
 /** The stance action (A up, W down, or a stance named): a step in the mode, a live step out of it. */
 export function stanceAction(state, bus, dir) {
   const me = meOf(state);
@@ -1083,7 +1172,10 @@ export function stopRules(state, input, bus, ctx) {
   if (!S) return;
   const me = meOf(state), d = S.doing;
   if (!me) return;
-  if (d && d.list[d.i] === 'aim' && d.aimTo !== undefined) {
+  // (0.0.12: a bundle's scan sweeps the head from its start's bearing to its end's over its time (bundle.js's sweep))
+  const sc = d?.beats?.find(b => b.st === 'run' && b.k === 'scan' && b.sweep);
+  if (sc) { const k = sc.untilMs > sc.fromMs ? Math.min(1, (state.clock.ms - sc.fromMs) / (sc.untilMs - sc.fromMs)) : 1; me.headRad = q(sc.sweep[0] + wrap(sc.sweep[1] - sc.sweep[0]) * k, 1e-6); }
+  if (d && !d.beats && d.list[d.i] === 'aim' && d.aimTo !== undefined) {
     const k = d.untilMs > d.subFromMs ? Math.min(1, (state.clock.ms - d.subFromMs) / (d.untilMs - d.subFromMs)) : 1;
     me.headRad = q(d.aimFrom + wrap(d.aimTo - d.aimFrom) * k, 1e-6);
   }

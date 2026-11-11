@@ -1329,6 +1329,8 @@ Neither nags (the design review's): the hands speak only at a sink or just out o
 
 ---
 
+**As built in v0.0.12** (`src/sim/skills/instinct/cqb.js`; COMBAT §25.8.3 lists the rules by name): 20 rules (`CQB_RULES`), cqb-corner with its `far` variant, by rung and tier; below rung 3 the voice is the instructor's, from rung 3 the marine's own. `RANGE_OFF_HOUSE` gains `range-muzzle`; `HOUSE_CMDS` makes `range-cmd` speak for LOAD, MAKE READY and UNLOAD SHOW CLEAR when off the lane, so T runs the instructor's command and no drill row is offered; a full magazine is no Top up. The DI never names a row the panel lacks, and where it names one T does it, never the shot (sheet item 10). "Downrange! Everything else is people." is quiet in the house, so T at GO does what the line names.
+
 ## 15. State shapes
 
 All plain JSON in the save. Keys starting with `$` are runtime-only and are stripped from saves (TECH).

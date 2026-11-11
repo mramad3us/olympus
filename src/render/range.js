@@ -49,18 +49,29 @@
 // never jumps), its holes, a new hole's puff, the armoured face's head plate dropping off, and the steel's spark
 // (sparkPixels: unlit, in the blast's draw after the figures) for a round that rang. Stands with no face hung draw
 // nothing here (the kit's stand alone shows), so test-handling and test-range look as they were scored.
+// 0.0.12 (the build sheet 0.0.12 §2.4; COMBAT §25.11; VIEWS §7.4): the shoot house in play, from rangeLook.house (look.js, the scene's
+// houseLook): the room's corners shown as covered, sparingly, the run sheet's language on the floor: a 2 px tick at each hot spot,
+// pale until you or the #2 has covered it, then the brass of a mark made, gone once the room is called clear (cornerPixels); the
+// stands the scene gives that rangeLook.pairs does not already hang (the same turnerPixels, so a house turner turns as the bay's do).
+// The range's own flags and the tower's red flag are not the house's, so they are not drawn there. The catwalk (HOUSE1's: 3.0 m over
+// the hall, the east leg and its stairs, "drawn by the stage") and the turners' stands are built once as small static boxes when the
+// house is first seen (buildHouse): the walk's two stringers, its posts every CATWALK_POST_M and the yellow handrail a metre over it,
+// the stairs' treads, and each stand's post and foot; the walk's grating is left open, so the hall under it and you in it are seen.
 // What is drawn is culled to the views given (the frame, and the far window's while it is open), so a flag 300 m
 // off costs nothing until the window looks at it.
 import { PX_PER_M } from './scale.js';
 import { createPixels } from './decals.js';
 import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART,
-  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels } from './range-items.js';
+  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels } from './range-items.js';
 import { createCollector, buildAreaData } from '../art/jobs.js';
 import { areaFromJob, newPart } from './batch.js';
 import { paintKdFace, facePx } from '../art/kit/range.js';
+import { HOUSE1 } from '../data/places/wheel.js';
 import { LINE_FLAGS, LINE_FLAG } from '../data/places/range.js';
 export { cardFace, holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, drawnY, drawnBoreM, drawnMuzzleM, FLAG_HOIST_MS, FLAG_FLAP_MS, PUFF_MS, FLAG_PART } from './range-items.js';
 
+/** The catwalk's steel and its handrail (the safety yellow of a walkway's rail), its posts' spacing (m), and a turner stand's post (my calls). */
+export const CATWALK_STEEL = 0x5a5f68, CATWALK_RAIL = 0xc8a43a, CATWALK_POST_M = 2.0, STAND_C = 0x3a3d44;
 /** The most pixels the range draws a frame (six cards of holes, the flags, 64 cases at two pixels, the dust; 0.0.8 six turners' faces, 360 px each at 16 px/m), and the flash star's. */
 export const MAX_RANGE_PIXELS = 6000, BLAST_PIXELS = 256;
 /** How far outside a view a thing still drawn may stand (metres: a flag's sleeve 4.5 m up, a face's disk). */
@@ -103,6 +114,53 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
     group.add(built.group);
     return { built, byLane };
   }
+  // ---------- 0.0.12: the house's catwalk and stands, built once ----------
+  let house = null;
+  function buildHouse(H = HOUSE1) {
+    const col = createCollector({ ppm, part: newPart }), cw = H.catwalk, y = cw.y, half = cw.widthM / 2;
+    const box = (x0, x1, y0, y1, z0, z1, c) => col.box({ x0, x1, y0, y1, z0, z1, faces: { front: c, back: c, sides: c, top: c } });
+    col.prop({ id: 'house:catwalk', kind: 'catwalk', pivot: [0, 0] });
+    // (each leg of the walk: two stringers on its edges, posts, the handrail a metre up)
+    for (let i = 1; i < cw.path.length; i++) {
+      const [ax, az] = cw.path[i - 1], [bx, bz] = cw.path[i], alongX = Math.abs(bx - ax) >= Math.abs(bz - az);
+      const lo = alongX ? Math.min(ax, bx) : Math.min(az, bz), hi = alongX ? Math.max(ax, bx) : Math.max(az, bz), mid = alongX ? az : ax;
+      for (const side of [-half, half]) {
+        const e = mid + side;
+        if (alongX) { box(lo, hi, y - 0.12, y, e - 0.04, e + 0.04, CATWALK_STEEL); box(lo, hi, y + 1.0, y + 1.05, e - 0.025, e + 0.025, CATWALK_RAIL); }
+        else { box(e - 0.04, e + 0.04, y - 0.12, y, lo, hi, CATWALK_STEEL); box(e - 0.025, e + 0.025, y + 1.0, y + 1.05, lo, hi, CATWALK_RAIL); }
+        for (let t = lo; t <= hi + 1e-6; t += CATWALK_POST_M) {
+          if (alongX) box(t - 0.025, t + 0.025, y, y + 1.0, e - 0.025, e + 0.025, CATWALK_STEEL);
+          else box(e - 0.025, e + 0.025, y, y + 1.0, t - 0.025, t + 0.025, CATWALK_STEEL);
+        }
+      }
+    }
+    // (the stairs: treads from the top down to the foot, each a step lower)
+    const st = cw.stairs;
+    if (st) {
+      const n = Math.max(2, Math.round(y / 0.2)), [tx, tz] = st.top, [fx, fz] = st.foot, sh = st.widthM / 2;
+      for (let k = 0; k < n; k++) {
+        const u = (k + 0.5) / n, cx = tx + (fx - tx) * u, cz = tz + (fz - tz) * u, ty = y * (1 - (k + 1) / n), along = Math.abs(fx - tx) > Math.abs(fz - tz);
+        if (along) box(cx - 0.12, cx + 0.12, ty, ty + 0.04, cz - sh, cz + sh, CATWALK_STEEL);
+        else box(cx - sh, cx + sh, ty, ty + 0.04, cz - 0.12, cz + 0.12, CATWALK_STEEL);
+      }
+    }
+    col.endProp();
+    // (each stand: a post to the face's foot and its foot plate, the bay's turner stand's)
+    col.prop({ id: 'house:stands', kind: 'stands', pivot: [0, 0] });
+    const footY = (H.face?.centreY ?? 1.35) - (H.face?.hM ?? 0.76) / 2;
+    for (const t of H.stands ?? []) {
+      box(t.x - 0.03, t.x + 0.03, 0, footY, t.z - 0.03, t.z + 0.03, STAND_C);
+      box(t.x - 0.18, t.x + 0.18, 0, 0.04, t.z - 0.12, t.z + 0.12, STAND_C);
+    }
+    col.endProp();
+    const g = buildAreaData(col, { name: 'house' });
+    let r; do { r = g.next(); } while (!r.done);
+    const built = areaFromJob(r.value, { name: 'house', see: false });
+    built.upload(stage.renderer); built.atlas.release();
+    for (const p of built.props) for (const m of p.group.children) { m.castShadow = false; m.receiveShadow = true; }
+    group.add(built.group);
+    return { built };
+  }
   // (the flag's hoist: from where it was when the line last changed, toward up or down, on game time)
   let hot = false, fromK = 0, sinceMs = null, seen = false;
   const holesSeen = new Map();                                      // (lane|n|xCm|yCm → the game time it was first drawn)
@@ -129,9 +187,29 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
           if (age >= 0 && age < PUFF_MS) for (const [dx, dy] of age < PUFF_MS / 2 ? [[1, 0], [-1, 0], [0, -1]] : [[1, -1], [-1, -1]]) put({ x: q.x + dx / ppm, y: q.y - dy / ppm, z: q.z, c: PALE }, 0, true);
         }
       }
-      const k = hoistAt(ms);
-      for (const p of flagPixels(kd.tower.flag, k, ms, ppm)) { put(p, FLAG_PART); stats.flag++; }
-      for (const pole of LINE_FLAGS) for (const p of flagPixels(pole, k, ms, ppm, LINE_FLAG)) { put(p, FLAG_PART + 1); stats.flag++; }
+      const k = hoistAt(ms), HS = look.house ?? null;
+      if (!HS) {
+        for (const p of flagPixels(kd.tower.flag, k, ms, ppm)) { put(p, FLAG_PART); stats.flag++; }
+        for (const pole of LINE_FLAGS) for (const p of flagPixels(pole, k, ms, ppm, LINE_FLAG)) { put(p, FLAG_PART + 1); stats.flag++; }
+      }
+      // ---------- 0.0.12: the shoot house: the corners as covered, its stands where the pairs look has none ----------
+      if (HS) {
+        if (!house) house = buildHouse();
+        house.built.group.visible = true;
+        const hs = { corners: 0, covered: 0, stands: 0, pixels: 0, catwalk: true };
+        for (const c of HS.corners ?? []) {
+          if (c.gone || c.clear || !inViews(views, c.x, c.z)) continue;
+          hs.corners++; if (c.covered) hs.covered++;
+          for (const q of cornerPixels(c, ppm)) { put(q, 0, true); hs.pixels++; }
+        }
+        const hung = new Set((look.pairs?.turners ?? []).map(t => t.key));
+        for (const t of HS.stands ?? []) {
+          if (!t || hung.has(t.key) || !t.face || !inViews(views, t.x, t.z)) continue;
+          hs.stands++;
+          for (const p of turnerPixels(t, ms, ppm, look.gMs2)) { put(p, p.part, p.noLine); hs.pixels++; }
+        }
+        stats.house = hs;
+      } else { stats.house = null; if (house) house.built.group.visible = false; }
       for (const b of look.brass ?? []) { for (const p of brassPixels(b, ppm, ms)) put(p); stats.brass++; if (!b.rest) stats.flying++; }
       // (your bay lane's stake marked as yours on the 25 m line, as on the KD's (0.0.8))
       if (look.own && inViews(views, look.own.x, look.own.z)) for (const q of ownPointPixels(look.own, ppm)) { put(q, 0, true); stats.own++; }
@@ -206,11 +284,11 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
         }
         stats.pairs = ps;
       } else stats.pairs = null;
-    } else { hot = false; sinceMs = null; fromK = 0; seen = false; holesSeen.clear(); if (faces) faces.built.group.visible = false; stats.kd = null; stats.pairs = null; }
+    } else { hot = false; sinceMs = null; fromK = 0; seen = false; holesSeen.clear(); if (faces) faces.built.group.visible = false; if (house) house.built.group.visible = false; stats.kd = null; stats.pairs = null; stats.house = null; }
     px.count(n);
     blast.count(nb);
     stats.pixels = n + nb;
     return stats;
   }
-  return { group, update, stats, pixels: px, blast, get faces() { return faces; }, dispose() { px.dispose(); blast.dispose(); faces?.built.dispose(); group.removeFromParent(); } };
+  return { group, update, stats, pixels: px, blast, get faces() { return faces; }, dispose() { px.dispose(); blast.dispose(); faces?.built.dispose(); house?.built.dispose(); group.removeFromParent(); } };
 }

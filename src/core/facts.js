@@ -35,6 +35,9 @@
 // inputs 'muzzle', 'roomShot' and 'din' posted, input.prep 'forewarned' on a heard "Bang!"), fx (the blank's flash and the
 // horn), range (the stress course's noise and papers), gives body-event its kind 'stress' (the chaos's band term, BODY
 // §9.3, through the body's door) and the log its kind 'breathe' ("Breathed 4.0 s: the chaos 79 → 63.").
+// The 0.0.12 sheet (§2.5) adds the shoot house's house (the lane: GO, a room stacked, opened, entered and cleared, a par's tone,
+// a fault, a stall, the stop, the hot wash, the end), COMBAT's bundle (a drill's bundle: its start, each beat, a seam, a halt,
+// its end) and BODY's gait (a movement stance changed: Relaxed, Combat, Assault).
 
 const fact = (owner, payload) => Object.freeze({ owner, payload });
 
@@ -71,6 +74,9 @@ export const FACTS = Object.freeze({
   supp: fact('COMBAT', "{ who, input: { id, kind, pts, k, prep? }, why, supp, felt, band, jump, flash: 'blind' | 'dazzled' | null, deafUntilMs, atMs }: an input into a person's pool (COMBAT §5.1; 0.0.9): the pool after it, felt and its band, the jump in felt, the bang's flash and deafness (0.0.10: kind 'muzzle', 'roomShot' and 'din' posted; prep 'forewarned' on a bang whose \"Bang!\" was heard, 'prepared' the thrower's or a called one, absent unprepared)"),
   breathe: fact('COMBAT', "{ phase: 'start' | 'end', who, fromMs, untilMs, atMs, cut, shedPts }: Breathe (COMBAT §5.2; 0.0.10): its window, the pool's decay × BREATHE_K, and at its end what it shed beyond the plain decay (cut: ended early by a sighting or a startle)"),
   startle: fact('COMBAT', "{ phase: 'start' | 'end', who, ms, fromMs, untilMs, why, inputId }: a startle (COMBAT §5.7; 0.0.9): its start (ms its own length) and its end (ms the whole freeze, from the first start to the last end)"),
+  house: fact('COMBAT', "{ phase: 'go' | 'stacked' | 'open' | 'enter' | 'clear' | 'par' | 'fault' | 'stall' | 'stop' | 'wash' | 'end', room, who, atMs, kind?, text?, met? }: the shoot house's lane (0.0.12, test-shoothouse; COMBAT §25.10.4): GO, a room's stack, its door open, its threshold crossed, its \"Clear!\" (met: every par met in it), a par past with no round (met false: the harness's low tone), a fault (kind: 'funnel' | 'muzzle' | 'corner' | 'noshoot' | 'hostage' | 'standing' | 'door' | 'time' | 'relaxed' | 'flag' …), a stall's \"Move on.\", the lane's stop, the hot wash, the end"),
+  bundle: fact('COMBAT', "{ phase: 'start' | 'beat' | 'seam' | 'halt' | 'end', who, id, beat, ch, why?, atMs }: a drill's bundle run by the stepper (0.0.12; COMBAT §25.7): its start, a beat begun on its channel, a seam below the rung, a halt (why one of the drill's halts), its end"),
+  gait: fact('BODY', "{ who, from, to, atMs }: a movement stance changed (0.0.12; BODY §16.1): 'relaxed' | 'combat' | 'assault'"),
   turner: fact('WEAPONS', "{ key, lane, phase: 'turn' | 'away', face, atMs, toMs, why: 'standby' | 'hit' | 'string' }: a turning target faces (over TURN_MS) or turns away (0.0.8, test-pairs)"),
   hit: fact('WEAPONS', "{ kind: 'gunshot', onId, part, fromId, rangeM, load, energyJ, diaMm, w, penLeftMm, through, exitPart, margin, shotId, nd }: WEAPONS §8.7's record of a round in a body"),
   pit: fact('WEAPONS', "{ lane, phase: 'down' | 'marked' | 'up' | 'disk' | 'flag', x, z, atMs, value?, shotIds }: the KD pits: a carrier down, the hole marked, up, the score disk or the red flag"),

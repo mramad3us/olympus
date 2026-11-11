@@ -95,6 +95,14 @@
 // 0.0.9 (the build sheet 0.0.9 §2.1, §8 item 9; COMBAT §5.3): aimMsOf and pullMsOf take the roller at their ms (the
 // sub-step's start: resolveShot's atMs) and multiply by its timeK (combat/supp.js suppTimeK, exactly 1 when calm, so a
 // calm time is unchanged to the millisecond); the round's roll carries the chaos's entry through the roller's mods.
+// 0.0.12 (the build sheet 0.0.12 §2.2, §8 items 16, 26): modsOf and resolveShot take `moving` ({ v, why }), a shot row's
+// modifier for fire on the move (src/sim/arms/specials.js movingMod); poiOf adds, on a spun floor only (src/sim/places/
+// spin.js spinOf), the round's spin bias as a term beside the wind's ('spin': ω d² / v, low prograde, high retrograde,
+// acrossK of it to the right), moving the hole and not the odds (a turner's hole on the man too, its zone the roll's: a hole
+// moved over a zone's edge keeps the zone it was rolled, my call); every other place has no such term, so its holes stand.
+// aimMsOf's sector term (COMBAT §25.12: "the sector aim's term"): in a clear (state.mind.clearing: the house only, so no bay's
+// aim moves), a man taken in in the sector the muzzle or the eyes held (the last contact's expectation 'sector') is aimed
+// at with the sight's settle × SECTOR_SIGHT_K 0.25 and no mount: the muzzle was already on him.
 // Pure but resolveShot.
 import { stream } from '../../core/rng.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
@@ -114,6 +122,8 @@ import { ejectCase, caseGMs2 } from './look.js';
 import { FACE_DOWN_UP } from './pits.js';
 import { penOf, throughMaterial } from './penetrate.js';
 import { SEEN } from '../people/perception.js';
+import { spinOf, spinBiasCm } from '../places/spin.js';
+import { contactOf } from '../people/mind.js';
 
 /** The shot's base DC (tradecraft's SHOT.dc). */
 export const SHOT_DC0 = 6;
@@ -198,7 +208,8 @@ const gunModel = (state, gunId) => MODELS[state.items?.[gunId]?.model ?? 'r7'];
 
 /** How long the aim at the bracketed target has been held at ms: { aimed, heldS, v, rate, toFullMs } (WEAPONS §7.1). */
 export function heldOf(state, pid, ms = state.clock.ms, key = null) {
-  const aim = state.stop?.aim;
+  // (the stop's aim is its owner's alone: a teammate shooting at the man you aim at has no aim held of yours (the fixer's of 0.0.12))
+  const aim = state.stop?.who === pid ? state.stop?.aim : null;
   const mrk = rollerOf(state, pid, { ms }).value('marksmanship'), rate = HELD_RATE0 + mrk / 10;
   if (!aim || (key && aim.key !== key)) return { aimed: false, heldS: 0, v: 0, rate, toFullMs: null };
   const heldS = (ms - aim.settledMs) / 1000;
@@ -212,10 +223,12 @@ export function heldOf(state, pid, ms = state.clock.ms, key = null) {
  * key, kind, x, z, dM, paper? }. follow: the follow-up's place after the first (a tap). The same list
  * makes the plaque's odds and the roll.
  */
-export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, ms = state.clock.ms, held = null }) {
+export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, ms = state.clock.ms, held = null, moving = null }) {
   const me = meOf(state, pid), M = gunModel(state, gunId), roller = rollerOf(state, pid, { ms });
   const mrk = roller.value('marksmanship'), stance = me?.stance ?? 'stand', out = [];
   if (POSITION[stance]) out.push({ why: POSITION_WORD[stance], v: POSITION[stance], src: 'task' });
+  // (0.0.12: a shot row fired moving on (specials.js movingMod: Combat −4, −2 from Marksmanship 15; Assault's close-quarters fire))
+  if (moving?.v) out.push({ why: moving.why ?? 'moving', v: moving.v, src: 'task' });
   // (held: a gunner's own held aim, { v } (src/sim/arms/gunner.js): the stop's aim is the player's)
   const h = held ? { aimed: true, v: held.v } : heldOf(state, pid, ms, target?.key ?? null);
   if (h.aimed && h.v) out.push({ why: h.v > 0 ? 'the aim held' : 'still coming down from the last', v: h.v, src: 'task' });
@@ -237,6 +250,20 @@ export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'nor
   return sortMods(out);
 }
 
+/** The sector aim (COMBAT §25.5's "the aim in his sector"): the sight's settle × this when the man was taken in in the held sector. */
+export const SECTOR_SIGHT_K = 0.25;
+/**
+ * Whether an aim is the sector's (see the header): in a clear (state.mind.clearing, the house's), the shooter's own take-in
+ * of the target 'sector': the player's last contact, a teammate's his own (the house's #2: R.house.two.contact's expect;
+ * the fixer's of 0.0.12, the #2 read the player's take-in).
+ */
+export function sectorAim(state, pid, target) {
+  if (!state.mind?.clearing || !target?.key) return false;
+  if (pid !== playerId(state)) { const W = state.armoury?.range?.house?.two; return W?.pid === pid && W.contact?.key === target.key && W.contact.expect === 'sector'; }
+  const L = contactOf(state)?.last;
+  return !!L && L.expect === 'sector' && L.ids?.includes(target.key);
+}
+
 /** The aim's time at a target from where the shooter faces and holds the rifle, ms (WEAPONS §7.1); × the chaos's time (0.0.9: the roller's timeK at ms). */
 export function aimMsOf(state, pid, gunId, target, { ms = state.clock.ms } = {}) {
   const me = meOf(state, pid), M = gunModel(state, gunId), K = KINDS[M.kind], roller = rollerOf(state, pid, { ms });
@@ -244,8 +271,10 @@ export function aimMsOf(state, pid, gunId, target, { ms = state.clock.ms } = {})
   const head = me?.headRad ?? 0, to = Math.atan2(target.z - (me?.z ?? 0), target.x - (me?.x ?? 0));
   const posture = state.people?.[pid]?.kit?.carry?.posture ?? 'lowReady';
   const optic = M.optic ? OPTICS[M.optic] : null;
-  const s = aimS({ pace: paceOf(wh), kindSight: K.sight, opticSight: optic ? opticSight(optic, opticOf(state.items?.[gunId])) : 1, turnDeg: Math.abs(wrap(to - head)) / D2R, value: wh, kindTurn: K.turn,
-    toAimS: posture === 'aimed' ? 0 : POSTURES[posture]?.toAimS ?? 0 });
+  // (0.0.12: in a clear, a man taken in in the sector the muzzle held: the sight's settle × SECTOR_SIGHT_K, no mount (see the header))
+  const sec = sectorAim(state, pid, target);
+  const s = aimS({ pace: paceOf(wh), kindSight: K.sight * (sec ? SECTOR_SIGHT_K : 1), opticSight: optic ? opticSight(optic, opticOf(state.items?.[gunId])) : 1, turnDeg: Math.abs(wrap(to - head)) / D2R, value: wh, kindTurn: K.turn,
+    toAimS: posture === 'aimed' || sec ? 0 : POSTURES[posture]?.toAimS ?? 0 });
   return Math.round(s * roller.timeK * 1000);
 }
 
@@ -300,6 +329,14 @@ export function poiOf(state, pid, gunId, target, { ms = state.clock.ms, belief =
     { key: 'path', why: `the path at ${Math.round(d)} m`, elevCm: f.pathCm, windCm: 0 },
     { key: 'wind', why: belief ? 'the wind as read' : 'the wind', elevCm: 0, windCm: f.driftCm },
     { key: 'hold', why: 'the hold', elevCm: hy * d / 10, windCm: hx * d / 10 },
+    // (0.0.12: on a spun floor the round's spin bias, as the wind's (WEAPONS §2.9; src/sim/places/spin.js): the truth only, it
+    // moves the hole and never the odds (the build sheet 0.0.12 §8 item 16); no term anywhere else, so no other place moves)
+    ...(() => {
+      const sp = !belief && target ? spinOf(state) : null;
+      if (!sp) return [];
+      const B = spinBiasCm(sp, { rangeM: d, vMs: Math.max(1, f.vMs), bearingRad: Math.atan2(target.z - me.z, target.x - me.x) });
+      return [{ key: 'spin', why: 'the spin', elevCm: B.upCm, windCm: B.sideCm }];
+    })(),
   ].map(t => ({ ...t, elevCm: r2(t.elevCm), windCm: r2(t.windCm) }));
   return { elevCm: r2(terms.reduce((a, t) => a + t.elevCm, 0)), windCm: r2(terms.reduce((a, t) => a + t.windCm, 0)), terms, rangeM: d, crossMs: Math.round(cross * 100) / 100,
     flight: { rangeM: d, tofS: Math.round(f.tofS * 1000) / 1000, vMs: Math.round(f.vMs), eJ: Math.round(f.eJ), supersonic: f.supersonic } };
@@ -431,7 +468,7 @@ export const shotStream = (state, pid, gunId, shotId) => stream('shot', state.me
  * (the pull and its recovery when it fired, the press alone when it clicked) and the shot record
  * { id, who, gun, atMs, fired, why, stoppage, set, muzzle, dirRad, target, lane, hole, brass, roll, logSeq, recoverMs }.
  */
-export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, held = null, hold = undefined, log = true, atMs = state.clock.ms, row = null }) {
+export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, held = null, hold = undefined, log = true, atMs = state.clock.ms, row = null, moving = null }) {
   const gun = state.items[gunId], mag = gun.mag ? state.items[gun.mag] : null, M = MODELS[gun.model ?? 'r7'];
   const ms = atMs, roller = rollerOf(state, pid, { ms }), wh = roller.value('weapons');
   const id = nextId(state, 'sh');
@@ -445,7 +482,7 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
   let roll = null, hole = null, brass = null, entry = null, stepMs, recMs = 0, poi = null, after = '', fl = null, man = null;
   if (f.fired) {
     const { dc, parts } = dcOf({ model: gun.model ?? 'r7', rangeM: target?.dM ?? 25, part, paper: target?.paper ?? null });
-    const mods = modsOf(state, pid, { gunId, target, part, tempo: 'normal', follow, climbK, ms, held });
+    const mods = modsOf(state, pid, { gunId, target, part, tempo: 'normal', follow, climbK, ms, held, moving });
     roll = check(r, { skill: 'marksmanship', value: roller.value('marksmanship'), dc, mods, tempo, pressure: 'evaluated', procedure: false, by: pid, dcParts: parts });
     // (the round as it flies, for every shot: the hud's crack and strike, the far window's delay)
     const fp = poiOf(state, pid, gunId, target ?? { dM: 25 }, { ms, hold, load: f.load ?? 'ball' });
@@ -476,6 +513,11 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
       // (0.0.8: a turner, a man-target (see the header): past it under SEEN, else the hole by the roll, the steel on an armoured face)
       const facing = (target.facingK ?? 1) >= SEEN;
       const h = facing ? manHole(target.face, part, roll, id, state.meta.seed) : { at: null, zone: null, word: 'past the target, into the berm' };
+      // (0.0.12: on a spun floor the spin's term moves the hole on the man as the wind's would, y down on the paper; the zone
+      // stays the roll's, so the odds and the verdict never move (the fixer's of 0.0.12: the hole read the roll alone, and the
+      // Wheel's bias moved nothing in the house))
+      const sp = h.at ? fp.terms.find(t => t.key === 'spin') : null;
+      if (sp) h.at = [Math.round((h.at[0] + sp.windCm) * 10) / 10, Math.round((h.at[1] - sp.elevCm) * 10) / 10];
       man = { part, zone: h.zone, ring: false, through: false, row: row ?? null };
       // (an armoured face's verdict: down only there, the head plate's; a paper threat's sensor is the scene's)
       if (target.face === 'armoured') { const st = h.at ? steelOf(state, { id, part, roll, flight: fl, load: f.load ?? 'ball', model: gun.model ?? 'r7' }, target) : null;

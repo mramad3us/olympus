@@ -149,6 +149,9 @@ export function inCone(cone, { x, z, spanM = SPAN_M.stand }) {
 
 // ---- the habit ----
 
+// (the log's habit lines are the player's own, in the second person: a teammate's habit (the shoot house's #2, 0.0.12) is
+// checked and recorded the same, and its 'muzzle' fact emitted, but never logged as if it were yours)
+const isMe = (state, pid) => pid === state.player?.id;
 const nameOf = (state, pid) => { const p = state.people?.[pid]; return p?.name ? `${p.service?.rank ? `${p.service.rank} ` : ''}${p.name.family}` : pid; };
 const POSTURE_WORDS = Object.freeze({ slungBack: 'slung on your back', slungFront: 'slung front', lowReady: 'low ready', highReady: 'high ready', aimed: 'aimed' });
 
@@ -203,7 +206,7 @@ export function habitStep(state, input, bus, ctx = {}) {
         rec.told = true;
         const kind = rec.result === 'point' ? 'point' : 'flag';
         if (kind === 'flag') rec.result = 'flag';
-        logEntry(state, bus, { kind: 'habit', tone: 'warn', filter: 'habit', who: pid, other: B.who, posture: cone.posture, result: kind, text: kind === 'point' ? `You pointed your rifle at ${nameOf(state, B.who)}.` : `You flagged ${nameOf(state, B.who)}: your muzzle stayed on them.` });
+        if (isMe(state, pid)) logEntry(state, bus, { kind: 'habit', tone: 'warn', filter: 'habit', who: pid, other: B.who, posture: cone.posture, result: kind, text: kind === 'point' ? `You pointed your rifle at ${nameOf(state, B.who)}.` : `You flagged ${nameOf(state, B.who)}: your muzzle stayed on them.` });
         bus?.emit('muzzle', { who: pid, at: B.who, kind, posture: cone.posture, atMs: ms });
       }
     }
@@ -221,7 +224,7 @@ function openApproach(state, bus, A, B, cone, ms, ctx, list) {
   const v = roller.value('weapons') + mods.reduce((s, m) => s + m.v, 0);
   const ctxWords = crowd ? `${word}, crowd` : word;
   if (dc <= v + 1) {
-    logEntry(state, bus, { kind: 'habit', tone: 'note', filter: 'habit', who: pid, other: B.who, posture: cone.posture, result: 'auto', text: `Muzzle past ${who} (${ctxWords}): automatic.` });
+    if (isMe(state, pid)) logEntry(state, bus, { kind: 'habit', tone: 'note', filter: 'habit', who: pid, other: B.who, posture: cone.posture, result: 'auto', text: `Muzzle past ${who} (${ctxWords}): automatic.` });
     return { atMs: ms, result: 'auto', posture: cone.posture, dc: P.habitDC };
   }
   // (one d20, naturals as their numbers only: a habit is not decided by a die's face)
@@ -229,7 +232,7 @@ function openApproach(state, bus, A, B, cone, ms, ctx, list) {
   const roll = { kind: 'check', skill: 'weapons', value: roller.value('weapons'), roll: die, mods, total, nat: 0, dc, dcParts: [{ why: word, v: P.habitDC }, ...(crowd ? [{ why: 'a crowd', v: CROWD_DC }] : [])],
     hook: false, tempo: 'normal', steady: false, routine: false, pressure: ctx.pressure ?? 'none', ok: margin >= 0, margin, grade: grade(margin, 0), by: pid, them: false, hidden: false, verb: 'habit' };
   const result = margin >= 0 ? 'pass' : (margin >= -NEAR_BY && v + 10 >= dc) ? 'near' : 'fail';
-  logEntry(state, bus, { kind: 'roll', tone: result === 'pass' ? 'note' : 'warn', filter: 'habit', roll, step: 'habit', who: pid, other: B.who, posture: cone.posture, result,
+  if (isMe(state, pid)) logEntry(state, bus, { kind: 'roll', tone: result === 'pass' ? 'note' : 'warn', filter: 'habit', roll, step: 'habit', who: pid, other: B.who, posture: cone.posture, result,
     text: result === 'near' ? `Muzzle past ${who} (${ctxWords}): a near miss, your muzzle drifted toward them. You fixed it.` : result === 'pass' ? `Muzzle past ${who} (${ctxWords}): kept off.` : `Muzzle past ${who} (${ctxWords}): it stayed on them.` });
   bus?.emit('roll', { roll, who: pid });
   if (result === 'near') bus?.emit('muzzle', { who: pid, at: B.who, kind: 'near', posture: cone.posture, atMs: ms });

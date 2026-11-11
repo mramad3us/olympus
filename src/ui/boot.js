@@ -159,9 +159,9 @@ export function createBoot({ root = document.body, cb }) {
   /** test-pairs' sheet picker (cards/pairs.js), on the title's paper: a sheet starts the scene as it; Back to the Tests. */
   function showPicker(scene) {
     page = 'picker';
-    const { sheets = {}, order = null, hard = null } = cb.sheets?.() ?? {};
-    // (0.0.9: each sheet's hardening in words, main.js's reader (supp.js hardWord))
-    const p = pickerPage({ scene, sheets, order, hard, onPick: (tier) => cb.playScene?.(scene, { tier }), onBack: () => back() });
+    const { sheets = {}, order = null, hard = null, parMs = {}, parOf = null } = cb.sheets?.() ?? {};
+    // (0.0.9: each sheet's hardening in words, main.js's reader (supp.js hardWord); 0.0.12: the shoot house's par chooser, its choice carried)
+    const p = pickerPage({ scene, sheets, order, hard, parMs, parOf, onPick: (tier, o = {}) => cb.playScene?.(scene, { tier, ...(o.par ? { par: o.par } : {}) }), onBack: () => back() });
     title.replaceChildren(p.body);
     title.hidden = false;
     (p.body.querySelector('.item.lead') ?? p.body.querySelector('.item'))?.focus();

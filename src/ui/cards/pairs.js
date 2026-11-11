@@ -23,6 +23,9 @@
 // on the seed and the sheet where the page remembers one (bangLines).
 // 0.0.10 (the build sheet 0.0.10 §2.3, §8 item 21): "Bang" (test-stress) opens the same picker on the Boot recruit, its lines led by
 // the hardening (leadsHard), its scene's line under the title (SCENE_LINES).
+// 0.0.12 (the build sheet 0.0.12 §2.3, §5.4): "Stack and clear" (test-shoothouse) opens the same picker on the Private, the six sheets
+// with the Boot recruit at their head (the scene's own list), and under them the par chooser (parOptions: the sheet's own, Basic
+// 3.0 s, Advanced 1.5 s, Operator 0.8 s, the scene's PAR_MS; P cycles it), which the pick carries (onPick(tier, { par })).
 
 /** The tiers on the picker, in its order, when the sim's PICKER_TIERS is not given. */
 export const PICKER_ORDER = Object.freeze(['recruit', 'private', 'sgt', 'raider', 'tierone']);
@@ -54,12 +57,36 @@ export function pickerRows(sheets = {}, order = null, focus = PICKER_DEFAULT, { 
 /** A setup's line under the picker's title (0.0.9; my words). */
 export const SETUP_LINES = Object.freeze({ bangs: 'Utilities, no ear defenders. In the first standby the coach makes some noise behind you; the rest is Pairs as built. Esc, End the scene, takes you to the card after the first string.' });
 /** A scene's line under the picker's title where it has no setup (0.0.10: "Bang"; my words). */
-export const SCENE_LINES = Object.freeze({ 'test-stress': 'Ear defenders on. Five strings at 7 m: one calm, then the coach makes noise beside you (a horn and blanks, a bang he calls, three he does not), the last on a one-round magazine. Breathe when you can. Esc, End the scene, takes you to the card.' });
+export const SCENE_LINES = Object.freeze({ 'test-stress': 'Ear defenders on. Five strings at 7 m: one calm, then the coach makes noise beside you (a horn and blanks, a bang he calls, three he does not), the last on a one-round magazine. Breathe when you can. Esc, End the scene, takes you to the card.',
+  // (0.0.12: the shoot house; my words)
+  'test-shoothouse': 'The Wheel, at 1 G. Your number two is of your sheet too, and runs the same drill. The recruit does it a step at a time, X and the keys to go in; from the Corporal T bundles it. The same rooms and draws on the seed whichever you choose.' });
 /** Whether a scene's picker leads with the hardening (its lesson: "Three bangs" and "Bang"). */
 export const leadsHard = (scene) => scene?.setup === 'bangs' || scene?.id === 'test-stress' || scene?.course === 'stress';
 
-/** The picker as a page on the title's paper: { body, buttons }. scene: SCENES' record; onPick(tier); onBack(). */
-export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null }) {
+/** The par chooser's words (0.0.12, test-shoothouse: the build sheet 0.0.12 §4's PAR_MS names). */
+export const PAR_WORDS = Object.freeze({ basic: 'Basic', advanced: 'Advanced', operator: 'Operator' });
+/**
+ * The par chooser's options (0.0.12): [{ id: null, label: "The sheet's own" }, { id: 'basic', label: 'Basic', ms: 3000 }, …] from the
+ * scene's pars (scenes.js `pars`: the names) and their times (parMs: { basic: 3000, … }, the scene's PAR_MS, never a copy here).
+ */
+export function parOptions(scene, parMs = {}) {
+  const ids = Array.isArray(scene?.pars) ? scene.pars : [];
+  if (!ids.length) return [];
+  return [{ id: null, label: "The sheet's own" }, ...ids.map(id => ({ id, label: PAR_WORDS[id] ?? id, ms: Number.isFinite(parMs?.[id]) ? parMs[id] : null }))];
+}
+/** A par option's words: "Basic · 3.0 s"; the sheet's own with the sheet's par where it is known ("The sheet's own (basic, 3.0 s)"). */
+export function parWords(o, own = null, parMs = {}) {
+  if (!o) return '';
+  if (o.id === null) return own ? `${o.label} (${String(PAR_WORDS[own] ?? own).toLowerCase()}${Number.isFinite(parMs?.[own]) ? `, ${(parMs[own] / 1000).toFixed(1)} s` : ''})` : o.label;
+  return `${o.label}${Number.isFinite(o.ms) ? ` · ${(o.ms / 1000).toFixed(1)} s` : ''}`;
+}
+
+/**
+ * The picker as a page on the title's paper: { body, buttons, pars }. scene: SCENES' record; onPick(tier, { par }) (par null: the
+ * sheet's own); onBack(). 0.0.12: a scene with pars (test-shoothouse) shows the par chooser under the sheets (P cycles it, or a
+ * click): parMs the scene's PAR_MS, parOf(tier) the sheet's own par's name.
+ */
+export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null, parMs = {}, parOf = null }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
   // (the scene's own list and default where it names them (scenes.js: sheets, sheet), else the sim's picker order)
   const rows = pickerRows(sheets, Array.isArray(scene?.sheets) ? scene.sheets : order, scene?.sheet ?? PICKER_DEFAULT, { hard, lead: leadsHard(scene) });
@@ -69,9 +96,22 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
     const h = el('b', { className: 'hard', textContent: `Hardening: ${r.hard}`, ...(r.hardTitle ? { title: r.hardTitle } : {}) }), rest = sheetLine(sheets[r.tier]);
     return r.lead ? el('small', {}, h, rest ? ` · ${rest}` : '') : el('small', {}, rest ? `${rest} · ` : '', h);
   };
+  // (0.0.12: the par chooser, its choice kept while the page stands; the sheet's own by default)
+  const pars = parOptions(scene, parMs);
+  let parAt = 0;
+  const parBtns = pars.map((o, i) => {
+    const b = el('button', { className: `item parpick${i === 0 ? ' on' : ''}`, type: 'button' }, '');
+    b.dataset.par = o.id ?? 'own';
+    b.onclick = () => { parAt = i; for (const [j, x] of parBtns.entries()) x.classList.toggle('on', j === parAt); };
+    return b;
+  });
+  const parText = () => { for (const [i, b] of parBtns.entries()) b.textContent = parWords(pars[i], null, parMs); };
+  parText();
   const buttons = rows.map((r, i) => {
-    const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}`, type: 'button', onclick: () => onPick?.(r.tier) }, el('kbd', { textContent: String(i + 1) }), r.label, small(r));
+    const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}`, type: 'button', onclick: () => onPick?.(r.tier, { par: pars[parAt]?.id ?? null }) }, el('kbd', { textContent: String(i + 1) }), r.label, small(r));
     b.dataset.tier = r.tier;
+    // (0.0.12: each sheet's own par on its line's hover, where the scene has pars)
+    if (pars.length && parOf) { const own = parOf(r.tier); if (own) b.title = `Par: ${parWords(pars[0], own, parMs)}`; }
     return b;
   });
   const body = el('div', { className: 'sheet tests picker' },
@@ -80,6 +120,7 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
     SETUP_LINES[scene?.setup] ? el('p', { className: 'sub setup', textContent: SETUP_LINES[scene.setup] }) : SCENE_LINES[scene?.id] ? el('p', { className: 'sub setup', textContent: SCENE_LINES[scene.id] }) : null,
     el('hr'),
     ...buttons,
+    pars.length ? el('div', { className: 'pars' }, el('span', { className: 'parhead' }, el('kbd', { textContent: 'P' }), ' Par'), ...parBtns) : null,
     el('hr'),
     el('button', { className: 'item small', type: 'button', onclick: () => onBack?.() }, 'Back'),
     el('p', { className: 'note', textContent: scene?.goal ?? '' }));
@@ -87,8 +128,10 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
   body.addEventListener('keydown', (e) => {
     const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code ?? '');
     if (m && buttons[Number(m[1]) - 1]) { e.preventDefault(); buttons[Number(m[1]) - 1].click(); }
+    // (0.0.12: P cycles the par)
+    if (e.code === 'KeyP' && parBtns.length) { e.preventDefault(); parBtns[(parAt + 1) % parBtns.length].click(); }
   });
-  return { body, buttons, rows };
+  return { body, buttons, rows, pars: parBtns, get par() { return pars[parAt]?.id ?? null; } };
 }
 
 const two = (ms) => (Number.isFinite(ms) ? (ms / 1000).toFixed(2) : '?');

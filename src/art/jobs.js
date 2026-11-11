@@ -248,11 +248,13 @@ export function layArea(col, area) {
   const ppm = col.ppm, look = area.look ?? {}, P = planOf(area);
   if (area.kind === 'ground') return { plan: P, walls: 0, fixtures: 0, clocks: [] };          // (a ground is its chunks: src/render/chunks.js)
   const label = new Map((area.openings ?? []).map(o => [o.id, o.label ?? null]));
+  // (0.0.12: an opening's swing, PLACES §1.6's hinge side, from the area's own record: the plan keeps the walls' geometry, not the hinge)
+  const swing = new Map((area.openings ?? []).filter(o => o.swing).map(o => [o.id, o.swing]));
   // (a clock on the north wall's decor is a wall clock like any other: its hands live, src/render/clocks.js)
   const decorClocks = (look.decor ?? []).filter(d => d.kind === 'clock').map((d, i) => ({ id: `${area.id}:decor-clock:${i}`, kind: 'wallClock', make: 'school', x: d.x, z: P.z0 + 0.025, y: d.y ?? CLOCK_Y_M, face: 'down', faces: ['melas'] }));
   const plan = {
     ...P,
-    openings: P.openings.map(o => ({ ...o, label: label.get(o.id) ?? undefined })),
+    openings: P.openings.map(o => ({ ...o, label: label.get(o.id) ?? undefined, ...(swing.has(o.id) ? { swing: swing.get(o.id) } : {}) })),
     decor: (look.decor ?? []).filter(d => d.kind !== 'clock'), lamps: look.lamps ?? [],
   };
   const cut = buildCutaway(col, plan, { finish: look.finish ?? 'block', deck: look.deck ?? false, strips: look.strips ?? false, battle: look.battle ?? false });
@@ -295,13 +297,20 @@ export const DESK_CLOCK_Y_M = 1.12;
  * turns to open, into its first room), w, h }.
  */
 export function leafOf(o, plan, h) {
-  const r0 = plan.rooms.find(r => r.id === o.rooms?.[0]);
+  // (0.0.12, PLACES §1.6's hinge side: an opening's swing { hinge: 'a' | 'b', into: <room index> } hinges the leaf at that end and
+  // swings it into that room; without one, v0.0.3's rule: hinged at a, into the first room)
+  const sw = o.swing ?? null, r0 = plan.rooms.find(r => r.id === o.rooms?.[Number.isInteger(sw?.into) ? sw.into : 0]);
   let into;
   if (o.axis === 'x') into = r0 ? (Math.abs(r0.z1 - o.at) < 0.05 ? -1 : 1) : -1;          // (−1: north of the line)
   else into = r0 ? (Math.abs(r0.x1 - o.at) < 0.05 ? -1 : 1) : 1;                          // (−1: west of it)
+  const w = o.b - o.a;
+  // (hinged at b: the leaf runs back toward a, half a turn from a's, and turns the other way to reach the same room)
+  if (sw?.hinge === 'b') return o.axis === 'x'
+    ? { id: o.id, kind: 'leaf', opening: o.id, pivot: [o.b, o.at], base: Math.PI, swing: into < 0 ? -1 : 1, w, h, hinge: 'b' }
+    : { id: o.id, kind: 'leaf', opening: o.id, pivot: [o.at, o.b], base: Math.PI / 2, swing: into > 0 ? -1 : 1, w, h, hinge: 'b' };
   return o.axis === 'x'
-    ? { id: o.id, kind: 'leaf', opening: o.id, pivot: [o.a, o.at], base: 0, swing: into < 0 ? 1 : -1, w: o.b - o.a, h }
-    : { id: o.id, kind: 'leaf', opening: o.id, pivot: [o.at, o.a], base: -Math.PI / 2, swing: into > 0 ? 1 : -1, w: o.b - o.a, h };
+    ? { id: o.id, kind: 'leaf', opening: o.id, pivot: [o.a, o.at], base: 0, swing: into < 0 ? 1 : -1, w, h }
+    : { id: o.id, kind: 'leaf', opening: o.id, pivot: [o.at, o.a], base: -Math.PI / 2, swing: into > 0 ? 1 : -1, w, h };
 }
 
 // ---------- the jobs ----------

@@ -99,12 +99,12 @@ export default [
     },
   },
   {
-    name: 'the actions table: routed by prefix to their owners (R\'s hand and the door to places, 0.0.3; the activity to time and the instinct\'s T to people, 0.0.4; G, the digits, X, the steps, V and the stances to weapons, 0.0.5; R held\'s chain to time, 0.0.6; the KD\'s range actions to weapons, 0.0.7; Breathe to weapons, 0.0.10), the people and body domains built, the stubs doing what the sheet says; an unknown action counted, never thrown',
+    name: 'the actions table: routed by prefix to their owners (R\'s hand and the door to places, 0.0.3; the activity to time and the instinct\'s T to people, 0.0.4; G, the digits, X, the steps, V and the stances to weapons, 0.0.5; R held\'s chain to time, 0.0.6; the KD\'s range actions to weapons, 0.0.7; Breathe to weapons, 0.0.10; V\'s gaits and Backspace\'s drill stop to weapons, 0.0.12), the people and body domains built, the stubs doing what the sheet says; an unknown action counted, never thrown',
     fn() {
       const g = createGame({ seed: 4 });
       const table = g.sim.actions;
       const want = { debug: 'tech', skip: 'time', activity: 'time', chain: 'time', hand: 'places', door: 'places', people: 'people', instinct: 'people',
-        ready: 'weapons', digit: 'weapons', shoot: 'weapons', stop: 'weapons', carry: 'weapons', stance: 'weapons', kd: 'weapons', breathe: 'weapons', hit: 'combat', grab: 'combat', guard: 'combat' };
+        ready: 'weapons', digit: 'weapons', shoot: 'weapons', stop: 'weapons', carry: 'weapons', stance: 'weapons', kd: 'weapons', breathe: 'weapons', gait: 'weapons', drill: 'weapons', hit: 'combat', grab: 'combat', guard: 'combat' };
       assert(JSON.stringify(Object.keys(table).sort()) === JSON.stringify(Object.keys(want).sort()) && Object.entries(want).every(([a, d]) => table[a] === d), JSON.stringify(table));
       const people = g.sim.domains.find(d => d.name === 'people');
       assert(people && !people.stub && g.sim.layers.find(L => L.name === 'actors').contributors.includes('people') && g.sim.slow.includes('people:place'), `the people domain: ${JSON.stringify(people)}`);

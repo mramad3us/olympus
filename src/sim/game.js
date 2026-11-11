@@ -51,7 +51,7 @@
 // since TECH §3.7 says they never touch the state (0.0.2 wrote a render error into meta.errors even
 // while paused, so the page's save parted from a node replay exactly when something broke).
 //
-// newGame({ seed, mode, scenario, scene, startMs, hour, worldId, version, domains, at, setup, tier, env }) makes a fresh
+// newGame({ seed, mode, scenario, scene, startMs, hour, worldId, version, domains, at, setup, tier, env, par }) makes a fresh
 // state from a scene's spec (src/data/scenes.js; ROADMAP "anywhere", step 4): scene names one (SCENES or STARTS),
 // else scenario's own (STARTS, or the first built scene that plays it: specOf, which also checks that scenes
 // sharing a scenario share its host and env). Then core's newState, meta.worldId (w-<seed> unless given), every
@@ -77,7 +77,9 @@
 // test-range, "The line at 300 m" (src/sim/scenarios/range.js: the KD range in full, its relay, its pits); 0.0.8
 // test-pairs, "Pairs" (src/sim/scenarios/pairs.js: the take-in and the shot rows on the bay's turners), whose fill takes
 // newGame's tier (a test sheet: recruit, private, cpl, sgt, raider, tierone; null the scene's own, the private); 0.0.10
-// test-stress, "Bang" (src/sim/scenarios/stress.js: the stress course on pairs.js's engine), its fill taking the tier too.
+// test-stress, "Bang" (src/sim/scenarios/stress.js: the stress course on pairs.js's engine), its fill taking the tier too; 0.0.12
+// test-shoothouse, "Stack and clear" (src/sim/scenarios/shoothouse.js: lane A of the Wheel's house 1 at 1 G), its fill taking the
+// tier and newGame's par (the instructor's timer: 'basic', 'advanced', 'operator'; null the sheet's own).
 // act()'s first line is the take-in's gate (the build sheet 0.0.8 §2.6, §8 item 25): while a contact's window is open
 // (src/sim/combat/contact.js refusesAct) every sim action is refused and counted (stats.refused), in node and the page
 // alike, so a replay from the state and the inputs pauses where the game did (COMBAT §25.4.5, §25.4.8).
@@ -115,6 +117,7 @@ import { testHandling } from './scenarios/handling.js';
 import { testRange } from './scenarios/range.js';
 import { testPairs } from './scenarios/pairs.js';
 import { testStress } from './scenarios/stress.js';
+import { testShoothouse } from './scenarios/shoothouse.js';
 import { refusesAct } from './combat/contact.js';
 import { weaponsDomain } from './arms/domain.js';
 import { SCENES, STARTS } from '../data/scenes.js';
@@ -127,7 +130,7 @@ const LAYER_NAMES = new Set(FAST_LAYERS.map(L => L.name));
 /** The domains, in the order their contributors run. */
 export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'body', 'people', 'weapons', 'combat', 'world', 'career']);
 /** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
-export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs, 'test-stress': testStress });
+export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs, 'test-stress': testStress, 'test-shoothouse': testShoothouse });
 
 // (one host and one environment a scenario: the scenes that share a fill differ only in the hud's fields and their setup)
 const sameStand = (a, b) => JSON.stringify([a.host, a.env]) === JSON.stringify([b.host, b.env]);
@@ -381,7 +384,7 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
 // ---- a new game ----
 
 /** A new game's state (see the header). */
-export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene = null, startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null, env = null } = {}) {
+export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene = null, startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null, env = null, par = null } = {}) {
   if (seed === undefined || seed === null) throw new Error('newGame(): a seed is needed');
   const spec = specOf({ scene, scenario }), fill = SCENARIOS[spec.scenario], site = spec.host.site;
   const s = newState(seed, { version, mode, scenario: spec.scenario, startMs });
@@ -399,7 +402,7 @@ export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene =
   const { preset, ...over } = spec.env;
   const live = env ? { preset: env } : preset !== 'site' ? { preset, ...over } : null;
   if (live) { enterSite(s, site, spec.host.area); setLiveEnv(s, live); }
-  fill(s, { at, setup: setup ?? spec.setup ?? null, tier });
+  fill(s, { at, setup: setup ?? spec.setup ?? null, tier, ...(par ? { par } : {}) });
   if (s.places.live?.site !== site) throw new Error(`the scene '${spec.id}' stands on '${site}', and its fill left '${s.places.live?.site}' live`);
   if (live && !s.places.live.env) throw new Error(`the scene '${spec.id}''s fill dropped its environment ('${live.preset}')`);
   s.time.slowToMs = s.clock.ms;                                    // (the slow layer has stepped up to the start)

@@ -57,6 +57,16 @@
 // 0.0.8 (the build sheet 0.0.8 §2.6; COMBAT §25.4.5): the keys are read through the contact's feetOf
 // (src/sim/combat/contact.js): with no window open the keys held, while one is open the move held at the
 // sighting for the body's go and then none, so the keys are not the marine's until he has taken it in.
+// 0.0.12 (the build sheet 0.0.12 §2.2, §8 items 4 to 6; BODY §16.1, §16.2; COMBAT §25.9): the movement stances. The body's
+// stance is actor.moveStance ('relaxed' | 'combat' | 'assault'; absent read as Relaxed: the built walk, to the tick, so
+// every shipped scene and moment 2's walk are unchanged). In Combat and Assault the walk is the stance's (motion.js
+// gaitSpeeds' gait: 1.23 and 2.03 m/s at 1 G) and the body has inertia: its velocity (actor.v = [vx, vz], kept only while
+// it moves) goes toward the keys' wanted velocity at the legs' push when it speeds up and their brake when it slows
+// (motion.js tractionOf at the place's gravity and floor, with the kit the person carries), so a stop and a restart cost
+// real time and a contact's window brakes a walking private to a stop in 0.24 s (contact.js feetOf stops the wanted
+// velocity after the body's go); each axis of the tick's step collides as before. A running move beat of a bundle (the
+// stepper's moveNow: stop motion with a bundle's feet under way) sets the body's place from its closed form (stepper.js
+// moveAt) and the keys are not read.
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { navOf, navAhead, nearestFree, nearestFreeInReach, centreOf, cellOf } from './nav.js';
@@ -65,7 +75,13 @@ import { doorsStep } from './doors.js';
 import { portalCrossed, moveTo } from './portals.js';
 import { playerActor, playerId } from '../../core/ids.js';
 import { STRIDE_WRAP_M } from '../../data/body/gait.js';
-import { gaitsOf } from '../body/motion.js';
+import { gaitsOf, tractionOf } from '../body/motion.js';
+import { gravityAt, surfaceAt } from './env.js';
+import { G0_MS2 } from '../../core/phys.js';
+import { moveNow, moveAt } from '../combat/stepper.js';
+import * as KIT from '../arms/kit.js';
+import { valueOf } from '../skills/templates.js';
+import { SURFACES } from '../../data/places/env.js';
 import { feetHeld, transPlaying } from '../time/doing.js';
 import { feetOf } from '../combat/contact.js';
 
@@ -100,6 +116,9 @@ export function speedOf(input, gaits) {
   const p = keysGaitOf(input, gaits);
   return p === 'idle' ? 0 : p === 'run' ? gaits.runMs : p === 'stroll' ? gaits.strollMs : gaits.walkMs;
 }
+
+/** A heading's nearest facing (the eye's cone is the facing's: perception.js eyeOf). */
+export const faceOfHeadRad = (h) => { const a = Math.atan2(Math.sin(h), Math.cos(h)); return Math.abs(a) <= Math.PI / 4 ? 'right' : Math.abs(a) >= 3 * Math.PI / 4 ? 'left' : a > 0 ? 'down' : 'up'; };
 
 /** The facing the keys give: east–west only right or left, north–south only up or down, a diagonal keeps one of its two. */
 export function faceOf(mx, mz, face) {
@@ -181,6 +200,46 @@ export function moveActor(actor, mx, mz, speedMs, grid) {
   return dx || dz ? q(Math.sqrt(dx * dx + dz * dz), POS_STEP_M) : 0;
 }
 
+/** The legs where the player stands (BODY §16.2): motion.js tractionOf at the place's gravity and floor, with what the person carries and their Fitness. */
+export function legsHere(state, pid, x, z) {
+  const gG = gravityAt(state, null, x, z).gG, mu = surfaceAt(state, null, x, z)?.mu;
+  const loadKg = typeof KIT.kitMassKg === 'function' ? KIT.kitMassKg(state, pid) : 0;
+  return tractionOf({ gMs2: gG * G0_MS2, mu: Number.isFinite(mu) ? mu : SURFACES.concrete.muDry, effFitness: valueOf(state, pid, 'fitness'), massKg: BODY_KG, loadKg });
+}
+/** The body under the kit, kg (the build sheet 0.0.12 §4: 25 kg of kit on 75). */
+export const BODY_KG = 75;
+
+// (one tick in Combat or Assault: the velocity toward the keys' wanted velocity at push or brake, then each axis's step collided)
+function inertStep(state, a, feet, grid, stance) {
+  const pid = playerId(state), gaits = gaitsOf(state, pid, { gait: stance });
+  const x = sgn(feet.mx), z = sgn(feet.mz), n = x && z ? Math.SQRT1_2 : 1;
+  const want = x || z ? (feet.run && gaits.runOk ? gaits.runMs : gaits.walkMs) : 0;
+  const wx = x * n * want, wz = z * n * want, vx0 = a.v?.[0] ?? 0, vz0 = a.v?.[1] ?? 0, dt = TICK_MS / 1000;
+  const L = legsHere(state, pid, a.x, a.z), dvx = wx - vx0, dvz = wz - vz0, dv = Math.hypot(dvx, dvz);
+  const acc = Math.hypot(wx, wz) >= Math.hypot(vx0, vz0) ? L.pushMs2 : L.brakeMs2, k = dv > 0 ? Math.min(1, acc * dt / dv) : 0;
+  const vx = q(vx0 + dvx * k, 0.001), vz = q(vz0 + dvz * k, 0.001);
+  const sx = (vx0 + vx) / 2 * dt, sz = (vz0 + vz) / 2 * dt;
+  if (want) a.face = faceOf(x, z, a.face);
+  const x0 = a.x, z0 = a.z;
+  if (sx) moveActor(a, Math.sign(sx), 0, Math.abs(sx) * 1000 / TICK_MS, grid);
+  if (sz) moveActor(a, 0, Math.sign(sz), Math.abs(sz) * 1000 / TICK_MS, grid);
+  const moved = Math.hypot(a.x - x0, a.z - z0);
+  // (a wall stops the body: what it did not travel it loses)
+  const fx = Math.abs(sx) > 1e-9 && Math.abs(a.x - x0) < Math.abs(sx) * 0.5 ? 0 : vx, fz = Math.abs(sz) > 1e-9 && Math.abs(a.z - z0) < Math.abs(sz) * 0.5 ? 0 : vz;
+  if (Math.hypot(fx, fz) > 1e-3) a.v = [fx, fz]; else delete a.v;
+  a.gait = moved > 0 ? (want && feet.run && gaits.runOk ? 'run' : 'walk') : 'idle';
+  if (moved > 0) a.strideM = q(((a.strideM ?? 0) + moved) % STRIDE_WRAP_M, POS_STEP_M);
+  a.$moved = moved;
+}
+// (after a step: the ground's chunks ahead, a portal crossed)
+function finishStep(state, a, grid, area, bus) {
+  const moved = a.$moved ?? 0;
+  delete a.$moved;
+  if (grid.kind === 'ground') navAhead(state, area, PLAYER_CLS, a.x, a.z);
+  const p = moved > 0 ? portalCrossed(state, a) : null;
+  if (p) moveTo(state, a.id, p.to, bus, { portal: p });
+}
+
 /** Whether the keys move the player without turning them: a range session open and the rifle in the hands (see the header). */
 export function lineStrafe(state) {
   const R = state.armoury?.range;
@@ -197,6 +256,20 @@ export function playerStep(state, input, bus, ctx) {
   a.$px = a.x; a.$pz = a.z;
   const area = state.places?.live?.area;
   if (!area) return;
+  // (0.0.12: a bundle's move beat under way puts the body where its closed form says (see the header))
+  const mv = moveNow(state, playerId(state));
+  if (mv) {
+    const p = moveAt(mv, state.clock.ms), moved = Math.hypot(p.x - a.x, p.z - a.z);
+    // (the head and the muzzle go where the drill's eyes are (a bundle's beat with eyes: the slot's corner), else along the path)
+    const run = state.stop?.doing?.beats?.filter(b => b.st === 'run') ?? [], eyes = run.find(b => b.eyes)?.eyes ?? null, look = eyes ?? mv.look ?? null;
+    a.x = p.x; a.z = p.z; a.headRad = eyes ? q(Math.atan2(eyes[1] - p.z, eyes[0] - p.x), 1e-6) : mv.muzzle ?? p.headRad;
+    a.face = faceOfHeadRad(look ? Math.atan2(look[1] - p.z, look[0] - p.x) : a.headRad);
+    a.gait = moved > 0 ? 'walk' : 'idle';
+    if (moved > 0) a.strideM = q(((a.strideM ?? 0) + moved) % STRIDE_WRAP_M, POS_STEP_M);
+    if (p.vMs > 0) a.v = [q(p.vMs * Math.cos(p.headRad), 0.001), q(p.vMs * Math.sin(p.headRad), 0.001)]; else delete a.v;
+    if (p.done && mv === state.stop?.feet) mv.done = true;
+    return;
+  }
   // (0.0.8: the feet as the contact's window lets them: the move held at the sighting for the body's go, then stopped (COMBAT §25.4.5))
   const feet = feetOf(state, input), mx = sgn(feet.mx), mz = sgn(feet.mz);
   // (the feet held: the keys only turn a standing player, and a berth or a stall is never settled out of:
@@ -207,6 +280,9 @@ export function playerStep(state, input, bus, ctx) {
   const grid = navOf(state, area, PLAYER_CLS, a.x, a.z);
   settle(a, grid);                                                 // (a spot it may not stand on: put out at once, keys or none)
   if (!strafe) a.face = faceOf(mx, mz, a.face);
+  // (0.0.12: in Combat or Assault, the stance's walk and the body's inertia (see the header))
+  const stance = a.moveStance === 'combat' || a.moveStance === 'assault' ? a.moveStance : null;
+  if (stance) { inertStep(state, a, feet, grid, stance); finishStep(state, a, grid, area, bus); return; }
   const gaits = gaitsOf(state, playerId(state)), gait = gaitOf(feet, gaits), speed = speedOf(feet, gaits);
   if (!speed) { a.gait = 'idle'; return; }
   const moved = moveActor(a, mx, mz, speed, grid);

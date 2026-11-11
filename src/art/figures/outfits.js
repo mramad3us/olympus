@@ -23,6 +23,11 @@
 //     waist, bare chested (at the chest for a woman: look.sex 'f'), shower shoes; no cover, no belt.
 //   - THE RANGE STAFF (0.0.5, the build sheet 0.0.5 §2.3 (d)): utilities and the soft cover with the
 //     range detail's red brassard on the left arm; the range officer a headset over the cover (look.headset).
+//   - THE COMBAT EVA SUIT (0.0.12, the shoot house's: ROADMAP §5's kit classes, the user's overrule of 2026-11-07, "standard
+//     issue combat gear will be combat EVA suits"; the build sheet 0.0.12 §8 item 15): worn unpressurised, visor down, black
+//     all over (the Corps' armour is black: the user's rule), a black shell over a darker skin, the sealed helmet with its
+//     smoked visor and its glint, a slim pack, the carrier over it black too; no red anywhere (the vac suit's red shoulder
+//     band is a grey seam here), only the chest display's green and amber, which glow.
 // And what the kit puts on anyone (0.0.5, the arms role's kitLook): ear defenders over the cover (look.ears:
 // drab cups on a band), the plate carrier with its magazine pouches over utilities (look.carrier, as the
 // carrier outfit's but under the cover, not the helmet: the 25 m line's dress); and look.magOut, the rifle
@@ -82,10 +87,12 @@ export const OUTFITS = Object.freeze(['utilities', 'nco', 'pt', 'vac', 'vacOpen'
  * atlas's 15 looks: one more and it never comes in at that test density).
  */
 export const DUTY_DRESS = Object.freeze(['rangeStaff']);
+/** Worn kit a look may name that is not in the samples' lineup either (0.0.12: the combat EVA suit; the same reason as DUTY_DRESS). */
+export const WORN_KIT = Object.freeze(['combatSuit']);
 export const OUTFIT_LABELS = Object.freeze({
   utilities: 'Utilities, Valles pattern', nco: 'Sergeant in utilities (collar pins)', pt: 'PT kit', vac: 'Light vac suit, sealed',
   vacOpen: 'Light vac suit, helmet off', carrier: 'Plate carrier over utilities', civilian: 'Europa ice miner', towel: 'A towel, after the shower',
-  rangeStaff: 'Range staff in utilities (the red brassard)',
+  rangeStaff: 'Range staff in utilities (the red brassard)', combatSuit: 'Combat EVA suit, visor down (black)',
 });
 /** The towel (an issue towel's olive drab, light enough to read as cloth on skin) and shower shoes. */
 export const TOWEL = 0xa59f86, SHOWER_SHOE = 0x2c2e38;
@@ -94,6 +101,9 @@ export const BRASSARD = 0xd8463a, EARS = Object.freeze({ cup: 0x4c633d, band: 0x
 
 const TAN_BOOT = 0x9a7650, BELT = 0x5c4a36, DRAB = 0x545e40, DRAB_DARK = 0x3d4530;
 const SHELL = 0xc8c0ae, SKINSUIT = 0x3b4256, SUIT_RING = 0x4c5262, SUIT_BOOT = 0x5a6070, PACK = 0x7d776c, OXBLOOD = 0x6e2a2e, PT_GREY = 0x8f96a6;
+/** The combat EVA suit's blacks (0.0.12; my call, to be scored): a shell a little lifted from pure black so the shade's ramp keeps its
+ * light and its dark at 16 px/m, the skin under it darker, the seams and rings a cool grey, the visor smoked blue-grey (its glint the 'l'). */
+export const COMBAT_SUIT = Object.freeze({ shell: 0x2c2f37, skin: 0x1c1e24, ring: 0x484c57, boot: 0x1f2127, visor: 0x33465a, pack: 0x26282f, carrier: 0x23252c, pouches: 0x34363e });
 const MINER = 0xd0663a, MINER_BAND = 0xdfe2e8, HARDHAT = 0xe0b040, HELMET = 0x5f6646;   // (the helmet drab, as the carrier: a tan one met the skin's tone)
 
 /**
@@ -101,7 +111,7 @@ const MINER = 0xd0663a, MINER_BAND = 0xdfe2e8, HARDHAT = 0xe0b040, HELMET = 0x5f
  * weapon, carry, skin, seed }. top/legs: { kind, color | pattern }; head: { kind, color, sealed }.
  */
 export function wear(look = {}) {
-  const outfit = OUTFITS.includes(look.outfit) || DUTY_DRESS.includes(look.outfit) ? look.outfit : 'utilities';
+  const outfit = OUTFITS.includes(look.outfit) || DUTY_DRESS.includes(look.outfit) || WORN_KIT.includes(look.outfit) ? look.outfit : 'utilities';
   const seed = look.seed ?? 1;
   const L = {
     outfit, seed,
@@ -140,6 +150,19 @@ export function wear(look = {}) {
       L.head = outfit === 'vac' ? { kind: 'vac', color: SHELL, sealed: true } : { kind: 'ring', color: SUIT_RING };
       L.accents.rings = SUIT_RING; L.accents.band = 0x9e3c36;            // (the Corps' red on the shoulders)
       break;
+    case 'combatSuit': {
+      // (black, no red: the seam on the shoulders grey; the carrier the kit puts on it black too)
+      const K = COMBAT_SUIT;
+      L.top = { kind: 'suit', color: K.shell, skin: K.skin };
+      L.legs = { kind: 'suit', color: K.skin, shell: K.shell };
+      L.boots = K.boot; L.gloves = K.ring;
+      L.pack = { color: K.pack, helmet: false, slim: true };
+      L.head = { kind: 'vac', color: K.shell, sealed: true };
+      L.accents.rings = K.ring; L.accents.band = K.ring; L.accents.visor = K.visor;
+      if (look.carrier) L.armour = { color: K.carrier, pouches: K.pouches };
+      L.ears = false; L.headset = false;
+      break;
+    }
     case 'towel':
       L.top = L.sex === 'f' ? { kind: 'towelChest', color: TOWEL } : { kind: 'bare', color: L.skin };
       L.legs = { kind: 'towel', color: TOWEL };
@@ -165,7 +188,7 @@ export function coloursOf(L, ppm) {
     ĥ: mixHex(L.skin, L.wet ? tone(L.hair.color, -0.06) : L.hair.color, SIDES_K[1]), ħ: mixHex(L.skin, L.wet ? tone(L.hair.color, -0.06) : L.hair.color, SIDES_K[2]),
     r: L.hair.color, y: L.belt ?? 0x47302a, w: 0xf6f4ee, x: 0x6b4636,
     ø: L.armour?.color ?? DRAB, æ: L.armour?.pouches ?? DRAB_DARK,
-    c: L.top?.kind === 'suit' ? L.top.color : (L.legs?.shell ?? SHELL), ð: L.accents.rings ?? SUIT_RING, þ: 0x1b2541,
+    c: L.top?.kind === 'suit' ? L.top.color : (L.legs?.shell ?? SHELL), ð: L.accents.rings ?? SUIT_RING, þ: L.accents.visor ?? 0x1b2541,
     j: L.pack?.color ?? PACK, i: L.accents.bands ?? L.accents.band ?? 0xdfe2e8, d: L.gloves ?? 0x353947,
     // (what's in the hand: steel, the dark of a gun's metal, black polymer; socks)
     v: 0x9aa1ae, n: 0x353947, u: 0x23252f, ŝ: L.accents.socks ?? 0xe8e6e0,

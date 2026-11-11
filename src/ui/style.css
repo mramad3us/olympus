@@ -470,3 +470,47 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .instinct .lead.breathe { border-left-color: #8fb8d8; color: #d8e8f4; letter-spacing: 0.04em; }
 .instinct .lead.breathe b { color: #ffffff; font-weight: 600; }
 .steps .running-view.breathe .rv-sub.now { color: #d8e8f4; }
+/* 0.0.12 (the build sheet 0.0.12 §2.4; COMBAT §25.10.4, §25.11): the shoot house. The picker's par chooser; the run sheet (the
+   instructor's paper, cream on the clipboard, a fault red) and the hot wash beside the end card (the take-in bars: amber the
+   take-in, the paper's to the first round, the par a red tick); a bundle's row (its beats as dots by channel, a seam a bar) and
+   the running bundle's four lanes; the instinct line's "T: <what> · <s>". */
+#title .sheet.picker .pars { display: flex; flex-wrap: wrap; align-items: center; gap: calc(4px * var(--ui)) calc(6px * var(--ui)); margin: calc(4px * var(--ui)) 0 0; }
+#title .sheet.picker .pars .parhead { color: var(--ink); font-size: calc(12px * var(--ui)); margin-right: calc(4px * var(--ui)); }
+#title .sheet.picker .pars .parhead kbd { color: var(--ink); border-color: rgba(26, 18, 20, 0.35); }
+#title .sheet.picker .item.parpick { width: auto; margin: 0; padding: calc(2px * var(--ui)) calc(8px * var(--ui)); font-size: calc(12px * var(--ui)); opacity: 0.7; }
+#title .sheet.picker .item.parpick.on { opacity: 1; outline: 1px solid rgba(26, 18, 20, 0.55); }
+.house-side { display: flex; flex-direction: column; gap: calc(8px * var(--ui)); width: calc(330px * var(--ui)); max-height: 92vh; overflow: hidden; }
+.runsheet { background: #efe9dc; color: #24201f; border-radius: 3px; padding: calc(6px * var(--ui)) calc(8px * var(--ui)); font-family: var(--type); font-size: calc(10.5px * var(--ui)); line-height: 1.3; box-shadow: inset -2px 0 0 #d9d0bc; }
+.runsheet .rs-title { display: flex; justify-content: space-between; color: #7d746a; letter-spacing: 0.08em; border-bottom: 1px solid #d9d0bc; margin-bottom: calc(3px * var(--ui)); }
+.runsheet .rs-card { margin: 0 0 calc(4px * var(--ui)); font-weight: 600; letter-spacing: 0.02em; }
+.runsheet .rs-row { margin: 0 0 calc(2px * var(--ui)); }
+.runsheet .rs-head { font-weight: 600; }
+.runsheet .rs-mark::before { content: ' · '; color: #7d746a; }
+.runsheet .rs-mark.fault { color: #a3423c; }
+.runsheet .rs-one { margin: calc(4px * var(--ui)) 0 0; font-style: italic; }
+.house-wash { background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 4px; padding: calc(6px * var(--ui)) calc(8px * var(--ui)); color: var(--glass-text); font-size: calc(11px * var(--ui)); line-height: 1.35; }
+.house-wash .hw-title { color: var(--brass); letter-spacing: 0.08em; }
+.house-wash .hw-line { margin: 0; }
+.house-wash .hw-legend { margin: calc(3px * var(--ui)) 0 0; color: var(--faint); font-size: calc(10px * var(--ui)); }
+.house-wash .hw-bar { display: grid; grid-template-columns: calc(30px * var(--ui)) 1fr; column-gap: calc(6px * var(--ui)); align-items: center; }
+.house-wash .hw-key { color: var(--paper); font-variant-numeric: tabular-nums; }
+.house-wash .hw-track { position: relative; height: calc(6px * var(--ui)); background: rgba(255, 255, 255, 0.06); }
+.house-wash .hw-track i { position: absolute; top: 0; height: 100%; }
+.house-wash .hw-takein { background: #e7b84a; }
+.house-wash .hw-first { background: #efe9dc; opacity: 0.85; }
+.house-wash .hw-first.late { background: #d07a6e; }
+.house-wash .hw-par { width: 2px; background: #d8463a; top: -2px !important; height: calc(100% + 4px) !important; }
+.house-wash .hw-said { grid-column: 2; color: var(--faint); font-size: calc(10px * var(--ui)); font-variant-numeric: tabular-nums; }
+.house-wash .hw-spin { margin: calc(4px * var(--ui)) 0 0; color: var(--paper); font-style: italic; }
+.steps .step.bundle .label .name { color: #d8e8f4; letter-spacing: 0.02em; }
+.steps .step.bundle .dots { display: inline-flex; gap: calc(3px * var(--ui)); margin-left: calc(6px * var(--ui)); color: #a8c4dc; font-size: calc(9px * var(--ui)); letter-spacing: 0.05em; }
+.steps .step.bundle .dots .seam { color: #e7b84a; }
+.steps .step.variant .label .name { color: var(--glass-text); font-style: italic; }
+.steps .running-view.bundle .rv-lanes { display: grid; grid-template-columns: auto 1fr; column-gap: calc(8px * var(--ui)); row-gap: 0; font-size: calc(11px * var(--ui)); line-height: 1.25; }
+.steps .running-view.bundle .rv-lane-name { color: var(--faint); letter-spacing: 0.08em; font-size: calc(10px * var(--ui)); }
+.steps .running-view.bundle .rv-lane { color: var(--paper); letter-spacing: 0.12em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.steps .running-view.bundle .rv-lane b { font-weight: normal; }
+.steps .running-view.bundle .rv-lane b.now { color: #e7b84a; }
+.steps .running-view.bundle .rv-lane b.bad { color: #f0a090; }
+.instinct .line .act { color: #d8e8f4; margin-right: calc(4px * var(--ui)); }
+.runsheet .rs-practised { margin: calc(2px * var(--ui)) 0 0; color: #7d746a; font-size: calc(9.5px * var(--ui)); }

@@ -57,6 +57,9 @@
 // fromMs, untilMs } | null (the air horn at his hand while it sounds), blanks: [{ key, x, z, atMs }] (each blank's muzzle
 // within the last second: the flash's spot and time), bangs: [...as pairs'] }, src/sim/scenarios/stress.js stressLook; null
 // on every other course.
+// 0.0.12 (the build sheet 0.0.12 §2.4): on test-shoothouse's house course rangeLook gains house: src/sim/scenarios/shoothouse.js
+// houseLook's { instructor: { x, z, y, face, say, name }, corners: [{ room, id, x, z, covered, by }], stands: [{ key, stand, room,
+// x, z, y, facingK, face, holds, holes, down }], timer: { runMs, parMs, par } }; null on every other course.
 // A sitting port is PORT_H_M.sit high.
 // AIM_LEAD_K, EDGE_KEEP_M and FRAME_HALF_M are VIEWS §2.4's weapon-mode lead, shared by the camera and
 // the shot role's targetsOf: the frame's centre AIM_LEAD_K of the way from the player to the bracketed
@@ -76,6 +79,7 @@ import { tilesLook } from './brass.js';
 import { pitView } from '../scenarios/range.js';
 import { pairsLook } from '../scenarios/pairs.js';
 import { stressLook } from '../scenarios/stress.js';
+import { houseLook } from '../scenarios/shoothouse.js';
 import { KD_RANGE, KD_STAKE_DX_M, KD_STAKE_DZ_M } from '../../data/places/range.js';
 import { gravityAt } from '../places/env.js';
 import { G0_MS2 } from '../../core/phys.js';
@@ -244,6 +248,7 @@ export function rangeLook(state, ms = state?.clock?.ms ?? 0) {
     kd: s.course === 'kd' ? kdLook(state, s, ms, gMs2) : null,
     pairs: s.course === 'pairs' ? pairsLook(state, ms) : null,
     stress: s.stress ? stressLook(state, ms) : null,
+    house: s.course === 'house' ? houseLook(state, ms) : null,
   };
 }
 

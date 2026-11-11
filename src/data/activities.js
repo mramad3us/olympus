@@ -212,6 +212,13 @@ export const ACTIVITIES = deepFreeze({
     parts: [still('stress-rest', 'asked', 1.5, 'stand')], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
     log: ['The noise settled: {dur} at low ready.', '{dur} at low ready while the smoke cleared.', 'The coach let it settle: {dur}.', '{dur}, ready and still, for the noise to clear.'],
   },
+  // (0.0.12: the shoot house's hot wash after the lane, the instructor's debrief behind the brief splash (WASH_MS 90 s,
+  // src/sim/scenarios/shoothouse.js houseSecond), standing at the booth with the rifle shown clear; a fast-forward of lived ticks)
+  'house-wash': {
+    id: 'house-wash', class: 'day', uses: [], offer: 'the hot wash', noun: 'the hot wash', mask: 'D A',
+    parts: [still('house-wash', 'asked', 1.5, 'stand', { line: 'The instructor went through the lane with you, room by room.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['The hot wash: {dur} of the lane, room by room.', '{dur} at the booth with the instructor\'s paper.', 'The instructor walked the lane back with you: {dur}.', '{dur} of the hot wash: the take-ins, the corners, the hits.'],
+  },
   idle: {
     id: 'idle', class: 'day', uses: [], offer: 'idle', mask: 'D A',
     parts: [still('idle', 'asked', 1.5)], resumable: false, stoppable: true, chunkMs: 0, vignette: null, min: 0,

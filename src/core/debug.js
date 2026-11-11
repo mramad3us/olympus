@@ -74,6 +74,7 @@
 //
 // URL parameters skip the title for tests and shots (main.js reads them through readParams()):
 // ?play=<scenario>&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&setup=hot|bench|mixed][&tier=recruit|private|cpl|sgt|raider|tierone]
+// [&par=basic|advanced|operator] (0.0.12: test-shoothouse's par, else the sheet's own; its setups go, room:2, room:3, hall, contact)
 // (tier: test-pairs' sheet, TECH §15.3; else null, the scene's private), hour being the Mars local hour at the
 // start (0-24, a fraction giving minutes), seed a whole number; &area=<id>&at=<x>,<z>&face=<f> a
 // start somewhere else than the scenario's (the barracks' berth): an area, a place in its frame in
@@ -94,14 +95,19 @@ import { utcText, marsTimeText } from './calendar.js';
 
 export const FACES = Object.freeze(['up', 'down', 'left', 'right']);
 /** (0.0.10: test-stress's setups are 'standby' and 'standby:<k>', test-pairs' names: the list holds them already.) test-handling's setups (the build sheet 0.0.5 §2.2; 'mixed', the 0.0.6 arms role's: one tracer magazine besides the ball); test-range's (0.0.7 §2.3: 'confirm' zeroed at the 300 m line, 's200' sitting at the 200 m line, 'far' the range-far bench's); test-pairs' (0.0.8: 'standby' and 'standby:<k>', string k's standby, out of the mode at low ready on safe, the turn armed; 0.0.9: 'bangs', "Three bangs" from its brief, and 'bangs:standby', its first string's standby with the bangs planned). */
-export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200', 'far', 'standby', 'standby:1', 'standby:2', 'standby:3', 'standby:4', 'bangs', 'bangs:standby']);
+export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200', 'far', 'standby', 'standby:1', 'standby:2', 'standby:3', 'standby:4', 'bangs', 'bangs:standby',
+  // (0.0.12: test-shoothouse's, the build sheet 0.0.12 §2.3: at GO in stop motion, at room 2's or room 3's door or the hall's last leg with the rooms
+  // before it cleared by the tier one's plan on the same draws, and room 1 at the sighting with the private's window open)
+  'go', 'room:2', 'room:3', 'hall', 'contact']);
+/** test-shoothouse's pars by the URL (&par=: the build sheet 0.0.12 §4's PAR_MS names); else null, the sheet's own (PAR_OF_TIER). */
+export const PARS_URL = Object.freeze(['basic', 'advanced', 'operator']);
 /** VIEWS §12's "reduce flashes" by the URL (&flashes=reduced: 0.0.9). */
 export const FLASHES = Object.freeze(['reduced']);
 
 /** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
 export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, flashes, env }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -122,6 +128,7 @@ export function readParams(search = globalThis.location?.search ?? '') {
     face: FACES.includes(q.get('face')) ? q.get('face') : null,
     setup: SETUPS.includes(q.get('setup')) ? q.get('setup') : null,
     tier: TIERS_URL.includes(q.get('tier')) ? q.get('tier') : null,
+    par: PARS_URL.includes(q.get('par')) ? q.get('par') : null,
     flashes: FLASHES.includes(q.get('flashes')) ? q.get('flashes') : null,
     env: /^[a-z0-9-]{1,32}$/.test(q.get('env') ?? '') ? q.get('env') : null,
   };

@@ -263,6 +263,16 @@ export const TEST_FOG = Object.freeze({ nearM: 2.5, cone: 0.8, reachM: 14 });
 export const FLINCH_DUCK_PX = 1, FLINCH_STEP_MS = 70;
 const FACE = { right: [1, 0], left: [-1, 0], down: [0, 1], up: [0, -1] };
 const GAIT = { run: 'run', walk: 'walk', stroll: 'stroll', bound: 'bound', float: 'float', idle: 'idle' };
+/**
+ * 0.0.12 (the build sheet 0.0.12 §2.4; BODY §16.1; COMBAT §25.9): the movement stances drawn. A walk in Combat is the glide, the stroll's
+ * frames (the short stride, the arms still, so the rifle held at the ready never swings); a walk in Assault is the lope, the run's frames
+ * at its own STEP_M, so the feet never slide at 2.03 m/s; Relaxed (and no stance: every shipped scene) the walk as built. The stance is
+ * the actor's moveStance (the drill's), or a stance word in its gait.
+ */
+export const STANCE_FRAMES = Object.freeze({ combat: Object.freeze({ walk: 'stroll' }), assault: Object.freeze({ walk: 'run' }) });
+const stanceOf = (a) => a?.moveStance ?? (STANCE_FRAMES[a?.gait] || a?.gait === 'relaxed' ? a.gait : null);
+/** The frames' gait for a drawn gait in a movement stance (STANCE_FRAMES), else the gait itself. */
+export const stanceGait = (gait, stance) => STANCE_FRAMES[stance]?.[gait] ?? gait;
 /** A dressing figure's two frames, each held this long (game ms: a shirt over the head, a leg into the trousers). */
 export const DRESS_FRAME_MS = 900;
 /** An activity's part, the frame it shows (the sink's: 0.0.6's hands washed as the face is, the clippers in the razor's frame; undressing and dressing); anything else is the gait's. */
@@ -340,6 +350,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const cache = new Map();                                           // area id → { id, kind, area, built, info, bounds, palette, name, occluders, racks, fixtures }
   let live = null, chain = Promise.resolve(), building = 0, warmed = false, warming = null;
   let heldMood = null, palette = null, fogOn = true, testFog = false, fog = null, fogAt = null, fogWant = null;
+  // (0.0.12: the shoot house's stands seen this session, by key (see the range's draw below))
+  let standsSeen = { key: null, keys: new Set() };
   let lastState = null, wipe = null, seeK = 0, liftK = 0, liftRect = null, propsSig = '', tallS = 0, wideK = 0, vigCut = null;
   const lead = [0, 0];
   let lastT = null, snapNext = true, realS = 0, ownLook = null, eyeShown = null, eyeState = null, eyeHeld = null;
@@ -819,7 +831,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       memory.begin(state, live.id, { skipping: !!state.skip && (!sp || (sp.form === 'full' && (sp.inkK ?? 0) >= 0.999)) });
       const flashes = [];
       let ownGun = null;
-      const rl = typeof ARMS.rangeLook === 'function' && live.id === KD_RANGE.area ? ARMS.rangeLook(state, fxMs) : null;
+      // (0.0.12: the range's look on the range's ground, and in the shoot house, where the session's area is the live one)
+      const rl = typeof ARMS.rangeLook === 'function' && (live.id === KD_RANGE.area || (state.armoury?.range?.course === 'house' && state.armoury.range.area === live.id)) ? ARMS.rangeLook(state, fxMs) : null;
       const eye = me && typeof PERCEPTION.eyeOf === 'function' && typeof PERCEPTION.visibility === 'function' ? PERCEPTION.eyeOf(state, me) : null;
       const inSight = (x, z) => PERCEPTION.visibility(state, eye, x, z, ms) > 0;
       for (const a of state.actors?.list ?? []) {
@@ -846,7 +859,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           } else hidden = true;
         }
         // (a rifle in hand, the kit worn: the look that draws them, and the rifle's frame when not walking)
-        const walking0 = GAIT[fig.gait ?? a.gait] !== undefined && (fig.gait ?? a.gait ?? 'idle') !== 'idle' && step > 1e-6;
+        const g0 = fig.gait ?? (STANCE_FRAMES[a.gait] || a.gait === 'relaxed' ? 'walk' : a.gait);
+        const walking0 = GAIT[g0] !== undefined && (g0 ?? 'idle') !== 'idle' && step > 1e-6;
         const arms = armsOf(state, a, look0, fxMs, walking0);
         look0 = arms.look;
         const rf = arms.gl && !walking0 ? rifleFrame(arms.gl, { face, x, z, ms: fxMs }) : null;
@@ -855,7 +869,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // (your own look changed by a cue (wet hair, the tired walk): the worker paints it while the last one is drawn)
         if (own) look0 = ownLookOf(look0);
         const { look, key } = lookOf(look0, a.who);
-        const gait = stairsOf(a, x, z) ?? GAIT[fig.gait ?? a.gait] ?? 'idle';
+        const gait = stairsOf(a, x, z) ?? (walking0 ? stanceGait(GAIT[g0] ?? 'idle', stanceOf(a)) : GAIT[g0] ?? 'idle');
         const p = { key, look: look ?? {}, x, z, face, gait, stride, tS, phase: hash01('phase', a.id) * 2, own, id: a.id, dx: a.x - px, dz: a.z - pz, fig: fig.frame ?? null };
         if (arms.twin && !own) p.twin = lookOf(arms.twin, `${a.who}:twin`).key;
         const tf = fig.frame;
@@ -966,6 +980,16 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const farView = farFrame(state, rl, area, dtS, light);
       const camAt = stage.cam.at, views = [{ x0: camAt.x - cw / 2, x1: camAt.x + cw / 2, z0: camAt.z - ch / 2, z1: camAt.z + ch / 2 + 8 }];
       if (farView) { const m = far.radiusM; views.push({ x0: farView.x - m, x1: farView.x + m, z0: farView.z - farView.y - m, z1: farView.z - farView.y + m + 8 }); }
+      // (0.0.12: the shoot house's stands drawn once seen, as people are: a card in a room you have not looked into is not
+      // shown, so its take-in is the first you know of it (the integrator's, after the play: v0.0.12's cards showed through
+      // the walls of rooms not yet entered); the session's stands seen are kept until the session or the area changes)
+      const HSv = rl?.house ?? null;
+      if (HSv?.stands?.length) {
+        const sk = `${state.armoury?.range?.house?.goAtMs ?? ''}|${live.id}|${state.meta?.seed ?? ''}`;
+        if (standsSeen.key !== sk) standsSeen = { key: sk, keys: new Set() };
+        for (const t of HSv.stands) if (t && !standsSeen.keys.has(t.key) && eye && inSight(t.x, t.z)) standsSeen.keys.add(t.key);
+        rl.house = { ...HSv, stands: HSv.stands.filter(t => t && standsSeen.keys.has(t.key)) };
+      }
       stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views }) : (rangeLayer.update(null), null);
       // (0.0.9: the bangs on the pad, at the moment drawn; a flash's light pool among the moving lamps)
       // (0.0.10: the stress course's bangs, the same layer; its din, the din layer)
@@ -1078,6 +1102,17 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   };
 
   return {
+    /**
+     * The live area's door leaves as the stage turns them (0.0.12, the tests'): [{ opening, pivot, base, swing, hinge, rotY, openEnd: [x, z] }],
+     * or the one an opening names, or null; openEnd is where the leaf's free edge stands on the floor now.
+     */
+    leaves(id = null) {
+      const props = (live?.built?.props ?? []).filter(p => p.kind === 'leaf').map(p => {
+        const y = p.group.rotation.y, w = p.w ?? 0.9;
+        return { opening: p.opening, pivot: p.pivot, base: p.base ?? 0, swing: p.swing ?? 1, hinge: p.hinge ?? 'a', rotY: Math.round(y * 1000) / 1000, openEnd: [Math.round((p.pivot[0] + w * Math.cos(y)) * 100) / 100, Math.round((p.pivot[1] - w * Math.sin(y)) * 100) / 100] };
+      });
+      return id ? props.find(p => p.opening === id) ?? null : props;
+    },
     setArea, prepare, frame, warm, prepareOwn, figures, lighting, clocks, chunks, splash, vignettes, range: rangeLayer, decals, blood, far, bangs, din,
     /**
      * The chaos on the picture (0.0.9): main.js's reading each frame, { sn (supp.js suppNow's record, or null), reduce (the

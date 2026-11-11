@@ -91,6 +91,7 @@ import { contactOf } from '../people/mind.js';
 import { turnersOf, facingOf } from '../arms/turners.js';
 import { logEntry } from '../log.js';
 import { ticks } from './react.js';
+import { halt } from './stepper.js';
 
 // ---- the pool (COMBAT §5.1, §5.2) ----
 
@@ -394,6 +395,9 @@ export function startled(state, pid, ms = state.clock.ms) {
 function haltCommand(state, pid) {
   if (pid !== playerId(state)) return;
   const d = state.stop?.doing;
+  // (0.0.12: a bundle's beats stop after the running beats, as Backspace stops them, and start nothing new: the rest is its
+  // Carry on; the facts are deferred here, so the halt's own fact is the stepper's when the beats end)
+  if (d?.beats) { halt(state, null, d, 'stop'); return; }
   if (!d || d.kind === 'wait' || d.i + 1 >= d.list.length) return;
   if (d.kind === 'command' && state.stop.mode === 'stop') d.halt = true;
   else d.cut = true;

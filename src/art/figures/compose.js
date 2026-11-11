@@ -717,7 +717,8 @@ function carrier(g, Lk, J, P, pp, B, dir) {
 /** The vac suit's life-support pack: a box on the back (seen from behind it covers the back; side on it stands proud); open, the helmet clipped to it. */
 function pack(g, Lk, J, P, pp, B, dir) {
   const back = mul(J.chestF, -1), up = J.spine, left = J.left;
-  const hw = B.chestHalf * 0.85, d = B.chestDepth * 1.2, lo = 0.35, hi = 1.04;
+  // (0.0.12: the combat EVA suit's pack is slim, a hydration and power cell's, not the vac suit's life support)
+  const slim = !!Lk.pack?.slim, hw = B.chestHalf * (slim ? 0.7 : 0.85), d = B.chestDepth * (slim ? 0.7 : 1.2), lo = slim ? 0.45 : 0.35, hi = slim ? 0.98 : 1.04;
   const base = add(lerp(J.pelvis, J.neckBase, lo), mul(back, B.waistDepth * 0.7));
   const topc = add(lerp(J.pelvis, J.neckBase, hi), mul(back, B.chestDepth * 0.7));
   const corners = [];
@@ -829,6 +830,8 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
     }));
   }
   if (covering) { const t = T(K.hat[hat]).t; g.begin(x0, y0); g.tpl(t, x0, y0); }
+  // (0.0.12: the combat EVA suit's helmet seals to its collar, so no skin shows under it: the skull's last rows are the suit's skin)
+  if (sealed && Lk.outfit === 'combatSuit') for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) { const c = g.cells[y][x]; if (c && c.part === head && c.ch === 's') c.ch = 'p'; }
   if ((Lk.ears || Lk.headset) && !sealed && pose.stance !== 'supine') earCups(g, Lk, view, x0, y0, W, H, B);
   // (foam: white at the mouth round the brush, or along the jaw for a shave: on the head's own lowest skin pixels)
   if (pose.foam && !sealed && view !== 'up') {
