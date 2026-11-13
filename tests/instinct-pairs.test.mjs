@@ -208,7 +208,8 @@ export default [
       const c = rule(s, 'pairs-contact');
       const panel = stepsOf(s).filter(x => x.kind === 'shot').map(x => x.id);
       console.log(`      one torso hit on ${pick}: ${ids(s).join(', ')}; pairs-contact "${c?.ctx?.variant}" act ${c?.act}; shot rows ${panel.join(', ')}`);
-      assert(!ids(s).includes('pairs-still-up') && c?.ctx?.variant === 'again' && c.act === null && panel[0] === 'shot:pair' && !panel.includes('shot:head'), JSON.stringify({ ids: ids(s), v: c?.ctx?.variant, panel }));
+      // (the press names its key from 2026-11-13: 'again' and the key, "Chest again. Press: 1.")
+      assert(!ids(s).includes('pairs-still-up') && /^again/.test(c?.ctx?.variant ?? '') && c.act === null && panel[0] === 'shot:pair' && !panel.includes('shot:head'), JSON.stringify({ ids: ids(s), v: c?.ctx?.variant, panel }));
       // (the steel: the private's first row, the Pair (his failure drill is gated), rings on the plate and he stands)
       const h = createGame({ scenario: 'test-pairs', seed: 48213, tier: 'private', setup: 'standby:3' }), hs = h.state, bot = pairsBot();
       until(h, paused);

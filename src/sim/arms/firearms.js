@@ -104,12 +104,16 @@
 // only. WEAPONS §5.1's flat 'fire' −3 (PRESSURE_MODS, never applied: no caller passed 'fire') is retired for the roller's
 // one felt entry (combat/supp.js suppMod), and an action's time is × roller.timeK (supp.js suppTimeK: exactly 1 at felt 0),
 // the roller taken at the sub-step's start. Pressure stays 'evaluated' on the range: routine emerges from value + mods.
+// 2026-11-13 (the shoot house's rework R6, COMBAT §25.19.6; WEAPONS §5.2): the transition's two motions and its reverse as
+// actions of their own: 'hang' (the rifle let go onto its sling, 0.3 s, no roll), 'draw:thigh' (the P-12 from the thigh,
+// 1.1 s, DC 8, taken with the rifle hanging, so doAction lets it past the slung refusal) and 'holster' (§5.2's pistol stow,
+// 1.3 s, DC 6); the items move in src/sim/arms/sidearm.js, which runs them.
 import { q } from '../../core/num.js';
 import { hashInt } from '../../core/hash.js';
 import { nextId, put } from '../../core/ids.js';
 import { rngOf, next, chance, stream, normal } from '../../core/rng.js';
 import { logEntry } from '../log.js';
-import { check, TEMPO } from '../skills/checks.js';
+import { check, TEMPO, CATCH_K, CLEAN_K } from '../skills/checks.js';
 import { paceOf } from '../skills/skills.js';
 import { rollerOf, DARK_BELOW } from '../combat/roll.js';
 import { MODELS, FAMILIES, OPTICS, modelOf, isLong, famCap } from './models.js';
@@ -198,6 +202,11 @@ export const ACTIONS = Object.freeze({
   up: A('Up', 1.0, 6, { long: false, tempo: R, frame: 'raise', fromBack: Object.freeze({ s: 2.5, dc: 9 }) }),
   stow: A('Sling it', 1.0, 5, { long: false, frame: 'sling', pistol: Object.freeze({ s: 1.3, dc: 6 }) }),
   draw: A('Draw', 1.0, 8, { long: false, tempo: R, frame: 'raise' }),
+  // (the shoot house's rework R6, COMBAT §25.19.6; WEAPONS §5.2's transition, "0.3 + the draw", and the thigh's draw 1.1 s,
+  // DC 8: the rifle let hang on its sling, the P-12 drawn from the thigh, and holstered again (§5.2's stow of a pistol))
+  hang: A('Let it hang', 0.3, null, { long: false, tempo: R, frame: 'sling' }),
+  'draw:thigh': A('Draw the pistol', 1.1, 8, { long: false, tempo: R, frame: 'raise' }),
+  holster: A('Holster it', 1.3, 6, { long: false, frame: 'sling' }),
   'posture:lowReady': A('Low ready', 0.3, 3, { frame: 'raise', posture: 'lowReady' }),
   'posture:highReady': A('High ready', 0.3, 3, { frame: 'raise', posture: 'highReady' }),
   'selector:safe': A('Safe', 0.4, 6, { thumb: true, long: false, mode: 'safe' }),
@@ -241,7 +250,7 @@ export const ACTIONS = Object.freeze({
 /** The actions that move the chamber or a magazine: a miss leaves that part '?' (WEAPONS §5.4). */
 const UNSURE = new Set(['charge', 'rack', 'lockBack', 'magOut:drop', 'magOut:dump', 'magOut:pouch', 'magOut:strip', 'inspect', 'clearDouble']);
 /** A hand at the trigger or the action: a disaster with the gun ready fires it (tradecraft's list, by OLYMPUS's names). */
-export const DISCHARGE_ACTIONS = new Set(['up', 'draw', 'stow', 'selector:safe', 'selector:semi', 'selector:auto', 'pressCheck', 'magIn', 'seat', 'charge', 'rack', 'release']);
+export const DISCHARGE_ACTIONS = new Set(['up', 'draw', 'draw:thigh', 'holster', 'stow', 'selector:safe', 'selector:semi', 'selector:auto', 'pressCheck', 'magIn', 'seat', 'charge', 'rack', 'release']);
 /** A fumble that drops the magazine, not the gun (the magazine in the hand, for the hand's own steps). */
 const MAG_ACTIONS = new Set(['magIn', 'seat', 'magOut:drop', 'magOut:dump', 'magOut:pouch', 'magOut:strip', 'magCheck', 'stowMag', 'dumpMag']);
 /** The steps of a magazine held in the hand (0.0.6): each needs one there. */
@@ -579,6 +588,9 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
   const bites = slow && !roll.routine;
   out.ok = !roll || roll.ok; out.grade = roll?.grade ?? 'pass'; out.routine = !!roll?.routine;
   if (slow) out.ms = Math.round(sec * (1 + FUMBLE_K) * 1000);
+  // (SKILLS §5.1: a caught 1 is a success at ×1.5 of the sub-step's time, a clean 20 ×2/3 of it; nothing else changes)
+  else if (roll?.caught) { out.ms = Math.round(sec * (1 + CATCH_K) * 1000); out.caught = true; }
+  else if (roll?.clean) { out.ms = Math.round(sec * (1 - CLEAN_K) * 1000); out.clean = true; }
 
   // ---- the looks: a bad grade is a wrong reading, never a drop ----
   if (a.look) {
@@ -626,7 +638,7 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
 
   // ---- the ladder (WEAPONS §5.4, tradecraft's act()) ----
   if (bites && roll) {
-    const u = roll.nat === 1 && roll.value < NAT1_DROP_BELOW ? next(rng) : 1;
+    const u = roll.nat === 1 && !roll.caught && roll.value < NAT1_DROP_BELOW ? next(rng) : 1;
     const da = !!M.decocker && !t('cocked');
     const shot = roll.margin <= -(DISCHARGE_BY + (da ? DA_GUARD : 0)) || (!da && roll.value < NAT1_SHOT_BELOW && u < NAT1_SHOT);
     const drop = shot || roll.margin <= -DROP_BY || u < (roll.value < NAT1_SHOT_BELOW ? NAT1_SHOT : 0) + NAT1_DROP;
@@ -664,7 +676,9 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
   const before = { ...B };
   switch (key) {
     case 'up': out.posture = 'lowReady'; out.text = `${M.short} up, at low ready.`; break;
-    case 'draw': out.text = `${M.short} out.`; break;
+    case 'draw': case 'draw:thigh': out.text = `${M.short} out.`; break;
+    case 'hang': out.posture = 'slungFront'; out.text = `${M.short} let go: it hangs on its sling.`; break;
+    case 'holster': out.text = `${M.short} holstered.`; break;
     case 'stow': out.posture = isLong(M) ? 'slungFront' : null; out.text = `${M.short} slung.`; break;
     case 'posture:lowReady': case 'posture:highReady': out.posture = a.posture; out.text = `${a.label}.`; break;
     case 'selector:safe': case 'selector:semi': case 'selector:auto': {
@@ -758,6 +772,9 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
       // (its count and its kind, as the holder believes them, go into the gun with it)
       const n = believedN(sp.mag), kind = believedKind(sp.mag);
       if (n === null) { delete B.count; delete B.countApprox; } else { B.count = n; if (sp.mag.belief?.approx) B.countApprox = true; else delete B.countApprox; }
+      // (the load it went in with, when short of its family's capacity (a thirty loaded with ten): what Top up's "half or
+      // less" is half of (specials.js halfOrLess; 2026-11-12, the shoot house's rework R1); a full one carries no field)
+      if (n !== null && n < famCap(sp.mag.fam)) B.fullN = n; else delete B.fullN;
       if (kind) B.load = kind; else delete B.load;
       delete sp.mag.belief;
       out.text = n === null ? 'A magazine in.' : `A magazine in: ${roundsWord(n)}${n > 0 && kind && kind !== 'ball' ? ` of ${kind}` : ''}.`;
@@ -836,7 +853,7 @@ function moveCount(gun, mag, lost) {
     if (B.load) mb.kind = B.load;
     if (Object.keys(mb).length) mag.belief = mb; else delete mag.belief;
   }
-  delete B.count; delete B.countApprox; delete B.load;
+  delete B.count; delete B.countApprox; delete B.load; delete B.fullN;
 }
 // (a test's forced grade on a roll: the numbers kept as rolled, the outcome what the test asks)
 function forced(roll, grade) {
@@ -942,7 +959,7 @@ export function canDo(state, pid, gunId) {
   if (b.hand) {
     if (b.mag !== 'in') out.push('seat');
     out.push('lookMag');
-    for (const p of pouchesOf(state, pid)) if (!p.dump && p.room > 0) out.push(`stowMag@${p.key}`);
+    for (const p of pouchesOf(state, pid)) if (!p.dump && p.room > 0 && (!p.fams || p.fams.includes(b.hand.fam))) out.push(`stowMag@${p.key}`);
     if (dumpOf(state, pid)) out.push('dumpMag');
     out.push('dropMag');
   } else {
@@ -993,7 +1010,8 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
   if (!gun || gun.type !== 'gun') return refuse('No gun.');
   if (!kit) return refuse('No kit.');
   const M = modelOf(gun), carry = (kit.carry ??= { posture: 'slungFront' }), posture = carry.posture ?? 'slungFront';
-  if (SLUNG.has(posture) && action !== 'up' && action !== 'finger') return refuse(`${M.short} is slung.`);
+  // (the pistol is drawn from its holster with the rifle hanging: the carry's posture is the rifle's until the draw ends)
+  if (SLUNG.has(posture) && action !== 'up' && action !== 'finger' && action !== 'draw:thigh') return refuse(`${M.short} is slung.`);
   if (!SLUNG.has(posture) && action === 'up') return refuse(`${M.short} is up already.`);
   const ms = state.clock.ms, roller = rollerOf(state, pid, { ms });
   const observer = observerId ? rollerOf(state, observerId, { ms }) : null;
@@ -1007,7 +1025,7 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
     if (pk) reach = { id: pk.id, mag: state.items[pk.id], from: pk.from };
     else reachWhy = place === 'ground' ? 'No magazine at your feet.' : place ? `No magazine in ${PLACE_WORDS[place] ?? place}.` : 'No magazine left in your pouches.';
   }
-  if (key === 'stowMag') { const p = pouchOf(state, pid, place ?? 'p1'); if (p && !p.dump && p.room > 0) { to = p.id; toWord = p.word; } }
+  if (key === 'stowMag') { const p = pouchOf(state, pid, place ?? 'p1'); if (p && !p.dump && p.room > 0 && (!p.fams || !held || p.fams.includes(held.mag.fam))) { to = p.id; toWord = p.word; } }
   if (key === 'dumpMag') { const d = dumpOf(state, pid); if (d) { to = d; toWord = PLACE_WORDS.dump; } }
   const ctx = { spares, held, reach, reachWhy, to, toWord, pressure, tempo, light: roller.light, observer, observerId, posture, finger: carry.finger ?? 'off', mods: [...(mods ?? [])], force };
   const r = act(rngOf(state, rng), roller, gun, mag, action, ctx);

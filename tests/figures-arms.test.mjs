@@ -121,7 +121,8 @@ export default [
       assert(f({ carry: 'aim', aim: { x: 1125, z: 285, ms: 0 }, stance: 'stand' }).frame === 'aimhi' && f({ carry: 'aim', aim: { x: 1125, z: 306, ms: 0 } }).frame === 'aimlo', 'turned up and down the picture');
       assert(f({ carry: 'aim', aim: { x: 1125, z: 295.5, ms: at.ms - 50 } }).frame === 'aimlo', 'held lower its first RAISE_MS');
       assert(f({ kick: 0.5, stance: 'prone', flash: 0.2 }).frame === 'pronefire' && f({ kick: 0.5, stance: 'prone', flash: 0.2 }).flash === true && f({ kick: 0.1, stance: 'kneel' }).frame === 'kneelfire', 'the kick');
-      assert(gaitCarryOf('aim') === 'low' && gaitCarryOf('front') === 'front', 'the gait carries');
+      // (the rework's R2, VIEWS §3.10.1: an aim walks at the high ready until the aimed bands exist, never the low ready)
+      assert(gaitCarryOf('aim') === 'high' && gaitCarryOf('front') === 'front' && gaitCarryOf(null) === 'low', 'the gait carries');
     },
   },
   {

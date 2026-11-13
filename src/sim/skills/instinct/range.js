@@ -18,7 +18,11 @@
 //   range-cmd       warn    the tower's command not done yet ("The tower said LOAD.": it, its stance
 //                           first where it has one; out of the mode, the rifle up first); on a KD string,
 //                           what the line moved on without first ("The line has moved on. Sitting, then
-//                           LOAD, then MAKE READY.": owedOf, 0.0.8)
+//                           LOAD, then MAKE READY.": owedOf, 0.0.8); in the house, what the tower still waits on
+//                           once the command's macro is done (houseCmd: out of it, back on your mark, Careful,
+//                           your number two; at Standby out of it and still; at Stop and SHOW CLEAR with the
+//                           P-12 out, Rifle up first: the play and design reviews of 2026-11-13, T silent or
+//                           looping before GO on every sheet, and the line cleared with a hot rifle)
 //   range-reload    note    in the stance the tower called, the bolt locked on an empty: RELOAD; with no
 //                           rounds left anywhere (roundsLeft, the coach's count) "Nothing left to load. Tell your coach."
 //   range-unknown   note    a '?' on the weapon card: a press check
@@ -41,10 +45,14 @@ import { playerActor, playerId } from '../../../core/ids.js';
 import { beliefOf } from '../../arms/firearms.js';
 import { stepsOf, gunOn } from '../../arms/shooting.js';
 import { rangeOf, lineReady, roundsLeft } from '../../scenarios/handling.js';
-import { SEQ, SEQ_KD, KD_STRINGS } from '../../../data/courses.js';
+import { SEQ, SEQ_KD, KD_STRINGS, COURSES } from '../../../data/courses.js';
+import { HOUSE1 } from '../../../data/places/wheel.js';
 import { DOPE_CARD } from '../../arms/ballistics.js';
 import { holdSaid } from '../../arms/shot.js';
 import { headOf } from '../../people/perception.js';
+import { keysFor, layoutIn } from '../../arms/groups.js';
+import { houseWant, twoLacks } from '../../scenarios/shoothouse.js';
+import { drawn } from '../../arms/sidearm.js';
 
 /** The muzzle's heading off downrange past which the DI speaks (the build sheet §2.2), degrees. */
 export const MUZZLE_WARN_DEG = 45;
@@ -123,7 +131,8 @@ export const RANGE_RULES = Object.freeze([
       if (k.b.mode === 'safe' && k.finger !== 'on') return null;
       return { k };
     },
-    act: (ctx) => actIf(ctx.k, 'macro:cease'),
+    // (the house's Stop: Make safe, the one row of safe, finger off and low ready (COMBAT §25.19.4), where it is offered)
+    act: (ctx) => actIf(ctx.k, 'macro:safe') ?? actIf(ctx.k, 'macro:cease'),
     text: { 1: ['The line is cold. Finger off, on safe. Now.', 'Cold line! Safe it!', 'Finger off the trigger, safety on. The line is cold.', 'Cease fire means safe. Do it now.'] },
   },
   {
@@ -164,19 +173,32 @@ export const RANGE_RULES = Object.freeze([
       // (0.0.8, on the KD course: what the line moved on without, named before the command itself)
       const owed = k.kd ? owedOf(state, k) : null;
       if (owed) return owed;
+      // (the house: what the tower waits on once the command's own work is done (houseCmd, see the header))
+      if (k.R.course === 'house' && k.cmd !== 'brief' && k.cmd !== 'end') { const h = houseCmd(state, k); if (h !== undefined) return h; }
       if (k.cmd === 'brief' || k.cmd === 'end' || k.cmd === 'fire' || lineReady(state, k.cmd)) return null;
       if (k.kd && KD_OWN.has(k.cmd)) return null;
       // (what the command asks first: the stance, then the rest)
       const want = { prone: 'stance:prone', kneel: 'stance:kneel', stand: 'stance:stand' }[k.cmd];
       const stanceNow = { prone: 'prone', kneel: 'kneel', stand: 'stand' }[k.cmd];
       if ((k.cmd === 'kneel' || k.cmd === 'stand') && k.stance === stanceNow) return null;   // (the stance taken: the reload's line, range-reload)
-      const step = want ?? { load: 'macro:load', ready: 'macro:ready', cease: 'macro:cease', clear: 'macro:clear' }[k.cmd] ?? null;
+      const step = want ?? { load: 'macro:load', ready: 'macro:ready', cease: 'macro:cease', clear: 'macro:clear', ...(k.R?.course === 'house' ? { stop: 'macro:safe' } : {}) }[k.cmd] ?? null;
       const said = SAID[k.cmd] ?? k.cmd, Said = said.replace(/^\w/, c => c.toUpperCase());
       return { k, step, said, Said, short: Said.split(',')[0] };
     },
-    act: (ctx) => (!ctx.k.inMode ? 'stop:enter' : ctx.step ? actIf(ctx.k, ctx.step) : null),
+    act: (ctx) => (ctx.variant === 'out' ? actIf(ctx.k, 'leave') : ctx.variant === 'two' || ctx.variant === 'standby' ? (ctx.k.inMode ? actIf(ctx.k, 'leave') : null)
+      : !ctx.k.inMode ? 'stop:enter' : ctx.step ? actIf(ctx.k, ctx.step) : null),
     text: { 1: ['The tower said {said}.', 'You heard the tower: {said}.', '{Said}. The tower means it.', 'The tower is waiting on you: {said}.'],
-      owed: ['The line has moved on. {Chain}.', 'You are behind the line: {chain}.', 'Catch up. {Chain}.', 'The tower went on without you. {Chain}.'] },
+      owed: ['The line has moved on. {Chain}.', 'You are behind the line: {chain}.', 'Catch up. {Chain}.', 'The tower went on without you. {Chain}.'],
+      out: ['Done. Now out of it: X.', 'That is {said} done. Out of it: X.', 'Done. X, and stand still on your mark.', 'Out of it now: X.'],
+      mark: ['Back on your mark.', 'You are off your mark. Back on it.', 'The tower wants you on your mark.', 'Your mark. Back on it.'],
+      gait: ['Careful. Weapon up.', 'Careful, as the tower said.', 'The tower said Combat: Careful.', 'Careful.'],
+      low: ['Low ready.', 'Muzzle down. Low ready.', 'Low ready, as the tower said.', 'Low ready.'],
+      safe: ['On safe, finger off.', 'Safe it.', 'On safe for the tower.', 'Safety on.'],
+      up: ['Rifle up first.', 'It swung onto the sling. Up.', 'Get the rifle back up.', 'Rifle up.'],
+      chamber: ['A round up: MAKE READY.', 'Not sure what is in it. Find out, then a round up.', 'The chamber. Make it ready.', 'MAKE READY, as the tower said.'],
+      two: ['Your number two is still on it. Wait.', 'Wait for your number two.', 'He is not done yet. Wait.', 'Your two. Wait for him.'],
+      standby: ['Standby. Still, for the GO.', 'Standby. Out of it and still.', 'Hands still. GO is coming.', 'Standby. Wait for the GO.'],
+      pistol: ['Rifle up first: holster the pistol.', 'Holster the pistol. Then the rifle.', 'Pistol away first. Rifle up.', 'The pistol back in. Rifle up.'] },
   },
   {
     id: 'range-kd', voice: 'di', repeatMs: RANGE_REPEAT_MS, tone: 'warn', reach: null,
@@ -256,7 +278,9 @@ export const RANGE_RULES = Object.freeze([
       if (k.b.mode === 'safe') return { k, variant: 'safe' };
       // (slow fire at a KD face: the next pull after your mark (shooting.js markWaitOf), never into a face in the pits)
       if (k.offered('wait:mark') || state.stop?.doing?.step === 'wait:mark') return { k, variant: 'mark' };
-      return { k, variant: 'press' };
+      // (the press names Fire's key on the panel drawn (the design review of 2026-11-13: Fire moved from 1 to 6 on the 25 m and KD lines))
+      const key = k.offered('fire') ? keysFor(k.steps, 'fire', { layout: layoutIn(state) }).text : null;
+      return key ? { k, variant: `press${key}`, words: 'pressKey', key } : { k, variant: 'press' };
     },
     // (T aims and takes the safety off, but never takes the shot: the press is always your own digit, held or tapped
     // (the design review's: 33 presses of T cleared the scene, T pulling every trigger; pillar 3, you decide))
@@ -266,6 +290,7 @@ export const RANGE_RULES = Object.freeze([
       aim: ['Your card. Aim.', 'The card in your lane. Get on it.', 'Commence fire means the card. Aim.', 'The reticle on your card.'],
       safe: ['Off safe, then press.', 'The safety is still on. Thumb it off.', 'Off safe. It will not fire on safe, whatever you hope.', 'Thumb the selector to semi.'],
       press: ['Breathe out. Press.', 'Let the sight settle. Then press.', 'Squeeze, do not snatch.', 'Exhale, hold, press. Let the shot surprise you.'],
+      pressKey: ['Breathe out. Press: {key}.', 'Let the sight settle. Then press: {key}.', 'Squeeze, do not snatch: {key}.', 'Exhale, hold, press: {key}. Let the shot surprise you.'],
       mark: ['Wait for your mark.', 'Your target is in the pits. Wait for the disk.', 'Slow fire: one shot, one mark. Wait.', 'Let the pits mark it. Then the next.'],
     },
   },
@@ -285,6 +310,51 @@ export const RANGE_RULES = Object.freeze([
       kd: ['Wait for the tower.', 'Nothing happens until the tower says so.', 'Done. Wait for the next command.', 'Good. Now wait for the tower.'] },
   },
 ]);
+
+/**
+ * What the house's tower waits on (range-cmd, see the header), or undefined to let the shared rule speak: at Stop and SHOW
+ * CLEAR with the P-12 in your hand, Rifle up first (its rows clear the rifle; the tower judges both guns: shoothouse.js
+ * houseReady); at LOAD, MAKE READY and Standby, once the command's own work is done, what houseWant still lacks, in the
+ * order it is put right with T: the gun's (the shared rule's macro), on safe, low ready, Careful (Combat), back on your mark
+ * (the drill's Back on your mark), then out of it (X), then your number two (out of it, time runs: Wait). null where nothing
+ * is lacking but stillness, or the tower's own.
+ */
+function houseCmd(state, k) {
+  const said = SAID[k.cmd] ?? k.cmd, Said = said.replace(/^\w/, c => c.toUpperCase()), base = { k, said, Said };
+  if ((k.cmd === 'stop' || k.cmd === 'clear') && drawn(state, k.pid)) return { ...base, variant: 'pistol', step: 'weapon:rifle-up', short: 'Rifle up' };
+  if (k.cmd !== 'load' && k.cmd !== 'ready' && k.cmd !== 'standby') return undefined;
+  const gun = state.items?.[k.gunId];
+  if (k.cmd === 'load') {
+    // (your magazine in: the tower waits on his (two:mag, two:busy))
+    if (!gun?.mag || k.R.dry) return undefined;
+    return twoLacks(state, 'load') ? { ...base, variant: 'two', step: null, short: 'Wait' } : undefined;
+  }
+  // (MAKE READY and Standby: the rifle's own work first, the shared rule's macro)
+  const want = houseWant(state), me = state.actors?.list?.find(a => a.who === k.pid);
+  // (a rifle that swung onto its sling (a fumble's): up first, as pairs-ready's)
+  if (k.inMode && !k.inHand && k.offered('up') && want !== null && want !== 'out') return { ...base, variant: 'up', step: 'up', short: 'Rifle up' };
+  if (want === 'mag' || want === 'chamber') {
+    if (k.cmd === 'ready' && (!k.inMode || k.offered('macro:ready'))) return undefined;
+    const step = want === 'mag' ? 'macro:load' : k.offered('macro:ready') ? 'macro:ready' : k.offered('pressCheck') ? 'pressCheck' : k.offered('charge') ? 'charge' : 'macro:ready';
+    return { ...base, variant: want === 'mag' ? 1 : 'chamber', step, short: 'Make ready' };
+  }
+  if (want === 'safe') return { ...base, variant: 'safe', step: k.b?.mode !== 'safe' ? 'selector:safe' : 'finger', short: 'Safe' };
+  if (want === 'low') return { ...base, variant: 'low', step: 'posture:lowReady', short: 'Low ready' };
+  // (out of the mode the rest are the body's: the mark and the gait, put right in the mode by their rows; then out of it)
+  const off = !!me && !!k.R.house && want !== null && offMark(me);
+  if (want === 'out' || want === 'mark' || want === 'gait') {
+    if (off) return { ...base, variant: 'mark', step: 'move:mark', short: 'Your mark' };
+    if ((me?.moveStance ?? 'relaxed') !== 'combat') return { ...base, variant: 'gait', step: 'gait:combat', short: 'Careful' };
+    if (want === 'out' && !state.time?.doing) return { ...base, variant: 'out', step: null, short: 'Out of it' };
+  }
+  if (want === 'still') return null;
+  if (typeof want === 'string' && want.startsWith('two')) return { ...base, variant: 'two', step: null, short: 'Wait' };
+  // (nothing lacking: at Standby the GO comes to a shooter out of it and still; nothing to press)
+  if (want === null && k.cmd === 'standby') return { ...base, variant: 'standby', step: null, short: 'Standby' };
+  return undefined;
+}
+// (off the start mark, as houseWant reads it: shoothouse.js STACK_M from the lane's start)
+function offMark(me) { const S0 = HOUSE1.start; return Math.hypot(me.x - S0.x, me.z - S0.z) > COURSES.house.stackM; }
 
 /** The tempos an act may name after '@' (checks.js TEMPO). */
 const STEP_TEMPOS = Object.freeze(['normal', 'rushed', 'careful', 'steady']);

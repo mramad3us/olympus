@@ -104,10 +104,16 @@ export const PARS_URL = Object.freeze(['basic', 'advanced', 'operator']);
 /** VIEWS §12's "reduce flashes" by the URL (&flashes=reduced: 0.0.9). */
 export const FLASHES = Object.freeze(['reduced']);
 
+/** The step panel's layouts by the URL (&panel=a|b|c: VIEWS §7.8.5, the rework's R7; C until the user scores P1 to P3). */
+export const PANELS_URL = Object.freeze(['a', 'b', 'c']);
+
+/** The walk cycle by the URL (&cycle=A|B|C: VIEWS §3.10.4, the rework's R8; else the game's, B, until the user scores W-b to W-d). */
+export const CYCLES_URL = Object.freeze(['A', 'B', 'C']);
+
 /** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
 export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, panel, cycle }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -131,6 +137,8 @@ export function readParams(search = globalThis.location?.search ?? '') {
     par: PARS_URL.includes(q.get('par')) ? q.get('par') : null,
     flashes: FLASHES.includes(q.get('flashes')) ? q.get('flashes') : null,
     env: /^[a-z0-9-]{1,32}$/.test(q.get('env') ?? '') ? q.get('env') : null,
+    panel: PANELS_URL.includes(String(q.get('panel') ?? '').toLowerCase()) ? String(q.get('panel')).toLowerCase() : null,
+    cycle: CYCLES_URL.includes(String(q.get('cycle') ?? '').toUpperCase()) ? String(q.get('cycle')).toUpperCase() : null,
   };
 }
 

@@ -40,6 +40,11 @@
 // machinery moved out of shooting.js into src/sim/combat/stepper.js). Nothing is written on load (no moveStance, no watch,
 // no drills on the sheet: their defaults read): each saves again at once byte for byte, plays 600 ticks with no error (the
 // pairs one by the pairs bot), and a save after carries on byte for byte.
+// The shoot house's rework, R1 (2026-11-12): one save made by v0.0.13's own code from a worktree at its tag (test-shoothouse,
+// the tier one by T at a contact's pause in room 2, a bundle carried). Nothing is written on load (no fullN on the gun's
+// belief: Top up's "half or less" reads the capacity's half, as v0.0.13 did, until the next magazine is seated; the plans'
+// walkable lanes are data, and a move beat under way keeps the path it was planned on): it saves again at once byte for
+// byte, plays 600 ticks by the honest T bot with no error, and a save after carries on byte for byte.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -53,6 +58,7 @@ import { rungOf } from '../src/sim/skills/templates.js';
 import { feltOf, inocOf, hardOf, blockOf, suppAt } from '../src/sim/combat/supp.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { pairsBot } from './bots/pairs.mjs';
+import { houseTBot } from './bots/house.mjs';
 import { marsClock } from '../src/core/calendar.js';
 import { SITES } from '../src/data/setting/calendar.js';
 
@@ -265,6 +271,27 @@ export default [
         console.log(`      ${name}: ${old.meta.scenario}, saved at ${hm(old.clock.ms)}, ${doing} under way, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}; 600 ticks, ${g.errors.length} errors; carried on from a save ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
         assert(again === json && !g.errors.length && !h.errors.length && h.save() === end, name);
       }
+    },
+  },
+  {
+    name: 'a v0.0.13 save loads (the shoot house\'s rework R1, 2026-11-12: the tier one by T at a contact\'s pause in room 2), its withdrawn rows mapped (R4, COMBAT §25.19.2.2: the lane\'s "Clear the house" carried on as room 2\'s "Clear the room", the #2\'s "Enter" as "In: your corner"), nothing else written: it saves again byte for byte but for the mapping, plays 600 ticks by the T bot with no error, and a save after carries on byte for byte',
+    timeoutMs: 120_000,
+    fn() {
+      const name = 'v0.0.13-house-pause', json = read(name), old = JSON.parse(json);
+      assert(old.meta.version === '0.0.13' && old.meta.scenario === 'test-shoothouse', `${name}: ${old.meta.version} ${old.meta.scenario}`);
+      const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), b = houseTBot();
+      // (the mapping: the carry's lane bundle cut to the leg it stood in, its keys bare; the #2's doing renamed; the rest as saved)
+      const C = s.stop.carry, D = s.armoury.range.house.two.doing;
+      console.log(`      mapped: the carry ${old.stop.carry.bundle} (${old.stop.carry.beats.length} beats over three legs) → ${C.bundle} for ${C.door} (${C.beats.join(', ')}); the #2's ${old.armoury.range.house.two.doing.bundle} → ${D?.bundle}`);
+      assert(C.bundle === 'room:clear' && C.door === 'o:w4:r2' && C.beats.join() === 'enter,sector,clear,mark' && D?.bundle === 'room:in' && D.step === 'drill:room:in>o:w4:r2', JSON.stringify({ C, D: D?.step }));
+      const mapped = JSON.parse(json);
+      mapped.stop.carry = JSON.parse(JSON.stringify(C)); mapped.armoury.range.house.two.doing = JSON.parse(JSON.stringify(D));
+      const again = JSON.stringify(JSON.parse(g.save())) === JSON.stringify(mapped) ? json : null;
+      const gun = s.items[s.people[s.player.id].kit.worn.sling], belief = JSON.stringify(gun.belief);
+      g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+      const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, houseTBot());
+      console.log(`      ${name}: saved in leg ${old.armoury.range.house.cur} at a ${old.stop?.via ?? 'no'} pause, the gun believed ${belief}, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}; 600 ticks, ${g.errors.length} errors, now leg ${s.armoury.range.house.cur}; carried on from the save after ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+      assert(again === json && !g.errors.length && !h.errors.length && h.save() === end, name);
     },
   },
 ];

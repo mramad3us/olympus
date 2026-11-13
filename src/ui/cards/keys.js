@@ -54,7 +54,9 @@ export const KEY_WORDS = Object.freeze({
 /** In a splash, the keys mean (TIME §6.4, VIEWS §10.3): [code or action, words]. */
 export const SPLASH_KEYS = Object.freeze([['pause', 'in a splash: to the end (Enter, a click too)'], ['Backspace', 'in a splash: stop here, where the activity allows']]);
 /** In stop motion, the keys mean (VIEWS §10.2; the build sheet 0.0.5 §2.4): [codes or actions, words]. */
-export const STOP_KEYS = Object.freeze([[['Enter'], 'in stop motion: aim at the bracketed target (a click too; a click on the aimed one fires)'], [['KeyA', 'KeyD'], 'in stop motion: the brackets to the next target'], [['hand'], 'in a reflex card: keep the answer two minutes'],
+export const STOP_KEYS = Object.freeze([[['Enter'], 'in stop motion: aim at the bracketed target (a click too; a click on the aimed one fires)'], [['KeyA', 'KeyD'], 'in stop motion: the brackets to the next target; with nobody in sight, the Watch row to the next hot spot'],
+  // (2026-11-13, the rework's R7: the step panel by groups, VIEWS §7.8; the layout on the Esc menu, C until the user scores P1 to P3)
+  [['Tab'], 'in stop motion, the step panel C: held, the groups (a digit the group, a second the row)'], [['KeyR', 'KeyC', 'KeyB', 'KeyF'], 'in stop motion, the step panel B: the room, the gun, the body, your team (again or Esc: back)'], [['hand'], 'in a reflex card: keep the answer two minutes'],
   // (0.0.7: the scope's turrets, and the far window on your own face by E held on a KD line)
   [['KeyW', 'KeyS'], 'in stop motion: the scope\'s elevation a click up, down (↑ ↓ too)'], [['run', 'KeyA', 'KeyD'], 'in stop motion, Shift held: the windage a click left, right (← → too)'],
   [['look'], 'held on a KD line: the far window on your target']]);
@@ -63,7 +65,9 @@ export const STOP_KEYS = Object.freeze([[['Enter'], 'in stop motion: aim at the 
 export const CONTACT_KEYS = Object.freeze([[['pause', 'menu'], 'while a target is being taken in (the amber brackets closing): only these; every other key waits for the pause']]);
 
 /** In the shoot house, the keys mean (the build sheet 0.0.12 §2.6, §8 item 7): [codes or actions, words]. */
-export const HOUSE_KEYS = Object.freeze([[['carry'], 'in the shoot house: the movement stance, Relaxed, Combat, Assault'], [['Backspace'], 'a drill running (a bundle T started): stop after its beat, the rest offered as Carry on']]);
+// (the stances by what they trade, the user's remark of 2026-11-11 ("don't know what the assault <-> combat option is supposed to
+// mean"); Backspace's stop, Carry on no longer named: the flow carries a drill on by itself (the design review of 2026-11-13))
+export const HOUSE_KEYS = Object.freeze([[['carry'], 'in the shoot house: the stance, Relaxed (rifle slung), Careful (slower, steadier shots on the move), Fast (quicker, moving shots worse)'], [['Backspace'], 'a drill running (a bundle T started): stop after its beat']]);
 
 /** In the R menu, the keys mean (cards/actions.js; the build sheet 0.0.6 §2.3): [codes or actions, words]. */
 export const MENU_KEYS = Object.freeze([[['Space'], 'in the R menu: check a row (the digits and the arrows move to one; Enter does what is checked)'], [['KeyA', 'KeyD'], 'in the R menu: a row\'s choice (how long, which cut)']]);

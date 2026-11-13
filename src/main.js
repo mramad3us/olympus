@@ -224,7 +224,8 @@ import { planChain } from './sim/time/chain.js';
 import { hairOf } from './sim/body/hair.js';
 import { eyeOf, sightMask, canSee } from './sim/people/perception.js';
 import { BARRACKS } from './sim/scenarios/barracks.js';
-import { BENCH_SCENES, BENCH_DEFAULT } from './data/bench.js';
+import { BENCH_SCENES, BENCH_DEFAULT, BENCH_PANEL } from './data/bench.js';
+import { layoutOfWord, badgeKey, BANK_CODES } from './sim/arms/groups.js';
 import { beliefOf, finishOf, REFUSALS, actionMs } from './sim/arms/firearms.js';
 import { kitView } from './sim/arms/kit.js';
 import { rollerOf } from './sim/combat/roll.js';
@@ -334,6 +335,11 @@ const settings = {
   mood: params.mood || null,
   // (0.0.9: VIEWS §12's "reduce flashes": a bang's white a grey veil, no startle's pale frame)
   reduceFlashes: params.flashes === 'reduced' || readLocal('olympus.flashes') === 'reduced',
+  // (2026-11-13, the rework's R7: the step panel's layout, VIEWS §7.8: &panel=a|b|c, else this browser's olympus.panel, else C;
+  // a bench plays its own (bench.js BENCH_PANEL), so its digits mean what its script says)
+  panel: benchName ? BENCH_PANEL : layoutOfWord(params.panel ?? readLocal('olympus.panel')),
+  // (the rework's R8: the walk cycle, VIEWS §3.10.4: &cycle=A|B|C, else this browser's olympus.cycle, else the game's (B))
+  cycle: params.cycle ?? (['A', 'B', 'C'].includes(readLocal('olympus.cycle')) ? readLocal('olympus.cycle') : null),
 };
 // (debug mode: an id map's cached sorted order checked against a fresh sort every 64th call, TECH §2.3.1)
 if (settings.debug) setIdsCheck(64);
@@ -357,7 +363,7 @@ window.__renderer = stage.stats.gpu;
 const counters = settings.perf || settings.debug || benchName ? instrumentGL(gl) : null;
 const painter = createPainter();
 const uploads = createUploads();
-const view = createView({ stage, painter, uploads });
+const view = createView({ stage, painter, uploads, cycle: settings.cycle });
 if (settings.mood) view.setMood(settings.mood);
 if (settings.fog) view.setFog(true);
 view.warm();
@@ -372,7 +378,20 @@ const faultsOwed = [];
 const inStop = (s = loop?.state) => s?.stop?.mode === 'stop';
 // (0.0.8: while a contact is being taken in nothing is accepted: the keys are the marine's once he has taken it in)
 // (0.0.12: V is the movement stances where the scene's spec sets stances: the carry is not queued there, the gait is (onAction))
-const input = createInput({ accept: (action, kind) => !!loop?.state && !loop.paused && !splash?.active && !(kind === 'digit' && inStop()) && !windowOpen() && !startledNow() && !pauseGuarded(action) && !(action === 'carry' && stancesNow()), swallow: () => !!loop?.state && !boot?.card && !boot?.page });
+const input = createInput({ accept: (action, kind) => !!loop?.state && !loop.paused && !splash?.active && !(kind === 'digit' && inStop()) && !windowOpen() && !startledNow() && !guardedFlash(action) && !(action === 'carry' && stancesNow()), swallow: () => !!loop?.state && !boot?.card && !boot?.page });
+// (a key the pause's guard holds flashes the panel for GUARD_FLASH_MS, so a press is seen to wait (the play review of 2026-11-13:
+// the first key of each fresh pause, T at GO or the row at a contact, was swallowed with no sign, 2 to 5 times a lane))
+const GUARD_FLASH_MS = 200;
+let guardFlashT = 0;
+function guardedFlash(action, e = null) {
+  const g = pauseGuarded(action, e);
+  if (g && action !== 'up' && action !== 'down' && action !== 'left' && action !== 'right' && inStop()) {
+    hud.classList.add('guarded');
+    clearTimeout(guardFlashT);
+    guardFlashT = setTimeout(() => hud.classList.remove('guarded'), GUARD_FLASH_MS);
+  }
+  return g;
+}
 // ---- the contact (0.0.8: contact.js contactNow, read once a tick) ----
 let contactMemo = { key: null, cn: null };
 /** The contact now (contactNow's { pending, last }), or null: read once a tick, never thrown. */
@@ -489,7 +508,9 @@ const label = (a) => input.label(a);
 const instinct = createInstinct(hud, { label });
 // (the weapon mode's HUD: the step panel with its weapon card, the reflex card in its place, the radio box, the PAPER inset, the plaque and its brackets)
 const stepPanel = createSteps(hud, { label, labelOf: (id) => stepLabel(id), paintCard: (belief, far = {}, finish = null) => (belief?.model ? paintWeaponCard({ model: belief.model, finish, belief, k: 1, ...far }) : null),
-  onPick: (step) => { if (!loop.paused && !boot.card && !splash?.active && inStop() && !windowOpen() && !startledNow() && !pauseGuarded('click')) { let st = null; try { st = stopNow(loop.state); } catch { /* (no stop motion: nothing to send) */ } if (st && !st.reflex) sendStep(step, input.peek().run ? 'rushed' : 'normal', st); } } });
+  onPick: (step) => { if (!loop.paused && !boot.card && !splash?.active && inStop() && !windowOpen() && !startledNow() && !pauseGuarded('click')) { let st = null; try { st = stopNow(loop.state); } catch { /* (no stop motion: nothing to send) */ } if (st && !st.reflex) { sendStep(step, input.peek().run ? 'rushed' : 'normal', st); stepPanel.chosen(); } } } });
+// (R7: NEXT clicked is T tapped)
+stepPanel.onNext = () => { if (!loop.paused && !boot.card && !splash?.active && inStop() && !windowOpen() && !startledNow() && !pauseGuarded('click')) nextPress(); };
 const reflexCard = createReflex(hud, { plaque, label });
 const radio = createRadio(hud);
 const paperInset = createPaper(hud);
@@ -560,6 +581,9 @@ const boot = createBoot({ cb: {
   // (0.0.9, the fixer's: "reduce flashes" turned from the menu, kept in this browser unless nostore)
   flashes: () => settings.reduceFlashes,
   setFlashes: (on) => { settings.reduceFlashes = !!on; if (!settings.nostore) { try { localStorage.setItem('olympus.flashes', on ? 'reduced' : 'full'); } catch { /* (a private window: this session only) */ } } },
+  // (R7: the step panel's layout, turned from the menu (A, B, C in turn) and kept in this browser unless nostore)
+  panel: () => settings.panel,
+  setPanel: (l) => { settings.panel = layoutOfWord(l); if (loop?.state) loop.state.$panel = settings.panel; if (!settings.nostore) { try { localStorage.setItem('olympus.panel', settings.panel); } catch { /* (a private window: this session only) */ } } },
   endScene: () => { if (!scene || scene.ended) return; scene.ended = true; scene.endNow = true; scene.byMenu = true; loop.pause(false, 'player'); },
   quit: () => quitToTitle(),
   overlay: (name, open) => {
@@ -663,6 +687,9 @@ function launch(s, { from = null } = {}) {
   splash.clear(); splashPause(false);
   handArmedAt = null; handDown = null; tDown = null;
   resetWeaponHud();
+  // (the runtime keys the sim reads, set where the state is made or loaded, before its first tick (the code review of
+  // 2026-11-13: set only when the frame was drawn, the first ticks after a load ran on the defaults: the DI's keys, $gp))
+  if (s) { s.$panel = settings.panel; if (settings.cycle) s.$cycle = settings.cycle; }
   loop.setState(s);
   loop.pause(false, 'player');
   hud.hidden = false;
@@ -869,7 +896,8 @@ bus.on('reflex', (f) => { if (f?.phase === 'offer') reflexKeep = false; });
 // (0.0.12: the shoot house's lane and the drill's bundles: heard (audio/house.js); GO's guard from the page's first sight of GO; the
 // instructor's faults as tags, his words in the radio box)
 bus.on('house', (f) => {
-  if (f?.phase === 'go') goSeenT0 = performance.now();
+  // (and the brief's toast cleared at GO: the lane's words are the instructor's from here (the play review of 2026-11-13))
+  if (f?.phase === 'go') { goSeenT0 = performance.now(); toasts.clear(); }
   // (the fault's tag in its words (FAULT_WORDS: "Fault: stopped in the door"), held while a take-in's window runs and shown at
   // its end, as the sim holds the instructor's word (COMBAT §25.4.5: no words in the window; the fixer's of 0.0.12))
   if (f?.phase === 'fault' && f.text) { const t = `Fault: ${houseScene.FAULT_WORDS?.[f.kind] ?? f.kind ?? 'the lane'}`; if (windowOpen()) faultsOwed.push(t); else toast(t, 'warn'); }
@@ -989,7 +1017,7 @@ input.onAction((action, kind, e) => {
   if (splash.active) { splashKey(action, kind); return; }
   // (0.0.8: a contact being taken in: Space and Esc alone, COMBAT §25.4.5; and the pause's guard (see pauseGuarded))
   if ((windowOpen() || startledNow()) && action !== 'pause' && action !== 'menu') return;
-  if (pauseGuarded(action, e)) return;
+  if (guardedFlash(action, e)) return;
   // (0.0.12: V in the house cycles the movement stances, Relaxed, Combat, Assault (the sim's gait), in and out of stop motion)
   if (action === 'carry' && kind !== 'up' && stancesNow() && !loop.paused) { input.queue('gait'); return; }
   if (inStop() && !loop.paused && stopKey(action, kind, e)) return;
@@ -1005,6 +1033,8 @@ input.onAction((action, kind, e) => {
 // (stop motion's keys, the build sheet 0.0.5 §2.4: a digit tapped is the step the panel shows on it at its normal
 // tempo, rushed with Shift (read as the key went down), held careful (Fire held: hold and fire); 0 pages the singles
 // past nine; in a reflex card a digit answers it and R flips keep. Returns whether the key was stop motion's)
+/** The panel's decisions seen (R7: a new key at each stop's 'choose', so its navigation starts again there). */
+const panelSeen = { seq: 0, phase: null, via: null };
 let stepPage = 0, digitShift = false, reflexKeep = false, hoverKey = null, lastString = null, plaqueMemo = null, stepChosenMs = null;
 // (the plaque's list of the DC's parts and the modifiers, for the keys as for the mouse: shown PLAQUE_INFO_MS of real
 // time after an aim ends and whenever the brackets move (the design review's: by the keys it never showed); the last
@@ -1022,26 +1052,72 @@ function stopKey(action, kind, e) {
   if (!st) return false;
   if (action === 'hand' && st.reflex) { if (kind === 'down') reflexKeep = !reflexKeep; return true; }
   if (!action.startsWith('digit:')) return false;
-  if (kind === 'digit') { digitShift = !!e?.shiftKey || input.peek().run; return true; }
-  if (kind !== 'tap' && kind !== 'held') return true;
   const n = Number(action.slice(6));
-  if (st.reflex) {
-    const o = reflexCard.optionFor(n);
-    if (o) input.queue({ act: 'stop', args: { step: `reflex:${o.key}`, keep: reflexKeep } });
+  // (2026-11-13, the rework's R7: a digit going down moves the panel's navigation (a group's tab, a ▸, home, the pager) at once,
+  // and its tap or hold then does nothing more; any other key's entry is noted as it goes down, so a fan let go between the
+  // digit's down and its up still sends the row that was under it)
+  if (kind === 'digit') {
+    digitShift = !!e?.shiftKey || input.peek().run;
+    if (!st.reflex) { if (stepPanel.down(n)) navDown.add(n); else downEntry.set(n, stepPanel.entryFor(n)); }
     return true;
   }
-  const step = stepPanel.stepFor(n);
-  if (step === 'more') { if (kind === 'tap') stepPage++; return true; }
+  if (kind !== 'tap' && kind !== 'held') return true;
+  if (st.reflex) {
+    const o = reflexCard.optionFor(n);
+    // (an answer shown struck says why (the rework's R6: Transition "not issued"), never nothing)
+    if (o?.off) toast(`${o.label}: ${o.off}.`, 'warn');
+    else if (o) input.queue({ act: 'stop', args: { step: `reflex:${o.key}`, keep: reflexKeep } });
+    return true;
+  }
+  if (navDown.delete(n)) return true;
+  const entry = downEntry.has(n) ? downEntry.get(n) : stepPanel.entryFor(n);
+  downEntry.delete(n);
+  if (!entry) return true;
+  // (NEXT: T's act, as T tapped (VIEWS §7.8.1: T is never the only way))
+  if (entry.core === 'next') { if (entry.live) nextPress(); return true; }
+  const step = entry.row;
+  if (!step) return true;
   // (a struck row's digit says why, never nothing (the runtime and parity reviews': the key looked dropped))
-  if (step?.off) { refusedStep(step); return true; }
-  if (step) sendStep(step, kind === 'held' ? 'careful' : digitShift ? 'rushed' : 'normal', st);
+  if (step.off) { refusedStep(step, entry); return true; }
+  sendStep(step, kind === 'held' ? 'careful' : digitShift ? 'rushed' : 'normal', st);
+  // (a row set at no time (a variant: the entry's stance, the breach, the standing order) keeps its group open, so its new
+  // state shows where it was pressed (the play review of 2026-11-13: one press set Careful and the group closed, no word)
+  if (step.kind !== 'variant') stepPanel.chosen();
   return true;
 }
-/** A struck step chosen: its row flashed, its reason said (Fire on safe in WEAPONS §4.4's words). */
-function refusedStep(step) {
+/** The digits whose going down moved the panel's navigation (their tap does nothing more), and each other digit's entry as it went down. */
+const navDown = new Set(), downEntry = new Map();
+/** NEXT pressed: T's act now, as T tapped would send it. */
+function nextPress() {
+  if (!canAct()) return;
+  const now = instinctNow(loop.state);
+  input.queue({ act: 'instinct', args: { id: now?.line?.id ?? null, act: now?.line?.act ?? null } });
+}
+// (R7's keys of the panel itself, ahead of the game's (capture): layout C's fan while Tab is held, layout B's banks on R C B F by
+// physical code (the same keys on AZERTY), Esc or Backspace back to the band where a group is open; only in stop motion with
+// the panel up (no reflex card), and nothing else hears them then)
+function panelKeyOwned(e) {
+  if (!loop?.state || boot.card || splash.active || loop.paused || e.metaKey || e.ctrlKey || !inStop() || windowOpen() || startledNow()) return false;
+  let st = null;
+  try { st = stopNow(loop.state); } catch { return false; }
+  return !!st && !st.reflex;
+}
+addEventListener('keydown', (e) => {
+  if (e.code === 'Tab' && settings.panel === 'c' && panelKeyOwned(e)) { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) stepPanel.fan(true); return; }
+  if ((e.code === 'Escape' || e.code === 'Backspace') && panelKeyOwned(e) && (stepPanel.where?.nav?.group || stepPanel.where?.nav?.deep)) { e.preventDefault(); e.stopImmediatePropagation(); stepPanel.back(); return; }
+  if (settings.panel === 'b' && BANK_CODES[e.code] && panelKeyOwned(e)) { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) stepPanel.bank(BANK_CODES[e.code]); }
+}, true);
+addEventListener('keyup', (e) => {
+  if (e.code === 'Tab' && stepPanel.fanHeld) { e.preventDefault(); e.stopImmediatePropagation(); stepPanel.fan(false); return; }
+  if (settings.panel === 'b' && BANK_CODES[e.code] && panelKeyOwned(e)) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+addEventListener('blur', () => stepPanel.fan(false));
+/** A struck step chosen: its row flashed, its reason said (Fire on safe in WEAPONS §4.4's words), and the remedy's key where its badge has one (R7). */
+function refusedStep(step, entry = null) {
   stepPanel.flash?.(step.id);
+  const rk = entry?.badge ? badgeKey(entry.badge, settings.panel) : null;
   // (0.0.8: the shot rows above your Marksmanship, folded into one row: what training buys)
-  toast(step.kind === 'fire' && step.off === 'on safe' ? REFUSALS.safety : step.kind === 'gated' ? `Not yet: your Marksmanship is under ${step.label.replace(/ (\d+)/g, ' (Marksmanship $1)')}.` : `${step.label}: ${step.off}.`, 'warn');
+  toast(step.kind === 'fire' && step.off === 'on safe' ? `${REFUSALS.safety}${rk ? ` Off safe: ${rk}.` : ''}` : step.kind === 'gated' ? `Not yet: your Marksmanship is under ${step.label.replace(/ (\d+)/g, ' (Marksmanship $1)')}.` : `${step.label}: ${step.off}.${rk ? ` → ${rk}` : ''}`, 'warn');
 }
 /** A step chosen (a digit, a click on its row): { act: 'stop', args: { step, tempo, target } }, the aim at the bracketed target, Fire held as hold and fire. */
 function sendStep(step, tempo, st = null) {
@@ -1063,8 +1139,11 @@ addEventListener('keydown', (e) => {
   const dial = dialOf(e.code, { shift: e.shiftKey });
   if (dial) { e.preventDefault(); input.queue({ act: 'stop', args: { step: dial, tempo: 'normal' } }); return; }
   if (e.repeat) return;
-  if (e.code === 'KeyA' || e.code === 'ArrowLeft') { input.queue({ act: 'stop', args: { step: 'pick:-1' } }); showPlaqueInfo(); }
-  else if (e.code === 'KeyD' || e.code === 'ArrowRight') { input.queue({ act: 'stop', args: { step: 'pick:+1' } }); showPlaqueInfo(); }
+  // (R7: with nobody in sight to bracket, Q and D step the one Watch row across the drill's hot spots (VIEWS §7.8.1))
+  const dir = e.code === 'KeyA' || e.code === 'ArrowLeft' ? -1 : e.code === 'KeyD' || e.code === 'ArrowRight' ? 1 : 0;
+  if (dir && !st.pick && stepPanel.stepWatch(dir)) return;
+  if (dir < 0) { input.queue({ act: 'stop', args: { step: 'pick:-1' } }); showPlaqueInfo(); }
+  else if (dir > 0) { input.queue({ act: 'stop', args: { step: 'pick:+1' } }); showPlaqueInfo(); }
   else if ((e.code === 'Enter' || e.code === 'NumpadEnter') && st.pick) { e.preventDefault(); input.queue({ act: 'stop', args: { step: 'aim', target: st.pick, tempo: 'normal' } }); }
 });
 // (the mouse in stop motion: a click on a target aims at it, a click on the aimed one fires)
@@ -1297,7 +1376,7 @@ function bundleRead(s) {
 const stancesNow = (s = loop?.state) => !!(s && sceneOf(s)?.stances);
 /**
  * The words T's keycap names before the press (0.0.12; COMBAT §25.11): the panel's row the line's act names ('stop:<row>'), its label
- * and its time, "Stack on the door · 4.7 s"; the lane's bundle its rooms too ("Clear the house · 3 rooms and the hall · 13.6 s"); null
+ * and its time, "Stack up · 4.7 s", "Open, clear the room · 5.4 s" (one room a row from the rework's R4); null
  * where the act is no row of the panel shown (the act's own words are the line's).
  */
 function actWordsOf(act, steps) {
@@ -1486,7 +1565,10 @@ function render(alpha, s, info) {
   // 0.0.8: at a contact's pause, until a step is chosen, "Contact · 0.55 s." in its place)
   const pause = weapon.on && !s.skip ? pauseOf(s) : null;
   // (0.0.10: Breathe running out of the mode counts the box on the lead; in the mode the panel's running view has it)
-  const lead = benchLead ?? (pause && leadStands(s, pause) ? `Contact · ${takeInWords(pause.ms)} s.` : breath && !weapon.on ? breatheLead(breath.i) : weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
+  // (2026-11-12, the shoot house's rework R4: in the house every stop says why, the sim's one helper's words (cqb.js stopLead,
+  // in the instinct's lead): "GO.", "Room clear. Next: room 2, 6.2 m.", "Door, east wall.", the contact's take-in at its pause)
+  const houseLead = weapon.on && !s.skip && s.armoury?.range?.course === 'house' && now?.lead && now.lead !== 'Time stands still.' ? now.lead : null;
+  const lead = benchLead ?? houseLead ?? (pause && leadStands(s, pause) ? `Contact · ${takeInWords(pause.ms)} s.` : breath && !weapon.on ? breatheLead(breath.i) : weapon.on && isHeld(s) && !s.skip ? 'Time stands still.' : info.held && !s.skip ? 'Time stands still: a digit to choose.' : scene?.ended && !scene.shown ? 'Enter: end the scene' : null);
   // (0.0.12: T's keycap names the row its act is and its time, from the panel shown)
   let actWords = null;
   if (weapon.on && now?.line?.act) { try { actWords = actWordsOf(now.line.act, readSim(s).steps); } catch (e) { broke(e, 'the instinct'); } }
@@ -1553,6 +1635,10 @@ function kdPaper(s, sim) {
 }
 /** The step panel or the reflex card, PAPER, the plaque and its brackets, the far window, for the state now: { on, steps, reflex, paper, plaque, far } (their texts). */
 function weaponHud(s, alpha, { hidden = false } = {}) {
+  // (R7: the layout played rides the state as a runtime key (never saved), so the DI's line names the keys of the panel drawn)
+  if (s && s.$panel !== settings.panel) s.$panel = settings.panel;
+  // (R8: the walk cycle played, the same way: the sim counts the gait phase in its steps, the view draws its frames)
+  if (s && settings.cycle && s.$cycle !== settings.cycle) s.$cycle = settings.cycle;
   const sim = s && !hidden ? readSim(s) : null, st = sim?.st ?? null;
   const on = st?.mode === 'stop';
   hud.classList.toggle('weapon', !!on);
@@ -1578,7 +1664,14 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   if (st.reflex) { stepPanel.update({ cardOnly: true, steps: [], belief: sim.belief, ui: uiK, ...distance }); reflexText = reflexCard.update(st.reflex, { keep: reflexKeep }); }
   else {
     reflexCard.update(null);
-    stepsText = stepPanel.update({ phase: st.phase, steps, page: stepPage, shift: input.peek().run, doing: st.doing, nowMs: s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), belief: sim.belief, ticks, ui: uiK, chaos: suppRead(s), bundle: bundleRead(s), ...distance });
+    // (R7: the panel's model by the layout played, T's act on NEXT with its words, and a key a decision, so a drawer or a bank
+    // opened at one stop is closed at the next and layout A's FIRE opens by itself at each contact's pause)
+    if (st.phase !== panelSeen.phase || st.via !== panelSeen.via) { if (st.phase === 'choose') panelSeen.seq++; panelSeen.phase = st.phase; panelSeen.via = st.via; }
+    const tNow = instinctNow(s), act = tNow?.line?.act ?? null;
+    let tWords = null;
+    if (act) { try { tWords = actWordsOf(act, steps) ?? tNow.line.short ?? null; } catch (e) { broke(e, 'the panel'); } }
+    stepsText = stepPanel.update({ phase: st.phase, steps, page: stepPage, shift: input.peek().run, doing: st.doing, nowMs: s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), belief: sim.belief, ticks, ui: uiK, chaos: suppRead(s), bundle: bundleRead(s), ...distance,
+      layout: settings.panel, act, actWords: tWords, stopKey: panelSeen.seq });
   }
   try {
     if (far?.open && !keepPaper) paperText = paperInset.update(null);
@@ -1807,6 +1900,22 @@ function aimHud(s, st = null, list = [], range = null) {
   let partsRect = null, leadRect = null;
   if (row) partsRect = stackAt(partsPlate, rowPartsPlaque(row, { secs: (ms) => (ms / 1000).toFixed(2) })); else partsPlate.hidden = true;
   if (lead) leadRect = stackAt(contactPlate, contactPlaque({ ms: lead.ms, words: takeInWords(lead.ms), ident: lead.ident?.[shown.key] ?? null })); else contactPlate.hidden = true;
+  // (the plates over a target never over the lane timer's paper (VIEWS §7.5, nothing overlaps; the design review of 2026-11-13: at
+  // every house contact "CONTACT · RIFLE · TAKEN IN" and the plaques hid the timer's third and fourth rows, and the overlap
+  // check had neither): the stack moves the least way off it, left, right or under the paper, all its plates together)
+  if (!p.far && !timerPaper.el.hidden) {
+    const tr = timerPaper.el.getBoundingClientRect(), aimR = { x: ox + (tipX - pq.tip) * k, y: oy + (tipY - pq.h) * k, w: pq.w * k, h: pq.h * k };
+    const plates = [[aimPlaque, aimR], [termsPlate, tpRect], [partsPlate, partsRect], [contactPlate, leadRect]].filter(([e, r]) => r && !e.hidden);
+    const U = plates.reduce((u, [, r]) => ({ x0: Math.min(u.x0, r.x), y0: Math.min(u.y0, r.y), x1: Math.max(u.x1, r.x + r.w), y1: Math.max(u.y1, r.y + r.h) }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
+    if (tr.width > 0 && plates.length && overlaps({ x: U.x0, y: U.y0, w: U.x1 - U.x0, h: U.y1 - U.y0 }, { x: tr.left, y: tr.top, w: tr.width, h: tr.height })) {
+      const moves = [{ dx: tr.left - 4 - U.x1, dy: 0 }, { dx: tr.right + 4 - U.x0, dy: 0 }, { dx: 0, dy: tr.bottom + 4 - U.y0 }].filter(m => U.x0 + m.dx >= 0 && U.x1 + m.dx <= innerWidth && U.y1 + m.dy <= innerHeight);
+      const m = moves.sort((a, b) => Math.hypot(a.dx, a.dy) - Math.hypot(b.dx, b.dy))[0];
+      if (m) {
+        for (const [e, r] of plates) { e.style.transform += ` translate(${Math.round(m.dx)}px, ${Math.round(m.dy)}px)`; r.x += m.dx; r.y += m.dy; }
+        if (plaqueRect) { plaqueRect.x0 += m.dx / k; plaqueRect.x1 += m.dx / k; plaqueRect.y0 += m.dy / k; plaqueRect.y1 += m.dy / k; }
+      }
+    }
+  }
   // (hovering it, or just after an aim or a bracket's move by the keys: the DC's parts and every modifier as believed, the list the roll will use)
   // (0.0.9: the felt term's arithmetic, "pinned −9: the chaos 105 − your hardening 17 = felt 88", where the roll's list carries one)
   const chaosLine = chaosSum(feltMod(rec.mods), suppRead(s));
@@ -1838,7 +1947,7 @@ function aimHud(s, st = null, list = [], range = null) {
       // the terms' plate; none clear, it is not shown (the runtime review's of v0.0.7: at 1600 x 900 on the zero card
       // it covered the PAPER inset and the terms, "on the paper 78%" under the plate; VIEWS §7.5, nothing overlaps)
       const rects = rectsAt(innerWidth, innerHeight, 'weapon'), blocks = (HUD_STATES.weapon ?? Object.keys(rects).filter(n => n !== 'ui')).map(n => rects[n]).filter(r => r && typeof r === 'object');
-      const pqRect = { x: ox + (tipX - pq.tip) * k, y: oy + (tipY - pq.h) * k, w: pq.w * k, h: pq.h * k };
+      const pqRect = { x: ox + plaqueRect.x0 * k, y: oy + plaqueRect.y0 * k, w: pq.w * k, h: pq.h * k };
       const left = ox + (p.x - p.w / 2 - 6) * k - iw, right = ox + (p.x + p.w / 2 + 6) * k, below = oy + (p.y + p.h / 2 + 4) * k, level = oy + p.y * k - ih / 2;
       const top = Math.min(pqRect.y, tpRect?.y ?? Infinity, partsRect?.y ?? Infinity, leadRect?.y ?? Infinity) - ih - 4;
       const spots = [{ x: left, y: below }, { x: right, y: below }, { x: left, y: level }, { x: right, y: level }, { x: pqRect.x + pqRect.w / 2 - iw / 2, y: top }, { x: left, y: top }, { x: right, y: top }];
@@ -2174,6 +2283,21 @@ const handleMore = {
    */
   /** The live area's door leaves as the stage turns them (0.0.12: view.js leaves), or the one an opening names. */
   leaves(id = null) { return view.leaves ? view.leaves(id) : null; },
+  /** Where world (x, y, z) falls in the stage's picture, pixels from its top-left (the tests' look at the figures). */
+  project(x, y = 0, z = 0) { const [px, py] = stage.cam.project(x, y, z); return { x: px, y: py }; },
+  /**
+   * The picture as last drawn and its part IDs under the people (the tests' look at one outline a person, VIEWS §3.10.1):
+   * { w, h, picture, ids } as plain arrays of the rectangle [x0, y0, x1, y1] (picture pixels from the top-left), rows top-down.
+   */
+  pixels(x0, y0, x1, y1) {
+    const pic = stage.readPicture(), ids = stage.readIds(), W = ids.w, H = ids.h, out = { w: W, h: H, picture: [], ids: [] };
+    for (let y = Math.max(0, y0); y < Math.min(H, y1); y++) {
+      const row = H - 1 - y, p = [], d = [];
+      for (let x = Math.max(0, x0); x < Math.min(W, x1); x++) { const i = (row * W + x) * 4; p.push([pic[i], pic[i + 1], pic[i + 2]]); d.push(ids.buf[i] | (ids.buf[i + 1] << 8) | (ids.buf[i + 2] << 16)); }
+      out.picture.push(p); out.ids.push(d);
+    }
+    return out;
+  },
   house() {
     const s = loop.state;
     if (s?.armoury?.range?.course !== 'house') return null;
@@ -2193,7 +2317,11 @@ const handleMore = {
       din: view.stats.din ? { ...view.stats.din, flashing: [...(view.stats.din.flashing ?? [])] } : null, sound: audio.stats.stress ? { ...audio.stats.stress } : null, breathe: { offer, running: breatheRun(s) } };
   },
   /** The step panel's step on a digit now (n 0 to 9), as the key would send it. */
-  stepOn(n) { const st = stepPanel.stepFor(n); return st && st !== 'more' ? { id: st.id, kind: st.kind, label: st.label } : st; },
+  stepOn(n) { const st = stepPanel.stepFor(n); return st && typeof st === 'object' ? { id: st.id, kind: st.kind, label: st.label } : st; },
+  // (R7: the step panel as drawn: its layout, level, head and keys; the keys a row is on now; a key pressed into its navigation)
+  panel: () => ({ layout: settings.panel, where: stepPanel.where, keys: stepPanel.keys, text: stepPanel.text, situation: stepPanel.model?.situation?.id ?? null }),
+  keysFor: (id) => stepPanel.keysFor(id),
+  setPanel: (l) => { settings.panel = layoutOfWord(l); if (loop?.state) loop.state.$panel = settings.panel; },
 };
 installDebug(createDebugHandle({
   loop, sim, start: launch, newGame, version: VERSION, store, bus, about, view, solText, report: buildReport, queue: (a) => input.queue(a), more: handleMore,

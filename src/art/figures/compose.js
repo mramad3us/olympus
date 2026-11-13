@@ -195,7 +195,7 @@ function rigOf(pose, J, B, look, dir) {
   // (the rig works in the facing's frame, not the body's turned one: lying prone, "forward" is still the way they face)
   const right = mul(LEFT, -1), U = UP, Fw = F;
   const mid = lerp(J.sh.r, J.sh.l, 0.5), side = dir === 'right' || dir === 'left';
-  const out = { gun, lenM, withMag: !look.magOut, hand: { r: null, l: null }, mode: r.mode };
+  const out = { gun, lenM, withMag: !look.magOut, hand: { r: null, l: null }, mode: r.mode, oneHand: !!r.oneHand };
   // (a chibi's head is wider than its shoulders: seen from behind, a shouldered gun is drawn just clear of it, as tradecraft drew it)
   const clear = dir === 'up' ? B.headW / 2 - B.armOut * 0.45 + 1.5 / B.ppm : 0;
   const aimDir = () => {
@@ -338,6 +338,8 @@ function finish(out, J, B, G, at, hold) {
     while (k > G.grip + 1 && len(sub(point(k, at(1)), J.sh.l)) > reach) k -= 0.5;
     out.hand.l = point(k, at(1));
   }
+  // (one-handed (the rework's R8 beats: the #2's tap on #1's shoulder, the hand on the door): the support arm is the pose's own)
+  if (out.oneHand) out.hand.l = null;
   return out;
 }
 
@@ -440,7 +442,7 @@ const ROLE_ARM = { blouse: ['t', 't'], tee: ['t', 's'], suit: ['p', 'p'], covera
 export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = null } = {}) {
   const Lk = look?.top ? look : wear(look);
   // (given: a pose written outright, not one of FRAMES: the walk sample's candidate cycles, src/art/figures/cycles.js; the game's frames never pass one)
-  const B = bodyOf(ppm), pose = given ? { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, ...given } : poseOf(frame, { weapon: Lk.weapon, carry: Lk.carry, tired: !!Lk.tired });
+  const B = bodyOf(ppm), pose = given ? { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, ...given } : poseOf(frame, { weapon: Lk.weapon, carry: Lk.carry, tired: !!Lk.tired, cycle: Lk.cycle ?? null });
   const kind = cellKind(frame, dir), cell = B.cell[kind];
   const J = solve(pose, B), rig = rigOf(pose, J, B, Lk, dir);
   if (rig) for (const s of ['r', 'l']) if (rig.hand[s]) {

@@ -37,7 +37,10 @@
 //      0.6 m, inks this pixel to 0.12 (a silhouette); another part 0.02–0.35 m behind, to 0.4 (a line
 //      between touching parts). Metric thresholds: a pixel up the ground or down a wall is 0.044 m
 //      further at 16 px/m and 0.029 m at 24, both over 0.02. Part IDs compare exactly (three bytes);
-//      a pixel the see-through dither kept (ID alpha 0.5) draws no line, or every hole would ink it;
+//      a pixel the see-through dither kept (ID alpha 0.5) draws no line, or every hole would ink it; two people
+//      (the people's parts, PEOPLE_PART's family: src/render/cards.js) touching at one depth (within 0.02 m) ink the
+//      pixel of the one with the higher high byte to 0.12, so one figure's outline falls between it and the next
+//      (VIEWS §3.10.1, the rework's R2: #1 and #2 stacked along an east-west hall read as one blob in v0.0.12);
 //   3b. the figure through a mass (VIEWS §2.10, 0.0.3): a pixel the see-through dither kept (ID alpha
 //      0.5) with two or more of its four neighbours showing the people's part through the holes lies over
 //      the figure behind it, and is inked SILHOUETTE_K (60%) toward the ink, so the figure's silhouette
@@ -67,12 +70,13 @@ import * as THREE from 'three';
 import { LUT_LEVELS, LUT_TILES, lutSize } from '../art/palette.js';
 import { PALE_K as PALE_MIX } from './chaos.js';
 import { LIGHT_FLAG } from './decals.js';
+import { PEOPLE_PARTS } from './cards.js';
 
 /** How far a kept pixel over the figure behind a mass goes toward the ink (VIEWS §2.10: its silhouette at 60%). */
 export const SILHOUETTE_K = 0.6;
 /** The rods' sensitivity to the linear sRGB primaries, normalised to white (see the header), their grey's tint, how far a pixel goes to it at rod 1, and the band of brightness over which the cones take a pixel back. */
 export const SCOTOPIC_RGB = Object.freeze([0.033, 0.766, 0.202]), ROD_TINT = Object.freeze([0.88, 1.0, 1.08]), ROD_MIX = 0.5, CONE_LO = 0.10, CONE_HI = 0.24;
-/** The people's part (src/render/cards.js PEOPLE_PART) as the ID pass writes it: three bytes. */
+/** The people's part (src/render/cards.js PEOPLE_PART) as the ID pass writes it: three bytes; the family's high bytes run PEOPLE_PARTS on. */
 const PEOPLE_ID = [0xa5, 0xa5, 0xa5].map(b => b / 255);
 
 const QUAD_VERT = `out vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
@@ -87,6 +91,8 @@ const POST_FRAG = /* glsl */`
   uniform float chaosVig, chaosDither, chaosDrain, chaosDark, chaosPale, chaosWhite, chaosGrey, chaosAfter, chaosVeil, chaosVeilGrey;
   uniform vec2 chaosEye, chaosFace; uniform vec3 chaosBurst;
   float lin(float d) { return near + d * (far - near); }
+  // (a person's part: PEOPLE_PART's low and middle bytes, its high byte one of the PEOPLE_PARTS from PEOPLE_PART's)
+  bool isPeople(vec3 i) { return abs(i.r - peoplePart.r) < 0.5 / 255.0 && abs(i.g - peoplePart.g) < 0.5 / 255.0 && i.b > peoplePart.b - 0.5 / 255.0 && i.b < peoplePart.b + ${(PEOPLE_PARTS - 0.5).toFixed(1)} / 255.0; }
   // A 4 × 4 ordered dither: the threshold for this pixel.
   float bayer(vec2 p) {
     int i = int(mod(p.x, 4.0)) + 4 * int(mod(p.y, 4.0));
@@ -162,13 +168,15 @@ const POST_FRAG = /* glsl */`
         bool other = any(greaterThan(abs(idn - id.rgb), vec3(0.5 / 255.0)));
         if ((other && dn > d + 0.35) || dn > d + 0.6) edge = min(edge, 0.12);
         else if (other && dn > d + 0.02) edge = min(edge, 0.4);
+        // (two people at one depth: the higher one's pixel inked, one outline between them (see the header))
+        else if (other && abs(dn - d) <= 0.02 && isPeople(id.rgb) && isPeople(idn) && id.b > idn.b + 0.5 / 255.0) edge = min(edge, 0.12);
       }
       col *= edge;
     } else if (id.a > 0.25 && id.a < 0.75) {
       // (kept by the see-through dither: over the figure behind, its silhouette inked through the holes)
       int n = 0;
       ivec2 o[4] = ivec2[4](ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1));
-      for (int i = 0; i < 4; i++) { vec3 idn = texelFetch(tId, clamp(ip + o[i], ivec2(0), mx), 0).rgb; if (all(lessThan(abs(idn - peoplePart), vec3(0.5 / 255.0)))) n++; }
+      for (int i = 0; i < 4; i++) { vec3 idn = texelFetch(tId, clamp(ip + o[i], ivec2(0), mx), 0).rgb; if (isPeople(idn)) n++; }
       if (n >= 2) col = mix(col, vec3(0.08, 0.08, 0.11), ${SILHOUETTE_K.toFixed(2)});
     }
     if (grade > 0.0) {

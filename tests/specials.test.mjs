@@ -12,7 +12,7 @@ import { resolveShot, pullMsOf, aimMsOf, dcOf, modsOf, plaqueOf } from '../src/s
 import { PAPERS } from '../src/sim/arms/paper.js';
 import { actionMs } from '../src/sim/arms/firearms.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
-import { oddsOf } from '../src/sim/skills/checks.js';
+import { oddsOf, isMastered } from '../src/sim/skills/checks.js';
 import { hardOf, suppTimeK } from '../src/sim/combat/supp.js';
 // (0.0.9: a person's chaos written so their felt is f at ms: the pool f + their hardening, fresh)
 const feltTo = (state, pid, f, ms = state.clock.ms) => { const a = state.actors.list.find(x => x.who === pid); a.combat = { supp: f ? f + hardOf(state, pid, ms) : 0, suppAtMs: ms, suppRate: 2, startleFromMs: null, startleUntilMs: null, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: null }; };
@@ -87,7 +87,7 @@ export default [
     },
   },
   {
-    name: 'their odds at 7 and 10 m (planted, lit, the aim fresh): the row\'s figure within 3 points of 4,000 rolls each, torso, its A zone, the head, the Pair\'s and the Hammer\'s second, the failure drill\'s head and the plate down; everyone 95% on the torso but the recruit\'s A (80%) and head (70%), the plate down 50%, 80%, then 95% (the build sheet §4)',
+    name: 'their odds at 7 and 10 m (planted, lit, the aim fresh): the row\'s figure within 3 points of 4,000 rolls each, torso, its A zone, the head, the Pair\'s and the Hammer\'s second, the failure drill\'s head and the plate down; everyone 95% on the torso but the recruit\'s A (80%) and head (70%), the plate down 50%, 80%, then 95%, and sure (100%) where the shooter has mastered the shot (SKILLS §5.1, from the rework\'s R4) (the build sheet §4)',
     heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const N = 4000, out = [], bad = [];
@@ -100,9 +100,11 @@ export default [
         const rate = {}, fig = {};
         for (const [k, c] of Object.entries(cases)) {
           const mods = modsOf(s, pid, { gunId, target: T, part: c.part, follow: c.follow ?? 0, climbK: c.climbK ?? 1, held: { v: 0 } }), dc = dcOf({ rangeM: T.dM, part: c.part }).dc;
-          fig[k] = oddsOf(mrk, dc, mods);
-          if (k === 'torso') fig.A = oddsOf(mrk, dc + A_MARGIN, mods);
-          if (k === 'head') fig.plate = oddsOf(mrk, dc + A_MARGIN, mods);
+          // (from the rework's R4 a natural 1 the shooter has mastered is caught, its margin at least 11 (SKILLS §5.1): sure, and in the A zone)
+          const sure = isMastered({ value: mrk, dc, mods });
+          fig[k] = sure ? 1 : oddsOf(mrk, dc, mods);
+          if (k === 'torso') fig.A = sure ? 1 : oddsOf(mrk, dc + A_MARGIN, mods);
+          if (k === 'head') fig.plate = sure ? 1 : oddsOf(mrk, dc + A_MARGIN, mods);
           let n = 0, hit = 0, a = 0, down = 0;
           for (let i = 0; i < N; i++) {
             refill(s, gunId);
@@ -120,7 +122,8 @@ export default [
         out.push(`${SHEETS[tier].label.padEnd(14)} ${line} m | ${keys.map(k => `${k} ${Math.round(fig[k] * 100)}/${fmt(rate[k] * 100, 1)}`).join(' | ')} | plaque ${pl.oddsText} ${plH.part} ${plH.oddsText}`);
         for (const k of keys) if (Math.abs(fig[k] - rate[k]) > 0.03) bad.push(`${tier} ${line} m ${k}: ${fig[k]} against ${rate[k]}`);
         if (Math.abs(pl.odds - fig.torso) > 1e-9 || Math.abs(plH.odds - fig.head) > 1e-9) bad.push(`${tier} plaque ${pl.odds} ${plH.odds}`);
-        const want = { recruit: [0.95, 0.80, 0.70, 0.50], private: [0.95, 0.95, 0.95, 0.80] }[tier] ?? [0.95, 0.95, 0.95, 0.95];
+        const sureOn = (part) => isMastered({ value: mrk, dc: dcOf({ rangeM: T.dM, part }).dc, mods: modsOf(s, pid, { gunId, target: T, part, held: { v: 0 } }) }) ? 1 : 0.95;
+        const want = { recruit: [0.95, 0.80, 0.70, 0.50], private: [0.95, 0.95, 0.95, 0.80] }[tier] ?? [sureOn('torso'), sureOn('torso'), sureOn('head'), sureOn('head')];
         if ([fig.torso, fig.A, fig.head, fig.plate].some((v, i) => Math.abs(v - want[i]) > 1e-9)) bad.push(`${tier} ${line} m: ${[fig.torso, fig.A, fig.head, fig.plate]} not ${want}`);
       }
       console.log('      the row\'s figure / the rate over 4,000 rolls (%), DC 6 torso and 12 head at 7 and 10 m, the SO-4 at 1× +1:');

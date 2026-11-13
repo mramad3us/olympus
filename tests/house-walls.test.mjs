@@ -66,7 +66,7 @@ const said = (o) => `${o.runs} lanes, ${o.ticks} ticks, 2 bodies a tick: ${o.bad
 
 export default [
   {
-    name: 'the plans\' authored points stand where the walker may, and every authored path routed is clear at C0 (the stack-to-threshold legs cut every jamb: routing goes round, keeping the plan\'s points)',
+    name: 'the plans\' authored points stand where the walker may, and every authored path routed is clear at C0, keeping the plan\'s points; from 2026-11-12 every authored leg is clear as drawn (each door\'s outer middle and a lane per slot), so routing keeps them all (before, the stack-to-threshold legs cut every jamb and routing went round)',
     fn() {
       const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private', setup: 'go' }), s = g.state, lane = lanePlanOf(s), G = openNavOf(lane.area, ROUTE_CLS), out = [], bad = [];
       let cut = 0, legs = 0;
@@ -86,7 +86,7 @@ export default [
         }
       }
       console.log(`      C0 ${CLASSES.C0} m; the authored legs not clear on the grid: ${cut} of ${legs}; routed: ${out.join(', ')}`);
-      assert(!bad.length && cut > 0, JSON.stringify({ bad: bad.slice(0, 4), cut }));
+      assert(!bad.length && cut === 0, JSON.stringify({ bad: bad.slice(0, 4), cut }));
     },
   },
   {

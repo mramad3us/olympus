@@ -61,7 +61,7 @@ import { BASE_RULES, doAct } from './instinct/base.js';
 import { GROOM_RULES } from './instinct/groom.js';
 import { RANGE_RULES } from './instinct/range.js';
 import { PAIRS_RULES } from './instinct/pairs.js';
-import { CQB_RULES } from './instinct/cqb.js';
+import { CQB_RULES, stopLead } from './instinct/cqb.js';
 import { rangeOf } from '../scenarios/handling.js';
 import { contactNow, pendingOf } from '../combat/contact.js';
 import { takeInWords } from '../combat/react.js';
@@ -75,12 +75,15 @@ const offPairs = (r) => (RANGE_OFF_PAIRS.has(r.id) ? Object.freeze({ ...r, when:
 /** The range's rules that keep quiet in the house (0.0.12): the tower's commands, the card and the bay's moves are the instructor's and the drill's there, and so is the muzzle (the bay's "downrange" is a bearing; in the house the muzzle's rule is the #2's flag, cqb-flag). */
 export const RANGE_OFF_HOUSE = Object.freeze(new Set(['range-cmd', 'range-kd', 'range-reload', 'range-fire', 'range-wait', 'range-muzzle']));
 // (a range rule kept quiet in the house: the same rule, its when() answering nothing there)
-/** The instructor's commands in the house that range-cmd still names off the lane (before GO and after it): LOAD, MAKE READY, UNLOAD, SHOW CLEAR. */
-export const HOUSE_CMDS = Object.freeze(new Set(['load', 'ready', 'clear']));
+/** The instructor's commands in the house that range-cmd still names off the lane (before GO and after it): LOAD, MAKE READY, UNLOAD, SHOW CLEAR, and Stop (Make safe, from the rework's R4). */
+export const HOUSE_CMDS = Object.freeze(new Set(['load', 'ready', 'clear', 'stop']));
 // (the fixer's of 0.0.12: range-cmd silenced in the whole house left LOAD, MAKE READY and UNLOAD with no line and T doing
 // nothing; on the lane, from GO to its end, it stays quiet: the drill's rules speak there)
 const houseOff = (R) => !(HOUSE_CMDS.has(R.cmd?.id) && !(R.house?.goAtMs !== null && R.house?.goAtMs !== undefined && !R.house?.end));
-const offHouse = (r) => (RANGE_OFF_HOUSE.has(r.id) ? Object.freeze({ ...r, when: (state, me, ms) => { const R = rangeOf(state); return R?.course === 'house' && (r.id !== 'range-cmd' || houseOff(R)) ? null : r.when(state, me, ms); } }) : r);
+// (2026-11-12, the rework's R4: after the lane's end, range-wait's "Wait" too, so T waits for the instructor's next command once
+// made safe: the honest bot's last dead end, "off the lane: Stop", 346 in 400 lanes)
+const houseWaits = (R, id) => id === 'range-wait' && !!R?.house?.end;
+const offHouse = (r) => (RANGE_OFF_HOUSE.has(r.id) ? Object.freeze({ ...r, when: (state, me, ms) => { const R = rangeOf(state); return R?.course === 'house' && !houseWaits(R, r.id) && (r.id !== 'range-cmd' || houseOff(R)) ? null : r.when(state, me, ms); } }) : r);
 /** Every rule the instinct weighs: the base's, the grooming's, the range's, then the pairs' (merged by tone in settle(): within a tone, in that order). */
 export const RULES = Object.freeze([...BASE_RULES, ...GROOM_RULES, ...RANGE_RULES.map(offHouse).map(offPairs), ...PAIRS_RULES, ...CQB_RULES]);
 /** The line's lead while stop motion holds time (VIEWS §7.4; the build sheet §8 item 10). */
@@ -194,7 +197,9 @@ export function instinctStep(state, input, bus, ctx) {
   const C = s.chip ? { id: s.chip.id, tone: s.chip.tone, short: s.chip.short ?? wordsOf(s.chip.rule, s.chip.ctx, s.chip.ms), act: s.chip.act, ms: s.chip.ms } : null;
   // (the contact's lead at a pause, until the first step chosen after it (see the header))
   const cl = contactLead(state, prev);
-  state.$instinct = { line: L.line, chip: C, keys: s.keys, queued: s.queued, gone: s.gone, humourAt: L.humourAt, atMs: ms, lead: stop && L.line ? cl.lead ?? STOP_LEAD : null, stopKey, leadDone: cl.done };
+  // (2026-11-12, the rework's R4: in the house every stop says why (COMBAT §25.19.4), the contact's take-in at its own pause)
+  const hl = stop ? stopLead(state, ms) : null;
+  state.$instinct = { line: L.line, chip: C, keys: s.keys, queued: s.queued, gone: s.gone, humourAt: L.humourAt, atMs: ms, lead: stop && L.line ? hl ?? cl.lead ?? STOP_LEAD : null, stopKey, leadDone: cl.done };
 }
 
 /** The line's lead at a contact's pause: "Contact · 0.55 s.", until a step is chosen after it (runtime: $instinct.leadDone, the contact whose lead has gone). */

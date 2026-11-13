@@ -11,7 +11,10 @@
 //             order, §3.4), whether the bolt holds open on the last round, whether the lever needs the
 //             hammer cocked to reach safe (the R-7's AR-pattern trait), whether it has a port cover,
 //             and how it shoots (rpm, recoil, loudness, accuracy, the unreliability and dust factors
-//             that multiply §4.3's rates). This round's cut is the R-7, the player's rifle.
+//             that multiply §4.3's rates). This round's cut is the R-7, the player's rifle, and from the shoot house's
+//             rework (R6, 2026-11-13; COMBAT §25.19.6) the P-12, the sidearm issued in close quarters from the Sergeant up:
+//             a striker pistol with a manual safety, its HAD-17 of 17, its irons (the RD-1P red dot waits: my call, so
+//             the shot's optic row stays the SO-4's alone).
 //   FAMILIES  box magazines (§3.3): the calibre, the rounds, the masses empty and full, the length and
 //             volume, a counter (a Hall sensor the HUD link reads) or a witness window.
 //   OPTICS    the optic as issued (§3.5): the SO-4, 1× to 4× on its throw lever (0.0.7: the lever, the
@@ -34,7 +37,7 @@ export const KINDS = Object.freeze({
   gl: Object.freeze({ word: 'a grenade launcher', baseDC: 4, sight: 1.30, turn: 0.80, hands: 2, aimToM: 400 }),
 });
 
-/** The models (WEAPONS §3.2, §3.8; this round the R-7): id → the model's record. */
+/** The models (WEAPONS §3.2, §3.8; the R-7, and the P-12 from the rework's R6): id → the model's record. */
 export const MODELS = Object.freeze({
   r7: Object.freeze({
     maker: 'had', name: 'an R-7 rifle', short: 'R-7', kind: 'rifle', cal: '6.5x40r', barrelMm: 460, feed: 'mag', fam: 'had30',
@@ -42,12 +45,22 @@ export const MODELS = Object.freeze({
     holdOpen: true, safeNeedsCocked: true, portCover: true, chamberSensor: true,
     massKg: 3.9, lenCm: 92, lenFoldCm: 85, rpm: 700, optic: 'so4', acc: 0, recoil: 0.70, loud: 1.4, unreliable: 1.0, dustK: 1.0, gloveK: 1.0,
   }),
+  // (WEAPONS §3.2's #1: 0.96 kg loaded with its usual 17, so 0.75 kg empty, the magazine weighed apart (kit.js itemKg; my call); no
+  // cyclic in the table (semi only), so the slide's cycle as a rate, 900 rounds a minute, for the splits' floor (shot.js fireMs; my call))
+  p12: Object.freeze({
+    maker: 'had', name: 'a P-12 pistol', short: 'P-12', kind: 'pistol', cal: '9x21r', barrelMm: 110, feed: 'mag', fam: 'had17',
+    fams: Object.freeze(['had17']), action: 'semi', safety: 'manual', ring: Object.freeze(['safe', 'semi']),
+    holdOpen: true, safeNeedsCocked: false, portCover: false, chamberSensor: false,
+    massKg: 0.75, lenCm: 19.5, rpm: 900, optic: null, acc: 0, recoil: 1.0, loud: 1.0, unreliable: 1.0, dustK: 1.0, gloveK: 0.5,
+  }),
 });
 
 /** Box magazines (WEAPONS §3.3): id → { word, cal, n, emptyG, fullG, lenCm, l, counter, window }. */
 export const FAMILIES = Object.freeze({
   had30: Object.freeze({ word: 'a HAD-30 magazine', cal: '6.5x40r', n: 30, emptyG: 120, fullG: 360, lenCm: 21, l: 0.27, counter: false, window: true }),
   had30c: Object.freeze({ word: 'a HAD-30C magazine', cal: '6.5x40r', n: 30, emptyG: 135, fullG: 375, lenCm: 21, l: 0.27, counter: true, window: true }),
+  // (WEAPONS §3.3: the P-12's, no counter)
+  had17: Object.freeze({ word: 'a HAD-17 magazine', cal: '9x21r', n: 17, emptyG: 80, fullG: 210, lenCm: 12, l: 0.06, counter: false, window: true }),
 });
 
 /** Optics (WEAPONS §3.5): the SO-4, its lever's two settings, the sight picture at each, its turrets and its reticle. */

@@ -106,7 +106,7 @@
 // stepper.js (begin, runSub, advance, endStep: the timing), this module its list handler (rifleSub, endSub, queueAfter,
 // the end's chained wait and reflex); scene-handling passes byte for byte through it. In the house (the live area is the
 // lane's: src/sim/combat/room.js lanePlanOf) stepsOf leads with the drill's rows (src/sim/combat/bundle.js: a halted
-// bundle's "Carry on", the rung's bundles at the lane's door, then the singles: Stack on the door, the door's rows, Watch,
+// bundle's "Carry on", the rung's bundles at the lane's door, then the singles: Stack up, the door's rows, Watch,
 // Look, Move, Hold it, "Clear!", Mark, the stances), after the contact's and the shot rows at a live pause; X at a door
 // below rung 2 is labelled "go: the clock runs, the keys move you"; a chosen bundle or single runs as a beat doing through
 // the stepper (bundle.js startBundle, startSingle, carryOn). targetsOf lists the session's turners wherever the session's
@@ -117,21 +117,21 @@
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { playerActor, playerId } from '../../core/ids.js';
-import { headOf, clearLine } from '../people/perception.js';
+import { headOf, clearLine, SEEN } from '../people/perception.js';
 import { sightGridOf } from '../places/sight.js';
 import { downOf } from '../body/wounds.js';
-import { isRoutine, oddsOf, TEMPO } from '../skills/checks.js';
+import { isRoutine, isMastered, oddsOf, TEMPO } from '../skills/checks.js';
 import { rollerOf } from '../combat/roll.js';
 import { suppMod, bandOf, SHAKING_ODDS, breatheOffer, breatheStart, breatheEnd, BREATHE_MS, BREATHE_SUB_MS } from '../combat/supp.js';
 import { stanceMs, WAIT_MAX_MS, STANCES, stanceStep } from '../combat/steps.js';
 import { gravityAt } from '../places/env.js';
 import { offerReflex, chosenReflex } from '../combat/reflex.js';
-import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, HELD_MAX, poiOf, holdFor, holdWords, windBeliefOf, HOLD_STEP_MRAD, HOLD_MAX_MRAD, HOLD_SHIFT_MS } from './shot.js';
+import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, HELD_MAX, poiOf, holdFor, holdWords, windBeliefOf, HOLD_STEP_MRAD, HOLD_MAX_MRAD, HOLD_SHIFT_MS, catchAhead, shotIdNext } from './shot.js';
 import { canDo, doAction, beliefOf, actionMs, REFUSALS, sayObserved, actionOf, actionKey, actionPlace, dial, dialMs, opticMs, readMs, setOptic, believeZero, beliefZero, sightOf, TURRET_MAX_CLK } from './firearms.js';
 import { readWind } from './wind.js';
 import { clickWords } from './paper.js';
 import { paceOf } from '../skills/skills.js';
-import { handMagOf, pickMag, pouchOf, atFeetOf, meantLoad, believedN, believedKind } from './kit.js';
+import { handMagOf, handGunOf, pickMag, pouchOf, atFeetOf, meantLoad, believedN, believedKind } from './kit.js';
 import { modelOf } from './models.js';
 import { macrosFor, subsOf, macroMs, MACROS } from './drills.js';
 import { POSTURES } from './carry.js';
@@ -144,16 +144,18 @@ import { soil } from '../body/body.js';
 import { areaOf } from '../places/model.js';
 import { logEntry } from '../log.js';
 import { lineReady, recordShot, recordEjects, recordDischarge, afterStep, aheadOf, coachOf, rangeOf, markOfMacro, onStepStart, noteTick, magSeated, oneMagWarn, kindWarn, spoutCheck } from '../scenarios/handling.js';
-import { turnerTargets } from './turners.js';
-import { shotRows, reloadRows, rowPlan, keptPlan, runRowSub, endRowSub, RELOAD_PURPOSE, rungOfShooter, RUNG_AIM, halfOrLess, fullerAtHand, ROWS } from './specials.js';
+import { turnerTargets, facingOf } from './turners.js';
+import { shotRows, reloadRows, rowPlan, keptPlan, runRowSub, endRowSub, RELOAD_PURPOSE, rungOfShooter, RUNG_AIM, halfOrLess, fullerAtHand, ROWS, stanceHint } from './specials.js';
 import { contactRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive, CONTACT_LABELS } from '../combat/contact.js';
+import { contactOf } from '../people/mind.js';
 import { useList, begin, advance, endStep, stepFact } from '../combat/stepper.js';
-import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant, wayOf, pathFrom } from '../combat/bundle.js';
-import { clipped } from '../combat/route.js';
+import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant, wayOf, pathFrom, feetTo, flowIn, flowAfter, crossTick, mineUp, doorNow, preGoRows } from '../combat/bundle.js';
+import { clipped, lineClear } from '../combat/route.js';
 import { rungOf } from '../skills/templates.js';
 import { MOVE_STANCES, gaitsOf } from '../body/motion.js';
 import { profileOf, pathLen } from '../combat/stepper.js';
-import { legsHere } from '../places/move.js';
+import { cardOptions, weaponList, weaponRows, offlineFeet, sidearmSub, sidearmEnd, adminSubs, adminMs } from './sidearm.js';
+import { legsHere, coastTo, throughNow } from '../places/move.js';
 
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 /** A heading as a sprite's facing. */
@@ -180,6 +182,11 @@ export const LABELS = Object.freeze({
   read: 'Read the flags', 'optic:1': 'One power', 'optic:4': 'Four power', 'hold:centre': 'Hold centre', 'sight:call': 'Dial the coach\'s call',
   // (0.0.10: Breathe (see the header))
   breathe: 'Breathe',
+  // (the rework's R6: the stoppage's answers and the sidearm (arms/sidearm.js))
+  'call:gundown': '"Gun down!"', 'call:gunup': '"Gun up!"', 'call:stoppage': '"Stoppage!"', 'call:up': '"Up!"', 'wait:up': 'On a knee: wait for "Up."',
+  'step:wall': 'Step to the wall', hang: 'Let it hang', 'draw:thigh': 'Draw the pistol', holster: 'Holster it', 'team:cover': 'Cover his sector',
+  'weapon:gun-down': 'Gun down', 'weapon:offline': 'Off the line', 'weapon:transition': 'Transition: pistol', 'weapon:rifle-up': 'Rifle up',
+  'pistol:ready': 'The pistol: rack, safe, holster', 'pistol:clear': 'The pistol: clear, holster',
 });
 /** Breathe's four sub-steps' words, in order (box breathing: in, hold, out, hold). */
 export const BREATHE_WORDS = Object.freeze(['Breathe in.', 'Hold it.', 'Breathe out.', 'Hold it.']);
@@ -219,8 +226,8 @@ export const STANCE_KEYS = Object.freeze({ up: 'A', down: 'W' });
 
 const meOf = (state) => playerActor(state);
 const gunOf = (state, gunId) => state.items?.[gunId] ?? null;
-/** The rifle a person carries, if any: kit.worn.sling (WEAPONS: the rifle stays worn.sling whatever its posture). */
-export const gunOn = (state, pid) => state.people?.[pid]?.kit?.worn?.sling ?? null;
+/** The gun a person uses, if any: one held in a hand (the P-12 drawn, the rework's R6: kit.js handGunOf), else the rifle, kit.worn.sling (WEAPONS: the rifle stays worn.sling whatever its posture). */
+export const gunOn = (state, pid) => handGunOf(state, pid) ?? state.people?.[pid]?.kit?.worn?.sling ?? null;
 const postureOf = (state, pid) => state.people?.[pid]?.kit?.carry?.posture ?? 'slungFront';
 const setPosture = (state, pid, posture) => { const k = state.people?.[pid]?.kit; if (k) (k.carry ??= {}).posture = posture; };
 const setFinger = (state, pid, finger) => { const k = state.people?.[pid]?.kit; if (k) (k.carry ??= {}).finger = finger; };
@@ -292,10 +299,12 @@ export function targetsOf(state, pid = playerId(state)) {
   else {
     const R = rangeOf(state);
     // (only a man you could see: a clear line from you, and turned toward you at least in part; an edge-on card behind a
-    // trigger, or one beyond a wall, is not yet a target to aim at, so nothing is aimed before its take-in)
+    // trigger, or one beyond a wall, is not yet a target to aim at, so nothing is aimed before its take-in. The line is the
+    // sight grid's, or, where its 0.25 m cells block a line the walls themselves leave open (a jamb's cell, from a doorway's
+    // outer half), the walls' own (route.js lineClear: 2026-11-12, the shoot house's rework R1, the walkable lanes))
     const grid = R?.turners?.length && R.area === area ? sightGridOf(state, area) : null;
     if (grid) for (const t of turnerTargets(state, state.clock.ms)) {
-      if (!inLeadFrame(me, t.x, t.z, half) || !(t.facingK > 0) || !clearLine(grid, me.x, me.z, t.x, t.z, 'stand')) continue;
+      if (!inLeadFrame(me, t.x, t.z, half) || !(t.facingK > 0) || !(clearLine(grid, me.x, me.z, t.x, t.z, 'stand') || lineClear(state, [me.x, me.z], [t.x, t.z], { area }))) continue;
       out.push({ ...t, dM: Math.hypot(t.x - me.x, t.z - me.z), name: t.name ?? `the target, lane ${t.lane}` });
     }
   }
@@ -394,14 +403,16 @@ const subOdds = (roller, action, pressure = 'evaluated') => {
   const A = actionOf(action);
   if (!A || A.dc === undefined || A.dc === null) return { odds: null, routine: null };
   const wh = roller.value('weapons'), mods = roller.mods('weapons');
-  return { odds: oddsOf(wh, A.dc, mods), routine: isRoutine({ value: wh, dc: A.dc, mods, pressure, procedure: true }) };
+  const routine = isRoutine({ value: wh, dc: A.dc, mods, pressure, procedure: true });
+  // (where a natural 1 would be caught by mastery (SKILLS §5.1) the row says "sure" (VIEWS §7.4), its odds out of the product)
+  return { odds: oddsOf(wh, A.dc, mods), routine, sure: !routine && isMastered({ value: wh, dc: A.dc, mods }) };
 };
 const actionStep = (state, roller, gun, action, kind = 'single') => {
   const o = subOdds(roller, action);
   return { id: action, kind, label: LABELS[action] ?? action, ms: actionMs(roller, gun, action, { tempo: 'normal' }),
     rushMs: tempoOk(action, 'rushed') ? actionMs(roller, gun, action, { tempo: 'rushed' }) : null,
     carefulMs: tempoOk(action, 'careful') ? actionMs(roller, gun, action, { tempo: 'careful' }) : null,
-    odds: o.routine ? null : o.odds, routine: o.routine, off: null, subs: [{ id: action, label: LABELS[action] ?? action, ms: actionMs(roller, gun, action, { tempo: 'normal' }) }], cmd: false, skill: o.odds === null ? null : 'weapons' };
+    odds: o.routine || o.sure ? null : o.odds, routine: o.routine, ...(o.sure ? { sure: true } : {}), off: null, subs: [{ id: action, label: LABELS[action] ?? action, ms: actionMs(roller, gun, action, { tempo: 'normal' }) }], cmd: false, skill: o.odds === null ? null : 'weapons' };
 };
 
 // (what a reach's row says it would bring, as believed: "(5 ball)", "(5)", "(a few)", "(?)")
@@ -567,10 +578,13 @@ export const inHouse = (state) => { const L = laneOf(state); return !!L && !!L.a
 // (the drill's rows in the house: { rows, go } (go: X at a door below rung 2, the keys' walk in))
 function houseRows(state, pid, ms) {
   const carry = carryRow(state, pid, ms), b = bundleRows(state, pid, ms), sg = singleRows(state, pid, ms);
-  const rows = [...(carry ? [carry] : []), ...b, ...sg];
+  // (the catalogue's greyed rows (above the rung, the breach with no charge) page last, after X: shown, never in the way;
+  // the stances' rows say what they trade where they are chosen (specials.js stanceHint))
+  for (const r of [...b, ...sg]) if (r.stance) r.hint = stanceHint(state, pid, r.stance);
+  const rows = [...(carry ? [carry] : []), ...b.filter(r => !r.later), ...sg], grey = b.filter(r => r.later);
   // (at a door below rung 2: outside the room, X is the walk in by the keys)
   const go = rungOf(state, pid, 'room') < 2 && sg.some(r => r.kind === 'watch');
-  return { rows, go };
+  return { rows, go, grey };
 }
 
 /** The steps the panel offers now (see the header). */
@@ -591,18 +605,22 @@ export function stepsOf(state, ms = state.clock.ms) {
   const wait = { id: 'wait', kind: 'wait', label: waitLabel, ms: WAIT_MAX_MS, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
   // (0.0.12: in the house, the drill's rows; X at a door below rung 2 says what it does (see the header))
   // (the drill's rows only on the lane, from GO to its end: before GO and after it the instructor's commands are the panel's
-  // (the fixer's of 0.0.12: at LOAD the panel led with "Stack on the door" and T walked a cold rifle to room 1))
+  // (the fixer's of 0.0.12: at LOAD the panel led with "Stack up" and T walked a cold rifle to room 1))
   const house = inHouse(state) && laneLive(R0), hRows = house ? houseRows(state, pid, ms) : null;
   const leave = { id: 'leave', kind: 'leave', label: hRows?.go ? 'go: the clock runs, the keys move you' : LABELS.leave, ms: 0, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
   // (0.0.10: Breathe where the model offers it: fixed with nothing facing you, a single marked "! he's up" with a threat up (see the header))
   const br = breatheRow(state, pid, ms);
-  if (slung(posture)) return shaking(roller, [...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, ...(br?.later ? [br] : []), wait, leave]);
+  if (slung(posture)) return shaking(roller, [...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, ...(br?.later ? [br] : []), wait, leave, ...(hRows?.grey ?? [])]);
   // (1 Fire: at the aim, the gun as the holder believes it)
   const aimT = S.aim ? targetOf(state, S.aim.key, pid) : null, pull = pullMsOf(state, pid, S.gun);
   const h = aimT ? heldOf(state, pid, ms, aimT.key) : null;
   // (at a contact's pause with the man facing and standing: the panel is the contact's (see the header))
   const live = S.via === 'contact' && contactLive(state, ms), stepwise = live && rungOfShooter(state, pid) < RUNG_AIM;
-  const fireOff = stepwise && belief.mode === 'safe' ? 'off safe first' : !aimT ? 'aim first' : belief.mode === 'safe' ? 'on safe' : belief.chamber === 'empty' ? 'chamber empty' : (belief.stoppage || belief.chamber === 'dud' || belief.chamber === 'case') ? 'a stoppage' : null;
+  // (in the house a man down is struck "he is down": no round for a man the sensor dropped (the play review of 2026-11-13:
+  // "Fire at the far left target 95%" stayed live on the private's man down, and the extra round read as a natural 20 into the berm))
+  // (and at the hostage card Fire, a round at the torso, is struck "head only" as the torso rows are: To the head or Hold (the
+  // design review of 2026-11-13: "Fire at the hostage card 95%" live under "Head only, or hold"))
+  const fireOff = aimT?.kind === 'turner' && aimT.down && aimT.room !== undefined ? 'he is down' : aimT?.kind === 'turner' && aimT.face === 'hostage' && aimT.room !== undefined ? 'head only' : stepwise && belief.mode === 'safe' ? 'off safe first' : !aimT ? 'aim first' : belief.mode === 'safe' ? 'on safe' : belief.chamber === 'empty' ? 'chamber empty' : (belief.stoppage || belief.chamber === 'dud' || belief.chamber === 'case') ? 'a stoppage' : null;
   const pl = aimT ? plaqueOf(state, pid, { target: aimT, ms }) : null;
   const fire = { id: 'fire', kind: 'fire', label: aimT ? `Fire at ${aimT.name}` : LABELS.fire, ms: pull.ms, rushMs: Math.round(pull.ms * TEMPO.rushed.timeK),
     carefulMs: h && h.v < HELD_MAX ? (h.toFullMs ?? 0) + pull.ms : null, odds: pl?.odds ?? null, routine: false, off: fireOff, subs: [{ id: 'fire', label: LABELS.fire, ms: pull.ms }], cmd: false, skill: 'marksmanship', target: aimT?.key ?? null };
@@ -650,7 +668,7 @@ export function stepsOf(state, ms = state.clock.ms) {
   if (S.queue?.length) {
     const q = S.queue, ms = q.reduce((t, a) => t + actionMs(roller, gun, a, { tempo: 'normal' }), 0);
     let odds = 1, routine = true;
-    for (const a of q) { const o = subOdds(roller, a); if (o.odds !== null && !o.routine) { odds *= o.odds; routine = false; } }
+    for (const a of q) { const o = subOdds(roller, a); if (o.odds !== null && !o.routine && !o.sure) { odds *= o.odds; routine = false; } }
     out.push({ id: 'queue', kind: 'command', label: `Carry on: ${q.map(a => LABELS[a] ?? a).join(', ')}`, ms, rushMs: null, carefulMs: null, odds: routine ? null : odds, routine, off: null,
       subs: q.map(a => ({ id: a, label: LABELS[a] ?? a, ms: actionMs(roller, gun, a, { tempo: 'normal' }) })), cmd: false, skill: 'weapons', macro: null, queue: [...q] });
   }
@@ -660,7 +678,7 @@ export function stepsOf(state, ms = state.clock.ms) {
   if (dry >= 0) out.unshift(...macros.splice(dry, 1));
   // (a man facing you: the commands that are no answer to him wait after the singles; Top up stays where it answers, at
   // half or less with a fuller one at hand (the runtime review: "Top up 4.2 s" fifth with a full magazine in))
-  const answers = (r) => r.queue || r.cmd || r.purpose === 'speed' || r.purpose === 'retain' || (r.purpose === 'tactical' && halfOrLess(belief) && fullerAtHand(state, pid, S.gun, belief));
+  const answers = (r) => r.queue || r.cmd || r.purpose === 'speed' || r.purpose === 'retain' || (r.purpose === 'tactical' && halfOrLess(belief, gun) && fullerAtHand(state, pid, S.gun, belief));
   // (0.0.12: on the house's lane too, where no command is given until Stop: UNLOAD and a Top up with nothing to gain page with
   // the rest, so the stack, the door and the Watches hold the first keys at GO)
   const later = live || hRows ? macros.filter(r => !answers(r)).map(r => Object.assign(r, { later: true })) : [];
@@ -686,7 +704,13 @@ export function stepsOf(state, ms = state.clock.ms) {
   for (const a of singles) if (a.startsWith('posture:')) out.push(actionStep(state, roller, gun, a, 'posture'));
   if (mw) out.push({ ...wait, id: 'wait:mark', label: LABELS['wait:mark'], ms: MARK_WAIT_MS });
   if (struckLast) out.push(Object.assign(fire, { later: true }), Object.assign(aimRow, { later: true }));
-  out.push(wait, leave);
+  // (the rework's R6: the weapon group's rows in the house (arms/sidearm.js weaponRows): a lead row first of all (Rifle up with
+  // nobody facing, Transition with a threat close, Gun down, Cover his sector), the rest before Wait, the later ones after it)
+  const wRows = inHouse(state) ? weaponRows(state, pid, ms) : [];
+  out.unshift(...wRows.filter(r => r.lead));
+  // (before GO in the house: Back on your mark and Careful, the body's part of MAKE READY (bundle.js preGoRows))
+  const pre = inHouse(state) && R0?.course === 'house' && !R0.end ? preGoRows(state, pid, ms) : [];
+  out.push(...pre, ...wRows.filter(r => !r.lead && !r.later), wait, leave, ...wRows.filter(r => !r.lead && r.later), ...(hRows?.grey ?? []));
   // (a reach's row says what it would bring; a step that would seat another magazine mid-string is marked, not struck)
   for (const st of out) if (actionKey(st.id) === 'reach' && actionPlace(st.id)) st.label = reachLabel(state, pid, gun, st.id);
   const hold = handMagOf(state, pid)?.id ?? null;
@@ -736,14 +760,16 @@ function shaking(roller, out) {
  * SHOW CLEAR is marked (the runtime review: two rows marked, the first costing 4.1 s of the pace scored).
  */
 export function macroRow(state, roller, gun, belief, m) {
-  const subs = subsOf(m.id, belief), now = rangeOf(state)?.cmd?.id ?? null;
+  // (the rework's R6: MAKE READY, UNLOAD and SHOW CLEAR cover a P-12 in the holster too, the pistol last (arms/sidearm.js adminSubs))
+  const pid = state.stop?.who ?? roller?.pid ?? null, extra = pid ? adminSubs(state, pid, m.id) : [], extraMs = extra.reduce((t, a) => t + adminMs(state, pid, a), 0);
+  const subs = [...subsOf(m.id, belief), ...extra], now = rangeOf(state)?.cmd?.id ?? null;
   let odds = 1, routine = true;
-  for (const a of subs) { const o = subOdds(roller, a); if (o.odds !== null && !o.routine) { odds *= o.odds; routine = false; } }
+  for (const a of subs) { const o = subOdds(roller, a); if (o.odds !== null && !o.routine && !o.sure) { odds *= o.odds; routine = false; } }
   const rushable = subs.some(a => tempoOk(a, 'rushed')), careful = subs.some(a => tempoOk(a, 'careful'));
   const mark = markOfMacro(m.id);
-  return { id: `macro:${m.id}`, kind: 'command', label: m.label, ms: m.ms ?? macroMs(roller, gun, m.id, belief, 'normal'),
-    rushMs: rushable ? macroMs(roller, gun, m.id, belief, 'rushed') : null, carefulMs: careful ? macroMs(roller, gun, m.id, belief, 'careful') : null,
-    odds: routine ? null : odds, routine, off: null, subs: subs.map(a => ({ id: a, label: LABELS[a] ?? a, ms: actionMs(roller, gun, a, { tempo: 'normal' }) })),
+  return { id: `macro:${m.id}`, kind: 'command', label: m.label, ms: (m.ms ?? macroMs(roller, gun, m.id, belief, 'normal')) + extraMs,
+    rushMs: rushable ? macroMs(roller, gun, m.id, belief, 'rushed') + extraMs : null, carefulMs: careful ? macroMs(roller, gun, m.id, belief, 'careful') + extraMs : null,
+    odds: routine ? null : odds, routine, off: null, subs: subs.map(a => ({ id: a, label: LABELS[a] ?? a, ms: extra.includes(a) ? adminMs(state, pid, a) : actionMs(roller, gun, a, { tempo: 'normal' }) })),
     cmd: !!now && (Array.isArray(mark) ? mark.includes(now) : mark === now), skill: 'weapons', macro: m.id };
 }
 
@@ -766,9 +792,17 @@ export function stepNow(state, pid = playerId(state), ms = state.clock.ms) {
 /** Begin a step (the panel's or a live one): its first sub-step rolled and applied at the clock. */
 function startStep(state, bus, st, { tempo = 'normal', target = null, mode = 'stop' } = {}) {
   const S = state.stop, now = state.clock.ms;
+  // (the rework's R2: the feet of the row before still running, the body put where they have it now, the row planned from there)
+  feetTo(state, now);
+  // (2026-11-12, R3: a suspended flow taken up beside the step, on the hands, or halted for a step that needs the feet; a shot's
+  // "stop here" halts it and plants (bundle.js flowIn; specials.js's feet))
+  const way0 = st.kind === 'shot' ? st.way ?? null : null, fl = flowIn(state, bus, st, way0);
+  if (st.kind === 'shot' && S.variant?.feet) { delete S.variant.feet; if (!Object.keys(S.variant).length) delete S.variant; }
+  // (a "stop here" is planted where the body stands, by the player's choice: never carried through a doorway (2026-11-13, R8b))
+  const way = way0;
   // (0.0.8: a shot row's parts, planned at its start (specials.js rowPlan); the row's off safe at no time from rung 2)
-  const plan = st.kind === 'shot' ? rowPlan(state, S.who, st.id, targetOf(state, st.target, S.who), { tempo, atMs: now, gunId: S.gun, odds: false }) : null;
-  const list = st.queue ? [...st.queue] : plan ? plan.parts.map(p => p.k) : st.kind === 'command' ? subsOf(st.macro, beliefOf(state, S.gun))
+  const plan = st.kind === 'shot' ? rowPlan(state, S.who, st.id, targetOf(state, st.target, S.who), { tempo, atMs: now, gunId: S.gun, odds: false, ...(way ? { way } : {}) }) : null;
+  const list = st.queue ? [...st.queue] : plan ? plan.parts.map(p => p.k) : st.kind === 'command' ? [...subsOf(st.macro, beliefOf(state, S.gun)), ...adminSubs(state, S.who, st.macro)]
     : st.kind === 'fire' ? (tempo === 'careful' ? ['hold', 'fire'] : ['fire']) : st.kind === 'contact' && st.subs?.length ? st.subs.map(x => (typeof x === 'string' ? x : x.id))
     : st.kind === 'breathe' ? Array.from({ length: Math.round(BREATHE_MS / BREATHE_SUB_MS) }, () => 'breathe') : [st.id];
   const t = (tempo === 'careful' && (st.kind === 'fire' || st.kind === 'shot')) || st.kind === 'breathe' ? 'normal' : tempo;
@@ -776,12 +810,16 @@ function startStep(state, bus, st, { tempo = 'normal', target = null, mode = 'st
   const d = { who: S.who, step: st.id, kind: st.kind, tempo: t, list, subs: [], i: 0, fromMs: now, subFromMs: now, untilMs: now, cmd: st.cmd ? rangeOf(state)?.cmd?.id ?? null : null,
     chain: false, target: target ?? st.target ?? null, taps: 0 };
   if (S.feet) S.feet = null;
+  // (the stop's why reads what was begun last (cqb.js stopLead; the rework's R4): in the house only, so every other scene's bytes stand)
+  if (rangeOf(state)?.course === 'house') S.last = { step: st.id, bundle: null, door: null, atMs: now };
   if (plan) {
     d.plan = keptPlan(plan);
     const g = gunOf(state, S.gun);
     if (plan.offSafe && g) g.mode = 'semi';
-    // (0.0.12: a row fired moving on keeps the feet on the rest of the path; planted, they brake to a stop (specials.js))
-    if (plan.way) S.feet = rowFeet(state, S.who, plan.way, now);
+    // (0.0.12: a row fired moving on keeps the feet on the rest of the path; planted, they brake to a stop (specials.js); inside
+    // a flow the feet are the flow's (2026-11-12, R3))
+    if (plan.way && fl !== 'flow') S.feet = rowFeet(state, S.who, plan.way === 'point' ? 'planted' : plan.way, now);
+    if (plan.way === 'stop') d.still = true;
   }
   // (the stepper (src/sim/combat/stepper.js) sets it doing, releases 'stop', rolls its first sub-step at the clock: begin)
   return begin(state, bus, d, { mode, text: st.label ?? st.id });
@@ -789,29 +827,44 @@ function startStep(state, bus, st, { tempo = 'normal', target = null, mode = 'st
 
 // (the feet under a moving or a planted row: the rest of the cut entry at the stance's walk, or a stop along the heading)
 function rowFeet(state, pid, way, now) {
+  // (a moving body first brought to its place now by the brake (move.js coastTo, the rework's R2): a body a tick behind stood still that tick)
+  if (meOf(state)) coastTo(state, pid, meOf(state), now);
   const me = meOf(state), v = Math.hypot(me?.v?.[0] ?? 0, me?.v?.[1] ?? 0);
   if (!me || v <= 0) return null;
   const head = Math.atan2(me.v[1], me.v[0]), L = legsHere(state, pid, me.x, me.z), cut = Object.values(state.stop?.carry?.paths ?? {})[0] ?? null;
   const walk = gaitsOf(state, pid, { gait: me.moveStance ?? 'combat' }).walkMs;
   // (moving on: the rest of the cut path from where the body is, routed round the walls; planted: the brake along the
   // heading, cut short at a wall (route.js; the user, 2026-11-11: "Operators path through walls when automatic pathing"))
+  // (2026-11-13, R8b: a brake that would leave the body at rest in a doorway carries it through instead (places/move.js
+  // throughNow: to the man's point on his lane, or clear of the zone), moving on or planted; "stop here" brakes where it stands)
+  const thr = way !== 'stop' && !(way === 'moving' && cut) ? throughNow(state, pid, me, now) : null;
+  if (thr) return { ...thr, id: 'feet', way };
   const brake = [me.x + Math.cos(head) * v * v / (2 * L.brakeMs2), me.z + Math.sin(head) * v * v / (2 * L.brakeMs2)];
   const path = way === 'moving' && cut ? wayOf(state, pathFrom(cut, [me.x, me.z])) : [[me.x, me.z], clipped(state, [me.x, me.z], brake)];
   const P = way === 'moving' ? profileOf(pathLen(path), Math.max(v, walk), L.pushMs2, L.brakeMs2, { v0: v, v1: 0 }) : profileOf(pathLen(path), v, L.pushMs2, L.brakeMs2, { v0: v, v1: 0 });
-  return { id: 'feet', k: 'move', ch: 'feet', stance: me.moveStance ?? 'combat', path: path.map(p => [q(p[0], 0.0001), q(p[1], 0.0001)]), prof: P, fromMs: now, untilMs: now + Math.round(P.T * 1000), way };
+  return { id: 'feet', k: 'move', ch: 'feet', stance: me.moveStance ?? 'combat', path: path.map(p => [q(p[0], 0.0001), q(p[1], 0.0001)]), prof: P, fromMs: now, untilMs: now + Math.round(P.T * 1000), way, ...(way === 'stop' ? { still: true } : {}) };
 }
 
+// (a round's marks on its sub-step (stepper.js markOf): caught, a natural 20, the click or a jam a stoppage, never a fumble)
+function shotMarks(rec, shot) {
+  if (shot.roll?.caught) rec.caught = true;
+  else if (shot.roll?.nat === 20) rec.star = true;
+  if (!shot.fired || shot.stoppage) rec.stop = true;
+}
 /** Roll and apply sub-step i at atMs (its boundary; the stepper's runSub times it): its effects at once, the rest at its end. Returns { rec, text, extra }. */
 function rifleSub(state, bus, d, i, atMs) {
   const S = state.stop, pid = S.who, gunId = S.gun, me = meOf(state), id = d.list[i];
   const rec = { action: id, ms: 0, ok: null, grade: null, routine: null, mishap: null };
   let text = LABELS[id] ?? id;
-  if (d.plan && (id === 'press' || id === 'round' || id === 'shift' || id === 'brake')) {
+  // (the rework's R6: the weapon rows' own sub-steps (the calls, the knee's wait, the step, the draw: arms/sidearm.js))
+  const own = sidearmSub(state, bus, d, i, atMs);
+  if (own) return { rec: own.rec, text: own.text, extra: null };
+  if (d.plan && (id === 'press' || id === 'round' || id === 'shift' || id === 'brake' || id === 'line' || id === 'out' || id === 'plant' || id === 'catch')) {
     // (0.0.8: a shot row's part (specials.js): the finger on for the press and the rounds)
-    if (id !== 'shift' && id !== 'brake') setFinger(state, pid, 'on');
+    if (id !== 'shift' && id !== 'brake' && id !== 'plant' && id !== 'out' && id !== 'catch') setFinger(state, pid, 'on');
     const r = runRowSub(state, bus, d, i, atMs);
     rec.ms = r.ms; text = r.text;
-    if (r.shot) { rec.shot = r.shot.id; rec.ok = r.shot.fired; }
+    if (r.shot) { rec.shot = r.shot.id; rec.ok = r.shot.fired; shotMarks(rec, r.shot); }
   } else if (id.startsWith('contact:')) {
     // (0.0.8: a contact's row (contact.js): Hold him's hold is the hold below; the challenge is its own)
     const r = runContactSub(state, bus, d, id, atMs) ?? { ms: 0, text: id };
@@ -830,11 +883,19 @@ function rifleSub(state, bus, d, i, atMs) {
   } else if (id === 'hold') {
     const h = S.aim ? heldOf(state, pid, atMs, S.aim.key) : null;
     rec.ms = h?.toFullMs ?? 0;
+  } else if (id === 'catch') {
+    // (a natural 1 the shooter has mastered, caught before the round leaves (SKILLS §5.1): its time, then the round)
+    rec.ms = d.catchMs ?? 0; text = 'Caught: the round late.';
   } else if (id === 'fire') {
     const T = S.aim ? targetOf(state, S.aim.key, pid) : null;
     setFinger(state, pid, 'on');
-    const { ms, shot } = resolveShot(state, bus, { pid, gunId, target: T, tempo: d.tempo });
-    rec.ms = ms; rec.shot = shot.id; rec.ok = shot.fired;
+    // (the catch looked at before the round leaves (shot.js catchAhead): a 'catch' sub-step spliced in before it, once)
+    const c = T && !d.caughtFire ? catchAhead(state, { pid, gunId, target: T, tempo: d.tempo, atMs }) : 0;
+    if (c > 0) { d.caughtFire = true; d.catchMs = c; d.catchId = shotIdNext(state); d.list.splice(i, 0, 'catch'); rec.action = 'catch'; rec.ms = c; text = 'Caught: the round late.'; return { rec, text }; }
+    const foreseen = d.catchId ?? null;
+    if (foreseen) delete d.catchId;
+    const { ms, shot } = resolveShot(state, bus, { pid, gunId, target: T, tempo: d.tempo, ...(foreseen ? { foreseen } : {}) });
+    rec.ms = ms; rec.shot = shot.id; rec.ok = shot.fired; shotMarks(rec, shot);
     recordShot(state, bus, shot);
     if (S.aim && shot.fired) S.aim.settledMs = atMs + ms;
     if (!shot.fired) d.gunStop = 'click';
@@ -909,6 +970,8 @@ function rifleSub(state, bus, d, i, atMs) {
     // (a refusal the hand feels at once (the lever on a dead hammer, no magazine to put in) is said, not only halted)
     if (r.refused && r.text) bus?.emit('line', { text: r.text, kind: 'warn' });
     Object.assign(rec, { ms: r.ms ?? 0, ok: r.ok ?? null, grade: r.grade ?? null, routine: r.routine ?? null, mishap: r.mishap ?? null });
+    if (r.caught) rec.caught = true;
+    if (r.clean) rec.clean = true;
     if (r.text) text = r.text;
     if (r.halts) d.halt = true;
     if (r.nd) d.nd = r.nd;
@@ -956,6 +1019,7 @@ function endSub(state, bus, d) {
     delete d.say;
   } else if (id && id.startsWith('contact:')) endContactSub(state, bus, d, id);
   else if (d.plan && id === 'shift') endRowSub(state, bus, d);
+  if (d.kind === 'weapon') sidearmEnd(state, bus, d, id);
 }
 
 /**
@@ -988,7 +1052,14 @@ function afterEnd(state, bus, d, why = 'end') {
   if (state.stop !== S) return;                                     // (the scene ended the mode: the line clear, or stopped)
   // (0.0.8: while a contact's window is open no step's end holds time: the window runs at 1:1 to its pause (see the header))
   const windowOpen = !!pendingOf(state);
+  // (2026-11-12, R3: the step ran inside a flow: the drill goes on by itself unless a decision is owed (bundle.js flowAfter))
+  if (S.flow && flowAfter(state, bus, d, why, { owed: windowOpen || !!S.reflex })) return;
   if (why === 'stop' && d.gunStop) {
+    // (a row stopped by its gun: the muzzle stays on the row's man through the immediate action, not on the heading the feet
+    // last had (2026-11-12, the shoot house's rework R1: the tier one's dummy click in room 2's doorway on his lane left the
+    // rifle aimed down the lane, across his #2 on his point, for the 0.85 s of tap, rack: a muzzle fault by T))
+    const me = meOf(state), T = d.plan && d.target ? targetOf(state, d.target, S.who) : null;
+    if (me && T) { me.headRad = q(Math.atan2(T.z - me.z, T.x - me.x), 1e-6); me.face = faceOfHead(me.headRad); }
     S.phase = 'choose';
     if (!windowOpen) holdTime(state, 'stop');
     offerGunStop(state, bus, d.gunStop);
@@ -1006,9 +1077,31 @@ function afterEnd(state, bus, d, why = 'end') {
   // on" (COMBAT §25.5.3); one he still faces leaves the choice to you, and so does a decision the bundle handed back (a door it
   // does not take, one that will not open: the fixer's of 0.0.12, a moving-on round walked the tier one past room 2's closet)
   if (why === 'end' && d.plan?.way === 'moving' && S.carry && !ASKS.has(S.carry.why) && !windowOpen && !contactLive(state, t) && carryOn(state, bus, S.who).ok) return;
+  // (and from rung 2 any shot row that ends with nobody of your corner up, planted too: the bundle halted under it (a contact, a
+  // Gun down that knelt) goes on as the flow does (COMBAT §25.19.4: "a shot row ends, nobody up: no stop at rung 2 and up"; the
+  // rework's R9, 2026-11-13: the corporal's pair after Gun down on seed 2295 stopped on "Carry on", F12)
+  // (never after "Stop here": the player's own choice to stand, the one way left to stand in a door (R8b))
+  if (why === 'end' && /^(shot:|fire$)/.test(String(d.step)) && d.plan?.way !== 'stop' && inHouse(state) && rungOf(state, S.who, 'room') >= 2 && S.carry && !ASKS.has(S.carry.why) && !windowOpen && !S.reflex && !contactLive(state, t) && !mineUp(state, t).length && carryOn(state, bus, S.who).ok) return;
+  // (2026-11-12, the rework's R4: in the house the bracket goes to the man of your corner still up and in the frame, when it
+  // sits on one down, turned away or a no-shoot: the shot row is then on him, one press (the gauges' F13: Aim, then the row))
+  if (inHouse(state)) rebracket(state);
   if (!windowOpen) holdTime(state, 'stop');
 }
 
+/** The bracket onto the man of your corner up, facing and in the rifle's frame where it sits on nobody who answers (a man down, turned away, a no-shoot or none): the house's (see afterEnd). */
+export function rebracket(state) {
+  const S = state.stop, R = state.armoury?.range;
+  if (!S || S.mode !== 'stop' || !R?.turners?.length) return;
+  const ms = state.clock.ms, T0 = S.pick ? R.turners.find(t => t.key === S.pick) : null;
+  const answers = (T) => !!T && ['threat', 'armoured', 'hostage'].includes(T.face) && (T.stoppedAtMs === null || T.stoppedAtMs === undefined) && facingOf(T, ms) >= SEEN;
+  if (answers(T0)) return;
+  // (only onto a man seen armed (a pause's identification, the room's record): a man whose hands were never seen is the
+  // challenge's, and moving the bracket onto him silenced the no-shoot's "Carry on")
+  const L = contactOf(state)?.last, rec = doorNow(state, S.who)?.rec;
+  const armed = (key) => ['rifle', 'pistol'].includes(L?.ident?.[key]) || (rec?.contacts ?? []).some(c => c.key === key && c.by === 'me' && ['rifle', 'pistol'].includes(c.ident));
+  const up = mineUp(state, ms).find(T => armed(T.key) && targetOf(state, T.key, S.who));
+  if (up) S.pick = up.key;
+}
 // (whether the line is ready for the tower's current command: a step that made it so waits for the next)
 const chainable = (state) => { const R = rangeOf(state); return !!R && !R.end && R.cmd && R.cmd.id !== 'end' && lineReady(state, R.cmd.id); };
 
@@ -1018,10 +1111,11 @@ useList({ run: rifleSub, endSub, queueAfter, before: beforeEnd, end: afterEnd, o
 /** The gun stopped mid-step (a click, a shot that did not cycle): the reflex card. */
 function offerGunStop(state, bus, why) {
   const S = state.stop, roller = rollerOf(state, S.who), gun = gunOf(state, S.gun), belief = beliefOf(state, S.gun);
-  const options = [
-    { key: 'ia', label: 'Tap, rack', step: 'macro:ia', ms: macroMs(roller, gun, 'ia', belief, 'normal') },
-    { key: 'look', label: 'Look at the port', step: 'observe', ms: actionMs(roller, gun, 'observe', { tempo: 'normal' }) },
-  ];
+  // (the rework's R6: in the house the card offers what a marine in a room does, by the situation (arms/sidearm.js cardOptions))
+  const options = cardOptions(state, S.who, {
+    ia: { key: 'ia', label: 'Tap, rack', step: 'macro:ia', ms: macroMs(roller, gun, 'ia', belief, 'normal') },
+    look: { key: 'look', label: 'Look at the port', step: 'observe', ms: actionMs(roller, gun, 'observe', { tempo: 'normal' }) },
+  });
   offerReflex(state, bus, { why: why === 'click' ? 'click' : 'stop', title: why === 'click' ? 'Click.' : "It didn't cycle.", options }, {
     run: (opt) => { if (opt.step) chooseStep(state, bus, { step: opt.step }); },
   });
@@ -1038,11 +1132,19 @@ export function chooseStep(state, bus, { step, tempo = 'normal', target = null, 
   if (typeof step !== 'string') return { ok: false, why: 'no step' };
   if (step.startsWith('reflex:')) {
     if (!S.reflex) return { ok: false, why: 'no reflex card' };
+    // (an answer shown struck (the rework's R6: Transition below the Sergeant, "not issued") is no answer: the card stays)
+    const struck = S.reflex.options.find(o => o.key === step.slice(7) && o.off);
+    if (struck) return { ok: false, why: struck.off };
     const opt = chosenReflex(state, bus, step.slice(7), { keep });
     if (opt?.step) return chooseStep(state, bus, { step: opt.step });
     return { ok: true, why: null };
   }
   if (S.reflex) return { ok: false, why: 'a reflex card waits' };
+  // (the rework's R6: the stoppage's answers and the sidearm, one press each (arms/sidearm.js), from the card or the panel)
+  if (step.startsWith('weapon:') || step === 'team:cover') {
+    if (S.phase !== 'choose') return { ok: false, why: 'busy' };
+    return weaponStep(state, bus, step, { tempo });
+  }
   if (step === 'pick:-1' || step === 'pick:+1' || step.startsWith('pick=')) {
     // (in the house the brackets go round the stands you can see, never your #2 or the instructor: an Aim row on a teammate
     // is the range's safety stop (the fixer's of 0.0.12: D before X bracketed SSgt Martinez); a free aim still trips it)
@@ -1073,11 +1175,27 @@ export function chooseStep(state, bus, { step, tempo = 'normal', target = null, 
   const t = tempo === 'rushed' && st.rushMs !== null && st.rushMs !== undefined ? 'rushed' : tempo === 'careful' && st.carefulMs !== null && st.carefulMs !== undefined ? 'careful' : 'normal';
   // (0.0.12: the drill's rows run as beat doings through the stepper (see the header))
   if (st.carry) return carryOn(state, bus, S.who, { tempo: t });
-  if (st.kind === 'variant') { const r = setVariant(state, st); holdTime(state, 'stop'); return r; }
+  if (st.kind === 'variant') { const r = setVariant(state, st, bus); holdTime(state, 'stop'); return r; }
   if (st.kind === 'bundle') { const r = startBundle(state, bus, S.who, st.id, { tempo: t, row: st }); if (!r.ok && S.phase === 'choose') holdTime(state, 'stop'); return r; }
   if (['door', 'watch', 'look', 'move', 'call', 'mark', 'gait'].includes(st.kind)) { const r = startSingle(state, bus, S.who, st, { tempo: t }); if (S.phase === 'choose') holdTime(state, 'stop'); return r; }
   if (st.kind === 'command' && st.macro) aheadOf(state, bus, st.macro);
   startStep(state, bus, st, { tempo: t, target });
+  return { ok: true, why: null };
+}
+
+/**
+ * A weapon row begun (the rework's R6, arms/sidearm.js): 'weapon:gun-down', 'weapon:offline', 'weapon:transition',
+ * 'weapon:rifle-up' or 'team:cover', its sub-steps one list step; Off the line's step to the wall on the feet beside the hands
+ * (state.stop.feet, its man's key kept so the head stays on him). Returns { ok, why }.
+ */
+export function weaponStep(state, bus, id, { tempo = 'normal' } = {}) {
+  const S = state.stop, key = id === 'team:cover' ? 'cover' : id.slice(7), now = state.clock.ms;
+  const feet = key === 'offline' ? offlineFeet(state, S.who, now, { coast: true }) : null;
+  const list = weaponList(state, S.who, key, { feet });
+  if (!list) { holdTime(state, 'stop'); return { ok: false, why: 'not offered' }; }
+  const needsFeet = key === 'gun-down' || key === 'offline' || key === 'cover';
+  startStep(state, bus, { id, kind: 'weapon', label: LABELS[id] ?? id, queue: list, needsFeet }, { tempo: tempo === 'rushed' ? 'rushed' : 'normal' });
+  if (feet && state.stop === S) { S.feet = feet; if (S.doing) S.doing.faceKey = feet.faceKey ?? null; }
   return { ok: true, why: null };
 }
 
@@ -1176,6 +1294,14 @@ export function stopRules(state, input, bus, ctx) {
   if (!S) return;
   const me = meOf(state), d = S.doing;
   if (!me) return;
+  // (2026-11-12, R3: a step inside a flow keeps the head and the muzzle on its man while the feet carry on: the move's heading
+  // is the path's, not the aim's; the aim's own turn below)
+  if (S.flow && !S.flow.suspended && d && !d.beats && !(d.list[d.i] === 'aim' && d.aimTo !== undefined)) {
+    const T = targetOf(state, S.aim?.key ?? d.target ?? null, S.who);
+    if (T) me.headRad = q(Math.atan2(T.z - me.z, T.x - me.x), 1e-6);
+  }
+  // (the rework's R6: Off the line keeps the head on the man whose line it steps off while the feet go to the wall)
+  if (d && d.kind === 'weapon' && d.faceKey) { const T = state.armoury?.range?.turners?.find(t => t.key === d.faceKey); if (T) me.headRad = q(Math.atan2(T.z - me.z, T.x - me.x), 1e-6); }
   // (0.0.12: a bundle's scan sweeps the head from its start's bearing to its end's over its time (bundle.js's sweep))
   const sc = d?.beats?.find(b => b.st === 'run' && b.k === 'scan' && b.sweep);
   if (sc) { const k = sc.untilMs > sc.fromMs ? Math.min(1, (state.clock.ms - sc.fromMs) / (sc.untilMs - sc.fromMs)) : 1; me.headRad = q(sc.sweep[0] + wrap(sc.sweep[1] - sc.sweep[0]) * k, 1e-6); }
@@ -1184,6 +1310,8 @@ export function stopRules(state, input, bus, ctx) {
     me.headRad = q(d.aimFrom + wrap(d.aimTo - d.aimFrom) * k, 1e-6);
   }
   if (S.mode === 'stop' && me.headRad !== undefined) me.face = faceOfHead(me.headRad);
+  // (2026-11-12, R3: the crossing rule, the move kind's own: an aimed muzzle about to cross the #2 goes to low ready and back (bundle.js))
+  crossTick(state, S.who, state.clock.ms);
 }
 
 /** Whether a posture holds the rifle in the hands (POSTURES' inHand, slung otherwise). */

@@ -104,13 +104,13 @@
 // aim moves), a man taken in in the sector the muzzle or the eyes held (the last contact's expectation 'sector') is aimed
 // at with the sight's settle × SECTOR_SIGHT_K 0.25 and no mount: the muzzle was already on him.
 // Pure but resolveShot.
-import { stream } from '../../core/rng.js';
+import { stream, d20 } from '../../core/rng.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { SEQ_KD } from '../../data/courses.js';
 import { lightLevel } from '../places/light.js';
 import { logEntry } from '../log.js';
 import { paceOf } from '../skills/skills.js';
-import { check, oddsOf, sortMods, TEMPO, checkShort } from '../skills/checks.js';
+import { check, oddsOf, sortMods, TEMPO, checkShort, isMastered, CATCH_K } from '../skills/checks.js';
 import { rollerOf, DARK_BELOW, DIM_BELOW } from '../combat/roll.js';
 import { PAPERS, holeOf, KD_RINGS, isFace, faceHole, faceOdds, poiXY, manHole, A_MARGIN } from './paper.js';
 import { MODELS, KINDS, OPTICS, opticSight } from './models.js';
@@ -260,8 +260,11 @@ export const SECTOR_SIGHT_K = 0.25;
 export function sectorAim(state, pid, target) {
   if (!state.mind?.clearing || !target?.key) return false;
   if (pid !== playerId(state)) { const W = state.armoury?.range?.house?.two; return W?.pid === pid && W.contact?.key === target.key && W.contact.expect === 'sector'; }
+  // (each man's own expectation at the window (react.js takeInMs expects), not the window's slowest: the take-in is the window's,
+  // the aim the man's (the rework's R9, 2026-11-13: room 2's armoured man in the sector, his window joined by the no-shoot
+  // outside it, was aimed at from high ready with the mount, and the Raider missed his par by 0.07 s; F10))
   const L = contactOf(state)?.last;
-  return !!L && L.expect === 'sector' && L.ids?.includes(target.key);
+  return !!L && L.ids?.includes(target.key) && (L.expects?.[target.key] ?? L.expect) === 'sector';
 }
 
 /** The aim's time at a target from where the shooter faces and holds the rifle, ms (WEAPONS §7.1); × the chaos's time (0.0.9: the roller's timeK at ms). */
@@ -422,7 +425,8 @@ export function plaqueOf(state, pid, { target, part = 'torso', gunId = state.sto
   const M = gunModel(state, gunId), roller = rollerOf(state, pid, { ms });
   const { dc, parts } = dcOf({ model: state.items?.[gunId]?.model ?? 'r7', rangeM: target.dM, part, paper: target.paper ?? null });
   const mods = modsOf(state, pid, { gunId, target, part, ms });
-  const value = roller.value('marksmanship'), rollOdds = oddsOf(value, dc, mods);
+  // (a man-target's round whose natural 1 is mastered is sure (SKILLS §5.1): the plaque reads SURE (VIEWS §7.4); a paper's odds are its rings')
+  const value = roller.value('marksmanship'), sure = target.kind !== 'paper' && isMastered({ value, dc, mods }), rollOdds = sure ? 1 : oddsOf(value, dc, mods);
   let odds = target.kind === 'paper' ? oddsOf(value, dc + KD_RINGS.at(-1).from, mods) : rollOdds, words = null, terms = [], kd = null;
   const h = heldOf(state, pid, ms, target.key);
   const next = !h.aimed ? 'aim' : h.v < HELD_MAX ? 'hold' : 'fire';
@@ -451,7 +455,7 @@ export function plaqueOf(state, pid, { target, part = 'torso', gunId = state.sto
   }
   return {
     part: kd && (target.dM ?? 25) > NEAR_CARD_M ? 'FIVE' : target.kind === 'paper' ? 'PAPER' : part.toUpperCase(), rangeM: Math.round(target.dM), rangeText: `${Math.round(target.dM)} M`,
-    odds, rollOdds, oddsText: words ? words.toUpperCase() : `${Math.round(odds * 100)}%`, words,
+    odds, rollOdds, ...(sure ? { sure: true } : {}), oddsText: words ? words.toUpperCase() : sure ? 'SURE' : `${Math.round(odds * 100)}%`, words,
     aimS: h.aimed ? null : aimMsOf(state, pid, gunId, target) / 1000, held: h, next, dc, dcParts: parts, mods, model: M.short, terms, kd,
   };
 }
@@ -464,15 +468,42 @@ export function plaqueOf(state, pid, { target, part = 'torso', gunId = state.sto
 export const shotStream = (state, pid, gunId, shotId) => stream('shot', state.meta.seed, pid, gunId, state.items?.[gunId]?.rounds ?? 0, shotId);
 
 /**
+ * The catch a pull's round would take, looked at before it leaves (SKILLS §5.1: "a caught 1 is late, not certain: the time
+ * is spent before the action lands"): the round's own draws replayed on copies (the pull on the gun and the magazine as they
+ * are, then the d20 its check would roll), never the state's; a natural 1 the roller has mastered gives its catch's time,
+ * CATCH_K of the single pull (pullMsOf: "+0.13 s" for the tier one on Fire from aimed), else 0. The caller holds the round
+ * that long (a 'catch' part), then resolves it, its roll then the same natural 1, caught. Pure.
+ */
+export function catchAhead(state, { pid, gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, held = null, atMs = state.clock.ms, moving = null }) {
+  const gun = state.items?.[gunId];
+  if (!gun || !target || tempo === 'rushed') return 0;
+  const mag = gun.mag ? state.items[gun.mag] : null, id = shotIdNext(state);
+  const r = shotStream(state, pid, gunId, id), f = pull(r, structuredClone(gun), mag ? structuredClone(mag) : null);
+  if (!f.fired || d20(r) !== 1) return 0;
+  const roller = rollerOf(state, pid, { ms: atMs }), { dc } = dcOf({ model: gun.model ?? 'r7', rangeM: target?.dM ?? 25, part, paper: target?.paper ?? null });
+  const mods = modsOf(state, pid, { gunId, target, part, tempo: 'normal', follow, climbK, ms: atMs, held, moving });
+  if (!isMastered({ value: roller.value('marksmanship'), dc, mods, tempo })) return 0;
+  return Math.round(pullMsOf(state, pid, gunId, 1, { ms: atMs }).ms * CATCH_K);
+}
+
+/**
+ * The id the next shot will take (sh<n>), whose dice catchAhead reads. A caller that charges a catch keeps it and gives it
+ * back to resolveShot as `foreseen`, so the round that leaves CATCH_K of the pull later draws the dice the catch was judged
+ * on even when another shooter (your #2) fired in between and took that id (the code review of 2026-11-13).
+ */
+export const shotIdNext = (state) => `sh${state.meta?.next?.sh ?? 1}`;
+
+/**
  * One pull of the trigger at a target, resolved (see the header). Returns { ms, shot }: the step's time
  * (the pull and its recovery when it fired, the press alone when it clicked) and the shot record
  * { id, who, gun, atMs, fired, why, stoppage, set, muzzle, dirRad, target, lane, hole, brass, roll, logSeq, recoverMs }.
  */
-export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, held = null, hold = undefined, log = true, atMs = state.clock.ms, row = null, moving = null }) {
+export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, held = null, hold = undefined, log = true, atMs = state.clock.ms, row = null, moving = null, foreseen = null }) {
   const gun = state.items[gunId], mag = gun.mag ? state.items[gun.mag] : null, M = MODELS[gun.model ?? 'r7'];
   const ms = atMs, roller = rollerOf(state, pid, { ms }), wh = roller.value('weapons');
   const id = nextId(state, 'sh');
-  const r = shotStream(state, pid, gunId, id);
+  // (a round whose catch was charged (foreseen: the id catchAhead read): its dice those, its natural 1 caught (shotIdNext))
+  const r = shotStream(state, pid, gunId, foreseen ?? id);
   const f = pull(r, gun, mag);
   gun.belief = feel(gun.belief, f, { wh });
   const muzzle = muzzleOf(state, pid);
@@ -483,7 +514,7 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
   if (f.fired) {
     const { dc, parts } = dcOf({ model: gun.model ?? 'r7', rangeM: target?.dM ?? 25, part, paper: target?.paper ?? null });
     const mods = modsOf(state, pid, { gunId, target, part, tempo: 'normal', follow, climbK, ms, held, moving });
-    roll = check(r, { skill: 'marksmanship', value: roller.value('marksmanship'), dc, mods, tempo, pressure: 'evaluated', procedure: false, by: pid, dcParts: parts });
+    roll = check(r, { skill: 'marksmanship', value: roller.value('marksmanship'), dc, mods, tempo, pressure: 'evaluated', procedure: false, by: pid, dcParts: parts, foreseen: !!foreseen });
     // (the round as it flies, for every shot: the hud's crack and strike, the far window's delay)
     const fp = poiOf(state, pid, gunId, target ?? { dM: 25 }, { ms, hold, load: f.load ?? 'ball' });
     fl = fp.flight;
@@ -512,7 +543,8 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
     } else if (target?.kind === 'turner') {
       // (0.0.8: a turner, a man-target (see the header): past it under SEEN, else the hole by the roll, the steel on an armoured face)
       const facing = (target.facingK ?? 1) >= SEEN;
-      const h = facing ? manHole(target.face, part, roll, id, state.meta.seed) : { at: null, zone: null, word: 'past the target, into the berm' };
+      // (a house man already down: the round went past where he stood, said so, never as the roll's (the play review of 2026-11-13))
+      const h = facing ? manHole(target.face, part, roll, id, state.meta.seed) : { at: null, zone: null, word: target.down && target.room !== undefined ? 'he was already down: past him, into the berm' : 'past the target, into the berm' };
       // (0.0.12: on a spun floor the spin's term moves the hole on the man as the wind's would, y down on the paper; the zone
       // stays the roll's, so the odds and the verdict never move (the fixer's of 0.0.12: the hole read the roll alone, and the
       // Wheel's bias moved nothing in the house))
@@ -576,7 +608,7 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
 export function steelOf(state, shot, T) {
   const none = { ring: false, through: false, down: false };
   if (T?.face !== 'armoured' || !shot?.roll?.ok) return none;
-  if (shot.part === 'head') return { ring: true, through: false, down: shot.roll.margin >= A_MARGIN && shot.roll.nat !== 1 };
+  if (shot.part === 'head') return { ring: true, through: false, down: shot.roll.margin >= A_MARGIN && (shot.roll.nat !== 1 || !!shot.roll.caught) };
   const M = MODELS[shot.model ?? 'r7'], penMm = penOf(M.cal, shot.load ?? 'ball', shot.flight?.vMs ?? 0);
   const t = throughMaterial(stream('pen', state.meta.seed, shot.id), { penMm, material: PLATE_MATERIAL, mm: PLATE_MM });
   return { ring: t.stopped, through: !t.stopped, down: false, penMm: Math.round(penMm * 100) / 100, pStop: Math.round(t.p * 1000) / 1000 };

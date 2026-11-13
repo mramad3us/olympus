@@ -56,14 +56,15 @@ const ago = (ms) => {
  * logLines), sound() ({ volume, muted } now, or null), volume(v), mute(on), scenes() (the test scenes, src/data/scenes.js's
  * records in order), playScene(scene, { tier }), sheets() (0.0.8: a scene played as a sheet's picker: { sheets: templates.js
  * TEST_SHEETS, order: PICKER_TIERS }), scene() (0.0.9: the test scene playing, { id, ended }, or null), endScene() (to its end card),
- * flashes() and setFlashes(on) (0.0.9: "reduce flashes") }.
+ * flashes() and setFlashes(on) (0.0.9: "reduce flashes"), panel() and setPanel(layout) (2026-11-13, the rework's R7: the step
+ * panel's layout, VIEWS §7.8.5's playable toggle: A, B, C in turn) }.
  */
 /**
  * The Esc menu's acts, [[words, fn, key]…]: "Reduce flashes: on | off" where flashes is given; a test scene still running adds "End the scene" before Quit, which goes to its end
  * card at once (the design review of v0.0.9: every "Again as …" of "Three bangs" cost the whole five-string course for about
  * 15 s of scored play; the user's rule: never a dead end). scene: main.js's { id, ended } or null; on: the acts' functions.
  */
-export function menuActs({ scene = null, flashes = null } = {}, on = {}) {
+export function menuActs({ scene = null, flashes = null, panel = null } = {}, on = {}) {
   return [
     ['Resume', on.resume, 'Esc'],
     ['Save to a file', on.save, null],
@@ -71,10 +72,17 @@ export function menuActs({ scene = null, flashes = null } = {}, on = {}) {
     ['Report a problem', on.report, null],
     // (VIEWS §12's "reduce flashes" (0.0.9), turned here as well as by the URL (the integrator's: it had no toggle))
     ...(flashes === null ? [] : [[`Reduce flashes: ${flashes ? 'on' : 'off'}`, on.flashes, null]]),
+    // (R7: the step panel's layout, the three to score in play (VIEWS §7.8.5), turned A, B, C in turn)
+    ...(panel === null ? [] : [[`Step panel: ${String(panel).toUpperCase()} (${PANEL_NAMES[panel] ?? panel})`, on.panel, null]]),
     ...(scene && !scene.ended ? [['End the scene: to its card', on.end, null]] : []),
     ['Quit to the title', on.quit, null],
   ];
 }
+
+/** The step panel's layouts' names on the menu's toggle (VIEWS §7.8.2 to §7.8.4). */
+export const PANEL_NAMES = Object.freeze({ a: 'home and drawers', b: 'the fixed ten and the banks', c: 'the situation\'s five and the fan' });
+/** The layout after a layout on the menu's toggle. */
+export const nextPanel = (l) => ({ a: 'b', b: 'c', c: 'a' }[l] ?? 'c');
 
 /** A card ignores Enter and Space this long after it opens (ms; the design review's: a key meant for the screen before). */
 export const CARD_GUARD_MS = 400;
@@ -194,11 +202,12 @@ export function createBoot({ root = document.body, cb }) {
   function openMenu() {
     const sound = cb.sound?.() ?? null;
     const { body, lines } = menuCard({
-      acts: menuActs({ scene: cb.scene?.() ?? null, flashes: cb.flashes ? !!cb.flashes() : null }, {
+      acts: menuActs({ scene: cb.scene?.() ?? null, flashes: cb.flashes ? !!cb.flashes() : null, panel: cb.panel ? cb.panel() : null }, {
         resume: () => { closeCard(); cb.resume(); }, save: () => cb.saveFile(), load: () => { closeCard(); cb.loadFile(); },
         report: () => { closeCard(); cb.report?.(); }, end: () => { closeCard(); cb.endScene?.(); }, quit: () => { closeCard(); cb.quit(); },
         // (the setting turned, the menu opened again on its new words)
         flashes: () => { cb.setFlashes?.(!cb.flashes?.()); openMenu(); },
+        panel: () => { cb.setPanel?.(nextPanel(cb.panel?.())); openMenu(); },
       }),
       sound: sound && { ...sound, onVolume: (v) => cb.volume?.(v), onMute: (on) => cb.mute?.(on) },
       note: 'An autosave after every five minutes of play, after time passes, on changing place, at the start of each sol, on leaving the page, and on quitting to the title. Report a problem writes a file with the last autosave and what went wrong.',

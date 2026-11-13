@@ -111,6 +111,7 @@ import { newGunner, gunnerStep, relayReady, relayCease, skipString, relayScores 
 import { settle, police, brassLeft, brassNear, POLICE_M, POLICE_CASE_S } from '../arms/brass.js';
 import { startActivity } from '../time/activities.js';
 import { pitView, CARRIER_S } from '../arms/pits.js';
+import { moverStart, locoStep } from '../body/loco.js';
 
 export { CARRIER_S };
 
@@ -956,7 +957,10 @@ export function kdActors(state, input, bus) {
   if (C && (C.phase === 'down' || C.phase === 'care')) {
     const now = state.clock.ms, c = actorOf(state, R.staff.corpsman);
     if (C.phase === 'down' && c && C.run) {
-      const [tx, tz] = C.run.to, dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz), step = placeGaits(state).runMs * TICK_MS / 1000;
+      // (the rework's R2, BODY §16.8: his tween start before he moves, his locomotion record after; v0.0.13 set the start after
+      // the move, so the stage drew his run a tick at a time)
+      moverStart(c);
+      const x0 = c.x, z0 = c.z, [tx, tz] = C.run.to, dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz), step = placeGaits(state).runMs * TICK_MS / 1000;
       if (d <= step) {
         c.x = tx; c.z = tz; c.stance = 'kneel'; c.gait = 'idle'; C.phase = 'care'; C.careAtMs = now;
         for (const w of [C.who, ...(C.others ?? [])]) { const rec = state.people[w]?.body; if (rec) state.people[w].body = careOf(rec, now, { tier: 'corpsman' }) ?? rec; }
@@ -969,7 +973,8 @@ export function kdActors(state, input, bus) {
       }
       const post = state.people[R.staff.corpsman]?.post;
       if (post) { post.x = c.x; post.z = c.z; post.face = c.face; }
-      c.$px = c.x; c.$pz = c.z;
+      locoStep(c, x0, z0, { state, pid: R.staff.corpsman, gait: c.stance === 'kneel' ? 'idle' : 'run', stance: null, inHand: false });
+      if (c.stance === 'kneel') c.gait = 'idle';
     } else if (C.phase === 'care' && now - C.careAtMs >= CARE_EDGE_S * 1000) {
       C.phase = 'evac'; C.evacAtMs = now;
       R.splash = { id: 'kd-casualty', ms: EVAC_MIN * 60_000, line: R.line, i: R.cmd?.i ?? null };

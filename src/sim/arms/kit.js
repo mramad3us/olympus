@@ -60,12 +60,21 @@
 // its plates not in for training), and kitMassKg(state, pid) is what a person carries: the worn items, what they
 // hold, the rifle and its optic, the magazines and their rounds (6.5×40's case, powder and bullet by the load:
 // src/sim/arms/calibres.js), 25.7 kg in 'house-cqb' (BODY §16.2's 25 kg of kit, the push and the brake's r).
+// 2026-11-13 (the shoot house's rework R6, COMBAT §25.19.6; WEAPONS §3.2's note): the sidearm. issueSidearm(state, pid, spec) gives a
+// person the P-12 in a thigh holster on the right (kit.worn.holster: the gun itself, worn as the rifle is on its sling) with a
+// HAD-17 of ten frangible seated (Condition 3: the armourer's issue, the chamber empty, on safe; MAKE READY racks it) and a
+// spare in the pistol pouch on the thigh (kit.worn.thigh, 'pouch-p12', holding the P-12's family only: `fams`). Its ids come
+// after every other item of the fill, so a sheet without it keeps its ids, and SLOTS gains 'holster' and 'thigh' after 'ears'.
+// handGunOf(state, pid) is a gun held in a hand (the P-12 drawn: kit.hands[0], the strong hand), which is then the gun the
+// person uses (shooting.js gunOn) and carries (carry.js carryOf: kit.carry.posture is that gun's while it is out, the rifle
+// hanging); pistolOf the P-12 carried, holstered or drawn. The pistol pouch is keyed 'pp' ("the pistol pouch"), never one of
+// the chest's numbered pouches, and a rifle magazine coming out is never put in it (pouchFor).
 import { nextId, put } from '../../core/ids.js';
 import { q } from '../../core/num.js';
 import { areaOf } from '../places/model.js';
-import { FAMILIES, MODELS, OPTICS } from './models.js';
+import { FAMILIES, MODELS, OPTICS, famCap, isLong } from './models.js';
 import { CALIBRES, loadOf } from './calibres.js';
-import { newGun, newMag } from './firearms.js';
+import { newGun, newMag, beliefOf } from './firearms.js';
 
 /**
  * Containers and worn things (my calls on their words and sizes): model → { type, word, slot?, holds?,
@@ -83,6 +92,8 @@ export const CONTAINERS = Object.freeze({
   ed1: Object.freeze({ type: 'ears', word: 'ear defenders', slot: 'ears', massKg: 0.35 }),
   // (0.0.12: the combat EVA suit, worn unpressurised with its visor down (see the header))
   'ces-1': Object.freeze({ type: 'suit', word: 'combat EVA suit', slot: 'suit', visor: true, massKg: 16, colour: 'black' }),
+  // (the rework's R6: the P-12's spare on the thigh, below the holster (see the header))
+  'pouch-p12': Object.freeze({ type: 'pouch', word: 'pistol magazine pouch', slot: 'thigh', holds: 2, fits: Object.freeze(['mag']), fams: Object.freeze(['had17']), pistol: true, massKg: 0.1 }),
 });
 
 /** The issue templates: worn (slot → model), the carrier's pouches in reach order, the magazines ([family, rounds]) filling the pouches in order. */
@@ -129,10 +140,10 @@ export const KIT_TEMPLATES = Object.freeze({
 /** A magazine at your feet is within this of you (m): where a dropped one lands (firearms.js atFeet: 0.25 to 0.45 m ahead) with room to spare. */
 export const FEET_M = 1.2;
 /** The pouches' names by their key (pouchesOf): the chest's magazine pouches in reach order, the dump pouch, the ground. */
-export const PLACE_WORDS = Object.freeze({ p1: 'chest pouch 1', p2: 'chest pouch 2', p3: 'chest pouch 3', p4: 'chest pouch 4', dump: 'the dump pouch', ground: 'at your feet' });
+export const PLACE_WORDS = Object.freeze({ p1: 'chest pouch 1', p2: 'chest pouch 2', p3: 'chest pouch 3', p4: 'chest pouch 4', dump: 'the dump pouch', pp: 'the pistol pouch', ground: 'at your feet' });
 
-/** The worn slots, in the order a kit is walked (0.0.12's 'suit' before 'ears', so 'ears' stays last and the other kits' ids stand). */
-export const SLOTS = Object.freeze(['carrier', 'head', 'sling', 'suit', 'ears']);
+/** The worn slots, in the order a kit is walked (0.0.12's 'suit' before 'ears', so the other kits' ids stand; the rework's R6 the sidearm's holster and thigh pouch after them). */
+export const SLOTS = Object.freeze(['carrier', 'head', 'sling', 'suit', 'ears', 'holster', 'thigh']);
 /** Whether a person wears ear defenders in their own slot (0.0.7: the KD's; the sound is heard through them). */
 export const earsOn = (state, pid) => !!state.people?.[pid]?.kit?.worn?.ears;
 
@@ -216,6 +227,7 @@ function canHold(state, itemId, to) {
     if (!c || !C?.holds) return `${to.container} holds nothing`;
     if (to.container === itemId) return 'an item cannot hold itself';
     if (C.fits && !C.fits.includes(item.type)) return `${C.word} takes no ${item.type}`;
+    if (C.fams && !C.fams.includes(item.fam)) return `${C.word} takes no ${item.fam ?? item.type}`;
     if ((c.holds ?? []).filter(id => id !== itemId).length >= C.holds) return `${C.word} is full`;
     return null;
   }
@@ -307,6 +319,42 @@ export function materialise(state, pid, tmplId, { sets = {}, finish = null } = {
     move(state, m, { container: mags[k] });
   }
   return { gunId, magIds, containerIds: [carrierId, ...pouchIds].filter(Boolean), wornIds };
+}
+
+/**
+ * The sidearm issued (w; see the header): spec { model, mags: [[family, rounds, load]…], cond }: the gun in kit.worn.holster with
+ * the first magazine seated (Condition 3, on safe, believed so, its count told), the rest in the thigh's pistol pouch. Its ids
+ * after everything else of the fill. Returns { gunId, magIds, pouchId }.
+ */
+export function issueSidearm(state, pid, { model = 'p12', mags = [['had17', 10, 'frangible'], ['had17', 10, 'frangible']], cond = 0.93 } = {}) {
+  if (!state.people?.[pid]?.kit) throw new Error(`kit.issueSidearm(): ${pid} has no kit`);
+  const gunId = newGun(state, { model, byId: pid, cond });
+  const pouchId = nextId(state, 'i');
+  put(state, state.items, pouchId, { type: 'pouch', model: 'pouch-p12' });
+  const magIds = mags.map(([fam, n, load = 'ball']) => newMag(state, { fam, n, load, told: true }));
+  move(state, gunId, { pid, slot: 'holster' });
+  move(state, pouchId, { pid, slot: 'thigh' });
+  if (magIds[0]) {
+    move(state, magIds[0], { gun: gunId });
+    const g = state.items[gunId], m = state.items[magIds[0]];
+    g.belief = { chamber: 'empty', count: m.n, ...(m.belief?.kind ? { load: m.belief.kind } : {}), ...(m.n < famCap(m.fam) ? { fullN: m.n } : {}) };
+    delete m.belief;
+  }
+  for (const id of magIds.slice(1)) move(state, id, { container: pouchId });
+  return { gunId, magIds, pouchId };
+}
+/** The gun a person holds in a hand (the P-12 drawn), or null: then the gun they use (see the header). */
+export function handGunOf(state, pid) {
+  for (const id of state.people?.[pid]?.kit?.hands ?? []) if (id && state.items?.[id]?.type === 'gun') return id;
+  return null;
+}
+/** The pistol a person carries, holstered or in hand, or null. */
+export function pistolOf(state, pid) {
+  const k = state.people?.[pid]?.kit;
+  if (!k) return null;
+  if (k.worn?.holster) return k.worn.holster;
+  const h = handGunOf(state, pid);
+  return h && !isLong(MODELS[state.items[h]?.model]) ? h : null;
 }
 
 // ---- reading the kit ----
@@ -411,9 +459,9 @@ export function pouchesOf(state, pid) {
   for (const c of containersOf(state, pid)) {
     const C = CONTAINERS[state.items[c].model];
     if (!C.fits?.includes('mag')) continue;
-    const key = C.dump ? 'dump' : `p${++k}`, mags = [...(state.items[c].holds ?? [])];
-    if (C.dump && out.some(p => p.key === 'dump')) continue;
-    out.push({ key, id: c, word: PLACE_WORDS[key] ?? C.word, dump: !!C.dump, holds: C.holds, mags, room: C.holds - mags.length });
+    const key = C.dump ? 'dump' : C.pistol ? 'pp' : `p${++k}`, mags = [...(state.items[c].holds ?? [])];
+    if ((C.dump || C.pistol) && out.some(p => p.key === key)) continue;
+    out.push({ key, id: c, word: PLACE_WORDS[key] ?? C.word, dump: !!C.dump, holds: C.holds, mags, room: C.holds - mags.length, ...(C.fams ? { fams: C.fams } : {}) });
   }
   return out;
 }
@@ -458,7 +506,7 @@ export function dumpOf(state, pid) {
 export function pouchFor(state, pid) {
   for (const c of containersOf(state, pid)) {
     const C = CONTAINERS[state.items[c].model];
-    if (!C.dump && C.fits?.includes('mag') && (state.items[c].holds ?? []).length < C.holds) return c;
+    if (!C.dump && !C.fams && C.fits?.includes('mag') && (state.items[c].holds ?? []).length < C.holds) return c;
   }
   return dumpOf(state, pid);
 }
@@ -496,4 +544,24 @@ export function kitView(state, pid, { magInS = null, groundS = null } = {}) {
     groups, hand: h ? magBelief(h.id, state.items[h.id], 0) : null, feet: atFeetOf(state, pid).map(l => magBelief(l.id, state.items[l.id], ground)),
     sling: kit.worn?.sling ? { gunId: kit.worn.sling, posture: kit.carry?.posture ?? 'slungFront' } : null,
   };
+}
+
+// ---- the magazine in against the spares (specials.js's reloads by purpose, bundle.js's Top up on the way; moved here in the rework's R4) ----
+
+/**
+ * Whether the magazine in the gun is believed at half or less of its own load (an unknown count is not): half the count it
+ * went in with when that was short of its family's capacity (the gun's belief fullN, firearms.js's seat), else half the
+ * capacity. gun: the gun's record (state.items[id]). v0.0.12 read half the capacity always, so a thirty loaded with ten read
+ * "half or less" from its first round, and Top up held the panel's head for the whole lane (the panel audit of 2026-11-11;
+ * COMBAT §25.19.4's no-dead-end rules; the shoot house's rework R1, 2026-11-12).
+ */
+export function halfOrLess(b, gun = null) {
+  const full = gun?.belief?.fullN ?? famCap(b?.magFam);
+  return !!b && b.mag === 'in' && typeof b.count === 'number' && full > 0 && b.count <= full / 2;
+}
+
+/** Whether a spare believed fuller than the magazine in is at hand (its count known and above the gun's believed count). */
+export function fullerAtHand(state, pid, gunId, b = beliefOf(state, gunId)) {
+  const fams = MODELS[state.items?.[gunId]?.model ?? 'r7']?.fams ?? null, n = typeof b?.count === 'number' ? b.count : Infinity;
+  return sparesOf(state, pid, null).some(id => (!fams || fams.includes(state.items[id]?.fam)) && (believedN(state.items[id]) ?? -1) > n);
 }

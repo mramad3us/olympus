@@ -396,6 +396,8 @@ What each is for, in a line:
 - **Pick, pipe pistol**: cell weapons; the pipe pistol is what a miner makes in a machine shop.
 - **Kestrel**: Europa's corporate police.
 
+**As built in v0.0.14** (the P-12, COMBAT §25.19.6; `src/sim/arms/sidearm.js`; my calls): 0.75 kg empty, irons (the RD-1P waits), a 900 rpm cycle floor. The **HAD-17** magazine is 80 g empty and 210 g full. The **9x21 frangible** is 5.6 g at 430 m/s, BC 0.06. It is issued in Condition 3 (the house's sergeant up). MAKE READY adds one `pistol:ready` part; UNLOAD and SHOW CLEAR add `pistol:clear`, the pistol last. The draw and the holster are unrolled; the other parts are rolled. There is no observer's look at the pistol. The P-12's weapon card still draws the R-7: a P-12 drawing is needed as a gun sample (VIEWS §4.4).
+
 ### 3.3 Magazines, belts and feeds
 
 A magazine is a stateful object (tradecraft's `{ type: 'mag', fam, n }`) with its own condition, dust and load.
@@ -831,6 +833,8 @@ A trained marine's speed reload of 2.5 s and an expert's 1.6 s are about what re
 - **In the hand its weight tells at once** (`feelOf`, no roll): none, a few (1 to 7 of 30), about half (8 to 18), nearly full (19 to 29) or full; written to the magazine's belief when its count is not known, and **a weight unlike the count believed makes that count unknown and halts a drill**, the rest queued ("From chest pouch 1. It feels empty. You thought 5 rounds."). **Look at it** reads the count and the top round's kind ("5 rounds, tracer on top: a red tip."; the coach's orange dummy when it is the top round); a failure learns nothing and says so.
 - **The steps for a magazine in hand**: Magazine in (the seat), Look at it, Put back (one per chest pouch with room), Dump it, Drop it. While one is in the hand no reach is offered; a fumble that bites drops it. The panel's reach rows say what each would bring, as believed (VIEWS §7.4).
 - **The drills reach by rule** (`rankOf`): a magazine believed empty last of all; then the kind the gun is meant to fire (`meantLoad`: the session's load, ball on the range), a kind not known, another kind; the fullest believed within it; ties in reach order; never the ground. With a magazine already in the hand a drill seats it and reaches for nothing. (Playing setup `mixed` by the keys, "RELOAD, keep the empty" had reached for the very empty it had just dumped: the empty-last key fixes it, pinned by `arms-reach`.) A drill's own reach says nothing in J and raises no toast unless its weight surprised it.
+
+**As built in v0.0.14** (the actions the sidearm adds; COMBAT §25.19.6): `hang` 0.3 s, no roll; `draw:thigh` 1.1 s, DC 8; `holster` 1.3 s, DC 6. Stop and SHOW CLEAR judge both guns, the holster puts the P-12 on safe, and a transition on the lane draws it off safe. **`halfOrLess(b, gun)`** (moved to `kit.js` with `fullerAtHand`) reads `gun.belief.fullN`, set at the seat when the magazine is short of capacity and cleared on mag out, and falls back to the capacity; the house setups set it, test-handling's do not (§5.2's v0.0.8 note on the half-or-less rule).
 
 
 ### 5.3 The Corps' commands as macros

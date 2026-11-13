@@ -6,7 +6,7 @@
 import { assert, fmt } from './helpers.mjs';
 import { identify, IDENT_DC0, IDENT_PER_M, CHALLENGE_BONUS } from '../src/sim/combat/contact.js';
 import { contactOf } from '../src/sim/people/mind.js';
-import { oddsOf } from '../src/sim/skills/checks.js';
+import { oddsOf, isMastered } from '../src/sim/skills/checks.js';
 import { TEST_SHEETS } from '../src/sim/skills/templates.js';
 import { bayGame, turn, runTo, LANE } from './contact-world.mjs';
 
@@ -34,7 +34,8 @@ export default [
               if (r.ident === 'pistol') right++; else if (r.ident === 'unseen') unseen++; else wrong++;
               if (r.armour) { if (r.ident === 'pistol') armour++; else wrong++; }
             }
-            const odds = oddsOf(awr, dc, []), share = right / N;
+            // (from the rework's R4 a natural 1 a high Awareness has mastered is caught (SKILLS §5.1: "noticing alike"): the share 1)
+            const odds = isMastered({ value: awr, dc }) ? 1 : oddsOf(awr, dc, []), share = right / N;
             cells.push(`${String(dc).padStart(2)}  ${fmt(share * 100, 1).padStart(5)}  ${fmt(odds * 100, 0).padStart(4)}`);
             if (Math.abs(share - odds) > 0.035 || wrong || armour !== right || right + unseen !== N) bad.push(JSON.stringify({ tier, line, bonus, dc, share, odds, wrong, armour, right }));
           }

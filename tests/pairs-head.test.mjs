@@ -1,4 +1,4 @@
-// The head rows never silent on test-pairs (src/sim/arms/specials.js shotRows, reachOf; src/sim/scenarios/pairs.js pairsReachM; src/sim/skills/instinct/pairs.js; src/sim/arms/panel.js digitOf; COMBAT §25.6.1): the user's report of 2026-11-07, "am i supposed to aim for the head ? How do I do that ?", on the armoured string a metre back in the 10 m point's box, the coach saying "He's still up!" and the DI "It rang and he is up. Head." over a panel with no head row. Pinned: your own lane's turner counts at your line's nominal distance anywhere in that line's box (a neighbour's at its measured range, unrounded); To the head reaches 25 m and the failure drill 15; whenever he is still up the panel holds To the head (offered and first, or struck with its reason), the DI names its key, and the coach's "Still up!" never stands without it; the DI's other calls (RELOAD, Top up with the short one, Challenge, Hold him, the readiness's and the coach's MAKE READY and LOAD) each with their row, T's act in the panel; a struck head's remedy named with its key; the head's key the same on every page.
+// The head rows never silent on test-pairs (src/sim/arms/specials.js shotRows, reachOf; src/sim/scenarios/pairs.js pairsReachM; src/sim/skills/instinct/pairs.js; src/sim/arms/groups.js keysFor, the panel's model in layout C from the rework's R7; COMBAT §25.6.1): the user's report of 2026-11-07, "am i supposed to aim for the head ? How do I do that ?", on the armoured string a metre back in the 10 m point's box, the coach saying "He's still up!" and the DI "It rang and he is up. Head." over a panel with no head row. Pinned: your own lane's turner counts at your line's nominal distance anywhere in that line's box (a neighbour's at its measured range, unrounded); To the head reaches 25 m and the failure drill 15; whenever he is still up the panel holds To the head (offered and first, or struck with its reason), the DI names its key, and the coach's "Still up!" never stands without it; the DI's other calls (RELOAD, Top up with the short one, Challenge, Hold him, the readiness's and the coach's MAKE READY and LOAD) each with their row, T's act in the panel; a struck head's remedy named with its key; the head's key the same on every page.
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { pairsBot, pairsFuzzBot } from './bots/pairs.mjs';
@@ -6,7 +6,9 @@ import { stepAct } from './bots/lib.mjs';
 import { pairsNow, PAIRS_SHEETS, pairsReachM } from '../src/sim/scenarios/pairs.js';
 import { stepsOf } from '../src/sim/arms/shooting.js';
 import { stillUp, shotRows, reachOf, HEAD_MAX_M, FAILURE_MAX_M, HAMMER_MAX_M, PAIR_MAX_M } from '../src/sim/arms/specials.js';
-import { digitOf, panelOf } from '../src/sim/arms/panel.js';
+import { keyOn, keysFor, resolvePath } from '../src/sim/arms/groups.js';
+// (the keys a row is on in the default layout C, as the DI names them, and whether pressing them from the stop's start reaches it)
+const works = (steps, id, key) => !!key && resolvePath(keysFor(steps, id).model, 'c', String(key).split(' › '))?.id === id;
 import { firedNow, RULES, instinctNow } from '../src/sim/skills/instinct.js';
 import { facingOf } from '../src/sim/arms/turners.js';
 import { contactNow } from '../src/sim/combat/contact.js';
@@ -53,18 +55,17 @@ export function sweep({ seed, tier, setup = null, dx = 0, dz = 0, fuzz = false, 
     if (!S || S.mode !== 'stop' || !(S.phase === 'choose' || S.doing?.kind === 'wait')) continue;
     const steps = stepsOf(s), T = S.pick ? R.turners.find(t => t.key === S.pick) ?? null : null;
     const standing = !!T && facingOf(T, s.clock.ms) >= 0.5 && T.stoppedAtMs === null;
-    const head = steps.find(x => x.id === 'shot:head' && x.target === S.pick) ?? null, key = head ? digitOf(steps, head.id) : null;
+    const head = steps.find(x => x.id === 'shot:head' && x.target === S.pick) ?? null, key = head ? keyOn(steps, head.id) : null;
     const tag = `${tier} seed ${seed}${setup ? ` ${setup}` : ''}${dx || dz ? ` at +${dx}, +${dz}` : ''}${fuzz ? ' (fuzz)' : ''}, string ${R.str?.k}, ${s.clock.ms - s.meta.createdMs} ms`;
     if (standing && stillUp(s, S.pick)) {
       seen.up++;
       if (!head) bad.push(`${tag}: he is still up and the panel has no head row: ${rowsText(steps, 8)}`);
-      else if (!key) bad.push(`${tag}: To the head off the panel's first page`);
+      else if (!key) bad.push(`${tag}: To the head nowhere on the panel`);
       else if (head.off && !String(head.off).trim()) bad.push(`${tag}: To the head struck with no words`);
       else if (head.off) seen.struck[head.off] = (seen.struck[head.off] ?? 0) + 1;
       else seen.offered++;
-      // (the same key on every page: a player who pressed 0 and then follows "To the head: 1")
-      const pages = panelOf(steps).pages;
-      for (let p = 1; key && p < pages; p++) { seen.paged++; if (digitOf(steps, head.id, { page: p }) !== key) bad.push(`${tag}: To the head on ${key} on the first page, ${digitOf(steps, head.id, { page: p })} on page ${p + 1}`); }
+      // (the key works: pressed from the stop's start it reaches the head row (the rework's R7: groups, no pages))
+      if (key) { seen.paged++; if (!works(steps, head.id, key)) bad.push(`${tag}: To the head named on ${key}, which reaches something else`); }
     }
     // (the coach's "Still up!" this string, on the one he meant: the steel's ring or two torso hits since the turn, standing)
     if (coachSaid !== null && coachSaid === R.str?.k && !R.str.done && standing && T.face !== 'noshoot') {
@@ -108,7 +109,7 @@ function sweepAll(runs, what) {
     for (const k of ['up', 'offered', 'di', 'coach', 'paged', 'hold']) tot[k] += o.seen[k];
     for (const k of ['struck', 'rules']) for (const [id, v] of Object.entries(o.seen[k])) tot[k][id] = (tot[k][id] ?? 0) + v;
   }
-  console.log(`      ${what}: ${runs.length} runs; he was still up at ${tot.up} choices: To the head offered ${tot.offered}, struck ${JSON.stringify(tot.struck)}; the DI's head line ${tot.di} times, the coach's "Still up!" ${tot.coach}; To the head's key checked on ${tot.paged} later pages; the DI's other calls ${Object.entries(tot.rules).map(([k, v]) => `${k} ${v}`).join(', ')}; ${all.length} silent`);
+  console.log(`      ${what}: ${runs.length} runs; he was still up at ${tot.up} choices: To the head offered ${tot.offered}, struck ${JSON.stringify(tot.struck)}; the DI's head line ${tot.di} times, the coach's "Still up!" ${tot.coach}; To the head's key pressed and reaching it ${tot.paged} times; the DI's other calls ${Object.entries(tot.rules).map(([k, v]) => `${k} ${v}`).join(', ')}; ${all.length} silent`);
   for (const b of all.slice(0, 6)) console.log(`      ${b}`);
   assert(!all.length, JSON.stringify(all.slice(0, 6)));
   return tot;
@@ -118,7 +119,7 @@ const SPOTS = Object.freeze([[0, 0], [-1.35, 0], [-0.6, 0.9], [-1.35, -0.95], [2
 
 export default [
   {
-    name: `the user's report (${REPORT}): the private on the armoured string 1.3 m back in the 10 m point's box (the turner 11.3 m off) is offered To the head first after "He's still up", the DI says "To the head: 1", and the head round puts the plate down`,
+    name: `the user's report (${REPORT}): the private on the armoured string 1.3 m back in the 10 m point's box (the turner 11.3 m off) is offered To the head first after "He's still up", the DI says "To the head: 4" (layout C's CONTACT five: Pair, Hammer, Failure drill, To the head, Challenge; "1" before the rework's R7), and the head round puts the plate down`,
     fn() {
       const g = createGame({ scenario: 'test-pairs', seed: 48213, tier: 'private', setup: 'standby:3' }), s = g.state, me = g.me(), bot = held(pairsBot());
       me.x -= 1.3; me.$px = me.x;
@@ -130,16 +131,16 @@ export default [
         g.clearFacts();
         if (!at && s.stop?.phase === 'choose' && s.stop.pick === own && stillUp(s, own) && instinctNow(s).line?.id === 'pairs-still-up') {
           const steps = stepsOf(s), head = steps.find(x => x.id === 'shot:head');
-          at = { dM: Math.hypot(T.x - me.x, T.z - me.z), reach: reachOf(s, s.player.id, { kind: 'turner', key: own, dM: Math.hypot(T.x - me.x, T.z - me.z) }), rows: rowsText(steps), first: steps[0]?.id, off: head?.off ?? null, odds: head?.rounds?.[0]?.odds, key: head ? digitOf(steps, head.id) : null, di: instinctNow(s).line.text, coach,
-            pages: panelOf(steps).pages, page2: head ? digitOf(steps, head.id, { page: 1 }) : null, page2rows: panelOf(steps, { page: 1 }).slots.slice(0, 3).map(x => `${x.key} ${x.step.label}`).join(', ') };
+          at = { dM: Math.hypot(T.x - me.x, T.z - me.z), reach: reachOf(s, s.player.id, { kind: 'turner', key: own, dM: Math.hypot(T.x - me.x, T.z - me.z) }), rows: rowsText(steps), first: steps[0]?.id, off: head?.off ?? null, odds: head?.rounds?.[0]?.odds, key: head ? keyOn(steps, head.id) : null, di: instinctNow(s).line.text, coach,
+            path: head ? keysFor(steps, head.id).path : null, works: head ? works(steps, head.id, keyOn(steps, head.id)) : false };
         }
       }
       const P = pairsNow(s), str = P.strs.at(-1);
       console.log(`      standing at x ${fmt(me.x, 2)} (the 10 m line 1114.0, the box from 1112.6): the turner ${fmt(at?.dM ?? NaN, 2)} m off, its reach judged at ${at?.reach} m (To the head ${HEAD_MAX_M} m, the failure drill ${FAILURE_MAX_M} m)`);
       console.log(`      the coach "${at?.coach}"; the panel: ${at?.rows}; To the head on ${at?.key} at ${Math.round((at?.odds ?? 0) * 100)}%; the DI "${at?.di}"; the string: ${str?.done}, "${str?.paper}"`);
-      console.log(`      the panel's ${at?.pages} pages: To the head on ${at?.page2} on page 2 (${at?.page2rows})`);
-      assert(at && at.dM > 10.5 && at.reach === 10 && at.first === 'shot:head' && !at.off && at.key === '1' && /To the head: 1\./.test(at.di) && str?.done === 'stopped' && /HEAD DOWN/.test(str?.paper ?? ''), JSON.stringify({ at, str }));
-      assert(at.pages > 1 && at.page2 === '1', JSON.stringify(at));
+      console.log(`      the panel (layout C, CONTACT's five): To the head on ${JSON.stringify(at?.path)}, pressed it reaches the head row: ${at?.works}`);
+      assert(at && at.dM > 10.5 && at.reach === 10 && at.first === 'shot:head' && !at.off && at.key === '4' && /To the head: 4\./.test(at.di) && str?.done === 'stopped' && /HEAD DOWN/.test(str?.paper ?? ''), JSON.stringify({ at, str }));
+      assert(at.works, JSON.stringify(at));
     },
   },
   {
@@ -167,7 +168,7 @@ export default [
     },
   },
   {
-    name: `never silent (${REPORT}): on the armoured string, every sheet, seeds 48213, 1 and 2, the shooter held at five places in the 10 m box, and the fuzz shooter on six seeds a sheet: whenever the bracketed is still up To the head is in the panel, offered or struck with words, on its first page; the DI's head line names its key; the coach's "Still up!" never stands without it`,
+    name: `never silent (${REPORT}): on the armoured string, every sheet, seeds 48213, 1 and 2, the shooter held at five places in the 10 m box, and the fuzz shooter on six seeds a sheet: whenever the bracketed is still up To the head is in the panel, offered or struck with words, on the panel; the DI's head line names its keys, which reach it; the coach's "Still up!" never stands without it`,
     fn() {
       const runs = [];
       for (const tier of PAIRS_SHEETS) {
@@ -203,8 +204,8 @@ export default [
         fix(s, s.items[s.stop.gun]);
         g.step(1, { act: [stepAct(`pick=${own}`, 'normal', null)] });
         const steps = stepsOf(s), head = steps.find(x => x.id === 'shot:head'), line = instinctNow(s).line, l = firedNow(s, s.clock.ms, RULES).find(x => x.id === 'pairs-still-up');
-        const lift = l?.ctx?.fix ?? null, liftKey = lift ? digitOf(steps, lift) : null;
-        return { what, own, off: head?.off ?? 'ABSENT', key: head ? digitOf(steps, head.id) : null, di: line?.id === 'pairs-still-up' ? line.text : `(${line?.id})`, act: l?.act ?? null, fix: lift, fixKey: liftKey, rows: rowsText(steps, 4) };
+        const lift = l?.ctx?.fix ?? null, liftKey = lift ? keyOn(steps, lift) : null;
+        return { what, own, off: head?.off ?? 'ABSENT', key: head ? keyOn(steps, head.id) : null, di: line?.id === 'pairs-still-up' ? line.text : `(${line?.id})`, act: l?.act ?? null, fix: lift, fixKey: liftKey, rows: rowsText(steps, 4) };
       };
       const out = [
         look('not aimed', (s) => { s.stop.aim = null; }),

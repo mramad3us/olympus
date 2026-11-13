@@ -208,10 +208,17 @@ export function laneModel(hn, nowMs = 0) {
     rows.push({ label: roomWord(r, i), value: (over ? two : tenth)(r.ms), mark: late ? 'late' : null });
   }
   // (the par of a threat still waiting for a round, counting down; past it, "HE FIRED FIRST")
-  const parMs = hn.parMs, open = (hn.contacts ?? []).filter(c => Number.isFinite(c.seenMs) && (c.face === undefined || PAR_FACES.has(c.face)) && (c.parMet === null || c.parMet === undefined) && !Number.isFinite(c.firstAtMs));
+  // (a man answered by either of you is answered: none of his records is open)
+  const answered = new Set((hn.contacts ?? []).filter(c => c.key !== undefined && ((c.parMet !== null && c.parMet !== undefined) || Number.isFinite(c.firstAtMs))).map(c => c.key));
+  const parMs = hn.parMs, open = (hn.contacts ?? []).filter(c => Number.isFinite(c.seenMs) && (c.face === undefined || PAR_FACES.has(c.face)) && (c.parMet === null || c.parMet === undefined) && !Number.isFinite(c.firstAtMs) && !answered.has(c.key));
   if (Number.isFinite(parMs) && open.length && !done) {
-    const c = open[open.length - 1], left = c.seenMs + parMs - nowMs;
-    rows.push(left > 0 ? { label: `PAR ${two(parMs)}`, value: `${tenth(left)} LEFT`, mark: null } : { label: 'PAR', value: 'HE FIRED FIRST', mark: 'late' });
+    // (a man's par runs from his first sighting by anyone (the scene's parFrom), and once missed it stays missed until a round
+    // answers him: never a fresh countdown for the same man seen again, nor another's over his (the play review of 2026-11-13:
+    // "HE FIRED FIRST" at the click, then "PAR 0.80 · 0.8 LEFT" at the next pause, for the same man))
+    const first = (key) => Math.min(...(hn.contacts ?? []).filter(x => x.key === key && Number.isFinite(x.seenMs)).map(x => x.seenMs));
+    const leftOf = (x) => (x.key !== undefined ? first(x.key) : x.seenMs) + parMs - nowMs;
+    const missed = open.some(x => leftOf(x) <= 0), c = open[open.length - 1], left = leftOf(c);
+    rows.push(!missed && left > 0 ? { label: `PAR ${two(parMs)}`, value: `${tenth(left)} LEFT`, mark: null } : { label: 'PAR', value: 'HE FIRED FIRST', mark: 'late' });
   }
   // (at most TIMER_ROWS + 2 rows: the oldest legs give way)
   while (rows.length > TIMER_ROWS + 2) rows.splice(1, 1);

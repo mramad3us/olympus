@@ -20,7 +20,10 @@
 //      runs its contributors (a domain's fast[layer], fn(state, input, bus, ctx), ctx { held, tickMs,
 //      sim }) in domain order; a layer nobody builds yet is a no-op. 'due' first dispatches every
 //      event due at the clock (src/sim/jobs.js), and during a fast-forward stops the skip on one its
-//      mask lets through; 'input' first routes each of the snapshot's actions through act();
+//      mask lets through; 'input' first routes each of the snapshot's actions through act(); and
+//      whichever of the two runs first in a tick (input alone while time stands still) first takes the
+//      player's tween start, the body's place before anything moves it (src/sim/body/loco.js tickStart;
+//      BODY §16.8: a beat ended in the input layer moves the tween's end, never its start);
 //   3. one periodic 'slow' layer at MIN_MS, calling slowStep over the minute just ended. There is no
 //      hourly game layer (TECH §3.5): hourly and daily work are jobs in the queue;
 //   4. the slow contributors (a domain's slow records, and registerSlow({ name, step, steady,
@@ -122,6 +125,7 @@ import { refusesAct } from './combat/contact.js';
 import { weaponsDomain } from './arms/domain.js';
 import { SCENES, STARTS } from '../data/scenes.js';
 import { logEntry } from './log.js';
+import { tickStart } from './body/loco.js';
 
 /** The fast layers of a tick, in order (TECH §3.1); input and offers run while time stands still. */
 export const FAST_LAYERS = Object.freeze(['due', 'input', 'player', 'actors', 'bodyFast', 'rehash', 'look', 'think', 'rules', 'paths', 'second', 'offers']
@@ -302,11 +306,18 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
 
   // (the fast layers: a built-in part for due and input, then the contributors in domain order)
   const layers = FAST_LAYERS.map(L => ({ name: L.name, whileHeld: L.whileHeld, contributors: list.filter(d => d.fast[L.name]).map(d => d.name) }));
+  // (the player's tween start, once a tick, at the first of due and input to run (see the header))
+  let startSeq = null, startState = null;
+  // (a held pass lives no tick (time standing still): the body stands where the last lived tick left it, its tween start kept, so
+  // the picture holds the walk it was in rather than reading a stop (the rework's R9, 2026-11-13: a pause after a shot on the
+  // move drew the body as stopped and then started again, "plant" missed, the ui-walk suite under load))
+  const startOnce = (state, held = false) => { if (held) return; const n = state.clock.seq ?? 0; if (n !== startSeq || state !== startState) { startSeq = n; startState = state; tickStart(state); } };
   function layerFn(L) {
     const fns = list.filter(d => d.fast[L.name]).map(d => d.fast[L.name]);
     const run = (state, input) => { for (const fn of fns) fn(state, input, bus, ctx); };
     if (L.name === 'due') return (state, input, b, lctx) => {
       ctx.held = lctx.held;
+      startOnce(state, !!lctx.held);
       const t = state.clock.ms;
       for (let ev = popNext(state, t); ev; ev = popNext(state, t)) {
         dispatch(state, bus, ev);
@@ -318,6 +329,7 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
     };
     if (L.name === 'input') return (state, input, b, lctx) => {
       ctx.held = lctx.held;
+      startOnce(state, !!lctx.held);
       for (const a of input.act ?? []) act(state, a, bus, ctx);
       run(state, input);
     };

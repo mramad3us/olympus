@@ -25,7 +25,8 @@ import { PALETTES, paletteDistance } from '../src/art/palette.js';
 import { rgbOf } from '../src/art/tone.js';
 import { paint, unword } from '../src/art/paint.js';
 
-const NEW = ['stroll0', 'stroll1', 'stroll2', 'stroll3', 'stairsUp0', 'stairsUp1', 'stairsUp2', 'stairsUp3', 'stairsDown0', 'stairsDown1', 'stairsDown2', 'stairsDown3',
+// (the rework's R8: the stroll's four frames are gone, the stroll is the walk band at its speed, VIEWS §3.10.8)
+const NEW = ['stairsUp0', 'stairsUp1', 'stairsUp2', 'stairsUp3', 'stairsDown0', 'stairsDown1', 'stairsDown2', 'stairsDown3',
   'look', 'glance', 'sitUp', 'standUp', 'climb', 'lieDown', 'dress0', 'dress1', 'basin', 'brush', 'shave'];
 /** How far a figure's colour may sit from the palette's nearest (tradecraft's metric on 0..1 RGB): the stage snaps everything, this says the ramps land near a colour of their own. */
 const PALETTE_E = 0.02;
@@ -67,7 +68,7 @@ export default [
     name: 'the new frames are frames of their own: a stroll is not the walk, the stairs are neither, the look and the glance turn the head off the idle, dressing\'s two frames differ',
     fn() {
       const look = { ...LOOK, outfit: 'utilities' }, pf = (f, d = 'down') => paintFrame(look, d, f, { ppm: 16 }).pm;
-      const pairs = [['stroll0', 'walk0'], ['stairsUp0', 'walk0'], ['stairsDown0', 'walk0'], ['stairsUp0', 'stairsDown0'], ['look', 'idle0'], ['glance', 'idle0'], ['dress0', 'dress1'], ['sitUp', 'sit'], ['standUp', 'idle0'], ['climb', 'idle0'], ['brush', 'basin'], ['shave', 'brush']];
+      const pairs = [['stairsUp0', 'walk0'], ['stairsDown0', 'walk0'], ['stairsUp0', 'stairsDown0'], ['look', 'idle0'], ['glance', 'idle0'], ['dress0', 'dress1'], ['sitUp', 'sit'], ['standUp', 'idle0'], ['climb', 'idle0'], ['brush', 'basin'], ['shave', 'brush']];
       const rows = [];
       for (const [a, b] of pairs) for (const d of ['down', 'right']) {
         const n = diff(pf(a, d), pf(b, d));
@@ -78,12 +79,12 @@ export default [
     },
   },
   {
-    name: 'the stroll and the stairs advance by distance as the walk does (STEP_M 0.12 and 0.14 m a frame), and their cycles divide the stride\'s ring, so feet never slide and a wrap never jumps a frame',
+    name: 'the stairs advance by distance as the walk does (STEP_M 0.14 m a frame) and their cycle divides the stride\'s ring, so a wrap never jumps a frame; a stroll draws the walk band (the rework\'s R8: its own four frames gone)',
     fn() {
       const s = [0, 0.12, 0.24, 0.36, 0.48].map(m => gaitFrame('stroll', { stride: m + 1e-6 })), u = [0, 0.14, 0.28, 0.42, 0.56].map(m => gaitFrame('stairsUp', { stride: m + 1e-6 }));
-      console.log(`      stroll ${STEP_M.stroll} m a frame: ${s.join(' ')}; stairs ${STEP_M.stairs} m: ${u.join(' ')}; the ring ${STRIDE_WRAP_M} m holds ${fmt(STRIDE_WRAP_M / (4 * STEP_M.stroll), 1)} and ${fmt(STRIDE_WRAP_M / (4 * STEP_M.stairs), 1)} cycles`);
-      assert(s.join() === 'stroll0,stroll1,stroll2,stroll3,stroll0' && u.join() === 'stairsUp0,stairsUp1,stairsUp2,stairsUp3,stairsUp0', 'one frame a step');
-      for (const k of ['stroll', 'stairs']) { const c = STRIDE_WRAP_M / (4 * STEP_M[k]); assert(Math.abs(c - Math.round(c)) < 1e-9, `${k}: ${c} cycles`); }
+      console.log(`      stroll: ${s.join(' ')}; stairs ${STEP_M.stairs} m: ${u.join(' ')}; the ring ${STRIDE_WRAP_M} m holds ${fmt(STRIDE_WRAP_M / (4 * STEP_M.stairs), 1)} cycles`);
+      assert(s.every(f => /^walk\d$/.test(f)) && u.join() === 'stairsUp0,stairsUp1,stairsUp2,stairsUp3,stairsUp0', 'one frame a step');
+      for (const k of ['stairs']) { const c = STRIDE_WRAP_M / (4 * STEP_M[k]); assert(Math.abs(c - Math.round(c)) < 1e-9, `${k}: ${c} cycles`); }
       assert(Object.values(TRANSITION_FRAMES).every(f => f === null || BANDS.rest.includes(f)), 'every transition frame is in the rest band');
     },
   },
@@ -129,13 +130,13 @@ export default [
     },
   },
   {
-    name: 'the sheet keeps every band in it: move and rest added, the transitions in rest, a band\'s cells inside it, the gait band unchanged (14 frames)',
+    name: 'the sheet keeps every band in it: move and rest added, the transitions in rest, a band\'s cells inside it; the rework\'s R8 re-shelves gait (idle 2, walk 8, bound 4, look, glance) and move (run 8, the stairs 8) in the same 512 × 752',
     fn() {
       for (const ppm of [16, 24]) {
         const lay = sheetLayout(ppm);
         console.log(`      ${ppm} px/m: sheet ${lay.w} × ${lay.h}; ${Object.entries(lay.bands).map(([k, r]) => `${k} ${BANDS[k].length} frames ${r.w}×${r.h}`).join(', ')}`);
         // (0.0.7: rest gains the corpsman's aid, lie the casualty's hurt, and the seated band the R-7 sitting; the base sheet keeps its size)
-        assert(BANDS.gait.length === 14 && BANDS.move.length === 14 && BANDS.rest.length === 11 && BANDS.lie.length === 3 && BANDS.seated.length === 5, 'the bands');
+        assert(BANDS.gait.length === 16 && BANDS.move.length === 16 && BANDS.rest.length === 11 && BANDS.lie.length === 3 && BANDS.seated.length === 5, 'the bands');
         assert(lay.w === Math.round(32 * ppm) && lay.h === (ppm === 16 ? 752 : 1128), `the base sheet ${lay.w} × ${lay.h}`);
         for (const f of NEW) for (const d of DIRS) assert(lay.cells.has(`${f}|${d}`), `${f} ${d} has a cell`);
       }

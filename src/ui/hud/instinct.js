@@ -42,8 +42,8 @@
 // at round(2 × --ui) CSS pixels a pixel (kit/mount.js plateScale), with its words in plain text beside it for
 // a reader (hidden from sight): the rectangle's text is what the player reads.
 // 0.0.12 (the build sheet 0.0.12 §2.4; COMBAT §25.8, §25.11): where the line's act is a row of the panel, the keycap names it and its planned
-// time before the press, "T: Stack on the door · 4.7 s", then the DI's words (actWords: main.js reads the row the act names off the panel
-// it shows, so the time is the panel's, the sim's, one number); the tier one's "T: Clear the house · 3 rooms and the hall · 13.6 s".
+// time before the press, "T: Stack up · 4.7 s", then the DI's words (actWords: main.js reads the row the act names off the panel
+// it shows, so the time is the panel's, the sim's, one number); the tier one's "T: Open, clear the room · 5.4 s".
 import { offerWords } from './offer.js';
 import { keyPlatePixels } from '../kit/pixels.js';
 import { mountPixels, plateScale } from '../kit/mount.js';

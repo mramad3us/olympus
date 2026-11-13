@@ -182,6 +182,13 @@ export function createStage({ parent = document.body, palette = TRADECRAFT, grad
     return buf;
   }
 
+  /** The scene pass's part IDs (src/render/materials.js: three bytes and the flag), the picture's size: { w, h, buf } (RGBA, rows from the bottom; the tests' look at one outline a person, the rework's R2). */
+  function readIds() {
+    const buf = new Uint8Array(W * H * 4);
+    renderer.readRenderTargetPixels(post.rt, 0, 0, W, H, buf, null, 1);
+    return { w: W, h: H, buf };
+  }
+
   /** Done with it: its targets and its WebGL context given back at once (a browser keeps 16 or so). */
   function dispose() {
     if (autoFit) removeEventListener('resize', fit);
@@ -194,7 +201,7 @@ export function createStage({ parent = document.body, palette = TRADECRAFT, grad
   return {
     THREE, renderer, scene, camera, cam, lights, post, canvas, stats, passes, ppm: PX_PER_M,
     look: (x, z, y = 0) => cam.look(x, z, y), follow: cam.follow, setLead: cam.setLead,
-    setMood, setLight, setSunElevation, setArea, setFocus, render, size, fit, readPicture, dispose,
+    setMood, setLight, setSunElevation, setArea, setFocus, render, size, fit, readPicture, readIds, dispose,
     setFog: post.setFog, setSnap: post.setSnap, setGamma: post.setGamma,
     setPalette(p) { post.bake(typeof p === 'string' ? PALETTES[p] : p); },
     /** The light a sprite at (x, z) takes (linear RGB): the mood's and the lamps', plus the area's strips. */

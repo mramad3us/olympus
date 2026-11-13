@@ -127,6 +127,7 @@ import { actionMs, ACTIONS } from '../arms/firearms.js';
 import { aimMsOf, TRIGGER_S } from '../arms/shot.js';
 import { ROWS } from '../arms/specials.js';
 import { rungOf } from '../skills/templates.js';
+import { moverStart, locoStep } from '../body/loco.js';
 
 /** Where the scene plays (the build sheet §2.3). */
 export const PAIRS_SCENE = Object.freeze({ site: SCENES['test-pairs'].host.site, area: KD_RANGE.area, course: 'pairs' });
@@ -577,15 +578,19 @@ function turnString(state, bus, s) {
 function coachStep(state, R) {
   const c = actorOf(state, R.coachId), w = R.coachWalk;
   if (!c) { delete R.coachWalk; return; }
-  const dx = w.x - c.x, dz = w.z - c.z, d = Math.hypot(dx, dz), step = placeGaits(state).walkMs * TICK_MS / 1000;
-  c.$px = c.x; c.$pz = c.z;
+  const dx = w.x - c.x, dz = w.z - c.z, d = Math.hypot(dx, dz), step = placeGaits(state).walkMs * TICK_MS / 1000, x0 = c.x, z0 = c.z;
+  moverStart(c);
   if (d <= step) {
-    c.x = w.x; c.z = w.z; c.face = w.face; c.gait = 'idle';
+    c.x = w.x; c.z = w.z; c.face = w.face;
+    // (the rework's R2, BODY §16.8: his locomotion record, the last step in it, then standing)
+    locoStep(c, x0, z0, { state, pid: R.coachId, gait: 'walk', stance: null, inHand: false });
+    c.gait = 'idle';
     setPost(state, R.coachId, { area: KD_RANGE.area, x: w.x, z: w.z, face: w.face });
     delete R.coachWalk;
     return;
   }
-  c.x = q(c.x + dx / d * step, 1e-4); c.z = q(c.z + dz / d * step, 1e-4); c.gait = 'walk';
+  c.x = q(c.x + dx / d * step, 1e-4); c.z = q(c.z + dz / d * step, 1e-4);
+  locoStep(c, x0, z0, { state, pid: R.coachId, gait: 'walk', stance: null, inHand: false });
   // (walking back he keeps his face downrange, as you do with the rifle in your hands)
   c.face = 'right';
   const p = state.people[R.coachId]?.post;

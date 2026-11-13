@@ -7,7 +7,7 @@ import { resolveShot, modsOf, dcOf, PLATE_MM, steelOf } from '../src/sim/arms/sh
 import { A_MARGIN } from '../src/sim/arms/paper.js';
 import { penOf, pStop, pOfMaterial } from '../src/sim/arms/penetrate.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
-import { oddsOf } from '../src/sim/skills/checks.js';
+import { oddsOf, isMastered } from '../src/sim/skills/checks.js';
 
 const N = 2000;
 // (N rounds at the armoured face on lane 4 from a line, a part, by a sheet: the shares)
@@ -52,13 +52,14 @@ export default [
     },
   },
   {
-    name: 'head rounds by sheet: the head plate falls at a margin of A_MARGIN 4 or better and rings at a pass, at the plaque\'s odds (the recruit 50%, the private 80%, the rest 95%; 2,000 rounds each)',
+    name: 'head rounds by sheet: the head plate falls at a margin of A_MARGIN 4 or better and rings at a pass, at the plaque\'s odds (the recruit 50%, the private 80%, the corporal and the sergeant 95%; the Raider and the tier one sure from the mastery rule, SKILLS §5.1; 2,000 rounds each)',
     fn() {
       const lines = [], bad = [];
       for (const tier of ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']) {
         const r = fire(tier, 10, 'head'), { s, pid, gunId } = r.w;
         const mods = modsOf(s, pid, { gunId, target: r.T, part: 'head', held: { v: 0 } }), dc = dcOf({ rangeM: r.T.dM, part: 'head' }).dc, mrk = rollerOf(s, pid).value('marksmanship');
-        const want = oddsOf(mrk, dc + A_MARGIN, mods), pass = oddsOf(mrk, dc, mods);
+        // (from the rework's R4 a natural 1 the shooter has mastered is caught (SKILLS §5.1), its margin then at least 11: sure, and down)
+        const sure = isMastered({ value: mrk, dc, mods }), want = sure ? 1 : oddsOf(mrk, dc + A_MARGIN, mods), pass = sure ? 1 : oddsOf(mrk, dc, mods);
         lines.push(`${SHEETS[tier].label.padEnd(14)} MRK ${String(mrk).padStart(2)}: ${r.n} head rounds at 10 m, hit the head plate ${fmt(100 * r.hit / r.n, 1)}% (odds ${Math.round(pass * 100)}%), rang ${fmt(100 * r.ring / r.n, 1)}%, fell ${fmt(100 * r.down / r.n, 1)}% (odds ${Math.round(want * 100)}%); fell below the margin ${r.downBelow}, rang on a miss ${r.ringFail}`);
         if (Math.abs(r.down / r.n - want) > 0.03 || r.downBelow || r.ringFail || r.ring !== r.hit) bad.push(tier);
       }

@@ -244,7 +244,7 @@ export default [
         const s0 = await page.evaluate((h) => { const a = window[h].audio; return { state: a.contextState, hall: a.hallOn, house: a.house ? { ...a.house } : null }; }, H);
         // (the stack: Stack on the door, the #2 stacks behind: his whisper; then the door's row)
         const keyOf = async (re) => page.evaluate((src) => document.querySelector('.steps .step') && [...document.querySelectorAll('.steps .step')].find(e => new RegExp(src).test(e.dataset.step))?.dataset.key, re);
-        await page.keyboard.press(`Digit${await keyOf('^drill:room:stack')}`);
+        await page.keyboard.press(`Digit${await keyOf('^drill:stack:up')}`);
         await page.waitForFunction(() => window.__olympus.state.stop?.phase === 'choose' && document.querySelector('.steps .step[data-step^="door:"]'), null, { timeout: 20000 });
         await page.waitForTimeout(3500);                              // (the #2's stack after yours: TWO_WAIT_MS at most)
         const k = await keyOf('^door:(push|pull)>');

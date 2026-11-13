@@ -16,9 +16,11 @@
 // (a memo keyed by the look record), so the view's caches can key on it. head is the direction the
 // head lies ('n', 's', 'e', 'w': the berth's seat's, from places' seatOf), null unless lying; curtain
 // whether the rack's curtain is drawn over a sleeper (once any transition has played out: the view
-// draws it and hides who is behind); gait and strideM the walker's (the player's own, else idle;
-// 'walk' and the metres walked through a transition's 'walk' frame, the steps between a lower berth's
-// edge and its foot, so the view draws the gait's frames there and the feet never slide).
+// draws it and hides who is behind); gait and strideM the walker's (anyone's own out of a transition, from the rework's
+// R2: the #2, the instructor and the range's coach walk as you do, where v0.0.12 forced 'idle' on every non-player with a
+// service record; 'walk' and the metres walked through a transition's 'walk' frame, the steps between a lower berth's
+// edge and its foot, so the view draws the gait's frames there and the feet never slide), with the rest of BODY §16.8's
+// locomotion record (src/sim/body/loco.js): gp (the gait phase, steps), bodyRad (the body's yaw) and moveStance.
 // For the player, inside is the fixture whose stall they stand in while an activity's part says so
 // (the stage hides the figure behind it), activity { id, part, k } what they are doing (TIME's
 // activityNow), and cues the body's cuesOf (wet, grime, sweat, tired, stubble, bladder, hunger,
@@ -34,6 +36,9 @@
 // where they fell: posture 'lie', frame 'hurt', on the ground, not a berth), 'kneel' for someone without a rifle
 // (the corpsman at work: frame 'aid'; a rifle in hand is drawn by the arms' gunLook instead, the view's), and
 // 'sit' passed on as stance for the rifle's seated frames. Nothing else of the figure changes.
+// R8 (VIEWS §3.10.2): with the gait phase, what the view needs to read it, so it imports nothing of the body's: stepM (the
+// step the phase is counted in this tick: src/sim/body/loco.js stepMOf at the tick's speed), gMs2 (the place's gravity, for
+// the flight's lift) and cycle (the walk cycle played: the page's state.$cycle or the game's).
 // Pure.
 import { seatOf } from '../places/fixtures.js';
 import { areaOf, lonOf } from '../places/model.js';
@@ -42,6 +47,9 @@ import { bodyOf } from '../body/body.js';
 import { cuesOf } from '../body/cues.js';
 import { poseAt } from './place.js';
 import { hairStepOf } from '../body/hair.js';
+import { gpOf, bodyRadOf, stepMOf, legMOf, cycleOf } from '../body/loco.js';
+import { gravityAt } from '../places/env.js';
+import { TICK_MS } from '../../core/clock.js';
 
 const memo = new WeakMap();                                        // (a person's look record → Map(variant → the frozen wear() spec))
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
@@ -74,12 +82,20 @@ function cuesFor(state, pid, ms) {
   return b ? { ...NO_CUES, ...cuesOf(b, ms, lonOf(state)) } : NO_CUES;
 }
 
+/** The gait phase's step and the place's gravity for the view (see the header): { stepM, gMs2, vMs, cycle }. */
+export function stepOf(state, a) {
+  const dx = a.x - (a.$px ?? a.x), dz = a.z - (a.$pz ?? a.z), vMs = Math.hypot(dx, dz) / (TICK_MS / 1000);
+  const gMs2 = gravityAt(state, null, a.x, a.z)?.gMs2 ?? 9.81, cycle = cycleOf(state);
+  const gait = a.gait === 'run' || a.gait === 'bound' ? 'run' : 'walk';
+  return { stepM: stepMOf({ gait, stance: a.moveStance ?? null, vMs, gMs2, legM: legMOf(state, a.who), cycle }).stepM, gMs2, vMs, cycle };
+}
+
 /** What the stage draws for an actor at ms (see the header). */
 export function figureOf(state, actor, ms = state?.clock?.ms ?? 0) {
   const person = actor?.who ? state.people?.[actor.who] : null;
   const gait = actor?.gait ?? 'idle', strideM = actor?.strideM ?? 0, face = actor?.face ?? 'down';
   if (!person?.service) {
-    return { look: person?.look ?? {}, posture: 'stand', frame: 'stand', k: 1, x: actor?.x ?? 0, z: actor?.z ?? 0, y: 0, face, head: null, spotId: actor?.spotId ?? null, curtain: false, gait, strideM,
+    return { look: person?.look ?? {}, posture: 'stand', frame: 'stand', k: 1, x: actor?.x ?? 0, z: actor?.z ?? 0, y: 0, face, head: null, spotId: actor?.spotId ?? null, curtain: false, gait, strideM, gp: gpOf(actor), bodyRad: bodyRadOf(actor),
       outfit: 'utilities', inside: null, activity: null, cues: NO_CUES };
   }
   const isPlayer = actor.id === state.player?.actor;
@@ -100,7 +116,8 @@ export function figureOf(state, actor, ms = state?.clock?.ms ?? 0) {
     ...(p.upK !== undefined ? { upK: p.upK, edgeX: p.edgeX, edgeZ: p.edgeZ } : {}),
     curtain: !!actor.curtain && still,
     // (the steps between a lower berth's edge and its foot walk on the gait's frames, by the metres walked)
-    gait: p.frame === 'walk' ? 'walk' : isPlayer && still ? gait : 'idle', strideM: p.frame === 'walk' ? p.walkM ?? 0 : isPlayer ? strideM : 0, outfit: p.outfit,
+    gait: p.frame === 'walk' ? 'walk' : still ? gait : 'idle', strideM: p.frame === 'walk' ? p.walkM ?? 0 : strideM, outfit: p.outfit,
+    gp: gpOf(actor, cycleOf(state)), bodyRad: bodyRadOf(actor), ...(actor.moveStance ? { moveStance: actor.moveStance } : {}), ...stepOf(state, actor),
     inside: now?.inside ? now.fixtureId : null,
     activity: now ? { id: now.id, part: now.part, k: now.k } : null,
     cues: isPlayer ? cuesFor(state, actor.who, ms) : NO_CUES,

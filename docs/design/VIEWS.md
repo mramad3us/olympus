@@ -680,6 +680,8 @@ Anyone you may meet suited has two of the suit-proof ones (build, the tape, the 
 - **One person, one outline**: each drawn figure gets its own part id in the post pass's id buffer (a slot index mod 7), so the ink falls between #1 and #2 in a stack (`cards.js` PEOPLE_PART, `post.js`; my call). The "one blob" question of section 7.4's v0.0.12 note.
 - **Tests** (node, the lane headless, each printing its numbers): the #2's drawn gait non-idle on 100% of his moving ticks; each mover's drawn position monotonic along its travel, no tick's drawn step over the sim's plus 1 px; no armed mover undrawn after GO; no speed drop over 1.5 m/s in a tick but a hit or a fall.
 
+**As built in v0.0.14** (R2; my calls): `figureOf` draws everyone walking. The stance pool is painted for armed movers in a stance; the carry-independent bands come from another carry's sheet; aim is drawn high. People's parts run 0xa5a5a5 to 0xaba5a5 by draw slot mod 7 (`PEOPLE_PARTS`, `PEOPLE_PART_STEP`), inked at equal depth, so one person has one outline.
+
 #### 3.10.2 The machinery: frames by distance, the gait phase, the plant lock
 
 - **Frames follow distance**, as now (stop motion holds every frame), counted in **steps of the band in use** through the gait phase `gp` (BODY §16.8), never a fixed `STEP_M` per frame name. A band change (Combat to Assault, or the walk to the lope at Froude 0.5) keeps `gp`: the same foot stays forward.
@@ -734,6 +736,8 @@ In every candidate cadence and step rise with speed, Combat is slower-legged tha
 
 **Questions with the scores**: which cycle reads as a marine in each stance (score each); a bob on the gun line in Combat and Assault at all (B says no); the camera on the plant lock or on the sim; eight facings in a later round; the suit's legs.
 
+**As built in v0.0.14**: the cycles are on `&cycle=A|B|C` (`CYCLES_URL`; the game's is B until the user scores W-b to W-d). `GAIT_CARRIES` and `CARRY_FREE_BANDS` are in CONTRACTS. **Look finding for the user**: in the black combat suit the outline ink (0x1a1214, luma 0.081) and the suit's darkest shade (0x14161d, 0.087) are nearly the same. The separation exists but barely reads, which adds to the question of lighter leg shells. **Question**: the gulf between the top rungs (Engage on the tier one, the closet read from the point). The cadence of §3.10.9 item 6 holds at 1 G only (BODY §16.8).
+
 #### 3.10.5 The stances, and shooting on the move
 
 Doctrine (FM 3-06.11 §3-15a, §3-23b; TC 3-22.9 §9-13): a flat pelvis, short strides, bent knees, the head up, the muzzle where the eyes look.
@@ -770,11 +774,15 @@ Counter-motion with both hands on the rifle: side on, the shoulder opposite the 
 
 **Every pop, with its fix**: idle to walk 1 px (one pelvis height a stance); the planted foot creeping and snapping back at 9 to 10 Hz (the plant lock); the stop's legs and rifle in one picture (`plant`); a halt from 0.8 m/s to 0 in a tick (the brake); Combat to Assault halving the cadence (a band each, `gp` kept); the aimed walk at low ready (aimed bands); a carry change on the move a new sheet (the stance pool painted before GO); the 168° flip and the 45° dither (`bodyRad`, hysteresis); the kneel at its end (`kneelGoing`); the #2 gliding (the locomotion record); a still stance change (the existing `raise` frame over its `toAimS`).
 
+**As built in v0.0.14** (my calls): the plant after a stop is keyed on the move's peak speed (`PLANT_FROM_MS` 0.5 m/s), not the last tick's, so a body braked to a stop, or out of a side-step, still plants for `PLANT_MS` 150 ms. The kneel is drawn as `kneelGoing` for the first third of its time (the design said 0 to 0.4), then `kneelLow`; standing is the reverse. `gait-view.js` `START_FROM_MS` is 0.3 m/s. `game.js` gives no tween start on a held pass.
+
 #### 3.10.8 The atlas
 
 - **The base pool keeps its 512 × 752**: the stroll's own 4 frames go (the stroll is the walk band at its speed, my call); re-shelved as `gait` (idle 2, walk 8, bound 4, look, glance: 16 cells) and `move` (run 8, stairs up 4, down 4: 16 cells). C's six-frame cycles fit with 4 cells to spare. Every unarmed crowd figure gets the new walk and run at no cost in looks.
 - **A stance pool** for looks that move in a stance (the armed close-quarters figures), painted before GO: glide at low ready, high ready and aimed, Assault aimed (8 each), `fireMove` 4, the side-step 4, `start` 2, `plant` 2, the stack 3, `kneelGoing` 2, the breath twins 3, the door and kick 4: **56 cells, 896 × 288 at 32 × 36** (C: 48), plus `draw` and `pistolAim` (2) with the pistol.
 - **Where it goes**: no room today (40 base looks and two rifle rows leave 32 px). **Option 1 (my preference)**: the people's atlas becomes a two-layer 4096² `DataArrayTexture`, base looks on layer 0, rifle and stance pools on layer 1, still one instanced draw (TECH §9) with a layer index an instance, room for a full enemy cell later; 64 MB more GPU memory, to be judged on Windows ANGLE over D3D11 (TECH's call). **Option 2**: give up one base row (32 base looks, 8 stance sheets, 12 rifle sheets); whether 32 looks are enough for the bay at muster is TECH's to count. At 24 px/m the stance sheet is 1344 × 432.
+
+**As built in v0.0.14** (my call): the stance pool is a 512 x 432 sheet at 16 px/m (768 x 648 at 24) in one base slot of the atlas a carry (the third option, no texture layer), painted before GO.
 
 #### 3.10.9 Acceptance (once a cycle is chosen; node, the art and the headless lane, each printing its numbers)
 
@@ -788,6 +796,8 @@ Counter-motion with both hands on the rifle: side on, the shoulder opposite the 
 8. **Separation**: in a stack along an east-west hall, at least one ink pixel a row between #1 and #2.
 
 **Decisions to log when taken** (my calls): the stroll dropped as a band; the lope's and the run's take-off speeds; the 55° hysteresis; the turn rates; the backward walk as the band reversed; the stance pool and its texture layer; eight facings deferred.
+
+**As built in v0.0.14**: item 2 is measured in the page (18 starts and 18 stops in the tier one's lane, none missed). Item 6 (Combat's cadence under Assault's at every gravity) contradicts the B table: it holds at 1 G only (Mars 2.59 against 1.85 steps a second, Europa 2.00 against 0.89, because flight lengthens Assault's step), and the test asserts 1 G only. Constants: `STEP_PX`, `STEP_PPM`, `LOPE_FROUDE`, `LOPE_VZ_MS`, `RUN_VZ_MS`, `LEG_K`, `TURN_OPERATOR_S`, `TURN_RECRUIT_S`.
 
 ---
 
@@ -870,6 +880,8 @@ Where it appears: in the step panel of the weapon mode (left of the steps), in t
 - The rifle is the model's design in the gun's finish (`rifles.js` `drawingOf(key, finish)`). `main.js` reads the finish from the item by its id (`finishOf`), never from the belief (the ui-truth rule), and passes it as the step panel's `view.finish` (part of the panel's repaint signature) and as `paintCard`'s third argument.
 - No sling is drawn. The HAD-30 is 9 px wide, curving 5 px, its window 2 px.
 - The R-7's flip magnifier is in line at the believed 4× and swung down at 1×. At distance the elevation turret sits on the box's hood and the windage turret at its front.
+
+**As built in v0.0.14**: the weapon card still draws the R-7 for the P-12; the pistol needs its own drawing in `rifles.js` (open, not R8's). While the P-12 is out the figure draws the rifle hanging; the pistol's frames wait for R8.
 
 ---
 
@@ -1210,6 +1222,8 @@ Tradecraft's stop-motion overlays, kept as the user approved them (tradecraft 20
 - **The hit card and PAPER**: a caught round's hole is drawn as any hit, and its split shows the late round as it was, with a `~` beside it ("SPLITS 0.26 · 0.39~").
 - **Per run, after** [the 800 runs of the count, re-marked]: the private by the keys in the house sees 0.53 ✗ (his shot misses), 1.38 `~`, 1.77 ★ and 1.00 `!`; the tier one by T sees 0 ✗, 1.42 `~` and 1.39 ★. In Pairs the private sees 1.04 ✗, 2.07 `~` and 2.96 ★, and the tier one 0 ✗, 2.86 `~` and 2.69 ★. Before, they saw 2.38, 2.00, 2.07 and 1.82 ✗ and never a 20.
 
+**As built in v0.0.14** (the shoot house; COMBAT §25.19.13): the reflex card shows a struck answer with its why in place of its time, and lays out more than five answers in two columns. After Transition, a live shot on a man up shows the CONTACT five; the head and press lines name their keys; a variant press keeps its group open and says its numbers; a guarded key flashes the panel; the plates move off the lane timer. The marks and "sure" (SKILLS §5.1: `MASTERY_MIN`, `MASTERY_AT`, `CATCH_K`, `CLEAN_K`; `catchAhead`; `markOf`).
+
 ### 7.5 The layout: a reserved rectangle for everything
 
 The user complained of "overlapping UI elements" in tradecraft (the hunt's HUD icons had to be moved: `tradecraft-design-3.md` §2.6), and LONGHAUL's rule is "nothing floats over a display" (v0.19.0, 2026-10-22). So every HUD element owns a fixed rectangle, reserved per state; no two rectangles of one state meet; and everything drawn in the picture (the far window, heard, felt and waypoint plaques at the frame's edge, name plaques, speech balloons, the talk box, the splash's close plate) is placed by LONGHAUL's `labels.js` with every rectangle of the state given to it as a `block()`, so it goes round the HUD or is left off, never drawn over it (my call).
@@ -1389,6 +1403,13 @@ A `▸` slot opens a third level, holding only rows never chosen on the lane (th
 - **The gallery** (`./play.sh --gallery`; built 2026-11-11, shipped in v0.0.13): `samples/panel/`, groups **P1** (A), **P2** (B) and **P3** (C), 10 views each: five moments captured by the house and range bots (seeds 1489397426 and 48213, `samples/panel/moments.json`): a private stacked on room 2's door ("Open it. Pull."), a corporal at the hall's pistol man with one round left ("Press."), the corporal's click on the dummy in room 2 ("Immediate action."), the 25 m line under LOAD, and each layout's second level open (A's DRILL drawer, B's bank R, C's fan on DRILL); each at 1600 × 900 (`--ui` 1.25, verbs and times in full) and 1024 × 768 (`--ui` 0.85, one word a key, the times on the hover). The rows the game offers come from `stepsOf` through the hud's `timeText` and `oddsText`; the rows the design adds are drawn in its state, with no time; ✓ marks a row already done (the sample's call). 30 of 30 shots crisp.
 - **A playable toggle** (my call; a control scheme has to be played): `&panel=a|b|c` on `test-shoothouse` and the other armed scenes, and an Esc menu toggle saved as `olympus.panel`; the model of 7.8.1 built once, one drawing layer per layout, the losers deleted on the user's pick.
 - **Tests each layout passes, printing its numbers**: the audit's choices replayed (presses a choice, the share over one press); every key the DI's line names works on the panel, the hall's "Pair." dead end pinned; no row ever changes slot within its group (a stability count against v0.0.12's Fire in 33 places); `layout.test`'s rectangles apart at the four window sizes, the fan included; the T-only bot unchanged.
+
+**As built in v0.0.14** (R7; the model is `src/sim/arms/groups.js`, the drawing `src/ui/hud/steps.js`; my calls). The layout comes from `&panel=a|b|c` or `olympus.panel` and the Esc menu, rides `state.$panel` and is never saved. `panelOf` stays as the v0.0.13 baseline until the user picks a layout. **C is the default** until P1 to P3 are scored.
+- **7.8.1**: BODY 1 is High ready and BODY 9 is Low ready, with the core's muzzle as the toggle (from Relaxed it picks High ready in the house, Low ready on a line). TEAM 7 is the Engage standing order. Inside a group, 0 opens the "▸" level for DRILL, BODY and TEAM; FIRE and GUN keep it on 9. Fix shows a struck stand-in when nothing that lifts a strike is offered.
+- **7.8.2**: in A, 0 goes home from a drawer unless that group's third level is on 0 (then Esc goes home). FIRE opens by itself only when a shot is live and T names a FIRE row.
+- **7.8.4** (the situation fives): AT THE DOOR is Stack up, Stack up and take point, Open, Enter, Kick door (Breach stays struck on DRILL 5). THE LINE puts Wait on 4 instead of Prone. THE KD LINE puts Wait on 4 instead of the lever. A contact whose man is down, with T naming a drill row, shows the drill's five. The right-mouse fan is not built (Tab only).
+- **Keys**: the panel's keys (Tab, R C B F, Esc and Backspace) are heard before the game's own key handling. COMBAT §25.19.8's F24 prints each layout's key paths and NEXT. The range benches tap Digit6 (`bench.js` `BENCH_PANEL` 'c').
+- **Questions for the user**: per-scene keys (Pairs and Bang kept 1 for the head and Fire before the panel moved them: default, keep the old keys in those scenes); the #2's contrast in the stack (he and you merge into one blob on the walk); the plant on a pause.
 
 ---
 

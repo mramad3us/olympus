@@ -59,6 +59,8 @@ export const MACROS = Object.freeze({
   ia: Object.freeze({ label: 'IMMEDIATE ACTION', subs: Object.freeze(['tap', 'charge', 'observe']) }),
   remedial: Object.freeze({ label: 'REMEDIAL ACTION', subs: Object.freeze(['lockBack', 'magOut:strip', 'rack', 'rack', 'rack', 'magIn', 'charge', 'observe']) }),
   cease: Object.freeze({ label: 'CEASE FIRE', subs: Object.freeze(['finger', 'selector:safe']) }),
+  // (the shoot house's Stop at the lane's end (COMBAT §25.19.4: "Make safe", one row): the finger off, on safe, low ready)
+  safe: Object.freeze({ label: 'MAKE SAFE', subs: Object.freeze(['finger', 'selector:safe', 'posture:lowReady']) }),
 });
 
 /** The actions that cock the hammer on the way (the R-7's lever reaches safe only after one: see the header). */
@@ -104,7 +106,10 @@ export function macrosFor(state, pid, gunId, { observerId = null } = {}) {
   if (b.mag === 'in' && b.chamber === 'empty' && !b.locked && b.count !== 0 && !b.stoppage) ids.push('ready');
   if (b.mag === 'in' && b.locked && b.count === 0 && withRounds.length) ids.push('reload:speed', 'reload:retain');
   else if (b.mag === 'in' && (b.count !== 0 || (b.chamber === 'live' && !!COURSES[state.armoury?.range?.course]?.spoutTopUp)) && withRounds.length && !b.stoppage) ids.push('reload:tactical');
-  if (b.mode !== 'safe' || finger === 'on') ids.push('cease');
+  // (the house's Stop: Make safe in one row, its low ready the house's own (COMBAT §25.19.4); CEASE FIRE elsewhere as built)
+  const houseStop = state.armoury?.range?.course === 'house' && state.armoury.range.cmd?.id === 'stop';
+  if (houseStop && (b.mode !== 'safe' || finger === 'on' || (kit?.carry?.posture ?? 'slungFront') !== 'lowReady')) ids.push('safe');
+  else if (b.mode !== 'safe' || finger === 'on') ids.push('cease');
   if (b.mag === 'in' || b.chamber !== 'empty' || b.locked) ids.push('unload');
   if (observerId) ids.push('clear');
   const roller = rollerOf(state, pid), observer = observerId ? rollerOf(state, observerId) : null;

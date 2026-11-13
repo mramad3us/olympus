@@ -3,7 +3,7 @@
 // the same streams (the build sheet 0.0.5 §5.2), pasted in: no test imports ../tradecraft.
 import { assert, fmt } from './helpers.mjs';
 import { stream, d20 } from '../src/core/rng.js';
-import { check, opposed, won, oddsOf, grade, checkText, checkShort, isRoutine, sortMods, DC, TEMPO } from '../src/sim/skills/checks.js';
+import { check, opposed, won, oddsOf, grade, checkText, checkShort, isRoutine, isMastered, sortMods, DC, TEMPO } from '../src/sim/skills/checks.js';
 
 const arms = await import('../src/sim/arms/drills.js').then(async (d) => ({ MACROS: d.MACROS, ACTIONS: (await import('../src/sim/arms/firearms.js')).ACTIONS })).catch(() => null);
 // (UNLOAD SHOW CLEAR's rolled sub-steps as SKILLS §5.1 counts them, when the arms are not there to read: the selector 6, a pouch 7, lock back 6, inspect 6 (dark +4), release 6, the selector 6, charge 8, the selector 6, the port 3)
@@ -23,7 +23,7 @@ export default [
     },
   },
   {
-    name: 'the odds of a check over 100,000 rolls a cell, value − DC from −22 to +22, within half a point of oddsOf\'s closed form (SKILLS §5.1)',
+    name: 'the odds of a check over 100,000 rolls a cell, value − DC from −22 to +22, within half a point of oddsOf\'s closed form; from value 15 at the DC + 10 a natural 1 is caught, so it never fails, and oddsOf given the roll\'s way of working says 1 there (SKILLS §5.1, the mastery rule: the user\'s "good defaults", 2026-11-11)',
     fn() {
       const r = stream('checks', 'odds'), rows = [];
       let worst = 0;
@@ -31,17 +31,18 @@ export default [
         let ok = 0;
         const N = 100_000;
         for (let i = 0; i < N; i++) if (check(r, { skill: 'marksmanship', value: 10 + d, dc: 10 }).ok) ok++;
-        const p = ok / N, q = oddsOf(10 + d, 10, []);
+        const sure = isMastered({ value: 10 + d, dc: 10 }), q = sure ? 1 : oddsOf(10 + d, 10, []), p = ok / N;
+        assert(oddsOf(10 + d, 10, [], { procedure: false, pressure: 'evaluated', tempo: 'normal' }) === q, `oddsOf with the way of working at ${d}`);
         worst = Math.max(worst, Math.abs(p - q));
         rows.push(`${d >= 0 ? '+' : ''}${d} ${fmt(p * 100)}/${fmt(q * 100, 0)}`);
       }
       for (let i = 0; i < rows.length; i += 9) console.log(`      ${rows.slice(i, i + 9).join('  ')}`);
-      console.log(`      worst gap ${fmt(worst * 100, 2)} points (value − DC: measured % / closed form %)`);
+      console.log(`      worst gap ${fmt(worst * 100, 2)} points (value − DC: measured % / closed form %; from +10 the mastered 1 is caught: 100%)`);
       assert(worst < 0.005, `worst ${worst}`);
     },
   },
   {
-    name: 'routine work (SKILLS §5.1) through UNLOAD SHOW CLEAR\'s rolls: under 3% halts at WH 10 rested and lit, none at 18; the recruit, the tired and the dark still halt; at danger every natural bites; a shot and an opposed roll never routine',
+    name: 'routine work (SKILLS §5.1) through UNLOAD SHOW CLEAR\'s rolls: under 3% halts at WH 10 rested and lit, none at 18; the recruit, the tired and the dark still halt; at danger the private\'s naturals bite and the sergeant\'s are caught by mastery (value 15, the DC + 10: "at every pressure", the user\'s "good defaults", 2026-11-11); a shot and an opposed roll never routine',
     fn() {
       const subs = arms ? arms.MACROS.clear.subs.filter(a => arms.ACTIONS[a]?.dc !== null && !arms.ACTIONS[a]?.observer).map(a => [a, arms.ACTIONS[a].dc, arms.ACTIONS[a].dark ?? 0]) : CLEAR_FALLBACK;
       const CONDS = { 'rested, lit': { mods: [], dark: false }, 'exhausted': { mods: [{ why: 'exhausted', v: -3, src: 'need' }], dark: false },
@@ -64,14 +65,14 @@ export default [
       }
       const at = (wh, c, p = 'evaluated') => table[`${wh}|${c}|${p}`].halts;
       assert(at(10, 'rested, lit') < 0.03 && at(18, 'rested, lit') === 0 && at(4, 'rested, lit') > 0.2 && at(10, 'exhausted, cold hands, dark') > 0.3, JSON.stringify(table));
-      assert(at(18, 'rested, lit', 'danger') > 0.3, 'at danger a sergeant\'s naturals bite');
+      assert(at(10, 'rested, lit', 'danger') > 0.3 && at(18, 'rested, lit', 'danger') === 0, 'at danger the private\'s naturals bite, the sergeant\'s are caught');
       const s = check(stream('checks', 'shot'), { skill: 'marksmanship', value: 30, dc: 5, pressure: 'evaluated', procedure: false });
       const o = opposed(stream('checks', 'opp'), { skill: 'awareness', value: 30 }, { skill: 'fieldcraft', value: 0 });
       assert(!s.routine && !('routine' in o) && !isRoutine({ value: 30, dc: 5, procedure: true, tempo: 'rushed', pressure: 'none' }), 'a shot, an opposed roll, a rushed one');
     },
   },
   {
-    name: 'the grades (SKILLS §5.6), the modifiers in SKILLS\' order, the tempos, the hook, and nine golden lines of checkText and checkShort',
+    name: 'the grades (SKILLS §5.6), the modifiers in SKILLS\' order, the tempos, the hook, and eleven golden lines of checkText and checkShort (a caught 1 and a clean 20 among them, SKILLS §5.1)',
     fn() {
       const g = [[-12, 0], [-10, 0], [-9, 0], [-6, 0], [-5, 0], [-1, 0], [0, 0], [3, 0], [4, 0], [9, 0], [10, 0], [-4, 20], [-12, 20], [2, 1], [-7, 1], [-11, 1]].map(([m, n]) => `${m}${n ? `/n${n}` : ''} ${grade(m, n)}`);
       console.log(`      ${g.join(', ')}`);
@@ -90,11 +91,14 @@ export default [
         check(at(20), { skill: 'marksmanship', value: 6, dc: 30, pressure: 'evaluated' }),
         check(at(9), { skill: 'social', value: 6, dc: 20, hook: true }),
         check(at(11), { skill: 'awareness', value: 14, dc: 6, pressure: 'evaluated', verb: 'clear' }),
+        // (the mastery rule, SKILLS §5.1: a sergeant's natural 1 under fire caught by his margin, a natural 20 on procedure clean)
+        check(at(1), { skill: 'weapons', value: 19, dc: 6, procedure: true, pressure: 'fire' }),
+        check(at(20), { skill: 'weapons', value: 10, dc: 8, procedure: true, pressure: 'evaluated' }),
       ];
       for (const c of lines) console.log(`      "${checkText(c)}"  ·  "${checkShort(c)}"`);
       const want = [
         'Weapon handling check: 12 + 10 = 22 against 9: routine, done.',
-        'Weapon handling check: 1 + 10 = 11 against 8, a natural 1: routine, it only cost time.',
+        'Weapon handling check: 1 + 10 = 11 against 8, a natural 1, caught: it only cost time.',
         'Weapon handling check: 1 + 4 = 5 against 8, a natural 1, failure.',
         'Weapon handling, taken steady: 12 + 14 + 3 (steady) = 29 against 9, done.',
         'Weapon handling check: 9 + 10 − 3 (rushed) = 16 against 8, success.',
@@ -102,9 +106,11 @@ export default [
         'Marksmanship check: 20 + 6 = 26 against 30, a natural 20, success.',
         'Social check: 9 + 6 = 15 against 20, halved by leverage to 10, success.',
         'Awareness check: 11 + 14 = 25 against 6, clear.',
+        'Weapon handling check: 1 + 19 = 20 against 6, a natural 1, caught.',
+        'Weapon handling check: 20 + 10 = 30 against 8, a natural 20: clean.',
       ];
-      const shorts = ['Weapon handling 22 against 9 · routine', 'Weapon handling 11 against 8 (a natural 1) · routine, slow', 'Weapon handling 5 against 8 (a natural 1) · failed', 'Weapon handling 29 against 9 · routine',
-        'Weapon handling 16 against 8 · passed', 'Marksmanship 33 against 19 · a 5', 'Marksmanship 26 against 30 (a natural 20) · passed', 'Social 15 against 10 · passed', 'Awareness 25 against 6 · clear'];
+      const shorts = ['Weapon handling 22 against 9 · routine', 'Weapon handling 11 against 8 (a natural 1) · caught', 'Weapon handling 5 against 8 (a natural 1) · failed', 'Weapon handling 29 against 9 · routine',
+        'Weapon handling 16 against 8 · passed', 'Marksmanship 33 against 19 · a 5', 'Marksmanship 26 against 30 (a natural 20) · passed', 'Social 15 against 10 · passed', 'Awareness 25 against 6 · clear', 'Weapon handling 20 against 6 (a natural 1) · caught', 'Weapon handling 30 against 8 (a natural 20) · clean'];
       lines.forEach((c, i) => { assert(checkText(c) === want[i], `${i}: ${checkText(c)}`); assert(checkShort(c) === shorts[i], `${i}: ${checkShort(c)}`); });
       assert(TEMPO.rushed.timeK === 0.6 && TEMPO.careful.v === 2 && DC.hard === 20 && lines[4].routine === false, 'the tempos and DCs');
       const o = opposed(stream('checks', 'opp', 2), { skill: 'fieldcraft', value: 12 }, { skill: 'awareness', value: 9, mods: [{ why: 'dark', v: -2, src: 'env' }] }, { them: true });

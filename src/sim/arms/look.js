@@ -2,7 +2,8 @@
 //
 // The stage draws what is there (the world's truth, at a game time ms = clock.ms + alpha × TICK_MS)
 // and reads it only through here (TECH §2.2's SIM_FOR_VIEW), never the state's arms records direct:
-//   gunLook(state, actor, ms)  the rifle on a figure: the model; its finish (0.0.12, only when not the issue's black); carry, the art's rig ('front' slung on
+//   gunLook(state, actor, ms)  the rifle on a figure (the rework's R6: with the P-12 out, the rifle hanging, 'front', and
+//                    pistol { model, posture } beside it); the model; its finish (0.0.12, only when not the issue's black); carry, the art's rig ('front' slung on
 //                    its two-point sling, 'slung' on the back, 'low', 'high', 'aim'); the stance; the
 //                    aim's point and since when; the last shot's game time; the action under way (the
 //                    shot role's stepNow through ACTION_FRAMES, a list walked by the sub-step's k); the
@@ -60,6 +61,8 @@
 // 0.0.12 (the build sheet 0.0.12 §2.4): on test-shoothouse's house course rangeLook gains house: src/sim/scenarios/shoothouse.js
 // houseLook's { instructor: { x, z, y, face, say, name }, corners: [{ room, id, x, z, covered, by }], stands: [{ key, stand, room,
 // x, z, y, facingK, face, holds, holes, down }], timer: { runMs, parMs, par } }; null on every other course.
+// The rework's R5 (COMBAT §25.19.5): your number two's rifle is drawn on the sub-step his hands are at (shoothouse.js handsOf: his
+// tower macro's, LOAD to SHOW CLEAR, or his bundle's hands beat), the same frames as yours on the same sub-step.
 // A sitting port is PORT_H_M.sit high.
 // AIM_LEAD_K, EDGE_KEEP_M and FRAME_HALF_M are VIEWS §2.4's weapon-mode lead, shared by the camera and
 // the shot role's targetsOf: the frame's centre AIM_LEAD_K of the way from the player to the bracketed
@@ -72,6 +75,7 @@ export { OPTIC_S } from './firearms.js';
 import { muzzleOf, carryOf, faceRad } from './carry.js';
 import { lyingOf, CONTAINERS } from './kit.js';
 import { loadOf } from './calibres.js';
+import { isLong, modelOf } from './models.js';
 import { stepNow, targetsOf } from './shooting.js';
 import { gunnerNow, gunnerTarget } from './gunner.js';
 import { flagOf } from './wind.js';
@@ -79,7 +83,7 @@ import { tilesLook } from './brass.js';
 import { pitView } from '../scenarios/range.js';
 import { pairsLook } from '../scenarios/pairs.js';
 import { stressLook } from '../scenarios/stress.js';
-import { houseLook } from '../scenarios/shoothouse.js';
+import { houseLook, handsOf, houseOf } from '../scenarios/shoothouse.js';
 import { KD_RANGE, KD_STAKE_DX_M, KD_STAKE_DZ_M } from '../../data/places/range.js';
 import { gravityAt } from '../places/env.js';
 import { G0_MS2 } from '../../core/phys.js';
@@ -126,7 +130,33 @@ export const AIM_LEAD_K = 0.55, EDGE_KEEP_M = 2.5, FRAME_HALF_M = Object.freeze(
 export const ACTION_FRAMES = Object.freeze({
   ...Object.fromEntries(Object.entries(ACTIONS).filter(([, a]) => a.frame).map(([k, a]) => [k, a.frame])),
   aim: 'aim', hold: 'aim', fire: 'fire',
+  // (the rework's R8, VIEWS §3.10.7: going down to the knee, half way over its first third, the knee after; standing, the reverse;
+  // drawn so by a mover in a stance (the view's stance sheet), the carry's frame elsewhere as before)
+  'stance:kneel': ['kneelGoing', 'kneelGoing', 'kneelLow', 'kneelLow', 'kneelLow', 'kneelLow'], 'stance:stand': ['kneelLow', 'kneelLow', 'kneelLow', 'kneelLow', 'kneelGoing', 'kneelGoing'],
 });
+/** The tap's time, #2's support hand on #1's shoulder at the squeeze (VIEWS §3.10.7; game ms). */
+export const TAP_MS = 300;
+/**
+ * The close-quarters beat a body is in at ms (VIEWS §3.10.7, the rework's R8), read from its running drill (yours: state.stop's;
+ * your number two's: the house's): { kind: 'kick' | 'door' | 'tap' | 'stack', k (its share, 0 to 1), slot } or null. Its time is
+ * the sim's beat's, so stop motion holds it.
+ */
+export function beatOf(state, pid, ms = state?.clock?.ms ?? 0) {
+  const S = state?.stop?.who === pid ? state.stop : null, W = S ? null : houseOf(state)?.two;
+  const beats = S ? (S.doing?.beats ?? S.flow?.beats ?? null) : W?.pid === pid ? W.doing?.beats ?? null : null;
+  if (!beats?.length) return null;
+  const share = (b) => (b.untilMs > b.fromMs ? Math.max(0, Math.min(1, (ms - b.fromMs) / (b.untilMs - b.fromMs))) : 1);
+  const door = beats.find(b => b.k === 'door' && b.st === 'run');
+  if (door && ms >= door.fromMs) {
+    if (door.how === 'kick') return { kind: 'kick', k: share(door), slot: door.slot ?? 1 };
+    if (ms - door.fromMs < (door.handMs ?? 200)) return { kind: 'door', k: share(door), slot: door.slot ?? 1 };
+  }
+  const sq = beats.find(b => b.key === 'squeeze' && b.st !== 'wait' && Number.isFinite(b.fromMs));
+  if (sq && ms >= sq.fromMs && ms - sq.fromMs < TAP_MS) return { kind: 'tap', k: (ms - sq.fromMs) / TAP_MS, slot: sq.slot ?? 2 };
+  const app = beats.find(b => b.key === 'approach'), ent = beats.find(b => b.key === 'enter');
+  if (app?.st === 'done' && (!ent || ent.st === 'wait')) return { kind: 'stack', k: 0, slot: app.slot ?? 1 };
+  return null;
+}
 /** The postures as the art's rigs. */
 export const CARRY_RIGS = Object.freeze({ slungFront: 'front', slungBack: 'slung', lowReady: 'low', highReady: 'high', aimed: 'aim' });
 
@@ -161,16 +191,22 @@ export function gunLook(state, actor, ms = state?.clock?.ms ?? 0) {
   const aimAt = s?.aim ? (s.aim.x !== undefined ? { x: s.aim.x, z: s.aim.z } : placeOf(state, pid, s.aim.key)) : gT ? { x: gT.x, z: gT.z } : null;
   const shots = sess?.course === 'kd' ? (sess.shots ?? []).filter(x => x.who === pid) : shooter === pid ? sess.shots : null;
   const shotMs = shots?.length ? shots[shots.length - 1].atMs : null;
-  const step = s ? stepNow(state, pid, ms) : G ? gunnerNow(state, pid, ms) : null;
+  // (the shoot house's number two drawn as you are, on the same sub-step (shoothouse.js handsOf; COMBAT §25.19.5))
+  const step = s ? stepNow(state, pid, ms) : G ? gunnerNow(state, pid, ms) : sess?.course === 'house' ? handsOf(state, pid, ms) : null;
   const m = muzzleOf(state, pid, actor);
+  // (the rework's R6: the P-12 out, the rifle drawn hanging on its sling, its own look (a look already painted: no sheet made
+  // mid-lane), the pistol in hand on the record for the drawing to come (VIEWS §3.10's transition frames, R8))
+  const long = isLong(modelOf(gun)), rifle = long ? gun : state.items?.[state.people?.[pid]?.kit?.worn?.sling] ?? gun;
   return {
-    model: gun.model, carry: CARRY_RIGS[c.posture] ?? 'front', stance: actor.stance ?? 'stand',
+    model: rifle.model, carry: long ? CARRY_RIGS[c.posture] ?? 'front' : 'front', stance: actor.stance ?? 'stand', ...(long ? {} : { pistol: { model: gun.model, posture: c.posture } }),
     aim: aimAt ? { x: aimAt.x, z: aimAt.z, ms: s?.aim?.settledMs ?? G?.aimAtMs ?? null } : null, shotMs,
     action: step ? { frame: frameAt(step.action, step.k ?? 0), k: step.k ?? 0 } : null,
     flash: shotMs === null ? 0 : fade(ms - shotMs, FLASH_MS), kick: shotMs === null ? 0 : fade(ms - shotMs, KICK_MS),
     muzzle: m ? { x: m.x, y: m.y, z: m.z } : null, finger: c.finger, mag: !!gun.mag, locked: !!gunField(gun, 'locked'),
+    // (R8: the close-quarters beat, for the stance sheet's frames: only where a drill runs, so every other look is as before)
+    ...(sess?.course === 'house' ? { beat: beatOf(state, pid, ms) } : {}),
     // (its finish, from the item: only when not the issue's black, so a black rifle's look is as before)
-    ...(gun.finish ? { finish: finishOf(gun) } : {}),
+    ...(rifle.finish ? { finish: finishOf(rifle) } : {}),
   };
 }
 

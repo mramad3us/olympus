@@ -66,7 +66,17 @@
 // Frames follow the sim, never a clock of their own (tradecraft's rule): gaitFrame() turns a gait and
 // the distance walked into a frame (STEP_M a frame, so feet never slide), and gunPose() (tradecraft's
 // crowd.js) reads an actor's aim and last shot on the sim's clock, so stop motion holds every frame.
+// The shoot house rework's R8 (VIEWS §3.10; the user, 2026-11-11: "the animation is really not there yet"): the walk and
+// the run are the chosen candidate's cycle (src/art/figures/walk.js: the look's `cycle`, B until the user's score), eight
+// frames a cycle chosen by the gait phase gp (walkFrame), the planted foot held by the view's plant lock; the stroll's four
+// frames go (the stroll is the walk band at its speed), so the base sheet keeps its 512 × 752: 'gait' holds idle 2, walk 8,
+// bound 4, look and glance, 'move' run 8 and the stairs. The STANCE pool (STANCE_BANDS, a sheet a carry that only an armed
+// mover in a stance gets: atlas.js, src/render/figures.js) holds the Combat glide and Assault's eight each, their flight, the
+// side-step, start, plant, the stack and its breath, the #2's tap, the door's hand, the kick, the kneel half way, the shot
+// on the move and the pistol (VIEWS §3.10.7). The v0.0.12 walk, stroll and run poses survive as legacyPose() for the walk
+// sample's W0 only.
 // Pure: no DOM, no three.js.
+import { cyclePose, beatPose, bandSpec, cycleAt, cycleOfLook, RUN_FPS } from './walk.js';
 
 export const DIRS = Object.freeze(['down', 'up', 'right', 'left']);
 export const FPS = 8;
@@ -82,8 +92,8 @@ export const AIM_TILT = Object.freeze({ pistol: 0.42, rifle: 0.28 }), KICK_TILT 
 
 const range = (p, n) => Array.from({ length: n }, (_, i) => `${p}${i}`);
 export const BANDS = Object.freeze({
-  gait: Object.freeze([...range('idle', 2), ...range('walk', 4), ...range('run', 4), ...range('bound', 4)]),
-  move: Object.freeze([...range('stroll', 4), ...range('stairsUp', 4), ...range('stairsDown', 4), 'look', 'glance']),
+  gait: Object.freeze([...range('idle', 2), ...range('walk', 8), ...range('bound', 4), 'look', 'glance']),
+  move: Object.freeze([...range('run', 8), ...range('stairsUp', 4), ...range('stairsDown', 4)]),
   arms: Object.freeze(['aim', 'aimhi', 'aimlo', 'fire', 'firehi', 'firelo', 'kneel', 'kneelfire', 'magout', 'magin', 'prone', 'pronefire']),
   rest: Object.freeze(['sit', 'sitUp', 'standUp', 'climb', 'lieDown', 'dress0', 'dress1', 'basin', 'brush', 'shave', 'aid']),
   lie: Object.freeze(['couch', 'sleep', 'hurt']),
@@ -92,11 +102,19 @@ export const BANDS = Object.freeze({
   rifle: Object.freeze(['lowReady', 'highReady', 'slungFront', 'slungBack', 'raise', 'charge', 'release', 'pressCheck']),
   rifleKneel: Object.freeze(['kneelLow', 'kneelHigh', 'kneelFront', 'kneelSlung', 'kneelCharge', 'kneelRelease', 'kneelCheck', 'kneelMagout', 'kneelMagin']),
   rifleProne: Object.freeze(['proneLow', 'proneSlung', 'proneCharge', 'proneRelease', 'proneCheck', 'proneMagout', 'proneMagin']),
+  // (R8: the stance pool, in the look's carry (low, high, aimed): the glide and Assault, then the beats, then the shots)
+  stanceWalk: Object.freeze([...range('glide', 8), ...range('assault', 8)]),
+  stanceBeats: Object.freeze(['flight0', 'flight1', 'sideR0', 'sideR1', 'sideL0', 'sideL1', 'start', 'plant', 'kneelGoing', 'stack', 'stackB', 'stackTap', 'doorHand', 'kick0', 'kick1', 'kick2']),
+  stanceShots: Object.freeze(['fireMove0', 'fireMove1', 'draw', 'pistolAim']),
 });
 /** The bands painted in the rifle's pool of the atlas (atlas.js sheetLayout's pools): only a look that handles a rifle needs them. */
 export const RIFLE_BANDS = Object.freeze(['rifle', 'rifleKneel', 'rifleProne']);
-/** Which pool of the atlas each band is painted in: 'base' (every look's sheet) or 'rifle'. */
-export const POOL_OF = Object.freeze(Object.fromEntries(Object.keys(BANDS).map(b => [b, RIFLE_BANDS.includes(b) ? 'rifle' : 'base'])));
+/** The stance pool's bands (R8: a sheet a carry, for an armed mover in a stance, in a base slot of its own: atlas.js, src/render/figures.js). */
+export const STANCE_BANDS = Object.freeze(['stanceWalk', 'stanceBeats', 'stanceShots']);
+/** The carries a stance sheet is painted in (a slung or front-slung rifle walks on the base sheet's Relaxed frames). */
+export const STANCE_CARRIES = Object.freeze(['low', 'high', 'aim']);
+/** Which pool of the atlas each band is painted in: 'base' (every look's sheet), 'rifle' or 'stance'. */
+export const POOL_OF = Object.freeze(Object.fromEntries(Object.keys(BANDS).map(b => [b, RIFLE_BANDS.includes(b) ? 'rifle' : STANCE_BANDS.includes(b) ? 'stance' : 'base'])));
 /** The berth's transitions as poseAt names them (the time role's src/sim/people/place.js), and the frames they draw: 'lie' is the berth's painting, 'stand' the idle, 'walk' the gait's walk by the metres walked (the steps between a lower berth's edge and its foot). */
 export const TRANSITION_FRAMES = Object.freeze({ lie: null, sitUp: 'sitUp', sit: 'sit', climb: 'climb', standUp: 'standUp', walk: null, stand: null, lieDown: 'lieDown', dress: 'dress0' });
 export const BAND_KEYS = Object.freeze(Object.keys(BANDS));
@@ -142,6 +160,7 @@ const KNEEL = { stance: 'kneel', lean: 0.05, legs: { r: [-0.05, 1.62, 0.04], l: 
 const FLOAT0 = { stance: 'float', lean: 0.18, legs: { r: [0.5, 0.85, 0.12], l: [0.4, 0.75, 0.1] }, arms: { r: [0.75, 0.95, 0.4], l: [0.7, 0.9, 0.4] } };
 const FLOAT1 = { stance: 'float', lean: 0.12, legs: { r: [0.35, 0.65, 0.1], l: [0.6, 1.0, 0.14] }, arms: { r: [0.9, 0.75, 0.35], l: [0.55, 1.05, 0.45] } };
 
+// (v0.0.12's walk, run and stroll above and below: the walk sample's W0 only, through legacyPose; the game draws walk.js's cycles)
 // The stroll: the walk's cycle at two thirds of its reach, the arms nearly still (an easy pace in the bay).
 const STROLL0 = { legs: { r: [0.24, 0.05, 0.02], l: [-0.22, 0.14, 0.02] }, arms: { r: [-0.14, 0.14, 0.07], l: [0.14, 0.22, 0.07] } };
 const STROLL1 = { legs: { r: [0.02, 0.05, 0.02], l: [0.2, 0.55, 0.02] }, arms: { r: [-0.02, 0.14, 0.07], l: [0.03, 0.18, 0.07] } };
@@ -200,20 +219,37 @@ const CARRY_RIG = { low: 'low', high: 'high', slung: 'slung', front: 'front' };
  * weapon: 'rifle' | 'pistol' | null; carry: 'low' | 'high' | 'slung' | null; tired: BODY's fatigue cue
  * (the head down a pixel, the arms' swing halved, a touch more lean).
  */
-export function poseOf(frame, { weapon = null, carry = null, tired = false } = {}) {
-  const p = basePose(frame, { weapon, carry });
+export function poseOf(frame, { weapon = null, carry = null, tired = false, cycle = null } = {}) {
+  const p = basePose(frame, { weapon, carry, cycle });
   if (!tired || p.stance !== 'stand' || p.rig?.mode === 'aim') return p;
   const half = (a) => (a ? [a[0] * 0.5, a[1], a[2]] : a);
   return { ...p, lean: p.lean + 0.05, headDrop: (p.headDrop ?? 0) + 1, arms: p.arms === HANG ? p.arms : { r: half(p.arms.r), l: half(p.arms.l) } };
 }
-function basePose(frame, { weapon = null, carry = null } = {}) {
+/** v0.0.12's walk, stroll and run frames (four a cycle) for the walk sample's W0 reference: { legs, arms, lean, lift, rig }. */
+export function legacyPose(gait, k, { weapon = null, carry = null } = {}) {
+  const gaitRig = weapon ? { mode: CARRY_RIG[carry] ?? 'low' } : null;
+  const two = gait === 'run' ? [RUN0, RUN1] : gait === 'stroll' ? [STROLL0, STROLL1] : [WALK0, WALK1];
+  let p = { ...(k % 2 ? two[1] : two[0]), rig: gaitRig };
+  if (k % 4 >= 2) p = flip(p);
+  return { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, arms: HANG, ...p };
+}
+/** The carry a stance sheet's frames hold (its look's: 'aim', 'high' or 'low'). */
+const stanceCarry = (carry) => (carry === 'aim' || carry === 'high' ? carry : 'low');
+function basePose(frame, { weapon = null, carry = null, cycle = null } = {}) {
   const gaitRig = weapon ? { mode: CARRY_RIG[carry] ?? 'low' } : null;
   const m = /^([a-zA-Z]+?)(\d)$/.exec(frame), name = m ? m[1] : frame, k = m ? Number(m[2]) : 0;
+  const cy = cycleOfLook({ cycle });
+  const beat = beatPose(frame, { weapon: weapon ?? 'rifle', carry: stanceCarry(carry), cycle: cy });
+  if (beat) return { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, arms: HANG, ...beat };
   let p;
   switch (name) {
     case 'idle': p = { legs: STAND, arms: HANG, bob: k === 1 ? 1 : 0, rig: gaitRig }; break;
-    case 'walk': p = { ...(k % 2 ? WALK1 : WALK0), rig: gaitRig }; if (k >= 2) p = flip(p); break;
-    case 'stroll': p = { ...(k % 2 ? STROLL1 : STROLL0), rig: gaitRig }; if (k >= 2) p = flip(p); break;
+    // (R8: the candidate's cycles by name, walk.js; the stance sheet's in its carry (an aimed walk is shouldered: the turret))
+    case 'walk': p = cyclePose(cy, 'walk', k, { weapon, carry: weapon ? CARRY_RIG[carry] ?? 'low' : null }); break;
+    case 'run': p = cyclePose(cy, 'run', k, { weapon, carry: weapon ? CARRY_RIG[carry] ?? 'low' : null }); break;
+    case 'glide': p = cyclePose(cy, 'combat', k, { weapon: weapon ?? 'rifle', carry: stanceCarry(carry) }); break;
+    case 'assault': p = cyclePose(cy, 'assault', k, { weapon: weapon ?? 'rifle', carry: stanceCarry(carry) }); break;
+    case 'flight': p = cyclePose(cy, 'combat', k * bandSpec(cy, 'combat').fps, { weapon: weapon ?? 'rifle', carry: stanceCarry(carry), flight: true }); break;
     case 'stairsUp': p = { ...(k % 2 ? UP1 : UP0), rig: gaitRig }; if (k >= 2) p = flip(p); break;
     case 'stairsDown': p = { ...(k % 2 ? DOWN1 : DOWN0), rig: gaitRig }; if (k >= 2) p = flip(p); break;
     case 'look': p = { legs: STAND, arms: HANG, head: 'turn', rig: gaitRig }; break;
@@ -228,7 +264,6 @@ function basePose(frame, { weapon = null, carry = null } = {}) {
     case 'shave': p = { ...SHAVE, rig: null }; break;
     case 'aid': p = { ...AID }; break;
     case 'hurt': p = { ...HURT }; break;
-    case 'run': p = { ...(k % 2 ? RUN1 : RUN0), rig: gaitRig }; if (k >= 2) p = flip(p); break;
     case 'bound': p = { ...BOUND[k], rig: gaitRig }; break;
     case 'float': p = { ...(k ? FLOAT1 : FLOAT0), rig: gaitRig && gaitRig.mode === 'slung' ? gaitRig : weapon ? { mode: 'low' } : null }; break;
     case 'tumble': p = { ...FLOAT0, roll: k * Math.PI / 4, rig: gaitRig && gaitRig.mode === 'slung' ? gaitRig : weapon ? { mode: 'low' } : null }; break;
@@ -270,15 +305,34 @@ const mod = (n, k) => ((n % k) + k) % k;
  * A frame for a gait and the distance walked (stride, metres; tradecraft's crowd.js) or the time for
  * idling (tS seconds, 2 fps, a person's phase): walk, run and bound by distance, sit and the rest by name.
  */
-export function gaitFrame(gait, { stride = 0, tS = 0, phase = 0 } = {}) {
-  if (gait === 'walk') return `walk${mod(Math.floor(stride / STEP_M.walk), 4)}`;
-  if (gait === 'stroll') return `stroll${mod(Math.floor(stride / STEP_M.stroll), 4)}`;
+export function gaitFrame(gait, { stride = 0, tS = 0, phase = 0, gp = null, stepM = 0, cycle = null } = {}) {
+  // (R8: the walk and the run by the gait phase (walkFrame); with none given, by the metres walked in the band's own steps)
+  if (gait === 'walk' || gait === 'stroll' || gait === 'run') return walkFrame(gait === 'run' ? 'run' : 'walk', { gp: Number.isFinite(gp) ? gp : null, stride, stepM, cycle }).frame;
   if (gait === 'stairsUp' || gait === 'stairsDown') return `${gait}${mod(Math.floor(stride / STEP_M.stairs), 4)}`;
-  if (gait === 'run') return `run${mod(Math.floor(stride / STEP_M.run), 4)}`;
   if (gait === 'bound') return `bound${mod(Math.floor(stride / STEP_M.bound), 4)}`;
   if (gait === 'float') return `float${mod(Math.floor(tS * 1 + phase), 2)}`;                 // (1 fps: VIEWS.md 3.4)
   if (FRAMES.includes(gait)) return gait;
   return `idle${mod(Math.floor(tS * 2 + phase), 2)}`;
+}
+
+/** The frame names a drawn band's cycle uses (R8): the base sheet's walk and run, the stance sheet's glide and Assault. */
+const CYCLE_NAME = Object.freeze({ walk: 'walk', run: 'run', combat: 'glide', assault: 'assault' });
+/**
+ * The frame of a walk-type or run band for a gait phase (VIEWS §3.10.2): band 'walk' (Relaxed: the base sheet), 'run', 'combat'
+ * or 'assault' (the stance sheet); gp the phase (steps; else stride / stepM), stepM the sim's step (src/sim/body/loco.js
+ * stepMOf), back walking backwards, cycle the candidate. Returns walk.js cycleAt's { step, j, flight, u, lagPx } with frame (the
+ * name: a walk-type band's flight is the run's flight frame on the base sheet, `flight<step>` on the stance sheet).
+ */
+export function walkFrame(band, { gp = null, stride = 0, stepM = 0, back = false, cycle = null } = {}) {
+  const cy = cycleOfLook({ cycle }), sp = bandSpec(cy, band);
+  const sm = stepM > 0 ? stepM : sp.S / 16;
+  const g = Number.isFinite(gp) ? gp : (stride / sm) % 2;
+  const at = cycleAt({ cycle: cy, band, gp: g, stepM: sm, back });
+  const name = CYCLE_NAME[band] ?? 'walk';
+  let frame;
+  if (at.flight) frame = band === 'run' || band === 'walk' ? `run${at.step * RUN_FPS + RUN_FPS - 1}` : `flight${at.step}`;
+  else frame = `${name}${at.frame}`;
+  return { ...at, frame };
 }
 
 /** The tumble frame nearest a roll angle (radians): float0 or tumble1..7, 45° apart (VIEWS.md 3.4). */
@@ -369,5 +423,13 @@ export function rifleFrame(gl, { face = 'right', x = 0, z = 0, ms = 0 } = {}) {
   if (gl.carry === 'aim') return { frame: aimed(false), flash };
   return { frame: CARRY_FRAME[stance][gl.carry] ?? CARRY_FRAME[stance].low, flash };
 }
-/** The carry a look's gait frames are painted with, for a gunLook's carry (an aim walks at the low ready). */
-export const gaitCarryOf = (carry) => (carry === 'aim' || !carry ? 'low' : carry);
+/**
+ * The carry a look's gait frames are painted with, for a gunLook's carry. An aim walks at the high ready until the aimed bands
+ * exist (VIEWS §3.10.1, the rework's R2): never the low ready, a muzzle drawn down that the sim holds level (v0.0.12 drew 333
+ * aimed ticks of a lane at the low ready: half of the user's "goes low ready … but we still get flagged"). GAIT_CARRIES are
+ * every carry a walk is drawn in, the stance pool's carries the view paints before GO.
+ */
+export const gaitCarryOf = (carry) => (carry === 'aim' ? 'high' : !carry ? 'low' : carry);
+export const GAIT_CARRIES = Object.freeze(['front', 'slung', 'low', 'high']);
+/** The bands whose frames a look's gait carry never changes (the rifle's handling, the aim, sitting, lying: their rigs are their own), so a figure's are drawn the same from the sheet of its look with any carry (tests/house-bodies paints them to hold it). */
+export const CARRY_FREE_BANDS = Object.freeze(['arms', 'lie', 'seated', ...RIFLE_BANDS]);

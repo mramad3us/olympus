@@ -9,14 +9,18 @@
 // most FIXED_MAX), then a page of the rest, and 0 pages; past FIXED_REPEAT fixed rows the pages after the first hold the
 // rest, with To the head and the rows above it kept on their keys (so the DI's key holds on every page). digitOf(steps, id,
 // { page }) is the key a row is on, on a page (the first by default).
+// 2026-11-13, the shoot house's rework R7 (VIEWS §7.8): the HUD draws groups.js's model (five groups of fixed slots, the core
+// five, three layouts) and the DI names its keys (groups.js keysFor); panelOf and digitOf stay as v0.0.13's paged numbering, the
+// press model's baseline in the tests (panel-groups, flawless F24), until the user's pick of P1 to P3 retires them; remedyOf and
+// isShotRow are the model's own.
 // Pure.
 
 /** The digits, in the panel's order: two columns of five. */
 export const PANEL_KEYS = Object.freeze(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
 /** Whether a step is a shot row (specials.js: kind 'shot', its rounds and parts). */
 export const isShotRow = (s) => s?.kind === 'shot' && Array.isArray(s.rounds);
-/** The kinds that stay on every page: the shot, the shot rows, the contact's answers and the tower's commands (the rest page under 0); 0.0.12: the house's drill rows and its door's rows too, so the stack, the bundle T names and the door lead the panel at GO and at the door, as a Corps command does on the bay (the build sheet 0.0.12 §2.2). */
-export const FIXED_KINDS = Object.freeze(['fire', 'aim', 'hold', 'command', 'shot', 'contact', 'bundle', 'door']);
+/** The kinds that stay on every page: the shot, the shot rows, the contact's answers and the tower's commands (the rest page under 0); 0.0.12: the house's drill rows and its door's rows too, so the stack, the bundle T names and the door lead the panel at GO and at the door, as a Corps command does on the bay (the build sheet 0.0.12 §2.2); the rework's R6 the weapon group's emergency rows (arms/sidearm.js: Gun down, Off the line, Transition, Rifle up, Cover his sector). */
+export const FIXED_KINDS = Object.freeze(['fire', 'aim', 'hold', 'command', 'shot', 'contact', 'bundle', 'door', 'weapon']);
 /**
  * Whether a step stays on every page (a fixed kind, or a contact's answer by its id); a command stepsOf marks later (at a
  * contact's pause, no answer to the man facing you: UNLOAD, a Top up with nothing to gain) pages with the rest, and a

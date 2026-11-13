@@ -46,13 +46,16 @@
 //
 // The reloads by purpose (COMBAT §25.6.5; WEAPONS §5.3's "Reloads by purpose"; §8 item 17): the built macros, no id
 // renamed, labelled by what they are for: RELOAD (reload:speed, first with the bolt believed locked on an empty), Top up
-// (reload:tactical, first in a lull, contact.js lullOf, with the magazine believed at half or less), RELOAD, keep the
+// (reload:tactical, first in a lull, contact.js lullOf, with the magazine believed at half or less of its own load, the count
+// it went in with: halfOrLess, 2026-11-12), RELOAD, keep the
 // empty (reload:retain). When the session names a magazine (R.wantMag: the coach's short one, §8 item 18), Top up's
 // queue reaches for its pouch and its label says so ("Top up: the two-round magazine, chest pouch 3"). Nothing is done
 // unasked: these are rows; T may press one only because a line asked (the DI's).
 // 0.0.9 (the build sheet 0.0.9 §2.1, §8 item 9; COMBAT §25.18.1): a row's aim, press, splits, shift and recovery are ×
 // the roller's timeK at the row's start (combat/supp.js suppTimeK, exactly 1 when calm), each round's odds carry the
 // chaos's one entry through the roller, so a pinned recruit's Pair is slower and its odds the roll's.
+// 2026-11-12 (the shoot house's rework R1): a row's round whose man is up and facing but out of the frame this instant waits
+// for him a tick at a time, a 'line' part spliced into the saved plan, up to LINE_WAIT_MS 500 ms, then goes (runRound).
 // 0.0.12 (the build sheet 0.0.12 §2.2, §8 items 14, 26; COMBAT §25.6.1, §25.9): with the body moving at the pause in Combat
 // or Assault (the actor's velocity over MOVING_MS, as a bundle's entry cut by the contact leaves it), each shot row comes
 // in two: '<row>@moving' ("Pair, moving on · −2": the feet carry on along the rest of the path while the rounds go, each
@@ -60,16 +63,29 @@
 // Marksmanship, 30, 0.25), below rung 2 struck "plant first", beyond 10 m struck "area fire only") and '<row>@planted'
 // (the body brakes to a stop first: a 'brake' part of v / the legs' brake, BODY §16.2). A hostage card puts To the head
 // first, offered without "He's still up", and strikes the torso rows "the hostage".
+// 2026-11-12 (the shoot house's rework R3, COMBAT §25.19.3.2): **one shot row, the feet by the drill**. Inside a suspended
+// flow (bundle.js: from rung 2 a contact's pause suspends the bundle, its feet on their way to the point) each shot is one
+// row, its feet a variant set at no time (the row 'drill:variant:feet', "Moving on ⇄ At your point"): moving on (the flow's
+// feet carry on while the rounds go, the moving modifiers above), at your point (the feet to the point first, the flow's
+// move to its end, a 'plant' part, then the rounds, planted) or stop here (the flow halted where it stands, the brake, the
+// rounds planted, its rest "Carry on"). The drill's default (flowFeetOf): moving on for an immediate threat (armed and
+// facing within IMMEDIATE_M 7 m, within PATH_NEAR_M 1.5 m of the path ahead, or within ARM_M 1 m), else at your point when
+// the point is under POINT_REACH_S 0.8 s away, else moving on; stop here is never the default. Outside a flow (the keys'
+// walk below rung 2, a halted bundle's carry) the twins stay as built.
+// 2026-11-13 (the rework's R8b, fluid movement): planted in a doorway, the plant is past it: the body is carried through first
+// (src/sim/places/move.js throughNow: to the man's point on his lane from rung 2, just clear of the doorway below it), the
+// 'brake' part that carry's time; "stop here" brakes where it stands, the player's own choice.
 // Pure but runRound, runRowSub and endRowSub.
 import { logEntry } from '../log.js';
+import { TICK_MS } from '../../core/clock.js';
 import { paceOf } from '../skills/skills.js';
 import { oddsOf, TEMPO } from '../skills/checks.js';
 import { rollerOf } from '../combat/roll.js';
 import * as TEMPLATES from '../skills/templates.js';
 import { mitigated } from '../skills/skills.js';
-import { legsHere } from '../places/move.js';
+import { legsHere, throughNow } from '../places/move.js';
 import { SEEN } from '../people/perception.js';
-import { aimMsOf, heldOf, dcOf, modsOf, resolveShot, fireMs, recoverMs, TRIGGER_S, TAP_SPLIT_S, HELD_MAX, HELD_RATE0, climbOf, BURST_K, ANCHOR, SUPPORT, PLATE_MM } from './shot.js';
+import { aimMsOf, heldOf, dcOf, modsOf, resolveShot, fireMs, recoverMs, TRIGGER_S, TAP_SPLIT_S, HELD_MAX, HELD_RATE0, climbOf, BURST_K, ANCHOR, SUPPORT, PLATE_MM, catchAhead, shotIdNext } from './shot.js';
 import { A_MARGIN } from './paper.js';
 import { beliefOf, actionMs } from './firearms.js';
 import { macrosFor, subsOf } from './drills.js';
@@ -77,9 +93,12 @@ import { pouchesOf, believedN, sparesOf } from './kit.js';
 import { famCap, MODELS } from './models.js';
 import { turnersOf, turnerTargets } from './turners.js';
 import { contactNow, lullOf } from '../combat/contact.js';
+import { moveAt } from '../combat/stepper.js';
+import { roomPlanOf, pastThreshold } from '../combat/room.js';
 import { recordShot, rangeOf } from '../scenarios/handling.js';
 import { pairsReachM } from '../scenarios/pairs.js';
 import { targetOf, gunOn, macroRow, LABELS } from './shooting.js';
+import { legsOf, STANCE_NAMES, useStanceWords } from '../combat/bundle.js';
 
 export { A_MARGIN, PLATE_MM };
 /** The rows' reaches (m), COMBAT §25.6.1: the Pair, the Hammer and the Triple, the failure drill, To the head (15 and 25 from the fix of 2026-11-07; were 10 and 10). */
@@ -116,7 +135,18 @@ export const MOVING_MS = 0.1, ASSAULT_FIRE_M = 10;
 /** Fire on the move (COMBAT §25.9): Combat's −4, −2 from Marksmanship 15; Assault's mitigated(−8, MRK, 30, 0.25) from rung 2. */
 export const MOVE_FIRE = Object.freeze({ combat: -4, combatEased: -2, easedFrom: 15, assault: -8, assaultFull: 30, assaultKeep: 0.25 });
 /** The parts' words (the panel's sub-steps). */
-export const PART_LABELS = Object.freeze({ aim: 'Aim', hold: 'Hold the aim', press: 'Press', round: 'Round', shift: 'Shift to the head' });
+export const PART_LABELS = Object.freeze({ aim: 'Aim', hold: 'Hold the aim', press: 'Press', round: 'Round', shift: 'Shift to the head', line: 'Waiting for the line', out: 'Out of the door', plant: 'To your point', brake: 'Planted', catch: 'Caught: the round late' });
+/** The feet under a shot row in a flow (see the header), the variant's order, and their words on the row. */
+export const FEET_WAYS = Object.freeze(['moving', 'point', 'stop']);
+export const FEET_WORDS = Object.freeze({ moving: 'moving on', point: 'at your point', stop: 'stop here' });
+/** The drill's default for the feet (COMBAT §25.19.3.2, §25.19.9): an immediate threat's reach, the path's, an arm's (m); the point near enough to plant at (s); and no plant short of POINT_MIN_M past the threshold (m). */
+export const IMMEDIATE_M = 7, PATH_NEAR_M = 1.5, ARM_M = 1.0, POINT_REACH_S = 0.8, POINT_MIN_M = 1.0;
+/** A row's round waits for its man back in the frame at most this long (ms; my call: ten ticks), then goes as before. */
+export const LINE_WAIT_MS = 500;
+/** A threat facing this near leads the stoppage card with "Transition: pistol" where a pistol is carried (COMBAT §25.19.6, §25.19.9; §25.6.5's 10 m). */
+export const TRANSITION_NEAR_M = 10;
+/** Moving on inside a flow, the row's first round waits for the feet out of the door (past its threshold) at most this long (ms; my call). */
+export const OUT_WAIT_MS = 500;
 /** The reloads' purposes and their labels by macro id (COMBAT §25.6.5). */
 export const RELOAD_PURPOSE = Object.freeze({ 'reload:speed': 'speed', 'reload:tactical': 'tactical', 'reload:retain': 'retain' });
 export const RELOAD_LABELS = Object.freeze({ speed: 'RELOAD', tactical: 'Top up', retain: 'RELOAD, keep the empty' });
@@ -175,6 +205,20 @@ export function movingMod(state, pid, stance, reachM) {
   return { v: mrk >= MOVE_FIRE.easedFrom ? MOVE_FIRE.combatEased : MOVE_FIRE.combat, why: 'moving' };
 }
 
+/**
+ * A movement stance's effect in numbers, where it is chosen (the panel's stance rows and the entry's variant; the user,
+ * 2026-11-11: "don't know what the assault <-> combat option is supposed to mean"): its walk at this gravity and its moving
+ * shot (movingMod's, within ASSAULT_FIRE_M): "Fast: 2.0 m/s, moving shots −2", "Careful: 1.2 m/s, moving shots −2",
+ * "Relaxed: 1.4 m/s, rifle slung"; below rung 2 Fast is "plant to shoot".
+ */
+export function stanceHint(state, pid, st) {
+  const v = legsOf(state, pid)?.walk?.[st], m = st === 'relaxed' ? null : movingMod(state, pid, st, 0);
+  const shot = st === 'relaxed' ? 'rifle slung' : m?.off ? 'plant to shoot' : `moving shots ${m.v < 0 ? `−${-m.v}` : m.v}`;
+  return `${STANCE_NAMES[st] ?? st}: ${Number.isFinite(v) ? v.toFixed(1) : '?'} m/s, ${shot}`;
+}
+
+useStanceWords(stanceHint);
+
 /** The failure drill's assessment: the target down after the pair (the scene's hit sensor: T.stoppedAtMs at or before atMs). */
 export function assessDown(state, key, atMs = state.clock.ms) {
   const T = turnerRec(state, key);
@@ -186,8 +230,8 @@ export function assessDown(state, key, atMs = state.clock.ms) {
  * odds, climb, held }], aim, offSafe, tempo }, at each part's start from the row's (ms), for a target ({ key, dM, x, z, kind }).
  * tempo 'normal' | 'rushed' | 'careful'; atMs the row's start (the held aim's clock); odds false for the times alone (the panel's rushed and careful).
  */
-export function rowPlan(state, pid, rowId, target, { tempo = 'normal', atMs = state.clock.ms, gunId = state.stop?.gun ?? gunOn(state, pid), odds = true } = {}) {
-  const R = rowOf(rowId) ?? ROWS[rowId], way = rowWay(rowId), mv = way ? movingOf(state, pid) : null;
+export function rowPlan(state, pid, rowId, target, { tempo = 'normal', atMs = state.clock.ms, gunId = state.stop?.gun ?? gunOn(state, pid), odds = true, way: way0 = null } = {}) {
+  const R = rowOf(rowId) ?? ROWS[rowId], way = way0 ?? rowWay(rowId), mv = way ? movingOf(state, pid) : null;
   const moving = way === 'moving' && mv ? movingMod(state, pid, mv.stance, target?.dM ?? Infinity) : null;
   if (!R || !target) return null;
   const roller = rollerOf(state, pid, { ms: atMs }), wh = roller.value('weapons'), mrk = roller.value('marksmanship'), pace = paceOf(wh);
@@ -197,7 +241,14 @@ export function rowPlan(state, pid, rowId, target, { tempo = 'normal', atMs = st
   const aimed = state.stop?.who === pid && state.stop?.aim?.key === target.key, rung = rungOfShooter(state, pid), b = beliefOf(state, gunId);
   const parts = [];
   // (0.0.12: planted, the body brakes to a stop first (see the header))
-  if (way === 'planted' && mv) { const me = state.actors?.list?.find(a => a.who === pid); parts.push({ k: 'brake', ms: Math.round(mv.vMs / legsHere(state, pid, me.x, me.z).brakeMs2 * 1000) }); }
+  // (2026-11-13, R8b: planted in a doorway, the plant is past it: the feet carried through first (places/move.js throughNow), the
+  // brake part their time; "stop here" brakes where it stands, the player's choice)
+  if ((way === 'planted' || way === 'stop') && mv) {
+    const me = state.actors?.list?.find(a => a.who === pid), thr = way === 'planted' ? throughNow(state, pid, me, atMs) : null;
+    parts.push({ k: 'brake', ms: thr ? Math.max(0, thr.untilMs - atMs) : Math.round(mv.vMs / legsHere(state, pid, me.x, me.z).brakeMs2 * 1000) });
+  }
+  // (2026-11-12, R3: at your point, the flow's move to its end first (see the header))
+  if (way === 'point') { const f = flowMove(state, pid); parts.push({ k: 'plant', ms: f ? Math.max(0, f.untilMs - atMs) : 0 }); }
   const aim = !aimed && rung >= RUNG_AIM;
   if (aim) parts.push({ k: 'aim', ms: tt(aimMsOf(state, pid, gunId, target, { ms: atMs })) });
   const rate = HELD_RATE0 + mrk / 10;
@@ -228,7 +279,8 @@ export function rowPlan(state, pid, rowId, target, { tempo = 'normal', atMs = st
     else held = shifted ? 0 : held0;
     const mods = modsOf(state, pid, { gunId, target, part: p.part, tempo: roundTempo, follow: p.follow, climbK: p.climbK, ms: abs, held: { v: held }, moving: moving?.v ? moving : null });
     const climb = mods.find(m => m.why === 'the muzzle still up from the last')?.v ?? 0;
-    return { part: p.part, follow: p.follow, climbK: p.climbK, at: p.at, odds: oddsOf(mrk, dcs[p.part], mods), climb, held, dc: dcs[p.part] };
+    // (a round whose natural 1 the shooter has mastered is sure (SKILLS §5.1): odds 1, "sure" on the row)
+    return { part: p.part, follow: p.follow, climbK: p.climbK, at: p.at, odds: oddsOf(mrk, dcs[p.part], mods, { procedure: false, pressure: 'evaluated', tempo: roundTempo }), climb, held, dc: dcs[p.part] };
   });
   return { ms: at, parts, rounds, aim, offSafe: rung >= RUNG_AIM && b?.mode === 'safe', tempo, way, moving: moving?.v ? moving : null };
 }
@@ -300,6 +352,21 @@ export function shotRows(state, pid, ms = state.clock.ms) {
   }
   const lead = offered.find(r => !r.off);
   if (lead && (up || armour || hostage)) lead.first = true;
+  // (2026-11-12, R3: inside a suspended flow, one row a shot, its feet the drill's, and the feet's variant row (see the header))
+  const ff = flowFeetOf(state, pid, T, ms);
+  if (ff) {
+    const way = ff.ways.includes(S.variant?.feet) ? S.variant.feet : ff.def, m = movingOf(state, pid), mm = m ? movingMod(state, pid, m.stance, reachM) : null;
+    const one = (row) => {
+      const plan = rowPlan(state, pid, row.id, T, { atMs: ms, gunId, way });
+      return { ...row, ms: plan.ms, odds: plan.rounds[0]?.odds ?? row.odds, rounds: plan.rounds.map(r => ({ part: r.part, odds: r.odds, climb: r.climb, follow: r.follow, climbK: r.climbK })),
+        parts: plan.parts.map(p => ({ k: p.k, ms: p.ms, ...(p.part ? { part: p.part } : {}) })), subs: plan.parts.map(p => ({ id: p.k, label: p.k === 'round' ? `${p.part === 'head' ? 'Head' : 'Round'} ${p.i + 1}` : PART_LABELS[p.k] ?? p.k, ms: p.ms })),
+        way, feet: way, label: `${row.label}, ${FEET_WORDS[way]}${way === 'moving' && mm?.v ? ` · ${mm.v}` : ''}` };
+    };
+    const i = ff.ways.indexOf(way), next = ff.ways[(i + 1) % ff.ways.length];
+    const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+    const feetRow = { id: 'drill:variant:feet', kind: 'variant', label: `${cap(FEET_WORDS[way])} ⇄ ${cap(FEET_WORDS[next])}`, ms: 0, rushMs: null, carefulMs: null, odds: null, routine: true, off: null, subs: [], cmd: false, skill: null, variant: { feet: next } };
+    return [...offered.map(one), ...(offered.length && ff.ways.length > 1 ? [feetRow] : []), ...struck];
+  }
   // (0.0.12: moving at the pause, each row comes in two, moving on and planted (see the header))
   const mv = movingOf(state, pid);
   if (!mv) return [...offered, ...struck];
@@ -324,6 +391,40 @@ export function shotRows(state, pid, ms = state.clock.ms) {
 // ---- the row played (shooting.js runSub, endSub) ----
 
 /** The plan a step keeps (saved, so whole numbers and words only): parts { k, ms, i?, part?, follow?, climbK? }. */
+/** The move running in the player's flow (state.stop.flow), or null. */
+export function flowMove(state, pid) {
+  const F = state.stop?.who === pid ? state.stop?.flow : null;
+  return F?.beats?.find(b => b.st === 'run' && b.k === 'move' && b.prof) ?? null;
+}
+// (the least distance from (x, z) to a polyline)
+function toPath(path, x, z) {
+  let best = Infinity;
+  for (let i = 1; i < path.length; i++) {
+    const [ax, az] = path[i - 1], [bx, bz] = path[i], L2 = (bx - ax) ** 2 + (bz - az) ** 2;
+    const t = L2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (z - az) * (bz - az)) / L2)) : 0;
+    best = Math.min(best, Math.hypot(x - (ax + t * (bx - ax)), z - (az + t * (bz - az))));
+  }
+  return best;
+}
+/**
+ * The feet under a shot row inside the flow (see the header), for a target: { def, ways, remainMs } (ways the ones offered,
+ * in FEET_WAYS' order), or null outside a flow with a move under way.
+ */
+export function flowFeetOf(state, pid, T, ms = state.clock.ms) {
+  const F = state.stop?.flow, mv = flowMove(state, pid), me = state.actors?.list?.find(a => a.who === pid);
+  if (!F?.suspended || !mv || !me || !T) return null;
+  const point = /(^|:)(enter|far)$/.test(mv.key ?? ''), remainMs = Math.max(0, (mv.untilMs ?? ms) - ms);
+  const dM = Math.hypot(T.x - me.x, T.z - me.z), ident = contactNow(state)?.last?.ident?.[T.key] ?? null;
+  const armed = ident === 'rifle' || ident === 'pistol', facing = (T.facingK ?? 1) >= SEEN;
+  const ahead = (() => { const p = mv.path ?? [], mp = moveAt(mv, ms); return p.length ? toPath([[mp.x, mp.z], ...p.slice(1)], T.x, T.z) : Infinity; })();
+  const immediate = (armed && facing && dM <= IMMEDIATE_M) || ahead <= PATH_NEAR_M || dM <= ARM_M;
+  const mvOk = (() => { const m = movingOf(state, pid); return !m || !movingMod(state, pid, m.stance, reachOf(state, pid, T)).off; })();
+  const ways = FEET_WAYS.filter(w => (w === 'moving' ? mvOk : w === 'point' ? point : true));
+  let def = immediate ? 'moving' : point && remainMs <= POINT_REACH_S * 1000 ? 'point' : 'moving';
+  if (!ways.includes(def)) def = ways.includes('point') ? 'point' : 'stop';
+  return { def, ways, remainMs };
+}
+
 export const keptPlan = (plan) => ({ ms: plan.ms, offSafe: !!plan.offSafe, ...(plan.moving ? { moving: { v: plan.moving.v, why: plan.moving.why } } : {}), ...(plan.way ? { way: plan.way } : {}), parts: plan.parts.map(p => ({ k: p.k, ms: p.ms, ...(p.k === 'round' ? { i: p.i, part: p.part, follow: p.follow, climbK: p.climbK } : {}) })) });
 
 /**
@@ -334,14 +435,55 @@ export const keptPlan = (plan) => ({ ms: plan.ms, offSafe: !!plan.offSafe, ...(p
 export function runRound(state, bus, d, i, atMs) {
   const S = state.stop, pid = S.who, gunId = S.gun, p = d.plan.parts[i], R = rowOf(d.step);
   const T = targetAt(state, d.target, pid, atMs);
+  // (the line: the row's man still up and facing but out of the frame this instant (a jamb between, the feet carrying on
+  // past it) holds the round a tick at a time, up to LINE_WAIT_MS, rather than firing it at nothing: a 'line' part spliced
+  // in before it, saved with the plan (2026-11-12, the shoot house's rework R1: on the walkable lanes #1's first round in
+  // room 1 left from the door's plane, 1a behind the jamb on the sight grid, and went into the berm on every seed))
+  if (!T && d.target && (d.lineMs ?? 0) < LINE_WAIT_MS) {
+    const t = turnerTargets(state, atMs).find(x => x.key === d.target);
+    if (t && t.facingK > 0 && !t.down) {
+      d.lineMs = (d.lineMs ?? 0) + TICK_MS;
+      d.plan.parts.splice(i, 0, { k: 'line', ms: TICK_MS });
+      d.list.splice(i, 0, 'line');
+      return { ms: TICK_MS, shot: null, text: PART_LABELS.line };
+    }
+  }
+  // (out of the door first: moving on inside a flow, the first round waits a tick at a time while the feet are still short of
+  // the door's threshold, up to OUT_WAIT_MS (2026-11-12, R3; COMBAT §25.19.8 F5: "the first round out of the door"; the tier
+  // one's first round in room 1 left at the door's plane, his path taking the door's outer middle first))
+  if (p.i === 0 && d.plan.way === 'moving' && (d.outMs ?? 0) < OUT_WAIT_MS) {
+    const mv = flowMove(state, pid), me = state.actors?.list?.find(a => a.who === pid), P = mv?.plan && mv.plan !== 'hall' ? (() => { try { return roomPlanOf(state, mv.plan); } catch { return null; } })() : null;
+    if (P?.plane && me && !pastThreshold(P, me.x, me.z)) {
+      d.outMs = (d.outMs ?? 0) + TICK_MS;
+      d.plan.parts.splice(i, 0, { k: 'out', ms: TICK_MS });
+      d.list.splice(i, 0, 'out');
+      return { ms: TICK_MS, shot: null, text: PART_LABELS.out };
+    }
+  }
   const shifted = R?.shiftAt !== null && R?.shiftAt !== undefined && p.i >= R.shiftAt;
   // (the row's first round reads the held aim at its time; the rest carry it; a round after the shift holds nothing)
   let held = null;
-  if (p.i === 0 && !shifted) d.held0 = S.aim ? heldOf(state, pid, atMs, S.aim.key).v : 0;
+  if (p.i === 0 && !shifted) held = { v: S.aim ? heldOf(state, pid, atMs, S.aim.key).v : 0 };
   else held = { v: shifted ? 0 : d.held0 ?? 0 };
   const tempo = d.tempo === 'rushed' ? 'rushed' : 'normal';
+  // (a natural 1 the shooter has mastered is caught: the round leaves late, a 'catch' part of its time spliced in before it,
+  // once a round, and is judged when it leaves (SKILLS §5.1; shot.js catchAhead))
+  if (T && !(d.caught ?? []).includes(p.i)) {
+    const c = catchAhead(state, { pid, gunId, target: T, part: p.part, tempo, follow: p.follow, climbK: p.climbK, held, atMs, ...(d.plan.moving ? { moving: d.plan.moving } : {}) });
+    if (c > 0) {
+      (d.caught ??= []).push(p.i);
+      (d.catchIds ??= {})[p.i] = shotIdNext(state);
+      d.plan.parts.splice(i, 0, { k: 'catch', ms: c });
+      d.list.splice(i, 0, 'catch');
+      return { ms: c, shot: null, text: PART_LABELS.catch };
+    }
+  }
+  if (p.i === 0 && !shifted) { d.held0 = held.v; held = null; }
+  // (a round whose catch was charged draws the dice it was judged on (shot.js shotIdNext))
+  const foreseen = d.catchIds?.[p.i] ?? null;
+  if (foreseen) { delete d.catchIds[p.i]; if (!Object.keys(d.catchIds).length) delete d.catchIds; }
   const { shot } = resolveShot(state, bus, { pid, gunId, target: T, part: p.part, tempo, follow: p.follow, climbK: p.climbK, held, atMs,
-    row: { id: d.step, n: R?.rounds.length ?? 1, i: p.i }, ...(d.plan.moving ? { moving: d.plan.moving } : {}) });
+    row: { id: d.step, n: R?.rounds.length ?? 1, i: p.i }, ...(d.plan.moving ? { moving: d.plan.moving } : {}), ...(foreseen ? { foreseen } : {}) });
   recordShot(state, bus, shot);
   let ms = p.ms;
   const gun = state.items[gunId], ro = rollerOf(state, pid, { ms: atMs }), pace = paceOf(ro.value('weapons')), M = MODELS[gun?.model ?? 'r7'];
@@ -360,6 +502,8 @@ export function runRowSub(state, bus, d, i, atMs) {
   if (p.k === 'round') return runRound(state, bus, d, i, atMs);
   if (p.k === 'shift') return { ms: p.ms, text: 'To the head.' };
   if (p.k === 'brake') return { ms: p.ms, text: 'Planted.' };
+  // (at your point: the flow's move to its end, as it stands now (a save in it carries on as the move does))
+  if (p.k === 'plant') { const f = flowMove(state, state.stop?.who); return { ms: f ? Math.max(0, f.untilMs - atMs) : 0, text: 'To your point.' }; }
   if (p.k === 'press') return { ms: p.ms, text: 'The press.' };
   return { ms: p.ms, text: PART_LABELS[p.k] ?? p.k };
 }
@@ -377,17 +521,9 @@ export function endRowSub(state, bus, d) {
 // ---- the reloads by purpose (see the header) ----
 
 const pouchWords = (key) => ({ p1: 'chest pouch 1', p2: 'chest pouch 2', p3: 'chest pouch 3', p4: 'chest pouch 4', dump: 'the dump pouch' }[key] ?? key);
-/** Whether the magazine in the gun is believed at half or less (an unknown count is not). */
-export function halfOrLess(b) {
-  const cap = famCap(b?.magFam);
-  return !!b && b.mag === 'in' && typeof b.count === 'number' && cap > 0 && b.count <= cap / 2;
-}
-
-/** Whether a spare believed fuller than the magazine in is at hand (its count known and above the gun's believed count). */
-export function fullerAtHand(state, pid, gunId, b = beliefOf(state, gunId)) {
-  const fams = MODELS[state.items?.[gunId]?.model ?? 'r7']?.fams ?? null, n = typeof b?.count === 'number' ? b.count : Infinity;
-  return sparesOf(state, pid, null).some(id => (!fams || fams.includes(state.items[id]?.fam)) && (believedN(state.items[id]) ?? -1) > n);
-}
+// (halfOrLess and fullerAtHand live in kit.js since the rework's R4, so the drill's Top up on the way reads them without a cycle; re-exported here)
+import { halfOrLess, fullerAtHand } from './kit.js';
+export { halfOrLess, fullerAtHand };
 
 /**
  * The reloads the panel offers now, by purpose (see the header): the built macros (drills.js macrosFor), each a Row of
@@ -407,7 +543,7 @@ export function reloadRows(state, pid, ms = state.clock.ms) {
     if (purpose === 'tactical') {
       // (first in a lull, the magazine in at half or less, with a fuller one at hand: a magazine of ten in a thirty has
       // nothing to top up with from others of ten (my call: "half" alone would lead with Top up on a full load of ten))
-      row.first = halfOrLess(b) && fullerAtHand(state, pid, gunId, b) && lullOf(state, pid, ms);
+      row.first = halfOrLess(b, gun) && fullerAtHand(state, pid, gunId, b) && lullOf(state, pid, ms);
       // (the coach's named magazine: Top up reaches for its pouch, and says which (§8 item 18))
       const want = R?.wantMag ? state.items[R.wantMag] : null, pouch = want ? pouchesOf(state, pid).find(p => !p.dump && p.mags.includes(R.wantMag)) : null;
       if (want && pouch && gun.mag !== R.wantMag) {

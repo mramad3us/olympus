@@ -37,8 +37,9 @@ import { batchMaterial } from './materials.js';
 import { createCollector, buildAreaData, MESH_ATTRS, GLOW_CELL_M } from '../art/jobs.js';
 
 export { GLOW_CELL_M };
-// (part numbers are written into the IDs pass as three bytes; people share PEOPLE_PART, 0xa5a5a5, so the
-// areas' numbers wrap below it: two areas far apart in a session may share a number, never two on screen)
+// (part numbers are written into the IDs pass as three bytes; people take PEOPLE_PART's family, 0xa5a5a5 to 0xaba5a5
+// (src/render/cards.js), so the areas' numbers wrap below it: two areas far apart in a session may share a number, never
+// two on screen)
 const PART_WRAP = 0xa00000;
 let nextPart = 1;
 /** A new part number (outlines are inked where parts meet), unique on the page. */

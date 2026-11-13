@@ -127,6 +127,8 @@ export function wear(look = {}) {
   // (the rifle's drawing, when a look names one (src/art/rifles.js: a drawing's id or a model's name); none, the R-7's;
   // and its finish, when it is not the issue's black)
   if (look.model) L.model = look.model;
+  // (the walk cycle a look is drawn with, when not the game's: src/art/figures/walk.js, the R8 flag)
+  if (look.cycle) L.cycle = look.cycle;
   if (look.finish) L.finish = look.finish;
   const camo = { pattern: 'valles' };
   switch (outfit) {

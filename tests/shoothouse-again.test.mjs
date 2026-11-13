@@ -2,7 +2,7 @@
 //   - each sheet on 48213: the same stands, faces, holds and gaps, the same dummy in magazine 1, the same #2 and the same
 //     instructor (drawn from the seed alone, never from the sheet: COMBAT §25.10.4's "Again as …"); againAsHouse names the
 //     same seed and the sheet asked for, with the picker's par if one was set;
-//   - a save at GO, in a bundle (the tier one's "Clear the house" running), in a take-in's window (setup 'contact') and in
+//   - a save at GO, in a bundle (the tier one's "Open, clear the room" running), in a take-in's window (setup 'contact') and in
 //     the hot wash's splash: loaded and stepped on with the same bot, the digest is the unbroken run's, tick for tick.
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
@@ -53,7 +53,7 @@ export default [
       const out = [];
       // (at GO, in stop motion, the first choice to make)
       { const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private', setup: 'go' }); out.push(carriesOn(g, () => houseBot({ mode: 'keys' }), 600, 'GO')); }
-      // (in a bundle: the tier one's "Clear the house" running)
+      // (in a bundle: the tier one's "Open, clear the room" running)
       {
         const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'tierone', setup: 'go' }), bot = houseBot({ mode: 'T' });
         for (let i = 0; i < 400 && !g.state.stop?.doing?.beats; i++) { g.step(1, bot); g.clearFacts(); }

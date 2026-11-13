@@ -22,7 +22,8 @@ export function reflexOf(reflex, { keep = false, keepMs = KEEP_SAID_MS, label = 
   if (!reflex) return null;
   const opts = [...(reflex.options ?? [])], none = opts.findIndex(o => o.key === 'none');
   if (none >= 0 && none !== opts.length - 1) opts.push(opts.splice(none, 1)[0]);
-  const rows = opts.map((o, i) => ({ key: String(i + 1), option: o, text: `${i + 1} ${o.label ?? o.key}${secs(o.ms) ? ` · ${secs(o.ms)}` : ''}` }));
+  // (an answer shown struck says why where its time would be (the rework's R6: Transition "not issued"))
+  const rows = opts.map((o, i) => ({ key: String(i + 1), option: o, text: `${i + 1} ${o.label ?? o.key}${o.off ? ` · ${o.off}` : secs(o.ms) ? ` · ${secs(o.ms)}` : ''}` }));
   return { title: reflex.title ?? 'Now.', why: reflex.why ?? null, rows, keep: !!keep, keepText: `${label('hand')} keep this answer ${Math.round(keepMs / 60000)} min: ${keep ? 'on' : 'off'}` };
 }
 
@@ -53,8 +54,10 @@ export function createReflex(parent, { plaque = null, label = (a) => a } = {}) {
         sig = s;
         root.replaceChildren(
           el('div', { className: 'rx-head' }, titleEl(model), el('span', { className: 'rx-note', textContent: 'Time stands still: your hands answer.' })),
-          el('div', { className: 'rx-list' }, ...model.rows.map(r => el('div', { className: `rx-row${r.option.key === 'none' ? ' none' : ''}` },
-            el('kbd', { textContent: r.key }), el('span', { className: 'label', textContent: r.option.label ?? r.option.key }), secs(r.option.ms) ? el('span', { className: 'time', textContent: secs(r.option.ms) }) : null))),
+          // (more than five answers (the house's stoppage card, the rework's R6): two columns, down then across, so the card keeps its height)
+          el('div', { className: `rx-list${model.rows.length > 5 ? ' two' : ''}` }, ...model.rows.map(r => el('div', { className: `rx-row${r.option.key === 'none' ? ' none' : ''}${r.option.off ? ' off' : ''}` },
+            el('kbd', { textContent: r.key }), el('span', { className: 'label', textContent: r.option.label ?? r.option.key }),
+            r.option.off ? el('span', { className: 'time', textContent: r.option.off }) : secs(r.option.ms) ? el('span', { className: 'time', textContent: secs(r.option.ms) }) : null))),
           el('div', { className: `rx-keep${model.keep ? ' on' : ''}` }, el('kbd', { textContent: label('hand') }), ` keep this answer ${Math.round(KEEP_SAID_MS / 60000)} min: ${model.keep ? 'on' : 'off'}`));
         text = [model.title, ...model.rows.map(r => r.text), model.keepText].join(' | ');
       }

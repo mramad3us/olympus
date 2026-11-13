@@ -10,6 +10,9 @@
 // sheet, and it is painted (paintBand(): compose.js and shade.js for each of its cells) and sent up
 // alone, the first time anyone of that look needs it: a crowd that never aims never costs an aim.
 //
+// R8 (the shoot house rework; VIEWS §3.10.8): the stance pool (poses.js STANCE_BANDS: the glide, Assault and the beats of close
+// quarters, painted in one carry) is shelved like the base pool, its sheet within a base sheet's size, so the render keeps it in a
+// base slot of its own (src/render/figures.js), only for an armed mover in a stance: no new texture, the base looks unchanged.
 // 0.0.5: the rifle's handling bands (poses.js RIFLE_BANDS) are laid out in a POOL of their own, a second,
 // smaller sheet (pools.rifle: the three bands side by side, about 880 × 152 at 16 px/m), so the base sheet
 // keeps its size and the atlas its 40 looks at 16 px/m; the render keeps rifle sheets in the atlas's rows
@@ -65,7 +68,8 @@ export function sheetLayout(ppm = PX_PER_M) {
   });
   // (shelves, a pool at a time: blocks left to right while they fit the sheet's width, then a new shelf)
   const bands = {}, cells = new Map(), pools = {};
-  for (const [pool, wM] of [['base', SHEET_W_M], ['rifle', RIFLE_SHEET_W_M]]) {
+  // (R8: the stance pool shelved as the base is, its sheet no larger than a base one, so it takes a base slot of the atlas)
+  for (const [pool, wM] of [['base', SHEET_W_M], ['rifle', RIFLE_SHEET_W_M], ['stance', SHEET_W_M]]) {
     const mine = blocks.filter(b => POOL_OF[b.band] === pool);
     const SW = Math.max(Math.round(wM * ppm), ...mine.map(b => b.w));
     let sx = 0, sy = 0, shelf = 0;
@@ -94,7 +98,7 @@ export function sheetLayout(ppm = PX_PER_M) {
 export function shapeKey(L) {
   return [L.top?.kind, L.top?.emblem ? 'e' : '', L.legs?.kind, L.head?.kind ?? '-', L.armour ? 'ø' : '', L.pack ? (L.pack.helmet ? 'jh' : 'j') : '',
     L.belt ? 'y' : '', L.rank ? 'r' : '', L.gloves ? 'd' : '', `${L.hair?.style}${L.hair?.step || ''}`, L.weapon ?? '-', L.carry ?? '-', L.wet ? 'w' : '', L.tired ? 't' : '',
-    `${L.ears ? 'E' : ''}${L.headset ? 'H' : ''}${L.brassard ? 'B' : ''}${L.magOut ? 'M' : ''}`].join('|') + (L.model ? `|${L.model}` : '');
+    `${L.ears ? 'E' : ''}${L.headset ? 'H' : ''}${L.brassard ? 'B' : ''}${L.magOut ? 'M' : ''}`].join('|') + (L.model ? `|${L.model}` : '') + (L.cycle ? `|c${L.cycle}` : '');
 }
 /** How many composed frames are kept (a least-recently-used cache: about ten shapes' gait bands). */
 export const COMPOSED_KEEP = 600;
@@ -157,12 +161,13 @@ export function* bandSteps(look, band, { ppm = PX_PER_M } = {}) {
  */
 export function paintSheet(look, { ppm = PX_PER_M, bands = null, rifle = null } = {}) {
   const lay = sheetLayout(ppm), L = look?.top ? look : wear(look);
-  const want = bands ?? BAND_KEYS.filter(b => POOL_OF[b] === 'base' || (rifle ?? !!L.weapon));
-  const withRifle = want.some(b => POOL_OF[b] === 'rifle');
-  const W = withRifle ? Math.max(lay.w, lay.pools.rifle.w) : lay.w, H = lay.h + (withRifle ? lay.pools.rifle.h : 0), data = new Uint32Array(W * H);
+  const want = bands ?? BAND_KEYS.filter(b => POOL_OF[b] === 'base' || (POOL_OF[b] === 'rifle' && (rifle ?? !!L.weapon)));
+  const withRifle = want.some(b => POOL_OF[b] === 'rifle'), withStance = want.some(b => POOL_OF[b] === 'stance');
+  const RH = withRifle ? lay.pools.rifle.h : 0;
+  const W = Math.max(lay.w, withRifle ? lay.pools.rifle.w : 0), H = lay.h + RH + (withStance ? lay.pools.stance.h : 0), data = new Uint32Array(W * H);
   let ms = 0;
   for (const band of want) {
-    const b = paintBand(look, band, { ppm }), r = b.rect, oy = POOL_OF[band] === 'rifle' ? lay.h : 0;
+    const b = paintBand(look, band, { ppm }), r = b.rect, oy = POOL_OF[band] === 'rifle' ? lay.h : POOL_OF[band] === 'stance' ? lay.h + RH : 0;
     for (let y = 0; y < r.h; y++) data.set(b.pm.data.subarray(y * r.w, (y + 1) * r.w), (oy + r.y + y) * W + r.x);
     ms += b.ms;
   }
@@ -176,7 +181,7 @@ export function paintFrame(look, dir, frame, { ppm = PX_PER_M } = {}) {
   return { pm: shade(fr.cells, coloursOf(L, ppm)), ax: fr.ax, ay: fr.ay, muzzle: fr.muzzle, flash: fr.flash, kind: fr.kind };
 }
 
-export const FIRE_FRAMES = Object.freeze(['fire', 'firehi', 'firelo', 'kneelfire', 'pronefire', 'sitFire']);
+export const FIRE_FRAMES = Object.freeze(['fire', 'firehi', 'firelo', 'kneelfire', 'pronefire', 'sitFire', 'fireMove0', 'fireMove1']);
 /**
  * The flash's size on Mars, of tradecraft's (the build sheet 0.0.5 §2.3 (c): "the flash (Mars ×1.2)": in
  * Melas's 66 kPa the propellant's gas burns on a little further past the muzzle than at sea level).

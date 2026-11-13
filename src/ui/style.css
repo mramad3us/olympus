@@ -255,6 +255,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
    PAPER, 200 × 200 at the top centre under PAUSED's slot; the plaque and its brackets in the picture. */
 #hud.weapon .radio.voices { bottom: calc(var(--m) + (44px + 6px + 148px + 6px) * var(--ui)); }
 .steps, .reflexcard { position: absolute; left: 50%; bottom: calc(var(--m) + (44px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(720px * var(--ui)); height: calc(148px * var(--ui)); overflow: hidden; display: flex; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; pointer-events: auto; font-size: calc(12px * var(--ui)); line-height: 1.25; }
+/* (a key the pause's guard held: the panel flashes, so the press is seen to wait, never swallowed in silence: the play review of 2026-11-13) */
+#hud.guarded .steps { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass); }
 .steps .wcard { flex: none; width: calc(180px * var(--ui)); height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(4px * var(--ui)); border-right: 1px solid var(--glass-edge); background: #2b2e3a; overflow: hidden; }
 /* (the card at a whole number of device pixels a card pixel; where even one is too large for its box, at the box's scale and smooth: steps.js cardFit) */
 .steps .wcard canvas { image-rendering: pixelated; display: block; flex: none; }
@@ -323,6 +325,11 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .reflexcard .rx-row { display: flex; align-items: center; gap: calc(8px * var(--ui)); color: var(--paper); }
 .reflexcard .rx-row .time { color: #b8bdc8; }
 .reflexcard .rx-row.none .label { color: var(--muted); }
+/* (the rework's R6: an answer shown struck, its why in place of its time) */
+.reflexcard .rx-row.off .label { color: var(--muted); text-decoration: line-through; }
+.reflexcard .rx-list.two { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, auto); grid-auto-flow: column; column-gap: calc(16px * var(--ui)); row-gap: calc(2px * var(--ui)); }
+.reflexcard .rx-list.two .rx-row { min-width: 0; white-space: nowrap; }
+.reflexcard .rx-list.two .rx-row .label { overflow: hidden; text-overflow: ellipsis; }
 .reflexcard .rx-keep { color: var(--muted); font-size: calc(11px * var(--ui)); }
 .reflexcard .rx-keep.on { color: var(--brass); }
 
@@ -514,3 +521,41 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .steps .running-view.bundle .rv-lane b.bad { color: #f0a090; }
 .instinct .line .act { color: #d8e8f4; margin-right: calc(4px * var(--ui)); }
 .runsheet .rs-practised { margin: calc(2px * var(--ui)) 0 0; color: #7d746a; font-size: calc(9.5px * var(--ui)); }
+
+/* The step panel by groups (2026-11-13, the shoot house's rework R7; VIEWS §7.8): the same two columns of five, a head at
+   their left (the situation, the open group, HOME, Tab's fan) and layout B's banks at their right; a struck row greyed at
+   40% with its badge opaque at its right edge; an empty slot keeps its number; the core's keys marked, NEXT brass-edged. */
+.steps .steplist.grouped { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-rows: repeat(5, minmax(0, 1fr)); grid-auto-flow: row; }
+.steps .steplist.grouped .running-view { grid-column: 1 / -1; grid-row: 1 / -1; }
+.steps .ghead { display: flex; align-items: center; justify-content: center; width: calc(15px * var(--ui)); overflow: hidden; border-right: 1px solid var(--glass-edge); }
+.steps .ghead .gname { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-size: calc(9.5px * var(--ui)); letter-spacing: 0.12em; color: var(--brass); }
+.steps .ghead.group .gname, .steps .ghead.fan .gname { color: #d8e8f4; }
+.steps .ghead.core .gname { color: var(--muted); }
+.steps .gbanks { display: flex; flex-direction: column; justify-content: space-around; gap: calc(2px * var(--ui)); padding-left: calc(4px * var(--ui)); border-left: 1px solid var(--glass-edge); }
+.steps .gbank { display: flex; align-items: center; gap: calc(3px * var(--ui)); font-size: calc(9.5px * var(--ui)); color: var(--muted); }
+.steps .gbank.open kbd { border-color: var(--brass); color: var(--brass); }
+.steps .gbank.dot .gb-name::after { content: ' •'; color: var(--brass); }
+.steps .step.empty { cursor: default; }
+.steps .step.empty > kbd, .steps .step.empty .label { opacity: 0.4; }
+.steps .step.empty .label .name { color: var(--faint); }
+.steps .step.off > kbd, .steps .step.off .label, .steps .step.off .time { opacity: 0.4; }
+.steps .step.off .label .name { text-decoration: none; }
+.steps .step .badge { display: inline-flex; align-items: center; gap: calc(2px * var(--ui)); color: var(--muted); font-size: calc(10px * var(--ui)); white-space: nowrap; max-width: calc(96px * var(--ui)); overflow: hidden; text-overflow: ellipsis; }
+.steps .step .badge svg { width: calc(12px * var(--ui)); height: calc(12px * var(--ui)); display: block; }
+.steps .step .badge.b-to, .steps .step .badge.b-rounds, .steps .step .badge.b-rung { color: var(--brass); }
+.steps .step .badge.b-to kbd { min-width: 1.3em; padding: 0 2px; font-size: calc(9.5px * var(--ui)); line-height: 1.3; color: var(--brass); border-color: var(--brass); }
+.steps .step .badge.b-gate { padding: 0 calc(3px * var(--ui)); border: 1px solid var(--glass-line); border-radius: 2px; }
+.steps .step .badge.b-done { color: #8fd19e; }
+.steps .step.gtab .label .name, .steps .step.gway .label .name { letter-spacing: 0.08em; color: #d8e8f4; }
+.steps .step.gtab.dot { box-shadow: inset calc(2px * var(--ui)) 0 0 var(--brass); }
+.steps .step.gtab.dot .label .name::after { content: ' •'; color: var(--brass); }
+.steps .step .gcount { color: var(--muted); font-variant-numeric: tabular-nums; }
+.steps .step.core { background: rgba(255, 255, 255, 0.03); }
+.steps .step.core.next { border-left-color: var(--brass); background: rgba(231, 184, 74, 0.08); }
+.steps .step.core.next.off { border-left-color: transparent; background: none; }
+.steps .step.core.next .tcap { color: var(--brass); border-color: var(--brass); }
+.steps .step.refused .badge kbd { background: var(--brass); color: var(--ink); }
+.steps .step.off .time { text-decoration: none; }
+.steps .step.core.next .meta { flex-direction: row; align-items: center; gap: calc(4px * var(--ui)); }
+.steps .steplist.grouped .step.bundle .label .name, .steps .steplist.grouped .step .label .dots ~ .name { -webkit-line-clamp: 1; }
+.steps .steplist.grouped .step .label .dots { overflow: hidden; white-space: nowrap; }

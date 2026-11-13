@@ -17,7 +17,9 @@
 // The geometry the scene's rules and the bundles read, each a closed form of the plan and a point:
 //   inFunnel(plan, x, z)       within FUNNEL_M 0.5 of the door's plane and between its jambs widened by
 //                              FUNNEL_SIDE_M 0.3 each side: "in the door" (the fault "Don't stop in the door!"
-//                              after FUNNEL_FAULT_MS, the scene's); never for the hall's leg, which has no door
+//                              after FUNNEL_FAULT_MS, the scene's); never for the hall's leg, which has no door. From
+//                              2026-11-13 the funnel is the plan's no-stop zone (plan.funnel, src/sim/places/zones.js
+//                              funnelZone: the one shape the movement code, the #2 and the scene all read)
 //   pastThreshold(plan, x, z)  in one of the plan's rooms and more than THRESHOLD_M 0.3 past the plane: "in"
 //   coveredNow(state, plan, actor, ms)  the hot spots the actor covers now: he is past the threshold, and each
 //                              lies within SECTOR_HALF_DEG 20° of his head's yaw or his muzzle's (src/sim/arms/
@@ -37,11 +39,10 @@ import { sightGridOf } from '../places/sight.js';
 import { clearLine } from '../people/perception.js';
 import { muzzleOf, angleDiff, faceRad } from '../arms/carry.js';
 import { X4_PLANS } from '../../data/places/x4-plans.js';
+import { FUNNEL_M, FUNNEL_SIDE_M, funnelZone, inZone } from '../places/zones.js';
 
-/** In the door: within this of the door's plane, metres (the build sheet 0.0.12 §4). */
-export const FUNNEL_M = 0.5;
-/** The door's jambs widened by this each side for the funnel, metres (the sheet's §2.1). */
-export const FUNNEL_SIDE_M = 0.3;
+/** In the door: within FUNNEL_M 0.5 of the door's plane, between its jambs widened by FUNNEL_SIDE_M 0.3 (src/sim/places/zones.js, the no-stop zones). */
+export { FUNNEL_M, FUNNEL_SIDE_M };
 /** In the room: past the door's plane by more than this, metres (COMBAT §25.7.3's threshold 0.3 m in). */
 export const THRESHOLD_M = 0.3;
 /** A hot spot is covered within this of a head's or a muzzle's yaw, degrees (the sheet's §2.1). */
@@ -72,7 +73,8 @@ function derive(layout, key, P) {
   const line = o ? { axis: o.axis, at: o.at, a: o.a, b: o.b } : P.gate;
   const t = line.axis === 'x' ? P.threshold[1] : P.threshold[0];
   const plane = Object.freeze({ ...line, into: t >= line.at ? 1 : -1 });
-  return Object.freeze({ ...P, id: key, layout, area: L.area, rects: Object.freeze(rects.map(r => Object.freeze(r))), plane });
+  const funnel = o ? funnelZone(`funnel:${o.id}`, o.id, line, plane.into) : null;
+  return Object.freeze({ ...P, id: key, layout, area: L.area, rects: Object.freeze(rects.map(r => Object.freeze(r))), plane, funnel });
 }
 
 /** The plan entered by a door (or 'hall'), on the session's layout (see the header), or null. */
@@ -90,6 +92,39 @@ export function lanePlanOf(state, layout = layoutOf(state)) {
   return { lane: L.lane, area: L.area, order: [...L.order], plans: Object.fromEntries(L.order.map(k => [k, roomPlanOf(state, k, layout)])) };
 }
 
+/**
+ * Whose sector a place is in, by where it is (the reach review of 2026-11-13: who owns a man was a label his stand carried, which
+ * a man who moves would keep): the slot whose sector (from its point of domination, its yawRad, SECTOR_HALF_DEG either side) the
+ * place's bearing is nearest the middle of, in half-widths; null for a plan without sectors.
+ */
+export function sectorOf(plan, x, z) {
+  let best = null;
+  for (const s of plan?.sectors ?? []) {
+    const p = plan.points?.[s.slot - 1];
+    if (!p) continue;
+    const k = Math.abs(angleDiff(Math.atan2(z - p[1], x - p[0]), s.yawRad)) / (SECTOR_HALF_DEG * RAD);
+    if (!best || k < best.k) best = { slot: s.slot, k };
+  }
+  return best?.slot ?? null;
+}
+/** The room of the lane a place is in, by the plans' rects (the hall's leg's too), or null outside them all (see sectorOf: the room by where a man is, never his stand's label). */
+export function roomAt(state, x, z) {
+  const L = lanePlanOf(state);
+  for (const k of L.order) { const P = L.plans[k]; if ((P.rects ?? []).some(r => inRect(r, x, z))) return P.room; }
+  return null;
+}
+
+/** A man's room and sector by where he stands now (roomAt, sectorOf), his stand's labels where the plans have no word: { room, slot }. */
+export function manPlace(state, T) {
+  let room = null, slot = null;
+  try {
+    room = roomAt(state, T.x, T.z);
+    const L = room ? lanePlanOf(state) : null, P = L ? Object.values(L.plans).find(p => p.room === room) : null;
+    slot = P ? sectorOf(P, T.x, T.z) : null;
+  } catch { room = null; slot = null; }
+  return { room: room ?? T.room ?? null, slot: slot ?? T.slot ?? 1 };
+}
+
 /** A plan's room by its door ('hall' for the hall's leg), on any layout; null when no plan has it. */
 export function roomOfDoor(doorId) {
   for (const L of Object.values(X4_PLANS)) if (L.plans[doorId]) return L.plans[doorId].room;
@@ -101,15 +136,12 @@ export function doorOfRoom(roomId) {
   return null;
 }
 
-// (a point's distance past the plan's plane, + into the room, and its place along the line)
+// (a point's distance past the plan's plane, + into the room)
 const across = (plan, x, z) => plan.plane.into * ((plan.plane.axis === 'x' ? z : x) - plan.plane.at);
-const along = (plan, x, z) => (plan.plane.axis === 'x' ? x : z);
 
 /** In the door (see the header): within FUNNEL_M of the door's plane, between its jambs widened by FUNNEL_SIDE_M. Never on the hall's leg. */
 export function inFunnel(plan, x, z) {
-  if (!plan?.door) return false;
-  const d = across(plan, x, z), u = along(plan, x, z);
-  return Math.abs(d) <= FUNNEL_M && u >= plan.plane.a - FUNNEL_SIDE_M && u <= plan.plane.b + FUNNEL_SIDE_M;
+  return !!plan?.door && !!plan.funnel && inZone(plan.funnel, x, z);
 }
 
 /** In the room (see the header): in one of the plan's rooms and more than THRESHOLD_M past its plane. */

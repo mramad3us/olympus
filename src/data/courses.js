@@ -168,8 +168,10 @@ export const COURSES = deepFreeze({
       threatHolds: [['rifle', 70], ['pistol', 30]], noshootHolds: [['hands', 60], ['phone', 40]],
     },
     gaps: { door: { 'w4.r2': [300, 1200], 'w4.r3': [500, 1500] }, doorOther: [300, 1200], zone: [1500, 3000] },
-    funnelM: 0.5, funnelFaultMs: 1000, flagM: 0.3, flagReachM: 5, twoSlotM: 1.5, twoWaitMs: 3000, twoBehindM: 0.65, stackM: 0.4,
+    funnelM: 0.5, funnelFaultMs: 1000, twoSlotM: 1.5, twoWaitMs: 3000, twoBehindM: 0.65, stackM: 0.4,
     stallMs: 60_000, stallMoreMs: 30_000, laneMaxMs: 600_000, washMs: 90_000,
+    // (the rework's R6, COMBAT §25.19.6: the P-12 from the Sergeant up (arms/sidearm.js SIDEARM_TIERS), the house's ten frangible a magazine)
+    sidearm: { model: 'p12', mags: [['had17', 10, 'frangible'], ['had17', 10, 'frangible']] },
   },
   // (0.0.10: test-stress's course, on pairs.js's engine (see the header); src/sim/scenarios/stress.js)
   stress: {
@@ -423,7 +425,9 @@ export const SEQ_HOUSE = deepFreeze([
 
 /** What the instructor says to a shooter the line waits on ("Shooter, back on your mark."), by what is lacking (shoothouse.js houseWant). */
 export const HOUSE_NUDGE = deepFreeze({ mag: 'a magazine in.', chamber: 'a round up: MAKE READY.', safe: 'on safe, finger off.', low: 'low ready.', out: 'out of it.',
-  mark: 'back on your mark.', still: 'stand still.', gait: 'Combat. Weapon up.', two: 'wait for your number two.', show: 'show me clear.' });
+  mark: 'back on your mark.', still: 'stand still.', gait: 'Combat. Weapon up.', two: 'wait for your number two.', show: 'show me clear.',
+  // (your number two's own wants, said to him: "Number two, a round up." (shoothouse.js twoLacks; handling.js names him))
+  'two:busy': 'finish it.', 'two:mag': 'a magazine in.', 'two:chamber': 'a round up.', 'two:safe': 'on safe, finger off.', 'two:low': 'low ready.', 'two:show': 'show me clear.' });
 
 /**
  * The instructor's words (see the header), each ≥ 2 phrasings: his faults from the catwalk as they happen, at most one
@@ -444,6 +448,8 @@ export const HOUSE_CHIEF = deepFreeze({
   standing: ['He is still standing in there.', 'You left one up.'],
   door: ['That door was never held.', 'You left a door at your back.'],
   stall: ['Move on.', 'Move. You are clearing, not visiting.'],
+  // (his acknowledgement of your number two's rifle shown clear at UNLOAD, SHOW CLEAR (COMBAT §25.19.5))
+  twoClear: ['Number two, clear.', 'Number two: clear.'],
   time: ['Time. On to the next.', 'Time on that room. Next door.'],
   par: ['He fired first.', 'Too slow. He fired first.'],
   clear: ['Clear.', 'Good. Clear.'],

@@ -2,6 +2,7 @@
 // The timing tests drop the range session (armoury.range) so no chained wait runs after a step: the
 // steps alone, at Weapon handling, Marksmanship and Fitness 10 (pace 1.0007).
 import { assert, fmt } from './helpers.mjs';
+import { CATCH_K, CLEAN_K } from '../src/sim/skills/checks.js';
 import { createGame } from './game.mjs';
 import { stepAct } from './bots/lib.mjs';
 import { rangeBot } from './bots/range.mjs';
@@ -107,7 +108,8 @@ export default [
       const hr = rollerOf(h.state, h.state.player.id), hg = h.state.items[h.state.stop.gun];
       // (a sub-step's time: its tempo's clean time, or ×1.6 of it when the roll missed)
       const subMs = (r, action) => { const f = r.facts.find(x => x.phase === 'sub' && x.action === action); return f.toMs - f.fromMs; };
-      const fits = (ms, clean) => Math.abs(ms - clean) <= 1 || Math.abs(ms - Math.round(clean * 1.6)) <= 1;
+      // (its time, or a failure's ×1.6, or from the rework's R4 a caught 1's ×1.5 or a clean 20's ×2/3 (SKILLS §5.1))
+      const fits = (ms, clean) => [1, 1.6, 1 + CATCH_K, 1 - CLEAN_K].some(k => Math.abs(ms - Math.round(clean * k)) <= 1);
       const rushed = run(h, 'macro:load', 'rushed');
       const magIn = h.state.log.filter(e => e.kind === 'roll' && e.step === 'seat').at(-1).roll;
       const careful = run(h, 'macro:ready', 'careful');

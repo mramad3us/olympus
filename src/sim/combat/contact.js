@@ -61,25 +61,45 @@
 // is handed back ('contact': its moves and scans cut where they stand, its other beats let end, the pause on the last's
 // end), its rest the panel's "Carry on: …" (bundle.js carryRow, drill:carry); a Watch puts the muzzle on its spot at the
 // pause. A target's name in the log is its record's (T.name, the house's stands), else its lane's.
-// Pure but contactLook, contactInput, identify, runContactSub and endContactSub, which write the mind, the stop
+// 2026-11-12 (the shoot house's rework R3, COMBAT §25.19.3.1): from rung 2 the window's end **suspends** a running bundle
+// instead of handing it back (stepper.js suspendFlow): its moves run on through the window and are not cut, a running scan is
+// paused where it stands, and the pause comes once a hands or voice beat under way has ended; the bundle waits on the stop
+// as state.stop.flow and the shot chosen runs inside it (bundle.js flowIn). Below rung 2 the hand-back is as built. A flow
+// taken up beside a step pre-arms the marine as a running bundle does.
+// 2026-11-12 (the rework's R4, COMBAT §25.19.4): **the #2's sector is his**. A window whose men are all of his sector, he up,
+// his rifle working and with you (on his stack, in the room, a slot's doing under way or on a man), none within HIS_CONE_DEG
+// 20° of your muzzle, closes with no pause: the mind's `his` (his men watched every tick: the pause after all once he is no
+// longer up with you), the log "His. Taken in 0.05 s", the fact 'his'. And **the standing order** (byOrder; question 1's
+// default: built, from rung 4, off): at the pause, every man of the contact in your sector seen armed, facing, nobody within
+// ORDER_ALONE_M 1 m of him: the doctrinal row chosen at once, moving on, "By your order: …".
+// Pure but contactLook, contactInput, identify, runContactSub, endContactSub and byOrder, which write the mind, the stop
 // and the log.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { stream } from '../../core/rng.js';
 import { playerActor, playerId } from '../../core/ids.js';
 import { check } from '../skills/checks.js';
-import { sheetOf } from '../skills/templates.js';
+import { sheetOf, rungOf } from '../skills/templates.js';
 import { rollerOf, DARK_BELOW } from './roll.js';
 import { sightOf, SEEN } from '../people/perception.js';
 import { contactOf, noteContact } from '../people/mind.js';
 import { muzzleOf, angleDiff } from '../arms/carry.js';
 import { turnersOf, turnerOf, facingOf, turnerTargets, edgeOnMs } from '../arms/turners.js';
 import { takeInMs, goMs, takeInWords, takeInText, windowK } from './react.js';
-import { enterStop, stopInput, targetOf } from '../arms/shooting.js';
+import { enterStop, stopInput, targetOf, stepsOf, chooseStep } from '../arms/shooting.js';
 import { heldOf, aimMsOf, HELD_MAX, HELD_RATE0 } from '../arms/shot.js';
 import { logEntry } from '../log.js';
 import { startled, feltOf, bandN, blockOf } from './supp.js';
-import { halt as haltDoing } from './stepper.js';
+import { halt as haltDoing, suspendFlow } from './stepper.js';
+import { gunField } from '../arms/firearms.js';
+import { roomPlanOf, pastThreshold, inFunnel, manPlace } from './room.js';
+import { stillUp } from '../arms/specials.js';
+
+/** The rung from which a contact suspends a running bundle rather than handing it back (COMBAT §25.19.3.1). */
+export const SUSPEND_RUNG = 2;
+
+/** A man of the #2's sector is his unless he stands within HIS_CONE_DEG of your muzzle (COMBAT §25.19.4; my call). */
+export const HIS_CONE_DEG = 20;
 
 /** The identification's DC (COMBAT §25.4.6): IDENT_DC0 + round(range / IDENT_PER_M), IDENT_DARK in the dark. */
 export const IDENT_DC0 = 6, IDENT_PER_M = 5, IDENT_DARK = 4;
@@ -165,7 +185,7 @@ export function contactLook(state, input, bus, ctx) {
   if (!P) {
     const id = c.n + 1, { t, rangeM, band } = windowOf(state, pid, id, fresh, ms);
     c.n = id;
-    c.pending = { id, ids: fresh, seenMs: ms, untilMs: ms + t.ms, ms: t.ms, expect: t.expect, n: t.n, grade: t.grade, roll: t.roll, parts: t.parts, rangeM, whoK: t.whoK,
+    c.pending = { id, ids: fresh, seenMs: ms, untilMs: ms + t.ms, ms: t.ms, expect: t.expect, ...(t.expects && state.mind?.clearing ? { expects: t.expects } : {}), n: t.n, grade: t.grade, roll: t.roll, parts: t.parts, rangeM, whoK: t.whoK,
       armed: armedOf(state, me), goMs: goMs(sheetOf(state, pid)?.os ?? 0), mx: sgn(input?.mx), mz: sgn(input?.mz), run: !!input?.run, ...(band ? { band } : {}) };
     bus?.emit('contact', fact('seen', pid, c.pending));
     return;
@@ -174,12 +194,12 @@ export function contactLook(state, input, bus, ctx) {
   const more = fresh.filter(k => !P.ids.includes(k));
   if (!more.length) return;
   const ids = [...P.ids, ...more], { t } = windowOf(state, pid, P.id, ids, P.seenMs, P.roll, P.band ?? 0);
-  Object.assign(P, { ids, untilMs: Math.max(P.untilMs, P.seenMs + t.ms), ms: Math.max(P.ms, t.ms), expect: t.expect, n: t.n, parts: t.parts, whoK: t.whoK });
+  Object.assign(P, { ids, untilMs: Math.max(P.untilMs, P.seenMs + t.ms), ms: Math.max(P.ms, t.ms), expect: t.expect, ...(t.expects && P.expects ? { expects: { ...t.expects, ...P.expects } } : {}), n: t.n, parts: t.parts, whoK: t.whoK });
   bus?.emit('contact', fact('join', pid, P, { atMs: ms }));
 }
 
 // (0.0.12: pre-armed at the sighting: a bundle's beats running, or a Watch held (see the header))
-const armedOf = (state, me) => !!state.stop?.doing?.beats || !!me?.watch;
+const armedOf = (state, me) => !!state.stop?.doing?.beats || (!!state.stop?.flow && !state.stop.flow.suspended) || !!me?.watch;
 
 // (the window's target nearest the muzzle's yaw: the pause's bracket)
 function pickOf(state, pid, keys, ms) {
@@ -199,6 +219,35 @@ function pickOf(state, pid, keys, ms) {
   return best.key;
 }
 
+// (the house's; the rework's R9, 2026-11-13: a new window's pause leaves the bracket on the man you were on when he is still up after your
+// rounds, of your corner, facing and in the rifle's frame: the newcomer is taken in and identified as before, but the rifle
+// does not leave a man still in the fight for him (doctrine's "until the threat is down"). Before, room 2's no-shoot turning
+// as the armoured man took his pair moved the bracket onto the no-shoot, and the line's "On him" was two presses at one stop,
+// the aim back onto the armoured man and then his head (F13: 45 stops of 100 tier one lanes))
+function keptPick(state, pid, now) {
+  const S = state.stop, key = S?.mode === 'stop' ? S.pick : null, T = key ? turnerOf(state, key) : null, R = state.armoury?.range;
+  if (R?.course !== 'house') return null;
+  if (!T || (R?.house?.twoPid && (T.slot ?? 1) !== 1) || !stillUp(state, key) || facingOf(T, now) < SEEN || !targetOf(state, key, pid)) return null;
+  return key;
+}
+
+// (the house's (the other scenes keep their pinned brackets); the rework's R9, 2026-11-13: the bracket at the pause goes onto a man of the window your look identified armed (a rifle, a
+// pistol), the one nearest the muzzle, when it fell on one not seen armed: the rifle goes to the threat it has just seen, as a
+// trained man's does (the identification is the player's to read on the panel at the same pause). Before, room 2's window of
+// the armoured man and the no-shoot bracketed the no-shoot when nearer the muzzle, and the line's "On him" cost an aim step,
+// a second stop and the par: the Raider and the tier one each missed it once in 100 lanes, F10, F13)
+function armedPick(state, pid, now) {
+  const S = state.stop, c = contactOf(state), last = c?.last, R = state.armoury?.range;
+  if (R?.course !== 'house' || !S || S.mode !== 'stop' || !last || last.pick !== S.pick) return;
+  const armed = (k) => last.ident?.[k] === 'rifle' || last.ident?.[k] === 'pistol';
+  if (armed(S.pick) || stillUp(state, S.pick)) return;
+  const own = (k) => !(R?.course === 'house' && R.house?.twoPid) || (turnerOf(state, k)?.slot ?? 1) === 1;
+  const keys = last.ids.filter(k => armed(k) && own(k) && targetOf(state, k, pid));
+  if (!keys.length) return;
+  const key = pickOf(state, pid, keys, now);
+  S.pick = key; last.pick = key;
+}
+
 // (a chained wait cut at the pause, as any step chosen cuts it)
 function cutWait(state, bus) {
   const S = state.stop, d = S?.doing;
@@ -210,13 +259,13 @@ function cutWait(state, bus) {
 /** The pause (see the header): the window closed, stop motion with the contact, the identification, the log. */
 function pause(state, bus, c) {
   const P = c.pending, pid = playerId(state), now = state.clock.ms;
-  const pick = pickOf(state, pid, P.ids, now);
+  const pick = keptPick(state, pid, now) ?? pickOf(state, pid, P.ids, now);
   // (a startle that landed inside the window held the pause to its end (contactInput): the time it added is part of the
   // take-in the stamp, J and the paper report, named, so "Contact · 1.50 s" is the sighting to the pause (the code review of
   // v0.0.9: it said the planned 0.55 s); nothing moves without a startle past the window's end)
   const B = blockOf(state, pid), late = Number.isFinite(B?.startleUntilMs) ? Math.max(0, Math.min(now, B.startleUntilMs) - P.untilMs) : 0;
   const ms = P.ms + late, parts = late ? [...(P.parts ?? []), { why: 'startled', ms: late }] : P.parts;
-  const last = { id: P.id, ids: [...P.ids], seenMs: P.seenMs, atMs: now, ms, expect: P.expect, n: P.n, grade: P.grade, parts, pick, ident: {}, armour: {}, words: takeInText({ ...P, ms, parts }) };
+  const last = { id: P.id, ids: [...P.ids], seenMs: P.seenMs, atMs: now, ms, expect: P.expect, ...(P.expects ? { expects: { ...P.expects } } : {}), n: P.n, grade: P.grade, parts, pick, ident: {}, armour: {}, words: takeInText({ ...P, ms, parts }) };
   noteContact(state, { pending: null, last });
   const S = state.stop;
   if (S?.mode === 'stop') {
@@ -232,14 +281,55 @@ function pause(state, bus, c) {
   if (me?.watch && state.stop?.mode === 'stop') me.headRad = q(Math.atan2(me.watch.z - me.z, me.watch.x - me.x), 1e-6);
   if (me?.watch) delete me.watch;
   for (const key of last.ids) identify(state, pid, key, { atMs: now });
+  armedPick(state, pid, now);
   const seen = last.ids.map(k => `${targetName(state, k)}: ${identWords(last, k)}`).join('; ');
   logEntry(state, bus, { kind: 'contact', tone: 'warn', text: `Contact · ${takeInWords(last.ms)} s. ${last.words} ${seen.charAt(0).toUpperCase()}${seen.slice(1)}.`, contact: last.id });
   bus?.emit('contact', fact('pause', pid, last));
+  byOrder(state, bus, last);
+}
+
+// ---- the standing order (COMBAT §25.19.4; question 1's default: built, offered from rung 4, off) ----
+
+/** The order's rung and its reach: nobody else standing within ORDER_ALONE_M of the man; the hammer within ORDER_HAMMER_M. */
+export const ORDER_RUNG = 4, ORDER_ALONE_M = 1, ORDER_HAMMER_M = 7;
+/**
+ * "Engage: armed, my sector" (the house's record, R.house.order.engage 'armed'; bundle.js setVariant): at the pause, when
+ * every man of the contact is in your sector, identified with a rifle or a pistol, facing, and nobody else stands within
+ * ORDER_ALONE_M of him, the drill's doctrinal row is chosen at once, moving on (the failure drill where armour was seen, the
+ * hammer within ORDER_HAMMER_M, else the pair): the pause has no time in it and the log says "By your order: pair, moving
+ * on". A failed identification never shows a weapon, so a no-shoot, the hostage and a man unseen still pause. Returns
+ * whether it fired.
+ */
+export function byOrder(state, bus, last) {
+  const R = state.armoury?.range, H = R?.house, S = state.stop, pid = playerId(state), now = state.clock.ms;
+  if (R?.course !== 'house' || H?.order?.engage !== 'armed' || !S || S.mode !== 'stop' || S.reflex || rungOf(state, pid, 'room') < ORDER_RUNG) return false;
+  const mine = (T) => !H.twoPid || (T.slot ?? 1) === 1;
+  for (const key of last.ids) {
+    const T = turnerOf(state, key), id = last.ident?.[key];
+    if (!T || !mine(T) || (id !== 'rifle' && id !== 'pistol') || facingOf(T, now) < SEEN) return false;
+    const crowd = (R.turners ?? []).some(o => o.key !== key && (o.stoppedAtMs === null || o.stoppedAtMs === undefined) && facingOf(o, now) >= SEEN && Math.hypot(o.x - T.x, o.z - T.z) <= ORDER_ALONE_M);
+    if (crowd) return false;
+  }
+  const key = S.pick, T = turnerOf(state, key), me = playerActor(state);
+  if (!T || !me) return false;
+  const dM = Math.hypot(T.x - me.x, T.z - me.z), want = last.armour?.[key] ? ['failure', 'hammer', 'pair'] : dM <= ORDER_HAMMER_M ? ['hammer', 'pair'] : ['pair'];
+  const v0 = S.variant ? { ...S.variant } : null;
+  S.variant = { ...(S.variant ?? {}), feet: 'moving' };
+  const rows = stepsOf(state, now).filter(r => r.kind === 'shot' && !r.off && (r.target ?? key) === key);
+  const row = want.map(w => rows.find(r => r.id.split('@')[0] === `shot:${w}`)).find(Boolean);
+  const r = row ? chooseStep(state, bus, { step: row.id, target: key }) : null;
+  if (!r?.ok) { if (v0) S.variant = v0; else delete S.variant; return false; }
+  logEntry(state, bus, { kind: 'note', tone: 'note', text: `By your order: ${row.label.toLowerCase().replace(/[,:].*$/, '')}, moving on.`, contact: last.id });
+  return true;
 }
 
 /** The fast layer 'input' (runs while time stands still): the window's end, the pause on its tick (see the header). */
 export function contactInput(state, input, bus, ctx) {
-  const c = contactOf(state), P = c?.pending;
+  const c = contactOf(state);
+  // (the #2's men left to him, re-tested every tick: one crossing into your muzzle's cone, or the #2 no longer up with you,
+  // and the pause comes after all (COMBAT §25.19.4))
+  if (c?.his && !c.pending && !state.skip) hisTick(state, c);
+  const P = c?.pending;
   if (!P || state.skip) return;
   // (startled: the pause waits for its end (supp.js suppInput lets a stop hold go while it lasts))
   if (startled(state, playerId(state), state.clock.ms)) return;
@@ -255,11 +345,18 @@ export function contactInput(state, input, bus, ctx) {
     const S = state.stop;
     if (S?.mode === 'stop' && !S.doing && !S.reflex && state.clock.holds.every(h => h === 'stop')) { releaseTime(state, 'stop'); return; }
   }
+  // (every man of the window your #2's, he up and with you, none in your muzzle's cone: no pause, the window closed as his
+  // (COMBAT §25.19.4: "His. Taken in 0.05 s."), your bundle going on)
+  if (hisOnly(state, P)) { leaveHis(state, bus, c); return; }
   // (a step still running: its boundary taken now if due, and the pause at its end; a command (a macro) finishes the
   // sub-step under way and halts there, its rest queued as "Carry on" (COMBAT §25.4.5: never cut mid-sub-step))
   let d = state.stop?.doing;
   // (0.0.12: a bundle handed back at the window's end: its moves and scans cut where they stand, the rest let end (see the header))
-  if (d?.beats && !d.halt) haltDoing(state, bus, d, 'contact', null, state.clock.ms);
+  // (2026-11-12, R3: from rung 2 suspended instead, the feet not cut (see the header))
+  if (d?.beats && !d.halt && !d.suspendAsk && !d.suspended) {
+    if ((d.rung ?? rungOf(state, playerId(state), 'room')) >= SUSPEND_RUNG) suspendFlow(state, bus, d, 'contact', state.clock.ms, targetsAt(state, P.ids, state.clock.ms).map(t => [t.x, t.z]));
+    else haltDoing(state, bus, d, 'contact', null, state.clock.ms);
+  }
   if (d && d.kind === 'command' && state.stop.mode === 'stop' && d.i + 1 < d.list.length) d.halt = true;
   if (d && d.kind !== 'wait') {
     if (d.beats || state.clock.ms >= d.untilMs) stopInput(state, input, bus, ctx);
@@ -267,6 +364,85 @@ export function contactInput(state, input, bus, ctx) {
     if (d && d.kind !== 'wait') return;
   }
   pause(state, bus, c);
+}
+
+// ---- the #2's sector (COMBAT §25.19.4) ----
+
+// (the house's #2 up, his rifle working and with you: on his stack, in its doorway, inside the room, a slot's doing under way
+// or on a man. The rework's R9 (2026-11-13): the doorway too, so the tick between his entry's beats (no doing, his feet in the
+// door between the stack's 1.5 m and the threshold) is no longer "not with you": room 1's no-shoot watched as his paused the
+// tier one there at 5.1 s on half the seeds, a stop the design's lane does not have (COMBAT §25.19.4, F13))
+function twoWithYou(state) {
+  const R = state.armoury?.range, H = R?.house;
+  if (R?.course !== 'house' || !H?.twoPid || !H.two?.pid) return false;
+  // (his rifle as you could know it: down only once he has said "Gun down!" (H.two.down), never its working parts, which
+  // you cannot see (the reach review of 2026-11-13))
+  const a = state.actors?.list?.find(x => x.who === H.twoPid), gunId = state.people?.[H.twoPid]?.kit?.worn?.sling, gun = gunId ? state.items?.[gunId] : null;
+  if (!a || !gun || H.two.down) return false;
+  // (on his way in or on a man (his take-in, his row: the scene halts his slot for them))
+  if (H.two.doing?.beats || H.two.contact || H.two.eng) return true;
+  const L = (H.rooms ?? []).find(r => r.state !== 'clear' && r.state !== 'passed');
+  if (!L?.door) return false;
+  let plan = null;
+  try { plan = roomPlanOf(state, L.door); } catch { plan = null; }
+  if (!plan) return false;
+  const st = plan.stack?.[1] ?? plan.stack?.[0];
+  return pastThreshold(plan, a.x, a.z) || inFunnel(plan, a.x, a.z) || (!!st && Math.hypot(a.x - st[0], a.z - st[1]) <= TWO_NEAR_M);
+}
+/** The #2 within this of his stack counts as on it for the sector rule (m; bundle.js TWO_SLOT_M's figure). */
+export const TWO_NEAR_M = 1.5;
+// (whether a man stands within HIS_CONE_DEG of your muzzle's yaw)
+function inMyCone(state, T) {
+  const m = muzzleOf(state, playerId(state));
+  if (!m) return false;
+  return Math.abs(angleDiff(Math.atan2(T.z - m.oz, T.x - m.ox), m.yawRad)) <= HIS_CONE_DEG * Math.PI / 180;
+}
+/** Whether every man of a window is the #2's to take (see the header's 2026-11-12 note): his sector's, he up and with you, none in your muzzle's cone. */
+export function hisOnly(state, P) {
+  if (!P?.ids?.length || !twoWithYou(state)) return false;
+  for (const key of P.ids) {
+    const T = turnerOf(state, key);
+    // (his sector by where the man stands now, never his stand's label (room.js manPlace; the reach review of 2026-11-13))
+    if (!T || manPlace(state, T).slot !== 2 || inMyCone(state, T) || !twoOn(state, T)) return false;
+  }
+  return true;
+}
+// (your #2 actually on the man: his take-in or his row on him, the man known to him, his feet on his way in, or the man in
+// his sight (his eyes' vis times the man's facing at SEEN): never a man he cannot see, standing on his stack (the reach review of 2026-11-13: a window of his sector's men
+// closed with no pause with him 1.5 m outside the door))
+function twoOn(state, T) {
+  const W = state.armoury?.range?.house?.two, a = W?.pid ? state.actors?.list?.find(x => x.who === W.pid) : null;
+  if (!W || !a) return false;
+  if (W.contact?.key === T.key || W.eng?.key === T.key || W.known?.[T.key] !== undefined) return true;
+  // (on his way in, his feet moving on his entry: the man comes into his eyes in his stride, his take-in on the move (R6))
+  if (W.doing?.beats?.some(b => b.st === 'run' && b.k === 'move')) return true;
+  const ms = state.clock.ms, f = facingOf(T, ms);
+  return f >= SEEN && sightOf(state, a, { x: T.x, z: T.z }, ms).vis * f >= SEEN;
+}
+// (the window closed as the #2's: no pause, his men watched (c.his) until down or turned away; the log and the fact)
+function leaveHis(state, bus, c) {
+  const P = c.pending, pid = playerId(state), now = state.clock.ms;
+  noteContact(state, { pending: null, his: { ...P, atMs: now } });
+  const names = P.ids.map(k => targetName(state, k)).join(', ');
+  logEntry(state, bus, { kind: 'contact', tone: 'note', text: `His. Taken in ${takeInWords(P.ms)} s: ${names}, your number two's.`, contact: P.id });
+  bus?.emit('contact', fact('his', pid, P, { atMs: now }));
+}
+// (the #2's men watched: dropped when down or turned away; the pause after all when the #2 is no longer up with you, on this
+// tick, as a window's end)
+function hisTick(state, c) {
+  const H = c.his, now = state.clock.ms;
+  // (a man of a room called clear is no longer watched: the room's "Clear!" waits on the #2's sector (bundle.js), so his men
+  // there are dealt with (R9: a no-shoot of his still facing paused you as he left the room for the next stack))
+  // (the room by where the man stands now (room.js manPlace), never his stand's label: a man who moved back into a room is its)
+  const legs = state.armoury?.range?.house?.rooms ?? [], cleared = (T) => { const room = manPlace(state, T).room; return legs.some(L => L.room === room && (L.state === 'clear' || L.state === 'passed')); };
+  const up = H.ids.filter(k => { const T = turnerOf(state, k); return T && (T.stoppedAtMs === null || T.stoppedAtMs === undefined) && facingOf(T, now) >= SEEN && !cleared(T); });
+  if (!up.length) { delete c.his; return; }
+  // (the men stand where they stand, so only the #2 can change: a muzzle sweeping your own sector across his man's edge is no
+  // crossing (my call: re-tested on the cone, room 1's no-shoot paused the tier one mid-sweep on every seed))
+  if (twoWithYou(state)) return;
+  const { atMs, ...P } = H;
+  delete c.his;
+  c.pending = { ...P, ids: up, untilMs: now, his: true };
 }
 
 // (a target's name in the log's words)
@@ -296,6 +472,27 @@ export function identify(state, pid, key, { bonus = 0, atMs = state.clock.ms } =
   L.ident[key] = ident;
   if (armour) L.armour[key] = true;
   return { ident, armour, roll };
+}
+
+/**
+ * A second look at a man still up and facing in your room whom the last pause did not take in (bundle.js, at a "Clear!"
+ * suspended on him: COMBAT §25.19.4, never a dead end): he was taken in at an earlier pause of the room, so no take-in, but
+ * the last contact becomes his (a new id, so his identification is rolled afresh) and the pause's rows are his (the
+ * challenge, the shots). Returns the last contact, or null while a window is open.
+ */
+export function relook(state, bus, key, ms = state.clock.ms) {
+  const c = noteContact(state, {}), pid = playerId(state);
+  if (c.pending) return null;
+  if (c.last?.ids?.includes(key)) return c.last;
+  const id = c.n + 1;
+  c.n = id;
+  const last = { id, ids: [key], seenMs: ms, atMs: ms, ms: 0, expect: null, n: 1, grade: null, parts: [], pick: key, ident: {}, armour: {}, words: 'Still up.' };
+  noteContact(state, { last });
+  c.known[key] ??= ms;
+  identify(state, pid, key, { atMs: ms });
+  logEntry(state, bus, { kind: 'contact', tone: 'warn', text: `Still up: ${targetName(state, key)}: ${identWords(last, key)}.`, contact: id });
+  bus?.emit('contact', fact('pause', pid, last));
+  return last;
 }
 
 /**

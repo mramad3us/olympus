@@ -1,6 +1,6 @@
 // room: the room plans of X4's layout A (src/data/places/x4-plans.js) as src/sim/combat/room.js reads them (COMBAT §25.7.3, §25.13's combat-rooms; the build sheet 0.0.12 §2.1, §5.1).
 //
-// Printed from the code: each plan's stack, points, paths (room 1's #1 2.72 m: COMBAT §25.5.1), hot spots, sectors,
+// Printed from the code: each plan's stack, points, paths (room 1's #1 3.08 m on his lane, 2.72 m before: COMBAT §25.5.1, §25.19.3.4), hot spots, sectors,
 // dead space and what its points see of its floor; fails on a point under 0.4 m from a wall's face, a coverage under
 // 98% (the dead space counted as cleared by the move past it), a hot spot no point sees but by the dead space,
 // inFunnel or pastThreshold wrong anywhere on a probe grid round each door (against the rule written out again
@@ -8,7 +8,9 @@
 import { assert, fmt } from './helpers.mjs';
 import { golden } from './golden.mjs';
 import { newState, toJSON } from '../src/core/state.js';
-import { X4_PLANS } from '../src/data/places/x4-plans.js';
+import { X4_PLANS, LANE_OFFSET_M } from '../src/data/places/x4-plans.js';
+import { openNavOf, clearLine as navClear } from '../src/sim/places/nav.js';
+import { standOk } from '../src/sim/places/collide.js';
 import { WHEEL_S4, HOUSE1 } from '../src/data/places/wheel.js';
 import { roomPlanOf, lanePlanOf, roomOfDoor, doorOfRoom, inFunnel, pastThreshold, coveredNow, coverageOf, pathLengthM, wallClearanceM, FUNNEL_M, FUNNEL_SIDE_M, THRESHOLD_M, SECTOR_HALF_DEG, NEAR_M } from '../src/sim/combat/room.js';
 import { sightGridOf } from '../src/sim/places/sight.js';
@@ -27,7 +29,7 @@ function houseState() {
 
 export default [
   {
-    name: 'room: layout A\'s plans as authored: each stack, point, path, hot spot and sector printed; every point 0.4 m or more off every wall\'s face, room 1\'s #1 path 2.72 ± 0.05 m, the points seeing 98% or more of each floor (room 3\'s far leg the dead space the move past the middle clears), every hot spot seen from a point or in the dead space',
+    name: 'room: layout A\'s plans as authored: each stack, point, path, hot spot and sector printed; every point 0.4 m or more off every wall\'s face, room 1\'s #1 path 3.08 ± 0.05 m on his lane, the points seeing 98% or more of each floor (room 3\'s far leg the dead space the move past the middle clears), every hot spot seen from a point or in the dead space',
     fn() {
       const s = houseState(), L = lanePlanOf(s), g = sightGridOf(s, L.area), bad = [];
       console.log(`      lane ${L.lane} in ${L.area}: ${L.order.join(' → ')}`);
@@ -48,7 +50,7 @@ export default [
         if (!p.sectors.every(q => q.halfDeg === SECTOR_HALF_DEG)) bad.push(`${k}: a sector not ±${SECTOR_HALF_DEG}°`);
       }
       const r1 = L.plans['o:w4:r1'], len1 = pathLengthM(r1.paths[1]);
-      assert(Math.abs(len1 - 2.72) <= 0.05, `room 1's #1 path ${len1} m, not 2.72 ± 0.05`);
+      assert(Math.abs(len1 - 3.08) <= 0.05, `room 1's #1 path ${len1} m, not 3.08 ± 0.05`);
       assert(!bad.length, bad.join('\n'));
       // (the stands of each slot before its man on his point, seen from it but 3b in the far leg: the threats 1a, 1b, 2a and 3a in his sector, the
       // no-shoot by the inner door off it, where the drill's identification finds it)
@@ -113,9 +115,41 @@ export default [
     },
   },
   {
+    name: 'room: every authored path walkable as drawn: each leg clear on the C0 grid with the doors open and by the walker\'s own circle at 0.01 m steps; each door\'s slot paths through its outer middle and its threshold on the slot\'s own lane, LANE_OFFSET_M toward the side it turns to; no waypoint of one slot within 0.1 m of the other\'s (COMBAT §25.19.3.4; before 2026-11-12, 7 of the 15 legs cut a door frame)',
+    fn() {
+      const s = houseState(), L = lanePlanOf(s), G = openNavOf(L.area, 'C0'), bad = [], lanes = [];
+      let legs = 0;
+      const walker = (a, b) => { const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.01)); for (let k = 0; k <= n; k++) if (!standOk(G, a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n)) return false; return true; };
+      for (const k of L.order) {
+        const p = L.plans[k], name = k === 'hall' ? 'hall' : k.split(':').at(-1);
+        for (const [slot, path] of [...Object.entries(p.paths), ...(p.far ? [['far', p.far.path]] : [])]) {
+          for (let i = 1; i < path.length; i++) {
+            legs++;
+            const a = path[i - 1], b = path[i];
+            if (!navClear(G, a[0], a[1], b[0], b[1])) bad.push(`${name} paths[${slot}] leg ${i} not clear on the grid`);
+            if (!walker(a, b)) bad.push(`${name} paths[${slot}] leg ${i} cut by the walker's circle`);
+          }
+        }
+        if (!p.door) continue;
+        // (the lanes: the plane's axis 'x' is a door along x at z = at, its middle on x; the threshold THRESHOLD_M in)
+        const along = p.plane.axis === 'x' ? 0 : 1, across = 1 - along, mid = p.threshold[along], thr = p.threshold[across], outer = p.plane.at - (thr - p.plane.at);
+        for (const slot of [1, 2]) {
+          const path = p.paths[slot], pt = p.points[slot - 1], off = pt[along] - mid, side = Math.abs(off) < 0.3 ? 0 : Math.sign(off), lane = mid + side * LANE_OFFSET_M;
+          const at = (v) => path.some(w => Math.abs(w[along] - lane) < 1e-9 && Math.abs(w[across] - v) < 1e-9);
+          lanes.push(`${name} #${slot} ${side < 0 ? 'left' : side > 0 ? 'right' : 'straight'} on ${fmt(lane, 2)}`);
+          if (!at(outer)) bad.push(`${name} #${slot}: no waypoint at the door's outer middle on his lane (${fmt(lane, 2)}, ${fmt(outer, 2)})`);
+          if (!at(thr)) bad.push(`${name} #${slot}: no waypoint at the threshold on his lane (${fmt(lane, 2)}, ${fmt(thr, 2)})`);
+        }
+        for (const w of p.paths[2].slice(1, -1)) if (p.paths[1].slice(1, -1).some(v => Math.hypot(v[0] - w[0], v[1] - w[1]) < 0.1)) bad.push(`${name}: #2's waypoint ${P2(w)} within 0.1 m of #1's`);
+      }
+      console.log(`      ${legs} legs, ${bad.length} faults; the lanes (along the door, LANE_OFFSET_M ${LANE_OFFSET_M} m): ${lanes.join('; ')}`);
+      assert(!bad.length, bad.join('\n'));
+    },
+  },
+  {
     name: 'room: the plans of X4\'s layout A are pinned by a golden (set on purpose in 0.0.12: COMBAT §25.7.3, "held by a golden hash")',
     fn() {
-      const h = golden('room: X4_PLANS', X4_PLANS, '122fbb741feb40')   // (0.0.12, set on purpose: layout A, then room 3's far walk at the integration);
+      const h = golden('room: X4_PLANS', X4_PLANS, '1aed1872708ea3')   // (re-set on purpose 2026-11-12 from 122fbb741feb40, the shoot house's rework R1: each door's outer middle and a lane per slot in paths, COMBAT §25.19.3.4; 0.0.12's: layout A, then room 3's far walk at the integration);
       console.log(`      X4_PLANS ${h}: layouts ${Object.keys(X4_PLANS).join(', ')}; layout A's ${X4_PLANS.A.order.length} plans`);
     },
   },

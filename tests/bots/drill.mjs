@@ -3,14 +3,15 @@
 // roomRun({ tier, mode, humanStartMs, watch, seed, shot }) plays room 1 in the drill's world (tests/drill-world.mjs:
 // HOUSE1's start mark at 1 G, in stop motion at GO, the lane being cleared: state.mind.clearing), the man in the far left
 // corner (stand 1a) facing from GO, and returns what happened, in game time from GO:
-//   by the keys (mode 'keys', rungs 0 and 1: the private's way, §4's "by hand, keys in"): Stack on the door (its row), the
+//   by the keys (mode 'keys', rungs 0 and 1: the private's way, §4's "by hand, keys in"): Stack up (its row), the
 //   door's push, optionally Watch: the far left corner (watch), X, then after the human's own start (humanStartMs, 0.3 s)
 //   the movement keys along #1's path (Z and Q toward the threshold, then Q toward the point: the keys steer for the
 //   waypoints, the body's inertia in Combat its own), the window taking the keys, the pause; Off safe if needed, Aim, the
 //   shot (Pair below rung 2); X and the keys on to the point after the human's start again; G (into the mode), a Look at
 //   each hot spot not yet covered, "Clear!".
-//   by T (mode 'T', rungs 2 to 4): the rung's lead bundle at the door (the panel's first bundle row: Stack and open, Clear
-//   the room, Clear the house), the next group or the carry on, the shot at the pause (Hammer, moving on, where offered,
+//   by T (mode 'T', rungs 2 to 4): the rung's lead row at the door (the panel's first row the rung's own: rung 2's groups,
+//   Stack up, take point, then "Open, in: your corner", then Dominate; from rung 3 "Open, clear the room"), the next group or
+//   the carry on, the shot at the pause (Hammer, moving on, where offered,
 //   else Pair, moving on, else the plain rows), Dominate or the carry on to "Clear!".
 // The man goes down after two torso hits or one to the head (the bay's paper sensor, set by the bot: the scene's own sensor
 // is shoothouse.js's). Returns { tier, mode, roomMs, seenMs, pauseMs, takeInMs, expect, firstMs, presses, end: { down,
@@ -61,7 +62,7 @@ export function roomRun({ tier = 'private', mode = null, humanStartMs = 300, wat
     return r[0] ?? null;
   };
   if (how === 'keys') {
-    press(rows().find(r => r.id.startsWith('drill:room:stack>')).id);
+    press(rows().find(r => r.id.startsWith('drill:stack:up>')).id);
     runUntil(choosing);
     press(rows().find(r => r.id.startsWith('door:push>') || r.id.startsWith('door:pull>')).id);
     runUntil(choosing);
@@ -100,7 +101,7 @@ export function roomRun({ tier = 'private', mode = null, humanStartMs = 300, wat
       runUntil(() => choosing() || rec.clearAtMs !== null);
       if (rec.clearAtMs !== null) break;
       if (atPause()) { const r = shotRow(); if (r) { press(r.id); continue; } }
-      const list = rows(), carry = list.find(r => r.carry), bundle = list.find(r => r.kind === 'bundle' && !r.off && !r.single && r.door === DOOR && (r.lead || r.rung >= 2));
+      const list = rows(), carry = list.find(r => r.carry), bundle = list.find(r => r.kind === 'bundle' && !r.off && !r.single && !r.later && r.door === DOOR && r.lead);
       const next = carry ?? bundle ?? list.find(r => r.id === 'call:clear');
       if (!next) break;
       press(next.id);

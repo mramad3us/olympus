@@ -66,7 +66,7 @@ export default [
   {
     name: 'the running bundle\'s lanes (steps.js laneRows): FEET, HANDS, EYES, VOICE in that order from bundleNow\'s lanes, only the lanes with a beat; from the doing record\'s beats when bundleNow gives none (wait ·, run ▸, done ✓, cut ✗); the recruit\'s fill one lane at a time, the tier one\'s together',
     fn() {
-      const bn = { id: 'drill:house:clear', label: 'Clear the house', lanes: { feet: [{ id: 'a', glyph: '✓' }, { id: 'e', glyph: '▸' }], hands: [{ id: 'd', glyph: '✓' }], eyes: [{ id: 'c', glyph: '▸' }], voice: [] }, fromMs: 0, untilMs: 5000 };
+      const bn = { id: 'drill:room:clear>o:w4:r1', label: 'Open, clear the room', lanes: { feet: [{ id: 'a', glyph: '✓' }, { id: 'e', glyph: '▸' }], hands: [{ id: 'd', glyph: '✓' }], eyes: [{ id: 'c', glyph: '▸' }], voice: [] }, fromMs: 0, untilMs: 5000 };
       const L = laneRows(bn), shown = L.map(l => `${l.name} ${l.glyphs.map(g => g.glyph).join(' ')}`);
       const rec = { beats: [{ id: 'a', ch: 'feet', st: 'done' }, { id: 'b', ch: 'hands', st: 'run' }, { id: 'c', ch: 'eyes', st: 'wait' }, { id: 'd', ch: 'voice', st: 'cut' }] };
       const R = laneRows(null, rec).map(l => `${l.name} ${l.glyphs.map(g => g.glyph).join(' ')}`);
@@ -78,15 +78,15 @@ export default [
     },
   },
   {
-    name: 'T\'s keycap names the act and its planned time before the press (instinct.js): "T: Stack on the door · 4.7 s. Stack up."; the tier one\'s "T: Clear the house · 3 rooms and the hall · 13.6 s"; no act, no words; a line whose act names no row keeps its built form',
+    name: 'T\'s keycap names the act and its planned time before the press (instinct.js): "T: Stack up · 4.7 s. Stack up."; the tier one\'s "T: Open, clear the room · 5.4 s" (one room a press from the rework\'s R4; was "T: Clear the house · 3 rooms and the hall · 13.6 s"; no act, no words; a line whose act names no row keeps its built form',
     fn() {
       const label = (a) => (a === 'instinct' ? 'T' : a);
-      const one = textOf(partsOf({ label, now: { line: { text: 'Stack up.', act: 'stop:drill:room:stack>o:w4:r1', tone: 'note' } }, actWords: 'Stack on the door · 4.7 s' }));
-      const two = textOf(partsOf({ label, now: { line: { text: 'Your lane.', act: 'stop:drill:house:clear>o:w4:r1', tone: 'note' } }, actWords: 'Clear the house · 3 rooms and the hall · 13.6 s' }));
+      const one = textOf(partsOf({ label, now: { line: { text: 'Stack up.', act: 'stop:drill:stack:up>o:w4:r1', tone: 'note' } }, actWords: 'Stack up · 4.7 s' }));
+      const two = textOf(partsOf({ label, now: { line: { text: 'Clear it.', act: 'stop:drill:room:clear>o:w4:r1', tone: 'note' } }, actWords: 'Open, clear the room · 13.6 s' }));
       const none = textOf(partsOf({ label, now: { line: { text: 'Wait for GO.', act: null, tone: 'calm' } }, actWords: 'Stack on the door · 4.7 s' }));
       const plain = textOf(partsOf({ label, now: { line: { text: 'Thirsty.', act: 'drink', tone: 'note' } } }));
       for (const t of [one, two, none, plain]) console.log(`      ${t}`);
-      assert(one === 'T: Stack on the door · 4.7 s. Stack up.' && two.startsWith('T: Clear the house · 3 rooms and the hall') && none === 'Wait for GO.' && plain === 'T Thirsty.', JSON.stringify([one, two, none, plain]));
+      assert(one === 'T: Stack up · 4.7 s. Stack up.' && two.startsWith('T: Open, clear the room · ') && none === 'Wait for GO.' && plain === 'T Thirsty.', JSON.stringify([one, two, none, plain]));
     },
   },
   {

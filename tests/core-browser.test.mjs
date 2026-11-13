@@ -318,7 +318,9 @@ export default [
         console.log(`      keys: ${rows.map(([k, s]) => `${k} ${s}`).join(' | ')}`);
         const want = ['Z Q S D', 'Shift', /^(Alt|Option)$/, 'R', 'T', 'G', 'X', '1 … 0', 'A W', 'V', 'I', 'C', 'J', 'Space', 'Esc', '?', 'Backspace', 'Enter', 'Q D'];
         for (const w of want) assert(keys.some(k => (w instanceof RegExp ? w.test(k) : k === w)), `no row for ${w}: ${keys.join(', ')}`);
-        for (const not of ['F', 'H', 'Tab', 'K', 'L', 'M']) assert(!keys.includes(not), `${not} does nothing in this build, yet it is on the card`);
+        for (const not of ['F', 'H', 'K', 'L', 'M']) assert(!keys.includes(not), `${not} does nothing in this build, yet it is on the card`);
+        // (the rework's R7: Tab held is the step panel C's fan, R C B F the panel B's banks, in stop motion)
+        assert(/step panel C/.test(rows.find(r => r[0] === 'Tab')?.[1] ?? '') && /step panel B/.test(rows.find(r => r[0] === 'R C B F')?.[1] ?? ''), 'the step panel\'s keys: Tab, R C B F');
         // (0.0.7: E held on a KD line opens the far window; Z S and Shift with Q D the scope's turrets in stop motion)
         assert(/far window/.test(rows.find(r => r[0] === 'E')?.[1] ?? '') && /elevation/.test(rows.find(r => r[0] === 'Z S')?.[1] ?? '') && /windage/.test(rows.find(r => r[0] === 'Shift Q D')?.[1] ?? ''), 'the 0.0.7 keys: E, Z S, Shift Q D');
         assert(/Shift rushed/.test(rows.find(r => r[0] === '1 … 0')[1]) && /held careful/.test(rows.find(r => r[0] === '1 … 0')[1]) && /stance/.test(rows.find(r => r[0] === 'A W')[1]), 'the digits\' tempo and the stance keys');
@@ -796,13 +798,20 @@ export default [
         const beat = (what) => page.evaluate(([h, what]) => ({ what, ms: window[h].state.clock.ms, stop: window[h].stop(), panel: window[h].steps()?.slots?.map(s => `${s.key} ${s.label}${s.off ? ` (${s.off})` : ''}`) ?? null, card: document.querySelector('.steps .wcard')?.dataset.text ?? null, radio: window[h].radio.map(l => `${l.head} ${l.text}`), line: document.querySelector('.instinct')?.textContent ?? '', paper: document.querySelector('.paper')?.dataset.text ?? null }), [H, what]);
         const choose = () => page.waitForFunction((h) => window[h].stop()?.phase === 'choose', H, { timeout: 30000 });
         const cmd = (c) => page.waitForFunction(([h, c]) => window[h].range()?.cmd === c, [H, c], { timeout: 60000 });
-        const keyOf = async (id) => {
-          for (let i = 0; i < 6; i++) {
-            const k = await page.evaluate(([h, id]) => window[h].steps()?.slots?.find(s => s.id === id)?.key ?? null, [H, id]);
-            if (k) return k;
-            await page.keyboard.press('Digit0'); await settle(page, 120);
+        // (a row's keys on the grouped panel (the rework's R7: __olympus.keysFor, the layout drawn, C by default), pressed by code;
+        // a path through C's fan holds Tab; the last key held holdMs where given (Fire held: hold and fire))
+        const pressRow = async (id, holdMs = 0) => {
+          const path = await page.evaluate(([h, id]) => window[h].keysFor(id), [H, id]);
+          if (!path) throw new Error(`no ${id} on the panel`);
+          const code = (k) => (/^\d$/.test(k) ? `Digit${k}` : k === 'Esc' ? 'Escape' : k.length === 1 ? `Key${k}` : k);
+          const fan = path[0] === 'Tab';
+          if (fan) await page.keyboard.down('Tab');
+          for (const [i, k] of path.slice(fan ? 1 : 0).entries()) {
+            const last = i === path.length - (fan ? 2 : 1);
+            if (last && holdMs) { await page.keyboard.down(code(k)); await settle(page, holdMs); await page.keyboard.up(code(k)); } else { await page.keyboard.press(code(k)); await settle(page, 60); }
           }
-          throw new Error(`no ${id} on the panel`);
+          if (fan) await page.keyboard.up('Tab');
+          return path;
         };
         await cmd('prone');
         const brief = await beat('the prone command');
@@ -818,8 +827,9 @@ export default [
         assert(all0.some(s => s.id === 'macro:load' && !s.off) && !all0.some(s => s.id === 'macro:ready') && all0.find(s => s.id === 'fire')?.off === 'aim first', JSON.stringify(all0));
         await page.keyboard.press('Enter'); await settle(page, 150); await choose(); await settle(page, 150);
         const aimed0 = await beat('aimed at Condition 4');
-        console.log(`      aimed at Condition 4: ${aimed0.panel[0]}`);
-        assert(/\(on safe\)$/.test(aimed0.panel[0]), aimed0.panel[0]);
+        const fireRow = aimed0.panel.find(p => /^\d Fire/.test(p)) ?? null;
+        console.log(`      aimed at Condition 4: ${fireRow}`);
+        assert(/\(on safe\)$/.test(fireRow ?? ''), JSON.stringify(aimed0.panel));
         // (W twice: kneel, then prone)
         for (let i = 0; i < 2; i++) { await page.keyboard.press('KeyZ'); await settle(page, 150); await choose(); }
         const stance = await page.evaluate((h) => window[h].state.actors.list.find(a => a.id === window[h].state.player.actor).stance ?? 'stand', H);
@@ -827,7 +837,7 @@ export default [
         // (LOAD once the tower says it, on its digit; its ticks as it runs; the radio box says the command)
         await cmd('load'); await choose(); await settle(page, 150);
         const load = await beat('LOAD');
-        await page.keyboard.press(`Digit${await keyOf('macro:load')}`);
+        await pressRow('macro:load');
         await page.waitForFunction((h) => window[h].stop()?.phase === 'act', H, { timeout: 5000 });
         await settle(page, 900);
         const loading = await page.evaluate(() => ({ ticks: [...document.querySelectorAll('.steps .running-view .rv-sub b')].map(b => b.textContent).join(''), name: document.querySelector('.steps .running-view .rv-name')?.textContent ?? '', subs: document.querySelector('.steps .running-view .rv-subs')?.textContent ?? '', acting: document.querySelector('.steps')?.classList.contains('acting') }));
@@ -835,9 +845,9 @@ export default [
         console.log(`      LOAD said: ${load.radio.at(-1)}; on ${load.panel.find(p => /LOAD/.test(p))}; running: '${loading.name}', '${loading.subs}'`);
         assert(load.radio.some(l => /LOAD/.test(l)) && loading.acting && loading.name === 'LOAD' && /^[✓◦✗]{1,4}·{0,3}$/.test(loading.ticks) && loading.ticks.length === 4, JSON.stringify(loading));   // (0.0.6: safe, reach, seat, port)
         await cmd('ready'); await choose();
-        await page.keyboard.press(`Digit${await keyOf('macro:ready')}`);
+        await pressRow('macro:ready');
         await cmd('fire'); await choose(); await settle(page, 150);
-        await page.keyboard.press(`Digit${await keyOf('selector:semi')}`); await settle(page, 150); await choose();
+        await pressRow('selector:semi'); await settle(page, 150); await choose();
         await page.keyboard.press('Enter'); await settle(page, 150); await choose(); await settle(page, 200);
         const pl = await page.evaluate((h) => { const pi = document.querySelector('.plaque-info'); return { p: window[h].plaque(), drawn: document.querySelector('.plaque.reticle')?.dataset.text ?? null, hidden: document.querySelector('.plaque.reticle')?.hidden, info: pi && !pi.hidden ? pi.innerText.split('\n') : null }; }, H);
         console.log(`      the plaque: '${pl.p?.words}', drawn '${pl.drawn}'; ${pl.p?.parts.dc}: ${pl.p?.parts.parts.join(', ')} | ${pl.p?.parts.mods.join(', ')}; its list after the aim: ${pl.info ? pl.info.join(' | ') : 'hidden'}`);
@@ -847,8 +857,7 @@ export default [
         assert(pl.info && pl.info.length === 3 && !pl.info.some(l => /\bnull\b|undefined/.test(l)), JSON.stringify(pl.info));
         // (Fire held: hold and fire; a hole in PAPER, the shot's toast, the roll in J)
         const holes0 = Number(await page.evaluate(() => document.querySelector('.paper')?.dataset.holes ?? 0));
-        const fk = await keyOf('fire');
-        await page.keyboard.down(`Digit${fk}`); await settle(page, 350); await page.keyboard.up(`Digit${fk}`);
+        await pressRow('fire', 350);
         await settle(page, 150); await choose(); await settle(page, 200);
         const shot = await page.evaluate(() => ({ holes: Number(document.querySelector('.paper')?.dataset.holes ?? 0), paper: document.querySelector('.paper')?.dataset.text, toast: [...document.querySelectorAll('.toasts .toast')].map(t => t.textContent).at(-1) }));
         console.log(`      Fire held: PAPER '${shot.paper}'; the toast '${shot.toast}'`);
@@ -1497,13 +1506,13 @@ export default [
         const pk = await page.evaluate(() => ({ sheets: [...document.querySelectorAll('#title .item.sheetpick')].map(b => ({ tier: b.dataset.tier, lead: b.classList.contains('lead') })), pars: [...document.querySelectorAll('#title .item.parpick')].map(b => b.textContent) }));
         rows.push(`the Tests menu: ${menu.join(' | ')}; the picker: ${pk.sheets.map(r => `${r.tier}${r.lead ? ' (focused)' : ''}`).join(', ')}; the pars: ${pk.pars.join(' | ')}`);
         assert(menu.includes('Stack and clear') && pk.sheets.length === 6 && pk.sheets[0].tier === 'recruit' && pk.sheets.find(r => r.lead)?.tier === 'private' && pk.pars.length === 4, JSON.stringify({ menu, pk }));
-        // (GO in stop motion, the private: the lane timer up; Stack on the door, then the door's row: the leaf by its swing)
+        // (GO in stop motion, the private: the lane timer up; Stack up (his rung's "Stack up, take point" beside it), then the door's row: the leaf by its swing)
         await game.open('play=test-shoothouse&setup=go&tier=private&seed=48213&nostore=1');
         await page.waitForFunction(() => window.__ready && window.__olympus.house?.() && window.__olympus.state.stop?.phase === 'choose', null, { timeout: 60000 });
         const go = await page.evaluate(() => ({ timer: document.querySelector('.timer')?.dataset.text ?? '', steps: window.__report.hud.steps, line: window.__report.hud.line }));
         rows.push(`at GO: the timer '${go.timer}'; the panel '${go.steps.slice(0, 160)}…'; the line '${go.line}'`);
-        assert(/^LANE A · GO /.test(go.timer) && /Stack on the door · \d\.\d s/.test(go.steps), JSON.stringify(go));
-        const stackKey = await page.evaluate(() => document.querySelector('.steps .step[data-step^="drill:room:stack"]')?.dataset.key ?? null);
+        assert(/^LANE A · GO /.test(go.timer) && /Stack up · \d\.\d s/.test(go.steps) && /Stack up, take point · \d\.\d s/.test(go.steps), JSON.stringify(go));
+        const stackKey = await page.evaluate(() => document.querySelector('.steps .step[data-step^="drill:stack:up"]')?.dataset.key ?? null);
         await page.keyboard.press(`Digit${stackKey}`);
         await page.waitForFunction(() => window.__olympus.state.stop?.phase === 'choose' && document.querySelector('.steps .step[data-step^="door:"]'), null, { timeout: 20000 });
         const doorRow = await page.evaluate(() => { const r = [...document.querySelectorAll('.steps .step[data-step^="door:"]')].find(e => /^door:(push|pull)>/.test(e.dataset.step)); return r ? { key: r.dataset.key, id: r.dataset.step, text: r.innerText.replace(/\s+/g, ' ') } : null; });
@@ -1537,7 +1546,7 @@ export default [
         });
         rows.push(`the pause in room 1, the private: the window ${pause.gameMs} ms of game time, ${pause.wallMs} ms of wall time, taken in ${pause.shut?.takeInMs} ms; the lead '${pause.lead}'; the longest frame of the window ${pause.maxFrameMs} ms, the pause's own ${pause.pauseFrameMs} ms (at most ${PAUSE_FRAME_MS})`);
         assert(pause.shut && Math.abs(pause.wallMs - pause.shut.takeInMs) <= 50 + 34 && /^Contact · \d\.\d\d s\./.test(pause.lead) && pause.maxFrameMs <= 25 && pause.pauseFrameMs <= PAUSE_FRAME_MS, JSON.stringify(pause));
-        // (the tier one: "T: Clear the house" before the press, then run, its lanes)
+        // (the tier one: "T: Open, clear the room" before the press (one room a press from the rework's R4), then run, its lanes)
         await game.open('play=test-shoothouse&setup=go&tier=tierone&seed=48213&nostore=1');
         await page.waitForFunction(() => window.__ready && window.__olympus.house?.() && window.__olympus.state.stop?.phase === 'choose', null, { timeout: 60000 });
         await page.waitForTimeout(500);
@@ -1546,7 +1555,7 @@ export default [
         await page.waitForFunction(() => document.querySelector('.steps .running-view.bundle'), null, { timeout: 10000 });
         const lanes = await page.evaluate(() => [...document.querySelectorAll('.steps .running-view.bundle .rv-lane-name')].map(e => `${e.textContent} ${e.nextElementSibling.textContent.trim()}`));
         rows.push(`the tier one before T: '${before}'; running: ${lanes.join(' · ')}`);
-        assert(/T: Clear the house/.test(before) && lanes.length >= 2, JSON.stringify({ before, lanes }));
+        assert(/T: Open, clear the room/.test(before) && !/house|lane/i.test(before) && lanes.length >= 2, JSON.stringify({ before, lanes }));
         // (to the end by the scene's bot: the run sheet, the hot wash, the score line)
         const ended = await page.evaluate(async () => {
           const O = window.__olympus; let bot = null;

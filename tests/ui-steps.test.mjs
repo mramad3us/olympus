@@ -73,7 +73,7 @@ export default [
     },
   },
   {
-    name: 'a running command\'s ticks fill from the step facts: ✓ passed, ◦ routine, ✗ fumbled, · to come; a new step starts them afresh',
+    name: 'a running command\'s ticks fill from the step facts: ✓ passed, ◦ routine, ~ a natural 1 caught, ★ a natural 20, ! a stoppage, ✗ only a failure that cost something, · to come; a new step starts them afresh',
     fn() {
       const t = createTicks();
       const seen = [];
@@ -89,10 +89,13 @@ export default [
       t.fact({ phase: 'sub', who: 'p145', step: 'macro:load', i: 0, ok: true, routine: true, grade: 'pass' });
       t.fact({ phase: 'end', who: 'p145', step: 'macro:load', i: 0, ok: true, routine: null, grade: null });
       seen.push(t.of('macro:load', 3).join(''));
-      console.log(`      MAKE READY: ${seen.slice(0, 3).join(' → ')}; then LOAD: ${seen[3]}; a routine natural 1 (miss, ok): ${markOf({ ok: true, routine: true, grade: 'miss' })}`);
+      // (VIEWS §7.4's marks from the rework's R4 (SKILLS §5.1; the user's natural 1s, 2026-11-11): a caught 1 ~, never ✗; a natural
+      // 20 ★; the dummy's click a stoppage !; ✗ only for a failure that cost something)
+      const marks = { caught: markOf({ ok: true, routine: true, grade: 'pass', caught: true }), star: markOf({ ok: true, grade: 'superb', star: true }), click: markOf({ ok: false, stop: true }), fail: markOf({ ok: false, grade: 'miss' }), old: markOf({ ok: true, routine: true, grade: 'miss' }) };
+      console.log(`      MAKE READY: ${seen.slice(0, 3).join(' → ')}; then LOAD: ${seen[3]}; a caught 1 ${marks.caught}, a natural 20 ${marks.star}, the click ${marks.click}, a failure ${marks.fail}, a routine miss saved before ${marks.old}`);
       assert(seen.join('|') === '◦···|◦✓··|◦✓✗·|◦··', seen.join('|'));
       assert(t.of('macro:ready', 4).join('') === '····', 'the old step\'s ticks gone');
-      assert(markOf({ ok: true, routine: true, grade: 'miss' }) === '✗' && markOf({}) === null, 'a routine fumble is a fumble');
+      assert(marks.caught === '~' && marks.star === '★' && marks.click === '!' && marks.fail === '✗' && marks.old === '◦' && markOf({}) === null, JSON.stringify(marks));
     },
   },
   {

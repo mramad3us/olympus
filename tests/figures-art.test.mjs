@@ -81,12 +81,13 @@ export default [
     },
   },
   {
-    name: 'walks, runs and bounds advance by distance (STEP_M), so feet never slide; idling runs at 2 fps by a person\'s phase; tumbles turn by 45°',
+    name: 'walks and runs advance by the gait phase (the rework\'s R8: eight frames a cycle, two steps), bounds by distance (STEP_M), so feet never slide; idling runs at 2 fps by a person\'s phase; tumbles turn by 45°',
     fn() {
       const seq = (gait, step, n) => Array.from({ length: n }, (_, i) => gaitFrame(gait, { stride: i * step + 1e-6 }));
-      const w = seq('walk', STEP_M.walk, 5), r = seq('run', STEP_M.run, 5), b = seq('bound', STEP_M.bound, 5);
-      console.log(`      walk ${STEP_M.walk} m a frame: ${w.join(' ')}; run ${STEP_M.run} m: ${r.join(' ')}; bound ${STEP_M.bound} m: ${b.join(' ')}`);
-      assert(w.join() === 'walk0,walk1,walk2,walk3,walk0' && r[4] === 'run0' && b[2] === 'bound2', 'one frame a step');
+      const ph = (gait, n) => Array.from({ length: n }, (_, i) => gaitFrame(gait, { gp: i * 0.25 + 1e-6, stepM: gait === 'run' ? 1.1 : 0.375 }));
+      const w = ph('walk', 9), r = ph('run', 9), b = seq('bound', STEP_M.bound, 5);
+      console.log(`      walk a quarter step apart: ${w.join(' ')}; run: ${r.join(' ')}; bound ${STEP_M.bound} m: ${b.join(' ')}`);
+      assert(new Set(w.slice(0, 8)).size >= 6 && w[8] === w[0] && r[8] === r[0] && r.includes('run3') && r.includes('run7') && b[2] === 'bound2', 'one cycle in two steps, the run with its flights');
       assert(gaitFrame('idle', { tS: 0.6 }) === 'idle1' && gaitFrame('idle', { tS: 1.1 }) === 'idle0', 'idle at 2 fps');
       assert(gaitFrame('idle', { tS: 0, phase: 1 }) === 'idle1', 'a phase offsets idling');
       assert(tumbleFrame(Math.PI / 4) === 'tumble1' && tumbleFrame(0.1) === 'float0' && tumbleFrame(-Math.PI / 2) === 'tumble6', 'tumbles by 45°');

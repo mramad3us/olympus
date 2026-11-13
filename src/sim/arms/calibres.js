@@ -11,7 +11,8 @@
 // read by 0.0.7's ballistics.js and penetrate.js; this round reads only the words and the case.
 //
 // This round's cut (the build sheet's §2.1): 6.5×40 mm Republic (the R-7's: ball, tracer, blank,
-// dummy) and 9×21 mm Republic ball (the P-12's, named so a pistol magazine has a calibre to say).
+// dummy) and 9×21 mm Republic ball (the P-12's, named so a pistol magazine has a calibre to say), and from the shoot
+// house's rework (R6) the 9×21's frangible, the P-12's house load.
 // The rest of §2.2's nine come with their guns.
 //
 // 0.0.6, the kinds of rounds (the user, 2026-11-07: "we may have different types of rounds in
@@ -46,6 +47,8 @@ export const CALIBRES = Object.freeze({
     word: '9×21 mm Republic', diaMm: 9.0, caseMm: 21, caseG: 4.0, propG: 0.38, maker: 'had', boxN: 50,
     loads: Object.freeze({
       ball: Object.freeze({ word: 'ball', tip: null, tipWord: 'a bare copper tip', massG: 7.5, vRefMs: 390, refBarrelMm: 110, vExp: 0.18, bcG7: 0.072, pen0Mm: 2.0, penExp: 2, woundK: 1.0, priceMcr: 0.15 }),
+      // (the shoot house's P-12 load (the rework's R6; WEAPONS §2.3: 5.6 g at 430 m/s, pen 0.6; its BC my call), never a Mars range's issue)
+      frangible: Object.freeze({ word: 'frangible', tip: 0x3f6fb5, tipWord: 'a blue tip', massG: 5.6, vRefMs: 430, refBarrelMm: 110, vExp: 0.18, bcG7: 0.06, pen0Mm: 0.6, penExp: 2, woundK: 1.1, frangible: true, priceMcr: 0.20, range: false }),
     }),
   }),
 });

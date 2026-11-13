@@ -25,7 +25,10 @@
 // waypoint is set CORNER_KEEP_M beyond the radius off that corner, square to the leg, and both halves are held to it in
 // turn (at most CORNER_DEPTH times a leg). A leg whose own end is too close is the end's affair (the body's place).
 // clipped(state, from, to) is a straight line cut short, CLIP_STEP_M at a time, where the walker's circle would next
-// touch a rect (a braking body stops at the wall, never in it). Lengths by Math.sqrt, which IEEE rounds exactly, never
+// touch a rect (a braking body stops at the wall, never in it). lineClear(state, from, to) is the same rects against a line
+// with no radius, exactly: the rifle's line of fire where the sight grid's cells are coarser than the walls (2026-11-12).
+// From 2026-11-12 the authored paths are walkable as drawn (x4-plans.js: each door's outer middle and a lane per slot), so
+// routed keeps their legs and only holds them off the corners. Lengths by Math.sqrt, which IEEE rounds exactly, never
 // Math.hypot (TECH §8.1 rule 11: positions must agree between engines). Pure: grids are read, never written; the state
 // is read.
 import { q } from '../../core/num.js';
@@ -114,6 +117,30 @@ function offCorners(rects, a, b, R, depth) {
   const w = [q(worst.cx + nx / n * k, 1e-4), q(worst.cz + nz / n * k, 1e-4)];
   if (!pointClear(rects, w[0], w[1], R)) return [b];
   return [...offCorners(rects, a, w, R, depth - 1), ...offCorners(rects, w, b, R, depth - 1)];
+}
+
+/**
+ * Whether the straight line from `from` to `to` touches none of the rects a walker collides with (the walls, the blocking
+ * fixtures, the leaves closed now: the routing grid's own, see the header), exactly, with no radius: the line of fire as
+ * the walls stand, for the rifle's frame (shooting.js targetsOf), where the sight grid's 0.25 m cells are coarser than the
+ * walls (a cell a jamb only grazes blocks the whole cell: from a doorway's outer half, the far corner of the room was hidden
+ * on the grid by a jamb the line passed 0.18 m clear of). Slabs, per rect (Liang and Barsky's clip). Null area: true.
+ */
+export function lineClear(state, from, to, { area = routeAreaOf(state) } = {}) {
+  const G = routeGridOf(state, area);
+  if (!G) return true;
+  const dx = to[0] - from[0], dz = to[1] - from[1];
+  for (const r of rectsOf(G)) {
+    if (Math.max(from[0], to[0]) < r.x0 || Math.min(from[0], to[0]) > r.x1 || Math.max(from[1], to[1]) < r.z0 || Math.min(from[1], to[1]) > r.z1) continue;
+    let t0 = 0, t1 = 1, hit = true;
+    for (const [p, q0] of [[-dx, from[0] - r.x0], [dx, r.x1 - from[0]], [-dz, from[1] - r.z0], [dz, r.z1 - from[1]]]) {
+      if (p === 0) { if (q0 < 0) { hit = false; break; } continue; }
+      const t = q0 / p;
+      if (p < 0) { if (t > t1) { hit = false; break; } if (t > t0) t0 = t; } else { if (t < t0) { hit = false; break; } if (t < t1) t1 = t; }
+    }
+    if (hit) return false;
+  }
+  return true;
 }
 
 /** A straight line from `from` toward `to`, cut short where the walker's circle would touch a rect (see the header): the point it reaches, [x, z]. */

@@ -6,7 +6,7 @@
 // inside stop motion, not only outside it as COMBAT §3.5 had it. Its record is state.stop.reflex
 // (saved, TIME §13: a save made while the card waits holds the stopped clock with it), not
 // tradecraft's runtime $reflex:
-//     { why: 'click' | 'stop', title, atMs, options: [{ key, label, step, ms }…, NONE] }
+//     { why: 'click' | 'stop', title, atMs, options: [{ key, label, step, ms, off? }…, NONE] }  (off: shown struck, never chosen; the rework's R6)
 // offerReflex(state, bus, { why, title, options }, { run }) opens it and holds time ('reflex'); an
 // answer kept for this kind of moment (stop.keep[why] = { key, untilMs }, until KEEP_MS 120 s after it
 // was kept) and still among the options is chosen at once with no card ("By reflex: tap, rack.",
@@ -24,7 +24,8 @@ export const NONE = Object.freeze({ key: 'none', label: 'Nothing: let it come', 
 /** Its words by the moment: your own rifle stopping is nothing coming at you (the design review's: tradecraft's grenade wording on a click). */
 export const NONE_LABEL = Object.freeze({ click: 'Nothing: stay on the card', stop: 'Nothing: stay on the card' });
 
-const optionsOf = (options, why = null) => [...options.filter(o => o && o.key !== 'none').map(o => ({ key: o.key, label: o.label, step: o.step ?? null, ms: o.ms ?? 0 })), { ...NONE, label: NONE_LABEL[why] ?? NONE.label }];
+// (an answer shown struck carries its why, off (the rework's R6: Transition "not issued"); it is never chosen, kept or answered by reflex)
+const optionsOf = (options, why = null) => [...options.filter(o => o && o.key !== 'none').map(o => ({ key: o.key, label: o.label, step: o.step ?? null, ms: o.ms ?? 0, ...(o.off ? { off: o.off } : {}) })), { ...NONE, label: NONE_LABEL[why] ?? NONE.label }];
 
 /** Open a reflex card (see the header). Returns whether a moment was offered (kept answers count). */
 export function offerReflex(state, bus, { why, title, options = [] }, { run = null } = {}) {
@@ -32,7 +33,7 @@ export function offerReflex(state, bus, { why, title, options = [] }, { run = nu
   if (!S || state.skip) return false;
   const now = state.clock.ms, list = optionsOf(options, why);
   const K = S.keep?.[why];
-  const kept = K && K.untilMs > now ? list.find(o => o.key === K.key && o.key !== 'none') : null;
+  const kept = K && K.untilMs > now ? list.find(o => o.key === K.key && o.key !== 'none' && !o.off) : null;
   if (kept) {
     logEntry(state, bus, { kind: 'note', tone: 'note', text: `By reflex: ${kept.label.toLowerCase().replace(/\.$/, '')}.` });
     bus?.emit('reflex', { phase: 'kept', why, title, options: list, key: kept.key });

@@ -16,12 +16,13 @@
 // item 6, so it still times the whole night's splash); its result's splash row is the splash's frames alone
 // ({ frames, medianMs, p95Ms, over25 }), its p95 held at 18 ms as the bay's walk is. range-line (0.0.5, the
 // build sheet 0.0.5 §2.3 (g)): test-handling's 'bench' setup (prone on the 25 m line, the line hot, the
-// mode entered and aimed at your card, one magazine of 15), Digit1 tapped for 120 ms and then still for
+// mode entered and aimed at your card, one magazine of 15), Digit6 (the core's shot, Fire, in layout C: the rework's R7; Digit1
+// before it) tapped for 120 ms and then still for
 // 1,180 ms, fifteen times: a string of fifteen at 25 m, the flash, the kick, the brass and the holes, timed
 // frame by frame (its p95 held at 18 ms); no at: the scene starts you on the line. range-far (0.0.7, the build sheet
 // 0.0.7 §2.4 (e), ROADMAP §4.2's 0.0.7 row): test-range's 'far' setup (the 300 m line, prone, the SO-4 at 4×, aimed at
 // your face with the far window open on it, Fire alone on the panel, the relay firing a long string beside you),
-// Digit1 tapped for 120 ms, then T (the DI's "Wait for your mark": the wait lets time run) 1 s after it, the pull and its
+// Digit6 (Fire, the core's shot in layout C) tapped for 120 ms, then T (the DI's "Wait for your mark": the wait lets time run) 1 s after it, the pull and its
 // recovery done, then still,
 // four times in 20 s: four shots at 300 m, the pits marking in the window while the relay fires and waits for its own
 // marks round you, the game running the whole bench rather than for the five taps alone (the integrator's of v0.0.7:
@@ -34,9 +35,14 @@
 // seed 48213 as the Boot recruit, 20 s still: the coach's air horn and his thirty blanks at your shoulder, their flashes, the turn
 // and the pause; its frames within BANG_FRAMES_MS of a blank are the bench's "at a bang" row (main.js), no frame there over 25 ms.
 // shoothouse (0.0.12, the build sheet 0.0.12 §5.4): test-shoothouse's 'go' setup (at GO, in stop motion) on seed 48213 as the Tier one,
-// Digit5 (the panel's "Clear the house" at GO, the tier one's fifth row), then Digit1 (the shot row that leads a pause) and T (the DI's
-// line: its carry on after each pause) in turn, every 2 s for 20 s: the lane's rooms 1 and 2 at the tier one's pace, the doors swinging, the stack and the #2, the shots in a hall,
+// T (the DI's "Clear it": "Open, clear the room" at GO; 2026-11-12, the rework's R4: "Clear the house", Digit5 before, is
+// withdrawn), then Digit1 (Pair, the first of CONTACT's five in layout C) and T (the DI's line: the next room's row at "Room clear!") in turn,
+// every 2 s for 20 s: the lane's rooms 1 and 2 at the tier one's pace, the doors swinging, the stack and the #2, the shots in a hall,
 // timed frame by frame (no frame over 25 ms, its p95 held at 18 ms as the others').
+// Every bench plays the step panel's layout C (BENCH_PANEL; R7: its keys are C's, whatever this browser's olympus.panel says).
+
+/** The step panel's layout every bench plays (groups.js; its digits are this layout's). */
+export const BENCH_PANEL = 'c';
 
 /** The bench scenes by name (the build sheet's §2.4). */
 export const BENCH_SCENES = Object.freeze({
@@ -54,7 +60,7 @@ export const BENCH_SCENES = Object.freeze({
   }),
   'range-line': Object.freeze({
     play: 'test-handling', seed: 48213, hour: 9, setup: 'bench',
-    keys: Object.freeze(Array.from({ length: 15 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 1180])]).flat()),
+    keys: Object.freeze(Array.from({ length: 15 }, () => [Object.freeze(['Digit6', 120]), Object.freeze([null, 1180])]).flat()),
     warmS: 2,
   }),
   'pairs-bangs': Object.freeze({
@@ -69,14 +75,14 @@ export const BENCH_SCENES = Object.freeze({
   }),
   shoothouse: Object.freeze({
     play: 'test-shoothouse', seed: 48213, hour: 10, setup: 'go', tier: 'tierone',
-    keys: Object.freeze([Object.freeze(['Digit5', 120]), Object.freeze([null, 1880]),
+    keys: Object.freeze([Object.freeze(['KeyT', 120]), Object.freeze([null, 1880]),
       ...Array.from({ length: 4 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 1880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 1880])]).flat(),
       Object.freeze(['Digit1', 120]), Object.freeze([null, 1880])]),
     warmS: 2,
   }),
   'range-far': Object.freeze({
     play: 'test-range', seed: 48213, hour: 10, setup: 'far',
-    keys: Object.freeze(Array.from({ length: 4 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 3880])]).flat()),
+    keys: Object.freeze(Array.from({ length: 4 }, () => [Object.freeze(['Digit6', 120]), Object.freeze([null, 880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 3880])]).flat()),
     warmS: 3,
   }),
 });

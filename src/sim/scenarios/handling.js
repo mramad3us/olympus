@@ -413,11 +413,14 @@ export function rangeSecond(state, input, bus, ctx) {
   // everyone was waiting"); fam25's stays R.livedMs, to the tick)
   // (0.0.8, the fixer's: on the pairs course the coach names what is still lacking (pairs.js pairsWant), never while a string runs)
   const live = R.course === 'pairs' && !!R.str && R.str.turnedMs !== null && !R.str.done;
-  const nudge = R.course === 'pairs' ? (live ? null : PAIRS_NUDGE[pairsWant(state)] ?? NUDGE[R.cmd.id]) : R.course === 'house' ? HOUSE_NUDGE[houseWant(state)] ?? NUDGE[R.cmd.id] : NUDGE[R.cmd.id];
+  const want = R.course === 'house' ? houseWant(state) : null;
+  const nudge = R.course === 'pairs' ? (live ? null : PAIRS_NUDGE[pairsWant(state)] ?? NUDGE[R.cmd.id]) : R.course === 'house' ? HOUSE_NUDGE[want] ?? NUDGE[R.cmd.id] : NUDGE[R.cmd.id];
   const waited = kd ? kdWaitOnYou(state) : R.livedMs;
   if (!R.next && !R.nudged && i > 0 && waited >= C.nudgeMs && nudge) {
     R.nudged = true;
-    sayOn(state, bus, { who: R.roId, text: `${R.course === 'pairs' || R.course === 'house' ? 'Shooter' : whoOnLine(state)}, ${nudge}`, kind: R.course === 'pairs' ? 'speech' : 'pa' });
+    // (0.0.13's rework R5: in the house a want of your number two's is said to him by name, "Number two, a round up.")
+    const who = R.course === 'house' && String(want ?? '').startsWith('two:') ? 'Number two' : R.course === 'pairs' || R.course === 'house' ? 'Shooter' : whoOnLine(state);
+    sayOn(state, bus, { who: R.roId, text: `${who}, ${nudge}`, kind: R.course === 'pairs' ? 'speech' : 'pa' });
   }
   // (0.0.6: the coach's check, once a command that wants rounds has waited checkMs of lived time with no stoppage in
   // the rifle (a double's loose round is being cleared, not missing): none anywhere, the session dry. No stillness
@@ -485,10 +488,11 @@ const HOUSE_WAITS = Object.freeze(['goArm', 'laneDone', 'washed']);
 
 /** What the shooter has to fire (the coach's count, the truth: see the header): the chamber's live round, the magazine in, the hand's, the pouches', those at their feet. */
 export function roundsLeft(state, pid = playerId(state)) {
-  const gun = state.items?.[gunOn(state, pid)];
-  let n = gun && gunField(gun, 'chamber') === 'live' ? 1 : 0;
+  let n = 0;
   const count = (id) => { const m = state.items?.[id]; if (m?.type === 'mag') n += m.n ?? 0; };
-  if (gun?.mag) count(gun.mag);
+  // (the gun in use, and a sidearm carried with it (the rework's R6: the lane's 'dry' end counts the P-12's rounds too))
+  const guns = [gunOn(state, pid), state.people?.[pid]?.kit?.worn?.sling, state.people?.[pid]?.kit?.worn?.holster].filter((id, i, a) => id && a.indexOf(id) === i);
+  for (const id of guns) { const gun = state.items?.[id]; if (!gun) continue; if (gunField(gun, 'chamber') === 'live') n++; if (gun.mag) count(gun.mag); }
   const h = handMagOf(state, pid);
   if (h) count(h.id);
   for (const c of containersOf(state, pid)) for (const id of state.items[c].holds ?? []) count(id);
@@ -736,7 +740,7 @@ export function recordShot(state, bus, shot) {
     if (issue) issue.fired += 1;
     // (how it was shot, for the coach's tip: held to +4, unheld, or rushed; a natural 1)
     const mods = shot.roll?.mods ?? [], care = mods.some(m => m.src === 'tempo' && m.v < 0) ? 'rushed' : mods.some(m => m.why === 'the aim held' && m.v >= 4) ? 'held' : 'unheld';
-    R.shots.push({ id: shot.id, atMs: shot.atMs, lane: shot.lane, string: R.string, hole: shot.hole?.at ?? null, score: shot.hole?.score ?? 0, v: !!shot.hole?.v, logSeq: shot.logSeq, care, ...(shot.roll?.nat === 1 ? { nat1: true } : {}), ...(shot.load && shot.load !== 'ball' ? { load: shot.load } : {}) });
+    R.shots.push({ id: shot.id, atMs: shot.atMs, lane: shot.lane, string: R.string, hole: shot.hole?.at ?? null, score: shot.hole?.score ?? 0, v: !!shot.hole?.v, logSeq: shot.logSeq, care, ...(shot.roll?.nat === 1 && !shot.roll.caught ? { nat1: true } : {}), ...(shot.load && shot.load !== 'ball' ? { load: shot.load } : {}) });
     if (R.shots.length > SHOTS_KEPT) R.shots.splice(0, R.shots.length - SHOTS_KEPT);
     if (shot.brassRec) { R.brass.push(shot.brassRec); if (R.brass.length > BRASS_LIVE) R.brass.splice(0, R.brass.length - BRASS_LIVE); }
     if (R.end) return;
@@ -759,7 +763,7 @@ function recordKdShot(state, bus, shot) {
     const mods = shot.roll?.mods ?? [], care = mods.some(m => m.src === 'tempo' && m.v < 0) ? 'rushed' : mods.some(m => m.why === 'the aim held' && m.v >= 4) ? 'held' : 'unheld';
     const rec = { id: shot.id, who: shot.who ?? pid, atMs: shot.atMs, lane: shot.lane, line: R.line ?? 25, string: R.string, strN: R.strings?.length ? R.strings.length - 1 : null,
       hole: shot.hole?.at ?? null, score: shot.hole?.score ?? 0, v: !!shot.hole?.v, logSeq: shot.logSeq, care,
-      ...(R.string === 'zero' ? { group: (R.groups?.length ?? 1) - 1 } : {}), ...(shot.berm ? { berm: true } : {}), ...(shot.roll?.nat === 1 ? { nat1: true } : {}), ...(shot.load && shot.load !== 'ball' ? { load: shot.load } : {}) };
+      ...(R.string === 'zero' ? { group: (R.groups?.length ?? 1) - 1 } : {}), ...(shot.berm ? { berm: true } : {}), ...(shot.roll?.nat === 1 && !shot.roll.caught ? { nat1: true } : {}), ...(shot.load && shot.load !== 'ball' ? { load: shot.load } : {}) };
     R.shots.push(rec);
     if (R.shots.length > SHOTS_KEPT) R.shots.splice(0, R.shots.length - SHOTS_KEPT);
     // (the player's own on the string and the zero's group, so their scores outlive SHOTS_KEPT and the relay's many)

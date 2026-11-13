@@ -82,7 +82,13 @@ export default [
         assert(twoKeys.every(T => T.down) && N.two.fired >= 2, JSON.stringify({ tier, fired: N.two.fired, two: twoKeys.map(T => [T.stand, T.down]) }));
         assert(!run.halts.some(h => h.why === 'two') || tier === 'cpl', JSON.stringify({ tier, halts: run.halts }));
         assert(!raw.length && echoes.length === 0 && chief.every((x, i) => !chief.slice(0, i).some(y => y.atMs === x.atMs)), JSON.stringify({ tier, raw, echoes, chief }));
-        if (tier === 'tierone') assert(!/FIRED FIRST/.test(run.card), `the tier one's par on the #2's men timed from the #2's own sighting: ${run.card}`);
+        // (the par on the #2's men timed from the #2's own sighting: none of his men fired first on the tier one; read from the
+        // legs' contacts since the rework's R2, which made the T lane honest (the #2 no longer starts again at a speed he had
+        // lost, the stopped body no longer keeps one) and the hall's own man, #1's, fired first on 48213 by the dice, as he did on
+        // 8 of 12 seeds before it)
+        const twoStands = new Set(N.turners.filter(T => T.slot === 2).map(T => T.stand));
+        const missed = N.legs.flatMap(L => L.contacts.filter(c => twoStands.has(c.stand) && c.parMet === false).map(c => c.stand));
+        if (tier === 'tierone') assert(!missed.length, `the tier one's par on the #2's men timed from the #2's own sighting: ${JSON.stringify(missed)} ${run.card}`);
       }
     },
   },
@@ -94,20 +100,25 @@ export default [
         // (the #2 8 m behind his slot along the hall, his own stack walk started: he comes within 1.5 m during the hand's wait)
         const P = postTwo(w, st2[0] + 8, st2[1], tier === 'cpl' ? 2 : 3);
         runSlot(s, g.bus, P.rec, s.clock.ms);
-        const row = stepsOf(s).find(r => r.id.startsWith(tier === 'cpl' ? 'drill:room:stack-open>' : 'drill:room:clear>'));
+        // (the corporal's two groups to the door: Stack up, take point, then "Open, in: your corner", whose hand waits on him)
+        const row = stepsOf(s).find(r => r.id.startsWith(tier === 'cpl' ? 'drill:stack:point>' : 'drill:room:clear>'));
         const t0 = s.clock.ms;
         pick(g, row.id);
-        let openAt = null, inAt = null, carry = null, n = 0;
+        let openAt = null, inAt = null, carry = null, n = 0, handAt = null;
         while (n++ < 400 && openAt === null && !s.stop?.carry) {
+          if (tier === 'cpl' && s.stop?.mode === 'stop' && s.stop.phase === 'choose') { const r2 = stepsOf(s).find(r => r.id.startsWith('drill:room:in>') && !r.off); if (r2) pick(g, r2.id); }
           g.step(1); runSlot(s, g.bus, P.rec, s.clock.ms);
           const a = P.actor();
+          // (your hand on the door: its beat first running; the rework's R9 hurries the #2 to his slot from further back, so he can
+          // be there before your hand is, and the door then opens on your own time, the wait on him none)
+          if (handAt === null && s.stop?.doing?.beats?.some(b => b.k === 'door' && b.st === 'run')) handAt = s.clock.ms;
           if (inAt === null && Math.hypot(a.x - st2[0], a.z - st2[1]) <= TWO_SLOT_M) inAt = s.clock.ms;
           if (openingState(s, 'o:w4:r1') === 'open') openAt = s.clock.ms;
         }
         carry = s.stop?.carry ?? null;
         const me = w.me(), offStack = Math.hypot(me.x - plan.stack[0][0], me.z - plan.stack[0][1]);
         console.log(`      ${tier}: the #2 within ${TWO_SLOT_M} m at ${fmt((inAt - t0) / 1000, 2)} s, the door open at ${openAt === null ? '-' : fmt((openAt - t0) / 1000, 2)} s, hand-back ${carry?.why ?? 'none'}, you ${fmt(offStack, 2)} m off your stack when it opened`);
-        assert(openAt !== null && !carry && inAt !== null && openAt > inAt && openAt - inAt <= 1000 && offStack < 0.65, JSON.stringify({ tier, openAt, inAt, carry: carry?.why, offStack }));
+        assert(openAt !== null && !carry && inAt !== null && openAt > inAt && openAt - Math.max(inAt, handAt ?? inAt) <= 1000 && offStack < 0.65, JSON.stringify({ tier, openAt, inAt, handAt, carry: carry?.why, offStack }));
       }
     },
   },
@@ -115,9 +126,9 @@ export default [
     name: 'a rushed bundle reaches the stack: its walks are the legs\' profile (never ×0.6 by time alone), its hands and eyes rushed (the fixer\'s of 0.0.12: a rushed walk ended 40% short)',
     fn() {
       const w = drillWorld({ tier: 'private' }), { g, s } = w, plan = w.lane.plans['o:w4:r1'];
-      const normal = planBundle(s, w.pid, 'room:stack', { door: 'o:w4:r1' }), rushed = planBundle(s, w.pid, 'room:stack', { door: 'o:w4:r1', tempo: 'rushed' });
+      const normal = planBundle(s, w.pid, 'stack:up', { door: 'o:w4:r1' }), rushed = planBundle(s, w.pid, 'stack:up', { door: 'o:w4:r1', tempo: 'rushed' });
       const mv = (p) => p.beats.find(b => b.k === 'move').ms;
-      pick(g, stepsOf(s).find(r => r.id.startsWith('drill:room:stack>')).id, 'rushed');
+      pick(g, stepsOf(s).find(r => r.id.startsWith('drill:stack:up>')).id, 'rushed');
       settle(g, s);
       const me = w.me(), off = Math.hypot(me.x - plan.stack[0][0], me.z - plan.stack[0][1]);
       console.log(`      the approach ${mv(normal)} ms, rushed ${mv(rushed)} ms; the stack ${normal.ms} ms, rushed ${rushed.ms} ms; you end ${fmt(off, 3)} m off the stack`);
@@ -125,12 +136,14 @@ export default [
     },
   },
   {
-    name: 'the #2 planned at his own rung (a private\'s #2 brings his muzzle onto the door as his #1 does), and his Dominate run to its end before his room counts swept (the fixer\'s of 0.0.12: planned at rung 2 or above; swept when planned)',
+    name: 'the #2 planned at his own rung (a private\'s #2 stacks one beat at a time, at low ready, muzzle down: the muzzle onto the door is #1\'s alone from the rework, COMBAT §25.19.2.1, CALL 97-20), and his Dominate run to its end before his room counts swept (the fixer\'s of 0.0.12: planned at rung 2 or above; swept when planned)',
     fn() {
-      const w = drillWorld({ tier: 'private' }), { g, s } = w, st2 = w.lane.plans['o:w4:r1'].stack[1];
+      const w = drillWorld({ tier: 'private' }), { g, s } = w, st2 = w.lane.plans['o:w4:r1'].stack[1], st1 = w.lane.plans['o:w4:r1'].stack[0];
       const P = postTwo(w, st2[0] + 2, st2[1], 0);
+      // (you on your stack: he goes to his with you, never before you (the rework's R5, COMBAT §25.19.5))
+      w.me().x = st1[0]; w.me().z = st1[1];
       runSlot(s, g.bus, P.rec, s.clock.ms);
-      const keys = P.rec.doing?.beats?.map(b => b.key) ?? [];
+      const keys = P.rec.doing?.beats?.map(b => b.key) ?? [], ready = P.rec.doing?.beats?.find(b => b.key === 'ready')?.to ?? null;
       // (Dominate halted in his window: not swept, and planned again once his man is dealt with)
       const pt = w.lane.plans['o:w4:r1'].points[1];
       const a = P.actor(); a.x = pt[0] - 0.8; a.z = pt[1]; s.people[P.twoPid].post.x = a.x; s.people[P.twoPid].post.z = a.z;
@@ -145,8 +158,8 @@ export default [
       chooseStep(s, g.bus, { step: 'leave' });
       for (let i = 0; i < 200 && !P.rec.swept?.['o:w4:r1']; i++) { g.step(1); runSlot(s, g.bus, P.rec, s.clock.ms); }
       const b = P.actor();
-      console.log(`      a private's #2 stacks with ${keys.join(', ')}; in the room ${first}, halted by his contact (swept ${swept1}), then swept at his point ${fmt(Math.hypot(b.x - pt[0], b.z - pt[1]), 2)} m off`);
-      assert(keys.includes('muzzle') && first === 'room:dominate' && !swept1 && P.rec.swept?.['o:w4:r1'] && Math.hypot(b.x - pt[0], b.z - pt[1]) < 0.1, JSON.stringify({ keys, first, swept1 }));
+      console.log(`      a private's #2 stacks with ${keys.join(', ')} (ready to ${ready}); in the room ${first}, halted by his contact (swept ${swept1}), then swept at his point ${fmt(Math.hypot(b.x - pt[0], b.z - pt[1]), 2)} m off`);
+      assert(keys.includes('ready') && !keys.includes('muzzle') && ready === 'lowReady' && first === 'room:dominate' && !swept1 && P.rec.swept?.['o:w4:r1'] && Math.hypot(b.x - pt[0], b.z - pt[1]) < 0.1, JSON.stringify({ keys, ready, first, swept1 }));
     },
   },
   {
@@ -207,7 +220,7 @@ export default [
       console.log(`      the walk in: ${ww.map((x, i) => `room ${i + 1} ${x.keys}, corner ${x.side}`).join('; ')}`);
       assert(ww[0].keys.includes('Z') && ww[1].keys.includes('S') && !ww[1].keys.includes('Z') && ww[2].side === 'right', JSON.stringify(ww));
       const { s } = w;
-      s.stop.carry = { from: 'x', bundle: 'room:stack-open', door: 'o:w4:r1', rung: 2, variant: {}, beats: ['door'], why: 'refused', words: null, paths: {} };
+      s.stop.carry = { from: 'x', bundle: 'room:in', door: 'o:w4:r1', rung: 2, variant: {}, beats: ['door'], why: 'refused', words: null, paths: {} };
       w.me().x = plans['o:w4:r1'].stack[0][0]; w.me().z = plans['o:w4:r1'].stack[0][1];
       const lk = lines(s).find(l => l.id === 'cqb-locked');
       const said = lk ? lk.rule.text[lk.ctx.words] : null;
@@ -219,12 +232,12 @@ export default [
       const watch = stepsOf(g.state).filter(r => r.id.startsWith('watch:')).map(r => r.label);
       const g3 = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'raider', setup: 'room:2' });
       g3.step(1);
-      // (off the stack, room 2's door ahead: the house's rest to clear)
+      // (off the stack, room 2's door ahead: that room's row, never the rest of the house (COMBAT §25.19.2, the rework's R4))
       const me3 = g3.state.actors.list.find(a => a.who === g3.state.player.id); me3.x += 1.5; me3.$px = me3.x;
       g3.step(1);
       const st = firedNow(g3.state).find(l => l.id === 'cqb-stack'), stWords = st ? st.rule.text[st.ctx.words] : [];
-      console.log(`      the hall's watches: ${watch.join(' | ')}; the Raider at room 2: "${String(stWords[0]).replace('{left}', st?.ctx.left)}"`);
-      assert(watch.length >= 2 && new Set(watch).size === watch.length && st?.ctx.words === 'r4rest' && /Two rooms and the hall/.test(st.ctx.left), JSON.stringify({ watch, st: st?.ctx.words, left: st?.ctx.left }));
+      console.log(`      the hall's watches: ${watch.join(' | ')}; the Raider at room 2: "${String(stWords[0])}" (${st?.act})`);
+      assert(watch.length >= 2 && new Set(watch).size === watch.length && st?.ctx.words === 'r4' && st.act === 'stop:drill:room:clear>o:w4:r2' && stWords.every(t => !/\b(house|lane)\b/i.test(t)), JSON.stringify({ watch, st: st?.ctx.words, act: st?.act }));
     },
   },
   {
@@ -258,10 +271,11 @@ export default [
     timeoutMs: 120_000,
     fn() {
       const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'sgt', setup: 'go' }), firsts = [];
-      runHouse(g, houseBot({ mode: 'T' }), { maxMs: 12 * 60_000, each: (game) => { const s = game.state; for (const f of game.facts('bundle')) if (f.phase === 'start' && f.id === 'drill:carry' && f.who === s.player.id) firsts.push(s.stop?.doing?.beats?.[0]?.key ?? null); } });
+      // (2026-11-12, R3: from rung 2 the flow goes on by itself after a shot row, the rifle up first as a carry's: each counted)
+      runHouse(g, houseBot({ mode: 'T' }), { maxMs: 12 * 60_000, each: (game) => { const s = game.state; for (const f of game.facts('bundle')) if (((f.phase === 'start' && f.id === 'drill:carry') || f.phase === 'resume') && f.who === s.player.id) firsts.push(s.stop?.doing?.beats?.[0]?.key ?? null); } });
       const N = houseNow(g.state), muzzle = N.legs.flatMap(L => L.faults.filter(f => f.kind === 'muzzle').map(() => L.word));
       console.log(`      the sergeant's carries begin with ${firsts.join(', ')}; muzzle faults ${muzzle.join(', ') || 'none'}; ${N.summary}`);
-      assert(!muzzle.length && firsts.some(k => /(^|:)up$/.test(k ?? '')), JSON.stringify({ muzzle, firsts }));
+      assert(!muzzle.length && firsts.some(k => /(^|:)up(\.\d+)?$/.test(k ?? '')), JSON.stringify({ muzzle, firsts }));
     },
   },
   {
@@ -295,7 +309,9 @@ export default [
       // sector asks, so on 1703 neither is asked since the routing of 2026-11-11 moved the walk; on 9 T is, and wherever
       // asked, Hold it is on the panel)
       const asked = [], ask = (game) => { const s = game.state; if (s.stop?.carry?.why === 'door-unplanned' && s.stop.phase === 'choose') asked.push(stepsOf(s).some(r => r.id.startsWith('door:hold>'))); };
-      const run = tLane('tierone', 1703, ask), run9 = tLane('tierone', 9, ask), doors = [run, run9].flatMap(R => R.N.legs.flatMap(L => L.faults.filter(f => f.kind === 'door').map(() => L.word)));
+      // (seed 3 too since the rework's R2: the honest brake moved the walk, so on 9 T holds the closet before it is asked, and on
+      // 3 it is asked; every seed of the three to the card with no door fault)
+      const run = tLane('tierone', 1703, ask), run9 = tLane('tierone', 9, ask), run3 = tLane('tierone', 3, ask), doors = [run, run9, run3].flatMap(R => R.N.legs.flatMap(L => L.faults.filter(f => f.kind === 'door').map(() => L.word)));
       const held = Math.min(...[run, run9].map(R => R.says.filter(x => x.text === 'Hold that door.').length));
       // (and the panel's own row there, as the house bot answers a hand-back by its row: Hold it offered in the doorway)
       const g = createGame({ scenario: 'test-shoothouse', seed: 1703, tier: 'tierone', setup: 'go' });
@@ -303,7 +319,7 @@ export default [
       const doors2 = houseNow(g.state).legs.flatMap(L => L.faults.filter(f => f.kind === 'door').map(() => L.word));
       console.log(`      by T on 1703 and 9: "Hold that door." ${held} time(s) at least; door faults ${doors.join(', ') || 'none'}; ${run.card}; ${run9.card}`);
       console.log(`      the house bot: Hold it offered at the question ${asked.join(', ') || '-'}; door faults ${doors2.join(', ') || 'none'}`);
-      assert(run.done && run9.done && held >= 1 && !doors.length && asked.length && asked.every(Boolean) && !doors2.length, JSON.stringify({ held, doors, asked, doors2, card: run.card }));
+      assert(run.done && run9.done && run3.done && held >= 1 && !doors.length && asked.length && asked.every(Boolean) && !doors2.length, JSON.stringify({ held, doors, asked, doors2, card: run.card }));
     },
   },
   {
@@ -325,7 +341,8 @@ export default [
       g.step(2);
       const steps = stepsOf(g.state), first = panelOf(steps).slots.map(x => x.step.id);
       console.log(`      the first page: ${first.join(', ')}`);
-      assert(first[0].startsWith('drill:room:stack>') && first.filter(id => id.startsWith('watch:')).length >= 4 && !first.includes('fire') && !first.includes('aim'), JSON.stringify(first));
+      // (the private's rung: "Stack up, take point" leads, Stack up beside it (COMBAT §25.19.2.3); no row set at no time on his page)
+      assert(first[0].startsWith('drill:stack:point>') && first.includes(first.find(id => id.startsWith('drill:stack:up>'))) && !first.some(id => id.startsWith('drill:variant:')) && first.filter(id => id.startsWith('watch:')).length >= 4 && !first.includes('fire') && !first.includes('aim'), JSON.stringify(first));
     },
   },
 ];

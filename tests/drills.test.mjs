@@ -1,5 +1,6 @@
 // The Corps' commands as macros (src/sim/arms/drills.js; WEAPONS §5.3; the build sheet 0.0.5 §4, §5.1): each macro's time by tier against the sheet's corrected §5.3, the belief and the condition after each sub-step, where a rushed UNLOAD halts at Weapon handling 4, no macro past a failure that is not routine, a routine natural 1 costing only time, subsOf's skips, and SHOW CLEAR's last net and its failure.
 import { assert, fmt } from './helpers.mjs';
+import { CATCH_K } from '../src/sim/skills/checks.js';
 import { armsWorld, heard } from './arms-world.mjs';
 import { move } from '../src/sim/arms/kit.js';
 import { fixedRoller } from '../src/sim/combat/roll.js';
@@ -36,9 +37,10 @@ export default [
       console.log(`      ${'macro'.padEnd(24)}${tiers.map(v => `WH ${v}`.padStart(8)).join('')}   §5.3   sub-steps`);
       let worst = 0;
       for (const id of ids) {
-        const t = tiers.map(v => macroMs(fixedRoller({ weapons: v }), R7, id, FROM[id], 'normal', { observer: obs }) / 1000);
-        console.log(`      ${MACROS[id].label.padEnd(24)}${t.map(x => fmt(x, 2).padStart(8)).join('')}   ${fmt(WEAPONS53[id], 2)}   ${subsOf(id, FROM[id]).join(', ')}`);
-        worst = Math.max(worst, Math.abs(t[2] - SHEET10[id]));
+        const t = tiers.map(v => macroMs(fixedRoller({ weapons: v }), R7, id, FROM[id] ?? FROM.cease, 'normal', { observer: obs }) / 1000);
+        console.log(`      ${MACROS[id].label.padEnd(24)}${t.map(x => fmt(x, 2).padStart(8)).join('')}   ${WEAPONS53[id] === undefined ? '  -  ' : fmt(WEAPONS53[id], 2)}   ${subsOf(id, FROM[id] ?? FROM.cease).join(', ')}`);
+        // (a macro the sheet's table predates (MAKE SAFE, the house's Stop, the rework's R4) is printed, not held)
+        if (SHEET10[id] !== undefined) worst = Math.max(worst, Math.abs(t[2] - SHEET10[id]));
       }
       const five = ['load', 'ready', 'unload', 'ia', 'reload:speed'];
       for (const [v, want] of Object.entries(SHEET_TIERS)) {
@@ -93,7 +95,7 @@ export default [
     },
   },
   {
-    name: 'a routine natural 1 costs ×1.6 of its time and halts nothing (WH 10, in the light, the range\'s pressure)',
+    name: 'a routine natural 1 is caught: ×1.5 of its time and nothing else, a success that halts nothing (SKILLS §5.1, CATCH_K: the user\'s "maybe they take 50% longer", 2026-11-11; it was a miss at ×1.6) (WH 10, in the light, the range\'s pressure)',
     fn() {
       let found = null, runs = 0;
       for (let i = 0; i < 2000 && !found; i++) {
@@ -109,7 +111,7 @@ export default [
       const base = macroMs(fixedRoller({ weapons: 10 }), R7, 'unload', { mag: 'in', locked: false });
       console.log(`      a natural 1 on ${e.step} after ${runs} UNLOADs: routine ${e.roll.routine}, grade ${e.roll.grade}, ${sub.ms} ms; the UNLOAD ${r.ms} ms against ${base} ms whole, nothing halted`);
       const one = { 'selector:safe': 401, 'magOut:pouch': 1611, lockBack: 691, inspect: 1151, release: 345, port: 401 }[e.step];
-      assert(e.roll.routine && !e.roll.ok && Math.abs(sub.ms - one * 1.6) <= 2 && !r.halted, `×1.6: ${sub.ms} against ${one}`);
+      assert(e.roll.routine && e.roll.ok && e.roll.caught && Math.abs(sub.ms - one * (1 + CATCH_K)) <= 2 && !r.halted, `×1.5: ${sub.ms} against ${one}`);
     },
   },
   {

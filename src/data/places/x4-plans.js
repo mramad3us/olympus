@@ -25,7 +25,17 @@
 //               stands of his slot stand in it: wheel.js HOUSE1)
 //   dead        [[x, z, rM]]: the dead space no point sees (room 3's far leg), cleared by moving past the near
 //               leg's middle; with it, the points see 98% or more of the plan's floor cells (the test)
-//   paths       { 1: [[x, z], …], 2: […] }: stack → threshold → point (room 1's #1 2.72 m: COMBAT §25.5.1)
+//   paths       { 1: [[x, z], …], 2: […] }: stack → the door's outer middle → threshold → point, each slot on its own
+//               lane through the door (COMBAT §25.19.3.4, R1 of the shoot house's rework, 2026-11-12): the outer middle is
+//               the threshold mirrored THRESHOLD_M out across the door's plane, and both it and the threshold stand
+//               LANE_OFFSET_M off the door's middle toward the side the slot turns to (none for a slot that goes straight
+//               on: room 2's #2), inside the 0.18 m band a 0.9 m door leaves a 0.27 m body (room 1: #1 crossing left
+//               through (28.88, 11.7), #2 hooking right through (29.12, 11.7)); where a leg would pass a jamb's corner
+//               within the walker's 0.27 m (C0, src/sim/places/nav.js) plus a centimetre, a waypoint holds it off, and no
+//               waypoint of one slot stands within 0.1 m of the other's. Every leg is clear on the C0 grid with the doors
+//               open and by the walker's own rule (tests/room.test.mjs), so routing (src/sim/combat/route.js) keeps them
+//               as authored. Before 2026-11-12 both slots shared the threshold and 7 of the 15 legs cut a door frame
+//               (room 1's #1 2.72 m: COMBAT §25.5.1; on the lanes 3.08 m, against 3.03 m routed round the jamb before)
 //   far         { path: [[x, z], …], hot }: the far leg's walk, #1's, from his point to where the leg's dead space is
 //               seen (room 3: 4.2 m up the near leg's east side to (18.7, 7.3), 0.94 m off the bend; the far leg's
 //               middle and its stand first seen from z 7.9), and the hot spot it clears (0.0.12's integration, my call:
@@ -33,14 +43,17 @@
 //   inner       [opening id]: a door inside the room the plan does not take (room 2's locked closet)
 //   light       'day' | 'dim' (room 3: src/data/places/sky.js MOODS.dim)
 // Room 1 is COMBAT §25.5.1's reference room exactly (5.0 × 4.0 m, the door 0.9 m in the middle of the near wall,
-// inward, hinged on the left as seen from the hall); the path's door plane falls 0.73 m along it and the threshold
-// 1.21 m (§25.5.1's 0.8 and 1.1 assume a step through the doorway's middle a body's half-width from the jamb, which
-// these walls' 0.08 m half-thickness do not allow: my call, the path's 2.72 m kept). Frozen literals.
+// inward, hinged on the left as seen from the hall); #1's path on his lane reaches the door's plane 1.38 m along it and
+// the threshold 1.68 m, of 3.08 m (before the lanes, 0.73 and 1.21 of 2.72 m: §25.5.1's 0.8 and 1.1 assume a step
+// through the doorway's middle a body's half-width from the jamb, which these walls' 0.08 m half-thickness do not
+// allow; my call). Frozen literals.
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
 /** A sector's half-width, degrees (COMBAT §25.7.3; the build sheet 0.0.12 §2.1: SECTOR_HALF_DEG). */
 const HALF = 20;
+/** Each slot's lane through a door: this far off the door's middle toward the side it turns to (m; COMBAT §25.19.9). */
+export const LANE_OFFSET_M = 0.12;
 
 /** X4's authored plans by layout (see the header): this round, layout A. */
 export const X4_PLANS = deepFreeze({
@@ -55,7 +68,10 @@ export const X4_PLANS = deepFreeze({
         hot: [{ id: 'r1:nl', x: 27.0, z: 11.5, why: 'behind the door' }, { id: 'r1:nr', x: 31.0, z: 11.5, why: 'corner' }, { id: 'r1:fl', x: 27.0, z: 8.5, why: 'corner' }, { id: 'r1:fr', x: 31.0, z: 8.5, why: 'corner' }],
         sectors: [{ slot: 1, yawRad: -1.7829, halfDeg: HALF }, { slot: 2, yawRad: -1.3587, halfDeg: HALF }],
         dead: [],
-        paths: { 1: [[29.95, 12.45], [29.0, 11.7], [27.5, 11.5]], 2: [[30.6, 12.45], [29.0, 11.7], [30.5, 11.5]] },
+        paths: {
+          1: [[29.95, 12.45], [28.88, 12.3], [28.88, 11.7], [28.58, 11.64], [27.5, 11.5]],
+          2: [[30.6, 12.45], [29.42, 12.36], [29.12, 12.3], [29.12, 11.7], [29.42, 11.64], [30.5, 11.5]],
+        },
         inner: [], light: 'day',
       },
       'o:w4:r2': {
@@ -65,7 +81,10 @@ export const X4_PLANS = deepFreeze({
         hot: [{ id: 'r2:ne', x: 25.0, z: 14.9, why: 'corner' }, { id: 'r2:se', x: 25.0, z: 18.9, why: 'corner' }, { id: 'r2:sw', x: 20.5, z: 18.9, why: 'corner' }],
         sectors: [{ slot: 1, yawRad: 1.0659, halfDeg: HALF }, { slot: 2, yawRad: 0.8983, halfDeg: HALF }],
         dead: [],
-        paths: { 1: [[21.55, 13.95], [20.6, 14.7], [22.6, 14.9]], 2: [[22.2, 13.95], [20.6, 14.7], [20.6, 16.2]] },
+        paths: {
+          1: [[21.55, 13.95], [20.74, 14.0], [20.72, 14.1], [20.72, 14.7], [20.74, 14.75], [22.6, 14.9]],
+          2: [[22.2, 13.95], [20.84, 13.94], [20.6, 14.1], [20.6, 14.7], [20.6, 16.2]],
+        },
         inner: ['o:w4:closet'], light: 'day',
       },
       'o:w4:r3': {
@@ -75,7 +94,10 @@ export const X4_PLANS = deepFreeze({
         hot: [{ id: 'r3:nw', x: 16.0, z: 11.5, why: 'behind the door' }, { id: 'r3:ne', x: 19.0, z: 11.5, why: 'corner' }, { id: 'r3:fw', x: 16.0, z: 5.7, why: 'corner' }, { id: 'r3:bend', x: 19.0, z: 8.3, why: 'corner' }, { id: 'r3:far', x: 21.25, z: 7.2, why: 'far leg' }],
         sectors: [{ slot: 1, yawRad: -1.4848, halfDeg: HALF }, { slot: 2, yawRad: -1.6568, halfDeg: HALF }],
         dead: [[21.25, 7.2, 2.7]],
-        paths: { 1: [[18.45, 12.45], [17.5, 11.7], [18.5, 11.5]], 2: [[19.1, 12.45], [17.5, 11.7], [16.5, 11.5]] },
+        paths: {
+          1: [[18.45, 12.45], [17.92, 12.36], [17.62, 12.3], [17.62, 11.7], [18.5, 11.5]],
+          2: [[19.1, 12.45], [17.81, 12.35], [17.38, 12.3], [17.38, 11.7], [16.5, 11.5]],
+        },
         far: { path: [[18.5, 11.5], [18.7, 7.3]], hot: 'r3:far' },
         inner: [], light: 'dim',
       },

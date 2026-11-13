@@ -6,7 +6,7 @@ import { firedNow, instinctNow } from '../src/sim/skills/instinct.js';
 import { pairsNow, pairsWant } from '../src/sim/scenarios/pairs.js';
 import { recOf, RELOAD_STRING } from '../src/sim/scenarios/stress.js';
 import { stepsOf, enterStop, gunOn } from '../src/sim/arms/shooting.js';
-import { digitOf } from '../src/sim/arms/panel.js';
+import { keyOn } from '../src/sim/arms/groups.js';
 import { feltOf, hardOf, breatheOffer } from '../src/sim/combat/supp.js';
 import { playerActor } from '../src/core/ids.js';
 import { facingOf } from '../src/sim/arms/turners.js';
@@ -58,7 +58,7 @@ export default [
       h.step(1);
       feltTo(t, 30);
       h.step(1);
-      const rm = rule(t, 'stress-breathe'), key = digitOf(stepsOf(t), 'breathe');
+      const rm = rule(t, 'stress-breathe'), key = keyOn(stepsOf(t), 'breathe');
       console.log(`      in the mode at felt 30: "${rm ? rm.rule.text[rm.ctx.words][0].replace('{key}', rm.ctx.key) : '-'}" act ${rm?.act}; the panel's key ${key}`);
       assert(rm && rm.act === 'stop:breathe' && rm.ctx.key === key && !!key, JSON.stringify({ act: rm?.act, key, k: rm?.ctx.key }));
     },
@@ -120,7 +120,7 @@ export default [
               const str = s.armoury.range.str, up = !!str && !str.done && str.turnedMs !== null && s.armoury.range.turners.some(T => str.keys.includes(T.key) && T.stoppedAtMs === null && facingOf(T, s.clock.ms) >= 0.5);
               // (the line as settled stands until the next due tick (whole seconds); T acts only on a rule firing now)
               if (up && rule(s, 'stress-breathe')) bad.push(`${tag} ${s.clock.ms}: Breathe offered with a threat facing`);
-              if (l.act === 'stop:breathe' && I.line?.id === l.id && !I.line.text.includes(digitOf(stepsOf(s), 'breathe'))) bad.push(`${tag} ${s.clock.ms}: "${I.line.text}" names another key than ${digitOf(stepsOf(s), 'breathe')}`);
+              if (l.act === 'stop:breathe' && I.line?.id === l.id && !I.line.text.includes(keyOn(stepsOf(s), 'breathe'))) bad.push(`${tag} ${s.clock.ms}: "${I.line.text}" names another key than ${keyOn(stepsOf(s), 'breathe')}`);
             }
           }
         }

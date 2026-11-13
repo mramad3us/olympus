@@ -209,7 +209,8 @@ export default [
         // (every frame: your lane's carrier as drawn, the window's state, the draw calls)
         await page.evaluate((lane) => { window.__kd = []; const f = () => { if (!window.__kd) return; const v = window.__report.view, c = (v.range?.kd?.carriers ?? []).find(x => x.lane === lane); window.__kd.push({ y: c?.yTop ?? null, up: c?.up ?? null, open: !!v.far?.open, calls: v.calls }); requestAnimationFrame(f); }; requestAnimationFrame(f); }, lane);
         // (the shot, then out of stop motion so the game's time runs, E held: the window on your own face while the pits mark it)
-        await page.keyboard.press('Digit1');
+        // (Fire: the core's shot on 6 in the step panel's layout C (the rework's R7; on 1 before it))
+        await page.keyboard.press('Digit6');
         await page.waitForTimeout(1200);
         await page.keyboard.press('KeyX');
         await page.waitForTimeout(200);

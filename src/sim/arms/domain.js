@@ -58,7 +58,7 @@ import { onRangeCmd, rangeRules, rangeSecond } from '../scenarios/handling.js';
 import { onPitEvent, safety, kdActors, kdAct } from '../scenarios/range.js';
 import { pairsActors } from '../scenarios/pairs.js';
 import { houseActors, houseRules, houseInput, houseInputBefore } from '../scenarios/shoothouse.js';
-import { stopBundle } from '../combat/bundle.js';
+import { stopBundle, upgradeMuscle } from '../combat/bundle.js';
 import * as SHOOTING from './shooting.js';
 
 const KEYS = Object.freeze(['stop', 'items', 'armoury']);
@@ -148,5 +148,5 @@ export const weaponsDomain = Object.freeze({
   jobs: Object.freeze({}),
   events: Object.freeze({ 'range-cmd': onRangeCmd, pit: onPitEvent }),
   actions: Object.freeze({ ready, digit, shoot, stop, carry, stance, kd, breathe, gait, drill }),
-  upgrades: Object.freeze([]),
+  upgrades: Object.freeze([['arms:muscle', upgradeMuscle]]),
 });

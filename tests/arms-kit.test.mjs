@@ -105,13 +105,13 @@ export default [
     },
   },
   {
-    name: 'test-range\'s issue (0.0.7): the range-kd kit, the R-7 with its zero drawn, the carrier, four magazines of three, ear defenders in their own slot (kit.worn.ears, SLOTS\' last, so the other kits\' ids stand); the relay drawn the same',
+    name: 'test-range\'s issue (0.0.7): the range-kd kit, the R-7 with its zero drawn, the carrier, four magazines of three, ear defenders in their own slot (kit.worn.ears, SLOTS\' last before the sidearm\'s holster and thigh pouch of the rework\'s R6, so the other kits\' ids stand); the relay drawn the same',
     fn() {
       const g = createGame({ scenario: 'test-range', seed: 48213 }), s = g.state, pid = s.player.id, kit = s.people[pid].kit;
       const T = KIT_TEMPLATES['range-kd'], gun = s.items[kit.worn.sling], ears = s.items[kit.worn.ears];
       const mags = Object.values(s.items).filter(i => i.type === 'mag' && (i.n === 3)).length;
       console.log(`      SLOTS ${SLOTS.join(', ')}; worn ${JSON.stringify(kit.worn)}; the rifle's zero ${JSON.stringify(gun.zero ?? null)}, turrets ${JSON.stringify(gun.sight ?? null)}, lever ${gun.optic ?? 1}; ears ${ears?.model}; earsOn ${earsOn(s, pid)}; magazines of three in the game ${mags}`);
-      assert(SLOTS.at(-1) === 'ears' && T.worn.ears === 'ed1' && ears?.type === 'ears' && earsOn(s, pid), 'the ear defenders in their slot');
+      assert(SLOTS.indexOf('ears') === SLOTS.length - 3 && SLOTS.slice(-2).join() === 'holster,thigh' && T.worn.ears === 'ed1' && ears?.type === 'ears' && earsOn(s, pid), 'the ear defenders in their slot');
       assert(T.mags.length === 4 && T.mags.every(([f, n]) => f === 'had30' && n === 3), 'four magazines of three');
       assert(mags === 4 * 6, `the player and the five of the relay each four magazines of three: ${mags}`);
       const h = createGame({ scenario: 'test-handling', seed: 48213 });

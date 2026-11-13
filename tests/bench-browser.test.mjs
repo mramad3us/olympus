@@ -10,7 +10,7 @@
 // splash, gives the card its splash row, { frames, medianMs, p95Ms, over25 } of the frames the splash
 // showed, and a seventh line in the copied text.
 // The 0.0.5 round's (the build sheet §2.3 (g), §5.4): ?bench=range-line, test-handling's 'bench' setup (the
-// mode entered, prone, aimed at your card, one magazine of 15), its keys Digit1 tapped 15 times, 1.3 s
+// mode entered, prone, aimed at your card, one magazine of 15), its keys Digit6 (Fire, the core's shot in layout C) tapped 15 times, 1.3 s
 // apart, each a Fire at the normal tempo through the step panel as a player's tap sends it: 15 shots, the
 // card's row and the range's holes.
 import { assert, fmt } from './helpers.mjs';
@@ -100,18 +100,18 @@ export default [
     },
   },
   {
-    name: '?bench=range-line: test-handling\'s bench setup, Digit1 tapped 15 times through the step panel, each a Fire: 15 shots on the card, the frame times and draw calls of the line',
+    name: '?bench=range-line: test-handling\'s bench setup, Digit6 tapped 15 times through the step panel, each a Fire: 15 shots on the card, the frame times and draw calls of the line',
     heavy: true,
     timeoutMs: 150000,
     async fn() {
       const sc = BENCH_SCENES['range-line'];
       assert(sc && sc.play === 'test-handling' && sc.setup === 'bench', `the bench scene range-line (the stage's src/data/bench.js): ${JSON.stringify(sc ?? null)}`);
-      const keysMs = sc.keys.reduce((a, [, ms]) => a + ms, 0), taps = sc.keys.filter(([k]) => k === 'Digit1').length;
+      const keysMs = sc.keys.reduce((a, [, ms]) => a + ms, 0), taps = sc.keys.filter(([k]) => k === 'Digit6').length;
       await withGame(async (page) => {
         await page.waitForFunction(() => window.__bench && document.querySelector('.glass.bench'), null, { timeout: 90000 });
         const r = await page.evaluate(() => window.__bench);
         const range = await page.evaluate((h) => ({ summary: window[h].range()?.summary ?? null, paper: document.querySelector('.paper')?.dataset.text ?? null, scenario: window[h].state.meta.scenario }), '__olympus');
-        console.log(`      range-line: ${taps} taps of Digit1 over ${keysMs / 1000} s; ${r.frames} frames, median ${r.medianMs} ms, p95 ${r.p95Ms} ms, max ${r.maxMs} ms, over 25 ms ${r.over25}, draw calls ${r.drawCallsMax}, uploads ${r.uploadsMaxBytes} B; the range: ${JSON.stringify(range.summary)}`);
+        console.log(`      range-line: ${taps} taps of Digit6 over ${keysMs / 1000} s; ${r.frames} frames, median ${r.medianMs} ms, p95 ${r.p95Ms} ms, max ${r.maxMs} ms, over 25 ms ${r.over25}, draw calls ${r.drawCallsMax}, uploads ${r.uploadsMaxBytes} B; the range: ${JSON.stringify(range.summary)}`);
         assert(r.scene === 'range-line' && range.scenario === 'test-handling' && r.frames >= 100, JSON.stringify(r));
         assert(range.summary?.shots === taps, `the taps fired ${range.summary?.shots} of ${taps}: ${JSON.stringify(range.summary)}`);
       }, { query: 'bench=range-line', timeoutMs: 90000 });
@@ -156,7 +156,7 @@ export default [
     },
   },
   {
-    name: '?bench=shoothouse (0.0.12; the build sheet 0.0.12 §5.4): the Tier one at GO on 48213, "Clear the house" by its row, then the shot row and T in turn every 2 s for 20 s: the lane\'s rooms at his pace, the doors swinging, the #2, the shots in the hall; 60 fps at the median, p95 at most 18 ms, no frame over 50 ms and at most three over 25 (a pause\'s own frames)',
+    name: '?bench=shoothouse (0.0.12; the build sheet 0.0.12 §5.4): the Tier one at GO on 48213, "Open, clear the room" by T (one room a press from the rework\'s R4), then the shot row and T in turn every 2 s for 20 s: the lane\'s rooms at his pace, the doors swinging, the #2, the shots in the hall; 60 fps at the median, p95 at most 18 ms, no frame over 50 ms and at most three over 25 (a pause\'s own frames)',
     heavy: true,
     timeoutMs: 150000,
     async fn() {

@@ -47,6 +47,10 @@
 //     band is not up yet is drawn from its twin's sheet (p.twin: the same figure with the magazine in or out)
 //     when that has it, so a shooter changing magazines prone never stands up while the new sheet paints.
 // Frames follow the sim (poses.js gaitFrame(): walks by distance, idles at 2 fps by a person's phase).
+//   - STANCE SHEETS (R8, VIEWS §3.10.8; the third option, my call: no new texture): an armed mover in a stance has a sheet a carry
+//     (low, high, aimed) of the stance pool (poses.js STANCE_BANDS: the glide, Assault, the beats), its own look (sheet 'stance')
+//     in a base slot like any look's, since the pool's sheet is no larger than a base one (atlas.js); a frame of it is drawn from
+//     that slot (p.stanceKey, p.stanceLook), and while its band is not up, from the base sheet's stand-in (p.fallback).
 //
 // In the game (TECH §9.4, §11.2) the bands are painted off the main thread: given a painter
 // (src/render/painter.js), a band not yet up is asked of the paint worker (priority 'visible', or 'own'
@@ -60,9 +64,10 @@
 import * as THREE from 'three';
 import { PX_PER_M } from './scale.js';
 import { FRAG_DECL } from './materials.js';
-import { PEOPLE_PART } from './cards.js';
+import { PEOPLE_PART, PEOPLE_PARTS, PEOPLE_PART_STEP } from './cards.js';
 import { sheetLayout, bandSteps, flashStrip } from '../art/figures/atlas.js';
-import { BAND_OF, POOL_OF, gaitFrame } from '../art/figures/poses.js';
+import { BAND_OF, POOL_OF, gaitFrame, CARRY_FREE_BANDS } from '../art/figures/poses.js';
+const CARRY_FREE = new Set(CARRY_FREE_BANDS);
 import { wear } from '../art/figures/outfits.js';
 import { paintSleeper, sleeperKey, BERTH_M } from '../art/figures/bedding.js';
 import { paint } from '../art/paint.js';
@@ -102,7 +107,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
   atlas.flipY = false;
   atlas.source.dataReady = false;
   atlas.needsUpdate = true;
-  const stats = { slots: SLOTS, rifleSlots: RSLOTS, rifleUsed: 0, used: 0, fallback: 0, twin: 0, uploads: 0, uploadBytes: 0, uploadMs: 0, paintMs: 0, bandsPainted: 0, drawn: 0, deferred: 0, asked: 0, waiting: 0, ownNow: 0, lastFrame: { uploads: 0, bytes: 0, paintMs: 0, uploadMs: 0 }, atlasPx, sheet: [lay.w, lay.h] };
+  const stats = { slots: SLOTS, rifleSlots: RSLOTS, rifleUsed: 0, used: 0, fallback: 0, twin: 0, sib: 0, uploads: 0, uploadBytes: 0, uploadMs: 0, paintMs: 0, bandsPainted: 0, drawn: 0, deferred: 0, asked: 0, waiting: 0, ownNow: 0, lastFrame: { uploads: 0, bytes: 0, paintMs: 0, uploadMs: 0 }, atlasPx, sheet: [lay.w, lay.h] };
 
   // ---------- slots: look key → { slot, bands: Set, seen, job } ----------
   const slots = new Map(), free = Array.from({ length: SLOTS }, (_, i) => SLOTS - 1 - i);
@@ -230,7 +235,10 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
   const geo = new THREE.PlaneGeometry(1, 1).translate(0.5, 0.5, 0);
   const aRect = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 4), 4);
   const aTint = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 3), 3);
-  geo.setAttribute('aRect', aRect); geo.setAttribute('aTint', aTint);
+  // (one person, one outline (VIEWS §3.10.1, the rework's R2): each card's own part, PEOPLE_PART plus its draw slot mod PEOPLE_PARTS
+  // in the ID's high byte, so the post pass inks the pixel between two figures standing at one depth (#1 and #2 in a stack))
+  const aPartK = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople), 1);
+  geo.setAttribute('aRect', aRect); geo.setAttribute('aTint', aTint); geo.setAttribute('aPartK', aPartK);
   const material = cardMaterial(atlas, atlasPx, PEOPLE_PART);
   material.userData.oly = { card: true };
   const cards = new THREE.InstancedMesh(geo, material, maxPeople);
@@ -288,7 +296,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
   batlas.source.dataReady = false; batlas.needsUpdate = true;
   const bgeo2 = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   const bRect = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 4), 4), bTint = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 3), 3);
-  bgeo2.setAttribute('aRect', bRect); bgeo2.setAttribute('aTint', bTint);
+  bgeo2.setAttribute('aRect', bRect); bgeo2.setAttribute('aTint', bTint); bgeo2.setAttribute('aPartK', new THREE.InstancedBufferAttribute(new Float32Array(maxPeople), 1));
   const berthMat = cardMaterial(batlas, BERTH_ATLAS_PX, BERTH_PART);
   const berths = new THREE.InstancedMesh(bgeo2, berthMat, maxPeople);
   berths.frustumCulled = false; berths.count = 0; berths.userData.part = BERTH_PART;
@@ -325,7 +333,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
     uploadsLeft = sheetsPerFrame; msLeft = budgetMs;
     stats.lastFrame = { uploads: 0, bytes: 0, paintMs: 0, uploadMs: 0 };
     let i = 0, nf = 0, nBerth = 0;
-    stats.deferred = 0; stats.fallback = 0; stats.twin = 0;
+    stats.deferred = 0; stats.fallback = 0; stats.twin = 0; stats.sib = 0; stats.stanceFallback = 0;
     for (const p of people) {
       if (i >= maxPeople) break;
       if (p.lie) {
@@ -349,15 +357,27 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       const face = p.face ?? 'down';
       let band = BAND_OF[frame] ?? 'gait';
       let from = s;
-      if (!ensureBand(s, band, p.own)) {
+      // (R8: a stance sheet's frame from the stance sheet's own slot (p.stanceKey, a base slot: VIEWS §3.10.8); its band not up
+      // yet, the base sheet's stand-in (p.fallback: the Relaxed walk's frame, the rifle's own, the idle) meanwhile)
+      let stanceUp = false;
+      if (POOL_OF[band] === 'stance') {
+        const ss = p.stanceKey ? slotOf(p.stanceKey, p.stanceLook, p.own) : null;
+        if (ss && ensureBand(ss, band, p.own)) { from = ss; stanceUp = true; }
+        else { frame = p.fallback ?? 'idle0'; band = BAND_OF[frame] ?? 'gait'; stats.stanceFallback = (stats.stanceFallback ?? 0) + 1; }
+      }
+      if (!stanceUp && !ensureBand(s, band, p.own)) {
         // (its band not up yet: its twin's (the same figure with the magazine in or out, p.twin) if that one has it, so a
         // prone shooter changing magazines never stands up for the frames the new sheet takes (the 0.0.7 integrator's);
-        // else standing in the gait's frames meanwhile, if those are; else not drawn yet)
+        // a carry-free band from the sheet of the same figure in another gait carry (p.sibs: the same pixels, the rework's
+        // R2); else standing in the gait's frames meanwhile, if those are; else not drawn yet)
         const t = p.twin ? slots.get(p.twin) : null;
+        const sib = CARRY_FREE.has(band) && p.sibs ? p.sibs.map(k => slots.get(k)).find(x => x?.bands.has(band)) ?? null : null;
         if (t && t.bands.has(band)) { from = t; t.seen = frameNo; stats.twin = (stats.twin ?? 0) + 1; }
+        else if (sib) { from = sib; sib.seen = frameNo; stats.sib = (stats.sib ?? 0) + 1; }
         else if (band !== 'gait' && (s.bands.has('gait') || ensureBand(s, 'gait', p.own))) { frame = 'idle0'; band = 'gait'; stats.fallback++; }
         else { stats.deferred++; continue; }
       }
+      p.drawnFrame = frame;
       const c = lay.cells.get(`${frame}|${face}`) ?? lay.cells.get(`idle0|down`);
       const [ox, oy] = originOf(from, band);
       // (see the header: the anchor's row on the spot; the card's lowest rows above the floor)
@@ -368,6 +388,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       aRect.setXYZW(i, ox + c.x, oy + c.y, c.w, c.h);
       const t = p.tint ?? [1, 1, 1];
       aTint.setXYZ(i, t[0], t[1], t[2]);
+      aPartK.setX(i, i % PEOPLE_PARTS);
       // (the blob: under the body on the floor; long under a body lying side on, deep under one lying end on)
       const lift = c.kind === 'float' ? ys : Math.max(0, ys - (p.seat ?? 0)), floorY = p.floorY ?? 0;
       let bx = snap(p.x), bz = snap(p.z), sx = 1, sz = 1;
@@ -395,7 +416,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
     }
     cards.count = blobs.count = i; flashes.count = nf; berths.count = nBerth;
     // (only the instances drawn are sent: a frame's few hundred bytes, not MAX_PEOPLE's 16 KB a matrix buffer)
-    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aAlpha, i], [aSlot, nf], [berths.instanceMatrix, nBerth], [bRect, nBerth], [bTint, nBerth]]) {
+    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aPartK, i], [aAlpha, i], [aSlot, nf], [berths.instanceMatrix, nBerth], [bRect, nBerth], [bTint, nBerth]]) {
       if (!n) continue;
       a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true;
     }
@@ -421,6 +442,8 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
    */
   function prepare(key, look, { bands = ['gait'], own = false } = {}) {
     const s = slotOf(key, look, true);
+    // (no sheet free for it (every slot a look drawn this frame holds): nothing prepared, drawn when one frees, never a throw)
+    if (!s) return Promise.resolve(null);
     if (own) s.own = true;
     if (!painter) { warm(key, look, bands); return Promise.resolve(s); }
     // (a rifle sheet taken for its rifle bands if one is free (none is taken from a look drawn this frame))
@@ -450,12 +473,12 @@ function cardMaterial(atlas, size, part) {
     uniforms: { atlas: { value: atlas }, size: { value: size }, part: { value: part } },
     defines: { OLY_SEE: '' },
     vertexShader: /* glsl */`
-      attribute vec4 aRect; attribute vec3 aTint;
+      attribute vec4 aRect; attribute vec3 aTint; attribute float aPartK;
       varying vec2 vPx; varying vec3 vTint; varying vec3 vOlyWorld; flat varying float vOlyPart;
       uniform float part;
       void main() {
         vPx = aRect.xy + vec2(uv.x, 1.0 - uv.y) * aRect.zw;          // (atlas pixels, rows top-down as painted)
-        vTint = aTint; vOlyPart = part;
+        vTint = aTint; vOlyPart = part + aPartK * ${PEOPLE_PART_STEP.toFixed(1)};
         vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
         vOlyWorld = w.xyz;
         gl_Position = projectionMatrix * viewMatrix * w;

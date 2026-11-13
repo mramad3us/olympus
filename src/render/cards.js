@@ -18,8 +18,12 @@ import { PX_PER_M } from './scale.js';
 import { FRAG_DECL, SHARED, olyMaterial } from './materials.js';
 import { toTexture } from './textures.js';
 
-/** The part number every person's card shares (outlines between people come from depth, and their own ink). */
-export const PEOPLE_PART = 0xa5a5a5;
+/**
+ * The part number of a person's card: PEOPLE_PART, plus (the crowd's cards, src/render/figures.js, from the rework's R2: one
+ * person, one outline, VIEWS §3.10.1) its draw slot mod PEOPLE_PARTS times PEOPLE_PART_STEP, the ID's high byte (0xa5 to
+ * 0xab), so two figures at one depth are two parts and the post pass inks between them (src/render/post.js isPeople).
+ */
+export const PEOPLE_PART = 0xa5a5a5, PEOPLE_PARTS = 7, PEOPLE_PART_STEP = 0x10000;
 const INK = 0x14151c;
 
 /**

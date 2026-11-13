@@ -234,6 +234,9 @@ export default [
           // digest still says whether the weapons domain changed a gunless game; with it in, 17a67af3db88cc)
           const saved = JSON.parse(toJSON(g.state));
           for (const p of Object.values(saved.people ?? {})) if (p?.body) delete p.body.eyes;
+          // (and the rework's R2's locomotion record (src/sim/body/loco.js: the gait phase gp and the body's yaw bodyRad, written
+          // by every move), the body's and the places' own, never the weapons domain's: left out for the same reason)
+          for (const a of saved.actors?.list ?? []) { delete a.gp; delete a.bodyRad; delete a.locoMs; }
           now[key] = digest(JSON.stringify(saved));
         } else now[key] = digest(toJSON(newGame({ seed: Number(seed), scenario, hour: hour === 'null' ? null : Number(hour), version: 'test' })));
       }

@@ -33,17 +33,36 @@
 // Backspace or X, 'two', 'noshoot', 'gun') cuts where they stand the running beats a contact cuts (`cut: true`: a move, a
 // scan) and lets the others end, starting nothing new ('stop' lets every running beat end: "stop after this beat"). The
 // rest of a halted doing (every beat not done) is its `rest`, the owner's "Carry on: …". HALTS names the reasons.
-// The facts: 'step' for list doings as built; 'bundle' { phase: 'beat' | 'seam' | 'halt' | 'end', who, id, beat, ch, why?,
-// atMs } for beats (bundle.js emits 'start').
-// Pure but begin, runSub, advance, endStep and advanceBeats, which write the doing record and the clock's holds.
-import { releaseTime } from '../../core/clock.js';
+// The facts: 'step' for list doings as built; 'bundle' { phase: 'beat' | 'seam' | 'halt' | 'suspend' | 'end', who, id, beat,
+// ch, why?, atMs } for beats (bundle.js emits 'start').
+// 2026-11-12 (the shoot house's rework R3, COMBAT §25.19.3.1): a beat doing can be **suspended** instead of halted, from rung 2
+// at a contact's pause (contact.js) or where a beat asks it (`suspend` from its run: "Clear!" with a man of the room up):
+// suspendFlow() writes d.suspendAsk; nothing new starts; a running scan is paused where it stands (back to waiting with the
+// time it had left and its sweep from where the head was, so it resumes where it stood); a running hands or voice beat ends;
+// the moves run on (time stands still at the pause, so the closed form resumes at the speed it had); then advanceBeats
+// returns 'suspended' with d.suspended = { why, atMs }, its beats untouched. resume() takes it up again, with a list step
+// beside it holding a channel (d.hold = { ch: 'hands', step, fromMs }: the shot row on the hands, read by flowOk as a beat
+// running on that channel, so the eyes and the voice wait for it too) or none; release() frees the channel at the step's end.
+// advance() advances the player's flow (state.stop.flow: a suspended bundle taken up beside a list step) before the list step,
+// handing its end, halt or suspension to the owner (useBeats' flow). Saved as it stands (plain data, no Infinity).
+// 2026-11-12 (the rework's R4): a beat may flow with the feet from a rung of its own (`flowFrom`), below its channel's: the
+// door's read (eyes) rides the approach from rung 3, where the eyes otherwise wait for the feet until rung 4.
+// 2026-11-12 (the rework's R5, COMBAT §25.19.5): advanceList runs another person's list doing on the same boundaries (the
+// shoot house's number two's LOAD, MAKE READY, MAKE SAFE and UNLOAD SHOW CLEAR: shoothouse.js twoAdminTick), its sub-steps
+// the owner's.
+// Pure but begin, runSub, advance, advanceList, endStep, advanceBeats, suspendFlow, resume and release, which write the doing record and the clock's holds.
+import { releaseTime, TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { playerId } from '../../core/ids.js';
 
 /** The channels a beat runs on (COMBAT §25.7.1): feet, hands, eyes, voice, and world for a wait on the world. */
 export const CHANNELS = Object.freeze(['feet', 'hands', 'eyes', 'voice', 'world']);
 /** Why a beat doing stops early (COMBAT §25.7.2 amended by the build sheet 0.0.12 §2.2). */
-export const HALTS = Object.freeze(['contact', 'noshoot', 'refused', 'door-unplanned', 'two', 'gun', 'fail', 'seam', 'lane-end', 'stop']);
+export const HALTS = Object.freeze(['contact', 'noshoot', 'refused', 'door-unplanned', 'two', 'gun', 'fail', 'seam', 'lane-end', 'stop', 'clear']);
+/** Why a beat doing is suspended rather than halted (COMBAT §25.19.3.1, §25.19.4): a contact's pause, a man of the room up at "Clear!", the list step beside it ended on a decision. */
+export const SUSPENDS = Object.freeze(['contact', 'up', 'decision']);
+/** A man of the window this near a corner's spot took the eyes there: the corner's look counts as done at the suspension (m; my call). */
+export const TOOK_M = 1.5;
 /** The rung from which hands and voice overlap the feet, and the rung from which the eyes do too (COMBAT §25.3.1). */
 export const FLOW_HANDS_RUNG = 3, FLOW_EYES_RUNG = 4;
 const FLOW = [new Set(), new Set(), new Set(), new Set(['hands', 'voice']), new Set(['hands', 'voice', 'eyes'])];
@@ -53,7 +72,7 @@ export const flowOf = (rung) => FLOW[Math.max(0, Math.min(4, rung | 0))];
 // ---- the list doings (v0.0.5's steps, see the header) ----
 
 let LIST = null, BEATS = null;
-/** The player's beat doings' owner (bundle.js): { done(state, bus, d, 'ended' | 'halted') }, called when advance() finishes one. */
+/** The player's beat doings' owner (bundle.js): { done(state, bus, d, 'ended' | 'halted' | 'suspended'), flow(state, bus, d, r) }, called when advance() finishes or suspends one (flow: the player's flow beside a list step). */
 export function useBeats(owner) { BEATS = owner; }
 /**
  * The list doings' handler, the rifle's (shooting.js): { run(state, bus, d, i, atMs) → { rec, text, extra }, endSub(state,
@@ -61,6 +80,21 @@ export function useBeats(owner) { BEATS = owner; }
  */
 export function useList(handler) { LIST = handler; }
 
+/**
+ * A sub-step's or a beat's mark on the panel (VIEWS §7.4, SKILLS §5.1; the user's natural 1s, 2026-11-11), the one helper the
+ * panel and the bundle's lanes read: '~' a natural 1 caught (slow, not failed), '!' a stoppage (the dummy's click, a jam),
+ * '★' a natural 20, '✗' only a failure that cost something (the time, a halt), '◦' routine, '✓' passed; null with no roll.
+ */
+export function markOf(f) {
+  if (!f || f.ok === undefined || f.ok === null) return f?.stop ? '!' : null;
+  if (f.caught) return '~';
+  if (f.stop) return '!';
+  if (f.star || f.clean) return '★';
+  if (!f.ok || f.grade === 'bad' || f.grade === 'disaster' || (f.grade === 'miss' && !f.routine)) return '✗';
+  return f.routine ? '◦' : '✓';
+}
+// (a sub-step's roll's marks carried on its record and its fact, only where they are (the saves made before keep their shape))
+export const markFields = (r) => ({ ...(r?.caught ? { caught: true } : {}), ...(r?.clean ? { clean: true } : {}), ...(r?.star ? { star: true } : {}), ...(r?.stop ? { stop: true } : {}) });
 // (a list step's record as the 'step' fact carries it)
 export const stepFact = (d, phase, extra = {}) => ({ phase, who: d.who, step: d.step, i: d.i, action: d.list?.[d.i] ?? null, fromMs: d.subFromMs ?? d.fromMs, toMs: d.untilMs, ...extra });
 
@@ -84,12 +118,15 @@ export function runSub(state, bus, d, i, atMs) {
   const { rec, text, extra } = LIST.run(state, bus, d, i, atMs);
   d.subs.push(rec);
   d.untilMs = atMs + rec.ms;
-  bus?.emit('step', stepFact(d, 'sub', { ok: rec.ok, grade: rec.grade, routine: rec.routine, mishap: rec.mishap, text, ...(extra ?? {}) }));
+  bus?.emit('step', stepFact(d, 'sub', { ok: rec.ok, grade: rec.grade, routine: rec.routine, mishap: rec.mishap, text, ...markFields(rec), ...(extra ?? {}) }));
 }
 
 /** The player's doing advanced to the clock (see the header): a list's boundaries taken, a bundle's beats run. */
 export function advance(state, bus) {
   const S = state.stop;
+  // (the flow beside a list step first: its feet carry on while the step runs on the hands (see the header))
+  const F = S?.flow;
+  if (F && !F.suspended && !F.over && S.doing && !S.doing.beats) { const r = advanceBeats(state, bus, F, state.clock.ms); if (r !== 'running') BEATS?.flow?.(state, bus, F, r); }
   let d = S?.doing;
   if (d?.beats) { const r = advanceBeats(state, bus, d, state.clock.ms); if (r !== 'running') BEATS?.done?.(state, bus, d, r); return; }
   const t = state.clock.ms;
@@ -103,6 +140,23 @@ export function advance(state, bus) {
     else { endStep(state, bus, 'end'); break; }
     d = S.doing;
   }
+}
+
+/**
+ * Another person's list doing advanced to ms (the shoot house's number two's tower macro, COMBAT §25.19.5, the rework's R5): the
+ * same boundaries as the player's (each sub-step rolled at its formula time, its effects at its start as the NPC gunner's,
+ * its time from there), by the owner's run(state, bus, d, i, atMs) → rec { ms, … }, which may plan the rest of d.list again.
+ * Returns 'running', or 'ended' with every sub-step done (the owner clears the doing).
+ */
+export function advanceList(state, bus, d, ms, run) {
+  for (let guard = 0; guard < 64 && ms >= d.untilMs; guard++) {
+    const i = d.i + 1;
+    if (i >= d.list.length) return 'ended';
+    const at = d.untilMs, rec = run(state, bus, d, i, at);
+    d.i = i; d.subFromMs = at; d.subs.push(rec);
+    d.untilMs = at + Math.max(0, Math.round(rec.ms ?? 0));
+  }
+  return 'running';
 }
 
 /** A list step over (see the header): the fact, the doing cleared, then the handler's end (the chained wait, the reflex, choosing again). */
@@ -135,19 +189,27 @@ function depMs(d, dep) {
   return b.fromMs + Math.round((Number.isFinite(k) ? k : 1) * b.ms);
 }
 // (whether a beat on channel ch may run beside the running ones at this flow)
-function flowOk(d, ch) {
-  const F = flowOf(d.rung ?? 0);
+// (a beat may flow with the feet from a rung of its own, below its channel's (`flowFrom`: the door's read rides the approach
+// from rung 3, the point man's eyes on the hinge as he closes on it; the rework's R4, my call))
+function flowOk(d, ch, b = null) {
+  const F = flowOf(d.rung ?? 0), rung = d.rung ?? 0;
+  const flows = (c, x) => F.has(c) || (Number.isFinite(x?.flowFrom) && rung >= x.flowFrom);
+  const busy = (r) => r.ch === ch || !((r.ch === 'feet' && flows(ch, b)) || (ch === 'feet' && flows(r.ch, r)));
+  // (a list step beside the doing holds its channel as a running beat would (see the header); the feet carry on beside it
+  // at every rung from 2, the suspension's whole point: the shot runs on the hands while the feet go to the point)
+  if (d.hold && (d.hold.ch === ch || ch !== 'feet')) return false;
   for (const r of d.beats) {
     if (r.st !== 'run') continue;
-    if (r.ch === ch) return false;
-    if (!((r.ch === 'feet' && F.has(ch)) || (ch === 'feet' && F.has(r.ch)))) return false;
+    if (busy(r)) return false;
   }
   return true;
 }
 // (when a waiting beat could start, given what runs now; Infinity when it cannot until something ends)
 function readyMs(d, b) {
-  if (d.halt || d.stopAfter) return Infinity;
-  if (!flowOk(d, b.ch)) return Infinity;
+  if (d.halt || d.stopAfter || d.suspendAsk || d.suspended) return Infinity;
+  // (the eyes held elsewhere (d.eyesOff, the #2's on a man he takes on the move: bundle.js runSlot): no look starts)
+  if (d.eyesOff && b.k === 'scan') return Infinity;
+  if (!flowOk(d, b.ch, b)) return Infinity;
   let at = d.atMs ?? d.fromMs;
   for (const dep of b.after ?? []) at = Math.max(at, depMs(d, dep));
   return at;
@@ -165,19 +227,22 @@ function startBeat(state, bus, d, b, atMs) {
   if (r.arriveMs !== undefined) b.arriveMs = Math.round(r.arriveMs);
   if (r.again) b.again = true;
   b.untilMs = atMs + b.ms;
-  d.subs.push({ beat: b.key, k: b.k, ch: b.ch, ms: b.ms, ok: r.ok ?? null, grade: r.grade ?? null, routine: r.routine ?? null, mishap: r.mishap ?? null });
-  (d.lanes[b.ch] ??= []).push({ key: b.key, glyph: r.ok === false ? '✗' : r.routine ? '◦' : '▸' });
+  d.subs.push({ beat: b.key, k: b.k, ch: b.ch, ms: b.ms, ok: r.ok ?? null, grade: r.grade ?? null, routine: r.routine ?? null, mishap: r.mishap ?? null, ...markFields(r) });
+  (d.lanes[b.ch] ??= []).push({ key: b.key, glyph: r.ok === false ? markOf({ ...r, ok: false }) ?? '✗' : r.routine ? '◦' : '▸' });
   bus?.emit('bundle', beatFact(d, 'beat', b, { atMs, text: r.text ?? null }));
   if (r.halt) haltBeats(state, bus, d, r.halt, r.text ?? null, atMs);
+  else if (r.suspend && !d.dry) suspendFlow(state, bus, d, r.suspend, atMs);
 }
 // (a beat ended at its untilMs, or cut at atMs)
-function endBeat(state, bus, d, b, atMs, cut = false) {
+function endBeat(state, bus, d, b, atMs, cut = false, early = false) {
   b.st = cut ? 'cut' : b.again ? 'wait' : 'done';
   if (b.again) { delete b.again; b.redo = true; }
-  if (cut) { b.untilMs = atMs; }
+  if (cut || early) { b.untilMs = atMs; }
+  if (early) b.took = true;
   KINDS.get(b.k)?.end?.(state, bus, d, b, { cut, atMs });
   const lane = d.lanes[b.ch]?.find(x => x.key === b.key && x.glyph === '▸');
-  if (lane) lane.glyph = cut ? '✗' : (d.subs.find(s => s.beat === b.key)?.routine ? '◦' : d.subs.find(s => s.beat === b.key)?.ok === false ? '✗' : '✓');
+  // (a beat cut by a decision is no failure: '–', never ✗ (VIEWS §7.4: ✗ only for a failure that cost something))
+  if (lane) lane.glyph = cut ? '–' : markOf(d.subs.find(s => s.beat === b.key) ?? { ok: true }) ?? '✓';
 }
 
 /**
@@ -208,6 +273,34 @@ export function advanceBeats(state, bus, d, ms) {
     }
     break;
   }
+  if (d.suspended && !d.halt) return 'suspended';
+  // (a call still waiting to be said (its run came back `again` with nothing said: "Clear!" waiting on the #2's sweep or the
+  // scene's gate) is no voice under way: it goes back to waiting and the pause comes now. The rework's R9, 2026-11-13: the
+  // corporal's "Clear!" in the hall waited on his #2's group for up to a second with the hall's man taken in, and the pause,
+  // so the pair, came that much later: 13 of 30 advanced pars missed there, F10)
+  const owedCall = (b) => b.st === 'run' && b.k === 'call' && b.again === true;
+  if (d.suspendAsk && !d.halt && !d.beats.some(b => b.st === 'run' && b.k !== 'move' && b.k !== 'scan' && !owedCall(b))) {
+    // (suspended once nothing but the moves and the scans run: the scans paused where they stand (see the header))
+    const at = Math.max(d.atMs ?? 0, d.suspendAsk.atMs ?? 0);
+    for (const b of d.beats) if (owedCall(b)) { delete b.again; b.redo = true; b.st = 'wait'; b.untilMs = at; }
+    // (a contact took the eyes: the corner's look, running or still to come of the room the feet are going into, is done there
+    // when a man of the window stands in that corner (within TOOK_M of the spot), as v0.0.12's hand-back counted every scan it
+    // cut (the man seen is where the eyes went; my call, which keeps room 1's time: "a pause costs no game time", COMBAT
+    // §25.19.3.2; counted for any man, a no-shoot elsewhere left the corner unseen: "Corner! You never looked." on 4 of 100
+    // tier one lanes); the far leg's look stays owed; any other scan is paused where it stands and resumes)
+    const mvPlan = d.beats.find(x => x.st === 'run' && x.k === 'move')?.plan ?? null, men = d.suspendAsk.at ?? [];
+    const inCorner = (b) => !!b.eyes && men.some(([x, z]) => Math.hypot(x - b.eyes[0], z - b.eyes[1]) <= TOOK_M);
+    const took = (b) => d.suspendAsk.why === 'contact' && b.k === 'scan' && b.key.endsWith('corner') && inCorner(b) && (b.st === 'run' || (b.st === 'wait' && b.plan === mvPlan && mvPlan !== null));
+    for (const b of d.beats) {
+      if (took(b)) { if (b.st === 'run') endBeat(state, bus, d, b, at, false, true); else { b.st = 'done'; b.fromMs = at; b.untilMs = at; b.ms = 0; b.took = true; } }
+      else if (b.st === 'run' && b.k === 'scan') pauseScan(d, b, at);
+    }
+    d.suspended = { why: d.suspendAsk.why, atMs: at };
+    delete d.suspendAsk;
+    d.atMs = at;
+    bus?.emit('bundle', beatFact(d, 'suspend', null, { atMs: at, why: d.suspended.why }));
+    return 'suspended';
+  }
   const running = d.beats.some(b => b.st === 'run');
   if (running) return 'running';
   if (d.halt || d.stopAfter) {
@@ -226,9 +319,58 @@ export function advanceBeats(state, bus, d, ms) {
   return 'running';
 }
 
+/** Every running scan of a beat doing paused at ms, as a contact's suspension pauses them (see pauseScan): the eyes taken elsewhere. Returns how many. */
+export function pauseScans(d, ms) {
+  let n = 0;
+  // (a tick at least left to each: taken up again, the head is on the sweep's rest for one lived tick, where the scene's
+  // coverage reads it; a look paused past its end with nothing left jumped to done unseen, the corner never covered)
+  for (const b of d?.beats ?? []) if (b.st === 'run' && b.k === 'scan') { pauseScan(d, b, ms); b.ms = Math.max(b.ms, TICK_MS); n++; }
+  return n;
+}
+// (a running scan paused at ms: back to waiting with the time it had left, its sweep from where the head was, its
+// dependencies met, its lane's running glyph taken back so its restart writes its own (see the header))
+function pauseScan(d, b, ms) {
+  const k = b.untilMs > b.fromMs ? Math.max(0, Math.min(1, (ms - b.fromMs) / (b.untilMs - b.fromMs))) : 1;
+  if (b.sweep) b.sweep = [q(b.sweep[0] + wrapRad(b.sweep[1] - b.sweep[0]) * k, 1e-6), b.sweep[1]];
+  b.ms = Math.max(0, b.untilMs - ms); b.st = 'wait'; b.after = []; b.fromMs = null; b.untilMs = null; b.paused = true;
+  const lane = d.lanes[b.ch]?.findLastIndex?.(x => x.key === b.key && x.glyph === '▸');
+  if (lane !== undefined && lane >= 0) d.lanes[b.ch].splice(lane, 1);
+  d.eyes = null;
+}
+const wrapRad = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+
+/**
+ * Ask a beat doing to suspend (see the header): from ms nothing new starts; it is suspended once nothing but its moves and
+ * scans run (advanceBeats then returns 'suspended'). why one of SUSPENDS. Returns whether it was asked.
+ */
+export function suspendFlow(state, bus, d, why, ms = state?.clock?.ms ?? 0, at = null) {
+  if (!d?.beats || d.halt || d.suspended || d.suspendAsk) return false;
+  d.suspendAsk = { why, atMs: ms, ...(at?.length ? { at: at.map(([x, z]) => [q(x, 1e-4), q(z, 1e-4)]) } : {}) };
+  return true;
+}
+/** A suspended beat doing taken up again at ms (see the header): hold, the channel a list step beside it holds ({ ch, step }), or null. */
+export function resume(d, ms, hold = null) {
+  if (!d?.beats) return false;
+  delete d.suspended; delete d.suspendAsk;
+  d.atMs = Math.max(d.atMs ?? 0, ms);
+  if (hold) d.hold = { ch: hold.ch ?? 'hands', step: hold.step ?? null, fromMs: ms };
+  return true;
+}
+/** The channel a list step beside a beat doing held, freed at ms (see the header): its record in the doing's subs and lanes. */
+export function release(d, ms, { ok = true } = {}) {
+  if (!d?.hold) return false;
+  const h = d.hold;
+  d.subs.push({ beat: h.step ?? 'step', k: 'step', ch: h.ch, ms: Math.max(0, ms - h.fromMs), ok, grade: null, routine: null, mishap: null });
+  (d.lanes[h.ch] ??= []).push({ key: h.step ?? 'step', glyph: ok ? '✓' : '✗' });
+  delete d.hold;
+  d.atMs = Math.max(d.atMs ?? 0, ms);
+  return true;
+}
+
 // (the halt written, the cuttable running beats cut where they stand)
 function haltBeats(state, bus, d, why, words, atMs) {
   if (d.halt) return;
+  delete d.suspendAsk; delete d.suspended;
   d.halt = { why, words: words ?? null, atMs };
   if (why !== 'stop' && why !== 'seam') for (const b of d.beats) if (b.st === 'run' && b.cut) endBeat(state, bus, d, b, atMs, true);
   bus?.emit('bundle', beatFact(d, why === 'seam' ? 'seam' : 'halt', null, { atMs, why }));
@@ -321,10 +463,16 @@ export function moveAt(beat, ms) {
   return { x: q(p.x, 0.0001), z: q(p.z, 0.0001), vMs: q(v, 0.001), headRad: q(p.headRad, 1e-6), done: ms >= (beat.untilMs ?? Infinity) };
 }
 
-/** The move running for a person now (places/move.js sets the body's place from it): a shot row's feet (state.stop.feet: moving on, or braking to plant) or a bundle's running move beat; or null. */
+/**
+ * The move running for a person now (places/move.js sets the body's place from it): a shot row's feet (state.stop.feet: moving
+ * on, or braking to plant) or a bundle's running move beat; else the body's carry through a no-stop zone (actor.through, the
+ * rework's R8b: places/move.js throughOf); or null.
+ */
 export function moveNow(state, pid = playerId(state)) {
   const S = state.stop?.who === pid ? state.stop : null;
-  if (!S) return null;
-  if (S.feet && !S.feet.done) return S.feet;
-  return S.doing?.beats?.find(b => b.st === 'run' && b.k === 'move' && b.prof) ?? null;
+  if (S?.feet && !S.feet.done) return S.feet;
+  const m = S?.doing?.beats?.find(b => b.st === 'run' && b.k === 'move' && b.prof) ?? S?.flow?.beats?.find(b => b.st === 'run' && b.k === 'move' && b.prof) ?? null;
+  if (m) return m;
+  const a = state.actors?.list?.find(x => x.who === pid);
+  return a?.through?.prof ? a.through : null;
 }

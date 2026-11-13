@@ -214,7 +214,7 @@ function behindOf(state, actor, x, z) {
 
 /**
  * A person's take-in of a contact (see the header): contact { id, targets: [{ key, x, z, rangeM, face }],
- * seenMs, roll? (the window's notice check, when a target joins it) }. Returns { ms, rawMs, expect, grade, roll,
+ * seenMs, roll? (the window's notice check, when a target joins it), expect? ({ key: expectation }, given) }. Returns { ms, rawMs, expect, grade, roll,
  * parts, n, whoK, dc }.
  */
 export function takeInMs(state, pid, contact) {
@@ -222,7 +222,9 @@ export function takeInMs(state, pid, contact) {
   const sheet = sheetOf(state, pid), wf = sheet?.os ?? 0, roller = rollerOf(state, pid, { ms: seenMs });
   const me = playerActor(state)?.who === pid ? playerActor(state) : state.actors?.list?.find(a => a.who === pid) ?? null;
   let expect = 'sector', whoK = 1;
-  const each = targets.map(t => ({ t, e: expectOf(state, pid, t, seenMs) }));
+  // (an expectation given by the contact (contact.expect, by key): the shoot house's #2 covering your sector takes in the man you
+  // bracketed as his sector's, your others as the room's (COMBAT §25.19.6); every other contact reads it as built)
+  const each = targets.map(t => ({ t, e: contact?.expect?.[t.key] ?? expectOf(state, pid, t, seenMs) }));
   for (const { t, e } of each) {
     if (EXPECT_ORDER.indexOf(e) > EXPECT_ORDER.indexOf(expect)) expect = e;
     if (WHO_FACES.has(t.face)) whoK = Math.max(whoK, WHO_K);
@@ -245,8 +247,9 @@ export function takeInMs(state, pid, contact) {
   const n = Math.max(1, targets.length);
   // (0.0.12: the stance and the light at the first target (see the header))
   const lk = first ? lightK(lightLevel(state, first.t.x, first.t.z, seenMs)) : 1;
-  const t = takeInOf({ wf, expect, grade: roll.grade, n, whoK, stanceK: stanceKOf(state, pid), lightK: lk, bodyK: bodyK(lapses), behindK: behind ? BEHIND_K : 1, band: contact?.band ?? 0 });
-  return { ms: t.ms, rawMs: t.rawMs, expect, grade: roll.grade, roll, parts: t.parts, n, whoK, dc: roll.dc ?? dc };
+  // (a caught 1 on the notice (SKILLS §5.1) costs the take-in its ×1.5 as a natural 1 always did: its figure unchanged, its words the catch's)
+  const t = takeInOf({ wf, expect, grade: roll.caught ? 'miss' : roll.grade, n, whoK, stanceK: stanceKOf(state, pid), lightK: lk, bodyK: bodyK(lapses), behindK: behind ? BEHIND_K : 1, band: contact?.band ?? 0 });
+  return { ms: t.ms, rawMs: t.rawMs, expect, expects: Object.fromEntries(each.map(({ t: x, e }) => [x.key, e])), grade: roll.grade, roll, parts: t.parts, n, whoK, dc: roll.dc ?? dc };
 }
 
 /** A take-in's words for the log (see contact.js's last.words): "Taken in in 0.55 s: 0.54 (Warfighting 15) × 1 (your sector); Awareness 6 + 14 = 20 against 7, noticed." */
@@ -256,7 +259,7 @@ export function takeInText({ ms, expect, parts = [], roll = null }) {
   let text = `Taken in in ${takeInWords(ms)} s: ${terms.join(' ')}`;
   if (roll) {
     const mods = (roll.mods ?? []).map(m => ` ${m.v < 0 ? '− ' + -m.v : '+ ' + m.v} (${m.why})`).join('');
-    const end = roll.grade === 'miss' ? 'noticed late' : roll.grade === 'bad' ? 'slow to notice' : roll.grade === 'disaster' ? 'very slow to notice' : 'noticed';
+    const end = roll.caught ? 'caught, noticed late' : roll.grade === 'miss' ? 'noticed late' : roll.grade === 'bad' ? 'slow to notice' : roll.grade === 'disaster' ? 'very slow to notice' : 'noticed';
     text += `; Awareness ${roll.value} + ${roll.roll}${mods} = ${roll.total} against ${roll.dc}${roll.nat === 1 ? ', a natural 1' : roll.nat === 20 ? ', a natural 20' : ''}, ${end}`;
   }
   return `${text}.`;

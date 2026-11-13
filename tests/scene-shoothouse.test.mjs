@@ -116,7 +116,10 @@ export default [
           // (the men of your own corner you saw: your #2's are his to shoot, on the same mechanics (the fixer's of 0.0.12: he
           // fired 0 to 2 rounds in the lane before, so "seen" counted his men among yours))
           const own = new Set(V.contacts.filter(c => c.by === 'me' && (STANDS[c.stand]?.slot ?? 1) === 1).map(c => c.key)).size;
-          if (V.presses < own + 1 || V.pressAbout.person + V.pressAbout.door < V.presses / 2) bad.push(`${tier} ${V.word}: ${V.presses} presses for ${own} of your own seen (${V.seen} in all), ${V.pressAbout.person} about a person, ${V.pressAbout.door} about a door`);
+          // (2026-11-12, R3: no "Carry on" after a shot row now, so at rung 4, where the lane's bundle carries every room from
+          // the last until R4 withdraws it, a room's presses are its own men's decisions alone: the +1 (the room's own press)
+          // holds below it)
+          if (V.presses < own + (rung >= 4 ? 0 : 1) || V.pressAbout.person + V.pressAbout.door < V.presses / 2) bad.push(`${tier} ${V.word}: ${V.presses} presses for ${own} of your own seen (${V.seen} in all), ${V.pressAbout.person} about a person, ${V.pressAbout.door} about a door`);
         }
       }
       const ratio = runs.private.N.timerMs / runs.tierone.N.timerMs;
@@ -131,7 +134,7 @@ export default [
     },
   },
   {
-    name: 'the private from the brief: LOAD, MAKE READY, Standby, GO in stop motion with "Stack on the door" first, the lane, Stop, UNLOAD, SHOW CLEAR, the hot wash behind the brief splash and the card',
+    name: 'the private from the brief: LOAD, MAKE READY, Standby, GO in stop motion with "Stack up" first, the lane, Stop, UNLOAD, SHOW CLEAR, the hot wash behind the brief splash and the card',
     timeoutMs: 120_000,
     fn() {
       const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private' }), bot = houseBot({ mode: 'keys' }), cmds = [], go = { stop: null, first: null };

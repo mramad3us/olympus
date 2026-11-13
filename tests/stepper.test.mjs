@@ -68,9 +68,9 @@ export default [
     },
   },
   {
-    name: 'lived by rung in room 1: the beats that ran together, by channel (none to rung 2; hands and voice with the feet at 3; the eyes too at 4)',
+    name: 'lived by rung in room 1: the beats that ran together, by channel (none to rung 2; hands and voice with the feet at 3, and the door\'s read; the eyes too at 4)',
     fn() {
-      for (const [tier, bundle] of [['cpl', 'room:stack-open'], ['sgt', 'room:clear'], ['tierone', 'room:clear']]) {
+      for (const [tier, bundle] of [['cpl', 'stack:point'], ['sgt', 'room:clear'], ['tierone', 'room:clear']]) {
         const w = drillWorld({ tier }), { g, s } = w;
         const row = stepsOf(s).find(r => r.id.startsWith(`drill:${bundle}>`));
         pick(g, row.id);
@@ -79,23 +79,32 @@ export default [
         const ov = overlaps(d);
         console.log(`      ${tier.padEnd(8)} ${bundle.padEnd(16)} ran together: ${ov.join(', ') || 'nothing'}`);
         if (tier === 'cpl') assert(!ov.length, ov.join());
-        if (tier === 'sgt') assert(ov.every(x => /feet/.test(x) && !/eyes/.test(x)), ov.join());
+        // (at rung 3 the eyes wait for the feet but for the door's read, which rides the approach from rung 3 (flowFrom, the rework's R4))
+        const eyesWithFeet = d.beats.filter(b => b.ch === 'eyes' && b.fromMs !== null && d.beats.some(f => f.ch === 'feet' && f.fromMs !== null && f.fromMs < b.untilMs && b.fromMs < f.untilMs)).map(b => b.key);
+        if (tier === 'sgt') assert(ov.every(x => /feet/.test(x)) && eyesWithFeet.every(k => k === 'read'), JSON.stringify({ ov, eyesWithFeet }));
         if (tier === 'tierone') assert(ov.some(x => x === 'eyes+feet'), ov.join());
       }
     },
   },
   {
-    name: 'a contact cuts a move mid-path where it stands, the rest the panel\'s "Carry on" from there; Backspace stops a bundle after its beat and starts nothing new',
+    name: 'from rung 2 a contact suspends a move mid-path, never cuts it: the bundle kept whole on the stop, its entry still running at its speed, "Carry on" taking it up; Hold him halts it where it stands, the rest the panel\'s "Carry on" from there; Backspace stops a bundle after its beat and starts nothing new (the rework, COMBAT §25.19.3.1: v0.0.12 cut the feet in the doorway)',
     fn() {
       const w = drillWorld({ tier: 'tierone' }), { g, s } = w, t0 = s.clock.ms;
       s.mind.clearing = { room: 'w4.r1', fromMs: t0 }; w.T('1a').turnAtMs = t0 - 2000;
       pick(g, stepsOf(s).find(r => r.id.startsWith('drill:room:clear>')).id);
       const d = s.stop.doing;
       settle(g, s);
-      const cut = d.beats.find(b => b.st === 'cut' && b.k === 'move'), me = w.me();
-      console.log(`      the pause at ${fmt((s.clock.ms - t0) / 1000, 2)} s: the entry cut at ${fmt((cut?.untilMs - t0) / 1000, 2)} s after ${fmt((cut?.untilMs - cut?.fromMs) / 1000, 2)} of its ${fmt(cut?.prof?.T ?? 0, 2)} s, the body at (${me.x}, ${me.z}) moving ${JSON.stringify(me.v)}; the rest: ${s.stop.carry?.beats?.join(', ')}`);
-      assert(cut && cut.untilMs === s.clock.ms && s.stop.carry?.beats?.includes(cut.key), JSON.stringify({ cut, carry: s.stop.carry }));
+      const F = s.stop.flow, run = F?.beats?.find(b => b.st === 'run' && b.k === 'move'), me = w.me();
+      console.log(`      the pause at ${fmt((s.clock.ms - t0) / 1000, 2)} s: the flow ${F === d ? 'kept' : 'lost'}, suspended ${JSON.stringify(F?.suspended)}, its ${run?.key} running to ${fmt(((run?.untilMs ?? t0) - t0) / 1000, 2)} s, nothing cut (${d.beats.filter(b => b.st === 'cut').length}); the body at (${me.x}, ${me.z}) moving ${JSON.stringify(me.v)}; Carry on: "${stepsOf(s).find(r => r.id === 'drill:carry')?.label}"`);
+      assert(F === d && F.suspended?.why === 'contact' && run && run.untilMs > s.clock.ms && !d.beats.some(b => b.st === 'cut') && !s.stop.carry && s.stop.doing === null, JSON.stringify({ suspended: F?.suspended, run: run?.key, carry: s.stop.carry }));
       assert(stepsOf(s).some(r => r.id === 'drill:carry'), 'Carry on offered');
+      // (Hold him needs the feet: the flow halted where it stands, the entry cut there, the rest "Carry on")
+      const hold = stepsOf(s).find(r => r.id === 'contact:hold' && !r.off);
+      assert(hold, 'Hold him offered');
+      pick(g, 'contact:hold');
+      const cut = d.beats.find(b => b.st === 'cut' && b.k === 'move');
+      console.log(`      Hold him: the entry cut at ${fmt((cut?.untilMs - t0) / 1000, 2)} s, the rest: ${s.stop.carry?.beats?.join(', ')}`);
+      assert(cut && !s.stop.flow && s.stop.carry?.beats?.includes(cut.key), JSON.stringify({ cut: cut?.key, carry: s.stop.carry }));
       // (Backspace: a fresh world, the bundle stopped in its approach: the approach ends, nothing more starts)
       const w2 = drillWorld({ tier: 'sgt' }), g2 = w2.g, s2 = w2.s;
       pick(g2, stepsOf(s2).find(r => r.id.startsWith('drill:room:clear>')).id);
@@ -112,7 +121,7 @@ export default [
     name: 'a save made in a bundle (mid-beat, the feet and the hands running together) loads and carries on byte for byte',
     fn() {
       const w = drillWorld({ tier: 'tierone' }), { g, s } = w;
-      pick(g, stepsOf(s).find(r => r.id.startsWith('drill:house:clear>')).id);
+      pick(g, stepsOf(s).find(r => r.id.startsWith('drill:room:clear>')).id);
       g.step(60);
       const running = s.stop?.doing?.beats?.filter(x => x.st === 'run').map(x => `${x.key}/${x.ch}`).join(', ');
       const json = g.save();

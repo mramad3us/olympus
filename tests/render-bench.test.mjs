@@ -19,12 +19,12 @@
 // frames timed in the page ({ frames, medianMs, p95Ms, over25 }, the bench card's splash row), its draw
 // calls and uploads, no program linked, and the paced p95 at most 18 ms on a 60 Hz clock.
 // 0.0.5 (the build sheet 0.0.5 §2.3 (g), §4 stage, §5.3): the bench's range-line scene, test-handling's
-// 'bench' setup on the 25 m line (prone, hot, aimed, a magazine of 15) and Digit1 tapped fifteen times
+// 'bench' setup on the 25 m line (prone, hot, aimed, a magazine of 15) and Digit6 (Fire, the core's shot in the step panel C, the rework's R7) tapped fifteen times
 // through the step panel: a string at 25 m with its flashes, kicks, cases and holes, at 16 px/m; prints the
 // frames, the draw calls, the uploads, the shots on the card and the brass, and holds the same budgets
 // (p95 at most 18 ms on a 60 Hz clock, at most 160 draw calls, no frame over 1 MB, no program linked).
 // 0.0.7 (the build sheet 0.0.7 §2.4 (e), §5.4): the bench's range-far scene, test-range's 'far' setup (the 300 m line,
-// prone, 4×, aimed at your face with the far window open on it, the relay firing beside you) and Digit1 tapped five
+// prone, 4×, aimed at your face with the far window open on it, the relay firing beside you) and Digit6 tapped five
 // times: prints the frames, the draw calls (the window's own among them), the uploads, the window's state and its GPU
 // pass, the KD's faces, flags and fires drawn, and holds the same budgets (p95 at most 18 ms on a 60 Hz clock, at most
 // 160 draw calls, no frame over 1 MB, no program linked) with the window open through the scene.
@@ -159,7 +159,7 @@ export default [
     },
   },
   {
-    name: 'the bench scene range-line: a string of fifteen at 25 m by Digit1 through the step panel, its flashes, cases and holes, at 60 fps (p95 at most 18 ms on a 60 Hz clock), draw calls under 160, no program linked, no frame over 1 MB (the build sheet 0.0.5 §2.3 (g))',
+    name: 'the bench scene range-line: a string of fifteen at 25 m by Digit6 through the step panel, its flashes, cases and holes, at 60 fps (p95 at most 18 ms on a 60 Hz clock), draw calls under 160, no program linked, no frame over 1 MB (the build sheet 0.0.5 §2.3 (g))',
     heavy: true,
     timeoutMs: 180000,
     async fn() {
@@ -182,9 +182,9 @@ export default [
         console.log(`      draw calls ${calls} at most; programs ${boot.programs} → ${after.programs} (${links} linked); uploads ${fmt(bytes / 1024, 1)} KB a frame at most; the view's CPU median ${fmt(viewMed, 2)} ms, p95 ${fmt(viewP95, 2)} ms; ${after.people.drawn} drawn`);
         console.log(`      the string: ${shots} shots (${after.session?.summary?.score ?? 0} of ${after.session?.summary?.of ?? 0}); on the stage ${after.range?.holes ?? 0} holes, ${after.range?.brass ?? 0} cases, the flags ${after.range?.flag ?? 0} px; you ${after.arms ? `${after.arms.stance} ${after.arms.frame}` : 'unarmed'}`);
         console.log(`      40 frames back to back, each finished on the GPU: median ${fmt(b.medianMs, 2)} ms, p95 ${fmt(b.p95Ms, 2)} ms; the clock on this page ${fmt(here.medianMs, 1)} ms${sixty ? '' : ' (not 60 Hz: the paced p95 is printed, not held)'}`);
-        // (the string is held when the setup offers Fire on Digit1: the bench setup must start off safe, the shot role's)
+        // (the string is held when the setup offers Fire on Digit6: the bench setup must start off safe, the shot role's)
         if (boot.fire && !boot.fire.off) assert(shots === 15, `${shots} shots of the 15 tapped`);
-        else console.log(`      Fire at the start: ${boot.fire ? `struck (${boot.fire.off})` : 'not offered'}: the 'bench' setup starts on safe, so Digit1 fires nothing and the string is not held (the shot role's setup to put on semi)`);
+        else console.log(`      Fire at the start: ${boot.fire ? `struck (${boot.fire.off})` : 'not offered'}: the 'bench' setup starts on safe, so Digit6 fires nothing and the string is not held (the shot role's setup to put on semi)`);
         assert(calls <= 160, `${calls} draw calls`);
         assert(links === 0 && after.programs === boot.programs, `programs linked in the scene: ${links} (${boot.programs} → ${after.programs})`);
         assert(bytes <= 1024 * 1024, `a frame sent ${bytes} bytes`);

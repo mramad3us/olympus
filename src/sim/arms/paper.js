@@ -87,6 +87,8 @@ export const RING_EDGES = Object.freeze([
 export const ODDS_RADII = 8, ODDS_ANGLES = 32;
 
 /** The ring a roll's margin earns (KD_RINGS' record), or null for a miss (see the header). */
+/** A roll's natural as the hole reads it: a caught 1 (SKILLS §5.1) lands where its margin puts it, as a roll with no natural. */
+export const natOf = (roll) => (roll?.caught ? 0 : roll?.nat ?? 0);
 export function ringOf(margin, nat = 0) {
   if (nat === 1) return null;
   const ring = KD_RINGS.find(q => margin >= q.from) ?? null;
@@ -100,7 +102,7 @@ const r1 = (v) => Math.round(v * 10) / 10;
  */
 export function holeOf(paperId, roll, shotId, seed = 0) {
   const P = PAPERS[paperId] ?? PAPERS.card25;
-  const ring = roll ? ringOf(roll.margin, roll.nat) : null;
+  const ring = roll ? ringOf(roll.margin, natOf(roll)) : null;
   if (!ring) return { at: null, score: 0, v: false, word: MISS_WORD };
   const [lo, hi] = BANDS[ring.band];
   const t = hash01('hole', seed, shotId, 'angle') * Math.PI * 2, d = (lo + hash01('hole', seed, shotId, 'radius') * (hi - lo)) * P.ringCm;
@@ -145,7 +147,7 @@ const bandOf = (margin, nat) => { const ring = ringOf(margin, nat); return ring 
  * radius by hash of the world's seed and the shot's id, as holeOf's.
  */
 export function faceHole(paperId, { aimCm = [0, 0], poiCm = null, roll = null, shotId = '', seed = 0 } = {}) {
-  const P = PAPERS[paperId] ?? PAPERS.kdA, [lo, hi] = roll ? bandOf(roll.margin, roll.nat) : MISS_BAND;
+  const P = PAPERS[paperId] ?? PAPERS.kdA, [lo, hi] = roll ? bandOf(roll.margin, natOf(roll)) : MISS_BAND;
   const t = hash01('hole', seed, shotId, 'angle') * Math.PI * 2, d = (lo + hash01('hole', seed, shotId, 'radius') * (hi - lo)) * P.ringCm;
   const [px, py] = poiXY(poiCm), x = aimCm[0] + px + Math.cos(t) * d, y = aimCm[1] + py + Math.sin(t) * d;
   const on = onPaperAt(P, [x, y]), ring = on ? ringAt(paperId, [x, y]) : { score: 0, v: false, band: null, word: MISS_WORD };
@@ -240,7 +242,7 @@ const inBox = ([x, y], [w, h], [cx, cy]) => Math.abs(x - cx) <= w / 2 && Math.ab
 export function manZone(part, roll) {
   if (!roll?.ok) return null;
   if (part === 'head') return 'head';
-  return roll.margin >= A_MARGIN && roll.nat !== 1 ? 'A' : 'C';
+  return roll.margin >= A_MARGIN && natOf(roll) !== 1 ? 'A' : 'C';
 }
 /**
  * Where a round lands on the man-target (see the header): { at: [xCm, yCm] | null, zone: 'A' | 'C' | 'head' | null, word }.

@@ -14,6 +14,11 @@
 // span there (standing 0 to 1.75 m, kneeling 1.0, prone 0.4: tradecraft's cover spans), so a low ready
 // flags shins within 1.8 m, a high ready a face within 0.6 m, a rifle slung front only toes.
 //
+// **The flag over a teammate** (flagsAt, COMBAT §25.19.3.5; the shoot house's "Muzzle!" and the DI's cqb-flag, one rule): the
+// muzzle's 3-D line, out FLAG_REACH_M 5 m from the holder along its yaw and pitch, within FLAG_BODY_R_M 0.3 m of the
+// teammate's body as a capsule, floor to the top of his stance's span, the rifle in the hands and not at high or low ready
+// (SWEEP_SAFE); FLAG_MS 300 ms at once is the caller's clock (2026-11-12: in plan only before).
+//
 // **The habit** (habitStep, WEAPONS §6.3): for each armed person on the live area (a rifle on its sling,
 // in hand or not), against each other person within the cone's reach + 0.5 m: a person entering the
 // cone opens an approach record (kit.carry.near[pid], saved), rolled once for as long as the approach
@@ -109,9 +114,9 @@ export const muzzleSafe = (wh) => Math.max(0, Math.min(0.97, (wh - 4) / 24));
 
 const actorOf = (state, pid) => state.actors?.list?.find(a => a.who === pid) ?? null;
 
-/** How a person carries: { gunId, posture, finger, stance, headRad, actor }, or null with no rifle on its sling. */
+/** How a person carries: { gunId, posture, finger, stance, headRad, actor }, or null with no rifle on its sling; a pistol drawn is the gun carried (kit.js handGunOf: the posture is its own while it is out). */
 export function carryOf(state, pid, actor = actorOf(state, pid)) {
-  const kit = state.people?.[pid]?.kit, gunId = kit?.worn?.sling;
+  const kit = state.people?.[pid]?.kit, gunId = (kit?.hands ?? []).find(id => id && state.items?.[id]?.type === 'gun') ?? kit?.worn?.sling;
   if (!gunId) return null;
   return { gunId, posture: kit.carry?.posture ?? 'slungFront', finger: kit.carry?.finger ?? 'off', stance: actor?.stance ?? 'stand', headRad: actor?.headRad ?? faceRad(actor?.face), actor };
 }
@@ -136,16 +141,33 @@ export function muzzleOf(state, pid, actor = actorOf(state, pid), posture = null
  * muzzle"). Aimed is the flag; a slung rifle is not in the hands.
  */
 export const SWEEP_SAFE = Object.freeze(new Set(['highReady', 'lowReady']));
+/** The flag (COMBAT §25.19.3.5, §25.19.9): a teammate's body as a capsule of FLAG_BODY_R_M about its axis, floor to head; the muzzle's line followed FLAG_REACH_M from the holder (m). */
+export const FLAG_BODY_R_M = 0.3, FLAG_REACH_M = 5;
 /**
- * Whether a muzzle (muzzleOf's) flags a body standing at (x, z): the rifle in the hands and not in a SWEEP_SAFE posture,
- * the body ahead within reachM, the muzzle's line within lineM of it in plan. The one rule the house's fault and the DI's
- * cqb-flag read (each had its own copy until 2026-11-11).
+ * Whether a muzzle (muzzleOf's) flags a teammate standing at (x, z) in a stance: the one rule the shoot house's "Muzzle!"
+ * fault and the DI's cqb-flag read (COMBAT §25.19.3.5; each had its own copy, in plan only, until 2026-11-11, and the plan's
+ * line was the rule until 2026-11-12). The rifle in the hands and not in a SWEEP_SAFE posture; the muzzle's line in three
+ * dimensions, pitch included, from the holder (ox, oy, oz) out FLAG_REACH_M along its yaw and pitch, passing within
+ * FLAG_BODY_R_M of the body's axis, the segment from the floor to the top of the stance's span (SPAN_M), somewhere ahead of
+ * the holder. Held for FLAG_MS at once, it is a flag: the caller keeps that clock. The shortest distance between the two
+ * segments is the closest pair by clamped projection (Ericson's, Real-Time Collision Detection §5.1.9), lengths by
+ * Math.sqrt. So a level aim at 1.4 m over a man kneeling 1.5 m ahead (his head at 1.0 m) passes 0.4 m over him: no flag,
+ * where the plan's line flagged him; the aim through a standing man's chest is the flag it always was.
  */
-export function flagsAt(m, x, z, lineM, reachM) {
+export function flagsAt(m, x, z, stance = 'stand') {
   if (!m || !m.inHand || SWEEP_SAFE.has(m.posture)) return false;
-  const dx = x - m.ox, dz = z - m.oz, ux = Math.cos(m.yawRad), uz = Math.sin(m.yawRad), t = dx * ux + dz * uz;
-  if (t <= 0 || t > reachM) return false;
-  return Math.abs(dx * uz - dz * ux) <= lineM;
+  const [y0, y1] = SPAN_M[stance] ?? SPAN_M.stand, c = Math.cos(m.pitchRad);
+  // (the muzzle's segment P0 + s·d1, s in [0, 1]; the body's axis Q0 + t·d2, t in [0, 1])
+  const d1 = [Math.cos(m.yawRad) * c * FLAG_REACH_M, Math.sin(m.pitchRad) * FLAG_REACH_M, Math.sin(m.yawRad) * c * FLAG_REACH_M], d2 = [0, y1 - y0, 0];
+  const r = [m.ox - x, m.oy - y0, m.oz - z];
+  const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  const a = dot(d1, d1), e = dot(d2, d2), f = dot(d2, r), cc = dot(d1, r), b = dot(d1, d2), den = a * e - b * b;
+  const clamp = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  let s = den > 1e-12 ? clamp((b * f - cc * e) / den) : 0, t = e > 1e-12 ? (b * s + f) / e : 0;
+  if (t < 0) { t = 0; s = clamp(-cc / a); } else if (t > 1) { t = 1; s = clamp((b - cc) / a); }
+  if (s <= 0) return false;
+  const dx = m.ox + d1[0] * s - x, dy = m.oy + d1[1] * s - (y0 + d2[1] * t), dz = m.oz + d1[2] * s - z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz) <= FLAG_BODY_R_M;
 }
 
 /** Whether a body is in a cone (muzzleOf's): a BODY_R_M circle at (x, z) whose height span [y0, y1] the muzzle's widened line passes through. */

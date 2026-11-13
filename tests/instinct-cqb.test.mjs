@@ -39,13 +39,13 @@ function check(s, label, want = null) {
 
 export default [
   {
-    name: 'at GO, by rung: cqb-stack names the rung\'s bundle and T does it (Stack on the door at rungs 0 and 1, Stack and open at 2, Clear the room at 3, Clear the house at 4), the voice the DI\'s below rung 3 and the marine\'s own from it',
+    name: 'at GO, by rung: cqb-stack names the rung\'s row and T does it (Stack up at rung 0, Stack up, take point at 1 and 2, "Open, clear the room" at 3 and 4: one room a press, COMBAT §25.19.2.3), the voice the DI\'s below rung 3 and the marine\'s own from it',
     fn() {
       for (const tier of ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']) {
         const w = drillWorld({ tier }), L = check(w.s, `${tier} at GO`, 'cqb-stack'), l = L.find(x => x.id === 'cqb-stack');
         const words = l.rule.text[l.ctx.words ?? l.ctx.variant] ?? l.rule.text[l.ctx.tier];
         console.log(`      ${tier.padEnd(8)} rung ${w.s.people[w.pid].skills.drills.room.rung} · voice ${l.voice} · act ${l.act} · "${String(words[0]).replace('{ms}', l.ctx.ms)}"`);
-        const want = { recruit: 'room:stack', private: 'room:stack', cpl: 'room:stack-open', sgt: 'room:clear', raider: 'house:clear', tierone: 'house:clear' }[tier];
+        const want = { recruit: 'stack:up', private: 'stack:point', cpl: 'stack:point', sgt: 'room:clear', raider: 'room:clear', tierone: 'room:clear' }[tier];
         assert(l.act === `stop:drill:${want}>o:w4:r1` && l.voice === (['sgt', 'raider', 'tierone'].includes(tier) ? 'self' : 'di'), JSON.stringify({ act: l.act, voice: l.voice }));
       }
     },
@@ -54,7 +54,7 @@ export default [
     name: 'the recruit\'s way, step by step: stacked, cqb-door is Push it open; the door open, cqb-go is X go and T leaves the mode with the feet unmoved; in the doorway with the keys let go, cqb-funnel says "X, then keys, in." and T is X, as at the open door (the fixer\'s of 0.0.12: the same advice did nothing there)',
     fn() {
       const w = drillWorld({ tier: 'private' }), { g, s } = w;
-      pick(g, stepsOf(s).find(r => r.id.startsWith('drill:room:stack>')).id); settle(g, s);
+      pick(g, stepsOf(s).find(r => r.id.startsWith('drill:stack:up>')).id); settle(g, s);
       const door = check(s, 'stacked', 'cqb-door').find(l => l.id === 'cqb-door');
       pick(g, door.act.slice(5).split('>')[0] + '>' + door.act.split('>')[1]); settle(g, s);
       const go = check(s, 'the door open', 'cqb-go').find(l => l.id === 'cqb-go'), at = [w.me().x, w.me().z];
@@ -81,7 +81,7 @@ export default [
         const w = drillWorld({ tier, safe }), { g, s } = w, t0 = s.clock.ms;
         s.mind.clearing = { room: 'w4.r1', fromMs: t0 }; w.T('1a').turnAtMs = t0 - 2000;
         if (tier === 'private') {
-          for (const id of ['drill:room:stack>', 'door:push>']) { pick(g, stepsOf(s).find(r => r.id.startsWith(id)).id); settle(g, s); }
+          for (const id of ['drill:stack:up>', 'door:push>']) { pick(g, stepsOf(s).find(r => r.id.startsWith(id)).id); settle(g, s); }
           g.step(1, { act: [{ act: 'shoot' }] });
           for (let i = 0; i < 400 && s.stop?.via !== 'contact'; i++) g.step(1, { mx: -1, mz: -1 });
           settle(g, s);
@@ -107,7 +107,7 @@ export default [
       setPost(s, twoPid, { key: 'house-two', area: HOUSE1.area, x: 12, z: 13.2, face: 'left', outfit: 'combatSuit' });
       g.step(1);
       s.armoury.range.house = { two: { pid: twoPid, rung: 2, doing: null } };
-      s.stop.carry = { from: 'x', bundle: 'room:stack-open', door: 'o:w4:r1', rung: 2, variant: {}, beats: ['door'], why: 'two', words: null, paths: {} };
+      s.stop.carry = { from: 'x', bundle: 'room:in', door: 'o:w4:r1', rung: 2, variant: {}, beats: ['door'], why: 'two', words: null, paths: {} };
       const two = check(s, 'two', 'cqb-two').find(l => l.id === 'cqb-two');
       const st2 = w.lane.plans['o:w4:r1'].stack[1], a2 = s.actors.list.find(a => a.who === twoPid);
       a2.x = st2[0]; a2.z = st2[1]; s.people[twoPid].post.x = st2[0]; s.people[twoPid].post.z = st2[1];

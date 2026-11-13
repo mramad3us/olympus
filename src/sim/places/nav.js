@@ -604,7 +604,12 @@ export function path(grid, from, to, { cap = NODE_CAP, corridor = null } = {}) {
   return { pts, lengthM: polylineM(pts), cells, expanded };
 }
 
-/** Whether every cell a segment passes through is free (a supercover line: through a corner, both side cells count). */
+/**
+ * Whether every cell a segment passes through is free (a supercover line: through a corner, both side cells count). The walk
+ * ends where the segment does: a segment ending exactly on a cell's edge or corner is through once its parameter reaches 1,
+ * never stepped on past its end (the rework's R9, 2026-11-13: (18.625, 11.375) to room 3's point (18.5, 11.5), ending on a
+ * corner, walked on past it into the wall's cells and read false, while the same segment reversed read true; F3).
+ */
 export function clearLine(grid, ax, az, bx, bz) {
   const C = grid.cellM, cost = grid.cost, nx = grid.nx;
   const fx = (ax - grid.x0) / C, fz = (az - grid.z0) / C, tx = (bx - grid.x0) / C, tz = (bz - grid.z0) / C;
@@ -618,6 +623,7 @@ export function clearLine(grid, ax, az, bx, bz) {
   for (let steps = Math.abs(ie - i) + Math.abs(je - j) + 2; steps > 0; steps--) {
     if (!free(i, j)) return false;
     if (i === ie && j === je) return true;
+    if (Math.min(tmx, tmz) >= 1) return true;
     if (tmx < tmz) { i += si; tmx += tdx; }
     else if (tmz < tmx) { j += sj; tmz += tdz; }
     else { if (!free(i + si, j) || !free(i, j + sj)) return false; i += si; j += sj; tmx += tdx; tmz += tdz; }

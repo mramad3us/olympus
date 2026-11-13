@@ -11,35 +11,52 @@
 import { assert, fmt } from './helpers.mjs';
 import { roomRun } from './bots/drill.mjs';
 import { TRIGGER_S } from '../src/sim/arms/shot.js';
+import { OUT_WAIT_MS } from '../src/sim/arms/specials.js';
+import { RUNG_OF_TIER, valueOf } from '../src/sim/skills/templates.js';
+import { paceOf } from '../src/sim/skills/skills.js';
+import { READ_S, CALL_S } from '../src/sim/combat/bundle.js';
 
 // (the build sheet 0.0.12 §4: room s, sighting to the first round s, take-in s, presses)
 const TABLE = {
   recruit: { room: 15.33, first: 2.98, takeIn: 0.95, presses: 8 },
   private: { room: 13.79, first: 2.00, takeIn: 0.80, presses: 8 },
   privateWatch: { room: 13.31, first: 0.92, takeIn: 0.55, presses: 9 },
-  cpl: { room: 8.82, first: 1.53, takeIn: 0.50, presses: 4 },
+  // (the corporal re-pinned on purpose by the rework's R9, 2026-11-13: below rung 3 his muzzle goes in onto the corner he faces
+  // (bundle.js muzzleTo), no longer down the door's normal 29 degrees off the off-corner man, so he takes him in his sector:
+  // the take-in 0.50 to 0.35 s and the first round 1.53 to 0.81 s, inside the advanced par he is held to (COMBAT §25.19.8 F10);
+  // the room is the build sheet's)
+  cpl: { room: 8.82, first: 0.81, takeIn: 0.35, presses: 4 },
   sgt: { room: 6.13, first: 0.56, takeIn: 0.25, presses: 2 },
   raider: { room: 5.19, first: 0.37, takeIn: 0.10, presses: 2 },
   tierone: { room: 4.98, first: 0.30, takeIn: 0.05, presses: 2 },
 };
 const RUNS = [['recruit', {}], ['private', {}], ['privateWatch', { tier: 'private', watch: true }], ['cpl', {}], ['sgt', {}], ['raider', {}], ['tierone', {}]];
+const o0 = (key) => RUNS.find(([k]) => k === key)?.[1]?.tier ?? key;
 let cache = null;
 const runs = () => (cache ??= RUNS.map(([key, o]) => ({ key, r: roomRun({ tier: o.tier ?? key, ...o }) })));
 
 export default [
   {
-    name: 'room 1 by every sheet against the table at 1 G: the room ±10%, the take-in ±0.05 s, the first round after the sighting ±0.10 s by T and ±0.15 s by the keys (the user, 2026-11-07: "a recruit marine would have to do everything step by step while an experience Tier 1 Operator would have automations through pressing T")',
+    name: 'room 1 by every sheet against the table at 1 G: the room ±10%, the take-in ±0.05 s, the first round after the sighting ±0.10 s by T and ±0.15 s by the keys, by T from rung 3 later by at most the wait for the feet out of the door (the user, 2026-11-07: "a recruit marine would have to do everything step by step while an experience Tier 1 Operator would have automations through pressing T"; the rework, 2026-11-12: the first round out of the door)',
     timeoutMs: 120_000,
     fn() {
       const bad = [];
       console.log('      sheet           how    room s (table)    take-in s (table)  first s (table)  presses (table)  sighting s  pause s');
       for (const { key, r } of runs()) {
         const t = TABLE[key], room = r.roomMs / 1000, ti = r.takeInMs / 1000, first = r.firstMs / 1000;
-        console.log(`      ${key.padEnd(15)} ${r.mode.padEnd(6)} ${fmt(room, 2).padStart(6)} (${fmt(t.room, 2)})   ${fmt(ti, 2)} (${fmt(t.takeIn, 2)})        ${fmt(first, 2)} (${fmt(t.first, 2)})      ${String(r.presses).padStart(2)} (${t.presses})          ${fmt(r.seenMs / 1000, 2)}       ${fmt(r.pauseMs / 1000, 2)}`);
-        if (Math.abs(room - t.room) > 0.10 * t.room) bad.push(`${key} room ${fmt(room, 2)} against ${t.room}`);
+        // (2026-11-12, the rework's R4, COMBAT §25.19.2: below rung 3 the corporal's "Stack up, take point" reads the door and tells
+        // his #2 how it opens ("Opens in, I go left."), one beat at a time, so his table gains their own times, the read's
+        // READ_S × paceOf(Awareness) and the call's CALL_S: re-pinned on purpose; from rung 3 the read rides the approach)
+        const told = r.mode === 'T' && (RUNG_OF_TIER[o0(key)] ?? 0) === 2 ? READ_S * paceOf(valueOf(r.w.s, r.w.pid, 'awareness')) + CALL_S : 0;
+        console.log(`      ${key.padEnd(15)} ${r.mode.padEnd(6)} ${fmt(room, 2).padStart(6)} (${fmt(t.room + told, 2)})   ${fmt(ti, 2)} (${fmt(t.takeIn, 2)})        ${fmt(first, 2)} (${fmt(t.first, 2)})      ${String(r.presses).padStart(2)} (${t.presses})          ${fmt(r.seenMs / 1000, 2)}       ${fmt(r.pauseMs / 1000, 2)}`);
+        if (Math.abs(room - t.room - told) > 0.10 * (t.room + told)) bad.push(`${key} room ${fmt(room, 2)} against ${fmt(t.room + told, 2)}`);
         if (Math.abs(ti - t.takeIn) > 0.05 + 1e-9) bad.push(`${key} take-in ${fmt(ti, 2)} against ${t.takeIn}`);
         // (the boot recruit below the Pair's gate fires Fire twice: his first round's time is printed, not held to the Pair's)
-        if (key !== 'recruit' && Math.abs(first - t.first) > (r.mode === 'keys' ? 0.15 : 0.10) + 1e-9) bad.push(`${key} first round ${fmt(first, 2)} against ${t.first}`);
+        // (2026-11-12, R3: inside the flow the first round moving on waits for the feet past the door's threshold (specials.js
+        // OUT_WAIT_MS; COMBAT §25.19.8 F5), which the routed lanes' outer middle puts about 0.18 s after the table's for the
+        // Raider and the tier one (0.50 and 0.48 s against 0.37 and 0.30): later by at most that wait, never sooner)
+        const late = r.mode === 'T' && (RUNG_OF_TIER[o0(key)] ?? 0) >= 3 ? OUT_WAIT_MS / 1000 : 0;
+        if (key !== 'recruit' && (first - t.first > (r.mode === 'keys' ? 0.15 : 0.10) + late + 1e-9 || t.first - first > (r.mode === 'keys' ? 0.15 : 0.10) + 1e-9)) bad.push(`${key} first round ${fmt(first, 2)} against ${t.first}`);
       }
       assert(!bad.length, bad.join('; '));
     },

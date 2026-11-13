@@ -15,7 +15,7 @@
 // test sheet picked (templates.js testSheet: the boot recruit, the private (the default), the corporal, the sergeant, the
 // Raider, the tier one), the 'house-cqb' issue materialised (three magazines of ten frangible; the dummy rides in
 // magazine 1, the one you load), gait Combat; the #2 posted TWO_BEHIND_M 0.65 m behind you on the hall's axis in the
-// suit, your sheet written on him for the scene, his own issue loaded; the instructor (the post melas:wheel-house-chief,
+// suit, your sheet written on him for the scene, his own issue in Condition 4 as yours (the rework's R5); the instructor (the post melas:wheel-house-chief,
 // a generated staff sergeant) at the booth; the seven turners edge-on on their stands; then handling.js startRange on
 // the house course (R.course 'house', no lane, R.area the Wheel's). The stands (STANDS): 1a the far left corner of room
 // 1, #1's, a threat facing from GO; 1b its far right corner, the #2's sector, drawn, facing from GO; 2a room 2's armoured
@@ -41,14 +41,15 @@
 // or nearly, under FUNNEL_STILL_MS 0.3 m/s: its doorway seconds, and FUNNEL_FAULT_MS 1 s at once is the fault 'funnel',
 // "Don't stop in the door!"; COMBAT §25.3.2's "standing in a doorway": the fixer's of 0.0.12, a walk through the door
 // counted, so a corporal's entry from rest 0.5 m off the frame was faulted in every room), the corners (room.js
-// coveredNow for you and the #2: covered once, by whom), the flag (the muzzle's line within FLAG_M of the #2's body
-// within FLAG_REACH_M, the rifle in hand and neither at high ready nor at low ready: "Muzzle!", once a room), Relaxed inside ("Weapon up.
+// coveredNow for you and the #2: covered once, by whom), the flag (carry.js flagsAt: the muzzle's 3-D line within
+// FLAG_BODY_R_M of the #2's body, floor to head, within FLAG_REACH_M, the rifle in hand and neither at high ready nor at low
+// ready, for FLAG_MS at once: "Muzzle!", once a room), Relaxed inside ("Weapon up.
 // You're in their house."), and the safety stop at any time (an aim at the #2 or the instructor: the range's 'person'
 // stop, "Cease fire! Cease fire!", the card). At "Clear!" the leg's faults: a hot spot covered by neither of you
 // ('corner', "Your corner!"), a threat of the room still up ('standing'), an inner door neither held nor cleared
 // ('door'); the room's turners turn away; the timer's double beep when every par in it was met (the 'house' fact clear,
 // met); the plan moves to the next door (mind.clearing with it). Stalls (never a dead end): STALL_MS 60 s lived in a leg
-// with no new cover, step, round or state: "Move on."; STALL_MORE_MS 30 s more and the leg is passed with the fault
+// with no progress (a new cover, a round, a leg's state, a door; never a step: 2026-11-12): "Move on."; STALL_MORE_MS 30 s more and the leg is passed with the fault
 // 'time', its turners turned away. The lane ends at the hall's "Clear!" ('clear'), at LANE_MAX_MS 10 min lived from GO
 // ('time'), with nothing left to fire ('dry'), or by the safety stop.
 //
@@ -71,6 +72,25 @@
 // drill on armour, the hammer from its Marksmanship gate within 7 m, else the pair; below rung 2 the aim first), each
 // round by shot.js resolveShot (log false: the log is yours) at its formula time; a no-shoot he holds; a hand he cannot
 // see he looks at again after CHALLENGE_MS. He never flags.
+// 2026-11-12 (the rework's R5, COMBAT §25.19.5, §25.19.6): **the tower's commands go to both marines**. houseOnCmd starts his own
+// Corps macro on his list doing for LOAD, MAKE READY, Standby (his "Ready."), Stop (MAKE SAFE) and UNLOAD SHOW CLEAR (TWO_CMDS,
+// twoCmd): at the command plus his react.js goMs, his sub-steps drills.js's for his belief, each his firearms.js action at his own
+// Weapon handling, rolled on his own stream ('house-two') and logged nowhere, timed by stepper.js advanceList (twoAdminTick), a
+// halt planned again from his belief up to TWO_TRIES times; drawn as yours (handsOf, the stage's sub-step: look.js gunLook). The
+// tower waits on him (twoLacks: houseWant names 'two:busy', 'two:mag', 'two:chamber', 'two:safe', 'two:low', said to him,
+// "Number two, a round up."; LOAD, Stop and SHOW CLEAR's readinesses), and SHOW CLEAR ends with "Number two, clear." The setups
+// make him ready as yours (armTwo). **His cover** (twoCover, coverTick): your rifle down (the reflex card, IMMEDIATE or REMEDIAL
+// ACTION, a stoppage believed; R6's Gun down by its step), he says "Covering!" (on a man, once his row is done), holds his eyes
+// on the man you bracketed or your sector's middle, and takes your corner's men in the room from where he stands (your
+// bracketed man as his sector's, the others as the room's; a man of yours he fires on is on his record, H.two.covered); your
+// rifle back, a man of yours he has not fired on yet is yours again, and UP_WAIT_MS later he says "Up.".
+// 2026-11-13 (the rework's R6, COMBAT §25.19.6): **the stoppage and the sidearm**. The fill issues the P-12 from the Sergeant up
+// (arms/sidearm.js SIDEARM_TIERS; kit.js issueSidearm, after every other item: R.house.pistol), Condition 3 in the thigh holster,
+// a spare in the thigh's pouch; MAKE READY racks it and UNLOAD, SHOW CLEAR clear it (sidearm.js adminSubs); the setups make it
+// ready as MAKE READY would. The reflex card's answers are sidearm.js's; youDown reads Gun down and Off the line down until their
+// "Gun up!" or "Up!", and his "Up." closes your wait on the knee (sidearm.js upHeard, W.upSaidMs); while he covers you he takes
+// your man in on his way in too (F20). His own "Gun down!" stops you once out of stop motion, the DI's cqb-two-down naming Cover
+// his sector (W.coveredBy until his "Gun up!").
 //
 // The run sheet (runSheetOf, the one helper of the paper, the card and the instructor's words): a row a leg ("ROOM 1 ·
 // 7.40 S · TAKE-IN 0.80 · FIRST 2.00 · BASIC MET · 2 A · CORNERS 3 OF 3 · DOORWAY 0.30 S", zeros out, and its faults
@@ -81,6 +101,10 @@
 // the take-in bars. houseNow(state, ms): the hud's, the bots' and the end card's view; houseLook(state, ms): the stage's
 // (look.js rangeLook().house); againAsHouse(state, tier): "Again as …" on the same seed; houseGoal(state): the goal line
 // with your #2 named. Pure but the fill, the hooks and the layers, which write the session.
+// 2026-11-13 (the rework's R8b, fluid movement): the scene names each marine's lane through the current door (useLanes, read by
+// src/sim/places/move.js throughOf), so a body carried through a doorway goes on along his own slot's path, never across his
+// #2's; while his hands are on a man the #2's feet are his free body's (bundle.js freeBody: through a doorway, never at rest in
+// one). The funnel's fault is now earned only by a step that stands still by your own choice (a "stop here", Hold him).
 import { TICK_MS, isHeld } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { stream, intIn, weighted } from '../../core/rng.js';
@@ -105,19 +129,27 @@ import { check } from '../skills/checks.js';
 import { barracks } from './barracks.js';
 import { setLedgers } from './tests.js';
 import { rangeOf, sayOn, startRange, fault, roundsLeft, stillOf, stopRange } from './handling.js';
-import { materialise, move } from '../arms/kit.js';
-import { feed, gunField } from '../arms/firearms.js';
+import { materialise, move, sparesOf, issueSidearm } from '../arms/kit.js';
+import { SIDEARM_TIERS, upHeard, drawn as drawnPistol, holstered as holsteredPistol } from '../arms/sidearm.js';
+import { feed, gunField, doAction, beliefOf, actionMs, tempoFor } from '../arms/firearms.js';
+import { subsOf } from '../arms/drills.js';
 import { enterStop, leaveStop, gunOn, faceOfHead } from '../arms/shooting.js';
-import { muzzleOf, flagsAt } from '../arms/carry.js';
+import { muzzleOf, flagsAt, FLAG_MS, SLUNG } from '../arms/carry.js';
 import { BRASS_LIVE } from '../arms/look.js';
+import { famCap } from '../arms/models.js';
 import { turnTo, turnAway, facingOf, turnerTargets, TURN_MS } from '../arms/turners.js';
-import { resolveShot, aimMsOf } from '../arms/shot.js';
+import { resolveShot, aimMsOf, catchAhead, shotIdNext } from '../arms/shot.js';
 import { ROWS, rowPlan, HAMMER_MAX_M, stillUp } from '../arms/specials.js';
 import { rollerOf } from '../combat/roll.js';
-import { takeInMs, takeInWords } from '../combat/react.js';
+import { takeInMs, takeInWords, goMs } from '../combat/react.js';
 import { pendingOf, IDENT_DC0, IDENT_PER_M, CHALLENGE_MS } from '../combat/contact.js';
 import { lanePlanOf, inFunnel, pastThreshold, coveredNow } from '../combat/room.js';
-import { runSlot, handBack } from '../combat/bundle.js';
+import { startled } from '../combat/supp.js';
+import { runSlot, freeBody, handBack, legsOf as bodyLegsOf, useClearGate, useCallVoid, skillsOf, CALL_S, TWO_SAY, BODY_GAP_M } from '../combat/bundle.js';
+import { profileOf, moveAt, pathLen, advanceList } from '../combat/stepper.js';
+import { useBodies } from '../places/move.js';
+import { useLanes } from '../places/zones.js';
+import { moverStart, locoStep } from '../body/loco.js';
 import { startActivity } from '../time/activities.js';
 
 const C = COURSES.house;
@@ -131,10 +163,8 @@ export const STANDBY_MS = C.standbyMs;
 export const FUNNEL_FAULT_MS = C.funnelFaultMs;
 /** Stopped in the doorway: the feet under this speed (m/s, from a tick's travel; my call: a walk through it is not standing in it). */
 export const FUNNEL_STILL_MS = 0.3;
-/** The flag: the muzzle's line within FLAG_M of the #2's body within FLAG_REACH_M (m). */
-export const FLAG_M = C.flagM, FLAG_REACH_M = C.flagReachM;
-/** The flag held this long at once is the fault (ms; my call: a body walking across the line is not a muzzle swept over it). */
-export const FLAG_MS = 300;
+/** The flag's numbers are carry.js's, the one helper's (FLAG_BODY_R_M, FLAG_REACH_M, FLAG_MS): re-exported for the tests. */
+export { FLAG_MS, FLAG_BODY_R_M, FLAG_REACH_M } from '../arms/carry.js';
 /** The #2 in place: within TWO_SLOT_M of his slot (m); his start TWO_BEHIND_M behind yours (m). */
 export const TWO_SLOT_M = C.twoSlotM, TWO_WAIT_MS = C.twoWaitMs, TWO_BEHIND_M = C.twoBehindM;
 /** Stacked: within STACK_M of #1's stack point (m; my call). */
@@ -266,17 +296,16 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
   // (setup 'ref': room 1 as COMBAT §25.5.1's reference room, one man in it, no dummy (the tests' measure against the sheet's §4))
   const ref = setup === 'ref', dummy = drawDummy(seed);
   const kit = materialise(state, pid, C.kit, { sets: ref ? {} : { 1: { n: dummy.n, kind: dummy.kind } } });
-  // (the #2: a marine of your fire team, your sheet written on him for the scene, his issue loaded and on safe)
+  // (the #2: a marine of your fire team, your sheet written on him for the scene, his issue in Condition 4 as yours is: the
+  // magazines in his pouches, the chamber empty, on safe; he loads on the tower's LOAD and makes ready on its MAKE READY, his
+  // own macros (twoCmd; COMBAT §25.19.5, the rework's R5: v0.0.12 loaded him at the fill))
   const twoPid = drawTwo(state), T0 = twoStartOf();
   let twoKit = null;
   if (twoPid) {
     const two = state.people[twoPid];
     two.skills = testSheet(sheet);
     twoKit = materialise(state, twoPid, C.kit);
-    const gun = state.items[twoKit.gunId], mag = state.items[twoKit.magIds[0]];
-    move(state, twoKit.magIds[0], { gun: twoKit.gunId });
-    feed(gun, mag);
-    gun.mode = 'safe';
+    state.items[twoKit.gunId].mode = 'safe';
     setPost(state, twoPid, { key: 'house-two', area: WHEEL_S4.id, x: T0.x, z: T0.z, face: 'left', outfit: 'combatSuit' });
   }
   const chiefPid = drawStaff(state, 'melas:wheel-house-chief'), B = HOUSE1.booth;
@@ -305,20 +334,35 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
     rooms: legs.slice(0, -1), hall: legs.at(-1),
   };
   R.load = 'frangible';
+  // (the rework's R6: the P-12 from the Sergeant up (COMBAT §25.19.6, question 2's default), its ids after every other item of
+  // the fill so a lower sheet's stand as they were; Condition 3, the spare in the thigh's pouch (kit.js issueSidearm))
+  if (SIDEARM_TIERS.includes(sheet)) issueHouseSidearm(state, pid);
   if (setup) setupHouse(state, setup);
   return state;
+}
+// (the sidearm issued (see testShoothouse): the house's ten frangible, two magazines)
+function issueHouseSidearm(state, pid) {
+  const S = C.sidearm ?? { model: 'p12', mags: [['had17', 10, 'frangible'], ['had17', 10, 'frangible']] };
+  rangeOf(state).house.pistol = issueSidearm(state, pid, { model: S.model, mags: S.mags }).gunId;
 }
 
 // (a setup: the rifle loaded, made ready and on safe at low ready; GO given now, in stop motion; the legs before `leg` cleared)
 function setupHouse(state, setup) {
   const R = rangeOf(state), H = R.house, pid = playerId(state), me = playerActor(state), gunId = gunOn(state, pid), gun = state.items[gunId], now = state.clock.ms;
   const magId = H.dummy.magId, mag = state.items[magId];
+  // (the load it went in with, as the seat records it (firearms.js fullN): ten in a thirty, Top up's "half or less" of ten)
+  const loadN = mag.n;
   move(state, magId, { gun: gunId });
   feed(gun, mag);
   gun.mode = 'safe';
-  gun.belief = { chamber: 'live', count: mag.n };
+  gun.belief = { chamber: 'live', count: mag.n, ...(loadN < famCap(mag.fam) ? { fullN: loadN } : {}) };
   if (mag.belief) delete mag.belief;
   state.people[pid].kit.carry.posture = 'lowReady';
+  // (the P-12 made ready and holstered on safe, as MAKE READY leaves it (the rework's R6))
+  const P12 = H.pistol ? state.items[H.pistol] : null;
+  if (P12?.mag && !gunField(P12, 'chamber')) { const pm = state.items[P12.mag]; feed(P12, pm); P12.mode = 'safe'; P12.belief = { ...(P12.belief ?? {}), chamber: 'live', count: pm.n }; }
+  // (your #2 made ready as you are: his first magazine seated, a round up, on safe, low ready, as his LOAD and MAKE READY leave him)
+  armTwo(state, H);
   cancel(state, 'arms:range');
   const i = SEQ_HOUSE.findIndex(c => c.id === 'go');
   R.cmd = { id: 'go', i, atMs: now }; R.next = null; R.livedMs = 0;
@@ -356,6 +400,20 @@ function setupHouse(state, setup) {
     Object.assign(L, { state: 'open', stackAtMs: now, openAtMs: now });
   }
   H.stallAtMs = now;
+}
+// (a setup's #2 in Condition 1 as his LOAD and MAKE READY would leave him: his first magazine seated, a round up, on safe, low ready, believed so)
+function armTwo(state, H) {
+  const W = H?.two, gunId = W?.pid ? gunOn(state, W.pid) : null, gun = gunId ? state.items[gunId] : null;
+  if (!gun || gun.mag) return;
+  const magId = sparesOf(state, W.pid, null).find(id => (state.items[id]?.n ?? 0) > 0);
+  if (!magId) return;
+  const mag = state.items[magId], loadN = mag.n;
+  move(state, magId, { gun: gunId });
+  feed(gun, mag);
+  gun.mode = 'safe';
+  gun.belief = { chamber: 'live', count: mag.n, ...(loadN < famCap(mag.fam) ? { fullN: loadN } : {}) };
+  if (mag.belief) delete mag.belief;
+  (state.people[W.pid].kit.carry ??= {}).posture = 'lowReady';
 }
 const place = (a, x, z) => { a.x = x; a.z = z; a.$px = x; a.$pz = z; };
 // (the #2 moved: his actor and his post, so the people layer keeps him where he is)
@@ -426,6 +484,9 @@ export function houseWant(state) {
   if (Math.hypot(me.x - S0.x, me.z - S0.z) > STACK_M) return 'mark';
   if (!stillOf(state) || (me.$px !== undefined && (me.$px !== me.x || me.$pz !== me.z))) return 'still';
   if ((me.moveStance ?? 'relaxed') !== 'combat') return 'gait';
+  // (the tower waits on your number two as on you (COMBAT §25.19.5): his macro done, Condition 1, on safe, low ready, in place)
+  const lack = twoLacks(state, 'ready');
+  if (lack && !(dry && (lack === 'two:mag' || lack === 'two:chamber'))) return lack;
   const a = actorOf(state, H.twoPid), T0 = twoStartOf();
   if (a && Math.hypot(a.x - T0.x, a.z - T0.z) > TWO_SLOT_M) return 'two';
   return null;
@@ -442,10 +503,23 @@ export function houseReady(state, def, { still, safe } = {}) {
     case 'houseStart': return houseWant(state) === null;
     case 'goArm': return false;
     case 'laneDone': return !!H.end;
-    case 'houseSafe': return !!still && !!safe;
+    // (LOAD, Stop and SHOW CLEAR wait on your number two too: his magazine in, his rifle safe, his shown (COMBAT §25.19.5))
+    case 'magIn': return twoLacks(state, 'load') ? false : null;
+    // (both guns (WEAPONS §3.2's note: "UNLOAD and SHOW CLEAR both, the pistol last"): a P-12 still in the hand at Stop or SHOW
+    // CLEAR is not safe, whatever its own safety says, since the rifle on the sling is not judged then (the code review of
+    // 2026-11-13: the sergeant who finished the lane on the pistol cleared the line with a hot rifle); holstered, on safe)
+    case 'houseSafe': return !!still && !!safe && !pistolLacks(state) && !twoLacks(state, 'stop');
+    case 'shown': return twoLacks(state, 'clear') || pistolLacks(state) ? false : null;
     case 'washed': return !!H.wash && state.clock.ms >= H.wash.atMs + WASH_MS;
     default: return null;
   }
+}
+
+/** What the P-12 lacks for the tower's Stop and SHOW CLEAR: 'pistol:out' in the hand, 'pistol:safe' holstered off safe; null without one or when it is so. */
+export function pistolLacks(state, pid = playerId(state)) {
+  if (drawnPistol(state, pid)) return 'pistol:out';
+  const h = holsteredPistol(state, pid), g = h ? state.items[h] : null;
+  return g && gunField(g, 'mode') !== 'safe' ? 'pistol:safe' : null;
 }
 
 // ---- the instructor's commands ----
@@ -455,6 +529,8 @@ export function houseOnCmd(state, bus, def) {
   const R = rangeOf(state), H = R?.house;
   if (!H) return;
   const now = state.clock.ms;
+  // (each command goes to both marines: your number two's own macro for it, on his list doing (COMBAT §25.19.5))
+  if (TWO_CMDS[def.id]) twoCmd(state, bus, def.id);
   switch (def.id) {
     case 'brief': chiefSays(state, bus, `${hashPick(HOUSE_CHIEF.brief, 'house-chief', state.meta.seed, 'brief')} ${gravityWords(state)}`, 'brief'); break;
     case 'standby': H.standby = { attempt: 0, goAtMs: null, fromMs: now, backSaid: false }; armGo(state); break;
@@ -495,29 +571,155 @@ function goNow(state, bus, { stop = true } = {}) {
   if (stop && !state.stop && gunOn(state, pid)) enterStop(state, bus, { pid, via: 'house' });
 }
 
+// ---- the #2's admin: the tower's commands done by him (COMBAT §25.19.5) ----
+
+/** The tower's commands your number two answers with his own Corps macro (drills.js MACROS: LOAD, MAKE READY, Stop's MAKE SAFE, UNLOAD SHOW CLEAR), and Standby with his "Ready." (COMBAT §25.19.5's table). */
+export const TWO_CMDS = Object.freeze({ load: 'load', ready: 'ready', standby: 'standby', stop: 'safe', clear: 'clear' });
+/** A macro of his that halts (a fumble that is not routine, the instructor's "Hold.") is planned again from his belief this many times, then the instructor puts it right (my call: never a dead end). */
+export const TWO_TRIES = 3;
+/** His "Ready." at Standby, whispered over his shoulder (s; bundle.js CALL_S, the voice beat's own). */
+const TWO_READY_MS = Math.round(CALL_S * 1000);
+
+// (his rifle, its belief and his carry)
+const twoGun = (state, W) => { const id = W?.pid ? gunOn(state, W.pid) : null; return id ? { id, gun: state.items[id], b: beliefOf(state, id), carry: state.people[W.pid]?.kit?.carry ?? {} } : null; };
+/**
+ * What your number two still lacks for a command (houseWant and the tower's readinesses read it): 'two:busy' while a macro of his
+ * runs, 'two:mag', 'two:chamber', 'two:safe', 'two:low', 'two:show'; null when he is as the command wants him (or has none).
+ */
+export function twoLacks(state, cmd) {
+  const H = houseOf(state), W = H?.two, g = twoGun(state, W);
+  if (!g?.gun) return null;
+  if (W.doing && !W.doing.beats) return 'two:busy';
+  const mode = gunField(g.gun, 'mode'), safe = mode === 'safe' && (g.carry.finger ?? 'off') !== 'on';
+  if (W.gaveUp?.[cmd]) return null;
+  switch (cmd) {
+    case 'load': return g.gun.mag ? null : 'two:mag';
+    case 'ready': return !g.gun.mag ? 'two:mag' : gunField(g.gun, 'chamber') !== 'live' ? 'two:chamber' : !safe ? 'two:safe' : g.carry.posture !== 'lowReady' ? 'two:low' : null;
+    case 'stop': return !safe ? 'two:safe' : g.carry.posture !== 'lowReady' ? 'two:low' : null;
+    case 'clear': return W.shown ? null : 'two:show';
+    default: return null;
+  }
+}
+// (his sub-steps for a command, from his belief as yours are (drills.js subsOf): nothing where the command finds him so already)
+function twoList(state, W, cmd) {
+  const g = twoGun(state, W), macro = TWO_CMDS[cmd];
+  if (!g?.gun || !macro) return [];
+  if (macro === 'standby') return ['say:ready'];
+  // (a rifle that swung onto its sling (a fumble's) is brought up first, as the panel's Up is yours)
+  const up = SLUNG.has(g.carry.posture ?? 'slungFront') ? ['up'] : [], low = g.carry.posture === 'lowReady' ? [] : ['posture:lowReady'];
+  if (macro === 'load') return g.gun.mag ? [] : [...up, ...subsOf('load', g.b)];
+  if (macro === 'ready') return gunField(g.gun, 'chamber') === 'live' && g.gun.mag ? [...up, ...low] : [...up, ...subsOf('ready', g.b), ...low];
+  if (macro === 'safe') return twoLacks(state, 'stop') ? subsOf('safe', g.b) : [];
+  return [...up, ...subsOf(macro, g.b)];
+}
+// (a list's time before any fumble, at his own Weapon handling (firearms.js actionMs; the instructor's look at his Awareness))
+function twoPlanMs(state, W, list) {
+  const g = twoGun(state, W), roller = rollerOf(state, W.pid), H = houseOf(state), observer = H?.chiefPid ? rollerOf(state, H.chiefPid) : null;
+  return list.reduce((t, a) => t + (a === 'say:ready' ? TWO_READY_MS : Math.round(actionMs(roller, g.gun, a, { tempo: tempoFor(a, 'normal'), observer }))), 0);
+}
+/**
+ * A tower command given (houseOnCmd): your number two's macro for it on his own list doing (R.house.two.doing: { who, step
+ * 'cmd:<macro>', kind 'command', cmd, macro, list, i, subs, fromMs, subFromMs, untilMs, planMs, tries }), begun at the command
+ * plus his react.js goMs (his Warfighting's start), each sub-step his firearms.js action at his own Weapon handling, rolled
+ * on his own stream (rng 'house-two') and logged nowhere (the log is yours), drawn as yours is (handsOf). Nothing when the
+ * command finds him so already. Returns the doing or null.
+ */
+export function twoCmd(state, bus, cmd) {
+  const H = houseOf(state), W = H?.two;
+  if (!W?.pid || !TWO_CMDS[cmd] || !twoGun(state, W)?.gun) return null;
+  if (cmd === 'clear') W.shown = false;
+  // (a tower command over his own stoppage drill: the command's macro, planned from his rifle as it is, takes his hands)
+  delete W.down;
+  const list = twoList(state, W, cmd), now = state.clock.ms;
+  if (!list.length) { if (W.doing && !W.doing.beats) W.doing = null; if (cmd === 'clear') W.shown = true; return null; }
+  const at = whole(now + goMs(skillsOf(state, W.pid).wf));
+  W.doing = { who: W.pid, step: `cmd:${TWO_CMDS[cmd]}`, kind: 'command', cmd, macro: TWO_CMDS[cmd], list, i: -1, subs: [], fromMs: at, subFromMs: null, untilMs: at, planMs: twoPlanMs(state, W, list), tries: 0 };
+  return W.doing;
+}
+/** Your number two's admin advanced to the clock (houseActors, every lived tick, from the fill): each sub-step at its formula time, applied at its start; a halt planned again from his belief, at most TWO_TRIES times. */
+export function twoAdminTick(state, bus, H, now = state.clock.ms) {
+  const W = H?.two, d = W?.doing;
+  if (!d || d.beats) return;
+  const g = twoGun(state, W);
+  if (!g?.gun) { W.doing = null; return; }
+  // (the stepper's boundaries (stepper.js advanceList), his sub-step's effects here: the say, or his firearms.js action)
+  const r = advanceList(state, bus, d, now, (st, b2, dd, i, at) => {
+    const action = dd.list[i];
+    if (action === 'say:ready') { sayOn(st, b2, { who: W.pid, text: 'Ready.', kind: 'speech' }); return { action, ms: TWO_READY_MS, ok: true, grade: null, routine: true }; }
+    const x = doAction(st, b2, { pid: W.pid, gunId: g.id, action, tempo: tempoFor(action, 'normal'), pressure: 'evaluated', observerId: action === 'show' ? H.chiefPid : null, log: false, rng: 'house-two', deferSay: true });
+    if (x.halts) {
+      dd.tries += 1;
+      // (a halt: the rest planned again from what he believes now, after the sub-step's own time; past TWO_TRIES the instructor's)
+      if (dd.tries >= TWO_TRIES) { (W.gaveUp ??= {})[dd.cmd] = at; dd.list = dd.list.slice(0, i + 1); }
+      else dd.list = [...dd.list.slice(0, i + 1), ...(dd.cmd === 'down' ? subsOf(dd.macro, beliefOf(st, g.id)) : twoList(st, W, dd.cmd))];
+    }
+    return { action, ms: Math.max(0, Math.round(x.ms ?? 0)), ok: !!x.ok, grade: x.grade ?? null, routine: !!x.routine, ...(x.halts ? { halts: true } : {}), ...(x.refused ? { refused: String(x.text ?? '') } : {}) };
+  });
+  if (r === 'ended') twoAdminEnd(state, bus, H, d, d.untilMs);
+}
+// (his macro over: the record kept (W.last), his "Number two, clear." from the instructor at SHOW CLEAR, the 'house' fact)
+function twoAdminEnd(state, bus, H, d, at) {
+  const W = H.two;
+  W.doing = null;
+  if (d.cmd === 'down') { twoGunUp(state, bus, H, at); return; }
+  W.last = { step: d.step, untilMs: at, why: null };
+  if (d.cmd === 'clear') { W.shown = true; chiefSays(state, bus, HOUSE_CHIEF.twoClear, 'two-clear'); }
+  bus?.emit('house', { phase: 'two', room: null, who: W.pid, atMs: at, kind: d.cmd, text: null });
+}
+/**
+ * What a person's hands are doing now, the one helper the stage reads for you and your number two alike (COMBAT §25.19.5:
+ * "his sub-step readable as yours is"): { step, i, action, k, fromMs, toMs } or null. Yours is shooting.js stepNow's; his
+ * the admin's current sub-step, else his bundle's running hands beat.
+ */
+export function handsOf(state, pid, ms = state.clock.ms) {
+  const H = houseOf(state), W = H?.two;
+  if (!W?.pid || pid !== W.pid) return null;
+  const d = W.doing;
+  if (!d) return null;
+  if (d.beats) {
+    const b = d.beats.find(x => x.st === 'run' && x.ch === 'hands');
+    return b ? { step: d.step, i: null, action: b.k === 'reorg' ? 'reach' : b.k, k: b.untilMs > b.fromMs ? Math.max(0, Math.min(1, (ms - b.fromMs) / (b.untilMs - b.fromMs))) : 1, fromMs: b.fromMs, toMs: b.untilMs } : null;
+  }
+  if (d.i < 0 || ms < d.subFromMs) return null;
+  const k = d.untilMs > d.subFromMs ? Math.max(0, Math.min(1, (ms - d.subFromMs) / (d.untilMs - d.subFromMs))) : 1;
+  return { step: d.step, i: d.i, action: d.list[d.i] ?? null, k, fromMs: d.subFromMs, toMs: d.untilMs };
+}
+
 // ---- each lived tick ----
 
 /** The arms 'actors' layer on the house course (lived): Standby's GO armed or disarmed, the turners' triggers, the #2, the instructor's walk. */
 export function houseActors(state, input, bus) {
   const R = rangeOf(state), H = R?.house;
-  if (!H || R.end || state.skip) return;
+  if (!H) return;
+  // (the session over or a fast-forward under way: the lane sits it out, the instructor walks on to his point, braking, never frozen at a walk)
+  if (R.end || state.skip) { chiefWalk(state, R, H, state.clock.ms); return; }
   const now = state.clock.ms;
+  // (your number two's tower admin, from the fill to SHOW CLEAR: his macro's sub-steps at their times)
+  twoAdminTick(state, bus, H, now);
   if (R.cmd?.id === 'standby' && H.goAtMs === null) standbyTick(state, bus, R, H, now);
   if (H.goAtMs === null) return;
   triggers(state, bus, R, H, now);
   if (!H.end) {
     const a = actorOf(state, H.twoPid);
     if (a) {
-      // (his slot through the drill's stepper, not while his rounds are going: the row is his hands and his feet stay)
-      if (!H.two.eng) runSlot(state, bus, H.two, now);
+      // (the rework's R2, BODY §16.8: his tween start before anything moves him this tick, his record after)
+      moverStart(a);
+      // (his slot through the drill's stepper, not while his rounds are going: the row is his hands, and his feet brake to a stop)
+      // (nor while his own stoppage drill has his hands (twoGunDown): his feet brake where they are, his list doing his admin's)
+      // (a man of yours he takes while covering you on his way in leaves his feet on his walk (the rework's R6: eng.move))
+      // (his feet carried through a doorway while his hands work, never braked to rest in it (bundle.js freeBody, the rework's R8b))
+      if ((!H.two.eng || H.two.eng.move) && !(H.two.doing && !H.two.doing.beats)) runSlot(state, bus, H.two, now);
+      else freeBody(state, H.two, a, now, true);
       // (his eyes where his head is: perception reads the four-way face (people/perception.js eyeOf))
       if (Number.isFinite(a.headRad)) a.face = faceOfHead(a.headRad);
       const p = state.people[H.twoPid]?.post;
       if (p && (p.x !== a.x || p.z !== a.z)) { p.x = a.x; p.z = a.z; }
       twoTick(state, bus, R, H, a, now);
+      const v = Math.hypot(a.v?.[0] ?? 0, a.v?.[1] ?? 0);
+      locoStep(a, a.$px, a.$pz, { state, pid: H.twoPid, gait: 'walk', stance: a.moveStance ?? 'combat', vMs: v > 0 ? v : null });
     }
   }
-  chiefWalk(state, R, H);
+  chiefWalk(state, R, H, now);
 }
 
 // (the standby: GO armed while you stand ready out of the mode, disarmed if you move or enter it before; GO all the same after moveOnMs)
@@ -546,7 +748,8 @@ function standbyTick(state, bus, R, H, now) {
 // (the turners' triggers: a door's leaf open, the hall's zone; each turns its gap after, whole ticks)
 function triggers(state, bus, R, H, now) {
   const plan = lanePlanOf(state);
-  for (const door of plan.order) if (door !== 'hall' && H.doors[door] === undefined && openingState(state, door) === 'open') H.doors[door] = now;
+  // (a door of the lane come open is progress for the stall (see stall))
+  for (const door of plan.order) if (door !== 'hall' && H.doors[door] === undefined && openingState(state, door) === 'open') { H.doors[door] = now; if (H.goAtMs !== null && !H.end) H.stallAtMs = now; }
   const me = playerActor(state);
   if (me && !H.end) { const zn = zoneAt(me.x, me.z); if (zn && H.zones[zn] === undefined) H.zones[zn] = now; }
   for (const T of R.turners) {
@@ -560,21 +763,39 @@ function triggers(state, bus, R, H, now) {
   }
 }
 
-// (the instructor's walk on the catwalk, over the room you are in: the nearest point of the catwalk's line to its middle)
-function chiefWalk(state, R, H) {
+// (the instructor's walk on the catwalk, over the room you are in: the nearest point of the catwalk's line to its middle. From
+// the rework's R2 (BODY §16.8: "the instructor's walk takes the same push and brake"): a trapezoid from where he stands at the
+// speed he has to the point, at the place's walk (motion.js placeGaits) and his own legs (bundle.js legsOf), planned again
+// when the point moves or a tick went by unwalked (H.chief, saved: { to, path, prof, fromMs, untilMs, atMs }); his tween start
+// before the move, his record after)
+function chiefWalk(state, R, H, now = state.clock.ms) {
   const c = actorOf(state, H.chiefPid), cw = HOUSE1.catwalk;
   if (!c || !cw?.path?.length) return;
   const L = curLeg(H), P = planOf(state, L);
   const to = H.end || !P ? cw.path[0] : nearestOn(cw.path, P.threshold ?? P.points[0]);
   const y = cw.y ?? 3;
   if (c.y !== y) { c.y = y; const p = state.people[H.chiefPid]?.post; if (p) p.y = y; if (c.x !== cw.path[0][0] || c.z !== cw.path[0][1]) placeTwo(state, c, cw.path[0][0], cw.path[0][1]); }
-  const dx = to[0] - c.x, dz = to[1] - c.z, d = Math.hypot(dx, dz), step = placeGaits(state).walkMs * TICK_MS / 1000;
-  c.$px = c.x; c.$pz = c.z;
-  if (d < 1e-6) { c.gait = 'idle'; return; }
-  if (d <= step) { placeTwo(state, c, to[0], to[1]); c.gait = 'idle'; return; }
-  placeTwo(state, c, q(c.x + dx / d * step, 1e-4), q(c.z + dz / d * step, 1e-4));
-  c.gait = 'walk';
-  c.face = Math.abs(dx) >= Math.abs(dz) ? (dx > 0 ? 'right' : 'left') : dz > 0 ? 'down' : 'up';
+  moverStart(c);
+  let W = H.chief ?? null;
+  // (a tick he was not walked (a fast-forward, whose ticks the scene's layer sits out): planned again from where he stands, never run on to where the clock has gone)
+  if (W && now - (W.atMs ?? W.fromMs) > TICK_MS) W = null;
+  if (!W || W.to[0] !== to[0] || W.to[1] !== to[1]) {
+    // (a new point mid-walk: planned from where his place is for, the tick before, so the tick goes on walking, never stands)
+    const fromMs = W?.atMs ?? now;
+    const d = Math.hypot(to[0] - c.x, to[1] - c.z);
+    if (d < 1e-6 && !c.v) { if (W) H.chief = null; c.gait = 'idle'; return; }
+    // (from where he stands, at the speed he has: never a jump, never a stop dead)
+    const v0 = Math.hypot(c.v?.[0] ?? 0, c.v?.[1] ?? 0), legs = bodyLegsOf(state, H.chiefPid, c.x, c.z), path = [[c.x, c.z], [to[0], to[1]]];
+    const prof = profileOf(pathLen(path), placeGaits(state).walkMs, legs.pushMs2, legs.brakeMs2, { v0: Math.min(v0, placeGaits(state).walkMs), v1: 0 });
+    W = H.chief = { to: [to[0], to[1]], path: path.map(p => [q(p[0], 1e-4), q(p[1], 1e-4)]), prof, fromMs, untilMs: fromMs + Math.round(prof.T * 1000) };
+  }
+  W.atMs = now;
+  const p = moveAt(W, now), dx = p.x - c.x, dz = p.z - c.z;
+  if (dx || dz) { c.x = p.x; c.z = p.z; const pp = state.people[c.who]?.post; if (pp) { pp.x = p.x; pp.z = p.z; } }
+  if (p.vMs > 0) c.v = [q(p.vMs * Math.cos(p.headRad), 0.001), q(p.vMs * Math.sin(p.headRad), 0.001)]; else delete c.v;
+  if (Math.abs(dx) > 1e-9 || Math.abs(dz) > 1e-9) c.face = Math.abs(dx) >= Math.abs(dz) ? (dx > 0 ? 'right' : 'left') : dz > 0 ? 'down' : 'up';
+  locoStep(c, c.$px, c.$pz, { state, pid: H.chiefPid, gait: 'walk', stance: null, vMs: p.vMs > 0 ? p.vMs : null, inHand: false });
+  if (p.done) H.chief = null;
 }
 // (the point of a polyline nearest to p)
 function nearestOn(path, p) {
@@ -597,18 +818,27 @@ const isThreat = (T) => THREAT_FACES.includes(T.face);
 // (the #2's sightings, take-in, identification and row on slot 2's stands (see the header))
 function twoTick(state, bus, R, H, a, now) {
   const W = H.two;
+  coverTick(state, bus, R, H, a, now);
   if (W.eng) { twoFire(state, bus, R, H, a, now); return; }
+  // (his rifle down (twoGunDown): no new man taken in until it is up; the man he was on is his again at "Gun up!")
+  if (W.down) return;
   if (!W.contact) {
+    const walking = !!W.doing?.beats?.some(b => b.st === 'run' && b.k === 'move');
     for (const T of R.turners) {
-      if (T.slot !== 2 || T.stoppedAtMs !== null || W.known[T.key] !== undefined) continue;
+      // (his own stands, and, while he covers you (W.cover), your corner's in the room you are in (COMBAT §25.19.6))
+      // (he pivots, never walks (COMBAT §25.19.6): your man is his from where he is, his eyes; on his way in he takes him on the
+      // move, his entry never cut for him (move: runSlot keeps his walk) (the rework's R6, F20: "under Gun down the #2 engages
+      // the bracketed man whenever he can see him"; R5 had left him to you while the #2 walked, 8 of 17 seen in ten lanes a sheet)
+      const yours = !!W.cover && T.slot === 1 && legOf(T) === H.cur;
+      if ((T.slot !== 2 && !yours) || T.stoppedAtMs !== null || W.known[T.key] !== undefined) continue;
       const f = facingOf(T, now);
       if (f < SEEN || q(sightOf(state, a, { x: T.x, z: T.z }, now).vis * f, 1e-6) < SEEN) continue;
       W.known[T.key] = now;
       const rangeM = q(Math.hypot(T.x - a.x, T.z - a.z), 0.01);
-      const t = takeInMs(state, H.twoPid, { id: `two:${T.key}`, targets: [{ key: T.key, x: T.x, z: T.z, rangeM, face: T.face }], seenMs: now });
-      W.contact = { key: T.key, seenMs: now, untilMs: now + t.ms, ms: t.ms, expect: t.expect ?? null };
+      // (the man you had bracketed he takes in as his sector's (you showed him); your others as the room's area)
+      const t = takeInMs(state, H.twoPid, { id: `two:${T.key}`, targets: [{ key: T.key, x: T.x, z: T.z, rangeM, face: T.face }], seenMs: now, ...(yours ? { expect: { [T.key]: W.cover.man === T.key ? 'sector' : 'area' } } : {}) });
+      W.contact = { key: T.key, seenMs: now, untilMs: now + t.ms, ms: t.ms, expect: t.expect ?? null, ...(yours && walking ? { move: true } : {}) };
       noteSighting(state, H, T, { seenMs: now, takeInMs: t.ms, pauseAtMs: now + t.ms, by: 'two' });
-      H.stallAtMs = now;
       break;
     }
     return;
@@ -623,6 +853,66 @@ function twoTick(state, bus, R, H, a, now) {
   W.ident[T.key] = T.face === 'noshoot' ? T.holds : T.holds ?? 'rifle';
   if (!isThreat(T)) { c.held = true; W.contact = null; return; }
   twoPlan(state, R, H, a, T, now);
+}
+
+// ---- your number two covering you (COMBAT §25.19.6) ----
+
+/** His "Up." after your rifle is back, once nobody he is on and no window of yours is open, this long after (ms; COMBAT §25.19.9's UP_WAIT_MS). */
+export const UP_WAIT_MS = 400;
+// (your rifle down: the reflex card on a click, its drill under way (IMMEDIATE or REMEDIAL ACTION; R6's Gun down and Off the line
+// by their step's name), or a stoppage you believe in it, on the lane in a room you have entered)
+function youDown(state, H) {
+  const S = state.stop, L = curLeg(H);
+  if (!L || (L.state !== 'entered' && L.state !== 'open')) return false;
+  if (S?.reflex) return true;
+  // (Gun down and Off the line: down until "Gun up!" or "Up!" is called (the rework's R6), then up on the knee until his "Up.")
+  const d = S?.doing, st = String(d?.step ?? '');
+  if (/gun-?down|offline/.test(st) && d?.list) { const up = d.list.findIndex(a => a === 'call:gunup' || a === 'call:up'); return up < 0 || d.i < up; }
+  if (/^(macro:)?(ia|remedial)$|transition/.test(st)) return true;
+  return !!beliefOf(state, gunOn(state, playerId(state)))?.stoppage;
+}
+/**
+ * Your number two takes your sector while your rifle is down (COMBAT §25.19.6, the rework's R5): if he is up and on nobody he
+ * says "Covering!", his head goes onto the man you had bracketed or your sector's middle (he pivots, never walks: a man he
+ * cannot see stays yours), and your corner's stands in the room become his (twoTick: your bracketed man taken in as his
+ * sector's, the others as the room's) until it is back; on a man he finishes his row first. why: R6's "Gun down!" or
+ * "Stoppage!" may call it at once; else coverTick sees it. Returns whether he covers.
+ */
+export function twoCover(state, bus, why = 'down', now = state.clock.ms) {
+  const H = houseOf(state), W = H?.two, a = W?.pid ? actorOf(state, W.pid) : null;
+  if (!a || W.cover) return !!W?.cover;
+  if (W.eng || W.contact || W.down) { W.coverOwed = why; return false; }
+  const man = state.stop?.pick ?? null, T = man ? rangeOf(state).turners.find(x => x.key === man && x.stoppedAtMs === null) : null;
+  const P = planOf(state, curLeg(H)), sec = P?.sectors?.find(x => x.slot === 1);
+  if (T) a.headRad = q(Math.atan2(T.z - a.z, T.x - a.x), 1e-6);
+  else if (sec) a.headRad = q(sec.yawRad, 1e-6);
+  W.cover = { fromMs: now, why, man: T ? T.key : null };
+  delete W.coverOwed; delete W.upAtMs;
+  sayOn(state, bus, { who: W.pid, text: TWO_SAY.covering, kind: 'speech' });
+  return true;
+}
+// (each tick: the cover begun where your rifle went down (or owed until his row ends), ended when it is back, his "Up." after)
+function coverTick(state, bus, R, H, a, now) {
+  const W = H.two, down = youDown(state, H);
+  if (down && !W.cover && (!W.coverOwed || (!W.eng && !W.contact && !W.down))) twoCover(state, bus, W.coverOwed || 'down', now);
+  if (!down && (W.cover || W.coverOwed)) {
+    const was = !!W.cover; delete W.cover; delete W.coverOwed; if (was) W.upAtMs = now + UP_WAIT_MS;
+    // (your rifle back: a man of yours he had not fired on yet is yours again (his take-in dropped, his row not begun); once a
+    // round of his has gone he finishes his row)
+    const yours = (k) => R.turners.find(x => x.key === k)?.slot === 1;
+    if (W.eng && yours(W.eng.key) && !W.eng.rounds.some(r => r.done)) { W.eng = null; W.contact = null; twoStandDown(state, H); }
+    else if (!W.eng && W.contact && yours(W.contact.key)) W.contact = null;
+  }
+  // (his eyes held on your man or your sector while he covers, stands and is on nobody, whatever his drill's scan would have them on)
+  if (W.cover && !W.eng && !W.contact && !W.doing?.beats?.some(b => b.st === 'run' && b.k === 'move')) {
+    const T = W.cover.man ? R.turners.find(x => x.key === W.cover.man && x.stoppedAtMs === null) : null, sec = planOf(state, curLeg(H))?.sectors?.find(x => x.slot === 1);
+    const head = T ? Math.atan2(T.z - a.z, T.x - a.x) : sec ? sec.yawRad : null;
+    if (head !== null) { a.headRad = q(head, 1e-6); a.face = faceOfHead(a.headRad); }
+  }
+  // (you on a knee waiting for his "Up." (the rework's R6: wait:up) and no "Up." owed (he never got to cover you): owed now)
+  const wd = state.stop?.doing;
+  if (!down && W.upAtMs === undefined && wd && !wd.beats && wd.list?.[wd.i] === 'wait:up' && !W.down) W.upAtMs = now + UP_WAIT_MS;
+  if (W.upAtMs !== undefined && now >= W.upAtMs && !W.eng && !W.contact && !pendingOf(state)) { delete W.upAtMs; sayOn(state, bus, { who: W.pid, text: TWO_SAY.up, kind: 'speech' }); W.upSaidMs = now; upHeard(state, now); }
 }
 
 // (his row planned: the failure drill on armour, the hammer within its reach from its gate, else the pair; below rung 2 the
@@ -640,10 +930,11 @@ function twoPlan(state, R, H, a, T, now, follow = 0) {
   gun.mode = 'semi';
   state.people[H.twoPid].kit.carry.posture = 'aimed';
   const aimMs = (W.rung < 2 || !row) && !follow ? aimMsOf(state, H.twoPid, gunId, target, { ms: now }) : 0;
-  if (!row) { W.eng = { key: T.key, row: 'fire', follow, rounds: [{ atMs: whole(now + aimMs + 150), part: 'torso', follow: 0, climbK: 1, i: 0, n: 1 }] }; return; }
+  const move = W.contact?.move ? { move: true } : {};
+  if (!row) { W.eng = { key: T.key, row: 'fire', follow, rounds: [{ atMs: whole(now + aimMs + 150), part: 'torso', follow: 0, climbK: 1, i: 0, n: 1 }], ...move }; return; }
   const plan = rowPlan(state, H.twoPid, `shot:${row}`, target, { atMs: now, gunId, odds: false });
   const rounds = plan.parts.filter(p => p.k === 'round');
-  W.eng = { key: T.key, row, follow, rounds: rounds.map(p => ({ atMs: whole(now + aimMs + p.at), part: p.part, follow: p.follow ?? 0, climbK: p.climbK ?? 1, i: p.i, n: rounds.length })) };
+  W.eng = { key: T.key, row, follow, rounds: rounds.map(p => ({ atMs: whole(now + aimMs + p.at), part: p.part, follow: p.follow ?? 0, climbK: p.climbK ?? 1, i: p.i, n: rounds.length })), ...move };
 }
 
 // (his rounds at their times; the failure drill's third not fired on a man already down)
@@ -651,20 +942,86 @@ function twoFire(state, bus, R, H, a, now) {
   const W = H.two, E = W.eng, T = R.turners.find(x => x.key === E.key), gunId = gunOn(state, H.twoPid);
   for (const r of E.rounds) {
     if (r.done || r.atMs > now) continue;
+    // (his natural 1 mastered is caught as yours is (SKILLS §5.1: "for everyone"): the round and those after it late by the catch)
+    const t0 = T && T.stoppedAtMs === null ? { ...turnerTargets(state, now).find(t => t.key === T.key), dM: Math.hypot(T.x - a.x, T.z - a.z) } : null;
+    const c = t0 && !r.caught ? catchAhead(state, { pid: H.twoPid, gunId, target: t0, part: r.part, follow: r.follow, climbK: r.climbK, atMs: now }) : 0;
+    if (c > 0) { r.caught = true; r.catchId = shotIdNext(state); for (const x of E.rounds) if (!x.done && x.atMs >= r.atMs) x.atMs = whole(x.atMs + c); break; }
     r.done = true;
     if (!T || T.stoppedAtMs !== null) continue;
-    const target = { ...turnerTargets(state, now).find(t => t.key === T.key), dM: Math.hypot(T.x - a.x, T.z - a.z) };
-    const { shot } = resolveShot(state, bus, { pid: H.twoPid, gunId, target, part: r.part, follow: r.follow, climbK: r.climbK, log: false, atMs: now, row: { id: `shot:${E.row}`, n: r.n, i: r.i } });
+    const target = t0 ?? { ...turnerTargets(state, now).find(t => t.key === T.key), dM: Math.hypot(T.x - a.x, T.z - a.z) };
+    // (a round whose catch was charged draws the dice it was judged on (shot.js shotIdNext))
+    const foreseen = r.catchId ?? null;
+    if (foreseen) delete r.catchId;
+    const { shot } = resolveShot(state, bus, { pid: H.twoPid, gunId, target, part: r.part, follow: r.follow, climbK: r.climbK, log: false, atMs: now, row: { id: `shot:${E.row}`, n: r.n, i: r.i }, ...(foreseen ? { foreseen } : {}) });
+    // (a man of yours he fired on: only ever while he covered you (twoCover), so his by the rule (COMBAT §25.19.8 F9))
+    if (T.slot === 1 && !(W.covered ??= []).includes(T.key)) W.covered.push(T.key);
     houseShot(state, bus, shot);
+    // (his rifle stopped (a click, a dead trigger, a jam, the bolt locked on an empty) or a stoppage behind the round: the row
+    // ends there and his own drill takes his hands (twoGunDown); v0.0.13's #2 pressed a stopped rifle six times and left his man up)
+    if ((!shot.fired && shot.why !== 'safety') || shot.stoppage) { twoGunDown(state, bus, H, a, T, now); return; }
   }
   if (E.rounds.every(r => r.done)) {
     W.eng = null;
     if (T && T.stoppedAtMs === null && isThreat(T) && facingOf(T, now) >= SEEN && (E.follow ?? 0) < TWO_FOLLOW_N) { twoPlan(state, R, H, a, T, now, (E.follow ?? 0) + 1); if (W.eng) return; }
     W.contact = null;
-    const gun = state.items?.[gunId];
-    if (gun) gun.mode = 'safe';
-    if (state.people[H.twoPid]?.kit?.carry) state.people[H.twoPid].kit.carry.posture = 'highReady';
+    twoStandDown(state, H);
   }
+}
+// ---- your number two's own stoppage (COMBAT §25.19.5: "If his rifle stops ... he calls 'Gun down!'") ----
+
+/** His drill for a rifle that will not fire, by what it shows him (drills.js MACROS): a double feed REMEDIAL ACTION, the bolt locked on an empty magazine (or none) a speed reload, anything else IMMEDIATE ACTION. */
+export function twoDrillOf(state, gun) {
+  if (!gun) return null;
+  if (gunField(gun, 'jam')) return 'remedial';
+  const mag = gun.mag ? state.items?.[gun.mag] : null, ch = gunField(gun, 'chamber');
+  if (gunField(gun, 'locked') || !mag || ((mag.n ?? 0) <= 0 && ch !== 'dud' && ch !== 'case')) return 'reload:speed';
+  return 'ia';
+}
+/**
+ * Your number two's rifle down on a man (twoFire; the rework's R5, COMBAT §25.19.5): his row ends, he says "Gun down!" (a dry
+ * rifle: "Reloading!"), and his drill runs on his list doing as his tower macros do (twoAdminTick: his sub-steps at his own
+ * Weapon handling, drawn as yours, a halt planned again from his belief), at his react.js goMs; W.down { key, atMs, macro,
+ * tries } until "Gun up!" (twoGunUp). He takes in nobody new meanwhile, and the room's "Clear!" waits on his man (clearGateOf).
+ */
+export function twoGunDown(state, bus, H, a, T, now = state.clock.ms) {
+  const W = H.two, gunId = gunOn(state, W.pid), gun = state.items?.[gunId];
+  W.eng = null; W.contact = null;
+  const tries = (W.down?.tries ?? 0) + 1, macro = twoDrillOf(state, gun);
+  W.down = { key: T?.key ?? W.down?.key ?? null, atMs: W.down?.atMs ?? now, macro, tries };
+  if (!macro || tries > TWO_TRIES) { twoGunUp(state, bus, H, now, { failed: true }); return; }
+  if (tries === 1) sayOn(state, bus, { who: W.pid, text: macro === 'reload:speed' ? TWO_SAY.reloading : TWO_SAY.gunDown, kind: 'speech' });
+  // (the rework's R6: "Gun down!" stops you once, out of stop motion, so his sector is covered (cqb.js cqb-two-down: Cover his
+  // sector); in the mode the line waits for your next choice)
+  if (tries === 1 && macro !== 'reload:speed' && !state.stop && !pendingOf(state) && !H.end && H.goAtMs !== null) enterStop(state, bus, { pid: playerId(state), via: 'house' });
+  state.people[W.pid].kit.carry.finger = 'off';
+  const list = subsOf(macro, beliefOf(state, gunId)), at = whole(now + goMs(skillsOf(state, W.pid).wf));
+  W.doing = { who: W.pid, step: `down:${macro}`, kind: 'command', cmd: 'down', macro, list, i: -1, subs: [], fromMs: at, subFromMs: null, untilMs: at, planMs: twoPlanMs(state, W, list), tries: 0 };
+}
+// (his drill over: the rifle working, "Gun up!" (a reload's "Up.") and back on the man he was on if he still stands and faces;
+// still stopped, the next drill, at most TWO_TRIES; failed, he stays down and his man is yours (the pause's sector rule))
+function twoGunUp(state, bus, H, now, { failed = false } = {}) {
+  const W = H.two, D = W.down, gun = state.items?.[gunOn(state, W.pid)], R = rangeOf(state), a = actorOf(state, W.pid);
+  if (!D) return;
+  const works = !!gun && !gunField(gun, 'jam') && !gunField(gun, 'locked') && gunField(gun, 'chamber') === 'live' && !!gun.mag;
+  if (!works && !failed && a) { twoGunDown(state, bus, H, a, null, now); return; }
+  if (!works) { W.down = { ...D, failed: true }; return; }
+  delete W.down; delete W.coveredBy;
+  sayOn(state, bus, { who: W.pid, text: D.macro === 'reload:speed' ? TWO_SAY.up : TWO_SAY.gunUp, kind: 'speech' });
+  const T = D.key ? R.turners.find(x => x.key === D.key) : null;
+  if (a && T && T.stoppedAtMs === null && isThreat(T) && facingOf(T, now) >= SEEN && q(sightOf(state, a, { x: T.x, z: T.z }, now).vis * facingOf(T, now), 1e-6) >= SEEN) {
+    W.contact = { key: T.key, seenMs: now, untilMs: now, ms: 0, expect: null };
+    twoPlan(state, R, H, a, T, now);
+    return;
+  }
+  // (a man he cannot see from here is taken in afresh when he can (twoTick skips a man already known))
+  if (T && T.stoppedAtMs === null) delete W.known[T.key];
+  twoStandDown(state, H);
+}
+// (his rifle after a row: on safe, at high ready)
+function twoStandDown(state, H) {
+  const gun = state.items?.[gunOn(state, H.twoPid)];
+  if (gun) gun.mode = 'safe';
+  if (state.people[H.twoPid]?.kit?.carry) state.people[H.twoPid].kit.carry.posture = 'highReady';
 }
 
 // ---- the rules ----
@@ -697,8 +1054,11 @@ export function houseRules(state, input, bus) {
   // (the doorway)
   const was = H.meAt ?? null, at = [q(me.x, 1e-4), q(me.z, 1e-4)], vMs = was ? dist(was, at) / (TICK_MS / 1000) : 0;
   H.meAt = at;
+  // (a startle's freeze in the door is its own cost, never the doorway's fault: the fault's clock stands while it lasts (the
+  // reach review of 2026-11-13))
+  const frozen = startled(state, me.who, now);
   if (L.door !== 'hall' && inFunnel(P, me.x, me.z) && vMs < FUNNEL_STILL_MS) {
-    L.funnelMs += TICK_MS; L.funnelRunMs += TICK_MS;
+    if (!frozen) { L.funnelMs += TICK_MS; L.funnelRunMs += TICK_MS; }
     if (L.funnelRunMs >= FUNNEL_FAULT_MS && !hasFault(L, 'funnel')) houseFault(state, bus, 'funnel', HOUSE_CHIEF.funnel, L);
   } else L.funnelRunMs = 0;
   // (the corners: yours and the #2's, each covered once)
@@ -715,16 +1075,13 @@ export function houseRules(state, input, bus) {
   if (twoAt) H.two.at = twoAt;
   if (two && twoStill && flagged(state, pid, two)) { L.flagMs = (L.flagMs ?? 0) + TICK_MS; if (L.flagMs >= FLAG_MS && !hasFault(L, 'muzzle')) houseFault(state, bus, 'muzzle', HOUSE_CHIEF.muzzle, L); }
   else if (L.flagMs) L.flagMs = 0;
-  // (a beat doing's "Clear!" (see houseInput), and a new step under way is progress)
+  // (a beat doing's "Clear!" (see houseInput); a step under way is no progress by itself (see stall))
   callsOf(state, bus, H, S?.doing);
-  const d = S?.doing;
-  if (d && d.fromMs !== H.stepMs) { H.stepMs = d.fromMs; H.stallAtMs = Math.max(H.stallAtMs, d.fromMs); }
   stall(state, bus, R, H, L, now);
 }
 
-// (the muzzle's line within FLAG_M of the #2's body within FLAG_REACH_M, the rifle in hand and neither at high ready nor
-// at low ready: carry.js flagsAt, the DI's rule too)
-const flagged = (state, pid, two) => flagsAt(muzzleOf(state, pid), two.x, two.z, FLAG_M, FLAG_REACH_M);
+// (the muzzle's 3-D line over the #2's body as he stands, kneels or lies: carry.js flagsAt, the DI's rule too)
+const flagged = (state, pid, two) => flagsAt(muzzleOf(state, pid), two.x, two.z, two.stance ?? 'stand');
 
 // (a leg's state moved on, its time noted, the fact)
 function progress(state, bus, H, L, to, now) {
@@ -799,7 +1156,12 @@ function firstBy(state, L, key) {
   return list[0]?.by ?? null;
 }
 
-// (the stall: "Move on." after STALL_MS, the leg passed with 'time' STALL_MORE_MS later (never a dead end))
+// (the stall: "Move on." after STALL_MS, the leg passed with 'time' STALL_MORE_MS later (never a dead end). Its clock, H.stallAtMs,
+// counts progress only (COMBAT §25.19.4's no-dead-end rules; the shoot house's rework R1, 2026-11-12): a hot spot newly covered,
+// a round fired (yours or the #2's), a leg's state moved on (stacked, open, entered, cleared or passed), a door of the lane come
+// open or an inner door held. Never a step begun or ended, so neither a Wait nor a row that changes nothing holds it off: until
+// 2026-11-12 every step's start and end reset it, and a lane where T pressed Wait at a dead end ran to LANE_MAX_MS, 600 s, with
+// no "Move on." (the gauges' 3 hangs in 400 lanes; a marine pressing Wait for ever, tests/house-floor.test.mjs))
 function stall(state, bus, R, H, L, now) {
   const since = now - (H.stallAtMs ?? now);
   if (since >= STALL_MS && !L.stallSaid) {
@@ -855,6 +1217,57 @@ export function houseCall(state, bus, { by = 'me', atMs = state.clock.ms, fromMs
   return true;
 }
 
+/**
+ * The ready-to-clear predicate a bundle's "Clear!" waits on (bundle.js useClearGate; COMBAT §25.19.2.1, the rework's R3): the
+ * reason the room is not yet clear for a call on the door's leg now, as the team perceives it, or null: a window open on a
+ * man of the leg (a man being taken in), or your number two on a man of the leg (his take-in, his row, his rifle down on
+ * him: what his calls tell you). Off the current leg, before GO or after the lane, null.
+ * From the reach review of 2026-11-13: the gate no longer reads what nobody in the room knows (a man turned under APPEAR_MS
+ * ago and not yet seen, a turner whose trigger has fired and which has not turned): a drill that would have the marine
+ * never wrong about a room. The range officer's knowledge stays the scene's: houseCall voids such a call and turns the man.
+ */
+export function clearGateOf(state, door, ms = state.clock.ms) {
+  const R = rangeOf(state), H = R?.house;
+  if (!H || R.end || H.end || H.goAtMs === null || !Array.isArray(H.rooms)) return null;
+  const L = curLeg(H);
+  if (!L || (door && L.door !== door)) return null;
+  const c = contactOf(state), k = legsOf(H).indexOf(L);
+  const ofLeg = (rec) => (rec?.ids ?? []).some(key => { const T = R.turners.find(x => x.key === key); return T && legOf(T) === k && T.stoppedAtMs === null; });
+  if (c?.pending && ofLeg(c.pending)) return 'window';
+  // (your number two on a man of the leg: his take-in, his row, or his rifle down on him (the rework's R5: v0.0.13 called the
+  // room clear over his stopped rifle with his man up))
+  for (const key of [H.two?.contact?.key, H.two?.eng?.key, H.two?.down && !H.two.down.failed ? H.two.down.key : null]) {
+    const T = key ? R.turners.find(x => x.key === key) : null;
+    if (T && legOf(T) === k && T.stoppedAtMs === null) return 'two';
+  }
+  return null;
+}
+useClearGate(clearGateOf);
+// (your "Clear!" said at ms on the door's leg, void (a man turning as you called it, the hall's end not reached, a window on a man of the leg))
+useCallVoid((state, door, ms) => {
+  const H = houseOf(state), L = H ? curLeg(H) : null, c = L?.calls?.find(x => x.by === 'me' && x.atMs === ms);
+  return !!L && L.state === 'entered' && (!door || L.door === door) && !!c && (!!c.void || !!c.early);
+});
+// (you and your number two never through each other (COMBAT §25.19.3.4, F2): the walker keeps each body BODY_GAP_M off the other,
+// on the lane and off it; and off every man of the lane, up or down, the hostage too, since a stand is a body where it stands
+// (the reach review of 2026-11-13: only the two of you were bodies, and a man in a corner was walked through; the instructor
+// on the catwalk is above the floor, never one)
+useBodies((state, pid) => {
+  const H = houseOf(state), me = playerId(state);
+  if (!H || (pid !== me && pid !== H.twoPid)) return null;
+  const other = H.twoPid ? actorOf(state, pid === me ? H.twoPid : me) : null;
+  const bodies = [...(other ? [{ x: other.x, z: other.z }] : []), ...(rangeOf(state)?.turners ?? []).map(T => ({ x: T.x, z: T.z }))];
+  return bodies.length ? { gapM: BODY_GAP_M, bodies } : null;
+});
+// (the path a body of yours is on, for the carry through a doorway (src/sim/places/zones.js useLanes, the rework's R8b): your slot's
+// and your number two's through the current leg's door, so the feet carry each man on his own lane to his point, never across)
+useLanes((state, pid) => {
+  const H = houseOf(state);
+  if (!H || H.goAtMs === null || H.end) return null;
+  const slot = pid === playerId(state) ? 1 : pid === H.twoPid ? 2 : null, P = slot ? planOf(state, curLeg(H)) : null;
+  return P?.door ? P.paths?.[slot] ?? null : null;
+});
+
 // (a turner's trigger met: its door open, its zone entered (not yet its gap))
 const triggerMet = (H, T) => (T.trigger.kind === 'door' ? H.doors[T.trigger.on] !== undefined : T.trigger.kind === 'zone' ? H.zones[T.trigger.on] !== undefined : T.trigger.kind === 'go');
 
@@ -877,6 +1290,7 @@ function endLeg(state, bus, H, L, how, now) {
   next.fromMs = now;
   if (next.door === 'hall') next.state = 'open';
   noteMind(state, 'clearing', { room: next.room, fromMs: now });
+  R.cueAtMs = now;
 }
 
 // (the lane over: the turners turned away, the clear ended, the instructor's Stop to come (laneDone))
@@ -888,17 +1302,16 @@ function laneEnd(state, bus, why) {
   for (const T of R.turners) if (T.turnAtMs !== null && (T.awayAtMs === null || T.awayAtMs > now)) turnAway(T, now);
   noteMind(state, 'clearing', null);
   // (a bundle running hands back at the lane's end: COMBAT §25.8.2's 'lane-end')
-  if (state.stop?.doing?.beats) handBack(state, bus, 'lane-end');
+  if (state.stop?.doing?.beats || state.stop?.flow) handBack(state, bus, 'lane-end');
   if (why === 'time') houseFault(state, bus, 'time', HOUSE_CHIEF.laneTime, curLeg(H));
   if (why === 'dry') chiefSays(state, bus, HOUSE_CHIEF.dry, 'dry');
   bus?.emit('house', { phase: 'stop', room: null, who: playerId(state), atMs: now, kind: why });
 }
 
-/** A step begun on the house course (handling.js onStepStart): progress for the stall. */
+/** A step begun on the house course (handling.js onStepStart): no progress for the stall by itself (see stall); kept as the hook. */
 export function houseStepStart(state, bus, d) {
   const H = houseOf(state);
   if (!H || H.goAtMs === null || H.end || !d) return;
-  H.stallAtMs = state.clock.ms;
 }
 
 /** A step ended on the house course (handling.js afterStep): "Clear!" by its row, a door held, the dummy cleared. */
@@ -908,13 +1321,12 @@ export function houseAfterStep(state, bus, d, why) {
   const now = state.clock.ms, step = d?.step ?? '';
   if (step === 'call:clear' && why === 'end') houseCall(state, bus, { by: 'me', atMs: now, how: 'keys' });
   const held = /^door:hold>(.+)$/.exec(step)?.[1] ?? null;
-  if (held) { const L = legsOf(H).find(x => planOf(state, x)?.inner?.includes(held)); if (L && !L.inner) L.inner = 'held'; }
+  if (held) { const L = legsOf(H).find(x => planOf(state, x)?.inner?.includes(held)); if (L && !L.inner) { L.inner = 'held'; if (H.goAtMs !== null && !H.end) H.stallAtMs = now; } }
   // (the dummy's click cleared: the session's stoppage put right (handling.js afterStep marks it))
   if (H.dummy.clickAtMs !== null && H.dummy.clearedAtMs === null && R.stoppage?.set && R.stoppage.cleared) {
     H.dummy.clearedAtMs = now;
     chiefSays(state, bus, HOUSE_CHIEF.dummy, 'dummy');
   }
-  if (H.goAtMs !== null && !H.end) H.stallAtMs = now;
 }
 
 /**
@@ -937,14 +1349,15 @@ function callsOf(state, bus, H, d) {
 /** Before the stop layer (arms/domain.js's input): the doing as it stands, seen. */
 export function houseInputBefore(state) {
   const H = houseOf(state);
-  if (H && state.stop?.doing?.beats) H.$seen = state.stop.doing;
+  if (H && (state.stop?.doing?.beats || state.stop?.flow)) H.$seen = state.stop.doing?.beats ? state.stop.doing : state.stop.flow;
 }
 
 /** The input layer on the house course (runs while time stands still): a beat's "Clear!" (callsOf), the presses counted on the current leg, a person's and a door's apart. */
 export function houseInput(state, input, bus) {
   const H = houseOf(state);
   if (!H || H.goAtMs === null || H.end) return;
-  if (!rangeOf(state).end) callsOf(state, bus, H, state.stop?.doing);
+  // (2026-11-12, R3: the bundle as it stands, or the flow beside a step (bundle.js))
+  if (!rangeOf(state).end) callsOf(state, bus, H, state.stop?.doing?.beats ? state.stop.doing : state.stop?.flow ?? state.stop?.doing);
   if (!input?.act?.length || pendingOf(state)) return;
   const L = curLeg(H);
   if (!L) return;

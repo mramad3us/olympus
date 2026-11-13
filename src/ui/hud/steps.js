@@ -87,10 +87,22 @@
 // and not yet lived; its variants (kind 'variant', or a row the drill marks free) are set at no time, so they show none. While a bundle
 // runs the panel shows it alone with four short lanes of glyph ticks (bundleNow's lanes: ✓ passed, ◦ routine, ✗ fumbled, · to come, ▸
 // running), FEET HANDS EYES VOICE, filling one at a time below rung 3 and together above, and a bar of its time on the game clock.
+// 2026-11-13, the shoot house's rework R7 (VIEWS §7.8; COMBAT §25.19.7; the user's "group them by type ... with top of the head core
+// gameplay options being always visible and accessible (even if grayed out, like hammer if you only have one bullet)", 2026-11-11):
+// the paged list is gone from the HUD. The rows are the sim's model (src/sim/arms/groups.js modelOf: five groups of fixed slots,
+// the core five, the situation's five) laid out by the layout played (viewOf: A drawers, B banks, C the situation's five and the
+// fan; &panel= or olympus.panel, C until the user scores P1 to P3), in the same two columns of five, with a head at their left
+// (the situation's name, the open group's, HOME) and in B the banks' keycaps at their right. A row the situation could offer
+// and cannot take now is greyed, never removed, with its badge at its right edge (badgeEl: → and the remedy's key, ▮ the
+// rounds, MKS a gate, ▲▲ a rung, a hand, a struck silhouette, a padlock, a struck eye, ✓), its reason in words on its hover.
+// The navigation is the panel's own state (nav: the open drawer, bank or fan group, its third level), reset when the stop
+// changes; down(key) moves it, entryFor(key) is what a key does now (main.js sends the row, or T's tap for NEXT).
 import { CARD_W, CARD_H } from './layout.js';
+import { badgeOf, modelOf, viewOf, autoNav, badgeKey, keyPathOf, DEFAULT_LAYOUT, LAYOUTS, CORE_WORDS, GROUP_WORDS, FAN_KEY } from '../../sim/arms/groups.js';
 import { distanceParts, dialWords } from '../../art/weaponcard.js';
 // (the panel's numbering is the sim's (src/sim/arms/panel.js), so the DI's line can name the digit a row is on: re-exported here)
 import { PANEL_KEYS, FIXED_KINDS, isFixed, FIXED_MAX, FIXED_REPEAT, isGated, gatedRow, panelList, panelOf, isShotRow } from '../../sim/arms/panel.js';
+import { markOf as simMarkOf } from '../../sim/combat/stepper.js';
 export { PANEL_KEYS, FIXED_KINDS, isFixed, FIXED_MAX, FIXED_REPEAT, isGated, gatedRow, panelList, panelOf, isShotRow };
 
 /** A warn's words where the sim's id is short (0.0.10: Breathe with a threat up). */
@@ -126,6 +138,13 @@ export function lastMarks(ticks, stepId) {
 export const LAST_SHOW_MS = 3000;
 /** A struck row chosen lights this long (ms). */
 export const FLASH_MS = 220;
+/** The badges drawn as pictures (12 × 12, the row's text colour; the strike in the HUD's red): a hand, a struck silhouette, a padlock, a struck eye. */
+export const BADGE_SVG = Object.freeze({
+  hand: '<svg viewBox="0 0 12 12" aria-label="by hand first"><path d="M3.5 11V6M5.5 11V3M7.5 11V3.5M9.5 11V6M3.5 11h6" fill="none" stroke="currentColor"/></svg>',
+  issue: '<svg viewBox="0 0 12 12" aria-label="not issued"><rect x="2" y="4" width="8" height="4" fill="none" stroke="currentColor"/><path d="M1.5 10.5L10.5 1.5" stroke="#c0564e" stroke-width="1.5"/></svg>',
+  lock: '<svg viewBox="0 0 12 12" aria-label="locked"><rect x="2.5" y="5.5" width="7" height="5" fill="currentColor"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5" fill="none" stroke="currentColor"/></svg>',
+  none: '<svg viewBox="0 0 12 12" aria-label="nothing to act on"><path d="M1 6c1.5-2.5 3-3.5 5-3.5S9.5 3.5 11 6c-1.5 2.5-3 3.5-5 3.5S2.5 8.5 1 6z" fill="none" stroke="currentColor"/><circle cx="6" cy="6" r="1.4" fill="currentColor"/><path d="M2 10.5L10 1.5" stroke="#c0564e" stroke-width="1.5"/></svg>',
+});
 
 const secs = (ms) => (Number.isFinite(ms) ? `${(Math.max(0, ms) / 1000).toFixed(1)} s` : '');
 const secs2 = (ms) => (Math.max(0, ms) / 1000).toFixed(2);
@@ -134,8 +153,10 @@ export const roundOdds = (s) => (isShotRow(s) ? s.rounds.map(r => r.odds) : []);
 /** A step's odds as the row says them: 'routine', '85%', a shot row's every round '95% 95% 75%', or '' where no roll is in doubt. */
 export function oddsText(step) {
   if (!step) return '';
-  if (isShotRow(step)) return step.rounds.map(r => (Number.isFinite(r.odds) ? `${Math.round(r.odds * 100)}%` : '?')).join(' ');
+  // (a round or a step whose natural 1 would be caught reads "sure" (VIEWS §7.4, SKILLS §5.1))
+  if (isShotRow(step)) return step.rounds.map(r => (Number.isFinite(r.odds) ? (r.odds >= 1 ? 'sure' : `${Math.round(r.odds * 100)}%`) : '?')).join(' ');
   if (step.routine) return 'routine';
+  if (step.sure) return 'sure';
   return Number.isFinite(step.odds) && step.odds < 1 ? `${Math.round(step.odds * 100)}%` : '';
 }
 /**
@@ -250,12 +271,8 @@ export function subWords(step, list, i, labelOf = (id) => id) {
 }
 
 // ---- the ticks of a running macro, from the 'step' facts ----
-/** A sub-step's mark: ✓ passed, ◦ routine, ✗ fumbled (a failure, or a routine natural 1's slowed miss). */
-export function markOf(f) {
-  if (!f || f.ok === undefined || f.ok === null) return null;
-  if (!f.ok || f.grade === 'miss' || f.grade === 'bad' || f.grade === 'disaster') return '✗';
-  return f.routine ? '◦' : '✓';
-}
+/** A sub-step's mark, the sim's one helper (stepper.js markOf): ✓ passed, ◦ routine, ~ a natural 1 caught, ★ a natural 20, ! a stoppage, ✗ only a failure that cost something. */
+export const markOf = simMarkOf;
 /** The running step's ticks: { fact(payload) (a 'step' fact: 'start' begins a step, each 'sub' and 'halt' marks its i), of(stepId, n) → ['✓', '◦', '·'…], last }. */
 export function createTicks() {
   let cur = null;
@@ -369,18 +386,23 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   const list = el('div', { className: 'steplist' });
   root.append(cardBox, list);
   parent.append(root);
-  let sigRows = null, sigCard = null, slots = [], rowsEls = [], bar = null, text = '', cardK = null, hovered = null;
+  let sigRows = null, sigCard = null, slots = [], rowsEls = [], bar = null, text = '', cardK = null, hovered = null, cardLine = '';
+  // (R7: the model, the layout, the view, and where the player is in it: nav (an open drawer, bank or the fan's group, its third
+  // level), reset where the stop changes (navKey); fanHeld, Tab held in layout C)
+  let pm = null, layout = DEFAULT_LAYOUT, view = null, nav = {}, navKey = null, fanHeld = false, watchStep = 0;
   // (every step the panel has shown, by id: the one running leaves stepsOf's list as it changes the gun, LOAD once the magazine is in)
   const known = new Map();
 
   function update(v = {}) {
     if (v.hidden || !v.steps) { root.hidden = true; text = ''; return ''; }
+    cardLine = '';
     root.hidden = false;
     // (the card: repainted only when the belief it shows changes; its size at a whole number of device pixels)
     const fit = cardFit(v.ui ?? 1, globalThis.devicePixelRatio || 1), k = fit.k;
     if (k !== cardK) { cardK = k; cardCanvas.style.width = `${CARD_W * k}px`; cardCanvas.style.height = `${CARD_H * k}px`; cardCanvas.style.imageRendering = fit.smooth ? 'auto' : ''; }
     const far = { distance: !!v.distance, line: v.line ?? null, hold: v.hold ?? null, zeroing: v.zeroing ?? null };
     const model = weaponCardModel(v.belief, far);
+    cardLine = model.line;
     // (0.0.12: the gun's finish, its colours on the card: the caller's, read from the item by id, never from the belief)
     const finish = v.finish ?? null;
     const cs = JSON.stringify([BELIEF_FIELDS.map(k => v.belief?.[k]), far, finish]);
@@ -416,17 +438,29 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     lastEl.hidden = !showLast;
     // (a step running, the chained wait apart (any step chosen cuts it, so its panel stays): the running view)
     if (doing && doing.kind !== 'wait') return running(v, doing, model);
-    const panel = panelOf(v.steps, { page: v.page ?? 0 });
-    slots = panel.slots;
-    const rs = JSON.stringify(['panel', !!v.shift, panel.page, panel.pages, doing?.step ?? null, doing?.chain ?? null, panel.slots.map(s => [s.key, s.step.id, s.step.label, s.step.ms, s.step.rushMs, s.step.odds, s.step.routine, s.step.off, s.step.warn ?? null, s.step.cmd, s.step.subs?.length ?? 0, roundOdds(s.step), s.step.lead ?? false, s.step.shaking ? [s.step.shaking.v, s.step.shaking.band] : null, lastMarks(v.ticks, s.step.id), bundleDots(s.step)]), v.chaos?.sum ?? null]);
+    // (the model once, laid out by the layout played; the navigation reset to the layout's own where the stop changes)
+    layout = LAYOUTS.includes(v.layout) ? v.layout : DEFAULT_LAYOUT;
+    const sk = `${layout}|${v.stopKey ?? ''}`;
+    if (sk !== navKey) { navKey = sk; watchStep = 0; nav = {}; }
+    pm = modelOf(v.steps, { act: v.act ?? null, actLabel: v.actWords ?? null, watch: watchStep });
+    if (nav.auto === undefined) nav = { ...autoNav(pm, layout), auto: true };
+    if (nav.group && !pm.groups[nav.group]) nav = { auto: true };
+    view = viewOf(pm, layout, { ...nav, fan: layout === 'c' && fanHeld });
+    slots = view.keys.filter(k => k.entry?.row && !k.entry.stand && k.entry.core !== 'next').map(k => ({ key: k.key, digit: Number(k.key), step: k.entry.row }));
+    const rs = JSON.stringify(['groups', layout, !!v.shift, view.level, view.head, doing?.step ?? null, doing?.chain ?? null, view.banks, view.keys.map(k => sigOf(k, v)), v.chaos?.sum ?? null]);
     if (rs !== sigRows) {
       sigRows = rs;
       bar = null;
-      rowsEls = panel.slots.map(slot => row(slot, v, doing));
-      if (panel.more) rowsEls.push(el('div', { className: 'step more' }, el('kbd', { textContent: '0' }), el('span', { className: 'label', textContent: `more · ${panel.page + 1}/${panel.pages}` })));
-      list.replaceChildren(...rowsEls);
+      rowsEls = [];
+      const kids = [];
+      if (view.head) kids.push(headEl(view));
+      view.keys.forEach((k, i) => { const e = tile(k, v, doing, i); rowsEls.push(e); kids.push(e); });
+      if (view.banks) kids.push(banksEl(view));
+      list.replaceChildren(...kids);
+      list.classList.add('grouped');
+      list.dataset.layout = layout; list.dataset.level = view.level;
       root.classList.toggle('acting', !!doing);
-      text = [model.line, ...panel.slots.map(s => rowText(s, { shift: v.shift })), panel.more ? `0 more · ${panel.page + 1}/${panel.pages}` : null].filter(Boolean).join(' | ');
+      text = [cardLine, `${view.head?.name ?? ''}:`, ...view.keys.map(k => tileText(k, v)).filter(Boolean), view.banks ? view.banks.map(b => `${b.key} ${GROUP_WORDS[b.group]}`).join(' ') : null].filter(Boolean).join(' | ');
     }
     if (bar && doing) bar.style.width = `${Math.round(progress(doing, v.nowMs) * 100)}%`;
     return text;
@@ -494,7 +528,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   }
   // (a row: its key, its label (two lines at most), and at its right its time over its odds or its reason;
   // the chained wait's row marked as it runs, its time gone as a bar along its foot)
-  function row(slot, v, doing) {
+  function row(slot, v, doing, entry = null) {
     const s = slot.step, isRunning = !!doing && doing.step === s.id, odds = oddsText(s), t = timeText(s, v);
     // (0.0.9: the step last run, its marks after its name until another is chosen)
     const done = lastMarks(v.ticks, s.id);
@@ -509,12 +543,15 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     const meta = shaking
       ? el('span', { className: 'meta shake' }, el('span', { className: 'line1' }, timeEl, isShotRow(s) ? rounds() : odds ? el('span', { className: 'odds', textContent: odds }) : null), el('span', { className: 'why warn shake', textContent: `! ${SHAKING}` }))
       : el('span', { className: 'meta' }, timeEl,
-        s.off ? el('span', { className: 'why', textContent: s.off }) : s.warn ? el('span', { className: 'why warn', textContent: `! ${warnWords(s.warn)}` })
+        // (R7: a struck row's badge where its reason has one, its words on the hover; the words where it has none)
+        s.off ? (badgeEl(entry?.badge ?? badgeOf(s.off)) ?? el('span', { className: 'why', textContent: s.off })) : s.warn ? el('span', { className: 'why warn', textContent: `! ${warnWords(s.warn)}` })
           // (a shot row: each round's odds, a meter under each, the head's marked: graphics beside the numbers)
           : isShotRow(s) ? rounds()
           : odds ? el('span', { className: `odds${s.routine ? ' routine' : ''}`, textContent: odds }) : null);
     const kids = [el('kbd', { textContent: slot.key }), lab, meta];
-    const r = el('div', { className: `step ${kindClass(s.kind)}${isFree(s) ? ' variant' : ''}${s.off ? ' off' : ''}${s.warn && !s.off ? ' warned' : ''}${shaking ? ' shaking' : ''}${s.cmd ? ' cmd' : ''}${s.lead ? ' leads' : ''}${s.first ? ' first' : ''}${isRunning ? ' running' : ''}`, title: rowTitle(s, { label, chaos: v.chaos ?? null }) }, ...kids);
+    // (R7: the hover leads with the row's own words, whole where the tile cuts them short)
+    const hover = rowTitle(s, { label, chaos: v.chaos ?? null });
+    const r = el('div', { className: `step ${kindClass(s.kind)}${isFree(s) ? ' variant' : ''}${s.off ? ' off' : ''}${s.warn && !s.off ? ' warned' : ''}${shaking ? ' shaking' : ''}${s.cmd ? ' cmd' : ''}${s.lead ? ' leads' : ''}${s.first ? ' first' : ''}${isRunning ? ' running' : ''}`, title: entry ? `${s.label}${hover ? `: ${hover}` : ''}` : hover }, ...kids);
     r.dataset.step = s.id; r.dataset.key = slot.key;
     if (done) r.dataset.last = done;
     if (onPick && !s.off) r.addEventListener('click', () => onPick(s));
@@ -528,6 +565,103 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     }
     return r;
   }
+  // ---- R7: the tiles of the grouped panel ----
+  // (a key's signature for the redraw: what its tile shows)
+  function sigOf(k, v) {
+    const e = k.entry;
+    if (!e) return [k.key];
+    const st = e.row;
+    return [k.key, e.core ?? null, e.tab ?? null, e.count ?? null, !!e.dot, !!e.deep, !!e.home, !!e.more, e.page ?? null, e.words ?? null, e.badge?.t ?? null,
+      e.core === 'next' ? [e.actLabel, !!e.live] : null,
+      st ? [st.id, st.label, st.ms, st.rushMs, st.odds, st.routine, st.off, st.warn ?? null, st.cmd, roundOdds(st), st.lead ?? false, st.shaking ? [st.shaking.v, st.shaking.band] : null, lastMarks(v.ticks, st.id), bundleDots(st)] : null];
+  }
+  // (a key's words in the panel's text, the tests' and the report's: '4 Kick door · 1.2 s', '6 FIRE 4', '9 The line ▸ 3', '0 NEXT: Stack up')
+  function tileText(k, v) {
+    const e = k.entry;
+    if (!e) return null;
+    if (e.tab) return `${k.key} ${e.words ?? GROUP_WORDS[e.tab]} ${e.count}${e.dot ? ' •' : ''}`;
+    if (e.home) return `${k.key} ◂ home`;
+    if (e.more) return `${k.key} more · ${e.page + 1}/${e.pages}`;
+    if (e.deep && !e.row) return `${k.key} ${e.words ?? '▸'} ${e.count ?? ''}`.trim();
+    if (e.core === 'next') return `${k.key} NEXT: ${e.live ? e.actLabel ?? 'T' : 'nothing'}`;
+    if (!e.row) return e.words ? `${k.key} (${e.words})` : null;
+    const t = rowText({ key: k.key, step: e.row }, { shift: v.shift });
+    return e.core ? `${t} [${CORE_WORDS[e.core]}]` : t;
+  }
+  // (the head at the columns' left: the situation's name (C), the open group's (its third level ▸), HOME (A), Tab's fan)
+  function headEl(vw) {
+    const h = vw.head, kind = h.kind;
+    const n = el('div', { className: `ghead ${kind}${vw.level === 'deep' ? ' deep' : ''}`, title: kind === 'situation' ? `The situation: ${h.name}. Its five on 1 to 5; the core on 6 to 0; hold ${FAN_KEY} for the groups.` : kind === 'fan' ? `${FAN_KEY} held: a digit picks the group, a second the row.` : kind === 'group' ? `${h.name}: its slots on 1 to 9.` : 'The core on 1 to 5, the groups on 6 to 0.' });
+    n.append(el('span', { className: 'gname', textContent: kind === 'fan' ? FAN_KEY : h.name }));
+    n.style.gridColumn = '1'; n.style.gridRow = '1 / span 5';
+    return n;
+  }
+  // (B's banks at the columns' right: R C B F, each its group, its live count and the DI's dot)
+  function banksEl(vw) {
+    const n = el('div', { className: 'gbanks' });
+    for (const b of vw.banks) {
+      const k = el('div', { className: `gbank${b.open ? ' open' : ''}${b.dot ? ' dot' : ''}`, title: `${b.key}: ${GROUP_WORDS[b.group]}, ${b.count} live${b.dot ? ', the DI\'s row is here' : ''}` },
+        el('kbd', { textContent: b.key }), el('span', { className: 'gb-name', textContent: GROUP_WORDS[b.group].slice(0, 2) }));
+      n.append(k);
+    }
+    n.style.gridColumn = '4'; n.style.gridRow = '1 / span 5';
+    return n;
+  }
+  // (a tile: a row (a slot's, the core's, a third level's) drawn as v0.0.13's rows are, with its badge; a group's tab; a way in or out)
+  function tile(k, v, doing, i) {
+    const e = k.entry;
+    let n;
+    if (!e || (!e.row && !e.tab && !e.deep && !e.home && !e.more && e.core !== 'next')) {
+      // (an empty slot keeps its number, and the words of what it holds where it has them: greyed, nothing to act on now)
+      n = el('div', { className: `step empty${e?.words ? ' named' : ''}`, title: e?.words ? `${e.words}: nothing to act on now` : '' }, el('kbd', { textContent: k.key }), el('span', { className: 'label' }, el('span', { className: 'name', textContent: e?.words ?? '' })));
+    } else if (e.tab) {
+      n = el('div', { className: `step gtab${e.dot ? ' dot' : ''}`, title: `${GROUP_WORDS[e.tab]}: ${e.count} live${e.dot ? '; the DI\'s row is here' : ''}` },
+        el('kbd', { textContent: k.key }), el('span', { className: 'label' }, el('span', { className: 'name', textContent: e.words ?? GROUP_WORDS[e.tab] })), el('span', { className: 'meta' }, el('span', { className: 'gcount', textContent: String(e.count) })));
+      n.addEventListener('click', () => { down(k.key); onNav?.(); });
+    } else if (e.home || e.more || (e.deep && !e.row)) {
+      const words = e.home ? '◂ home' : e.more ? `more · ${e.page + 1}/${e.pages}` : e.words ?? '▸';
+      n = el('div', { className: `step gway${e.empty ? ' empty' : ''}`, title: e.home ? 'Back to the band' : e.more ? 'The next nine' : `${e.count ?? 0} more` }, el('kbd', { textContent: k.key }), el('span', { className: 'label' }, el('span', { className: 'name', textContent: words })), e.deep ? el('span', { className: 'meta' }, el('span', { className: 'gcount', textContent: String(e.count ?? 0) })) : null);
+      if (!e.empty) n.addEventListener('click', () => { down(k.key); onNav?.(); });
+    } else if (e.core === 'next') {
+      const st = e.row, live = !!e.live;
+      const t = live && st ? timeText(st, v) : '';
+      n = el('div', { className: `step core next${live ? '' : ' off'}`, title: live ? `NEXT: what T does now${st ? `, ${st.label}` : ''} (T tapped does the same)` : 'NEXT: T has nothing to do now' },
+        el('kbd', { textContent: k.key }), el('span', { className: 'label' }, el('span', { className: 'name', textContent: live ? st?.label ?? e.actLabel ?? 'T' : 'T: nothing now' })),
+        el('span', { className: 'meta' }, t ? el('span', { className: 'time', textContent: t }) : null, el('kbd', { className: 'tcap', textContent: 'T' })));
+      if (live) n.addEventListener('click', () => onNext?.());
+    } else {
+      n = row({ key: k.key, step: e.row }, v, doing, e);
+    }
+    n.dataset.key = k.key;
+    if (e?.core) { n.dataset.core = e.core; n.classList.add('core', `core-${e.core}`); }
+    if (e?.group) n.dataset.group = e.group;
+    n.style.gridColumn = String(2 + Math.floor(i / 5)); n.style.gridRow = String(1 + (i % 5));
+    return n;
+  }
+  // (a struck row's badge: → and the remedy's key, ▮ the rounds, MKS a gate, ▲▲ a rung, a hand, a struck silhouette, a padlock, a struck eye, ✓)
+  function badgeEl(b) {
+    if (!b) return null;
+    const n = el('span', { className: `badge b-${b.t}` });
+    if (b.t === 'to') { const key = badgeKey(b, layout); n.append(el('span', { className: 'arrow', textContent: '→' }), el('kbd', { textContent: key ?? '?' })); n.dataset.key = key ?? ''; }
+    else if (b.t === 'rounds') n.textContent = `▮${b.n}`;
+    else if (b.t === 'gate' || b.t === 'note') n.textContent = b.text;
+    else if (b.t === 'rung') n.textContent = `▲▲ ${b.n}`;
+    else if (b.t === 'done') n.textContent = '✓';
+    else n.innerHTML = BADGE_SVG[b.t] ?? '';
+    return n;
+  }
+  /** Move the navigation by a key going down: a tab opens its group, a ▸ its third level, home and the pager; returns whether it moved. */
+  function down(key) {
+    const k = view?.keys.find(x => x.key === String(key)), e = k?.entry;
+    if (!e) return false;
+    if (e.tab) { nav = { group: e.tab, auto: true }; sigRows = null; return true; }
+    if (e.deep && !e.row && !e.empty) { nav = { ...nav, group: e.group, deep: true, page: 0 }; sigRows = null; return true; }
+    if (e.deep && !e.row) return true;
+    if (e.home) { nav = { auto: true }; sigRows = null; return true; }
+    if (e.more) { nav = { ...nav, page: (nav.page ?? 0) + 1 }; sigRows = null; return true; }
+    return false;
+  }
+  let onNav = null, onNext = null;
   return {
     el: root, update,
     get text() { return root.hidden ? '' : text; },
@@ -543,12 +677,38 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
       setTimeout(() => r.classList.remove('refused'), FLASH_MS);
       return true;
     },
-    /** The step on a digit now (n 0 to 9), or 'more' for the pager, or null. */
+    /** The step on a digit now (n 0 to 9), 'next' for NEXT (T's act), 'nav' for a tab or a way in or out, or null. */
     stepFor(n) {
-      const key = String(n);
-      const s = slots.find(x => x.key === key);
-      if (s) return s.step;
-      return key === '0' && rowsEls.some(r => r.classList.contains('more')) ? 'more' : null;
+      const e = view?.keys.find(x => x.key === String(n))?.entry ?? null;
+      if (!e) return null;
+      if (e.core === 'next') return e.live ? 'next' : null;
+      if (e.row) return e.row;
+      return e.tab || e.home || e.more || e.deep ? 'nav' : null;
     },
+    /** What a key does now: { entry } (a row, NEXT, a tab…), or null. */
+    entryFor(n) { return view?.keys.find(x => x.key === String(n))?.entry ?? null; },
+    /** A key going down: the navigation moved (true), or not (false: a row's key, chosen on its tap or held). */
+    down,
+    /** After a row is chosen: a drawer, a bank and the fan's group close (VIEWS §7.8: "it closes after a choice"). */
+    chosen() { if (nav.group || nav.deep) { nav = { auto: true }; sigRows = null; } },
+    /** Q and D with nobody in sight: the one Watch row steps across the live hot spots (VIEWS §7.8.1); whether there was a Watch row to step. */
+    stepWatch(d) { const live = (pm?.rows ?? []).filter(s => /^watch:/.test(s.id) && !s.off).length; if (live < 2) return false; watchStep += d; sigRows = null; return true; },
+    /** Esc or Backspace: back to the band where a group is open; whether it was. */
+    back() { if (!nav.group && !nav.deep) return false; nav = { auto: true }; sigRows = null; return true; },
+    /** Layout B's banks by letter: its group's map, or back to the band where it is open. */
+    bank(group) { nav = nav.group === group && !nav.deep ? { auto: true } : { group, auto: true }; sigRows = null; },
+    /** Layout C's fan: Tab held (true) or let go (false: the fan and its group close). */
+    fan(on) { if (fanHeld === !!on) return; fanHeld = !!on; if (!on) nav = { auto: true }; sigRows = null; },
+    get fanHeld() { return fanHeld; },
+    /** The layout drawn, its level and head: { layout, level, head, nav }. */
+    get where() { return view ? { layout, level: view.level, head: view.head, nav: { ...nav } } : null; },
+    /** The model of the rows shown (groups.js modelOf), or null. */
+    get model() { return pm; },
+    /** The keys a row is on now in the layout drawn (groups.js keyPathOf from the band), or null. */
+    keysFor(id) { return pm ? keyPathOf(pm, layout, id) : null; },
+    /** The keys of what is drawn now: [{ key, id, label, off, kind, core, group, tab }]. */
+    get keys() { return (view?.keys ?? []).map(k => ({ key: k.key, id: k.entry?.row?.id ?? null, label: k.entry?.row?.label ?? k.entry?.words ?? null, off: k.entry?.row?.off ?? null, kind: k.entry?.row?.kind ?? null, core: k.entry?.core ?? null, group: k.entry?.group ?? null, tab: k.entry?.tab ?? null, live: k.entry?.core === 'next' ? !!k.entry.live : !!k.entry?.row && !k.entry.row.off })); },
+    /** Hooks: a tab clicked (onNav), NEXT clicked (onNext, main.js: T's tap). */
+    set onNav(fn) { onNav = fn; }, set onNext(fn) { onNext = fn; },
   };
 }

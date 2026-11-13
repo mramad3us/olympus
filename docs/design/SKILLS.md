@@ -309,6 +309,8 @@ So the 1 and the 20 are now seen about equally often. A ✗ means a failure that
 
 **Tests** (to build with it, each printing its numbers): `catches` holds the rule's two tests (routine; mastered at `MASTERY_MIN` and `MASTERY_AT`, not rushed, any pressure, never opposed) and the record's fields. Over 400 seeded rolls a cell, it holds that a mastered 1 never fails and costs ×1.5, that the recruit's and the private's rates do not move, and it prints the first table's shoot house column on 100 seeds of the house bot. `catch-marks` holds that a routine or mastered 1 draws `~` and never ✗, a 20 draws ★, and the dummy click draws `!`. Pinned digests and goldens of the corporal's sheet and above move, and are reprinted and said so in CHANGELOG.md.
 
+**As built in v0.0.14** (the mastery rule, marks and "sure"; COMBAT §25.19, VIEWS §7.4; my calls where marked): `checks.js` holds `MASTERY_MIN` 15, `MASTERY_AT` 10, `CATCH_K` (0.5, so x1.5 time) and `CLEAN_K` (a clean 20 costs x2/3 of the time); `shot.js` `catchAhead` shows a caught round before it is rolled (a caught round keeps its dice: `shotIdNext`, `foreseen`, so the round that leaves late draws the dice its catch was judged on even when your #2 fires in between; the code review's finding, fixed, COMBAT §25.19.13); `stepper.js` `markOf` draws the marks and "sure". The rule is never applied on a rushed roll, leaves out the tempo and steady modifiers, grades by margin, and its record fields are additive. Its owners are the firearms sub-step times, the paper `natOf`, the head shot and the take-in (kept at x1.5). **Measured misses** by sheet, recruit to tier one: 16.5, 5.5, 3.3, 2.0, 0 and 0 percent.
+
 ### 5.2 DCs, and what each feels like by skill
 
 `DC = { easy 10, average 15, hard 20, veryHard 25, expert 30, elite 40 }`, tradecraft's table unchanged. Owners set their own DCs. This ladder keeps them consistent with one another, so that "hard" means the same thing in every section (my call; the examples are guidance).
@@ -1373,6 +1375,8 @@ Neither nags (the design review's): the hands speak only at a sink or just out o
 | `report` | note | a contact you saw that isn't on the net | send a contact report (Comms) | "You saw him. Nobody else did. Tell them." |
 | `reload` | note | magazine low in a lull | Top up (the tactical RELOAD; COMBAT §25.6.5) | "Lull. Fresh magazine while you have one." |
 | `cqb-*` | | in a clear | by the drill rung | COMBAT §25.8.3's sixteen rules, `src/sim/skills/instinct/cqb.js` |
+
+**As built in v0.0.14** (the shoot house's lines, COMBAT §25.19; `src/sim/skills/instinct/*`; my calls): `range-cmd` has house variants. New rules: `cqb-walk` (nudges after `WALK_NUDGE_MS` 3 s), `cqb-next`, the hall's own "Clear" words, "Two in him." and "Done:" as a step. `cqb-stoppage` names the card's first answer; `cqb-rifle-up` (warn), `cqb-two-down` (urgent) and `cqb-reload` (Transition first when offered) are new; `cqb-hostage` is never said on a card hit down. The DI's key words stay out of saves.
 
 ### 14.6 The NCO on the net
 

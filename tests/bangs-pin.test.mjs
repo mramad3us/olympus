@@ -29,24 +29,49 @@ const V009 = Object.freeze([
   ['tierone 7', 1243, '0c2f07c5f7a94d'],
   ['tierone 99', 1182, '9ef72b65763a8c'],
 ]);
+/**
+ * The same runs under the mastery rule (SKILLS §5.1, decided 2026-11-11, the user's "good defaults"; the shoot house's rework R4,
+ * 2026-11-12), re-pinned on purpose: from the sergeant up a mastered natural 1 is caught (a late round or a slow sub-step, never
+ * a miss or a fumble), every sheet's natural 20 on handling is clean (×2/3), and a routine natural 1 costs ×1.5 where it cost
+ * ×1.6. The recruit's 48213 moves by a clean 20 alone, his seed 7 by a routine catch; the private's three are v0.0.9's.
+ */
+const MASTERY = Object.freeze([
+  ['recruit 48213', 2422, '52c02132e96f4c'],
+  ['recruit 7', 2583, '111ef6ae3f749d'],
+  ['recruit 99', 2522, '0c6cb12c2344b2'],
+  ['private 48213', 2042, 'f429913309b17b'],
+  ['private 7', 2003, 'f748a831c28026'],
+  ['private 99', 1962, '72249de8cdb68c'],
+  ['sgt 48213', 1642, 'd78886a4756bf1'],
+  ['sgt 7', 1563, '9419e221d95fdc'],
+  ['sgt 99', 1522, 'd7c6b55fd5284f'],
+  ['raider 48213', 1382, '9da93ce8da835c'],
+  ['raider 7', 1303, '47b03a3077490b'],
+  ['raider 99', 1282, '7e05f11d7e6e58'],
+  ['tierone 48213', 1282, '6b57fb2f1c41f1'],
+  ['tierone 7', 1243, 'c0fb412e2014f7'],
+  ['tierone 99', 1202, '1df3e0f6a3e116'],
+]);
+
 
 const paperOf = (p) => (typeof p === 'string' ? p : p?.text ?? null);
 
 export default [
   {
-    name: '"Three bangs" plays as v0.0.9 did: every sheet on 48213, 7 and 99, the pairs bot to the card on v0.0.9\'s last tick, with v0.0.9\'s papers, summary and bangs line (the user\'s rule: "Three bangs" as built must not get worse; only the digest moves, by the stress fold)',
+    name: '"Three bangs" plays as v0.0.9 did but where the mastery rule moves it (SKILLS §5.1, re-pinned 2026-11-12: the private\'s runs v0.0.9\'s): every sheet on 48213, 7 and 99, the pairs bot to the card on v0.0.9\'s last tick, with v0.0.9\'s papers, summary and bangs line (the user\'s rule: "Three bangs" as built must not get worse; only the digest moves, by the stress fold)',
     heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     timeoutMs: 300_000,
     fn() {
       const bad = [];
-      for (const [key, tick, hash] of V009) {
+      for (const [k, [key, tick, hash]] of MASTERY.entries()) {
+        const [, oldTick, oldHash] = V009[k];
         const [tier, seed] = key.split(' ');
         const g = createGame({ scenario: 'test-pairs', seed: Number(seed), tier, setup: 'bangs', version: '0.0.0' }), b = pairsBot();
         for (let t = 0; t < 40_000 && !pairsNow(g.state)?.end; t++) { g.step(1, b); g.clearFacts(); }
         const p = pairsNow(g.state);
         const got = createHash('sha1').update(JSON.stringify({ papers: (p?.strs ?? []).map(s => paperOf(s.paper)), summary: p?.summary ?? null, bangs: p?.bangs?.summary ?? null })).digest('hex').slice(0, 14);
         const same = got === hash && g.state.clock.tick === tick;
-        console.log(`      ${key}: tick ${g.state.clock.tick} (v0.0.9 ${tick}), papers ${got === hash ? 'as v0.0.9' : `DIFFER ${got}`}; ${p?.bangs?.summary ?? '-'}`);
+        console.log(`      ${key}: tick ${g.state.clock.tick} (v0.0.9 ${oldTick}), papers ${got === hash ? (got === oldHash ? 'as v0.0.9' : 'as pinned under the mastery rule') : `DIFFER ${got}`}; ${p?.bangs?.summary ?? '-'}`);
         if (!same) bad.push({ key, tick: g.state.clock.tick, want: tick, got, hash });
       }
       assert(!bad.length, JSON.stringify(bad));

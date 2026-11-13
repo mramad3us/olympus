@@ -15,11 +15,16 @@
 // taken steady ×2 +3 (pressure none only, the d20 still rolled and its naturals counting), appended
 // after the owner's.
 //
+// Mastery (SKILLS §5.1, decided 2026-11-11, the user's "good defaults"): a natural 1 is **caught** when the check is routine or
+// mastered (value MASTERY_MIN 15 or more and value + modifiers, the tempo's left out, at the DC + MASTERY_AT 10 or more; not
+// rushed; any pressure; never opposed): ok, graded by its margin alone, the record's `caught: true`; the owner charges ×(1 +
+// CATCH_K) 1.5 of the action's own time and nothing else. A natural 20 on procedure is **clean** (`clean: true`): ×(1 −
+// CLEAN_K) 2/3 on timed work. oddsOf given the roll's way of working returns 1 where a 1 would be caught (sureOf: "sure").
 // Routine work (SKILLS §5.1): a check is routine for the roller when it is procedure (handling, bench
 // and armoury work, the habit of carry: work whose failure the owner prices in time), at pressure
 // none or evaluated, not rushed, and the value plus every modifier but the tempo's reaches the DC +
-// ROUTINE_AT (0): they would make it without the die. A routine natural 1 is still a miss (grade
-// 'miss'), and the owner charges its time and nothing else. A shot, a noticing roll and an opposed
+// ROUTINE_AT (0): they would make it without the die. A routine natural 1 is caught (from the rework,
+// above; it was a 'miss' at ×1.6), and the owner charges its time and nothing else. A shot, a noticing roll and an opposed
 // roll are never procedure. At danger and fire nothing is routine.
 //
 // The record is SKILLS §15.2's, plain data stored in the log as it is: { kind: 'check', skill, value,
@@ -44,6 +49,10 @@ import { skillName } from './skills.js';
 export const DC = Object.freeze({ easy: 10, average: 15, hard: 20, veryHard: 25, expert: 30, elite: 40 });
 /** A check is routine when value + Σmods (tempo left out) reaches the DC plus this (SKILLS §5.1). */
 export const ROUTINE_AT = 0;
+/** Mastery (SKILLS §5.1, the user's "good defaults", 2026-11-11): a natural 1 is caught by a roller of value MASTERY_MIN or more whose value + modifiers (the tempo's left out) reach the DC + MASTERY_AT, not rushed, never opposed. */
+export const MASTERY_MIN = 15, MASTERY_AT = 10;
+/** A caught 1 costs ×(1 + CATCH_K) of the action's own time (the user's "50% longer"); a natural 20 on timed procedure is clean, ×(1 − CLEAN_K). */
+export const CATCH_K = 0.5, CLEAN_K = 1 / 3;
 /** The order modifiers are listed in (SKILLS §5.3). */
 export const SRC_ORDER = Object.freeze(['task', 'env', 'gear', 'body', 'need', 'people', 'help', 'tempo', 'retry']);
 /** The ways of working (SKILLS §5.9): the time's factor and the roll's modifier. */
@@ -71,8 +80,19 @@ export function grade(margin, nat = 0) {
 /** Whether a grade is a success (pass, good, superb). */
 export const passed = (g) => g === 'pass' || g === 'good' || g === 'superb';
 
-/** The odds of a check (see the header); mods a list or a sum. */
-export const oddsOf = (value, dc, mods = []) => Math.max(0.05, Math.min(0.95, (21 - (dc - value - sumOf(mods))) / 20));
+/**
+ * The odds of a check (see the header); mods a list or a sum. With the roll's way of working given ({ procedure, pressure,
+ * tempo }), a check whose natural 1 would be caught (routine or mastered, SKILLS §5.1) has odds 1: "sure" on the panel.
+ */
+export const oddsOf = (value, dc, mods = [], how = null) => (how && sureOf({ value, dc, mods, ...how }) ? 1 : Math.max(0.05, Math.min(0.95, (21 - (dc - value - sumOf(mods))) / 20)));
+// (the modifiers but the tempo's)
+const noTempo = (mods) => (typeof mods === 'number' ? mods : sumOf((mods ?? []).filter(m => String(m?.src ?? '').split(':')[0] !== 'tempo')));
+/** Whether a check would be mastered for its roller (SKILLS §5.1), before the die: value ≥ MASTERY_MIN, value + Σmods (tempo left out) ≥ DC + MASTERY_AT, not rushed. */
+export function isMastered({ value, dc, mods = [], tempo = 'normal' }) {
+  return tempo !== 'rushed' && value >= MASTERY_MIN && value + noTempo(mods) >= dc + MASTERY_AT;
+}
+/** Whether a natural 1 on this check would be caught (routine or mastered: SKILLS §5.1): the panel's "sure". */
+export const sureOf = (o) => isRoutine(o) || isMastered(o);
 
 /** Whether a check would be routine for its roller (see the header), before the die. */
 export function isRoutine({ value, dc, mods = [], tempo = 'normal', pressure = 'none', procedure = false }) {
@@ -81,7 +101,7 @@ export function isRoutine({ value, dc, mods = [], tempo = 'normal', pressure = '
 }
 
 /** One check (see the header). Returns SKILLS §15.2's record. */
-export function check(rng, { skill, value, dc, mods = [], tempo = 'normal', pressure = 'none', procedure = false, hook = false, by = null, dcParts = null, verb = null, them = false, hidden = false }) {
+export function check(rng, { skill, value, dc, mods = [], tempo = 'normal', pressure = 'none', procedure = false, hook = false, by = null, dcParts = null, verb = null, them = false, hidden = false, foreseen = false }) {
   const T = TEMPO[tempo] ?? TEMPO.normal;
   const list = sortMods(mods);
   if (T.v) list.push({ why: T.why, v: T.v, src: 'tempo' });
@@ -89,12 +109,19 @@ export function check(rng, { skill, value, dc, mods = [], tempo = 'normal', pres
   const total = roll + value + sumOf(list);
   const nat = roll === 20 ? 20 : roll === 1 ? 1 : 0;
   const against = hook ? halve(dc) : dc;
-  const ok = nat === 20 ? true : nat === 1 ? false : total >= against;
   const routine = isRoutine({ value, dc: against, mods: list, tempo, pressure, procedure });
+  // (a natural 1 caught where the roller would make it without the die, by enough (SKILLS §5.1): routine, or mastered)
+  // (foreseen: a natural 1 caught before it left (shot.js catchAhead), its time already paid: judged as caught when it leaves,
+  // whatever the modifiers have done since (the code review of 2026-11-13: a chaos risen in the 0.13 s paid it twice))
+  const caught = nat === 1 && (foreseen || routine || isMastered({ value, dc: against, mods: list, tempo }));
+  const ok = nat === 20 ? true : nat === 1 ? caught : total >= against;
   const margin = total - against;
   const r = { kind: 'check', skill, value, roll, mods: list, total, nat, dc: against, dcParts: dcParts ?? null, hook: !!hook, tempo, steady: tempo === 'steady', routine,
-    pressure, ok, margin, grade: grade(margin, nat), by, them: !!them, hidden: !!hidden, verb: verb ?? null };
+    pressure, ok, margin, grade: grade(margin, caught ? 0 : nat), by, them: !!them, hidden: !!hidden, verb: verb ?? null };
   if (hook) r.dc0 = dc;
+  // (the two additive fields (SKILLS §15.2): absent otherwise, so the records made before keep their shape)
+  if (caught) r.caught = true;
+  if (nat === 20 && procedure) r.clean = true;
   return r;
 }
 
@@ -132,6 +159,8 @@ export function checkText(r) {
     const head = `${skillName(r.skill)}${r.steady ? ', taken steady' : ' check'}: ${sumText(r)} against ${r.hook && r.dc0 !== undefined ? `${r.dc0}, halved by leverage to ${r.dc}` : r.dc}${r.dcParts?.length ? ` (${partsText(r.dcParts)})` : ''}`;
     if (r.verb) return `${head}${natural(r.nat)}, ${r.verb}.`;
     if (r.steady && r.ok) return `${head}${natural(r.nat)}, done.`;
+    if (r.caught) return `${head}, a natural 1, caught${r.routine ? ': it only cost time' : ''}.`;
+    if (r.clean) return `${head}, a natural 20: clean.`;
     if (r.routine) return r.ok ? `${head}${natural(r.nat)}: routine, done.` : `${head}${natural(r.nat)}: routine, it only cost time.`;
     if (r.steady) return `${head}${natural(r.nat)}, failure.`;
     return `${head}${natural(r.nat)}, ${r.ok ? 'success' : 'failure'}.`;
@@ -142,7 +171,7 @@ export function checkText(r) {
 /** A roll in brief, for the line at the top left: 'Weapon handling 22 against 9 · passed', 'Marksmanship 27 against 19 · a 5'. */
 export function checkShort(r) {
   if (r.kind === 'check') {
-    const end = r.verb ?? (r.routine ? (r.ok ? 'routine' : 'routine, slow') : r.ok ? 'passed' : 'failed');
+    const end = r.verb ?? (r.caught ? 'caught' : r.clean ? 'clean' : r.routine ? (r.ok ? 'routine' : 'routine, slow') : r.ok ? 'passed' : 'failed');
     return `${skillName(r.skill)} ${r.total} against ${r.dc}${natShort(r.nat)} · ${end}`;
   }
   return `${skillName(r.ours.skill)} ${r.ours.total}${natShort(r.ours.nat)} against ${skillName(r.theirs.skill)} ${r.theirs.total}${natShort(r.theirs.nat)} · ${won(r) ? 'you win' : 'they win'}`;

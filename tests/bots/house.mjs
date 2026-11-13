@@ -22,15 +22,20 @@
 // the clock still (a stall, said at once). Its memory (me.bot) is plain data, so it saves and loads with the game; mem.log
 // keeps each decision ({ atMs, step, cmd, leg }), mem.presses counts them.
 //
+// houseHonestBot() is COMBAT §25.19.8's honest player (the design's `houseTBot`, honest), the flawless suites' bot: T and the
+// shot the line names, nothing else, every dead end written on its memory (see its own comment); houseTBot() stays the
+// fixer's T player of 0.0.12 (a Wait where the line is quiet) for the suites that print its numbers. stoppageBot({ answer })
+// is the honest bot with the reflex card's answer forced; houseKeysBot() the house bot's keys mode.
+//
 // houseFuzzBot({ seed }) hunts the scene's dead ends (the sheet's §5.3): random legal rows (never a shot row, the dummy never
 // cleared, "Clear!" never called), X and the keys at random through windows, T's bundles and Backspace at random, a doorway
 // stood in; its dice are hashes of its seed and its count of decisions (mem.n). Every run must reach the card (the user,
 // 2026-11-07: "a scene never dead-ends").
 import { houseNow } from '../../src/sim/scenarios/shoothouse.js';
-import { stepsOf } from '../../src/sim/arms/shooting.js';
+import { stepsOf, targetOf } from '../../src/sim/arms/shooting.js';
 import { beliefOf } from '../../src/sim/arms/firearms.js';
 import { contactNow } from '../../src/sim/combat/contact.js';
-import { lanePlanOf, pastThreshold } from '../../src/sim/combat/room.js';
+import { lanePlanOf, pastThreshold, inFunnel } from '../../src/sim/combat/room.js';
 import { cornerOf, TWO_WAIT_MS } from '../../src/sim/combat/bundle.js';
 import { rungOf } from '../../src/sim/skills/templates.js';
 import { instinctNow } from '../../src/sim/skills/instinct.js';
@@ -52,7 +57,9 @@ function threatsOf(state, N, me, mem) {
   // (what each pause identified, kept: a man taken in at an earlier pause and still up is still a threat)
   const last = contactNow(state)?.last ?? null, ident = (mem.ident ??= {});
   for (const k of last?.ids ?? []) if (last.ident?.[k]) ident[k] = last.ident[k];
-  const up = N.turners.filter(T => ident[T.key] !== undefined && T.facingK >= 0.5 && !T.down);
+  // (only a man in the rifle's frame now (shooting.js targetOf: what the bracket can be put on): one taken in from the stack
+  // and behind the jamb now cannot be bracketed, and 'pick=' on him looped with the clock still (2026-11-12, the lanes))
+  const up = N.turners.filter(T => ident[T.key] !== undefined && T.facingK >= 0.5 && !T.down && targetOf(state, T.key, state.player.id));
   const order = (a, b) => (a.slot ?? 1) - (b.slot ?? 1) || Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z) || a.key.localeCompare(b.key);
   return { armed: up.filter(T => ARMED.has(ident[T.key])).sort(order), unseen: up.filter(T => ident[T.key] === 'unseen').sort(order) };
 }
@@ -129,7 +136,10 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     const last = contactNow(state)?.last ?? null;
     const seen = threatsOf(state, N, me, mem);
     // (hands not seen: Challenge, once a contact, as the panel leads with it)
-    const ask = seen.unseen.find(T => !(mem.challenged ?? []).includes(`${last?.id}:${T.key}`));
+    // (never a standing step in a doorway: the challenge waits until the feet are out of it, as a player who knows not to stop
+    // there (the user, 2026-11-13: "soldiers need to stay fluidly moving"; the reach review's pause on the #2's man he cannot
+    // yet see came in room 3's doorway for the recruit))
+    const ask = plan && inFunnel(plan, me.x, me.z) ? null : seen.unseen.find(T => !(mem.challenged ?? []).includes(`${last?.id}:${T.key}`));
     if (last && ask && !seen.armed.length) {
       if (S.pick !== ask.key) return choose(`pick=${ask.key}`);
       (mem.challenged ??= []).push(`${last.id}:${ask.key}`);
@@ -172,7 +182,7 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     }
     // ---- step by step (and by T where no bundle applies) ----
     const door = plan.door, opened = !door || L.state === 'open' || L.state === 'entered' || !steps.some(s => s.id.startsWith(`door:`) && s.id.endsWith(`>${door}`) && !s.id.startsWith('door:hold'));
-    const stackRow = row(s => s.id.startsWith('drill:room:stack>'));
+    const stackRow = row(s => s.id.startsWith('drill:stack:up>'));
     if (L.state === 'ahead' && stackRow && !inside) return choose(stackRow.id);
     if (!opened) {
       const d = row(s => /^door:(push|pull)>/.test(s.id)) ?? row(s => s.id.startsWith('door:kick>'));
@@ -189,6 +199,9 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     if (!inside && !door) {
       if (has('move:hallEnd') && Math.hypot(me.x - plan.points[0][0], me.z - plan.points[0][1]) > POINT_M) return choose('move:hallEnd');
     }
+    // (a walk toward the far leg cut by a contact goes on once the shots are done, never back to the point first: a human keeps
+    // going where he was going (2026-11-13, the rework's R8b: the far leg left unseen on 2 of 200 keys lanes))
+    if (mode === 'keys' && mem.walk?.untilCovered && mem.walk.leg === legI && !L.corners?.by?.[mem.walk.untilCovered] && !(seen.armed.length || seen.unseen.length)) return choose('leave');
     if (inside && has('move:point')) return choose('move:point');
     // (every hot spot on your side neither of you has covered: a Look, once each; one still unseen past a bend walked
     // toward by the keys until it is; the #2's side his; then "Clear!")
@@ -231,6 +244,12 @@ function walk(state, me, mem, now, humanStartMs) {
   if (w.untilCovered) {
     const N = houseNow(state), L = N?.legs?.[N.cur], h = w.path.at(-1);
     if (!L || L.corners?.by?.[w.untilCovered] || Math.hypot(me.x - h[0], me.z - h[1]) <= (w.stopM ?? 1)) { mem.walk = null; return { act: ['ready'] }; }
+  }
+  // (a point already passed is not walked back to (a human's eye: past it along the next leg), as when the game carried him on
+  // through a doorway while the keys were not his (the rework's R8b: places/move.js throughOf))
+  while (w.k < w.path.length - 1) {
+    const [ax, az] = w.path[w.k], [bx, bz] = w.path[w.k + 1];
+    if ((me.x - ax) * (bx - ax) + (me.z - az) * (bz - az) > 0) w.k += 1; else break;
   }
   while (w.k < w.path.length) {
     let p = w.path[w.k];
@@ -282,6 +301,108 @@ export function houseTBot() {
     return {};
   };
 }
+
+/** The lines that name a shot and leave it to the player (no act): the honest bot takes the row they name on a man of his own. */
+export const SHOT_LINES = Object.freeze(new Set(['cqb-contact', 'cqb-still-up', 'cqb-hostage']));
+/** A T the game refuses this many times at one ms is a dead end (the act named, nothing done). */
+export const REFUSED_N = 3;
+/** Ticks of a stop with no act before the honest bot calls it a dead end (the line has its ticks to come, as on the page). */
+export const DEAD_TICKS = 3;
+/** The dead-end log kept on the bot's memory, per lane (entries). */
+export const DEAD_LOG_N = 60;
+
+/**
+ * The honest T bot (COMBAT §25.19.8, the flawless suites' player; R9's gauge): T, as the page sends it (the line's id and act,
+ * so T never does a line the player did not see), and, at a stop whose line names a shot and leaves it to him (no act), the
+ * row it names on the bracketed man of his own corner (slot 1, or any man with no #2): "Pair." the pair, "Press." Fire,
+ * "Head." the head. Nothing else: never a Wait, never a row of its own choosing, never G, never X.
+ *
+ * Where that leaves it nothing to press (a dead end: a stop whose line has no act and names no shot of his, a T the game
+ * refuses REFUSED_N times, a reflex card whose line has no act, a shot named on the #2's man), it writes the dead end on its
+ * memory (mem.dead by kind, mem.deadLog: { atMs, kind, leg, line }) and falls back so the measure goes on: on the lane a
+ * Wait, else X; at a reflex card the card's first answer (or `answer`'s, the stoppage bot's); off the lane (before GO and
+ * after it: the tower's commands) the calm house bot's press, counted in mem.hand. Out of stop motion on the lane with no
+ * act it presses nothing (time runs, the scene's stall clock is the judge) and counts the ms in mem.outMs. mem.T counts
+ * the presses of T, mem.shots the named shots, mem.presses every press. Its memory is plain data (me.bot), so a save holds it.
+ */
+export function houseHonestBot({ answer = null } = {}) {
+  const calm = houseBot({ mode: 'T' });
+  return (state, me, mem) => {
+    mem.T ??= 0; mem.shots ??= 0; mem.presses ??= 0; mem.hand ??= 0; mem.waits ??= 0; mem.leaves ??= 0; mem.outMs ??= 0; mem.dead ??= {}; mem.deadLog ??= [];
+    const N = houseNow(state);
+    if (!N || N.rangeEnd) { mem.done = true; return {}; }
+    if (state.skip || contactNow(state)?.pending) return {};
+    const S = state.stop, now = state.clock.ms, line = instinctNow(state).line, lane = N.goAtMs !== null && !N.end;
+    // (a dead end, once a stop: the kind, the leg, the line)
+    const dead = (kind) => {
+      const k = `${now}|${kind}`;
+      if (mem.deadAt === k) return;
+      mem.deadAt = k; mem.dead[kind] = (mem.dead[kind] ?? 0) + 1;
+      mem.deadLog.push({ atMs: now, kind, leg: N.cur, line: line?.id ?? null, lane });
+      if (mem.deadLog.length > DEAD_LOG_N) mem.deadLog.splice(0, mem.deadLog.length - DEAD_LOG_N);
+    };
+    const press = (act) => { mem.presses++; return { act: [act] }; };
+    // (T as the page sends it; refused REFUSED_N times at one ms with one act: a dead end)
+    const tryT = () => {
+      if (!line?.act) return null;
+      const k = `${now}|${line.id}|${line.act}`;
+      mem.tn = mem.tAt === k ? (mem.tn ?? 0) + 1 : 0; mem.tAt = k;
+      if (mem.tn >= REFUSED_N) { dead(`refused:${line.id}`); return null; }
+      mem.T++;
+      return press({ act: 'instinct', args: { id: line.id, act: line.act } });
+    };
+    // (the reflex card: T where the line answers it, else the card's first answer, or the one the stoppage bot forces)
+    if (S?.reflex) {
+      if (answer === null) { const t = tryT(); if (t) return t; }
+      // (an answer shown struck (the rework's R6: Transition below the Sergeant, "not issued") is not offered: the card's first)
+      const opts = S.reflex.options, o = (answer !== null ? opts.find(x => x.key === answer && !x.off) : null) ?? opts[0];
+      if (answer !== null && !opts.some(x => x.key === answer && !x.off)) { mem.notOffered ??= {}; mem.notOffered[answer] = (mem.notOffered[answer] ?? 0) + 1; }
+      if (answer === null) dead(`reflex:${line?.id ?? 'no line'}`);
+      (mem.cards ??= []).push({ atMs: now, keys: opts.map(x => x.key), chose: o.key });
+      if (mem.cards.length > 20) mem.cards.splice(0, mem.cards.length - 20);
+      return press(stepAct(`reflex:${o.key}`));
+    }
+    const choosing = S?.mode === 'stop' && S.phase === 'choose';
+    // (the line names the shot and leaves it to him: the row it names on the bracketed man, his own)
+    if (choosing && line && !line.act && SHOT_LINES.has(line.id)) {
+      const T = N.turners.find(t => t.key === S.pick), mine = T && (!N.two?.pid || (T.slot ?? 1) === 1);
+      if (T && !T.down && T.facingK >= 0.5 && mine && mem.shotAt !== now) {
+        const rows = stepsOf(state).filter(x => (isShotRow(x) || x.id === 'fire') && !x.off && (x.target ?? T.key) === T.key);
+        const named = line.variant === 'press' ? rows.find(x => x.id === 'fire')
+          : line.id === 'cqb-contact' ? rows.find(x => /^shot:pair/.test(x.id)) ?? rows.find(isShotRow)
+            : rows.find(x => /head/.test(x.id)) ?? rows.find(isShotRow);
+        if (named) { mem.shotAt = now; mem.shots++; return press(stepAct(named.id, 'normal', T.key)); }
+      }
+      if (T && !mine) dead(`his man named:${line.id}`);
+    }
+    const t = tryT();
+    if (t) return t;
+    // ---- nothing T or the line gives ----
+    if (!lane) {
+      // (before GO and after the lane: the tower's commands; what T does not do there, the calm bot does, counted; never
+      // over a step running, which T may have started)
+      if (S && !choosing) return {};
+      const out = calm(state, me, (mem.calm ??= {}));
+      if (out?.act?.length) { mem.hand++; (mem.handBy ??= {})[N.cmd ?? 'none'] = (mem.handBy[N.cmd ?? 'none'] ?? 0) + 1; if (choosing) dead(`off the lane:${N.cmd ?? 'none'}`); }
+      return out ?? {};
+    }
+    if (!S) { mem.outMs += TICK_MS; return {}; }
+    if (!choosing) return {};
+    // (a stop with no act: its ticks to settle, then a dead end, and the fallback so the measure goes on)
+    mem.nl = mem.nlAt === now ? (mem.nl ?? 0) + 1 : 0; mem.nlAt = now;
+    if (mem.nl < DEAD_TICKS) return {};
+    dead(line ? `no act:${line.id}` : 'no line');
+    const offered = stepsOf(state);
+    if (offered.some(x => x.id === 'wait' && !x.off)) { mem.waits++; return press(stepAct('wait')); }
+    if (offered.some(x => x.id === 'leave' && !x.off)) { mem.leaves++; return press(stepAct('leave')); }
+    return {};
+  };
+}
+
+/** The stoppage bot (COMBAT §25.19.8 F20): the honest bot with the reflex card's answer forced to `answer` wherever the card offers it. */
+export const stoppageBot = ({ answer }) => houseHonestBot({ answer });
+/** The keys bot (the recruit and the private by the keys, COMBAT §25.19.8 F21): the house bot's keys mode. */
+export const houseKeysBot = (o = {}) => houseBot({ mode: 'keys', ...o });
 
 /** The fuzz bot's weights against 1 for every other row (my calls): a bundle, X, a door's row. */
 export const HOUSE_FUZZ_W = Object.freeze({ bundle: 6, leave: 4, door: 3 });

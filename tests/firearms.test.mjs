@@ -224,11 +224,14 @@ export default [
     },
   },
   {
-    name: 'tradecraft\'s fumble ladder, exactly: its own experiment (stream(\'fa\', 3): a Makarov drawn from the belt 400 times at values 1, 7, 21, 31, a chambered Glock holstered 400 times at 1) through act() gives its numbers',
+    name: 'tradecraft\'s fumble ladder: its own experiment (stream(\'fa\', 3): a Makarov drawn from the belt 400 times at values 1, 7, 21, 31, a chambered Glock holstered 400 times at 1) through act() gives its fumbles, drops and discharges exactly where the mastery rule leaves them (values 1 and 7), and the mastery rule\'s own where it does not (SKILLS §5.1: at 21 and 31 every natural 1 caught, 17 and 27 fumbles none; every value\'s clean natural 20s ×2/3, so the means are re-pinned on purpose, 2026-11-12)',
     fn() {
       // tradecraft v0.2.0-rc3 tests/firearms.test.mjs, its third test, run from a scratch script against its own
       // modules (2026-11-06): 1.847, 1.394, 0.923, 0.590 s mean; 119, 13, 17, 27 fumbled; 15, 6, 0, 0 dropped; 12 discharges.
-      const WANT = { s: ['1.847', '1.394', '0.923', '0.590'], fumbled: [119, 13, 17, 27], dropped: [15, 6, 0, 0], discharges: 12 };
+      const TRADECRAFT = { s: ['1.847', '1.394', '0.923', '0.590'], fumbled: [119, 13, 17, 27], dropped: [15, 6, 0, 0], discharges: 12 };
+      // (OLYMPUS's from the shoot house's rework R4 (the mastery rule): the same draws, the 1s at 21 and 31 caught at ×1.5, every
+      // natural 20 on the draw clean at ×2/3; the fumbles and drops at 1 and 7 tradecraft's, unchanged)
+      const WANT = { s: ['1.828', '1.362', '0.903', '0.578'], fumbled: [119, 13, 0, 0], dropped: [15, 6, 0, 0], discharges: 12 };
       const tcPace = (v) => Math.max(0.5, Math.min(1.6, 1.6 - v / 30));
       const MAKAROV = { kind: 'pistol', short: 'Makarov', safety: 'manual', holdOpen: true }, GLOCK = { kind: 'pistol', short: 'Glock', safety: 'none', holdOpen: true };
       const rng = stream('fa', 3), got = { s: [], fumbled: [], dropped: [] };
@@ -249,9 +252,10 @@ export default [
         const r = act(rng, roller, gun, mag, 'stow', { model: GLOCK, pace: tcPace(1), pressure: 'danger', posture: 'lowReady' });
         if (r.mishap === 'discharge') shots++;
       }
-      console.log(`      draws from the belt at 1, 7, 21, 31: ${got.s.join(', ')} s mean; fumbled ${got.fumbled.join(', ')}; dropped ${got.dropped.join(', ')} (tradecraft: ${WANT.s.join(', ')}; ${WANT.fumbled.join(', ')}; ${WANT.dropped.join(', ')})`);
+      console.log(`      draws from the belt at 1, 7, 21, 31: ${got.s.join(', ')} s mean; fumbled ${got.fumbled.join(', ')}; dropped ${got.dropped.join(', ')} (tradecraft: ${TRADECRAFT.s.join(', ')}; ${TRADECRAFT.fumbled.join(', ')}; ${TRADECRAFT.dropped.join(', ')})`);
+      assert(got.fumbled.slice(0, 2).join() === TRADECRAFT.fumbled.slice(0, 2).join() && got.dropped.join() === TRADECRAFT.dropped.join(), 'tradecraft\'s fumbles and drops below mastery');
       console.log(`      a chambered Glock holstered 400 times at 1: ${shots} discharges (tradecraft: ${WANT.discharges})`);
-      assert(JSON.stringify(got) === JSON.stringify({ s: WANT.s, fumbled: WANT.fumbled, dropped: WANT.dropped }) && shots === WANT.discharges, 'tradecraft\'s numbers, exactly');
+      assert(JSON.stringify(got) === JSON.stringify({ s: WANT.s, fumbled: WANT.fumbled, dropped: WANT.dropped }) && shots === WANT.discharges, 'the ladder\'s numbers, exactly');
     },
   },
   {
