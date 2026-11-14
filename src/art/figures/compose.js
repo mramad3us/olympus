@@ -52,7 +52,11 @@
 // the magazine well), 'check' (the muzzle up, the left hand at the port, the eyes down on it),
 // 'proneRest' (prone, the rifle forward off the shoulder); kneeling, the rigs follow the kneeling body;
 // prone (rig.prone), the hands work with the rifle propped on the elbows, its well clear of the ground,
-// and a slung rifle lies across the back. Pure.
+// and a slung rifle lies across the back.
+// The look samples' marks (look.mark, outfits.js wear(); samples/house-stack-figures, the stack told apart in the black suit;
+// no look of the game carries one, so the game's frames are unchanged): rim, the edge of each leg, boot and the far arm
+// toward the light (the pixels whose left neighbour is not their own part) in the fixed letter ŕ; tape, the band's letter i
+// round the sealed helmet over the visor and, side on, on the near upper arm. Pure.
 import { PX_PER_M } from '../../render/scale.js';
 import { bodyOf } from './body.js';
 import { poseOf, cellKind, AIM_TILT, KICK_TILT } from './poses.js';
@@ -461,6 +465,9 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
   const op = (depth, run) => ops.push({ depth, run, n: ops.length });
   const top = Lk.top?.kind ?? 'blouse', legsKind = Lk.legs?.kind ?? 'trousers';
   const T = B.thick;
+  // (the look samples' marks, look.mark (outfits.js wear(): the stack's figures sample, samples/house-stack-figures; never set by
+  // the game): the parts a rim of light is drawn on, kept as they are begun)
+  const rimParts = Lk.mark?.rim ? new Set() : null;
 
   // Legs: thigh and shin one part, the boot its own (a dark line where the trouser meets it).
   // (pose.farShade: the leg farther from the camera, by its hip and ankle, drawn a shade darker (upper-case letters), so the
@@ -473,14 +480,16 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
     const dark = (r) => (s !== farLeg ? r : typeof r === 'function' ? (kk) => r(kk).toUpperCase() : r.toUpperCase());
     op(d, () => {
       const a = pp(hip), k = pp(knee), b = pp(ankle);
-      g.begin(a[0], a[1]);
+      const lp = g.begin(a[0], a[1]);
+      rimParts?.add(lp);
       const legRole = legsKind === 'shorts' ? (kk) => (kk < 0.55 ? 'p' : 's') : legsKind === 'towel' ? (kk) => (kk < 0.7 ? 'p' : 's') : 'p';
       g.capsule(snap2(a, T.thigh), snap2(k, T.thigh), T.thigh / 2, dark(legRole));
       const shinRole = legsKind === 'shorts' ? (kk) => (kk > 0.62 ? 'ŝ' : 's') : legsKind === 'towel' ? 's' : legsKind === 'coverall' ? (kk) => (kk > 0.35 && kk < 0.55 ? 'i' : 'p') : 'p';
       g.capsule(snap2(k, T.shin), snap2(b, T.shin), T.shin / 2, dark(shinRole));
     });
     op(P.depth(ft.toe) / 2 + P.depth(ft.heel) / 2 - 0.035, () => {
-      g.begin();
+      const bp = g.begin();
+      rimParts?.add(bp);
       box(g, pp, ft.heel, ft.toe, J.left, B.footW, B.footH, ft.dir, dark('f'));
     });
   }
@@ -508,14 +517,18 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
   }
   // Arms: upper arm, forearm and hand (gloved or bare), each arm one part.
   const [upperRole, foreRole] = ROLE_ARM[top] ?? ROLE_ARM.blouse;
+  // (the marks: the far arm, by its shoulder's depth, takes the rim; side on, the near arm's shoulder the tape)
+  const farArm = P.depth(J.sh.r) < P.depth(J.sh.l) ? 'r' : 'l', sideOn = dir === 'left' || dir === 'right';
   for (const s of ['r', 'l']) {
     const sh = J.sh[s], el = J.el[s], wr = J.wr[s];
     const handDir = norm(sub(wr, el)), tip = add(wr, mul(handDir, B.hand * 0.7));
     const d = Math.max(P.depth(el), (P.depth(sh) + P.depth(el) + P.depth(wr)) / 3) + 0.02;
     op(d, () => {
       const a = pp(sh), e = pp(el), w2 = pp(wr), h2 = pp(tip);
-      g.begin(a[0], a[1]);
-      const shell = top === 'suit' ? (k) => (k < 0.38 ? 'c' : upperRole) : Lk.brassard && s === 'l' ? (k) => (k > 0.12 && k < 0.8 ? 'i' : upperRole) : upperRole;
+      const ap = g.begin(a[0], a[1]);
+      if (s === farArm) rimParts?.add(ap);
+      const taped = top === 'suit' && Lk.mark?.tape && sideOn && s !== farArm;
+      const shell = taped ? (k) => (k < 0.12 ? 'c' : k < 0.42 ? 'i' : upperRole) : top === 'suit' ? (k) => (k < 0.38 ? 'c' : upperRole) : Lk.brassard && s === 'l' ? (k) => (k > 0.12 && k < 0.8 ? 'i' : upperRole) : upperRole;
       g.capsule(snap2(a, T.arm), snap2(e, T.arm), T.arm / 2, shell);
       g.capsule(snap2(e, T.fore), snap2(w2, T.fore), T.fore / 2, (k) => (top === 'suit' && k > 0.82 ? 'ð' : foreRole));
       g.capsule(snap2(w2, T.hand), snap2(h2, T.hand), T.hand / 2, Lk.gloves ? 'd' : 's');
@@ -547,6 +560,18 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
 
   ops.sort((a, b) => a.depth - b.depth || a.n - b.n);
   for (const o of ops) o.run();
+  // (the rim (look.mark.rim): each leg, boot and the far arm lit along its edge toward the light, the upper left: a pixel whose
+  // left or upper neighbour is not its own part takes the rim's letter ŕ, fixed (outfits.js coloursOf), so a black limb's
+  // outline reads against the body and the other limbs it crosses)
+  if (rimParts) {
+    const C = g.cells, own = (x, y, p) => C[y]?.[x]?.part === p;
+    const hit = [];
+    for (let y = 0; y < C.length; y++) for (let x = 0; x < C[y].length; x++) {
+      const c = C[y][x];
+      if (c && rimParts.has(c.part) && !own(x - 1, y, c.part)) hit.push(c);
+    }
+    for (const c of hit) { c.ch = 'ŕ'; c.t = 'base'; }
+  }
   let cells = g.cells;
   if (pose.roll) { const b = bbox(cells); cells = rotateCells(cells, pose.roll, (b.x0 + b.x1 + 1) / 2, (b.y0 + b.y1 + 1) / 2); muzzle = null; }
   let dx = M, dy = M;                                              // (where the cell's top-left is on the drawing grid)
@@ -841,7 +866,15 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
       if (ch !== '.' && c && c.part === head && /^[sĥħ]$/.test(c.ch)) g.on(head, x0 + top.x + i, y0 + top.y + j, 'h');
     }));
   }
-  if (covering) { const t = T(K.hat[hat]).t; g.begin(x0, y0); g.tpl(t, x0, y0); }
+  if (covering) {
+    const t = T(K.hat[hat]).t, hp = g.begin(x0, y0);
+    g.tpl(t, x0, y0);
+    // (the marks' tape (look.mark.tape): a band round the sealed helmet's dome, the two rows over the visor, in the band's letter i)
+    if (sealed && Lk.mark?.tape) for (let j = 3; j <= 4; j++) {
+      const y = y0 + t.y + Math.round(j * H / 12);
+      for (let x = 0; x < (g.cells[y]?.length ?? 0); x++) { const c = g.cells[y][x]; if (c && c.part === hp && c.ch.toLowerCase() === 'a') { c.ch = 'i'; c.t = null; } }
+    }
+  }
   // (0.0.12: the combat EVA suit's helmet seals to its collar, so no skin shows under it: the skull's last rows are the suit's skin)
   if (sealed && Lk.outfit === 'combatSuit') for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) { const c = g.cells[y][x]; if (c && c.part === head && c.ch === 's') c.ch = 'p'; }
   if ((Lk.ears || Lk.headset) && !sealed && pose.stance !== 'supine') earCups(g, Lk, view, x0, y0, W, H, B);

@@ -52,12 +52,18 @@
 // scale. The rifle is the model's design (rifles.js DRAWN_AS) or the design named (the gun samples, samples/guns), in the finish
 // given (none: the issue's, the Corps' black): a design draws its body and says where its well, selector, port and turrets are,
 // and the state parts are drawn there.
+//   - the P-12's designs (src/art/pistols.js; the user's scores to come, samples/p12-card): a `drawing` that names a pistol design
+//     draws that pistol at its own density, its state drawn on it by the design (the slide locked back, the port's witness, the
+//     HAD-17 in its grip's witness slot, the safety's paddle, the HAD-17 in the hand), the words and the selector's marks here at
+//     the stations it returns. Only a sample names one: the game's card passes the model, and a P-12 in hand still draws the R-7
+//     until the pick (pistols.js PISTOL_DRAWN_AS).
 // cardParts(belief) → the glyphs it will draw (for the tests: every glyph read from the belief alone).
 // Pure: no DOM, no three.js.
 import { paint } from './paint.js';
 import { text, textWidth } from './font.js';
 import { tone } from './tone.js';
 import { drawingOf, MAG_SHOWN_M, MAG_HIDDEN_M, MAG_W_PX, MAG_CURVE_PX } from './rifles.js';
+import { pistolDrawingOf } from './pistols.js';
 
 /** The card, pixels (the hud's STEPS card: the sheet's §4). */
 export const CARD_W = 180, CARD_H = 148;
@@ -150,8 +156,9 @@ const M = (m) => Math.round(m * CARD_PX_PER_M);
 /** The card for a belief (see the header). */
 export function paintWeaponCard({ model = 'r7', drawing = null, finish = null, belief = {}, k = 1, distance = false, line = null, hold = null, zeroing = null } = {}) {
   const P = cardParts(belief, { distance, line, hold, zeroing });
-  // (the model's design (rifles.js DRAWN_AS), or a design named outright: the samples'; in the gun's finish, the caller's)
-  const D = drawingOf(drawing ?? model, finish ?? undefined);
+  // (the model's design (rifles.js DRAWN_AS), or a design named outright: the samples', a pistol's among them (pistols.js);
+  // in the gun's finish, the caller's)
+  const D = (drawing && pistolDrawingOf(drawing, finish ?? undefined)) || drawingOf(drawing ?? model, finish ?? undefined);
   let S = null;
   const base = paint(CARD_W, CARD_H, (px, w, h) => {
     // The backdrop: the doll's wall and floor (VIEWS §4.1), the rifle's shadow thrown a little right.
@@ -194,6 +201,8 @@ const at = (m) => X0 + M(m);
 // The rifle and what the holder believes of it: its design's body (rifles.js: its card() returns its stations), then the
 // state parts at the stations; the turrets on the optic where the card shows the distance. Returns the stations, for marks().
 function rifle(px, P, D) {
+  // (a pistol's design draws its body and its state itself, at its own density: pistols.js)
+  if (D.kind === 'pistol') return D.card({ px, P, say });
   const S = D.card({ px, at, M, Y0, optic: P.optic });
   if (P.far && S.turrets) turrets(px, P.far, S.turrets);
   stateParts(px, P, S, D.mag);
@@ -305,10 +314,11 @@ function handMag(px, H, look = R7_MAG) {
 function marks(px, P, S = R7_STATIONS) {
   // The selector's marks round its pivot (S forward, 1 up, A back: a dot each, the believed one lit), and
   // the mode's word on the floor under the stock, white on safe and red off it.
-  const [sx, sy] = S.sel, dots = { safe: [sx + 6, sy], semi: [sx, sy - 6], auto: [sx - 6, sy] };
+  // (a pistol's stations give its safety's two marks, the mode's word's place and the hand's: pistols.js)
+  const [sx, sy] = S.sel, dots = S.dots ?? { safe: [sx + 6, sy], semi: [sx, sy - 6], auto: [sx - 6, sy] };
   for (const [mode, [x, y]] of Object.entries(dots)) px(x, y, 1, 1, mode === P.mode ? (mode === 'safe' ? MARK : RED) : DIM);
   const word = { safe: 'SAFE', semi: 'SEMI', auto: 'AUTO' }[P.mode] ?? String(P.mode).toUpperCase();
-  say(px, X0 - 6, WORD_Y, word, P.mode === 'safe' ? MARK : RED, WORD_K);
+  say(px, S.wordX ?? X0 - 6, WORD_Y, word, P.mode === 'safe' ? MARK : RED, WORD_K);
   // The port's "?" (never checked) or "!" (a stoppage felt, not yet looked at), above the receiver over the port.
   if (P.mark) say(px, S.mark[0], S.mark[1], P.mark, AMBER);
   // The magazine's believed count beside its baseplate ("≈" when it is a guess), "MAG OUT" with none, in the
@@ -320,7 +330,8 @@ function marks(px, P, S = R7_STATIONS) {
   // (the hand's magazine: its count believed, else its weight's band, else "?"; "TR" in red when believed tracer)
   if (P.hand) {
     const H = P.hand, word = H.count !== null ? `${H.approx ? '≈' : ''}${H.count}` : H.feel ? FEEL_CARD[H.feel] ?? '?' : '?';
-    const x = HAND_X - 4;
+    // (a pistol's station, kept 4 px inside the card's right edge as MAG OUT is: "A FEW" from it ran to the edge; the rifle's as it was)
+    const x = S.handX != null ? Math.min(S.handX, CARD_W - 4 - sayWidth(word) * WORD_K) : HAND_X - 4;
     say(px, x, WORD_Y, word, MARK, WORD_K);
     if (H.load === 'tracer') say(px, x + (sayWidth(word) + 2) * WORD_K, WORD_Y, 'TR', RED, WORD_K);
   }

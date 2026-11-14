@@ -1,0 +1,20 @@
+{
+ "title": "The P-12 on the figure at 16 px/m, moving: drawn from the thigh, aimed, fired, holstered",
+ "about": "Each design's figure template (seven pixels along, the size a chibi's pistol is drawn) in the hand of the game's own figure, the shoot house's sergeant in the black combat EVA suit and carrier, on the house's slab floor, snapped to the Mars palette. The loop runs 5.2 s on WEAPONS' base times: holstered; the draw, 1.1 s (the hand to the holster, the pistol clear of it one-handed, the press out, the sights); two shots 0.4 s apart, each its kick and flash; the aim held; a scan at the low ready; the holster, 1.3 s. The gallery's picture is a still at the aim between the shots: open a view (O) and it moves (Space stops it, S slows it to a quarter, R starts it again). The game draws its old pistol until you pick; at 16 px/m the designs differ by a pixel or two (B's plate and hooked guard, C's tall rear in one tone, D's lanyard loop), so the card carries the choice and this asks whether the figure's pistol reads at all. In the suit the pistol and the holster are black on black: the last view is the same in utilities with the carrier, where they read.",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "P12M",
+   "title": "P12M: the draw, the aim and the holster, moving",
+   "about": "Each view: the four facings at 16 px/m, the figure side on three times larger, the template alone at 16 px/m and six times larger, and the loop's phases with the one running lit. Then the four designs on one clock.",
+   "views": [
+    { "id": "P12M-a", "name": "A, the service pistol, in the combat EVA suit", "query": "set=draw&d=p12a", "pixel": "320x184" },
+    { "id": "P12M-b", "name": "B, the slab, in the combat EVA suit", "query": "set=draw&d=p12b", "pixel": "320x184" },
+    { "id": "P12M-c", "name": "C, the monolith, in the combat EVA suit", "query": "set=draw&d=p12c", "pixel": "320x184" },
+    { "id": "P12M-d", "name": "D, the lanyard, in the combat EVA suit", "query": "set=draw&d=p12d", "pixel": "320x184" },
+    { "id": "P12M-e", "name": "The four on one clock, side on, facing you and away, in the combat EVA suit", "query": "set=all", "pixel": "420x196" },
+    { "id": "P12M-f", "name": "The four on one clock in utilities with the carrier", "query": "set=all&look=util", "pixel": "420x196" }
+   ]
+  }
+ ]
+}

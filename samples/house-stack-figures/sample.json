@@ -1,0 +1,22 @@
+{
+ "title": "The stack's figures: two marines in the black suit told apart, moving, in the shoot house (today's look and five candidates)",
+ "about": "The v0.0.14 reviews: \"You and your #2 merge into one blob on the walk\" and \"In the black suit the legs barely read\". The suit stays black (the Corps' armour is black); five ways to keep the two men and their legs apart at 16 px/m, each beside today's look. Every view is the game's own picture of the hall at room 1's door (test-shoothouse at 10:00 on seed 48213: the house's light and floor, the fog of awareness, the post pass, the Mars palette; shot by capture.mjs with the stack moved out), with the stack drawn over it as the stage draws it: the game's figure code (walk cycle B's Combat glide at the low ready, side on with the plant lock; the stack's beat when still), lit by the tint the view gives a figure there, then the post pass's outline, grade and snap. S-h checks that drawing against the game's own picture of GO. The moment, 8.7 s looped: you and your #2 glide (1.23 m/s) from the start mark to the stack on room 1's door, one behind the other along the hall (one depth: the blob), then your #2 crosses in front of you to the door's far side (0.65 m nearer the camera). The gallery's pictures are stills at each tile's telling moment; open a view live (O) and it moves: Space stops and starts it, S slows it to a quarter, the arrows step a tick while stopped, R starts again. Score each candidate in motion; several can be joined (say which).",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "S",
+   "title": "S: the stack walking up to room 1's door and your #2 crossing in front of you, today's look and five candidates",
+   "about": "Each view: on the left the walk up (you and your #2 one behind the other along the hall, at one depth), on the right the pass (your #2 crossing in front of you, from the stack to the door's far side); live, each tile loops its own part of the moment. S0 is today's look as v0.0.14 draws it: the black shell and the darker skin snap to two of the palette's darks, the ink outline to a third as dark, the outline the post pass draws between two men at one depth is ink too, and the soft blob under each (0.84 m across) merges under two men 0.65 m apart. S1 a lit edge: each leg, boot and the far arm takes a pixel of cool grey on its edge toward the light (the upper left), so the legs show as lines that scissor. S2 a visor per man: yours the issue's smoked blue, your #2's gold. S3 the Navy's red tape on your #2: a band round his helmet over the visor, on his shoulders from the front and behind, on his near upper arm side on. S4 a pixel of the floor's tone between them: where one man lies over the other, the one under is cut back a pixel round him in the hall floor's colour (a post pass rule; today that pixel is ink). S5 a cast shadow per body: each man's legs laid flat on the floor away from the light, hard-edged, in place of the blob. S1 to S3 are the figure code's own marks (a look's mark, which no look in the game carries yet); S4 and S5 are drawn by the sample as the post pass and the stage's shadow would draw them. S-g puts the six side by side on one clock; S-h is the check.",
+   "views": [
+    { "id": "S-a", "name": "S0, today's look (the reference)", "query": "set=pair&c=S0", "pixel": "334x134" },
+    { "id": "S-b", "name": "S1, a lit edge on the legs and the far arm", "query": "set=pair&c=S1", "pixel": "334x134" },
+    { "id": "S-c", "name": "S2, a visor per man: yours blue, your #2's gold", "query": "set=pair&c=S2", "pixel": "334x134" },
+    { "id": "S-d", "name": "S3, the Navy's red tape on your #2 (helmet, shoulders, near arm)", "query": "set=pair&c=S3", "pixel": "334x134" },
+    { "id": "S-e", "name": "S4, a pixel of the floor's tone between the two men", "query": "set=pair&c=S4", "pixel": "334x134" },
+    { "id": "S-f", "name": "S5, a cast shadow under each man in place of the blob", "query": "set=pair&c=S5", "pixel": "334x134" },
+    { "id": "S-g", "name": "The six side by side on one clock (live: the whole moment)", "query": "set=all", "pixel": "500x246" },
+    { "id": "S-h", "name": "The check: today's look at GO drawn by the sample, beside the game's own picture", "query": "set=check", "pixel": "334x134" }
+   ]
+  }
+ ]
+}

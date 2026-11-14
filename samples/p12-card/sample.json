@@ -1,0 +1,56 @@
+{
+ "title": "The P-12 on the weapon card: four designs in the Corps' black",
+ "about": "The P-12 (the sidearm from the Sergeant up, a HAD-17 of ten frangible, the thigh holster) has had no drawing: with the pistol in hand the card still draws the R-7, and the game keeps doing so until you pick. Four designs, each drawn by the game's own weapon card (src/art/pistols.js, reached only by these samples), at three times the rifle's density (432 px/m: the 19.5 cm pistol is 84 px, where at the rifle's 144 it would be 28). What the card shows is what you believe: the slide locked back with the barrel out of its nose; a sliver of brass at the hood's rear when a round is believed chambered (a loaded chamber witness, my call); the HAD-17's rounds seen through a witness slot in the grip's back, from the top (my call: the HAD-17 has its witness holes), \"?\" on the baseplate when the count was never checked; the well's open mouth with the magazine out; the oversized safety's paddle up for SAFE, down for SEMI; a stovepipe or a double feed in the port once looked at; a magazine in the hand right of the muzzle, its holes to its count. A: the service pistol (squared slide, front and rear serrations, rail, stippled grip). B: the slab (chamfered nose, angled serrations, the RD-1P's cut closed by its cover plate, a ledge rear sight for racking one-handed, hooked guard, flared well, pad on the baseplate). C: the monolith (slide and frame one tone, the slide sloping from a tall rear, a full dust cover, finger grooves, long beavertail). D: the lanyard (rounded nose, fish scales, a window over the barrel, a lanyard loop at the heel: a dropped pistol in free fall leaves). Shown raw, as the hud shows the card.",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "P12A",
+   "title": "P12A: the service pistol",
+   "about": "A squared slide with rear and front serrations, the frame's rail under the dust cover, a rounded undercut guard, a short beavertail, a stippled grip, a flush baseplate, low irons.",
+   "query": "d=p12a",
+   "views": [
+    { "id": "P12A-a", "name": "Condition 1 on safe with ten; firing, about six left; locked back on empty; a stovepipe, a full magazine in the hand", "query": "set=card", "pixel": "740x156" },
+    { "id": "P12A-b", "name": "Never checked; a double feed with a light magazine in the hand; Condition 3; the magazine out", "query": "set=more", "pixel": "740x156" }
+   ]
+  },
+  {
+   "id": "P12B",
+   "title": "P12B: the slab",
+   "about": "A flat-sided slide with a chamfered nose and angled serrations, the RD-1P's cut closed by its cover plate (the dot waits), a ledge rear sight, a squared guard with a hook, a flared magwell, a pad on the baseplate.",
+   "query": "d=p12b",
+   "views": [
+    { "id": "P12B-a", "name": "Condition 1 on safe with ten; firing, about six left; locked back on empty; a stovepipe, a full magazine in the hand", "query": "set=card", "pixel": "740x156" },
+    { "id": "P12B-b", "name": "Never checked; a double feed with a light magazine in the hand; Condition 3; the magazine out", "query": "set=more", "pixel": "740x156" }
+   ]
+  },
+  {
+   "id": "P12C",
+   "title": "P12C: the monolith",
+   "about": "Slide and frame in one tone, the slide's top sloping from a tall rear to the nose, a full dust cover to the muzzle, a straighter grip in finger grooves, a long beavertail.",
+   "query": "d=p12c",
+   "views": [
+    { "id": "P12C-a", "name": "Condition 1 on safe with ten; firing, about six left; locked back on empty; a stovepipe, a full magazine in the hand", "query": "set=card", "pixel": "740x156" },
+    { "id": "P12C-b", "name": "Never checked; a double feed with a light magazine in the hand; Condition 3; the magazine out", "query": "set=more", "pixel": "740x156" }
+   ]
+  },
+  {
+   "id": "P12D",
+   "title": "P12D: the lanyard",
+   "about": "A rounded nose, fish-scale serrations, a lightening window over the barrel's front, a round guard, a wrapped grip, and a lanyard loop at the heel.",
+   "query": "d=p12d",
+   "views": [
+    { "id": "P12D-a", "name": "Condition 1 on safe with ten; firing, about six left; locked back on empty; a stovepipe, a full magazine in the hand", "query": "set=card", "pixel": "740x156" },
+    { "id": "P12D-b", "name": "Never checked; a double feed with a light magazine in the hand; Condition 3; the magazine out", "query": "set=more", "pixel": "740x156" }
+   ]
+  },
+  {
+   "id": "P12X",
+   "title": "P12X: the four side by side, and the finishes",
+   "about": "The four in Condition 1, and A in the rifles' seven finishes (the frame in the finish's furniture, the slide in its metal: the Corps' black is a dark slide on a black polymer frame). The finish is the issued item's, as for the rifles.",
+   "views": [
+    { "id": "P12X-a", "name": "A, B, C and D in Condition 1, the Corps' black", "query": "set=designs", "pixel": "740x164" },
+    { "id": "P12X-b", "name": "A in the seven finishes", "query": "set=finishes&d=p12a", "pixel": "740x324" }
+   ]
+  }
+ ]
+}

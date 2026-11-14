@@ -37,6 +37,8 @@
 // A look also carries the body's cues the figure shows (VIEWS §7.3, BODY's cuesOf): wet (the hair darker
 // with a sheen, for WET_HAIR_MS after a wash) and tired (fatigue at or past tired: the head down, the
 // arms swinging less: poses.js). Both change the drawing, so they are part of the look's shape.
+// look.mark (a look sample's only: samples/house-stack-figures): { rim, visor, tape } colours that tell one marine in the
+// combat EVA suit from another (compose.js draws the rim and the tape; the visor and the tape's band are the suit's accents).
 // The hair (0.0.6): one of the regulation cuts (templates.js CUT_IDS; DEFAULT_CUT low regulation when a look
 // names none, or a cut v0.0.5 drew: LEGACY) and its drawn step, hair.step 0 to 3 (src/sim/body/hair.js
 // hairOf: the sides grown from skin to a shadow (ĥ, the skin a third of the way to the hair's colour), to
@@ -130,6 +132,10 @@ export function wear(look = {}) {
   // (the walk cycle a look is drawn with, when not the game's: src/art/figures/walk.js, the R8 flag)
   if (look.cycle) L.cycle = look.cycle;
   if (look.finish) L.finish = look.finish;
+  // (the look samples' marks, never set by the game: samples/house-stack-figures, the stack told apart in the black suit:
+  // { rim: a colour drawn along each leg's, boot's and the far arm's edge toward the light (compose.js), visor: the visor's
+  // glass, tape: a band of colour round the helmet, on the shoulders and, side on, the near upper arm })
+  if (look.mark) L.mark = look.mark;
   const camo = { pattern: 'valles' };
   switch (outfit) {
     case 'utilities': case 'nco': case 'carrier': case 'rangeStaff':
@@ -164,7 +170,7 @@ export function wear(look = {}) {
       L.boots = K.boot; L.gloves = K.ring;
       L.pack = { color: K.pack, helmet: false, slim: true };
       L.head = { kind: 'vac', color: K.shell, sealed: true };
-      L.accents.rings = K.ring; L.accents.band = K.ring; L.accents.visor = K.visor;
+      L.accents.rings = K.ring; L.accents.band = L.mark?.tape ?? K.ring; L.accents.visor = L.mark?.visor ?? K.visor;
       if (look.carrier) L.armour = { color: K.carrier, pouches: K.pouches };
       L.ears = false; L.headset = false;
       break;
@@ -200,5 +206,7 @@ export function coloursOf(L, ppm) {
     v: 0x9aa1ae, n: 0x353947, u: 0x23252f, ŝ: L.accents.socks ?? 0xe8e6e0,
     // (the rifle drawing's furniture and clear magazine in its finish: rifles.js)
     ...drawingOf(L.model ?? 'r7', L.finish).colours,
+    // (the marks' rim, a fixed letter only a marked look draws: compose.js)
+    ...(L.mark?.rim ? { ŕ: L.mark.rim } : {}),
   };
 }

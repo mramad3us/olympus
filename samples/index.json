@@ -1,5 +1,5 @@
 {
- "built": "2026-11-11T22:35",
+ "built": "2026-11-14T00:16",
  "samples": [
   {
    "id": "cuts",
@@ -413,6 +413,151 @@
         "frame": [
          762,
          250
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "house-stack-figures",
+   "title": "The stack's figures: two marines in the black suit told apart, moving, in the shoot house (today's look and five candidates)",
+   "about": "The v0.0.14 reviews: \"You and your #2 merge into one blob on the walk\" and \"In the black suit the legs barely read\". The suit stays black (the Corps' armour is black); five ways to keep the two men and their legs apart at 16 px/m, each beside today's look. Every view is the game's own picture of the hall at room 1's door (test-shoothouse at 10:00 on seed 48213: the house's light and floor, the fog of awareness, the post pass, the Mars palette; shot by capture.mjs with the stack moved out), with the stack drawn over it as the stage draws it: the game's figure code (walk cycle B's Combat glide at the low ready, side on with the plant lock; the stack's beat when still), lit by the tint the view gives a figure there, then the post pass's outline, grade and snap. S-h checks that drawing against the game's own picture of GO. The moment, 8.7 s looped: you and your #2 glide (1.23 m/s) from the start mark to the stack on room 1's door, one behind the other along the hall (one depth: the blob), then your #2 crosses in front of you to the door's far side (0.65 m nearer the camera). The gallery's pictures are stills at each tile's telling moment; open a view live (O) and it moves: Space stops and starts it, S slows it to a quarter, the arrows step a tick while stopped, R starts again. Score each candidate in motion; several can be joined (say which).",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "S",
+     "title": "S: the stack walking up to room 1's door and your #2 crossing in front of you, today's look and five candidates",
+     "about": "Each view: on the left the walk up (you and your #2 one behind the other along the hall, at one depth), on the right the pass (your #2 crossing in front of you, from the stack to the door's far side); live, each tile loops its own part of the moment. S0 is today's look as v0.0.14 draws it: the black shell and the darker skin snap to two of the palette's darks, the ink outline to a third as dark, the outline the post pass draws between two men at one depth is ink too, and the soft blob under each (0.84 m across) merges under two men 0.65 m apart. S1 a lit edge: each leg, boot and the far arm takes a pixel of cool grey on its edge toward the light (the upper left), so the legs show as lines that scissor. S2 a visor per man: yours the issue's smoked blue, your #2's gold. S3 the Navy's red tape on your #2: a band round his helmet over the visor, on his shoulders from the front and behind, on his near upper arm side on. S4 a pixel of the floor's tone between them: where one man lies over the other, the one under is cut back a pixel round him in the hall floor's colour (a post pass rule; today that pixel is ink). S5 a cast shadow per body: each man's legs laid flat on the floor away from the light, hard-edged, in place of the blob. S1 to S3 are the figure code's own marks (a look's mark, which no look in the game carries yet); S4 and S5 are drawn by the sample as the post pass and the stage's shadow would draw them. S-g puts the six side by side on one clock; S-h is the check.",
+     "sets": null,
+     "views": [
+      {
+       "id": "S-a",
+       "name": "S0, today's look (the reference)",
+       "query": "set=pair&c=S0",
+       "shot": "house-stack-figures/shots/s-a.png",
+       "native": [
+        334,
+        134
+       ],
+       "report": {
+        "frame": [
+         334,
+         134
+        ]
+       }
+      },
+      {
+       "id": "S-b",
+       "name": "S1, a lit edge on the legs and the far arm",
+       "query": "set=pair&c=S1",
+       "shot": "house-stack-figures/shots/s-b.png",
+       "native": [
+        334,
+        134
+       ],
+       "report": {
+        "frame": [
+         334,
+         134
+        ]
+       }
+      },
+      {
+       "id": "S-c",
+       "name": "S2, a visor per man: yours blue, your #2's gold",
+       "query": "set=pair&c=S2",
+       "shot": "house-stack-figures/shots/s-c.png",
+       "native": [
+        334,
+        134
+       ],
+       "report": {
+        "frame": [
+         334,
+         134
+        ]
+       }
+      },
+      {
+       "id": "S-d",
+       "name": "S3, the Navy's red tape on your #2 (helmet, shoulders, near arm)",
+       "query": "set=pair&c=S3",
+       "shot": "house-stack-figures/shots/s-d.png",
+       "native": [
+        334,
+        134
+       ],
+       "report": {
+        "frame": [
+         334,
+         134
+        ]
+       }
+      },
+      {
+       "id": "S-e",
+       "name": "S4, a pixel of the floor's tone between the two men",
+       "query": "set=pair&c=S4",
+       "shot": "house-stack-figures/shots/s-e.png",
+       "native": [
+        334,
+        134
+       ],
+       "report": {
+        "frame": [
+         334,
+         134
+        ]
+       }
+      },
+      {
+       "id": "S-f",
+       "name": "S5, a cast shadow under each man in place of the blob",
+       "query": "set=pair&c=S5",
+       "shot": "house-stack-figures/shots/s-f.png",
+       "native": [
+        334,
+        134
+       ],
+       "report": {
+        "frame": [
+         334,
+         134
+        ]
+       }
+      },
+      {
+       "id": "S-g",
+       "name": "The six side by side on one clock (live: the whole moment)",
+       "query": "set=all",
+       "shot": "house-stack-figures/shots/s-g.png",
+       "native": [
+        500,
+        246
+       ],
+       "report": {
+        "frame": [
+         500,
+         246
+        ]
+       }
+      },
+      {
+       "id": "S-h",
+       "name": "The check: today's look at GO drawn by the sample, beside the game's own picture",
+       "query": "set=check",
+       "shot": "house-stack-figures/shots/s-h.png",
+       "native": [
+        334,
+        134
+       ],
+       "report": {
+        "frame": [
+         334,
+         134
         ]
        }
       }
@@ -1325,6 +1470,328 @@
         "figureUploads": 4,
         "figureKB": 1134,
         "figurePaintMs": 143
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "p12-card",
+   "title": "The P-12 on the weapon card: four designs in the Corps' black",
+   "about": "The P-12 (the sidearm from the Sergeant up, a HAD-17 of ten frangible, the thigh holster) has had no drawing: with the pistol in hand the card still draws the R-7, and the game keeps doing so until you pick. Four designs, each drawn by the game's own weapon card (src/art/pistols.js, reached only by these samples), at three times the rifle's density (432 px/m: the 19.5 cm pistol is 84 px, where at the rifle's 144 it would be 28). What the card shows is what you believe: the slide locked back with the barrel out of its nose; a sliver of brass at the hood's rear when a round is believed chambered (a loaded chamber witness, my call); the HAD-17's rounds seen through a witness slot in the grip's back, from the top (my call: the HAD-17 has its witness holes), \"?\" on the baseplate when the count was never checked; the well's open mouth with the magazine out; the oversized safety's paddle up for SAFE, down for SEMI; a stovepipe or a double feed in the port once looked at; a magazine in the hand right of the muzzle, its holes to its count. A: the service pistol (squared slide, front and rear serrations, rail, stippled grip). B: the slab (chamfered nose, angled serrations, the RD-1P's cut closed by its cover plate, a ledge rear sight for racking one-handed, hooked guard, flared well, pad on the baseplate). C: the monolith (slide and frame one tone, the slide sloping from a tall rear, a full dust cover, finger grooves, long beavertail). D: the lanyard (rounded nose, fish scales, a window over the barrel, a lanyard loop at the heel: a dropped pistol in free fall leaves). Shown raw, as the hud shows the card.",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "P12A",
+     "title": "P12A: the service pistol",
+     "about": "A squared slide with rear and front serrations, the frame's rail under the dust cover, a rounded undercut guard, a short beavertail, a stippled grip, a flush baseplate, low irons.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P12A-a",
+       "name": "Condition 1 on safe with ten; firing, about six left; locked back on empty; a stovepipe, a full magazine in the hand",
+       "query": "d=p12a&set=card",
+       "shot": "p12-card/shots/p12a-a.png",
+       "native": [
+        740,
+        156
+       ],
+       "report": {
+        "frame": [
+         740,
+         156
+        ]
+       }
+      },
+      {
+       "id": "P12A-b",
+       "name": "Never checked; a double feed with a light magazine in the hand; Condition 3; the magazine out",
+       "query": "d=p12a&set=more",
+       "shot": "p12-card/shots/p12a-b.png",
+       "native": [
+        740,
+        156
+       ],
+       "report": {
+        "frame": [
+         740,
+         156
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "P12B",
+     "title": "P12B: the slab",
+     "about": "A flat-sided slide with a chamfered nose and angled serrations, the RD-1P's cut closed by its cover plate (the dot waits), a ledge rear sight, a squared guard with a hook, a flared magwell, a pad on the baseplate.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P12B-a",
+       "name": "Condition 1 on safe with ten; firing, about six left; locked back on empty; a stovepipe, a full magazine in the hand",
+       "query": "d=p12b&set=card",
+       "shot": "p12-card/shots/p12b-a.png",
+       "native": [
+        740,
+        156
+       ],
+       "report": {
+        "frame": [
+         740,
+         156
+        ]
+       }
+      },
+      {
+       "id": "P12B-b",
+       "name": "Never checked; a double feed with a light magazine in the hand; Condition 3; the magazine out",
+       "query": "d=p12b&set=more",
+       "shot": "p12-card/shots/p12b-b.png",
+       "native": [
+        740,
+        156
+       ],
+       "report": {
+        "frame": [
+         740,
+         156
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "P12C",
+     "title": "P12C: the monolith",
+     "about": "Slide and frame in one tone, the slide's top sloping from a tall rear to the nose, a full dust cover to the muzzle, a straighter grip in finger grooves, a long beavertail.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P12C-a",
+       "name": "Condition 1 on safe with ten; firing, about six left; locked back on empty; a stovepipe, a full magazine in the hand",
+       "query": "d=p12c&set=card",
+       "shot": "p12-card/shots/p12c-a.png",
+       "native": [
+        740,
+        156
+       ],
+       "report": {
+        "frame": [
+         740,
+         156
+        ]
+       }
+      },
+      {
+       "id": "P12C-b",
+       "name": "Never checked; a double feed with a light magazine in the hand; Condition 3; the magazine out",
+       "query": "d=p12c&set=more",
+       "shot": "p12-card/shots/p12c-b.png",
+       "native": [
+        740,
+        156
+       ],
+       "report": {
+        "frame": [
+         740,
+         156
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "P12D",
+     "title": "P12D: the lanyard",
+     "about": "A rounded nose, fish-scale serrations, a lightening window over the barrel's front, a round guard, a wrapped grip, and a lanyard loop at the heel.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P12D-a",
+       "name": "Condition 1 on safe with ten; firing, about six left; locked back on empty; a stovepipe, a full magazine in the hand",
+       "query": "d=p12d&set=card",
+       "shot": "p12-card/shots/p12d-a.png",
+       "native": [
+        740,
+        156
+       ],
+       "report": {
+        "frame": [
+         740,
+         156
+        ]
+       }
+      },
+      {
+       "id": "P12D-b",
+       "name": "Never checked; a double feed with a light magazine in the hand; Condition 3; the magazine out",
+       "query": "d=p12d&set=more",
+       "shot": "p12-card/shots/p12d-b.png",
+       "native": [
+        740,
+        156
+       ],
+       "report": {
+        "frame": [
+         740,
+         156
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "P12X",
+     "title": "P12X: the four side by side, and the finishes",
+     "about": "The four in Condition 1, and A in the rifles' seven finishes (the frame in the finish's furniture, the slide in its metal: the Corps' black is a dark slide on a black polymer frame). The finish is the issued item's, as for the rifles.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P12X-a",
+       "name": "A, B, C and D in Condition 1, the Corps' black",
+       "query": "set=designs",
+       "shot": "p12-card/shots/p12x-a.png",
+       "native": [
+        740,
+        164
+       ],
+       "report": {
+        "frame": [
+         740,
+         164
+        ]
+       }
+      },
+      {
+       "id": "P12X-b",
+       "name": "A in the seven finishes",
+       "query": "set=finishes&d=p12a",
+       "shot": "p12-card/shots/p12x-b.png",
+       "native": [
+        740,
+        324
+       ],
+       "report": {
+        "frame": [
+         740,
+         324
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "p12-draw",
+   "title": "The P-12 on the figure at 16 px/m, moving: drawn from the thigh, aimed, fired, holstered",
+   "about": "Each design's figure template (seven pixels along, the size a chibi's pistol is drawn) in the hand of the game's own figure, the shoot house's sergeant in the black combat EVA suit and carrier, on the house's slab floor, snapped to the Mars palette. The loop runs 5.2 s on WEAPONS' base times: holstered; the draw, 1.1 s (the hand to the holster, the pistol clear of it one-handed, the press out, the sights); two shots 0.4 s apart, each its kick and flash; the aim held; a scan at the low ready; the holster, 1.3 s. The gallery's picture is a still at the aim between the shots: open a view (O) and it moves (Space stops it, S slows it to a quarter, R starts it again). The game draws its old pistol until you pick; at 16 px/m the designs differ by a pixel or two (B's plate and hooked guard, C's tall rear in one tone, D's lanyard loop), so the card carries the choice and this asks whether the figure's pistol reads at all. In the suit the pistol and the holster are black on black: the last view is the same in utilities with the carrier, where they read.",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "P12M",
+     "title": "P12M: the draw, the aim and the holster, moving",
+     "about": "Each view: the four facings at 16 px/m, the figure side on three times larger, the template alone at 16 px/m and six times larger, and the loop's phases with the one running lit. Then the four designs on one clock.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P12M-a",
+       "name": "A, the service pistol, in the combat EVA suit",
+       "query": "set=draw&d=p12a",
+       "shot": "p12-draw/shots/p12m-a.png",
+       "native": [
+        320,
+        184
+       ],
+       "report": {
+        "frame": [
+         320,
+         184
+        ]
+       }
+      },
+      {
+       "id": "P12M-b",
+       "name": "B, the slab, in the combat EVA suit",
+       "query": "set=draw&d=p12b",
+       "shot": "p12-draw/shots/p12m-b.png",
+       "native": [
+        320,
+        184
+       ],
+       "report": {
+        "frame": [
+         320,
+         184
+        ]
+       }
+      },
+      {
+       "id": "P12M-c",
+       "name": "C, the monolith, in the combat EVA suit",
+       "query": "set=draw&d=p12c",
+       "shot": "p12-draw/shots/p12m-c.png",
+       "native": [
+        320,
+        184
+       ],
+       "report": {
+        "frame": [
+         320,
+         184
+        ]
+       }
+      },
+      {
+       "id": "P12M-d",
+       "name": "D, the lanyard, in the combat EVA suit",
+       "query": "set=draw&d=p12d",
+       "shot": "p12-draw/shots/p12m-d.png",
+       "native": [
+        320,
+        184
+       ],
+       "report": {
+        "frame": [
+         320,
+         184
+        ]
+       }
+      },
+      {
+       "id": "P12M-e",
+       "name": "The four on one clock, side on, facing you and away, in the combat EVA suit",
+       "query": "set=all",
+       "shot": "p12-draw/shots/p12m-e.png",
+       "native": [
+        420,
+        196
+       ],
+       "report": {
+        "frame": [
+         420,
+         196
+        ]
+       }
+      },
+      {
+       "id": "P12M-f",
+       "name": "The four on one clock in utilities with the carrier",
+       "query": "set=all&look=util",
+       "shot": "p12-draw/shots/p12m-f.png",
+       "native": [
+        420,
+        196
+       ],
+       "report": {
+        "frame": [
+         420,
+         196
+        ]
        }
       }
      ]
