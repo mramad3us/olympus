@@ -177,8 +177,19 @@ export function keyLegs(cycle, band, j, step = 0) {
 
 // ---------- the poses ----------
 
-// (free arms against the legs: each arm swings back as its own thigh swings forward, a Relaxed walk's and an unarmed run's)
-const swingArms = (legs, k = 0.9, bend = 0.2) => ({ r: [-k * legs.r[0], bend, 0.07], l: [-k * legs.l[0], bend, 0.07] });
+// (free arms against the legs, a Relaxed walk's and an unarmed run's: each arm swings opposite its own leg, by where the planted
+// foot is in its stance (u: +1 a half stride ahead of the pelvis, -1 a half stride behind; the flight's trailing foot at -1),
+// never by the thigh's angle: the thigh's angle carries the knee's lift (up to 1.9 rad in the run) and threw both arms back
+// at once, up to 1.41 rad in the walk and 2.30 in the run (the user, 2026-11-15: "the arms flopping around like that").
+// ARM_SWING_RAD the most an arm swings either way: about 20 degrees walking, 34 running, the run's elbows bent near 80.)
+export const ARM_SWING_RAD = Object.freeze({ walk: 0.35, run: 0.6 });
+function swingArms(L, sp, band) {
+  const A = band === 'run' ? ARM_SWING_RAD.run : ARM_SWING_RAD.walk, bend = band === 'run' ? 1.4 : 0.25;
+  const side = L.planted ?? null, half = Math.max(1, sp.S / 2);
+  const u = side ? Math.max(-1, Math.min(1, (L.plantX ?? 0) / half)) : -1;
+  const own = side ?? L.trailing ?? 'r', other = own === 'r' ? 'l' : 'r';
+  return { [own]: [-A * u, bend, 0.07], [other]: [A * u, bend, 0.07] };
+}
 
 /** A rig for a carry (compose.js RIGS): 'low', 'high', 'aim' (shouldered, the turret), 'slung', 'front'; null with no weapon. */
 export function rigOfCarry(carry, weapon, { kick = 0, oneHand = false } = {}) {
@@ -203,7 +214,7 @@ export function cyclePose(cycle, band, kIdx, { weapon = null, carry = null, flig
   return {
     stance: 'stand', lean: carry === 'aim' ? Math.max(lean, band === 'assault' ? 0.16 : 0.12) : lean,
     legs: L.legs, feet: L.feet, sway: L.sway, lift: L.lift, farShade: true,
-    ...(held ? {} : { arms: swingArms(L.legs, band === 'run' ? 1.2 : 0.9, band === 'run' ? 1.3 : 0.2) }), rig,
+    ...(held ? {} : { arms: swingArms({ ...L, trailing: step ? 'l' : 'r' }, sp, band) }), rig,
   };
 }
 

@@ -27,6 +27,7 @@
 import { walkFrame } from '../art/figures/poses.js';
 import { bandSpec, flightLiftM } from '../art/figures/walk.js';
 import { LOPE_VZ_MS, RUN_VZ_MS } from '../data/body/gait.js';
+import { takeoffVzMs } from '../core/phys.js';
 import { hash01 } from '../core/hash.js';
 
 /** The facing's hysteresis (deg) and its hold (a facing kept FACE_HOLD_MS game ms unless the yaw has turned FACE_JUMP_DEG since it changed), the start's metres, the plant's hold after a stop (game ms) and the speed under which a braking body plants (m/s), the side-step's step (m), a breath at the stack (s) and its exhale's share. */
@@ -104,7 +105,7 @@ export function createGaitView() {
       const at = walkFrame(o.band, { gp: o.gp, stepM: o.stepM, back: kind === 'back', cycle: o.cycle });
       out.frame = sheet || o.band === 'walk' || o.band === 'run' ? at.frame : baseOf(at, o.band, o.cycle);
       out.lagPx = at.lagPx;
-      if (at.flight) out.lift = flightLiftM(at.u, o.band === 'run' ? RUN_VZ_MS : LOPE_VZ_MS, o.gMs2);
+      if (at.flight) out.lift = flightLiftM(at.u, takeoffVzMs(o.band === 'run' ? RUN_VZ_MS : LOPE_VZ_MS, o.gMs2), o.gMs2);
       else if (kind !== 'side' && (face === 'right' || face === 'left')) {
         // (the plant lock: the card held where the key began, the planted foot on the pixel it landed on)
         const lagM = at.lagPx / 16;

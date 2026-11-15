@@ -11,6 +11,15 @@
 
 /** Earth's standard gravity (m/s²): one G. */
 export const G0_MS2 = 9.80665;
+/**
+ * The take-off speed in a gravity (m/s): the 1 G figure (LOPE_VZ_MS or RUN_VZ_MS) scaled by the square root of g over standard
+ * gravity, so the flight's apex v^2 / 2g is the same 4.1 cm everywhere and only its time grows, as 1 / sqrt(g): 0.18 s at 1 G,
+ * 0.30 s on Mars, 0.50 s on Europa. A fixed take-off speed (v0.0.14 to v0.0.15) gave Mars 0.49 s and 10.9 cm and Europa 1.37 s
+ * and 30.8 cm: long slow leaps (the user, 2026-11-15: "the running being long slow leaps is intentional ?"). Runners in reduced
+ * gravity push off less hard, not just fly longer (my call, BODY §16.8). Here, beside G0, since the sim's stride (src/sim/body/loco.js) and the drawn lift
+ * (src/render/gait-view.js) both read it.
+ */
+export const takeoffVzMs = (vz1gMs, gMs2) => vz1gMs * Math.sqrt(Math.max(0, gMs2) / G0_MS2);
 /** The molar gas constant (J/(mol·K)). */
 export const R_GAS = 8.314462618;
 /** Air's ratio of specific heats (diatomic: N₂ and O₂). */

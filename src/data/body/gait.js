@@ -14,8 +14,8 @@
 // travel S (STEP_PX, the candidates' feet as VIEWS §3.10.4 draws them at STEP_PPM 16 px/m) plus, in a gait with
 // flight, the metres flown: at or above LOPE_FROUDE 0.5 (BODY §16.1's line, v² / (g × leg), the leg LEG_K 0.53 of
 // the height) a walk-type gait lopes, taking off at LOPE_VZ_MS 0.5 m/s, and the run always flies, at RUN_VZ_MS
-// 0.9 m/s; the flight is 2 vz / g, so the same legs skim on Earth, lope on Mars and bound on Europa with no constant
-// a place (my calls, BODY §16.8). CYCLE names the candidate the game plays until the user's score (VIEWS §3.10.4's
+// 0.9 m/s at 1 G, scaled by sqrt(g / 1 G) (src/core/phys.js takeoffVzMs, v0.0.16); the flight is 2 vz / g, so the same legs skim on Earth,
+// fly a little longer on Mars and longer again on Europa, the apex the same, with no constant a place (my calls, BODY §16.8). CYCLE names the candidate the game plays until the user's score (VIEWS §3.10.4's
 // default, B); the others stay listed so the pick swaps in by one constant.
 
 /** The ring the metres walked wrap at (metres). */

@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.16 (2026-11-15)
+
+- **Free arms swing as arms do, opposite their own legs and within 20 degrees walking and 34 running: no more flopping** (your report of 2026-11-15: "urgent : the walking animation ??? What is going on with the arms flopping around like that", "running also... wth"). An arm not holding the rifle (Relaxed, the rifle slung, or none) was driven by its thigh's angle, which carries the knee's lift: both arms swung back at once, up to 1.41 rad (81 degrees) in the walk and 2.30 rad (132 degrees) in the run. Now each arm swings by where its leg's foot is in the stride (src/art/figures/walk.js swingArms, ARM_SWING_RAD walk 0.35, run 0.6), the run's elbows bent near 80 degrees. A held rifle keeps both hands on it, as before.
+- **Running on Mars and Europa flies a little longer, not in long slow leaps** (your "the running being long slow leaps is intentional ? Is it to show running in Mars gravity ?"). It was the gravity, overdone: the take-off speed was fixed at 0.9 m/s, so Mars's run flew 0.49 s and rose 10.9 cm, Europa's 1.37 s and 30.8 cm. Runners in low gravity push off less hard, so the take-off now scales with the square root of g (src/core/phys.js takeoffVzMs, my call): the apex is 4.1 cm in every gravity and the flight 0.18 s at 1 G, 0.30 s on Mars, 0.50 s on Europa; Mars's run 1.74 to 1.24 m a step, Europa's 3.14 to 1.43 m; 1 G (the shoot house) unchanged.
+- Tests: walk-arms (new: the free arms in every cycle and band, held arms, the apex and flight by gravity); house-bodies' step table and Mars cadence re-pinned on purpose (Mars run under 0.75 of 1 G's, was 0.6).
+
 ## v0.0.15 (2026-11-14)
 
 - **Two rounds of look samples wait in the gallery to be scored (`./play.sh --gallery`); the game's own look is unchanged until you pick.** None of it reaches the game: the figure's marks are drawn only for a look that carries `mark`, which no look of the game does, and a pistol design only for a card that names one (`PISTOL_DRAWN_AS` is empty, so a P-12 in hand still draws the R-7's card).

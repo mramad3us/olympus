@@ -97,7 +97,9 @@ export default [
     fn() {
       const legM = 0.53 * 1.75, rows = [], walked = [];
       // (the table: VIEWS §3.10.4's B column, step metres, from the speeds as built)
-      const want = { '1|combat': 0.38, '1|assault': 0.44, '1|walk': 0.38, '1|run': 1.10, 'mars|combat': 0.38, 'mars|assault': 0.87, 'mars|run': 1.74, 'europa|walk': 1.05, 'europa|run': 3.14 };
+      const want = { '1|combat': 0.38, '1|assault': 0.44, '1|walk': 0.38, '1|run': 1.10, 'mars|combat': 0.38, 'mars|assault': 0.70, 'mars|run': 1.24, 'europa|walk': 0.62, 'europa|run': 1.43 };
+      // (re-pinned on purpose in v0.0.16's hotfix: the take-off speed scales with sqrt(g) (gait.js takeoffVzMs), so Mars and Europa
+      // fly 1 / sqrt(g) longer, not 1 / g: before, Mars assault 0.87, run 1.74, Europa walk 1.05, run 3.14; the user's "long slow leaps")
       const gOf = { 1: 1, mars: 3.73 / 9.81, europa: 1.31 / 9.81 };
       for (const [key, m] of Object.entries(want)) {
         const [place, band] = key.split('|'), gG = gOf[place], sp = gaitSpeeds({ gG, gait: band === 'combat' || band === 'assault' ? band : 'relaxed' });
@@ -130,7 +132,9 @@ export default [
       assert(Math.abs(g1 - (0.6 + 0.1 / 0.375)) < 1e-5 && Math.abs(a.gp - (g1 + 0.1 / 0.4375)) < 1e-5, JSON.stringify({ g1, gp: a.gp }));
       assert(cad['earth-temperate|combat'] < cad['earth-temperate|assault'], JSON.stringify(cad));
       assert(cad['earth-temperate|run'] >= 3.0 && cad['earth-temperate|run'] <= 4.0, JSON.stringify(cad));
-      assert(cad['melas-ground|run'] < cad['earth-temperate|run'] * 0.6 && cad['europa-surface|run'] < cad['melas-ground|run'], JSON.stringify(cad));
+      // (v0.0.16's hotfix: the take-off speed scales with sqrt(g), so Mars's run is slower-legged than 1 G's, about two thirds of it, no
+      // longer under 0.6 of it as the fixed take-off's bounds were)
+      assert(cad['melas-ground|run'] < cad['earth-temperate|run'] * 0.75 && cad['europa-surface|run'] < cad['melas-ground|run'], JSON.stringify(cad));
     },
   },
   {

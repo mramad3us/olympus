@@ -38,6 +38,7 @@ import { playerActor } from '../../core/ids.js';
 import { paceOf } from '../skills/skills.js';
 import { valueOf } from '../skills/templates.js';
 import { gravityAt } from '../places/env.js';
+import { takeoffVzMs } from '../../core/phys.js';
 import { STRIDE_WRAP_M, GP_WRAP, CYCLE, STEP_PX, STEP_PPM, LOPE_FROUDE, LOPE_VZ_MS, RUN_VZ_MS, LEG_K, REF_HEIGHT_M, TURN_OPERATOR_S, TURN_RECRUIT_S } from '../../data/body/gait.js';
 
 const POS_STEP_M = 0.0001, GP_STEP = 1e-6, RAD_STEP = 1e-6, G_MIN_MS2 = 0.05;
@@ -52,7 +53,7 @@ export function stepMOf({ gait, stance = null, vMs = 0, gMs2 = 9.81, legM = LEG_
   const run = gait === 'run' || gait === 'bound';
   const band = run ? 'run' : stance === 'assault' ? 'assault' : stance === 'combat' ? 'combat' : 'walk';
   // (flight from physics, not from a picture: the run always flies, a walk-type gait from Froude LOPE_FROUDE)
-  const vz = run ? RUN_VZ_MS : (vMs * vMs) / (g * legM) >= LOPE_FROUDE ? LOPE_VZ_MS : 0;
+  const vz = takeoffVzMs(run ? RUN_VZ_MS : (vMs * vMs) / (g * legM) >= LOPE_FROUDE ? LOPE_VZ_MS : 0, g);
   const flight = (2 * vz) / g;
   return { band, flight, stepM: S[band] / STEP_PPM + Math.max(0, vMs) * flight };
 }
