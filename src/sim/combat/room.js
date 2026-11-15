@@ -6,7 +6,10 @@
 // from PLACES's room polygons (COMBAT §25.7.3) and this module keeps its readers' shape.
 //
 // roomPlanOf(state, doorId) is the plan entered by a door (or 'hall', the lane's last leg), with what is derived
-// from the place once: its id and layout, its area, the rects of its rooms (parts) and its plane, the door's line
+// from the place once: its id and layout, its area, the rects of its rooms (parts) and its plane, its door's `swing` from the
+// stack's side (src/sim/places/swing.js swingFrom: push or pull, the hinge's side, the latch side the stack forms on, the kick,
+// the side behind the door, the read's words) and its `stack` (the swing's points on the latch side, checked against the
+// authored ones within STACK_SWING_TOL_M, or derived where a plan has none), the door's line
 // ({ axis, at, a, b } as the opening's: an 'x' line runs east–west at z = at, a 'z' line north–south at x = at;
 // the hall's leg its gate) with `into`, the sign of the room's side of it (from the threshold). Plans are kept
 // in state.$rooms by layout and door (runtime, never saved: rebuilt on a load from the frozen data), so a tick
@@ -40,6 +43,7 @@ import { clearLine } from '../people/perception.js';
 import { muzzleOf, angleDiff, faceRad } from '../arms/carry.js';
 import { X4_PLANS } from '../../data/places/x4-plans.js';
 import { FUNNEL_M, FUNNEL_SIDE_M, funnelZone, inZone } from '../places/zones.js';
+import { swingFrom, stackPointsOf } from '../places/swing.js';
 
 /** In the door: within FUNNEL_M 0.5 of the door's plane, between its jambs widened by FUNNEL_SIDE_M 0.3 (src/sim/places/zones.js, the no-stop zones). */
 export { FUNNEL_M, FUNNEL_SIDE_M };
@@ -74,8 +78,28 @@ function derive(layout, key, P) {
   const t = line.axis === 'x' ? P.threshold[1] : P.threshold[0];
   const plane = Object.freeze({ ...line, into: t >= line.at ? 1 : -1 });
   const funnel = o ? funnelZone(`funnel:${o.id}`, o.id, line, plane.into) : null;
-  return Object.freeze({ ...P, id: key, layout, area: L.area, rects: Object.freeze(rects.map(r => Object.freeze(r))), plane, funnel });
+  // (the door's swing from the stack's side, the hall's (src/sim/places/swing.js; the user, 2026-11-15: "doors should have a
+  // direction they open (pull or push)"): the stack forms on its latch side, so a plan's stack is the swing's, derived where the
+  // plan gives none and checked where it does (every authored stack of X4 stands exactly there); a locked pull door on the lane
+  // would be a dead end until the breaching charges are issued (v0.0.18: a pull door cannot be kicked), so it is refused)
+  const { swing, stack } = o ? doorPlanOf(key, P.stack, o, -plane.into, Object.fromEntries(area.rooms.map(r => [r.id, r.rect]))) : { swing: null, stack: P.stack };
+  return Object.freeze({ ...P, id: key, layout, area: L.area, rects: Object.freeze(rects.map(r => Object.freeze(r))), plane, funnel, swing, stack });
 }
+/**
+ * A plan's door read from its stack's side (see derive): { swing (swing.js swingFrom, frozen), stack (the authored, checked to
+ * lie within STACK_SWING_TOL_M of the latch side's points, or those points where none is authored) }. Throws for a stack off
+ * the latch side and for a locked pull door (no kick opens it, and no charge is issued: a dead end). side: the stack's side of
+ * the door's line (+1 or -1); rects the area's rooms by id.
+ */
+export function doorPlanOf(key, authored, o, side, rects) {
+  const swing = Object.freeze(swingFrom(o, side, rects));
+  const want = stackPointsOf(o, side, rects, Math.max(2, authored?.length ?? 0));
+  if (authored) authored.forEach((p, i) => { if (Math.hypot(p[0] - want[i][0], p[1] - want[i][1]) > STACK_SWING_TOL_M) throw new Error(`room: plan ${key}'s #${i + 1} stacks at ${JSON.stringify(p)}, off the ${swing.stackSide} (latch) side its door's swing puts him at ${JSON.stringify(want[i])}`); });
+  if (o.lock && swing.how === 'pull') throw new Error(`room: plan ${key}'s door ${o.id} is a locked pull door: no kick opens it (PLACES §1.6's swing), and no charge is issued`);
+  return { swing, stack: authored ?? want };
+}
+/** An authored stack point may stand this far from the one its door's swing gives, metres (src/sim/places/swing.js stackPointsOf). */
+export const STACK_SWING_TOL_M = 0.02;
 
 /** The plan entered by a door (or 'hall'), on the session's layout (see the header), or null. */
 export function roomPlanOf(state, doorId, layout = layoutOf(state)) {

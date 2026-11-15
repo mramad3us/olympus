@@ -543,7 +543,7 @@ hud.append(keysHint);
 keysHint.append(el('kbd', { textContent: input.label('help') }), ' keys');
 
 // ---- the sound: made at boot, suspended; nothing plays before the first key or click ----
-const audio = createAudio({ profile: null, looks: { kitLook, earsOn: rangeKit.earsOn } });
+const audio = createAudio({ profile: null, looks: { kitLook, earsOn: rangeKit.earsOn }, sound: params.sound });
 // (the context's construction opens the device synchronously, over 200 ms: paid here behind the title, never on the first key)
 try { audio.prepare(); } catch (e) { console.warn('the sound was not prepared', e); }
 // (the saved volume and mute; ?nostore=1 neither reads nor writes the database, so a bench or a shot opens none)
@@ -596,7 +596,7 @@ const boot = createBoot({ cb: {
     toasts.el.hidden = !!open;
   },
   keysRows: () => keysRows({
-    label: (a) => input.label(a),
+    label: (a) => input.label(a), panel: settings.panel,
     // (R's words in this build, from the sim's own number)
     says: { hand: `what's at hand, as its plate says: an action, a door, else wait ${durationText(WAIT_MS)} (R twice); held: the menu of every action there` },
     extra: settings.debug ? DEBUG_SKIPS.map(([code, ms]) => [input.label(code), `debug: ${durationText(ms)} pass (marks the save)`]) : [],
@@ -1064,7 +1064,7 @@ function stopKey(action, kind, e) {
   if (kind !== 'tap' && kind !== 'held') return true;
   if (st.reflex) {
     const o = reflexCard.optionFor(n);
-    // (an answer shown struck says why (the rework's R6: Transition "not issued"), never nothing)
+    // (an answer shown struck says why (Transition "not carried", a man with no pistol; a Breach "no charge issued"), never nothing)
     if (o?.off) toast(`${o.label}: ${o.off}.`, 'warn');
     else if (o) input.queue({ act: 'stop', args: { step: `reflex:${o.key}`, keep: reflexKeep } });
     return true;
@@ -1572,7 +1572,11 @@ function render(alpha, s, info) {
   // (0.0.12: T's keycap names the row its act is and its time, from the panel shown)
   let actWords = null;
   if (weapon.on && now?.line?.act) { try { actWords = actWordsOf(now.line.act, readSim(s).steps); } catch (e) { broke(e, 'the instinct'); } }
-  const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null, ui: uiK, actWords });
+  // (2026-11-15: the row the line names, its keys on the panel by its own place after the words, "Open it. Pull. [3]", as the user's
+  // pick P3 drew it; not where the words already name them ("To the head: 4."))
+  let rowKeys = null;
+  if (weapon.on && now?.line?.row) { try { rowKeys = stepPanel.rowKeys(now.line.row); } catch (e) { broke(e, 'the instinct'); } }
+  const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null, ui: uiK, actWords, rowKeys });
   report.hud = { watch: faces, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on, far: weapon.far,
     terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '', timer, contact, lead, froze, chaos: view.stats.chaos ?? null, hit,
     contactPlate: contactPlate.hidden ? '' : contactPlate.dataset.text ?? '', parts: partsPlate.hidden ? '' : partsPlate.dataset.text ?? '' };
@@ -1671,7 +1675,7 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
     let tWords = null;
     if (act) { try { tWords = actWordsOf(act, steps) ?? tNow.line.short ?? null; } catch (e) { broke(e, 'the panel'); } }
     stepsText = stepPanel.update({ phase: st.phase, steps, page: stepPage, shift: input.peek().run, doing: st.doing, nowMs: s.clock.ms + (isHeld(s) ? 0 : alpha * TICK_MS), belief: sim.belief, ticks, ui: uiK, chaos: suppRead(s), bundle: bundleRead(s), ...distance,
-      layout: settings.panel, act, actWords: tWords, stopKey: panelSeen.seq });
+      layout: settings.panel, act, actWords: tWords, stopKey: panelSeen.seq, diRow: tNow?.line?.row ?? null });
   }
   try {
     if (far?.open && !keepPaper) paperText = paperInset.update(null);

@@ -98,7 +98,7 @@
 // The navigation is the panel's own state (nav: the open drawer, bank or fan group, its third level), reset when the stop
 // changes; down(key) moves it, entryFor(key) is what a key does now (main.js sends the row, or T's tap for NEXT).
 import { CARD_W, CARD_H } from './layout.js';
-import { badgeOf, modelOf, viewOf, autoNav, badgeKey, keyPathOf, DEFAULT_LAYOUT, LAYOUTS, CORE_WORDS, GROUP_WORDS, FAN_KEY } from '../../sim/arms/groups.js';
+import { badgeOf, modelOf, viewOf, autoNav, badgeKey, keyPathOf, DEFAULT_LAYOUT, LAYOUTS, CORE_WORDS, GROUP_WORDS, FAN_KEY, GROUPS } from '../../sim/arms/groups.js';
 import { distanceParts, dialWords } from '../../art/weaponcard.js';
 // (the panel's numbering is the sim's (src/sim/arms/panel.js), so the DI's line can name the digit a row is on: re-exported here)
 import { PANEL_KEYS, FIXED_KINDS, isFixed, FIXED_MAX, FIXED_REPEAT, isGated, gatedRow, panelList, panelOf, isShotRow } from '../../sim/arms/panel.js';
@@ -145,6 +145,59 @@ export const BADGE_SVG = Object.freeze({
   lock: '<svg viewBox="0 0 12 12" aria-label="locked"><rect x="2.5" y="5.5" width="7" height="5" fill="currentColor"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5" fill="none" stroke="currentColor"/></svg>',
   none: '<svg viewBox="0 0 12 12" aria-label="nothing to act on"><path d="M1 6c1.5-2.5 3-3.5 5-3.5S9.5 3.5 11 6c-1.5 2.5-3 3.5-5 3.5S2.5 8.5 1 6z" fill="none" stroke="currentColor"/><circle cx="6" cy="6" r="1.4" fill="currentColor"/><path d="M2 10.5L10 1.5" stroke="#c0564e" stroke-width="1.5"/></svg>',
 });
+
+// ---- 2026-11-15 (the keys role): layout C drawn as the user's pick, P3 (samples/panel, ★ 100 for P3-j: "That idea is probably
+// the best proposal if we can make the controls work cleanly") ----
+// The band: two rows of six tiles, the situation's tile (its picture and name) and 1 to 5 above, the Tab tile ("held: more") and
+// the core's 6 to 0 below, each core tile tagged with its picture and word (SHOT, AIM, FIX, MUZZLE, and T on NEXT); a tile is its
+// key and badge, its name on two lines, its time and odds at its foot. Tab held: the fan, a half-wheel of the five groups at the
+// left (the open one lit), the group's card (its key, picture, name and half: OUTSIDE A DOOR, IN THE ROOM), its nine in two columns
+// of five and "Tab let go". Under --ui 1 (1024 × 768) a tile says one word (shortName) and its time is left to the hover, as the
+// sample's small views. The DI's row (the line's row: its act's, or the row its words name) is edged in brass wherever it is.
+/** The pictures of the situations, the groups and the core (12 × 12, the tile's text colour; a strike in the HUD's red). */
+export const ICON_SVG = Object.freeze({
+  door: '<svg viewBox="0 0 12 12"><rect x="3" y="1.5" width="6" height="9.5" fill="none" stroke="currentColor"/><circle cx="7.4" cy="6.6" r="0.8" fill="currentColor"/></svg>',
+  inner: '<svg viewBox="0 0 12 12"><path d="M1.5 1.5h9v9" fill="none" stroke="currentColor"/><rect x="5" y="4" width="3.5" height="6.5" fill="none" stroke="currentColor"/></svg>',
+  room: '<svg viewBox="0 0 12 12"><path d="M1.5 1.5v9h9" fill="none" stroke="currentColor"/><path d="M3.5 8.5l5-5M6 3.5h2.5V6" fill="none" stroke="currentColor"/></svg>',
+  contact: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="3.8" fill="none" stroke="currentColor"/><path d="M6 0.5v3M6 8.5v3M0.5 6h3M8.5 6h3" stroke="currentColor"/></svg>',
+  stoppage: '<svg viewBox="0 0 12 12"><path d="M1 4.5h9v2H6l-1 3H3l0.5-3H1z" fill="none" stroke="currentColor"/><path d="M2 11L11 1.5" stroke="#c0564e" stroke-width="1.5"/></svg>',
+  tower: '<svg viewBox="0 0 12 12"><path d="M3 11.5V1.5l6.5 2.2L3 6" fill="none" stroke="currentColor"/></svg>',
+  kd: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor"/><circle cx="6" cy="6" r="2" fill="none" stroke="currentColor"/><circle cx="6" cy="6" r="0.6" fill="currentColor"/></svg>',
+  line: '<svg viewBox="0 0 12 12"><path d="M1 10.5h10M3 10.5V4M9 10.5V4" fill="none" stroke="currentColor"/><circle cx="6" cy="4.5" r="2" fill="none" stroke="currentColor"/></svg>',
+  FIRE: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="3.8" fill="none" stroke="currentColor"/><path d="M6 0.5v3M6 8.5v3M0.5 6h3M8.5 6h3" stroke="currentColor"/></svg>',
+  DRILL: '<svg viewBox="0 0 12 12"><rect x="3" y="1.5" width="6" height="9.5" fill="none" stroke="currentColor"/><circle cx="7.4" cy="6.6" r="0.8" fill="currentColor"/></svg>',
+  GUN: '<svg viewBox="0 0 12 12"><path d="M0.5 4.5h10v2H6.5l-1 3.5h-2l0.5-3.5h-3.5z" fill="none" stroke="currentColor"/></svg>',
+  BODY: '<svg viewBox="0 0 12 12"><circle cx="6" cy="2.5" r="1.6" fill="none" stroke="currentColor"/><path d="M6 4.5v4M3 6.5h6M6 8.5l-2 3M6 8.5l2 3" fill="none" stroke="currentColor"/></svg>',
+  TEAM: '<svg viewBox="0 0 12 12"><circle cx="4" cy="3.5" r="1.5" fill="none" stroke="currentColor"/><circle cx="8.5" cy="3.5" r="1.5" fill="none" stroke="currentColor"/><path d="M1.5 10.5c0-3 5-3 5 0M6 10.5c0-3 5-3 5 0" fill="none" stroke="currentColor"/></svg>',
+  shot: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="3.8" fill="none" stroke="currentColor"/><circle cx="6" cy="6" r="0.9" fill="currentColor"/></svg>',
+  aim: '<svg viewBox="0 0 12 12"><path d="M1 6c1.5-2.5 3-3.5 5-3.5S9.5 3.5 11 6c-1.5 2.5-3 3.5-5 3.5S2.5 8.5 1 6z" fill="none" stroke="currentColor"/><circle cx="6" cy="6" r="1.4" fill="currentColor"/></svg>',
+  fix: '<svg viewBox="0 0 12 12"><path d="M2 10l5.2-5.2" stroke="currentColor" stroke-width="1.6"/><path d="M7 2.2a2.6 2.6 0 1 0 2.8 2.8L8.4 5.2 6.8 3.6z" fill="none" stroke="currentColor"/></svg>',
+  muzzle: '<svg viewBox="0 0 12 12"><path d="M2 2l7.5 7.5M9.5 4.5v5h-5" fill="none" stroke="currentColor"/></svg>',
+  next: '<svg viewBox="0 0 12 12"><path d="M2 2l4 4-4 4M6.5 2l4 4-4 4" fill="none" stroke="currentColor"/></svg>',
+});
+/** The half's words on the fan's DRILL card. */
+export const HALF_WORDS = Object.freeze({ out: 'OUTSIDE A DOOR', in: 'IN THE ROOM' });
+/** One word a key under --ui 1 (P3's small views: "Stack", "Point", "Open", "Kick"), by group and slot; the core's and the rest by shortName. */
+export const SHORT_WORDS = Object.freeze({
+  FIRE: [null, 'Pair', 'Hammer', 'Triple', 'Failure', 'Head', 'Fire', 'Aim', 'Breathe', 'Line'],
+  DRILL_OUT: [null, 'Stack', 'Point', 'Open', 'Kick', 'Breach', 'Flash', 'Enter', 'Read', 'Hold'],
+  DRILL_IN: [null, 'Watch', 'Point', 'Clear!', 'Long', 'Mark', 'Out', 'Next', 'Hold', 'Clear it'],
+  GUN: [null, 'Reload', 'Down', 'Pistol', 'Offline', 'Safe', 'Finger', 'Check', 'Command', 'Hands'],
+  BODY: [null, 'High', 'Stance', 'Kneel', 'Prone', 'Cover', 'Stop', 'Wait', 'Sling', 'Low'],
+  TEAM: [null, 'Cover', null, null, null, null, 'Challenge', 'Engage', null, null],
+});
+const WORD_SHORT = Object.freeze({ 'IMMEDIATE ACTION': 'IA', 'MAKE READY': 'READY', 'SHOW CLEAR': 'CLEAR', 'Off safe': 'Off safe', 'Top up': 'Top up', 'Rifle up': 'Rifle', 'Gun down': 'Down', 'Transition: pistol': 'Pistol', 'Nothing to fix': 'Nothing' });
+/** A tile's one word (P3's small views): its slot's (SHORT_WORDS, by its group and DRILL's half), else its row's or words' first word. */
+export function shortName(e, half = null) {
+  const g = e?.group === 'DRILL' ? (half === 'in' ? 'DRILL_IN' : 'DRILL_OUT') : e?.group;
+  // (the row's own words first where they have a short of their own (a slot's second row: Rifle up on Transition's), then the slot's)
+  const w = String(e?.row?.label ?? e?.words ?? '').trim();
+  if (WORD_SHORT[w]) return WORD_SHORT[w];
+  for (const [k, v] of Object.entries(WORD_SHORT)) if (w.startsWith(`${k} `) || w.startsWith(`${k},`) || w.startsWith(`${k}:`)) return v;
+  const bySlot = !e?.core && g && Number.isInteger(e?.slot) ? SHORT_WORDS[g]?.[e.slot] : null;
+  if (bySlot) return bySlot;
+  return w.length <= 8 ? w : (w.split(/[\s,:]+/)[0] || w);
+}
 
 const secs = (ms) => (Number.isFinite(ms) ? `${(Math.max(0, ms) / 1000).toFixed(1)} s` : '');
 const secs2 = (ms) => (Math.max(0, ms) / 1000).toFixed(2);
@@ -389,7 +442,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   let sigRows = null, sigCard = null, slots = [], rowsEls = [], bar = null, text = '', cardK = null, hovered = null, cardLine = '';
   // (R7: the model, the layout, the view, and where the player is in it: nav (an open drawer, bank or the fan's group, its third
   // level), reset where the stop changes (navKey); fanHeld, Tab held in layout C)
-  let pm = null, layout = DEFAULT_LAYOUT, view = null, nav = {}, navKey = null, fanHeld = false, watchStep = 0;
+  let pm = null, layout = DEFAULT_LAYOUT, view = null, nav = {}, navKey = null, fanHeld = false, watchStep = 0, small = false, diRow = null;
   // (every step the panel has shown, by id: the one running leaves stepsOf's list as it changes the gun, LOAD once the magazine is in)
   const known = new Map();
 
@@ -447,18 +500,32 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     if (nav.group && !pm.groups[nav.group]) nav = { auto: true };
     view = viewOf(pm, layout, { ...nav, fan: layout === 'c' && fanHeld });
     slots = view.keys.filter(k => k.entry?.row && !k.entry.stand && k.entry.core !== 'next').map(k => ({ key: k.key, digit: Number(k.key), step: k.entry.row }));
-    const rs = JSON.stringify(['groups', layout, !!v.shift, view.level, view.head, doing?.step ?? null, doing?.chain ?? null, view.banks, view.keys.map(k => sigOf(k, v)), v.chaos?.sum ?? null]);
+    // (2026-11-15: layout C as its sample, P3: the band in tiles, Tab's fan with its wheel and the group's card; one word a key under --ui 1)
+    small = (v.ui ?? 1) < 1; diRow = v.diRow ?? null;
+    const form = layout === 'c' && view.level === 'band' ? 'tiles' : layout === 'c' && fanHeld ? 'fan' : 'list';
+    const rs = JSON.stringify(['groups', layout, form, small, diRow, !!v.shift, view.level, view.head, doing?.step ?? null, doing?.chain ?? null, view.banks, view.keys.map(k => sigOf(k, v)), v.chaos?.sum ?? null, form === 'fan' ? nav.group ?? null : null]);
     if (rs !== sigRows) {
       sigRows = rs;
       bar = null;
       rowsEls = [];
       const kids = [];
-      if (view.head) kids.push(headEl(view));
-      view.keys.forEach((k, i) => { const e = tile(k, v, doing, i); rowsEls.push(e); kids.push(e); });
-      if (view.banks) kids.push(banksEl(view));
+      const at = (n, c, r) => { n.style.gridColumn = String(c); n.style.gridRow = String(r); return n; };
+      if (form === 'tiles') {
+        kids.push(at(sitTile(view), 1, 1), at(tabTile(), 1, 2));
+        view.keys.forEach((k, i) => { const e = at(tile(k, v, doing, i, form), 2 + (i % 5), 1 + Math.floor(i / 5)); rowsEls.push(e); kids.push(e); });
+      } else if (form === 'fan') {
+        kids.push(wheelEl(view), groupCard(view));
+        view.keys.forEach((k, i) => { const e = at(tile(k, v, doing, i, form), 3 + Math.floor(i / 5), 1 + (i % 5)); rowsEls.push(e); kids.push(e); });
+        if (view.keys.length < 10) kids.push(at(letGoTile(), 4, 5));
+      } else {
+        if (view.head) kids.push(headEl(view));
+        view.keys.forEach((k, i) => { const e = tile(k, v, doing, i, form); rowsEls.push(e); kids.push(e); });
+        if (view.banks) kids.push(banksEl(view));
+      }
       list.replaceChildren(...kids);
       list.classList.add('grouped');
-      list.dataset.layout = layout; list.dataset.level = view.level;
+      list.dataset.layout = layout; list.dataset.level = view.level; list.dataset.form = form;
+      root.classList.toggle('small', small);
       root.classList.toggle('acting', !!doing);
       text = [cardLine, `${view.head?.name ?? ''}:`, ...view.keys.map(k => tileText(k, v)).filter(Boolean), view.banks ? view.banks.map(b => `${b.key} ${GROUP_WORDS[b.group]}`).join(' ') : null].filter(Boolean).join(' | ');
     }
@@ -607,8 +674,50 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     n.style.gridColumn = '4'; n.style.gridRow = '1 / span 5';
     return n;
   }
+  // ---- 2026-11-15: layout C's forms, as P3 ----
+  const icon = (id, cls = 'icon') => { const n = el('span', { className: cls }); n.innerHTML = ICON_SVG[id] ?? ''; return n; };
+  // (the situation's tile at the band's top left: its picture and its name, brass)
+  function sitTile(vw) {
+    const h = vw.head ?? {};
+    return el('div', { className: 'step sit', title: `The situation: ${h.name}. Its five on 1 to 5; the core on 6 to 0; hold ${FAN_KEY} for the groups.` }, icon(pm?.situation?.hall ? 'room' : h.id ?? 'line'), el('span', { className: 'label' }, el('span', { className: 'name', textContent: h.name ?? '' })));
+  }
+  // (the Tab tile under it: "held: more")
+  function tabTile() {
+    return el('div', { className: 'step tabtile', title: `${FAN_KEY} held: the five groups, a digit the group, a second the row.` }, el('kbd', { textContent: FAN_KEY }), el('span', { className: 'label' }, el('span', { className: 'name', textContent: small ? 'more' : 'held: more' })));
+  }
+  // (Tab let go, the fan's last tile where the group leaves room)
+  function letGoTile() {
+    return el('div', { className: 'step tabtile letgo', title: `Let go of ${FAN_KEY}: back to the situation's five.` }, el('kbd', { textContent: FAN_KEY }), el('span', { className: 'label' }, el('span', { className: 'name', textContent: 'let go' })));
+  }
+  // (the fan's half-wheel: the five groups' keys and pictures round a half-disc, the open group's sector lit; SVG in the tile's units)
+  function wheelEl(vw) {
+    const open = vw.head?.kind === 'group' ? vw.head.group : null, R = 50, r0 = 12;
+    const parts = [];
+    GROUPS.forEach((g, i) => {
+      const a0 = -Math.PI / 2 + (i * Math.PI) / 5, a1 = a0 + Math.PI / 5, am = (a0 + a1) / 2;
+      const p = (a, rr) => `${(rr * Math.cos(a)).toFixed(2)} ${(rr * Math.sin(a)).toFixed(2)}`;
+      const lit = g === open;
+      parts.push(`<path d="M${p(a0, r0)} L${p(a0, R)} A${R} ${R} 0 0 1 ${p(a1, R)} L${p(a1, r0)} A${r0} ${r0} 0 0 0 ${p(a0, r0)} Z" class="sector${lit ? ' lit' : ''}"/>`);
+      const [kx, ky] = p(am, 22).split(' ').map(Number), [ix, iy] = p(am, 38).split(' ').map(Number);
+      parts.push(`<rect x="${(kx - 5.5).toFixed(2)}" y="${(ky - 5.5).toFixed(2)}" width="11" height="11" rx="1.5" class="cap${lit ? ' lit' : ''}"/><text x="${kx.toFixed(2)}" y="${(ky + 3).toFixed(2)}" class="capt${lit ? ' lit' : ''}">${i + 1}</text>`);
+      parts.push(`<g transform="translate(${(ix - 5).toFixed(2)} ${(iy - 5).toFixed(2)}) scale(0.84)" class="gi${lit ? ' lit' : ''}">${(ICON_SVG[g] ?? '').replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>`);
+    });
+    const n = el('div', { className: 'fanwheel', title: `${FAN_KEY} held: 1 FIRE, 2 DRILL, 3 GUN, 4 BODY, 5 TEAM` });
+    n.innerHTML = `<svg viewBox="-2 -52 54 104" preserveAspectRatio="xMinYMid meet">${parts.join('')}</svg>`;
+    n.style.gridColumn = '1'; n.style.gridRow = '1 / span 5';
+    return n;
+  }
+  // (the fan's card beside the wheel: the open group's key, picture, name and half; before a group, the hint)
+  function groupCard(vw) {
+    const g = vw.head?.kind === 'group' ? vw.head.group : null;
+    const n = g
+      ? el('div', { className: 'gcard' }, el('div', { className: 'gc-top' }, el('kbd', { textContent: String(GROUPS.indexOf(g) + 1) }), icon(g)), el('span', { className: 'gc-name', textContent: `${GROUP_WORDS[g]}${vw.level === 'deep' ? ' ▸' : ''}` }), g === 'DRILL' && pm?.half ? el('span', { className: 'gc-half', textContent: HALF_WORDS[pm.half] }) : null)
+      : el('div', { className: 'gcard none' }, el('span', { className: 'gc-name', textContent: FAN_KEY }), el('span', { className: 'gc-half', textContent: 'a digit: the group' }));
+    n.style.gridColumn = '2'; n.style.gridRow = '1 / span 5';
+    return n;
+  }
   // (a tile: a row (a slot's, the core's, a third level's) drawn as v0.0.13's rows are, with its badge; a group's tab; a way in or out)
-  function tile(k, v, doing, i) {
+  function tile(k, v, doing, i, form = 'list') {
     const e = k.entry;
     let n;
     if (!e || (!e.row && !e.tab && !e.deep && !e.home && !e.more && e.core !== 'next')) {
@@ -635,6 +744,26 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     n.dataset.key = k.key;
     if (e?.core) { n.dataset.core = e.core; n.classList.add('core', `core-${e.core}`); }
     if (e?.group) n.dataset.group = e.group;
+    // (C's tiles: the core's picture and word by the key; one word a key under --ui 1, the whole name on the hover; the DI's row edged)
+    if (form !== 'list') {
+      // (the core's picture by its key, and its word where the picture is not enough (FIX, MUZZLE), as P3; NEXT's T keycap there too)
+      if (e?.core) {
+        const tcap = e.core === 'next' ? n.querySelector('.meta .tcap') : null;
+        const tag = el('span', { className: 'ctag' }, tcap, icon(e.core), e.core === 'fix' || e.core === 'muzzle' ? el('span', { className: 'cw', textContent: CORE_WORDS[e.core] }) : null);
+        n.querySelector(':scope > kbd')?.after(tag);
+      }
+      else if (e?.tab) n.querySelector(':scope > kbd')?.after(icon(e.tab));
+      const nm = n.querySelector('.label .name');
+      // (the hover leads with the tile's whole name, where the tile cuts it (NEXT's said "NEXT: …" first))
+      if (nm?.firstChild && e?.core === 'next' && !String(n.title).startsWith(nm.firstChild.textContent)) n.title = `${nm.firstChild.textContent}: ${n.title}`;
+      if (small && nm?.firstChild && (e?.row || e?.words) && !e?.tab && !e?.more && !e?.home) { const w = e.core === 'next' && !e.live ? 'nothing' : e.core === 'next' ? shortName({ row: e.row, words: e.actLabel }) : shortName(e, pm?.half); if (!n.title) n.title = nm.textContent; nm.firstChild.textContent = w; }
+    }
+    const rid = e?.row?.id ?? null;
+    if (diRow && rid && (rid === diRow || rid === String(diRow).split('>')[0]) && e.core !== 'next') n.classList.add('di');
+    // (the head called for (the DI's row To the head: still up after the plate, the hostage), the other shots stand aside, dimmed,
+    // so the old habit's 1 (a pair into the plate, Pairs and Bang before v0.0.14) is seen not to be it: the question of 2026-11-14;
+    // the core's shot on 6 too, a round into the plate all the same)
+    else if (/^shot:head(@|$)/.test(String(diRow ?? '')) && (/^shot:/.test(String(rid ?? '')) || (e?.core === 'shot' && rid === 'fire')) && (!e.core || e.core === 'shot')) n.classList.add('aside');
     n.style.gridColumn = String(2 + Math.floor(i / 5)); n.style.gridRow = String(1 + (i % 5));
     return n;
   }
@@ -705,7 +834,14 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     /** The model of the rows shown (groups.js modelOf), or null. */
     get model() { return pm; },
     /** The keys a row is on now in the layout drawn (groups.js keyPathOf from the band), or null. */
-    keysFor(id) { return pm ? keyPathOf(pm, layout, id) : null; },
+    keysFor(id, { next = true } = {}) { return pm ? keyPathOf(pm, layout, id, { next }) : null; },
+    /** The keys the DI's row is on by its own place (never NEXT), the row matched whole, else by its id before '>' ('aim>turner:5' → 'aim'), or null. */
+    rowKeys(id) {
+      if (!pm || !id) return null;
+      const ids = [id, String(id).split('>')[0]];
+      for (const x of ids) if (pm.rows.some(r => r.id === x)) return keyPathOf(pm, layout, x, { next: false });
+      return null;
+    },
     /** The keys of what is drawn now: [{ key, id, label, off, kind, core, group, tab }]. */
     get keys() { return (view?.keys ?? []).map(k => ({ key: k.key, id: k.entry?.row?.id ?? null, label: k.entry?.row?.label ?? k.entry?.words ?? null, off: k.entry?.row?.off ?? null, kind: k.entry?.row?.kind ?? null, core: k.entry?.core ?? null, group: k.entry?.group ?? null, tab: k.entry?.tab ?? null, live: k.entry?.core === 'next' ? !!k.entry.live : !!k.entry?.row && !k.entry.row.off })); },
     /** Hooks: a tab clicked (onNav), NEXT clicked (onNext, main.js: T's tap). */

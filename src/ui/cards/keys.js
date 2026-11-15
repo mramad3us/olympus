@@ -56,7 +56,7 @@ export const SPLASH_KEYS = Object.freeze([['pause', 'in a splash: to the end (En
 /** In stop motion, the keys mean (VIEWS §10.2; the build sheet 0.0.5 §2.4): [codes or actions, words]. */
 export const STOP_KEYS = Object.freeze([[['Enter'], 'in stop motion: aim at the bracketed target (a click too; a click on the aimed one fires)'], [['KeyA', 'KeyD'], 'in stop motion: the brackets to the next target; with nobody in sight, the Watch row to the next hot spot'],
   // (2026-11-13, the rework's R7: the step panel by groups, VIEWS §7.8; the layout on the Esc menu, C until the user scores P1 to P3)
-  [['Tab'], 'in stop motion, the step panel C: held, the groups (a digit the group, a second the row)'], [['KeyR', 'KeyC', 'KeyB', 'KeyF'], 'in stop motion, the step panel B: the room, the gun, the body, your team (again or Esc: back)'], [['hand'], 'in a reflex card: keep the answer two minutes'],
+  [['Tab'], 'in stop motion, the step panel C: held, the groups (a digit the group, a second the row)'], [['KeyR', 'KeyC', 'KeyB', 'KeyF'], 'in stop motion, the step panel B: the room, the gun, the body, your team (again or Esc: back)'], [['Escape'], 'in stop motion, the step panel A: back home from a drawer (its own digit too)'], [['hand'], 'in a reflex card: keep the answer two minutes'],
   // (0.0.7: the scope's turrets, and the far window on your own face by E held on a KD line)
   [['KeyW', 'KeyS'], 'in stop motion: the scope\'s elevation a click up, down (↑ ↓ too)'], [['run', 'KeyA', 'KeyD'], 'in stop motion, Shift held: the windage a click left, right (← → too)'],
   [['look'], 'held on a KD line: the far window on your target']]);
@@ -72,16 +72,30 @@ export const HOUSE_KEYS = Object.freeze([[['carry'], 'in the shoot house: the st
 /** In the R menu, the keys mean (cards/actions.js; the build sheet 0.0.6 §2.3): [codes or actions, words]. */
 export const MENU_KEYS = Object.freeze([[['Space'], 'in the R menu: check a row (the digits and the arrows move to one; Enter does what is checked)'], [['KeyA', 'KeyD'], 'in the R menu: a row\'s choice (how long, which cut)']]);
 
-/** The card's rows: [[keys, words]…]. label(action or code) names a key; says overrides words; extra adds rows (the debug keys). */
-export function keysRows({ label, says = {}, extra = [] }) {
+/**
+ * The digits in stop motion by the step panel's layout played (2026-11-15, the keys role: the card named every layout's keys
+ * whichever was played, B's banks under C; the user's "the keys selection isn't updated according to the choices made earlier
+ * yet?"): C, the user's pick, 1 to 5 the situation's five and 6 to 0 the core; A, the core on 1 to 5 and the drawers on 6 to 0.
+ */
+export const PANEL_DIGITS = Object.freeze({
+  c: [['1 … 5', 'in stop motion: the situation\'s five, named at the panel\'s left (at the door, in the room, contact, a stoppage, the tower, the line)'],
+    ['6 7 8 9 0', 'in stop motion: the core, the same in every scene: 6 the shot, 7 aim ⇄ hold, 8 fix (the gun\'s remedy, else a reload), 9 the muzzle (high ⇄ low ready), 0 next (what T does)']],
+  a: [['1 … 5', 'in stop motion: the core: 1 the shot, 2 aim ⇄ hold, 3 fix, 4 the muzzle, 5 next (what T does)'], ['6 7 8 9 0', 'in stop motion: the drawers, FIRE, DRILL, GUN, BODY, TEAM; in a drawer its nine']],
+  b: [['1 … 5', 'in stop motion: the shots: pair, hammer, triple, failure drill, to the head'], ['6 7 8 9 0', 'in stop motion: the core: fire, aim ⇄ hold, fix, the muzzle, next']],
+});
+/** The layout-only rows of STOP_KEYS, by their first key: kept for their own layout alone. */
+const LAYOUT_ROW = Object.freeze({ Tab: 'c', KeyR: 'b', Escape: 'a' });
+
+/** The card's rows: [[keys, words]…]. label(action or code) names a key; says overrides words; extra adds rows (the debug keys); panel the step panel's layout played (null: every layout's rows, as before). */
+export function keysRows({ label, says = {}, extra = [], panel = null }) {
   const rows = [[`${label('up')} ${label('left')} ${label('down')} ${label('right')}`, 'walk (the arrows too)']];
   for (const action of KEYS_IN_BUILD) {
-    if (action === 'digits') { rows.push(['1 … 0', says.digits ?? KEY_WORDS.digits]); continue; }
+    if (action === 'digits') { rows.push(['1 … 0', says.digits ?? KEY_WORDS.digits]); if (PANEL_DIGITS[panel]) rows.push(...PANEL_DIGITS[panel]); continue; }
     if (action === 'stance') { rows.push([`${label('stanceUp')} ${label('stanceDown')}`, says.stance ?? KEY_WORDS.stance]); continue; }
     rows.push([label(action), says[action] ?? KEY_WORDS[action] ?? bindingOf(action)?.say ?? action]);
   }
   for (const [k, words] of SPLASH_KEYS) rows.push([label(k), words]);
-  for (const [ks, words] of STOP_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
+  for (const [ks, words] of STOP_KEYS) if (!panel || !LAYOUT_ROW[ks[0]] || LAYOUT_ROW[ks[0]] === panel) rows.push([ks.map(k => label(k)).join(' '), words]);
   for (const [ks, words] of CONTACT_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
   for (const [ks, words] of MENU_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
   for (const [ks, words] of HOUSE_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);

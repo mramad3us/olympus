@@ -150,6 +150,8 @@ export const OUT_WAIT_MS = 500;
 /** The reloads' purposes and their labels by macro id (COMBAT §25.6.5). */
 export const RELOAD_PURPOSE = Object.freeze({ 'reload:speed': 'speed', 'reload:tactical': 'tactical', 'reload:retain': 'retain' });
 export const RELOAD_LABELS = Object.freeze({ speed: 'RELOAD', tactical: 'Top up', retain: 'RELOAD, keep the empty' });
+/** Top up's label when the magazine is already out with a round chambered (a fumbled top-up): the reach and the seat. */
+export const MAG_IN_LABEL = 'Magazine in';
 
 // (the rung of the room's drill family: templates.js rungOf (the react role's), else the sheet's own, else by rank as
 // COMBAT §25.3.2's RUNG_OF_TIER puts it (private 1, lance corporal and corporal 2, sergeant and above 3, officer 1))
@@ -539,11 +541,13 @@ export function reloadRows(state, pid, ms = state.clock.ms) {
   const roller = rollerOf(state, pid, { ms }), out = [];
   for (const m of ms0) {
     const purpose = RELOAD_PURPOSE[m.id], row = { ...macroRow(state, roller, gun, b, m), purpose, label: RELOAD_LABELS[purpose], first: false };
-    if (purpose === 'speed') row.first = !!b.locked && b.count === 0;
+    if (purpose === 'speed') row.first = (!!b.locked && b.count === 0) || b.mag === 'out';
     if (purpose === 'tactical') {
       // (first in a lull, the magazine in at half or less, with a fuller one at hand: a magazine of ten in a thirty has
       // nothing to top up with from others of ten (my call: "half" alone would lead with Top up on a full load of ten))
-      row.first = halfOrLess(b, gun) && fullerAtHand(state, pid, gunId, b) && lullOf(state, pid, ms);
+      // (the magazine out with a round chambered (macrosFor's fumbled top-up): first, and named for what it does)
+      if (b.mag === 'out') { row.first = true; row.label = MAG_IN_LABEL; }
+      else row.first = halfOrLess(b, gun) && fullerAtHand(state, pid, gunId, b) && lullOf(state, pid, ms);
       // (the coach's named magazine: Top up reaches for its pouch, and says which (§8 item 18))
       const want = R?.wantMag ? state.items[R.wantMag] : null, pouch = want ? pouchesOf(state, pid).find(p => !p.dump && p.mags.includes(R.wantMag)) : null;
       if (want && pouch && gun.mag !== R.wantMag) {

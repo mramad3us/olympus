@@ -285,6 +285,13 @@ The **vehicle lock** is 12 × 6 × 5 m (360 m³): pump to 10 kPa at 3 m³/s in 3
 
 **As built in v0.0.12**: the stage reads `swing` from the area's own openings (a door's hinge side and the way the leaf swings, drawn from the opening, not a render table); `src/sim/places/validate.js` has no `swing` rule yet (`places-validate` checks a swing on every leaf by itself).
 
+**As built in v0.0.17, a door read from one side** (`src/sim/places/swing.js`, new and pure; the user, 2026-11-15: "doors should have a direction they open (pull or push) and it should affect our options for entry"; my calls). From any opening's own data (`swing { hinge, into }`, its line, its rooms' rects, or an `intoSide`) and the side you stand on, it reads:
+- **how**: push (the leaf swings away from you) or pull (toward you); **hinge** left or right as seen facing the door; the **latch side**, which is the stack side; **kickable** (push only); **behindSide** (a push door's hinge side; none on a pull); the words ("Pull door, hinge right.").
+- **the stack's points** (`stackPointsOf`): 0.5 m past the latch jamb, 0.45 m off the wall, each man 0.65 m behind the one before. The stack forms on the latch side for push and pull alike.
+- **the leaf's arc** (`arcOf`): centred on the hinge, its reach the leaf's width plus 0.25 m; and the part of it a moving leaf has still to sweep (`inSweep`). In `zones.js`, `arcsOf` gives every hinged leaf's arc, and `liveZoneAt` includes it as a no-stop zone **only while its leaf moves, and only the part still to sweep** (`arcLiveAt`); `zonesOf` and `zoneAt` (the plan's zones) are unchanged. COMBAT §25.19.8's F26 holds nobody in it.
+- **House 1's swings are authored** (rooms 1 and 3 push, hinge left; room 2 pull, hinge right; the closet, from room 2, push, hinge left): the stage builds its leaves once from the area's frozen data, and procedural swings per seed wait for the assembler (§9.9) and per-state leaves in the stage. `room.js` `doorPlanOf` derives each plan's `swing` and `stack` from the door, checks an authored stack within 0.02 m of the latch side's points (it throws if not), and refuses a locked pull door on the lane (a dead end until v0.0.18's breaching; for generated plans a refused row is wanted, COMBAT §25.19.14).
+- `places-validate` still checks a swing on every leaf by itself; `validate.js` has no `swing` rule yet.
+
 ### 1.7 Vertical links: stairs, ladders, lifts, trunks
 
 ```json

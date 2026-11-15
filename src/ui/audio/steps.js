@@ -38,10 +38,22 @@
 // 65.9 kPa: the one air law, which replaces VIEWS §11.2's −3.7 dB, build sheet 0.0.3 §8 item 16),
 // plus the gait's own (src/data/sounds.js GAIT_DB): −6.1 dB walking at Melas; and low-passed at
 // VIEWS §11.2's 8 kHz × P / 101.3, 5,204 Hz at 65.9 kPa (5,212 Hz in a building's 66.0).
+//
+// v0.0.16 (the user, 2026-11-15: "steps are too loud"): the new sound (engine.js, not &sound=old) plays every foot-fall
+// STEP_TRIM_DB (−17 dB) under stepVoice's gain, well under the shots (gun.js), and by the movement stance (actor.moveStance:
+// places/move.js), STANCE_STEP_DB: the Careful walk (Combat) rolls heel to toe, 5 dB under; the Fast one (Assault) lopes,
+// 1 dB over; Relaxed as built (my calls). stepTrimDb(stance, sound) is that sum, 0 for the old sound.
 import { STEP_M } from '../../art/figures/poses.js';
 import { STRIDE_WRAP_M } from '../../data/body/gait.js';
 import { airDb } from '../../sim/people/hearing.js';
 import { GAIT_DB, SURFACE_STEP, LOOKAHEAD_S, LOWPASS_REF_HZ, LOWPASS_REF_KPA } from '../../data/sounds.js';
+
+/** The new sound's foot-falls against stepVoice's gain (dB; see the header). */
+export const STEP_TRIM_DB = -17;
+/** The movement stance's foot-fall against the Relaxed walk's (dB): Careful (combat) softer, Fast (assault) heavier. */
+export const STANCE_STEP_DB = Object.freeze({ relaxed: 0, combat: -5, assault: 1 });
+/** A foot-fall's trim for the sound ('new' | 'old') and the stance (absent: Relaxed): dB. */
+export const stepTrimDb = (stance, sound = 'new') => (sound === 'old' ? 0 : STEP_TRIM_DB + (STANCE_STEP_DB[stance] ?? 0));
 
 /** The metres between foot-falls by gait: half the four-frame cycle (the stroll draws the walk's frames). */
 export const HALF_CYCLE_M = Object.freeze({ walk: 2 * STEP_M.walk, stroll: 2 * STEP_M.walk, run: 2 * STEP_M.run, bound: 2 * STEP_M.bound });

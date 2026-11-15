@@ -146,7 +146,7 @@ import { logEntry } from '../log.js';
 import { lineReady, recordShot, recordEjects, recordDischarge, afterStep, aheadOf, coachOf, rangeOf, markOfMacro, onStepStart, noteTick, magSeated, oneMagWarn, kindWarn, spoutCheck } from '../scenarios/handling.js';
 import { turnerTargets, facingOf } from './turners.js';
 import { shotRows, reloadRows, rowPlan, keptPlan, runRowSub, endRowSub, RELOAD_PURPOSE, rungOfShooter, RUNG_AIM, halfOrLess, fullerAtHand, ROWS, stanceHint } from './specials.js';
-import { contactRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive, CONTACT_LABELS } from '../combat/contact.js';
+import { contactRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive, contactNow, CONTACT_LABELS } from '../combat/contact.js';
 import { contactOf } from '../people/mind.js';
 import { useList, begin, advance, endStep, stepFact } from '../combat/stepper.js';
 import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant, wayOf, pathFrom, feetTo, flowIn, flowAfter, crossTick, mineUp, doorNow, preGoRows } from '../combat/bundle.js';
@@ -587,6 +587,17 @@ function houseRows(state, pid, ms) {
   return { rows, go, grey };
 }
 
+// (the next man up on a bay after the bracketed one fell: a turner in the frame, standing and at least half turned, none the
+// take-in's record identified as a no-shoot (empty hands, a phone), the string's order first (the DI's "Next" names the same
+// man: instinct/pairs.js), else left to right; what the shooter sees, never what a card holds)
+const NEXT_NOSHOOT = new Set(['hands', 'phone']);
+function nextUpOf(state, pid, downT, ms) {
+  const ident = contactNow(state, ms)?.last?.ident ?? {}, order = rangeOf(state)?.str?.keys ?? [];
+  const ups = targetsOf(state, pid).filter(t => t.kind === 'turner' && t.key !== downT.key && !t.down && t.facingK >= 0.5 && !NEXT_NOSHOOT.has(ident[t.key]));
+  const rank = (t) => { const i = order.indexOf(t.key); return i < 0 ? order.length : i; };
+  return ups.sort((a, b) => rank(a) - rank(b))[0] ?? null;
+}
+
 /** The steps the panel offers now (see the header). */
 export function stepsOf(state, ms = state.clock.ms) {
   const S = state.stop;
@@ -632,7 +643,11 @@ export function stepsOf(state, ms = state.clock.ms) {
   // (the runtime review's of v0.0.7, as v0.0.6 marks RELOAD's "one magazine a string"))
   else if (Rl && !Rl.end && !Rl.hot && Rl.cmd && !fireOff) fire.warn = 'the line is cold';
   // (2 Aim at the bracketed target, or Hold the aim already on it)
-  const pickT = S.pick ? targetOf(state, S.pick, pid) : null;
+  const pickT0 = S.pick ? targetOf(state, S.pick, pid) : null;
+  // (on a bay, the bracketed turner down: the aim row goes to the next man he can see still up and facing, none he
+  // identified as a no-shoot, so the DI's "He is down. Next: the rifle, lane one." names a row and T aims at him (the fixer's
+  // of 0.0.16: the aim stayed held on the man who fell, no aim row on the band, and only Q or D then Enter went on, unnamed))
+  const pickT = pickT0?.kind === 'turner' && pickT0.down && pickT0.room === undefined ? nextUpOf(state, pid, pickT0, ms) ?? pickT0 : pickT0;
   let aimRow;
   if (pickT && S.aim?.key !== pickT.key) aimRow = { id: 'aim', kind: 'aim', label: `Aim at ${pickT.name}`, ms: aimMsOf(state, pid, S.gun, pickT), rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: 'weapons', target: pickT.key,
     // (on a range, a rifle aimed at a person stops the line at once: said on the row before the press does it)
@@ -678,7 +693,7 @@ export function stepsOf(state, ms = state.clock.ms) {
   if (dry >= 0) out.unshift(...macros.splice(dry, 1));
   // (a man facing you: the commands that are no answer to him wait after the singles; Top up stays where it answers, at
   // half or less with a fuller one at hand (the runtime review: "Top up 4.2 s" fifth with a full magazine in))
-  const answers = (r) => r.queue || r.cmd || r.purpose === 'speed' || r.purpose === 'retain' || (r.purpose === 'tactical' && halfOrLess(belief, gun) && fullerAtHand(state, pid, S.gun, belief));
+  const answers = (r) => r.queue || r.cmd || r.purpose === 'speed' || r.purpose === 'retain' || (r.purpose === 'tactical' && (belief.mag === 'out' || (halfOrLess(belief, gun) && fullerAtHand(state, pid, S.gun, belief))));
   // (0.0.12: on the house's lane too, where no command is given until Stop: UNLOAD and a Top up with nothing to gain page with
   // the rest, so the stack, the door and the Watches hold the first keys at GO)
   const later = live || hRows ? macros.filter(r => !answers(r)).map(r => Object.assign(r, { later: true })) : [];
@@ -1132,7 +1147,7 @@ export function chooseStep(state, bus, { step, tempo = 'normal', target = null, 
   if (typeof step !== 'string') return { ok: false, why: 'no step' };
   if (step.startsWith('reflex:')) {
     if (!S.reflex) return { ok: false, why: 'no reflex card' };
-    // (an answer shown struck (the rework's R6: Transition below the Sergeant, "not issued") is no answer: the card stays)
+    // (an answer shown struck (Transition "not carried", a man with no pistol: never the rank's from 2026-11-15) is no answer: the card stays)
     const struck = S.reflex.options.find(o => o.key === step.slice(7) && o.off);
     if (struck) return { ok: false, why: struck.off };
     const opt = chosenReflex(state, bus, step.slice(7), { keep });

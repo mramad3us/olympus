@@ -62,6 +62,17 @@
 // the range's 'report' through shot(); fact() hands the 'fx' facts of kind 'horn' and 'blank' to it, and frame(…, { breathing })
 // holds the box breath on the body bus while Breathe runs, the band's quick breath held off then (bang.js).
 //
+// The 0.0.16 round's (gun.js, mix.js; the user, 2026-11-15: "guns should bang harder and closer to realistic ... steps are too
+// loud"): two sounds, chosen once at createAudio by its sound option, else the page's URL (&sound=old: soundModeOf):
+//   'new'  the default: the shot rebuilt (gun.js: the blast, the crack, the action, the space's answer, the electronic
+//          protection), its voices on the gun bus straight into the splash's muffle (past the hall's send: they carry
+//          their own space), baked after the steps (GUN_RATE_HZ for the dry parts, TAIL_RATE_HZ for the tails, a stage at a
+//          time within BAKE_FRAME_MS); the steps STEP_TRIM_DB under and by the stance (steps.js stepTrimDb); and the master
+//          mix.js MASTER: the compressor at −6 dBFS, ratio 20, 1 ms, its make-up taken back by a trim, then a soft clip
+//          (a WaveShaper), so nothing clips however many shots;
+//   'old'  v0.0.15's sound as it was, to hear the difference (the report recipe, the steps at their old level, MASTER_OLD).
+// gun(voice) plays one of gun.js's voices ({ key, delayS, gainDb, lowHz, pan, rate }): range.js and stress.js ask for them.
+//
 // stats: { state (the context's, or 'none'), started, baked (every sound rendered), steps, doors,
 // dropped (past VOICES_MAX), late (foot-falls too late to play), voices, voicesMax, volume, muted,
 // master (the master gain's target), sampleRate, last, prepareMs (the context's making, at boot),
@@ -74,18 +85,25 @@ import { envAt } from '../../sim/places/env.js';
 import { airDb } from '../../sim/people/hearing.js';
 import { STEPS, DOORS, WORLD, RANGE, CHAOS, STRESS, HOUSE, HALL, SUIT_SCUFF_DB, VOICES_MAX, MASTER_DEFAULT, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
 import { renderSteps } from './synth.js';
-import { createStepScheduler, stepVoice, lowpassHz } from './steps.js';
+import { createStepScheduler, stepVoice, lowpassHz, stepTrimDb } from './steps.js';
 import { createWorld } from './world.js';
 import { createRange } from './range.js';
 import { createBang } from './bang.js';
 import { createStress } from './stress.js';
 import { createHouse } from './house.js';
+import { gunBakes, GUN_RATE_HZ, TAIL_RATE_HZ } from './gun.js';
+import { MASTER, MASTER_OLD, makeupDb, clipCurve, CLIP_PRE } from './mix.js';
+import { readParams } from '../../core/debug.js';
 
 /** The limiter's knee on the master (dBFS). */
 export const LIMIT_DB = -3;
 /** The most of a frame the sounds' rendering may take after the first key (ms). */
 export const BAKE_FRAME_MS = 3;
 const dbToK = (db) => 10 ** (db / 20);
+/** The sound a page asks for (v0.0.16): 'old' with &sound=old in its query, else 'new'; read by the game's one reader of the URL (core/debug.js readParams), main.js passing it to createAudio. */
+export function soundModeOf(search = globalThis.location?.search ?? '') {
+  try { return readParams(String(search ?? '')).sound === 'old' ? 'old' : 'new'; } catch { return 'new'; }
+}
 const clamp01 = (v) => Math.min(1, Math.max(0, Number(v)));
 
 /** The audio presenter (see the header). profile: { volume, muted } (the saved profile's audio); looks: { kitLook } (arms' readers, for the range). */
@@ -115,16 +133,18 @@ function hallBuffer(ctx) {
   return b;
 }
 
-export function createAudio({ profile = null, looks = {}, AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext } = {}) {
+export function createAudio({ profile = null, looks = {}, sound = null, AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext } = {}) {
+  const mode = sound === 'old' || sound === 'new' ? sound : soundModeOf();
+  let gunBus = null, trim = null, clipper = null;
   let ctx = null, master = null, world = null, limiter = null, worldLp = null, duckGain = null, uiBus = null, hallIn = null, hallConv = null;
   let chaosLp = null, chaosGain = null, bodyBus = null, earBus = null, voiceBus = null, chaosSig = '';
   let volume = Number.isFinite(profile?.volume) ? clamp01(profile.volume) : MASTER_DEFAULT, muted = !!profile?.muted;
-  const buffers = { step: {}, door: {}, world: {}, range: {}, chaos: {}, stress: {}, house: {} };
+  const buffers = { step: {}, door: {}, world: {}, range: {}, chaos: {}, stress: {}, house: {}, gun: {} };
   const loops = new Map();                                         // (key → a looping voice: { src, g, lp, kind })
   let duckSig = '';
   const steps = createStepScheduler();
   let voices = 0;
-  const stats = { state: 'none', started: false, baked: false, steps: 0, doors: 0, dropped: 0, late: 0, voices: 0, voicesMax: 0, volume, muted, master: 0, sampleRate: 0, last: null, prepareMs: null, startMs: null, startedAt: null };
+  const stats = { sound: mode, guns: 0, gunVoices: 0, lastGun: null, state: 'none', started: false, baked: false, steps: 0, doors: 0, dropped: 0, late: 0, voices: 0, voicesMax: 0, volume, muted, master: 0, sampleRate: 0, last: null, prepareMs: null, startMs: null, startedAt: null };
   const perfNow = () => globalThis.performance?.now?.() ?? 0;
 
   const gainOf = () => (muted ? 0 : volume * volume);
@@ -144,13 +164,20 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     const t0 = perfNow();
     while ((baking || toBake.length) && perfNow() - t0 < BAKE_FRAME_MS) {
       if (!baking) {
-        const [into, kind, recipe, v] = toBake.shift(), sr = recipe.rateHz ? Math.min(ctx.sampleRate, recipe.rateHz) : ctx.sampleRate;
-        baking = { into, kind, sr, it: renderSteps(recipe, { sampleRate: sr, name: kind, variant: v }) };
+        const e = toBake.shift();
+        if (e.gun) {
+          // (0.0.16: a gun's part, gun.js's generator: the dry at GUN_RATE_HZ, a tail { left, right } at TAIL_RATE_HZ)
+          const sr = Math.min(ctx.sampleRate, GUN_RATE_HZ), tr = Math.min(ctx.sampleRate, TAIL_RATE_HZ);
+          baking = { into: buffers.gun, kind: e.gun.key, sr, tr, it: e.gun.steps(e.v, sr, tr) };
+        } else {
+          const [into, kind, recipe, v] = e, sr = recipe.rateHz ? Math.min(ctx.sampleRate, recipe.rateHz) : ctx.sampleRate;
+          baking = { into, kind, sr, it: renderSteps(recipe, { sampleRate: sr, name: kind, variant: v }) };
+        }
       }
       const r = baking.it.next();
       if (!r.done) continue;
-      const b = ctx.createBuffer(1, r.value.length, baking.sr);
-      b.copyToChannel(r.value, 0);
+      const st = r.value?.left ? r.value : null, b = st ? ctx.createBuffer(2, st.left.length, baking.tr) : ctx.createBuffer(1, r.value.length, baking.sr);
+      if (st) { b.copyToChannel(st.left, 0); b.copyToChannel(st.right, 1); } else b.copyToChannel(r.value, 0);
       (baking.into[baking.kind] ??= []).push(b);
       baking = null;
     }
@@ -164,7 +191,9 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
       const t0 = perfNow();
       ctx = new AudioContextClass({ latencyHint: 'interactive' });
       limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.value = LIMIT_DB; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.003; limiter.release.value = 0.12;
+      // (0.0.16: the new master limits earlier and faster, then a trim takes back its make-up and a soft clip holds full scale: mix.js MASTER)
+      const M = mode === 'old' ? MASTER_OLD : MASTER;
+      limiter.threshold.value = mode === 'old' ? LIMIT_DB : M.thresholdDb; limiter.knee.value = M.kneeDb; limiter.ratio.value = M.ratio; limiter.attack.value = M.attackS; limiter.release.value = M.releaseS;
       master = ctx.createGain(); world = ctx.createGain();
       // (the world through the splash's muffle: a low-pass, open at WORLD_OPEN_HZ, and a duck gain; the UI bus beside it)
       worldLp = ctx.createBiquadFilter(); worldLp.type = 'lowpass'; worldLp.frequency.value = WORLD_OPEN_HZ; worldLp.Q.value = Math.SQRT1_2;
@@ -180,8 +209,21 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
         world.connect(hallIn); hallIn.connect(hallConv); hallConv.connect(duckGain);
       } catch (e) { stats.hallError = String(e?.message ?? e); hallIn = null; hallConv = null; }
       bodyBus.connect(master); earBus.connect(master); voiceBus.connect(master);
-      master.connect(limiter); limiter.connect(ctx.destination);
-      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door], [WORLD, buffers.world], [RANGE, buffers.range], [CHAOS, buffers.chaos], [STRESS, buffers.stress], [HOUSE, buffers.house]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
+      master.connect(limiter);
+      if (mode === 'old') limiter.connect(ctx.destination);
+      else {
+        trim = ctx.createGain(); trim.gain.value = dbToK(-makeupDb(MASTER));
+        const pre = ctx.createGain(); pre.gain.value = CLIP_PRE;
+        // (no oversampling (the fixer's of 0.0.16): the curve is smooth below its knee, and the oversampler's filters, which mix.js's
+        // offline model has not, could overshoot past the curve's 0.97 on the gun's 40 µs rise: the model is then the whole path)
+        clipper = ctx.createWaveShaper(); clipper.curve = clipCurve(); clipper.oversample = 'none';
+        limiter.connect(trim); trim.connect(pre); pre.connect(clipper); clipper.connect(ctx.destination);
+        // (the guns' bus: into the splash's muffle with the world's dry, past the hall's send)
+        gunBus = ctx.createGain(); gunBus.connect(worldLp);
+      }
+      for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
+      if (mode !== 'old') for (const g of gunBakes()) for (let v = 0; v < g.variants; v++) toBake.push({ gun: g, v });
+      for (const [table, into] of [[WORLD, buffers.world], [RANGE, buffers.range], [CHAOS, buffers.chaos], [STRESS, buffers.stress], [HOUSE, buffers.house]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
       applyMaster();
       stats.sampleRate = ctx.sampleRate; stats.prepareMs = perfNow() - t0;
       ctx.onstatechange = () => { stats.state = ctx.state; };
@@ -293,6 +335,17 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
   };
   const worldSounds = createWorld(worldOps);
   stats.world = worldSounds.stats;
+  // ---- 0.0.16: a gun's voice (gun.js's { key, delayS, gainDb, lowHz, pan, rate }) on the gun bus, now or delayS later ----
+  function gunVoice(v) {
+    if (!running() || !gunBus || !v) return false;
+    const set = buffers.gun[v.key];
+    if (!set?.length || !Number.isFinite(v.gainDb)) return false;
+    const n = (stats.gunVoices = stats.gunVoices + 1);
+    const ok = play(set[hashInt(set.length, 'gun', v.key, n)], { atS: ctx.currentTime + Math.max(0, v.delayS ?? 0), gainDb: v.gainDb, lowHz: v.lowHz ?? WORLD_OPEN_HZ, pan: v.pan ?? 0, rate: (v.rate ?? 1) * (1 + (hash01('gun-rate', v.key, n) - 0.5) * 0.03), bus: gunBus });
+    if (ok) stats.lastGun = { key: v.key, gainDb: Math.round(v.gainDb * 10) / 10, lowpassHz: Math.round(v.lowHz ?? WORLD_OPEN_HZ), delayS: Math.round((v.delayS ?? 0) * 1000) / 1000 };
+    return ok;
+  }
+  const gunHandle = mode === 'old' ? null : { play: gunVoice, ready: (key) => !!buffers.gun[key]?.length };
   // ---- the range's sounds (range.js asks for them): a RANGE recipe now, or delayS later on the audio clock ----
   const rangeOps = {
     shot(kind, { delayS = 0, gainDb = 0, lowHz = WORLD_OPEN_HZ, pan = 0, rate = 1 } = {}) {
@@ -372,7 +425,7 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     shot: (kind, o) => rangeOps.shot(kind, o),
     loop: (key, kind, bus, gainDb) => bangOps.loop(key, kind, bus, gainDb),
   };
-  const stressSounds = createStress(stressOps, { looks });
+  const stressSounds = createStress(stressOps, { looks, gun: gunHandle });
   stats.stress = stressSounds.stats;
   // ---- 0.0.12: the shoot house (house.js asks for them): a HOUSE recipe on the world bus now or delayS later; the hall's send on or off ----
   const houseOps = {
@@ -393,7 +446,7 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
   const houseSounds = createHouse(houseOps);
   stats.house = houseSounds.stats;
   // (the voices' limit counts on the audio clock, where the reports will sound)
-  const rangeSounds = createRange(rangeOps, { looks, clock: () => (ctx ? ctx.currentTime : 0) });
+  const rangeSounds = createRange(rangeOps, { looks, clock: () => (ctx ? ctx.currentTime : 0), gun: gunHandle });
   stats.range = rangeSounds.stats;
 
   let lastState = null;
@@ -421,8 +474,10 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     // the error goes to the frame's caller; null only with no live area, where nothing walks)
     const surface = places.surfaceAt(state, a.x, a.z);
     if (!surface) return;
+    // (0.0.16: the new sound's steps well under the shots, by the stance: steps.js stepTrimDb)
+    const trimDb = stepTrimDb(a.moveStance, mode);
     for (const f of falls) {
-      const voice = stepVoice(surface, f.gait, { gG: h.gG, pKpa: h.pKpa }), set = buffers.step[voice.kind];
+      const voice0 = stepVoice(surface, f.gait, { gG: h.gG, pKpa: h.pKpa }), voice = trimDb ? { ...voice0, gainDb: voice0.gainDb + trimDb } : voice0, set = buffers.step[voice.kind];
       if (!set?.length || !Number.isFinite(voice.gainDb)) continue;                      // (no weight or no air: no airborne step)
       const atS = ctx.currentTime + Math.max(0, f.atS - nowS);
       const jitterDb = (hash01('step-db', f.n) - 0.5) * 3, rate = 1 + (hash01('step-rate', f.n) - 0.5) * 0.08;
@@ -431,7 +486,7 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
         // (0.0.12: the combat EVA suit's sole scuffs under the built step, a heavier body's)
         const sc = a.outfit === 'combatSuit' ? buffers.house.suitScuff : null;
         if (sc?.length && play(sc[hashInt(sc.length, 'scuff', f.n)], { atS, gainDb: voice.gainDb + SUIT_SCUFF_DB + jitterDb, lowHz: voice.lowpassHz, rate, pan: f.n % 2 ? 0.05 : -0.05 })) stats.scuffs = (stats.scuffs ?? 0) + 1;
-        stats.last = { what: 'step', surface, kind: voice.kind, gainDb: voice.gainDb, lowpassHz: voice.lowpassHz, gait: f.gait, aheadS: Math.round((atS - ctx.currentTime) * 1000) / 1000 };
+        stats.last = { what: 'step', surface, kind: voice.kind, gainDb: voice.gainDb, trimDb, stance: a.moveStance ?? 'relaxed', lowpassHz: voice.lowpassHz, gait: f.gait, aheadS: Math.round((atS - ctx.currentTime) * 1000) / 1000 };
       }
     }
   }
@@ -474,6 +529,8 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     get stress() { return stressSounds; },
     /** The 0.0.12 presenter (house.js), for the tests. */
     get house() { return houseSounds; },
+    /** The sound this engine plays: 'new' or 'old' (&sound=old, v0.0.16). */
+    get sound() { return mode; },
     /** The master volume, 0 to 1. */
     setVolume(v) { volume = clamp01(v); applyMaster(); },
     /** Mute, or not. */
@@ -484,6 +541,6 @@ export function createAudio({ profile = null, looks = {}, AudioContextClass = gl
     /** The master gain's value now (0 when muted), as the graph has it. */
     get masterGain() { return master ? master.gain.value : gainOf(); },
     stats,
-    dispose() { try { ctx?.close(); } catch { /* (already closed) */ } ctx = null; hallIn = hallConv = null; master = world = limiter = worldLp = duckGain = uiBus = chaosLp = chaosGain = bodyBus = earBus = voiceBus = null; loops.clear(); chaosLoops.clear(); stats.state = 'closed'; },
+    dispose() { try { ctx?.close(); } catch { /* (already closed) */ } ctx = null; hallIn = hallConv = null; gunBus = trim = clipper = null; master = world = limiter = worldLp = duckGain = uiBus = chaosLp = chaosGain = bodyBus = earBus = voiceBus = null; loops.clear(); chaosLoops.clear(); stats.state = 'closed'; },
   };
 }

@@ -13,12 +13,16 @@
 //   Breathe      while the player's Breathe runs (main.js's reading: the stop's doing 'breathe'), the box breath on the body
 //                bus (STRESS.breathBox, a 4 s loop: in, hold, out, hold) at BREATHE_DB, and the band's quick breathing held off
 //                (bang.js frame's breathing).
+// 0.0.16 (gun.js; the user, 2026-11-15: "guns should bang harder"): given the engine's gun handle (the new sound), a blank is
+// gun.js's otherShot of the R-7 at the coach's muzzle with no crack (a blank carries no bullet), in the bay's space, through the
+// defenders' electronics when worn, and the berm's slap-back its echoShot (range.js echoOf's delay and fall).
 // hornVoice() and blankVoice() are the pure parts the ui-audio test measures in node.
 import { playerActor } from '../../core/ids.js';
 import { TICK_MS } from '../../core/clock.js';
 import { airDb } from '../../sim/people/hearing.js';
 import { lowpassHz } from './steps.js';
-import { reportVoice, airHere } from './range.js';
+import { reportVoice, airHere, echoOf, bermFor, gunSpaceOf } from './range.js';
+import { otherShot, echoShot } from './gun.js';
 import { ROLLOFF, HORN_SOURCE_DB, HORN_EARS_DB, HORN_EARS_LP_HZ, STRESS_AT, BREATHE_DB } from '../../data/sounds.js';
 
 const dbOfDist = (dM, roll = ROLLOFF.ground) => 20 * Math.log10(1 / (1 + roll * Math.max(0, dM - 1)));
@@ -51,7 +55,7 @@ export function blankVoice({ me = null, at = null, ears = false, soundMs, pKpa }
  * opts) (a STRESS recipe on the world bus), shot(kind, opts) (a RANGE recipe: the report), loop(key, kind, bus, gainDb) }.
  * looks: { earsOn(state, pid) } (the defenders).
  */
-export function createStress(engine, { looks = {} } = {}) {
+export function createStress(engine, { looks = {}, gun = null } = {}) {
   const stats = { horns: 0, blanks: 0, echoes: 0, lastHorn: null, lastBlank: null, breathing: false };
   const earsOf = (state) => { try { return !!looks.earsOn?.(state, state.player?.id); } catch { return false; } };
   const meOf = (state) => { const a = playerActor(state); return a ? { x: a.x, z: a.z, face: a.face ?? 'right' } : null; };
@@ -68,10 +72,22 @@ export function createStress(engine, { looks = {} } = {}) {
       if (ok) { stats.horns++; stats.lastHorn = { key: f.key ?? null, atMs: f.atMs ?? null, gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), pan: r1(v.pan), ears }; }
       return ok;
     }
+    if (gun) return gunBlank(f, state, { me, at, ears, lag, air });
     const v = blankVoice({ me, at, ears, soundMs: air.soundMs, pKpa: air.pKpa });
     const ok = engine.shot('report', { delayS: lag + v.delayS, gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan });
     if (ok) { stats.blanks++; stats.lastBlank = { key: f.key ?? null, atMs: f.atMs ?? null, gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round((lag + v.delayS) * 1000) / 1000, pan: r1(v.pan), ears }; }
     if (engine.shot('report', { delayS: lag + v.echo.delayS, gainDb: v.echo.gainDb, lowHz: v.echo.lowpassHz, pan: v.pan, rate: 0.9 })) stats.echoes++;
+    return ok;
+  }
+  // (0.0.16: the blank as gun.js has it: the R-7's far blast with no crack, the space's answer, the berm's slap-back)
+  function gunBlank(f, state, { me, at, ears, lag, air }) {
+    const ex = me?.x ?? at?.x ?? 0, berm = echoOf({ muzzleX: at?.x ?? ex, meX: ex, gainDb: 0, ears: false, bermX: bermFor(ex), pKpa: air.pKpa, soundMs: air.soundMs });
+    const space = gunSpaceOf(state, berm.pathM), prot = ears ? 'ears' : null, pan = nearPan(me, at);
+    const v = otherShot({ gun: 'r7', space, prot, pKpa: air.pKpa, soundMs: air.soundMs, me, muzzle: at ?? me, supersonic: false, lagS: lag, roll: space === 'room' ? ROLLOFF.floor : ROLLOFF.ground });
+    for (const x of v.voices) x.pan = x === v.voices[0] ? pan : pan * 0.4;
+    const ok = v.voices.map(x => gun.play(x))[0];
+    if (ok) { stats.blanks++; stats.lastBlank = { key: f.key ?? null, atMs: f.atMs ?? null, gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round(v.delayS * 1000) / 1000, pan: r1(pan), ears, space, protected: v.protected, sound: 'new' }; }
+    if (space !== 'room' && gun.play(echoShot({ gun: 'r7', echoDb: berm.gainDb, lowpassHz: berm.lowpassHz, delayS: berm.delayS, pan: pan * 0.5, prot, pKpa: air.pKpa, lagS: lag }))) stats.echoes++;
     return ok;
   }
   /** A frame: Breathe's box breath on the body bus while it runs (breathing: main.js's reading), else none. */

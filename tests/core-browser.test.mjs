@@ -319,8 +319,9 @@ export default [
         const want = ['Z Q S D', 'Shift', /^(Alt|Option)$/, 'R', 'T', 'G', 'X', '1 … 0', 'A W', 'V', 'I', 'C', 'J', 'Space', 'Esc', '?', 'Backspace', 'Enter', 'Q D'];
         for (const w of want) assert(keys.some(k => (w instanceof RegExp ? w.test(k) : k === w)), `no row for ${w}: ${keys.join(', ')}`);
         for (const not of ['F', 'H', 'K', 'L', 'M']) assert(!keys.includes(not), `${not} does nothing in this build, yet it is on the card`);
-        // (the rework's R7: Tab held is the step panel C's fan, R C B F the panel B's banks, in stop motion)
-        assert(/step panel C/.test(rows.find(r => r[0] === 'Tab')?.[1] ?? '') && /step panel B/.test(rows.find(r => r[0] === 'R C B F')?.[1] ?? ''), 'the step panel\'s keys: Tab, R C B F');
+        // (the rework's R7: Tab held is the step panel C's fan in stop motion; from 2026-11-15 the card names the layout played, C by
+        // default (the user's pick, P3), so B's banks R C B F are left off it, and 1 to 5 and 6 to 0 are said as C's five and core)
+        assert(/step panel C/.test(rows.find(r => r[0] === 'Tab')?.[1] ?? '') && !rows.some(r => r[0] === 'R C B F') && /situation's five/.test(rows.find(r => r[0] === '1 … 5')?.[1] ?? ''), 'the step panel\'s keys: Tab, C\'s five and core, no B banks');
         // (0.0.7: E held on a KD line opens the far window; Z S and Shift with Q D the scope's turrets in stop motion)
         assert(/far window/.test(rows.find(r => r[0] === 'E')?.[1] ?? '') && /elevation/.test(rows.find(r => r[0] === 'Z S')?.[1] ?? '') && /windage/.test(rows.find(r => r[0] === 'Shift Q D')?.[1] ?? ''), 'the 0.0.7 keys: E, Z S, Shift Q D');
         assert(/Shift rushed/.test(rows.find(r => r[0] === '1 … 0')[1]) && /held careful/.test(rows.find(r => r[0] === '1 … 0')[1]) && /stance/.test(rows.find(r => r[0] === 'A W')[1]), 'the digits\' tempo and the stance keys');
@@ -1555,7 +1556,9 @@ export default [
         await page.waitForFunction(() => document.querySelector('.steps .running-view.bundle'), null, { timeout: 10000 });
         const lanes = await page.evaluate(() => [...document.querySelectorAll('.steps .running-view.bundle .rv-lane-name')].map(e => `${e.textContent} ${e.nextElementSibling.textContent.trim()}`));
         rows.push(`the tier one before T: '${before}'; running: ${lanes.join(' · ')}`);
-        assert(/T: Open, clear the room/.test(before) && !/house|lane/i.test(before) && lanes.length >= 2, JSON.stringify({ before, lanes }));
+        // (0.0.16, the fixer's: where the line names its act's own row by its keys, T's label is not said again: "GO.T Clear it. Your
+        // corner: left.5", T's keycap, the words and the row's key; "T: Open, clear the room · 5.4 s" before, which cut the line)
+        assert(/T Clear it\..*\d$/.test(before) && !/T: /.test(before) && !/house|lane/i.test(before) && lanes.length >= 2, JSON.stringify({ before, lanes }));
         // (to the end by the scene's bot: the run sheet, the hot wash, the score line)
         const ended = await page.evaluate(async () => {
           const O = window.__olympus; let bot = null;

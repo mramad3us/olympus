@@ -46,7 +46,7 @@ export function gatedRow(list) {
 // (each struck reason's remedy, the singles that lift it in the order they are preferred (specials.js shotRows' reasons))
 const REMEDY = Object.freeze([
   [/off safe/, ['selector:semi', 'selector:auto']], [/^a stoppage$/, ['macro:ia']], [/^chamber unknown$/, ['pressCheck']],
-  [/^chamber empty$/, ['macro:ready', 'release', 'charge']], [/RELOAD first/, ['macro:reload:speed', 'macro:reload:retain']],
+  [/^chamber empty$/, ['macro:ready', 'macro:reload:speed', 'release', 'charge']], [/RELOAD first/, ['macro:reload:speed', 'macro:reload:retain']],
 ]);
 /**
  * The step that lifts a shot row's strike, by its reason (off): Off safe, IMMEDIATE ACTION on a stoppage, Press check on a

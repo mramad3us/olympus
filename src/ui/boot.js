@@ -81,8 +81,11 @@ export function menuActs({ scene = null, flashes = null, panel = null } = {}, on
 
 /** The step panel's layouts' names on the menu's toggle (VIEWS §7.8.2 to §7.8.4). */
 export const PANEL_NAMES = Object.freeze({ a: 'home and drawers', b: 'the fixed ten and the banks', c: 'the situation\'s five and the fan' });
-/** The layout after a layout on the menu's toggle. */
-export const nextPanel = (l) => ({ a: 'b', b: 'c', c: 'a' }[l] ?? 'c');
+/**
+ * The layout after a layout on the menu's toggle: C, the user's pick (P3, 2026-11-12), and A, its fallback, in turn; B (P2) was
+ * dropped that day, so the toggle never lands on it (&panel=b still opens it, for the tests).
+ */
+export const nextPanel = (l) => ({ a: 'c', b: 'c', c: 'a' }[l] ?? 'c');
 
 /** A card ignores Enter and Space this long after it opens (ms; the design review's: a key meant for the screen before). */
 export const CARD_GUARD_MS = 400;

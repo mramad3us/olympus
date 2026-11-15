@@ -18,9 +18,9 @@ export default [
       const on48213 = ['recruit', 'private'].map(tier => flawlessLane({ tier, seed: 48213, bot: 'keys' }));
       const grain = laneSet({ sheets: ['recruit', 'private'], seeds: flawlessSeeds(10), bot: 'honest' });
       const fuzz = laneSet({ sheets: SHEETS, seeds: flawlessSeeds(10), bot: 'fuzz' });
-      const rows = [...gaugeOf([...keys, ...grain, ...fuzz]).filter(r => ['F1', 'F2', 'F3', 'F4', 'F7', 'F8', 'F11', 'F14', 'F17', 'F19'].includes(r.id)), keysGauge(keys, on48213)];
+      const rows = [...gaugeOf([...keys, ...grain, ...fuzz]).filter(r => ['F1', 'F2', 'F3', 'F4', 'F7', 'F8', 'F11', 'F14', 'F17', 'F19', 'F25'].includes(r.id)), keysGauge(keys, on48213)];
       printGauge(`the keys ${keys.length} lanes, T below rung 2 ${grain.length}, the fuzz ${fuzz.length} (ENFORCED: ${[...ENFORCED].join(', ') || 'none yet'})`, rows);
-      printGauge('the keys alone', gaugeOf(keys).filter(r => ['F1', 'F2', 'F4', 'F7', 'F14', 'F17', 'F19'].includes(r.id)));
+      printGauge('the keys alone', gaugeOf(keys).filter(r => ['F1', 'F2', 'F4', 'F7', 'F14', 'F17', 'F19', 'F25'].includes(r.id)));
       printGauge('the fuzz alone', gaugeOf(fuzz).filter(r => ['F1', 'F2', 'F4', 'F8', 'F11', 'F14'].includes(r.id)));
       assert(keys.length === 200 && fuzz.length === 60, `${keys.length} keys lanes, ${fuzz.length} fuzz`);
       const f = failing(rows);

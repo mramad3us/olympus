@@ -57,12 +57,18 @@
 // the hall, the east leg and its stairs, "drawn by the stage") and the turners' stands are built once as small static boxes when the
 // house is first seen (buildHouse): the walk's two stringers, its posts every CATWALK_POST_M and the yellow handrail a metre over it,
 // the stairs' treads, and each stand's post and foot; the walk's grating is left open, so the hall under it and you in it are seen.
+// 0.0.17: the doors' swings (houseLook's leaves): a dotted quarter arc on the floor round each shut door of the leg and of the room
+// you are in, from the closed leaf's free edge to its open stop, pale; a moving leaf's sweep still to come in LEAF_MOVING, the
+// no-stop zone it is while it swings (range-items.js leafArcPixels).
+// 0.0.17: your corner shown (houseLook's aid, shoothouse.js cornerAidLook; the rule src/sim/combat/corner.js): your corner's
+// bracket and your point's ring, your #2's dotted and grey, from the read of the door; your sector's wedge from your entry; each
+// thinned as it fades (range-items.js cornerAidPixels).
 // What is drawn is culled to the views given (the frame, and the far window's while it is open), so a flag 300 m
 // off costs nothing until the window looks at it.
 import { PX_PER_M } from './scale.js';
 import { createPixels } from './decals.js';
 import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART,
-  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels } from './range-items.js';
+  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, leafArcPixels, cornerAidPixels } from './range-items.js';
 import { createCollector, buildAreaData } from '../art/jobs.js';
 import { areaFromJob, newPart } from './batch.js';
 import { paintKdFace, facePx } from '../art/kit/range.js';
@@ -74,6 +80,8 @@ export { cardFace, holePixel, flagPixels, brassPixels, flashPixels, dustPixels, 
 export const CATWALK_STEEL = 0x5a5f68, CATWALK_RAIL = 0xc8a43a, CATWALK_POST_M = 2.0, STAND_C = 0x3a3d44;
 /** The most pixels the range draws a frame (six cards of holes, the flags, 64 cases at two pixels, the dust; 0.0.8 six turners' faces, 360 px each at 16 px/m), and the flash star's. */
 export const MAX_RANGE_PIXELS = 6000, BLAST_PIXELS = 256;
+/** The corner aid's overlay pixels (0.0.16: two brackets, two rings and the wedge at 16 to 24 px/m stay well under it). */
+export const AID_PIXELS = 2048;
 /** How far outside a view a thing still drawn may stand (metres: a flag's sleeve 4.5 m up, a face's disk). */
 export const VIEW_MARGIN_M = 8;
 const inViews = (views, x, z) => !views || views.some(v => x > v.x0 - VIEW_MARGIN_M && x < v.x1 + VIEW_MARGIN_M && z > v.z0 - VIEW_MARGIN_M && z < v.z1 + VIEW_MARGIN_M + 6);
@@ -88,9 +96,13 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
   // three.js's transparent pass, which comes after every opaque draw whatever its order, and write no depth)
   const blast = createPixels(THREE, BLAST_PIXELS, { ppm, order: 3 });
   blast.mesh.material.transparent = true; blast.mesh.material.depthWrite = false;
+  // (0.0.16, the fixer's: your corner's aid on the floor of the room, over the walls that would hide it: no depth test, drawn
+  // after them (range-items.js cornerAidPixels))
+  const over = createPixels(THREE, AID_PIXELS, { ppm, order: 4 });
+  over.mesh.material.depthTest = false; over.mesh.material.depthWrite = false;
   const group = new THREE.Group();
   group.name = 'range';
-  group.add(px.mesh, blast.mesh);
+  group.add(px.mesh, blast.mesh, over.mesh);
   const stats = { holes: 0, brass: 0, flying: 0, flag: 0, flash: 0, dust: 0, own: 0, pixels: 0, kd: null, pairs: null };
   // ---------- the KD's faces: a moving piece each, built once ----------
   let faces = null;                                                 // { built, byLane: Map lane → { group, paper } }
@@ -166,7 +178,7 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
   const holesSeen = new Map();                                      // (lane|n|xCm|yCm → the game time it was first drawn)
   const hoistAt = (ms) => { if (sinceMs === null) return hot ? 1 : 0; const t = Math.max(0, Math.min(1, (ms - sinceMs) / FLAG_HOIST_MS)); return hot ? fromK + (1 - fromK) * t : fromK * (1 - t); };
   function update(look, { kd = null, ms = 0, tintOf = null, views = null } = {}) {
-    let n = 0, nb = 0;
+    let n = 0, nb = 0, no = 0;
     const put = (p, part = 0, noLine = false) => { if (px.set(n, { ...p, color: p.c, tint: tintOf ? tintOf(p.x, p.z) : [1, 1, 1], part, noLine })) n++; };
     stats.holes = stats.brass = stats.flying = stats.flag = stats.flash = stats.dust = stats.own = 0;
     if (look && kd) {
@@ -196,12 +208,23 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
       if (HS) {
         if (!house) house = buildHouse();
         house.built.group.visible = true;
-        const hs = { corners: 0, covered: 0, stands: 0, pixels: 0, catwalk: true };
+        const hs = { corners: 0, covered: 0, stands: 0, pixels: 0, catwalk: true, leaves: 0 };
         for (const c of HS.corners ?? []) {
           if (c.gone || c.clear || !inViews(views, c.x, c.z)) continue;
           hs.corners++; if (c.covered) hs.covered++;
           for (const q of cornerPixels(c, ppm)) { put(q, 0, true); hs.pixels++; }
         }
+        // (0.0.17: the doors' swings, the leg's shut door and its room's, a moving leaf's sweep still to come (range-items.js leafArcPixels))
+        hs.leaves = 0;
+        for (const L of HS.leaves ?? []) {
+          if (!inViews(views, L.hinge[0], L.hinge[1])) continue;
+          hs.leaves++;
+          for (const q of leafArcPixels(L, ppm)) { put(q, 0, true); hs.pixels++; }
+        }
+        // (0.0.17: your corner and your point, your #2's, then your sector's wedge (range-items.js cornerAidPixels))
+        hs.aid = 0;
+        // (as light, untinted: the fog of awareness never dims the aid (decals.js createPixels' light), the room unseen until you are in it)
+        for (const q of cornerAidPixels(HS.aid, ppm)) { if (!inViews(views, q.x, q.z)) continue; if (over.set(no, { ...q, color: q.c, tint: [1, 1, 1], part: 0, noLine: true, light: true })) { no++; hs.aid++; hs.pixels++; } }
         const hung = new Set((look.pairs?.turners ?? []).map(t => t.key));
         for (const t of HS.stands ?? []) {
           if (!t || hung.has(t.key) || !t.face || !inViews(views, t.x, t.z)) continue;
@@ -287,8 +310,9 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
     } else { hot = false; sinceMs = null; fromK = 0; seen = false; holesSeen.clear(); if (faces) faces.built.group.visible = false; if (house) house.built.group.visible = false; stats.kd = null; stats.pairs = null; stats.house = null; }
     px.count(n);
     blast.count(nb);
-    stats.pixels = n + nb;
+    over.count(no);
+    stats.pixels = n + nb + no;
     return stats;
   }
-  return { group, update, stats, pixels: px, blast, get faces() { return faces; }, dispose() { px.dispose(); blast.dispose(); faces?.built.dispose(); house?.built.dispose(); group.removeFromParent(); } };
+  return { group, update, stats, pixels: px, blast, over, get faces() { return faces; }, dispose() { px.dispose(); blast.dispose(); over.dispose(); faces?.built.dispose(); house?.built.dispose(); group.removeFromParent(); } };
 }

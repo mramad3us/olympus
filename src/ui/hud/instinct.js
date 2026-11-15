@@ -70,13 +70,20 @@ const toneOf = (t) => (LINE_TONES.includes(t) ? t : 'note');
  * instinctNow(state) ({ line, chip, keys, queued }) or null; offer handOffer(state) or null; lead a
  * string or null; label(action) names a key; armed: R's wait asked once.
  */
-export function partsOf({ lead = null, now = null, offer = null, label = (a) => a, armed = false, actWords = null } = {}) {
+export function partsOf({ lead = null, now = null, offer = null, label = (a) => a, armed = false, actWords = null, rowKeys = null } = {}) {
   const out = [];
   const T = label('instinct'), line = now?.line ?? null, chip = now?.chip ?? null;
   // (0.0.8: a contact's pause leads "Contact · 0.55 s." in the take-in's amber: COMBAT §25.4.6)
   // (0.0.10: Breathe running out of the mode leads "Breathe · in · HOLD · out · hold", the count now in capitals: BREATHE_LEAD)
   if (lead) out.push({ part: 'lead', tone: /^Contact · /.test(String(lead)) ? 'contact' : String(lead).startsWith(BREATHE_LEAD) ? 'breathe' : 'note', keys: [], text: String(lead) });
-  if (line?.text) out.push({ part: 'line', tone: toneOf(line.tone), keys: line.act ? [T] : [], text: line.text, id: line.id ?? null, act: line.act ?? null, ...(line.act && actWords ? { what: String(actWords) } : {}) });
+  // (2026-11-15: the keys of the row the line names after its words, as the user's pick P3 drew it ("Open it. Pull. [3]"), unless
+  // the words already say them ("To the head: 4.", "Breathe: Tab › 1 › 8.")
+  const rk = Array.isArray(rowKeys) && rowKeys.length && line?.text && !namesKeys(line.text, rowKeys) ? rowKeys.map(String) : null;
+  // (0.0.16, the fixer's: T's label is not said again where the line names its act's own row by its keys, after its words or in
+  // them: at 1600 × 900 "T: Open the door: pull · 1.0 s. Pull it open. Your corner: right. [3]" was cut with "…" and lost the
+  // side and the key chip, at 1024 × 768 at "Your corne…")
+  const own = !!line?.act && !!line?.row && Array.isArray(rowKeys) && rowKeys.length > 0 && sameRow(line.act, line.row);
+  if (line?.text) out.push({ part: 'line', tone: toneOf(line.tone), keys: line.act ? [T] : [], text: line.text, id: line.id ?? null, act: line.act ?? null, ...(line.act && actWords && !own ? { what: String(actWords) } : {}), ...(rk ? { rowKeys: rk } : {}) });
   // (the chip: the next keyless line in short, T held does it; the keycaps of lines with keys of their own; the rest counted)
   const keyed = (now?.keys ?? []).map(k => label(k)), queued = Math.max(0, Number(now?.queued) || 0);
   if (chip?.text || chip?.short || keyed.length || queued) {
@@ -91,6 +98,19 @@ export function partsOf({ lead = null, now = null, offer = null, label = (a) => 
   return out;
 }
 
+/** Whether an act ('stop:door:pull>o:w4:r2@normal') does the row a line names ('door:pull>o:w4:r2', or 'aim' for 'stop:aim>turner:2'). */
+export function sameRow(act, row) {
+  const st = String(act ?? '').replace(/^stop:/, '').replace(/@[a-z]+$/, ''), r = String(row ?? '');
+  return !!r && (st === r || st.split('>')[0] === r);
+}
+
+/** Whether a line's words already name a key path ("Head: 4.", "Breathe: Tab › 1 › 8."): its text, or its last key alone, as a word of its own. */
+export function namesKeys(text, path) {
+  const t = String(text ?? ''), whole = path.join(' › '), esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (path.length > 1) return t.includes(whole);
+  return new RegExp(`(^|[\\s(:])${esc(String(path[0]))}(?![\\d.]\\d)(?=[.),]|\\s|$)`).test(t);
+}
+
 /** A waiting line in short, for the chip, when its rule gives no short words: its first sentence. */
 export const shortOf = (text) => (text ? (/^[^.!?]+[.!?]/.exec(String(text))?.[0] ?? String(text)) : null);
 
@@ -99,7 +119,7 @@ export function textOf(parts) {
   return parts.map(p => {
     if (p.part === 'offer') return `${p.note ? `${p.note} · ` : ''}${p.keys[0]} ${p.text}${p.more ? ` · ${p.moreKey}: the menu` : ''}`;
     if (p.part === 'chip') return `${p.keys.length ? `${p.keys[0]} ` : ''}${p.text.replace(/\[([^\]]+)\]/g, '$1')}`;
-    return `${p.keys.length ? `${p.keys[0]}${p.what ? `: ${p.what}.` : ''} ` : ''}${p.text}`;
+    return `${p.keys.length ? `${p.keys[0]}${p.what ? `: ${p.what}.` : ''} ` : ''}${p.text}${p.rowKeys ? ` ${p.rowKeys.join(' › ')}` : ''}`;
   }).join('  ');
 }
 
@@ -124,7 +144,8 @@ export function createInstinct(parent, { label = (a) => a } = {}) {
   function partEls(list) {
     return list.map(p => {
       if (p.part === 'lead') return el('span', { className: `lead${p.tone === 'contact' ? ' contact' : p.tone === 'breathe' ? ' breathe' : ''}` }, p.text);
-      if (p.part === 'line') return el('span', { className: `line ${p.tone}` }, ...(p.keys.length ? [kbd(p.keys[0]), p.what ? el('span', { className: 'act', textContent: `: ${p.what}.` }) : null, ' '].filter(Boolean) : []), p.text);
+      if (p.part === 'line') return el('span', { className: `line ${p.tone}` }, ...(p.keys.length ? [kbd(p.keys[0]), p.what ? el('span', { className: 'act', textContent: `: ${p.what}.` }) : null, ' '].filter(Boolean) : []), p.text,
+        ...(p.rowKeys ? [el('span', { className: 'rowkeys', title: `On the panel: ${p.rowKeys.join(' › ')}` }, ...p.rowKeys.flatMap((k, i) => (i ? [el('span', { className: 'sep', textContent: '›' }), kbd(k)] : [kbd(k)])))] : []));
       const kids = p.keys.length ? [kbd(p.keys[0]), ' '] : [];
       // (a waiting line's own key as its keycap: "[B]" in the words)
       for (const [i, w] of p.text.split(' · ').entries()) {

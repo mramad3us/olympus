@@ -1330,7 +1330,7 @@ Neither nags (the design review's): the hands speak only at a sink or just out o
 | Id | Tone | When | T does | A line |
 |---|---|---|---|---|
 | `pairs-still-up` | urgent, listed first | "He's still up" (COMBAT §25.6.1: a ring, or two torso hits, and standing) | aim at him if not aimed | "He's still up. Head." |
-| `pairs-contact` | urgent | at the pause, the bracketed a threat still up | the rifle up if slung; off safe below rung 2 with nothing fired yet; aim; then no act. **Cases with no act**: `press` ("You are on him. Now press."), `again` (one torso hit and standing: "Again. Chest."), `point` ("Back on your point first."), `next` and `nextUnseen` (the bracketed down and another he saw still up, its lane named) | "Rifle, your lane. Off safe. Aim. Then press." |
+| `pairs-contact` | urgent | at the pause, the bracketed a threat still up | the rifle up if slung; off safe below rung 2 with nothing fired yet; aim; then no act. **Cases with no act**: `press` ("You are on him. Now press."), `again` (one torso hit and standing: "Again. Chest."), `point` ("Back on your point first."), `next` and `nextUnseen` (the bracketed down and another he saw still up, its lane named; **from v0.0.17 the aim row goes to the next man up who is in view** (the string's order, no identified no-shoot), so "He is down. Next: ... Aim: 7." names its row and T aims at him) | "Rifle, your lane. Off safe. Aim. Then press." |
 | `pairs-live-out` | urgent | out of stop motion with a threat of the string facing and standing (X at the pause) | enter the mode | "He's still there. G, and take him." |
 | `pairs-noshoot` | warn | the bracketed identified with empty hands or a phone | Hold him when he is the last one up; with a threat he identified still up, `other`: that one named, no act | "Hands. No weapon. Don't."; "Not him. Rifle, lane one: bracket him (Q, D)." |
 | `pairs-unknown` | warn | the bracketed not identified | Challenge | "Can't see his hands. Challenge him." |
@@ -1476,6 +1476,9 @@ An opposed roll is `{ "kind": "opposed", "ours": side, "theirs": side, "ok", "ma
 It is rebuilt from the state each tick, so a load only forgets the repeat timers. The newest order waiting for an answer (B's target) is not kept here: it is PEOPLE's and COMBAT's order record, read through. As built in v0.0.4, `instinctNow(state)` gives `{ line: { id, voice: 'di', tone, text, act, ms } | null, chip, keys: [], queued, gone, humourAt }`, and T sends `{ act: 'instinct', args: { id, act, chip } }` for the line shown when the key went down.
 
 ---
+
+**As built in v0.0.17** (the instinct's lines; `src/ui/hud/instinct.js`, `src/sim/skills/instinct/`; my calls). Each line carries the row it names (`line.row`), and its keys are shown after the words unless the words already name them ("Open it. Pull. [3]"); T's label is left out where the line names its act's own row by key (VIEWS §7.5). A line that names no live row is a dead end, which COMBAT §25.19.8's F24 and F11 forbid; the play review found three in v0.0.16 (the Pairs "Next" line, a recruit looping on P-12 head shots, an empty gun's head and press lines naming no row), closed in COMBAT §25.19.14. In `cqb-stoppage`, below rung 2 the answer at the click is Tap, rack. Pairs' `pairs-contact` `next` case is above.
+
 
 ## 16. Code: modules, ports and reuse
 

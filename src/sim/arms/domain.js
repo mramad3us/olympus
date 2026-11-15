@@ -57,7 +57,7 @@ import { habitStep } from './carry.js';
 import { onRangeCmd, rangeRules, rangeSecond } from '../scenarios/handling.js';
 import { onPitEvent, safety, kdActors, kdAct } from '../scenarios/range.js';
 import { pairsActors } from '../scenarios/pairs.js';
-import { houseActors, houseRules, houseInput, houseInputBefore } from '../scenarios/shoothouse.js';
+import { houseActors, houseRules, houseInput, houseInputBefore, upgradeHousePistol } from '../scenarios/shoothouse.js';
 import { stopBundle, upgradeMuscle } from '../combat/bundle.js';
 import * as SHOOTING from './shooting.js';
 
@@ -141,12 +141,13 @@ export const weaponsDomain = Object.freeze({
   idMaps: Object.freeze({ items: 'i', 'armoury.guns': 'i' }),
   idFields: Object.freeze({ 'people{}.kit.worn{}': 'i', 'people{}.kit.hands[]': 'i', 'items{}.mag': 'i', 'items{}.holds[]': 'i', 'stop.gun': 'i', 'places.sites{}.items[].id': 'i',
     'armoury.range.relay[].gunId': 'i', 'armoury.range.relay[].magIds[]': 'i', 'armoury.range.dummy.magId': 'i', 'armoury.range.mags{}': 'i', 'armoury.range.wantMag': 'i',
-    'armoury.range.house.twoPid': 'p', 'armoury.range.house.chiefPid': 'p', 'armoury.range.house.two.pid': 'p', 'armoury.range.house.two.aid': 'a', 'armoury.range.house.dummy.magId': 'i' }),
+    'armoury.range.house.twoPid': 'p', 'armoury.range.house.chiefPid': 'p', 'armoury.range.house.two.pid': 'p', 'armoury.range.house.two.aid': 'a', 'armoury.range.house.dummy.magId': 'i', 'armoury.range.house.pistol': 'i' }),
   init(state) { for (const k of KEYS) fillDomain(state, k); },
   fast: Object.freeze({ input, actors: (s, i, b, c) => { kdActors(s, i, b, c); pairsActors(s, i, b); houseActors(s, i, b); }, rules, second: rangeSecond }),
   slow: Object.freeze([]),
   jobs: Object.freeze({}),
   events: Object.freeze({ 'range-cmd': onRangeCmd, pit: onPitEvent }),
   actions: Object.freeze({ ready, digit, shoot, stop, carry, stance, kd, breathe, gait, drill }),
-  upgrades: Object.freeze([['arms:muscle', upgradeMuscle]]),
+  // (the house's P-12 on every sheet from 2026-11-15: a v0.0.14 to v0.0.16 save below the Sergeant gains it on load)
+  upgrades: Object.freeze([['arms:muscle', upgradeMuscle], ['arms:house-pistol', upgradeHousePistol]]),
 });

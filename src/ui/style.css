@@ -559,3 +559,63 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .steps .step.core.next .meta { flex-direction: row; align-items: center; gap: calc(4px * var(--ui)); }
 .steps .steplist.grouped .step.bundle .label .name, .steps .steplist.grouped .step .label .dots ~ .name { -webkit-line-clamp: 1; }
 .steps .steplist.grouped .step .label .dots { overflow: hidden; white-space: nowrap; }
+/* Layout C as the user's pick, P3 (2026-11-15, the keys role): the band in two rows of six tiles (the situation's tile and 1 to 5,
+   the Tab tile and the core's 6 to 0), each its key and badge at its top, its name on two lines, its time at its foot; Tab held,
+   the fan: the five groups on a half-wheel, the group's card, its nine in two columns of five. Under --ui 1 one word a tile. */
+.steps .steplist.grouped[data-form="tiles"] { grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: calc(4px * var(--ui)); padding: calc(5px * var(--ui)); }
+.steps .steplist[data-form="tiles"] .step { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; align-items: start; gap: calc(2px * var(--ui)) calc(4px * var(--ui)); padding: calc(4px * var(--ui)); border: 1px solid var(--glass-edge); border-radius: 3px; background: rgba(255, 255, 255, 0.035); }
+.steps .steplist[data-form="tiles"] .step > kbd { grid-column: 1; grid-row: 1; }
+.steps .steplist[data-form="tiles"] .step > .ctag, .steps .steplist[data-form="tiles"] .step > .icon { grid-column: 2; grid-row: 1; justify-self: start; align-self: center; }
+.steps .steplist[data-form="tiles"] .step > .label { grid-column: 1 / -1; grid-row: 2; align-self: start; justify-content: flex-start; }
+.steps .steplist[data-form="tiles"] .step > .meta { grid-column: 1 / -1; grid-row: 3; flex-direction: row; justify-content: space-between; align-items: flex-end; gap: calc(4px * var(--ui)); min-width: 0; overflow: hidden; }
+.steps .steplist[data-form="tiles"] .step .meta .badge { position: absolute; top: calc(4px * var(--ui)); right: calc(4px * var(--ui)); max-width: calc(46px * var(--ui)); }
+.steps .steplist[data-form="tiles"] .step.off, .steps .steplist[data-form="tiles"] .step.empty { background: rgba(255, 255, 255, 0.015); }
+.steps .steplist[data-form="tiles"] .step .meta { font-size: calc(9px * var(--ui)); line-height: 1.1; }
+.steps .steplist[data-form="tiles"] .step > kbd { font-size: calc(10px * var(--ui)); line-height: 1.3; }
+.steps .steplist[data-form="tiles"] .step > .label { overflow: hidden; min-height: 0; height: 100%; }
+.steps .steplist[data-form="tiles"] .step .label .name { font-size: calc(11px * var(--ui)); line-height: 1.12; }
+.steps .steplist[data-form="tiles"] .step .label .dots { position: absolute; top: calc(4px * var(--ui)); right: calc(4px * var(--ui)); font-size: calc(8px * var(--ui)); letter-spacing: -0.05em; }
+.steps .steplist[data-form="tiles"] .step.off .label .dots { display: none; }
+.steps .steplist[data-form="tiles"] .step .label .dots ~ .name, .steps .steplist[data-form="tiles"] .step.bundle .label .name { -webkit-line-clamp: 2; }
+.steps .steplist[data-form="tiles"] .step .ctag kbd.tcap { min-width: 1.3em; padding: 0 2px; font-size: calc(9.5px * var(--ui)); line-height: 1.3; color: var(--brass); border-color: var(--brass); }
+.steps .steplist[data-form="tiles"] .step.core.next .label .name { color: var(--brass); }
+.steps .steplist[data-form="tiles"] .step.core.next { border-color: var(--brass); }
+.steps .steplist[data-form="tiles"] .step.core.next .meta { flex-direction: row; }
+.steps .steplist[data-form="tiles"] .step.sit { border-color: var(--brass); background: rgba(231, 184, 74, 0.08); color: var(--brass); grid-template-rows: auto minmax(0, 1fr); }
+.steps .steplist[data-form="tiles"] .step.sit > .icon { grid-column: 1; }
+.steps .steplist[data-form="tiles"] .step.sit .label { align-self: end; }
+.steps .steplist[data-form="tiles"] .step.sit .label .name { color: var(--brass); letter-spacing: 0.06em; font-weight: bold; }
+.steps .steplist[data-form="tiles"] .step.tabtile { cursor: default; grid-template-rows: auto minmax(0, 1fr); }
+.steps .steplist[data-form="tiles"] .step.tabtile .label { align-self: end; }
+.steps .step.tabtile .label .name { color: var(--muted); }
+.steps .step .icon, .steps .step .ctag .icon { display: inline-flex; color: currentColor; }
+.steps .step .icon svg { width: calc(12px * var(--ui)); height: calc(12px * var(--ui)); display: block; }
+.steps .step .ctag { display: inline-flex; align-items: center; gap: calc(3px * var(--ui)); color: var(--muted); font-size: calc(9px * var(--ui)); letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; }
+.steps .step.core.next .ctag { color: var(--brass); }
+.steps .step.di { border-color: var(--brass) !important; box-shadow: inset 0 0 0 1px var(--brass); }
+.steps .step.aside > kbd, .steps .step.aside .label, .steps .step.aside .meta { opacity: 0.45; }
+.steps .steplist[data-form="list"] .step.di, .steps .steplist[data-form="fan"] .step.di { border-left-color: var(--brass); background: rgba(231, 184, 74, 0.10); }
+.steps .steplist.grouped[data-form="fan"] { grid-template-columns: auto auto minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 0 calc(6px * var(--ui)); }
+.steps .fanwheel { width: calc(64px * var(--ui)); height: 100%; overflow: hidden; }
+.steps .fanwheel svg { width: 100%; height: 100%; display: block; }
+.steps .fanwheel .sector { fill: rgba(255, 255, 255, 0.03); stroke: var(--glass-line); stroke-width: 0.6; }
+.steps .fanwheel .sector.lit { fill: rgba(231, 184, 74, 0.28); stroke: var(--brass); }
+.steps .fanwheel .cap { fill: var(--ink); stroke: var(--paper); stroke-width: 0.6; }
+.steps .fanwheel .cap.lit { fill: var(--brass); stroke: var(--brass); }
+.steps .fanwheel .capt { fill: var(--paper); font: 8px var(--mono); text-anchor: middle; }
+.steps .fanwheel .capt.lit { fill: var(--ink); }
+.steps .fanwheel .gi { color: var(--muted); }
+.steps .fanwheel .gi.lit { color: var(--paper); }
+.steps .gcard { display: flex; flex-direction: column; gap: calc(3px * var(--ui)); width: calc(70px * var(--ui)); margin: calc(4px * var(--ui)) 0; padding: calc(5px * var(--ui)); border: 1px solid var(--brass); border-radius: 3px; background: rgba(231, 184, 74, 0.06); overflow: hidden; }
+.steps .gcard.none { border-color: var(--glass-line); background: none; }
+.steps .gcard .gc-top { display: flex; align-items: center; gap: calc(4px * var(--ui)); color: var(--brass); }
+.steps .gcard .gc-top kbd { background: var(--brass); color: var(--ink); border-color: var(--brass); }
+.steps .gcard .icon svg { width: calc(12px * var(--ui)); height: calc(12px * var(--ui)); display: block; }
+.steps .gcard .gc-name { color: var(--brass); font-weight: bold; letter-spacing: 0.06em; }
+.steps .gcard .gc-half { color: var(--muted); font-size: calc(9.5px * var(--ui)); letter-spacing: 0.06em; line-height: 1.2; }
+.steps.small .steplist[data-form="tiles"] .step .time, .steps.small .steplist[data-form="fan"] .step .time, .steps.small .steplist[data-form="tiles"] .step .odds, .steps.small .steplist[data-form="fan"] .step .odds { display: none; }
+.steps.small .steplist[data-form="tiles"] .step .label .dots, .steps.small .steplist[data-form="fan"] .step .label .dots { display: none; }
+.steps.small .steplist[data-form="tiles"] .step .ctag .cw { display: none; }
+.instinct .line .rowkeys { margin-left: calc(6px * var(--ui)); white-space: nowrap; }
+.instinct .line .rowkeys kbd { color: var(--brass); border-color: var(--brass); }
+.instinct .line .rowkeys .sep { color: var(--muted); margin: 0 2px; }

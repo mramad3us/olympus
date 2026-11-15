@@ -24,7 +24,7 @@
 // instinctStep(state, input, bus, ctx) is the fast layer 'offers' (it runs while time stands still):
 // on whole seconds, on a tick with an action in it, on the first tick after a skip or a load, and (0.0.5)
 // when stop motion's phase or step changes (a step ends between whole seconds, the clock standing there), it
-// settles state.$instinct = { line: { id, voice, tone, text, act, short, ms } | null, chip, keys,
+// settles state.$instinct = { line: { id, voice, tone, text, act, short, ms, row } | null, chip, keys,
 // queued, gone, humourAt } (SKILLS §15.4; runtime only, so a load forgets only the repeat timers).
 // Since 0.0.5 the range's rules (src/sim/skills/instinct/range.js, the DI on the tower's line) are
 // weighed after the base's within each tone, and since 0.0.6 the grooming rules beyond the face
@@ -138,7 +138,15 @@ export function settle(prev, fired, ms, { urgentOnly = false } = {}) {
 
 // (a rule's firing now, as a line: its words picked at the moment it first shows)
 function fire(rule, ctx, state, ms) {
-  return { id: rule.id, voice: typeof rule.voice === 'function' ? rule.voice(ctx) : rule.voice ?? 'di', tone: typeof rule.tone === 'function' ? rule.tone(ctx) : rule.tone, act: rule.act ? rule.act(ctx, state) : null, short: typeof rule.short === 'function' ? rule.short(ctx) : rule.short ?? null, reach: rule.reach ?? null, repeatMs: rule.repeatMs ?? null, ctx, rule };
+  const act = rule.act ? rule.act(ctx, state) : null;
+  return { id: rule.id, voice: typeof rule.voice === 'function' ? rule.voice(ctx) : rule.voice ?? 'di', tone: typeof rule.tone === 'function' ? rule.tone(ctx) : rule.tone, act, short: typeof rule.short === 'function' ? rule.short(ctx) : rule.short ?? null, reach: rule.reach ?? null, repeatMs: rule.repeatMs ?? null, ctx, rule, row: rowOf(act, ctx) };
+}
+// (the panel's row the line names (2026-11-15, the keys role): its act's ('stop:door:pull>d' → 'door:pull>d'), else the row its
+// words name with no act (ctx.row: the head the DI calls for, the shot it says to press, Breathe), so the panel lights that tile
+// and the line shows its keys; null for a line about no row)
+function rowOf(a, ctx) {
+  if (typeof ctx?.row === 'string') return ctx.row;
+  return typeof a === 'string' && a.startsWith('stop:') && !/^stop:(leave|reflex:|pick=)/.test(a) ? a.slice(5) : null;
 }
 // (the words by the variant, or by ctx.words where a rule names its entry apart: the variant then carries all that should
 // pick the words again when it changes (pairs-still-up's key, reason and remedy; the fix of 2026-11-07), present() keeping
@@ -172,7 +180,7 @@ function present(l, prevShown, ms, humourAt) {
   if (!same && (l.tone === 'calm' || l.tone === 'note') && l.rule.humour?.length && !l.ctx?.noHumour && ms - (humourAt ?? -Infinity) >= HUMOUR_GAP_MS && hash01('humour', l.id, Math.floor(ms / WORDS_MS)) < 0.3) {
     text = hashPick(l.rule.humour, l.id, Math.floor(ms / WORDS_MS)); humour = true; humourAt = ms;
   }
-  return { line: { id: l.id, voice: l.voice, tone: l.tone, text, act: l.act, short: l.short, ms: l.ms, ...(variant ? { variant } : {}), ...(humour ? { humour: true } : {}) }, humourAt };
+  return { line: { id: l.id, voice: l.voice, tone: l.tone, text, act: l.act, short: l.short, ms: l.ms, ...(l.row ? { row: l.row } : {}), ...(variant ? { variant } : {}), ...(humour ? { humour: true } : {}) }, humourAt };
 }
 
 /** The instinct as it stands (SKILLS §15.4; runtime): { line, chip, keys, queued, gone, humourAt }. */

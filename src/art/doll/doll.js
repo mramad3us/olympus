@@ -57,10 +57,14 @@
 // pinned up with stray pixels out of regulation. The hands (handsK, handsWhy: cuesOf's) dirty a share of
 // the hands' pixels by their band (used, dirty, grimy: HANDS_SHARE), in the cause's colour: grey for the
 // slow rate, the head, a stall and food, black-grey gun oil for the rifle, rust for regolith.
+// The helmet samples' candidates (look.helm on the combat EVA suit; samples/helmets): the suit black on the doll, the candidate
+// on its head (./helmets.js), the faction's trim on its seams and plate; no look of the game carries one.
 // Pure: it returns a Pixmap (src/art/paint.js words), opaque, the backdrop round the figure.
 import { PX_PER_M } from '../../render/scale.js';
 import { word } from '../paint.js';
-import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE, cutOf, SIDES_K } from '../figures/outfits.js';
+import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE, cutOf, SIDES_K, COMBAT_SUIT } from '../figures/outfits.js';
+import { helmOf } from '../figures/helmets.js';
+import { dollHelm, trimDollPlate } from './helmets.js';
 import { shapeAt, turned } from '../figures/templates.js';
 import { drawingOf } from '../rifles.js';
 import { REF, INK, mix, lum, cloth, flesh, smooth, ribbon, edgeOf, grid, halo, TONES } from './grid.js';
@@ -274,7 +278,7 @@ function shell(g, B, kit) {
   // (its plates' seams: across the chest, down the sides)
   g.on(id, g.rows(44, MID - 12, MID + 11), T.shade); g.on(id, g.rows(45, MID - 12, MID + 11), T.light);
   for (let y = 33; y < 44; y++) g.on(id, g.rows(y, MID, MID), T.shade);
-  const red = cloth(0x9e3c36);
+  const red = cloth(kit.band ?? 0x9e3c36);
   for (const side of [lf, rt]) g.on(id, g.scan(side([[B.shoulder - 1, 29.6], [B.shoulder + 0.6, 33], [B.chest - 2, 33.4], [B.neck + 5, 28.4]])), side === lf ? red.soft : red.base);
   // (the chest display, the wearer's left: a dark bezel, two lit rows; the waist ring)
   const bz = g.add(g.rows(36, MID + 4, MID + 10, 41), 0x23252f);
@@ -316,7 +320,7 @@ function arms(g, B, kit) {
     kit.handIds.push(hands(g, B, flat, kit.gloves ? cloth(kit.gloves) : S, far, !!kit.gloves));
     if (kit.suit) {
       // (the shell's shoulder cap; the wrist's seal ring)
-      const sh = cloth(kit.shell), red = cloth(0x9e3c36);
+      const sh = cloth(kit.shell), red = cloth(kit.band ?? 0x9e3c36);
       const cap = g.add(g.scan(side(smooth([[out[0][0] - 1, 28.6], [out[2][0] + 0.8, 32], [out[3][0] + 0.8, 38], [inn.at(-1)[0] - 0.5, 38], [inn.at(-1)[0] - 1.5, 33]], 3))), far ? sh.base : sh.soft, armpit);
       g.on(cap, g.rows(36, 0, REF.W), far ? red.shade : red.base); g.on(cap, g.rows(37, 0, REF.W), red.deep);
       const R = cloth(kit.rings), [a, b] = across(cuffY - 1);
@@ -540,6 +544,7 @@ function carrier(g, B, kit) {
   g.on(band, g.scan(rt([[11, 40], [20, 40], [20, foot + 2], [11, foot + 2]])), T.deep);
   for (const side of [lf, rt]) { const s = g.add(g.scan(side([[6.2, top + 1], [B.neck + 1.4, 26.6], [B.neck + 4.6, 27.6], [10.4, top + 1]])), side === lf ? T.soft : T.shade, 0); g.on(s, g.rows(27, 0, REF.W), side === lf ? T.light : T.base); }
   const plate = g.add(g.scan(both([[6.4, top], [9.4, top], [12.2, top + 4], [12.4, foot], [0, foot]])), T.base);
+  if (kit.trim) kit.late.push(() => trimDollPlate(g, plate, kit.trim));
   g.on(plate, g.scan(lf([[0, top], [9.4, top], [12.2, top + 4], [12.4, foot], [10.6, foot], [10.6, top + 5], [8.4, top + 1.6], [0, top + 1.6]])), T.soft);
   g.on(plate, g.rows(top, 0, REF.W), T.light);
   g.on(plate, g.scan(rt([[2, top + 2], [8.4, top + 2], [11, top + 5], [11, foot], [2, foot]])), T.shade);
@@ -793,6 +798,16 @@ function kitOf(look = {}, marks = {}, body = null) {
     shell: 0xc8c0ae, rings: 0x4c5262, pack: 0x7d776c, gloves: suit ? 0x4c5262 : null,
   };
   if (suit) { kit.legs = 0x3b4256; kit.sleeve = 0x3b4256; kit.boots = 0x5a6070; }
+  // (a helmet candidate (look.helm, the helmet samples' only: samples/helmets, ./helmets.js) on the combat EVA suit: the suit as
+  // the figures wear it, black (or the OPA's own colours), its shoulders' seam and the plate's edges in the faction's trim)
+  const helm = outfit === 'combatSuit' && look.helm ? helmOf(look.helm) : null;
+  if (helm) {
+    const K = { ...COMBAT_SUIT, ...(helm.suit ?? {}) };
+    Object.assign(kit, {
+      suit: true, bloused: false, shell: K.shell, legs: K.skin, sleeve: K.skin, boots: K.boot, rings: K.ring, pack: K.pack, gloves: K.ring,
+      band: helm.trim ?? K.ring, trim: helm.trim, head: { kind: 'vac', color: helm.shell, helm }, armour: look.carrier ? { color: K.carrier, pouch: K.pouches } : null,
+    });
+  }
   if (outfit === 'pt') Object.assign(kit, { pt: true, top: OXBLOOD, sleeve: OXBLOOD, legs: PT_GREY, boots: RUNNER, bloused: false, rank: false, head: null, bareLegs: true, bareArms: true });
   if (outfit === 'towel') Object.assign(kit, { towel: true, top: kit.skin, sleeve: kit.skin, legs: TOWEL, boots: SHOWER_SHOE, bloused: false, rank: false, head: null, bareLegs: true, bareArms: true });
   // (the body's cues: VIEWS §4.2, see the header)
@@ -831,7 +846,8 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
   arms(g, B, kit);
   head(g, B, kit, look);
   if (kit.head?.kind !== 'vac') hair(g, kit);
-  hat(g, kit);
+  if (kit.head?.helm) dollHelm(g, B, kit, kit.head.helm);
+  else hat(g, kit);
   if (!kit.suit && !bare) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
   // (the body's marks, over the cloth and the skin, before the seams and the ink)
   const C = kit.cues;

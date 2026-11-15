@@ -45,6 +45,13 @@
 //               time (the fact's atMs): each waits its place in the tick that brought it, on the audio clock, so the
 //               pair's two reports stand a split apart; a single Fire, and every shot of test-handling and test-range,
 //               sounds as it did.
+// The 0.0.16 round's (gun.js; the user, 2026-11-15: "guns should bang harder and closer to realistic"): given the engine's gun
+// handle (the new sound; none with &sound=old), a fired shot is gun.js's: yours ownShot (the blast, the crack and the action at
+// your ear, the space's answer), another's otherShot (a sound's way late, by distance and side), the berm's slap-back echoShot
+// at echoOf's delay and fall, all through the same reports' limit; the space by where you stand (gunSpaceOf: the house or a
+// floor a room, outdoors the bay or the open by the berm's path), the protection the suit's (the combat EVA suit's active
+// hearing) or the defenders' (earsOf), the gun by the shot fact's item's model (the R-7, the P-12). The old report, its echo
+// and the crack's voice are not played then; the strike, the steel, the brass and the clicks are as they were.
 // The air is the place's: airHere(state) is the pressure and the speed of sound where the player stands
 // (src/sim/places/env.js airAt, the one helper for both: TECH §1.4), and every voice takes them (required;
 // steps.js lowpassHz refuses a pressure that is not a number, needSound a speed of sound). A speed of sound of 0
@@ -59,6 +66,8 @@ import { ROLLOFF, PAN_FULL_M, REPORT_SOURCE_DB, MUZZLE_AHEAD_M, ECHO_DB, ECHO_LP
   TURNER_SOURCE_DB, BEEP_SOURCE_DB, BEEP_AT, STEEL_SOURCE_DB } from '../../data/sounds.js';
 import { airAt } from '../../sim/places/env.js';
 import { inHouse } from './house.js';
+import { areaOf } from '../../sim/places/model.js';
+import { gunOf, spaceOf, ownShot, otherShot, echoShot } from './gun.js';
 
 /** The berm's face (x, m) and the tower's speaker ({ x, y, z }, m: its deck) on the 25 m bay (PLACES §4.12: src/data/places/range.js, the stage's authored bay). */
 export const BERM_FACE_X = KD_RANGE.bay.berm[0], TOWER_AT = Object.freeze({ x: KD_RANGE.tower.ro.x, y: KD_RANGE.tower.deckY, z: KD_RANGE.tower.ro.z });
@@ -249,7 +258,13 @@ export function strikeAt(f, from) {
  * The range's sounds over an engine (engine.js's range handle: shot(kind, { delayS, gainDb, lowHz, pan })):
  * { fact(type, payload, state), frame(state, { alpha }), stats }. looks: { kitLook(state, pid) } (arms' look.js).
  */
-export function createRange(engine, { looks = {}, clock = () => (globalThis.performance?.now?.() ?? 0) / 1000 } = {}) {
+/** Where a shot is heard (0.0.16, gun.js): 'room' in the house or on any floor, else outdoors 'bay' or 'open' by the berm's path (m). */
+export function gunSpaceOf(state, bermPathM = Infinity) {
+  const kind = state?.places?.live?.area ? areaOf(state.places.live.area)?.kind : null;
+  return spaceOf({ indoors: inHouse(state) || (kind !== null && kind !== undefined && kind !== 'ground'), bermPathM });
+}
+
+export function createRange(engine, { looks = {}, clock = () => (globalThis.performance?.now?.() ?? 0) / 1000, gun = null } = {}) {
   const queue = createClickQueue();
   const limiter = createReportLimiter();
   const stats = { reports: 0, echoes: 0, clicks: 0, dry: 0, cases: 0, chimes: 0, cracks: 0, strikes: 0, carriers: 0, motors: 0, clacks: 0, beeps: 0, rings: 0, rowShots: 0, byKind: {}, lastReport: null, lastEcho: null, lastClick: null, lastCase: null, lastChime: null, lastCrack: null, lastStrike: null, lastCarrier: null, lastTurner: null, lastBeep: null, lastRing: null, lastRowShot: null, queue: queue.stats, voices: limiter.stats };
@@ -303,15 +318,21 @@ export function createRange(engine, { looks = {}, clock = () => (globalThis.perf
     }
     const me = meOf(state), mine = f.who === playerId(state), ears = earsOf(state), air = airHere(state), c = air.soundMs, pKpa = air.pKpa;
     const muzzle = Array.isArray(f.muzzle) ? { x: f.muzzle[0], z: f.muzzle[1] } : f.muzzle ?? null;
+    if (gun) return gunSound(f, state, { me, mine, ears, c, pKpa, muzzle, lagS });
     const v = reportVoice({ me, muzzle, mine, ears, soundMs: c, pKpa });
     const ok = impulse('report', { delayS: v.delayS + lagS, gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan });
     if (ok) { stats.reports++; stats.lastReport = { gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round(v.delayS * 1000) / 1000, ears, mine }; }
     // (0.0.12: in the shoot house there is no berm 28 m off: the hall's reverb is the room's answer (house.js, engine.js's send))
     if (!inHouse(state) && impulse('report', { delayS: v.echo.delayS + lagS, gainDb: v.echo.gainDb, lowHz: v.echo.lowpassHz, pan: v.pan, rate: 0.92 })) { stats.echoes++; stats.lastEcho = { gainDb: r1(v.echo.gainDb), lowpassHz: Math.round(v.echo.lowpassHz), delayS: Math.round(v.echo.delayS * 1000) / 1000 }; }
+    afterShot(f, state, { me, mine, ears, c, pKpa, muzzle, lagS, crack: true });
+    return ok;
+  }
+  // (what follows a fired shot: the crack's voice (the old sound's), the strike, the brass, the steel)
+  function afterShot(f, state, { me, mine, ears, c, pKpa, muzzle, lagS, crack }) {
     // (0.0.7: your own round's crack as it leaves, then its strike coming back a flight and a sound's way later)
     // (only a shot at a face (the zero card, a KD face) has them: test-handling's card sounds as it was scored)
     const fl = f.face ? f.flight ?? null : null;
-    if (mine && fl) {
+    if (crack && mine && fl) {
       const k = crackVoice({ supersonic: fl.supersonic !== false, ears, pKpa });
       if (k && engine.shot('crack', { delayS: k.delayS + lagS, gainDb: k.gainDb, lowHz: k.lowpassHz })) { stats.cracks++; stats.lastCrack = { gainDb: r1(k.gainDb) }; }
     }
@@ -331,6 +352,31 @@ export function createRange(engine, { looks = {}, clock = () => (globalThis.perf
         if (engine.shot('steelRing', { delayS: rv.delayS + lagS, gainDb: rv.gainDb, lowHz: rv.lowpassHz, pan: rv.pan })) { stats.rings++; stats.lastRing = { gainDb: r1(rv.gainDb), distM: r1(rv.distM), delayS: Math.round(rv.delayS * 1000) / 1000 }; }
       }
     }
+  }
+  // (0.0.16: the shot rebuilt (gun.js), then the strike, the steel and the brass as they were)
+  function gunSound(f, state, { me, mine, ears, c, pKpa, muzzle, lagS }) {
+    const model = gunOf(state.items?.[f.gun]?.model ?? 'r7'), indoors = inHouse(state);
+    const suit = playerActor(state)?.outfit === 'combatSuit', prot = suit ? 'suit' : ears ? 'ears' : null;
+    // (the berm's path, outdoors: out from the muzzle to the berm in front and back to you)
+    const mx = muzzle?.x ?? me?.x ?? 0, ex = me?.x ?? mx;
+    const berm = indoors ? null : echoOf({ muzzleX: mx, meX: ex, gainDb: 0, ears: false, bermX: bermFor(ex), pKpa, soundMs: c });
+    const space = gunSpaceOf(state, berm ? berm.pathM : Infinity);
+    const supersonic = f.load !== 'blank' && (f.flight && typeof f.flight.supersonic === 'boolean' ? f.flight.supersonic : true);
+    const roll = space === 'room' ? ROLLOFF.floor : ROLLOFF.ground;
+    const v = mine ? ownShot({ gun: model, space, prot, pKpa, supersonic, lagS }) : otherShot({ gun: model, space, prot, pKpa, soundMs: c, me, muzzle, supersonic, lagS, roll });
+    const verdict = limiter.admit(clock() + v.delayS);
+    let ok = false;
+    if (verdict === 'play') {
+      ok = v.voices.map(x => gun.play(x))[0];
+      if (ok) { stats.reports++; stats.lastReport = { gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round(v.delayS * 1000) / 1000, ears: !!prot, mine, gun: model, space, prot, protected: mine ? !!prot : !!v.protected, sound: 'new' }; }
+    }
+    // (outdoors, the berm's slap-back: its own voice at echoOf's delay and fall, through the same limit)
+    if (berm && space !== 'room') {
+      const e = echoShot({ gun: model, echoDb: berm.gainDb, lowpassHz: berm.lowpassHz, delayS: berm.delayS, pan: mine ? 0 : panOf((muzzle?.x ?? ex) - ex) * 0.5, prot, pKpa, lagS });
+      if (limiter.admit(clock() + e.delayS) === 'play' && gun.play(e)) { stats.echoes++; stats.lastEcho = { gainDb: r1(e.gainDb), lowpassHz: Math.round(e.lowHz), delayS: Math.round(e.delayS * 1000) / 1000, pathM: r1(berm.pathM) }; }
+    }
+    // (the strike, the brass and the steel, as the old sound has them)
+    afterShot(f, state, { me, mine, ears, c, pKpa, muzzle, lagS, crack: false });
     return ok;
   }
   function otherFact(type, f, state) {

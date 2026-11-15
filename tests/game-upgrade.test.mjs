@@ -44,7 +44,16 @@
 // the tier one by T at a contact's pause in room 2, a bundle carried). Nothing is written on load (no fullN on the gun's
 // belief: Top up's "half or less" reads the capacity's half, as v0.0.13 did, until the next magazine is seated; the plans'
 // walkable lanes are data, and a move beat under way keeps the path it was planned on): it saves again at once byte for
-// byte, plays 600 ticks by the honest T bot with no error, and a save after carries on byte for byte.
+// byte, plays 600 ticks by the honest T bot with no error, and a save after carries on byte for byte. From 2026-11-15 the
+// house issues the P-12 on every sheet (the user: "everyone should have the same loadout"), so this tier one's save of
+// v0.0.13, made before the R6 sidearm, gains it on load too (shoothouse.js upgradeHousePistol): the mapping and the P-12.
+// 0.0.17 (the user, 2026-11-15): one save made by v0.0.15's own code from a worktree at its tag (test-shoothouse, the private
+// by the keys at a contact's pause in room 2, seed 48213, no sidearm: the house issued it from the Sergeant up). On load the
+// P-12 is issued (upgradeHousePistol) in Condition 1 on safe in the holster, as MAKE READY would have left it, its spare in the
+// thigh's pouch, its four ids the save's next and every item held once; nothing else is written; it saves again and loads to
+// the same bytes, plays 600 ticks by the keys with no error, and a save after carries on byte for byte. The upgrade's other
+// conditions (Condition 3 before MAKE READY, Condition 4 after the rifle's UNLOAD) are pinned on a fresh lane's saves with
+// the P-12 taken out, as a v0.0.15 save of those moments would be.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -58,7 +67,9 @@ import { rungOf } from '../src/sim/skills/templates.js';
 import { feltOf, inocOf, hardOf, blockOf, suppAt } from '../src/sim/combat/supp.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { pairsBot } from './bots/pairs.mjs';
-import { houseTBot } from './bots/house.mjs';
+import { houseTBot, houseKeysBot, runHouse } from './bots/house.mjs';
+import { checkIds } from './ids-check.mjs';
+import { conditionOf, gunField } from '../src/sim/arms/firearms.js';
 import { marsClock } from '../src/core/calendar.js';
 import { SITES } from '../src/data/setting/calendar.js';
 
@@ -286,12 +297,69 @@ export default [
       assert(C.bundle === 'room:clear' && C.door === 'o:w4:r2' && C.beats.join() === 'enter,sector,clear,mark' && D?.bundle === 'room:in' && D.step === 'drill:room:in>o:w4:r2', JSON.stringify({ C, D: D?.step }));
       const mapped = JSON.parse(json);
       mapped.stop.carry = JSON.parse(JSON.stringify(C)); mapped.armoury.range.house.two.doing = JSON.parse(JSON.stringify(D));
-      const again = JSON.stringify(JSON.parse(g.save())) === JSON.stringify(mapped) ? json : null;
+      // (and the P-12, every sheet's from 2026-11-15: its items, the kit's holster and thigh, the house's record of it, the ids' counter)
+      const P = s.armoury.range.house.pistol, k = s.people[s.player.id].kit, mine = [P, k.worn.thigh, s.items[P].mag, ...s.items[k.worn.thigh].holds];
+      for (const id of mine) mapped.items[id] = JSON.parse(JSON.stringify(s.items[id]));
+      Object.assign(mapped.people[s.player.id].kit.worn, { holster: P, thigh: k.worn.thigh }); mapped.armoury.range.house.pistol = P; mapped.meta.next = JSON.parse(JSON.stringify(s.meta.next));
+      const norm = (o) => JSON.stringify(o, (key, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v));
+      console.log(`      the P-12 issued on load: ${mine.join(', ')}, Condition ${conditionOf(s.items[P])} (the save at ${old.armoury.range.cmd?.id})`);
+      const again = norm(JSON.parse(g.save())) === norm(mapped) ? json : null;
       const gun = s.items[s.people[s.player.id].kit.worn.sling], belief = JSON.stringify(gun.belief);
       g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
       const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, houseTBot());
       console.log(`      ${name}: saved in leg ${old.armoury.range.house.cur} at a ${old.stop?.via ?? 'no'} pause, the gun believed ${belief}, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}; 600 ticks, ${g.errors.length} errors, now leg ${s.armoury.range.house.cur}; carried on from the save after ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
       assert(again === json && !g.errors.length && !h.errors.length && h.save() === end, name);
+    },
+  },
+  {
+    name: 'a v0.0.15 save loads (the private by the keys at a contact\'s pause in room 2, made with no sidearm: the house issued it from the Sergeant up) and gains its P-12 (the user, 2026-11-15: "everyone should have the same loadout"): in the holster in Condition 1 on safe as MAKE READY leaves it, its spare in the thigh\'s pouch, its ids new and every item held once, nothing else written; saved and loaded again the same bytes, 600 ticks by the keys with no error, a save after carried on byte for byte',
+    timeoutMs: 120_000,
+    fn() {
+      const name = 'v0.0.15-house-private', json = read(name), old = JSON.parse(json), pid = old.player.id;
+      assert(old.meta.version === '0.0.15' && old.meta.scenario === 'test-shoothouse' && !old.people[pid].kit.worn.holster && !old.armoury.range.house.pistol, `${name}: ${old.meta.version} ${old.meta.scenario}`);
+      const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), k = s.people[pid].kit, P = s.armoury.range.house.pistol, gun = s.items[P];
+      const pouch = s.items[k.worn.thigh], spare = s.items[pouch?.holds?.[0]], mine = [P, k.worn.thigh, gun?.mag, ...(pouch?.holds ?? [])];
+      const num = (id) => Number(id.slice(1)), before = Object.keys(old.items).map(num);
+      const ids = checkIds(JSON.parse(g.save()), g.sim.domains);
+      console.log(`      ${name}: the ${old.armoury.range.house.tier} in leg ${old.armoury.range.house.cur} at a ${old.stop?.via} pause (cmd ${old.armoury.range.cmd?.id}); on load the P-12 ${P} in the holster, Condition ${conditionOf(gun)}, ${gunField(gun, 'mode')}, believed ${JSON.stringify(gun.belief)}; the pouch ${k.worn.thigh} holds ${spare?.n} ${spare?.load}; its ids ${mine.join(', ')} after the save's last i${Math.max(...before)}; the id walk: ${ids.invalid.length} invalid, ${ids.dangling.length} dangling`);
+      assert(k.worn.holster === P && gun.model === 'p12' && conditionOf(gun) === 1 && gunField(gun, 'mode') === 'safe' && gun.belief?.chamber === 'live' && spare?.n === 10 && pouch.model === 'pouch-p12', JSON.stringify({ worn: k.worn, gun }));
+      assert(Math.min(...mine.map(num)) > Math.max(...before) && !ids.invalid.length && !ids.dangling.length, JSON.stringify({ mine, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3) }));
+      // (nothing else written: the save less the P-12's items, its two kit slots, the house's record of it and the id counter is the old one)
+      const now = JSON.parse(g.save()), strip = (o) => { const c = JSON.parse(JSON.stringify(o)); for (const id of mine) delete c.items[id]; delete c.people[pid].kit.worn.holster; delete c.people[pid].kit.worn.thigh; delete c.armoury.range.house.pistol; c.meta.next = null; c.meta.schema = null; return c; };
+      const norm = (o) => JSON.stringify(o, (key, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v));
+      const only = norm(strip(now)) === norm(strip(old));
+      const twice = createGame({ scenario: old.meta.scenario, seed: 48213 }); twice.load(g.save());
+      const same = twice.save() === g.save();
+      const b = houseKeysBot();
+      g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+      const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, houseKeysBot());
+      console.log(`      nothing else written: ${only}; saved and loaded again ${same ? 'byte for byte' : 'DIFFERENT'}; 600 ticks by the keys, ${g.errors.length} errors, now leg ${g.state.armoury.range.house.cur}; carried on from the save after ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+      assert(only && same && !g.errors.length && !h.errors.length && h.save() === end, JSON.stringify({ only, same, errors: g.errors.slice(0, 2) }));
+      // (and the lane to its card from there, the P-12 holstered at it, cleared by SHOW CLEAR as the pistol last)
+      const run = runHouse(g, b, { maxMs: 10 * 60_000 }), G = g.state.items[P];
+      console.log(`      on to the card: ${run.done ? 'reached' : 'NOT reached'} in ${fmt(run.ms / 1000, 1)} s more; the P-12 at it Condition ${conditionOf(G)}, ${g.state.people[pid].kit.worn.holster === P ? 'holstered' : 'not holstered'}`);
+      assert(run.done && g.state.people[pid].kit.worn.holster === P && conditionOf(G) === 4, JSON.stringify({ done: run.done, cond: conditionOf(G) }));
+    },
+  },
+  {
+    name: 'the P-12\'s upgrade by the moment of the save: a v0.0.15 lane saved before MAKE READY gains it in Condition 3 (the fill\'s), between MAKE READY and the rifle\'s UNLOAD in Condition 1 on safe, after SHOW CLEAR in Condition 4 (the magazine in the thigh\'s pouch, never racked); a save with one is left as it is (the Sergeant\'s, a fresh fill\'s)',
+    timeoutMs: 120_000,
+    fn() {
+      // (a lane of today's private by the keys, saved at each moment, the P-12 taken out of the save as v0.0.15's had none)
+      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private' }), b = houseKeysBot(), at = {};
+      runHouse(g, b, { maxMs: 10 * 60_000, each: (game) => { const st = game.state, c = st.armoury.range.cmd?.id ?? 'none', key = c === 'load' ? 'load' : c === 'go' ? 'go' : c === 'wash' ? 'wash' : null; if (key && !at[key]) at[key] = game.save(); } });
+      const out = {};
+      for (const [key, json] of Object.entries(at)) {
+        const o = JSON.parse(json), pid = o.player.id, k = o.people[pid].kit, P = o.armoury.range.house.pistol;
+        const mine = [P, k.worn.thigh, ...(o.items[P].mag ? [o.items[P].mag] : []), ...o.items[k.worn.thigh].holds];
+        for (const id of mine) delete o.items[id];
+        delete k.worn.holster; delete k.worn.thigh; delete o.armoury.range.house.pistol; o.meta.version = '0.0.15';
+        const h = createGame({ scenario: 'test-shoothouse', seed: 48213 }), s = h.load(JSON.stringify(o)), Q = s.armoury.range.house.pistol, G = s.items[Q];
+        out[key] = { cond: conditionOf(G), mode: gunField(G, 'mode'), pouch: s.items[s.people[pid].kit.worn.thigh].holds.length };
+      }
+      const sgt = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'sgt' }), before = sgt.save(), again = createGame({ scenario: 'test-shoothouse', seed: 48213 }); again.load(before);
+      console.log(`      the P-12 on load: ${Object.entries(out).map(([k, v]) => `at ${k} Condition ${v.cond} (${v.mode}, ${v.pouch} in the pouch)`).join('; ')}; the sergeant's fill loaded ${again.save() === before ? 'byte for byte' : 'DIFFERENT'}`);
+      assert(out.load?.cond === 3 && out.load.pouch === 1 && out.go?.cond === 1 && out.go.mode === 'safe' && out.go.pouch === 1 && out.wash?.cond === 4 && out.wash.pouch === 2 && again.save() === before, JSON.stringify(out));
     },
   },
 ];

@@ -62,16 +62,17 @@ export default [
             const h = handsOf(st, pid), L = gunLook(st, twoActor(st));
             if (h?.action && L?.action?.frame) frames.add(`${h.action}:${L.action.frame}`);
           }
-          if (R.cmd?.id === 'ready' && st.armoury.range.house.goAtMs === null) { const w = houseWant(st); if (w?.startsWith('two')) wants.add(w); }
+          // (his wait: MAKE READY, or the standby the tower holds until his MAKE READY is done, 'two:busy')
+          if ((R.cmd?.id === 'ready' || R.cmd?.id === 'standby') && st.armoury.range.house.goAtMs === null) { const w = houseWant(st); if (w?.startsWith('two')) wants.add(w); }
           if (atGo === null && st.armoury.range.house.goAtMs !== null) { const gun = twoRifle(st); atGo = { mag: !!gun.mag, chamber: gunField(gun, 'chamber'), mode: gunField(gun, 'mode'), posture: st.people[pid].kit.carry.posture, lacks: twoLacks(st, 'ready') }; }
         } });
         const L = seen.load, M = seen.ready;
         console.log(`      ${tier}: LOAD from +${fmt((L.fromMs - L.cmdAtMs) / 1000, 2)} s, ${L.list.join(' ')} (${fmt(L.lived / 1000, 2)} s lived); MAKE READY from +${fmt((M.fromMs - M.cmdAtMs) / 1000, 2)} s, ${M.list.join(' ')}; drawn ${[...frames].join(', ')}; the tower's wants of him ${[...wants].join(', ') || 'none'}; at GO ${JSON.stringify(atGo)}`);
         assert(L && M && L.fromMs > L.cmdAtMs && L.fromMs - L.cmdAtMs <= 300 && L.list.join() === L.macro.join() && M.list.slice(0, M.macro.length).join() === M.macro.join(), JSON.stringify({ L, M }));
         assert(frames.size >= 2 && [...frames].some(f => f.startsWith('seat') || f.startsWith('reach')) && [...frames].some(f => f.startsWith('charge')), JSON.stringify([...frames]));
-        // (the tier one carries the P-12 from the rework's R6, and his MAKE READY racks it too (COMBAT §25.19.6): his own is then the
-        // longer, so the tower need not wait on his #2; the private's still does)
-        assert((wants.size > 0 || tier === 'tierone') && atGo && atGo.mag && atGo.chamber === 'live' && atGo.mode === 'safe' && atGo.posture === 'lowReady' && atGo.lacks === null, JSON.stringify({ wants: [...wants], atGo }));
+        // (every sheet carries the P-12 from 2026-11-15 (the rework's R6 issued it from the Sergeant up), and MAKE READY racks it
+        // too (COMBAT §25.19.6); the tower holds the standby on his MAKE READY ('two:busy') on every sheet)
+        assert(wants.size > 0 && atGo && atGo.mag && atGo.chamber === 'live' && atGo.mode === 'safe' && atGo.posture === 'lowReady' && atGo.lacks === null, JSON.stringify({ wants: [...wants], atGo }));
       }
     },
   },

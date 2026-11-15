@@ -1,5 +1,5 @@
 {
- "built": "2026-11-14T00:16",
+ "built": "2026-11-15T15:48",
  "samples": [
   {
    "id": "cuts",
@@ -332,6 +332,391 @@
         "frame": [
          304,
          270
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "helmets",
+   "title": "Helmets: today's sealed helmet and the candidates (regular, elite, the factions' trim, the OPA's), on the walking stack in the shoot house and on the card",
+   "about": "Your words of 2026-11-15: \"The helmet design is pretty goofy, I was thinking slicker design like this for regular units and even slicker for elite units with no visor, replaced by thin slits for the eyes or red dots depending on the elite units (martian get red outlines on their gear, UN get blue), if OPA get elite units, they'll get more rugged looking gear like [the cut helmet over a full-face mask] modernized.\" Every candidate is an original design (no insignia, letters or logos), drawn by the game's own figure code at 16 px/m and by the card's doll, behind a sample flag: the game's look does not change until you pick. Each view: on the left you and your #2 walking up the hall to room 1's door, both in the candidate, in the game's own picture of the shoot house (test-shoothouse at 10:00 on seed 48213: its light, the post pass, the Mars palette); in the middle the four facings at the door in that light at twice size (front, side on both ways, from behind); on the right the inventory and character card's figure. The gallery's pictures are stills; open a view live (O) and it walks: Space stops and starts it, S slows it to a quarter, the arrows step a tick while stopped, R starts again. Score each candidate; parts can be joined (say which: a visor from one, a jaw from another).",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "R",
+     "title": "R: regular units, a sleek closed helmet (your first photo), beside today's",
+     "about": "Today's helmet (S0) is the light vac suit's round dome a size up from the head, 19 px wide and 4 over the skull at 16 px/m, its visor from the brow to the chin: a ball on the body. The regulars' candidates hug the head (17 px, 2 over the skull), flat-crowned with a gloss at the upper left, the silhouette tapering to a moulded jaw and breathing piece; the visor wraps round the sides and its glass is lit faintly from inside, a dim amber that the render draws unlit, so it shows in the dark of the house. R1 a visor band across the eyes, its lower edge lit. R2 the shield: a taller visor from the brow to the nose, its lower half lit and dipping in a V into the jaw (the photo's lit face shield). R3 brow and snout: a jutting brow over a narrow visor with a lit line in it, cheek seams, a breathing piece with a grille standing forward. R4 smoked: R1's shell with the issue's smoked blue glass and its light a thin line at the top, a heads-up display's. R-f lines the four up.",
+     "sets": null,
+     "views": [
+      {
+       "id": "R-a",
+       "name": "S0, today's sealed helmet (the reference)",
+       "query": "c=S0",
+       "shot": "helmets/shots/r-a.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "R-b",
+       "name": "R1, the band: a visor band, its lower edge lit",
+       "query": "c=R1",
+       "shot": "helmets/shots/r-b.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "R-c",
+       "name": "R2, the shield: a tall visor lit in a V to the jaw",
+       "query": "c=R2",
+       "shot": "helmets/shots/r-c.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "R-d",
+       "name": "R3, brow and snout: a narrow visor, a grille",
+       "query": "c=R3",
+       "shot": "helmets/shots/r-d.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "R-e",
+       "name": "R4, smoked: the issue's glass, a lit line at its top",
+       "query": "c=R4",
+       "shot": "helmets/shots/r-e.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "R-f",
+       "name": "The four regulars side by side: front, side on, the card",
+       "query": "set=lineup&fam=regular",
+       "shot": "helmets/shots/r-f.png",
+       "native": [
+        280,
+        274
+       ],
+       "report": {
+        "frame": [
+         280,
+         274
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "E",
+     "title": "E: elite units, sleeker still, no visor: thin slits or dots",
+     "about": "The elites' shell is the skull's own width (15 px at 16 px/m), lower-crowned, swept back side on and tapering to a narrow chin; no visor. Their eyes glow (drawn unlit): red with no faction (your \"red dots\"), the faction's colour with one (the F views). E1 two thin slits at the eyes and a ridge down the faceplate. E2 two dots in a recessed faceplate of glossy black, edged by its seam. E3 one thin slit across the face under a seam, a small moulded chin. E4 an angular shell with a crest along the crown and a chevron faceplate between the dots. E-e lines the four up.",
+     "sets": null,
+     "views": [
+      {
+       "id": "E-a",
+       "name": "E1, slits: two thin lit slits, a ridge down the face",
+       "query": "c=E1",
+       "shot": "helmets/shots/e-a.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "E-b",
+       "name": "E2, dots: two red dots in a dark faceplate",
+       "query": "c=E2",
+       "shot": "helmets/shots/e-b.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "E-c",
+       "name": "E3, one slit: a single lit slit across the face",
+       "query": "c=E3",
+       "shot": "helmets/shots/e-c.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "E-d",
+       "name": "E4, crest: an angular shell, a crest, a chevron and dots",
+       "query": "c=E4",
+       "shot": "helmets/shots/e-d.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "E-e",
+       "name": "The four elites side by side: front, side on, the card",
+       "query": "set=lineup&fam=elite",
+       "shot": "helmets/shots/e-e.png",
+       "native": [
+        280,
+        274
+       ],
+       "report": {
+        "frame": [
+         280,
+         274
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "F",
+     "title": "F: the factions' trim, Mars red and the UN blue, on a regular (R1) and an elite (E2)",
+     "about": "Your words: \"martian get red outlines on their gear, UN get blue\". Thin lines of the faction's colour where each design has its seam: on R1 over the visor and round the back of the shell, on E2 round the faceplate; on the plates, the carrier's top and side edges; on the suit, the shoulders' seam (today a grey seam: no red on the Corps' black). An elite's eyes take the faction's colour too (the UN's glow blue). With no faction the same lines are the shell's own seam in shade (the R and E views). Colours my call: Mars #C8322A, the UN #3A7AD8.",
+     "sets": null,
+     "views": [
+      {
+       "id": "F-a",
+       "name": "R1 with Mars red trim",
+       "query": "c=R1&f=mars",
+       "shot": "helmets/shots/f-a.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "F-b",
+       "name": "E2 with Mars red trim",
+       "query": "c=E2&f=mars",
+       "shot": "helmets/shots/f-b.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "F-c",
+       "name": "R1 with the UN's blue trim",
+       "query": "c=R1&f=un",
+       "shot": "helmets/shots/f-c.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "F-d",
+       "name": "E2 with the UN's blue trim (its eyes blue)",
+       "query": "c=E2&f=un",
+       "shot": "helmets/shots/f-d.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "O",
+     "title": "O: OPA elite units, rugged: a modernised cut helmet with rails over a full-face mask with two round side filters",
+     "about": "Your second photo's idea, modernised and our own: a ballistic helmet cut high over the ears, its rim in shade and a rail along each side, over a full-face mask of worn rubber with two round lenses (each with its glint), a voicemitter at the mouth and two round filters at the cheeks standing out of the silhouette, so an OPA fighter reads at 16 px/m by the shape of his head alone. Their suit is not the Corps' black but a worn olive grey, their carrier their own. O1 cut and mask: a coyote shell, grey filters. O2 the shroud: an olive shell with a night-vision shroud on the brow and one wide lens across the mask. O3 worn black: a scuffed black shell, a grey mask, hazard-orange filter caps. O-d lines the three up.",
+     "sets": null,
+     "views": [
+      {
+       "id": "O-a",
+       "name": "O1, cut and mask: coyote shell, rails, two lenses, two filters",
+       "query": "c=O1",
+       "shot": "helmets/shots/o-a.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "O-b",
+       "name": "O2, the shroud: olive shell, a night-vision shroud, one wide lens",
+       "query": "c=O2",
+       "shot": "helmets/shots/o-b.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "O-c",
+       "name": "O3, worn black: scuffed shell, grey mask, orange filter caps",
+       "query": "c=O3",
+       "shot": "helmets/shots/o-c.png",
+       "native": [
+        374,
+        192
+       ],
+       "report": {
+        "frame": [
+         374,
+         192
+        ]
+       }
+      },
+      {
+       "id": "O-d",
+       "name": "The three OPA side by side: front, side on, the card",
+       "query": "set=lineup&fam=opa",
+       "shot": "helmets/shots/o-d.png",
+       "native": [
+        212,
+        274
+       ],
+       "report": {
+        "frame": [
+         212,
+         274
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "A",
+     "title": "A: every candidate side by side",
+     "about": "The eleven candidates in a row, each from the front and side on at the door in the house's light (twice size) over its card's head and shoulders: to compare the families' silhouettes at a glance. A-b is the same with Mars red trim (the OPA take none: they are neither Mars nor the UN). In R-a the card shows today's sealed helmet on the light vac suit, the doll having no combat EVA suit of its own yet (in the game the card draws utilities for it); the candidates put the black suit on the card behind the same flag.",
+     "sets": null,
+     "views": [
+      {
+       "id": "A-a",
+       "name": "All eleven: front, side on, the card",
+       "query": "set=lineup&fam=all",
+       "shot": "helmets/shots/a-a.png",
+       "native": [
+        756,
+        274
+       ],
+       "report": {
+        "frame": [
+         756,
+         274
+        ]
+       }
+      },
+      {
+       "id": "A-b",
+       "name": "All eleven with Mars red trim",
+       "query": "set=lineup&fam=all&f=mars",
+       "shot": "helmets/shots/a-b.png",
+       "native": [
+        756,
+        274
+       ],
+       "report": {
+        "frame": [
+         756,
+         274
         ]
        }
       }

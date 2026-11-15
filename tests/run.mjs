@@ -85,8 +85,22 @@ const filter = process.argv[2] || '';
 const quick = !!process.env.QUICK;
 const skip = (process.env.SKIP || '').split(',').map(x => x.trim()).filter(Boolean);
 const defaultTimeoutMs = Number(process.env.TIMEOUT_MS) || 5 * 60 * 1000;
-/** The pool's ceiling while the play copy answers on :8200 (the user likely playing). */
+/** The pool's ceiling while the user is likely playing (the play copy answering on :8200 and the machine in use, PLAYING_IDLE_S). */
 const PLAYING_JOBS = 3;
+/**
+ * The keyboard and mouse idle (s) past which the user is not playing, though the play copy still answers (the user,
+ * 2026-11-15: "I've not been playing for hours"; the server alone had kept every run at 3 workers all day). macOS's
+ * HIDIdleTime (ioreg); elsewhere, or if it can't be read, the server alone decides, as before.
+ */
+const PLAYING_IDLE_S = 300;
+/** The seconds since the last keyboard or mouse input (macOS), or null. */
+function hidIdleS() {
+  if (process.platform !== 'darwin') return null;
+  try {
+    const m = /"HIDIdleTime" = (\d+)/.exec(execFileSync('ioreg', ['-c', 'IOHIDSystem', '-d', '4'], { encoding: 'utf8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'] }));
+    return m ? Number(m[1]) / 1e9 : null;
+  } catch { return null; }
+}
 const QUICK_LIMIT_S = Number(process.env.QUICK_LIMIT_S) || 60;   // (60 again from v0.0.11, in parallel; 90 in v0.0.10, one file at a time: 875 quick tests in 73 s)
 const first = (e, n = 4) => String(e?.stack || e?.message || e).split('\n').slice(0, n).join('\n      ');
 
@@ -218,7 +232,9 @@ async function main() {
   // (the pool is a guest on the user's Mac (their words of 2026-11-08 on the dozen node processes in Activity
   // Monitor): half the cores by default, and at most PLAYING_JOBS while the play copy answers on :8200, the user
   // likely playing; JOBS sets it outright)
-  const playing = await new Promise(done => { const c = connect({ host: '127.0.0.1', port: 8200 }); const end = (v) => { c.destroy(); done(v); }; c.once('connect', () => end(true)); c.once('error', () => end(false)); c.setTimeout(300, () => end(false)); });
+  const served = await new Promise(done => { const c = connect({ host: '127.0.0.1', port: 8200 }); const end = (v) => { c.destroy(); done(v); }; c.once('connect', () => end(true)); c.once('error', () => end(false)); c.setTimeout(300, () => end(false)); });
+  const idleS = served ? hidIdleS() : null, playing = served && !(idleS !== null && idleS > PLAYING_IDLE_S);
+  if (served && !playing && process.env.JOBS === undefined) console.log(`(the play copy answers on :8200, but no keyboard or mouse for ${Math.round(idleS / 60)} min: the full pool)`);
   const JOBS = num(process.env.JOBS, playing ? Math.min(PLAYING_JOBS, Math.max(1, Math.floor(cores / 2))) : Math.max(1, Math.floor(cores / 2)));
   if (process.env.JOBS === undefined) console.log(`(the pool: ${JOBS} worker${JOBS === 1 ? '' : 's'} of ${cores} cores${playing ? ', the play copy answering on :8200, so the pool is kept small' : ''}; JOBS sets it)`);
   const BROWSER_JOBS = Math.min(POOL_PORTS.length, num(process.env.BROWSER_JOBS, 4));

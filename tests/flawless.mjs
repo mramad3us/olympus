@@ -42,6 +42,13 @@
 //       error, metres), figureOf drawing him idle or not keeping his stride; and (the rework's R2) the instructor's the same
 //       on his catwalk, printed beside
 //   F24 at each stop: T's act a row of the panel (live, struck or absent, and on which page); a shot line's named row there
+//   F25 the #2's entry on his cue (the user, 2026-11-15: "squad AI sometimes stays out of the room on entry (room 2)"): each
+//       room's cue (#1 far enough in: bundle.js entryGo, the leg's own) to the #2 past its threshold (room.js pastThreshold), at
+//       most TWO_CUE_MS; a cue with the #2 never in before the leg moved on is OUT. The honest and the keys bots on every sheet
+//       held to it; the fuzz's printed, with its ms of #1 standing across the #2's way in (keepClearOf), his own choice
+//   F26 nobody in a door's swing while it moves (the user, 2026-11-15: "doors should have a direction they open (pull or push)"):
+//       you and your #2, every tick a leaf moves, inside the part of its arc it has still to sweep (places/zones.js arcLiveAt);
+//       the honest and the keys bots held to 0 s, the fuzz's printed
 // Elsewhere: F18 (flawlessAdmin: the #2's condition after each tower command, from the fill), F20 (the stoppage bot,
 // stoppageRun: from the rework's R6 each lane's afterClick also keeps the transition's start, its draw's end against its formula
 // (the rifle let hang and the thigh's draw, firearms.js actionMs at the sheet's Weapon handling), the pistol's row and first
@@ -58,7 +65,7 @@ import { subsOf } from '../src/sim/arms/drills.js';
 import { lanePlanOf, inFunnel, pastThreshold, THRESHOLD_M } from '../src/sim/combat/room.js';
 import { openNavOf, clearLine } from '../src/sim/places/nav.js';
 import { onFloor, standOk } from '../src/sim/places/collide.js';
-import { areaOf, leafClosed } from '../src/sim/places/model.js';
+import { areaOf, leafClosed, openingDelta } from '../src/sim/places/model.js';
 import { planOf, leafRect } from '../src/sim/places/plan.js';
 import { routed, ROUTE_CLS } from '../src/sim/combat/route.js';
 import { muzzleOf, SWEEP_SAFE, SPAN_M } from '../src/sim/arms/carry.js';
@@ -69,7 +76,8 @@ import { instinctNow } from '../src/sim/skills/instinct.js';
 import { RUNG_OF_TIER } from '../src/sim/skills/templates.js';
 import { figureOf } from '../src/sim/people/figure.js';
 import { BUNDLES } from '../src/sim/combat/drills/enter-and-clear.js';
-import { CALL_S, CALL_FLOW_S, TWO_SLOT_M, TWO_WAIT_MS } from '../src/sim/combat/bundle.js';
+import { CALL_S, CALL_FLOW_S, TWO_SLOT_M, TWO_WAIT_MS, doorNow, entryGo } from '../src/sim/combat/bundle.js';
+import { keepClearOf, restClear, arcsOf, arcLiveAt } from '../src/sim/places/zones.js';
 import { TICK_MS } from '../src/core/clock.js';
 import { fmt } from './helpers.mjs';
 import { zoneAt, liveZoneAt, standsStill } from '../src/sim/places/zones.js';
@@ -86,8 +94,14 @@ import { moveNow } from '../src/sim/combat/stepper.js';
  * tick is no stop), F14 hangs, F15 the lane time, F17 the #2 at his slot, F22 the operator's room and F24 the DI's rows.
  */
 export const R9_ENFORCED = Object.freeze(['F3', 'F6', 'F7', 'F8', 'F9', 'F10', 'F13', 'F14', 'F15', 'F17', 'F22', 'F24']);
+/** v0.0.17 (2026-11-15, the user: "squad AI sometimes stays out of the room on entry (room 2)"): F25, the #2 past the threshold within his cue's time, enforced at once. */
+export const ENTRY_ENFORCED = Object.freeze(['F25']);
+/** The #2's cue's time (F25): from #1's cue to the #2 past the threshold, at most (ms): the house's own wait on him, bundle.js TWO_WAIT_MS 3 s. */
+export const TWO_CUE_MS = TWO_WAIT_MS;
 /** The criteria that fail their suite (COMBAT §25.19.8; R9 writes the gauges first: none until a stage lands its own). R1 (2026-11-12): F1, the walls, met on every bot and sheet (the authored paths walkable, the #2 held off a swinging leaf). R2 (2026-11-12): F19, the #2 animated (BODY §16.8's locomotion record, src/sim/body/loco.js). R3 (2026-11-12): F4, no doorway stops, F5, the first round out of the door, and F23, a save inside a suspended flow carrying on byte for byte (the flow: a contact suspends the drill from rung 2, the shot inside it, src/sim/combat/bundle.js). R4 (2026-11-12): F11, no dead ends (the reflex card's first answer, Make safe and Wait after the lane), F12, no "Carry on" after a row with nobody up, and F16, nothing names a lane or a house (the catalogue, src/sim/combat/drills/enter-and-clear.js MUSCLE). R5 (2026-11-13): F2, never through each other on any bot (the #2's entry cued by distance and his body gap, src/sim/combat/bundle.js; your own walk held at the gap, src/sim/places/move.js useBodies), and F18, the #2's admin (the tower's commands on his own macros, src/sim/scenarios/shoothouse.js twoCmd). R6 (2026-11-13): F20, the stoppage (the card's answers by the situation, Gun down, Off the line, Transition: pistol and Rifle up, src/sim/arms/sidearm.js; the #2 taking your man while you are down). R8b (2026-11-13): F21, no watering down by the keys, met by fluid movement (the user: "soldiers need to stay fluidly moving"; never re-baselined), and F4 widened to every sheet and bot, the #2's stills and every move's end with it (src/sim/places/zones.js, move.js throughOf, bundle.js crossingClear and freeBody). */
-export const ENFORCED = Object.freeze(new Set(['F1', 'F19', 'F4', 'F5', 'F23', 'F11', 'F12', 'F16', 'F2', 'F18', 'F20', 'F21', ...R9_ENFORCED]));
+/** v0.0.17 (2026-11-15, the user: "doors should have a direction they open (pull or push)"): F26, nobody in a leaf's swing while it moves, enforced at once. */
+export const DOORS_ENFORCED = Object.freeze(['F26']);
+export const ENFORCED = Object.freeze(new Set(['F1', 'F19', 'F4', 'F5', 'F23', 'F11', 'F12', 'F16', 'F2', 'F18', 'F20', 'F21', ...R9_ENFORCED, ...ENTRY_ENFORCED, ...DOORS_ENFORCED]));
 /** The seeds: the user's 1489397426 first, then 1000 + 37i (COMBAT §25.19.8). */
 export const flawlessSeeds = (n) => Array.from({ length: n }, (_, i) => (i === 0 ? 1489397426 : 1000 + 37 * i));
 /** The sheets, the recruit to the tier one, and those T plays (rung 2 and up). */
@@ -198,7 +212,7 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
     faults: {}, evidence: {}, engaged: [], pars: { held: PAR_HELD[tier] ?? null, set: H0.par, missed: [] },
     stops: [], stalls: 0, names: [], two: { stackM: [], handbacks: 0 },
     anim: { moveTicks: 0, idle: 0, tweenBad: 0, tweenMaxM: 0, figIdle: 0, figStride: 0, chief: { moveTicks: 0, idle: 0, tweenBad: 0, figIdle: 0 } }, paths: new Map(),
-    card: [], mem: null,
+    card: [], mem: null, entry: {}, leaf: { me: 0, two: 0, what: [], swings: 0 },
   };
   const prev = { ms: s0.clock.ms, me: null, two: null, chief: null, choosing: false, stop: null, step: null, presses: 0, hist: [] };
   const firstBy = {}, firstMine = {}, rifleId = s0.people[pid]?.kit?.worn?.sling ?? null, endsSeen = new Set();
@@ -208,6 +222,30 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
     const onLane = H.goAtMs !== null && !H.end;
     const me = st.actors.list.find(a => a.who === pid), two = twoPid ? st.actors.list.find(a => a.who === twoPid) : null;
     const S = st.stop, mem = me?.bot ?? {};
+    // ---- F25: the #2's entry on his cue, room by room (the leg's door the current one: doorNow) ----
+    if (onLane && me && two) {
+      const here = doorNow(st, pid), P = here?.plan;
+      if (P?.door && here.door !== 'hall') {
+        const E = (rec.entry[here.door] ??= { cueMs: null, inMs: null, out: false, blockMs: 0 });
+        if (E.cueMs === null && entryGo(st, P, me, now, here.rec)) E.cueMs = now;
+        if (E.inMs === null && pastThreshold(P, two.x, two.z)) E.inMs = now;
+        // (#1 standing across the #2's way in while he is cued and not in: the player's own choice, printed for the fuzz)
+        if (E.cueMs !== null && E.inMs === null && dt > 0 && Math.hypot(me.v?.[0] ?? 0, me.v?.[1] ?? 0) < STILL_MS && !restClear(keepClearOf(st, pid), me.x, me.z)) E.blockMs += dt;
+      }
+      for (const [door, E] of Object.entries(rec.entry)) if (door !== here?.door && E.cueMs !== null && E.inMs === null) E.out = true;
+    }
+    // ---- F26: nobody in a door's swing while its leaf moves (the sweep still to come, places/zones.js arcLiveAt), you or your #2 ----
+    if (onLane && dt > 0) {
+      const arcs = arcsOf(AREA);
+      for (const Z of arcs) { const d = openingDelta(st, Z.door); if (d?.atMs !== undefined && d.atMs > now && !(rec.leaf.seen ??= {})[`${Z.door}@${d.atMs}`]) { rec.leaf.seen[`${Z.door}@${d.atMs}`] = true; rec.leaf.swings++; } }
+      for (const [who, a] of [['me', me], ['two', two]]) {
+        if (!a) continue;
+        const Z = arcs.find(A => arcLiveAt(st, A, a.x, a.z, now));
+        if (!Z) continue;
+        rec.leaf[who] += dt;
+        if (rec.leaf.what.length < 4) rec.leaf.what.push(`${who} in ${Z.door}'s swing at (${r3(a.x)}, ${r3(a.z)}), ${now - (H.goAtMs ?? 0)} ms`);
+      }
+    }
     const facts = { shot: game.facts('shot'), house: game.facts('house'), bundle: game.facts('bundle'), say: game.facts('say') };
     // (F10: a man whose hands your pause could not see (the identification 'unseen': the challenge doctrine owes him, COMBAT
     // §25.4.6), kept, so his par is set apart as the dummy's man is)
@@ -761,6 +799,22 @@ export function gaugeOf(recs) {
     const keyed = st.filter(x => x.keys), miss = keyed.filter(x => LAYOUTS.some(L => x.keys[L] === null)).length, nextBad = keyed.filter(x => !x.onNext).length;
     const lay = LAYOUTS.map(L => { const xs = keyed.map(x => x.keys[L]).filter(Number.isFinite); return `${L.toUpperCase()} ${s2(mean(xs))} (${pct(xs.filter(v => v === 1).length, xs.length)} in one)`; }).join(', ');
     add('F24', 'every DI line names a row the panel has, live', st.length && bad === 0 && miss === 0 && nextBad === 0, `${st.length} stops: ${top(byRow, 8)}; v0.0.13's pages: T's row on ${top(pages)}; the grouped panel (R7): T's row by its own place ${lay}, on NEXT in one press ${keyed.length - nextBad}/${keyed.length}, a path that misses ${miss}`, '100%'); }
+  // F25
+  { const legs = (rs) => rs.flatMap(r => Object.entries(r.entry ?? {}).map(([door, E]) => ({ ...E, door, tier: r.tier, seed: r.seed, bot: r.bot, lagMs: E.cueMs !== null && E.inMs !== null ? Math.max(0, E.inMs - E.cueMs) : null })));
+    const H = legs(recs.filter(r => r.bot !== 'fuzz')), F = legs(recs.filter(r => r.bot === 'fuzz')), cued = H.filter(x => x.cueMs !== null);
+    const late = cued.filter(x => x.out || x.lagMs === null || x.lagMs > TWO_CUE_MS), lags = cued.map(x => x.lagMs).filter(Number.isFinite);
+    const byRoom = Object.entries(tally(cued.map(x => x.door))).map(([d]) => { const xs = cued.filter(x => x.door === d).map(x => x.lagMs).filter(Number.isFinite); return `${d.replace(/^o:w4:/, '')} p95 ${s2(quantile(xs, 0.95) / 1000)} max ${s2(Math.max(0, ...xs) / 1000)}`; }).join(', ');
+    const fc = F.filter(x => x.cueMs !== null), fOut = fc.filter(x => x.out), fl = fc.map(x => x.lagMs).filter(Number.isFinite), fBlock = fc.reduce((a, x) => a + x.blockMs, 0);
+    const fuzz = F.length ? `; the fuzz: ${fc.length} cues, out ${fOut.length}, the lag p95 ${s2(quantile(fl, 0.95) / 1000)} s, max ${s2(Math.max(0, ...fl) / 1000)} s, #1 standing across his way in ${s1(fBlock / 1000)} s` : '';
+    // (the margin to the limit and the lane that sets it, printed (the code review of 0.0.16: 2.95 s against 3 s over 200 seeds,
+    // so a small change to a door's openS or a sheet's pace could fail one seed with no real regression))
+    const worst = cued.filter(x => Number.isFinite(x.lagMs)).reduce((m, x) => (!m || x.lagMs > m.lagMs ? x : m), null);
+    const margin = worst ? `; the margin ${s2((TWO_CUE_MS - worst.lagMs) / 1000)} s, set by ${worst.bot} ${worst.tier} ${worst.seed} ${worst.door.replace(/^o:w4:/, '')}` : '';
+    add('F25', "the #2 in on his cue", cued.length > 0 && !late.length, `${cued.length} rooms cued (honest and keys): late or out ${late.length}${late.length ? ` (${late.slice(0, 4).map(x => `${x.bot} ${x.tier} ${x.seed} ${x.door}: ${x.out ? 'OUT' : `${s2(x.lagMs / 1000)} s`}`).join('; ')})` : ''}; from the cue to his threshold p50 ${s2(quantile(lags, 0.5) / 1000)} s, p95 ${s2(quantile(lags, 0.95) / 1000)} s, max ${s2(Math.max(0, ...lags) / 1000)} s (${byRoom})${margin}${fuzz}`, `within ${TWO_CUE_MS / 1000} s of his cue, every room, never out`); }
+  // F26
+  { const hon = recs.filter(r => r.bot !== 'fuzz'), fz = recs.filter(r => r.bot === 'fuzz'), sum = (rs, k) => rs.reduce((a, r) => a + (r.leaf?.[k] ?? 0), 0);
+    const me = sum(hon, 'me'), two = sum(hon, 'two'), swings = sum(recs, 'swings'), what = hon.flatMap(r => (r.leaf?.what ?? []).map(w => `${r.tier} ${r.seed}: ${w}`));
+    add('F26', "nobody in a door's swing while it moves", me === 0 && two === 0, `${swings} leaves swung; in a swing still to come (honest and keys): you ${s1(me / 1000)} s, your #2 ${s1(two / 1000)} s${what.length ? ` (${what.slice(0, 3).join('; ')})` : ''}${fz.length ? `; the fuzz: you ${s1(sum(fz, 'me') / 1000)} s, your #2 ${s1(sum(fz, 'two') / 1000)} s` : ''}`, '0 s'); }
   return rows;
 }
 const sumOf = (os) => { const o = {}; for (const x of os) for (const [k, v] of Object.entries(x)) o[k] = (o[k] ?? 0) + v; return o; };

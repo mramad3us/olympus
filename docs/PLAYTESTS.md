@@ -6,6 +6,22 @@ Shots and drivers stay in the scratch folders named below, outside the repo; wha
 
 ---
 
+## v0.0.17, 2026-11-15: the user's note on v0.0.15 (panel, loadout, doors, corner, sound), two reviews
+
+**What was played.** Two reviews of the tree before the release (v0.0.16 was the walk's hotfix, released mid-round): play (the page on :8237, physical keys, and node bots) and code (read-only, with a bisect on an export of HEAD). Evidence stays in `.run/v016/review-play/` and `.run/v016/review-code/notes.txt`.
+
+**Play.** In node, 50 seeds a sheet: the honest bot on the corporal to the tier one, the keys bot on the boot recruit and the private, the fuzz bot on 10 seeds a sheet: 360 lanes, all reached the card, and F1 to F26 were all met. The #2 was in on his cue in 900 rooms (p95 2.15 s, max 2.30 s). In the page by keys, every sheet reached the hot wash with no page errors, apart from the stops below. The user's note, point by point: the panel matches P3 (two rows of six, the Tab fan, the brass edge and key chip, done rows ticked); the P-12 is issued on all six sheets; push and pull shape the stack, the opener and the rows (a pull door struck for Kick, "Pull door, hinge right."); your corner is said and drawn on every sheet; steps are about 24 dB quieter in the page. Bang by keys finished cleanly.
+- **High**: (1) Pairs and Three bangs: "Next: the rifle, lane one" had no row, T did nothing, no aim row was live, and the keys run stalled (already in v0.0.16). (2) The recruit who follows "He's close. Pistol." loops on P-12 head shots he cannot make (twenty misses on seed 1037). (3) An empty gun at a contact gave head and press lines that name no row instead of RELOAD.
+- **Medium**: the DI line was cut before the corner word and key at 1600 x 900; "left" in room 2 is the screen's right and its marks read as in the hall; the shot in the page is sharper but not louder (-16.5 dBFS against -13.7 for the loudest 50 ms); the #2 has no P-12; a blocked #2 waited silently.
+
+**Code.** The round mostly held, but one heavy suite failed, so the release was blocked: `pairs-head`'s fuzzed course. The doors and corner roles had called it pre-existing; it bisects to the magazine-out fix (`drills.js` and `specials.js` together, neither alone): with RELOAD offered while the magazine is out, the fuzz shooter never reaches a bolt locked on an empty, so the DI's RELOAD line never fires there (it fired 0 times on seeds 3101 and 3104). The test lost coverage, not the fix its rightness. Checked and correct: the corner rule is derived from each plan's shape and the door's swing, works on a generated room and keeps the authored points; the #2's crossing check stops 0.5 m past the doorway and the carry applies only to you while he is not in; the P-12's save upgrade does nothing on a second load; the helmets draw only when a look sets `helm`; `src/sim` and `src/core` stay pure and the new audio uses the seeded rng.
+- **Medium**: two panel fives differed from VIEWS §7.8's table (done: the table is the built fives); the new rule that a leg is passed 30 s after "Move on." needed a DESIGN log entry (done).
+- **Low**: `&sound=old` read outside `readParams` (it is in `readParams` too); a clipping risk from the soft clip's oversampling, which the offline model does not cover (closed: no oversampling); F25's thin margin (2.95 s against 3 s, printed); a load that throws on a locked pull door (an open point for 0.3, COMBAT §25.19.14); the derived point for a corner-fed room about 2 m from the authored one (a question for the user).
+
+**What was done.** The fixes are COMBAT §25.19.14's: Tap, rack at the click below rung 2, a dry gun's reload line, the next man's aim row in Pairs, "Coming in!", the screen's corner word, the overlay pass for the marks, the line's key chip, and `pairs-head`'s seed 3109 so RELOAD fires again.
+
+---
+
 ## v0.0.14, 2026-11-14: the shoot house rework (R1 to R9), four reviews
 
 **What was played.** The rework built (COMBAT §25.19.13) and four reviews of the tree before the release: code (read-only, with a scratch probe), play (the page on :8237, physical keys, 1600x900 and 1024x768), design (headless Chrome on :8239: the tier one by T, the private by the house keys bot, Pairs as the private, Bang as the boot recruit, node checks) and reach (read-only: will it hold against live enemies, for `test-breach`). Evidence stays in the scratch folders `.run/rework2/review-code/`, `review-play/` (`runs/<sheet>/log.txt`, `strips/`, the scripts `play.mjs`, `offmark.mjs`, `stance.mjs`, `strip.mjs`) and `review-design/evidence.txt`; the harness refused report files, so the findings are here. Servers killed.
@@ -121,6 +137,7 @@ Also: the stance row still hides which stance is set; the par row flips back aft
 - **Left, for the user**: the horn (3 × 2 px) reads as a small salmon blob at 16 px/m; the bang's smoke hides the coach but for his cap; the radio box keeps the stale "Shooter ready? Standby."; one 50 to 67 ms frame when the end card opens and one dropped frame at the hit card's first paint (time stopped both times); the score line reads v0.0.9 until `release.sh` stamps it; the quick suite takes 159 s in the background band; no "at a blank" row in the bench card; **Windows (`play.cmd --dev`) not played**. Not taken: the design review's 2× crop of the doll to the waist (it would cut the man-target's C zone and low hits).
 
 **The user's scores.**
+- `test-stress` ("Bang"), 2026-11-15, v0.0.15, seed 2953694784: chaos 100, contrast 100, hands 100, ★ yes, "Excellent, even better with the target preview in the left, we need to generalize that target view for every time we're engaging something or someone". Full marks again after the rework's panel and keys (layout C, the head on 4); the target view goes to every engagement in v0.0.18.
 - `test-stress` ("Bang"), 2026-11-08, v0.0.10, seed 4104381905: chaos 100, contrast 100, hands 100, ★ yes, "Excellent". With "Three bangs" (100, ★) and "Pairs" (100/100/100, ★), the whole 0.0.7b to 0.0.7c road is scored full and starred: suppression and hardening as built carry into the shoot house.
 
 ---

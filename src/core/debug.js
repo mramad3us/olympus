@@ -86,7 +86,7 @@
 // "anywhere" step 2: any scene under a named environment, src/data/places/env.js ENV_PRESETS, such as ship-1g, wheel (the Wheel's 1 G),
 // earth-temperate, europa-surface, ship-coast or freefall-vacuum: the sim's newGame sets it live on the scene's host before the fill, and
 // an unknown name throws there, core knowing no preset); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
-// agents' smoke runs) and &perf=1 (the GL counters and pass times). ?bench=<scene> (or ?bench=1, the
+// agents' smoke runs), &perf=1 (the GL counters and pass times) and &sound=old (v0.0.15's sound, to compare: 0.0.16). ?bench=<scene> (or ?bench=1, the
 // default scene) runs the bench card (main.js; src/data/bench.js holds the scenes).
 import { toJSON, fromJSON } from './state.js';
 import { NO_INPUT } from './loop.js';
@@ -104,6 +104,9 @@ export const PARS_URL = Object.freeze(['basic', 'advanced', 'operator']);
 /** VIEWS §12's "reduce flashes" by the URL (&flashes=reduced: 0.0.9). */
 export const FLASHES = Object.freeze(['reduced']);
 
+/** The sound by the URL (&sound=old: v0.0.15's, to compare; ui/audio/engine.js createAudio's sound option, the 0.0.16 round's): else null, the new sound. */
+export const SOUNDS_URL = Object.freeze(['old', 'new']);
+
 /** The step panel's layouts by the URL (&panel=a|b|c: VIEWS §7.8.5, the rework's R7; C until the user scores P1 to P3). */
 export const PANELS_URL = Object.freeze(['a', 'b', 'c']);
 
@@ -113,7 +116,7 @@ export const CYCLES_URL = Object.freeze(['A', 'B', 'C']);
 /** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
 export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, panel, cycle }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, panel, cycle, sound }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -139,6 +142,7 @@ export function readParams(search = globalThis.location?.search ?? '') {
     env: /^[a-z0-9-]{1,32}$/.test(q.get('env') ?? '') ? q.get('env') : null,
     panel: PANELS_URL.includes(String(q.get('panel') ?? '').toLowerCase()) ? String(q.get('panel')).toLowerCase() : null,
     cycle: CYCLES_URL.includes(String(q.get('cycle') ?? '').toUpperCase()) ? String(q.get('cycle')).toUpperCase() : null,
+    sound: SOUNDS_URL.includes(q.get('sound')) ? q.get('sound') : null,
   };
 }
 

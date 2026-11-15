@@ -56,13 +56,16 @@
 // The look samples' marks (look.mark, outfits.js wear(); samples/house-stack-figures, the stack told apart in the black suit;
 // no look of the game carries one, so the game's frames are unchanged): rim, the edge of each leg, boot and the far arm
 // toward the light (the pixels whose left neighbour is not their own part) in the fixed letter ŕ; tape, the band's letter i
-// round the sealed helmet over the visor and, side on, on the near upper arm. Pure.
+// round the sealed helmet over the visor and, side on, on the near upper arm. The helmet samples' candidates (look.helm,
+// helmets.js; samples/helmets) take the sealed helmet's place, the skull under them cleared so they make the head's whole
+// silhouette, and put their faction's trim on the plates' edges; no look of the game carries one either. Pure.
 import { PX_PER_M } from '../../render/scale.js';
 import { bodyOf } from './body.js';
 import { poseOf, cellKind, AIM_TILT, KICK_TILT } from './poses.js';
 import { headKit, shapeAt, turned, GUNS } from './templates.js';
 import { wear } from './outfits.js';
 import { drawingOf } from '../rifles.js';
+import { helmTpl, trimPlate } from './helmets.js';
 
 /** How much of the camera's depth a sprite shows: along the facing, across it, and for a body lying along the depth. */
 export const DEPTH_K = 0.4, SIDE_K = 0.12, LYING_K = 1.0;
@@ -509,7 +512,8 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
   if (legsKind === 'towel' && !pose.noLegs) op(torsoDepth + 0.004, () => towelWrap(g, J, P, pp, B));
   // The plate carrier (a slab over the chest, front and back) and its pouches; the vac suit's pack.
   if (Lk.armour) {
-    op(torsoDepth + 0.005, () => carrier(g, Lk, J, P, pp, B, dir));
+    // (a helmet candidate's faction trim on the plates' edges: helmets.js, samples/helmets only)
+    op(torsoDepth + 0.005, () => { const slab = g.part + 1; carrier(g, Lk, J, P, pp, B, dir); if (Lk.helm?.trim) trimPlate(g.cells, slab); });
   }
   if (Lk.pack) {
     const back = add(lerp(J.pelvis, J.neckBase, 0.62), mul(J.chestF, -(B.chestDepth + B.chestDepth * 0.55)));
@@ -824,6 +828,10 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
   const o = P.p([0, 0, 0]), cu = P.p(crownV), cl = Math.hypot(cu[0] - o[0], cu[1] - o[1]) || 1;
   const crown = [(cu[0] - o[0]) / cl, (cu[1] - o[1]) / cl], ext = Math.abs(crown[0]) * W + Math.abs(crown[1]) * H;
   const x0 = Math.round(nk[0] + crown[0] * ext / 2 - W / 2 + fwd * bw * 0.06), y0 = Math.round(nk[1] + crown[1] * ext / 2 - H / 2) + (pose.headDrop ?? 0);
+  // (a helmet candidate (look.helm, a look sample's only: samples/helmets, helmets.js) makes the whole head's silhouette: what
+  // lay under the skull is kept, to be put back where the helmet does not cover it)
+  const under = Lk.head?.kind === 'vac' && Lk.helm ? [] : null;
+  if (under) box.t.rows.forEach((row, j) => [...row].forEach((ch, i) => { const X = x0 + box.t.x + i, Y = y0 + box.t.y + j; if (ch !== '.' && g.cells[Y]?.[X] !== undefined) under.push([X, Y, g.cells[Y][X]]); }));
   const head = g.begin(x0, y0);
   g.tpl(box.t, x0, y0);
   const hat = Lk.head?.kind, sealed = hat === 'vac';
@@ -867,7 +875,8 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
     }));
   }
   if (covering) {
-    const t = T(K.hat[hat]).t, hp = g.begin(x0, y0);
+    if (under) for (const [X, Y, c] of under) if (g.cells[Y][X]?.part === head) g.cells[Y][X] = c;
+    const t = T(under ? helmTpl(Lk.helm, view, bw, bh) : K.hat[hat]).t, hp = g.begin(x0, y0);
     g.tpl(t, x0, y0);
     // (the marks' tape (look.mark.tape): a band round the sealed helmet's dome, the two rows over the visor, in the band's letter i)
     if (sealed && Lk.mark?.tape) for (let j = 3; j <= 4; j++) {

@@ -101,6 +101,9 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     if (b?.stoppage === 'double' && has('macro:remedial')) return choose('macro:remedial');
     if (b?.stoppage && has('macro:ia')) return choose('macro:ia');
     if (['slungFront', 'slungBack'].includes(posture(state)) && has('up') && cmd !== 'clear') return choose('up');
+    // (the P-12 out (a Transition pressed on the card, every sheet from 2026-11-15): Rifle up where the DI's line says "Rifle up."
+    // (cqb-rifle-up), as a player reads it; the tower's Stop and SHOW CLEAR want it holstered)
+    if (has('weapon:rifle-up') && instinctNow(state)?.line?.act === 'stop:weapon:rifle-up') return choose('weapon:rifle-up');
     // ---- before GO and after the lane: the instructor's commands ----
     if (!lane) {
       const waiting = S.doing?.kind === 'wait';
@@ -354,7 +357,7 @@ export function houseHonestBot({ answer = null } = {}) {
     // (the reflex card: T where the line answers it, else the card's first answer, or the one the stoppage bot forces)
     if (S?.reflex) {
       if (answer === null) { const t = tryT(); if (t) return t; }
-      // (an answer shown struck (the rework's R6: Transition below the Sergeant, "not issued") is not offered: the card's first)
+      // (an answer shown struck (Transition "not carried", a man with no pistol: never the rank's from 2026-11-15) is not offered: the card's first)
       const opts = S.reflex.options, o = (answer !== null ? opts.find(x => x.key === answer && !x.off) : null) ?? opts[0];
       if (answer !== null && !opts.some(x => x.key === answer && !x.off)) { mem.notOffered ??= {}; mem.notOffered[answer] = (mem.notOffered[answer] ?? 0) + 1; }
       if (answer === null) dead(`reflex:${line?.id ?? 'no line'}`);

@@ -68,14 +68,15 @@ const COCKS = new Set(['charge', 'rack', 'lockBack', 'clearDouble']);
 /**
  * A macro's sub-steps for a belief (beliefOf's view): skipping only a magazine out with none believed in, a
  * lock back with the bolt believed locked on an empty (or unsure) chamber, and a reach with a magazine already
- * in the hand (0.0.6); with the hammer believed down on a
+ * in the hand (0.0.6); a reload's bolt release becomes Charge on a bolt not believed locked (the magazine out on a dry
+ * chamber, macrosFor's: nothing holds the bolt back); with the hammer believed down on a
  * model whose lever needs it cocked, the first safe after the first step that cocks it, or a charge before it.
  */
 export function subsOf(macroId, belief) {
   const m = MACROS[macroId];
   if (!m) return [];
   const subs = m.subs.filter(a => !(a.startsWith('magOut:') && belief?.mag === 'out') && !(a === 'lockBack' && belief?.locked && (belief.chamber === 'empty' || belief.chamber === '?'))
-    && !(a === 'reach' && belief?.hand));
+    && !(a === 'reach' && belief?.hand)).map(a => (a === 'release' && macroId.startsWith('reload:') && belief && !belief.locked ? 'charge' : a));
   if (belief?.cocked === false && MODELS[belief.model]?.safeNeedsCocked) {
     const s = subs.indexOf('selector:safe'), c = subs.findIndex(a => COCKS.has(a));
     if (s >= 0 && (c < 0 || c > s)) {
@@ -103,6 +104,16 @@ export function macrosFor(state, pid, gunId, { observerId = null } = {}) {
   if (b.stoppage === 'double') ids.push('remedial');
   else if (b.stoppage) ids.push('ia');
   if (b.mag === 'out' && withRounds.length && b.chamber !== 'live') ids.push('load');
+  // (the magazine out with a round still chambered: a top-up whose magazine fell (a fumble on the magazine out, or the new one
+  // dropped on the seat). LOAD's safe and port are no answer in a fight, so the top-up's tail, the reach and the seat (subsOf
+  // drops the magazine out). Before, nothing reloaded the rifle: the user, 2026-11-15, "fumbled magazine when topping up, no
+  // option to load")
+  else if (b.mag === 'out' && withRounds.length && b.chamber === 'live' && !b.stoppage) ids.push('reload:tactical');
+  // (the magazine out and the chamber not live: the rifle fired dry on no magazine (a fumbled top-up, then the round chambered
+  // fired). LOAD's safe and port and no charge are the tower's; the fight's answer is RELOAD's tail, the reach, the seat and the
+  // bolt (subsOf: Charge for the release on a bolt not locked). The user, 2026-11-15: "fired the last bullet and still no
+  // option to reload")
+  if (b.mag === 'out' && withRounds.length && b.chamber !== 'live' && !b.stoppage) ids.push('reload:speed');
   if (b.mag === 'in' && b.chamber === 'empty' && !b.locked && b.count !== 0 && !b.stoppage) ids.push('ready');
   if (b.mag === 'in' && b.locked && b.count === 0 && withRounds.length) ids.push('reload:speed', 'reload:retain');
   else if (b.mag === 'in' && (b.count !== 0 || (b.chamber === 'live' && !!COURSES[state.armoury?.range?.course]?.spoutTopUp)) && withRounds.length && !b.stoppage) ids.push('reload:tactical');

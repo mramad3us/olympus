@@ -396,7 +396,7 @@ What each is for, in a line:
 - **Pick, pipe pistol**: cell weapons; the pipe pistol is what a miner makes in a machine shop.
 - **Kestrel**: Europa's corporate police.
 
-**As built in v0.0.14** (the P-12, COMBAT §25.19.6; `src/sim/arms/sidearm.js`; my calls): 0.75 kg empty, irons (the RD-1P waits), a 900 rpm cycle floor. The **HAD-17** magazine is 80 g empty and 210 g full. The **9x21 frangible** is 5.6 g at 430 m/s, BC 0.06. It is issued in Condition 3 (the house's sergeant up). MAKE READY adds one `pistol:ready` part; UNLOAD and SHOW CLEAR add `pistol:clear`, the pistol last. The draw and the holster are unrolled; the other parts are rolled. There is no observer's look at the pistol. The P-12's weapon card still draws the R-7: a P-12 drawing is needed as a gun sample (VIEWS §4.4).
+**As built in v0.0.14** (the P-12, COMBAT §25.19.6; `src/sim/arms/sidearm.js`; my calls): 0.75 kg empty, irons (the RD-1P waits), a 900 rpm cycle floor. The **HAD-17** magazine is 80 g empty and 210 g full. The **9x21 frangible** is 5.6 g at 430 m/s, BC 0.06. It is issued in Condition 3 (the house's sergeant up in v0.0.14; **on every sheet from v0.0.17**, the user, 2026-11-15: "everyone should have the same loadout, there is no reason to not give sidearms to low ranks"; the #2 carries none, my call; COMBAT §25.19.14). MAKE READY adds one `pistol:ready` part; UNLOAD and SHOW CLEAR add `pistol:clear`, the pistol last. The draw and the holster are unrolled; the other parts are rolled. There is no observer's look at the pistol. The P-12's weapon card still draws the R-7: a P-12 drawing is needed as a gun sample (VIEWS §4.4).
 
 ### 3.3 Magazines, belts and feeds
 

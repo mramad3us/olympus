@@ -280,7 +280,7 @@ export const RANGE_RULES = Object.freeze([
       if (k.offered('wait:mark') || state.stop?.doing?.step === 'wait:mark') return { k, variant: 'mark' };
       // (the press names Fire's key on the panel drawn (the design review of 2026-11-13: Fire moved from 1 to 6 on the 25 m and KD lines))
       const key = k.offered('fire') ? keysFor(k.steps, 'fire', { layout: layoutIn(state) }).text : null;
-      return key ? { k, variant: `press${key}`, words: 'pressKey', key } : { k, variant: 'press' };
+      return key ? { k, variant: `press${key}`, words: 'pressKey', key, row: 'fire' } : { k, variant: 'press' };
     },
     // (T aims and takes the safety off, but never takes the shot: the press is always your own digit, held or tapped
     // (the design review's: 33 presses of T cleared the scene, T pulling every trigger; pillar 3, you decide))
@@ -322,6 +322,10 @@ export const RANGE_RULES = Object.freeze([
 function houseCmd(state, k) {
   const said = SAID[k.cmd] ?? k.cmd, Said = said.replace(/^\w/, c => c.toUpperCase()), base = { k, said, Said };
   if ((k.cmd === 'stop' || k.cmd === 'clear') && drawn(state, k.pid)) return { ...base, variant: 'pistol', step: 'weapon:rifle-up', short: 'Rifle up' };
+  // (the rifle left hanging on its sling (a transition's, the P-12 since holstered): up first, its row named, so "Stop. The tower
+  // means it." and "The tower said UNLOAD, SHOW CLEAR." never stand over a panel with neither (the fixer's of 0.0.16: twice in
+  // the page after a hall transition, and on the boot recruit's 1489397426 by the keys))
+  if ((k.cmd === 'stop' || k.cmd === 'clear' || k.cmd === 'cease') && k.inMode && !k.inHand && k.offered('up')) return { ...base, variant: 'up', step: 'up', short: 'Rifle up' };
   if (k.cmd !== 'load' && k.cmd !== 'ready' && k.cmd !== 'standby') return undefined;
   const gun = state.items?.[k.gunId];
   if (k.cmd === 'load') {

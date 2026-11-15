@@ -86,7 +86,10 @@
 // inside a zone, or already in one, is carried through instead (throughOf): to the next point past the zone on the path the
 // scene says it is on (zones.js laneOf: the shoot house's slot path, so to the man's point of domination), else across the zone
 // the way it is going, EXIT_M clear, routed round the walls; a closed form from its speed at the stance's walk, braking to rest
-// at the end (actor.through, a move beat kept on the actor, plain data). The stepper's moveNow gives it like any game move, so
+// at the end (actor.through, a move beat kept on the actor, plain data). The same where the brake would leave it at rest across a
+// way the scene keeps clear (zones.js keepClearOf: the shoot house's, your #2's way in while he is not yet in; 2026-11-15, the
+// user: "squad AI sometimes stays out of the room on entry (room 2)"): on along its lane, else straight on, to the first place
+// clear of it (keptOf); and out of a doorway a way that ends across one is taken only where none other is clear. The stepper's moveNow gives it like any game move, so
 // the hands work while the feet carry the body out; a move of the stop's own (a bundle's beat, a shot row's feet) takes the
 // feet from it, the keys out of stop motion take them back, and a step that stands still by the player's choice (zones.js
 // standsStill: Stop here, Hold him, Challenge, Gun down, Off the line, a knee) lets the body brake where it is: the only way
@@ -110,7 +113,7 @@ import { feetHeld, transPlaying } from '../time/doing.js';
 import { feetOf, pendingOf } from '../combat/contact.js';
 import { locoStep } from '../body/loco.js';
 import { startled } from '../combat/supp.js';
-import { zonesOf, liveZoneAt, exitOf, laneOf, standsStill, EXIT_M } from './zones.js';
+import { zonesOf, liveZoneAt, exitOf, laneOf, standsStill, keepClearOf, restClear, EXIT_M } from './zones.js';
 import { routed, clipped } from '../combat/route.js';
 
 /** The player's clearance class (PLACES §2.1: C0, PT kit or uniform, until kit sets it). */
@@ -371,6 +374,15 @@ function throughPaths(state, pid, area, Z, from, dir) {
   }
   const ahead = exitOf(Z, from, dir), back = exitOf(Z, from, dir, Z.kind === 'funnel' ? -Math.sign((Z.axis === 'x' ? ahead[1] - from[1] : ahead[0] - from[0]) * Z.into) || 1 : null);
   out.push([from, ahead], [from, back]);
+  // (last, off the scene's path: on to it and along it out of the zone, as a man who came in wide steps onto his lane (taken only
+  // where the ways before end across a way to keep clear: your #2's way in, keepClearOf; 2026-11-15))
+  if (lane?.length >= 2) {
+    const pr = projectOn(lane, from[0], from[1]);
+    if (pr.off > LANE_NEAR_M) {
+      const pts = [from];
+      for (let i = pr.i + 1; i < lane.length; i++) { pts.push(lane[i]); if (!liveZoneAt(state, area, lane[i][0], lane[i][1])) { out.push(rungOf(state, pid, 'room') < THROUGH_POINT_RUNG ? clearOf(state, area, pts) : pts); break; } }
+    }
+  }
   return out;
 }
 // (a path that never closes on a body of the scene's rule inside its gap (useBodies: your #2, you), sampled every 5 cm: a carry
@@ -415,11 +427,21 @@ export function throughOf(state, pid, a, ms = state.clock.ms, { rest = false } =
   // (from rest (rest: the feet the game's, a body in a zone): the heading the way the body's path goes on, else none)
   const v = moving ? v0 : 0, L = legsHere(state, pid, a.x, a.z), stopM = v * v / (2 * L.brakeMs2);
   const Z = liveZoneAt(state, area, a.x, a.z) ?? (moving ? liveZoneAt(state, area, a.x + vx0 / v0 * stopM, a.z + vz0 / v0 * stopM) : null);
-  if (!Z) return null;
+  // (or the brake would leave it at rest across a way the scene keeps clear (keepClearOf: your #2's way in through the door just
+  // passed, while he is not yet in; 2026-11-15, the user: "squad AI sometimes stays out of the room on entry (room 2)": a man
+  // who walked straight in by the keys and let go there held his #2 at his stack for as long as he stood): carried on along his
+  // lane, else straight on, to the first place clear of it, as out of a doorway)
+  const keep = keepClearOf(state, pid), restAt = moving ? [a.x + vx0 / v0 * stopM, a.z + vz0 / v0 * stopM] : [a.x, a.z];
+  if (!Z && !(keep.length && !restClear(keep, restAt[0], restAt[1]))) return null;
   const dir = moving ? [vx0 / v0, vz0 / v0] : laneDir(state, pid, a);
+  if (!Z) return keptOf(state, pid, a, area, keep, dir, v, stopM, st, ms);
   // (the first way out that the walker can walk and that ends clear of every live zone, routed round the walls; never shorter
   // than the brake from its speed: its last leg run on, as far as the walls let it)
-  let path = null;
+  // (and, where one does, ending clear of the ways the scene keeps clear (keepClearOf: your #2's way in while he is not yet in;
+  // 2026-11-15, the user: "squad AI sometimes stays out of the room on entry (room 2)": the boot recruit walked straight in by
+  // the keys was carried just clear of room 2's doorway onto his #2's lane, and stood there, holding him at his stack); else the
+  // first way as before)
+  let path = null, fallback = null;
   for (const way of throughPaths(state, pid, area, Z, [a.x, a.z], dir)) {
     const p = routed(state, way, { area }).map(r => [q(r[0], 0.0001), q(r[1], 0.0001)]), len = pathLen(p);
     if (len < stopM + 0.01 && p.length >= 2) {
@@ -428,12 +450,52 @@ export function throughOf(state, pid, a, ms = state.clock.ms, { rest = false } =
       p[p.length - 1] = [q(e[0], 0.0001), q(e[1], 0.0001)];
     }
     const end = p[p.length - 1];
-    if (p.length >= 2 && !liveZoneAt(state, area, end[0], end[1]) && walkable(state, area, p) && bodyClear(state, pid, p)) { path = p; break; }
+    if (p.length >= 2 && !liveZoneAt(state, area, end[0], end[1]) && walkable(state, area, p) && bodyClear(state, pid, p)) {
+      if (!keep.length || restClear(keep, end[0], end[1])) { path = p; break; }
+      fallback ??= p;
+    }
   }
+  path ??= fallback;
   if (!path) return null;
   const walk = gaitsOf(state, pid, { gait: st }).walkMs, P = profileOf(pathLen(path), Math.max(v, walk), L.pushMs2, L.brakeMs2, { v0: v, v1: 0 });
   const from = Number.isFinite(a.locoMs) && a.locoMs <= ms ? a.locoMs : ms;
   return { id: 'through', k: 'move', ch: 'feet', stance: st, path, prof: P, fromMs: from, untilMs: from + Math.round(P.T * 1000), way: 'through', zone: Z.id };
+}
+// (the carry off a way the scene keeps clear (see throughOf): the ways on, best first: along the scene's path for the body from
+// where it projects, else straight on, each to its first sample (KEEP_STEP_M) clear of the ways kept and of every live zone)
+const KEEP_STEP_M = 0.05, KEEP_MAX_M = 3;
+function keptOf(state, pid, a, area, keep, dir, v, stopM, st, ms) {
+  const from = [a.x, a.z], ok = (x, z) => restClear(keep, x, z) && !liveZoneAt(state, area, x, z), ways = [];
+  const lane = nextMoveOf(state, pid) ?? laneOf(state, pid);
+  const walk = (pts) => {
+    const out = [pts[0]];
+    let run = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const p0 = pts[i - 1], p1 = pts[i], l = Math.sqrt((p1[0] - p0[0]) ** 2 + (p1[1] - p0[1]) ** 2), n = Math.max(1, Math.ceil(l / KEEP_STEP_M));
+      for (let k = 1; k <= n; k++) {
+        const p = [p0[0] + (p1[0] - p0[0]) * k / n, p0[1] + (p1[1] - p0[1]) * k / n];
+        run += l / n;
+        if (run >= stopM && ok(p[0], p[1])) return [...out, p];
+        if (run > KEEP_MAX_M) return null;
+      }
+      out.push(p1);
+    }
+    return null;
+  };
+  if (lane?.length >= 2) {
+    const pr = projectOn(lane, a.x, a.z), w = walk([from, ...lane.slice(pr.i + 1)]);
+    if (w) ways.push(w);
+  }
+  if (dir) { const w = walk([from, [a.x + dir[0] * KEEP_MAX_M, a.z + dir[1] * KEEP_MAX_M]]); if (w) ways.push(w); }
+  for (const way of ways) {
+    const p = routed(state, way, { area }).map(r => [q(r[0], 0.0001), q(r[1], 0.0001)]), end = p[p.length - 1];
+    if (p.length >= 2 && ok(end[0], end[1]) && walkable(state, area, p) && bodyClear(state, pid, p)) {
+      const L = legsHere(state, pid, a.x, a.z), walkMs = gaitsOf(state, pid, { gait: st }).walkMs, P = profileOf(pathLen(p), Math.max(v, walkMs), L.pushMs2, L.brakeMs2, { v0: v, v1: 0 });
+      const t0 = Number.isFinite(a.locoMs) && a.locoMs <= ms ? a.locoMs : ms;
+      return { id: 'through', k: 'move', ch: 'feet', stance: st, path: p, prof: P, fromMs: t0, untilMs: t0 + Math.round(P.T * 1000), way: 'through', zone: 'keep' };
+    }
+  }
+  return null;
 }
 /**
  * A carry out of the live no-stop zone a body stands in, heading `away` (a unit [x, z], or null for the nearer side): across the

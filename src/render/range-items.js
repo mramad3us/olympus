@@ -48,6 +48,7 @@ import { fontFor } from '../art/kit/type.js';
 import { composeFrame } from '../art/figures/compose.js';
 import { FLAG, TOWER } from '../data/places/range.js';
 import { COURSES } from '../data/courses.js';
+import { CUT_H_M } from './walls.js';
 
 /** The flag's hoist and lowering, and its flutter's step, game milliseconds. */
 export const FLAG_HOIST_MS = 600, FLAG_FLAP_MS = 400;
@@ -975,4 +976,92 @@ export function cornerPixels(c, ppm = PX_PER_M) {
   const P = 1 / ppm, col = !c.covered ? CORNER_PALE : c.by === 'two' || c.by === 2 ? CORNER_TWO : CORNER_COVERED;
   const x0 = Math.floor(c.x * ppm) / ppm, z = Math.floor(c.z * ppm) / ppm;
   return Array.from({ length: CORNER_PX }, (_, i) => ({ x: x0 + i * P, y: CORNER_Y_M, z, c: col }));
+}
+
+// ---------- 0.0.17: a door's swing on the floor (2026-11-15, the user: "doors should have a direction they open (pull or push)") ----------
+//
+// houseLook's leaves (shoothouse.js leavesLook): the arc a door's leaf sweeps, drawn as the run sheet draws a door's swing, a
+// dotted quarter circle on the floor from the closed leaf's free edge round to where it stops open, a pixel every LEAF_DOT_PX,
+// so which way it opens reads before any word: on your side of the wall it is a pull, past it a push, and its centre is the
+// hinge. A rust line (LEAF_SHUT: the pale of the corner ticks vanished on the hall's lit floor, and a pencil grey under the wall's
+// shade, the first shots of it) while it is shut and yours (the leg's door, or an inner door of the room you are in); while the leaf moves only the sweep
+// still to come, in LEAF_MOVING, the colour of a place not to stand (the no-stop zone it is then). Drawn at the cut plane
+// (LEAF_Y_M, just over the cut walls' top, walls.js CUT_H_M), as a plan draws a door's swing where it cuts the walls: on the
+// floor, a pull door's arc in the hall lay behind the face of the cut wall the door stands in (camera.js: a point at height y and
+// depth z sits where the ground at z − y does), and was never seen (the first shots of it).
+/** A shut door's arc, a moving leaf's sweep still to come (the no-stop zone's warning). */
+export const LEAF_SHUT = 0xc0642c, LEAF_MOVING = 0xff3a24;
+/** A dot every this many pixels along the arc, and its height off the floor (m: just over the cut walls' top, see above). */
+export const LEAF_DOT_PX = 2, LEAF_Y_M = CUT_H_M + 0.02;
+/** A leaf's arc on the floor (see above): [{ x, y, z, c }] from houseLook's leaf { hinge, u, n, widthM, openK, moving }. */
+export function leafArcPixels(L, ppm = PX_PER_M) {
+  if (!L || !Array.isArray(L.hinge) || !Number.isFinite(L.widthM)) return [];
+  const from = L.moving ? Math.max(0, Math.min(1, L.openK ?? 0)) : 0, c = L.moving ? LEAF_MOVING : LEAF_SHUT, seen = new Set(), out = [];
+  // (the free edge's way from `from` of a quarter turn round to the open stop: closed along u, open along n (houseLook's, as
+  // places/swing.js arcOf gives them; the render reads no sim module but look.js))
+  const R = L.widthM, a0 = from * Math.PI / 2, a1 = Math.PI / 2, n = Math.max(1, Math.ceil((R * (a1 - a0) * ppm) / LEAF_DOT_PX));
+  for (let i = 0; i <= n; i++) {
+    const t = a0 + (a1 - a0) * (i / n), cs = Math.cos(t), sn = Math.sin(t);
+    const x = L.hinge[0] + R * (cs * L.u[0] + sn * L.n[0]), z = L.hinge[1] + R * (cs * L.u[1] + sn * L.n[1]);
+    const px = Math.floor(x * ppm), pz = Math.floor(z * ppm), key = `${px},${pz}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ x: px / ppm, y: LEAF_Y_M, z: pz / ppm, c });
+  }
+  return out;
+}
+
+// ---------- 0.0.17: your corner shown (2026-11-15, the user: "there is currently no indication at to where we're supposed to be looking when entering a room") ----------
+//
+// houseLook's aid (shoothouse.js cornerAidLook; the rule, src/sim/combat/corner.js): from the read of the door, your corner as a
+// bracket in it (two strokes of AID_BRACKET_M along its two walls, AID_INSET_M off them) and your point of domination as a
+// small ring, in a chalk teal (AID_MINE: the coach's chalk, apart from the aim's gold brackets, the corners' gold ticks and the
+// doors' rust arcs, the first shots of it in brass read as the aim's bracket); your #2's the same, dotted and grey (AID_TWO,
+// fainter); on entry your sector, a thin wedge from your point, its two edges dotted to the walls and a short
+// arc between them at its arcM (AID_SECTOR). Your bracket two pixels thick, your #2's one, dotted. Drawn flat on the room's floor
+// (AID_Y_M) in an overlay pass of its own (range.js: no depth test, after the walls), so the near corner of a room past its door's
+// wall shows where it is, in the room (the fixer's of 0.0.16: drawn upright a quarter metre over the cut, room 2's bracket and
+// your ring sat on the hall-facing wall face and read as being in the hall); and as light (range.js: the fog of awareness never dims it), since the room is unseen until you are in
+// it and the aid is there to say where to look first. Its strength k (0 to 1) thins the dots, each kept while its hash is under
+// k (a fade in pixels, no blending).
+/** Yours, your #2's, your sector's colour. */
+export const AID_MINE = 0x62e6d0, AID_TWO = 0x9fb2c6, AID_SECTOR = 0x62e6d0;
+/** The bracket's strokes and their inset off the walls, the point's ring (m), the height drawn at (m: over the doors' arcs). */
+export const AID_BRACKET_M = 0.6, AID_INSET_M = 0.1, AID_RING_M = 0.28, AID_Y_M = 0.02;
+// (a dot's hash for the fade, 0 to 1)
+const aidHash = (i) => (((i + 1) * 2654435761) >>> 0) / 4294967296;
+/** The aid's pixels (see above): [{ x, y, z, c, flat }] from houseLook's aid { marks, sector }, for the overlay pass. */
+export function cornerAidPixels(aid, ppm = PX_PER_M) {
+  if (!aid) return [];
+  const out = [], seen = new Set();
+  let i = 0;
+  const dot = (x, z, c, k) => {
+    const px = Math.floor(x * ppm), pz = Math.floor(z * ppm), key = `${px},${pz}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    if (aidHash(i++) >= k) return;
+    out.push({ x: px / ppm, y: AID_Y_M, z: pz / ppm, c, flat: true });
+  };
+  // (a stroke from a to b, a dot every `every` pixels)
+  const line = (a, b, c, k, every) => { const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * ppm / every)); for (let j = 0; j <= n; j++) dot(a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n, c, k); };
+  const arc = (x, z, r, a0, a1, c, k, every) => { const n = Math.max(2, Math.ceil(r * Math.abs(a1 - a0) * ppm / every)); for (let j = 0; j <= n; j++) { const t = a0 + (a1 - a0) * j / n; dot(x + r * Math.cos(t), z + r * Math.sin(t), c, k); } };
+  const P = 1 / ppm;
+  for (const m of aid.marks ?? []) {
+    if (!(m.k > 0) || !m.corner) continue;
+    const c = m.mine ? AID_MINE : AID_TWO, every = m.mine ? 1 : 2, { x, z, along: u, back: v } = m.corner;
+    // (yours two pixels thick: the second stroke a pixel further into the room)
+    for (const w of m.mine ? [0, P] : [0]) {
+      const o = [x + (AID_INSET_M + w) * (u[0] + v[0]), z + (AID_INSET_M + w) * (u[1] + v[1])];
+      line(o, [o[0] + (AID_BRACKET_M - w) * u[0], o[1] + (AID_BRACKET_M - w) * u[1]], c, m.k, every);
+      line(o, [o[0] + (AID_BRACKET_M - w) * v[0], o[1] + (AID_BRACKET_M - w) * v[1]], c, m.k, every);
+    }
+    // (the point: a ring with a dot in its middle, yours whole, your #2's dotted)
+    if (m.point) { arc(m.point[0], m.point[1], AID_RING_M, 0, 2 * Math.PI, c, m.k, every); dot(m.point[0], m.point[1], c, m.k); }
+  }
+  const S = aid.sector;
+  if (S && S.k > 0 && Array.isArray(S.rays)) {
+    for (const e of S.rays) line([S.x, S.z], e, AID_SECTOR, S.k, 2);
+    arc(S.x, S.z, S.arcM ?? 0.6, S.fromRad, S.toRad, AID_SECTOR, S.k, 2);
+  }
+  return out;
 }

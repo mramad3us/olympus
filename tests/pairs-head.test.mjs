@@ -228,11 +228,14 @@ export default [
     },
   },
   {
-    name: 'the DI\'s other calls each with their row (the fix of 2026-11-07, the same rule): over the whole course, the fuzz shooter (never reloading on odd seeds, dropping magazines, slinging the rifle) on two seeds a sheet, RELOAD and Top up with the short one are in the panel whenever the DI calls for them, or the single that gets there is named (seat it, the empty out, the reach, the rifle up); the readiness and the coach\'s MAKE READY and LOAD at a choice always have their act in the panel (the bolt release, Charge, the rifle up), or say "dry" and name no row',
+    name: 'the DI\'s other calls each with their row (the fix of 2026-11-07, the same rule): over the whole course, the fuzz shooter (never reloading on odd seeds, dropping magazines, slinging the rifle) on three seeds a sheet, RELOAD and Top up with the short one are in the panel whenever the DI calls for them, or the single that gets there is named (seat it, the empty out, the reach, the rifle up); the readiness and the coach\'s MAKE READY and LOAD at a choice always have their act in the panel (the bolt release, Charge, the rifle up), or say "dry" and name no row',
     heavy: true,   // (a whole-course or many-roll run: out of the quick suite, which is held to 60 s; it runs in the full suite and every release)
     fn() {
       const runs = [];
-      for (const tier of PAIRS_SHEETS) for (const seed of [3101, 3104]) runs.push({ seed, tier, full: true, fuzz: true });
+      // (seed 3109 added in 0.0.16: with the magazine out RELOAD now leads (the magazine-out fix), so on 3101 and 3104 the fuzz
+      // shooter reloads before the bolt ever locks on an empty and pairs-reload never fired; 3109 locks it with rounds in the
+      // pouches (pairs-reload 37 times for the private), so the rule's coverage is kept, not the assertion loosened)
+      for (const tier of PAIRS_SHEETS) for (const seed of [3101, 3104, 3109]) runs.push({ seed, tier, full: true, fuzz: true });
       const tot = sweepAll(runs, 'the course, fuzzed');
       assert((tot.rules['pairs-short'] ?? 0) > 0 && (tot.rules['pairs-reload'] ?? 0) > 0 && (tot.rules['pairs-ready'] ?? 0) > 0 && (tot.rules['pairs-cmd'] ?? 0) > 0, JSON.stringify(tot.rules));
     },

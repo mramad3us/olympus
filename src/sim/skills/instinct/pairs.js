@@ -204,12 +204,12 @@ export const PAIRS_RULES = Object.freeze([
       const L = layoutIn(state), keyOf = (rowId) => keysFor(k.steps, rowId, { layout: L }).text;
       const head = k.steps.find(st => st.id === 'shot:head' && st.target === k.pick) ?? null, key = head ? keyOf(head.id) : null;
       if (!head || !key) return { k, head };
-      if (!head.off) return { k, head, key, off: null, variant: `head${key}`, words: 'head' };
+      if (!head.off) return { k, head, key, off: null, variant: `head${key}`, words: 'head', row: head.id };
       // (struck: the step that lifts it named with its key (another page: 0), so the line never leaves the player looking;
       // the variant carries the key, the reason and the remedy's key, so the words are picked again when any of them moves)
       const fix = headFix(k, head.off), fkey = fix ? keyOf(fix.id) : null;
       const then = !fix ? '' : fkey ? ` ${fix.label}: ${fkey}.` : ` ${fix.label}: T.`;
-      return { k, head, key, off: head.off, fix: fix?.id ?? null, then, variant: `struck${key}|${head.off}|${fix?.id ?? ''}|${fkey ?? ''}`, words: 'struck' };
+      return { k, head, key, off: head.off, fix: fix?.id ?? null, then, variant: `struck${key}|${head.off}|${fix?.id ?? ''}|${fkey ?? ''}`, words: 'struck', row: head.id };
     },
     act: (ctx) => {
       const k = ctx.k;
@@ -221,16 +221,21 @@ export const PAIRS_RULES = Object.freeze([
   },
   {
     id: 'pairs-contact', voice: 'di', repeatMs: PAIRS_REPEAT_MS, tone: 'urgent', reach: null,
-    short: (ctx) => ({ safe: 'Off safe', next: 'Next', nextUnseen: 'Next', press: 'Press', again: 'Again', up: 'Rifle up', point: 'Your point', pressKey: 'Press', againKey: 'Again' }[ctx.words ?? ctx.variant] ?? 'Aim'),
+    short: (ctx) => ({ safe: 'Off safe', next: 'Next', nextUnseen: 'Next', nextKey: 'Next', nextUnseenKey: 'Next', press: 'Press', again: 'Again', up: 'Rifle up', point: 'Your point', pressKey: 'Press', againKey: 'Again' }[ctx.words ?? ctx.variant] ?? 'Aim'),
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k || !k.atPause || k.busy) return null;
       // (the bracketed one down: the next threat he saw, still up, named for the player's brackets)
       if (!standing(k) && k.T) {
-        const next = k.str.keys.map(key => k.R.turners.find(t => t.key === key)).find(t => t && t.key !== k.pick && facingOf(t, ms) >= 0.5 && t.stoppedAtMs === null && !NOSHOOT.has(k.last.ident?.[t.key]));
+        // (the panel's aim row on the next man (shooting.js stepsOf: the bracketed one down, the aim row goes to him), named
+        // with its key so the line names a row the panel has (the fixer's of 0.0.16: "He is down. Next: ..." named none, T did nothing)
+        const aimRow = k.steps.find(st => st.id === 'aim' && st.target && st.target !== k.pick && !st.off) ?? null;
+        const ups = k.str.keys.map(key => k.R.turners.find(t => t.key === key)).filter(t => t && t.key !== k.pick && facingOf(t, ms) >= 0.5 && t.stoppedAtMs === null && !NOSHOOT.has(k.last.ident?.[t.key]));
+        const next = ups.find(t => t.key === aimRow?.target) ?? ups[0];
         if (!next) return null;
         const id = k.last.ident?.[next.key], where = next.key === k.own ? 'your lane' : LANE_WORD[next.lane];
-        return { k, variant: HOLD_WORD[id] ? 'next' : 'nextUnseen', what: HOLD_WORD[id] ?? 'Someone', thing: id, where, Where: where.replace(/^\w/, c => c.toUpperCase()), next: next.key };
+        const v = HOLD_WORD[id] ? 'next' : 'nextUnseen', key = aimRow?.target === next.key ? keysFor(k.steps, 'aim', { layout: layoutIn(state) }).text : null;
+        return { k, variant: key ? `${v}${key}` : v, words: key ? `${v}Key` : v, key, what: HOLD_WORD[id] ?? 'Someone', thing: id, where, Where: where.replace(/^\w/, c => c.toUpperCase()), next: next.key, ...(key ? { row: 'aim' } : {}) };
       }
       if (!standing(k) || !HOLD_WORD[k.ident]) return null;
       // (he's still up: pairs-still-up's line, never "press" over the steel's ring)
@@ -253,14 +258,14 @@ export const PAIRS_RULES = Object.freeze([
       if (aimed && able) {
         const shot = k.steps.find(st => /^shot:/.test(st.id) && !st.off) ?? (k.offered('fire') ? { id: 'fire' } : null), key = shot ? keysFor(k.steps, shot.id, { layout: layoutIn(state) }).text : null;
         const v = hit ? 'again' : 'press';
-        return key ? { k, variant: `${v}${key}`, words: `${v}Key`, key, ...words } : { k, variant: v, ...words };
+        return key ? { k, variant: `${v}${key}`, words: `${v}Key`, key, ...words, row: shot.id } : { k, variant: v, ...words };
       }
       if (aimed) return null;
       return { k, variant: 'aim', ...words };
     },
     // (the next man: T brackets and aims at him, the aim row moving the bracket (the design review of 2026-11-13: "He is down.
     // Next: the rifle, lane one." had no act since v0.0.8, and a Wait pressed for it cost a "string not engaged" fault))
-    act: (ctx) => ((ctx.variant === 'next' || ctx.variant === 'nextUnseen') ? (ctx.k.choosing && ctx.k.steps?.some(st => st.id === 'aim') ? `stop:aim>${ctx.next}` : null)
+    act: (ctx) => (ctx.next ? (ctx.k.choosing && ctx.k.steps?.some(st => st.id === 'aim' && !st.off) ? `stop:aim>${ctx.next}` : null)
       : ['press', 'again', 'point'].includes(ctx.variant) || /^(press|again)./.test(ctx.variant) ? null : ctx.variant === 'up' ? actIf(ctx.k, 'up') : ctx.variant === 'safe' ? actIf(ctx.k, 'selector:semi') : actIf(ctx.k, 'aim', ctx.k.pick)),
     text: {
       1: ['{what}, {where}. Aim. Then press.'],
@@ -274,6 +279,8 @@ export const PAIRS_RULES = Object.freeze([
       point: ['Back on your point first.', 'Not from there. Back on your point.', 'Your point first. Then him.', 'Off your point. Back on it.'],
       nextUnseen: ['Down. {Where}: his hands, you have not seen them.', 'One down. {Where} still up. What is in his hands?', 'Down. Bracket {where}: you do not know him yet.', 'Next, {where}. Hands not seen.'],
       next: ['He is down. Next: the {thing}, {where}.', 'Down. Now {where}: a {thing}.', 'One down. Bracket the {thing}, {where}.', 'Next one. {what}, {where}.'],
+      nextUnseenKey: ['Down. {Where}: his hands, you have not seen them. Aim: {key}.', 'One down. {Where} still up. Aim: {key}.', 'Down. {Where}: you do not know him yet. Aim: {key}.', 'Next, {where}. Hands not seen. Aim: {key}.'],
+      nextKey: ['He is down. Next: the {thing}, {where}. Aim: {key}.', 'Down. Now {where}: a {thing}. Aim: {key}.', 'One down. The {thing}, {where}. Aim: {key}.', 'Next one. {what}, {where}. Aim: {key}.'],
     },
   },
   {
@@ -577,7 +584,7 @@ export const PAIRS_RULES = Object.freeze([
       const key = keysFor(steps, 'breathe', { layout: layoutIn(state) }).text;
       if (!key) return null;
       const words = hard ? 'keyShaking' : 'key';
-      return { k, variant: `${words}${key}`, words, key, noHumour: true };
+      return { k, variant: `${words}${key}`, words, key, noHumour: true, row: 'breathe' };
     },
     act: (ctx) => (ctx.k.inMode ? 'stop:breathe' : 'breathe'),
     text: {

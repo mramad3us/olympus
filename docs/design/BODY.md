@@ -830,6 +830,11 @@ On Europa, Callisto and Ganymede the run is a two-footed bound. Direction change
 - **Constants**: `GP_WRAP`, `CYCLE`, `STEP_PX`, `STEP_PPM`, `LOPE_FROUDE`, `LOPE_VZ_MS`, `RUN_VZ_MS`, `LEG_K`, `TURN_OPERATOR_S`, `TURN_RECRUIT_S` (CONTRACTS).
 - **The cadence** of VIEWS §3.10.9 item 6 holds at 1 G only. Measured: Combat's cadence under Assault's does not hold at every gravity (Mars 2.59 against 1.85 steps a second, Europa 2.00 against 0.89), because flight lengthens Assault's step; the test asserts 1 G only. This contradicts §3.10.9's item 6 as written, so item 6 is amended (question to the user: keep it so, or retune the lope).
 
+**As built in v0.0.16** (the hotfix of 2026-11-15, released mid-round; the user: "urgent : the walking animation ??? What is going on with the arms flopping around like that", "running also... wth", "the running being long slow leaps is intentional ? Is it to show running in Mars gravity ?"; my calls).
+- **The free arms swing opposite their own leg.** An arm not holding the rifle (Relaxed, the rifle slung, or none) had been driven by its thigh's angle, which carries the knee's lift, so both arms swung back at once (up to 1.41 rad in the walk, 2.30 rad in the run). Now each swings by where its leg's foot is in the stride (`src/art/figures/walk.js` `swingArms`, `ARM_SWING_RAD` 0.35 walking, 0.6 running), within 20 degrees walking and 34 running, the run's elbows bent near 80 degrees. A held rifle keeps both hands on it.
+- **The flight scales by the square root of g.** The take-off speed was fixed (0.9 m/s for the run), so Mars's run flew 0.49 s and rose 10.9 cm. `LOPE_VZ_MS` and `RUN_VZ_MS` are now the 1 G speeds and `src/core/phys.js` `takeoffVzMs(vz1gMs, gMs2)` scales them by sqrt(g / g0): a runner in low gravity pushes off less hard. The apex is 4.1 cm in every gravity and the flight 0.18 s at 1 G, 0.30 s on Mars, 0.50 s on Europa; 1 G (the shoot house) is unchanged. The view's lift (`gait-view.js`) reads the same function.
+
+
 ## 17. Wounds, bleeding, pain, shock, consciousness
 
 ### 17.1 Ported from tradecraft's `health.js`, as is

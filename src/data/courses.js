@@ -170,7 +170,7 @@ export const COURSES = deepFreeze({
     gaps: { door: { 'w4.r2': [300, 1200], 'w4.r3': [500, 1500] }, doorOther: [300, 1200], zone: [1500, 3000] },
     funnelM: 0.5, funnelFaultMs: 1000, twoSlotM: 1.5, twoWaitMs: 3000, twoBehindM: 0.65, stackM: 0.4,
     stallMs: 60_000, stallMoreMs: 30_000, laneMaxMs: 600_000, washMs: 90_000,
-    // (the rework's R6, COMBAT §25.19.6: the P-12 from the Sergeant up (arms/sidearm.js SIDEARM_TIERS), the house's ten frangible a magazine)
+    // (the rework's R6, COMBAT §25.19.6: the P-12 on every sheet from 2026-11-15, the Sergeant up before (arms/sidearm.js SIDEARM_TIERS), the house's ten frangible a magazine)
     sidearm: { model: 'p12', mags: [['had17', 10, 'frangible'], ['had17', 10, 'frangible']] },
   },
   // (0.0.10: test-stress's course, on pairs.js's engine (see the header); src/sim/scenarios/stress.js)

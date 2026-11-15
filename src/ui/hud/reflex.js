@@ -22,7 +22,7 @@ export function reflexOf(reflex, { keep = false, keepMs = KEEP_SAID_MS, label = 
   if (!reflex) return null;
   const opts = [...(reflex.options ?? [])], none = opts.findIndex(o => o.key === 'none');
   if (none >= 0 && none !== opts.length - 1) opts.push(opts.splice(none, 1)[0]);
-  // (an answer shown struck says why where its time would be (the rework's R6: Transition "not issued"))
+  // (an answer shown struck says why where its time would be (Transition "not carried", a man with no pistol))
   const rows = opts.map((o, i) => ({ key: String(i + 1), option: o, text: `${i + 1} ${o.label ?? o.key}${o.off ? ` · ${o.off}` : secs(o.ms) ? ` · ${secs(o.ms)}` : ''}` }));
   return { title: reflex.title ?? 'Now.', why: reflex.why ?? null, rows, keep: !!keep, keepText: `${label('hand')} keep this answer ${Math.round(keepMs / 60000)} min: ${keep ? 'on' : 'off'}` };
 }

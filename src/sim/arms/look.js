@@ -60,7 +60,9 @@
 // on every other course.
 // 0.0.12 (the build sheet 0.0.12 §2.4): on test-shoothouse's house course rangeLook gains house: src/sim/scenarios/shoothouse.js
 // houseLook's { instructor: { x, z, y, face, say, name }, corners: [{ room, id, x, z, covered, by }], stands: [{ key, stand, room,
-// x, z, y, facingK, face, holds, holes, down }], timer: { runMs, parMs, par } }; null on every other course.
+// x, z, y, facingK, face, holds, holes, down }], timer: { runMs, parMs, par } }; null on every other course. 0.0.17: with
+// leaves (the doors' swings) and aid (shoothouse.js cornerAidLook: your corner and point and your #2's from the read of the door,
+// your sector's wedge from your entry, each with its strength k; the rule src/sim/combat/corner.js).
 // The rework's R5 (COMBAT §25.19.5): your number two's rifle is drawn on the sub-step his hands are at (shoothouse.js handsOf: his
 // tower macro's, LOAD to SHOW CLEAR, or his bundle's hands beat), the same frames as yours on the same sub-step.
 // A sitting port is PORT_H_M.sit high.

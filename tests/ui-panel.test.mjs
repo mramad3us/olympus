@@ -19,7 +19,8 @@ const measure = (page) => page.evaluate(() => {
   for (let i = 0; i < kids.length; i++) for (let j = i + 1; j < kids.length; j++) if (over(kids[i].r, kids[j].r)) bad.push(`${kids[i].k} on ${kids[j].k}`);
   for (const a of kids) {
     const lab = a.e.querySelector(':scope > .label'), meta = a.e.querySelector(':scope > .meta');
-    if (lab && meta && R(lab).width && R(meta).width && R(lab).right > R(meta).left + 0.5) bad.push(`${a.k}: its words on its time`);
+    // (its words apart from its time: beside it in a row, above it in a tile (layout C's band, 2026-11-15: P3's tiles))
+    if (lab && meta && R(lab).width && R(meta).width && over(R(lab), R(meta))) bad.push(`${a.k}: its words on its time`);
     for (const p of [lab, meta]) if (p && R(p).width && (R(p).left < a.r.left - 0.5 || R(p).right > a.r.right + 0.5)) bad.push(`${a.k}: a part out of its tile`);
     // (a name cut short ends in "…" inside its tile (its words whole on the hover); never drawn past the tile)
     const nm = a.e.querySelector('.name');

@@ -9,7 +9,9 @@
 //   nobody facing, your #2 up ("should immediately announce gun down and drop to one knee", FM 3-06.11 §3-15d): Gun down,
 //       Tap, rack, Look at the port
 //   alone, or off the lane: Tap, rack, Look at the port (as built)
-// "Nothing" last always (reflex.js). Below the Sergeant, with a threat close, Transition is shown struck, "not issued". From
+// "Nothing" last always (reflex.js). The P-12 is issued on every sheet (the user, 2026-11-15: one loadout; it was the Sergeant
+// up to v0.0.16, Transition struck "not issued" below him): Transition is struck only for a man who carries no pistol at all,
+// "not carried", which the house never fills now (a loadout's choice to come, the user's 2026-11-15's loadout screen). From
 // Weapon handling 15 a double feed believed is named ("Gun down: remedial"), as the card names what the hands felt.
 //
 // Each answer is one list step of sub-steps (weaponList; the stepper times them, shooting.js rifleSub runs the rifle's, and
@@ -63,8 +65,9 @@ export const WALL_OFF_M = 0.4;
 export const UP_WAIT_MAX_MS = 4000, UP_SAID_MS = 400;
 /** Your #2 counts as up with you within this of you (m; my call: the room's width), and Gun down needs him so. */
 export const BUDDY_M = 3.5;
-/** The sheets the house issues the P-12 to (COMBAT §25.19.6, question 2's default: from the Sergeant up). */
-export const SIDEARM_TIERS = Object.freeze(['sgt', 'raider', 'tierone']);
+/** The sheets the house issues the P-12 to: every one (the user, 2026-11-15: "everyone should have the same loadout, there is no
+ * reason to not give sidearms to low ranks"; it was the Sergeant up, COMBAT §25.19.6's question 2's default, v0.0.14 to v0.0.16). */
+export const SIDEARM_TIERS = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 /** The rows' ids by the card's keys. */
 export const ANSWER_STEPS = Object.freeze({ gundown: 'weapon:gun-down', offline: 'weapon:offline', transition: 'weapon:transition' });
 /** The sub-steps this module runs itself (the others are the rifle's: shooting.js rifleSub). */
@@ -210,7 +213,8 @@ export function cardOptions(state, pid, { ia, look }) {
   const gd = buddy ? opt('gundown', `Gun down: ${words}`) : null, off = near ? opt('offline', `Off the line: ${words}`) : null;
   const tr = close && pistol ? opt('transition', 'Transition: pistol') : null;
   const standing = gd ? { ...ia, label: `${ia.label} (standing)` } : ia;
-  const struck = close && !pistol ? [{ key: 'transition', label: 'Transition: pistol', step: null, ms: 0, off: 'not issued' }] : [];
+  // (struck only with no pistol carried at all (none drawn either): never the rank's since 2026-11-15, every sheet is issued one)
+  const struck = close && !pistol && !pistolOf(state, pid) ? [{ key: 'transition', label: 'Transition: pistol', step: null, ms: 0, off: 'not carried' }] : [];
   // (in a doorway the knee is never the card's lead: the drill on the hands while the feet carry you through (the rework's R8b:
   // places/move.js throughOf); Gun down stays offered, the player's own choice, after it)
   if (gd && inDoorway(state, pid)) return [tr, standing, gd, off, look, ...struck].filter(Boolean);

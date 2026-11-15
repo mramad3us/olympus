@@ -24,6 +24,8 @@
 // render draws unlit, as bright at night as by day (VIEWS.md 3.1's ¤): ¤ a lamp, ° a green status light,
 // ¦ an amber one. A glowing pixel carries GLOW.ALWAYS in its alpha (src/art/paint.js: 255 − class), so
 // a figure's sheet is a Pixmap like any painting.
+// A look may add fixed letters of its own (col.$fixed: { letter: [colour, glow class] }): the helmet samples' candidates'
+// visor light, eye dots and slits and faction trim (helmets.js); no look of the game carries any.
 // Pure.
 import { tone } from '../tone.js';
 import { word, GLOW } from '../paint.js';
@@ -63,9 +65,11 @@ export function shade(cells, col, { outline = INK } = {}) {
   const same = (c, r, x, y) => { const o = at(x, y); return o && o.part === c.part && roles[y][x] === r; };
   const data = new Uint32Array(W * H);
   const hairDark = typeof col.h === 'number' ? rampOf(col.h).dark : INK, skinDark = typeof col.s === 'number' ? rampOf(col.s).dark : INK;
+  const extra = col.$fixed ?? null;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const c = cells[y][x];
     if (!c) continue;
+    if (extra?.[c.ch]) { data[y * W + x] = word(extra[c.ch][0], extra[c.ch][1]); continue; }
     if (FIXED[c.ch] !== undefined) { data[y * W + x] = word(FIXED[c.ch], GLOWING[c.ch] ?? 0); continue; }
     if (c.ch === 'b') { data[y * W + x] = word(hairDark); continue; }
     if (c.ch === 'z') { data[y * W + x] = word(skinDark); continue; }

@@ -37,6 +37,8 @@
 // A look also carries the body's cues the figure shows (VIEWS §7.3, BODY's cuesOf): wet (the hair darker
 // with a sheen, for WET_HAIR_MS after a wash) and tired (fatigue at or past tired: the head down, the
 // arms swinging less: poses.js). Both change the drawing, so they are part of the look's shape.
+// look.helm (a look sample's only: samples/helmets): { id, faction } a helmet candidate (helmets.js) on the combat EVA suit,
+// its colours, its faction's trim on the shoulders' seam, and the OPA's suit colours under their own.
 // look.mark (a look sample's only: samples/house-stack-figures): { rim, visor, tape } colours that tell one marine in the
 // combat EVA suit from another (compose.js draws the rim and the tape; the visor and the tape's band are the suit's accents).
 // The hair (0.0.6): one of the regulation cuts (templates.js CUT_IDS; DEFAULT_CUT low regulation when a look
@@ -50,6 +52,7 @@
 import { noise, tone, mixHex } from '../tone.js';
 import { CUT_IDS } from './templates.js';
 import { drawingOf } from '../rifles.js';
+import { helmOf, helmColours } from './helmets.js';
 
 /** Skin tones (tradecraft's SKIN). */
 export const SKIN = Object.freeze({ light: 0xedc39c, tan: 0xc48a62, brown: 0x8c5a3f, dark: 0x5e3a2a });
@@ -136,6 +139,9 @@ export function wear(look = {}) {
   // { rim: a colour drawn along each leg's, boot's and the far arm's edge toward the light (compose.js), visor: the visor's
   // glass, tape: a band of colour round the helmet, on the shoulders and, side on, the near upper arm })
   if (look.mark) L.mark = look.mark;
+  // (the helmet samples' candidate, never set by the game: samples/helmets, helmets.js; { id, faction } resolved to its colours
+  // and templates, drawn on the combat EVA suit's sealed head)
+  if (look.helm) L.helm = helmOf(look.helm);
   const camo = { pattern: 'valles' };
   switch (outfit) {
     case 'utilities': case 'nco': case 'carrier': case 'rangeStaff':
@@ -164,13 +170,13 @@ export function wear(look = {}) {
       break;
     case 'combatSuit': {
       // (black, no red: the seam on the shoulders grey; the carrier the kit puts on it black too)
-      const K = COMBAT_SUIT;
+      const K = L.helm?.suit ? { ...COMBAT_SUIT, ...L.helm.suit } : COMBAT_SUIT;
       L.top = { kind: 'suit', color: K.shell, skin: K.skin };
       L.legs = { kind: 'suit', color: K.skin, shell: K.shell };
       L.boots = K.boot; L.gloves = K.ring;
       L.pack = { color: K.pack, helmet: false, slim: true };
-      L.head = { kind: 'vac', color: K.shell, sealed: true };
-      L.accents.rings = K.ring; L.accents.band = L.mark?.tape ?? K.ring; L.accents.visor = L.mark?.visor ?? K.visor;
+      L.head = { kind: 'vac', color: L.helm?.shell ?? K.shell, sealed: true };
+      L.accents.rings = K.ring; L.accents.band = L.mark?.tape ?? L.helm?.trim ?? K.ring; L.accents.visor = L.mark?.visor ?? L.helm?.visor ?? K.visor;
       if (look.carrier) L.armour = { color: K.carrier, pouches: K.pouches };
       L.ears = false; L.headset = false;
       break;
@@ -208,5 +214,7 @@ export function coloursOf(L, ppm) {
     ...drawingOf(L.model ?? 'r7', L.finish).colours,
     // (the marks' rim, a fixed letter only a marked look draws: compose.js)
     ...(L.mark?.rim ? { ŕ: L.mark.rim } : {}),
+    // (a helmet candidate's jaw piece, filters and rails, and its fixed letters: helmets.js)
+    ...(L.helm ? helmColours(L.helm) : {}),
   };
 }

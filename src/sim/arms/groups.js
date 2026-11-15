@@ -88,7 +88,7 @@ export const MAPS = Object.freeze({
     { words: 'The line ▸', deep: true, c: [] }],
   DRILL_OUT: [null,
     { words: 'Stack up', c: [is(/^drill:stack:up(@|>|$)/)] }, { words: 'Stack up, take point', c: [is(/^drill:stack:point(@|>|$)/)] },
-    { words: 'Open', c: [is(/^door:(push|pull)>/)] }, { words: 'Kick door', c: [is(/^door:kick>/)] }, { words: 'Breach', c: [is(/^drill:door:breach(@|>|$)/)] },
+    { words: 'Open', c: [is(/^door:(push|pull)>/)] }, { words: 'Kick door', c: [is(/^door:kick>/)] }, { words: 'Breach', c: [is(/^drill:door:breach(@|>|$)/)], stand: { off: 'not issued' } },
     { words: 'Flash, then in', c: [is(/^drill:door:flash/)], stand: { off: 'not issued' } },
     { words: 'Enter', c: [id('drill:carry'), is(/^drill:room:clear(@|>|$)/), is(/^drill:room:dominate(@|>|$)/), is(/^drill:room:in(@|>|$)/)] },
     { words: 'Read the door', c: [is(/^door:read>/)] }, { words: 'Hold it', c: [is(/^door:hold>/)] }],
@@ -128,12 +128,17 @@ export const SITUATIONS = Object.freeze({
   // (THE KD LINE's five: Wait (for your mark) on 4 in place of the design's lever (my call: the audit's 18 Waits and 4 Waits for
   // the mark on the KD course against 2 lever presses; the lever stays in FIRE's line ▸))
   kd: { name: 'THE KD LINE', five: [{ re: /^hold:(read|call|centre)$/, words: 'Hold ⇄ the call' }, { id: 'sight:call', words: 'Dial the call' }, { re: /^sight:dope:/, words: 'Dope for the line' }, { id: ['wait:mark', 'wait'], words: 'Wait' }, ['FIRE', 8]] },
-  inner: { name: 'AN INNER DOOR', half: 'in', five: [['DRILL', 8], ['DRILL', 9], ['DRILL', 1], ['DRILL', 3], ['DRILL', 6]] },
+  // (AN INNER DOOR's five keeps the room's on their keys, Watch 1, To your point 2, "Clear!" 3, and the door's two on 4 and 5 in
+  // place of Coming out and To the next door, which wait on the door anyway (2026-11-15, the keys role: an inner door seen moved
+  // "Clear!" from 3 to 4 and Watch from 1 to 3 under the player's fingers; the user's "the keys selection isn't updated
+  // according to the choices made earlier yet?"))
+  inner: { name: 'AN INNER DOOR', half: 'in', five: [['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 8], ['DRILL', 9]] },
   room: { name: 'IN THE ROOM', half: 'in', five: [['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 6], ['DRILL', 7]] },
-  // (AT THE DOOR's five: Stack up, take point, Open, Enter, Kick door, in place of the design's Breach on 5 (my call: R4's catalogue
-  // made the entry with its reach the door's own row, "Open, in: your corner" and "Open, clear the room", 27 of the honest bot's
-  // 54 door stops; Breach is struck in this lane, "no charge issued", and stays on DRILL 5 in the fan))
-  door: { name: 'AT THE DOOR', half: 'out', five: [['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 7], ['DRILL', 4]] },
+  // (AT THE DOOR's five as the user's pick drew it (P3, 2026-11-12): Stack up, Stack up and take point, Open, Kick door on 1 to 4;
+  // on 5 Enter in place of the sample's Breach until a charge is issued (v0.0.17's breaching; my call: R4's catalogue made the
+  // entry with its reach the door's own row, "Open, in: your corner" and "Open, clear the room", 27 of the honest bot's 54 door
+  // stops; Breach stays on DRILL 5 in the fan, struck "not issued"). v0.0.14 to v0.0.15 had Enter on 4 and Kick on 5.)
+  door: { name: 'AT THE DOOR', half: 'out', five: [['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 4], ['DRILL', 7]] },
   // (THE LINE's five: Wait on 4 in place of the design's Prone (my call: Wait, "for the turn", "for the coach", "for the instructor",
   // is T's act on the line and before GO many times more than Prone; Prone keeps BODY 4 in the fan))
   line: { name: 'THE LINE', five: [['GUN', 1], ['GUN', 7], ['BODY', 3], ['BODY', 7], ['FIRE', 8]] },
@@ -157,8 +162,12 @@ export function badgeOf(off) {
   x = /^rung (\d+)$/.exec(w);
   if (x) return { t: 'rung', n: Number(x[1]) };
   if (/by hand first/.test(w)) return { t: 'hand' };
-  if (/not issued/.test(w)) return { t: 'issue' };
+  if (/not (issued|carried)/.test(w)) return { t: 'issue' };
   if (/locked/.test(w)) return { t: 'lock' };
+  // (a pull door's kick, struck "opens toward you" (places/swing.js KICK_PULL_WHY): the badge the tile's corner holds, "pull")
+  if (/^opens toward you$/.test(w)) return { t: 'note', text: 'pull' };
+  // (a pull door's Open from its hinge side, struck "from the latch side" (bundle.js latchSideOk): the side to go to)
+  if (/^from the latch side$/.test(w)) return { t: 'note', text: 'latch' };
   if (/^nothing|no one|nothing to|^he is down$/.test(w)) return { t: 'none' };
   if (/^(held|watching|steady|already)/.test(w)) return { t: 'done' };
   return { t: 'note', text: w };
@@ -217,9 +226,32 @@ export function modelOf(steps = [], { act = null, actLabel = null, watch = 0 } =
     }
     groups[g] = { slots, deep };
   }
-  // (the stand-in Transition below the Sergeant: the house's card names it "not issued", so the slot says the same)
+  // (what is done stays on its key, ticked (VIEWS §7.8.1's ✓, the user's pick P3 drew "Stack up ✓" at the stack): stacked on the
+  // door (its push, pull or kick offered, which only a stacked man is), Stack up, Stack up and take point, and Read the door once
+  // read keep their slots struck "already" (the keys role of 2026-11-15: they went blank, the choice made not shown))
+  if (half === 'out' && rows.some(s => /^door:(push|pull|kick)>/.test(s.id))) {
+    for (const [k, off] of [[1, 'already stacked'], [2, 'already stacked'], [8, 'already read']]) {
+      const e = groups.DRILL.slots[k];
+      if (!e.row) { e.row = { id: `stand:DRILL:${k}`, kind: 'stand', label: e.words, off }; e.badge = badgeOf(off); e.stand = true; }
+    }
+  }
+  // (the same for the hall's end once reached (its walk no longer offered: you are there) and the challenge once his hands are
+  // seen (a man bracketed, Hold him offered, Challenge not: challenged, or seen armed or clean): To the next door and Challenge
+  // went blank after they were done, at the same stop's situation (the keys role's audit of 2026-11-15, 12 such stops on 24 lanes))
+  const mark = (g, k, off) => { const e = groups[g].slots[k]; if (e && !e.row && e.words) { e.row = { id: `stand:${g}:${k}`, kind: 'stand', label: e.words, off }; e.badge = badgeOf(off); e.stand = true; } };
+  if (half === 'in' && rows.some(s => /^look:hall:|^watch:hall:|>hall$/.test(s.id)) && !rows.some(s => s.id === 'move:hallEnd')) mark('DRILL', 7, 'already there: the hall\'s end');
+  if (rows.some(s => s.id === 'contact:hold') && !rows.some(s => s.id === 'contact:challenge')) mark('TEAM', 6, 'already seen: his hands');
+  // (a door already open outside it (the tier one on 48213, room 3 opened under him): from rung 2 the entry's stance is offered
+  // with the bundles and the breach's way only at a closed door, so the stance without the breach on a door's leg is an open door)
+  if (half === 'out' && rows.some(s => s.id === 'drill:variant:stance') && !rows.some(s => s.id === 'drill:variant:breach') && rows.some(s => /^drill:.*>(?!hall$)/.test(s.id)) && !rows.some(s => /^door:(push|pull|kick)>/.test(s.id))) {
+    for (const k of [2, 3, 4]) mark('DRILL', k, 'already open');
+  }
+  // (the stand-in Transition for a man with no pistol at all: the house's card names it "not carried", so the slot says the same.
+  // Every sheet is issued the P-12 from 2026-11-15 (the user: "everyone should have the same loadout"), so in the house the rows
+  // with a rifle down always hold Transition (sidearm.js weaponRows) and this is never the rank's; it was "not issued" below the
+  // Sergeant, v0.0.14 to v0.0.16)
   const gun3 = groups.GUN.slots[3];
-  if (!gun3.row && house && rows.some(s => s.id === 'weapon:gun-down' || s.id === 'weapon:offline')) { gun3.row = { id: 'stand:GUN:3', kind: 'stand', label: 'Transition: pistol', off: 'not issued' }; gun3.badge = badgeOf('not issued'); gun3.stand = true; }
+  if (!gun3.row && house && rows.some(s => s.id === 'weapon:gun-down' || s.id === 'weapon:offline')) { gun3.row = { id: 'stand:GUN:3', kind: 'stand', label: 'Transition: pistol', off: 'not carried' }; gun3.badge = badgeOf('not carried'); gun3.stand = true; }
   // (the third levels: every row no slot took, by its group, in stepsOf's order)
   for (const s of rows) if (!taken.has(s)) groups[OVERFLOW_OF(s)].deep.push(s);
   for (const g of GROUPS) {
@@ -286,7 +318,12 @@ export function situationOf(rows, { half = null, groups = null, act = null } = {
     const ids = [].concat(f.id ?? []), row = (f.re ? rows.find(s => f.re.test(s.id) && !s.off) ?? rows.find(s => f.re.test(s.id)) : null) ?? ids.map(x => rows.find(s => s.id === x && !s.off)).find(Boolean) ?? ids.map(x => rows.find(s => s.id === x)).find(Boolean) ?? null;
     return { five: i + 1, group: null, slot: null, words: f.words, row, badge: row ? badgeOf(row.off) : { t: 'none' } };
   });
-  return { id, name: S.name, five };
+  // (the hall's leg has no door: its stack and entry rows end '>hall' and no door row is offered; the same five on the same keys,
+  // named for what it is (2026-11-15, the keys role: it said AT THE DOOR in the hall))
+  // (inside it, its five the room's, named IN THE HALL: it said IN THE ROOM down the hall)
+  const hall = id === 'door' && rows.some(s => /^drill:.*>hall$/.test(s.id)) && !rows.some(s => /^door:/.test(s.id));
+  const inHall = id === 'room' && rows.some(s => /^(look|watch):hall:|^drill:.*>hall$/.test(s.id));
+  return { id, name: hall ? 'THE HALL' : inHall ? 'IN THE HALL' : S.name, five, ...(hall || inHall ? { hall: true } : {}) };
 }
 
 // ---- the layouts ----

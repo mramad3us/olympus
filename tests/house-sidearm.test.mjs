@@ -2,13 +2,15 @@
 //
 // The user's note on v0.0.12 (2026-11-11): "We get a jam in the second room, we should be able to switch to side arm or
 // something realistic like take cover". What each test pins, each failing without its build (none of it existed in v0.0.13):
-//   - the P-12 is issued from the Sergeant up (question 2's default), in the thigh holster with a HAD-17 of ten frangible
-//     seated and a spare in the thigh pouch; below the Sergeant none, and every other item of the fill keeps its id;
+//   - the P-12 is issued on every sheet (the user, 2026-11-15: "everyone should have the same loadout, there is no reason to
+//     not give sidearms to low ranks"; R6 issued it from the Sergeant up), in the thigh holster with a HAD-17 of ten
+//     frangible seated and a spare in the thigh pouch, its four ids last, so every sheet's fill has the same ids;
 //   - the reflex card in the house offers the answers by the situation (COMBAT §25.19.6's table): a threat facing within
-//     TRANSITION_NEAR_M with a pistol carried, Transition first; without one, Gun down first and Transition struck,
-//     "not issued"; never the house's answers off the lane;
-//   - Transition: pistol takes the rifle let hang and the thigh's draw, 1.40 s × paceOf(WH) (0.64 s for the tier one), and
-//     then the P-12 is the gun in use: its rows fire it;
+//     TRANSITION_NEAR_M with a pistol carried, Transition first, on every sheet; struck "not carried" only for a man who
+//     carries none (never the rank's now); never the house's answers off the lane;
+//   - Transition: pistol takes the rifle let hang and the thigh's draw, 1.40 s × paceOf(WH) (1.81 s for the boot recruit,
+//     0.64 s for the tier one), on every sheet (the boot recruit and the private by the keys), and then the P-12 is the gun
+//     in use: its rows fire it, and the lane reaches its card with it holstered;
 //   - Gun down: "Gun down!", the knee, tap, rack, "Gun up!", on the knee until your #2's "Up.", then stand; he says
 //     "Covering!" and takes the man you had bracketed when he can see him;
 //   - Off the line: "Stoppage!", a step of at most COVER_STEP_M off the threat's line, never into a wall or your #2, then
@@ -18,8 +20,8 @@
 //   - MAKE READY racks the P-12 and SHOW CLEAR clears it, the pistol last; the lane's 'dry' end counts its rounds.
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
-import { runHouse, houseHonestBot, stoppageBot } from './bots/house.mjs';
-import { flawlessSeeds, overlapOf, WALL_TOL_M } from './flawless.mjs';
+import { runHouse, houseHonestBot, houseKeysBot, stoppageBot } from './bots/house.mjs';
+import { flawlessSeeds, overlapOf, WALL_TOL_M, SHEETS, T_SHEETS } from './flawless.mjs';
 import { conditionOf, gunField, actionMs, beliefOf } from '../src/sim/arms/firearms.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { paceOf } from '../src/sim/skills/skills.js';
@@ -36,8 +38,10 @@ const meOf = (s) => s.actors.list.find(a => a.who === s.player.id);
 const twoActor = (s) => s.actors.list.find(a => a.who === s.armoury.range.house.two.pid);
 const pistolOf = (s) => s.armoury.range.house.pistol ?? null;
 // (a lane with the stoppage bot up to the reflex card on the dummy's click: the game, the card, or null at the lane's end)
-function toCard(tier, seed, answer = 'ia') {
-  const g = createGame({ scenario: 'test-shoothouse', seed, tier, setup: 'go' }), bot = stoppageBot({ answer });
+// (the boot recruit and the private by the keys, as they play it: the honest bot's T is the corporal's up; edit(state) at the fill)
+function toCard(tier, seed, answer = 'ia', edit = null) {
+  const g = createGame({ scenario: 'test-shoothouse', seed, tier, setup: 'go' }), bot = T_SHEETS.includes(tier) ? stoppageBot({ answer }) : houseKeysBot();
+  edit?.(g.state);
   for (let t = 0; t < 20 * 60 * 5; t++) {
     if (g.state.stop?.reflex) return { g, card: g.state.stop.reflex, bot };
     g.step(1, bot); g.clearFacts();
@@ -52,40 +56,43 @@ function onward(g, bot, each, maxMs = 5 * 60_000) {
 
 export default [
   {
-    name: 'the P-12 is issued from the Sergeant up, in the thigh holster with a HAD-17 of ten frangible seated (Condition 3) and a spare in the thigh pouch; the private and the corporal carry none, and every item of their fill keeps its id (the sidearm\'s ids come after all of it)',
+    name: 'the P-12 is issued on every sheet, the boot recruit and the private included (the user, 2026-11-15: "everyone should have the same loadout, there is no reason to not give sidearms to low ranks"), in the thigh holster with a HAD-17 of ten frangible seated (Condition 3) and a spare in the thigh pouch; every sheet\'s fill has the same ids, the sidearm\'s four numbered after all of it',
     fn() {
       const ids = {}, kg = {};
-      for (const tier of ['private', 'cpl', 'sgt', 'raider', 'tierone']) {
+      assert(SHEETS.every(t => SIDEARM_TIERS.includes(t)), JSON.stringify(SIDEARM_TIERS));
+      for (const tier of SHEETS) {
         const g = createGame({ scenario: 'test-shoothouse', seed: SEED, tier }), s = g.state, pid = s.player.id, k = s.people[pid].kit;
         ids[tier] = Object.keys(s.items).filter(id => !id.startsWith('$'));
         kg[tier] = kitMassKg(s, pid);
         const P = k.worn.holster ? s.items[k.worn.holster] : null, pouch = k.worn.thigh ? s.items[k.worn.thigh] : null;
-        if (SIDEARM_TIERS.includes(tier)) {
-          const mag = s.items[P.mag], spare = s.items[pouch.holds[0]];
-          console.log(`      ${tier}: holster ${k.worn.holster} ${P.model} Condition ${conditionOf(P)}, ${mag.n} ${mag.load} in its ${mag.fam}; the thigh pouch ${spare.n} ${spare.load}; carried ${fmt(kg[tier], 2)} kg`);
-          assert(P.model === 'p12' && conditionOf(P) === 3 && mag.fam === 'had17' && mag.n === 10 && mag.load === 'frangible' && pouch.model === 'pouch-p12' && pouch.holds.length === 1 && spare.n === 10 && pistolOf(s) === k.worn.holster, JSON.stringify({ tier, P, pouch }));
-        } else {
-          console.log(`      ${tier}: no sidearm (${JSON.stringify(k.worn)}); carried ${fmt(kg[tier], 2)} kg`);
-          assert(!k.worn.holster && !k.worn.thigh && !Object.values(s.items).some(i => i?.model === 'p12'), JSON.stringify(k.worn));
-        }
+        assert(P && pouch, JSON.stringify({ tier, worn: k.worn }));
+        const mag = s.items[P.mag], spare = s.items[pouch.holds[0]];
+        console.log(`      ${tier}: holster ${k.worn.holster} ${P.model} Condition ${conditionOf(P)}, ${mag.n} ${mag.load} in its ${mag.fam}; the thigh pouch ${spare.n} ${spare.load}; carried ${fmt(kg[tier], 2)} kg`);
+        assert(P.model === 'p12' && conditionOf(P) === 3 && mag.fam === 'had17' && mag.n === 10 && mag.load === 'frangible' && pouch.model === 'pouch-p12' && pouch.holds.length === 1 && spare.n === 10 && pistolOf(s) === k.worn.holster, JSON.stringify({ tier, P, pouch }));
       }
-      // (the same seed: every item of the private's fill is the sergeant's, the sergeant's four more (the pistol, its pouch, two magazines) numbered last)
-      const extra = ids.sgt.filter(id => !ids.private.includes(id)), num = (id) => Number(id.slice(1));
-      console.log(`      the sergeant's items beyond the private's: ${extra.join(', ')} (the private's last ${ids.private.map(num).sort((a, b) => b - a)[0]}); the P-12's ${fmt(kg.sgt - kg.private, 2)} kg more`);
-      assert(ids.private.every(id => ids.sgt.includes(id)) && extra.length === 4 && Math.min(...extra.map(num)) > Math.max(...ids.private.map(num)) && ids.cpl.join() === ids.private.join(), JSON.stringify({ extra }));
+      // (the same seed: every sheet's fill the same ids, the P-12, its pouch and two magazines numbered last; the same kilograms)
+      const num = (id) => Number(id.slice(1)), P = createGame({ scenario: 'test-shoothouse', seed: SEED, tier: 'recruit' }).state, k = P.people[P.player.id].kit;
+      const mine = [k.worn.holster, k.worn.thigh, P.items[k.worn.holster].mag, ...P.items[k.worn.thigh].holds], rest = ids.recruit.filter(id => !mine.includes(id));
+      console.log(`      the sidearm's ids ${mine.join(', ')} after the fill's last ${rest.map(num).sort((a, b) => b - a)[0]}; every sheet's ${ids.recruit.length} ids the same: ${SHEETS.every(t => ids[t].join() === ids.recruit.join())}; kilograms ${[...new Set(SHEETS.map(t => fmt(kg[t], 2)))].join(', ')}`);
+      assert(SHEETS.every(t => ids[t].join() === ids.recruit.join()) && Math.min(...mine.map(num)) > Math.max(...rest.map(num)) && new Set(SHEETS.map(t => fmt(kg[t], 2))).size === 1, JSON.stringify({ mine }));
     },
   },
   {
-    name: 'the reflex card in the house by the situation (COMBAT §25.19.6\'s table): the sergeant at the dummy\'s click with the armoured man facing him close, Transition: pistol first, then Gun down, Tap, rack (standing), Off the line, Look at the port, Nothing; the corporal, Gun down first and Transition struck "not issued", never chosen',
+    name: 'the reflex card in the house by the situation (COMBAT §25.19.6\'s table): at the dummy\'s click with the armoured man facing close, Transition: pistol first on every sheet (the boot recruit and the private by the keys), then Gun down, Tap, rack (standing), Off the line, Look at the port, Nothing; struck "not carried" only for a man with no pistol at all, never chosen',
     fn() {
-      const sgt = toCard('sgt', SEED), cpl = toCard('cpl', SEED);
       const keys = (c) => c.options.map(o => `${o.key}${o.off ? `(${o.off})` : ''}`).join(' ');
-      console.log(`      sgt: ${sgt.card.options.map(o => `${o.label} ${fmt(o.ms / 1000, 2)} s${o.off ? ` [${o.off}]` : ''}`).join(' | ')}`);
-      console.log(`      cpl: ${cpl.card.options.map(o => `${o.label}${o.off ? ` [${o.off}]` : ` ${fmt(o.ms / 1000, 2)} s`}`).join(' | ')}`);
-      assert(keys(sgt.card) === 'transition gundown ia offline look none' && sgt.card.options.find(o => o.key === 'ia').label.endsWith('(standing)'), keys(sgt.card));
-      assert(keys(cpl.card) === 'gundown ia offline look transition(not issued) none', keys(cpl.card));
+      for (const tier of SHEETS) {
+        const { card } = toCard(tier, SEED);
+        console.log(`      ${tier}: ${card.options.map(o => `${o.label}${o.off ? ` [${o.off}]` : ` ${fmt(o.ms / 1000, 2)} s`}`).join(' | ')}`);
+        assert(keys(card).startsWith('transition gundown') && keys(card).endsWith('look none') && !card.options.some(o => o.off) && card.options.find(o => o.key === 'ia').label.endsWith('(standing)'), `${tier}: ${keys(card)}`);
+      }
+      // (a man with no pistol at all (none in the house now: the holster emptied by hand at the fill), Transition struck "not carried")
+      const { g } = toCard('cpl', SEED, 'ia', (s) => { const k = s.people[s.player.id].kit, P = s.items[k.worn.holster]; delete s.items[P.mag]; delete s.items[k.worn.holster]; delete k.worn.holster; s.armoury.range.house.pistol = null; });
+      const card = g.state.stop.reflex;
+      console.log(`      cpl with no pistol: ${keys(card)}`);
+      assert(keys(card) === 'gundown ia offline look transition(not carried) none', keys(card));
       // (the struck answer refused: the card stays, and the line's act is never it)
-      const { g } = cpl, atMs = g.state.stop.reflex.atMs;
+      const atMs = card.atMs;
       g.step(1, { act: [{ act: 'stop', args: { step: 'reflex:transition' } }] });
       const line = instinctNow(g.state).line;
       assert(g.state.stop.reflex?.atMs === atMs, 'the struck answer leaves the card up');
@@ -93,22 +100,28 @@ export default [
     },
   },
   {
-    name: 'Transition: pistol: the rifle let hang and the P-12 drawn from the thigh in 1.40 s × paceOf(Weapon handling) (the sergeant 1.05 s, the Raider 0.78, the tier one 0.64: WEAPONS §5.2\'s table), then the P-12 is the gun in use and the next round is its own',
+    name: 'Transition: pistol on every sheet: the rifle let hang and the P-12 drawn from the thigh in 1.40 s × paceOf(Weapon handling) (the boot recruit 1.81 s, the private 1.40, the corporal 1.18, the sergeant 1.05, the Raider 0.78, the tier one 0.64: WEAPONS §5.2\'s table), then the P-12 is the gun in use and the next round is its own; the lane reaches its card with the P-12 back in its holster (the boot recruit and the private by the keys, Rifle up by the DI\'s line)',
+    timeoutMs: 120_000,
     fn() {
-      for (const tier of SIDEARM_TIERS) {
+      for (const tier of SHEETS) {
         const { g, card, bot } = toCard(tier, SEED, 'transition'), s = g.state, pid = s.player.id, rifle = s.people[pid].kit.worn.sling, P = pistolOf(s);
         const ro = rollerOf(s, pid), wh = ro.value('weapons'), formula = actionMs(ro, s.items[rifle], 'hang') + actionMs(ro, s.items[P], 'draw:thigh');
+        // (the keys bot answers its card with Tap, rack: the boot recruit's and the private's Transition pressed as a player would)
+        if (!T_SHEETS.includes(tier)) g.step(1, { act: [{ act: 'stop', args: { step: 'reflex:transition' } }] });
         let from = null, drawn = null, round = null, inHand = false;
-        onward(g, bot, (game) => {
+        const run = onward(g, bot, (game) => {
           const st = game.state, S = st.stop;
           if (from === null && S?.doing?.step === 'weapon:transition') from = S.doing.fromMs;
           if (from !== null && drawn === null && S?.gun === P) { drawn = st.clock.ms; inHand = st.people[pid].kit.hands?.[0] === P && !st.people[pid].kit.worn.holster; }
-          for (const f of game.facts('shot')) if (round === null && f.who === pid && f.fired) round = { gun: f.gun, ms: f.atMs };
-        }, 30_000);
-        const want = Math.round(1400 * paceOf(wh));
-        console.log(`      ${tier} (WH ${wh}): the card's ${fmt(card.options[0].ms / 1000, 3)} s; the draw's end ${fmt((drawn - from) / 1000, 2)} s after its start (formula ${fmt(formula / 1000, 3)} s, 1.4 × paceOf ${fmt(want / 1000, 3)} s); the next round ${round ? `by ${round.gun === P ? 'the P-12' : 'the rifle'} ${fmt((round.ms - from) / 1000, 2)} s after` : 'none'}`);
+          for (const f of game.facts('shot')) if (round === null && f.who === pid && f.fired) round = { gun: f.gun, ms: f.atMs, held: st.people[pid].kit.hands?.includes(P) || f.gun === P };
+        }, 5 * 60_000);
+        const want = Math.round(1400 * paceOf(wh)), back = s.people[pid].kit.worn.holster === P;
+        console.log(`      ${tier} (WH ${wh}): the card's ${fmt(card.options[0].ms / 1000, 3)} s; the draw's end ${fmt((drawn - from) / 1000, 2)} s after its start (formula ${fmt(formula / 1000, 3)} s, 1.4 × paceOf ${fmt(want / 1000, 3)} s); the next round ${round ? `by ${round.gun === P ? 'the P-12' : 'the rifle'} ${fmt((round.ms - from) / 1000, 2)} s after` : 'none'}; the card ${run.done ? 'reached' : 'NOT reached'}, the P-12 ${back ? 'holstered' : 'not holstered'}`);
         assert(card.options[0].key === 'transition' && Math.abs(card.options[0].ms - formula) <= 1 && Math.abs(formula - want) <= 2, JSON.stringify({ card: card.options[0], formula, want }));
-        assert(drawn !== null && drawn - from >= formula && drawn - from <= formula * 1.6 + 50 && round?.gun === P && inHand, JSON.stringify({ from, drawn, formula, round, inHand }));
+        // (the next round with the P-12 in the hand is its own; the boot recruit's man on 1489397426 falls to his #2 while he draws,
+        // so his next round is the rifle's, after Rifle up)
+        assert(drawn !== null && drawn - from >= formula && drawn - from <= formula * 1.6 + 50 && round && (round.gun === P || (!round.held && tier === 'recruit')) && inHand, JSON.stringify({ from, drawn, formula, round, inHand }));
+        assert(run.done && back, JSON.stringify({ done: run.done, holster: s.people[pid].kit.worn.holster }));
       }
     },
   },

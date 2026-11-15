@@ -84,8 +84,10 @@
 // on the man you bracketed or your sector's middle, and takes your corner's men in the room from where he stands (your
 // bracketed man as his sector's, the others as the room's; a man of yours he fires on is on his record, H.two.covered); your
 // rifle back, a man of yours he has not fired on yet is yours again, and UP_WAIT_MS later he says "Up.".
-// 2026-11-13 (the rework's R6, COMBAT §25.19.6): **the stoppage and the sidearm**. The fill issues the P-12 from the Sergeant up
-// (arms/sidearm.js SIDEARM_TIERS; kit.js issueSidearm, after every other item: R.house.pistol), Condition 3 in the thigh holster,
+// 2026-11-13 (the rework's R6, COMBAT §25.19.6): **the stoppage and the sidearm**. The fill issues the P-12 on every sheet (the
+// user, 2026-11-15: "everyone should have the same loadout"; the Sergeant up to v0.0.16; arms/sidearm.js SIDEARM_TIERS; kit.js
+// issueSidearm, after every other item: R.house.pistol; a v0.0.15 or v0.0.16 save of a lower sheet gains it on load,
+// upgradeHousePistol), Condition 3 in the thigh holster,
 // a spare in the thigh's pouch; MAKE READY racks it and UNLOAD, SHOW CLEAR clear it (sidearm.js adminSubs); the setups make it
 // ready as MAKE READY would. The reflex card's answers are sidearm.js's; youDown reads Gun down and Off the line down until their
 // "Gun up!" or "Up!", and his "Up." closes your wait on the knee (sidearm.js upHeard, W.upSaidMs); while he covers you he takes
@@ -144,11 +146,13 @@ import { rollerOf } from '../combat/roll.js';
 import { takeInMs, takeInWords, goMs } from '../combat/react.js';
 import { pendingOf, IDENT_DC0, IDENT_PER_M, CHALLENGE_MS } from '../combat/contact.js';
 import { lanePlanOf, inFunnel, pastThreshold, coveredNow } from '../combat/room.js';
+import { cornerTableOf, aidK, aidHoldMs, sectorWedgeOf } from '../combat/corner.js';
 import { startled } from '../combat/supp.js';
-import { runSlot, freeBody, handBack, legsOf as bodyLegsOf, useClearGate, useCallVoid, skillsOf, CALL_S, TWO_SAY, BODY_GAP_M } from '../combat/bundle.js';
+import { runSlot, freeBody, handBack, legsOf as bodyLegsOf, useClearGate, useCallVoid, skillsOf, crossingOf, doorSwing, CALL_S, TWO_SAY, BODY_GAP_M, GAP_GUARD_M } from '../combat/bundle.js';
 import { profileOf, moveAt, pathLen, advanceList } from '../combat/stepper.js';
 import { useBodies } from '../places/move.js';
-import { useLanes } from '../places/zones.js';
+import { useLanes, useKeepClear, liveZoneAt, arcsOf } from '../places/zones.js';
+import { leafAt } from '../places/doors.js';
 import { moverStart, locoStep } from '../body/loco.js';
 import { startActivity } from '../time/activities.js';
 
@@ -334,8 +338,8 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
     rooms: legs.slice(0, -1), hall: legs.at(-1),
   };
   R.load = 'frangible';
-  // (the rework's R6: the P-12 from the Sergeant up (COMBAT §25.19.6, question 2's default), its ids after every other item of
-  // the fill so a lower sheet's stand as they were; Condition 3, the spare in the thigh's pouch (kit.js issueSidearm))
+  // (the rework's R6: the P-12, on every sheet from 2026-11-15 (the Sergeant up before), its ids after every other item of the
+  // fill so the stands' and the kit's ids are the same on every sheet; Condition 3, the spare in the thigh's pouch (kit.js issueSidearm))
   if (SIDEARM_TIERS.includes(sheet)) issueHouseSidearm(state, pid);
   if (setup) setupHouse(state, setup);
   return state;
@@ -343,7 +347,31 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
 // (the sidearm issued (see testShoothouse): the house's ten frangible, two magazines)
 function issueHouseSidearm(state, pid) {
   const S = C.sidearm ?? { model: 'p12', mags: [['had17', 10, 'frangible'], ['had17', 10, 'frangible']] };
-  rangeOf(state).house.pistol = issueSidearm(state, pid, { model: S.model, mags: S.mags }).gunId;
+  return (rangeOf(state).house.pistol = issueSidearm(state, pid, { model: S.model, mags: S.mags }).gunId);
+}
+// (the P-12 made ready and holstered on safe, as MAKE READY leaves it (the rework's R6): Condition 3 to Condition 1)
+function readyPistol(state, gunId) {
+  const P12 = gunId ? state.items[gunId] : null;
+  if (P12?.mag && !gunField(P12, 'chamber')) { const pm = state.items[P12.mag]; feed(P12, pm); P12.mode = 'safe'; P12.belief = { ...(P12.belief ?? {}), chamber: 'live', count: pm.n }; }
+}
+
+/**
+ * A save of a sheet below the Sergeant made by v0.0.14 to v0.0.16 (the user, 2026-11-15: "everyone should have the same
+ * loadout"; the house issued the P-12 from the Sergeant up then) gains its P-12 on load, in the condition the tower's commands
+ * so far would have left it: Condition 3 in the holster, its spare in the thigh's pouch, before MAKE READY; Condition 1 on
+ * safe from MAKE READY (the macro to come racks nothing then, sidearm.js adminSubs) to the rifle's own UNLOAD; Condition 4
+ * after it (the magazine in the pouch, never racked). Its ids are the next ones of the save. A run no-op once it has one (a
+ * fresh fill, a save of the Sergeant up, a save loaded twice): an upgrade (core/state.js addUpgrade, the arms domain's).
+ */
+export function upgradeHousePistol(state) {
+  const R = state.armoury?.range, H = R?.house, pid = state.player?.id;
+  if (R?.course !== 'house' || !H || H.pistol || !pid || !state.people?.[pid]?.kit || state.people[pid].kit.worn?.holster) return;
+  const gunId = issueHouseSidearm(state, pid), at = (id) => SEQ_HOUSE.findIndex(c => c.id === id), i = R.cmd ? at(R.cmd.id) : -1;
+  if (i < at('ready')) return;
+  const rifle = state.items[gunOn(state, pid)], cleared = i > at('clear') || (i === at('clear') && rifle && !rifle.mag && !gunField(rifle, 'chamber'));
+  if (!cleared) { readyPistol(state, gunId); return; }
+  const g = state.items[gunId], pouch = state.people[pid].kit.worn.thigh;
+  if (g.mag && pouch) { move(state, g.mag, { container: pouch }); if (g.belief) delete g.belief.count; }
 }
 
 // (a setup: the rifle loaded, made ready and on safe at low ready; GO given now, in stop motion; the legs before `leg` cleared)
@@ -359,8 +387,7 @@ function setupHouse(state, setup) {
   if (mag.belief) delete mag.belief;
   state.people[pid].kit.carry.posture = 'lowReady';
   // (the P-12 made ready and holstered on safe, as MAKE READY leaves it (the rework's R6))
-  const P12 = H.pistol ? state.items[H.pistol] : null;
-  if (P12?.mag && !gunField(P12, 'chamber')) { const pm = state.items[P12.mag]; feed(P12, pm); P12.mode = 'safe'; P12.belief = { ...(P12.belief ?? {}), chamber: 'live', count: pm.n }; }
+  readyPistol(state, H.pistol);
   // (your #2 made ready as you are: his first magazine seated, a round up, on safe, low ready, as his LOAD and MAKE READY leave him)
   armTwo(state, H);
   cancel(state, 'arms:range');
@@ -1092,6 +1119,11 @@ function progress(state, bus, H, L, to, now) {
   if (to === 'open') L.openAtMs ??= now;
   if (to === 'entered') L.enteredAtMs ??= now;
   H.stallAtMs = now;
+  // (the leg moved on after "Move on.": STALL_MORE_MS from this step of the leg's own, no longer from the words (2026-11-15, the
+  // doors role: a fuzz lane that stacked, opened and entered after the words had the whole STALL_MS + STALL_MORE_MS again from
+  // each corner or round after, and walked three legs of 180 to 245 s to the lane's 600 s, LANE_MAX_MS: the gauges' F14))
+  if (L.stallSaid && L.stallAtMs !== undefined) L.stallAtMs = now;
+  else if (L.stallAtMs !== undefined) L.stallAtMs = null;
   bus?.emit('house', { phase: to === 'entered' ? 'enter' : to, room: L.room, who: playerId(state), atMs: now });
 }
 
@@ -1161,15 +1193,20 @@ function firstBy(state, L, key) {
 // a round fired (yours or the #2's), a leg's state moved on (stacked, open, entered, cleared or passed), a door of the lane come
 // open or an inner door held. Never a step begun or ended, so neither a Wait nor a row that changes nothing holds it off: until
 // 2026-11-12 every step's start and end reset it, and a lane where T pressed Wait at a dead end ran to LANE_MAX_MS, 600 s, with
-// no "Move on." (the gauges' 3 hangs in 400 lanes; a marine pressing Wait for ever, tests/house-floor.test.mjs))
+// no "Move on." (the gauges' 3 hangs in 400 lanes; a marine pressing Wait for ever, tests/house-floor.test.mjs)). Once "Move on."
+// is said, only the leg's own state moved on (progress: stacked, open, entered) buys more time: a corner looked at or a round fired
+// after it no longer does, and the leg is passed STALL_MORE_MS after the words, or after the last step of the leg's own state
+// after them (2026-11-15, the doors role: each such step bought the whole stall again), (2026-11-15, my call: with the P-12 on every sheet
+// the fuzz's private on 1148 looked and fired a little every minute and walked three rooms 185 to 247 s each, to the lane's
+// 600 s, LANE_MAX_MS: the gauges' F14). L.stallAtMs, the words' time, plain data on the leg (a save before it reads absent).
 function stall(state, bus, R, H, L, now) {
   const since = now - (H.stallAtMs ?? now);
   if (since >= STALL_MS && !L.stallSaid) {
-    L.stallSaid = true;
+    L.stallSaid = true; L.stallAtMs = now;
     bus?.emit('house', { phase: 'stall', room: L.room, who: playerId(state), atMs: now });
     chiefSays(state, bus, HOUSE_CHIEF.stall, 'stall', L.room);
   }
-  if (since >= STALL_MS + STALL_MORE_MS) {
+  if (since >= STALL_MS + STALL_MORE_MS || (L.stallSaid && Number.isFinite(L.stallAtMs) && now - L.stallAtMs >= STALL_MORE_MS)) {
     houseFault(state, bus, 'time', HOUSE_CHIEF.time, L);
     endLeg(state, bus, H, L, 'passed', now);
   }
@@ -1266,6 +1303,19 @@ useLanes((state, pid) => {
   if (!H || H.goAtMs === null || H.end) return null;
   const slot = pid === playerId(state) ? 1 : pid === H.twoPid ? 2 : null, P = slot ? planOf(state, curLeg(H)) : null;
   return P?.door ? P.paths?.[slot] ?? null : null;
+});
+
+// (the way you must not come to rest across (src/sim/places/zones.js useKeepClear; 2026-11-15, the user: "squad AI sometimes stays
+// out of the room on entry (room 2)"): your number two's way in through the current leg's door, from its threshold through the
+// rest of the doorway and CROSS_CLEAR_M past it (bundle.js crossingOf, his crossing rule's own stretch), while you are inside
+// and he is not yet past the threshold; never his approach outside, where your own stack stands beside it)
+useKeepClear((state, pid) => {
+  const H = houseOf(state);
+  if (!H || H.goAtMs === null || H.end || pid !== playerId(state) || !H.twoPid) return null;
+  const P = planOf(state, curLeg(H)), area = state.places?.live?.area, two = actorOf(state, H.twoPid), me = actorOf(state, pid), path = P?.door ? P.paths?.[2] : null;
+  if (!path || !area || !two || !me || !P.threshold || !pastThreshold(P, me.x, me.z) || pastThreshold(P, two.x, two.z)) return null;
+  const way = crossingOf(path, P.threshold, (x, z) => !!liveZoneAt(state, area, x, z));
+  return way ? [{ path: way, gapM: BODY_GAP_M + GAP_GUARD_M }] : null;
 });
 
 // (a turner's trigger met: its door open, its zone entered (not yet its gap))
@@ -1637,6 +1687,62 @@ export function houseLook(state, ms = state.clock.ms) {
   });
   return {
     instructor: c ? { x: c.x, z: c.z, y: c.y ?? 0, face: c.face ?? 'down', say: said, name: staffName(state, H.chiefPid) } : null, corners, stands,
-    timer: { runMs: H.goAtMs === null ? null : (H.end?.atMs ?? ms) - H.goAtMs, parMs: H.parMs, par: H.par },
+    timer: { runMs: H.goAtMs === null ? null : (H.end?.atMs ?? ms) - H.goAtMs, parMs: H.parMs, par: H.par }, leaves: leavesLook(state, H, L, P, ms),
+    aid: cornerAidLook(state, H, ms),
   };
+}
+/**
+ * Your corner shown (the user, 2026-11-15: "there is currently no indication at to where we're supposed to be looking when
+ * entering a room"; src/sim/combat/corner.js, the rule and the aid's times): on the current leg, and on the one just cleared
+ * while it fades, { marks: [{ room, slot, mine, k, corner: { x, z, along, back }, point: [x, z] }] (yours and your #2's from
+ * the read of the door: H.read, set as the read beat starts; where nothing reads it, the boot recruit's (rung 0: no read in his
+ * single steps) from the stack, the others' from the door's opening (he skipped the read: he learns it as the door opens), a door
+ * found open from the stack; the hall's leg from its start), sector: { room, k, x, z, fromRad, toRad, rays, arcM } | null
+ * (yours, from your entry; the hall's from its start) }; each strength k (corner.js aidK) held aidHoldMs(the room rung) from its start, gone at
+ * domination (every hot spot covered, or the leg's "Clear!") over AID_FADE_MS. Nothing on the brief, after the lane's end, or
+ * where k is 0. Read every frame: the rule and the wedge are cached by the frozen plan.
+ */
+export function cornerAidLook(state, H = houseOf(state), ms = state.clock.ms) {
+  const out = { marks: [], sector: null };
+  if (!H || H.end || H.goAtMs === null) return out;
+  const pid = playerId(state), rung = rungOf(state, pid, 'room'), hold = aidHoldMs(rung), legs = legsOf(H), plans = lanePlanOf(state).plans;
+  for (const i of [H.cur - 1, H.cur]) {
+    const L = legs[i], P = L ? plans[L.door] : null;
+    if (!L || !P || (i < H.cur && L.clearAtMs === null)) continue;
+    const hot = P.hot ?? [], all = hot.length && hot.every(h => L.covered[h.id]) ? Math.max(...hot.map(h => L.covered[h.id].atMs)) : null;
+    const dom = [all, L.clearAtMs].filter(Number.isFinite), domMs = dom.length ? Math.min(...dom) : null;
+    const open = L.door === 'hall' || openingState(state, L.door) === 'open';
+    // (stacked: the leg's record, or you on #1's stack point now while time stands still (a setup puts you there in stop motion,
+    // and the record waits on a lived tick))
+    const me = i === H.cur ? actorOf(state, pid) : null, onStack = me && P.stack?.[0] && Math.hypot(me.x - P.stack[0][0], me.z - P.stack[0][1]) <= STACK_M;
+    const stacked = L.stackAtMs ?? (onStack ? L.fromMs ?? ms : null);
+    const start = L.door === 'hall' ? L.fromMs ?? stacked : H.read?.[L.door] ?? (rung === 0 ? stacked : null) ?? L.openAtMs ?? (open ? stacked : null) ?? L.enteredAtMs;
+    const end = (s) => Math.min(Number.isFinite(s) ? s + hold : Infinity, domMs ?? Infinity);
+    const rules = cornerTableOf(P), km = aidK(start, end(start), ms);
+    if (km > 0) for (const r of rules) out.marks.push({ room: L.room, slot: r.slot, mine: r.slot === 1, k: q(km, 0.01), corner: { x: r.corner.x, z: r.corner.z, along: r.corner.along, back: r.corner.back }, point: [...r.point] });
+    // (the hall's leg has no door to enter by: its sector from the leg's start, with the marks)
+    const from = L.door === 'hall' ? start : L.enteredAtMs, ks = aidK(from, end(from), ms), W = ks > 0 ? sectorWedgeOf(P, rules[0]) : null;
+    if (W) out.sector = { room: L.room, k: q(ks, 0.01), ...W };
+  }
+  return out;
+}
+/**
+ * The doors' swings on the floor (2026-11-15, the user: "doors should have a direction they open (pull or push)"; graphics over
+ * words): the leaf's arc (src/sim/places/swing.js arcOf, zones.js arcsOf) for the current leg's door while it is shut, its room's
+ * inner doors while you are in it and they are shut, and any leaf while it moves (then the arc is its no-stop zone, the sweep
+ * still to come): [{ door, hinge, u, n, widthM, openK (0 shut to 1 open), moving, how ('push' | 'pull' from your side) }].
+ */
+export function leavesLook(state, H, L = curLeg(H), P = L ? planOf(state, L) : null, ms = state.clock.ms) {
+  const me = actorOf(state, playerId(state)), out = [];
+  if (!me || H?.end) return out;
+  const inner = P && pastThreshold(P, me.x, me.z) ? P.inner ?? [] : [];
+  for (const A of arcsOf(WHEEL_S4.id)) {
+    const k = leafAt(state, A.door, ms), moving = k > 0 && k < 1 || (openingState(state, A.door) === 'open' && k < 1);
+    const shut = openingState(state, A.door) !== 'open';
+    const ours = (P?.door === A.door && shut) || (inner.includes(A.door) && shut);
+    if (!ours && !moving) continue;
+    const sw = P ? (A.door === P.door ? doorSwing(state, P) : doorSwing(state, { ...P, door: A.door }, P.room)) : null;
+    out.push({ door: A.door, hinge: [...A.hinge], u: [...A.u], n: [...A.n], widthM: A.widthM, openK: q(k, 0.001), moving, how: sw?.how ?? null });
+  }
+  return out;
 }
