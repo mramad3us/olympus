@@ -51,7 +51,7 @@
 // magIn for its stripped magazine (brought back from the hand that racked, in the reach's time).
 import { actionMs, doAction, beliefOf, conditionOf, tempoFor } from './firearms.js';
 import { sparesOf, topUpGains } from './kit.js';
-import { modelOf } from './models.js';
+import { modelOf, isLong } from './models.js';
 import { rollerOf } from '../combat/roll.js';
 import { COURSES } from '../../data/courses.js';
 import { planFor, GOAL_OF } from './plan.js';
@@ -102,7 +102,9 @@ export function macrosFor(state, pid, gunId, { observerId = null } = {}) {
   if (!b.stoppage && b.chamber !== 'live' && !ids.some(id => id.startsWith('reload:')) && planFor(state, pid, gunId, 'fed', { look: false }).subs?.some(a => a === 'seat' || a === 'magIn')) ids.push('reload:speed');
   // (the house's Stop: Make safe in one row, its low ready the house's own (COMBAT §25.19.4); CEASE FIRE elsewhere as built)
   const houseStop = state.armoury?.range?.course === 'house' && state.armoury.range.cmd?.id === 'stop';
-  if (houseStop && (b.mode !== 'safe' || finger === 'on' || (kit?.carry?.posture ?? 'slungFront') !== 'lowReady')) ids.push('safe');
+  // (the build sheet's item 6: and with a pistol in the hand, whatever its safety says: MAKE SAFE holsters it (sidearm.js
+  // ADMIN.safe), the tower's Stop never passing with it out)
+  if (houseStop && (b.mode !== 'safe' || finger === 'on' || (kit?.carry?.posture ?? 'slungFront') !== 'lowReady' || !isLong(modelOf(g)))) ids.push('safe');
   else if (b.mode !== 'safe' || finger === 'on') ids.push('cease');
   if (b.mag === 'in' || b.chamber !== 'empty' || b.locked) ids.push('unload');
   if (observerId) ids.push('clear');

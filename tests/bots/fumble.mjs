@@ -1,4 +1,4 @@
-// OLYMPUS bots: the fumble net, the shoot house played with its handling rolls fumbled at a rate the test sets, every pause of the lane held to the invariants N1 to N14 (the net's brief, 2026-11-16, and its review's).
+// OLYMPUS bots: the fumble net, the shoot house played with its handling rolls fumbled at a rate the test sets, every pause of the lane held to the invariants N1 to N15 (the net's brief, 2026-11-16, and its review's).
 //
 // Why. The user met two dead ends in minutes of play on v0.0.17, and a hunt (.run/hunt-findings.json, 21 findings, the repro
 // scripts under .run/hunt/) found the rest of their kind: a gun that cannot fire, and nothing on the panel, on T or in the DI's
@@ -57,10 +57,19 @@
 //                     truth or the belief (a magazine swapped counts), his posture or his hands, or brings a card: a Fix that does
 //                     nothing over a gun that cannot fire is a dead key. (Over a gun that fires, a Fix that changes nothing is a
 //                     waste, not a dead end: v0.0.17's Top up of a magazine of 10 puts the same one back. Not read.)
+//   N15 words-truth   (v0.0.21, its build sheet's item 7 (f): the hunt's "a dropped P-12 never leaves the hand or holster", UNCOVERED
+//                     until now) every word of the marine's J that says where a gun or a magazine is, held to where it is once the
+//                     sub-step that said it has ended (wordsWatch): "P-12 holstered." and "snags in the holster: it stays in." in
+//                     the holster, "misses the holster: still in your hand." and a draw's "P-12 out." in a hand, "swings on its
+//                     sling." and "hangs on its sling." on the sling, "you catch it." anywhere but the floor, and "The magazine
+//                     slips out of your fingers and falls." a magazine at your feet (at its own tick, as a bundle's beat's words
+//                     are: doAction moves at once). A later word of the same gun's before then stands in for it. v0.0.18 made a pistol's fumble move nothing, its words saying where it is (firearms.js
+//                     act()'s drop branch); N15 is what holds that true on every lane.
 // A case is classified against an allow-list (tests/house-fumble.test.mjs KNOWN: each entry a hunt finding's title and a
 // signature over the case: the mechanism, not the state alone), so a test can tell a known failure of v0.0.17 from a new one.
 //
-// runLane({ tier, setup, seed, bot, rate, twoRate, grades, maxMs, until, recover, keep, from, snap }) plays one lane and
+// runLane({ tier, setup, seed, bot, rate, twoRate, grades, maxMs, until, recover, keep, from, snap, draw }) plays one lane (draw
+// 'drawn', v0.0.21: the house drawn from the seed, A's; a fixture's save brings its own) and
 // returns { cases, done, ms, ticks, forced, rolls, pauses, err, key } (and the game, with keep); `until(case)` true ends it
 // early; from { save, n } plays a lane's tail from a save of it, snap gives each case the save it can be replayed from. The
 // bots: 'house' (houseBot by the keys for the recruit and the private, by T above), 'honest' (houseHonestBot) and 'fuzz'
@@ -104,6 +113,7 @@ export const LANE_MAX_MS = 30 * 60_000;
 export const INVARIANTS = Object.freeze({
   N1: 'fix-live', N2: 't-offered', N3: 'shot-dry', N4: 'slung-back', N5: 'recovers', N6: 'no-pin',
   N7: 'right-mag', N8: 'card', N9: 'cold-fix', N10: 'has-part', N11: 'go-ready', N12: 'recovers-t', N13: 't-live', N14: 'fix-does',
+  N15: 'words-truth',
 });
 export const TIERS = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 /** The scene's setups (CLAUDE.md: none is the instructor's brief; 'ref' is the tests' only, left out). */
@@ -480,7 +490,7 @@ export function botOf(bot, { tier, seed }) {
   return HB.houseBot({ mode: tier === 'recruit' || tier === 'private' ? 'keys' : 'T' });
 }
 /** A lane's key: tier/setup/seed/bot@rate. */
-export const laneKey = (L) => `${L.tier}/${L.setup ?? 'brief'}/${L.seed}/${L.bot}@${L.rate ?? RATE}`;
+export const laneKey = (L) => `${L.tier}/${L.setup ?? 'brief'}/${L.seed}/${L.bot}${L.draw === 'drawn' ? '/drawn' : ''}@${L.rate ?? RATE}`;
 
 /**
  * Play one lane with fumbles forced, every pause checked (see the header). from: { save, n } plays the lane's tail from a save
@@ -488,8 +498,8 @@ export const laneKey = (L) => `${L.tier}/${L.setup ?? 'brief'}/${L.seed}/${L.bot
  * tick, no N8 for a card not reached. snap: each case carries `snap` { save, n, atMs }, the lane's last pause at or before it
  * (for a case of a pause, that pause; for a case of a tick, the pause before), from which a fixture replays it.
  */
-export function runLane({ tier = 'private', setup = null, seed = 48213, bot = 'house', rate = RATE, twoRate = TWO_RATE, grades = GRADES, maxMs = LANE_MAX_MS, until = null, recover = true, keep = false, from = null, snap = false } = {}) {
-  const lane = { tier, setup, seed, bot, rate };
+export function runLane({ tier = 'private', setup = null, seed = 48213, bot = 'house', rate = RATE, twoRate = TWO_RATE, grades = GRADES, maxMs = LANE_MAX_MS, until = null, recover = true, keep = false, from = null, snap = false, draw = null } = {}) {
+  const lane = { tier, setup, seed, bot, rate, ...(draw === 'drawn' ? { draw } : {}) };
   const cases = [], seen = new Map(), once = new Set(), key = laneKey(lane);
   let mark = null;
   const add = (c) => { const k = `${c.inv}|${c.why}|${c.belief ?? ''}`; if (once.has(k)) return; once.add(k); cases.push({ ...c, lane: key, ...(snap && mark ? { snap: mark } : {}) }); if (until?.(c)) stop = true; };
@@ -501,9 +511,10 @@ export function runLane({ tier = 'private', setup = null, seed = 48213, bot = 'h
       const st = JSON.parse(from.save);
       game = spare(st.meta.seed, st.armoury?.range?.house?.tier ?? tier, 'lane');
       game.load(from.save);
-    } else game = G.createGame({ scenario: 'test-shoothouse', seed, tier, setup });
+    } else game = G.createGame({ scenario: 'test-shoothouse', seed, tier, setup, ...(draw === 'drawn' ? { draw } : {}) });
     dice.pid = game.state.player.id;
-    const scratch = scratchOf(game), b = botOf(bot, lane), s0 = game.state.clock.ms, pid = dice.pid;
+    const scratch = scratchOf(game), b = botOf(bot, lane), s0 = game.state.clock.ms, pid = dice.pid, words = wordsWatch(pid);
+    words.tick(game.state);
     if (snap) mark = { save: game.save(), n: dice.n, atMs: s0 };
     wasGo = houseOf(game.state)?.goAtMs ?? null;
     // (the checks of the state as it stands: a reflex card's, a pause's; once each)
@@ -548,9 +559,12 @@ export function runLane({ tier = 'private', setup = null, seed = 48213, bot = 'h
         if (still?.pose !== pose) still = { pose, fromMs: s.clock.ms };
         else if (s.clock.ms - still.fromMs >= STILL_MS) add({ inv: 'N6', name: INVARIANTS.N6, why: `${String(d.step ?? '').split('>')[0]} went ${STILL_MS / 1000} s with nothing changing (the marine, his gear, the leg)`, still: true, atMs: s.clock.ms, leg: H?.cur ?? null, step: d.step, setup, forced: [...dice.log] });
       } else still = null;
+      // N15: the words of a place against the truth, once their sub-step has ended
+      for (const c of words.tick(s)) add({ ...c, leg: H?.cur ?? null });
       look(s);
       game.clearFacts?.();
     }
+    for (const c of words.end(game.state)) add({ ...c, leg: houseOf(game.state)?.cur ?? null });
   } catch (e) {
     err = thrown(e).slice(0, 300);
     n8('a tick threw', e, game?.state);
@@ -562,10 +576,66 @@ export function runLane({ tier = 'private', setup = null, seed = 48213, bot = 'h
   return out;
 }
 
+// ---- N15: the words against the truth (see the header) ----
+
+/** The J's words of a place (N15): [the words' end, the place they say, the step they must come from (or any)]. */
+export const PLACE_WORDS = Object.freeze([
+  [/ holstered\.$/, 'holster', null], [/snags in the holster: it stays in\.$/, 'holster', null], [/misses the holster: still in your hand\.$/, 'hand', null],
+  [/ out\.$/, 'hand', new Set(['draw', 'draw:thigh'])], [/(swings|hangs) on its sling\.$/, 'sling', null], [/you catch it\.$/, 'not the floor', null],
+  [/slips out of your fingers and falls\.$/, 'at your feet', null],
+]);
+// (where a gun of the marine's is: in a hand, the holster, on the sling, or none of them)
+const placeOf = (s, pid, id) => { const k = s.people?.[pid]?.kit; return (k?.hands ?? []).includes(id) ? 'hand' : k?.worn?.holster === id ? 'holster' : k?.worn?.sling === id ? 'sling' : 'elsewhere'; };
+/**
+ * N15's watch of a lane (see the header): tick(state) after every tick and end(state) at the lane's end each return the cases found:
+ * each new J entry of the marine's with words of a place is held until the sub-step that said it has ended (the doing gone, another,
+ * or past that sub-step), then checked against where its gun (or a magazine) is; a later entry of the same gun's stands in for it.
+ */
+export function wordsWatch(pid) {
+  let seq = null;
+  const pending = [];
+  const check = (s, w) => {
+    const at = w.place === 'at your feet' ? (KIT.atFeetOf(s, pid).length ? 'at your feet' : 'not at your feet') : placeOf(s, pid, w.gun);
+    const ok = w.place === 'not the floor' ? at !== 'elsewhere' : at === w.place;
+    return ok ? null : { inv: 'N15', name: INVARIANTS.N15, why: `"${w.text}" but ${w.place === 'at your feet' ? 'no magazine is at your feet' : `the ${w.model} is ${at === 'elsewhere' ? 'on none of you' : `in the ${at}`}`}`, atMs: w.atMs, saidAtMs: w.atMs, gun: w.model, step: w.step, forced: [...dice.log] };
+  };
+  const due = (s, w) => { const d = s.stop?.doing; return !w.doing || !d || d.who !== pid || d.fromMs !== w.doing.fromMs || d.step !== w.doing.step || (d.i ?? 0) > w.doing.i; };
+  return {
+    tick(s) {
+      const log = s.log ?? [], out = [];
+      if (seq === null) { seq = log.length ? log[log.length - 1].seq : 0; return out; }
+      let k = log.length;
+      while (k > 0 && log[k - 1].seq > seq) k--;
+      for (const e of log.slice(k)) {
+        seq = e.seq;
+        if (e.who !== pid || typeof e.text !== 'string' || e.hidden) continue;
+        const m = PLACE_WORDS.find(([re, , steps]) => re.test(e.text) && (!steps || steps.has(e.step)));
+        if (!m || (!e.gun && m[1] !== 'at your feet')) continue;
+        // (a later word of the same gun's stands in for one not yet due)
+        for (let i = pending.length - 1; i >= 0; i--) if (pending[i].gun === e.gun && m[1] !== 'at your feet') pending.splice(i, 1);
+        // (held to its sub-step's end only in a list step (sidearmEnd moves the pistol there); a bundle's beat, or a magazine's fall, is
+        // checked at its own tick: doAction moves what it moves at once, and the marine walks on in the beats after)
+        const d = s.stop?.doing, list = !!d && d.who === pid && !d.beats && m[1] !== 'at your feet';
+        pending.push({ gun: e.gun, model: MD.modelOf(s.items[e.gun])?.short ?? 'gun', place: m[1], text: e.text, step: e.step ?? null, atMs: e.atMs, doing: list ? { fromMs: d.fromMs, step: d.step, i: d.i ?? 0 } : null });
+      }
+      for (let i = 0; i < pending.length;) {
+        if (!due(s, pending[i])) { i++; continue; }
+        const c = check(s, pending.splice(i, 1)[0]);
+        if (c) out.push(c);
+      }
+      return out;
+    },
+    // (at the lane's end only the words whose sub-step has ended: a fixture's tail cut at its maxMs inside a sub-step (v0.0.21's
+    // integration: pin-v018/recruit/room:3/1's slow holster, "P-12 holstered." said at its start, 2.6 s of it left at the cut) is
+    // not yet held to its words, as on any tick before its end)
+    end(s) { const out = pending.splice(0).filter(w => due(s, w)).map(w => check(s, w)).filter(Boolean); return out; },
+  };
+}
+
 /** The lanes of a sweep: every tier × every setup × the bots, over seeds (deterministic). */
-export function lanesOf({ seeds, tiers = TIERS, setups = SETUPS, bots = BOTS, rate = RATE } = {}) {
+export function lanesOf({ seeds, tiers = TIERS, setups = SETUPS, bots = BOTS, rate = RATE, draw = null } = {}) {
   const out = [];
-  for (const seed of seeds) for (const tier of tiers) for (const setup of setups) for (const bot of bots) out.push({ tier, setup, seed, bot, rate });
+  for (const seed of seeds) for (const tier of tiers) for (const setup of setups) for (const bot of bots) out.push({ tier, setup, seed, bot, rate, ...(draw === 'drawn' ? { draw } : {}) });
   return out;
 }
 

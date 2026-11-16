@@ -29,8 +29,15 @@
 // 0.0.18 (the build sheet 0.0.18 §2.3, §8 item 9): under the par, "Kit: Standard ▸" (Enter on it, or a click) opens the loadout screen
 // (cards/loadout.js) in the picker's place, one loadout for every sheet; Kit up comes back and the pick carries its code
 // (onPick(tier, { par, loadout })); the standard is carried as no code at all, so its lane is the lane without one.
+// v0.0.21 (the build sheet v0.0.21 §1 items 9 and 16; done lens D5): on a scene whose house can be drawn (scenes.js draws: ['set',
+// 'drawn']), under the kit, "House: As set · Drawn from the seed" (H cycles it; the scene's HOUSE_DRAW_DEFAULT first), carried with
+// the pick (onPick(tier, { draw })); and "Qualify as <sheet>" (house-runs.js qualNext: the sheet after the highest qualified, else the
+// focused one), which starts a qualification (onPick(tier, { qual: true, draw: 'drawn', par })): the drawn house, the standard kit,
+// the par chosen where it is the sheet's own or harder; a qualified sheet's line says so ("QUALIFIED" after its best). Hidden where
+// the house is not drawn (the ship rule: nothing of qualified shows unless the drawn house ships).
 import { loadoutPage, loadoutWord } from './loadout.js';
-import { readRuns, bestsOf, bestWords } from './house-runs.js';
+import { readRuns, bestsOf, bestWords, qualNext, PAR_ORDER } from './house-runs.js';
+import * as SCENES_DATA from '../../data/scenes.js';
 
 /** The tiers on the picker, in its order, when the sim's PICKER_TIERS is not given. */
 export const PICKER_ORDER = Object.freeze(['recruit', 'private', 'sgt', 'raider', 'tierone']);
@@ -86,6 +93,16 @@ export function parWords(o, own = null, parMs = {}) {
   return `${o.label}${Number.isFinite(o.ms) ? ` · ${(o.ms / 1000).toFixed(1)} s` : ''}`;
 }
 
+/** The house's choice on the picker: its words, and the default (scenes.js HOUSE_DRAW_DEFAULT, the ship rule's switch). */
+export const DRAW_WORDS = Object.freeze({ set: 'As set', drawn: 'Drawn from the seed' });
+export const drawDefaultOf = (scene) => (Array.isArray(scene?.draws) && scene.draws.includes(SCENES_DATA.HOUSE_DRAW_DEFAULT) ? SCENES_DATA.HOUSE_DRAW_DEFAULT : scene?.draws?.[0] ?? 'set');
+/** Whether the scene's house can be drawn (scenes.js draws), so qualified shows (its ship rule). */
+export const drawsHouse = (scene) => Array.isArray(scene?.draws) && scene.draws.includes('drawn');
+/** The qualifications kept in this browser (house-runs.js), or {} with none or no storage. */
+function houseQuals(scene) {
+  if (scene?.scenario !== 'test-shoothouse') return {};
+  try { return readRuns(globalThis.localStorage).quals ?? {}; } catch { return {}; }
+}
 /** The shoot house's bests on the picker (house-runs.js), or null off it or with no storage. */
 function houseBests(scene) {
   if (scene?.scenario !== 'test-shoothouse') return null;
@@ -101,7 +118,7 @@ function houseBests(scene) {
 // (the card (the build sheet v0.0.20 §1 item 20): bests(tier) → the sheet's best lane and its GOs in words ("best 42.2 s ·
 // 3 GO", cards/house-runs.js bestWords, from the runs kept in this browser), after its line; nothing is locked. The shoot house's
 // own by default, read here from localStorage (every read in try and catch: none in a private window))
-export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null, parMs = {}, parOf = null, loadout = null, bests = houseBests(scene) }) {
+export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null, parMs = {}, parOf = null, loadout = null, bests = houseBests(scene), quals = houseQuals(scene) }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
   // (the scene's own list and default where it names them (scenes.js: sheets, sheet), else the sim's picker order)
   const rows = pickerRows(sheets, Array.isArray(scene?.sheets) ? scene.sheets : order, scene?.sheet ?? PICKER_DEFAULT, { hard, lead: leadsHard(scene) });
@@ -128,22 +145,42 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
   const kitBtn = kitCode !== null ? el('button', { className: 'item small kitpick', type: 'button' }, '') : null;
   const kitText = () => { if (kitBtn) { kitBtn.textContent = `Kit: ${loadoutWord(kitCode)} ▸`; kitBtn.dataset.code = kitCode; } };
   kitText();
+  // (the house, as set or drawn from the seed, where the scene draws it; its choice kept while the page stands)
+  const draws = drawsHouse(scene) ? scene.draws : [];
+  let drawAt = Math.max(0, draws.indexOf(drawDefaultOf(scene)));
+  const drawBtns = draws.map((d, i) => {
+    const b = el('button', { className: `item drawpick${i === drawAt ? ' on' : ''}`, type: 'button', textContent: DRAW_WORDS[d] ?? d });
+    b.dataset.draw = d;
+    b.onclick = () => { drawAt = i; for (const [j, x] of drawBtns.entries()) x.classList.toggle('on', j === drawAt); };
+    return b;
+  });
+  const drawOf = () => (draws.length ? { draw: draws[drawAt] } : {});
   const buttons = rows.map((r, i) => {
-    const best = bests ? bests(r.tier) : null;
-    const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}`, type: 'button', onclick: () => onPick?.(r.tier, { par: pars[parAt]?.id ?? null, ...(kitCode && kitCode !== 'standard' ? { loadout: kitCode } : {}) }) }, el('kbd', { textContent: String(i + 1) }), r.label, small(r), best ? el('small', { className: 'best', textContent: best }) : null);
+    const best = bests ? bests(r.tier) : null, q = quals?.[r.tier] ? 'QUALIFIED' : null, line = [best, q].filter(Boolean).join(' · ') || null;
+    const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}${q ? ' qualified' : ''}`, type: 'button', onclick: () => onPick?.(r.tier, { par: pars[parAt]?.id ?? null, ...(kitCode && kitCode !== 'standard' ? { loadout: kitCode } : {}), ...drawOf() }) }, el('kbd', { textContent: String(i + 1) }), r.label, small(r), line ? el('small', { className: 'best', textContent: line }) : null);
     b.dataset.tier = r.tier;
     // (0.0.12: each sheet's own par on its line's hover, where the scene has pars)
     if (pars.length && parOf) { const own = parOf(r.tier); if (own) b.title = `Par: ${parWords(pars[0], own, parMs)}`; }
     return b;
   });
+  // ("Qualify as <sheet>": the drawn house, the standard kit, the par chosen if it is the sheet's own or harder (see the header))
+  const qTier = draws.includes('drawn') ? qualNext(rows.map(r => r.tier), quals, rows.find(r => r.focus)?.tier ?? PICKER_DEFAULT) : null;
+  const qualParOf = () => { const id = pars[parAt]?.id ?? null, own = parOf ? parOf(qTier) : null; return id && own && PAR_ORDER.indexOf(id) > PAR_ORDER.indexOf(own) ? id : null; };
+  const qualBtn = qTier ? el('button', { className: 'item small qualpick', type: 'button', onclick: () => onPick?.(qTier, { qual: true, draw: 'drawn', par: qualParOf() }) },
+    `Qualify as ${sheets[qTier]?.label ?? qTier}`, el('small', { textContent: 'three GOs in a row on houses you have not seen · the standard kit · your par or harder' })) : null;
+  if (qualBtn) qualBtn.dataset.tier = qTier;
   const body = el('div', { className: 'sheet tests picker' },
     el('h2', { textContent: String(scene?.title ?? 'Pairs').toUpperCase() }),
     el('p', { className: 'sub', textContent: 'Play it as a sheet: each its own experience, its own hands and eyes. The same targets turn on the same seed whichever you choose.' }),
     SETUP_LINES[scene?.setup] ? el('p', { className: 'sub setup', textContent: SETUP_LINES[scene.setup] }) : SCENE_LINES[scene?.id] ? el('p', { className: 'sub setup', textContent: SCENE_LINES[scene.id] }) : null,
     el('hr'),
-    ...buttons,
+    // (six sheets in two columns on a wide window, so the par, the kit, the house, "Qualify as" and Back fit a 720-px
+    // window unscrolled (the play review of 2026-11-16: from "As set" down they sat below 1280 × 720, Back below 1920 × 1080))
+    el('div', { className: `sheets${buttons.length > 4 ? ' two' : ''}` }, ...buttons),
     pars.length ? el('div', { className: 'pars' }, el('span', { className: 'parhead' }, el('kbd', { textContent: 'P' }), ' Par'), ...parBtns) : null,
     kitBtn,
+    drawBtns.length ? el('div', { className: 'pars draws' }, el('span', { className: 'parhead' }, el('kbd', { textContent: 'H' }), ' House'), ...drawBtns) : null,
+    qualBtn,
     el('hr'),
     el('button', { className: 'item small', type: 'button', onclick: () => onBack?.() }, 'Back'),
     el('p', { className: 'note', textContent: scene?.goal ?? '' }));
@@ -164,8 +201,10 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
     if (m && buttons[Number(m[1]) - 1]) { e.preventDefault(); buttons[Number(m[1]) - 1].click(); }
     // (0.0.12: P cycles the par)
     if (e.code === 'KeyP' && parBtns.length) { e.preventDefault(); parBtns[(parAt + 1) % parBtns.length].click(); }
+    // (H cycles the house)
+    if (e.code === 'KeyH' && drawBtns.length) { e.preventDefault(); drawBtns[(drawAt + 1) % drawBtns.length].click(); }
   });
-  return { body, buttons, rows, pars: parBtns, get par() { return pars[parAt]?.id ?? null; }, get loadout() { return kitCode; }, kit: kitBtn };
+  return { body, buttons, rows, pars: parBtns, get par() { return pars[parAt]?.id ?? null; }, get loadout() { return kitCode; }, kit: kitBtn, draws: drawBtns, get draw() { return draws[drawAt] ?? null; }, qual: qualBtn };
 }
 
 const two = (ms) => (Number.isFinite(ms) ? (ms / 1000).toFixed(2) : '?');

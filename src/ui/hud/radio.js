@@ -26,6 +26,11 @@
 // trimmed: the oldest other voice goes first, then the command shows in its short form, its terms kept ("Ten rounds
 // rapid, sixty seconds. Commence fire.": courses.js `short`), then the voices after it. The box grows to RADIO_H_PX 60
 // for three rows (it was 52, two).
+// A line longer than two rows (a drawn house's brief: its doors and its kit after the lane's words, 534 × 125 px of text at
+// 1280 × 720 in a box of two rows, the play review of 2026-11-16) is paged, never cut: split at its sentences (at its words where
+// one sentence is longer than the box) into pages that each fit the two rows (splitPages, measured on the row itself), each shown
+// for its words' share of the line's hold (pageAt), "…" at a page's end where more follows and at the next one's start. The box
+// still never grows.
 //
 // lineOf(fact, state) and standingLine(state) are the pure part (the ui tests read them in node), createRadio(parent) the DOM.
 import { playerId } from '../../core/ids.js';
@@ -98,6 +103,35 @@ function whereOf(state, who) {
   return d <= BESIDE_M ? 'BESIDE YOU' : `${Math.round(d)} M`;
 }
 
+/**
+ * A text split into pages that each fit (see the header): fits(text) says whether a page's text fits the two rows (the DOM's
+ * measure in the page; a test gives its own). At sentences, at words where one sentence does not fit alone. Pure.
+ */
+export function splitPages(text, fits) {
+  const t = String(text ?? '').trim();
+  if (!t || fits(t)) return [t];
+  const parts = t.split(/(?<=[.!?:;])\s+/).flatMap(sn => (fits(`… ${sn} …`) ? [sn] : sn.split(/\s+/)));
+  const pages = [];
+  let cur = '';
+  for (const w of parts) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (cur && !fits(`… ${next} …`)) { pages.push(cur); cur = w; } else cur = next;
+  }
+  if (cur) pages.push(cur);
+  return pages;
+}
+/** The page shown elapsedS into a line held holdS, each page for its words' share of the hold (see the header). Pure. */
+export function pageAt(pages, elapsedS, holdS) {
+  if (!pages?.length) return 0;
+  const words = pages.map(p => p.split(/\s+/).filter(Boolean).length), all = words.reduce((a, b) => a + b, 0) || 1;
+  const f = Math.max(0, Math.min(1, elapsedS / Math.max(1e-6, holdS)));
+  let acc = 0;
+  for (let i = 0; i < pages.length; i++) { acc += words[i] / all; if (f < acc - 1e-9) return i; }
+  return pages.length - 1;
+}
+/** A page as the box shows it: "…" where text comes before it and where more follows. */
+export const pageText = (pages, i) => `${i > 0 ? '… ' : ''}${pages[i] ?? ''}${i < pages.length - 1 ? ' …' : ''}`;
+
 /** The box's lines over time, without the DOM: { push(line), frame(dtS, running), lines }. */
 export function createRadioQueue({ max = RADIO_LINES } = {}) {
   let lines = [];
@@ -117,6 +151,12 @@ export function createRadio(parent) {
   parent.append(root);
   const queue = createRadioQueue();
   let sig = null, shown = [], standing = null;
+  // (a long line's pages by its text and the row's width (splitPages); a line's text as shown now, its page by its hold)
+  const pagesKept = new Map();
+  const shownText = (l) => {
+    const P = l.standing ? null : pagesKept.get(`${l.text}|${root.clientWidth}`);
+    return P && P.length > 1 ? pageText(P, pageAt(P, (l.holdS ?? 0) - (l.leftS ?? 0), l.holdS ?? 1)) : l.text;
+  };
   return {
     el: root,
     say(fact, state) { queue.push(lineOf(fact, state)); },
@@ -125,12 +165,23 @@ export function createRadio(parent) {
     update({ hidden = false, weapon = false, state = null } = {}) {
       root.classList.toggle('weapon', !!weapon);
       standing = hidden ? null : standingLine(state);
-      const lines = hidden ? [] : boxLines(queue.lines, standing), s = JSON.stringify(lines.map(l => [l.head, l.text, l.kind, !!l.standing]));
+      const lines = hidden ? [] : boxLines(queue.lines, standing), s = JSON.stringify(lines.map(l => [l.head, shownText(l), l.kind, !!l.standing]));
       if (s !== sig) {
         sig = s;
-        const rows = lines.map(l => el('div', { className: `voice ${l.kind}${l.standing ? ' standing' : ''}` }, el('span', { className: 'who', textContent: l.head }), el('span', { className: 'said', textContent: l.text })));
+        const rows = lines.map(l => el('div', { className: `voice ${l.kind}${l.standing ? ' standing' : ''}` }, el('span', { className: 'who', textContent: l.head }), el('span', { className: 'said', textContent: shownText(l) })));
         root.replaceChildren(...rows);
         root.hidden = !lines.length;
+        // (a voice longer than its two rows paged, measured on its own row once a text and width (see the header))
+        if (!root.hidden) lines.forEach((l, i) => {
+          const key = `${l.text}|${root.clientWidth}`, said = rows[i].querySelector('.said');
+          if (l.standing || pagesKept.has(key) || !said) return;
+          const fits = (t) => { said.textContent = t; return said.scrollHeight <= said.clientHeight + 1; };
+          const P = fits(l.text) ? [l.text] : splitPages(l.text, fits);
+          if (pagesKept.size > 32) pagesKept.clear();
+          pagesKept.set(key, P);
+          said.textContent = shownText(l);
+          if (P.length > 1) sig = JSON.stringify(lines.map(x => [x.head, shownText(x), x.kind, !!x.standing]));
+        });
         // (the rectangle never grows: a newest line that wraps to two rows takes the older one's place, as the toasts do)
         // (the voices' own heights, not scrollHeight: the box is aligned to its end, so what overflows it goes off its top,
         // which scrollHeight does not count (the 0.0.7 integrator's: two wrapped lines were each clipped to a row))
@@ -154,7 +205,7 @@ export function createRadio(parent) {
       // (what shows: the lines the box kept room for, in the order said, the newest last)
       return root.hidden ? '' : shown.map(l => `${l.head} ${l.text}`).join(' | ');
     },
-    clear() { queue.clear(); sig = null; shown = []; root.replaceChildren(); root.hidden = true; },
+    clear() { queue.clear(); sig = null; shown = []; pagesKept.clear(); root.replaceChildren(); root.hidden = true; },
     /** The box's lines, in the order said: the voices queued and the standing command (as last updated) in its place. */
     get lines() { return boxLines(queue.lines, standing).map(l => ({ head: l.head, text: l.text, kind: l.kind, ...(l.standing ? { standing: true } : {}) })); },
   };

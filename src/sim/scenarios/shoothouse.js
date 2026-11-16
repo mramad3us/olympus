@@ -140,7 +140,8 @@ import { post, cancel } from '../../core/queue.js';
 import { COURSES, SEQ_HOUSE, HOUSE_CHIEF } from '../../data/courses.js';
 import { SCENES } from '../../data/scenes.js';
 import { ACTIVITIES } from '../../data/activities.js';
-import { WHEEL_S4, HOUSE1 } from '../../data/places/wheel.js';
+import { WHEEL_S4 } from '../../data/places/wheel.js';
+import { houseSpecOf, assembleHouse, drawnCodeOf, wholeCodeOf, parseHouse, ASSEMBLE_V } from '../scenes/assemble.js';
 import { lonOfSite, gravityAt } from '../places/env.js';
 import { openingState, setOpening, roomOf, zoneOf } from '../places/model.js';
 import { placeGaits } from '../body/motion.js';
@@ -169,12 +170,12 @@ import { muzzleOf, flagsAt, FLAG_MS, SLUNG } from '../arms/carry.js';
 import { BRASS_LIVE } from '../arms/look.js';
 import { famCap } from '../arms/models.js';
 import { turnTo, turnAway, facingOf, turnerTargets, TURN_MS } from '../arms/turners.js';
-import { resolveShot, aimMsOf, catchAhead, shotIdNext } from '../arms/shot.js';
+import { resolveShot, aimMsOf, catchAhead, shotIdNext, AIM } from '../arms/shot.js';
 import { ROWS, rowPlan, HAMMER_MAX_M, stillUp } from '../arms/specials.js';
 import { rollerOf } from '../combat/roll.js';
 import { takeInMs, takeInWords, goMs } from '../combat/react.js';
 import { pendingOf, IDENT_DC0, IDENT_PER_M, CHALLENGE_MS } from '../combat/contact.js';
-import { lanePlanOf, inFunnel, pastThreshold, coveredNow } from '../combat/room.js';
+import { lanePlanOf, inFunnel, pastThreshold, coveredNow, sectorOf } from '../combat/room.js';
 import { cornerTableOf, aidK, aidHoldMs, sectorWedgeOf, pointOfRule, CORNER_POINT, frameOf, MARK_AT_M, MARK_H_M } from '../combat/corner.js';
 import { startled } from '../combat/supp.js';
 import { runSlot, freeBody, gapSettle, twoLegOver, handBack, legsOf as bodyLegsOf, useClearGate, useCallVoid, skillsOf, crossingOf, doorSwing, CALL_S, TWO_SAY, BODY_GAP_M, GAP_GUARD_M } from '../combat/bundle.js';
@@ -185,7 +186,8 @@ import { leafAt } from '../places/doors.js';
 import { moverStart, locoStep } from '../body/loco.js';
 import { startActivity } from '../time/activities.js';
 // (v0.0.19: your number two's code is in house-two.js, its names re-exported here so the tests, the bots and the gauges import them unchanged)
-import { TWO_CMDS, twoLacks, twoCmd, twoAdminTick, legOf, isThreat, twoTick, maskTick } from './house-two.js';
+import { TWO_CMDS, twoLacks, twoCmd, twoAdminTick, legOf, isThreat, twoTick, maskTick, TWO_FOLLOW_N, THREAT_FACES, whole, actorOf, legsOf, curLeg, loadedGun } from '../combat/two.js';
+import { registerHost } from '../combat/op.js';
 // (v0.0.19, "Stack and clear, live": the role-players' brain (opfor.js) and the one seam for what is seen of a man and what he
 // does to the stack (combat/men.js); the house only calls them, never reads a role-player's state but through them)
 import { parseOpfor, fillOpfor, opforTick, opforHit, ruleOut } from './opfor.js';
@@ -193,18 +195,21 @@ import { isLive, upNow, seenK, bodySeen, accountedOf, gateWhy, coverTick, struck
 // (the one rule for every strike on the live lane, what the live round would have done (COMBAT §25.18.7))
 import { fatalOf, wouldOn, wouldWash, strikeWords, WOULD_WHY } from '../combat/would.js';
 import { LAYERS } from '../arms/penetrate.js';
-export { TWO_CMDS, TWO_TRIES, twoLacks, twoCmd, twoAdminTick, handsOf, UP_WAIT_MS, twoCover, twoDrillOf, twoGunDown, twoOwns, twoSees } from './house-two.js';
+export { TWO_CMDS, TWO_TRIES, twoLacks, twoCmd, twoAdminTick, handsOf, UP_WAIT_MS, twoCover, twoDrillOf, twoGunDown, twoOwns, twoSees } from '../combat/two.js';
+// (moved to combat/two.js with the #2's brain, re-exported here under their names)
+export { TWO_FOLLOW_N, THREAT_FACES, whole, actorOf, curLeg, loadedGun };
 // (v0.0.19, D2: the kit's second slice is house-kit.js's: the reads, the intelligence, the five, the run sheet's marks, the breach rounds)
 import { readsTick, intelOf, kitMarks as kit2Marks, breachShot, intelWords } from './house-kit.js';
 // (the card's (the build sheet v0.0.20 §1 items 4, 11, 19, 20, 26): the room bundle's planned time (pure), the take-in's
 // and the rows' books at the sheet, the immediate action's, the carry at a sighting, and the constants of the pars and the verdict)
-import { planBundle } from '../combat/bundle.js';
+import { planBundle, lockedOf, handMsOf } from '../combat/bundle.js';
 import { takeInOf } from '../combat/react.js';
 import { POINT_REACH_S, IMMEDIATE_M } from '../arms/specials.js';
 import { POSTURES, carryOf } from '../arms/carry.js';
 import { macroMs } from '../arms/drills.js';
 import { sheetOf } from '../skills/templates.js';
 import { ROOM_PAR_K, ROOM_PAR_STEP_MS, STANDARD_PARS, VERDICT_WHY } from '../../data/courses.js';
+import { BUILT } from '../../core/reads.js';
 
 const C = COURSES.house;
 /** Where the scene plays. */
@@ -235,8 +240,6 @@ export const APPEAR_MS = 1000;
 export const TWO_SHOTS_KEPT = 30;
 /** Your number two's echo of your "Clear!" is dropped within this of his own (ms). */
 export const ECHO_MS = 1000;
-/** The #2's follow-ups on a man still up after his row (see twoPlan). */
-export const TWO_FOLLOW_N = 2;
 /** The face's centre on its stand (m; the bay's). */
 export const FACE_Y = 1.35;
 /** The sheets the picker offers, in its order, and its default (the sheet's §2.6; the boot recruit by §8 item 8). */
@@ -245,19 +248,17 @@ export const HOUSE_SHEETS = Object.freeze(['recruit', 'private', 'cpl', 'sgt', '
 export const HOUSE_PARS = Object.freeze(Object.keys(PAR_MS));
 /** The setups (tests and the page: debug.js's share). */
 export const HOUSE_SETUPS = Object.freeze(['go', 'room:2', 'room:3', 'hall', 'contact', 'ref']);
-/** The stands' roles (see the header): their face ('draw': 1b and 3a), their trigger, their slot and their name where HOUSE1 gives none. */
+/** The stands' roles (see the header): their face ('draw': 1b and 3a), their trigger and their name where the spec gives none (no slot; whose a man is goes by where he stands, the fill's T.slot from room.js sectorOf, read by team.js ownerOf). */
 export const STANDS = Object.freeze({
-  '1a': Object.freeze({ face: 'threat', trigger: 'go', slot: 1, name: 'the far left target' }),
-  '1b': Object.freeze({ face: 'draw', trigger: 'go', slot: 2, name: 'the far right target' }),
-  '2a': Object.freeze({ face: 'armoured', trigger: 'door', slot: 1, name: 'the armoured target' }),
-  '2b': Object.freeze({ face: 'noshoot', trigger: 'go', slot: 1, name: 'the target by the inner door' }),
-  '3a': Object.freeze({ face: 'draw', trigger: 'door', slot: 2, name: "the near leg's target" }),
-  '3b': Object.freeze({ face: 'hostage', trigger: 'go', slot: 1, name: 'the hostage card' }),
-  H: Object.freeze({ face: 'threat', trigger: 'zone', slot: 1, name: "the target at the hall's end" }),
+  '1a': Object.freeze({ face: 'threat', trigger: 'go', name: 'the far left target' }),
+  '1b': Object.freeze({ face: 'draw', trigger: 'go', name: 'the far right target' }),
+  '2a': Object.freeze({ face: 'armoured', trigger: 'door', name: 'the armoured target' }),
+  '2b': Object.freeze({ face: 'noshoot', trigger: 'go', name: 'the target by the inner door' }),
+  '3a': Object.freeze({ face: 'draw', trigger: 'door', name: "the near leg's target" }),
+  '3b': Object.freeze({ face: 'hostage', trigger: 'go', name: 'the hostage card' }),
+  H: Object.freeze({ face: 'threat', trigger: 'zone', name: "the target at the hall's end" }),
 });
 const STAND_IDS = Object.freeze(Object.keys(STANDS));
-/** The faces that are a threat to put down (the hostage card's hostile with them). */
-export const THREAT_FACES = Object.freeze(['threat', 'armoured', 'hostage']);
 /** A fault's words on the paper and on the card. */
 export const FAULT_WORDS = Object.freeze({
   funnel: 'stopped in the door',
@@ -319,15 +320,10 @@ const ZONE_PAPER = Object.freeze({ A: 'A', C: 'C', head: 'HEAD', ring: 'RING', h
 const LEG_WORD = Object.freeze(['ROOM 1', 'ROOM 2', 'ROOM 3', 'THE HALL']);
 const LEG_SAID = Object.freeze(['room 1', 'room 2', 'room 3', 'the hall']);
 
-export const whole = (ms) => Math.ceil(ms / TICK_MS) * TICK_MS;
 const tierOf = (tier) => (tier && TEST_SHEETS[tier] ? tier : HOUSE_SHEET);
-export const actorOf = (state, pid) => (pid ? state.actors?.list?.find(a => a.who === pid) ?? null : null);
 const isHouse = (state) => rangeOf(state)?.course === 'house';
 /** The house's record, or null off the house course. */
 export const houseOf = (state) => (isHouse(state) ? rangeOf(state).house ?? null : null);
-// (the legs in the plan's order: the three rooms, then the hall)
-const legsOf = (H) => (H ? [...H.rooms, H.hall] : []);
-export const curLeg = (H) => legsOf(H)[H?.cur ?? 0] ?? null;
 /** Leg k's due (game ms; the current leg's by default), or null before GO: LANE_KEEP_MS and LEG_LAST_MS for each leg after it kept back from the lane's limit (see stall). */
 export const legDueMs = (H, k = H?.cur ?? 0) => (Number.isFinite(H?.goAtMs) ? H.goAtMs + LANE_MAX_MS - LANE_KEEP_MS - (legsOf(H).length - 1 - k) * LEG_LAST_MS : null);
 export const planOf = (state, L) => (L ? lanePlanOf(state).plans[L.door] ?? null : null);
@@ -335,31 +331,41 @@ const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
 // ---- the stands (HOUSE1's places, STANDS' roles) ----
 
-/** The lane's stands in STANDS' order: { stand, room, leg, x, z, y, slot, name } from HOUSE1 (an array or a map by stand id). */
-export function standsOf() {
-  const S = HOUSE1.stands ?? [];
+/** The lane's stands in STANDS' order: { stand, room, leg, x, z, y, slot, name } from the house's spec (scenes/assemble.js houseSpecOf: HOUSE1 as set; an array or a map by stand id). */
+export function standsOf(state = null) {
+  // (the build sheet §1 item 8: a stand's slot is the sector it stands in on its leg's plan, room.js sectorOf (the hall's for
+  // H), so a room drawn anywhere gives its men to the marine whose sector they are in; on the set each is HOUSE1's, all seven)
+  const S = houseSpecOf(state).stands ?? [], plan = lanePlanOf(state);
   const list = Array.isArray(S) ? S : Object.entries(S).map(([stand, s]) => ({ stand, ...s }));
   return STAND_IDS.map((stand, i) => {
     const s = list.find(x => (x.stand ?? x.id) === stand) ?? null, R = STANDS[stand];
-    if (!s) throw new Error(`shoothouse: HOUSE1 has no stand '${stand}'`);
-    return { stand, room: s.room, leg: stand === 'H' ? 3 : Number(stand[0]) - 1, x: s.x, z: s.z, y: s.y ?? FACE_Y, slot: s.slot ?? R.slot, name: s.name ?? R.name, lane: s.lane ?? i + 1,
-      faceRad: s.faceRad ?? null, gapMs: Array.isArray(s.trigger?.gapMs) ? s.trigger.gapMs : null };
+    if (!s) throw new Error(`shoothouse: the house's spec has no stand '${stand}'`);
+    // (its trigger the spec's, by its role: a drawn room's stands turn by their chunk's roles, wherever the room stands
+    // in the lane; on the set HOUSE1's, which are STANDS' to the stand)
+    return { stand, room: s.room, leg: stand === 'H' ? 3 : Number(stand[0]) - 1, x: s.x, z: s.z, y: s.y ?? FACE_Y, slot: sectorOf(plan.plans[plan.order[stand === 'H' ? 3 : Number(stand[0]) - 1]], s.x, s.z) ?? s.slot ?? 1, name: s.name ?? R.name, lane: s.lane ?? i + 1,
+      faceRad: s.faceRad ?? null, gapMs: Array.isArray(s.trigger?.gapMs) ? s.trigger.gapMs : null, trigger: s.trigger?.kind ?? R.trigger };
   });
 }
-const startOf = () => ({ x: HOUSE1.start.x, z: HOUSE1.start.z, face: HOUSE1.start.face ?? 'left' });
+const startOf = (state) => { const S0 = houseSpecOf(state).start; return { x: S0.x, z: S0.z, face: S0.face ?? 'left' }; };
 // (the #2's start: HOUSE1's, else TWO_BEHIND_M behind yours on the hall's axis, uprange of the lane (east))
-const twoStartOf = () => (HOUSE1.two ? { x: HOUSE1.two.x, z: HOUSE1.two.z } : { x: q(HOUSE1.start.x + TWO_BEHIND_M, 0.01), z: HOUSE1.start.z });
+const twoStartOf = (state) => { const H1 = houseSpecOf(state); return H1.two ? { x: H1.two.x, z: H1.two.z } : { x: q(H1.start.x + TWO_BEHIND_M, 0.01), z: H1.start.z }; };
 // (the zone the hall's turner waits for: HOUSE1's zones.hallWest (a record { id, rect }, or its id))
-const hallZone = () => { const z = HOUSE1.zones?.hallWest; return typeof z === 'string' ? z : z?.id ?? 'w4.z.hall-west'; };
+const hallZone = (state) => { const z = houseSpecOf(state).zones?.hallWest; return typeof z === 'string' ? z : z?.id ?? 'w4.z.hall-west'; };
 // (the zone at a point of the house: a trigger zone's (named, with a rect), else its room's)
-const zoneAt = (x, z) => zoneOf(WHEEL_S4.id, x, z)?.id ?? roomOf(WHEEL_S4.id, x, z)?.zone ?? null;
+const zoneAt = (state, x, z) => { const A = houseSpecOf(state).area; return zoneOf(A, x, z)?.id ?? roomOf(A, x, z)?.zone ?? null; };
 
 // ---- the draws (the seed alone) ----
 
 const pickW = (r, list) => weighted(r, list);
-/** Every stand's draw from the seed alone (see the header): { [stand]: { face, holds, gapMs } }; a stand's gap range HOUSE1's where it gives one. */
-export function drawStands(seed) {
-  const out = {}, given = Object.fromEntries(standsOf().map(s => [s.stand, s.gapMs]));
+/**
+ * Every stand's draw from the seed alone (see the header): { [stand]: { face, holds, gapMs } }; a stand's gap range HOUSE1's where it
+ * gives one. v0.0.21 A: spec, a drawn house's (scenes/assemble.js assembleHouse(code).spec): each stand's face its cast's (the code's
+ * `|f`, drawn by the assembler from the seed), its holds and its gap drawn on the set's streams by its stand id, its gap's range its
+ * role's (COURSES.house.draws.cast); spec null, the set's draw byte for byte.
+ */
+export function drawStands(seed, spec = null) {
+  if (spec) return drawnStands(seed, spec);
+  const out = {}, given = Object.fromEntries(standsOf(null).map(s => [s.stand, s.gapMs]));
   for (const stand of STAND_IDS) {
     const R = STANDS[stand], r = stream(seed, 'house:draw', stand);
     const face = R.face === 'draw' ? pickW(r, C.draws.faces[stand]) : R.face;
@@ -369,6 +375,29 @@ export function drawStands(seed) {
     out[stand] = { face, holds, gapMs: span ? whole(intIn(gr, span[0], span[1])) : 0 };
   }
   return out;
+}
+// (a drawn house's stands' draws (see drawStands): the face its cast's, the holds and the gap on the set's streams by stand id)
+function drawnStands(seed, spec) {
+  const out = {};
+  for (const s of spec.stands) {
+    const r = stream(seed, 'house:draw', s.stand), face = s.faces?.[0] ?? 'threat';
+    const holds = face === 'noshoot' ? pickW(r, C.draws.noshootHolds) : pickW(r, C.draws.threatHolds);
+    const span = s.trigger?.kind === 'go' ? null : Array.isArray(s.trigger?.gapMs) ? s.trigger.gapMs : s.trigger?.kind === 'zone' ? C.gaps.zone : C.gaps.doorOther;
+    out[s.stand] = { face, holds, gapMs: span ? whole(intIn(stream(seed, 'house:gap', s.stand), span[0], span[1])) : 0 };
+  }
+  return out;
+}
+/**
+ * The drawn house's code for a fill (the build sheet v0.0.21 §1 item 1, §0 item 50): `house` a code (its layout part alone gains
+ * the cast drawn from the seed; a whole code is played as written) used where `draw` is 'drawn' or not given; `draw` 'drawn' with
+ * no house (or a code that is no house) draws one from the seed (doors 'fixed': the chunks' authored swings, every door closed);
+ * null for the set ('set', nothing given, and "Stack and clear, live", whose men's posts are authored by room).
+ */
+export function drawnCodeFor(seed, { draw = null, house = null, doors = null, live = false } = {}) {
+  if (live || draw === 'set') return null;
+  const code = house ? wholeCodeOf(house, seed) : null;
+  if (code && assembleHouse(code)) return code;
+  return draw === 'drawn' ? drawnCodeOf(seed, { doors: doors === 'fixed' ? 'fixed' : 'drawn' }) : null;
 }
 /** The dummy's round in magazine 1 (3 to 6) and its count n (feed() takes it when the magazine holds n). */
 export function drawDummy(seed) {
@@ -393,9 +422,19 @@ const newLeg = (door, room) => ({ room, door, state: 'ahead', fromMs: null, stac
   contacts: [], rounds: 0, zones: {}, twoZones: {}, faults: [], calls: [], presses: 0, pressAbout: { person: 0, door: 0 }, inner: null, how: { keys: 0, bundle: 0 } });
 
 /** The fill of 'test-shoothouse' (see the header). tier: a TEST_SHEETS id (the private by default); par: 'basic' | 'advanced' | 'operator' | null (the sheet's); setup: HOUSE_SETUPS or null. */
-export function testShoothouse(state, { at = null, setup = null, tier = null, par = null, loadout = null, opfor = null } = {}) {
-  const seed = state.meta.seed, sheet = tierOf(tier), S0 = startOf();
-  barracks(state, { at: { area: WHEEL_S4.id, x: S0.x, z: S0.z, face: S0.face, ...(at ?? {}) } });
+// (draw ('set' | 'drawn'), house (a code) and doors ('fixed') come through from the URL, the picker and createGame (the build
+// sheet §0 item 54); the set ignores them, the drawn house's branch (A) reads them)
+export function testShoothouse(state, { at = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null } = {}) {
+  // (the house through its seam, scenes/assemble.js: HOUSE1 and its area as set. v0.0.21 A, the drawn house: its code
+  // (drawnCodeFor: the URL's &house, the picker's draw, never the live lane's), its area assembled and registered (model.js's
+  // registry), its spec read from it until R.house.draw is written; nothing of it on the set)
+  const seed = state.meta.seed, op0 = parseOpfor(opfor), code = drawnCodeFor(seed, { draw, house, doors, live: !!op0 && !op0.error });
+  const drawn = code ? assembleHouse(code) : null;
+  const hs = drawn?.spec ?? houseSpecOf(state), sheet = tierOf(tier), S0 = startOf(state);
+  barracks(state, { at: { area: hs.area, x: S0.x, z: S0.z, face: S0.face, ...(at ?? {}) } });
+  // (PLACES §9.9, "what is saved: only { spec, seed, gen: 'assemble@1' }; the layout is rebuilt on load": the places domain's
+  // upgrade 'places:gen' registers the area again from it (src/sim/places/domain.js))
+  if (drawn) state.places.live.gen = { base: WHEEL_S4.id, code: drawn.code, v: ASSEMBLE_V };
   const me = playerActor(state), pid = playerId(state), person = state.people[pid];
   setOutfit(me, 'combatSuit');
   person.body = deltaOf(setLedgers(startBody(person, state.clock.ms, lonOfSite(HOUSE_SCENE.site), seed), {}));
@@ -410,25 +449,28 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
   // (the #2: a marine of your fire team, your sheet written on him for the scene, his issue in Condition 4 as yours is: the
   // magazines in his pouches, the chamber empty, on safe; he loads on the tower's LOAD and makes ready on its MAKE READY, his
   // own macros (twoCmd; COMBAT §25.19.5, the rework's R5: v0.0.12 loaded him at the fill))
-  const twoPid = drawTwo(state), T0 = twoStartOf();
+  const twoPid = drawTwo(state), T0 = twoStartOf(state);
   let twoKit = null;
   if (twoPid) {
     const two = state.people[twoPid];
     two.skills = testSheet(sheet);
     twoKit = materialise(state, twoPid, issue);
     state.items[twoKit.gunId].mode = 'safe';
-    setPost(state, twoPid, { key: 'house-two', area: WHEEL_S4.id, x: T0.x, z: T0.z, face: 'left', outfit: 'combatSuit' });
+    setPost(state, twoPid, { key: 'house-two', area: hs.area, x: T0.x, z: T0.z, face: 'left', outfit: 'combatSuit' });
   }
-  const chiefPid = drawStaff(state, 'melas:wheel-house-chief'), B = HOUSE1.booth;
-  setPost(state, chiefPid, { area: WHEEL_S4.id, x: B.x, z: B.z, face: B.face ?? 'left' });
+  const chiefPid = drawStaff(state, 'melas:wheel-house-chief'), B = hs.booth;
+  setPost(state, chiefPid, { area: hs.area, x: B.x, z: B.z, face: B.face ?? 'left' });
   syncActors(state);
   const twoA = actorOf(state, twoPid);
   if (twoA) { twoA.moveStance = 'combat'; twoA.headRad = Math.PI; }
-  const R = startRange(state, null, { course: 'house', lane: null, area: WHEEL_S4.id, kit, set: ref ? null : { mag: dummy.mag, n: dummy.n, kind: dummy.kind }, roId: chiefPid, coachId: chiefPid });
-  const draws = drawStands(seed), plan = lanePlanOf(state);
-  R.turners = standsOf().map(s => {
-    const d = draws[s.stand], R0 = STANDS[s.stand];
-    const on = R0.trigger === 'door' ? plan.order[s.leg] : R0.trigger === 'zone' ? hallZone() : null;
+  const R = startRange(state, null, { course: 'house', lane: null, area: hs.area, kit, set: ref ? null : { mag: dummy.mag, n: dummy.n, kind: dummy.kind }, roId: chiefPid, coachId: chiefPid });
+  // (the drawn house's record first, so every reader of the seam below (lanePlanOf, standsOf, hallZone) reads its house)
+  const drawRec = drawn ? { mode: 'drawn', v: 1, code: drawn.code } : null;
+  if (drawRec) R.house = { draw: drawRec };
+  const draws = drawStands(seed, drawn?.spec ?? null), plan = lanePlanOf(state);
+  R.turners = standsOf(state).map(s => {
+    const d = draws[s.stand], R0 = { trigger: s.trigger ?? STANDS[s.stand].trigger };
+    const on = R0.trigger === 'door' ? plan.order[s.leg] : R0.trigger === 'zone' ? hallZone(state) : null;
     // (the reference room's second man stays edge-on: setup 'ref')
     if (ref && s.stand === '1b') return { key: `turner:${s.lane}`, lane: s.lane, room: s.room, stand: s.stand, name: s.name, slot: s.slot, x: s.x, z: s.z, y: s.y, ...(s.faceRad !== null ? { faceRad: s.faceRad } : {}),
       face: d.face, holds: d.holds, trigger: { kind: 'never', on: null, gapMs: 0 }, turnAtMs: null, awayAtMs: null, hits: [], stoppedAtMs: null };
@@ -443,6 +485,8 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
     two: { pid: twoPid, aid: twoA?.id ?? null, rung: twoPid ? rungOf(state, twoPid, 'room') : 0, doing: null, hold: null, contact: null, eng: null, known: {}, ident: {}, fired: 0, hits: 0 },
     dummy: { magId: kit.magIds[0], n: ref ? null : dummy.n, round: ref ? null : dummy.round, clickAtMs: null, clearedAtMs: null },
     rooms: legs.slice(0, -1), hall: legs.at(-1),
+    // (the drawn house's record, R.house.draw = { mode: 'drawn', v, code }: absent on the set)
+    ...(drawRec ? { draw: drawRec } : {}),
   };
   R.load = live ? 'marking' : 'frangible';
   // (the rework's R6: the P-12, on every sheet from 2026-11-15 (the Sergeant up before), its ids after every other item of the
@@ -463,6 +507,9 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
   // is the standard, so the default): the fill's last items, so every other id is v0.0.18's; on the live lane marking as yours is
   // (v0.0.19 issued his the house's frangible there: one helper for both men now, issueHouseSidearm)
   if (twoPid && twoP12Of(spec.error ? null : spec)) issueHouseSidearm(state, twoPid, live, { two: true });
+  // (a lane door drawn open is found open: set so at the fill (a delta in the save) and its time noted, as a setup's
+  // open door is; its stands turn no sooner than GO and their gap (triggers))
+  if (drawn) parseHouse(drawn.code).rooms.forEach((R1, k) => { if (R1.state === 'open') openDoor(state, plan.order[k]); });
   // (the card: the stands' books, each room's par and the lane's, from the house as drawn, before any setup moves you (fillPars))
   fillPars(state, R.house, kit.gunId);
   if (setup) setupHouse(state, setup);
@@ -496,8 +543,13 @@ export function houseMoveOn(state, bus, def) {
   if (String(want ?? '').startsWith('two:')) return twoMoveOn(state, bus);
   // (the P-12's round owed whatever the rifle lacks: with the rifle's magazines on the floor houseWant says 'mag' first, and the
   // pistol went to GO unchambered too (the hunt of v0.0.18's pistol-6: both guns empty at GO))
-  if (def?.ready !== 'houseStart' || !adminSubs(state, pid, 'ready').length) return false;
-  const p = holsteredPistol(state, pid);
+  // (the build sheet's item 6: and a P-12 in the hand with its round owed, as believed (a magazine in, the chamber empty):
+  // its own MAKE READY halted after the draw (a fumbled part), the tower waiting on 'chamber' for it, and the move-on went to GO with
+  // it unchambered in the hand, nothing racked (the fumble net's N11, the corporal on seed 1 once the house bot answered "P-12: MAKE
+  // READY"). He racks it there, in your hand, on safe)
+  if (def?.ready !== 'houseStart') return false;
+  const inHand = drawnPistol(state, pid), hb = inHand ? beliefOf(state, inHand) : null;
+  const p = inHand ? (hb.mag === 'in' && hb.chamber === 'empty' && hb.count !== 0 ? inHand : null) : adminSubs(state, pid, 'ready').length ? holsteredPistol(state, pid) : null;
   if (!p) return false;
   readyPistol(state, p);
   chiefSays(state, bus, HOUSE_CHIEF.pistolRacked, 'pistolRacked');
@@ -534,6 +586,28 @@ export function upgradeHousePistol(state) {
   if (!cleared) { readyPistol(state, gunId); return; }
   const g = state.items[gunId], pouch = state.people[pid].kit.worn.thigh;
   if (g.mag && pouch) { move(state, g.mag, { container: pouch }); if (g.belief) delete g.belief.count; }
+}
+
+/**
+ * A save of the house made before v0.0.20's pars (v0.0.12 to v0.0.19, and a v0.0.20 lane loaded from one) gains them on load by the
+ * fill's own functions (fillPars: each stand's book, each leg's par, the lane's, the immediate action's book), planned from the state
+ * as loaded, not as the fill saw it: each leg from where it stands (legFrom) at the load's ms, the doors as they stand, with the
+ * rifle the fill planned with (kit.worn.sling: a rifle stays there whatever its posture); so a lane saved mid-way gains pars for what
+ * is left of it, which may differ from the fill's (the code review of 2026-11-16), and nothing plans a par on a read again (the build sheet
+ * v0.0.21 §0 item 17, §1 item 25; perf lens P10: four planBundles on every read of the timer, the paper and houseNow, 2 to 4 ms a
+ * tick in the page, for the rest of that lane). Field by field, only where absent: a v0.0.20 save, which has them, is left as it
+ * is. An upgrade (core/state.js addUpgrade, the arms domain's 'arms:house-pars', after 'arms:house-pistol'): a no-op once run.
+ */
+export function upgradeHousePars(state) {
+  const R = state.armoury?.range, H = R?.house, pid = state.player?.id;
+  if (R?.course !== 'house' || !H || !pid || !Array.isArray(R.turners) || !H.rooms || !H.hall) return;
+  const legs = legsOf(H), gunId = state.people?.[pid]?.kit?.worn?.sling ?? null;
+  if (H.books && legs.every(L => Number.isFinite(L.parMs)) && Number.isFinite(H.laneParMs) && (Number.isFinite(H.iaBookMs) || !gunId)) return;
+  if (!H.books) H.books = Object.fromEntries(R.turners.map(T => [T.stand, standBookOf(state, T, { pid, gunId })]));
+  for (const L of legs) if (!Number.isFinite(L.parMs)) L.parMs = roomParOf(state, L.door, H, { gunId });
+  if (!Number.isFinite(H.laneParMs)) H.laneParMs = sum(legs.map(L => L.parMs ?? 0));
+  const g = gunId ? state.items[gunId] : null;
+  if (g && !Number.isFinite(H.iaBookMs)) H.iaBookMs = macroMs(rollerOf(state, pid), g, 'ia', beliefOf(state, gunId));
 }
 
 // (a setup: the rifle loaded, made ready and on safe at low ready; GO given now, in stop motion; the legs before `leg` cleared)
@@ -651,6 +725,18 @@ function kitWords(state) {
   // (v0.0.19, D2: the intelligence, where the loadout carries a practice grenade (house-kit.js intelWords))
   return bits.length ? ` You carry ${bits.join(', ')}: use them on the doors you choose. Treat every target as an unsuited man.${intelWords(state)}` : '';
 }
+// (the drawn house (the build sheet §1 item 2): the brief names each lane door's swing as its stack reads it, from the
+// drawn opening (room.js's plan swing, swing.js doorWordsOf: "Pull door, hinge right."); '' on the set, whose brief is v0.0.20's to
+// the word (its spoken length chains the PA, and a word more would move LOAD and every pin cell)
+export function doorWords(state) {
+  const H = houseOf(state);
+  if (H?.draw?.mode !== 'drawn') return '';
+  const plan = lanePlanOf(state), words = plan.order.filter(k => k !== 'hall').map((k, i) => {
+    const w = plan.plans[k]?.swing?.words;
+    return w ? `room ${i + 1}, ${w.charAt(0).toLowerCase()}${w.slice(1, -1)}` : null;
+  }).filter(Boolean);
+  return words.length ? ` ${fill(hashPick(HOUSE_CHIEF.doors, 'house-chief', state.meta.seed, 'doors'), { doors: words.join('; ') })}` : '';
+}
 /** Within this of 1 G the brief says "Full G" (G; my call). */
 export const GRAVITY_FULL_TOL_G = 0.02;
 const fill = (line, map) => Object.entries(map).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, String(v)), line);
@@ -677,7 +763,7 @@ const hasFault = (L, kind) => !!L?.faults?.some(f => f.kind === kind);
 export function houseWant(state) {
   const R = rangeOf(state), H = R?.house, pid = playerId(state), me = playerActor(state), gun = state.items?.[gunOn(state, pid)];
   if (!H || !me || !gun) return null;
-  const carry = state.people[pid]?.kit?.carry ?? {}, dry = !!R.dry, S0 = startOf();
+  const carry = state.people[pid]?.kit?.carry ?? {}, dry = !!R.dry, S0 = startOf(state);
   if (!dry && !gun.mag) return 'mag';
   if (!dry && gunField(gun, 'chamber') !== 'live') return 'chamber';
   if (gunField(gun, 'mode') !== 'safe' || (carry.finger ?? 'off') === 'on') return 'safe';
@@ -691,7 +777,7 @@ export function houseWant(state) {
   // (the tower waits on your number two as on you (COMBAT §25.19.5): his macro done, Condition 1, on safe, low ready, in place)
   const lack = twoLacks(state, 'ready');
   if (lack && !(dry && (lack === 'two:mag' || lack === 'two:chamber'))) return lack;
-  const a = actorOf(state, H.twoPid), T0 = twoStartOf();
+  const a = actorOf(state, H.twoPid), T0 = twoStartOf(state);
   if (a && Math.hypot(a.x - T0.x, a.z - T0.z) > TWO_SLOT_M) return 'two';
   return null;
 }
@@ -751,8 +837,6 @@ export function pistolLacks(state, pid = playerId(state), cmd = 'stop') {
   // (its slide back too: no pistol goes into a holster locked open, and its part's release is still to do)
   return cmd === 'clear' && !!g && (loadedGun(g) || !!gunField(g, 'locked')) ? 'pistol:loaded' : null;
 }
-/** Whether a gun holds anything by the truth (a magazine in, a chamber not empty, a double): not clear. A bolt held back on nothing is clear. */
-export const loadedGun = (g) => !!g && (!!g.mag || !!gunField(g, 'chamber') || !!gunField(g, 'jam'));
 
 // ---- the instructor's commands ----
 
@@ -766,7 +850,7 @@ export function houseOnCmd(state, bus, def, i = SEQ_HOUSE.findIndex(c => c.id ==
   // (each command goes to both marines: your number two's own macro for it, on his list doing (COMBAT §25.19.5))
   if (TWO_CMDS[def.id]) twoCmd(state, bus, def.id);
   switch (def.id) {
-    case 'brief': chiefSays(state, bus, `${hashPick(HOUSE_CHIEF.brief, 'house-chief', state.meta.seed, 'brief')} ${gravityWords(state)}${kitWords(state)}`, 'brief'); break;
+    case 'brief': chiefSays(state, bus, `${hashPick(HOUSE_CHIEF.brief, 'house-chief', state.meta.seed, 'brief')} ${gravityWords(state)}${doorWords(state)}${kitWords(state)}`, 'brief'); break;
     case 'standby': H.standby = { attempt: 0, goAtMs: null, fromMs: now, backSaid: false }; armGo(state); break;
     case 'go': goNow(state, bus); break;
     case 'stop': R.hot = false; break;
@@ -876,11 +960,14 @@ function triggers(state, bus, R, H, now) {
   // (a door of the lane come open is progress for the stall (see stall))
   for (const door of plan.order) if (door !== 'hall' && H.doors[door] === undefined && openingState(state, door) === 'open') { H.doors[door] = now; if (H.goAtMs !== null && !H.end) H.stallAtMs = now; }
   const me = playerActor(state);
-  if (me && !H.end) { const zn = zoneAt(me.x, me.z); if (zn && H.zones[zn] === undefined) H.zones[zn] = now; }
+  if (me && !H.end) { const zn = zoneAt(state, me.x, me.z); if (zn && H.zones[zn] === undefined) H.zones[zn] = now; }
   for (const T of R.turners) {
     if (T.turnAtMs !== null || T.stoppedAtMs !== null || T.trigger.kind === 'go' || T.trigger.kind === 'never' || T.passed) continue;
-    const at = T.trigger.kind === 'door' ? H.doors[T.trigger.on] : H.zones[T.trigger.on];
-    if (at === undefined || H.end) continue;
+    const at0 = T.trigger.kind === 'door' ? H.doors[T.trigger.on] : H.zones[T.trigger.on];
+    if (at0 === undefined || H.end) continue;
+    // (the build sheet §1 item 3: GO first: a door found open at the fill (a drawn house's) turns its man no sooner than
+    // GO and his gap; on the set every door opens after GO (the setups give GO first), so nothing moves there)
+    const at = Math.max(at0, H.goAtMs ?? at0);
     // (v0.0.18: a stand dazed by a burst turns when its daze ends at the soonest (burst.js; the brief's unsuited man))
     const turnAt = whole(Math.max(at + T.trigger.gapMs, T.dazeUntilMs ?? 0));
     if (now < turnAt) continue;
@@ -895,7 +982,7 @@ function triggers(state, bus, R, H, now) {
 // when the point moves or a tick went by unwalked (H.chief, saved: { to, path, prof, fromMs, untilMs, atMs }); his tween start
 // before the move, his record after)
 function chiefWalk(state, R, H, now = state.clock.ms) {
-  const c = actorOf(state, H.chiefPid), cw = HOUSE1.catwalk;
+  const c = actorOf(state, H.chiefPid), cw = houseSpecOf(state).catwalk;
   if (!c || !cw?.path?.length) return;
   const L = curLeg(H), P = planOf(state, L);
   const to = H.end || !P ? cw.path[0] : nearestOn(cw.path, P.threshold ?? P.points[0]);
@@ -1316,9 +1403,26 @@ export function noteSighting(state, H, T, { seenMs, takeInMs: ms, pauseAtMs, by,
 // (the par's clock for a threat: the sighting of the man whose sector it is, the #2's for his own (slot 2) while he lives in
 // the lane, else the first by either of you (the fixer's of 0.0.12: a slot-2 man's par ran from your sighting, before the
 // #2 could cross the door, so every sheet missed it however well it played))
-const slotOfStand = (stand) => STANDS[stand]?.slot ?? 1;
+// (the lane's turner on a stand: whose man it is goes through team.js ownerOf on it, v0.0.21)
+const turnerAt = (state, stand) => rangeOf(state)?.turners?.find(T => T.stand === stand) ?? null;
 // (v0.0.18: a dazed man's par runs from when he could first have fired, his daze's end, at the soonest)
-const parFrom = (state, L, key) => { const by = firstBy(state, L, key), list = L.contacts.filter(k => k.key === key && (by === null || k.by === by)); if (!list.length) return Infinity; const daze = rangeOf(state)?.turners?.find(T => T.key === key)?.dazeUntilMs; return Math.max(Math.min(...list.map(k => k.seenMs)), Number.isFinite(daze) ? daze : -Infinity); };
+// (and a man seen while another of the same marine's corner was still to answer, engaged first, from that man's first round and his
+// row's book (H.books' rowMs): the second of two seen together met his par only by being the first (the play review of 2026-11-16:
+// on drawn houses two men stand in one window, and every such second man of the raider's missed, 1.87 to 3.64 s from his sighting))
+const parFrom = (state, L, key) => {
+  const by = firstBy(state, L, key), list = L.contacts.filter(k => k.key === key && (by === null || k.by === by));
+  if (!list.length) return Infinity;
+  const R = rangeOf(state), T = R?.turners?.find(x => x.key === key), daze = T?.dazeUntilMs, seen = Math.min(...list.map(k => k.seenMs)), books = houseOf(state)?.books;
+  let after = -Infinity;
+  for (const o of L.contacts) {
+    if (o.key === key || by === null || o.by !== by || !THREAT_FACES.includes(o.face)) continue;
+    // (a man of the same marine's corner only (team.js ownerOf): a round of the other's on his own man is no turn of yours)
+    const To = R?.turners?.find(x => x.key === o.key), f = To?.firstAtMs;
+    if (!Number.isFinite(f) || f < seen || (Number.isFinite(T?.firstAtMs) && f >= T.firstAtMs) || (ownerOf(state, To) ?? 1) !== (by === 'two' ? 2 : 1)) continue;
+    after = Math.max(after, f + (books?.[To.stand]?.rowMs ?? 0));
+  }
+  return Math.max(seen, Number.isFinite(daze) ? daze : -Infinity, after);
+};
 // (each threat's par: past it with no round, the low tone and "he fired first")
 function pars(state, bus, R, H, now) {
   for (const L of legsOf(H)) for (const k of L.contacts) {
@@ -1349,7 +1453,7 @@ function pars(state, bus, R, H, now) {
 // slot-2 stand, or yours once the sides are swapped), until a round of yours lands on him before his sighting; else the earliest)
 function firstBy(state, L, key) {
   const list = L.contacts.filter(k => k.key === key).sort((a, b) => a.seenMs - b.seenMs), H = houseOf(state);
-  if (list.length && H?.twoPid && ownerOf(state, { slot: slotOfStand(list[0].stand), room: L.room }) === 2) {
+  if (list.length && H?.twoPid && ownerOf(state, turnerAt(state, list[0].stand)) === 2) {
     if (list.some(k => k.by === 'two')) return 'two';
     const T = rangeOf(state)?.turners?.find(x => x.key === key);
     if (T?.firstAtMs === null || T?.firstAtMs === undefined) return 'two';
@@ -1808,7 +1912,7 @@ const pointOf = (state, P) => (P ? P.points?.[(sideOf(state, P.door, 1) ?? 1) - 
 // (where a leg starts: the start mark for room 1, the last leg's #1 point after)
 function legFrom(state, k) {
   const plan = lanePlanOf(state), prev = k > 0 ? plan.plans[plan.order[k - 1]] : null;
-  return prev ? pointOf(state, prev) : [startOf().x, startOf().z];
+  return prev ? pointOf(state, prev) : [startOf(state).x, startOf(state).z];
 }
 
 /**
@@ -1835,9 +1939,27 @@ export function standBookOf(state, T, { pid = playerId(state), gunId = null } = 
   if (T.face === 'hostage' && rung < 2) { const head = row('shot:head', 'careful') - row('shot:pair'); if (head > 0) parts.push({ why: 'head', ms: whole(head) }); }
   // (the hall's man turns on your walk into its zone, 5.9 m from its edge: met on the move as a far man is, below rung 2 the row plants first)
   if (rung < 2 && (dM > IMMEDIATE_M || T.trigger?.kind === 'zone')) parts.push({ why: 'far', ms: whole(POINT_REACH_S * 1000) });
+  // (the muzzle's turn off its owner's sector onto a man where the room's plan does not aim it: the set's sectors are aimed
+  // at the set's men (0° on every threat), a drawn place stands up to 44° off them, and the turn at AIM.turn's rate was all the
+  // raider's and the corporal's misses at drawn places 1 and 2 with no other man before (0.83 to 0.94 s against 0.80; the play
+  // review of 2026-11-16). A threat's or an armoured man's (the hostage card's head has its own part; the set's 3b meets its class
+  // par at 33°, F56); the owner's point, sector and WH, so a man of your #2's is booked by his)
+  const turn = T.face === 'threat' || T.face === 'armoured' ? turnOffMs(state, T, P) : 0;
+  if (turn > 0) parts.push({ why: 'turn', ms: whole(turn) });
   return { takeInMs: takeInOf({ wf: sheetOf(state, pid)?.os ?? 0, expect: 'area' }).ms, rowMs: row(rowOfFace(T.face)), gapMs: T.trigger?.kind === 'door' || T.trigger?.kind === 'zone' ? T.trigger.gapMs ?? 0 : 0, parts, dM };
 }
 const bookOf = (state, H, T) => H?.books?.[T.stand] ?? (T.$book ??= standBookOf(state, T));
+// (the muzzle's turn (ms) from its owner's sector at his point onto a stand (see standBookOf): the angle off the sector's middle at
+// AIM.turn's rate for the owner's WH (turn.base + turn.per × WH °/s, shot.js); 0 with no plan, sector or point)
+function turnOffMs(state, T, P) {
+  const slot = ownerOf(state, T) ?? 1, pt = P?.points?.[slot - 1] ?? P?.points?.[0], sec = P?.sectors?.find(x => x.slot === slot) ?? P?.sectors?.[0];
+  if (!pt || !sec) return 0;
+  const H = houseOf(state), who = slot === 2 && H?.twoPid ? H.twoPid : playerId(state), wh = skillsOf(state, who)?.wh ?? 0;
+  const off = Math.abs(((Math.atan2(T.z - pt[1], T.x - pt[0]) - sec.yawRad) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI) * 180 / Math.PI;
+  return off > TURN_FREE_DEG ? (off - TURN_FREE_DEG) / (AIM.turn.base + AIM.turn.per * wh) * 1000 : 0;
+}
+/** The turn off a sector that the class's par holds already (°; my call: a degree, the sector's aim on the set's men being exact). */
+export const TURN_FREE_DEG = 1;
 
 /** A stand's par (the one reader of H.parMs): { ms, base, parts: [{ why: 'head' | 'far', ms }] }; a null T gives the class's alone. */
 export function parOf(state, T, H = houseOf(state)) {
@@ -1846,7 +1968,7 @@ export function parOf(state, T, H = houseOf(state)) {
 }
 /** A par as a roll is said: "Par 3.00 + 0.65 (the head, past the hostage) = 3.65 s"; the class's alone "Par 3.00 s". */
 export function parWords(p) {
-  const why = { head: 'the head, past the hostage', far: 'met on the move, the plant first' };
+  const why = { head: 'the head, past the hostage', far: 'met on the move, the plant first', turn: 'the turn off your sector' };
   return p.parts.length ? `Par ${s2(p.base)} ${p.parts.map(x => `+ ${s2(x.ms)} (${why[x.why] ?? x.why})`).join(' ')} = ${s2(p.ms)} s` : `Par ${s2(p.base)} s`;
 }
 
@@ -1854,15 +1976,24 @@ export function parWords(p) {
 export function roomBookOf(state, door, H = houseOf(state), { atMs = state.clock.ms, gunId = null } = {}) {
   const pid = playerId(state), plan = lanePlanOf(state), k = plan.order.indexOf(door);
   if (k < 0) return null;
-  const B = planBundle(state, pid, 'room:clear', { door, from: legFrom(state, k), atMs });
+  // (the instructor's book knows the door (bundle.js lockUnknownOf reads H.$book): a drawn lane door locked is planned as the
+  // kick it takes, and its try first (the Open refused, handMsOf), as the stack meets it (the play review of 2026-11-16))
+  const was = H?.$book;
+  if (H) H.$book = true;
+  let B;
+  try { B = planBundle(state, pid, 'room:clear', { door, from: legFrom(state, k), atMs }); } finally { if (H) { if (was === undefined) delete H.$book; else H.$book = was; } }
+  const tryMs = H?.draw?.mode === 'drawn' && door !== 'hall' && lockedOf(state, door) ? handMsOf(state, pid) : 0;
   const R = rangeOf(state), mine = (R?.turners ?? []).filter(T => legOf(T) === k && THREAT_FACES.includes(T.face) && ownerOf(state, T) === 1);
   const books = mine.map(T => { const b = H?.books?.[T.stand] ?? standBookOf(state, T, { pid, gunId }); return b.gapMs + b.takeInMs + b.rowMs + sum((b.parts ?? []).map(p => p.ms)); });
-  return (B?.ms ?? 0) + sum(books);
+  return (B?.ms ?? 0) + tryMs + sum(books);
 }
 /** ROOM_PAR_K for a leg: by its kind (the hall apart from the rooms) and the sheet's rung (below 2, from 2). */
 export const roomParK = (state, door, pid = playerId(state)) => ROOM_PAR_K[door === 'hall' ? 'hall' : 'room'][rungOf(state, pid, 'room') >= 2 ? 1 : 0];
+/** The rooms' pars planned (roomParOf's calls: a bundle planned each), counted for the tests (never on a read; game-upgrade's par case). */
+export const PAR_PLANS = { n: 0 };
 /** A room's par (ms, whole ROOM_PAR_STEP_MS): its book (roomBookOf) × ROOM_PAR_K by the leg's kind and the sheet's rung (see the block's head). */
 export function roomParOf(state, door, H = houseOf(state), opts = {}) {
+  PAR_PLANS.n++;
   const book = roomBookOf(state, door, H, opts);
   return book === null ? null : Math.ceil(book * roomParK(state, door) / ROOM_PAR_STEP_MS) * ROOM_PAR_STEP_MS;
 }
@@ -1877,8 +2008,9 @@ export function fillPars(state, H, gunId = null) {
   // P-12 after Transition: the C and D review of 2026-11-16)
   if (g) H.iaBookMs = macroMs(rollerOf(state, pid), g, 'ia', beliefOf(state, gunId));
 }
-// (a leg's par: the fill's, else computed once on read (an old save) and kept as runtime)
-const legParOf = (state, H, L) => L.parMs ?? (L.$parMs ??= roomParOf(state, L.door, H));
+// (a leg's par: the fill's, or the load's on a save from before v0.0.20 (upgradeHousePars); never planned on a read (the
+// build sheet §0 item 17: v0.0.20 computed it on read, four planBundles on every read of the timer, the paper and houseNow))
+const legParOf = (state, H, L) => L.parMs ?? null;
 /** The immediate action's book (ms): the fill's (H.iaBookMs, saved), else, on a save from before it, the gun's in hand now. */
 export const iaBookOf = (state, H) => { if (Number.isFinite(H.iaBookMs)) return H.iaBookMs; const pid = playerId(state), g = gunOn(state, pid); return g && state.items[g] ? macroMs(rollerOf(state, pid), state.items[g], 'ia', beliefOf(state, g)) : 0; };
 
@@ -1901,10 +2033,19 @@ export function parCauseOf(state, H, L, c, T, from, first, now) {
   return 'eyes';
 }
 
-/** The instructor's verdict on the lane (pure, read off the run sheet's record): { go (null before the lane's end), why: [VERDICT_WHY keys] }. */
-export function houseVerdict(state) {
+/**
+ * The instructor's verdict on the lane (pure, read off the run sheet's record): { go (null before the lane's end), why: [VERDICT_WHY keys] }.
+ * standard (the build sheet §1 item 10, §4.3; done lens D4): the par class the run is judged by, the lane's own (H.par, the
+ * sheet's or the picker's) by default, so every call without it is v0.0.20's to the key. Another class ('basic', 'advanced',
+ * 'operator') re-judges each of your judged men's first round against that class's par plus the stand's own allowances (parOf's
+ * parts), less the instructor's click as the lane judged it, and returns standard: the class; the lane's par stays the sheet's own
+ * (its rooms' books are the sheet's walk, which no class changes; my call). F70 reads it: a sheet's run judged by the next class up.
+ */
+export function sheetStandard(state) { return houseOf(state)?.par ?? null; }
+export function houseVerdict(state, { standard = sheetStandard(state) } = {}) {
   const R = rangeOf(state), H = R?.house;
   if (!H || !H.end) return { go: null, why: [] };
+  const std = standard && standard !== H.par && Number.isFinite(PAR_MS[standard]) ? standard : null;
   const legs = legsOf(H), n = (kind) => sum(legs.map(L => L.faults.filter(f => f.kind === kind).length)), why = [];
   if (legs.some(L => L.setup)) why.push('setup');
   if (H.end.why === 'casualty') why.push('casualty');
@@ -1917,12 +2058,20 @@ export function houseVerdict(state) {
   if (H.end.why === 'time') why.push('time');
   // (only your own men's pars count against you: a par the #2 missed on a man of his is his (team.js ownerOf, as legView's
   // parMissedMine and the one thing read it; the C and D review of 2026-11-16: the sergeant by T on 1489397426 was NO-GO for his 3a))
-  const yours = (L, c) => !H.twoPid || ownerOf(state, { slot: slotOfStand(c.stand), room: L.room }) === 1;
-  const missed = sum(legs.map(L => L.contacts.filter(c => THREAT_FACES.includes(c.face) && c.parMet === false && c.by === firstBy(state, L, c.key) && yours(L, c)).length));
+  const yours = (L, c) => !H.twoPid || ownerOf(state, turnerAt(state, c.stand)) === 1;
+  const missed = sum(legs.map(L => L.contacts.filter(c => THREAT_FACES.includes(c.face) && (std ? c.parMet !== null && c.parMet !== undefined && !metAt(state, H, L, c, std) : c.parMet === false) && c.by === firstBy(state, L, c.key) && yours(L, c)).length));
   if (missed > STANDARD_PARS) why.push('pars');
-  const laneMs = H.goAtMs === null ? null : H.end.atMs - H.goAtMs, par = H.laneParMs ?? sum(legs.map(L => legParOf(state, H, L) ?? 0));
+  const laneMs = H.goAtMs === null ? null : H.end.atMs - H.goAtMs, par = H.laneParMs ?? null;
   if (Number.isFinite(laneMs) && par > 0 && laneMs > par) why.push('lane');
-  return { go: !why.length, why, missed, laneMs, laneParMs: par };
+  return { go: !why.length, why, missed, laneMs, laneParMs: par, ...(std ? { standard: std } : {}) };
+}
+// (a judged contact's first round met at another class's par (houseVerdict's standard): its window as pars() judged it, less the
+// instructor's click in it; no first round is a miss)
+function metAt(state, H, L, c, std) {
+  const T = rangeOf(state)?.turners?.find(x => x.key === c.key), first = c.firstAtMs ?? T?.firstAtMs ?? null;
+  if (first === null || first === undefined) return false;
+  const from = parFrom(state, L, c.key), cm = c.by === 'me' ? clickIn(H, from, first) : 0, parts = parOf(state, T, H).parts;
+  return first - from - cm <= PAR_MS[std] + sum(parts.map(p => p.ms));
 }
 /** The verdict in the instructor's words: "GO." or "NO-GO: the hostage." (HOUSE_CHIEF.verdict), or null before the lane's end. */
 export function verdictWords(state, v = houseVerdict(state)) {
@@ -1992,10 +2141,10 @@ function legView(state, H, L, k, now) {
     k, word: LEG_WORD[k] ?? `LEG ${k + 1}`, room: L.room, door: L.door, state: L.state, setup: !!L.setup, ms: legMs(L) ?? (L.fromMs !== null && L.state !== 'ahead' || k === H.cur ? now - (L.fromMs ?? now) : null),
     doorToClearMs: L.openAtMs !== null && L.clearAtMs !== null ? L.clearAtMs - L.openAtMs : null,
     takeIns, firsts, par: threats.length ? (threats.every(c => c.parMet === true) ? 'met' : threats.some(c => c.parMet === false) ? 'missed' : 'open') : null,
-    parMissed: threats.filter(c => c.parMet === false).length, parMissedMine: threats.filter(c => c.parMet === false && ownerOf(state, { slot: slotOfStand(c.stand), room: L.room }) === 1).length,
+    parMissed: threats.filter(c => c.parMet === false).length, parMissedMine: threats.filter(c => c.parMet === false && ownerOf(state, turnerAt(state, c.stand)) === 1).length,
     // (the card: the room's par (legParOf), the pars met within the instructor's click (its longest, ms), and your missed pars by cause)
     parMs: legParOf(state, H, L), clickMs: Math.max(0, ...threats.filter(c => c.parMet === true && c.click > 0).map(c => c.click)) || null,
-    causes: threats.filter(c => c.parMet === false && ownerOf(state, { slot: slotOfStand(c.stand), room: L.room }) === 1).reduce((o, c) => { const k = c.cause ?? 'par'; o[k] = (o[k] ?? 0) + 1; return o; }, {}),
+    causes: threats.filter(c => c.parMet === false && ownerOf(state, turnerAt(state, c.stand)) === 1).reduce((o, c) => { const k = c.cause ?? 'par'; o[k] = (o[k] ?? 0) + 1; return o; }, {}),
     zones: { ...L.zones }, twoZones: { ...L.twoZones }, rounds: L.rounds, corners: { covered, of: hot.length, by: { ...Object.fromEntries(Object.entries(L.covered).map(([h, c]) => [h, c.by])) } },
     doorwayMs: L.funnelMs, faults: L.faults.map(f => ({ ...f })), presses: L.presses, pressAbout: { ...L.pressAbout }, how: { ...L.how }, seen: new Set(L.contacts.map(c => c.key)).size,
     contacts: L.contacts.map(c => ({ ...c, ...(THREAT_FACES.includes(c.face) ? { parMs: parOf(state, rangeOf(state).turners.find(T => T.key === c.key), H).ms, ...parLeftOf(state, H, L, c, now) } : {}) })), inner: L.inner, kit: [...(L.kit ?? []), ...teamMarks(state, H, L)], bangMs: L.bangMs ?? null,
@@ -2064,6 +2213,7 @@ export function legWords(V, H, dummy = null) {
 export function runSheetOf(state, ms = state.clock.ms) {
   const R = rangeOf(state), H = R?.house;
   if (!H) return null;
+  BUILT.sheet++;
   // (v0.0.19: on the live lane a leg's clock stops at the lane's end, a casualty's leg its time to the cease fire, never to the wash's)
   const at = H.live && H.end ? Math.min(ms, H.end.atMs) : ms;
   const legs = legsOf(H), views = legs.map((L, k) => legView(state, H, L, k, at));
@@ -2078,7 +2228,7 @@ export function runSheetOf(state, ms = state.clock.ms) {
   // (v0.0.19, D2: the kit's spread, {} on a lane with nothing of it: the cease fire's head, the one thing where its fault weighs more)
   // (the play review: on the live lane the wound model's sentences (wouldLines) are the run sheet's own, so the end
   // card shows them under the plan view, where the hot wash stands down: the page said only "WOULD HAVE BEEN: WOUNDED, CHEST")
-  return { rows, card, one, spinLine: hashPick(HOUSE_CHIEF.spin, 'house-chief', state.meta.seed, 'spin'), practised: practisedOf(H, views), ...(team ? { team } : {}), verdict: { ...verdict, words: verdictWords(state, verdict) },
+  return { rows, card, one, spinLine: hashPick(HOUSE_CHIEF.spin, 'house-chief', state.meta.seed, 'spin'), practised: practisedOf(state, H, views), ...(team ? { team } : {}), verdict: { ...verdict, words: verdictWords(state, verdict) },
     ...(H.live ? { would: wouldLines(state, H) } : {}),
     ...kit2Marks(state, H, views, { card, one: one.key.startsWith('par:') ? { ...one, key: 'par' } : one }) };
 }
@@ -2105,7 +2255,7 @@ function cardOf(state, R, H, views, ms) {
   // (the card: the instructor's verdict leads the line once the lane is over, "GO" or "NO-GO: THE HOSTAGE" (houseVerdict);
   // where the line already leads with why it stopped (STOPPED, TIME, DRY, CASUALTY) that head is the NO-GO, said once)
   const v = houseVerdict(state), verdict = v.go === null ? null : v.go ? 'GO' : `NO-GO: ${String(VERDICT_WHY[v.why[0]] ?? v.why[0]).toUpperCase()}`;
-  return [head ? null : verdict, head, ...(H.live ? casualtyWords(state, R, H) : []), `LANE ${H.lane}`, label, `AT ${gWords(state)}`, `${rooms} ROOM${rooms === 1 ? '' : 'S'}`, laneMs !== null ? `${(laneMs / 1000).toFixed(1)} S` : null,
+  return [head ? null : verdict, head, ...(H.live ? casualtyWords(state, R, H) : []), H.draw ? 'NEW LAYOUT' : `LANE ${H.lane}`, label, `AT ${gWords(state)}`, `${rooms} ROOM${rooms === 1 ? '' : 'S'}`, laneMs !== null ? `${(laneMs / 1000).toFixed(1)} S` : null,
     Number.isFinite(laneMs) && Number.isFinite(v.laneParMs ?? H.laneParMs) ? `PAR ${((v.laneParMs ?? H.laneParMs) / 1000).toFixed(1)} S` : null,
     `${down} OF ${threats.length} THREATS`, nsHit ? `${nsHit} OF ${nsAll.length} NO-SHOOTS HIT` : `${nsAll.length} NO-SHOOTS UNTOUCHED`, ...(H.live ? liveCard(state, R, H) : []),
     firstOn.length ? `FIRED FIRST ON YOU: ${firstOn.join(', ')}` : null,
@@ -2184,10 +2334,23 @@ const dummyOver = (state, H) => (H.dummy.clearedAtMs ?? 0) - (H.dummy.clickAtMs 
 
 // (the live lane's strikes on the stack, short of the casualty or with it: yours and your number two's, by the legs' own count)
 const paintOf = (views) => sum(views.map(V => (V.live?.paint ?? 0) + (V.live?.paintTwo ?? 0)));
-// (what a career would count: the clean rooms (no fault called, and on the live lane no paint on the stack: v0.0.20's fixer, the play
-// review's "3 clean rooms" on a lane you were wounded in), toward practised at REPS_PRACTISED; a test sheet's never moves)
-function practisedOf(H, views) {
-  const clean = views.filter(V => V.door !== 'hall' && V.state === 'clear' && !V.faults.length && !paintOf([V])).length;
+/**
+ * Whether a leg was a clean repetition (COMBAT §25.3.2; the build sheet v0.0.21 §1 item 24): a room (never the hall) cleared with no
+ * fault called (a doorway over FUNNEL_FAULT_MS, a hot zone not looked at, the muzzle over a teammate, a no-shoot hit, a threat left
+ * standing: each the leg's fault) and, on the live lane, no paint on the stack (v0.0.20's fixer, the play review's "3 clean rooms"
+ * on a lane you were wounded in). The one judge: the paper's "clean rooms" (practisedOf) and the career's count (skills/drills.js
+ * drillRep's clean) read it. leg: the leg's index on the lane, or the leg itself.
+ */
+export function cleanRoomOf(state, leg) {
+  const H = houseOf(state), legs = legsOf(H), L = typeof leg === 'number' ? legs[leg] ?? null : leg;
+  if (!L || L.door === 'hall' || L.state !== 'clear' || (L.faults ?? []).length) return false;
+  // (v0.0.21's integration: v0.0.20's paint rule, read from the leg's live men as the paper reads them)
+  const V = H.live ? liveLegOf(state, H, legs.indexOf(L)) : null;
+  return !((V?.paint ?? 0) + (V?.paintTwo ?? 0));
+}
+// (what a career would count: the clean rooms (cleanRoomOf), toward practised at REPS_PRACTISED; a test sheet's never moves)
+function practisedOf(state, H, views) {
+  const clean = legsOf(H).filter(L => cleanRoomOf(state, L)).length;
   return { clean, rooms: views.filter(V => V.door !== 'hall').length, words: `${clean} clean room${clean === 1 ? '' : 's'}: a career would count ${clean === 1 ? 'it' : 'them'} toward practised. A test sheet's never move.` };
 }
 
@@ -2248,16 +2411,19 @@ export function houseNow(state, ms = state.clock.ms) {
   const at = H.live && H.end ? Math.min(ms, H.end.atMs) : ms;
   const views = legsOf(H).map((L, k) => legView(state, H, L, k, at));
   const two = state.people?.[H.twoPid], faults = views.flatMap(V => V.faults);
-  const sheet = runSheetOf(state, ms);
+  // (the run sheet built on its first read only (summary, sheet, verdict), never by a bot's or the sim's read of the
+  // view: it was a quarter of a lane's CPU; a getter is enumerable, so JSON and the debug handle still see it)
+  let sheet0 = null;
+  const sheetOnce = () => (sheet0 ??= runSheetOf(state, ms));
   return {
-    tier: H.tier, label: TEST_SHEETS[H.tier]?.label ?? H.tier, lane: H.lane, cmd: R.cmd?.id ?? null, cmdAtMs: R.cmd?.atMs ?? null, hot: R.hot, goAtMs: H.goAtMs,
+    tier: H.tier, label: TEST_SHEETS[H.tier]?.label ?? H.tier, lane: H.draw ? null : H.lane, cmd: R.cmd?.id ?? null, cmdAtMs: R.cmd?.atMs ?? null, hot: R.hot, goAtMs: H.goAtMs,
     timerMs: H.goAtMs === null ? null : (H.end?.atMs ?? ms) - H.goAtMs, par: H.par, parMs: parOf(state, null, H).ms, cur: H.cur, curRoom: curLeg(H)?.room ?? null,
     rooms: views.slice(0, 3), hall: views[3], legs: views,
     two: { pid: H.twoPid, name: two ? `${two.service?.rank ?? ''} ${two.name?.family ?? ''}`.trim() : null, rank: two?.service?.rank ?? null, rung: H.two.rung, fired: H.two.fired, hits: H.two.hits },
     dummy: { ...H.dummy }, contacts: views.flatMap(V => V.contacts), faults, presses: sum(views.map(V => V.presses)),
-    aspects: aspectsOf(state, H, views), summary: sheet.card, sheet, end: H.end, rangeEnd: R.end, standby: H.standby ? { ...H.standby } : null, wash: H.wash,
+    aspects: aspectsOf(state, H, views), get summary() { return sheetOnce().card; }, get sheet() { return sheetOnce(); }, end: H.end, rangeEnd: R.end, standby: H.standby ? { ...H.standby } : null, wash: H.wash,
     // (the card: the verdict and the lane's par)
-    verdict: sheet.verdict, laneParMs: H.laneParMs ?? null,
+    get verdict() { return sheetOnce().verdict; }, laneParMs: H.laneParMs ?? null,
     turners: R.turners.map(T => ({ key: T.key, stand: T.stand, room: T.room, slot: T.slot, owner: ownerOf(state, T), face: T.face, x: T.x, z: T.z, facingK: q(facingOf(T, ms), 0.001), down: T.stoppedAtMs !== null, turned: T.turnAtMs !== null && T.turnAtMs <= ms,
       // (v0.0.19: a role-player's: live, the instructor's ruling (out) and whether he is covered, as the stack sees it)
       ...(isLive(T) ? { live: true, out: accountedOf(state, T, ms) === 'out', covered: ['down', 'hands'].includes(accountedOf(state, T, ms)) } : {}) })),
@@ -2270,7 +2436,7 @@ export function houseRangeNow(state, R, ms = state.clock.ms) {
   const N = houseNow(state, ms), threats = N.turners.filter(T => THREAT_FACES.includes(T.face));
   return {
     course: R.course, lane: null, phase: R.phase, string: 0, cmd: R.cmd?.id ?? null, cmdI: R.cmd?.i ?? null, cmdAtMs: R.cmd?.atMs ?? null, hot: R.hot,
-    observerId: R.coachId, roId: R.roId, paper: 'man', line: null, strings: [], end: R.end, house: N, summary: N.summary,
+    observerId: R.coachId, roId: R.roId, paper: 'man', line: null, strings: [], end: R.end, house: N, get summary() { return N.summary; },   // (lazy, as houseNow's)
     score: { shots: N.aspects.shots.rounds, hits: sum(Object.entries(N.aspects.shots.zones).filter(([z]) => z !== 'miss').map(([, n]) => n)), down: threats.filter(T => T.down).length, of: threats.length,
       faults: R.faults.length, clearAtMs: R.end?.phase === 'clear' ? R.end.atMs : null },
     dry: !!R.dry,
@@ -2280,12 +2446,19 @@ export function houseRangeNow(state, R, ms = state.clock.ms) {
 /** What "Again as …" starts: the same seed, another sheet, the par the picker set (else the sheet's own). */
 export const againAsHouse = (state, tier) => ({ scenario: 'test-shoothouse', seed: state.meta.seed, tier: tierOf(tier), par: houseOf(state)?.parSet ?? null, ...(houseOf(state)?.loadout ? { loadout: houseOf(state).loadout } : {}), ...(houseOf(state)?.opfor ? { opfor: houseOf(state).opfor } : {}) });
 
+/**
+ * The lane in words (the review of A: the goal box said "Lane A" over a drawn house): 'Lane A' on the house as set (its
+ * record's lane), 'A new layout' on a drawn house, whose lane record stays 'A' as room.js's cache key; the run sheet's card says it
+ * in capitals.
+ */
+export const laneNameOf = (state) => (houseOf(state)?.draw ? 'A new layout' : `Lane ${houseOf(state)?.lane ?? 'A'}`);
+
 /** The goal line with your number two named: COMBAT §25.10.4's. */
 export function houseGoal(state) {
   const H = houseOf(state), two = state.people?.[H?.twoPid];
   const who = two ? `${RANK_WORD[two.service?.rank] ?? two.service?.rank ?? ''} ${two.name?.family ?? ''}`.trim() : 'your number two';
   // (short enough for the goal box's two lines at 1600 × 900, the rule that matters most last but whole (the fixer's of 0.0.12))
-  return `Lane A at 1 G, ${who} your number two. On GO: three rooms and the hall. Threats down, no-shoots untouched.`;
+  return `${laneNameOf(state)} at 1 G, ${who} your number two. On GO: three rooms and the hall. Threats down, no-shoots untouched.`;
 }
 const RANK_WORD = Object.freeze({ Pvt: 'Private', PFC: 'Private First Class', LCpl: 'Lance Corporal', Cpl: 'Corporal', Sgt: 'Sergeant', SSgt: 'Staff Sergeant' });
 
@@ -2311,6 +2484,8 @@ export function houseLook(state, ms = state.clock.ms) {
     instructor: c ? { x: c.x, z: c.z, y: c.y ?? 0, face: c.face ?? 'down', say: said, name: staffName(state, H.chiefPid) } : null, corners, stands,
     timer: { runMs: H.goAtMs === null ? null : (H.end?.atMs ?? ms) - H.goAtMs, parMs: H.parMs, par: H.par }, leaves: leavesLook(state, H, L, P, ms),
     aid: cornerAidLook(state, H, ms), marks: marksLook(state, H, ms),
+    // (the house's spec for the stage's build, render/range.js buildHouse: HOUSE1 as set, through scenes/assemble.js)
+    spec: houseSpecOf(state),
   };
 }
 /**
@@ -2378,7 +2553,7 @@ export function leavesLook(state, H, L = curLeg(H), P = L ? planOf(state, L) : n
   const me = actorOf(state, playerId(state)), out = [];
   if (!me || H?.end) return out;
   const inner = P && pastThreshold(P, me.x, me.z) ? P.inner ?? [] : [];
-  for (const A of arcsOf(WHEEL_S4.id)) {
+  for (const A of arcsOf(houseSpecOf(state).area)) {
     const k = leafAt(state, A.door, ms), moving = k > 0 && k < 1 || (openingState(state, A.door) === 'open' && k < 1);
     const shut = openingState(state, A.door) !== 'open';
     const ours = (P?.door === A.door && shut) || (inner.includes(A.door) && shut);
@@ -2388,3 +2563,8 @@ export function leavesLook(state, H, L = curLeg(H), P = L ? planOf(state, L) : n
   }
   return out;
 }
+
+// v0.0.21 (the build sheet v0.0.21 §0 item 31): the lane's functions your number two's brain calls (src/sim/combat/two.js), given it
+// through op.js's host on the house course, so no file of combat/ imports this scenario. At the module's end: every name here is
+// defined by now (two.js reads none at its top level).
+registerHost('house', { houseOf, planOf, noteSighting, houseShot, chiefSays, sayOn, pistolLacks, houseFault });

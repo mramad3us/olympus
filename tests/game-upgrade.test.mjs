@@ -84,6 +84,11 @@
 // ledger with the rule 'count' (the upgrade 'arms:house-would': its strikes have no margin or range saved to rate them by), nothing
 // else written; it ends 'casualty' at v0.0.19's tick (21.05 s, on the pair's second round, two torso) where v0.0.20's rule would
 // have rated both wounds, its card v0.0.19's words; a save made after carries on byte for byte.
+// 0.0.21 (the build sheet v0.0.21 §1 item 25, §0 item 17; perf lens P10): a house save from before v0.0.20's pars (v0.0.12 to
+// v0.0.19, and v0.0.20's Stop save played on from a v0.0.17 one) gains them on load (shoothouse.js upgradeHousePars, the arms
+// domain's 'arms:house-pars'): the cases above compare a save less those keys (lessPars) and print what was written. The par
+// case: the v0.0.19 corporal mid-room 3 loaded, its pars those a fresh fill of the same sheet, seed and setup writes, and not one
+// room's par planned after the load (PAR_PLANS) over 100 ticks of reads (the timer, houseNow, the paper, the verdict) by the bot.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -98,7 +103,7 @@ import { feltOf, inocOf, hardOf, blockOf, suppAt } from '../src/sim/combat/supp.
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { pairsBot } from './bots/pairs.mjs';
 import { houseTBot, houseKeysBot, houseHonestBot, runHouse, stoppageBot } from './bots/house.mjs';
-import { runSheetOf } from '../src/sim/scenarios/shoothouse.js';
+import { runSheetOf, houseNow, houseVerdict, PAR_PLANS } from '../src/sim/scenarios/shoothouse.js';
 import { houseKitBot } from './bots/kit.mjs';
 import { houseOwnerBot } from './bots/team.mjs';
 import { handDeviceOf } from '../src/sim/arms/devices.js';
@@ -106,8 +111,30 @@ import { checkIds } from './ids-check.mjs';
 import { conditionOf, gunField } from '../src/sim/arms/firearms.js';
 import { marsClock } from '../src/core/calendar.js';
 import { SITES } from '../src/data/setting/calendar.js';
+import { houseBot } from './bots/house.mjs';
+import { resetCaches as resetHouses } from '../src/sim/scenes/assemble.js';
+import { areaOf, resetCaches as resetRegistry } from '../src/sim/places/model.js';
 
 const LON = SITES.melas.lonEDeg, MIN_TICKS = 20 * 60;
+// (v0.0.21, the build sheet §1 item 25, §0 item 17: a house save from before v0.0.20's pars gains them on load, the stands' books,
+// each leg's par, the lane's and the immediate action's book (shoothouse.js upgradeHousePars), so nothing plans a par on a read; a
+// save's bytes are then compared less what that upgrade wrote where the old save lacked it, and what it wrote is printed)
+const PAR_HOUSE = Object.freeze(['books', 'laneParMs', 'iaBookMs']);
+function lessPars(o, old) {
+  const H = o?.armoury?.range?.house, H0 = old?.armoury?.range?.house;
+  if (!H || !H0) return o;
+  for (const k of PAR_HOUSE) if (!(k in H0)) delete H[k];
+  for (const [L, L0] of [...(H.rooms ?? []).map((L, i) => [L, H0.rooms?.[i]]), [H.hall, H0.hall]]) if (L && L0 && !('parMs' in L0)) delete L.parMs;
+  return o;
+}
+/** A save's text less the pars written on load (see lessPars), as the old save's own form: equal to the old text where nothing else was written. */
+const sansPars = (text, oldText) => JSON.stringify(lessPars(JSON.parse(text), JSON.parse(oldText)));
+/** What the pars' upgrade wrote on a loaded state, in words: "pars written: 22000, 30500, 32500, 14500 (lane 99500), books 7, IA 1566". */
+function parsWords(s, old) {
+  const H = s.armoury.range.house, H0 = old.armoury.range.house;
+  if (H0.laneParMs !== undefined && H0.books) return 'the pars as saved';
+  return `pars written on load: ${[...H.rooms, H.hall].map(L => L.parMs).join(', ')} (lane ${H.laneParMs}), books ${Object.keys(H.books ?? {}).length}, IA ${H.iaBookMs ?? '-'}`;
+}
 const SAVES = Object.freeze(['v0.0.3-barracks-2130', 'v0.0.3-barracks-midwait']);
 const read = (name) => gunzipSync(readFileSync(path.join(root, 'tests', 'saves', `${name}.json.gz`))).toString('utf8');
 const hm = (ms) => { const c = marsClock(ms, LON); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / 60_000)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}:${String(c.second).padStart(2, '0')}`; };
@@ -319,7 +346,7 @@ export default [
     },
   },
   {
-    name: 'a v0.0.13 save loads (the shoot house\'s rework R1, 2026-11-12: the tier one by T at a contact\'s pause in room 2), its withdrawn rows mapped (R4, COMBAT §25.19.2.2: the lane\'s "Clear the house" carried on as room 2\'s "Clear the room", the #2\'s "Enter" as "In: your corner"), nothing else written: it saves again byte for byte but for the mapping, plays 600 ticks by the T bot with no error, and a save after carries on byte for byte',
+    name: 'a v0.0.13 save loads (the shoot house\'s rework R1, 2026-11-12: the tier one by T at a contact\'s pause in room 2), its withdrawn rows mapped (R4, COMBAT §25.19.2.2: the lane\'s "Clear the house" carried on as room 2\'s "Clear the room", the #2\'s "Enter" as "In: your corner"), nothing else written: it saves again byte for byte but for the mapping (and v0.0.21\'s pars written on load), plays 600 ticks by the T bot with no error, and a save after carries on byte for byte',
     timeoutMs: 120_000,
     fn() {
       const name = 'v0.0.13-house-pause', json = read(name), old = JSON.parse(json);
@@ -337,7 +364,8 @@ export default [
       Object.assign(mapped.people[s.player.id].kit.worn, { holster: P, thigh: k.worn.thigh }); mapped.armoury.range.house.pistol = P; mapped.meta.next = JSON.parse(JSON.stringify(s.meta.next));
       const norm = (o) => JSON.stringify(o, (key, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v));
       console.log(`      the P-12 issued on load: ${mine.join(', ')}, Condition ${conditionOf(s.items[P])} (the save at ${old.armoury.range.cmd?.id})`);
-      const again = norm(JSON.parse(g.save())) === norm(mapped) ? json : null;
+      const again = norm(lessPars(JSON.parse(g.save()), old)) === norm(mapped) ? json : null;
+      console.log(`      ${parsWords(s, old)}`);
       const gun = s.items[s.people[s.player.id].kit.worn.sling], belief = JSON.stringify(gun.belief);
       g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
       const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, houseTBot());
@@ -346,7 +374,7 @@ export default [
     },
   },
   {
-    name: 'a v0.0.15 save loads (the private by the keys at a contact\'s pause in room 2, made with no sidearm: the house issued it from the Sergeant up) and gains its P-12 (the user, 2026-11-15: "everyone should have the same loadout"): in the holster in Condition 1 on safe as MAKE READY leaves it, its spare in the thigh\'s pouch, its ids new and every item held once, nothing else written; saved and loaded again the same bytes, 600 ticks by the keys with no error, a save after carried on byte for byte',
+    name: 'a v0.0.15 save loads (the private by the keys at a contact\'s pause in room 2, made with no sidearm: the house issued it from the Sergeant up) and gains its P-12 (the user, 2026-11-15: "everyone should have the same loadout"): in the holster in Condition 1 on safe as MAKE READY leaves it, its spare in the thigh\'s pouch, its ids new and every item held once, nothing else written (but v0.0.21\'s pars on load); saved and loaded again the same bytes, 600 ticks by the keys with no error, a save after carried on byte for byte',
     timeoutMs: 120_000,
     fn() {
       const name = 'v0.0.15-house-private', json = read(name), old = JSON.parse(json), pid = old.player.id;
@@ -359,7 +387,7 @@ export default [
       assert(k.worn.holster === P && gun.model === 'p12' && conditionOf(gun) === 1 && gunField(gun, 'mode') === 'safe' && gun.belief?.chamber === 'live' && spare?.n === 10 && pouch.model === 'pouch-p12', JSON.stringify({ worn: k.worn, gun }));
       assert(Math.min(...mine.map(num)) > Math.max(...before) && !ids.invalid.length && !ids.dangling.length, JSON.stringify({ mine, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3) }));
       // (nothing else written: the save less the P-12's items, its two kit slots, the house's record of it and the id counter is the old one)
-      const now = JSON.parse(g.save()), strip = (o) => { const c = JSON.parse(JSON.stringify(o)); for (const id of mine) delete c.items[id]; delete c.people[pid].kit.worn.holster; delete c.people[pid].kit.worn.thigh; delete c.armoury.range.house.pistol; c.meta.next = null; c.meta.schema = null; return c; };
+      const now = JSON.parse(g.save()), strip = (o) => { const c = JSON.parse(JSON.stringify(o)); for (const id of mine) delete c.items[id]; delete c.people[pid].kit.worn.holster; delete c.people[pid].kit.worn.thigh; delete c.armoury.range.house.pistol; c.meta.next = null; c.meta.schema = null; return lessPars(c, old); };
       const norm = (o) => JSON.stringify(o, (key, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v));
       const only = norm(strip(now)) === norm(strip(old));
       const twice = createGame({ scenario: old.meta.scenario, seed: 48213 }); twice.load(g.save());
@@ -367,7 +395,7 @@ export default [
       const b = houseKeysBot();
       g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
       const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, houseKeysBot());
-      console.log(`      nothing else written: ${only}; saved and loaded again ${same ? 'byte for byte' : 'DIFFERENT'}; 600 ticks by the keys, ${g.errors.length} errors, now leg ${g.state.armoury.range.house.cur}; carried on from the save after ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
+      console.log(`      ${parsWords(s, old)}; nothing else written: ${only}; saved and loaded again ${same ? 'byte for byte' : 'DIFFERENT'}; 600 ticks by the keys, ${g.errors.length} errors, now leg ${g.state.armoury.range.house.cur}; carried on from the save after ${h.save() === end ? 'byte for byte' : 'DIFFERENT'}`);
       assert(only && same && !g.errors.length && !h.errors.length && h.save() === end, JSON.stringify({ only, same, errors: g.errors.slice(0, 2) }));
       // (and the lane to its card from there, the P-12 holstered at it, cleared by SHOW CLEAR as the pistol last)
       const run = runHouse(g, b, { maxMs: 10 * 60_000 }), G = g.state.items[P];
@@ -397,7 +425,7 @@ export default [
     },
   },
   {
-    name: 'a v0.0.17 save loads with nothing written (the build sheet 0.0.18 §3.2: the shoot house with the P-12 drawn and the rifle hanging on its click, and a test-pairs standby): it saves again byte for byte at once, plays 600 ticks with no error, a save made after carries on byte for byte, and the house lane reaches its card with the P-12 holstered',
+    name: 'a v0.0.17 save loads with nothing written (the build sheet 0.0.18 §3.2: the shoot house with the P-12 drawn and the rifle hanging on its click, and a test-pairs standby; but the house\'s pars on load, v0.0.21): it saves again byte for byte at once, plays 600 ticks with no error, a save made after carries on byte for byte, and the house lane reaches its card with the P-12 holstered',
     timeoutMs: 180_000,
     fn() {
       for (const name of ['v0.0.17-house-pistol', 'v0.0.17-pairs-standby']) {
@@ -405,7 +433,7 @@ export default [
         assert(old.meta.version === '0.0.17' && old.meta.scenario === (house ? 'test-shoothouse' : 'test-pairs'), `${name}: ${old.meta.version} ${old.meta.scenario}`);
         // (each by the bot that made it, whose memory is saved on the actor: the house's the honest T bot answering its card with Transition)
         const bot = () => (house ? stoppageBot({ answer: 'transition' }) : pairsBot());
-        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), again = g.save(), pid = s.player.id, b = bot();
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), saved = g.save(), again = house ? (sansPars(saved, json) === JSON.stringify(old) ? json : saved) : saved, pid = s.player.id, b = bot();
         const k = s.people[pid].kit, P = s.armoury.range.house?.pistol ?? null, rifle = s.items[k.worn.sling];
         const where = house ? `the ${s.armoury.range.house.tier} in leg ${s.armoury.range.house.cur} at a ${s.stop?.via} pause, the P-12 ${k.hands?.[0] === P ? 'in the hand' : 'NOT in the hand'}, the rifle believed ${JSON.stringify(rifle.belief)}` : `the ${s.armoury.range.sheet} at a ${s.stop?.via ?? 'no'} pause, cmd ${s.armoury.range.cmd?.id}`;
         if (house) assert(k.hands?.[0] === P && s.stop?.gun === P && rifle.belief?.stoppage === 'click', JSON.stringify({ hands: k.hands, gun: s.stop?.gun, belief: rifle.belief }));
@@ -419,13 +447,13 @@ export default [
           card = `; on to the card ${run.done ? 'reached' : 'NOT reached'} in ${fmt(run.ms / 1000, 1)} s more, the P-12 ${g.state.people[pid].kit.worn.holster === P ? 'holstered' : 'not holstered'}`;
           assert(run.done && g.state.people[pid].kit.worn.holster === P, JSON.stringify({ done: run.done }));
         }
-        console.log(`      ${name}: ${where}, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}${card}`);
+        console.log(`      ${name}: ${where}, ${json.length} bytes; ${house ? `${parsWords(s, old)}; ` : ''}saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}${card}`);
         assert(again === json && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: again === json, errors: g.errors.slice(0, 3), carried }));
       }
     },
   },
   {
-    name: 'a v0.0.18 save loads with nothing written (the build sheet 0.0.19 §2 step 7: the flash lane with a G-11 armed in the hand on room 1\'s stack, and a standard lane mid-room 2 with the #2 on his own stoppage): it saves again byte for byte at once with its ids whole, plays 600 ticks with no error, a save made after carries on byte for byte, and the lane reaches its card',
+    name: 'a v0.0.18 save loads with nothing written (the build sheet 0.0.19 §2 step 7: the flash lane with a G-11 armed in the hand on room 1\'s stack, and a standard lane mid-room 2 with the #2 on his own stoppage; but the pars on load, v0.0.21): it saves again byte for byte at once with its ids whole, plays 600 ticks with no error, a save made after carries on byte for byte, and the lane reaches its card',
     timeoutMs: 180_000,
     fn() {
       // (each by the bot that made it, whose memory is saved on the actor)
@@ -433,8 +461,8 @@ export default [
       for (const [name, bot] of Object.entries(BOTS)) {
         const json = read(name), old = JSON.parse(json), H0 = old.armoury.range.house, pid = old.player.id;
         assert(old.meta.version === '0.0.18' && old.meta.scenario === 'test-shoothouse', `${name}: ${old.meta.version} ${old.meta.scenario}`);
-        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), again = g.save(), H = s.armoury.range.house, b = bot();
-        const ids = checkIds(JSON.parse(again), g.sim.domains), dev = handDeviceOf(s, pid);
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), saved = g.save(), again = sansPars(saved, json) === JSON.stringify(old) ? json : saved, H = s.armoury.range.house, b = bot();
+        const ids = checkIds(JSON.parse(saved), g.sim.domains), dev = handDeviceOf(s, pid);
         const where = name.endsWith('flash')
           ? `the ${H.tier} on '${H.loadout}' in leg ${H.cur}, the ${dev?.model ?? 'no device'} ${dev?.st ?? ''} in hand ${dev?.hand ?? '-'}, stop ${s.stop?.mode ?? 'none'}`
           : `the ${H.tier} in leg ${H.cur} (${H.rooms[H.cur]?.state}), the #2 down (${H.two.down?.macro}, his sub-step ${H.two.doing?.i} ${H.two.doing?.list?.[H.two.doing?.i]})`;
@@ -443,13 +471,13 @@ export default [
         g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
         const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, bot());
         const carried = h.save() === end, run = runHouse(g, b, { maxMs: 10 * 60_000 });
-        console.log(`      ${name}: ${where}, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}; on to the card ${run.done ? 'reached' : 'NOT reached'} in ${fmt(run.ms / 1000, 1)} s more (${g.state.armoury.range.house.end?.why ?? 'no end'})`);
+        console.log(`      ${name}: ${where}, ${json.length} bytes; ${parsWords(s, old)}; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}; on to the card ${run.done ? 'reached' : 'NOT reached'} in ${fmt(run.ms / 1000, 1)} s more (${g.state.armoury.range.house.end?.why ?? 'no end'})`);
         assert(again === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried && run.done, JSON.stringify({ same: again === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 3), carried, done: run.done }));
       }
     },
   },
   {
-    name: 'a v0.0.19 save loads with nothing written (the build sheet 0.0.20 §3 step 4: the private between LOAD and MAKE READY, and the corporal mid-room 3 with the sides swapped and his #2 at his point): it saves again byte for byte at once with its ids whole, plays 600 ticks with no error, a save made after carries on byte for byte, and the lane reaches its card',
+    name: 'a v0.0.19 save loads with nothing written (the build sheet 0.0.20 §3 step 4: the private between LOAD and MAKE READY, and the corporal mid-room 3 with the sides swapped and his #2 at his point; but the pars on load, v0.0.21): it saves again byte for byte at once with its ids whole, plays 600 ticks with no error, a save made after carries on byte for byte, and the lane reaches its card',
     timeoutMs: 180_000,
     fn() {
       // (each by the bot that made it, whose memory is saved on the actor; neither carries the #2's P-12, made before v0.0.20's default)
@@ -458,8 +486,8 @@ export default [
       for (const [name, bot] of Object.entries(BOTS)) {
         const json = read(name), old = JSON.parse(json), R0 = old.armoury.range, H0 = R0.house;
         assert(old.meta.version === '0.0.19' && old.meta.scenario === 'test-shoothouse', `${name}: ${old.meta.version} ${old.meta.scenario}`);
-        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), again = g.save(), H = s.armoury.range.house, b = bot();
-        const ids = checkIds(JSON.parse(again), g.sim.domains), pid = s.player.id, rifle = s.items[s.people[pid].kit.worn.sling];
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), saved = g.save(), again = sansPars(saved, json) === JSON.stringify(old) ? json : saved, H = s.armoury.range.house, b = bot();
+        const ids = checkIds(JSON.parse(saved), g.sim.domains), pid = s.player.id, rifle = s.items[s.people[pid].kit.worn.sling];
         const where = name.endsWith('cold')
           ? `the ${H.tier} at the tower's ${s.armoury.range.cmd?.id}, the rifle a magazine ${rifle.mag ? 'in' : 'out'}, chamber ${gunField(rifle, 'chamber') ?? 'empty'}, ${gunField(rifle, 'mode')}; his P-12 ${H.two.pistol ?? 'none'}`
           : `the ${H.tier} in leg ${H.cur} (${H.rooms[2]?.state}), sides ${JSON.stringify(H.two.side ?? {})}; his P-12 ${H.two.pistol ?? 'none'}`;
@@ -468,13 +496,13 @@ export default [
         g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
         const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, bot());
         const carried = h.save() === end, run = runHouse(g, b, { maxMs: 12 * 60_000 });
-        console.log(`      ${name}: ${where}, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}; on to the card ${run.done ? 'reached' : 'NOT reached'} in ${fmt(run.ms / 1000, 1)} s more (${g.state.armoury.range.house.end?.why ?? 'no end'})`);
+        console.log(`      ${name}: ${where}, ${json.length} bytes; ${parsWords(s, old)}; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}; on to the card ${run.done ? 'reached' : 'NOT reached'} in ${fmt(run.ms / 1000, 1)} s more (${g.state.armoury.range.house.end?.why ?? 'no end'})`);
         assert(again === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried && run.done, JSON.stringify({ same: again === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 3), carried, done: run.done }));
       }
     },
   },
   {
-    name: 'a v0.0.19 save on the live lane between the role-player\'s two rounds (the sergeant on 48213, the honest bot) gains the would-have\'s ledger with the rule \'count\' and nothing else, finishes by v0.0.19\'s count (\'casualty\' at its own tick, 21.05 s, on the second round; v0.0.20\'s rule rates the two wounds), and a save made after carries on byte for byte',
+    name: 'a v0.0.19 save on the live lane between the role-player\'s two rounds (the sergeant on 48213, the honest bot) gains the would-have\'s ledger with the rule \'count\' and nothing else (but the pars on load, v0.0.21), finishes by v0.0.19\'s count (\'casualty\' at its own tick, 21.05 s, on the second round; v0.0.20\'s rule rates the two wounds), and a save made after carries on byte for byte',
     timeoutMs: 120_000,
     fn() {
       const json = read('v0.0.19-house-live'), old = JSON.parse(json), H0 = old.armoury.range.house;
@@ -482,7 +510,7 @@ export default [
       const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), again = JSON.parse(g.save()), H = s.armoury.range.house;
       // (the one thing written: the ledger; every other key of the save as it was)
       const W = again.armoury.range.house.live.would; delete again.armoury.range.house.live.would;
-      const only = JSON.stringify(again) === JSON.stringify(JSON.parse(json));
+      const only = JSON.stringify(lessPars(again, old)) === JSON.stringify(JSON.parse(json));
       const b = houseHonestBot();
       g.step(10, b); const mid = g.save(); g.step(10, b);
       const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(10, houseHonestBot());
@@ -491,6 +519,71 @@ export default [
       console.log(`      ${json.length} bytes; the ledger written ${JSON.stringify(W)}; the rest of the save as it was ${only}; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}; the lane ${H.end?.why} at ${fmt(endS, 2)} s, the casualty on ${K?.who === s.player.id ? 'you' : K?.who} at ${K ? fmt((K.atMs - H.goAtMs) / 1000, 2) : '-'} s; its strikes ${H.live.struck.length}, entries ${H.live.would.log.length} (rule ${H.live.would.rule}); the card: ${card.slice(0, 90)}`);
       assert(W && W.rule === 'count' && !W.log.length && only && carried, JSON.stringify({ W, only, carried }));
       assert(run.done && H.end?.why === 'casualty' && Math.abs(endS - 21.05) < 0.001 && K?.who === s.player.id && H.live.struck.length === 2 && /^CASUALTY · PAINT: 2 TORSO, ROOM 2, BY THE MAN IN THE DEEP CORNER/.test(card), JSON.stringify({ end: H.end, K, card }));
+    },
+  },
+  {
+    name: 'v0.0.21 (its build sheet §3 step 9): two saves made by v0.0.20\'s code load and carry on byte for byte: the private by the keys at a contact\'s pause in room 2 (the read scope and the op seam load over it), and the sergeant at the tower\'s Stop with the P-12 in the hand (B\'s house-pistol reads it; its recipe: v0.0.17\'s pistol save played by stoppageBot({ answer: \'transition\' }) with Rifle up refused, weapon:rifle-up never chosen, to the Stop\'s first pause)',
+    timeoutMs: 120_000,
+    fn() {
+      // (each by the bot that made it, whose memory is saved on the actor: the contact's by the keys bot, the Stop's by the stoppage
+      // bot, Rifle up no longer refused; the maker: .run/v021/lead-figures/scripts/make-saves.mjs, run on the snapshot's tree)
+      const BOTS = { 'v0.0.20-house-contact': () => houseKeysBot(), 'v0.0.20-house-stop': () => stoppageBot({ answer: 'transition' }) };
+      for (const [name, bot] of Object.entries(BOTS)) {
+        const json = read(name), old = JSON.parse(json), R0 = old.armoury.range, H0 = R0.house, S0 = old.stop, pid0 = old.player.id;
+        // (the Stop's is stamped 0.0.17, the save it was played on from: a load keeps its stamp; v0.0.20's code made the rest)
+        assert(old.meta.version === (name.endsWith('stop') ? '0.0.17' : '0.0.20') && old.meta.scenario === 'test-shoothouse', `${name}: ${old.meta.version} ${old.meta.scenario}`);
+        const T0 = S0?.pick ? R0.turners.find(t => t.key === S0.pick) : null, hands0 = old.people[pid0].kit.hands ?? [];
+        if (name.endsWith('contact')) assert(H0.cur === 1 && S0?.mode === 'stop' && S0.phase === 'choose' && S0.via === 'contact' && T0?.room === 'w4.r2', JSON.stringify({ cur: H0.cur, via: S0?.via, pick: S0?.pick }));
+        else assert(R0.cmd?.id === 'stop' && S0?.mode === 'stop' && S0.phase === 'choose' && hands0[0] === H0.pistol, JSON.stringify({ cmd: R0.cmd?.id, hands: hands0, pistol: H0.pistol }));
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), saved = g.save(), again = sansPars(saved, json) === JSON.stringify(old) ? json : saved, b = bot();
+        const ids = checkIds(JSON.parse(saved), g.sim.domains);
+        const where = name.endsWith('contact') ? `the ${H0.tier} in room 2 at a contact's pause on ${T0.stand} (${T0.face})` : `the ${H0.tier} at the tower's Stop, the P-12 (${H0.pistol}) in the hand`;
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, bot());
+        const carried = h.save() === end;
+        console.log(`      ${name}: ${where}, ${json.length} bytes; ${parsWords(s, old)}; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}; the lane ${s.armoury.range.house.end?.why ?? 'running'}`);
+        assert(again === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: again === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
+      }
+    },
+  },
+  {
+    name: 'v0.0.21 (its build sheet §1 item 25): a v0.0.19 save mid-lane gains its pars on load (the corporal mid-room 3: each room\'s, the lane\'s, the books and the immediate action\'s, planned once from the state as loaded, where v0.0.20 planned them on every read), and not one room\'s par is planned after the load\'s tick over 100 ticks of reads (houseNow, the paper, the verdict); fails with the pars computed on read (v0.0.20: four planBundles on every read)',
+    timeoutMs: 120_000,
+    fn() {
+      const json = read('v0.0.19-house-swap'), old = JSON.parse(json), H0 = old.armoury.range.house;
+      assert(old.meta.version === '0.0.19' && H0.laneParMs === undefined && H0.rooms.every(L => L.parMs === undefined), JSON.stringify({ v: old.meta.version, lane: H0.laneParMs }));
+      const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), n0 = PAR_PLANS.n, s = g.load(json), atLoad = PAR_PLANS.n - n0, H = s.armoury.range.house;
+      // (the fill's pars on the same sheet, seed and setup, printed beside: the load plans from the state as it stands, rooms 1 and 2's
+      // doors open and the stack inside room 3, as v0.0.20's read did, so a cleared room's par is its walk without the door; the immediate
+      // action's book is the rifle's, the fill's to the ms)
+      const f = createGame({ scenario: 'test-shoothouse', seed: old.meta.seed, tier: H0.tier, setup: 'room:3' }).state.armoury.range.house;
+      const legs = [...H.rooms, H.hall].map(L => L.parMs), fill = [...f.rooms, f.hall].map(L => L.parMs);
+      const b = houseOwnerBot(), n1 = PAR_PLANS.n;
+      let reads = 0;
+      for (let i = 0; i < 100; i++) { g.step(1, b); const N = houseNow(g.state); void N.timerMs; void N.legs.map(V => V.parMs); runSheetOf(g.state); houseVerdict(g.state); reads++; }
+      const after = PAR_PLANS.n - n1;
+      console.log(`      the ${H0.tier} on ${old.meta.seed} in leg ${H0.cur}: on load ${atLoad} rooms planned; the pars ${legs.join(', ')} (lane ${H.laneParMs}), the fill's ${fill.join(', ')} (lane ${f.laneParMs}); books ${Object.keys(H.books ?? {}).length} (the fill's ${Object.keys(f.books).length}), IA ${H.iaBookMs} (the fill's ${f.iaBookMs}); ${reads} ticks of reads after: ${after} rooms planned`);
+      assert(legs.every(Number.isFinite) && H.laneParMs === legs.reduce((a, b) => a + b, 0) && Object.keys(H.books ?? {}).length === s.armoury.range.turners.length && H.iaBookMs === f.iaBookMs, JSON.stringify({ legs, fill, lane: H.laneParMs, fillLane: f.laneParMs }));
+      assert(atLoad === 4 && after === 0 && !g.errors.length, JSON.stringify({ atLoad, after, errors: g.errors.slice(0, 2) }));
+    },
+  },
+  {
+    name: 'v0.0.21 (its build sheet §1 item 18): a drawn house\'s save made by v0.0.21\'s own code (the sergeant by T on the house drawn from 1489397426, at his first contact\'s pause in room 2) loads into an empty registry, its area rebuilt from places.live.gen (\'places:gen\'), saves again byte for byte with every id valid, and 300 + 300 ticks by its bot carry on byte for byte from a save at 300',
+    timeoutMs: 120_000,
+    fn() {
+      // (the maker: .run/v021/integ/make-drawn-save.mjs, run on v0.0.21's integrated tree; houseBot({ mode: 'T' }) keeps its memory on the actor)
+      const json = read('v0.0.21-house-drawn'), old = JSON.parse(json), H0 = old.armoury.range.house, S0 = old.stop, area = old.places.live.area;
+      assert(old.meta.version === '0.0.21' && old.meta.scenario === 'test-shoothouse', `${old.meta.version} ${old.meta.scenario}`);
+      assert(H0.draw?.mode === 'drawn' && /~/.test(area) && old.places.live.gen?.code && H0.cur === 1 && S0?.mode === 'stop' && S0.phase === 'choose' && S0.via === 'contact', JSON.stringify({ draw: H0.draw, area, cur: H0.cur, via: S0?.via }));
+      resetHouses(); resetRegistry();
+      const empty = !areaOf(area);
+      const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), saved = g.save(), found = !!areaOf(s.places.live.area);
+      const ids = checkIds(JSON.parse(saved), g.sim.domains), b = houseBot({ mode: 'T' });
+      g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+      const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, houseBot({ mode: 'T' }));
+      const carried = h.save() === end;
+      console.log(`      ${H0.draw.code} (${area}): the ${H0.tier} at a contact's pause on ${S0.pick}, ${json.length} bytes; the registry empty before the load ${empty}, the area found after ${found}; saved again at once ${saved === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}; the lane ${s.armoury.range.house.end?.why ?? 'running'}`);
+      assert(empty && found && saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ empty, found, same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
     },
   },
 ];

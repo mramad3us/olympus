@@ -21,6 +21,9 @@ export function near(actual, expected, tol, msg = '') {
 
 export const fmt = (n, d = 1) => Number(n).toFixed(d);
 
+/** The sim's tick budget (ms; CLAUDE.md's rule of the code, "the sim stays under 2 ms a tick in the busiest area"): one place from v0.0.21 (was house-live-perf's), read by tick-costs.mjs and F60 (flawless-perf.mjs). */
+export const TICK_BUDGET_MS = 2;
+
 // ---- the machine's speed (0.0.3) ----
 // A CPU-time ceiling (CONTRACTS §7's budgets, an A* bench's p95) is the game's on the user's Mac in a
 // foreground browser. On macOS a test run from a terminal that sits behind another app (a game in
@@ -45,3 +48,13 @@ export function machine() {
 }
 /** machine().k: a CPU-time ceiling's factor here. */
 export const machineK = () => machine().k;
+/**
+ * The machine's factor measured now, not once (v0.0.21, the busiest tick's test: tests/tick-costs.mjs): a shared machine grows
+ * slower and faster while a suite runs, so a timing held to a ceiling × k reads k just before and just after its own work; at
+ * least machineK(), the process's first measure. { k, ms }.
+ */
+export function machineNow() {
+  let best = Infinity;
+  for (let r = 0; r < 3; r++) { const t = performance.now(); refLoop(); best = Math.min(best, performance.now() - t); }
+  return { k: Math.max(machineK(), best / REF_LOOP_MS), ms: best };
+}

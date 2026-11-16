@@ -166,6 +166,22 @@ export const COURSES = deepFreeze({
       two: [['ft2-tl', 40], ['ft2-ar', 30], ['ft2-aar', 30]],
       faces: { '1b': [['threat', 50], ['noshoot', 50]], '3a': [['threat', 50], ['noshoot', 50]] },
       threatHolds: [['rifle', 70], ['pistol', 30]], noshootHolds: [['hands', 60], ['phone', 40]],
+      // (the drawn house (the build sheet v0.0.21 §1 items 2 to 4; house lens H4 to H6; src/sim/scenes/assemble.js): each
+      // lane door's swing (push or pull, 50/50: the hinge never drawn, always downrange) and state (closed 60, open 25, locked 15; a
+      // pull never locked: the weights without it), and each stand's role by its chunk (src/data/chunks/x4.js stands): its faces'
+      // weights, its set face (layout A's, the cast a drawn lane falls back to), its door gap where it turns on its door (A's 2a's
+      // and 3a's). The roles travel with their rooms: the corner's armoured man and the ell's hostage go where their rooms go, and
+      // the hostage may stand in either (at most one a lane); the lens's 'unknown' face and empty stand wait for rules that score
+      // them (my call))
+      doors: { swing: { push: 50, pull: 50 }, state: { closed: 60, open: 25, locked: 15 } },
+      cast: {
+        'centre-a': { faces: [['threat', 75], ['noshoot', 25]], set: 'threat' },
+        'centre-b': { faces: [['threat', 50], ['noshoot', 50]], set: 'noshoot' },
+        'corner-a': { faces: [['armoured', 40], ['threat', 30], ['hostage', 30]], set: 'armoured', gapMs: [300, 1200] },
+        'corner-b': { faces: [['noshoot', 100]], set: 'noshoot' },
+        'ell-a': { faces: [['threat', 50], ['noshoot', 50]], set: 'threat', gapMs: [500, 1500] },
+        'ell-b': { faces: [['hostage', 40], ['threat', 30], ['armoured', 30]], set: 'hostage' },
+      },
     },
     gaps: { door: { 'w4.r2': [300, 1200], 'w4.r3': [500, 1500] }, doorOther: [300, 1200], zone: [1500, 3000] },
     funnelM: 0.5, funnelFaultMs: 1000, twoSlotM: 1.5, twoWaitMs: 3000, twoBehindM: 0.65, stackM: 0.4,
@@ -432,6 +448,22 @@ export const SEQ_HOUSE = deepFreeze([
   { id: 'wash', ready: 'washed', say: ['The lane is clear. Hot wash, in the booth.', 'The lane is clear. Into the booth: hot wash.'] },
   { id: 'end', ready: 'never', say: ["That's your lane.", 'Done. Off the floor.'] },
 ]);
+/**
+ * The house course's sequence on a drawn house (the review of A: "Lane A" named a layout the lane did not play): SEQ_HOUSE
+ * command for command, the brief's and the standby's words without the lane's letter (handling.js seqOf reads it where the house
+ * record carries a draw); every other command the same object.
+ */
+export const SEQ_HOUSE_DRAWN = deepFreeze(SEQ_HOUSE.map(c => (c.id === 'brief' ? { ...c, say: ['A new layout. Three rooms and the hall, you and your number two. Full G in the Wheel: your kit weighs what it weighs on Earth. On my GO you stack and clear. Threats down, no-shoots untouched. My timer, not your wounds.',
+  'The panels are moved: a lane you have not seen. Three rooms, then the hall, at one G. You and your number two clear it on my GO. Put the threats down and leave the no-shoots alone. I run the timer.'] }
+  : c.id === 'standby' ? { ...c, say: ['Standby.', 'New layout. Standby.'] } : c)));
+/**
+ * The house course's hot wash after a lane a casualty ended (the play review of 2026-11-16: "The lane is clear." over a
+ * lane that ended on "CEASE FIRE! You are a casualty."): the wash's words without "clear", word for word as long (its spoken
+ * length chains the tower), every other command the sequence's own. casualtySeqOf(seq): SEQ_HOUSE's or SEQ_HOUSE_DRAWN's.
+ */
+const WASH_CASUALTY = Object.freeze(['The lane is closed. Hot wash, in the booth.', 'The lane is closed. Into the booth: hot wash.']);
+export const SEQ_HOUSE_CASUALTY = deepFreeze(SEQ_HOUSE.map(c => (c.id === 'wash' ? { ...c, say: [...WASH_CASUALTY] } : c)));
+export const SEQ_HOUSE_DRAWN_CASUALTY = deepFreeze(SEQ_HOUSE_DRAWN.map(c => (c.id === 'wash' ? { ...c, say: [...WASH_CASUALTY] } : c)));
 
 /** What the instructor says to a shooter the line waits on ("Shooter, back on your mark."), by what is lacking (shoothouse.js houseWant). */
 export const HOUSE_NUDGE = deepFreeze({ mag: 'a magazine in.', chamber: 'a round up: MAKE READY.', safe: 'on safe, finger off.', low: 'low ready.', out: 'out of it.',
@@ -517,6 +549,11 @@ export const HOUSE_CHIEF = deepFreeze({
   // (the card (the build sheet v0.0.20 §1 item 20): the instructor's verdict at the hot wash's end, against your sheet's
   // standard (shoothouse.js houseVerdict): GO, or NO-GO and its first reason ({why}, in his words: VERDICT_WHY)
   verdict: { go: ['GO.', 'That is a GO.'], nogo: ['NO-GO: {why}.', 'NO-GO. {why}.'] },
+  // (the drawn house (the build sheet v0.0.21 §1 item 2): the brief names each lane door's swing as the stack reads it, from the
+  // drawn opening ({doors}: "room 1, push door, hinge left; room 2, pull door, hinge right; ..."; swing.js doorWordsOf), on a drawn
+  // lane only: the set's brief is v0.0.20's to the word (shoothouse.js doorWords)
+  doors: ['The doors: {doors}.', 'Your doors: {doors}.'],
+
   // (the one thing to do differently, by the worst number of the run (COMBAT §17.2): the hot wash's last line)
   one: {
     funnel: ['You stood in the doorway. Through it, to your point, and stop there.', 'The door is where they shoot you. Keep moving through it.'],

@@ -26,6 +26,26 @@ function cell(o, n = 400, key = 'cell') {
   return { ones, caught, failed, twenty, clean, bad };
 }
 
+// (the caught round's run, over seeds: the tier one by T and the private by the keys; v0.0.21 put one seed quick, the ten heavy)
+function caughtRun(seeds) {
+  const out = {};
+  for (const [tier, bot] of [['tierone', houseHonestBot], ['private', houseKeysBot]]) {
+    let rounds = 0, ones = 0, caught = 0, missed1 = 0, catches = [], pull = null;
+    for (const seed of seeds) {
+      const g = createGame({ scenario: 'test-shoothouse', seed, tier, setup: 'go' }), pid = g.state.player.id;
+      g.bus.on?.('step', (f) => { if (f.phase === 'sub' && f.action === 'catch' && f.who === pid) catches.push(f.toMs - f.fromMs); });
+      g.bus.on?.('roll', (f) => { if (f.who !== pid || f.roll?.skill !== 'marksmanship') return; rounds++; if (f.roll.nat === 1) { ones++; if (f.roll.caught) caught++; else missed1++; } });
+      runHouse(g, bot(), { maxMs: 12 * 60_000 });
+      pull ??= pullMsOf(g.state, pid, g.state.people[pid].kit.worn.sling, 1).ms;
+    }
+    out[tier] = { rounds, ones, caught, missed1, catches: catches.length, catchMs: [...new Set(catches)], want: Math.round(pull * CATCH_K) };
+  }
+  console.log(`      ${Object.entries(out).map(([t, o]) => `${t}: ${o.rounds} rounds, natural 1s ${o.ones} (caught ${o.caught}, missed ${o.missed1}), catch parts ${o.catches} of ${o.catchMs.join('/') || '-'} ms (CATCH_K × the pull ${o.want} ms)`).join('; ')}`);
+  const T = out.tierone, P = out.private;
+  assert(T.ones > 0 && T.caught === T.ones && T.catches === T.ones && T.catchMs.every(ms => Math.abs(ms - T.want) <= 50), JSON.stringify(T));
+  assert(P.caught === 0, JSON.stringify(P));
+}
+
 export default [
   {
     name: 'the rule\'s two tests over 400 seeded rolls a cell (SKILLS §5.1): a routine 1 caught; a mastered 1 caught at any pressure (value 15, the DC + 10), never below value 15, never short of the margin, never rushed; a caught 1 always a success graded by its margin; a natural 20 on procedure clean, on a shot only shown; an opposed roll has no naturals',
@@ -54,26 +74,15 @@ export default [
     },
   },
   {
-    name: 'a caught round is late, not certain (SKILLS §5.1): over ten lanes of the tier one by T every natural 1 on a round is caught, a \'catch\' part of CATCH_K × the single pull spliced in before it leaves (+0.13 s at Weapon handling 42), and none misses; the private by the keys never catches a round',
+    name: 'a caught round is late, not certain (SKILLS §5.1): on the user\'s seed (1489397426: the tier one\'s one natural 1, the private\'s two) by T every natural 1 on a round is caught, a \'catch\' part of CATCH_K × the single pull spliced in before it leaves (+0.13 s at Weapon handling 42), and none misses; the private by the keys never catches a round',
+    timeoutMs: 60_000,
+    fn() { caughtRun(flawlessSeeds(1)); },
+  },
+  {
+    name: 'a caught round is late, not certain (SKILLS §5.1): over ten lanes of the tier one by T every natural 1 on a round is caught, a \'catch\' part of CATCH_K × the single pull spliced in before it leaves (+0.13 s at Weapon handling 42), and none misses; the private by the keys never catches a round (heavy: the ten lanes, moved from the quick suite in v0.0.21)',
+    heavy: true,
     timeoutMs: 180_000,
-    fn() {
-      const out = {};
-      for (const [tier, bot] of [['tierone', houseHonestBot], ['private', houseKeysBot]]) {
-        let rounds = 0, ones = 0, caught = 0, missed1 = 0, catches = [], pull = null;
-        for (const seed of flawlessSeeds(10)) {
-          const g = createGame({ scenario: 'test-shoothouse', seed, tier, setup: 'go' }), pid = g.state.player.id;
-          g.bus.on?.('step', (f) => { if (f.phase === 'sub' && f.action === 'catch' && f.who === pid) catches.push(f.toMs - f.fromMs); });
-          g.bus.on?.('roll', (f) => { if (f.who !== pid || f.roll?.skill !== 'marksmanship') return; rounds++; if (f.roll.nat === 1) { ones++; if (f.roll.caught) caught++; else missed1++; } });
-          runHouse(g, bot(), { maxMs: 12 * 60_000 });
-          pull ??= pullMsOf(g.state, pid, g.state.people[pid].kit.worn.sling, 1).ms;
-        }
-        out[tier] = { rounds, ones, caught, missed1, catches: catches.length, catchMs: [...new Set(catches)], want: Math.round(pull * CATCH_K) };
-      }
-      console.log(`      ${Object.entries(out).map(([t, o]) => `${t}: ${o.rounds} rounds, natural 1s ${o.ones} (caught ${o.caught}, missed ${o.missed1}), catch parts ${o.catches} of ${o.catchMs.join('/') || '-'} ms (CATCH_K × the pull ${o.want} ms)`).join('; ')}`);
-      const T = out.tierone, P = out.private;
-      assert(T.ones > 0 && T.caught === T.ones && T.catches === T.ones && T.catchMs.every(ms => Math.abs(ms - T.want) <= 50), JSON.stringify(T));
-      assert(P.caught === 0, JSON.stringify(P));
-    },
+    fn() { caughtRun(flawlessSeeds(10)); },
   },
   {
     name: 'the shoot house\'s misses by sheet under the mastery rule (SKILLS §5.1\'s first table, measured: the recruit and the private keep theirs, from the corporal the margin decides): 100 seeds a sheet, by the keys to the private and by T from the corporal, the rifle\'s rounds (the P-12\'s printed apart)',

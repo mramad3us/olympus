@@ -37,7 +37,11 @@ const rifle = shotOf('r7'), pistol = shotOf('p12');
 const num = (st) => ({ peak: levels(st).peakDb, w10: loudest(st, 0.01), w50: loudest(st, 0.05) });
 const R = num(rifle), P = num(pistol);
 const cv = document.getElementById('pic'), g = cv.getContext('2d');
-cv.width = W; cv.height = H; cv.style.width = `${W * 2}px`; cv.style.height = `${H * 2}px`;
+// (scaled up by a whole number to fit the window, point sampled (index.html's image-rendering): the gallery shoots the page at three
+// times the picture and checks every picture pixel whole; a fixed × 2 in its × 3 window left 7,600 to 9,300 pixels not whole
+// (v0.0.20's release notes; fixed in v0.0.21's integration, as samples/marks draws its picture))
+const sc = Math.max(1, Math.floor(Math.min(innerWidth / W, innerHeight / H)));
+cv.width = W; cv.height = H; cv.style.width = `${W * sc}px`; cv.style.height = `${H * sc}px`;
 g.fillStyle = '#0e0f14'; g.fillRect(0, 0, W, H);
 const ink = (t, x, y, c = '#d8dce4', s = 11) => { g.fillStyle = c; g.font = `${s}px monospace`; g.fillText(t, x, y); };
 function wave(st, x0, y0, w, h, nums, label) {

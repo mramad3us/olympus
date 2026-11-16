@@ -33,7 +33,7 @@
 // From 2026-11-12 the authored paths are walkable as drawn (x4-plans.js: each door's outer middle and a lane per slot), so
 // routed keeps their legs and only holds them off the corners. Lengths by Math.sqrt, which IEEE rounds exactly, never
 // Math.hypot (TECH §8.1 rule 11: positions must agree between engines). Pure: grids are read, never written; the state
-// is read.
+// is read, but for its runtime budget record (state.$route, below).
 // v0.0.20 (the build sheet v0.0.20 item 1, the user's "soldiers need to stay fluidly moving", 2026-11-13): **round a body**.
 // routed takes `bodies`, [{ x, z, rM }], each a disc a walk must keep out of (a teammate standing on your way: the body gap and
 // its guard, bundle.js BODY_GAP_M + GAP_GUARD_M, 0.52 m). The discs are laid on a copy of the routing grid for the one solve,
@@ -41,9 +41,25 @@
 // free cells then passes no nearer than rM), never cached; a walk that starts inside a disc leaves it by the nearest free cell
 // first. With bodies, a leg the nav cannot solve is no way at all: routed returns null (no all-open grid, no straight last resort),
 // and the caller hands the walk back (places/move.js roundAbout).
+// v0.0.21 (its build sheet's item 14, the perf lens's P2): **a tick's budget, and no search for a way that is not there**. Every solve
+// routed runs counts its A* expansions on the state's runtime record, state.$route = { seq (the loop's tick, clock.seq, which moves
+// in stop motion too), nodes, fail } (a `$` key: never saved; the tick's first solve starts it afresh). A caller that may storm passes
+// `cap` (places/move.js stepAside: your #2's step off your walk's path, tried at up to 18 points a tick, every tick it failed): its
+// solves then get only what is left of ROUTE_NODES_TICK this tick, and a solve that runs out fails 'cap', "no way this tick": routed
+// returns null, never the all-open grid's retry (that follows a 'blocked' alone) nor the straight last resort. And no solve searches
+// for a way that is not there: each cached routing grid's free cells are labelled once by the region they reach (4-connected: the
+// nav's diagonal step needs both its sides free, so it reaches nothing more), and a leg whose ends stand, as the nav takes them (its
+// own cell, else the nearest free one: nav.js endOf), in two regions is 'blocked' at once. The nav's A* expanded the whole of the
+// first region to say so: about 12,700 cells of the house's hall and rooms, on the grid and again on the all-open one, for each of
+// stepOffPath's tries toward a point inside or through a wall. That is the solve's own answer, so no route that was found changes:
+// every lane's end state is the same to the byte. Measured on 72 fuzz lanes from GO (six sheets, seeds 1000 to 1011): 43 spent over
+// 8,000 nodes in a tick, the most 88,808 (the sergeant on 1002, 10.9 ms) and a lane's most 199,033; now the most in a tick 4,104
+// and a lane's 33,134 (the perf lens's boot recruit on 1185: 29,007,687 nodes in a lane on v0.0.19's tree, 948 on v0.0.20's with
+// this). The honest and keys lanes never pass 1,485 nodes a tick, so the budget never bites there. routeFailOf(state) says why the
+// last routed of the tick came to nothing ('cap' or 'blocked').
 import { q } from '../../core/num.js';
 import { areaOf, leafClosed } from '../places/model.js';
-import { buildGrid, openNavOf, path as navPath, clearLine, isFree, COSTS } from '../places/nav.js';
+import { buildGrid, openNavOf, path as navPath, clearLine, isFree, cellOf, nearestFree, COSTS, NODE_CAP } from '../places/nav.js';
 import { turns } from '../places/doors.js';
 
 /** The clearance class a drill's routes are solved on (nav.js CLASSES: C0 0.27 m, the player's walker's). */
@@ -53,9 +69,13 @@ export const CLIP_STEP_M = 0.01;
 /** A corner's waypoint stands this far beyond the radius off it (m), and a leg is split at most CORNER_DEPTH deep (my calls). */
 export const CORNER_KEEP_M = 0.005, CORNER_DEPTH = 4;
 
+/** A tick's synchronous route nodes (A* expansions) for the callers that pass `cap` (see the header; nav.js PATH_NODES_TICK's figure, the walkers' queue's: about 0.8 ms). */
+export const ROUTE_NODES_TICK = 8000;
+
 let grids = new WeakMap();                                          // (area → { 'cls|closed ids': grid }: runtime only)
-/** Forget the routing grids (TECH §2.3: every module with a cache exports this). */
-export function resetCaches() { grids = new WeakMap(); }
+let regions = new WeakMap();                                        // (cached grid → its free cells' regions: runtime only)
+/** Forget the routing grids and their regions (TECH §2.3: every module with a cache exports this). */
+export function resetCaches() { grids = new WeakMap(); regions = new WeakMap(); }
 
 /** The area a person's route lies on: the live area's (the shoot house's, the range's), else null. */
 export const routeAreaOf = (state) => state?.places?.live?.area ?? null;
@@ -71,6 +91,62 @@ export function routeGridOf(state, areaId, { open = [], cls = ROUTE_CLS } = {}) 
   let g = byKey.get(key);
   if (!g) { const set = new Set(shut); g = buildGrid(area, cls, { closed: (o) => set.has(o.id) }); byKey.set(key, g); }
   return g;
+}
+
+// (the loop's tick: clock.seq, which moves in stop motion too, where clock.tick (the lived ticks) stands)
+const seqOf = (state) => state?.clock?.seq ?? state?.clock?.tick ?? 0;
+/** The tick's route record (see the header), started afresh on the tick's first solve: { seq, nodes, fail }. */
+export function routeTick(state) {
+  const tick = seqOf(state);
+  let R = state.$route;
+  if (!R || R.seq !== tick) state.$route = R = { seq: tick, nodes: 0, fail: null };
+  // (the tests' switch, state.$routeFree: the budget and the regions' answer off, every node still counted (house-route-budget's
+  // "without the fix", as shooting.js's $readsOff is the read scope's))
+  R.free = !!state.$routeFree;
+  return R;
+}
+/** Why the last routed of this tick came to nothing: 'cap' (the tick's budget spent: no way this tick), 'blocked' (no way round the bodies), or null. */
+export const routeFailOf = (state) => (state?.$route?.seq === seqOf(state) ? state.$route.fail ?? null : null);
+// (a grid's free cells labelled by the region they reach, 4-connected (see the header); -1 for a blocked cell; once a grid)
+function regionsOf(G) {
+  let L = regions.get(G);
+  if (L) return L;
+  const nx = G.nx, n = nx * G.nz, cost = G.cost, B = COSTS.blocked, stack = new Int32Array(n);
+  L = new Int32Array(n).fill(-1);
+  let id = 0;
+  for (let c = 0; c < n; c++) {
+    if (L[c] !== -1 || cost[c] === B) continue;
+    let top = 0;
+    stack[top++] = c; L[c] = id;
+    while (top) {
+      const u = stack[--top], ui = u % nx;
+      if (ui > 0 && L[u - 1] === -1 && cost[u - 1] !== B) { L[u - 1] = id; stack[top++] = u - 1; }
+      if (ui < nx - 1 && L[u + 1] === -1 && cost[u + 1] !== B) { L[u + 1] = id; stack[top++] = u + 1; }
+      if (u >= nx && L[u - nx] === -1 && cost[u - nx] !== B) { L[u - nx] = id; stack[top++] = u - nx; }
+      if (u + nx < n && L[u + nx] === -1 && cost[u + nx] !== B) { L[u + nx] = id; stack[top++] = u + nx; }
+    }
+    id++;
+  }
+  regions.set(G, L);
+  return L;
+}
+// (the cell the nav's search starts or ends a point at (nav.js endOf: its own cell where free, else the nearest free one within
+// NEAREST_FREE_M), or -1 where there is none (the search fails then with no expansion))
+const endCell = (G, p) => {
+  const c = cellOf(G, p[0], p[1]);
+  return c >= 0 && G.cost[c] !== COSTS.blocked ? c : nearestFree(G, p[0], p[1]);
+};
+// (one solve, counted on the tick's record: 'blocked' with no search where its ends' cells lie in two regions (a cached grid's only: a
+// bodies' copy is made for one solve, and labelling it would cost more than its search); capped, only what is left of ROUTE_NODES_TICK,
+// a 'cap' when it runs out)
+function solve(R, G, a, b, capped, cached = true) {
+  if (cached && !R.free) {
+    const ca = endCell(G, a), cb = endCell(G, b);
+    if (ca >= 0 && cb >= 0 && ca !== cb) { const L = regionsOf(G); if (L[ca] !== L[cb]) return { fail: 'blocked', expanded: 0 }; }
+  }
+  const r = capped ? navPath(G, a, b, { cap: Math.max(0, Math.min(NODE_CAP, ROUTE_NODES_TICK - R.nodes)) }) : navPath(G, a, b);
+  R.nodes += r.expanded ?? 0;
+  return r;
 }
 
 /** A body's disc is laid on the grid out to its radius plus this share of a cell's side (√2 / 2: half the diagonal; see the header). */
@@ -92,14 +168,17 @@ function withBodies(G, bodies) {
 /**
  * A polyline made walkable (see the header): [[x, z]…] with each leg's line clear on the routing grid, its
  * points the given ones and, where a leg was not clear, the nav's way round between them (to 1e-4 m). bodies: discs
- * kept out of, [{ x, z, rM }]; with any, null where a leg has no way round them.
+ * kept out of, [{ x, z, rM }]; with any, null where a leg has no way round them. cap: the tick's budget applies, and
+ * null where it runs out (routeFailOf 'cap').
  */
-export function routed(state, pts, { area = routeAreaOf(state), open = [], bodies = [] } = {}) {
+export function routed(state, pts, { area = routeAreaOf(state), open = [], bodies = [], cap = false } = {}) {
   if (!pts || pts.length < 2) return pts;
   const G0 = routeGridOf(state, area, { open });
   if (!G0) return pts;
+  const R = routeTick(state), capped = !!cap && !state.$routeFree;
+  R.fail = null;
   const G = bodies?.length ? withBodies(G0, bodies) : G0;
-  const first = spliced(G, G0, area, pts, false);
+  const first = spliced(R, G, G0, area, pts, false, capped);
   if (!first) return null;
   let held = holdOff(G, first);
   // (a body against a wall stands, by the walker's circle, in a cell the grid blocks; the nav steps out of it to the nearest
@@ -107,21 +186,31 @@ export function routed(state, pts, { area = routeAreaOf(state), open = [], bodie
   // cell, and the leg after it was no leg of the grid's (the hunt of v0.0.18's fixes, merged: house-flawless-keys F3, the fuzz
   // tier one on 1185, #1's approach to the hall from (19.363, 7.528) by (19.297, 7.554), a 0.3 m dance out and back). Only
   // there is the route spliced again with the nav's step out kept, so every route that never met it is unchanged)
-  if (held.some((p, k) => k > 0 && !isFree(G, p[0], p[1]))) { const again = spliced(G, G0, area, pts, true); if (again) held = holdOff(G, again); }
+  if (held.some((p, k) => k > 0 && !isFree(G, p[0], p[1]))) {
+    const again = spliced(R, G, G0, area, pts, true, capped);
+    if (again) held = holdOff(G, again);
+    else if (R.fail === 'cap') return null;
+  }
   // (two points the same in a row would make a leg of no length and no heading: dropped)
   return held.filter((p, k) => k === 0 || Math.abs(p[0] - held[k - 1][0]) > 1e-9 || Math.abs(p[1] - held[k - 1][1]) > 1e-9);
 }
 // (the legs kept where clear and the nav's way spliced in where not, its own ends the given points; null where a leg has no way
 // round the bodies (G, the bodies' grid, not G0, the walls' own); stepOut keeps the nav's first point where it is not the leg's
 // start, its step out of a blocked cell, as a walk begun inside a body's disc always does (see the header))
-function spliced(G, G0, area, pts, stepOut) {
+// (capped, v0.0.21: a solve out of the tick's budget is no way this tick, null, R.fail 'cap'; never the all-open grid's retry)
+function spliced(R, G, G0, area, pts, stepOut, capped = false) {
   const out = [pts[0]];
   for (let i = 1; i < pts.length; i++) {
     const a = out[out.length - 1], b = pts[i];
     if (clearLine(G, a[0], a[1], b[0], b[1])) { out.push(b); continue; }
-    let r = navPath(G, a, b);
-    if (r.fail && G !== G0) return null;
-    if (r.fail) { const O = openNavOf(area, G.cls); r = O ? navPath(O, a, b) : r; }
+    let r = solve(R, G, a, b, capped, G === G0);
+    if (capped && r.fail === 'cap') { R.fail = 'cap'; return null; }
+    if (r.fail && G !== G0) { R.fail = 'blocked'; return null; }
+    if (r.fail) {
+      const O = openNavOf(area, G.cls);
+      if (O) r = solve(R, O, a, b, capped);
+      if (capped && r.fail === 'cap') { R.fail = 'cap'; return null; }
+    }
     const out0 = (G !== G0 && !isFree(G, a[0], a[1])) || (stepOut && !r.fail && (r.pts[0][0] !== a[0] || r.pts[0][1] !== a[1]));
     if (!r.fail) for (const p of r.pts.slice(out0 ? 0 : 1, -1)) out.push([q(p[0], 1e-4), q(p[1], 1e-4)]);
     out.push(b);

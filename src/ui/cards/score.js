@@ -15,6 +15,9 @@
 // panel, the shot, the voice, the walk and the look it was given on: "… · shots 70 · feel 60 · panel C · shot A3 · voice c · walk B ·
 // look stack:4,helm:r1 · ★ no · note: …" (played: { panel, shot, voice, walk, look }, each left out where the page has none; look
 // { stack, helm, jamb } in the URL's &look= words). The record kept gains `played`, the same words.
+// v0.0.21 (the build sheet v0.0.21 §1 item 16, §0 item 27): on a drawn house the line names it after the seed, "… · seed 48213 ·
+// house Cn290pc.Ks206lc.En175pc|ftatn…|p0120… · …", so a score is read against the house it was given on (house: the code, or none on
+// the house as set: its line is v0.0.20's); the record kept gains `house`.
 
 /** The storage key, and the most scores kept. */
 export const SCORES_KEY = 'olympus.scores', SCORES_MAX = 200;
@@ -32,10 +35,10 @@ export function playedWords(played = null) {
   return [played.panel ? `panel ${played.panel}` : null, played.shot ? `shot ${played.shot}` : null, played.voice ? `voice ${played.voice}` : null, played.walk ? `walk ${played.walk}` : null, look ? `look ${look}` : null].filter(Boolean);
 }
 /** The line to paste (ROADMAP §2.2's form). aspects: [[name, value]…] in the scene's order, or { name: value }; played: what was played (playedWords). */
-export function scoreLine({ version, scene, seed, aspects, star = false, note = '', played = null }) {
+export function scoreLine({ version, scene, seed, aspects, star = false, note = '', played = null, house = null }) {
   const list = Array.isArray(aspects) ? aspects : Object.entries(aspects ?? {});
   const said = String(note ?? '').replace(/\s+/g, ' ').trim();
-  return [`OLYMPUS v${version}`, scene, `seed ${seed}`, ...list.map(([k, v]) => `${k} ${snapScore(v)}`), ...playedWords(played), `★ ${star ? 'yes' : 'no'}`, `note: ${said || 'none'}`].join(' · ');
+  return [`OLYMPUS v${version}`, scene, `seed ${seed}`, ...(house ? [`house ${house}`] : []), ...list.map(([k, v]) => `${k} ${snapScore(v)}`), ...playedWords(played), `★ ${star ? 'yes' : 'no'}`, `note: ${said || 'none'}`].join(' · ');
 }
 
 /** The scores kept on a storage (localStorage, or anything with getItem): { v: 1, scores: [] }. */
@@ -50,10 +53,10 @@ export function readScores(storage = globalThis.localStorage) {
 }
 
 /** Keep a score (newest last, SCORES_MAX at most). Returns the record kept. now: an ISO time (tests give one). */
-export function keepScore(storage = globalThis.localStorage, { scene, version, seed, aspects, star = false, note = '', played = null }, { atIso = new Date().toISOString() } = {}) {
+export function keepScore(storage = globalThis.localStorage, { scene, version, seed, aspects, star = false, note = '', played = null, house = null }, { atIso = new Date().toISOString() } = {}) {
   const all = readScores(storage);
   const list = Array.isArray(aspects) ? aspects : Object.entries(aspects ?? {});
-  const rec = { scene, version, seed, aspects: Object.fromEntries(list.map(([k, v]) => [k, snapScore(v)])), star: !!star, note: String(note ?? '').replace(/\s+/g, ' ').trim(), atIso, ...(playedWords(played).length ? { played: playedWords(played).join(' · ') } : {}) };
+  const rec = { scene, version, seed, aspects: Object.fromEntries(list.map(([k, v]) => [k, snapScore(v)])), star: !!star, note: String(note ?? '').replace(/\s+/g, ' ').trim(), atIso, ...(playedWords(played).length ? { played: playedWords(played).join(' · ') } : {}), ...(house ? { house } : {}) };
   all.scores.push(rec);
   while (all.scores.length > SCORES_MAX) all.scores.shift();
   try { storage?.setItem?.(SCORES_KEY, JSON.stringify(all)); } catch { /* (no storage here: the line is still copied) */ }
@@ -70,7 +73,7 @@ export function lastScore(storage, scene) {
  * The card's body: { body, lines, read() }. scene: SCENES' record ({ id, title, aspects: [[name, about]…] });
  * version, seed; onCopy(text) → Promise<boolean>; onDone(); storage. Lines: 1 Copy my scores, 2 Done.
  */
-export function scoreCard({ scene, version, seed, onCopy, onDone = null, storage = globalThis.localStorage, played = null }) {
+export function scoreCard({ scene, version, seed, onCopy, onDone = null, storage = globalThis.localStorage, played = null, house = null }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); n.append(...kids.filter(k => k !== null && k !== undefined)); return n; };
   const before = lastScore(storage, scene.id);
   const sliders = (scene.aspects ?? []).map(([name, about]) => {
@@ -88,7 +91,7 @@ export function scoreCard({ scene, version, seed, onCopy, onDone = null, storage
   starText();
   starBtn.onclick = () => { star = !star; starText(); };
   const note = el('textarea', { className: 'note-in', rows: 2, placeholder: 'A note (what to rework, what felt wrong)', value: '' });
-  const read = () => ({ scene: scene.id, version, seed, aspects: sliders.map(s => [s.name, snapScore(s.input.value)]), star, note: note.value, ...(played ? { played } : {}) });
+  const read = () => ({ scene: scene.id, version, seed, aspects: sliders.map(s => [s.name, snapScore(s.input.value)]), star, note: note.value, ...(played ? { played } : {}), ...(house ? { house } : {}) });
   const said = el('span', { className: 'copied', textContent: '' });
   const text = el('textarea', { className: 'benchtext score-line', readOnly: true, rows: 2, value: scoreLine(read()) });
   const refresh = () => { text.value = scoreLine(read()); };

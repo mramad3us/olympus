@@ -2,7 +2,7 @@
 // domain; each domain's init making only its own; the twelve fast layers in order, the slow layer
 // each minute and no hourly game layer; no save key outside the registry; the actions table.
 import { assert } from './helpers.mjs';
-import { DOMAINS, domainOwners, newState } from '../src/core/state.js';
+import { DOMAINS, SPARSE, domainOwners, newState } from '../src/core/state.js';
 import { createLoop, NO_INPUT } from '../src/core/loop.js';
 import { recordingBus } from '../src/core/bus.js';
 import { MIN_MS } from '../src/core/clock.js';
@@ -33,14 +33,14 @@ export default [
     fn() {
       const sim = createSim({ bus: recordingBus() });
       const owners = domainOwners();
-      assert(DOMAINS.length === 25 && Object.keys(owners).sort().join() === [...DOMAINS].sort().join(), `registered ${Object.keys(owners).length}: ${Object.keys(owners)}`);
+      assert(DOMAINS.length === 26 && Object.keys(owners).sort().join() === [...DOMAINS].sort().join(), `registered ${Object.keys(owners).length}: ${Object.keys(owners)}`);
       for (const [d, keys] of Object.entries(OWNERS)) for (const k of keys) assert(owners[k] === d, `${k} is ${owners[k]}'s, not ${d}'s`);
       const twice = throwsWith(() => createSim({ bus: recordingBus(), domains: { combat: { keys: ['fights', 'people'] } } }), /claimed twice/);
       assert(/people/.test(twice) && /combat/.test(twice), twice);
       const outside = throwsWith(() => createSim({ bus: recordingBus(), domains: { combat: { keys: ['fights', 'shots'] } } }), /not a reserved key/);
       createSim({ bus: recordingBus() });                          // (and the registry is whole again)
       const byOwner = Object.entries(OWNERS).map(([d, ks]) => `${d} (${sim.domains.find(x => x.name === d).owner}${sim.domains.find(x => x.name === d).stub ? ', stub' : ''}): ${ks.join(' ')}`);
-      console.log(`      ${DOMAINS.length} keys, each claimed once (the sheet's "26" counts 25: TECH §6.1 and the sheet's own owner list agree on 25)`);
+      console.log(`      ${DOMAINS.length} keys, each claimed once (25 from v0.0.2's sheet, and v0.0.21's cqb, sparse, the arms domain's)`);
       for (const line of byOwner) console.log(`      ${line}`);
       console.log(`      a second claim: "${twice}"; outside the table: "${outside}"`);
     },
@@ -55,7 +55,8 @@ export default [
         const s = {};
         d.init(s);
         const keys = Object.keys(s).filter(k => !k.startsWith('$')).sort();
-        assert(keys.join() === [...d.keys].sort().join(), `${d.name}'s init made ${keys.join(' ')} (its keys: ${d.keys.join(' ')})`);
+        // (a sparse key (state.js SPARSE: the arms domain's cqb) is its writer's to make, never an init's)
+        assert(keys.join() === d.keys.filter(k => !SPARSE.includes(k)).sort().join(), `${d.name}'s init made ${keys.join(' ')} (its keys: ${d.keys.join(' ')})`);
         made.push(`${d.name} ${keys.length}`);
       }
       // (and run twice on a full state, a fill changes nothing)
@@ -92,9 +93,10 @@ export default [
       const g = createGame({ seed: 11 });
       g.step(800, (state) => scriptInput(state.clock.seq));
       const keys = Object.keys(JSON.parse(g.save())).sort();
-      assert(keys.join() === [...DOMAINS].sort().join(), `save keys ${keys.join(' ')}`);
+      const dense = DOMAINS.filter(k => !SPARSE.includes(k));
+      assert(keys.join() === [...dense].sort().join(), `save keys ${keys.join(' ')}`);
       const fresh = Object.keys(newState(1)).join();
-      assert(fresh === DOMAINS.join(), fresh);
+      assert(fresh === dense.join(), fresh);
       console.log(`      after 800 ticks of scripted play: ${keys.length} keys, exactly the registry`);
     },
   },
@@ -209,7 +211,7 @@ export default [
     fn() {
       const sim = createSim({ bus: recordingBus() });
       const w = sim.domains.find(d => d.name === 'weapons');
-      assert(w && !w.stub && w.owner === 'WEAPONS' && w.keys.join() === 'stop,items,armoury' && !('weapons' in STUB_DOMAINS), JSON.stringify(w));
+      assert(w && !w.stub && w.owner === 'WEAPONS' && w.keys.join() === 'stop,items,armoury,cqb' && !('weapons' in STUB_DOMAINS), JSON.stringify(w));
       const s = {};
       domainsOf().find(d => d.name === 'weapons').init(s);
       assert(JSON.stringify(s) === JSON.stringify({ stop: null, items: {}, armoury: { guns: {}, ammoIssues: [] } }), JSON.stringify(s));

@@ -203,6 +203,10 @@ import { fromJSON, toJSON } from './core/state.js';
 import * as store from './core/store.js';
 import { createDebugHandle, installDebug, readParams } from './core/debug.js';
 import { MIN_MS, HOUR_MS, TICK_MS, durationText, isHeld } from './core/clock.js';
+import { BUILT } from './core/reads.js';
+import { hitDollCount } from './art/doll/hitcard.js';
+import { dollCount } from './art/doll/dress.js';
+import { calloutLines } from './sim/combat/two.js';
 import { utcClockText } from './core/calendar.js';
 import { playerActor, setIdsCheck } from './core/ids.js';
 import { solText } from './sim/time/dates.js';
@@ -215,7 +219,8 @@ import { instinctNow } from './sim/skills/instinct.js';
 import { bodyOf } from './sim/body/body.js';
 import { stagesOf, stripOf, wordsOf, cuesOf } from './sim/body/cues.js';
 import { lookFor, indoorsNow } from './sim/people/figure.js';
-import { areaOf, lonOf } from './sim/places/model.js';
+import { areaOf, lonOf, generatedIds } from './sim/places/model.js';
+import { heldLayouts } from './sim/scenes/assemble.js';
 import { timeAt, siteAt, isPreset } from './sim/places/env.js';
 import { lightLevel } from './sim/places/light.js';
 import { sunAt } from './sim/places/sun.js';
@@ -302,6 +307,9 @@ import { runSheetEl, hotWashEl, houseRunLine, houseAspects, houseEndLines } from
 // (the card (the build sheet v0.0.20 §1 items 10, 13, 14, 20, 21, 25, 26): the runs kept and the next sheet, the session's
 // grid, the plan view over the debrief's model, who speaks and the plates off the room, the run's export)
 import { keepRun, againOrder, weakRoomOf } from './ui/cards/house-runs.js';
+// (done (the build sheet v0.0.21 §1 items 9 and 16): qualified's attempt and the drawn house's code on the card and the export)
+import { readRuns, qualStart, qualStep, qualSeed, qualKeep, keepQual, nextUp as nextSheetUp } from './ui/cards/house-runs.js';
+import { houseCodeOf, houseUrlNote, HOUSE_CODE_SET } from './sim/scenes/assemble.js';
 import { createRunLog } from './ui/runlog.js';
 import { houseGrid, houseGridEl } from './ui/cards/house.js';
 import { housePlanEl } from './ui/cards/houseplan.js';
@@ -364,6 +372,8 @@ const settings = {
   panel: benchName ? BENCH_PANEL : layoutOfWord(params.panel ?? readLocal('olympus.panel')),
   // (the rework's R8: the walk cycle, VIEWS §3.10.4: &cycle=A|B|C, else this browser's olympus.cycle, else the game's (B))
   cycle: params.cycle ?? (['A', 'B', 'C'].includes(readLocal('olympus.cycle')) ? readLocal('olympus.cycle') : null),
+  // (FL-9: the shoot house's light candidate, &houselight=b|c (src/data/places/house-light.js), runtime only; none is today's)
+  houseLight: params.houseLight ?? null,
 };
 // (the build sheet v0.0.20 items 2, 7, 10 and 24: the To score page's picks, runtime only (state.$look, the shot, the voice, the walk,
 // state.$aid), this browser's (topick.js readPicks, olympus.cornerAid) unless the URL says (&look=, &shot=, &voice=, &cycle=), which wins;
@@ -429,11 +439,28 @@ function guardedFlash(action, e = null) {
   return g;
 }
 // ---- the contact (0.0.8: contact.js contactNow, read once a tick) ----
+// ---- the page's reads, once a tick (the build sheet §1 item 11; the perf lens's P6) ----
+// clock.seq counts every tick, held or not, so a read keyed on it was rebuilt twenty times a second while time stood still in
+// stop motion, though a held tick with no input changes nothing (only the input and offers layers run then): the panel, the
+// belief, the targets, the plaque, every memo below. While the clock is held a read is keyed on the input sent instead
+// (inputSeq: every tick's non-empty input, the poll's and the debug handle's, counted by a fast layer of its own), so a long
+// pause rebuilds nothing until a key is pressed; while it moves, on the tick's seq as before.
+let inputSeq = 0, inputMouse = '';
+function inputSent(i) {
+  if (!i) return false;
+  const m = i.mouse, at = m ? `${m.x}|${m.y}|${m.buttons ?? 0}` : '', moved = at !== inputMouse;
+  inputMouse = at;
+  return !!(i.act?.length || i.mx || i.mz || i.run || i.stroll || i.look || m?.clicks?.length || m?.wheel || m?.buttons || moved);
+}
+/** The tick's seq while the clock moves; while it is held, the input sent so far ('h' and inputSeq). */
+const seqKey = (s) => (isHeld(s) ? `h${inputSeq}` : `${s.clock.seq}`);
+/** A page read's key (see above): `${tick}|${seq}|${ms}` while the clock moves, `${tick}|h<inputSeq>|${ms}` while it is held. */
+const readKey = (s) => `${s.clock.tick}|${seqKey(s)}|${s.clock.ms}`;
 let contactMemo = { key: null, cn: null };
 /** The contact now (contactNow's { pending, last }), or null: read once a tick, never thrown. */
 function contactRead(s = loop?.state) {
   if (!s) return null;
-  const key = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}`;
+  const key = `${s.meta?.seed}|${s.clock.ms}|${seqKey(s)}`;
   if (contactMemo.key === key && contactMemo.state === s) return contactMemo.cn;
   let cn = null;
   try { cn = contactNow(s, s.clock.ms); } catch (e) { broke(e, 'the contact'); }
@@ -447,7 +474,7 @@ let suppMemo = { key: null, sn: null };
 /** COMBAT §5's state of the player now (suppNow's record: the band, the startle, the flash, the deafness, the sum), or null: read once a tick, never thrown. */
 function suppRead(s = loop?.state) {
   if (!s) return null;
-  const key = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}`;
+  const key = `${s.meta?.seed}|${s.clock.ms}|${seqKey(s)}`;
   if (suppMemo.key === key && suppMemo.state === s) return suppMemo.sn;
   let sn = null;
   try { sn = SUPP.suppNow ? SUPP.suppNow(s, s.player?.id, s.clock.ms) : null; } catch (e) { broke(e, 'the chaos'); }
@@ -542,6 +569,9 @@ loop = createLoop({ render, poll: () => { dropStartleMoves(); return input.snaps
 // (the run's log is the loop's first fast layer, so it sees every tick's own input, the fast-forward's and the handle's
 // steps included: made before the sim registers its own, ui/runlog.js)
 const runLog = createRunLog(loop, { onError: (e, where) => broke(e, where) });
+// (the build sheet §1 item 11: every tick's input counted, the poll's and the handle's steps alike, so the page's reads
+// keyed on it (readKey) are rebuilt while time stands still only when something was sent; it writes nothing in the state)
+loop.register('fast', (s, inp) => { if (inputSent(inp)) inputSeq++; }, { name: 'input-seq', whileHeld: true });
 sim = createSim({ loop, bus });
 const label = (a) => input.label(a);
 const instinct = createInstinct(hud, { label });
@@ -643,7 +673,7 @@ const boot = createBoot({ cb: {
   // (the hidden rolls only in debug, once the scene is over: tradecraft's)
   logLines: () => logLines(loop.state, { over: !!settings.debug && !!scene?.ended }),
   scenes: () => SCENE_IDS.map(id => SCENES[id]),                    // (the built scenes: a stub's spec, ROADMAP "anywhere" step 4, waits for its layout)
-  playScene: (scene, { tier = null, par = null, loadout = null } = {}) => playScene(scene, { tier, par, loadout }),
+  playScene: (scene, { tier = null, par = null, loadout = null, draw = null, house = null, doors = null, qual = false } = {}) => (qual ? qualFirst(scene, tier, par) : playScene(scene, { tier, par, loadout, draw, house, doors })),
   // (0.0.18: the shoot house's loadout screen (cards/loadout.js): the code this browser kept (olympus.loadout, a convenience the sim
   // never reads), kept again on Kit up, and the screen's numbers from a fill of the lane with the code (loadout.js loadoutView))
   loadout: () => ({ code: loadoutOf(readLocal('olympus.loadout')).error ? 'standard' : codeOf(loadoutOf(readLocal('olympus.loadout'))),
@@ -670,14 +700,15 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
  * (test-pairs' sheet, 0.0.8: 'recruit' … 'tierone'; null the scene's private), scene (a scene's spec, src/data/scenes.js:
  * its host, environment, hour and setup; ROADMAP "anywhere" step 4) }.
  */
-function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env, loadout = null, opfor = null } = {}) {
+function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env, loadout = null, opfor = null, draw = null, house = null, doors = null } = {}) {
   if (!scene && !SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
   // (0.0.8: tier, test-pairs' sheet (null: the scene's private); scenes never write a career)
   // (ROADMAP "anywhere" step 2: the URL's &env=<preset> runs every game this page starts under that environment)
   // (0.0.12: par, the shoot house's (null: the sheet's own))
   // (0.0.18: loadout, the shoot house's (null: the standard))
   // (0.0.19: opfor, the shoot house's role-players by the URL (null: the scene's own, "Stack and clear, live"'s 'live'))
-  return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}) });
+  // (draw, house and doors, the shoot house's drawn house (null: as set; the build sheet §0 item 54))
+  return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}) });
 }
 /** The URL's start somewhere else (&area=, &at=, &face=), or null: an area alone starts at its spawn. */
 function atParam(scenario) {
@@ -722,12 +753,14 @@ const sceneOf = (s) => {
   return all.find(x => (x.setup ?? null) === setup) ?? all[0] ?? null;
 };
 /** Start a scene: a new game from its spec, at its hour (or the URL's), with the seed given or a new one, the URL's setup (else the scene's own), and a sheet's tier (test-pairs, 0.0.8). */
-function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null, loadout = null, opfor = null } = {}) {
-  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par, ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}) }));
+function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null } = {}) {
+  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par, ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}) }));
 }
 
 /** Play a state from here (new, loaded or imported). Resolves with it once its area shows (or the cut gives up). */
 function launch(s, { from = null } = {}) {
+  // (a qualification goes on only into the lane it launched itself; a save loaded, imported or continued ends it)
+  qualAttempt = qualKeep(qualAttempt, { qual: qualLaunching, seed: s?.meta?.seed ?? null });
   boot.closeCard();
   boot.hideTitle();
   input.clear();
@@ -737,9 +770,12 @@ function launch(s, { from = null } = {}) {
   resetWeaponHud();
   // (the runtime keys the sim reads, set where the state is made or loaded, before its first tick (the code review of
   // 2026-11-13: set only when the frame was drawn, the first ticks after a load ran on the defaults: the DI's keys, $gp))
-  if (s) { s.$panel = settings.panel; if (settings.cycle) s.$cycle = settings.cycle; }
+  if (s) { s.$panel = settings.panel; if (settings.cycle) s.$cycle = settings.cycle; if (settings.houseLight) s.$houseLight = settings.houseLight; }
   // (the To score page's picks ride the state, never saved: the look, the corner aid)
   if (s) { if (lookSet(settings.look)) s.$look = settings.look; if (settings.aid !== 'rung') s.$aid = settings.aid; }
+  // (the build sheet §1 item 15: the scene left behind let go of, so a long session of "Again"s holds nothing of it)
+  const was = loop.state;
+  if (was && was !== s) leaveScene(was);
   loop.setState(s);
   loop.pause(false, 'player');
   hud.hidden = false;
@@ -749,6 +785,8 @@ function launch(s, { from = null } = {}) {
   scene = rec ? { rec, seed: s.meta.seed, ended: false, shown: false } : null;
   // (the build sheet v0.0.20 §0 item 21: the shot each scene plays: the URL's or the To score pick, else A3 in the house's scenes, else A1)
   try { audio.setShot(shotFor(rec?.id ?? s.meta?.scenario, settings.shot)); } catch (e) { broke(e, 'the sound'); }
+  // (the build sheet §1 item 12: your #2's call-outs this lane's turners can draw, baked behind the lines said, before GO)
+  if (s.armoury?.range?.course === 'house') { try { audio.prebakeCallouts?.(calloutLines(s.armoury.range.turners)); } catch (e) { broke(e, 'the sound'); } }
   // (0.0.12: the shoot house's goal names your number two: the scene's houseGoal)
   let goal = rec?.goal ?? null;
   if (goal && s.armoury?.range?.course === 'house' && houseScene.houseGoal) { try { goal = houseScene.houseGoal(s) ?? goal; } catch (e) { broke(e, 'the goal'); } }
@@ -765,6 +803,21 @@ function launch(s, { from = null } = {}) {
   const area = liveArea(s);
   if (!area) return Promise.resolve(s);
   return holdCut(Promise.all([view.setArea(area, meAt(s)), view.prepareOwn(s)]), area.id).then(() => { prepareAround(area); return s; });
+}
+
+/**
+ * The teardown of a scene left (the build sheet §1 item 15; the perf lens's P9): every read of the page that held the state
+ * left is let go, so that state, and with it the debrief's trace (runtime, TRACE_MAX samples a lane, read by house-debrief.js alone:
+ * syntax's TRACE_HOME), is the collector's at once rather than at each read's next tick. The run's export goes with its state: the
+ * run log keeps one run, its state's (ui/runlog.js), dropped at the first tick of another.
+ */
+function leaveScene(was) {
+  void was;
+  contactMemo = { key: null, cn: null }; suppMemo = { key: null, sn: null }; houseMemo = { key: null, hn: null }; bundleMemo = { key: null, bn: null };
+  simRead = { key: null }; pairsMemo = { key: null, pn: null }; stressMemo = { key: null, sn: null };
+  // (and the reads keyed by the seed and the clock, not the state: "Again" on the same seed restarts clock.seq at 0, so the last
+  // run's strip, AVPU, plaque and hit marks were served at the same ms and seq once the runs parted (the code review of 2026-11-16))
+  stripMemo = { key: null, strip: null }; avpuMemo = { key: null, a: 'A' }; plaqueMemo = null; hitMemo.clear();
 }
 
 // (the sim moved the player into another area: the cut while the view shows it and paints the people met
@@ -806,6 +859,7 @@ async function continueFrom(slot) {
 }
 
 async function quitToTitle() {
+  qualAttempt = null;                                                // (a qualification left for the title ends)
   await autosaveNow('live');
   splash.clear(); splashPause(false); scene = null;
   loop.setState(null);
@@ -1417,7 +1471,7 @@ const sessionHouse = new Map();
 let houseMemo = { key: null, hn: null };
 function houseRead(s) {
   if (s?.armoury?.range?.course !== 'house' || !houseScene.houseNow) return null;
-  const key = `${s.clock.tick}|${s.clock.seq}|${s.clock.ms}`;
+  const key = readKey(s);
   if (houseMemo.key === key && houseMemo.state === s) return houseMemo.hn;
   let hn = null;
   try { hn = houseScene.houseNow(s, s.clock.ms); } catch (e) { broke(e, 'the shoot house'); }
@@ -1428,7 +1482,7 @@ function houseRead(s) {
 let bundleMemo = { key: null, bn: null };
 function bundleRead(s) {
   if (!s || !BUNDLE.bundleNow) return null;
-  const key = `${s.clock.tick}|${s.clock.seq}|${s.clock.ms}|${s.stop?.doing?.step ?? ''}`;
+  const key = `${readKey(s)}|${s.stop?.doing?.step ?? ''}`;
   if (bundleMemo.key === key && bundleMemo.state === s) return bundleMemo.bn;
   let bn = null;
   try { bn = BUNDLE.bundleNow(s, s.player.id); } catch (e) { broke(e, 'the bundle'); }
@@ -1455,8 +1509,14 @@ function actWordsOf(act, steps) {
 // "Again as" leads with the next sheet up, after a NO-GO "Again from room n" (the weak room's setup); the session's sheets side by side
 // (houseGrid) from the second; the plan view beside the run sheet (houseplan.js over house-debrief.js debriefOf), a stand clicked
 // opening its truth card under it (hitModelOf(s, key, k, 'truth'), k the leg's index); "Export the run" (the run's log, runLog))
+// (the drawn house's code in the header, kept by "Again", "Again as" and "Again from" (a new seed draws a new house), on the
+// run kept and the export; a qualification lane's step (house-runs.js qualStep) once, its line under the verdict and its next lane
+// first (a hidden seed, house-runs.js qualSeed); every other line abandons the attempt)
 function openHouseEnd(rec, seed) {
   const s = loop.state, hn = houseRead(s), sheets = TEMPLATES.TEST_SHEETS ?? {};
+  let code = null;
+  try { code = houseCodeOf(s); } catch (e) { broke(e, 'the house\'s code'); }
+  const drawn = code && code !== HOUSE_CODE_SET ? code : null, keepHouse = drawn ? { draw: 'drawn', house: drawn } : {};
   let rs = null, hw = null;
   try { rs = houseScene.runSheetOf ? houseScene.runSheetOf(s) : null; } catch (e) { broke(e, 'the run sheet'); }
   try { hw = houseScene.hotWashOf ? houseScene.hotWashOf(s) : null; } catch (e) { broke(e, 'the hot wash'); }
@@ -1470,7 +1530,20 @@ function openHouseEnd(rec, seed) {
     runs = [...m.entries()].filter(([, v]) => v?.text).map(([t, v]) => ({ text: v.text, now: t === played }));
     if (m.size > 1) { try { grid = houseGridEl(houseGrid([...m.entries()].map(([t, v]) => ({ label: v.label, legs: v.legs, now: t === played })))); } catch (e) { broke(e, 'the grid'); } }
     // (the run kept once, when the card first opens on it (the score card comes back here: never twice))
-    if (verdict && verdict.go !== null && runKept !== s) { runKept = s; try { keepRun(globalThis.localStorage, { scene: rec.id, sheet: played, loadout: H?.loadout ?? null, seed, laneMs: hn?.timerMs ?? null, go: verdict.go, why: verdict.why, version: VERSION }); } catch (e) { broke(e, 'the runs kept'); } }
+    if (verdict && verdict.go !== null && runKept !== s) {
+      runKept = s;
+      // (the qualification's step, against the runs kept before this one; an attempt whose lane this is not is abandoned)
+      let q = null;
+      try {
+        if (qualAttempt && qualAttempt.pending === seed && qualAttempt.sheet === played) {
+          q = qualStep(qualAttempt, { sheet: played, seed, code: drawn, go: verdict.go, draw: H?.draw?.mode === 'drawn' ? 'drawn' : 'set', loadout: H?.loadout ?? 'standard', par: H?.par ?? null, own: COURSES.house?.parOfTier?.[played] ?? null }, readRuns(globalThis.localStorage).runs, { label });
+        }
+        qualAttempt = q?.attempt ?? null;
+        if (q?.qualified) keepQual(globalThis.localStorage, played, { seeds: q.seeds, codes: q.codes, version: VERSION });
+      } catch (e) { qualAttempt = null; broke(e, 'the qualification'); }
+      qualSaid = { s, q };
+      try { keepRun(globalThis.localStorage, { scene: rec.id, sheet: played, loadout: H?.loadout ?? null, seed, laneMs: hn?.timerMs ?? null, go: verdict.go, why: verdict.why, version: VERSION, code: drawn, qual: q?.qual ?? null }); } catch (e) { broke(e, 'the runs kept'); }
+    }
   }
   let side = null, planEl = null;
   try {
@@ -1497,19 +1570,52 @@ function openHouseEnd(rec, seed) {
   const again = againOrder(againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null), { go: verdict?.go === true, played, sheets: order }).map((a, i) => (verdict?.go && i === 0 && order.indexOf(a.tier) === order.indexOf(played) + 1 ? { ...a, up: true, why: `you are a GO as ${label}` } : a));
   const from = verdict?.go === false ? weakRoomOf(hn?.legs ?? []) : null;
   const par = s?.armoury?.range?.house?.par ?? null, loadout = s?.armoury?.range?.house?.loadout ?? null;
+  // (the qualification's line and its next lane: the same sheet while the attempt goes on, the next sheet up once qualified)
+  const qs = qualSaid?.s === s ? qualSaid.q : null, upT = qs?.qualified ? nextSheetUp(order, played) : null;
+  const qNext = qs?.attempt ? { tier: played, label } : upT ? { tier: upT, label: sheets[upT]?.label ?? upT } : null;
+  const qual = qs?.words ? { words: qs.words, n: qs.qual?.n ?? 0, of: qs.qual?.of ?? 0, done: !!qs.qualified, next: qNext } : null;
+  const qualLane = (tier) => {
+    const runsNow = (() => { try { return readRuns(globalThis.localStorage).runs; } catch { return []; } })();
+    const going = qualAttempt?.sheet === tier ? qualAttempt : qualStart(tier), seedQ = qualSeed(runsNow, tier, randomSeed, { taken: going.seeds });
+    if (seedQ === null) { toast('No fresh seed to qualify on.', 'warn'); return null; }
+    qualAttempt = { ...going, pending: seedQ };
+    return qualLaunch(() => playScene(rec, { seed: seedQ, tier, par: tier === played ? H?.parSet ?? null : null, setup: null, draw: 'drawn' }));
+  };
+  const leave = (fn) => (...a) => { qualAttempt = null; return fn(...a); };
   const { body, lines } = endCard({ scene: rec, seed, said: houseEndLines(hn, rs), sheet: label, runs, cards: side, grid, aspects: houseAspects(hn, { fmt: takeInWords }), again, verdict,
-    from: from?.setup ? from : null, exportRun: !!runLogOf(s), on: {
-    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout }),
-    againAs: (t) => againAs(rec, t),
-    from: (setup) => playScene(rec, { seed, tier: played, par, setup, loadout }),
+    from: from?.setup ? from : null, exportRun: !!runLogOf(s), code: drawn, qual, on: {
+    again: leave((same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout, ...(same ? keepHouse : drawn ? { draw: 'drawn' } : {}) })),
+    // ("Again as" on a drawn house keeps its code (the same seed, the same house, another sheet))
+    againAs: leave((t) => { if (!drawn) return againAs(rec, t); const h = houseScene.againAsHouse(s, t); return playScene(rec, { seed: h.seed, tier: h.tier, par: h.par ?? null, setup: null, loadout: h.loadout ?? null, ...keepHouse }); }),
+    from: leave((setup) => playScene(rec, { seed, tier: played, par, setup, loadout, ...keepHouse })),
+    qual: (tier) => qualLane(tier),
     exportRun: () => exportRun(rec, s),
     score: () => openScore(),
-    title: () => quitToTitle(),
+    title: leave(() => quitToTitle()),
   } });
   boot.openCard('end', body, lines);
 }
 // (the state the end card last kept a run for: the score card's way back never keeps it twice)
 let runKept = null;
+// (the qualification under way (house-runs.js: { sheet, n, seeds, codes, pending: the hidden seed of its lane }) and the step
+// the card said for a state; page memory only: a reload ends the attempt)
+let qualAttempt = null, qualSaid = null;
+// (set only while the attempt launches its own lane (qualFirst, the card's next lane): main.js launch keeps the attempt through
+// that launch alone (house-runs.js qualKeep); a save loaded, imported or continued ends it)
+let qualLaunching = false;
+/** A launch the attempt makes: its own lane, then the flag down whatever happened. */
+function qualLaunch(fn) { qualLaunching = true; try { return fn(); } finally { qualLaunching = false; } }
+/** A drawn house's code for the score line (score.js scoreLine's house), or null as set. */
+function drawnCodeOf(s) { try { const c = s?.armoury?.range?.course === 'house' ? houseCodeOf(s) : null; return c && c !== HOUSE_CODE_SET ? c : null; } catch { return null; } }
+/** "Qualify as <sheet>" from the picker: a new attempt, its first lane on a hidden seed never played on that sheet, the drawn house. */
+function qualFirst(rec, tier, par = null) {
+  let runs = [];
+  try { runs = readRuns(globalThis.localStorage).runs; } catch { runs = []; }
+  const seedQ = qualSeed(runs, tier, randomSeed);
+  if (seedQ === null) { toast('No fresh seed to qualify on.', 'warn'); return null; }
+  qualAttempt = { ...qualStart(tier), pending: seedQ };
+  return qualLaunch(() => playScene(rec, { seed: seedQ, tier, par, setup: null, draw: 'drawn' }));
+}
 
 // ---- v0.0.20: the run's log, its export, who speaks and the plates off the room ----
 /** The run's log for a state, or null (ui/runlog.js: none kept, the log full, or no save at GO). */
@@ -1521,7 +1627,10 @@ function exportRun(rec, s) {
   const H = s.armoury.range.house;
   let sheetHash = r.endSheet ?? null;
   if (!sheetHash) try { sheetHash = digestOf(JSON.stringify(houseScene.runSheetOf(s))); } catch (e) { broke(e, 'the export'); }
-  const out = { game: 'olympus', kind: 'house-run', version: VERSION, scene: rec.id, seed: s.meta.seed, sheet: H.tier, par: H.parSet ?? null, loadout: H.loadout ?? null,
+  // (the house's code, 'A' as set; the save at GO carries a drawn house's places.live.gen, so the replay rebuilds its area)
+  let code = HOUSE_CODE_SET;
+  try { code = houseCodeOf(s); } catch (e) { broke(e, 'the export'); }
+  const out = { game: 'olympus', kind: 'house-run', version: VERSION, scene: rec.id, seed: s.meta.seed, code, sheet: H.tier, par: H.parSet ?? null, loadout: H.loadout ?? null,
     atGo: r.atGo, inputs: r.inputs, steps: r.endN ?? r.n, runtime: r.runtime, sheetHash, digest: r.endDigest ?? digestOf(toJSON(s)) };
   try { toast(`Run exported to ${store.exportFile(JSON.stringify(out), `olympus-run-${rec.id}-${H.tier}-${s.meta.seed}.json`)}.`); } catch (e) { broke(e, 'the export'); }
   return out;
@@ -1580,7 +1689,8 @@ function houseKeepOff(s, { hidden = false } = {}) {
   } catch (e) { keepOff(null); broke(e, 'the plates off the room'); }
 }
 // (a room's floor rect (m) by its id, from the house's area (the Wheel's sector 4))
-const roomRect = (id) => (WHEEL_S4.rooms ?? []).find(r => r.id === id)?.rect ?? null;
+// (the live area's rooms, a drawn house's own ids 'w4~<v>.rN' (scenes/assemble.js); the Wheel's sector 4 as set)
+const roomRect = (id) => (areaOf(loop.state?.places?.live?.area)?.rooms ?? WHEEL_S4.rooms ?? []).find(r => r.id === id)?.rect ?? null;
 /** "Again as …" a sheet on the same seed (the scene's againAs: the same targets at the same gaps). */
 function againAs(rec, tier) {
   // (0.0.12: the shoot house's own, the same draws on the seed; the par kept where it was chosen)
@@ -1598,7 +1708,7 @@ function againAs(rec, tier) {
 function openScore() {
   if (!scene) return;
   // (the line names what was played, in the house: the panel, the walk, the look (D's page adds the shot and the voice))
-  const { body, lines } = scoreCard({ scene: scene.rec, version: VERSION, seed: scene.seed, onCopy: copyText, onDone: () => openEnd(), played: playedNow(loop.state) });
+  const { body, lines } = scoreCard({ scene: scene.rec, version: VERSION, seed: scene.seed, onCopy: copyText, onDone: () => openEnd(), played: playedNow(loop.state), house: drawnCodeOf(loop.state) });
   boot.openCard('score', body, lines);
 }
 
@@ -1618,7 +1728,7 @@ addEventListener('pagehide', leaveSave);
 document.addEventListener('visibilitychange', () => { if (document.hidden && loop.state) { loop.pause(true, 'player'); leaveSave(); } });
 
 // ---- a frame: the picture, the sound, the HUD, the saves, whether the page is ready ----
-const report = { version: VERSION, ppm: PX_PER_M, renderer: stage.stats.gpu, view: view.stats, pending: [], cutMs: null, cuts: [], gl: null, frame: null, painter: painter.stats, uploads: uploads.stats, audio: audio.stats, hud: null };
+const report = { version: VERSION, ppm: PX_PER_M, renderer: stage.stats.gpu, view: view.stats, stage: stage.stats, pending: [], cutMs: null, cuts: [], gl: null, frame: null, painter: painter.stats, uploads: uploads.stats, audio: audio.stats, hud: null };
 window.__report = report;
 window.__ready = false;
 const bootT0 = performance.now();
@@ -1632,7 +1742,7 @@ function splashPause(on) {
 // (the strip folded into the watch: BODY's stripOf, read once a game second, kept between)
 let stripMemo = { key: null, strip: null };
 function stripNow(s) {
-  const key = `${s.meta?.seed}|${Math.floor(s.clock.ms / 1000)}|${s.clock.seq}`;
+  const key = `${s.meta?.seed}|${Math.floor(s.clock.ms / 1000)}|${seqKey(s)}`;
   if (stripMemo.key !== key) {
     let strip = null;
     try { const b = bodyOf(s, s.player?.id); strip = b ? stripOf(b, s.clock.ms, lonAt(s)) : null; } catch (e) { broke(e, 'the body strip'); }
@@ -1764,7 +1874,7 @@ let simRead = { key: null };
 // (the KD course's view, kdNow, once a tick: the stages, groups, strings, pits, the coach's call; null off the KD)
 const kdOf = (s) => { try { return kdScene.kdNow ? kdScene.kdNow(s, s.clock.ms) : null; } catch (e) { broke(e, 'the KD'); return null; } };
 function readSim(s) {
-  const key = `${s.clock.tick}|${s.clock.seq}|${s.clock.ms}|${s.stop?.phase}|${s.stop?.pick}|${s.stop?.aim?.key}`;
+  const key = `${readKey(s)}|${s.stop?.phase}|${s.stop?.pick}|${s.stop?.aim?.key}`;
   if (simRead.key === key && simRead.state === s) return simRead;
   const r = { key, state: s, st: null, steps: [], belief: null, finish: null, other: null, range: null, look: null, targets: [], kd: null, far: null };
   try { r.st = stopNow(s); } catch (e) { broke(e, 'stop motion'); }
@@ -1813,6 +1923,7 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   if (s && s.$panel !== settings.panel) s.$panel = settings.panel;
   // (R8: the walk cycle played, the same way: the sim counts the gait phase in its steps, the view draws its frames)
   if (s && settings.cycle && s.$cycle !== settings.cycle) s.$cycle = settings.cycle;
+  if (s && settings.houseLight && s.$houseLight !== settings.houseLight) s.$houseLight = settings.houseLight;
   const sim = s && !hidden ? readSim(s) : null, st = sim?.st ?? null;
   const on = st?.mode === 'stop';
   hud.classList.toggle('weapon', !!on);
@@ -1863,7 +1974,7 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
 const AVPU_FADE = Object.freeze({ A: 0, V: 0.25, P: 0.6, U: 0.92 });
 let avpuMemo = { key: null, a: 'A' };
 function avpuFade(s) {
-  const key = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}`;
+  const key = `${s.meta?.seed}|${s.clock.ms}|${seqKey(s)}`;
   if (avpuMemo.key !== key) {
     let a = 'A';
     try { const rec = wounds.avpuOf ? bodyOf(s, s.player?.id) : null; a = rec && (rec.injuries?.length || rec.knock || rec.dead) ? wounds.avpuOf(rec, s.clock.ms) ?? 'A' : 'A'; } catch (e) { broke(e, 'the casualty\'s picture'); }
@@ -2007,7 +2118,7 @@ function aimHud(s, st = null, list = [], range = null) {
   if (shown && shown.key !== aimedKey) { const p = targetPx(shown); place(pickBox, bracket({ w: p.w, h: p.h, style: 'seen' }), p.x, p.y, k, 'centre', { ox, oy }); pickBox.hidden = false; } else pickBox.hidden = true;
   if (!shown || quiet) { aimPlaque.hidden = plaqueInfo.hidden = termsPlate.hidden = contactPlate.hidden = partsPlate.hidden = true; plaqueRect = null; return ''; }
   // (the plaque's record, once a tick and a target: the shot role's plaqueOf, the roll's own list)
-  const memoKey = `${s.clock.ms}|${s.clock.seq}|${shown.key}|${aimedKey}`;
+  const memoKey = `${s.clock.ms}|${seqKey(s)}|${shown.key}|${aimedKey}`;
   if (plaqueMemo?.key !== memoKey) {
     let rec = null;
     try { rec = plaqueOf(s, s.player.id, { target: shown }); } catch (e) { broke(e, 'the plaque'); }
@@ -2151,7 +2262,7 @@ function contactFactors(last) {
 // (test-pairs now, the scene's pairsNow, once a tick: null off its course)
 let pairsMemo = { key: null, pn: null };
 function pairsOf(s) {
-  const key = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}`;
+  const key = `${s.meta?.seed}|${s.clock.ms}|${seqKey(s)}`;
   if (pairsMemo.key === key && pairsMemo.state === s) return pairsMemo.pn;
   let pn = null;
   try { pn = rangeNow(s)?.course === 'pairs' || s.armoury?.range?.course === 'pairs' ? pairsScene.pairsNow(s, s.clock.ms) : null; } catch (e) { broke(e, 'the pairs'); }
@@ -2285,7 +2396,7 @@ function breatheRun(s) {
 let stressMemo = { key: null, sn: null };
 function stressRead(s) {
   if (!s?.armoury?.range?.stress || !stressScene.stressNow) return null;
-  const key = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}`;
+  const key = `${s.meta?.seed}|${s.clock.ms}|${seqKey(s)}`;
   if (stressMemo.key === key && stressMemo.state === s) return stressMemo.sn;
   let sn = null;
   try { sn = stressScene.stressNow(s, s.clock.ms); } catch (e) { broke(e, 'the stress course'); }
@@ -2295,7 +2406,7 @@ function stressRead(s) {
 // (hitMarks for a turner and a string, once a tick)
 const hitMemo = new Map();
 function hitMarksRead(s, key, k, phase) {
-  const mk = `${s.meta?.seed}|${s.clock.ms}|${s.clock.seq}|${key}|${k}|${phase}`;
+  const mk = `${s.meta?.seed}|${s.clock.ms}|${seqKey(s)}|${key}|${k}|${phase}`;
   if (hitMemo.has(mk)) return hitMemo.get(mk);
   let hm = null;
   try { hm = MARKS.hitMarks ? MARKS.hitMarks(s, key, { k, phase }) : null; } catch (e) { broke(e, 'the hit card'); }
@@ -2325,7 +2436,8 @@ async function recoverBroken(slot) {
 async function bench(name) {
   const scene = BENCH_SCENES[name];
   if (!scene || !SCENARIOS[scene.play]) { toast(`No bench scene '${name}': the title instead.`, 'warn'); await showTitle(); return null; }
-  await launch(newGame({ seed: scene.seed, scenario: scene.play, hour: scene.hour, at: scene.at ?? null, setup: scene.setup ?? null, tier: scene.tier ?? null }));
+  // (a house bench's kit, role-players and the house as set, as the URL would give them)
+  await launch(newGame({ seed: scene.seed, scenario: scene.play, hour: scene.hour, at: scene.at ?? null, setup: scene.setup ?? null, tier: scene.tier ?? null, ...(scene.loadout ? { loadout: scene.loadout } : {}), ...(scene.opfor ? { opfor: scene.opfor } : {}), ...(scene.draw ? { draw: scene.draw } : {}) }));
   while (!window.__ready) await sleep(50);
   const me = () => { const a = playerActor(loop.state); return a ? { x: a.x, z: a.z } : null; };
   // (the scene's keys through the input, so a press key (R at the rack) reaches the page's listeners as a real one would)
@@ -2334,7 +2446,10 @@ async function bench(name) {
     sample: () => ({ calls: view.stats.calls, triangles: view.stats.triangles, programs: view.stats.programs, viewMs: view.stats.viewMs, ticks: report.frame?.ticks ?? 0, tickMs: report.frame?.tickMs ?? 0, bytes: report.gl?.last?.bytes ?? 0, splash: report.frame?.splash ?? null,
       // (0.0.9: a frame at a bang, within BANG_FRAMES_MS of game time after the last went off)
       // (0.0.10: a frame at a blank of the din counts as at a bang: the stress-din bench's no frame over 25 ms at a blank)
-      bang: [lastBurst, lastBlank].some(b => b && Number.isFinite(b.atMs) && loop.state && loop.state.clock.ms - b.atMs >= 0 && loop.state.clock.ms - b.atMs < BANG_FRAMES_MS) }),
+      bang: [lastBurst, lastBlank].some(b => b && Number.isFinite(b.atMs) && loop.state && loop.state.clock.ms - b.atMs >= 0 && loop.state.clock.ms - b.atMs < BANG_FRAMES_MS),
+      // (the build sheet §1 item 22: the sim's busiest tick since the warm, the UI's ms, the programs linked and the upload queue's biggest job this frame)
+      tickMax: loop.stats.tickMsMax ?? 0, uiMs: report.frame?.uiMs ?? 0, links: report.gl?.last?.links ?? 0, upKey: uploads.stats.last?.key ?? null }),
+    onWarm: () => { loop.stats.tickMsMax = 0; },
     onLeft: (left) => { benchLead = `Bench: ${name}, ${left} s left`; },
   });
   benchLead = null;
@@ -2389,6 +2504,10 @@ async function copyText(text) {
 // ---- the debug handle, and the way in ----
 const nameOf = (p) => (typeof p?.name === 'string' ? p.name : p?.name ? [p.name.given, p.name.nick ? `'${p.name.nick}'` : null, p.name.family].filter(Boolean).join(' ') : null);
 const handleMore = {
+  /** The page's read counters (tests/ui-held.test.mjs, ui-soak.test.mjs): the step panel's builds and the run sheet's (core/reads.js BUILT), the input sent (inputSeq: the reads' key while the clock is held), the hit card's board dolls and the dressed dolls (dress.js's LRU). */
+  // (and the session's caches of areas: the drawn houses' layouts held (scenes/assemble.js, HOUSE_REG_KEEP), the
+  // generated areas registered (places/model.js), the view's areas built (AREA_CACHE), for the soak)
+  get perf() { return { steps: BUILT.steps, sheet: BUILT.sheet, inputSeq, hitDolls: hitDollCount(), dressed: dollCount(), layouts: heldLayouts(), generated: generatedIds(), viewAreas: view.stats.cached ?? null }; },
   /** The live area's id. */
   get area() { return loop.state?.places?.live?.area ?? null; },
   /** A debug move (debug:go, marking the save): to (x, z) in an area, facing face. */
@@ -2405,6 +2524,8 @@ const handleMore = {
       return { id: a.id, who: a.who, name: nameOf(s.people?.[a.who]), x: a.x, z: a.z, y: a.y ?? 0, face: a.face, gait: a.gait, posture: a.posture ?? 'stand', outfit: a.outfit ?? 'utilities', curtain: !!a.curtain, spotId: a.spotId ?? null, seen };
     });
   },
+  /** The fog of awareness on or off (the samples' instructor's view, samples/house-light: the catwalk sees into every room). */
+  fog(on = true) { view.setFog(!!on); return !!on; },
   /** The light at (x, z) in the live area now (places' lightLevel). */
   light(x, z) { const s = loop.state; return s ? lightLevel(s, x, z, s.clock.ms) : null; },
   /** The sun at the live site now (sunAt). */
@@ -2561,11 +2682,16 @@ loop.start();
 // (said once the start is made: launch clears the toasts)
 // (0.0.18: &loadout=, a preset or a code (loadout.js); an unknown one dropped with its toast as &env= is)
 const loadoutParam = params.loadout && !loadoutOf(params.loadout).error ? codeOf(loadoutOf(params.loadout)) : null, loadoutUnknown = params.loadout && !loadoutParam ? params.loadout : null;
-const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); if (lookUnknown) toast(`No look '${lookUnknown}': the game's instead.`, 'warn'); if (loadoutUnknown) toast(`No loadout '${loadoutUnknown}': the standard instead.`, 'warn'); };
+// (a &house= code not played as written (assemble.js houseUrlNote, read from the house the scene plays, once it is made:
+// the code review of 2026-11-16 found the toast said "Its rooms as given" on &draw=set, the live lane and every other scene, and a
+// malformed code dropped silently))
+const houseSay = () => { if (!params.houseAsked) return; let note = null; try { const s = loop?.state, played = s?.armoury?.range?.course === 'house' ? houseCodeOf(s) : null; note = houseUrlNote(params.houseAsked, played, params.seed ?? 48213); } catch (e) { broke(e, 'the house\'s code'); } if (note) toast(note, 'warn'); };
+const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); if (lookUnknown) toast(`No look '${lookUnknown}': the game's instead.`, 'warn'); if (loadoutUnknown) toast(`No loadout '${loadoutUnknown}': the standard instead.`, 'warn');
+  houseSay(); };
 if (benchName) { await bench(benchName).catch((e) => broke(e, 'the bench')); sayEnv(); }
 else if (params.play) {
   const rec = SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play);
-  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier, par: params.par, loadout: loadoutParam, opfor: params.opfor });
+  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier, par: params.par, loadout: loadoutParam, opfor: params.opfor, draw: params.draw ?? null, house: params.house ?? null, doors: params.doors ?? null });
   else if (SCENARIOS[params.play]) launch(newGame({ seed: params.seed ?? 1, scenario: params.play, mode: params.mode, hour: params.hour, at: atParam(params.play) }));
   else { toast(`No scenario '${params.play}': the title instead.`, 'warn'); await showTitle(); }
   sayEnv();

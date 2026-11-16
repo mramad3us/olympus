@@ -5,8 +5,10 @@
 // is the user's 1489397426, then 1000 + 37i, at setup 'go'. Each criterion prints its value and threshold, MET or OPEN,
 // and fails once tests/flawless.mjs ENFORCED names it (from R9, 2026-11-13, every criterion). The recruit and
 // the private are house-flawless-keys' (their grain is by the keys); the rest of §25.19.8 is house-flawless-more's.
+// v0.0.21: and the ten seeds of the tier one by T and the private by the keys, moved here from house-flawless-quick (which keeps
+// three), word for word but its name's "(heavy)".
 import { assert } from './helpers.mjs';
-import { flawlessSeeds, laneSet, gaugeOf, printGauge, failing, T_SHEETS, ENFORCED } from './flawless.mjs';
+import { flawlessSeeds, laneSet, gaugeOf, printGauge, failing, keysGauge, T_SHEETS, ENFORCED } from './flawless.mjs';
 import { RUNG_OF_TIER } from '../src/sim/skills/templates.js';
 
 /** Seeds a sheet (COMBAT §25.19.8: 100). */
@@ -27,6 +29,20 @@ export default [
         printGauge(`${tier} alone`, gaugeOf(recs.filter(r => r.tier === tier)).filter(r => ids.includes(r.id)));
       }
       assert(recs.length === T_SHEETS.length * SEEDS_N, `${recs.length} lanes`);
+      const f = failing(rows);
+      assert(!f.length, f.join(' | '));
+    },
+  },
+  {
+    name: 'ten seeds (seed 0 the user\'s 1489397426, then 1000 + 37i): the tier one by the honest bot (T and the shot the line names, nothing else) and the private by the keys, every criterion F1 to F24 the lanes measure printed against its threshold (failing criteria: every one enforced from R9) (heavy: moved from house-flawless-quick in v0.0.21)',
+    heavy: true,
+    timeoutMs: 300_000,
+    fn() {
+      const seeds = flawlessSeeds(10);
+      const recs = [...laneSet({ sheets: ['tierone'], seeds, bot: 'honest' }), ...laneSet({ sheets: ['private'], seeds, bot: 'keys' })];
+      const rows = [...gaugeOf(recs), keysGauge(recs)];
+      printGauge(`the gauges over ${recs.length} lanes (ENFORCED: ${[...ENFORCED].join(', ') || 'none yet'})`, rows);
+      assert(recs.length === 20 && recs.every(r => !r.err), JSON.stringify(recs.filter(r => r.err).map(r => [r.tier, r.seed, r.err])));
       const f = failing(rows);
       assert(!f.length, f.join(' | '));
     },

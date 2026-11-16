@@ -20,13 +20,19 @@ import { beliefOf } from '../src/sim/arms/firearms.js';
 // (the hunt of v0.0.18: Top up no longer offered with a magazine of ten in and nothing fuller at hand, a swap of ten for ten: two
 // of the tier one's pauses and one of the sergeant's; v0.0.19's digests were 1a4ac722085660 and 1e909843bca3b0)
 // (v0.0.20's integration: both at once, the room's rows and the hunt's Top up; B's own digests were 0972977eda42b9 and 0d92f0f3147534)
-export const STANDARD_ROWS = Object.freeze({ 'private/48213': [20, 0, '17e68730c8d01b'], 'tierone/48213': [15, 3, '1a6e7df86a9831'], 'sgt/1037': [17, 6, '14f67340608758'] });
+// (v0.0.21's fixer, on purpose: X in the live lane is labelled "Go: the clock runs", never the range's "Stand easy" (the play review
+// of 2026-11-16); that label alone moves every digest, the pauses and the closet's the same (checked by putting the old label back:
+// the old digests to the byte). Was 'private/48213': [20, 0, '17e68730c8d01b'], 'tierone/48213': [15, 3, '1a6e7df86a9831'],
+// 'sgt/1037': [17, 6, '14f67340608758'])
+export const STANDARD_ROWS = Object.freeze({ 'private/48213': [20, 0, '0a6472b4704993'], 'tierone/48213': [15, 3, '1815c0034914ab'], 'sgt/1037': [17, 6, '0a197456b2d44c'] });
 /** The same with his P-12, standard issue from v0.0.20 (the user's answer of 2026-11-16, "#2 has to have a sidearm"): his longer MAKE READY and SHOW CLEAR move the lane's ticks, so its pauses (re-recorded on v0.0.20's tree, PRINT_HASH=1). */
 // (the tier one's one pause more, at 50.30 s: after his own SHOW CLEAR, the tower waiting on your #2's P-12 cleared; the admin rows
 // of an empty rifle, every one of them v0.0.18's (macro:clear, macro:load, macro:reload:speed); the private and the sergeant the same)
 // (v0.0.20's integration: on the merged tree, the room's rows and the hunt's Top up with his P-12; the asks' own on v0.0.19 were
 // tierone [16, 3, '11d5e252c4cc67'] and sgt [18, 7, '1e909843bca3b0'])
-export const STANDARD_ROWS_P12 = Object.freeze({ 'private/48213': [20, 0, '17e68730c8d01b'], 'tierone/48213': [18, 3, '15024d1bcce693'], 'sgt/1037': [20, 6, '15e26021ef9b6c'] });
+// (v0.0.21's fixer: the same X label; was 'private/48213': [20, 0, '17e68730c8d01b'], 'tierone/48213': [18, 3, '15024d1bcce693'],
+// 'sgt/1037': [20, 6, '15e26021ef9b6c'])
+export const STANDARD_ROWS_P12 = Object.freeze({ 'private/48213': [20, 0, '0a6472b4704993'], 'tierone/48213': [18, 3, '168f1b0d689dbd'], 'sgt/1037': [20, 6, '0b5dddfcf0b457'] });
 
 export default [
   {

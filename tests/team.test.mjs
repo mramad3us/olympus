@@ -26,7 +26,8 @@ import { CALLS } from '../src/sim/arms/sidearm.js';
 // (the files whose reads of a slot are the geometry or the side itself, never "whose man")
 const ALLOWED = new Set(['src/sim/combat/team.js', 'src/sim/combat/room.js', 'src/sim/combat/corner.js']);
 // (a read of a turner's slot that decides ownership: on T or t (a.T, u.T too), on turnerOf(…) or turners.find(…), or a side from room.js manPlace(…) taken as an owner)
-const READ = /(?:(?<![\w$])[Tt]|\bmanPlace\([^()]*\)|\bturnerOf\([^()]*\)|\.turners\??\.find\([^()]*\))\??\.slot\s*(?:===|!==|\?\?)(?!\s*undefined)/;
+// (v0.0.21, the build sheet §1 item 8: and STANDS[…].slot, v0.0.19's slotOfStand's form, which the scan missed: STANDS has no slot now)
+const READ = /(?:(?<![\w$])[Tt]|\bmanPlace\([^()]*\)|\bturnerOf\([^()]*\)|\.turners\??\.find\([^()]*\)|\bSTANDS\[[^\]]*\])\??\.slot\s*(?:===|!==|\?\?)(?!\s*undefined)/;
 
 function jsFiles(dir) {
   const out = [];
@@ -45,7 +46,7 @@ export default [
     name: 'no ownership read of a turner\'s slot in src/sim outside team.js, room.js and corner.js: every site asks team.js ownerOf or roleAt (stage 0, the build sheet v0.0.19 §0 item 14; 17 reads on the snapshot of v0.0.18)',
     fn() {
       const files = jsFiles(path.join(root, 'src/sim')).map(f => path.relative(root, f).split(path.sep).join('/')).sort();
-      const bad = [], calls = {}, SITES = ['src/sim/combat/contact.js', 'src/sim/combat/bundle.js', 'src/sim/skills/instinct/cqb.js', 'src/sim/scenarios/house-two.js'];
+      const bad = [], calls = {}, SITES = ['src/sim/combat/contact.js', 'src/sim/combat/bundle.js', 'src/sim/skills/instinct/cqb.js', 'src/sim/combat/two.js'];   // (v0.0.21: the #2's brain moved to combat/)
       for (const f of files) {
         if (ALLOWED.has(f)) continue;
         const lines = readFileSync(path.join(root, f), 'utf8').split('\n');

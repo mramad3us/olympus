@@ -12,9 +12,13 @@
 // is the page's log made in node: a bot played from GO, its memory kept off the state (the page has no bot memory on its actor), each
 // input logged as runlog.js logs it (with the clock's ms beside it, for the tests' contrast only). As a script: node
 // tests/replay-run.mjs <run.json> prints the run sheet and whether it matches.
+// v0.0.21 (the build sheet v0.0.21 §1 item 16, §0 item 22): the export names the house's code ('A' as set, the whole code of a drawn
+// house); a drawn run's save at GO carries places.live.gen, and loading it registers the drawn area (the places domain's upgrade
+// 'places:gen', the drawn house's registry), so the replay rebuilds the house it was played on and ends on the same code (same.code).
 import { readFileSync } from 'node:fs';
 import { createGame, fullInput, NO_INPUT } from './game.mjs';
 import { runSheetOf, houseNow } from '../src/sim/scenarios/shoothouse.js';
+import { houseCodeOf } from '../src/sim/scenes/assemble.js';
 import { digest } from '../src/core/hash.js';
 import { toJSON } from '../src/core/state.js';
 import { playerActor } from '../src/core/ids.js';
@@ -42,7 +46,7 @@ export function recordRun(g, bot, { scene = 'test-shoothouse', maxSteps = 40_000
     n++;
   }
   const s = g.state, h = s.armoury.range.house;
-  return { game: 'olympus', kind: 'house-run', version: 'test', scene, seed: s.meta.seed, sheet: h.tier, par: h.parSet ?? null, loadout: h.loadout ?? null,
+  return { game: 'olympus', kind: 'house-run', version: 'test', scene, seed: s.meta.seed, code: houseCodeOf(s), sheet: h.tier, par: h.parSet ?? null, loadout: h.loadout ?? null,
     atGo, inputs, steps: n, runtime, sheetHash: sheetHashOf(s), digest: digest(toJSON(s)) };
 }
 
@@ -59,8 +63,9 @@ export function replayRun(run) {
     if (inp && st.skip && engineOf(st.skip) === 'ff') { g.loop.tick(fullInput(inp)); g.sim.ffCheck(st); }
     else g.step(1, inp ? fullInput(inp) : NO_INPUT);
   }
-  const sheetHash = sheetHashOf(g.state), dg = digest(toJSON(g.state));
-  return { game: g, steps: run.steps, sheetHash, digest: dg, same: { sheet: sheetHash === run.sheetHash, save: dg === run.digest }, end: houseNow(g.state)?.end ?? null };
+  const sheetHash = sheetHashOf(g.state), dg = digest(toJSON(g.state)), code = houseCodeOf(g.state);
+  // (an export from before v0.0.21 names no code: its house was the set's)
+  return { game: g, steps: run.steps, sheetHash, digest: dg, code, same: { sheet: sheetHash === run.sheetHash, save: dg === run.digest, code: code === (run.code ?? 'A') }, end: houseNow(g.state)?.end ?? null };
 }
 
 // (as a script: replay a file and print its run sheet)
@@ -68,6 +73,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const run = JSON.parse(readFileSync(process.argv[2], 'utf8')), r = replayRun(run), rs = runSheetOf(r.game.state);
   console.log(rs.card);
   for (const row of rs.rows) console.log(`  ${row.words}`);
-  console.log(`steps ${r.steps}; the run sheet ${r.same.sheet ? 'the same' : 'DIFFERENT'} (${r.sheetHash}); the save ${r.same.save ? 'the same' : 'DIFFERENT'} (${r.digest})`);
+  console.log(`house ${r.code}; steps ${r.steps}; the run sheet ${r.same.sheet ? 'the same' : 'DIFFERENT'} (${r.sheetHash}); the save ${r.same.save ? 'the same' : 'DIFFERENT'} (${r.digest})`);
   process.exitCode = r.same.sheet && r.same.save ? 0 : 1;
 }

@@ -301,6 +301,10 @@ export function habitStep(state, input, bus, ctx = {}) {
         rec.told = true;
         const kind = rec.result === 'point' ? 'point' : 'flag';
         if (kind === 'flag') rec.result = 'flag';
+        // (in the shoot house's lane a muzzle at high or low ready over a teammate is the drill's, its judge's SWEEP_SAFE
+        // (shoothouse.js flagged): the log no longer says "You flagged …" where the run sheet and the instructor say nothing (the play
+        // review of 2026-11-16, the recruit's fuzz on drawn 3); the habit's roll is rolled as before, only the word and the fact go)
+        if (state.armoury?.range?.course === 'house' && SWEEP_SAFE.has(cone.posture)) continue;
         if (isMe(state, pid)) logEntry(state, bus, { kind: 'habit', tone: 'warn', filter: 'habit', who: pid, other: B.who, posture: cone.posture, result: kind, text: kind === 'point' ? `You pointed your rifle at ${nameOf(state, B.who)}.` : `You flagged ${nameOf(state, B.who)}: your muzzle stayed on them.` });
         bus?.emit('muzzle', { who: pid, at: B.who, kind, posture: cone.posture, atMs: ms });
       }

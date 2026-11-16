@@ -32,6 +32,10 @@
 // v0.0.18's lanes keep their saves to the byte: breach.js breachHowOf reads 'charge', 'pry' or 'ram' from what is absent).
 // tickDevices(state, bus, now) bursts every grenade whose fuse has run and every charge fired whose count has run, at its own
 // ms (fuseAtMs), so a cut drill never leaves one burning. stackOf(state) is the shoot house's two (you and your #2).
+// v0.0.21 (the hand-off, D: the build sheet §1 item 21): off the range session the record is the operation's (combat/op.js
+// openOp's state.cqb): its stack, its turners dazed, its bursts and its breach method, and a door blown writes its broken lock
+// on the opening's own delta (op.js breakOpening); the instructor's read of a practice grenade stays the lane's. On a range
+// session every read and write is the house's as before, to the byte.
 // Pure but burst and tickDevices, which write the people, the stands, the doors, the items and the record.
 import { stream, next, range } from '../../core/rng.js';
 import { playerActor, playerId } from '../../core/ids.js';
@@ -42,6 +46,7 @@ import { peakKPa, qspKPa, BLAST_KPA, STUN_KPA } from '../arms/blast.js';
 import { DEVICES, liveDevices } from '../arms/devices.js';
 import { readBurst } from './practice.js';
 import { discard, holderOf } from '../arms/kit.js';
+import { laneRec, breakOpening, sessionOf } from './op.js';
 
 /** The bang's window: an entry later than this after the burst gives them back the bang (COMBAT §25.18.2's, ms). */
 export const BANG_LATE_MS = 2000;
@@ -57,7 +62,9 @@ export const DAZED_FACES = Object.freeze(['threat', 'armoured', 'hostage', 'nosh
 const D2R = Math.PI / 180;
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 const r1 = (x) => Math.round(Math.min(x, PEAK_RECORD_KPA) * 10) / 10;
-const houseOf = (state) => (state.armoury?.range?.course === 'house' ? state.armoury.range.house ?? null : null);
+// (the record a burst reads and writes: the house's on its lane; off the range session the operation's (op.js openOp), never a
+// range course's other record (the hand-off's, D))
+const houseOf = (state) => laneRec(state) ?? (state.armoury?.range ? null : state.cqb ?? null);
 const doorMid = (o) => (o.axis === 'x' ? [(o.a + o.b) / 2, o.at] : [o.at, (o.a + o.b) / 2]);
 
 /** The shoot house's stack (you and your #2), the people a stack's own call prepares. */
@@ -126,8 +133,7 @@ export function burst(state, bus, { id, model, x, z, atMs = state.clock.ms, byId
   }
   if (!D.flash) bus?.emit('fx', { kind: 'blast', id, x, y: 0.3, z, atMs, by: byId ?? null, model });
   // (3. the house's stands in the room, dazed as men in utilities would be)
-  const R = state.armoury?.range;
-  for (const T of R?.turners ?? []) {
+  for (const T of sessionOf(state)?.turners ?? houseOf(state)?.turners ?? []) {
     // (v0.0.19: a practice grenade's stands are the read's alone (see the header))
     if (D.as) break;
     if (!room || !room.in.includes(T.room) || T.stoppedAtMs !== null && T.stoppedAtMs !== undefined || !DAZED_FACES.includes(T.face)) continue;
@@ -154,14 +160,14 @@ export function burst(state, bus, { id, model, x, z, atMs = state.clock.ms, byId
         setOpening(state, o.id, 'open', { atMs: atMs + 100 });
         ((state.$places ??= {}).moving ??= new Set()).add(o.id);
         const H = houseOf(state);
-        if (H) { (H.broken ??= {})[o.id] = atMs; if (model === 'bc1') (H.breach ??= {})[o.id] = { how: 'cut', atMs }; }
+        if (H) { breakOpening(state, o.id, atMs); if (model === 'bc1') (H.breach ??= {})[o.id] = { how: 'cut', atMs }; }
         bus?.emit('door', { id: o.id, area, x: mx, z: mz, state: 'open', kind: o.kind, who: byId, how: 'blown' });
         out.blown = o.id;
       }
     }
   }
   // (v0.0.19: the instructor's read of a practice grenade, before its item leaves the game (its flight: the throw's exposure, the floor's time))
-  const read = D.as && houseOf(state) ? readBurst(state, { burst: id, model, x, z, atMs, room, byId }) : null;
+  const read = D.as && laneRec(state) ? readBurst(state, { burst: id, model, x, z, atMs, room, byId }) : null;
   // (5. the record)
   if (state.items?.[id]?.flight?.atFeet) out.atFeet = true;
   const thrown = state.items?.[id]?.flight?.door ?? null;
@@ -213,7 +219,7 @@ export const BURST_LOOK_MS = 12_000;
  * last BURST_LOOK_MS: [{ id, x, z, fromX, fromZ, throwAtMs, atMs, done, model }], plain numbers, nothing written.
  */
 export function devicesLook(state, ms = state?.clock?.ms ?? 0) {
-  const out = [], H = state?.armoury?.range?.course === 'house' ? state.armoury.range.house : null;
+  const out = [], H = houseOf(state);
   for (const d of liveDevices(state)) {
     const rec = state.items[d.id], F = rec?.flight;
     if (d.kind !== 'grenade' || !F || !Number.isFinite(rec.fuseAtMs)) continue;

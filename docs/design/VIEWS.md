@@ -1459,6 +1459,16 @@ A `▸` slot opens a third level, holding only rows never chosen on the lane (th
 
 ---
 
+### 7.9 As built in v0.0.21 (the picker, the card, the radio, the page's reads)
+
+- **The shoot house's picker** adds, under the kit, "House: As set · Drawn from the seed" (H; chips on one line, `.item.drawpick`) and "Qualify as <sheet>", both only where the scene draws its house; a qualified sheet's line ends QUALIFIED. More than four sheets lie in two columns from 980 px wide (`.sheets.two`): Back's foot at 665 px of 720 and 932 of 1,080. The Tests menu's line reads "the shoot house … as set or drawn".
+- **The end card** names a drawn house's code in its header (its own `span.house-code`, case kept, selectable) and the score line names it after the seed; a qualification's place is said under the verdict ("QUALIFICATION 2 OF 3 · GO") and the card leads with its next lane. The lane timer's board reads "NEW LAYOUT" on a drawn house.
+- **The radio** (§7.5) pages a line longer than its box's two rows (`splitPages` at sentences, at words where one sentence is too long; `pageAt` by each page's share of the hold; "…" where it goes on); the box never grows.
+- **A struck tile's reason** (`.badge.b-note`, `.b-gate`) reads whole on the tile's foot row.
+- **The page's reads** are keyed on the tick while the clock moves and on the input sent while it is held (`main.js` `readKey`, `inputSeq`): no rebuild of the panel or the card in stop motion without an input. A scene left is let go (`leaveScene`: every top-level memo). The hit card's men go through the dressed dolls' cache (24 kept).
+- **The bake** (§11): every renderer yields every `BAKE_CHUNK_SAMPLES` 4,096 samples (`synth.js`, `gun.js`, `voice.js`); a step is begun only where the last step's length still fits `BAKE_FRAME_MS` 3; the tests hold a slice under `BAKE_SLICE_MAX_MS` 5 × k. A line queued after the sounds bake is baked too; the #2's call-outs (`two.js calloutLines`: each face's word at each of nine places) are baked at a house lane's launch.
+- **The shoot house's light candidates** (`samples/house-light`; `src/data/places/house-light.js`): HL-b and HL-c by `&houselight=b|c`, runtime only (`state.$houseLight`); HL-a, today's, is the game until the user picks.
+
 ## 8. Cards and screens
 
 ### 8.1 Common chrome

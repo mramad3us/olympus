@@ -27,7 +27,7 @@
 // Pure.
 import { HUNGER, THIRST, BLADDER_BANDS, BOWEL_BANDS, GRIME_BANDS, FATIGUE_BANDS, STAMINA_BANDS, STUBBLE_BANDS, STRESS_BANDS, MORALE_BANDS, HYGIENE, HANDS_BANDS } from '../../data/body/needs.js';
 import { HOUR_MS, MIN_MS } from '../../core/clock.js';
-import { withDefaults, hasBeard } from './record.js';
+import { withDefaults, hasBeard, readFull } from './record.js';
 
 export { hasBeard };
 import { massOf, hungerIndex } from './energy.js';
@@ -64,14 +64,14 @@ export const handsWords = (i, why) => HANDS_WHY[why]?.[i] ?? HANDS_BANDS[i]?.wor
 /** The body's effective sleep pressure at ms (BODY §7.3): the pressure and the body clock's term. */
 export function pEffOf(body, ms, lonEDeg) {
   lonNeed(lonEDeg, 'pEffOf');
-  const b = withDefaults(body);
+  const b = readFull(body);
   return b.sleep.pressureH + circ(phiOf(ms, lonMsOf(lonEDeg), b.sleep.offsetH));
 }
 
 /** Each ledger's felt band at ms (see the header). */
 export function stagesOf(body, ms, lonEDeg) {
   lonNeed(lonEDeg, 'stagesOf');
-  const b = withDefaults(body), lonMs = lonMsOf(lonEDeg), phi = phiOf(ms, lonMs, b.sleep.offsetH), mass = massOf(b);
+  const b = readFull(body), lonMs = lonMsOf(lonEDeg), phi = phiOf(ms, lonMs, b.sleep.offsetH), mass = massOf(b);
   const e = b.energy;
   return {
     hunger: stage(HUNGER, hungerIndex(e.gutKcal, e.emptyH, e.reserveKcal)),
@@ -98,7 +98,7 @@ const HUNGER_K = Object.freeze([0, 0.2, 0.6, 0.8, 1, 1, 1]);
 /** What the figure and the doll draw, each 0 to 1 (see the header). */
 export function cuesOf(body, ms, lonEDeg) {
   lonNeed(lonEDeg, 'cuesOf');
-  const b = withDefaults(body), h = b.hygiene, wet = h.wetUntilMs !== null && h.wetUntilMs !== undefined && ms < h.wetUntilMs ? (h.wetUntilMs - ms) / HYGIENE.WET_HAIR_MS : 0;
+  const b = readFull(body), h = b.hygiene, wet = h.wetUntilMs !== null && h.wetUntilMs !== undefined && ms < h.wetUntilMs ? (h.wetUntilMs - ms) / HYGIENE.WET_HAIR_MS : 0;
   const e = b.energy;
   return {
     wetK: clamp01(wet), grimeK: clamp01(h.grime / 100), sweatK: clamp01((h.sweatL ?? 0) / 0.5),
@@ -128,7 +128,7 @@ function painCell(b, ms) {
 }
 /** The body line's say on wounds at ms (BODY §23.2's order), or null: { tone, text }. Never a number. */
 export function woundLine(body, ms) {
-  const b = withDefaults(body);
+  const b = readFull(body);
   if (!hasWounds(b) || b.dead) return null;
   const on = (b.injuries ?? []).filter(i => i.bleed > ms && !i.internal && !i.cared);
   const hard = on.find(i => i.artery || (i.rate ?? 0) >= LIMB_CAP_PM);
@@ -155,7 +155,7 @@ const lower = (w) => w.replace(/\.$/, '').replace(/^./, c => c.toLowerCase());
 /** The sheet's words (VIEWS §8.2): { line, needs: [{ need, band, words }] }. */
 export function wordsOf(body, ms, lonEDeg) {
   lonNeed(lonEDeg, 'wordsOf');
-  const b = withDefaults(body), s = stagesOf(b, ms, lonEDeg), wet = cuesOf(b, ms, lonEDeg).wetK > 0;
+  const b = readFull(body), s = stagesOf(b, ms, lonEDeg), wet = cuesOf(b, ms, lonEDeg).wetK > 0;
   const food = s.hunger.i === 0 ? fedPhrase(b.energy.ateMs, ms) : s.hunger.words.replace(/\.$/, '');
   const order = [['bladder', s.bladder], ['bowel', s.bowel], ['water', s.thirst], ['sleep', s.fatigue], ['grime', s.hygiene], ['hands', s.hands], ['stubble', s.stubble], ['stamina', s.stamina], ['stress', s.stress], ['morale', s.morale]];
   const notes = order.filter(([, st]) => st.tone !== 'fine' && st.words).map(([, st]) => lower(st.words));

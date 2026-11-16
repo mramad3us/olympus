@@ -58,7 +58,7 @@
 //
 // Pure: renderDry, renderTail, protect, ownShot, otherShot, echoShot, gunBakes and the constants; engine.js plays what they say.
 import { stream, next } from '../../core/rng.js';
-import { biquad } from './synth.js';
+import { biquad, BAKE_CHUNK_SAMPLES } from './synth.js';
 import { softClip } from './mix.js';
 import { airDb } from '../../sim/people/hearing.js';
 import { lowpassHz } from './steps.js';
@@ -184,18 +184,6 @@ function biq(buf, type, hz, q, sr) {
   for (let i = 0; i < buf.length; i++) { const x = buf[i], y = k.b0 * x + k.b1 * x1 + k.b2 * x2 - k.a1 * y1 - k.a2 * y2; x2 = x1; x1 = x; y2 = y1; y1 = y; buf[i] = y; }
   return buf;
 }
-function onePoleHp(buf, hz, sr) {
-  const a = Math.exp(-TAU * hz / sr);
-  let xp = 0, y = 0;
-  for (let i = 0; i < buf.length; i++) { const x = buf[i]; y = a * (y + x - xp); xp = x; buf[i] = y; }
-  return buf;
-}
-function onePoleLp(buf, hz, sr) {
-  const a = Math.exp(-TAU * hz / sr);
-  let y = 0;
-  for (let i = 0; i < buf.length; i++) { y = (1 - a) * buf[i] + a * y; buf[i] = y; }
-  return buf;
-}
 const peakOf = (buf) => { let p = 0; for (let i = 0; i < buf.length; i++) p = Math.max(p, Math.abs(buf[i])); return p; };
 function norm(buf) { const p = peakOf(buf); if (p > 0) for (let i = 0; i < buf.length; i++) buf[i] /= p; return buf; }
 const noiseOf = (r, n) => { const b = new Float32Array(n); for (let i = 0; i < n; i++) b[i] = next(r) * 2 - 1; return b; };
@@ -206,6 +194,35 @@ function ring(buf, i0, hz, tauS, amp, sr) {
   for (let i = 0; i < n; i++) buf[i0 + i] += amp * Math.sin(TAU * hz * i / sr) * Math.exp(-i / sr / tauS) * Math.min(1, i / 2);
 }
 function addScaled(out, buf, k, at = 0) { for (let i = 0; i < buf.length && at + i < out.length; i++) if (at + i >= 0) out[at + i] += buf[i] * k; }
+// (the build sheet §1 item 12: the passes above as generators, the same arithmetic in the same order, a yield every
+// BAKE_CHUNK_SAMPLES, so a bake's slice ends within the engine's BAKE_FRAME_MS and a chunk: a tail's rumble took 2.7 ms at once)
+const CH = BAKE_CHUNK_SAMPLES;
+const due = (i) => i % CH === CH - 1;
+function* noiseG(r, n) { const b = new Float32Array(n); for (let i = 0; i < n; i++) { b[i] = next(r) * 2 - 1; if (due(i)) yield 'noise'; } return b; }
+function* biqG(buf, type, hz, q, sr) {
+  const k = biquad(type, hz, q, sr);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < buf.length; i++) { const x = buf[i], y = k.b0 * x + k.b1 * x1 + k.b2 * x2 - k.a1 * y1 - k.a2 * y2; x2 = x1; x1 = x; y2 = y1; y1 = y; buf[i] = y; if (due(i)) yield 'biquad'; }
+  return buf;
+}
+function* hpG(buf, hz, sr) {
+  const a = Math.exp(-TAU * hz / sr);
+  let xp = 0, y = 0;
+  for (let i = 0; i < buf.length; i++) { const x = buf[i]; y = a * (y + x - xp); xp = x; buf[i] = y; if (due(i)) yield 'highpass'; }
+  return buf;
+}
+function* lpG(buf, hz, sr) {
+  const a = Math.exp(-TAU * hz / sr);
+  let y = 0;
+  for (let i = 0; i < buf.length; i++) { y = (1 - a) * buf[i] + a * y; buf[i] = y; if (due(i)) yield 'lowpass'; }
+  return buf;
+}
+function* normG(buf) {
+  let p = 0;
+  for (let i = 0; i < buf.length; i++) { p = Math.max(p, Math.abs(buf[i])); if (due(i)) yield 'peak'; }
+  if (p > 0) for (let i = 0; i < buf.length; i++) { buf[i] /= p; if (due(i)) yield 'norm'; }
+  return buf;
+}
 
 /**
  * A gun's dry shot (see the header): a Float32Array at sampleRate, its peak 1. part 'own' (at the shooter's ear: the blast, the
@@ -222,21 +239,21 @@ export function* dryGen(model, { part = 'own', crack = true, variant = 0, sample
   const lead = !own && crack ? Math.round(0.002 * sr) : 0;
   // (the blast: the Friedlander pulse, two samples' rise)
   const T = G.posMs / 1000, pulse = new Float32Array(n);
-  for (let i = 0; i < n; i++) { const t = (i - lead) / sr; if (t < 0) continue; pulse[i] = (1 - t / T) * Math.exp(-G.b * t / T) * Math.min(1, (i - lead + 1) / 2); }
+  for (let i = 0; i < n; i++) { if (due(i)) yield 'pulse'; const t = (i - lead) / sr; if (t < 0) continue; pulse[i] = (1 - t / T) * Math.exp(-G.b * t / T) * Math.min(1, (i - lead + 1) / 2); }
   addScaled(out, pulse, dbToK(G.blastDb ?? 0));
   // (the gas's turbulence and its gust)
-  const gas = biq(biq(noiseOf(r('gas'), n), 'highpass', G.gas.hpHz, Math.SQRT1_2, sr), 'lowpass', G.gas.lpHz, Math.SQRT1_2, sr);
-  for (let i = 0; i < n; i++) gas[i] *= envAt((i - lead) / sr, G.gas.attackMs / 1000, G.gas.decayMs / 1000);
-  addScaled(out, norm(gas), dbToK(G.gas.db));
+  const gas = yield* biqG(yield* biqG(yield* noiseG(r('gas'), n), 'highpass', G.gas.hpHz, Math.SQRT1_2, sr), 'lowpass', G.gas.lpHz, Math.SQRT1_2, sr);
+  for (let i = 0; i < n; i++) { gas[i] *= envAt((i - lead) / sr, G.gas.attackMs / 1000, G.gas.decayMs / 1000); if (due(i)) yield 'env'; }
+  addScaled(out, yield* normG(gas), dbToK(G.gas.db));
   yield 'gas';
-  const gust = onePoleLp(onePoleLp(noiseOf(r('gust'), n), G.gust.lpHz, sr), G.gust.lpHz, sr);
-  for (let i = 0; i < n; i++) gust[i] *= envAt((i - lead) / sr, G.gust.attackMs / 1000, G.gust.decayMs / 1000);
-  addScaled(out, norm(gust), dbToK(G.gust.db));
+  const gust = yield* lpG(yield* lpG(yield* noiseG(r('gust'), n), G.gust.lpHz, sr), G.gust.lpHz, sr);
+  for (let i = 0; i < n; i++) { gust[i] *= envAt((i - lead) / sr, G.gust.attackMs / 1000, G.gust.decayMs / 1000); if (due(i)) yield 'env'; }
+  addScaled(out, yield* normG(gust), dbToK(G.gust.db));
   // (the thump: a sine falling over its decay)
   const th = new Float32Array(n), tau = G.thump.decayMs / 1000;
   let ph = 0;
-  for (let i = 0; i < n; i++) { const t = (i - lead) / sr; if (t < 0) continue; const f = G.thump.toHz + (G.thump.hz - G.thump.toHz) * Math.exp(-t / tau); ph += TAU * f / sr; th[i] = Math.sin(ph) * envAt(t, 0.0008, tau); }
-  addScaled(out, norm(th), dbToK(G.thump.db));
+  for (let i = 0; i < n; i++) { if (due(i)) yield 'sine'; const t = (i - lead) / sr; if (t < 0) continue; const f = G.thump.toHz + (G.thump.hz - G.thump.toHz) * Math.exp(-t / tau); ph += TAU * f / sr; th[i] = Math.sin(ph) * envAt(t, 0.0008, tau); }
+  addScaled(out, yield* normG(th), dbToK(G.thump.db));
   yield 'thump';
   // (the crack: an N-wave, its edges a sample each)
   if (crack) {
@@ -262,14 +279,14 @@ export function* dryGen(model, { part = 'own', crack = true, variant = 0, sample
   }
   // (the blast and its body saturated together, as the air near a muzzle and every microphone saturate: the pulse's edge
   // flattened, the gas's body brought up under it, so the shot is dense, not a click; tanh(drive x) / tanh(drive))
-  norm(out);
+  yield* normG(out);
   const dk = Math.tanh(G.drive);
-  for (let i = 0; i < n; i++) out[i] = Math.tanh(G.drive * out[i]) / dk;
-  onePoleHp(out, 25, sr);
+  for (let i = 0; i < n; i++) { out[i] = Math.tanh(G.drive * out[i]) / dk; if (due(i)) yield 'drive'; }
+  yield* hpG(out, 25, sr);
   // (the end faded over 4 ms, so it never stops on a click)
   const fade = Math.round(0.004 * sr);
   for (let i = 0; i < fade && i < n; i++) out[n - 1 - i] *= i / fade;
-  return norm(out);
+  return yield* normG(out);
 }
 
 /**
@@ -285,12 +302,12 @@ export function* tailGen(model, space, { variant = 0, sampleRate = TAIL_RATE_HZ,
   const src = given ?? (yield* dryGen(model, { part: 'far', crack: true, variant, sampleRate: sr, shot }));
   const r = (what) => stream('gun-space', gunOf(model), space, what, variant);
   const place = (buf, ms, k, pan) => { const at = Math.round(ms / 1000 * sr); addScaled(L, buf, k * Math.min(1, 1 - 0.6 * pan), at); addScaled(R, buf, k * Math.min(1, 1 + 0.6 * pan), at); };
-  const first = onePoleLp(Float32Array.from(src), S.firstLpHz, sr);
+  const first = yield* lpG(Float32Array.from(src), S.firstLpHz, sr);
   // (A4: the room's first-order taps over 5 to 30 ms up by the candidate's roomEarlyDb)
   for (const t of S.first) place(first, t.ms, dbToK(t.db + (early && t.ms >= 5 && t.ms <= 30 ? early : 0)), t.pan);
   yield 'first';
   if (S.second) {
-    const s2 = onePoleLp(Float32Array.from(src), S.second.lpHz, sr), rr = r('second');
+    const s2 = yield* lpG(Float32Array.from(src), S.second.lpHz, sr), rr = r('second');
     for (let j = 0; j < S.second.n; j++) {
       const ms = S.second.fromMs + next(rr) * (S.second.toMs - S.second.fromMs), u = (ms - S.second.fromMs) / (S.second.toMs - S.second.fromMs);
       const db = S.second.dbFrom + (S.second.dbTo - S.second.dbFrom) * u + (next(rr) - 0.5) * 4, sign = next(rr) < 0.5 ? -1 : 1;
@@ -301,11 +318,12 @@ export function* tailGen(model, space, { variant = 0, sampleRate = TAIL_RATE_HZ,
   if (S.diffuse) {
     const D = S.diffuse;
     for (const [ch, buf] of [['l', L], ['r', R]]) {
-      const lo = onePoleLp(onePoleLp(noiseOf(r(`diffuse-${ch}`), n), D.lpHz, sr), D.lpHz, sr), hi = onePoleHp(noiseOf(r(`hi-${ch}`), n), D.lpHz, sr);
-      norm(lo); norm(hi);
+      const lo = yield* lpG(yield* lpG(yield* noiseG(r(`diffuse-${ch}`), n), D.lpHz, sr), D.lpHz, sr), hi = yield* hpG(yield* noiseG(r(`hi-${ch}`), n), D.lpHz, sr);
+      yield* normG(lo); yield* normG(hi);
       yield 'diffuse-noise';
       const kLo = dbToK(D.db), kHi = dbToK(D.hiDb);
       for (let i = 0; i < n; i++) {
+        if (due(i)) yield 'diffuse-mix';
         const tMs = (i / sr) * 1000;
         if (tMs < D.fromMs) continue;
         const rise = Math.min(1, (tMs - D.fromMs) / (D.peakMs - D.fromMs)), after = Math.max(0, tMs - D.peakMs) / 1000;
@@ -315,11 +333,11 @@ export function* tailGen(model, space, { variant = 0, sampleRate = TAIL_RATE_HZ,
     }
   }
   if (S.rolling) {
-    const Ro = S.rolling, rr = r('rolling'), base = onePoleLp(onePoleLp(Float32Array.from(src), Ro.lpHz, sr), Ro.lpHz, sr);
+    const Ro = S.rolling, rr = r('rolling'), base = yield* lpG(yield* lpG(Float32Array.from(src), Ro.lpHz, sr), Ro.lpHz, sr);
     // (each far echo smeared: copies a few ms apart, as rough ground returns it)
     const sm = new Float32Array(base.length + Math.round(Math.max(...Ro.smearMs) / 1000 * sr));
     Ro.smearMs.forEach((ms, j) => addScaled(sm, base, (j % 2 ? -0.7 : 1) / Ro.smearMs.length * 2, Math.round(ms / 1000 * sr)));
-    norm(sm);
+    yield* normG(sm);
     for (let j = 0; j < Ro.n; j++) {
       // (more of them near the peak: the delay drawn from a triangle between fromS, peakS and toS)
       const u = next(rr), tS = u < (Ro.peakS - Ro.fromS) / (Ro.toS - Ro.fromS)
@@ -334,14 +352,14 @@ export function* tailGen(model, space, { variant = 0, sampleRate = TAIL_RATE_HZ,
   if (S.rumble) {
     const U = S.rumble;
     for (const [ch, buf] of [['l', L], ['r', R]]) {
-      const nz = norm(onePoleLp(onePoleLp(onePoleLp(noiseOf(r(`rumble-${ch}`), n), U.lpHz, sr), U.lpHz, sr), U.lpHz, sr)), k = dbToK(U.db);
+      const nz = yield* normG(yield* lpG(yield* lpG(yield* lpG(yield* noiseG(r(`rumble-${ch}`), n), U.lpHz, sr), U.lpHz, sr), U.lpHz, sr)), k = dbToK(U.db);
       yield 'rumble-noise';
-      for (let i = 0; i < n; i++) { const t = i / sr; buf[i] += k * nz[i] * (t < U.peakS ? t / U.peakS : Math.exp(-(t - U.peakS) / U.tauS)); }
+      for (let i = 0; i < n; i++) { const t = i / sr; buf[i] += k * nz[i] * (t < U.peakS ? t / U.peakS : Math.exp(-(t - U.peakS) / U.tauS)); if (due(i)) yield 'rumble-mix'; }
       yield 'rumble';
     }
   }
   yield 'tail';
-  onePoleHp(L, 25, sr); onePoleHp(R, 25, sr);
+  yield* hpG(L, 25, sr); yield* hpG(R, 25, sr);
   const fade = Math.round(0.05 * sr);
   for (let i = 0; i < fade && i < n; i++) { L[n - 1 - i] *= i / fade; R[n - 1 - i] *= i / fade; }
   return { left: L, right: R };
@@ -368,26 +386,29 @@ export function* protectGen({ dry, drySr = GUN_RATE_HZ, tail = null, tailSr = TA
     const want = s > hold0 ? hold0 / s : 1;
     if (want < gain) { gain += (want - gain) * atk; hold = holdN; } else if (hold > 0) hold--; else gain += (want - gain) * rel;
     g[i] = gain;
+    if (due(i)) yield 'gain';
   }
   yield 'gain';
-  const band = (buf, sr) => biq(biq(Float32Array.from(buf), 'highpass', P.hpHz, Math.SQRT1_2, sr), 'lowpass', P.lpHz, Math.SQRT1_2, sr);
-  const leak = (buf, sr) => onePoleLp(onePoleLp(Float32Array.from(buf), P.passiveLpHz, sr), P.passiveLpHz, sr);
+  const band = function* (buf, sr) { return yield* biqG(yield* biqG(Float32Array.from(buf), 'highpass', P.hpHz, Math.SQRT1_2, sr), 'lowpass', P.lpHz, Math.SQRT1_2, sr); };
+  const leak = function* (buf, sr) { return yield* lpG(yield* lpG(Float32Array.from(buf), P.passiveLpHz, sr), P.passiveLpHz, sr); };
   // (a candidate's make-up, its protected level raised in the bake, so ownShot's and otherShot's gains stay as built)
   const kLeak = dbToK(P.passiveDb), lim = ceil * P.clipK, kUp = dbToK(P.makeupDb ?? 0);
-  const through = (buf, sr) => {
-    const e = band(buf, sr), p = leak(buf, sr), out = new Float32Array(buf.length);
+  const through = function* (buf, sr) {
+    const e = yield* band(buf, sr), p = yield* leak(buf, sr), out = new Float32Array(buf.length);
     for (let i = 0; i < buf.length; i++) {
       const gi = g[Math.min(n - 1, Math.floor(i * drySr / sr))];
       out[i] = kUp * (softClip(e[i] * kRef * gi, lim) + p[i] * kRef * kLeak) / kRef;
+      if (due(i)) yield 'through';
     }
     return out;
   };
-  const d = through(dry, drySr);
+  const d = yield* through(dry, drySr);
   if (!tail) return { dry: d, tail: null, gain: g };
   yield 'dry';
-  const left = through(tail.left, tailSr);
+  const left = yield* through(tail.left, tailSr);
   yield 'left';
-  return { dry: d, tail: { left, right: through(tail.right, tailSr) }, gain: g };
+  const right = yield* through(tail.right, tailSr);
+  return { dry: d, tail: { left, right }, gain: g };
 }
 
 /**

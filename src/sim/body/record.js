@@ -55,6 +55,10 @@ export function drawTraits(seed, pid) {
   return { sleepNeedH: q(need, 0.01), tauIntH: q(normal(r, SLEEP.TAU_H, SLEEP.TAU_SD_H), 0.01), bmrK: 1 };
 }
 
+/** A whole record's mark (non-enumerable, so never saved and never copied by copy()). */
+export const FULL = Symbol('body.full');
+/** A whole record to read, never to write: the record itself when it is one already (withDefaults made it), else withDefaults'. */
+export const readFull = (rec) => (rec?.[FULL] ? rec : withDefaults(rec));
 /** The whole record from its deltas (the template's values where it says nothing), with the person's sex and age at ms. */
 export function withDefaults(rec, person = null, ms = null) {
   const t = tmplOf(rec);
@@ -66,6 +70,7 @@ export function withDefaults(rec, person = null, ms = null) {
   for (const k of WHOLE) if (rec?.[k] !== undefined) full[k] = copy(rec[k]);
   full.sex = person?.sex ?? rec?.sex ?? t.sex;
   full.ageY = person && Number.isFinite(person.bornMs) && Number.isFinite(ms) ? (ms - person.bornMs) / YEAR_MS : t.ageY;
+  Object.defineProperty(full, FULL, { value: true });
   return full;
 }
 

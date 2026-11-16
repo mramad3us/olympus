@@ -45,7 +45,7 @@ export default [
     name: 'a par your #2 missed on a man of his never counts against you: one of yours and one of his missed is still within STANDARD_PARS (fails with his counted: the C and D review of 2026-11-16, the sergeant by T on 1489397426 NO-GO for his 3a)',
     fn() {
       // (the tier one on 101: 1a yours, 1b his, each sighted first by its owner; both pars forced missed)
-      const { s, H } = lane('tierone', 101), L = H.rooms[0], own = (c) => ownerOf(s, { slot: STANDS[c.stand]?.slot ?? 1, room: L.room });
+      const { s, H } = lane('tierone', 101), L = H.rooms[0], own = (c) => ownerOf(s, s.armoury.range.turners.find(T => T.stand === c.stand));
       const mine = L.contacts.find(c => c.stand === '1a' && c.by === 'me'), his = L.contacts.find(c => c.stand === '1b' && c.by !== 'me' && c.parMet !== null);
       const was = [mine?.parMet, his?.parMet];
       mine.parMet = false; his.parMet = false;
@@ -55,7 +55,7 @@ export default [
       const g = createGame({ scenario: 'test-shoothouse', seed: 1489397426, tier: 'sgt', setup: 'go' });
       runHouse(g, houseBot({ mode: 'T' }));
       const sg = houseOf(g.state), w = houseVerdict(g.state);
-      const misses = [...sg.rooms, sg.hall].flatMap(M => M.contacts.filter(c => c.parMet === false).map(c => `${c.stand}:${c.by}:owner ${ownerOf(g.state, { slot: STANDS[c.stand]?.slot ?? 1, room: M.room })}`));
+      const misses = [...sg.rooms, sg.hall].flatMap(M => M.contacts.filter(c => c.parMet === false).map(c => `${c.stand}:${c.by}:owner ${ownerOf(g.state, g.state.armoury.range.turners.find(T => T.stand === c.stand))}`));
       console.log(`      tier one 101, 1a (owner ${own(mine)}) and 1b (owner ${own(his)}, by ${his.by}) missed: ${v.go ? 'GO' : 'NO-GO'} ${v.why.join(', ') || '-'}, missed ${v.missed} of STANDARD_PARS ${STANDARD_PARS}`);
       console.log(`      the sergeant by T on 1489397426: ${w.go ? 'GO' : 'NO-GO'} ${w.why.join(', ') || '-'}, missed ${w.missed}, the misses ${JSON.stringify(misses)}`);
       assert(own(mine) === 1 && own(his) === 2 && v.missed === 1 && v.go === true, JSON.stringify({ v, owners: [own(mine), own(his)] }));

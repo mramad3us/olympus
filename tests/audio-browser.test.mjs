@@ -21,6 +21,7 @@
 // its landing; and nothing new while time stands still in stop motion.
 // v0.0.16 (audio/gun.js; the user, 2026-11-15: "guns should bang harder"): the same shot in the new sound, gun.js's R-7 in the
 // bay's space through the defenders' electronics (its make-up, to Melas air's 5.2 kHz), and in the old (&sound=old) as it was.
+import { BAKE_SLICE_MAX_MS } from '../src/ui/audio/engine.js';
 import { assert, fmt } from './helpers.mjs';
 import { withGame, frameMs } from './browser.mjs';
 import { machineK } from './helpers.mjs';
@@ -303,6 +304,27 @@ export default [
         if (fm.medianMs < 25) assert(fm.p95Ms <= 16.7 * Math.max(1, machineK()) * 1.25, JSON.stringify(fm));
       }, { port });
       for (const r of rows) console.log(`      ${r}`);
+    },
+  },
+  {
+    name: '(v0.0.21, the build sheet §1 item 12) the bake in slices in the page: after the first key every slice of the bake (the house\'s A3, the fixed lines, your #2\'s call-outs queued at the launch) under BAKE_SLICE_MAX_MS 5 ms × k (v0.0.18\'s release log: 13.6 ms), the call-outs whole before GO, the frames under 16.7 ms × k at the 95th percentile while they bake',
+    heavy: true,
+    timeoutMs: 300_000,
+    async fn() {
+      const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined;
+      await withGame(async (page, errors, game) => {
+        await game.open('play=test-shoothouse&tier=sgt&seed=48213&setup=go&nostore=1');
+        await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.course === 'house', null, { timeout: 60000 });
+        await page.keyboard.press('ShiftLeft');
+        const fm = await frameMs(page);
+        await page.waitForFunction(() => window.__report.audio.baked && !window.__report.audio.voice.queued && window.__report.audio.voice.prebaked > 0 && !window.__report.audio.voice.waiting, null, { timeout: 90000 });
+        const a = await page.evaluate(() => ({ bake: window.__report.audio.bake, voice: window.__report.audio.voice }));
+        const k = Math.max(1, machineK());
+        console.log(`      the bake: ${a.bake.slices} slices, the longest ${fmt(a.bake.longestMs, 2)} ms (slice ${a.bake.longestAt}), the mean ${fmt(a.bake.sumMs / Math.max(1, a.bake.slices), 2)} ms, against ${BAKE_SLICE_MAX_MS} ms × k ${fmt(k, 2)}; the voices ${a.voice.baked} baked, ${a.voice.prebaked} call-outs queued at the launch, the longest wait of a line said ${fmt(a.voice.delayMaxMs, 0)} ms, ${a.voice.late} late; the frames while baking: median ${fmt(fm.medianMs, 1)} ms, p95 ${fmt(fm.p95Ms, 1)} ms`);
+        assert(a.bake.longestMs <= BAKE_SLICE_MAX_MS * k && a.voice.prebaked >= 27, JSON.stringify(a));
+        if (fm.medianMs < 25) assert(fm.p95Ms <= 16.7 * k * 1.25, JSON.stringify(fm));
+        assert(!errors.length, errors.join('\n'));
+      }, { port });
     },
   },
 ];

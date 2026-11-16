@@ -18,6 +18,7 @@
 // The heavy sweep (house-fumble-more) fails on UNKNOWN cases only, over hundreds of lanes, and prints where each entry is met.
 import { assert } from './helpers.mjs';
 import { runLane, classify, caseLine, netGame, netHouse, netInstinct, dice, INVARIANTS, RATE, checkPause, choosing, seatsWrong, seatsDone, inReach, scratchOf, readFixtures, replayFixture } from './bots/fumble.mjs';
+import { f67 } from './flawless-drawn.mjs';
 import { createGame } from './game.mjs';
 import { houseBot, runHouse } from './bots/house.mjs';
 
@@ -98,18 +99,25 @@ export const OPEN = Object.freeze([
 
 /** The hunt's findings the net does not reach yet, and why (printed, so the list is honest about its holes). */
 export const UNCOVERED = Object.freeze([
-  { finding: H.p12Drop, why: 'the words against the truth (the J says the P-12 fell, it is holstered): no invariant reads the log\'s words yet' },
+  // (v0.0.21, its build sheet's item 7 (f): the last, H.p12Drop ("a dropped P-12 never leaves the hand or holster"), is reached by N15,
+  // the J's words of a place against where the gun is (fumble.mjs wordsWatch); v0.0.18 had made a pistol's fumble move nothing, its
+  // words saying where it is, and N15 holds that on every lane: its first sweep found a weapon row's rest, run as Carry on, saying
+  // "P-12 holstered." with the pistol still in the hand (shooting.js endSub, fixed; the fixture p12-unready-v018/recruit/brief/1 pins it))
 ]);
+/** The finding N15 reaches (house-pistol's own case prints it). */
+export const N15_FINDING = H.p12Drop;
 
 /**
  * The quick lanes (my call), at RATE: every tier, every setup and the three bots, for breadth at about 3 s (an UNKNOWN case is a
  * fail; the entries' persistence is the fixtures', not the lanes'; the heavy sweep looks wide).
  */
+// (v0.0.21, the build sheet §1 item 17: two of the seven on the house drawn from the seed, the count unchanged (house-fumble is frozen
+// in QUICK_SLOW): the boot recruit's fuzz from the hall and the private by the keys from room 3)
 export const QUICK_LANES = Object.freeze([
   { tier: 'cpl', setup: null, seed: 1, bot: 'honest' },            // p12-unready, p12-sling, cond3-top-up, slung, cold-fix
-  { tier: 'recruit', setup: 'hall', seed: 1, bot: 'fuzz' },
+  { tier: 'recruit', setup: 'hall', seed: 1, bot: 'fuzz', draw: 'drawn' },
   { tier: 'tierone', setup: 'hall', seed: 1, bot: 'fuzz' },
-  { tier: 'private', setup: 'room:3', seed: 1, bot: 'house' },
+  { tier: 'private', setup: 'room:3', seed: 1, bot: 'house', draw: 'drawn' },
   { tier: 'sgt', setup: 'go', seed: 1, bot: 'house' },
   { tier: 'raider', setup: 'contact', seed: 1, bot: 'honest' },
   { tier: 'tierone', setup: 'room:2', seed: 1, bot: 'honest' },
@@ -127,6 +135,15 @@ export function printSweep(recs, { hits, unknown }) {
 }
 
 export default [
+  {
+    name: 'F67, the net\'s lists are empty (v0.0.21, its build sheet\'s item 7): KNOWN, OPEN and UNCOVERED have no entry, and N15 (the words against the truth) is among the invariants every lane is held to (it failed on the snapshot\'s UNCOVERED, the dropped P-12, until N15 reached it)',
+    fn() {
+      const row = f67({ KNOWN, OPEN, UNCOVERED });
+      console.log(`      ${row.id} ${row.met ? 'MET ' : 'OPEN'} ${row.name}: ${row.value} (target ${row.target}); the invariants ${Object.keys(INVARIANTS).join(' ')}`);
+      assert(row.met, row.value);
+      assert(INVARIANTS.N15 === 'words-truth', JSON.stringify(INVARIANTS));
+    },
+  },
   {
     name: 'the net\'s copy of the game is the game: with no plan set, a lane of the private by the keys ends on the same digest in the net\'s copy and in the plain game (the dice untouched, the copy\'s modules its own)',
     fn() {

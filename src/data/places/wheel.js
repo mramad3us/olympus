@@ -16,9 +16,9 @@
 // dim), then the hall's west end. The other rooms of X4's eight are layouts B and C's, not built: their places
 // stand solid between the lane's rooms.
 //
-// Authored as PLACES §9.9's chunk set (my call on its shape until src/sim/scenes/assemble.js exists): X4_CHUNKS
-// are the house's pieces, each in its own frame (origin its rect's least corner, the same orientation as placed:
-// mirroring waits for the assembler), with its rooms, its inner openings and its sockets (the door on its edge
+// Authored as PLACES §9.9's chunk set: X4_CHUNKS (src/data/chunks/x4.js from v0.0.21, re-exported here) are the house's
+// pieces, each in its own frame (origin its rect's least corner, the same orientation as placed: the flip across the hall
+// is the assembler's, src/sim/scenes/assemble.js), with its rooms, its inner openings and its sockets (the door on its edge
 // that joins it to the hall or the apron, with the swing and the kick); LAYOUT_A places them, and the area's
 // rooms and openings are made from the placements at load, ids as PLACES §1.3 writes them ('w4.r1', 'o:w4:r1').
 // An opening records `swing: { hinge: 'a' | 'b', into: <its rooms' index> }` (PLACES §1.6: the hinge end and the
@@ -39,53 +39,14 @@
 // Frozen literals, no seed of the world (the hub, 2026-11-05: the world is handcrafted).
 import { ENV_PRESETS } from './env.js';
 import { TURNER_FACE, TURNER_STAND } from './range.js';
+import { LEAF, KICK_DC, X4_CHUNKS } from '../chunks/x4.js';
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 const r2 = (v) => Math.round(v * 100) / 100;
 
-/** An interior door's leaf (PLACES §1.6): hinged, 0.4 s each way. */
-const LEAF = Object.freeze({ kind: 'door', leaf: 'hinged', openS: 0.4, closeS: 0.4 });
-/** COMBAT §25.5's kick against a door: an unlocked door's DC, and the locked closet's (the sheet's §4). */
-export const KICK_DC = Object.freeze({ door: 8, locked: 14 });
-
-/**
- * X4's chunks (see the header): { id, tags, needs, rooms: [{ key, kind, name, rect (local), lighting? }], openings
- * (inner): [{ key, kind, axis, at, a, b, rooms: [key, key], swing?, lock?, kickDc? }], sockets: [{ key, side ('n' |
- * 's' | 'e' | 'w': the chunk's edge), a, b (along it, local), swing: { hinge, into: 'self' | 'out' }, kickDc }] }.
- */
-export const X4_CHUNKS = deepFreeze({
-  'x4:centre': {
-    id: 'x4:centre', tags: ['cqb-room'], needs: { gG: [0.3, 1.5] },
-    rooms: [{ key: 'room', kind: 'cqbRoom', name: 'Room 1', rect: [0, 0, 5, 4] }],
-    openings: [],
-    sockets: [{ key: 'door', side: 's', a: 2.05, b: 2.95, room: 'room', swing: { hinge: 'a', into: 'self' }, kickDc: KICK_DC.door }],
-  },
-  'x4:corner': {
-    id: 'x4:corner', tags: ['cqb-room'], needs: { gG: [0.3, 1.5] },
-    rooms: [{ key: 'room', kind: 'cqbRoom', name: 'Room 2', rect: [0, 0, 5.5, 5] }, { key: 'closet', kind: 'closet', name: 'Closet', rect: [5.5, 1.75, 6.7, 3.25] }],
-    openings: [{ key: 'closet', ...LEAF, axis: 'z', at: 5.5, a: 2.05, b: 2.95, rooms: ['room', 'closet'], state: 'closed', swing: { hinge: 'a', into: 1 }, lock: { kind: 'key', holder: 'house', log: false }, kickDc: KICK_DC.locked }],
-    sockets: [{ key: 'door', side: 'n', a: 0.15, b: 1.05, room: 'room', swing: { hinge: 'a', into: 'out' }, kickDc: KICK_DC.door }],
-  },
-  'x4:ell': {
-    id: 'x4:ell', tags: ['cqb-room'], needs: { gG: [0.3, 1.5] },
-    rooms: [{ key: 'near', kind: 'cqbRoom', name: 'Room 3', rect: [0, 0, 4, 6.8], lighting: 'cqbDim' }, { key: 'far', kind: 'cqbRoom', name: 'Room 3, the far leg', rect: [4, 0, 7.5, 4], lighting: 'cqbDim' }],
-    // (the bend: a wing wall from z 2.6 to 4.0 on the near leg's east side, so the far leg is seen only from past the near leg's middle)
-    openings: [{ key: 'leg', kind: 'doorway', axis: 'z', at: 4, a: 0, b: 2.6, rooms: ['near', 'far'], state: 'open' }],
-    sockets: [{ key: 'door', side: 's', a: 1.55, b: 2.45, room: 'near', swing: { hinge: 'a', into: 'self' }, kickDc: KICK_DC.door }],
-  },
-  'x4:booth': {
-    id: 'x4:booth', tags: ['booth'], needs: { gG: [0, 3] },
-    rooms: [{ key: 'room', kind: 'booth', name: 'Booth', rect: [0, 0, 3.5, 4] }],
-    openings: [],
-    sockets: [{ key: 'door', side: 'e', a: 1.6, b: 2.5, room: 'room', swing: { hinge: 'a', into: 'self' }, kickDc: KICK_DC.door }],
-  },
-  'x4:hall': {
-    id: 'x4:hall', tags: ['hall'], needs: { gG: [0, 3] },
-    rooms: [{ key: 'room', kind: 'hall', name: 'Hall', rect: [0, 0, 30, 2.4] }],
-    openings: [],
-    sockets: [{ key: 'east', side: 'e', a: 0.6, b: 1.8, room: 'room', doorway: true }],
-  },
-});
+// (the chunks, the leaf and the kick's DCs live in src/data/chunks/x4.js, PLACES §9.9's home for a chunk set, so the
+// assembler (src/sim/scenes/assemble.js) places them anywhere along the hall; re-exported here under their names for layout A)
+export { LEAF, KICK_DC, X4_CHUNKS };
 
 /**
  * Layout A (the sheet's §2.1): each chunk's placement (its local origin in the area's frame), its ids, and what its

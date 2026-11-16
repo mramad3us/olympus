@@ -549,12 +549,16 @@ export function throughAway(state, pid, a, away, ms = state.clock.ms) {
 /**
  * A walk to a place for a body giving way (the #2 back to his stack, bundle.js): routed, walkable as the leaves stand, never
  * closing on a body of the scene's rule inside its gap, never ending in a live zone; at the stance's walk from its speed,
- * braking to rest there. A move beat as throughOf's (way 'aside'), or null where there is no such walk.
+ * braking to rest there. A move beat as throughOf's (way 'aside'), or null where there is no such walk. v0.0.21 (its build sheet's
+ * item 14): routed under the tick's budget (route.js cap: tried at up to 18 points a tick, it was the routing storm), so null too
+ * where this tick's route nodes are spent (route.js routeFailOf 'cap'; bundle.js tries again on a later tick).
  */
 export function stepAside(state, pid, a, to, ms = state.clock.ms) {
   const area = state.places?.live?.area, st = a?.moveStance === 'assault' ? 'assault' : 'combat';
   if (!a || !area || liveZoneAt(state, area, to[0], to[1])) return null;
-  const p = routed(state, [[a.x, a.z], to], { area }).map(r => [q(r[0], 0.0001), q(r[1], 0.0001)]);
+  const way = routed(state, [[a.x, a.z], to], { area, cap: true });
+  if (!way) return null;
+  const p = way.map(r => [q(r[0], 0.0001), q(r[1], 0.0001)]);
   if (p.length < 2 || !walkable(state, area, p) || !bodyClear(state, pid, p)) return null;
   const v = Math.sqrt((a.v?.[0] ?? 0) ** 2 + (a.v?.[1] ?? 0) ** 2), L = legsHere(state, pid, a.x, a.z);
   const P = profileOf(pathLen(p), Math.max(v, gaitsOf(state, pid, { gait: st }).walkMs), L.pushMs2, L.brakeMs2, { v0: v, v1: 0 });

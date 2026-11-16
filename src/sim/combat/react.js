@@ -61,6 +61,7 @@ import { eyeOf } from '../people/perception.js';
 import { rungOf } from '../skills/templates.js';
 import { lightLevel } from '../places/light.js';
 import { TOLD_MS, TOLD_DEG } from './corner.js';
+import { opOf } from './op.js';
 
 /** The core's terms (COMBAT §25.4.2): coreMs = TAKEIN_FLOOR_MS + TAKEIN_SPAN_MS × (1 − WF/100)^TAKEIN_EXP. */
 export const TAKEIN_FLOOR_MS = 30, TAKEIN_SPAN_MS = 700, TAKEIN_EXP = 2;
@@ -206,7 +207,7 @@ export function heldSectorOf(state, pid, ms = state.clock.ms) {
   const a = actorOfPid(state, pid);
   if (!a) return null;
   if (a.watch && Number.isFinite(a.watch.x)) return { yawRad: Math.atan2(a.watch.z - a.z, a.watch.x - a.x), why: 'watch' };
-  const two = state.armoury?.range?.house?.two;
+  const two = opOf(state)?.two;
   const d = state.stop?.who === pid ? state.stop?.doing : two?.pid === pid ? two.doing : null;
   const b = d?.beats?.find(x => x.st === 'run' && x.eyes);
   return b ? { yawRad: Math.atan2(b.eyes[1] - a.z, b.eyes[0] - a.x), why: 'bundle' } : null;

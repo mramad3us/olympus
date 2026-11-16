@@ -41,6 +41,13 @@ export { NO_INPUT };
 export const NO_BUDGET = Object.freeze({ over: () => false });
 /** A budget of n grid steps a slice (tests slice by steps; the page by real time). */
 export const stepBudget = (n) => Object.freeze({ over: (stepsDone) => stepsDone >= n });
+/**
+ * The tests' house where a createGame names none (v0.0.21, the build sheet §1 item 17): null, the set; withHouse({ draw: 'drawn' } or
+ * { house: code }, fn) runs fn with every such createGame drawn, so the gauges' own lane runners (flawless.mjs, -kit, -bodies, -room,
+ * -card) play drawn lanes as written (house-drawn). A createGame that names a draw (`draw: 'set'` included) or a house keeps its own.
+ */
+let HOUSE_OVERRIDE = null;
+export function withHouse(o, fn) { const was = HOUSE_OVERRIDE; HOUSE_OVERRIDE = o ?? null; try { return fn(); } finally { HOUSE_OVERRIDE = was; } }
 /** Real skips end; one that hasn't after this many slices is a bug, not a long skip. */
 export const SKIP_SLICES_MAX = 1_000_000;
 
@@ -62,7 +69,7 @@ export { playerActor };
  * ?opfor= does; passed to newGame only when given, so a game without it is made as before).
  */
 export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', hour = null, startMs, worldId = null,
-  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null } = {}) {
+  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null } = {}) {
   const errors = [];
   let sim = null, hooks = null, seen = 0;
   const bus = recordingBus({ onError: (e, type) => errors.push(`a listener of '${type}': ${firstLine(e)}`) });
@@ -76,7 +83,13 @@ export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', 
     loop.useSkips = (h) => { hooks = h; return useSkips.call(loop, h); };
   }
   sim = createSim({ loop, bus, domains });
-  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier, env, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}) };
+  // (v0.0.21, the build sheet §0 item 50: the house 'set' unless the test says 'drawn' or gives a code (which implies drawn), whatever the
+  // page's HOUSE_DRAW_DEFAULT; the set passes nothing, so no test, pin or golden moves with that default)
+  // (withHouse's override reads only a createGame that names no draw and no house: `draw` null is "none named", so a test's own
+  // `draw: 'set'` keeps the set inside withHouse too; the review of v0.0.21's A and B)
+  if (draw === null && !house && HOUSE_OVERRIDE) { house = HOUSE_OVERRIDE.house ?? null; draw = HOUSE_OVERRIDE.draw ?? null; }
+  const drawn = house ? 'drawn' : draw === 'drawn' ? 'drawn' : null;
+  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier, env, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...(drawn ? { draw: drawn } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}) };
   if (startMs !== undefined) opts.startMs = startMs;
   loop.setState(newGame(opts));
 

@@ -1,22 +1,22 @@
-// OLYMPUS tests: "Stack and clear, live" within the sim's budget (CLAUDE.md: "the sim stays under 2 ms a tick in the busiest area"; the build sheet v0.0.19 §9 item 8).
+// OLYMPUS tests: "Stack and clear, live" within the sim's budget (CLAUDE.md: "the sim stays under 2 ms a tick in the busiest area"; the build sheet v0.0.19 §9 item 8, v0.0.21 §1 item 13 and F60).
 //
-// The tier one's lane with both role-players fighting (live:fight,hide: one man fires, one dashes and hides), each tick timed
-// on its own: the bot's input made first and given to the tick, so only the sim is timed (the bot's panel reads are the
-// player's, not the game's). The busiest tick is held under TICK_BUDGET_MS × machineK() (the background band's factor,
-// tests/helpers.mjs), its p50 and p95 printed, and the live men's share read against the same lane with no role-players on the
-// same seed and sheet (the turner lane: its mean tick and its own p95). The busy ticks are read at the 95th percentile, one tick in
-// twenty (my call, the lane's busiest decisions: a bundle planned, a window opened, a pair fired): the single longest is a
-// collector's pause or the JIT's, the turner lane's own over 10 ms on this machine, and is printed. Each lane runs once to warm
-// the code before the one timed. And the sergeant's casualty lane (live on 48213, the paint on you in room 3): its 2 s beat
-// offers no row and fires no round, its ticks timed apart (the review of track L: a full panel there, 7.5 to 8.9 ms a tick).
-import { assert, machineK } from './helpers.mjs';
+// The tier one's lane with both role-players fighting (live:fight,hide: one man fires, one dashes and hides), each tick's own
+// cost the least of three runs after a warm one (tests/tick-costs.mjs: only the sim timed, the bot's own time taken out), the
+// busiest at most TICK_BUDGET_MS × machineK() (the background band's factor, tests/helpers.mjs) and a tick on a minute boundary
+// twice that; its p50 and p95 printed, and the live men's share read against the same lane with no role-players (the turner
+// lane's mean tick). Until v0.0.21 this case held the 95th percentile and printed the maximum on the reading that the single
+// longest tick was "a collector's pause or the JIT's". It was not: the same ticks topped every run and replayed from their saves
+// cost the same (the perf lens of v0.0.21: the step panel built by both of the instinct's rule sets in one evaluation, the body
+// deep-copied for every roll; 3.31 ms on v0.0.19's live lane), so the maximum is the measure, its noise removed by the minimum
+// of three runs (F60). And the sergeant's casualty lane (live on 48213, the paint on you in room 3): its 2 s beat offers no row
+// and fires no round, its ticks timed apart (the review of track L: a full panel there, 7.5 to 8.9 ms a tick).
+import { assert, machineK, TICK_BUDGET_MS } from './helpers.mjs';
+import { tickCosts, costLine } from './tick-costs.mjs';
 import { createGame } from './game.mjs';
 import { houseHonestBot } from './bots/house.mjs';
 import { quantile } from './flawless.mjs';
 import { stepsOf } from '../src/sim/arms/shooting.js';
 
-/** The sim's tick budget (ms; CLAUDE.md's rule of the code). */
-export const TICK_BUDGET_MS = 2;
 /** The ticks left out at the start: the first ones compile the code paths (ms of a cold JIT, not the sim's). */
 const WARM = 200;
 
@@ -42,16 +42,16 @@ function timed(opfor, { tier = 'tierone' } = {}) {
 
 export default [
   {
-    name: 'v0.0.19: the tier one\'s live lane (live:fight,hide) keeps its busy lived ticks of the sim (the 95th percentile) under 2 ms × the machine\'s factor; its p50, max and the live men\'s share against the turner lane printed',
-    timeoutMs: 120_000,
+    name: 'v0.0.19, v0.0.21 (F60): the tier one\'s live lane (live:fight,hide) keeps the sim\'s busiest tick, each tick the least of three runs, under 2 ms × the machine\'s factor (4 on a minute boundary); its p50, p95 and the live men\'s share against the turner lane printed',
+    timeoutMs: 180_000,
     fn() {
-      timed('live:fight,hide'); timed(null);
-      const k = machineK(), live = timed('live:fight,hide'), base = timed(null);
-      const st = (xs) => ({ n: xs.length, p50: quantile(xs, 0.5), p95: quantile(xs, 0.95), max: Math.max(...xs), mean: xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length) });
-      const L = st(live.xs), B = st(base.xs), f = (v) => v.toFixed(3);
-      console.log(`      live (${live.end}): ${L.n} lived ticks, mean ${f(L.mean)} ms, p50 ${f(L.p50)}, p95 ${f(L.p95)}, max ${f(L.max)} (budget ${(TICK_BUDGET_MS * k).toFixed(2)} ms at k ${k.toFixed(2)})`);
-      console.log(`      the turner lane (${base.end}): ${B.n} lived ticks, mean ${f(B.mean)} ms, p50 ${f(B.p50)}, p95 ${f(B.p95)}, max ${f(B.max)}; the live men's share of the mean tick ${f(L.mean - B.mean)} ms (${Math.round((L.mean - B.mean) / Math.max(1e-9, L.mean) * 100)}%)`);
-      assert(L.n > 200 && L.p95 <= TICK_BUDGET_MS * k, JSON.stringify({ n: L.n, p95: L.p95, max: L.max, k }));
+      const k = machineK(), LIVE = { tier: 'tierone', seed: 48213, opfor: 'live:fight,hide' }, BASE = { tier: 'tierone', seed: 48213 };
+      const L = tickCosts(LIVE), B = tickCosts(BASE), f = (v) => v.toFixed(3);
+      console.log(`      ${costLine(LIVE, L, k)}`);
+      console.log(`      ${costLine(BASE, B, k)}`);
+      console.log(`      the live men's share of the mean tick ${f(L.meanMs - B.meanMs)} ms (${Math.round((L.meanMs - B.meanMs) / Math.max(1e-9, L.meanMs) * 100)}%)`);
+      const kL = Math.max(k, L.k);   // (the machine's factor read around the lane's own runs: tick-costs.mjs)
+      assert(L.ticks > 200 && L.maxMs <= TICK_BUDGET_MS * kL && L.minuteMaxMs <= 2 * TICK_BUDGET_MS * kL, JSON.stringify({ n: L.ticks, max: L.maxMs, minute: L.minuteMaxMs, p95: L.p95, top: L.top, k: kL }));
     },
   },
   {

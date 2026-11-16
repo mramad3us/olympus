@@ -1,0 +1,62 @@
+{
+ "title": "The shoot house's light: today's and two candidates, in five places (FL-9)",
+ "about": "The house's light was my call in v0.0.12 and never sampled. Every picture is the game itself, \"Stack and clear\" on seed 48213 at 10:00, 16 px/m, its HUD hidden: the house's light, the fog of awareness (what you do not see now, greyed and dimmed), the post pass and the Mars palette as built, the candidate set as the game would carry it. HL-a is today's: the base's overheads by the clock, 0.75 in every room and the hall by day (neutral white), room 3 dim at 0.40 (COMBAT §25.10.4). What reads near black in the house today is not unlit rooms: it is the fog's dim and the solid voids between the lane's rooms (the places of the house's other layouts, not built). HL-b is a real shoot house's light: no ceilings, the sector's high bays and the catwalk's LED floods (cool white, the floods' own lamp) light every room, the hall and the apron as one at the hall's 0.75; room 3 too, so its dim goes with HL-b; the fog alone dims what you have not seen. Its cool white turns the solid voids from today's dark brown to navy: the voids take the rooms' mean light, and the palette snaps a cool near black to its navy. HL-c is warm pools: a warm-white pendant over each room's centre, its core at the hall's 0.75, its ring 0.50, the corners at a warm 0.30 spill (58% of their colour); room 3's centre at its dim 0.40, its corners 0.15; the hall's own light as today. The fog's dim follows the light where you stand, so under HL-c everything you do not see now is darker while you stand in a room's spill (H2: the hall and your #2 behind you, though their light is today's). The light is the sim's: perception's reach (10 m + 42 m × the light), the take-in and the shot read it, so a candidate changes what you see in the corners as the picture shows it. Each view is shown in the three: score the light, star what you like; several can be joined (say which). Open a view live (O): keys 1, 2 and 3 switch HL-a, HL-b and HL-c at the same moment, H shows the HUD and plays on from there. In play, &houselight=b or &houselight=c on the game's URL.",
+ "pixel": "640x360",
+ "groups": [
+  {
+   "id": "H1",
+   "title": "H1: room 1 from the stack, before entry",
+   "about": "GO, you on room 1's #1 stack point and your #2 behind you, the door shut: the room behind the wall as the fog shows it, the hall lit where you look.",
+   "query": "view=stack",
+   "views": [
+    { "id": "H1-a", "name": "HL-a, today's", "query": "hl=a" },
+    { "id": "H1-b", "name": "HL-b, floods from the catwalk", "query": "hl=b" },
+    { "id": "H1-c", "name": "HL-c, warm pools, darker corners", "query": "hl=c" }
+   ]
+  },
+  {
+   "id": "H2",
+   "title": "H2: room 1 entered",
+   "about": "The door open, you in the doorway, the window about to open on stand 1a: the room as you take it in.",
+   "query": "view=entered",
+   "views": [
+    { "id": "H2-a", "name": "HL-a, today's", "query": "hl=a" },
+    { "id": "H2-b", "name": "HL-b, floods from the catwalk", "query": "hl=b" },
+    { "id": "H2-c", "name": "HL-c, warm pools, darker corners", "query": "hl=c" }
+   ]
+  },
+  {
+   "id": "H3",
+   "title": "H3: the hall",
+   "about": "Rooms 1 to 3 cleared, the stack on the hall's west end, the hall target ahead.",
+   "query": "view=hall",
+   "views": [
+    { "id": "H3-a", "name": "HL-a, today's", "query": "hl=a" },
+    { "id": "H3-b", "name": "HL-b, floods from the catwalk", "query": "hl=b" },
+    { "id": "H3-c", "name": "HL-c, warm pools, darker corners", "query": "hl=c" }
+   ]
+  },
+  {
+   "id": "H4",
+   "title": "H4: room 3's corner",
+   "about": "You in room 3's near leg, facing its far corner (stand 3a's). Room 3 is the dim room today (0.40); HL-b lights it as the hall, HL-c keeps its centre dim and darkens its corners.",
+   "query": "view=corner",
+   "views": [
+    { "id": "H4-a", "name": "HL-a, today's", "query": "hl=a" },
+    { "id": "H4-b", "name": "HL-b, floods from the catwalk", "query": "hl=b" },
+    { "id": "H4-c", "name": "HL-c, warm pools, darker corners", "query": "hl=c" }
+   ]
+  },
+  {
+   "id": "H5",
+   "title": "H5: the instructor's view from the catwalk",
+   "about": "The whole house from over the hall, as the instructor on the catwalk sees it: every open-top room, the fog lifted, with rooms 1 and 2 cleared and the stack on room 3.",
+   "query": "view=catwalk",
+   "views": [
+    { "id": "H5-a", "name": "HL-a, today's", "query": "hl=a" },
+    { "id": "H5-b", "name": "HL-b, floods from the catwalk", "query": "hl=b" },
+    { "id": "H5-c", "name": "HL-c, warm pools, darker corners", "query": "hl=c" }
+   ]
+  }
+ ]
+}

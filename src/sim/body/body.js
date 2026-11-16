@@ -54,6 +54,8 @@
 // buzzed), wash (the shower's water takes the hands too), hairCut (the barber's: hair.h to 0). The
 // reference sol's heads, stalls and meals soil the hands and its basins wash them, so startBody gives
 // the same hands lived or skipped.
+// bodyOf is built once per person and ms inside the read scope (src/core/reads.js), so the panel's rolls share one
+// copy of the record; its readers read it, never write it (frozen under READS_FREEZE).
 import { MIN_MS, HOUR_MS, SEC_MS, DAY_MS, SOL_MS } from '../../core/clock.js';
 import { msAtMarsTime } from '../../core/calendar.js';
 import { q } from '../../core/num.js';
@@ -82,6 +84,7 @@ import { roomOf } from '../places/model.js';
 import { envAt as placeEnvAt, bodyPlaceOf } from '../places/env.js';
 import { siteLonEDeg } from '../jobs.js';
 import { logEntry } from '../log.js';
+import { READS_FREEZE, freezeDeep } from '../../core/reads.js';
 
 /** How far ahead resolveCrossing looks for the next interrupting crossing, ms. */
 export const RESOLVE_MS = DAY_MS;
@@ -94,8 +97,12 @@ export function storeBody(person, full) { person.body = deltaOf(full); return pe
 export function bodyOf(state, pid, ms = state?.clock?.ms) {
   const p = state?.people?.[pid];
   if (!p) return null;
+  // (once per person and ms inside the read scope, src/core/reads.js; a fresh copy, so frozen through under READS_FREEZE)
+  const memo = state.$reads, mk = memo ? `body|${pid}|${ms}` : null;
+  if (memo && memo.has(mk)) return memo.get(mk);
   const full = withDefaults(p.body ?? null, p, ms);
   if (!p.body?.traits) full.traits = drawTraits(state.meta?.seed ?? 0, pid);
+  if (memo) memo.set(mk, READS_FREEZE ? freezeDeep(full) : full);
   return full;
 }
 

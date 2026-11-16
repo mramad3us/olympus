@@ -110,6 +110,7 @@ import { stillUp } from '../arms/specials.js';
 import { seenK, upNow, stale, remember, drawnOn, gateWhy, casualtyOn, LIVE_STATE } from './men.js';
 import { startleTick, flowOn, carryOn, doorNow } from './bundle.js';
 import { BANG_LATE_MS } from './burst.js';
+import { opOf, onHouse, laneRec, sessionOf } from './op.js';
 
 /** The rung from which a contact suspends a running bundle rather than handing it back (COMBAT §25.19.3.1). */
 export const SUSPEND_RUNG = 2;
@@ -241,7 +242,7 @@ export function contactLook(state, input, bus, ctx) {
 // hold and his entry 6.6 to 8.0 s after the bang, and his #2's P-12 (4 ms more on his walk to the front, the bang past a tick)
 // re-rolled that notice: team-task's heavy case, 5 of 14 lanes within 3.5 s with it, 12 of 13 without)
 function bangEntry(state, me) {
-  const t = state.armoury?.range?.house?.two?.task, bangMs = t?.done?.bang;
+  const t = opOf(state)?.two?.task, bangMs = t?.done?.bang;
   if (!me || t?.kind !== 'bang' || t.st !== 'done' || !Number.isFinite(bangMs) || state.clock.ms - bangMs >= BANG_LATE_MS || rungOf(state, me.who, 'room') >= 2) return false;
   const here = doorNow(state, me.who);
   return !!here?.plan && here.door === t.door && !pastThreshold(here.plan, me.x, me.z);
@@ -251,11 +252,11 @@ const armedOf = (state, me) => !!state.stop?.doing?.beats || (!!state.stop?.flow
 
 // (the window's target nearest the muzzle's yaw: the pause's bracket)
 function pickOf(state, pid, keys, ms) {
-  const m = muzzleOf(state, pid), R = state.armoury?.range, all = targetsAt(state, keys, ms);
+  const m = muzzleOf(state, pid), R = sessionOf(state), all = targetsAt(state, keys, ms);
   // (0.0.12: in a clear with a #2, the men of your own corner first: his are his (the fixer's, after the runtime review: the
   // bracket and "Aim at" went to his man, across his sector, while the DI named yours))
   const slot = (key) => ownerOf(state, R?.turners?.find(T => T.key === key)) ?? 1;
-  const own = R?.course === 'house' && R.house?.twoPid ? all.filter(t => slot(t.key) === 1) : [];
+  const own = onHouse(state) && laneRec(state)?.twoPid ? all.filter(t => slot(t.key) === 1) : [];
   const list = own.length ? own : all;
   if (!list.length) return keys[0] ?? null;
   if (!m) return list[0].key;
@@ -274,8 +275,8 @@ function pickOf(state, pid, keys, ms) {
 // the aim back onto the armoured man and then his head (F13: 45 stops of 100 tier one lanes))
 function keptPick(state, pid, now) {
   const S = state.stop, key = S?.mode === 'stop' ? S.pick : null, T = key ? turnerOf(state, key) : null, R = state.armoury?.range;
-  if (R?.course !== 'house') return null;
-  if (!T || (R?.house?.twoPid && (ownerOf(state, T) ?? 1) !== 1) || !stillUp(state, key) || facingOf(T, now) < SEEN || !targetOf(state, key, pid)) return null;
+  if (!onHouse(state)) return null;
+  if (!T || (laneRec(state)?.twoPid && (ownerOf(state, T) ?? 1) !== 1) || !stillUp(state, key) || facingOf(T, now) < SEEN || !targetOf(state, key, pid)) return null;
   return key;
 }
 
@@ -286,10 +287,10 @@ function keptPick(state, pid, now) {
 // a second stop and the par: the Raider and the tier one each missed it once in 100 lanes, F10, F13)
 function armedPick(state, pid, now) {
   const S = state.stop, c = contactOf(state), last = c?.last, R = state.armoury?.range;
-  if (R?.course !== 'house' || !S || S.mode !== 'stop' || !last || last.pick !== S.pick) return;
+  if (!onHouse(state) || !S || S.mode !== 'stop' || !last || last.pick !== S.pick) return;
   const armed = (k) => last.ident?.[k] === 'rifle' || last.ident?.[k] === 'pistol';
   if (armed(S.pick) || stillUp(state, S.pick)) return;
-  const own = (k) => !(R?.course === 'house' && R.house?.twoPid) || (ownerOf(state, turnerOf(state, k)) ?? 1) === 1;
+  const own = (k) => !(onHouse(state) && laneRec(state)?.twoPid) || (ownerOf(state, turnerOf(state, k)) ?? 1) === 1;
   const keys = last.ids.filter(k => armed(k) && own(k) && targetOf(state, k, pid));
   if (!keys.length) return;
   const key = pickOf(state, pid, keys, now);
@@ -349,8 +350,8 @@ export const NOSHOOT_IDS = Object.freeze(new Set(['hands', 'phone']));
  * built (the house pin), the question of the same rule there the user's. Returns whether the flow went on.
  */
 export function noShootOn(state, bus, last) {
-  const R = state.armoury?.range, H = R?.house, S = state.stop, pid = playerId(state), now = state.clock.ms, c = contactOf(state);
-  if (R?.course !== 'house' || !H?.live || !S || S.mode !== 'stop' || S.reflex || S.doing || rungOf(state, pid, 'room') < SUSPEND_RUNG) return false;
+  const R = sessionOf(state), H = R?.house, S = state.stop, pid = playerId(state), now = state.clock.ms, c = contactOf(state);
+  if (!onHouse(state) || !H?.live || !S || S.mode !== 'stop' || S.reflex || S.doing || rungOf(state, pid, 'room') < SUSPEND_RUNG) return false;
   const F = flowOn(state);
   if (!F || F.who !== pid || (F.suspended?.why !== 'contact' && F.suspended?.why !== 'decision') || !last?.ids?.length) return false;
   const rooms = new Set();
@@ -385,8 +386,8 @@ export const ORDER_RUNG = 4, ORDER_ALONE_M = 1, ORDER_HAMMER_M = 7;
  * whether it fired.
  */
 export function byOrder(state, bus, last) {
-  const R = state.armoury?.range, H = R?.house, S = state.stop, pid = playerId(state), now = state.clock.ms;
-  if (R?.course !== 'house' || H?.order?.engage !== 'armed' || !S || S.mode !== 'stop' || S.reflex || rungOf(state, pid, 'room') < ORDER_RUNG) return false;
+  const R = sessionOf(state), H = R?.house, S = state.stop, pid = playerId(state), now = state.clock.ms;
+  if (!onHouse(state) || H?.order?.engage !== 'armed' || !S || S.mode !== 'stop' || S.reflex || rungOf(state, pid, 'room') < ORDER_RUNG) return false;
   const mine = (T) => !H.twoPid || (ownerOf(state, T) ?? 1) === 1;
   for (const key of last.ids) {
     const T = turnerOf(state, key), id = last.ident?.[key];
@@ -459,8 +460,8 @@ export function contactInput(state, input, bus, ctx) {
 // door between the stack's 1.5 m and the threshold) is no longer "not with you": room 1's no-shoot watched as his paused the
 // tier one there at 5.1 s on half the seeds, a stop the design's lane does not have (COMBAT §25.19.4, F13))
 function twoWithYou(state) {
-  const R = state.armoury?.range, H = R?.house;
-  if (R?.course !== 'house' || !H?.twoPid || !H.two?.pid) return false;
+  const R = sessionOf(state), H = R?.house;
+  if (!onHouse(state) || !H?.twoPid || !H.two?.pid) return false;
   // (his rifle as you could know it: down only once he has said "Gun down!" (H.two.down), never its working parts, which
   // you cannot see (the reach review of 2026-11-13))
   const a = state.actors?.list?.find(x => x.who === H.twoPid), gunId = state.people?.[H.twoPid]?.kit?.worn?.sling, gun = gunId ? state.items?.[gunId] : null;
@@ -500,7 +501,7 @@ export function hisOnly(state, P) {
 // his sight (his eyes' vis times the man's facing at SEEN): never a man he cannot see, standing on his stack (the reach review of 2026-11-13: a window of his sector's men
 // closed with no pause with him 1.5 m outside the door))
 function twoOn(state, T) {
-  const W = state.armoury?.range?.house?.two, a = W?.pid ? state.actors?.list?.find(x => x.who === W.pid) : null;
+  const W = opOf(state)?.two, a = W?.pid ? state.actors?.list?.find(x => x.who === W.pid) : null;
   if (!W || !a) return false;
   if (W.contact?.key === T.key || W.eng?.key === T.key || W.known?.[T.key] !== undefined) return true;
   // (on his way in, his feet moving on his entry: the man comes into his eyes in his stride, his take-in on the move (R6))
@@ -524,7 +525,7 @@ function hisTick(state, c) {
   // (a man of a room called clear is no longer watched: the room's "Clear!" waits on the #2's sector (bundle.js), so his men
   // there are dealt with (R9: a no-shoot of his still facing paused you as he left the room for the next stack))
   // (the room by where the man stands now (room.js manPlace), never his stand's label: a man who moved back into a room is its)
-  const legs = state.armoury?.range?.house?.rooms ?? [], cleared = (T) => { const room = manPlace(state, T).room; return legs.some(L => L.room === room && (L.state === 'clear' || L.state === 'passed')); };
+  const legs = opOf(state)?.rooms ?? [], cleared = (T) => { const room = manPlace(state, T).room; return legs.some(L => L.room === room && (L.state === 'clear' || L.state === 'passed')); };
   const up = H.ids.filter(k => { const T = turnerOf(state, k); return T && (T.stoppedAtMs === null || T.stoppedAtMs === undefined) && facingOf(T, now) >= SEEN && !cleared(T); });
   if (!up.length) { delete c.his; return; }
   // (the men stand where they stand, so only the #2 can change: a muzzle sweeping your own sector across his man's edge is no

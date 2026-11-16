@@ -49,6 +49,9 @@
 //                     skipped see it change at the same instant). lightKeyOf(siteId, ms) names what of
 //                     the light changes in steps (the clock's state, the dark rule): the eyes look for
 //                     its steps to the millisecond.
+// The shoot house's light candidates (src/data/places/house-light.js, FL-9; a runtime key, state.$houseLight, never
+// saved): where one is set for an area, its rooms' classes, its moods, its lamp kinds and its added lamps are read
+// before sky.js's, here and so everywhere the light is read; with none, every number is as before.
 // A call costs a room lookup and the lamps of one 4 m bin: the clock's state, the sky and the lamps'
 // bins are kept per (area, ms) (one frame's calls share them; the sky for two instants, a frame's clock
 // and its game minute, which the eyes read together), so the per-call work is small and allocates
@@ -58,6 +61,7 @@ import { MARS_ROWS, MOODS, CLASSES, CLASS_OF_KIND, WINDOW_K, LAMP_KINDS, TIMES, 
 import { areaOf, roomOf } from './model.js';
 import { siteRecOf, localTime, lightHoursOf, skyOf } from './env.js';
 import { sunAt } from './sun.js';
+import { houseLightFor } from '../../data/places/house-light.js';
 
 /** The open air's brightest level (the sky's rows' highest). */
 const SKY_MAX_LEVEL = Math.max(...MARS_ROWS.map(r => r.level));
@@ -81,14 +85,20 @@ export function clockLighting(site, ms) {
   const h = t.h, H = lightHoursOf(s, t);
   return h < H.dayH || h >= H.outH ? 'lightsOut' : h < H.eveningH ? 'day' : 'evening';
 }
-const classOf = (room) => room?.lighting ?? CLASS_OF_KIND[room?.kind] ?? 'office';
+// (a room's class, a class's record, a mood's and a lamp kind's: the house's light candidate's first, where it has one)
+const classOf = (room, V = null) => V?.rooms?.[room?.id] ?? room?.lighting ?? CLASS_OF_KIND[room?.kind] ?? 'office';
+const classRec = (V, cls) => V?.classes?.[cls] ?? CLASSES[cls];
+const moodRec = (V, mood) => V?.moods?.[mood] ?? MOODS[mood];
+const kindRec = (V, kind) => V?.kinds?.[kind] ?? LAMP_KINDS[kind];
+// (the candidate on an area under a state, and its id for the caches' keys)
+const hlOf = (state, areaId) => { const V = houseLightFor(state, areaId); return V ? { V, id: state.$houseLight } : null; };
 
 /** A room's lighting state at a game time: 'day' | 'evening' | 'lightsOut', as its lighting class takes the clock's. Throws for an unknown area. */
 export function lightingOf(state, areaId, roomId, ms) {
   const area = areaOf(areaId);
   if (!area) throw new Error(`light: no area '${areaId}'`);
-  const room = area.rooms?.find(r => r.id === roomId) ?? null;
-  return CLASSES[classOf(room)]?.always ?? clockLighting(area.site, ms);
+  const room = area.rooms?.find(r => r.id === roomId) ?? null, V = houseLightFor(state, areaId);
+  return classRec(V, classOf(room, V))?.always ?? clockLighting(area.site, ms);
 }
 
 // ---- the open air ----
@@ -140,21 +150,22 @@ let lampCache = new Map();                                         // (area id â
 export function resetCaches() { lampCache = new Map(); skyLast = { site: null, ms: NaN, out: null }; skyPrev = { site: null, ms: NaN, out: null }; frameLast = null; }
 
 // (what lights a kind: the clock's state, and whether the sun is under the geometric horizon)
-function litNow(kind, roomState, dark) {
-  const rule = LAMP_KINDS[kind]?.lit ?? 'lit';
+function litNow(kind, roomState, dark, V = null) {
+  const rule = kindRec(V, kind)?.lit ?? 'lit';
   return rule === 'always' ? true : rule === 'dark' ? dark : rule === 'lightsOut' ? roomState === 'lightsOut' : roomState !== 'lightsOut';
 }
-// (the table and its pool bins for an area under one clock state and one sun)
-function tableOf(area, clock, dark) {
-  const key = `${clock}|${dark ? 1 : 0}`;
+// (the table and its pool bins for an area under one clock state and one sun, and the house's light candidate hl, if any)
+function tableOf(area, clock, dark, hl = null) {
+  const V = hl?.V ?? null, key = `${clock}|${dark ? 1 : 0}${hl ? `|${hl.id}` : ''}`;
   let byKey = lampCache.get(area.id);
   if (!byKey) lampCache.set(area.id, byKey = new Map());
   let t = byKey.get(key);
   if (t) return t;
-  const roomState = new Map((area.rooms ?? []).map(r => [r.id, CLASSES[classOf(r)]?.always ?? clock]));
-  const list = Object.freeze((area.look?.lamps ?? []).map((l, i) => {
-    const K = LAMP_KINDS[l.kind ?? 'ceiling'] ?? LAMP_KINDS.ceiling, st = l.room ? roomState.get(l.room) ?? clock : clock;
-    return Object.freeze({ i, x: l.x, z: l.z, y: l.y ?? 3.0, r: K.r ?? l.r ?? 0, core: K.core, ring: K.ring, kind: l.kind ?? 'ceiling', color: K.color, sp: K.sp ?? 1, room: l.room ?? null, on: litNow(l.kind ?? 'ceiling', st, dark) });
+  const roomState = new Map((area.rooms ?? []).map(r => [r.id, classRec(V, classOf(r, V))?.always ?? clock]));
+  const specs = V?.lamps?.length ? [...(area.look?.lamps ?? []), ...V.lamps] : (area.look?.lamps ?? []);
+  const list = Object.freeze(specs.map((l, i) => {
+    const K = kindRec(V, l.kind ?? 'ceiling') ?? LAMP_KINDS.ceiling, st = l.room ? roomState.get(l.room) ?? clock : clock;
+    return Object.freeze({ i, x: l.x, z: l.z, y: l.y ?? 3.0, r: K.r ?? l.r ?? 0, core: K.core, ring: K.ring, kind: l.kind ?? 'ceiling', color: K.color, sp: K.sp ?? 1, room: l.room ?? null, on: litNow(l.kind ?? 'ceiling', st, dark, V) });
   }));
   // (the lit pools binned by POOL_BIN_M over the area, each in every bin its 1.5 r disc touches)
   const pools = list.filter(l => l.on && l.r > 0), b = area.boundsM, nx = Math.max(1, Math.ceil((b.x1 - b.x0) / POOL_BIN_M) + 1), nz = Math.max(1, Math.ceil((b.z1 - b.z0) / POOL_BIN_M) + 1);
@@ -173,16 +184,16 @@ function tableOf(area, clock, dark) {
 export function lampsOf(state, areaId, ms) {
   const area = areaOf(areaId);
   if (!area) return Object.freeze([]);
-  return tableOf(area, clockLighting(area.site, ms), skyAt(area.site, ms).elevDeg < 0).list;
+  return tableOf(area, clockLighting(area.site, ms), skyAt(area.site, ms).elevDeg < 0, hlOf(state, areaId)).list;
 }
 
 // ---- the light at a point ----
 
-let frameLast = null;                                              // ({ area, ms, clock, sky, table }: one frame's calls share it)
-function frameOf(area, ms) {
-  if (frameLast && frameLast.area === area && frameLast.ms === ms) return frameLast;
+let frameLast = null;                                              // ({ area, ms, clock, sky, table, hl, V }: one frame's calls share it)
+function frameOf(area, ms, hl = null) {
+  if (frameLast && frameLast.area === area && frameLast.ms === ms && (frameLast.hl?.id ?? null) === (hl?.id ?? null)) return frameLast;
   const clock = clockLighting(area.site, ms), sky = skyAt(area.site, ms);
-  return (frameLast = { area, ms, clock, sky, table: tableOf(area, clock, sky.elevDeg < 0) });
+  return (frameLast = { area, ms, clock, sky, table: tableOf(area, clock, sky.elevDeg < 0, hl), hl, V: hl?.V ?? null });
 }
 // (the pools' sum at a point: a lamp's core within r, its ring within 1.5 r)
 function poolsAt(t, x, z) {
@@ -215,8 +226,8 @@ export function lightKeyOf(siteId, ms) { return `${clockLighting(siteId, ms)}|${
 export function lightFrame(state, areaId = state?.places?.live?.area, ms = state?.clock?.ms ?? 0, skyMs = ms) {
   const area = areaOf(areaId);
   if (!area) return null;
-  const clock = clockLighting(area.site, ms), dark = skyAt(area.site, ms).elevDeg < 0, skyLevel = skyAt(area.site, skyMs).level;
-  return { area, clock, skyLevel, table: tableOf(area, clock, dark) };
+  const clock = clockLighting(area.site, ms), dark = skyAt(area.site, ms).elevDeg < 0, skyLevel = skyAt(area.site, skyMs).level, hl = hlOf(state, areaId);
+  return { area, clock, skyLevel, table: tableOf(area, clock, dark, hl), V: hl?.V ?? null };
 }
 
 /**
@@ -232,8 +243,8 @@ export function spectrumAt(F, x, z) {
   const room = F.area.kind === 'ground' ? null : roomOf(F.area, x, z);
   if (!room) { base = F.skyLevel; baseSp = SKY_SP; sky = true; }
   else {
-    const mood = CLASSES[classOf(room)]?.always ?? F.clock, fill = MOODS[mood].fill, daylight = room.windows ? WINDOW_K * F.skyLevel : 0;
-    if (daylight > fill) { base = daylight; baseSp = SKY_SP; } else { base = fill; baseSp = MOODS[mood].sp ?? 1; }
+    const V = F.V ?? null, mood = classRec(V, classOf(room, V))?.always ?? F.clock, fill = moodRec(V, mood).fill, daylight = room.windows ? WINDOW_K * F.skyLevel : 0;
+    if (daylight > fill) { base = daylight; baseSp = SKY_SP; } else { base = fill; baseSp = moodRec(V, mood).sp ?? 1; }
     sky = !!room.windows && WINDOW_K * SKY_MAX_LEVEL > fill;
   }
   const sum = base + pk;
@@ -244,11 +255,11 @@ export function spectrumAt(F, x, z) {
 export function lightLevel(state, x, z, ms, areaId = state?.places?.live?.area) {
   const area = areaOf(areaId);
   if (!area) return 1;
-  const F = frameOf(area, ms), pools = poolsAt(F.table, x, z);
+  const F = frameOf(area, ms, hlOf(state, areaId)), pools = poolsAt(F.table, x, z);
   if (area.kind === 'ground') return q(Math.min(1, F.sky.level + pools), LEVEL_STEP);
   const room = roomOf(area, x, z);
   if (!room) return q(Math.min(1, F.sky.level + pools), LEVEL_STEP);
-  const mood = CLASSES[classOf(room)]?.always ?? F.clock, fill = MOODS[mood].fill;
+  const mood = classRec(F.V, classOf(room, F.V))?.always ?? F.clock, fill = moodRec(F.V, mood).fill;
   const daylight = room.windows ? WINDOW_K * F.sky.level : 0;
   return q(Math.min(1, Math.max(fill, daylight) + pools), LEVEL_STEP);
 }

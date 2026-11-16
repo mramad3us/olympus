@@ -15,12 +15,30 @@
 // card's row and the range's holes.
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
-import { BENCH_SCENES, BENCH_DEFAULT, BENCH_S, BENCH_WARM_S } from '../src/data/bench.js';
+import { BENCH_SCENES, BENCH_DEFAULT, BENCH_S, BENCH_WARM_S, BENCH_BUDGET, BENCH_HOUSE_KIT_S, UPLOAD_MID_KB } from '../src/data/bench.js';
 import { benchResult, benchText, splashOf, bangOf } from '../src/ui/cards/bench.js';
+import { createUploads } from '../src/render/uploads.js';
 
 const FIELDS = ['scene', 'version', 'ppm', 'seconds', 'frames', 'medianMs', 'p95Ms', 'p99Ms', 'maxMs', 'over25', 'drawCallsMax', 'trianglesMax', 'programs', 'uploadsMaxBytes', 'viewMedianMs', 'viewP95Ms', 'ticks', 'simMsPerTick', 'walkedM', 'renderer', 'dpr', 'window', 'picture', 'threads'];
 
 export default [
+  {
+    name: '(v0.0.21) the house benches and the card\'s new lines: house-kit (25 s), house-live and house-stop on the set; a result with the frames\' v0.0.21 samples reads eight lines, the busiest tick, the UI\'s p95, the links after the warm, the largest upload with its key and when, and TECH §16.1\'s verdict, every number numeric; the upload queue names a frame\'s biggest job',
+    fn() {
+      const scenes = ['house-kit', 'house-live', 'house-stop'].map(n => [n, BENCH_SCENES[n]]);
+      for (const [n, sc] of scenes) console.log(`      ${n}: ${sc.play} ${sc.tier} on ${sc.seed} at ${sc.setup}${sc.loadout ? `, loadout ${sc.loadout}` : ''}${sc.opfor ? `, ${sc.opfor}` : ''}, the house ${sc.draw}; keys ${sc.keys.reduce((a, k) => a + k[1], 0) / 1000} s after ${sc.warmS} s`);
+      assert(scenes.every(([, sc]) => sc && sc.play === 'test-shoothouse' && sc.seed === 48213 && sc.draw === 'set' && sc.setup === 'go'), 'three house benches on the set');
+      assert(BENCH_SCENES['house-kit'].keys.reduce((a, k) => a + k[1], 0) === BENCH_HOUSE_KIT_S * 1000 && BENCH_SCENES['house-kit'].loadout === 'full' && BENCH_SCENES['house-live'].opfor === 'live:fight,hide' && BENCH_SCENES['house-stop'].keys.reduce((a, k) => a + k[1], 0) === 5000, 'their kit, men and length');
+      const frames = Array.from({ length: 1200 }, (_, i) => ({ dt: i === 900 ? 60 : 16.7, calls: 60, triangles: 9000, programs: 12, viewMs: 1.1, ticks: 1, tickMs: 0.3, bytes: i === 30 ? 300 * 1024 : i === 400 ? 40 * 1024 : 0, tickMax: i > 600 ? 1.4 : 1.1, uiMs: 0.6, links: 0, upKey: i === 30 ? 'band:two:walk' : i === 400 ? 'sign:r2' : null }));
+      const r = benchResult({ frames, walkedM: 3 }, { name: 'house-kit', version: 'test', ppm: 16, renderer: 'a GPU', dpr: 2, window: [1600, 1000], picture: [960, 600], threads: 10 }), text = benchText(r), lines = text.split('\n');
+      for (const line of lines.slice(-2)) console.log(`        ${line}`);
+      const q = createUploads(); q.queue({ key: 'small', bytes: 10, run() {} }); q.queue({ key: 'band:x', bytes: 4000, run() {} }); const last = q.drain();
+      console.log(`      the queue's frame: ${JSON.stringify(last)}; the biggest frame's ${q.stats.maxKey}; the budget ${JSON.stringify(BENCH_BUDGET)}`);
+      assert(lines.length === 8 && r.tickMaxMs === 1.4 && r.uiP95Ms === 0.6 && r.linksAfterWarm === 0 && r.upload.kb === 40 && r.upload.key === 'sign:r2' && Number.isFinite(r.upload.atS), JSON.stringify(r));
+      assert(r.judge.length === 7 && r.judge.every(j => Number.isFinite(j.value) && Number.isFinite(j.limit)) && r.judge.find(j => j.id === 'max').pass === false && r.pass === false && /^TECH §16\.1 FAIL: longest frame after 3 s 60 > 50 FAIL/.test(lines[7]), JSON.stringify(r.judge));
+      assert(BENCH_BUDGET.uploadKB === UPLOAD_MID_KB && last.key === 'band:x' && last.keyBytes === 4000 && q.stats.maxKey === 'band:x', JSON.stringify(last));
+    },
+  },
   {
     name: 'the bench scene is one definition: its keys last BENCH_S (20 s) after BENCH_WARM_S (2 s), and a result reads as six lines',
     fn() {

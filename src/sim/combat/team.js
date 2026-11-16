@@ -28,6 +28,7 @@
 import { playerId } from '../../core/ids.js';
 import { frameOf, cornerRuleOf } from './corner.js';
 import { doorOfRoom, pastThreshold } from './room.js';
+import { opOf } from './op.js';
 
 /** The other side when you take his (FM 3-06.11 §3-29); false: v0.0.18's wait and "Coming in!" (the round's question 2's switch). */
 export const TEAM_OPPOSITE = true;
@@ -93,7 +94,7 @@ export const TEAM_WORDS = Object.freeze({
 });
 
 // (the house's record, read from the session, never by importing the scenario)
-const houseOf = (state) => state?.armoury?.range?.house ?? null;
+const houseOf = (state) => opOf(state);
 const other = (s) => (s === 1 ? 2 : s === 2 ? 1 : s);
 
 /** The team's members: [{ role 1, pid you, rec null }, { role 2, pid, rec R.house.two }] with a #2 on the lane, else you alone. */

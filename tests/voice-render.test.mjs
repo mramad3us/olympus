@@ -7,6 +7,7 @@
 // printed beside, not judged. A line lasts core/speech.js spokenMs exactly (the tower's wait, the voice and the marks agree)
 // and that is under its text's hold (handling.js durOf); its peak is its register's level; two renders are one; the bake
 // advances in steps far under engine.js BAKE_FRAME_MS. Every number printed.
+// v0.0.21: the engine's bake in slices, a templated line's included, is tests/audio-bake.test.mjs's (this file's 3 s of CPU).
 import { assert, fmt, machineK } from './helpers.mjs';
 import { renderLine, lineGen, linePlan } from '../src/ui/audio/voice.js';
 import { biquad } from '../src/ui/audio/synth.js';

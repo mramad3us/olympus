@@ -70,7 +70,20 @@
 // SCENARIO_SITES is gone from src, no scenario fill (src/sim/scenarios) or src/sim/game.js moves the clock by a Mars
 // clock of its own (msAtMarsTime: newGame moves it once, by env.js msAtLocal on the host's clock), and no fill names
 // a site by a literal (`site: 'melas'`: its place constant reads its spec's host).
-import { execFile } from 'node:child_process';
+// v0.0.21 (the build sheet v0.0.21 §1 item 13, §6 stage 0): READS_HOME, the read scope's writers: no module in src assigns
+// state.$reads (`.$reads =`) but src/sim/skills/instinct.js (the instinct's two evaluations) and src/sim/arms/shooting.js
+// (stepsOf when no scope is open), so a scope is opened and closed only where a `finally` closes it.
+// OP_HOME (the build sheet v0.0.21 §1 item 21, §3 step 3): the operation record's one reader, src/sim/combat/op.js: no other
+// module of src/sim/combat/, nor src/sim/skills/instinct/cqb.js, src/sim/arms/sidearm.js, kit.js or shooting.js, names the
+// house's record (`armoury.range.house`) or tests its course (`course === 'house'`) in code: they ask opOf, opLive, onHouse,
+// laneRec, opRec, brokenOf or breakOpening, so the drill can meet a room off the range's lane through one branch.
+// COMBAT_NO_SCENARIO (the build sheet v0.0.21 §0 item 31, §3 step 4): no module of src/sim/combat/ imports from
+// src/sim/scenarios/ (the #2's brain, combat/two.js, reaches the lane through op.js's host), so a room can be cleared where no
+// scenario runs.
+// QUICK_SLOW's check (the build sheet v0.0.21 §1 item 26; TECH §13.7): tests/run.mjs's frozen list of the quick files over
+// QUICK_FILE_CPU_S names only files that exist, and against the last tag's list (when that tag has one) no file joins and no
+// ceiling rises.
+import { execFile, execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import path from 'node:path';
@@ -188,6 +201,10 @@ const THREE = /\bfrom\s*['"]three(\/[^'"]*)?['"]|\bimport\s*\(\s*['"]three(\/[^'
 // screens' side) and off this list is the lead's call.
 const BROWSER_EDGE = new Set(['src/core/store.js', 'src/core/input.js']);
 // (v0.0.20: the debrief's trace, R.house.$trace: written once by shoothouse.js traceTick, read by house-debrief.js alone)
+/** The read scope's writers (v0.0.21): the only modules that assign state.$reads. */
+const READS_HOME = Object.freeze(['src/sim/skills/instinct.js', 'src/sim/arms/shooting.js']);
+/** The operation record's one reader (v0.0.21), and the modules held to it. */
+const OP_HOME = Object.freeze({ home: 'src/sim/combat/op.js', dirs: ['src/sim/combat/'], files: ['src/sim/skills/instinct/cqb.js', 'src/sim/arms/sidearm.js', 'src/sim/arms/kit.js', 'src/sim/arms/shooting.js'] });
 const TRACE_HOME = Object.freeze({ reader: 'src/sim/scenarios/house-debrief.js', writer: 'src/sim/scenarios/shoothouse.js' });
 // What a module imports by path (static, dynamic, bare side-effect imports), found in its code (not
 // its comments) and read back from the source at the same place, as paths from the root.
@@ -649,6 +666,84 @@ export default [
       const probe = [...codeOnly('a.$trace; b.$traced; // $trace\nc[\'$trace\']').matchAll(/\$trace\b/g)].length;
       console.log(`      $trace named in ${hits.map(([f, n]) => `${f} (${n})`).join(', ') || 'no module'}; the probe ${probe}/1`);
       assert(probe === 1 && !bad.length && hits.some(([f]) => f === TRACE_HOME.reader), JSON.stringify({ bad, hits, probe }));
+    },
+  },
+  {
+    name: 'rules: the read scope\'s writers (the build sheet v0.0.21 §1 item 13, READS_HOME): no module in src assigns state.$reads but src/sim/skills/instinct.js and src/sim/arms/shooting.js',
+    fn() {
+      const W = /\.\$reads\s*=(?!=)/g, hits = [];
+      for (const f of srcFiles()) { const n = [...codeOnly(readFileSync(f, 'utf8')).matchAll(W)].length; if (n) hits.push([rel(f), n]); }
+      const bad = hits.filter(([f]) => !READS_HOME.includes(f));
+      const probe = [...codeOnly('s.$reads = m; s.$reads === m; s.$readsOff = 1; // s.$reads = x').matchAll(W)].length;
+      console.log(`      state.$reads assigned in ${hits.map(([f, n]) => `${f} (${n})`).join(', ') || 'no module'}; the probe ${probe}/1`);
+      assert(probe === 1 && !bad.length && READS_HOME.every(f => hits.some(([g]) => g === f)), JSON.stringify({ bad, hits, probe }));
+    },
+  },
+  {
+    name: 'rules: QUICK_SLOW is frozen (the build sheet v0.0.21 §1 item 26): tests/run.mjs names only quick files that exist, and against the last tag\'s list (where it has one) no file joins and no ceiling rises',
+    fn() {
+      const slowOf = (src) => { const m = /const QUICK_SLOW = Object\.freeze\(\{([\s\S]*?)\n\}\);/.exec(src ?? ''); return m ? Object.fromEntries([...m[1].matchAll(/'([^']+)':\s*([0-9.]+)/g)].map(x => [x[1], Number(x[2])])) : null; };
+      const now = slowOf(readFileSync(path.join(root, 'tests/run.mjs'), 'utf8'));
+      assert(now && Object.keys(now).length, 'tests/run.mjs has no QUICK_SLOW');
+      const missing = Object.keys(now).filter(f => !existsSync(path.join(root, 'tests', f)));
+      let tag = null, then = null;
+      try {
+        tag = execFileSync('git', ['describe', '--tags', '--abbrev=0'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+        then = slowOf(execFileSync('git', ['show', `${tag}:tests/run.mjs`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 24 }));
+      } catch { /* (no git here, the play copy's checkout: nothing to hold it against) */ }
+      const joined = then ? Object.keys(now).filter(f => !(f in then)) : [], rose = then ? Object.keys(now).filter(f => f in then && now[f] > then[f]) : [];
+      console.log(`      QUICK_SLOW: ${Object.keys(now).length} files, ${Object.values(now).reduce((a, b) => a + b, 0).toFixed(1)} s of ceilings; missing ${missing.length}; the last tag ${tag ?? 'none'}${then ? `: ${Object.keys(then).length} files, joined ${joined.length}, ceilings risen ${rose.length}` : ': no list to hold it against'}`);
+      assert(!missing.length && !joined.length && !rose.length, JSON.stringify({ missing, joined, rose: rose.map(f => [f, then[f], now[f]]) }));
+    },
+  },
+  {
+    name: 'rules: the operation record\'s one reader (the build sheet v0.0.21 §1 item 21, OP_HOME): no module of src/sim/combat/ but op.js, nor cqb.js, sidearm.js, kit.js or shooting.js, names armoury.range.house or tests course === \'house\' in its code',
+    fn() {
+      const PATS = [/armoury\??\.range\??\.house\b/g, /\.course\s*[!=]==\s*(['"])house\1/g];
+      // (a match in code: its first character is code, not a comment's or a string's, which codeOnly blanks)
+      const hitsIn = (src) => { const code = codeOnly(src), out = []; for (const re of PATS) for (const m of src.matchAll(re)) if (code[m.index] === src[m.index]) out.push(src.slice(m.index, m.index + m[0].length)); return out; };
+      const held = srcFiles().map(rel).filter(f => f !== OP_HOME.home && (OP_HOME.dirs.some(d => f.startsWith(d)) || OP_HOME.files.includes(f)));
+      const bad = [];
+      for (const f of held) { const h = hitsIn(readFileSync(path.join(root, f), 'utf8')); if (h.length) bad.push(`${f}: ${h.length} (${[...new Set(h)].join(', ')})`); }
+      const probe = hitsIn("const H = state.armoury?.range?.house; if (R.course === 'house') x(); // state.armoury.range.house\nconst s = 'R.course === \"house\"';").length;
+      const home = hitsIn(readFileSync(path.join(root, OP_HOME.home), 'utf8')).length;
+      console.log(`      ${held.length} modules held to op.js: ${bad.length} naming the house's record or course${bad.length ? `: ${bad.join('; ')}` : ''}; op.js itself ${home}; the probe ${probe}/2`);
+      assert(probe === 2 && !bad.length && home > 0, JSON.stringify({ bad, probe, home }));
+    },
+  },
+  {
+    name: 'rules: the operation\'s turners and record are read through op.js off the range too (the code review of 2026-11-16): no module held to OP_HOME reads armoury.range.turners, nor names the range session in a variable whose .house or .turners it then reads (sessionOf, turnersOf)',
+    fn() {
+      // (an alias read: `R = state.armoury?.range`, then `R?.house` or `R.turners` before the function ends; upIn, mineUp, rebracket
+      // and lineTargetOf read only the range's turners that way, so off the range "Clear!" was called with a man still up)
+      const DIRECT = /armoury\??\.range\??\.turners\b/g, ALIAS = /\b(\w+)\s*=\s*state\??\.armoury\??\.range\b(?!\??\.)/g;
+      const hitsIn = (src) => {
+        const code = codeOnly(src), out = [], line = (i) => src.slice(0, i).split('\n').length;
+        for (const m of src.matchAll(DIRECT)) if (code[m.index] === src[m.index]) out.push(`:${line(m.index)} ${m[0]}`);
+        for (const m of src.matchAll(ALIAS)) {
+          if (code[m.index] !== src[m.index]) continue;
+          const rest = src.slice(m.index), end = rest.search(/\n(?:export |function |const \w+ = \(|\/\*\*)/), body = codeOnly(rest.slice(0, end < 0 ? undefined : end));
+          const use = new RegExp(`\\b${m[1]}\\??\\.(house|turners)\\b`).exec(body);
+          if (use) out.push(`:${line(m.index)} ${m[1]} = state.armoury.range, then ${use[0]}`);
+        }
+        return out;
+      };
+      const held = srcFiles().map(rel).filter(f => f !== OP_HOME.home && (OP_HOME.dirs.some(d => f.startsWith(d)) || OP_HOME.files.includes(f)));
+      const bad = [];
+      for (const f of held) { const h = hitsIn(readFileSync(path.join(root, f), 'utf8')); if (h.length) bad.push(`${f}${h.join(', ')}`); }
+      const probe = hitsIn("function a(state) {\n  const R = state.armoury?.range, x = R?.turners;\n}\nfunction b(state) {\n  return state.armoury?.range?.turners ?? [];\n}\nfunction c(state) {\n  const R = state.armoury?.range; return R?.course; // R.house\n}\n").length;
+      console.log(`      ${held.length} modules held to op.js: ${bad.length} reading the range's turners or record by an alias${bad.length ? `: ${bad.join('; ')}` : ''}; the probe ${probe}/2`);
+      assert(probe === 2 && !bad.length, JSON.stringify({ bad, probe }));
+    },
+  },
+  {
+    name: 'rules: combat imports no scenario (the build sheet v0.0.21 §0 item 31): no module of src/sim/combat/ imports from src/sim/scenarios/; the #2\'s brain (combat/two.js) calls the lane through op.js\'s host',
+    fn() {
+      const combat = srcFiles().filter(f => rel(f).startsWith('src/sim/combat/')), bad = [];
+      for (const f of combat) for (const m of importsOf(f)) if (m.startsWith('src/sim/scenarios/')) bad.push(`${rel(f)} imports ${m}`);
+      const probe = importsIn("import { a } from '../scenarios/x.js';\n// import { b } from '../scenarios/y.js';", path.join(root, 'src/sim/combat/probe.js')).filter(m => m.startsWith('src/sim/scenarios/')).length;
+      console.log(`      ${combat.length} modules of src/sim/combat/: ${bad.length} importing a scenario${bad.length ? `: ${bad.join('; ')}` : ''}; the probe ${probe}/1`);
+      assert(probe === 1 && !bad.length && combat.some(f => rel(f) === 'src/sim/combat/two.js'), JSON.stringify({ bad, probe }));
     },
   },
 ];

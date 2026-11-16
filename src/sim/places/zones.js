@@ -32,7 +32,7 @@
 // follows the man's own lane to his point of domination rather than the bare way out; and the steps that stand still by
 // the player's own choice (standsStill: Stop here, Hold him, Challenge, Gun down, Off the line, a knee) are the only ones
 // that may leave a body at rest in a zone, and so the only way to earn the funnel's fault.
-import { X4_PLANS } from '../../data/places/x4-plans.js';
+import { plansOfArea } from '../scenes/assemble.js';
 import { openingOf, openingState, openingDelta, areaOf } from './model.js';
 import { arcOf, angleIn, inSweep } from './swing.js';
 
@@ -101,7 +101,7 @@ export function zonesOf(areaId) {
   let out = byArea.get(areaId);
   if (out) return out;
   const list = [], doors = new Set();
-  for (const L of Object.values(X4_PLANS)) {
+  for (const L of plansOfArea(areaId)) {   // (the area's layouts, scenes/assemble.js, set or drawn)
     if (L.area !== areaId) continue;
     for (const k of L.order) {
       const P = L.plans[k], o = P?.door ? openingOf(P.door) : null;

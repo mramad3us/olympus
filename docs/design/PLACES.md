@@ -294,6 +294,8 @@ The **vehicle lock** is 12 × 6 × 5 m (360 m³): pump to 10 kPa at 3 m³/s in 3
 
 **As built in v0.0.20 (§1.6).** "The delta keeps the verb that opened it (`how`); the stage draws doors.js leafShownAt = leafCurve(how, leafAt) (push ease-out, pull ease-in-out, kick to its stop at 0.55 and back to 0.88 at 0.75), leafAt itself linear; the house's door facts carry leafAtMs and stopAtMs."
 
+**As built in v0.0.21 (drawn lane doors).** On a drawn house each lane door has a swing (push or pull, hinged at its downrange end, the latch toward the stack) and a state (closed 60%, open 25%, locked 15%, push only), set on the opening's delta by `setOpening`; a lock kicked, pried, shot or blown is `broken` on that record and stays broken when the door is shut again, on the range or off it. A drawn lane door's lock is unknown until read or tried (COMBAT §25.19.17). The set's lane doors are never locked.
+
 ### 1.7 Vertical links: stairs, ladders, lifts, trunks
 
 ```json
@@ -1792,6 +1794,10 @@ Added 2026-11-08 for the user's standing rule (DESIGN.md's log): "We will play i
 ---
 
 **As built in v0.0.12**: the chunks of house 1 live in `wheel.js` (`X4_CHUNKS`, `LAYOUT_A`), hand-joined, until `src/sim/scenes/assemble.js` and `src/data/chunks/` exist; the assembler is still a later round.
+
+### 9.9.1 As built in v0.0.21: the drawn house
+
+X4's chunks live in `src/data/chunks/x4.js`: each lane room with its plans by swing family in its own frame (the centre's push and pull, the corner's fed-hinge, the ell's shape), its four stand places and its two stands' roles. `src/sim/scenes/assemble.js` (`assemble@1`) places three of them along house 1's hall by a code (`<C|K|E><n|s><door x, dm><p|l><c|o|k>` × 3, then the cast `|f…` and the places `|p…`; the set is 'A'), the room standing on the side it was authored on or flipped across the hall, its door hinged downrange, each plan's paths fitted to the walls within 0.15 m, the hall's last leg derived from the last door. 36 arrangements, 8,005 placements; room 1's door from 24 to 31 m, the later ones 3 to 9 m apart, on the 0.5 m grid. A drawn area is `melas.wheel.s4~<h13>` where h13 numbers the layout one to one (each room a mixed-radix digit, `ROOM_RADIX` 72,000: chunk, side, mirror, door x in dm, swing, state; three rooms in 13 hex digits), every id in it carrying the mark; it is registered at runtime in `model.js`'s registry (`areaOf`, `openingOf`, `openingArea` fall back to it; `enterSite` admits it under its base's site), the last two kept by last use (`HOUSE_REG_KEEP`), and rebuilt on load from `places.live.gen` (`upgrade` 'places:gen'). Absent means the set. `&house=<code>` plays a code: a layout alone has its cast drawn from the seed; a whole code is played as written only where `castFair` holds, else its layout is kept with the seed's fair cast (`wholeCodeOf`, `houseCodeWhy`, `houseUrlNote`: the page says which). The hub's "game world is handcrafted" (2026-11-05) holds: the rooms and the panels are authored, and an instructor arranges them for an exercise, per lane, inside the house's fixed walls, hall, apron, catwalk and booth (§4.12). `MIRROR_ROOMS` (the rooms flipped along the hall: 304 shapes, two new entries) is off.
 
 ## 10. What is ported, adapted or only referenced
 

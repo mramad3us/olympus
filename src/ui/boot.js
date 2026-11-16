@@ -174,7 +174,7 @@ export function createBoot({ root = document.body, cb }) {
     const { sheets = {}, order = null, hard = null, parMs = {}, parOf = null } = cb.sheets?.() ?? {};
     // (0.0.9: each sheet's hardening in words, main.js's reader (supp.js hardWord); 0.0.12: the shoot house's par chooser, its choice carried)
     // (0.0.18: the shoot house's loadout, main.js's (cb.loadout: the code kept in this browser, the screen's preview), carried with the pick)
-    const p = pickerPage({ scene, sheets, order, hard, parMs, parOf, loadout: cb.loadout?.() ?? null, onPick: (tier, o = {}) => cb.playScene?.(scene, { tier, ...(o.par ? { par: o.par } : {}), ...(o.loadout ? { loadout: o.loadout } : {}) }), onBack: () => back() });
+    const p = pickerPage({ scene, sheets, order, hard, parMs, parOf, loadout: cb.loadout?.() ?? null, onPick: (tier, o = {}) => cb.playScene?.(scene, { tier, ...(o.par ? { par: o.par } : {}), ...(o.loadout ? { loadout: o.loadout } : {}), ...(o.draw ? { draw: o.draw } : {}), ...(o.qual ? { qual: true } : {}) }), onBack: () => back() });
     title.replaceChildren(p.body);
     title.hidden = false;
     (p.body.querySelector('.item.lead') ?? p.body.querySelector('.item'))?.focus();

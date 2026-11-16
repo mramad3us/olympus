@@ -43,7 +43,10 @@
 // needs, the stubble and taps keep quiet, the bladder and the bowel but at urgent, and the calm line
 // is to stand fast until the stand-down. On the range (0.0.5: a session, open or ended, src/sim/scenarios/
 // handling.js rangeNow) the same holds: the needs speak at urgent only, the grooming and taps lines keep
-// quiet, and the calm line is the range's (instinct/range.js). doAct(state, bus, ctx, act) does an act,
+// quiet, and the calm line is the range's (instinct/range.js). An operation off the range (combat/op.js opLive:
+// state.cqb open where you stand) counts as the range here: the barracks' free time is never said mid-clear, and its calm
+// line never stands over the drill's silence (the review of 2026-11-16: "Nothing on fire. Enjoy it while it lasts." through
+// an operation, the private by T left with no act). doAct(state, bus, ctx, act) does an act,
 // the instinct's T and nothing else; 'stop:<step>' acts go to the step panel (shooting.js chooseStep).
 // Pure but doAct.
 import { marsClock } from '../../../core/calendar.js';
@@ -59,6 +62,7 @@ import { riseActor, outfitOf } from '../../people/place.js';
 import { transPlaying } from '../../time/doing.js';
 import { rangeNow } from '../../scenarios/handling.js';
 import { kdAct } from '../../scenarios/range.js';
+import { opLive } from '../../combat/op.js';
 import { chooseStep, enterStop } from '../../arms/shooting.js';
 import { stepOfAct } from './range.js';
 
@@ -97,12 +101,13 @@ function know(state, me, ms) {
   const atLocker = !!own.lockerId && at.some(a => a.fixtureId === own.lockerId);
   const R = routineOf(siteAt(state));
   const v = { pid, body, stages, h, R, at, atRack, nearRack, atLocker, posture: me.posture ?? 'stand', moving: transPlaying(me, ms), outfit: outfitOf(me),
-    busy: !!state.skip || !!state.time?.doing, asleep: isAsleep(state, pid, ms), drill: state.time?.drills?.open ?? null, range: onRange(state) };
+    busy: !!state.skip || !!state.time?.doing, asleep: isAsleep(state, pid, ms), drill: state.time?.drills?.open ?? null, range: onRange(state) || opLive(state) };
   memo = { state, ms, v };
   return v;
 }
 // (a range session, open or ended: the needs keep quiet below urgent, the calm line is the range's: 0.0.5;
-// once the line is clear the range's rules fall quiet too, so nothing speaks over the end card)
+// once the line is clear the range's rules fall quiet too, so nothing speaks over the end card; v0.0.21: an operation
+// off the range, op.js opLive, is read as one in know(), see the header)
 const onRange = (state) => !!rangeNow(state);
 const atFixture = (k, ...ids) => k.at.find(a => ids.includes(a.id)) ?? null;
 const actAt = (k, ...ids) => { const a = atFixture(k, ...ids); return a ? `activity:${a.id}` : null; };

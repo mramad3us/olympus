@@ -57,12 +57,13 @@ import { habitStep } from './carry.js';
 import { onRangeCmd, rangeRules, rangeSecond } from '../scenarios/handling.js';
 import { onPitEvent, safety, kdActors, kdAct } from '../scenarios/range.js';
 import { pairsActors } from '../scenarios/pairs.js';
-import { houseActors, houseRules, houseInput, houseInputBefore, upgradeHousePistol } from '../scenarios/shoothouse.js';
+import { houseActors, houseRules, houseInput, houseInputBefore, upgradeHousePistol, upgradeHousePars } from '../scenarios/shoothouse.js';
 import { stopBundle, upgradeMuscle } from '../combat/bundle.js';
 import { upgradeHouseWould } from '../combat/would.js';
 import * as SHOOTING from './shooting.js';
 
-const KEYS = Object.freeze(['stop', 'items', 'armoury']);
+// (cqb: the operation off the range, the house's record's twin (combat/op.js), absent but while one is open: state.js SPARSE)
+const KEYS = Object.freeze(['stop', 'items', 'armoury', 'cqb']);
 const nameOf = (action) => (typeof action === 'string' ? action : action?.act ?? '');
 const argsOf = (action) => (typeof action === 'object' ? action?.args ?? {} : {});
 
@@ -142,7 +143,8 @@ export const weaponsDomain = Object.freeze({
   idMaps: Object.freeze({ items: 'i', 'armoury.guns': 'i' }),
   idFields: Object.freeze({ 'people{}.kit.worn{}': 'i', 'people{}.kit.hands[]': 'i', 'items{}.mag': 'i', 'items{}.holds[]': 'i', 'stop.gun': 'i', 'places.sites{}.items[].id': 'i',
     'armoury.range.relay[].gunId': 'i', 'armoury.range.relay[].magIds[]': 'i', 'armoury.range.dummy.magId': 'i', 'armoury.range.mags{}': 'i', 'armoury.range.wantMag': 'i',
-    'armoury.range.house.twoPid': 'p', 'armoury.range.house.chiefPid': 'p', 'armoury.range.house.two.pid': 'p', 'armoury.range.house.two.aid': 'a', 'armoury.range.house.dummy.magId': 'i', 'armoury.range.house.pistol': 'i' }),
+    'armoury.range.house.twoPid': 'p', 'armoury.range.house.chiefPid': 'p', 'armoury.range.house.two.pid': 'p', 'armoury.range.house.two.aid': 'a', 'armoury.range.house.dummy.magId': 'i', 'armoury.range.house.pistol': 'i',
+    'cqb.twoPid': 'p', 'cqb.two.pid': 'p', 'cqb.two.aid': 'a' }),
   init(state) { for (const k of KEYS) fillDomain(state, k); },
   fast: Object.freeze({ input, actors: (s, i, b, c) => { kdActors(s, i, b, c); pairsActors(s, i, b); houseActors(s, i, b); }, rules, second: rangeSecond }),
   slow: Object.freeze([]),
@@ -151,5 +153,6 @@ export const weaponsDomain = Object.freeze({
   actions: Object.freeze({ ready, digit, shoot, stop, carry, stance, kd, breathe, gait, drill }),
   // (the house's P-12 on every sheet from 2026-11-15: a v0.0.14 to v0.0.16 save below the Sergeant gains it on load)
   // (a live lane saved by v0.0.19 gains the would-have's ledger with the rule 'count', combat/would.js upgradeHouseWould)
-  upgrades: Object.freeze([['arms:muscle', upgradeMuscle], ['arms:house-pistol', upgradeHousePistol], ['arms:house-would', upgradeHouseWould]]),
+  // (a house save from before v0.0.20's pars gains them at load, so no read plans a par (shoothouse.js upgradeHousePars))
+  upgrades: Object.freeze([['arms:muscle', upgradeMuscle], ['arms:house-pistol', upgradeHousePistol], ['arms:house-pars', upgradeHousePars], ['arms:house-would', upgradeHouseWould]]),
 });

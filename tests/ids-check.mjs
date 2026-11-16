@@ -26,6 +26,8 @@ import { isId, kindOf, ID_KINDS } from '../src/core/ids.js';
 import * as model from '../src/sim/places/model.js';
 
 const isRuntime = (k) => k.charCodeAt(0) === 36;
+// (a generated place's variant in an id: the mark and VARIANT_HEX 13 hex digits, before a segment's end)
+const GEN_ID = /~[0-9a-f]{13}(?=[.:#]|$)/;
 const REF_NAME = /^(who|[a-z][A-Za-z0-9]*Id)$/, REFS_NAME = /^[a-z][A-Za-z0-9]*Ids$/;
 
 // (does PLACES's data know this place, fixture, opening or spot? Areas' rooms, zones, fixtures and openings included)
@@ -54,7 +56,10 @@ export function checkIds(state, domains) {
   const count = (kind) => { byKind[kind ?? '?'] = (byKind[kind ?? '?'] ?? 0) + 1; checked++; };
   const validate = (kind, id, where) => {
     if (kind && !ID_KINDS[kind]) { invalid.push(`${where}: declared kind '${kind}' is not in the id table`); return false; }
-    const ok = typeof id === 'string' && (kind ? isId(kind, id) : kindOf(id) !== null);
+    // (v0.0.21: a drawn shoot house's ids carry its variant, `~<v>` after their base segment (src/sim/places/model.js GEN_MARK:
+    // 'melas.wheel.s4~00a1b2c3d4e5f', 'w4~00a1b2c3d4e5f.r1', 'o:w4~00a1b2c3d4e5f:r1'); the id is its kind's with the mark left out)
+    const bare = typeof id === 'string' ? id.replace(GEN_ID, '') : id;
+    const ok = typeof id === 'string' && (kind ? isId(kind, bare) : kindOf(bare) !== null);
     if (!ok) invalid.push(`${where}: ${JSON.stringify(id)} is not ${kind ? `a '${kind}' id` : 'an id of any kind'}`);
     return ok;
   };

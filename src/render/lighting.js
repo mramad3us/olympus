@@ -16,6 +16,8 @@
 //     lamps, street lamps, the fence's floods) in the tiled lamp table, re-sent only when places hands a
 //     new array (lampsOf keeps the same object until a lamp changes);
 //   - a figure's tint: exposure(lightLevel at its feet) in the colour of its light (light-maps.js tintOf).
+//   - the shoot house's light candidates (FL-9, state.$houseLight: src/data/places/house-light.js) reach the stage through
+//     places' numbers like any light; the moods they add take their colours from that module's HOUSE_LIGHT_MOODS.
 // What it reads, it reads through the module namespace, so the stage runs against 0.0.2's places (a
 // lightLevel of 1 everywhere, no lamps table) as against 0.0.3's: a function places does not offer yet
 // falls back to the area's authored lamps, a fill of 1 and the mood by the hour (moods.js).
@@ -28,6 +30,7 @@ import { lampMaps, roomMap, roomFills, tintOf, poolAt, exposure, FILL_COLOURS } 
 import { linear } from '../art/tone.js';
 import { marsClock } from '../core/calendar.js';
 import { roomAt, planOf } from '../sim/places/plan.js';
+import { HOUSE_LIGHT_MOODS } from '../data/places/house-light.js';
 
 /** The interior rig: the calibration (a hemisphere fill of 0.6 and a key of 0.79, × π: painted = shown), a soft shadow. */
 export const INTERIOR_RIG = Object.freeze({ sky: 0xe8eaf0, ground: 0x8f8a80, skyK: 0.6, sun: 0xfff4e6, sunK: 0.79, shadow: 0.35 });
@@ -81,7 +84,8 @@ export function createLighting(stage) {
   }
   const levelAt = (state, x, z, ms) => (typeof LIGHT.lightLevel === 'function' ? LIGHT.lightLevel(state, x, z, ms, area.id) : 1);
   const lightingOf = (state, roomId, ms) => (typeof LIGHT.lightingOf === 'function' ? LIGHT.lightingOf(state, area.id, roomId, ms) : 'day');
-  const fillColour = (lighting) => FILL_COLOURS[lighting] ?? FILL_COLOURS.day;
+  // (a mood the shoot house's light candidates add, FL-9's samples, takes its own colour: src/data/places/house-light.js)
+  const fillColour = (lighting) => FILL_COLOURS[lighting] ?? HOUSE_LIGHT_MOODS[lighting]?.color ?? FILL_COLOURS.day;
 
   function sendLamps(lamps) {
     const b = area.boundsM;

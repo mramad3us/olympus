@@ -90,7 +90,17 @@ export default [
     },
   },
   {
-    name: 'no body in a wall, every tick: the player and the #2 on seed 48213 and the user\'s 1489397426, every sheet by the house bot and from rung 2 by T alone, clear of every wall at the walker\'s 0.27 m (the user, 2026-11-11: "Operators path through walls when automatic pathing")',
+    name: 'no body in a wall, every tick: the player and the #2 on seed 48213, the tier one and the private by the house bot and the tier one by T alone (v0.0.21: the user\'s seed and the other sheets in the heavy case below), clear of every wall at the walker\'s 0.27 m (the user, 2026-11-11: "Operators path through walls when automatic pathing")',
+    timeoutMs: 120_000,
+    fn() {
+      const o = wallRuns([48213], ['house', 'T'], ['tierone', 'private']);
+      console.log(`      ${said(o)}`);
+      assert(!o.bad.length && !o.undone.length, JSON.stringify({ bad: o.bad.slice(0, 6), undone: o.undone }));
+    },
+  },
+  {
+    name: 'no body in a wall, every tick: the player and the #2 on seed 48213 and the user\'s 1489397426, every sheet by the house bot and from rung 2 by T alone, clear of every wall at the walker\'s 0.27 m (the user, 2026-11-11: "Operators path through walls when automatic pathing") (heavy: both seeds and every sheet, moved from the quick suite in v0.0.21)',
+    heavy: true,
     timeoutMs: 180_000,
     fn() {
       const o = wallRuns([48213, 1489397426], ['house', 'T']);

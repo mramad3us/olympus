@@ -36,7 +36,7 @@
 //                              plan.js wallRect: an inner wall's 0.08 m half-thickness off its line)
 //   pathLengthM(path)          a polyline's length, metres
 // Pure but for the state's runtime cache and the sight grid it reads.
-import { areaOf, openingOf } from '../places/model.js';
+import { areaOf, openingOf, openingArea } from '../places/model.js';
 import { planOf, wallsOf, wallRect } from '../places/plan.js';
 import { sightGridOf } from '../places/sight.js';
 import { clearLine } from '../people/perception.js';
@@ -44,6 +44,8 @@ import { muzzleOf, angleDiff, faceRad } from '../arms/carry.js';
 import { X4_PLANS } from '../../data/places/x4-plans.js';
 import { FUNNEL_M, FUNNEL_SIDE_M, funnelZone, inZone } from '../places/zones.js';
 import { swingFrom, stackPointsOf } from '../places/swing.js';
+import { opOf } from './op.js';
+import { planSetOf, plansOfArea } from '../scenes/assemble.js';
 
 /** In the door: within FUNNEL_M 0.5 of the door's plane, between its jambs widened by FUNNEL_SIDE_M 0.3 (src/sim/places/zones.js, the no-stop zones). */
 export { FUNNEL_M, FUNNEL_SIDE_M };
@@ -61,11 +63,11 @@ const LAYERS = Object.freeze({ stand: 'stand', kneel: 'crouch', crouch: 'crouch'
 const inRect = (r, x, z, e = 1e-9) => x >= r[0] - e && x <= r[2] + e && z >= r[1] - e && z <= r[3] + e;
 
 /** The layout a session runs: the house record's lane, else A. */
-export const layoutOf = (state) => state?.armoury?.range?.house?.lane ?? DEFAULT_LAYOUT;
+export const layoutOf = (state) => opOf(state)?.lane ?? DEFAULT_LAYOUT;
 
 // (a plan's data with what the place gives it: its rects and its plane, see the header)
-function derive(layout, key, P) {
-  const L = X4_PLANS[layout], area = areaOf(L.area);
+function derive(L, layout, key, P) {
+  const area = areaOf(L.area);
   if (!area) throw new Error(`room: layout ${layout}'s area '${L.area}' is not a known area`);
   const rects = P.parts.map(id => {
     const r = area.rooms.find(x => x.id === id);
@@ -103,15 +105,15 @@ export const STACK_SWING_TOL_M = 0.02;
 
 /** The plan entered by a door (or 'hall'), on the session's layout (see the header), or null. */
 export function roomPlanOf(state, doorId, layout = layoutOf(state)) {
-  const L = X4_PLANS[layout];
+  const L = planSetOf(state, layout);
   if (!L || !L.plans[doorId]) return null;
   const C = state ? ((state.$rooms ??= {})[layout] ??= {}) : {};
-  return (C[doorId] ??= derive(layout, doorId, L.plans[doorId]));
+  return (C[doorId] ??= derive(L, layout, doorId, L.plans[doorId]));
 }
 
 /** The session's lane: { lane, area, order, plans: { key: plan } } (see the header). */
 export function lanePlanOf(state, layout = layoutOf(state)) {
-  const L = X4_PLANS[layout];
+  const L = planSetOf(state, layout);
   if (!L) throw new Error(`room: no layout '${layout}' (${Object.keys(X4_PLANS).join(', ')})`);
   return { lane: L.lane, area: L.area, order: [...L.order], plans: Object.fromEntries(L.order.map(k => [k, roomPlanOf(state, k, layout)])) };
 }
@@ -149,14 +151,18 @@ export function manPlace(state, T) {
   return { room: room ?? T.room ?? null, slot: slot ?? T.slot ?? 1 };
 }
 
-/** A plan's room by its door ('hall' for the hall's leg), on any layout; null when no plan has it. */
+// (a drawn house's id (one with model.js's GEN_MARK) is found in its own area's layout, through model.js's registry
+// (openingArea, areaOf) and the seam's plansOfArea, never by walking every layout; the set's ids as before)
+const GEN_RE = /~[0-9a-f]+/;
+const drawnLayoutsOf = (id) => { const m = GEN_RE.exec(String(id)); if (!m) return null; const a = openingArea(id) ?? areaOf(`melas.wheel.s4${m[0]}`); return a ? plansOfArea(a.id) : []; };
+/** A plan's room by its door ('hall' for the hall's leg), on any layout (a drawn one's by its area); null when no plan has it. */
 export function roomOfDoor(doorId) {
-  for (const L of Object.values(X4_PLANS)) if (L.plans[doorId]) return L.plans[doorId].room;
+  for (const L of drawnLayoutsOf(doorId) ?? Object.values(X4_PLANS)) if (L.plans[doorId]) return L.plans[doorId].room;
   return null;
 }
-/** The plan's key (its door's id, or 'hall') of a room or any of its parts; null when no plan holds it. */
+/** The plan's key (its door's id, or 'hall') of a room or any of its parts (a drawn one's by its area); null when no plan holds it. */
 export function doorOfRoom(roomId) {
-  for (const L of Object.values(X4_PLANS)) for (const k of L.order) if (L.plans[k].parts.includes(roomId)) return k;
+  for (const L of drawnLayoutsOf(roomId) ?? Object.values(X4_PLANS)) for (const k of L.order) if (L.plans[k].parts.includes(roomId)) return k;
   return null;
 }
 

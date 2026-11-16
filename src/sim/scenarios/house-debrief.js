@@ -19,7 +19,8 @@
 //   legs    a row a leg: its word, room, door, from, clear, par and state (the scrubber's segments);
 //   from    the trace's first sample (ms), null with no trace.
 // Pure: no DOM, no clock but the game's; called by the end card only (main.js openHouseEnd calls it directly).
-import { WHEEL_S4, HOUSE1 } from '../../data/places/wheel.js';
+import { houseSpecOf } from '../scenes/assemble.js';
+import { areaOf } from '../places/model.js';
 import { lanePlanOf } from '../combat/room.js';
 import { rangeOf } from './handling.js';
 import { playerId } from '../../core/ids.js';
@@ -50,12 +51,13 @@ export function placeAt(tr, who, ms) {
 export function debriefOf(state) {
   const R = rangeOf(state), H = R?.house;
   if (!H) return null;
-  const tr = H.$trace ?? null, rect = HOUSE1.rect ?? [5, 4, 35, 24];
-  const rooms = (WHEEL_S4.rooms ?? []).filter(r => inside(r.rect, rect) || (r.id ?? '').startsWith('w4.r') || r.id === 'w4.hall');
+  // (the house through its seam, scenes/assemble.js: HOUSE1 and the Wheel's sector 4 as set)
+  const spec = houseSpecOf(state), area = areaOf(spec.area), tr = H.$trace ?? null, rect = spec.rect ?? [5, 4, 35, 24];
+  const rooms = (area?.rooms ?? []).filter(r => inside(r.rect, rect) || (r.id ?? '').startsWith('w4.r') || r.id === 'w4.hall');
   const ids = new Set(rooms.map(r => r.id));
   const walls = rooms.map(r => ({ id: r.id, name: r.name, rect: [...r.rect] }));
   const plan = lanePlanOf(state), lane = new Set(plan.order);
-  const doors = (WHEEL_S4.openings ?? []).filter(o => (o.rooms ?? []).some(x => ids.has(x))).map(o => ({
+  const doors = (area?.openings ?? []).filter(o => (o.rooms ?? []).some(x => ids.has(x))).map(o => ({
     id: o.id, axis: o.axis, at: o.at, a: o.a, b: o.b, kind: o.kind, swing: o.swing ? { ...o.swing } : null, lane: lane.has(o.id), k: tr?.doors?.[o.id] ? [...tr.doors[o.id]] : null,
   }));
   const zoneOf = (T, key) => (T?.hits ?? []).find(h => h.shotId === key) ?? null;

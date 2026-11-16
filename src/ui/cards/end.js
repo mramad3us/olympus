@@ -28,19 +28,27 @@
 // (verdict: { go, words }, its own line, green or red), takes "Again from room 2" after a NO-GO (from: { word, setup }, on.from(setup):
 // the weak room drilled without the walk to it) and "Export the run" (on.exportRun(), the run's save at GO and its inputs as a JSON
 // file to replay in node: tests/replay-run.mjs), each numbered after "Again as …"; a grid carries its own head (grid.dataset.head).
+// v0.0.21 (the build sheet v0.0.21 §1 items 9 and 16): a drawn house names its code in the header ("… as Sergeant · house
+// Cn290pc.Ks206lc.En175pc"; code: its layout part, the whole code on the line's hover), and a qualification lane says where it
+// stands under the verdict (qual: { words, done, next }: "QUALIFICATION 2 OF 3 · GO", "QUALIFIED: SERGEANT"), leading with "Next
+// qualification lane" (on.qual(), a new hidden seed) while the attempt goes on and "Qualify as <next sheet up>" once it is done;
+// every other line abandons the attempt (main.js).
 const COUNT_WORDS = Object.freeze(['no aspect', 'one aspect', 'two aspects', 'three aspects', 'four aspects', 'five aspects', 'six aspects']);
 
 /** The card's body and its numbered lines: { body, lines }. scene: SCENES' record; seed; on: { again(sameSeed), score(), title(), from?(setup), exportRun?() }. */
-export function endCard({ scene, seed, on = {}, said = null, sheet = null, aspects = [], again = [], runs = [], bangs = [], stress = [], cards = null, grid = null, verdict = null, from = null, exportRun = false }) {
+export function endCard({ scene, seed, on = {}, said = null, sheet = null, aspects = [], again = [], runs = [], bangs = [], stress = [], cards = null, grid = null, verdict = null, from = null, exportRun = false, code = null, qual = null }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); n.append(...kids.filter(k => k !== null && k !== undefined)); return n; };
   const line = (n, text, small, fn, cls = 'item') => el('button', { className: cls, type: 'button', onclick: fn }, el('kbd', { textContent: String(n) }), text, small ? el('small', { textContent: small }) : null);
+  // (a qualification's next lane leads while the attempt goes on, or the next sheet up's once qualified; a hidden seed)
+  const q = qual?.next ? [line(1, qual.done ? `Qualify as ${qual.next.label}` : `Next qualification lane (${qual.n + 1} of ${qual.of})`, 'a house you have not seen, its seed hidden', () => on.qual?.(qual.next.tier), 'item lead qual-next')] : [];
   const lines = [
-    line(1, 'Again', `seed ${seed}`, () => on.again?.(true)),
-    line(2, 'Again with a new seed', 'what is drawn, drawn afresh', () => on.again?.(false)),
-    line(3, 'Score it', `${COUNT_WORDS[scene.aspects?.length ?? 3] ?? `${scene.aspects.length} aspects`}, a ★, a note`, () => on.score?.(), 'item lead'),
+    ...q,
+    line(q.length + 1, 'Again', `seed ${seed}${qual?.next && !qual.done ? ' · ends the qualification' : ''}`, () => on.again?.(true)),
+    line(q.length + 2, 'Again with a new seed', 'what is drawn, drawn afresh', () => on.again?.(false)),
+    line(q.length + 3, 'Score it', `${COUNT_WORDS[scene.aspects?.length ?? 3] ?? `${scene.aspects.length} aspects`}, a ★, a note`, () => on.score?.(), q.length ? 'item' : 'item lead'),
     // (0.0.8: the other sheets on the same seed)
     // (0.0.9: on "Three bangs" the hardening's word leads, the scene's lesson (the design review))
-    ...again.map((a, i) => line(4 + i, `Again as ${a.label}`, a.hard ? `${a.hard} · seed ${seed}` : a.why ? `${a.why} · seed ${seed}` : `Warfighting ${a.wf} · seed ${seed}`, () => on.againAs?.(a.tier), `item again-as${a.up ? ' up' : ''}`)),
+    ...again.map((a, i) => line(q.length + 4 + i, `Again as ${a.label}`, a.hard ? `${a.hard} · seed ${seed}` : a.why ? `${a.why} · seed ${seed}` : `Warfighting ${a.wf} · seed ${seed}`, () => on.againAs?.(a.tier), `item again-as${a.up ? ' up' : ''}`)),
   ];
   // (the weak room after a NO-GO, the run's export; then the title, always last)
   if (from?.setup) lines.push(line(lines.length + 1, `Again from ${from.word}`, `the setup ${from.setup} · seed ${seed}`, () => on.from?.(from.setup), 'item again-from'));
@@ -50,13 +58,18 @@ export function endCard({ scene, seed, on = {}, said = null, sheet = null, aspec
   // session's grid in it, it never scrolls at 1600 × 900 or 1024 × 768 (the runtime review: 907 px of 826 after a second sheet))
   // (the shoot house's card, with its verdict, lays its choices in two columns too, at its own width: the plan stands beside it)
   const body = el('div', { className: `glass end${stress.length ? ' wide' : verdict ? ' house' : ''}` },
-    el('h3', { textContent: `End of the scene: ${scene.title}${sheet ? `, as ${sheet}` : ''}` }),
+    // (the house's code in its own case: the heading's capitals made it a code no parser reads, "KN240LC.ES195PC.CN160LC" for
+    // Kn240lc.Es195pc.Cn160lc, and a player who copied it off the card could not replay the house (the play review of 2026-11-16))
+    el('h3', { textContent: `End of the scene: ${scene.title}${sheet ? `, as ${sheet}` : ''}${code ? ' · house ' : ''}`, ...(code ? { title: `house ${code}` } : {}) },
+      ...(code ? [el('span', { className: 'house-code', textContent: String(code).split('|')[0] })] : [])),
     // (0.0.9: the bangs' lines first, the summary and the calm figure)
     bangs.length ? el('div', { className: 'bangs-said' }, ...bangs.map((t, i) => el('p', { className: `bang-said${i ? ' calm' : ''}`, textContent: t }))) : null,
     // (0.0.10: the stress course's summary, its strings and the inoculation; from the second sheet the session's grid)
     stress.length ? el('div', { className: 'stress-said' }, ...stress.map((t, i) => el('p', { className: i === 0 ? 'head' : i === stress.length - 1 && /^Inoculation/.test(t) ? 'inoc' : 'string', textContent: t }))) : null,
     // (the instructor's verdict leads the shoot house's card)
     verdict?.words ? el('p', { className: `verdict ${verdict.go ? 'go' : 'nogo'}`, textContent: verdict.words }) : null,
+    // (the qualification's line under the verdict)
+    qual?.words ? el('p', { className: `qual-said${qual.done ? ' done' : ''}`, textContent: qual.words }) : null,
     grid ? el('div', { className: 'runs-said' }, el('p', { className: 'runs-head', textContent: grid.dataset?.head ? `${grid.dataset.head}:` : `This seed, this session (${grid.querySelectorAll('tr:first-child th').length - 1} sheets): froze, the first round from the sighting (calm by the book):` }), grid) : null,
     // (said: a line, or the lines of a scene with an incident (0.0.7: the range closed by a casualty), each its own)
     ...(Array.isArray(said) ? said : [said]).filter(Boolean).map((t, i) => el('p', { className: `said${i ? ' incident' : ''}`, textContent: t })),

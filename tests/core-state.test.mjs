@@ -3,7 +3,9 @@
 // plain data enforced, foreign saves refused, the additive upgrades, 0.0.1's 'sites' become
 // 'places' once, and a 0.0.1 sandbox save upgraded and played 400 ticks.
 import { assert, fmt } from './helpers.mjs';
-import { newState, toJSON, fromJSON, stripRuntime, upgradeState, addUpgrade, copyState, resetDomains, DOMAINS, SAVE_SCHEMA, GAME } from '../src/core/state.js';
+import { newState, toJSON, fromJSON, stripRuntime, upgradeState, addUpgrade, copyState, resetDomains, DOMAINS, SPARSE, SAVE_SCHEMA, GAME } from '../src/core/state.js';
+// (the keys every state holds: the reserved keys but the sparse, absent until their record opens (v0.0.21's cqb))
+const DENSE = DOMAINS.filter(k => !SPARSE.includes(k));
 import { createLoop } from '../src/core/loop.js';
 import { recordingBus } from '../src/core/bus.js';
 import { TICK_MS } from '../src/core/clock.js';
@@ -19,11 +21,11 @@ const throwsWith = (fn, re) => { try { fn(); } catch (e) { assert(re.test(e.mess
 
 export default [
   {
-    name: 'newState: TECH §6.1\'s 25 keys at their empty defaults, schema 1, the dice seeded, the clock at the asked time',
+    name: 'newState: TECH §6.1\'s 26 keys at their empty defaults (cqb, sparse, absent), schema 1, the dice seeded, the clock at the asked time',
     fn() {
       resetDomains();                                              // (these are the core's own states: no game's domains registered)
       const s = newState(1234, { version: '0.0.1', mode: 'ironman', scenario: 'sandbox', startMs: 12_345 });
-      assert(DOMAINS.length === 25 && Object.keys(s).join() === DOMAINS.join(), `keys ${Object.keys(s)}`);
+      assert(DOMAINS.length === 26 && SPARSE.join() === 'cqb' && Object.keys(s).join() === DENSE.join(), `keys ${Object.keys(s)}`);
       assert(SAVE_SCHEMA === 1 && s.meta.schema === 1 && s.meta.game === GAME && s.meta.seed === 1234 && s.meta.mode === 'ironman' && s.meta.version === '0.0.1', JSON.stringify(s.meta));
       assert(s.meta.worldId === 'w-1234' && JSON.stringify(s.meta.next) === '{}' && s.meta.errors.length === 0, JSON.stringify(s.meta));
       assert(s.clock.ms === 12_300 && s.clock.tick === 0 && s.clock.holds.length === 0 && s.clock.seq === 0 && s.meta.createdMs === 12_300, `clock ${JSON.stringify(s.clock)} (startMs rounds down to the tick)`);
@@ -130,7 +132,7 @@ export default [
       addUpgrade('test-needs', (s) => { calls++; s.player.needs ??= { waterMs: 0 }; });
       addUpgrade('test-needs', (s) => { calls++; s.player.needs ??= { waterMs: 0 }; });   // (the same id: replaces, not adds)
       const s = fromJSON(JSON.stringify(old));
-      assert(DOMAINS.every(k => k in s), `missing ${DOMAINS.filter(k => !(k in s))}`);
+      assert(DENSE.every(k => k in s) && !SPARSE.some(k => k in s), `missing ${DENSE.filter(k => !(k in s))}`);
       assert(s.clock.tick === 0 && s.clock.holds.length === 0 && s.meta.mode === 'standard' && s.meta.createdMs === 5000 && s.rng.main.length === 4, JSON.stringify(s.meta));
       assert(calls === 1 && s.player.needs.waterMs === 0, `upgrade ran ${calls} times`);
       const again = toJSON(upgradeState(fromJSON(toJSON(s))));
@@ -148,7 +150,7 @@ export default [
       const s = upgradeState(JSON.parse(V001_SANDBOX));
       assert(!('sites' in s) && JSON.stringify(s.places) !== undefined && s.places.sites && s.flags['mig:sites-places'] === true, JSON.stringify({ places: s.places, flags: s.flags }));
       assert(s.meta.worldId === 'w-4' && s.clock.seq === 0 && s.clock.ms % TICK_MS === 0 && s.clock.ms === Math.floor(old.clock.ms / TICK_MS) * TICK_MS, JSON.stringify(s.clock));
-      assert(DOMAINS.every(k => k in s) && Object.keys(s).filter(k => !DOMAINS.includes(k)).length === 0, `keys ${Object.keys(s)}`);
+      assert(DENSE.every(k => k in s) && Object.keys(s).filter(k => !DENSE.includes(k)).length === 0, `keys ${Object.keys(s)}`);
       const once = toJSON(s), twice = toJSON(upgradeState(JSON.parse(once)));
       assert(once === twice, 'upgrading an upgraded save changed it');
       const fresh = newState(9), json = toJSON(fresh);

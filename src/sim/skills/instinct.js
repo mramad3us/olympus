@@ -54,6 +54,9 @@
 // the player did not see and a replay acts from the saved state and the inputs alone; without args at
 // all (the debug handle, tests) it does the line's (or the chip's) act. Acts are only what is at hand
 // (the sheet §8, item 12): lines that send you somewhere say where, in words.
+// The read scope (src/core/reads.js): both evaluations open state.$reads around firedNow, so the rules' panel and
+// bodies are built once per ms whichever rule reads them first; and a whole second is due once at its ms (the held second: a
+// pause standing on a whole second rebuilt the instinct twenty times a second).
 import { isHeld, SEC_MS } from '../../core/clock.js';
 import { hashPick, hash01 } from '../../core/hash.js';
 import { playerActor } from '../../core/ids.js';
@@ -183,6 +186,14 @@ function present(l, prevShown, ms, humourAt) {
   return { line: { id: l.id, voice: l.voice, tone: l.tone, text, act: l.act, short: l.short, ms: l.ms, ...(l.row ? { row: l.row } : {}), ...(variant ? { variant } : {}), ...(humour ? { humour: true } : {}) }, humourAt };
 }
 
+// (the read scope, src/core/reads.js: one panel and one body a person per ms shared by every rule's `when`; opened here
+// when none is open, closed in a finally. firedNow and the rules are reads: nothing inside writes the state)
+function scoped(state, fn) {
+  if (state.$reads || state.$readsOff) return fn();   // (one open already; or forced off, a test switch: tests/reads-scope.test.mjs)
+  state.$reads = new Map();
+  try { return fn(); } finally { state.$reads = null; }
+}
+
 /** The instinct as it stands (SKILLS §15.4; runtime): { line, chip, keys, queued, gone, humourAt }. */
 export const instinctNow = (state) => state.$instinct ?? { line: null, chip: null, keys: [], queued: 0, gone: {}, humourAt: null };
 
@@ -196,9 +207,10 @@ export function instinctStep(state, input, bus, ctx) {
   // review: "Let it come." stood 0.6 s into the startle))
   const S = state.stop, win = pendingOf(state) ? 'w' : '', jolt = state.player?.id && startled(state, state.player.id, ms) ? '|s' : '';
   const stopKey = `${S ? `${S.mode}|${S.phase}|${S.doing?.step ?? ''}|${S.doing?.i ?? ''}|${S.reflex ? 'r' : ''}` : ''}${win ? `|${win}` : ''}${jolt}`;
-  const due = !prev || prev.quiet === 'splash' || ms % SEC_MS === 0 || (input?.act?.length ?? 0) > 0 || prev.atMs === undefined || prev.atMs > ms || (prev.stopKey ?? '') !== stopKey;
+  // (the held second: a whole second is due once at that ms, not on every tick the clock stands there in a pause)
+  const due = !prev || prev.quiet === 'splash' || (ms % SEC_MS === 0 && prev.atMs !== ms) || (input?.act?.length ?? 0) > 0 || prev.atMs === undefined || prev.atMs > ms || (prev.stopKey ?? '') !== stopKey;
   if (!due) return;
-  const fired = firedNow(state, ms);
+  const fired = scoped(state, () => firedNow(state, ms));
   const stop = isHeld(state, 'stop');
   const s = settle(prev, fired, ms, { urgentOnly: isHeld(state) && !stop });
   const L = present(s.line, prev?.line, ms, prev?.humourAt ?? null);
@@ -223,7 +235,7 @@ export function contactLead(state, prev = state.$instinct ?? null) {
 export function instinctAction(state, action, bus, ctx) {
   if (state.skip) return false;
   const args = typeof action === 'object' ? action?.args ?? null : null;
-  const fired = firedNow(state, state.clock.ms);
+  const fired = scoped(state, () => firedNow(state, state.clock.ms));
   let target = null;
   if (args?.id) target = fired.find(l => l.id === args.id && (args.act === undefined || l.act === args.act)) ?? null;
   else if (args && 'id' in args) return false;                     // (the page saw no line as T went down: nothing, never a line it did not show)

@@ -18,6 +18,9 @@
 //
 // The clock is injected (now(), performance.now() by default), so the test drives a fake one. No
 // three.js here: what a job sends is its own business.
+//
+// v0.0.21 (the build sheet §1 item 22; the perf lens's P8): a frame's report names its biggest job (stats.last.key and keyBytes,
+// the band's or the page's key), and stats.maxKey the biggest frame's, so the bench card says which band went up when.
 
 /** Bytes the queue sends in a frame at most (a job alone in its frame may be bigger). */
 export const UPLOAD_BYTES_FRAME = 1_048_576;
@@ -25,12 +28,12 @@ export const UPLOAD_BYTES_FRAME = 1_048_576;
 export const UPLOAD_FRAME_MS = 2;
 
 /**
- * A queue: { queue(job), drain() → { n, bytes, ms }, pending (jobs waiting), bytesWaiting, has(key),
+ * A queue: { queue(job), drain() → { n, bytes, ms, key, keyBytes }, pending (jobs waiting), bytesWaiting, has(key),
  * cancel(key), stats }. opts: bytesPerFrame, msPerFrame, now.
  */
 export function createUploads({ bytesPerFrame = UPLOAD_BYTES_FRAME, msPerFrame = UPLOAD_FRAME_MS, now = () => globalThis.performance?.now?.() ?? 0 } = {}) {
   const own = [], rest = [], byKey = new Map();
-  const stats = { n: 0, bytes: 0, ms: 0, frames: 0, maxBytes: 0, maxMs: 0, maxN: 0, alone: 0, last: { n: 0, bytes: 0, ms: 0 } };
+  const stats = { n: 0, bytes: 0, ms: 0, frames: 0, maxBytes: 0, maxMs: 0, maxN: 0, alone: 0, maxKey: null, last: { n: 0, bytes: 0, ms: 0, key: null, keyBytes: 0 } };
 
   function remove(job) {
     const list = job.own ? own : rest, i = list.indexOf(job);
@@ -52,7 +55,7 @@ export function createUploads({ bytesPerFrame = UPLOAD_BYTES_FRAME, msPerFrame =
     /** Send what the frame's budget allows. Returns { n, bytes, ms } for this frame. */
     drain() {
       const t0 = now();
-      let n = 0, bytes = 0, alone = false;
+      let n = 0, bytes = 0, alone = false, key = null, keyBytes = 0;
       for (const list of [own, rest]) {
         while (list.length) {
           const job = list[0];
@@ -60,6 +63,7 @@ export function createUploads({ bytesPerFrame = UPLOAD_BYTES_FRAME, msPerFrame =
           list.shift(); byKey.delete(job.key);
           job.run();
           n++; bytes += job.bytes;
+          if (job.bytes > keyBytes || key === null) { key = job.key; keyBytes = job.bytes; }
           if (!job.own && job.bytes > bytesPerFrame) { alone = true; break; }   // (over the budget: alone in its frame)
         }
         if (alone || (list === rest && list.length)) break;
@@ -67,8 +71,9 @@ export function createUploads({ bytesPerFrame = UPLOAD_BYTES_FRAME, msPerFrame =
       const ms = now() - t0;
       stats.frames++; stats.n += n; stats.bytes += bytes; stats.ms += ms;
       if (alone) stats.alone++;
+      if (bytes > stats.maxBytes) stats.maxKey = key;
       stats.maxBytes = Math.max(stats.maxBytes, bytes); stats.maxMs = Math.max(stats.maxMs, ms); stats.maxN = Math.max(stats.maxN, n);
-      stats.last = { n, bytes, ms };
+      stats.last = { n, bytes, ms, key, keyBytes };
       return stats.last;
     },
     /** Whether a job is waiting under a key. */

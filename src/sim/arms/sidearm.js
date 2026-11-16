@@ -43,8 +43,14 @@
 // (plan.js gunRows as if in the hands: Press check, Magazine check, Top up, MAKE READY), each wrapped in its access (guns.js
 // accessOf: the rifle let hang and the draw, then the holster and the rifle up), "P-12: …", in GUN ▸ "Hands ▸" only (no slot,
 // never a lead, after Wait), on the lane with nobody facing you; the sub-steps say the pistol's words (gunwords.js).
+// v0.0.21 (its build sheet's item 6; house lens H7 (c)): the tower's Stop, MAKE SAFE (macros.js MACROS.safe), covers your P-12 in the
+// hand: its share (ADMIN.safe, 'pistol:holster', after the macro's own finger off, safe and low ready on the gun in the hand) holsters
+// it (firearms.js holster, 1.3 s, DC 6; slow on a failed roll, kept in the hand only by a drop), brings the rifle up off its sling and runs its own MAKE SAFE (a charge first where the R-7's
+// lever needs the hammer cocked: macros.js subsOf), so one press leaves both guns as the tower's Stop judges them (shoothouse.js houseReady 'houseSafe': no pistol out, the rifle on safe). A fumbled holster leaves the
+// pistol in the hand ("misses the holster: still in your hand.") and halts there, MAKE SAFE offered again. Yours only: your #2's
+// Stop holsters his own first (two.js twoList), as built.
 import { q } from '../../core/num.js';
-import { playerActor } from '../../core/ids.js';
+import { playerActor, playerId } from '../../core/ids.js';
 import { rollerOf } from '../combat/roll.js';
 import { doAction, beliefOf, actionMs, gunField } from './firearms.js';
 import { subsOf } from './drills.js';
@@ -68,6 +74,7 @@ import { wordsOf } from './gunwords.js';
 import { SLUNG } from './carry.js';
 import { handDeviceOf } from './devices.js';
 import { TEAM_WORDS, sideOf } from '../combat/team.js';
+import { laneRec, sessionOf } from '../combat/op.js';
 
 /** The calls of the answers (voice, CALL_MS each: shouted as the hands move; FM 3-06.11 table 3-2), read from team.js TEAM_WORDS (v0.0.19), with "Covering!" as you take your #2's sector. */
 export const CALLS = Object.freeze(Object.fromEntries(['call:gundown', 'call:gunup', 'call:stoppage', 'call:up', 'call:covering'].map(id => [id, TEAM_WORDS[id].words])));
@@ -89,17 +96,17 @@ export const SIDEARM_TIERS = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 
 /** The rows' ids by the card's keys. */
 export const ANSWER_STEPS = Object.freeze({ gundown: 'weapon:gun-down', offline: 'weapon:offline', transition: 'weapon:transition' });
 /** The sub-steps this module runs itself (the others are the rifle's: shooting.js rifleSub). */
-export const OWN_SUBS = Object.freeze(new Set([...Object.keys(CALLS), 'wait:up', 'step:wall', 'draw:thigh', 'team:cover', 'pistol:ready', 'pistol:clear']));
+export const OWN_SUBS = Object.freeze(new Set([...Object.keys(CALLS), 'wait:up', 'step:wall', 'draw:thigh', 'team:cover', 'pistol:ready', 'pistol:clear', 'pistol:holster']));
 /** Their words (shooting.js LABELS takes them). */
 export const SIDEARM_LABELS = Object.freeze({ 'call:gundown': '"Gun down!"', 'call:gunup': '"Gun up!"', 'call:stoppage': '"Stoppage!"', 'call:up': '"Up!"', 'call:covering': '"Covering!"', 'wait:up': 'On a knee: wait for "Up."',
   'step:wall': 'Step to the wall', hang: 'Let it hang', 'draw:thigh': 'Draw the pistol', holster: 'Holster it', 'team:cover': 'Cover his sector',
-  'pistol:ready': 'The pistol: rack, safe, holster', 'pistol:clear': 'The pistol: clear, holster' });
-/** The tower's macros that cover the P-12 too, the pistol last (COMBAT §25.19.6; WEAPONS §5.3's note): MAKE READY racks it, UNLOAD and SHOW CLEAR clear it. */
-export const ADMIN = Object.freeze({ ready: 'pistol:ready', unload: 'pistol:clear', clear: 'pistol:clear' });
+  'pistol:ready': 'The pistol: rack, safe, holster', 'pistol:clear': 'The pistol: clear, holster', 'pistol:holster': 'The pistol holstered, the rifle up on safe' });
+/** The tower's macros that cover the P-12 too, the pistol last (COMBAT §25.19.6; WEAPONS §5.3's note): MAKE READY racks it, UNLOAD and SHOW CLEAR clear it, MAKE SAFE (the house's Stop) holsters it from the hand (see the header). */
+export const ADMIN = Object.freeze({ ready: 'pistol:ready', unload: 'pistol:clear', clear: 'pistol:clear', safe: 'pistol:holster' });
 
 const actorOf = (state, pid) => state.actors?.list?.find(a => a.who === pid) ?? null;
 const rifleOf = (state, pid) => state.people?.[pid]?.kit?.worn?.sling ?? null;
-const houseOf = (state) => (state.armoury?.range?.course === 'house' ? state.armoury.range.house ?? null : null);
+const houseOf = (state) => laneRec(state);   // (combat/op.js)
 const laneLive = (state) => { const H = houseOf(state); return !!H && H.goAtMs !== null && H.goAtMs !== undefined && !H.end; };
 /** The P-12 in its holster, ready to draw, or null. */
 // (the rifle on its sling now, no pistol drawn: the hands' drills on it wait for its Up (firearms.js doAction refuses them))
@@ -114,7 +121,7 @@ const drillWords = (state, pid, b) => (b?.stoppage === 'double' && rollerOf(stat
 
 /** The nearest threat facing you that you know of (taken in, not forgotten: contact.js's known, or the last pause's), up and in the gun's frame: { T, dM } or null. Never one you have not seen (the reach review of 2026-11-13: the card's Transition knew of a man the marine had not taken in). */
 export function threatFacing(state, pid, ms = state.clock.ms) {
-  const R = state.armoury?.range, me = actorOf(state, pid);
+  const R = sessionOf(state), me = actorOf(state, pid);
   if (!R?.turners?.length || !me) return null;
   const c = state.mind?.contact, known = c?.known ?? {}, last = c?.last?.ids ?? [];
   let best = null;
@@ -205,7 +212,7 @@ export function offlineFeet(state, pid, ms = state.clock.ms, { coast = false } =
   let me = actorOf(state, pid);
   if (!me) return null;
   if (coast) { coastTo(state, pid, me, ms); me = actorOf(state, pid); }
-  const S = state.stop, R = state.armoury?.range, pick = S?.pick ? R?.turners?.find(t => t.key === S.pick) : null;
+  const S = state.stop, R = sessionOf(state), pick = S?.pick ? R?.turners?.find(t => t.key === S.pick) : null;
   const T = pick && (pick.stoppedAtMs === null || pick.stoppedAtMs === undefined) ? pick : threatFacing(state, pid, ms)?.T ?? null;
   const yaw = T ? Math.atan2(T.z - me.z, T.x - me.x) : me.headRad ?? 0, H = houseOf(state), two = H?.two?.pid ? actorOf(state, H.two.pid) : null;
   const from = [me.x, me.z], reach = COVER_STEP_M + WALL_OFF_M + 0.5;
@@ -318,8 +325,8 @@ export function weaponRows(state, pid, ms = state.clock.ms) {
  * waits on it as on the rifle (shoothouse.js houseWant 'pistol') and the panel offers "P-12: MAKE READY".
  */
 export function pistolOwed(state, pid) {
-  const R = state.armoury?.range, H = R?.house, rifle = rifleOf(state, pid);
-  if (R?.course !== 'house' || !H || R.end || (H.goAtMs !== null && H.goAtMs !== undefined) || !['ready', 'standby'].includes(R.cmd?.id)) return false;
+  const R = state.armoury?.range, H = laneRec(state), rifle = rifleOf(state, pid);
+  if (!H || R.end || (H.goAtMs !== null && H.goAtMs !== undefined) || !['ready', 'standby'].includes(R.cmd?.id)) return false;
   if (!holstered(state, pid) || drawn(state, pid) || !rifle || beliefOf(state, rifle).chamber === 'empty') return false;
   return adminSubs(state, pid, 'ready').length > 0;
 }
@@ -335,7 +342,7 @@ export function pistolOwed(state, pid) {
  */
 export function pistolClearOwed(state, pid) {
   const R = state.armoury?.range, rifle = rifleOf(state, pid);
-  if (R?.course !== 'house' || !R.house || R.end || R.cmd?.id !== 'clear') return false;
+  if (!laneRec(state) || R.end || R.cmd?.id !== 'clear') return false;
   // (owed as believed, or as the instructor sees it: a round in it the hand believes gone is his "your pistol too", never a wait for
   // the coach's take with nothing offered)
   const p = holstered(state, pid), g = p ? state.items[p] : null;
@@ -346,9 +353,11 @@ export function pistolClearOwed(state, pid) {
 
 // ---- the tower's macros over both guns (see ADMIN) ----
 
-/** The P-12's part of a tower macro for a person (see ADMIN): [] where none is carried holstered or it is already so. */
+/** The P-12's part of a tower macro for a person (see ADMIN): [] where none is carried holstered or it is already so; MAKE SAFE's, your P-12 in the hand (yours only: see the header). */
 export function adminSubs(state, pid, macroId) {
-  const id = ADMIN[macroId], p = holstered(state, pid), g = p ? state.items[p] : null;
+  const id = ADMIN[macroId];
+  if (id === 'pistol:holster') return pid === playerId(state) && drawn(state, pid) ? [id] : [];
+  const p = holstered(state, pid), g = p ? state.items[p] : null;
   if (!id || !g) return [];
   const b = beliefOf(state, p);
   if (id === 'pistol:ready') return b.mag === 'in' && b.chamber === 'empty' && b.count !== 0 ? [id] : [];
@@ -360,6 +369,7 @@ const ADMIN_PARTS = Object.freeze({ 'pistol:ready': ['charge', 'selector:safe'],
 /** The P-12's part's time before any fumble, ms. */
 export function adminMs(state, pid, sub) {
   const roller = rollerOf(state, pid), g = state.items?.[pistolOf(state, pid)];
+  if (sub === 'pistol:holster') return holsterMs(state, pid);
   if (!g || !ADMIN_PARTS[sub]) return 0;
   return actionMs(roller, g, 'draw:thigh') + actionMs(roller, g, 'holster') + ADMIN_PARTS[sub].reduce((t, a) => t + actionMs(roller, g, a === 'magOut' ? 'magOut:pouch' : a), 0);
 }
@@ -408,6 +418,47 @@ export function adminRun(state, bus, pid, sub, d, { rng = null, log = true, forc
   return { ms, ok, text: said.at(-1) ?? 'Holstered.', ...(halts ? { halts } : {}) };
 }
 
+// (MAKE SAFE's P-12 share's parts (see the header): the pistol from the hand to the holster, then the rifle up off its sling (it hangs once
+// the pistol is holstered: pistolHolstered) and, believed off safe, its own MAKE SAFE but the finger and the low ready the up gives
+// (macros.js subsOf: a charge first where the R-7's lever needs the hammer cocked))
+function holsterParts(state, pid) {
+  const rifle = rifleOf(state, pid), r = rifle ? state.items[rifle] : null, rb = r ? beliefOf(state, rifle) : null;
+  const safe = rb && rb.mode !== 'safe' ? subsOf('safe', rb).filter(a => a !== 'finger' && !a.startsWith('posture:')) : [];
+  return { rifle: r ? rifle : null, list: r ? ['up', ...safe] : [] };
+}
+/** MAKE SAFE's P-12 share's time before any fumble (the holster, the rifle up, its safe), ms. */
+export function holsterMs(state, pid) {
+  const roller = rollerOf(state, pid), p = drawn(state, pid) ?? pistolOf(state, pid), g = p ? state.items[p] : null, P = holsterParts(state, pid), r = P.rifle ? state.items[P.rifle] : null;
+  if (!g) return 0;
+  return actionMs(roller, g, 'holster') + P.list.reduce((t, a) => t + actionMs(roller, r, a, a === 'up' ? { posture: 'slungFront' } : {}), 0);
+}
+/**
+ * MAKE SAFE's P-12 share run (see the header): the pistol in the hand holstered (rolled: firearms.js holster), then the rifle up off its
+ * sling and on safe (each rolled), all at the sub-step's start as adminRun's parts are: { ms, ok, text, halts? } (halts: a part fumbled
+ * or refused, the rest left: a pistol that missed the holster is still in the hand, and MAKE SAFE is offered again).
+ */
+export function holsterRun(state, bus, pid, d) {
+  const p = drawn(state, pid);
+  if (!p) return { ms: 0, ok: null, text: 'Holstered.' };
+  const P = holsterParts(state, pid), go = (gunId, action) => doAction(state, bus, { pid, gunId, action, tempo: d.tempo, pressure: 'evaluated' });
+  // (a slow holster is a holster (sidearmEnd's); a drop or a refusal leaves it in the hand, the rest left)
+  const h = go(p, 'holster');
+  let ms = h.ms ?? 0;
+  if (h.refused || h.mishap) return { ms, ok: false, text: h.text, halts: true };
+  pistolHolstered(state, pid);
+  const S = state.stop;
+  if (S && P.rifle) { S.gun = P.rifle; S.aim = null; }
+  let text = h.text, ok = h.ok !== false;
+  for (const a of P.list) {
+    const r = go(P.rifle, a);
+    ms += r.ms ?? 0;
+    if (r.text) text = r.text;
+    if (r.ok === false) ok = false;
+    if (r.refused || r.halts) return { ms, ok: false, text, halts: true };
+  }
+  return { ms, ok, text };
+}
+
 // ---- the sub-steps (the stepper's, through shooting.js rifleSub and endSub) ----
 
 /** Sub-step i of a weapon row rolled and applied at atMs where it is this module's (OWN_SUBS): { rec, text } or null. */
@@ -431,6 +482,10 @@ export function sidearmSub(state, bus, d, i, atMs) {
   } else if (id === 'pistol:ready' || id === 'pistol:clear') {
     const r = adminRun(state, bus, pid, id, d);
     rec.ms = r.ms; rec.ok = r.ok; text = r.text;
+  } else if (id === 'pistol:holster') {
+    const r = holsterRun(state, bus, pid, d);
+    rec.ms = r.ms; rec.ok = r.ok; text = r.text;
+    if (r.halts) d.halt = true;
   } else if (id === 'draw:thigh') {
     const p = holstered(state, pid);
     if (!p) { d.cut = true; return { rec, text: 'No pistol in the holster.' }; }
@@ -455,8 +510,12 @@ export function sidearmEnd(state, bus, d, id) {
     delete d.drawn;
     if (pistolDrawn(state, pid, p)) { S.gun = p; S.aim = null; }
   } else if (id === 'holster') {
-    // (the holster fumbled (its sub-step halted): the pistol still in the hand, drawn, the step's rest Carry on's)
-    if (d.halt) return;
+    // (the holster dropped (its roll's mishap: "misses the holster: still in your hand.") or refused: the pistol still in the hand,
+    // drawn, the step's rest Carry on's. v0.0.21, the net's N15: a roll that only bit is a slow holster, done, as a slow draw is a draw
+    // (the header: "costs its time and goes on"), its words "P-12 holstered."; it halted the row all the same (shooting.js rifleSub),
+    // and this read the halt, so the P-12 stayed in the hand under those words: 12 of house-pistol's forty dice plans)
+    const rec = d.subs?.[d.i];
+    if (!drawn(state, pid) || (rec && (rec.mishap || (rec.ok === false && rec.grade === null)))) return;
     pistolHolstered(state, pid);
     S.gun = rifleOf(state, pid) ?? S.gun; S.aim = null;
   } else if (id === 'team:cover' && me && d.coverYaw !== undefined) { me.headRad = d.coverYaw; S.aim = null; }

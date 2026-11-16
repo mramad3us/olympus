@@ -33,7 +33,7 @@
 // 4 × 4 mean into its 158), the same budgets held.
 import { assert, fmt } from './helpers.mjs';
 import { withGame } from './browser.mjs';
-import { BENCH_SCENES } from '../src/data/bench.js';
+import { BENCH_SCENES, BENCH_HOUSE_KIT_S } from '../src/data/bench.js';
 const SLEEP = BENCH_SCENES['splash-sleep'];
 const sleepQuery = `play=${SLEEP.play}&seed=${SLEEP.seed}&hour=${SLEEP.hour}&area=${SLEEP.at.area}&at=${SLEEP.at.x},${SLEEP.at.z}&face=${SLEEP.at.face}&nostore=1&perf=1&ppm=16`;
 import { frameClock, startSampling, stopSampling, burst, framesLine, pct } from './stage-drive.mjs';
@@ -46,6 +46,26 @@ const lineQuery = (ppm) => `play=${LINE.play}&seed=${LINE.seed}&hour=${LINE.hour
 const queryOf = (ppm) => `play=${SCENE.play}&seed=${SCENE.seed}&hour=${SCENE.hour}&area=${SCENE.at.area}&at=${SCENE.at.x},${SCENE.at.z}&face=${SCENE.at.face}&nostore=1&perf=1&ppm=${ppm}`;
 
 // (the range-far scene at the lever's power: 4 as the bench has it, or 1 (0.0.8: the window at 4 px/m over four times the ground), the lever thrown first)
+// (v0.0.21, the build sheet §1 item 22 and F73: a house bench through the page's own ?bench=, its card's verdict read back; the
+// frame bounds held only on a 60 Hz clock (the background band paces headless Chrome at 10 to 12 Hz: printed, not held), the
+// draw calls, the links after the warm and the uploads after GO + 1 s held always, the largest's key printed either way)
+async function houseBench(name, { lane = null } = {}) {
+  await withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.__bench && document.querySelector('.glass.bench'), null, { timeout: 120000 });
+    const r = await page.evaluate(() => window.__bench), here = await frameClock(page), text = await page.evaluate(() => document.querySelector('.glass.bench .benchtext').value);
+    const st = await page.evaluate(() => { const s = window.__olympus.state, H = s?.armoury?.range?.house; return { legs: [...(H?.rooms ?? []), ...(H?.hall ? [H.hall] : [])].map(L => L.state), bursts: H?.bursts?.length ?? 0, live: !!H?.live, held: s?.stop?.mode ?? null }; });
+    const sixty = r.medianMs <= 17.5 && here.medianMs <= 17.5;
+    console.log(`      ${name}: ${r.frames} frames, median ${r.medianMs} ms, p95 ${r.p95Ms}, max ${r.maxMs}, over 25 ms ${r.over25}; draw calls ${r.drawCallsMax}; the sim's busiest tick ${r.tickMaxMs} ms; UI p95 ${r.uiP95Ms} ms; links after the warm ${r.linksAfterWarm}; the largest upload after GO + 1 s ${r.upload?.kb} KB (${r.upload?.key ?? '-'}, at ${r.upload?.atS ?? '-'} s); the lane ${JSON.stringify(st)}; the page's clock ${fmt(here.medianMs, 1)} ms${sixty ? '' : ' (not 60 Hz: the frame bounds printed, not held)'}`);
+    for (const line of text.split('\n').slice(-2)) console.log(`        ${line}`);
+    const J = Object.fromEntries((r.judge ?? []).map(j => [j.id, j]));
+    assert(r.judge && Number.isFinite(r.tickMaxMs) && Number.isFinite(r.uiP95Ms), JSON.stringify(r));
+    assert(J.calls.pass && J.links.pass && J.upload.pass, JSON.stringify(r.judge));
+    if (sixty) assert(J.median.pass && J.p95.pass && J.max.pass && J.view.pass, JSON.stringify(r.judge));
+    if (lane) assert(lane(st), JSON.stringify(st));
+    assert(!errors.length, errors.join('\n'));
+  }, { query: `bench=${name}`, timeoutMs: 120000 });
+}
+
 async function farBench(page, errors, optic = 4) {
   await page.waitForTimeout((FAR.warmS ?? 3) * 1000);
   if (optic !== 4) {
@@ -209,5 +229,23 @@ export default [
     async fn() {
       await withGame((page, errors) => farBench(page, errors, 1), { query: farQuery, viewport: { width: 1600, height: 900 }, timeoutMs: 60000 });
     },
+  },
+  {
+    name: '(F73, v0.0.21) the bench scene house-kit: the tier one at GO on 48213 with the full kit, T and the shot row in turn every 2 s for 25 s (the kit worn and drawn, its rows where T gives them): TECH §16.1 on the card, no program linked after the warm, no upload over UPLOAD_MID_KB 64 after GO + 1 s, draw calls under 160; 60 fps held on a 60 Hz clock',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() { assert(BENCH_SCENES['house-kit'].keys.reduce((a, k) => a + k[1], 0) === BENCH_HOUSE_KIT_S * 1000, 'house-kit lasts BENCH_HOUSE_KIT_S'); await houseBench('house-kit', { lane: (st) => st.legs.some(l => l !== 'ahead') }); },
+  },
+  {
+    name: '(F73, v0.0.21) the bench scene house-live: the sergeant on live:fight,hide, T and the shot row every 2 s for 20 s (the role-players, their paint): TECH §16.1 on the card as house-kit\'s',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() { await houseBench('house-live', { lane: (st) => st.live }); },
+  },
+  {
+    name: '(F73, v0.0.21) the bench scene house-stop: the private at GO in stop motion, 5 s held, the brackets moved every 1 s: TECH §16.1 on the card as house-kit\'s, time still standing at its end',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() { await houseBench('house-stop', { lane: (st) => st.held === 'stop' }); },
   },
 ];

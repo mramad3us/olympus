@@ -74,7 +74,6 @@ import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixel
 import { createCollector, buildAreaData } from '../art/jobs.js';
 import { areaFromJob, newPart } from './batch.js';
 import { paintKdFace, facePx } from '../art/kit/range.js';
-import { HOUSE1 } from '../data/places/wheel.js';
 import { LINE_FLAGS, LINE_FLAG } from '../data/places/range.js';
 export { cardFace, holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, drawnY, drawnBoreM, drawnMuzzleM, FLAG_HOIST_MS, FLAG_FLAP_MS, PUFF_MS, FLAG_PART } from './range-items.js';
 
@@ -130,7 +129,8 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
   }
   // ---------- 0.0.12: the house's catwalk and stands, built once ----------
   let house = null;
-  function buildHouse(H = HOUSE1) {
+  // (the house's spec from the sim's look, look.house.spec: shoothouse.js houseLook through scenes/assemble.js houseSpecOf)
+  function buildHouse(H) {
     const col = createCollector({ ppm, part: newPart }), cw = H.catwalk, y = cw.y, half = cw.widthM / 2;
     const box = (x0, x1, y0, y1, z0, z1, c) => col.box({ x0, x1, y0, y1, z0, z1, faces: { front: c, back: c, sides: c, top: c } });
     col.prop({ id: 'house:catwalk', kind: 'catwalk', pivot: [0, 0] });
@@ -208,7 +208,10 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
       }
       // ---------- 0.0.12: the shoot house: the corners as covered, its stands where the pairs look has none ----------
       if (HS) {
-        if (!house) house = buildHouse();
+        // (a drawn house's stands stand where its rooms do: built again when the spec changes (a new code at "Again with a
+        // new seed"), the old one's geometry disposed; the set's spec is one object (HOUSE1), so the set builds once as before)
+        if (house && house.spec !== HS.spec) { group.remove(house.built.group); house.built.dispose?.(); house = null; }
+        if (!house) house = { ...buildHouse(HS.spec), spec: HS.spec };
         house.built.group.visible = true;
         const hs = { corners: 0, covered: 0, stands: 0, pixels: 0, catwalk: true, leaves: 0 };
         for (const c of HS.corners ?? []) {

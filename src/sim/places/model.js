@@ -50,18 +50,60 @@ export const AREA_RECORDS = byId(AREA_LIST);
 const OPENING_AREA = Object.freeze(Object.fromEntries(AREA_LIST.flatMap(a => (a.openings ?? []).map(o => [o.id, a.id]))));
 const OPENING_REC = Object.freeze(Object.fromEntries(AREA_LIST.flatMap(a => (a.openings ?? []).map(o => [o.id, o]))));
 
+// ---- the generated areas' registry (PLACES §9.9; the build sheet v0.0.21 §1 item 1, §0 items 49 and 53) ----
+// A generated area (a shoot house drawn from the seed: src/sim/scenes/assemble.js, which registers into this registry, so
+// nothing here imports it) is an area record like any other, made at runtime from authored chunks, its id the base's with
+// GEN_MARK and a variant ('melas.wheel.s4~00a1b2c3d4e5f'), every id in it carrying the same mark ('w4~00a1b2c3d4e5f.r1', 'o:w4~00a1b2c3d4e5f:r1'),
+// so an opening id stays unique across the areas and every cache keyed by an area or an opening is right for nothing. areaOf,
+// openingOf and openingArea read the static records first and, for an id with the mark, the registry: an id it does not hold
+// is null, never a throw. The registry is runtime only (a save holds places.live.gen, from which the places domain's upgrade
+// 'places:gen' rebuilds it on load: src/sim/places/domain.js); resetCaches() empties it (TECH §2.3), dropArea(id) forgets one
+// area (the assembler keeps HOUSE_REG_KEEP of them, and brings an evicted one back on a read: useGenerated).
+/** The mark of a generated id: the base's id, the mark, the variant. */
+export const GEN_MARK = '~';
+const GEN = new Map(), GEN_OPENING = new Map();
+const isGen = (id) => typeof id === 'string' && id.includes(GEN_MARK);
+/** Register a generated area (see above): the area and its openings found by id from now on; returns the area. */
+export function registerArea(area) {
+  if (!area || !isGen(area.id)) throw new Error(`places: only a generated area (an id with '${GEN_MARK}') is registered, not '${area?.id}'`);
+  const old = GEN.get(area.id);
+  if (old && old !== area) dropArea(area.id);
+  GEN.set(area.id, area);
+  for (const o of area.openings ?? []) GEN_OPENING.set(o.id, { area, o });
+  return area;
+}
+/** Forget a generated area and its openings (see above): whether it was held. */
+export function dropArea(areaId) {
+  const a = GEN.get(areaId);
+  if (!a) return false;
+  for (const o of a.openings ?? []) if (GEN_OPENING.get(o.id)?.area === a) GEN_OPENING.delete(o.id);
+  GEN.delete(areaId);
+  return true;
+}
+// (the maker of a generated area the registry does not hold: the assembler's, which brings back a layout it assembled earlier in
+// the session and evicted since (an area id or any id inside it); null for one it never made)
+let RESOLVE = null;
+/** Name the maker of generated areas (see above): fn(id) → area | null. The assembler sets it at its load. */
+export function useGenerated(fn) { RESOLVE = typeof fn === 'function' ? fn : null; }
+const genArea = (id) => GEN.get(id) ?? (RESOLVE ? RESOLVE(id) ?? null : null);
+const genOpening = (id) => GEN_OPENING.get(id) ?? (RESOLVE && RESOLVE(id) ? GEN_OPENING.get(id) ?? null : null);
+/** The generated areas held now, by id (the tests' and the assembler's eviction). */
+export const generatedIds = () => [...GEN.keys()];
+/** Forget every generated area (TECH §2.3: every module with a cache exports this). */
+export function resetCaches() { GEN.clear(); GEN_OPENING.clear(); }
+
 /** A site's frozen record, or null. */
 export const siteOf = (siteId) => SITE_RECORDS[siteId] ?? null;
-/** An area's frozen record, or null. */
-export const areaOf = (areaId) => AREA_RECORDS[areaId] ?? null;
+/** An area's frozen record (a generated one's from the registry), or null. */
+export const areaOf = (areaId) => AREA_RECORDS[areaId] ?? (isGen(areaId) ? genArea(areaId) : null);
 /** The live area's record, or null. */
 export const liveArea = (state) => areaOf(state.places?.live?.area);
 /** The live site's record, or null. */
 export const liveSite = (state) => siteOf(state.places?.live?.site);
-/** An opening's record (any area's) by its id, or null. */
-export const openingOf = (id) => OPENING_REC[id] ?? null;
-/** The area an opening belongs to, or null. */
-export const openingArea = (id) => areaOf(OPENING_AREA[id]);
+/** An opening's record (any area's, a generated one's from the registry) by its id, or null. */
+export const openingOf = (id) => OPENING_REC[id] ?? (isGen(id) ? genOpening(id)?.o ?? null : null);
+/** The area an opening belongs to (a generated one's from the registry), or null. */
+export const openingArea = (id) => (OPENING_AREA[id] ? areaOf(OPENING_AREA[id]) : isGen(id) ? genOpening(id)?.area ?? null : null);
 
 /** A site record's east longitude in degrees (SETTING's geo record): the rule's one home (env.js lonOfSite reads it). Throws for a site that is not on Mars's clock (see the header). */
 export function siteLonOf(site) {
@@ -94,7 +136,8 @@ const siteRec = (state, siteId) => { const P = initPlaces(state); return P.sites
 export function enterSite(state, siteId, areaId) {
   const site = siteOf(siteId);
   if (!site) throw new Error(`places: no site '${siteId}'`);
-  if (areaId && !site.areas.includes(areaId)) throw new Error(`places: site '${siteId}' has no area '${areaId}'`);
+  // (a generated area is its base's, so the site holds it where it holds the base and the registry has it)
+  if (areaId && !site.areas.includes(areaId) && !(isGen(areaId) && site.areas.includes(areaId.split(GEN_MARK)[0]) && genArea(areaId))) throw new Error(`places: site '${siteId}' has no area '${areaId}'`);
   const P = initPlaces(state);
   siteRec(state, siteId);
   // (a scene's environment, live.env (src/sim/places/env.js), goes with it from area to area of its site, and stays behind at another site)
@@ -130,16 +173,21 @@ export function leafClosed(state, opening, ms = state?.clock?.ms ?? 0) {
  * sight cells round its leaf re-marked on every cached grid. Returns the nav cells changed.
  * v0.0.20 (the build sheet's item 15): `how` ('push' | 'pull' | 'kick'), the verb that opened it, kept on the delta beside state
  * and atMs, so the stage draws the leaf as it was opened (doors.js leafShownAt); absent, the linear swing as built.
+ * v0.0.21 (the hand-off, D): `broken` (ms), a lock broken off the range's lane, written by combat/op.js breakOpening and kept
+ * on the delta by every later call (a broken lock stays broken when the door is shut again).
  */
-export function setOpening(state, openingId, s, { atMs = state.clock?.ms ?? 0, how = null } = {}) {
+export function setOpening(state, openingId, s, { atMs = state.clock?.ms ?? 0, how = null, broken = null } = {}) {
   const area = openingArea(openingId);
   if (!area) throw new Error(`places: no opening '${openingId}'`);
   const o = openingOf(openingId);
   if (s !== 'open' && s !== 'closed') throw new Error(`places: an opening is 'open' or 'closed', not '${s}'`);
   if (s === 'closed' && ['doorway', 'gate', 'curtain'].includes(o.kind)) throw new Error(`places: ${openingId} is a ${o.kind}: it has no leaf to close`);
   const rec = siteRec(state, area.site), now = state.clock?.ms ?? 0;
-  if (s === (o.state ?? 'open') && atMs <= now) { if (rec.openings) { delete rec.openings[openingId]; if (!Object.keys(rec.openings).length) delete rec.openings; } }
-  else (rec.openings ??= {})[openingId] = { state: s, atMs, ...(how ? { how } : {}) };
+  // (a lock broken off the range's lane (combat/op.js breakOpening) is the door's for good: kept on its delta through
+  // every open and close after, so a delta that carries it is never dropped as the template's; absent, the delta as before)
+  const br = broken ?? rec.openings?.[openingId]?.broken ?? null;
+  if (s === (o.state ?? 'open') && atMs <= now && br === null) { if (rec.openings) { delete rec.openings[openingId]; if (!Object.keys(rec.openings).length) delete rec.openings; } }
+  else (rec.openings ??= {})[openingId] = { state: s, atMs, ...(how ? { how } : {}), ...(br !== null ? { broken: br } : {}) };
   remarkSight(state, openingId);
   return remarkLeaf(state, openingId);
 }

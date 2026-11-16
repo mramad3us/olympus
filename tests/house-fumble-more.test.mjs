@@ -10,6 +10,7 @@
 import { assert } from './helpers.mjs';
 import { runLane, classify, caseLine, lanesOf, TIERS, BOTS, RATE, TWO_RATE } from './bots/fumble.mjs';
 import { KNOWN, OPEN, UNCOVERED, printSweep } from './house-fumble.test.mjs';
+import { f67 } from './flawless-drawn.mjs';
 
 const SEEDS = (process.env.FUMBLE_SEEDS ?? '1,2').split(',').map(Number).filter(Number.isFinite);
 const RATE_SET = Number.isFinite(+process.env.FUMBLE_RATE) && process.env.FUMBLE_RATE ? +process.env.FUMBLE_RATE : RATE;
@@ -27,7 +28,25 @@ const sweep = (tier) => () => {
   assert(!cl.unknown.length, `${cl.unknown.length} UNKNOWN cases (a dead end not in KNOWN or OPEN): ${cl.unknown.slice(0, 4).map(caseLine).join(' || ')}`);
 };
 
+// (v0.0.21, the build sheet §1 item 17: the drawn slice, 72 lanes on the house drawn from the seed: every tier, the brief and GO, the
+// three bots, seeds 1 and 2; FUMBLE_DRAWN=0 leaves it out)
+const DRAWN_SETUPS = Object.freeze([null, 'go']);
+const drawnSweep = (tier) => () => {
+  const lanes = lanesOf({ seeds: [1, 2], tiers: [tier], setups: DRAWN_SETUPS, bots: BOTS_SET, rate: RATE_SET, draw: 'drawn' }).map(L => ({ ...L, twoRate: TWO_SET }));
+  const t0 = Date.now(), recs = lanes.map(L => runLane(L));
+  const cl = classify(recs.flatMap(r => r.cases), [...KNOWN, ...OPEN]);
+  console.log(`      the ${tier} on the drawn house: seeds 1, 2, the brief and GO, rate ${RATE_SET}, bots ${BOTS_SET.join(', ')}, ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+  printSweep(recs, cl);
+  assert(!cl.unknown.length, `${cl.unknown.length} UNKNOWN cases on the drawn house: ${cl.unknown.slice(0, 4).map(caseLine).join(' || ')}`);
+};
+
 export default [
+  ...(process.env.FUMBLE_DRAWN === '0' ? [] : TIERS.map(tier => ({
+    name: `the ${tier} on the drawn house, the brief and GO, the three bots, seeds 1 and 2, fumbles forced at the net's rate: no dead end, every lane to the card (v0.0.21)`,
+    heavy: true,
+    timeoutMs: 600_000,
+    fn: drawnSweep(tier),
+  }))),
   ...TIERS.map(tier => ({
     name: `the ${tier}, every setup, the three bots, fumbles forced at the net's rate: no dead end but v0.0.17's known ones (KNOWN), every lane to the card`,
     heavy: true,
@@ -35,11 +54,13 @@ export default [
     fn: sweep(tier),
   })),
   {
-    name: 'the hunt\'s findings the net does not reach yet, printed with why (UNCOVERED): a list to shrink',
+    name: 'F67 (heavy): the hunt\'s findings the net does not reach yet (UNCOVERED), the allow-lists (KNOWN, OPEN): every list empty from v0.0.21, so each sweep above fails on any case at all',
     heavy: true,
     fn() {
+      const row = f67({ KNOWN, OPEN, UNCOVERED });
       for (const u of UNCOVERED) console.log(`      ${u.finding}\n        ${u.why}`);
-      assert(UNCOVERED.every(u => u.finding && u.why), 'an UNCOVERED entry without its finding or its reason');
+      console.log(`      ${row.id} ${row.met ? 'MET ' : 'OPEN'} ${row.name}: ${row.value}`);
+      assert(row.met, row.value);
     },
   },
 ];

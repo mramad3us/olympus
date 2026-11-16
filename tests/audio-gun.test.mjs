@@ -8,6 +8,7 @@
 // but keeping the attack hard and first; another's shot by distance and side, a sound's way late; the new master holding a
 // burst of open shots under full scale; the steps well under the shots, the Careful walk under the Fast; &sound=old the old
 // sound whole; and the engine on a stand-in AudioContext playing each sound's voices on its own graph. Every number printed.
+// v0.0.21: engineOn is exported for tests/audio-bake.test.mjs, the bake in slices (this file's CPU, QUICK_SLOW's 5.1 s, is full).
 import { assert, near, fmt } from './helpers.mjs';
 import { renderDry, renderTail, protect, gunBakes, ownShot, otherShot, echoShot, spaceOf, loudDb, shotKey, GUNS, SPACES, PROTECT, PROTECT_AT, OWN_DB, GUN_RATE_HZ, TAIL_RATE_HZ, TAIL_FAR_MIN_DB } from '../src/ui/audio/gun.js';
 import { mixdown, master, levels, MASTER, MASTER_OLD, CLIP_LIMIT, makeupDb, clipCurve } from '../src/ui/audio/mix.js';
@@ -56,7 +57,7 @@ class FakeContext {
 }
 // (where a node's outputs lead: the kinds along the first path to the destination)
 const pathOf = (n) => { const out = []; let x = n; for (let i = 0; i < 24 && x; i++) { out.push(x.kind); x = x.outs[0]; } return out; };
-function engineOn(sound, looks = {}) {
+export function engineOn(sound, looks = {}) {
   let ctx = null;
   const Klass = function () { ctx = new FakeContext(); return ctx; };
   const audio = createAudio({ sound, looks, AudioContextClass: Klass });

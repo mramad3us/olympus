@@ -18,7 +18,10 @@
 // rendered a crossfade longer than its durS and its tail crossfaded into its head (equal power over
 // LOOP_XFADE_S), so it plays seamlessly on a looping source (the shower's water, the tap), and gets
 // no fade at its end. renderSteps() is the same rendering a layer at a time (a generator), so the
-// engine can spread a long recipe over several frames. The noise is white, from the game's own sfc32 dice on a
+// engine can spread a long recipe over several frames; from v0.0.21 every pass over the samples yields
+// every BAKE_CHUNK_SAMPLES (4,096) too (the build sheet v0.0.21 §1 item 12: a 4 s loop's layer took 5.2 ms
+// at once, the bake's longest slice), the same arithmetic in the same order, so the samples are the same.
+// BAKE_CHUNK_SAMPLES lives here, the audio's leaf, for gun.js, voice.js and the engine (engine.js re-exports it). The noise is white, from the game's own sfc32 dice on a
 // stream named for the recipe, its variant and its layer (src/core/rng.js stream): the same sound
 // is the same samples on every machine and every run, and Math.random is never called. The engine
 // (engine.js) copies these samples into AudioBuffers at the first key or click and plays them
@@ -36,6 +39,9 @@ export const FADE_S = 0.004;
 export const LOOP_XFADE_S = 0.12;
 const TAU = 2 * Math.PI;
 const dbToK = (db) => 10 ** (db / 20);
+/** A bake's pass over its samples yields every this many (the build sheet §1 item 12; about 85 ms of sound at 48 kHz), so a slice ends within the engine's BAKE_FRAME_MS and a chunk. */
+export const BAKE_CHUNK_SAMPLES = 4096;
+const CH = BAKE_CHUNK_SAMPLES;
 
 // ---- filters (RBJ's cookbook) ----
 
@@ -60,37 +66,39 @@ function filterOf(layer) {
 }
 
 // (a biquad run over a buffer in place, direct form 1)
-function filterInPlace(buf, k) {
+function* filterInPlace(buf, k) {
   let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
   for (let i = 0; i < buf.length; i++) {
     const x = buf[i], y = k.b0 * x + k.b1 * x1 + k.b2 * x2 - k.a1 * y1 - k.a2 * y2;
     x2 = x1; x1 = x; y2 = y1; y1 = y; buf[i] = y;
+    if (i % CH === CH - 1) yield 'filter';
   }
 }
 
 const envAt = (t, attackS, decayS) => (t < 0 ? 0 : t < attackS ? t / attackS : Math.exp(-(t - attackS) / Math.max(1e-5, decayS)));
 
-function normalise(buf) {
+function* normalise(buf) {
   let peak = 0;
-  for (let i = 0; i < buf.length; i++) peak = Math.max(peak, Math.abs(buf[i]));
-  if (peak > 0) for (let i = 0; i < buf.length; i++) buf[i] /= peak;
+  for (let i = 0; i < buf.length; i++) { peak = Math.max(peak, Math.abs(buf[i])); if (i % CH === CH - 1) yield 'peak'; }
+  if (peak > 0) for (let i = 0; i < buf.length; i++) { buf[i] /= peak; if (i % CH === CH - 1) yield 'norm'; }
   return buf;
 }
 
 // ---- layers ----
 
-function noiseLayer(layer, n, sr, r) {
+function* noiseLayer(layer, n, sr, r) {
   const buf = new Float32Array(n), d = layer.delayS ?? 0, f = filterOf(layer);
-  for (let i = 0; i < n; i++) buf[i] = next(r) * 2 - 1;
-  if (f) filterInPlace(buf, biquad(f[0], f[1], f[2], sr));
-  for (let i = 0; i < n; i++) buf[i] *= envAt(i / sr - d, layer.attackS ?? 0.001, layer.decayS ?? 0.02);
+  for (let i = 0; i < n; i++) { buf[i] = next(r) * 2 - 1; if (i % CH === CH - 1) yield 'noise'; }
+  if (f) yield* filterInPlace(buf, biquad(f[0], f[1], f[2], sr));
+  for (let i = 0; i < n; i++) { buf[i] *= envAt(i / sr - d, layer.attackS ?? 0.001, layer.decayS ?? 0.02); if (i % CH === CH - 1) yield 'env'; }
   return buf;
 }
 
-function toneLayer(layer, n, sr) {
+function* toneLayer(layer, n, sr) {
   const buf = new Float32Array(n), d = layer.delayS ?? 0, hz = layer.hz, to = layer.toHz ?? hz, decay = layer.decayS ?? 0.02;
   let phase = 0;
   for (let i = 0; i < n; i++) {
+    if (i % CH === CH - 1) yield 'tone';
     const t = i / sr - d;
     if (t < 0) continue;
     const f = to + (hz - to) * Math.exp(-t / decay);
@@ -100,18 +108,18 @@ function toneLayer(layer, n, sr) {
   return buf;
 }
 
-function grainsLayer(layer, n, sr, r) {
+function* grainsLayer(layer, n, sr, r) {
   const buf = new Float32Array(n), f = filterOf(layer), d = layer.delayS ?? 0;
   const len = Math.max(8, Math.round((layer.decayS ?? 0.002) * 6 * sr));
   for (let g = 0; g < (layer.n ?? 8); g++) {
     const at = Math.round((d + next(r) * (layer.spreadS ?? 0.05)) * sr), amp = 0.4 + 0.6 * next(r);
     for (let i = 0; i < len && at + i < n; i++) buf[at + i] += (next(r) * 2 - 1) * amp * Math.exp(-i / sr / (layer.decayS ?? 0.002));
   }
-  if (f) filterInPlace(buf, biquad(f[0], f[1], f[2], sr));
+  if (f) yield* filterInPlace(buf, biquad(f[0], f[1], f[2], sr));
   return buf;
 }
 
-function sweepLayer(layer, n, sr, r) {
+function* sweepLayer(layer, n, sr, r) {
   const buf = new Float32Array(n), d = layer.delayS ?? 0, durS = layer.durS ?? 0.5, q = layer.q ?? 6;
   let x1 = 0, x2 = 0, y1 = 0, y2 = 0, k = null;
   for (let i = 0; i < n; i++) {
@@ -122,6 +130,7 @@ function sweepLayer(layer, n, sr, r) {
     // (a hinge does not hiss: it sticks and slips, so the band is chopped at a rough rate)
     const chop = 0.55 + 0.45 * Math.sin(TAU * 31 * t + 2 * Math.sin(TAU * 7 * t));
     buf[i] = t < 0 || t > durS ? 0 : y * chop * envAt(t, layer.attackS ?? 0.05, layer.decayS ?? 0.3);
+    if (i % CH === CH - 1) yield 'sweep';
   }
   return buf;
 }
@@ -134,11 +143,12 @@ function blep(t, dt) {
 }
 const sawAt = (ph, dt) => 2 * ph - 1 - blep(ph, dt);
 
-function glideLayer(layer, n, sr) {
+function* glideLayer(layer, n, sr) {
   const buf = new Float32Array(n), d = layer.delayS ?? 0, durS = layer.durS ?? 1, hz = layer.hz, to = layer.toHz ?? hz;
   const att = layer.attackS ?? 0.02, rel = layer.releaseS ?? 0.06;
   let ph = 0;
   for (let i = 0; i < n; i++) {
+    if (i % CH === CH - 1) yield 'glide';
     const t = i / sr - d;
     if (t < 0 || t > durS) continue;
     const f = hz * (to / hz) ** (t / durS), dt = f / sr;
@@ -146,12 +156,12 @@ function glideLayer(layer, n, sr) {
     const env = Math.min(1, t / att) * Math.min(1, Math.max(0, (durS - t) / rel));
     buf[i] = sawAt(ph, dt) * env;
   }
-  if (layer.formant) filterInPlace(buf, biquad('bandpass', layer.formant[0], layer.formant[1], sr));
-  if (layer.lowpass) filterInPlace(buf, biquad('lowpass', layer.lowpass, Math.SQRT1_2, sr));
+  if (layer.formant) yield* filterInPlace(buf, biquad('bandpass', layer.formant[0], layer.formant[1], sr));
+  if (layer.lowpass) yield* filterInPlace(buf, biquad('lowpass', layer.lowpass, Math.SQRT1_2, sr));
   return buf;
 }
 
-function notesLayer(layer, n, sr) {
+function* notesLayer(layer, n, sr) {
   const buf = new Float32Array(n), att = layer.attackS ?? 0.025, rel = layer.releaseS ?? 0.04, gap = layer.gapS ?? 0.015;
   const vibHz = layer.vibratoHz ?? 5.5, vibK = layer.vibratoK ?? 0.004, scoopK = layer.scoopK ?? 0.03;
   let at = layer.delayS ?? 0;
@@ -163,12 +173,13 @@ function notesLayer(layer, n, sr) {
       ph += dt; if (ph >= 1) ph -= 1;
       const env = Math.min(1, t / att) * Math.min(1, Math.max(0, (durS - t) / rel));
       buf[i0 + i] += sawAt(ph, dt) * env;
+      if (i % CH === CH - 1) yield 'note';
     }
     at += durS + gap;
   }
-  if (layer.formant) filterInPlace(buf, biquad('bandpass', layer.formant[0], layer.formant[1], sr));
-  if (layer.highpass) filterInPlace(buf, biquad('highpass', layer.highpass, Math.SQRT1_2, sr));
-  if (layer.lowpass) filterInPlace(buf, biquad('lowpass', layer.lowpass, Math.SQRT1_2, sr));
+  if (layer.formant) yield* filterInPlace(buf, biquad('bandpass', layer.formant[0], layer.formant[1], sr));
+  if (layer.highpass) yield* filterInPlace(buf, biquad('highpass', layer.highpass, Math.SQRT1_2, sr));
+  if (layer.lowpass) yield* filterInPlace(buf, biquad('lowpass', layer.lowpass, Math.SQRT1_2, sr));
   return buf;
 }
 
@@ -186,8 +197,8 @@ export function* renderSteps(recipe, { sampleRate = 48000, name = 'sound', varia
   for (let li = 0; li < recipe.layers.length; li++) {
     const layer = recipe.layers[li], make = LAYERS[layer.kind];
     if (!make) throw new Error(`synth: no layer kind '${layer.kind}' in '${name}'`);
-    const buf = normalise(make(layer, total, sampleRate, stream('sound', name, variant, li))), k = dbToK(layer.db ?? 0);
-    for (let i = 0; i < total; i++) out[i] += buf[i] * k;
+    const buf = yield* normalise(yield* make(layer, total, sampleRate, stream('sound', name, variant, li))), k = dbToK(layer.db ?? 0);
+    for (let i = 0; i < total; i++) { out[i] += buf[i] * k; if (i % CH === CH - 1) yield 'mix'; }
     yield li;
   }
   // (a loop: the tail past durS crossfaded into the head at equal power, so the end runs into the start)
@@ -195,9 +206,9 @@ export function* renderSteps(recipe, { sampleRate = 48000, name = 'sound', varia
     for (let i = 0; i < xf; i++) { const a = i / xf; out[i] = out[i] * Math.sqrt(a) + out[n + i] * Math.sqrt(1 - a); }
     out = out.slice(0, n);
   }
-  normalise(out);
+  yield* normalise(out);
   const level = dbToK(recipe.levelDb ?? -12), fade = recipe.loop ? 0 : Math.min(n, Math.round(FADE_S * sampleRate));
-  for (let i = 0; i < n; i++) out[i] *= level * (fade && i >= n - fade ? (n - 1 - i) / fade : 1);
+  for (let i = 0; i < n; i++) { out[i] *= level * (fade && i >= n - fade ? (n - 1 - i) / fade : 1); if (i % CH === CH - 1) yield 'level'; }
   return out;
 }
 

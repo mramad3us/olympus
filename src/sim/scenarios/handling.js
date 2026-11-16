@@ -91,7 +91,7 @@
 // sequence courses.js SEQ_STRESS where the session carries R.stress (seqOf); everything else is pairs.js's.
 // 0.0.12 (the build sheet 0.0.12 §2.3): test-shoothouse's house course (R.course 'house', src/sim/scenarios/shoothouse.js) runs on
 // the same engine, its own branch at each door and nowhere else (every other course to the tick): startRange with no lane (R.lane
-// and R.fp null, the area the house's: R.area, the issue less the dummy), its sequence courses.js SEQ_HOUSE (seqOf), its
+// and R.fp null, the area the house's: R.area, the issue less the dummy), its sequence courses.js SEQ_HOUSE (seqOf; SEQ_HOUSE_DRAWN on a drawn house), its
 // readinesses shoothouse.js houseReady's first (lineReady), its commands on the PA with the scene's work houseOnCmd's (no coach's
 // brief), the second houseSecond's (the scene keeps the clock while the standby is armed and the lane runs: no nudge, no move-on),
 // the nudge to "Shooter" by what is lacking (shoothouse.js houseWant, courses.js HOUSE_NUDGE), each shot handed to houseShot,
@@ -103,7 +103,7 @@ import { hashPick } from '../../core/hash.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { post } from '../../core/queue.js';
 import { SCENES } from '../../data/scenes.js';
-import { COURSES, SEQ, SEQ_KD, SEQ_PAIRS, SEQ_STRESS, SEQ_HOUSE, KD_STRINGS, COACH, PAIRS_COACH, HOUSE_NUDGE, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
+import { COURSES, SEQ, SEQ_KD, SEQ_PAIRS, SEQ_STRESS, SEQ_HOUSE, SEQ_HOUSE_DRAWN, SEQ_HOUSE_CASUALTY, SEQ_HOUSE_DRAWN_CASUALTY, KD_STRINGS, COACH, PAIRS_COACH, HOUSE_NUDGE, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
 import { KD_RANGE } from '../../data/places/range.js';
 import { logEntry } from '../log.js';
 import { lonOfSite } from '../places/env.js';
@@ -127,6 +127,7 @@ import { halt } from '../combat/stepper.js';
 import { kdReady, kdRelayReady, kdOnCmd, kdNextI, kdSecond, kdStringEnd, kdShot, kdMoveOn, kdPoint, kdNow, kdWaitOnYou } from './range.js';
 import { pairsReady, pairsOnCmd, pairsSecond, pairsShot, pairsAfterStep, pairsBox, pairsPoint, pairsRangeNow, pairsWant, PAIRS_NUDGE, pairsStepStart } from './pairs.js';
 import { houseReady, houseOnCmd, houseSecond, houseShot, houseStepStart, houseAfterStep, houseRangeNow, houseNudgeOf, houseMoveOn } from './shoothouse.js';
+import { hostOf } from '../combat/op.js';
 
 /** Where the scene plays. */
 export const HANDLING = Object.freeze({ site: SCENES['test-handling'].host.site, area: KD_RANGE.area, course: 'fam25' });
@@ -149,7 +150,10 @@ export const NUDGE = Object.freeze({ prone: 'the prone position.', load: 'LOAD.'
 /** The session, or null. */
 export const rangeOf = (state) => state.armoury?.range ?? null;
 /** The tower's sequence of a session's course (0.0.7: SEQ_KD on the kd course; 0.0.8: SEQ_PAIRS on the pairs course; 0.0.10: SEQ_STRESS on it with the stress course's R.stress). */
-export const seqOf = (R) => (R?.course === 'kd' ? SEQ_KD : R?.course === 'pairs' ? (R.stress ? SEQ_STRESS : SEQ_PAIRS) : R?.course === 'house' ? SEQ_HOUSE : SEQ);
+// (a drawn house's brief and standby without the lane's letter, courses.js SEQ_HOUSE_DRAWN, command for command SEQ_HOUSE's)
+// (and a lane a casualty ended washes without "clear": courses.js SEQ_HOUSE_CASUALTY, the same commands)
+export const seqOf = (R) => (R?.course === 'kd' ? SEQ_KD : R?.course === 'pairs' ? (R.stress ? SEQ_STRESS : SEQ_PAIRS) : R?.course === 'house' ? houseSeqOf(R.house) : SEQ);
+const houseSeqOf = (H) => (H?.end?.why === 'casualty' ? (H.draw ? SEQ_HOUSE_DRAWN_CASUALTY : SEQ_HOUSE_CASUALTY) : H?.draw ? SEQ_HOUSE_DRAWN : SEQ_HOUSE);
 // (the command after i: the next, or the kd course's own (its zero's loop); null at the end)
 const nextIOf = (state, R, i) => (R.course === 'kd' ? kdNextI(state, i) : i + 1 < seqOf(R).length ? i + 1 : null);
 // (a shot is the player's: v0.0.6's by their lane; the kd course's by its shooter, the relay's never; the pairs course's all)
@@ -764,7 +768,8 @@ const issueOf = (state, R, load) => state.armoury.ammoIssues.find(a => a.id === 
 /** A shot resolved (shot.js resolveShot): the session's records, the issue's count, a cold line's fault, the stoppage noted. */
 export function recordShot(state, bus, shot) {
   const R = rangeOf(state);
-  if (!R) return;
+  // (off the range session an open operation's turners take the round (combat/two.js opShot, through op.js's host); none open, nothing)
+  if (!R) { hostOf(state).houseShot(state, bus, shot); return; }
   if (R.course === 'kd') { recordKdShot(state, bus, shot); return; }
   if (R.course === 'pairs') { pairsShot(state, bus, shot); return; }
   if (R.course === 'house') { houseShot(state, bus, shot); return; }

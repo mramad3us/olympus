@@ -109,7 +109,8 @@ export const SCENES = deepFreeze({
   'test-shoothouse': {
     id: 'test-shoothouse', title: 'Stack and clear', scenario: 'test-shoothouse',
     host: { site: 'melas', area: 'melas.wheel.s4' }, env: SITE_ENV, hour: 10.0,
-    goal: 'Lane A at 1 G with your number two, on GO: three rooms and the hall. Threats down, no-shoots untouched.',
+    // (the house as set or drawn, the picker's House row: "Lane A" named only the set (the play review of 2026-11-16))
+    goal: 'The shoot house at 1 G, as set or drawn from the seed, with your number two, on GO: three rooms and the hall. Threats down, no-shoots untouched.',
     // (the card (the build sheet v0.0.20 §1 item 10): six aspects from three, the team, the panel ("if we can make the
     // controls work cleanly", the user, 2026-11-12) and the feel scored apart; the score line names what was played (score.js))
     aspects: [['pause', "the pause: the take-in's feel, the brackets, the stamp, the brake, the log"], ['drill', 'the drill: the flow, the doors, your corner'],
@@ -117,6 +118,9 @@ export const SCENES = deepFreeze({
       ['shots', 'the shots: the rows, the reloads, both guns'], ['feel', 'the feel: the walk, the sound, the look']],
     body: {}, outfit: 'combatSuit', course: 'house', stances: true, sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
     pars: ['basic', 'advanced', 'operator'],
+    // (the drawn house (the build sheet v0.0.21 §1 item 1; src/sim/scenes/assemble.js): the house as set (layout A) or drawn
+    // from the seed, the picker's row (C's) and &draw=; HOUSE_DRAW_DEFAULT below the page's default)
+    draws: ['set', 'drawn'],
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
   // (v0.0.19: "Stack and clear, live", the same lane with two role-players of the cadre in place of stands 2a and 3a, firing
@@ -129,9 +133,19 @@ export const SCENES = deepFreeze({
     aspects: [['men', 'do the role-players read as men: the turn, the fire, the hands, the fall'], ['fight', 'does fire on you interrupt fairly and the stack react'], ['calls', "the instructor's calls: paint on you, a man who gave up, a man covered"]],
     body: {}, outfit: 'combatSuit', course: 'house', stances: true, sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
     pars: ['basic', 'advanced', 'operator'],
+    // (the live lane is the house as set: its men's posts are authored by room (src/data/places/house-opfor.js), so the
+    // fill never draws it (shoothouse.js drawnCodeFor) and the picker offers no house row (the build sheet §0 item 13))
+    draws: ['set'],
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
 });
+
+/**
+ * "Stack and clear"'s house when the page names none (the picker's first choice and a URL with no &draw): 'set' (layout A), until
+ * the ship rule flips it to 'drawn' (the build sheet v0.0.21's ship rules: house-drawn green on 100 drawn lanes and the user's yes to
+ * question 3). The tests' house is 'set' whatever this says (tests/game.mjs createGame's draw).
+ */
+export const HOUSE_DRAW_DEFAULT = 'set';
 
 /** The scenes the Tests menu lists, in its order: every built one (a stub's spec waits for its layout). */
 export const SCENE_IDS = Object.freeze(Object.keys(SCENES).filter(id => SCENES[id].built !== false));

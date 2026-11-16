@@ -20,6 +20,7 @@ import { recordingBus } from '../src/core/bus.js';
 import { playerActor } from '../src/core/ids.js';
 import { engineOf } from '../src/sim/time/skip.js';
 import { createRunLog, saveDigestOf, sheetHashOf } from '../src/ui/runlog.js';
+import { houseCodeOf } from '../src/sim/scenes/assemble.js';
 import { TICK_MS } from '../src/core/clock.js';
 
 /** The page's loop and log in node: frames at 20 Hz of real time, the poll the bot's (its memory off the state), a constant clock for the ff's budget (so each ff frame runs its FF_TICKS_FRAME ticks). */
@@ -83,6 +84,18 @@ export default [
       assert(r0.endDigest === atCard.digest && r.same.sheet && r.same.save && r.game.state.armoury.range.end && P.ffFrames > 0 && P.polls < r0.endN && P.stopSent !== null && ffLogged.length === 1
         && r0.inputs.length < P.polls / 10 && !r0.inputs.some(x => 'mouse' in x.input),
         JSON.stringify({ same: r.same, steps: r0.endN, polls: P.polls, ffFrames: P.ffFrames, stopSent: P.stopSent, ffLogged: ffLogged.length, inputs: r0.inputs.length }));
+    },
+  },
+  {
+    name: 'v0.0.21 (its build sheet §1 item 16, §0 item 22): a lane on a drawn house (the tier one by T on 48213, &draw=drawn) exported and replayed in node rebuilds its house from the save at GO and ends on the same code, run sheet and save digest; the export names the code (\'A\' on the house as set) (heavy: a third lane would take the file over its 3 s of CPU)',
+    heavy: true,
+    fn() {
+      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'tierone', setup: 'go', draw: 'drawn' }), run = recordRun(g, houseHonestBot());
+      const area = g.state.places?.live?.area ?? null, gen = JSON.parse(run.atGo).places?.live?.gen ?? null, r = replayRun(run);
+      // (the set's code, as the export names it: the fill's, the lane itself the first case's)
+      const set = houseCodeOf(createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'tierone', setup: 'go' }).state);
+      console.log(`      the drawn lane: house ${run.code} (area ${area}; the save at GO's gen ${JSON.stringify(gen)}); ${run.steps} calls, ${run.inputs.length} inputs; replayed: the house ${r.code}, the run sheet ${r.same.sheet ? 'the same' : 'DIFFERENT'}, the save ${r.same.save ? 'the same' : 'DIFFERENT'}, the end ${JSON.stringify(r.end)}; the set's export names ${set}`);
+      assert(run.code && run.code !== 'A' && gen?.code === run.code && r.same.code && r.same.sheet && r.same.save && r.end && set === 'A', JSON.stringify({ code: run.code, gen, same: r.same }));
     },
   },
 ];

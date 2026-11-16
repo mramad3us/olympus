@@ -17,8 +17,9 @@
 // a class instance, a function, a typed array) throws with its path: a save must never lose
 // something quietly.
 //
-// The top level is reserved (TECH §6.1, CONTRACTS §9): DOMAINS, 25 keys, each owned by one design
-// section, which defines the shape inside it:
+// The top level is reserved (TECH §6.1, CONTRACTS §9): DOMAINS, 26 keys, each owned by one design
+// section, which defines the shape inside it (SPARSE's are absent by default, present only while their
+// record is open, so a state that never opens one saves as it did before the key was reserved):
 //   TECH    meta { game, schema, version, seed, worldId, mode, scenario, createdMs, next: { <id
 //           prefix>: n }, errors: [≤ 20], and the honesty marks debugUsed, imported, recovered },
 //           rng { main, <stream>… }, log [≤ 1,500 records], flags { one-shot facts and migrations }
@@ -31,7 +32,8 @@
 //           happenings [ ], actors { list }, mind { seen, felt, heard, known, map }, talk (or null),
 //           names { people, ships, ops }
 //   WEAPONS stop (or null), items { <i id>: item }, armoury { guns, ammoIssues }
-//   COMBAT  fights [ ]
+//   COMBAT  fights [ ], cqb (SPARSE: an operation off the range session, src/sim/combat/op.js openOp
+//           and closeOp; claimed by the arms domain, which keeps the house's record; v0.0.21)
 //   world   world { } (LONGHAUL's background, ported by TECH; empty until 0.2)
 //   CAREER  career (or null), careers [ ], memorial [ ]
 // newState() returns every key at its empty default (emptyDomain()), so the core runs without the
@@ -65,7 +67,12 @@ export const GAME = 'olympus';
 export const SAVE_SCHEMA = 1;
 /** The reserved top-level keys (TECH §6.1), in its table's order. */
 export const DOMAINS = Object.freeze(['meta', 'clock', 'rng', 'events', 'skip', 'time', 'player', 'people', 'units', 'happenings',
-  'actors', 'mind', 'talk', 'names', 'fights', 'stop', 'items', 'armoury', 'places', 'world', 'career', 'careers', 'memorial', 'log', 'flags']);
+  'actors', 'mind', 'talk', 'names', 'fights', 'stop', 'items', 'armoury', 'places', 'world', 'career', 'careers', 'memorial', 'log', 'flags', 'cqb']);
+/**
+ * The reserved keys absent by default (see the header): newState and a load's fill leave them out, their writer makes and removes
+ * them. cqb: the operation off the range (the code review of 2026-11-16: written with no domain's claim, past TECH §6.1's guard).
+ */
+export const SPARSE = Object.freeze(['cqb']);
 export const MODES = Object.freeze(['standard', 'ironman']);
 /** The last errors kept in meta.errors (TECH §3.7). */
 export const ERRORS_MAX = 20;
@@ -103,6 +110,7 @@ export function emptyDomain(key, { seed = 0, version = '?', mode = 'standard', s
     case 'memorial': return [];
     case 'log': return [];
     case 'flags': return {};
+    case 'cqb': return undefined;
     default: throw new Error(`'${key}' is not a reserved key of the state (TECH §6.1: ${DOMAINS.join(', ')})`);
   }
 }
@@ -114,6 +122,7 @@ const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArr
  * object-shaped one (one level: a domain's own fill does the rest). For a domain's init (??=).
  */
 export function fillDomain(state, key, opts = { seed: state?.meta?.seed ?? 0 }) {
+  if (SPARSE.includes(key)) return state[key];
   const def = emptyDomain(key, opts);
   if (state[key] === undefined) { state[key] = def; return state[key]; }
   if (isPlainObject(def) && isPlainObject(state[key])) for (const f of Object.keys(def)) if (state[key][f] === undefined) state[key][f] = def[f];
@@ -129,7 +138,7 @@ export function newState(seed, { version = '?', mode = 'standard', scenario = nu
   if (!MODES.includes(mode)) throw new Error(`no such career mode: ${mode}`);
   const opts = { seed: seed >>> 0, version, mode, scenario, startMs };
   const s = {};
-  for (const k of DOMAINS) s[k] = emptyDomain(k, opts);
+  for (const k of DOMAINS) if (!SPARSE.includes(k)) s[k] = emptyDomain(k, opts);
   return s;
 }
 

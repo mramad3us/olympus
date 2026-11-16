@@ -26,7 +26,7 @@
 // Pure: spell, linePlan, lineGen, renderLine and the constants; engine.js bakes and plays, house.js decides what is said by whom.
 import { stream, next } from '../../core/rng.js';
 import { spokenMs, spokenWords, SPOKEN_LEAD_MS, SPOKEN_WORD_MS } from '../../core/speech.js';
-import { biquad } from './synth.js';
+import { biquad, BAKE_CHUNK_SAMPLES } from './synth.js';
 import { LEXICON, MORPH, LETTERS, PHONES, VOICES, VOICE_SET, REGISTER_DB, PROSODY, PAUSE_K, VOICE_RATE_HZ } from '../../data/voices.js';
 
 /** A formant's track toward its target (ms, a one-pole's time constant). */
@@ -160,8 +160,8 @@ function reso(f, bw, sr) {
   const c = -Math.exp(-TAU * bw / sr), b = 2 * Math.exp(-Math.PI * bw / sr) * Math.cos(TAU * f / sr);
   return { a: 1 - b - c, b, c };
 }
-/** A pass over a line's samples is cut in chunks of this many, a yield between (the bake's budget). */
-const CHUNK = 8192;
+/** A pass over a line's samples is cut in chunks of this many, a yield between (the bake's budget): synth.js BAKE_CHUNK_SAMPLES (8,192 before, the same samples). */
+const CHUNK = BAKE_CHUNK_SAMPLES;
 // (a biquad over a buffer in place, a chunk a yield)
 function* filterSteps(buf, k) {
   let x1 = 0, x2 = 0, y1 = 0, y2 = 0;

@@ -23,6 +23,7 @@ import { CALL_S, CALL_FLOW_S } from '../src/sim/combat/bundle.js';
 import { takeInOf, takeInWords } from '../src/sim/combat/react.js';
 import { TEST_SHEETS, RUNG_OF_TIER } from '../src/sim/skills/templates.js';
 import { lanePlanOf } from '../src/sim/combat/room.js';
+import { ownerOf } from '../src/sim/combat/team.js';
 import { hashInt } from '../src/core/hash.js';
 import { checkIds } from './ids-check.mjs';
 
@@ -115,7 +116,7 @@ export default [
           if (!V.seen) continue;
           // (the men of your own corner you saw: your #2's are his to shoot, on the same mechanics (the fixer's of 0.0.12: he
           // fired 0 to 2 rounds in the lane before, so "seen" counted his men among yours))
-          const own = new Set(V.contacts.filter(c => c.by === 'me' && (STANDS[c.stand]?.slot ?? 1) === 1).map(c => c.key)).size;
+          const own = new Set(V.contacts.filter(c => c.by === 'me' && (ownerOf(run.g.state, run.g.state.armoury.range.turners.find(T => T.stand === c.stand)) ?? 1) === 1).map(c => c.key)).size;
           // (2026-11-12, R3: no "Carry on" after a shot row now, so at rung 4, where the lane's bundle carries every room from
           // the last until R4 withdraws it, a room's presses are its own men's decisions alone: the +1 (the room's own press)
           // holds below it)

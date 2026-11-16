@@ -54,7 +54,10 @@
 // end state its command's macro leaves the gun in (COLD_ENDS, a literal table: drills.js imports this module and this module
 // drills.js's subsOf through macros.js, so nothing here reads MACROS at load), searched on the command's own edges, the selector
 // to safe last where it is off (as 'fire' puts it off safe last). The shoot house's cold Fix plans to them (shooting.js markFix),
-// so before GO and after Stop it never offers Off safe, a Charge before MAKE READY or a reload after Stop. Pure.
+// so before GO and after Stop it never offers Off safe, a Charge before MAKE READY or a reload after Stop.
+// v0.0.21 (its build sheet's item 6): Stop's end holds a pistol in its holster (COLD_ENDS.stop `holster`; MAKE SAFE holsters it,
+// sidearm.js ADMIN.safe), so the P-12 in the hand at Stop is never "already so": its plan is read as it is carried, not as if in the
+// hands, and no edge of Stop's takes it there, so Fix falls to the command's row (shooting.js markFix: MAKE SAFE). Pure.
 import { act, actionMs, beliefOf, gunField, actionKey, pull, feel, ready as readyTruth } from './firearms.js';
 import { pouchesOf, handMagOf, handGunOf, atFeetOf, dumpOf, believedN, rankOf, meantLoad, topUpGains } from './kit.js';
 import { MODELS, modelOf, isLong } from './models.js';
@@ -78,14 +81,16 @@ export const COLD_ENDS = Object.freeze({
   load: Object.freeze({ mag: 'in', ch: 'empty', edges: Object.freeze(['reach', 'seat']) }),
   ready: Object.freeze({ mag: 'in', ch: 'live', edges: Object.freeze(['reach', 'seat', 'charge', 'release']) }),
   standby: Object.freeze({ mag: 'in', ch: 'live', edges: Object.freeze(['reach', 'seat', 'charge', 'release']) }),
-  stop: Object.freeze({ edges: Object.freeze([]) }),
+  // (and a pistol holstered, as MAKE SAFE leaves it (sidearm.js ADMIN.safe); none of Stop's edges does it, so a pistol in the
+  // hand has no plan here and Fix names the command's row)
+  stop: Object.freeze({ holster: true, edges: Object.freeze([]) }),
   clear: Object.freeze({ mag: 'out', ch: 'empty', lk: false, edges: Object.freeze(['magOut:pouch', 'magOut:dump', 'charge', 'release', 'lockBack', 'stowMag', 'dumpMag']) }),
 });
 /** The tower's goal ids ('cmd:load' … 'cmd:clear'). */
 export const COLD_GOALS = Object.freeze(Object.keys(COLD_ENDS).map(id => `cmd:${id}`));
 const coldEnd = (goal) => (typeof goal === 'string' && goal.startsWith('cmd:') ? COLD_ENDS[goal.slice(4)] ?? null : null);
 // (a tower goal's end met, but the selector: the bolt home where the end names a chamber, no stoppage)
-const coldMet = (E, a) => !a.st && (!E.mag || a.mag === E.mag) && (!E.ch || a.ch === E.ch) && (E.lk !== false || !a.lk) && (E.ch !== 'live' || !a.lk);
+const coldMet = (E, a) => !a.st && (!E.mag || a.mag === E.mag) && (!E.ch || a.ch === E.ch) && (E.lk !== false || !a.lk) && (E.ch !== 'live' || !a.lk) && (!E.holster || a.carry !== 'hand');
 /** A search's cap (pops; my call: the worst seen uncapped was 1,200, every one a search that ends in no plan). */
 export const PLAN_POPS = 600;
 /** The memo's size before it is cleared (my call). */
@@ -462,14 +467,17 @@ function expand(state, pid, gunId, a, path) {
  * as if in the hands), look, purpose }.
  */
 export function planFor(state, pid, gunId, goal, { carry = null, look = true, purpose = PURPOSE_OF[goal] ?? null } = {}) {
-  // (a tower goal reads the gun as if in the hands: the command's macro brings it up itself)
-  const a = absOf(state, pid, gunId, { carry: coldEnd(goal) ? 'hands' : carry });
+  // (a tower goal reads the gun as if in the hands: the command's macro brings it up itself; v0.0.21: but a pistol where the
+  // goal's end holsters it (Stop's) as it is carried, in the hand or the holster)
+  const E = coldEnd(goal), g0 = state.items?.[gunId];
+  const a = absOf(state, pid, gunId, { carry: E ? (E.holster && g0 && !isLong(modelOf(g0)) ? null : 'hands') : carry });
   if (!a) return { goal, path: null, none: 'no gun', id: null, label: null, ms: 0, subs: null };
   const p = plan(a, goal, { look });
   if (!p.path) return { ...p, id: null, label: null, ms: 0, subs: null };
   let subs = expand(state, pid, gunId, a, p.path);
   // (a holstered pistol with the rifle up: the rifle let hang first (the house's Transition))
-  if (a.carry === 'holster' && !SLUNG.has(state.people[pid].kit?.carry?.posture ?? 'slungFront')) subs = ['hang', ...subs];
+  // (never on a tower goal's: its holstered pistol is where Stop wants it, no draw planned)
+  if (!E && a.carry === 'holster' && !SLUNG.has(state.people[pid].kit?.carry?.posture ?? 'slungFront')) subs = ['hang', ...subs];
   const roller = rollerOf(state, pid), g = state.items[gunId], posture = state.people[pid].kit?.carry?.posture ?? null;
   const rifle = state.people[pid].kit?.worn?.sling ? state.items[state.people[pid].kit.worn.sling] : g;
   const ms = subs.reduce((t, x) => t + actionMs(roller, x === 'hang' ? rifle : g, x, { tempo: 'normal', posture: x === 'up' ? posture : null }), 0);

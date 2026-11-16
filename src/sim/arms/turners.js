@@ -42,8 +42,8 @@ export function turnerKey(lane) { return `turner:${lane}`; }
 /** The lane of a turner's key, or null. */
 export function laneOfKey(key) { const m = /^turner:(\d+)$/.exec(key ?? ''); return m ? Number(m[1]) : null; }
 
-/** The session's turners (the scene's record), or none. */
-export function turnersOf(state) { return state?.armoury?.range?.turners ?? []; }
+/** The session's turners (the scene's record), or off the range an open operation's (combat/op.js openOp: v0.0.21), or none. */
+export function turnersOf(state) { return state?.armoury?.range?.turners ?? state?.cqb?.turners ?? []; }
 /** A turner by its key, or null. */
 export function turnerOf(state, key) { return turnersOf(state).find(T => T.key === key) ?? null; }
 

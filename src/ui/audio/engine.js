@@ -92,6 +92,15 @@
 // own voice on the voice bus, dry, in your helmet. setVoice(set) (the To score page's Voice row; createAudio's voice, &voice=)
 // changes the set: 'a' is v0.0.19's stand-ins, no voice baked.
 //
+// v0.0.21 (the build sheet §1 item 12; the perf lens's P7): BAKE_FRAME_MS was checked between parts, so a part rendered whole: the
+// v0.0.18 release log's longest slice was 13.6 ms, and a 4 s loop's layer 5.2 ms at once. Every renderer now yields every
+// BAKE_CHUNK_SAMPLES (4,096: synth.js renderSteps, gun.js's generators, voice.js lineGen; the same samples, held by the tests'
+// digests), so a slice ends within BAKE_FRAME_MS and a chunk; stats.bake keeps its slices, the longest and the frame it fell
+// in, and the tests hold it under BAKE_SLICE_MAX_MS 5 × k. The bake runs in frame(), which main.js calls after the view's draw.
+// A templated line is queued like a part and spoken when whole: stats.voice.delayMaxMs is the longest wait between its asking and
+// its sound. prebakeCallouts(texts) queues your number two's call-outs a lane's turners can draw (combat/two.js calloutLines: each
+// face's word at each place, the closed set), behind the lines said, so at "Rifle, far left!" the line is already whole.
+//
 // stats: { state (the context's, or 'none'), started, baked (every sound rendered), steps, doors,
 // dropped (past VOICES_MAX), late (foot-falls too late to play), voices, voicesMax, volume, muted,
 // master (the master gain's target), sampleRate, last, prepareMs (the context's making, at boot),
@@ -103,14 +112,14 @@ import * as places from '../../sim/places/model.js';
 import { envAt } from '../../sim/places/env.js';
 import { airDb } from '../../sim/people/hearing.js';
 import { STEPS, DOORS, WORLD, RANGE, CHAOS, STRESS, HOUSE, HALL, SUIT_SCUFF_DB, VOICES_MAX, MASTER_DEFAULT, ROLLOFF, PAN_FULL_M, WORLD_OPEN_HZ, LOOP_FADE_S } from '../../data/sounds.js';
-import { renderSteps } from './synth.js';
+import { renderSteps, BAKE_CHUNK_SAMPLES } from './synth.js';
 import { createStepScheduler, stepVoice, lowpassHz, stepTrimDb } from './steps.js';
 import { createWorld } from './world.js';
 import { createRange } from './range.js';
 import { createBang } from './bang.js';
 import { createBlast, BLAST_RECIPES } from './blast.js';
 import { createStress } from './stress.js';
-import { createHouse, fixedLines } from './house.js';
+import { createHouse, fixedLines, registerOf } from './house.js';
 import { lineGen } from './voice.js';
 import { VOICE_SET, VOICE_DEFAULT, VOICE_RATE_HZ } from '../../data/voices.js';
 import { createMarking } from './marking.js';
@@ -121,8 +130,12 @@ import { readParams } from '../../core/debug.js';
 
 /** The limiter's knee on the master (dBFS). */
 export const LIMIT_DB = -3;
-/** The most of a frame the sounds' rendering may take after the first key (ms). */
+/** The most of a frame the sounds' rendering may take after the first key (ms): no part begun past it. */
 export const BAKE_FRAME_MS = 3;
+/** The longest a bake's slice may take (ms × the machine's k: the tests' bound, v0.0.21): BAKE_FRAME_MS and one chunk of BAKE_CHUNK_SAMPLES. */
+export const BAKE_SLICE_MAX_MS = 5;
+/** Every renderer yields every this many samples (synth.js's, v0.0.21). */
+export { BAKE_CHUNK_SAMPLES };
 const dbToK = (db) => 10 ** (db / 20);
 /** The sound a page asks for (v0.0.16): 'old' with &sound=old in its query, else 'new'; read by the game's one reader of the URL (core/debug.js readParams), main.js passing it to createAudio. */
 export function soundModeOf(search = globalThis.location?.search ?? '') {
@@ -172,7 +185,7 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
   const steps = createStepScheduler();
   let voices = 0;
   let voiceSet = VOICE_SET[voice] ? voice : VOICE_DEFAULT;
-  const stats = { voice: { set: voiceSet, baked: 0, cached: 0, played: 0, late: 0, waiting: 0, bakeMs: 0 }, sound: mode, shot: mode === 'old' ? 'old' : shotPlay, shotWant: mode === 'old' ? 'old' : shotWant, guns: 0, gunVoices: 0, lastGun: null, state: 'none', started: false, baked: false, steps: 0, doors: 0, dropped: 0, late: 0, voices: 0, voicesMax: 0, volume, muted, master: 0, sampleRate: 0, last: null, prepareMs: null, startMs: null, startedAt: null };
+  const stats = { bake: { slices: 0, longestMs: 0, sumMs: 0 }, voice: { set: voiceSet, baked: 0, cached: 0, played: 0, late: 0, waiting: 0, bakeMs: 0, delayMaxMs: 0, prebaked: 0 }, sound: mode, shot: mode === 'old' ? 'old' : shotPlay, shotWant: mode === 'old' ? 'old' : shotWant, guns: 0, gunVoices: 0, lastGun: null, state: 'none', started: false, baked: false, steps: 0, doors: 0, dropped: 0, late: 0, voices: 0, voicesMax: 0, volume, muted, master: 0, sampleRate: 0, last: null, prepareMs: null, startMs: null, startedAt: null };
   const perfNow = () => globalThis.performance?.now?.() ?? 0;
 
   const gainOf = () => (muted ? 0 : volume * volume);
@@ -190,21 +203,25 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
   let baking = null;
   function bakeSome() {
     const t0 = perfNow();
+    // (a step begun only where the last one's length still fits the frame's budget, so a slice ends near BAKE_FRAME_MS)
+    let stepMs = 0;
+    const room = () => perfNow() - t0 + stepMs < BAKE_FRAME_MS;
     // (0.0.20: a line said is baked first, one begun a frame at most)
     let begun = 0;
-    while ((voiceBaking || voiceQueue.length) && perfNow() - t0 < BAKE_FRAME_MS) {
+    while ((voiceBaking || voiceQueue.length) && room()) {
       if (!voiceBaking) { if (begun++) break; const e = voiceQueue.shift(); voiceBaking = { ...e, it: lineGen(e.text, { voice: e.voice, register: e.register, set: e.set, sampleRate: Math.min(ctx.sampleRate, VOICE_RATE_HZ) }), t: 0 }; }
       const t1 = perfNow(), r = voiceBaking.it.next();
-      stats.voice.bakeMs += perfNow() - t1;
+      stepMs = perfNow() - t1;
+      stats.voice.bakeMs += stepMs;
       if (!r.done) continue;
       const sr = Math.min(ctx.sampleRate, VOICE_RATE_HZ), b = ctx.createBuffer(1, Math.max(1, r.value.length), sr);
       b.copyToChannel(r.value, 0);
       voiceBufs.set(voiceBaking.key, b); stats.voice.baked++; trimVoices();
-      for (const at of voiceWaiting.get(voiceBaking.key) ?? []) playVoice(b, at);
+      for (const at of voiceWaiting.get(voiceBaking.key) ?? []) { if (Number.isFinite(at.askedMs)) stats.voice.delayMaxMs = Math.max(stats.voice.delayMaxMs, perfNow() - at.askedMs); playVoice(b, at); }
       voiceWaiting.delete(voiceBaking.key); stats.voice.waiting = voiceWaiting.size;
       voiceBaking = null;
     }
-    while ((baking || toBake.length) && perfNow() - t0 < BAKE_FRAME_MS) {
+    while ((baking || toBake.length) && room()) {
       if (!baking) {
         const e = toBake.shift();
         if (e.gun) {
@@ -216,7 +233,8 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
           baking = { into, kind, sr, it: renderSteps(recipe, { sampleRate: sr, name: kind, variant: v }) };
         }
       }
-      const r = baking.it.next();
+      const t2 = perfNow(), r = baking.it.next();
+      stepMs = perfNow() - t2;
       if (!r.done) continue;
       const st = r.value?.left ? r.value : null, b = st ? ctx.createBuffer(2, st.left.length, baking.tr) : ctx.createBuffer(1, r.value.length, baking.sr);
       if (st) { b.copyToChannel(st.left, 0); b.copyToChannel(st.right, 1); } else b.copyToChannel(r.value, 0);
@@ -227,6 +245,10 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
     }
     stats.baked = !toBake.length && !baking;
     stats.voice.queued = voiceQueue.length;
+    // (the slice's length, the bound the tests hold)
+    const ms = perfNow() - t0;
+    stats.bake.slices++; stats.bake.sumMs += ms;
+    if (ms > stats.bake.longestMs) { stats.bake.longestMs = ms; stats.bake.longestAt = stats.bake.slices; }
   }
 
   /** The context and the graph made, suspended until start(): at boot, behind the title (see the header). Safe to call again. */
@@ -438,7 +460,7 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
   /** A line said (house.js): played at atS on the audio clock once baked (see the header); false off the context or with V-a. */
   function voiceLine(text, { voice: who = 'pa', register = 'plain', set = voiceSet, atS = 0, gainDb = 0, lowHz = WORLD_OPEN_HZ, pan = 0 } = {}) {
     if (!running() || !VOICE_SET[set]?.words || !Number.isFinite(gainDb)) return false;
-    const o = { voice: who, register, set }, key = wantVoice(text, o), at = { atS, gainDb, lowHz, pan, own: who === 'me' };
+    const o = { voice: who, register, set }, key = wantVoice(text, o), at = { atS, gainDb, lowHz, pan, own: who === 'me', askedMs: perfNow() };
     const b = voiceBufs.get(key);
     if (b) {
       // (a line said again goes to the back of the cache's order; past VOICE_CACHE the oldest unfixed one goes)
@@ -448,6 +470,23 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
     voiceWaiting.get(key)?.push(at); stats.voice.waiting = voiceWaiting.size;
     return true;
   }
+  /**
+   * Your number two's call-outs baked ahead (see the header): texts (combat/two.js calloutLines) in his voice and the
+   * contact call's register (house.js registerOf), behind every line said; the count newly queued. Nothing with V-a or no context.
+   */
+  function prebakeCallouts(texts = []) {
+    if (!ctx || !VOICE_SET[voiceSet]?.words) return 0;
+    let n = 0;
+    for (const text of texts) {
+      const o = { voice: 'two', register: registerOf({ call: 'contact', text }, 'two'), set: voiceSet }, key = voiceKey(text, o);
+      if (voiceBufs.has(key) || voiceWaiting.has(key) || voiceBaking?.key === key) continue;
+      wantVoice(text, o, false); n++;
+    }
+    stats.voice.prebaked += n;
+    return n;
+  }
+  /** Whether a call-out of his is baked (the tests'). */
+  const calloutBaked = (text) => voiceBufs.has(voiceKey(text, { voice: 'two', register: registerOf({ call: 'contact', text }, 'two'), set: voiceSet }));
   /** The voice set from now (voices.js VOICE_SETS: the To score page's row); its fixed lines baked. */
   function setVoice(id) {
     voiceSet = VOICE_SET[id] ? id : VOICE_DEFAULT; stats.voice.set = voiceSet;
@@ -587,7 +626,7 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
   /** A frame: the foot-falls the player's walk has reached, played where the drawn feet fall; the world's sounds; the splash's muffle. */
   function frame(state, alpha = 0, nowS = 0, { splash = null, chaos = null, breathing = false } = {}) {
     // (and a line said once the sounds are all baked: v0.0.20's fixer, a line not among the fixed ones waited for ever once toBake
-    // was empty, since only this call bakes)
+    // was empty, since only this call bakes; v0.0.21: a call-out baked ahead is queued the same way)
     if (toBake.length || baking || voiceBaking || voiceQueue.length) bakeSome();
     // (0.0.9: the chaos's mix by the reading now; nothing of it in a splash (the splash's muffle has the world))
     // (0.0.10: Breathe's box breath in place of the band's quick one while it runs)
@@ -674,7 +713,7 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
     get house() { return houseSounds; },
     /** The sound this engine plays: 'new' or 'old' (&sound=old, v0.0.16). */
     get sound() { return mode; },
-    setShot, setVoice,
+    setShot, setVoice, prebakeCallouts, calloutBaked,
     /** A line said on the house's voice (house.js's way, for the tests: v0.0.20's fixer). */
     voiceLine,
     /** The voice set playing (0.0.20). */

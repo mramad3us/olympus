@@ -7,7 +7,8 @@
 // moves), the pools the CPU twin finds at a point are the pools places counts there (lightLevel less the
 // room's fill), each room's fill is places' own, ceiling lamps make no pool (the look round's blotches),
 // the exposure is monotone and a lit room's fill shows its painted colours, a tint's brightness is the
-// exposure of its level. Then the ground's chunks (src/art/terrain/base.js): every building's rects
+// exposure of its level. FL-9's shoot house light candidates (src/data/places/house-light.js): room 1's centre and
+// corners, the hall and room 3 under HL-a (today's), HL-b and HL-c, their levels and luma printed. Then the ground's chunks (src/art/terrain/base.js): every building's rects
 // reach the chunks they cross, a building is one part on every chunk it crosses (no outline at a seam),
 // and a chunk's job is a few kilobytes. Prints the counts and the timings.
 import { assert, fmt } from './helpers.mjs';
@@ -18,12 +19,49 @@ import { indexGround, pieceOf, chunkAt, layChunk, CHUNK_M } from '../src/art/ter
 import { createCollector } from '../src/art/jobs.js';
 import { msAtMarsTime } from '../src/core/calendar.js';
 import { START_MS } from '../src/data/setting/calendar.js';
+import { HOUSE_LIGHT_IDS, HOUSE_LIGHT_AREA, HOUSE_LIGHTS } from '../src/data/places/house-light.js';
+import { linear } from '../src/art/tone.js';
 
 const LON = 287.2;
 const at = (h) => msAtMarsTime(START_MS, Math.floor(h), Math.round((h % 1) * 60), LON);
 const stateIn = (area, ms) => ({ clock: { ms }, places: { live: { site: 'melas', area }, sites: {}, nav: { queue: [], pending: [], debtNodes: 0 } }, meta: { seed: 1 } });
 
+// (FL-9: the shoot house's light candidates, a state in the house at 10:00 carrying one, or none for HL-a)
+const houseState = (hl, ms) => ({ ...stateIn(HOUSE_LIGHT_AREA, ms), ...(hl && hl !== 'HL-a' ? { $houseLight: hl } : {}) });
+const lumaOf = (c) => 0.30 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+
 export default [
+  {
+    name: 'the shoot house\'s light, sampled (FL-9): room 1\'s centre and corners, the hall and room 3 under HL-a, HL-b and HL-c, their luma printed',
+    fn() {
+      const ms = at(10), A = HOUSE_LIGHT_AREA, area = areaOf(A);
+      // (room 1, 26.5 to 31.5 by 8 to 12: its centre and its corners 0.3 m in; the hall by its door; room 3's near leg and its far corner, stand 3a's)
+      const P = { centre: [29.0, 10.0], nw: [26.8, 8.3], ne: [31.2, 8.3], sw: [26.8, 11.7], se: [31.2, 11.7], hall: [29.0, 13.2], r3: [17.5, 8.6], r3corner: [16.0, 5.7] };
+      const out = {};
+      for (const hl of HOUSE_LIGHT_IDS) {
+        const s = houseState(hl, ms), lamps = lampsOf(s, A, ms), fills = roomFills(area, lamps, (x, z) => lightLevel(s, x, z, ms, A));
+        const row = {};
+        for (const [k, [x, z]] of Object.entries(P)) {
+          const L = lightLevel(s, x, z, ms, A), r = area.rooms.find(q => x > q.rect[0] && x < q.rect[2] && z > q.rect[1] && z < q.rect[3]);
+          // (the tint a figure takes there and the floor's share of its painted colour: the room's fill and the pools, through the exposure)
+          const lighting = HOUSE_LIGHTS[hl].areas[A]?.rooms?.[r.id];
+          const tint = tintOf(L, linear(0xf2f0ea), poolAt(lamps, x, z));
+          row[k] = { L, luma: Math.round(lumaOf(tint) * 1000) / 1000, fill: fills.get(r.id), lighting: lighting ?? 'as today' };
+        }
+        out[hl] = row;
+        const pr = (k) => `${k} ${fmt(row[k].L, 2)} (${fmt(row[k].luma, 3)})`;
+        console.log(`      ${hl} (${HOUSE_LIGHTS[hl].name}): room 1 ${['centre', 'nw', 'ne', 'sw', 'se'].map(pr).join(', ')}; ${pr('hall')}; room 3 ${pr('r3')}, ${pr('r3corner')}  [level (luma)]`);
+      }
+      const a = out['HL-a'], b = out['HL-b'], c = out['HL-c'], corners = ['nw', 'ne', 'sw', 'se'];
+      // (HL-a is v0.0.19's: room 1 and the hall at the day overheads' 0.75, painted colour; room 3 dim, 0.40)
+      assert(['centre', ...corners, 'hall'].every(k => a[k].L === 0.75 && a[k].luma === 1) && a.r3.L === 0.4 && a.r3corner.L === 0.4, JSON.stringify(a));
+      // (HL-b: every point of room 1 and room 3 at the hall's light)
+      assert(['centre', ...corners, 'r3', 'r3corner'].every(k => b[k].L === b.hall.L && b[k].luma === b.hall.luma), JSON.stringify(b));
+      // (HL-c: the centre at the hall's 0.75, every corner at the 0.30 spill, darker; room 3's centre at today's dim, its corner darker; the hall as today)
+      assert(c.centre.L === 0.75 && c.centre.luma === 1 && corners.every(k => c[k].L === 0.3 && c[k].luma === Math.round(exposure(0.3) * 1000) / 1000 && c[k].luma < c.centre.luma), JSON.stringify(c));
+      assert(c.r3.L === 0.4 && c.r3corner.L < c.r3.L && c.hall.L === a.hall.L, JSON.stringify({ r3: c.r3, r3corner: c.r3corner, hall: c.hall }));
+    },
+  },
   {
     name: 'every lit pool is in the lamp table and in every cell its ring reaches; ceiling lamps make none; the CPU twin counts the pools places counts',
     fn() {

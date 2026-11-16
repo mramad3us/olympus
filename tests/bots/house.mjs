@@ -35,14 +35,23 @@
 // cleared, "Clear!" never called), X and the keys at random through windows, T's bundles and Backspace at random, a doorway
 // stood in; its dice are hashes of its seed and its count of decisions (mem.n). Every run must reach the card (the user,
 // 2026-11-07: "a scene never dead-ends").
+//
+// v0.0.21 (its build sheet's item 6): at MAKE READY and Standby the house bot answers the holstered P-12's round still owed
+// (sidearm.js pistolOwed: its part of the rifle's MAKE READY fumbled) by its own row, "P-12: MAKE READY", as the instructor's nudge
+// names it, and a P-12 that row left in the hand (a part fumbled after the draw) by its Carry on, else Rifle up; before, it read the
+// rifle alone and sat through the tower's move-on (the fumble net's p12-unready lanes: five of six sheets on seed 1 had the
+// instructor rack it). houseBot({ p12: false }) is the rifle alone, as before (house-pistol's run without it).
 import { houseNow } from '../../src/sim/scenarios/shoothouse.js';
 import { stepsOf, targetOf } from '../../src/sim/arms/shooting.js';
 import { beliefOf } from '../../src/sim/arms/firearms.js';
 import { contactNow } from '../../src/sim/combat/contact.js';
 import { lanePlanOf, pastThreshold, inFunnel } from '../../src/sim/combat/room.js';
 import { cornerOf, TWO_WAIT_MS } from '../../src/sim/combat/bundle.js';
+import { clipped } from '../../src/sim/combat/route.js';
+import { parseHouse } from '../../src/sim/scenes/assemble.js';
 import { rungOf } from '../../src/sim/skills/templates.js';
 import { instinctNow } from '../../src/sim/skills/instinct.js';
+import { pistolOwed, drawn as drawnPistol } from '../../src/sim/arms/sidearm.js';
 import { stepAct, pressToward } from './lib.mjs';
 import { hashInt } from '../../src/core/hash.js';
 import { TICK_MS } from '../../src/core/clock.js';
@@ -51,6 +60,8 @@ import { TICK_MS } from '../../src/core/clock.js';
 export const STALL_N = 100;
 /** Within this of a point the walk is done (m). */
 export const POINT_M = 0.15;
+/** A leg whose door was found open is stacked on first from farther than this off its stack (m; my call, v0.0.21). */
+export const OPEN_STACK_M = 1.0;
 const NOSHOOT = new Set(['hands', 'phone']);
 const isShotRow = (st) => st.kind === 'shot' || String(st.id).startsWith('shot:');
 const posture = (state) => state.people[state.player.id]?.kit?.carry?.posture ?? 'slungFront';
@@ -68,12 +79,22 @@ function threatsOf(state, N, me, mem) {
   return { armed: up.filter(T => ARMED.has(ident[T.key])).sort(order), unseen: up.filter(T => ident[T.key] === 'unseen').sort(order) };
 }
 const ARMED = new Set(['rifle', 'pistol']);
+// (v0.0.21, the build sheet §1 item 13: houseNow read once a tick by every bot of a lane, keyed by the state, its clock's seq and
+// ms; a WeakMap, so nothing reaches the actor's saved memory. The view is the same object for each reader of that tick)
+const HN = new WeakMap();
+function houseView(state) {
+  const c = state.clock, m = HN.get(state);
+  if (m && m.seq === c.seq && m.ms === c.ms && m.tick === c.tick) return m.N;
+  const N = houseNow(state);
+  HN.set(state, { seq: c.seq, ms: c.ms, tick: c.tick, N });
+  return N;
+}
 
 /** The house bot (see the header). */
-export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lineK = 1 } = {}) {
+export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lineK = 1, p12 = true } = {}) {
   return (state, me, mem) => {
     mem.log ??= []; mem.presses ??= 0;
-    const N = houseNow(state);
+    const N = houseView(state);
     if (!N || N.rangeEnd) { mem.done = true; return {}; }
     if (state.skip || contactNow(state)?.pending) return {};
     const S = state.stop, pid = state.player.id, gunId = state.people[pid]?.kit?.worn?.sling, b = beliefOf(state, gunId), cmd = N.cmd, now = state.clock.ms;
@@ -94,8 +115,11 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       if (lane && mem.walk) return walk(state, me, mem, now, humanStartMs);
       if (lane) { mem.walk = null; return press(mem, now, { act: ['ready'] }); }
       // (before GO: still on the mark; G for a command's work)
+      // (v0.0.21, the build sheet's item 6: the holstered P-12's round owed too (sidearm.js pistolOwed: its part of MAKE READY fumbled),
+      // which the tower waits on; before, the bot read the rifle alone and sat through the move-on, the net's p12-unready lanes)
       const settled = b?.mode === 'safe' && finger !== 'on' && posture(state) === 'lowReady' && b?.chamber === 'live' && b?.mag === 'in';
-      const want = (cmd === 'load' && b?.mag !== 'in') || (cmd === 'ready' && !settled) || cmd === 'clear' || (cmd === 'stop' && (b?.mode !== 'safe' || finger === 'on'));
+      const want = (cmd === 'load' && b?.mag !== 'in') || (cmd === 'ready' && !settled) || cmd === 'clear' || (cmd === 'stop' && (b?.mode !== 'safe' || finger === 'on'))
+        || (p12 && (cmd === 'ready' || cmd === 'standby') && (pistolOwed(state, pid) || !!drawnPistol(state, pid)));
       return want ? press(mem, now, { act: ['ready'] }) : {};
     }
     if (S.reflex) return choose(`reflex:${S.reflex.why === 'click' ? 'ia' : 'look'}`);
@@ -120,6 +144,12 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       // empty and the P-12 unchambered))
       if ((cmd === 'load' || cmd === 'ready') && b?.mag !== 'in') { const r = ['seat', 'reach@ground', 'macro:reload:speed'].find(has); if (r) return choose(r); }
       if (cmd === 'ready' && b?.chamber !== 'live' && has('macro:ready')) return choose('macro:ready');
+      // (v0.0.21: the holstered P-12's own MAKE READY where its round is still owed, the rifle's done (sidearm.js weaponRows: "P-12: MAKE
+      // READY", as the instructor's nudge and the DI's line name it))
+      // (p12 false: the rifle alone, as v0.0.20's bot read it (house-pistol's run without the fix))
+      if (p12 && (cmd === 'ready' || cmd === 'standby') && pistolOwed(state, pid) && has('weapon:other:macro:ready') && mem.p12ReadyAt !== now) { mem.p12ReadyAt = now; return choose('weapon:other:macro:ready'); }
+      // (and that row halted with the P-12 still in the hand (a fumbled part after its draw): its Carry on, else Rifle up, which holsters it)
+      if (p12 && (cmd === 'ready' || cmd === 'standby') && drawnPistol(state, pid) && mem.p12OutAt !== now) { const r = ['queue', 'weapon:rifle-up'].find(has); if (r) { mem.p12OutAt = now; return choose(r); } }
       if (cmd === 'clear') {
         if (has('queue')) return choose('queue');
         // (UNLOAD, SHOW CLEAR once at the command: the instructor's next follows the show)
@@ -212,7 +242,17 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     // ---- step by step (and by T where no bundle applies) ----
     const door = plan.door, opened = !door || L.state === 'open' || L.state === 'entered' || !steps.some(s => s.id.startsWith(`door:`) && s.id.endsWith(`>${door}`) && !s.id.startsWith('door:hold'));
     const stackRow = row(s => s.id.startsWith('drill:stack:up>'));
-    if (L.state === 'ahead' && stackRow && !inside) return choose(stackRow.id);
+    // (v0.0.21, A's finding 3: a door found open at the fill (a drawn house) has its leg 'open' at GO, and the bot walked the room's
+    // path from where it stood, in straight presses, into a wall (the keys private on drawn seeds 2, 3, 6 and 8: room 3 and the hall
+    // passed on the stall); off its stack (OPEN_STACK_M), it stacks first, as at a shut door. On the set a leg turns 'open' only by
+    // the bot's own hand at the stack, so no set lane moves)
+    // (a door's leg only: the hall's is 'open' from GO and has its own walk, move:hallEnd)
+    // (v0.0.21's integration: a door found open at the fill only (the drawn code's 'o', as the fill opens it: shoothouse.js
+    // testShoothouse), never one the bot opened itself: a pull door opened from the stack leaves you more than OPEN_STACK_M off it
+    // on the set too, and the bot went back to stack, the #2 cued late (the private by the keys on 1222, room 3 7.15 s on his heels;
+    // house-heels and house-flawless-live's F25))
+    const offStack = !!plan.door && !!plan.stack?.[0] && foundOpen(state, legI) && Math.hypot(me.x - plan.stack[0][0], me.z - plan.stack[0][1]) > OPEN_STACK_M;
+    if ((L.state === 'ahead' || (L.state === 'open' && offStack)) && stackRow && !inside) return choose(stackRow.id);
     if (!opened) {
       const d = row(s => /^door:(push|pull)>/.test(s.id)) ?? row(s => s.id.startsWith('door:kick>'));
       if (d) return choose(d.id);
@@ -258,6 +298,10 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
   };
 }
 
+// (whether leg k's door was found open at the fill: a drawn house's code says so ('o'), the set never)
+const foundOpen = (state, k) => { const code = state.armoury?.range?.house?.draw?.code; return !!code && parseHouse(code)?.rooms?.[k]?.state === 'open'; };
+// (whether the walker's circle goes straight from where he stands to a point, the walls as they stand: route.js clipped)
+const straightTo = (state, me, p) => { const c = clipped(state, [me.x, me.z], p); return Math.hypot(c[0] - p[0], c[1] - p[1]) < 1e-3; };
 // (a key or an act pressed, counted, at most every half second for G)
 function press(mem, now, input) {
   if (input.act?.[0] === 'ready') { if (mem.gAtMs !== undefined && now - mem.gAtMs < 500) return {}; mem.gAtMs = now; }
@@ -271,14 +315,20 @@ function walk(state, me, mem, now, humanStartMs) {
   if (now - w.fromMs < humanStartMs) return {};
   // (a walk toward a hot spot ends once it is covered, or stopM short of it)
   if (w.untilCovered) {
-    const N = houseNow(state), L = N?.legs?.[N.cur], h = w.path.at(-1);
+    const N = houseView(state), L = N?.legs?.[N.cur], h = w.path.at(-1);
     if (!L || L.corners?.by?.[w.untilCovered] || Math.hypot(me.x - h[0], me.z - h[1]) <= (w.stopM ?? 1)) { mem.walk = null; return { act: ['ready'] }; }
   }
   // (a point already passed is not walked back to (a human's eye: past it along the next leg), as when the game carried him on
   // through a doorway while the keys were not his (the rework's R8b: places/move.js throughOf))
+  // (v0.0.21: and only where the walker can go straight on to the next (route.js clipped, its circle against the walls): on a drawn
+  // house's room south of the hall, a cross entry's point down through the door and then west was skipped from just inside the
+  // north wall's line, and the straight press to the next pinned him on the door's west jamb (the keys private on seed 2, room 3
+  // passed at 90 s))
   while (w.k < w.path.length - 1) {
     const [ax, az] = w.path[w.k], [bx, bz] = w.path[w.k + 1];
-    if ((me.x - ax) * (bx - ax) + (me.z - az) * (bz - az) > 0) w.k += 1; else break;
+    // (v0.0.21's integration: on a drawn house only, B's case; on the set the guard held the keys bot on a passed point in a doorway,
+    // 51 funnel faults on house-flawless-keys' lanes (F4), where v0.0.20's walk skipped it)
+    if ((me.x - ax) * (bx - ax) + (me.z - az) * (bz - az) > 0 && (!state.armoury?.range?.house?.draw || straightTo(state, me, w.path[w.k + 1]))) w.k += 1; else break;
   }
   while (w.k < w.path.length) {
     let p = w.path[w.k];
@@ -299,14 +349,14 @@ function walk(state, me, mem, now, humanStartMs) {
 export function houseTBot() {
   const calm = houseBot({ mode: 'T' });
   return (state, me, mem) => {
-    const N = houseNow(state);
+    const N = houseView(state);
     if (!N || N.rangeEnd) { mem.done = true; return {}; }
     if (N.goAtMs === null || N.end) return calm(state, me, (mem.calm ??= {}));
     if (state.skip || contactNow(state)?.pending) return {};
     const S = state.stop, now = state.clock.ms, it = instinctNow(state), line = it.line;
     if (S?.reflex) return { act: [stepAct(`reflex:${S.reflex.why === 'click' ? 'ia' : 'look'}`)] };
     // (the line names the shot and leaves it to him (no act): the row it names on the bracketed man of his own corner)
-    if (S?.mode === 'stop' && S.phase === 'choose' && line && !line.act && SHOT_LINES.has(line.id)) {
+    if (S?.mode === 'stop' && S.phase === 'choose' && namesShot(line)) {
       const T = N.turners.find(t => t.key === S.pick);
       if (T && !T.down && T.facingK >= 0.5 && (T.owner ?? T.slot ?? 1) === 1 && mem.shotAt !== now) {
         // (the line's Press on the one round left: the Fire row, the shot rows all struck "one left" (2026-11-11))
@@ -335,6 +385,13 @@ export function houseTBot() {
 export const SHOT_LINES = Object.freeze(new Set(['cqb-contact', 'cqb-still-up', 'cqb-hostage', 'cqb-rp-fire']));
 // (the lines that name the pair: the contact's, and a role-player firing on you (v0.0.19, cqb-rp-fire); the others name the head)
 const PAIR_LINES = new Set(['cqb-contact', 'cqb-rp-fire']);
+// (v0.0.21, the review of A and B: the contact's line names a shot on the bracketed man only in its press, row and aim variants (each
+// read off the man bracketed); 'his', 'move', 'hands' and 'safe' name none, and a line of theirs with no act is a gap of the game's,
+// never a shot: the honest bot fired a pair at a no-shoot under "That one's his. Carry on." (act-less while the closet's question
+// stood; the sergeant on drawn seed 10), an F8 fault that hid an F11 dead end)
+const NAMES_SHOT = new Set(['press', 'row', 'aim']);
+/** Whether a line with no act names a shot on the bracketed man (see above). */
+export const namesShot = (line) => !!line && !line.act && SHOT_LINES.has(line.id) && (line.id !== 'cqb-contact' || NAMES_SHOT.has(line.variant));
 /** A T the game refuses this many times at one ms is a dead end (the act named, nothing done). */
 export const REFUSED_N = 3;
 /** Ticks of a stop with no act before the honest bot calls it a dead end (the line has its ticks to come, as on the page). */
@@ -360,7 +417,7 @@ export function houseHonestBot({ answer = null } = {}) {
   const calm = houseBot({ mode: 'T' });
   return (state, me, mem) => {
     mem.T ??= 0; mem.shots ??= 0; mem.presses ??= 0; mem.hand ??= 0; mem.waits ??= 0; mem.leaves ??= 0; mem.outMs ??= 0; mem.dead ??= {}; mem.deadLog ??= [];
-    const N = houseNow(state);
+    const N = houseView(state);
     if (!N || N.rangeEnd) { mem.done = true; return {}; }
     if (state.skip || contactNow(state)?.pending) return {};
     // (the live lane's casualty beat: nothing to press, every act refused, the lane's end 2 s on (men.js casualtyOn))
@@ -397,7 +454,7 @@ export function houseHonestBot({ answer = null } = {}) {
     }
     const choosing = S?.mode === 'stop' && S.phase === 'choose';
     // (the line names the shot and leaves it to him: the row it names on the bracketed man, his own)
-    if (choosing && line && !line.act && SHOT_LINES.has(line.id)) {
+    if (choosing && namesShot(line)) {
       const T = N.turners.find(t => t.key === S.pick), mine = T && (!N.two?.pid || (T.owner ?? T.slot ?? 1) === 1);
       if (T && !T.down && T.facingK >= 0.5 && mine && mem.shotAt !== now) {
         const rows = stepsOf(state).filter(x => (isShotRow(x) || x.id === 'fire') && !x.off && (x.target ?? T.key) === T.key);
@@ -447,7 +504,7 @@ export function houseFuzzBot({ seed = 1 } = {}) {
   const calm = houseBot({ mode: 'keys', humanStartMs: 300 });
   return (state, me, mem) => {
     mem.n ??= 0; mem.steps ??= {};
-    const N = houseNow(state);
+    const N = houseView(state);
     if (!N || N.rangeEnd) { mem.done = true; return {}; }
     if (state.skip) return {};
     const now = state.clock.ms, die = (k) => hashInt(k, 'house-fuzz', seed, mem.n++);
@@ -493,13 +550,14 @@ export function houseFuzzBot({ seed = 1 } = {}) {
 export function runHouse(game, bot, { maxMs = 30 * 60_000, maxTicks = Math.round(maxMs / TICK_MS) * 2, each = null } = {}) {
   const s0 = game.state.clock.ms;
   let ticks = 0;
-  while (!houseNow(game.state)?.rangeEnd && game.state.clock.ms - s0 < maxMs && ticks < maxTicks) {
+  // (v0.0.21: the range's end read where it is, not through houseNow, which built every leg's view a tick to say it)
+  while (!game.state.armoury?.range?.end && game.state.clock.ms - s0 < maxMs && ticks < maxTicks) {
     game.step(1, bot);
     each?.(game);
     game.clearFacts?.();
     ticks++;
   }
   const me = game.state.actors.list.find(a => a.who === game.state.player.id);
-  return { ticks, ms: game.state.clock.ms - s0, done: !!houseNow(game.state)?.rangeEnd, mem: me?.bot ?? {} };
+  return { ticks, ms: game.state.clock.ms - s0, done: !!game.state.armoury?.range?.end, mem: me?.bot ?? {} };
 }
 export { TICK_MS };

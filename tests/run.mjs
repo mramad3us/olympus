@@ -63,6 +63,19 @@
 // (machine().k, as the CPU-time ceilings are: 19 s in the foreground is about 70 s there), so a run
 // does not fail on the band alone while the user plays. A run that fails on time alone is still run
 // again on a quiet machine before anything is changed, since the machine is shared.
+// From v0.0.21 (the build sheet v0.0.21 §1 item 26; the perf lens P5; TECH §13.7) the minute is the full pool's: the wall
+// limit is QUICK_LIMIT_S × max(1, QUICK_JOBS_REF 7 / JOBS) (a pool of 2, the build's roles, or of 3 while the user plays,
+// needs 7/2 or 7/3 of the time for the same work), printed with its parts. The guard that does not move with the neighbours
+// is CPU: each file's CPU (process.cpuUsage() in the process that ran it, from its module loaded to its last test) is measured, the ten largest
+// quick files printed, and a quick file over QUICK_FILE_CPU_S 3 s × k fails unless QUICK_SLOW names it, each with its own
+// ceiling × k, frozen at v0.0.21's stage 0 (its measure plus 25%): a ceiling may only go down and no file may join the list
+// (tests/syntax.test.mjs checks it against the last tag's). A whole quick run's CPU summed fails over QUICK_CPU_S × k. A whole
+// lane in a quick file is heavy, unless it is one sheet on one seed (v0.0.19's rule, now checked). On this shared machine a
+// neighbour still adds CPU (contention moves work onto the efficiency cores), so a file over its budget is read again: the
+// machine's factor after it, and the file run once more alone in a fresh worker, held by the less of its two runs (noise only
+// adds, as F60's minimum of three has it). With the one-minute load over half the cores the budgets are printed and not judged
+// (contention inflates CPU time itself: 288 to 372 s for the same quick suite at stage 0), as the wall minute is run again on a
+// quiet machine; QUICK_CPU_JUDGE=1 judges them whatever the load.
 //
 // The priority (0.0.3). On macOS a process started from an app in the background (the terminal behind
 // a game in front) runs in the darwin background band (`ps -o pri` 4, a foreground terminal's 31), on
@@ -102,6 +115,55 @@ function hidIdleS() {
   } catch { return null; }
 }
 const QUICK_LIMIT_S = Number(process.env.QUICK_LIMIT_S) || 60;   // (60 again from v0.0.11, in parallel; 90 in v0.0.10, one file at a time: 875 quick tests in 73 s)
+/** The pool the quick suite's minute is set for (v0.0.21: the user's 7 workers; a smaller pool's limit is scaled by 7/JOBS). */
+const QUICK_JOBS_REF = 7;
+/** A quick file's CPU budget (s × k; v0.0.19's rule, checked from v0.0.21): over it, a file fails unless QUICK_SLOW names it. */
+const QUICK_FILE_CPU_S = 3;
+/** The whole quick suite's CPU budget (s × k), set from v0.0.21 stage 0's first whole run (see TECH §13.7). */
+const QUICK_CPU_S = 375;   // (v0.0.21's stage 0: the whole quick runs measured 288.4 to 298.6 s at JOBS=3, plus 25%; the build sheet's 200 was an estimate before v0.0.20's suites)
+/**
+ * The quick files over QUICK_FILE_CPU_S at v0.0.21's stage 0, each with its ceiling (s × k: its measure plus 25%). Frozen: a
+ * ceiling may only go down and no file may join (tests/syntax.test.mjs against the last tag's list); a file that falls under
+ * 3 s leaves it. A new quick file over 3 s × k is moved to heavy, never added here.
+ */
+const QUICK_SLOW = Object.freeze({
+  // (v0.0.21's stage 0, four whole quick runs at JOBS=3: each file's worst measure plus 25%; the files from 2.4 s, whose 25% reaches 3 s)
+  'house-fumble.test.mjs': 15.3,
+  'house-unpinned.test.mjs': 14.7,
+  'plan-walk.test.mjs': 14.3,
+  'house-sidearm.test.mjs': 10.2,
+  'game-upgrade.test.mjs': 9.3,
+  'game-walk.test.mjs': 7.9,
+  'panel-groups.test.mjs': 7.9,
+  'pairs-head.test.mjs': 7.5,
+  'shoothouse-again.test.mjs': 7.5,
+  'hunt-kit.test.mjs': 7.3,
+  'house-two.test.mjs': 6.1,
+  'kd-review.test.mjs': 5.5,
+  'house-live-save.test.mjs': 5.3,
+  'audio-gun.test.mjs': 5.1,
+  'stress-review.test.mjs': 5.0,
+  'hunt-pistol.test.mjs': 4.9,
+  'scene-range.test.mjs': 4.9,
+  'panel-keys.test.mjs': 4.7,
+  'ui-zeroing.test.mjs': 4.7,
+  'kd-tower.test.mjs': 4.4,
+  'scene-shoothouse.test.mjs': 4.4,
+  'house-flash.test.mjs': 4.3,
+  'house-live-perf.test.mjs': 4.1,
+  'house-catalogue.test.mjs': 4.0,
+  'kit-makers.test.mjs': 3.9,
+  'scene-bangs.test.mjs': 3.8,
+  'reads-scope.test.mjs': 3.6,
+  'house-corner.test.mjs': 3.6,
+  'house-shoot.test.mjs': 3.5,
+  'team-task.test.mjs': 3.3,
+  'house-breach.test.mjs': 3.2,
+  'house-fixes.test.mjs': 3.2,
+  'house-r9.test.mjs': 3.2,
+  'hunt-look.test.mjs': 3.1,
+  'house-bodies.test.mjs': 3.1,
+});
 const first = (e, n = 4) => String(e?.stack || e?.message || e).split('\n').slice(0, n).join('\n      ');
 
 /** Marks a worker's report in its output: what comes before it is the file's. */
@@ -111,18 +173,23 @@ const REPORT = new RegExp(`${MARK}END (.*?)${MARK}\n?`);
 /** One file's tests, in order: { pass, fail, left, timedOut, ms }. log(text) prints a line. */
 async function runFile(file, log) {
   const base = file.replace('.test.mjs', '');
-  const r = { pass: 0, fail: 0, left: 0, timedOut: 0, ms: 0 };
+  const r = { pass: 0, fail: 0, left: 0, timedOut: 0, ms: 0, cpuMs: 0 };
+  // (v0.0.21: a file's CPU is its tests' own, from its module loaded to its last test: the src modules' first load falls on
+  // whichever file a process loads first, 1 to 2 s, and would make a file's CPU depend on its place in the pool)
   const f0 = performance.now();
+  let c0 = process.cpuUsage();
+  const cpuDone = () => { const c = process.cpuUsage(c0); r.cpuMs = Math.round((c.user + c.system) / 1000); };
   let tests;
   try {
     tests = (await import(pathToFileURL(path.join(dir, file)).href)).default;
     if (!Array.isArray(tests)) throw new Error(`${file} must default-export an array of { name, fn }`);
+    c0 = process.cpuUsage();
   } catch (e) {
     // (a file that does not load is a failure whatever the filter: its tests can't be told apart from the filter's
     // without it, and a pin that cannot load passed silently with a filter on its tests' names, "0 passed, 0 failed",
     // the sleeve fix's verifier's of v0.0.7)
     r.fail++; log(`  ✗ ${base} (did not load)\n      ${first(e)}`);
-    r.ms = Math.round(performance.now() - f0);
+    r.ms = Math.round(performance.now() - f0); cpuDone();
     return r;
   }
   for (const t of tests) {
@@ -146,7 +213,15 @@ async function runFile(file, log) {
       clearTimeout(timer);
     }
   }
-  r.ms = Math.round(performance.now() - f0);
+  r.ms = Math.round(performance.now() - f0); cpuDone();
+  // (v0.0.21: a quick file over its CPU budget × the run's factor reads the machine's factor again now, helpers.mjs machineNow: on
+  // a shared Apple silicon machine contention moves work onto the efficiency cores and CPU time itself grows, so the factor
+  // measured once at the run's start no longer says how slow this file's CPU ran; the runner holds the file to the slower of
+  // the two, its ceiling untouched)
+  if (quick && r.pass + r.fail > 0) {
+    const kRun = Math.max(1, Number(process.env.OLYMPUS_MACHINE_K) || 1);
+    if (r.cpuMs / 1000 > (QUICK_SLOW[file] ?? QUICK_FILE_CPU_S) * kRun) { const { machineNow } = await import('./helpers.mjs'); r.kNow = machineNow().k; }
+  }
   return r;
 }
 
@@ -216,13 +291,16 @@ async function main() {
   }
   const files = readdirSync(dir).filter(f => f.endsWith('.test.mjs')).sort();
   const runT0 = performance.now();
+  // (v0.0.21: the quick suite runs with the read scope's guard on, src/core/reads.js: what the scope shares is frozen, so a
+  // reader that writes into it throws; set before any test module loads, here and in every worker, which inherit it)
+  if (quick && process.env.READS_FREEZE === undefined) process.env.READS_FREEZE = '1';
   // The factor the CPU-time ceilings use, measured now, before any work shares the machine.
   const { machine, REF_LOOP_MS } = await import('./helpers.mjs');
   const M = machine();
   console.log(`(the machine: the reference loop in ${M.ms.toFixed(1)} ms against ${REF_LOOP_MS} ms in the foreground, so the CPU-time ceilings × ${M.k.toFixed(2)}; measured before the pool)`);
 
   // What each file is, from its text: a browser file, one with a CPU-time ceiling, one with a frame-time ceiling.
-  const CEILING = /\bmachine(?:K)?\(\)/, FRAMES = /\b(?:medianMs|p95Ms)\s*<=|\bpct\(dts[^)]*\)\s*<=/, BROWSER = /from\s+['"]\.\/browser\.mjs['"]/;
+  const CEILING = /\bmachine(?:K|Now)?\(\)/, FRAMES = /\b(?:medianMs|p95Ms)\s*<=|\bpct\(dts[^)]*\)\s*<=/, BROWSER = /from\s+['"]\.\/browser\.mjs['"]/;
   const kind = Object.fromEntries(files.map(f => {
     const src = readFileSync(path.join(dir, f), 'utf8');
     return [f, { browser: BROWSER.test(src), quiet: CEILING.test(src) || FRAMES.test(src), may: mayMatch(f, src) }];
@@ -261,9 +339,9 @@ async function main() {
   const last = files.filter(f => !first.includes(f) && !lanes.includes(f) && !pooled.includes(f));
   const total = { pass: 0, fail: 0, left: 0, timedOut: 0 };
   const add = r => { for (const k of Object.keys(total)) total[k] += r[k]; };
-  const took = {};
+  const took = {}, cpu = {}, ran = {}, kNow = {};
   const names = list => list.map(f => f.replace('.test.mjs', '')).join(', ') || 'none';
-  const here = async list => { for (const file of list) { const r = await runFile(file, s => console.log(s)); add(r); took[file] = r.ms; } };
+  const here = async list => { for (const file of list) { const r = await runFile(file, s => console.log(s)); add(r); took[file] = r.ms; cpu[file] = r.cpuMs; ran[file] = r.pass + r.fail; if (r.kNow) kNow[file] = r.kNow; } };
 
   // ---- first: the CPU-time ceilings' files, here, on the machine the factor was measured on ----
   const firstT0 = performance.now();
@@ -321,7 +399,7 @@ async function main() {
       if (laneOpen) for (const w of [...idle]) take(w);
     };
     const finish = (w, out, r) => {
-      add(r); took[w.file] = r.ms || past[w.file] || 0; done.set(w.file, out);
+      add(r); took[w.file] = r.ms || past[w.file] || 0; cpu[w.file] = r.cpuMs ?? 0; ran[w.file] = r.pass + r.fail; if (r.kNow) kNow[w.file] = r.kNow; done.set(w.file, out);
       busy.delete(w); laneBusy.delete(w); w.file = null;
       drain();
     };
@@ -380,24 +458,79 @@ async function main() {
       mkdirSync(path.dirname(timesFile), { recursive: true });
       const fresh = {}; for (const f of files) if (took[f] !== undefined) fresh[f] = took[f];
       times[mode] = fresh;
+      // (v0.0.21: each file's CPU on the last whole run too, ms, beside its time: QUICK_SLOW's measure, TECH §13.7)
+      const freshCpu = {}; for (const f of files) if (cpu[f] !== undefined) freshCpu[f] = cpu[f];
+      times[`${mode}Cpu`] = freshCpu;
       writeFileSync(`${timesFile}.${process.pid}`, JSON.stringify(times, null, 1));
       renameSync(`${timesFile}.${process.pid}`, timesFile);
     } catch { /* (no .run: the order is only by name next time) */ }
   }
   if (!serial) console.log(`\n(first ${firstS.toFixed(1)} s; the pool and the lanes ${poolS.toFixed(1)} s${quietAt !== null && lanes.length ? `, the lanes from +${quietAt.toFixed(1)} s` : ''}; last ${lastS.toFixed(1)} s)`);
   // (the quick suite's minute: only a whole quick run is timed, a filtered one isn't the suite)
-  let overTime = false;
+  let overTime = false, overCpu = 0;
+  // (v0.0.21: a quick file over its CPU budget runs once more, alone, in a fresh worker, and is held by the least of its two runs:
+  // a neighbour only adds CPU (the efficiency cores' slower work under contention), as the busiest tick's minimum of three has it
+  // (tests/tick-costs.mjs); a browser file is judged on its one run)
+  const again = async (file) => new Promise(done => {
+    const child = fork(self, process.argv.slice(2), { env: { ...process.env, OLYMPUS_RUN_WORKER: '1', OLYMPUS_MACHINE_K: String(M.k) }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'], detached: true });
+    let buf = '', got = null;
+    child.stdout.setEncoding('utf8'); child.stdout.on('data', d => { buf += d; const m = REPORT.exec(buf); if (m && got === null) { got = JSON.parse(m[1]); child.disconnect(); } });
+    child.stderr.resume();
+    child.on('exit', () => done(got));
+    child.send({ file });
+  });
+  // (v0.0.21: the CPU budgets are judged on a machine not saturated: with the one-minute load over half the cores (other agents'
+  // runs, a build) contention inflates CPU time itself, 288 to 372 s for the same suite measured at stage 0, so they are printed
+  // and not counted, as the wall minute is run again on a quiet machine; QUICK_CPU_JUDGE=1 judges them whatever the load)
+  const loadNow = os.loadavg()[0], busy = loadNow > cores / 2 && process.env.QUICK_CPU_JUDGE !== '1';
+  if (quick) {
+    // (v0.0.21: each quick file's CPU against its budget, the ten largest printed; see the header)
+    const k = Math.max(1, M.k), quickRan = Object.keys(cpu).filter(f => ran[f] > 0).sort((a, b) => cpu[b] - cpu[a]);
+    // (each file by the slower of the run's factor and the one its worker read after it, where it read one: see runFile)
+    const kOf = (f) => Math.max(k, kNow[f] ?? 1), overOf = (f) => cpu[f] / 1000 > (QUICK_SLOW[f] ?? QUICK_FILE_CPU_S) * kOf(f);
+    const ranAgain = [];
+    for (const f of busy ? [] : quickRan.filter(overOf)) {
+      if (kind[f].browser) continue;
+      const r2 = await again(f);
+      if (!r2) continue;
+      ranAgain.push(`${f.replace('.test.mjs', '')} ${(cpu[f] / 1000).toFixed(1)} → ${(r2.cpuMs / 1000).toFixed(1)} s`);
+      if (r2.cpuMs < cpu[f]) cpu[f] = r2.cpuMs;
+      if (r2.kNow) kNow[f] = Math.max(kNow[f] ?? 1, r2.kNow);
+    }
+    if (ranAgain.length) console.log(`(run again alone, over their budget on the first run: ${ranAgain.join(', ')}; each held by the less)`);
+    quickRan.sort((a, b) => cpu[b] - cpu[a]);
+    const over = quickRan.filter(overOf);
+    const reread = Object.keys(kNow).filter(f => kNow[f] > k);
+    if (reread.length) console.log(`(the machine's factor read again after a file over its budget × ${k.toFixed(2)}: ${reread.map(f => `${f.replace('.test.mjs', '')} × ${kNow[f].toFixed(2)}`).join(', ')})`);
+    if (quickRan.length) console.log(`\n(the quick files' CPU, the ten largest: ${quickRan.slice(0, 10).map(f => `${f.replace('.test.mjs', '')} ${(cpu[f] / 1000).toFixed(1)} s${QUICK_SLOW[f] ? ` (ceiling ${QUICK_SLOW[f]})` : ''}`).join(', ')}; the budget ${QUICK_FILE_CPU_S} s × ${k.toFixed(2)} a file, QUICK_SLOW's own ceilings × k)`);
+    const slow = quickRan.filter(f => cpu[f] / 1000 > QUICK_FILE_CPU_S * k);
+    if (slow.length) console.log(`(the quick files over ${QUICK_FILE_CPU_S} s × k: ${slow.map(f => `${f.replace('.test.mjs', '')} ${(cpu[f] / 1000).toFixed(1)}${QUICK_SLOW[f] ? `/${QUICK_SLOW[f]}` : ''}`).join(', ')})`);
+    for (const f of over) console.log(`  ${busy ? '·' : '✗'} ${f.replace('.test.mjs', '')} (quick): ${(cpu[f] / 1000).toFixed(1)} s of CPU over its budget ${((QUICK_SLOW[f] ?? QUICK_FILE_CPU_S) * kOf(f)).toFixed(1)} s (${QUICK_SLOW[f] ? `QUICK_SLOW's ${QUICK_SLOW[f]} s` : `QUICK_FILE_CPU_S ${QUICK_FILE_CPU_S} s`} × ${kOf(f).toFixed(2)}): make it lighter, or move its whole lanes to a heavy case (TECH §13.7)`);
+    if (busy && over.length) console.log(`(the CPU budgets not judged: the machine busy, load ${loadNow.toFixed(1)} on ${cores} cores, more than half; run again on a quiet machine)`);
+    if (!busy) overCpu += over.length;
+    if (!filter && !skip.length) {
+      // (the sum by the slower of the factor at the run's start and at its end: helpers.mjs machineNow)
+      const kEnd = (await import('./helpers.mjs')).machineNow().k, kSum = Math.max(k, kEnd);
+      const sumS = quickRan.reduce((a, f) => a + cpu[f], 0) / 1000, capS = QUICK_CPU_S * kSum;
+      const overSum = sumS > capS;
+      if (overSum && !busy) overCpu++;
+      console.log(`(the quick suite's CPU: ${sumS.toFixed(1)} s over ${quickRan.length} files, the budget ${capS.toFixed(0)} s: QUICK_CPU_S ${QUICK_CPU_S} × ${kSum.toFixed(2)}, the factor at the start ${k.toFixed(2)} and at the end ${kEnd.toFixed(2)})${overSum ? (busy ? ': over the budget, not judged (the machine busy)' : ': over the budget, a failure (TECH §13.7)') : ''}`);
+    }
+  }
   if (quick && !filter) {
-    // (in the background band the limit is scaled by the machine's slowness, measured before the pool: see the header)
-    const limitS = inBand ? Math.round(QUICK_LIMIT_S * Math.max(1, M.k)) : QUICK_LIMIT_S;
+    // (in the background band the limit is scaled by the machine's slowness, measured before the pool: see the header;
+    // v0.0.21: and by the pool against the full one, QUICK_JOBS_REF / JOBS)
+    const poolK = Math.max(1, QUICK_JOBS_REF / Math.max(1, JOBS)), bandK = inBand ? Math.max(1, M.k) : 1;
+    const limitS = Math.round(QUICK_LIMIT_S * poolK * bandK);
     overTime = totalS > limitS;
-    console.log(`\nquick suite: ${totalS.toFixed(1)} s (limit ${limitS} s${limitS !== QUICK_LIMIT_S ? `: ${QUICK_LIMIT_S} s × ${M.k.toFixed(2)}, the background band` : ''})${overTime ? ': over the limit, a failure (TECH §13.7; run it again on a quiet machine before changing anything)' : ''}`);
+    const parts = [poolK > 1 ? `× ${QUICK_JOBS_REF}/${JOBS}, a pool of ${JOBS}` : '', bandK > 1 ? `× ${bandK.toFixed(2)}, the background band` : ''].filter(Boolean).join(' ');
+    console.log(`\nquick suite: ${totalS.toFixed(1)} s (limit ${limitS} s${parts ? `: ${QUICK_LIMIT_S} s ${parts}` : ''})${overTime ? ': over the limit, a failure (TECH §13.7; run it again on a quiet machine before changing anything)' : ''}`);
   }
   const { pass, fail, left, timedOut } = total;
-  const summary = `\n${pass} passed, ${fail + (overTime ? 1 : 0)} failed${left ? `, ${left} left out` : ''}${timedOut ? `, ${timedOut} timed out` : ''} (${totalS.toFixed(1)} s)\n`;
+  const summary = `\n${pass} passed, ${fail + (overTime ? 1 : 0) + overCpu} failed${left ? `, ${left} left out` : ''}${timedOut ? `, ${timedOut} timed out` : ''} (${totalS.toFixed(1)} s)\n`;
   // (after a time-out, exit once the summary is written: stdout to a pipe is asynchronous here, and
   // an exit straight after the write would lose it; a test timed out in this process may still hold
   // a browser or a server open)
   if (timedOut) process.stdout.write(summary, () => process.exit(1));
-  else { process.stdout.write(summary); process.exitCode = fail || overTime ? 1 : 0; }
+  else { process.stdout.write(summary); process.exitCode = fail || overTime || overCpu ? 1 : 0; }
 }

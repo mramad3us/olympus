@@ -58,7 +58,11 @@
 // toward the light (the pixels whose left neighbour is not their own part) in the fixed letter ŕ; tape, the band's letter i
 // round the sealed helmet over the visor and, side on, on the near upper arm. The helmet samples' candidates (look.helm,
 // helmets.js; samples/helmets) take the sealed helmet's place, the skull under them cleared so they make the head's whole
-// silhouette, and put their faction's trim on the plates' edges; no look of the game carries one either. Pure.
+// silhouette, and put their faction's trim on the plates' edges; no look of the game carries one either.
+// The held devices sample's candidates (samples/held-devices; kit-10 of the v0.0.18 hunt, the stage's figure drawn with empty
+// fists while a G-11, the halligan, the ram or a charge is in them): a given pose may carry `reach` (a free hand put on a point by
+// the rig's IK) and `device` (the device's parts drawn as capsules between the hands, under the fists or over one), and its
+// frame then reports the hands' tips; no pose of the game carries either, so the game's frames are unchanged. Pure.
 import { PX_PER_M } from '../../render/scale.js';
 import { bodyOf } from './body.js';
 import { poseOf, cellKind, AIM_TILT, KICK_TILT } from './poses.js';
@@ -457,6 +461,13 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
     J.el[s] = ik(J.sh[s], rig.hand[s], B.upperArm, B.foreArm, pose.stance === 'prone' ? [0, 0, -1] : pole);
     J.wr[s] = add(J.el[s], mul(norm(sub(rig.hand[s], J.el[s])), Math.min(B.foreArm, len(sub(rig.hand[s], J.el[s])))));
   }
+  // (the held devices sample's candidates (samples/held-devices; kit-10 of the v0.0.18 hunt): pose.reach puts a free hand on a
+  // point, [forward, left, up] metres from the shoulders' middle, by the rig's IK; no frame of the game carries it)
+  if (pose.reach) for (const s of ['r', 'l']) if (pose.reach[s] && !rig?.hand?.[s]) {
+    const t = add(lerp(J.sh.r, J.sh.l, 0.5), pose.reach[s]), pole = norm([-0.3, (s === 'r' ? -1 : 1) * 0.7, -1]);
+    J.el[s] = ik(J.sh[s], t, B.upperArm, B.foreArm, pole);
+    J.wr[s] = add(J.el[s], mul(norm(sub(t, J.el[s])), Math.min(B.foreArm, len(sub(t, J.el[s])))));
+  }
   const P = projector(dir, pose, B);
   // Drawn on a grid with a margin round the cell, so nothing is lost before the fit: a standing figure
   // keeps the cell's anchor (cropped to it); a lying one is fitted after (centred across, its lowest pixel
@@ -522,11 +533,11 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
   // Arms: upper arm, forearm and hand (gloved or bare), each arm one part.
   const [upperRole, foreRole] = ROLE_ARM[top] ?? ROLE_ARM.blouse;
   // (the marks: the far arm, by its shoulder's depth, takes the rim; side on, the near arm's shoulder the tape)
-  const farArm = P.depth(J.sh.r) < P.depth(J.sh.l) ? 'r' : 'l', sideOn = dir === 'left' || dir === 'right';
+  const farArm = P.depth(J.sh.r) < P.depth(J.sh.l) ? 'r' : 'l', sideOn = dir === 'left' || dir === 'right', armD = {};
   for (const s of ['r', 'l']) {
     const sh = J.sh[s], el = J.el[s], wr = J.wr[s];
     const handDir = norm(sub(wr, el)), tip = add(wr, mul(handDir, B.hand * 0.7));
-    const d = Math.max(P.depth(el), (P.depth(sh) + P.depth(el) + P.depth(wr)) / 3) + 0.02;
+    const d = armD[s] = Math.max(P.depth(el), (P.depth(sh) + P.depth(el) + P.depth(wr)) / 3) + 0.02;
     op(d, () => {
       const a = pp(sh), e = pp(el), w2 = pp(wr), h2 = pp(tip);
       const ap = g.begin(a[0], a[1]);
@@ -536,6 +547,24 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
       g.capsule(snap2(a, T.arm), snap2(e, T.arm), T.arm / 2, shell);
       g.capsule(snap2(e, T.fore), snap2(w2, T.fore), T.fore / 2, (k) => (top === 'suit' && k > 0.82 ? 'ð' : foreRole));
       g.capsule(snap2(w2, T.hand), snap2(h2, T.hand), T.hand / 2, Lk.gloves ? 'd' : 's');
+    });
+  }
+  // A device in the hands (pose.device, the held devices sample's candidates only; see the header): its parts, each a capsule
+  // from a to b ([forward, left, up] metres from the shoulders' middle, or from a hand's tip with `hand`), th pixels thick, in
+  // its role letter; 'under' a part lies under the hands (the gun's depth, so the fists close over a bar), 'over' over its fist
+  // and its arm. (Either still lies over a rifle slung in front of the body: the hands-full rule's rifle hangs behind what they hold.)
+  const handTip = (s) => add(J.wr[s], mul(norm(sub(J.wr[s], J.el[s])), B.hand * 0.7)), mid0 = lerp(J.sh.r, J.sh.l, 0.5);
+  const gunD = rig ? (rig.mode === 'slung' ? P.depth(rig.butt) : P.depth(add(rig.butt, mul(rig.dir, rig.lenM * 0.3))) - 0.012) : -Infinity;
+  const deviceOps = new Set();
+  if (pose.device) for (const q of pose.device.parts ?? []) {
+    const o = q.hand ? handTip(q.hand) : mid0, a = add(o, q.a), b = add(o, q.b ?? q.a), th = q.th ?? 2;
+    const dm = P.depth(lerp(a, b, 0.5)), d = (q.layer === 'over' ? Math.max(dm + 0.02, q.hand ? armD[q.hand] + 0.01 : -Infinity, gunD + 0.003) : Math.max(dm - 0.012, gunD + 0.002)) + (q.dz ?? 0);
+    deviceOps.add(ops.length);
+    op(d, () => {
+      const A = pp(a), Bp = pp(b);
+      g.begin(A[0], A[1]);
+      g.capsule(snap2(A, th), snap2(Bp, th), Math.max(0.55, th / 2), q.role);
+      if (q.cap) { const e = snap2(Bp, 1); g.put(e[0], e[1], q.cap); }
     });
   }
   // What the right hand holds at the sink: a toothbrush (its white handle, the bristles), a razor (steel).
@@ -551,10 +580,9 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
   // The weapon (and a loose magazine, a sling, a holster).
   let muzzle = null, flash = null;
   if (rig) {
-    const gd = rig.mode === 'slung' ? P.depth(rig.butt) : P.depth(add(rig.butt, mul(rig.dir, rig.lenM * 0.3))) - 0.012;
     // (a rifle as its design has it: rifles.js, by the look's model; none, the R-7's (its finish is a colour: outfits.js))
     const fig = rig.gun === 'rifle' ? drawingOf(Lk.model ?? 'r7').fig : null;
-    op(gd, () => { const m = gunCells(g, rig, pp, P, B, fig); muzzle = m.muzzle; flash = m.flash; });
+    op(gunD, () => { const m = gunCells(g, rig, pp, P, B, fig); muzzle = m.muzzle; flash = m.flash; });
     if (rig.loose) op(P.depth(rig.loose.at) + 0.03, () => looseMag(g, rig, pp, B, fig?.loose ?? 'u'));
     if (rig.strap) op(torsoDepth + 0.01, () => { const a = pp(rig.strap[0]), b = pp(rig.strap[1]); g.begin(); g.capsule(snap2(a, 1), snap2(b, 1), 0.5 + (B.ppm >= 20 ? 0.5 : 0), 'y'); });
   }
@@ -563,7 +591,8 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
   if (pose.straps) op(torsoDepth + 0.02, () => straps(g, J, pp, B));
 
   ops.sort((a, b) => a.depth - b.depth || a.n - b.n);
-  for (const o of ops) o.run();
+  // (pose.device.only: the device's parts alone, the sample's picture of the device by itself)
+  for (const o of ops) if (!pose.device?.only || deviceOps.has(o.n)) o.run();
   // (the rim (look.mark.rim): each leg, boot and the far arm lit along its edge toward the light, the upper left: a pixel whose
   // left or upper neighbour is not its own part takes the rim's letter ŕ, fixed (outfits.js coloursOf), so a black limb's
   // outline reads against the body and the other limbs it crosses)
@@ -586,9 +615,11 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
   }
   const out = Array.from({ length: cell.h }, (_, y) => Array.from({ length: cell.w }, (_, x) => cells[y + dy]?.[x + dx] ?? null));
   if (muzzle) muzzle = [muzzle[0] - dx, muzzle[1] - dy];
+  // (the held devices sample: the hands' tips in the cell's pixels, so its checks can hold a device to the hand)
+  const hands = given && (pose.device || pose.reach) ? Object.fromEntries(['r', 'l'].map(s => { const t = pp(handTip(s)); return [s, [t[0] - dx, t[1] - dy]]; })) : undefined;
   // (a given pose's boots reported in the cell's pixels, heel and toe on the sole, as the muzzle is: the walk sample locks the planted one)
   const feet = given && !pose.noLegs ? Object.fromEntries(['r', 'l'].map(s => { const h = pp(J.foot[s].heel), t = pp(J.foot[s].toe); return [s, { heel: [h[0] - dx, h[1] - dy], toe: [t[0] - dx, t[1] - dy] }]; })) : undefined;
-  return { cells: out, w: cell.w, h: cell.h, ax: Math.floor(ax) - dx, ay: ay - dy, kind, muzzle, flash: muzzle ? flash : null, look: Lk, pose, ...(feet ? { feet } : {}) };
+  return { cells: out, w: cell.w, h: cell.h, ax: Math.floor(ax) - dx, ay: ay - dy, kind, muzzle, flash: muzzle ? flash : null, look: Lk, pose, ...(feet ? { feet } : {}), ...(hands ? { hands } : {}) };
 }
 
 /** A boot: the box from heel to toe, footW wide and footH tall, projected corner by corner and filled. */

@@ -57,6 +57,7 @@
 import { createGame } from './game.mjs';
 import { houseHonestBot, houseKeysBot, houseFuzzBot, stoppageBot, runHouse, SHOT_LINES } from './bots/house.mjs';
 import { houseKitBot } from './bots/kit.mjs';
+import { ownerOf } from '../src/sim/combat/team.js';
 import { houseNow, HOUSE_SCENE, THREAT_FACES, STANDS, FUNNEL_FAULT_MS, LANE_MAX_MS, LANE_KEEP_MS, PAR_MS, PAR_OF_TIER, handsOf } from '../src/sim/scenarios/shoothouse.js';
 import { gunField, beliefOf, actionMs } from '../src/sim/arms/firearms.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
@@ -82,6 +83,8 @@ import { CALL_S, CALL_FLOW_S, TWO_SLOT_M, TWO_WAIT_MS, doorNow, entryGo } from '
 import { keepClearOf, restClear, arcsOf, arcLiveAt } from '../src/sim/places/zones.js';
 import { TICK_MS } from '../src/core/clock.js';
 import { fmt } from './helpers.mjs';
+// (v0.0.21, the build sheet §1 item 23: the watchers F1, F2, F7, F25 and F26 moved to the gauges' library, composed below)
+import { WATCHERS, overlapOfArea, WALL_TOL_M, BODY_GAP_M, STILL_MS } from './cqb-gauges.mjs';
 import { zoneAt, liveZoneAt, standsStill } from '../src/sim/places/zones.js';
 import { contactNow } from '../src/sim/combat/contact.js';
 import { moveNow } from '../src/sim/combat/stepper.js';
@@ -110,7 +113,9 @@ export const flawlessSeeds = (n) => Array.from({ length: n }, (_, i) => (i === 0
 export const SHEETS = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 export const T_SHEETS = Object.freeze(SHEETS.filter(t => RUNG_OF_TIER[t] >= 2));
 /** The thresholds (COMBAT §25.19.8, §25.19.9): a body's overlap tolerated, the least gap, the feet's still speed, the doorway's. */
-export const WALL_TOL_M = 0.005, BODY_GAP_M = 0.50, STILL_MS = 0.3, STACK_LEAVE_M = 0.3, POINT_AT_M = 0.35;
+// (WALL_TOL_M, BODY_GAP_M and STILL_MS moved with their watchers to tests/cqb-gauges.mjs in v0.0.21, the same values, re-exported here)
+export { WALL_TOL_M, BODY_GAP_M, STILL_MS };
+export const STACK_LEAVE_M = 0.3, POINT_AT_M = 0.35;
 /** The body gap's guard held the #2 this long at once by the honest bot is the cue's fault, not the guard's (ms; COMBAT §25.19.3.4: "if it ever holds more than 0.3 s the cue is fixed"). */
 export const GUARD_MAX_MS = 300;
 /** You stand on your stack within this of its point (the house course's stackM, m): F17 reads the #2 then. */
@@ -136,37 +141,17 @@ export const LANE_WORDS = /\b(house|lane)\b/i;
 /** The design's stoppage answers (§25.19.6), the card's keys in the house from the rework's R6 (arms/sidearm.js cardOptions; 'none' always last). */
 export const STOPPAGE_ANSWERS = Object.freeze(['transition', 'gundown', 'offline', 'ia', 'look']);
 
-const AREA = HOUSE_SCENE.area;
+// (the lane's area: the live area (v0.0.21, the build sheet §0 item 55: a drawn house's own), the set's where none is live)
+const areaOfLane = (st) => st?.places?.live?.area ?? HOUSE_SCENE.area;
 const r3 = (v) => (Number.isFinite(v) ? Math.round(v * 1000) / 1000 : v);
 const d2 = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
 const legOfStand = (stand) => (stand === 'H' ? 3 : Number(stand?.[0]) - 1);
-const slotOf = (stand) => STANDS[stand]?.slot ?? 1;
 // (the signed distance past a plan's door plane, + into the room: room.js's `across`)
 const acrossM = (P, x, z) => P.plane.into * ((P.plane.axis === 'x' ? z : x) - P.plane.at);
 
-// (the area's blockers at C0 (doors open) and its doors' leaves, once)
-let geo = null;
-function geoOf() {
-  if (geo) return geo;
-  const G = openNavOf(AREA, 'C0'), plan = planOf(areaOf(AREA));
-  geo = { G, R: G.radiusM, rects: G.blockers, doors: plan.openings.filter(o => o.kind === 'door').map(o => ({ o, r: leafRect(o) })) };
-  return geo;
-}
-// (how far a body's circle at (x, z) runs into a rect: radius less the distance, + when overlapping)
-function into(r, x, z, R) {
-  const dx = x < r.x0 ? r.x0 - x : x > r.x1 ? x - r.x1 : 0, dz = z < r.z0 ? r.z0 - z : z > r.z1 ? z - r.z1 : 0;
-  let d = Math.hypot(dx, dz);
-  if (d === 0) d = -Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z);
-  return R - d;
-}
+// (the area's blockers and leaves, and how far a body runs into them: tests/cqb-gauges.mjs's since v0.0.21 (moved with F1's watcher))
 /** A body's deepest overlap with the walls, fixtures and the leaves closed at ms (m, 0 when clear), and what it is in. */
-export function overlapOf(state, x, z, ms = state.clock.ms) {
-  const { R, rects, doors } = geoOf();
-  let worst = 0, what = null;
-  for (const r of rects) { const k = into(r, x, z, R); if (k > worst) { worst = k; what = 'wall'; } }
-  for (const D of doors) { if (!leafClosed(state, D.o, ms)) continue; const k = into(D.r, x, z, R); if (k > worst) { worst = k; what = `leaf ${D.o.id}`; } }
-  return { m: worst, what };
-}
+export function overlapOf(state, x, z, ms = state.clock.ms) { const o = overlapOfArea(state, areaOfLane(state), x, z, ms); return { m: o.m, what: o.what }; }
 
 // (the 3-D muzzle line against a teammate's body as a capsule (COMBAT §25.19.3.5): the shortest distance between the
 // muzzle's segment, from the holder's line to FLAG_REACH_M along its yaw and pitch, and the body's vertical axis, floor to head)
@@ -212,47 +197,28 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
   const doorPlans = lane.order.map((door, k) => ({ k, door, P: lane.plans[door] })).filter(x => x.P?.door);
   const rec = {
     tier, seed, bot, answer, rung, done: false, err: null, end: null, laneS: null, legS: [],
-    wall: { worstM: 0, who: null, at: null, src: null, what: null, over: 0, offFloor: 0 },
-    gap: { minM: Infinity, underMs: 0 },
+    wall: null, gap: null,
     door: { stopMs: [0, 0, 0, 0], faults: 0, chosenMs: 0, keysMs: 0, runMs: 0, longestMs: 0, twoMs: 0, twoRunMs: 0, twoLongestMs: 0, endsIn: 0, endsWhat: [] },
-    firstOut: [], feet: { legs: {} }, corners: { faults: 0, clears: 0, uncovered: 0, by: {} },
+    firstOut: [], feet: { legs: {} }, corners: null,
     faults: {}, evidence: {}, engaged: [], pars: { held: PAR_HELD[tier] ?? null, set: H0.par, missed: [] },
     stops: [], stalls: 0, names: [], two: { stackM: [], handbacks: 0 },
     anim: { moveTicks: 0, idle: 0, tweenBad: 0, tweenMaxM: 0, figIdle: 0, figStride: 0, chief: { moveTicks: 0, idle: 0, tweenBad: 0, figIdle: 0 } }, paths: new Map(),
-    card: [], mem: null, entry: {}, leaf: { me: 0, two: 0, what: [], swings: 0 },
+    card: [], mem: null, entry: null, leaf: null,
   };
   const prev = { ms: s0.clock.ms, me: null, two: null, chief: null, choosing: false, stop: null, step: null, presses: 0, hist: [] };
   const firstBy = {}, firstMine = {}, rifleId = s0.people[pid]?.kit?.worn?.sling ?? null, endsSeen = new Set();
   const feetLeg = {}, stackSeen = {}, unseenAt = new Set(), twoUnseenAt = new Set(), missAt = {};
+  // (v0.0.21: the watchers of the gauges' library, tests/cqb-gauges.mjs, each at the place in the tick it ran here, its record the lane's)
+  const team = { me: pid, two: twoPid }, W = Object.fromEntries(['walls', 'bodies', 'swings', 'entry', 'corners'].map(n => [n, WATCHERS[n](g, { team, plans: lane })]));
+  rec.wall = W.walls.result(); rec.gap = W.bodies.result(); rec.leaf = W.swings.result(); rec.entry = W.entry.result(); rec.corners = W.corners.result();
   const each = (game) => {
     const st = game.state, H = st.armoury.range.house, R = st.armoury.range, now = st.clock.ms, dt = now - prev.ms;
     const onLane = H.goAtMs !== null && !H.end;
     const me = st.actors.list.find(a => a.who === pid), two = twoPid ? st.actors.list.find(a => a.who === twoPid) : null;
     const S = st.stop, mem = me?.bot ?? {};
-    // ---- F25: the #2's entry on his cue, room by room (the leg's door the current one: doorNow) ----
-    if (onLane && me && two) {
-      const here = doorNow(st, pid), P = here?.plan;
-      if (P?.door && here.door !== 'hall') {
-        const E = (rec.entry[here.door] ??= { cueMs: null, inMs: null, out: false, blockMs: 0 });
-        if (E.cueMs === null && entryGo(st, P, me, now, here.rec)) E.cueMs = now;
-        if (E.inMs === null && pastThreshold(P, two.x, two.z)) E.inMs = now;
-        // (#1 standing across the #2's way in while he is cued and not in: the player's own choice, printed for the fuzz)
-        if (E.cueMs !== null && E.inMs === null && dt > 0 && Math.hypot(me.v?.[0] ?? 0, me.v?.[1] ?? 0) < STILL_MS && !restClear(keepClearOf(st, pid), me.x, me.z)) E.blockMs += dt;
-      }
-      for (const [door, E] of Object.entries(rec.entry)) if (door !== here?.door && E.cueMs !== null && E.inMs === null) E.out = true;
-    }
-    // ---- F26: nobody in a door's swing while its leaf moves (the sweep still to come, places/zones.js arcLiveAt), you or your #2 ----
-    if (onLane && dt > 0) {
-      const arcs = arcsOf(AREA);
-      for (const Z of arcs) { const d = openingDelta(st, Z.door); if (d?.atMs !== undefined && d.atMs > now && !(rec.leaf.seen ??= {})[`${Z.door}@${d.atMs}`]) { rec.leaf.seen[`${Z.door}@${d.atMs}`] = true; rec.leaf.swings++; } }
-      for (const [who, a] of [['me', me], ['two', two]]) {
-        if (!a) continue;
-        const Z = arcs.find(A => arcLiveAt(st, A, a.x, a.z, now));
-        if (!Z) continue;
-        rec.leaf[who] += dt;
-        if (rec.leaf.what.length < 4) rec.leaf.what.push(`${who} in ${Z.door}'s swing at (${r3(a.x)}, ${r3(a.z)}), ${now - (H.goAtMs ?? 0)} ms`);
-      }
-    }
+    // ---- F25: the #2's entry on his cue, room by room; F26: nobody in a door's swing while its leaf moves (tests/cqb-gauges.mjs entry, swings) ----
+    W.entry.tick(game, { now, dt, on: onLane && !!me && !!two });
+    W.swings.tick(game, { now, dt, on: onLane });
     const facts = { shot: game.facts('shot'), house: game.facts('house'), bundle: game.facts('bundle'), say: game.facts('say') };
     // (F10: a man whose hands your pause could not see (the identification 'unseen': the challenge doctrine owes him, COMBAT
     // §25.4.6), kept, so his par is set apart as the dummy's man is)
@@ -320,17 +286,11 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
     }
     if (onLane && me) {
       const legs = [...H.rooms, H.hall], L = legs[H.cur] ?? null, P = L ? lane.plans[L.door] : null;
-      // ---- F1: the bodies against the walls and the closed leaves ----
+      // ---- F1: the bodies against the walls and the closed leaves (tests/cqb-gauges.mjs walls) ----
+      W.walls.tick(game, { now, dt, on: true });
+      // (F3: every move beat's path seen, once)
       for (const [who, a, d] of [['#1', me, S?.doing], ['#2', two, H.two?.doing]]) {
         if (!a) continue;
-        const o = overlapOf(st, a.x, a.z, now);
-        if (o.m > WALL_TOL_M) rec.wall.over++;
-        if (!onFloor(geoOf().G, a.x, a.z)) rec.wall.offFloor++;
-        if (o.m > rec.wall.worstM) {
-          const mv = d?.beats?.find(b => b.st === 'run' && b.k === 'move');
-          Object.assign(rec.wall, { worstM: r3(o.m), who, at: [r3(a.x), r3(a.z)], what: o.what, src: d ? `${d.step}${mv ? `/${mv.key}` : ''}` : who === '#1' ? 'keys' : 'idle' });
-        }
-        // (F3: every move beat's path seen, once)
         for (const b of d?.beats ?? []) if (b.k === 'move' && b.path && b.st === 'run') { const k = JSON.stringify(b.path); if (!rec.paths.has(k)) rec.paths.set(k, { path: b.path, who, step: d.step, key: b.key }); }
       }
       // ---- F17: the #2's distance to his stack the first tick you stand on yours (STACK_AT_M), a door's leg ----
@@ -345,12 +305,8 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
         stackSeen[H.cur] = true;
         rec.two.stackM.push(r3(d2(two.x, two.z, P.stack[1][0], P.stack[1][1])));
       }
-      // ---- F2: the two bodies ----
-      if (two) {
-        const m = d2(me.x, me.z, two.x, two.z);
-        if (m < rec.gap.minM) rec.gap.minM = m;
-        if (m < BODY_GAP_M) rec.gap.underMs += Math.max(dt, 0);
-      }
+      // ---- F2: the two bodies (tests/cqb-gauges.mjs bodies) ----
+      W.bodies.tick(game, { now, dt, on: true });
       const feetRow = FEET_ROWS.test(String(S?.doing?.step ?? ''));
       const v = prev.me && dt > 0 ? d2(me.x, me.z, prev.me[0], prev.me[1]) / (dt / 1000) : null;
       // ---- F4: the feet in a doorway (the game's; a step standing by the player's choice, and the rest it leaves, apart) ----
@@ -358,7 +314,7 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
       // the feet are the keys', the player's own (a walk pressed into a jamb), counted apart (keysMs) as a choice is)
       const keys = !S && !st.mind?.contact?.pending && !me.through;
       const chosen = feetRow || standsStill(S?.doing?.step) || !!S?.doing?.still || !!S?.feet?.still || !!me.stance;
-      const Z = liveZoneAt(st, AREA, me.x, me.z), inDoor = !!Z;
+      const Z = liveZoneAt(st, areaOfLane(st), me.x, me.z), inDoor = !!Z;
       if (v !== null && dt > 0) {
         if (inDoor && v < STILL_MS && (chosen || keys)) prev.parked = true;
         else if (!inDoor || v >= STILL_MS) prev.parked = false;
@@ -371,7 +327,7 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
       }
       // (the #2's still ticks in a doorway: whatever holds him, and his longest at once)
       if (two && prev.two && dt > 0) {
-        if (d2(two.x, two.z, prev.two[0], prev.two[1]) / (dt / 1000) < STILL_MS && liveZoneAt(st, AREA, two.x, two.z)) { rec.door.twoMs += dt; rec.door.twoRunMs += dt; rec.door.twoLongestMs = Math.max(rec.door.twoLongestMs, rec.door.twoRunMs); }
+        if (d2(two.x, two.z, prev.two[0], prev.two[1]) / (dt / 1000) < STILL_MS && liveZoneAt(st, areaOfLane(st), two.x, two.z)) { rec.door.twoMs += dt; rec.door.twoRunMs += dt; rec.door.twoLongestMs = Math.max(rec.door.twoLongestMs, rec.door.twoRunMs); }
         else rec.door.twoRunMs = 0;
       }
       // (every move a body is given, seen once: its end clear of every zone)
@@ -381,7 +337,7 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
         const k = `${who}|${mv.fromMs}|${end[0]},${end[1]}`;
         if (endsSeen.has(k)) continue;
         endsSeen.add(k);
-        if (zoneAt(AREA, end[0], end[1])) { rec.door.endsIn++; if (rec.door.endsWhat.length < 4) rec.door.endsWhat.push(`${who} ${mv.id ?? mv.key} → ${JSON.stringify(end)}`); }
+        if (zoneAt(areaOfLane(st), end[0], end[1])) { rec.door.endsIn++; if (rec.door.endsWhat.length < 4) rec.door.endsWhat.push(`${who} ${mv.id ?? mv.key} → ${JSON.stringify(end)}`); }
       }
       // ---- F6: the feet from the stack to the point ----
       if (P?.door && v !== null) {
@@ -461,21 +417,17 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
       if (S?.doing?.step) prev.step = S.doing.step;
     }
     // ---- the house's facts: faults (F7, F8), clears (F7), stacked (F17), stalls (F14) ----
+    // (F7's corner faults and its clears' hot spots: tests/cqb-gauges.mjs corners)
+    W.corners.tick(game, { now, dt, on: onLane, facts });
     for (const f of facts.house) {
       if (f.phase === 'fault') {
         rec.faults[f.kind] = (rec.faults[f.kind] ?? 0) + 1;
-        if (f.kind === 'corner') rec.corners.faults++;
         if (f.kind === 'funnel') rec.door.faults++;
         const ev = faultEvidence(st, f, prev.hist, facts.shot, pid);
         const e = rec.evidence[f.kind] ??= { n: 0, ok: 0, how: ev.how };
         e.n++; if (ev.ok) e.ok++;
       }
       if (f.phase === 'stall') rec.stalls++;
-      if (f.phase === 'clear') {
-        const k = [...H.rooms, H.hall].findIndex(V => V.room === f.room), L = [...H.rooms, H.hall][k], P = L ? lane.plans[L.door] : null;
-        rec.corners.clears++;
-        for (const h of P?.hot ?? []) { const by = L.covered?.[h.id]?.by ?? 'none'; rec.corners.by[by] = (rec.corners.by[by] ?? 0) + 1; if (by === 'none') rec.corners.uncovered++; }
-      }
     }
     for (const f of facts.bundle) if (f.who === pid && f.phase === 'halt' && f.why === 'two') rec.two.handbacks++;
     if (me) prev.me = [me.x, me.z];
@@ -502,7 +454,7 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
   for (const T of R.turners) {
     if (!THREAT_FACES.includes(T.face)) continue;
     // (a man of yours your #2 took while he covered your rifle down (shoothouse.js twoCover, H.two.covered) is his by the rule: "or by #2 for #1's while #1 is gun down")
-    rec.engaged.push({ stand: T.stand, slot: slotOf(T.stand), by: firstBy[T.key] ?? null, up: T.stoppedAtMs === null, covered: (H.two?.covered ?? []).includes(T.key) });
+    rec.engaged.push({ stand: T.stand, slot: ownerOf(st, T) ?? 1, by: firstBy[T.key] ?? null, up: T.stoppedAtMs === null, covered: (H.two?.covered ?? []).includes(T.key) });
   }
   for (const V of N.legs) for (const c of V.contacts) if (c.parMet === false) {
     const jam = N.dummy.clickAtMs !== null && N.dummy.clickAtMs >= c.seenMs && N.dummy.clickAtMs <= c.seenMs + PAR_JAM_MS;

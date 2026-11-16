@@ -123,6 +123,10 @@ export const PAINT_PX = 5;
 const DROPS = Object.freeze([[4, -3], [-4, 2], [3, 4], [-3, -4]]);
 const r = Math.round;
 const DOLLS = new Map();
+// (a man's card's mask by his dressed doll (the build sheet §1 item 15; the perf lens's P9): dress.js keeps the dolls,
+// DOLL_LRU of them, and the mask goes with its doll when the LRU lets it go. Until v0.0.21 the men had their own entries in DOLLS
+// by subject key and scale, never let go: a new #2 a seed, three scales, about 36 KB each, some 10 MB over a hundred "Again"s)
+const MAN_MASKS = new WeakMap();
 /** The painted man's look on a board by its face: 'armoured' in the plate carrier and helmet, the rest bare-headed in utilities (a no-shoot light-skinned). */
 const boardLook = (face) => (face === 'armoured' ? { outfit: 'carrier', skin: 'tan', hair: { style: 'highTight', color: 'dark' } } : { outfit: 'utilities', skin: face === 'noshoot' || face === 'hostage' ? 'light' : 'tan', head: null, hair: { style: 'medium', color: 'dark' } });
 /** The board's painted man (src/sim/arms/gear.js standGear's, written here: art reads no sim module): what his face holds in his hand. */
@@ -173,9 +177,9 @@ function dollFor(face = 'threat', holds = 'rifle', scale = HIT_SCALE, side = 'ri
 /** A card's subject's doll at a scale: { pm, mask, colour } (a board's in khaki, a man's in his own colours): see the header. */
 function subjectDoll(subject, scale) {
   if (subject?.kind === 'man') {
-    const pm = dressedDoll(subject.gear, subject.person ?? {}, scale), k = `man|${subject.key}|${scale}`;
-    let hit = DOLLS.get(k);
-    if (!hit || hit.pm !== pm) { hit = { pm, mask: maskOf(pm, scale), colour: true }; DOLLS.set(k, hit); }
+    const pm = dressedDoll(subject.gear, subject.person ?? {}, scale);
+    let hit = MAN_MASKS.get(pm);
+    if (!hit) { hit = { pm, mask: maskOf(pm, scale), colour: true }; MAN_MASKS.set(pm, hit); }
     return hit;
   }
   return dollFor(subject?.face ?? 'threat', subject?.holds ?? 'rifle', scale, subject?.side ?? 'right');
@@ -184,7 +188,7 @@ function subjectDoll(subject, scale) {
 export const MAN_GROUNDS = Object.freeze({ dark: 0, lifted: 0.35 });
 /** The dolls a turner's card may need made ahead (the scene's load), so the first card of a string is painted in one frame (the runtime review of 0.0.10: the first paint dropped a frame); at the near band unless a density is given. */
 export function warmHitcard(faces = [['threat', 'rifle'], ['threat', 'pistol']], pxPerM = HIT_PX_PER_M) { for (const [f, h] of faces) dollFor(f, h, figGeom(pxPerM).scale); return DOLLS.size; }
-/** The board and man dolls painted so far (the target view's test: no frame paints more than one new doll). */
+/** The board dolls painted so far (the target view's test: no frame paints more than one new doll; a man's is dress.js's, dollCount). */
 export const hitDollCount = () => DOLLS.size;
 /** Whether a subject's doll is painted already at a density (the target view paints at most one new doll a frame). */
 export function hitDollReady(subject, pxPerM = HIT_PX_PER_M) {

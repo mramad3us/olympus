@@ -59,6 +59,36 @@ function stoppedRows(loadout) {
   return rows;
 }
 
+// (v0.0.21's quick cut: one seed quick, the rest in the heavy case)
+function entryCueRun(seeds, minT = 15, minK = 8) {
+  const rows = [];
+  for (const [tier, bot] of [['sgt', 'honest'], ['tierone', 'honest'], ['recruit', 'keys'], ['private', 'keys']]) for (const seed of seeds(bot)) {
+    const g = createGame({ scenario: 'test-shoothouse', seed, tier, setup: 'go' }), lane = lanePlanOf(g.state), crossed = {};
+    runHouse(g, bot === 'keys' ? houseKeysBot() : houseHonestBot(), { maxMs: 4 * 60_000, each: (game) => {
+      const st = game.state, H = st.armoury.range.house, a = twoActor(st), me = meOf(st);
+      for (const door of lane.order) {
+        const P = lane.plans[door];
+        if (crossed[door] || !P.door || !pastThreshold(P, a.x, a.z)) continue;
+        crossed[door] = { m: pastWaypointM(P, me.x, me.z), gap: Math.hypot(a.x - me.x, a.z - me.z), leg: H.cur };
+      }
+    } });
+    for (const [door, c] of Object.entries(crossed)) rows.push({ tier, bot, seed, door, m: c.m, gap: c.gap });
+  }
+  const t = rows.filter(r => r.bot === 'honest'), k = rows.filter(r => r.bot === 'keys'), least = Math.min(...t.map(r => r.m ?? -Infinity)), close = Math.min(...k.map(r => r.gap));
+  console.log(`      by T, ${t.length} entries: at his threshold you were ${t.map(r => fmt(r.m, 2)).join(', ')} m past yours (least ${fmt(least, 2)}; ENTRY_GAP_M ${ENTRY_GAP_M}, a tick's walk at the lope less allowed)`);
+  console.log(`      by the keys, ${k.length} entries: at his threshold he was ${k.map(r => fmt(r.gap, 2)).join(', ')} m from you (least ${fmt(close, 2)}; BODY_GAP_M ${BODY_GAP_M})`);
+  assert(t.length >= minT && least >= ENTRY_GAP_M - 0.15, JSON.stringify(t.filter(r => !(r.m >= ENTRY_GAP_M - 0.15))));
+  assert(k.length >= minK && close >= BODY_GAP_M, JSON.stringify(k.filter(r => !(r.gap >= BODY_GAP_M))));
+}
+
+// (v0.0.21's quick cut: one seed quick, the rest in the heavy case)
+function bodyGapRun(seeds) {
+  const out = [];
+  for (const tier of ['cpl', 'sgt', 'raider', 'tierone']) for (const seed of seeds) { const r = flawlessLane({ tier, seed }); out.push({ tier, seed, min: r.gap.minM, under: r.gap.underMs, guard: r.gap.guard }); }
+  console.log(`      ${out.map(o => `${o.tier} ${o.seed} ${fmt(o.min, 2)} m${o.guard.holds ? ` (held ${o.guard.holds}, ${o.guard.ms} ms)` : ''}`).join(' · ')}`);
+  assert(out.every(o => o.min >= BODY_GAP_M && o.under === 0 && o.guard.holds === 0), JSON.stringify(out.filter(o => !(o.min >= BODY_GAP_M && o.under === 0 && o.guard.holds === 0))));
+}
+
 export default [
   {
     name: 'the fill issues your number two in Condition 4, as you are: his rifle\'s magazines in his pouches, the chamber empty, on safe (COMBAT §25.19.5: "not loaded at the fill"; v0.0.12 loaded him there); his P-12 (standard issue from v0.0.20) in Condition 3 as yours, holstered on safe with a magazine in and the chamber empty, its spare in the thigh\'s pouch',
@@ -119,38 +149,26 @@ export default [
     },
   },
   {
-    name: 'his entry is cued by distance: by T he crosses his threshold only once you are ENTRY_GAP_M past your own waypoint, every door, on the sergeant and the tier one; behind a recruit or a private who stops in the doorway by the keys he waits, never through you (COMBAT §25.19.3.4; v0.0.12 cued him on your first step into the doorway: 0.30 m beside a private standing in it)',
+    name: 'his entry is cued by distance: by T he crosses his threshold only once you are ENTRY_GAP_M past your own waypoint, every door, on the sergeant and the tier one; behind a recruit or a private who stops in the doorway by the keys he waits, never through you (COMBAT §25.19.3.4; v0.0.12 cued him on your first step into the doorway: 0.30 m beside a private standing in it) (the user\'s seed 1489397426 alone; the rest in the heavy case, v0.0.21)',
     timeoutMs: 120_000,
-    fn() {
-      const rows = [];
-      for (const [tier, bot] of [['sgt', 'honest'], ['tierone', 'honest'], ['recruit', 'keys'], ['private', 'keys']]) for (const seed of flawlessSeeds(bot === 'keys' ? 2 : 3)) {
-        const g = createGame({ scenario: 'test-shoothouse', seed, tier, setup: 'go' }), lane = lanePlanOf(g.state), crossed = {};
-        runHouse(g, bot === 'keys' ? houseKeysBot() : houseHonestBot(), { maxMs: 4 * 60_000, each: (game) => {
-          const st = game.state, H = st.armoury.range.house, a = twoActor(st), me = meOf(st);
-          for (const door of lane.order) {
-            const P = lane.plans[door];
-            if (crossed[door] || !P.door || !pastThreshold(P, a.x, a.z)) continue;
-            crossed[door] = { m: pastWaypointM(P, me.x, me.z), gap: Math.hypot(a.x - me.x, a.z - me.z), leg: H.cur };
-          }
-        } });
-        for (const [door, c] of Object.entries(crossed)) rows.push({ tier, bot, seed, door, m: c.m, gap: c.gap });
-      }
-      const t = rows.filter(r => r.bot === 'honest'), k = rows.filter(r => r.bot === 'keys'), least = Math.min(...t.map(r => r.m ?? -Infinity)), close = Math.min(...k.map(r => r.gap));
-      console.log(`      by T, ${t.length} entries: at his threshold you were ${t.map(r => fmt(r.m, 2)).join(', ')} m past yours (least ${fmt(least, 2)}; ENTRY_GAP_M ${ENTRY_GAP_M}, a tick's walk at the lope less allowed)`);
-      console.log(`      by the keys, ${k.length} entries: at his threshold he was ${k.map(r => fmt(r.gap, 2)).join(', ')} m from you (least ${fmt(close, 2)}; BODY_GAP_M ${BODY_GAP_M})`);
-      assert(t.length >= 15 && least >= ENTRY_GAP_M - 0.15, JSON.stringify(t.filter(r => !(r.m >= ENTRY_GAP_M - 0.15))));
-      assert(k.length >= 8 && close >= BODY_GAP_M, JSON.stringify(k.filter(r => !(r.gap >= BODY_GAP_M))));
-    },
+    fn() { entryCueRun(() => flawlessSeeds(1), 5, 4); },
   },
   {
-    name: 'the body gap by T: you and your number two never closer than BODY_GAP_M centre to centre on the corporal, the sergeant, the Raider and the tier one, and the guard never has to hold him (COMBAT §25.19.8 F2: v0.0.12 0.00 m, 3.46 s a lane under 0.5 m)',
+    name: 'his entry is cued by distance: by T he crosses his threshold only once you are ENTRY_GAP_M past your own waypoint, every door, on the sergeant and the tier one; behind a recruit or a private who stops in the doorway by the keys he waits, never through you (COMBAT §25.19.3.4; v0.0.12 cued him on your first step into the doorway: 0.30 m beside a private standing in it) (heavy: moved from the quick suite in v0.0.21)',
+    heavy: true,
+    timeoutMs: 120_000,
+    fn() { entryCueRun((bot) => flawlessSeeds(bot === 'keys' ? 2 : 3)); },
+  },
+  {
+    name: 'the body gap by T: you and your number two never closer than BODY_GAP_M centre to centre on the corporal, the sergeant, the Raider and the tier one, and the guard never has to hold him (COMBAT §25.19.8 F2: v0.0.12 0.00 m, 3.46 s a lane under 0.5 m) (the user\'s seed 1489397426 alone; the rest in the heavy case, v0.0.21)',
     timeoutMs: 180_000,
-    fn() {
-      const out = [];
-      for (const tier of ['cpl', 'sgt', 'raider', 'tierone']) for (const seed of flawlessSeeds(2)) { const r = flawlessLane({ tier, seed }); out.push({ tier, seed, min: r.gap.minM, under: r.gap.underMs, guard: r.gap.guard }); }
-      console.log(`      ${out.map(o => `${o.tier} ${o.seed} ${fmt(o.min, 2)} m${o.guard.holds ? ` (held ${o.guard.holds}, ${o.guard.ms} ms)` : ''}`).join(' · ')}`);
-      assert(out.every(o => o.min >= BODY_GAP_M && o.under === 0 && o.guard.holds === 0), JSON.stringify(out.filter(o => !(o.min >= BODY_GAP_M && o.under === 0 && o.guard.holds === 0))));
-    },
+    fn() { bodyGapRun(flawlessSeeds(1)); },
+  },
+  {
+    name: 'the body gap by T: you and your number two never closer than BODY_GAP_M centre to centre on the corporal, the sergeant, the Raider and the tier one, and the guard never has to hold him (COMBAT §25.19.8 F2: v0.0.12 0.00 m, 3.46 s a lane under 0.5 m) (heavy: moved from the quick suite in v0.0.21)',
+    heavy: true,
+    timeoutMs: 180_000,
+    fn() { bodyGapRun(flawlessSeeds(2)); },
   },
   {
     name: 'he goes to the next stack with you: his walk there never starts before your own, and he stands within TWO_SLOT_M of his slot when you are stacked (COMBAT §25.19.5: "the tick yours starts"; v0.0.12 left the moment the room was clear)',

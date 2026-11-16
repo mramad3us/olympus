@@ -234,7 +234,8 @@ import { liveZoneAt } from '../places/zones.js';
 import { swingFrom, KICK_PULL_WHY } from '../places/swing.js';
 import { locoStep } from '../body/loco.js';
 import { COURSES } from '../../data/courses.js';
-import { HOUSE1 } from '../../data/places/wheel.js';
+import { houseSpecOf } from '../scenes/assemble.js';
+import { opOf, opRec, brokenOf, breakOpening, sessionOf } from './op.js';
 
 /** The beats' times (see the header), s at pace 1 unless named. */
 export const HIGH_READY_S = 0.3, HIGH_READY_K = 1.15, DOOR_HAND_S = 0.2, PULL_STEP_S = 0.3, KICK_S = 1.2, READ_S = 0.7, CALL_S = 0.8, CALL_FLOW_S = 0.2, MARK_S = 0.6;
@@ -351,7 +352,7 @@ const doorsOf = (beats) => [...new Set(beats.map(b => b.door).filter(Boolean))];
 /** A plan by door id ('hall' the last leg), or null. */
 export const planOf = (state, door) => { if (!door) return null; try { return door === 'hall' ? laneOf(state)?.plans?.hall ?? null : roomPlanOf(state, door); } catch { return null; } };
 // (the scene's room records, if the house rides the range session: shoothouse.js R.house.rooms)
-const houseOf = (state) => state.armoury?.range?.house ?? null;
+const houseOf = (state) => opOf(state);   // (the operation's record, op.js: the house's on the lane)
 const DONE_ROOM = new Set(['clear', 'passed']);
 /**
  * The lane's door now (see the header): the scene's first room not clear, else (no scene) the plan nearest the actor
@@ -476,7 +477,7 @@ export function breachOf(state, plan, want = null, from = null, pid = playerId(s
   if (want === 'push' || want === 'pull') return sw;
   // (v0.0.18: the kit's ways in where the door's swing and the kit allow them (see the header), else as built)
   if (KIT_HOWS.includes(want) && kitWayOk(state, pid, plan, want, from)) return want;
-  return plan?.door && lockedOf(state, plan.door) && kick ? 'kick' : sw;
+  return plan?.door && lockKnownOf(state, plan.door) && kick ? 'kick' : sw;
 }
 /** Whether a kit's way in ('pry', 'ram', 'charge') may open the plan's door now (v0.0.18): the door shut, its swing one the device works on, the kit carrying it. */
 export function kitWayOk(state, pid, plan, how, from = null) {
@@ -501,7 +502,24 @@ export function chargeOnLeaf(state, pid, plan) {
   return { how, mine: (!rec?.byId || rec.byId === pid) && kitWayOk(state, pid, plan, how) };
 }
 /** Whether a door is locked now (its record's lock, not broken by a kick: the scene's or a kick's opening delta 'open'). */
-export const lockedOf = (state, id) => { const o = openingOf(id); return !!o?.lock && openingState(state, o) !== 'open' && !state.armoury?.range?.house?.broken?.[id]; };
+export const lockedOf = (state, id) => { const o = openingOf(id); return !!o?.lock && openingState(state, o) !== 'open' && !brokenOf(state, id); };
+/**
+ * Whether a lane door's lock is still unknown to the stack: on a drawn house, whose lane doors are drawn locked or not,
+ * a lane door nobody has read (the read takes the hinge, the swing and the lock: COMBAT §25.19.2.1) nor tried (an Open refused on
+ * it: "Locked. Kick it."), shut and not broken (the play review of 2026-11-16: the panel struck Open "locked door" and T offered
+ * "Kick, clear the room" at GO, 8 m from a door no hand had touched). The set's lane doors are never locked, and an inner door's
+ * lock is the room's own (the closet), so both are known as built. The instructor's book (the pars, roomBookOf) knows the door.
+ */
+export function lockUnknownOf(state, id) {
+  const H = opOf(state);
+  if (H?.draw?.mode !== 'drawn' || H.$book || !id || H.read?.[id] !== undefined || H.tried?.[id] !== undefined) return false;
+  if (openingState(state, id) === 'open' || brokenOf(state, id)) return false;
+  return !!laneOf(state)?.order?.includes(id);
+}
+/** Whether the stack knows a door is locked now (lockedOf, and not lockUnknownOf): what the panel, T and the breach's choice read; the door itself answers by lockedOf. */
+export const lockKnownOf = (state, id) => lockedOf(state, id) && !lockUnknownOf(state, id);
+/** The hand on a door's handle (ms): DOOR_HAND_S × the WH pace (the refused Open's time, and the book's for a locked drawn door). */
+export const handMsOf = (state, pid) => Math.round(DOOR_HAND_S * paceOf(skillsOf(state, pid).wh) * 1000);
 
 /** A path taken up from a point: [the point, …the path's waypoints past the segment nearest it] (a body at the stack, mid-door or inside). */
 export function pathFrom(path, pos) {
@@ -573,7 +591,7 @@ export function planBundle(state, pid, bundleId, { door = null, slot = 1, side =
     if (D.doer && slot !== by) continue;
     if (D.rungs && !D.rungs.includes(Math.min(4, rung))) continue;
     if ((bid === 'door' || bid === 'read' || bid === 'tell') && !plan.door) continue;
-    if (bid === 'read' && (state.armoury?.range?.house?.read?.[plan.door] || openingState(state, plan.door) === 'open')) continue;
+    if (bid === 'read' && (opOf(state)?.read?.[plan.door] || openingState(state, plan.door) === 'open')) continue;
     if (bid === 'tell' && openingState(state, plan.door) === 'open') continue;
     if ((bid === 'far' || bid === 'farlook') && !plan.far) continue;
     if (bid === 'inner' && !(plan.inner ?? []).length) continue;
@@ -895,7 +913,9 @@ registerKind('door', {
     if (openingState(state, o) === 'open' && leafAt(state, o.id, atMs) >= 1) return { ms: 0, passMs: 0, ok: true, routine: true, text: 'The door is open.' };
     // (the words by the door's kind and state: an inner door can be held, the lane's cannot; a kick that failed on a door not locked "held")
     const inner = doorNow(state, d.who)?.plan?.door !== o.id;
-    if (b.how !== 'kick' && lockedOf(state, o.id)) return { ms: Math.round(DOOR_HAND_S * paceOf(skillsOf(state, d.who).wh) * 1000), ok: false, halt: 'refused', again: true, text: b.how === 'pull' ? HANDBACK_WORDS['refused-pull'] : inner ? HANDBACK_WORDS.refused : HANDBACK_WORDS['refused-lane'] };
+    // (a lane door's lock learnt by the hand that tried it (lockUnknownOf): the house's record's `tried`, the lane's doors only)
+    if (b.how !== 'kick' && lockedOf(state, o.id) && lockUnknownOf(state, o.id)) (opOf(state).tried ??= {})[o.id] = atMs;
+    if (b.how !== 'kick' && lockedOf(state, o.id)) return { ms: handMsOf(state, d.who), ok: false, halt: 'refused', again: true, text: b.how === 'pull' ? HANDBACK_WORDS['refused-pull'] : inner ? HANDBACK_WORDS.refused : HANDBACK_WORDS['refused-lane'] };
     // (the #2 not with you at the lane's own door (never an inner one): the hand waits on the door until he is within
     // TWO_SLOT_M of his slot (his running move's closed form, so his "Ready." releases it), at most TWO_WAIT_MS from the
     // first try; still away then, it hands back once the feet have stopped, the door still to open (COMBAT §25.8.2; the
@@ -921,7 +941,7 @@ registerKind('door', {
       const r = check(stream(state.meta.seed, 'house:kick', d.who, o.id, atMs), { skill: 'fitness', value: skillsOf(state, d.who).fit, dc, pressure: 'evaluated', tempo: d.tempo ?? 'normal', by: d.who, verb: null });
       ok = r.ok; grade = r.grade; routine = false;
       if (!ok) return { ms: Math.round(KICK_S * FAIL_K * 1000), ok: false, grade, halt: 'refused', again: true, text: !lockedOf(state, o.id) ? HANDBACK_WORDS['refused-held'] : inner ? HANDBACK_WORDS['refused-kick'] : HANDBACK_WORDS['refused-kick-lane'] };
-      ((state.armoury.range.house ??= {}).broken ??= {})[o.id] = atMs;
+      breakOpening(state, o.id, atMs);
     }
     // (the leaf finishes its swing at the hand's end plus openS: leafAt draws it from closed through the hand, then open)
     // (the build sheet v0.0.20 item 15: the verb kept on the delta, the leaf drawn as it was opened (doors.js leafShownAt); the
@@ -1029,7 +1049,7 @@ export function useCallVoid(fn) { callVoid.fn = typeof fn === 'function' ? fn : 
 function upIn(state, room, ms) {
   const c = state.mind?.contact, known = c?.known ?? {}, last = c?.last?.ids ?? [];
   // (up and facing through combat/men.js upNow, a stand's as before, a live man's by his record)
-  return (state.armoury?.range?.turners ?? []).filter(T => T.room === room && ['threat', 'armoured', 'hostage'].includes(T.face) && upNow(T, ms)
+  return (sessionOf(state)?.turners ?? []).filter(T => T.room === room && ['threat', 'armoured', 'hostage'].includes(T.face) && upNow(T, ms)
     && (known[T.key] !== undefined || last.includes(T.key)));
 }
 // (the build sheet v0.0.20 item 12: the last man marks. Your #2's Dominate ends on it, which arms his mark (R.house.two.markOwed,
@@ -1054,7 +1074,7 @@ registerKind('read', {
   run(state, bus, d, b, atMs) {
     if (dry(d)) return { ms: b.ms, ok: true, routine: true, text: 'The door read.' };
     const words = b.door ? readWords(state, b.plan ?? d.door, b.door) : null;
-    if (b.door && d.who === playerId(state) && state.armoury?.range) ((state.armoury.range.house ??= {}).read ??= {})[b.door] = atMs;
+    if (b.door && d.who === playerId(state) && state.armoury?.range) (opRec(state).read ??= {})[b.door] = atMs;
     // (what the eyes found, said as the read ends (2026-11-15: "the read of the door says which"): "Pull door, hinge right.")
     if (words && d.who === playerId(state)) b.said = words;
     return { ms: b.ms, ok: true, routine: true, text: words ?? 'The door read.' };
@@ -1065,7 +1085,10 @@ registerKind('read', {
 function readWords(state, planKey, door) {
   const plan = planOf(state, planKey);
   if (!plan) return null;
-  return (door === plan.door ? doorSwing(state, plan) : doorSwing(state, { ...plan, door }, plan.room))?.words ?? null;
+  const w = (door === plan.door ? doorSwing(state, plan) : doorSwing(state, { ...plan, door }, plan.room))?.words ?? null;
+  // (the read takes the lock too, on a drawn house's lane door (lockUnknownOf: the set's are never locked): "Push door,
+  // hinge right. Locked.")
+  return w && door === plan.door && opOf(state)?.draw?.mode === 'drawn' && lockedOf(state, door) ? `${w} Locked.` : w;
 }
 // (a Top up on the way (the row's reorg, COMBAT §25.19.2.1): the tactical reload's sub-steps on the hands, rolled as the
 // command's (drills.js runMacro), its time theirs; still owed at the beat's start, else nothing to do)
@@ -1345,7 +1368,7 @@ registerKind('force', {
     const handMs = reach ? b.handMs : Math.round(DEVICES[model].force.s * 1000), dc = forceDc(state, o.id, model);
     const r = check(stream(state.meta.seed, 'house:force', pid, o.id, atMs), { skill: 'fitness', value: sk.fit, dc, pressure: 'evaluated', tempo: d.tempo ?? 'normal', by: pid, verb: null });
     if (!r.ok) return { ms: Math.round(handMs * FAIL_K), ok: false, grade: r.grade, halt: 'fail', again: true, text: HANDBACK_WORDS.wontGive };
-    ((state.armoury.range.house ??= {}).broken ??= {})[o.id] = atMs;
+    breakOpening(state, o.id, atMs);
     // (a pried or rammed leaf keeps the linear swing (no verb on the delta); its fact names the leaf's start and its stop)
     const openMs = Math.round((o.openS ?? DOOR_S) * 1000);
     setOpening(state, o.id, 'open', { atMs: atMs + handMs + openMs });
@@ -1442,7 +1465,8 @@ registerKind('shootDoor', {
     }
     // (every point opened: the door goes, its leaf swinging in)
     delete b.pt; delete b.n;
-    (H.broken ??= {})[door] = atMs;
+    // (the one writer of a broken lock, op.js breakOpening: H.broken on the lane as before, the door's own delta off it)
+    breakOpening(state, door, atMs);
     rec.atMs = atMs;
     const openMs = Math.round((o.openS ?? DOOR_S) * 1000);
     setOpening(state, o.id, 'open', { atMs: atMs + openMs });
@@ -1825,7 +1849,7 @@ export const STANCE_NAMES = Object.freeze({ relaxed: 'Relaxed', combat: 'Careful
 /** The standing order's rung is contact.js's (COMBAT §25.19.4: offered from rung 4, off by default; question 1); its words. */
 export const ORDER_WORDS = Object.freeze({ off: 'Engage: off ⇄ armed, my sector', on: 'Engage: armed, my sector ⇄ off', hint: 'By your order: a clean armed man in your sector is shot at the end of his take-in, no pause.' });
 /** The standing order as set (COMBAT §25.19.4): the house's record { engage: 'off' | 'armed' }, off by default. */
-export const orderOf = (state) => state.armoury?.range?.house?.order ?? { engage: 'off' };
+export const orderOf = (state) => opOf(state)?.order ?? { engage: 'off' };
 /**
  * The stop's variant at the door you are at now: the stance and the entry as set, the breach and the bang only at the door they
  * were chosen at (v0.0.18, the review's: a charge chosen at room 1 carried to room 3, where T alone fired a second one; COMBAT
@@ -1984,7 +2008,7 @@ export function singleRows(state, pid = playerId(state), ms = state.clock.ms) {
     const charged = placedOn(state, o.id) ? CHARGE_ON_WHY : null, kr = kickRow(state, pid, row, o, sk, rung, sw, { group: 'door', slot: 2 });
     out.push(row(`door:${how}>${o.id}`, 'door', `${MUSCLE['door:open'].label}: ${how}`, t.ms, { off: locked ? 'locked' : side ?? charged, how, group: 'door', slot: 1, swing: swingNote(sw) }));
     out.push(charged && !kr.off ? { ...kr, off: charged } : kr);
-    if (!state.armoury?.range?.house?.read?.[o.id]) out.push(row(`door:read>${o.id}`, 'door', MUSCLE['door:read'].label, READ_S * paceOf(sk.awr) * 1000, { how: 'read', group: 'door', slot: 0, words: sw?.words ?? null }));
+    if (!opOf(state)?.read?.[o.id]) out.push(row(`door:read>${o.id}`, 'door', MUSCLE['door:read'].label, READ_S * paceOf(sk.awr) * 1000, { how: 'read', group: 'door', slot: 0, words: sw?.words ?? null }));
   }
   // (the inner doors the plan does not take, from inside: Hold it (the #2's muzzle on it), and its own rows, a lock striking push and pull)
   // (in the doorway with the door open too: from rung 3 the eyes sweep the sector while the feet are still in the door, so the
@@ -2114,7 +2138,7 @@ export function deviceRows(state, pid, row) {
 export function preGoRows(state, pid = playerId(state), ms = state.clock.ms) {
   const a = actorOf(state, pid), H = houseOf(state);
   if (!a || !H || (H.goAtMs !== null && H.goAtMs !== undefined)) return [];
-  const out = [], S0 = HOUSE1.start, me = [a.x, a.z], to = [S0.x, S0.z];
+  const out = [], S0 = houseSpecOf(state).start, me = [a.x, a.z], to = [S0.x, S0.z];
   const row = (id, kind, label, ms0, o = {}) => ({ id, kind, label, ms: Math.round(ms0), rushMs: null, carefulMs: null, odds: null, routine: true, off: null, subs: [], cmd: false, skill: null, door: null, group: SINGLE_GROUP[kind] ?? null, ...o });
   if (dist(me, to) > COURSES.house.stackM) {
     const legs = legsOf(state, pid), way = wayOf(state, [me, to]), P = profileOf(pathLen(way), legs.walk.combat, legs.pushMs2, legs.brakeMs2);
@@ -2252,7 +2276,7 @@ function upPick(state, d, bus = null) {
 }
 /** The men of your own corner up and facing that you know of (COMBAT §25.19.3.3's "a man still up"): the last contact's, and those of the room you are in seen and not forgotten. */
 export function mineUp(state, ms = state.clock.ms) {
-  const c = state.mind?.contact, L = c?.last, known = c?.known ?? {}, R = state.armoury?.range, two = !!R?.house?.twoPid;
+  const c = state.mind?.contact, L = c?.last, known = c?.known ?? {}, R = sessionOf(state), two = !!R?.house?.twoPid;
   const room = doorNow(state, playerId(state))?.plan?.room ?? null;
   return (R?.turners ?? []).filter(T => (!two || (ownerOf(state, T) ?? 1) === 1) && ['threat', 'armoured', 'hostage'].includes(T.face) && (T.stoppedAtMs === null || T.stoppedAtMs === undefined)
     && facingOf(T, ms) >= 0.5 && (L?.ids?.includes(T.key) || (room && T.room === room && known[T.key] !== undefined)));
@@ -2535,7 +2559,7 @@ export function startSingle(state, bus, pid, row, { tempo = 'normal' } = {}) {
   else if (row.kind === 'door' && row.how === 'pry') beat = { key: 'force', k: 'force', ch: 'hands', door: row.id.split('>')[1], how: 'pry', model: 'hal', ms: row.ms, passMs: row.passMs, handMs: row.handMs, after: [] };
   else if (row.kind === 'door' && row.how === 'read') {
     beat = { key: 'read', k: 'read', ch: 'eyes', ms: row.ms, after: [], door: row.id.split('>')[1], plan: here.door };
-    ((state.armoury.range.house ??= {}).read ??= {})[here.plan.door] = state.clock.ms;
+    (opRec(state).read ??= {})[here.plan.door] = state.clock.ms;
   } else if (row.kind === 'door' && row.how === 'hold') {
     const H = houseOf(state); if (H?.two) H.two.hold = row.id.split('>')[1];
     bus?.emit('say', { who: pid, text: 'Hold that door.', kind: 'speech', durMs: 800 });
@@ -3116,6 +3140,10 @@ const alongAxis = (u, p) => p[0] * u[0] + p[1] * u[1];
 export function hallLead(state) {
   const H = houseOf(state), two = H?.two?.pid ? actorOf(state, H.two.pid) : null, me = playerActor(state), u = hallAxis(state);
   if (!two || !me || !u || doorNow(state, playerId(state))?.door !== 'hall') return null;
+  // (the drawn house: only once you stand in the hall; a cross entry into the last room leaves #1's point downrange of his,
+  // so in the room you led him by 3 m before either had left it, "Wait for him." while he waited for you to go, the hall passed at 90 s)
+  const P = planOf(state, 'hall');
+  if (P && !P.rects.some(r => me.x >= r[0] && me.x <= r[2] && me.z >= r[1] && me.z <= r[3])) return null;
   return alongAxis(u, [me.x, me.z]) - alongAxis(u, [two.x, two.z]);
 }
 // (item 19: his next place p in the hall, past its threshold, more than HALL_LEAD_M ahead of you along its axis and on from where he
@@ -3422,12 +3450,19 @@ export function giveWay(state, rec, a, p, me, ms = state.clock.ms) {
   const lead = moveNow(state, playerId(state)), T2 = Math.round(mv2.prof.T * 1000);
   const end1 = lead ? Math.max(ms, lead.untilMs ?? ms) : ms, at1 = (t) => (lead ? moveAt(lead, t) : me);
   const want = BODY_GAP_M + GAP_GUARD_M + GIVE_MARGIN_M;
+  // (each delay's look reads your walk and his at the same ticks; both read once a tick here, not once a delay and a tick:
+  // his walk delayed d is his walk from now read d earlier, to the same ms (moveAt is a function of the time since its start), so
+  // every delay's answer is the one it was. A drawn house's #2 who finds no delay scanned 41 delays × ~150 ticks: 30% of the busiest
+  // tick of the sergeant's drawn seed 11 (the review of v0.0.21's A and B))
+  const b0 = { ...mv2, fromMs: ms, untilMs: ms + T2 }, P1 = new Map(), P2 = new Map();
+  const p1At = (t) => { let v = P1.get(t); if (!v) P1.set(t, v = at1(t)); return v; };
+  const p2At = (u) => { let v = P2.get(u); if (!v) P2.set(u, v = moveAt(b0, u)); return v; };
   let best = { d: 0, min: -Infinity };
   for (let d = 0; d <= GIVE_MAX_MS; d += GIVE_STEP_MS) {
-    const b2 = { ...mv2, fromMs: ms + d, untilMs: ms + d + T2 }, until = Math.max(end1, ms + d + T2) + GIVE_TAIL_MS;
+    const until = Math.max(end1, ms + d + T2) + GIVE_TAIL_MS;
     let min = Infinity;
     for (let t = ms; t <= until && min >= want; t += TICK_MS) {
-      const p1 = at1(t), p2 = t < ms + d ? a : moveAt(b2, t);
+      const p1 = p1At(t), p2 = t < ms + d ? a : p2At(t - d);
       min = Math.min(min, dist([p1.x, p1.z], [p2.x, p2.z]));
     }
     if (min >= want) return d;
@@ -3505,7 +3540,7 @@ function mirrorTick(state, pid, a, mate, ms) {
 }
 // (the stand a teammate is aimed on now: your #2's man while rounds of his row are still to go; yours, your aim's or your shot row's)
 function lineTargetOf(state, H, pid) {
-  const R = state.armoury?.range, find = (key) => (key ? R?.turners?.find(t => t.key === key && t.stoppedAtMs === null) ?? null : null);
+  const R = sessionOf(state), find = (key) => (key ? R?.turners?.find(t => t.key === key && t.stoppedAtMs === null) ?? null : null);
   // (his rifle at the aim: a line is only a line while it is aimed)
   if ((state.people?.[pid]?.kit?.carry?.posture ?? null) !== 'aimed') return null;
   if (pid === H.two.pid) return H.two.eng && H.two.eng.rounds?.some(r => !r.done) ? find(H.two.eng.key) : null;
@@ -3553,7 +3588,7 @@ function laneToRoom(d) {
  * player's doing dropped, time standing still; the #2's dropped, he plans again).
  */
 export function upgradeMuscle(state) {
-  const S = state.stop, H = state.armoury?.range?.house;
+  const S = state.stop, H = opOf(state);
   const lane = (() => { try { return state.places ? lanePlanOf(state) : null; } catch { return null; } })();
   const map = (d) => {
     if (!d?.beats || !(d.bundle in REMOVED)) return d;

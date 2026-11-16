@@ -40,6 +40,14 @@
 // every 2 s for 20 s: the lane's rooms 1 and 2 at the tier one's pace, the doors swinging, the stack and the #2, the shots in a hall,
 // timed frame by frame (no frame over 25 ms, its p95 held at 18 ms as the others').
 // Every bench plays the step panel's layout C (BENCH_PANEL; R7: its keys are C's, whatever this browser's olympus.panel says).
+// v0.0.21 (the build sheet §1 item 22; the perf lens's P8 and the done lens's D11): the house beyond the tier one's walk.
+// house-kit: the tier one at GO on 48213 with the full kit (loadout 'full'), T and the shot row (Digit1) in turn every 2 s, as
+// shoothouse's, for BENCH_HOUSE_KIT_S 25 s: the kit's rows where T gives them, the devices drawn. house-live: the sergeant on 'live:fight,hide',
+// T and the shot row every 2 s for 20 s: the role-players' frames, their masks and paint, a casualty's beat where it falls.
+// house-stop: the private at GO in stop motion, 5 s held, KeyD (the brackets: a press that rebuilds the panel and moves no
+// clock; on panel C a digit acts and runs it) every 1 s: the page's reads while time stands still. All on the set (draw 'set').
+// Every bench's card judges TECH §16.1 (BENCH_BUDGET): the median frame, its p95, no frame over 50 ms after the first 3 s,
+// the draw calls, the view's CPU at its p95, no program linked after the warm, no upload over UPLOAD_MID_KB after GO + 1 s.
 
 /** The step panel's layout every bench plays (groups.js; its digits are this layout's). */
 export const BENCH_PANEL = 'c';
@@ -80,6 +88,25 @@ export const BENCH_SCENES = Object.freeze({
       Object.freeze(['Digit1', 120]), Object.freeze([null, 1880])]),
     warmS: 2,
   }),
+  'house-kit': Object.freeze({
+    play: 'test-shoothouse', seed: 48213, hour: 10, setup: 'go', tier: 'tierone', loadout: 'full', draw: 'set',
+    keys: Object.freeze([Object.freeze(['KeyT', 120]), Object.freeze([null, 1880]),
+      ...Array.from({ length: 5 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 1880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 1880])]).flat(),
+      Object.freeze(['Digit1', 120]), Object.freeze([null, 1880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 880])]),
+    warmS: 2,
+  }),
+  'house-live': Object.freeze({
+    play: 'test-shoothouse', seed: 48213, hour: 10, setup: 'go', tier: 'sgt', opfor: 'live:fight,hide', draw: 'set',
+    keys: Object.freeze([Object.freeze(['KeyT', 120]), Object.freeze([null, 1880]),
+      ...Array.from({ length: 4 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 1880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 1880])]).flat(),
+      Object.freeze(['Digit1', 120]), Object.freeze([null, 1880])]),
+    warmS: 2,
+  }),
+  'house-stop': Object.freeze({
+    play: 'test-shoothouse', seed: 48213, hour: 10, setup: 'go', tier: 'private', draw: 'set',
+    keys: Object.freeze(Array.from({ length: 5 }, () => [Object.freeze(['KeyD', 120]), Object.freeze([null, 880])]).flat()),
+    warmS: 2,
+  }),
   'range-far': Object.freeze({
     play: 'test-range', seed: 48213, hour: 10, setup: 'far',
     keys: Object.freeze(Array.from({ length: 4 }, () => [Object.freeze(['Digit6', 120]), Object.freeze([null, 880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 3880])]).flat()),
@@ -93,5 +120,15 @@ export const BENCH_DEFAULT = 'squadbay-night';
 export const BENCH_S = 20, BENCH_WARM_S = 2;
 /** A frame slower than this counts as a hitch on the card (CONTRACTS §7's p99 walking budget). */
 export const BENCH_SLOW_MS = 25;
+/** house-kit's length (s): T every 2 s through the kit's rooms. */
+export const BENCH_HOUSE_KIT_S = 25;
+/** The most a frame may send to the GPU after GO + 1 s (KB: a band that goes up mid-lane is painted before GO instead, VIEWS §3.10.1). */
+export const UPLOAD_MID_KB = 64;
+/**
+ * TECH §16.1's budget as the card judges it (the done lens's D11): the median frame and its p95 (ms), the longest frame
+ * after the first afterS seconds (ms), the draw calls, the view's CPU at its p95 (ms), the programs linked after the warm, the
+ * largest upload after GO + uploadAfterS (KB).
+ */
+export const BENCH_BUDGET = Object.freeze({ medianMs: 16.7, p95Ms: 18, maxMs: 50, afterS: 3, calls: 160, viewMs: 4, links: 0, uploadKB: UPLOAD_MID_KB, uploadAfterS: 1 });
 /** A frame drawn within this long of game time after a bang went off is a bang's frame (0.0.9: the bench's row; ms). */
 export const BANG_FRAMES_MS = 500;

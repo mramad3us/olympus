@@ -48,6 +48,7 @@ import { planOf as placePlanOf, wallsOf, wallRect, leafRect } from '../places/pl
 import { facingOf } from '../arms/turners.js';
 import { clearLine, SEEN } from '../people/perception.js';
 import { sightGridOf } from '../places/sight.js';
+import { sessionOf } from './op.js';
 
 /** Fragments: down at this many (my call), a body clean under this λ (my call). */
 export const FRAG_DOWN_N = 3, FRAG_SAFE_LAMBDA = 0.05;
@@ -143,7 +144,7 @@ export function readBurst(state, { burst, model, x, z, atMs = state.clock.ms, ro
     const lung = kPa >= BLAST_LUNG_KPA && chance(stream(seed, 'house:lung', burst, key), BLAST_LUNG_P);
     return { rM: r3(rM), lam: q(lam, 1e-4), n, kPa: r1(kPa), out: outOf({ n, kPa, lung }), clear };
   };
-  const stands = {}, R = state.armoury?.range, noncombatants = [], concussed = [];
+  const stands = {}, R = sessionOf(state), noncombatants = [], concussed = [];
   for (const T of R?.turners ?? []) {
     if (T.stoppedAtMs !== null && T.stoppedAtMs !== undefined && T.stoppedAtMs <= atMs) continue;
     if (Math.hypot(T.x - x, T.z - z) > READ_M) continue;
@@ -187,7 +188,7 @@ export const THROW_ARM_MS = 700;
  * (the hand round the jamb, the head behind it); a tick at a time from fromMs to toMs.
  */
 export function throwExposure(state, pid, { fromMs, toMs, at = null, door = null } = {}) {
-  const R = state.armoury?.range, area = state.places?.live?.area;
+  const R = sessionOf(state), area = state.places?.live?.area;
   if (!R?.turners || !at || !area || !(toMs > fromMs)) return null;
   const grid = sightGridOf(state, area, at[0], at[1]), by = new Set();
   let ms = 0;

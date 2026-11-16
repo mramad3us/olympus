@@ -53,6 +53,10 @@ export default [
         };
         const still = diff(a, a2), rust = diff(a2, b);
         await page.evaluate(() => document.querySelectorAll('style').forEach(st => { if (/visibility: hidden !important/.test(st.textContent)) st.remove(); }));
+        // (v0.0.21: in stop motion the page rebuilds its panel and card only on an input sent (main.js readKey, the build sheet §1
+        // item 11), and the reissue above is the handle's write, no input: an input that moves no clock, after the stage's shots, as
+        // ui-held sends it, so the card is read again as a press would)
+        await page.evaluate(() => window.__olympus.act({ act: 'stop', args: { step: 'pick:+1' } }));
         await sleep(1500);
         const mars = await cardRust();
         console.log(`      the card: ${black} rust pixels in black, ${mars} with ${gunId} in Mars rust; the stage: ${still.n} px moved standing still, ${rust.n} after the reissue (${rust.redder} redder) in a box ${JSON.stringify(rust.box)}`);

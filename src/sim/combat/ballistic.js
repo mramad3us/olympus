@@ -27,6 +27,7 @@ import { throughMaterial, penOf } from '../arms/penetrate.js';
 import { MODELS } from '../arms/models.js';
 import { resolveShot } from '../arms/shot.js';
 import { doorSwing } from './bundle.js';
+import { sessionOf } from './op.js';
 
 /** The muzzle off the leaf (m), the line's inboard yaw (degrees), a point's most rounds before the hand-back (TC 3-21.76; my call). */
 export const BALLISTIC_STANDOFF_M = 0.05, BALLISTIC_YAW_IN_DEG = 45, BALLISTIC_MAX_ROUNDS = 4;
@@ -81,7 +82,7 @@ export function strikeLine(state, { from, yawRad, pitchRad, door }) {
   const [x0, y0, z0] = from, dir = [Math.cos(yawRad), Math.sin(yawRad)], t = Math.tan(Math.max(0, pitchRad));
   const floorM = t > 1e-6 ? y0 / t : Infinity, o = door ? openingOf(door) : null;
   let best = null;
-  for (const T of state.armoury?.range?.turners ?? []) {
+  for (const T of sessionOf(state)?.turners ?? []) {
     const dx = T.x - x0, dz = T.z - z0, s = dx * dir[0] + dz * dir[1], lat = Math.abs(dx * dir[1] - dz * dir[0]);
     if (s <= 0 || lat > FACE_HALF_M || s > Math.max(floorM, 0)) continue;
     // (past the door's plane, on the room's side of it)

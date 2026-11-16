@@ -384,6 +384,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   let drawnNow = [];
   Object.defineProperty(stats, 'figures', { get: () => drawnNow, enumerable: false });
   Object.defineProperty(stats, 'fogMask', { get: () => fogWant, enumerable: false });
+  // (for the soak (tests/ui-soak.test.mjs): the areas built and kept, most recent last, at most AREA_CACHE but the live one)
+  Object.defineProperty(stats, 'cached', { get: () => [...cache.keys()], enumerable: false });
 
   // ---------- the areas ----------
   function boundsOf(area) {

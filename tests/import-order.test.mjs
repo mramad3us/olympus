@@ -5,7 +5,9 @@
 // safe, but a top-level read of a binding across it is a TDZ error whichever module loads first, and in the game it would be
 // the order the page happens to load them in that decides. So each is imported first, alone, in its own process: house-two.js,
 // devplan.js, shoothouse.js, plan.js, team.js, bundle.js and combat/breach.js (the review of v0.0.19's) and the game itself; from v0.0.20 (its build sheet §2 stage 0, §9 item 7) the
-// tower's, the voice's and the marks' one helper core/speech.js, and C's house-debrief.js. Each prints its exports' count and its load time.
+// tower's, the voice's and the marks' one helper core/speech.js, and C's house-debrief.js; from v0.0.21 (its build sheet §3 step 4)
+// combat/op.js, combat/two.js (house-two.js now its shim) and scenes/assemble.js (the house's seam), which shoothouse.js calls into and which call the lane back only
+// through op.js's host. Each prints its exports' count and its load time.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -13,6 +15,10 @@ import { assert, root } from './helpers.mjs';
 
 /** The modules each imported first, in its own process. */
 export const FIRST = Object.freeze([
+  // (v0.0.21, the build sheet v0.0.21 §3 step 4: the operation record and the #2's brain moved to combat/, each first)
+  'src/sim/combat/op.js',
+  'src/sim/combat/two.js',
+  'src/sim/scenes/assemble.js',
   'src/sim/scenarios/house-two.js',
   'src/sim/arms/devplan.js',
   'src/sim/scenarios/shoothouse.js',
@@ -41,7 +47,7 @@ function importFirst(rel) {
 
 export default [
   {
-    name: 'each of house-two.js, devplan.js, shoothouse.js, plan.js, team.js, bundle.js, combat/breach.js, game.js, speech.js and house-debrief.js imported first in a fresh node process loads without a throw: no top-level read of a binding across the house\'s cycles (the build sheet v0.0.19 §0 item 12, v0.0.20 §9 item 7)',
+    name: 'each of combat/op.js, combat/two.js, scenes/assemble.js, house-two.js, devplan.js, shoothouse.js, plan.js, team.js, bundle.js, combat/breach.js, game.js, speech.js and house-debrief.js imported first in a fresh node process loads without a throw: no top-level read of a binding across the house\'s cycles (the build sheet v0.0.19 §0 item 12, v0.0.20 §9 item 7)',
     timeoutMs: 120_000,
     fn() {
       const bad = [];
@@ -62,8 +68,8 @@ export default [
     name: 'the literals that broke the cycle stand for what they replaced: sidearm.js CALL_MS is bundle.js CALL_FLOW_S in ms (the review of v0.0.19)',
     async fn() {
       const [{ CALL_MS }, { CALL_FLOW_S, CALL_S }] = await Promise.all([import('../src/sim/arms/sidearm.js'), import('../src/sim/combat/bundle.js')]);
-      const src = (await import('node:fs')).readFileSync(path.join(root, 'src/sim/scenarios/house-two.js'), 'utf8'), ready = Number(/const TWO_READY_MS = (\d+);/.exec(src)?.[1]);
-      console.log(`      CALL_MS ${CALL_MS} (CALL_FLOW_S ${CALL_FLOW_S} s); house-two.js TWO_READY_MS ${ready} (CALL_S ${CALL_S} s)`);
+      const src = (await import('node:fs')).readFileSync(path.join(root, 'src/sim/combat/two.js'), 'utf8'), ready = Number(/const TWO_READY_MS = (\d+);/.exec(src)?.[1]);
+      console.log(`      CALL_MS ${CALL_MS} (CALL_FLOW_S ${CALL_FLOW_S} s); combat/two.js TWO_READY_MS ${ready} (CALL_S ${CALL_S} s)`);
       assert(CALL_MS === Math.round(CALL_FLOW_S * 1000) && ready === Math.round(CALL_S * 1000), JSON.stringify({ CALL_MS, CALL_FLOW_S, ready, CALL_S }));
     },
   },

@@ -54,6 +54,7 @@ import { addSupp, inputPts, SUBSONIC_ZERO_M, CRACK_ZERO_M } from './supp.js';
 import { SECTOR_HALF_DEG } from './react.js';
 import { membersOf } from './team.js';
 import { wouldHave, strikeOf, fatalOf, COUNT_DOWN } from './would.js';
+import { opOf, sessionOf } from './op.js';
 
 /** A live man out of a viewer's sight this long is forgotten for the take-in (ms); his exposure's side points off his centre (m); a cover held this long counts (ms); a casualty's beat before the card (ms). My calls. */
 export const MAN_MEMORY_MS = 3000, EXPOSE_OFF_M = 0.2, COVER_MS = 500, CASUALTY_MS = 2000;
@@ -73,7 +74,7 @@ export const LIVE_STATE = Object.freeze({ wait: 'looking', turn: 'looking', aim:
 /** Whether a turner record is a live man. */
 export const isLive = (T) => !!T?.live;
 /** The casualty's beat under way (the lane's R.house.live.casualty set and its end not yet come): the stack is out of the fight, every act of yours refused and your feet still (contact.js refusesAct and feetOf), the panel down (the scene's casualtyTick). */
-export const casualtyOn = (state) => { const H = state.armoury?.range?.house; return !!H?.live?.casualty && !H.end; };
+export const casualtyOn = (state) => { const H = opOf(state); return !!H?.live?.casualty && !H.end; };
 const stopped = (T) => T.stoppedAtMs !== null && T.stoppedAtMs !== undefined;
 /** Up and facing at ms: not stopped, facing at SEEN (the one "up and facing" reader for new code; a stand's as every site read it). */
 export function upNow(T, ms) { return !!T && !stopped(T) && facingOf(T, ms) >= SEEN; }
@@ -131,7 +132,7 @@ export function remember(mem, key, ms) { mem[key] = ms; return mem; }
 export function stale(mem, key, ms) { const t = mem?.[key]; return t === undefined || ms - t > MAN_MEMORY_MS; }
 /** A man dropped from every marine's memory (the take-in's known and seenAt, yours and your #2's): his next sighting is a fresh window. */
 export function forget(state, key) {
-  const c = contactOf(state), W = state.armoury?.range?.house?.two;
+  const c = contactOf(state), W = opOf(state)?.two;
   for (const rec of [c, W]) { if (!rec) continue; if (rec.known) delete rec.known[key]; if (rec.seenAt) delete rec.seenAt[key]; }
 }
 
@@ -146,7 +147,7 @@ function rayDist(ox, oz, ux, uz, x, z) {
 
 /** A marine's marks (see the header): { torso, head, down, list, fatal }; down when a strike on him was fatal (would.js fatalOf, the one rule). */
 export function struckOn(state, who) {
-  const list = (state.armoury?.range?.house?.live?.struck ?? []).filter(s => s.who === who);
+  const list = (opOf(state)?.live?.struck ?? []).filter(s => s.who === who);
   const torso = list.filter(s => s.part === 'torso' && (s.zone === 'A' || s.zone === 'C')).length, head = list.filter(s => s.zone === 'head').length;
   const fatal = fatalOf(state, who);
   return { torso, head, down: !!fatal, list, fatal };
@@ -157,7 +158,7 @@ export function struckOn(state, who) {
  * (resolveShot's record), atMs }. The near misses, the strike, the drawn eyes and the casualty. Returns { hit, down }.
  */
 export function incoming(state, bus, { who, by, shot, atMs = shot?.atMs ?? state.clock.ms }) {
-  const R = state.armoury?.range, H = R?.house, L = H?.live ?? null;
+  const R = sessionOf(state), H = R?.house, L = H?.live ?? null;
   if (!shot?.fired) return { hit: false, down: false };
   const hit = !!shot.hole?.at && shot.zone !== null && shot.zone !== undefined;
   const victim = actorOf(state, who), m = shot.muzzle ?? null;
@@ -218,7 +219,7 @@ export function coveringOf(state, T, ms = state.clock.ms) {
   return c && ms - c.fromMs >= COVER_MS ? c.pid : null;
 }
 // (covered: by a marine's held cover, or by your #2's "Got him.")
-const covered = (state, T, ms) => coveringOf(state, T, ms) !== null || state.armoury?.range?.house?.two?.got?.[T.key] !== undefined;
+const covered = (state, T, ms) => coveringOf(state, T, ms) !== null || opOf(state)?.two?.got?.[T.key] !== undefined;
 /** A live man accounted for (see the header): 'out', 'down' or 'hands' when so and covered, else null. */
 export function accountedOf(state, T, ms = state.clock.ms) {
   const st = T?.live?.st;
@@ -234,7 +235,7 @@ export function gateWhy(state, T, ms = state.clock.ms) {
   if (!st || st === 'out' || accountedOf(state, T, ms)) return null;
   if (st === 'down' || stopped(T)) return 'down';
   if (st === 'hands') return 'hands';
-  const seenBy = state.armoury?.range?.house?.live?.seenBy;
+  const seenBy = opOf(state)?.live?.seenBy;
   if (seenBy?.[T.key] === undefined) return null;
   const inSight = membersOf(state).some(m => { const a = actorOf(state, m.pid); return !!a && seenK(state, a, T, ms) >= SEEN; });
   return inSight ? null : 'unaccounted';

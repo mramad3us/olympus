@@ -1,0 +1,77 @@
+{
+ "about": "Made by capture.mjs: the hunt's lane and moments, and the stage's crop round you at each (check.png, stacked).",
+ "lane": {
+  "seed": 1489397426,
+  "tier": "tierone",
+  "loadout": "full",
+  "use": "both",
+  "base": "honest"
+ },
+ "crop": [
+  112,
+  72,
+  12
+ ],
+ "moments": [
+  {
+   "ms": 13350,
+   "device": {
+    "model": "g11",
+    "st": "armed"
+   },
+   "x": 31.537,
+   "z": 12.45,
+   "face": "left",
+   "beat": "move/restack",
+   "camera": {
+    "x": 22.3125,
+    "z": 12.4375
+   },
+   "crop": [
+    412,
+    120
+   ],
+   "blocksOff": 0
+  },
+  {
+   "ms": 28850,
+   "device": {
+    "model": "hal",
+    "st": "held"
+   },
+   "x": 21.55,
+   "z": 13.95,
+   "face": "left",
+   "beat": "force/force",
+   "camera": {
+    "x": 21.5625,
+    "z": 13.9375
+   },
+   "crop": [
+    264,
+    120
+   ],
+   "blocksOff": 0
+  },
+  {
+   "ms": 33400,
+   "device": {
+    "model": "g11",
+    "st": "armed"
+   },
+   "x": 21.55,
+   "z": 13.95,
+   "face": "left",
+   "beat": "arm/arm",
+   "camera": {
+    "x": 21.5625,
+    "z": 13.9375
+   },
+   "crop": [
+    264,
+    120
+   ],
+   "blocksOff": 0
+  }
+ ]
+}

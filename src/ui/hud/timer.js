@@ -243,7 +243,9 @@ export function laneModel(hn, nowMs = 0) {
   const z = {};
   for (const r of legs) for (const [k, n] of Object.entries(r.zones ?? {})) z[k] = (z[k] ?? 0) + (Number(n) || 0);
   const zones = [...ZONE_ORDER, ['hostage', 'HOSTAGE HIT']].map(([k, word]) => ({ k: k === 'hostage' ? 'noshoot' : k, n: Number(z[k]) || 0, word })).filter(x => x.n > 0);
-  const head = `LANE ${hn.lane ?? 'A'}`, text = `${head} · ${rows.map(r => `${r.label} ${r.value}`).join(' · ')}${zones.length ? ` · ${zones.map(x => `${x.n} ${x.word}`).join(', ')}` : ''}`;
+  // (a drawn house is no lettered lane: houseNow gives its lane null; "NEW LAYOUT", as the run sheet's card says it (the play review
+  // of 2026-11-16: the board read "LANE A" over a drawn house))
+  const head = hn.lane === null ? 'NEW LAYOUT' : `LANE ${hn.lane ?? 'A'}`, text = `${head} · ${rows.map(r => `${r.label} ${r.value}`).join(' · ')}${zones.length ? ` · ${zones.map(x => `${x.n} ${x.word}`).join(', ')}` : ''}`;
   const h = Math.min(TIMER_H_MAX, Math.max(TIMER_H, paperFoot(rows, zones) + PAPER_FOOT_PAD));
   // (the strip while the lane runs (off the room): the room now, its time and par, the man to answer and his par's time left)
   const strip = done ? null : [cur ? `${roomWord(cur.r, cur.i)} ${tenth(cur.r.ms)}` : `GO ${tenth(t)}`, cur && Number.isFinite(cur.r.parMs) ? `PAR ${tenth(cur.r.parMs)}` : null,

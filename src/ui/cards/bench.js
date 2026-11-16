@@ -24,7 +24,12 @@
 // A scene with bangs in it (0.0.9's pairs-bangs: "Three bangs" from its first standby) gives result.bang = { frames, medianMs,
 // maxMs, over25 }, the frames drawn within BANG_FRAMES_MS of game time after a bang went off (each sample's bang: true), and
 // an eighth line: the build sheet 0.0.9's no frame over 25 ms at a bang.
-import { BENCH_SLOW_MS, BANG_FRAMES_MS } from '../../data/bench.js';
+// v0.0.21 (the build sheet §1 item 22; the perf lens's P8, the done lens's D11): each frame also samples the sim's busiest tick
+// (the loop's tickMsMax, set back to 0 at the warm's end by onWarm), the UI's ms, the programs linked and the upload queue's
+// biggest job's key; a result with them gains the busiest tick, the UI's p95, the links after the warm, the largest upload
+// (its KB, its key and when) and TECH §16.1's verdict (src/data/bench.js BENCH_BUDGET): a PASS or a FAIL a bound, on the card
+// and in Copy results, so a Windows paste says where it stands. A result without them (a v0.0.20 page's) reads as before.
+import { BENCH_SLOW_MS, BANG_FRAMES_MS, BENCH_BUDGET } from '../../data/bench.js';
 export { BANG_FRAMES_MS };
 
 const pct = (xs, p) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(s.length * p))] : NaN; };
@@ -35,13 +40,13 @@ const r2 = (v) => (Number.isFinite(v) ? Math.round(v * 100) / 100 : null);
  * sample() (the frame's numbers: { calls, triangles, programs, viewMs, ticks, tickMs, bytes }),
  * where() (the player's { x, z }), onLeft(s) (the seconds left, once a second) }. Resolves with the frames.
  */
-export function runBench({ scene, keys, sample, where = () => null, onLeft = () => {}, now = () => performance.now(), raf = (f) => requestAnimationFrame(f) }) {
+export function runBench({ scene, keys, sample, where = () => null, onLeft = () => {}, onWarm = () => {}, now = () => performance.now(), raf = (f) => requestAnimationFrame(f) }) {
   return new Promise((resolve) => {
     const legs = [], frames = [];
     let t = scene.warmS * 1000;
     for (const [code, ms] of scene.keys) { legs.push({ code, from: t, to: t + ms, down: false, up: false }); t += ms; }
     const endMs = t, t0 = now();
-    let last = null, walked = 0, prevAt = null, leftS = null;
+    let last = null, walked = 0, prevAt = null, leftS = null, warmed = false;
     // (the frame time is the gap between the timestamps rAF passes in, the frame clock's own, as
     // tests/stage-drive.mjs reads it: now() taken in a callback queued after the game's frame measured the
     // game's main-thread work as jitter, the review of v0.0.4: p95 18.8 ms on a Mac that dropped no frame)
@@ -53,6 +58,8 @@ export function runBench({ scene, keys, sample, where = () => null, onLeft = () 
         if (l.code && l.down && !l.up && el >= l.to) { keys.up(l.code, now()); l.up = true; }
       }
       if (el >= scene.warmS * 1000) {
+        // (the warm over, its own counters set back (the busiest tick's) before the first frame counted)
+        if (!warmed) { warmed = true; onWarm(); }
         const s = sample(), here = where();
         if (last !== null) frames.push({ dt: at - last, ...s });
         if (here && prevAt) walked += Math.hypot(here.x - prevAt.x, here.z - prevAt.z);
@@ -80,8 +87,39 @@ export function benchResult({ frames, walkedM }, env) {
     viewMedianMs: r2(pct(views, 0.5)), viewP95Ms: r2(pct(views, 0.95)), ticks, simMsPerTick: ticks ? Math.round((tickMs / ticks) * 1000) / 1000 : 0, walkedM: r2(walkedM),
     renderer: env.renderer ?? '?', dpr: env.dpr, window: env.window, picture: env.picture, threads: env.threads ?? null,
     splash: splashOf(frames), bang: bangOf(frames),
+    ...houseOf(frames, { calls: max('calls'), medianMs: pct(dts, 0.5), p95Ms: pct(dts, 0.95), viewP95Ms: pct(views, 0.95) }),
   };
 }
+
+/**
+ * The v0.0.21 lines (see the header), where the frames carry their samples ({} otherwise): tickMaxMs (the sim's busiest tick after
+ * the warm), uiP95Ms, linksAfterWarm, upload { kb, key, atS } (the largest after BENCH_BUDGET.uploadAfterS), and judge: TECH §16.1's
+ * bounds, [{ id, what, value, limit, pass }], with pass the whole verdict.
+ */
+export function houseOf(frames, { calls, medianMs, p95Ms, viewP95Ms }) {
+  if (!frames.some(f => f.tickMax !== undefined)) return {};
+  const B = BENCH_BUDGET;
+  let at = 0, late = 0, up = { kb: 0, key: null, atS: null };
+  for (const f of frames) {
+    at += f.dt;
+    if (at >= B.afterS * 1000 && f.dt > late) late = f.dt;
+    if (at >= B.uploadAfterS * 1000 && (f.bytes ?? 0) / 1024 > up.kb) up = { kb: r2((f.bytes ?? 0) / 1024), key: f.upKey ?? null, atS: r2(at / 1000) };
+  }
+  const links = frames.reduce((a, f) => a + (f.links ?? 0), 0), ui = frames.map(f => f.uiMs ?? 0);
+  const row = (id, what, value, limit, pass) => ({ id, what, value: r2(value), limit, pass: !!pass });
+  const judge = [
+    row('median', 'median frame', medianMs, B.medianMs, medianMs <= B.medianMs),
+    row('p95', 'p95 frame', p95Ms, B.p95Ms, p95Ms <= B.p95Ms),
+    row('max', `longest frame after ${B.afterS} s`, late, B.maxMs, late <= B.maxMs),
+    row('calls', 'draw calls', calls, B.calls, calls <= B.calls),
+    row('view', 'view CPU p95', viewP95Ms, B.viewMs, viewP95Ms <= B.viewMs),
+    row('links', 'programs linked after the warm', links, B.links, links <= B.links),
+    row('upload', `largest upload after GO + ${B.uploadAfterS} s (KB)`, up.kb, B.uploadKB, up.kb <= B.uploadKB),
+  ];
+  return { tickMaxMs: r2(Math.max(0, ...frames.map(f => f.tickMax ?? 0))), uiP95Ms: r2(pct(ui, 0.95)), linksAfterWarm: links, upload: up, judge, pass: judge.every(j => j.pass) };
+}
+/** The verdict in words: 'PASS' or 'FAIL', and each bound "median 16.7 ≤ 16.7 ✓" (FAIL's first). */
+export const verdictText = (r) => `TECH §16.1 ${r.pass ? 'PASS' : 'FAIL'}: ${[...r.judge].sort((a, b) => a.pass - b.pass).map(j => `${j.what} ${j.value} ${j.pass ? '≤' : '>'} ${j.limit} ${j.pass ? 'PASS' : 'FAIL'}`).join(' · ')}`;
 
 /** The frames drawn while a splash showed: { frames, medianMs, p95Ms, over25 }, or null with none. */
 export function splashOf(frames) {
@@ -110,6 +148,7 @@ export function benchText(r) {
     `window ${r.window?.[0]} x ${r.window?.[1]} CSS px at DPR ${r.dpr}, picture ${r.picture?.[0]} x ${r.picture?.[1]}; ${r.threads ?? '?'} threads`,
     ...(r.splash ? [`splash frames ${r.splash.frames}: median ${r.splash.medianMs} ms, p95 ${r.splash.p95Ms} ms; ${r.splash.over25} over ${BENCH_SLOW_MS} ms`] : []),
     ...(r.bang ? [`bang frames ${r.bang.frames}: median ${r.bang.medianMs} ms, max ${r.bang.maxMs} ms; ${r.bang.over25} over ${BENCH_SLOW_MS} ms`] : []),
+    ...(r.judge ? [`sim busiest tick ${r.tickMaxMs} ms; UI ${r.uiP95Ms} ms p95; programs linked after the warm ${r.linksAfterWarm}; largest upload ${r.upload.kb} KB${r.upload.key ? ` (${r.upload.key})` : ''}${r.upload.atS !== null ? ` at ${r.upload.atS} s` : ''}`, verdictText(r)] : []),
   ].join('\n');
 }
 
@@ -129,6 +168,8 @@ export function benchCard(r, { onCopy, onAgain = null } = {}) {
     ['screen', `${r.window?.[0]} × ${r.window?.[1]} CSS px · DPR ${r.dpr} · picture ${r.picture?.[0]} × ${r.picture?.[1]} · ${r.threads ?? '?'} threads`],
     ...(r.splash ? [['splash', `${r.splash.frames} frames: median ${r.splash.medianMs} ms · p95 ${r.splash.p95Ms} · ${r.splash.over25} over ${BENCH_SLOW_MS} ms`]] : []),
     ...(r.bang ? [['at a bang', `${r.bang.frames} frames: median ${r.bang.medianMs} ms · max ${r.bang.maxMs} · ${r.bang.over25} over ${BENCH_SLOW_MS} ms`]] : []),
+    ...(r.judge ? [['busiest tick', `${r.tickMaxMs} ms · UI ${r.uiP95Ms} ms p95`], ['after the warm', `${r.linksAfterWarm} programs linked · largest upload ${r.upload.kb} KB${r.upload.key ? ` (${r.upload.key})` : ''}${r.upload.atS !== null ? ` at ${r.upload.atS} s` : ''}`],
+      ...r.judge.map(j => [j.pass ? 'PASS' : 'FAIL', `${j.what}: ${j.value} against ${j.limit}`])] : []),
   ];
   const said = el('span', { className: 'copied', textContent: '' });
   const copy = el('button', { className: 'item lead copy', type: 'button', textContent: 'Copy results' });
@@ -138,6 +179,6 @@ export function benchCard(r, { onCopy, onAgain = null } = {}) {
     el('div', { className: 'keylist benchlist' }, ...rows.flatMap(([k, v]) => [el('span', { className: 'k', textContent: k }), el('span', { className: 'v', textContent: v })])),
     el('div', { className: 'glass-list' }, copy, onAgain ? el('button', { className: 'item', type: 'button', textContent: 'Run it again', onclick: onAgain }) : null),
     said,
-    el('textarea', { className: 'benchtext', readOnly: true, rows: 6 + (r.splash ? 1 : 0) + (r.bang ? 1 : 0), value: benchText(r) }),
+    el('textarea', { className: 'benchtext', readOnly: true, rows: 6 + (r.splash ? 1 : 0) + (r.bang ? 1 : 0) + (r.judge ? 2 : 0), value: benchText(r) }),
     el('p', { className: 'note', textContent: 'Run it on the Mac and on Windows (play.cmd --dev, the same address) and paste each result back.' }));
 }

@@ -54,6 +54,7 @@ import { MODELS } from '../arms/models.js';
 import { CONTAINERS } from '../arms/kit.js';
 import { valueOf } from '../skills/templates.js';
 import { stream } from '../../core/rng.js';
+import { opOf, sessionOf } from './op.js';
 
 /** A strike whose blood, at a walk, crosses the collapse within this is fatal (ms: the longest live lane, LIVE_LANE_MAX_S 120 s). */
 export const BLEED_OUT_MS = 120_000;
@@ -69,7 +70,7 @@ export const COUNT_DOWN = Object.freeze({ torso: 2, head: 1 });
 export const WOULD_WHY = Object.freeze({ killed: 'KILLED OUTRIGHT', head: 'A ROUND IN THE HEAD', chest: 'THE CHEST', collapsed: 'BLED OUT', bleeds: 'BLED OUT', shock: 'SHOCK FROM THE BLOOD LOST', legs: 'BOTH LEGS', pain: 'THE PAIN', count: 'TWO TORSO OR ONE HEAD' });
 
 const LIMBS = new Set(['legs', 'arms']);
-const ledgerOf = (state) => state.armoury?.range?.house?.live?.would ?? null;
+const ledgerOf = (state) => opOf(state)?.live?.would ?? null;
 
 /** The ledger a live lane starts with (opfor.js fillOpfor writes it): the rule 'wound', nothing rated yet. */
 export const newLedger = () => ({ rule: 'wound', bodies: {}, wear: {}, log: [] });
@@ -111,7 +112,7 @@ export function fatalWhy(body, ms) {
 export function wouldHave(state, strike) {
   // (a live lane's record made without its ledger (a test's hand-made one): the rule 'wound', made here; a save of v0.0.19's has
   // the rule 'count' from its upgrade before any strike reaches this)
-  const L = state.armoury?.range?.house?.live, W = L ? (L.would ??= newLedger()) : null;
+  const L = opOf(state)?.live, W = L ? (L.would ??= newLedger()) : null;
   if (!W || !strike?.on) return null;
   const seen = W.log.find(x => x.shotId === strike.shotId && x.on === strike.on);
   if (seen) return seen;
@@ -138,10 +139,10 @@ export function wouldHave(state, strike) {
 
 /** The first fatal strike on a man (see the header), or null; on a v0.0.19 lane (rule 'count') v0.0.19's count, its strikes the house's. */
 export function fatalOf(state, pid) {
-  const H = state.armoury?.range?.house, W = H?.live?.would;
+  const H = opOf(state), W = H?.live?.would;
   if (!W || !pid) return null;
   if (W.rule !== 'count') return W.log.find(x => x.on === pid && x.fatal) ?? null;
-  const T = state.armoury.range.turners?.find(t => t.live?.who === pid), list = T ? T.hits.map(h => ({ ...h, on: pid })) : (H.live.struck ?? []).filter(s => s.who === pid);
+  const T = sessionOf(state)?.turners?.find(t => t.live?.who === pid), list = T ? T.hits.map(h => ({ ...h, on: pid })) : (H.live.struck ?? []).filter(s => s.who === pid);
   let torso = 0, head = 0;
   for (const s of list) {
     if (s.zone === 'head') head++; else if (s.part === 'torso' && (s.zone === 'A' || s.zone === 'C')) torso++;
@@ -193,7 +194,7 @@ export function strikeWords(x) {
  * the rule 'count', so it finishes by v0.0.19's count (see the header). A run no-op once it has one, and on every other save.
  */
 export function upgradeHouseWould(state) {
-  const L = state.armoury?.range?.house?.live;
+  const L = opOf(state)?.live;
   if (!L || L.would) return;
   L.would = { ...newLedger(), rule: 'count' };
 }

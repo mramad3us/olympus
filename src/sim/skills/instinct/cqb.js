@@ -136,6 +136,7 @@ import { isLive, upNow, accountedOf, gateWhy } from '../../combat/men.js';
 import { rungOf, valueOf } from '../templates.js';
 import { openingState } from '../../places/model.js';
 import { keysFor, layoutIn } from '../../arms/groups.js';
+import { opOf, opLive, laneRec, sessionOf } from '../../combat/op.js';
 
 /** The house's rules repeat as each case comes (the door, the room, the contact are each new advice). */
 export const CQB_REPEAT_MS = 0;
@@ -156,15 +157,16 @@ const HOLD_SAY = Object.freeze({ rifle: 'Rifle', pistol: 'His pistol' });
 let memo = { state: null, key: null, v: null };
 const gunKey = (state, id) => { const g = id ? state.items?.[id] : null; return g ? `${g.mag ?? ''}|${g.locked ? 'L' : ''}|${g.chamber ?? ''}|${g.mode ?? ''}|${JSON.stringify(g.belief ?? null)}` : ''; };
 function know(state, me, ms) {
-  const S = state.stop, R = state.armoury?.range;
+  const S = state.stop, R = sessionOf(state);
   // (what a row chosen at no time changes is in the key too: the variant, the held door, the carry's beats (the fixer's of
   // 0.0.12: "Hold it" chosen at the same instant left the line offering it again, and T pressed it for ever))
-  const H = state.armoury?.range?.house;
+  const H = opOf(state);
   const key = `${ms}|${state.clock.tick ?? ''}|${S ? `${S.mode}|${S.phase}|${S.gun ?? ''}|${H?.two?.down ? 'd' : ''}${H?.two?.coveredBy ? 'c' : ''}|${S.doing?.step ?? ''}|${S.pick ?? ''}|${S.aim?.key ?? ''}|${S.carry?.why ?? ''}|${S.carry?.beats?.length ?? ''}|${S.flow ? (S.flow.suspended ? 's' : 'f') : ''}|${JSON.stringify(S.variant ?? null)}|${S.reflex ? 'r' : ''}` : ''}|${me ? `${me.x}|${me.z}|${me.headRad ?? ''}|${me.watch?.hotId ?? ''}` : ''}|${contactNow(state, ms)?.last?.id ?? ''}|${H?.two?.hold ?? ''}|${H?.goAtMs ?? ''}|${H?.end ? 'e' : ''}|${H?.cur ?? ''}|${state.armoury?.range?.cmd?.id ?? ''}|${state.people?.[state.player?.id]?.kit?.carry?.posture ?? ''}|${gunKey(state, S?.gun)}`;
   if (memo.state === state && memo.key === key) return memo.v;
   let v = null;
-  const live = R?.course !== 'house' || (R.house?.goAtMs !== null && R.house?.goAtMs !== undefined && !R.house?.end);
-  if (R && !R.end && live && inHouse(state) && me) {
+  // (the drill's rules run where an operation is live, op.js opLive: on the range session the house's lane live and
+  // you in it, any other course in its area; off it, an operation open where you stand (the hand-off's, D))
+  if (opLive(state) && me) {
     const pid = playerId(state), here = doorNow(state, pid), gunId = gunOn(state, pid), b = gunId ? beliefOf(state, gunId) : null;
     const choosing = S?.mode === 'stop' && S.phase === 'choose' && !S.reflex;
     const steps = choosing ? stepsOf(state, ms) : [];
@@ -327,8 +329,8 @@ function nextWords(state, R, me) {
  * below the rung ("Done: stacked."), "Stopped.", "GO." and the lane's "Stop.". Pure.
  */
 export function stopLead(state, ms = state.clock.ms) {
-  const S = state.stop, R = state.armoury?.range, H = R?.house;
-  if (!S || S.mode !== 'stop' || R?.course !== 'house' || !H || H.goAtMs === null || H.goAtMs === undefined || !inHouse(state)) return null;
+  const S = state.stop, R = sessionOf(state), H = laneRec(state);
+  if (!S || S.mode !== 'stop' || !H || H.goAtMs === null || H.goAtMs === undefined || !inHouse(state)) return null;
   if (H.end) return 'Stop.';
   if (S.reflex) return 'Stoppage.';
   if (S.phase !== 'choose') return null;
@@ -405,7 +407,7 @@ const coverAct = (k, T) => (!T ? null : k.S?.pick === T.key ? actIf(k, 'contact:
 // hall never is). The instructor never names that throw; the player may still choose it, and the read judges it)
 function briefBars(state, h, door) {
   if (h?.kind !== 'grenade' || !DEVICES[h.model]?.as) return false;
-  return (state.armoury?.range?.house?.intel ?? {})[door] !== 'hostiles';
+  return (opOf(state)?.intel ?? {})[door] !== 'hostiles';
 }
 export const CQB_RULES = Object.freeze([
   {
@@ -564,7 +566,7 @@ export const CQB_RULES = Object.freeze([
         // the tier one by T on seed 3405, room 3's 3a unseen at the pause, no line and the honest T's Wait for the stall))
         if (!hands && !all.length && twoPid) {
           const his = (k.last?.ids ?? []).map(key => (k.R.turners ?? []).find(t => t.key === key)).find(T => T && (ownerOf(state, T) ?? 1) === 2 && T.room === k.plan?.room && T.face !== 'hostage' && T.face !== 'noshoot' && (T.stoppedAtMs === null || T.stoppedAtMs === undefined) && facingOf(T, ms) >= 0.5);
-          if (his && k.offered('drill:carry')) return { k, variant: 'his', words: 'hisU', who: his.name ?? 'him', Who: cap(his.name ?? 'him'), voice: k.voice };
+          if (his && k.offered('drill:carry') && !k.asking) return { k, variant: 'his', words: 'hisU', who: his.name ?? 'him', Who: cap(his.name ?? 'him'), voice: k.voice };
         }
         if (hands || !all.length) return null;
         // (his man and nothing of yours to carry on: the room's own next row speaks (the corporal's Dominate), never a line with no
@@ -580,6 +582,11 @@ export const CQB_RULES = Object.freeze([
           if (next) return { k, variant: 'hisNext', words: 'hisNext', next, row: next, who: all[0].T.name ?? 'him', Who: cap(all[0].T.name ?? 'him'), what: String(k.steps.find(x => x.id === next)?.label ?? next).replace(/\.$/, ''), voice: k.voice };
           return null;
         }
+        // (the review of A and B: while the bundle's question stands (k.asking: "Door, east wall. Hold it or clear it?", a drawn
+        // house's closet your #2 does not hold), Carry on is no answer, so "That one's his. Carry on." had no act and T nothing to press
+        // (the tier one on drawn seed 62, room 3), and the honest bot shot the no-shoot bracketed in your sector instead (the sergeant on
+        // drawn seed 10, tick 182). His man is his either way: the question's own line (cqb-unplanned: Hold it) leads)
+        if (k.asking) return null;
         return { k, variant: 'his', words: 'his', hold: HOLD_SAY[all[0].hold], Hold: HOLD_SAY[all[0].hold], who: all[0].T.name ?? 'him', Who: cap(all[0].T.name ?? 'him'), voice: k.voice };
       }
       // (the man bracketed if he is one of them (and not still up: cqb-still-up's), else the first of them: the aim onto him)
@@ -992,7 +999,9 @@ export const CQB_RULES = Object.freeze([
       if (!k?.choosing || !k.offered('drill:carry') || k.asking || (k.S?.carry?.why === 'two' && twoAway(state, ms))) return null;
       if (k.T && facingOf(k.T, ms) >= 0.5 && (k.T.stoppedAtMs === null || k.T.stoppedAtMs === undefined) && k.T.face !== 'noshoot') return null;
       if (upKnown(k, ms).length) return null;
-      return { k, tier: k.tier, voice: k.voice, words: k.S.carry?.why === 'two' ? 'two' : k.tier };
+      // (the variant, so the words' entry is read: 'two' was never said, instinct.js wordsOf needing one)
+      const words = k.S.carry?.why === 'two' ? 'two' : k.tier;
+      return { k, tier: k.tier, voice: k.voice, words, variant: String(words) };
     },
     act: (ctx) => actIf(ctx.k, 'drill:carry'),
     text: { 1: ['He\'s down. Carry on.', 'Down. Keep going.', 'Carry on. The room.', 'Down. Carry on.'], 2: ['Carry on.', 'Down. On.', 'Keep going.', 'On.'], 3: ['On.', 'Carry on.', 'Next.', 'Go on.'],
@@ -1012,7 +1021,10 @@ export const CQB_RULES = Object.freeze([
       // (below rung 2 the walk in through an open door is the keys' (cqb-go: "X, then {keys}"): the line names them and T
       // leaves them to you, as the mode would only give X back)
       const keysOnly = k.rung < 2 && !k.inside && k.open && !!k.plan.door;
-      return d > 0.5 ? { k, tier: k.tier, voice: k.voice, words: keysOnly ? 'keys' : 'go', keys: keysOf(to[0] - me.x, to[1] - me.z), where, keysOnly } : { k, tier: k.tier, voice: k.voice, words: 'here' };
+      // (the variant names the words' entry, as instinct.js wordsOf reads them only with one (since v0.0.14 this line's
+      // words were empty, on the lane and off it: the review of 2026-11-16), the keys in it so the words follow the bearing)
+      const keys = keysOf(to[0] - me.x, to[1] - me.z), words = keysOnly ? 'keys' : 'go';
+      return d > 0.5 ? { k, tier: k.tier, voice: k.voice, words, variant: `${words}|${keys}`, keys, where, keysOnly } : { k, tier: k.tier, voice: k.voice, words: 'here', variant: 'here' };
     },
     act: (ctx) => (ctx.keysOnly ? null : 'stop:enter'),
     text: { go: ['Keep moving. {keys} to {where}, or G for the drill.', "Don't stand there. {keys}: {where}.", 'Move. {keys} to {where}. G for the drill.', 'On. {keys}, {where}.'],
@@ -1081,7 +1093,9 @@ export const CQB_RULES = Object.freeze([
       if (!id) return null;
       const row = k.steps.find(x => x.id === id), down = !!k.T && k.T.stoppedAtMs !== null && k.T.stoppedAtMs !== undefined;
       const what = id === 'leave' ? 'X, then the keys' : String(row?.label ?? id).replace(/\.$/, '');
-      return { k, id, tier: k.tier, voice: k.voice, what, words: down ? 'down' : 'on' };
+      // (the variant, so the words' entry is read (empty since v0.0.14: instinct.js wordsOf needs one), the row in it so
+      // the words follow it)
+      return { k, id, tier: k.tier, voice: k.voice, what, words: down ? 'down' : 'on', variant: `${down ? 'down' : 'on'}|${id}` };
     },
     act: (ctx) => actIf(ctx.k, ctx.id),
     text: { down: ['Down. Next: {what}.', 'Down. {what}.', "He's down. {what}.", 'Down. On: {what}.'], on: ['Next: {what}.', 'On: {what}.', '{what}.', 'Keep it going: {what}.'] },

@@ -46,7 +46,7 @@ import { beliefOf, gunField } from '../../arms/firearms.js';
 import { stepsOf, gunOn } from '../../arms/shooting.js';
 import { rangeOf, lineReady, roundsLeft } from '../../scenarios/handling.js';
 import { SEQ, SEQ_KD, KD_STRINGS, COURSES } from '../../../data/courses.js';
-import { HOUSE1 } from '../../../data/places/wheel.js';
+import { houseSpecOf } from '../../scenes/assemble.js';
 import { DOPE_CARD } from '../../arms/ballistics.js';
 import { holdSaid } from '../../arms/shot.js';
 import { headOf } from '../../people/perception.js';
@@ -371,7 +371,7 @@ function houseCmd(state, k) {
   if (want === 'pistol') return { ...base, variant: 'pistolReady', step: 'weapon:other:macro:ready', short: 'The pistol' };
   if (want === 'low') return { ...base, variant: 'low', step: 'posture:lowReady', short: 'Low ready' };
   // (out of the mode the rest are the body's: the mark and the gait, put right in the mode by their rows; then out of it)
-  const off = !!me && !!k.R.house && want !== null && offMark(me);
+  const off = !!me && !!k.R.house && want !== null && offMark(state, me);
   if (want === 'out' || want === 'mark' || want === 'gait') {
     if (off) return { ...base, variant: 'mark', step: 'move:mark', short: 'Your mark' };
     if ((me?.moveStance ?? 'relaxed') !== 'combat') return { ...base, variant: 'gait', step: 'gait:combat', short: 'Careful' };
@@ -384,7 +384,7 @@ function houseCmd(state, k) {
   return undefined;
 }
 // (off the start mark, as houseWant reads it: shoothouse.js STACK_M from the lane's start)
-function offMark(me) { const S0 = HOUSE1.start; return Math.hypot(me.x - S0.x, me.z - S0.z) > COURSES.house.stackM; }
+function offMark(state, me) { const S0 = houseSpecOf(state).start; return Math.hypot(me.x - S0.x, me.z - S0.z) > COURSES.house.stackM; }
 
 /** The tempos an act may name after '@' (checks.js TEMPO). */
 const STEP_TEMPOS = Object.freeze(['normal', 'rushed', 'careful', 'steady']);

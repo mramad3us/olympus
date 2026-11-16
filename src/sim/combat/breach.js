@@ -19,6 +19,8 @@
 // BREACH_SAFE_KPA 27.6) from it and STACK_OFF_WALL_M off the wall, the #2 STACK_BEHIND_M further along: never across the hall
 // from the door nor in line with it. A hall too short for it gives its farthest point inside the area's walls, its peak
 // there (`kPa`) over the limit: the run sheet's STACK IN THE BLAST. Room 1's door in the Wheel puts #1 2.20 m off.
+// v0.0.21: a point in another door's no-stop funnel (a drawn house's door upstream, 3 to 5 m along the same wall) goes on along
+// the wall past it by SAFE_PAST_M 0.15, #1's and the #2's alike (the no-stop rule carried #1 out of it, back to the stack).
 // v0.0.19 (D2, the build sheet 0.0.19 §0 items 1, 8, 9, 16; kit2 §2.5, §2.6): **the cutting charge and the ballistic breach.**
 // chargeFor(state, pid, plan) is the charge a door takes: the SC-1 on a push door's latch edge (D1); on a pull door, whose hinges
 // are on your side, the BC-1 on its hinge edge (FM 3-06.11's cutting charge, to check), the SC-1 there still struck "opens
@@ -36,18 +38,24 @@
 // door locked, struck 'not locked' on one that is not, 'marking rounds' on a load that cannot breach). breachHowOf(state, door)
 // is how a door was opened: the house's R.house.breach[door].how where D2 wrote it ('cut', 'shot'), else 'broken' (D1's charge
 // or tool: its ms in R.house.broken), else null.
+// v0.0.21 (its build sheet §0 item 33): the charge and the cut are struck NO_STANDOFF_WHY, "no stand-off here", where safePointsOf
+// finds no safe point to fire them from (a drawn house's door nearer the last than the charge's stand-off); struck, never hidden
+// (the user, 2026-11-11: "always visible and accessible (even if grayed out)"). Every lane door of the house as set has its
+// points, so no set lane moves.
 // Pure.
 import { airAt } from '../places/env.js';
 import { openingOf, openingState, areaOf, roomOf } from '../places/model.js';
 import { STACK_OFF_WALL_M, STACK_BEHIND_M, KICK_PULL_WHY } from '../places/swing.js';
+import { zonesOf, inZone } from '../places/zones.js';
 import { oddsOf } from '../skills/checks.js';
 import { paceOf } from '../skills/skills.js';
 import { DEVICES, devicesOf, deviceMs, pouchedOf, throwChainMs, HANG_S, UP_S, DEVICE_ACTIONS } from '../arms/devices.js';
 import { standoffM, peakKPa, BREACH_SAFE_KPA } from '../arms/blast.js';
-import { doorSwing, lockedOf, skillsOf, KICK_DC_OPEN, doorS } from './bundle.js';
+import { doorSwing, lockKnownOf, lockUnknownOf, skillsOf, KICK_DC_OPEN, doorS } from './bundle.js';
 import { rollerOf } from './roll.js';
 import { loadoutOf } from '../arms/loadout.js';
 import { AIM } from '../arms/shot.js';
+import { opOf, brokenOf } from './op.js';
 
 /** The breach's count and the fire's press (s; COMBAT §25.19.2.1: "a count of 2 to 3 s"; bundle.js BREACH_S is the count). */
 export const FIRE_S = 0.2;
@@ -55,14 +63,20 @@ export const FIRE_S = 0.2;
 export const NOT_ISSUED = 'not issued';
 /** Why a charge is struck on an inner door (D1: the lane's doors only). */
 export const INNER_WHY = 'not on an inner door';
+/** A charge struck where its door has no safe point to fire it from (the build sheet §0 item 33: safePointsOf null, a drawn door nearer the last than the charge's stand-off; never on the house as set, where every lane door has its points). */
+export const NO_STANDOFF_WHY = 'no stand-off here';
 /** The charge sits this far off the leaf's face on the stack's side (m). */
 export const CHARGE_OFF_M = 0.05;
+/** How far past another door's no-stop funnel a safe point goes when its stand-off would put it in that doorway, m (my call). */
+export const SAFE_PAST_M = 0.15;
 /** Where the #2 waits for a charge when the latch-side wall is too short (see the header): 'same' or 'other' (my call: 'same'). */
 export const CHARGE_SIDE_SHORT = 'same';
 /** The ballistic breach's lanes (the build sheet 0.0.19 §0 item 16, my call): a loadout carrying a charge or a tool. */
 export const BALLISTIC_LANES = Object.freeze(['breach']);
 /** Why Shoot the lock is struck: a door not locked; a load that cannot breach (the live lane's marking rounds, §0 item 22). */
 export const NOT_LOCKED = 'not locked', MARKING_WHY = 'marking rounds';
+/** Why Shoot the lock is struck on a drawn house's lane door nobody has read or tried (bundle.js lockUnknownOf): its lock not known. */
+export const UNTRIED_WHY = 'not tried';
 /** The issue places that make a lane a breaching one (loadout.js ISSUE ids). */
 export const BREACH_ISSUE = Object.freeze(['sc1+fd1', 'bc1+fd1', 'hal', 'ram']);
 
@@ -92,7 +106,7 @@ export function kitHas(state, pid, need, door = null) {
 }
 /** Whether the lane is a breaching one (see the header): the house's loadout carries a charge or a tool. */
 export function breachingLane(state) {
-  const code = state.armoury?.range?.house?.loadout ?? null, s = code ? loadoutOf(code) : null;
+  const code = opOf(state)?.loadout ?? null, s = code ? loadoutOf(code) : null;
   return !!s && !s.error && Object.values(s).some(f => Array.isArray(f) && f.some(p => BREACH_ISSUE.includes(p)));
 }
 /** Why a person cannot breach by fire now (see the header), or null: no rifle, a load that cannot breach, not a breaching lane. */
@@ -104,7 +118,7 @@ export function ballisticOk(state, pid) {
   return null;
 }
 /** How a door was opened (see the header): 'cut', 'shot' (D2's record), 'broken' (D1's charge or tool), or null. */
-export const breachHowOf = (state, door) => { const H = state.armoury?.range?.house; return H?.breach?.[door]?.how ?? (H?.broken?.[door] !== undefined ? 'broken' : null); };
+export const breachHowOf = (state, door) => { const H = opOf(state); return H?.breach?.[door]?.how ?? (brokenOf(state, door) !== null ? 'broken' : null); };
 /**
  * The charge a door takes for a person (see the header): { model, side: 'latch' | 'hinge', placed? } or null (none carried, or the
  * door's swing takes none of what is carried). way: the row's 'charge' (the SC-1) or 'cut' (the BC-1), or null for either.
@@ -162,13 +176,27 @@ export function safePointsOf(state, plan, model = 'sc1', { edge = null, side = C
   const at = (k) => [c[0] + u[0] * k + n[0] * (off - CHARGE_OFF_M), c[1] + u[1] * k + n[1] * (off - CHARGE_OFF_M)];
   const inside = (p) => !hall || (p[0] >= hall.rect[0] + 0.3 && p[0] <= hall.rect[2] - 0.3 && p[1] >= hall.rect[1] + 0.3 && p[1] <= hall.rect[3] - 0.3);
   const fit = (k) => { let x = k; while (x > 0.3 && !inside(at(x))) x -= 0.05; return x; };
-  const k1 = fit(along), k2 = fit(along + STACK_BEHIND_M);
+  // (never in another door's doorway. On a drawn house the door upstream may stand 3 to 5 m along the same wall, open once
+  // cleared; a point in its no-stop funnel (zones.js) is one the game's no-stop rule carries you out of, back to the stack, and the
+  // charge fired with you 1.3 m off it (182 kPa on drawn seed 17's room 3). Such a point, #1's or the #2's behind him, goes on along
+  // the wall past that funnel by SAFE_PAST_M: farther from the charge, so never less safe. No set door has one there.)
+  const funnels = zonesOf(area).filter(Z => Z.kind === 'funnel' && Z.door !== plan.door && Z.axis === o.axis);
+  const iu = o.axis === 'x' ? 0 : 1, clearOf = (k0) => {
+    let k = k0;
+    for (let n = 0; n < 4; n++) {
+      const Z = funnels.find(Z => inZone(Z, ...at(k)) || inZone(Z, ...at(k + STACK_BEHIND_M)));
+      if (!Z) break;
+      k = Math.max(k, ...[Z.a - Z.sideM, Z.b + Z.sideM].map(e => (e - c[iu]) * u[iu])) + SAFE_PAST_M;
+    }
+    return k;
+  };
+  const base = clearOf(along), k1 = fit(base), k2 = fit(base + STACK_BEHIND_M);
   const one = at(k1).map(r3);
   // (the #2 behind #1 on the stack's wall; with CHARGE_SIDE_SHORT 'other' and that wall too short for him, on the hinge side's)
   const kp = (p) => Math.round(peakKPa(D?.tntKg ?? 0, Math.hypot(p[0] - c[0], p[1] - c[1]), Pa) * 10) / 10;
-  const hingeAlong = e === 'hinge' ? along : along + (sw.widthM ?? L) - 0.2, other = side === 'other' && k2 < along + STACK_BEHIND_M - 1e-6 ? at(-hingeAlong).map(r3) : null;
+  const hingeAlong = e === 'hinge' ? along : along + (sw.widthM ?? L) - 0.2, other = side === 'other' && k2 < base + STACK_BEHIND_M - 1e-6 ? at(-hingeAlong).map(r3) : null;
   const two = other && inside(other) && kp(other) <= BREACH_SAFE_KPA ? other : at(Math.max(k2, k1)).map(r3);
-  return { charge: c, edge: e, one, two, standoffM: sd, kPa: { one: kp(one), two: kp(two) }, short: k1 < along - 1e-6 || kp(one) > BREACH_SAFE_KPA, limitKPa: BREACH_SAFE_KPA };
+  return { charge: c, edge: e, one, two, standoffM: sd, kPa: { one: kp(one), two: kp(two) }, short: k1 < base - 1e-6 || kp(one) > BREACH_SAFE_KPA, limitKPa: BREACH_SAFE_KPA };
 }
 
 /** A way in struck while a charge is on the door. */
@@ -179,7 +207,9 @@ export const CHARGE_ON_WHY = 'a charge is on the door';
  */
 export function entryOptions(state, pid, plan, { rung = 0, from = null } = {}) {
   const o = plan?.door ? openingOf(plan.door) : null, sw = o ? doorSwing(state, plan, from) : null;
-  const sk = skillsOf(state, pid), roller = rollerOf(state, pid), how = sw?.how ?? 'push', locked = o ? lockedOf(state, o.id) : false;
+  // (the rows read the lock as the stack knows it (lockKnownOf): a drawn lane door's, once read or tried; the odds
+  // of a kick on an untried door are an unlocked door's, the door's own DC rolled all the same (bundle.js's kick))
+  const sk = skillsOf(state, pid), roller = rollerOf(state, pid), how = sw?.how ?? 'push', locked = o ? lockKnownOf(state, o.id) : false, untried = !!o && lockUnknownOf(state, o.id);
   const open = !o || openingState(state, o) === 'open', out = [];
   const row = (id, live, off, ms, more = {}) => out.push({ id, how: id === 'open' ? how : id, live: !!live && !off, off: off ?? null, ms: Math.round(ms), ...more });
   const dcOf = (dcK) => (o?.lock && locked ? o.kickDc ?? 14 : KICK_DC_OPEN) + dcK;
@@ -198,14 +228,15 @@ export function entryOptions(state, pid, plan, { rung = 0, from = null } = {}) {
     }
     // (a charge on the lane's doors only this round: an inner door's stack has no safe points laid (my call))
     const hasC = kitHas(state, pid, 'charge', o.id), cOk = DEVICES.sc1.on.includes(how), sp = cOk && !from ? safePointsOf(state, plan, 'sc1') : null;
-    row('charge', hasC && cOk && !from, !hasC ? 'no charge issued' : !cOk ? KICK_PULL_WHY : from ? INNER_WHY : null, chargeMs(roller, pouchedOf(state, pid, 'sc1')?.face ?? 'right'), { standoffM: sp?.standoffM ?? null });
+    // (the build sheet §0 item 33: struck, never hidden, where safePointsOf finds no safe point: "no stand-off here")
+    row('charge', hasC && cOk && !from, !hasC ? 'no charge issued' : !cOk ? KICK_PULL_WHY : from ? INNER_WHY : !sp ? NO_STANDOFF_WHY : null, chargeMs(roller, pouchedOf(state, pid, 'sc1')?.face ?? 'right'), { standoffM: sp?.standoffM ?? null });
     // (v0.0.19, D2: the cutting charge on either swing (a pull door's hinges, a push door's latch); the lock or the hinges shot)
     if (kitHas(state, pid, 'cut', o.id)) {
       const xOk = DEVICES.bc1.on.includes(how), sx = xOk && !from ? safePointsOf(state, plan, 'bc1') : null;
-      row('cut', xOk && !from, !xOk ? KICK_PULL_WHY : from ? INNER_WHY : null, chargeMs(roller, pouchedOf(state, pid, 'bc1')?.face ?? 'right', 2.5, 'bc1'), { standoffM: sx?.standoffM ?? null, side: sx?.edge ?? null });
+      row('cut', xOk && !from, !xOk ? KICK_PULL_WHY : from ? INNER_WHY : !sx ? NO_STANDOFF_WHY : null, chargeMs(roller, pouchedOf(state, pid, 'bc1')?.face ?? 'right', 2.5, 'bc1'), { standoffM: sx?.standoffM ?? null, side: sx?.edge ?? null });
     }
     const bWhy = ballisticOk(state, pid);
-    if (bWhy !== NOT_ISSUED) row('shoot', !bWhy && locked, bWhy ?? (locked ? on : NOT_LOCKED), shootMs(state, pid, how), { how: how === 'pull' ? 'hinge' : 'lock' });
+    if (bWhy !== NOT_ISSUED) row('shoot', !bWhy && locked, bWhy ?? (locked ? on : untried ? UNTRIED_WHY : NOT_LOCKED), shootMs(state, pid, how), { how: how === 'pull' ? 'hinge' : 'lock' });
   }
   const hasF = kitHas(state, pid, 'flashbang');
   row('flash', hasF, hasF ? null : NOT_ISSUED, throwChainMs(sk.wh, { face: pouchedOf(state, pid, 'g11')?.face ?? 'left' }).airMs);

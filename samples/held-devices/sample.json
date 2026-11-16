@@ -1,0 +1,64 @@
+{
+ "title": "A device in the hands: the G-11, the halligan, the ram and the charge on the figure, held and used",
+ "about": "The hunt of v0.0.18 (kit-10): with a G-11 armed in your hand, the halligan at a pry or a charge being placed, the stage's figure draws both fists empty and the rifle slung in front, and the grenade appears from nowhere on its flight's first frame. Every picture is the game's own figure code (src/art/figures: composeFrame and shade) in the shoot house's black combat EVA suit and plate carrier, at 16 px/m on the house's slab floor, snapped to the Mars palette as the stage's post pass snaps them (?snap=0 raw); the device is drawn into the figure by two sample-only hooks of compose.js (a pose's reach and device), which no frame of the game uses, so the game is unchanged until you pick. The devices are drawn bigger than life, as the guns are: the G-11's can 0.25 m (4 px tall), the halligan as long as the rifle (1.0 m), the ram 0.55 to 0.6 m and 4 px thick, the strip 0.5 m; their colours are the doll's. Each view loops its beat on WEAPONS' and COMBAT's times (devices.js DEVICE_ACTIONS at Weapon handling 10: the rifle let hang 0.3 s, the reach 1.2 s, the pin 0.5 s, the throw 0.7 s with the can leaving the hand at its end, the force 3.0 s with the halligan, a swing 1.0 s with the ram, the placing 6.0 s cut to its first and last second, the rifle back up 1.0 s); the gallery's picture is the still named in each group. The defaults (G1, T1, B1, R1, C1) are the doll's own choices, so the stage and the I card agree until you score them.",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "G",
+   "title": "G: the G-11 held, the pin out",
+   "about": "The G-11 armed in the right hand from the pin's pull to the throw, the rifle slung in front (the hands-full rule). Each view: the four facings at 16 px/m, the figure side on three times larger, the can alone at 16 px/m and six times larger, and the loop (ready, the rifle let hang, the pouch on the carrier's left flank, the pin, held, the throw (T1, the default), the release, the rifle up) with the phase running lit. The still is held. G1 (the default) the can above the right fist at the chest, its spoon down the viewer's left, as the doll draws it; G2 the can low at the right hip, the left hand's finger still in the ring; G3 the throwing hand cocked at the shoulder, the can above it, the left arm out at the target.",
+   "views": [
+    { "id": "G1", "name": "G1: at the chest, the doll's (the default)", "query": "set=hold&g=G1", "pixel": "320x184" },
+    { "id": "G2", "name": "G2: low at the hip, the ring finger", "query": "set=hold&g=G2", "pixel": "320x184" },
+    { "id": "G3", "name": "G3: cocked at the shoulder", "query": "set=hold&g=G3", "pixel": "320x184" },
+    { "id": "G-all", "name": "The three on one clock, side on, facing you and away", "query": "set=all&what=g", "pixel": "420x196" }
+   ]
+  },
+  {
+   "id": "T",
+   "title": "T: the throw through room 1's door",
+   "about": "The stack at room 1's door in the shoot house, over the game's own picture of the hall (samples/house-stack-figures' backdrop: test-shoothouse at 10:00 on seed 48213, the house's light and floor, the post pass), you on the wall beside the door facing it and your #2 behind you, lit by the tint the view gives a figure there. On the left the throw's first frame, the can in the hand; on the right 0.25 s after the release, the hand empty and the can in the air, drawn by the game's own bang pixels (render/range-items.js bangBodyPixels, as the bangs layer draws a G-11: the arc from the hand to the floor of room 1, the flash at the fuse, 1.5 s after the release; past room 1's wall the stage's depth test hides it, so the page leaves it out there). Below, the throw side on twice as large: the throw, the release and the follow-through, each facing the door as you do (west: your throwing arm is on the far side, the room's, so the stage hides most of it behind your body) and facing east (the arm near), so the motion can be judged. One quantity: the can is in the hand up to the release and in the air from it, never both, never neither (the page reports it). T1 (the default) the underhand lob, the arm swung low and through the opening; T2 the short overarm, the arm up and over; T3 the bowl round the jamb, the body kept behind the wall and only the arm out low to the side.",
+   "views": [
+    { "id": "T1", "name": "T1: the underhand lob (the default)", "query": "set=throw&t=T1", "pixel": "334x222" },
+    { "id": "T2", "name": "T2: the short overarm", "query": "set=throw&t=T2", "pixel": "334x222" },
+    { "id": "T3", "name": "T3: the bowl round the jamb", "query": "set=throw&t=T3", "pixel": "334x222" }
+   ]
+  },
+  {
+   "id": "B",
+   "title": "B: the halligan carried and at the pry",
+   "about": "The halligan (3 kg, about 0.8 m, drawn as long as the rifle, 1.0 m) off your back and in both fists while it is held, then the pry at a door's latch (the force beat, 3.0 s): the fork in at the latch 1 m up, then the body leaning back on the bar, its end pulled out to the side, two frames, with the leaf drawn in front of the side-on figure. B1 (the default) across the body, the fork high at the viewer's right, as the doll draws it; B2 upright at port arms; B3 on the right shoulder, the fork behind, the left hand free. The pry is the same for the three; only the carry before and after differs. The still is the carry.",
+   "views": [
+    { "id": "B1", "name": "B1: across the body, the doll's (the default)", "query": "set=bar&b=B1", "pixel": "320x184" },
+    { "id": "B2", "name": "B2: at port arms", "query": "set=bar&b=B2", "pixel": "320x184" },
+    { "id": "B3", "name": "B3: on the shoulder", "query": "set=bar&b=B3", "pixel": "320x184" }
+   ]
+  },
+  {
+   "id": "R",
+   "title": "R: the ram carried and swung",
+   "about": "The ram (12 kg) off your back and in the hands, then its swing at a push door (the force beat with its swing, 1.0 s: drawn back at the hip, then the strike on the latch side), the leaf in front of the side-on figure. R1 (the default) level at the belly, its striking face forward, as the doll draws it; R2 hanging at arm's length by the rear handle, swung up only for the strike. The ram is black (the doll's colour) on the black suit: say if it reads. The still is the carry.",
+   "views": [
+    { "id": "R1", "name": "R1: level at the belly, the doll's (the default)", "query": "set=ram&r=R1", "pixel": "320x184" },
+    { "id": "R2", "name": "R2: hanging, swung up to strike", "query": "set=ram&r=R2", "pixel": "320x184" }
+   ]
+  },
+  {
+   "id": "C",
+   "title": "C: the charge carried and placed",
+   "about": "The SC-1 strip charge (the BC-1 is the same shape longer) from its pouch to the leaf: carried, then the placing beat (6.0 s; 8.0 for the BC-1, shown by its first and last second), both hands at the leaf at shoulder height, then the hands empty, the strip on the leaf and the FD-1's shock tube paid out along the floor. C1 (the default) upright in the right fist, as the doll draws it; C2 flat across both palms. The still is the carry.",
+   "views": [
+    { "id": "C1", "name": "C1: upright in the fist, the doll's (the default)", "query": "set=charge&c=C1", "pixel": "320x184" },
+    { "id": "C2", "name": "C2: flat across both palms", "query": "set=charge&c=C2", "pixel": "320x184" }
+   ]
+  },
+  {
+   "id": "K",
+   "title": "K: the check, today's picture beside the defaults",
+   "about": "The hunt's lane (test-shoothouse at GO on seed 1489397426, the tier one on the full loadout, the honest kit bot; samples/held-devices/capture.mjs plays it in node and shoots the stage) at the three moments the hunt named, in ms after GO: 13,350 (the G-11 armed in your hand on the restack), 28,850 (the halligan in both hands, the force beat), 33,400 (the second G-11 armed, the pin's beat). Left the stage as v0.0.19 draws it (both fists empty; your #2 beside you); then this page's drawing of today's figure (the fists empty, the rifle slung in front) and of the defaults (G1 held or at the pin, B1 at the pry), in the same facing, on the slab floor's tone. This page draws the stack's standing frame, not the glide's walking key the stage shows on the restack, and without the house's light. Not scored: it shows the sample's figure is the game's.",
+   "views": [
+    { "id": "K1", "name": "Today's picture and the defaults, three moments", "query": "set=check", "pixel": "500x246" }
+   ]
+  }
+ ]
+}

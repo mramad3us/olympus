@@ -22,11 +22,14 @@
 // The environment foundation (ROADMAP "anywhere", step 1; PLACES §3.16): the upgrade 'places:env' (src/sim/places/env.js
 // upgradeEnv) reads places.live.env, a scene's override of the site's environment, absent for the site's own: a null
 // there is written as its absence, so every save made before it loads, and saves again, byte for byte.
+// v0.0.21 (the build sheet §0 item 53): the upgrade 'places:gen' (upgradeGen) registers a drawn shoot house's area again from
+// places.live.gen, before any other domain's upgrade reads the area.
 import { initPlaces } from './model.js';
 import { playerStep } from './move.js';
 import { pathsStep } from './nav.js';
 import { handAction, doorAction } from './hand.js';
 import { upgradeEnv } from './env.js';
+import { registerHouse } from '../scenes/assemble.js';
 
 /** Drop v0.0.2's site seeds from an older save (see the header). */
 export function dropSiteSeeds(state) {
@@ -34,6 +37,18 @@ export function dropSiteSeeds(state) {
   for (const rec of Object.values(state.places?.sites ?? {})) if (rec && 'seed' in rec) { delete rec.seed; dropped++; }
   if (dropped) (state.flags ??= {})['mig:no-site-seed'] = true;
   return dropped;
+}
+
+/**
+ * A generated area rebuilt on load (PLACES §9.9: "what is saved: only { spec, seed, gen: 'assemble@1' }; the layout is
+ * rebuilt on load"; the build sheet §0 item 53): where places.live.gen names a drawn shoot house, its area is assembled and
+ * registered again (src/sim/scenes/assemble.js registerHouse), so every reader after (the arms domain's upgrades among them, which
+ * run after this domain's) finds it. Writes nothing to the state; idempotent; a save without gen (every save before v0.0.21, every
+ * set lane) is untouched. Returns the area registered, or null.
+ */
+export function upgradeGen(state) {
+  const gen = state.places?.live?.gen;
+  return gen?.code ? registerHouse(gen.code) : null;
 }
 
 /** The places domain's descriptor (TECH §2.5). */
@@ -48,5 +63,5 @@ export const placesDomain = Object.freeze({
   slow: Object.freeze([]),
   jobs: Object.freeze({}),
   actions: Object.freeze({ hand: handAction, door: doorAction }),
-  upgrades: Object.freeze([['places:no-site-seed', dropSiteSeeds], ['places:env', upgradeEnv]]),
+  upgrades: Object.freeze([['places:no-site-seed', dropSiteSeeds], ['places:env', upgradeEnv], ['places:gen', upgradeGen]]),
 });

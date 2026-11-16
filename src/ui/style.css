@@ -169,6 +169,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 /* Dark glass: the kit's own screens (the menu, the keys, and later the mind, the cards). */
 .glass { width: min(calc(460px * var(--ui)), 92%); max-height: 92%; overflow: auto; background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 4px; padding: 14px 18px 12px; color: var(--glass-text); font-family: var(--mono); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); }
 .glass h3 { font-size: calc(11px * var(--ui)); letter-spacing: 0.08em; color: var(--brass); font-weight: normal; margin: 4px 0 10px; text-transform: uppercase; }
+/* (a drawn house's code keeps its case: it is case-sensitive, and read off the card to replay the house) */
+.glass h3 .house-code { text-transform: none; letter-spacing: 0.02em; user-select: all; }
 .glass .note { color: var(--muted); font-size: calc(12px * var(--ui)); margin: 10px 0 0; }
 .glass-list { display: flex; flex-direction: column; gap: 4px; }
 .glass-list .item { display: flex; gap: 10px; align-items: center; text-align: left; background: var(--ink-2); border: 1px solid var(--glass-line); color: var(--glass-text); padding: 5px 10px; cursor: pointer; border-radius: 2px; }
@@ -421,6 +423,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .steps .step.leads { border-left-color: #a8d0ac; background: rgba(111, 154, 116, 0.10); }
 .pi-takein { color: #e7b84a; }
 #title .sheet.picker .item.sheetpick { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+/* (more than four sheets in two columns where the sheet is wide, so the picker fits a 720-px window: pairs.js) */
+@media (min-width: 980px) { #title .sheet.picker .sheets.two { display: grid; grid-template-columns: 1fr 1fr; column-gap: calc(12px * var(--ui)); align-items: stretch; } }
 #title .sheet.picker .item.sheetpick small { flex-basis: 100%; white-space: normal; }
 #title .sheet.picker .item.sheetpick kbd { color: var(--ink); border-color: rgba(26, 18, 20, 0.35); }
 .glass.end .aspects-said { margin: calc(4px * var(--ui)) 0 calc(8px * var(--ui)); border-left: 2px solid var(--glass-edge); padding-left: calc(8px * var(--ui)); }
@@ -493,6 +497,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 #title .sheet.picker .pars .parhead kbd { color: var(--ink); border-color: rgba(26, 18, 20, 0.35); }
 #title .sheet.picker .item.parpick { width: auto; margin: 0; padding: calc(2px * var(--ui)) calc(8px * var(--ui)); font-size: calc(12px * var(--ui)); opacity: 0.7; }
 #title .sheet.picker .item.parpick.on { opacity: 1; outline: 1px solid rgba(26, 18, 20, 0.55); }
+/* (the House row's choices are the par's chips, on its line: as full rows they pushed Back below a 720-px window, the play review of 2026-11-16) */
+#title .sheet.picker .item.drawpick { width: auto; margin: 0; padding: calc(2px * var(--ui)) calc(8px * var(--ui)); font-size: calc(12px * var(--ui)); opacity: 0.7; }
+#title .sheet.picker .item.drawpick.on { opacity: 1; outline: 1px solid rgba(26, 18, 20, 0.55); }
 .house-side { display: flex; flex-direction: column; gap: calc(8px * var(--ui)); width: calc(330px * var(--ui)); max-height: 92vh; overflow: hidden; }
 .runsheet { background: #efe9dc; color: #24201f; border-radius: 3px; padding: calc(6px * var(--ui)) calc(8px * var(--ui)); font-family: var(--type); font-size: calc(10.5px * var(--ui)); line-height: 1.3; box-shadow: inset -2px 0 0 #d9d0bc; }
 .runsheet .rs-title { display: flex; justify-content: space-between; color: #7d746a; letter-spacing: 0.08em; border-bottom: 1px solid #d9d0bc; margin-bottom: calc(3px * var(--ui)); }
@@ -578,6 +585,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .steps .steplist[data-form="tiles"] .step > .label { grid-column: 1 / -1; grid-row: 2; align-self: start; justify-content: flex-start; }
 .steps .steplist[data-form="tiles"] .step > .meta { grid-column: 1 / -1; grid-row: 3; flex-direction: row; justify-content: space-between; align-items: flex-end; gap: calc(4px * var(--ui)); min-width: 0; overflow: hidden; }
 .steps .steplist[data-form="tiles"] .step .meta .badge { position: absolute; top: calc(4px * var(--ui)); right: calc(4px * var(--ui)); max-width: calc(46px * var(--ui)); }
+/* (a struck tile's reason in words ("stack first", "locked door") on its foot row, the tile's whole width: in the corner it was
+   cut to "stack fi" at 1920 × 1080, the play review of 2026-11-16; a struck tile shows no time there) */
+.steps .steplist[data-form="tiles"] .step.off .meta .badge.b-note, .steps .steplist[data-form="tiles"] .step.off .meta .badge.b-gate { position: static; max-width: 100%; white-space: normal; line-height: 1.1; }
 .steps .steplist[data-form="tiles"] .step.off, .steps .steplist[data-form="tiles"] .step.empty { background: rgba(255, 255, 255, 0.015); }
 .steps .steplist[data-form="tiles"] .step .meta { font-size: calc(9px * var(--ui)); line-height: 1.1; }
 .steps .steplist[data-form="tiles"] .step > kbd { font-size: calc(10px * var(--ui)); line-height: 1.3; }

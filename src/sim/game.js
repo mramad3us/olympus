@@ -396,7 +396,7 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
 // ---- a new game ----
 
 /** A new game's state (see the header). */
-export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene = null, startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null } = {}) {
+export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene = null, startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null } = {}) {
   if (seed === undefined || seed === null) throw new Error('newGame(): a seed is needed');
   const spec = specOf({ scene, scenario }), fill = SCENARIOS[spec.scenario], site = spec.host.site;
   const s = newState(seed, { version, mode, scenario: spec.scenario, startMs });
@@ -416,7 +416,9 @@ export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene =
   if (live) { enterSite(s, site, spec.host.area); setLiveEnv(s, live); }
   // (v0.0.19: the shoot house's role-players, the debug's &opfor= over the scene's own ("Stack and clear, live"), passed only when set)
   const op = opfor ?? spec.opfor ?? null;
-  fill(s, { at, setup: setup ?? spec.setup ?? null, tier, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(op ? { opfor: op } : {}) });
+  // (the shoot house's draw, house and doors, the build sheet §0 item 54: 'set' or 'drawn', a code, 'fixed' (testShoothouse reads
+  // them; absent writes nothing, so every lane without them is as before)
+  fill(s, { at, setup: setup ?? spec.setup ?? null, tier, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(op ? { opfor: op } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}) });
   if (s.places.live?.site !== site) throw new Error(`the scene '${spec.id}' stands on '${site}', and its fill left '${s.places.live?.site}' live`);
   if (live && !s.places.live.env) throw new Error(`the scene '${spec.id}''s fill dropped its environment ('${live.preset}')`);
   s.time.slowToMs = s.clock.ms;                                    // (the slow layer has stepped up to the start)
