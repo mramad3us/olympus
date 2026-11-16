@@ -65,7 +65,7 @@ import { poseOf, cellKind, AIM_TILT, KICK_TILT } from './poses.js';
 import { headKit, shapeAt, turned, GUNS } from './templates.js';
 import { wear } from './outfits.js';
 import { drawingOf } from '../rifles.js';
-import { helmTpl, trimPlate } from './helmets.js';
+import { helmTpl, trimPlate, fofMaskTpl } from './helmets.js';
 
 /** How much of the camera's depth a sprite shows: along the facing, across it, and for a body lying along the depth. */
 export const DEPTH_K = 0.4, SIDE_K = 0.12, LYING_K = 1.0;
@@ -887,6 +887,8 @@ function head(g, Lk, J, P, pp, B, dir, pose) {
   // (0.0.12: the combat EVA suit's helmet seals to its collar, so no skin shows under it: the skull's last rows are the suit's skin)
   if (sealed && Lk.outfit === 'combatSuit') for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) { const c = g.cells[y][x]; if (c && c.part === head && c.ch === 's') c.ch = 'p'; }
   if ((Lk.ears || Lk.headset) && !sealed && pose.stance !== 'supine') earCups(g, Lk, view, x0, y0, W, H, B);
+  // (v0.0.19: the force-on-force mask over the face of a head no helmet seals, its strap round the back: helmets.js fofMaskTpl)
+  if (Lk.mask && !sealed && pose.stance !== 'supine') { const t = T(fofMaskTpl(Lk.mask, view, bw, bh)).t; g.begin(x0, y0); g.tpl(t, x0, y0); }
   // (foam: white at the mouth round the brush, or along the jaw for a shave: on the head's own lowest skin pixels)
   if (pose.foam && !sealed && view !== 'up') {
     const skin = [];

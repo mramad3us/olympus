@@ -62,7 +62,8 @@ export default [
         if (!ok) bad.push(key);
       }
       // (every scene v0.0.10 had: the shoot house, new in 0.0.12, is the fourth test's)
-      const listed = SCENE_IDS.filter(id => SCENES[id].scenario && id !== 'test-shoothouse').length * 2 + 2;
+      // (v0.0.19's "Stack and clear, live" plays the shoot house's scenario: neither had a v0.0.10 start)
+      const listed = SCENE_IDS.filter(id => SCENES[id].scenario && SCENES[id].scenario !== 'test-shoothouse').length * 2 + 2;
       assert(Object.keys(V0010).length === listed, `every built scene on two seeds and the two starts: ${Object.keys(V0010).length} of ${listed}`);
       assert(!bad.length, `starts that moved: ${bad.join(', ')}`);
     },
@@ -79,7 +80,7 @@ export default [
       for (const r of rows) console.log(`      ${r}`);
       const built = Object.values(SCENES).filter(x => x.built !== false);
       assert(built.every(x => x.env.preset === 'site' && x.host.site === 'melas' && SCENARIOS[x.scenario]), 'every shipped scene: Melas, the site\'s own environment, a fill');
-      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-shoothouse', SCENE_IDS.join());
+      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-shoothouse-live' && SCENE_IDS.at(-2) === 'test-shoothouse', SCENE_IDS.join());
       assert(Object.values(STARTS).every(x => x.env.preset === 'site') && STARTS.sandbox.host.site === 'test' && STARTS.barracks.host.site === 'melas', JSON.stringify(STARTS));
       console.log(`      the Tests menu: ${SCENE_IDS.join(', ')}; stubs: ${Object.values(SCENES).filter(x => x.built === false).map(x => x.id).join(', ')}`);
     },
@@ -93,6 +94,18 @@ export default [
       assert(spec.built !== false && spec.scenario === 'test-shoothouse' && spec.host.site === 'melas' && spec.host.area === 'melas.wheel.s4' && spec.env.preset === 'site' && spec.course === 'house' && spec.stances === true, JSON.stringify(spec));
       assert(air === 'melas.wheel.s4' && !('env' in s.places.live) && g.regime === 'spin' && g.gG === 1 && face === 'mars-local', JSON.stringify({ live: s.places.live, g }));
       assert(a.face === 'left' && s.armoury.range?.course === 'house' && SCENE_IDS.indexOf('test-shoothouse') === SCENE_IDS.indexOf('test-stress') + 1, JSON.stringify({ face: a.face, menu: SCENE_IDS }));
+    },
+  },
+  {
+    name: 'v0.0.19: "Stack and clear, live" is the shoot house\'s scenario with opfor \'live\', on its stand, host and hour, after "Stack and clear" in the menu; its fill puts the role-players on stands 2a and 3a and test-shoothouse\'s own fill none',
+    fn() {
+      const spec = SCENES['test-shoothouse-live'], base = SCENES['test-shoothouse'];
+      const live = newGame({ seed: 48213, scene: 'test-shoothouse-live', version: 'test' }), plain = newGame({ seed: 48213, scene: 'test-shoothouse', version: 'test' });
+      const men = (s) => (s.armoury.range.turners ?? []).filter(T => T.live).map(T => `${T.stand}:${T.live.card}`);
+      console.log(`      ${spec.id} "${spec.title}": scenario ${spec.scenario}, opfor ${spec.opfor}, host ${JSON.stringify(spec.host)}, hour ${spec.hour}; the men ${men(live).join(' ') || 'none'}; test-shoothouse's ${men(plain).join(' ') || 'none'}, its house.live ${JSON.stringify(plain.armoury.range.house.live ?? null)}; the menu ${SCENE_IDS.slice(-3).join(', ')}`);
+      assert(spec.built !== false && spec.scenario === 'test-shoothouse' && spec.opfor === 'live' && JSON.stringify(spec.host) === JSON.stringify(base.host) && spec.hour === base.hour && spec.course === 'house' && spec.title === 'Stack and clear, live', JSON.stringify(spec));
+      assert(specOf({ scenario: 'test-shoothouse' }).id === 'test-shoothouse' && SCENE_IDS.indexOf('test-shoothouse-live') === SCENE_IDS.indexOf('test-shoothouse') + 1, SCENE_IDS.join());
+      assert(JSON.stringify(men(live).map(x => x.split(':')[0])) === JSON.stringify(['2a', '3a']) && !men(plain).length && plain.armoury.range.house.live === undefined && live.armoury.range.house.opfor === 'live', JSON.stringify({ live: men(live), plain: men(plain) }));
     },
   },
   {

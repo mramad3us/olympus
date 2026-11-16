@@ -24,6 +24,12 @@
 //      (kit.discard), and R.house.bursts.push({ id, model, x, z, atMs, room, byId, kPa: { <pid or stand>: n }, daze:
 //      { <stand>: { kind, ms } }, door?, thrown?, atFeet? }): plain data for the run sheet and the target view (`thrown`, the
 //      door a grenade was thrown through, the leg its marks go on).
+// v0.0.19 (D2, the build sheet 0.0.19 §0 items 1, 2): a practice grenade (a model with DEVICES[model].as, the G-9P and G-13P)
+// bursts as its 4 g spotting charge, and **the instructor's read is its only effect on the stands**: step 3 is skipped for it (no
+// startle from the pop), and practice.js readBurst, the live twin's read, goes on the record as `read` (house-kit.js readsTick
+// turns away and dazes the stands it puts down or stuns: one source a burst). The BC-1's door blown records its method on the
+// house's R.house.breach[door] = { how: 'cut', atMs }, R.house.broken[door] staying its ms (D1's ways write nothing new, so
+// v0.0.18's lanes keep their saves to the byte: breach.js breachHowOf reads 'charge', 'pry' or 'ram' from what is absent).
 // tickDevices(state, bus, now) bursts every grenade whose fuse has run and every charge fired whose count has run, at its own
 // ms (fuseAtMs), so a cut drill never leaves one burning. stackOf(state) is the shoot house's two (you and your #2).
 // Pure but burst and tickDevices, which write the people, the stands, the doors, the items and the record.
@@ -34,6 +40,7 @@ import { airAt } from '../places/env.js';
 import { bang, addSupp, inputPts, startleMsOf, FLASH_CONE_DEG, FLASH_BLIND_MS } from './supp.js';
 import { peakKPa, qspKPa, BLAST_KPA, STUN_KPA } from '../arms/blast.js';
 import { DEVICES, liveDevices } from '../arms/devices.js';
+import { readBurst } from './practice.js';
 import { discard, holderOf } from '../arms/kit.js';
 
 /** The bang's window: an entry later than this after the burst gives them back the bang (COMBAT §25.18.2's, ms). */
@@ -121,6 +128,8 @@ export function burst(state, bus, { id, model, x, z, atMs = state.clock.ms, byId
   // (3. the house's stands in the room, dazed as men in utilities would be)
   const R = state.armoury?.range;
   for (const T of R?.turners ?? []) {
+    // (v0.0.19: a practice grenade's stands are the read's alone (see the header))
+    if (D.as) break;
     if (!room || !room.in.includes(T.room) || T.stoppedAtMs !== null && T.stoppedAtMs !== undefined || !DAZED_FACES.includes(T.face)) continue;
     const rM = Math.hypot(T.x - x, T.z - z), peak = Math.max(peakKPa(D.tntKg ?? 0, rM, Pa), qsp);
     kPa[T.key] = r1(peak);
@@ -145,18 +154,21 @@ export function burst(state, bus, { id, model, x, z, atMs = state.clock.ms, byId
         setOpening(state, o.id, 'open', { atMs: atMs + 100 });
         ((state.$places ??= {}).moving ??= new Set()).add(o.id);
         const H = houseOf(state);
-        if (H) (H.broken ??= {})[o.id] = atMs;
+        if (H) { (H.broken ??= {})[o.id] = atMs; if (model === 'bc1') (H.breach ??= {})[o.id] = { how: 'cut', atMs }; }
         bus?.emit('door', { id: o.id, area, x: mx, z: mz, state: 'open', kind: o.kind, who: byId, how: 'blown' });
         out.blown = o.id;
       }
     }
   }
+  // (v0.0.19: the instructor's read of a practice grenade, before its item leaves the game (its flight: the throw's exposure, the floor's time))
+  const read = D.as && houseOf(state) ? readBurst(state, { burst: id, model, x, z, atMs, room, byId }) : null;
   // (5. the record)
   if (state.items?.[id]?.flight?.atFeet) out.atFeet = true;
   const thrown = state.items?.[id]?.flight?.door ?? null;
   if (state.items?.[id]) discard(state, id);
   const H = houseOf(state);
-  if (H) (H.bursts ??= []).push({ id, model, x: Math.round(x * 1000) / 1000, z: Math.round(z * 1000) / 1000, atMs, room: room?.id ?? null, byId, kPa, daze, ...(out.blown ? { door: out.blown } : {}), ...(thrown ? { thrown } : {}), ...(out.atFeet ? { atFeet: true } : {}) });
+  if (H) (H.bursts ??= []).push({ id, model, x: Math.round(x * 1000) / 1000, z: Math.round(z * 1000) / 1000, atMs, room: room?.id ?? null, byId, kPa, daze, ...(out.blown ? { door: out.blown } : {}), ...(thrown ? { thrown } : {}), ...(out.atFeet ? { atFeet: true } : {}), ...(read ? { read } : {}) });
+  if (read) out.read = read;
   return out;
 }
 
@@ -172,6 +184,16 @@ function standFacing(state, T, room) {
 /** Every grenade whose fuse has run and every fired charge whose count has run bursts at its own ms (w; see the header). Returns the bursts. */
 export function tickDevices(state, bus, now = state.clock.ms) {
   const out = [];
+  // (v0.0.19: a cooked grenade still in a hand when its fuse runs goes off there, at the holder's feet (a cut drill never leaves
+  // one burning unseen: the hands' own record, not the floor's))
+  for (const a of [playerActor(state), ...(state.actors?.list ?? [])].filter(Boolean)) {
+    const kit = a.who ? state.people?.[a.who]?.kit : null;
+    for (const id of kit?.hands ?? []) {
+      const rec = id ? state.items?.[id] : null;
+      if (rec?.type !== 'grenade' || rec.st !== 'live' || !Number.isFinite(rec.fuseAtMs) || rec.fuseAtMs > now) continue;
+      out.push(burst(state, bus, { id, model: rec.model, x: a.x, z: a.z, atMs: rec.fuseAtMs, byId: a.who, called: false, door: null }));
+    }
+  }
   for (const d of liveDevices(state)) {
     const rec = state.items[d.id];
     if (!Number.isFinite(rec?.fuseAtMs) || rec.fuseAtMs > now) continue;

@@ -42,7 +42,7 @@
 // Pure: no three.js, no DOM.
 import { PX_PER_M } from './scale.js';
 import { hash01 } from '../core/hash.js';
-import { CASE_FLOAT_MS2, DUST_MS, DUST_UP_M, DUST_LAG_MS, dustMsOf } from '../sim/arms/look.js';
+import { CASE_FLOAT_MS2, DUST_MS, DUST_UP_M, DUST_LAG_MS, dustMsOf, PAINT_PUFF_MS } from '../sim/arms/look.js';
 import { cardPx, cardPxPerCm, CARD_AT_M, CARD_RINGS_CM, FACE_K, KD_FACES, facePx, facePxPerCm } from '../art/kit/range.js';
 import { fontFor } from '../art/kit/type.js';
 import { composeFrame } from '../art/figures/compose.js';
@@ -1064,4 +1064,44 @@ export function cornerAidPixels(aid, ppm = PX_PER_M) {
     arc(S.x, S.z, S.arcM ?? 0.6, S.fromRad, S.toRad, AID_SECTOR, S.k, 2);
   }
   return out;
+}
+
+// ---------- v0.0.19: the first live men's floor and paint (the build sheet 0.0.19 §1 L-look; opfor §2.6) ----------
+//
+// houseLook's floor (look.js withLive): a role-player who gave up dropped his rifle at his feet; it is drawn lying there along its
+// heading (rangeLook's rotRad), RIFLE_FLOOR_M long, its receiver and magazine darker than its barrel, flat on the floor, or raised
+// to its y while it falls (FLOOR_FALL_MS from his hands), so it never pops out of his hands onto the floor. The paint: a marking
+// round's puff on a body (houseLook's paint: the stack's on a role-player in the cadre's pink, a role-player's on a marine in
+// blue, as the hit card's PAINT_C), a few pixels thrown out from the strike over PAINT_PUFF_MS and thinning, unlit.
+/** The rifle lying on the floor: its drawn length (m: the R-7's 0.85 m), its height off the floor (m), its colours. */
+export const RIFLE_FLOOR_M = 0.85, RIFLE_FLOOR_Y_M = 0.016;
+export const RIFLE_FLOOR_C = Object.freeze({ metal: 0x3a3d48, dark: 0x23252f, lit: 0x5c6270 });
+/** The paint's colours (art/doll/hitcard.js PAINT_C's, written here: render reads no art module for a colour it owns). */
+export const PAINT_FX = Object.freeze({ team: 0xe8489a, rp: 0x3f86e8 });
+/** A rifle on the floor: [{ x, y, z, c, flat }] (houseLook's floor: { x, z, y, rotRad }). */
+export function floorRiflePixels(f, ppm = PX_PER_M) {
+  if (!f || !Number.isFinite(f.x) || !Number.isFinite(f.z)) return [];
+  const P = 1 / ppm, n = Math.max(3, Math.round(RIFLE_FLOOR_M * ppm)), c = Math.cos(f.rotRad ?? 0), s = Math.sin(f.rotRad ?? 0);
+  const y = Math.max(RIFLE_FLOOR_Y_M, drawnY(f.y ?? 0, ppm)), flat = !(f.y > 0.02), out = [], seen = new Set();
+  for (let i = 0; i < n; i++) {
+    const t = (i / (n - 1) - 0.5) * RIFLE_FLOOR_M, gx = (Math.floor((f.x + c * t) * ppm) + 0.5) * P, gz = (Math.floor((f.z + s * t) * ppm) + 0.5) * P, key = `${gx},${gz}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    // (the butt and the receiver darker, the barrel lit along its top third)
+    const k = i / (n - 1);
+    out.push({ x: gx, y, z: gz, c: k < 0.25 ? RIFLE_FLOOR_C.dark : k < 0.55 ? RIFLE_FLOOR_C.metal : RIFLE_FLOOR_C.lit, flat });
+  }
+  // (the magazine under the receiver, a pixel to the side)
+  const mx = (Math.floor((f.x + c * (-0.05) - s * P * 1.2) * ppm) + 0.5) * P, mz = (Math.floor((f.z + s * (-0.05) + c * P * 1.2) * ppm) + 0.5) * P;
+  if (!seen.has(`${mx},${mz}`)) out.push({ x: mx, y, z: mz, c: RIFLE_FLOOR_C.dark, flat });
+  return out;
+}
+/** A paint puff: [{ x, y, z, c }] at game time ms (houseLook's paint: { x, y, z, atMs, by }): pixels thrown out and thinning. */
+export function paintPuffPixels(p, ms, ppm = PX_PER_M) {
+  if (!p || !Number.isFinite(p.atMs)) return [];
+  const t = ms - p.atMs;
+  if (t < 0 || t >= PAINT_PUFF_MS) return [];
+  const P = 1 / ppm, c = PAINT_FX[p.by] ?? PAINT_FX.team, r = 1 + Math.floor(t / 130), gx = (Math.floor(p.x * ppm) + 0.5) * P, gz = (Math.floor(p.z * ppm) + 0.5) * P, y = drawnY(p.y, ppm) + 0.2;
+  const ring = [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r], [r, r], [-r, -r], [r, -r], [-r, r]];
+  return ring.slice(0, t < 130 ? 5 : t < 260 ? 9 : 4).map(([dx, dy]) => ({ x: gx + dx * P, y: y + dy * P, z: gz, c }));
 }

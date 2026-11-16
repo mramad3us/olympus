@@ -75,6 +75,12 @@
 // side-step, start, plant, the stack and its breath, the #2's tap, the door's hand, the kick, the kneel half way, the shot
 // on the move and the pistol (VIEWS §3.10.7). The v0.0.12 walk, stroll and run poses survive as legacyPose() for the walk
 // sample's W0 only.
+// v0.0.19 (the build sheet 0.0.19 §1 L-look; opfor §2.6; COMBAT §7.11): a role-player who gives up drops his rifle and puts his
+// hands up, and kneels when challenged: handsUp and handsKneel, the hands raised empty, palms out, at the place the user scores
+// (HANDS_POSES: H1 at the shoulders, the default, H2 by the face; samples/opfor-look). They are carry-free (no rig: the rifle is
+// on the floor), so they sit at the end of the arms band, whose shelf has room for them: the base sheet keeps its 512 × 752 at
+// 16 px/m (1128 at 24), and handsFrame(stance) names the one to draw. A man down is drawn sitting where he is with his rifle low
+// (the seated band's sitLow: the actor's stance 'sit', rifleFrame's), not a new frame.
 // Pure: no DOM, no three.js.
 import { cyclePose, beatPose, bandSpec, cycleAt, cycleOfLook, RUN_FPS } from './walk.js';
 
@@ -94,7 +100,7 @@ const range = (p, n) => Array.from({ length: n }, (_, i) => `${p}${i}`);
 export const BANDS = Object.freeze({
   gait: Object.freeze([...range('idle', 2), ...range('walk', 8), ...range('bound', 4), 'look', 'glance']),
   move: Object.freeze([...range('run', 8), ...range('stairsUp', 4), ...range('stairsDown', 4)]),
-  arms: Object.freeze(['aim', 'aimhi', 'aimlo', 'fire', 'firehi', 'firelo', 'kneel', 'kneelfire', 'magout', 'magin', 'prone', 'pronefire']),
+  arms: Object.freeze(['aim', 'aimhi', 'aimlo', 'fire', 'firehi', 'firelo', 'kneel', 'kneelfire', 'magout', 'magin', 'prone', 'pronefire', 'handsUp', 'handsKneel']),
   rest: Object.freeze(['sit', 'sitUp', 'standUp', 'climb', 'lieDown', 'dress0', 'dress1', 'basin', 'brush', 'shave', 'aid']),
   lie: Object.freeze(['couch', 'sleep', 'hurt']),
   float: Object.freeze(['float0', 'float1', ...Array.from({ length: 7 }, (_, i) => `tumble${i + 1}`)]),
@@ -190,6 +196,19 @@ const SHAVE = { lean: 0.08, legs: STAND, arms: { r: [1.05, 2.05, 0.16], l: [0.2,
 const SEATED = { stance: 'sit', ground: 'pelvis', lean: 0.36, legs: { r: [1.95, 1.55, 0.3], l: [1.95, 1.55, 0.3] } };
 const HURT = { stance: 'supine', legs: { r: [0.7, 1.3, 0.08], l: [0.06, 0.12, 0.05] }, arms: { r: [0.9, 1.6, 0.2], l: [0.15, 0.3, 0.5] }, rig: null };
 const AID = { ...KNEEL, lean: 0.55, arms: { r: [1.05, 0.35, 0.12], l: [1.0, 0.45, 0.14] }, rig: null };
+/** The hands up's arms by the look scored ([shoulder, elbow, abduction] each side): H1 at the shoulders (the default), H2 by the face. */
+export const HANDS_POSES = Object.freeze({
+  H1: Object.freeze({ r: Object.freeze([0.45, 2.45, 0.5]), l: Object.freeze([0.45, 2.45, 0.5]) }),
+  H2: Object.freeze({ r: Object.freeze([1.05, 2.15, 0.6]), l: Object.freeze([1.05, 2.15, 0.6]) }),
+});
+export const HANDS_POSE = 'H1';
+/** The hands up's pose for a look of HANDS_POSES (the samples draw each; the game's frames are HANDS_POSE's), kneeling or standing. */
+export function handsPose(id = HANDS_POSE, kneel = false) {
+  const arms = HANDS_POSES[id] ?? HANDS_POSES[HANDS_POSE];
+  return kneel ? { ...KNEEL, lean: 0.02, arms: { r: [...arms.r], l: [...arms.l] }, rig: null } : { ...STAND_EASY, legs: STAND, arms: { r: [...arms.r], l: [...arms.l] }, rig: null };
+}
+/** The frame of a man with his hands up, by his stance: kneeling (challenged) or standing. */
+export const handsFrame = (stance) => (stance === 'kneel' ? 'handsKneel' : 'handsUp');
 
 // The rifle's held frames (0.0.5): a stance's body (SHOOT's feet standing, KNEEL, PRONE's) and the rig's
 // mode (compose.js rigOf: 'low', 'high', 'front' slung across the chest hands off, 'slung' on the back,
@@ -263,6 +282,7 @@ function basePose(frame, { weapon = null, carry = null, cycle = null } = {}) {
     case 'brush': p = { ...BRUSH, rig: null }; break;
     case 'shave': p = { ...SHAVE, rig: null }; break;
     case 'aid': p = { ...AID }; break;
+    case 'handsUp': case 'handsKneel': p = handsPose(HANDS_POSE, name === 'handsKneel'); break;
     case 'hurt': p = { ...HURT }; break;
     case 'bound': p = { ...BOUND[k], rig: gaitRig }; break;
     case 'float': p = { ...(k ? FLOAT1 : FLOAT0), rig: gaitRig && gaitRig.mode === 'slung' ? gaitRig : weapon ? { mode: 'low' } : null }; break;

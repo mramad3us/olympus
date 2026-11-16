@@ -449,6 +449,12 @@ export function stampPixels(ms, words) {
 }
 /** What was identified, as the plaque says it (contactNow().last.ident's value): 'RIFLE', 'PISTOL', 'HANDS', 'PHONE', 'HANDS UNSEEN'. */
 export const IDENT_WORDS = Object.freeze({ rifle: 'RIFLE', pistol: 'PISTOL', hands: 'HANDS', phone: 'PHONE', unseen: 'HANDS UNSEEN' });
+/**
+ * v0.0.19 (the build sheet 0.0.19 §1 L-look; COMBAT §7.11; opfor §2.2): what a take-in read a live man doing, as the plaque says it
+ * after what was identified (contact.js identify's last.state, written only on a passed roll: a failed one leaves none, "can't
+ * tell"): "CONTACT · RIFLE · AIMING · TAKEN IN 0.80 S". A stand has none, so every v0.0.18 plate is the same.
+ */
+export const STATE_WORDS = Object.freeze({ aiming: 'AIMING', looking: 'LOOKING', running: 'RUNNING', hands: 'HANDS UP', cowering: 'COWERING', down: 'DOWN' });
 /** The strip's span for a take-in (ms): STRIP_SPAN_MS, or the next whole second past a longer one. */
 export const stripSpanMs = (ms) => Math.max(STRIP_SPAN_MS, Math.ceil((Number(ms) || 0) / 1000) * 1000);
 /**
@@ -456,8 +462,11 @@ export const stripSpanMs = (ms) => Math.max(STRIP_SPAN_MS, Math.ceil((Number(ms)
  * "CONTACT" and after a seam "TAKEN IN 0.80 S" (and the identification), in the hazard kind's amber enamel, and under
  * the words the strip, a tick every STRIP_TICK_MS (a taller one each half second), filled to the take-in.
  */
-export function contactPixels({ ms, words, ident = null, style = 'hazard' }) {
-  const S = STYLES[style] ?? STYLES.hazard, head = 'CONTACT', sub = `${ident && IDENT_WORDS[ident] ? `${IDENT_WORDS[ident]} · ` : ''}TAKEN IN ${words} S`;
+export function contactPixels({ ms, words, ident = null, state = null, style = 'hazard' }) {
+  const S = STYLES[style] ?? STYLES.hazard, head = 'CONTACT';
+  // (v0.0.19: the state read of a live man after the identification; 'hands' read twice would say HANDS · HANDS UP: the state's alone)
+  const said = state && STATE_WORDS[state] ? (ident === 'hands' && state === 'hands' ? [STATE_WORDS[state]] : [ident && IDENT_WORDS[ident], STATE_WORDS[state]]) : [ident && IDENT_WORDS[ident]];
+  const sub = `${said.filter(Boolean).map(w => `${w} · `).join('')}TAKEN IN ${words} S`;
   const spanMs = stripSpanMs(ms), ticks = Math.round(spanMs / STRIP_TICK_MS), sw = ticks * STRIP_TICK_PX + 1;
   const iw = 5 + 3, textRow = 4 + iw + textW(head) + 4 + textW(sub) + 4;
   const w = Math.max(textRow, sw + 8), body = 1 + 2 + 5 + 2 + 5 + 2 + 1, buf = pixelBuffer(w + 1, body + 1), { px } = buf;
@@ -479,7 +488,7 @@ export function contactPixels({ ms, words, ident = null, style = 'hazard' }) {
 }
 /** The contact's plate on a canvas, cached as the plaques are. */
 export function contactPlaque(spec) {
-  return keep(`c|${spec.ms}|${spec.words}|${spec.ident}|${spec.style ?? ''}`, () => contactPixels(spec));
+  return keep(`c|${spec.ms}|${spec.words}|${spec.ident}|${spec.style ?? ''}${spec.state ? `|${spec.state}` : ''}`, () => contactPixels(spec));
 }
 /** The window's brackets on a canvas, cached by size. */
 export function windowBracket(spec) {

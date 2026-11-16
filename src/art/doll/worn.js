@@ -29,7 +29,15 @@
 // The rifle is the doll's one costly piece (templates.js turned() per pixel: 5 ms at the hit card's near band), so rifleStamp
 // memoises its pixel list once per model, finish, scale, place and body, and every doll replays it in the same order, the
 // same pixels (a board's figure keeps its digest, which ui-hitcard's B goldens check). Pure but the memo.
-import { cloth, mix, INK } from './grid.js';
+// v0.0.19 (the build sheet 0.0.19 §1 L-look; opfor §2.6; COMBAT §7.11): the first live men. THE MASK (gear.mask 'fof', the
+// role-players' force-on-force mask) over the face, by the look the user scores (samples/opfor-look, MASK_LOOKS; MASK_LOOK the
+// default until then): M1 a wire mesh from the brow to the chin in a black frame, M2 (the default) a clear lens over the eyes in a
+// black frame and a moulded lower shell with three vents, M3 a smoked full-face shield in a black rim with a chin guard; each on a
+// head strap round to the ears; never under a sealed helmet. THE HANDS (gear.hands 'up': a man who gave up, his rifle on the floor)
+// raised, palms out and empty, by the look scored (HANDS_LOOKS; HANDS_LOOK): H1 (the default) at the shoulders, H2 at the face;
+// the arms are the doll's own bent arms (gearBends), the open palms drawn over the fists. Both are drawn after the seams (kit.late)
+// with their own rims, so nothing of v0.0.18's doll moves without them.
+import { cloth, flesh, mix, INK } from './grid.js';
 import { shapeAt, turned } from '../figures/templates.js';
 import { drawingOf } from '../rifles.js';
 import { pistolDrawingOf, P12_LEN_M } from '../pistols.js';
@@ -94,8 +102,17 @@ export function rifleAt(g, B, kit, place, MID) {
   return id;
 }
 
+/** The masks to score (see the header) and the default drawn until the user picks. */
+export const MASK_LOOKS = Object.freeze({ M1: 'mesh', M2: 'lens', M3: 'shield' }), MASK_LOOK = 'M2';
+/** The mask's colours: its frame and shell, their lit edge, the vents, the lens's tint, the mesh's wire, the shield's smoke. */
+export const MASK_C = Object.freeze({ frame: 0x24262d, shell: 0x3a3d46, lit: 0x5a5f6c, vent: 0x15161c, lens: 0x9fc4d8, glint: 0xe8f4fa, wire: 0x30333b, smoke: 0x4e6474, strap: 0x2c2e35 });
+/** The hands' looks to score (see the header): where the hands are held ([d, y]: reference columns from the middle, a row), and the default. */
+export const HANDS_LOOKS = Object.freeze({ H1: Object.freeze([16.4, 31]), H2: Object.freeze([12.6, 21]) }), HANDS_LOOK = 'H1';
+
 /** The arms' bends the gear's hands give (the gear wins over the body's cues while the hands are on a weapon: my call). */
 export function gearBends(gear) {
+  // (v0.0.19: the hands up and empty, both arms, at the look's place)
+  if (gear?.hands === 'up') { const to = HANDS_LOOKS[gear.handsLook] ?? HANDS_LOOKS[HANDS_LOOK]; return { bendR: [to[0], to[1]], bendL: [to[0], to[1]] }; }
   if (gear?.rifle?.place === 'ready') { const th = READY_DEG * Math.PI / 180; return { bendR: [8, 58], bendL: [-8 + Math.cos(th) * 14, 58 + Math.sin(th) * 14] }; }
   if (gear?.pistol?.place === 'ready') return { bendR: [2, 56], bendL: [2, 56] };
   return null;
@@ -187,9 +204,67 @@ export function pistolAt(g, B, kit, place) {
   return id;
 }
 
+/** The open palms over the fists of hands held up (gear.hands 'up'): four fingers up from each fist, a thumb in, in the skin's tones. */
+export function openPalms(g, kit) {
+  const to = kit.bendR, S = kit.gloves ? cloth(kit.gloves) : flesh(kit.skin), MID = g.MID;
+  if (!to) return;
+  for (const [sx, far] of [[-1, 0], [1, 1]]) {
+    const cx = MID + sx * to[0], top = to[1] - 7 - far;
+    // (the palm a little wider than the fist, the fingers above it, a seam of shade between them, the thumb toward the body)
+    g.span(top + 4, cx - 2.4, cx + 2.4, far ? S.base : S.soft); g.span(top + 5, cx - 2.4, cx + 2.4, far ? S.shade : S.base);
+    for (let f = 0; f < 4; f++) { const x = cx - 2.4 + f * 1.4; for (let y = top + (f === 0 || f === 3 ? 1 : 0); y < top + 4; y++) g.put(x, y, far ? S.base : S.light); }
+    for (const k of [1, 2]) g.put(cx - 2.4 + k * 1.4 - 0.4, top + 3, S.shade);
+    g.put(cx - sx * 3.2, top + 5, S.base); g.put(cx - sx * 3.2, top + 6, S.shade);
+  }
+}
+
+/** The force-on-force mask over the face (see the header), by its look (MASK_LOOKS): never under a sealed helmet. */
+export function fofMask(g, kit, look = MASK_LOOK) {
+  if (kit.head?.kind === 'vac') return;
+  const MID = g.MID, C = MASK_C, kind = MASK_LOOKS[look] ?? MASK_LOOKS[MASK_LOOK];
+  // (the head strap from the frame's sides round over the ears, across the hair at the back of the head)
+  for (const sx of [-1, 1]) { g.span(11, MID + sx * 8.6 - (sx > 0 ? 0 : 1.2), MID + sx * 8.6 + (sx > 0 ? 1.2 : 0), C.strap); g.span(12, MID + sx * 8.6 - (sx > 0 ? 0 : 1.2), MID + sx * 8.6 + (sx > 0 ? 1.2 : 0), C.strap); }
+  // (the face's outline, as doll.js head() draws it, widened a pixel for the frame)
+  const half = (y) => { const H = [[5.4, 0], [5.8, 3.4], [7.2, 6], [10, 7.8], [13.5, 8.2], [17.5, 8], [20.5, 7.2], [23.4, 5.6], [25.2, 3], [25.6, 0]]; for (let i = 1; i < H.length; i++) if (y <= H[i][0]) { const [y0, d0] = H[i - 1], [y1, d1] = H[i]; return d0 + (d1 - d0) * (y - y0) / (y1 - y0); } return 0; };
+  const row = (y, c, inset = 0) => { const d = half(y + 0.5) + 0.6 - inset; if (d > 0.5) g.span(y, MID - d, MID + d - 1, c); };
+  // (a clear part over what is drawn under it: the eyes behind a lens or a mesh still show, tinted)
+  const tint = (y, c, k, inset = 0) => { const d = half(y + 0.5) + 0.6 - inset; if (d <= 0.5) return; for (const [yy, x0, x1] of g.rows(y, MID - d, MID + d - 1)) for (let x = x0; x <= x1; x++) if (g.col[yy]?.[x] !== null && g.col[yy]?.[x] !== undefined) g.col[yy][x] = mix(g.col[yy][x], c, k); };
+  // (a rim's pixel at each side of a row: the frame round a clear part)
+  const rim = (y, c) => { const d = half(y + 0.5) + 0.6; if (d > 0.5) { g.span(y, MID - d, MID - d + 1, c); g.span(y, MID + d - 2, MID + d - 1, c); } };
+  if (kind === 'mesh') {
+    // (M1: a black frame from the brow to the chin, a wire mesh inside it: the face behind every other pixel, dimmed)
+    for (let y = 10; y <= 24; y++) { tint(y, C.wire, 0.45, 1); rim(y, C.frame); }
+    for (let y = 10; y <= 24; y++) { const d = half(y + 0.5) - 0.8; for (let x = Math.ceil(MID - d); x < MID + d - 1; x++) if ((x + y) % 2) g.put(x, y, C.wire); }
+    row(9, C.frame); row(25, C.frame);
+    g.span(9, MID - 6, MID + 5, C.lit);
+    return;
+  }
+  if (kind === 'shield') {
+    // (M3: a smoked shield from the brow to the jaw in a black rim, a chin guard under it)
+    row(8, C.frame);
+    for (let y = 9; y <= 21; y++) { tint(y, C.smoke, 0.55, 1); rim(y, C.frame); }
+    for (let y = 22; y <= 26; y++) row(y, C.frame);
+    for (let y = 23; y <= 25; y++) row(y, C.shell, 1);
+    g.span(10, MID - 6, MID - 3, C.glint); g.put(MID - 6, 11, C.glint);
+    g.span(23, MID - 4, MID + 3, C.lit);
+    return;
+  }
+  // (M2, the default: a black frame round a clear lens over the eyes, a moulded lower shell with three vents to the chin)
+  row(10, C.frame);
+  for (let y = 11; y <= 16; y++) { tint(y, C.lens, 0.35, 1); rim(y, C.frame); }
+  for (let y = 17; y <= 26; y++) row(y, C.frame);
+  for (let y = 18; y <= 25; y++) row(y, C.shell, 1);
+  g.span(11, MID - 6, MID - 4, C.glint);
+  g.span(18, MID - 5, MID + 4, C.lit);
+  for (const dx of [-3, 0, 3]) for (let y = 20; y <= 22; y++) g.put(MID + dx - 0.5, y, C.vent);
+}
+
 /** What the free hand holds: a phone in the right hand (a dark slab, its screen lit), a magazine in the left. */
 export function heldItem(g, B, kit) {
   const MID = g.MID, y = B.armIn[0][1] + 1;
+  // (v0.0.19: the mask and the open hands, after the seams with their own rims (see the header))
+  if (kit.gear?.mask) kit.late.push(() => fofMask(g, kit, kit.gear.maskLook ?? MASK_LOOK));
+  if (kit.gear?.hands === 'up') kit.late.push(() => openPalms(g, kit));
   if (kit.gear?.held === 'phone') {
     const x = MID - B.hand - 2, id = g.add(g.rows(y, x, x + 2, y + 4), 0x23252f);
     g.on(id, g.rows(y + 1, x + 1, x + 1, y + 3), 0x8fc8e8);

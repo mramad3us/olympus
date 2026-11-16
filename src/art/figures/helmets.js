@@ -494,3 +494,47 @@ export function trimPlate(cells, slab) {
   }
   for (const c of hit) { c.ch = '§'; c.t = null; }
 }
+
+// ---------- v0.0.19: the force-on-force masks (the build sheet 0.0.19 §1 L-look; samples/opfor-look) ----------
+// The role-players' mask on the world figure, the doll's three looks (src/art/doll/worn.js MASK_LOOKS) at the head kit's
+// reference: M1 a mesh in a black frame, M2 (the default) a clear lens over the eyes and a moulded lower shell, M3 a smoked
+// shield with a chin guard. Unlike a helm it sits over a bare head (the hair and the head's own skull stay), so its template
+// covers the face alone, from the brow to the chin, and '.' leaves the face's own pixel: letters ĵ the frame and shell (Ĵ in
+// shade), þ the lens or the shield (Þ in shade), l a glint. Seen from behind ('up') it is the strap alone, round the head at the
+// eyes' row. The composer draws it once it reads look.mask (the lead's wiring: compose.js head(), outfits.js wear()); until then it
+// is the samples' and the tests'.
+const MASK_TPL = Object.freeze({
+  M1: { down: [1, 4, ['ĵĵĵĵĵĵĵĵĵĵĵĵĵ', 'ĵĴ.Ĵ.Ĵ.Ĵ.Ĵ.Ĵĵ', 'ĵ.Ĵ.Ĵ.Ĵ.Ĵ.Ĵ.ĵ', 'ĵĴ.Ĵ.Ĵ.Ĵ.Ĵ.Ĵĵ', '.ĵ.Ĵ.Ĵ.Ĵ.Ĵ.ĵ.', '..ĵĵĵĵĵĵĵĵĵ..', '....ĴĴĴĴĴ....']],
+    right: [7, 4, ['ĵĵĵĵĵĵĵ', 'Ĵ.Ĵ.Ĵ.ĵ', '.Ĵ.Ĵ.Ĵĵ', 'Ĵ.Ĵ.Ĵ.ĵ', 'ĵ.Ĵ.Ĵĵ.', 'ĵĵĵĵĵĵ.', 'ĴĴĴĴ...']],
+    up: [0, 6, ['ĵ.............ĵ', 'ĵĵĵĵĵĵĵĵĵĵĵĵĵĵĵ']] },
+  M2: { down: [1, 4, ['ĵĵĵĵĵĵĵĵĵĵĵĵĵ', 'ĵlþþþþþþþþþþĵ', 'ĵþþþþþþþþþþÞĵ', 'ĵĵĵĵĵĵĵĵĵĵĵĵĵ', '.ĵĵĴĵĵĴĵĵĴĵĵ.', '..ĵĵĵĵĵĵĵĵĵ..', '....ĴĴĴĴĴ....']],
+    right: [7, 4, ['ĵĵĵĵĵĵĵ', 'ĵĵlþþþĵ', 'ĵĵþþþÞĵ', 'ĵĵĵĵĵĵĵ', 'ĵĵĴĵĴĵ.', 'ĵĵĵĵĵĵ.', 'ĴĴĴĴ...']],
+    up: [0, 6, ['ĵ.............ĵ', 'ĵĵĵĵĵĵĵĵĵĵĵĵĵĵĵ']] },
+  M3: { down: [1, 3, ['ĵĵĵĵĵĵĵĵĵĵĵĵĵ', 'ĵlþþþþþþþþþþĵ', 'ĵþþþþþþþþþþÞĵ', 'ĵþþþþþþþþþþÞĵ', 'ĵþþþþþþþþþÞÞĵ', '.ĵĵĵĵĵĵĵĵĵĵĵ.', '..ĵĴĴĴĴĴĴĴĵ..', '....ĴĴĴĴĴ....']],
+    right: [7, 3, ['ĵĵĵĵĵĵĵ', 'ĵlþþþþĵ', 'ĵþþþþÞĵ', 'ĵþþþþÞĵ', 'ĵþþþÞÞĵ', 'ĵĵĵĵĵĵ.', 'ĵĴĴĴĵ..', 'ĴĴĴ....']],
+    up: [0, 5, ['ĵ.............ĵ', 'ĵĵĵĵĵĵĵĵĵĵĵĵĵĵĵ']] },
+});
+/** The masks' looks to score and the default (the doll's MASK_LOOKS' ids), with their colours: the frame (ĵ) and the lens (þ). */
+export const FOF_MASKS = Object.freeze({
+  M1: Object.freeze({ id: 'M1', name: 'M1 the mesh: a wire mesh in a black frame', frame: 0x24262d, lens: 0x30333b }),
+  M2: Object.freeze({ id: 'M2', name: 'M2 lens and shell: a clear lens, a moulded lower shell, three vents', frame: 0x2e3139, lens: 0x8fb4c8 }),
+  M3: Object.freeze({ id: 'M3', name: 'M3 the shield: a smoked shield to the jaw, a chin guard', frame: 0x24262d, lens: 0x4e6474 }),
+});
+export const FOF_MASK = 'M2';
+const masks = new Map();
+/** A mask's template for a view at a head box bw × bh: { x, y, rows } from the box's top-left ('left' mirrored from 'right'), or null with no such mask. */
+export function fofMaskTpl(id, view, bw, bh) {
+  const M = MASK_TPL[id];
+  if (!M) return null;
+  const key = `${id}|${view}|${bw}x${bh}`;
+  let t = masks.get(key);
+  if (t === undefined) {
+    const v = view === 'left' ? 'right' : view, src = M[v] ?? M.down, sideOn = v === 'right';
+    t = resample(src, bw, bh, sideOn ? REF.sideW : REF.w);
+    if (view === 'left') t = mirror(t, bw);
+    masks.set(key, t);
+  }
+  return t;
+}
+/** A mask's role colours for a look's (outfits.js coloursOf: ĵ the frame, þ the lens). */
+export const fofMaskColours = (id) => { const M = FOF_MASKS[id] ?? FOF_MASKS[FOF_MASK]; return { ĵ: M.frame, þ: M.lens }; };

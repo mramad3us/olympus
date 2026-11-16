@@ -75,13 +75,9 @@ const TOP_UP = /macro:reload:tactical$/;
 export const KNOWN = Object.freeze([
   // (v0.0.18 fixed the other 17 of v0.0.17's entries: wrong-mag, nothing-left, remedial-drop, slung-stoppage, slung, feet-only,
   // locked-top-up, chamber-unknown, cond3-top-up, p12-unready, cond3-di, leads-on, charge-nothing, pin, cold-fix, p12-sling and
-  // p12-port; their fixtures stay in tests/fumble-fixtures.json.br and now pin the fixes)
-  { id: 'stoppage-silent', findings: ['(the net\'s own) A stoppage believed at a contact (a dud): the DI\'s stoppage line has no act while a man faces you, and Fix names a reload, which comes round again'],
-    source: 'net', inv: ['N13', 'N5', 'N12'], how: 'a stoppage believed: the DI\'s cqb-stoppage line without an act, a man facing (N13); the recoveries stuck there looping on a reload (macro:reload:*)',
-    match: (c) => (c.inv === 'N13' && /^stoppage:/.test(c.dry ?? '') && c.line?.id === 'cqb-stoppage' && silent(c)) || (rc(c) && /^stoppage:/.test(at(c).dry ?? '') && looped(c) && /macro:reload:/.test(lastPress(c))) },
-  { id: 'noshoot-silent', findings: ['(the net\'s own) A no-shoot facing beside a threat with the gun empty or locked: the DI\'s no-shoot line has no act, so T says nothing about the gun'],
-    source: 'net', inv: ['N13'], how: 'the DI\'s cqb-noshoot line without an act over a dry gun, a man facing',
-    match: (c) => c.line?.id === 'cqb-noshoot' && silent(c) },
+  // p12-port; v0.0.19's fixer the last two: stoppage-silent (cqb-stoppage's act falls to Fix's row where no drill is offered) and
+  // noshoot-silent (cqb-noshoot keeps quiet over a gun that cannot fire, cqb-reload leading); their fixtures stay in
+  // tests/fumble-fixtures.json.br and now pin the fixes)
 ].map(e => Object.freeze({ ...e, inv: Object.freeze(e.inv), match: (c) => e.inv.includes(c.inv) && e.match(c) })));
 
 /**
@@ -93,16 +89,11 @@ export const KNOWN = Object.freeze([
  * HAD-30 as the P-12's 3 (the net's own misreading: Rifle up holsters the pistol and seats the magazine in the rifle).
  */
 export const OPEN = Object.freeze([
-  { id: 'pin-v018', findings: [H.pinTwo, H.pinStuck], source: 'sweep', inv: ['N6', 'N5', 'N12'], how: 'as v0.0.17\'s pin: a stack, room or move bundle held by a body',
-    match: (c) => (c.inv === 'N6' && /^(drill:(stack|room)|move):/.test(c.step ?? '')) || (rc(c) && /never paused again|ran past/.test(c.rc?.why ?? '') && /^(T|Fix):(stop:)?(drill:(stack|room)|move):/.test(lastPress(c))) },
-  { id: 'p12-unready-v018', findings: [H.p12Go], source: 'sweep', inv: ['N11'], how: 'the P-12 at GO not in Condition 1 after a fumbled MAKE READY',
-    match: (c) => /^the P-\d+ at GO/.test(c.why) },
-  { id: 'leads-on-v018', findings: ['(the net\'s own) Over a gun that cannot fire, T leads the marine on and the state comes round again'], source: 'sweep', inv: ['N5', 'N12'],
-    how: 'a recovery looping where it stuck dry with its last press one that leads on (LEADS)', match: (c) => looped(c) && LEADS.test(lastPress(c)) },
-  { id: 'n7-rifle-up', findings: ['(the net\'s own misreading) N7 counts Rifle up\'s seat of a rifle magazine as a seat into the P-12 in the hand'], source: 'net', inv: ['N7'],
-    how: 'T\'s act is Rifle up and the magazine held is the rifle\'s family', match: (c) => /would seat a had30 \(not the p12's\)/.test(c.why) && /rifle-up/.test(c.line?.act ?? '') },
-  { id: 'pingpong-v018', findings: ['(the net\'s own) With both guns believed unable to fire (the P-12\'s magazine out, its chamber unknown), T sends Rifle up, then Transition, then Rifle up again'], source: 'sweep', inv: ['N5', 'N12'],
-    how: 'a recovery looping on Rifle up and Transition alone', match: (c) => looped(c) && (c.rc?.path ?? []).filter(p => p !== 'G').every(p => /stop:weapon:(rifle-up|transition)$/.test(p)) },
+  // (v0.0.19's fixer closed all five, each with fixtures from v0.0.18's sweep lanes (tests/fumble-fixtures.json.br, "v0.0.19's
+  // fixer"): pin-v018 (places/move.js PIN_END_MS: a walk of yours held 2 s by a body hands back), p12-unready-v018 (the tower's
+  // move-on past MAKE READY racks a P-12 still owed, shoothouse.js houseMoveOn), leads-on-v018 (cqb-contact's lines that lead on
+  // keep quiet over a gun that cannot fire), pingpong-v018 (cqb-rifle-up yields to Fix over a dry rifle) and n7-rifle-up (the
+  // net's seatsHeld: a seat after a change of gun is the other gun's))
 ].map(e => Object.freeze({ ...e, inv: Object.freeze(e.inv), match: (c) => e.inv.includes(c.inv) && e.match(c) })));
 
 /** The hunt's findings the net does not reach yet, and why (printed, so the list is honest about its holes). */

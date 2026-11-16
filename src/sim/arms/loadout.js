@@ -16,6 +16,14 @@
 // makes nothing, so a lane with &loadout=standard is the lane without it to the byte. loadoutView(state, pid) is the screen's
 // data from the sim: each face's places, their items with mass and reach (devices.js deviceMs at the person's skills), the
 // whole kit's kitMassKg and the walk's push and brake at that mass (motion.js tractionOf, as bundle.js legsOf reads them).
+// v0.0.19 (D2, the build sheet 0.0.19 §0 item 10, §4 item 5): the practice grenades 'g9p' and 'g13p' (a grenade pouch each)
+// and the cutting charge 'bc1+fd1' (a charge pouch with a BC-1 and its FD-1) are issued while PRACTICE_ISSUED (the one switch
+// that hides the practice grenades from the issue table), and the picker gains four presets: frag (two G-9Ps on the left), conc
+// (two G-13Ps), cut (a BC-1 and an SC-1 on the right, the halligan on the back) and mixed (a G-11 and a G-9P on the left, a BC-1
+// on the right). The #2's P-12 (team's question, TWO_P12_DEFAULT false: the log of 2026-11-15) rides the code as one token,
+// '~two:p12' (or '~two:none'), after a preset's name or a v1 code, written only where it differs from the default (spec.two =
+// { p12: true } when on; absent is off), read off first by loadoutOf, which resolves the default in the one place, so flipping
+// TWO_P12_DEFAULT is the one switch and every v0.0.18 code reads and writes back byte for byte.
 // Pure but applyLoadout, which makes items (w).
 import { nextId, put, playerActor, playerId } from '../../core/ids.js';
 import { G0_MS2 } from '../../core/phys.js';
@@ -34,9 +42,21 @@ export const ISSUE = fz({
   'sc1+fd1': fz({ word: 'SC-1 strip charge with its FD-1', pouch: 'pouch-charge', items: fz(['sc1', 'fd1']), faces: fz(['left', 'right']), act: 'charge:reach' }),
   hal: fz({ word: 'halligan', pouch: 'scab-tool', items: fz(['hal']), faces: fz(['back']), act: 'tool:reach' }),
   ram: fz({ word: 'ram', pouch: 'scab-tool', items: fz(['ram']), faces: fz(['back']), act: 'tool:reach' }),
+  // (v0.0.19, D2 (see the header))
+  g9p: fz({ word: 'G-9P practice frag', pouch: 'pouch-gren', items: fz(['g9p']), faces: fz(['left', 'right']), act: 'gren:reach' }),
+  g13p: fz({ word: 'G-13P practice concussion', pouch: 'pouch-gren', items: fz(['g13p']), faces: fz(['left', 'right']), act: 'gren:reach' }),
+  'bc1+fd1': fz({ word: 'BC-1 cutting charge with its FD-1', pouch: 'pouch-charge', items: fz(['bc1', 'fd1']), faces: fz(['left', 'right']), act: 'charge:reach' }),
 });
-/** The issue table's order on the screen (D1's; D2 adds the practice grenades). */
-export const ISSUE_ORDER = fz(['g11', 'sc1+fd1', 'hal', 'ram']);
+/** Whether the practice grenades are issued (the one switch of the build sheet 0.0.19 §13: the issue table and the presets hide them when false). */
+export const PRACTICE_ISSUED = true;
+/** Whether your #2 carries a P-12 by default (the log of 2026-11-15, line 229; team's question 1): '~two:p12' turns it on. */
+export const TWO_P12_DEFAULT = false;
+/** The code's token for the #2's P-12 (see the header). */
+export const TWO_P12_TOKEN = '~two:p12';
+/** The token that leaves the #2's P-12 off where the default is on (the review of v0.0.19: flipping TWO_P12_DEFAULT must be the one switch). */
+export const TWO_NONE_TOKEN = '~two:none';
+/** The issue table's order on the screen (D1's, the practice grenades and the cutting charge after their kinds). */
+export const ISSUE_ORDER = fz(['g11', ...(PRACTICE_ISSUED ? ['g9p', 'g13p'] : []), 'sc1+fd1', 'bc1+fd1', 'hal', 'ram']);
 /** Each face's count (kit.js CONTAINERS 'pc-m3' faces). */
 export const FACE_N = CONTAINERS['pc-m3'].faces;
 const FRONT = fz(['mag2', 'mag2', 'dump']);
@@ -46,10 +66,15 @@ export const LOADOUT_PRESETS = fz({
   flash: fz({ front: FRONT, left: fz(['g11', 'g11']), right: fz([]), back: fz([]) }),
   breach: fz({ front: FRONT, left: fz([]), right: fz(['sc1+fd1', 'sc1+fd1']), back: fz(['hal']) }),
   full: fz({ front: FRONT, left: fz(['g11', 'g11']), right: fz(['sc1+fd1']), back: fz(['hal']) }),
+  // (v0.0.19, D2 (see the header))
+  frag: fz({ front: FRONT, left: fz(['g9p', 'g9p']), right: fz([]), back: fz([]) }),
+  conc: fz({ front: FRONT, left: fz(['g13p', 'g13p']), right: fz([]), back: fz([]) }),
+  cut: fz({ front: FRONT, left: fz([]), right: fz(['bc1+fd1', 'sc1+fd1']), back: fz(['hal']) }),
+  mixed: fz({ front: FRONT, left: fz(['g11', 'g9p']), right: fz(['bc1+fd1']), back: fz([]) }),
 });
-/** The presets' order and words on the picker and the screen (1 to 4). */
-export const PRESET_ORDER = fz(['standard', 'flash', 'breach', 'full']);
-export const PRESET_WORDS = fz({ standard: 'Standard', flash: 'Flash', breach: 'Breach', full: 'Full' });
+/** The presets' order and words on the picker and the screen (1 to 8; the practice grenades' only while PRACTICE_ISSUED). */
+export const PRESET_ORDER = fz(['standard', 'flash', 'breach', 'full', ...(PRACTICE_ISSUED ? ['frag', 'conc'] : []), 'cut', ...(PRACTICE_ISSUED ? ['mixed'] : [])]);
+export const PRESET_WORDS = fz({ standard: 'Standard', flash: 'Flash', breach: 'Breach', full: 'Full', frag: 'Frag', conc: 'Concussion', cut: 'Cut', mixed: 'Mixed' });
 
 // (a spec with its four faces, each a list)
 const norm = (spec) => Object.fromEntries(FACES.map(f => [f, [...(spec?.[f] ?? (f === 'front' ? FRONT : []))]]));
@@ -71,16 +96,29 @@ export function checkLoadout(spec) {
   }
   return null;
 }
-/** A spec's code (see the header). */
-export function codeOf(spec) {
-  const s = norm(spec);
-  for (const id of PRESET_ORDER) if (same(s, norm(LOADOUT_PRESETS[id]))) return id;
-  return ['v1', ...FACES.filter(f => f === 'front' || s[f].length).map(f => `${f}:${s[f].join(',')}`)].join('~');
+/**
+ * A spec's code (see the header): its faces' (a preset's id, else v1's), then the #2's token where his P-12 differs from the default
+ * ('~two:p12' on, '~two:none' off; a spec with no `two` is the default). twoDefault: TWO_P12_DEFAULT (an argument for the tests only).
+ */
+export function codeOf(spec, { twoDefault = TWO_P12_DEFAULT } = {}) {
+  const p12 = spec?.two?.p12 ?? twoDefault, s = norm(spec), two = p12 === twoDefault ? '' : p12 ? TWO_P12_TOKEN : TWO_NONE_TOKEN;
+  for (const id of PRESET_ORDER) if (same(s, norm(LOADOUT_PRESETS[id]))) return id + two;
+  return ['v1', ...FACES.filter(f => f === 'front' || s[f].length).map(f => `${f}:${s[f].join(',')}`)].join('~') + two;
 }
-/** A code read (see the header): its spec (frozen faces, every face present), or { error } for one unknown or refused. */
-export function loadoutOf(code) {
-  if (code === null || code === undefined || code === '') return norm(LOADOUT_PRESETS.standard);
-  const c = String(code).trim().replace(/ /g, '+');
+/**
+ * A code read (see the header): its spec (frozen faces, every face present, `two` only when his P-12 is on), or { error } for one
+ * unknown or refused. The #2's P-12 is resolved here, the one place: the token's, else TWO_P12_DEFAULT (twoDefault, for the tests).
+ */
+export function loadoutOf(code, { twoDefault = TWO_P12_DEFAULT } = {}) {
+  const c0 = code === null || code === undefined ? '' : String(code).trim().replace(/ /g, '+');
+  const tok = [TWO_P12_TOKEN, TWO_NONE_TOKEN].find(t => c0.endsWith(t)) ?? null, c = tok ? c0.slice(0, -tok.length) : c0;
+  const out = c0 === '' ? norm(LOADOUT_PRESETS.standard) : faceSpecOf(c, code), p12 = tok ? tok === TWO_P12_TOKEN : twoDefault;
+  if (p12 && !out.error) out.two = { p12: true };
+  return out;
+}
+// (the faces of a code with the #2's token off: a preset's, else v1's)
+function faceSpecOf(c, code) {
+  if (c === '') return { error: `no loadout '${code}'` };
   if (Object.hasOwn(LOADOUT_PRESETS, c)) return norm(LOADOUT_PRESETS[c]);
   const parts = c.split('~');
   if (parts[0] !== 'v1') return { error: `no loadout '${code}'` };

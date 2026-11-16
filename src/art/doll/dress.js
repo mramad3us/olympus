@@ -35,7 +35,7 @@ export function dressOf(gear, { look = {}, sex = 'm', body = null, wounds = null
     return args;
   }
   // (nothing the doll does not already draw: v0.0.17's arguments, the outfit the gear's)
-  const adds = gear.suit || gear.carrier || gear.rifle || gear.pistol || gear.thigh || gear.ears || gear.held || gear.devices?.length;
+  const adds = gear.suit || gear.carrier || gear.rifle || gear.pistol || gear.thigh || gear.ears || gear.held || gear.devices?.length || gear.mask || gear.hands;
   L.outfit = gear.suit ? 'combatSuit' : gear.outfit ?? L.outfit ?? 'utilities';
   if (!adds) return args;
   if (gear.suit) {
@@ -50,6 +50,8 @@ export function dressOf(gear, { look = {}, sex = 'm', body = null, wounds = null
     ears: gear.ears, held: gear.held,
     // (v0.0.18, the fixer's: the devices worn off the front, only where there are any, so every doll without them keeps its key)
     ...(gear.devices?.length ? { devices: gear.devices.map(d => ({ face: d.face, slot: d.slot, shape: d.shape, colour: d.colour })) } : {}),
+    // (v0.0.19: the force-on-force mask and the hands up, worn.js's, only when set: every other doll's arguments as before)
+    ...(gear.mask ? { mask: gear.mask } : {}), ...(gear.hands ? { hands: gear.hands } : {}),
   };
   return args;
 }

@@ -47,6 +47,13 @@
 // no stakes and no zones (VIEWS §7.7's option A). A mark of your #2's ({ kind: 'two' }, truth only) is drawn unnumbered, its
 // hole in the board's ink at TWO_K: the house's truth phase, which the HUD's view does not show (it closes at the lane's end) and
 // the end card's truth cards (the build sheet's C4, not built) will.
+// v0.0.19 (the build sheet 0.0.19 §1 L-look; opfor §2.6): THE PAINT. A marking round leaves paint, so a mark with `paint`
+// ('team': a round of the stack on a role-player, in the cadre's pink; 'rp': a role-player's on a marine, in blue: PAINT_C) is
+// drawn as paint, by the look the user scores (samples/opfor-look, PAINT_LOOKS): P1 (the default) a splat, a round blob of the
+// colour PAINT_PX across with a darker rim at its foot and two drops thrown off it by the mark's number; P2 the ring as for paper,
+// filled with the paint where it was seen. In belief a round seen to strike is painted at its called point (paint can be seen to
+// land: the man wears it), one not seen is the amber ring as before; in truth at its hole. A mark without `paint` is drawn as it
+// always was, so every board's card, the four B goldens and "Bang" are unchanged.
 import { word } from '../paint.js';
 import { glyphOf } from '../font.js';
 import { GLOWS } from '../palette.js';
@@ -107,6 +114,13 @@ export const ZONES_K = 0.55;
 export const TWO_K = 0.6;
 /** The hostage card: the hostile behind the hostage, this far to the side at the near band (card px; sample H picks the side). */
 export const HOSTAGE_DX_PX = 14;
+/** The marking rounds' paint (v0.0.19, see the header): the cadre's pink on a role-player, blue on a marine; their rims in shade. */
+export const PAINT_C = Object.freeze({ team: 0xe8489a, rp: 0x3f86e8 });
+/** The paint's looks to score (samples/opfor-look): P1 a splat (the default), P2 the paper's ring filled with the paint. */
+export const PAINT_LOOKS = Object.freeze({ P1: 'splat', P2: 'ring' }), PAINT_LOOK = 'P1';
+/** A splat's blob across (card px, odd), and its drops' offsets by the mark's number (two of these four, card px from its centre). */
+export const PAINT_PX = 5;
+const DROPS = Object.freeze([[4, -3], [-4, 2], [3, 4], [-3, -4]]);
 const r = Math.round;
 const DOLLS = new Map();
 /** The painted man's look on a board by its face: 'armoured' in the plate carrier and helmet, the rest bare-headed in utilities (a no-shoot light-skinned). */
@@ -285,10 +299,37 @@ export function paintHitcard(m = {}) {
   // (0.0.18: your #2's holes in truth, under yours, unnumbered, in the board's ink at TWO_K)
   if (truth) for (const mk of list) if (mk.kind === 'two' && mk.hole) {
     const [x, y] = where(mk.hole), cx = r(x), cy = r(y), h = (HOLE_PX - 1) / 2 + 1;
+    // (v0.0.19: your #2's paint on a role-player, his colour at TWO_K, unnumbered)
+    if (mk.paint) { for (let j = -h; j <= h; j++) for (let i = -h; i <= h; i++) if (!(Math.abs(i) === h && Math.abs(j) === h)) blend(cx + i, cy + j, PAINT_C[mk.paint] ?? PAINT_C.team, TWO_K); continue; }
     for (let j = -h; j <= h; j++) for (let i = -h; i <= h; i++) if (!(Math.abs(i) === h && Math.abs(j) === h)) blend(cx + i, cy + j, Math.abs(i) === h || Math.abs(j) === h ? HIT_C.khakiInk : INK, TWO_K);
   }
+  // (v0.0.19: paint, by the look scored (PAINT_LOOKS): the splat, or the ring filled with the paint)
+  const paintLook = PAINT_LOOKS[m.paintLook] ?? PAINT_LOOKS[PAINT_LOOK];
+  const splat = (cx, cy, c, n) => {
+    const h = (PAINT_PX - 1) / 2, rim = mix(c, INK, 0.45), lit = mix(c, 0xffffff, 0.3);
+    for (let j = -h; j <= h; j++) for (let i = -h; i <= h; i++) {
+      if (Math.abs(i) === h && Math.abs(j) === h) continue;
+      put(cx + i, cy + j, j === h || (i === h && j > 0) ? rim : i <= 0 && j < 0 ? lit : c);
+    }
+    const k = ((Number(n) || 0) * 3) % DROPS.length;
+    for (const [dx, dy] of [DROPS[k], DROPS[(k + 1) % DROPS.length]]) { put(cx + dx, cy + dy, c); put(cx + dx + 1, cy + dy, rim); }
+  };
   for (const mk of list) {
     if (mk.kind === 'two') continue;
+    const pc = mk.paint ? PAINT_C[mk.paint] ?? PAINT_C.team : null;
+    if (pc !== null) {
+      const at = truth ? mk.hole : mk.seen ? mk.called : null, ring0 = !truth && !mk.seen ? mk.called : null;
+      if (at) {
+        const [x, y] = where(at), cx = r(x), cy = r(y);
+        if (paintLook === 'ring') ring(cx, cy, pc, 1, true); else splat(cx, cy, pc, mk.n);
+        drawn.push({ n: mk.n, x: cx, y: cy, kind: 'paint', zone: truth ? mk.zone ?? null : null, paint: mk.paint });
+      } else if (ring0) {
+        const [x, y] = where(ring0), cx = r(x), cy = r(y);
+        ring(cx, cy, HIT_C.amber, 1, false);
+        drawn.push({ n: mk.n, x: cx, y: cy, kind: 'ring', zone: null });
+      }
+      continue;
+    }
     if (truth) {
       if (!mk.hole) continue;
       const [x, y] = where(mk.hole), cx = r(x), cy = r(y);

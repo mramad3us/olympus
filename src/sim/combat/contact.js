@@ -72,6 +72,16 @@
 // longer up with you), the log "His. Taken in 0.05 s", the fact 'his'. And **the standing order** (byOrder; question 1's
 // default: built, from rung 4, off): at the pause, every man of the contact in your sector seen armed, facing, nobody within
 // ORDER_ALONE_M 1 m of him: the doctrinal row chosen at once, moving on, "By your order: …".
+// v0.0.19 (the build sheet v0.0.19 §3.3, §0 item 13; COMBAT §7.11, §25.18): **the live men**. Every sighting reads combat/men.js
+// seenK (a stand's as before, to the bit: the detector quantised, twoOn raw, as each read it; a live man's by his exposure).
+// The detector remembers each live man it sees this tick (c.seenAt, men.js remember) and forgets him for the take-in once he
+// has been out of sight MAN_MEMORY_MS (men.js stale), so his next appearance is a fresh window; a stand is forgotten when it
+// turns away, as built. A round from a man you did not know draws your eye (c.drawn, written by men.js incoming): the look
+// that follows takes him in with the cone opened, his window's expectation 'alert' ("not where your muzzle was"), and the
+// drawn eye is spent. The identification of a live man also reads what he is doing (last.state: 'aiming', 'looking',
+// 'running', 'hands', 'cowering', 'down'; men.js LIVE_STATE), on a passed roll only. A live man down (sitting, still armed) keeps
+// his rows: Hold him as "Cover him", leading. contactLive and lullOf read men.js upNow. And the startle's hold on the
+// player's flow runs first in the look (bundle.js startleTick). A lane with no live man writes nothing new.
 // Pure but contactLook, contactInput, identify, runContactSub, endContactSub and byOrder, which write the mind, the stop
 // and the log.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
@@ -81,7 +91,7 @@ import { playerActor, playerId } from '../../core/ids.js';
 import { check } from '../skills/checks.js';
 import { sheetOf, rungOf } from '../skills/templates.js';
 import { rollerOf, DARK_BELOW } from './roll.js';
-import { sightOf, SEEN } from '../people/perception.js';
+import { SEEN } from '../people/perception.js';
 import { contactOf, noteContact } from '../people/mind.js';
 import { muzzleOf, angleDiff } from '../arms/carry.js';
 import { turnersOf, turnerOf, facingOf, turnerTargets, edgeOnMs } from '../arms/turners.js';
@@ -92,8 +102,11 @@ import { logEntry } from '../log.js';
 import { startled, feltOf, bandN, blockOf } from './supp.js';
 import { halt as haltDoing, suspendFlow } from './stepper.js';
 import { gunField } from '../arms/firearms.js';
-import { roomPlanOf, pastThreshold, inFunnel, manPlace } from './room.js';
+import { roomPlanOf, pastThreshold, inFunnel, manPlace, doorOfRoom } from './room.js';
+import { ownerOf, roleAt } from './team.js';
 import { stillUp } from '../arms/specials.js';
+import { seenK, upNow, stale, remember, drawnOn, gateWhy, casualtyOn, LIVE_STATE } from './men.js';
+import { startleTick, flowOn, carryOn } from './bundle.js';
 
 /** The rung from which a contact suspends a running bundle rather than handing it back (COMBAT §25.19.3.1). */
 export const SUSPEND_RUNG = 2;
@@ -113,6 +126,8 @@ export const IDENT_WORDS = Object.freeze({ rifle: 'a rifle', pistol: 'a pistol',
 export const CHALLENGE_SAY = 'Show me your hands!';
 /** The contact rows' labels. */
 export const CONTACT_LABELS = Object.freeze({ 'contact:hold': 'Hold him', 'contact:challenge': 'Challenge' });
+/** Hold him on a live man down, still armed (v0.0.19: the role-players'; COMBAT §7.11). */
+export const COVER_LABEL = 'Cover him';
 
 const sgn = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const ZERO_FEET = Object.freeze({ mx: 0, mz: 0, run: false, stroll: false });
@@ -122,14 +137,15 @@ const threatFace = (face) => face === 'threat' || face === 'armoured' || face ==
 export function pendingOf(state) { return contactOf(state)?.pending ?? null; }
 
 /** Whether a sim action is refused: every one while a window is open or the player is startled (COMBAT §25.4.5, §5.7; game.js act()'s gate). */
-export function refusesAct(state, action) { return !!pendingOf(state) || startled(state, playerId(state), state.clock.ms); }
+export function refusesAct(state, action) { return !!pendingOf(state) || startled(state, playerId(state), state.clock.ms) || (casualtyOn(state) && state.stop?.mode !== 'stop'); }
 
 /**
  * The feet while a window is open (see the header): the move held at the sighting until seenMs + goMs, then
  * stopped; pre-armed, the held move all through. With no window, the input's own. Returns { mx, mz, run, stroll }.
  */
 export function feetOf(state, input) {
-  if (startled(state, playerId(state), state.clock.ms)) return ZERO_FEET;
+  // (v0.0.19: a startle, and the live lane's casualty beat (men.js casualtyOn): the feet still)
+  if (startled(state, playerId(state), state.clock.ms) || casualtyOn(state)) return ZERO_FEET;
   const P = pendingOf(state);
   if (!P) return { mx: sgn(input?.mx), mz: sgn(input?.mz), run: !!input?.run, stroll: !!input?.stroll };
   if (P.armed || state.clock.ms < P.seenMs + P.goMs) return { mx: P.mx, mz: P.mz, run: !!P.run, stroll: false };
@@ -145,10 +161,11 @@ function targetsAt(state, keys, ms) {
 
 // (the take-in of a window's targets, from its first sighting: one notice check, keyed by the contact)
 // (band: the window's, felt's band at its first sighting, given on a join)
-function windowOf(state, pid, id, keys, seenMs, roll = null, band = null) {
+// (expect: an expectation given by key (v0.0.19: a man whose round drew the eye, 'alert'), or null as built)
+function windowOf(state, pid, id, keys, seenMs, roll = null, band = null, expect = null) {
   const targets = targetsAt(state, keys, seenMs);
   const b = band ?? bandN(feltOf(state, pid, seenMs));
-  const t = takeInMs(state, pid, { id, targets, seenMs, roll, band: b });
+  const t = takeInMs(state, pid, { id, targets, seenMs, roll, band: b, ...(expect ? { expect } : {}) });
   return { t, rangeM: targets[0]?.rangeM ?? 0, band: b };
 }
 // (the player's eyes taken by a flash at ms)
@@ -160,6 +177,8 @@ const fact = (phase, pid, rec, extra = {}) => ({ phase, id: rec.id, who: pid, id
 
 /** The fast layer 'look', the detector (see the header): lived ticks only. */
 export function contactLook(state, input, bus, ctx) {
+  // (v0.0.19: the startle's hold on your flow first, every lived tick (bundle.js startleTick; see the header))
+  startleTick(state, bus);
   const list = turnersOf(state);
   if (!list.length || state.skip) return;
   const me = playerActor(state);
@@ -167,23 +186,37 @@ export function contactLook(state, input, bus, ctx) {
   const pid = me.who, ms = state.clock.ms;
   // (startled or flash-blind, nothing is taken in: the detector looks again on the first tick after)
   if (startled(state, pid, ms) || blindAt(state, pid, ms)) return;
-  const c0 = contactOf(state);
-  // (a turner turned away is forgotten: its next turn is a fresh sighting)
-  if (c0) for (const key of Object.keys(c0.known)) { const T = list.find(x => x.key === key); if (!T || facingOf(T, ms) < SEEN) delete c0.known[key]; }
+  // (v0.0.19: the live men seen this tick, remembered (men.js), the drawn eye's man with the cone opened; then the eye spent. The
+  // eye's pose at this look kept on the actor, runtime only ($look: the bodies before the stop layer turns the head), so the
+  // live gauges' F38 can read the sighting again for itself, never from the detector's own verdict)
+  if (list.some(T => T.live)) me.$look = { ms, x: me.x, z: me.z, headRad: me.headRad ?? null, face: me.face ?? null };
+  let c0 = contactOf(state), liveK = null;
+  const drawnKey = c0?.drawn && drawnOn(c0, c0.drawn.key, ms) ? c0.drawn.key : null;
+  for (const T of list) {
+    if (!T.live) continue;
+    const k = q(seenK(state, me, T, ms, { drawn: T.key === drawnKey }), 1e-6);
+    (liveK ??= {})[T.key] = k;
+    if (k >= SEEN) { c0 ??= noteContact(state, {}); remember(c0.seenAt ??= {}, T.key, ms); }
+  }
+  if (c0?.drawn) delete c0.drawn;
+  // (a turner turned away is forgotten: its next turn is a fresh sighting; v0.0.19, a live man out of sight MAN_MEMORY_MS too)
+  if (c0) for (const key of Object.keys(c0.known)) { const T = list.find(x => x.key === key); if (!T || facingOf(T, ms) < SEEN || (T.live && stale(c0.seenAt?.[key] !== undefined ? c0.seenAt : c0.known, key, ms))) delete c0.known[key]; }
   const fresh = [];
   for (const T of list) {
     if (c0?.known?.[T.key] !== undefined || (T.stoppedAtMs !== null && T.stoppedAtMs !== undefined)) continue;
     const f = facingOf(T, ms);
     if (f < SEEN) continue;
-    if (q(sightOf(state, me, { x: T.x, z: T.z }, ms).vis * f, 1e-6) < SEEN) continue;
+    if ((T.live ? liveK[T.key] : q(seenK(state, me, T, ms, { f }), 1e-6)) < SEEN) continue;
     fresh.push(T.key);
   }
   if (!fresh.length) return;
   const c = noteContact(state, {});
   for (const key of fresh) c.known[key] = ms;
+  // (the drawn eye's man taken in 'alert': not where your muzzle was)
+  const expect = drawnKey && fresh.includes(drawnKey) ? { [drawnKey]: 'alert' } : null;
   const P = c.pending;
   if (!P) {
-    const id = c.n + 1, { t, rangeM, band } = windowOf(state, pid, id, fresh, ms);
+    const id = c.n + 1, { t, rangeM, band } = windowOf(state, pid, id, fresh, ms, null, null, expect);
     c.n = id;
     c.pending = { id, ids: fresh, seenMs: ms, untilMs: ms + t.ms, ms: t.ms, expect: t.expect, ...(t.expects && state.mind?.clearing ? { expects: t.expects } : {}), n: t.n, grade: t.grade, roll: t.roll, parts: t.parts, rangeM, whoK: t.whoK,
       armed: armedOf(state, me), goMs: goMs(sheetOf(state, pid)?.os ?? 0), mx: sgn(input?.mx), mz: sgn(input?.mz), run: !!input?.run, ...(band ? { band } : {}) };
@@ -193,7 +226,7 @@ export function contactLook(state, input, bus, ctx) {
   // (a turner of this window turned away and back inside it is known again, not taken in twice)
   const more = fresh.filter(k => !P.ids.includes(k));
   if (!more.length) return;
-  const ids = [...P.ids, ...more], { t } = windowOf(state, pid, P.id, ids, P.seenMs, P.roll, P.band ?? 0);
+  const ids = [...P.ids, ...more], { t } = windowOf(state, pid, P.id, ids, P.seenMs, P.roll, P.band ?? 0, expect);
   Object.assign(P, { ids, untilMs: Math.max(P.untilMs, P.seenMs + t.ms), ms: Math.max(P.ms, t.ms), expect: t.expect, ...(t.expects && P.expects ? { expects: { ...t.expects, ...P.expects } } : {}), n: t.n, parts: t.parts, whoK: t.whoK });
   bus?.emit('contact', fact('join', pid, P, { atMs: ms }));
 }
@@ -206,7 +239,7 @@ function pickOf(state, pid, keys, ms) {
   const m = muzzleOf(state, pid), R = state.armoury?.range, all = targetsAt(state, keys, ms);
   // (0.0.12: in a clear with a #2, the men of your own corner first: his are his (the fixer's, after the runtime review: the
   // bracket and "Aim at" went to his man, across his sector, while the DI named yours))
-  const slot = (key) => R?.turners?.find(T => T.key === key)?.slot ?? 1;
+  const slot = (key) => ownerOf(state, R?.turners?.find(T => T.key === key)) ?? 1;
   const own = R?.course === 'house' && R.house?.twoPid ? all.filter(t => slot(t.key) === 1) : [];
   const list = own.length ? own : all;
   if (!list.length) return keys[0] ?? null;
@@ -227,7 +260,7 @@ function pickOf(state, pid, keys, ms) {
 function keptPick(state, pid, now) {
   const S = state.stop, key = S?.mode === 'stop' ? S.pick : null, T = key ? turnerOf(state, key) : null, R = state.armoury?.range;
   if (R?.course !== 'house') return null;
-  if (!T || (R?.house?.twoPid && (T.slot ?? 1) !== 1) || !stillUp(state, key) || facingOf(T, now) < SEEN || !targetOf(state, key, pid)) return null;
+  if (!T || (R?.house?.twoPid && (ownerOf(state, T) ?? 1) !== 1) || !stillUp(state, key) || facingOf(T, now) < SEEN || !targetOf(state, key, pid)) return null;
   return key;
 }
 
@@ -241,7 +274,7 @@ function armedPick(state, pid, now) {
   if (R?.course !== 'house' || !S || S.mode !== 'stop' || !last || last.pick !== S.pick) return;
   const armed = (k) => last.ident?.[k] === 'rifle' || last.ident?.[k] === 'pistol';
   if (armed(S.pick) || stillUp(state, S.pick)) return;
-  const own = (k) => !(R?.course === 'house' && R.house?.twoPid) || (turnerOf(state, k)?.slot ?? 1) === 1;
+  const own = (k) => !(R?.course === 'house' && R.house?.twoPid) || (ownerOf(state, turnerOf(state, k)) ?? 1) === 1;
   const keys = last.ids.filter(k => armed(k) && own(k) && targetOf(state, k, pid));
   if (!keys.length) return;
   const key = pickOf(state, pid, keys, now);
@@ -285,7 +318,43 @@ function pause(state, bus, c) {
   const seen = last.ids.map(k => `${targetName(state, k)}: ${identWords(last, k)}`).join('; ');
   logEntry(state, bus, { kind: 'contact', tone: 'warn', text: `Contact · ${takeInWords(last.ms)} s. ${last.words} ${seen.charAt(0).toUpperCase()}${seen.slice(1)}.`, contact: last.id });
   bus?.emit('contact', fact('pause', pid, last));
-  byOrder(state, bus, last);
+  if (!byOrder(state, bus, last)) noShootOn(state, bus, last);
+}
+
+// ---- a no-shoot taken in on the move (v0.0.19, the live lane; the review of track L, F12) ----
+
+/** The identifications that read a man who must not be shot: empty hands, a phone (cqb.js's NOSHOOT, the DI's "Hands. No weapon."). */
+export const NOSHOOT_IDS = Object.freeze(new Set(['hands', 'phone']));
+/**
+ * On the live lane (R.house.live), from rung 2, at the pause: a window whose men are all identified no-shoots and facing, with
+ * the flow suspended ('contact', or 'decision' after a shot row inside it) and nobody else of their room known to you up and not a no-shoot, goes on at once: the
+ * suspended flow is taken up (bundle.js carryOn, as "Carry on" would), the log "No shot: hands empty, carrying on.", no stop.
+ * Before, the pause stopped on the DI's "No shot. Carry on." right after the shot row that put the room's man down (F12: the
+ * corporal on 1489397426, room 2, 2a down and 2b's phone 0.85 s after). The turner lane keeps its pause and its line as
+ * built (the house pin), the question of the same rule there the user's. Returns whether the flow went on.
+ */
+export function noShootOn(state, bus, last) {
+  const R = state.armoury?.range, H = R?.house, S = state.stop, pid = playerId(state), now = state.clock.ms, c = contactOf(state);
+  if (R?.course !== 'house' || !H?.live || !S || S.mode !== 'stop' || S.reflex || S.doing || rungOf(state, pid, 'room') < SUSPEND_RUNG) return false;
+  const F = flowOn(state);
+  if (!F || F.who !== pid || (F.suspended?.why !== 'contact' && F.suspended?.why !== 'decision') || !last?.ids?.length) return false;
+  const rooms = new Set();
+  for (const key of last.ids) {
+    const T = turnerOf(state, key);
+    if (!T || !NOSHOOT_IDS.has(last.ident?.[key]) || facingOf(T, now) < 0.5) return false;
+    rooms.add(T.room);
+  }
+  // (what you know of the room's other men: your latest identification of each in the room's record (the house's leg contacts),
+  // a man known, up and not read a no-shoot keeps the pause)
+  const legs = [...(H.rooms ?? []), H.hall].filter(Boolean);
+  const identOf = (T) => legs.find(V => V.room === T.room)?.contacts?.filter(x => x.key === T.key && x.by === 'me' && x.ident).at(-1)?.ident ?? null;
+  const up = (R.turners ?? []).some(T => rooms.has(T.room) && !last.ids.includes(T.key) && c?.known?.[T.key] !== undefined && upNow(T, now) && !NOSHOOT_IDS.has(identOf(T)));
+  if (up) return false;
+  const r = carryOn(state, bus, pid);
+  if (!r?.ok) return false;
+  const words = last.ids.map(k => IDENT_WORDS[last.ident[k]] ?? last.ident[k]).join(', ');
+  logEntry(state, bus, { kind: 'note', tone: 'note', text: `No shot: ${words}, carrying on.`, contact: last.id });
+  return true;
 }
 
 // ---- the standing order (COMBAT §25.19.4; question 1's default: built, offered from rung 4, off) ----
@@ -303,7 +372,7 @@ export const ORDER_RUNG = 4, ORDER_ALONE_M = 1, ORDER_HAMMER_M = 7;
 export function byOrder(state, bus, last) {
   const R = state.armoury?.range, H = R?.house, S = state.stop, pid = playerId(state), now = state.clock.ms;
   if (R?.course !== 'house' || H?.order?.engage !== 'armed' || !S || S.mode !== 'stop' || S.reflex || rungOf(state, pid, 'room') < ORDER_RUNG) return false;
-  const mine = (T) => !H.twoPid || (T.slot ?? 1) === 1;
+  const mine = (T) => !H.twoPid || (ownerOf(state, T) ?? 1) === 1;
   for (const key of last.ids) {
     const T = turnerOf(state, key), id = last.ident?.[key];
     if (!T || !mine(T) || (id !== 'rifle' && id !== 'pistol') || facingOf(T, now) < SEEN) return false;
@@ -331,6 +400,8 @@ export function contactInput(state, input, bus, ctx) {
   if (c?.his && !c.pending && !state.skip) hisTick(state, c);
   const P = c?.pending;
   if (!P || state.skip) return;
+  // (v0.0.19: the live lane's casualty beat (men.js casualtyOn): the stack is out of the fight, a window closes with no pause)
+  if (casualtyOn(state)) { noteContact(state, { pending: null }); return; }
   // (startled: the pause waits for its end (supp.js suppInput lets a stop hold go while it lasts))
   if (startled(state, playerId(state), state.clock.ms)) return;
   // (0.0.10: a Breathe running is cut at its sub-step's end from the sighting on, as a startle cuts it: nobody breathes on
@@ -402,8 +473,11 @@ export function hisOnly(state, P) {
   if (!P?.ids?.length || !twoWithYou(state)) return false;
   for (const key of P.ids) {
     const T = turnerOf(state, key);
-    // (his sector by where the man stands now, never his stand's label (room.js manPlace; the reach review of 2026-11-13))
-    if (!T || manPlace(state, T).slot !== 2 || inMyCone(state, T) || !twoOn(state, T)) return false;
+    // (his sector by where the man stands now, never his stand's label (room.js manPlace; the reach review of 2026-11-13)), the
+    // side's role at the door of the room he stands in (team.js roleAt: the side kept apart from the role)
+    if (!T) return false;
+    const at = manPlace(state, T);
+    if (roleAt(state, doorOfRoom(at.room), at.slot) !== 2 || inMyCone(state, T) || !twoOn(state, T)) return false;
   }
   return true;
 }
@@ -416,8 +490,9 @@ function twoOn(state, T) {
   if (W.contact?.key === T.key || W.eng?.key === T.key || W.known?.[T.key] !== undefined) return true;
   // (on his way in, his feet moving on his entry: the man comes into his eyes in his stride, his take-in on the move (R6))
   if (W.doing?.beats?.some(b => b.st === 'run' && b.k === 'move')) return true;
+  // (the sight through combat/men.js seenK, raw as it always was here: a stand's to the bit, a live man's by his exposure)
   const ms = state.clock.ms, f = facingOf(T, ms);
-  return f >= SEEN && sightOf(state, a, { x: T.x, z: T.z }, ms).vis * f >= SEEN;
+  return f >= SEEN && seenK(state, a, T, ms, { f, drawn: !!T.live && drawnOn(W, T.key, ms) }) >= SEEN;
 }
 // (the window closed as the #2's: no pause, his men watched (c.his) until down or turned away; the log and the fact)
 function leaveHis(state, bus, c) {
@@ -471,6 +546,8 @@ export function identify(state, pid, key, { bonus = 0, atMs = state.clock.ms } =
   const armour = (roll.ok && T.face === 'armoured') || !!L.armour[key];
   L.ident[key] = ident;
   if (armour) L.armour[key] = true;
+  // (v0.0.19: a live man's state, what he is doing, on a passed roll only: a failed look leaves "can't tell")
+  if (T.live && roll.ok) (L.state ??= {})[key] = LIVE_STATE[T.live.st] ?? 'looking';
   return { ident, armour, roll };
 }
 
@@ -503,8 +580,9 @@ export function contactRows(state, pid = playerId(state), ms = state.clock.ms) {
   const S = state.stop, L = contactOf(state)?.last;
   if (!S || S.mode !== 'stop' || !L || !S.pick || !L.ids.includes(S.pick)) return [];
   const key = S.pick, T = turnerTargets(state, ms).find(t => t.key === key);
-  if (!T || T.facingK < SEEN || T.down) return [];
-  const id = L.ident[key] ?? 'unseen', lead = id === 'hands' || id === 'phone';
+  // (v0.0.19: a live man down is still armed: his rows stay, Hold him as "Cover him", leading)
+  if (!T || T.facingK < SEEN || (T.down && !T.live)) return [];
+  const id = L.ident[key] ?? 'unseen', cover = !!T.live && T.down, lead = id === 'hands' || id === 'phone' || cover;
   const tgt = targetOf(state, key, pid) ?? { ...T, dM: Math.hypot(T.x - (playerActor(state)?.x ?? 0), T.z - (playerActor(state)?.z ?? 0)) };
   const aimed = S.aim?.key === key;
   const aimMs = aimed ? 0 : aimMsOf(state, pid, S.gun, tgt);
@@ -515,7 +593,7 @@ export function contactRows(state, pid = playerId(state), ms = state.clock.ms) {
   // (held already, the aim at its full on him: struck 'held', no longer leading, so the next decision leads (the design
   // review of v0.0.8: pressed again it took 0 ms and did nothing, a dead button at the head of the panel))
   const held = aimed && heldOf(state, pid, ms, key).v >= HELD_MAX;
-  const out = [row('contact:hold', aimMs + holdMs, [...(aimed ? [] : [{ id: 'aim', label: 'Aim', ms: aimMs }]), { id: 'hold', label: 'Hold the aim', ms: holdMs }], { skill: 'marksmanship', ...(held ? { off: 'held', lead: false } : {}) })];
+  const out = [row('contact:hold', aimMs + holdMs, [...(aimed ? [] : [{ id: 'aim', label: 'Aim', ms: aimMs }]), { id: 'hold', label: 'Hold the aim', ms: holdMs }], { skill: 'marksmanship', ...(cover ? { label: COVER_LABEL } : {}), ...(held ? { off: 'held', lead: false } : {}) })];
   if (id === 'unseen' || id === 'hands' || id === 'phone') out.push(row('contact:challenge', CHALLENGE_MS, [{ id: 'contact:challenge', label: CONTACT_LABELS['contact:challenge'], ms: CHALLENGE_MS }], { words: CHALLENGE_SAY }));
   return out;
 }
@@ -542,14 +620,14 @@ export function endContactSub(state, bus, d, id) {
 }
 
 /**
- * Whether the pause's contact is still live at ms: one of the targets taken in faces (SEEN) and stands. The panel's
+ * Whether the pause's contact is still live at ms: one of the targets taken in faces (SEEN) and stands, or (v0.0.19) is a live man down and not covered. The panel's
  * order reads it (shooting.js stepsOf: the contact's rows first, the commands that are no answer to him after).
  */
 export function contactLive(state, ms = state.clock.ms) {
   const L = contactOf(state)?.last;
   if (!L?.ids?.length) return false;
-  const ids = new Set(L.ids);
-  return turnerTargets(state, ms).some(t => ids.has(t.key) && t.facingK >= SEEN && !t.down);
+  // (up and facing through combat/men.js upNow: a stand's as built; v0.0.19, a live man down and not yet covered too: he is still armed)
+  return L.ids.some(k => { const T = turnerOf(state, k); return upNow(T, ms) || (!!T?.live && gateWhy(state, T, ms) === 'down'); });
 }
 
 /** Whether there is a lull (see the header) at ms. */
@@ -559,7 +637,7 @@ export function lullOf(state, pid = playerId(state), ms = state.clock.ms) {
   const list = turnersOf(state);
   let latest = -Infinity;
   for (const T of list) {
-    if (threatFace(T.face) && (T.stoppedAtMs === null || T.stoppedAtMs === undefined) && facingOf(T, ms) >= SEEN) return false;
+    if (threatFace(T.face) && upNow(T, ms)) return false;
     const e = edgeOnMs(T);
     if (e !== null && e <= ms) latest = Math.max(latest, e);
   }

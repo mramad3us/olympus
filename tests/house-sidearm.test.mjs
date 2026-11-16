@@ -220,7 +220,7 @@ export default [
     },
   },
   {
-    name: 'your number two gun down: one stop, "Your two\'s down. His sector." (cqb-two-down), and T covers his sector (team:cover: your eyes on it); his "Gun up!" gives it back (COMBAT §25.19.5)',
+    name: 'your number two gun down: one stop, "Your two\'s down. His sector." (cqb-two-down), and T covers his sector (team:cover: your eyes on it), you saying "Covering!" first (v0.0.19, team.js TEAM_WORDS call:covering; v0.0.18 said nothing); his "Gun up!" gives it back (COMBAT §25.19.5)',
     fn() {
       const g = createGame({ scenario: 'test-shoothouse', seed: SEED, tier: 'tierone', setup: 'go' }), s = g.state, H = s.armoury.range.house, W = H.two;
       // (his rifle's chamber the coach's dummy: his first pull on his man clicks)
@@ -232,9 +232,11 @@ export default [
         if (L?.id === 'cqb-two-down' && !seen.line) seen.line = { act: L.act, text: L.text, down: !!st.armoury.range.house.two.down };
         if (st.armoury.range.house.two.coveredBy && !seen.covered) seen.covered = { atMs: st.clock.ms, head: meOf(st).headRad };
         for (const f of game.facts('say')) if (f.who === W.pid && f.text === 'Gun up!' && seen.covered && !seen.gunUp) seen.gunUp = { coveredBy: st.armoury.range.house.two.coveredBy ?? null };
+        for (const f of game.facts('say')) if (f.who === st.player.id && f.text === 'Covering!' && seen.line && !seen.covering) seen.covering = { atMs: st.clock.ms };
       } });
-      console.log(`      ${JSON.stringify(seen)}`);
+      console.log(`      ${JSON.stringify(seen)}; your "Covering!" ${seen.covering && seen.covered ? `${seen.covered.atMs - seen.covering.atMs} ms before his sector was yours` : 'never'}`);
       assert(seen.line?.act === 'stop:team:cover' && seen.line.down && seen.covered && seen.gunUp && seen.gunUp.coveredBy === null, JSON.stringify(seen));
+      assert(seen.covering && seen.covering.atMs <= seen.covered.atMs, JSON.stringify(seen));
     },
   },
   {

@@ -60,6 +60,15 @@
 // private on setup=standby at the armed standby's pause. Nothing is written on load (no stop.queueOf: the queue runs as saved;
 // no loadout: 'standard'; no shot rows, bursts or daze): each saves again at once byte for byte, plays 600 ticks with no
 // error (by the bots that made them, the honest T bot and the pairs bot), and a save made after carries on byte for byte; the house lane then reaches its card.
+// 0.0.19 (the build sheet 0.0.19 §2 step 7): two saves made by the code of the integrated tree of v0.0.18 before its tag (the
+// round's snapshot, .run/v019/v018-snapshot.tree; re-made from v0.0.18's tag at the integration if its save format moved), from
+// the fill, meta.version '0.0.18': test-shoothouse on the 'flash' loadout, the corporal by the kit's honest bot on 48213 at
+// tick 481, the G-11 armed in his hand on room 1's stack, the door open, in stop motion; and on the standard loadout the tier one
+// by the stoppage bot (Gun down) on seed 11050 at tick 636, mid-room 2, the #2 down on his own stoppage (IMMEDIATE ACTION, its
+// tap under way) while he covered you (no honest lane of 400, four sheets on 100 seeds, puts him on a stoppage in room 2: both
+// its stands, 2a and 2b, are yours, so he fires in it only covering you; 1 lane of 1,151 tier one Gun-down lanes did).
+// Nothing is written on load: each saves again at once byte for byte, its ids whole (ids-check), plays 600 ticks with no error by
+// the bot that made it, a save made after carries on byte for byte, and the lane reaches its card.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -74,6 +83,8 @@ import { feltOf, inocOf, hardOf, blockOf, suppAt } from '../src/sim/combat/supp.
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { pairsBot } from './bots/pairs.mjs';
 import { houseTBot, houseKeysBot, runHouse, stoppageBot } from './bots/house.mjs';
+import { houseKitBot } from './bots/kit.mjs';
+import { handDeviceOf } from '../src/sim/arms/devices.js';
 import { checkIds } from './ids-check.mjs';
 import { conditionOf, gunField } from '../src/sim/arms/firearms.js';
 import { marsClock } from '../src/core/calendar.js';
@@ -393,6 +404,30 @@ export default [
         }
         console.log(`      ${name}: ${where}, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}${card}`);
         assert(again === json && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: again === json, errors: g.errors.slice(0, 3), carried }));
+      }
+    },
+  },
+  {
+    name: 'a v0.0.18 save loads with nothing written (the build sheet 0.0.19 §2 step 7: the flash lane with a G-11 armed in the hand on room 1\'s stack, and a standard lane mid-room 2 with the #2 on his own stoppage): it saves again byte for byte at once with its ids whole, plays 600 ticks with no error, a save made after carries on byte for byte, and the lane reaches its card',
+    timeoutMs: 180_000,
+    fn() {
+      // (each by the bot that made it, whose memory is saved on the actor)
+      const BOTS = { 'v0.0.18-house-flash': () => houseKitBot({ use: 'flash' }), 'v0.0.18-house-twodown': () => stoppageBot({ answer: 'gundown' }) };
+      for (const [name, bot] of Object.entries(BOTS)) {
+        const json = read(name), old = JSON.parse(json), H0 = old.armoury.range.house, pid = old.player.id;
+        assert(old.meta.version === '0.0.18' && old.meta.scenario === 'test-shoothouse', `${name}: ${old.meta.version} ${old.meta.scenario}`);
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), again = g.save(), H = s.armoury.range.house, b = bot();
+        const ids = checkIds(JSON.parse(again), g.sim.domains), dev = handDeviceOf(s, pid);
+        const where = name.endsWith('flash')
+          ? `the ${H.tier} on '${H.loadout}' in leg ${H.cur}, the ${dev?.model ?? 'no device'} ${dev?.st ?? ''} in hand ${dev?.hand ?? '-'}, stop ${s.stop?.mode ?? 'none'}`
+          : `the ${H.tier} in leg ${H.cur} (${H.rooms[H.cur]?.state}), the #2 down (${H.two.down?.macro}, his sub-step ${H.two.doing?.i} ${H.two.doing?.list?.[H.two.doing?.i]})`;
+        if (name.endsWith('flash')) assert(H.loadout === 'flash' && H.cur === 0 && dev?.model === 'g11' && dev.st === 'armed', JSON.stringify({ loadout: H.loadout, cur: H.cur, dev }));
+        else assert(!H0.loadout && H.cur === 1 && H.rooms[1].state === 'entered' && H.two.down && H.two.doing?.cmd === 'down', JSON.stringify({ cur: H.cur, down: H.two.down }));
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, bot());
+        const carried = h.save() === end, run = runHouse(g, b, { maxMs: 10 * 60_000 });
+        console.log(`      ${name}: ${where}, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}; on to the card ${run.done ? 'reached' : 'NOT reached'} in ${fmt(run.ms / 1000, 1)} s more (${g.state.armoury.range.house.end?.why ?? 'no end'})`);
+        assert(again === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried && run.done, JSON.stringify({ same: again === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 3), carried, done: run.done }));
       }
     },
   },

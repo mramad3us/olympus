@@ -1,0 +1,35 @@
+{
+ "title": "The first live men: the force-on-force mask, the hands up, the paint",
+ "about": "\"Stack and clear, live\" (v0.0.19) puts two role-players in the shoot house in place of stands 2a and 3a: generated marines of the cadre in utilities and a plate carrier, a force-on-force mask, an R-7 with marking rounds. A man who gives up drops his rifle to the floor and puts his hands up, and kneels when challenged; a round of marking paint shows where it struck. Every picture is the game's own code: the doll of the inventory and the target view, the world figure at 24 px/m, the target view's card. The game draws the defaults (M2, H1, P1) until you score them.",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "M",
+   "title": "M: the mask",
+   "about": "The doll close, then his target card as your take-in identified him (\"RIFLE · AIMING\"). M1 a wire mesh in a black frame, the face dim behind it; M2 (the default) a clear lens over the eyes in a black frame and a moulded lower shell with three vents; M3 a smoked shield from the brow to the jaw with a chin guard. Each on a strap round the head; never under a sealed helmet.",
+   "views": [
+    { "id": "M1", "name": "M1: the mesh", "query": "m=M1", "pixel": "340x288" },
+    { "id": "M2", "name": "M2: lens and shell (the default)", "query": "m=M2", "pixel": "340x288" },
+    { "id": "M3", "name": "M3: the shield", "query": "m=M3", "pixel": "340x288" }
+   ]
+  },
+  {
+   "id": "H",
+   "title": "H: the hands up",
+   "about": "A man who gave up, his rifle on the floor at his feet: the doll, then the world figure standing and kneeling (when challenged), facing you, side on, from behind and side on the other way. H1 (the default) his hands at his shoulders, palms out; H2 raised by his face.",
+   "views": [
+    { "id": "H1", "name": "H1: at the shoulders (the default)", "query": "h=H1", "pixel": "1320x288" },
+    { "id": "H2", "name": "H2: by the face", "query": "h=H2", "pixel": "1320x288" }
+   ]
+  },
+  {
+   "id": "P",
+   "title": "P: the paint",
+   "about": "A marking round leaves paint, the stack's in the cadre's pink on a role-player, a role-player's in blue on you. Three cards: a role-player in belief (two rounds seen to strike, painted where you called them; one not seen, the amber ring), in truth (your three where they struck and your #2's one, unnumbered), and your own card with two of theirs. P1 (the default) a splat with two drops; P2 the paper's ring filled with the paint.",
+   "views": [
+    { "id": "P1", "name": "P1: the splat (the default)", "query": "p=P1", "pixel": "616x208" },
+    { "id": "P2", "name": "P2: the ring filled", "query": "p=P2", "pixel": "616x208" }
+   ]
+  }
+ ]
+}

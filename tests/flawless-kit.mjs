@@ -14,24 +14,44 @@
 //        the instructor on the catwalk and the range staff (from the fixer of v0.0.18; the stack alone before)
 //   F29  no device live or held at the lane's end: nothing burning, nothing primed, no hand holding one (devices.js), no charge
 //        left on a door for the instructor to make safe ("CHARGE LEFT ON THE DOOR", shoothouse.js chargesLeft)
+// v0.0.19 (D2, the build sheet 0.0.19 §8): the uses 'frag', 'conc', 'cut', 'shoot' and 'mixed' on their loadouts (shoot on
+// 'breach'), the kit bot made by a factory (tests/flawless.mjs botOf takes one), and four criteria more; F27 and F29 widened:
+//   F27  every grenade kind: a frag's or a concussion's burst to #1 past that room's threshold read as a flash's is
+//   F29  a charge left placed included (a BC-1 as an SC-1)
+//   F30  no man of the stack in any burst's read: no ball, λ under practice.js FRAG_SAFE_LAMBDA 0.05, under BREACH_SAFE_KPA 27.6
+//   F31  no 'fragged' or 'concussed' fault on the honest kit bot (it frags and concusses only where the brief said hostiles only)
+//   F32  a ballistic breach strikes no stand past the leaf at a pass, and every point opens or hands back within
+//        BALLISTIC_MAX_ROUNDS 4 rounds
+//   F33  from the Sergeant up, a G-9P or G-13P bursts within FRAG_SIT_MS 2,500 ms of landing (cooked)
 // F6 on a charge's leg is watched from #1 back on his stack after the blast (the drill waits at the safe point through the count;
 // kitLane, the same speeds and distances as flawless.mjs's watch). The kit's fuzz (kitFuzzBot) is printed: its lanes done, their dead ends and the kit rows it pressed.
 import { flawlessLane, gaugeOf, ENFORCED, SHEETS, flawlessSeeds, mean, quantile, s1, s2, top, tally, STACK_LEAVE_M, STILL_MS, POINT_AT_M } from './flawless.mjs';
 import { lanePlanOf } from '../src/sim/combat/room.js';
 import { playerActor } from '../src/core/ids.js';
-import { houseNow } from '../src/sim/scenarios/shoothouse.js';
+import { houseNow, drawStands } from '../src/sim/scenarios/shoothouse.js';
 import { BANG_LATE_MS } from '../src/sim/combat/burst.js';
 import { BREACH_SAFE_KPA } from '../src/sim/arms/blast.js';
 import { DEVICES, liveDevices, handDeviceOf } from '../src/sim/arms/devices.js';
 import { RUNG_OF_TIER } from '../src/sim/skills/templates.js';
 import { createGame } from './game.mjs';
 import { runHouse } from './bots/house.mjs';
-import { kitFuzzBot } from './bots/kit.mjs';
+import { kitFuzzBot, houseKitBot } from './bots/kit.mjs';
+import { stackClean, FRAG_SIT_MS, FRAG_SAFE_LAMBDA } from '../src/sim/combat/practice.js';
+import { BALLISTIC_MAX_ROUNDS } from '../src/sim/combat/ballistic.js';
 
 /** The kit's lane time ceiling (s; F15 for kit lanes only, the build sheet's §4). */
 export const KIT_LANE_MAX_S = 120;
 /** The kit's criteria, enforced from v0.0.18. */
-export const KIT_ENFORCED = Object.freeze(new Set(['F27', 'F28', 'F29']));
+export const KIT_ENFORCED = Object.freeze(new Set(['F27', 'F28', 'F29', 'F30', 'F31', 'F32', 'F33']));
+/** The first n seeds of flawlessSeeds' order whose room 1 is hostiles only (both its stands threats by the stands' own draw), where the brief allows a frag (v0.0.19). */
+export function fragSeeds(n = 2) {
+  const out = [];
+  for (const seed of flawlessSeeds(200)) { const d = drawStands(seed); if (['1a', '1b'].every(k => d[k].face !== 'noshoot' && d[k].face !== 'hostage')) out.push(seed); if (out.length >= n) break; }
+  return out;
+}
+/** D2's uses (v0.0.19) and the loadout each plays on. */
+export const KIT2_USES = Object.freeze(['frag', 'conc', 'cut', 'mixed', 'shoot']);
+export const LOADOUT_OF_USE = Object.freeze({ frag: 'frag', conc: 'conc', cut: 'cut', mixed: 'mixed', shoot: 'breach', flash: 'flash', breach: 'breach' });
 
 /** One kit lane (see the header): flawlessLane's record read as its base bot, with the kit's own numbers (bangMs, kPa, left). */
 export function kitLane({ tier, seed, use }) {
@@ -55,7 +75,9 @@ export function kitLane({ tier, seed, use }) {
     }
     f.atMs = now;
   };
-  const rec = flawlessLane({ tier, seed, bot: `kit:${use}${keys ? ':keys' : ''}`, loadout: use, more });
+  // (v0.0.19: D2's uses by a factory of the kit bot, on their own loadouts)
+  const d2 = KIT2_USES.includes(use), base = keys ? 'keys' : 'honest';
+  const rec = flawlessLane({ tier, seed, bot: d2 ? () => houseKitBot({ use, base }) : `kit:${use}${keys ? ':keys' : ''}`, loadout: LOADOUT_OF_USE[use] ?? use, more });
   for (const [k, f] of Object.entries(feet)) { rec.feet.legs[k] = { st: f.st, minV: Number.isFinite(f.minV) ? Math.round(f.minV * 1000) / 1000 : null, underMs: f.underMs }; (rec.feetCharge ??= []).push(Number(k)); }
   const s = end.s, H = s?.armoury?.range?.house;
   rec.kitBot = rec.bot; rec.bot = keys ? 'keys' : 'honest'; rec.kit = use;
@@ -67,7 +89,21 @@ export function kitLane({ tier, seed, use }) {
   rec.left = s ? [...liveDevices(s).map(d => `${d.model} ${d.st}`), ...[s.player.id, H?.twoPid].filter(Boolean).map(p => handDeviceOf(s, p)).filter(Boolean).map(d => `${d.model} in the hand`),
     ...[...H.rooms, H.hall].flatMap(L => L.faults.filter(f => f.kind === 'charge').map(() => `a charge left on ${L.door}`))] : ['no state'];
   rec.bursts = (H?.bursts ?? []).map(b => b.model);
+  // (v0.0.19: each grenade's entry after its burst, the reads' stack, the faults D2 judges, the breach rounds, the floor's time)
+  const legs = H ? [...H.rooms, H.hall] : [];
+  rec.grenEntry = legs.map(L => { const B = (H.bursts ?? []).filter(b => b.thrown === L.door && !b.atFeet && DEVICES[b.model]?.kind === 'grenade' && b.atMs <= (L.enteredAtMs ?? Infinity)).at(-1); return B && Number.isFinite(L.enteredAtMs) ? { ms: L.enteredAtMs - B.atMs, model: B.model } : null; });
+  rec.reads = (H?.bursts ?? []).filter(b => b.read).map(b => ({ model: b.model, room: b.read.room, me: b.read.stack?.me ?? null, two: b.read.stack?.two ?? null, satMs: b.read.satMs ?? null, fragged: b.read.fragged, concussed: b.read.concussed.length }));
+  rec.d2faults = legs.flatMap(L => L.faults.filter(f => ['fragged', 'concussed', 'burst', 'exposed', 'through'].includes(f.kind)).map(f => f.kind));
+  rec.breach = Object.entries(H?.breach ?? {}).filter(([, b]) => b.how === 'lock' || b.how === 'hinge').map(([door, b]) => ({ door, rounds: b.rounds, most: b.most ?? 0, tries: { ...(b.tries ?? {}) }, open: Object.values(b.points).every(x => x === 1) }));
+  rec.breachStruck = (s?.armoury?.range?.turners ?? []).flatMap(T => (T.hits ?? []).filter(h => h.via === 'door').map(h => ({ stand: T.stand, shotId: h.shotId })));
+  rec.breachPass = (s ? g2shots(s) : []);
   return rec;
+}
+
+// (a breach round's grade and its strike by its shot id, from the log the session kept (R.shots' rows) and the stands' hits)
+function g2shots(s) {
+  const hits = new Map((s.armoury.range.turners ?? []).flatMap(T => (T.hits ?? []).filter(h => h.via === 'door').map(h => [h.shotId, T.stand])));
+  return (s.armoury.range.shots ?? []).filter(x => x.row === 'shoot:door').map(x => ({ id: x.id, struck: hits.get(x.id) ?? null, grade: x.grade ?? null }));
 }
 
 /** The kit's lanes: every sheet, `seeds`, both loadouts. */
@@ -85,7 +121,10 @@ export function kitLanes({ sheets = SHEETS, seeds = flawlessSeeds(3), uses = ['f
 }
 
 /** The kit's gauge: gaugeOf's rows with F15 read against KIT_LANE_MAX_S, then F27 to F29. */
-export function kitGaugeOf(recs) {
+export function kitGaugeOf(recs0) {
+  // (v0.0.19: the shoot lanes are F32's (and the fuzz's): the closet opened by a shot is a room more to clear, its stops the
+  // drill's, never read against F1 to F29 (kit2 §6 test 38: the frag, conc, cut and mixed loadouts); declared on the rows)
+  const shootRecs = recs0.filter(r => r.kit === 'shoot'), recs = recs0.filter(r => r.kit !== 'shoot');
   const charged = recs.reduce((n, r) => n + (r.feetCharge?.length ?? 0), 0);
   const rows = gaugeOf(recs).map(r => {
     if (r.id === 'F6') return { ...r, value: `${r.value}; of them ${charged} a charge's, re-read from #1 back on his stack after the blast (declared: not the build sheet's)` };
@@ -93,17 +132,34 @@ export function kitGaugeOf(recs) {
     const xs = recs.filter(x => x.bot === 'honest' && x.rung >= 2).map(x => x.laneS).filter(Number.isFinite), max = xs.length ? Math.max(...xs) : null;
     return { ...r, name: 'lane time (the kit\'s lanes, honest)', met: xs.length > 0 && max <= KIT_LANE_MAX_S, value: `mean ${s1(mean(xs))} s, p95 ${s1(quantile(xs, 0.95))}, max ${s1(max)}`, target: `max ${KIT_LANE_MAX_S} s (KIT_LANE_MAX_S; LANE_MAX_S untouched)` };
   });
-  const flashR = recs.filter(r => r.kit === 'flash');
-  const up = flashR.filter(r => r.rung >= 2).flatMap(r => r.bangMs.filter(Number.isFinite).map(ms => ({ ms, r }))), low = flashR.filter(r => r.rung < 2).flatMap(r => r.bangMs.filter(Number.isFinite));
+  // (v0.0.19: every grenade kind, F27 widened: a flash's by its leg's bangMs as built, a frag's or a concussion's by its entry after the burst)
+  const flashR = recs.filter(r => r.kit === 'flash' || r.kit === 'mixed'), d2R = recs.filter(r => ['frag', 'conc', 'mixed'].includes(r.kit));
+  const d2ms = (r) => (r.grenEntry ?? []).filter(e => e && !DEVICES[e.model]?.flash).map(e => e.ms);
+  const up = [...flashR.filter(r => r.rung >= 2).flatMap(r => r.bangMs.filter(Number.isFinite).map(ms => ({ ms, r }))), ...d2R.filter(r => r.rung >= 2).flatMap(r => d2ms(r).map(ms => ({ ms, r })))];
+  const low = [...flashR.filter(r => r.rung < 2).flatMap(r => r.bangMs.filter(Number.isFinite)), ...d2R.filter(r => r.rung < 2).flatMap(d2ms)];
   const worst = up.reduce((a, x) => (!a || x.ms > a.ms ? x : a), null);
-  rows.push({ id: 'F27', name: 'BANG TO ENTRY from the corporal up', met: up.length > 0 && up.every(x => x.ms <= BANG_LATE_MS), value: `${up.length} entries on a bang: mean ${s2(mean(up.map(x => x.ms)) / 1000)} s, worst ${s2((worst?.ms ?? 0) / 1000)} s (${worst?.r.tier} ${worst?.r.seed}); below rung 2 by the keys ${low.length}: mean ${s2(mean(low) / 1000)} s, worst ${s2(Math.max(0, ...low) / 1000)} s`, target: `${BANG_LATE_MS / 1000} s or less` });
+  rows.push({ id: 'F27', name: 'BANG TO ENTRY from the corporal up (every grenade kind)', met: up.length > 0 && up.every(x => x.ms <= BANG_LATE_MS), value: `${up.length} entries on a bang: mean ${s2(mean(up.map(x => x.ms)) / 1000)} s, worst ${s2((worst?.ms ?? 0) / 1000)} s (${worst?.r.tier} ${worst?.r.seed}); below rung 2 by the keys ${low.length}: mean ${s2(mean(low) / 1000)} s, worst ${s2(Math.max(0, ...low) / 1000)} s`, target: `${BANG_LATE_MS / 1000} s or less` });
   const blasts = recs.flatMap(r => r.blast.map(b => ({ ...b, r }))), over = blasts.filter(b => b.me > BREACH_SAFE_KPA || b.two > BREACH_SAFE_KPA || (b.rest ?? 0) > BREACH_SAFE_KPA);
   rows.push({ id: 'F28', name: 'nobody in the house in the blast', met: blasts.length > 0 && !over.length, value: `${blasts.length} charges fired: you at most ${s1(Math.max(0, ...blasts.map(b => b.me)))} kPa, your #2 ${s1(Math.max(0, ...blasts.map(b => b.two)))} kPa, anyone else ${s1(Math.max(0, ...blasts.map(b => b.rest ?? 0)))} kPa; over ${over.length}${over.length ? ` (${over.slice(0, 3).map(b => `${b.r.tier} ${b.r.seed} ${b.door}`).join(', ')})` : ''}`, target: `${BREACH_SAFE_KPA} kPa or less` });
   const left = recs.filter(r => r.left.length);
-  rows.push({ id: 'F29', name: 'no device live or held at the lane\'s end', met: !left.length, value: `${left.length} of ${recs.length} lanes${left.length ? `: ${left.slice(0, 3).map(r => `${r.tier} ${r.seed} ${r.left.join(', ')}`).join('; ')}` : ''}`, target: 'none' });
+  rows.push({ id: 'F29', name: 'no device live or held at the lane\'s end (a charge left placed included)', met: !left.length, value: `${left.length} of ${recs.length} lanes${left.length ? `: ${left.slice(0, 3).map(r => `${r.tier} ${r.seed} ${r.left.join(', ')}`).join('; ')}` : ''}`, target: 'none' });
+  return [...rows, ...kit2Rows(recs, shootRecs)];
+}
+/** D2's criteria (v0.0.19; see the header): F30 to F33's rows over the kit's lanes (each met vacuously where its kit was not played). */
+export function kit2Rows(recs, shootRecs = []) {
+  const rows = [], reads = recs.flatMap(r => (r.reads ?? []).map(x => ({ ...x, r })));
+  const dirty = reads.filter(x => !stackClean(x.me) || !stackClean(x.two));
+  const worst = (k) => Math.max(0, ...reads.map(x => x[k]?.kPa ?? 0));
+  rows.push({ id: 'F30', name: 'no man of the stack in any burst\'s read', met: !dirty.length, value: `${reads.length} reads: balls on the stack ${reads.reduce((n, x) => n + (x.me?.n ?? 0) + (x.two?.n ?? 0), 0)}, λ at most ${s2(Math.max(0, ...reads.flatMap(x => [x.me?.lam ?? 0, x.two?.lam ?? 0])))}, you at most ${s1(worst('me'))} kPa, your #2 ${s1(worst('two'))} kPa; dirty ${dirty.length}${dirty.length ? ` (${dirty.slice(0, 3).map(x => `${x.r.kit} ${x.r.tier} ${x.r.seed} ${x.room}`).join(', ')})` : ''}`, target: `n 0, λ under ${FRAG_SAFE_LAMBDA}, under ${BREACH_SAFE_KPA} kPa` });
+  const honest = recs.filter(r => r.bot === 'honest'), bad = honest.filter(r => (r.d2faults ?? []).some(k => k === 'fragged' || k === 'concussed'));
+  rows.push({ id: 'F31', name: 'no frag or concussion fault on the honest kit bot', met: !bad.length, value: `${honest.length} honest lanes, ${reads.filter(x => x.r.bot === 'honest').length} practice bursts: fragged ${honest.reduce((n, r) => n + (r.d2faults ?? []).filter(k => k === 'fragged').length, 0)}, concussed ${honest.reduce((n, r) => n + (r.d2faults ?? []).filter(k => k === 'concussed').length, 0)}${bad.length ? ` (${bad.slice(0, 3).map(r => `${r.kit} ${r.tier} ${r.seed}`).join(', ')})` : ''}; D2's other faults ${top(tally(honest.flatMap(r => (r.d2faults ?? []).filter(k => k !== 'fragged' && k !== 'concussed'))))}`, target: 'none' });
+  const all = [...recs, ...shootRecs], br = all.flatMap(r => (r.breach ?? []).map(b => ({ ...b, r }))), long = br.filter(b => b.most > BALLISTIC_MAX_ROUNDS), passStruck = all.flatMap(r => (r.breachPass ?? []).filter(x => x.struck && ['pass', 'good', 'superb'].includes(x.grade)));
+  rows.push({ id: 'F32', name: 'a ballistic breach strikes no stand at a pass; every point opens or hands back within 4 rounds', met: !long.length && !passStruck.length, value: `${br.length} doors shot over ${shootRecs.length} shoot lanes (read for F32 alone), ${br.reduce((n, b) => n + b.rounds, 0)} rounds (${br.filter(b => b.open).length} opened by them); a point past ${BALLISTIC_MAX_ROUNDS} rounds in one press ${long.length} (the most ${Math.max(0, ...br.map(b => b.most))}; again after a hand-back ${br.filter(b => Object.values(b.tries).some(n => n > BALLISTIC_MAX_ROUNDS)).length}); stands struck ${all.reduce((n, r) => n + (r.breachStruck?.length ?? 0), 0)}, at a pass ${passStruck.length}`, target: `0 struck at a pass; ${BALLISTIC_MAX_ROUNDS} rounds a point at most` });
+  const sat = reads.filter(x => x.r.rung >= 3 && Number.isFinite(x.satMs)), over = sat.filter(x => x.satMs > FRAG_SIT_MS);
+  rows.push({ id: 'F33', name: 'from the Sergeant up a practice grenade bursts within 2.5 s of landing', met: !over.length, value: `${sat.length} bursts: on the floor mean ${s2(mean(sat.map(x => x.satMs)) / 1000)} s, max ${s2(Math.max(0, ...sat.map(x => x.satMs)) / 1000)} s; over ${over.length}${over.length ? ` (${over.slice(0, 3).map(x => `${x.r.kit} ${x.r.tier} ${x.r.seed} ${x.satMs}`).join(', ')})` : ''}`, target: `${FRAG_SIT_MS / 1000} s or less` });
   return rows;
 }
-/** The kit's criteria failing: F1 to F26 where ENFORCED, F27 to F29 where KIT_ENFORCED. */
+/** The kit's criteria failing: F1 to F26 where ENFORCED, F27 to F33 where KIT_ENFORCED. */
 export const kitFailing = (rows) => rows.filter(r => (ENFORCED.has(r.id) || KIT_ENFORCED.has(r.id)) && !r.met).map(r => `${r.id} ${r.name}: ${r.value}`);
 
 /** The kit's fuzz, printed (see the header): [{ tier, seed, use, done, end, laneS, kitSteps, errors, left (burning), lying (live on the floor or a door), marked (charges left and made safe), bursts }]. */

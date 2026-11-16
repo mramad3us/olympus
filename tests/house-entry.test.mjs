@@ -13,6 +13,7 @@
 //   - his entry begun ahead of your cue (entryAhead) and cut short of the threshold by his take-in read your cue again, and
 //     with you not yet ENTRY_GAP_M along your lane sent him back to his stack to wait for it: the corporal's room 3 by T on
 //     96 of 200 lanes, 4.65 s from the cue to his threshold. A cut entry now goes on in.
+import { sideOf } from '../src/sim/combat/team.js';
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { flawlessLane, TWO_CUE_MS } from './flawless.mjs';
@@ -57,8 +58,11 @@ export default [
       g.step(1, { act: [stepAct('leave')] });
       const ms = twoIn(g, s, P, two), at = [two.x, two.z], onPoint = Math.hypot(at[0] - P.points[1][0], at[1] - P.points[1][1]);
       for (let t = 0; t < 60; t++) { g.step(1, s.stop ? { act: [stepAct('leave')] } : {}); g.clearFacts(); }
-      const settled = Math.hypot(two.x - P.points[1][0], two.z - P.points[1][1]), gap = Math.hypot(two.x - me.x, two.z - me.z);
-      console.log(`      you still at (21.10, 15.90): his way through ${clear ? 'clear' : 'NOT clear'}; past the threshold ${ms === null ? 'NEVER in 10 s' : `${fmt(ms / 1000, 2)} s`} after you left the mode; then ${fmt(settled, 2)} m off his point (held off you by the body gap), ${fmt(gap, 2)} m from you`);
+      // (v0.0.19: you standing nearer his point than yours, his way in clear, he takes your side (team.js, FM 3-06.11 §3-29): his
+      // point is then yours, and he walks on to it; the crossing's stretch, this case's subject, is as v0.0.17 cut it)
+      const side = sideOf(s, 'o:w4:r2', 2), pt = P.points[side - 1];
+      const settled = Math.hypot(two.x - pt[0], two.z - pt[1]), gap = Math.hypot(two.x - me.x, two.z - me.z);
+      console.log(`      you still at (21.10, 15.90): his way through ${clear ? 'clear' : 'NOT clear'}; past the threshold ${ms === null ? 'NEVER in 10 s' : `${fmt(ms / 1000, 2)} s`} after you left the mode; his side ${side} (v0.0.19: the other side); then ${fmt(settled, 2)} m off that side's point (held off you by the body gap), ${fmt(gap, 2)} m from you`);
       // (his point 0.58 m from you: he walks on to it as far as the body gap lets him, never through you)
       assert(clear && ms !== null && ms <= TWO_CUE_MS && settled <= 0.6 && gap >= BODY_GAP_M, JSON.stringify({ clear, ms, settled, gap }));
     },

@@ -16,10 +16,43 @@
 /** Two places of seconds, as every paper says them. */
 const two = (ms) => (Number.isFinite(ms) ? (Math.max(0, ms) / 1000).toFixed(2) : '–');
 /** The marks a row's words carry that are faults (drawn red). */
-export const FAULT_MARKS = Object.freeze(['NO-SHOOT HIT', 'HOSTAGE HIT', 'MUZZLE', 'FIRED FIRST', 'MISSED', 'STANDING', 'YOUR CORNER', 'DOOR LEFT', 'TIME', 'CEASE FIRE',
+export const FAULT_MARKS = Object.freeze([
+  'NO-SHOOT HIT',
+  'HOSTAGE HIT',
+  'MUZZLE',
+  'FIRED FIRST',
+  'MISSED',
+  'STANDING',
+  'YOUR CORNER',
+  'DOOR LEFT',
+  'TIME',
+  'CEASE FIRE',
   // (v0.0.18, the kit's (COMBAT §25.20): late on the bang, the stack in a charge's blast, a grenade slipped at your feet, a
   // charge left on its door at the lane's end)
-  'BANG TO ENTRY', 'STACK IN THE BLAST', 'BANG AT YOUR FEET', 'CHARGE LEFT']);
+  'BANG TO ENTRY',
+  'STACK IN THE BLAST',
+  'BANG AT YOUR FEET',
+  'CHARGE LEFT',
+  // (v0.0.19, kit D2 (COMBAT §25.20): a frag into a room the brief did not call hostiles only, a man of the stack in a burst's
+  // fragments, the thrower hung in the door past the par, a no-shoot or the hostage over the eardrum's 34.5 kPa (the stack's own
+  // kPa is D1's STACK IN THE BLAST), a breach round run on into the room. The read's neutral marks stay black: "FRAG IN ROOM 1:
+  // 1A DOWN, 1B DOWN", "1A STUNNED 3.2 S", "UNCOOKED 3.8 S", "EXPOSED 0.4 S", "1A HIT THROUGH THE DOOR", so each fault is named
+  // whole enough to miss them)
+  'FRAGGED',
+  'IN THE BURST',
+  'EXPOSED IN THE THROW',
+  'IN THE BLAST',
+  'CONCUSSED',
+  'ROUND THROUGH THE DOOR',
+
+  // (v0.0.19, "Stack and clear, live": a round on a man who gave up, a man down or with his hands up left uncovered at a call, a room
+  // reopened, a casualty, and his first round before yours ("PAINT ON YOU 0" and "LIVE: 1 DOWN" stay neutral)
+  'HANDS UP SHOT',
+  'UNCOVERED',
+  'REOPENED',
+  'CASUALTY',
+  'BEFORE YOURS',
+]);
 /** Whether a mark is a fault (red on the paper). */
 export const isFault = (mark) => FAULT_MARKS.some(f => String(mark).toUpperCase().includes(f));
 

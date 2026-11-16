@@ -187,8 +187,9 @@ export function flag3d(m, x, z, stance = 'stand') {
   return s > 0 && Math.hypot(P1[0] - Q1[0], P1[1] - Q1[1], P1[2] - Q1[2]) <= FLAG_BODY_R_M;
 }
 
-/** The bot by its name (honest, keys, fuzz, stoppage). */
+/** The bot by its name (honest, keys, fuzz, stoppage), or a factory's: a function is called ({ seed, answer }) for the bot (v0.0.19's stage 0: the team's and the live men's bots, named by their own files). */
 export function botOf(kind, { seed = 1, answer = null } = {}) {
+  if (typeof kind === 'function') return kind({ seed, answer });
   // (v0.0.18, the kit's lanes (tests/flawless-kit.mjs): 'kit:flash' and 'kit:breach' the honest bot with the kit's row once a door,
   // ':keys' after them the keys bot's (tests/bots/kit.mjs houseKitBot))
   const kit = /^kit:(flash|breach|both)(:keys)?$/.exec(kind ?? '');
@@ -201,11 +202,11 @@ export function botOf(kind, { seed = 1, answer = null } = {}) {
 
 /**
  * One lane watched (see the header): a record of every criterion's raw numbers for gaugeOf. Options: tier, seed, bot ('honest',
- * 'keys', 'fuzz', 'stoppage'), answer (the stoppage bot's), setup ('go'; null from the fill), maxMs, more(game, ctx) after
- * each tick's watch (F23's saves).
+ * 'keys', 'fuzz', 'stoppage', or a factory: botOf), answer (the stoppage bot's), setup ('go'; null from the fill), maxMs, more(game,
+ * ctx) after each tick's watch (F23's saves), fill (v0.0.19's stage 0: spread into createGame last, as { loadout, opfor }).
  */
-export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup = 'go', maxMs = 15 * 60_000, more = null, loadout = null }) {
-  const g = createGame({ scenario: 'test-shoothouse', seed, tier, ...(setup ? { setup } : {}), ...(loadout ? { loadout } : {}) }), s0 = g.state;
+export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup = 'go', maxMs = 15 * 60_000, more = null, loadout = null, fill = {} }) {
+  const g = createGame({ scenario: 'test-shoothouse', seed, tier, ...(setup ? { setup } : {}), ...(loadout ? { loadout } : {}), ...fill }), s0 = g.state;
   const pid = s0.player.id, H0 = s0.armoury.range.house, twoPid = H0.twoPid, rung = RUNG_OF_TIER[tier] ?? 0, lane = lanePlanOf(s0);
   const doorPlans = lane.order.map((door, k) => ({ k, door, P: lane.plans[door] })).filter(x => x.P?.door);
   const rec = {

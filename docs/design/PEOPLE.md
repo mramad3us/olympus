@@ -337,6 +337,8 @@ The posts are the place's own, authored with it and the same in every career; th
 
 **As built in v0.0.5** (`src/data/people/posts.js` `POSTS`, `src/sim/people/staff.js` `drawStaff`, `setPost`; the build sheet 0.0.5 §8 items 22 to 24): the first two posts, both authored with the KD range: `melas:kd-ro`, the **range officer** (SSgt 60, GySgt 25, Sgt 15; MOS 0369; 2/4), and `melas:kd-coach`, the **marksmanship coach** (Sgt 60, Cpl 40; MOS 8531; 2/4). Each person is drawn as the roster draws a billet's (`roster.js drawCore`: sex, rank by the post's weights, age, home, background, traits, looks) but **on the post's own stream, `stream('staff', seed, site, post)`**, and named on its side streams (`admitStaff`), so the roster, the player and their goldens move by nothing (seeds 48213, 7 and 1 each draw their own pair). They are **tier 3**, registered by name, with no billet in any unit (`service.billet` names the post), dressed `rangeStaff`, and roll with a lazy sheet by their rank's tier (SKILLS §11.1). **`person.post`** = `{ key, area, x, z, y, face, posture, outfit }` (by `key`, a data key, never an id) stands them at their post, and `place.js` places a posted person there and nowhere else while posted; `whereIs` returns the post's pose. The RO stands on the tower's deck, the coach at your left shoulder (PLACES §4.12).
 
+**The shoot house's role-players (v0.0.19).** Two posts, `melas:wheel-house-opfor-a` and `-b` (`src/data/people/posts.js`): Lance Corporal (60%) or Corporal (40%), MOS 0311, 2nd Battalion 4th Marines, in utilities, generated one draw per post like the others; the 'cop' sheet (COMBAT §7.11's as-built paragraph) is the same on every run.
+
 ---
 
 ## 4. Schedules

@@ -57,10 +57,10 @@ import { playerId } from '../../core/ids.js';
 
 /** The channels a beat runs on (COMBAT §25.7.1): feet, hands, eyes, voice, and world for a wait on the world. */
 export const CHANNELS = Object.freeze(['feet', 'hands', 'eyes', 'voice', 'world']);
-/** Why a beat doing stops early (COMBAT §25.7.2 amended by the build sheet 0.0.12 §2.2). */
-export const HALTS = Object.freeze(['contact', 'noshoot', 'refused', 'door-unplanned', 'two', 'gun', 'fail', 'seam', 'lane-end', 'stop', 'clear']);
-/** Why a beat doing is suspended rather than halted (COMBAT §25.19.3.1, §25.19.4): a contact's pause, a man of the room up at "Clear!", the list step beside it ended on a decision. */
-export const SUSPENDS = Object.freeze(['contact', 'up', 'decision']);
+/** Why a beat doing stops early (COMBAT §25.7.2 amended by the build sheet 0.0.12 §2.2; v0.0.19: 'casualty', a marine of the stack down to the role-players' paint, the live lane's end). */
+export const HALTS = Object.freeze(['contact', 'noshoot', 'refused', 'door-unplanned', 'two', 'gun', 'fail', 'seam', 'lane-end', 'stop', 'clear', 'casualty', 'blocked']);
+/** Why a beat doing is suspended rather than halted (COMBAT §25.19.3.1, §25.19.4): a contact's pause, a man of the room up at "Clear!", the list step beside it ended on a decision; v0.0.19, the startle (bundle.js startleTick: nothing new starts, the moves brake, the looks pause, and it goes on by itself at the startle's end). */
+export const SUSPENDS = Object.freeze(['contact', 'up', 'decision', 'startle']);
 /** A man of the window this near a corner's spot took the eyes there: the corner's look counts as done at the suspension (m; my call). */
 export const TOOK_M = 1.5;
 /** The rung from which hands and voice overlap the feet, and the rung from which the eyes do too (COMBAT §25.3.1). */

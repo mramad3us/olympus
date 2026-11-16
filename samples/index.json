@@ -1,5 +1,5 @@
 {
- "built": "2026-11-15T15:48",
+ "built": "2026-11-16T06:29",
  "samples": [
   {
    "id": "cuts",
@@ -79,6 +79,29 @@
        }
       }
      ]
+    }
+   ]
+  },
+  {
+   "id": "doll-gear",
+   "title": "The I and C figure in the gear worn now: the rifle at the ready, or hanging from the hand",
+   "about": "Your words of 2026-11-15: \"the I and C menu preview of the character should show the currently worn gear\". The figure is the game's own doll, dressed from what you wear and carry (the gear record, src/sim/arms/gear.js): the combat EVA suit drawn at last (v0.0.17 drew the utilities under it), the plate carrier with a baseplate showing for each magazine in a pouch, the dump pouch on the belt, the P-12 in its thigh holster (its grip over the mouth, or the mouth open with the pistol drawn) and its spare in the pouch below, the R-7 slung front, on the back, or in the hands, ear defenders' cups where they are worn. Each figure at the I and C cards' scale, unlit as the cards draw it, labelled. Score R: how the rifle in the hands is drawn.",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "R",
+     "title": "R: the rifle in the hands on the doll",
+     "about": "R-a both hands at the low ready, the rifle diagonal 35° below level across the body, the right hand at the grip, the left at the handguard (the default, my call). R-b the rifle hanging from the right hand, muzzle down, as v0.0.17's board man held it. Each view: you at GO in the shoot house, after Transition (the P-12 at the ready, the R-7 slung front), the R-7 slung on the back, your #2 (no P-12), and the range kit on the utilities with ear defenders and a magazine in the left hand.",
+     "sets": null,
+     "views": []
+    },
+    {
+     "id": "P",
+     "title": "P: the magazines in the pouches (for reference)",
+     "about": "VIEWS §4.2's rule as written: a double magazine pouch shows two baseplates when full and one when half, an empty one only its seam; the dump pouch sags by what it holds. Chest pouches 1 and 2 from empty to full, then the dump pouch with none, two and four.",
+     "sets": null,
+     "views": []
     }
    ]
   },
@@ -1862,9 +1885,154 @@
    ]
   },
   {
+   "id": "opfor-look",
+   "title": "The first live men: the force-on-force mask, the hands up, the paint",
+   "about": "\"Stack and clear, live\" (v0.0.19) puts two role-players in the shoot house in place of stands 2a and 3a: generated marines of the cadre in utilities and a plate carrier, a force-on-force mask, an R-7 with marking rounds. A man who gives up drops his rifle to the floor and puts his hands up, and kneels when challenged; a round of marking paint shows where it struck. Every picture is the game's own code: the doll of the inventory and the target view, the world figure at 24 px/m, the target view's card. The game draws the defaults (M2, H1, P1) until you score them.",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "M",
+     "title": "M: the mask",
+     "about": "The doll close, then his target card as your take-in identified him (\"RIFLE · AIMING\"). M1 a wire mesh in a black frame, the face dim behind it; M2 (the default) a clear lens over the eyes in a black frame and a moulded lower shell with three vents; M3 a smoked shield from the brow to the jaw with a chin guard. Each on a strap round the head; never under a sealed helmet.",
+     "sets": null,
+     "views": [
+      {
+       "id": "M1",
+       "name": "M1: the mesh",
+       "query": "m=M1",
+       "shot": "opfor-look/shots/m1.png",
+       "native": [
+        340,
+        288
+       ],
+       "report": {
+        "frame": [
+         340,
+         288
+        ]
+       }
+      },
+      {
+       "id": "M2",
+       "name": "M2: lens and shell (the default)",
+       "query": "m=M2",
+       "shot": "opfor-look/shots/m2.png",
+       "native": [
+        340,
+        288
+       ],
+       "report": {
+        "frame": [
+         340,
+         288
+        ]
+       }
+      },
+      {
+       "id": "M3",
+       "name": "M3: the shield",
+       "query": "m=M3",
+       "shot": "opfor-look/shots/m3.png",
+       "native": [
+        340,
+        288
+       ],
+       "report": {
+        "frame": [
+         340,
+         288
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "H",
+     "title": "H: the hands up",
+     "about": "A man who gave up, his rifle on the floor at his feet: the doll, then the world figure standing and kneeling (when challenged), facing you, side on, from behind and side on the other way. H1 (the default) his hands at his shoulders, palms out; H2 raised by his face.",
+     "sets": null,
+     "views": [
+      {
+       "id": "H1",
+       "name": "H1: at the shoulders (the default)",
+       "query": "h=H1",
+       "shot": "opfor-look/shots/h1.png",
+       "native": [
+        1320,
+        288
+       ],
+       "report": {
+        "frame": [
+         1320,
+         288
+        ]
+       }
+      },
+      {
+       "id": "H2",
+       "name": "H2: by the face",
+       "query": "h=H2",
+       "shot": "opfor-look/shots/h2.png",
+       "native": [
+        1320,
+        288
+       ],
+       "report": {
+        "frame": [
+         1320,
+         288
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "P",
+     "title": "P: the paint",
+     "about": "A marking round leaves paint, the stack's in the cadre's pink on a role-player, a role-player's in blue on you. Three cards: a role-player in belief (two rounds seen to strike, painted where you called them; one not seen, the amber ring), in truth (your three where they struck and your #2's one, unnumbered), and your own card with two of theirs. P1 (the default) a splat with two drops; P2 the paper's ring filled with the paint.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P1",
+       "name": "P1: the splat (the default)",
+       "query": "p=P1",
+       "shot": "opfor-look/shots/p1.png",
+       "native": [
+        616,
+        208
+       ],
+       "report": {
+        "frame": [
+         616,
+         208
+        ]
+       }
+      },
+      {
+       "id": "P2",
+       "name": "P2: the ring filled",
+       "query": "p=P2",
+       "shot": "opfor-look/shots/p2.png",
+       "native": [
+        616,
+        208
+       ],
+       "report": {
+        "frame": [
+         616,
+         208
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "p12-card",
    "title": "The P-12 on the weapon card: four designs in the Corps' black",
-   "about": "The P-12 (the sidearm from the Sergeant up, a HAD-17 of ten frangible, the thigh holster) has had no drawing: with the pistol in hand the card still draws the R-7, and the game keeps doing so until you pick. Four designs, each drawn by the game's own weapon card (src/art/pistols.js, reached only by these samples), at three times the rifle's density (432 px/m: the 19.5 cm pistol is 84 px, where at the rifle's 144 it would be 28). What the card shows is what you believe: the slide locked back with the barrel out of its nose; a sliver of brass at the hood's rear when a round is believed chambered (a loaded chamber witness, my call); the HAD-17's rounds seen through a witness slot in the grip's back, from the top (my call: the HAD-17 has its witness holes), \"?\" on the baseplate when the count was never checked; the well's open mouth with the magazine out; the oversized safety's paddle up for SAFE, down for SEMI; a stovepipe or a double feed in the port once looked at; a magazine in the hand right of the muzzle, its holes to its count. A: the service pistol (squared slide, front and rear serrations, rail, stippled grip). B: the slab (chamfered nose, angled serrations, the RD-1P's cut closed by its cover plate, a ledge rear sight for racking one-handed, hooked guard, flared well, pad on the baseplate). C: the monolith (slide and frame one tone, the slide sloping from a tall rear, a full dust cover, finger grooves, long beavertail). D: the lanyard (rounded nose, fish scales, a window over the barrel, a lanyard loop at the heel: a dropped pistol in free fall leaves). Shown raw, as the hud shows the card.",
+   "about": "The P-12 (the sidearm on every sheet, a HAD-17 of ten frangible, the thigh holster) had no drawing until v0.0.18: with the pistol in hand the card drew the R-7. From v0.0.18 the game draws it as P12A, the service pistol, until you pick. Four designs, each drawn by the game's own weapon card (src/art/pistols.js), at three times the rifle's density (432 px/m: the 19.5 cm pistol is 84 px, where at the rifle's 144 it would be 28). What the card shows is what you believe: the slide locked back with the barrel out of its nose; a sliver of brass at the hood's rear when a round is believed chambered (a loaded chamber witness, my call); the HAD-17's rounds seen through a witness slot in the grip's back, from the top (my call: the HAD-17 has its witness holes), \"?\" on the baseplate when the count was never checked; the well's open mouth with the magazine out; the oversized safety's paddle up for SAFE, down for SEMI; a stovepipe or a double feed in the port once looked at; a magazine in the hand right of the muzzle, its holes to its count. A: the service pistol (squared slide, front and rear serrations, rail, stippled grip). B: the slab (chamfered nose, angled serrations, the RD-1P's cut closed by its cover plate, a ledge rear sight for racking one-handed, hooked guard, flared well, pad on the baseplate). C: the monolith (slide and frame one tone, the slide sloping from a tall rear, a full dust cover, finger grooves, long beavertail). D: the lanyard (rounded nose, fish scales, a window over the barrel, a lanyard loop at the heel: a dropped pistol in free fall leaves). Shown raw, as the hud shows the card.",
    "pixel": true,
    "matrix": null,
    "groups": [
@@ -2697,6 +2865,36 @@
    ]
   },
   {
+   "id": "target-view",
+   "title": "The target view: the stands as you saw them, a live man in his gear, the hostage card",
+   "about": "Your words of 2026-11-15: \"we need to generalize that target view for every time we're engaging something or someone\", and the people in it \"rendered ... as we see them, meaning with their gear\". The card is \"Bang\"'s B (the khaki board you scored 99), drawn by the game's own code (src/art/doll/hitcard.js). In the shoot house it opens as soon as you aim at or bracket a stand your take-in has seen, the stand drawn as your take-in identified it, never as its record holds; \"Bang\" keeps its own as you scored it. Score L and H.",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "F",
+     "title": "F: the house's stands as identified (for reference)",
+     "about": "A threat with a rifle; a threat with a pistol, the P-12 in his hand (v0.0.17 drew him empty-handed, \"Bang\"'s pistol boards too); a no-shoot with a phone; a no-shoot with empty hands; the armoured face; a stand whose hands your look did not see, empty-handed and \"HANDS NOT SEEN\".",
+     "sets": null,
+     "views": []
+    },
+    {
+     "id": "L",
+     "title": "L: a live man's card",
+     "about": "Your #2 in the combat EVA suit, the carrier and the R-7 at the ready, in his own colours with no stakes and no zones, at the near band (4 m) and the mid band (14 m). L-a on the card's dark ground (the default); L-b on a ground lifted toward the board's khaki, so amber rings will read on a black suit once hits on people are drawn.",
+     "sets": null,
+     "views": []
+    },
+    {
+     "id": "H",
+     "title": "H: the hostage card",
+     "about": "Two painted men: the hostage in front (light skin, empty hands), the hostile behind him, his head and his pistol showing beside the hostage, 14 card pixels to the side at the near band. In belief with a round to the head called, and in truth. H-a the hostile at the viewer's right (the default); H-b at the left.",
+     "sets": null,
+     "views": []
+    }
+   ]
+  },
+  {
    "id": "walk",
    "title": "The walk: today's cycle and three candidates, animated, on the marine in the combat EVA suit with the R-7",
    "about": "Your word of 2026-11-11 on the shoot house: \"saying that the walking about is goofy is an understatement, the animation is really not there yet.\" The animation designer's three answers to the chibi's problem (legs of 0.25 m from hip to ankle at a human's speed), beside W0, the cycle v0.0.12 draws. All are the game's own figure code (src/art/figures/cycles.js, not wired into the game), at 16 px/m, in the black combat EVA suit with its carrier and the R-7, at 1 G on the shoot house's slab floor, snapped to the Mars palette as the stage snaps them. Two bands each: the Combat glide at the low ready (1.23 m/s) and Assault aimed (2.03 m/s), the speeds the body walks. Each candidate's frames follow the metres walked in its own steps, and side on its card is placed by the planted foot, so no boot slides (the plant lock: each frame's travel baked in whole pixels); seen from the front or behind the card follows the body, and the slip that leaves is measured and printed. Open a view live (O): Space runs and stops time, S slows it to a quarter, F hides the footprints, R starts again. The questions, with your scores: which cycle reads as a marine in each band (score each); is a bob on the gun line wanted at all in Combat and Assault (B says no); and the front and back views, where the feet slide in every candidate (see W-e's numbers).",
@@ -2806,6 +3004,36 @@
        }
       }
      ]
+    }
+   ]
+  },
+  {
+   "id": "wcard2",
+   "title": "The second gun on the weapon card: three ways to show it",
+   "about": "Your ask of 2026-11-15: the P-12 shown like the rifle. The house issues the P-12 beside the R-7 on every sheet, and the card showed only the gun in use: the holstered pistol's condition, or the rifle hanging on its sling with a double feed, were nowhere on screen. Each picture is four cards drawn by the game's own weapon card, every word and mark from what you believe of each gun: at GO (the R-7 in use, the P-12 holstered, SAFE 1+9); after Transition (the P-12 drawn as a pistol, the rifle hanging on its click); the rifle hanging with a double feed; the P-12 locked back on an empty. The game draws WC2-A until you pick. Shown raw, as the hud shows the card.",
+   "pixel": true,
+   "matrix": null,
+   "groups": [
+    {
+     "id": "WC2-A",
+     "title": "WC2-A: a strip at the card's foot, a picture for where it is",
+     "about": "The gun in use whole, as today, with a small brass hands mark at its top left; the other gun in a strip at the foot (rows 124 to 147, under a rule): a glyph for where it is (the holster, hanging on its sling, slung in front or on your back), its silhouette from its own card drawing (the pistol at a third of its card size, the rifle at a quarter) and its condition from its own belief (SAFE 1+9; an amber ! for a stoppage, ? for a chamber never checked). With one gun the card is as it was, pixel for pixel. The default built.",
+     "sets": null,
+     "views": []
+    },
+    {
+     "id": "WC2-B",
+     "title": "WC2-B: the same strip, the place in a word",
+     "about": "As A, with the place spelt out (HOLSTER, HANGING, SLUNG, BACK) in place of the glyph, the silhouette and the condition after it.",
+     "sets": null,
+     "views": []
+    },
+    {
+     "id": "WC2-C",
+     "title": "WC2-C: two half cards side by side",
+     "about": "Each gun's own card at half its size, the one in use on the left and lit, the other on the right and dimmed. Both guns are whole, but every word and mark is half as big.",
+     "sets": null,
+     "views": []
     }
    ]
   }

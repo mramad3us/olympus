@@ -84,4 +84,19 @@ export default [
       assert(Number.isFinite(kPa) && kPa === PEAK_RECORD_KPA && saved === kPa && g.save() === g2.save(), JSON.stringify({ kPa, saved }));
     },
   },
+  // (v0.0.19, D2 (the build sheet 0.0.19 §0 item 2, §6))
+  {
+    name: 'a practice grenade\'s stands are dazed by the instructor\'s read alone: no startle from the spotting charge (fails without the build sheet 0.0.19 §0 item 2: burst.js step 3 dazed every stand of the room by a startle)',
+    fn() {
+      const g = house({ loadout: 'frag', tier: 'sgt' }), s = g.state, H = s.armoury.range.house, T1 = s.armoury.range.turners.find(t => t.stand === '1a');
+      setOpening(s, 'o:w4:r1', 'open', { atMs: s.clock.ms - 1000 });
+      const id = nextId(s, 'i');
+      put(s, s.items, id, { type: 'grenade', model: 'g9p', fuseMs: 4000, st: 'live' });
+      move(s, id, { ground: { area: s.places.live.area, x: 31.0, z: 11.5 } });
+      const before = T1.dazeUntilMs ?? null, out = burst(s, null, { id, model: 'g9p', x: 31.0, z: 11.5, atMs: s.clock.ms, byId: s.player.id });
+      const rec = H.bursts.at(-1), after = T1.dazeUntilMs ?? null, read = rec.read?.stands?.[T1.key];
+      console.log(`      the spotting charge's daze: ${JSON.stringify(rec.daze)}; 1a's dazeUntilMs before ${before}, after the burst ${after}; the read on 1a ${JSON.stringify(read)} (applied by house-kit.js readsTick, not here)`);
+      assert(Object.keys(rec.daze).length === 0 && after === before && !!rec.read && read && out.read === rec.read, JSON.stringify({ daze: rec.daze, before, after }));
+    },
+  },
 ];

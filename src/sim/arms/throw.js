@@ -20,11 +20,20 @@
 // A natural 1 with Weapon handling under 10 slips: armed at your feet (`feet`, the thrower's place), SLIP_M toward the hand
 // and never nearer the door's line than SLIP_KEEP_M on your own side, where it was dropped (the same review: it landed in the
 // room from the door's middle, and dazed the room's stands).
+// v0.0.19 (D2, kit2 §2.3): aimOf(state, plan, how) is where a row throws a frag or a concussion: 'deep', the plan's hot spot
+// farthest from the door, AIM_OFF_WALL_M 0.8 off the room's walls (room 1's (29.0, 8.8)), where the doctrine wants it; 'centre',
+// the room's middle (D1's flash aim, kept for the G-11). fuseLeftMs(state, itemId, atMs) is the fuse a thrower believes is left:
+// the nominal (devices.js fuseBelieved) less what the count has taken since the lever went (a cooked grenade), never the drawn
+// fuse, so a cooked throw in low gravity is solved low against what the hand believes. A frag's or a concussion's throw through a
+// door (bundle.js passes beyondM DEEP_BEYOND_M 2.0) lands at least that far past the door's line, a failed one too (my call: the
+// arm through the opening carries a deep throw in; a short throw landing in the door's mouth beside the stack, 112 kPa on #1 round
+// the jamb, and the stack's "Grenade short!" to answer it, are a question for the user, not this round's).
 // Pure.
 import { stream, next, range } from '../../core/rng.js';
 import { G0_MS2 } from '../../core/phys.js';
 import { spinBiasCm } from '../places/spin.js';
 import { lineClear, clipped } from '../combat/route.js';
+import { fuseBelieved } from './devices.js';
 
 /** The ceiling's keep for a lob's top (m), the fuse's keep for its flight (ms), free fall below FREE_G_MS2 thrown straight at FREE_THROW_MS (m/s); the release's height (m). */
 export const CEILING_KEEP_M = 0.1, FUSE_KEEP_MS = 400, FREE_G_MS2 = 0.05, FREE_THROW_MS = 6, RELEASE_Y_M = 1.4;
@@ -32,6 +41,8 @@ export const CEILING_KEEP_M = 0.1, FUSE_KEEP_MS = 400, FREE_G_MS2 = 0.05, FREE_T
 export const THROW_V_MAX = 20, THROW_V0 = 14, THROW_V_PER = 0.25, SUIT_THROW_K = 0.85;
 /** A slip at your feet lands this far toward the hand (m), and at least SLIP_KEEP_M short of the door's line on your side; a throw through a door lands at least BEYOND_M past its line (m). */
 export const SLIP_M = 0.4, SLIP_KEEP_M = 0.2, BEYOND_M = 0.3;
+/** A frag's or a concussion's deep throw through a door lands at least this far past its line, a failure too (m; v0.0.19, my call: see the header). */
+export const DEEP_BEYOND_M = 2.0;
 
 /** The thrower's top speed (m/s) for a Fitness, suited or not (see the header). */
 export const throwVMax = (fitness, suited = false) => Math.min(THROW_V_MAX, THROW_V0 + THROW_V_PER * (fitness ?? 10)) * (suited ? SUIT_THROW_K : 1);
@@ -76,14 +87,16 @@ const r3 = (x) => Math.round(x * 1000) / 1000;
  * throw's roll; wh the thrower's Weapon handling (the slip's); feet the thrower's place [x, z]; door the doorway thrown through,
  * { axis, at, side } (its line, axis 'x' a line of constant z at `at`, and the room's side of it, +1 or −1).
  */
-export function throwLand(state, pid, solve, { itemId = 'g', ok = true, margin = 0, nat = 0, wh = 10, area = state.places?.live?.area ?? null, feet = null, door = null } = {}) {
+export function throwLand(state, pid, solve, { itemId = 'g', ok = true, margin = 0, nat = 0, wh = 10, area = state.places?.live?.area ?? null, feet = null, door = null, beyondM = BEYOND_M } = {}) {
   const F = solve.flight, r = stream(state.meta?.seed ?? 0, 'arms:throw', pid, itemId), d = solve.dM;
   const from = [F.x0, F.z0];
   const across = (p) => (door.axis === 'x' ? p[1] : p[0]) - door.at, setAcross = (p, v) => (door.axis === 'x' ? [p[0], door.at + v] : [door.at + v, p[1]]);
   if (nat === 1 && wh < 10) {
     let p = [F.x0 + solve.ux * SLIP_M, F.z0 + solve.uz * SLIP_M];
     if (feet) { const dx = F.x0 - feet[0], dz = F.z0 - feet[1], n = Math.hypot(dx, dz) || 1; p = [feet[0] + dx / n * SLIP_M, feet[1] + dz / n * SLIP_M]; }
-    if (door && across(p) * door.side > -SLIP_KEEP_M) p = setAcross(p, -door.side * SLIP_KEEP_M);
+    // (on the side the thrower stands, where it was dropped: the stack's, or the room's for one already past the door's plane)
+    const own = door ? (feet ? Math.sign(across(feet)) : 0) || -door.side : 0;
+    if (door && across(p) * own < SLIP_KEEP_M) p = setAcross(p, own * SLIP_KEEP_M);
     return { x: r3(p[0]), z: r3(p[1]), aimX: null, aimZ: null, offM: null, wall: false, rollM: 0, atFeet: true };
   }
   const aimX = F.x0 + solve.ux * d, aimZ = F.z0 + solve.uz * d;
@@ -94,14 +107,41 @@ export function throwLand(state, pid, solve, { itemId = 'g', ok = true, margin =
   const errM = ok ? next(r) * (0.5 + 0.03 * d) : 1 + 0.5 * Math.abs(margin) + 0.08 * d, ang = next(r) * 2 * Math.PI;
   let to = [aimX + rx * side + solve.ux * along + Math.cos(ang) * errM, aimZ + rz * side + solve.uz * along + Math.sin(ang) * errM];
   // (through a door, never back over its line: the error turned about it, BEYOND_M into the room at least)
-  if (door && across(to) * door.side < BEYOND_M) to = setAcross(to, door.side * Math.max(Math.abs(across(to)), BEYOND_M));
+  if (door && across(to) * door.side < beyondM) to = setAcross(to, door.side * Math.max(Math.abs(across(to)), beyondM));
   let wall = false;
   if (area && !lineClear(state, from, to, { area })) { to = clipped(state, from, to, { area }); wall = true; }
   // (the roll on: along the throw's heading, U(0.5, 2) × √(G0 / g) m, never through a wall)
   const g = Math.max(F.g, FREE_G_MS2), rollM = range(r, 0.5, 2) * Math.sqrt(G0_MS2 / g) * (wall ? 0.3 : 1);
   let end = [to[0] + solve.ux * rollM, to[1] + solve.uz * rollM];
   if (area && !lineClear(state, to, end, { area })) end = clipped(state, to, end, { area });
+  // (v0.0.19: a deep throw's floor never nearer the door's line than its beyondM, a wall's clip and the roll counted)
+  if (door && beyondM > BEYOND_M && across(end) * door.side < beyondM) end = setAcross(end, door.side * beyondM);
   return { x: r3(end[0]), z: r3(end[1]), aimX: r3(aimX), aimZ: r3(aimZ), offM: r3(Math.hypot(to[0] - aimX, to[1] - aimZ)), wall, rollM: r3(Math.hypot(end[0] - to[0], end[1] - to[1])), atFeet: false };
+}
+
+/** A deep aim stays this far off the room's walls (m; my call: kit2 §2.3's (29.0, 8.8) in room 1, the roll on carrying it deeper still). */
+export const AIM_OFF_WALL_M = 0.8;
+/**
+ * A row's aim (see the header): [x, z]. plan: a room plan (rects, hot, door's plane); how 'deep' (the hot spot farthest from the
+ * door, AIM_OFF_WALL_M off the walls of the rect it is in) or 'centre' (the first rect's middle).
+ */
+export function aimOf(state, plan, how = 'deep') {
+  const r = plan?.rects?.[0];
+  if (!r) return null;
+  if (how !== 'deep' || !plan.hot?.length || !plan.plane) return [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2];
+  const P = plan.plane, mid = (P.a + P.b) / 2, door = P.axis === 'x' ? [mid, P.at] : [P.at, mid];
+  const far = plan.hot.reduce((a, h) => (!a || Math.hypot(h.x - door[0], h.z - door[1]) > Math.hypot(a.x - door[0], a.z - door[1]) ? h : a), null);
+  const R = plan.rects.find(q => far.x >= q[0] && far.x <= q[2] && far.z >= q[1] && far.z <= q[3]) ?? r, k = AIM_OFF_WALL_M;
+  // (deep along the door's normal, the room's middle across it: "deep", never into the far corner itself)
+  const across = P.axis === 'x' ? (R[0] + R[2]) / 2 : (R[1] + R[3]) / 2;
+  const deep = P.axis === 'x' ? Math.min(R[3] - k, Math.max(R[1] + k, far.z)) : Math.min(R[2] - k, Math.max(R[0] + k, far.x));
+  return P.axis === 'x' ? [r3(across), r3(deep)] : [r3(deep), r3(across)];
+}
+/** The fuse a thrower believes is left (ms; see the header): the nominal less the count since the lever went. */
+export function fuseLeftMs(state, itemId, atMs = state.clock.ms) {
+  const rec = state.items?.[itemId], nominal = fuseBelieved(rec?.model);
+  if (!rec || nominal === null) return Infinity;
+  return Number.isFinite(rec.leverAtMs) ? Math.max(0, nominal - (atMs - rec.leverAtMs)) : nominal;
 }
 
 /** A flight's place at ms (for the picture): { x, y, z, landed }, the closed form from its fromMs to its landMs, then the landing point. */

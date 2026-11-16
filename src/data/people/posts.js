@@ -18,4 +18,9 @@ export const POSTS = deepFreeze({
   // (0.0.12: the shoot house's chief instructor, on the catwalk of house 1 in the Wheel's sector 4 (COMBAT §25.10.2; the build
   // sheet 0.0.12 §8 item 19): a generated staff sergeant, as the range's staff are)
   'melas:wheel-house-chief': { site: 'melas', key: 'wheel-house-chief', what: 'shoot house instructor', ranks: [['SSgt', 70], ['GySgt', 20], ['Sgt', 10]], mos: '0369', unitId: '2/4', branch: 'marines', outfit: 'rangeStaff' },
+  // (v0.0.19: the live lane's two role-players, the cadre's marines who stand in for stands 2a and 3a in marking-round kit
+  // (COMBAT §7.11, §25.18; src/sim/scenarios/opfor.js): generated as every post is, on their own streams, so the roster and
+  // the player move by nothing; in utilities, the mask and the carrier their kit's)
+  'melas:wheel-house-opfor-a': { site: 'melas', key: 'wheel-house-opfor-a', what: 'shoot house role-player', ranks: [['LCpl', 60], ['Cpl', 40]], mos: '0311', unitId: '2/4', branch: 'marines', outfit: 'utilities' },
+  'melas:wheel-house-opfor-b': { site: 'melas', key: 'wheel-house-opfor-b', what: 'shoot house role-player', ranks: [['LCpl', 60], ['Cpl', 40]], mos: '0311', unitId: '2/4', branch: 'marines', outfit: 'utilities' },
 });

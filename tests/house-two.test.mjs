@@ -184,7 +184,7 @@ export default [
     },
   },
   {
-    name: 'his own rifle stopped on his man: "Gun down!", his drill on his hands (a stovepipe IMMEDIATE ACTION, a double feed REMEDIAL ACTION, an empty a speed reload), "Gun up!", back on the man and him down, the room\'s "Clear!" after (COMBAT §25.19.5; v0.0.13 pressed a jammed rifle six times and called the room clear over his man)',
+    name: 'his own rifle stopped on his man: "Gun down!", his drill on his hands from what he believes (v0.0.19: IMMEDIATE ACTION first, then what it shows him: a double feed REMEDIAL ACTION, an empty a speed reload), "Gun up!" (the empty\'s too: his "Gun down!" closed by its own word), back on the man and him down, the room\'s "Clear!" after (COMBAT §25.19.5; v0.0.13 pressed a jammed rifle six times and called the room clear over his man)',
     timeoutMs: 60_000,
     fn() {
       const rows = [];
@@ -204,9 +204,14 @@ export default [
         rows.push({ kind, drill, lists: [...lists], drawn: [...drawn], says: says.filter(t => /Gun|Reload|Up/.test(t)), man, down: T?.stoppedAtMs ?? null, clearAt, faults, gun: { chamber: gunField(twoRifle(s), 'chamber'), jam: gunField(twoRifle(s), 'jam') ?? null } });
       }
       for (const r of rows) console.log(`      ${r.kind}: his drill ${r.lists.join(' then ')} (${r.drawn.join(' ')}); he said ${r.says.join(' ')}; his man ${r.man} ${r.down !== null ? `down ${fmt((r.clearAt - r.down) / 1000, 2)} s before "Clear!"` : 'up'}; room 3's faults ${r.faults.join(', ') || 'none'}`);
-      assert(rows.every(r => r.man && r.lists[0] === r.drill && r.down !== null && r.clearAt !== null && r.clearAt >= r.down && !r.faults.includes('standing') && r.says.some(t => t === TWO_SAY.gunUp || t === TWO_SAY.up)), JSON.stringify(rows));
+      // (v0.0.19, the build sheet's §0 item 20: his drill from what he believes (house-two.js twoFixOf, plan.js planFor), as yours:
+      // a dead trigger is an IMMEDIATE ACTION first whatever the gun hides, and the truth's drill (v0.0.18's twoDrillOf, `drill`)
+      // comes once he has seen it (the double feed's REMEDIAL, the empty's speed reload); v0.0.18 went to the truth's at once)
+      assert(rows.every(r => r.man && r.lists[0] === 'ia' && r.lists.at(-1) === r.drill && r.down !== null && r.clearAt !== null && r.clearAt >= r.down && !r.faults.includes('standing') && r.says.some(t => t === TWO_SAY.gunUp || t === TWO_SAY.up)), JSON.stringify(rows));
       assert(rows.find(r => r.kind === 'stovepipe').drill === 'ia' && rows.find(r => r.kind === 'double').drill === 'remedial' && rows.find(r => r.kind === 'empty').drill === 'reload:speed', JSON.stringify(rows.map(r => [r.kind, r.drill])));
-      assert(rows.filter(r => r.kind !== 'empty').every(r => r.says.includes(TWO_SAY.gunDown)) && rows.find(r => r.kind === 'empty').says.includes(TWO_SAY.reloading), JSON.stringify(rows.map(r => r.says)));
+      // (the call he opened with is the one he closes (team.js TEAM_WORDS gunDown's close, gunUp): "Gun down!" then "Gun up!", the empty's
+      // IA turned speed reload too; v0.0.19's first build closed it "Up.", a reload's word, which F36 counts not closed: the review of 2026-11-16)
+      assert(rows.every(r => r.says[0] === TWO_SAY.gunDown && r.says.at(-1) === TWO_SAY.gunUp && !r.says.includes(TWO_SAY.up)), JSON.stringify(rows.map(r => r.says)));
     },
   },
   {

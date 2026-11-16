@@ -26,7 +26,8 @@
 //                      1.40 s × paceOf(WH), 0.64 s at the tier one's 42 (WEAPONS §5.2's table); then the pistol is the gun
 //                      in use (state.stop.gun; kit.js handGunOf), its shot rows the panel's (the present is the row's aim)
 //   weapon:rifle-up    the P-12 holstered (§5.2's pistol stow, 1.3 s, DC 6), the rifle up (1.0 s), its drill
-//   team:cover         your #2 gun down: your eyes and muzzle on his sector (the house's 'cqb-two-down' stop)
+//   team:cover         your #2 gun down: "Covering!" (v0.0.19, team.js TEAM_WORDS 'call:covering'), your eyes and muzzle on his
+//                      sector (his side's: team.js sideOf) (the house's 'cqb-two-down' stop)
 // Your #2 takes your sector on "Gun down!" and "Stoppage!" (shoothouse.js twoCover, coverTick: the step's name); his "Up."
 // ends your wait on the knee. A fumbled draw or holster costs its time (×1.6) and goes on; a drop halts the step (the pistol
 // stays where it was: in the holster, or in the hand). weaponRows(state, pid) are the panel's rows of the weapon group in the
@@ -52,7 +53,7 @@ import { isLong, modelOf } from './models.js';
 import { facingOf } from './turners.js';
 import { TRANSITION_NEAR_M } from './specials.js';
 import { inHouse, targetOf, stanceMsOf, LABELS } from './shooting.js';
-import { wayOf, COVER_STEP_M, BODY_GAP_M, CALL_FLOW_S, TWO_SAY, doorNow } from '../combat/bundle.js';
+import { wayOf, COVER_STEP_M, BODY_GAP_M, doorNow } from '../combat/bundle.js';
 import { clipped } from '../combat/route.js';
 import { profileOf, pathLen } from '../combat/stepper.js';
 import { legsHere, coastTo, inDoorway } from '../places/move.js';
@@ -65,11 +66,17 @@ import { inUseOf, accessOf } from './guns.js';
 import { readyPath, gunRows, planFor } from './plan.js';
 import { wordsOf } from './gunwords.js';
 import { SLUNG } from './carry.js';
+import { handDeviceOf } from './devices.js';
+import { TEAM_WORDS, sideOf } from '../combat/team.js';
 
-/** The calls of the answers (voice, CALL_MS each: shouted as the hands move; FM 3-06.11 table 3-2). */
-export const CALLS = Object.freeze({ 'call:gundown': TWO_SAY.gunDown, 'call:gunup': TWO_SAY.gunUp, 'call:stoppage': 'Stoppage!', 'call:up': 'Up!' });
-/** A call's time (COMBAT §25.19.6: "Gun down!" voice, 0.2 s, flowing: bundle.js CALL_FLOW_S), ms. */
-export const CALL_MS = Math.round(CALL_FLOW_S * 1000);
+/** The calls of the answers (voice, CALL_MS each: shouted as the hands move; FM 3-06.11 table 3-2), read from team.js TEAM_WORDS (v0.0.19), with "Covering!" as you take your #2's sector. */
+export const CALLS = Object.freeze(Object.fromEntries(['call:gundown', 'call:gunup', 'call:stoppage', 'call:up', 'call:covering'].map(id => [id, TEAM_WORDS[id].words])));
+/**
+ * A call's time (COMBAT §25.19.6: "Gun down!" voice, 0.2 s, flowing: bundle.js CALL_FLOW_S), ms. A literal: bundle.js and this
+ * module import each other, so reading CALL_FLOW_S here at the top level threw whenever bundle.js loaded first (import-order holds
+ * both orders, and the two numbers equal).
+ */
+export const CALL_MS = 200;
 /** Off the line ends with the body's centre this far off the wall's face (m; COMBAT §25.19.6). */
 export const WALL_OFF_M = 0.4;
 /** The knee held for your #2's "Up." at most this long (ms; my call: never a dead end when he is busy or gone), and its estimate on the card (shoothouse.js UP_WAIT_MS 400). */
@@ -84,7 +91,7 @@ export const ANSWER_STEPS = Object.freeze({ gundown: 'weapon:gun-down', offline:
 /** The sub-steps this module runs itself (the others are the rifle's: shooting.js rifleSub). */
 export const OWN_SUBS = Object.freeze(new Set([...Object.keys(CALLS), 'wait:up', 'step:wall', 'draw:thigh', 'team:cover', 'pistol:ready', 'pistol:clear']));
 /** Their words (shooting.js LABELS takes them). */
-export const SIDEARM_LABELS = Object.freeze({ 'call:gundown': '"Gun down!"', 'call:gunup': '"Gun up!"', 'call:stoppage': '"Stoppage!"', 'call:up': '"Up!"', 'wait:up': 'On a knee: wait for "Up."',
+export const SIDEARM_LABELS = Object.freeze({ 'call:gundown': '"Gun down!"', 'call:gunup': '"Gun up!"', 'call:stoppage': '"Stoppage!"', 'call:up': '"Up!"', 'call:covering': '"Covering!"', 'wait:up': 'On a knee: wait for "Up."',
   'step:wall': 'Step to the wall', hang: 'Let it hang', 'draw:thigh': 'Draw the pistol', holster: 'Holster it', 'team:cover': 'Cover his sector',
   'pistol:ready': 'The pistol: rack, safe, holster', 'pistol:clear': 'The pistol: clear, holster' });
 /** The tower's macros that cover the P-12 too, the pistol last (COMBAT §25.19.6; WEAPONS §5.3's note): MAKE READY racks it, UNLOAD and SHOW CLEAR clear it. */
@@ -136,6 +143,9 @@ export function buddyUp(state, pid) {
 export function weaponList(state, pid, key, { feet = null } = {}) {
   const me = actorOf(state, pid), rifle = rifleOf(state, pid), use = inUseOf(state, pid), b = use ? beliefOf(state, use) : null;
   if (!me) return null;
+  // (a device in a hand (a G-11 armed, a charge, a tool): no draw into it; its ways out first (bundle.js deviceRows); the team's
+  // review of v0.0.19: "Top up" was offered with an armed G-11 in the hand and its press threw in kit.move)
+  if ((key === 'transition' || key.startsWith('other:')) && handDeviceOf(state, pid)) return null;
   if (key === 'gun-down') {
     if (!b?.stoppage || slungNow(state, pid)) return null;
     return ['call:gundown', ...(me.stance === 'kneel' ? [] : ['stance:kneel']), ...subsOf(drillOf(b), b), 'call:gunup', ...(houseOf(state)?.two?.pid ? ['wait:up'] : []), 'stance:stand'];
@@ -158,7 +168,8 @@ export function weaponList(state, pid, key, { feet = null } = {}) {
     const acc = accessOf(state, pid, p);
     return [...acc.pre, ...r.subs.map(x => x.id), ...acc.post];
   }
-  if (key === 'cover') return houseOf(state)?.two?.down ? ['team:cover'] : null;
+  // (v0.0.19: "Covering!" first, as he says it for you (team.js TEAM_WORDS); not while he only draws his P-12 (his transition's))
+  if (key === 'cover') { const D = houseOf(state)?.two?.down; return D && D.macro !== 'transition' ? ['call:covering', 'team:cover'] : null; }
   return null;
 }
 /** A list's time at the normal tempo, ms (each sub-step's own formula on its own gun; the wait for "Up." at his UP_SAID_MS). */
@@ -216,7 +227,7 @@ function segDist(a, b, p) {
 }
 // (your #2's sector's bearing, and the head's turn there: Cover his sector's time, a watch's (0.3 s × pace and the turn))
 function coverMs(state, pid) {
-  const me = actorOf(state, pid), plan = doorNow(state, pid)?.plan, sec = plan?.sectors?.find(s => s.slot === 2) ?? null;
+  const me = actorOf(state, pid), here = doorNow(state, pid), plan = here?.plan, his = sideOf(state, here?.door, 2), sec = plan?.sectors?.find(s => s.slot === his) ?? null;
   const yaw = sec ? sec.yawRad : me?.headRad ?? 0, turn = Math.abs(Math.atan2(Math.sin(yaw - (me?.headRad ?? 0)), Math.cos(yaw - (me?.headRad ?? 0))));
   const wh = rollerOf(state, pid).value('weapons');
   return { yaw, ms: Math.round((0.3 * paceOf(wh) + turn / Math.PI * 0.4 * paceOf(wh)) * 1000) };
@@ -324,7 +335,11 @@ export function adminMs(state, pid, sub) {
   if (!g || !ADMIN_PARTS[sub]) return 0;
   return actionMs(roller, g, 'draw:thigh') + actionMs(roller, g, 'holster') + ADMIN_PARTS[sub].reduce((t, a) => t + actionMs(roller, g, a === 'magOut' ? 'magOut:pouch' : a), 0);
 }
-function adminRun(state, bus, pid, sub, d) {
+/**
+ * The P-12's part of a tower macro run (see ADMIN_PARTS): { ms, ok, text }. v0.0.19: exported for your #2's admin (house-two.js),
+ * rng (his stream, 'house-two') and log (false: his rolls in nobody's log) passed to each action; for you as before.
+ */
+export function adminRun(state, bus, pid, sub, d, { rng = null, log = true } = {}) {
   const p = holstered(state, pid), g = p ? state.items[p] : null, roller = rollerOf(state, pid);
   if (!g) return { ms: 0, ok: null, text: 'No pistol.' };
   let ms = actionMs(roller, g, 'draw:thigh') + actionMs(roller, g, 'holster'), ok = true;
@@ -338,7 +353,7 @@ function adminRun(state, bus, pid, sub, d) {
       ms += actionMs(roller, g, 'magOut:pouch');
       continue;
     }
-    const r = doAction(state, bus, { pid, gunId: p, action: a, tempo: d.tempo, pressure: 'evaluated' });
+    const r = doAction(state, bus, { pid, gunId: p, action: a, tempo: d.tempo, pressure: 'evaluated', ...(rng ? { rng } : {}), ...(log ? {} : { log: false }) });
     if (r.refused) continue;
     ms += r.ms ?? 0;
     if (r.ok === false) ok = false;
@@ -390,28 +405,41 @@ export function sidearmEnd(state, bus, d, id) {
   if (!k) return;
   if (id === 'hang') S.aim = null;
   else if (id === 'draw:thigh' && d.drawn) {
-    const p = d.drawn, hands = k.hands ?? [null, null];
+    const p = d.drawn;
     delete d.drawn;
-    // (both hands full (a stripped magazine and another): the draw comes to nothing, the pistol where it was)
-    if (hands[0] && hands[1]) return;
-    move(state, p, { pid, hand: !hands[0] ? 0 : 1 });
-    S.gun = p; S.aim = null;
-    (k.carry ??= {}).posture = 'lowReady';
-    delete k.carry.finger;
-    // (a transition is a fighting draw: the thumb takes the safety off as the pistol comes out on the lane (the design review
-    // of 2026-11-13: it came out "SAFE 1 + 9", Off safe on 8, at the moment the man is up); off the lane it stays as it was)
-    if (laneLive(state) && state.items[p]) state.items[p].mode = 'semi';
+    if (pistolDrawn(state, pid, p)) { S.gun = p; S.aim = null; }
   } else if (id === 'holster') {
     // (the holster fumbled (its sub-step halted): the pistol still in the hand, drawn, the step's rest Carry on's)
     if (d.halt) return;
-    const p = drawn(state, pid);
-    // (on safe before it goes in (WEAPONS §5.2's stow): the tower's Stop judges a holstered P-12 on safe (shoothouse.js pistolLacks))
-    if (p && state.items[p]) state.items[p].mode = 'safe';
-    if (p) move(state, p, { pid, slot: 'holster' });
+    pistolHolstered(state, pid);
     S.gun = rifleOf(state, pid) ?? S.gun; S.aim = null;
-    (k.carry ??= {}).posture = 'slungFront';
-    delete k.carry.finger;
   } else if (id === 'team:cover' && me && d.coverYaw !== undefined) { me.headRad = d.coverYaw; S.aim = null; }
+}
+
+/**
+ * The P-12 drawn into a person's hand (the draw's end; yours by sidearmEnd, your #2's by house-two.js): into the first free hand,
+ * low ready, the finger off; on the lane the thumb takes the safety off (a transition is a fighting draw: the design review of
+ * 2026-11-13, it came out "SAFE 1 + 9", Off safe on 8, at the moment the man is up; off the lane it stays as it was). Both hands
+ * full (a stripped magazine and another): the draw comes to nothing, the pistol where it was. Returns whether it is drawn.
+ */
+export function pistolDrawn(state, pid, p) {
+  const k = state.people?.[pid]?.kit, hands = k?.hands ?? [null, null];
+  if (!k || (hands[0] && hands[1])) return false;
+  move(state, p, { pid, hand: !hands[0] ? 0 : 1 });
+  (k.carry ??= {}).posture = 'lowReady';
+  delete k.carry.finger;
+  if (laneLive(state) && state.items[p]) state.items[p].mode = 'semi';
+  return true;
+}
+/** The P-12 in a person's hand holstered (the holster's end): on safe before it goes in (WEAPONS §5.2's stow: the tower's Stop judges a holstered P-12 on safe, shoothouse.js pistolLacks), the rifle hanging, the finger off. Returns the pistol's id, or null. */
+export function pistolHolstered(state, pid) {
+  const k = state.people?.[pid]?.kit, p = drawn(state, pid);
+  if (!k) return null;
+  if (p && state.items[p]) state.items[p].mode = 'safe';
+  if (p) move(state, p, { pid, slot: 'holster' });
+  (k.carry ??= {}).posture = 'slungFront';
+  delete k.carry.finger;
+  return p;
 }
 
 /** The wait on the knee (wait:up) ended now, your #2 having said "Up." (the house's coverTick): the doing's sub-step closed at the clock. */

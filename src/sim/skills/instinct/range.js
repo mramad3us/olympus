@@ -42,7 +42,7 @@
 // still." (instinct.js; VIEWS §7.4).
 // Pure.
 import { playerActor, playerId } from '../../../core/ids.js';
-import { beliefOf } from '../../arms/firearms.js';
+import { beliefOf, gunField } from '../../arms/firearms.js';
 import { stepsOf, gunOn } from '../../arms/shooting.js';
 import { rangeOf, lineReady, roundsLeft } from '../../scenarios/handling.js';
 import { SEQ, SEQ_KD, KD_STRINGS, COURSES } from '../../../data/courses.js';
@@ -329,6 +329,12 @@ function houseCmd(state, k) {
   // (and at LOAD too: the macro is not offered on a slung rifle, and "The tower is waiting on you: LOAD." stood with no act (the
   // dead-end hunt of 2026-11-16))
   if ((k.cmd === 'stop' || k.cmd === 'clear' || k.cmd === 'cease' || k.cmd === 'load') && k.inMode && !k.inHand && k.offered('up')) return { ...base, variant: 'up', step: 'up', short: 'Rifle up' };
+  // (Stop with your own rifle safe, the tower waiting on your number two's alone: out of it and wait, as at LOAD (variant 'two');
+  // before, the shared rule named the safe already done, X took you out and T put you back in, every tick until he was done)
+  if (k.cmd === 'stop') {
+    const g = state.items?.[k.gunId], finger = state.people?.[k.pid]?.kit?.carry?.finger ?? 'off';
+    return g && gunField(g, 'mode') === 'safe' && finger !== 'on' && /^two:/.test(twoLacks(state, 'stop') ?? '') ? { ...base, variant: 'two', step: null, short: 'Wait' } : undefined;
+  }
   if (k.cmd !== 'load' && k.cmd !== 'ready' && k.cmd !== 'standby') return undefined;
   const gun = state.items?.[k.gunId];
   if (k.cmd === 'load') {

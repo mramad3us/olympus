@@ -20,11 +20,16 @@
 //                                                review found the I card's doll with two G-11s the standard kit's to the pixel):
 //                                                each in its pouch on the carrier's left, right or back face (the loadout's
 //                                                `at`), slot its pouch's order on that face, its look devices.js DEVICES[model].look
-//     painted: false }                           true only on standGear's painted men
+//     painted: false,                            true only on standGear's painted men
+//     mask:    null | 'fof',                     v0.0.19: the force-on-force mask (kit.worn.mask: the role-players' issue 'opfor-fof')
+//     hands:   null | 'up' }                     v0.0.19: the hands up and empty (actor.hands: a role-player who gave up)
 // It holds no count, load, chamber, selector or stoppage ("we only know what we know": a magazine in the well can be seen, the
 // rounds in it cannot), and gear.test holds the whitelist. `by` is the viewer: everything in the record is seen from the front
 // this round, so it is the same for every viewer; the parameter is there so the target view's call is already right when
 // perception filters gear (distance, darkness, cover).
+// v0.0.19 (the build sheet 0.0.19 §1 L-look; COMBAT §7.11): the first live men wear a force-on-force mask over the face and,
+// when one gives up, show their hands. Both are seen from the front as plainly as the carrier is, so they are in the record;
+// both are null for everyone else, and gearKey adds them only when set, so every v0.0.18 key is the same string.
 // The places are coarse on purpose (front, back, ready; holster, ready), so a live man's doll repaints only when his gear
 // changes as drawn: gearKey is the caches' key and changes with nothing else. They map from arms' guns.js vocabulary by the
 // lead's agreement test, never by import: hands → ready, hanging and slungFront → front, slungBack → back, holster → holster.
@@ -39,9 +44,11 @@ import { DEVICES, devicesOf } from './devices.js';
 import { MODELS, isLong } from './models.js';
 
 /** The gear record's keys, the only ones it has (see the header). */
-export const GEAR_KEYS = Object.freeze(['outfit', 'suit', 'carrier', 'ears', 'rifle', 'pistol', 'thigh', 'held', 'devices', 'painted']);
+export const GEAR_KEYS = Object.freeze(['outfit', 'suit', 'carrier', 'ears', 'rifle', 'pistol', 'thigh', 'held', 'devices', 'painted', 'mask', 'hands']);
 /** The faces off the front a worn device is drawn on (the front's pouches are the magazines'). */
 const DEVICE_FACES = Object.freeze(['left', 'right', 'back']);
+/** The mask's word in the record (any item in the worn 'mask' slot is the force-on-force mask this round). */
+export const MASK_FOF = 'fof';
 /** The rifle's place on the figure by the carry's posture (kit.carry.posture). */
 export const RIFLE_PLACES = Object.freeze({ slungFront: 'front', slungBack: 'back', lowReady: 'ready', highReady: 'ready', aimed: 'ready' });
 /** The world figure's rig by the gear's rifle place (look.js CARRY_RIGS' coarse reading: low, high and aim are all 'ready'). */
@@ -80,7 +87,10 @@ export function gearOf(state, pid, { by = pid } = {}) {
     const L = DEVICES[d.model]?.look ?? {};
     devices.push({ face: d.where.face, slot: S.indexOf(d.where.pouchId), model: d.model, shape: L.shape ?? 'can', colour: L.colour ?? 'olive' });
   }
-  return { outfit: actor?.outfit ?? 'utilities', suit, carrier, ears, rifle, pistol, thigh, held, devices, painted: false };
+  // (v0.0.19: the mask in its worn slot; the hands up, the actor's own flag, only with nothing in them)
+  const mask = worn.mask && items[worn.mask] ? MASK_FOF : null;
+  const hands = actor?.hands === true && !inHand && !held ? 'up' : null;
+  return { outfit: actor?.outfit ?? 'utilities', suit, carrier, ears, rifle, pistol, thigh, held, devices, painted: false, mask, hands };
 }
 
 /** A short stable string of everything the doll draws of a gear record, and nothing else: the caches' key. */
@@ -92,12 +102,13 @@ export function gearKey(g) {
   const p = g.pistol ? `${g.pistol.model}:${g.pistol.place}:${g.pistol.mag ? 1 : 0}` : '';
   const t = g.thigh ? `${g.thigh.mags}/${g.thigh.holds}` : '';
   const d = (g.devices ?? []).map(x => `${x.face}${x.slot}:${x.model}`).join(',');
-  return [g.outfit, s, c, g.ears ?? '', r, p, t, g.held ?? '', g.painted ? 'P' : '', ...(d ? [d] : [])].join('|');
+  // (v0.0.19: the mask and the hands only when set, so every key without them is v0.0.18's string)
+  return [g.outfit, s, c, g.ears ?? '', r, p, t, g.held ?? '', g.painted ? 'P' : '', ...(d ? [d] : [])].join('|') + (g.mask ? `|m:${g.mask}` : '') + (g.hands ? `|h:${g.hands}` : '');
 }
 
 /** The board's painted man for a stand's face and what it holds (see the header). */
 export function standGear(face = 'threat', holds = 'rifle') {
-  const base = { outfit: 'utilities', suit: null, carrier: null, ears: null, rifle: null, pistol: null, thigh: null, held: null, devices: [], painted: true };
+  const base = { outfit: 'utilities', suit: null, carrier: null, ears: null, rifle: null, pistol: null, thigh: null, held: null, devices: [], painted: true, mask: null, hands: null };
   if (face === 'armoured') return { ...base, outfit: 'carrier', carrier: { model: 'pc-m3', pouches: [] }, rifle: holds === 'unseen' ? null : { model: 'r7', finish: null, place: 'hand', mag: true } };
   if (face === 'unknown' || holds === 'unseen' || holds === null || holds === undefined) return base;
   if (holds === 'rifle') return { ...base, rifle: { model: 'r7', finish: null, place: 'hand', mag: true } };

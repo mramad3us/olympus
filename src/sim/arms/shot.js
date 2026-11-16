@@ -103,6 +103,11 @@
 // aimMsOf's sector term (COMBAT §25.12: "the sector aim's term"): in a clear (state.mind.clearing: the house only, so no bay's
 // aim moves), a man taken in in the sector the muzzle or the eyes held (the last contact's expectation 'sector') is aimed
 // at with the sight's settle × SECTOR_SIGHT_K 0.25 and no mount: the muzzle was already on him.
+// v0.0.19 (the build sheet v0.0.19 §3.3; COMBAT §7.11): the live men. A role-player's round at a marine is a man-target's
+// like a turner's (target kind 'marine', combat/men.js marineTarget: the hole by manHole, past him under SEEN of what the
+// role-player sees of him); a round at a live man is past him when the shooter's own eye sees him under SEEN at the round
+// (men.js seenK, his exposure: a man who ducked behind the wing wall is not there to be hit), and a man on his dash is
+// MOVING_MAN_V −2 harder (modsOf, 'a moving man'). A stand's shot is as built.
 // Pure but resolveShot.
 import { stream, d20 } from '../../core/rng.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
@@ -124,6 +129,8 @@ import { penOf, throughMaterial } from './penetrate.js';
 import { SEEN } from '../people/perception.js';
 import { spinOf, spinBiasCm } from '../places/spin.js';
 import { contactOf } from '../people/mind.js';
+import { turnerOf } from './turners.js';
+import { seenK, movingNow, MOVING_MAN_V } from '../combat/men.js';
 
 /** The shot's base DC (tradecraft's SHOT.dc). */
 export const SHOT_DC0 = 6;
@@ -229,6 +236,8 @@ export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'nor
   if (POSITION[stance]) out.push({ why: POSITION_WORD[stance], v: POSITION[stance], src: 'task' });
   // (0.0.12: a shot row fired moving on (specials.js movingMod: Combat −4, −2 from Marksmanship 15; Assault's close-quarters fire))
   if (moving?.v) out.push({ why: moving.why ?? 'moving', v: moving.v, src: 'task' });
+  // (v0.0.19: a live man on his dash (see the header))
+  if (target?.live && movingNow(turnerOf(state, target.key), ms)) out.push({ why: 'a moving man', v: MOVING_MAN_V, src: 'task' });
   // (held: a gunner's own held aim, { v } (src/sim/arms/gunner.js): the stop's aim is the player's)
   const h = held ? { aimed: true, v: held.v } : heldOf(state, pid, ms, target?.key ?? null);
   if (h.aimed && h.v) out.push({ why: h.v > 0 ? 'the aim held' : 'still coming down from the last', v: h.v, src: 'task' });
@@ -304,10 +313,11 @@ export function windBeliefOf(state, pid) {
   const c = call && typeof call.crossMs === 'number' ? { crossMs: call.crossMs, band: call.band ?? null, atMs: call.atMs ?? 0, by: 'coach' } : null;
   return r && c ? (c.atMs >= r.atMs ? c : r) : r ?? c;
 }
-// (the load a strike is computed for: the chambered round's kind, or the magazine's believed; a dummy flies as ball)
+// (the load a strike is computed for: the chambered round's kind, or the magazine's believed; a dummy flies as ball, a marking
+// round as itself (v0.0.19: it flew as ball, its hole 0.43 cm off at 5 m on the Wheel's spin for its own 2.82))
 const flyingLoad = (state, gunId, belief) => {
   const g = state.items?.[gunId], l = belief ? beliefOf(state, gunId)?.magLoad ?? gunField(g, 'load') : gunField(g, 'load');
-  return l === 'tracer' ? 'tracer' : 'ball';
+  return l === 'tracer' || l === 'marking' ? l : 'ball';
 };
 const r2 = (v) => Math.round(v * 100) / 100;
 // (how long ago a call or a read was made, in its words: '', ' 40 s ago', ' 2 min ago'; under 10 s it is now)
@@ -321,7 +331,7 @@ const ageWords = (ms) => (ms < 10_000 ? '' : ms < 120_000 ? ` ${Math.round(ms / 
  */
 export function poiOf(state, pid, gunId, target, { ms = state.clock.ms, belief = false, hold = undefined, crossMs = undefined, load: fired = null } = {}) {
   const gun = state.items?.[gunId], M = MODELS[gun?.model ?? 'r7'], me = meOf(state, pid) ?? { x: 0, z: 0 };
-  const d = target?.dM ?? 25, env = envOfPlace(state, state.places?.live?.area ?? null, me.x, me.z), load = fired === 'tracer' ? 'tracer' : fired ? 'ball' : flyingLoad(state, gunId, belief);
+  const d = target?.dM ?? 25, env = envOfPlace(state, state.places?.live?.area ?? null, me.x, me.z), load = fired === 'tracer' || fired === 'marking' ? fired : fired ? 'ball' : flyingLoad(state, gunId, belief);
   const cm = CLICK_MRAD * d / 10, sight = sightOf(gun), z = belief ? beliefZero(gun) : zeroOfGun(gun);
   let cross = crossMs;
   if (cross === undefined) cross = belief ? windBeliefOf(state, pid)?.crossMs ?? 0 : (target && windBlowsAt(state, null, me.x, me.z) ? pathWind(state.meta.seed, ms, me, target).crossMs : 0);
@@ -540,9 +550,11 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
     } else if (target?.kind === 'paper') {
       hole = holeOf(target.paper, roll, id, state.meta.seed);
       roll.verb = hole.word;
-    } else if (target?.kind === 'turner') {
+    } else if (target?.kind === 'turner' || target?.kind === 'marine') {
       // (0.0.8: a turner, a man-target (see the header): past it under SEEN, else the hole by the roll, the steel on an armoured face)
-      const facing = (target.facingK ?? 1) >= SEEN;
+      // (v0.0.19: a marine, a role-player's target, the same; a live man past him when the shooter's eye sees him under SEEN now)
+      const LT = target.live ? turnerOf(state, target.key) : null;
+      const facing = LT ? !!me && seenK(state, me, LT, ms) >= SEEN : (target.facingK ?? 1) >= SEEN;
       // (a house man already down: the round went past where he stood, said so, never as the roll's (the play review of 2026-11-13))
       const h = facing ? manHole(target.face, part, roll, id, state.meta.seed) : { at: null, zone: null, word: target.down && target.room !== undefined ? 'he was already down: past him, into the berm' : 'past the target, into the berm' };
       // (0.0.12: on a spun floor the spin's term moves the hole on the man as the wind's would, y down on the paper; the zone

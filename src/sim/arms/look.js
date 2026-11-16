@@ -63,6 +63,14 @@
 // x, z, y, facingK, face, holds, holes, down }], timer: { runMs, parMs, par } }; null on every other course. 0.0.17: with
 // leaves (the doors' swings) and aid (shoothouse.js cornerAidLook: your corner and point and your #2's from the read of the door,
 // your sector's wedge from your entry, each with its strength k; the rule src/sim/combat/corner.js).
+// v0.0.19 (the build sheet 0.0.19 §1 L-look; opfor §2.6): the house's look gains floor and men, both [] with no role-player's
+// rifle lying (the turner lane draws what it drew). floor: [{ id, model, finish, x, z, y, rotRad }], every long gun lying in the live
+// area (kit.js lyingOf: a role-player who gave up dropped his at his feet, still held exactly once), its heading by hash of its
+// id, y its height while it falls (from FLOOR_FROM_M, over FLOOR_FALL_MS from the drop, his record's droppedAtMs: through the
+// give's GIVE_DROP_MS before it the rifle is in his hands, lowered to low ready, his rifle's own frame), so it never pops from
+// his hands to the floor; men: [{ key, who, st, frame, rifle }], each role-player as the stage draws him:
+// frame 'handsUp' or 'handsKneel' with his hands up (by his stance), 'sitLow' down (seated, his rifle low across him), else null
+// (his rifle's own frame, gunLook's), and where his rifle is, 'hands', 'floor' or 'none' (F43's reading: never 'none').
 // The rework's R5 (COMBAT §25.19.5): your number two's rifle is drawn on the sub-step his hands are at (shoothouse.js handsOf: his
 // tower macro's, LOAD to SHOW CLEAR, or his bundle's hands beat), the same frames as yours on the same sub-step.
 // A sitting port is PORT_H_M.sit high.
@@ -87,6 +95,7 @@ import { pairsLook } from '../scenarios/pairs.js';
 import { stressLook } from '../scenarios/stress.js';
 import { houseLook, handsOf, houseOf } from '../scenarios/shoothouse.js';
 import { devicesLook } from '../combat/burst.js';
+import { devicesView } from './devlook.js';
 import { KD_RANGE, KD_STAKE_DX_M, KD_STAKE_DZ_M } from '../../data/places/range.js';
 import { gravityAt } from '../places/env.js';
 import { G0_MS2 } from '../../core/phys.js';
@@ -219,7 +228,8 @@ export function kitLook(state, pid) {
   if (!kit) return { ears: false, carrier: false, pouches: [] };
   const head = state.items?.[kit.worn?.head], carrier = state.items?.[kit.worn?.carrier];
   const pouches = (carrier?.holds ?? []).map(id => state.items[id]).filter(p => CONTAINERS[p?.model]?.fits?.includes('mag')).map(p => ({ n: (p.holds ?? []).length }));
-  return { ears: head?.model === 'ears-m1', carrier: !!carrier, pouches };
+  // (v0.0.19: the force-on-force mask, only when worn, so every other kit's look is as it was)
+  return { ears: head?.model === 'ears-m1', carrier: !!carrier, pouches, ...(kit.worn?.mask ? { mask: true } : {}) };
 }
 
 /** A case's place at ms (WEAPONS §2.8's flight): { x, y, z, rest, rotRad }. rec: ejectCase's; gMs2 the place's (caseGMs2). */
@@ -258,8 +268,50 @@ export function ejectCase(gun, carry, { atMs, kind = 'case', key = '', gMs2 } = 
  * xCm, yCm, score, v, n, string, atMs }] }], brass: [{ x, y, z, kind, rest, rotRad }], lying: [{ id, kind: 'mag', x,
  * z }], pick: { x, z } | null, aimed, gMs2 (the place's gravity at CASE_G_STEP_MS2: the dust's and the plates' fall) }. n: the hole's number in its string, string its string (0 to 2), atMs its shot's game time.
  */
-// (0.0.18: the house's look with its devices, the grenades thrown and the bursts (burst.js devicesLook); null stays null)
-const withDevices = (h, state, ms) => (h ? { ...h, bangs: devicesLook(state, ms) } : h);
+// (0.0.18: the house's look with its devices, the grenades thrown and the bursts (burst.js devicesLook); null stays null;
+// v0.0.19: and the kit's devices as the devices layer draws them, render/devices.js: practice grenades, levers, charges, holes,
+// the read (devlook.js); and the live men's floor and figures (see the header), only when there is something to draw, so the
+// turner lane's look keeps its keys)
+const withDevices = (h, state, ms) => (h ? withLive({ ...h, bangs: devicesLook(state, ms), kit: devicesView(state, ms) }, state, ms) : h);
+/** A dropped rifle's fall: from this height (m, the hands at the low ready) over this long (ms: about a 0.4 m fall's time at 1 G). */
+export const FLOOR_FROM_M = 0.9, FLOOR_FALL_MS = 300;
+/** How near a man's feet a lying rifle is his (m). */
+export const FLOOR_NEAR_M = 1.5;
+/** A marking round's paint puff on a body: how long it shows (ms of game time), and its heights by the zone struck (m). */
+export const PAINT_PUFF_MS = 400, PAINT_Y_M = Object.freeze({ head: 1.62, torso: 1.25 });
+function withLive(h, state, ms) {
+  const R = session(state), men = (R?.turners ?? []).filter(T => T.live?.who);
+  const area = state.actors?.area ?? state.places?.live?.area;
+  const lying = area ? lyingOf(state, area).filter(l => state.items?.[l.id]?.type === 'gun' && isLong(modelOf(state.items[l.id]))) : [];
+  if (!men.length && !lying.length) return h;
+  const actor = (who) => state.actors?.list?.find(a => a.who === who) ?? null;
+  const floor = lying.map(l => {
+    const gun = state.items[l.id], T = men.find(m => m.live.st === 'hands' && Math.hypot((actor(m.live.who)?.x ?? m.x) - l.x, (actor(m.live.who)?.z ?? m.z) - l.z) <= FLOOR_NEAR_M) ?? null;
+    // (the fall from the drop (opfor.js droppedAtMs), never from the give's start 600 ms before it, by when the fall would be over
+    // and the rifle popped from his hands to the floor in one tick (the review of track L); a record with no drop time, its fromMs)
+    const from = T ? (Number.isFinite(T.live.droppedAtMs) ? T.live.droppedAtMs : T.live.fromMs) : null;
+    const dt = Number.isFinite(from) ? ms - from : Infinity, k = dt >= 0 && dt < FLOOR_FALL_MS ? dt / FLOOR_FALL_MS : 1;
+    return { id: l.id, model: gun.model, finish: gun.finish ? finishOf(gun) : null, x: l.x, z: l.z, y: q(FLOOR_FROM_M * (1 - k * k), 0.001), rotRad: q(hash01('floor', l.id) * 2 * Math.PI, 1e-4) };
+  });
+  const live = men.map(T => {
+    const a = actor(T.live.who), c = a ? carryOf(state, T.live.who, a) : null;
+    const near = a ? floor.some(f => Math.hypot(f.x - a.x, f.z - a.z) <= FLOOR_NEAR_M) : false;
+    const st = T.live.st, hands = !!a?.hands || st === 'hands';
+    const frame = hands && !c ? (a?.stance === 'kneel' ? 'handsKneel' : 'handsUp') : (st === 'down' || st === 'out') && c ? 'sitLow' : null;
+    return { key: T.key, who: T.live.who, st, frame, rifle: c ? 'hands' : near ? 'floor' : 'none' };
+  });
+  // (the paint's puff where a marking round struck, the stack's on a role-player, a role-player's on a marine: the strike's game time)
+  const paint = [];
+  for (const T of men) {
+    const a = actor(T.live.who);
+    for (const hit of T.hits ?? []) if (Number.isFinite(hit.atMs) && ms - hit.atMs >= 0 && ms - hit.atMs < PAINT_PUFF_MS && hit.zone) paint.push({ x: a?.x ?? T.x, z: a?.z ?? T.z, y: PAINT_Y_M[hit.part === 'head' ? 'head' : 'torso'], atMs: hit.atMs, by: 'team' });
+  }
+  for (const x of R?.house?.live?.struck ?? []) {
+    const a = actor(x.who);
+    if (a && Number.isFinite(x.atMs) && ms - x.atMs >= 0 && ms - x.atMs < PAINT_PUFF_MS) paint.push({ x: a.x, z: a.z, y: PAINT_Y_M[x.part === 'head' ? 'head' : 'torso'], atMs: x.atMs, by: 'rp' });
+  }
+  return { ...h, floor, men: live, paint };
+}
 export function rangeLook(state, ms = state?.clock?.ms ?? 0) {
   const s = session(state);
   if (!s) return null;

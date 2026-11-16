@@ -18,6 +18,12 @@
 //   - on the bay's courses (pairs and stress), the stand's own face and holds: the faces hang at 7 m in daylight in front of
 //     you, and "Bang" is drawn exactly as scored (my call).
 // ENGAGE_WHY names the three ways in. Pure: it reads state.mind.contact through mind.js contactOf, never noteContact.
+// v0.0.19 (the build sheet 0.0.19 §1 L-look, §3.3; opfor §2.6): a role-player rides R.turners as a turner record with `live`
+// ({ who, st, … }), keeping the stand's key. engagedOf gives him as the man he is, { key, kind: 'person', who: T.live.who, why },
+// under the stand's own rule (the bracket opens nothing until your take-in has seen him since he showed, or a round of yours
+// struck him), so the target view draws him in his gear, never a board. seenFace reads him as it reads a stand (the take-in's
+// identification), and seenState(state, key) is the state your take-in read of him (contact.js identify's last.state: 'aiming',
+// 'looking', 'running', 'hands', 'cowering', 'down'), null when it read none ("can't tell"): never his record's st.
 import { playerId } from '../../core/ids.js';
 import { contactOf } from '../people/mind.js';
 import { rangeOf } from '../scenarios/handling.js';
@@ -39,9 +45,13 @@ export function engagedOf(state, pid = playerId(state)) {
   const tries = [[S.doing?.target ?? null, 'row'], [S.aim?.key ?? null, 'aim'], [S.mode === 'stop' ? S.pick ?? null : null, 'bracket']];
   for (const [key, why] of tries) {
     if (!key) continue;
+    // (v0.0.19: a door's lock or hinges shot (the ballistic breach's target, kind 'door') is no engagement: no target view)
+    if (S.doing?.target?.kind === 'door' || /^o:/.test(String(key))) return null;
     const T = turnerOf(R, key);
     if (T) {
       if (why === 'bracket' && house && !takenIn(state, T) && !struckBy(T)) continue;
+      // (v0.0.19: a role-player is a man, his stand's key kept; out of the lane once ruled out, as a stand turned away)
+      if (T.live) { if (!T.live.who) continue; return { key, kind: 'person', who: T.live.who, why }; }
       return { key, kind: 'turner', why };
     }
     const a = actorOf(state, key);
@@ -60,6 +70,20 @@ export function struckLast(state, pid = playerId(state)) {
     if (T && (T.hits ?? []).some(h => h.shotId === x.id && h.by !== 'two')) return { key: x.key, atMs: x.atMs };
   }
   return null;
+}
+
+/** Whether a range record is a role-player (a live man riding R.turners: v0.0.19). */
+export const isLiveRec = (T) => !!T?.live;
+/** The role-player's record by his person (pid), or null. */
+export function liveRecOf(state, who) {
+  return (rangeOf(state)?.turners ?? []).find(t => t.live && t.live.who === who) ?? null;
+}
+/** The state your take-in read of a live man (see the header), or null: contact.js identify's last.state, only once taken in since he showed. */
+export function seenState(state, key) {
+  const R = rangeOf(state), T = turnerOf(R, key);
+  if (!T?.live) return null;
+  const last = contactOf(state)?.last;
+  return takenIn(state, T) ? last?.state?.[key] ?? null : null;
 }
 
 /** A stand as you saw it (see the header): { face, holds, armour }. */

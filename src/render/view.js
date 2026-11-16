@@ -223,7 +223,7 @@ import { kdFaceAt } from './range-items.js';
 import { FACE_K } from '../art/kit/range.js';
 import { lightLevel } from '../sim/places/light.js';
 import { createBangs } from './bangs.js';
-import { bangListOf } from './devices.js';
+import { bangListOf, createDevices } from './devices.js';
 import { createPixels } from './decals.js';
 import { hornPixels, coachRiflePixels, blankFlashPixels, blankFlashOn, BLANK_FLASH_MS } from './range-items.js';
 import { chaosOf, easeChaos, CALM as CHAOS_CALM } from './chaos.js';
@@ -349,9 +349,11 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const blood = createBlood(stage, { ppm });
   // (0.0.9: the training bangs: their bodies, flashes and smoke)
   const bangs = createBangs(stage, { ppm });
+  // (0.0.19: the kit's devices: the practice grenades, their levers, the charges and their tubes, the breach holes, the instructor's read)
+  const devices = createDevices(stage, { ppm });
   // (0.0.10: the din: the coach's horn and rifle among the figures, the blanks' flashes over them)
   const din = createDin(stage, { ppm });
-  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group, bangs.group, din.group);
+  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group, bangs.group, devices.group, din.group);
   // (0.0.9: the chaos on the picture: the reading main.js gives (setChaos), the numbers shown (eased), the startle whose pale frame was drawn)
   let chaosWant = null, chaosShown = null, paleDone = null, movingSig = '';
   // (the far window: its own camera, post, fog and chunks; drawn inside the stage's composite, before the blit)
@@ -557,10 +559,10 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     let m = armed.get(look);
     if (!m) armed.set(look, (m = new Map()));
     const model = v.weapon && v.model && v.model !== 'r7' ? v.model : null, finish = v.weapon && v.finish ? v.finish : null;
-    const k = `${v.weapon ?? '-'}|${v.carry ?? '-'}|${v.magOut ? 1 : 0}|${v.ears ? 1 : 0}|${v.carrier ? 1 : 0}|${v.headset ? 1 : 0}|${model ?? '-'}|${finish ?? '-'}|${v.sheet ?? '-'}`;
+    const k = `${v.weapon ?? '-'}|${v.carry ?? '-'}|${v.magOut ? 1 : 0}|${v.ears ? 1 : 0}|${v.carrier ? 1 : 0}|${v.headset ? 1 : 0}|${model ?? '-'}|${finish ?? '-'}|${v.sheet ?? '-'}${v.mask ? '|k' : ''}`;
     let o = m.get(k);
     // (sheet 'stance' (R8): the look of a stance sheet, a slot of its own (figures.js), the same drawing in a carry)
-    if (!o) m.set(k, (o = Object.freeze({ ...look, ...(v.weapon ? { weapon: v.weapon, carry: v.carry } : {}), ...(model ? { model } : {}), ...(finish ? { finish } : {}), ...(v.magOut ? { magOut: true } : {}), ...(v.ears ? { ears: true } : {}), ...(v.carrier ? { carrier: true } : {}), ...(v.headset ? { headset: true } : {}), ...(v.sheet ? { sheet: v.sheet } : {}) })));
+    if (!o) m.set(k, (o = Object.freeze({ ...look, ...(v.weapon ? { weapon: v.weapon, carry: v.carry } : {}), ...(model ? { model } : {}), ...(finish ? { finish } : {}), ...(v.magOut ? { magOut: true } : {}), ...(v.ears ? { ears: true } : {}), ...(v.carrier ? { carrier: true } : {}), ...(v.headset ? { headset: true } : {}), ...(v.sheet ? { sheet: v.sheet } : {}), ...(v.mask ? { mask: true } : {}) })));
     return o;
   }
   // (the carry a figure's gait frames are painted with: the one it last walked with, so standing still in
@@ -578,8 +580,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       carry = gaitCarry.get(a.id);
     }
     const headset = !!person?.post && RO_POST.test(person.post.key ?? '');
-    if (!gl && !kit?.ears && !kit?.carrier && !headset) return { gl: null, look, kit };
-    const v = { weapon: gl ? 'rifle' : null, carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset, model: gl?.model ?? null, finish: gl?.finish ?? null };
+    if (!gl && !kit?.ears && !kit?.carrier && !headset && !kit?.mask) return { gl: null, look, kit };
+    const v = { weapon: gl ? 'rifle' : null, carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset, model: gl?.model ?? null, finish: gl?.finish ?? null, ...(kit?.mask ? { mask: true } : {}) };
     // (the twin: the same look with the magazine the other way, whose sheet the figures draw while this one's band paints;
     // the sibs: the same look with each other gait carry, whose sheets hold the same carry-free frames (the rework's R2))
     // (R8: an armed mover in a stance, the stance sheet in the carry held: the glide, Assault and the beats, VIEWS §3.10.8)
@@ -940,7 +942,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         } else if (tf === 'lie' || (fig.posture === 'lie' && !frameOf(fig, frameMs))) Object.assign(p, berthOf(a, fig, a.who, { msA, breathS }));
         else {
           const f = frameOf(fig, frameMs);
-          if (f === 'sit' || (!f && fig.posture === 'sit')) { p.frame = 'sit'; p.y = Math.max(0, (fig.y ?? 0.45) - figures.layout.body.seatM); p.seat = p.y; }
+          // (v0.0.19: a role-player who gave up, his hands up and empty, standing or kneeling (poses.js handsUp, handsKneel))
+          if (a.hands === true && !arms.gl) p.frame = a.stance === 'kneel' ? 'handsKneel' : 'handsUp';
+          else if (f === 'sit' || (!f && fig.posture === 'sit')) { p.frame = 'sit'; p.y = Math.max(0, (fig.y ?? 0.45) - figures.layout.body.seatM); p.seat = p.y; }
           else if (f === 'climb') { p.frame = 'climb'; p.y = Math.max(0, fig.y ?? 0); p.seat = 0; }
           else if (f) p.frame = f;
           else if (gv?.frame) { /* (R8: the beat's frame, set above) */ }
@@ -1053,6 +1057,10 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const bs = bangs.update(bangList ?? [], { ms: fxMs, tintOf: tintAt, wind: bangList?.length ? info.wind ?? null : null, figures: bangList?.length ? people.filter(q => !q.lie && !q.remembered).map(q => ({ x: q.x, z: q.z })) : [] });
       stats.bangs = bangList?.length ? { bangs: bs.bangs, flashing: bs.flashing.slice(), body: bs.body, smoke: bs.smoke, flash: bs.flash, ms: Math.round(fxMs * 10) / 10 } : null;
       moving.push(...bs.lamps);
+      // (0.0.19: the kit's devices at the moment drawn, from the sim's records (render/devices.js); nothing written with the clock held)
+      const dv = devices.update(rl?.house?.kit ?? null, { ms: fxMs, tintOf: tintAt, views, wind: info.wind ?? null, sessionKey: `${state.meta?.seed ?? ''}|${state.armoury?.range?.house?.goAtMs ?? ''}|${live.id}` });
+      stats.devices = dv.pixels ? { bodies: dv.bodies, levers: dv.levers, charges: dv.charges, tube: dv.tube, holes: dv.holes, reads: dv.reads, readPx: dv.readPx, puff: dv.puff, pop: dv.pop, pixels: dv.pixels, writes: dv.writes } : null;
+      moving.push(...dv.lamps);
       const sig = moving.map(l => `${l.kind}:${l.x},${l.z}`).join('|');
       if (sig !== movingSig) { movingSig = sig; stage.lights.setLamps(moving); }
       // (blood on the ground, and the wounds' marks on the figures drawn)
@@ -1145,6 +1153,13 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           (c === arms.gl.carry ? jobs : twins).push(() => figures.prepare(keyOf(L), L, { bands: STANCE_BANDS, own }));
         }
         if (own) ownLook = { state, want: arms.look, shown: arms.look, asked: false };
+        // (v0.0.19: a role-player (an actor with a hands flag) may give up: his look with his rifle on the floor, the arms band's
+        // handsUp and handsKneel with it, painted before GO, so his hands never wait on a sheet)
+        if (typeof a.hands === 'boolean') {
+          const k0 = arms.kit, bare = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: null, carry: null, magOut: false, ears: !!k0?.ears, carrier: !!k0?.carrier, headset: false, model: null, finish: null, ...(k0?.mask ? { mask: true } : {}) });
+          const { key: kb, look: lb } = lookOf(bare, a.who);
+          twins.push(() => figures.prepare(kb, lb, { bands: ['gait', 'arms'], own }));
+        }
         continue;
       }
       if (arms.look !== lookWith(fig.look, fig, person?.sex)) { const { key: k3, look: L3 } = lookOf(arms.look, a.who); jobs.push(figures.prepare(k3, L3, { bands: ['gait'], own })); continue; }
@@ -1220,7 +1235,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       endWipe();
       for (const c of cache.values()) c.built?.dispose();
       cache.clear(); live = null;
-      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); blood.dispose(); far.dispose(); bangs.dispose(); din.dispose();
+      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); blood.dispose(); far.dispose(); bangs.dispose(); devices.dispose(); din.dispose();
     },
   };
 }

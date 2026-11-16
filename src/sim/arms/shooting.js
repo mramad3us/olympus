@@ -158,6 +158,7 @@ import { cardOptions, weaponList, weaponRows, offlineFeet, sidearmSub, sidearmEn
 import { planFor, absOf, stepAbs } from './plan.js';
 import { markRow } from './rowmark.js';
 import { gunsOf } from './guns.js';
+import { liveWho } from '../combat/men.js';
 import { wordsOf } from './gunwords.js';
 import { legsHere, coastTo, throughNow } from '../places/move.js';
 
@@ -321,9 +322,10 @@ export function targetsOf(state, pid = playerId(state)) {
     }
   }
   out.sort((a, b) => a.x - b.x || a.z - b.z);
-  const people = [];
+  const people = [], live = liveWho(state);
   for (const a of state.actors?.list ?? []) {
-    if (a === me || !a.who || !inLeadFrame(me, a.x, a.z, half)) continue;
+    // (v0.0.19: a live man is his turner record's target, never also a person's (the range's safety stop reads people))
+    if (a === me || !a.who || (live && live.has(a.who)) || !inLeadFrame(me, a.x, a.z, half)) continue;
     const p = state.people?.[a.who];
     people.push({ key: a.id, kind: 'person', x: a.x, z: a.z, y: a.y ?? 0, dM: Math.hypot(a.x - me.x, a.z - me.z), lane: null, name: p ? `${p.service?.rank ?? ''} ${p.name?.family ?? ''}`.trim() : a.id, who: a.who });
   }

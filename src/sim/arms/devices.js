@@ -22,9 +22,22 @@
 // The belief: a fuse's exact length and a misfiring shock tube are the only hidden facts. deviceBelief(state, id) gives a
 // grenade's fuse believed at its nominal (the G-11's 1,500 ms exactly; a G-9's 4,000) and a primed charge believed good.
 // devicesOf(state, pid) lists what a person carries, in reach order: [{ id, kind, model, st, where }].
+// v0.0.19 (D2, the build sheet 0.0.19 §3.1, §5): the G-9P and G-13P practice grenades and the BC-1 hinge-side cutting charge are
+// issued (BC-1: 0.30 kg TNT, 0.8 kg, placed in PLACE_S 8.0 at Demolitions DC 12, on a pull door's hinges or a push door's latch).
+// Each device says its call (`call`: "Bang out!", "Frag out!", "Concussion out!", "Breaching!"), one string the throw and the
+// breach read. A cooking grenade's count is a Weapon handling check, COOK_DC 6, unpaced (cookCount): at a pass the count's
+// nominal × U(0.95, 1.05), a miss runs late × 1.25, a disaster freezes the hand COOK_FREEZE_MS 0.5 s more (my call: kit2's 1.0 s
+// with the throw's 0.7 s after it reached the fuse); 'gren:cook:1' and 'gren:cook:2' are planned only where the believed fuse less
+// the cook less the throw's RELEASE_MS 700 keeps COOK_MARGIN_MS, so a 2 s cook (3.70 s at worst, the throw's release counted)
+// never bursts in the hand against the 4.0 s least fuse. D2_EDGES are the planner's
+// moves beyond D1's (devplan.js): the cook, "Throw it clear", a charge unprimed or recovered, a believed misfire primed again
+// by its striker re-cocked or a fresh FD-1. DEVICE_STATES gain a charge's 'misfire' and an initiator's 'fired', appended, so
+// absent is still the kind's first state. MISFIRE_WAIT_MS 30,000 (to check) is how long a man waits before he walks up to a
+// charge that did not fire.
 // Pure.
 import { paceOf } from '../skills/skills.js';
-import { stream, range } from '../../core/rng.js';
+import { check } from '../skills/checks.js';
+import { stream, range, next } from '../../core/rng.js';
 import { containersOf, holderOf } from './kit.js';
 
 const fz = (o) => Object.freeze(o);
@@ -32,9 +45,9 @@ const fz = (o) => Object.freeze(o);
 /** The device states by kind (an item's `st`; absent is the first). */
 export const DEVICE_STATES = fz({
   grenade: fz(['pouched', 'held', 'armed', 'live', 'gone']),
-  charge: fz(['pouched', 'held', 'placed', 'primed', 'gone']),
+  charge: fz(['pouched', 'held', 'placed', 'primed', 'gone', 'misfire']),
   tool: fz(['stowed', 'held', 'gone']),
-  initiator: fz(['pouched', 'fitted']),
+  initiator: fz(['pouched', 'fitted', 'fired']),
 });
 
 // (the catalogue: devicetable.js, a leaf, re-exported here for every caller)
@@ -64,7 +77,31 @@ export const DEVICE_ACTIONS = fz({
   'tool:drop': A('Let it go', 0.3, null, { paced: false }),
   // (a tool let go at a door picked up off the floor and hung on the back again: the reach's own motion twice, down and up (my call))
   'tool:pickup': A('Pick it up, on your back', 2.4, 6, { reach: true }),
+  // (v0.0.19, D2 (see the header): the count unpaced, its check apart (cookCount); "Throw it clear" unaimed; the charge's ways back)
+  'gren:cook:1': A('Cook one', 1.0, null, { paced: false }),
+  'gren:cook:2': A('Cook two', 2.0, null, { paced: false }),
+  'gren:clear': A('Throw it clear', 0.5, null, { skill: 'marksmanship', paced: false, hands: 'strong' }),
+  'charge:unprime': A('Unprime', 0.8, 5, { hands: 'support' }),
+  'charge:recover': A('Recover the charge', 2.0, 8, { skill: 'demolitions', hands: 'both' }),
+  'charge:recock': A('Prime again', 1.5, 6, { hands: 'support' }),
+  'charge:refit': A('A fresh FD-1', 1.0, 6, { reach: true, hands: 'support' }),
 });
+/** The cook's count (see the header): its check's DC, the planned margin left on the believed fuse (ms), a disaster's freeze (ms), how long a man waits on a misfire (ms; to check). */
+export const COOK_DC = 6, COOK_MARGIN_MS = 1000, COOK_FREEZE_MS = 500, MISFIRE_WAIT_MS = 30_000;
+/** The throw's release after the count (ms): the throw's whole 0.7 s, the grenade leaving the hand at its end (bundle.js's throw). */
+export const RELEASE_MS = 700;
+/**
+ * A cook's count held (see the header): { ms, grade } for a count of wantMs at Weapon handling wh, its roll from r (a stream):
+ * pass × U(0.95, 1.05), miss × 1.25, disaster + COOK_FREEZE_MS.
+ */
+export function cookCount(r, wh, wantMs, { tempo = 'normal', by = null } = {}) {
+  const c = check(r, { skill: 'weapons', value: wh ?? 10, dc: COOK_DC, pressure: 'evaluated', tempo, by, verb: null });
+  const u = next(r), grade = c.grade === 'disaster' ? 'disaster' : c.ok ? 'pass' : 'miss';
+  const ms = grade === 'pass' ? wantMs * (0.95 + 0.1 * u) : grade === 'miss' ? wantMs * 1.25 : wantMs * 1.25 + COOK_FREEZE_MS;
+  return { ms: Math.round(ms), grade, roll: c };
+}
+/** Whether a cook of cookMs may be planned on a grenade of a model (see the header): the believed fuse − the cook − the release keeps COOK_MARGIN_MS. */
+export const cookOk = (model, cookMs) => !!DEVICES[model]?.cook && (fuseBelieved(model) ?? 0) - cookMs - RELEASE_MS >= COOK_MARGIN_MS;
 /** The rifle let hang on its sling and brought back up (firearms.js ACTIONS.hang and .up's base seconds, read as theirs). */
 export const HANG_S = 0.3, UP_S = 1.0;
 
@@ -87,6 +124,19 @@ export const DEVICE_EDGES = fz([
   fz({ act: 'tool:reach', kind: 'tool', from: 'stowed', to: 'held', need: fz({ strong: 'free', support: 'free', rifle: 'hang' }) }),
   fz({ act: 'tool:force', kind: 'tool', from: 'held', to: 'held', goal: 'door open', need: fz({ at: 'latch' }) }),
   fz({ act: 'tool:drop', kind: 'tool', from: 'held', to: 'gone' }),
+]);
+/**
+ * D2's moves (see the header), the planner's beyond DEVICE_EDGES (devplan.js): the same shape, `cook` the believed ms the
+ * count takes off the fuse, `wait` a misfire's MISFIRE_WAIT_MS before the charge is approached.
+ */
+export const D2_EDGES = fz([
+  fz({ act: 'gren:cook:1', kind: 'grenade', from: 'armed', to: 'live', only: 'cook', cook: 1000 }),
+  fz({ act: 'gren:cook:2', kind: 'grenade', from: 'armed', to: 'live', only: 'cook', cook: 2000 }),
+  fz({ act: 'gren:clear', kind: 'grenade', from: fz(['armed', 'live']), to: 'gone', goal: 'clear' }),
+  fz({ act: 'charge:unprime', kind: 'charge', from: 'primed', to: 'placed', need: fz({ at: 'safe' }) }),
+  fz({ act: 'charge:recover', kind: 'charge', from: 'placed', to: 'held', need: fz({ at: 'latch', strong: 'free' }) }),
+  fz({ act: 'charge:recock', kind: 'charge', from: 'misfire', to: 'primed', need: fz({ at: 'safe' }) }),
+  fz({ act: 'charge:refit', kind: 'charge', from: 'misfire', to: 'primed', need: fz({ at: 'safe', initiator: true }) }),
 ]);
 // (the states in which a device is in a hand)
 const IN_HAND = fz({ grenade: fz(['held', 'armed', 'live']), charge: fz(['held']), tool: fz(['held']), initiator: fz([]) });
@@ -187,14 +237,14 @@ export function handDeviceOf(state, pid) {
   for (let h = 0; h < hands.length; h++) { const rec = hands[h] ? state.items[hands[h]] : null; if (isDevice(rec)) return { id: hands[h], kind: rec.type, model: rec.model, st: stOf(rec), hand: h }; }
   return null;
 }
-/** Every device lying on the live area that is still live: grenades thrown and burning, charges placed or primed: [{ id, kind, model, st, x, z }]. */
+/** Every device lying on the live area that is still live: grenades thrown and burning, charges placed, primed or a believed misfire: [{ id, kind, model, st, x, z }]. */
 export function liveDevices(state) {
   const out = [];
   for (const site of Object.values(state.places?.sites ?? {})) for (const l of site?.items ?? []) {
     const rec = state.items?.[l.id];
     if (!isDevice(rec)) continue;
     const st = stOf(rec);
-    if ((rec.type === 'grenade' && st === 'live') || (rec.type === 'charge' && (st === 'placed' || st === 'primed'))) out.push({ id: l.id, kind: rec.type, model: rec.model, st, x: l.x, z: l.z, area: l.area });
+    if ((rec.type === 'grenade' && st === 'live') || (rec.type === 'charge' && (st === 'placed' || st === 'primed' || st === 'misfire'))) out.push({ id: l.id, kind: rec.type, model: rec.model, st, x: l.x, z: l.z, area: l.area });
   }
   return out;
 }

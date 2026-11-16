@@ -115,6 +115,18 @@ export const SCENES = deepFreeze({
     pars: ['basic', 'advanced', 'operator'],
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
+  // (v0.0.19: "Stack and clear, live", the same lane with two role-players of the cadre in place of stands 2a and 3a, firing
+  // marking rounds (the build sheet v0.0.19 §0 item 17, §1 L-house; COMBAT §25.18): the house's fill with opfor 'live'
+  // (src/sim/scenarios/opfor.js), scored apart; the stand, host and hour test-shoothouse's (game.js specOf's rule)
+  'test-shoothouse-live': {
+    id: 'test-shoothouse-live', title: 'Stack and clear, live', scenario: 'test-shoothouse', opfor: 'live',
+    host: { site: 'melas', area: 'melas.wheel.s4' }, env: SITE_ENV, hour: 10.0,
+    goal: 'Lane A at 1 G with your number two, on GO: two of the rooms hold role-players who fire back. Threats down, no-shoots untouched.',
+    aspects: [['men', 'do the role-players read as men: the turn, the fire, the hands, the fall'], ['fight', 'does fire on you interrupt fairly and the stack react'], ['calls', "the instructor's calls: paint on you, a man who gave up, a man covered"]],
+    body: {}, outfit: 'combatSuit', course: 'house', stances: true, sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
+    pars: ['basic', 'advanced', 'operator'],
+    endOn: { fact: 'range', phase: ['clear', 'stopped'] },
+  },
 });
 
 /** The scenes the Tests menu lists, in its order: every built one (a stub's spec waits for its layout). */

@@ -41,6 +41,12 @@
 // and the singles), so every bot, the instinct and the gauges key on the same rows. planFor is the state's way in, its ms by
 // the holder's own roller; readyPath and gunRows are the sidearm's (a gun's way to ready as if in the hands, and its rows).
 //
+// v0.0.19 (the build sheet 0.0.19 §3.1; kit2 §2.2), **guard 0, the hands first**: in planFor, for the goals fire, fed, retain
+// and topup, a device in the hands (devplan.js handsPath: a grenade, a charge or a tool) puts its way out first, so a plan's
+// `path` opens with the device's acts (the pin back in, the pouch, a tool let go; a live grenade's throw) and then the gun's;
+// `subs`, what the hands run through firearms.js, stays the gun's alone, and `hands` carries the device's way. Fix's plan (no
+// purpose) is named by the device's row (devplan.js devNameOf: "Pin back in" before the rifle's Charge or RELOAD); a reload's
+// row keeps its purpose's name. With the hands empty nothing changes, so every lane without a device in hand is v0.0.18's.
 // The memo (PLANS, keyed by the goal and the key) is runtime only and the search is a pure function of its key, so a hit and a
 // miss give the same plan (the plan suite holds it); it is cleared past PLAN_MEMO_MAX. Pure.
 import { act, actionMs, beliefOf, gunField, actionKey, pull, feel, ready as readyTruth } from './firearms.js';
@@ -52,6 +58,7 @@ import { seedRng } from '../../core/rng.js';
 import { subsOf } from './macros.js';
 import { wordsOf } from './gunwords.js';
 import { RELOAD_LABELS, MAG_IN_LABEL } from './specials.js';
+import { handsPath, devNameOf } from './devplan.js';
 
 /** The goals (see the header). */
 export const GOALS = Object.freeze(['fire', 'fed', 'retain', 'topup']);
@@ -339,6 +346,8 @@ const SEATS = new Set(['seat', 'magIn']);
 export function nameOf(p, purpose = null, model = null) {
   const path0 = p?.path;
   if (!path0?.length) return null;
+  // (v0.0.19: a path that opens with a device's act is named by the device's way (guard 0; devplan.js devNameOf))
+  if (/^(gren|charge|tool):/.test(path0[0]) && !purpose) return devNameOf(p.hands?.path ?? path0.filter(x => /^(gren|charge|tool):/.test(x)), p.hands?.model ?? null, 'clear');
   // (the selector the fire plan ends with names nothing: the chamber's way does)
   const path = path0.length > 1 && path0.at(-1) === 'selector:semi' ? path0.slice(0, -1) : path0;
   const single = (x) => ({ id: x, label: wordsOf(x, model) ?? SINGLE_WORDS[x] ?? x });
@@ -393,9 +402,19 @@ export function planFor(state, pid, gunId, goal, { carry = null, look = true, pu
   const roller = rollerOf(state, pid), g = state.items[gunId], posture = state.people[pid].kit?.carry?.posture ?? null;
   const rifle = state.people[pid].kit?.worn?.sling ? state.items[state.people[pid].kit.worn.sling] : g;
   const ms = subs.reduce((t, x) => t + actionMs(roller, x === 'hang' ? rifle : g, x, { tempo: 'normal', posture: x === 'up' ? posture : null }), 0);
+  // (v0.0.19, guard 0 (see the header): the hands first, for the gun's goals)
+  const H = GUARD0_GOALS.has(goal) ? handsPath(state, pid) : null;
+  if (H?.path?.length) {
+    const hands = { path: H.path, ms: H.ms, id: H.id, label: H.label, dev: H.dev, model: state.items[H.dev]?.model ?? null };
+    const q = { ...p, path: [...H.path, ...p.path], hands };
+    const name = nameOf(q, purpose, a.model) ?? (purpose ? nameOf(p, purpose, a.model) : null);
+    return { ...q, id: (purpose ? nameOf(p, purpose, a.model)?.id : H.id) ?? name?.id ?? null, label: (purpose ? nameOf(p, purpose, a.model)?.label : H.label) ?? name?.label ?? null, ms: ms + H.ms, subs };
+  }
   const name = nameOf(p, purpose, a.model);
   return { ...p, id: name?.id ?? null, label: name?.label ?? null, ms, subs };
 }
+/** The gun's goals guard 0 puts the hands first for (the build sheet 0.0.19 §3.1). */
+export const GUARD0_GOALS = Object.freeze(new Set(['fire', 'fed', 'retain', 'topup']));
 
 /**
  * A gun's way to ready as if in the hands (the sidearm's Rifle up: the build sheet 0.0.18 §2.1): { subs, ms, words } (subs []

@@ -15,6 +15,9 @@ import { instinctNow } from '../src/sim/skills/instinct.js';
 import { contactNow } from '../src/sim/combat/contact.js';
 import { flawlessSeeds, STOPS_P95 } from './flawless.mjs';
 import { stepAct } from './bots/lib.mjs';
+import { modelOf, keyPathOf } from '../src/sim/arms/groups.js';
+import { legWords } from '../src/sim/scenarios/shoothouse.js';
+import { rowParts } from '../src/ui/cards/house.js';
 
 // (a row pressed as the page sends it)
 const press = (g, id) => g.step(1, () => ({ act: [stepAct(id)] }));
@@ -45,6 +48,30 @@ function lane({ tier, seed = SEED, order = null }) {
 }
 
 export default [
+  {
+    name: 'the kit\'s second slice is in the catalogue as the door\'s rows (the build sheet 0.0.19 §6, kit2 §2.7): "Frag it" (door:frag) and "Concuss it" (door:conc) offered by the kit (offeredNow \'kit\', needs \'frag\' and \'conc\'), "Shoot the lock" (door:shoot) by a locked door (offeredNow \'locked\', needs \'ballistic\'), each a door row of rung 0 on a slot of its own; on the panel the grenades\' rows take DRILL 6 beside Flash and the ballistic breach DRILL 5 after the charge, the pry and the ram',
+    fn() {
+      const want = { 'door:frag': ['kit', 'frag'], 'door:conc': ['kit', 'conc'], 'door:shoot': ['locked', 'ballistic'] }, bad = [], rows = [];
+      for (const [id, [on, needs]] of Object.entries(want)) {
+        const B = MUSCLE[id];
+        rows.push(B ? `${id} "${B.label}" ${B.group} ${B.slot} rung ${B.rung} ${B.offeredNow} (${B.needs}) beats ${beatsOf(B).join(',')}` : `${id} MISSING`);
+        if (!B || B.group !== 'door' || !Number.isInteger(B.slot) || B.rung !== 0 || B.offeredNow !== on || B.needs !== needs || LANE.test(B.label)) bad.push(id);
+      }
+      const doorSlots = Object.entries(MUSCLE).filter(([, B]) => B.group === 'door').map(([id, B]) => `${id}:${B.slot}`);
+      const clash = new Set(Object.values(MUSCLE).filter(B => B.group === 'door').map(B => B.slot)).size !== doorSlots.length;
+      // (on the panel at a door: the frag and conc rows on DRILL 6, Shoot the lock on DRILL 5, the D1 rows where they were)
+      const r = (id, o = {}) => ({ id, kind: 'bundle', label: id, off: null, ...o });
+      const at = (rowsIn, id) => keyPathOf(modelOf(rowsIn), 'c', id, { next: false })?.join(' › ') ?? null;
+      const door = [r('drill:stack:up>o:w4:r1'), r('door:push>o:w4:r1', { kind: 'door' })];
+      const frag = at([...door, r('drill:door:frag>o:w4:r1')], 'drill:door:frag>o:w4:r1'), conc = at([...door, r('drill:door:conc>o:w4:r1')], 'drill:door:conc>o:w4:r1');
+      const shoot = at([...door, r('drill:door:shoot>o:w4:closet')], 'drill:door:shoot>o:w4:closet'), flash = at([...door, r('drill:door:flash>o:w4:r1')], 'drill:door:flash>o:w4:r1');
+      const both = modelOf([...door, r('drill:door:breach>o:w4:r1', { off: 'no charge issued' }), r('drill:door:shoot>o:w4:r1')]).groups.DRILL.slots[5].row?.id;
+      console.log(`      ${rows.join(' | ')}; the door's slots ${doorSlots.join(' ')}${clash ? ' (TWO ON ONE)' : ''}`);
+      console.log(`      on the panel (layout C): Frag ${frag}, Concuss ${conc}, Flash ${flash}, Shoot the lock ${shoot}; DRILL 5 with the charge struck and Shoot live: ${both}`);
+      assert(!bad.length && !clash, JSON.stringify({ bad, doorSlots }));
+      assert(frag === 'Tab › 2 › 6' && conc === 'Tab › 2 › 6' && flash === 'Tab › 2 › 6' && shoot === 'Tab › 2 › 5' && both === 'drill:door:shoot>o:w4:r1', JSON.stringify({ frag, conc, flash, shoot, both }));
+    },
+  },
   {
     name: 'the catalogue is the phases of a room (COMBAT §25.19.2.2): every row has a group of stack, door, room, weapon or team and a slot in it; no row names a lane or a house, and "Clear the house" is gone; rung 2\'s groups are "Stack up, take point", "Open, in: your corner", "Dominate"; every room row ends at "Room clear!"; the explosive breach is a row, struck with no charge issued',
     fn() {
@@ -185,6 +212,20 @@ export default [
       for (let i = 0; i < 400 && !(s.stop?.phase === 'choose'); i++) g.step(1);
       console.log(`      after the press: the magazine ${gun.mag === mag0 ? 'the same' : 'changed'}, ${s.items[gun.mag]?.n} rounds in it`);
       assert(gun.mag !== mag0 && s.items[gun.mag].n > 2, 'topped up on the way');
+    },
+  },
+  // (the review of v0.0.19's K, finding 2: the card never redded the breach round's fault ("THROUGH THE DOOR" on the paper, "ROUND
+  // THROUGH THE DOOR" here) and showed the bare "EXPOSED" black beside the red "EXPOSED IN THE THROW 1.1 S")
+  {
+    name: 'the run sheet reds each D2 fault as the sim writes it, once (FRAGGED THE HOSTAGE, IN THE BURST, NO-SHOOT IN THE BLAST, EXPOSED IN THE THROW, ROUND THROUGH THE DOOR, D1\'s STACK IN THE BLAST) and leaves the read\'s notes black ("FRAG IN ROOM 1: 1A DOWN", "1A STUNNED 3.2 S", "UNCOOKED 3.8 S", "EXPOSED 0.4 S", "1A HIT THROUGH THE DOOR")',
+    fn() {
+      const leg = (faults, kit) => rowParts(legWords({ word: 'ROOM 2', ms: 10, faults: faults.map(kind => ({ kind })), takeIns: [], firsts: [], corners: {}, kit, zones: [], twoZones: [] }, { par: 'basic' })).marks;
+      const faults = [['through', []], ['exposed', ['EXPOSED IN THE THROW 1.1 S']], ['fragged', ['FRAGGED THE HOSTAGE']], ['burst', ['IN THE BURST: YOUR #2, 140 FRAGMENTS']], ['concussed', ['NO-SHOOT IN THE BLAST 36 KPA']], ['blast', ['STACK IN THE BLAST 31 KPA']]].map(([kind, kit]) => ({ kind, marks: leg([kind], kit) }));
+      const neutral = leg([], ['FRAG IN ROOM 1: 1A DOWN, 1B DOWN', '1A STUNNED 3.2 S', 'UNCOOKED 3.8 S', 'EXPOSED 0.4 S', '1A HIT THROUGH THE DOOR']);
+      for (const f of faults) console.log(`      ${f.kind.padEnd(9)} ${f.marks.map(m => `${m.text}=${m.fault ? 'RED' : 'black'}`).join(', ')}`);
+      console.log(`      neutral   ${neutral.map(m => `${m.text}=${m.fault ? 'RED' : 'black'}`).join(', ')}`);
+      assert(faults.every(f => f.marks.length === 1 && f.marks[0].fault), JSON.stringify(faults));
+      assert(neutral.length === 5 && neutral.every(m => !m.fault), JSON.stringify(neutral));
     },
   },
 ];

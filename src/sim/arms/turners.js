@@ -26,6 +26,10 @@
 // edgeOnMs(T) is when a turn away falls below SEEN (awayAtMs + 100). turnerTargets(state, ms) is the bay's
 // turners as targets ({ key, kind: 'turner', lane, name, x, y, z, face, holds, facingK, down }), the list
 // shooting.js targetsOf and the detector read.
+// v0.0.19 (the build sheet v0.0.19 §3.3; COMBAT §7.11): a live man (a role-player, src/sim/scenarios/opfor.js) rides a turner
+// record with `live`. He is a body seen from any side, so facingOf is 1 for him (0 once the instructor has ruled him out,
+// T.live.st 'out'), and what is seen of him is combat/men.js seenK's exposure, never this closed form; turnerTargets carries
+// `live: true` and his person (`who`) on his target only. A stand's facing and target are as built.
 // Pure but turnTo and turnAway, which write the record's times.
 import { onTick } from '../../core/clock.js';
 import { q } from '../../core/num.js';
@@ -45,6 +49,7 @@ export function turnerOf(state, key) { return turnersOf(state).find(T => T.key =
 
 /** The facing of a turner at ms, 0 edge-on to 1 facing (see the header). */
 export function facingOf(T, ms) {
+  if (T?.live) return T.live.st === 'out' ? 0 : 1;
   if (!T || T.turnAtMs === null || T.turnAtMs === undefined || ms < T.turnAtMs) return 0;
   const kIn = Math.min(1, (ms - T.turnAtMs) / TURN_MS);
   let f = Math.sin(Math.PI / 2 * kIn);
@@ -90,6 +95,8 @@ export function turnerTargets(state, ms = state.clock.ms) {
     if (T.room !== undefined) t.room = T.room;
     if (T.stand !== undefined) t.stand = T.stand;
     if (T.slot !== undefined) t.slot = T.slot;
+    // (v0.0.19: a live man's, only on his record, so a stand's target is as built)
+    if (T.live) { t.live = true; t.who = T.live.who; }
     return t;
   });
 }

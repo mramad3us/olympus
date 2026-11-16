@@ -28,8 +28,9 @@
 // has one (→ the aim, → Fix), a round's count (▮1), a gate (MKS 18), a rung (▲▲ 3), "by hand first" (✋), not issued (a struck
 // silhouette), locked (a padlock), nothing to act on (a struck eye), already so (✓); else its words.
 //
-// The situation (layout C's five on 1 to 5): STOPPAGE, CONTACT, THE TOWER, THE KD LINE, AN INNER DOOR, IN THE ROOM, AT THE
-// DOOR, THE LINE, by the rows (situationOf). The layouts (viewOf, keyPathOf):
+// The situation (layout C's five on 1 to 5): A LIVE GRENADE, STOPPAGE, CONTACT, HANDS FULL, THE TOWER, THE KD LINE, AN INNER
+// DOOR, IN THE ROOM, AT THE DOOR (Breach on 5 on a lane whose kit carries a charge or a tool, v0.0.19), THE LINE, by the rows
+// (situationOf). The layouts (viewOf, keyPathOf):
 //   a  "Home and drawers": the core on 1 to 5, the groups as drawers on 6 FIRE, 7 DRILL, 8 GUN, 9 BODY, 0 TEAM; FIRE opens by
 //      itself at a contact's pause (not with a stoppage); a drawer's slots on 1 to 9, its own digit again or Esc home
 //   b  "The fixed ten and the letter banks": the shots on 1 to 5, the core on 6 to 0, the banks on R (DRILL), C (GUN; its 0
@@ -75,6 +76,10 @@ const LINE_RE = /^(sight:|optic:|read$|hold:|wait:mark|kd:|police|confirm)/;
 const ROOM_RE = /^(watch:|look:|call:clear|mark$|move:)/;
 const OUT_RE = /^(drill:stack:|door:(push|pull|kick|read)|drill:door:|drill:room:(in|clear)(@|>|$))/;
 const lineRow = (s) => LINE_RE.test(String(s?.id ?? '')) || (!!s?.act && s?.kind !== 'shot');
+// (v0.0.19, kit D2: the door's grenade rows (D1's flash, D2's frag and conc) and their kind; the R-7's ballistic breach; a
+// grenade in the hand thrown (D1's `dev:throw`, D2's planner's single `dev:gren:throw:<item>`))
+const GREN_RE = /^drill:door:(flash|frag|conc)/, SHOOT_RE = /^drill:door:shoot(@|>|$)/, HAND_THROW_RE = /^dev:(gren:)?throw(:|$)/;
+const gKind = (id) => GREN_RE.exec(String(id ?? ''))?.[1] ?? null;
 
 /**
  * The fixed maps: a group's slots 1 to 9, each its candidates (predicates on a row) and the words it keeps when no row is
@@ -90,8 +95,12 @@ export const MAPS = Object.freeze({
     { words: 'Stack up', c: [is(/^drill:stack:up(@|>|$)/)] }, { words: 'Stack up, take point', c: [is(/^drill:stack:point(@|>|$)/)] },
     // (v0.0.18: Breach shows the first way of the kit's live, the charge, else the halligan or the ram (a pull door: Pry); Flash a
     // grenade's own row, or the one in your hand thrown)
-    { words: 'Open', c: [is(/^door:(push|pull)>/)] }, { words: 'Kick door', c: [is(/^door:kick>/)] }, { words: 'Breach', c: [(s) => /^drill:door:breach(@|>|$)/.test(s?.id ?? '') && !s.off, (s) => /^drill:door:(pry|ram)(@|>|$)/.test(s?.id ?? '') && !s.off, is(/^drill:door:breach(@|>|$)/), is(/^drill:door:(pry|ram)(@|>|$)/)], stand: { off: 'not issued' } },
-    { words: 'Flash, then in', c: [is(/^dev:throw$/), is(/^drill:door:flash/)], stand: { off: 'not issued' } },
+    // (v0.0.19, kit D2: Breach's candidates in the order charge (the SC-1 or the BC-1, both `drill:door:breach`), pry, ram, then
+    // the R-7's ballistic breach, Shoot the lock (`drill:door:shoot`), the first live showing; Flash the grenade in the hand, then
+    // the door's grenade rows, the bang variant's kind first (frag, conc or flash), its stand words kept "Flash, then in" so the
+    // standard kit's panel holds to the byte)
+    { words: 'Open', c: [is(/^door:(push|pull)>/)] }, { words: 'Kick door', c: [is(/^door:kick>/)] }, { words: 'Breach', c: [(s) => /^drill:door:breach(@|>|$)/.test(s?.id ?? '') && !s.off, (s) => /^drill:door:(pry|ram)(@|>|$)/.test(s?.id ?? '') && !s.off, (s) => SHOOT_RE.test(s?.id ?? '') && !s.off, is(/^drill:door:breach(@|>|$)/), is(/^drill:door:(pry|ram)(@|>|$)/), is(SHOOT_RE)], stand: { off: 'not issued' } },
+    { words: 'Flash, then in', c: [is(HAND_THROW_RE), (s) => GREN_RE.test(s?.id ?? '') && !s.off && gKind(s.id) === s.variant?.bang, (s) => GREN_RE.test(s?.id ?? '') && !s.off, is(GREN_RE)], stand: { off: 'not issued' } },
     { words: 'Enter', c: [id('drill:carry'), is(/^drill:room:clear(@|>|$)/), is(/^drill:room:dominate(@|>|$)/), is(/^drill:room:in(@|>|$)/)] },
     { words: 'Read the door', c: [is(/^door:read>/)] }, { words: 'Hold it', c: [is(/^door:hold>/)] }],
   DRILL_IN: [null,
@@ -111,12 +120,18 @@ export const MAPS = Object.freeze({
     { words: 'Kneel ⇄ Stand', c: [id('stance:kneel'), id('stance:stand')] }, { words: 'Prone', c: [id('stance:prone')] }, { words: 'To cover', c: [is(/^move:cover/)] },
     { words: 'Stop here', c: [id('drill:variant:feet')] }, { words: 'Wait', c: [id('wait')] }, { words: 'Sling it ⇄ Relaxed', c: [id('stow'), id('gait:relaxed')] },
     { words: 'Low ready', c: [id('posture:lowReady')] }],
+  // (v0.0.19, the #2's roles on your word (team.js): "#2, bang it" 2, "Breacher up" 3 (its first way; the others TEAM's third
+  // level), "As you were" 4; 5 empty; 8 and 9 kept for On me and Hold that door)
   TEAM: [null,
-    { words: 'Cover me', c: [id('team:cover')] }, null, null, null, null,
+    { words: 'Cover me', c: [id('team:cover')] }, { words: '#2, bang it', c: [is(/^drill:team:bang(@|>|$)/)] },
+    { words: 'Breacher up', c: [(s) => /^drill:team:breach(@|>|$)/.test(s?.id ?? '') && !s.off, is(/^drill:team:breach(@|>|$)/)] },
+    { words: 'As you were', c: [is(/^drill:team:belay(@|>|$)/)] }, null,
     { words: 'Challenge', c: [id('contact:challenge')] }, { words: 'Engage: armed, my sector', c: [id('drill:variant:engage')] }, null, null],
 });
 /** The group a row no slot takes goes to (its third level), by its kind. */
-const OVERFLOW_OF = (s) => (isShotRow(s) || s?.kind === 'fire' || lineRow(s) ? 'FIRE'
+// (v0.0.19, kit D2: a device single of the planner's (kind 'device': Pin back in, Throw it clear, Prime again) goes to GUN's
+// "Hands ▸", beside the rifle's admin, where the hands' own rows are)
+const OVERFLOW_OF = (s) => (s?.kind === 'device' ? 'GUN' : isShotRow(s) || s?.kind === 'fire' || lineRow(s) ? 'FIRE'
   : ['door', 'bundle', 'watch', 'look', 'move', 'mark', 'call', 'variant'].includes(s?.kind) || /^drill:/.test(s?.id ?? '') ? 'DRILL'
     : ['stance', 'posture', 'gait', 'wait'].includes(s?.kind) ? 'BODY' : s?.kind === 'contact' ? 'TEAM' : 'GUN');
 /** Rows the panel never draws: their keys are their own (X, the keys' strip), and T's act names them by those keys. */
@@ -124,6 +139,16 @@ const KEYED = Object.freeze({ leave: 'X' });
 
 /** The situations (layout C's five on 1 to 5), first to last in precedence, each its five as [group, slot] or a row id. */
 export const SITUATIONS = Object.freeze({
+  // (v0.0.19, kit D2 (VIEWS §7.8): A LIVE GRENADE first of all, the lever gone and the fuse running in your hand: Throw on 1 and
+  // Throw it clear on 2, the only two acts the planner offers (devplan.js's guard D1), 3 and 4 empty, Cover me on 5; HANDS FULL
+  // after CONTACT, a grenade, a charge or a tool in the hands: Throw, Cook 2, Pin back in, Pouch it (a held grenade or charge;
+  // Let it go for a tool), and Fix (the hands' way out first: plan.js's guard 0). Each slot is a row bundle.js deviceRows makes
+  // (the review of v0.0.19's K: kit2's Prime it / Fire / Prime again had none, a charge being primed and fired on its door from
+  // the safe point by the drill's own beats, a misfire primed again by Carry on))
+  live: { name: 'A LIVE GRENADE', five: [{ re: /^dev:(gren:)?throw(:|$)/, words: 'Throw' }, { re: /^dev:(gren:)?clear(:|$)/, words: 'Throw it clear' }, null, null, ['TEAM', 1]] },
+  hands: { name: 'HANDS FULL', five: [{ re: /^dev:(gren:)?throw(:|$)/, words: 'Throw' }, { re: /^dev:(gren:)?cook(:2)?(:|$)/, words: 'Cook 2' }, { re: /^dev:(gren:)?repin(:|$)/, words: 'Pin back in' },
+    { re: /^dev:(stow|drop)(:|$)/, words: 'Pouch it', wordsOf: (row) => (/^dev:drop/.test(row.id) ? 'Let it go' : 'Pouch it') }, { fix: true, words: 'Fix' }] },
+
   stoppage: { name: 'STOPPAGE', five: [['GUN', 2], ['GUN', 3], ['GUN', 4], { id: 'macro:remedial', words: 'REMEDIAL' }, ['TEAM', 1]] },
   contact: { name: 'CONTACT', five: [['FIRE', 1], ['FIRE', 2], ['FIRE', 4], ['FIRE', 5], ['TEAM', 6]] },
   tower: { name: 'THE TOWER', five: [{ id: 'macro:load', words: 'LOAD' }, { id: 'macro:ready', words: 'MAKE READY' }, { id: 'macro:unload', words: 'UNLOAD' }, { id: 'macro:clear', words: 'SHOW CLEAR' }, { id: ['macro:cease', 'macro:safe'], words: 'Stop' }] },
@@ -165,6 +190,13 @@ export function badgeOf(off) {
   if (x) return { t: 'rung', n: Number(x[1]) };
   if (/by hand first/.test(w)) return { t: 'hand' };
   if (/not (issued|carried)/.test(w)) return { t: 'issue' };
+  // (v0.0.19, kit D2: a shot or a row struck while a hand holds a device ('hands full'), or every row but its throws while a live
+  // grenade is in it ('live grenade', bundle.js LIVE_WHY), points at Fix, the hands' way out; Shoot the lock on a
+  // door not locked says what it is, "open"; a believed misfire's approach counts down its wait, "wait 30 s" to "wait 1 s")
+  if (/^(hands full|live grenade)$/.test(w)) return { t: 'to', ref: 'fix' };
+  if (/^not locked$/.test(w)) return { t: 'note', text: 'open' };
+  x = /^wait (\d+) s$/.exec(w);
+  if (x) return { t: 'note', text: `${x[1]} s`, wait: Number(x[1]) };
   if (/locked/.test(w)) return { t: 'lock' };
   // (a pull door's kick, struck "opens toward you" (places/swing.js KICK_PULL_WHY): the badge the tile's corner holds, "pull")
   if (/^opens toward you$/.test(w)) return { t: 'note', text: 'pull' };
@@ -325,19 +357,31 @@ export function situationOf(rows, { half = null, groups = null, act = null } = {
   const inner = half === 'in' && has(/^door:(hold|push|pull|kick)>/);
   // (a contact whose man is down while T names the drill's next row (Carry on, "Clear!", the stack): the drill's situation)
   const drillAct = !!act && (OUT_RE.test(act.id) || ROOM_RE.test(act.id) || /^(drill:|door:)/.test(act.id));
-  const id = stop ? 'stoppage' : contact && !drillAct ? 'contact' : tower ? 'tower' : kd ? 'kd' : inner ? 'inner' : half === 'in' ? 'room' : half === 'out' ? 'door' : 'line';
+  // (v0.0.19, kit D2: a live grenade in the hand before everything, a stoppage included (only Throw and Throw it clear are
+  // offered then); a device in the hands after a contact (the contact's shots struck "hands full", Fix the way out). A tool let
+  // lie in reach ("Pick up the halligan") is not in the hands)
+  const live = has(/^dev:(gren:)?clear(:|$)/);
+  const hands = rows.some(s => /^dev:/.test(String(s.id)) && !/^dev:pickup$/.test(s.id));
+  const id = live ? 'live' : stop ? 'stoppage' : contact && !drillAct ? 'contact' : hands ? 'hands' : tower ? 'tower' : kd ? 'kd' : inner ? 'inner' : half === 'in' ? 'room' : half === 'out' ? 'door' : 'line';
   const S = SITUATIONS[id];
-  const five = S.five.map((f, i) => {
-    if (Array.isArray(f)) { const e = groups?.[f[0]]?.slots[f[1]]; return e ? { ...e, five: i + 1 } : { five: i + 1, words: null, row: null, badge: null }; }
-    const ids = [].concat(f.id ?? []), row = (f.re ? rows.find(s => f.re.test(s.id) && !s.off) ?? rows.find(s => f.re.test(s.id)) : null) ?? ids.map(x => rows.find(s => s.id === x && !s.off)).find(Boolean) ?? ids.map(x => rows.find(s => s.id === x)).find(Boolean) ?? null;
-    return { five: i + 1, group: null, slot: null, words: f.words, row, badge: row ? badgeOf(row.off) : { t: 'none' } };
-  });
   // (the hall's leg has no door: its stack and entry rows end '>hall' and no door row is offered; the same five on the same keys,
   // named for what it is (2026-11-15, the keys role: it said AT THE DOOR in the hall))
   // (inside it, its five the room's, named IN THE HALL: it said IN THE ROOM down the hall)
   const hall = id === 'door' && rows.some(s => /^drill:.*>hall$/.test(s.id)) && !rows.some(s => /^door:/.test(s.id));
+  // (v0.0.19, kit D2: AT THE DOOR's five on a lane whose loadout carries a charge or a tool is the user's P3 as drawn, Breach on
+  // 5 (DRILL 5) and Enter in the fan; the door rows carry the lane's `five` ('breach', shoothouse.js fiveOf at the fill), so it
+  // is the lane's constant and never moves within it; elsewhere v0.0.17's Enter on 5. The hall has no door to breach)
+  const breach5 = id === 'door' && !hall && rows.some(s => s.five === 'breach');
+  const fives = breach5 ? [...S.five.slice(0, 4), ['DRILL', 5]] : S.five;
+  const five = fives.map((f, i) => {
+    if (!f) return { five: i + 1, group: null, slot: null, words: null, row: null, badge: null };
+    if (Array.isArray(f)) { const e = groups?.[f[0]]?.slots[f[1]]; return e ? { ...e, five: i + 1 } : { five: i + 1, words: null, row: null, badge: null }; }
+    if (f.fix) { const row = fixOf(rows, groups?.GUN?.slots?.[1]?.row ?? null); return { five: i + 1, group: null, slot: null, words: f.words, row, badge: row ? badgeOf(row.off) : { t: 'none' } }; }
+    const ids = [].concat(f.id ?? []), row = (f.re ? rows.find(s => f.re.test(s.id) && !s.off) ?? rows.find(s => f.re.test(s.id)) : null) ?? ids.map(x => rows.find(s => s.id === x && !s.off)).find(Boolean) ?? ids.map(x => rows.find(s => s.id === x)).find(Boolean) ?? null;
+    return { five: i + 1, group: null, slot: null, words: row && f.wordsOf ? f.wordsOf(row) : f.words, row, badge: row ? badgeOf(row.off) : { t: 'none' } };
+  });
   const inHall = id === 'room' && rows.some(s => /^(look|watch):hall:|^drill:.*>hall$/.test(s.id));
-  return { id, name: hall ? 'THE HALL' : inHall ? 'IN THE HALL' : S.name, five, ...(hall || inHall ? { hall: true } : {}) };
+  return { id, name: hall ? 'THE HALL' : inHall ? 'IN THE HALL' : S.name, five, ...(hall || inHall ? { hall: true } : {}), ...(breach5 ? { breach: true } : {}) };
 }
 
 // ---- the layouts ----

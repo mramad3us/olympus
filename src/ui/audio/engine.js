@@ -91,9 +91,10 @@ import { createStepScheduler, stepVoice, lowpassHz, stepTrimDb } from './steps.j
 import { createWorld } from './world.js';
 import { createRange } from './range.js';
 import { createBang } from './bang.js';
-import { createBlast } from './blast.js';
+import { createBlast, BLAST_RECIPES } from './blast.js';
 import { createStress } from './stress.js';
 import { createHouse } from './house.js';
+import { createMarking } from './marking.js';
 import { gunBakes, GUN_RATE_HZ, TAIL_RATE_HZ } from './gun.js';
 import { MASTER, MASTER_OLD, makeupDb, clipCurve, CLIP_PRE } from './mix.js';
 import { readParams } from '../../core/debug.js';
@@ -226,7 +227,7 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
       }
       for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
       if (mode !== 'old') for (const g of gunBakes()) for (let v = 0; v < g.variants; v++) toBake.push({ gun: g, v });
-      for (const [table, into] of [[WORLD, buffers.world], [RANGE, buffers.range], [CHAOS, buffers.chaos], [STRESS, buffers.stress], [HOUSE, buffers.house]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
+      for (const [table, into] of [[WORLD, buffers.world], [RANGE, buffers.range], [CHAOS, buffers.chaos], [BLAST_RECIPES, buffers.chaos], [STRESS, buffers.stress], [HOUSE, buffers.house]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
       applyMaster();
       stats.sampleRate = ctx.sampleRate; stats.prepareMs = perfNow() - t0;
       ctx.onstatechange = () => { stats.state = ctx.state; };
@@ -451,6 +452,9 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
   };
   const houseSounds = createHouse(houseOps);
   stats.house = houseSounds.stats;
+  // (v0.0.19: a marking round's strike on a body, the slap, on the house's 'paint' fact: marking.js)
+  const markingSounds = createMarking(rangeOps);
+  stats.marking = markingSounds.stats;
   // (the voices' limit counts on the audio clock, where the reports will sound)
   const rangeSounds = createRange(rangeOps, { looks, clock: () => (ctx ? ctx.currentTime : 0), gun: gunHandle });
   stats.range = rangeSounds.stats;
@@ -466,6 +470,8 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
     if (running()) { try { worldSounds.frame(state, { splash, nowS }); } catch (e) { stats.worldError = String(e?.message ?? e); } }
     if (running() && !splash) { try { rangeSounds.frame(state, { alpha }); } catch (e) { stats.rangeError = String(e?.message ?? e); } }
     if (running()) { try { houseSounds.frame(splash ? null : state); } catch (e) { stats.houseError = String(e?.message ?? e); } }
+    // (0.0.19: the kit's small sounds off the house's devices: the pin, the lever, the floor, the shock tube (blast.js frame))
+    if (running()) { try { blastSounds.frame(splash ? null : state); } catch (e) { stats.blastError = String(e?.message ?? e); } }
     const a = state ? playerActor(state) : null;
     // (another state, a load or a new career: the feet start afresh, never a burst of the strides between)
     if (state !== lastState) { steps.reset(); lastState = state; }
@@ -522,10 +528,13 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
       const w = worldSounds.fact(type, payload, state);
       // (0.0.12: the house's facts; the instructor's 'say' and the drill's 'bundle' heard by the house as well as the range)
       const hs = type === 'house' || type === 'bundle' || type === 'say' ? houseSounds.fact(type, payload, state) : false;
+      if (type === 'house' && payload?.phase === 'paint') markingSounds.fact(type, payload, state);
       if (type === 'house' || type === 'bundle') return hs || w;
       // (0.0.9: a bang's report; 0.0.10: the horn and a blank)
       if (type === 'fx') return (payload?.kind === 'horn' || payload?.kind === 'blank' ? stressSounds.fact(type, payload, state) : blastSounds.ours(type, payload, state) ? blastSounds.fact(type, payload, state) : bangSounds.fact(type, payload, state)) || w;
-      return rangeSounds.fact(type, payload, state) || w;
+      // (0.0.19: a breach round's strike at the leaf beside the R-7's own report, which stays the range's)
+      const bs = type === 'shot' && blastSounds.ours(type, payload, state) ? blastSounds.fact(type, payload, state) : false;
+      return rangeSounds.fact(type, payload, state) || bs || w;
     },
     /** The deafness's caption once a deafness ('[a high whine]'), else null (0.0.9). */
     caption() { return bangSounds.caption(); },

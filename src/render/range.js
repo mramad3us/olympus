@@ -57,6 +57,8 @@
 // the hall, the east leg and its stairs, "drawn by the stage") and the turners' stands are built once as small static boxes when the
 // house is first seen (buildHouse): the walk's two stringers, its posts every CATWALK_POST_M and the yellow handrail a metre over it,
 // the stairs' treads, and each stand's post and foot; the walk's grating is left open, so the hall under it and you in it are seen.
+// v0.0.19 (the build sheet 0.0.19 §1 L-look): the live men's look, houseLook's floor (a dropped rifle on the floor, falling to it
+// first: range-items.js floorRiflePixels) and paint (a marking round's puff where it struck: paintPuffPixels).
 // 0.0.17: the doors' swings (houseLook's leaves): a dotted quarter arc on the floor round each shut door of the leg and of the room
 // you are in, from the closed leaf's free edge to its open stop, pale; a moving leaf's sweep still to come in LEAF_MOVING, the
 // no-stop zone it is while it swings (range-items.js leafArcPixels).
@@ -68,7 +70,7 @@
 import { PX_PER_M } from './scale.js';
 import { createPixels } from './decals.js';
 import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART,
-  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, leafArcPixels, cornerAidPixels } from './range-items.js';
+  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, leafArcPixels, cornerAidPixels, floorRiflePixels, paintPuffPixels } from './range-items.js';
 import { createCollector, buildAreaData } from '../art/jobs.js';
 import { areaFromJob, newPart } from './batch.js';
 import { paintKdFace, facePx } from '../art/kit/range.js';
@@ -231,6 +233,10 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
           hs.stands++;
           for (const p of turnerPixels(t, ms, ppm, look.gMs2)) { put(p, p.part, p.noLine); hs.pixels++; }
         }
+        // (v0.0.19: a rifle a role-player dropped, on the floor or falling to it; the paint's puff where a marking round struck)
+        hs.floor = 0; hs.paint = 0;
+        for (const f of HS.floor ?? []) { if (!inViews(views, f.x, f.z)) continue; hs.floor++; for (const q of floorRiflePixels(f, ppm)) { put(q, 0, q.flat); hs.pixels++; } }
+        for (const p of HS.paint ?? []) { if (!inViews(views, p.x, p.z)) continue; for (const q of paintPuffPixels(p, ms, ppm)) { put(q, 0, true); hs.paint++; hs.pixels++; } }
         stats.house = hs;
       } else { stats.house = null; if (house) house.built.group.visible = false; }
       for (const b of look.brass ?? []) { for (const p of brassPixels(b, ppm, ms)) put(p); stats.brass++; if (!b.rest) stats.flying++; }

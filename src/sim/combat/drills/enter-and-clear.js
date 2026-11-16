@@ -54,7 +54,22 @@
 // carries what `needs` names (breach.js kitHas), else as before (the breach struck "no charge issued"; the others absent, the
 // panel's placeholders struck "not issued"). The variants `breach` gains 'pry', 'ram' and 'charge' where the door and the kit
 // allow them, and `bang` ('none' | 'flash') the room rows', so "Flash, in: your corner" and "Charge, clear the room" are the
-// rows' own (kitBeats rewrites a row's beats for them). Frozen. Pure.
+// rows' own (kitBeats rewrites a row's beats for them).
+// v0.0.19 (D2, the build sheet 0.0.19 §1, §3.1; kit2 §2.7): the practice frag and concussion and the ways of the second slice.
+// The beats `cook` (the lever let go and the count held, "one thousand one, one thousand two": its variant 'cook' '2', the
+// default from rung 3, '0' below, training the throw uncooked first) and `shoot` (the R-7's rounds on the lock or the hinges:
+// bundle.js shootDoor, ballistic.js). The rows "Frag it" (door:frag: the door, the arm, the cook, the throw, the bang),
+// "Concuss it" (door:conc), rung 0's singles offered where the kit carries the grenade ('frag', 'conc'), and "Shoot the lock"
+// (door:shoot, needs 'ballistic', `offeredNow: 'locked'`: live on a door locked, struck "not locked" on one that is not).
+// The variants: `bang` ('none', 'flash', 'frag', 'conc': only the carried kinds cycle), `cook` ('0', '2'), and the breach's
+// 'cut' (the BC-1) and 'shoot'. kitBeats puts the cook between the arm and the throw for a frag or a concussion. Who throws
+// and breaches is the team's (team.js DOER_DEFAULT): these beats are the doer's (`doer: true`), as D1's are. Frozen. Pure.
+// v0.0.19 (the team's track; team.js): the door's and the kit's beats are the doer's (`doer: true` in place of `slots: [1]`: bundle.js
+// keeps them for the man who works the door, you by DOER_DEFAULT, so every v0.0.18 row is as it was); the team's beats `order`,
+// `give`, `front`, `stepback`, `closeup` and `cue` (TEAM_BEATS, never in 'all-but-breach'); the rows "#2, bang it", "Breacher up:
+// {how}" and "As you were" (`offeredNow: 'team'`, TEAM 2 to 4); and TEAM_TASKS, your #2's task bundles ("two:bang", "two:pry",
+// "two:ram", "two:charge"), each with the beat your entry's cue waits on, and "two:recover", his charge taken off the door on As you
+// were (the beat `recover`).
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
@@ -76,17 +91,22 @@ export const ENTER_AND_CLEAR = deepFreeze({
     read: { k: 'read', ch: 'eyes', slots: [1], after: ['approach@0.6'], flowFrom: 3 },
     tell: { k: 'call', ch: 'voice', say: 'tell', slots: [1], after: ['read'] },
     squeeze: { k: 'call', ch: 'voice', say: 'ready', slots: [2], after: ['approach'] },
-    door: { k: 'door', ch: 'hands', variant: 'breach', slots: [1], after: ['approach@arrive', 'ready', 'muzzle', 'squeeze'] },
-    breach: { k: 'breach', ch: 'hands', slots: [1], after: ['prime', 'squeeze'], needs: 'charge' },
+    door: { k: 'door', ch: 'hands', variant: 'breach', doer: true, after: ['approach@arrive', 'ready', 'muzzle', 'squeeze'] },
+    breach: { k: 'breach', ch: 'hands', doer: true, after: ['prime', 'squeeze'], needs: 'charge' },
     // (v0.0.18, the kit's beats (see the header); the door's beat and these wait on each other through kitBeats' rewrite)
-    place: { k: 'place', ch: 'hands', slots: [1], after: ['approach', 'ready', 'squeeze'], needs: 'charge' },
-    back: { k: 'move', ch: 'feet', to: 'safe', stance: 'combat', slots: [1], after: ['place'] },
-    prime: { k: 'prime', ch: 'hands', slots: [1], after: ['back'] },
-    force: { k: 'force', ch: 'hands', slots: [1], after: ['approach', 'ready', 'squeeze'], needs: 'tool' },
-    restack: { k: 'move', ch: 'feet', to: 'stack', stance: 'combat', slots: [1], after: ['breach'] },
-    arm: { k: 'arm', ch: 'hands', slots: [1], after: ['approach@0.6', 'prime', 'force'], flowFrom: 3, needs: 'flashbang' },
-    throw: { k: 'throw', ch: 'hands', slots: [1], after: ['arm', 'door@pass', 'force@pass', 'breach', 'restack', 'squeeze'], needs: 'flashbang' },
-    bang: { k: 'burst', ch: 'eyes', slots: [1], after: ['throw'] },
+    place: { k: 'place', ch: 'hands', doer: true, after: ['approach', 'ready', 'squeeze'], needs: 'charge' },
+    back: { k: 'move', ch: 'feet', to: 'safe', stance: 'combat', doer: true, after: ['place'] },
+    prime: { k: 'prime', ch: 'hands', doer: true, after: ['back'] },
+    force: { k: 'force', ch: 'hands', doer: true, after: ['approach', 'ready', 'squeeze'], needs: 'tool' },
+    restack: { k: 'move', ch: 'feet', to: 'stack', stance: 'combat', doer: true, after: ['breach'] },
+    arm: { k: 'arm', ch: 'hands', doer: true, after: ['approach@0.6', 'prime', 'force'], flowFrom: 3, needs: 'flashbang' },
+    // (v0.0.19: the count after the pin, the door open; its variant '2' from rung 3 (see the header))
+    // (the throw waits on it, and on a shot breach, where the row has them: AFTER_D2, so v0.0.18's beats keep their records)
+    cook: { k: 'cook', ch: 'hands', doer: true, after: ['arm', 'door@pass', 'force@pass', 'breach', 'restack', 'squeeze'], variant: 'cook' },
+    throw: { k: 'throw', ch: 'hands', doer: true, after: ['arm', 'door@pass', 'force@pass', 'breach', 'restack', 'squeeze'], needs: 'flashbang' },
+    bang: { k: 'burst', ch: 'eyes', doer: true, after: ['throw'] },
+    // (v0.0.19: the R-7's rounds on the lock or the hinges, from the stack's side (see the header))
+    shoot: { k: 'shootDoor', ch: 'hands', doer: true, after: ['approach@arrive', 'ready', 'squeeze'], needs: 'ballistic' },
     enter: { k: 'move', ch: 'feet', to: 'point', stance: 'entry', after: ['approach', 'door@pass', 'force@pass', 'breach', 'restack', 'bang'], cut: true },
     corner: { k: 'scan', ch: 'eyes', to: 'corner', after: ['enter@0.4'], cut: true },
     sector: { k: 'scan', ch: 'eyes', to: 'sector', after: ['corner'], cut: true },
@@ -96,6 +116,17 @@ export const ENTER_AND_CLEAR = deepFreeze({
     clear: { k: 'call', ch: 'voice', say: 'clear', after: ['sector', 'farlook', 'inner'] },
     roomclear: { k: 'call', ch: 'voice', say: 'roomclear', slots: [1], after: ['clear'] },
     mark: { k: 'mark', ch: 'hands', slots: [1], after: ['roomclear', 'clear'] },
+    // (v0.0.19, the team's beats (see the header): your order (its end writes your #2's task), you to the give line; his walk to the
+    // stack's front and back to his own; the closing up after a burst; and the cue a man waits on the other's work with)
+    order: { k: 'order', ch: 'voice', slots: [1] },
+    give: { k: 'move', ch: 'feet', to: 'give', stance: 'combat', slots: [1], after: ['order'] },
+    front: { k: 'move', ch: 'feet', to: 'front', stance: 'combat', doer: true },
+    stepback: { k: 'move', ch: 'feet', to: 'stack2', stance: 'combat', doer: true, after: ['throw', 'force', 'recover'] },
+    // (his charge taken off the door on "As you were" (the review of 2026-11-16: left there, no row could fire or clear it): unprimed
+    // where primed, peeled off the latch edge and back in its pouch, its FD-1 with it)
+    recover: { k: 'recover', ch: 'hands', doer: true },
+    closeup: { k: 'move', ch: 'feet', to: 'stack2', stance: 'assault', after: ['breach'] },
+    cue: { k: 'cue', ch: 'eyes' },
   },
   // (the catalogue, MUSCLE below, by the phases of a room; `rung` the lowest rung at which the row runs whole, `band` doctrine's
   // time band in game seconds, a sanity check the tests print against, never a timer)
@@ -109,10 +140,14 @@ export const ENTER_AND_CLEAR = deepFreeze({
     'door:open': { group: 'door', slot: 1, rung: 0, single: true, label: 'Open the door', beats: ['door'], variants: { breach: ['push', 'pull'] }, row: 'door:push' },
     'door:kick': { group: 'door', slot: 2, rung: 0, single: true, label: 'Kick door', beats: ['door'], variants: { breach: ['kick'] }, row: 'door:kick', band: { recruit: [1.3, 1.8], operator: [0.8, 1.2] } },
     // (v0.0.18: the kit's rows (see the header), offered when the kit carries what they need)
-    'door:breach': { group: 'door', slot: 3, rung: 0, single: true, label: 'Breach (explosive)', beats: ['place', 'back', 'prime', 'breach'], variants: { breach: ['charge'] }, needs: 'charge', offeredNow: 'kit' },
+    'door:breach': { group: 'door', slot: 3, rung: 0, single: true, label: 'Breach (explosive)', beats: ['place', 'back', 'prime', 'breach'], variants: { breach: ['charge', 'cut'] }, needs: 'charge', offeredNow: 'kit' },
     'door:flash': { group: 'door', slot: 4, rung: 0, single: true, label: 'Flash it', beats: ['door', 'arm', 'throw', 'bang'], variants: { bang: 'flash' }, needs: 'flashbang', offeredNow: 'kit' },
     'door:pry': { group: 'door', slot: 5, rung: 0, single: true, label: 'Pry it', beats: ['force'], variants: { breach: ['pry'] }, needs: 'halligan', offeredNow: 'kit' },
     'door:ram': { group: 'door', slot: 6, rung: 0, single: true, label: 'Ram it', beats: ['force'], variants: { breach: ['ram'] }, needs: 'ram', offeredNow: 'kit' },
+    // (v0.0.19, D2 (see the header))
+    'door:frag': { group: 'door', slot: 7, rung: 0, single: true, label: 'Frag it', beats: ['door', 'arm', 'cook', 'throw', 'bang'], variants: { bang: 'frag' }, needs: 'frag', offeredNow: 'kit' },
+    'door:conc': { group: 'door', slot: 8, rung: 0, single: true, label: 'Concuss it', beats: ['door', 'arm', 'cook', 'throw', 'bang'], variants: { bang: 'conc' }, needs: 'conc', offeredNow: 'kit' },
+    'door:shoot': { group: 'door', slot: 9, rung: 0, single: true, label: 'Shoot the lock', beats: ['shoot'], variants: { breach: ['shoot'] }, needs: 'ballistic', offeredNow: 'locked' },
     // ROOM
     'room:in': { group: 'room', slot: 0, rung: 2, label: '{door}, in: your corner', beats: ['door', 'enter', 'corner'], variants: { breach: ['push', 'pull', 'kick'], entry: ['cross', 'hook'], stance: ['assault', 'combat'] } },
     'room:dominate': { group: 'room', slot: 1, rung: 2, label: 'Dominate', beats: ['enter', 'sector', 'inner', 'far', 'farlook', 'clear', 'roomclear', 'mark'] },
@@ -128,13 +163,33 @@ export const ENTER_AND_CLEAR = deepFreeze({
     'team:cover': { group: 'team', slot: 0, rung: 0, label: 'Cover his sector', beats: [], when: '#2 gun down', offeredNow: false },
     'team:on-me': { group: 'team', slot: 1, rung: 0, label: 'On me', beats: [], when: '#2 off his slot', offeredNow: false },
     'team:hold': { group: 'team', slot: 2, rung: 1, label: 'Hold that door', beats: [], when: 'inner door, #2 nearer', offeredNow: false },
+    // (v0.0.19, the #2's roles on your word (team.js; TEAM 2 to 4): his task ordered, you to the give line; offered by team.js taskWhy)
+    'team:bang': { group: 'team', slot: 3, rung: 0, single: true, label: '#2, bang it', beats: ['order', 'give'], needs: 'flashbang', by: 2, task: 'bang', offeredNow: 'team' },
+    'team:breach': { group: 'team', slot: 4, rung: 0, single: true, label: '#2: {how}', beats: ['order', 'give'], variants: { breach: ['charge', 'pry', 'ram'] }, by: 2, task: 'breach', offeredNow: 'team' },
+    'team:belay': { group: 'team', slot: 5, rung: 0, single: true, label: 'As you were', beats: ['order'], by: 2, task: 'belay', offeredNow: 'team' },
   },
   // (rung 2's groups, the order a corporal presses them: the stack, the door and in, the point and the sweep; the #2's one
   // group at a time below rung 3, a seam at each)
   groups: [['stack:point'], ['room:in'], ['room:dominate']],
-  variants: { breach: ['push', 'pull', 'kick', 'pry', 'ram', 'charge'], entry: ['cross', 'hook'], stance: ['assault', 'combat'], reorg: ['auto', 'off'], engage: ['off', 'armed'], bang: ['none', 'flash'] },
+  variants: { breach: ['push', 'pull', 'kick', 'pry', 'ram', 'charge', 'cut', 'shoot'], entry: ['cross', 'hook'], stance: ['assault', 'combat'], reorg: ['auto', 'off'], engage: ['off', 'armed'], bang: ['none', 'flash', 'frag', 'conc'], cook: ['0', '2'] },
   halts: ['contact', 'noshoot', 'refused', 'door-unplanned', 'two', 'gun', 'fail', 'seam', 'lane-end', 'stop', 'clear'],
 });
+
+/**
+ * The #2's task bundles (v0.0.19, team.js; his roles on your word), read by bundle.js planBundle where bundleDef misses: the
+ * doer to the stack's front point on the latch-side wall (front), his work, back to his own stack point (stepback) or to the
+ * charge's safe point (back), each beat his as the doer (`doer`, the task's `by` 2).
+ */
+export const TEAM_TASKS = deepFreeze({
+  'two:bang': { id: 'two:bang', family: 'room', group: 'team', slot: 2, rung: 0, label: '#2: bang it', beats: ['front', 'arm', 'door', 'throw', 'stepback', 'bang'], variants: { bang: 'flash' }, task: 'bang', cue: 'bang' },
+  'two:pry': { id: 'two:pry', family: 'room', group: 'team', slot: 2, rung: 0, label: '#2: pry it', beats: ['front', 'force', 'stepback'], variants: { breach: ['pry'] }, task: 'breach', cue: 'stepback' },
+  'two:ram': { id: 'two:ram', family: 'room', group: 'team', slot: 2, rung: 0, label: '#2: ram it', beats: ['front', 'force', 'stepback'], variants: { breach: ['ram'] }, task: 'breach', cue: 'stepback' },
+  'two:charge': { id: 'two:charge', family: 'room', group: 'team', slot: 2, rung: 0, label: '#2: charge it', beats: ['front', 'place', 'back', 'prime', 'breach'], variants: { breach: ['charge'] }, task: 'breach', cue: 'breach' },
+  // (As you were with his charge on the door: back to the front, the charge off, back to his own point (bundle.js taskSlot))
+  'two:recover': { id: 'two:recover', family: 'room', group: 'team', slot: 2, rung: 0, label: '#2: charge off', beats: ['front', 'recover', 'stepback'], task: 'belay', cue: 'stepback' },
+});
+/** A task bundle by id ('two:bang', 'two:pry', 'two:ram', 'two:charge', 'two:recover'), or null. */
+export const taskDef = (id) => TEAM_TASKS[id] ?? null;
 
 /** The muscle-memory catalogue (COMBAT §25.19.2.2): the rows by id, each { id, family, group, slot, rung, label, beats, … }, in the data's order. */
 export const MUSCLE = deepFreeze(Object.fromEntries(Object.entries(ENTER_AND_CLEAR.muscle).map(([id, b]) => [id, { id, family: ENTER_AND_CLEAR.family, ...b }])));
@@ -143,9 +198,17 @@ export const BUNDLES = Object.freeze(Object.values(MUSCLE));
 /** A row of the catalogue by id, or null. */
 export const bundleDef = (id) => MUSCLE[id] ?? null;
 /** The kit's beats (v0.0.18): a row runs them only where its own list or its variant names them (kitBeats). */
-export const KIT_BEATS = Object.freeze(['place', 'back', 'prime', 'breach', 'restack', 'force', 'arm', 'throw', 'bang']);
-/** The beat ids a row runs, in the drill's order: 'all-but-breach' every beat but the explosive breach and the kit's. */
-export const beatsOf = (b) => (b?.beats === 'all-but-breach' || b?.beats === 'all' ? Object.keys(ENTER_AND_CLEAR.beats).filter(k => k !== 'breach' && !KIT_BEATS.includes(k)) : [...(b?.beats ?? [])]);
+export const KIT_BEATS = Object.freeze(['place', 'back', 'prime', 'breach', 'restack', 'force', 'arm', 'cook', 'throw', 'bang', 'shoot']);
+/** D2's dependencies, added to a beat's `after` only where the row runs the beat they name (v0.0.19: bundle.js planBundle), so a row without them keeps v0.0.18's records to the byte. */
+export const AFTER_D2 = Object.freeze({ cook: Object.freeze({ throw: 'cook' }), shoot: Object.freeze({ cook: 'shoot', throw: 'shoot', enter: 'shoot' }) });
+/** The bang variants that are grenades thrown (v0.0.19): a G-11, a frag, a concussion. */
+export const BANGS = Object.freeze(['flash', 'frag', 'conc']);
+/** The cook's default by rung (v0.0.19; see the header): '2' from rung 3, '0' below. */
+export const cookDefault = (rung) => (rung >= 3 ? '2' : '0');
+/** The team's beats (v0.0.19): a row runs them only where its own list names them (the orders, the #2's tasks), never 'all-but-breach'. */
+export const TEAM_BEATS = Object.freeze(['order', 'give', 'front', 'stepback', 'closeup', 'cue', 'recover']);
+/** The beat ids a row runs, in the drill's order: 'all-but-breach' every beat but the explosive breach, the kit's and the team's. */
+export const beatsOf = (b) => (b?.beats === 'all-but-breach' || b?.beats === 'all' ? Object.keys(ENTER_AND_CLEAR.beats).filter(k => k !== 'breach' && !KIT_BEATS.includes(k) && !TEAM_BEATS.includes(k)) : [...(b?.beats ?? [])]);
 /**
  * A row's beats rewritten for the kit (v0.0.18; see the header): the door's beat replaced by the charge's (place, back, prime,
  * breach) for a breach 'charge', by `force` for 'pry' or 'ram', and the bang's three (arm, throw, bang) after it for a bang
@@ -157,12 +220,15 @@ export function kitBeats(ids, { breach = null, bang = null } = {}) {
   for (const id of ids) {
     if (id !== 'door') { out.push(id); continue; }
     // (the charge's: placed, back to the safe point, primed, fired, then back on the stack and in by the plan's own entry, so the
-    // room is entered by the way every row enters it)
-    if (breach === 'charge') out.push('place', 'back', 'prime', 'breach', 'restack');
+    // room is entered by the way every row enters it; v0.0.19: the BC-1's 'cut' the same beats)
+    if (breach === 'charge' || breach === 'cut') out.push('place', 'back', 'prime', 'breach', 'restack');
     else if (breach === 'pry' || breach === 'ram') out.push('force');
+    else if (breach === 'shoot') out.push('shoot');
     else out.push('door');
-    // (a bang after a charge: back to the stack from the safe point first, the grenade armed on the way from rung 3)
+    // (a bang after a charge: back to the stack from the safe point first, the grenade armed on the way from rung 3; v0.0.19: a
+    // frag's or a concussion's count between the pin and the throw)
     if (bang === 'flash') out.push('arm', 'throw', 'bang');
+    else if (bang === 'frag' || bang === 'conc') out.push('arm', 'cook', 'throw', 'bang');
   }
   return out;
 }

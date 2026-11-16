@@ -76,6 +76,7 @@
 // ?play=<scenario>&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&setup=hot|bench|mixed][&tier=recruit|private|cpl|sgt|raider|tierone]
 // [&par=basic|advanced|operator] (0.0.12: test-shoothouse's par, else the sheet's own; its setups go, room:2, room:3, hall, contact)
 // [&loadout=standard|flash|breach|full|v1~…] (0.0.18: test-shoothouse's loadout, one for every sheet; main.js drops an unknown one)
+// [&opfor=none|live|live:<2a card>,<3a card>] (0.0.19: test-shoothouse's role-players, the cards fight, give or hide; ?play=test-shoothouse-live is 'live')
 // (tier: test-pairs' sheet, TECH §15.3; else null, the scene's private), hour being the Mars local hour at the
 // start (0-24, a fraction giving minutes), seed a whole number; &area=<id>&at=<x>,<z>&face=<f> a
 // start somewhere else than the scenario's (the barracks' berth): an area, a place in its frame in
@@ -102,6 +103,8 @@ export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200',
   'go', 'room:2', 'room:3', 'hall', 'contact']);
 /** test-shoothouse's pars by the URL (&par=: the build sheet 0.0.12 §4's PAR_MS names); else null, the sheet's own (PAR_OF_TIER). */
 export const PARS_URL = Object.freeze(['basic', 'advanced', 'operator']);
+/** test-shoothouse's role-players by the URL (&opfor=: 0.0.19, "Stack and clear, live"): 'none', 'live', or 'live:' and two cards (fight, give, hide); else null, none. */
+export const OPFOR_URL = /^(none|live(:(fight|give|hide),(fight|give|hide))?)$/;
 /** VIEWS §12's "reduce flashes" by the URL (&flashes=reduced: 0.0.9). */
 export const FLASHES = Object.freeze(['reduced']);
 
@@ -117,7 +120,7 @@ export const CYCLES_URL = Object.freeze(['A', 'B', 'C']);
 /** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
 export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, panel, cycle, sound }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, loadout, opfor, panel, cycle, sound }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -144,6 +147,9 @@ export function readParams(search = globalThis.location?.search ?? '') {
     // (v0.0.18: test-shoothouse's loadout, a preset or a code (src/sim/arms/loadout.js; a '+' comes through as a space), read by
     // main.js, which drops an unknown one with a toast as it does &env=)
     loadout: /^[a-z0-9~:,+ -]{1,160}$/.test(q.get('loadout') ?? '') ? q.get('loadout') : null,
+    // (v0.0.19: test-shoothouse's role-players, 'none', 'live' or 'live:<2a card>,<3a card>' (src/sim/scenarios/opfor.js parseOpfor,
+    // which the fill reads; a card unknown there leaves the lane without them): the form only, here)
+    opfor: OPFOR_URL.test(q.get('opfor') ?? '') ? q.get('opfor') : null,
     panel: PANELS_URL.includes(String(q.get('panel') ?? '').toLowerCase()) ? String(q.get('panel')).toLowerCase() : null,
     cycle: CYCLES_URL.includes(String(q.get('cycle') ?? '').toUpperCase()) ? String(q.get('cycle')).toUpperCase() : null,
     sound: SOUNDS_URL.includes(q.get('sound')) ? q.get('sound') : null,

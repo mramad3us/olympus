@@ -114,7 +114,8 @@ export function hitMarks(state, key, { k = null, phase = null } = {}) {
 function houseMarks(state, R, key, phase) {
   const T = (R.turners ?? []).find(t => t.key === key);
   if (!T) return null;
-  const mine = (R.shots ?? []).filter(x => x.key === key);
+  // (v0.0.19: a ballistic breach's rounds are the door's, never a stand's marks (row 'shoot:door'))
+  const mine = (R.shots ?? []).filter(x => x.key === key && x.row !== 'shoot:door');
   const twos = (T.hits ?? []).filter(h => h.by === 'two');
   const ph = phase ?? (R.end ? 'truth' : 'belief'), truth = ph === 'truth';
   // (your #2's rounds are known only in truth: in belief a stand only he struck has no record, so the card names the stand and

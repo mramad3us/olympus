@@ -27,6 +27,10 @@
 // fixer's T player of 0.0.12 (a Wait where the line is quiet) for the suites that print its numbers. stoppageBot({ answer })
 // is the honest bot with the reflex card's answer forced; houseKeysBot() the house bot's keys mode.
 //
+// v0.0.19 ("Stack and clear, live"): SHOT_LINES gains cqb-rp-fire (a role-player firing on you: the pair it names), and the keys
+// bot covers a role-player down or with his hands up that its pause took in (Challenge him first for the hands, then Cover him, the
+// contact's hold), as the instinct's cqb-rp-down and cqb-rp-hands tell T to; on the turner lane none of it is reached.
+//
 // houseFuzzBot({ seed }) hunts the scene's dead ends (the sheet's §5.3): random legal rows (never a shot row, the dummy never
 // cleared, "Clear!" never called), X and the keys at random through windows, T's bundles and Backspace at random, a doorway
 // stood in; its dice are hashes of its seed and its count of decisions (mem.n). Every run must reach the card (the user,
@@ -60,7 +64,7 @@ function threatsOf(state, N, me, mem) {
   // (only a man in the rifle's frame now (shooting.js targetOf: what the bracket can be put on): one taken in from the stack
   // and behind the jamb now cannot be bracketed, and 'pick=' on him looped with the clock still (2026-11-12, the lanes))
   const up = N.turners.filter(T => ident[T.key] !== undefined && T.facingK >= 0.5 && !T.down && targetOf(state, T.key, state.player.id));
-  const order = (a, b) => (a.slot ?? 1) - (b.slot ?? 1) || Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z) || a.key.localeCompare(b.key);
+  const order = (a, b) => (a.owner ?? a.slot ?? 1) - (b.owner ?? b.slot ?? 1) || Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z) || a.key.localeCompare(b.key);
   return { armed: up.filter(T => ARMED.has(ident[T.key])).sort(order), unseen: up.filter(T => ident[T.key] === 'unseen').sort(order) };
 }
 const ARMED = new Set(['rifle', 'pistol']);
@@ -160,6 +164,18 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       if (S.aim?.key !== pick && has('aim')) return choose('aim', 'normal', pick);
       if (T?.face !== 'hostage' && has('fire')) return choose('fire', 'normal');
       if (T?.face === 'hostage') { const h = rows.find(s => /head/.test(s.id)); if (h && !h.off) return choose(h.id, 'normal', pick); }
+    }
+    // (v0.0.19, the live lane: a role-player taken in at this pause, down or with his hands up as you identified him, nobody covering
+    // him (the scene's view: houseNow's covered, the instructor's out): his hands up, Challenge him once; then Cover him, the contact's
+    // hold on him, once a man a pause, as a marine who knows a man down is still armed)
+    const cov = last ? N.turners.find(T => T.live && !T.out && !T.covered && (T.down || mem.ident?.[T.key] === 'hands') && last.ids?.includes(T.key)) : null;
+    if (cov && !(mem.covers ??= []).includes(`${last.id}:${cov.key}`)) {
+      if (S.pick !== cov.key && targetOf(state, cov.key, pid)) return choose(`pick=${cov.key}`);
+      if (S.pick === cov.key) {
+        if (!cov.down && has('contact:challenge') && !(mem.challenged ?? []).includes(`${last.id}:${cov.key}`)) { (mem.challenged ??= []).push(`${last.id}:${cov.key}`); return choose('contact:challenge'); }
+        mem.covers.push(`${last.id}:${cov.key}`);
+        if (has('contact:hold')) return choose('contact:hold');
+      } else mem.covers.push(`${last.id}:${cov.key}`);
     }
     // (a hot spot past a bend still unseen once in the room: walked toward by the keys (see the looks below))
     const farW = inside && plan ? (plan.hot ?? []).find(h => h.why === 'far leg' && !L.corners?.by?.[h.id] && !(mem.walked ?? []).includes(`${legI}:${h.id}`)) : null;
@@ -280,12 +296,12 @@ export function houseTBot() {
     const S = state.stop, now = state.clock.ms, it = instinctNow(state), line = it.line;
     if (S?.reflex) return { act: [stepAct(`reflex:${S.reflex.why === 'click' ? 'ia' : 'look'}`)] };
     // (the line names the shot and leaves it to him (no act): the row it names on the bracketed man of his own corner)
-    if (S?.mode === 'stop' && S.phase === 'choose' && line && !line.act && ['cqb-contact', 'cqb-still-up', 'cqb-hostage'].includes(line.id)) {
+    if (S?.mode === 'stop' && S.phase === 'choose' && line && !line.act && SHOT_LINES.has(line.id)) {
       const T = N.turners.find(t => t.key === S.pick);
-      if (T && !T.down && T.facingK >= 0.5 && (T.slot ?? 1) === 1 && mem.shotAt !== now) {
+      if (T && !T.down && T.facingK >= 0.5 && (T.owner ?? T.slot ?? 1) === 1 && mem.shotAt !== now) {
         // (the line's Press on the one round left: the Fire row, the shot rows all struck "one left" (2026-11-11))
         const rows = stepsOf(state).filter(x => (isShotRow(x) || (line.variant === 'press' && x.id === 'fire')) && !x.off && (x.target ?? T.key) === T.key);
-        const r = line.id === 'cqb-contact' ? rows[0] : rows.find(x => /head/.test(x.id)) ?? rows[0];
+        const r = PAIR_LINES.has(line.id) ? rows[0] : rows.find(x => /head/.test(x.id)) ?? rows[0];
         if (r) { mem.shotAt = now; (mem.shots ??= []).push({ atMs: now, row: r.id, key: T.key }); return { act: [stepAct(r.id, 'normal', T.key)] }; }
       }
     }
@@ -306,7 +322,9 @@ export function houseTBot() {
 }
 
 /** The lines that name a shot and leave it to the player (no act): the honest bot takes the row they name on a man of his own. */
-export const SHOT_LINES = Object.freeze(new Set(['cqb-contact', 'cqb-still-up', 'cqb-hostage']));
+export const SHOT_LINES = Object.freeze(new Set(['cqb-contact', 'cqb-still-up', 'cqb-hostage', 'cqb-rp-fire']));
+// (the lines that name the pair: the contact's, and a role-player firing on you (v0.0.19, cqb-rp-fire); the others name the head)
+const PAIR_LINES = new Set(['cqb-contact', 'cqb-rp-fire']);
 /** A T the game refuses this many times at one ms is a dead end (the act named, nothing done). */
 export const REFUSED_N = 3;
 /** Ticks of a stop with no act before the honest bot calls it a dead end (the line has its ticks to come, as on the page). */
@@ -335,6 +353,8 @@ export function houseHonestBot({ answer = null } = {}) {
     const N = houseNow(state);
     if (!N || N.rangeEnd) { mem.done = true; return {}; }
     if (state.skip || contactNow(state)?.pending) return {};
+    // (the live lane's casualty beat: nothing to press, every act refused, the lane's end 2 s on (men.js casualtyOn))
+    if (N.live?.casualty && !N.end) return {};
     const S = state.stop, now = state.clock.ms, line = instinctNow(state).line, lane = N.goAtMs !== null && !N.end;
     // (a dead end, once a stop: the kind, the leg, the line)
     const dead = (kind) => {
@@ -368,11 +388,11 @@ export function houseHonestBot({ answer = null } = {}) {
     const choosing = S?.mode === 'stop' && S.phase === 'choose';
     // (the line names the shot and leaves it to him: the row it names on the bracketed man, his own)
     if (choosing && line && !line.act && SHOT_LINES.has(line.id)) {
-      const T = N.turners.find(t => t.key === S.pick), mine = T && (!N.two?.pid || (T.slot ?? 1) === 1);
+      const T = N.turners.find(t => t.key === S.pick), mine = T && (!N.two?.pid || (T.owner ?? T.slot ?? 1) === 1);
       if (T && !T.down && T.facingK >= 0.5 && mine && mem.shotAt !== now) {
         const rows = stepsOf(state).filter(x => (isShotRow(x) || x.id === 'fire') && !x.off && (x.target ?? T.key) === T.key);
         const named = line.variant === 'press' ? rows.find(x => x.id === 'fire')
-          : line.id === 'cqb-contact' ? rows.find(x => /^shot:pair/.test(x.id)) ?? rows.find(isShotRow)
+          : PAIR_LINES.has(line.id) ? rows.find(x => /^shot:pair/.test(x.id)) ?? rows.find(isShotRow)
             : rows.find(x => /head/.test(x.id)) ?? rows.find(isShotRow);
         if (named) { mem.shotAt = now; mem.shots++; return press(stepAct(named.id, 'normal', T.key)); }
       }
@@ -445,7 +465,8 @@ export function houseFuzzBot({ seed = 1 } = {}) {
     if (S.doing?.beats && die(40) === 0) { count('backspace'); return { act: ['drill:stop'] }; }
     if (S.phase !== 'choose' && !(S.doing?.kind === 'wait' && die(10) === 0)) return {};
     // (never a shot, never IMMEDIATE ACTION (the dummy left), never "Clear!" (the stall must move it on))
-    const steps = stepsOf(state).filter(st => !st.off && !isShotRow(st) && !['fire', 'macro:ia', 'macro:remedial', 'call:clear'].includes(st.id) && !String(st.id).startsWith('reflex:'));
+    // (v0.0.19: never the team's orders (TEAM 2 to 4): its own fuzz presses them (tests/bots/team.mjs teamFuzzBot), so this one's dice stay v0.0.18's)
+    const steps = stepsOf(state).filter(st => !st.off && !isShotRow(st) && !['fire', 'macro:ia', 'macro:remedial', 'call:clear'].includes(st.id) && !String(st.id).startsWith('reflex:') && !String(st.id).startsWith('drill:team:'));
     if (!steps.length) return {};
     const w = steps.map(x => (x.kind === 'bundle' ? HOUSE_FUZZ_W.bundle : x.id === 'leave' ? HOUSE_FUZZ_W.leave : x.kind === 'door' ? HOUSE_FUZZ_W.door : 1));
     let roll = die(w.reduce((a, c) => a + c, 0)), k = 0;

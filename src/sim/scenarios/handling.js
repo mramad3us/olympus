@@ -125,7 +125,7 @@ import { feetOf } from '../combat/contact.js';
 import { halt } from '../combat/stepper.js';
 import { kdReady, kdRelayReady, kdOnCmd, kdNextI, kdSecond, kdStringEnd, kdShot, kdMoveOn, kdPoint, kdNow, kdWaitOnYou } from './range.js';
 import { pairsReady, pairsOnCmd, pairsSecond, pairsShot, pairsAfterStep, pairsBox, pairsPoint, pairsRangeNow, pairsWant, PAIRS_NUDGE, pairsStepStart } from './pairs.js';
-import { houseReady, houseOnCmd, houseSecond, houseShot, houseStepStart, houseAfterStep, houseRangeNow, houseWant } from './shoothouse.js';
+import { houseReady, houseOnCmd, houseSecond, houseShot, houseStepStart, houseAfterStep, houseRangeNow, houseWant, houseMoveOn } from './shoothouse.js';
 
 /** Where the scene plays. */
 export const HANDLING = Object.freeze({ site: SCENES['test-handling'].host.site, area: KD_RANGE.area, course: 'fam25' });
@@ -507,6 +507,8 @@ export function moveOn(state, bus, { quiet = false } = {}) {
   if (!quiet) fault(state, bus, 'slow', 'warn', hashPick(R.course === 'pairs' || R.course === 'house' ? PAIRS_COACH.slow : COACH.slow, 'coach', state.meta.seed, 'slow', i));
   // (0.0.7: on the kd course the coach does what was left undone (kdMoveOn); a splash still to come is waited for)
   if (R.course === 'kd') { kdMoveOn(state, bus, SQ[i]); if (SQ[i].ready === 'arrived') { R.livedMs = 0; return; } }
+  // (the house's: a P-12 whose round is still owed at MAKE READY's move-on is racked by the instructor (shoothouse.js houseMoveOn))
+  if (R.course === 'house') houseMoveOn(state, bus, SQ[i]);
   const ni = nextIOf(state, R, i);
   if (ni === null) return;
   const atMs = state.clock.ms + intIn(stream(state.meta.seed, 'range:gap', ni), C.roGapMs[0], C.roGapMs[1]);

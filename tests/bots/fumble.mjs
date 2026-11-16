@@ -200,8 +200,19 @@ function gearOf(s) {
   return `${ids.map(id => `${id}:${truthOf(s, s.items[id])}@${s.items[id].mag ?? '-'}/${shortB(FA.beliefOf(s, id))}`).join(';')}|${postureOf(s)}|${handsOf(s)}|${k.worn?.holster ?? '-'}|${s.stop?.gun ?? '-'}`;
 }
 
-/** A row that seats the magazine in the hand: Seat itself, or a drill whose sub-steps seat with no reach before (the one held goes in). */
-export const seatsHeld = (r) => !!r && !r.off && (r.id === 'seat' || ((r.subs ?? []).some(x => x.id === 'seat') && !(r.subs ?? []).some(x => String(x.id).startsWith('reach'))));
+/** The sub-steps that change the gun in the hand (sidearm.js: Rifle up's holster and up, Transition's draw, the rifle let hang). */
+const GUN_CHANGES = new Set(['holster', 'up', 'draw:thigh', 'hang']);
+/**
+ * A row that seats the magazine in the hand into the gun in the hand: Seat itself, or a drill whose sub-steps seat with no reach
+ * before, and no change of gun before the seat (Rifle up holsters the P-12 and seats the held magazine into the rifle: v0.0.18's
+ * sweep read that as a seat into the P-12, n7-rifle-up, the net's own misreading).
+ */
+export const seatsHeld = (r) => {
+  if (!r || r.off) return false;
+  if (r.id === 'seat') return true;
+  const subs = (r.subs ?? []).map(x => String(x.id)), i = subs.indexOf('seat');
+  return i >= 0 && !subs.some(x => x.startsWith('reach')) && !subs.slice(0, i).some(x => GUN_CHANGES.has(x));
+};
 /** N7's judgement, pure (so its own test can show it bites): who would seat a held magazine that should not go in: ['Fix', 'T', 'the Seat row'] or []. */
 export function seatsWrong({ live = [], fixRow = null, tRow = null, wrong = false, heldEmpty = false, fuller = false }) {
   if (!wrong && !(heldEmpty && fuller)) return [];

@@ -79,7 +79,9 @@
 // its gap from (useBodies: the shoot house's, you and your number two, BODY_GAP_M 0.50 m centre to centre). A tick's step
 // by the keys or the brake that would close on such a body inside the gap is not taken and the speed into it is lost (a
 // bump), and a bundle's move of the player is held where it stands a tick at a time, its timing with it (the #2's own
-// guard, bundle.js gapHold, the same rule); a step that opens the gap is always taken, so nobody is ever pinned.
+// guard, bundle.js gapHold, the same rule); a step that opens the gap is always taken, and a move held PIN_END_MS by a body ends
+// where it stands and hands the choice back (PIN_WORDS), so no walk of yours is held for ever (v0.0.19's fixer; before it a held
+// beat slid its time a tick at a time with no end).
 // 2026-11-13 (the rework's R8b, fluid movement; the user: "soldiers need to stay fluidly moving"): **never at rest in a no-stop
 // zone** (src/sim/places/zones.js: a door's funnel, from the place plans). A body moving in a stance whose feet the game would
 // stop (a step on the hands, stop motion, the contact's window or a startle, the keys let go) where the brake would leave it
@@ -105,7 +107,7 @@ import { STRIDE_WRAP_M } from '../../data/body/gait.js';
 import { gaitsOf, tractionOf } from '../body/motion.js';
 import { gravityAt, surfaceAt } from './env.js';
 import { G0_MS2 } from '../../core/phys.js';
-import { moveNow, moveAt, profileOf, pathLen } from '../combat/stepper.js';
+import { moveNow, moveAt, profileOf, pathLen, halt } from '../combat/stepper.js';
 import * as KIT from '../arms/kit.js';
 import { valueOf, rungOf } from '../skills/templates.js';
 import { SURFACES } from '../../data/places/env.js';
@@ -120,6 +122,14 @@ import { routed, clipped } from '../combat/route.js';
 export const PLAYER_CLS = 'C0';
 export const POS_STEP_M = 0.0001;
 export { STRIDE_WRAP_M };
+/**
+ * A bundle's move of the player held by a body this long ends where it stands and hands back, in PIN_WORDS (ms; the v0.0.20
+ * design's U-1 step 3, at 6 s, not its 2 s (my call): the #2's own remedies (bundle.js stepOffPath after 400 ms, giveWayOut) are
+ * given their time first, and at 2 s a fuzz lane's path changed enough that his wait at room 3 broke F17 (the private, seed 1333);
+ * under the fumble net's PIN_MS 8 s).
+ */
+export const PIN_END_MS = 6000;
+export const PIN_WORDS = "Your two's in your way. Round him, or T.";
 /** The door assist: how far either way along the other axis a cut-short step looks for a way through, and in what steps (metres). */
 export const NUDGE_M = 0.3, NUDGE_STEP_M = 0.01;
 
@@ -613,6 +623,10 @@ export function playerStep(state, input, bus, ctx) {
       if (d?.beats?.includes(mv) && Number.isFinite(d.untilPlanMs)) d.untilPlanMs += TICK_MS;
       mv.held = (mv.held ?? 0) + TICK_MS; mv.heldAtMs = state.clock.ms;
       p = { ...moveAt(mv, state.clock.ms), x: x0, z: z0, vMs: 0 };
+      // (held PIN_END_MS, the doing hands back where it stands ('blocked', PIN_WORDS): the choice yours again, never a walk held for
+      // ever (the v0.0.20 design's U-1 step 3, taken by v0.0.19's fixer: the fumble net's pin-v018, 8 s and more on 16 lanes)
+      // (the walk cut where it stands even where its beat is not one a contact cuts (the approach): held, it is no walk)
+      if (mv.held >= PIN_END_MS && d?.beats?.includes(mv) && d.who === playerId(state) && !d.halt) { mv.cut = true; halt(state, bus, d, 'blocked', PIN_WORDS, state.clock.ms); }
     }
     // (the head and the muzzle go where the drill's eyes are (a bundle's beat with eyes: the slot's corner), else along the path)
     const run = state.stop?.doing?.beats?.filter(b => b.st === 'run') ?? [], eyes = run.find(b => b.eyes)?.eyes ?? null, look = eyes ?? mv.look ?? null;

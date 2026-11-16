@@ -172,6 +172,12 @@ export const COURSES = deepFreeze({
     stallMs: 60_000, stallMoreMs: 30_000, laneMaxMs: 600_000, washMs: 90_000,
     // (the rework's R6, COMBAT §25.19.6: the P-12 on every sheet from 2026-11-15, the Sergeant up before (arms/sidearm.js SIDEARM_TIERS), the house's ten frangible a magazine)
     sidearm: { model: 'p12', mags: [['had17', 10, 'frangible'], ['had17', 10, 'frangible']] },
+    // (v0.0.19, "Stack and clear, live" (the build sheet v0.0.19 §1 L-house; COMBAT §25.18): the stands the role-players take, in
+    // the fill's order (src/sim/scenarios/opfor.js); a man of a leg already cleared seen up again holds the next "Clear!" this long
+    // at most, as the gate does (bundle.js CLEAR_HOLD_MS), before the stall's words; and the team's own words at a live man: your
+    // number two's "Got him." when he covers a man down or with his hands up, a marine's "I'm hit!" at his casualty and the
+    // other's "Man down!" (my calls)
+    opfor: { stands: ['2a', '3a'], got: ['Got him.', 'Got him. Covering.'], hit: ["I'm hit!", "I'm hit! I'm hit!"], manDown: ['Man down!', 'Man down! Man down!'] },
   },
   // (0.0.10: test-stress's course, on pairs.js's engine (see the header); src/sim/scenarios/stress.js)
   stress: {
@@ -460,6 +466,37 @@ export const HOUSE_CHIEF = deepFreeze({
   stop: ['Cease fire! Cease fire!', 'CEASE FIRE! Cease fire!'],
   wash: ['Hot wash. Sit down, look at the board.', 'Hot wash. Here is your lane, room by room.'],
   spin: ['The Wheel puts a round low along the spin.', 'The Wheel drops a round low along the spin. Not enough to miss by, in a room.'],
+  // (v0.0.19, D2 (COMBAT §25.20; house-kit.js): the brief's intelligence ({rooms} the rooms that are hostiles only), the practice
+  // grenades scored as live, the reads' words ({list} the stands down, {who} 'no-shoot' or 'hostage'), the cut and the round through)
+  intel: ['Intelligence: {rooms}, hostiles only. Anywhere else, assume a family.', 'Hostiles only in {rooms}. Every other door could be a family.'],
+  intelNone: ['No room in this house is hostiles only. Assume a family behind every door.', 'Nothing here is hostiles only. Families behind every door.'],
+  practice: ["Practice frags count as live in my book. I'll tell you what they would have done.", 'Those are practice grenades. I score them as the real thing.'],
+  fragGood: ['Good frag. {list} down.', 'That frag did its work: {list}.'],
+  fragged: ['You fragged a room with a {who} in it.', '{who} in there. You never frag a family.'],
+  burst: ['Cease fire! You were in the room when it went.', "CEASE FIRE! In the room at the burst. You'd be dead."],
+  stackBlast: ['Too close. The stack took that blast.', 'On the wall before it goes.'],
+  uncooked: ['A live man throws that back. Cook it.', 'Four seconds on the floor. Cook two.'],
+  exposed: ['You hung in the door to throw. He had you.', 'Throw from the wall, not the door.'],
+  concussed: ['Your no-shoot took that blast.', 'That concussion hurt your no-shoot.'],
+  through: ['A round through that door. Down and in, forty-five.', 'Your round went into the room. Angle it down.'],
+  cut: ['Hinges cut. Go.', "Door's off. In."],
+  cutLatch: ['Latch cut. Go.', "Lock's gone. In."],
+  // (a grenade slipped at the thrower's feet that put the stack in its burst: the cease fire where it was (the review of v0.0.19's K))
+  burstFeet: ['Cease fire! That grenade went at your feet.', 'CEASE FIRE! At your feet, and you stood over it.'],
+  burstFeetTwo: ['Cease fire! You got clear. Your number two did not.', 'CEASE FIRE! Your number two was still on top of it.'],
+
+  // (the live lane's (v0.0.19, COMBAT §25.18): a live man ruled out at his room's "Clear!", covered; paint on you or your number
+  // two ({part} chest or head), the casualty's cease fire with you or him hit, a round on a man whose hands you saw up, a room
+  // reopened by a man seen up after its "Clear!" ({Room}: "Room 3"), a man down or with his hands up left uncovered at "Clear!")
+  out: ["He's out.", 'That one is out.'],
+  paint: ['Paint, {part}. Keep working.', 'You took paint, {part}. Keep working.'],
+  casualty: ['Cease fire! Cease fire! You are hit.', 'CEASE FIRE! You are a casualty.'],
+  twoDown: ['Cease fire! Cease fire! Your number two is hit.', 'CEASE FIRE! Your number two is a casualty.'],
+  surrendered: ['His hands were up! You never shoot a man who gave up.', 'He gave up, and you shot him. Hands up means stop.'],
+  // (the review of v0.0.19's fixer: the tower moved on past MAKE READY with the P-12's round not up; he racks it, as the coach clears a rifle never shown)
+  pistolRacked: ["Your pistol had no round up. I've racked it. Next time it's yours.", "Pistol: no round up. Done for you. Next time, yourself."],
+  reopened: ["{Room}'s not clear!", "{Room} is not clear! There's one up in there."],
+  uncovered: ['Cover your man!', 'Cover him! He is still armed.'],
   // (the one thing to do differently, by the worst number of the run (COMBAT §17.2): the hot wash's last line)
   one: {
     funnel: ['You stood in the doorway. Through it, to your point, and stop there.', 'The door is where they shoot you. Keep moving through it.'],
@@ -475,5 +512,17 @@ export const HOUSE_CHIEF = deepFreeze({
     dummy: ['The click: tap, rack, back on him. It should be quicker.', 'The dummy cost you. Tap, rack, and back on target without thinking.'],
     time: ['Too slow through the rooms. The same drill, quicker hands.', 'Faster between the rooms. The pause is the only time you get.'],
     clean: ['Clean lane. Again, faster.', 'Clean. Now do it again, and quicker.'],
+    fragged: ['You fragged a room with a family in it. The brief told you which rooms were hostiles only.', 'Frags go only where the brief says hostiles only. Everywhere else, a stun or nothing.'],
+    burst: ['You were in the room when your grenade went. On the wall until it goes, then in.', 'Wait for the bang. In the room at the burst, you are dead.'],
+    burstFeet: ['A grenade dropped at the stack\'s feet: the whole stack clear of it, down the wall, and down.', 'A dropped grenade: everyone clear of it and down. Nobody stands over it.'],
+    exposed: ['You showed yourself in the door to throw. Throw from the wall, round the jamb.', 'Stay behind the wall for the throw. Only the arm goes in the door.'],
+    uncooked: ['Your grenades sat on the floor long enough to be thrown back. Cook two.', 'Let the lever go and count two before the throw.'],
+    concussed: ['Your concussion hurt a no-shoot. Throw it deep, away from where they stand.', 'Concussion near a family is a hurt family. Place it.'],
+    through: ['Your breach round went into the room. Muzzle on the lock, forty-five down and in.', 'Angle the breach round down and in, so it ends in the floor.'],
+
+    casualty: ['You took paint and it stopped there. Win the first second: on him before he is on you.', 'Paint on the stack ends it. See him first, shoot first.'],
+    surrendered: ['You shot a man with his hands up. Read the hands every time, even mid-fight.', 'His hands were up. Stop on the hands.'],
+    uncovered: ['A man down is still armed until someone covers him. Cover, then call.', 'Down is not out. Cover him before you call it.'],
+    reopened: ['You called a room clear with a man in it. Find every man before the call.', 'He was still in there. Clear means every man accounted for.'],
   },
 });

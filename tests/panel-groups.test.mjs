@@ -7,7 +7,10 @@
 // holds the remedy; Hammer struck "▮1" with one round left; every key path the panel gives resolves to its row (T's act's in each
 // layout, with NEXT and by its own place); the DI's keys follow the layout played (state.$panel, never saved); the press model
 // over the bots' choices, printed against v0.0.13's pages; layout B's banks on physical keys labelled the same on AZERTY.
-import { assert, fmt } from './helpers.mjs';
+import { gunzipSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { assert, fmt, root } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { houseHonestBot, houseKeysBot, runHouse } from './bots/house.mjs';
 import { pairsBot } from './bots/pairs.mjs';
@@ -17,8 +20,15 @@ import { kdBot } from './bots/kd.mjs';
 import { stepsOf } from '../src/sim/arms/shooting.js';
 import { instinctNow } from '../src/sim/skills/instinct.js';
 import { panelOf } from '../src/sim/arms/panel.js';
-import { modelOf, viewOf, keyPathOf, resolvePath, placesOf, coreKeys, badgeKey, layoutIn, keyOn, LAYOUTS, CORE, GROUPS, BANK_CODES, BANK_KEYS, DEFAULT_LAYOUT } from '../src/sim/arms/groups.js';
+import { modelOf, viewOf, keyPathOf, resolvePath, placesOf, coreKeys, badgeKey, badgeOf, layoutIn, keyOn, situationOf, LAYOUTS, CORE, GROUPS, BANK_CODES, BANK_KEYS, DEFAULT_LAYOUT } from '../src/sim/arms/groups.js';
+import { houseKitBot } from './bots/kit.mjs';
 import { label } from '../src/core/keys.js';
+import { playerActor } from '../src/core/ids.js';
+import { lanePlanOf } from '../src/sim/combat/room.js';
+import { move as kitMove } from '../src/sim/arms/kit.js';
+import { setSt } from '../src/sim/arms/devices.js';
+import { stepAct } from './bots/lib.mjs';
+import { HANDBACK_WORDS } from '../src/sim/combat/bundle.js';
 
 // (a verb: a row's id without its target or way, 'door:push>d1' → 'door:push', 'shot:pair@moving' → 'shot:pair')
 const verb = (id) => String(id).replace(/>.*$/, '').replace(/@.*$/, '');
@@ -64,6 +74,40 @@ function stops({ wide = false } = {}) {
 }
 let memo = null;
 const quickStops = () => (memo ??= stops());
+
+// (v0.0.19, kit D2: every AT THE DOOR stop of a lane by the kit's bot from the fill, with its five and the keys of Breach and
+// Enter there, beside what v0.0.18's five (no `five` on the rows) would have put on them)
+function doorStops(loadout, { use = 'breach', base = 'honest', tier = 'cpl', seed = 48213 } = {}) {
+  const g = createGame({ scenario: 'test-shoothouse', seed, tier, loadout }), out = [];
+  let was = false;
+  const inner = houseKitBot({ use, base });
+  runHouse(g, (st, me, mem) => {
+    const S = st.stop, ch = !!S && S.mode === 'stop' && S.phase === 'choose' && !S.reflex;
+    if (ch && !was) {
+      const steps = stepsOf(st), act = instinctNow(st).line?.act ?? null, model = modelOf(steps, { act });
+      if (model.situation.id === 'door' && !model.situation.hall) {
+        const old = modelOf(steps.map(r => { const { five, ...rest } = r; return rest; }), { act });
+        const breach = model.groups.DRILL.slots[5]?.row, enter = model.groups.DRILL.slots[7]?.row;
+        out.push({ five5: model.situation.five[4]?.row?.id ?? null, breach5: !!model.situation.breach, breachKeys: breach ? keyPathOf(model, 'c', breach.id, { next: false })?.join(' › ') : null, enterKeys: enter ? keyPathOf(model, 'c', enter.id, { next: false })?.join(' › ') : null,
+          oldBreach: breach ? keyPathOf(old, 'c', breach.id, { next: false })?.join(' › ') : null, oldEnter: enter ? keyPathOf(old, 'c', enter.id, { next: false })?.join(' › ') : null, breachId: breach?.id ?? null, enterId: enter?.id ?? null, five: model.situation.five.map(e => e.row?.id ?? null) });
+      }
+    }
+    was = ch;
+    return inner(st, me, mem);
+  });
+  return { stops: out, five: g.state.armoury.range.house.five ?? null, end: g.state.armoury.range.house.end?.why ?? null };
+}
+// (a lane's door stops checked: Breach on 5 at every one where the lane carries a charge or a tool, Enter on 5 elsewhere, never both in one lane)
+// (the hall's leg has no door to breach: THE HALL keeps v0.0.18's five, Enter on 5, and is left out here)
+function fiveCase(loadout, opts) {
+  const L = doorStops(loadout, opts), want = loadout === 'breach' || loadout === 'full';
+  const bad = L.stops.filter(x => (want ? !(x.breach5 && x.five5 === x.breachId) : x.breach5 || (x.enterId && x.five5 !== x.enterId)));
+  const flips = new Set(L.stops.map(x => x.breach5)).size;
+  const keys = [...new Set(L.stops.map(x => `Breach ${x.oldBreach ?? '-'} → ${x.breachKeys ?? '-'}, Enter ${x.oldEnter ?? '-'} → ${x.enterKeys ?? '-'}`))];
+  console.log(`      ${loadout} (${opts?.base ?? 'honest'}, ${opts?.tier ?? 'cpl'}, ${opts?.seed ?? 48213}): R.house.five ${L.five ?? 'none'}; ${L.stops.length} door stops, Breach on 5 at ${L.stops.filter(x => x.breach5).length}; the five's state ${flips > 1 ? 'CHANGED' : 'one'} in the lane; the lane ${L.end}; re-pinned keys (v0.0.18 → now): ${keys.join(' | ')}`);
+  assert(L.stops.length > 0 && !bad.length && flips === 1 && L.end === 'clear', JSON.stringify({ bad: bad.slice(0, 3), flips, n: L.stops.length, end: L.end }));
+  return L;
+}
 
 function checkPlaces(list) {
   // (each verb's numbered slots within its group (DRILL by its half): never two; the third level is not a slot)
@@ -234,6 +278,59 @@ export default [
       const rows = Object.entries(BANK_CODES).map(([code, g]) => ({ code, g, az: label(code, { layout: 'azerty' }), qw: label(code, { layout: 'qwerty' }), want: BANK_KEYS[g] }));
       console.log(`      ${rows.map(r => `${r.code} ${r.g}: AZERTY ${r.az}, QWERTY ${r.qw}`).join(' · ')}; Tab ${label('Tab', { layout: 'azerty' })}`);
       assert(rows.every(r => r.az === r.want && r.qw === r.want) && label('Tab', { layout: 'azerty' }) === 'Tab', JSON.stringify(rows));
+    },
+  },
+  {
+    name: 'on v0.0.18\'s breach lane Breach is on 5 (the build sheet 0.0.19 §6 K-face, §0 item 25: P3 as the user drew it, on a lane whose kit carries a charge or a tool), and the five never changes within the lane: the corporal by the kit\'s bot on 48213, the re-pinned keys printed (one sheet on one seed: the full lane and the flash lane, where Enter keeps 5, are the heavy case\'s)',
+    fn() {
+      fiveCase('breach', { use: 'breach' });
+    },
+  },
+  {
+    name: 'a live grenade is the first situation, A LIVE GRENADE, Throw on 1 and Throw it clear on 2; HANDS FULL for a device in the hands, Throw, Cook 2, Pin back in, Pouch it (Let it go for a tool) and Fix on 1 to 5 (kit2 §2.7), each on the row the sim makes (stepsOf at room 1\'s stack: a G-9P live, armed, a BC-1 held, the halligan); the badges "hands full" and "live grenade" (→ Fix), "not locked" ("open"), and a believed misfire\'s "wait 30 s" counting (seed 17\'s BC-1); and the v0.0.18 save with a G-11 armed in the hand at room 1 opens on HANDS FULL',
+    timeoutMs: 60_000,
+    fn() {
+      // (the review of v0.0.19's K, finding 6: this case fed invented rows (dev:gren:cook:2:i9, dev:charge:recock:i28) the sim never
+      // made; now each band is read off stepsOf with the device put in the hand at room 1's stack)
+      const band = (lo, model, st) => {
+        const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'sgt', setup: 'go', loadout: lo }), s = g.state;
+        const me = playerActor(s), pl = lanePlanOf(s).plans['o:w4:r1']; me.x = pl.stack[0][0]; me.z = pl.stack[0][1];
+        const id = Object.keys(s.items).find(k => s.items[k].model === model);
+        kitMove(s, id, { pid: s.player.id, hand: 0 }); if (st) setSt(s, id, st);
+        if (st === 'live') Object.assign(s.items[id], { leverAtMs: s.clock.ms, fuseAtMs: s.clock.ms + s.items[id].fuseMs });
+        g.step(1);
+        return modelOf(stepsOf(s), { act: instinctNow(s).line?.act ?? null });
+      };
+      const L = band('frag', 'g9p', 'live'), H = band('frag', 'g9p', 'armed'), C = band('cut', 'bc1', 'held'), T = band('breach', 'hal', null);
+      const words = (M) => M.situation.five.map(e => `${e.words ?? '-'}${e.row ? `=${e.row.id}` : ''}`).join(' | '), at = (M, i) => M.situation.five[i]?.row?.id ?? null;
+      // (a believed misfire's wait in a lane: seed 17's BC-1 at room 2, the way in set to another, its room row struck "wait N s")
+      const gm = createGame({ scenario: 'test-shoothouse', seed: 17, tier: 'sgt', setup: 'room:2', loadout: 'cut' }), sm = gm.state, kb = houseKitBot({ use: 'cut' });
+      for (let i = 0; i < 4000 && sm.stop?.carry?.words !== HANDBACK_WORDS.misfire; i++) gm.step(1, kb);
+      gm.step(1, { act: [stepAct('drill:variant:breach')] });
+      const waitOff = stepsOf(sm).find(r => /^drill:room:clear@/.test(r.id) && /^wait \d+ s$/.test(r.off ?? ''))?.off ?? null;
+      const b1 = badgeOf('hands full'), b1b = badgeOf('live grenade'), b2 = badgeOf('not locked'), b3 = waitOff ? badgeOf(waitOff) : null, b4 = badgeOf('locked');
+      console.log(`      a live G-9P: ${L.situation.name}: ${words(L)}`);
+      console.log(`      an armed G-9P: ${H.situation.name}: ${words(H)}; a BC-1 held: ${C.situation.name}: ${words(C)}; the halligan: ${T.situation.name}: ${words(T)}`);
+      console.log(`      badges: hands full ${JSON.stringify(b1)}, live grenade ${JSON.stringify(b1b)}, not locked ${JSON.stringify(b2)}, the misfire's "${waitOff}" ${JSON.stringify(b3)}, locked ${JSON.stringify(b4)}`);
+      assert(L.situation.id === 'live' && at(L, 0) === 'dev:throw' && at(L, 1) === 'dev:gren:clear' && !at(L, 2) && !at(L, 3), words(L));
+      assert(H.situation.id === 'hands' && at(H, 0) === 'dev:throw' && at(H, 1) === 'dev:gren:cook:2' && at(H, 2) === 'dev:repin' && at(H, 4) === 'dev:repin', words(H));
+      assert(C.situation.id === 'hands' && at(C, 3) === 'dev:stow' && C.situation.five[3].words === 'Pouch it' && T.situation.id === 'hands' && at(T, 3) === 'dev:drop' && T.situation.five[3].words === 'Let it go', `${words(C)} · ${words(T)}`);
+      assert(b1?.t === 'to' && b1.ref === 'fix' && b1b?.t === 'to' && b1b.ref === 'fix' && b2?.t === 'note' && b2.text === 'open' && waitOff === 'wait 30 s' && b3?.t === 'note' && b3.text === '30 s' && b3.wait === 30 && b4?.t === 'lock', JSON.stringify({ b1, b1b, b2, b3, waitOff, b4 }));
+      // (the lead's save of v0.0.18: the corporal on 'flash' at room 1's stack, the G-11 armed in his hand, in stop motion)
+      const json = gunzipSync(readFileSync(path.join(root, 'tests', 'saves', 'v0.0.18-house-flash.json.gz'))).toString('utf8');
+      const g = createGame({ scenario: 'test-shoothouse', seed: 48213 }), st = g.load(json), steps = stepsOf(st), M = modelOf(steps, { act: instinctNow(st).line?.act ?? null });
+      const throwKeys = keyPathOf(M, 'c', 'dev:throw', { next: false })?.join(' › '), repin = keyPathOf(M, 'c', 'dev:repin', { next: false })?.join(' › ');
+      console.log(`      the v0.0.18 flash save: ${M.situation.name}: ${words(M)}; Throw it on ${throwKeys}, Pin back in on ${repin}`);
+      assert(M.situation.id === 'hands' && throwKeys === '1' && repin === '3', JSON.stringify({ sit: M.situation.id, throwKeys, repin }));
+    },
+  },
+  {
+    name: 'on v0.0.18\'s full lane Breach is on 5 too, by the honest and the keys bots, and the five never changes within a lane; on the flash lane Enter keeps 5 (heavy: three whole lanes)',
+    heavy: true, timeoutMs: 10 * 60_000,
+    fn() {
+      fiveCase('full', { use: 'breach' });
+      fiveCase('flash', { use: 'flash' });
+      fiveCase('breach', { use: 'breach', base: 'keys', tier: 'private' });
     },
   },
   {

@@ -10,6 +10,9 @@
 // 101.3 kPa and 1.18 m in Mars' surface air (the fit far outside its usual range there). STUN_KPA 20 is COMBAT §11.3's stun.
 // BLAST_KPA is what an opening's leaf holds by its kind (WEAPONS §12.4's proposal: an interior door 15, a fire door 35, a
 // pressure door 100). fragLambda and fragHits are §12.3's fragment helper, tested data for D2 (no fragment grenade is issued).
+// v0.0.19 (D2): CORNER_SHADOW_K 0.5 (to check) is the share of a peak that reaches a body round a jamb with no line of sight to
+// the burst (practice.js's read: a man of the stack on the wall beside the door takes half the free field's peak, or the closed
+// room's pressure where that is more).
 // Pure.
 import { stream, next } from '../../core/rng.js';
 
@@ -21,6 +24,8 @@ export const FIREBALL_M = 0.5;
 export const BREACH_SAFE_KPA = 27.6, STUN_KPA = 20;
 /** TNT's detonation energy (MJ/kg), the closed room's γ − 1 and the afterburn's factor on it (WEAPONS §12.4). */
 export const TNT_MJ_KG = 4.184, QSP_GAMMA_K = 0.4, QSP_BURN_K = 2;
+/** A blast reaching a body round a jamb, no line of sight: this share of the free field's peak (to check; see the header). */
+export const CORNER_SHADOW_K = 0.5;
 /** What an opening's leaf holds by its kind (kPa; WEAPONS §12.4's proposal, my calls on the words). */
 export const BLAST_KPA = Object.freeze({ door: 15, interior: 15, wall: 10, partition: 20, weather: 30, fire: 35, pressure: 100, airlock: 100, bulkhead: 150, hatch: 150, armoury: 300 });
 

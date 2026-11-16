@@ -52,7 +52,7 @@
 import { noise, tone, mixHex } from '../tone.js';
 import { CUT_IDS } from './templates.js';
 import { drawingOf } from '../rifles.js';
-import { helmOf, helmColours } from './helmets.js';
+import { helmOf, helmColours, FOF_MASKS, FOF_MASK, fofMaskColours } from './helmets.js';
 
 /** Skin tones (tradecraft's SKIN). */
 export const SKIN = Object.freeze({ light: 0xedc39c, tan: 0xc48a62, brown: 0x8c5a3f, dark: 0x5e3a2a });
@@ -142,6 +142,8 @@ export function wear(look = {}) {
   // (the helmet samples' candidate, never set by the game: samples/helmets, helmets.js; { id, faction } resolved to its colours
   // and templates, drawn on the combat EVA suit's sealed head)
   if (look.helm) L.helm = helmOf(look.helm);
+  // (v0.0.19: the role-players' force-on-force mask over a bare head (helmets.js FOF_MASKS: an id, or true for the default; compose.js head())
+  if (look.mask) L.mask = FOF_MASKS[look.mask] ? look.mask : FOF_MASK;
   const camo = { pattern: 'valles' };
   switch (outfit) {
     case 'utilities': case 'nco': case 'carrier': case 'rangeStaff':
@@ -216,5 +218,7 @@ export function coloursOf(L, ppm) {
     ...(L.mark?.rim ? { ŕ: L.mark.rim } : {}),
     // (a helmet candidate's jaw piece, filters and rails, and its fixed letters: helmets.js)
     ...(L.helm ? helmColours(L.helm) : {}),
+    // (v0.0.19: the mask's frame and lens, on a head no helmet seals)
+    ...(L.mask && !L.helm ? fofMaskColours(L.mask) : {}),
   };
 }

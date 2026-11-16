@@ -69,6 +69,14 @@
 // person uses (shooting.js gunOn) and carries (carry.js carryOf: kit.carry.posture is that gun's while it is out, the rifle
 // hanging); pistolOf the P-12 carried, holstered or drawn. The pistol pouch is keyed 'pp' ("the pistol pouch"), never one of
 // the chest's numbered pouches, and a rifle magazine coming out is never put in it (pouchFor).
+// v0.0.19 (the build sheet v0.0.19 §1 L-opfor, §5; COMBAT §25.18; src/sim/scenarios/opfor.js): the live lane's kit. The force-on-
+// force mask ('fof-mask', 0.6 kg, my call) is worn in its own slot, kit.worn.mask, which only a mask takes and a mask takes only
+// (canHold); it is in WORN_SLOTS (SLOTS and 'mask', last), which the issue, the I card and what a person carries walk, while SLOTS
+// itself stands as it was so every kit's other ids stand. Two issues: 'opfor-fof', the role-players' (utilities, the carrier
+// with two magazine pouches, the mask, the R-7 slung with two HAD-30s of ten marking rounds: the scene seats the first and racks
+// it, Condition 1 at low ready), and 'house-fof', the marines' on the live lane ('house-cqb' with marking in place of frangible,
+// the instructor's dummy riding as built); FOF_SIDEARM is its P-12's issue, two HAD-17s of ten marking. Marking is a load of
+// calibres.js (never a range's issue).
 import { nextId, put } from '../../core/ids.js';
 import { q } from '../../core/num.js';
 import { areaOf } from '../places/model.js';
@@ -101,6 +109,8 @@ export const CONTAINERS = Object.freeze({
   'pouch-gren': Object.freeze({ type: 'pouch', word: 'grenade pouch', holds: 1, fits: Object.freeze(['grenade']), massKg: 0.08 }),
   'pouch-charge': Object.freeze({ type: 'pouch', word: 'charge pouch', holds: 2, fits: Object.freeze(['charge', 'initiator']), massKg: 0.15 }),
   'scab-tool': Object.freeze({ type: 'pouch', word: 'tool scabbard', holds: 1, fits: Object.freeze(['tool']), massKg: 0.3 }),
+  // (v0.0.19: the force-on-force mask, worn in its own slot by the live lane's role-players (see the header))
+  'fof-mask': Object.freeze({ type: 'mask', word: 'force-on-force mask', slot: 'mask', massKg: 0.6 }),
 });
 
 /** The issue templates: worn (slot → model), the carrier's pouches in reach order, the magazines ([family, rounds]) filling the pouches in order. */
@@ -143,7 +153,23 @@ export const KIT_TEMPLATES = Object.freeze({
     mags: Object.freeze([Object.freeze(['had30', 10, 'frangible']), Object.freeze(['had30', 10, 'frangible']), Object.freeze(['had30', 10, 'frangible'])]),
     cond: 0.93, posture: 'lowReady',
   }),
+  // (v0.0.19, the live lane (see the header): the role-players' issue, two magazines of ten marking, the mask in its slot)
+  'opfor-fof': Object.freeze({
+    worn: Object.freeze({ carrier: 'pc-m3', sling: 'r7', mask: 'fof-mask' }),
+    carrier: Object.freeze(['pouch-mag2', 'pouch-mag2']),
+    mags: Object.freeze([Object.freeze(['had30', 10, 'marking']), Object.freeze(['had30', 10, 'marking'])]),
+    cond: 0.93, posture: 'lowReady',
+  }),
+  // (v0.0.19: the marines' issue on the live lane, 'house-cqb' with marking rounds in place of frangible)
+  'house-fof': Object.freeze({
+    worn: Object.freeze({ suit: 'ces-1', carrier: 'pc-m3', sling: 'r7' }),
+    carrier: Object.freeze(['pouch-mag2', 'pouch-mag2', 'pouch-dump']),
+    mags: Object.freeze([Object.freeze(['had30', 10, 'marking']), Object.freeze(['had30', 10, 'marking']), Object.freeze(['had30', 10, 'marking'])]),
+    cond: 0.93, posture: 'lowReady',
+  }),
 });
+/** The P-12's issue on the live lane (v0.0.19; kit.js issueSidearm's spec): two HAD-17s of ten marking. */
+export const FOF_SIDEARM = Object.freeze({ model: 'p12', mags: Object.freeze([Object.freeze(['had17', 10, 'marking']), Object.freeze(['had17', 10, 'marking'])]) });
 /** A magazine at your feet is within this of you (m): where a dropped one lands (firearms.js atFeet: 0.25 to 0.45 m ahead) with room to spare. */
 export const FEET_M = 1.2;
 /** The pouches' names by their key (pouchesOf): the chest's magazine pouches in reach order, the dump pouch, the ground. */
@@ -151,6 +177,8 @@ export const PLACE_WORDS = Object.freeze({ p1: 'chest pouch 1', p2: 'chest pouch
 
 /** The worn slots, in the order a kit is walked (0.0.12's 'suit' before 'ears', so the other kits' ids stand; the rework's R6 the sidearm's holster and thigh pouch after them). */
 export const SLOTS = Object.freeze(['carrier', 'head', 'sling', 'suit', 'ears', 'holster', 'thigh']);
+/** Every worn slot in walking order: SLOTS, then v0.0.19's 'mask' (the live lane's role-players; see the header), so no other kit's ids move. */
+export const WORN_SLOTS = Object.freeze([...SLOTS, 'mask']);
 /** Whether a person wears ear defenders in their own slot (0.0.7: the KD's; the sound is heard through them). */
 export const earsOn = (state, pid) => !!state.people?.[pid]?.kit?.worn?.ears;
 
@@ -221,6 +249,8 @@ function canHold(state, itemId, to) {
     const kit = state.people?.[to.pid]?.kit;
     if (!state.people?.[to.pid]) return `no person ${to.pid}`;
     const there = kit?.worn?.[to.slot];
+    // (v0.0.19: the mask's slot takes a mask, and a mask goes nowhere else worn)
+    if ((to.slot === 'mask') !== (item.type === 'mask')) return to.slot === 'mask' ? `${to.pid}'s mask slot takes no ${item.type}` : `a mask is worn in its own slot, not ${to.slot}`;
     return there && there !== itemId ? `${to.pid}'s ${to.slot} is taken (${there})` : null;
   }
   if (to.hand !== undefined) {
@@ -317,7 +347,7 @@ export function materialise(state, pid, tmplId, { sets = {}, finish = null } = {
   const pouchIds = carrierId ? T.carrier.map(mk) : [];
   const magIds = T.mags.map(([fam, n, load = 'ball'], i) => newMag(state, { fam, n, load, set: sets[i + 1] ?? null, told: true, toldKind: !T.unkinded }));
   const wornIds = [];
-  for (const slot of SLOTS) {
+  for (const slot of WORN_SLOTS) {
     if (slot === 'sling' && gunId) move(state, gunId, { pid, slot });
     else if (slot === 'carrier' && carrierId) move(state, carrierId, { pid, slot });
     else if (T.worn[slot] && slot !== 'sling' && slot !== 'carrier') { const id = mk(T.worn[slot]); move(state, id, { pid, slot }); wornIds.push(id); }
@@ -405,7 +435,7 @@ function itemKg(state, id, depth = 0) {
   const rec = state.items?.[id];
   if (!rec || depth > 6) return 0;
   if (rec.type === 'mag') return magMassG(rec) / 1000;
-  // (a device's own mass (v0.0.18: devices.js DEVICES))
+  // (a device's own mass (v0.0.18: devices.js DEVICES); a worn thing's, the mask's too (v0.0.19), its CONTAINERS massKg below)
   if (DEVICES[rec.model] && rec.type === DEVICES[rec.model].kind) return DEVICES[rec.model].massKg;
   if (rec.type === 'gun') {
     const M = MODELS[rec.model];
@@ -418,7 +448,7 @@ export function kitMassKg(state, pid) {
   const kit = state.people?.[pid]?.kit;
   if (!kit) return 0;
   let kg = 0;
-  for (const slot of SLOTS) if (kit.worn?.[slot]) kg += itemKg(state, kit.worn[slot]);
+  for (const slot of WORN_SLOTS) if (kit.worn?.[slot]) kg += itemKg(state, kit.worn[slot]);
   for (const id of kit.hands ?? []) if (id) kg += itemKg(state, id);
   return q(kg, 0.01);
 }
@@ -556,7 +586,7 @@ export function kitView(state, pid, { magInS = null, groundS = null, devReachS =
   const kit = state.people?.[pid]?.kit;
   if (!kit) return { groups: [], hand: null, feet: [], sling: null };
   const worn = [];
-  for (const slot of SLOTS) {
+  for (const slot of WORN_SLOTS) {
     const id = kit.worn?.[slot];
     if (id && slot !== 'sling') worn.push({ id, kind: state.items[id]?.type, word: wordOf(state.items[id]), n: null, approx: false, reachS: 0 });
   }

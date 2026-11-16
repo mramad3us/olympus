@@ -28,7 +28,15 @@
 // §2.3, §2.10), which ballistics.js and penetrate.js fly and test (§2.4's table, §8.3 and §8.5's stops and
 // perforations). Neither is issued on Mars's ranges (AP by order, frangible the shipboard standard), so each
 // is marked range: false and LIVE_LOADS, the kinds a range's magazine is filled with, leaves them out.
+// v0.0.19 (the build sheet v0.0.19 §5; COMBAT §25.10.4, §25.18; PLACES §4.15): the marking round, the live lane's load for the
+// marines and the role-players alike: a 0.5 g plastic bullet of paint at 120 m/s from the R-7 (110 from the P-12), subsonic, so a
+// near miss is supp.js's SUBSONIC_PTS and a strike stings for HIT_PTS; it neither penetrates (pen0Mm 0) nor wounds (woundK 0),
+// and it is never a range's issue (range: false). Its spin bias on the Wheel is COMBAT's 2.8 cm at 5 m (src/sim/places/spin.js:
+// ω d² / v at 120 m/s). Its pink tip and its drag (bcG7 0.05, its speed at 5 m and 7 m tests/opfor-fire.test.mjs prints) are my calls.
 // Data only: frozen literals and three lookups.
+
+/** The marking round's own fields (v0.0.19; see the header): one record, the P-12's its speed from its own barrel. */
+const MARKING_6_5 = Object.freeze({ word: 'marking', tip: 0xd4508c, tipWord: 'a pink plastic tip', massG: 0.5, vRefMs: 120, refBarrelMm: 460, vExp: 0.18, bcG7: 0.05, pen0Mm: 0, penExp: 2, woundK: 0, marking: true, priceMcr: 0.25, range: false });
 
 /** The calibres (WEAPONS §2.2, §2.3): id → { word, diaMm, caseMm, caseG, propG, boxN, loads }. */
 export const CALIBRES = Object.freeze({
@@ -39,6 +47,8 @@ export const CALIBRES = Object.freeze({
       tracer: Object.freeze({ word: 'tracer', tip: 0xc23b2e, tipWord: 'a red tip', massG: 7.5, vRefMs: 790, refBarrelMm: 460, vExp: 0.18, bcG7: 0.22, pen0Mm: 6.5, penExp: 2, woundK: 1.0, tracerM: 900, traceFromM: 30, ignites: true, priceMcr: 0.40 }),
       ap: Object.freeze({ word: 'AP', tip: 0x1c1c1c, tipWord: 'a black tip', massG: 7.1, vRefMs: 815, refBarrelMm: 460, vExp: 0.18, bcG7: 0.25, pen0Mm: 13.0, penExp: 1.5, woundK: 0.9, priceMcr: 1.20, byOrder: true, range: false }),
       frangible: Object.freeze({ word: 'frangible', tip: 0x3f6fb5, tipWord: 'a blue tip', massG: 6.0, vRefMs: 790, refBarrelMm: 460, vExp: 0.18, bcG7: 0.15, pen0Mm: 1.5, penExp: 2, woundK: 1.1, frangible: true, priceMcr: 0.45, range: false }),
+      // (v0.0.19: the live lane's marking round (see the header))
+      marking: Object.freeze(MARKING_6_5),
       blank: Object.freeze({ blank: true, word: 'a blank' }),
       dummy: Object.freeze({ dummy: true, word: 'an orange dummy' }),
     }),
@@ -49,6 +59,8 @@ export const CALIBRES = Object.freeze({
       ball: Object.freeze({ word: 'ball', tip: null, tipWord: 'a bare copper tip', massG: 7.5, vRefMs: 390, refBarrelMm: 110, vExp: 0.18, bcG7: 0.072, pen0Mm: 2.0, penExp: 2, woundK: 1.0, priceMcr: 0.15 }),
       // (the shoot house's P-12 load (the rework's R6; WEAPONS §2.3: 5.6 g at 430 m/s, pen 0.6; its BC my call), never a Mars range's issue)
       frangible: Object.freeze({ word: 'frangible', tip: 0x3f6fb5, tipWord: 'a blue tip', massG: 5.6, vRefMs: 430, refBarrelMm: 110, vExp: 0.18, bcG7: 0.06, pen0Mm: 0.6, penExp: 2, woundK: 1.1, frangible: true, priceMcr: 0.20, range: false }),
+      // (v0.0.19: the live lane's marking round for the P-12 (see the header))
+      marking: Object.freeze({ ...MARKING_6_5, vRefMs: 110, refBarrelMm: 110 }),
     }),
   }),
 });

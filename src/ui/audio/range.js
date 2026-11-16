@@ -68,6 +68,7 @@ import { airAt } from '../../sim/places/env.js';
 import { inHouse } from './house.js';
 import { areaOf } from '../../sim/places/model.js';
 import { gunOf, spaceOf, ownShot, otherShot, echoShot } from './gun.js';
+import { isMarking, markingShot, MARKING_DB, MARKING_LP_HZ } from './marking.js';
 
 /** The berm's face (x, m) and the tower's speaker ({ x, y, z }, m: its deck) on the 25 m bay (PLACES §4.12: src/data/places/range.js, the stage's authored bay). */
 export const BERM_FACE_X = KD_RANGE.bay.berm[0], TOWER_AT = Object.freeze({ x: KD_RANGE.tower.ro.x, y: KD_RANGE.tower.deckY, z: KD_RANGE.tower.ro.z });
@@ -319,7 +320,9 @@ export function createRange(engine, { looks = {}, clock = () => (globalThis.perf
     const me = meOf(state), mine = f.who === playerId(state), ears = earsOf(state), air = airHere(state), c = air.soundMs, pKpa = air.pKpa;
     const muzzle = Array.isArray(f.muzzle) ? { x: f.muzzle[0], z: f.muzzle[1] } : f.muzzle ?? null;
     if (gun) return gunSound(f, state, { me, mine, ears, c, pKpa, muzzle, lagS });
-    const v = reportVoice({ me, muzzle, mine, ears, soundMs: c, pKpa });
+    const vr = reportVoice({ me, muzzle, mine, ears, soundMs: c, pKpa });
+    // (v0.0.19: a marking round's pop on the old sound too)
+    const v = isMarking(f) ? { ...vr, gainDb: vr.gainDb + MARKING_DB, lowpassHz: Math.min(vr.lowpassHz, MARKING_LP_HZ), echo: { ...vr.echo, gainDb: vr.echo.gainDb + MARKING_DB } } : vr;
     const ok = impulse('report', { delayS: v.delayS + lagS, gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan });
     if (ok) { stats.reports++; stats.lastReport = { gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round(v.delayS * 1000) / 1000, ears, mine }; }
     // (0.0.12: in the shoot house there is no berm 28 m off: the hall's reverb is the room's answer (house.js, engine.js's send))
@@ -361,14 +364,17 @@ export function createRange(engine, { looks = {}, clock = () => (globalThis.perf
     const mx = muzzle?.x ?? me?.x ?? 0, ex = me?.x ?? mx;
     const berm = indoors ? null : echoOf({ muzzleX: mx, meX: ex, gainDb: 0, ears: false, bermX: bermFor(ex), pKpa, soundMs: c });
     const space = gunSpaceOf(state, berm ? berm.pathM : Infinity);
-    const supersonic = f.load !== 'blank' && (f.flight && typeof f.flight.supersonic === 'boolean' ? f.flight.supersonic : true);
+    // (v0.0.19: a marking round is subsonic and a pop: the gun's voices through marking.js markingShot)
+    const marking = isMarking(f);
+    const supersonic = f.load !== 'blank' && !marking && (f.flight && typeof f.flight.supersonic === 'boolean' ? f.flight.supersonic : true);
     const roll = space === 'room' ? ROLLOFF.floor : ROLLOFF.ground;
-    const v = mine ? ownShot({ gun: model, space, prot, pKpa, supersonic, lagS }) : otherShot({ gun: model, space, prot, pKpa, soundMs: c, me, muzzle, supersonic, lagS, roll });
+    const v0 = mine ? ownShot({ gun: model, space, prot, pKpa, supersonic, lagS }) : otherShot({ gun: model, space, prot, pKpa, soundMs: c, me, muzzle, supersonic, lagS, roll });
+    const v = marking ? markingShot(v0) : v0;
     const verdict = limiter.admit(clock() + v.delayS);
     let ok = false;
     if (verdict === 'play') {
       ok = v.voices.map(x => gun.play(x))[0];
-      if (ok) { stats.reports++; stats.lastReport = { gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round(v.delayS * 1000) / 1000, ears: !!prot, mine, gun: model, space, prot, protected: mine ? !!prot : !!v.protected, sound: 'new' }; }
+      if (ok) { stats.reports++; stats.lastReport = { gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz), distM: r1(v.distM), delayS: Math.round(v.delayS * 1000) / 1000, ears: !!prot, mine, gun: model, space, prot, protected: mine ? !!prot : !!v.protected, sound: 'new', ...(marking ? { marking: true } : {}) }; }
     }
     // (outdoors, the berm's slap-back: its own voice at echoOf's delay and fall, through the same limit)
     if (berm && space !== 'room') {
