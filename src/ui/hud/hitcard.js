@@ -12,8 +12,11 @@
 //   hitShown({ phase, n, inStop, lastT, nowT })   whether the card shows (pure)
 //   cardModel(hm, { look, face, holds, tabs, rangeM })    paintHitcard's input from hitMarks' record (pure)
 //   hitRangeM(T, at, lineM)                       the turner's range, the card's band's input: the line's, else the ground's (pure)
-//   hitTabs(keys, shown, laneOf)                  the tabs of a string with two turners hit, newest first (pure)
+//   hitTabs(keys, shown, laneOf, labelOf)         the tabs of a string with two turners hit, newest first (pure); 0.0.18: labelOf
+//                                                 names a tab (the shoot house's by its stand, '1a'), else L<lane>
 //   createHitcard(parent, { paint })              the DOM: update(model | null, { ui, dpr }) → its words
+// 0.0.18 (the build sheet 0.0.18 §2.2): the card's model may carry a subject (src/art/doll/hitcard.js: a board, the hostage
+// pair or a man in his gear), part of its signature; when it opens, which target and for how long are hud/target.js's.
 import { CARD_W, cardSize, bandOf } from '../../art/doll/hitcard.js';
 import { PAPERS } from '../../sim/arms/paper.js';
 
@@ -43,8 +46,8 @@ export function hitFit(ui = 1, dpr = 1) {
 }
 
 /** The tabs of a string's turners hit, newest first: [{ key, label: 'L3', on }]; laneOf(key) the turner's lane. */
-export function hitTabs(keys = [], shown = null, laneOf = () => null) {
-  return keys.map(key => ({ key, label: `L${laneOf(key) ?? '?'}`, on: key === shown }));
+export function hitTabs(keys = [], shown = null, laneOf = () => null, labelOf = null) {
+  return keys.map(key => ({ key, label: labelOf?.(key) ?? `L${laneOf(key) ?? '?'}`, on: key === shown }));
 }
 
 /**
@@ -85,7 +88,7 @@ export function createHitcard(parent, { paint } = {}) {
       root.hidden = false;
       const fit = hitFit(ui, dpr), fs = `${fit.size}|${fit.k}|${fit.smooth}`;
       if (fs !== fitSig) { fitSig = fs; sig = null; cv.width = fit.size; cv.height = fit.size; cv.style.width = `${fit.size * fit.k}px`; cv.style.height = `${fit.size * fit.k}px`; cv.style.imageRendering = fit.smooth ? 'auto' : 'pixelated'; root.dataset.k = String(fit.k); root.dataset.size = String(fit.size); root.dataset.smooth = fit.smooth ? '1' : ''; }
-      const sg = JSON.stringify([m.look, bandOf(m.rangeM ?? null).id, m.face, m.holds, m.phase, m.marks.map(x => [x.n, x.called, x.seen, x.hole, x.zone]), m.words, m.line, m.tabs]);
+      const sg = JSON.stringify([m.look, bandOf(m.rangeM ?? null).id, m.face, m.holds, m.phase, m.marks.map(x => [x.n, x.called, x.seen, x.hole, x.zone]), m.words, m.line, m.tabs, ...(m.subject ? [m.subject.kind, m.subject.key ?? null, m.subject.face ?? null, m.subject.holds ?? null] : [])]);
       if (sg !== sig && paint) {
         sig = sg;
         const pm = paint({ ...m, size: fit.size });

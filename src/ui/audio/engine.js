@@ -56,6 +56,8 @@
 // a CHAOS recipe on the world bus now or delayS later; loop(key, kind, bus, gainDb) holds a looping CHAOS voice on a bus at
 // a level (null: faded out). fact() hands the 'fx' fact to it; frame(state, alpha, nowS, { splash, chaos }) the reading
 // (main.js's supp.js suppNow), and caption() the deafness's caption once.
+// 0.0.18 (blast.js, the build sheet 0.0.18 §11): the kit's bursts in the shoot house (a G-11's 'bang', a charge's 'blast') go to
+// blast.js instead, on the same ops and recipe, through the combat EVA suit's gate; the bay's bangs stay bang.js's.
 //
 // The 0.0.10 round's (stress.js, the build sheet 0.0.10 §2.3; VIEWS §11.2, §11.3): STRESS's recipes (the air horn's blast, Breathe's
 // box breath) baked after the chaos's; stress(kind, opts) plays one on the world bus now or delayS later, the blanks' reports are
@@ -89,6 +91,7 @@ import { createStepScheduler, stepVoice, lowpassHz, stepTrimDb } from './steps.j
 import { createWorld } from './world.js';
 import { createRange } from './range.js';
 import { createBang } from './bang.js';
+import { createBlast } from './blast.js';
 import { createStress } from './stress.js';
 import { createHouse } from './house.js';
 import { gunBakes, GUN_RATE_HZ, TAIL_RATE_HZ } from './gun.js';
@@ -413,6 +416,9 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
   };
   const bangSounds = createBang(bangOps, { looks });
   stats.bang = bangSounds.stats;
+  // (0.0.18: the kit's bursts in the shoot house, through the suit (blast.js), on the bang's own ops and recipe)
+  const blastSounds = createBlast(bangOps, { looks });
+  stats.blast = blastSounds.stats;
   // ---- 0.0.10: the din (stress.js asks for them): a STRESS recipe on the world bus, the blanks' reports through the range's ----
   const stressOps = {
     stress(kind, { delayS = 0, gainDb = 0, lowHz = WORLD_OPEN_HZ, pan = 0, rate = 1 } = {}) {
@@ -518,7 +524,7 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
       const hs = type === 'house' || type === 'bundle' || type === 'say' ? houseSounds.fact(type, payload, state) : false;
       if (type === 'house' || type === 'bundle') return hs || w;
       // (0.0.9: a bang's report; 0.0.10: the horn and a blank)
-      if (type === 'fx') return (payload?.kind === 'horn' || payload?.kind === 'blank' ? stressSounds.fact(type, payload, state) : bangSounds.fact(type, payload, state)) || w;
+      if (type === 'fx') return (payload?.kind === 'horn' || payload?.kind === 'blank' ? stressSounds.fact(type, payload, state) : blastSounds.ours(type, payload, state) ? blastSounds.fact(type, payload, state) : bangSounds.fact(type, payload, state)) || w;
       return rangeSounds.fact(type, payload, state) || w;
     },
     /** The deafness's caption once a deafness ('[a high whine]'), else null (0.0.9). */

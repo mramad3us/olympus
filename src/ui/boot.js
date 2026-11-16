@@ -153,7 +153,8 @@ export function createBoot({ root = document.body, cb }) {
     if (!page || title.hidden || card || e.metaKey || e.ctrlKey || e.altKey) return;
     const step = e.code === 'ArrowDown' || e.code === 'KeyS' ? 1 : e.code === 'ArrowUp' || e.code === 'KeyW' ? -1 : 0;
     if (!step) return;
-    const items = [...title.querySelectorAll('button.item')];
+    // (0.0.18: a disabled button, which cannot take the focus, left out: the loadout's fixed front places)
+    const items = [...title.querySelectorAll('button.item:not(:disabled)')];
     if (!items.length) return;
     e.preventDefault();
     const at = items.indexOf(root.ownerDocument.activeElement);
@@ -172,7 +173,8 @@ export function createBoot({ root = document.body, cb }) {
     page = 'picker';
     const { sheets = {}, order = null, hard = null, parMs = {}, parOf = null } = cb.sheets?.() ?? {};
     // (0.0.9: each sheet's hardening in words, main.js's reader (supp.js hardWord); 0.0.12: the shoot house's par chooser, its choice carried)
-    const p = pickerPage({ scene, sheets, order, hard, parMs, parOf, onPick: (tier, o = {}) => cb.playScene?.(scene, { tier, ...(o.par ? { par: o.par } : {}) }), onBack: () => back() });
+    // (0.0.18: the shoot house's loadout, main.js's (cb.loadout: the code kept in this browser, the screen's preview), carried with the pick)
+    const p = pickerPage({ scene, sheets, order, hard, parMs, parOf, loadout: cb.loadout?.() ?? null, onPick: (tier, o = {}) => cb.playScene?.(scene, { tier, ...(o.par ? { par: o.par } : {}), ...(o.loadout ? { loadout: o.loadout } : {}) }), onBack: () => back() });
     title.replaceChildren(p.body);
     title.hidden = false;
     (p.body.querySelector('.item.lead') ?? p.body.querySelector('.item'))?.focus();

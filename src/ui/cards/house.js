@@ -16,7 +16,10 @@
 /** Two places of seconds, as every paper says them. */
 const two = (ms) => (Number.isFinite(ms) ? (Math.max(0, ms) / 1000).toFixed(2) : '–');
 /** The marks a row's words carry that are faults (drawn red). */
-export const FAULT_MARKS = Object.freeze(['NO-SHOOT HIT', 'HOSTAGE HIT', 'MUZZLE', 'FIRED FIRST', 'MISSED', 'STANDING', 'YOUR CORNER', 'DOOR LEFT', 'TIME', 'CEASE FIRE']);
+export const FAULT_MARKS = Object.freeze(['NO-SHOOT HIT', 'HOSTAGE HIT', 'MUZZLE', 'FIRED FIRST', 'MISSED', 'STANDING', 'YOUR CORNER', 'DOOR LEFT', 'TIME', 'CEASE FIRE',
+  // (v0.0.18, the kit's (COMBAT §25.20): late on the bang, the stack in a charge's blast, a grenade slipped at your feet, a
+  // charge left on its door at the lane's end)
+  'BANG TO ENTRY', 'STACK IN THE BLAST', 'BANG AT YOUR FEET', 'CHARGE LEFT']);
 /** Whether a mark is a fault (red on the paper). */
 export const isFault = (mark) => FAULT_MARKS.some(f => String(mark).toUpperCase().includes(f));
 

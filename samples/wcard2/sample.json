@@ -1,0 +1,31 @@
+{
+ "title": "The second gun on the weapon card: three ways to show it",
+ "about": "Your ask of 2026-11-15: the P-12 shown like the rifle. The house issues the P-12 beside the R-7 on every sheet, and the card showed only the gun in use: the holstered pistol's condition, or the rifle hanging on its sling with a double feed, were nowhere on screen. Each picture is four cards drawn by the game's own weapon card, every word and mark from what you believe of each gun: at GO (the R-7 in use, the P-12 holstered, SAFE 1+9); after Transition (the P-12 drawn as a pistol, the rifle hanging on its click); the rifle hanging with a double feed; the P-12 locked back on an empty. The game draws WC2-A until you pick. Shown raw, as the hud shows the card.",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "WC2-A",
+   "title": "WC2-A: a strip at the card's foot, a picture for where it is",
+   "about": "The gun in use whole, as today, with a small brass hands mark at its top left; the other gun in a strip at the foot (rows 124 to 147, under a rule): a glyph for where it is (the holster, hanging on its sling, slung in front or on your back), its silhouette from its own card drawing (the pistol at a third of its card size, the rifle at a quarter) and its condition from its own belief (SAFE 1+9; an amber ! for a stoppage, ? for a chamber never checked). With one gun the card is as it was, pixel for pixel. The default built.",
+   "views": [
+    { "id": "WC2-A-a", "name": "At GO; after Transition; the rifle hanging with a double feed; the P-12 locked back on an empty", "query": "v=a", "pixel": "740x164" }
+   ]
+  },
+  {
+   "id": "WC2-B",
+   "title": "WC2-B: the same strip, the place in a word",
+   "about": "As A, with the place spelt out (HOLSTER, HANGING, SLUNG, BACK) in place of the glyph, the silhouette and the condition after it.",
+   "views": [
+    { "id": "WC2-B-a", "name": "At GO; after Transition; the rifle hanging with a double feed; the P-12 locked back on an empty", "query": "v=b", "pixel": "740x164" }
+   ]
+  },
+  {
+   "id": "WC2-C",
+   "title": "WC2-C: two half cards side by side",
+   "about": "Each gun's own card at half its size, the one in use on the left and lit, the other on the right and dimmed. Both guns are whole, but every word and mark is half as big.",
+   "views": [
+    { "id": "WC2-C-a", "name": "At GO; after Transition; the rifle hanging with a double feed; the P-12 locked back on an empty", "query": "v=c", "pixel": "740x164" }
+   ]
+  }
+ ]
+}

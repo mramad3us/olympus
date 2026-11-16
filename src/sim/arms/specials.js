@@ -89,6 +89,7 @@ import { aimMsOf, heldOf, dcOf, modsOf, resolveShot, fireMs, recoverMs, TRIGGER_
 import { A_MARGIN } from './paper.js';
 import { beliefOf, actionMs } from './firearms.js';
 import { macrosFor, subsOf } from './drills.js';
+import { markRow } from './rowmark.js';
 import { pouchesOf, believedN, sparesOf } from './kit.js';
 import { famCap, MODELS } from './models.js';
 import { turnersOf, turnerTargets } from './turners.js';
@@ -540,8 +541,12 @@ export function reloadRows(state, pid, ms = state.clock.ms) {
   if (!ms0.length) return [];
   const roller = rollerOf(state, pid, { ms }), out = [];
   for (const m of ms0) {
-    const purpose = RELOAD_PURPOSE[m.id], row = { ...macroRow(state, roller, gun, b, m), purpose, label: RELOAD_LABELS[purpose], first: false };
-    if (purpose === 'speed') row.first = (!!b.locked && b.count === 0) || b.mag === 'out';
+    // (v0.0.18: the label is the planner's name for the path (plan.js nameOf), the path on 'path', never 'queue': stepsOf reads a
+    // queue as an answer to the man facing you)
+    const purpose = RELOAD_PURPOSE[m.id], row = { ...macroRow(state, roller, gun, b, m), purpose, label: m.name ?? RELOAD_LABELS[purpose], first: false };
+    if (m.path) markRow(row, 'path', [...m.path]);
+    // (the planner's RELOAD on a magazine believed empty in a closed, empty rifle (drills.js macrosFor) is first too: it is the way)
+    if (purpose === 'speed') row.first = (!!b.locked && b.count === 0) || b.mag === 'out' || (b.mag === 'in' && b.count === 0 && b.chamber !== 'live');
     if (purpose === 'tactical') {
       // (first in a lull, the magazine in at half or less, with a fuller one at hand: a magazine of ten in a thirty has
       // nothing to top up with from others of ten (my call: "half" alone would lead with Top up on a full load of ten))
@@ -551,7 +556,7 @@ export function reloadRows(state, pid, ms = state.clock.ms) {
       // (the coach's named magazine: Top up reaches for its pouch, and says which (§8 item 18))
       const want = R?.wantMag ? state.items[R.wantMag] : null, pouch = want ? pouchesOf(state, pid).find(p => !p.dump && p.mags.includes(R.wantMag)) : null;
       if (want && pouch && gun.mag !== R.wantMag) {
-        const q = subsOf(m.id, b).map(a => (a === 'reach' ? `reach@${pouch.key}` : a)), n = believedN(want);
+        const q = (m.path ?? subsOf(m.id, b)).map(a => (a === 'reach' ? `reach@${pouch.key}` : a)), n = believedN(want);
         row.queue = q;
         row.ms = q.reduce((t, a) => t + actionMs(roller, gun, a, { tempo: 'normal' }), 0);
         row.subs = q.map(a => ({ id: a, label: LABELS[a] ?? a, ms: actionMs(roller, gun, a, { tempo: 'normal' }) }));

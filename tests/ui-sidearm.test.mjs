@@ -9,6 +9,8 @@
 import { assert } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 
+// v0.0.18: the weapon card shows both guns in the page: at GO the holstered P-12 in the strip ("P-12 HOLSTER · SAFE · 1 + 9"),
+// after Transition the P-12 drawn as a pistol (P12A, pixel for pixel), never the R-7, the rifle hanging in the strip.
 // (in the page: the stoppage bot stepped until the dummy's click opens the card; returns the card's options or null)
 const toCard = (page, answer, keys = false) => page.evaluate(async ([answer, keys]) => {
   const O = window.__olympus, m = await import('/tests/bots/house.mjs'), bot = keys ? m.houseKeysBot() : m.stoppageBot({ answer });
@@ -50,6 +52,11 @@ export default [
         // (the boot recruit by the keys: Transition first, by its digit)
         await game.open('play=test-shoothouse&setup=go&tier=recruit&seed=1489397426&nostore=1');
         await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.course === 'house', null, { timeout: 60000 });
+        // (v0.0.18: at GO the card's strip carries the holstered P-12, its condition its own belief's)
+        await page.waitForFunction(() => !!document.querySelector('.steps .wcard')?.dataset.other, null, { timeout: 15000 });
+        const atGo = await page.evaluate(() => document.querySelector('.steps .wcard').dataset.other);
+        console.log(`      recruit at GO: the strip "${atGo}"`);
+        assert(/^P-12 HOLSTER · SAFE · 1 \+ \d+$/.test(atGo), atGo);
         const rec = await toCard(page, 'transition', true);
         console.log(`      recruit: ${rec?.map(o => `${o.label}${o.off ? ` [${o.off}]` : ''}`).join(' | ')}`);
         assert(rec?.[0]?.key === 'transition' && !rec.some(o => o.off), JSON.stringify(rec));
@@ -61,6 +68,28 @@ export default [
         const out = await page.evaluate(() => { const s = window.__olympus.state, pid = s.player.id; return { gun: s.stop?.gun, hands: s.people[pid].kit.hands ?? null, weapon: s.items[s.stop?.gun]?.model ?? null, figure: !!document.querySelector('canvas') }; });
         console.log(`      recruit: the P-12 drawn: ${JSON.stringify(out)}`);
         assert(out.weapon === 'p12' && out.hands?.[0] === out.gun, JSON.stringify(out));
+        // (v0.0.18: the card draws the P-12 as a pistol (P12A), never the R-7, with the rifle hanging in its strip)
+        await page.waitForFunction(() => /^R-7 HANGING/.test(document.querySelector('.steps .wcard')?.dataset.other ?? ''), null, { timeout: 15000 });
+        const pic = await page.evaluate(async () => {
+          const W = await import('/src/art/weaponcard.js'), G = await import('/src/sim/arms/guns.js'), F = await import('/src/sim/arms/firearms.js');
+          const s = window.__olympus.state, pid = s.player.id, belief = F.beliefOf(s, s.stop.gun), other = G.otherGunView(s, pid);
+          const c = document.querySelector('.steps .wcard canvas'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+          const same = (pm) => { const b = new Uint8ClampedArray(pm.data.buffer); if (b.length !== d.length) return false; for (let i = 0; i < b.length; i++) if (b[i] !== d[i]) return false; return true; };
+          return { strip: document.querySelector('.steps .wcard').dataset.other, pistol: same(W.paintWeaponCard({ model: 'p12', drawing: 'p12a', belief, other })), rifle: same(W.paintWeaponCard({ model: 'r7', belief, other })) };
+        });
+        console.log(`      recruit, the P-12 drawn: the card is P12A's ${pic.pistol}, the R-7's ${pic.rifle}; the strip "${pic.strip}"`);
+        assert(pic.pistol && !pic.rifle, JSON.stringify(pic));
+        // (v0.0.18, the review's: a click on the strip is GUN 3's row, Rifle up here, sent whole: it was the row's id alone, and
+        // main.js's sendStep read step.act and step.id off a string, so the click sent { step: undefined } and nothing started)
+        await page.waitForTimeout(300);
+        const box = await page.evaluate(async () => {
+          const W = await import('/src/art/weaponcard.js'), r = document.querySelector('.steps .wcard canvas').getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + (W.OTHER_Y + W.OTHER_H / 2) / W.CARD_H * r.height, rifle: window.__olympus.state.people[window.__olympus.state.player.id].kit.worn.sling };
+        });
+        await page.mouse.click(box.x, box.y);
+        await page.waitForFunction((rifle) => { const s = window.__olympus.state; return s.stop?.doing?.step === 'weapon:rifle-up' || s.stop?.gun === rifle; }, box.rifle, { timeout: 15000 });
+        const clicked = await page.evaluate(() => ({ step: window.__olympus.state.stop?.doing?.step ?? null, gun: window.__olympus.state.items[window.__olympus.state.stop?.gun]?.model ?? null }));
+        console.log(`      a click on the strip: ${JSON.stringify(clicked)}`);
         // (the rest of the lane by the keys bot, to the card)
         const ended = await page.evaluate(async () => {
           const O = window.__olympus, m = await import('/tests/bots/house.mjs'), bot = m.houseKeysBot();

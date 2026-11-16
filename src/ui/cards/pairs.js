@@ -26,6 +26,10 @@
 // 0.0.12 (the build sheet 0.0.12 §2.3, §5.4): "Stack and clear" (test-shoothouse) opens the same picker on the Private, the six sheets
 // with the Boot recruit at their head (the scene's own list), and under them the par chooser (parOptions: the sheet's own, Basic
 // 3.0 s, Advanced 1.5 s, Operator 0.8 s, the scene's PAR_MS; P cycles it), which the pick carries (onPick(tier, { par })).
+// 0.0.18 (the build sheet 0.0.18 §2.3, §8 item 9): under the par, "Kit: Standard ▸" (Enter on it, or a click) opens the loadout screen
+// (cards/loadout.js) in the picker's place, one loadout for every sheet; Kit up comes back and the pick carries its code
+// (onPick(tier, { par, loadout })); the standard is carried as no code at all, so its lane is the lane without one.
+import { loadoutPage, loadoutWord } from './loadout.js';
 
 /** The tiers on the picker, in its order, when the sim's PICKER_TIERS is not given. */
 export const PICKER_ORDER = Object.freeze(['recruit', 'private', 'sgt', 'raider', 'tierone']);
@@ -86,7 +90,7 @@ export function parWords(o, own = null, parMs = {}) {
  * sheet's own); onBack(). 0.0.12: a scene with pars (test-shoothouse) shows the par chooser under the sheets (P cycles it, or a
  * click): parMs the scene's PAR_MS, parOf(tier) the sheet's own par's name.
  */
-export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null, parMs = {}, parOf = null }) {
+export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null, parMs = {}, parOf = null, loadout = null }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
   // (the scene's own list and default where it names them (scenes.js: sheets, sheet), else the sim's picker order)
   const rows = pickerRows(sheets, Array.isArray(scene?.sheets) ? scene.sheets : order, scene?.sheet ?? PICKER_DEFAULT, { hard, lead: leadsHard(scene) });
@@ -107,8 +111,14 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
   });
   const parText = () => { for (const [i, b] of parBtns.entries()) b.textContent = parWords(pars[i], null, parMs); };
   parText();
+  // (v0.0.18: the shoot house's loadout, one for every sheet (cards/loadout.js): "Kit: Standard ▸" opens its screen in the picker's
+  // place, Kit up comes back with the code, carried into the lane with the sheet; loadout: main.js's { code, save, preview, wh })
+  let kitCode = loadout && scene?.scenario === 'test-shoothouse' ? (loadout.code ?? 'standard') : null;
+  const kitBtn = kitCode !== null ? el('button', { className: 'item small kitpick', type: 'button' }, '') : null;
+  const kitText = () => { if (kitBtn) { kitBtn.textContent = `Kit: ${loadoutWord(kitCode)} ▸`; kitBtn.dataset.code = kitCode; } };
+  kitText();
   const buttons = rows.map((r, i) => {
-    const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}`, type: 'button', onclick: () => onPick?.(r.tier, { par: pars[parAt]?.id ?? null }) }, el('kbd', { textContent: String(i + 1) }), r.label, small(r));
+    const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}`, type: 'button', onclick: () => onPick?.(r.tier, { par: pars[parAt]?.id ?? null, ...(kitCode && kitCode !== 'standard' ? { loadout: kitCode } : {}) }) }, el('kbd', { textContent: String(i + 1) }), r.label, small(r));
     b.dataset.tier = r.tier;
     // (0.0.12: each sheet's own par on its line's hover, where the scene has pars)
     if (pars.length && parOf) { const own = parOf(r.tier); if (own) b.title = `Par: ${parWords(pars[0], own, parMs)}`; }
@@ -121,17 +131,29 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
     el('hr'),
     ...buttons,
     pars.length ? el('div', { className: 'pars' }, el('span', { className: 'parhead' }, el('kbd', { textContent: 'P' }), ' Par'), ...parBtns) : null,
+    kitBtn,
     el('hr'),
     el('button', { className: 'item small', type: 'button', onclick: () => onBack?.() }, 'Back'),
     el('p', { className: 'note', textContent: scene?.goal ?? '' }));
+  // (the loadout's screen in the picker's place, and back (see above): the sheet focused or the scene's default for its reach)
+  const page = [...body.childNodes];
+  const openKit = () => {
+    const tier = rows.find(r => r.focus)?.tier ?? 'private', lp = loadoutPage({ code: kitCode, tier, wh: loadout?.wh?.(tier) ?? 10, preview: loadout?.preview ? (c) => loadout.preview(c, tier) : null,
+      onDone: (c) => { kitCode = c; loadout?.save?.(c); kitText(); close(); }, onBack: () => close() });
+    body.replaceChildren(lp.body); body.classList.add('kit');
+    lp.body.querySelector('button.issue.on, button.issue')?.focus();
+  };
+  const close = () => { body.replaceChildren(...page); body.classList.remove('kit'); kitBtn?.focus(); };
+  if (kitBtn) kitBtn.onclick = () => openKit();
   // (the digits pick a sheet as on a card's lines)
   body.addEventListener('keydown', (e) => {
+    if (body.classList.contains('kit')) return;
     const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code ?? '');
     if (m && buttons[Number(m[1]) - 1]) { e.preventDefault(); buttons[Number(m[1]) - 1].click(); }
     // (0.0.12: P cycles the par)
     if (e.code === 'KeyP' && parBtns.length) { e.preventDefault(); parBtns[(parAt + 1) % parBtns.length].click(); }
   });
-  return { body, buttons, rows, pars: parBtns, get par() { return pars[parAt]?.id ?? null; } };
+  return { body, buttons, rows, pars: parBtns, get par() { return pars[parAt]?.id ?? null; }, get loadout() { return kitCode; }, kit: kitBtn };
 }
 
 const two = (ms) => (Number.isFinite(ms) ? (ms / 1000).toFixed(2) : '?');

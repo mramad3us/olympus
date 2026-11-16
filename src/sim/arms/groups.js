@@ -88,8 +88,10 @@ export const MAPS = Object.freeze({
     { words: 'The line ▸', deep: true, c: [] }],
   DRILL_OUT: [null,
     { words: 'Stack up', c: [is(/^drill:stack:up(@|>|$)/)] }, { words: 'Stack up, take point', c: [is(/^drill:stack:point(@|>|$)/)] },
-    { words: 'Open', c: [is(/^door:(push|pull)>/)] }, { words: 'Kick door', c: [is(/^door:kick>/)] }, { words: 'Breach', c: [is(/^drill:door:breach(@|>|$)/)], stand: { off: 'not issued' } },
-    { words: 'Flash, then in', c: [is(/^drill:door:flash/)], stand: { off: 'not issued' } },
+    // (v0.0.18: Breach shows the first way of the kit's live, the charge, else the halligan or the ram (a pull door: Pry); Flash a
+    // grenade's own row, or the one in your hand thrown)
+    { words: 'Open', c: [is(/^door:(push|pull)>/)] }, { words: 'Kick door', c: [is(/^door:kick>/)] }, { words: 'Breach', c: [(s) => /^drill:door:breach(@|>|$)/.test(s?.id ?? '') && !s.off, (s) => /^drill:door:(pry|ram)(@|>|$)/.test(s?.id ?? '') && !s.off, is(/^drill:door:breach(@|>|$)/), is(/^drill:door:(pry|ram)(@|>|$)/)], stand: { off: 'not issued' } },
+    { words: 'Flash, then in', c: [is(/^dev:throw$/), is(/^drill:door:flash/)], stand: { off: 'not issued' } },
     { words: 'Enter', c: [id('drill:carry'), is(/^drill:room:clear(@|>|$)/), is(/^drill:room:dominate(@|>|$)/), is(/^drill:room:in(@|>|$)/)] },
     { words: 'Read the door', c: [is(/^door:read>/)] }, { words: 'Hold it', c: [is(/^door:hold>/)] }],
   DRILL_IN: [null,
@@ -168,7 +170,7 @@ export function badgeOf(off) {
   if (/^opens toward you$/.test(w)) return { t: 'note', text: 'pull' };
   // (a pull door's Open from its hinge side, struck "from the latch side" (bundle.js latchSideOk): the side to go to)
   if (/^from the latch side$/.test(w)) return { t: 'note', text: 'latch' };
-  if (/^nothing|no one|nothing to|^he is down$/.test(w)) return { t: 'none' };
+  if (/^nothing|no one|nothing to|^he is down$|^no rounds$/.test(w)) return { t: 'none' };
   if (/^(held|watching|steady|already)/.test(w)) return { t: 'done' };
   return { t: 'note', text: w };
 }
@@ -273,7 +275,10 @@ export function modelOf(steps = [], { act = null, actLabel = null, watch = 0 } =
     // (nothing to fix: ✓ where the gun is as it should be; a struck eye where a shot is struck for the gun's state and nothing that
     // lifts it is offered now (the string's end, one magazine a string: the tower's next command is the way on))
     fix: fixRow ? { core: 'fix', group: null, slot: null, words: 'Fix', row: fixRow, badge: badgeOf(fixRow.off) }
-      : gunStruck(rows) ? { core: 'fix', words: 'Fix', row: { id: 'core:fix', kind: 'stand', label: 'Fix', off: 'nothing offered now' }, badge: { t: 'none' }, stand: true }
+      // (v0.0.18: the planner's nothing to fix (shooting.js markFix: the house's cold line, a gun that can fire in the fight)
+      : fireNone(rows) ? { core: 'fix', words: 'Fix', row: { id: 'core:fix', kind: 'stand', label: 'Nothing to fix', off: fireNone(rows) }, badge: { t: 'done' }, stand: true }
+      // (v0.0.18: the planner's reason, on Fire (shooting.js markFix): 'no rounds', or the course's one magazine a string)
+      : gunStruck(rows) ? { core: 'fix', words: 'Fix', row: { id: 'core:fix', kind: 'stand', label: 'Fix', off: rows.find(r => r.id === 'fire')?.fixWhy ?? 'nothing offered now' }, badge: { t: 'none' }, stand: true }
         : { core: 'fix', words: 'Fix', row: { id: 'core:fix', kind: 'stand', label: 'Nothing to fix', off: 'already so' }, badge: { t: 'done' }, stand: true },
     muzzle: { core: 'muzzle', ...(muzzle ?? {}) },
     next: { core: 'next', words: 'NEXT', row: nextRow, act, actLabel: actLabel ?? nextRow?.label ?? null, badge: act ? null : { t: 'none' }, live: !!act },
@@ -281,12 +286,21 @@ export function modelOf(steps = [], { act = null, actLabel = null, watch = 0 } =
   const sit = situationOf(rows, { half, groups, act: actRow });
   return { groups, half, core, situation: sit, rows, act, actId };
 }
+/** The planner's reason there is nothing to fix (v0.0.18, shooting.js markFix: 'the line is cold', 'already so'), or null. */
+export const fireNone = (rows) => rows.find(r => r.id === 'fire')?.fixNone ?? null;
 /** The reasons a shot or Fire is struck for the gun's state (the ones Fix answers). */
 export const GUN_STATE_RE = /off safe first|^on safe$|^a stoppage$|^chamber (empty|unknown)$|RELOAD first/;
 /** Whether a shot or Fire is struck for the gun's state. */
 export const gunStruck = (rows) => rows.some(s => (s.id === 'fire' || isShotRow(s)) && GUN_STATE_RE.test(String(s.off ?? '')));
-/** The core's Fix: the remedy for the gun's state (a struck shot's or Fire's reason, panel.js remedyOf), IMMEDIATE ACTION, else the reload by purpose. */
+/**
+ * The core's Fix: the planner's row (v0.0.18: stepsOf marks it fix, shooting.js markFix), else the remedy for the gun's state (a
+ * struck shot's or Fire's reason, panel.js remedyOf), IMMEDIATE ACTION, else the reload by purpose (rows made by hand, the tests').
+ */
 export function fixOf(rows, reload = null) {
+  const planned = rows.find(s => s.fix && !s.off);
+  if (planned) return planned;
+  // (the planner found nothing to fix (shooting.js markFix's fixNone on Fire): no fallback to Off safe or the reload slot)
+  if (fireNone(rows)) return null;
   for (const s of rows) if ((s.id === 'fire' || isShotRow(s)) && s.off) { const r = remedyOf(rows, s.off); if (r) return r; }
   const ia = rows.find(s => (s.id === 'macro:ia' || s.id === 'macro:remedial') && !s.off);
   if (ia) return ia;

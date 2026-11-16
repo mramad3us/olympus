@@ -1,0 +1,24 @@
+{
+ "title": "The I and C figure in the gear worn now: the rifle at the ready, or hanging from the hand",
+ "about": "Your words of 2026-11-15: \"the I and C menu preview of the character should show the currently worn gear\". The figure is the game's own doll, dressed from what you wear and carry (the gear record, src/sim/arms/gear.js): the combat EVA suit drawn at last (v0.0.17 drew the utilities under it), the plate carrier with a baseplate showing for each magazine in a pouch, the dump pouch on the belt, the P-12 in its thigh holster (its grip over the mouth, or the mouth open with the pistol drawn) and its spare in the pouch below, the R-7 slung front, on the back, or in the hands, ear defenders' cups where they are worn. Each figure at the I and C cards' scale, unlit as the cards draw it, labelled. Score R: how the rifle in the hands is drawn.",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "R",
+   "title": "R: the rifle in the hands on the doll",
+   "about": "R-a both hands at the low ready, the rifle diagonal 35° below level across the body, the right hand at the grip, the left at the handguard (the default, my call). R-b the rifle hanging from the right hand, muzzle down, as v0.0.17's board man held it. Each view: you at GO in the shoot house, after Transition (the P-12 at the ready, the R-7 slung front), the R-7 slung on the back, your #2 (no P-12), and the range kit on the utilities with ear defenders and a magazine in the left hand.",
+   "views": [
+    { "id": "R-a", "name": "R-a: both hands at the low ready", "query": "r=a", "pixel": "344x158" },
+    { "id": "R-b", "name": "R-b: hanging from the right hand", "query": "r=b", "pixel": "344x158" }
+   ]
+  },
+  {
+   "id": "P",
+   "title": "P: the magazines in the pouches (for reference)",
+   "about": "VIEWS §4.2's rule as written: a double magazine pouch shows two baseplates when full and one when half, an empty one only its seam; the dump pouch sags by what it holds. Chest pouches 1 and 2 from empty to full, then the dump pouch with none, two and four.",
+   "views": [
+    { "id": "P-a", "name": "The baseplates by the magazines in", "query": "set=pouches", "pixel": "480x158" }
+   ]
+  }
+ ]
+}

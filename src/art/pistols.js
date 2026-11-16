@@ -5,8 +5,9 @@
 // RD-1P red dot waits), a HAD-17 holding the house's ten frangible rounds, carried on the right thigh. Until v0.0.14 the
 // weapon card drew the R-7 whatever was in hand (WEAPONS §3.2's note, VIEWS §4.4); this module is the machinery the card
 // needs for a pistol, and four designs of the P-12 for the user to score in the gallery (samples/p12-card, samples/p12-draw),
-// as the rifles were chosen (src/art/rifles.js). The game draws none of them yet: PISTOL_DRAWN_AS is empty, so the card
-// keeps drawing what it drew, and only a sample's explicit `drawing` (weaponcard.js paintWeaponCard) reaches a design here.
+// as the rifles were chosen (src/art/rifles.js). From v0.0.18 the game's card draws the P-12 as P12A (PISTOL_DRAWN_AS, my call,
+// provisional until the user's pick; v0.0.17's was empty and the card drew the R-7 with the pistol's belief on it); a sample's
+// explicit `drawing` (weaponcard.js paintWeaponCard) reaches any design.
 // A design is a set of shape choices, never a gun's data (the P-12 stays the P-12), drawn in any finish
 // (src/data/finishes.js, the rifles' own: the frame in the furniture ramp, the slide in the metal ramp, so the Corps'
 // black is a dark slide over a black polymer frame, and flat dark earth the usual tan frame under a black slide):
@@ -295,8 +296,8 @@ export const PISTOL_DESIGNS = Object.freeze({
 });
 /** The designs' ids. */
 export const PISTOL_DESIGN_IDS = Object.freeze(Object.keys(PISTOL_DESIGNS));
-/** Which design each pistol model takes: none yet (the game draws what it drew until the user's pick: see the header). */
-export const PISTOL_DRAWN_AS = Object.freeze({});
+/** Which design each pistol model takes: the P-12 as P12A, the service pistol, until the user's pick of samples/p12-card (v0.0.18, provisional: the build sheet 0.0.18 §2.1; v0.0.17 had none, and the card drew the R-7). */
+export const PISTOL_DRAWN_AS = Object.freeze({ p12: 'p12a' });
 /** Whether an id names a pistol design. */
 export const isPistolDesign = (id) => typeof id === 'string' && Object.hasOwn(PISTOL_DESIGNS, id);
 

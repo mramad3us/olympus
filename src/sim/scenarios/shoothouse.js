@@ -131,8 +131,12 @@ import { check } from '../skills/checks.js';
 import { barracks } from './barracks.js';
 import { setLedgers } from './tests.js';
 import { rangeOf, sayOn, startRange, fault, roundsLeft, stillOf, stopRange } from './handling.js';
-import { materialise, move, sparesOf, issueSidearm } from '../arms/kit.js';
-import { SIDEARM_TIERS, upHeard, drawn as drawnPistol, holstered as holsteredPistol } from '../arms/sidearm.js';
+import { materialise, move, sparesOf, issueSidearm, discard } from '../arms/kit.js';
+import { loadoutOf, applyLoadout, codeOf, isStandard } from '../arms/loadout.js';
+import { tickDevices, BANG_LATE_MS } from '../combat/burst.js';
+import { BREACH_SAFE_KPA } from '../arms/blast.js';
+import { DEVICES, handDeviceOf, liveDevices, setSt } from '../arms/devices.js';
+import { SIDEARM_TIERS, upHeard, drawn as drawnPistol, holstered as holsteredPistol, pistolOwed } from '../arms/sidearm.js';
 import { feed, gunField, doAction, beliefOf, actionMs, tempoFor } from '../arms/firearms.js';
 import { subsOf } from '../arms/drills.js';
 import { enterStop, leaveStop, gunOn, faceOfHead } from '../arms/shooting.js';
@@ -209,7 +213,8 @@ export const THREAT_FACES = Object.freeze(['threat', 'armoured', 'hostage']);
 /** A fault's words on the paper and on the card. */
 export const FAULT_WORDS = Object.freeze({ funnel: 'stopped in the door', muzzle: 'the muzzle across your number two', corner: 'a corner not looked at', noshoot: 'a no-shoot hit',
   hostage: 'the hostage hit', standing: 'a threat left standing', door: 'the inner door left', time: 'a room not cleared in its time', relaxed: 'Relaxed in a room', cold: 'a round before GO',
-  slow: 'the line waited on you', person: 'aimed at a person', dry: 'out of rounds' });
+  slow: 'the line waited on you', person: 'aimed at a person', dry: 'out of rounds', bang: 'late on the bang', blast: 'the stack in the blast', feet: 'a bang at your feet',
+  charge: 'a charge left on a door' });
 const FAULT_PAPER = Object.freeze({ funnel: 'DOORWAY', muzzle: 'MUZZLE', corner: 'CORNER MISSED', noshoot: 'NO-SHOOT HIT', hostage: 'HOSTAGE HIT', standing: 'LEFT STANDING', door: 'DOOR LEFT',
   time: 'TIME', relaxed: 'RELAXED', cold: 'COLD' });
 const ZONES = Object.freeze(['A', 'C', 'head', 'ring', 'headDown', 'miss', 'noshoot', 'hostage']);
@@ -289,7 +294,7 @@ const newLeg = (door, room) => ({ room, door, state: 'ahead', fromMs: null, stac
   contacts: [], rounds: 0, zones: {}, twoZones: {}, faults: [], calls: [], presses: 0, pressAbout: { person: 0, door: 0 }, inner: null, how: { keys: 0, bundle: 0 } });
 
 /** The fill of 'test-shoothouse' (see the header). tier: a TEST_SHEETS id (the private by default); par: 'basic' | 'advanced' | 'operator' | null (the sheet's); setup: HOUSE_SETUPS or null. */
-export function testShoothouse(state, { at = null, setup = null, tier = null, par = null } = {}) {
+export function testShoothouse(state, { at = null, setup = null, tier = null, par = null, loadout = null } = {}) {
   const seed = state.meta.seed, sheet = tierOf(tier), S0 = startOf();
   barracks(state, { at: { area: WHEEL_S4.id, x: S0.x, z: S0.z, face: S0.face, ...(at ?? {}) } });
   const me = playerActor(state), pid = playerId(state), person = state.people[pid];
@@ -341,6 +346,14 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
   // (the rework's R6: the P-12, on every sheet from 2026-11-15 (the Sergeant up before), its ids after every other item of the
   // fill so the stands' and the kit's ids are the same on every sheet; Condition 3, the spare in the thigh's pouch (kit.js issueSidearm))
   if (SIDEARM_TIERS.includes(sheet)) issueHouseSidearm(state, pid);
+  // (v0.0.18, the loadout (WEAPONS §12.7; loadout.js): one for every sheet, yours then your #2's, its ids after every other
+  // item of the fill; the standard makes nothing and writes nothing, so its lane is the lane without it to the byte)
+  const spec = loadoutOf(loadout);
+  if (!spec.error && !isStandard(loadout)) {
+    applyLoadout(state, pid, spec);
+    if (twoPid) applyLoadout(state, twoPid, spec);
+    R.house.loadout = codeOf(spec);
+  }
   if (setup) setupHouse(state, setup);
   return state;
 }
@@ -476,6 +489,14 @@ function gravityWords(state) {
   if (!Number.isFinite(g)) return '';
   return fill(hashPick(Math.abs(g - 1) <= GRAVITY_FULL_TOL_G ? HOUSE_CHIEF.full : HOUSE_CHIEF.gravity, 'house-chief', state.meta.seed, 'gravity'), { g: q(g, 0.01).toFixed(2) });
 }
+// (v0.0.18: the brief names the kit when it is not the standard (WEAPONS §12.7): what you carry, and the stands as unsuited men)
+function kitWords(state) {
+  const H = houseOf(state);
+  if (!H?.loadout) return '';
+  const m = (re) => Object.values(state.items).filter(x => DEVICES[x?.model] && re.test(x.model) && x.type === DEVICES[x.model].kind).length / (H.twoPid ? 2 : 1);
+  const bits = [m(/^g11$/) ? `${m(/^g11$/)} stun${m(/^g11$/) > 1 ? 's' : ''}` : null, m(/^sc1$/) ? `${m(/^sc1$/)} door charge${m(/^sc1$/) > 1 ? 's' : ''}` : null, m(/^hal$/) ? 'the halligan' : null, m(/^ram$/) ? 'the ram' : null].filter(Boolean);
+  return bits.length ? ` You carry ${bits.join(', ')}: use them on the doors you choose. Treat every target as an unsuited man.` : '';
+}
 /** Within this of 1 G the brief says "Full G" (G; my call). */
 export const GRAVITY_FULL_TOL_G = 0.02;
 const fill = (line, map) => Object.entries(map).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, String(v)), line);
@@ -507,6 +528,8 @@ export function houseWant(state) {
   if (!dry && gunField(gun, 'chamber') !== 'live') return 'chamber';
   if (gunField(gun, 'mode') !== 'safe' || (carry.finger ?? 'off') === 'on') return 'safe';
   if (!dry && carry.posture !== 'lowReady') return 'low';
+  // (v0.0.18: the holstered P-12 made ready too, its round up (sidearm.js pistolOwed; the dead-end hunt of 2026-11-16))
+  if (!dry && pistolOwed(state, pid)) return 'pistol';
   if (state.stop || state.time?.doing) return 'out';
   if (Math.hypot(me.x - S0.x, me.z - S0.z) > STACK_M) return 'mark';
   if (!stillOf(state) || (me.$px !== undefined && (me.$px !== me.x || me.$pz !== me.z))) return 'still';
@@ -559,7 +582,7 @@ export function houseOnCmd(state, bus, def) {
   // (each command goes to both marines: your number two's own macro for it, on his list doing (COMBAT §25.19.5))
   if (TWO_CMDS[def.id]) twoCmd(state, bus, def.id);
   switch (def.id) {
-    case 'brief': chiefSays(state, bus, `${hashPick(HOUSE_CHIEF.brief, 'house-chief', state.meta.seed, 'brief')} ${gravityWords(state)}`, 'brief'); break;
+    case 'brief': chiefSays(state, bus, `${hashPick(HOUSE_CHIEF.brief, 'house-chief', state.meta.seed, 'brief')} ${gravityWords(state)}${kitWords(state)}`, 'brief'); break;
     case 'standby': H.standby = { attempt: 0, goAtMs: null, fromMs: now, backSaid: false }; armGo(state); break;
     case 'go': goNow(state, bus); break;
     case 'stop': R.hot = false; break;
@@ -783,7 +806,8 @@ function triggers(state, bus, R, H, now) {
     if (T.turnAtMs !== null || T.stoppedAtMs !== null || T.trigger.kind === 'go' || T.trigger.kind === 'never' || T.passed) continue;
     const at = T.trigger.kind === 'door' ? H.doors[T.trigger.on] : H.zones[T.trigger.on];
     if (at === undefined || H.end) continue;
-    const turnAt = whole(at + T.trigger.gapMs);
+    // (v0.0.18: a stand dazed by a burst turns when its daze ends at the soonest (burst.js; the brief's unsuited man))
+    const turnAt = whole(Math.max(at + T.trigger.gapMs, T.dazeUntilMs ?? 0));
     if (now < turnAt) continue;
     turnTo(T, turnAt);
     bus?.emit('turner', { key: T.key, lane: T.lane, phase: 'turn', face: T.face, atMs: T.turnAtMs, toMs: T.turnAtMs + TURN_MS, why: 'standby' });
@@ -1066,6 +1090,10 @@ export function houseRules(state, input, bus) {
     if ((two && aimKey === two.id) || (chief && aimKey === chief.id)) { stopRange(state, bus, 'person', hashPick(HOUSE_CHIEF.stop, 'house-chief', state.meta.seed, 'stop')); return; }
   }
   sayOwed(state, bus, H);
+  // (v0.0.18: every device whose fuse or count has run bursts now (burst.js), before the stands' turns read their daze)
+  // (the bursts' marks once each, those of a drill's beat (bundle.js) with them: H.burstsSeen counts the record's done)
+  tickDevices(state, bus, now);
+  while ((H.burstsSeen ?? 0) < (H.bursts?.length ?? 0)) { kitMarks(state, bus, H, H.bursts[H.burstsSeen ?? 0]); H.burstsSeen = (H.burstsSeen ?? 0) + 1; }
   if (H.goAtMs === null || H.end) return;
   if (now - H.goAtMs >= LANE_MAX_MS) { laneEnd(state, bus, 'time'); return; }
   if (now % 1000 === 0 && roundsLeft(state) === 0 && R.stoppage?.cleared !== false) { laneEnd(state, bus, 'dry'); return; }
@@ -1074,10 +1102,14 @@ export function houseRules(state, input, bus) {
   const L = curLeg(H), P = planOf(state, L);
   if (!L || !P) return;
   const two = actorOf(state, H.twoPid);
+  // (v0.0.18: a breaching tool still in the hands once its door is open, its force not running (a failed pry and the door then
+  // opened another way): let go at your feet, the rifle up, as the force's own end does (never a lane carried with a bar in hand))
+  const tool = handDeviceOf(state, pid);
+  if (tool?.kind === 'tool' && L.door !== 'hall' && openingState(state, L.door) === 'open' && !S?.doing?.beats?.some(b => b.k === 'force' && b.st === 'run')) dropTool(state, pid, tool, me);
   // (the leg's progress: stacked, open, entered)
   if (L.state === 'ahead' && P.stack?.[0] && dist([me.x, me.z], P.stack[0]) <= STACK_M) progress(state, bus, H, L, 'stacked', now);
   if ((L.state === 'ahead' || L.state === 'stacked') && (L.door === 'hall' || H.doors[L.door] !== undefined)) progress(state, bus, H, L, 'open', now);
-  if (L.state !== 'entered' && L.state !== 'clear' && pastThreshold(P, me.x, me.z)) { if (L.state === 'ahead' || L.state === 'stacked') L.openAtMs ??= now; progress(state, bus, H, L, 'entered', now); }
+  if (L.state !== 'entered' && L.state !== 'clear' && pastThreshold(P, me.x, me.z)) { if (L.state === 'ahead' || L.state === 'stacked') L.openAtMs ??= now; progress(state, bus, H, L, 'entered', now); bangToEntry(state, bus, H, L, now); }
   // (the doorway)
   const was = H.meAt ?? null, at = [q(me.x, 1e-4), q(me.z, 1e-4)], vMs = was ? dist(was, at) / (TICK_MS / 1000) : 0;
   H.meAt = at;
@@ -1105,6 +1137,49 @@ export function houseRules(state, input, bus) {
   // (a beat doing's "Clear!" (see houseInput); a step under way is no progress by itself (see stall))
   callsOf(state, bus, H, S?.doing);
   stall(state, bus, R, H, L, now);
+}
+
+// (a tool let go at a person's feet, the rifle back up (houseRules))
+function dropTool(state, pid, tool, a) {
+  move(state, tool.id, { ground: { area: state.places.live.area, x: a.x, z: a.z } });
+  delete state.items[tool.id].st;
+  const k = state.people[pid].kit;
+  if (k?.carry && SLUNG.has(k.carry.posture)) k.carry.posture = 'highReady';
+}
+// (v0.0.18, the kit's marks on the paper (COMBAT §25.20): a charge's peak on the stack past BREACH_SAFE_KPA "STACK IN THE BLAST 31
+// KPA" (a fault), a grenade slipped at your feet "BANG AT YOUR FEET" (a fault: my call, the lane goes on), the door blown, the
+// stands of the room dazed "1A STUNNED 2.10 S" (neutral); on the leg the burst's room is)
+function kitMarks(state, bus, H, B) {
+  const door = B.door ?? B.thrown ?? null, L = (door ? legsOf(H).find(x => x.door === door) : null) ?? legsOf(H).find(x => x.room === B.room) ?? curLeg(H);
+  if (!L) return;
+  // (the burst on the room ahead is the entry's cue, as a leg's start is (endLeg): the muzzle's vigilance runs from it (react.js
+  // VIGIL_MS; my call: a charge's place, walk back and count took the corporal past the leg's own 30 s, and room 3's man by the
+  // far leg was taken in 'area', ×1.5, on every seed)
+  const R = rangeOf(state);
+  if (L === curLeg(H)) R.cueAtMs = Math.max(R.cueAtMs ?? -Infinity, B.atMs);
+  const marks = (L.kit ??= []), stack = [playerId(state), H.twoPid].filter(Boolean);
+  if (B.door) {
+    marks.push('DOOR BLOWN');
+    const worst = Math.max(0, ...stack.map(p => B.kPa[p] ?? 0));
+    if (worst > BREACH_SAFE_KPA) { marks.push(`STACK IN THE BLAST ${Math.round(worst)} KPA`); houseFault(state, bus, 'blast', 'Too close! You were in the blast.', L); }
+  }
+  if (B.atFeet) { marks.push('BANG AT YOUR FEET'); houseFault(state, bus, 'feet', 'Grenade! At your feet.', L); }
+  for (const [key, d] of Object.entries(B.daze ?? {})) {
+    const T = rangeOf(state).turners.find(t => t.key === key);
+    if (T && T.room === L.room) marks.push(`${String(T.stand).toUpperCase()} ${d.kind === 'blind' ? 'BLINDED' : d.kind === 'stunned' ? 'STUNNED' : 'STARTLED'} ${s2(d.ms)} S`);
+  }
+}
+// (v0.0.18: the entry on the bang (COMBAT §25.18.2): #1 past the threshold within BANG_LATE_MS of the flash thrown through this
+// leg's door, "ON THE BANG 1.20 S", else "BANG TO ENTRY 2.40 S" (a fault: "you gave them back the bang"); only that leg's own
+// throw, not one slipped at your feet (the review of 2026-11-16: any flash in the leg's room counted, of any age, and a throw
+// for room 1 that burst in the hall fined the hall's leg 63.48 s))
+function bangToEntry(state, bus, H, L, now) {
+  const B = L.door ? (H.bursts ?? []).filter(b => b.thrown === L.door && !b.atFeet && DEVICES[b.model]?.flash && b.atMs <= now).at(-1) : null;
+  if (!B) return;
+  const dt = now - B.atMs;
+  L.bangMs = dt;
+  if (dt > BANG_LATE_MS) { (L.kit ??= []).push(`BANG TO ENTRY ${s2(dt)} S`); houseFault(state, bus, 'bang', `${s2(dt)} seconds from the bang. You gave them back the bang.`, L); }
+  else (L.kit ??= []).push(`ON THE BANG ${s2(dt)} S`);
 }
 
 // (the muzzle's 3-D line over the #2's body as he stands, kneels or lies: carry.js flagsAt, the DI's rule too)
@@ -1163,7 +1238,8 @@ function noteSighting(state, H, T, { seenMs, takeInMs: ms, pauseAtMs, by, ident 
 // the lane, else the first by either of you (the fixer's of 0.0.12: a slot-2 man's par ran from your sighting, before the
 // #2 could cross the door, so every sheet missed it however well it played))
 const slotOfStand = (stand) => STANDS[stand]?.slot ?? 1;
-const parFrom = (state, L, key) => { const by = firstBy(state, L, key), list = L.contacts.filter(k => k.key === key && (by === null || k.by === by)); return list.length ? Math.min(...list.map(k => k.seenMs)) : Infinity; };
+// (v0.0.18: a dazed man's par runs from when he could first have fired, his daze's end, at the soonest)
+const parFrom = (state, L, key) => { const by = firstBy(state, L, key), list = L.contacts.filter(k => k.key === key && (by === null || k.by === by)); if (!list.length) return Infinity; const daze = rangeOf(state)?.turners?.find(T => T.key === key)?.dazeUntilMs; return Math.max(Math.min(...list.map(k => k.seenMs)), Number.isFinite(daze) ? daze : -Infinity); };
 // (each threat's par: past it with no round, the low tone and "he fired first")
 function pars(state, bus, R, H, now) {
   for (const L of legsOf(H)) for (const k of L.contacts) {
@@ -1355,7 +1431,22 @@ function laneEnd(state, bus, why) {
   if (state.stop?.doing?.beats || state.stop?.flow) handBack(state, bus, 'lane-end');
   if (why === 'time') houseFault(state, bus, 'time', HOUSE_CHIEF.laneTime, curLeg(H));
   if (why === 'dry') chiefSays(state, bus, HOUSE_CHIEF.dry, 'dry');
+  chargesLeft(state, bus, H);
   bus?.emit('house', { phase: 'stop', room: null, who: playerId(state), atMs: now, kind: why });
+}
+
+// (v0.0.18: a charge placed and never fired, still on its door at the lane's end (opened by hand past it), is a fault on that
+// door's leg, "CHARGE LEFT ON THE DOOR", and the instructor makes it safe: the charge off the door and out of the game, its
+// FD-1 unfitted (the review of 2026-11-16: it stayed live on the open door to the card, unmarked))
+function chargesLeft(state, bus, H) {
+  for (const d of liveDevices(state)) {
+    const rec = state.items[d.id];
+    if (d.kind !== 'charge' || Number.isFinite(rec?.fuseAtMs)) continue;
+    const L = legsOf(H).find(x => x.door === rec.door) ?? curLeg(H);
+    if (L) { (L.kit ??= []).push('CHARGE LEFT ON THE DOOR'); houseFault(state, bus, 'charge', 'You left a charge on that door. Never walk away from a placed charge.', L); }
+    if (rec.tubeId && state.items[rec.tubeId]) setSt(state, rec.tubeId, 'pouched');
+    discard(state, d.id);
+  }
 }
 
 /** A step begun on the house course (handling.js onStepStart): no progress for the stall by itself (see stall); kept as the hook. */
@@ -1441,7 +1532,7 @@ export function houseShot(state, bus, shot) {
     if (mine) {
       const issue = state.armoury.ammoIssues.find(a => a.id === R.issueId);
       if (issue) issue.fired += 1;
-      R.shots.push({ id: shot.id, atMs: shot.atMs, lane: null, string: 0, hole: null, score: 0, v: false, logSeq: shot.logSeq ?? null, key: shot.target ?? null, load: shot.load ?? null });
+      R.shots.push({ id: shot.id, atMs: shot.atMs, lane: null, string: 0, hole: null, score: 0, v: false, logSeq: shot.logSeq ?? null, key: shot.target ?? null, load: shot.load ?? null, ...(shot.row ? { row: shot.row.id } : {}), part: shot.part ?? 'torso' });
       if (R.shots.length > 100) R.shots.splice(0, R.shots.length - 100);
       if (!R.hot && !R.end) houseFault(state, bus, 'cold', null);
     } else {
@@ -1534,7 +1625,7 @@ function legView(state, H, L, k, now) {
     parMissed: threats.filter(c => c.parMet === false).length, parMissedMine: threats.filter(c => c.parMet === false && slotOfStand(c.stand) === 1).length,
     zones: { ...L.zones }, twoZones: { ...L.twoZones }, rounds: L.rounds, corners: { covered, of: hot.length, by: { ...Object.fromEntries(Object.entries(L.covered).map(([h, c]) => [h, c.by])) } },
     doorwayMs: L.funnelMs, faults: L.faults.map(f => ({ ...f })), presses: L.presses, pressAbout: { ...L.pressAbout }, how: { ...L.how }, seen: new Set(L.contacts.map(c => c.key)).size,
-    contacts: L.contacts.map(c => ({ ...c })), inner: L.inner,
+    contacts: L.contacts.map(c => ({ ...c })), inner: L.inner, kit: [...(L.kit ?? [])], bangMs: L.bangMs ?? null,
   };
 }
 const turnerFirst = (state, key) => rangeOf(state)?.turners?.find(T => T.key === key)?.firstAtMs ?? null;
@@ -1546,7 +1637,7 @@ export function legWords(V, H, dummy = null) {
   return [V.word, V.setup ? 'SET UP' : V.ms !== null ? `${s2(V.ms)} S` : null, V.state === 'passed' ? 'PASSED' : null, V.takeIns.length ? `TAKE-IN ${span(V.takeIns)}` : null,
     V.firsts.length ? `FIRST ${span(V.firsts)}` : null, V.par ? `${H.par.toUpperCase()} ${V.par === 'met' ? 'MET' : V.par === 'missed' ? 'MISSED' : 'OPEN'}` : null,
     zonesText(V.zones) || null, zonesText(V.twoZones) ? `#2 ${zonesText(V.twoZones)}` : null, V.corners.of ? `CORNERS ${V.corners.covered} OF ${V.corners.of}` : null,
-    V.doorwayMs ? `DOORWAY ${s2(V.doorwayMs)} S` : null, ...kinds, dummy].filter(Boolean).join(' · ');
+    V.doorwayMs ? `DOORWAY ${s2(V.doorwayMs)} S` : null, ...kinds, ...(V.kit ?? []), dummy].filter(Boolean).join(' · ');
 }
 
 /** The run sheet (see the header): { rows: [{ room, words }], card, one, spinLine, practised }. The one helper of the paper, the card and the instructor's words. */
@@ -1657,7 +1748,7 @@ export function houseRangeNow(state, R, ms = state.clock.ms) {
 }
 
 /** What "Again as …" starts: the same seed, another sheet, the par the picker set (else the sheet's own). */
-export const againAsHouse = (state, tier) => ({ scenario: 'test-shoothouse', seed: state.meta.seed, tier: tierOf(tier), par: houseOf(state)?.parSet ?? null });
+export const againAsHouse = (state, tier) => ({ scenario: 'test-shoothouse', seed: state.meta.seed, tier: tierOf(tier), par: houseOf(state)?.parSet ?? null, ...(houseOf(state)?.loadout ? { loadout: houseOf(state).loadout } : {}) });
 
 /** The goal line with your number two named: COMBAT §25.10.4's. */
 export function houseGoal(state) {

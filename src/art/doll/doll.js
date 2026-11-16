@@ -59,14 +59,21 @@
 // slow rate, the head, a stall and food, black-grey gun oil for the rifle, rust for regolith.
 // The helmet samples' candidates (look.helm on the combat EVA suit; samples/helmets): the suit black on the doll, the candidate
 // on its head (./helmets.js), the faction's trim on its seams and plate; no look of the game carries one.
+// 0.0.18 (the build sheet 0.0.18 §2.2; the user, 2026-11-15: "the I and C menu preview of the character should show the currently
+// worn gear"): THE COMBAT EVA SUIT is drawn whenever it is worn (outfit 'combatSuit'; v0.0.17 drew the utilities under it, 8960 of
+// 8960 pixels the same): black as the figures wear it (outfits.js COMBAT_SUIT), its sealed helmet's visor down whatever the roof.
+// And doll({ gear }) draws what is worn and carried from the gear record (./dress.js dressOf of src/sim/arms/gear.js gearOf): the
+// pieces are ./worn.js's, in their order (the rifle on the back before the torso; the belt, the carrier's pouches by the kit's list
+// with a baseplate for each magazine in them, the dump pouch, the holster and the pistol pouch; the rifle slung front or at the
+// ready, the pistol in the hands; the arms bent onto them; the ear defenders; what the free hand holds). Without gear the doll is
+// drawn as before, to the pixel (doll-gear's digests of v0.0.17's), the rifle in the hand from worn.js's memoised stamp.
 // Pure: it returns a Pixmap (src/art/paint.js words), opaque, the backdrop round the figure.
 import { PX_PER_M } from '../../render/scale.js';
 import { word } from '../paint.js';
 import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE, cutOf, SIDES_K, COMBAT_SUIT } from '../figures/outfits.js';
 import { helmOf } from '../figures/helmets.js';
 import { dollHelm, trimDollPlate } from './helmets.js';
-import { shapeAt, turned } from '../figures/templates.js';
-import { drawingOf } from '../rifles.js';
+import { rifleAt, gearBends, suitBelt, carrierPouches, dumpPouch, holster, earCups, pistolAt, heldItem, backDevices, sideDevices } from './worn.js';
 import { REF, INK, mix, lum, cloth, flesh, smooth, ribbon, edgeOf, grid, halo, TONES } from './grid.js';
 
 /** The close figure's scale: the stage's density over tradecraft's 16 px/m (my call: the same size against the picture). */
@@ -470,7 +477,7 @@ function hat(g, kit) {
     dim(g, 12, MID - 8, MID + 7, 0.3);
   } else if (h.kind === 'vac') {
     // (the vac helmet, sealed: a shell a size up from the head, its visor's dark glass from the brow to the chin with a glint)
-    const T = cloth(h.color), V = 0x1b2541;
+    const T = cloth(h.color), V = h.visor ?? 0x1b2541;
     const shellId = add(smooth([[MID - 12.4, 16], [MID - 13, 8], [MID - 10, 1.4], [MID, -0.6], [MID + 10, 1.4], [MID + 13, 8], [MID + 12.4, 16], [MID + 11, 24], [MID + 7, 28.6], [MID - 7, 28.6], [MID - 11, 24]], 4), T.base);
     g.on(shellId, g.scan(smooth([[MID - 10, 6], [MID - 6, 1.8], [MID + 2, 1.2], [MID - 5, 4.4]], 3)), T.light);
     g.on(shellId, g.scan(rt([[6, -1], [9, 28], [14, 28], [14, -1]])), T.shade);
@@ -525,6 +532,8 @@ function rigBelt(g, B, kit) {
   g.on(id, g.rows(BELT_Y, 0, REF.W), T.light); g.on(id, g.rows(BELT_Y + 2, 0, REF.W), T.shade);
   g.span(BELT_Y, MID - 2, MID + 1, 0x8a8f9a); g.span(BELT_Y + 2, MID - 2, MID + 1, 0x6a7182); g.put(MID - 2, BELT_Y + 1, 0x8a8f9a); g.put(MID + 1, BELT_Y + 1, 0x8a8f9a);
   if (!kit.armour) return;
+  // (0.0.18: drawn from the gear, the belt's slots are the gear's own: worn.js dumpPouch; no IFAK is issued)
+  if (kit.gear) return;
   const D = cloth(kit.armour.pouch);
   const slots = [['IFAK', MID - B.hip - 3.2, kit.marks.belt?.[0] ?? 'free'], ['dump', MID + B.hip - 4.2, kit.marks.belt?.[1] ?? 'free']];
   for (const [name, x, m] of slots) {
@@ -550,6 +559,8 @@ function carrier(g, B, kit) {
   g.on(plate, g.scan(rt([[2, top + 2], [8.4, top + 2], [11, top + 5], [11, foot], [2, foot]])), T.shade);
   g.on(plate, g.rows(foot - 1, 0, REF.W), T.deep);
   for (const y of [top + 9, top + 11]) for (let x = MID - 10; x <= MID + 9; x += 2) for (const [yy, x0] of g.rows(y, x, x)) if (g.part[yy]?.[x0] === plate) g.col[yy][x0] = T.deep;
+  // (0.0.18: drawn from the gear, the pouches are the kit's list with their magazines' baseplates, and no radio is issued: worn.js)
+  if (kit.gear) { carrierPouches(g, kit, foot); return; }
   // (three rifle magazine pouches across the belly, each a slot: flap lit, seated on the plate by a dark line)
   [[MID - 11, 6], [MID - 3, 6], [MID + 5, 6]].forEach(([x0, w], k) => {
     const m = kit.marks.carrier?.[k] ?? 'free', right = x0 > MID;
@@ -570,20 +581,8 @@ function carrier(g, B, kit) {
 
 // ---------- what's in the hand ----------
 
-/** A rifle hanging from the right hand (the viewer's left), muzzle down, drawn to its length. */
-function rifleIn(g, B, kit) {
-  const S = g.S, lenPx = Math.round(85 * PX_PER_CM * S), hx = (MID - B.hand) * S, hy = (B.armIn[0][1] + 3) * S;
-  // (the rifle as its drawing has it, src/art/rifles.js: the look's model, else the R-7's; its furniture in its finish's colours)
-  const D = drawingOf(kit.model ?? 'r7', kit.finish), shape = shapeAt('rifle', lenPx, 2.4 * S, true, D.fig);
-  // (lighter than the sprites' rifle: against the doll's dark wall gun metal would vanish)
-  const C = { n: cloth(0x5c6270), u: cloth(0x2e313c), v: cloth(0xa0a8b4), ...Object.fromEntries(Object.entries(D.colours).map(([k, c]) => [k, cloth(c)])) };
-  // (the grip in the fist: the butt above it, the barrel down past the knee)
-  const grip = lenPx * 4.5 / 16, id = g.add([], 0);
-  for (const [x, y, ch] of turned(shape, hx - 1, hy - grip, Math.PI / 2, false)) {
-    const T = C[ch] ?? C.n, c = x > hx + 1.5 * S ? T.shade : ch === 'v' ? T.light : T.base;
-    g.px(Math.round(x), Math.round(y), c, id);
-  }
-}
+/** A rifle hanging from the right hand (the viewer's left), muzzle down, drawn to its length (0.0.18: its pixels worn.js rifleStamp's, memoised, the same pixels in the same order). */
+function rifleIn(g, B, kit) { rifleAt(g, B, kit, 'hand', MID); }
 
 // ---------- wounds (tradecraft's, unchanged in what they draw) ----------
 
@@ -807,6 +806,15 @@ function kitOf(look = {}, marks = {}, body = null) {
       suit: true, bloused: false, shell: K.shell, legs: K.skin, sleeve: K.skin, boots: K.boot, rings: K.ring, pack: K.pack, gloves: K.ring,
       band: helm.trim ?? K.ring, trim: helm.trim, head: { kind: 'vac', color: helm.shell, helm }, armour: look.carrier ? { color: K.carrier, pouch: K.pouches } : null,
     });
+  } else if (outfit === 'combatSuit') {
+    // (0.0.18, the fix: the combat EVA suit is drawn whenever it is worn, v0.0.17 drew the utilities under it (8960 of 8960 pixels
+    // the same). Black as the figures wear it, worn unpressurised with the visor down (kit.js CONTAINERS 'ces-1' visor): the sealed
+    // helmet in the suit's shell, its glass COMBAT_SUIT.visor, whatever the roof (the indoor rule is a cover's, never a sealed helmet's))
+    const K = COMBAT_SUIT;
+    Object.assign(kit, {
+      suit: true, bloused: false, shell: K.shell, legs: K.skin, sleeve: K.skin, boots: K.boot, rings: K.ring, pack: K.pack, gloves: K.ring,
+      band: K.ring, head: { kind: 'vac', color: K.shell, visor: K.visor }, armour: look.carrier ? { color: K.carrier, pouch: K.pouches } : null,
+    });
   }
   if (outfit === 'pt') Object.assign(kit, { pt: true, top: OXBLOOD, sleeve: OXBLOOD, legs: PT_GREY, boots: RUNNER, bloused: false, rank: false, head: null, bareLegs: true, bareArms: true });
   if (outfit === 'towel') Object.assign(kit, { towel: true, top: kit.skin, sleeve: kit.skin, legs: TOWEL, boots: SHOWER_SHOE, bloused: false, rank: false, head: null, bareLegs: true, bareArms: true });
@@ -823,31 +831,59 @@ function kitOf(look = {}, marks = {}, body = null) {
 }
 
 /**
+ * The gear's arguments on the kit (0.0.18; ./dress.js dressOf makes them from the gear record): what is drawn, the rifle's model
+ * and finish, the carrier on any outfit (the suit's black, the drab on the utilities), and the arms' bends while the hands are
+ * on a weapon (they win over the body's cues: my call).
+ */
+function dressKit(kit, gear) {
+  kit.gear = gear;
+  if (gear.rifle?.model) kit.model = gear.rifle.model;
+  if (gear.rifle?.finish) kit.finish = gear.rifle.finish;
+  if (gear.carrier && !kit.armour) kit.armour = kit.suit ? { color: COMBAT_SUIT.carrier, pouch: COMBAT_SUIT.pouches } : { color: 0x545e40, pouch: 0x4a5236 };
+  if (!gear.carrier && kit.outfit !== 'carrier') kit.armour = null;
+  const bends = gearBends(gear);
+  if (bends) { kit.bendR = bends.bendR; kit.bendL = bends.bendL; }
+}
+
+/**
  * The close figure: a Pixmap (W × H at the scale, opaque: the backdrop and the figure on it, inked), with
  * .spots (each numbered wound's place, pixels) and .scale. { look (outfits.js's: outfit, skin, hair, rank,
  * head: null bare-headed), sex ('m'), marks (slots: see the header), hand ('rifle' or null), wounds
  * ({ wounds: [{ n, part, kind, bleed, dressed, stitched, spurt, plate }], tourniquets, splints, bloody }),
- * scale (DOLL_SCALE) }.
+ * scale (DOLL_SCALE), gear (0.0.18: ./dress.js dressOf's DollGear, the pieces worn.js draws; none, the doll as before) }.
  */
-export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hurts = null, scale = DOLL_SCALE, body = null, outfit = null } = {}) {
+export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hurts = null, scale = DOLL_SCALE, body = null, outfit = null, gear = null } = {}) {
   const g = grid(scale, DROP), B = BODY[sex] ?? BODY.m, kit = kitOf(outfit ? { ...look, outfit } : look, marks, body);
+  if (gear) dressKit(kit, gear);
+  const G = kit.gear, Y = { BELT_Y, WAIST_Y };
   const bare = kit.pt || kit.towel;
   const L = legs(g, B, kit);
   if (!kit.suit && !bare) kit.camoParts.add(L.a).add(L.b);
   boots(g, B, kit);
   if (bare) overLegs(g, B, kit);
   if (!kit.suit && !bare) cargo(g, B, kit, L);
+  // (0.0.18, the gear's pieces in their order: worn.js; without gear the doll is drawn as before)
+  if (G?.rifle?.place === 'back') rifleAt(g, B, kit, 'back', MID);
+  if (G?.devices?.length) backDevices(g, B, kit);
   if (kit.suit) shell(g, B, kit);
   else if (kit.pt) tee(g, B, kit);
   else if (kit.towel) (sex === 'f' ? towelChest : bareTorso)(g, B, kit);
   else { blouse(g, B, kit); rigBelt(g, B, kit); }
+  if (G && kit.suit && (G.carrier?.pouches?.some(p => p.key === 'dump') || G.pistol || G.thigh)) suitBelt(g, B, kit, Y);
   if (kit.armour) carrier(g, B, kit);
-  if (hand === 'rifle') rifleIn(g, B, kit);
+  if (G && kit.armour) dumpPouch(g, B, kit, Y);
+  if (G?.devices?.length && kit.armour) sideDevices(g, B, kit);
+  if (G && !G.painted && (G.pistol || G.thigh)) holster(g, B, kit, Y);
+  if (hand === 'rifle' || G?.rifle?.place === 'hand') rifleIn(g, B, kit);
+  else if (G?.rifle?.place === 'front' || G?.rifle?.place === 'ready') rifleAt(g, B, kit, G.rifle.place, MID);
+  if (G?.pistol?.place === 'hand' || G?.pistol?.place === 'ready') pistolAt(g, B, kit, G.pistol.place);
   arms(g, B, kit);
+  if (G) heldItem(g, B, kit);
   head(g, B, kit, look);
   if (kit.head?.kind !== 'vac') hair(g, kit);
   if (kit.head?.helm) dollHelm(g, B, kit, kit.head.helm);
   else hat(g, kit);
+  if (G?.ears) earCups(g, kit);
   if (!kit.suit && !bare) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
   // (the body's marks, over the cloth and the skin, before the seams and the ink)
   const C = kit.cues;

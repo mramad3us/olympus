@@ -16,7 +16,15 @@
 // its called point; belief gives no hole and no zone. Truth (phase 'truth', from the string's end: the coach reads his
 // timer, the debrief): every mark's hole and zone as the records have them (a miss: no hole, never on the figure), the
 // called point beside it. words: belief 'PAIR · 2 SEEN', truth 'PAIR · A · C'; line (truth only): 'Two in the chest. He
-// went down.' (never "dead": a paper man goes down). Pure.
+// went down.' (never "dead": a paper man goes down).
+// The shoot house (0.0.18, the build sheet 0.0.18 §2.2; the user, 2026-11-15: "we need to generalize that target view for every
+// time we're engaging something or someone"): R.course 'house', one lane (k 0). Your rounds at a stand are R.shots by its key
+// (shoothouse.js houseShot, with their row and part from 0.0.18), joined to its T.hits by shotId for the zone and the point;
+// belief until the lane's end (R.end), truth after. In belief the face and what it holds are not told (null: the target view
+// reads the take-in's identification, engage.js seenFace, never the stand's record); in truth they are, and your #2's hits
+// on it come after yours as marks of their own ({ n: null, kind: 'two', hole, zone }), unnumbered: VIEWS §7.7, "the player
+// sees his own hits and his team's as seen". In belief a stand only your #2 struck has no record (null): you cannot know he hit
+// it. Pure.
 import { hash01 } from '../../core/hash.js';
 import { q } from '../../core/num.js';
 import { playerId } from '../../core/ids.js';
@@ -83,6 +91,7 @@ function lineOf(marks, down) {
  */
 export function hitMarks(state, key, { k = null, phase = null } = {}) {
   const R = rangeOf(state);
+  if (R?.course === 'house') return houseMarks(state, R, key, phase);
   if (!R || R.course !== 'pairs') return null;
   const sk = stringOf(R, k);
   if (sk === null) return null;
@@ -99,4 +108,29 @@ export function hitMarks(state, key, { k = null, phase = null } = {}) {
   const rows = [...new Set(got.list.map(x => ROW_WORDS[x.row] ?? 'FIRE'))].join(', ');
   const words = truth ? [rows, ...marks.map(m => ZONE_WORDS[m.zone] ?? 'MISS')].join(' · ') : `${rows} · ${marks.filter(m => m.seen).length} SEEN`;
   return { key, k: sk, face: T?.face ?? null, holds: T?.holds ?? null, phase: ph, marks, words, line: truth ? lineOf(marks, !!T?.down) : null };
+}
+
+// (the shoot house's branch of hitMarks (see the header): your rounds at stand key, belief until R.end, truth after, your #2's apart)
+function houseMarks(state, R, key, phase) {
+  const T = (R.turners ?? []).find(t => t.key === key);
+  if (!T) return null;
+  const mine = (R.shots ?? []).filter(x => x.key === key);
+  const twos = (T.hits ?? []).filter(h => h.by === 'two');
+  const ph = phase ?? (R.end ? 'truth' : 'belief'), truth = ph === 'truth';
+  // (your #2's rounds are known only in truth: in belief a stand only he struck has no record, so the card names the stand and
+  // tells no hit you could not know)
+  if (!mine.length && (!truth || !twos.length)) return null;
+  const seed = state.meta.seed, sheet = state.people?.[playerId(state)]?.skills, kk = callK(sheet ? value(sheet, 'marksmanship') : 0);
+  const list = mine.map(x => { const h = (T.hits ?? []).find(z => z.shotId === x.id && z.by !== 'two') ?? null; return { shotId: x.id, atMs: x.atMs, part: x.part ?? h?.part ?? 'torso', zone: h?.zone ?? null, at: h?.at ?? null, row: x.row ?? null }; })
+    .sort((a, b) => a.atMs - b.atMs || (a.shotId < b.shotId ? -1 : 1));
+  const marks = list.map((x, i) => {
+    const aim = AIM_CM[x.part === 'head' ? 'head' : 'torso'], hole = x.zone && x.at ? [x.at[0], x.at[1]] : null;
+    return { n: i + 1, shotId: x.shotId, called: calledAt({ aim, hole, k: kk, seed, shotId: x.shotId }), seen: !!x.zone, hole: truth ? hole : null, zone: truth ? x.zone : null, part: x.part };
+  });
+  if (truth) for (const h of twos) if (h.at) marks.push({ n: null, kind: 'two', shotId: h.shotId, called: null, seen: true, hole: [h.at[0], h.at[1]], zone: h.zone, part: h.part ?? 'torso' });
+  const rows = list.length ? [...new Set(list.map(x => ROW_WORDS[x.row] ?? 'FIRE'))].join(', ') : 'YOUR #2';
+  const own = marks.filter(m => m.n !== null);
+  const words = truth ? [rows, ...own.map(m => ZONE_WORDS[m.zone] ?? 'MISS')].join(' · ') : `${rows} · ${own.filter(m => m.seen).length} SEEN`;
+  const down = T.stoppedAtMs !== null, line = !truth ? null : own.length ? lineOf(own, down) : `Your #2's rounds. ${lineOf(marks.filter(m => m.kind === 'two'), down)}`;
+  return { key, k: 0, face: truth ? T.face : null, holds: truth ? T.holds : null, phase: ph, marks, words, line };
 }

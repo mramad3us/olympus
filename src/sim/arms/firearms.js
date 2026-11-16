@@ -667,7 +667,10 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
         out.ms += Math.round(SLING_RECOVER_S * p * 1000);
         out.posture = 'slungFront';
         out.text = `${M.short} slips out of your hands and swings on its sling.`;
-      } else out.text = `${M.short} slips out of your hand and falls.`;
+      // (a pistol's fumble moves nothing, so its words say where it is: the draw snagged in the holster, the holster missed with it
+      // still in the hand, else caught in the hand (the dead-end hunt of 2026-11-16: "slips out of your hand and falls", and the
+      // P-12 holstered on safe all the same))
+      } else out.text = key === 'draw' || key === 'draw:thigh' ? `${M.short} snags in the holster: it stays in.` : key === 'holster' ? `${M.short} misses the holster: still in your hand.` : `${M.short} slips in your hand: you catch it.`;
       return out;
     }
   }
@@ -953,11 +956,13 @@ export function canDo(state, pid, gunId) {
   if (b.mag === 'in') {
     if (dumpOf(state, pid)) out.push('magOut:dump');
     out.push('magOut:drop');
-    if (pouchFor(state, pid)) out.push('magOut:pouch');
+    if (pouchFor(state, pid, state.items[g.mag]?.fam ?? null)) out.push('magOut:pouch');
   }
   // (0.0.6: a magazine in the hand, its steps; a hand free, a reach to each place that holds one: see the header)
   if (b.hand) {
-    if (b.mag !== 'in') out.push('seat');
+    // (only a magazine of this gun's families: the P-12's HAD-17 held on the R-7 was offered "Magazine in", and the seat broke the
+    // tick, kit.move refusing it (the play review of v0.0.18: "R-7 takes no had17"); put back to its own pouch, dumped or dropped)
+    if (b.mag !== 'in' && fams.includes(b.hand.fam)) out.push('seat');
     out.push('lookMag');
     for (const p of pouchesOf(state, pid)) if (!p.dump && p.room > 0 && (!p.fams || p.fams.includes(b.hand.fam))) out.push(`stowMag@${p.key}`);
     if (dumpOf(state, pid)) out.push('dumpMag');
@@ -971,10 +976,12 @@ export function canDo(state, pid, gunId) {
   if (b.locked) out.push('inspect');
   if (b.chamber === 'empty' && !b.locked && b.mode === 'semi' && !b.stoppage) out.push('functionCheck');
   out.push(b.mode === 'safe' ? 'selector:semi' : 'selector:safe');
-  if (b.port === 'open') out.push('port');
+  // (v0.0.18: the port cover only on a model that has one (the P-12 has none: it offered "Port cover" once a round had fired), and
+  // Sling it only for a long gun (a drawn pistol is put away by Rifle up's holster; "Sling it" left the mode with it in the hand))
+  if (b.port === 'open' && modelOf(g)?.portCover) out.push('port');
   for (const p of ['lowReady', 'highReady']) if (posture !== p) out.push(`posture:${p}`);
   if (kit.carry?.finger === 'on') out.push('finger');
-  out.push('stow');
+  if (isLong(modelOf(g))) out.push('stow');
   return [...new Set(out)];
 }
 
@@ -1025,6 +1032,9 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
     if (pk) reach = { id: pk.id, mag: state.items[pk.id], from: pk.from };
     else reachWhy = place === 'ground' ? 'No magazine at your feet.' : place ? `No magazine in ${PLACE_WORDS[place] ?? place}.` : 'No magazine left in your pouches.';
   }
+  // (a held magazine of another gun's family is never seated: refused with its reason, never a throw in the tick (canDo offers no
+  // such seat; a macro planned before the hand changed may still try one))
+  if (key === 'seat' && held && !(M.fams ?? []).includes(held.mag?.fam)) return refuse(`That magazine doesn't fit the ${M.short}.`);
   if (key === 'stowMag') { const p = pouchOf(state, pid, place ?? 'p1'); if (p && !p.dump && p.room > 0 && (!p.fams || !held || p.fams.includes(held.mag.fam))) { to = p.id; toWord = p.word; } }
   if (key === 'dumpMag') { const d = dumpOf(state, pid); if (d) { to = d; toWord = PLACE_WORDS.dump; } }
   const ctx = { spares, held, reach, reachWhy, to, toWord, pressure, tempo, light: roller.light, observer, observerId, posture, finger: carry.finger ?? 'off', mods: [...(mods ?? [])], force };
@@ -1035,8 +1045,10 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
   if (r.magOut && gun.mag) {
     const magId = gun.mag;
     let to = null;
-    if (r.magOut === 'dump') { const c = dumpOf(state, pid) ?? pouchFor(state, pid); if (c) to = { container: c }; }
-    else if (r.magOut === 'pouch') { const c = pouchFor(state, pid); if (c) to = { container: c }; }
+    // (v0.0.18: by the magazine's family, so the P-12's goes back to the thigh's pouch: kit.js pouchFor)
+    const fam = state.items[magId]?.fam ?? null;
+    if (r.magOut === 'dump') { const c = dumpOf(state, pid) ?? pouchFor(state, pid, fam); if (c) to = { container: c }; }
+    else if (r.magOut === 'pouch') { const c = pouchFor(state, pid, fam); if (c) to = { container: c }; }
     else if (r.magOut === 'hand') { const hands = kit.hands ?? [null, null]; const h = !hands[1] ? 1 : !hands[0] ? 0 : null; if (h !== null) to = { pid, hand: h }; }
     if (!to) { const g = atFeet(state, pid, gunId); if (g) to = { ground: g }; }
     if (to) move(state, magId, to); else move(state, magId, { pid, hand: 1 });

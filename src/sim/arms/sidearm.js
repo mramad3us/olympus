@@ -35,6 +35,13 @@
 // places/move.js inDoorway; the rework's R8b, 2026-11-13) the knee is never the lead: the drill on the hands leads while the
 // feet carry you out, Gun down after it, your own choice. Pure but sidearmSub and sidearmEnd, which
 // write the step's effects (the items by kit.js move).
+// 0.0.18 (the user, 2026-11-15: the P-12 shown and sequenced like the rifle; the build sheet 0.0.18 §2.1): the answers act on the gun
+// in use (guns.js inUseOf), so with the P-12 drawn and stopped Gun down and Off the line tap and rack the P-12, never the hanging
+// rifle; Rifle up's tail is the rifle's own way to ready (plan.js readyPath: "Rifle up: holster, RELOAD" for a rifle that went
+// dry, "tap, rack" still for a stoppage felt, its time to the ms); the holstered P-12 has rows of its own, weapon:other:<row>
+// (plan.js gunRows as if in the hands: Press check, Magazine check, Top up, MAKE READY), each wrapped in its access (guns.js
+// accessOf: the rifle let hang and the draw, then the holster and the rifle up), "P-12: …", in GUN ▸ "Hands ▸" only (no slot,
+// never a lead, after Wait), on the lane with nobody facing you; the sub-steps say the pistol's words (gunwords.js).
 import { q } from '../../core/num.js';
 import { playerActor } from '../../core/ids.js';
 import { rollerOf } from '../combat/roll.js';
@@ -54,6 +61,10 @@ import { gravityAt } from '../places/env.js';
 import { rungOf } from '../skills/templates.js';
 import { SEEN } from '../people/perception.js';
 import { paceOf } from '../skills/skills.js';
+import { inUseOf, accessOf } from './guns.js';
+import { readyPath, gunRows, planFor } from './plan.js';
+import { wordsOf } from './gunwords.js';
+import { SLUNG } from './carry.js';
 
 /** The calls of the answers (voice, CALL_MS each: shouted as the hands move; FM 3-06.11 table 3-2). */
 export const CALLS = Object.freeze({ 'call:gundown': TWO_SAY.gunDown, 'call:gunup': TWO_SAY.gunUp, 'call:stoppage': 'Stoppage!', 'call:up': 'Up!' });
@@ -84,6 +95,8 @@ const rifleOf = (state, pid) => state.people?.[pid]?.kit?.worn?.sling ?? null;
 const houseOf = (state) => (state.armoury?.range?.course === 'house' ? state.armoury.range.house ?? null : null);
 const laneLive = (state) => { const H = houseOf(state); return !!H && H.goAtMs !== null && H.goAtMs !== undefined && !H.end; };
 /** The P-12 in its holster, ready to draw, or null. */
+// (the rifle on its sling now, no pistol drawn: the hands' drills on it wait for its Up (firearms.js doAction refuses them))
+const slungNow = (state, pid) => SLUNG.has(state.people?.[pid]?.kit?.carry?.posture ?? 'slungFront') && !drawn(state, pid);
 export const holstered = (state, pid) => { const k = state.people?.[pid]?.kit; return k?.worn?.holster ?? null; };
 /** The pistol in your hand (drawn), or null. */
 export const drawn = (state, pid) => { const h = handGunOf(state, pid); return h && !isLong(modelOf(state.items[h])) ? h : null; };
@@ -121,21 +134,29 @@ export function buddyUp(state, pid) {
  * 'rifle-up', 'cover'. feet: Off the line's step (offlineFeet's), to know whether the hands wait for it.
  */
 export function weaponList(state, pid, key, { feet = null } = {}) {
-  const me = actorOf(state, pid), rifle = rifleOf(state, pid), b = rifle ? beliefOf(state, rifle) : null;
+  const me = actorOf(state, pid), rifle = rifleOf(state, pid), use = inUseOf(state, pid), b = use ? beliefOf(state, use) : null;
   if (!me) return null;
   if (key === 'gun-down') {
-    if (!b?.stoppage || drawn(state, pid)) return null;
+    if (!b?.stoppage || slungNow(state, pid)) return null;
     return ['call:gundown', ...(me.stance === 'kneel' ? [] : ['stance:kneel']), ...subsOf(drillOf(b), b), 'call:gunup', ...(houseOf(state)?.two?.pid ? ['wait:up'] : []), 'stance:stand'];
   }
   if (key === 'offline') {
-    if (!b?.stoppage || drawn(state, pid)) return null;
+    if (!b?.stoppage || slungNow(state, pid)) return null;
     const wait = feet && rungOf(state, pid, 'room') < 3;
     return ['call:stoppage', ...(wait ? ['step:wall'] : []), ...subsOf(drillOf(b), b), 'call:up'];
   }
-  if (key === 'transition') return holstered(state, pid) && !drawn(state, pid) ? ['hang', 'draw:thigh'] : null;
+  // (the rifle already hanging on its sling (a fumble's): the draw alone, no Let it hang refused as "slung")
+  if (key === 'transition') return holstered(state, pid) && !drawn(state, pid) ? [...(slungNow(state, pid) ? [] : ['hang']), 'draw:thigh'] : null;
   if (key === 'rifle-up') {
-    if (!drawn(state, pid)) return null;
-    return ['holster', 'up', ...(b?.stoppage ? subsOf(drillOf(b), b) : [])];
+    if (!drawn(state, pid) || !rifle) return null;
+    return ['holster', 'up', ...(readyPath(state, pid, rifle).subs ?? [])];
+  }
+  // (the holstered P-12's own rows: the row's sub-steps inside the access, looked up again at the press)
+  if (key.startsWith('other:')) {
+    const p = holstered(state, pid), r = p ? gunRows(state, pid, p).find(x => x.id === key.slice(6)) : null;
+    if (!r) return null;
+    const acc = accessOf(state, pid, p);
+    return [...acc.pre, ...r.subs.map(x => x.id), ...acc.post];
   }
   if (key === 'cover') return houseOf(state)?.two?.down ? ['team:cover'] : null;
   return null;
@@ -207,7 +228,7 @@ function coverMs(state, pid) {
  */
 export function cardOptions(state, pid, { ia, look }) {
   if (!inHouse(state) || !laneLive(state)) return [ia, look];
-  const rifle = rifleOf(state, pid), b = beliefOf(state, rifle), near = threatFacing(state, pid), buddy = buddyUp(state, pid);
+  const b = beliefOf(state, inUseOf(state, pid)), near = threatFacing(state, pid), buddy = buddyUp(state, pid);
   const pistol = holstered(state, pid), close = !!near && near.dM <= TRANSITION_NEAR_M, words = drillWords(state, pid, b);
   const opt = (key, label) => { const list = key === 'offline' ? weaponList(state, pid, key, { feet: offlineFeet(state, pid) }) : weaponList(state, pid, key === 'gundown' ? 'gun-down' : key); return list ? { key, label, step: ANSWER_STEPS[key], ms: listMs(state, pid, list, { feet: key === 'offline' ? offlineFeet(state, pid) : null }) } : null; };
   const gd = buddy ? opt('gundown', `Gun down: ${words}`) : null, off = near ? opt('offline', `Off the line: ${words}`) : null;
@@ -223,24 +244,65 @@ export function cardOptions(state, pid, { ia, look }) {
 
 /** The weapon group's rows in the house's panel (see the header): { id, kind: 'weapon', label, ms, subs, group, slot, lead?, later?, off? }. */
 export function weaponRows(state, pid, ms = state.clock.ms) {
-  // (off the lane only Rifle up, a P-12 still out when the lane ended: the tower's commands are the rifle's)
-  if (!inHouse(state) || (!laneLive(state) && !drawn(state, pid))) return [];
-  const rifle = rifleOf(state, pid), b = rifle ? beliefOf(state, rifle) : null, near = threatFacing(state, pid, ms), out = [];
+  // (off the lane only Rifle up, a P-12 still out when the lane ended: the tower's commands are the rifle's; and before GO the
+  // holstered P-12's MAKE READY where the tower's waits on it (pistolOwed))
+  const cold = !laneLive(state) && !drawn(state, pid);
+  if (!inHouse(state) || (cold && !pistolOwed(state, pid))) return [];
+  const rifle = rifleOf(state, pid), use = inUseOf(state, pid), b = use ? beliefOf(state, use) : null, near = threatFacing(state, pid, ms), out = [];
+  // (each sub-step's words on its own gun: the pistol's from the draw to the holster, as listMs times them)
+  const labelsOf = (list) => {
+    let m = drawn(state, pid) ? state.items[drawn(state, pid)]?.model : state.items?.[rifle]?.model;
+    return list.map(a => { const w = wordsOf(a, m) ?? LABELS[a] ?? SIDEARM_LABELS[a] ?? a; if (a === 'draw:thigh') m = state.items?.[pistolOf(state, pid)]?.model; if (a === 'holster') m = state.items?.[rifle]?.model; return w; });
+  };
   const row = (id, key, label, slot, o = {}) => {
     const feet = key === 'offline' ? offlineFeet(state, pid, ms) : null, list = weaponList(state, pid, key, { feet });
     if (!list) return;
     out.push({ id, kind: 'weapon', label, ms: listMs(state, pid, list, { feet }), rushMs: null, carefulMs: null, odds: null, routine: null, off: null, cmd: false, skill: 'weapons',
-      subs: list.map(a => ({ id: a, label: LABELS[a] ?? SIDEARM_LABELS[a] ?? a, ms: 0 })), group: 'weapon', slot, ...o });
+      subs: labelsOf(list).map((label, i) => ({ id: list[i], label, ms: 0 })), group: 'weapon', slot, ...o });
   };
+  if (cold) {
+    const p = holstered(state, pid), r = gunRows(state, pid, p).find(x => x.id === 'macro:ready');
+    if (r) row('weapon:other:macro:ready', 'other:macro:ready', `${state.items[p]?.model === 'p12' ? 'P-12' : 'Pistol'}: ${r.label}`, null, {});
+    return out;
+  }
   const words = drillWords(state, pid, b), pistolOut = !!drawn(state, pid);
-  if (pistolOut) row('weapon:rifle-up', 'rifle-up', `Rifle up: holster${b?.stoppage ? `, ${words}` : ''}`, 3, { lead: !near });
+  // (Rifle up's words: the rifle's own way to ready, "tap, rack" for a stoppage felt as built)
+  const rb = rifle ? beliefOf(state, rifle) : null, rp = pistolOut && rifle ? readyPath(state, pid, rifle) : null;
+  const upWords = rb?.stoppage ? drillWords(state, pid, rb) : rp?.words ?? '';
+  if (pistolOut) row('weapon:rifle-up', 'rifle-up', `Rifle up: holster${upWords ? `, ${upWords}` : ''}`, 3, { lead: !near });
+  // (the drawn P-12 stopped: Gun down and Off the line on it, Rifle up still the lead with nobody facing)
+  if (pistolOut && b?.stoppage) {
+    if (buddyUp(state, pid)) row('weapon:gun-down', 'gun-down', `Gun down: ${words}`, 0);
+    row('weapon:offline', 'offline', `Off the line: ${words}`, 2, { later: !near });
+  } else if (pistolOut) { /* (the P-12 working: Rifle up its one row) */ }
   else if (b?.stoppage) {
     if (holstered(state, pid)) row('weapon:transition', 'transition', 'Transition: pistol', 1, { lead: !!near && near.dM <= TRANSITION_NEAR_M });
     if (buddyUp(state, pid)) row('weapon:gun-down', 'gun-down', `Gun down: ${words}`, 0, { lead: (!near || near.dM > TRANSITION_NEAR_M || !holstered(state, pid)) && !inDoorway(state, pid) });
     row('weapon:offline', 'offline', `Off the line: ${words}`, 2, { later: !near });
   } else if (b?.locked && b.count === 0 && holstered(state, pid) && near && near.dM <= TRANSITION_NEAR_M) row('weapon:transition', 'transition', 'Transition: pistol', 1, { lead: true });
+  // (the rifle with no round believed anywhere (no magazine left to seat) and the holstered P-12 with a way to fire: Transition,
+  // whoever is facing, the lead with a man up (the review of v0.0.18: the private with his magazines spent read "Nothing to fix",
+  // the DI's "Reload." with nothing to reload and no act))
+  else if (use && use === rifle && holstered(state, pid) && planFor(state, pid, use, 'fire', { purpose: null }).none === 'no rounds' && planFor(state, pid, holstered(state, pid), 'fire', { carry: 'hands', purpose: null }).path) row('weapon:transition', 'transition', 'Transition: pistol', 1, { lead: !!near });
   if (houseOf(state)?.two?.down && !houseOf(state).two.coveredBy) row('team:cover', 'cover', 'Cover his sector', 0, { group: 'team', lead: true });
+  // (the holstered P-12's own rows, after Wait, on the lane with nobody facing you (see the header))
+  const p = holstered(state, pid);
+  if (p && !pistolOut && !near && laneLive(state)) for (const r of gunRows(state, pid, p)) row(`weapon:other:${r.id}`, `other:${r.id}`, `${state.items[p]?.model === 'p12' ? 'P-12' : 'Pistol'}: ${r.label}`, null, { later: true });
   return out;
+}
+
+/**
+ * Whether the tower's MAKE READY is owed by the holstered P-12 alone (v0.0.18): before GO, the command MAKE READY or Standby given,
+ * the rifle's chamber not empty (so its own MAKE READY, which racks the pistol last, is not offered) and the pistol's part of it
+ * still to do (adminSubs). The dead-end hunt of 2026-11-16: two rifle fumbles in MAKE READY and a Rifle up between them took the
+ * boot recruit to GO with the P-12 unchambered, believed so, without a word (5 of 40 lanes on natural dice); the tower now
+ * waits on it as on the rifle (shoothouse.js houseWant 'pistol') and the panel offers "P-12: MAKE READY".
+ */
+export function pistolOwed(state, pid) {
+  const R = state.armoury?.range, H = R?.house, rifle = rifleOf(state, pid);
+  if (R?.course !== 'house' || !H || R.end || (H.goAtMs !== null && H.goAtMs !== undefined) || !['ready', 'standby'].includes(R.cmd?.id)) return false;
+  if (!holstered(state, pid) || drawn(state, pid) || !rifle || beliefOf(state, rifle).chamber === 'empty') return false;
+  return adminSubs(state, pid, 'ready').length > 0;
 }
 
 // ---- the tower's macros over both guns (see ADMIN) ----
@@ -340,6 +402,8 @@ export function sidearmEnd(state, bus, d, id) {
     // of 2026-11-13: it came out "SAFE 1 + 9", Off safe on 8, at the moment the man is up); off the lane it stays as it was)
     if (laneLive(state) && state.items[p]) state.items[p].mode = 'semi';
   } else if (id === 'holster') {
+    // (the holster fumbled (its sub-step halted): the pistol still in the hand, drawn, the step's rest Carry on's)
+    if (d.halt) return;
     const p = drawn(state, pid);
     // (on safe before it goes in (WEAPONS §5.2's stow): the tower's Stop judges a holstered P-12 on safe (shoothouse.js pistolLacks))
     if (p && state.items[p]) state.items[p].mode = 'safe';

@@ -54,6 +54,12 @@
 // the same bytes, plays 600 ticks by the keys with no error, and a save after carries on byte for byte. The upgrade's other
 // conditions (Condition 3 before MAKE READY, Condition 4 after the rifle's UNLOAD) are pinned on a fresh lane's saves with
 // the P-12 taken out, as a v0.0.15 save of those moments would be.
+// 0.0.18 (the build sheet 0.0.18 §1 and §3.2): two saves made by v0.0.17's own code in the main tree at its tag, before any
+// of the round's merges: test-shoothouse, the sergeant by T on seed 1489397426 at the first contact's pause after Transition:
+// pistol, the P-12 in the hand and the R-7 hanging on its click (believed live, 5 of 10, a stoppage felt); and test-pairs, the
+// private on setup=standby at the armed standby's pause. Nothing is written on load (no stop.queueOf: the queue runs as saved;
+// no loadout: 'standard'; no shot rows, bursts or daze): each saves again at once byte for byte, plays 600 ticks with no
+// error (by the bots that made them, the honest T bot and the pairs bot), and a save made after carries on byte for byte; the house lane then reaches its card.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -67,7 +73,7 @@ import { rungOf } from '../src/sim/skills/templates.js';
 import { feltOf, inocOf, hardOf, blockOf, suppAt } from '../src/sim/combat/supp.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { pairsBot } from './bots/pairs.mjs';
-import { houseTBot, houseKeysBot, runHouse } from './bots/house.mjs';
+import { houseTBot, houseKeysBot, runHouse, stoppageBot } from './bots/house.mjs';
 import { checkIds } from './ids-check.mjs';
 import { conditionOf, gunField } from '../src/sim/arms/firearms.js';
 import { marsClock } from '../src/core/calendar.js';
@@ -360,6 +366,34 @@ export default [
       const sgt = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'sgt' }), before = sgt.save(), again = createGame({ scenario: 'test-shoothouse', seed: 48213 }); again.load(before);
       console.log(`      the P-12 on load: ${Object.entries(out).map(([k, v]) => `at ${k} Condition ${v.cond} (${v.mode}, ${v.pouch} in the pouch)`).join('; ')}; the sergeant's fill loaded ${again.save() === before ? 'byte for byte' : 'DIFFERENT'}`);
       assert(out.load?.cond === 3 && out.load.pouch === 1 && out.go?.cond === 1 && out.go.mode === 'safe' && out.go.pouch === 1 && out.wash?.cond === 4 && out.wash.pouch === 2 && again.save() === before, JSON.stringify(out));
+    },
+  },
+  {
+    name: 'a v0.0.17 save loads with nothing written (the build sheet 0.0.18 §3.2: the shoot house with the P-12 drawn and the rifle hanging on its click, and a test-pairs standby): it saves again byte for byte at once, plays 600 ticks with no error, a save made after carries on byte for byte, and the house lane reaches its card with the P-12 holstered',
+    timeoutMs: 180_000,
+    fn() {
+      for (const name of ['v0.0.17-house-pistol', 'v0.0.17-pairs-standby']) {
+        const json = read(name), old = JSON.parse(json), house = old.meta.scenario === 'test-shoothouse';
+        assert(old.meta.version === '0.0.17' && old.meta.scenario === (house ? 'test-shoothouse' : 'test-pairs'), `${name}: ${old.meta.version} ${old.meta.scenario}`);
+        // (each by the bot that made it, whose memory is saved on the actor: the house's the honest T bot answering its card with Transition)
+        const bot = () => (house ? stoppageBot({ answer: 'transition' }) : pairsBot());
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), again = g.save(), pid = s.player.id, b = bot();
+        const k = s.people[pid].kit, P = s.armoury.range.house?.pistol ?? null, rifle = s.items[k.worn.sling];
+        const where = house ? `the ${s.armoury.range.house.tier} in leg ${s.armoury.range.house.cur} at a ${s.stop?.via} pause, the P-12 ${k.hands?.[0] === P ? 'in the hand' : 'NOT in the hand'}, the rifle believed ${JSON.stringify(rifle.belief)}` : `the ${s.armoury.range.sheet} at a ${s.stop?.via ?? 'no'} pause, cmd ${s.armoury.range.cmd?.id}`;
+        if (house) assert(k.hands?.[0] === P && s.stop?.gun === P && rifle.belief?.stoppage === 'click', JSON.stringify({ hands: k.hands, gun: s.stop?.gun, belief: rifle.belief }));
+        else assert(s.armoury.range.cmd?.id === 'standby' && s.stop, JSON.stringify({ cmd: s.armoury.range.cmd?.id }));
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, bot());
+        const carried = h.save() === end;
+        let card = '';
+        if (house) {
+          const run = runHouse(g, b, { maxMs: 10 * 60_000 });
+          card = `; on to the card ${run.done ? 'reached' : 'NOT reached'} in ${fmt(run.ms / 1000, 1)} s more, the P-12 ${g.state.people[pid].kit.worn.holster === P ? 'holstered' : 'not holstered'}`;
+          assert(run.done && g.state.people[pid].kit.worn.holster === P, JSON.stringify({ done: run.done }));
+        }
+        console.log(`      ${name}: ${where}, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}${card}`);
+        assert(again === json && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: again === json, errors: g.errors.slice(0, 3), carried }));
+      }
     },
   },
 ];

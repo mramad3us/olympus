@@ -619,3 +619,30 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .instinct .line .rowkeys { margin-left: calc(6px * var(--ui)); white-space: nowrap; }
 .instinct .line .rowkeys kbd { color: var(--brass); border-color: var(--brass); }
 .instinct .line .rowkeys .sep { color: var(--muted); margin: 0 2px; }
+
+/* v0.0.18 loadout (the build sheet 0.0.18 §2.3; WEAPONS §12.7; cards/loadout.js): the picker's "Kit: Standard ▸" under the par,
+   and the loadout screen in the picker's place on the title's paper: the carrier's four faces as columns of places, the issue
+   table, the presets, the mass and the walk's push and brake. The paper's own ink; a place refused says why, in red, under the
+   faces; never over anything. */
+#title .sheet.picker .item.kitpick { width: auto; margin: calc(6px * var(--ui)) 0 0; padding: calc(2px * var(--ui)) calc(8px * var(--ui)); font-size: calc(12px * var(--ui)); }
+#title .sheet.picker .item.kitpick kbd { color: var(--ink); border-color: rgba(26, 18, 20, 0.35); }
+#title .sheet.picker.kit > .sheet.loadout { padding: 0; margin: 0; box-shadow: none; background: none; max-width: none; }
+#title .sheet.loadout .faces { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(6px * var(--ui)); margin: calc(6px * var(--ui)) 0; }
+#title .sheet.loadout .face { display: flex; flex-direction: column; gap: calc(3px * var(--ui)); min-width: 0; }
+#title .sheet.loadout .face .fh { font-size: calc(10px * var(--ui)); letter-spacing: 0.1em; color: rgba(26, 18, 20, 0.6); border-bottom: 1px solid rgba(26, 18, 20, 0.25); }
+#title .sheet.loadout .item.place { width: auto; margin: 0; padding: calc(3px * var(--ui)) calc(5px * var(--ui)); font-size: calc(11px * var(--ui)); text-align: left; overflow: hidden; }
+#title .sheet.loadout .item.place .pw { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#title .sheet.loadout .item.place small { display: block; font-size: calc(9.5px * var(--ui)); opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#title .sheet.loadout .item.place:not(.full) .pw { opacity: 0.5; font-style: italic; }
+#title .sheet.loadout .item.place.fixed { opacity: 0.6; cursor: default; }
+#title .sheet.loadout .why { min-height: 1.2em; margin: 0; font-size: calc(11px * var(--ui)); color: #8e2a22; }
+#title .sheet.loadout .issues { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(4px * var(--ui)); }
+#title .sheet.loadout .item.issue { width: auto; margin: 0; padding: calc(3px * var(--ui)) calc(6px * var(--ui)); font-size: calc(11.5px * var(--ui)); text-align: left; opacity: 0.75; overflow: hidden; }
+#title .sheet.loadout .item.issue.on { opacity: 1; outline: 1px solid rgba(26, 18, 20, 0.55); }
+#title .sheet.loadout .item.issue small { display: block; font-size: calc(9.5px * var(--ui)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#title .sheet.loadout .item.issue kbd, #title .sheet.loadout .item.preset kbd, #title .sheet.loadout .item.kitup kbd { color: var(--ink); border-color: rgba(26, 18, 20, 0.35); }
+#title .sheet.loadout .presets { display: flex; flex-wrap: wrap; gap: calc(4px * var(--ui)); margin: calc(6px * var(--ui)) 0 0; }
+#title .sheet.loadout .item.preset { width: auto; margin: 0; padding: calc(2px * var(--ui)) calc(8px * var(--ui)); font-size: calc(12px * var(--ui)); opacity: 0.7; }
+#title .sheet.loadout .item.preset.on { opacity: 1; outline: 1px solid rgba(26, 18, 20, 0.55); }
+#title .sheet.loadout .mass { margin: calc(6px * var(--ui)) 0 0; font-size: calc(11px * var(--ui)); }
+#title .sheet.loadout .code { margin: 0; font-family: var(--mono); font-size: calc(9.5px * var(--ui)); opacity: 0.6; word-break: break-all; }

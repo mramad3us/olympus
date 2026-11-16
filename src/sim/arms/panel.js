@@ -13,6 +13,8 @@
 // five, three layouts) and the DI names its keys (groups.js keysFor); panelOf and digitOf stay as v0.0.13's paged numbering, the
 // press model's baseline in the tests (panel-groups, flawless F24), until the user's pick of P1 to P3 retires them; remedyOf and
 // isShotRow are the model's own.
+// 0.0.18: for the gun-state reasons remedyOf returns the planner's step first (the row stepsOf marks fix: src/sim/arms/plan.js),
+// the table after it for a step list made by hand.
 // Pure.
 
 /** The digits, in the panel's order: two columns of five. */
@@ -56,6 +58,9 @@ const REMEDY = Object.freeze([
 export function remedyOf(steps = [], off) {
   const r = REMEDY.find(([re]) => re.test(String(off ?? '')));
   if (!r) return null;
+  // (v0.0.18: the planner's step first, the one stepsOf marked fix (shooting.js markFix); the table for a list made by hand)
+  const planned = (steps ?? []).find(st => st.fix && !st.off);
+  if (planned) return planned;
   for (const id of r[1]) { const x = (steps ?? []).find(st => st.id === id && !st.off); if (x) return x; }
   return null;
 }

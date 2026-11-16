@@ -251,6 +251,8 @@ import { turnerPx } from './render/range-items.js';
 import { FACE_K } from './art/kit/range.js';
 import { KD_RANGE } from './data/places/range.js';
 import { paintWeaponCard } from './art/weaponcard.js';
+// (v0.0.18: the second gun carried, for the weapon card's strip: guns.js)
+import { otherGunView } from './sim/arms/guns.js';
 import { createBoot } from './ui/boot.js';
 import { applyScale, uiScale, rectsAt, placeFar, farTick, overlaps, flagToKeep, FLAG_KEEP_M, STATES as HUD_STATES } from './ui/hud/layout.js';
 import { createWatch } from './ui/hud/watch.js';
@@ -281,12 +283,15 @@ import { aspectLines, againTiers, runLine, bangLines } from './ui/cards/pairs.js
 import * as stressScene from './sim/scenarios/stress.js';
 import { COURSES } from './data/courses.js';
 import * as MARKS from './sim/arms/marks.js';
-import { createHitcard, cardModel, hitShown, hitTabs, hitRangeM, HIT_LOOK } from './ui/hud/hitcard.js';
-import { paintHitcard, warmHitcard } from './art/doll/hitcard.js';
+import { createHitcard } from './ui/hud/hitcard.js';
+import { paintHitcard } from './art/doll/hitcard.js';
+import { createTargetView } from './ui/hud/target.js';
 import { stressLines, hotWash, sessionGrid, gridTable } from './ui/cards/stress.js';
 // (0.0.12: "Stack and clear": the scene's views (shoothouse.js), the drill's running bundle (bundle.js), the instructor's lane timer, the
 // run sheet and the hot wash (cards/house.js))
 import * as houseScene from './sim/scenarios/shoothouse.js';
+// (0.0.18: the loadout, its code and the screen's numbers (src/sim/arms/loadout.js))
+import { loadoutOf, codeOf, loadoutView, reachSOf } from './sim/arms/loadout.js';
 import * as BUNDLE from './sim/combat/bundle.js';
 import { laneModel } from './ui/hud/timer.js';
 import { runSheetEl, hotWashEl, houseRunLine, houseAspects, houseEndLines } from './ui/cards/house.js';
@@ -297,6 +302,10 @@ import { createReflex } from './ui/hud/reflex.js';
 import { plaque, bracket, place, shotPlaque, plaqueWords, plaqueParts, termsPlaque, termLines, farLabel,
   windowBracket, bracketScale, stamp, STAMP_S, contactPlaque, rowPartsPlaque, frozeStamp, chaosSum, feltMod } from './ui/plaque.js';
 import { doll } from './art/doll/doll.js';
+// (0.0.18, the doll role: the I and C figures and the target view drawn from the gear worn now (gear.js, dress.js), the target view
+// whenever you engage a stand or a man (engage.js, hud/target.js))
+import * as GEAR from './sim/arms/gear.js';
+import { dressedDoll } from './art/doll/dress.js';
 import { createStage } from './render/stage.js';
 import { createView, CUT_MAX_MS, FOG_CELLS } from './render/view.js';
 import { FOG_CELL_M } from './render/fog.js';
@@ -507,7 +516,7 @@ sim = createSim({ loop, bus });
 const label = (a) => input.label(a);
 const instinct = createInstinct(hud, { label });
 // (the weapon mode's HUD: the step panel with its weapon card, the reflex card in its place, the radio box, the PAPER inset, the plaque and its brackets)
-const stepPanel = createSteps(hud, { label, labelOf: (id) => stepLabel(id), paintCard: (belief, far = {}, finish = null) => (belief?.model ? paintWeaponCard({ model: belief.model, finish, belief, k: 1, ...far }) : null),
+const stepPanel = createSteps(hud, { label, labelOf: (id) => stepLabel(id), paintCard: (belief, far = {}, finish = null, other = null) => (belief?.model ? paintWeaponCard({ model: belief.model, finish, belief, k: 1, ...far, other }) : null),
   onPick: (step) => { if (!loop.paused && !boot.card && !splash?.active && inStop() && !windowOpen() && !startledNow() && !pauseGuarded('click')) { let st = null; try { st = stopNow(loop.state); } catch { /* (no stop motion: nothing to send) */ } if (st && !st.reflex) { sendStep(step, input.peek().run ? 'rushed' : 'normal', st); stepPanel.chosen(); } } } });
 // (R7: NEXT clicked is T tapped)
 stepPanel.onNext = () => { if (!loop.paused && !boot.card && !splash?.active && inStop() && !windowOpen() && !startledNow() && !pauseGuarded('click')) nextPress(); };
@@ -604,7 +613,13 @@ const boot = createBoot({ cb: {
   // (the hidden rolls only in debug, once the scene is over: tradecraft's)
   logLines: () => logLines(loop.state, { over: !!settings.debug && !!scene?.ended }),
   scenes: () => SCENE_IDS.map(id => SCENES[id]),                    // (the built scenes: a stub's spec, ROADMAP "anywhere" step 4, waits for its layout)
-  playScene: (scene, { tier = null, par = null } = {}) => playScene(scene, { tier, par }),
+  playScene: (scene, { tier = null, par = null, loadout = null } = {}) => playScene(scene, { tier, par, loadout }),
+  // (0.0.18: the shoot house's loadout screen (cards/loadout.js): the code this browser kept (olympus.loadout, a convenience the sim
+  // never reads), kept again on Kit up, and the screen's numbers from a fill of the lane with the code (loadout.js loadoutView))
+  loadout: () => ({ code: loadoutOf(readLocal('olympus.loadout')).error ? 'standard' : codeOf(loadoutOf(readLocal('olympus.loadout'))),
+    save: (c) => { if (!settings.nostore) { try { localStorage.setItem('olympus.loadout', c); } catch { /* (a private window: this session only) */ } } },
+    preview: (c, tier) => { try { const s = newGame({ seed: 48213, scene: 'test-shoothouse', scenario: 'test-shoothouse', tier, setup: 'go', loadout: c }); return loadoutView(s, s.player.id, loadoutOf(c)); } catch (e) { broke(e, 'the loadout'); return null; } },
+    wh: (tier) => TEMPLATES.TEST_SHEETS?.[tier]?.values?.weapons ?? 10 }),
   // (0.0.8: a scene played as a sheet: the picker's sheets and their order, react's templates.js)
   sheets: () => ({ sheets: TEMPLATES.TEST_SHEETS ?? {}, order: TEMPLATES.PICKER_TIERS ?? null, hard: hardOfSheet,
     // (0.0.12: the shoot house's pars, the course's own numbers, and each sheet's default)
@@ -624,12 +639,13 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
  * (test-pairs' sheet, 0.0.8: 'recruit' … 'tierone'; null the scene's private), scene (a scene's spec, src/data/scenes.js:
  * its host, environment, hour and setup; ROADMAP "anywhere" step 4) }.
  */
-function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env } = {}) {
+function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env, loadout = null } = {}) {
   if (!scene && !SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
   // (0.0.8: tier, test-pairs' sheet (null: the scene's private); scenes never write a career)
   // (ROADMAP "anywhere" step 2: the URL's &env=<preset> runs every game this page starts under that environment)
   // (0.0.12: par, the shoot house's (null: the sheet's own))
-  return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}) });
+  // (0.0.18: loadout, the shoot house's (null: the standard))
+  return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}), ...(loadout ? { loadout } : {}) });
 }
 /** The URL's start somewhere else (&area=, &at=, &face=), or null: an area alone starts at its spawn. */
 function atParam(scenario) {
@@ -674,8 +690,8 @@ const sceneOf = (s) => {
   return all.find(x => (x.setup ?? null) === setup) ?? all[0] ?? null;
 };
 /** Start a scene: a new game from its spec, at its hour (or the URL's), with the seed given or a new one, the URL's setup (else the scene's own), and a sheet's tier (test-pairs, 0.0.8). */
-function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null } = {}) {
-  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par }));
+function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null, loadout = null } = {}) {
+  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par, ...(loadout ? { loadout } : {}) }));
 }
 
 /** Play a state from here (new, loaded or imported). Resolves with it once its area shows (or the cut gives up). */
@@ -702,7 +718,9 @@ function launch(s, { from = null } = {}) {
   if (goal && s.armoury?.range?.course === 'house' && houseScene.houseGoal) { try { goal = houseScene.houseGoal(s) ?? goal; } catch (e) { broke(e, 'the goal'); } }
   if (goal) toasts.push(goal, 'calm', { s: GOAL_S });
   // (0.0.10, the runtime review's: "Bang"'s hit card dolls made at the load, so the first card of a string paints in one frame)
-  if (s.armoury?.range?.stress) { try { warmHitcard(); } catch (e) { broke(e, 'the hit card'); } }
+  // (0.0.18: and the shoot house's faces as they may be seen, and your #2 in his gear: hud/target.js warm; the view reset on every
+  // launch, so a man held on the scene before is not shown on this one)
+  try { targetView.reset(); if (s.armoury?.range?.stress || s.armoury?.range?.course === 'house') targetView.warm(s); } catch (e) { broke(e, 'the hit card'); }
   launched = { from, ticks: loop.stats.ticks, lost: loop.stats.lostTicks, checked: false };
   anchor = { json: toJSON(s), seq: s.clock.seq ?? null };            // (the state played from is the report's first anchor, until an autosave)
   // (a new career, or an imported file, is saved at once, so a reload's Continue finds it: v0.0.3's
@@ -1206,7 +1224,9 @@ function openSheet() {
   let sheet;
   try { sheet = sheetOf(s, { body: BODY, supp: SUPP_READERS, lonEDeg: lonAt(s), look: p?.look ? lookFor(p.look, me?.outfit ?? 'utilities', indoorsNow(s), hairStep(s)) : null }); }
   catch (e) { broke(e, 'the character sheet'); return; }
-  boot.openCard('sheet', sheetCard(sheet, { dollOf: (args) => doll(args) }));
+  // (0.0.18: the figure wears the gear worn now, gear.js gearOf through dress.js; a person with no kit and no actor as before)
+  const gear = (() => { try { return GEAR.gearOf(s, s.player.id); } catch (e) { broke(e, 'the gear'); return null; } })();
+  boot.openCard('sheet', sheetCard(sheet, { dollOf: (args) => (gear ? dressedDoll(gear, { look: args?.look, sex: args?.sex, body: args?.body }) : doll(args)) }));
 }
 // (I: what you carry, believed counts only (arms' kitView); the doll as on the sheet)
 function openInventory() {
@@ -1217,12 +1237,17 @@ function openInventory() {
     // (the reach the sim's own: a magazine in, at your Weapon handling, as the step panel shows it)
     const gunId = s.people?.[s.player.id]?.kit?.worn?.sling, g0 = gunId ? s.items?.[gunId] : null;
     view = kitView(s, s.player.id, { magInS: g0 ? actionMs(rollerOf(s, s.player.id), g0, 'magIn') / 1000 : null,
-      groundS: g0 ? (actionMs(rollerOf(s, s.player.id), g0, 'reach@ground') + actionMs(rollerOf(s, s.player.id), g0, 'seat')) / 1000 : null });
+      groundS: g0 ? (actionMs(rollerOf(s, s.player.id), g0, 'reach@ground') + actionMs(rollerOf(s, s.player.id), g0, 'seat')) / 1000 : null,
+      // (0.0.18: a device pouch's reach from its face, as the loadout screen gives it)
+      devReachS: (m, f) => reachSOf(rollerOf(s, s.player.id), m, f) });
     const gun = view?.sling?.gunId ? s.items?.[view.sling.gunId] : null;
     if (view?.sling && gun) view = { ...view, sling: { ...view.sling, word: `Your ${MODELS[gun.model]?.short ?? 'rifle'}` } };
   } catch (e) { broke(e, 'the inventory'); return; }
   const look = p?.look ? lookFor(p.look, me?.outfit ?? 'utilities', indoorsNow(s), hairStep(s)) : null;
-  const { body, lines } = inventoryCard(view, { label: (a) => input.label(a), dollOf: look ? () => doll({ look, sex: p.sex, outfit: me?.outfit ?? 'utilities' }) : null });
+  // (0.0.18: the figure wears the gear worn now, as the sheet's; the plaque names the suit when one is worn)
+  const gear = (() => { try { return GEAR.gearOf(s, s.player.id); } catch (e) { broke(e, 'the gear'); return null; } })();
+  const { body, lines } = inventoryCard(view, { label: (a) => input.label(a), sub: gear?.suit ? 'COMBAT EVA SUIT' : null,
+    dollOf: look ? () => (gear ? dressedDoll(gear, { look, sex: p.sex }) : doll({ look, sex: p.sex, outfit: me?.outfit ?? 'utilities' })) : null });
   boot.openCard('inventory', body, lines);
 }
 // (R held: the menu of every single action at hand, cards/actions.js; its keys its own while it is up)
@@ -1411,7 +1436,7 @@ function openHouseEnd(rec, seed) {
   const again = againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null);
   const par = s?.armoury?.range?.house?.par ?? null;
   const { body, lines } = endCard({ scene: rec, seed, said: houseEndLines(hn, rs), sheet: label, runs, cards: side, aspects: houseAspects(hn, { fmt: takeInWords }), again, on: {
-    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null }),
+    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout: s?.armoury?.range?.house?.loadout ?? null }),
     againAs: (t) => againAs(rec, t),
     score: () => openScore(),
     title: () => quitToTitle(),
@@ -1424,7 +1449,7 @@ function againAs(rec, tier) {
   if (loop.state?.armoury?.range?.course === 'house') {
     let h = null;
     try { h = houseScene.againAsHouse ? houseScene.againAsHouse(loop.state, tier) : null; } catch (e) { broke(e, 'Again as'); }
-    return playScene(rec, { seed: h?.seed ?? scene?.seed ?? randomSeed(), tier: h?.tier ?? tier, par: h?.par ?? null, setup: null });
+    return playScene(rec, { seed: h?.seed ?? scene?.seed ?? randomSeed(), tier: h?.tier ?? tier, par: h?.par ?? null, setup: null, loadout: h?.loadout ?? null });
   }
   let a = null;
   // (0.0.10: the stress course's own, which keeps the scene)
@@ -1598,7 +1623,7 @@ const kdOf = (s) => { try { return kdScene.kdNow ? kdScene.kdNow(s, s.clock.ms) 
 function readSim(s) {
   const key = `${s.clock.tick}|${s.clock.seq}|${s.clock.ms}|${s.stop?.phase}|${s.stop?.pick}|${s.stop?.aim?.key}`;
   if (simRead.key === key && simRead.state === s) return simRead;
-  const r = { key, state: s, st: null, steps: [], belief: null, finish: null, range: null, look: null, targets: [], kd: null, far: null };
+  const r = { key, state: s, st: null, steps: [], belief: null, finish: null, other: null, range: null, look: null, targets: [], kd: null, far: null };
   try { r.st = stopNow(s); } catch (e) { broke(e, 'stop motion'); }
   try { r.range = rangeNow(s); r.kd = r.range?.course === 'kd' ? kdOf(s) : null; } catch (e) { broke(e, 'the range'); }
   if (r.st?.mode === 'stop') {
@@ -1606,6 +1631,8 @@ function readSim(s) {
     try { r.belief = s.stop?.gun ? beliefOf(s, s.stop.gun) : null; } catch (e) { broke(e, 'the weapon card'); }
     // (the gun's finish, the card's colours: the item's own by its id, never the belief's, which the card reads only for what is believed)
     r.finish = s.stop?.gun && s.items?.[s.stop.gun] ? finishOf(s.items[s.stop.gun]) : null;
+    // (v0.0.18: the gun not in use, its place and its own belief, for the card's strip: null with one gun)
+    try { r.other = s.stop?.who ? otherGunView(s, s.stop.who) : null; } catch (e) { broke(e, 'the weapon card'); }
     try { r.look = r.range ? rangeLook(s, s.clock.ms) : null; } catch (e) { broke(e, 'the PAPER inset'); }
     try { r.targets = targetsOf(s, s.player.id); } catch (e) { broke(e, 'the targets'); }
   }
@@ -1659,7 +1686,7 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   const onPairs = sim.range?.course === 'pairs' || sim.range?.course === 'house' || s.armoury?.range?.course === 'house';
   let stepsText = '', reflexText = '', paperText = '';
   // (zeroing: on the KD zero until the coach accepts it, the card counts the clicks dialled in this zero: kdNow's, shot.js zeroingOf)
-  const distance = { distance: !!sim.kd, line: kdLineOf(sim.kd), hold: s.stop?.hold ?? null, zeroing: sim.kd?.zeroing ?? null, finish: sim.finish };
+  const distance = { distance: !!sim.kd, line: kdLineOf(sim.kd), hold: s.stop?.hold ?? null, zeroing: sim.kd?.zeroing ?? null, finish: sim.finish, other: sim.other, gunShort: sim.belief?.short ?? null };
   // (0.0.7: the range's own actions at their commands (range.js kdActs: police your brass, rounds to the coach, "No brass,
   // no ammo"), rows of the panel among the commands, the tower's current marked; sent as the range's action, not a step)
   const acts = (sim.kd?.acts ?? []).map(a => ({ id: a.id, kind: 'command', label: a.label, ms: a.ms ?? null, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: true, skill: null, act: a.id }));
@@ -2133,43 +2160,16 @@ function hitMarksRead(s, key, k, phase) {
   hitMemo.set(mk, hm);
   return hm;
 }
+// (0.0.18, the doll role: the target view, hud/target.js. "Bang"'s card as scored, hitModelOf and hitHud's v0.0.17 bodies moved there
+// verbatim (its 'string' mode); the shoot house's stands and any live man whenever you engage them (its 'lane' and 'free' modes))
+const targetView = createTargetView({ card: hitCard, readers: { pairsOf, marksOf: hitMarksRead, meAt } });
 /** The hit card's model for a turner of a string (paintHitcard's input: cardModel), its face and holds the turner's. */
-function hitModelOf(s, key, k, phase, tabs = []) {
-  const hm = hitMarksRead(s, key, k, phase);
-  if (!hm) return null;
-  const T = (s.armoury?.range?.turners ?? []).find(t => t.key === key) ?? null;
-  // (the board's figure at the turner's range band, the line's ("keep all three to represent varying ranges", the user, 2026-11-08))
-  return cardModel(hm, { look: HIT_LOOK, face: hm.face ?? T?.face ?? 'threat', holds: hm.holds ?? T?.holds ?? 'rifle', tabs, rangeM: hitRangeM(T, meAt(s), s.armoury?.range?.line) });
-}
+const hitModelOf = (s, key, k, phase, tabs = []) => targetView.stringModel(s, key, k, phase, tabs);
 // (when the card in belief last changed or stop motion was left: its hold out of the mode counts from there)
 let hitSeen = { sig: null, t: -Infinity, stop: false, shown: null };
-/**
- * The hit card now (VIEWS §7.7; the build sheet 0.0.10 §2.3): on the stress course, while a string runs, the belief of the turners
- * of that string fired at, at the pause in stop motion and HIT_HOLD_MS after its last change or the mode's end out of it; from
- * the string's end until the next runs, the truth. Two hit: the brackets' pick if it is one, else the newest. Returns its words.
- */
+/** The target view now (VIEWS §7.7; hud/target.js): its words. */
 function hitHud(s, { hidden = false, inStop = false } = {}) {
-  const R = s?.armoury?.range, pn = !hidden && R?.stress ? pairsOf(s) : null;
-  if (!pn) { hitSeen.shown = null; return hitCard.update(null); }
-  const running = !!pn.str && !pn.str.done;
-  const last = running ? null : [...(pn.strs ?? [])].reverse().find(x => x.done !== null && x.done !== undefined && x.done !== 'setup') ?? null;
-  const k = running ? pn.str.k : last?.k, keys = running ? pn.str.keys ?? [] : last?.keys ?? R.stress?.strs?.find(x => x.k === last?.k)?.holes?.map(h => h.key) ?? [];
-  if (!Number.isFinite(k) || !keys.length) { hitSeen.shown = null; return hitCard.update(null); }
-  const phase = running ? 'belief' : 'truth';
-  const hit = [...new Set(keys)].map(key => ({ key, hm: hitMarksRead(s, key, k, phase) })).filter(x => x.hm?.marks?.length);
-  if (!hit.length) { hitSeen.shown = null; return hitCard.update(null); }
-  // (newest first: the turner whose last round came last; the brackets' pick shows its own)
-  const lastShot = (x) => Math.max(...x.hm.marks.map(m => m.n ?? 0));
-  hit.sort((a, b) => keys.indexOf(b.key) - keys.indexOf(a.key) || lastShot(b) - lastShot(a));
-  const shownKey = hit.some(x => x.key === s.stop?.pick) ? s.stop.pick : hit[0].key;
-  const tabs = hit.length > 1 ? hitTabs(hit.map(x => x.key), shownKey, (key) => (R.turners ?? []).find(t => t.key === key)?.lane ?? null) : [];
-  const m = hitModelOf(s, shownKey, k, phase, tabs);
-  const now = performance.now(), sig = JSON.stringify([k, phase, shownKey, m?.marks?.map(x => [x.n, x.seen])]);
-  if (sig !== hitSeen.sig || (hitSeen.stop && !inStop)) hitSeen.t = now;
-  hitSeen.sig = sig; hitSeen.stop = inStop;
-  const on = hitShown({ phase, n: m?.marks?.length ?? 0, inStop, lastT: hitSeen.t, nowT: now });
-  hitSeen.shown = on ? { k, key: shownKey, phase } : null;
-  return hitCard.update(on ? m : null, { ui: uiK });
+  return targetView.frame(s, { hidden, inStop, ui: uiK, seen: hitSeen, now: performance.now() });
 }
 
 // (every one of a loaded save's first ticks lost: it is damaged; what stands in for it is loaded)
@@ -2384,11 +2384,13 @@ installDebug(createDebugHandle({
 }));
 loop.start();
 // (said once the start is made: launch clears the toasts)
-const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); };
+// (0.0.18: &loadout=, a preset or a code (loadout.js); an unknown one dropped with its toast as &env= is)
+const loadoutParam = params.loadout && !loadoutOf(params.loadout).error ? codeOf(loadoutOf(params.loadout)) : null, loadoutUnknown = params.loadout && !loadoutParam ? params.loadout : null;
+const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); if (loadoutUnknown) toast(`No loadout '${loadoutUnknown}': the standard instead.`, 'warn'); };
 if (benchName) { await bench(benchName).catch((e) => broke(e, 'the bench')); sayEnv(); }
 else if (params.play) {
   const rec = SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play);
-  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier, par: params.par });
+  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier, par: params.par, loadout: loadoutParam });
   else if (SCENARIOS[params.play]) launch(newGame({ seed: params.seed ?? 1, scenario: params.play, mode: params.mode, hour: params.hour, at: atParam(params.play) }));
   else { toast(`No scenario '${params.play}': the title instead.`, 'warn'); await showTitle(); }
   sayEnv();

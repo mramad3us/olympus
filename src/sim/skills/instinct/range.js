@@ -194,6 +194,7 @@ export const RANGE_RULES = Object.freeze([
       gait: ['Careful. Weapon up.', 'Careful, as the tower said.', 'The tower said Combat: Careful.', 'Careful.'],
       low: ['Low ready.', 'Muzzle down. Low ready.', 'Low ready, as the tower said.', 'Low ready.'],
       safe: ['On safe, finger off.', 'Safe it.', 'On safe for the tower.', 'Safety on.'],
+      pistolReady: ['Your pistol too: a round up.', 'The pistol. MAKE READY it.', 'Pistol: rack it, safe, holster.', 'The pistol is not ready yet.'],
       up: ['Rifle up first.', 'It swung onto the sling. Up.', 'Get the rifle back up.', 'Rifle up.'],
       chamber: ['A round up: MAKE READY.', 'Not sure what is in it. Find out, then a round up.', 'The chamber. Make it ready.', 'MAKE READY, as the tower said.'],
       two: ['Your number two is still on it. Wait.', 'Wait for your number two.', 'He is not done yet. Wait.', 'Your two. Wait for him.'],
@@ -325,7 +326,9 @@ function houseCmd(state, k) {
   // (the rifle left hanging on its sling (a transition's, the P-12 since holstered): up first, its row named, so "Stop. The tower
   // means it." and "The tower said UNLOAD, SHOW CLEAR." never stand over a panel with neither (the fixer's of 0.0.16: twice in
   // the page after a hall transition, and on the boot recruit's 1489397426 by the keys))
-  if ((k.cmd === 'stop' || k.cmd === 'clear' || k.cmd === 'cease') && k.inMode && !k.inHand && k.offered('up')) return { ...base, variant: 'up', step: 'up', short: 'Rifle up' };
+  // (and at LOAD too: the macro is not offered on a slung rifle, and "The tower is waiting on you: LOAD." stood with no act (the
+  // dead-end hunt of 2026-11-16))
+  if ((k.cmd === 'stop' || k.cmd === 'clear' || k.cmd === 'cease' || k.cmd === 'load') && k.inMode && !k.inHand && k.offered('up')) return { ...base, variant: 'up', step: 'up', short: 'Rifle up' };
   if (k.cmd !== 'load' && k.cmd !== 'ready' && k.cmd !== 'standby') return undefined;
   const gun = state.items?.[k.gunId];
   if (k.cmd === 'load') {
@@ -343,6 +346,8 @@ function houseCmd(state, k) {
     return { ...base, variant: want === 'mag' ? 1 : 'chamber', step, short: 'Make ready' };
   }
   if (want === 'safe') return { ...base, variant: 'safe', step: k.b?.mode !== 'safe' ? 'selector:safe' : 'finger', short: 'Safe' };
+  // (v0.0.18: the holstered P-12 still to make ready: its row (sidearm.js pistolOwed))
+  if (want === 'pistol') return { ...base, variant: 'pistolReady', step: 'weapon:other:macro:ready', short: 'The pistol' };
   if (want === 'low') return { ...base, variant: 'low', step: 'posture:lowReady', short: 'Low ready' };
   // (out of the mode the rest are the body's: the mark and the gait, put right in the mode by their rows; then out of it)
   const off = !!me && !!k.R.house && want !== null && offMark(me);

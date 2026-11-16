@@ -55,8 +55,15 @@
 //   - the P-12's designs (src/art/pistols.js; the user's scores to come, samples/p12-card): a `drawing` that names a pistol design
 //     draws that pistol at its own density, its state drawn on it by the design (the slide locked back, the port's witness, the
 //     HAD-17 in its grip's witness slot, the safety's paddle, the HAD-17 in the hand), the words and the selector's marks here at
-//     the stations it returns. Only a sample names one: the game's card passes the model, and a P-12 in hand still draws the R-7
-//     until the pick (pistols.js PISTOL_DRAWN_AS).
+//     the stations it returns. A sample names one; the game's card passes the model, which pistols.js PISTOL_DRAWN_AS maps (v0.0.18).
+//   - 0.0.18 (the user, 2026-11-15: the P-12 shown like the rifle; VIEWS §4.4 "As built in v0.0.18: two guns"): the P-12 in the
+//     hand draws its design (pistols.js PISTOL_DRAWN_AS: P12A until the user's pick of samples/p12-card), never the R-7 carrying
+//     the pistol's belief; with a second gun carried (other: { model, place, belief, finish }, guns.js otherGunView's) the gun in
+//     use is marked with a brass hands glyph at the top left (HANDS_AT, not at distance) and the other sits in a strip at the
+//     card's foot (OTHER_Y, OTHER_H: rows the one-gun card leaves empty, under a rule): a glyph for where it is (its holster,
+//     hanging on its sling, slung in front or on the back), a small silhouette from its own card drawing (MINI_K: a pistol ÷3, a
+//     rifle ÷4, each block its most common colour) and its condition from its own belief alone ("SAFE 1+9"; an amber "!" for a
+//     stoppage, "?" for a chamber never checked). With one gun nothing moves: the card's bytes are v0.0.17's.
 // cardParts(belief) → the glyphs it will draw (for the tests: every glyph read from the belief alone).
 // Pure: no DOM, no three.js.
 import { paint } from './paint.js';
@@ -134,7 +141,9 @@ const EXTRA = { '?': ['###', '..#', '.##', '...', '.#.'], '≈': ['.#.#', '#.#.'
   '◀': ['..#', '.##', '###', '.##', '..#'], '▶': ['#..', '##.', '###', '##.', '#..'], '✓': ['....#', '...#.', '#.#..', '.#...', '.....'],
   '×': ['...', '#.#', '.#.', '#.#', '...'],
   // (the zeroing dial's seam: "ZEROING · NONE")
-  '·': ['.', '.', '#', '.', '.'] };
+  '·': ['.', '.', '#', '.', '.'],
+  // (v0.0.18: the strip's "SAFE 1+9", the round and the magazine's count)
+  '+': ['...', '.#.', '###', '.#.', '...'] };
 // (a word at n pixels a font pixel: the card's words at twice the letter, the runtime and design reviews': at 1×
 // "SEMI" and the count were 7 screen px tall at 1600 × 900, and shrunk at 1024 × 768 they dropped columns)
 function say(px, x, y, str, c, n = 1) {
@@ -154,11 +163,11 @@ export const WORD_K = 2, WORD_Y = 112;
 const M = (m) => Math.round(m * CARD_PX_PER_M);
 
 /** The card for a belief (see the header). */
-export function paintWeaponCard({ model = 'r7', drawing = null, finish = null, belief = {}, k = 1, distance = false, line = null, hold = null, zeroing = null } = {}) {
+export function paintWeaponCard({ model = 'r7', drawing = null, finish = null, belief = {}, k = 1, distance = false, line = null, hold = null, zeroing = null, other = null, strip = 'glyph' } = {}) {
   const P = cardParts(belief, { distance, line, hold, zeroing });
-  // (the model's design (rifles.js DRAWN_AS), or a design named outright: the samples', a pistol's among them (pistols.js);
-  // in the gun's finish, the caller's)
-  const D = (drawing && pistolDrawingOf(drawing, finish ?? undefined)) || drawingOf(drawing ?? model, finish ?? undefined);
+  // (the model's design (rifles.js DRAWN_AS; a pistol's, pistols.js PISTOL_DRAWN_AS, from v0.0.18), or a design named outright:
+  // the samples', a pistol's among them; in the gun's finish, the caller's)
+  const D = pistolDrawingOf(drawing ?? model, finish ?? undefined) || drawingOf(drawing ?? model, finish ?? undefined);
   let S = null;
   const base = paint(CARD_W, CARD_H, (px, w, h) => {
     // The backdrop: the doll's wall and floor (VIEWS §4.1), the rifle's shadow thrown a little right.
@@ -183,11 +192,73 @@ export function paintWeaponCard({ model = 'r7', drawing = null, finish = null, b
     }
     marks(px, P, S);
     if (P.far) farMarks(px, P.far);
+    // (v0.0.18: a second gun carried: the one in use marked, the other in the strip (see the header))
+    if (other?.belief) { if (!P.far) glyph(px, HANDS_AT[0], HANDS_AT[1], HANDS_GLYPH, BRASS); otherStrip(px, other, strip); }
   });
   // (opaque everywhere, alpha 255: the hud puts it straight into an ImageData)
   const W = CARD_W * k, H = CARD_H * k, data = new Uint32Array(W * H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) data[y * W + x] = (base.data[Math.floor(y / k) * CARD_W + Math.floor(x / k)] | 0xff000000) >>> 0;
   return { w: W, h: H, data, px: data };
+}
+
+// ---- 0.0.18: the second gun (see the header) ----
+
+/** The other gun's strip: its top row and its height (px), the rule over it at OTHER_Y − 1 (rows 122 to 147 are never drawn on one gun's card). */
+export const OTHER_Y = 124, OTHER_H = 24;
+/** The other gun's silhouette, its card drawing downsampled: a pistol ÷3, a rifle ÷4. */
+export const MINI_K = Object.freeze({ pistol: 3, rifle: 4 });
+/** The hands glyph's top left (10 × 10 px, the gun in use), the place glyph's x, the mini's x and the words' x in the strip. */
+export const HANDS_AT = Object.freeze([3, 3]), GLYPH_X = 2, MINI_X = 16, OTHER_WORDS_X = 56;
+const STRIP = tone(BG, -0.08), RULE = tone(WALL, -0.15);
+const HANDS_GLYPH = Object.freeze(['..#.#.#...', '..#.#.#.#.', '..#.#.#.#.', '#.#######.', '##.######.', '.########.', '..#######.', '..######..', '...####...', '...####...']);
+/** The place glyphs, 12 × 12, by guns.js's places. */
+export const PLACE_GLYPHS = Object.freeze({
+  holster: ['....####....', '...#....#...', '...#....#...', '..########..', '..#......#..', '..#......#..', '..#......#..', '..#......#..', '...#.....#..', '....#....#..', '.....#####..', '............'],
+  hanging: ['#...........', '.#..........', '..#.........', '...#........', '....#.......', '.....#......', '...#######..', '...########.', '.....##.....', '.....#......', '............', '............'],
+  slungFront: ['....####....', '....#..#....', '.....##.....', '..#######...', '..#..#...#..', '..#...#..#..', '#########...', '..#.....##..', '..#......#..', '..#......#..', '..########..', '............'],
+  slungBack: ['....####....', '....#..#..#.', '.....##..#..', '..######....', '..#.....##..', '..#....#.#..', '..#...#..#..', '..#..#...#..', '..#.#....#..', '..##.....#..', '..########..', '............'],
+  hands: HANDS_GLYPH,
+});
+function glyph(px, x, y, rows, c) { rows.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] === '#') px(x + i, y + j, 1, 1, c); }); }
+const abgr = (v) => ((v & 0xff) << 16) | (v & 0xff00) | ((v >>> 16) & 0xff);
+// (a gun's silhouette from its own card drawing, downsampled by k, each block its most common opaque colour: { w, h, at(x, y) })
+function miniOf(o) {
+  const Do = pistolDrawingOf(o.model, o.finish ?? undefined) || drawingOf(o.model, o.finish ?? undefined), Po = cardParts(o.belief);
+  const layer = paint(CARD_W, CARD_H, (q) => { if (Do.kind === 'pistol') Do.card({ px: q, P: Po, say }); else Do.card({ px: q, at, M, Y0, optic: Po.optic }); });
+  let x0 = CARD_W, y0 = CARD_H, x1 = -1, y1 = -1;
+  for (let y = 0; y < CARD_H; y++) for (let x = 0; x < CARD_W; x++) if ((layer.data[y * CARD_W + x] >>> 24) >= 128) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const kk = Do.kind === 'pistol' ? MINI_K.pistol : MINI_K.rifle, w = x1 < 0 ? 0 : Math.ceil((x1 - x0 + 1) / kk), h = x1 < 0 ? 0 : Math.ceil((y1 - y0 + 1) / kk), cells = [];
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const n = new Map();
+    let solid = 0;
+    for (let y = y0 + j * kk; y < Math.min(y1 + 1, y0 + (j + 1) * kk); y++) for (let x = x0 + i * kk; x < Math.min(x1 + 1, x0 + (i + 1) * kk); x++) {
+      const v = layer.data[y * CARD_W + x];
+      if ((v >>> 24) < 128) continue;
+      solid++; const c = abgr(v); n.set(c, (n.get(c) ?? 0) + 1);
+    }
+    let best = null, bn = 0;
+    for (const [c, m] of n) if (m > bn) { best = c; bn = m; }
+    cells.push(solid * 2 >= kk * kk ? best : null);
+  }
+  return { w, h, at: (i, j) => cells[j * w + i] };
+}
+/** The place in a word, the strip's other style (strip 'word': samples/wcard2's WC2-B). */
+export const PLACE_SHORT = Object.freeze({ holster: 'HOLSTER', hanging: 'HANGING', slungFront: 'SLUNG', slungBack: 'BACK', hands: 'HANDS' });
+// (the strip: the rule, the backdrop, the place's glyph (or its word), the mini, the condition from its own belief alone)
+function otherStrip(px, o, style = 'glyph') {
+  px(0, OTHER_Y - 1, CARD_W, 1, RULE);
+  px(0, OTHER_Y, CARD_W, OTHER_H, STRIP);
+  let mx = MINI_X;
+  if (style === 'word') { const w = PLACE_SHORT[o.place] ?? ''; say(px, GLYPH_X, OTHER_Y + Math.round((OTHER_H - 5) / 2), w, MARK); mx = GLYPH_X + sayWidth(w) + 4; }
+  else glyph(px, GLYPH_X, OTHER_Y + Math.round((OTHER_H - 12) / 2), PLACE_GLYPHS[o.place] ?? PLACE_GLYPHS.hands, MARK);
+  const m = miniOf(o), my = OTHER_Y + Math.max(0, Math.round((OTHER_H - m.h) / 2)), wordsX = Math.max(OTHER_WORDS_X, mx + m.w + 4);
+  for (let j = 0; j < Math.min(m.h, OTHER_H); j++) for (let i = 0; i < m.w; i++) { const c = m.at(i, j); if (c !== null) px(mx + i, my + j, 1, 1, c); }
+  const P = cardParts(o.belief), word = { safe: 'SAFE', semi: 'SEMI', auto: 'AUTO' }[P.mode] ?? String(P.mode).toUpperCase();
+  const roundIn = { live: '1', empty: '0', '?': '?', dud: 'D', case: 'C' }[P.chamber] ?? '?', count = P.mag === 'out' ? 'OUT' : P.count === null ? '?' : `${P.approx ? '≈' : ''}${P.count}`;
+  const y = OTHER_Y + Math.round((OTHER_H - 5 * WORD_K) / 2), line = `${word} ${roundIn}+${count}`;
+  say(px, wordsX, y, line, P.mode === 'safe' ? MARK : RED, WORD_K);
+  const stop = o.belief.stoppage ? '!' : o.belief.chamber === '?' ? '?' : null;
+  if (stop) say(px, wordsX + (sayWidth(line) + 3) * WORD_K, y, stop, AMBER, WORD_K);
 }
 
 // The R-7 at CARD_PX_PER_M, its bore along y = Y0, its butt at x = X0. (0.0.6, the fixer's: the rifle 6 px higher and the

@@ -223,6 +223,7 @@ import { kdFaceAt } from './range-items.js';
 import { FACE_K } from '../art/kit/range.js';
 import { lightLevel } from '../sim/places/light.js';
 import { createBangs } from './bangs.js';
+import { bangListOf } from './devices.js';
 import { createPixels } from './decals.js';
 import { hornPixels, coachRiflePixels, blankFlashPixels, blankFlashOn, BLANK_FLASH_MS } from './range-items.js';
 import { chaosOf, easeChaos, CALM as CHAOS_CALM } from './chaos.js';
@@ -1046,7 +1047,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views }) : (rangeLayer.update(null), null);
       // (0.0.9: the bangs on the pad, at the moment drawn; a flash's light pool among the moving lamps)
       // (0.0.10: the stress course's bangs, the same layer; its din, the din layer)
-      const bangList = rl?.stress?.bangs?.length ? [...(rl?.pairs?.bangs ?? []), ...rl.stress.bangs] : rl?.pairs?.bangs ?? null;
+      // (0.0.18: the shoot house's grenades and bursts, the same layer: render/devices.js)
+      const bangList = bangListOf(rl);
       stats.din = din.update(rl?.stress ?? null, { ms: fxMs, tintOf: tintAt });
       const bs = bangs.update(bangList ?? [], { ms: fxMs, tintOf: tintAt, wind: bangList?.length ? info.wind ?? null : null, figures: bangList?.length ? people.filter(q => !q.lie && !q.remembered).map(q => ({ x: q.x, z: q.z })) : [] });
       stats.bangs = bangList?.length ? { bangs: bs.bangs, flashing: bs.flashing.slice(), body: bs.body, smoke: bs.smoke, flash: bs.flash, ms: Math.round(fxMs * 10) / 10 } : null;

@@ -114,14 +114,17 @@ const HOLD = Object.freeze({ rifle: 'Rifle', pistol: 'Pistol' });
 // carries a P-12 ("Pistol. On him." read as "draw your pistol": the fixer's of 0.0.16))
 const HOLD_SAY = Object.freeze({ rifle: 'Rifle', pistol: 'His pistol' });
 
-// (what the character knows in the house now, kept for the tick and the panel)
+// (what the character knows in the house now, kept for the tick and the panel; the gun in use's belief and its magazine in the
+// key too (v0.0.18: a belief written at an instant with no step of its own, a look's finding or a test's, left the lines naming
+// the gun as it was))
 let memo = { state: null, key: null, v: null };
+const gunKey = (state, id) => { const g = id ? state.items?.[id] : null; return g ? `${g.mag ?? ''}|${g.locked ? 'L' : ''}|${g.chamber ?? ''}|${g.mode ?? ''}|${JSON.stringify(g.belief ?? null)}` : ''; };
 function know(state, me, ms) {
   const S = state.stop, R = state.armoury?.range;
   // (what a row chosen at no time changes is in the key too: the variant, the held door, the carry's beats (the fixer's of
   // 0.0.12: "Hold it" chosen at the same instant left the line offering it again, and T pressed it for ever))
   const H = state.armoury?.range?.house;
-  const key = `${ms}|${state.clock.tick ?? ''}|${S ? `${S.mode}|${S.phase}|${S.gun ?? ''}|${H?.two?.down ? 'd' : ''}${H?.two?.coveredBy ? 'c' : ''}|${S.doing?.step ?? ''}|${S.pick ?? ''}|${S.aim?.key ?? ''}|${S.carry?.why ?? ''}|${S.carry?.beats?.length ?? ''}|${S.flow ? (S.flow.suspended ? 's' : 'f') : ''}|${JSON.stringify(S.variant ?? null)}|${S.reflex ? 'r' : ''}` : ''}|${me ? `${me.x}|${me.z}|${me.headRad ?? ''}|${me.watch?.hotId ?? ''}` : ''}|${contactNow(state, ms)?.last?.id ?? ''}|${H?.two?.hold ?? ''}|${H?.goAtMs ?? ''}|${H?.end ? 'e' : ''}|${H?.cur ?? ''}|${state.armoury?.range?.cmd?.id ?? ''}|${state.people?.[state.player?.id]?.kit?.carry?.posture ?? ''}`;
+  const key = `${ms}|${state.clock.tick ?? ''}|${S ? `${S.mode}|${S.phase}|${S.gun ?? ''}|${H?.two?.down ? 'd' : ''}${H?.two?.coveredBy ? 'c' : ''}|${S.doing?.step ?? ''}|${S.pick ?? ''}|${S.aim?.key ?? ''}|${S.carry?.why ?? ''}|${S.carry?.beats?.length ?? ''}|${S.flow ? (S.flow.suspended ? 's' : 'f') : ''}|${JSON.stringify(S.variant ?? null)}|${S.reflex ? 'r' : ''}` : ''}|${me ? `${me.x}|${me.z}|${me.headRad ?? ''}|${me.watch?.hotId ?? ''}` : ''}|${contactNow(state, ms)?.last?.id ?? ''}|${H?.two?.hold ?? ''}|${H?.goAtMs ?? ''}|${H?.end ? 'e' : ''}|${H?.cur ?? ''}|${state.armoury?.range?.cmd?.id ?? ''}|${state.people?.[state.player?.id]?.kit?.carry?.posture ?? ''}|${gunKey(state, S?.gun)}`;
   if (memo.state === state && memo.key === key) return memo.v;
   let v = null;
   const live = R?.course !== 'house' || (R.house?.goAtMs !== null && R.house?.goAtMs !== undefined && !R.house?.end);
@@ -160,7 +163,18 @@ const dryNow = (k) => !!k?.b && (!!k.b.locked || (k.b.chamber === 'empty' && k.b
 // offered, so the shot lines keep quiet and range-unknown's "Check it." leads, T the press check (the boot recruit's 1111 after
 // Rifle up: "Hostage. Head only, or hold." over a panel with no head row))
 const unsureNow = (k) => k?.b?.chamber === '?' && !!k.offered('pressCheck');
-const noShotNow = (k) => dryNow(k) || unsureNow(k);
+// (v0.0.18: no shot for the gun's state though it is no stoppage: an empty chamber with the magazine in and the bolt home (Condition
+// 3, a RELOAD halted before its Charge, the P-12 drawn unchambered), or the rifle swung onto its sling by a fumble (Up offered:
+// stepsOf's slung panel); the shot lines keep quiet and cqb-reload names the planner's row, Fix's (the dead-end hunt of
+// 2026-11-16: "Fire." and "Rifle. On him." over a Fire struck "chamber empty", T doing nothing; the rifle hanging at a contact
+// with the DI's "Off safe." and no act))
+const emptyNow = (k) => !!k?.b && !k.b.stoppage && !k.b.locked && k.b.chamber === 'empty' && k.b.mag === 'in';
+const slungNow = (k) => !!k?.choosing && !!k.offered('up');
+const noShotNow = (k) => dryNow(k) || unsureNow(k) || emptyNow(k) || slungNow(k);
+// (the rows cqb-reload may name from Fix (shooting.js markFix): the gun's own way to fire, never a drill's or a stance's)
+const GUN_FIX = new Set(['weapon:transition', 'macro:reload:speed', 'macro:reload:tactical', 'macro:reload:retain', 'release', 'charge', 'weapon:rifle-up', 'up', 'observe', 'pressCheck']);
+// (cqb-reload's words for the row it names, where they are not RELOAD's)
+const reloadWords = (next, model) => ({ 'weapon:rifle-up': 'up', 'weapon:transition': 'tr', release: model === 'p12' ? 'relP' : 'rel', charge: model === 'p12' ? 'rack' : 'chg', observe: 'look', pressCheck: 'look', up: 'sling' })[next] ?? null;
 /** What cqb-reload's T does, in order: Transition (the P-12 holstered, a man within 10 m), the reloads, the bolt release or Charge, else Rifle up (the P-12 dry with no magazine left). */
 export const RELOAD_ACTS = Object.freeze(['weapon:transition', 'macro:reload:speed', 'macro:reload:tactical', 'macro:reload:retain', 'release', 'charge', 'weapon:rifle-up']);
 // (the room's threats standing and facing that you know of (taken in, not forgotten: contact.js's known), never one nobody
@@ -533,19 +547,27 @@ export const CQB_RULES = Object.freeze([
     text: { 1: ["Your number two's not with you. Wait for him.", 'Where\'s your two? Wait.', 'Not without your two. Wait.', 'Your two isn\'t stacked. Wait.'], 2: ["Your two's not with you. Wait.", 'Wait for your two.', 'Two\'s not up. Wait.', 'Wait for him.'], 3: ['Wait for him.', 'My two.', 'Wait.', 'Not yet.'] },
   },
   {
-    id: 'cqb-reload', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'warn', short: (ctx) => ({ up: 'Rifle up', tr: 'Transition' }[ctx.words] ?? 'RELOAD'), reach: null,
+    id: 'cqb-reload', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'warn', short: (ctx) => ({ up: 'Rifle up', tr: 'Transition', rel: 'Bolt release', relP: 'Slide release', chg: 'Charge', rack: 'Rack it', look: 'Look', sling: 'Up' }[ctx.words] ?? 'RELOAD'), reach: null,
     // (0.0.16, the fixer's: on any dry gun (dryNow, the magazine in or out), and named by the row T does, Rifle up where the
     // P-12 is dry with nothing left to load, so a man still up never leaves the line naming a shot the panel cannot take)
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (!(k?.inMode && dryNow(k))) return null;
-      const next = k.choosing ? firstOf(k, RELOAD_ACTS) : null;
-      return { k, tier: k.shotTier, voice: k.voice, next, ...(next === 'weapon:rifle-up' ? { variant: 'up', words: 'up' } : next === 'weapon:transition' ? { variant: 'tr', words: 'tr' } : {}), ...(next ? { row: next } : {}) };
+      if (!(k?.inMode && (dryNow(k) || emptyNow(k) || slungNow(k)))) return null;
+      // (v0.0.18: Transition first where it is offered, then the row Fix names (the planner's: the bolt release on a locked bolt over a
+      // magazine with rounds, Charge on Condition 3, the look at the port, Up), then the reloads as before, so T is Fix and never a Top
+      // up for ever over a locked bolt (the dead-end hunt of 2026-11-16: the bolt stayed locked on a magazine of 10 through six T))
+      const fix = k.choosing ? k.steps.find(st => st.fix && !st.off)?.id ?? null : null;
+      const next = k.choosing ? firstOf(k, ['weapon:transition']) ?? (GUN_FIX.has(fix) ? fix : null) ?? firstOf(k, [...RELOAD_ACTS, 'up']) : null;
+      const w = reloadWords(next, k.b?.model);
+      return { k, tier: k.shotTier, voice: k.voice, next, ...(w ? { variant: w, words: w } : {}), ...(next ? { row: next } : {}) };
     },
     // (the rework's R6: with the P-12 in the holster and a man within 10 m, Transition first (COMBAT §25.19.6's DI))
     act: (ctx) => actIf(ctx.k, ctx.next),
     text: { 1: ['Empty. Reload.', 'Bolt\'s back. RELOAD.', 'Dry. Reload it.', 'Empty. Magazine.'], 2: ['Empty. Reload.', 'Reload.', 'Dry. Reload.', 'Mag.'], 3: ['Reload.', 'Mag.', 'Empty.', 'Reload.'],
-      up: ["Pistol's dry. Rifle up.", 'Nothing left for it. Rifle up.', 'Dry. Holster, rifle up.', 'Empty pistol. Rifle up.'], tr: ['Empty. Pistol.', 'Dry. Transition.', "Bolt's back. Pistol.", 'Empty. Go to the pistol.'] },
+      up: ["Pistol's dry. Rifle up.", 'Nothing left for it. Rifle up.', 'Dry. Holster, rifle up.', 'Empty pistol. Rifle up.'], tr: ['Empty. Pistol.', 'Dry. Transition.', "Bolt's back. Pistol.", 'Empty. Go to the pistol.'],
+      rel: ["Bolt's back on a full one. Send it.", 'Bolt release.', 'Locked back. Release it.', 'Send the bolt.'], relP: ["Slide's back. Send it.", 'Slide release.', 'Locked back. Release it.', 'Send the slide.'],
+      chg: ['Empty chamber. Charge it.', 'Charge it.', 'Nothing chambered. Charge.', 'Charge.'], rack: ['Empty chamber. Rack it.', 'Rack it.', 'Nothing chambered. Rack the slide.', 'Rack.'],
+      look: ['Not sure what\'s in it. Look.', 'Check the port.', 'Look at it.', 'Check it.'], sling: ["Rifle's on the sling. Up.", 'Get it up.', 'Rifle up.', 'Up. Now.'] },
   },
   {
     id: 'cqb-funnel', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'warn', short: 'Out of the door', reach: null,

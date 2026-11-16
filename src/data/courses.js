@@ -425,7 +425,7 @@ export const SEQ_HOUSE = deepFreeze([
 
 /** What the instructor says to a shooter the line waits on ("Shooter, back on your mark."), by what is lacking (shoothouse.js houseWant). */
 export const HOUSE_NUDGE = deepFreeze({ mag: 'a magazine in.', chamber: 'a round up: MAKE READY.', safe: 'on safe, finger off.', low: 'low ready.', out: 'out of it.',
-  mark: 'back on your mark.', still: 'stand still.', gait: 'Combat. Weapon up.', two: 'wait for your number two.', show: 'show me clear.',
+  mark: 'back on your mark.', still: 'stand still.', pistol: 'your pistol too: a round up.', gait: 'Combat. Weapon up.', two: 'wait for your number two.', show: 'show me clear.',
   // (your number two's own wants, said to him: "Number two, a round up." (shoothouse.js twoLacks; handling.js names him))
   'two:busy': 'finish it.', 'two:mag': 'a magazine in.', 'two:chamber': 'a round up.', 'two:safe': 'on safe, finger off.', 'two:low': 'low ready.', 'two:show': 'show me clear.' });
 

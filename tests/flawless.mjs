@@ -55,6 +55,7 @@
 // round; under Gun down your "Gun up!", his "Up." and your stand, and whether your #2 saw and took the man you had bracketed), F21 (the keys bot, by laneTimes), F22 (the reference room, refRoom), F23 (determinism, saveRun).
 import { createGame } from './game.mjs';
 import { houseHonestBot, houseKeysBot, houseFuzzBot, stoppageBot, runHouse, SHOT_LINES } from './bots/house.mjs';
+import { houseKitBot } from './bots/kit.mjs';
 import { houseNow, HOUSE_SCENE, THREAT_FACES, STANDS, FUNNEL_FAULT_MS, LANE_MAX_MS, PAR_MS, PAR_OF_TIER, handsOf } from '../src/sim/scenarios/shoothouse.js';
 import { gunField, beliefOf, actionMs } from '../src/sim/arms/firearms.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
@@ -188,6 +189,10 @@ export function flag3d(m, x, z, stance = 'stand') {
 
 /** The bot by its name (honest, keys, fuzz, stoppage). */
 export function botOf(kind, { seed = 1, answer = null } = {}) {
+  // (v0.0.18, the kit's lanes (tests/flawless-kit.mjs): 'kit:flash' and 'kit:breach' the honest bot with the kit's row once a door,
+  // ':keys' after them the keys bot's (tests/bots/kit.mjs houseKitBot))
+  const kit = /^kit:(flash|breach|both)(:keys)?$/.exec(kind ?? '');
+  if (kit) return houseKitBot({ use: kit[1], base: kit[2] ? 'keys' : 'honest' });
   if (kind === 'keys') return houseKeysBot();
   if (kind === 'fuzz') return houseFuzzBot({ seed });
   if (kind === 'stoppage') return stoppageBot({ answer });
@@ -199,8 +204,8 @@ export function botOf(kind, { seed = 1, answer = null } = {}) {
  * 'keys', 'fuzz', 'stoppage'), answer (the stoppage bot's), setup ('go'; null from the fill), maxMs, more(game, ctx) after
  * each tick's watch (F23's saves).
  */
-export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup = 'go', maxMs = 15 * 60_000, more = null }) {
-  const g = createGame({ scenario: 'test-shoothouse', seed, tier, ...(setup ? { setup } : {}) }), s0 = g.state;
+export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup = 'go', maxMs = 15 * 60_000, more = null, loadout = null }) {
+  const g = createGame({ scenario: 'test-shoothouse', seed, tier, ...(setup ? { setup } : {}), ...(loadout ? { loadout } : {}) }), s0 = g.state;
   const pid = s0.player.id, H0 = s0.armoury.range.house, twoPid = H0.twoPid, rung = RUNG_OF_TIER[tier] ?? 0, lane = lanePlanOf(s0);
   const doorPlans = lane.order.map((door, k) => ({ k, door, P: lane.plans[door] })).filter(x => x.P?.door);
   const rec = {
@@ -277,7 +282,11 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
       if (d?.step === 'weapon:transition' && A.trFromMs === undefined) A.trFromMs = d.fromMs;
       if (A.trFromMs !== undefined && A.drawnMs === undefined && S?.gun && S.gun !== rifleId) A.drawnMs = now;
       if (A.drawnMs !== undefined && A.pRowMs === undefined && d?.kind === 'shot' && S.gun !== rifleId) A.pRowMs = d.fromMs;
-      if (d?.step === 'weapon:gun-down') { A.gd = true; const i = d.list.indexOf('stance:stand'); if (i >= 0 && d.i === i && A.standMs === undefined) A.standMs = d.subFromMs; }
+      // (the rifle's Gun down, the stoppage this watch measures from the dummy round's click: from v0.0.18 Gun down acts on the gun
+      // in use, and a drawn P-12 that stopped later is put down too, its man not the one bracketed at the rifle's click (the review
+      // of v0.0.18: a sergeant's transition lane read "his men taken 267 of 268 seen"; kept by the fixer as the watch's own scope,
+      // the P-12's Gun down a stoppage this watch never measured, said in the build sheet's resolutions and CHANGELOG))
+      if (d?.step === 'weapon:gun-down' && S.gun === rifleId) { A.gd = true; const i = d.list.indexOf('stance:stand'); if (i >= 0 && d.i === i && A.standMs === undefined) A.standMs = d.subFromMs; }
       for (const f of facts.say) {
         if (f.who === pid && f.text === 'Gun up!' && A.gunUpMs === undefined) A.gunUpMs = now;
         if (f.who === twoPid && f.text === 'Up.' && A.gunUpMs !== undefined && A.upMs === undefined) A.upMs = now;

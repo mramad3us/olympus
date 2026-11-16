@@ -43,7 +43,18 @@
 // for the saves.
 // 2026-11-12 (the rework's R5, COMBAT §25.19.5): `reorg` is the #2's too: his own Top up on his way to the next stack when half
 // or less of his load is believed in and a fuller magazine is at hand ("Reloading!", then "Up."), his own decision, never a
-// row's. Frozen. Pure.
+// row's.
+// v0.0.18 (the build sheet 0.0.18 §2.3, COMBAT §25.20; the user, 2026-11-15: "breaching options and equipment (explosives
+// etc), and grenades (bangs, frags, concussion etc) and a loadout screen"): **the kit's beats**, #1's alone this round (D1: you
+// throw and you breach). `arm` (the rifle let hang, a G-11 from its pouch, the pin: on the approach from rung 3), `throw`
+// ("Bang out!" through the open door), `bang` (the eyes off it while its fuse burns and the rifle comes back up; it ends at the
+// burst); `place` (the SC-1 on the latch edge), `back` (to the safe point, the #2 to his), `prime`, then `breach` as built
+// ("Breaching!", the count) and the fire; `force` (the halligan or the ram: off the back, forced, let go, the rifle up). The
+// rows: "Breach (explosive)", "Flash it", "Pry it" and "Ram it", rung 0's singles, `offeredNow: 'kit'`: live when the kit
+// carries what `needs` names (breach.js kitHas), else as before (the breach struck "no charge issued"; the others absent, the
+// panel's placeholders struck "not issued"). The variants `breach` gains 'pry', 'ram' and 'charge' where the door and the kit
+// allow them, and `bang` ('none' | 'flash') the room rows', so "Flash, in: your corner" and "Charge, clear the room" are the
+// rows' own (kitBeats rewrites a row's beats for them). Frozen. Pure.
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
@@ -66,8 +77,17 @@ export const ENTER_AND_CLEAR = deepFreeze({
     tell: { k: 'call', ch: 'voice', say: 'tell', slots: [1], after: ['read'] },
     squeeze: { k: 'call', ch: 'voice', say: 'ready', slots: [2], after: ['approach'] },
     door: { k: 'door', ch: 'hands', variant: 'breach', slots: [1], after: ['approach@arrive', 'ready', 'muzzle', 'squeeze'] },
-    breach: { k: 'breach', ch: 'hands', slots: [1], after: ['squeeze'], needs: 'charge' },
-    enter: { k: 'move', ch: 'feet', to: 'point', stance: 'entry', after: ['approach', 'door@pass'], cut: true },
+    breach: { k: 'breach', ch: 'hands', slots: [1], after: ['prime', 'squeeze'], needs: 'charge' },
+    // (v0.0.18, the kit's beats (see the header); the door's beat and these wait on each other through kitBeats' rewrite)
+    place: { k: 'place', ch: 'hands', slots: [1], after: ['approach', 'ready', 'squeeze'], needs: 'charge' },
+    back: { k: 'move', ch: 'feet', to: 'safe', stance: 'combat', slots: [1], after: ['place'] },
+    prime: { k: 'prime', ch: 'hands', slots: [1], after: ['back'] },
+    force: { k: 'force', ch: 'hands', slots: [1], after: ['approach', 'ready', 'squeeze'], needs: 'tool' },
+    restack: { k: 'move', ch: 'feet', to: 'stack', stance: 'combat', slots: [1], after: ['breach'] },
+    arm: { k: 'arm', ch: 'hands', slots: [1], after: ['approach@0.6', 'prime', 'force'], flowFrom: 3, needs: 'flashbang' },
+    throw: { k: 'throw', ch: 'hands', slots: [1], after: ['arm', 'door@pass', 'force@pass', 'breach', 'restack', 'squeeze'], needs: 'flashbang' },
+    bang: { k: 'burst', ch: 'eyes', slots: [1], after: ['throw'] },
+    enter: { k: 'move', ch: 'feet', to: 'point', stance: 'entry', after: ['approach', 'door@pass', 'force@pass', 'breach', 'restack', 'bang'], cut: true },
     corner: { k: 'scan', ch: 'eyes', to: 'corner', after: ['enter@0.4'], cut: true },
     sector: { k: 'scan', ch: 'eyes', to: 'sector', after: ['corner'], cut: true },
     inner: { k: 'inner', ch: 'eyes', to: 'inner', slots: [1], after: ['sector', 'enter'] },
@@ -88,8 +108,11 @@ export const ENTER_AND_CLEAR = deepFreeze({
     'door:read': { group: 'door', slot: 0, rung: 0, single: true, label: 'Read the door', beats: ['read'], row: 'door:read' },
     'door:open': { group: 'door', slot: 1, rung: 0, single: true, label: 'Open the door', beats: ['door'], variants: { breach: ['push', 'pull'] }, row: 'door:push' },
     'door:kick': { group: 'door', slot: 2, rung: 0, single: true, label: 'Kick door', beats: ['door'], variants: { breach: ['kick'] }, row: 'door:kick', band: { recruit: [1.3, 1.8], operator: [0.8, 1.2] } },
-    'door:breach': { group: 'door', slot: 3, rung: 2, label: 'Breach (explosive)', beats: ['breach'], needs: 'charge', offeredNow: 'struck' },
-    'door:flash': { group: 'door', slot: 4, rung: 2, label: 'Flash, then in', beats: [], needs: 'flashbang', offeredNow: false },
+    // (v0.0.18: the kit's rows (see the header), offered when the kit carries what they need)
+    'door:breach': { group: 'door', slot: 3, rung: 0, single: true, label: 'Breach (explosive)', beats: ['place', 'back', 'prime', 'breach'], variants: { breach: ['charge'] }, needs: 'charge', offeredNow: 'kit' },
+    'door:flash': { group: 'door', slot: 4, rung: 0, single: true, label: 'Flash it', beats: ['door', 'arm', 'throw', 'bang'], variants: { bang: 'flash' }, needs: 'flashbang', offeredNow: 'kit' },
+    'door:pry': { group: 'door', slot: 5, rung: 0, single: true, label: 'Pry it', beats: ['force'], variants: { breach: ['pry'] }, needs: 'halligan', offeredNow: 'kit' },
+    'door:ram': { group: 'door', slot: 6, rung: 0, single: true, label: 'Ram it', beats: ['force'], variants: { breach: ['ram'] }, needs: 'ram', offeredNow: 'kit' },
     // ROOM
     'room:in': { group: 'room', slot: 0, rung: 2, label: '{door}, in: your corner', beats: ['door', 'enter', 'corner'], variants: { breach: ['push', 'pull', 'kick'], entry: ['cross', 'hook'], stance: ['assault', 'combat'] } },
     'room:dominate': { group: 'room', slot: 1, rung: 2, label: 'Dominate', beats: ['enter', 'sector', 'inner', 'far', 'farlook', 'clear', 'roomclear', 'mark'] },
@@ -109,7 +132,7 @@ export const ENTER_AND_CLEAR = deepFreeze({
   // (rung 2's groups, the order a corporal presses them: the stack, the door and in, the point and the sweep; the #2's one
   // group at a time below rung 3, a seam at each)
   groups: [['stack:point'], ['room:in'], ['room:dominate']],
-  variants: { breach: ['push', 'pull', 'kick'], entry: ['cross', 'hook'], stance: ['assault', 'combat'], reorg: ['auto', 'off'], engage: ['off', 'armed'] },
+  variants: { breach: ['push', 'pull', 'kick', 'pry', 'ram', 'charge'], entry: ['cross', 'hook'], stance: ['assault', 'combat'], reorg: ['auto', 'off'], engage: ['off', 'armed'], bang: ['none', 'flash'] },
   halts: ['contact', 'noshoot', 'refused', 'door-unplanned', 'two', 'gun', 'fail', 'seam', 'lane-end', 'stop', 'clear'],
 });
 
@@ -119,8 +142,30 @@ export const MUSCLE = deepFreeze(Object.fromEntries(Object.entries(ENTER_AND_CLE
 export const BUNDLES = Object.freeze(Object.values(MUSCLE));
 /** A row of the catalogue by id, or null. */
 export const bundleDef = (id) => MUSCLE[id] ?? null;
-/** The beat ids a row runs, in the drill's order: 'all-but-breach' every beat but the explosive breach. */
-export const beatsOf = (b) => (b?.beats === 'all-but-breach' || b?.beats === 'all' ? Object.keys(ENTER_AND_CLEAR.beats).filter(k => k !== 'breach') : [...(b?.beats ?? [])]);
+/** The kit's beats (v0.0.18): a row runs them only where its own list or its variant names them (kitBeats). */
+export const KIT_BEATS = Object.freeze(['place', 'back', 'prime', 'breach', 'restack', 'force', 'arm', 'throw', 'bang']);
+/** The beat ids a row runs, in the drill's order: 'all-but-breach' every beat but the explosive breach and the kit's. */
+export const beatsOf = (b) => (b?.beats === 'all-but-breach' || b?.beats === 'all' ? Object.keys(ENTER_AND_CLEAR.beats).filter(k => k !== 'breach' && !KIT_BEATS.includes(k)) : [...(b?.beats ?? [])]);
+/**
+ * A row's beats rewritten for the kit (v0.0.18; see the header): the door's beat replaced by the charge's (place, back, prime,
+ * breach) for a breach 'charge', by `force` for 'pry' or 'ram', and the bang's three (arm, throw, bang) after it for a bang
+ * 'flash'; a row with no door beat (Dominate) is as it was.
+ */
+export function kitBeats(ids, { breach = null, bang = null } = {}) {
+  if (!ids.includes('door')) return ids;
+  const out = [];
+  for (const id of ids) {
+    if (id !== 'door') { out.push(id); continue; }
+    // (the charge's: placed, back to the safe point, primed, fired, then back on the stack and in by the plan's own entry, so the
+    // room is entered by the way every row enters it)
+    if (breach === 'charge') out.push('place', 'back', 'prime', 'breach', 'restack');
+    else if (breach === 'pry' || breach === 'ram') out.push('force');
+    else out.push('door');
+    // (a bang after a charge: back to the stack from the safe point first, the grenade armed on the way from rung 3)
+    if (bang === 'flash') out.push('arm', 'throw', 'bang');
+  }
+  return out;
+}
 /** Every row of a rung or below that a test sheet counts as lived (rung 0's singles included; the rows not built yet left out). */
 export const livedAt = (rung) => BUNDLES.filter(b => b.rung <= rung && b.offeredNow !== false).map(b => b.id);
 /**

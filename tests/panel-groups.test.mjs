@@ -121,8 +121,9 @@ export default [
         const st = x.model.rows.find(s => (s.kind === 'shot' || s.id === 'fire') && /off safe first|^on safe$|a stoppage|chamber (empty|unknown)|RELOAD first/.test(String(s.off ?? '')));
         if (!st) continue;
         const f = x.model.core.fix.row, lifts = x.model.rows.filter(s => /^(macro:(ready|ia|remedial|reload:.*)|release|charge|pressCheck|selector:semi)$/.test(s.id) && !s.off);
-        // (a stand-in only where nothing that lifts it is offered: the string's end, one magazine a string)
-        if (!f || (f.kind === 'stand' ? lifts.length || f.off !== 'nothing offered now' : f.off)) bad.push(`${x.scene}: ${st.label} struck "${st.off}" and Fix ${f?.label ?? 'none'} (${f?.off ?? ''}) with ${lifts.map(s => s.id).join(', ')} offered`);
+        // (a stand-in only where nothing that lifts it is offered: the string's end, one magazine a string; v0.0.18: it carries the
+        // planner's reason, no rounds believed anywhere or the course's one magazine a string, never "nothing offered now")
+        if (!f || (f.kind === 'stand' ? lifts.length || !/^(no rounds|one magazine a string)$/.test(String(f.off)) : f.off)) bad.push(`${x.scene}: ${st.label} struck "${st.off}" and Fix ${f?.label ?? 'none'} (${f?.off ?? ''}) with ${lifts.map(s => s.id).join(', ')} offered`);
         else if (f.kind !== 'stand') remedied++;
         else unoffered++;
       }

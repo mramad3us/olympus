@@ -127,7 +127,7 @@ import { stanceMs, WAIT_MAX_MS, STANCES, stanceStep } from '../combat/steps.js';
 import { gravityAt } from '../places/env.js';
 import { offerReflex, chosenReflex } from '../combat/reflex.js';
 import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, HELD_MAX, poiOf, holdFor, holdWords, windBeliefOf, HOLD_STEP_MRAD, HOLD_MAX_MRAD, HOLD_SHIFT_MS, catchAhead, shotIdNext } from './shot.js';
-import { canDo, doAction, beliefOf, actionMs, REFUSALS, sayObserved, actionOf, actionKey, actionPlace, dial, dialMs, opticMs, readMs, setOptic, believeZero, beliefZero, sightOf, TURRET_MAX_CLK } from './firearms.js';
+import { canDo, doAction, beliefOf, actionMs, tempoFor, REFUSALS, sayObserved, actionOf, actionKey, actionPlace, dial, dialMs, opticMs, readMs, setOptic, believeZero, beliefZero, sightOf, TURRET_MAX_CLK } from './firearms.js';
 import { readWind } from './wind.js';
 import { clickWords } from './paper.js';
 import { paceOf } from '../skills/skills.js';
@@ -155,6 +155,10 @@ import { rungOf } from '../skills/templates.js';
 import { MOVE_STANCES, gaitsOf } from '../body/motion.js';
 import { profileOf, pathLen } from '../combat/stepper.js';
 import { cardOptions, weaponList, weaponRows, offlineFeet, sidearmSub, sidearmEnd, adminSubs, adminMs } from './sidearm.js';
+import { planFor, absOf, stepAbs } from './plan.js';
+import { markRow } from './rowmark.js';
+import { gunsOf } from './guns.js';
+import { wordsOf } from './gunwords.js';
 import { legsHere, coastTo, throughNow } from '../places/move.js';
 
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
@@ -176,6 +180,8 @@ export const LABELS = Object.freeze({
   'reach@dump': 'Reach: the dump pouch', 'reach@ground': 'Reach: at your feet',
   // (short enough for the panel's column at 1600 × 900: "…chest pouch 1" wrapped its digit onto a line of its own (the fixer's, 0.0.6))
   'stowMag@p1': 'Put back: pouch 1', 'stowMag@p2': 'Put back: pouch 2', 'stowMag@p3': 'Put back: pouch 3', 'stowMag@p4': 'Put back: pouch 4',
+  // (the P-12's pouch named on any gun: its HAD-17 held in the hand on the R-7 is put back there (the row read "stowMag@pp"))
+  'stowMag@pp': 'Put back: the pistol pouch', 'reach@pp': 'Reach: the pistol pouch',
   show: 'Show clear', finger: 'Finger off', fire: 'Fire', aim: 'Aim', hold: 'Hold the aim', wait: 'Wait for the tower', 'wait:mark': 'Wait for the mark', leave: 'Stand easy',
   'stance:stand': 'Stand', 'stance:kneel': 'Kneel', 'stance:prone': 'Prone', 'stance:sit': 'Sitting',
   // (0.0.7: the turrets, the hold, the read and the lever (see the header))
@@ -188,6 +194,10 @@ export const LABELS = Object.freeze({
   'weapon:gun-down': 'Gun down', 'weapon:offline': 'Off the line', 'weapon:transition': 'Transition: pistol', 'weapon:rifle-up': 'Rifle up',
   'pistol:ready': 'The pistol: rack, safe, holster', 'pistol:clear': 'The pistol: clear, holster',
 });
+/** The holstered P-12's rows' words by their row ids (plan.js gunRows). */
+export const OTHER_LABELS = Object.freeze({ topup: 'Top up', 'macro:ready': 'MAKE READY' });
+/** An action's words on a gun's model: the pistol's where they differ (gunwords.js), else the panel's (LABELS), else the id. */
+export const wordOf = (a, model = null) => wordsOf(a, model) ?? LABELS[a] ?? a;
 /** Breathe's four sub-steps' words, in order (box breathing: in, hold, out, hold). */
 export const BREATHE_WORDS = Object.freeze(['Breathe in.', 'Hold it.', 'Breathe out.', 'Hold it.']);
 /**
@@ -198,6 +208,8 @@ export const BREATHE_WORDS = Object.freeze(['Breathe in.', 'Hold it.', 'Breathe 
 export function stepLabel(id) {
   if (!id) return '';
   if (LABELS[id]) return LABELS[id];
+  // (v0.0.18: the holstered P-12's own rows (arms/sidearm.js weaponRows), its row's words after the gun's name)
+  if (id.startsWith('weapon:other:')) { const r = id.slice(13); return `P-12: ${OTHER_LABELS[r] ?? stepLabel(r)}`; }
   if (id.startsWith('macro:')) return MACROS[id.slice(6)]?.label ?? id;
   if (id.startsWith('shot:')) return Object.values(ROWS).find(r => r.id === id)?.label ?? id;
   if (id === 'queue') return 'Carry on';
@@ -409,10 +421,10 @@ const subOdds = (roller, action, pressure = 'evaluated') => {
 };
 const actionStep = (state, roller, gun, action, kind = 'single') => {
   const o = subOdds(roller, action);
-  return { id: action, kind, label: LABELS[action] ?? action, ms: actionMs(roller, gun, action, { tempo: 'normal' }),
+  return { id: action, kind, label: wordOf(action, gun?.model), ms: actionMs(roller, gun, action, { tempo: 'normal' }),
     rushMs: tempoOk(action, 'rushed') ? actionMs(roller, gun, action, { tempo: 'rushed' }) : null,
     carefulMs: tempoOk(action, 'careful') ? actionMs(roller, gun, action, { tempo: 'careful' }) : null,
-    odds: o.routine || o.sure ? null : o.odds, routine: o.routine, ...(o.sure ? { sure: true } : {}), off: null, subs: [{ id: action, label: LABELS[action] ?? action, ms: actionMs(roller, gun, action, { tempo: 'normal' }) }], cmd: false, skill: o.odds === null ? null : 'weapons' };
+    odds: o.routine || o.sure ? null : o.odds, routine: o.routine, ...(o.sure ? { sure: true } : {}), off: null, subs: [{ id: action, label: wordOf(action, gun?.model), ms: actionMs(roller, gun, action, { tempo: 'normal' }) }], cmd: false, skill: o.odds === null ? null : 'weapons' };
 };
 
 // (what a reach's row says it would bring, as believed: "(5 ball)", "(5)", "(a few)", "(?)")
@@ -420,12 +432,12 @@ const FEEL_ROW = Object.freeze({ none: 'empty', few: 'a few', half: 'about half'
 function reachLabel(state, pid, gun, id) {
   const place = actionPlace(id), fams = modelOf(gun)?.fams ?? null;
   const pk = place ? pickMag(state, pid, { from: place, fams, load: meantLoad(state) }) : null, m = pk ? state.items[pk.id] : null;
-  if (!m) return LABELS[id] ?? id;
+  if (!m) return wordOf(id, gun?.model);
   const n = believedN(m), k = believedKind(m), more = place === 'ground' ? atFeetOf(state, pid).length : place ? (pouchOf(state, pid, place)?.mags.length ?? 1) : 1;
   // (in the I card's words: "5 ball", "5, kind not seen", "empty", a weight's band; "front of 2" the first of two in
   // the pouch, never the cryptic "1 of 2" (the fixer's, 0.0.6))
   const what = n !== null ? (n === 0 ? 'empty' : k ? `${n} ${k}` : `${n}, kind not seen`) : m.belief?.feel ? `${FEEL_ROW[m.belief.feel]} by its weight` : '?';
-  return `${LABELS[id] ?? id} (${what}${more > 1 ? ` · front of ${more}` : ''})`;
+  return `${wordOf(id, gun?.model)} (${what}${more > 1 ? ` · front of ${more}` : ''})`;
 }
 
 // ---- 0.0.7: the line's rows (see the header) ----
@@ -621,7 +633,17 @@ export function stepsOf(state, ms = state.clock.ms) {
   const leave = { id: 'leave', kind: 'leave', label: hRows?.go ? 'go: the clock runs, the keys move you' : LABELS.leave, ms: 0, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
   // (0.0.10: Breathe where the model offers it: fixed with nothing facing you, a single marked "! he's up" with a threat up (see the header))
   const br = breatheRow(state, pid, ms);
-  if (slung(posture)) return shaking(roller, [...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, ...(br?.later ? [br] : []), wait, leave, ...(hRows?.grey ?? [])]);
+  // (the rifle on its sling: its Up, the drill's rows and the weapon group's (Transition, Gun down, Off the line), Fix marked by the
+  // planner (Up, or Transition where the rifle has no rounds left) (the review and the dead-end hunt of v0.0.18: a fumble that
+  // swung the rifle onto its sling at a contact left Fix "Nothing to fix", T silent and Up four keys deep, and a rifle hanging
+  // on a stoppage after a fumbled draw lost Transition with a man facing at 4 m))
+  if (slung(posture)) {
+    const wS = inHouse(state) ? weaponRows(state, pid, ms) : [];
+    const sl = [...wS.filter(r => r.lead), ...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, ...(br?.later ? [br] : []),
+      ...wS.filter(r => !r.lead && !r.later), wait, leave, ...wS.filter(r => !r.lead && r.later), ...(hRows?.grey ?? [])];
+    markFix(state, pid, S.gun, sl, roller, gun);
+    return shaking(roller, sl);
+  }
   // (1 Fire: at the aim, the gun as the holder believes it)
   const aimT = S.aim ? targetOf(state, S.aim.key, pid) : null, pull = pullMsOf(state, pid, S.gun);
   const h = aimT ? heldOf(state, pid, ms, aimT.key) : null;
@@ -679,13 +701,15 @@ export function stepsOf(state, ms = state.clock.ms) {
   const at = built.findIndex(r => RELOAD_PURPOSE[r.macro]), macros = built.filter(r => !RELOAD_PURPOSE[r.macro]);
   if (at >= 0) macros.splice(at, 0, ...reloadRows(state, pid, ms));
   macros.sort((a, b) => Number(b.cmd) - Number(a.cmd) || Number(!!b.first) - Number(!!a.first));
-  // (a macro halted on a failure: the rest of it, first of the commands, as the panel's 'carry on')
-  if (S.queue?.length) {
-    const q = S.queue, ms = q.reduce((t, a) => t + actionMs(roller, gun, a, { tempo: 'normal' }), 0);
+  // (a macro halted on a failure: the rest of it, first of the commands, as the panel's 'carry on'; v0.0.18: a planned purpose's
+  // rest is planned again from the belief now (carryOnOf), so it never runs a bolt release on no magazine)
+  const q = S.queue?.length ? carryOnOf(state, pid, S) : null;
+  if (q?.length) {
+    const ms = q.reduce((t, a) => t + actionMs(roller, gun, a, { tempo: 'normal' }), 0);
     let odds = 1, routine = true;
     for (const a of q) { const o = subOdds(roller, a); if (o.odds !== null && !o.routine && !o.sure) { odds *= o.odds; routine = false; } }
-    out.push({ id: 'queue', kind: 'command', label: `Carry on: ${q.map(a => LABELS[a] ?? a).join(', ')}`, ms, rushMs: null, carefulMs: null, odds: routine ? null : odds, routine, off: null,
-      subs: q.map(a => ({ id: a, label: LABELS[a] ?? a, ms: actionMs(roller, gun, a, { tempo: 'normal' }) })), cmd: false, skill: 'weapons', macro: null, queue: [...q] });
+    out.push({ id: 'queue', kind: 'command', label: `Carry on: ${q.map(a => wordOf(a, gun.model)).join(', ')}`, ms, rushMs: null, carefulMs: null, odds: routine ? null : odds, routine, off: null,
+      subs: q.map(a => ({ id: a, label: wordOf(a, gun.model), ms: actionMs(roller, gun, a, { tempo: 'normal' }) })), cmd: false, skill: 'weapons', macro: null, queue: [...q] });
   }
   // (0.0.8, the integrator's: on the bay of turners a bolt believed locked on an empty puts RELOAD at the panel's head,
   // over Fire struck and the aim (COMBAT §25.6.5, "Empty. Reload."); test-handling's and test-range's panels keep their order)
@@ -730,7 +754,7 @@ export function stepsOf(state, ms = state.clock.ms) {
   for (const st of out) if (actionKey(st.id) === 'reach' && actionPlace(st.id)) st.label = reachLabel(state, pid, gun, st.id);
   const hold = handMagOf(state, pid)?.id ?? null;
   for (const st of out) {
-    const subs = st.kind === 'command' ? (st.queue ?? (st.macro ? subsOf(st.macro, belief) : [])) : [st.id];
+    const subs = st.kind === 'command' ? (st.queue ?? st.path ?? (st.macro ? subsOf(st.macro, belief) : [])) : [st.id];
     if (!subs.some(a => a === 'seat' || a === 'magIn')) continue;
     // (a drill that strips the rifle's own magazine into the hand first seats that one again (REMEDIAL ACTION's double
     // feed drill): no other magazine, no mark (the fixer's, 0.0.6: it was marked "! one magazine a string")
@@ -740,7 +764,93 @@ export function stepsOf(state, ms = state.clock.ms) {
     const w = oneMagWarn(state, would) ?? kindWarn(state, would ? state.items[would] : null);
     if (w) st.warn = w;
   }
+  markFix(state, pid, S.gun, out, roller, gun);
   return shaking(roller, out);
+}
+
+// (v0.0.18: the planned purposes a halted step's rest is planned again for (carryOnOf): the goal and its look)
+const CARRY_GOALS = Object.freeze({ 'macro:reload:speed': 'fed', 'macro:reload:retain': 'retain', 'macro:reload:tactical': 'topup', 'macro:ia': 'live', 'macro:remedial': 'live' });
+/**
+ * The rest of a halted step as the panel's Carry on (v0.0.18; the build sheet 0.0.18 §2.1): for a planned purpose (stop.queueOf,
+ * written by queueAfter), the queue as cut where it still reaches the purpose's goal no slower than the plan from the belief
+ * now, else that plan (a seat fumbled and its magazine dropped: the reach, the seat and the bolt, never a bolt release on no
+ * magazine), and nothing where the goal is met or no way is left; without one (the tower's templates, a v0.0.17 save) the
+ * queue as saved.
+ */
+export function carryOnOf(state, pid, S = state.stop) {
+  const q = S?.queue ?? [], goal = CARRY_GOALS[S?.queueOf];
+  if (!q.length || !goal) return q;
+  const p = planFor(state, pid, S.gun, goal, { purpose: null });
+  if (!p.subs?.length) return null;
+  let a = absOf(state, pid, S.gun), ms = 0;
+  if (a) for (const x of q) { const n = stepAbs(a, x); if (n) { ms += actionMs(rollerOf(state, pid), state.items[S.gun], x, { tempo: 'normal' }); a = n; } }
+  const met = !!a && a.ch === 'live' && !a.lk && !a.st && (goal === 'live' || (a.mag === 'in' && a.n !== '0'));
+  return met && ms <= p.ms ? q : p.subs;
+}
+
+// (v0.0.18: the singles Fix may bring to the panel when canDo has not: the planner's look, the bolt)
+const FIX_SINGLES = new Set(['charge', 'release', 'pressCheck', 'observe', 'lockBack', 'selector:semi']);
+/**
+ * Fix marked on the panel's rows (v0.0.18; the build sheet 0.0.18 §2.1, §0 item 19): the planner's way to fire (plan.js planFor
+ * 'fire'), or to fed when the gun can fire already, marks the row with that id fix (a single the planner names and canDo did not,
+ * a look at the port on a locked bolt, added at the end); in the house with the instructor's command current, Fix is that
+ * command where it brings a round up and v0.0.17's otherwise; off the shoot house only the look on a chamber unknown with no
+ * command current is marked, the rest v0.0.17's (§3.3); no round believed anywhere puts the reason on Fire (fixWhy: 'no
+ * rounds', or the course's own with one magazine a string), which the core's struck Fix shows (groups.js).
+ */
+function markFix(state, pid, gunId, out, roller, gun) {
+  const fire = out.find(r => r.id === 'fire'), R = rangeOf(state), house = inHouse(state) && R?.course === 'house';
+  // (the house's line cold, before GO and after the lane: Fix is the instructor's command where it is offered (LOAD, MAKE READY,
+  // UNLOAD, SHOW CLEAR), CEASE FIRE where the rifle is off safe, Up where it swung onto its sling, else nothing to fix: never the
+  // planner's Charge before the tower's MAKE READY, nor Off safe or a Top up under its commands (the review and the dead-end hunt
+  // of v0.0.18: Fix chambered a round between LOAD and MAKE READY, and read Off safe under LOAD and UNLOAD, SHOW CLEAR))
+  if (house && !laneLive(R)) {
+    const row = out.find(r => r.kind === 'command' && r.cmd && !r.off) ?? out.find(r => r.id === 'macro:cease' && !r.off) ?? out.find(r => r.id === 'up' && !r.off);
+    if (row) markRow(row, 'fix', true); else if (fire) markRow(fire, 'fixNone', 'the line is cold');
+    return;
+  }
+  let p = planFor(state, pid, gunId, 'fire', { purpose: null });
+  if (!p.path) {
+    // (no round for the gun in use and the other gun carried has a way to fire (the P-12 drawn and dry with the rifle hanging
+    // loaded, or the rifle dry with the P-12 holstered): Fix is GUN 3's row that brings it to the hands, Rifle up or Transition
+    // (the review of v0.0.18: Fix read "no rounds" with a loaded R-7 on the sling))
+    const other = p.none === 'no rounds' ? gunsOf(state, pid).find(x => x.id !== gunId) : null;
+    const swap = other && planFor(state, pid, other.id, 'fire', { carry: 'hands', purpose: null }).path ? out.find(r => (r.id === 'weapon:rifle-up' || r.id === 'weapon:transition') && !r.off) : null;
+    if (swap) { markRow(swap, 'fix', true); return; }
+    if (fire) markRow(fire, 'fixWhy', (p.none === 'no rounds' ? oneMagWarn(state, ONE_MAG_PROBE) : null) ?? p.none);
+    return;
+  }
+  // (the gun can fire: its way to fed, else in the house's fight nothing to fix, never the reload slot's Top up the core fell back
+  // on (the review of v0.0.18: Fix read "Top up 2.1 s" over a ready rifle at 19 of 21 of the boot recruit's contact pauses, and
+  // over the P-12 drawn; Top up stays on GUN 1))
+  if (!p.path.length) {
+    p = planFor(state, pid, gunId, 'fed', { purpose: null });
+    if (!p.path?.length) { if (house && fire) markRow(fire, 'fixNone', 'already so'); return; }
+  }
+  // (on the bays and the tower's lines Fix is v0.0.17's but for the look on a chamber unknown with no command current (the build
+  // sheet 0.0.18 §3.3: Fix with the command current unchanged there; the in-0 RELOAD needs no mark, the table finds the row the
+  // planner adds); the planner's whole Fix is the shoot house's (the review of v0.0.18: the command's mark had reached the bays,
+  // MAKE READY, RELOAD or Top up where v0.0.17's Fix was Off safe))
+  const cmd = out.find(r => r.kind === 'command' && r.cmd && !r.off && r.macro);
+  // (with no command current, the look on a chamber unknown, and RELOAD where no round is believed chambered and the plan seats one
+  // (the in-0 state, a dry rifle with its magazine out): on safe the core fell back on Off safe first, two presses with nothing to
+  // fire between them (the code review of v0.0.18))
+  if (!inHouse(state)) { if (cmd || !(p.sense || (p.path.includes('seat') && beliefOf(state, gunId).chamber !== 'live'))) return; }
+  // (in the house, the instructor's command current: Fix is it where it brings a round up (MAKE READY), else as v0.0.17 had it
+  // (groups.js fixOf's table))
+  else if (cmd) { if (bringsUp(state, pid, gunId, cmd)) markRow(cmd, 'fix', true); return; }
+  let row = out.find(r => r.id === p.id && !r.off);
+  if (!row && FIX_SINGLES.has(p.id)) { row = Object.assign(actionStep(state, roller, gun, p.id), { later: true }); out.push(row); }
+  if (row) markRow(row, 'fix', true);
+}
+// (any magazine but the string's: oneMagWarn says whether the course holds a string to one magazine now)
+const ONE_MAG_PROBE = '*';
+// (whether a command's sub-steps leave a round believed chambered, the bolt home and no stoppage: the tower's MAKE READY does)
+function bringsUp(state, pid, gunId, row) {
+  let a = absOf(state, pid, gunId);
+  if (!a) return false;
+  for (const s of row.subs ?? []) a = stepAbs(a, s.id ?? s) ?? a;
+  return a.ch === 'live' && !a.lk && !a.st;
 }
 
 /**
@@ -777,14 +887,16 @@ function shaking(roller, out) {
 export function macroRow(state, roller, gun, belief, m) {
   // (the rework's R6: MAKE READY, UNLOAD and SHOW CLEAR cover a P-12 in the holster too, the pistol last (arms/sidearm.js adminSubs))
   const pid = state.stop?.who ?? roller?.pid ?? null, extra = pid ? adminSubs(state, pid, m.id) : [], extraMs = extra.reduce((t, a) => t + adminMs(state, pid, a), 0);
-  const subs = [...subsOf(m.id, belief), ...extra], now = rangeOf(state)?.cmd?.id ?? null;
+  const subs = [...(m.path ?? subsOf(m.id, belief)), ...extra], now = rangeOf(state)?.cmd?.id ?? null;
   let odds = 1, routine = true;
   for (const a of subs) { const o = subOdds(roller, a); if (o.odds !== null && !o.routine && !o.sure) { odds *= o.odds; routine = false; } }
   const rushable = subs.some(a => tempoOk(a, 'rushed')), careful = subs.some(a => tempoOk(a, 'careful'));
   const mark = markOfMacro(m.id);
+  // (v0.0.18: a planned path's times its own sub-steps' (drills.js macrosFor's path), the tempos each takes)
+  const tMs = (tempo) => (m.path ? m.path.reduce((t, a) => t + actionMs(roller, gun, a, { tempo: tempoFor(a, tempo) }), 0) : macroMs(roller, gun, m.id, belief, tempo));
   return { id: `macro:${m.id}`, kind: 'command', label: m.label, ms: (m.ms ?? macroMs(roller, gun, m.id, belief, 'normal')) + extraMs,
-    rushMs: rushable ? macroMs(roller, gun, m.id, belief, 'rushed') + extraMs : null, carefulMs: careful ? macroMs(roller, gun, m.id, belief, 'careful') + extraMs : null,
-    odds: routine ? null : odds, routine, off: null, subs: subs.map(a => ({ id: a, label: LABELS[a] ?? a, ms: extra.includes(a) ? adminMs(state, pid, a) : actionMs(roller, gun, a, { tempo: 'normal' }) })),
+    rushMs: rushable ? tMs('rushed') + extraMs : null, carefulMs: careful ? tMs('careful') + extraMs : null,
+    odds: routine ? null : odds, routine, off: m.off ?? null, subs: subs.map(a => ({ id: a, label: wordOf(a, gun?.model), ms: extra.includes(a) ? adminMs(state, pid, a) : actionMs(roller, gun, a, { tempo: 'normal' }) })),
     cmd: !!now && (Array.isArray(mark) ? mark.includes(now) : mark === now), skill: 'weapons', macro: m.id };
 }
 
@@ -817,7 +929,7 @@ function startStep(state, bus, st, { tempo = 'normal', target = null, mode = 'st
   const way = way0;
   // (0.0.8: a shot row's parts, planned at its start (specials.js rowPlan); the row's off safe at no time from rung 2)
   const plan = st.kind === 'shot' ? rowPlan(state, S.who, st.id, targetOf(state, st.target, S.who), { tempo, atMs: now, gunId: S.gun, odds: false, ...(way ? { way } : {}) }) : null;
-  const list = st.queue ? [...st.queue] : plan ? plan.parts.map(p => p.k) : st.kind === 'command' ? [...subsOf(st.macro, beliefOf(state, S.gun)), ...adminSubs(state, S.who, st.macro)]
+  const list = st.queue ? [...st.queue] : plan ? plan.parts.map(p => p.k) : st.kind === 'command' ? [...(st.path ?? subsOf(st.macro, beliefOf(state, S.gun))), ...adminSubs(state, S.who, st.macro)]
     : st.kind === 'fire' ? (tempo === 'careful' ? ['hold', 'fire'] : ['fire']) : st.kind === 'contact' && st.subs?.length ? st.subs.map(x => (typeof x === 'string' ? x : x.id))
     : st.kind === 'breathe' ? Array.from({ length: Math.round(BREATHE_MS / BREATHE_SUB_MS) }, () => 'breathe') : [st.id];
   const t = (tempo === 'careful' && (st.kind === 'fire' || st.kind === 'shot')) || st.kind === 'breathe' ? 'normal' : tempo;
@@ -1047,6 +1159,18 @@ function endSub(state, bus, d) {
 function queueAfter(state, d) {
   const id = d.list[d.i], rest = d.list.slice(d.i + 1), b = beliefOf(state, state.stop.gun);
   const round = !!b && b.chamber !== 'empty' && b.chamber !== '?';
+  // (v0.0.18: a planned purpose's halt is named, so its Carry on is planned again from the belief then (carryOnOf); a halt inside
+  // that Carry on keeps the purpose (the review's: a second fumble there cleared it, and "Carry on: Bolt release" on no magazine
+  // came back); any other's clears it)
+  // (Rifle up halted after its Up: its tail is the rifle's way to ready (readyPath's, or tap, rack for a stoppage felt), named as
+  // that purpose so Carry on is planned from the rifle now (the code review of v0.0.18: its RELOAD's seat fumbled with the
+  // magazine dropped on the boot recruit's seed 14, and Carry on read "Bolt release" on no magazine))
+  const upAt = d.step === 'weapon:rifle-up' ? d.list.indexOf('up') : -1;
+  if (upAt >= 0 && d.i > upAt) state.stop.queueOf = b?.stoppage ? 'macro:ia' : 'macro:reload:speed';
+  else if (CARRY_GOALS[d.step]) state.stop.queueOf = d.step; else if (d.step !== 'queue') delete state.stop.queueOf;
+  // (a fumbled holster left the pistol in the hand (sidearm.js sidearmEnd): no rest to carry on (the rifle's Up would be refused
+  // with the pistol out); Rifle up is offered again as it was)
+  if (id === 'holster' && d.kind === 'weapon') return [];
   if (id === 'show' && round) return ['lockBack', 'inspect', 'show', ...rest];
   if (id === 'inspect' && round) return ['lockBack', 'inspect', ...rest];
   if (id === 'inspect' && b?.chamber === '?') return ['inspect', ...rest];
@@ -1123,12 +1247,17 @@ const chainable = (state) => { const R = rangeOf(state); return !!R && !R.end &&
 // (0.0.12: the rifle's sub-kinds are the stepper's list handler: it times them, this module says what each does)
 useList({ run: rifleSub, endSub, queueAfter, before: beforeEnd, end: afterEnd, onStart: (state, bus, d) => onStepStart(state, bus, d) });
 
+// (the card's Tap, rack time: the planner's IMMEDIATE ACTION (guard 3 is v0.0.17's drill, so the same value), else the macro's)
+function iaMs(state, roller, gun, belief) {
+  const p = planFor(state, state.stop.who, state.stop.gun, 'live', { purpose: null });
+  return p.id === 'macro:ia' && p.path?.length === 1 ? p.ms : macroMs(roller, gun, 'ia', belief, 'normal');
+}
 /** The gun stopped mid-step (a click, a shot that did not cycle): the reflex card. */
 function offerGunStop(state, bus, why) {
   const S = state.stop, roller = rollerOf(state, S.who), gun = gunOf(state, S.gun), belief = beliefOf(state, S.gun);
   // (the rework's R6: in the house the card offers what a marine in a room does, by the situation (arms/sidearm.js cardOptions))
   const options = cardOptions(state, S.who, {
-    ia: { key: 'ia', label: 'Tap, rack', step: 'macro:ia', ms: macroMs(roller, gun, 'ia', belief, 'normal') },
+    ia: { key: 'ia', label: 'Tap, rack', step: 'macro:ia', ms: iaMs(state, roller, gun, belief) },
     look: { key: 'look', label: 'Look at the port', step: 'observe', ms: actionMs(roller, gun, 'observe', { tempo: 'normal' }) },
   });
   offerReflex(state, bus, { why: why === 'click' ? 'click' : 'stop', title: why === 'click' ? 'Click.' : "It didn't cycle.", options }, {
@@ -1209,7 +1338,7 @@ export function weaponStep(state, bus, id, { tempo = 'normal' } = {}) {
   const list = weaponList(state, S.who, key, { feet });
   if (!list) { holdTime(state, 'stop'); return { ok: false, why: 'not offered' }; }
   const needsFeet = key === 'gun-down' || key === 'offline' || key === 'cover';
-  startStep(state, bus, { id, kind: 'weapon', label: LABELS[id] ?? id, queue: list, needsFeet }, { tempo: tempo === 'rushed' ? 'rushed' : 'normal' });
+  startStep(state, bus, { id, kind: 'weapon', label: stepLabel(id), queue: list, needsFeet }, { tempo: tempo === 'rushed' ? 'rushed' : 'normal' });
   if (feet && state.stop === S) { S.feet = feet; if (S.doing) S.doing.faceKey = feet.faceKey ?? null; }
   return { ok: true, why: null };
 }

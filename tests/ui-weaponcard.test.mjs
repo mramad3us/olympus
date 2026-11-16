@@ -40,6 +40,13 @@ export default [
       const unknown = weaponCardModel({ ...BELIEF, chamber: '?', count: null, countApprox: false, stoppage: null, mode: 'safe' }), out = weaponCardModel({ ...BELIEF, mag: 'out', stoppage: null, locked: true, chamber: 'empty' });
       console.log(`      never checked: ${unknown.line}; locked back on no magazine: ${out.line}`);
       assert(unknown.line === 'SAFE · ? + ?' && out.line === 'SEMI · 0 + OUT · LOCKED', `${unknown.line} / ${out.line}`);
+      // (v0.0.18: the second gun's belief read the same way, a Proxy on it too, its place the view's, never its belief's)
+      const touched2 = new Set();
+      const spy2 = new Proxy({ ...BELIEF, model: 'p12', short: 'P-12', mode: 'safe', stoppage: null, truth: { chamber: 'dud' }, place: 'hands' }, { get(t, k) { touched2.add(String(k)); return t[k]; } });
+      const two = weaponCardModel({ ...BELIEF }, { other: { model: 'p12', place: 'holster', belief: spy2 } });
+      const stray2 = [...touched2].filter(k => !BELIEF_FIELDS.includes(k));
+      console.log(`      the other gun: ${two.other?.line}; stray: ${stray2.join(', ') || 'none'}`);
+      assert(!stray2.length && /^P-12 HOLSTER · SAFE · 1 \+ ≈3$/.test(two.other?.line ?? ''), JSON.stringify({ stray2, other: two.other }));
     },
   },
   {

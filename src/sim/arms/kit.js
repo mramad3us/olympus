@@ -75,6 +75,7 @@ import { areaOf } from '../places/model.js';
 import { FAMILIES, MODELS, OPTICS, famCap, isLong } from './models.js';
 import { CALIBRES, loadOf } from './calibres.js';
 import { newGun, newMag, beliefOf } from './firearms.js';
+import { DEVICES } from './devicetable.js';
 
 /**
  * Containers and worn things (my calls on their words and sizes): model → { type, word, slot?, holds?,
@@ -84,7 +85,9 @@ import { newGun, newMag, beliefOf } from './firearms.js';
  * the game charged nowhere, against the panel's 1.6 s).
  */
 export const CONTAINERS = Object.freeze({
-  'pc-m3': Object.freeze({ type: 'carrier', word: 'plate carrier', slot: 'carrier', holds: 3, fits: Object.freeze(['pouch']), massKg: 4.0 }),
+  // (v0.0.18: its four faces (loadout.js): `holds` is the front's count, every kit before took the front alone; a pouch whose
+  // record says `at` rides that face, at most faces[at] of them (canHold))
+  'pc-m3': Object.freeze({ type: 'carrier', word: 'plate carrier', slot: 'carrier', holds: 3, fits: Object.freeze(['pouch']), massKg: 4.0, faces: Object.freeze({ front: 3, left: 2, right: 2, back: 1 }) }),
   'pouch-mag2': Object.freeze({ type: 'pouch', word: 'magazine pouch', holds: 2, fits: Object.freeze(['mag']), massKg: 0.15 }),
   'pouch-dump': Object.freeze({ type: 'pouch', word: 'dump pouch', holds: 4, fits: Object.freeze(['mag']), dump: true, massKg: 0.2 }),
   'ears-m1': Object.freeze({ type: 'ears', word: 'ear defenders', slot: 'head', massKg: 0.35 }),
@@ -94,6 +97,10 @@ export const CONTAINERS = Object.freeze({
   'ces-1': Object.freeze({ type: 'suit', word: 'combat EVA suit', slot: 'suit', visor: true, massKg: 16, colour: 'black' }),
   // (the rework's R6: the P-12's spare on the thigh, below the holster (see the header))
   'pouch-p12': Object.freeze({ type: 'pouch', word: 'pistol magazine pouch', slot: 'thigh', holds: 2, fits: Object.freeze(['mag']), fams: Object.freeze(['had17']), pistol: true, massKg: 0.1 }),
+  // (v0.0.18, the loadout (WEAPONS §12.7): a grenade's pouch, a charge's with its firing device, a tool's scabbard on the back)
+  'pouch-gren': Object.freeze({ type: 'pouch', word: 'grenade pouch', holds: 1, fits: Object.freeze(['grenade']), massKg: 0.08 }),
+  'pouch-charge': Object.freeze({ type: 'pouch', word: 'charge pouch', holds: 2, fits: Object.freeze(['charge', 'initiator']), massKg: 0.15 }),
+  'scab-tool': Object.freeze({ type: 'pouch', word: 'tool scabbard', holds: 1, fits: Object.freeze(['tool']), massKg: 0.3 }),
 });
 
 /** The issue templates: worn (slot → model), the carrier's pouches in reach order, the magazines ([family, rounds]) filling the pouches in order. */
@@ -228,6 +235,12 @@ function canHold(state, itemId, to) {
     if (to.container === itemId) return 'an item cannot hold itself';
     if (C.fits && !C.fits.includes(item.type)) return `${C.word} takes no ${item.type}`;
     if (C.fams && !C.fams.includes(item.fam)) return `${C.word} takes no ${item.fam ?? item.type}`;
+    // (a carrier's faces (v0.0.18): a pouch riding a face counts against that face, the front's against `holds` as before)
+    if (C.faces) {
+      const at = item.at ?? 'front', n = (c.holds ?? []).filter(id => id !== itemId && (state.items[id]?.at ?? 'front') === at).length;
+      if (!Object.hasOwn(C.faces, at)) return `${C.word} has no ${at} face`;
+      return n >= (at === 'front' ? C.holds : C.faces[at]) ? `the ${at === 'front' ? 'front' : at === 'back' ? 'back' : `${at} side`} holds ${at === 'front' ? C.holds : C.faces[at]}` : null;
+    }
     if ((c.holds ?? []).filter(id => id !== itemId).length >= C.holds) return `${C.word} is full`;
     return null;
   }
@@ -392,6 +405,8 @@ function itemKg(state, id, depth = 0) {
   const rec = state.items?.[id];
   if (!rec || depth > 6) return 0;
   if (rec.type === 'mag') return magMassG(rec) / 1000;
+  // (a device's own mass (v0.0.18: devices.js DEVICES))
+  if (DEVICES[rec.model] && rec.type === DEVICES[rec.model].kind) return DEVICES[rec.model].massKg;
   if (rec.type === 'gun') {
     const M = MODELS[rec.model];
     return (M?.massKg ?? 0) + (OPTICS[M?.optic]?.massG ?? 0) / 1000 + (rec.mag ? itemKg(state, rec.mag, depth + 1) : 0);
@@ -502,8 +517,16 @@ export function dumpOf(state, pid) {
   return null;
 }
 
-/** Where a magazine coming out goes to be pouched: the first magazine pouch with room, in reach order, else the dump pouch, else null. */
-export function pouchFor(state, pid) {
+/**
+ * Where a magazine coming out goes to be pouched: with its family, the first pouch made for that family with room (the P-12's
+ * HAD-17 back to the thigh's pistol pouch; v0.0.17 skipped every pouch with fams and put it in a rifle's chest pouch); then the
+ * first magazine pouch with room, in reach order, else the dump pouch, else null. fam null, or a rifle's, is v0.0.17's rule.
+ */
+export function pouchFor(state, pid, fam = null) {
+  if (fam) for (const c of containersOf(state, pid)) {
+    const C = CONTAINERS[state.items[c].model];
+    if (!C.dump && C.fams?.includes(fam) && C.fits?.includes('mag') && (state.items[c].holds ?? []).length < C.holds) return c;
+  }
   for (const c of containersOf(state, pid)) {
     const C = CONTAINERS[state.items[c].model];
     if (!C.dump && !C.fams && C.fits?.includes('mag') && (state.items[c].holds ?? []).length < C.holds) return c;
@@ -528,7 +551,7 @@ const magBelief = (id, m, reachS) => ({ id, kind: m?.type, word: wordOf(m), n: b
  * kinds only (holds: the container's capacity; reachS the caller's magInS, the sim's time for a magazine in from
  * a pouch, 0 when none is given; the feet's groundS, a pickup's and the seat's).
  */
-export function kitView(state, pid, { magInS = null, groundS = null } = {}) {
+export function kitView(state, pid, { magInS = null, groundS = null, devReachS = null } = {}) {
   const reach = Number.isFinite(magInS) ? magInS : 0, ground = Number.isFinite(groundS) ? groundS : 0;
   const kit = state.people?.[pid]?.kit;
   if (!kit) return { groups: [], hand: null, feet: [], sling: null };
@@ -539,6 +562,15 @@ export function kitView(state, pid, { magInS = null, groundS = null } = {}) {
   }
   const groups = worn.length ? [{ id: 'worn', word: 'worn', items: worn }] : [];
   for (const p of pouchesOf(state, pid)) groups.push({ id: p.id, key: p.key, word: p.word, holds: p.holds, reachS: reach, items: p.mags.map(id => magBelief(id, state.items[id], reach)) });
+  // (v0.0.18: the device pouches as groups by the carrier's face, each item its word and its reach (the caller's devReachS(model,
+  // face), the sim's deviceMs), so the I card and the loadout screen show one number)
+  for (const c of containersOf(state, pid)) {
+    const rec = state.items[c], C = CONTAINERS[rec.model];
+    if (!C?.fits || C.fits.includes('mag') || C.fits.includes('pouch')) continue;
+    const face = rec.at ?? 'front';
+    groups.push({ id: c, key: `dev:${face}`, word: `${C.word}, ${face === 'back' ? 'on the back' : face === 'front' ? 'front' : `${face} side`}`, holds: C.holds, face, reachS: 0,
+      items: (rec.holds ?? []).map(id => { const d = state.items[id], D = DEVICES[d?.model]; const s = typeof devReachS === 'function' ? devReachS(d?.model, face) : 0; return { id, kind: d?.type, word: D?.word ?? d?.model, model: d?.model, n: null, approx: false, load: null, feel: null, st: d?.st ?? null, massKg: D?.massKg ?? 0, reachS: s }; }) });
+  }
   const h = handMagOf(state, pid);
   return {
     groups, hand: h ? magBelief(h.id, state.items[h.id], 0) : null, feet: atFeetOf(state, pid).map(l => magBelief(l.id, state.items[l.id], ground)),

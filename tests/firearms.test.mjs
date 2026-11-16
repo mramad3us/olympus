@@ -1,7 +1,7 @@
 // The gun as a state machine (src/sim/arms/firearms.js; WEAPONS §4, §5.1, §5.2, §5.4; the build sheet 0.0.5 §5.1): every action's time by Weapon handling against WEAPONS's table, every action from every state of the R-7 (the truth and the belief after it), the refusals' words, the coach's three set stoppages and their clearing, the truth kept apart from the belief, and tradecraft's fumble ladder run through act() to its own numbers.
 import { assert, fmt } from './helpers.mjs';
 import { armsWorld } from './arms-world.mjs';
-import { move } from '../src/sim/arms/kit.js';
+import { move, issueSidearm, pouchesOf, holderOf } from '../src/sim/arms/kit.js';
 import { stream } from '../src/core/rng.js';
 import { fixedRoller } from '../src/sim/combat/roll.js';
 import { ACTIONS, REFUSALS, act, actionMs, doAction, pull, feel, feed, canDo, beliefOf, conditionOf, conditionOfBelief, said, gunField, ready } from '../src/sim/arms/firearms.js';
@@ -293,6 +293,23 @@ export default [
       assert(Math.abs(miss.r.ms - pass.r.ms * 1.6) <= 1, JSON.stringify({ miss: miss.r.ms, pass: pass.r.ms }));
       assert(pass.mode === 'semi' && !pass.r.slipped, JSON.stringify(pass));
       assert(back.mode === 'semi' && back.r.slipped && /still on semi/.test(back.r.text), JSON.stringify(back));
+    },
+  },
+  {
+    name: 'canDo by model (v0.0.18): Sling it for a long gun only and the port cover only on a model that has one, so the P-12 in the hand offers neither (v0.0.17 offered both); its magazine out to a pouch is the thigh\'s, the rifle\'s a chest pouch',
+    fn() {
+      const W = armsWorld({}), { state, pid, gunId } = W;
+      const { gunId: p } = issueSidearm(state, pid);
+      state.items[gunId].portOpen = true; state.items[p].portOpen = true;
+      const rifle = canDo(state, pid, gunId);
+      move(state, p, { pid, hand: 0 });
+      const pistol = canDo(state, pid, p);
+      assert(rifle.includes('stow') && rifle.includes('port') && !pistol.includes('stow') && !pistol.includes('port') && pistol.includes('magOut:pouch'), JSON.stringify({ rifle, pistol }));
+      const was = state.items[p].mag;
+      doAction(state, null, { pid, gunId: p, action: 'magOut:pouch', force: { 'magOut:pouch': 'pass' } });
+      const to = state.items[holderOf(state, was)?.container]?.model;
+      assert(to === 'pouch-p12', JSON.stringify({ to, pouches: pouchesOf(state, pid).map(q => q.key) }));
+      console.log(`      the R-7: stow ${rifle.includes('stow')}, port ${rifle.includes('port')}; the P-12 in the hand: stow ${pistol.includes('stow')}, port ${pistol.includes('port')}; its magazine out into ${to}`);
     },
   },
 ];

@@ -3,8 +3,8 @@
 // The P-12 (WEAPONS §3.2, built in v0.0.14: the sidearm from the Sergeant up, a HAD-17 of ten frangible, the thigh holster)
 // has had no drawing: its card drew the R-7 (WEAPONS §3.2's note, VIEWS §4.4). Four designs of src/art/pistols.js
 // (PISTOL_DESIGNS: p12a the service pistol, p12b the slab, p12c the monolith, p12d the lanyard), each drawn by the game's own
-// weapon card (src/art/weaponcard.js paintWeaponCard({ drawing, finish, belief })), which reaches a pistol design only when a
-// drawing names one: the game's card still draws what it drew until the user's pick. ?d= picks the design, ?f= the finish
+// weapon card (src/art/weaponcard.js paintWeaponCard({ drawing, finish, belief })), each named here by its drawing; from v0.0.18
+// the game's card draws the P-12 as P12A until the user's pick (pistols.js PISTOL_DRAWN_AS). ?d= picks the design, ?f= the finish
 // (none: the issue's, the Corps' black), ?set= the picture:
 //   card      the card in four beliefs side by side: Condition 1 on safe with the house's ten (a round believed chambered:
 //             the witness's brass at the hood's rear); firing, off safe, about six left; the slide locked back on an empty

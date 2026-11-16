@@ -56,9 +56,9 @@ const VALUES = {
   lt: T([15, 25], { marksmanship: [9, 11], weapons: [9, 11], cqc: [7, 10], fieldcraft: [8, 11], awareness: [7, 10], tactics: [9, 12], leadership: [9, 12], social: [4, 7], medicine: [4, 6], eva: [6, 8], zerog: [4, 7], fitness: [12, 15] }),
   // (0.0.8: SKILLS §11.1's boot recruit (week 6), recon, Raider and tier-one rows)
   recruit: T([4, 8], { marksmanship: [3, 5], weapons: [3, 5], cqc: [2, 4], fieldcraft: [2, 3], awareness: [1, 3], tactics: [0, 0], leadership: [0, 0], social: [0, 0], medicine: [1, 2], eva: [2, 4], zerog: [0, 2], fitness: [7, 10] }),
-  recon: T([48, 65], { marksmanship: [21, 26], weapons: [21, 26], cqc: [18, 23], fieldcraft: [24, 30], awareness: [21, 26], tactics: [14, 20], leadership: [9, 15], social: [4, 8], medicine: [11, 14], eva: [15, 20], zerog: [14, 19], fitness: [16, 19] }),
-  raider: T([66, 85], { marksmanship: [28, 35], weapons: [28, 35], cqc: [24, 30], fieldcraft: [28, 35], awareness: [27, 33], tactics: [20, 27], leadership: [14, 21], social: [7, 12], medicine: [14, 17], eva: [20, 24], zerog: [19, 24], fitness: [18, 21] }),
-  tierone: T([86, 100], { marksmanship: [37, 46], weapons: [37, 46], cqc: [32, 40], fieldcraft: [37, 46], awareness: [35, 44], tactics: [27, 34], leadership: [18, 26], social: [9, 14], medicine: [16, 20], eva: [24, 30], zerog: [24, 30], fitness: [20, 23] }),
+  recon: T([48, 65], { marksmanship: [21, 26], weapons: [21, 26], cqc: [18, 23], fieldcraft: [24, 30], awareness: [21, 26], tactics: [14, 20], leadership: [9, 15], social: [4, 8], medicine: [11, 14], eva: [15, 20], zerog: [14, 19], demolitions: [10, 14], fitness: [16, 19] }),
+  raider: T([66, 85], { marksmanship: [28, 35], weapons: [28, 35], cqc: [24, 30], fieldcraft: [28, 35], awareness: [27, 33], tactics: [20, 27], leadership: [14, 21], social: [7, 12], medicine: [14, 17], eva: [20, 24], zerog: [19, 24], demolitions: [14, 18], fitness: [18, 21] }),
+  tierone: T([86, 100], { marksmanship: [37, 46], weapons: [37, 46], cqc: [32, 40], fieldcraft: [37, 46], awareness: [35, 44], tactics: [27, 34], leadership: [18, 26], social: [9, 14], medicine: [16, 20], eva: [24, 30], zerog: [24, 30], demolitions: [18, 24], fitness: [20, 23] }),
 };
 VALUES.gysgt = VALUES.ssgt;                                       // (SKILLS §11.1's one row: Staff or Gunnery Sergeant)
 

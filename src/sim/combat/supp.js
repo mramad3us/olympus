@@ -83,6 +83,7 @@ import { SOL_MS, holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { playerActor, playerId } from '../../core/ids.js';
 import { check, oddsOf } from '../skills/checks.js';
 import { airAt } from '../places/env.js';
+import { roomOf } from '../places/model.js';
 import { sheetOf, tierOfRank } from '../skills/templates.js';
 import { bodyMods, needMods } from '../body/mods.js';
 import { addStress } from '../body/stress.js';
@@ -494,19 +495,22 @@ export function flashOf(state, pid, { x, z }, { indoor = false } = {}) {
  * ear within DEAF_REACH_M; the 'fx' fact 'bang' once, then the 'supp' and 'startle' facts per person. Returns [{ who,
  * pts, felt, startleMs, flash, deafUntilMs }].
  */
-export function bang(state, bus, { id, x, z, atMs = state.clock.ms, byId = null, kind = 'training', indoor = false, called = false, call = null }) {
+export function bang(state, bus, { id, x, z, atMs = state.clock.ms, byId = null, kind = 'training', indoor = false, called = false, call = null, room = null, prepared = null }) {
   const me = playerActor(state), list = [...(me ? [me] : []), ...(state.actors?.list ?? []).filter(a => a !== me && a.who !== me?.who)];
   const written = [], vacuum = vacuumHere(state);
   for (const a of list) {
-    // (indoors the room's 60 points, bounded by FLASH_REACH_M until PLACES gives the bang its room)
-    const pid = a.who, rM = Math.hypot(a.x - x, a.z - z), pts = indoor && rM > FLASH_REACH_M ? 0 : inputPts('flash', { rM, indoor });
-    const prep = called || (byId && pid === byId) ? 'prepared' : heardCall(state, pid, call, atMs) ? 'forewarned' : 'unprepared';
+    // (indoors the room's 60 points: v0.0.18, the burst's room given (burst.js: { area, in: [its room], next: [the rooms joined
+    // through an open doorway] }), FLASH_PTS in it, FLASH_NEXT_PTS next door, nothing beyond; with none given, bounded by
+    // FLASH_REACH_M as built (no shipped bang is indoors: "Three bangs" and "Bang" are outdoors))
+    const pid = a.who, rM = Math.hypot(a.x - x, a.z - z), where = indoor && room ? roomWhere(room, a) : null;
+    const pts = indoor && room ? (where === 'in' ? inputPts('flash', { rM, indoor }) : where === 'next' ? inputPts('flash', { rM, indoor, next: true }) : 0) : indoor && rM > FLASH_REACH_M ? 0 : inputPts('flash', { rM, indoor });
+    const prep = called || (byId && pid === byId) || (prepared ?? []).includes(pid) ? 'prepared' : heardCall(state, pid, call, atMs) ? 'forewarned' : 'unprepared';
     const w = pool(state, pid, { id: `${id}`, kind: 'flash', pts, prep, why: 'the bang', atMs }, bus);
     if (!w) continue;
     const prot = protOf(state, pid), rec0 = a.combat;
     let flash = null, deafUntilMs = rec0?.deafUntilMs ?? null;
-    if (prep !== 'prepared') flash = flashOf(state, pid, { x, z }, { indoor });
-    const near = indoor ? rM <= FLASH_REACH_M : rM <= DEAF_REACH_M;
+    if (prep !== 'prepared' && !(indoor && room && !where)) flash = flashOf(state, pid, { x, z }, { indoor });
+    const near = indoor && room ? !!where : indoor ? rM <= FLASH_REACH_M : rM <= DEAF_REACH_M;
     if (prot.ears === 'none' && near && !vacuum) {                  // (no air, no blast at the ear: the flash alone)
       const u = next(stream(state.meta.seed, 'combat:deaf', pid, id));
       deafUntilMs = Math.max(deafUntilMs ?? 0, atMs + Math.round(DEAF_MIN_MS + (DEAF_MAX_MS - DEAF_MIN_MS) * u));
@@ -531,6 +535,11 @@ export function bang(state, bus, { id, x, z, atMs = state.clock.ms, byId = null,
   return out;
 }
 
+// (where an actor stands against a burst's room (bang's `room`): 'in' its room, 'next' a room joined to it through an open doorway, else null)
+function roomWhere(room, a) {
+  const r = roomOf(room.area, a.x, a.z)?.id ?? null;
+  return r && (room.in ?? []).includes(r) ? 'in' : r && (room.next ?? []).includes(r) ? 'next' : null;
+}
 /** Whether a person heard a thrower's "Bang!" (call { x, z, atMs }) in time to be forewarned of a burst at atMs: within CALL_HEARD_MS before it, his ears letting the voice through then. */
 export function heardCall(state, pid, call, atMs) {
   if (!call || !Number.isFinite(call.atMs) || call.atMs > atMs || atMs - call.atMs > CALL_HEARD_MS) return false;

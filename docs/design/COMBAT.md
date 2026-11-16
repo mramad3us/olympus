@@ -1279,11 +1279,13 @@ In the open, blast matters only within a few metres: within 3 m, stunned 2–5 s
 | Charge (E) | 10 m³ | 20 m³ | 40 m³ | 80 m³ | 150 m³ |
 |---|---|---|---|---|---|
 | Fragmentation grenade (1.0 MJ, about 240 g TNT) | 40 | 20 | 10 | 5 | 2.7 |
-| Concussion grenade (2.0 MJ) | 80 | 40 | 20 | 10 | 5.3 |
+| Concussion grenade (0.96 MJ, 0.23 kg TNT: v0.0.18, was 2.0 MJ) | 38 | 19 | 9.6 | 4.8 | 2.5 |
 | Flashbang (0.06 MJ) | 2.4 | 1.2 | 0.6 | 0.3 | 0.2 |
 | Breaching charge (0.4 MJ) | 16 | 8 | 4 | 2 | 1.1 |
 
 Effects on everyone in the compartment, by QSP, as a game proxy for the peak and reflected pressures that real injury thresholds are quoted in (my calls): ≥ 10 kPa deafened 1 h to 3 sols; ≥ 20 kPa stunned 2–6 s (CQC's stunned) and suppression +40; ≥ 40 kPa a 50% chance of burst eardrums and 10% of lung injury. Hatches and interior doors rated below the QSP blow open (PLACES's ratings). Loose objects are thrown.
+
+**As built in v0.0.18:** the concussion row is the G-13's 0.23 kg of TNT, 0.96 MJ (the MK3A2's 8 oz), replacing 2.0 MJ; in the house's rooms its QSP (room 1, 56 m^3: 13.7 kPa) stays under the 20 kPa stun, so it stuns by its local peak within 3.44 m. A burst's distance to a person counts the height apart (`burst.js`): the instructor on the catwalk, 3.0 m over the hall's floor, takes 13.7 kPa from a door charge (it read 103.5 kPa when he was counted as on the floor 1.20 m away).
 
 ### 11.4 Flashbang, concussion, smoke
 
@@ -1312,6 +1314,8 @@ No air: no blast wave beyond the explosive's own gases (a metre or so), no bang,
 ### 11.6 Breaching charges
 
 Demolitions (SKILLS's ladder: "a breaching charge on a door" average; "a hull-cutting charge that doesn't vent the next compartment" hard): placing a charge 30 s, priming 10 s, firing on the call. The margin sizes the hole: pass cuts the hatch or a man-sized panel; good does so without spalling into the room; a miss leaves it uncut (retry at −2); bad blows too much (spall into the room as a §11.2 burst of `λ0 = 10`, and a hole one size larger, which vents a compartment you meant to keep). A cutting torch does the same quietly in 6–10 minutes (longhaul's breach times, §14.3).
+
+**As built in v0.0.18 (the shoot house's door charge):** a charge goes on the door and the stack waits outside on the latch side's wall at the stand-off, never across from or in line with the door: 2.20 m at the Wheel's 66 kPa for 0.1 kg, to the 4 psi (27.6 kPa) training limit (`BREACH_SAFE_KPA`, to check against the manual); 2.40 m at 101.3 kPa, 1.18 m on Mars' surface (0.61 kPa). A charge set inside the closet (5 m^3: 67 kPa QSP for 0.1 kg) would blow it apart.
 
 ### 11.7 Doctrine aboard ship (my calls)
 
@@ -3244,6 +3248,8 @@ From Weapon handling 15 the card names what the hands felt (as built, §25.6.6),
 - **The #2 covering**: on your "Gun down!" or "Stoppage!", if he is up and not on a man, he says "Covering!", his watch goes to your sector's middle or your bracketed man, and **your sector's stands become his** until your "Gun up!". His take-in on them is `sector` for the man you bracketed (you showed him), `area` for the others; his row is his own (`twoPlan`); the par counts either man's first round (as built). If he is on a man he finishes his row first. He pivots, never walks: a man he cannot see stays yours.
 - **The DI** (`cqb.js`): `cqb-stoppage`'s act is the card's first answer; **`cqb-gunup`** (new): "Up. Carry on.", its act Carry on or the next row; **`cqb-two-down`** (new): "Your two's down. His sector.", its act Cover his sector; `cqb-reload` with a pistol and a man within 10 m names Transition.
 
+**As built in v0.0.18:** Gun down and Off the line act on the gun in use (the drawn P-12 when it stops), and with the rifle on its sling Transition is the draw alone while Gun down and Off the line are not offered. Rifle up's tail is the rifle's own way to ready (`readyPath`): tap, rack for a stoppage felt (unchanged), REMEDIAL for a double seen, RELOAD for a rifle that went dry, "Magazine in" with its magazine out. The holstered P-12's rows (Press check, Magazine check, Top up, MAKE READY) are drawn, done and holstered, in GUN ▸ "Hands ▸" only, on the lane with nobody facing you. Transition is offered whenever the rifle's plan finds no rounds and the holstered P-12 can fire; the DI says "Dry. Transition." and, on a slung rifle, "Rifle's on the sling. Up.", and the shot lines keep quiet over Condition 3, a locked bolt and a slung rifle until the gun can fire (the row Fix names: "Bolt release.", "Charge it.", "Rack it.", "Check the port."). A drawn P-12 that stopped is a stoppage F20's watch never measured (its watch reads the rifle's Gun down, the dummy round's).
+
 #### 25.19.7 The panel and the walk
 
 **The panel** is redesigned in VIEWS §7.8: five groups each with a fixed map of slots, the core five actions always visible on fixed keys and greyed with their reason and their remedy's key when off, and three layouts for the user to score in the gallery (`samples/panel/`, P1 to P3) and in play (`&panel=a|b|c`). This section guarantees the panel: every row has a group and a slot; the core five exist at every stop (the shot, Aim ⇄ Hold, Fix, the muzzle, NEXT as T's act); a struck row carries its reason; the DI names only live rows.
@@ -3462,3 +3468,36 @@ v0.0.16 was a hotfix cut mid-round (the free arms and the flight scaled by sqrt(
 **The panel and the pairs** (VIEWS §7.8, SKILLS §14, §15.4): in Pairs and Three bangs, with the bracketed man down the aim row goes to the next man up who is in view, and the line reads "He is down. Next: ... Aim: 7." with T aiming at him (`tests/pairs-next.test.mjs`). It was already broken in v0.0.16 (the review found it: no row, T did nothing, and keys runs stalled there).
 
 **Questions for the user** (each with its default, which the build follows until answered): (1) the #2's pistol: a P-12 for him too, with his own admin at each tower command? *Default: no.* (2) For 0.3, the authored or the derived point as doctrine in a corner-fed room. *Default: the authored, kept.* (3) Breaching: the locked pull door's way through (v0.0.18).
+
+#### 25.19.15 As built in v0.0.18, "From the gun's state" (the user's three asks of 2026-11-15, DESIGN.md's log of 2026-11-16; every choice below is my call unless the user's words are quoted)
+
+**The body gap** (§25.19.3.4): a bundle's walk held 0.4 s (`OFF_PATH_AFTER_MS`) by your standing #2 sends him to the nearest point beside him that keeps the body gap and `GIVE_MARGIN_M` off the whole length of your path (`places/move.js` `stepAside`: routed, walkable, never into you or a doorway), his own doing halted and planned again. The hold was 88.8 s on seed 7091 (the sergeant's "Clear the room") and 87.8 s at room 3; it is 0.80 s. He also goes to his stack once you stand still within `DOOR_REACH_M` 1.5 m of yours and his straight way there is clear of you (the fuzz recruit on seed 1333 opened room 3's door with him 4.9 m off); without "still" and "his way clear" the honest T-grain's #2 was held 3.1 s on the body gap (F2's guard, 0.3 s).
+
+**A breach or a bang belongs to its door** (§25.5.6): `bundle.js` `variantHere` keeps the choice with its door (`variant.at`) and drops it at the next; the stance and the entry carry as before. T never chooses a method or a grenade.
+
+**The tower and the pistol** (§25.19.6): before GO, under MAKE READY or Standby, with the rifle's chamber not empty and the pistol's part of MAKE READY still to do, the tower waits (`HOUSE_NUDGE.pistol`, "Shooter, your pistol too: a round up.") and the panel offers "P-12: MAKE READY". The tower's move-on still gives GO, so it is never a dead end.
+
+**The gauges** carry the round: F1 to F26 are unchanged and MET (139 lines over the five flawless files), F27 to F29 are the kit's (§25.20), F28 reads everyone in the house, F20 reads the rifle's Gun down. F15 on the kit's lanes is held to `KIT_LANE_MAX_S` 120 s, F6 on a charge's leg from #1 back on his stack after the blast; both are declared on their rows in `tests/flawless-kit.mjs`. The fumble net (`tests/bots/fumble.mjs`: the house played with its handling rolls fumbled, 14 invariants, an allow-list of 19 known failures of v0.0.17 pinned by 38 fixtures) was built and reviewed this round and is not merged (`.run/v018/net.patch`).
+
+#### 25.20 Breaching and grenades in the house (as built in v0.0.18, slice D1; the user, 2026-11-15: "breaching options and equipment (explosives etc), and grenades (bangs, frags, concussion etc) and a loadout screen")
+
+D1 is you as thrower and breacher; T never chooses a method or a grenade (§25.5.6). The ways in by a door's swing and the kit (`breach.js` `entryOptions`):
+
+| | Push door | Pull door | Locked (house 1's closet, a push door) | Needs |
+|---|---|---|---|---|
+| Open | live | live | struck "locked" | |
+| Kick | Fitness against `KICK_DC_OPEN` 8 | struck "opens toward you" | Fitness against `kickDc` (14) | |
+| Pry | Fitness against 8 less 4 | the same | against `kickDc` less 4 (10) | halligan |
+| Ram | Fitness against 8 less 6 | struck "opens toward you" | against `kickDc` less 6 | ram |
+| Charge | on the latch edge | struck "opens toward you" (D2: BC-1) | struck "not on an inner door" (D1: the lane's doors only) | SC-1 and FD-1 |
+| Flash | after the leaf opens | the same | after the breach | G-11 |
+
+A method the kit does not carry is struck "not issued" (a charge "no charge issued").
+
+**The beats.** Flash: arm, throw ("Bang out!"), bang (the eyes off it while the rifle comes back up, the entry on its burst). Charge: place, back (to the safe points: #1 at the stand-off on the latch side's wall, the #2 0.65 m further), prime, breach ("Breaching!", the 2.5 s count, the fire), restack. Force: the halligan or the ram, a failure at 1.6 times the time. The throw leaves the hand round the jamb nearest the thrower (0.15 m into the opening, 0.15 m past the door's line) and never comes back over the door's line; a slip (a natural 1 below Weapon handling 10) lands at the thrower's feet on his own side. A burst on the room ahead is the entry's cue (`VIGIL_MS`, refreshed at the burst: without it the corporal's breach lanes ran past it and room 3's hostage card was taken in "area" times 1.5). A tool let go at a door is picked up by "Pick up the halligan" (3.00 s at 10).
+
+**The stands** are men in utilities (hardening 8): blind 5 s facing a G-11 within 60 degrees, else startled 1.25 to 2.55 s, stunned 2 to 6 s at 20 kPa (`STUN_KPA`). Their turn and par wait for it; the instructor's brief says "Treat every target as an unsuited man." You and your #2 in the combat EVA suit feel under 10 and are never startled or blinded. The stun on people (`combat.stunUntilMs`) is recorded only in D1; the stands' daze acts.
+
+**The marks** (§25.18.4) go on the leg of the door the grenade was thrown through (the burst's `thrown`): ON THE BANG or BANG TO ENTRY (that leg's own throw only; a fault past `BANG_LATE_MS` 2,000, with "You gave them back the bang."), DOOR BLOWN, STACK IN THE BLAST n KPA (a fault over `BREACH_SAFE_KPA` 27.6), BANG AT YOUR FEET (a fault; the lane goes on in D1), CHARGE LEFT ON THE DOOR (a fault at the lane's end; the instructor makes it safe, "Never walk away from a placed charge."), "1A BLINDED 5.00 S". Gauges F27 (the entry on the bang within 2 s from the corporal up: mean 1.21 s, worst 1.59 s over 24 rooms), F28 (nobody in the house over 27.6 kPa at a fire: you 27.1, the #2 16.9, anyone else 13.7) and F29 (nothing live or held at the lane's end: 0 of 36) are `tests/flawless-kit.mjs`'s.
+
+**Numbers.** SC-1 stand-off at 27.6 kPa: the Wheel 2.20 m, a UN hull 2.40 m, Mars' surface 1.18 m. The stun's reach at 20 kPa: G-11 1.36 m, G-9 3.49 m, G-13 3.44 m. A G-11 in the air after the decision (hang, side reach, pin, throw): 3.51, 2.88 and 1.69 s at Weapon handling 4, 10 and 42, the rifle back up 1.29, 1.00 and 0.46 s more. A throw through room 1's door (1.87 m from the hand round the jamb): 45 degrees, 3.24 m/s, 817 ms; 200 throws, every one in room 1; 2,000 failures at margins of -2, -5 and -8, every one in room 1. A misfire is the FD-1's 1 in 100 ("Misfire. Prime it again."). The kit lanes (three seeds, mean): flash 92.4 s (the recruit by the keys) to 47.5 s (the tier one), breach 127.3 to 68.7 s. F15 reads the honest lanes (the corporal up, by T): the corporal's breach the longest at 118.4 s against `KIT_LANE_MAX_S` 120; the recruit's and the private's by the keys run to 132.6 s, held to F14's 600 s.

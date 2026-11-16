@@ -1,0 +1,33 @@
+{
+ "title": "The target view: the stands as you saw them, a live man in his gear, the hostage card",
+ "about": "Your words of 2026-11-15: \"we need to generalize that target view for every time we're engaging something or someone\", and the people in it \"rendered ... as we see them, meaning with their gear\". The card is \"Bang\"'s B (the khaki board you scored 99), drawn by the game's own code (src/art/doll/hitcard.js). In the shoot house it opens as soon as you aim at or bracket a stand your take-in has seen, the stand drawn as your take-in identified it, never as its record holds; \"Bang\" keeps its own as you scored it. Score L and H.",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "F",
+   "title": "F: the house's stands as identified (for reference)",
+   "about": "A threat with a rifle; a threat with a pistol, the P-12 in his hand (v0.0.17 drew him empty-handed, \"Bang\"'s pistol boards too); a no-shoot with a phone; a no-shoot with empty hands; the armoured face; a stand whose hands your look did not see, empty-handed and \"HANDS NOT SEEN\".",
+   "views": [
+    { "id": "F-a", "name": "The six faces as identified", "query": "set=faces", "pixel": "616x412" }
+   ]
+  },
+  {
+   "id": "L",
+   "title": "L: a live man's card",
+   "about": "Your #2 in the combat EVA suit, the carrier and the R-7 at the ready, in his own colours with no stakes and no zones, at the near band (4 m) and the mid band (14 m). L-a on the card's dark ground (the default); L-b on a ground lifted toward the board's khaki, so amber rings will read on a black suit once hits on people are drawn.",
+   "views": [
+    { "id": "L-a", "name": "L-a: on the dark ground", "query": "l=a", "pixel": "412x208" },
+    { "id": "L-b", "name": "L-b: on a lifted ground", "query": "l=b", "pixel": "412x208" }
+   ]
+  },
+  {
+   "id": "H",
+   "title": "H: the hostage card",
+   "about": "Two painted men: the hostage in front (light skin, empty hands), the hostile behind him, his head and his pistol showing beside the hostage, 14 card pixels to the side at the near band. In belief with a round to the head called, and in truth. H-a the hostile at the viewer's right (the default); H-b at the left.",
+   "views": [
+    { "id": "H-a", "name": "H-a: the hostile at the right", "query": "h=a", "pixel": "412x208" },
+    { "id": "H-b", "name": "H-b: the hostile at the left", "query": "h=b", "pixel": "412x208" }
+   ]
+  }
+ ]
+}

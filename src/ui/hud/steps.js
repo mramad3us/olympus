@@ -41,6 +41,11 @@
 // count as known ("3", "≈3" under Weapon handling 15, "?" uncounted, OUT), the bolt locked, a stoppage
 // once felt (CLICK, DEAD, FELT; CASE and DOUBLE once looked at). The ui-weaponcard test feeds a belief
 // whose truth differs and reads the belief in every glyph.
+// 0.0.18 (VIEWS §4.4 "As built in v0.0.18: two guns"): with a second gun carried (view.other, guns.js otherGunView's: its model,
+// its place, its own belief) the card draws it in the strip at its foot and the gun in use marked; its words go on the card's
+// hover after the first's, on cardBox.dataset.other, and last on the panel's text ("OTHER: P-12 HOLSTER · SAFE · 1 + 9"), so
+// the first segment and the head stay where tests read them; a click on the strip is GUN 3's row (Transition or Rifle up) when
+// it is live; in layout C the fan's GUN card is named for the gun in use ("GUN · P-12", view.gunShort). One gun: as v0.0.17.
 //
 // 0.0.6 (the user, 2026-11-07): the card carries the magazine in the hand as believed (beliefOf's hand: its count,
 // its kind, its weight's band) and the believed kind of the one in the rifle (magLoad); the line adds "HAND 5",
@@ -99,7 +104,7 @@
 // changes; down(key) moves it, entryFor(key) is what a key does now (main.js sends the row, or T's tap for NEXT).
 import { CARD_W, CARD_H } from './layout.js';
 import { badgeOf, modelOf, viewOf, autoNav, badgeKey, keyPathOf, DEFAULT_LAYOUT, LAYOUTS, CORE_WORDS, GROUP_WORDS, FAN_KEY, GROUPS } from '../../sim/arms/groups.js';
-import { distanceParts, dialWords } from '../../art/weaponcard.js';
+import { distanceParts, dialWords, OTHER_Y } from '../../art/weaponcard.js';
 // (the panel's numbering is the sim's (src/sim/arms/panel.js), so the DI's line can name the digit a row is on: re-exported here)
 import { PANEL_KEYS, FIXED_KINDS, isFixed, FIXED_MAX, FIXED_REPEAT, isGated, gatedRow, panelList, panelOf, isShotRow } from '../../sim/arms/panel.js';
 import { markOf as simMarkOf } from '../../sim/combat/stepper.js';
@@ -356,11 +361,17 @@ const STOPPAGE_WORD = Object.freeze({ click: 'CLICK', dead: 'DEAD', felt: 'FELT'
 export const BELIEF_FIELDS = Object.freeze(['model', 'short', 'chamber', 'mag', 'magFam', 'count', 'countApprox', 'magLoad', 'mode', 'locked', 'port', 'stoppage', 'condWord', 'cocked', 'hand', 'sight', 'zero', 'optic', 'dope']);
 const FEEL_LINE = Object.freeze({ none: 'NONE', few: 'A FEW', half: 'HALF', most: 'NEARLY FULL', full: 'FULL' });
 const FEEL_WORDS = Object.freeze({ none: 'feels empty', few: 'a few rounds by its weight', half: 'about half full by its weight', most: 'nearly full by its weight', full: 'full by its weight' });
+/** Where the other gun is, in words (guns.js's places; v0.0.18). */
+export const PLACE_WORDS = Object.freeze({ holster: 'in its holster', hanging: 'hanging on its sling', slungFront: 'slung in front', slungBack: 'slung on your back', hands: 'in your hands' });
+const PLACE_LINE = Object.freeze({ holster: 'HOLSTER', hanging: 'HANGING', slungFront: 'SLUNG', slungBack: 'ON YOUR BACK', hands: 'IN HAND' });
 /**
  * The card's caption from a belief (beliefOf's record): { short, mode, chamber, count, locked, port, stoppage,
- * cond, line ('SAFE · ROUND + 3'), words (the hover's plain sentence) }. Pure; reads only BELIEF_FIELDS.
+ * cond, line ('SAFE · ROUND + 3'), words (the hover's plain sentence), other }. Pure; reads only BELIEF_FIELDS. v0.0.18: other
+ * (guns.js otherGunView's { model, place, belief }): the second gun's { short, place, line ('P-12 HOLSTER · SAFE · 1 + 9'),
+ * words }, its condition from its own belief alone, its place from the view (felt, never believed); null with one gun.
  */
-export function weaponCardModel(belief, { distance = false, line: kdLine = null, hold = null, zeroing = null } = {}) {
+export function weaponCardModel(belief, { distance = false, line: kdLine = null, hold = null, zeroing = null, other = null } = {}) {
+  const o = other?.belief ? otherModel(other) : null;
   const b = {};
   for (const k of BELIEF_FIELDS) b[k] = belief?.[k];
   const mode = MODE_WORD[b.mode] ?? (b.mode ? String(b.mode).toUpperCase() : '?');
@@ -384,7 +395,12 @@ export function weaponCardModel(belief, { distance = false, line: kdLine = null,
   const dialSaid = !F ? '' : F.zeroing ? (dialled ? `zeroing, ${dialled} dialled this zero` : 'zeroing, nothing dialled yet') : !dialled ? `on ${F.zero ? 'your' : 'the card\'s'} zero` : `${dialled} from ${F.zero ? 'your' : 'the card\'s'} zero`;
   const farWords = F ? `; the scope at ${F.optic} power, ${dialSaid}${F.line ? `, ${F.onDope ? 'on' : 'off'} your dope for ${F.line} m` : ''}${holdSaid ? `, holding ${holdSaid.slice(5).replace(' R', ' mil right').replace(' L', ' mil left').replace(' UP', ' mil up').replace(' DN', ' mil down')}` : ''}` : '';
   const words = `${b.short ?? 'The rifle'}: ${chamberWords}, ${magWords}${b.magLoad && b.mag !== 'out' ? ` of ${b.magLoad}` : ''}, ${b.mode === 'safe' ? 'on safe' : `on ${b.mode ?? '?'}`}${b.locked ? ', the bolt locked back' : ''}${stoppage ? `; ${stoppage.toLowerCase()}` : ''}${b.condWord && b.condWord !== 'fine' ? `; ${b.condWord}` : ''}${handWords}${farWords}.`;
-  return { short: b.short ?? null, model: b.model ?? null, mode, chamber, count, locked: !!b.locked, port: b.port ?? null, stoppage, cond: b.condWord ?? null, hand, far, line: far ? `${line} · ${far}` : line, words };
+  return { short: b.short ?? null, model: b.model ?? null, mode, chamber, count, locked: !!b.locked, port: b.port ?? null, stoppage, cond: b.condWord ?? null, hand, far, line: far ? `${line} · ${far}` : line, words, other: o };
+}
+// (the second gun's words: its own belief's, BELIEF_FIELDS only, its place the view's)
+function otherModel(other) {
+  const m = weaponCardModel(other.belief), place = other.place ?? null;
+  return { short: m.short, place, line: [`${m.short ?? '?'} ${PLACE_LINE[place] ?? ''}`.trim(), m.line].join(' · '), words: `${m.short ?? 'The other gun'} ${PLACE_WORDS[place] ?? 'carried'}: ${m.words.slice(m.words.indexOf(': ') + 2)}` };
 }
 
 /** Pixels onto a canvas: a Pixmap-like { w, h, data | px } (a Uint32Array in ImageData's order, or RGBA bytes). */
@@ -440,6 +456,12 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   root.append(cardBox, list);
   parent.append(root);
   let sigRows = null, sigCard = null, slots = [], rowsEls = [], bar = null, text = '', cardK = null, hovered = null, cardLine = '';
+  // (v0.0.18: the second gun's line, the gun in use's name for the GUN card, and the row the strip's click takes: GUN 3's)
+  let otherLine = null, gunShort = null, strip = null;
+  cardCanvas.addEventListener('click', (ev) => {
+    const r = cardCanvas.getBoundingClientRect(), y = r.height ? (ev.clientY - r.top) / r.height * CARD_H : -1;
+    if (strip && otherLine && y >= OTHER_Y - 1) onPick?.(strip);
+  });
   // (R7: the model, the layout, the view, and where the player is in it: nav (an open drawer, bank or the fan's group, its third
   // level), reset where the stop changes (navKey); fanHeld, Tab held in layout C)
   let pm = null, layout = DEFAULT_LAYOUT, view = null, nav = {}, navKey = null, fanHeld = false, watchStep = 0, small = false, diRow = null;
@@ -454,15 +476,18 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     const fit = cardFit(v.ui ?? 1, globalThis.devicePixelRatio || 1), k = fit.k;
     if (k !== cardK) { cardK = k; cardCanvas.style.width = `${CARD_W * k}px`; cardCanvas.style.height = `${CARD_H * k}px`; cardCanvas.style.imageRendering = fit.smooth ? 'auto' : ''; }
     const far = { distance: !!v.distance, line: v.line ?? null, hold: v.hold ?? null, zeroing: v.zeroing ?? null };
-    const model = weaponCardModel(v.belief, far);
-    cardLine = model.line;
+    // (v0.0.18: the second gun carried, guns.js otherGunView's: in the strip, its words after the card's)
+    const other = v.other?.belief ? v.other : null;
+    const model = weaponCardModel(v.belief, { ...far, other });
+    cardLine = model.line; otherLine = model.other?.line ?? null; gunShort = v.gunShort ?? null;
+    strip = other ? (v.steps ?? []).find(st => (st.id === 'weapon:transition' || st.id === 'weapon:rifle-up') && !st.off) ?? null : null;
     // (0.0.12: the gun's finish, its colours on the card: the caller's, read from the item by id, never from the belief)
     const finish = v.finish ?? null;
-    const cs = JSON.stringify([BELIEF_FIELDS.map(k => v.belief?.[k]), far, finish]);
+    const cs = JSON.stringify([BELIEF_FIELDS.map(k => v.belief?.[k]), far, finish, ...(other ? [other.model, other.place, other.finish ?? null, BELIEF_FIELDS.map(k => other.belief[k])] : [])]);
     if (cs !== sigCard) {
       sigCard = cs;
       let drawn = false;
-      try { drawn = !!paintCard && putPixels(cardCanvas, paintCard(v.belief, far, finish)); } catch (e) { console.warn('the weapon card was not painted', e); }
+      try { drawn = !!paintCard && putPixels(cardCanvas, other ? paintCard(v.belief, far, finish, other) : paintCard(v.belief, far, finish)); } catch (e) { console.warn('the weapon card was not painted', e); }
       cardCanvas.hidden = !drawn;
       // (the card's picture says it all, its marks and its count included; the words only stand in when it can't be painted)
       caption.hidden = drawn;
@@ -471,8 +496,9 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
         model.far ? el('span', { className: 'wc-far', textContent: model.far }) : null,
         model.locked ? el('span', { className: 'wc-locked', textContent: 'LOCKED' }) : null,
         model.stoppage ? el('span', { className: 'wc-stop', textContent: model.stoppage }) : null].filter(Boolean));
-      cardBox.title = model.words;
+      cardBox.title = model.other ? `${model.words}; ${model.other.words}` : model.words;
       cardBox.dataset.text = model.line;
+      if (model.other) cardBox.dataset.other = model.other.line; else delete cardBox.dataset.other;
     }
     // (a reflex card waiting: the weapon card alone, at its place at the left, the card in the rest of STEPS beside it,
     // so what you believe of the rifle stays in sight while you decide (the design review's: the card hid it))
@@ -503,7 +529,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     // (2026-11-15: layout C as its sample, P3: the band in tiles, Tab's fan with its wheel and the group's card; one word a key under --ui 1)
     small = (v.ui ?? 1) < 1; diRow = v.diRow ?? null;
     const form = layout === 'c' && view.level === 'band' ? 'tiles' : layout === 'c' && fanHeld ? 'fan' : 'list';
-    const rs = JSON.stringify(['groups', layout, form, small, diRow, !!v.shift, view.level, view.head, doing?.step ?? null, doing?.chain ?? null, view.banks, view.keys.map(k => sigOf(k, v)), v.chaos?.sum ?? null, form === 'fan' ? nav.group ?? null : null]);
+    const rs = JSON.stringify(['groups', layout, form, small, diRow, !!v.shift, view.level, view.head, doing?.step ?? null, doing?.chain ?? null, view.banks, view.keys.map(k => sigOf(k, v)), v.chaos?.sum ?? null, form === 'fan' ? nav.group ?? null : null, otherLine, gunShort]);
     if (rs !== sigRows) {
       sigRows = rs;
       bar = null;
@@ -527,7 +553,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
       list.dataset.layout = layout; list.dataset.level = view.level; list.dataset.form = form;
       root.classList.toggle('small', small);
       root.classList.toggle('acting', !!doing);
-      text = [cardLine, `${view.head?.name ?? ''}:`, ...view.keys.map(k => tileText(k, v)).filter(Boolean), view.banks ? view.banks.map(b => `${b.key} ${GROUP_WORDS[b.group]}`).join(' ') : null].filter(Boolean).join(' | ');
+      text = [cardLine, `${view.head?.name ?? ''}:`, ...view.keys.map(k => tileText(k, v)).filter(Boolean), view.banks ? view.banks.map(b => `${b.key} ${GROUP_WORDS[b.group]}`).join(' ') : null, otherLine ? `OTHER: ${otherLine}` : null].filter(Boolean).join(' | ');
     }
     if (bar && doing) bar.style.width = `${Math.round(progress(doing, v.nowMs) * 100)}%`;
     return text;
@@ -711,7 +737,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   function groupCard(vw) {
     const g = vw.head?.kind === 'group' ? vw.head.group : null;
     const n = g
-      ? el('div', { className: 'gcard' }, el('div', { className: 'gc-top' }, el('kbd', { textContent: String(GROUPS.indexOf(g) + 1) }), icon(g)), el('span', { className: 'gc-name', textContent: `${GROUP_WORDS[g]}${vw.level === 'deep' ? ' ▸' : ''}` }), g === 'DRILL' && pm?.half ? el('span', { className: 'gc-half', textContent: HALF_WORDS[pm.half] }) : null)
+      ? el('div', { className: 'gcard' }, el('div', { className: 'gc-top' }, el('kbd', { textContent: String(GROUPS.indexOf(g) + 1) }), icon(g)), el('span', { className: 'gc-name', textContent: `${GROUP_WORDS[g]}${g === 'GUN' && gunShort && otherLine ? ` · ${gunShort}` : ''}${vw.level === 'deep' ? ' ▸' : ''}` }), g === 'DRILL' && pm?.half ? el('span', { className: 'gc-half', textContent: HALF_WORDS[pm.half] }) : null)
       : el('div', { className: 'gcard none' }, el('span', { className: 'gc-name', textContent: FAN_KEY }), el('span', { className: 'gc-half', textContent: 'a digit: the group' }));
     n.style.gridColumn = '2'; n.style.gridRow = '1 / span 5';
     return n;

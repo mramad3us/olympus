@@ -59,7 +59,7 @@
 // within the last second: the flash's spot and time), bangs: [...as pairs'] }, src/sim/scenarios/stress.js stressLook; null
 // on every other course.
 // 0.0.12 (the build sheet 0.0.12 §2.4): on test-shoothouse's house course rangeLook gains house: src/sim/scenarios/shoothouse.js
-// houseLook's { instructor: { x, z, y, face, say, name }, corners: [{ room, id, x, z, covered, by }], stands: [{ key, stand, room,
+// houseLook's (0.0.18: with bangs, the kit's grenades and bursts as pairs' bangs are, burst.js devicesLook) { instructor: { x, z, y, face, say, name }, corners: [{ room, id, x, z, covered, by }], stands: [{ key, stand, room,
 // x, z, y, facingK, face, holds, holes, down }], timer: { runMs, parMs, par } }; null on every other course. 0.0.17: with
 // leaves (the doors' swings) and aid (shoothouse.js cornerAidLook: your corner and point and your #2's from the read of the door,
 // your sector's wedge from your entry, each with its strength k; the rule src/sim/combat/corner.js).
@@ -86,6 +86,7 @@ import { pitView } from '../scenarios/range.js';
 import { pairsLook } from '../scenarios/pairs.js';
 import { stressLook } from '../scenarios/stress.js';
 import { houseLook, handsOf, houseOf } from '../scenarios/shoothouse.js';
+import { devicesLook } from '../combat/burst.js';
 import { KD_RANGE, KD_STAKE_DX_M, KD_STAKE_DZ_M } from '../../data/places/range.js';
 import { gravityAt } from '../places/env.js';
 import { G0_MS2 } from '../../core/phys.js';
@@ -257,6 +258,8 @@ export function ejectCase(gun, carry, { atMs, kind = 'case', key = '', gMs2 } = 
  * xCm, yCm, score, v, n, string, atMs }] }], brass: [{ x, y, z, kind, rest, rotRad }], lying: [{ id, kind: 'mag', x,
  * z }], pick: { x, z } | null, aimed, gMs2 (the place's gravity at CASE_G_STEP_MS2: the dust's and the plates' fall) }. n: the hole's number in its string, string its string (0 to 2), atMs its shot's game time.
  */
+// (0.0.18: the house's look with its devices, the grenades thrown and the bursts (burst.js devicesLook); null stays null)
+const withDevices = (h, state, ms) => (h ? { ...h, bangs: devicesLook(state, ms) } : h);
 export function rangeLook(state, ms = state?.clock?.ms ?? 0) {
   const s = session(state);
   if (!s) return null;
@@ -288,7 +291,7 @@ export function rangeLook(state, ms = state?.clock?.ms ?? 0) {
     kd: s.course === 'kd' ? kdLook(state, s, ms, gMs2) : null,
     pairs: s.course === 'pairs' ? pairsLook(state, ms) : null,
     stress: s.stress ? stressLook(state, ms) : null,
-    house: s.course === 'house' ? houseLook(state, ms) : null,
+    house: s.course === 'house' ? withDevices(houseLook(state, ms), state, ms) : null,
   };
 }
 

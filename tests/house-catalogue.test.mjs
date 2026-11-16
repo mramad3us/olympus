@@ -58,7 +58,7 @@ export default [
       const ends = ['room:dominate', 'room:clear'].map(id => beatsOf(MUSCLE[id]).filter(k => k !== 'mark').at(-1));
       console.log(`      ${BUNDLES.length} rows: ${GROUPS.map(gp => `${gp} ${BUNDLES.filter(B => B.group === gp).map(B => B.label).join(', ')}`).join(' | ')}`);
       console.log(`      rung 2's groups: ${ENTER_AND_CLEAR.groups.map(x => MUSCLE[x[0]].label).join(' → ')}; the room rows end at ${ends.join(', ')}; the breach ${MUSCLE['door:breach'].offeredNow} (${MUSCLE['door:breach'].needs})`);
-      assert(!MUSCLE['house:clear'] && ENTER_AND_CLEAR.groups.flat().join() === 'stack:point,room:in,room:dominate' && ends.every(e => e === 'roomclear') && MUSCLE['door:breach'].offeredNow === 'struck', JSON.stringify({ ends }));
+      assert(!MUSCLE['house:clear'] && ENTER_AND_CLEAR.groups.flat().join() === 'stack:point,room:in,room:dominate' && ends.every(e => e === 'roomclear') && MUSCLE['door:breach'].offeredNow === 'kit', JSON.stringify({ ends }));
       // (in play: at the tier one's door the breach is greyed "no charge issued", a rung above greyed with its rung, never hidden)
       const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private', setup: 'go' });
       g.step(2);

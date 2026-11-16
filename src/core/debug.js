@@ -75,6 +75,7 @@
 // URL parameters skip the title for tests and shots (main.js reads them through readParams()):
 // ?play=<scenario>&seed=<n>&hour=<h>[&mode=ironman][&debug=1][&setup=hot|bench|mixed][&tier=recruit|private|cpl|sgt|raider|tierone]
 // [&par=basic|advanced|operator] (0.0.12: test-shoothouse's par, else the sheet's own; its setups go, room:2, room:3, hall, contact)
+// [&loadout=standard|flash|breach|full|v1~…] (0.0.18: test-shoothouse's loadout, one for every sheet; main.js drops an unknown one)
 // (tier: test-pairs' sheet, TECH §15.3; else null, the scene's private), hour being the Mars local hour at the
 // start (0-24, a fraction giving minutes), seed a whole number; &area=<id>&at=<x>,<z>&face=<f> a
 // start somewhere else than the scenario's (the barracks' berth): an area, a place in its frame in
@@ -140,6 +141,9 @@ export function readParams(search = globalThis.location?.search ?? '') {
     par: PARS_URL.includes(q.get('par')) ? q.get('par') : null,
     flashes: FLASHES.includes(q.get('flashes')) ? q.get('flashes') : null,
     env: /^[a-z0-9-]{1,32}$/.test(q.get('env') ?? '') ? q.get('env') : null,
+    // (v0.0.18: test-shoothouse's loadout, a preset or a code (src/sim/arms/loadout.js; a '+' comes through as a space), read by
+    // main.js, which drops an unknown one with a toast as it does &env=)
+    loadout: /^[a-z0-9~:,+ -]{1,160}$/.test(q.get('loadout') ?? '') ? q.get('loadout') : null,
     panel: PANELS_URL.includes(String(q.get('panel') ?? '').toLowerCase()) ? String(q.get('panel')).toLowerCase() : null,
     cycle: CYCLES_URL.includes(String(q.get('cycle') ?? '').toUpperCase()) ? String(q.get('cycle')).toUpperCase() : null,
     sound: SOUNDS_URL.includes(q.get('sound')) ? q.get('sound') : null,

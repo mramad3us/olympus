@@ -30,6 +30,13 @@
 // is in it, UNLOAD SHOW CLEAR only with an observer at hand, IMMEDIATE ACTION for a stoppage felt,
 // REMEDIAL for a double feed seen, CEASE FIRE off safe or with the finger on.
 //
+// 0.0.18 (the user, 2026-11-15: the handling options from the gun's believed state, for any gun): every offer keeps its predicate,
+// and each reload's sub-steps are the planner's path for its purpose (src/sim/arms/plan.js: RELOAD to fed, keep the empty to
+// retain, Top up to topup), its name the path's; one more offer closes the dead end v0.0.17 left (RELOAD where nothing reloads
+// and the gun can't fire, its way holding a seat: a magazine believed empty in a closed, empty rifle); a reload with no way is
+// struck with why. subsOf drops the port on a model with no cover (the P-12's UNLOAD read "Port cover"); every R-7 list is
+// v0.0.17's, so the #2, the gunner, the bundle's reorg and the sidearm keep their runs.
+//
 // runMacro() plays a macro whole through doAction (the tests', and 0.0.7's gunner's): each sub-step
 // rolled and logged in order, halting where the macro halts.
 //
@@ -43,49 +50,14 @@
 // magIn for its stripped magazine (brought back from the hand that racked, in the reach's time).
 import { actionMs, doAction, beliefOf, conditionOf, tempoFor } from './firearms.js';
 import { sparesOf } from './kit.js';
-import { modelOf, MODELS } from './models.js';
+import { modelOf } from './models.js';
 import { rollerOf } from '../combat/roll.js';
 import { COURSES } from '../../data/courses.js';
+import { planFor, GOAL_OF } from './plan.js';
 
-/** The macros (WEAPONS §5.3): id → { label, subs, observer? }. */
-export const MACROS = Object.freeze({
-  load: Object.freeze({ label: 'LOAD', subs: Object.freeze(['selector:safe', 'reach', 'seat', 'port']) }),
-  ready: Object.freeze({ label: 'MAKE READY', subs: Object.freeze(['selector:safe', 'charge', 'pressCheck', 'port']) }),
-  unload: Object.freeze({ label: 'UNLOAD', subs: Object.freeze(['selector:safe', 'magOut:pouch', 'lockBack', 'inspect', 'release', 'selector:safe', 'port']) }),
-  clear: Object.freeze({ label: 'UNLOAD, SHOW CLEAR', observer: true, subs: Object.freeze(['selector:safe', 'magOut:pouch', 'lockBack', 'inspect', 'show', 'release', 'selector:semi', 'functionCheck', 'charge', 'selector:safe', 'port']) }),
-  'reload:speed': Object.freeze({ label: 'RELOAD', subs: Object.freeze(['magOut:drop', 'reach', 'seat', 'release']) }),
-  'reload:retain': Object.freeze({ label: 'RELOAD, keep the empty', subs: Object.freeze(['magOut:dump', 'reach', 'seat', 'release']) }),
-  'reload:tactical': Object.freeze({ label: 'RELOAD', subs: Object.freeze(['magOut:pouch', 'reach', 'seat']) }),
-  ia: Object.freeze({ label: 'IMMEDIATE ACTION', subs: Object.freeze(['tap', 'charge', 'observe']) }),
-  remedial: Object.freeze({ label: 'REMEDIAL ACTION', subs: Object.freeze(['lockBack', 'magOut:strip', 'rack', 'rack', 'rack', 'magIn', 'charge', 'observe']) }),
-  cease: Object.freeze({ label: 'CEASE FIRE', subs: Object.freeze(['finger', 'selector:safe']) }),
-  // (the shoot house's Stop at the lane's end (COMBAT §25.19.4: "Make safe", one row): the finger off, on safe, low ready)
-  safe: Object.freeze({ label: 'MAKE SAFE', subs: Object.freeze(['finger', 'selector:safe', 'posture:lowReady']) }),
-});
-
-/** The actions that cock the hammer on the way (the R-7's lever reaches safe only after one: see the header). */
-const COCKS = new Set(['charge', 'rack', 'lockBack', 'clearDouble']);
-/**
- * A macro's sub-steps for a belief (beliefOf's view): skipping only a magazine out with none believed in, a
- * lock back with the bolt believed locked on an empty (or unsure) chamber, and a reach with a magazine already
- * in the hand (0.0.6); a reload's bolt release becomes Charge on a bolt not believed locked (the magazine out on a dry
- * chamber, macrosFor's: nothing holds the bolt back); with the hammer believed down on a
- * model whose lever needs it cocked, the first safe after the first step that cocks it, or a charge before it.
- */
-export function subsOf(macroId, belief) {
-  const m = MACROS[macroId];
-  if (!m) return [];
-  const subs = m.subs.filter(a => !(a.startsWith('magOut:') && belief?.mag === 'out') && !(a === 'lockBack' && belief?.locked && (belief.chamber === 'empty' || belief.chamber === '?'))
-    && !(a === 'reach' && belief?.hand)).map(a => (a === 'release' && macroId.startsWith('reload:') && belief && !belief.locked ? 'charge' : a));
-  if (belief?.cocked === false && MODELS[belief.model]?.safeNeedsCocked) {
-    const s = subs.indexOf('selector:safe'), c = subs.findIndex(a => COCKS.has(a));
-    if (s >= 0 && (c < 0 || c > s)) {
-      if (c < 0) subs.splice(s, 0, 'charge');
-      else { subs.splice(s, 1); subs.splice(c, 0, 'selector:safe'); }
-    }
-  }
-  return subs;
-}
+// (the macros and their sub-steps: macros.js, a leaf, re-exported here for every caller)
+export { MACROS, subsOf } from './macros.js';
+import { MACROS, subsOf } from './macros.js';
 
 /** A macro's time in ms before any fumble: the sum of its sub-steps' (the tempo where each takes it; the observer's look at their pace). */
 export function macroMs(roller, gun, macroId, belief, tempo = 'normal', { observer = null } = {}) {
@@ -117,6 +89,10 @@ export function macrosFor(state, pid, gunId, { observerId = null } = {}) {
   if (b.mag === 'in' && b.chamber === 'empty' && !b.locked && b.count !== 0 && !b.stoppage) ids.push('ready');
   if (b.mag === 'in' && b.locked && b.count === 0 && withRounds.length) ids.push('reload:speed', 'reload:retain');
   else if (b.mag === 'in' && (b.count !== 0 || (b.chamber === 'live' && !!COURSES[state.armoury?.range?.course]?.spoutTopUp)) && withRounds.length && !b.stoppage) ids.push('reload:tactical');
+  // (v0.0.18: the planner's RELOAD where no reload is offered and the rifle can't fire, its way to fed holding a seat: the magazine
+  // in believed empty, the bolt home and the chamber empty, spares in reach, was a dead end, Fix "nothing offered now" (MAKE READY
+  // needs rounds believed in, RELOAD a locked bolt, Top up rounds): the build sheet 0.0.18 §0 item 2)
+  if (!b.stoppage && b.chamber !== 'live' && !ids.some(id => id.startsWith('reload:')) && planFor(state, pid, gunId, 'fed', { look: false }).subs?.some(a => a === 'seat' || a === 'magIn')) ids.push('reload:speed');
   // (the house's Stop: Make safe in one row, its low ready the house's own (COMBAT §25.19.4); CEASE FIRE elsewhere as built)
   const houseStop = state.armoury?.range?.course === 'house' && state.armoury.range.cmd?.id === 'stop';
   if (houseStop && (b.mode !== 'safe' || finger === 'on' || (kit?.carry?.posture ?? 'slungFront') !== 'lowReady')) ids.push('safe');
@@ -124,7 +100,14 @@ export function macrosFor(state, pid, gunId, { observerId = null } = {}) {
   if (b.mag === 'in' || b.chamber !== 'empty' || b.locked) ids.push('unload');
   if (observerId) ids.push('clear');
   const roller = rollerOf(state, pid), observer = observerId ? rollerOf(state, observerId) : null;
-  return ids.map(id => ({ id, label: MACROS[id].label, subs: subsOf(id, b), ms: macroMs(roller, g, id, b, 'normal', { observer }) }));
+  // (v0.0.18: each reload's sub-steps are the planner's path for its purpose (plan.js), its name the path's; one the planner finds
+  // no way for is kept, struck with why (greyed, never removed))
+  return ids.map(id => {
+    if (!id.startsWith('reload:')) return { id, label: MACROS[id].label, subs: subsOf(id, b), ms: macroMs(roller, g, id, b, 'normal', { observer }) };
+    const purpose = id.slice(7), p = planFor(state, pid, gunId, GOAL_OF[purpose], { look: false, purpose });
+    if (!p.subs?.length) return { id, label: MACROS[id].label, subs: subsOf(id, b), ms: macroMs(roller, g, id, b, 'normal', { observer }), ...(p.none ? { off: p.none } : {}) };
+    return { id, label: MACROS[id].label, name: p.label, subs: p.subs, path: p.subs, ms: p.subs.reduce((t, a) => t + actionMs(roller, g, a, { tempo: 'normal' }), 0) };
+  });
 }
 
 /**

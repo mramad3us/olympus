@@ -462,6 +462,9 @@ export const PAIRS_RULES = Object.freeze([
       // its row): the rifle up first if slung; a magazine in by the first of magSingle's; not sure what is in the chamber (a
       // discharge, a fumble), a press check, which the panel offers only on a bolt forward; an empty chamber, MAKE READY, else
       // chamberSingle's (the bolt release, Charge, pairs-reload's on an empty, or dry))
+      // (v0.0.18: on safe wanted with the rifle slung and off safe (a fumble's), the selector is no row while it hangs: the rifle up
+      // first, which is (Carry on replanned put the recruit's seed 1 there on string 3: T did nothing). Low ready already acts Rifle up)
+      if (k.choosing && k.inMode && want === 'safe' && slungNow(k)) return { k, variant: 'raise', step: 'up' };
       if (k.choosing && k.inMode && (want === 'mag' || want === 'chamber')) {
         if (slungNow(k)) return { k, variant: 'raise', step: 'up' };
         if (want === 'mag') { const st = magSingle(k); return st ? { k, variant: 'mag', step: st } : roundsLeft(state) > 0 ? { k, variant: 'mag' } : { k, variant: 'dry' }; }
