@@ -170,6 +170,10 @@ export const COURSES = deepFreeze({
     gaps: { door: { 'w4.r2': [300, 1200], 'w4.r3': [500, 1500] }, doorOther: [300, 1200], zone: [1500, 3000] },
     funnelM: 0.5, funnelFaultMs: 1000, twoSlotM: 1.5, twoWaitMs: 3000, twoBehindM: 0.65, stackM: 0.4,
     stallMs: 60_000, stallMoreMs: 30_000, laneMaxMs: 600_000, washMs: 90_000,
+    // (the lane's due (shoothouse.js stall, COMBAT §25.10; my call, 2026-11-16): each leg after the current one keeps legLastMs (the
+    // words at once, the pass stallMoreMs after, 15 s to walk to its door), so the lane ends by laneMaxMs − laneKeepMs, 585 s, by
+    // construction; laneMaxMs stays the net (the gauges' F14: the fuzz private on 1111 ran to 600 s on v0.0.20's integration))
+    laneKeepMs: 15_000, legLastMs: 45_000,
     // (the rework's R6, COMBAT §25.19.6: the P-12 on every sheet from 2026-11-15, the Sergeant up before (arms/sidearm.js SIDEARM_TIERS), the house's ten frangible a magazine)
     sidearm: { model: 'p12', mags: [['had17', 10, 'frangible'], ['had17', 10, 'frangible']] },
     // (v0.0.19, "Stack and clear, live" (the build sheet v0.0.19 §1 L-house; COMBAT §25.18): the stands the role-players take, in
@@ -432,6 +436,8 @@ export const SEQ_HOUSE = deepFreeze([
 /** What the instructor says to a shooter the line waits on ("Shooter, back on your mark."), by what is lacking (shoothouse.js houseWant). */
 export const HOUSE_NUDGE = deepFreeze({ mag: 'a magazine in.', chamber: 'a round up: MAKE READY.', safe: 'on safe, finger off.', low: 'low ready.', out: 'out of it.',
   mark: 'back on your mark.', still: 'stand still.', pistol: 'your pistol too: a round up.', gait: 'Combat. Weapon up.', two: 'wait for your number two.', show: 'show me clear.',
+  // (at Stop and SHOW CLEAR (shoothouse.js houseNudgeOf): the P-12 still out, or still loaded in its holster)
+  'pistol:out': 'pistol away, rifle up.', 'pistol:loaded': 'your pistol too: show me clear.',
   // (your number two's own wants, said to him: "Number two, a round up." (shoothouse.js twoLacks; handling.js names him))
   'two:busy': 'finish it.', 'two:mag': 'a magazine in.', 'two:chamber': 'a round up.', 'two:safe': 'on safe, finger off.', 'two:low': 'low ready.', 'two:show': 'show me clear.' });
 
@@ -456,6 +462,8 @@ export const HOUSE_CHIEF = deepFreeze({
   stall: ['Move on.', 'Move. You are clearing, not visiting.'],
   // (his acknowledgement of your number two's rifle shown clear at UNLOAD, SHOW CLEAR (COMBAT §25.19.5))
   twoClear: ['Number two, clear.', 'Number two: clear.'],
+  // (your #2's guns still loaded at the end of his SHOW CLEAR: the instructor clears them himself (house-two.js twoShown))
+  twoTaken: ["Number two, that's still loaded. Give it here.", "Number two: still loaded. I've cleared it."],
   time: ['Time. On to the next.', 'Time on that room. Next door.'],
   par: ['He fired first.', 'Too slow. He fired first.'],
   clear: ['Clear.', 'Good. Clear.'],
@@ -490,13 +498,25 @@ export const HOUSE_CHIEF = deepFreeze({
   // reopened by a man seen up after its "Clear!" ({Room}: "Room 3"), a man down or with his hands up left uncovered at "Clear!")
   out: ["He's out.", 'That one is out.'],
   paint: ['Paint, {part}. Keep working.', 'You took paint, {part}. Keep working.'],
+  // (a strike the carrier's soft panel stopped, as the live round's would-have rates it (combat/would.js))
+  // (a round of yours a role-player's soft panel stopped, once a man (shoothouse.js liveShot))
+  hisPanel: ['His panel took that one.', 'That one hit his panel.'],
+  paintStopped: ['Paint, {part}. Your panel took it. Keep working.', 'Paint on the panel. Keep working.'],
   casualty: ['Cease fire! Cease fire! You are hit.', 'CEASE FIRE! You are a casualty.'],
   twoDown: ['Cease fire! Cease fire! Your number two is hit.', 'CEASE FIRE! Your number two is a casualty.'],
   surrendered: ['His hands were up! You never shoot a man who gave up.', 'He gave up, and you shot him. Hands up means stop.'],
   // (the review of v0.0.19's fixer: the tower moved on past MAKE READY with the P-12's round not up; he racks it, as the coach clears a rifle never shown)
+  // (your number two's P-12 short of its round at MAKE READY's move-on, racked by the instructor (shoothouse.js twoMoveOn))
+  twoPistolRacked: ["Number two, your pistol had no round up. I've racked it.", 'Number two: pistol racked for you. Next time, yourself.'],
   pistolRacked: ["Your pistol had no round up. I've racked it. Next time it's yours.", "Pistol: no round up. Done for you. Next time, yourself."],
   reopened: ["{Room}'s not clear!", "{Room} is not clear! There's one up in there."],
   uncovered: ['Cover your man!', 'Cover him! He is still armed.'],
+  // (the line of fire (the build sheet v0.0.20 item 3): a round of your number two's held MASK_FAULT_MS or more by you on his line)
+  masked: ['You walked into his line!', 'You were in his line! Hold your point.'],
+
+  // (the card (the build sheet v0.0.20 §1 item 20): the instructor's verdict at the hot wash's end, against your sheet's
+  // standard (shoothouse.js houseVerdict): GO, or NO-GO and its first reason ({why}, in his words: VERDICT_WHY)
+  verdict: { go: ['GO.', 'That is a GO.'], nogo: ['NO-GO: {why}.', 'NO-GO. {why}.'] },
   // (the one thing to do differently, by the worst number of the run (COMBAT §17.2): the hot wash's last line)
   one: {
     funnel: ['You stood in the doorway. Through it, to your point, and stop there.', 'The door is where they shoot you. Keep moving through it.'],
@@ -512,6 +532,8 @@ export const HOUSE_CHIEF = deepFreeze({
     dummy: ['The click: tap, rack, back on him. It should be quicker.', 'The dummy cost you. Tap, rack, and back on target without thinking.'],
     time: ['Too slow through the rooms. The same drill, quicker hands.', 'Faster between the rooms. The pause is the only time you get.'],
     clean: ['Clean lane. Again, faster.', 'Clean. Now do it again, and quicker.'],
+    // (the play review: a lane ended before any room was run (Esc, End the scene, at GO) has nothing to wash)
+    unplayed: ['No room run, so nothing to wash. Again, from the top.', 'Not one room cleared. From the top.'],
     fragged: ['You fragged a room with a family in it. The brief told you which rooms were hostiles only.', 'Frags go only where the brief says hostiles only. Everywhere else, a stun or nothing.'],
     burst: ['You were in the room when your grenade went. On the wall until it goes, then in.', 'Wait for the bang. In the room at the burst, you are dead.'],
     burstFeet: ['A grenade dropped at the stack\'s feet: the whole stack clear of it, down the wall, and down.', 'A dropped grenade: everyone clear of it and down. Nobody stands over it.'],
@@ -523,6 +545,41 @@ export const HOUSE_CHIEF = deepFreeze({
     casualty: ['You took paint and it stopped there. Win the first second: on him before he is on you.', 'Paint on the stack ends it. See him first, shoot first.'],
     surrendered: ['You shot a man with his hands up. Read the hands every time, even mid-fight.', 'His hands were up. Stop on the hands.'],
     uncovered: ['A man down is still armed until someone covers him. Cover, then call.', 'Down is not out. Cover him before you call it.'],
+    // (the play review: paint on the stack short of the casualty, the lane gone on (the user's answer of 2026-11-16))
+    paint: ['You took paint. See him first, and be on him before he is on you.', 'Paint on the stack. Win the first second: see him first, shoot first.'],
     reopened: ['You called a room clear with a man in it. Find every man before the call.', 'He was still in there. Clear means every man accounted for.'],
+    // (the cause of a missed par (the build sheet v0.0.20 §1 item 4; shoothouse.js parCauseOf): the par's line by why it was
+    // missed, each the advice for that cause. 'par:click' is never said (it scores 0: a par missed only inside the instructor's dummy is
+    // met within the click); 'par:unready' is the T sheets' (rung 2 up: "Muzzle up through the door"), 'par:unreadyKeys' below rung 2
+    // (the Watch, the keys sheets' one decision); 'par' stays for a contact recorded before v0.0.20 (no cause))
+    'par:click': ['The dummy cost you that par, not your eyes.', 'That one was my dummy.'],
+    'par:unready': ['Your rifle was down when he showed. Muzzle up through the door, every door.', 'Muzzle up before you cross the door: he was there and you were not.'],
+    'par:unreadyKeys': ['Your rifle was down when he showed. Set a Watch on your corner before you go: your eyes are there when he is.', 'Watch your corner before you cross the door. Your muzzle was not on him.'],
+    'par:eyes': ['You saw him late. Your corner first, then the room.', 'Slow to take him in. Eyes on your corner as you cross the door.'],
+    'par:hands': ['You saw him in time, and your hands were slow. The same row, quicker.', 'Taken in fast, fired slow. Press sooner off the pause.'],
+    'par:feet': ['You planted before you fired. Combat walk, not Assault, and fire on the way.', 'Stopping to shoot cost you the par. Keep walking, fire from Combat.'],
+    'par:gun': ['Your own gun cost you that par. Know your rounds, and reload before the door.', 'A stoppage of your own, at the wrong time. Count, and top up before the door.'],
   },
+});
+/**
+ * The card's constants (the build sheet v0.0.20 §1 items 11 and 20; shoothouse.js parOf, roomParOf, houseVerdict): a room's
+ * par is its bundle's planned time at the sheet (bundle.js planBundle 'room:clear', at the marine's own rung and pace) plus its
+ * stands' books, × ROOM_PAR_K ({ room, hall }: [below rung 2, from rung 2], by the leg's kind; below rung 2 every step is a press,
+ * so the keys sheets' walk is covered), rounded up to ROOM_PAR_STEP_MS; STANDARD_PARS the stands' pars a GO may miss outside the click; VERDICT_WHY the NO-GO's reasons
+ * in the instructor's words, in the order they are named. ROOM_PAR_K fitted once against F56 (tests/flawless-card.mjs) and fixed.
+ */
+// (the fit, on F56's 40 seeds a sheet (1000 + 37 i) by each sheet's bot, a leg's time over its book (roomBookOf), by the leg's kind
+// and the rung's band: the least K on a 0.05 grid with every sheet's every leg of the kind met on at least 90%. The first fit (C's)
+// was one K a band, 1.4 from rung 2, set by the hall's worst (1.39), which left the rooms a par 1.3 to 1.6 times their time and the
+// lane's par 1.4 to 1.6 times every sheet's lane: the verdict's lane clause could not fire (the C and D review of 2026-11-16). Fitted
+// by kind on C's tree alone (rooms 1.5 and 1.15, the hall 0.9 and 1.4) and on the four roles merged (rooms 1.45 and 1.3, the hall
+// 1.0 and 1.3: A's and B's calls, waits and far leg lengthen the rooms from rung 2), each value the larger of the two, so both meet
+// every leg on 95% or more: the rooms 1.5 below rung 2 (their p90 1.33 to 1.37, room 3's far walk the longest) and 1.3 from it (p90
+// 1.06 to 1.14), the hall 1.0 below rung 2 (its book holds the far man's plant: p90 0.88 to 0.97) and 1.4 from it (p90 1.31 to
+// 1.32). The lane's par is then 1.3 to 1.45 times the bots' lane (0.69 to 0.79 of it, from 0.62 to 0.74); fixed from here, and a
+// room 25% slower than its sheet's bot still meets it on most legs: a tighter par is the book's, the user's question 10 in DESIGN.md's log of v0.0.20)
+export const ROOM_PAR_K = deepFreeze({ room: [1.5, 1.3], hall: [1.0, 1.4] }), ROOM_PAR_STEP_MS = 500, STANDARD_PARS = 1;
+export const VERDICT_WHY = deepFreeze({
+  setup: 'a lane set up is no lane', casualty: 'a casualty', hostage: 'the hostage', noshoot: 'a no-shoot', stopped: 'the safety stop', muzzle: 'your muzzle',
+  standing: 'a threat left standing', passed: 'a room not cleared', pars: 'too many pars missed', lane: 'over the lane\'s par', time: 'the lane ran out of time',
 });

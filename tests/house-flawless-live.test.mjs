@@ -4,14 +4,15 @@
 // back: F1 to F26 are tests/flawless.mjs's own, three read the live lane's way and declared on their rows (F15 against
 // LIVE_LANE_MAX_S 120 s, F21 and F22 printed only, a casualty's lane measured over the legs it reached); F38 to F44 are the live
 // men's (perception honest, no round on a man believed down or given up, every man accounted for at "Clear!", the interrupts,
-// role-players as bodies, the figure as the sim, the balance by sheet). Any of them failing fails the suite (LIVE_ENFORCED).
+// role-players as bodies, the figure as the sim, the balance by sheet), and v0.0.20's F45 and F46 (one rule for every strike, the
+// would-have's: combat/would.js; the casualty balance by sheet). Any of them failing fails the suite (LIVE_ENFORCED).
 import { assert } from './helpers.mjs';
 import { printGauge, ENFORCED, flawlessSeeds } from './flawless.mjs';
 import { liveLanes, liveGaugeOf, liveFailing, LIVE_ENFORCED } from './flawless-live.mjs';
 
 export default [
   {
-    name: 'v0.0.19: F1 to F26 hold on the live lane over the honest bot (the keys\' below rung 2), every sheet, 3 seeds with their drawn cards and 3 forced card pairs; F15 within LIVE_LANE_MAX_S 120 s; F38 to F44 the live men\'s',
+    name: 'v0.0.19: F1 to F26 hold on the live lane over the honest bot (the keys\' below rung 2), every sheet, 3 seeds with their drawn cards and 3 forced card pairs; F15 within LIVE_LANE_MAX_S 120 s; F38 to F44 the live men\'s, F45 and F46 v0.0.20\'s one rule and casualty balance',
     heavy: true,
     timeoutMs: 900_000,
     fn() {

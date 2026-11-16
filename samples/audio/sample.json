@@ -1,0 +1,44 @@
+{
+ "title": "The shot: A0 to A4, your R-7 and P-12 in the shoot house through the suit, drawn and played by the game's code",
+ "about": "Your words of 2026-11-15: \"Sound design is pretty weak, guns should bang harder and closer to realistic\". v0.0.17's shot peaked high but its loudest 50 ms, what the ear hears as loudness, sat at -15.6 dBFS: a click with a tail. Each view draws one candidate's first 300 ms (your R-7 through the combat EVA suit's hearing filter, the room's answer and the game's master; your P-12 under it), the loudest 10 ms and 50 ms shaded with their levels. Open a view live (O) to hear it: Space or a click the R-7, P the P-12, B a burst of five. In play, the Esc menu's To score page switches the shot live in the house (and &shot=A0..A4 anywhere). The house plays A3 until you score; every other scene keeps A1, since you scored \"Bang\" on it.",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "A",
+   "title": "A: the shot's candidates",
+   "about": "A0 the old report, A1 as built, A2 with the body, A3 through a denser protection (the house's default until scored), A4 with the room's early reflections.",
+   "views": [
+    {
+     "id": "A-0",
+     "name": "A0, v0.0.15's report (&sound=old)",
+     "query": "c=A0",
+     "pixel": "640x360"
+    },
+    {
+     "id": "A-1",
+     "name": "A1, v0.0.17 as built (every scene but the house)",
+     "query": "c=A1",
+     "pixel": "640x360"
+    },
+    {
+     "id": "A-2",
+     "name": "A2, A1 with the body: the gas 20 ms, its gust 40 ms 6 dB up, the thump 55 ms 3 dB up",
+     "query": "c=A2",
+     "pixel": "640x360"
+    },
+    {
+     "id": "A-3",
+     "name": "A3, A2 through a denser protection: its ceiling -14 dB, a make-up of +15 (the house's until you score)",
+     "query": "c=A3",
+     "pixel": "640x360"
+    },
+    {
+     "id": "A-4",
+     "name": "A4, A3 with the room's early reflections 2 dB up",
+     "query": "c=A4",
+     "pixel": "640x360"
+    }
+   ]
+  }
+ ]
+}

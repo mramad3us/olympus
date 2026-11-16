@@ -13,7 +13,9 @@
 //
 // The record. Each rides an R.turners record in place of his stand's (fillOpfor), keeping its key, lane, stand and trigger 'go',
 // so contact.js's take-in, the #2's eyes, the pars, the clear gate, the instinct and the target view take him in through the paths
-// they have; the stand's own sensor (shoothouse.js STOP_TORSO 2, STOP_HEAD 1 on T.hits) puts him down. T.live is his own:
+// they have; a strike the one rule rates fatal puts him down (combat/would.js, the live round's would-have through his
+// carrier's soft panel by the wound model; v0.0.19 used the stand's own sensor, two torso or one head, which now judges only a
+// lane v0.0.19 saved). T.live is his own:
 //   { who, card, st, fromMs, cue, aimAt, aiming, turn, eyes, eng, move, choice, band, seen, known, drawn, give, ia, firstAtMs,
 //     fired, dashed, doorAtMs, chalUntilMs, knelt, rifleId, outWhy, said, took, sectorKey, gaveAtMs, droppedAtMs }
 // (took: the marines' rounds opforHit has counted, so a round handed twice counts once; sectorKey: the marine he took in with his
@@ -23,9 +25,9 @@
 // hide, crouched), 'freeze' (crouched, the rifle low, seen), 'hands' (the rifle lowered, then on the floor, hands up), 'down' (sitting where he
 // fell, the rifle across his knees, still armed), 'out' (the instructor's ruling: ruleOut). seen and known are maps { 'm:<pid>':
 // ms } (men.js remember and stale, MAN_MEMORY_MS): who he has seen and when, and whom he has taken in; a marine out of his sight
-// past the memory is taken in afresh. The house's R.house.live = { mode, cards, seenBy, struck, casualty, ruled, shots, heardMs }
+// past the memory is taken in afresh. The house's R.house.live = { mode, cards, seenBy, struck, casualty, ruled, shots, heardMs, would }
 // (seenBy, struck and casualty men.js's and the house's; shots his rounds, the last SHOTS_KEPT; heardMs the news read so far,
-// burstsHeard the count of H.bursts read).
+// burstsHeard the count of H.bursts read; would the ledger of every strike's would-have, combat/would.js, v0.0.20).
 // Nothing of it is written with no role-players: the turner lane stays v0.0.18's to the tick (tests/house-pin.test.mjs).
 //
 // Each lived tick (opforTick, from the house's actors layer after the #2's twoTick and before the instructor's walk; decisions
@@ -59,7 +61,8 @@
 //      he crouches and lays his rifle on his door's threshold.
 //   7. His rounds: a pair (specials.js rowPlan 'shot:pair', its aim from where his muzzle is and its split at his own Marksmanship
 //      and Weapon handling), each round shot.js resolveShot at its time on men.js marineTarget (log false), then men.js incoming,
-//      the one writer of a round at a marine. A pair ending with that marine still seen and standing: another; else back on the
+//      the one writer of a round at a marine; v0.0.20: a round strikes the first marine on its line (carry.js lineMasked), the other
+//      where he stands on it (fireTick). A pair ending with that marine still seen and standing: another; else back on the
 //      door, his eyes picking the next.
 //   8. The turn and the aim: a cue in 'wait' turns his head to it over TURN_MS, then his rifle onto the door over shot.js aimMsOf
 //      (so a slow entry finds him aimed at the door, COMBAT §7.11 step 3).
@@ -70,7 +73,7 @@
 //      within SECTOR_HALF_DEG of it, else 'alert' after a cue, 'surprise' before one; the band his felt's); at its end the card:
 //      'give' gives up, any other fights.
 // He never leaves his leg, never patrols, flees, throws or fights hand to hand, and never stands on a point or a path of the plan
-// (opfor-spots). Going down is opforHit's, from the house's houseShot: the stands' sensor on T.hits, his pool +HIT_PTS a strike,
+// (opfor-spots). Going down is opforHit's, from the house's houseShot: a strike rated fatal (would.js), his pool +HIT_PTS a strike,
 // T.stoppedAtMs at the round, sitting where he stands (post.posture 'sit'), "Hit!", never turned away. ruleOut(state, bus, T, why)
 // is the instructor's ruling ('clear' at his leg's Clear when accounted for, 'passed' by the stall, 'lane' at the lane's end,
 // 'frag' a practice frag's read, 'setup' a leg cleared by a setup): he sits on and acts no more. Every roll is on a named stream
@@ -93,7 +96,7 @@ import { materialise, move, lyingOf } from '../arms/kit.js';
 import { feed, gunField, doAction, beliefOf, actionMs, tempoFor } from '../arms/firearms.js';
 import { subsOf } from '../arms/drills.js';
 import { gunOn, faceOfHead } from '../arms/shooting.js';
-import { muzzleOf } from '../arms/carry.js';
+import { muzzleOf, lineMasked, lineFromOf } from '../arms/carry.js';
 import { BRASS_LIVE } from '../arms/look.js';
 import { famCap } from '../arms/models.js';
 import { loadOf } from '../arms/calibres.js';
@@ -107,7 +110,7 @@ import { manPlace, roomAt, SECTOR_HALF_DEG } from '../combat/room.js';
 import { legsOf as bodyLegsOf, BODY_GAP_M } from '../combat/bundle.js';
 import { profileOf, moveAt, pathLen } from '../combat/stepper.js';
 import { bodySeen, marineTarget, incoming, remember, stale, struckOn, forget } from '../combat/men.js';
-import { STOP_TORSO, STOP_HEAD } from './shoothouse.js';
+import { wouldHave, strikeOf, fatalOf, newLedger } from '../combat/would.js';
 
 /** The URL's modes (&opfor=none | live[:<2a card>,<3a card>]). */
 export const OPFOR_MODES = Object.freeze(['none', 'live']);
@@ -239,7 +242,7 @@ export function fillOpfor(state, H = rangeOf(state)?.house ?? null, opts = null)
     };
     pids[stand] = pid;
   }
-  H.live = { mode: 'live', cards, seenBy: {}, struck: [], casualty: null, ruled: [], shots: [], heardMs: now, burstsHeard: H.bursts?.length ?? 0 };
+  H.live = { mode: 'live', cards, seenBy: {}, struck: [], casualty: null, ruled: [], shots: [], heardMs: now, burstsHeard: H.bursts?.length ?? 0, would: newLedger() };
   // (a man of a leg a setup has cleared already: ruled out, as the setup clears his stand)
   for (const T of R.turners) if (T.live && legIndex(T) < (H.cur ?? 0)) ruleOut(state, null, T, 'setup', now);
   return { cards, pids };
@@ -465,19 +468,26 @@ function plan(state, T, a, key, now) {
   L.st = 'fire'; L.fromMs = now; L.aiming = null;
 }
 
+// (a marine's stance, for his capsule on a line)
+const actorStance = (state, who) => (playerActor(state)?.who === who ? playerActor(state) : state.actors?.list?.find(x => x.who === who))?.stance ?? 'stand';
 function fireTick(state, bus, R, H, Lv, T, a, now) {
   const L = T.live, E = L.eng, pid = L.who, who = E.key.slice(2), gunId = gunOn(state, pid);
   for (const r of E.rounds) {
     if (r.done || r.atMs > now) continue;
     r.done = true;
-    const t = marineTarget(state, who, a, now);
+    // (the build sheet v0.0.20 §0 item 19: his round strikes the first body on his line, the other marine where he stands on it
+    // (carry.js lineMasked; men.js marineTarget is the one reader of a marine as a target, untouched))
+    const aimed = marineTarget(state, who, a, now), from = aimed ? lineFromOf(state, pid, a, aimed) : null;
+    const other = aimed ? marinesOf(state, H).filter(x => x !== who).map(x => marineTarget(state, x, a, now)).filter(Boolean) : [];
+    const first = aimed && other.length ? lineMasked(from, aimed, other.map(o => ({ ...o, stance: actorStance(state, o.who) }))) : null;
+    const t = first ? marineTarget(state, first.who, a, now) : aimed;
     if (!t || !gunId) continue;
     a.headRad = q(bearing(a, t.x, t.z), 1e-6); a.face = faceOfHead(a.headRad);
     const { shot } = resolveShot(state, bus, { pid, gunId, target: t, part: r.part, follow: r.follow, climbK: r.climbK, log: false, atMs: now, row: { id: 'shot:pair', n: r.n, i: r.i } });
     let out = null;
     if (shot.fired) {
       L.fired += 1; L.firstAtMs ??= now;
-      out = incoming(state, bus, { who, by: T.key, shot, atMs: now });
+      out = incoming(state, bus, { who: t.who, by: T.key, shot, atMs: now });
       if (shot.brassRec && R.brass) { R.brass.push({ ...shot.brassRec, who: pid }); if (R.brass.length > BRASS_LIVE) R.brass.splice(0, R.brass.length - BRASS_LIVE); }
     }
     Lv.shots.push({ id: shot.id, atMs: now, by: T.key, at: E.key, fired: !!shot.fired, hit: !!out?.hit, ...(shot.part ? { part: shot.part } : {}), ...(shot.zone ? { zone: shot.zone } : {}) });
@@ -678,8 +688,9 @@ function say(state, bus, T, kind) {
 
 /**
  * A marine's round on a role-player (w; from the house's houseShot once T.hits has it): his pool +HIT_PTS a strike, his eye drawn to
- * a shooter he did not know, and the stands' sensor (STOP_TORSO 2 torso or STOP_HEAD 1 head on T.hits): down, sitting where he stands,
- * T.stoppedAtMs the round's, "Hit!". Returns { torso, head, down } or null for a record not live.
+ * a shooter he did not know, and the strike rated by the one rule (would.js wouldHave; fatal, he is down, sitting where he
+ * stands, T.stoppedAtMs the round's, "Hit!"; a wound or a stop, he fights on by his card). Returns { torso, head, down, would } or
+ * null for a record not live.
  */
 export function opforHit(state, bus, T, shot, now = state.clock.ms) {
   const L = T?.live;
@@ -692,8 +703,11 @@ export function opforHit(state, bus, T, shot, now = state.clock.ms) {
   const key = `m:${shot.who ?? playerId(state)}`;
   if (!SPENT.has(L.st) && L.known[key] === undefined) L.drawn = { key, atMs: now };
   const torso = T.hits.filter(h => h.part === 'torso' && (h.zone === 'A' || h.zone === 'C')).length, head = T.hits.filter(h => h.zone === 'head').length;
-  if ((torso >= STOP_TORSO || head >= STOP_HEAD) && L.st !== 'down' && L.st !== 'out') goDown(state, bus, T, shot.atMs ?? now);
-  return { torso, head, down: L.st === 'down' };
+  // (a strike on the man: the zones of his target, A, C or the head (a record's miss is none))
+  const h = hit ? T.hits.find(x => x.shotId === shot.id && (x.zone === 'A' || x.zone === 'C' || x.zone === 'head')) : null;
+  const would = h ? wouldHave(state, strikeOf(state, shot, { on: L.who, by: h.by ?? null, part: h.part, zone: h.zone })) : null;
+  if (h && fatalOf(state, L.who) && L.st !== 'down' && L.st !== 'out') goDown(state, bus, T, shot.atMs ?? now);
+  return { torso, head, down: L.st === 'down', would };
 }
 function goDown(state, bus, T, atMs) {
   const L = T.live, a = actorOf(state, L.who);
@@ -731,7 +745,7 @@ export function ruleOut(state, bus, T, why, atMs = state.clock.ms) {
 
 // ---- the views ----
 
-/** The role-players now (the hud's, the bots' and the tests' view): [{ key, stand, name, who, card, st, x, z, room, slot, headRad, fired, firstAtMs, hits, rifle, choice, band, outWhy }]. */
+/** The role-players now (the hud's, the bots' and the tests' view): [{ key, stand, name, who, card, st, x, z, room, slot, headRad, fired, firstAtMs, hits, fatal (the why of his fatal strike, would.js, or null), rifle, choice, band, outWhy }]. */
 export function opforNow(state, ms = state.clock.ms) {
   const R = rangeOf(state);
   if (!R?.house?.live) return [];
@@ -739,7 +753,7 @@ export function opforNow(state, ms = state.clock.ms) {
     const L = T.live, a = actorOf(state, L.who);
     const torso = T.hits.filter(h => h.part === 'torso' && (h.zone === 'A' || h.zone === 'C')).length, head = T.hits.filter(h => h.zone === 'head').length;
     return { key: T.key, stand: T.stand, name: T.name, who: L.who, card: L.card, st: L.st, x: T.x, z: T.z, room: T.room, slot: T.slot, headRad: a?.headRad ?? null,
-      fired: L.fired, firstAtMs: L.firstAtMs, hits: { torso, head }, rifle: rifleWhere(state, T), choice: L.choice?.what ?? null, band: L.band, outWhy: L.outWhy ?? null,
+      fired: L.fired, firstAtMs: L.firstAtMs, hits: { torso, head }, fatal: fatalOf(state, L.who)?.why ?? null, rifle: rifleWhere(state, T), choice: L.choice?.what ?? null, band: L.band, outWhy: L.outWhy ?? null,
       giving: !!L.give, knelt: !!L.knelt, at: ms };
   });
 }

@@ -30,6 +30,7 @@
 // (cards/loadout.js) in the picker's place, one loadout for every sheet; Kit up comes back and the pick carries its code
 // (onPick(tier, { par, loadout })); the standard is carried as no code at all, so its lane is the lane without one.
 import { loadoutPage, loadoutWord } from './loadout.js';
+import { readRuns, bestsOf, bestWords } from './house-runs.js';
 
 /** The tiers on the picker, in its order, when the sim's PICKER_TIERS is not given. */
 export const PICKER_ORDER = Object.freeze(['recruit', 'private', 'sgt', 'raider', 'tierone']);
@@ -85,12 +86,22 @@ export function parWords(o, own = null, parMs = {}) {
   return `${o.label}${Number.isFinite(o.ms) ? ` · ${(o.ms / 1000).toFixed(1)} s` : ''}`;
 }
 
+/** The shoot house's bests on the picker (house-runs.js), or null off it or with no storage. */
+function houseBests(scene) {
+  if (scene?.scenario !== 'test-shoothouse') return null;
+  let by = null;
+  try { by = bestsOf(readRuns(globalThis.localStorage).runs, { scene: scene.id }); } catch { by = null; }
+  return by ? (tier) => bestWords(by[tier]) : null;
+}
 /**
  * The picker as a page on the title's paper: { body, buttons, pars }. scene: SCENES' record; onPick(tier, { par }) (par null: the
  * sheet's own); onBack(). 0.0.12: a scene with pars (test-shoothouse) shows the par chooser under the sheets (P cycles it, or a
  * click): parMs the scene's PAR_MS, parOf(tier) the sheet's own par's name.
  */
-export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null, parMs = {}, parOf = null, loadout = null }) {
+// (the card (the build sheet v0.0.20 §1 item 20): bests(tier) → the sheet's best lane and its GOs in words ("best 42.2 s ·
+// 3 GO", cards/house-runs.js bestWords, from the runs kept in this browser), after its line; nothing is locked. The shoot house's
+// own by default, read here from localStorage (every read in try and catch: none in a private window))
+export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null, parMs = {}, parOf = null, loadout = null, bests = houseBests(scene) }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
   // (the scene's own list and default where it names them (scenes.js: sheets, sheet), else the sim's picker order)
   const rows = pickerRows(sheets, Array.isArray(scene?.sheets) ? scene.sheets : order, scene?.sheet ?? PICKER_DEFAULT, { hard, lead: leadsHard(scene) });
@@ -118,7 +129,8 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
   const kitText = () => { if (kitBtn) { kitBtn.textContent = `Kit: ${loadoutWord(kitCode)} ▸`; kitBtn.dataset.code = kitCode; } };
   kitText();
   const buttons = rows.map((r, i) => {
-    const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}`, type: 'button', onclick: () => onPick?.(r.tier, { par: pars[parAt]?.id ?? null, ...(kitCode && kitCode !== 'standard' ? { loadout: kitCode } : {}) }) }, el('kbd', { textContent: String(i + 1) }), r.label, small(r));
+    const best = bests ? bests(r.tier) : null;
+    const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}`, type: 'button', onclick: () => onPick?.(r.tier, { par: pars[parAt]?.id ?? null, ...(kitCode && kitCode !== 'standard' ? { loadout: kitCode } : {}) }) }, el('kbd', { textContent: String(i + 1) }), r.label, small(r), best ? el('small', { className: 'best', textContent: best }) : null);
     b.dataset.tier = r.tier;
     // (0.0.12: each sheet's own par on its line's hover, where the scene has pars)
     if (pars.length && parOf) { const own = parOf(r.tier); if (own) b.title = `Par: ${parWords(pars[0], own, parMs)}`; }

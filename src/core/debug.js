@@ -88,7 +88,9 @@
 // "anywhere" step 2: any scene under a named environment, src/data/places/env.js ENV_PRESETS, such as ship-1g, wheel (the Wheel's 1 G),
 // earth-temperate, europa-surface, ship-coast or freefall-vacuum: the sim's newGame sets it live on the scene's host before the fill, and
 // an unknown name throws there, core knowing no preset); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
-// agents' smoke runs), &perf=1 (the GL counters and pass times) and &sound=old (v0.0.15's sound, to compare: 0.0.16). ?bench=<scene> (or ?bench=1, the
+// agents' smoke runs), &perf=1 (the GL counters and pass times) and &sound=old (v0.0.15's sound, to compare: 0.0.16); v0.0.20's &shot=A0..A4 (the
+// shot's candidate, every scene), &voice=a|b|c|d|old (the voice's set; old is V-a) and &look=stack:4+5,helm:r1,jamb:m2 (the To score
+// page's picks, runtime only: state.$look), each winning over the page's kept picks. ?bench=<scene> (or ?bench=1, the
 // default scene) runs the bench card (main.js; src/data/bench.js holds the scenes).
 import { toJSON, fromJSON } from './state.js';
 import { NO_INPUT } from './loop.js';
@@ -117,10 +119,17 @@ export const PANELS_URL = Object.freeze(['a', 'b', 'c']);
 /** The walk cycle by the URL (&cycle=A|B|C: VIEWS §3.10.4, the rework's R8; else the game's, B, until the user scores W-b to W-d). */
 export const CYCLES_URL = Object.freeze(['A', 'B', 'C']);
 
+/** The shot by the URL (&shot=A0..A4: v0.0.20's candidates, src/data/sounds.js SHOT_CANDIDATES; engine.js setShot): else null, the scene's own. */
+export const SHOTS_URL = Object.freeze(['A0', 'A1', 'A2', 'A3', 'A4']);
+/** The voice by the URL (&voice=a|b|c|d, or old (V-a, v0.0.19's stand-ins): v0.0.20's sets, src/data/voices.js VOICE_SETS): else null, the game's (V-c). */
+export const VOICES_URL = Object.freeze(['a', 'b', 'c', 'd', 'old']);
+/** The look's flags by the URL (&look=stack:4+5,helm:r1,jamb:m2: v0.0.20's To score picks; a query reads '+' as a space, taken as one), the form only (ui/cards/topick.js parseLook reads and checks them). */
+export const LOOK_URL = /^[a-z0-9:+, ]{1,80}$/i;
+
 /** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
 export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, loadout, opfor, panel, cycle, sound }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, loadout, opfor, panel, cycle, sound, shot, voice, look }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -153,6 +162,10 @@ export function readParams(search = globalThis.location?.search ?? '') {
     panel: PANELS_URL.includes(String(q.get('panel') ?? '').toLowerCase()) ? String(q.get('panel')).toLowerCase() : null,
     cycle: CYCLES_URL.includes(String(q.get('cycle') ?? '').toUpperCase()) ? String(q.get('cycle')).toUpperCase() : null,
     sound: SOUNDS_URL.includes(q.get('sound')) ? q.get('sound') : null,
+    // (the shot's candidate, the voice's set (old is V-a), the look's flags: the To score page's, by the URL, which wins)
+    shot: SHOTS_URL.includes(String(q.get('shot') ?? '').toUpperCase()) ? String(q.get('shot')).toUpperCase() : null,
+    voice: VOICES_URL.includes(String(q.get('voice') ?? '').toLowerCase()) ? (String(q.get('voice')).toLowerCase() === 'old' ? 'a' : String(q.get('voice')).toLowerCase()) : null,
+    look: LOOK_URL.test(q.get('look') ?? '') ? q.get('look') : null,
   };
 }
 
@@ -217,6 +230,8 @@ export function createDebugHandle({ loop, sim = null, start, newGame, version = 
       return { olympus: 'report', version: this.version, state: s ? toJSON(s) : null, errors: s?.meta?.errors ?? [], stats };
     },
     get view() { return view ? { ...(view.stats ?? {}), idle: !!view.idle, pending: view.pending ?? [] } : null; },
+    /** Where a world point (m) is drawn on the stage's picture ({ x, y, W, H } in its pixels), or null (the muzzle lamp's test). */
+    screenOf(x, y, z) { return view?.screenOf ? view.screenOf(x, y, z) : null; },
     /** An action into the sim: queued for the next tick the loop runs, or run at once in a tick of its own while paused. */
     act(action) {
       if (loop.paused || !queue) return loop.step(1, inputOf({ act: [action] }));
@@ -237,6 +252,8 @@ export function createDebugHandle({ loop, sim = null, start, newGame, version = 
     scores() { return scores ? scores() : { v: 1, scores: [] }; },
     /** The gun the player holds or slings: { id, truth, belief }, or null (main.js gives arms' readers). */
     gun() { return arms?.gun && loop.state ? arms.gun(loop.state) : null; },
+    /** The To score page's picks as played (the shot, the voice, the walk, the look, your #2's drawn look), or null (main.js gives arms' readers). */
+    picks() { return arms?.picks ? arms.picks() : null; },
     /** The step panel now: { steps, slots, text }, or null. */
     steps() { return arms?.steps && loop.state ? arms.steps(loop.state) : null; },
     /** The plaque now: { rec, words, parts }, or null. */

@@ -21,9 +21,9 @@
 // intelOf(state) is the brief's intelligence when the loadout carries a G-9P or G-13P: { [door]: 'hostiles' | 'unknown' }, a room
 // 'hostiles' only when its drawn faces hold no no-shoot and no hostage card (room 1 on the seeds where 1b is a threat), the hall
 // never a frag's room; the instructor says it at the brief (shoothouse.js kitWords). This is what the player is told ("we only
-// know what we know"); the read judges by the truth of the burst. fiveOf(state) is AT THE DOOR's five for the lane: 'breach' on
-// a lane whose loadout carries a charge or a tool (breach.js breachingLane), else null (Enter on 5 as built); a lane constant,
-// computed, never written, so v0.0.18's lanes keep their saves. kitMarks(state, H, views, { card, one }) is the run sheet's
+// know what we know"); the read judges by the truth of the burst. fiveOf(state) was AT THE DOOR's five for the lane ('breach' on
+// a lane whose loadout carries a charge or a tool); from v0.0.20 Breach is on 5 on every lane (groups.js) and it returns null,
+// inert, so testShoothouse's call writes nothing and v0.0.18's and v0.0.19's saves load as they were. kitMarks(state, H, views, { card, one }) is the run sheet's
 // spread: {} on a lane with nothing of D2's; the card's cease fire head and the hot wash's one thing where a D2 fault outweighs
 // the run's own worst (fragged 95, burst 120, concussed 85, through 80, exposed 35 a fault; my calls beside oneThing's).
 // breachShot(state, bus, shot) records a ballistic breach's round (bundle.js useDoorShot, set here, and shoothouse.js houseShot's
@@ -40,7 +40,6 @@ import { loadoutOf } from '../arms/loadout.js';
 import { BRASS_LIVE } from '../arms/look.js';
 import { rungOf } from '../skills/templates.js';
 import { readMarks, FRAG_DOWN_N, EARDRUM50_KPA } from '../combat/practice.js';
-import { breachingLane } from '../combat/breach.js';
 import { BREACH_SAFE_KPA } from '../arms/blast.js';
 import { useDoorShot, useLaneFive, doorSwing, planOf } from '../combat/bundle.js';
 import { HOUSE_CHIEF } from '../../data/courses.js';
@@ -126,8 +125,11 @@ export function intelOf(state) {
   for (const L of H.rooms) out[L.door] = (R.turners ?? []).some(T => T.room === L.room && (T.face === 'noshoot' || T.face === 'hostage')) ? 'unknown' : 'hostiles';
   return out;
 }
-/** AT THE DOOR's five for the lane (see the header): 'breach' or null. */
-export const fiveOf = (state) => (state.armoury?.range?.course === 'house' && breachingLane(state) ? 'breach' : null);
+/**
+ * AT THE DOOR's five for the lane (see the header): null on every lane from v0.0.20 (the build sheet's item 5, §0 item 16: Breach
+ * is on 5 everywhere, groups.js SITUATIONS.door, so nothing per lane is written; testShoothouse's call writes nothing).
+ */
+export const fiveOf = (state) => null;
 
 /** The intelligence in the instructor's words for the brief (shoothouse.js kitWords): '' with none. */
 export function intelWords(state) {
@@ -155,7 +157,8 @@ export function kitMarks(state, H, views, { card = null, one = null } = {}) {
   if (H?.end?.why === 'burst' && card !== null) out.card = `CEASE FIRE: ${feet ? 'AT YOUR FEET' : 'IN THE ROOM AT THE BURST'} · ${card}`;
   const n = (kind) => views.reduce((a, V) => a + V.faults.filter(f => f.kind === kind).length, 0);
   const mine = Object.entries(ONE_WEIGHTS).map(([k, w]) => [k, n(k) * w]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  if (mine.length && one && mine[0][1] > ownScore(H, views, one.key)) {
+  // (the one thing's own score where it gives one (shoothouse.js oneThing: its causes 'par:<cause>', the dummy against its book))
+  if (mine.length && one && mine[0][1] > (Number.isFinite(one.score) ? one.score : ownScore(H, views, one.key))) {
     const key = mine[0][0], words = key === 'burst' && feet ? HOUSE_CHIEF.one.burstFeet : HOUSE_CHIEF.one[key];
     out.one = { key, text: hashPick(words, 'house-chief', state.meta.seed, 'one', key) };
   }

@@ -20,7 +20,8 @@ import { flawlessLane, TWO_CUE_MS } from './flawless.mjs';
 import { stepAct } from './bots/lib.mjs';
 import { setOpening } from '../src/sim/places/model.js';
 import { pastThreshold, lanePlanOf } from '../src/sim/combat/room.js';
-import { crossingOf, crossingClear, CROSS_CLEAR_M, BODY_GAP_M } from '../src/sim/combat/bundle.js';
+import { crossingOf, crossingClear, CROSS_CLEAR_M, BODY_GAP_M, TWO_PIN_MS, TWO_BLOCK_SAY_MS, TWO_BLOCK_REPEAT_MS, TWO_OUT_LINE_MS } from '../src/sim/combat/bundle.js';
+import { instinctNow } from '../src/sim/skills/instinct.js';
 import { liveZoneAt } from '../src/sim/places/zones.js';
 
 const R2 = 'o:w4:r2';
@@ -101,6 +102,76 @@ export default [
         console.log(`      cpl ${seed}: room 3's entry ${cutAt !== null ? 'cut by his take-in' : 'not cut'}; from the cue to his threshold ${lag === null ? 'NEVER' : `${fmt(lag / 1000, 2)} s`}; back to his stack ${back ? 'yes' : 'no'}; the lane ${rec.done ? 'to its card' : 'NOT done'}`);
         assert(rec.done && cutAt !== null && lag !== null && lag <= TWO_CUE_MS && !back, JSON.stringify({ seed, cutAt, lag, back, done: rec.done }));
       }
+    },
+  },
+  {
+    name: 'v0.0.20 (the build sheet\'s item 9, user.md U-5 and U-1 step 6): your #2\'s walk held by you standing still on his way outside a doorway is routed round you once held TWO_PIN_MS: in the hall (the corporal, setup hall) he takes its other wall and comes up beside you, never within the body gap (before: held behind you for as long as you stood)',
+    fn() {
+      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'cpl', setup: 'hall' }), s = g.state, H = s.armoury.range.house;
+      for (const T of s.armoury.range.turners) T.trigger = { kind: 'never', on: null, gapMs: 0 };
+      const me = s.actors.list.find(a => a.who === s.player.id), two = s.actors.list.find(a => a.who === H.twoPid);
+      me.x = 15.6; me.z = 13.65; delete me.v;
+      g.step(1, { act: [stepAct('leave')] });
+      const t0 = s.clock.ms;
+      let heldAt = null, roundAt = null, gap = Infinity, wall = null;
+      for (let t = 0; t < 160; t++) {
+        g.step(1, s.stop ? { act: [stepAct('leave')] } : {}); g.clearFacts();
+        if (heldAt === null && H.two.gap?.runMs > 0) heldAt = s.clock.ms - t0;
+        if (roundAt === null && H.two.rounds?.n) roundAt = s.clock.ms - t0;
+        gap = Math.min(gap, Math.hypot(two.x - me.x, two.z - me.z));
+      }
+      wall = +two.z.toFixed(2);
+      console.log(`      you still at (15.60, 13.65) on his lane: his walk held from ${heldAt} ms, routed round you at ${roundAt} ms (TWO_PIN_MS ${TWO_PIN_MS}); he stands at (${two.x.toFixed(2)}, ${wall}), his lane z 13.6 to 13.7, the other wall's 12.7; the least gap ${fmt(gap, 2)} m (BODY_GAP_M ${BODY_GAP_M})`);
+      assert(heldAt !== null && roundAt !== null && roundAt - heldAt <= TWO_PIN_MS + 100 && wall <= 13.0 && gap >= BODY_GAP_M, JSON.stringify({ heldAt, roundAt, wall, gap }));
+    },
+  },
+  {
+    name: 'v0.0.20 (item 9): where no way round you is (you still in room 2 at (20.85, 15.25), on his lane just past the doorway), your #2 says "Coming in!" at TWO_BLOCK_SAY_MS and again every TWO_BLOCK_REPEAT_MS, the DI\'s cqb-two-out ("Your two\'s outside. Off his lane.") fires by TWO_OUT_LINE_MS (the line, or the chip while cqb-walk\'s note holds the line), and its T (G, then your point) has him past his threshold within TWO_CUE_MS; the hold on the leg (L.twoHeldMs) (before: one call, cqb-walk, and he never came in)',
+    fn() {
+      const { g, s, H, P, me, two } = room2('private');
+      me.x = 20.85; me.z = 15.25; delete me.v;
+      g.step(1, { act: [stepAct('leave')] });
+      const calls = [];
+      let seen = null, first = null, t0 = null;
+      for (let t = 0; t < 220 && !seen; t++) {
+        g.step(1, {});
+        // (the times from his hold's start: his cue, ENTRY_WAIT_MS after you were inside)
+        if (t0 === null && H.two.block) t0 = H.two.block.fromMs;
+        for (const f of g.facts('say')) if (f.who === H.twoPid && f.call === 'coming') calls.push(s.clock.ms - t0);
+        g.clearFacts();
+        const I = instinctNow(s), on = [I.line, I.chip].find(l => l?.id === 'cqb-two-out');
+        if (on && first === null) first = s.clock.ms - t0;
+        if (on && s.clock.ms - t0 >= 10_000) seen = { as: on === I.line ? 'line' : 'chip', act: on.act };
+      }
+      // (T on it: G, then in the mode its act, your point)
+      const press = () => { const I = instinctNow(s), l = [I.line, I.chip].find(x => x?.id === 'cqb-two-out'); g.step(1, l ? { act: [{ act: 'instinct', args: { id: l.id, act: l.act } }] } : {}); return l?.act ?? null; };
+      const acts = [press(), press()];
+      // (the walk to your point taken (a stop on the way, a man seen, answered by X), the game time to his threshold)
+      const inMs = twoIn(g, s, P, two, 6000);
+      for (let t = 0; t < 4; t++) g.step(1, s.stop ? { act: [stepAct('leave')] } : {});
+      console.log(`      from his hold's start (his cue): "Coming in!" at ${calls.map(ms => `${fmt(ms / 1000, 2)} s`).join(', ')}; cqb-two-out first at ${fmt(first / 1000, 2)} s (TWO_OUT_LINE_MS ${TWO_OUT_LINE_MS}), at 10 s the ${seen?.as}; T: ${acts.join(', ')}; he is past his threshold ${inMs === null ? 'NEVER' : `${fmt(inMs / 1000, 2)} s`} after; held out ${fmt((H.rooms[1].twoHeldMs ?? 0) / 1000, 2)} s on the leg`);
+      const gaps = calls.slice(1).map((ms, i) => ms - calls[i]);
+      assert(calls.length >= 3 && Math.abs(calls[0] - TWO_BLOCK_SAY_MS) <= 50 && gaps.every(d => d === TWO_BLOCK_REPEAT_MS), JSON.stringify({ calls }));
+      assert(first !== null && first <= TWO_OUT_LINE_MS + 1100 && seen && acts[0] === 'stop:enter' && acts[1] === 'stop:move:point' && inMs !== null && inMs <= TWO_CUE_MS && (H.rooms[1].twoHeldMs ?? 0) >= 10_000, JSON.stringify({ first, seen, acts, inMs, held: H.rooms[1].twoHeldMs }));
+    },
+  },
+  {
+    name: 'v0.0.20 (item 9, "cqb-two-out (warn, ahead of cqb-walk)"): held out by you still in room 2, cqb-two-out is the line itself from TWO_OUT_LINE_MS (and the instinct\'s settling second), never behind cqb-walk\'s note (the review of 2026-11-16: cqb-walk shown at 3.0 s and cqb-two-out the line only at 3.70 s; needs the lead\'s one line in cqb-walk\'s when, .run/v020/ab-lead-edits.md)',
+    fn() {
+      const { g, s, H, me } = room2('private');
+      me.x = 20.85; me.z = 15.25; delete me.v;
+      g.step(1, { act: [stepAct('leave')] });
+      let t0 = null, first = null, walk = null;
+      for (let t = 0; t < 140 && first === null; t++) {
+        g.step(1, {});
+        if (t0 === null && H.two.block) t0 = H.two.block.fromMs;
+        const l = instinctNow(s).line;
+        if (t0 !== null && l?.id === 'cqb-walk' && walk === null) walk = s.clock.ms - t0;
+        if (t0 !== null && l?.id === 'cqb-two-out') first = s.clock.ms - t0;
+      }
+      console.log(`      from his hold's start: cqb-two-out the line at ${first === null ? 'never in 7 s' : `${fmt(first / 1000, 2)} s`} (TWO_OUT_LINE_MS ${TWO_OUT_LINE_MS}); cqb-walk the line ${walk === null ? 'never' : `at ${fmt(walk / 1000, 2)} s`}`);
+      // (the instinct settles its lines once a second (instinct.js), so the line by TWO_OUT_LINE_MS and that second)
+      assert(first !== null && first <= TWO_OUT_LINE_MS + 1000 && walk === null, JSON.stringify({ first, walk }));
     },
   },
 ];

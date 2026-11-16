@@ -79,9 +79,19 @@
 // its gap from (useBodies: the shoot house's, you and your number two, BODY_GAP_M 0.50 m centre to centre). A tick's step
 // by the keys or the brake that would close on such a body inside the gap is not taken and the speed into it is lost (a
 // bump), and a bundle's move of the player is held where it stands a tick at a time, its timing with it (the #2's own
-// guard, bundle.js gapHold, the same rule); a step that opens the gap is always taken, and a move held PIN_END_MS by a body ends
-// where it stands and hands the choice back (PIN_WORDS), so no walk of yours is held for ever (v0.0.19's fixer; before it a held
-// beat slid its time a tick at a time with no end).
+// guard, bundle.js gapHold, the same rule); a step that opens the gap is always taken.
+// v0.0.20 (the build sheet v0.0.20 item 1; COMBAT §25.8.2; the user, 2026-11-13: "soldiers need to stay fluidly moving"):
+// **a held walk never stays held**. Before it a move held by a body slid its time a tick at a time with no end (the sergeant on
+// 7091: "Clear the room" from beside your stack ran 88.8 s behind your #2 on his, Backspace and the keys doing nothing). A walk
+// held PIN_GIVE_MS: your #2 standing idle steps off its path (bundle.js stepOffPath, his own walk out of yours); a body that does
+// not (a man on his own walk or task, a stand) is walked round (roundAbout: the rest of the path routed round its disc on the
+// walls' own grid, route.js routed's bodies, then held to walkable and bodyClear, the profile planned again from rest where you
+// stand); held PIN_END_MS in all (2,000 ms in place of v0.0.19's 6,000: F45, and F17 held at it, 0 of 834 stacks, the worst
+// 1.22 m), the walk ends where it stands and the doing hands back ('blocked',
+// PIN_WORDS: the choice yours again; the DI's cqb-blocked names the keys round him, or T). Every hold is counted on the beat
+// (held, heldAtMs, pinFromMs, pinBy) and how it ended noted once (`pinned`: { atMs, ms, how: 'aside' | 'round' | 'back' }, the
+// scene's leg record's L.pins, house-two.js maskTick); a startle's frozen ticks are no hold (the move is paused, never held:
+// bundle.js startleHold). Backspace cuts a held walk at once (stepper.js halt). pinOf is the gauges' and the DI's view.
 // 2026-11-13 (the rework's R8b, fluid movement; the user: "soldiers need to stay fluidly moving"): **never at rest in a no-stop
 // zone** (src/sim/places/zones.js: a door's funnel, from the place plans). A body moving in a stance whose feet the game would
 // stop (a step on the hands, stop motion, the contact's window or a startle, the keys let go) where the brake would leave it
@@ -122,16 +132,19 @@ import { routed, clipped } from '../combat/route.js';
 export const PLAYER_CLS = 'C0';
 export const POS_STEP_M = 0.0001;
 export { STRIDE_WRAP_M };
-/**
- * A bundle's move of the player held by a body this long ends where it stands and hands back, in PIN_WORDS (ms; the v0.0.20
- * design's U-1 step 3, at 6 s, not its 2 s (my call): the #2's own remedies (bundle.js stepOffPath after 400 ms, giveWayOut) are
- * given their time first, and at 2 s a fuzz lane's path changed enough that his wait at room 3 broke F17 (the private, seed 1333);
- * under the fumble net's PIN_MS 8 s).
- */
-export const PIN_END_MS = 6000;
-export const PIN_WORDS = "Your two's in your way. Round him, or T.";
 /** The door assist: how far either way along the other axis a cut-short step looks for a way through, and in what steps (metres). */
 export const NUDGE_M = 0.3, NUDGE_STEP_M = 0.01;
+/**
+ * A walk of yours held by a body (see the header's v0.0.20 note): from PIN_GIVE_MS held your #2, idle, steps off it (bundle.js
+ * stepOffPath; v0.0.19's dead-end hunt built it at this figure, the design's 600 ms kept as built), and one tick on a body that has
+ * not moved is walked round; at PIN_END_MS held in all the walk ends where it stands and the doing hands back in PIN_WORDS (ms;
+ * the design's U-1 step 3; v0.0.20's A, item 1 and F45: 2,000 ms in place of v0.0.19's 6,000, with F17 met at it, 0 of 834 stacks,
+ * the worst 1.22 m).
+ */
+export const PIN_GIVE_MS = 400, PIN_END_MS = 2000;
+export const PIN_WORDS = "Your two's in your way. Round him, or T.";
+/** The disc walked round: the body gap of the scene's rule plus this guard (m; bundle.js GAP_GUARD_M's figure, the #2's own walk's). */
+export const PIN_GUARD_M = 0.02;
 
 const sgn = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 
@@ -144,10 +157,17 @@ function bodiesOf(state, pid) { return useBodies.fn ? useBodies.fn(state, pid) :
 export function useBodies(fn) { useBodies.fn = typeof fn === 'function' ? fn : null; }
 /** Whether moving a walker from (x0, z0) to (x, z) closes on a body of the scene's rule inside its gap (see the header). */
 export function bodyBlocks(state, pid, x0, z0, x, z) {
-  const B = bodiesOf(state, pid);
-  if (!B?.bodies?.length) return false;
-  return B.bodies.some(b => { const next = Math.hypot(x - b.x, z - b.z); return next < B.gapM && next < Math.hypot(x0 - b.x, z0 - b.z) - 1e-6; });
+  return !!blockerOf(state, pid, x0, z0, x, z);
 }
+/** The body of the scene's rule that a move from (x0, z0) to (x, z) closes on inside its gap ({ x, z, gapM }), or null (bodyBlocks' rule). */
+export function blockerOf(state, pid, x0, z0, x, z) {
+  const B = bodiesOf(state, pid);
+  if (!B?.bodies?.length) return null;
+  const b = B.bodies.find(o => { const next = Math.hypot(x - o.x, z - o.z); return next < B.gapM && next < Math.hypot(x0 - o.x, z0 - o.z) - 1e-6; });
+  return b ? { x: b.x, z: b.z, gapM: B.gapM } : null;
+}
+// (the person whose actor stands at a body's place, or null (a stand))
+const whoAt = (state, b) => state.actors?.list?.find(a => a.x === b.x && a.z === b.z)?.who ?? null;
 const K = Math.round(1 / POS_STEP_M);
 // (a position rounded to POS_STEP_M back toward where it came from: never past the contact a sweep found)
 const toward = (from, v) => (v >= from ? Math.floor(v * K + 1e-7) / K : Math.ceil(v * K - 1e-7) / K);
@@ -474,7 +494,8 @@ export function throughOf(state, pid, a, ms = state.clock.ms, { rest = false } =
 // (the carry off a way the scene keeps clear (see throughOf): the ways on, best first: along the scene's path for the body from
 // where it projects, else straight on, each to its first sample (KEEP_STEP_M) clear of the ways kept and of every live zone)
 const KEEP_STEP_M = 0.05, KEEP_MAX_M = 3;
-function keptOf(state, pid, a, area, keep, dir, v, stopM, st, ms) {
+/** The carry off a way the scene keeps clear (see throughOf): a move beat ({ …, way: 'through', zone: 'keep' }) to the first place clear of the ways kept and every live zone, along the body's lane else straight on, or null. Exported: the DI's cqb-two-out names its target. Pure. */
+export function keptOf(state, pid, a, area, keep, dir, v, stopM, st, ms) {
   const from = [a.x, a.z], ok = (x, z) => restClear(keep, x, z) && !liveZoneAt(state, area, x, z), ways = [];
   const lane = nextMoveOf(state, pid) ?? laneOf(state, pid);
   const walk = (pts) => {
@@ -539,6 +560,66 @@ export function stepAside(state, pid, a, to, ms = state.clock.ms) {
   const P = profileOf(pathLen(p), Math.max(v, gaitsOf(state, pid, { gait: st }).walkMs), L.pushMs2, L.brakeMs2, { v0: v, v1: 0 });
   return { id: 'through', k: 'move', ch: 'feet', stance: st, path: p, prof: P, fromMs: ms, untilMs: ms + Math.round(P.T * 1000), way: 'aside' };
 }
+// ---- a walk held by a body (see the header's v0.0.20 note) ----
+
+/** Your walk held by a body now (held this tick or the last): { heldMs (the beat's whole hold), runMs (this hold's), by (the person, or null for a stand) }, or null. The gauges' and the DI's view. */
+export function pinOf(state, pid = playerId(state)) {
+  const mv = moveNow(state, pid), now = state.clock.ms;
+  if (!mv || !(mv.held > 0) || !(mv.heldAtMs >= now - TICK_MS)) return null;
+  return { heldMs: mv.held, runMs: now - (mv.pinFromMs ?? now) + TICK_MS, by: mv.pinBy ?? null };
+}
+/**
+ * A held walk's way round a body (see the header): the rest of its path from where the walker stands (its point's projection on,
+ * places/move.js's own), routed round the body's disc (its gap + PIN_GUARD_M; route.js routed's bodies), walkable as the leaves
+ * stand and closing on no body of the scene's rule (bodyClear), its profile from rest at the stance's walk to the old end's
+ * speed: { path, prof, fromMs, untilMs }, or null where there is none. Pure: the state is read.
+ */
+export function roundAbout(state, pid, a, mv, body, ms = state.clock.ms) {
+  const area = state.places?.live?.area;
+  if (!a || !area || !body || !(mv?.path?.length >= 2) || !mv.prof) return null;
+  const pr = projectOn(mv.path, a.x, a.z), rest = [[a.x, a.z], ...mv.path.slice(pr.i + 1)];
+  const r = routed(state, rest, { area, bodies: [{ x: body.x, z: body.z, rM: (body.gapM ?? 0) + PIN_GUARD_M }] });
+  if (!r || r.length < 2) return null;
+  const p = r.map(x => [q(x[0], 0.0001), q(x[1], 0.0001)]);
+  if (!walkable(state, area, p) || !bodyClear(state, pid, p)) return null;
+  const st = mv.stance ?? a.moveStance ?? 'combat', L = legsHere(state, pid, a.x, a.z);
+  const vMax = Math.max(mv.prof.vp ?? 0, gaitsOf(state, pid, { gait: st }).walkMs ?? 0), P = profileOf(pathLen(p), vMax, L.pushMs2, L.brakeMs2, { v0: 0, v1: mv.prof.v1 ?? 0 });
+  return { path: p, prof: P, fromMs: ms, untilMs: ms + Math.round(P.T * 1000) };
+}
+// (the doing whose beat a move is: the player's doing, else the flow beside a step; null for a shot row's feet or a carry)
+function owning(state, mv) {
+  const S = state.stop;
+  if (S?.doing?.beats?.includes(mv)) return S.doing;
+  if (S?.flow?.beats?.includes(mv)) return S.flow;
+  return null;
+}
+// (one held tick of your walk (see the header): the way round once he has had his chance to step aside and has not taken it
+// (his own walk off it, a carry 'aside', not running), and again PIN_GIVE_MS of hold after each; at PIN_END_MS in all, ended
+// where it stands: a bundle's beat cut and its doing handed back ('blocked'), a shot row's feet done, a carry dropped)
+function pinTick(state, bus, a, mv, d, by, now) {
+  const other = state.actors?.list?.find(x => x.x === by.x && x.z === by.z) ?? null;
+  const aside = !!other?.through?.prof && other.through.way === 'aside' && (other.through.untilMs ?? 0) > now;
+  // (in a doorway, yours or his, from the first held tick: no hold may last there (the gauges' F4, 0.3 s at once))
+  const area = state.places?.live?.area, door = !!area && (!!liveZoneAt(state, area, a.x, a.z) || !!liveZoneAt(state, area, by.x, by.z));
+  if (mv.held < PIN_END_MS && mv.held >= (door ? TICK_MS : PIN_GIVE_MS + TICK_MS) && !aside && mv.held - (mv.roundHeld ?? -Infinity) >= PIN_GIVE_MS) {
+    mv.roundHeld = mv.held;
+    const r = roundAbout(state, playerId(state), a, mv, by, now);
+    if (r) {
+      const was = mv.untilMs, lead = Number.isFinite(mv.arriveMs) ? Math.max(0, (was - mv.fromMs) - mv.arriveMs) : null;
+      Object.assign(mv, { path: r.path, prof: r.prof, fromMs: r.fromMs, untilMs: r.untilMs, ms: r.untilMs - r.fromMs, rounded: now });
+      if (lead !== null) mv.arriveMs = Math.max(0, mv.ms - lead);
+      if (d && Number.isFinite(d.untilPlanMs)) d.untilPlanMs += r.untilMs - was;
+      mv.pinned = { atMs: mv.pinFromMs, ms: now - mv.pinFromMs, how: 'round', by: mv.pinBy ?? null };
+      return;
+    }
+  }
+  if (mv.held < PIN_END_MS) return;
+  mv.pinned = { atMs: mv.pinFromMs, ms: now - mv.pinFromMs, how: 'back', by: mv.pinBy ?? null };
+  if (d) { if (!d.halt) { mv.cut = true; halt(state, bus, d, 'blocked', PIN_WORDS, now); } return; }
+  if (mv === state.stop?.feet) mv.done = true;
+  else if (mv === a.through) delete a.through;
+}
+
 /** Whether a body is in a doorway (a no-stop zone) or being carried through one: where a step that would stand it still is not the drill's lead (the rework's R8b). */
 export function inDoorway(state, pid) {
   const a = state.actors?.list?.find(x => x.who === pid), area = state.places?.live?.area;
@@ -617,16 +698,19 @@ export function playerStep(state, input, bus, ctx) {
     const x0 = a.x, z0 = a.z;
     // (a body of the scene's rule in the way (useBodies): the walk held where it stands a tick, its timing with it, as the
     // #2's own guard holds his (bundle.js gapHold); counted on the beat (held, ms) for the gauges)
-    if (bodyBlocks(state, playerId(state), x0, z0, p.x, p.z)) {
+    // (walked round, else handed back, never held for ever (see the header); a hold that ends by itself noted 'aside')
+    const by = blockerOf(state, playerId(state), x0, z0, p.x, p.z), now = state.clock.ms;
+    if (by) {
+      const d = owning(state, mv);
       mv.fromMs += TICK_MS; mv.untilMs += TICK_MS;
-      const d = state.stop?.doing;
-      if (d?.beats?.includes(mv) && Number.isFinite(d.untilPlanMs)) d.untilPlanMs += TICK_MS;
-      mv.held = (mv.held ?? 0) + TICK_MS; mv.heldAtMs = state.clock.ms;
-      p = { ...moveAt(mv, state.clock.ms), x: x0, z: z0, vMs: 0 };
-      // (held PIN_END_MS, the doing hands back where it stands ('blocked', PIN_WORDS): the choice yours again, never a walk held for
-      // ever (the v0.0.20 design's U-1 step 3, taken by v0.0.19's fixer: the fumble net's pin-v018, 8 s and more on 16 lanes)
-      // (the walk cut where it stands even where its beat is not one a contact cuts (the approach): held, it is no walk)
-      if (mv.held >= PIN_END_MS && d?.beats?.includes(mv) && d.who === playerId(state) && !d.halt) { mv.cut = true; halt(state, bus, d, 'blocked', PIN_WORDS, state.clock.ms); }
+      if (d && Number.isFinite(d.untilPlanMs)) d.untilPlanMs += TICK_MS;
+      if (!(mv.heldAtMs >= now - TICK_MS)) mv.pinFromMs = now;
+      mv.held = (mv.held ?? 0) + TICK_MS; mv.heldAtMs = now; mv.pinBy = whoAt(state, by);
+      p = { ...moveAt(mv, now), x: x0, z: z0, vMs: 0 };
+      pinTick(state, bus, a, mv, d, by, now);
+      if (mv.held >= PIN_END_MS || mv.rounded === now) p = { ...moveAt(mv, now), x: x0, z: z0, vMs: 0 };
+    } else if (mv.heldAtMs === now - TICK_MS && Number.isFinite(mv.pinFromMs) && now - mv.pinFromMs >= PIN_GIVE_MS && mv.pinned?.atMs !== mv.pinFromMs) {
+      mv.pinned = { atMs: mv.pinFromMs, ms: now - mv.pinFromMs, how: 'aside', by: mv.pinBy ?? null };
     }
     // (the head and the muzzle go where the drill's eyes are (a bundle's beat with eyes: the slot's corner), else along the path)
     const run = state.stop?.doing?.beats?.filter(b => b.st === 'run') ?? [], eyes = run.find(b => b.eyes)?.eyes ?? null, look = eyes ?? mv.look ?? null;
@@ -657,6 +741,11 @@ export function playerStep(state, input, bus, ctx) {
     if (a.v && (a.moveStance === 'combat' || a.moveStance === 'assault')) {
       inertStep(state, a, { mx: 0, mz: 0 }, navOf(state, area, PLAYER_CLS, a.x, a.z), a.moveStance);
       finishStep(state, a, navOf(state, area, PLAYER_CLS, a.x, a.z), area, bus);
+    } else if (a.v) {
+      // (and a body Relaxed has no speed of its own (throughOf): a walk cut at 2 m/s, then a stance row (Relaxed), kept its
+      // speed for good while it lay in a doorway, and your #2, reading you on the move (bundle.js crossingClear), walked in onto you
+      // and was held there 0.9 s (the review of 2026-11-16: F4, the sergeant's fuzz lane on 1407))
+      delete a.v;
     }
     if (movedThisTick(a)) a.gait = 'walk';
     return;

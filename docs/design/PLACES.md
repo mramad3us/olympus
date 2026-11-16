@@ -292,6 +292,8 @@ The **vehicle lock** is 12 × 6 × 5 m (360 m³): pump to 10 kPa at 3 m³/s in 3
 - **House 1's swings are authored** (rooms 1 and 3 push, hinge left; room 2 pull, hinge right; the closet, from room 2, push, hinge left): the stage builds its leaves once from the area's frozen data, and procedural swings per seed wait for the assembler (§9.9) and per-state leaves in the stage. `room.js` `doorPlanOf` derives each plan's `swing` and `stack` from the door, checks an authored stack within 0.02 m of the latch side's points (it throws if not), and refuses a locked pull door on the lane (a dead end until v0.0.18's breaching; for generated plans a refused row is wanted, COMBAT §25.19.14).
 - `places-validate` still checks a swing on every leaf by itself; `validate.js` has no `swing` rule yet.
 
+**As built in v0.0.20 (§1.6).** "The delta keeps the verb that opened it (`how`); the stage draws doors.js leafShownAt = leafCurve(how, leafAt) (push ease-out, pull ease-in-out, kick to its stop at 0.55 and back to 0.88 at 0.75), leafAt itself linear; the house's door facts carry leafAtMs and stopAtMs."
+
 ### 1.7 Vertical links: stairs, ladders, lifts, trunks
 
 ```json

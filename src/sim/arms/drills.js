@@ -26,7 +26,8 @@
 // offers: LOAD from no magazine, MAKE READY from a magazine and an empty chamber, the reloads from a
 // bolt locked on empty (speed, or keep the empty) or with rounds left (tactical; on a course that says so, COURSES'
 // spoutTopUp, the pairs course's, also with the magazine believed empty and one up the spout: the lull's own case, where
-// v0.0.6's scored course says "fire it" instead (the fixer's, 0.0.8)), UNLOAD when anything
+// v0.0.6's scored course says "fire it" instead (the fixer's, 0.0.8); from the hunt of v0.0.18 only where it can change the
+// magazine in, kit.js topUpGains: the reach would take another over it as stowed, one in a hand, or the coach's named magazine), UNLOAD when anything
 // is in it, UNLOAD SHOW CLEAR only with an observer at hand, IMMEDIATE ACTION for a stoppage felt,
 // REMEDIAL for a double feed seen, CEASE FIRE off safe or with the finger on.
 //
@@ -49,7 +50,7 @@
 // (firearms.js: "It feels empty. You thought five."), its rest queued. REMEDIAL ACTION keeps v0.0.5's
 // magIn for its stripped magazine (brought back from the hand that racked, in the reach's time).
 import { actionMs, doAction, beliefOf, conditionOf, tempoFor } from './firearms.js';
-import { sparesOf } from './kit.js';
+import { sparesOf, topUpGains } from './kit.js';
 import { modelOf } from './models.js';
 import { rollerOf } from '../combat/roll.js';
 import { COURSES } from '../../data/courses.js';
@@ -87,8 +88,14 @@ export function macrosFor(state, pid, gunId, { observerId = null } = {}) {
   // option to reload")
   if (b.mag === 'out' && withRounds.length && b.chamber !== 'live' && !b.stoppage) ids.push('reload:speed');
   if (b.mag === 'in' && b.chamber === 'empty' && !b.locked && b.count !== 0 && !b.stoppage) ids.push('ready');
+  // (Top up only where it can change the magazine in (kit.js topUpGains, the one rule: a spare the reach would take over the
+  // magazine in as stowed, one in a hand, or the coach's named magazine). The reach takes the first by the drills' rule, so with
+  // the fullest already in, Top up stowed it and reached it back, 3 s for nothing, and Fix read Top up again for ever (the hunt
+  // of v0.0.18: 106 such pauses over 12 of the pairs bot's runs; its review: the same with a spare of a count unknown))
+  const spout = !!COURSES[state.armoury?.range?.course]?.spoutTopUp;
+  const gains = b.mag === 'in' && topUpGains(state, pid, gunId, b);
   if (b.mag === 'in' && b.locked && b.count === 0 && withRounds.length) ids.push('reload:speed', 'reload:retain');
-  else if (b.mag === 'in' && (b.count !== 0 || (b.chamber === 'live' && !!COURSES[state.armoury?.range?.course]?.spoutTopUp)) && withRounds.length && !b.stoppage) ids.push('reload:tactical');
+  else if (b.mag === 'in' && (b.count !== 0 || (b.chamber === 'live' && spout)) && withRounds.length && gains && !b.stoppage) ids.push('reload:tactical');
   // (v0.0.18: the planner's RELOAD where no reload is offered and the rifle can't fire, its way to fed holding a seat: the magazine
   // in believed empty, the bolt home and the chamber empty, spares in reach, was a dead end, Fix "nothing offered now" (MAKE READY
   // needs rounds believed in, RELOAD a locked bolt, Top up rounds): the build sheet 0.0.18 §0 item 2)

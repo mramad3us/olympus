@@ -10,8 +10,8 @@ import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { WHEEL_S4 } from '../src/data/places/wheel.js';
 import { lanePlanOf } from '../src/sim/combat/room.js';
-import { cornerTableOf, cornerRuleOf, doorKindOf, frameOf, inSectorOf, roomFromOpening, cornerWordsOf, screenWordsOf, aidK, aidHoldMs, AID_HOLD_MS, AID_FADE_MS, STRAIGHT_M, sectorWedgeOf } from '../src/sim/combat/corner.js';
-import { cornerOf } from '../src/sim/combat/bundle.js';
+import { cornerTableOf, cornerRuleOf, doorKindOf, frameOf, inSectorOf, roomFromOpening, cornerWordsOf, screenWordsOf, aidK, aidHoldMs, AID_HOLD_MS, AID_FADE_MS, STRAIGHT_M, sectorWedgeOf, CORNER_POINT } from '../src/sim/combat/corner.js';
+import { cornerOf, slotPointOf, entryPathOf } from '../src/sim/combat/bundle.js';
 import { walkWords } from '../src/sim/skills/instinct/cqb.js';
 import { instinctNow } from '../src/sim/skills/instinct.js';
 import { houseLook, houseOf, cornerAidLook } from '../src/sim/scenarios/shoothouse.js';
@@ -164,6 +164,42 @@ export default [
         assert(cornerAidLook(s).marks.length === 0 && cornerAidLook(s).sector === null, 'nothing after the lane');
       }
       console.log(`      ${rows.join('\n      ')}`);
+    },
+  },
+  {
+    name: 'your corner\'s aid held as long as you want it (the build sheet v0.0.20 item 24; the user, 2026-11-15: "there is currently no indication at to where we\'re supposed to be looking"): with the aid set to always (state.$aid, the Esc menu\'s), the tier one\'s room 1 marks last until domination; by rung, 3.3 s as built; off, nothing is drawn; never in the save',
+    timeoutMs: 120_000,
+    fn() {
+      const run = (setting) => {
+        const { g, s } = house('tierone');
+        if (setting) s.$aid = setting;
+        const H = houseOf(s), seen = {};
+        runHouse(g, houseTBot(), { maxMs: 4 * 60_000, each: () => { for (const m of houseLook(s).aid.marks) { const e = (seen[m.room] ??= { m0: null, m1: null, n: 0 }); e.m0 ??= s.clock.ms; e.m1 = s.clock.ms; e.n++; } } });
+        const L = H.rooms[0], P = lanePlanOf(s).plans[L.door], hot = P.hot ?? [];
+        const dom = Math.min(hot.every(h => L.covered[h.id]) ? Math.max(...hot.map(h => L.covered[h.id].atMs)) : Infinity, L.clearAtMs ?? Infinity), e = seen[L.room] ?? null;
+        return { setting: setting ?? 'rung', lived: e ? (e.m1 - e.m0) / 1000 : 0, toDom: e ? (dom - e.m0) / 1000 : null, e, dom, saved: g.save().includes('"$aid"'), end: H.end?.why ?? null };
+      };
+      const rows = [run(null), run('always'), run('off')];
+      for (const r of rows) console.log(`      ${r.setting}: room 1's marks lived ${fmt(r.lived, 2)} s${r.toDom !== null ? ` (domination ${fmt(r.toDom, 2)} s after they came)` : ''}; the lane ${r.end}; $aid in the save ${r.saved}`);
+      const [rung, always, off] = rows;
+      assert(aidHoldMs(4, 'always') === Infinity && aidHoldMs(4, 'off') === 0 && aidHoldMs(4) === 2500 && aidHoldMs(4, 'rung') === 2500, 'aidHoldMs by setting');
+      assert(rung.lived > 2.5 && rung.lived <= 2.5 + AID_FADE_MS / 1000 + 0.1, JSON.stringify(rung));
+      assert(always.e && always.e.m1 >= always.dom - 50 && always.lived > rung.lived, JSON.stringify(always));
+      assert(!off.e && rows.every(r => !r.saved), JSON.stringify(off));
+    },
+  },
+  {
+    name: 'room 2\'s #1 point by the rule (corner.js CORNER_POINT, the build sheet\'s §0 item 33, question 15; the default stays authored): the ring and the walk agree on either setting (the review of 2026-11-16: with \'derived\' the ring moved 1.90 m deeper and the walk did not): authored, both at the drawn point; derived, the ring at the rule\'s own point and the entry\'s path (bundle.js entryPathOf, slotPointOf) ending there, for both slots',
+    fn() {
+      const { s } = house('cpl', 'room:2'), H = houseOf(s), P = lanePlanOf(s).plans['o:w4:r2'], r = cornerRuleOf(P, 1);
+      H.read = { ...(H.read ?? {}), 'o:w4:r2': s.clock.ms };
+      const a = cornerAidLook(s, H, s.clock.ms + 50), d = cornerAidLook(s, H, s.clock.ms + 50, { point: 'derived' });
+      const ring = (x, slot) => x.marks.find(m => m.slot === slot && m.room === H.rooms[1].room)?.point ?? null, eq = (p, q) => !!p && !!q && Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-9;
+      const rows = [1, 2].map(slot => ({ slot, ringA: ring(a, slot), ringD: ring(d, slot), walkA: entryPathOf(P, slot, 'authored').at(-1), walkD: entryPathOf(P, slot, 'derived').at(-1), ptA: slotPointOf(P, slot, 'authored'), ptD: slotPointOf(P, slot, 'derived') }));
+      console.log(`      room 2's #1: the drawn point (${r.point.join(', ')}), the rule's (${r.derived.join(', ')}), ${fmt(Math.hypot(r.point[0] - r.derived[0], r.point[1] - r.derived[1]), 2)} m apart; the default ${CORNER_POINT}`);
+      for (const x of rows) console.log(`      slot ${x.slot}: authored ring (${x.ringA?.join(', ')}) walk to (${x.walkA?.join(', ')}); derived ring (${x.ringD?.join(', ')}) walk to (${x.walkD?.join(', ')})`);
+      assert(CORNER_POINT === 'authored' && eq(rows[0].ringA, r.point) && eq(rows[0].ringD, r.derived), JSON.stringify({ rows, r: [r.point, r.derived] }));
+      assert(rows.every(x => eq(x.ringA, x.walkA) && eq(x.walkA, x.ptA) && eq(x.ringD, x.walkD) && eq(x.walkD, x.ptD)), JSON.stringify(rows));
     },
   },
   {

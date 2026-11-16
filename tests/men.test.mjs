@@ -145,18 +145,23 @@ export default [
     },
   },
   {
-    name: `a marking round on a marine is on R.house.live.struck with its part and zone, stings HIT_PTS (${HIT_PTS}) and never wounds; two in the torso or one in the head is the casualty, CASUALTY_MS (${CASUALTY_MS} ms) to the card (fails without the sensor)`,
+    name: `a marking round on a marine is on R.house.live.struck with its part and zone, stings HIT_PTS (${HIT_PTS}) and never wounds him; v0.0.20 (the user's answer of 2026-11-16, "Paintball should end if the hit is 'fatal'"): each strike is rated by the would-have (combat/would.js), one torso strike a wound and the lane on, two in the torso as the model rates them, and the strike it rates fatal the casualty, CASUALTY_MS (${CASUALTY_MS} ms) to the card, its why and its shot on the casualty (fails without the one rule)`,
     fn() {
       const W = liveWorld(), s = W.s, pid = s.player.id;
       s.armoury.range.house = { live: { mode: 'live', cards: {}, seenBy: {}, struck: [], casualty: null, ruled: [] } };
       const shot = (n, part, zone) => ({ id: `sh:t${n}`, fired: true, hole: { at: [0, 30] }, zone, part, load: 'marking', muzzle: { x: W.T.x, y: 1.4, z: W.T.z }, dirRad: 0, atMs: s.clock.ms + n * 100 });
       const r1 = incoming(s, W.g.bus, { who: pid, by: W.T.key, shot: shot(1, 'torso', 'C') });
-      const after1 = { ...struckOn(s, pid), pool: q(blockOf(s, pid)?.supp ?? 0, 0.01), wounds: (s.people[pid].body?.wounds ?? []).length };
+      const after1 = { ...struckOn(s, pid), pool: q(blockOf(s, pid)?.supp ?? 0, 0.01), wounds: (s.people[pid].body?.injuries ?? []).length };
       const r2 = incoming(s, W.g.bus, { who: pid, by: W.T.key, shot: shot(2, 'torso', 'A') });
-      const L = s.armoury.range.house.live;
-      console.log(`      one round: hit ${r1.hit}, down ${r1.down}, marks torso ${after1.torso} head ${after1.head}, your pool ${fmt(after1.pool, 1)}, wounds ${after1.wounds}; two rounds: down ${r2.down}, the casualty ${JSON.stringify(L.casualty)}; the 'house' facts ${W.g.facts('house').map(f => f.phase).join(', ')}`);
-      assert(r1.hit && !r1.down && after1.torso === 1 && after1.pool === HIT_PTS && after1.wounds === 0 && L.struck[0].part === 'torso' && L.struck[0].zone === 'C' && L.struck[0].by === W.T.key
-        && r2.down && L.casualty?.who === pid && L.casualty.endAtMs - L.casualty.atMs === CASUALTY_MS, JSON.stringify({ r1, r2, after1, L }));
+      const L = s.armoury.range.house.live, c2 = L.casualty ? { ...L.casualty } : null;
+      const r3 = incoming(s, W.g.bus, { who: pid, by: W.T.key, shot: shot(3, 'head', 'head') });
+      const v = (r) => (r.would ? `${r.would.layer} ${r.would.fatal ? `FATAL (${r.would.why})` : r.would.why ?? 'wound'} w ${r.would.w}` : 'none');
+      console.log(`      one round (torso C): hit ${r1.hit}, down ${r1.down}, would-have ${v(r1)}, marks torso ${after1.torso} head ${after1.head}, your pool ${fmt(after1.pool, 1)}, your own body's injuries ${after1.wounds}; two rounds (torso A): down ${r2.down}, would-have ${v(r2)}; the head: down ${r3.down}, would-have ${v(r3)}; the casualty ${JSON.stringify(L.casualty)}; the 'house' facts ${W.g.facts('house').map(f => `${f.phase}${f.would ? `:${f.would}` : ''}`).join(', ')}`);
+      assert(r1.hit && !r1.down && !r1.would.fatal && after1.torso === 1 && after1.pool === HIT_PTS && after1.wounds === 0 && L.struck[0].part === 'torso' && L.struck[0].zone === 'C' && L.struck[0].by === W.T.key, JSON.stringify({ r1, after1 }));
+      // (the casualty on the first strike rated fatal, none before it; the head rated fatal (99 to 100% at any Fitness, the design's table))
+      const first = [r1, r2, r3].find(r => r.would?.fatal), at = [r1, r2, r3].indexOf(first);
+      assert(r3.would.fatal && first && L.casualty?.who === pid && L.casualty.shotId === first.would.shotId && L.casualty.why === first.would.why && L.casualty.endAtMs - L.casualty.atMs === CASUALTY_MS
+        && (at === 1 ? c2?.shotId === r2.would.shotId : !c2) && (s.people[pid].body?.injuries ?? []).length === 0, JSON.stringify({ r1, r2, r3, L: L.casualty }));
     },
   },
   {

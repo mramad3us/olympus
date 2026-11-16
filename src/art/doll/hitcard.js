@@ -37,7 +37,7 @@
 // someone", people "rendered ... as we see them, meaning with their gear"): the card's subject, m.subject, else the board of
 // m.face and m.holds as before (so every model built before paints the same). A board ({ kind: 'board', face, holds }) is the
 // doll of ./dress.js dressOf(standGear) in the khaki's two tones, the rifle's and the armoured faces to the pixel as before;
-// a pistol threat now holds the P-12 (it was drawn empty-handed; a painted pistol has no holster), a no-shoot with a phone the
+// a pistol threat now holds the P-12 (an armoured face's too, v0.0.20: the house draws its hand as any threat's) (it was drawn empty-handed; a painted pistol has no holster), a no-shoot with a phone the
 // phone, an unseen hand nothing, the armoured face's too (the words say "HANDS NOT SEEN"); the hostage card is two painted men,
 // the hostile the man-target (centred, the head's circle on his head) and the hostage in front of him (light skin, empty hands)
 // HOSTAGE_DX_PX to the side, so his head and his gun hand show beside the hostage's: he is drawn mirrored when she stands at the
@@ -130,8 +130,10 @@ function boardGear(face, holds) {
   const base = { outfit: face === 'armoured' ? 'carrier' : 'utilities', suit: null, carrier: null, ears: null, rifle: null, pistol: null, thigh: null, held: null, painted: true };
   // (an unseen hand holds nothing, the armoured face's too: the card draws only what the take-in saw)
   if (holds === 'unseen' || face === 'unknown' || face === 'hostage') return base;
-  if (face === 'armoured' || holds === 'rifle') return { ...base, rifle: { model: 'r7', finish: null, place: 'hand', mag: true } };
+  // (a pistol before the armoured face's rifle: the house draws the armoured stand's hand as any threat's, and the hunt of
+  // v0.0.18 found the card drawing the rifle where the stage's board held a pistol)
   if (holds === 'pistol') return { ...base, pistol: { model: 'p12', place: 'hand', mag: true } };
+  if (face === 'armoured' || holds === 'rifle') return { ...base, rifle: { model: 'r7', finish: null, place: 'hand', mag: true } };
   if (holds === 'phone') return { ...base, held: 'phone' };
   return base;
 }

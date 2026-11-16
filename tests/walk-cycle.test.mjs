@@ -240,4 +240,18 @@ export default [
       assert(Object.values(saved0).every(v => Math.abs(v - 0.1 / 0.375) < 1e-4), JSON.stringify(saved0));
     },
   },
+  {
+    name: 'the To score page\'s walk row changes the drawing only (the build sheet v0.0.20 item 10; the user, 2026-11-12: "will judge when live"): the same lane stepped with the page\'s cycle A, B and C (state.$cycle, runtime only) saves to the same bytes, its gait phase counted in B',
+    fn() {
+      const saves = {}, phases = {};
+      for (const c of ['A', 'B', 'C']) {
+        const g = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go' });
+        g.state.$cycle = c;
+        g.step(200, houseTBot());
+        saves[c] = g.save(); phases[c] = g.state.actors.list.find(a => a.who === g.state.player.id)?.gp ?? null;
+      }
+      console.log(`      a lane's first 10 s with the cycle A, B, C: save ${saves.A.length} bytes each, the same ${saves.A === saves.B && saves.B === saves.C}; your gait phase (gp, counted in B) ${Object.values(phases).map(p => fmt(p, 3)).join(', ')}`);
+      assert(saves.A === saves.B && saves.B === saves.C && !saves.A.includes('$cycle'), 'the save the same whatever the cycle drawn');
+    },
+  },
 ];

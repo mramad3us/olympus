@@ -3,7 +3,9 @@
 // State is plain data (numbers, strings, booleans, null, arrays and plain objects), so a save is its
 // JSON (tradecraft's src/sim/state.js and LONGHAUL's js/sim/save.js, merged). Keys starting with $
 // are runtime only (indexes, caches, a site's generated geometry) and never saved: they are dropped
-// at any depth. ±Infinity and NaN, which JSON can't carry, are written as '__inf__', '__-inf__' and
+// at any depth. Among them, the page's settings the sim reads but never owns: $cycle (the walk cycle), $panel (the step
+// panel's layout), and from v0.0.20 $aid (your corner's aid: 'rung' | 'always' | 'off', the Esc menu's) and $look
+// ({ stack, helm, jamb }: the To score page's picks, the URL's &look=), written by main.js, never saved. ±Infinity and NaN, which JSON can't carry, are written as '__inf__', '__-inf__' and
 // '__nan__' and read back as numbers (LONGHAUL's replacer, plus NaN, which is a bug to be caught
 // rather than silently turned into null).
 //

@@ -14,13 +14,17 @@
 //   - the #2's doorway counts as "with you" and a cleared room's men are no longer watched as his (contact.js twoWithYou,
 //     hisTick) (F13);
 //   - the #2's looks wait while his eyes are on a man or on your sector (bundle.js runSlot eyesOff, stepper.js pauseScans) (F7);
-//   - a segment ending on a grid corner is clear when its cells are (nav.js clearLine) (F3).
+//   - a segment ending on a grid corner is clear when its cells are (nav.js clearLine) (F3);
+//   - a route from a body standing in a cell the grid blocks keeps the nav's step out of it where the corner hold would
+//     otherwise set a waypoint in a blocked cell (route.js routed; F3, the hunt of v0.0.18's fixes merged: the fuzz tier one
+//     on 1185, #1's approach to the hall).
 import { assert } from './helpers.mjs';
 import { flawlessLane } from './flawless.mjs';
 import { createGame } from './game.mjs';
 import { lanePlanOf } from '../src/sim/combat/room.js';
 import { openNavOf, clearLine } from '../src/sim/places/nav.js';
-import { ROUTE_CLS } from '../src/sim/combat/route.js';
+import { ROUTE_CLS, routed, routeGridOf } from '../src/sim/combat/route.js';
+import { isFree } from '../src/sim/places/nav.js';
 
 // (a lane's man by stand: his contact of yours, the first round on him after the sighting, ms, and whether the par was met)
 const manOf = (rec, stand) => rec.pars.missed.find(m => m.stand === stand && m.by === 'me' && !m.jam && !m.challenged && !m.missedRound) ?? null;
@@ -33,6 +37,23 @@ export default [
       const a = clearLine(G, 18.625, 11.375, 18.5, 11.5), b = clearLine(G, 18.5, 11.5, 18.625, 11.375);
       console.log(`      (18.625, 11.375) to (18.5, 11.5): ${a}; back: ${b}`);
       assert(a && b, JSON.stringify({ a, b }));
+    },
+  },
+  {
+    name: 'a route from a body against a wall, standing in a cell the grid blocks, never sets a waypoint in a blocked cell: it steps out by the nav\'s own way, then on (route.js routed; F3 on the fuzz tier one, seed 1185, after the hunt of v0.0.18\'s fixes were merged: #1\'s approach to the hall from (19.363, 7.528) by (19.297, 7.554), a waypoint in the wall\'s cells, 2 legs not clear)',
+    fn() {
+      // (the waypoints judged on the routing grid routed solves on; the legs on F3's, the doors open, since a leaf shut at GO lies
+      // across the last leg here)
+      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private', setup: 'go' }), area = lanePlanOf(g.state).area, G = routeGridOf(g.state, area), O = openNavOf(area, ROUTE_CLS);
+      const from = [19.3633, 7.5281], out = [];
+      for (const to of [[17.3, 12.7], [11.5, 12.7], [18.5, 11.5]]) {
+        const p = routed(g.state, [from, to], { area }), bad = p.slice(1).filter(x => !isFree(G, x[0], x[1]));
+        const cut = p.slice(2).map((x, k) => clearLine(O, p[k + 1][0], p[k + 1][1], x[0], x[1])).filter(c => !c).length;
+        console.log(`      to ${JSON.stringify(to)}: ${JSON.stringify(p)}; blocked waypoints ${bad.length}, legs after the first not clear ${cut}`);
+        out.push({ to, bad: bad.length, cut });
+      }
+      assert(!isFree(G, from[0], from[1]), 'the start stands in a blocked cell');
+      assert(out.every(o => !o.bad && !o.cut), JSON.stringify(out));
     },
   },
   {

@@ -51,8 +51,8 @@ import { DOPE_CARD } from '../../arms/ballistics.js';
 import { holdSaid } from '../../arms/shot.js';
 import { headOf } from '../../people/perception.js';
 import { keysFor, layoutIn } from '../../arms/groups.js';
-import { houseWant, twoLacks } from '../../scenarios/shoothouse.js';
-import { drawn } from '../../arms/sidearm.js';
+import { houseWant, twoLacks, pistolLacks, loadedGun } from '../../scenarios/shoothouse.js';
+import { drawn, pistolClearOwed } from '../../arms/sidearm.js';
 
 /** The muzzle's heading off downrange past which the DI speaks (the build sheet §2.2), degrees. */
 export const MUZZLE_WARN_DEG = 45;
@@ -199,7 +199,9 @@ export const RANGE_RULES = Object.freeze([
       chamber: ['A round up: MAKE READY.', 'Not sure what is in it. Find out, then a round up.', 'The chamber. Make it ready.', 'MAKE READY, as the tower said.'],
       two: ['Your number two is still on it. Wait.', 'Wait for your number two.', 'He is not done yet. Wait.', 'Your two. Wait for him.'],
       standby: ['Standby. Still, for the GO.', 'Standby. Out of it and still.', 'Hands still. GO is coming.', 'Standby. Wait for the GO.'],
-      pistol: ['Rifle up first: holster the pistol.', 'Holster the pistol. Then the rifle.', 'Pistol away first. Rifle up.', 'The pistol back in. Rifle up.'] },
+      pistol: ['Rifle up first: holster the pistol.', 'Holster the pistol. Then the rifle.', 'Pistol away first. Rifle up.', 'The pistol back in. Rifle up.'],
+      pistolClear: ['Your pistol too: clear it.', 'The pistol. Show me clear.', 'Pistol: clear, holster.', 'The pistol is not clear yet.'],
+      floor: ['Your magazine is at your feet. Pick it up.', 'On the floor: pick it up, in.', 'At your feet. Get it in.', 'Pick it up. A magazine in.'] },
   },
   {
     id: 'range-kd', voice: 'di', repeatMs: RANGE_REPEAT_MS, tone: 'warn', reach: null,
@@ -335,8 +337,21 @@ function houseCmd(state, k) {
     const g = state.items?.[k.gunId], finger = state.people?.[k.pid]?.kit?.carry?.finger ?? 'off';
     return g && gunField(g, 'mode') === 'safe' && finger !== 'on' && /^two:/.test(twoLacks(state, 'stop') ?? '') ? { ...base, variant: 'two', step: null, short: 'Wait' } : undefined;
   }
+  // (SHOW CLEAR with the rifle's done and the holstered P-12 still loaded: its own row, "P-12: SHOW CLEAR" (sidearm.js
+  // pistolClearOwed; the hunt of v0.0.18: the tower passed it, then held for it with the DI naming the rifle's macro again))
+  if (k.cmd === 'clear' && pistolClearOwed(state, k.pid)) return { ...base, variant: 'pistolClear', step: 'weapon:pistol-clear', short: 'The pistol' };
+  // (and your own shown with both guns clear, the tower waiting on your number two's: out of it and wait, as at Stop, never your
+  // UNLOAD, SHOW CLEAR named again over guns already shown)
+  if (k.cmd === 'clear' && k.R.shown && !pistolLacks(state, k.pid, 'clear') && !loadedGun(state.items?.[state.people?.[k.pid]?.kit?.worn?.sling]) && /^two:/.test(twoLacks(state, 'clear') ?? '')) return { ...base, variant: 'two', step: null, short: 'Wait' };
   if (k.cmd !== 'load' && k.cmd !== 'ready' && k.cmd !== 'standby') return undefined;
   const gun = state.items?.[k.gunId];
+  // (no magazine in and LOAD not offered, every one of them on the floor (fumbled seats): the one at your feet, by its reach and its
+  // seat, else RELOAD, so "a magazine in." names a key that works (the hunt of v0.0.18's pistol-6: "The tower is waiting on you:
+  // LOAD." with no act while the magazines lay at the feet, and the tower moved on to GO with the rifle empty))
+  if ((k.cmd === 'load' || k.cmd === 'ready') && !gun?.mag && !k.R.dry && k.inMode && !k.offered('macro:load')) {
+    const step = ['seat', 'reach@ground', 'macro:reload:speed'].find(id => k.offered(id));
+    if (step) return { ...base, variant: 'floor', step, short: 'A magazine' };
+  }
   if (k.cmd === 'load') {
     // (your magazine in: the tower waits on his (two:mag, two:busy))
     if (!gun?.mag || k.R.dry) return undefined;

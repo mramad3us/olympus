@@ -48,9 +48,15 @@
 // purpose) is named by the device's row (devplan.js devNameOf: "Pin back in" before the rifle's Charge or RELOAD); a reload's
 // row keeps its purpose's name. With the hands empty nothing changes, so every lane without a device in hand is v0.0.18's.
 // The memo (PLANS, keyed by the goal and the key) is runtime only and the search is a pure function of its key, so a hit and a
-// miss give the same plan (the plan suite holds it); it is cleared past PLAN_MEMO_MAX. Pure.
+// miss give the same plan (the plan suite holds it); it is cleared past PLAN_MEMO_MAX.
+// v0.0.20 (the build sheet's item 6; the user, 2026-11-15: "the reload, top up etc options should simply look at the state of our
+// weapons"), **the tower's goals**: 'cmd:load', 'cmd:ready', 'cmd:standby', 'cmd:stop' and 'cmd:clear' (SEQ_HOUSE's ids), each the
+// end state its command's macro leaves the gun in (COLD_ENDS, a literal table: drills.js imports this module and this module
+// drills.js's subsOf through macros.js, so nothing here reads MACROS at load), searched on the command's own edges, the selector
+// to safe last where it is off (as 'fire' puts it off safe last). The shoot house's cold Fix plans to them (shooting.js markFix),
+// so before GO and after Stop it never offers Off safe, a Charge before MAKE READY or a reload after Stop. Pure.
 import { act, actionMs, beliefOf, gunField, actionKey, pull, feel, ready as readyTruth } from './firearms.js';
-import { pouchesOf, handMagOf, handGunOf, atFeetOf, dumpOf, believedN, rankOf, meantLoad } from './kit.js';
+import { pouchesOf, handMagOf, handGunOf, atFeetOf, dumpOf, believedN, rankOf, meantLoad, topUpGains } from './kit.js';
 import { MODELS, modelOf, isLong } from './models.js';
 import { SLUNG } from './carry.js';
 import { fixedRoller, rollerOf } from '../combat/roll.js';
@@ -62,6 +68,24 @@ import { handsPath, devNameOf } from './devplan.js';
 
 /** The goals (see the header). */
 export const GOALS = Object.freeze(['fire', 'fed', 'retain', 'topup']);
+/**
+ * The tower's goals' end states (see the header), by SEQ_HOUSE's command id, as the macros' last sub-steps leave the gun
+ * (drills.js MACROS): LOAD the magazine in, the chamber empty, on safe; MAKE READY and Standby a round chambered, the bolt home, a
+ * magazine in, on safe; Stop on safe; UNLOAD, SHOW CLEAR the magazine out, the chamber empty, the bolt forward, on safe. `edges` the
+ * planner may take toward it (the selector's 'selector:safe' last, by the search), never a round fired or a magazine dropped.
+ */
+export const COLD_ENDS = Object.freeze({
+  load: Object.freeze({ mag: 'in', ch: 'empty', edges: Object.freeze(['reach', 'seat']) }),
+  ready: Object.freeze({ mag: 'in', ch: 'live', edges: Object.freeze(['reach', 'seat', 'charge', 'release']) }),
+  standby: Object.freeze({ mag: 'in', ch: 'live', edges: Object.freeze(['reach', 'seat', 'charge', 'release']) }),
+  stop: Object.freeze({ edges: Object.freeze([]) }),
+  clear: Object.freeze({ mag: 'out', ch: 'empty', lk: false, edges: Object.freeze(['magOut:pouch', 'magOut:dump', 'charge', 'release', 'lockBack', 'stowMag', 'dumpMag']) }),
+});
+/** The tower's goal ids ('cmd:load' … 'cmd:clear'). */
+export const COLD_GOALS = Object.freeze(Object.keys(COLD_ENDS).map(id => `cmd:${id}`));
+const coldEnd = (goal) => (typeof goal === 'string' && goal.startsWith('cmd:') ? COLD_ENDS[goal.slice(4)] ?? null : null);
+// (a tower goal's end met, but the selector: the bolt home where the end names a chamber, no stoppage)
+const coldMet = (E, a) => !a.st && (!E.mag || a.mag === E.mag) && (!E.ch || a.ch === E.ch) && (E.lk !== false || !a.lk) && (E.ch !== 'live' || !a.lk);
 /** A search's cap (pops; my call: the worst seen uncapped was 1,200, every one a search that ends in no plan). */
 export const PLAN_POPS = 600;
 /** The memo's size before it is cleared (my call). */
@@ -103,15 +127,18 @@ export function absOf(state, pid, gunId, { carry = null } = {}) {
   // (the best magazine at the feet, as the abstraction keeps one (movesAbs): a reach there takes the nearest, and its weight says if it was another)
   const feet = atFeetOf(state, pid).filter(l => ok(l.id)).map(l => magBucket(state.items[l.id])).sort((x, y) => BUCKET_RANK[x] - BUCKET_RANK[y])[0] ?? null;
   const room = pouches.some(p => !p.dump && p.room > 0 && (!p.fams || p.fams.some(f => fams.includes(f))));
+  // (a magazine of another gun's in the hand: whether a pouch of its own family has room for it (xr), so the plan can put it away
+  // before the reach (the hunt of v0.0.18: the P-12 drawn with a HAD-30 in the other hand read Top up struck "no plan"))
+  const xr = !!hm && !fams.includes(hm.fam) && pouches.some(p => !p.dump && p.room > 0 && (!p.fams || p.fams.includes(hm.fam)));
   return Object.freeze({
     model: g.model, carry: c, mag: b.mag === 'in' ? 'in' : 'out', n: b.mag === 'in' ? countBucket(b.count) : null,
     ch: b.chamber ?? '?', lk: !!b.locked, st: b.stoppage ?? null, mode: b.mode === '?' ? 'safe' : b.mode, ck: !!b.cocked,
     hand: hm ? (fams.includes(hm.fam) ? magBucket(hm) : 'x') : null, pool: Object.freeze(pool), ground: feet,
-    dump: !!dumpOf(state, pid), room,
+    dump: !!dumpOf(state, pid), room, ...(xr ? { xr } : {}),
   });
 }
-/** An Abs's key (a string; the topup search's own flag after it). */
-export const absKey = (a) => `${a.model}|${a.carry}|${a.mag}${a.n ?? '-'}|${a.ch}|${a.lk ? 'L' : '-'}|${a.st ?? '-'}|${a.mode}|${a.ck ? 'c' : '-'}|${a.hand ?? '-'}|${a.pool.join('') || '-'}|${a.ground ?? '-'}|${a.dump ? 'd' : '-'}${a.room ? 'r' : '-'}${a.sw ? '|sw' : ''}`;
+/** An Abs's key (a string; the topup search's own flag after it, and the room for a foreign magazine held where there is some). */
+export const absKey = (a) => `${a.model}|${a.carry}|${a.mag}${a.n ?? '-'}|${a.ch}|${a.lk ? 'L' : '-'}|${a.st ?? '-'}|${a.mode}|${a.ck ? 'c' : '-'}|${a.hand ?? '-'}${a.xr ? 'r' : ''}|${a.pool.join('') || '-'}|${a.ground ?? '-'}|${a.dump ? 'd' : '-'}${a.room ? 'r' : '-'}${a.sw ? '|sw' : ''}`;
 /** Whether no round is believed anywhere: none chambered or unsure (a stoppage's not counted), the magazine in believed empty or out, nothing with rounds in the hand, the pouches or at the feet. */
 export function honestNone(a) {
   // (a round in a stoppage's chamber is the drill's to clear, never one to fire: IMMEDIATE ACTION throws it out with no magazine under it)
@@ -156,7 +183,7 @@ export function stepAbs(a, action, { grade = 'pass' } = {}) {
   if (a.hand) ctx.held = { id: 'w:held', mag: a.hand === 'x' ? { type: 'mag', fam: '?', n: 5, belief: { n: 5 } } : magW(w.fam, a.hand), hand: 1 };
   if (key === 'reach') { const src = place === 'ground' ? a.ground : a.pool[0]; if (src) ctx.reach = { id: 'w:reach', mag: magW(w.fam, src), from: place ?? 'p1' }; }
   if (action === 'magIn') { const src = a.hand && a.hand !== 'x' ? a.hand : a.pool[0]; ctx.spares = src ? [{ id: 'w:spare', mag: magW(w.fam, src) }] : []; }
-  if (key === 'stowMag' && a.room) ctx.to = 'w:pouch';
+  if (key === 'stowMag' && (a.hand === 'x' ? a.xr : a.room)) ctx.to = 'w:pouch';
   if (key === 'dumpMag' && a.dump) ctx.to = 'w:dump';
   if (key === 'seat' && a.hand === 'x') return null;
   if (action === 'magOut:dump' && !a.dump && grade === 'pass') return null;
@@ -184,12 +211,15 @@ function movesAbs(a, r, { w, ctx, action, key, place }) {
     else { mag = 'in'; if (key === 'seat' || (action === 'magIn' && a.hand && a.hand !== 'x')) hand = null; else pool = pool.slice(1); }
   }
   if (r.reach) { if (place === 'ground') ground = null; else pool = pool.slice(1); hand = magBucket(ctx.reach.mag); }
-  if (r.stowTo) { pool.push(hand); hand = null; }
-  if (r.dropHeld && hand) { out(hand); hand = null; }
+  // (a foreign magazine put away goes to its own pouch, never the gun's pool; dropped, it is no magazine of this gun's at the feet)
+  if (r.stowTo) { if (hand !== 'x') pool.push(hand); hand = null; }
+  if (r.dropHeld && hand) { if (hand !== 'x') out(hand); hand = null; }
   if (r.posture) carry = SLUNG.has(r.posture) ? 'slung' : isLong(MODELS[a.model]) ? 'ready' : carry;
   if (key === 'draw:thigh') carry = 'hand';
   if (key === 'holster') carry = 'holster';
-  return reAbs(a, w.gun, { pool: Object.freeze(sortPool(pool)), hand, ground, carry, mag });
+  const o = reAbs(a, w.gun, { pool: Object.freeze(sortPool(pool)), hand, ground, carry, mag });
+  if (hand !== 'x') delete o.xr;
+  return o;
 }
 
 // ---- the search ----
@@ -235,8 +265,8 @@ function edgesOf(a, goal) {
     if (x === 'seat') return !!a.hand && a.hand !== 'x' && a.mag === 'out';
     // (a bolt worked on a magazine believed empty chambers nothing believed: never a way to fire (and its '?' would read as rounds))
     if (x === 'charge' || x === 'release') return !(a.mag === 'in' && a.n === '0');
-    if (x === 'stowMag') return !!a.hand && a.hand !== 'x' && a.room;
-    if (x === 'dumpMag') return !!a.hand && a.hand !== 'x' && a.dump;
+    if (x === 'stowMag') return !!a.hand && (a.hand === 'x' ? !!a.xr : a.room);
+    if (x === 'dumpMag') return !!a.hand && a.dump;
     if (x === 'dropMag') return !!a.hand;
     return true;
   });
@@ -274,6 +304,9 @@ export function plan(a, goal, { look = true } = {}) {
   return p;
 }
 function search(a0, goal, look) {
+  // (a tower goal: its own search, the selector to safe last)
+  const E = coldEnd(goal);
+  if (E) return coldSearch(a0, goal, E);
   // (fire: the chamber's plan, then the selector last)
   if (goal === 'fire') {
     const p = search(a0, 'arm', look);
@@ -331,6 +364,41 @@ function search(a0, goal, look) {
   return { goal, path: null, costMs: 0, none: 'no plan' };
 }
 
+// (a tower goal's search (see the header): on its own edges, from the gun as believed in the hands, Dijkstra as search's, the
+// selector to safe appended where the gun is off it; [] where the gun is already there; 'no plan' where its edges cannot reach it
+// (a round chambered under LOAD: the instructor's to put right, never Fix's))
+function coldSearch(a0, goal, E) {
+  const safe = (a, path, ms) => (a.mode === 'safe' ? { goal, path, costMs: ms } : { goal, path: [...path, 'selector:safe'], costMs: ms + edgeMs(a, 'selector:safe') });
+  if (coldMet(E, a0)) return safe(a0, [], 0);
+  const dist = new Map([[absKey(a0), 0]]), prev = new Map(), heap = [];
+  let seq = 0, pops = 0;
+  push(heap, [0, seq++, a0, 0, 0]);
+  while (heap.length) {
+    const [d, , s, ms, depth] = pop(heap), key = absKey(s);
+    if (d > dist.get(key)) continue;
+    if (coldMet(E, s)) {
+      const path = [];
+      for (let c = key; prev.has(c);) { const [p, x] = prev.get(c); path.unshift(x); c = p; }
+      stats.maxPops = Math.max(stats.maxPops, pops);
+      return safe(s, path, ms);
+    }
+    if (++pops >= PLAN_POPS) break;
+    for (const x of E.edges) {
+      // (a magazine out only off a gun whose end wants it out; the reach and the seat only toward a magazine in)
+      if (x === 'reach' && (s.hand || !s.pool[0])) continue;
+      if (x === 'seat' && !(s.hand && s.hand !== 'x' && s.mag === 'out')) continue;
+      if ((x === 'stowMag' && !(s.hand && s.hand !== 'x' && s.room)) || (x === 'dumpMag' && !(s.hand && s.hand !== 'x' && s.dump))) continue;
+      if (x.startsWith('magOut:') && s.mag !== 'in') continue;
+      const n = stepAbs(s, x);
+      if (!n) continue;
+      const xm = edgeMs(s, x), nk = absKey(n), nd = d + xm * MS_K + (RANK[x] ?? 0) * Math.max(1, RANK_DEPTH - depth);
+      if (nd < (dist.get(nk) ?? Infinity)) { dist.set(nk, nd); prev.set(nk, [key, x]); push(heap, [nd, seq++, n, ms + xm, depth + 1]); }
+    }
+  }
+  stats.maxPops = Math.max(stats.maxPops, pops);
+  return { goal, path: null, costMs: 0, none: 'no plan' };
+}
+
 /** A planner's mark on a panel row: rowmark.js's, re-exported for the callers of v0.0.18's first build. */
 export { markRow } from './rowmark.js';
 
@@ -378,7 +446,9 @@ function expand(state, pid, gunId, a, path) {
     const x = path[i];
     if (x === 'ia' || x === 'remedial') { out.push(...subsOf(x, i === 0 ? b : beliefLike(c))); c = compound(c, x).to; continue; }
     if (x === 'stowMag') {
-      const fams = MODELS[a.model].fams, p = pouchesOf(state, pid).find(q => !q.dump && q.room > 0 && (!q.fams || q.fams.some(f => fams.includes(f))));
+      // (a foreign magazine to a pouch of its own family (absOf's xr))
+      const hm = c.hand === 'x' ? state.items[handMagOf(state, pid)?.id] : null, fams = hm ? [hm.fam] : MODELS[a.model].fams;
+      const p = pouchesOf(state, pid).find(q => !q.dump && q.room > 0 && (!q.fams || q.fams.some(f => fams.includes(f))));
       out.push(p ? `stowMag@${p.key}` : 'stowMag');
     } else out.push(x);
     c = stepAbs(c, x) ?? c;
@@ -392,7 +462,8 @@ function expand(state, pid, gunId, a, path) {
  * as if in the hands), look, purpose }.
  */
 export function planFor(state, pid, gunId, goal, { carry = null, look = true, purpose = PURPOSE_OF[goal] ?? null } = {}) {
-  const a = absOf(state, pid, gunId, { carry });
+  // (a tower goal reads the gun as if in the hands: the command's macro brings it up itself)
+  const a = absOf(state, pid, gunId, { carry: coldEnd(goal) ? 'hands' : carry });
   if (!a) return { goal, path: null, none: 'no gun', id: null, label: null, ms: 0, subs: null };
   const p = plan(a, goal, { look });
   if (!p.path) return { ...p, id: null, label: null, ms: 0, subs: null };
@@ -428,7 +499,7 @@ export function readyPath(state, pid, gunId) {
 
 /**
  * A gun's rows as if in the hands (the holstered P-12's, the sidearm's GUN ▸ rows): stepsOf's shape, [{ id, kind, label, ms, subs:
- * [{ id, label, ms }], purpose }]: Press check (the bolt home), Magazine check (a magazine in), Top up (a fuller one to hand), MAKE
+ * [{ id, label, ms }], purpose }]: Press check (the bolt home), Magazine check (a magazine in), Top up (kit.js topUpGains), MAKE
  * READY (a magazine believed with rounds in, the chamber empty, the bolt home).
  */
 export function gunRows(state, pid, gunId) {
@@ -440,7 +511,9 @@ export function gunRows(state, pid, gunId) {
   const out = [];
   if (!b.locked && !b.stoppage) out.push(row('pressCheck', 'single', 'Press check', ['pressCheck'], 'check'));
   if (b.mag === 'in') out.push(row('magCheck', 'single', 'Magazine check', ['magCheck'], 'check'));
-  if (b.mag === 'in' && !b.stoppage) {
+  // (Top up only where it can change the magazine in, kit.js topUpGains, the drills' own rule: the review of the hunt of v0.0.18
+  // found the P-12's row in the shoot house stowing the ten in and reaching it back, 3 s a press, offered for ever)
+  if (b.mag === 'in' && !b.stoppage && topUpGains(state, pid, gunId, b)) {
     const tp = planFor(state, pid, gunId, 'topup', { carry: 'hands' });
     if (tp.subs?.length) out.push(row('topup', 'command', RELOAD_LABELS.tactical, tp.subs, 'topup'));
   }

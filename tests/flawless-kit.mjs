@@ -163,7 +163,10 @@ export function kit2Rows(recs, shootRecs = []) {
 export const kitFailing = (rows) => rows.filter(r => (ENFORCED.has(r.id) || KIT_ENFORCED.has(r.id)) && !r.met).map(r => `${r.id} ${r.name}: ${r.value}`);
 
 /** The kit's fuzz, printed (see the header): [{ tier, seed, use, done, end, laneS, kitSteps, errors, left (burning), lying (live on the floor or a door), marked (charges left and made safe), bursts }]. */
-export function kitFuzz({ sheets = ['recruit', 'cpl', 'tierone'], seeds = [1, 2], uses = ['flash', 'breach'], maxMs = 12 * 60_000 } = {}) {
+// (15 min to the card, flawlessLane's: the lane may run to LANE_MAX_MS 600 s and the cold line after it (CEASE FIRE, up to the
+// stall's 60 s, SHOW CLEAR and the wash's 91 s) takes 105 to 170 s more; 12 min cut short a fuzz lane passed at 552.7 s, 1.1 s
+// before its card (the huntfix of v0.0.18's planner, round 2: the fuzz's picks reshuffled by the Top up rule))
+export function kitFuzz({ sheets = ['recruit', 'cpl', 'tierone'], seeds = [1, 2], uses = ['flash', 'breach'], maxMs = 15 * 60_000 } = {}) {
   const out = [];
   for (const use of uses) for (const tier of sheets) for (const seed of seeds) {
     const g = createGame({ scenario: 'test-shoothouse', seed: 48213 + seed, tier, setup: 'go', loadout: use });

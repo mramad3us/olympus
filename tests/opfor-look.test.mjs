@@ -43,7 +43,9 @@ export default [
     fn() {
       const g = house(), s = g.state, keys = s.actors.list.filter(a => s.people[a.who]?.kit).map(a => [a.who, gearKey(gearOf(s, a.who))]);
       for (const [who, k] of keys) { const gr = gearOf(s, who); assert(gr.mask === null && gr.hands === null && !/\|[mh]:/.test(k), `${who}: ${k}`); assert(JSON.stringify(Object.keys(gr)) === JSON.stringify(GEAR_KEYS), Object.keys(gr).join()); }
-      assert(JSON.stringify(GEAR_KEYS.slice(-2)) === '["mask","hands"]' && GEAR_KEYS.length === 12, GEAR_KEYS.join()); // (v0.0.18's ten, its fixer's 'devices' among them, and the two)
+      // (v0.0.18's ten, its fixer's 'devices' among them, and the two; v0.0.20 adds 'device' after them, the device in the hands:
+      // the hunt of v0.0.18's look-2)
+      assert(JSON.stringify(GEAR_KEYS.slice(10, 12)) === '["mask","hands"]' && GEAR_KEYS.length === 13 && GEAR_KEYS[12] === 'device', GEAR_KEYS.join());
       assert(Object.keys(standGear('threat', 'rifle')).join() === GEAR_KEYS.join(), 'a board\'s keys');
       const { who } = liveOn(g), k1 = gearKey(gearOf(s, who)), k0 = keys.find(x => x[0] === who)[1];
       assert(k1 === `${k0}|m:fof`, `${k1} vs ${k0}`);

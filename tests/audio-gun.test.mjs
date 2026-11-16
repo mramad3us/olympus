@@ -9,13 +9,13 @@
 // burst of open shots under full scale; the steps well under the shots, the Careful walk under the Fast; &sound=old the old
 // sound whole; and the engine on a stand-in AudioContext playing each sound's voices on its own graph. Every number printed.
 import { assert, near, fmt } from './helpers.mjs';
-import { renderDry, renderTail, protect, gunBakes, ownShot, otherShot, echoShot, spaceOf, loudDb, GUNS, SPACES, PROTECT, PROTECT_AT, OWN_DB, GUN_RATE_HZ, TAIL_RATE_HZ, TAIL_FAR_MIN_DB } from '../src/ui/audio/gun.js';
+import { renderDry, renderTail, protect, gunBakes, ownShot, otherShot, echoShot, spaceOf, loudDb, shotKey, GUNS, SPACES, PROTECT, PROTECT_AT, OWN_DB, GUN_RATE_HZ, TAIL_RATE_HZ, TAIL_FAR_MIN_DB } from '../src/ui/audio/gun.js';
 import { mixdown, master, levels, MASTER, MASTER_OLD, CLIP_LIMIT, makeupDb, clipCurve } from '../src/ui/audio/mix.js';
 import { render, measure } from '../src/ui/audio/synth.js';
 import { stepVoice, stepTrimDb, STEP_TRIM_DB, STANCE_STEP_DB } from '../src/ui/audio/steps.js';
 import { reportVoice, gunSpaceOf } from '../src/ui/audio/range.js';
 import { createAudio, soundModeOf } from '../src/ui/audio/engine.js';
-import { STEPS, RANGE, ROLLOFF } from '../src/data/sounds.js';
+import { STEPS, RANGE, ROLLOFF, SHOT_IDS, SHOT_CANDIDATES, shotFor } from '../src/data/sounds.js';
 import { createGame } from './game.mjs';
 import { playerActor, playerId } from '../src/core/ids.js';
 
@@ -257,6 +257,76 @@ export default [
       const ol = O.audio.stats.range.lastReport, oPlayed = O.ctx.started.slice(n0);
       console.log(`      old: ${O.frames} frames to bake; the shot ${JSON.stringify(ol)}, ${oPlayed.length} voice(s); a soft clip in its graph ${O.ctx.made.some(n => n.kind === 'shaper')}; its sound '${O.audio.sound}'`);
       assert(O.audio.sound === 'old' && ol.sound === undefined && Math.abs(ol.gainDb - -2.9) < 0.2 && !O.ctx.made.some(n => n.kind === 'shaper') && O.audio.stats.gunVoices === 0 && oPlayed.length >= 1, JSON.stringify({ ol, n: oPlayed.length }));
+    },
+  },
+  // ---- v0.0.20: the shot's candidates (the build sheet v0.0.20 item 2, §0 item 21) ----
+  {
+    name: 'your R-7 in the house through the suit is loud where the ear listens (the user, 2026-11-15: "guns should bang harder"): the house\'s shot (A3) has its loudest 50 ms at least -11.0 dBFS through the master, its loudest 10 ms at least -9.0, its peak at most -1.0 (v0.0.17\'s A1: -15.6, -12.1, -2.9); the P-12 about 2.9 dB under it; A0 to A4 printed',
+    fn() {
+      const loudest = (st, wS) => { const n = Math.round(wS * SR); let best = 0, s2 = 0; const e = (i) => (st.left[i] ** 2 + st.right[i] ** 2) / 2; for (let i = 0; i < st.left.length; i++) { s2 += e(i); if (i >= n) s2 -= e(i - n); if (i >= n - 1) best = Math.max(best, s2 / n); } return db(Math.sqrt(best)); };
+      const out = {};
+      for (const shot of SHOT_IDS) {
+        if (SHOT_CANDIDATES[shot].old) {
+          // (A0, &sound=old's report through the defenders and the old master: the range's own recipe)
+          const rep = reportVoice({ mine: true, ears: true, pKpa: HOUSE_AIR.pKpa, soundMs: HOUSE_AIR.soundMs, bermX: 1128, me: { x: 1100, z: 0 } });
+          const o = master(mixdown([{ samples: render(RANGE.report, { sampleRate: 24000, name: 'report', variant: 0 }), sampleRate: 24000, atS: 0.02, gainDb: rep.gainDb, lowHz: rep.lowpassHz, pan: 0 }], { durS: 1 }), MASTER_OLD);
+          out[shot] = { r7: { peak: levels(o).peakDb, w10: loudest(o, 0.01), w50: loudest(o, 0.05), w300: loudest(o, 0.3) } };
+          continue;
+        }
+        const G = {};
+        for (const b of gunBakes(shot)) { if (!/:(own:p|tail:room:p)$/.test(b.key)) continue; const it = b.steps(0, GUN_RATE_HZ, TAIL_RATE_HZ); let r; do r = it.next(); while (!r.done); G[b.key] = r.value; }
+        out[shot] = {};
+        for (const gun of ['r7', 'p12']) {
+          const vs = ownShot({ gun, space: 'room', prot: 'suit', pKpa: HOUSE_AIR.pKpa }).voices.map(x => { const sm = G[shotKey(x.key, shot)]; return { samples: sm, sampleRate: sm.left ? TAIL_RATE_HZ : GUN_RATE_HZ, atS: 0.02, gainDb: x.gainDb, lowHz: x.lowHz, pan: x.pan, rate: x.rate }; });
+          const m = master(mixdown(vs, { durS: 1 }), MASTER);
+          out[shot][gun] = { peak: levels(m).peakDb, w10: loudest(m, 0.01), w50: loudest(m, 0.05), w300: loudest(m, 0.3) };
+        }
+      }
+      for (const [shot, o] of Object.entries(out)) console.log(`      ${shot}${shot === shotFor('test-shoothouse') ? ' (the house\'s)' : shot === shotFor('test-handling') ? ' (elsewhere)' : ''}: ${Object.entries(o).map(([g, w]) => `${g} peak ${fmt(w.peak)}, 10 ms ${fmt(w.w10)}, 50 ms ${fmt(w.w50)}, 300 ms ${fmt(w.w300)} dBFS`).join('; ')}`);
+      const house = out[shotFor('test-shoothouse')], was = out.A1.r7;
+      assert(shotFor('test-shoothouse') === 'A3' && shotFor('test-shoothouse-live') === 'A3', 'the house plays A3');
+      assert(house.r7.w50 >= -11.0 && house.r7.w10 >= -9.0 && house.r7.peak <= -1.0, JSON.stringify({ house: house.r7, was }));
+      assert(was.w50 < -15 && was.peak <= -1.0, `A1 as built: ${JSON.stringify(was)}`);
+      const under = house.r7.w50 - house.p12.w50;
+      console.log(`      the P-12 under the R-7 over 50 ms: ${fmt(under)} dB (A1 ${fmt(out.A1.r7.w50 - out.A1.p12.w50)})`);
+      assert(under >= 2 && under <= 4, `the pistol ${under} dB under`);
+    },
+  },
+  {
+    name: 'outside the house the shot is A1, byte for byte (v0.0.17\'s, "Bang" scored 100 on it): every scene but the house\'s plays A1, and A1\'s 44 parts hash as v0.0.19\'s (FNV-1a over their float bytes, recorded from the snapshot\'s gun.js)',
+    fn() {
+      let h = 2166136261 >>> 0, n = 0;
+      const mixF = (f) => { const b = new Uint8Array(new Float32Array([f]).buffer); for (const x of b) { h ^= x; h = Math.imul(h, 16777619) >>> 0; } };
+      const keys = [];
+      for (const b of gunBakes('A1')) for (let v = 0; v < b.variants; v++) { const it = b.steps(v, GUN_RATE_HZ, TAIL_RATE_HZ); let r; do r = it.next(); while (!r.done); keys.push(b.key); for (const a of r.value.left ? [r.value.left, r.value.right] : [r.value]) for (const f of a) { mixF(f); n++; } }
+      const others = ['test-handling', 'test-range', 'test-pairs', 'test-stress', 'barracks'].map(id => `${id} ${shotFor(id)}`);
+      console.log(`      A1's parts: ${keys.length}, ${n} samples, digest ${h.toString(16)} (the snapshot's fbde03b6 over 1210560); the scenes: ${others.join(', ')}; gunBakes() is gunBakes('A1') ${gunBakes().map(b => b.key).join() === gunBakes('A1').map(b => b.key).join()}; A3's first keys ${gunBakes('A3').slice(0, 2).map(b => b.key).join(', ')}`);
+      assert(h.toString(16) === 'fbde03b6' && n === 1210560 && keys.length === 44, JSON.stringify({ h: h.toString(16), n, k: keys.length }));
+      assert(others.every(x => x.endsWith(' A1')) && gunBakes('A3').every(b => b.key.startsWith('A3/')) && gunBakes('A0').length === 0, JSON.stringify(others));
+    },
+  },
+  {
+    name: 'the shot chosen per scene (engine.js setShot): A3 asked bakes its parts in BAKE_FRAME_MS slices while A1 plays, then plays them; the To score page\'s A0 plays &sound=old\'s shot (the report at its old level); back to A1 at once',
+    fn() {
+      const N = engineOn('new');
+      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go' }); g.step(2);
+      const before = N.audio.shot;
+      N.audio.setShot('A3');
+      const during = N.audio.shot;
+      N.audio.fact('shot', shotFact(g.state), g.state);
+      const k1 = N.audio.stats.lastGun?.key;
+      let frames = 0, worst = 0;
+      while (N.audio.shot !== 'A3' && frames < 5000) { const t0 = performance.now(); N.audio.frame(null); worst = Math.max(worst, performance.now() - t0); frames++; }
+      N.ctx.currentTime += 1;
+      N.audio.fact('shot', { ...shotFact(g.state), id: 'b', atMs: g.state.clock.ms + 1000 }, g.state);
+      const k3 = N.audio.stats.lastGun?.key;
+      N.audio.setShot('A0'); N.ctx.currentTime += 1;
+      N.audio.fact('shot', { ...shotFact(g.state), id: 'c', atMs: g.state.clock.ms + 2000 }, g.state);
+      const old = N.audio.stats.rangeOld?.lastReport;
+      N.audio.setShot('A1'); const back = N.audio.shot;
+      console.log(`      playing ${before}; A3 asked: ${during} plays (${k1}) until its parts are whole, ${frames} frames (the longest ${fmt(worst, 1)} ms), then ${k3}; A0: ${JSON.stringify(old)}; back to ${back}`);
+      assert(before === 'A1' && during === 'A1' && k1 === 'r7:tail:room:p' && k3 === 'A3/r7:tail:room:p' && back === 'A1', JSON.stringify({ before, during, k1, k3, back }));
+      assert(old && old.sound === undefined && Math.abs(old.gainDb - -2.9) < 0.2, JSON.stringify(old));
     },
   },
 ];

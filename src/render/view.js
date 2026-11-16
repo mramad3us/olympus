@@ -188,7 +188,8 @@ import { LEAD_S } from './camera.js';
 import { PX_PER_M } from './scale.js';
 import { warmUp } from './warm.js';
 import { WALL_H_M, OUTER_T_M, CUT_H_M, wallsOf, wallRect } from './walls.js';
-import { createLighting } from './lighting.js';
+import { createLighting, muzzleLamps } from './lighting.js';
+import { lookPicked } from '../art/figures/helmets.js';
 import { createClocks } from './clocks.js';
 import { createMemory } from './memory.js';
 import { createChunks } from './chunks.js';
@@ -341,7 +342,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const THREE = stage.THREE;
   const figures = createFigures({ renderer: stage.renderer, ppm, painter, uploads });
   // (the rework's R8: the walk drawn from the locomotion record, gait-view.js; the cycle played, when not the game's: every look carries it)
-  const gaitView = createGaitView(), viewCycle = cycle && cycle !== CYCLE ? cycle : null;
+  const gaitView = createGaitView();
+  let viewCycle = cycle && cycle !== CYCLE ? cycle : null;
   const lighting = createLighting(stage), clocks = createClocks();
   const chunks = createChunks({ THREE, renderer: stage.renderer, painter, uploads, ppm });
   const splash = createSplash(stage), vignettes = createVignettes(stage, { ppm });
@@ -355,7 +357,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const din = createDin(stage, { ppm });
   stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group, bangs.group, devices.group, din.group);
   // (0.0.9: the chaos on the picture: the reading main.js gives (setChaos), the numbers shown (eased), the startle whose pale frame was drawn)
-  let chaosWant = null, chaosShown = null, paleDone = null, movingSig = '';
+  let chaosWant = null, chaosShown = null, paleDone = null, movingSig = '', reduceFlashes = false;
   // (the far window: its own camera, post, fog and chunks; drawn inside the stage's composite, before the blit)
   const far = createFar(stage, { createCamera, createPost, createFogMask, areaFromJob, reserveParts: reserveParts2, partsPerChunk: PARTS_PER_CHUNK, ensurePart, olyMaterial, isOly },
     { painter, uploads, ppm, chunksGroup: chunks.group, opticS: ARMS.OPTIC_S ?? 0.5 });
@@ -507,7 +509,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   // ---------- the people ----------
   const keys = new WeakMap();
   // (R8: a look with the page's walk cycle (&cycle=), one object a look, so the caches key on it; the game's cycle adds nothing)
-  const cycled = new WeakMap();
+  let cycled = new WeakMap();
   const cyc = (look) => { if (!viewCycle || !look || look.cycle === viewCycle) return look; let o = cycled.get(look); if (!o) cycled.set(look, (o = Object.freeze({ ...look, cycle: viewCycle }))); return o; };
   const keyOf0 = (look) => { if (!look) return 'look:{}'; let k = keys.get(look); if (!k) keys.set(look, (k = `look:${JSON.stringify(look)}`)); return k; };
   const keyOf = (look) => keyOf0(cyc(look));
@@ -536,6 +538,21 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   function figureOf(state, a, ms = state.clock.ms) {
     if (typeof FIGURE.figureOf === 'function') { const f = FIGURE.figureOf(state, a, ms); if (f) return f; }
     return { look: state.people?.[a.who]?.look ?? null, posture: a.posture ?? 'stand', y: a.y ?? 0, face: a.face ?? 'down', head: a.head ?? null, curtain: !!a.curtain, gait: a.gait, strideM: a.strideM ?? 0 };
+  }
+  // (the build sheet v0.0.20 items 10 and 22: your and your #2's looks in the house with the To score page's picks (state.$look, runtime only) and the
+  // game's own (helmets.js HELMET_DRAWN_AS, STACK_DRAWN_AS: none until the user picks): helmets.js lookPicked, one object a look and
+  // pick, so the caches key on it; any other look, or no pick and nothing drawn as, the look itself)
+  const pickedMemo = new WeakMap();
+  function picked(look, state, who) {
+    const H = state.armoury?.range?.house;
+    if (!look || !H || look.outfit !== 'combatSuit') return look;
+    const slot = who === state.player?.id ? 0 : who === H.twoPid ? 1 : -1;
+    if (slot < 0) return look;
+    const P = state.$look ?? null, k = `${slot}|${P?.stack?.join('+') ?? ''}|${P?.helm ?? ''}`;
+    let m = pickedMemo.get(look);
+    if (!m) pickedMemo.set(look, (m = new Map()));
+    if (!m.has(k)) { const o = lookPicked(look, slot, P); m.set(k, o === look ? look : Object.freeze(o)); }
+    return m.get(k);
   }
   // (a look with the body's cues it shows, and a woman's towel at the chest: one object per look and cue, so the caches key on it)
   const cued = new WeakMap();
@@ -855,7 +872,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       // splash's lapse keeps it, so a squadmate drawn as last seen stays so until looked at; the review
       // of v0.0.5's rack, seven jumping in the dressing splash's first frame)
       memory.begin(state, live.id, { skipping: !!state.skip && (!sp || (sp.form === 'full' && (sp.inkK ?? 0) >= 0.999)) });
-      const flashes = [];
+      const flashes = [], shots = [];
       let ownGun = null;
       // (0.0.12: the range's look on the range's ground, and in the shoot house, where the session's area is the live one)
       const rl = typeof ARMS.rangeLook === 'function' && (live.id === KD_RANGE.area || (state.armoury?.range?.course === 'house' && state.armoury.range.area === live.id)) ? ARMS.rangeLook(state, fxMs) : null;
@@ -872,7 +889,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         let stride = (fig.strideM ?? a.strideM ?? 0) - (jump || moving ? 0 : (1 - k) * step);
         if (stride < 0) stride += STRIDE_WRAP_M;
         const person = state.people?.[a.who] ?? null;
-        let look0 = lookWith(fig.look, fig, person?.sex);
+        let look0 = picked(lookWith(fig.look, fig, person?.sex), state, a.who);
         let face = fig.face ?? a.face ?? 'down', hidden = false;
         // (inside a fixture: in a shower stall, drawn in it facing its head (the steam before you); in any other, hidden behind it)
         const inside = fig.inside ? live.fixtures.get(fig.inside) ?? null : null;
@@ -910,10 +927,14 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         } else if (!free) gaitView.draw({ id: a.id, ms: fxMs, tickMs: ms, free: false, simFace: face });
         const rf = arms.gl && !walking0 ? rifleFrame(arms.gl, { face, x, z, ms: fxMs }) : null;
         if (arms.gl?.flash > 0 && arms.gl.muzzle) flashes.push({ x: arms.gl.muzzle.x, z: arms.gl.muzzle.z, k: arms.gl.flash });
+        // (the build sheet v0.0.20 item 16: a shot's light on the room, in the house: the muzzle and the shot's game time, for lighting.js muzzleLamps)
+        if (arms.gl?.muzzle && Number.isFinite(arms.gl.shotMs)) shots.push({ x: arms.gl.muzzle.x, z: arms.gl.muzzle.z, shotMs: arms.gl.shotMs });
         if (own && arms.gl) { ownGun = arms.gl; }
         // (your own look changed by a cue (wet hair, the tired walk): the worker paints it while the last one is drawn)
         if (own) look0 = ownLookOf(look0);
         const { look, key } = lookOf(look0, a.who);
+        // (your #2's look's key as drawn, for the To score page's test: a pick lands on his figure)
+        if (a.who === state.armoury?.range?.house?.twoPid) stats.twoLook = key;
         const gait = stairsOf(a, x, z) ?? (walking0 ? stanceGait(GAIT[g0] ?? 'idle', stanceOf(a)) : GAIT[g0] ?? 'idle');
         const p = { key, look: look ?? {}, x, z, face, gait, stride, tS, phase: hash01('phase', a.id) * 2, own, id: a.id, dx: a.x - px, dz: a.z - pz, fig: fig.frame ?? null };
         if (arms.twin && !own) p.twin = lookOf(arms.twin, `${a.who}:twin`).key;
@@ -1048,7 +1069,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         for (const t of HSv.stands) if (t && !standsSeen.keys.has(t.key) && eye && inSight(t.x, t.z)) standsSeen.keys.add(t.key);
         rl.house = { ...HSv, stands: HSv.stands.filter(t => t && standsSeen.keys.has(t.key)) };
       }
-      stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views }) : (rangeLayer.update(null), null);
+      // (the jamb's mark as the To score page picks it, state.$look.jamb ('m1' a chalk X, 'm2' a chemlight; B's range-items.js jambMarks' kind))
+      stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views, jamb: state.$look?.jamb ?? null }) : (rangeLayer.update(null), null);
       // (0.0.9: the bangs on the pad, at the moment drawn; a flash's light pool among the moving lamps)
       // (0.0.10: the stress course's bangs, the same layer; its din, the din layer)
       // (0.0.18: the shoot house's grenades and bursts, the same layer: render/devices.js)
@@ -1061,6 +1083,10 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const dv = devices.update(rl?.house?.kit ?? null, { ms: fxMs, tintOf: tintAt, views, wind: info.wind ?? null, sessionKey: `${state.meta?.seed ?? ''}|${state.armoury?.range?.house?.goAtMs ?? ''}|${live.id}` });
       stats.devices = dv.pixels ? { bodies: dv.bodies, levers: dv.levers, charges: dv.charges, tube: dv.tube, holes: dv.holes, reads: dv.reads, readPx: dv.readPx, puff: dv.puff, pop: dv.pop, pixels: dv.pixels, writes: dv.writes } : null;
       moving.push(...dv.lamps);
+      // (the build sheet v0.0.20 item 16: each shot in the house a lamp at its muzzle for MUZZLE_LAMP_MS of game time, first in the slots; none under reduce flashes)
+      const ml = rl?.house ? muzzleLamps(shots, fxMs, { reduced: reduceFlashes }) : [];
+      moving.unshift(...ml);
+      stats.muzzle = ml.length ? { lamps: ml.length, at: ml.map(l => [Math.round(l.x * 100) / 100, Math.round(l.z * 100) / 100]) } : null;
       const sig = moving.map(l => `${l.kind}:${l.x},${l.z}`).join('|');
       if (sig !== movingSig) { movingSig = sig; stage.lights.setLamps(moving); }
       // (blood on the ground, and the wounds' marks on the figures drawn)
@@ -1209,6 +1235,12 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
      * "reduce flashes" setting), face (the player's facing), burst ({ x, z }: the last bang's) }, or null; made into the post
      * pass's numbers by chaos.js chaosOf and eased here (chaosFrame).
      */
+    /** Where a world point (m) is drawn on the stage's picture (its pixels: { x, y, W, H }): the tests' reader (the muzzle's lamp). */
+    screenOf(x, y, z) { const [px, py] = stage.cam.project(x, y, z); return { x: px, y: py, W: stage.W, H: stage.H }; },
+    /** The walk cycle drawn from now (the To score page's Walk row, live; the game's, B, adds nothing to a look). */
+    setCycle(c) { const v = c && c !== CYCLE ? c : null; if (v !== viewCycle) { viewCycle = v; cycled = new WeakMap(); } },
+    /** VIEWS §12's "reduce flashes" (the muzzle's lamp is not lit under it): main.js's setting. */
+    setFlashes(reduced) { reduceFlashes = !!reduced; },
     setChaos(r = null) { chaosWant = r?.sn ? { ...chaosOf(r.sn, { ms: r.ms ?? null, reduce: !!r.reduce, face: r.face ?? 'right', burst: r.burst ?? null }), reduce: !!r.reduce } : null; },
     /**
      * The far window's point each frame (main.js, from the ballistics role's farPointOf placed by the hud's placeFar), or

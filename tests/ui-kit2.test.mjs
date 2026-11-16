@@ -1,14 +1,16 @@
 // OLYMPUS tests: the kit's second slice in the page (the build sheet 0.0.19 §6 K-face, kit2 §6 test 39; src/ui/cards/loadout.js, src/render/devices.js), heavy: a browser.
 //
 // The loadout screen at 1024 × 768 with D2's issue (the G-9P, the G-13P, the BC-1) and its eight presets: no two of its controls
-// meet and every one is inside the window (the no-overlap rule; the sheet's §4 item 5: PRESET_ORDER grew), 5 is Frag, the row
-// "Your #2: P-12 ⇄ none" turns `~two:p12` on and off, and the picker says "Kit: Frag, #2 P-12 ▸". The devices layer on the
+// meet and every one is inside the window (the no-overlap rule; the sheet's §4 item 5: PRESET_ORDER grew), 5 is Frag, the line
+// "Your #2: P-12, issued as yours" a line and not a control (v0.0.20: his P-12 standard issue, the user's answer of 2026-11-16,
+// "#2 has to have a sidearm"; v0.0.19's row "Your #2: P-12 ⇄ none" turned it on and off), and the picker says "Kit: Frag ▸". The devices layer on the
 // stage: a G-9P thrown into room 1, its burst and the instructor's read drawn on the frames, the overlay coming in and going out
 // over its 200 ms, 2 s and 400 ms, nothing written while the clock stands; a BC-1 on room 2's hinges with its tube. And the frag
 // lane from the picker to the card, the read's overlay fading in and out (K-sim's lane: tests/bots/kit.mjs houseKitBot({ use:
 // 'frag' })). No page errors, console errors or failed requests. Fails without the screen's rows, the layer or the view's wiring.
 import { assert } from './helpers.mjs';
 import { withGame } from './browser.mjs';
+import { TWO_P12_DEFAULT } from '../src/sim/arms/loadout.js';
 
 const overlaps = (a, b) => a.x < b.x + b.w - 0.5 && b.x < a.x + a.w - 0.5 && a.y < b.y + b.h - 0.5 && b.y < a.y + a.h - 0.5;
 // (the picker's Kit ▸ opened from the title's Tests menu)
@@ -30,7 +32,7 @@ const sampleOverlay = (page, n) => page.evaluate(async (n) => {
 
 export default [
   {
-    name: 'the loadout screen at 1024 × 768 with D2\'s issue and presets (the build sheet 0.0.19 §4 item 5): the G-9P, the G-13P and the BC-1 in the issue, eight presets, no two controls meeting and all inside the window; 5 is Frag; "Your #2: P-12 ⇄ none" turns ~two:p12 on and off and the picker says "Kit: Frag, #2 P-12 ▸"; no page errors',
+    name: 'the loadout screen at 1024 × 768 with D2\'s issue and presets (the build sheet 0.0.19 §4 item 5): the G-9P, the G-13P and the BC-1 in the issue, eight presets, no two controls meeting and all inside the window; 5 is Frag; "Your #2: P-12, issued as yours" a line, not a control (v0.0.20), inside the window and meeting nothing, and the picker says "Kit: Frag ▸" with the plain code; no page errors',
     heavy: true,
     timeoutMs: 300_000,
     async fn() {
@@ -41,29 +43,23 @@ export default [
         const sheet = () => page.evaluate(() => {
           const s = document.querySelector('#title .sheet.loadout'), bs = [...s.querySelectorAll('button')].filter(b => b.offsetParent !== null);
           const rect = (b) => { const r = b.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
-          return { code: s.dataset.code, issues: [...s.querySelectorAll('button.issue')].map(b => `${b.dataset.issue}: ${b.innerText.replace(/\s+/g, ' ')}`), presets: [...s.querySelectorAll('button.preset')].map(b => b.innerText.replace(/\s+/g, ' ')), two: s.querySelector('button.two')?.innerText.replace(/\s+/g, ' ') ?? null, twoOn: s.querySelector('button.two')?.dataset.two ?? null,
-            rects: [...bs.map(b => ({ name: b.dataset.issue ?? b.dataset.preset ?? (b.dataset.face ? `${b.dataset.face}${b.dataset.i}` : b.className), ...rect(b) })), ...['.mass', '.code', '.why'].map(q => s.querySelector(q)).filter(e => e && e.getBoundingClientRect().height).map(e => ({ name: e.className, ...rect(e) }))], win: { w: innerWidth, h: innerHeight } };
+          return { code: s.dataset.code, issues: [...s.querySelectorAll('button.issue')].map(b => `${b.dataset.issue}: ${b.innerText.replace(/\s+/g, ' ')}`), presets: [...s.querySelectorAll('button.preset')].map(b => b.innerText.replace(/\s+/g, ' ')), two: s.querySelector('.two')?.innerText.replace(/\s+/g, ' ') ?? null, twoTag: s.querySelector('.two')?.tagName ?? null, twoButtons: s.querySelectorAll('button.two').length,
+            rects: [...bs.map(b => ({ name: b.dataset.issue ?? b.dataset.preset ?? (b.dataset.face ? `${b.dataset.face}${b.dataset.i}` : b.className), ...rect(b) })), ...['.mass', '.code', '.why', 'p.two'].map(q => s.querySelector(q)).filter(e => e && e.getBoundingClientRect().height).map(e => ({ name: e.className, ...rect(e) }))], win: { w: innerWidth, h: innerHeight } };
         });
         const a = await sheet();
         const out = a.rects.filter(r => r.x < 0 || r.y < 0 || r.x + r.w > a.win.w + 1 || r.y + r.h > a.win.h + 1).map(r => r.name), clash = [];
         for (let i = 0; i < a.rects.length; i++) for (let j = i + 1; j < a.rects.length; j++) if (overlaps(a.rects[i], a.rects[j])) clash.push(`${a.rects[i].name} × ${a.rects[j].name}`);
         rows.push(`1024 × 768: ${a.rects.length} controls, outside ${out.length ? out.join(', ') : 'none'}, meeting ${clash.length ? clash.join(', ') : 'none'}; the issue ${a.issues.join(' | ')}; the presets ${a.presets.join(' · ')}; '${a.two}'`);
-        assert(['g9p', 'g13p', 'bc1+fd1'].every(p => a.issues.some(x => x.startsWith(`${p}:`))) && a.presets.length === 8 && !out.length && !clash.length && a.two === 'Your #2: P-12 ⇄ none' && a.twoOn === 'none', JSON.stringify({ out, clash, issues: a.issues, presets: a.presets, two: a.two }));
-        // (5 the Frag preset; the #2's row on, then the picker's word; off again)
+        assert(['g9p', 'g13p', 'bc1+fd1'].every(p => a.issues.some(x => x.startsWith(`${p}:`))) && a.presets.length === 8 && !out.length && !clash.length && a.two === 'Your #2: P-12, issued as yours' && a.twoTag === 'P' && a.twoButtons === 0, JSON.stringify({ out, clash, issues: a.issues, presets: a.presets, two: a.two, tag: a.twoTag }));
+        // (5 the Frag preset, then the picker's word: the plain code, his P-12 in it)
         await page.focus('#title .sheet.loadout .item.kitup');
         await page.keyboard.press('Digit5');
         const frag = (await sheet()).code;
-        await page.click('#title .sheet.loadout button.two');
-        const on = await sheet();
         await page.click('#title .sheet.loadout .item.kitup');
         await page.waitForSelector('#title .item.kitpick');
         const pick = await page.evaluate(() => ({ text: document.querySelector('#title .item.kitpick').textContent, code: document.querySelector('#title .item.kitpick').dataset.code }));
-        await page.click('#title .item.kitpick');
-        await page.waitForSelector('#title .sheet.loadout');
-        await page.click('#title .sheet.loadout button.two');
-        const off = await sheet();
-        rows.push(`5: ${frag}; the #2's row: ${on.code} ('${on.two}', ${on.twoOn}); the picker '${pick.text.trim()}' (${pick.code}); off again: ${off.code}`);
-        assert(frag === 'frag' && on.code === 'frag~two:p12' && on.twoOn === 'p12' && pick.code === 'frag~two:p12' && /Kit: Frag, #2 P-12 ▸/.test(pick.text) && off.code === 'frag', JSON.stringify(rows));
+        rows.push(`5: ${frag}; the picker '${pick.text.trim()}' (${pick.code})`);
+        assert(frag === 'frag' && pick.code === 'frag' && /Kit: Frag ▸/.test(pick.text) && !/#2/.test(pick.text), JSON.stringify(rows));
         for (const r of rows) console.log(`      ${r}`);
         assert(!errors.length, errors.join(' | '));
       }, { port });
@@ -171,7 +167,7 @@ export default [
   },
   // (the review of v0.0.19's K, finding 5: eight presets made Kit up 21 ArrowDowns from the left face, past ui-loadout's walk of 20)
   {
-    name: 'the presets\' row is one stop for the arrows: from the last issue one ArrowDown reaches the row, one more the #2\'s row and one more Kit up; ArrowRight and ArrowLeft move along the eight; ArrowUp from the row goes back to the issue (the review of v0.0.19\'s K: Kit up 21 ArrowDowns away)',
+    name: 'the presets\' row is one stop for the arrows: from the last issue one ArrowDown reaches the row and one more Kit up (v0.0.20: the #2\'s P-12 a line, no longer a stop between them); ArrowRight and ArrowLeft move along the eight; ArrowUp from Kit up goes back to the row and from the row to the issue (the review of v0.0.19\'s K: Kit up 21 ArrowDowns away)',
     heavy: true,
     timeoutMs: 300_000,
     async fn() {
@@ -183,7 +179,7 @@ export default [
         const last = await page.evaluate(() => [...document.querySelectorAll('#title .sheet.loadout button.issue')].at(-1).dataset.issue);
         await page.focus(`#title .sheet.loadout button.issue[data-issue="${last}"]`);
         const walk = [];
-        for (const k of ['ArrowDown', 'ArrowRight', 'ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowDown', 'ArrowUp', 'ArrowUp', 'ArrowUp']) { await page.keyboard.press(k); walk.push(`${k.replace('Arrow', '')} ${await focus()}`); }
+        for (const k of ['ArrowDown', 'ArrowRight', 'ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'ArrowUp']) { await page.keyboard.press(k); walk.push(`${k.replace('Arrow', '')} ${await focus()}`); }
         // (and from the left face to Kit up, ui-loadout's walk)
         await page.focus('#title .sheet.loadout button.place[data-face="left"][data-i="0"]');
         let downs = 0;
@@ -191,7 +187,7 @@ export default [
         rows.push(`from issue:${last}: ${walk.join(' → ')}; left0 to Kit up ${downs} ArrowDowns`);
         for (const r of rows) console.log(`      ${r}`);
         const w = walk.map(x => x.split(' ')[1]);
-        assert(w.join() === `preset:standard,preset:flash,preset:breach,preset:flash,two,kitup,two,preset:mixed,issue:${last}` && downs <= 15, JSON.stringify(rows));
+        assert(w.join() === `preset:standard,preset:flash,preset:breach,preset:flash,kitup,preset:mixed,issue:${last}` && downs <= 15, JSON.stringify(rows));
         assert(!errors.length, errors.join(' | '));
       }, { port });
     },

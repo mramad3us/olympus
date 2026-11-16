@@ -58,12 +58,16 @@ const REMEDY = Object.freeze([
 export function remedyOf(steps = [], off) {
   const r = REMEDY.find(([re]) => re.test(String(off ?? '')));
   if (!r) return null;
-  // (v0.0.18: the planner's step first, the one stepsOf marked fix (shooting.js markFix); the table for a list made by hand)
+  // (v0.0.18: the planner's step first, the one stepsOf marked fix (shooting.js markFix); the table for a list made by hand.
+  // v0.0.20: in the shoot house before GO and after Stop that row carries its reason, the tower's command (remedyWhy: "the tower:
+  // LOAD"), the build sheet's item 6)
   const planned = (steps ?? []).find(st => st.fix && !st.off);
   if (planned) return planned;
   for (const id of r[1]) { const x = (steps ?? []).find(st => st.id === id && !st.off); if (x) return x; }
   return null;
 }
+/** The reason a Fix row was chosen, where it has one ("the tower: LOAD" in the shoot house before GO and after Stop), else null. */
+export const remedyWhy = (row) => row?.fixFor ?? null;
 /**
  * The panel's order (0.0.8): the shot rows struck by their gates folded into one row after the offered ones, and the single
  * that lifts a struck row's strike (remedyOf: "off safe first", Off safe; from the fix of 2026-11-07 a stoppage's IMMEDIATE

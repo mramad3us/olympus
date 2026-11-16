@@ -50,7 +50,8 @@ export default [
       const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'tierone', setup: 'room:2', opfor: 'live:fight,fight' }), st = g.state, R = st.armoury.range, T = R.turners.find(t => t.stand === '2a'), now = st.clock.ms;
       for (const x of R.turners) if (x.turnAtMs !== null) x.turnAtMs -= 5000;
       const c = (st.mind.contact ??= {}); c.last = { id: 'il-c', ids: [T.key], ident: { [T.key]: 'rifle' }, armour: {}, seenMs: now - 400, atMs: now - 100, ms: 300, expect: 'sector', n: 1 }; (c.known ??= {})[T.key] = now - 400;
-      for (const i of [1, 2]) houseShot(st, null, { id: `il-${i}`, fired: true, who: st.player.id, target: T.key, zone: 'A', part: 'torso', atMs: now });
+      // (down by a round in his head the would-have rates fatal (v0.0.20, combat/would.js: two torso rounds through his soft panel leave him up 87% of the time))
+      houseShot(st, null, { id: 'il-1', fired: true, who: st.player.id, target: T.key, zone: 'head', part: 'head', atMs: now });
       st.stop.pick = T.key;
       delete st.$instinct; g.step(1);
       const line = instinctNow(st).line, row = line?.act ? stepsOf(st).find(x => x.id === line.act.replace(/^stop:/, '')) : null;

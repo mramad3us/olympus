@@ -1,0 +1,11 @@
+{
+ "title": "The room's mark on its jamb: M1 a chalk X, M2 a chemlight, made by the last man out",
+ "about": "v0.0.20 (the build sheet's item 12; question 7): leaving a room, the last man out marks it on the latch-side jamb, 0.3 m outward of the door's plane and 1.5 m up, from his hand's stroke on (nothing pops in): your #2 as he passes the door, you where he went out first. Two looks, drawn by the game's own code (src/render/range-items.js jambMarks) at 16 px/m: M1 a chalk X, lit by the light where it is, as chalk is; M2 a chemlight taped to the jamb, which glows through the fog. Each seen from the hall, face on, with a marine's head height dotted for scale, lit and in the dark. The game draws M1 until you pick.",
+ "pixel": true,
+ "groups": [
+  { "id": "M1", "title": "M1: a chalk X", "about": "Five pixels across, chalk white; dims in the dark with the wall.", "query": "k=m1",
+    "views": [ { "id": "M1-a", "name": "Lit: the hall's lamps", "query": "set=lit", "pixel": "48x42" }, { "id": "M1-b", "name": "In the dark: the fog of awareness", "query": "set=dark", "pixel": "48x42" } ] },
+  { "id": "M2", "title": "M2: a chemlight", "about": "A green stick four pixels long taped to the jamb, drawn as light: it glows through the fog.", "query": "k=m2",
+    "views": [ { "id": "M2-a", "name": "Lit: the hall's lamps", "query": "set=lit", "pixel": "48x42" }, { "id": "M2-b", "name": "In the dark: the fog of awareness", "query": "set=dark", "pixel": "48x42" } ] }
+ ]
+}

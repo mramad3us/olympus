@@ -122,6 +122,7 @@ import { move, sparesOf, dumpOf, pouchFor, ownerOf, holderOf, believedN, believe
 import { CALIBRES, loadOf } from './calibres.js';
 import { ndOf, SLUNG } from './carry.js';
 import { surfaceAt } from '../places/model.js';
+import { handsFullWhy } from './devices.js';
 import { ISSUE_FINISH, isFinish, finishId } from '../../data/finishes.js';
 
 // ---- constants (WEAPONS §4.3, §5.1, §5.4, §5.5; the build sheet's §4) ----
@@ -194,6 +195,8 @@ export const REFUSALS = Object.freeze({
   safety: 'The trigger won\'t move: it\'s on safe.', empty: 'Click.', dud: 'Click.', jammed: 'The trigger\'s dead.',
   broken: 'Nothing: it wants the armourer.', open: 'Nothing: the bolt is back.', dead: 'The trigger\'s dead: the hammer is down.',
 });
+/** A refused pull's words on a model (REFUSALS, the slide where it is a pistol's: partOf), or undefined. */
+export const refusalOf = (why, M) => (why === 'open' ? `Nothing: the ${partOf(M)} is back.` : REFUSALS[why]);
 
 const R = Object.freeze(['rushed']), C = Object.freeze(['careful']), N = Object.freeze([]);
 const A = (label, s, dc, o = {}) => Object.freeze({ label, s, dc, thumb: false, long: true, tempo: N, frame: null, ...o });
@@ -514,6 +517,8 @@ function feelIn(mag) {
 const FEEL_SAID = Object.freeze({ none: 'It feels empty.', few: 'Light: a few rounds in it.', half: 'About half full, by the weight.', most: 'Heavy: nearly full.', full: 'Full, by the weight.' });
 const placeWord = (from) => (from === 'ground' ? 'Off the ground' : from === 'rule' ? null : `From ${PLACE_WORDS[from] ?? from}`);
 const capital = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+/** The part that runs on a model, in the words the holder hears: a pistol's 'slide', a long gun's 'bolt' (the hunt of v0.0.18). */
+export const partOf = (M) => (M?.kind === 'pistol' ? 'slide' : 'bolt');
 const roundsWord = (n) => (n === 0 ? 'empty' : n === 1 ? 'one round' : `${n} rounds`);
 
 /**
@@ -533,6 +538,9 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
   const out = { ms: 0, ok: true, grade: 'pass', routine: false, roll: null, mishap: null, fired: null, text: '', ejected: null, ejects: [], magId: gun.mag ?? null, magOut: null, magIn: null, posture: null, finger: null, halts: false, silent: false, refused: false };
   const refuse = (text) => ({ ...out, ok: false, refused: true, halts: true, text });
   const B = beliefRec(gun), t = (k) => gunField(gun, k);
+  // (the part that runs: a pistol's slide, a rifle's bolt (the hunt of v0.0.18: the P-12's J said "The bolt goes home." under a
+  // panel that says "Slide release"); the rifle's words kept to the byte)
+  const part = partOf(M);
   // (what can't be tried at all: the hand finds nothing to do it with)
   if (action === 'magIn' && gun.mag) return refuse('There\'s a magazine in.');
   if (action === 'magIn' && !ctx.spares?.length) return refuse('No magazine to put in.');
@@ -544,10 +552,14 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
   if ((key === 'stowMag' || key === 'dumpMag') && !ctx.to) return refuse(key === 'dumpMag' ? 'The dump pouch is full.' : 'No room in that pouch.');
   if (action.startsWith('magOut:') && !gun.mag) return refuse('There\'s no magazine in it.');
   if (action === 'magCheck' && !gun.mag) return refuse('There\'s no magazine in it.');
-  if (action === 'inspect' && !t('locked')) return refuse('The bolt is closed: lock it back to look in.');
-  if (action === 'pressCheck' && t('locked')) return refuse('The bolt is back: look in instead.');
+  // (a refusal of the hands is felt: a press check on a slide or bolt held back finds it back, a look in finds it closed, so the
+  // belief learns which, and the planner's next way is the look in or the lock back, never the same refused press for ever (the
+  // hunt of v0.0.18: an ND fired the P-12's last round, its slide locked back believed closed, and Fix named Press check, refused
+  // with the clock still, for ever))
+  if (action === 'inspect' && !t('locked')) { delete B.locked; return refuse(`The ${part} is closed: lock it back to look in.`); }
+  if (action === 'pressCheck' && t('locked')) { B.locked = true; return refuse(`The ${part} is back: look in instead.`); }
   if (action === 'show' && !ctx.observer) return refuse('Nobody to show it to.');
-  if (action === 'show' && !t('locked')) return refuse('The bolt is closed: lock it back to show it.');
+  if (action === 'show' && !t('locked')) { delete B.locked; return refuse(`The ${part} is closed: lock it back to show it.`); }
   // (the R-7's lever won't turn to safe with the hammer down: felt at once, so no roll and no fumble's time; the
   // runtime review: it rolled, spent 372 ms and halted with nothing on screen to say why)
   if (action === 'selector:safe' && M.safeNeedsCocked && !t('cocked')) return { ...refuse('The lever won\'t go to safe: the hammer is down. Charge it first.'), blocked: true };
@@ -630,9 +642,9 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
     else if (t('locked')) {
       delete B.stoppage; B.locked = true; B.chamber = seen(gun);
       out.found = B.chamber !== 'empty';
-      out.text = B.chamber === 'live' ? 'The bolt is back, and there\'s a round in the chamber.' : B.chamber === 'dud' ? 'The bolt is back on an orange dummy.' : gun.mag ? 'The bolt is locked back on an empty magazine.' : 'The bolt is locked back, the chamber empty.';
+      out.text = B.chamber === 'live' ? `The ${part} is back, and there's a round in the chamber.` : B.chamber === 'dud' ? `The ${part} is back on an orange dummy.` : gun.mag ? `The ${part} is locked back on an empty magazine.` : `The ${part} is locked back, the chamber empty.`;
     }
-    else { if (st) B.stoppage = 'click'; out.text = st ? 'The bolt is home. A dud, or nothing in it: a press check would tell.' : 'The bolt is home.'; }
+    else { if (st) B.stoppage = 'click'; out.text = st ? `The ${part} is home. A dud, or nothing in it: a press check would tell.` : `The ${part} is home.`; }
     return out;
   }
 
@@ -648,7 +660,13 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
         out.fired = pull(rng, gun, mag, { model: M, wh });
         out.text = 'Your finger is inside the trigger guard, and it goes off.';
         out.halts = true;
-        B.chamber = '?';
+        // (the shot felt as any pull is (feel(): the count down one, the last round's slide or bolt locked back on the empty), then
+        // the chamber left a question, the holder too shaken to know it fed (the hunt of v0.0.18: only the chamber went '?', so the
+        // P-12's count stayed one too many for good, and a last round's locked slide was believed closed))
+        const f = feel(B, out.fired, { wh });
+        for (const k of Object.keys(B)) if (!(k in f)) delete B[k];
+        Object.assign(B, f);
+        if (!(out.fired.fired && out.fired.empty)) B.chamber = '?';
         return out;
       }
       if (MAG_ACTIONS.has(key)) {
@@ -731,7 +749,7 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
       } else { delete B.locked; B.chamber = 'empty'; }
       out.text = was === 'dud' || (was === 'live' && out.ejected === 'dummy') ? (t('chamber') ? 'The dud out, and one in.' : 'The dud out, and nothing comes up after it.')
         : was === 'case' ? (t('chamber') ? 'The case out: it\'s clear, and there\'s one in.' : 'The case out, and nothing comes up after it.')
-        : t('chamber') ? (was === 'live' ? 'A round flies out; another goes in.' : 'One in the chamber.') : t('locked') ? 'The bolt locks back on an empty magazine.' : 'It closes on nothing.';
+        : t('chamber') ? (was === 'live' ? 'A round flies out; another goes in.' : 'One in the chamber.') : t('locked') ? `The ${part} locks back on an empty magazine.` : 'It closes on nothing.';
       break;
     }
     case 'release': {
@@ -747,7 +765,7 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
       else if (gun.mag && before.count !== 0) { B.chamber = 'live'; if (typeof B.count === 'number' && !was) B.count = Math.max(0, B.count - 1); }
       else if (!gun.mag && (before.chamber === 'live' || before.chamber === '?')) B.chamber = before.chamber;
       else B.chamber = 'empty';
-      out.text = !wasLocked ? 'The bolt is already home.' : t('chamber') === 'live' && !was ? 'It slams home on a fresh round.' : 'The bolt goes home.';
+      out.text = !wasLocked ? `The ${part} is already home.` : t('chamber') === 'live' && !was ? 'It slams home on a fresh round.' : `The ${part} goes home.`;
       break;
     }
     case 'lockBack': {
@@ -760,7 +778,7 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
       // stoppage stays, seen (the code review's: the belief said clean while the truth kept the jam))
       if (t('jam') === 'double') B.stoppage = 'double';
       else delete B.stoppage;
-      out.text = t('jam') === 'double' ? 'The bolt locked back on the loose round: strip the magazine.' : out.ejected === 'round' ? 'The bolt locked back, the round out.' : 'The bolt locked back.';
+      out.text = t('jam') === 'double' ? `The ${part} locked back on the loose round: strip the magazine.` : out.ejected === 'round' ? `The ${part} locked back, the round out.` : `The ${part} locked back.`;
       break;
     }
     case 'magOut:drop': case 'magOut:dump': case 'magOut:pouch': case 'magOut:strip':
@@ -923,7 +941,7 @@ export function said(b) {
   const mag = b.mag === 'out' ? 'no magazine' : b.mag === '?' ? 'a magazine, maybe' : b.count === null ? 'a magazine in, its count unknown' : b.count === 0 ? 'an empty magazine' : `${b.countApprox ? 'about ' : ''}${b.count} in the magazine`;
   const stop = { double: ', a double feed', click: ', it clicked', dead: ', the trigger\'s dead', felt: ', it didn\'t cycle', case: ', a stovepipe' }[b.stoppage] ?? '';
   const mode = b.mode === 'safe' ? ', on safe' : b.mode === '?' ? '' : `, on ${b.mode}`;
-  return `${b.short}: ${ch}, ${mag}${b.locked ? ', the bolt locked back' : ''}${stop}${mode}${b.condWord !== 'fine' ? `, and it ${b.condWord}` : ''}.`;
+  return `${b.short}: ${ch}, ${mag}${b.locked ? `, the ${partOf(modelOf(b.model))} locked back` : ''}${stop}${mode}${b.condWord !== 'fine' ? `, and it ${b.condWord}` : ''}.`;
 }
 
 /**
@@ -1011,6 +1029,8 @@ const atFeet = (state, pid, gunId) => {
  * rng (the stream's name, 'main' by default) }. Returns act()'s result with
  * { nd, observed } and the roll's log seq.
  */
+/** What a long gun out of its sling still takes with a device in a hand: the finger off, Sling it, the hang. */
+export const HANDS_FULL_OK = Object.freeze(new Set(['finger', 'stow', 'hang']));
 export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pressure = 'evaluated', observerId = null, bay = null, force = null, mods = null, deferSay = false, log = true, rng = 'main' } = {}) {
   const gun = state.items?.[gunId], kit = state.people?.[pid]?.kit;
   const refuse = (text) => ({ ms: 0, ok: false, refused: true, halts: true, text, roll: null, mishap: null, nd: null, grade: null, routine: false, ejected: null, ejects: [], magId: gun?.mag ?? null });
@@ -1020,6 +1040,13 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
   // (the pistol is drawn from its holster with the rifle hanging: the carry's posture is the rifle's until the draw ends)
   if (SLUNG.has(posture) && action !== 'up' && action !== 'finger' && action !== 'draw:thigh') return refuse(`${M.short} is slung.`);
   if (!SLUNG.has(posture) && action === 'up') return refuse(`${M.short} is up already.`);
+  // (the hunt of v0.0.18: never up, nor the pistol drawn, with a device in a hand (devices.js handsFullWhy): an armed G-11
+  // went to the low ready in the strong hand and stayed there through four legs, and the halligan with it)
+  // (the play review: nor anything on a long gun out of its sling but the finger and the sling itself (Sling it, the
+  // hang): an armed G-11 in the hand with the rifle at high ready (a v0.0.19 save, tests/topup-crash.json.gz) took RELOAD, LOAD and
+  // a reach to the end, the magazine seated beside the live grenade)
+  const full = (action === 'up' || action === 'draw:thigh' || (isLong(M) && !HANDS_FULL_OK.has(action))) ? handsFullWhy(state, pid) : null;
+  if (full) return refuse(`${full.charAt(0).toUpperCase()}${full.slice(1)}.`);
   const ms = state.clock.ms, roller = rollerOf(state, pid, { ms });
   const observer = observerId ? rollerOf(state, observerId, { ms }) : null;
   const mag = gun.mag ? state.items[gun.mag] : null, key = actionKey(action), place = actionPlace(action), load = meantLoad(state);

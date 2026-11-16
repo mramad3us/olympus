@@ -835,6 +835,8 @@ On Europa, Callisto and Ganymede the run is a two-footed bound. Direction change
 - **The flight scales by the square root of g.** The take-off speed was fixed (0.9 m/s for the run), so Mars's run flew 0.49 s and rose 10.9 cm. `LOPE_VZ_MS` and `RUN_VZ_MS` are now the 1 G speeds and `src/core/phys.js` `takeoffVzMs(vz1gMs, gMs2)` scales them by sqrt(g / g0): a runner in low gravity pushes off less hard. The apex is 4.1 cm in every gravity and the flight 0.18 s at 1 G, 0.30 s on Mars, 0.50 s on Europa; 1 G (the shoot house) is unchanged. The view's lift (`gait-view.js`) reads the same function.
 
 
+**As built in v0.0.20 (§16.8, the give-way).** "A walk held by a body: at PIN_GIVE_MS 400 ms your #2, idle, steps off it (never off a task of yours); a body that stays is walked round (route.js routed's bodies: a disc of BODY_GAP_M + 0.02 m, the walls' grid); held PIN_END_MS 2 s in all, handed back. His walk held by you standing outside a doorway TWO_PIN_MS 1.5 s is routed round you; a carry 'aside' with no way round is dropped. A startle's frozen ticks are no hold." The close of F17 and F46 (my call, v0.0.20): a walk of yours held by a body counts as standing for his rule, so where each of you holds the other his way round (or his walk ended where he stands, then his step off yours) comes at TWO_PIN_MS rather than after your PIN_END_MS (`bundle.js` `heldStill`); a hold with nothing of his walks left to hold is closed on his record (`gapSettle`); and a leg the stall passes halts his walk to its stack where he stands, the next leg's stack planned from there (`twoLegOver`, from `shoothouse.js` `endLeg`).
+
 ## 17. Wounds, bleeding, pain, shock, consciousness
 
 ### 17.1 Ported from tradecraft's `health.js`, as is
@@ -843,6 +845,8 @@ Six parts with capacities head 6, torso 12, arms 8, legs 9 points, ×(1 + Fitnes
 Changes:
 1. A non-artery limb wound bleeds at most 8 %/min (tradecraft's uncapped `1 + 8·force` could out-bleed an artery).
 2. The player is knocked down by bullets as NPCs are (my call; tradecraft exempted the player). When the knock ends and the body can stand, getting up is the player's choice.
+
+**The live lane's would-have** (v0.0.20, `combat/would.js`; COMBAT §25.18.7) calls `applyHit` on a scratch body (bus null, never `people[pid].body`) with `penetrate.js` `bodyHit`'s record, and judges it fatal by `downOf(rec, ms, { knock: false })`, the body as if the knock had passed (the knock follows every round and hid shock and the pain's floor), or by the blood at a walk crossing the collapse within 120 s. An arm already met before a worn carrier (`hit.armDrawn`) is not drawn again in `applyHit` (its die still spent, at 0). `rec.injuries` is made before the skull's and the chest's reads (a round too weak to cut threw there).
 3. **The lethal triad**: core under 35 °C multiplies every bleed rate ×1.25 (×1.5 under 33 °C): cold blood does not clot. This is why MARCH ends with H.
 4. Blood in low g and free fall bleeds at the same rates; VIEWS.md and PLACES.md handle the spatter and floating globules.
 

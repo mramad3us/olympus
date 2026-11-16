@@ -24,7 +24,8 @@
 // know what we know", the user's rule).
 //   N1  fix-live      dry on the lane (the rifle on its sling too: Up is a live row): Fix names a live row (not "Nothing to
 //                     fix", not a struck eye), unless no round of the gun's family is left anywhere (gun, hands, pouches, feet) and
-//                     the panel says so (the struck eye, "nothing offered now"); "already so" over a dry gun is never honest.
+//                     the panel says so (the struck eye, "nothing offered now", or the planner's own reason "no rounds", which the
+//                     core shows whatever Fire is struck for from the huntfix of v0.0.18); "already so" over a dry gun is never honest.
 //   N2  t-offered     T's act names a row offered and not struck (a 'stop:' act at a pause; a 'stop:reflex:' answer at a
 //                     stoppage's card); a row the panel does not list counts when T pressed on a copy does something.
 //   N3  shot-dry      on the lane, the DI never names a shot (shotLine: the contact's shot variants, "Still up.", the
@@ -250,7 +251,7 @@ export function checkPause(game, { recover = true, seen = null, scratch = scratc
   const guard = (inv, fn) => { try { fn(); } catch (e) { const m = thrown(e); add('N8', `a press on a copy threw (${inv}): ${m.replace(/\d+/g, 'n').slice(0, 120)}`, { err: m.slice(0, 300), under: inv }); } };
   // N1: dry on the lane (slung too): Fix names a live row, or says honestly that nothing is left
   if (on && dry && !P.fixRow) {
-    const honest = ctx.left === 0 && P.fix?.row?.off === 'nothing offered now';
+    const honest = ctx.left === 0 && (P.fix?.row?.off === 'nothing offered now' || P.fix?.row?.off === 'no rounds');
     if (!honest) add('N1', P.fix?.row?.off === 'already so' ? `Nothing to fix over a ${dry === 'slung' ? 'rifle on its sling' : 'dry gun'}` : `Fix struck (${P.fix?.row?.off ?? 'none'}) with ${ctx.left} rounds left`);
   }
   // N2: T's act names a row offered and not struck

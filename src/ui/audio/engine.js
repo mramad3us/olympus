@@ -75,6 +75,23 @@
 //   'old'  v0.0.15's sound as it was, to hear the difference (the report recipe, the steps at their old level, MASTER_OLD).
 // gun(voice) plays one of gun.js's voices ({ key, delayS, gainDb, lowHz, pan, rate }): range.js and stress.js ask for them.
 //
+// The 0.0.20 round's shot (the build sheet v0.0.20 item 2, §0 item 21): the new sound's shot is one of src/data/sounds.js
+// SHOT_CANDIDATES, chosen per scene, not once: setShot(id) (main.js at each scene's start: the URL's &shot, else the To score
+// pick, else A3 in the house's scenes (SHOT_SCENES), else A1; and the To score row live). A1's parts are baked at prepare as
+// v0.0.17's were; another candidate's are baked under its own keys (gun.js gunBakes(id)) in the same BAKE_FRAME_MS slices
+// when it is first asked, and the shot playing stays the one before until the new one's every part is whole (no silence, no
+// hitch). A0 is &sound=old's report: the shot facts go to a second range presenter made without the gun handle (range.js's old
+// path), everything else as before. stats.shot is the candidate playing, stats.shotWant the one asked.
+//
+// And the house speaks (the build sheet v0.0.20 item 7): house.js asks voice(text, { voice, register, set, atS, gainDb, lowHz,
+// pan }) for a line said at atS on the audio clock (its speaker's queue is house.js's). A line is voice.js's render, baked
+// once per set, speaker, register and text: the fixed lines (house.js fixedLines: the tower's PA lines, the team's calls) at the
+// first key in BAKE_FRAME_MS slices after the sounds; any other line when it is first said, ahead of every other bake, at most
+// one begun a frame (a long one goes on over the frames after), and played when whole, at its time or at once if its time has
+// passed (stats.voices.late). The instructor, the #2 and a role-player on the world bus (the hall's reverb answers them); your
+// own voice on the voice bus, dry, in your helmet. setVoice(set) (the To score page's Voice row; createAudio's voice, &voice=)
+// changes the set: 'a' is v0.0.19's stand-ins, no voice baked.
+//
 // stats: { state (the context's, or 'none'), started, baked (every sound rendered), steps, doors,
 // dropped (past VOICES_MAX), late (foot-falls too late to play), voices, voicesMax, volume, muted,
 // master (the master gain's target), sampleRate, last, prepareMs (the context's making, at boot),
@@ -93,9 +110,12 @@ import { createRange } from './range.js';
 import { createBang } from './bang.js';
 import { createBlast, BLAST_RECIPES } from './blast.js';
 import { createStress } from './stress.js';
-import { createHouse } from './house.js';
+import { createHouse, fixedLines } from './house.js';
+import { lineGen } from './voice.js';
+import { VOICE_SET, VOICE_DEFAULT, VOICE_RATE_HZ } from '../../data/voices.js';
 import { createMarking } from './marking.js';
-import { gunBakes, GUN_RATE_HZ, TAIL_RATE_HZ } from './gun.js';
+import { gunBakes, shotKey, GUN_RATE_HZ, TAIL_RATE_HZ } from './gun.js';
+import { SHOT_CANDIDATES, SHOT_DEFAULT } from '../../data/sounds.js';
 import { MASTER, MASTER_OLD, makeupDb, clipCurve, CLIP_PRE } from './mix.js';
 import { readParams } from '../../core/debug.js';
 
@@ -137,8 +157,11 @@ function hallBuffer(ctx) {
   return b;
 }
 
-export function createAudio({ profile = null, looks = {}, sound = null, AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext } = {}) {
+export function createAudio({ profile = null, looks = {}, sound = null, shot = null, voice = null, AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext } = {}) {
   const mode = sound === 'old' || sound === 'new' ? sound : soundModeOf();
+  // (0.0.20: the shot asked and the one playing (see the header); the parts each candidate still lacks, by id)
+  let shotWant = SHOT_CANDIDATES[shot] ? shot : SHOT_DEFAULT, shotPlay = SHOT_DEFAULT;
+  const shotLeft = new Map();
   let gunBus = null, trim = null, clipper = null;
   let ctx = null, master = null, world = null, limiter = null, worldLp = null, duckGain = null, uiBus = null, hallIn = null, hallConv = null;
   let chaosLp = null, chaosGain = null, bodyBus = null, earBus = null, voiceBus = null, chaosSig = '';
@@ -148,7 +171,8 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
   let duckSig = '';
   const steps = createStepScheduler();
   let voices = 0;
-  const stats = { sound: mode, guns: 0, gunVoices: 0, lastGun: null, state: 'none', started: false, baked: false, steps: 0, doors: 0, dropped: 0, late: 0, voices: 0, voicesMax: 0, volume, muted, master: 0, sampleRate: 0, last: null, prepareMs: null, startMs: null, startedAt: null };
+  let voiceSet = VOICE_SET[voice] ? voice : VOICE_DEFAULT;
+  const stats = { voice: { set: voiceSet, baked: 0, cached: 0, played: 0, late: 0, waiting: 0, bakeMs: 0 }, sound: mode, shot: mode === 'old' ? 'old' : shotPlay, shotWant: mode === 'old' ? 'old' : shotWant, guns: 0, gunVoices: 0, lastGun: null, state: 'none', started: false, baked: false, steps: 0, doors: 0, dropped: 0, late: 0, voices: 0, voicesMax: 0, volume, muted, master: 0, sampleRate: 0, last: null, prepareMs: null, startMs: null, startedAt: null };
   const perfNow = () => globalThis.performance?.now?.() ?? 0;
 
   const gainOf = () => (muted ? 0 : volume * volume);
@@ -166,13 +190,27 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
   let baking = null;
   function bakeSome() {
     const t0 = perfNow();
+    // (0.0.20: a line said is baked first, one begun a frame at most)
+    let begun = 0;
+    while ((voiceBaking || voiceQueue.length) && perfNow() - t0 < BAKE_FRAME_MS) {
+      if (!voiceBaking) { if (begun++) break; const e = voiceQueue.shift(); voiceBaking = { ...e, it: lineGen(e.text, { voice: e.voice, register: e.register, set: e.set, sampleRate: Math.min(ctx.sampleRate, VOICE_RATE_HZ) }), t: 0 }; }
+      const t1 = perfNow(), r = voiceBaking.it.next();
+      stats.voice.bakeMs += perfNow() - t1;
+      if (!r.done) continue;
+      const sr = Math.min(ctx.sampleRate, VOICE_RATE_HZ), b = ctx.createBuffer(1, Math.max(1, r.value.length), sr);
+      b.copyToChannel(r.value, 0);
+      voiceBufs.set(voiceBaking.key, b); stats.voice.baked++; trimVoices();
+      for (const at of voiceWaiting.get(voiceBaking.key) ?? []) playVoice(b, at);
+      voiceWaiting.delete(voiceBaking.key); stats.voice.waiting = voiceWaiting.size;
+      voiceBaking = null;
+    }
     while ((baking || toBake.length) && perfNow() - t0 < BAKE_FRAME_MS) {
       if (!baking) {
         const e = toBake.shift();
         if (e.gun) {
           // (0.0.16: a gun's part, gun.js's generator: the dry at GUN_RATE_HZ, a tail { left, right } at TAIL_RATE_HZ)
           const sr = Math.min(ctx.sampleRate, GUN_RATE_HZ), tr = Math.min(ctx.sampleRate, TAIL_RATE_HZ);
-          baking = { into: buffers.gun, kind: e.gun.key, sr, tr, it: e.gun.steps(e.v, sr, tr) };
+          baking = { into: buffers.gun, kind: e.gun.key, sr, tr, it: e.gun.steps(e.v, sr, tr), shot: e.shot ?? null };
         } else {
           const [into, kind, recipe, v] = e, sr = recipe.rateHz ? Math.min(ctx.sampleRate, recipe.rateHz) : ctx.sampleRate;
           baking = { into, kind, sr, it: renderSteps(recipe, { sampleRate: sr, name: kind, variant: v }) };
@@ -183,9 +221,12 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
       const st = r.value?.left ? r.value : null, b = st ? ctx.createBuffer(2, st.left.length, baking.tr) : ctx.createBuffer(1, r.value.length, baking.sr);
       if (st) { b.copyToChannel(st.left, 0); b.copyToChannel(st.right, 1); } else b.copyToChannel(r.value, 0);
       (baking.into[baking.kind] ??= []).push(b);
+      // (0.0.20: a candidate's last part whole: it plays from now if it is the one asked)
+      if (baking.shot && shotLeft.has(baking.shot)) { const left = shotLeft.get(baking.shot) - 1; shotLeft.set(baking.shot, left); if (!left && shotWant === baking.shot) setPlaying(baking.shot); }
       baking = null;
     }
     stats.baked = !toBake.length && !baking;
+    stats.voice.queued = voiceQueue.length;
   }
 
   /** The context and the graph made, suspended until start(): at boot, behind the title (see the header). Safe to call again. */
@@ -226,7 +267,8 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
         gunBus = ctx.createGain(); gunBus.connect(worldLp);
       }
       for (const [table, into] of [[STEPS, buffers.step], [DOORS, buffers.door]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
-      if (mode !== 'old') for (const g of gunBakes()) for (let v = 0; v < g.variants; v++) toBake.push({ gun: g, v });
+      if (mode !== 'old') { queueShot('A1'); if (shotWant !== 'A1') queueShot(shotWant); }
+      queueFixedVoices();
       for (const [table, into] of [[WORLD, buffers.world], [RANGE, buffers.range], [CHAOS, buffers.chaos], [BLAST_RECIPES, buffers.chaos], [STRESS, buffers.stress], [HOUSE, buffers.house]]) for (const [kind, recipe] of Object.entries(table)) for (let v = 0; v < (recipe.variants ?? 1); v++) toBake.push([into, kind, recipe, v]);
       applyMaster();
       stats.sampleRate = ctx.sampleRate; stats.prepareMs = perfNow() - t0;
@@ -339,9 +381,85 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
   };
   const worldSounds = createWorld(worldOps);
   stats.world = worldSounds.stats;
+  // ---- 0.0.20: the shot's candidates (see the header) ----
+  function setPlaying(id) { shotPlay = id; stats.shot = id; }
+  // (a candidate's parts put on the bake list once; A0 has none: it is the old report)
+  function queueShot(id) {
+    if (shotLeft.has(id)) return;
+    const list = gunBakes(id);
+    let n = 0;
+    for (const g of list) for (let v = 0; v < g.variants; v++) { toBake.push({ gun: g, v, shot: id }); n++; }
+    shotLeft.set(id, n);
+    if (!n) { if (shotWant === id) setPlaying(id); }
+  }
+  /** The shot candidate a scene plays from now (src/data/sounds.js SHOT_CANDIDATES; an unknown id is the default's): the one before plays until its parts are whole. */
+  function setShot(id) {
+    if (mode === 'old') return 'old';
+    shotWant = SHOT_CANDIDATES[id] ? id : SHOT_DEFAULT; stats.shotWant = shotWant;
+    if (!ctx) return shotWant;                                       // (prepare() queues it)
+    if (!shotLeft.has(shotWant)) queueShot(shotWant);
+    if (shotLeft.get(shotWant) === 0) setPlaying(shotWant);
+    return shotWant;
+  }
+  // ---- 0.0.20: the house's voices (see the header) ----
+  const voiceBufs = new Map(), voiceWaiting = new Map(), voiceQueue = [], voiceFixed = new Set(), voiceFixedKeys = new Set();
+  let voiceBaking = null;
+  const voiceKey = (text, o) => `${o.set}|${o.voice}|${o.register}|${text}`;
+  /** VOICE_CACHE lines kept past the fixed ones (the oldest dropped first: a Map keeps its order; the fixed never: v0.0.20's fixer). */
+  const VOICE_CACHE = 160;
+  // (past VOICE_CACHE unfixed lines the oldest unfixed one goes; a fixed line (the PA's, the team's calls) is kept for the session:
+  // v0.0.20's fixer, the code review: the trim deleted in insertion order, the fixed lines first, at 280 lines, not the 160 said)
+  function trimVoices() {
+    let n = 0;
+    for (const k of voiceBufs.keys()) if (!voiceFixedKeys.has(k)) n++;
+    for (const k of [...voiceBufs.keys()]) { if (n <= VOICE_CACHE) break; if (voiceFixedKeys.has(k)) continue; voiceBufs.delete(k); n--; }
+    stats.voice.cached = voiceBufs.size; stats.voice.fixed = voiceBufs.size - n;
+  }
+  function playVoice(b, { atS, gainDb, lowHz, pan, own }) {
+    const now = ctx.currentTime, late = atS < now - 0.02;
+    if (late) stats.voice.late++;
+    const ok = play(b, { atS: Math.max(now, atS), gainDb, lowHz: lowHz ?? WORLD_OPEN_HZ, pan: own ? 0 : pan ?? 0, bus: own ? voiceBus : world });
+    if (ok) stats.voice.played++;
+    return ok;
+  }
+  function wantVoice(text, o, front = true) {
+    const key = voiceKey(text, o);
+    if (voiceBufs.has(key) || voiceWaiting.has(key) || voiceBaking?.key === key) return key;
+    voiceWaiting.set(key, []);
+    const e = { key, text, voice: o.voice, register: o.register, set: o.set };
+    if (front) voiceQueue.unshift(e); else voiceQueue.push(e);
+    return key;
+  }
+  function queueFixedVoices() {
+    if (!VOICE_SET[voiceSet]?.words || voiceFixed.has(voiceSet)) return;
+    voiceFixed.add(voiceSet);
+    for (const L of fixedLines()) voiceFixedKeys.add(wantVoice(L.text, { ...L, set: voiceSet }, false));
+  }
+  /** A line said (house.js): played at atS on the audio clock once baked (see the header); false off the context or with V-a. */
+  function voiceLine(text, { voice: who = 'pa', register = 'plain', set = voiceSet, atS = 0, gainDb = 0, lowHz = WORLD_OPEN_HZ, pan = 0 } = {}) {
+    if (!running() || !VOICE_SET[set]?.words || !Number.isFinite(gainDb)) return false;
+    const o = { voice: who, register, set }, key = wantVoice(text, o), at = { atS, gainDb, lowHz, pan, own: who === 'me' };
+    const b = voiceBufs.get(key);
+    if (b) {
+      // (a line said again goes to the back of the cache's order; past VOICE_CACHE the oldest unfixed one goes)
+      voiceBufs.delete(key); voiceBufs.set(key, b);
+      return playVoice(b, at);
+    }
+    voiceWaiting.get(key)?.push(at); stats.voice.waiting = voiceWaiting.size;
+    return true;
+  }
+  /** The voice set from now (voices.js VOICE_SETS: the To score page's row); its fixed lines baked. */
+  function setVoice(id) {
+    voiceSet = VOICE_SET[id] ? id : VOICE_DEFAULT; stats.voice.set = voiceSet;
+    houseSounds.setVoice(voiceSet);
+    if (ctx) queueFixedVoices();
+    return voiceSet;
+  }
   // ---- 0.0.16: a gun's voice (gun.js's { key, delayS, gainDb, lowHz, pan, rate }) on the gun bus, now or delayS later ----
-  function gunVoice(v) {
-    if (!running() || !gunBus || !v) return false;
+  function gunVoice(v0) {
+    if (!running() || !gunBus || !v0) return false;
+    // (0.0.20: the candidate playing's part, A1's (as built) where it has none)
+    const alt = shotPlay !== 'A1' && shotPlay !== 'A0' ? shotKey(v0.key, shotPlay) : null, v = alt && buffers.gun[alt]?.length ? { ...v0, key: alt } : v0;
     const set = buffers.gun[v.key];
     if (!set?.length || !Number.isFinite(v.gainDb)) return false;
     const n = (stats.gunVoices = stats.gunVoices + 1);
@@ -443,6 +561,9 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
       const n = (stats.houseShots = (stats.houseShots ?? 0) + 1);
       return play(set[hashInt(set.length, 'house', kind, n)], { atS: ctx.currentTime + Math.max(0, delayS), gainDb, lowHz, pan, rate });
     },
+    // (0.0.20: a line said, and the audio clock the speakers' queues run on)
+    voice: (text, o) => voiceLine(text, o),
+    now: () => (ctx ? ctx.currentTime : 0),
     hall(on) {
       stats.hallOn = !!on;
       if (!ctx || !hallIn) return;
@@ -450,7 +571,7 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
       hallIn.gain.setTargetAtTime(want, ctx.currentTime, 0.05);
     },
   };
-  const houseSounds = createHouse(houseOps);
+  const houseSounds = createHouse(houseOps, { voice: voiceSet });
   stats.house = houseSounds.stats;
   // (v0.0.19: a marking round's strike on a body, the slap, on the house's 'paint' fact: marking.js)
   const markingSounds = createMarking(rangeOps);
@@ -458,17 +579,22 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
   // (the voices' limit counts on the audio clock, where the reports will sound)
   const rangeSounds = createRange(rangeOps, { looks, clock: () => (ctx ? ctx.currentTime : 0), gun: gunHandle });
   stats.range = rangeSounds.stats;
+  // (0.0.20: A0, &sound=old's report, through a range presenter without the gun handle: the shot facts alone go to it)
+  const rangeOld = gunHandle ? createRange(rangeOps, { looks, clock: () => (ctx ? ctx.currentTime : 0), gun: null }) : null;
+  stats.rangeOld = rangeOld?.stats ?? null;
 
   let lastState = null;
   /** A frame: the foot-falls the player's walk has reached, played where the drawn feet fall; the world's sounds; the splash's muffle. */
   function frame(state, alpha = 0, nowS = 0, { splash = null, chaos = null, breathing = false } = {}) {
-    if (toBake.length || baking) bakeSome();
+    // (and a line said once the sounds are all baked: v0.0.20's fixer, a line not among the fixed ones waited for ever once toBake
+    // was empty, since only this call bakes)
+    if (toBake.length || baking || voiceBaking || voiceQueue.length) bakeSome();
     // (0.0.9: the chaos's mix by the reading now; nothing of it in a splash (the splash's muffle has the world))
     // (0.0.10: Breathe's box breath in place of the band's quick one while it runs)
     if (running()) { try { bangSounds.frame(state, splash ? null : chaos, { breathing: !splash && breathing }); } catch (e) { stats.bangError = String(e?.message ?? e); } }
     if (running()) { try { stressSounds.frame(state, { breathing: !splash && breathing }); } catch (e) { stats.stressError = String(e?.message ?? e); } }
     if (running()) { try { worldSounds.frame(state, { splash, nowS }); } catch (e) { stats.worldError = String(e?.message ?? e); } }
-    if (running() && !splash) { try { rangeSounds.frame(state, { alpha }); } catch (e) { stats.rangeError = String(e?.message ?? e); } }
+    if (running() && !splash) { try { rangeSounds.frame(state, { alpha }); rangeOld?.frame(state, { alpha }); } catch (e) { stats.rangeError = String(e?.message ?? e); } }
     if (running()) { try { houseSounds.frame(splash ? null : state); } catch (e) { stats.houseError = String(e?.message ?? e); } }
     // (0.0.19: the kit's small sounds off the house's devices: the pin, the lever, the floor, the shock tube (blast.js frame))
     if (running()) { try { blastSounds.frame(splash ? null : state); } catch (e) { stats.blastError = String(e?.message ?? e); } }
@@ -534,6 +660,8 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
       if (type === 'fx') return (payload?.kind === 'horn' || payload?.kind === 'blank' ? stressSounds.fact(type, payload, state) : blastSounds.ours(type, payload, state) ? blastSounds.fact(type, payload, state) : bangSounds.fact(type, payload, state)) || w;
       // (0.0.19: a breach round's strike at the leaf beside the R-7's own report, which stays the range's)
       const bs = type === 'shot' && blastSounds.ours(type, payload, state) ? blastSounds.fact(type, payload, state) : false;
+      // (0.0.20: A0's shot through the old report)
+      if (type === 'shot' && shotPlay === 'A0' && rangeOld) return rangeOld.fact(type, payload, state) || bs || w;
       return rangeSounds.fact(type, payload, state) || bs || w;
     },
     /** The deafness's caption once a deafness ('[a high whine]'), else null (0.0.9). */
@@ -546,6 +674,13 @@ export function createAudio({ profile = null, looks = {}, sound = null, AudioCon
     get house() { return houseSounds; },
     /** The sound this engine plays: 'new' or 'old' (&sound=old, v0.0.16). */
     get sound() { return mode; },
+    setShot, setVoice,
+    /** A line said on the house's voice (house.js's way, for the tests: v0.0.20's fixer). */
+    voiceLine,
+    /** The voice set playing (0.0.20). */
+    get voiceSet() { return voiceSet; },
+    /** The shot candidate playing ('old' with &sound=old) (0.0.20). */
+    get shot() { return mode === 'old' ? 'old' : shotPlay; },
     /** The master volume, 0 to 1. */
     setVolume(v) { volume = clamp01(v); applyMaster(); },
     /** Mute, or not. */

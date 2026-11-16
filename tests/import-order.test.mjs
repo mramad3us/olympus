@@ -4,8 +4,8 @@
 // house-two.js ask combat/team.js whose a man is; plan.js would import devplan.js (K's). A cycle of function references is
 // safe, but a top-level read of a binding across it is a TDZ error whichever module loads first, and in the game it would be
 // the order the page happens to load them in that decides. So each is imported first, alone, in its own process: house-two.js,
-// devplan.js (K's, once it lands: until then a skip with a note), shoothouse.js, plan.js, team.js and the game itself. Each
-// prints its exports' count and its load time.
+// devplan.js, shoothouse.js, plan.js, team.js, bundle.js and combat/breach.js (the review of v0.0.19's) and the game itself; from v0.0.20 (its build sheet §2 stage 0, §9 item 7) the
+// tower's, the voice's and the marks' one helper core/speech.js, and C's house-debrief.js. Each prints its exports' count and its load time.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -23,9 +23,11 @@ export const FIRST = Object.freeze([
   'src/sim/combat/bundle.js',
   'src/sim/combat/breach.js',
   'src/sim/game.js',
+  'src/core/speech.js',
+  'src/sim/scenarios/house-debrief.js',
 ]);
-// (K's module, not built before its merge: a skip with a note, never a pass that tested nothing)
-const LATER = Object.freeze({ 'src/sim/arms/devplan.js': 'K-sim\'s (the build sheet v0.0.19 §3.1)' });
+// (a role's module, not built before its merge: a skip with a note, never a pass that tested nothing; none since v0.0.20's C landed)
+const LATER = Object.freeze({});
 
 // (one module imported first in a fresh process: { ok, n, ms } or { ok: false, err })
 function importFirst(rel) {
@@ -39,7 +41,7 @@ function importFirst(rel) {
 
 export default [
   {
-    name: 'each of house-two.js, devplan.js, shoothouse.js, plan.js, team.js, bundle.js, combat/breach.js and game.js imported first in a fresh node process loads without a throw: no top-level read of a binding across the house\'s cycles (the build sheet v0.0.19 §0 item 12)',
+    name: 'each of house-two.js, devplan.js, shoothouse.js, plan.js, team.js, bundle.js, combat/breach.js, game.js, speech.js and house-debrief.js imported first in a fresh node process loads without a throw: no top-level read of a binding across the house\'s cycles (the build sheet v0.0.19 §0 item 12, v0.0.20 §9 item 7)',
     timeoutMs: 120_000,
     fn() {
       const bad = [];

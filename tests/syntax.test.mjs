@@ -187,6 +187,8 @@ const THREE = /\bfrom\s*['"]three(\/[^'"]*)?['"]|\bimport\s*\(\s*['"]three(\/[^'
 // import one, so the sim stays pure through its imports too. Moving them out of src/core (to the
 // screens' side) and off this list is the lead's call.
 const BROWSER_EDGE = new Set(['src/core/store.js', 'src/core/input.js']);
+// (v0.0.20: the debrief's trace, R.house.$trace: written once by shoothouse.js traceTick, read by house-debrief.js alone)
+const TRACE_HOME = Object.freeze({ reader: 'src/sim/scenarios/house-debrief.js', writer: 'src/sim/scenarios/shoothouse.js' });
 // What a module imports by path (static, dynamic, bare side-effect imports), found in its code (not
 // its comments) and read back from the source at the same place, as paths from the root.
 const importsOf = (file) => importsIn(readFileSync(file, 'utf8'), file);
@@ -636,6 +638,17 @@ export default [
       console.log(`      ${files.length} modules, ${files.map(rel).filter(SCENE_FILLS).length} of them fills or newGame; the probe ${probe.map(p => `${p.got}/${p.want}`).join(', ')}`);
       assert(probe.every(p => p.got === p.want), JSON.stringify(probe));
       assert(!table.length && !clock.length && !sites.length, [...table, ...clock, ...sites].join('\n'));
+    },
+  },
+  {
+    name: 'rules: the debrief\'s trace has one reader (the build sheet v0.0.20 §1 item 26, TRACE_HOME): no module in src names R.house.$trace but src/sim/scenarios/house-debrief.js, which reads it, and shoothouse.js, whose traceTick alone writes it (once)',
+    fn() {
+      const hits = [];
+      for (const f of srcFiles()) { const code = codeOnly(readFileSync(f, 'utf8')), n = [...code.matchAll(/\$trace\b/g)].length; if (n) hits.push([rel(f), n]); }
+      const bad = hits.filter(([f, n]) => !(f === TRACE_HOME.reader || (f === TRACE_HOME.writer && n === 1)));
+      const probe = [...codeOnly('a.$trace; b.$traced; // $trace\nc[\'$trace\']').matchAll(/\$trace\b/g)].length;
+      console.log(`      $trace named in ${hits.map(([f, n]) => `${f} (${n})`).join(', ') || 'no module'}; the probe ${probe}/1`);
+      assert(probe === 1 && !bad.length && hits.some(([f]) => f === TRACE_HOME.reader), JSON.stringify({ bad, hits, probe }));
     },
   },
 ];

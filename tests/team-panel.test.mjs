@@ -22,7 +22,8 @@ export default [
       assert(words[1] === 'Cover me' && words[2] === '#2, bang it' && words[3] === 'Breacher up' && words[4] === 'As you were' && words[5] === null && words[6] === 'Challenge' && /^Engage/.test(words[7]) && words[8] === null && words[9] === null, JSON.stringify(words));
       assert(/^drill:team:bang>/.test(T[2]?.row?.id ?? '') && !T[2].row.off && /^drill:team:breach@pry>/.test(T[3]?.row?.id ?? '') && !T[3].row.off, JSON.stringify({ 2: at(2), 3: at(3) }));
       assert(Object.values(keys).every(k => k && k.length), JSON.stringify(keys));
-      assert(JSON.stringify(SITUATIONS.door.five) === JSON.stringify([['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 4], ['DRILL', 7]]) && JSON.stringify(SITUATIONS.stoppage.five) === JSON.stringify([['GUN', 2], ['GUN', 3], ['GUN', 4], { id: 'macro:remedial', words: 'REMEDIAL' }, ['TEAM', 1]]), 'the fives unchanged');
+      // (v0.0.20, the build sheet's item 5: AT THE DOOR's five is P3 as drawn on every lane, Breach (DRILL 5) on 5)
+      assert(JSON.stringify(SITUATIONS.door.five) === JSON.stringify([['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 4], ['DRILL', 5]]) && JSON.stringify(SITUATIONS.stoppage.five) === JSON.stringify([['GUN', 2], ['GUN', 3], ['GUN', 4], { id: 'macro:remedial', words: 'REMEDIAL' }, ['TEAM', 1]]), 'the fives unchanged');
     },
   },
 ];

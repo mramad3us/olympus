@@ -1,4 +1,4 @@
-// OLYMPUS cards: the Esc menu, on dark glass (VIEWS §8.9): carry on, the save files, the report, the sound, the title.
+// OLYMPUS cards: the Esc menu, on dark glass (VIEWS §8.9): carry on, the save files, the report, the sound, the title; v0.0.20's To score.
 //
 // Its numbered lines answer the digits (by code: AZERTY's top row types & é " ' without Shift):
 // 1 Resume, 2 Save to a file, 3 Load a save file, 4 Report a problem, 5 Quit to the title, 6 Sound on
@@ -8,12 +8,22 @@
 // (cb.volume(v), cb.mute(on)), which sets the audio and keeps them in the saved profile (store.js
 // updateProfile: { …profile, audio: { volume, muted } }, read and written in one transaction), so they
 // hold across a reload. Every choice
-// goes back through cb; the card changes nothing itself.
+// goes back through cb; the card changes nothing itself. v0.0.20 (the build sheet v0.0.20 item 10): main.js adds its own lines before
+// the last one through setMenuExtras ("To score", the waiting samples tried live: cards/topick.js; its rows hold the corner aid's
+// setting too), so the menu's ten lines stay ten in a scene and boot.js's list is left as it is.
+
+// (the lines main.js adds before the menu's last ("To score", the build sheet v0.0.20 item 10), asked each time the menu opens)
+let extraActs = null;
+/** The acts main.js adds to the menu, before its last line: fn() → [[text, fn, keyName]…] ("To score"). */
+export function setMenuExtras(fn) { extraActs = typeof fn === 'function' ? fn : null; }
 
 /** The menu's body and its numbered lines: { body, lines }. acts: [[text, fn, keyName]…]; sound: { volume, muted, onVolume(v), onMute(on) }. */
-export function menuCard({ acts, sound = null, note = '' }) {
+export function menuCard({ acts: acts0, sound = null, note = '' }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids.filter(k => k !== null && k !== undefined)); return n; };
   const line = (n, text, onclick, keyName = null) => el('button', { className: 'item', type: 'button', onclick }, el('kbd', { textContent: String(n) }), text, keyName ? el('small', { textContent: keyName }) : null);
+  let more = [];
+  try { more = extraActs?.() ?? []; } catch { more = []; }
+  const acts = more.length && acts0.length ? [...acts0.slice(0, -1), ...more, acts0.at(-1)] : acts0;
   const lines = acts.map(([text, fn, k], i) => line(i + 1, text, fn, k));
   let soundRow = null;
   if (sound) {

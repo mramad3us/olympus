@@ -12,8 +12,10 @@ import * as DOORS from '../sim/places/doors.js';
 
 const QUARTER = Math.PI / 2;
 
-// (a door's open fraction: places' leafAt, else its saved state, else its template's)
+// (a door's open fraction: places' leafShownAt (the leaf as it was opened, a kick's slam and rebound, doors.js leafCurve),
+// else its leafAt, else its saved state, else its template's)
 function openOf(state, area, p, ms) {
+  if (typeof DOORS.leafShownAt === 'function') return DOORS.leafShownAt(state, p.opening, ms) ?? 0;
   if (typeof DOORS.leafAt === 'function') return DOORS.leafAt(state, p.opening, ms) ?? 0;
   const saved = state?.places?.sites?.[area?.site]?.openings?.[p.opening]?.state;
   const o = (area?.openings ?? []).find(x => x.id === p.opening);

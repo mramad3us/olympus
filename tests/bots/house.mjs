@@ -105,6 +105,9 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     if (b?.stoppage === 'double' && has('macro:remedial')) return choose('macro:remedial');
     if (b?.stoppage && has('macro:ia')) return choose('macro:ia');
     if (['slungFront', 'slungBack'].includes(posture(state)) && has('up') && cmd !== 'clear') return choose('up');
+    // (v0.0.20, the build sheet's item 12: by the keys, "Coming out!" before leaving a room called clear: the single, DRILL_IN 6,
+    // once a room (a stack row after it says nothing more: bundle.js's `out` kind, once a room))
+    if (lane && mode === 'keys' && has('call:out') && !(mem.out ??= {})[legI]) { mem.out[legI] = now; return choose('call:out'); }
     // (the P-12 out (a Transition pressed on the card, every sheet from 2026-11-15): Rifle up where the DI's line says "Rifle up."
     // (cqb-rifle-up), as a player reads it; the tower's Stop and SHOW CLEAR want it holstered)
     if (has('weapon:rifle-up') && instinctNow(state)?.line?.act === 'stop:weapon:rifle-up') return choose('weapon:rifle-up');
@@ -112,11 +115,18 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     if (!lane) {
       const waiting = S.doing?.kind === 'wait';
       if (cmd === 'load' && b?.mag !== 'in' && has('macro:load')) return choose('macro:load');
+      // (no magazine in and LOAD not offered, the pouches' fumbled to the floor: the one at the feet, by its reach and its seat, as the
+      // instructor's "a magazine in." asks (the hunt of v0.0.18's pistol-6: the bot waited, and the tower went to GO with the rifle
+      // empty and the P-12 unchambered))
+      if ((cmd === 'load' || cmd === 'ready') && b?.mag !== 'in') { const r = ['seat', 'reach@ground', 'macro:reload:speed'].find(has); if (r) return choose(r); }
       if (cmd === 'ready' && b?.chamber !== 'live' && has('macro:ready')) return choose('macro:ready');
       if (cmd === 'clear') {
         if (has('queue')) return choose('queue');
         // (UNLOAD, SHOW CLEAR once at the command: the instructor's next follows the show)
         if (has('macro:clear') && mem.clearAt !== N.cmdAtMs) { mem.clearAt = N.cmdAtMs; return choose('macro:clear'); }
+        // (the rifle's done and the holstered P-12 still loaded (a fumble halted the macro short of it): its own row, as the
+        // instructor names it (sidearm.js pistolClearOwed; the hunt of v0.0.18's pistol-2))
+        if (has('weapon:pistol-clear') && mem.pistolClearAt !== now) { mem.pistolClearAt = now; return choose('weapon:pistol-clear'); }
         return waiting ? {} : has('wait') ? choose('wait') : {};
       }
       if (cmd === 'load' || cmd === 'brief') return waiting ? {} : has('wait') ? choose('wait') : {};
@@ -466,7 +476,9 @@ export function houseFuzzBot({ seed = 1 } = {}) {
     if (S.phase !== 'choose' && !(S.doing?.kind === 'wait' && die(10) === 0)) return {};
     // (never a shot, never IMMEDIATE ACTION (the dummy left), never "Clear!" (the stall must move it on))
     // (v0.0.19: never the team's orders (TEAM 2 to 4): its own fuzz presses them (tests/bots/team.mjs teamFuzzBot), so this one's dice stay v0.0.18's)
-    const steps = stepsOf(state).filter(st => !st.off && !isShotRow(st) && !['fire', 'macro:ia', 'macro:remedial', 'call:clear'].includes(st.id) && !String(st.id).startsWith('reflex:') && !String(st.id).startsWith('drill:team:'));
+    // (v0.0.20: nor "Coming out!" by itself (bundle.js singleRows, item 12): offered in every cleared room, it would reshuffle every
+    // fuzz lane's dice; the stack rows say it themselves)
+    const steps = stepsOf(state).filter(st => !st.off && !isShotRow(st) && !['fire', 'macro:ia', 'macro:remedial', 'call:clear', 'call:out'].includes(st.id) && !String(st.id).startsWith('reflex:') && !String(st.id).startsWith('drill:team:'));
     if (!steps.length) return {};
     const w = steps.map(x => (x.kind === 'bundle' ? HOUSE_FUZZ_W.bundle : x.id === 'leave' ? HOUSE_FUZZ_W.leave : x.kind === 'door' ? HOUSE_FUZZ_W.door : 1));
     let roll = die(w.reduce((a, c) => a + c, 0)), k = 0;

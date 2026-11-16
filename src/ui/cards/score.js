@@ -11,6 +11,10 @@
 // star, note, atIso }] }, newest last, SCORES_MAX at most; a stored value that does not parse is
 // started afresh rather than thrown on. scoreLine, readScores and keepScore are pure over a storage
 // (the ui-scores test hands them a Map-backed one); scoreCard(…) is the DOM.
+// v0.0.20 (the build sheet v0.0.20 §1 item 10): the line names what was played before the star, so a score is read against the
+// panel, the shot, the voice, the walk and the look it was given on: "… · shots 70 · feel 60 · panel C · shot A3 · voice c · walk B ·
+// look stack:4,helm:r1 · ★ no · note: …" (played: { panel, shot, voice, walk, look }, each left out where the page has none; look
+// { stack, helm, jamb } in the URL's &look= words). The record kept gains `played`, the same words.
 
 /** The storage key, and the most scores kept. */
 export const SCORES_KEY = 'olympus.scores', SCORES_MAX = 200;
@@ -20,11 +24,18 @@ export const SCORE_STEP = 5, SCORE_DEFAULT = 50;
 /** A score snapped to the card's grid (0 to 100, steps of 5). */
 export const snapScore = (v) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) / SCORE_STEP) * SCORE_STEP));
 
-/** The line to paste (ROADMAP §2.2's form). aspects: [[name, value]…] in the scene's order, or { name: value }. */
-export function scoreLine({ version, scene, seed, aspects, star = false, note = '' }) {
+/** What was played, in the line's words: ['panel C', 'shot A3', 'voice c', 'walk B', 'look stack:4,helm:r1'] (each left out where absent). */
+export function playedWords(played = null) {
+  if (!played) return [];
+  if (typeof played === 'string') return played ? [played] : [];
+  const look = played.look && typeof played.look === 'object' ? Object.entries(played.look).filter(([, v]) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)).map(([k, v]) => `${k}:${Array.isArray(v) ? v.join('+') : v}`).join(',') : played.look ?? null;
+  return [played.panel ? `panel ${played.panel}` : null, played.shot ? `shot ${played.shot}` : null, played.voice ? `voice ${played.voice}` : null, played.walk ? `walk ${played.walk}` : null, look ? `look ${look}` : null].filter(Boolean);
+}
+/** The line to paste (ROADMAP §2.2's form). aspects: [[name, value]…] in the scene's order, or { name: value }; played: what was played (playedWords). */
+export function scoreLine({ version, scene, seed, aspects, star = false, note = '', played = null }) {
   const list = Array.isArray(aspects) ? aspects : Object.entries(aspects ?? {});
   const said = String(note ?? '').replace(/\s+/g, ' ').trim();
-  return [`OLYMPUS v${version}`, scene, `seed ${seed}`, ...list.map(([k, v]) => `${k} ${snapScore(v)}`), `★ ${star ? 'yes' : 'no'}`, `note: ${said || 'none'}`].join(' · ');
+  return [`OLYMPUS v${version}`, scene, `seed ${seed}`, ...list.map(([k, v]) => `${k} ${snapScore(v)}`), ...playedWords(played), `★ ${star ? 'yes' : 'no'}`, `note: ${said || 'none'}`].join(' · ');
 }
 
 /** The scores kept on a storage (localStorage, or anything with getItem): { v: 1, scores: [] }. */
@@ -39,10 +50,10 @@ export function readScores(storage = globalThis.localStorage) {
 }
 
 /** Keep a score (newest last, SCORES_MAX at most). Returns the record kept. now: an ISO time (tests give one). */
-export function keepScore(storage = globalThis.localStorage, { scene, version, seed, aspects, star = false, note = '' }, { atIso = new Date().toISOString() } = {}) {
+export function keepScore(storage = globalThis.localStorage, { scene, version, seed, aspects, star = false, note = '', played = null }, { atIso = new Date().toISOString() } = {}) {
   const all = readScores(storage);
   const list = Array.isArray(aspects) ? aspects : Object.entries(aspects ?? {});
-  const rec = { scene, version, seed, aspects: Object.fromEntries(list.map(([k, v]) => [k, snapScore(v)])), star: !!star, note: String(note ?? '').replace(/\s+/g, ' ').trim(), atIso };
+  const rec = { scene, version, seed, aspects: Object.fromEntries(list.map(([k, v]) => [k, snapScore(v)])), star: !!star, note: String(note ?? '').replace(/\s+/g, ' ').trim(), atIso, ...(playedWords(played).length ? { played: playedWords(played).join(' · ') } : {}) };
   all.scores.push(rec);
   while (all.scores.length > SCORES_MAX) all.scores.shift();
   try { storage?.setItem?.(SCORES_KEY, JSON.stringify(all)); } catch { /* (no storage here: the line is still copied) */ }
@@ -59,7 +70,7 @@ export function lastScore(storage, scene) {
  * The card's body: { body, lines, read() }. scene: SCENES' record ({ id, title, aspects: [[name, about]…] });
  * version, seed; onCopy(text) → Promise<boolean>; onDone(); storage. Lines: 1 Copy my scores, 2 Done.
  */
-export function scoreCard({ scene, version, seed, onCopy, onDone = null, storage = globalThis.localStorage }) {
+export function scoreCard({ scene, version, seed, onCopy, onDone = null, storage = globalThis.localStorage, played = null }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); n.append(...kids.filter(k => k !== null && k !== undefined)); return n; };
   const before = lastScore(storage, scene.id);
   const sliders = (scene.aspects ?? []).map(([name, about]) => {
@@ -77,7 +88,7 @@ export function scoreCard({ scene, version, seed, onCopy, onDone = null, storage
   starText();
   starBtn.onclick = () => { star = !star; starText(); };
   const note = el('textarea', { className: 'note-in', rows: 2, placeholder: 'A note (what to rework, what felt wrong)', value: '' });
-  const read = () => ({ scene: scene.id, version, seed, aspects: sliders.map(s => [s.name, snapScore(s.input.value)]), star, note: note.value });
+  const read = () => ({ scene: scene.id, version, seed, aspects: sliders.map(s => [s.name, snapScore(s.input.value)]), star, note: note.value, ...(played ? { played } : {}) });
   const said = el('span', { className: 'copied', textContent: '' });
   const text = el('textarea', { className: 'benchtext score-line', readOnly: true, rows: 2, value: scoreLine(read()) });
   const refresh = () => { text.value = scoreLine(read()); };

@@ -61,6 +61,8 @@
 // is handed back ('contact': its moves and scans cut where they stand, its other beats let end, the pause on the last's
 // end), its rest the panel's "Carry on: …" (bundle.js carryRow, drill:carry); a Watch puts the muzzle on its spot at the
 // pause. A target's name in the log is its record's (T.name, the house's stands), else its lane's.
+// v0.0.20's close (COMBAT §25.19.6): below rung 2 your entry on your #2's bang is pre-armed as a bundle is (bangEntry): within
+// burst.js BANG_LATE_MS of his bang on your door, you short of its threshold, a sighting leaves your feet on their way in.
 // 2026-11-12 (the shoot house's rework R3, COMBAT §25.19.3.1): from rung 2 the window's end **suspends** a running bundle
 // instead of handing it back (stepper.js suspendFlow): its moves run on through the window and are not cut, a running scan is
 // paused where it stands, and the pause comes once a hands or voice beat under way has ended; the bundle waits on the stop
@@ -106,7 +108,8 @@ import { roomPlanOf, pastThreshold, inFunnel, manPlace, doorOfRoom } from './roo
 import { ownerOf, roleAt } from './team.js';
 import { stillUp } from '../arms/specials.js';
 import { seenK, upNow, stale, remember, drawnOn, gateWhy, casualtyOn, LIVE_STATE } from './men.js';
-import { startleTick, flowOn, carryOn } from './bundle.js';
+import { startleTick, flowOn, carryOn, doorNow } from './bundle.js';
+import { BANG_LATE_MS } from './burst.js';
 
 /** The rung from which a contact suspends a running bundle rather than handing it back (COMBAT §25.19.3.1). */
 export const SUSPEND_RUNG = 2;
@@ -231,8 +234,20 @@ export function contactLook(state, input, bus, ctx) {
   bus?.emit('contact', fact('join', pid, P, { atMs: ms }));
 }
 
-// (0.0.12: pre-armed at the sighting: a bundle's beats running, or a Watch held (see the header))
-const armedOf = (state, me) => !!state.stop?.doing?.beats || (!!state.stop?.flow && !state.stop.flow.suspended) || !!me?.watch;
+// (below rung 2, your entry on your #2's bang (his bang task on the door you are at, burst under BANG_LATE_MS ago,
+// you not yet past its threshold) is pre-armed too: the entry follows the bang, and a man seen through the doorway he opened is
+// taken in on the move and fought inside (from rung 2 the entry is a bundle row, armed as built). Before, the boot recruit froze
+// in the doorway for his take-in; a notice missed on room 1's man (1.45 s, about one lane in three) put his pause past the DI's
+// hold and his entry 6.6 to 8.0 s after the bang, and his #2's P-12 (4 ms more on his walk to the front, the bang past a tick)
+// re-rolled that notice: team-task's heavy case, 5 of 14 lanes within 3.5 s with it, 12 of 13 without)
+function bangEntry(state, me) {
+  const t = state.armoury?.range?.house?.two?.task, bangMs = t?.done?.bang;
+  if (!me || t?.kind !== 'bang' || t.st !== 'done' || !Number.isFinite(bangMs) || state.clock.ms - bangMs >= BANG_LATE_MS || rungOf(state, me.who, 'room') >= 2) return false;
+  const here = doorNow(state, me.who);
+  return !!here?.plan && here.door === t.door && !pastThreshold(here.plan, me.x, me.z);
+}
+// (0.0.12: pre-armed at the sighting: a bundle's beats running, or a Watch held (see the header); v0.0.20, your entry on his bang)
+const armedOf = (state, me) => !!state.stop?.doing?.beats || (!!state.stop?.flow && !state.stop.flow.suspended) || !!me?.watch || bangEntry(state, me);
 
 // (the window's target nearest the muzzle's yaw: the pause's bracket)
 function pickOf(state, pid, keys, ms) {
@@ -524,6 +539,20 @@ function hisTick(state, c) {
 const targetName = (state, key) => { const T = turnerOf(state, key); return T ? T.name ?? `lane ${T.lane}` : key; };
 // (what was seen of a target, in words)
 const identWords = (last, key) => `${IDENT_WORDS[last.ident?.[key] ?? 'unseen']}${last.armour?.[key] ? ', plate armour' : ''}`;
+
+/**
+ * A man your #2 called out to you (the build sheet v0.0.20 item 18; drill.md D5): the one write of your mind's told record,
+ * state.mind.contact.told[key] = { atMs, bearingRad (from you as he called), face (what he identified, or null), at: [x, z] (the
+ * place he named, as he saw it) }, read by react.js expectOf, which takes a man within corner.js TOLD_DEG of the place inside TOLD_MS
+ * as expected ('sector'). Called from house-two.js twoTick only; identify is not touched. Holds no id (ids-check). Returns the record.
+ */
+export function tell(state, pid, key, { atMs = state.clock.ms, bearingRad, face = null, at = null } = {}) {
+  if (!state.mind || pid !== playerActor(state)?.who) return null;
+  // (the contact record as the people domain makes it (mind.js noteContact): a bare one lacked `known`, and contactLook read it)
+  const c = contactOf(state) ?? noteContact(state, {}), rec = { atMs, bearingRad: q(bearingRad ?? 0, 1e-6), face: face ?? null, ...(at ? { at: [q(at[0], 0.01), q(at[1], 0.01)] } : {}) };
+  (c.told ??= {})[key] = rec;
+  return rec;
+}
 
 /**
  * The identification of one target of the last contact (see the header): Awareness against IDENT_DC0 +

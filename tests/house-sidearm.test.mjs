@@ -56,7 +56,7 @@ function onward(g, bot, each, maxMs = 5 * 60_000) {
 
 export default [
   {
-    name: 'the P-12 is issued on every sheet, the boot recruit and the private included (the user, 2026-11-15: "everyone should have the same loadout, there is no reason to not give sidearms to low ranks"), in the thigh holster with a HAD-17 of ten frangible seated (Condition 3) and a spare in the thigh pouch; every sheet\'s fill has the same ids, the sidearm\'s four numbered after all of it',
+    name: 'the P-12 is issued on every sheet, the boot recruit and the private included (the user, 2026-11-15: "everyone should have the same loadout, there is no reason to not give sidearms to low ranks"), in the thigh holster with a HAD-17 of ten frangible seated (Condition 3) and a spare in the thigh pouch; every sheet\'s fill has the same ids, the sidearm\'s four numbered after all of it, then your #2\'s four (his P-12 standard issue from v0.0.20, the user\'s answer of 2026-11-16: "#2 has to have a sidearm")',
     fn() {
       const ids = {}, kg = {};
       assert(SHEETS.every(t => SIDEARM_TIERS.includes(t)), JSON.stringify(SIDEARM_TIERS));
@@ -71,10 +71,11 @@ export default [
         assert(P.model === 'p12' && conditionOf(P) === 3 && mag.fam === 'had17' && mag.n === 10 && mag.load === 'frangible' && pouch.model === 'pouch-p12' && pouch.holds.length === 1 && spare.n === 10 && pistolOf(s) === k.worn.holster, JSON.stringify({ tier, P, pouch }));
       }
       // (the same seed: every sheet's fill the same ids, the P-12, its pouch and two magazines numbered last; the same kilograms)
-      const num = (id) => Number(id.slice(1)), P = createGame({ scenario: 'test-shoothouse', seed: SEED, tier: 'recruit' }).state, k = P.people[P.player.id].kit;
-      const mine = [k.worn.holster, k.worn.thigh, P.items[k.worn.holster].mag, ...P.items[k.worn.thigh].holds], rest = ids.recruit.filter(id => !mine.includes(id));
-      console.log(`      the sidearm's ids ${mine.join(', ')} after the fill's last ${rest.map(num).sort((a, b) => b - a)[0]}; every sheet's ${ids.recruit.length} ids the same: ${SHEETS.every(t => ids[t].join() === ids.recruit.join())}; kilograms ${[...new Set(SHEETS.map(t => fmt(kg[t], 2)))].join(', ')}`);
-      assert(SHEETS.every(t => ids[t].join() === ids.recruit.join()) && Math.min(...mine.map(num)) > Math.max(...rest.map(num)) && new Set(SHEETS.map(t => fmt(kg[t], 2))).size === 1, JSON.stringify({ mine }));
+      const num = (id) => Number(id.slice(1)), P = createGame({ scenario: 'test-shoothouse', seed: SEED, tier: 'recruit' }).state, k = P.people[P.player.id].kit, k2 = P.people[P.armoury.range.house.two.pid].kit;
+      const set = (kk) => [kk.worn.holster, kk.worn.thigh, P.items[kk.worn.holster].mag, ...P.items[kk.worn.thigh].holds];
+      const mine = set(k), his = set(k2), rest = ids.recruit.filter(id => !mine.includes(id) && !his.includes(id));
+      console.log(`      the sidearm's ids ${mine.join(', ')} after the fill's last ${rest.map(num).sort((a, b) => b - a)[0]}, your #2's ${his.join(', ')} after them; every sheet's ${ids.recruit.length} ids the same: ${SHEETS.every(t => ids[t].join() === ids.recruit.join())}; kilograms ${[...new Set(SHEETS.map(t => fmt(kg[t], 2)))].join(', ')}`);
+      assert(SHEETS.every(t => ids[t].join() === ids.recruit.join()) && Math.min(...mine.map(num)) > Math.max(...rest.map(num)) && Math.min(...his.map(num)) > Math.max(...mine.map(num)) && new Set(SHEETS.map(t => fmt(kg[t], 2))).size === 1, JSON.stringify({ mine, his }));
     },
   },
   {

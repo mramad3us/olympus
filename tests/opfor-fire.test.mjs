@@ -73,14 +73,16 @@ export default [
     },
   },
   {
-    name: 'opfor-fire: two torso or one head on you, or on your #2, ends the lane \'casualty\' with the card within CASUALTY_MS plus a tick, never \'time\'',
+    name: 'opfor-fire: a strike the one rule rates fatal on you, or on your #2 (v0.0.20, combat/would.js), ends the lane \'casualty\' with the card within CASUALTY_MS plus a tick, never \'time\'; every strike before it a wound or a stop, and none after it (he ceases fire)',
     fn() {
       const w = underFire(), s = w.s, Lv = liveOf(w.g), pid = s.player.id;
       let downAt = null;
       for (let i = 0; i < 300 && !(Lv.casualty && (w.H.end || s.clock.ms > Lv.casualty.endAtMs + 2 * TICK_MS)); i++) { w.g.step(1, LEAVE); if (Lv.casualty && downAt === null) downAt = Lv.casualty.atMs; }
       const c = Lv.casualty, torso = Lv.struck.filter(x => x.who === c?.who && (x.zone === 'A' || x.zone === 'C')).length, head = Lv.struck.filter(x => x.who === c?.who && x.zone === 'head').length;
-      console.log(`      the casualty ${c ? `${c.who === pid ? 'you' : 'your #2'} by ${c.by}, ${torso} torso, ${head} head, at +0, its end at +${c.endAtMs - c.atMs} ms (CASUALTY_MS ${CASUALTY_MS})` : 'none'}; the lane's end ${w.H.end ? `${w.H.end.why} at +${w.H.end.atMs - c.atMs} ms` : 'none yet'}${w.hooked ? '' : ' (note: the lane\'s \'casualty\' end and its card are the house\'s hook, not merged here: the casualty\'s record is checked)'}`);
-      assert(c && (torso >= 2 || head >= 1) && c.endAtMs - c.atMs === CASUALTY_MS, JSON.stringify(c));
+      const log = Lv.would.log.filter(x => x.on === c?.who), f = log.findIndex(x => x.fatal);
+      console.log(`      the strikes on ${c?.who === pid ? 'you' : 'your #2'}: ${log.map(x => `${x.part}/${x.zone} ${x.layer} ${x.fatal ? `FATAL (${x.why})` : x.why ?? 'wound'}`).join(', ')}`);
+      console.log(`      the casualty ${c ? `${c.who === pid ? 'you' : 'your #2'} by ${c.by}, ${torso} torso, ${head} head, why ${c.why}, at +0, its end at +${c.endAtMs - c.atMs} ms (CASUALTY_MS ${CASUALTY_MS})` : 'none'}; the lane's end ${w.H.end ? `${w.H.end.why} at +${w.H.end.atMs - c.atMs} ms` : 'none yet'}${w.hooked ? '' : ' (note: the lane\'s \'casualty\' end and its card are the house\'s hook, not merged here: the casualty\'s record is checked)'}`);
+      assert(c && f >= 0 && f === log.length - 1 && c.shotId === log[f].shotId && c.why === log[f].why && c.endAtMs - c.atMs === CASUALTY_MS, JSON.stringify({ c, log }));
       // (after it he fires no more: the lane ceases fire)
       const fired = rp(w.g, '2a').live.fired;
       w.g.step(40, LEAVE);

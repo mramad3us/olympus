@@ -69,6 +69,21 @@
 // its stands, 2a and 2b, are yours, so he fires in it only covering you; 1 lane of 1,151 tier one Gun-down lanes did).
 // Nothing is written on load: each saves again at once byte for byte, its ids whole (ids-check), plays 600 ticks with no error by
 // the bot that made it, a save made after carries on byte for byte, and the lane reaches its card.
+// 0.0.20 (the build sheet 0.0.20 §3 step 4): two saves made by the code of the integrated tree of v0.0.19 before its tag (the
+// round's snapshot, .run/v020/v019-snapshot.tree) on seed 48213, meta.version '0.0.19': the private by the keys from the fill on
+// the standard loadout between LOAD and MAKE READY, in stop motion at its choice (the magazine seated, the chamber empty: the
+// cold Fix and the PA's wait load over it); and the corporal from setup room:3, placed as two-side places him (past the threshold
+// on his #2's point) and run on until the #2 has taken his side, mid-room 3 with the sides swapped and the #2 standing at his
+// walk's end on your point (the far leg, the mark and the call-out load over it). Neither carries the #2's P-12: nothing is
+// written on load, each saves again at once byte for byte, its ids whole, plays 600 ticks with no error (the keys bot that made
+// the first; the honest bot reading whose man a stand is, houseOwnerBot, for the second), a save made after carries on byte for
+// byte, and the lane reaches its card.
+// 0.0.20 (v0.0.20's asks, the design sheet §2.8, §2.10 test 4): a save made by v0.0.19's own code from a worktree at its tag,
+// meta.version '0.0.19': "Stack and clear, live" (&opfor=live), the sergeant by the honest bot on 48213, saved on the tick the
+// first marking round struck you (room 2's role-player's pair, its second round 350 ms on). Loaded, its lane gains the would-have's
+// ledger with the rule 'count' (the upgrade 'arms:house-would': its strikes have no margin or range saved to rate them by), nothing
+// else written; it ends 'casualty' at v0.0.19's tick (21.05 s, on the pair's second round, two torso) where v0.0.20's rule would
+// have rated both wounds, its card v0.0.19's words; a save made after carries on byte for byte.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -82,8 +97,10 @@ import { rungOf } from '../src/sim/skills/templates.js';
 import { feltOf, inocOf, hardOf, blockOf, suppAt } from '../src/sim/combat/supp.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { pairsBot } from './bots/pairs.mjs';
-import { houseTBot, houseKeysBot, runHouse, stoppageBot } from './bots/house.mjs';
+import { houseTBot, houseKeysBot, houseHonestBot, runHouse, stoppageBot } from './bots/house.mjs';
+import { runSheetOf } from '../src/sim/scenarios/shoothouse.js';
 import { houseKitBot } from './bots/kit.mjs';
+import { houseOwnerBot } from './bots/team.mjs';
 import { handDeviceOf } from '../src/sim/arms/devices.js';
 import { checkIds } from './ids-check.mjs';
 import { conditionOf, gunField } from '../src/sim/arms/firearms.js';
@@ -429,6 +446,51 @@ export default [
         console.log(`      ${name}: ${where}, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}; on to the card ${run.done ? 'reached' : 'NOT reached'} in ${fmt(run.ms / 1000, 1)} s more (${g.state.armoury.range.house.end?.why ?? 'no end'})`);
         assert(again === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried && run.done, JSON.stringify({ same: again === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 3), carried, done: run.done }));
       }
+    },
+  },
+  {
+    name: 'a v0.0.19 save loads with nothing written (the build sheet 0.0.20 §3 step 4: the private between LOAD and MAKE READY, and the corporal mid-room 3 with the sides swapped and his #2 at his point): it saves again byte for byte at once with its ids whole, plays 600 ticks with no error, a save made after carries on byte for byte, and the lane reaches its card',
+    timeoutMs: 180_000,
+    fn() {
+      // (each by the bot that made it, whose memory is saved on the actor; neither carries the #2's P-12, made before v0.0.20's default)
+      // (the swap's by the honest bot reading whose man a stand is (tests/bots/team.mjs houseOwnerBot), as two-side plays a swapped room)
+      const BOTS = { 'v0.0.19-house-cold': () => houseKeysBot(), 'v0.0.19-house-swap': () => houseOwnerBot() };
+      for (const [name, bot] of Object.entries(BOTS)) {
+        const json = read(name), old = JSON.parse(json), R0 = old.armoury.range, H0 = R0.house;
+        assert(old.meta.version === '0.0.19' && old.meta.scenario === 'test-shoothouse', `${name}: ${old.meta.version} ${old.meta.scenario}`);
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), again = g.save(), H = s.armoury.range.house, b = bot();
+        const ids = checkIds(JSON.parse(again), g.sim.domains), pid = s.player.id, rifle = s.items[s.people[pid].kit.worn.sling];
+        const where = name.endsWith('cold')
+          ? `the ${H.tier} at the tower's ${s.armoury.range.cmd?.id}, the rifle a magazine ${rifle.mag ? 'in' : 'out'}, chamber ${gunField(rifle, 'chamber') ?? 'empty'}, ${gunField(rifle, 'mode')}; his P-12 ${H.two.pistol ?? 'none'}`
+          : `the ${H.tier} in leg ${H.cur} (${H.rooms[2]?.state}), sides ${JSON.stringify(H.two.side ?? {})}; his P-12 ${H.two.pistol ?? 'none'}`;
+        if (name.endsWith('cold')) assert(R0.cmd?.id === 'load' && rifle.mag && !gunField(rifle, 'chamber') && H0.goAtMs === null, JSON.stringify({ cmd: R0.cmd?.id, mag: rifle.mag, go: H0.goAtMs }));
+        else assert(H0.cur === 2 && H0.two.side?.['o:w4:r3'] === 1, JSON.stringify({ cur: H0.cur, side: H0.two.side }));
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, bot());
+        const carried = h.save() === end, run = runHouse(g, b, { maxMs: 12 * 60_000 });
+        console.log(`      ${name}: ${where}, ${json.length} bytes; saved again at once ${again === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}; on to the card ${run.done ? 'reached' : 'NOT reached'} in ${fmt(run.ms / 1000, 1)} s more (${g.state.armoury.range.house.end?.why ?? 'no end'})`);
+        assert(again === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried && run.done, JSON.stringify({ same: again === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 3), carried, done: run.done }));
+      }
+    },
+  },
+  {
+    name: 'a v0.0.19 save on the live lane between the role-player\'s two rounds (the sergeant on 48213, the honest bot) gains the would-have\'s ledger with the rule \'count\' and nothing else, finishes by v0.0.19\'s count (\'casualty\' at its own tick, 21.05 s, on the second round; v0.0.20\'s rule rates the two wounds), and a save made after carries on byte for byte',
+    timeoutMs: 120_000,
+    fn() {
+      const json = read('v0.0.19-house-live'), old = JSON.parse(json), H0 = old.armoury.range.house;
+      assert(old.meta.version === '0.0.19' && H0.live && !H0.live.would && H0.live.struck.length === 1 && !H0.live.casualty, JSON.stringify({ v: old.meta.version, struck: H0.live?.struck }));
+      const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), again = JSON.parse(g.save()), H = s.armoury.range.house;
+      // (the one thing written: the ledger; every other key of the save as it was)
+      const W = again.armoury.range.house.live.would; delete again.armoury.range.house.live.would;
+      const only = JSON.stringify(again) === JSON.stringify(JSON.parse(json));
+      const b = houseHonestBot();
+      g.step(10, b); const mid = g.save(); g.step(10, b);
+      const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(10, houseHonestBot());
+      const carried = h.save() === g.save();
+      const run = runHouse(g, b, { maxMs: 10 * 60_000 }), K = H.live.casualty, endS = H.end ? (H.end.atMs - H.goAtMs) / 1000 : null, card = runSheetOf(s).card;
+      console.log(`      ${json.length} bytes; the ledger written ${JSON.stringify(W)}; the rest of the save as it was ${only}; carried on from a save ${carried ? 'byte for byte' : 'DIFFERENT'}; the lane ${H.end?.why} at ${fmt(endS, 2)} s, the casualty on ${K?.who === s.player.id ? 'you' : K?.who} at ${K ? fmt((K.atMs - H.goAtMs) / 1000, 2) : '-'} s; its strikes ${H.live.struck.length}, entries ${H.live.would.log.length} (rule ${H.live.would.rule}); the card: ${card.slice(0, 90)}`);
+      assert(W && W.rule === 'count' && !W.log.length && only && carried, JSON.stringify({ W, only, carried }));
+      assert(run.done && H.end?.why === 'casualty' && Math.abs(endS - 21.05) < 0.001 && K?.who === s.player.id && H.live.struck.length === 2 && /^CASUALTY · PAINT: 2 TORSO, ROOM 2, BY THE MAN IN THE DEEP CORNER/.test(card), JSON.stringify({ end: H.end, K, card }));
     },
   },
 ];

@@ -24,6 +24,9 @@
 // the grid was built from, the blockers and the closed leaves): where a leg passes a rect's corner within the radius, a
 // waypoint is set CORNER_KEEP_M beyond the radius off that corner, square to the leg, and both halves are held to it in
 // turn (at most CORNER_DEPTH times a leg). A leg whose own end is too close is the end's affair (the body's place).
+// A body against a wall stands, by the walker's circle, in a cell the grid blocks; the nav steps out of it to the nearest free
+// cell's centre, and where the leg kept from the body itself would have the hold set a waypoint in a blocked cell, the
+// route is spliced again with that step out kept (routes that never meet it are unchanged).
 // clipped(state, from, to) is a straight line cut short, CLIP_STEP_M at a time, where the walker's circle would next
 // touch a rect (a braking body stops at the wall, never in it). lineClear(state, from, to) is the same rects against a line
 // with no radius, exactly: the rifle's line of fire where the sight grid's cells are coarser than the walls (2026-11-12).
@@ -31,9 +34,16 @@
 // routed keeps their legs and only holds them off the corners. Lengths by Math.sqrt, which IEEE rounds exactly, never
 // Math.hypot (TECH §8.1 rule 11: positions must agree between engines). Pure: grids are read, never written; the state
 // is read.
+// v0.0.20 (the build sheet v0.0.20 item 1, the user's "soldiers need to stay fluidly moving", 2026-11-13): **round a body**.
+// routed takes `bodies`, [{ x, z, rM }], each a disc a walk must keep out of (a teammate standing on your way: the body gap and
+// its guard, bundle.js BODY_GAP_M + GAP_GUARD_M, 0.52 m). The discs are laid on a copy of the routing grid for the one solve,
+// every cell whose centre lies within rM + half a cell's diagonal of a disc's centre blocked (BODY_PAD_K: a line pulled through
+// free cells then passes no nearer than rM), never cached; a walk that starts inside a disc leaves it by the nearest free cell
+// first. With bodies, a leg the nav cannot solve is no way at all: routed returns null (no all-open grid, no straight last resort),
+// and the caller hands the walk back (places/move.js roundAbout).
 import { q } from '../../core/num.js';
 import { areaOf, leafClosed } from '../places/model.js';
-import { buildGrid, openNavOf, path as navPath, clearLine } from '../places/nav.js';
+import { buildGrid, openNavOf, path as navPath, clearLine, isFree, COSTS } from '../places/nav.js';
 import { turns } from '../places/doors.js';
 
 /** The clearance class a drill's routes are solved on (nav.js CLASSES: C0 0.27 m, the player's walker's). */
@@ -63,28 +73,66 @@ export function routeGridOf(state, areaId, { open = [], cls = ROUTE_CLS } = {}) 
   return g;
 }
 
+/** A body's disc is laid on the grid out to its radius plus this share of a cell's side (√2 / 2: half the diagonal; see the header). */
+export const BODY_PAD_K = Math.SQRT1_2;
+// (a copy of a routing grid with the bodies' discs blocked (see the header): for one solve, never cached)
+function withBodies(G, bodies) {
+  const g = { ...G, cost: G.cost.slice() }, C = G.cellM;
+  for (const b of bodies) {
+    const R = (b.rM ?? 0) + C * BODY_PAD_K, i0 = Math.max(0, Math.floor((b.x - R - G.x0) / C)), i1 = Math.min(G.nx - 1, Math.floor((b.x + R - G.x0) / C));
+    const j0 = Math.max(0, Math.floor((b.z - R - G.z0) / C)), j1 = Math.min(G.nz - 1, Math.floor((b.z + R - G.z0) / C));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const cx = G.x0 + (i + 0.5) * C - b.x, cz = G.z0 + (j + 0.5) * C - b.z;
+      if (Math.sqrt(cx * cx + cz * cz) <= R) g.cost[j * G.nx + i] = COSTS.blocked;
+    }
+  }
+  return g;
+}
+
 /**
  * A polyline made walkable (see the header): [[x, z]…] with each leg's line clear on the routing grid, its
- * points the given ones and, where a leg was not clear, the nav's way round between them (to 1e-4 m).
+ * points the given ones and, where a leg was not clear, the nav's way round between them (to 1e-4 m). bodies: discs
+ * kept out of, [{ x, z, rM }]; with any, null where a leg has no way round them.
  */
-export function routed(state, pts, { area = routeAreaOf(state), open = [] } = {}) {
+export function routed(state, pts, { area = routeAreaOf(state), open = [], bodies = [] } = {}) {
   if (!pts || pts.length < 2) return pts;
-  const G = routeGridOf(state, area, { open });
-  if (!G) return pts;
+  const G0 = routeGridOf(state, area, { open });
+  if (!G0) return pts;
+  const G = bodies?.length ? withBodies(G0, bodies) : G0;
+  const first = spliced(G, G0, area, pts, false);
+  if (!first) return null;
+  let held = holdOff(G, first);
+  // (a body against a wall stands, by the walker's circle, in a cell the grid blocks; the nav steps out of it to the nearest
+  // free cell's centre, and dropping that step left the first leg cutting a corner, so the hold set its waypoint in a blocked
+  // cell, and the leg after it was no leg of the grid's (the hunt of v0.0.18's fixes, merged: house-flawless-keys F3, the fuzz
+  // tier one on 1185, #1's approach to the hall from (19.363, 7.528) by (19.297, 7.554), a 0.3 m dance out and back). Only
+  // there is the route spliced again with the nav's step out kept, so every route that never met it is unchanged)
+  if (held.some((p, k) => k > 0 && !isFree(G, p[0], p[1]))) { const again = spliced(G, G0, area, pts, true); if (again) held = holdOff(G, again); }
+  // (two points the same in a row would make a leg of no length and no heading: dropped)
+  return held.filter((p, k) => k === 0 || Math.abs(p[0] - held[k - 1][0]) > 1e-9 || Math.abs(p[1] - held[k - 1][1]) > 1e-9);
+}
+// (the legs kept where clear and the nav's way spliced in where not, its own ends the given points; null where a leg has no way
+// round the bodies (G, the bodies' grid, not G0, the walls' own); stepOut keeps the nav's first point where it is not the leg's
+// start, its step out of a blocked cell, as a walk begun inside a body's disc always does (see the header))
+function spliced(G, G0, area, pts, stepOut) {
   const out = [pts[0]];
   for (let i = 1; i < pts.length; i++) {
     const a = out[out.length - 1], b = pts[i];
     if (clearLine(G, a[0], a[1], b[0], b[1])) { out.push(b); continue; }
     let r = navPath(G, a, b);
+    if (r.fail && G !== G0) return null;
     if (r.fail) { const O = openNavOf(area, G.cls); r = O ? navPath(O, a, b) : r; }
-    if (!r.fail) for (const p of r.pts.slice(1, -1)) out.push([q(p[0], 1e-4), q(p[1], 1e-4)]);
+    const out0 = (G !== G0 && !isFree(G, a[0], a[1])) || (stepOut && !r.fail && (r.pts[0][0] !== a[0] || r.pts[0][1] !== a[1]));
+    if (!r.fail) for (const p of r.pts.slice(out0 ? 0 : 1, -1)) out.push([q(p[0], 1e-4), q(p[1], 1e-4)]);
     out.push(b);
   }
-  // (each leg held off the corners, exactly: see the header)
+  return out;
+}
+// (each leg held off the corners, exactly: see the header)
+function holdOff(G, out) {
   const rects = rectsOf(G), held = [out[0]];
   for (let i = 1; i < out.length; i++) held.push(...offCorners(rects, held[held.length - 1], out[i], G.radiusM, CORNER_DEPTH));
-  // (two points the same in a row would make a leg of no length and no heading: dropped)
-  return held.filter((p, k) => k === 0 || Math.abs(p[0] - held[k - 1][0]) > 1e-9 || Math.abs(p[1] - held[k - 1][1]) > 1e-9);
+  return held;
 }
 
 // (the rects a walker of the grid's class collides with: collide.js's, the blockers and the closed leaves)

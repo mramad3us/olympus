@@ -10,11 +10,11 @@ import { createGame } from './game.mjs';
 import { houseHonestBot, houseKeysBot, runHouse } from './bots/house.mjs';
 import { HOUSE_CHIEF, COURSES } from '../src/data/courses.js';
 import { CQB_RULES } from '../src/sim/skills/instinct/cqb.js';
-import { FAULT_WORDS, runSheetOf, LIVE_NAMES } from '../src/sim/scenarios/shoothouse.js';
+import { FAULT_WORDS, runSheetOf, hotWashOf, LIVE_NAMES } from '../src/sim/scenarios/shoothouse.js';
 import { FAULT_MARKS, isFault, rowParts } from '../src/ui/cards/house.js';
 import { LANE_WORDS } from './flawless.mjs';
 
-const CHIEF = ['out', 'paint', 'casualty', 'twoDown', 'surrendered', 'reopened', 'uncovered'], ONE = ['casualty', 'surrendered', 'uncovered', 'reopened'], TEAM = ['got', 'hit', 'manDown'];
+const CHIEF = ['out', 'paint', 'paintStopped', 'casualty', 'twoDown', 'surrendered', 'reopened', 'uncovered'], ONE = ['casualty', 'surrendered', 'uncovered', 'reopened'], TEAM = ['got', 'hit', 'manDown'];
 const KINDS = ['surrendered', 'uncovered', 'reopened', 'casualty'];
 
 export default [
@@ -43,7 +43,7 @@ export default [
     },
   },
   {
-    name: 'v0.0.19: a live lane\'s paper: the legs with a role-player read "LIVE: n DOWN · PAINT ON YOU n" and the card "2 ROLE-PLAYERS · n DOWN · PAINT ON YOU: …"; a casualty\'s card leads "CASUALTY · PAINT: …, ROOM n, BY THE MAN …"; the turner lane\'s paper has none of it',
+    name: 'v0.0.19: a live lane\'s paper: the legs with a role-player read "LIVE: n DOWN · PAINT ON YOU n" (v0.0.20: "(WOUNDED)", "(STOPPED)" or "(FATAL)" after paint) and the card "2 ROLE-PLAYERS · n DOWN · PAINT ON YOU: … · WOULD HAVE BEEN: …"; a casualty\'s card leads (v0.0.20) "CASUALTY · FATAL: <why>, <n>TH STRIKE ON YOU, …, ROOM n, BY THE MAN …"; the hot wash says what the rounds would have done; the turner lane\'s paper has none of it',
     fn() {
       const run = (tier, opfor, bot) => { const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier, setup: 'go', ...(opfor ? { opfor } : {}) }); runHouse(g, bot, { maxMs: 8 * 60_000 }); return { g, rs: runSheetOf(g.state) }; };
       const A = run('tierone', 'live:fight,fight', houseHonestBot()), B = run('recruit', 'live:fight,fight', houseKeysBot()), C = run('tierone', null, houseHonestBot());
@@ -52,9 +52,12 @@ export default [
         for (const r of X.rs.rows) console.log(`        ${r.words}`);
       }
       const words = [A.rs.card, ...A.rs.rows.map(r => r.words), B.rs.card, ...B.rs.rows.map(r => r.words)].join(' | ');
-      assert(/2 ROLE-PLAYERS · \d DOWN/.test(A.rs.card) && /PAINT ON YOU: /.test(A.rs.card) && A.rs.rows.filter(r => /LIVE: \d DOWN · PAINT ON YOU \d/.test(r.words)).length === 2, JSON.stringify(A.rs));
+      assert(/2 ROLE-PLAYERS · \d DOWN/.test(A.rs.card) && /PAINT ON YOU: /.test(A.rs.card) && A.rs.rows.filter(r => /LIVE: \d DOWN · PAINT ON YOU \d( \((WOUNDED|STOPPED|FATAL)\))?( ·|$)/.test(r.words)).length === 2, JSON.stringify(A.rs));
       assert(!/ROLE-PLAYER|LIVE:|PAINT/.test([C.rs.card, ...C.rs.rows.map(r => r.words)].join(' ')), JSON.stringify(C.rs));
-      if (B.g.state.armoury.range.house.end?.why === 'casualty') assert(/^CASUALTY · PAINT( ON YOUR #2)?: [^·]+, (ROOM \d|THE HALL), BY THE MAN /.test(B.rs.card), B.rs.card);
+      const BH = B.g.state.armoury.range.house, wash = hotWashOf(B.g.state).lines.filter(l => /^What those rounds would have done/.test(l));
+      console.log(`      the recruit's hot wash: ${wash.join(' | ') || 'no line'}`);
+      assert(BH.end?.why === 'casualty' && /^CASUALTY · FATAL( ON YOUR #2)?: [A-Z ]+, \d+(ST|ND|RD|TH) STRIKE ON (YOU|HIM), (THROUGH THE SOFT PANEL, )?(ROOM \d|THE HALL), BY THE MAN /.test(B.rs.card) && /WOULD HAVE BEEN: FATAL/.test(B.rs.card), B.rs.card);
+      assert(wash.length && wash.every(l => !/\d/.test(l)), JSON.stringify(wash));
       assert(!/\bhouse\b/i.test(words.replace(/LANE A/g, '')), words);
       for (const r of A.rs.rows) rowParts(r.words);
     },

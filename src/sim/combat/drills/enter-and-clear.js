@@ -111,11 +111,14 @@ export const ENTER_AND_CLEAR = deepFreeze({
     corner: { k: 'scan', ch: 'eyes', to: 'corner', after: ['enter@0.4'], cut: true },
     sector: { k: 'scan', ch: 'eyes', to: 'sector', after: ['corner'], cut: true },
     inner: { k: 'inner', ch: 'eyes', to: 'inner', slots: [1], after: ['sector', 'enter'] },
-    far: { k: 'move', ch: 'feet', to: 'far', stance: 'combat', slots: [1], after: ['sector', 'inner'], cut: true },
+    far: { k: 'move', ch: 'feet', to: 'far', stance: 'combat', slots: [1], after: ['sector', 'inner', 'moving'], cut: true },
     farlook: { k: 'scan', ch: 'eyes', to: 'far', slots: [1], after: ['far@0.8'], cut: true },
     clear: { k: 'call', ch: 'voice', say: 'clear', after: ['sector', 'farlook', 'inner'] },
     roomclear: { k: 'call', ch: 'voice', say: 'roomclear', slots: [1], after: ['clear'] },
-    mark: { k: 'mark', ch: 'hands', slots: [1], after: ['roomclear', 'clear'] },
+    // (the build sheet v0.0.20 item 12: the last man marks, your #2 (slot 2): his Dominate's last beat arms it (the `markArm` kind, no time where he
+    // stands), and he makes it on the latch-side jamb as he passes the door's plane outward (house-two.js twoTick); yours only by the
+    // single, where he cannot (the `mark` kind))
+    mark: { k: 'markArm', ch: 'hands', slots: [2], after: ['roomclear', 'clear'] },
     // (v0.0.19, the team's beats (see the header): your order (its end writes your #2's task), you to the give line; his walk to the
     // stack's front and back to his own; the closing up after a burst; and the cue a man waits on the other's work with)
     order: { k: 'order', ch: 'voice', slots: [1] },
@@ -127,13 +130,23 @@ export const ENTER_AND_CLEAR = deepFreeze({
     recover: { k: 'recover', ch: 'hands', doer: true },
     closeup: { k: 'move', ch: 'feet', to: 'stack2', stance: 'assault', after: ['breach'] },
     cue: { k: 'cue', ch: 'eyes' },
+
+    // (the room (the build sheet's items 12 and 17; COMBAT §25.19.2.1): "Coming out!" at the head of a row started inside a
+    // cleared room (the `out` kind says it there and nothing elsewhere), the wait on your #2's status after "Room clear!" (at most
+    // corner.js STATUS_MS), and "Moving!" before the far leg, its wait on his "Move!" (at most MOVE_WAIT_MAX_MS, then 'two'))
+    // ("Coming out!" flows with the feet from rung 2, a voice beat below FLOW's rung 3: the call announces the step off, so it is said as
+    // you step off, its CALL_S kept (F15 on the kit's lanes: said standing, 0.8 s a room, it took the corporal's breach lane on
+    // 1489397426 to 121.0 s against KIT_LANE_MAX_S 120; tests/house-out-flow.test.mjs). Below rung 2 it is said standing, as built.)
+    out: { k: 'out', ch: 'voice', slots: [1], flowFrom: 2 },
+    status: { k: 'status', ch: 'world', slots: [1], after: ['roomclear'] },
+    moving: { k: 'moving', ch: 'voice', slots: [1], after: ['sector', 'inner'] },
   },
   // (the catalogue, MUSCLE below, by the phases of a room; `rung` the lowest rung at which the row runs whole, `band` doctrine's
   // time band in game seconds, a sanity check the tests print against, never a timer)
   muscle: {
     // STACK
-    'stack:up': { group: 'stack', slot: 0, rung: 0, single: true, label: 'Stack up', beats: ['approach', 'reorg', 'ready', 'muzzle', 'squeeze'], variants: { reorg: 'auto' }, band: { recruit: [4.0, 7.0], operator: [2.5, 4.0] } },
-    'stack:point': { group: 'stack', slot: 1, rung: 1, label: 'Stack up, take point', beats: ['approach', 'reorg', 'ready', 'muzzle', 'read', 'tell', 'squeeze'], variants: { reorg: 'auto' }, band: { recruit: [4.5, 7.5], operator: [2.5, 4.0] } },
+    'stack:up': { group: 'stack', slot: 0, rung: 0, single: true, label: 'Stack up', beats: ['out', 'approach', 'reorg', 'ready', 'muzzle', 'squeeze'], variants: { reorg: 'auto' }, band: { recruit: [4.0, 7.0], operator: [2.5, 4.0] } },
+    'stack:point': { group: 'stack', slot: 1, rung: 1, label: 'Stack up, take point', beats: ['out', 'approach', 'reorg', 'ready', 'muzzle', 'read', 'tell', 'squeeze'], variants: { reorg: 'auto' }, band: { recruit: [4.5, 7.5], operator: [2.5, 4.0] } },
     'stack:on-him': { group: 'stack', slot: 2, rung: 1, label: 'Stack up on him', beats: [], offeredNow: false },
     // DOOR (its singles are the door's rows, bundle.js singleRows: 'door:read>', 'door:push>' or 'door:pull>', 'door:kick>')
     'door:read': { group: 'door', slot: 0, rung: 0, single: true, label: 'Read the door', beats: ['read'], row: 'door:read' },
@@ -149,8 +162,8 @@ export const ENTER_AND_CLEAR = deepFreeze({
     'door:conc': { group: 'door', slot: 8, rung: 0, single: true, label: 'Concuss it', beats: ['door', 'arm', 'cook', 'throw', 'bang'], variants: { bang: 'conc' }, needs: 'conc', offeredNow: 'kit' },
     'door:shoot': { group: 'door', slot: 9, rung: 0, single: true, label: 'Shoot the lock', beats: ['shoot'], variants: { breach: ['shoot'] }, needs: 'ballistic', offeredNow: 'locked' },
     // ROOM
-    'room:in': { group: 'room', slot: 0, rung: 2, label: '{door}, in: your corner', beats: ['door', 'enter', 'corner'], variants: { breach: ['push', 'pull', 'kick'], entry: ['cross', 'hook'], stance: ['assault', 'combat'] } },
-    'room:dominate': { group: 'room', slot: 1, rung: 2, label: 'Dominate', beats: ['enter', 'sector', 'inner', 'far', 'farlook', 'clear', 'roomclear', 'mark'] },
+    'room:in': { group: 'room', slot: 0, rung: 2, label: '{door}, in: your corner', beats: ['out', 'door', 'enter', 'corner'], variants: { breach: ['push', 'pull', 'kick'], entry: ['cross', 'hook'], stance: ['assault', 'combat'] } },
+    'room:dominate': { group: 'room', slot: 1, rung: 2, label: 'Dominate', beats: ['enter', 'sector', 'inner', 'moving', 'far', 'farlook', 'clear', 'roomclear', 'status', 'mark'] },
     'room:clear': { group: 'room', slot: 2, rung: 3, label: '{door}, clear the room', beats: 'all-but-breach', variants: { breach: ['push', 'pull', 'kick'], entry: ['cross', 'hook'], stance: ['assault', 'combat'], reorg: 'auto' }, band: { recruit: [12, 18], operator: [5, 6] } },
     'room:slice': { group: 'room', slot: 8, rung: 2, label: 'Slice the pie', beats: [], offeredNow: false },
     'room:limited': { group: 'room', slot: 9, rung: 2, label: 'Limited penetration', beats: [], offeredNow: false },

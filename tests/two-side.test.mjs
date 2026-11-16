@@ -46,7 +46,7 @@ export default [
         let swapMs = null, pastMs = null, end = null;
         for (let i = 0; i < 200 && pastMs === null; i++) {
           g.step(1, s.stop ? { act: [stepAct('leave')] } : {});
-          for (const f of g.facts('say')) if (f.who === H.two.pid) calls.push(f.text);
+          for (const f of g.facts('say')) if (f.who === H.two.pid && !f.callout) calls.push(f.text);
           g.clearFacts?.();
           if (swapMs === null && H.two.side?.[door]) swapMs = s.clock.ms - t0;
           const mv = H.two.doing?.beats?.find(b => b.key === 'enter');
@@ -71,7 +71,7 @@ export default [
       for (const [setup, door] of SETUPS.filter(([, d]) => d !== 'hall')) {
         const { g, s, H, P, L } = placed(setup, door, (P) => P.points[1]);
         const two = actor(s, H.two.pid), me = actor(s, s.player.id), calls = [];
-        for (let i = 0; i < 200 && !H.two.side?.[door]; i++) { g.step(1, s.stop ? { act: [stepAct('leave')] } : {}); for (const f of g.facts('say')) if (f.who === H.two.pid) calls.push(f.text); g.clearFacts?.(); }
+        for (let i = 0; i < 200 && !H.two.side?.[door]; i++) { g.step(1, s.stop ? { act: [stepAct('leave')] } : {}); for (const f of g.facts('say')) if (f.who === H.two.pid && !f.callout) calls.push(f.text); g.clearFacts?.(); }
         const swapped = !!H.two.side?.[door];
         // (you back on your own point, as a step back by the keys leaves you)
         put(s, me, P.points[0]);
@@ -79,7 +79,7 @@ export default [
         let pastMs = null, end = null, least = Infinity;
         for (let i = 0; i < 200 && pastMs === null; i++) {
           g.step(1, s.stop ? { act: [stepAct('leave')] } : {});
-          for (const f of g.facts('say')) if (f.who === H.two.pid) calls.push(f.text);
+          for (const f of g.facts('say')) if (f.who === H.two.pid && !f.callout) calls.push(f.text);
           g.clearFacts?.();
           const mv = H.two.doing?.beats?.find(b => b.key === 'enter');
           if (mv?.path) end = mv.path.at(-1);
@@ -147,7 +147,8 @@ export default [
         for (let i = 0; i < 100; i++) {
           g.step(1, s.stop ? { act: [stepAct('leave')] } : {});
           if (cue === null && entryGo(s, P, me, s.clock.ms, L)) cue = s.clock.ms - t0;
-          for (const f of g.facts('say')) if (f.who === H.two.pid) calls.push({ text: f.text, ms: s.clock.ms - t0 });
+          // (v0.0.20: his call-out of a man of yours he saw first (house-two.js roomTick, the fact's `callout`) is no side call)
+          for (const f of g.facts('say')) if (f.who === H.two.pid && !f.callout) calls.push({ text: f.text, ms: s.clock.ms - t0 });
           g.clearFacts?.();
         }
         const coming = calls.find(c => c.text === TWO_SAY.coming);

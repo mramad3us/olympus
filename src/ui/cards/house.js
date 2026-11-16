@@ -12,7 +12,16 @@
 // past its tick. houseEndLines gives the card's summary and the session's runs room by room (houseRunLine), so "Again as Tier
 // one" puts the gulf on the card itself. Beside the run sheet the wash leaves out the lines the sheet already says (skip), and names a
 // bar by its stand ("1a"), not its key. Pure but for the two DOM builders.
+// v0.0.20 (the build sheet v0.0.20 §1 items 4, 10, 11, 19, 20, 21; card C1, C3, C5, C6): a room's time is said against its par
+// ("ROOM 1 · 6.70 S / 9.0", the head keeps both); the paper's TEAM row (runSheetOf's team) and the instructor's verdict ("GO" /
+// "NO-GO: THE HOSTAGE") under the rows; a take-in bar shows the instructor's click as its own grey segment (barParts' click), so a
+// bar past its par's tick is seen to be the dummy's, and a stand's par as a roll on its hover ("Par 3.00 + 0.65 (the head, past the
+// hostage) = 3.65 s"); six aspects (pause, drill, team, panel, shots, feel); and the session's sheets side by side, a row a leg and a
+// column a sheet (houseGrid, "Bang"'s gridTable form: each cell the leg's time against its par and its marks in the run sheet's own
+// words).
 
+/** A missed par's cause in the hot wash's words (shoothouse.js PAR_CAUSES). */
+export const CAUSE_WORDS = Object.freeze({ click: 'the click', gun: 'your gun', unready: 'rifle not up', eyes: 'seen late', hands: 'slow hands', feet: 'planted first' });
 /** Two places of seconds, as every paper says them. */
 const two = (ms) => (Number.isFinite(ms) ? (Math.max(0, ms) / 1000).toFixed(2) : '–');
 /** The marks a row's words carry that are faults (drawn red). */
@@ -52,6 +61,8 @@ export const FAULT_MARKS = Object.freeze([
   'REOPENED',
   'CASUALTY',
   'BEFORE YOURS',
+  // (one of your number two's rounds held MASK_FAULT_MS by you on his line (shoothouse.js FAULT_PAPER.masked))
+  'MASKED',
 ]);
 /** Whether a mark is a fault (red on the paper). */
 export const isFault = (mark) => FAULT_MARKS.some(f => String(mark).toUpperCase().includes(f));
@@ -59,7 +70,7 @@ export const isFault = (mark) => FAULT_MARKS.some(f => String(mark).toUpperCase(
 /** A run sheet row's parts: { head, marks: [{ text, fault }] } from its words ("ROOM 1 · 7.40 S · …": the head is the room and its time). */
 export function rowParts(words) {
   const bits = String(words ?? '').split(' · ').map(t => t.trim()).filter(Boolean);
-  const headN = bits.length > 1 && /\d+(\.\d+)? S$/i.test(bits[1]) ? 2 : 1;
+  const headN = bits.length > 1 && /\d+(\.\d+)? S( \/ \d+(\.\d+)?)?$/i.test(bits[1]) ? 2 : 1;
   return { head: bits.slice(0, headN).join(' · '), marks: bits.slice(headN).map(text => ({ text, fault: isFault(text) })) };
 }
 
@@ -67,23 +78,42 @@ export function rowParts(words) {
  * The run sheet as the instructor's paper: an element ({ className 'runsheet' }) whose data-text is every line in order (the
  * card's line first, then each room's), or null. rs: runSheetOf(state) ({ rows: [{ room, words }], card, one?, spinLine?, practised? }).
  */
-export function runSheetEl(rs, { doc = globalThis.document } = {}) {
+export function runSheetEl(rs, { doc = globalThis.document, bars = null } = {}) {
   if (!rs || !doc) return null;
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(doc.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
+  // (the play review: each room's missed par says its cause, "BASIC MISSED (SEEN LATE)", from the hot wash's bars
+  // (shoothouse.js parCauseOf's, on your own men): the bars stand down beside the plan view, and no cause reached the page)
+  const causes = parCauses(bars);
   const rows = (rs.rows ?? []).map(r => {
-    const p = rowParts(r.words);
+    const p = rowParts(r.words), why = causes.get(r.room);
     return el('div', { className: 'rs-row' }, el('span', { className: 'rs-head', textContent: p.head }),
-      ...p.marks.map(m => el('span', { className: `rs-mark${m.fault ? ' fault' : ''}`, textContent: m.text })));
+      ...p.marks.map(m => el('span', { className: `rs-mark${m.fault ? ' fault' : ''}`, textContent: why && / MISSED$/.test(m.text) ? `${m.text} (${why.toUpperCase()})` : m.text })));
   });
+  const would = Array.isArray(rs.would) ? rs.would : [];
   const card = typeof rs.card === 'string' ? rs.card : rs.card?.words ?? rs.card?.text ?? null, one = typeof rs.one === 'string' ? rs.one : rs.one?.text ?? null;
   const body = el('div', { className: 'runsheet' },
     el('div', { className: 'rs-title' }, el('span', { textContent: 'RUN SHEET' }), el('span', { className: 'rs-lane', textContent: rs.lane ? `LANE ${rs.lane}` : 'THE WHEEL · HOUSE 1' })),
     card ? el('p', { className: 'rs-card', textContent: card }) : null,
     ...rows,
+    // (the team's row under the rooms', its marks split as a room's are)
+    rs.team?.words ? (() => { const p = rowParts(rs.team.words); return el('div', { className: 'rs-row rs-team' }, el('span', { className: 'rs-head', textContent: p.head }), ...p.marks.map(m => el('span', { className: `rs-mark${m.fault || /MASKED|HELD OUT [1-9]/.test(m.text) ? ' fault' : ''}`, textContent: m.text }))); })() : null,
+    // (the live lane's wound sentences, what the rounds would have done (shoothouse.js wouldLines))
+    ...would.map(w => el('p', { className: 'rs-would', textContent: w })),
     one ? el('p', { className: 'rs-one', textContent: one }) : null,
+    rs.verdict?.words ? el('p', { className: `rs-verdict ${rs.verdict.go ? 'go' : 'nogo'}`, textContent: rs.verdict.words }) : null,
     rs.practised?.words ? el('p', { className: 'rs-practised', textContent: rs.practised.words }) : null);
-  body.dataset.text = [card, ...(rs.rows ?? []).map(r => r.words), one].filter(Boolean).join(' | ');
+  body.dataset.text = [card, ...(rs.rows ?? []).map(r => r.words), rs.team?.words ?? null, ...would, one, rs.verdict?.words ?? null].filter(Boolean).join(' | ');
   return body;
+}
+/** A room's missed pars by cause, in CAUSE_WORDS, from hotWashOf's bars: Map room → "seen late" ("seen late, slow hands" for two). */
+export function parCauses(bars) {
+  const out = new Map();
+  for (const b of bars ?? []) {
+    if (!b?.missed || !b.cause || b.cause === 'click') continue;
+    const w = CAUSE_WORDS[b.cause] ?? b.cause, had = out.get(b.room);
+    if (!had) out.set(b.room, w); else if (!had.split(', ').includes(w)) out.set(b.room, `${had}, ${w}`);
+  }
+  return out;
 }
 
 /**
@@ -93,7 +123,10 @@ export function runSheetEl(rs, { doc = globalThis.document } = {}) {
 export function barParts(b, spanMs) {
   const span = Math.max(1, spanMs), k = (ms) => Math.max(0, Math.min(1, (Number(ms) || 0) / span));
   const first = Number.isFinite(b?.firstMs) ? b.firstMs : null, par = Number.isFinite(b?.parMs) ? b.parMs : null;
-  return { takeIn: [0, k(b?.takeInMs)], first: first !== null ? [k(b?.takeInMs), k(first)] : null, par: par !== null ? k(par) : null, late: par !== null && (first === null || first > par) };
+  // (the instructor's click inside the window, its own grey segment from the click to its clearing; a par met within it is not late)
+  const click = Number.isFinite(b?.clickMs) ? [k(b.clickMs), k(Number.isFinite(b.clickToMs) ? b.clickToMs : b.clickMs)] : null;
+  const clickCost = click && first !== null ? Math.max(0, first - b.clickMs) : 0;
+  return { takeIn: [0, k(b?.takeInMs)], first: first !== null ? [k(b?.takeInMs), k(first)] : null, par: par !== null ? k(par) : null, late: par !== null && (first === null || first - clickCost > par), click };
 }
 /** The track's span for a set of bars: the longest of their pars and first rounds, plus a tenth, at least 1 s. */
 export const barSpan = (bars) => Math.max(1000, ...((bars ?? []).flatMap(b => [b.parMs, b.firstMs, b.takeInMs]).filter(Number.isFinite).map(v => v * 1.1)));
@@ -112,9 +145,10 @@ export function hotWashEl(hw, { doc = globalThis.document, fmt = two, skip = nul
     const track = el('span', { className: 'hw-track' },
       el('i', { className: 'hw-takein', style: `left: 0; width: ${pct(p.takeIn[1])}` }),
       p.first ? el('i', { className: `hw-first${p.late ? ' late' : ''}`, style: `left: ${pct(p.first[0])}; width: ${pct(Math.max(0, p.first[1] - p.first[0]))}` }) : null,
+      p.click ? el('i', { className: 'hw-click', style: `left: ${pct(p.click[0])}; width: ${pct(Math.max(0.004, p.click[1] - p.click[0]))}` }) : null,
       p.par !== null ? el('i', { className: 'hw-par', style: `left: ${pct(p.par)}` }) : null);
-    const said = `take-in ${fmt(b.takeInMs)} · first ${Number.isFinite(b.firstMs) ? two(b.firstMs) : 'none'}${Number.isFinite(b.parMs) ? ` · par ${two(b.parMs)}` : ''}`;
-    const row = el('div', { className: `hw-bar${p.late ? ' late' : ''}`, title: said }, el('span', { className: 'hw-key', textContent: String(nameOf(b.key) ?? b.key ?? b.room ?? '') }), track, el('span', { className: 'hw-said', textContent: said }));
+    const said = `take-in ${fmt(b.takeInMs)} · first ${Number.isFinite(b.firstMs) ? two(b.firstMs) : 'none'}${Number.isFinite(b.parMs) ? ` · par ${two(b.parMs)}` : ''}${p.click ? ' · the click' : ''}${b.cause && p.late ? ` · ${CAUSE_WORDS[b.cause] ?? b.cause}` : ''}`;
+    const row = el('div', { className: `hw-bar${p.late ? ' late' : ''}`, title: b.parWords ? `${said} · ${b.parWords}` : said }, el('span', { className: 'hw-key', textContent: String(nameOf(b.key) ?? b.key ?? b.room ?? '') }), track, el('span', { className: 'hw-said', textContent: said }));
     row.dataset.takein = String(b.takeInMs ?? '');
     return row;
   });
@@ -122,7 +156,7 @@ export function hotWashEl(hw, { doc = globalThis.document, fmt = two, skip = nul
     el('div', { className: 'hw-title', textContent: 'HOT WASH' }),
     // (the lines the run sheet beside it already says are not said twice: skip)
     ...(hw.lines ?? []).filter(t => !skip?.has(t)).map(t => el('p', { className: 'hw-line', textContent: t })),
-    barEls.length ? el('div', { className: 'hw-bars' }, el('p', { className: 'hw-legend', textContent: 'from the sighting: the take-in (amber), to the first round, the par (red tick)' }), ...barEls) : null,
+    barEls.length ? el('div', { className: 'hw-bars' }, el('p', { className: 'hw-legend', textContent: 'from the sighting: the take-in (amber), to the first round, the par (red tick), the instructor\'s click (grey)' }), ...barEls) : null,
     hw.spinLine ? el('p', { className: 'hw-spin', textContent: hw.spinLine }) : null);
   body.dataset.text = [...(hw.lines ?? []), hw.spinLine ?? null].filter(Boolean).join(' | ');
   return body;
@@ -164,8 +198,47 @@ export function houseAspects(hn, { fmt = two } = {}) {
     const dm = sh?.dummy, dummy = dm && Number.isFinite(dm.clickAtMs) ? (Number.isFinite(dm.clearedAtMs) ? `the dummy cleared in ${two(dm.clearedAtMs - dm.clickAtMs)} s` : 'the dummy not cleared') : null;
     return [`${sh?.rounds ?? 0} rounds`, z.join(', ') || 'no hits', sh?.two ? `your number two ${sh.two.fired ?? 0} fired, ${sh.two.hits ?? 0} hit` : null, dummy].filter(Boolean).join(' · ');
   };
-  const say = { pause: (v) => w(v) ?? pause(v), drill: (v) => w(v) ?? drill(v), shots: (v) => w(v) ?? shots(v) };
-  return ['pause', 'drill', 'shots'].filter(k => a[k] !== undefined && a[k] !== null).map(k => [k, say[k](a[k])]).filter(([, t]) => t);
+  // (the team (the TEAM row's numbers and his rounds), the panel (the keys: presses by hand and by a row, the panel's layout)
+  // and the feel (what was played: the walk, the look; the sound's and the voice's picks are the page's, scoreLine's played))
+  const team = (t) => [t.words ? t.words.replace(/^TEAM · /, '').toLowerCase() : null, Number.isFinite(t.fired) ? `his rounds ${t.fired}, ${t.hits ?? 0} hit` : null].filter(Boolean).join(' · ');
+  const panel = (p) => `${p.presses ?? 0} press${p.presses === 1 ? '' : 'es'}: ${p.keys ?? 0} by the keys, ${p.rows ?? 0} by a row${p.layout ? ` · panel ${String(p.layout).toUpperCase()}` : ''}`;
+  const feel = (f) => [`walk ${f.cycle ?? 'B'}`, f.look ? `look ${Object.entries(f.look).filter(([, v]) => v !== null && v !== undefined && !(Array.isArray(v) && !v.length)).map(([k, v]) => `${k}:${Array.isArray(v) ? v.join('+') : v}`).join(',') || 'as built'}` : 'look as built'].join(' · ');
+  const say = { pause: (v) => w(v) ?? pause(v), drill: (v) => w(v) ?? drill(v), team: (v) => team(v), panel: (v) => w(v) ?? panel(v), shots: (v) => w(v) ?? shots(v), feel: (v) => w(v) ?? feel(v) };
+  return HOUSE_ASPECTS.filter(k => a[k] !== undefined && a[k] !== null).map(k => [k, say[k](a[k])]).filter(([, t]) => t);
+}
+/** "Stack and clear"'s aspects, in the score card's order (scenes.js; v0.0.20: six, from three). */
+export const HOUSE_ASPECTS = Object.freeze(['pause', 'drill', 'team', 'panel', 'shots', 'feel']);
+
+/**
+ * The session's sheets side by side on one seed (card C6; "Bang"'s gridTable form): { cols: [label], rows: [{ word, cells:
+ * [{ text, late, fault } | null] }], now } from runs [{ label, legs: [{ word, ms, parMs, state, setup, parMissed, faults }], now? }]
+ * (houseNow's legs a sheet). A cell is the leg's time against its par in the run sheet's words ("6.70 / 9.0"), "PASSED" or "SET UP",
+ * then "FIRED FIRST" and its faults' paper words; late past its par, a fault where the row has one.
+ */
+export function houseGrid(runs) {
+  const list = (runs ?? []).filter(r => r?.legs?.length), n = Math.max(0, ...list.map(r => r.legs.length));
+  const WORDS = ['ROOM 1', 'ROOM 2', 'ROOM 3', 'THE HALL'];
+  const cell = (V) => {
+    if (!V || V.state === 'ahead') return null;
+    if (V.setup) return { text: 'SET UP', late: false, fault: false };
+    const t = Number.isFinite(V.ms) ? `${two(V.ms)}${Number.isFinite(V.parMs) ? ` / ${(V.parMs / 1000).toFixed(1)}` : ''}` : '–';
+    const marks = [...new Set((V.faults ?? []).map(f => f.kind))].map(k => FAULT_GRID[k] ?? String(k).toUpperCase());
+    const missed = Number(V.parMissed) > 0;
+    return { text: [V.state === 'passed' ? 'PASSED' : t, missed ? 'FIRED FIRST' : null, ...marks].filter(Boolean).join(' · '), late: Number.isFinite(V.ms) && Number.isFinite(V.parMs) && V.ms > V.parMs, fault: missed || marks.length > 0 || V.state === 'passed' };
+  };
+  return { cols: list.map(r => r.label), rows: Array.from({ length: n }, (_, k) => ({ word: list.find(r => r.legs[k])?.legs[k]?.word ?? WORDS[k] ?? `LEG ${k + 1}`, cells: list.map(r => cell(r.legs[k])) })), now: list.findIndex(r => r.now) };
+}
+// (a fault's word in a grid cell: the run sheet's paper words, shortened where a cell is narrow)
+const FAULT_GRID = Object.freeze({ funnel: 'DOORWAY', muzzle: 'MUZZLE', corner: 'CORNER', noshoot: 'NO-SHOOT HIT', hostage: 'HOSTAGE HIT', standing: 'STANDING', door: 'DOOR LEFT', time: 'TIME', relaxed: 'RELAXED', masked: 'MASKED' });
+/** The grid as a table ({ className 'house-grid' }), the sheet just played marked, or null with fewer than two sheets. */
+export function houseGridEl(g, { doc = globalThis.document } = {}) {
+  if (!g || g.cols.length < 2 || !doc) return null;
+  const el = (tag, props = {}, ...kids) => { const n = Object.assign(doc.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
+  const t = el('table', { className: 'house-grid' },
+    el('tr', {}, el('th', { textContent: '' }), ...g.cols.map((c, i) => el('th', { className: i === g.now ? 'now' : '', textContent: c }))),
+    ...g.rows.map(r => el('tr', {}, el('th', { textContent: r.word }), ...r.cells.map((c, i) => el('td', { className: [i === g.now ? 'now' : '', c?.late ? 'late' : '', c?.fault ? 'fault' : ''].filter(Boolean).join(' '), textContent: c?.text ?? '–' })))));
+  t.dataset.head = `This seed, this session (${g.cols.length} sheets): each room against its par`;
+  return t;
 }
 
 /** The end card's lines for the house: [the run sheet's card line, the instructor's one thing] (the summary is the card's own words). */

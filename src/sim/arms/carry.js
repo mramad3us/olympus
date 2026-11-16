@@ -19,6 +19,11 @@
 // teammate's body as a capsule, floor to the top of his stance's span, the rifle in the hands and not at high or low ready
 // (SWEEP_SAFE); FLAG_MS 300 ms at once is the caller's clock (2026-11-12: in plan only before).
 //
+// **The line of fire** (lineMasked, v0.0.20, COMBAT §25.19.3.5): a round's line from the muzzle's tip (lineFromOf) to the man's aim
+// point, a body on it within MASK_R_M (the flag's capsule, floor to head by stance) between its ends; the first such body. Read by
+// the #2's rounds, yours and a role-player's; MASK_RESUME_MS, MASK_HOLD_MAX_MS, MASK_STEP_M, MASK_FAULT_MS and LIMIT_WARN_MS are the
+// holds' and the fault's figures.
+//
 // **The habit** (habitStep, WEAPONS §6.3): for each armed person on the live area (a rifle on its sling,
 // in hand or not), against each other person within the cone's reach + 0.5 m: a person entering the
 // cone opens an approach record (kit.carry.near[pid], saved), rolled once for as long as the approach
@@ -168,6 +173,55 @@ export function flagsAt(m, x, z, stance = 'stand') {
   if (s <= 0) return false;
   const dx = m.ox + d1[0] * s - x, dy = m.oy + d1[1] * s - (y0 + d2[1] * t), dz = m.oz + d1[2] * s - z;
   return Math.sqrt(dx * dx + dy * dy + dz * dz) <= FLAG_BODY_R_M;
+}
+
+/** The line of fire's mask (the build sheet v0.0.20 item 3; COMBAT §25.19.3.5): a body within MASK_R_M of a round's line, the flag's capsule (FLAG_BODY_R_M). */
+export const MASK_R_M = 0.3;
+/**
+ * The line of fire held both ways (the build sheet v0.0.20 item 3, drill.md item 1; TC 3-22.9 §1-10, "never cross in front of
+ * another member's muzzle"): a round whose line a teammate's body masks is held, "Line!" said once a hold, and fired
+ * MASK_RESUME_MS after the line clears (TRIGGER_S, the press after the line opens); held MASK_HOLD_MAX_MS, the #2 steps
+ * MASK_STEP_M toward the side his sector opens and fires from there; a round of his held MASK_FAULT_MS or more by you is the
+ * instructor's 'masked' fault (FLAG_MS's figure), and you in his sector's wedge before "Clear!" LIMIT_WARN_MS brings the DI's
+ * cqb-limit (ms, m; drill.md's calls).
+ */
+export const MASK_RESUME_MS = 150, MASK_HOLD_MAX_MS = 2000, MASK_STEP_M = 0.5, MASK_FAULT_MS = 300, LIMIT_WARN_MS = 500;
+// (a point's height where a caller gives none: the shooter's line at the holder aimed standing (POSTURES.aimed.hM), the
+// target's aim point (turners.js turnerTargets' y))
+const LINE_FROM_Y = 1.4, LINE_TO_Y = 1.35;
+/** Where a round leaves a shooter aimed at a point ({ x, z, y? }): his muzzle's tip with the rifle aimed that way (muzzleOf's x, y, z; POSTURES.aimed.tipM, 0.9 m ahead of him), so a body beside or behind him is never on his line; his own place where he carries no rifle. */
+export function lineFromOf(state, pid, actor, to) {
+  if (!actor) return null;
+  const m = muzzleOf(state, pid, { ...actor, headRad: Math.atan2(to.z - actor.z, to.x - actor.x) }, 'aimed');
+  return m ? { x: m.x, y: m.y, z: m.z } : { x: actor.x, z: actor.z };
+}
+/**
+ * The body that masks a round's line, or null (the build sheet v0.0.20 item 3, §4.1): from the shooter's line at the holder
+ * ({ x, z, y? }, muzzleOf's ox, oy, oz) to the aim point ({ x, z, y? }, the target's), each body ({ x, z, stance?, ... }) a
+ * capsule of radius rM about its axis from the floor to the top of its stance's span (SPAN_M, as flagsAt's), strictly between
+ * the two ends of the segment (a body behind the muzzle or past the target masks nothing). The nearest to the shooter along the
+ * line when several do: the first a round meets. Read by the #2's rounds (house-two.js twoFire), your shot rows' rounds
+ * (specials.js runRound) and a role-player's choice of target (opfor.js fireTick). Distances by Math.sqrt (TECH §8.1 rule 11).
+ */
+export function lineMasked(from, to, bodies, { rM = MASK_R_M } = {}) {
+  if (!from || !to || !bodies?.length) return null;
+  const P0 = [from.x, from.y ?? LINE_FROM_Y, from.z], d1 = [to.x - from.x, (to.y ?? LINE_TO_Y) - P0[1], to.z - from.z];
+  const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2], a = dot(d1, d1);
+  if (!(a > 1e-12)) return null;
+  const clamp = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  let best = null;
+  for (const b of bodies) {
+    if (!b || !Number.isFinite(b.x) || !Number.isFinite(b.z)) continue;
+    const [y0, y1] = SPAN_M[b.stance ?? 'stand'] ?? SPAN_M.stand, d2 = [0, y1 - y0, 0], r = [P0[0] - b.x, P0[1] - y0, P0[2] - b.z];
+    // (the closest pair between the round's segment and the body's axis: Ericson's, as flagsAt's)
+    const e = dot(d2, d2), f = dot(d2, r), c = dot(d1, r), bb = dot(d1, d2), den = a * e - bb * bb;
+    let s = den > 1e-12 ? clamp((bb * f - c * e) / den) : 0, t = e > 1e-12 ? (bb * s + f) / e : 0;
+    if (t < 0) { t = 0; s = clamp(-c / a); } else if (t > 1) { t = 1; s = clamp((bb - c) / a); }
+    if (s <= 1e-6 || s >= 1 - 1e-6) continue;
+    const dx = P0[0] + d1[0] * s - b.x, dy = P0[1] + d1[1] * s - (y0 + d2[1] * t), dz = P0[2] + d1[2] * s - b.z;
+    if (Math.sqrt(dx * dx + dy * dy + dz * dz) <= rM && (!best || s < best.s)) best = { s, b };
+  }
+  return best ? best.b : null;
 }
 
 /** Whether a body is in a cone (muzzleOf's): a BODY_R_M circle at (x, z) whose height span [y0, y1] the muzzle's widened line passes through. */

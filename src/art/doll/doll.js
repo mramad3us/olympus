@@ -71,9 +71,9 @@
 import { PX_PER_M } from '../../render/scale.js';
 import { word } from '../paint.js';
 import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE, cutOf, SIDES_K, COMBAT_SUIT } from '../figures/outfits.js';
-import { helmOf } from '../figures/helmets.js';
+import { helmOf, helmFor } from '../figures/helmets.js';
 import { dollHelm, trimDollPlate } from './helmets.js';
-import { rifleAt, gearBends, suitBelt, carrierPouches, dumpPouch, holster, earCups, pistolAt, heldItem, backDevices, sideDevices } from './worn.js';
+import { rifleAt, gearBends, suitBelt, carrierPouches, dumpPouch, holster, earCups, pistolAt, heldItem, backDevices, sideDevices, handDevice } from './worn.js';
 import { REF, INK, mix, lum, cloth, flesh, smooth, ribbon, edgeOf, grid, halo, TONES } from './grid.js';
 
 /** The close figure's scale: the stage's density over tradecraft's 16 px/m (my call: the same size against the picture). */
@@ -799,7 +799,10 @@ function kitOf(look = {}, marks = {}, body = null) {
   if (suit) { kit.legs = 0x3b4256; kit.sleeve = 0x3b4256; kit.boots = 0x5a6070; }
   // (a helmet candidate (look.helm, the helmet samples' only: samples/helmets, ./helmets.js) on the combat EVA suit: the suit as
   // the figures wear it, black (or the OPA's own colours), its shoulders' seam and the plate's edges in the faction's trim)
-  const helm = outfit === 'combatSuit' && look.helm ? helmOf(look.helm) : null;
+  // (else the game's helmet, helmets.js HELMET_DRAWN_AS through helmFor, the one place the figure and the doll read: none
+  // until the user picks, so the doll is v0.0.19's to the pixel)
+  const helmSpec = look.helm ?? (outfit === 'combatSuit' && !look.mask ? helmFor({ kind: look.unit ?? 'regular', faction: look.faction ?? 'mars' }) : null);
+  const helm = outfit === 'combatSuit' && helmSpec ? helmOf(helmSpec) : null;
   if (helm) {
     const K = { ...COMBAT_SUIT, ...(helm.suit ?? {}) };
     Object.assign(kit, {
@@ -877,6 +880,7 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
   if (hand === 'rifle' || G?.rifle?.place === 'hand') rifleIn(g, B, kit);
   else if (G?.rifle?.place === 'front' || G?.rifle?.place === 'ready') rifleAt(g, B, kit, G.rifle.place, MID);
   if (G?.pistol?.place === 'hand' || G?.pistol?.place === 'ready') pistolAt(g, B, kit, G.pistol.place);
+  if (G?.device) handDevice(g, B, kit, 'under');
   arms(g, B, kit);
   if (G) heldItem(g, B, kit);
   head(g, B, kit, look);

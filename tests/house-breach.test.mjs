@@ -15,7 +15,7 @@ import { BREACH_SAFE_KPA } from '../src/sim/arms/blast.js';
 import { openingState } from '../src/sim/places/model.js';
 import { KICK_PULL_WHY } from '../src/sim/places/swing.js';
 import { playerActor } from '../src/core/ids.js';
-import { HANDBACK_WORDS, FAIL_K } from '../src/sim/combat/bundle.js';
+import { HANDBACK_WORDS, FAIL_K, STACK_FIRST_WHY } from '../src/sim/combat/bundle.js';
 import { devicesOf, liveDevices } from '../src/sim/arms/devices.js';
 
 /** A seed whose first charge misfires (found by search on v0.0.18's tree, FD-1 misfireP 0.01: seeds 52, 172, 203 in the first 800). */
@@ -46,7 +46,8 @@ export default [
         const s = game.state;
         if (!choose(s) || seen.rows || openingState(s, 'o:w4:r2') === 'open') return;
         const rows = stepsOf(s).filter(x => /^drill:door:(breach|pry|ram)/.test(x.id) && x.door === 'o:w4:r2');
-        if (rows.length >= 2) seen.rows = rows.map(x => ({ id: x.id, off: x.off, label: x.label, ms: x.ms }));
+        // (at the door: away from it the ways carried are struck "stack first" (v0.0.20's fixer, the play review), not the swing's yet)
+        if (rows.length >= 2 && !rows.some(x => x.off === STACK_FIRST_WHY)) seen.rows = rows.map(x => ({ id: x.id, off: x.off, label: x.label, ms: x.ms }));
       };
       const r = runHouse(g, houseKitBot({ use: 'breach', base: 'keys' }), { maxMs: 6 * 60_000, each }), H = g.state.armoury.range.house;
       console.log(`      at room 2's door: ${(seen.rows ?? []).map(x => `${x.label}${x.off ? ` (${x.off})` : ` ${fmt(x.ms / 1000, 2)} s`}`).join(', ')}; room 2 ${H.broken?.['o:w4:r2'] ? 'pried' : 'not pried'}; the lane ${H.end?.why}`);

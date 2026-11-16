@@ -119,7 +119,7 @@ import { check, oddsOf, sortMods, TEMPO, checkShort, isMastered, CATCH_K } from 
 import { rollerOf, DARK_BELOW, DIM_BELOW } from '../combat/roll.js';
 import { PAPERS, holeOf, KD_RINGS, isFace, faceHole, faceOdds, poiXY, manHole, A_MARGIN } from './paper.js';
 import { MODELS, KINDS, OPTICS, opticSight } from './models.js';
-import { pull, feel, REFUSALS, gunField, sightOf, zeroOfGun, beliefZero, opticOf, beliefOf } from './firearms.js';
+import { pull, feel, refusalOf, gunField, sightOf, zeroOfGun, beliefZero, opticOf, beliefOf } from './firearms.js';
 import { flight, envOfPlace, CLICK_MRAD } from './ballistics.js';
 import { pathWind, windWords, windBlowsAt } from './wind.js';
 import { carryOf, muzzleOf, POSTURES } from './carry.js';
@@ -589,7 +589,7 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
     // (the last round: the bolt locks back, felt and seen, said as tradecraft said it (the parity review's))
     if (f.empty && log) logEntry(state, bus, { kind: 'note', tone: 'note', text: f.locked ? 'It locks back: empty.' : 'Empty.', who: pid });
   } else {
-    if (log) entry = logEntry(state, bus, { kind: 'note', tone: 'note', text: REFUSALS[f.why] ?? 'Click.', who: pid });
+    if (log) entry = logEntry(state, bus, { kind: 'note', tone: 'note', text: refusalOf(f.why, M) ?? 'Click.', who: pid });
     stepMs = Math.round(TRIGGER_S * 1000);
   }
   const shot = { id, who: pid, gun: gunId, atMs: ms, fired: !!f.fired, why: f.why ?? null, stoppage: f.stoppage ?? null, set: f.set ?? null, load: f.fired ? f.load ?? 'ball' : null,

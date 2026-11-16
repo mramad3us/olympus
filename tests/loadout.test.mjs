@@ -9,7 +9,7 @@ import { LOADOUT_PRESETS, PRESET_ORDER, loadoutOf, codeOf, checkLoadout, loadout
 import { kitMassKg } from '../src/sim/arms/kit.js';
 import { devicesOf, deviceMs } from '../src/sim/arms/devices.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
-import { TWO_P12_DEFAULT } from '../src/sim/arms/loadout.js';
+import { TWO_P12_DEFAULT, twoP12Of } from '../src/sim/arms/loadout.js';
 
 const SHEETS = ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'];
 const house = (tier, loadout = null) => createGame({ scenario: 'test-shoothouse', seed: 48213, tier, setup: 'go', ...(loadout ? { loadout } : {}) });
@@ -73,30 +73,36 @@ export default [
       assert(g.digest() === std.digest() && isStandard(null) && !isStandard('flash') && codeOf(LOADOUT_PRESETS.full) === 'full', 'an unknown loadout fills the standard');
     },
   },
-  // (v0.0.19 (the build sheet 0.0.19 §0 item 10, §6): the presets and the #2's P-12 token)
+  // (v0.0.19 (the build sheet 0.0.19 §0 item 10, §6): the presets and the #2's P-12 token; v0.0.20: his P-12 the default)
   {
-    name: 'every v0.0.18 code round-trips byte for byte, and "~two:p12" round-trips after a preset and after a v1 code (absent when off: TWO_P12_DEFAULT false); the four new presets name themselves',
+    name: 'every v0.0.18 code round-trips byte for byte (his P-12 issued with each: v0.0.20, the user\'s answer of 2026-11-16, "#2 has to have a sidearm"); a v0.0.19 code "…~two:p12" reads with it and is written back without the token; "~two:none" (the tests\' only) reads it off and round-trips; the four new presets name themselves',
     fn() {
+      // (v0.0.20's integration: loadoutOf keeps only a token's `two`; twoP12Of, the one reader, resolves the default)
       const v18 = ['standard', 'flash', 'breach', 'full', 'v1~front:mag2,mag2,dump~left:g11', 'v1~front:mag2,mag2,dump~right:sc1+fd1,g11~back:ram'];
-      const d2 = ['frag', 'conc', 'cut', 'mixed', 'flash~two:p12', 'standard~two:p12', 'v1~front:mag2,mag2,dump~left:g9p~right:bc1+fd1~two:p12'];
+      const v19 = ['flash~two:p12', 'standard~two:p12', 'v1~front:mag2,mag2,dump~left:g9p~right:bc1+fd1~two:p12'];
+      const none = ['frag~two:none', 'standard~two:none', 'v1~front:mag2,mag2,dump~left:g9p~right:bc1+fd1~two:none'];
       const rt = (c) => codeOf(loadoutOf(c));
-      console.log(`      v0.0.18's: ${v18.map(c => `${c} → ${rt(c)}`).join('; ')}`);
-      console.log(`      v0.0.19's: ${d2.map(c => `${c} → ${rt(c)}${loadoutOf(c).two?.p12 ? ' (his P-12)' : ''}`).join('; ')}; the default ${TWO_P12_DEFAULT}; presets ${PRESET_ORDER.join(', ')}`);
-      assert(v18.every(c => rt(c) === c && !loadoutOf(c).two), JSON.stringify(v18.map(rt)));
-      assert(d2.every(c => rt(c) === c) && loadoutOf('flash~two:p12').two?.p12 === true && !TWO_P12_DEFAULT, JSON.stringify(d2.map(rt)));
+      console.log(`      v0.0.18's: ${v18.map(c => `${c} → ${rt(c)}${twoP12Of(loadoutOf(c)) ? ' (his P-12)' : ''}`).join('; ')}`);
+      console.log(`      v0.0.19's: ${v19.map(c => `${c} → ${rt(c)}`).join('; ')}; off: ${none.map(c => `${c} → ${rt(c)}${twoP12Of(loadoutOf(c)) ? '' : ' (none)'}`).join('; ')}; the default ${TWO_P12_DEFAULT}; presets ${PRESET_ORDER.join(', ')}`);
+      assert(TWO_P12_DEFAULT === true && v18.every(c => rt(c) === c && !loadoutOf(c).two && twoP12Of(loadoutOf(c))), JSON.stringify(v18.map(rt)));
+      assert(v19.every(c => rt(c) === c.slice(0, -'~two:p12'.length) && twoP12Of(loadoutOf(c))), JSON.stringify(v19.map(rt)));
+      assert(none.every(c => rt(c) === c && loadoutOf(c).two?.p12 === false && !twoP12Of(loadoutOf(c)) && isStandard(c) === false), JSON.stringify(none.map(rt)));
       assert(['frag', 'conc', 'cut', 'mixed'].every(p => PRESET_ORDER.includes(p) && !checkLoadout(LOADOUT_PRESETS[p])), 'presets');
     },
   },
   {
-    name: 'the review of v0.0.19: TWO_P12_DEFAULT is the one switch: with the default on, a plain code gives the #2 his P-12, "~two:none" takes it off, and both round-trip (loadoutOf resolves the default, codeOf writes only a difference); with it off, "~two:none" is the plain code',
+    name: 'the review of v0.0.19: TWO_P12_DEFAULT is the one switch: with the default on, a plain code gives the #2 his P-12, "~two:none" takes it off, and both round-trip (loadoutOf reads the token, twoP12Of resolves the default, codeOf writes only a difference); with it off, "~two:none" is the plain code',
     fn() {
+      // (v0.0.20's integration: v0.0.19's fixer resolved the default in loadoutOf, v0.0.20's stage 0 in twoP12Of, the one reader
+      // the fill and the screen call; the merge keeps stage 0's, so a spec's `two` is the token's and the default is twoP12Of's)
       const on = { twoDefault: true }, off = { twoDefault: false };
-      const plain = loadoutOf('standard', on), none = loadoutOf('standard~two:none', on), unset = loadoutOf(null, on);
+      const plain = loadoutOf('standard'), none = loadoutOf('standard~two:none'), unset = loadoutOf(null);
       const codeOn = codeOf({ ...LOADOUT_PRESETS.standard, two: { p12: true } }, on), codeNone = codeOf({ ...LOADOUT_PRESETS.standard, two: { p12: false } }, on);
-      const back = loadoutOf(codeNone, on), offNone = loadoutOf('flash~two:none', off), offCode = codeOf(offNone, off);
-      console.log(`      default on: 'standard' ${JSON.stringify(plain.two ?? null)}, null ${JSON.stringify(unset.two ?? null)}, '~two:none' ${JSON.stringify(none.two ?? null)}; the codes ${codeOn}, ${codeNone} (read back ${JSON.stringify(back.two ?? null)}); default off: 'flash~two:none' ${JSON.stringify(offNone.two ?? null)} written ${offCode}`);
-      assert(plain.two?.p12 === true && unset.two?.p12 === true && !none.two && codeOn === 'standard' && codeNone === 'standard~two:none' && !back.two && !back.error, JSON.stringify({ plain, none, codeOn, codeNone }));
-      assert(!offNone.two && !offNone.error && offCode === 'flash', JSON.stringify({ offNone, offCode }));
+      const back = loadoutOf(codeNone), offNone = loadoutOf('flash~two:none'), offCode = codeOf(offNone, off);
+      const p = (x, o) => twoP12Of(x, o);
+      console.log(`      default on: 'standard' ${p(plain, on)}, null ${p(unset, on)}, '~two:none' ${p(none, on)}; the codes ${codeOn}, ${codeNone} (read back ${p(back, on)}); default off: 'flash~two:none' ${p(offNone, off)} written ${offCode}`);
+      assert(p(plain, on) && p(unset, on) && !p(none, on) && codeOn === 'standard' && codeNone === 'standard~two:none' && !p(back, on) && !back.error && !unset.error, JSON.stringify({ plain, none, codeOn, codeNone }));
+      assert(!p(offNone, off) && !offNone.error && offCode === 'flash' && codeOf(plain, off) === 'standard' && codeOf(plain, on) === 'standard', JSON.stringify({ offNone, offCode }));
     },
   },
 ];

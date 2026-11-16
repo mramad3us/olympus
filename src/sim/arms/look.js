@@ -10,7 +10,7 @@
 //                    flash within FLASH_MS of the shot and the kick within KICK_MS (as fractions, 1 at the
 //                    shot), on game time, so stop motion freezes them; the muzzle's tip (carry.js
 //                    muzzleOf: the flash's and the sound's point); the finger; the magazine in or out.
-//   kitLook(state, pid)   the ear defenders, the carrier, each pouch's magazines.
+//   kitLook(state, pid)   the ear defenders (in the head slot or their own, by type), the carrier, each pouch's magazines.
 //   rangeLook(state, ms)  the range session's: hot (the red flag), each lane's holes (the shot role's
 //                    paper.js placed them, by hash, in their ring: stored on the session's shots), the
 //                    brass in flight and at rest (caseAt, each with the stance it left), the magazines
@@ -226,10 +226,13 @@ export function gunLook(state, actor, ms = state?.clock?.ms ?? 0) {
 export function kitLook(state, pid) {
   const kit = state.people?.[pid]?.kit;
   if (!kit) return { ears: false, carrier: false, pouches: [] };
-  const head = state.items?.[kit.worn?.head], carrier = state.items?.[kit.worn?.carrier];
+  const head = state.items?.[kit.worn?.head], earsRec = state.items?.[kit.worn?.ears], carrier = state.items?.[kit.worn?.carrier];
   const pouches = (carrier?.holds ?? []).map(id => state.items[id]).filter(p => CONTAINERS[p?.model]?.fits?.includes('mag')).map(p => ({ n: (p.holds ?? []).length }));
+  // (ear defenders in the head slot (ears-m1) or their own (ed1, the range's and the bay's issue since 0.0.7), by type, as
+  // gear.js gearOf reads them: the hunt of v0.0.18 found the stage drawing you bare-eared under the I card's cups)
+  const ears = CONTAINERS[head?.model]?.type === 'ears' || CONTAINERS[earsRec?.model]?.type === 'ears';
   // (v0.0.19: the force-on-force mask, only when worn, so every other kit's look is as it was)
-  return { ears: head?.model === 'ears-m1', carrier: !!carrier, pouches, ...(kit.worn?.mask ? { mask: true } : {}) };
+  return { ears, carrier: !!carrier, pouches, ...(kit.worn?.mask ? { mask: true } : {}) };
 }
 
 /** A case's place at ms (WEAPONS §2.8's flight): { x, y, z, rest, rotRad }. rec: ejectCase's; gMs2 the place's (caseGMs2). */

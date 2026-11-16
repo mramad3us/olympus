@@ -12,26 +12,34 @@ import { twoFixOf, twoDrillOf, fixReady } from '../src/sim/scenarios/house-two.j
 import { beliefOf } from '../src/sim/arms/firearms.js';
 
 const two = (s) => s.armoury.range.house.two;
+// (v0.0.20's stage 0: your #2 carries his P-12 by default (loadout.js TWO_P12_DEFAULT); these cases are his rifle's drill alone,
+// so his lanes are '~two:none', v0.0.19's default: with a pistol and a man facing he would draw it (two-p12's cases))
+const NO_P12 = 'standard~two:none';
 const rifleOf = (s) => s.items[s.people[two(s).pid].kit.worn.sling];
 
 export default [
   {
-    name: 'his drill on a double feed he has not felt starts with IMMEDIATE ACTION (his belief: a dead trigger), where v0.0.18\'s started REMEDIAL (the truth\'s twoDrillOf); on his hands in the lane the IA first, then the REMEDIAL once the port shows it (fails without twoFixOf)',
+    name: 'his drill on a double feed he has not felt starts with IMMEDIATE ACTION (his belief: a dead trigger), where v0.0.18\'s started REMEDIAL (the truth\'s twoDrillOf); on his hands in the lane the IA first, then the REMEDIAL once the port shows it (fails without twoFixOf); with his P-12 (standard issue from v0.0.20) the draw comes first at a man facing him, then the rifle\'s IA inside its Rifle up, then the REMEDIAL',
     timeoutMs: 60_000,
     fn() {
-      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'tierone', setup: 'room:3' }), s = g.state, W = two(s), gun = rifleOf(s);
-      gun.chamber = 'case'; gun.jam = 'double';
-      const truth = twoDrillOf(s, gun);
-      const drills = [];
-      runHouse(g, houseHonestBot(), { maxMs: 40_000, each: () => { if (W.doing?.cmd === 'down' && drills.at(-1) !== W.doing.macro) drills.push(W.doing.macro); } });
-      console.log(`      the truth's drill (v0.0.18) ${truth}; his drills in the lane ${drills.join(' then ')}; his rifle at the end: ${JSON.stringify({ jam: rifleOf(s).jam ?? null, chamber: rifleOf(s).chamber ?? null })}`);
-      assert(truth === 'remedial' && drills[0] === 'ia' && drills.includes('remedial') && !rifleOf(s).jam, JSON.stringify({ truth, drills }));
+      const run = (loadout) => {
+        const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'tierone', setup: 'room:3', ...(loadout ? { loadout } : {}) }), s = g.state, W = two(s), gun = rifleOf(s);
+        gun.chamber = 'case'; gun.jam = 'double';
+        const truth = twoDrillOf(s, gun), drills = [];
+        runHouse(g, houseHonestBot(), { maxMs: 40_000, each: () => { if (W.doing?.cmd === 'down' && drills.at(-1) !== W.doing.macro) drills.push(W.doing.macro); } });
+        return { truth, drills, end: { jam: rifleOf(s).jam ?? null, chamber: rifleOf(s).chamber ?? null } };
+      };
+      const none = run('standard~two:none'), p12 = run(null);
+      console.log(`      without a P-12 ('~two:none'): the truth's drill (v0.0.18) ${none.truth}; his drills in the lane ${none.drills.join(' then ')}; his rifle at the end: ${JSON.stringify(none.end)}`);
+      console.log(`      with his P-12: his drills ${p12.drills.join(' then ')}; his rifle at the end: ${JSON.stringify(p12.end)}`);
+      assert(none.truth === 'remedial' && none.drills[0] === 'ia' && none.drills.includes('remedial') && !none.end.jam, JSON.stringify(none));
+      assert(p12.drills[0] === 'transition' && p12.drills[1] === 'rifle-up' && p12.drills.includes('remedial') && !p12.end.jam, JSON.stringify(p12));
     },
   },
   {
     name: 'his "Gun up!" waits on his belief, never the truth: a rifle he believes stopped is not ready whatever it is, and one he believes ready is (a gun that lies is found by his next shot, TWO_TRIES bounding it)',
     fn() {
-      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'tierone', setup: 'room:3' }), s = g.state, W = two(s), gun = rifleOf(s);
+      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'tierone', setup: 'room:3', loadout: NO_P12 }), s = g.state, W = two(s), gun = rifleOf(s);
       const ready0 = fixReady(twoFixOf(s, W));
       gun.belief = { ...(gun.belief ?? {}), stoppage: 'dead' };
       const believedStopped = twoFixOf(s, W);
@@ -44,7 +52,7 @@ export default [
   {
     name: 'every believed state of his rifle on the lane\'s ways (the magazine in or out, its count, the chamber, a stoppage felt, the bolt locked) gives him a way or an honest none, never a dead end (printed by state)',
     fn() {
-      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private', setup: 'room:2' }), s = g.state, W = two(s), gun = rifleOf(s), base = JSON.stringify(gun.belief ?? {});
+      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private', setup: 'room:2', loadout: NO_P12 }), s = g.state, W = two(s), gun = rifleOf(s), base = JSON.stringify(gun.belief ?? {});
       const out = {};
       for (const mag of ['in', 'out']) for (const count of [0, 5, null]) for (const chamber of ['live', 'empty', 'case', '?']) for (const stoppage of [null, 'dead', 'click', 'case', 'double']) for (const locked of [false, true]) {
         gun.belief = { ...JSON.parse(base), mag, count, chamber, ...(stoppage ? { stoppage } : {}), ...(locked ? { locked: true } : {}) };

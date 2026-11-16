@@ -9,6 +9,8 @@
 import { assert, fmt } from './helpers.mjs';
 import { doll, woundSpot, TIRED_SHOWS_K, BLADDER_SHOWS_K, HUNGER_SHOWS_K } from '../src/art/doll/doll.js';
 import { unword } from '../src/art/paint.js';
+import { HELM_IDS, helmFor, HELMET_DRAWN_AS } from '../src/art/figures/helmets.js';
+import { wear } from '../src/art/figures/outfits.js';
 
 const WALL = 0x383c4a, FLOOR = 0x2b2e3a, FLOOR_DARK = 0x1f2029, INK = 0x14151c, GOLD = 0xe7b84a;
 const colourAt = (pm, x, y) => unword(pm.data[y * pm.w + x]).hex;
@@ -123,6 +125,17 @@ export default [
       console.log(`      PT kit: ${oxblood} oxblood pixels on the tee, ${skinLegs(pt)} skin-toned on the shins, ${legs} pixels of leg apart from the utilities'; the towel: ${skinChest(tw)} of bare chest, a woman's ${skinChest(tf)}; the towel against PT kit ${diff(tw, pt)} pixels`);
       assert(oxblood > 300 && skinLegs(pt) > 200 && legs > 500, 'PT kit');
       assert(skinChest(tw) > 300 && skinChest(tf) < skinChest(tw) / 2, 'the towel at the waist, or at the chest');
+    },
+  },
+  {
+    name: 'one helmet id for one look (the build sheet v0.0.20 item 22): the figure and the doll take a marine\'s helmet from one place, helmets.js helmFor: every candidate named draws its own doll, the same id the figure wears; with none named and none drawn as, the sealed head as built on both',
+    fn() {
+      const dig = (pm) => { let h = 2166136261 >>> 0; for (let i = 0; i < pm.data.length; i++) { h ^= pm.data[i]; h = Math.imul(h, 16777619) >>> 0; } return h.toString(16); };
+      const look = (helm) => ({ outfit: 'combatSuit', seed: 3, ...(helm ? { helm } : {}) });
+      const rows = HELM_IDS.map(id => { const spec = helmFor({ pick: id, slot: 1 }); return { id, fig: wear(look(spec)).helm?.id ?? null, doll: dig(doll({ look: look(spec), sex: 'm', outfit: 'combatSuit' })) }; });
+      const none = { fig: wear(look(null)).helm ?? null, doll: dig(doll({ look: look(null), sex: 'm', outfit: 'combatSuit' })) };
+      console.log(`      ${rows.map(r => `${r.id}: the figure ${r.fig}, the doll ${r.doll}`).join('; ')}; none: the figure ${none.fig}, the doll ${none.doll}; drawn as ${JSON.stringify(HELMET_DRAWN_AS)}`);
+      assert(rows.every(r => r.fig === r.id) && new Set(rows.map(r => r.doll)).size === rows.length && !rows.some(r => r.doll === none.doll) && none.fig === null, JSON.stringify({ rows, none }));
     },
   },
 ];

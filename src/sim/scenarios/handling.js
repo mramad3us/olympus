@@ -114,8 +114,9 @@ import { deltaOf } from '../body/record.js';
 import { rollSheet, tierOfRank } from '../skills/templates.js';
 import { barracks } from './barracks.js';
 import { setLedgers } from './tests.js';
-import { materialise, move, pouchFor, handMagOf, containersOf, atFeetOf } from '../arms/kit.js';
+import { materialise, move, pouchFor, handMagOf, containersOf, atFeetOf, handGunOf } from '../arms/kit.js';
 import { newMag, feed, conditionOf, gunField } from '../arms/firearms.js';
+import { modelOf, isLong } from '../arms/models.js';
 import { rangeSafety, carryOf } from '../arms/carry.js';
 import { scoreOf, PAPERS } from '../arms/paper.js';
 import { enterStop, leaveStop, gunOn } from '../arms/shooting.js';
@@ -125,7 +126,7 @@ import { feetOf } from '../combat/contact.js';
 import { halt } from '../combat/stepper.js';
 import { kdReady, kdRelayReady, kdOnCmd, kdNextI, kdSecond, kdStringEnd, kdShot, kdMoveOn, kdPoint, kdNow, kdWaitOnYou } from './range.js';
 import { pairsReady, pairsOnCmd, pairsSecond, pairsShot, pairsAfterStep, pairsBox, pairsPoint, pairsRangeNow, pairsWant, PAIRS_NUDGE, pairsStepStart } from './pairs.js';
-import { houseReady, houseOnCmd, houseSecond, houseShot, houseStepStart, houseAfterStep, houseRangeNow, houseWant, houseMoveOn } from './shoothouse.js';
+import { houseReady, houseOnCmd, houseSecond, houseShot, houseStepStart, houseAfterStep, houseRangeNow, houseNudgeOf, houseMoveOn } from './shoothouse.js';
 
 /** Where the scene plays. */
 export const HANDLING = Object.freeze({ site: SCENES['test-handling'].host.site, area: KD_RANGE.area, course: 'fam25' });
@@ -413,7 +414,7 @@ export function rangeSecond(state, input, bus, ctx) {
   // everyone was waiting"); fam25's stays R.livedMs, to the tick)
   // (0.0.8, the fixer's: on the pairs course the coach names what is still lacking (pairs.js pairsWant), never while a string runs)
   const live = R.course === 'pairs' && !!R.str && R.str.turnedMs !== null && !R.str.done;
-  const want = R.course === 'house' ? houseWant(state) : null;
+  const want = R.course === 'house' ? houseNudgeOf(state) : null;
   const nudge = R.course === 'pairs' ? (live ? null : PAIRS_NUDGE[pairsWant(state)] ?? NUDGE[R.cmd.id]) : R.course === 'house' ? HOUSE_NUDGE[want] ?? NUDGE[R.cmd.id] : NUDGE[R.cmd.id];
   const waited = kd ? kdWaitOnYou(state) : R.livedMs;
   if (!R.next && !R.nudged && i > 0 && waited >= C.nudgeMs && nudge) {
@@ -447,7 +448,8 @@ export function rangeSecond(state, input, bus, ctx) {
   // (0.0.6: the line waits on one lane no longer than moveOnMs of lived time: see the header; a dry shooter's
   // never a 'slow' fault, the coach having said why the rifle is not loaded)
   // (a walk the tower called and its splash not yet begun is the tower's wait, never a 'slow' fault of yours)
-  if (!R.next && i > 0 && ni !== null && waited >= C.moveOnMs) moveOn(state, bus, { quiet: (!!R.dry && NEEDS_ROUNDS.includes(SQ[i].ready)) || (kd && SQ[i].ready === 'arrived') });
+  // (the house's tower waiting on your number two alone (houseWant 'two:…') is his stall, never a 'slow' fault of yours)
+  if (!R.next && i > 0 && ni !== null && waited >= C.moveOnMs) moveOn(state, bus, { quiet: (!!R.dry && NEEDS_ROUNDS.includes(SQ[i].ready)) || (kd && SQ[i].ready === 'arrived') || String(want ?? '').startsWith('two:') });
 }
 
 /**
@@ -517,20 +519,45 @@ export function moveOn(state, bus, { quiet = false } = {}) {
 }
 
 /**
- * The coach takes the rifle never shown and clears it himself (see the header): a 'slow' fault in his words, the
- * mode left, the magazine out to a pouch (or the ground), the chamber emptied (its round thrown), the bolt home, the
- * hammer cocked, on safe, the port shut, the rifle slung front and shown: his "Clear.", the line ready to be called clear.
+ * The coach takes the guns never shown and clears them himself (see the header): a 'slow' fault in his words, the
+ * mode left, each magazine out to a pouch of its family (or the ground), each chamber emptied (its round thrown), the bolt
+ * or slide home, the hammer cocked, on safe, the port shut; a pistol in the hand back in its holster, the rifle slung front
+ * and shown: his "Clear.", the line ready to be called clear. Every gun the shooter carries (the gun in use, the rifle on its
+ * sling, the pistol in the holster or the hand), not the gun in use alone: before, with the P-12 drawn at SHOW CLEAR he
+ * cleared the pistol and passed the R-7 hanging with its dud and five rounds on semi, and with the rifle in use he passed the
+ * P-12 1 + 9 in its holster (the hunt of v0.0.18). Once a take: again only while a gun still holds anything (the tower's
+ * SHOW CLEAR judges the truth of both, shoothouse.js houseReady), never a second 'slow' fault over guns already clear.
  */
 export function coachClears(state, bus) {
-  const R = rangeOf(state), pid = playerId(state), gunId = gunOn(state, pid), gun = state.items?.[gunId];
+  const R = rangeOf(state), pid = playerId(state), gunId = gunOn(state, pid), gun = state.items?.[gunId], kit = state.people?.[pid]?.kit;
+  // (the rest of what he carries: the rifle on the sling and the pistol in the holster or the hand, each once)
+  const others = [kit?.worn?.sling, kit?.worn?.holster, handGunOf(state, pid)].filter((id, i, a) => id && id !== gunId && a.indexOf(id) === i && state.items[id]?.type === 'gun');
+  // (anything in it; a pistol's slide held back too, which no holster takes; a rifle's bolt back on nothing is clear)
+  const loaded = (g) => !!g && (!!g.mag || !!gunField(g, 'chamber') || !!gunField(g, 'jam') || (!!gunField(g, 'locked') && !isLong(modelOf(g))));
+  const more = others.filter(id => loaded(state.items[id]));
   // (once: a shooter not still at the next whole second after it (a step under way) gave the move-on again, a 'slow'
   // fault and "Clear." each second until still; the fixer's, 0.0.6)
-  if (!R || R.end || R.shown || !gun) return;
+  if (!R || R.end || !gun || (R.shown && !loaded(gun) && !more.length)) return;
   fault(state, bus, 'slow', 'warn', hashPick(COACH.take, 'coach', state.meta.seed, 'take'));
   if (state.stop) leaveStop(state, bus, 'coach');
   if (state.stop) state.stop = null;
+  for (const id of [gunId, ...more]) coachClearsGun(state, pid, id, R);
+  // (a pistol in the hand goes back in its holster, on safe; the rifle hangs on its sling)
+  const hp = handGunOf(state, pid);
+  if (hp && kit?.worn && !kit.worn.holster && !isLong(modelOf(state.items[hp]))) move(state, hp, { pid, slot: 'holster' });
+  const carry = kit?.carry;
+  if (carry) { carry.posture = 'slungFront'; delete carry.finger; }
+  coachSays(state, bus, COACH.clear, 'clear', 'coach');
+  R.shown = true;
+}
+// (one gun cleared by the coach: its magazine to a pouch of its family, else the ground; what was in the action thrown; the bolt
+// or slide home, cocked, on safe, the port shut; believed empty)
+function coachClearsGun(state, pid, gunId, R) {
+  const gun = state.items?.[gunId];
+  if (!gun) return;
   if (gun.mag) {
-    const c = pouchFor(state, pid), me = playerActor(state);
+    // (a pistol's to the pouch of its family, the thigh's (kit.js pouchFor); the rifle's to the first with room, as before)
+    const c = pouchFor(state, pid, isLong(modelOf(gun)) ? null : state.items[gun.mag]?.fam ?? null), me = playerActor(state);
     if (c) move(state, gun.mag, { container: c });
     else if (me) move(state, gun.mag, { ground: { area: R.area ?? KD_RANGE.area, x: me.x + 0.3, z: me.z + 0.1 } });
   }
@@ -541,10 +568,6 @@ export function coachClears(state, bus) {
   for (const k of ['chamber', 'set', 'jam', 'locked', 'load', 'portOpen']) delete gun[k];
   delete gun.cocked; delete gun.mode;
   gun.belief = { chamber: 'empty' };
-  const carry = state.people[pid]?.kit?.carry;
-  if (carry) { carry.posture = 'slungFront'; delete carry.finger; }
-  coachSays(state, bus, COACH.clear, 'clear', 'coach');
-  R.shown = true;
 }
 
 /**
@@ -707,6 +730,14 @@ export function rangeLine(state) {
   return { downrangeRad: KD_RANGE.downrangeRad, box: L.box, lane: R.course === 'kd' ? L.lane : R.course === 'pairs' ? undefined : R.lane, hot: R.hot, targetKey, people, area: KD_RANGE.area,
     coachId: R.coachId, cmd: R.cmd?.id ?? null };
 }
+
+/**
+ * Whether the line is cold for a reload: a course running, not hot, and not the pairs course's (whose reloads are the shooter's
+ * own, aheadOf's rule). The Fix of the bays and the tower's lines asks it before it names a way that brings a round up
+ * (shooting.js markFix; the hunt of v0.0.18: Fix read RELOAD at PRONE and CEASE FIRE, and pressing it drew "Wait for the tower"
+ * and the fault 'ahead', and at the police call, after the show clear, it chambered a round with nothing said).
+ */
+export const lineCold = (state) => { const R = rangeOf(state); return !!R && !R.end && !R.hot && R.course !== 'pairs'; };
 
 /** A command macro chosen: ahead of the tower, a warning (see the header). Returns whether it was ahead. */
 export function aheadOf(state, bus, macroId) {

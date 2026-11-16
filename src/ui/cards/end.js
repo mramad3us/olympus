@@ -24,10 +24,14 @@
 // (cards: cards/stress.js hotWash's element, one string's truth card and a button a string; the fixer's of 0.0.10, in place of five
 // thumbnails) and from the second sheet the session's grid (grid: gridTable's, in place of a summary line a sheet); "Again as …"
 // leads with each sheet's hardening word.
-const COUNT_WORDS = Object.freeze(['no aspect', 'one aspect', 'two aspects', 'three aspects', 'four aspects']);
+// v0.0.20 (the build sheet v0.0.20 §1 items 20, 21, 25; card C5, C6, C7): the shoot house's card leads with the instructor's verdict
+// (verdict: { go, words }, its own line, green or red), takes "Again from room 2" after a NO-GO (from: { word, setup }, on.from(setup):
+// the weak room drilled without the walk to it) and "Export the run" (on.exportRun(), the run's save at GO and its inputs as a JSON
+// file to replay in node: tests/replay-run.mjs), each numbered after "Again as …"; a grid carries its own head (grid.dataset.head).
+const COUNT_WORDS = Object.freeze(['no aspect', 'one aspect', 'two aspects', 'three aspects', 'four aspects', 'five aspects', 'six aspects']);
 
-/** The card's body and its numbered lines: { body, lines }. scene: SCENES' record; seed; on: { again(sameSeed), score(), title() }. */
-export function endCard({ scene, seed, on = {}, said = null, sheet = null, aspects = [], again = [], runs = [], bangs = [], stress = [], cards = null, grid = null }) {
+/** The card's body and its numbered lines: { body, lines }. scene: SCENES' record; seed; on: { again(sameSeed), score(), title(), from?(setup), exportRun?() }. */
+export function endCard({ scene, seed, on = {}, said = null, sheet = null, aspects = [], again = [], runs = [], bangs = [], stress = [], cards = null, grid = null, verdict = null, from = null, exportRun = false }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); n.append(...kids.filter(k => k !== null && k !== undefined)); return n; };
   const line = (n, text, small, fn, cls = 'item') => el('button', { className: cls, type: 'button', onclick: fn }, el('kbd', { textContent: String(n) }), text, small ? el('small', { textContent: small }) : null);
   const lines = [
@@ -36,18 +40,24 @@ export function endCard({ scene, seed, on = {}, said = null, sheet = null, aspec
     line(3, 'Score it', `${COUNT_WORDS[scene.aspects?.length ?? 3] ?? `${scene.aspects.length} aspects`}, a ★, a note`, () => on.score?.(), 'item lead'),
     // (0.0.8: the other sheets on the same seed)
     // (0.0.9: on "Three bangs" the hardening's word leads, the scene's lesson (the design review))
-    ...again.map((a, i) => line(4 + i, `Again as ${a.label}`, a.hard ? `${a.hard} · seed ${seed}` : `Warfighting ${a.wf} · seed ${seed}`, () => on.againAs?.(a.tier), 'item again-as')),
-    line(4 + again.length, 'Back to the title', null, () => on.title?.()),
+    ...again.map((a, i) => line(4 + i, `Again as ${a.label}`, a.hard ? `${a.hard} · seed ${seed}` : a.why ? `${a.why} · seed ${seed}` : `Warfighting ${a.wf} · seed ${seed}`, () => on.againAs?.(a.tier), `item again-as${a.up ? ' up' : ''}`)),
   ];
+  // (the weak room after a NO-GO, the run's export; then the title, always last)
+  if (from?.setup) lines.push(line(lines.length + 1, `Again from ${from.word}`, `the setup ${from.setup} · seed ${seed}`, () => on.from?.(from.setup), 'item again-from'));
+  if (exportRun) lines.push(line(lines.length + 1, 'Export the run', 'the save at GO and every press, to replay', () => on.exportRun?.(), 'item export'));
+  lines.push(line(lines.length + 1, 'Back to the title', null, () => on.title?.()));
   // (0.0.10, the fixer's: "Bang"'s card is wider and lays its choices in two columns, so with the hot wash beside it and the
   // session's grid in it, it never scrolls at 1600 × 900 or 1024 × 768 (the runtime review: 907 px of 826 after a second sheet))
-  const body = el('div', { className: `glass end${stress.length ? ' wide' : ''}` },
+  // (the shoot house's card, with its verdict, lays its choices in two columns too, at its own width: the plan stands beside it)
+  const body = el('div', { className: `glass end${stress.length ? ' wide' : verdict ? ' house' : ''}` },
     el('h3', { textContent: `End of the scene: ${scene.title}${sheet ? `, as ${sheet}` : ''}` }),
     // (0.0.9: the bangs' lines first, the summary and the calm figure)
     bangs.length ? el('div', { className: 'bangs-said' }, ...bangs.map((t, i) => el('p', { className: `bang-said${i ? ' calm' : ''}`, textContent: t }))) : null,
     // (0.0.10: the stress course's summary, its strings and the inoculation; from the second sheet the session's grid)
     stress.length ? el('div', { className: 'stress-said' }, ...stress.map((t, i) => el('p', { className: i === 0 ? 'head' : i === stress.length - 1 && /^Inoculation/.test(t) ? 'inoc' : 'string', textContent: t }))) : null,
-    grid ? el('div', { className: 'runs-said' }, el('p', { className: 'runs-head', textContent: `This seed, this session (${grid.querySelectorAll('tr:first-child th').length - 1} sheets): froze, the first round from the sighting (calm by the book):` }), grid) : null,
+    // (the instructor's verdict leads the shoot house's card)
+    verdict?.words ? el('p', { className: `verdict ${verdict.go ? 'go' : 'nogo'}`, textContent: verdict.words }) : null,
+    grid ? el('div', { className: 'runs-said' }, el('p', { className: 'runs-head', textContent: grid.dataset?.head ? `${grid.dataset.head}:` : `This seed, this session (${grid.querySelectorAll('tr:first-child th').length - 1} sheets): froze, the first round from the sighting (calm by the book):` }), grid) : null,
     // (said: a line, or the lines of a scene with an incident (0.0.7: the range closed by a casualty), each its own)
     ...(Array.isArray(said) ? said : [said]).filter(Boolean).map((t, i) => el('p', { className: `said${i ? ' incident' : ''}`, textContent: t })),
     aspects.length ? el('div', { className: 'aspects-said' }, ...aspects.map(([k, t]) => el('p', { className: 'aspect-said' }, el('b', { textContent: k }), ` ${t}`))) : null,

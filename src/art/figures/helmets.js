@@ -25,7 +25,8 @@
 // Templates are at the head kit's reference (templates.js REF: the head box 15 × 12, 14 × 12 side on), [dx, dy, rows] from
 // the box's top-left, in role letters: a the shell (A in shade), þ the visor's glass (Þ in shade), ĵ the jaw piece or the
 // mask (Ĵ in shade), ř a rail (Ř), ŷ a filter (Ŷ); fixed: l a glint, ÷ the visor's light (glows), ¢ an eye dot (glows), ¬ an
-// eye slit (glows, dimmer), ı the shell's gloss (its colour a step and a half lighter), § the faction's trim (or, with no faction, the design's own seam letter). Pure.
+// eye slit (glows, dimmer), ı the shell's gloss (its colour a step and a half lighter), § the faction's trim (or, with no faction, the design's own seam letter).
+// v0.0.20 adds the one place the game's helmet and the stack's marks are chosen (HELMET_DRAWN_AS, STACK_DRAWN_AS, below). Pure.
 import { resample, mirror, REF } from './templates.js';
 import { mixHex, tone } from '../tone.js';
 import { GLOW } from '../paint.js';
@@ -450,6 +451,61 @@ export function helmOf(h) {
     eye, slit: mixHex(eye, 0x14151c, 0.25), filter: C.colours.filter ?? 0x5c5f52, rail: C.colours.rail ?? 0x6e7078,
     trim: F?.trim ?? null, seam: C.colours.seam ?? 'A', suit: C.colours.suit ?? null,
   });
+}
+
+// ---- v0.0.20: one helmet in one place, and the stack's marks (the build sheet v0.0.20 items 10 and 22; user.md U-8, feel.md FL-7) ----
+// The user, 2026-11-15: "The helmet design is pretty goofy". Until they pick, every figure, doll and card draws the combat EVA
+// suit's sealed head as v0.0.19 did; then the pick lands in one line here: HELMET_DRAWN_AS.regular = 'R1' (an id), read by
+// outfits.js wear() for the world's figures and by the doll (doll.js, through helmFor) for the I and C cards, the target view
+// and the hit card's man, the faction's trim from the man's own (the Corps' Mars red). STACK_DRAWN_AS likewise holds the stack's
+// marks picked from the sample (samples/house-stack-figures: S1 a lit edge, S2 a visor per man, S3 the Navy's red tape on your
+// #2; S4 and S5 are the stage's, not the figure's, and are drawn by the sample only). The Esc menu's To score page tries any of
+// them live (state.$look, src/ui/cards/topick.js): lookPicked() is what the stage draws your and your #2's look with.
+/**
+ * The helmet the game draws by kind of man (an id of HELMS), none until the user picks: null is the sealed head as built. Not
+ * frozen: the pick is this one line, and art-helmets sets it to hold that the figure, the doll and the card all follow it.
+ */
+export const HELMET_DRAWN_AS = { regular: null, elite: null, opa: null };
+/** The stack's marks the game draws (ids of STACKS), none until the user picks (not frozen, as HELMET_DRAWN_AS). */
+export const STACK_DRAWN_AS = [];
+const GOLD = 0xb08a3a, NAVY_RED = 0xc8453c, RIM = 0x80868f;
+/** The stack's mark candidates (samples/house-stack-figures' S1 to S5): each man's look.mark [yours, your #2's]; page: drawn by the sample's page alone (the stage's rules, not the figure's). */
+export const STACKS = Object.freeze({
+  S0: Object.freeze({ marks: Object.freeze([null, null]) }),
+  S1: Object.freeze({ marks: Object.freeze([Object.freeze({ rim: RIM }), Object.freeze({ rim: RIM })]) }),
+  S2: Object.freeze({ marks: Object.freeze([null, Object.freeze({ visor: GOLD })]) }),
+  S3: Object.freeze({ marks: Object.freeze([null, Object.freeze({ tape: NAVY_RED })]) }),
+  S4: Object.freeze({ marks: Object.freeze([null, null]), page: 'gap' }),
+  S5: Object.freeze({ marks: Object.freeze([null, null]), page: 'shadow' }),
+});
+export const STACK_IDS = Object.freeze(Object.keys(STACKS));
+/** A man's mark from stack ids (several join: their fields merged in order), his slot 0 (you) or 1 (your #2); null with none. */
+export function marksFor(ids, slot) {
+  let out = null;
+  for (const id of ids ?? []) { const m = STACKS[String(id).toUpperCase()]?.marks?.[slot]; if (m) out = { ...(out ?? {}), ...m }; }
+  return out;
+}
+/**
+ * A man's helm ({ id, faction } for look.helm, or null: the sealed head as built): the pick (an id) if there is one, else the game's
+ * HELMET_DRAWN_AS[kind]; a regular's and an elite's in the Corps' trim ('mars'), the OPA's none. slot 1 alone (your #2) takes an
+ * OPA candidate picked (so it is seen on a man in the stack); slot 0 keeps the game's then.
+ */
+export function helmFor({ kind = 'regular', pick = null, slot = 0, faction = 'mars' } = {}) {
+  const p = pick ? String(pick).toUpperCase() : null, P = p ? HELMS[p] : null;
+  const id = P && !(P.family === 'opa' && slot !== 1) ? p : HELMET_DRAWN_AS[kind] ?? null;
+  if (!id || !HELMS[id]) return null;
+  return HELMS[id].family === 'opa' ? { id } : { id, faction };
+}
+/**
+ * A marine's look as the stage draws it with the picks (state.$look { stack: [ids], helm: id }): his slot's marks and helm over
+ * the look, and nothing else; the look itself when there is nothing to add (so with no pick, and nothing drawn as, every
+ * frame is v0.0.19's). Only the combat EVA suit takes them (the helmets and the marks are drawn on its sealed head).
+ */
+export function lookPicked(look, slot, picks = null) {
+  if (!look || look.outfit !== 'combatSuit' || (slot !== 0 && slot !== 1)) return look;
+  const ids = picks?.stack?.length ? picks.stack : STACK_DRAWN_AS, mark = marksFor(ids, slot), helm = look.helm ? null : helmFor({ pick: picks?.helm ?? null, slot });
+  if (!mark && !helm) return look;
+  return { ...look, ...(mark ? { mark: { ...(look.mark ?? {}), ...mark } } : {}), ...(helm ? { helm } : {}) };
 }
 
 /** The role colours and fixed letters a helm adds to a look's (outfits.js coloursOf; shade.js reads $fixed). */

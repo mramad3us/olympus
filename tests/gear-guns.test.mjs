@@ -7,13 +7,15 @@
 //   hands → rifle ready, pistol ready; hanging and slungFront → rifle front; slungBack → rifle back; holster → pistol holster.
 // It is read at every tick of shoot-house lanes on three sheets answering the rifle's click with Transition: pistol, so the
 // three moments the sheet names are all crossed (the house's GO, the rifle hanging with the P-12 drawn, and Rifle up's end with
-// the P-12 holstered), for you and for your #2 (who carries no pistol: DESIGN.md's log, 2026-11-15); and at the start of the
+// the P-12 holstered), for you and for your #2 (who carries his P-12 where the loadout's TWO_P12_DEFAULT gives it him: v0.0.20's
+// build sheet §0 item 15, none in v0.0.19); and at the start of the
 // brief, on the four ranges, where one gun is carried, and with the rifle slung on the back. A mapping that drifts in either module fails it.
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { runHouse, stoppageBot } from './bots/house.mjs';
 import { gearOf } from '../src/sim/arms/gear.js';
 import { gunsOf } from '../src/sim/arms/guns.js';
+import { TWO_P12_DEFAULT } from '../src/sim/arms/loadout.js';
 
 const SEED = 1489397426;
 /** §2.2's table: guns.js's place → the gear record's, by the gun's kind. */
@@ -39,7 +41,7 @@ function agree(state, pid, tally) {
 
 export default [
   {
-    name: 'the doll\'s gear and the card\'s guns agree on where each gun is, by the build sheet 0.0.18 §2.2\'s table, at every tick of the shoot house answering the click with Transition: pistol (the sergeant, the Raider and the tier one): at GO, with the rifle hanging and the P-12 drawn, after Rifle up with it holstered, for you and for your #2, who carries no pistol',
+    name: 'the doll\'s gear and the card\'s guns agree on where each gun is, by the build sheet 0.0.18 §2.2\'s table, at every tick of the shoot house answering the click with Transition: pistol (the sergeant, the Raider and the tier one): at GO, with the rifle hanging and the P-12 drawn, after Rifle up with it holstered, for you and for your #2, who carries his P-12 as the loadout\'s default says',
     timeoutMs: 120_000,
     fn() {
       const tally = {}, moments = {}, wrong = [];
@@ -53,7 +55,7 @@ export default [
           if (!seen.go && R === 'hands' && P === 'holster') seen.go = true;
           if (seen.go && !seen.drawn && R === 'hanging' && P === 'hands') seen.drawn = true;
           if (seen.drawn && !seen.up && R === 'hands' && P === 'holster') seen.up = true;
-          if (gunsOf(s, two).some(x => x.kind === 'pistol') || gearOf(s, two)?.pistol) wrong.push({ tier, who: '#2', pistol: true });
+          if (gunsOf(s, two).some(x => x.kind === 'pistol') !== TWO_P12_DEFAULT || !!gearOf(s, two)?.pistol !== TWO_P12_DEFAULT) wrong.push({ tier, who: '#2', pistol: !TWO_P12_DEFAULT });
         };
         look(g.state);
         const run = runHouse(g, bot, { maxMs: 6 * 60_000, each: (game) => look(game.state) });

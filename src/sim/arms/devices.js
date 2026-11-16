@@ -18,7 +18,9 @@
 //
 // DEVICE_EDGES is the moves between states as a table for a planner to search (D2: plan.js does not search devices this
 // round, the build sheet's §8 item 10), and wayOut(kind, st) is this module's own check that from every state a hand can be
-// emptied and the rifle brought up (repin, stow, throw, drop or fire), so a hand is never left full and stuck.
+// emptied and the rifle brought up (repin, stow, throw, drop or fire), so a hand is never left full and stuck. v0.0.20 (the hunt of
+// v0.0.18): handsFullWhy(state, pid) is why the rifle may not come up while a hand holds one ("hands full: the G-11"), read by the
+// panel's Up (shooting.js), the gun (firearms.js doAction) and the drill (bundle.js setPosture, handsStruck).
 // The belief: a fuse's exact length and a misfiring shock tube are the only hidden facts. deviceBelief(state, id) gives a
 // grenade's fuse believed at its nominal (the G-11's 1,500 ms exactly; a G-9's 4,000) and a primed charge believed good.
 // devicesOf(state, pid) lists what a person carries, in reach order: [{ id, kind, model, st, where }].
@@ -236,6 +238,18 @@ export function handDeviceOf(state, pid) {
   const hands = state.people?.[pid]?.kit?.hands ?? [];
   for (let h = 0; h < hands.length; h++) { const rec = hands[h] ? state.items[hands[h]] : null; if (isDevice(rec)) return { id: hands[h], kind: rec.type, model: rec.model, st: stOf(rec), hand: h }; }
   return null;
+}
+/**
+ * Why the rifle may not come up now, or null: a device in a hand ("hands full: the G-11", "hands full:
+ * the halligan"). The rifle never leaves its sling while a hand holds a grenade, a charge or a tool: Rifle up is struck with it
+ * (shooting.js), refused by the gun (firearms.js doAction) and by the drill's posture (bundle.js setPosture), so the device's own
+ * ways out (wayOut: Pin back in, Throw it, Back in the pouch, Let it go) or the drill that uses it come first.
+ */
+export function handsFullWhy(state, pid) {
+  const h = handDeviceOf(state, pid);
+  if (!h) return null;
+  const D = DEVICES[h.model];
+  return `hands full: the ${D?.kind === 'tool' ? D.word : D?.short ?? h.model}`;
 }
 /** Every device lying on the live area that is still live: grenades thrown and burning, charges placed, primed or a believed misfire: [{ id, kind, model, st, x, z }]. */
 export function liveDevices(state) {

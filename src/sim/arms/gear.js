@@ -18,33 +18,44 @@
 //     held:    null | 'mag' | 'phone',           the free hand: a magazine (handMagOf)
 //     devices: [{ face, slot, model, shape, colour }],   the kit's devices worn off the front (v0.0.18, the fixer's: the play
 //                                                review found the I card's doll with two G-11s the standard kit's to the pixel):
-//                                                each in its pouch on the carrier's left, right or back face (the loadout's
-//                                                `at`), slot its pouch's order on that face, its look devices.js DEVICES[model].look
+//                                                each device pouch on the carrier's left, right or back face (the loadout's
+//                                                `at`), slot the pouch's own order among that face's device pouches as the kit
+//                                                lists them, its device's look devices.js DEVICES[model].look; an emptied pouch
+//                                                stays at its slot with model, shape and colour null (the hunt of v0.0.18: an
+//                                                emptied pouch vanished and the full one below it was drawn in its place)
 //     painted: false,                            true only on standGear's painted men
 //     mask:    null | 'fof',                     v0.0.19: the force-on-force mask (kit.worn.mask: the role-players' issue 'opfor-fof')
-//     hands:   null | 'up' }                     v0.0.19: the hands up and empty (actor.hands: a role-player who gave up)
+//     hands:   null | 'up',                      v0.0.19: the hands up and empty (actor.hands: a role-player who gave up)
+//     device:  null | { model, shape, colour } } the device in the hands (devices.js handDeviceOf: a G-11 drawn from its pouch,
+//                                                the halligan or the ram held, a charge on its way to the door), its look
+//                                                DEVICES[model].look; its state (a pin pulled, a fuse burning) is not in it
+//                                                (the hunt of v0.0.18: the record had no place for it, so every doll drew the
+//                                                hands empty while the pouch it came from was drawn emptied)
 // It holds no count, load, chamber, selector or stoppage ("we only know what we know": a magazine in the well can be seen, the
 // rounds in it cannot), and gear.test holds the whitelist. `by` is the viewer: everything in the record is seen from the front
 // this round, so it is the same for every viewer; the parameter is there so the target view's call is already right when
 // perception filters gear (distance, darkness, cover).
 // v0.0.19 (the build sheet 0.0.19 §1 L-look; COMBAT §7.11): the first live men wear a force-on-force mask over the face and,
 // when one gives up, show their hands. Both are seen from the front as plainly as the carrier is, so they are in the record;
-// both are null for everyone else, and gearKey adds them only when set, so every v0.0.18 key is the same string.
+// both are null for everyone else, and gearKey adds them only when set, so every v0.0.18 key is the same string; the device
+// in the hands the same way.
 // The places are coarse on purpose (front, back, ready; holster, ready), so a live man's doll repaints only when his gear
 // changes as drawn: gearKey is the caches' key and changes with nothing else. They map from arms' guns.js vocabulary by the
 // lead's agreement test, never by import: hands → ready, hanging and slungFront → front, slungBack → back, holster → holster.
 // 'hand' is standGear's alone, the painted man on a board holding what the stand's face holds.
 // standGear(face, holds) is the board's painted man (bay and house): a threat in utilities bare-headed with tan skin, a
-// no-shoot the same with light skin, the armoured face in the carrier and helmet with the rifle, holds 'unseen' (the
+// no-shoot the same with light skin, the armoured face in the carrier and helmet with the rifle (or the P-12 when the stand
+// holds a pistol: the house draws the armoured stand's hand as any threat's), holds 'unseen' (the
 // armoured face's too) or the 'unknown' face empty-handed. gearToFigure(gear) maps a record to the world figure's fields (view.js armsOf's: carry, mag,
 // ears, carrier, pistol), held equal to look.js's gunLook and kitLook by test; the world figure is not switched to it yet.
 // Pure.
-import { CONTAINERS, pouchesOf, handGunOf, pistolOf, handMagOf } from './kit.js';
-import { DEVICES, devicesOf } from './devices.js';
+import { CONTAINERS, pouchesOf, handGunOf, pistolOf, handMagOf, containersOf } from './kit.js';
+import { DEVICES, DEVICE_STATES, devicesOf, handDeviceOf } from './devices.js';
 import { MODELS, isLong } from './models.js';
+import { loadoutOf, ISSUE } from './loadout.js';
 
 /** The gear record's keys, the only ones it has (see the header). */
-export const GEAR_KEYS = Object.freeze(['outfit', 'suit', 'carrier', 'ears', 'rifle', 'pistol', 'thigh', 'held', 'devices', 'painted', 'mask', 'hands']);
+export const GEAR_KEYS = Object.freeze(['outfit', 'suit', 'carrier', 'ears', 'rifle', 'pistol', 'thigh', 'held', 'devices', 'painted', 'mask', 'hands', 'device']);
 /** The faces off the front a worn device is drawn on (the front's pouches are the magazines'). */
 const DEVICE_FACES = Object.freeze(['left', 'right', 'back']);
 /** The mask's word in the record (any item in the worn 'mask' slot is the force-on-force mask this round). */
@@ -78,19 +89,51 @@ export function gearOf(state, pid, { by = pid } = {}) {
   const pp = pouches.find(q => q.key === 'pp') ?? null;
   const thigh = pp ? { holds: pp.holds, mags: pp.mags.length } : null;
   const held = kit && handMagOf(state, pid) ? 'mag' : null;
-  // (the devices in pouches off the front, each pouch's slot its order on its face as the kit lists them)
+  // (the device pouches off the front, each at its own slot on its face as the kit lists them, full or emptied: a slot is the
+  // pouch's, never the order of the pouches that still hold something, so an emptied pouch keeps its place on the doll)
   const slots = {}, devices = [];
+  for (const c of kit ? containersOf(state, pid) : []) {
+    const rec = items[c], face = rec?.at;
+    if (!DEVICE_FACES.includes(face) || !(CONTAINERS[rec.model]?.fits ?? []).some(k => DEVICE_STATES[k])) continue;
+    (slots[face] ??= []).push(c);
+  }
+  const filled = new Set();
   for (const d of kit ? devicesOf(state, pid) : []) {
     if (d.where === 'hand' || !DEVICE_FACES.includes(d.where.face)) continue;
-    const S = (slots[d.where.face] ??= []);
-    if (!S.includes(d.where.pouchId)) S.push(d.where.pouchId);
+    const slot = (slots[d.where.face] ?? []).indexOf(d.where.pouchId);
+    if (slot < 0) continue;
     const L = DEVICES[d.model]?.look ?? {};
-    devices.push({ face: d.where.face, slot: S.indexOf(d.where.pouchId), model: d.model, shape: L.shape ?? 'can', colour: L.colour ?? 'olive' });
+    filled.add(d.where.pouchId);
+    devices.push({ face: d.where.face, slot, model: d.model, shape: L.shape ?? 'can', colour: L.colour ?? 'olive' });
   }
-  // (v0.0.19: the mask in its worn slot; the hands up, the actor's own flag, only with nothing in them)
+  for (const [face, S] of Object.entries(slots)) S.forEach((c, slot) => { if (!filled.has(c)) devices.push({ face, slot, model: null, shape: null, colour: null }); });
+  devices.sort((a, b) => DEVICE_FACES.indexOf(a.face) - DEVICE_FACES.indexOf(b.face) || a.slot - b.slot);
+  // (the device in the hands, its look; v0.0.19: the mask in its worn slot; the hands up, the actor's own flag, only with nothing in them)
+  const hd = kit ? handDeviceOf(state, pid) : null, HL = hd ? DEVICES[hd.model]?.look ?? {} : null;
+  const device = hd ? { model: hd.model, shape: HL.shape ?? 'can', colour: HL.colour ?? 'olive' } : null;
   const mask = worn.mask && items[worn.mask] ? MASK_FOF : null;
-  const hands = actor?.hands === true && !inHand && !held ? 'up' : null;
-  return { outfit: actor?.outfit ?? 'utilities', suit, carrier, ears, rifle, pistol, thigh, held, devices, painted: false, mask, hands };
+  const hands = actor?.hands === true && !inHand && !held && !device ? 'up' : null;
+  return { outfit: actor?.outfit ?? 'utilities', suit, carrier, ears, rifle, pistol, thigh, held, devices, painted: false, mask, hands, device };
+}
+
+/**
+ * The gear a loadout puts on a marine (the build sheet v0.0.20 item 23; user.md U-7, "a loadout screen where the marine draws and
+ * carries them", the user, 2026-11-15): base, the gear record of the same marine on the standard loadout (gearOf on the lane's
+ * fill), with the devices the code's faces carry, each pouch on its face in the code's order, its look devices.js DEVICES[model].look,
+ * as gearOf reads them off a kit that applyLoadout filled. Pure: the screen's scratch copy, never the state; null for a code refused.
+ */
+export function gearOfLoadout(code, base = null) {
+  const spec = loadoutOf(code);
+  if (spec.error || !base) return null;
+  const devices = [];
+  for (const face of DEVICE_FACES) (spec[face] ?? []).forEach((place, slot) => {
+    for (const model of ISSUE[place]?.items ?? []) {
+      if (!DEVICES[model]) continue;
+      const L = DEVICES[model].look ?? {};
+      devices.push({ face, slot, model, shape: L.shape ?? 'can', colour: L.colour ?? 'olive' });
+    }
+  });
+  return { ...base, devices };
 }
 
 /** A short stable string of everything the doll draws of a gear record, and nothing else: the caches' key. */
@@ -101,15 +144,16 @@ export function gearKey(g) {
   const r = g.rifle ? `${g.rifle.model}:${g.rifle.finish ?? ''}:${g.rifle.place}:${g.rifle.mag ? 1 : 0}` : '';
   const p = g.pistol ? `${g.pistol.model}:${g.pistol.place}:${g.pistol.mag ? 1 : 0}` : '';
   const t = g.thigh ? `${g.thigh.mags}/${g.thigh.holds}` : '';
-  const d = (g.devices ?? []).map(x => `${x.face}${x.slot}:${x.model}`).join(',');
-  // (v0.0.19: the mask and the hands only when set, so every key without them is v0.0.18's string)
-  return [g.outfit, s, c, g.ears ?? '', r, p, t, g.held ?? '', g.painted ? 'P' : '', ...(d ? [d] : [])].join('|') + (g.mask ? `|m:${g.mask}` : '') + (g.hands ? `|h:${g.hands}` : '');
+  const d = (g.devices ?? []).map(x => `${x.face}${x.slot}:${x.model ?? ''}`).join(',');
+  // (v0.0.19: the mask and the hands only when set, so every key without them is v0.0.18's string; the device in the hands the same)
+  return [g.outfit, s, c, g.ears ?? '', r, p, t, g.held ?? '', g.painted ? 'P' : '', ...(d ? [d] : [])].join('|') + (g.mask ? `|m:${g.mask}` : '') + (g.hands ? `|h:${g.hands}` : '') + (g.device ? `|d:${g.device.model}` : '');
 }
 
 /** The board's painted man for a stand's face and what it holds (see the header). */
 export function standGear(face = 'threat', holds = 'rifle') {
-  const base = { outfit: 'utilities', suit: null, carrier: null, ears: null, rifle: null, pistol: null, thigh: null, held: null, devices: [], painted: true, mask: null, hands: null };
-  if (face === 'armoured') return { ...base, outfit: 'carrier', carrier: { model: 'pc-m3', pouches: [] }, rifle: holds === 'unseen' ? null : { model: 'r7', finish: null, place: 'hand', mag: true } };
+  const base = { outfit: 'utilities', suit: null, carrier: null, ears: null, rifle: null, pistol: null, thigh: null, held: null, devices: [], painted: true, mask: null, hands: null, device: null };
+  // (the armoured face changes the body; its hand holds what the stand's draw gives, a pistol too: the hunt of v0.0.18)
+  if (face === 'armoured') return { ...base, outfit: 'carrier', carrier: { model: 'pc-m3', pouches: [] }, rifle: holds === 'unseen' || holds === 'pistol' ? null : { model: 'r7', finish: null, place: 'hand', mag: true }, pistol: holds === 'pistol' ? { model: 'p12', place: 'hand', mag: true } : null };
   if (face === 'unknown' || holds === 'unseen' || holds === null || holds === undefined) return base;
   if (holds === 'rifle') return { ...base, rifle: { model: 'r7', finish: null, place: 'hand', mag: true } };
   if (holds === 'pistol') return { ...base, pistol: { model: 'p12', place: 'hand', mag: true } };

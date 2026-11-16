@@ -26,6 +26,11 @@
 // the lane's time from GO running ("LANE A · 12.4", whole tenths while it runs so the paper is drawn again ten times a second at most,
 // hundredths once stopped), a row a room ("ROOM 1 7.40", the room now running), the par of the threat in front of you counting down
 // ("PAR 3.00 · 1.2 LEFT"; "HE FIRED FIRST" in red past it, the harness's tone), and the lane's hits as marks; every number houseNow's.
+// v0.0.20 (the build sheet v0.0.20 §1 items 11 and 14; feel FL-8, card C3): off the room. While the lane runs the paper is a one-line
+// strip in its rect, "ROOM 2 13.2 · PAR 7.5 · 3B 2.1 LEFT" (the room's running time, its par, the stand still to answer and its
+// own par's time left: laneModel's strip, the same numbers as its rows), and opens as the paper at Stop and in the hot wash; each
+// threat's par is its own (the contact's parMs, shoothouse.js parOf: the class's plus the stand's allowances), and a room's row
+// says its par after its time ("ROOM 1 6.70 / 9.0"). One helper gives both: laneModel.
 import { textW, writeText } from '../plaque.js';
 import { GLOWS } from '../../art/palette.js';
 
@@ -164,14 +169,18 @@ export function createTimer(parent) {
     update(m, { ui = 1, dpr = globalThis.devicePixelRatio ?? 1 } = {}) {
       if (!m) { root.hidden = true; words = ''; return ''; }
       root.hidden = false;
-      const s = Math.max(1, ui * dpr), H = m.h ?? TIMER_H, sg = JSON.stringify([Math.round(s * 100), m.title ?? null, m.head, m.rows, m.zones, H]);
+      // (a model with a strip draws the strip alone, the paper's words kept for the report)
+      const strip = typeof m.strip === 'string' && m.strip ? m.strip : null;
+      const s = Math.max(1, ui * dpr), H = strip ? STRIP_H : m.h ?? TIMER_H, sg = JSON.stringify([Math.round(s * 100), m.title ?? null, m.head, m.rows, m.zones, H, strip]);
       if (sg !== sig) {
         sig = sg;
         cv.width = Math.round(TIMER_W * s); cv.height = Math.round(H * s);
         // (0.0.10: a long paper's strip longer, within PAPER)
         root.style.height = H === TIMER_H ? '' : `calc(${H}px * var(--ui))`;
+        root.classList.toggle('strip', !!strip);
+        root.dataset.strip = strip ?? '';
         const g = cv.getContext('2d');
-        if (g) { g.imageSmoothingEnabled = false; drawTimer(g, m, s); }
+        if (g) { g.imageSmoothingEnabled = false; if (strip) drawStrip(g, strip, s); else drawTimer(g, m, s); }
         words = m.text;
         root.dataset.text = words;
         root.dataset.takein = m.rows[0]?.value ?? '';
@@ -202,23 +211,32 @@ export function laneModel(hn, nowMs = 0) {
   const rows = [{ label: done ? 'LANE' : 'GO', value: (done ? two : tenth)(t), mark: null }];
   const legs = hn.legs ?? [...(hn.rooms ?? []), ...(hn.hall ? [{ ...hn.hall, hall: true }] : [])];
   // (a leg once it has begun, its time the scene's: the one running in tenths)
+  let cur = null;
   for (const [i, r] of legs.entries()) {
     if (!Number.isFinite(r.ms) || r.state === 'ahead') continue;
     const over = r.state === 'clear' || r.state === 'passed' || done, late = r.par === 'missed' || Number(r.parMissed) > 0 || (r.contacts ?? []).some(c => c.parMet === false);
-    rows.push({ label: roomWord(r, i), value: (over ? two : tenth)(r.ms), mark: late ? 'late' : null });
+    rows.push({ label: roomWord(r, i), value: `${(over ? two : tenth)(r.ms)}${Number.isFinite(r.parMs) ? ` / ${tenth(r.parMs)}` : ''}`, mark: late ? 'late' : null });
+    if (!over) cur = { r, i };
   }
   // (the par of a threat still waiting for a round, counting down; past it, "HE FIRED FIRST")
   // (a man answered by either of you is answered: none of his records is open)
   const answered = new Set((hn.contacts ?? []).filter(c => c.key !== undefined && ((c.parMet !== null && c.parMet !== undefined) || Number.isFinite(c.firstAtMs))).map(c => c.key));
-  const parMs = hn.parMs, open = (hn.contacts ?? []).filter(c => Number.isFinite(c.seenMs) && (c.face === undefined || PAR_FACES.has(c.face)) && (c.parMet === null || c.parMet === undefined) && !Number.isFinite(c.firstAtMs) && !answered.has(c.key));
+  // (the code review: where the scene gives a man's par clock (shoothouse.js parLeftOf: from his sector's sighting,
+  // the instructor's click allowed for, as pars() judges it), only the records that carry it are open and their time left is the scene's)
+  const sims = (hn.contacts ?? []).some(c => c.parLeftMs !== undefined);
+  const parMs = hn.parMs, open = (hn.contacts ?? []).filter(c => (sims ? Number.isFinite(c.parLeftMs) : Number.isFinite(c.seenMs) && (c.face === undefined || PAR_FACES.has(c.face)) && (c.parMet === null || c.parMet === undefined) && !Number.isFinite(c.firstAtMs) && !answered.has(c.key)));
+  let parRow = null;
   if (Number.isFinite(parMs) && open.length && !done) {
     // (a man's par runs from his first sighting by anyone (the scene's parFrom), and once missed it stays missed until a round
     // answers him: never a fresh countdown for the same man seen again, nor another's over his (the play review of 2026-11-13:
     // "HE FIRED FIRST" at the click, then "PAR 0.80 · 0.8 LEFT" at the next pause, for the same man))
     const first = (key) => Math.min(...(hn.contacts ?? []).filter(x => x.key === key && Number.isFinite(x.seenMs)).map(x => x.seenMs));
-    const leftOf = (x) => (x.key !== undefined ? first(x.key) : x.seenMs) + parMs - nowMs;
+    // (each man's own par, the contact's parMs, else the class's)
+    const parOfC = (x) => (Number.isFinite(x.parMs) ? x.parMs : parMs);
+    const leftOf = (x) => (Number.isFinite(x.parLeftMs) ? x.parLeftMs : (x.key !== undefined ? first(x.key) : x.seenMs) + parOfC(x) - nowMs);
     const missed = open.some(x => leftOf(x) <= 0), c = open[open.length - 1], left = leftOf(c);
-    rows.push(!missed && left > 0 ? { label: `PAR ${two(parMs)}`, value: `${tenth(left)} LEFT`, mark: null } : { label: 'PAR', value: 'HE FIRED FIRST', mark: 'late' });
+    parRow = !missed && left > 0 ? { label: `PAR ${two(parOfC(c))}`, value: `${tenth(left)} LEFT`, mark: null, stand: c.stand ?? null } : { label: 'PAR', value: 'HE FIRED FIRST', mark: 'late', stand: c.stand ?? null };
+    rows.push({ label: parRow.label, value: parRow.value, mark: parRow.mark });
   }
   // (at most TIMER_ROWS + 2 rows: the oldest legs give way)
   while (rows.length > TIMER_ROWS + 2) rows.splice(1, 1);
@@ -227,5 +245,22 @@ export function laneModel(hn, nowMs = 0) {
   const zones = [...ZONE_ORDER, ['hostage', 'HOSTAGE HIT']].map(([k, word]) => ({ k: k === 'hostage' ? 'noshoot' : k, n: Number(z[k]) || 0, word })).filter(x => x.n > 0);
   const head = `LANE ${hn.lane ?? 'A'}`, text = `${head} · ${rows.map(r => `${r.label} ${r.value}`).join(' · ')}${zones.length ? ` · ${zones.map(x => `${x.n} ${x.word}`).join(', ')}` : ''}`;
   const h = Math.min(TIMER_H_MAX, Math.max(TIMER_H, paperFoot(rows, zones) + PAPER_FOOT_PAD));
-  return { title: 'LANE TIMER', head, rows, zones, text, h, numbers: { timerMs: t } };
+  // (the strip while the lane runs (off the room): the room now, its time and par, the man to answer and his par's time left)
+  const strip = done ? null : [cur ? `${roomWord(cur.r, cur.i)} ${tenth(cur.r.ms)}` : `GO ${tenth(t)}`, cur && Number.isFinite(cur.r.parMs) ? `PAR ${tenth(cur.r.parMs)}` : null,
+    parRow ? (parRow.mark === 'late' ? `${parRow.stand ? `${String(parRow.stand).toUpperCase()} ` : ''}HE FIRED FIRST` : `${parRow.stand ? `${String(parRow.stand).toUpperCase()} ` : ''}${parRow.value}`) : null].filter(Boolean).join(' · ');
+  return { title: 'LANE TIMER', head, rows, zones, text, h, strip, numbers: { timerMs: t } };
+}
+/** The strip's height and its letters' scale (CSS px at --ui 1; my calls: one line of the 3 × 5 alphabet at ×2 with its margins). */
+export const STRIP_H = 22;
+/** Draw the strip (laneModel's strip words) on a Canvas2D at s device pixels a paper pixel: one line on the paper, a missed par red. */
+export function drawStrip(g, words, s = 1, w = TIMER_W) {
+  const k = TIMER_K, R = (x, y, ww, hh, c) => { g.fillStyle = c; g.fillRect(Math.round(x * s), Math.round(y * s), Math.max(1, Math.round(ww * s)), Math.max(1, Math.round(hh * s))); };
+  R(0, 0, w, STRIP_H, GLASS);
+  R(4, 3, w - 8, STRIP_H - 6, PAPER_C);
+  let x = 8;
+  for (const [i, part] of String(words ?? '').split(' · ').entries()) {
+    const c = /FIRED FIRST/.test(part) ? RED_C : i === 0 ? INKC : FAINT;
+    writeText((px, py, ww, hh) => R(x + (px - x) * k, 6 + (py - 6) * k, ww * k, hh * k, c), x, 6, part, null);
+    x += (textW(part) + 4) * k;
+  }
 }

@@ -98,4 +98,40 @@ export default [
       for (const r of rows) console.log(`      ${r}`);
     },
   },
+  {
+    name: 'the loadout screen shows the marine (the build sheet v0.0.20 item 23; the user, 2026-11-15: "a loadout screen where the marine draws and carries them"): the gear doll beside the faces, choosing Flash draws the two G-11 pouches on the carrier\'s left face (its pixels change, its gear two devices), the redraw printed; Kit up in the window at 1600 × 900 (v0.0.20\'s fixer); no page errors',
+    heavy: true,
+    timeoutMs: 300_000,
+    async fn() {
+      const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined, rows = [];
+      await withGame(async (page, errors, game) => {
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await game.open('nostore=1');
+        await page.waitForSelector('#title .item.tests');
+        await page.click('#title .item.tests');
+        await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].find(b => b.innerText.startsWith('Stack and clear')).click());
+        await page.waitForSelector('#title .item.kitpick');
+        await page.click('#title .item.kitpick');
+        await page.waitForSelector('#title .sheet.loadout canvas.doll.marine');
+        const read = () => page.evaluate(() => {
+          const c = document.querySelector('#title .sheet.loadout canvas.doll.marine'), g = c.getContext('2d'), d = g.getImageData(0, 0, c.width, c.height).data;
+          let h = 2166136261 >>> 0, ink = 0; for (let i = 0; i < d.length; i++) { h ^= d[i]; h = Math.imul(h, 16777619) >>> 0; if (i % 4 === 3 && d[i]) ink++; }
+          const r = c.getBoundingClientRect(), faces = document.querySelector('#title .sheet.loadout .faces').getBoundingClientRect();
+          // (Kit up and Back in the window with no scroll (v0.0.20's fixer, the play review: at 1600 × 900 Kit up sat at 905 to 950 px)
+          const up = document.querySelector('#title .sheet.loadout .item.kitup').getBoundingClientRect();
+          return { w: c.width, h: c.height, digest: h.toString(16), ink, devices: Number(c.dataset.devices), gear: c.dataset.gear, inWin: r.right <= innerWidth && r.bottom <= innerHeight, inFaces: r.top >= faces.top - 1 && r.bottom <= faces.bottom + 1, kitUp: Math.round(up.bottom), winH: innerHeight };
+        });
+        const std = await read();
+        const t0 = await page.evaluate(() => performance.now());
+        await page.keyboard.press('Digit2');
+        await page.waitForFunction(() => document.querySelector('#title .sheet.loadout')?.dataset.code === 'flash');
+        const ms = await page.evaluate((t) => performance.now() - t, t0);
+        const fl = await read();
+        rows.push(`the marine ${std.w} × ${std.h} px, ${std.ink} inked, its gear '${std.gear}' (${std.devices} devices), in the window ${std.inWin}; Flash: ${fl.devices} devices, '${fl.gear}', its pixels changed ${fl.digest !== std.digest}; the redraw ${ms.toFixed(1)} ms (the fill and the doll)`);
+        rows.push(`Kit up's foot at ${std.kitUp} px in a window of ${std.winH}`);
+        assert(std.ink > 500 && std.devices === 0 && fl.devices === 2 && /left0:g11,left1:g11/.test(fl.gear) && fl.digest !== std.digest && std.inWin && std.kitUp <= std.winH && fl.kitUp <= fl.winH, JSON.stringify({ std, fl }));
+      }, { port });
+      for (const r of rows) console.log(`      ${r}`);
+    },
+  },
 ];

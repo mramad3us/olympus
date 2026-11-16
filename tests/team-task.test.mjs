@@ -20,6 +20,9 @@ import { runSheetOf } from '../src/sim/scenarios/shoothouse.js';
 import { instinctNow } from '../src/sim/skills/instinct.js';
 import { TWO_BLOCK_SAY_MS } from '../src/sim/combat/bundle.js';
 
+import { BANG_HOLD_MS } from '../src/sim/skills/instinct/cqb.js';
+import { BANG_LATE_MS } from '../src/sim/combat/burst.js';
+
 const actor = (s, pid) => s.actors.list.find(a => a.who === pid);
 const d2 = (a, p) => Math.hypot(a.x - p[0], a.z - p[1]);
 
@@ -70,6 +73,31 @@ function belayed(at, { tier = 'cpl', seed = 48213, saveAt = null } = {}) {
   }
   const charge = Object.entries(s.items).filter(([, it]) => it.type === 'charge' && (it.st === 'placed' || it.st === 'primed')).map(([id, it]) => `${id} ${it.st}@${it.door}`);
   return { ...o, g, s, H, L, state: L.state, faults: L.faults.map(f => f.kind), charge, sinceS: (s.clock.ms - o.belayAt) / 1000, task: H.two.task?.st ?? null };
+}
+
+// (a lane of "#2, bang it" by the keys to room 1's end: the DI's lines while his bang pends and after, your pause on room 1's man after
+// the bang, the bang to your threshold, a Wait's end, the row's BANG TO ENTRY mark)
+function bangLane(tier, seed, loadout) {
+  const g = createGame({ scenario: 'test-shoothouse', seed, tier, loadout }), s = g.state, H = s.armoury.range.house, plan = lanePlanOf(s).plans['o:w4:r1'];
+  let bang = null, waitEnd = null, entry = null, wasWait = false;
+  const lines = new Set(), late = new Set();
+  // (120 s of game time from the fill: v0.0.20's tower waits on the instructor's lines (the build sheet's item 7), so GO comes about
+  // 20 s later than v0.0.19's and 60 s no longer reached room 1's entry)
+  runHouse(g, teamTaskBot({ use: 'bang', base: 'keys' }), { maxMs: 120_000, until: () => H.cur > 0, each: () => {
+    const t = H.two.task, me = s.actors.list.find(a => a.who === s.player.id);
+    if (bang === null && Number.isFinite(t?.done?.bang)) bang = t.done.bang;
+    // (the hold: his task working, or the bang under BANG_HOLD_MS old; after it, the lines are printed apart)
+    const pending = t?.door === 'o:w4:r1' && (t.st === 'working' || (bang !== null && s.clock.ms - bang < BANG_HOLD_MS));
+    if (pending || (bang !== null && entry === null)) { const l = instinctNow(s).line; if (l) (pending ? lines : late).add(l.id); }
+    const w = s.stop?.doing?.kind === 'wait';
+    if (wasWait && !w && bang !== null && waitEnd === null) waitEnd = s.clock.ms;
+    wasWait = w;
+    if (bang !== null && entry === null && pastThreshold(plan, me.x, me.z)) entry = s.clock.ms;
+  } });
+  // (your first pause on a man of room 1 after the bang: inside the hold or past it)
+  const c = (H.rooms[0].contacts ?? []).filter(x => x.by === 'me' && Number.isFinite(x.pauseAtMs) && bang !== null && x.pauseAtMs > bang)[0] ?? null;
+  return { tier, seed, lines: [...lines], late: [...late], bangToEntry: bang !== null && entry !== null ? entry - bang : null, waitEnd: waitEnd !== null ? waitEnd - bang : null,
+    pause: c ? { key: c.key, seen: c.seenMs - bang, takeIn: c.takeInMs, at: c.pauseAtMs - bang } : null, mark: (H.rooms[0].kit ?? []).find(x => /^BANG TO ENTRY/.test(x)) ?? null };
 }
 
 export default [
@@ -206,27 +234,38 @@ export default [
     },
   },
   {
-    name: 'the review of v0.0.19: "#2, bang it" at the recruit and the private by the keys: while his bang is coming on your door the DI never leads into a contact through the doorway he opened ("Cover it", then "Bang! Go."), and your Wait ends at the bang (6.36 s and 3.97 s from the bang to the entry before)',
+    name: 'the review of v0.0.19: "#2, bang it" at the recruit and the private by the keys: while his bang is coming on your door (his task working, or its bang under BANG_HOLD_MS 2 s old: cqb.js bangPending) the DI never leads into a contact through the doorway he opened ("Cover it", then "Bang! Go."), and your Wait ends at the bang (6.36 s and 3.97 s from the bang to the entry before); every lane enters within 3.5 s of the bang, the private on 48213 and the recruit on 48718 among them, and the recruit on 48213 too, whose notice of 1a was missed: your entry on his bang is pre-armed (contact.js bangEntry, v0.0.20\'s close), his take-in made on the move and his pause past the threshold; before it he froze in the doorway, his pause came past the hold, the DI led him into the contact and he entered 6.85 s after the bang; an entry past BANG_LATE_MS + 0.5 s is charged on the room\'s row ("BANG TO ENTRY …")',
     timeoutMs: 120_000,
     fn() {
       const out = [];
-      for (const tier of ['recruit', 'private']) {
-        const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier, loadout: 'flash' }), s = g.state, H = s.armoury.range.house, plan = lanePlanOf(s).plans['o:w4:r1'];
-        let bang = null, waitEnd = null, entry = null, lines = new Set(), wasWait = false;
-        const bot = teamTaskBot({ use: 'bang', base: 'keys' });
-        runHouse(g, bot, { maxMs: 60_000, until: () => H.cur > 0, each: () => {
-          const t = H.two.task, me = s.actors.list.find(a => a.who === s.player.id);
-          if (t?.door === 'o:w4:r1' && (t.st === 'working' || (bang !== null && entry === null))) { const l = instinctNow(s).line; if (l) lines.add(l.id); }
-          if (bang === null && Number.isFinite(t?.done?.bang)) bang = t.done.bang;
-          const w = s.stop?.doing?.kind === 'wait';
-          if (wasWait && !w && bang !== null && waitEnd === null) waitEnd = s.clock.ms;
-          wasWait = w;
-          if (bang !== null && entry === null && pastThreshold(plan, me.x, me.z)) entry = s.clock.ms;
-        } });
-        out.push({ tier, lines: [...lines], bangToEntry: bang !== null && entry !== null ? entry - bang : null, waitEnd: waitEnd !== null ? waitEnd - bang : null });
+      for (const [tier, seed] of [['recruit', 48213], ['recruit', 48718], ['private', 48213]]) {
+        const o = bangLane(tier, seed, 'flash');
+        out.push(o);
       }
-      for (const o of out) console.log(`      ${o.tier}: the DI while his bang came ${o.lines.join(', ')}; bang to your threshold ${o.bangToEntry === null ? '-' : fmt(o.bangToEntry / 1000, 2)} s; a Wait ended ${o.waitEnd === null ? 'none run over it' : `${o.waitEnd} ms after the bang`}`);
-      assert(out.every(o => !o.lines.includes('cqb-contact') && o.lines.includes('cqb-task') && o.bangToEntry !== null && o.bangToEntry < 3500 && (o.waitEnd === null || o.waitEnd <= 150)), JSON.stringify(out));
+      for (const o of out) console.log(`      ${o.tier} ${o.seed}: the DI while his bang came ${o.lines.join(', ')}, after the hold ${o.late.join(', ') || 'nothing'}; your pause on ${o.pause ? `${o.pause.key} seen +${fmt(o.pause.seen / 1000, 2)} s, take-in ${fmt(o.pause.takeIn / 1000, 2)} s, at +${fmt(o.pause.at / 1000, 2)} s (${o.pause.at < BANG_HOLD_MS ? 'inside' : 'past'} the hold)` : 'none'}; bang to your threshold ${o.bangToEntry === null ? '-' : fmt(o.bangToEntry / 1000, 2)} s; a Wait ended ${o.waitEnd === null ? 'none run over it' : `${o.waitEnd} ms after the bang`}; the row's mark ${o.mark ?? 'none'}`);
+      assert(out.every(o => !o.lines.includes('cqb-contact') && o.lines.includes('cqb-task') && o.bangToEntry !== null && (o.waitEnd === null || o.waitEnd <= 150)), JSON.stringify(out));
+      // (every lane, the recruit on 48213 whose take-in of 1a ran past the hold among them (v0.0.20's close: before, only the lanes whose
+      // pause came inside the hold were held to it, and that recruit entered 6.85 s after the bang))
+      assert(out.every(o => o.bangToEntry < 3500) && out.some(o => o.tier === 'recruit' && o.pause && o.pause.at >= BANG_HOLD_MS), JSON.stringify(out));
+      assert(out.filter(o => o.bangToEntry > BANG_LATE_MS + 500).every(o => o.mark), JSON.stringify(out));
+    },
+  },
+  {
+    name: 'your #2\'s P-12 leaves the bang\'s entry where it was (v0.0.20\'s code review: the recruit on 48213 went from 3.10 s to 8.05 s with it): "#2, bang it" by the keys on 16 seeds a sheet, the recruit and the private, with his P-12 and with \'~two:none\'; the share entering within 3.5 s and the mean bang to entry within 1 s and one lane of each other (printed)',
+    heavy: true,
+    timeoutMs: 300_000,
+    fn() {
+      const rows = [];
+      for (const tier of ['recruit', 'private']) for (const loadout of ['flash', 'flash~two:none']) {
+        const xs = [];
+        for (let i = 0; i < 16; i++) { const o = bangLane(tier, 48213 + i * 101, loadout); if (o.bangToEntry !== null) xs.push(o.bangToEntry / 1000); }
+        rows.push({ tier, loadout, n: xs.length, fast: xs.filter(x => x < 3.5).length, mean: xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length) });
+      }
+      for (const r of rows) console.log(`      ${r.tier}, ${r.loadout}: ${r.fast} of ${r.n} within 3.5 s, mean ${fmt(r.mean, 2)} s`);
+      for (const tier of ['recruit', 'private']) {
+        const [a, b] = rows.filter(r => r.tier === tier);
+        assert(Math.abs(a.mean - b.mean) < 1 && Math.abs(a.fast - b.fast) <= 1 + Math.abs(a.n - b.n), JSON.stringify({ a, b }));
+      }
     },
   },
 ];

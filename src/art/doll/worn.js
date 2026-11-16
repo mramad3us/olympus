@@ -25,9 +25,12 @@
 //     nothing from the front;
 //   - in the hands: the pistol at the ready (both fists at the belly, the slide down) or hanging from the right hand (the
 //     board's), its drawing src/art/pistols.js pistolDrawingOf's (arms' PISTOL_DRAWN_AS), else the figures' pistol shape; a
-//     phone (a dark slab with a lit screen) in the right hand; a magazine in the left.
+//     phone (a dark slab with a lit screen) in the right hand; a magazine in the left;
+//   - a device in the hands (gear.device; HELD_BENDS): a G-11's can in the right fist at the chest, its top and spoon
+//     over the fist; a strip charge upright in the right fist; the halligan across the body in both fists, its fork high at the
+//     viewer's right; the ram level at the belly in both; an emptied device pouch keeps its slot and draws its body alone.
 // The rifle is the doll's one costly piece (templates.js turned() per pixel: 5 ms at the hit card's near band), so rifleStamp
-// memoises its pixel list once per model, finish, scale, place and body, and every doll replays it in the same order, the
+// memoises its pixel list once per model, finish, scale, place, body and magazine (in or out, gear.rifle.mag), and every doll replays it in the same order, the
 // same pixels (a board's figure keeps its digest, which ui-hitcard's B goldens check). Pure but the memo.
 // v0.0.19 (the build sheet 0.0.19 §1 L-look; opfor §2.6; COMBAT §7.11): the first live men. THE MASK (gear.mask 'fof', the
 // role-players' force-on-force mask) over the face, by the look the user scores (samples/opfor-look, MASK_LOOKS; MASK_LOOK the
@@ -65,13 +68,14 @@ function rifleLine(place, B, MID, lenRef) {
  * The rifle's pixels on the doll's grid at scale S for a place ([[x, y, colour]] in target pixels, in turned()'s order),
  * memoised. 'hand' is v0.0.17's rifleIn exactly: hanging from the right hand, muzzle down, its far side in shade.
  */
-export function rifleStamp(model, finish, S, place, B, MID) {
-  const key = `${model}|${finish ?? ''}|${S}|${place}|${B.hand}|${B.armIn[0][1]}`;
+export function rifleStamp(model, finish, S, place, B, MID, mag = true) {
+  const key = `${model}|${finish ?? ''}|${S}|${place}|${B.hand}|${B.armIn[0][1]}|${mag ? 1 : 0}`;
   const hit = STAMPS.get(key);
   if (hit) return hit;
   const lenPx = Math.round(RIFLE_CM * PX_PER_CM * S);
-  // (the rifle as its drawing has it, src/art/rifles.js: the look's model, else the R-7's; its furniture in its finish's colours)
-  const D = drawingOf(model ?? 'r7', finish), shape = shapeAt('rifle', lenPx, 2.4 * S, true, D.fig);
+  // (the rifle as its drawing has it, src/art/rifles.js: the look's model, else the R-7's; its furniture in its finish's colours;
+  // the magazine in the well only when the gear says so: the hunt of v0.0.18 found the doll drawing it whatever the gear said)
+  const D = drawingOf(model ?? 'r7', finish), shape = shapeAt('rifle', lenPx, 2.4 * S, mag, D.fig);
   // (lighter than the sprites' rifle: against the doll's dark wall gun metal would vanish)
   const C = { n: cloth(0x5c6270), u: cloth(0x2e313c), v: cloth(0xa0a8b4), ...Object.fromEntries(Object.entries(D.colours).map(([k, c]) => [k, cloth(c)])) };
   const out = [];
@@ -98,7 +102,8 @@ export function rifleStamp(model, finish, S, place, B, MID) {
 /** The rifle drawn at its place (a new part, in the stamp's order). */
 export function rifleAt(g, B, kit, place, MID) {
   const id = g.add([], 0);
-  for (const [x, y, c] of rifleStamp(kit.model ?? 'r7', kit.finish, g.S, place, B, MID)) g.px(x, y, c, id);
+  // (a figure with no gear record, the board's 'hand' rifle, keeps its magazine)
+  for (const [x, y, c] of rifleStamp(kit.model ?? 'r7', kit.finish, g.S, place, B, MID, kit.gear?.rifle?.mag !== false)) g.px(x, y, c, id);
   return id;
 }
 
@@ -109,10 +114,67 @@ export const MASK_C = Object.freeze({ frame: 0x24262d, shell: 0x3a3d46, lit: 0x5
 /** The hands' looks to score (see the header): where the hands are held ([d, y]: reference columns from the middle, a row), and the default. */
 export const HANDS_LOOKS = Object.freeze({ H1: Object.freeze([16.4, 31]), H2: Object.freeze([12.6, 21]) }), HANDS_LOOK = 'H1';
 
+/**
+ * The fists' places for a device in the hands (the hunt of v0.0.18; my call, drawn to read at the doll's size): a can, an
+ * egg or a spool in the right fist at the chest; a strip charge in the right fist at the belt, upright; the halligan across the
+ * body in both fists, its fork up at the viewer's right; the ram level at the belly in both. [d, y]: reference columns from the
+ * middle (bendR to the viewer's left, bendL to the right) and a row.
+ */
+export const HELD_BENDS = Object.freeze({
+  can: Object.freeze({ bendR: Object.freeze([6, 47]) }), egg: Object.freeze({ bendR: Object.freeze([6, 47]) }), spool: Object.freeze({ bendR: Object.freeze([6, 47]) }),
+  strip: Object.freeze({ bendR: Object.freeze([6, 55]) }),
+  bar: Object.freeze({ bendR: Object.freeze([7, 62]), bendL: Object.freeze([3, 46]) }),
+  ram: Object.freeze({ bendR: Object.freeze([7, 59]), bendL: Object.freeze([7, 59]) }),
+});
+/** The halligan's line in the hands: from its pick end low at the viewer's left to its fork high at the right (reference). */
+const BAR_FROM = Object.freeze([-12, 70]), BAR_TO = Object.freeze([9, 36]);
+
+/**
+ * The device in the hands (gear.device, v0.0.20): 'under' the arms (the halligan's bar, the ram's body, a strip's length, so the
+ * fists close over them), then 'over' them (a can's top and its spoon above the fist).
+ */
+export function handDevice(g, B, kit, layer) {
+  const d = kit.gear?.device, MID = g.MID;
+  if (!d) return null;
+  const C = devC(d), to = kit.bendR ?? HELD_BENDS.can.bendR, x = MID - to[0];
+  if (layer === 'under') {
+    if (d.shape === 'bar') {
+      const [a, b] = [[MID + BAR_FROM[0], BAR_FROM[1]], [MID + BAR_TO[0], BAR_TO[1]]];
+      const id = g.add(g.scan([[a[0] - 1, a[1]], [a[0] + 1, a[1]], [b[0] + 1, b[1]], [b[0] - 1, b[1]]]), C.base);
+      g.on(id, g.scan([[a[0], a[1]], [a[0] + 1, a[1]], [b[0] + 1, b[1]], [b[0], b[1]]]), C.light);
+      g.span(b[1] - 1, b[0] - 1, b[0] + 3, C.base, id); g.span(b[1] - 2, b[0] + 2, b[0] + 4, C.light, id);   // (the fork)
+      g.span(a[1] + 1, a[0] - 3, a[0] + 1, C.shade, id);                                                   // (the pick and adze)
+      return id;
+    }
+    if (d.shape === 'ram') {
+      const id = g.add(g.rows(to[1] - 3, MID - 12, MID + 11, to[1] + 3), C.base);
+      g.on(id, g.rows(to[1] - 3, MID - 12, MID + 11), C.light); g.on(id, g.rows(to[1] + 3, MID - 12, MID + 11), C.shade);
+      g.on(id, g.rows(to[1] - 3, MID + 9, MID + 11, to[1] + 3), cloth(DEVICE_C.steel).base);   // (the striking face)
+      return id;
+    }
+    if (d.shape === 'strip') {
+      const id = g.add(g.rows(to[1] - 10, x - 1, x, to[1] + 5), C.base);
+      g.on(id, g.rows(to[1] - 10, x - 1, x - 1, to[1] + 5), C.light);
+      return id;
+    }
+    return null;
+  }
+  if (d.shape === 'can' || d.shape === 'egg' || d.shape === 'spool') {
+    // (above the fist: the can's top, lit, its spoon down the viewer's left side in steel)
+    const y0 = to[1] - 7, id = g.add(g.rows(y0, x - 1.5, x + 1.5, y0 + 4), C.base);
+    g.on(id, g.rows(y0, x - 1.5, x + 1.5), C.light);
+    if (d.shape !== 'spool') g.on(id, g.rows(y0 + 1, x - 2.5, x - 2.5, y0 + 5), 0x8a909c);
+    return id;
+  }
+  return null;
+}
+
 /** The arms' bends the gear's hands give (the gear wins over the body's cues while the hands are on a weapon: my call). */
 export function gearBends(gear) {
   // (v0.0.19: the hands up and empty, both arms, at the look's place)
   if (gear?.hands === 'up') { const to = HANDS_LOOKS[gear.handsLook] ?? HANDS_LOOKS[HANDS_LOOK]; return { bendR: [to[0], to[1]], bendL: [to[0], to[1]] }; }
+  // (a device in the hands, by its shape: HELD_BENDS)
+  if (gear?.device) { const b = HELD_BENDS[gear.device.shape] ?? HELD_BENDS.can; return { bendR: [...b.bendR], ...(b.bendL ? { bendL: [...b.bendL] } : {}) }; }
   if (gear?.rifle?.place === 'ready') { const th = READY_DEG * Math.PI / 180; return { bendR: [8, 58], bendL: [-8 + Math.cos(th) * 14, 58 + Math.sin(th) * 14] }; }
   if (gear?.pistol?.place === 'ready') return { bendR: [2, 56], bendL: [2, 56] };
   return null;
@@ -197,7 +259,7 @@ export function earCups(g, kit) {
 /** The pistol in the hand: 'ready' at the belly between both fists, 'hand' hanging from the right hand (the board's). */
 export function pistolAt(g, B, kit, place) {
   const S = g.S, MID = g.MID, D = pistolDrawingOf(kit.gear?.pistol?.model ?? 'p12'), len = Math.round(P12_LEN_M * 100 * PX_PER_CM * S * (place === 'ready' ? 0.7 : 1));
-  const shape = shapeAt('pistol', len, 1.6 * S, true, D?.fig ?? null), C = { n: cloth(0x3a3d48), u: cloth(0x23252f), v: cloth(0x8a909c) };
+  const shape = shapeAt('pistol', len, 1.6 * S, kit.gear?.pistol?.mag !== false, D?.fig ?? null), C = { n: cloth(0x3a3d48), u: cloth(0x23252f), v: cloth(0x8a909c) };
   const [x0, y0] = place === 'ready' ? [MID * S, 57 * S] : [(MID - B.hand) * S, (B.armIn[0][1] + 2) * S];
   const id = g.add([], 0);
   for (const [x, y, ch] of turned(shape, x0, y0, Math.PI / 2, false)) { const T = C[ch] ?? C.n; g.px(Math.round(x), Math.round(y), x > x0 + S ? T.shade : T.base, id); }
@@ -265,6 +327,7 @@ export function heldItem(g, B, kit) {
   // (v0.0.19: the mask and the open hands, after the seams with their own rims (see the header))
   if (kit.gear?.mask) kit.late.push(() => fofMask(g, kit, kit.gear.maskLook ?? MASK_LOOK));
   if (kit.gear?.hands === 'up') kit.late.push(() => openPalms(g, kit));
+  if (kit.gear?.device) handDevice(g, B, kit, 'over');
   if (kit.gear?.held === 'phone') {
     const x = MID - B.hand - 2, id = g.add(g.rows(y, x, x + 2, y + 4), 0x23252f);
     g.on(id, g.rows(y + 1, x + 1, x + 1, y + 3), 0x8fc8e8);
@@ -291,7 +354,7 @@ const devC = (d) => cloth(DEVICE_C[d.colour] ?? DEVICE_C.olive);
 /** The back's long tools over the shoulders: a halligan's bar and fork at the viewer's left, a ram's head at the right (before the torso). */
 export function backDevices(g, B, kit) {
   const MID = g.MID;
-  for (const d of (kit.gear?.devices ?? []).filter(x => x.face === 'back')) {
+  for (const d of (kit.gear?.devices ?? []).filter(x => x.face === 'back' && x.shape)) {
     const C = devC(d);
     if (d.shape === 'bar') {
       const id = g.add(g.scan([[MID - 9, 46], [MID - 7, 46], [MID - 13, 2], [MID - 15, 2]]), C.base);
@@ -315,7 +378,8 @@ export function sideDevices(g, B, kit) {
     const id = g.add(g.rows(y0, x0, x0 + w - 1, y0 + 7), D.base);
     g.on(id, g.rows(y0, x0, x0 + w - 1), D.light); g.on(id, g.rows(y0 + 7, x0, x0 + w - 1), D.deep);
     g.on(id, g.rows(y0, p.face === 'left' ? x0 + w - 1 : x0, p.face === 'left' ? x0 + w - 1 : x0, y0 + 7), D.shade);
-    kit.late.push(() => p.devs.slice(0, 2).forEach((d, i) => {
+    // (an emptied pouch keeps its place, its flap down: its body and nothing over its lip)
+    kit.late.push(() => p.devs.filter(d => d.shape).slice(0, 2).forEach((d, i) => {
       const C = devC(d), x = x0 + 1 + i * 2;
       if (d.shape === 'can') { g.span(y0 - 2, x, x + 1, C.light); g.span(y0 - 1, x, x + 1, C.base); g.span(y0 - 3, x + 1, x + 1, 0x8a909c); }   // (the can, its spoon)
       else if (d.shape === 'strip') { g.span(y0 - 1, x, x + 1, C.base); g.span(y0 - 2, x, x + 1, C.light); }

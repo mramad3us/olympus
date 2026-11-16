@@ -5,19 +5,20 @@
 // doll cannot show ("we only know what we know").
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
-import { gearOf, gearKey, standGear, gearToFigure, GEAR_KEYS, RIFLE_PLACES } from '../src/sim/arms/gear.js';
+import { gearOf, gearKey, standGear, gearToFigure, gearOfLoadout, GEAR_KEYS, RIFLE_PLACES } from '../src/sim/arms/gear.js';
 import { doAction } from '../src/sim/arms/firearms.js';
 import { move } from '../src/sim/arms/kit.js';
 import { gunLook, kitLook } from '../src/sim/arms/look.js';
+import { TWO_P12_DEFAULT, PRESET_ORDER, codeOf, LOADOUT_PRESETS } from '../src/sim/arms/loadout.js';
 
-const house = (tier = 'sgt') => createGame({ scenario: 'test-shoothouse', seed: 48213, tier, setup: 'go' });
+const house = (tier = 'sgt', loadout = undefined) => createGame({ scenario: 'test-shoothouse', seed: 48213, tier, setup: 'go', ...(loadout ? { loadout } : {}) });
 const pass = (a) => ({ [a]: 'pass' });
 // (the forbidden: what the hands and the belief know, never the eye: a count, a load, the chamber, the selector, a stoppage)
 const FORBIDDEN = /"(count|n|load|chamber|mode|selector|stoppage|locked|belief|rounds|kind|cocked)":/;
 
 export default [
   {
-    name: 'gearOf gives what a marine in the shoot house wears and carries: the combat EVA suit, the plate carrier with chest pouches 1 and 2 and the dump pouch, the R-7 at the ready with its magazine in, the P-12 in its thigh holster and its spare in the pouch below (seed 48213, setup go); his #2 the same without the pistol',
+    name: 'gearOf gives what a marine in the shoot house wears and carries: the combat EVA suit, the plate carrier with chest pouches 1 and 2 and the dump pouch, the R-7 at the ready with its magazine in, the P-12 in its thigh holster and its spare in the pouch below (seed 48213, setup go); his #2 the same with his P-12 (~two:p12), without it on ~two:none, the bare lane as TWO_P12_DEFAULT says',
     fn() {
       const g = house(), s = g.state, me = gearOf(s, s.player.id), two = gearOf(s, s.armoury.range.house.two.pid);
       console.log(`      you: ${gearKey(me)}`);
@@ -27,8 +28,14 @@ export default [
       assert(me.rifle?.model === 'r7' && me.rifle.place === 'ready' && me.rifle.mag === true, JSON.stringify(me.rifle));
       assert(me.pistol?.model === 'p12' && me.pistol.place === 'holster' && me.pistol.mag === true, JSON.stringify(me.pistol));
       assert(me.thigh?.holds === 2 && me.thigh.mags === 1 && me.ears === null && me.held === null && me.painted === false, JSON.stringify(me));
-      // (the #2's P-12 is not issued: DESIGN.md's log, v0.0.17's calls, "the P-12 is on every sheet, the #2's is not")
-      assert(two.pistol === null && two.thigh === null && JSON.stringify({ ...two, pistol: null, thigh: null }) === JSON.stringify({ ...me, pistol: null, thigh: null }), JSON.stringify(two));
+      // (the #2's P-12 by the loadout's switch (v0.0.20, its build sheet §0 item 15: the user, 2026-11-15, "everyone should have the
+      // same loadout"; v0.0.17's call "the #2's is not"): with it he wears and carries what you do; '~two:none' takes it off, and
+      // TWO_P12_DEFAULT says which the bare lane is)
+      const on = house('sgt', 'standard~two:p12').state, twoOn = gearOf(on, on.armoury.range.house.two.pid);
+      const off = house('sgt', 'standard~two:none').state, twoOff = gearOf(off, off.armoury.range.house.two.pid);
+      console.log(`      your #2 with ~two:none: ${gearKey(twoOff)}; the bare lane his ${TWO_P12_DEFAULT ? 'with' : 'without'} it (TWO_P12_DEFAULT ${TWO_P12_DEFAULT})`);
+      assert(gearKey(twoOn) === gearKey(me) && gearKey(two) === gearKey(TWO_P12_DEFAULT ? twoOn : twoOff), JSON.stringify({ two, twoOn }));
+      assert(twoOff.pistol === null && twoOff.thigh === null && JSON.stringify({ ...twoOff, pistol: null, thigh: null }) === JSON.stringify({ ...me, pistol: null, thigh: null }), JSON.stringify(twoOff));
       // (every sheet wears the same: one loadout for every sheet, the user, 2026-11-15)
       for (const tier of ['recruit', 'private', 'cpl', 'raider', 'tierone']) { const t = house(tier).state; assert(gearKey(gearOf(t, t.player.id)) === gearKey(me), `${tier}: ${gearKey(gearOf(t, t.player.id))}`); }
     },
@@ -123,6 +130,20 @@ export default [
       }
       for (const r of rows) console.log(`      ${r}`);
       assert(rows.length >= 2, 'you and your #2');
+    },
+  },
+  {
+    name: 'the loadout screen\'s marine (the build sheet v0.0.20 item 23; the user, 2026-11-15: "a loadout screen where the marine draws and carries them"): gearOfLoadout(code, the standard\'s gear) is the gear of a game filled with &loadout=code, for every preset and a v1 code, the devices on their faces in order; a refused code none',
+    fn() {
+      const base = (() => { const g = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go' }); return gearOf(g.state, g.state.player.id); })();
+      const rows = [], bad = [];
+      for (const code of [...PRESET_ORDER.map(id => codeOf(LOADOUT_PRESETS[id])), 'v1~front:mag2,mag2,dump~left:g11~back:ram']) {
+        const g = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go', loadout: code }), want = gearOf(g.state, g.state.player.id), got = gearOfLoadout(code, base);
+        rows.push(`${code}: ${got.devices.map(d => `${d.face}${d.slot} ${d.model}`).join(', ') || 'none'} (${gearKey(got) === gearKey(want) ? 'the fill\'s' : 'NOT the fill\'s'})`);
+        if (JSON.stringify(got) !== JSON.stringify(want)) bad.push(code);
+      }
+      console.log(`      ${rows.join('; ')}; 'v1~left:nope' ${JSON.stringify(gearOfLoadout('v1~left:nope', base))}`);
+      assert(!bad.length && gearOfLoadout('v1~left:nope', base) === null, JSON.stringify(bad));
     },
   },
 ];

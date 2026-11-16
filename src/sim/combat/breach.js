@@ -171,6 +171,8 @@ export function safePointsOf(state, plan, model = 'sc1', { edge = null, side = C
   return { charge: c, edge: e, one, two, standoffM: sd, kPa: { one: kp(one), two: kp(two) }, short: k1 < along - 1e-6 || kp(one) > BREACH_SAFE_KPA, limitKPa: BREACH_SAFE_KPA };
 }
 
+/** A way in struck while a charge is on the door. */
+export const CHARGE_ON_WHY = 'a charge is on the door';
 /**
  * The door's ways in for a person (see the header): [{ id, how, live, off, ms, odds?, standoffM? }] in the order Open, Kick, Pry,
  * Ram, Charge, Flash. A door standing open has only Flash.
@@ -182,13 +184,17 @@ export function entryOptions(state, pid, plan, { rung = 0, from = null } = {}) {
   const row = (id, live, off, ms, more = {}) => out.push({ id, how: id === 'open' ? how : id, live: !!live && !off, off: off ?? null, ms: Math.round(ms), ...more });
   const dcOf = (dcK) => (o?.lock && locked ? o.kickDc ?? 14 : KICK_DC_OPEN) + dcK;
   if (o && !open) {
+    // (the hunt of v0.0.18: a charge on the leaf strikes every other way in, CHARGE_ON_WHY: the charge's own row finishes the
+    // breach. Push and Kick stayed live over a placed SC-1, the door held shut and the #2 held at his safe point, and "Wait." ran the
+    // lane out at 363 s)
+    const on = placedOn(state, o.id) ? CHARGE_ON_WHY : null;
     const t = doorS(sk.wh, how, rung, o.openS ?? 0.4);
-    row('open', true, locked ? 'locked' : null, t.ms);
-    row('kick', true, sw?.kickable === false ? KICK_PULL_WHY : null, doorS(sk.wh, 'kick', rung, o.openS ?? 0.4).ms, { odds: oddsOf(sk.fit, dcOf(0)) });
+    row('open', true, locked ? 'locked' : on, t.ms);
+    row('kick', true, sw?.kickable === false ? KICK_PULL_WHY : on, doorS(sk.wh, 'kick', rung, o.openS ?? 0.4).ms, { odds: oddsOf(sk.fit, dcOf(0)) });
     for (const [id, need] of [['pry', 'halligan'], ['ram', 'ram']]) {
       const model = id === 'pry' ? 'hal' : 'ram', F = DEVICES[model].force, has = kitHas(state, pid, need);
       const swingOk = F.on.includes(how);
-      row(id, has && swingOk, !has ? NOT_ISSUED : !swingOk ? KICK_PULL_WHY : null, forceMs(roller, model, pouchedOf(state, pid, model)?.face ?? 'back').ms, { odds: oddsOf(sk.fit, dcOf(F.dcK)) });
+      row(id, has && swingOk, !has ? NOT_ISSUED : !swingOk ? KICK_PULL_WHY : on, forceMs(roller, model, pouchedOf(state, pid, model)?.face ?? 'back').ms, { odds: oddsOf(sk.fit, dcOf(F.dcK)) });
     }
     // (a charge on the lane's doors only this round: an inner door's stack has no safe points laid (my call))
     const hasC = kitHas(state, pid, 'charge', o.id), cOk = DEVICES.sc1.on.includes(how), sp = cOk && !from ? safePointsOf(state, plan, 'sc1') : null;
@@ -199,7 +205,7 @@ export function entryOptions(state, pid, plan, { rung = 0, from = null } = {}) {
       row('cut', xOk && !from, !xOk ? KICK_PULL_WHY : from ? INNER_WHY : null, chargeMs(roller, pouchedOf(state, pid, 'bc1')?.face ?? 'right', 2.5, 'bc1'), { standoffM: sx?.standoffM ?? null, side: sx?.edge ?? null });
     }
     const bWhy = ballisticOk(state, pid);
-    if (bWhy !== NOT_ISSUED) row('shoot', !bWhy && locked, bWhy ?? (locked ? null : NOT_LOCKED), shootMs(state, pid, how), { how: how === 'pull' ? 'hinge' : 'lock' });
+    if (bWhy !== NOT_ISSUED) row('shoot', !bWhy && locked, bWhy ?? (locked ? on : NOT_LOCKED), shootMs(state, pid, how), { how: how === 'pull' ? 'hinge' : 'lock' });
   }
   const hasF = kitHas(state, pid, 'flashbang');
   row('flash', hasF, hasF ? null : NOT_ISSUED, throwChainMs(sk.wh, { face: pouchedOf(state, pid, 'g11')?.face ?? 'left' }).airMs);

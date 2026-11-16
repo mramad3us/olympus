@@ -1551,6 +1551,10 @@ The runner already prints each test's ms. A test whose time doubles from one rel
 
 ---
 
+### 13.8 v0.0.20's suites and gauges
+
+The round adds 44 new test files (CLAUDE.md lists them by role) and the gauges F45 to F59 in five files of their own (`tests/flawless-bodies.mjs`, `flawless-room.mjs`, `flawless-card.mjs`, `flawless-sound.mjs`, and the asks' F45 and F46 for the live lane in `flawless-live.mjs`; the sheet numbered them from F45 by role, and the live lane's two collide by name with A's: the files keep them apart). `tests/replay-run.mjs <run.json>` replays an exported run to its run sheet and save digest in node. The pin (`house-pin`) was re-recorded at every merge with its cause in the header; the full suite on the integrated tree was 1759 passed and 5 failed, each failure an open gauge clause (with `team-task`'s heavy case), listed in `docs/build/0.0.20.md` §15.
+
 ## 14. Tooling
 
 | Tool | State | Usage | What it does |

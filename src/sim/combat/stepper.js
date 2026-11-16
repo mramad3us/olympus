@@ -31,7 +31,9 @@
 // that returns `halt` (a refusal: the door locked) halts at once (with `again`, the beat goes back to waiting at its end,
 // so the rest holds it: the door still to open, the #2 still to wait for); halt() from outside ('contact' at the pause, 'stop' for
 // Backspace or X, 'two', 'noshoot', 'gun') cuts where they stand the running beats a contact cuts (`cut: true`: a move, a
-// scan) and lets the others end, starting nothing new ('stop' lets every running beat end: "stop after this beat"). The
+// scan) and lets the others end, starting nothing new ('stop' lets every running beat end: "stop after this beat", but a walk
+// held by a body, which v0.0.20 cuts where it stands at once; 'blocked', a walk held PIN_END_MS, and 'stall', a leg passed by
+// the instructor's stall with the doing still running, are v0.0.20's, places/move.js's and the shoot house's). The
 // rest of a halted doing (every beat not done) is its `rest`, the owner's "Carry on: …". HALTS names the reasons.
 // The facts: 'step' for list doings as built; 'bundle' { phase: 'beat' | 'seam' | 'halt' | 'suspend' | 'end', who, id, beat,
 // ch, why?, atMs } for beats (bundle.js emits 'start').
@@ -58,7 +60,7 @@ import { playerId } from '../../core/ids.js';
 /** The channels a beat runs on (COMBAT §25.7.1): feet, hands, eyes, voice, and world for a wait on the world. */
 export const CHANNELS = Object.freeze(['feet', 'hands', 'eyes', 'voice', 'world']);
 /** Why a beat doing stops early (COMBAT §25.7.2 amended by the build sheet 0.0.12 §2.2; v0.0.19: 'casualty', a marine of the stack down to the role-players' paint, the live lane's end). */
-export const HALTS = Object.freeze(['contact', 'noshoot', 'refused', 'door-unplanned', 'two', 'gun', 'fail', 'seam', 'lane-end', 'stop', 'clear', 'casualty', 'blocked']);
+export const HALTS = Object.freeze(['contact', 'noshoot', 'refused', 'door-unplanned', 'two', 'gun', 'fail', 'seam', 'lane-end', 'stop', 'clear', 'casualty', 'blocked', 'stall']);
 /** Why a beat doing is suspended rather than halted (COMBAT §25.19.3.1, §25.19.4): a contact's pause, a man of the room up at "Clear!", the list step beside it ended on a decision; v0.0.19, the startle (bundle.js startleTick: nothing new starts, the moves brake, the looks pause, and it goes on by itself at the startle's end). */
 export const SUSPENDS = Object.freeze(['contact', 'up', 'decision', 'startle']);
 /** A man of the window this near a corner's spot took the eyes there: the corner's look counts as done at the suspension (m; my call). */
@@ -383,7 +385,15 @@ function haltBeats(state, bus, d, why, words, atMs) {
  */
 export function halt(state, bus, d, why, words = null, ms = state.clock.ms) {
   if (!d?.beats || d.halt) return false;
-  if (why === 'stop') { d.stopAfter = true; bus?.emit('bundle', beatFact(d, 'halt', null, { atMs: ms, why })); return true; }
+  if (why === 'stop') {
+    d.stopAfter = true;
+    // (the build sheet v0.0.20 item 1: a walk held by a body (places/move.js: held this tick or the last) is no beat that will
+    // end by itself; Backspace cuts it where it stands at once, the feet yours (before it the stop waited on a beat whose time slid
+    // a tick at a time: the sergeant on 7091, 88.8 s))
+    for (const b of d.beats) if (b.st === 'run' && b.k === 'move' && (b.held ?? 0) > 0 && b.heldAtMs >= ms - TICK_MS) endBeat(state, bus, d, b, ms, true);
+    bus?.emit('bundle', beatFact(d, 'halt', null, { atMs: ms, why }));
+    return true;
+  }
   haltBeats(state, bus, d, why, words, ms);
   d.atMs = Math.max(d.atMs ?? 0, ms);
   return true;

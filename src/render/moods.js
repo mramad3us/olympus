@@ -137,14 +137,37 @@ export function glowKOf(mood) {
 export function lampLevel(mood, lamp) { return mood.lamps[lamp.kind ?? 'ceiling'] ?? 0; }
 export function lampColour(mood, lamp) { return mood.lampColour[lamp.kind ?? 'ceiling'] ?? lamp.color ?? 0xe7b84a; }
 
-/** The n lamps nearest (x, z) that are lit in the mood: [{ lamp, k, d2 }], nearest first. */
+// ---- v0.0.20: a shot lights the room for its flash (the build sheet v0.0.20 item 16; feel.md FL-5) ----
+// The muzzle's flash lit only the figures within FLASH_LIT_M (figures.js, view.js), never the floor or the walls: in a dark room a
+// shot was a star on a black floor. Now each shot is a moving lamp at its drawn muzzle for MUZZLE_LAMP_MS of game time (one tick,
+// inside the flash's FLASH_MS 100: its strong part), its pool MUZZLE_POOL_M with the stage's ring to 1.5 r, in the figures'
+// flash colour (render/figures.js FLASH_LIGHT: one light, one colour), its strength 1 at the muzzle; first in the stage's ten lamp slots
+// (moods.js pickLamps sorts a lamp marked first ahead of every other), so it is never the one dropped. None under "reduce
+// flashes"; on the game clock, so stop motion holds it. In the shoot house's scenes only (my call: "Pairs" and "Bang" were
+// scored on their look and keep it).
+/** A shot's light (game ms) and its pool's radius (m). */
+export const MUZZLE_LAMP_MS = 50, MUZZLE_POOL_M = 2.5;
+/** The muzzle's lamp: its height (m, the muzzle's at the shoulder), the pool, the flash's colour (FLASH_LIGHT's linear [1.0, 0.85, 0.55] as sRGB), core and ring. */
+export const MUZZLE_LAMP = Object.freeze({ y: 1.4, r: MUZZLE_POOL_M, color: 0xffedc2, core: 1, ring: 0.25, kind: 'muzzle', first: true });
+/**
+ * The muzzles' lamps at a drawn ms: [lamp] for each shot of [{ x, z, shotMs }] in [shotMs, shotMs + MUZZLE_LAMP_MS); none with
+ * reduced flashes. Pure.
+ */
+export function muzzleLamps(shots, ms, { reduced = false } = {}) {
+  if (reduced) return [];
+  const out = [];
+  for (const s of shots ?? []) if (Number.isFinite(s?.shotMs) && ms >= s.shotMs && ms < s.shotMs + MUZZLE_LAMP_MS && Number.isFinite(s.x)) out.push({ ...MUZZLE_LAMP, x: s.x, z: s.z });
+  return out;
+}
+
+/** The n lamps nearest (x, z) that are lit in the mood: [{ lamp, k, d2 }], nearest first; a lamp marked first (a muzzle's, lighting.js MUZZLE_LAMP) ahead of every other. */
 export function pickLamps(lamps, x, z, mood, n) {
   const out = [];
   for (const l of lamps) {
     const k = lampLevel(mood, l);
     if (k > 0.001) out.push({ lamp: l, k, d2: (l.x - x) ** 2 + (l.z - z) ** 2 });
   }
-  out.sort((a, b) => a.d2 - b.d2);
+  out.sort((a, b) => (b.lamp.first ? 1 : 0) - (a.lamp.first ? 1 : 0) || a.d2 - b.d2);
   return out.slice(0, n);
 }
 

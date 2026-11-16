@@ -57,6 +57,8 @@
 // must clear); played at 1600 × 900 it lay over the coach at your shoulder, where the din's horn and flashes are, the camera
 // leading the shooter left of the middle, so it takes the window's left edge instead (my call: the picture's middle stays clear). The states that show it are the paper ones with HITCARD: 'weapon-hit', 'weapon-hit-paused',
 // 'walking-hit' and 'paused-hit' (the stress course's alone, so test-pairs and the other courses keep their states to the pixel).
+// v0.0.20 (the build sheet v0.0.20 §1 item 14; feel FL-8): PLAQUE, the reserved rect a plaque in the house goes to when no side of its
+// target is clear of the figures, the stands and the room's floor (plaque.js slideRect); in no state's list, so every state is as before.
 import { frameFor } from '../../render/scale.js';
 
 /** The rectangles at --ui 1 (CSS px): size and anchor (VIEWS §7.5). */
@@ -72,6 +74,9 @@ export const RECTS = Object.freeze({
   PAPER: Object.freeze({ w: 200, h: 200, anchor: 'top-centre', below: 'PAUSED' }),
   // (0.0.10: the hit card, under TOASTS at the left edge: see the header)
   HITCARD: Object.freeze({ w: 200, h: 200, anchor: 'top-left', below: 'TOASTS' }),
+  // (a plaque's reserved rect in the house, where one goes that no side of its target leaves free (plaque.js slideRect; feel
+  // FL-8): under WATCH at the right edge, in no state's list, so no state's rectangles change)
+  PLAQUE: Object.freeze({ w: 240, h: 64, anchor: 'top-right', below: 'WATCH' }),
 });
 /** The weapon card's share of STEPS, at its left (CSS px at --ui 1; VIEWS §4.4, §7.5). */
 export const CARD_W = 180, CARD_H = 148;

@@ -7,7 +7,8 @@
 // both densities and in every facing, its silhouette the width its family is drawn to (printed); the faction's trim reaches
 // the helmet, the plates and the shoulders, and only with a faction; the doll's candidates hide the face too. Pure, in node.
 import { assert } from './helpers.mjs';
-import { HELMS, HELM_IDS, FACTIONS, helmOf, helmTpl } from '../src/art/figures/helmets.js';
+import { HELMS, HELM_IDS, FACTIONS, helmOf, helmTpl, HELMET_DRAWN_AS, helmFor } from '../src/art/figures/helmets.js';
+import { dressedDoll, clearDolls } from '../src/art/doll/dress.js';
 import { composeFrame } from '../src/art/figures/compose.js';
 import { shade } from '../src/art/figures/shade.js';
 import { wear, coloursOf } from '../src/art/figures/outfits.js';
@@ -106,6 +107,29 @@ export default [
         counts.push(`${id} ${red}`);
       }
       console.log(`      no skin under any candidate; Mars red trim pixels on the doll's head and chest (the OPA none): ${counts.join(', ')}`);
+    },
+  },
+  // ---- v0.0.20: one helmet in one place (the build sheet v0.0.20 item 22; user.md U-8) ----
+  {
+    name: 'one helmet in one place: with HELMET_DRAWN_AS.regular set to a candidate, the world figure, the doll and the card\'s man (a dressed doll) each draw its pixels, as a look that names it does; unset, v0.0.19\'s (the user, 2026-11-15: "The helmet design is pretty goofy": the pick lands in one line)',
+    fn() {
+      const dig = (data) => { let h = 2166136261 >>> 0; for (let i = 0; i < data.length; i++) { h ^= data[i] & 255; h = Math.imul(h, 16777619) >>> 0; } return h.toString(16); };
+      const base = { outfit: 'combatSuit', weapon: 'rifle', carry: 'low', carrier: true, seed: 3 };
+      const fig = (L) => { const f = composeFrame(wear(L), 'down', 'idle0', { ppm: 16 }); return dig(shade(f.cells, coloursOf(f.look, 16)).data); };
+      const dl = (L) => dig(doll({ look: L, sex: 'm', outfit: 'combatSuit' }).data);
+      const gear = { outfit: 'combatSuit', suit: { model: 'ces-1', colour: null, helm: null }, carrier: null, ears: null, rifle: null, pistol: null, thigh: null, held: null, devices: [], painted: false, mask: null, hands: null };
+      const card = (L) => { clearDolls(); return dig(dressedDoll(gear, { look: L, sex: 'm' }).data); };
+      const was = HELMET_DRAWN_AS.regular, rows = {};
+      try {
+        HELMET_DRAWN_AS.regular = null;
+        rows.unset = { fig: fig(base), doll: dl(base), card: card(base) };
+        rows.named = { fig: fig({ ...base, helm: { id: 'R1', faction: 'mars' } }), doll: dl({ ...base, helm: { id: 'R1', faction: 'mars' } }), card: card({ ...base, helm: { id: 'R1', faction: 'mars' } }) };
+        HELMET_DRAWN_AS.regular = 'R1';
+        rows.drawnAs = { fig: fig(base), doll: dl(base), card: card(base) };
+      } finally { HELMET_DRAWN_AS.regular = was; clearDolls(); }
+      console.log(`      the figure, the doll, the card's man: unset ${JSON.stringify(rows.unset)}; a look naming R1 ${JSON.stringify(rows.named)}; HELMET_DRAWN_AS.regular 'R1' ${JSON.stringify(rows.drawnAs)}; helmFor's R1 ${JSON.stringify(helmFor({ pick: 'R1' }))}, its O1 on you ${JSON.stringify(helmFor({ pick: 'O1', slot: 0 }))}, on your #2 ${JSON.stringify(helmFor({ pick: 'O1', slot: 1 }))}`);
+      for (const k of ['fig', 'doll', 'card']) assert(rows.drawnAs[k] === rows.named[k] && rows.drawnAs[k] !== rows.unset[k], `${k}: ${JSON.stringify(rows)}`);
+      assert(was === null && helmFor({ pick: 'O1', slot: 0 }) === null && helmFor({ pick: 'O1', slot: 1 })?.id === 'O1', 'nothing drawn as until picked; the OPA on your #2 alone');
     },
   },
 ];

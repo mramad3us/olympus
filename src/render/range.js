@@ -70,7 +70,7 @@
 import { PX_PER_M } from './scale.js';
 import { createPixels } from './decals.js';
 import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART,
-  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, leafArcPixels, cornerAidPixels, floorRiflePixels, paintPuffPixels } from './range-items.js';
+  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, leafArcPixels, cornerAidPixels, floorRiflePixels, paintPuffPixels, jambMarks } from './range-items.js';
 import { createCollector, buildAreaData } from '../art/jobs.js';
 import { areaFromJob, newPart } from './batch.js';
 import { paintKdFace, facePx } from '../art/kit/range.js';
@@ -179,7 +179,7 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
   let hot = false, fromK = 0, sinceMs = null, seen = false;
   const holesSeen = new Map();                                      // (lane|n|xCm|yCm → the game time it was first drawn)
   const hoistAt = (ms) => { if (sinceMs === null) return hot ? 1 : 0; const t = Math.max(0, Math.min(1, (ms - sinceMs) / FLAG_HOIST_MS)); return hot ? fromK + (1 - fromK) * t : fromK * (1 - t); };
-  function update(look, { kd = null, ms = 0, tintOf = null, views = null } = {}) {
+  function update(look, { kd = null, ms = 0, tintOf = null, views = null, jamb = null } = {}) {
     let n = 0, nb = 0, no = 0;
     const put = (p, part = 0, noLine = false) => { if (px.set(n, { ...p, color: p.c, tint: tintOf ? tintOf(p.x, p.z) : [1, 1, 1], part, noLine })) n++; };
     stats.holes = stats.brass = stats.flying = stats.flag = stats.flash = stats.dust = stats.own = 0;
@@ -221,7 +221,15 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
         for (const L of HS.leaves ?? []) {
           if (!inViews(views, L.hinge[0], L.hinge[1])) continue;
           hs.leaves++;
-          for (const q of leafArcPixels(L, ppm)) { put(q, 0, true); hs.pixels++; }
+          // (a shut door's arc as light, untinted over the fog (range-items.js leafArcPixels' `light`), the moving sweep lit where it lies)
+          for (const q of leafArcPixels(L, ppm)) { if (q.light) { if (px.set(n, { ...q, color: q.c, tint: [1, 1, 1], part: 0, noLine: true, light: true })) n++; } else put(q, 0, true); hs.pixels++; }
+        }
+        // (the rooms' marks on their jambs, M1 chalk or M2 a chemlight by the look flag (range-items.js jambMarks; `jamb`, view.js's $look.jamb))
+        hs.marks = 0;
+        for (const q of jambMarks(HS.marks, { kind: jamb ?? 'm1', ppm })) {
+          if (!inViews(views, q.x, q.z)) continue;
+          if (q.light) { if (px.set(n, { ...q, color: q.c, tint: [1, 1, 1], part: 0, noLine: true, light: true })) n++; } else put(q, 0, true);
+          hs.marks++; hs.pixels++;
         }
         // (0.0.17: your corner and your point, your #2's, then your sector's wedge (range-items.js cornerAidPixels))
         hs.aid = 0;

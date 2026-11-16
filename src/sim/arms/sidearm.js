@@ -157,10 +157,15 @@ export function weaponList(state, pid, key, { feet = null } = {}) {
   }
   // (the rifle already hanging on its sling (a fumble's): the draw alone, no Let it hang refused as "slung")
   if (key === 'transition') return holstered(state, pid) && !drawn(state, pid) ? [...(slungNow(state, pid) ? [] : ['hang']), 'draw:thigh'] : null;
+  // (its tail, the rifle's way to ready, only while the lane is live: under the tower's Stop and SHOW CLEAR Rifle up is the holster
+  // and the up alone, never a round chambered under "Make safe" (the hunt of v0.0.18: the sergeant who ended the lane on the
+  // pistol had his R-7 racked live by Rifle up at SHOW CLEAR, and the lane passed clear with it hot))
   if (key === 'rifle-up') {
     if (!drawn(state, pid) || !rifle) return null;
-    return ['holster', 'up', ...(readyPath(state, pid, rifle).subs ?? [])];
+    return ['holster', 'up', ...(laneLive(state) ? readyPath(state, pid, rifle).subs ?? [] : [])];
   }
+  // (the holstered P-12's part of SHOW CLEAR on its own, the rifle's done (pistolClearOwed))
+  if (key === 'pistol-clear') return pistolClearOwed(state, pid) ? [ADMIN.clear] : null;
   // (the holstered P-12's own rows: the row's sub-steps inside the access, looked up again at the press)
   if (key.startsWith('other:')) {
     const p = holstered(state, pid), r = p ? gunRows(state, pid, p).find(x => x.id === key.slice(6)) : null;
@@ -184,6 +189,7 @@ export function listMs(state, pid, list, { feet = null } = {}) {
     else if (a.startsWith('stance:')) { const to = a.slice(7); ms += stanceMsOf(stance, to, roller.value('fitness'), gravityAt(state, null, me?.x ?? 0, me?.z ?? 0).gG); stance = to; }
     else if (a === 'draw:thigh') { ms += actionMs(roller, pistol, a); gun = pistol; }
     else if (a === 'holster') { ms += actionMs(roller, pistol, a); gun = rifle; }
+    else if (ADMIN_PARTS[a]) ms += adminMs(state, pid, a);
     else ms += gun ? actionMs(roller, gun, a) : 0;
   }
   return ms;
@@ -258,7 +264,7 @@ export function weaponRows(state, pid, ms = state.clock.ms) {
   // (off the lane only Rifle up, a P-12 still out when the lane ended: the tower's commands are the rifle's; and before GO the
   // holstered P-12's MAKE READY where the tower's waits on it (pistolOwed))
   const cold = !laneLive(state) && !drawn(state, pid);
-  if (!inHouse(state) || (cold && !pistolOwed(state, pid))) return [];
+  if (!inHouse(state) || (cold && !pistolOwed(state, pid) && !pistolClearOwed(state, pid))) return [];
   const rifle = rifleOf(state, pid), use = inUseOf(state, pid), b = use ? beliefOf(state, use) : null, near = threatFacing(state, pid, ms), out = [];
   // (each sub-step's words on its own gun: the pistol's from the draw to the holster, as listMs times them)
   const labelsOf = (list) => {
@@ -272,14 +278,16 @@ export function weaponRows(state, pid, ms = state.clock.ms) {
       subs: labelsOf(list).map((label, i) => ({ id: list[i], label, ms: 0 })), group: 'weapon', slot, ...o });
   };
   if (cold) {
-    const p = holstered(state, pid), r = gunRows(state, pid, p).find(x => x.id === 'macro:ready');
+    const p = holstered(state, pid), r = pistolOwed(state, pid) ? gunRows(state, pid, p).find(x => x.id === 'macro:ready') : null;
     if (r) row('weapon:other:macro:ready', 'other:macro:ready', `${state.items[p]?.model === 'p12' ? 'P-12' : 'Pistol'}: ${r.label}`, null, {});
+    if (pistolClearOwed(state, pid)) row('weapon:pistol-clear', 'pistol-clear', `${state.items[p]?.model === 'p12' ? 'P-12' : 'Pistol'}: SHOW CLEAR`, null, { lead: true });
     return out;
   }
   const words = drillWords(state, pid, b), pistolOut = !!drawn(state, pid);
   // (Rifle up's words: the rifle's own way to ready, "tap, rack" for a stoppage felt as built)
-  const rb = rifle ? beliefOf(state, rifle) : null, rp = pistolOut && rifle ? readyPath(state, pid, rifle) : null;
-  const upWords = rb?.stoppage ? drillWords(state, pid, rb) : rp?.words ?? '';
+  // (off the lane the holster and the up alone (weaponList): "Rifle up: holster")
+  const rb = rifle ? beliefOf(state, rifle) : null, rp = pistolOut && rifle && laneLive(state) ? readyPath(state, pid, rifle) : null;
+  const upWords = !laneLive(state) ? '' : rb?.stoppage ? drillWords(state, pid, rb) : rp?.words ?? '';
   if (pistolOut) row('weapon:rifle-up', 'rifle-up', `Rifle up: holster${upWords ? `, ${upWords}` : ''}`, 3, { lead: !near });
   // (the drawn P-12 stopped: Gun down and Off the line on it, Rifle up still the lead with nobody facing)
   if (pistolOut && b?.stoppage) {
@@ -316,6 +324,26 @@ export function pistolOwed(state, pid) {
   return adminSubs(state, pid, 'ready').length > 0;
 }
 
+/**
+ * Whether the tower's SHOW CLEAR is owed by the holstered P-12 alone (the hunt of v0.0.18): on the house course at UNLOAD, SHOW
+ * CLEAR, the pistol in its holster with its part still to do (adminSubs: a magazine in, a chamber not believed empty, the slide
+ * back; or anything in it as the instructor sees it, the truth the tower judges), and the rifle believed clear (its magazine out, its chamber empty, its bolt home), so its own UNLOAD, SHOW CLEAR, which
+ * clears the pistol last, is no longer the way. Before, a rifle fumble after its show halted the macro short of the pistol, the
+ * tower judged the P-12 only for being out or off safe, and the lane passed clear with it 1 + 9 in the holster (12 of 36 lanes
+ * of the boot recruit and the private on seed 1); the tower now waits on it (shoothouse.js houseReady 'shown') and the panel
+ * offers "P-12: SHOW CLEAR", the instructor naming it.
+ */
+export function pistolClearOwed(state, pid) {
+  const R = state.armoury?.range, rifle = rifleOf(state, pid);
+  if (R?.course !== 'house' || !R.house || R.end || R.cmd?.id !== 'clear') return false;
+  // (owed as believed, or as the instructor sees it: a round in it the hand believes gone is his "your pistol too", never a wait for
+  // the coach's take with nothing offered)
+  const p = holstered(state, pid), g = p ? state.items[p] : null;
+  if (!g || drawn(state, pid) || !(adminSubs(state, pid, 'clear').length || g.mag || gunField(g, 'chamber') || gunField(g, 'jam') || gunField(g, 'locked'))) return false;
+  const rb = rifle ? beliefOf(state, rifle) : null;
+  return !rb || (rb.mag === 'out' && rb.chamber === 'empty' && !rb.locked && !rb.stoppage);
+}
+
 // ---- the tower's macros over both guns (see ADMIN) ----
 
 /** The P-12's part of a tower macro for a person (see ADMIN): [] where none is carried holstered or it is already so. */
@@ -336,30 +364,48 @@ export function adminMs(state, pid, sub) {
   return actionMs(roller, g, 'draw:thigh') + actionMs(roller, g, 'holster') + ADMIN_PARTS[sub].reduce((t, a) => t + actionMs(roller, g, a === 'magOut' ? 'magOut:pouch' : a), 0);
 }
 /**
- * The P-12's part of a tower macro run (see ADMIN_PARTS): { ms, ok, text }. v0.0.19: exported for your #2's admin (house-two.js),
- * rng (his stream, 'house-two') and log (false: his rolls in nobody's log) passed to each action; for you as before.
+ * The P-12's part of a tower macro run (see ADMIN_PARTS): { ms, ok, text, halts? } (halts: its clear stopped at a part that halts,
+ * the rest still owed; your #2's admin plans it again from his belief, house-two.js twoAdminTick). v0.0.19: exported for your #2's admin (house-two.js),
+ * rng (his stream, 'house-two') and log (false: his rolls in nobody's log) passed to each action; for you as before; force a
+ * test's grades by action (doAction's).
  */
-export function adminRun(state, bus, pid, sub, d, { rng = null, log = true } = {}) {
+export function adminRun(state, bus, pid, sub, d, { rng = null, log = true, force = null } = {}) {
   const p = holstered(state, pid), g = p ? state.items[p] : null, roller = rollerOf(state, pid);
   if (!g) return { ms: 0, ok: null, text: 'No pistol.' };
-  let ms = actionMs(roller, g, 'draw:thigh') + actionMs(roller, g, 'holster'), ok = true;
+  let ms = actionMs(roller, g, 'draw:thigh') + actionMs(roller, g, 'holster'), ok = true, halts = false;
   const said = [];
-  for (const a of ADMIN_PARTS[sub]) {
-    if (a === 'magOut') {
-      if (!g.mag) continue;
-      const k = state.people[pid].kit, pouch = k.worn?.thigh, m = g.mag, C = pouch ? state.items[pouch] : null;
-      move(state, m, C && (C.holds ?? []).length < 2 ? { container: pouch } : { pid, hand: 1 });
-      if (g.belief) delete g.belief.count;
-      ms += actionMs(roller, g, 'magOut:pouch');
-      continue;
+  // (the pistol is in the hand for its parts, the draw and the holster unrolled: the carry the drawn pistol's (low ready, as
+  // pistolDrawn leaves it) while they run, then the rifle's as it was. Before, a rifle that had swung onto its sling (a fumble's
+  // posture) refused every part, "P-12 is slung.", and the part came to nothing with the pistol still loaded: the review of the
+  // pistol fix, 2026-11-16, your #2 after his R-7's fumbled charge)
+  const carry = (state.people[pid].kit.carry ??= {}), was = { posture: carry.posture, finger: carry.finger };
+  carry.posture = 'lowReady'; delete carry.finger;
+  try {
+    for (const a of ADMIN_PARTS[sub]) {
+      if (a === 'magOut') {
+        if (!g.mag) continue;
+        const k = state.people[pid].kit, pouch = k.worn?.thigh, m = g.mag, C = pouch ? state.items[pouch] : null;
+        move(state, m, C && (C.holds ?? []).length < 2 ? { container: pouch } : { pid, hand: 1 });
+        if (g.belief) delete g.belief.count;
+        ms += actionMs(roller, g, 'magOut:pouch');
+        continue;
+      }
+      const r = doAction(state, bus, { pid, gunId: p, action: a, tempo: d.tempo, pressure: 'evaluated', ...(rng ? { rng } : {}), ...(log ? {} : { log: false }), ...(force ? { force } : {}) });
+      if (r.refused) continue;
+      ms += r.ms ?? 0;
+      if (r.ok === false) ok = false;
+      if (r.text) said.push(r.text);
+      // (in the clear, a part that halts (a fumble that bites, a round seen) stops the rest, as a macro of the rifle's halts: the
+      // pistol back in the holster as the hands left it, its part still owed (pistolClearOwed), never a release and a safe run over a
+      // lock back that missed (the hunt of v0.0.18: "lockBack(miss)… The bolt is already home.", and the P-12 holstered with its
+      // round chambered). MAKE READY's safe after a fumbled rack is harmless and runs as before)
+      if (r.halts && sub === 'pistol:clear') { ok = false; halts = true; break; }
     }
-    const r = doAction(state, bus, { pid, gunId: p, action: a, tempo: d.tempo, pressure: 'evaluated', ...(rng ? { rng } : {}), ...(log ? {} : { log: false }) });
-    if (r.refused) continue;
-    ms += r.ms ?? 0;
-    if (r.ok === false) ok = false;
-    if (r.text) said.push(r.text);
+  } finally {
+    if (was.posture === undefined) delete carry.posture; else carry.posture = was.posture;
+    if (was.finger === undefined) delete carry.finger; else carry.finger = was.finger;
   }
-  return { ms, ok, text: said.at(-1) ?? 'Holstered.' };
+  return { ms, ok, text: said.at(-1) ?? 'Holstered.', ...(halts ? { halts } : {}) };
 }
 
 // ---- the sub-steps (the stepper's, through shooting.js rifleSub and endSub) ----

@@ -77,6 +77,19 @@ export const TEAM_WORDS = Object.freeze({
   belay: W('As you were.', 1),
   // (his, held off the stack's front point by you after your order: TWO_BLOCK_SAY_MS on, once (the review of 2026-11-16))
   front: W('Give me the door!', 2),
+  // (the line of fire held (the build sheet v0.0.20 item 3): said by whichever of you holds a round with the other on its line, once a hold)
+  line: W('Line!', 0),
+
+  // (the room (the build sheet's items 12, 17 and 18): leaving a room, the last man out, the far leg, the call-out ("{face},
+  // {place}!", the face he identified and the place in your frame: house-two.js twoTick). His status after "Room clear!" says his own
+  // `up`, `reloading` or `gunDown`: no status word)
+  out: W('Coming out!', 0),
+  last: W('Last man.', 0),
+  // (his "Move!" answers it, but up to MOVE_WAIT_MAX_MS later where he is on a man: no `answer` here, F36's one-second window is the
+  // squeeze's and the stoppage's)
+  moving: W('Moving!', 1),
+  move: W('Move!', 2),
+  contact: W('{face}, {place}!', 2),
 });
 
 // (the house's record, read from the session, never by importing the scenario)

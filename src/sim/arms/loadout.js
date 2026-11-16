@@ -20,10 +20,15 @@
 // and the cutting charge 'bc1+fd1' (a charge pouch with a BC-1 and its FD-1) are issued while PRACTICE_ISSUED (the one switch
 // that hides the practice grenades from the issue table), and the picker gains four presets: frag (two G-9Ps on the left), conc
 // (two G-13Ps), cut (a BC-1 and an SC-1 on the right, the halligan on the back) and mixed (a G-11 and a G-9P on the left, a BC-1
-// on the right). The #2's P-12 (team's question, TWO_P12_DEFAULT false: the log of 2026-11-15) rides the code as one token,
-// '~two:p12' (or '~two:none'), after a preset's name or a v1 code, written only where it differs from the default (spec.two =
-// { p12: true } when on; absent is off), read off first by loadoutOf, which resolves the default in the one place, so flipping
-// TWO_P12_DEFAULT is the one switch and every v0.0.18 code reads and writes back byte for byte.
+// on the right). The #2's P-12 (team's question) rides the code as one token after a preset's name or a v1 code, read off
+// first by loadoutOf, so every v0.0.18 code reads and writes back byte for byte: '~two:p12' on (spec.two = { p12: true }),
+// '~two:none' off (spec.two = { p12: false }); no token, no `two`, is the default, TWO_P12_DEFAULT, and twoP12Of(spec) is the
+// one reader of whether he carries it. codeOf writes a token only where the spec differs from the default.
+// v0.0.20 (its build sheet §0 item 15, §3 step 2): the off token and the one reader make the default one line, and **your #2's
+// P-12 is standard issue** (the user's answer of 2026-11-16 to v0.0.19's question 10: "#2 has to have a sidearm"),
+// TWO_P12_DEFAULT true, so every code without a token issues it and no screen writes '~two:none' (kept for the tests only);
+// every v0.0.18 code still reads and writes back byte for byte, and a v0.0.19 code '…~two:p12' reads with his P-12 and is
+// written back without the token (it is the default now).
 // Pure but applyLoadout, which makes items (w).
 import { nextId, put, playerActor, playerId } from '../../core/ids.js';
 import { G0_MS2 } from '../../core/phys.js';
@@ -49,12 +54,15 @@ export const ISSUE = fz({
 });
 /** Whether the practice grenades are issued (the one switch of the build sheet 0.0.19 §13: the issue table and the presets hide them when false). */
 export const PRACTICE_ISSUED = true;
-/** Whether your #2 carries a P-12 by default (the log of 2026-11-15, line 229; team's question 1): '~two:p12' turns it on. */
-export const TWO_P12_DEFAULT = false;
-/** The code's token for the #2's P-12 (see the header). */
-export const TWO_P12_TOKEN = '~two:p12';
-/** The token that leaves the #2's P-12 off where the default is on (the review of v0.0.19: flipping TWO_P12_DEFAULT must be the one switch). */
-export const TWO_NONE_TOKEN = '~two:none';
+/** Whether your #2 carries a P-12 by default: yes, standard issue as yours is (the user's answer of 2026-11-16 to v0.0.19's question 10, "#2 has to have a sidearm"); '~two:none' (the tests' only) takes it off. */
+export const TWO_P12_DEFAULT = true;
+/** The code's tokens for the #2's P-12, on and off (see the header). */
+export const TWO_P12_TOKEN = '~two:p12', TWO_NONE_TOKEN = '~two:none';
+/**
+ * Whether a spec's #2 carries his P-12: its `two` where the code says, else the default (the fill's, the screen's and the codes' one
+ * reader). twoDefault: TWO_P12_DEFAULT (an argument for the tests only, the review of v0.0.19's: flipping the default is one switch).
+ */
+export const twoP12Of = (spec, { twoDefault = TWO_P12_DEFAULT } = {}) => !!(spec?.two?.p12 ?? twoDefault);
 /** The issue table's order on the screen (D1's, the practice grenades and the cutting charge after their kinds). */
 export const ISSUE_ORDER = fz(['g11', ...(PRACTICE_ISSUED ? ['g9p', 'g13p'] : []), 'sc1+fd1', 'bc1+fd1', 'hal', 'ram']);
 /** Each face's count (kit.js CONTAINERS 'pc-m3' faces). */
@@ -101,19 +109,19 @@ export function checkLoadout(spec) {
  * ('~two:p12' on, '~two:none' off; a spec with no `two` is the default). twoDefault: TWO_P12_DEFAULT (an argument for the tests only).
  */
 export function codeOf(spec, { twoDefault = TWO_P12_DEFAULT } = {}) {
-  const p12 = spec?.two?.p12 ?? twoDefault, s = norm(spec), two = p12 === twoDefault ? '' : p12 ? TWO_P12_TOKEN : TWO_NONE_TOKEN;
+  const s = norm(spec), p12 = twoP12Of(spec, { twoDefault }), two = p12 === twoDefault ? '' : p12 ? TWO_P12_TOKEN : TWO_NONE_TOKEN;
   for (const id of PRESET_ORDER) if (same(s, norm(LOADOUT_PRESETS[id]))) return id + two;
   return ['v1', ...FACES.filter(f => f === 'front' || s[f].length).map(f => `${f}:${s[f].join(',')}`)].join('~') + two;
 }
 /**
- * A code read (see the header): its spec (frozen faces, every face present, `two` only when his P-12 is on), or { error } for one
- * unknown or refused. The #2's P-12 is resolved here, the one place: the token's, else TWO_P12_DEFAULT (twoDefault, for the tests).
+ * A code read (see the header): its spec (frozen faces, every face present, `two` only where a token says: { p12: true } for
+ * '~two:p12', { p12: false } for '~two:none'), or { error } for one unknown or refused. No code is the standard.
  */
-export function loadoutOf(code, { twoDefault = TWO_P12_DEFAULT } = {}) {
+export function loadoutOf(code) {
   const c0 = code === null || code === undefined ? '' : String(code).trim().replace(/ /g, '+');
   const tok = [TWO_P12_TOKEN, TWO_NONE_TOKEN].find(t => c0.endsWith(t)) ?? null, c = tok ? c0.slice(0, -tok.length) : c0;
-  const out = c0 === '' ? norm(LOADOUT_PRESETS.standard) : faceSpecOf(c, code), p12 = tok ? tok === TWO_P12_TOKEN : twoDefault;
-  if (p12 && !out.error) out.two = { p12: true };
+  const out = c0 === '' ? norm(LOADOUT_PRESETS.standard) : faceSpecOf(c, code);
+  if (tok && !out.error) out.two = { p12: tok === TWO_P12_TOKEN };
   return out;
 }
 // (the faces of a code with the #2's token off: a preset's, else v1's)

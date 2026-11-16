@@ -127,7 +127,7 @@ import { stanceMs, WAIT_MAX_MS, STANCES, stanceStep } from '../combat/steps.js';
 import { gravityAt } from '../places/env.js';
 import { offerReflex, chosenReflex } from '../combat/reflex.js';
 import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, HELD_MAX, poiOf, holdFor, holdWords, windBeliefOf, HOLD_STEP_MRAD, HOLD_MAX_MRAD, HOLD_SHIFT_MS, catchAhead, shotIdNext } from './shot.js';
-import { canDo, doAction, beliefOf, actionMs, tempoFor, REFUSALS, sayObserved, actionOf, actionKey, actionPlace, dial, dialMs, opticMs, readMs, setOptic, believeZero, beliefZero, sightOf, TURRET_MAX_CLK } from './firearms.js';
+import { canDo, doAction, beliefOf, actionMs, tempoFor, refusalOf, sayObserved, actionOf, actionKey, actionPlace, dial, dialMs, opticMs, readMs, setOptic, believeZero, beliefZero, sightOf, TURRET_MAX_CLK, HANDS_FULL_OK } from './firearms.js';
 import { readWind } from './wind.js';
 import { clickWords } from './paper.js';
 import { paceOf } from '../skills/skills.js';
@@ -143,13 +143,13 @@ import { HANDS } from '../../data/body/needs.js';
 import { soil } from '../body/body.js';
 import { areaOf } from '../places/model.js';
 import { logEntry } from '../log.js';
-import { lineReady, recordShot, recordEjects, recordDischarge, afterStep, aheadOf, coachOf, rangeOf, markOfMacro, onStepStart, noteTick, magSeated, oneMagWarn, kindWarn, spoutCheck } from '../scenarios/handling.js';
+import { lineReady, recordShot, recordEjects, recordDischarge, afterStep, aheadOf, lineCold, coachOf, rangeOf, markOfMacro, onStepStart, noteTick, magSeated, oneMagWarn, kindWarn, spoutCheck } from '../scenarios/handling.js';
 import { turnerTargets, facingOf } from './turners.js';
 import { shotRows, reloadRows, rowPlan, keptPlan, runRowSub, endRowSub, RELOAD_PURPOSE, rungOfShooter, RUNG_AIM, halfOrLess, fullerAtHand, ROWS, stanceHint } from './specials.js';
 import { contactRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive, contactNow, CONTACT_LABELS } from '../combat/contact.js';
 import { contactOf } from '../people/mind.js';
 import { useList, begin, advance, endStep, stepFact } from '../combat/stepper.js';
-import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant, wayOf, pathFrom, feetTo, flowIn, flowAfter, crossTick, mineUp, doorNow, preGoRows } from '../combat/bundle.js';
+import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant, wayOf, pathFrom, feetTo, flowIn, flowAfter, crossTick, mineUp, doorNow, preGoRows, handsStruck } from '../combat/bundle.js';
 import { clipped, lineClear } from '../combat/route.js';
 import { rungOf } from '../skills/templates.js';
 import { MOVE_STANCES, gaitsOf } from '../body/motion.js';
@@ -161,6 +161,7 @@ import { gunsOf } from './guns.js';
 import { liveWho } from '../combat/men.js';
 import { wordsOf } from './gunwords.js';
 import { legsHere, coastTo, throughNow } from '../places/move.js';
+import { handsFullWhy } from './devices.js';
 
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 /** A heading as a sprite's facing. */
@@ -192,7 +193,7 @@ export const LABELS = Object.freeze({
   // (the rework's R6: the stoppage's answers and the sidearm (arms/sidearm.js))
   'call:gundown': '"Gun down!"', 'call:gunup': '"Gun up!"', 'call:stoppage': '"Stoppage!"', 'call:up': '"Up!"', 'wait:up': 'On a knee: wait for "Up."',
   'step:wall': 'Step to the wall', hang: 'Let it hang', 'draw:thigh': 'Draw the pistol', holster: 'Holster it', 'team:cover': 'Cover his sector',
-  'weapon:gun-down': 'Gun down', 'weapon:offline': 'Off the line', 'weapon:transition': 'Transition: pistol', 'weapon:rifle-up': 'Rifle up',
+  'weapon:gun-down': 'Gun down', 'weapon:offline': 'Off the line', 'weapon:transition': 'Transition: pistol', 'weapon:rifle-up': 'Rifle up', 'weapon:pistol-clear': 'P-12: SHOW CLEAR',
   'pistol:ready': 'The pistol: rack, safe, holster', 'pistol:clear': 'The pistol: clear, holster',
 });
 /** The holstered P-12's rows' words by their row ids (plan.js gunRows). */
@@ -595,7 +596,8 @@ function houseRows(state, pid, ms) {
   // (the catalogue's greyed rows (above the rung, the breach with no charge) page last, after X: shown, never in the way;
   // the stances' rows say what they trade where they are chosen (specials.js stanceHint))
   for (const r of [...b, ...sg]) if (r.stance) r.hint = stanceHint(state, pid, r.stance);
-  const rows = [...(carry ? [carry] : []), ...b.filter(r => !r.later), ...sg], grey = b.filter(r => r.later);
+  // (a device in a hand strikes the drill's rows that do not use it (bundle.js handsStruck))
+  const rows = handsStruck(state, pid, [...(carry ? [carry] : []), ...b.filter(r => !r.later), ...sg]), grey = b.filter(r => r.later);
   // (at a door below rung 2: outside the room, X is the walk in by the keys)
   const go = rungOf(state, pid, 'room') < 2 && sg.some(r => r.kind === 'watch');
   return { rows, go, grey };
@@ -641,7 +643,9 @@ export function stepsOf(state, ms = state.clock.ms) {
   // on a stoppage after a fumbled draw lost Transition with a man facing at 4 m))
   if (slung(posture)) {
     const wS = inHouse(state) ? weaponRows(state, pid, ms) : [];
-    const sl = [...wS.filter(r => r.lead), ...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(a => actionStep(state, roller, gun, a)), ...stances, ...(br?.later ? [br] : []),
+    // (the hunt of v0.0.18: Up struck while a hand holds a device (devices.js handsFullWhy), the device's ways out first)
+    const full = handsFullWhy(state, pid), upStep = (a) => { const st = actionStep(state, roller, gun, a); return a === 'up' && full && !st.off ? { ...st, off: full } : st; };
+    const sl = [...wS.filter(r => r.lead), ...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(upStep), ...stances, ...(br?.later ? [br] : []),
       ...wS.filter(r => !r.lead && !r.later), wait, leave, ...wS.filter(r => !r.lead && r.later), ...(hRows?.grey ?? [])];
     markFix(state, pid, S.gun, sl, roller, gun);
     return shaking(roller, sl);
@@ -766,9 +770,16 @@ export function stepsOf(state, ms = state.clock.ms) {
     const w = oneMagWarn(state, would) ?? kindWarn(state, would ? state.items[would] : null);
     if (w) st.warn = w;
   }
+  // (the play review: a device in a hand with the rifle out of its sling (a v0.0.19 save) strikes every row that
+  // works the rifle, the magazine or the trigger, "hands full: the G-11", as the gun refuses them (firearms.js HANDS_FULL_OK): Sling
+  // it, the device's own rows and the drill's that use it are the ways out (RELOAD and LOAD seated a magazine beside the live grenade))
+  const full = handsFullWhy(state, pid);
+  if (full) for (const r of out) if (!r.off && HANDS_FULL_KINDS.has(r.kind) && !HANDS_FULL_OK.has(r.id)) { r.off = full; r.struck = true; }
   markFix(state, pid, S.gun, out, roller, gun);
   return shaking(roller, out);
 }
+// (the rows that work the rifle: struck while a hand holds a device)
+const HANDS_FULL_KINDS = new Set(['command', 'single', 'posture', 'fire', 'aim', 'hold', 'shot']);
 
 // (v0.0.18: the planned purposes a halted step's rest is planned again for (carryOnOf): the goal and its look)
 const CARRY_GOALS = Object.freeze({ 'macro:reload:speed': 'fed', 'macro:reload:retain': 'retain', 'macro:reload:tactical': 'topup', 'macro:ia': 'live', 'macro:remedial': 'live' });
@@ -795,10 +806,12 @@ const FIX_SINGLES = new Set(['charge', 'release', 'pressCheck', 'observe', 'lock
 /**
  * Fix marked on the panel's rows (v0.0.18; the build sheet 0.0.18 §2.1, §0 item 19): the planner's way to fire (plan.js planFor
  * 'fire'), or to fed when the gun can fire already, marks the row with that id fix (a single the planner names and canDo did not,
- * a look at the port on a locked bolt, added at the end); in the house with the instructor's command current, Fix is that
- * command where it brings a round up and v0.0.17's otherwise; off the shoot house only the look on a chamber unknown with no
- * command current is marked, the rest v0.0.17's (§3.3); no round believed anywhere puts the reason on Fire (fixWhy: 'no
- * rounds', or the course's own with one magazine a string), which the core's struck Fix shows (groups.js).
+ * a look at the port on a locked bolt, added at the end), and a gun that can fire and is fed marks Fire fixNone 'already so'; in
+ * the house with the instructor's command current, Fix is that command where it brings a round up and v0.0.17's otherwise; off
+ * the shoot house with the tower's command current Fix is v0.0.17's (§3.3), and with none current on a cold line (handling.js
+ * lineCold) the house's cold rule (the look, Up, CEASE FIRE, else 'the line is cold'; the hunt of v0.0.18); no round believed
+ * anywhere puts the reason on Fire (fixWhy: 'no rounds', or the course's own with one magazine a string), which the core's
+ * struck Fix shows over any remedy (groups.js).
  */
 function markFix(state, pid, gunId, out, roller, gun) {
   const fire = out.find(r => r.id === 'fire'), R = rangeOf(state), house = inHouse(state) && R?.course === 'house';
@@ -806,9 +819,22 @@ function markFix(state, pid, gunId, out, roller, gun) {
   // UNLOAD, SHOW CLEAR), CEASE FIRE where the rifle is off safe, Up where it swung onto its sling, else nothing to fix: never the
   // planner's Charge before the tower's MAKE READY, nor Off safe or a Top up under its commands (the review and the dead-end hunt
   // of v0.0.18: Fix chambered a round between LOAD and MAKE READY, and read Off safe under LOAD and UNLOAD, SHOW CLEAR))
+  // (the build sheet v0.0.20 item 6: Fix plans to the current or last command's end state (plan.js 'cmd:<id>', COLD_ENDS): the
+  // gun already there is Fix ✓ "already so"; else the command's own row where it is offered, else the plan's first step where the
+  // panel offers it (Safe after the lane), else CEASE FIRE or Rifle up as built; the reason "the tower: LOAD" rides the row (fixFor))
   if (house && !laneLive(R)) {
-    const row = out.find(r => r.kind === 'command' && r.cmd && !r.off) ?? out.find(r => r.id === 'macro:cease' && !r.off) ?? out.find(r => r.id === 'up' && !r.off);
-    if (row) markRow(row, 'fix', true); else if (fire) markRow(fire, 'fixNone', 'the line is cold');
+    const id = coldCmdOf(R), p = id ? planFor(state, pid, gunId, `cmd:${id}`) : null, said = id ? `the tower: ${COLD_WORDS[id]}` : null;
+    // (UNLOAD, SHOW CLEAR is the gun's end and the show (the tower waits on it: courses.js 'shown', handling.js R.shown): unloaded by
+    // the singles, the command's row still Fix, its show to come, never ✓ "already so" while the tower waits (the review of
+    // 2026-11-16: the magazine out and the round out by hand, ✓ read on Fire and the card never came))
+    const unshown = id === 'clear' && !R.shown;
+    if (p?.path && !p.path.length && !unshown) { if (fire) markRow(fire, 'fixNone', 'already so'); return; }
+    let row = out.find(r => r.kind === 'command' && r.cmd && !r.off);
+    // (the plan's first step only where the panel already offers it: a row added here for a gun the plan reads in the hands (a slung
+    // rifle, a pistol drawn over it) was refused when pressed, and the calm bot pressed it a hundred times: the fuzz's recruit, 1037)
+    if (!row && p?.path?.length) row = out.find(r => r.id === p.path[0] && !r.off) ?? null;
+    row ??= out.find(r => r.id === 'macro:cease' && !r.off) ?? out.find(r => r.id === 'up' && !r.off);
+    if (row) { markRow(row, 'fix', true); if (said) markRow(row, 'fixFor', said); } else if (fire) markRow(fire, 'fixNone', 'the line is cold');
     return;
   }
   let p = planFor(state, pid, gunId, 'fire', { purpose: null });
@@ -822,29 +848,46 @@ function markFix(state, pid, gunId, out, roller, gun) {
     if (fire) markRow(fire, 'fixWhy', (p.none === 'no rounds' ? oneMagWarn(state, ONE_MAG_PROBE) : null) ?? p.none);
     return;
   }
-  // (the gun can fire: its way to fed, else in the house's fight nothing to fix, never the reload slot's Top up the core fell back
-  // on (the review of v0.0.18: Fix read "Top up 2.1 s" over a ready rifle at 19 of 21 of the boot recruit's contact pauses, and
-  // over the P-12 drawn; Top up stays on GUN 1))
+  // (on the bays and the tower's lines with the tower's command current, Fix is v0.0.17's (the build sheet 0.0.18 §3.3: Fix with
+  // the command current unchanged there; the review of v0.0.18: the command's mark had reached the bays, MAKE READY, RELOAD or
+  // Top up where v0.0.17's Fix was Off safe))
+  const cmd = out.find(r => r.kind === 'command' && r.cmd && !r.off && r.macro), off = !inHouse(state);
+  if (off && cmd) return;
+  // (off the house with no command current on a cold line (handling.js lineCold: PRONE, CEASE FIRE, the police call): the
+  // house's cold rule, never a round brought up before the command; the look on a chamber unknown, Up where the rifle swung
+  // onto its sling, CEASE FIRE where it is off safe, else nothing to fix (the hunt of v0.0.18: Fix read RELOAD there, and
+  // pressing it drew "Wait for the tower" and the fault 'ahead', or chambered a round at the police call; v0.0.17's Off safe
+  // led to the reload slot's RELOAD a press later))
+  if (off && lineCold(state)) {
+    const row = (p.sense && p.path.length ? out.find(r => r.id === p.id && !r.off) : null) ?? out.find(r => r.id === 'up' && !r.off) ?? out.find(r => r.id === 'macro:cease' && !r.off);
+    if (row) markRow(row, 'fix', true); else if (fire) markRow(fire, 'fixNone', 'the line is cold');
+    return;
+  }
+  // (the gun can fire: its way to fed, else nothing to fix, never the reload slot's Top up the core fell back on (the review of
+  // v0.0.18: Fix read "Top up 2.1 s" over a ready rifle at 19 of 21 of the boot recruit's contact pauses, and over the P-12
+  // drawn; Top up stays on GUN 1; the hunt of v0.0.18 met the same on the bays' standbys, a Top up that stowed the fullest
+  // magazine and reached it back, for ever))
   if (!p.path.length) {
     p = planFor(state, pid, gunId, 'fed', { purpose: null });
-    if (!p.path?.length) { if (house && fire) markRow(fire, 'fixNone', 'already so'); return; }
+    if (!p.path?.length) { if (fire) markRow(fire, 'fixNone', 'already so'); return; }
   }
-  // (on the bays and the tower's lines Fix is v0.0.17's but for the look on a chamber unknown with no command current (the build
-  // sheet 0.0.18 §3.3: Fix with the command current unchanged there; the in-0 RELOAD needs no mark, the table finds the row the
-  // planner adds); the planner's whole Fix is the shoot house's (the review of v0.0.18: the command's mark had reached the bays,
-  // MAKE READY, RELOAD or Top up where v0.0.17's Fix was Off safe))
-  const cmd = out.find(r => r.kind === 'command' && r.cmd && !r.off && r.macro);
-  // (with no command current, the look on a chamber unknown, and RELOAD where no round is believed chambered and the plan seats one
-  // (the in-0 state, a dry rifle with its magazine out): on safe the core fell back on Off safe first, two presses with nothing to
-  // fire between them (the code review of v0.0.18))
-  if (!inHouse(state)) { if (cmd || !(p.sense || (p.path.includes('seat') && beliefOf(state, gunId).chamber !== 'live'))) return; }
   // (in the house, the instructor's command current: Fix is it where it brings a round up (MAKE READY), else as v0.0.17 had it
   // (groups.js fixOf's table))
-  else if (cmd) { if (bringsUp(state, pid, gunId, cmd)) markRow(cmd, 'fix', true); return; }
+  if (cmd) { if (bringsUp(state, pid, gunId, cmd)) markRow(cmd, 'fix', true); return; }
+  // (else the planner's way, on the bays' hot lines and the shooter's own as in the house's fight: Charge on an empty chamber
+  // over a magazine of rounds, Up on a rifle slung, RELOAD where no round is believed chambered (the hunt of v0.0.18: off the
+  // house only the look and the in-0 seat were marked, and the core read "Nothing to fix, already so" over an empty chamber
+  // and over a slung rifle locked back, or the reload slot's Top up, a press that changed nothing))
   let row = out.find(r => r.id === p.id && !r.off);
   if (!row && FIX_SINGLES.has(p.id)) { row = Object.assign(actionStep(state, roller, gun, p.id), { later: true }); out.push(row); }
   if (row) markRow(row, 'fix', true);
 }
+// (the tower's command whose end Fix plans to off the lane (markFix): the current one, the lane's end and Stop 'stop', the
+// hot wash and after it UNLOAD, SHOW CLEAR's; none at the brief (nothing is asked of the gun yet))
+const COLD_OF = Object.freeze({ load: 'load', ready: 'ready', standby: 'standby', go: 'stop', stop: 'stop', clear: 'clear', wash: 'clear', end: 'clear' });
+const coldCmdOf = (R) => COLD_OF[R?.cmd?.id] ?? null;
+/** The tower's commands as Fix's reason names them ("the tower: LOAD"). */
+export const COLD_WORDS = Object.freeze({ load: 'LOAD', ready: 'MAKE READY', standby: 'Standby', stop: 'Stop', clear: 'UNLOAD, SHOW CLEAR' });
 // (any magazine but the string's: oneMagWarn says whether the course holds a string to one magazine now)
 const ONE_MAG_PROBE = '*';
 // (whether a command's sub-steps leave a round believed chambered, the bolt home and no stoppage: the tower's MAKE READY does)
@@ -1029,7 +1072,7 @@ function rifleSub(state, bus, d, i, atMs) {
     if (S.aim && shot.fired) S.aim.settledMs = atMs + ms;
     if (!shot.fired) d.gunStop = 'click';
     else if (shot.stoppage) d.gunStop = 'stop';
-    text = shot.fired ? (shot.hole ? `Bang. ${shot.roll?.verb ?? ''}` : 'Bang.') : (REFUSALS[shot.why] ?? 'Click.');
+    text = shot.fired ? (shot.hole ? `Bang. ${shot.roll?.verb ?? ''}` : 'Bang.') : (refusalOf(shot.why, modelOf(state.items[gunId])) ?? 'Click.');
   } else if (id.startsWith('sight:') || id.startsWith('hold:') || id === 'read' || id.startsWith('optic:')) {
     // (0.0.7: the line's rows (see the header): their effect at the sub-step's start, as a single's)
     const r = lineRow(state, id, atMs), gun = gunOf(state, gunId);

@@ -35,7 +35,8 @@
 //   F12 a stop whose line is "Carry on" right after a shot row, nobody of the room up and facing
 //   F13 the stops a lane (a new choice in stop motion, or a reflex card, on the lane), each with its why (the line, the
 //       halt, the contact's pause), and the presses made at it
-//   F14 the lane's end ('time' a hang), the stall facts, the bot's throws; F15 the lane's and each room's time
+//   F14 the lane's end ('time' a hang; past LANE_MAX_MS − LANE_KEEP_MS, 585 s, the lane's due broken), the stall facts, the
+//       legs the due passed or spoke on, the bot's throws; F15 the lane's and each room's time
 //   F16 at each stop, any row (id or label), line or act naming a lane or a house (LANE_WORDS)
 //   F17 the #2's distance to his stack at your 'stacked'; the 'two' hand-backs
 //   F19 the #2 on his moving ticks: his gait idle, his tween start ($px, $pz) not where he was at the tick's start (the
@@ -56,7 +57,7 @@
 import { createGame } from './game.mjs';
 import { houseHonestBot, houseKeysBot, houseFuzzBot, stoppageBot, runHouse, SHOT_LINES } from './bots/house.mjs';
 import { houseKitBot } from './bots/kit.mjs';
-import { houseNow, HOUSE_SCENE, THREAT_FACES, STANDS, FUNNEL_FAULT_MS, LANE_MAX_MS, PAR_MS, PAR_OF_TIER, handsOf } from '../src/sim/scenarios/shoothouse.js';
+import { houseNow, HOUSE_SCENE, THREAT_FACES, STANDS, FUNNEL_FAULT_MS, LANE_MAX_MS, LANE_KEEP_MS, PAR_MS, PAR_OF_TIER, handsOf } from '../src/sim/scenarios/shoothouse.js';
 import { gunField, beliefOf, actionMs } from '../src/sim/arms/firearms.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { facingOf } from '../src/sim/arms/turners.js';
@@ -490,6 +491,8 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
   rec.laneS = N.timerMs === null ? null : N.timerMs / 1000;
   rec.legS = N.legs.map(V => (V.ms === null ? null : V.ms / 1000));
   rec.legState = N.legs.map(V => V.state);
+  // (F14: the legs the lane's due passed or spoke on (shoothouse.js stall, L.dueSaid))
+  rec.dues = [...H.rooms, H.hall].filter(V => V.dueSaid).length;
   rec.mem = r?.mem ?? (st.actors.list.find(a => a.who === pid)?.bot ?? {});
   rec.feet.legs = Object.fromEntries(Object.entries(feetLeg).map(([k, f]) => [k, { st: f.st, minV: Number.isFinite(f.minV) ? r3(f.minV) : null, underMs: f.underMs }]));
   rec.gap.minM = Number.isFinite(rec.gap.minM) ? r3(rec.gap.minM) : null;
@@ -786,9 +789,12 @@ export function gaugeOf(recs) {
     const n = Math.max(1, t1.length), a = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, fmt(v / n, 2)]));
     add('F13', 'stops a lane (the tier one)', t1.length && quantile(per, 0.95) <= STOPS_P95 && multi === 0, `mean ${s1(mean(per))}, p95 ${quantile(per, 0.95) ?? '-'}, max ${per.length ? Math.max(...per) : '-'}, lanes over ${STOPS_P95} ${per.filter(k => k > STOPS_P95).length} of ${t1.length}; presses a stop mean ${s2(mean(presses))}, ${multi} stops with more than one; a lane by why ${top(a(why), 12)}; a lane by line ${top(a(line), 12)}`, `p95 at most ${STOPS_P95}, one press each`); }
   // F14
+  // (and the lane's due (shoothouse.js stall, 2026-11-16): no lane past LANE_MAX_MS − LANE_KEEP_MS, 585 s, which the due makes so by
+  // construction; the legs it passed or spoke on printed (the fuzz's), as the lanes nearest the limit)
   { const hang = recs.filter(r => r.end === 'time'), stalls = recs.reduce((a, r) => a + r.stalls, 0), hs = honest.reduce((a, r) => a + r.stalls, 0), err = recs.filter(r => r.err), undone = recs.filter(r => !r.done && !r.err && r.bot !== 'fuzz');
-    const xs = recs.map(r => r.laneS).filter(Number.isFinite);
-    add('F14', 'no hangs', !hang.length && hs === 0 && !err.length && !undone.length, `to LANE_MAX_MS ${hang.length}; stalls ${stalls} (the honest bot's ${hs}); throws ${err.length}${err.length ? ` (${err[0].tier} ${err[0].seed}: ${err[0].err})` : ''}; not to the card ${undone.length}; lane mean ${s1(mean(xs))} s, p95 ${s1(quantile(xs, 0.95))}, max ${s1(xs.length ? Math.max(...xs) : null)}`, `0 to ${LANE_MAX_MS / 1000} s; 0 stalls (honest)`); }
+    const xs = recs.map(r => r.laneS).filter(Number.isFinite), keepS = (LANE_MAX_MS - LANE_KEEP_MS) / 1000, past = recs.filter(r => Number.isFinite(r.laneS) && r.laneS > keepS + 1e-6);
+    const dues = recs.reduce((a, r) => a + (r.dues ?? 0), 0), dueLanes = recs.filter(r => r.dues).length, near = [...recs].filter(r => Number.isFinite(r.laneS)).sort((a, b) => b.laneS - a.laneS).slice(0, 3).map(r => `${r.bot} ${r.tier} ${r.seed} ${s1(r.laneS)} s`);
+    add('F14', 'no hangs', !hang.length && !past.length && hs === 0 && !err.length && !undone.length, `to LANE_MAX_MS ${hang.length}; past ${keepS} s ${past.length}${past.length ? ` (${past.slice(0, 3).map(r => `${r.bot} ${r.tier} ${r.seed} ${s1(r.laneS)} s`).join(', ')})` : ''}; passed or spoken by the due ${dues} legs in ${dueLanes} lanes; stalls ${stalls} (the honest bot's ${hs}); throws ${err.length}${err.length ? ` (${err[0].tier} ${err[0].seed}: ${err[0].err})` : ''}; not to the card ${undone.length}; lane mean ${s1(mean(xs))} s, p95 ${s1(quantile(xs, 0.95))}, max ${s1(xs.length ? Math.max(...xs) : null)}${near.length ? ` (${near.join(', ')})` : ''}`, `0 to ${LANE_MAX_MS / 1000} s, none past ${keepS} s (the lane's due); 0 stalls (honest)`); }
   // F15
   { const xs = t1.map(r => r.laneS).filter(Number.isFinite), rooms = [0, 1, 2, 3].map(k => s2(mean(t1.map(r => r.legS[k]).filter(Number.isFinite))));
     add('F15', 'lane time (the tier one)', xs.length && mean(xs) <= LANE_MEAN_S && Math.max(...xs) <= LANE_MAX_S, `mean ${s1(mean(xs))} s, p95 ${s1(quantile(xs, 0.95))}, max ${s1(xs.length ? Math.max(...xs) : null)}; rooms 1 to 3 and the hall ${rooms.join(', ')} s`, `mean ${LANE_MEAN_S} s or less, max ${LANE_MAX_S} s`); }
@@ -856,8 +862,11 @@ export { mean, tally, top, s1, s2, pct };
 
 /** F18's printed reference: each command's macro time at Weapon handling 15 (COMBAT §25.19.5's table, ms); the bound is his own macro's time at his sheet's Weapon handling as he lived it (its sub-steps' times, a fumble's included: the dice are his, the wait is the tower's) from his start, plus ADMIN_SLACK_MS (my call); the fumbles' cost is printed apart. */
 export const ADMIN_MS = Object.freeze({ load: 1930, ready: 2510, clear: 7900, stop: 600 }), ADMIN_SLACK_MS = 500;
-// (a list in a macro's order: each of the macro's sub-steps in turn, a halt's re-plan allowed to start it again)
-const inOrder = (list, macro) => { if (!list) return true; let j = 0; for (const a of list) { const k = macro.indexOf(a, j); if (k >= 0) j = k + 1; else if (macro.includes(a)) j = macro.indexOf(a) + 1; else if (!a.startsWith('posture:') && a !== 'say:ready' && a !== 'up') return false; } return true; };
+// (a list in a macro's order: each of the macro's sub-steps in turn, a halt's re-plan allowed to start it again; v0.0.20: his P-12's
+// part of the tower's macro (house-two.js twoList: 'pistol:ready', 'pistol:clear', a drawn pistol's 'holster' at Stop) is his own,
+// not the rifle's macro, so it is passed over as the posture is (his P-12 standard issue: every READY and SHOW CLEAR read out of
+// order before, 30 of 30)
+const inOrder = (list, macro) => { if (!list) return true; let j = 0; for (const a of list) { const k = macro.indexOf(a, j); if (k >= 0) j = k + 1; else if (macro.includes(a)) j = macro.indexOf(a) + 1; else if (!a.startsWith('posture:') && !a.startsWith('pistol:') && a !== 'holster' && a !== 'say:ready' && a !== 'up') return false; } return true; };
 /** F18 over flawlessAdmin's runs: one row. */
 export function adminGauge(runs) {
   const by = {}, bad = [];

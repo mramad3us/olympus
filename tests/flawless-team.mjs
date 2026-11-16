@@ -1,6 +1,6 @@
 // OLYMPUS tests: the team's gauges, F34 to F37 (v0.0.19, the build sheet v0.0.19 §8; the team's design §12), enforced at once; F1 to F26 are tests/flawless.mjs's, untouched.
 //
-//   F34  the #2's P-12 at the tower (~two:p12): his pistol's condition at the end of each tower macro of his (MAKE READY: holstered,
+//   F34  the #2's P-12 at the tower (standard issue from v0.0.20; v0.0.19's ~two:p12): his pistol's condition at the end of each tower macro of his (MAKE READY: holstered,
 //        Condition 1 on safe; Stop: holstered on safe; SHOW CLEAR: holstered, no magazine, the chamber empty), the macro within its
 //        sub-steps as he lived them + ADMIN_SLACK_MS (F18's bound: a fumble's cost is his dice, printed apart); every sheet, from the fill
 //   F35  the other side: you placed past the threshold on his point at each door (as the keys walk in along his path leaves you),
@@ -46,7 +46,7 @@ export function f34(seeds) {
   const bad = [], times = [], fumbles = [];
   let n = 0;
   for (const tier of SHEETS) for (const seed of seeds) {
-    const g = createGame({ scenario: 'test-shoothouse', seed, tier, loadout: 'standard~two:p12' }), s = g.state, W = s.armoury.range.house.two, p = W.pistol;
+    const g = createGame({ scenario: 'test-shoothouse', seed, tier }), s = g.state, W = s.armoury.range.house.two, p = W.pistol;
     let cur = null;
     const c = () => { const P = s.items[p], k = s.people[W.pid].kit; return { h: k.worn?.holster === p, ch: gunField(P, 'chamber') ?? 'empty', mode: gunField(P, 'mode'), mag: !!P.mag }; };
     runHouse(g, ['recruit', 'private'].includes(tier) ? houseKeysBot() : houseHonestBot(), { maxMs: 12 * 60_000, each: () => {

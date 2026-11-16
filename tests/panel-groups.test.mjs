@@ -34,6 +34,8 @@ import { HANDBACK_WORDS } from '../src/sim/combat/bundle.js';
 const verb = (id) => String(id).replace(/>.*$/, '').replace(/@.*$/, '');
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
 const pct = (a, b) => `${fmt((100 * a) / Math.max(1, b), 1)}%`;
+/** The house's lane in layout C, presses a choice, held where v0.0.20's integration measured it (the press model's case says why). */
+export const LANE_C_HELD = 1.31;
 // (v0.0.13's presses for a row: its page's 0s and its digit; null off every page)
 function oldPresses(steps, id) {
   const p0 = panelOf(steps);
@@ -76,7 +78,7 @@ let memo = null;
 const quickStops = () => (memo ??= stops());
 
 // (v0.0.19, kit D2: every AT THE DOOR stop of a lane by the kit's bot from the fill, with its five and the keys of Breach and
-// Enter there, beside what v0.0.18's five (no `five` on the rows) would have put on them)
+// Enter there; v0.0.20: the rows carry no lane `five` any more, so `old` is the same model, kept for the printed keys)
 function doorStops(loadout, { use = 'breach', base = 'honest', tier = 'cpl', seed = 48213 } = {}) {
   const g = createGame({ scenario: 'test-shoothouse', seed, tier, loadout }), out = [];
   let was = false;
@@ -88,7 +90,7 @@ function doorStops(loadout, { use = 'breach', base = 'honest', tier = 'cpl', see
       if (model.situation.id === 'door' && !model.situation.hall) {
         const old = modelOf(steps.map(r => { const { five, ...rest } = r; return rest; }), { act });
         const breach = model.groups.DRILL.slots[5]?.row, enter = model.groups.DRILL.slots[7]?.row;
-        out.push({ five5: model.situation.five[4]?.row?.id ?? null, breach5: !!model.situation.breach, breachKeys: breach ? keyPathOf(model, 'c', breach.id, { next: false })?.join(' › ') : null, enterKeys: enter ? keyPathOf(model, 'c', enter.id, { next: false })?.join(' › ') : null,
+        out.push({ five5: model.situation.five[4]?.row?.id ?? null, breach5: model.situation.five[4]?.words === 'Breach', breachKeys: breach ? keyPathOf(model, 'c', breach.id, { next: false })?.join(' › ') : null, enterKeys: enter ? keyPathOf(model, 'c', enter.id, { next: false })?.join(' › ') : null,
           oldBreach: breach ? keyPathOf(old, 'c', breach.id, { next: false })?.join(' › ') : null, oldEnter: enter ? keyPathOf(old, 'c', enter.id, { next: false })?.join(' › ') : null, breachId: breach?.id ?? null, enterId: enter?.id ?? null, five: model.situation.five.map(e => e.row?.id ?? null) });
       }
     }
@@ -97,11 +99,13 @@ function doorStops(loadout, { use = 'breach', base = 'honest', tier = 'cpl', see
   });
   return { stops: out, five: g.state.armoury.range.house.five ?? null, end: g.state.armoury.range.house.end?.why ?? null };
 }
-// (a lane's door stops checked: Breach on 5 at every one where the lane carries a charge or a tool, Enter on 5 elsewhere, never both in one lane)
-// (the hall's leg has no door to breach: THE HALL keeps v0.0.18's five, Enter on 5, and is left out here)
+// (a lane's door stops checked (v0.0.20, the build sheet's item 5): Breach on 5 at every one, on every lane, live where the lane
+// carries a charge or a tool and struck "not issued" (the issue badge) elsewhere; Enter never on 5; v0.0.19 put Breach on 5 on the
+// breaching lanes only)
+// (the hall's leg has no door to breach: THE HALL keeps Enter on 5 on every lane, and is left out here)
 function fiveCase(loadout, opts) {
-  const L = doorStops(loadout, opts), want = loadout === 'breach' || loadout === 'full';
-  const bad = L.stops.filter(x => (want ? !(x.breach5 && x.five5 === x.breachId) : x.breach5 || (x.enterId && x.five5 !== x.enterId)));
+  const L = doorStops(loadout, opts);
+  const bad = L.stops.filter(x => !(x.breach5 && x.five5 === x.breachId) || (x.enterId && x.five5 === x.enterId));
   const flips = new Set(L.stops.map(x => x.breach5)).size;
   const keys = [...new Set(L.stops.map(x => `Breach ${x.oldBreach ?? '-'} → ${x.breachKeys ?? '-'}, Enter ${x.oldEnter ?? '-'} → ${x.enterKeys ?? '-'}`))];
   console.log(`      ${loadout} (${opts?.base ?? 'honest'}, ${opts?.tier ?? 'cpl'}, ${opts?.seed ?? 48213}): R.house.five ${L.five ?? 'none'}; ${L.stops.length} door stops, Breach on 5 at ${L.stops.filter(x => x.breach5).length}; the five's state ${flips > 1 ? 'CHANGED' : 'one'} in the lane; the lane ${L.end}; re-pinned keys (v0.0.18 → now): ${keys.join(' | ')}`);
@@ -166,8 +170,11 @@ export default [
         if (!st) continue;
         const f = x.model.core.fix.row, lifts = x.model.rows.filter(s => /^(macro:(ready|ia|remedial|reload:.*)|release|charge|pressCheck|selector:semi)$/.test(s.id) && !s.off);
         // (a stand-in only where nothing that lifts it is offered: the string's end, one magazine a string; v0.0.18: it carries the
-        // planner's reason, no rounds believed anywhere or the course's one magazine a string, never "nothing offered now")
-        if (!f || (f.kind === 'stand' ? lifts.length || !/^(no rounds|one magazine a string)$/.test(String(f.off)) : f.off)) bad.push(`${x.scene}: ${st.label} struck "${st.off}" and Fix ${f?.label ?? 'none'} (${f?.off ?? ''}) with ${lifts.map(s => s.id).join(', ')} offered`);
+        // planner's reason, no rounds believed anywhere or the course's one magazine a string, never "nothing offered now"; from
+        // the hunt of v0.0.18 those two hold whatever is offered (Off safe on a rifle with nothing to fire was a press that led
+        // nowhere), and so does the cold line's "the line is cold" with no command current (the tower's next is the way on: a
+        // RELOAD or Off safe there was ahead of it))
+        if (!f || (f.kind === 'stand' ? !/^(no rounds|one magazine a string|the line is cold)$/.test(String(f.off)) || (lifts.length && !/^(no rounds|one magazine a string)$/.test(String(f.off)) && f.off !== 'the line is cold') : f.off)) bad.push(`${x.scene}: ${st.label} struck "${st.off}" and Fix ${f?.label ?? 'none'} (${f?.off ?? ''}) with ${lifts.map(s => s.id).join(', ')} offered`);
         else if (f.kind !== 'stand') remedied++;
         else unoffered++;
       }
@@ -235,7 +242,7 @@ export default [
     },
   },
   {
-    name: 'the press model (VIEWS §7.8.5: "the audit\'s choices replayed"): the bots\' choices (T\'s act, the shot their line names) by their own place in each layout against v0.0.13\'s pages: fewer presses in layout C on the lane than v0.0.13, at most four keys, and T\'s act one press on NEXT everywhere',
+    name: 'the press model (VIEWS §7.8.5: "the audit\'s choices replayed"): the bots\' choices (T\'s act, the shot their line names) by their own place in each layout against v0.0.13\'s pages: fewer presses in layout C than v0.0.13 on the lane less the entry at the door, the lane held at LANE_C_HELD (the entry by its place since Breach took 5 on every lane: the user\'s P3-j), at most four keys, and T\'s act one press on NEXT everywhere',
     fn() {
       const list = quickStops(), by = { a: [], b: [], c: [], old: [] }, lane = { a: [], b: [], c: [], old: [] };
       for (const x of list) {
@@ -248,7 +255,28 @@ export default [
       const line = (k, xs) => `${k} ${fmt(mean(xs), 2)} a choice, ${pct(xs.filter(v => v === 1).length, xs.length)} in one, max ${Math.max(...xs)}`;
       console.log(`      every scene (${by.c.length} choices): ${['old', ...LAYOUTS].map(k => line(k === 'old' ? 'v0.0.13' : k.toUpperCase(), by[k])).join('; ')}`);
       console.log(`      the house's lane (${lane.c.length}): ${['old', ...LAYOUTS].map(k => line(k === 'old' ? 'v0.0.13' : k.toUpperCase(), lane[k])).join('; ')}`);
-      assert(mean(lane.c) < mean(lane.old) && Math.max(...by.a, ...by.b, ...by.c) <= 4 && list.every(x => !x.model.actId || LAYOUTS.every(L => keyPathOf(x.model, L, x.model.actId)?.length === 1)), JSON.stringify({ c: mean(lane.c), old: mean(lane.old) }));
+      // (v0.0.20, the build sheet's item 5: Enter left 5 for Breach on every lane, P3-j as the user drew it, so at AT THE DOOR the
+      // entry T names is Tab › 2 › 7 by its own place, three keys, where v0.0.17 to v0.0.19 had it on 5; it is one press on NEXT (the
+      // third clause, and F24). The lane less the entry and the entry's own cost are printed beside the lane's figure, which is held
+      // as it stands (the review of 2026-11-16: never a target moved by the role; the cost of the user's pick is the lead's to log and
+      // the user's to answer, B's question 1))
+      const enterAt = (x) => x.model.situation.id === 'door' && /^drill:room:(in|clear)(@|>)/.test(x.model.actId ?? '');
+      const rest = { c: [], old: [] }, entry = { c: [], old: [] };
+      for (const x of list) {
+        if (x.scene !== 'test-shoothouse') continue;
+        const id = x.model.actId ?? (x.model.situation.id === 'contact' ? x.model.rows.find(s => s.kind === 'shot' && !s.off)?.id : null);
+        if (!id) continue;
+        const o = oldPresses(x.steps, id), p = keyPathOf(x.model, 'c', id, { next: false }), to = enterAt(x) ? entry : rest;
+        if (o && p) { to.old.push(o); to.c.push(p.length); }
+      }
+      console.log(`      the lane less the entry at the door (${rest.c.length}): ${line('v0.0.13', rest.old)}; ${line('C', rest.c)}`);
+      console.log(`      the entry at the door, T's act (${entry.c.length}): ${line('v0.0.13', entry.old)}; ${line('C by its place', entry.c)}; on NEXT 1`);
+      // (the lead's call at v0.0.20's integration: the user's P3-j pick kept, so C's lane is held at its measured figure, LANE_C_HELD
+      // 1.31 a choice on the integrated tree (112 choices, with the hunt's Top up and your #2's P-12 merged: 1.30 against v0.0.13's
+      // 1.21; the four roles alone 1.25 against 1.13 over 106; B's own 1.19 over 107), its whole cause the entry at the door by its
+      // place (Tab › 2 › 7 since Breach took 5 on every lane: 14 choices at 2.43 against 1.00); without the entry C is still fewer
+      // than v0.0.13 (1.14 against 1.24), and that clause stays strict. Enter back on 5 would be B's question 1's answer)
+      assert(mean(lane.c) <= LANE_C_HELD && mean(rest.c) < mean(rest.old) && Math.max(...by.a, ...by.b, ...by.c) <= 4 && list.every(x => !x.model.actId || LAYOUTS.every(L => keyPathOf(x.model, L, x.model.actId)?.length === 1)), JSON.stringify({ c: mean(lane.c), old: mean(lane.old), lessEntryC: mean(rest.c), lessEntryOld: mean(rest.old) }));
     },
   },
   {
@@ -281,9 +309,10 @@ export default [
     },
   },
   {
-    name: 'on v0.0.18\'s breach lane Breach is on 5 (the build sheet 0.0.19 §6 K-face, §0 item 25: P3 as the user drew it, on a lane whose kit carries a charge or a tool), and the five never changes within the lane: the corporal by the kit\'s bot on 48213, the re-pinned keys printed (one sheet on one seed: the full lane and the flash lane, where Enter keeps 5, are the heavy case\'s)',
+    name: 'Breach is on 5 on every lane (the build sheet v0.0.20 item 5, in place of v0.0.19\'s breaching lanes only: P3-j as the user drew it, key 5 never changing its meaning by lane), and the five never changes within the lane: the corporal by the kit\'s bot on 48213 on the breach lane and the standard lane, the keys printed (one sheet on one seed each: the full lane and the flash lane are the heavy case\'s)',
     fn() {
       fiveCase('breach', { use: 'breach' });
+      fiveCase('standard', { use: 'none' });
     },
   },
   {
@@ -325,7 +354,7 @@ export default [
     },
   },
   {
-    name: 'on v0.0.18\'s full lane Breach is on 5 too, by the honest and the keys bots, and the five never changes within a lane; on the flash lane Enter keeps 5 (heavy: three whole lanes)',
+    name: 'on v0.0.18\'s full lane and the flash lane Breach is on 5 too (v0.0.20: on the flash lane v0.0.19 kept Enter there), by the honest and the keys bots, and the five never changes within a lane (heavy: three whole lanes)',
     heavy: true, timeoutMs: 10 * 60_000,
     fn() {
       fiveCase('full', { use: 'breach' });

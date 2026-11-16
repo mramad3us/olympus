@@ -69,7 +69,8 @@ export default [
       console.log(`      ${rows.join(' | ')}; the door's slots ${doorSlots.join(' ')}${clash ? ' (TWO ON ONE)' : ''}`);
       console.log(`      on the panel (layout C): Frag ${frag}, Concuss ${conc}, Flash ${flash}, Shoot the lock ${shoot}; DRILL 5 with the charge struck and Shoot live: ${both}`);
       assert(!bad.length && !clash, JSON.stringify({ bad, doorSlots }));
-      assert(frag === 'Tab › 2 › 6' && conc === 'Tab › 2 › 6' && flash === 'Tab › 2 › 6' && shoot === 'Tab › 2 › 5' && both === 'drill:door:shoot>o:w4:r1', JSON.stringify({ frag, conc, flash, shoot, both }));
+      // (v0.0.20, the build sheet's item 5: DRILL 5, Breach, is AT THE DOOR's 5 on every lane, so Shoot the lock in its slot is the key 5 itself)
+      assert(frag === 'Tab › 2 › 6' && conc === 'Tab › 2 › 6' && flash === 'Tab › 2 › 6' && shoot === '5' && both === 'drill:door:shoot>o:w4:r1', JSON.stringify({ frag, conc, flash, shoot, both }));
     },
   },
   {
@@ -82,7 +83,9 @@ export default [
       }
       const slots = new Set(BUNDLES.map(B => `${B.group}:${B.slot}`));
       if (slots.size !== BUNDLES.length) bad.push('two rows share a slot');
-      const ends = ['room:dominate', 'room:clear'].map(id => beatsOf(MUSCLE[id]).filter(k => k !== 'mark').at(-1));
+      // (v0.0.20, the build sheet's item 12: after "Room clear!" only your #2's status wait (`status`) and his mark; "Coming out!" and
+      // "Moving!" (`out`, `moving`) come before it by their dependencies, whatever their place in the list)
+      const ends = ['room:dominate', 'room:clear'].map(id => beatsOf(MUSCLE[id]).filter(k => !['mark', 'status', 'out', 'moving'].includes(k)).at(-1));
       console.log(`      ${BUNDLES.length} rows: ${GROUPS.map(gp => `${gp} ${BUNDLES.filter(B => B.group === gp).map(B => B.label).join(', ')}`).join(' | ')}`);
       console.log(`      rung 2's groups: ${ENTER_AND_CLEAR.groups.map(x => MUSCLE[x[0]].label).join(' → ')}; the room rows end at ${ends.join(', ')}; the breach ${MUSCLE['door:breach'].offeredNow} (${MUSCLE['door:breach'].needs})`);
       assert(!MUSCLE['house:clear'] && ENTER_AND_CLEAR.groups.flat().join() === 'stack:point,room:in,room:dominate' && ends.every(e => e === 'roomclear') && MUSCLE['door:breach'].offeredNow === 'kit', JSON.stringify({ ends }));

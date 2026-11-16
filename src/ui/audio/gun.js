@@ -49,13 +49,20 @@
 // P-12 by its model's loud, 1.4 against 1.0), through the place's air (airDb: in vacuum −Infinity, nothing airborne). The engine's
 // new master (mix.js MASTER) limits all of it, so a string of open shots slams the limiter and nothing clips.
 //
+// v0.0.20 (the build sheet v0.0.20 item 2, §0 item 21; the user, 2026-11-15: "guns should bang harder"): the shot is one of
+// src/data/sounds.js SHOT_CANDIDATES, each a set of numbers read over the built ones here (gunWith: the gas's and the gust's
+// decays, the thump's length and level; protectOf: the protection's ceiling carried by the candidate, PROTECT itself unchanged;
+// the room's first taps): A1 is v0.0.17's to the byte (its bakes' keys unprefixed), the others baked under `${id}/` keys
+// (gunBakes(id)), so the engine holds two at once and plays the old until the new is whole. A0 is no recipe here: it is
+// &sound=old's report, which the engine plays through the range's old path.
+//
 // Pure: renderDry, renderTail, protect, ownShot, otherShot, echoShot, gunBakes and the constants; engine.js plays what they say.
 import { stream, next } from '../../core/rng.js';
 import { biquad } from './synth.js';
 import { softClip } from './mix.js';
 import { airDb } from '../../sim/people/hearing.js';
 import { lowpassHz } from './steps.js';
-import { ROLLOFF, PAN_FULL_M, HALL, DIST_LP_REF_HZ, DIST_LP_REF_M, DIST_LP_MIN_HZ } from '../../data/sounds.js';
+import { ROLLOFF, PAN_FULL_M, HALL, DIST_LP_REF_HZ, DIST_LP_REF_M, DIST_LP_MIN_HZ, SHOT_CANDIDATES } from '../../data/sounds.js';
 
 /** The dry parts' rate and the tails' (Hz; the engine bakes at the lower of these and its context's). */
 export const GUN_RATE_HZ = 48000, TAIL_RATE_HZ = 24000;
@@ -112,6 +119,31 @@ export const GUNS = Object.freeze({
 export const gunOf = (model) => (GUNS[model] ? model : 'r7');
 /** A model's loudness against the R-7's (dB: 20 log10 of the loud ratio). */
 export const loudDb = (model) => 20 * Math.log10(GUNS[gunOf(model)].loud / GUNS.r7.loud);
+/** A shot candidate's record (src/data/sounds.js SHOT_CANDIDATES), A1's (the built) for an unknown id; a record itself as it is (the tests' and the samples'). */
+export const shotOf = (shot) => (shot && typeof shot === 'object' ? shot : SHOT_CANDIDATES[shot] ?? SHOT_CANDIDATES.A1);
+/** A gun's voice under a shot candidate (see the header): the built record where the candidate says nothing, so A1 is GUNS' own object. */
+export function gunWith(model, shot = 'A1') {
+  const g = gunOf(model), G = GUNS[g], C = shotOf(shot);
+  if (C.old || (!C.gasMs && !C.gustMs && !C.thumpMs && !C.thumpDb && !C.gasDb && !C.gustDb && !C.blastDb)) return G;
+  const at = (t) => (t && Number.isFinite(t[g]) ? t[g] : null);
+  return Object.freeze({
+    ...G,
+    ...(C.blastDb ? { blastDb: C.blastDb } : {}),
+    gas: at(C.gasMs) || C.gasDb ? Object.freeze({ ...G.gas, decayMs: at(C.gasMs) ?? G.gas.decayMs, db: G.gas.db + (C.gasDb ?? 0) }) : G.gas,
+    gust: at(C.gustMs) || C.gustDb ? Object.freeze({ ...G.gust, decayMs: at(C.gustMs) ?? G.gust.decayMs, db: G.gust.db + (C.gustDb ?? 0) }) : G.gust,
+    thump: Object.freeze({ ...G.thump, decayMs: at(C.thumpMs) ?? G.thump.decayMs, db: G.thump.db + (C.thumpDb ?? 0) }),
+  });
+}
+/** The protection under a shot candidate: PROTECT with the candidate's ceiling where it carries one (PROTECT itself never changes). */
+export function protectOf(shot = 'A1', model = 'r7') {
+  const C = shotOf(shot), up = C.protect?.makeupDb;
+  if (!Number.isFinite(C.ceilingDb) && !C.protect) return PROTECT;
+  // (a make-up may be per gun, { r7, p12 }, so the pistol stays under the rifle through the clamp)
+  const makeupDb = up && typeof up === 'object' ? up[gunOf(model)] ?? 0 : up ?? 0;
+  return Object.freeze({ ...PROTECT, ...(C.protect ?? {}), makeupDb, ...(Number.isFinite(C.ceilingDb) ? { ceilingDb: C.ceilingDb } : {}) });
+}
+/** A bake's key under a shot candidate: A1's as built, another's under `${id}/`. */
+export const shotKey = (key, shot = 'A1') => (!shot || shot === 'A1' ? key : `${shot}/${key}`);
 
 const tap = (ms, db, pan) => Object.freeze({ ms, db, pan });
 // (the room's first order: the floor's bounce, the panels' over HALL's paths (2 × the metres to a panel at SPACE_SOUND_MS), the roof's)
@@ -183,15 +215,15 @@ export function renderDry(model, opts = {}) { return run(dryGen(model, opts)); }
 // (a generator run to its end: the bakes advance them a stage at a time across frames, the tests run them at once)
 function run(it) { for (;;) { const r = it.next(); if (r.done) return r.value; } }
 /** renderDry a stage at a time (a generator returning its samples), for the engine's bake budget. */
-export function* dryGen(model, { part = 'own', crack = true, variant = 0, sampleRate = GUN_RATE_HZ } = {}) {
-  const G = GUNS[gunOf(model)], sr = sampleRate, own = part === 'own';
+export function* dryGen(model, { part = 'own', crack = true, variant = 0, sampleRate = GUN_RATE_HZ, shot = 'A1' } = {}) {
+  const G = gunWith(model, shot), sr = sampleRate, own = part === 'own';
   const n = Math.round((own ? G.durS : G.durS * 0.75) * sr), out = new Float32Array(n);
   const r = (what) => stream('gun', gunOf(model), part, what, variant);
   const lead = !own && crack ? Math.round(0.002 * sr) : 0;
   // (the blast: the Friedlander pulse, two samples' rise)
   const T = G.posMs / 1000, pulse = new Float32Array(n);
   for (let i = 0; i < n; i++) { const t = (i - lead) / sr; if (t < 0) continue; pulse[i] = (1 - t / T) * Math.exp(-G.b * t / T) * Math.min(1, (i - lead + 1) / 2); }
-  addScaled(out, pulse, 1);
+  addScaled(out, pulse, dbToK(G.blastDb ?? 0));
   // (the gas's turbulence and its gust)
   const gas = biq(biq(noiseOf(r('gas'), n), 'highpass', G.gas.hpHz, Math.SQRT1_2, sr), 'lowpass', G.gas.lpHz, Math.SQRT1_2, sr);
   for (let i = 0; i < n; i++) gas[i] *= envAt((i - lead) / sr, G.gas.attackMs / 1000, G.gas.decayMs / 1000);
@@ -246,15 +278,16 @@ export function* dryGen(model, { part = 'own', crack = true, variant = 0, sample
  */
 export function renderTail(model, space, opts = {}) { return run(tailGen(model, space, opts)); }
 /** renderTail a stage at a time (a generator returning { left, right }); src, the far dry at the tail's rate, if already made. */
-export function* tailGen(model, space, { variant = 0, sampleRate = TAIL_RATE_HZ, src: given = null } = {}) {
-  const S = SPACES[space];
+export function* tailGen(model, space, { variant = 0, sampleRate = TAIL_RATE_HZ, src: given = null, shot = 'A1' } = {}) {
+  const S = SPACES[space], early = space === 'room' ? shotOf(shot).roomEarlyDb ?? 0 : 0;
   if (!S) throw new Error(`gun: no space '${space}'`);
   const sr = sampleRate, n = Math.round(S.lenS * sr), L = new Float32Array(n), R = new Float32Array(n);
-  const src = given ?? (yield* dryGen(model, { part: 'far', crack: true, variant, sampleRate: sr }));
+  const src = given ?? (yield* dryGen(model, { part: 'far', crack: true, variant, sampleRate: sr, shot }));
   const r = (what) => stream('gun-space', gunOf(model), space, what, variant);
   const place = (buf, ms, k, pan) => { const at = Math.round(ms / 1000 * sr); addScaled(L, buf, k * Math.min(1, 1 - 0.6 * pan), at); addScaled(R, buf, k * Math.min(1, 1 + 0.6 * pan), at); };
   const first = onePoleLp(Float32Array.from(src), S.firstLpHz, sr);
-  for (const t of S.first) place(first, t.ms, dbToK(t.db), t.pan);
+  // (A4: the room's first-order taps over 5 to 30 ms up by the candidate's roomEarlyDb)
+  for (const t of S.first) place(first, t.ms, dbToK(t.db + (early && t.ms >= 5 && t.ms <= 30 ? early : 0)), t.pan);
   yield 'first';
   if (S.second) {
     const s2 = onePoleLp(Float32Array.from(src), S.second.lpHz, sr), rr = r('second');
@@ -339,12 +372,13 @@ export function* protectGen({ dry, drySr = GUN_RATE_HZ, tail = null, tailSr = TA
   yield 'gain';
   const band = (buf, sr) => biq(biq(Float32Array.from(buf), 'highpass', P.hpHz, Math.SQRT1_2, sr), 'lowpass', P.lpHz, Math.SQRT1_2, sr);
   const leak = (buf, sr) => onePoleLp(onePoleLp(Float32Array.from(buf), P.passiveLpHz, sr), P.passiveLpHz, sr);
-  const kLeak = dbToK(P.passiveDb), lim = ceil * P.clipK;
+  // (a candidate's make-up, its protected level raised in the bake, so ownShot's and otherShot's gains stay as built)
+  const kLeak = dbToK(P.passiveDb), lim = ceil * P.clipK, kUp = dbToK(P.makeupDb ?? 0);
   const through = (buf, sr) => {
     const e = band(buf, sr), p = leak(buf, sr), out = new Float32Array(buf.length);
     for (let i = 0; i < buf.length; i++) {
       const gi = g[Math.min(n - 1, Math.floor(i * drySr / sr))];
-      out[i] = (softClip(e[i] * kRef * gi, lim) + p[i] * kRef * kLeak) / kRef;
+      out[i] = kUp * (softClip(e[i] * kRef * gi, lim) + p[i] * kRef * kLeak) / kRef;
     }
     return out;
   };
@@ -361,21 +395,22 @@ export function* protectGen({ dry, drySr = GUN_RATE_HZ, tail = null, tailSr = TA
  * or { left, right } }], in order (the engine advances them within its bake budget). Keys: `${gun}:own`, `${gun}:ownSub` (no crack), `${gun}:far`, `${gun}:farSub`, `${gun}:tail:${space}`, each
  * with ':p' for the protected.
  */
-export function gunBakes() {
-  const memo = new Map(), out = [];
+export function gunBakes(shot = 'A1') {
+  const memo = new Map(), out = [], k = (key) => shotKey(key, shot);
+  if (shotOf(shot).old) return out;
   // (each part made once, whichever bake needs it first: the protected tail reuses the open tail and the own dry)
   function* once(key, gen) { if (memo.has(key)) return memo.get(key); const v = yield* gen(); memo.set(key, v); return v; }
-  const dryOf = (gun, part, crack, v, sr) => once(`dry|${gun}|${part}|${crack}|${v}|${sr}`, () => dryGen(gun, { part, crack, variant: v, sampleRate: sr }));
-  const tailOf = (gun, space, v, tr) => once(`tail|${gun}|${space}|${v}|${tr}`, function* () { return yield* tailGen(gun, space, { variant: v, sampleRate: tr, src: yield* dryOf(gun, 'far', true, v, tr) }); });
+  const dryOf = (gun, part, crack, v, sr) => once(`dry|${gun}|${part}|${crack}|${v}|${sr}`, () => dryGen(gun, { part, crack, variant: v, sampleRate: sr, shot }));
+  const tailOf = (gun, space, v, tr) => once(`tail|${gun}|${space}|${v}|${tr}`, function* () { return yield* tailGen(gun, space, { variant: v, sampleRate: tr, src: yield* dryOf(gun, 'far', true, v, tr), shot }); });
   for (const gun of Object.keys(GUNS)) {
-    const ref = OWN_DB + loudDb(gun);
+    const ref = OWN_DB + loudDb(gun), P = protectOf(shot, gun);
     for (const [part, crack, name] of [['own', true, 'own'], ['own', false, 'ownSub'], ['far', true, 'far'], ['far', false, 'farSub']]) {
-      out.push({ key: `${gun}:${name}`, variants: 2, steps: (v, sr) => dryOf(gun, part, crack, v, sr) });
-      out.push({ key: `${gun}:${name}:p`, variants: 2, steps: function* (v, sr) { return (yield* protectGen({ dry: yield* dryOf(gun, part, crack, v, sr), drySr: sr, refDb: ref })).dry; } });
+      out.push({ key: k(`${gun}:${name}`), variants: 2, steps: (v, sr) => dryOf(gun, part, crack, v, sr) });
+      out.push({ key: k(`${gun}:${name}:p`), variants: 2, steps: function* (v, sr) { return (yield* protectGen({ dry: yield* dryOf(gun, part, crack, v, sr), drySr: sr, refDb: ref, P })).dry; } });
     }
     for (const space of SPACE_NAMES) {
-      out.push({ key: `${gun}:tail:${space}`, variants: 1, steps: (v, sr, tr) => tailOf(gun, space, v, tr) });
-      out.push({ key: `${gun}:tail:${space}:p`, variants: 1, steps: function* (v, sr, tr) { return (yield* protectGen({ dry: yield* dryOf(gun, 'own', true, v, sr), drySr: sr, tail: yield* tailOf(gun, space, v, tr), tailSr: tr, refDb: ref })).tail; } });
+      out.push({ key: k(`${gun}:tail:${space}`), variants: 1, steps: (v, sr, tr) => tailOf(gun, space, v, tr) });
+      out.push({ key: k(`${gun}:tail:${space}:p`), variants: 1, steps: function* (v, sr, tr) { return (yield* protectGen({ dry: yield* dryOf(gun, 'own', true, v, sr), drySr: sr, tail: yield* tailOf(gun, space, v, tr), tailSr: tr, refDb: ref, P })).tail; } });
     }
   }
   return out;

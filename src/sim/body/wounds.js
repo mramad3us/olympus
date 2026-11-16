@@ -94,6 +94,8 @@ export const CHEST_BLEED = 0.25, CHEST_BLEED_MAX = 1, CHEST_BLEED_H = 3;
 export const LIMB_CAP_PM = 8;
 /** WEAPONS §7.7: a torso hit turned to an arm, at a margin of 0 (none at 10 and over). */
 export const ARM_SHARE = 0.15;
+/** The share of torso hits an arm in front takes, by the shot's margin (ARM_SHARE × (1 − clamp(margin / 10))): applyHit's, and penetrate.js bodyHit's before a worn carrier. */
+export const armShareOf = (margin = 0) => ARM_SHARE * (1 - Math.max(0, Math.min(1, (margin ?? 0) / 10)));
 /** The knock (tradecraft's): seconds by part, × the pain's band and the blood's; a marine's TRAINED_K of it. */
 export const KNOCK_S = Object.freeze({ arm: Object.freeze([4, 12]), leg: Object.freeze([10, 30]), torso: Object.freeze([20, 60]), head: Object.freeze([15, 35]) });
 export const KNOCK_PAIN = Object.freeze({ 'in pain': 1.3, 'bad pain': 2, agony: 3 });
@@ -350,8 +352,12 @@ export function avpuOf(rec, ms) {
   if (rec.knock && rec.knock.untilMs > ms && (rec.injuries ?? []).some(i => i.part === 'head' && i.gunshot && i.ms <= ms)) return 'V';   // (knocked down by a round to the head: dazed)
   return 'A';
 }
-/** Down at ms, and why: { down, untilMs, why: null | 'dead' | 'collapsed' | 'head' | 'legs' | 'chest' | 'knock' | 'pain' | 'shock' }. */
-export function downOf(rec, ms) {
+/**
+ * Down at ms, and why: { down, untilMs, why: null | 'dead' | 'collapsed' | 'head' | 'legs' | 'chest' | 'knock' | 'pain' | 'shock' }.
+ * knock false (the live lane's would-have, combat/would.js) judges the body as if the knock had passed: what keeps him down
+ * for good under it (shock, past the pain's floor) is found, never hidden by the knock that follows every round.
+ */
+export function downOf(rec, ms, { knock = true } = {}) {
   if (!hasWounds(rec)) return { down: false, untilMs: null, why: null };
   if (rec.dead) return { down: true, untilMs: Infinity, why: 'dead' };
   const c = bloodCurve(rec, ms), b = Math.max(0, c.blood);
@@ -362,7 +368,7 @@ export function downOf(rec, ms) {
   if (headOut(rec)) return { down: true, untilMs: Infinity, why: 'head' };
   if (stateOf(rec, 'torso') === 'out') return { down: true, untilMs: Infinity, why: 'chest' };
   if (LEGS.every(k => stateOf(rec, k) === 'out')) return { down: true, untilMs: Infinity, why: 'legs' };
-  if (rec.knock && rec.knock.untilMs > ms) return { down: true, untilMs: rec.knock.untilMs, why: 'knock' };
+  if (knock && rec.knock && rec.knock.untilMs > ms) return { down: true, untilMs: rec.knock.untilMs, why: 'knock' };
   if (b < BLOOD.shock) return { down: true, untilMs: Infinity, why: 'shock' };
   if (painOf(rec, ms) >= painLimit(rec) * FLOOR_K) return { down: true, untilMs: Infinity, why: 'pain' };
   return { down: false, untilMs: null, why: null };
@@ -415,7 +421,9 @@ export function applyHit(state, bus, hit) {
   if (rec.dead) return { injuries: [], part: null, down: true, dead: true, knockS: 0, words: `${me ? 'You' : cap(nameOf(p))}: already dead.` };
   if (rec.fitness === undefined) rec.fitness = Math.round(valueOf(state, pid, 'fitness'));
   const w = Math.max(0.05, hit.w ?? 1), r = stream('wound', state.meta?.seed ?? 0, pid, hit.shotId ?? ms);
-  const armK = ARM_SHARE * (1 - Math.max(0, Math.min(1, (hit.margin ?? 0) / 10)));
+  // (an arm already met before a worn carrier (penetrate.js bodyHit: hit.armDrawn, v0.0.20) is not drawn again: the die is still
+  // spent, at 0, so every draw after it is where it was)
+  const armK = hit.armDrawn ? 0 : armShareOf(hit.margin);
   const at = hit.part === 'legs' ? pick(r, LEGS) : hit.part === 'arms' ? pick(r, ARMS) : hit.part === 'torso' && chance(r, armK) ? pick(r, ARMS) : PARTS[hit.part] ? hit.part : 'torso';
   const raw = BULLET * w * range(r, 0.8, 1.25);
   hurt(rec, at, raw);
@@ -439,11 +447,13 @@ export function applyHit(state, bus, hit) {
     } else {
       hurt(rec, 'head', takes(rec, 'head'));
       const i = { part: 'head', kind: 'cut', name: 'a bullet in the skull', ms, until: ms + 60 * DAY_MS, bleed: ms + 12 * HOUR_MS, rate: BRAIN_BLEED, deep: true, gunshot: true, internal: true };
-      rec.injuries.push(i); made.push(i);
+      (rec.injuries ??= []).push(i); made.push(i);
     }
   }
   if (at === 'torso') {
-    const inside = rec.injuries.find(i => i.internal && i.part === 'torso' && i.bleed > ms);
+    // (a round too weak to cut (force 0.05 or less: injure() made nothing) left rec.injuries unmade on a first wound, and
+    // this read threw; the would-have of a ball through a worn layer reached it)
+    const inside = (rec.injuries ??= []).find(i => i.internal && i.part === 'torso' && i.bleed > ms);
     if (inside) { inside.rate = q(Math.min(CHEST_BLEED_MAX, inside.rate + CHEST_BLEED), 0.01); inside.bleed = ms + CHEST_BLEED_H * HOUR_MS; inside.name = 'bleeding inside, from the chest wounds'; }
     else { const i = { part: 'torso', kind: 'cut', name: 'bleeding inside, from the chest wound', ms, until: ms + 30 * DAY_MS, bleed: ms + CHEST_BLEED_H * HOUR_MS, rate: CHEST_BLEED, deep: true, gunshot: true, internal: true }; rec.injuries.push(i); made.push(i); }
   }

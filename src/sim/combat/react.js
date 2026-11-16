@@ -60,6 +60,7 @@ import { muzzleOf, angleDiff } from '../arms/carry.js';
 import { eyeOf } from '../people/perception.js';
 import { rungOf } from '../skills/templates.js';
 import { lightLevel } from '../places/light.js';
+import { TOLD_MS, TOLD_DEG } from './corner.js';
 
 /** The core's terms (COMBAT §25.4.2): coreMs = TAKEIN_FLOOR_MS + TAKEIN_SPAN_MS × (1 − WF/100)^TAKEIN_EXP. */
 export const TAKEIN_FLOOR_MS = 30, TAKEIN_SPAN_MS = 700, TAKEIN_EXP = 2;
@@ -174,6 +175,20 @@ export function expectOf(state, pid, target, ms = state.clock.ms) {
     const held = m.posture === 'aimed' || (R && (cue === -Infinity || ms - cue <= VIGIL_MS));
     const bearing = Math.atan2(target.z - m.oz, target.x - m.ox);
     if (held && Math.abs(angleDiff(bearing, m.yawRad)) <= SECTOR_HALF_DEG * D2R + 1e-9) return 'sector';
+  }
+  // (the build sheet v0.0.20 item 18 (drill.md D5): a man where your #2 called one ("Hostage, far leg!"), within TOLD_DEG of the
+  // place he named as you see it now, inside TOLD_MS of the call, is expected as a held sector is; the told record is contact.js
+  // tell's, written for the player only)
+  const told = target ? state.mind?.contact?.told : null;
+  if (told) {
+    const a = actorOfPid(state, pid);
+    if (a && playerActor(state)?.who === pid) {
+      const b = Math.atan2(target.z - a.z, target.x - a.x);
+      for (const t of Object.values(told)) {
+        if (!t?.at || ms < t.atMs || ms - t.atMs > TOLD_MS) continue;
+        if (Math.abs(angleDiff(b, Math.atan2(t.at[1] - a.z, t.at[0] - a.x))) <= TOLD_DEG * D2R + 1e-9) return 'sector';
+      }
+    }
   }
   if (state.mind?.clearing) return 'area';
   if (R || threatKnown(state)) return 'alert';

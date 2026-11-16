@@ -46,8 +46,10 @@ export default [
         ['locked on empty, spares', { turned: [] }, { n: 0, locked: true }, ['RELOAD', 'RELOAD, keep the empty'], 'RELOAD'],
         ['3 of 30 in a lull', { turned: [] }, { n: 3 }, ['Top up'], 'Top up'],
         ['3 of 30, no lull (a target facing)', { turned: [4] }, { n: 3 }, ['Top up'], null],
-        ['full (30)', { turned: [] }, { n: 30 }, ['Top up'], null],
-        ['5 of 30, nothing fuller at hand', { turned: [] }, { n: 5 }, ['Top up'], null],
+        // (the hunt of v0.0.18: Top up only where a spare is believed fuller than the magazine in; with the fullest in already the
+        // reach brought it straight back, 3 s for nothing, and Fix read Top up again for ever)
+        ['full (30)', { turned: [] }, { n: 30 }, [], null],
+        ['5 of 30, nothing fuller at hand', { turned: [] }, { n: 5 }, [], null],
         ['no spare', { turned: [], noSpare: true }, { n: 3 }, [], null],
         ['the coach names the 2-round magazine', { turned: [], want: true }, { n: 3 }, ['Top up: the two-round magazine, chest pouch 2'], 'Top up: the two-round magazine, chest pouch 2'],
       ];

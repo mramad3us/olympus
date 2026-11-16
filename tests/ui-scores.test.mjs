@@ -12,6 +12,8 @@
 import { assert } from './helpers.mjs';
 import { scoreLine, keepScore, readScores, lastScore, snapScore, SCORES_KEY, SCORES_MAX } from '../src/ui/cards/score.js';
 import { endsScene, GOAL_S, sceneSaid, sceneLines } from '../src/ui/cards/tests.js';
+import { SCENES } from '../src/data/scenes.js';
+import { HOUSE_ASPECTS, houseAspects } from '../src/ui/cards/house.js';
 
 const store = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), map: m }; };
 
@@ -82,6 +84,19 @@ export default [
       assert(fam === 'Clear at 09:14 · 61 of 75 · 4 V · no faults' && kd === kdSum, `${fam} / ${kd}`);
       assert(both.length === 2 && both[1] === 'Range closed: Pvt Okafor hit in the left thigh by a negligent discharge, evacuated' && said[1] === 'You were hit in the left foot: evacuated to the aid station', JSON.stringify(both));
       assert(sceneLines({ course: 'kd', summary: kdSum }, { casualty: null }).length === 1 && sceneLines(null, null).length === 0, 'no incident, one line; no range, none');
+    },
+  },
+  {
+    name: 'Stack and clear\'s line has six aspects, pause, drill, team, panel, shots and feel, and names the panel, shot, voice, walk and look played before the star (the build sheet v0.0.20 §1 item 10; v0.0.19 had three, nothing played)',
+    fn() {
+      const asp = SCENES['test-shoothouse'].aspects.map(([k]) => k);
+      const line = scoreLine({ version: '0.0.20', scene: 'test-shoothouse', seed: 48213, aspects: asp.map((k, i) => [k, 50 + 5 * i]), played: { panel: 'C', shot: 'A3', voice: 'c', walk: 'B', look: { stack: [4], helm: 'r1', jamb: null } } });
+      const words = houseAspects({ aspects: { pause: { n: 1, minMs: 50, maxMs: 50 }, drill: { legs: [{ ms: 6700, presses: 2, how: { keys: 1, bundle: 1 } }], presses: 2 }, team: { words: 'TEAM · LINE CLEAN · HELD OUT 0', fired: 6, hits: 6 }, panel: { presses: 15, keys: 4, rows: 11, layout: 'c' }, shots: { rounds: 7, zones: { A: 6 } }, feel: { cycle: 'B', look: null } } });
+      console.log(`      ${line}`);
+      for (const [k, t] of words) console.log(`      ${k}: ${t}`);
+      assert(JSON.stringify(asp) === JSON.stringify(HOUSE_ASPECTS) && asp.length === 6, JSON.stringify(asp));
+      assert(line === 'OLYMPUS v0.0.20 · test-shoothouse · seed 48213 · pause 50 · drill 55 · team 60 · panel 65 · shots 70 · feel 75 · panel C · shot A3 · voice c · walk B · look stack:4,helm:r1 · ★ no · note: none', line);
+      assert(words.map(([k]) => k).join() === HOUSE_ASPECTS.join(), JSON.stringify(words));
     },
   },
 ];

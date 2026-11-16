@@ -218,22 +218,30 @@ export default [
     },
   },
   {
-    name: 'opfor-brain: two torso or one head: he sits where he stands, armed, stoppedAtMs at the round, never turned away (one torso and a miss leave him up; a round handed twice counts once)',
+    name: 'opfor-brain: a strike the one rule rates fatal (v0.0.20, combat/would.js; the user\'s answer of 2026-11-16, "Paintball should end if the hit is \'fatal\'"): he sits where he stands, armed, stoppedAtMs at the round, never turned away; a torso strike the model rates a wound leaves him up and fighting (one torso strike is never fatal), a miss is no strike, a round handed twice counts once, and he goes down on the first strike rated fatal, never before; one round in the head puts him down',
     fn() {
       const w = roomTwo(), s = w.s, T = rp(w.g, '2a'), a = rpActor(w.g, '2a'), now = s.clock.ms, me = s.player.id;
       const hit = (id, part, zone, atMs) => { T.hits.push({ shotId: id, part, zone, ring: false, through: false, at: null, atMs, by: 'me' }); return opforHit(s, w.g.bus, T, { id, fired: true, who: me, atMs }); };
-      const r1 = hit('shA', 'torso', 'A', now), r1b = opforHit(s, w.g.bus, T, { id: 'shA', fired: true, who: me, atMs: now }), r2 = hit('shM', 'torso', 'miss', now + 50);
-      const upAfter = T.live.st;
-      const r3 = hit('shC', 'torso', 'C', now + 100);
+      const v = (r) => (r.would ? `${r.would.layer} ${r.would.fatal ? `FATAL (${r.would.why})` : r.would.why ?? `wound, ${r.would.where}`}` : 'no strike');
+      const r1 = hit('shA', 'torso', 'A', now), upAfter1 = T.live.st, r1b = opforHit(s, w.g.bus, T, { id: 'shA', fired: true, who: me, atMs: now }), r2 = hit('shM', 'torso', 'miss', now + 50);
+      // (C strikes until one is rated fatal: up after every one that is not, down on the one that is)
+      const rs = [];
+      let fatalAt = null;
+      for (let i = 0; i < 8 && fatalAt === null; i++) {
+        const atMs = now + 100 + 50 * i, r = hit(`shC${i}`, 'torso', 'C', atMs);
+        rs.push({ v: v(r), st: T.live.st });
+        assert(r.would && (r.would.fatal ? T.live.st === 'down' : T.live.st !== 'down'), JSON.stringify({ i, r, st: T.live.st }));
+        if (r.would.fatal) fatalAt = atMs;
+      }
       const look = opforLook(s).find(m => m.stand === '2a'), gun = s.people[T.live.who].kit.worn.sling;
-      console.log(`      one A: ${JSON.stringify(r1)} (again: ${JSON.stringify(r1b)}); a miss: ${JSON.stringify(r2)} → ${upAfter}; a C: ${JSON.stringify(r3)} → ${T.live.st}, stoppedAtMs +${T.stoppedAtMs - now}, ${a.posture}, his post ${s.people[T.live.who].post.posture}, the rifle on his sling ${!!gun}, drawn ${look.frame} with it across his ${look.rifle.where}, turned away ${T.awayAtMs}`);
-      assert(upAfter !== 'down' && r1b.again && r1.torso === 1, JSON.stringify({ r1, r1b, upAfter }));
-      assert(T.live.st === 'down' && T.stoppedAtMs === now + 100 && a.posture === 'sit' && gun && look.frame === 'sit' && look.rifle.where === 'knees' && T.awayAtMs === null, JSON.stringify({ st: T.live.st, stopped: T.stoppedAtMs }));
-      const v = roomTwo(), U = rp(v.g, '2a'), t0 = v.s.clock.ms;
+      console.log(`      one A: ${v(r1)} → ${upAfter1} (again: ${JSON.stringify(r1b)}); a miss: ${v(r2)}; then C: ${rs.map(x => `${x.v} → ${x.st}`).join(', ')}; stoppedAtMs +${T.stoppedAtMs - now}, ${a.posture}, his post ${s.people[T.live.who].post.posture}, the rifle on his sling ${!!gun}, drawn ${look.frame} with it across his ${look.rifle.where}, turned away ${T.awayAtMs}`);
+      assert(r1b.again && r1.torso === 1 && !r1.would.fatal && upAfter1 !== 'down' && !r2.would, JSON.stringify({ r1, r1b, r2 }));
+      assert(fatalAt !== null && T.live.st === 'down' && T.stoppedAtMs === fatalAt && a.posture === 'sit' && gun && look.frame === 'sit' && look.rifle.where === 'knees' && T.awayAtMs === null, JSON.stringify({ rs, st: T.live.st, stopped: T.stoppedAtMs, fatalAt }));
+      const u = roomTwo(), U = rp(u.g, '2a'), t0 = u.s.clock.ms;
       U.hits.push({ shotId: 'shH', part: 'head', zone: 'head', ring: false, through: false, at: null, atMs: t0, by: 'two' });
-      opforHit(v.s, v.g.bus, U, { id: 'shH', fired: true, who: v.H.twoPid, atMs: t0 });
-      console.log(`      one head: ${U.live.st}, stoppedAtMs +${U.stoppedAtMs - t0}`);
-      assert(U.live.st === 'down' && U.stoppedAtMs === t0, 'one head');
+      const rh = opforHit(u.s, u.g.bus, U, { id: 'shH', fired: true, who: u.H.twoPid, atMs: t0 });
+      console.log(`      one head: ${v(rh)} → ${U.live.st}, stoppedAtMs +${U.stoppedAtMs - t0}`);
+      assert(rh.would.fatal && U.live.st === 'down' && U.stoppedAtMs === t0, 'one head');
     },
   },
   {

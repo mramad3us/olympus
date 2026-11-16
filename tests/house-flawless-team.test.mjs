@@ -53,13 +53,13 @@ export default [
     },
   },
   {
-    name: 'F1 to F26 hold with your #2\'s P-12 on (~two:p12): the honest bot on every T sheet and the keys bot on the recruit and the private, three seeds, every criterion the lanes measure printed (tests/flawless.mjs untouched)',
+    name: 'F1 to F26 hold with your #2\'s P-12 (standard issue from v0.0.20; v0.0.19\'s ~two:p12): the honest bot on every T sheet and the keys bot on the recruit and the private, three seeds, every criterion the lanes measure printed (tests/flawless.mjs untouched)',
     heavy: true,
     timeoutMs: 600_000,
     fn() {
-      const recs = [...T_SHEETS.flatMap(tier => SEEDS.map(seed => flawlessLane({ tier, seed, bot: 'honest', loadout: 'standard~two:p12' }))), ...['recruit', 'private'].flatMap(tier => SEEDS.map(seed => flawlessLane({ tier, seed, bot: 'keys', loadout: 'standard~two:p12' })))];
+      const recs = [...T_SHEETS.flatMap(tier => SEEDS.map(seed => flawlessLane({ tier, seed, bot: 'honest' }))), ...['recruit', 'private'].flatMap(tier => SEEDS.map(seed => flawlessLane({ tier, seed, bot: 'keys' })))];
       const rows = [...gaugeOf(recs), keysGauge(recs)];
-      printGauge(`the gauges over ${recs.length} lanes with ~two:p12 (ENFORCED: ${[...ENFORCED].join(', ')})`, rows);
+      printGauge(`the gauges over ${recs.length} lanes with your #2's P-12 (ENFORCED: ${[...ENFORCED].join(', ')})`, rows);
       assert(recs.every(r => !r.err), JSON.stringify(recs.filter(r => r.err).map(r => [r.tier, r.seed, r.err])));
       const f = failing(rows);
       assert(!f.length, f.join(' | '));

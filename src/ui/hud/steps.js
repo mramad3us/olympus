@@ -108,6 +108,8 @@ import { distanceParts, dialWords, OTHER_Y } from '../../art/weaponcard.js';
 // (the panel's numbering is the sim's (src/sim/arms/panel.js), so the DI's line can name the digit a row is on: re-exported here)
 import { PANEL_KEYS, FIXED_KINDS, isFixed, FIXED_MAX, FIXED_REPEAT, isGated, gatedRow, panelList, panelOf, isShotRow } from '../../sim/arms/panel.js';
 import { markOf as simMarkOf } from '../../sim/combat/stepper.js';
+import { MODELS } from '../../sim/arms/models.js';
+import { partOf } from '../../sim/arms/firearms.js';
 export { PANEL_KEYS, FIXED_KINDS, isFixed, FIXED_MAX, FIXED_REPEAT, isGated, gatedRow, panelList, panelOf, isShotRow };
 
 /** A warn's words where the sim's id is short (0.0.10: Breathe with a threat up). */
@@ -122,6 +124,30 @@ export const isBreathe = (id) => id === 'breathe' || String(id ?? '').startsWith
 export const SHAKING = 'shaking';
 /** Whether a row is marked as shaking (stepsOf's shaking record, or its warn). */
 export const isShaking = (s) => !!s && !s.off && (!!s.shaking || s.warn === SHAKING);
+// (whether a panel row is the one the DI's line names: the row whole ('door:pull>d1'), or by its id before '>' where the row aims
+// at the man named after it ('aim>turner:3' and the Aim row on turner:3). v0.0.20, the hunt of v0.0.18: "Hands not seen: the
+// armoured target. Cover him. [7]" while the Aim row on 7 aimed at the no-shoot bracketed by the door, and 7, then High ready on 9,
+// then 7 again, for ever; with the bracket elsewhere the line shows T, which moves the bracket onto him first)
+export function isRowOf(row, id) {
+  if (!row || !id) return false;
+  if (row.id === id) return true;
+  const [base, who] = String(id).split('>');
+  // (a row that names no man (no target) stands for its family as before; an aim row stands only for the man it aims at)
+  return who !== undefined && row.id === base && (row.target === who || (row.target === undefined && row.kind !== 'aim' && row.kind !== 'hold'));
+}
+
+// (the keys the DI's row is on by its own place (never NEXT), the row matched whole, else by isRowOf, or null: the line then shows
+// T alone. Pure, from the panel's model and the layout, so the page's path (createSteps' rowKeys) is the one the tests pin: the
+// review of the page-3 fix found a revert of rowKeys alone passed every test)
+export function rowKeysOf(pm, layout, id) {
+  if (!pm || !id) return null;
+  const r = pm.rows.find(x => x.id === id) ?? pm.rows.find(x => isRowOf(x, id));
+  return r ? keyPathOf(pm, layout, r.id, { next: false }) : null;
+}
+
+// (whether a panel entry wears the DI's light: its row is the line's (isRowOf), never the NEXT key's copy of it)
+export const diLit = (e, diRow) => !!diRow && !!e?.row?.id && isRowOf(e.row, diRow) && e.core !== 'next';
+
 /**
  * A shaking row's hover words: "pinned −10: the chaos 105 − your hardening 7 = felt 98" (the band's word and the row's
  * term, then the arithmetic in suppNow's sum's words); chaos: suppNow's record (or null: the term alone).
@@ -394,7 +420,7 @@ export function weaponCardModel(belief, { distance = false, line: kdLine = null,
   // (while zeroing, the clicks dialled in this zero from the turrets as issued: the user's report, 2026-11-07)
   const dialSaid = !F ? '' : F.zeroing ? (dialled ? `zeroing, ${dialled} dialled this zero` : 'zeroing, nothing dialled yet') : !dialled ? `on ${F.zero ? 'your' : 'the card\'s'} zero` : `${dialled} from ${F.zero ? 'your' : 'the card\'s'} zero`;
   const farWords = F ? `; the scope at ${F.optic} power, ${dialSaid}${F.line ? `, ${F.onDope ? 'on' : 'off'} your dope for ${F.line} m` : ''}${holdSaid ? `, holding ${holdSaid.slice(5).replace(' R', ' mil right').replace(' L', ' mil left').replace(' UP', ' mil up').replace(' DN', ' mil down')}` : ''}` : '';
-  const words = `${b.short ?? 'The rifle'}: ${chamberWords}, ${magWords}${b.magLoad && b.mag !== 'out' ? ` of ${b.magLoad}` : ''}, ${b.mode === 'safe' ? 'on safe' : `on ${b.mode ?? '?'}`}${b.locked ? ', the bolt locked back' : ''}${stoppage ? `; ${stoppage.toLowerCase()}` : ''}${b.condWord && b.condWord !== 'fine' ? `; ${b.condWord}` : ''}${handWords}${farWords}.`;
+  const words = `${b.short ?? 'The rifle'}: ${chamberWords}, ${magWords}${b.magLoad && b.mag !== 'out' ? ` of ${b.magLoad}` : ''}, ${b.mode === 'safe' ? 'on safe' : `on ${b.mode ?? '?'}`}${b.locked ? `, the ${partOf(MODELS[b.model])} locked back` : ''}${stoppage ? `; ${stoppage.toLowerCase()}` : ''}${b.condWord && b.condWord !== 'fine' ? `; ${b.condWord}` : ''}${handWords}${farWords}.`;
   return { short: b.short ?? null, model: b.model ?? null, mode, chamber, count, locked: !!b.locked, port: b.port ?? null, stoppage, cond: b.condWord ?? null, hand, far, line: far ? `${line} · ${far}` : line, words, other: o };
 }
 // (the second gun's words: its own belief's, BELIEF_FIELDS only, its place the view's)
@@ -785,7 +811,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
       if (small && nm?.firstChild && (e?.row || e?.words) && !e?.tab && !e?.more && !e?.home) { const w = e.core === 'next' && !e.live ? 'nothing' : e.core === 'next' ? shortName({ row: e.row, words: e.actLabel }) : shortName(e, pm?.half); if (!n.title) n.title = nm.textContent; nm.firstChild.textContent = w; }
     }
     const rid = e?.row?.id ?? null;
-    if (diRow && rid && (rid === diRow || rid === String(diRow).split('>')[0]) && e.core !== 'next') n.classList.add('di');
+    if (diLit(e, diRow)) n.classList.add('di');
     // (the head called for (the DI's row To the head: still up after the plate, the hostage), the other shots stand aside, dimmed,
     // so the old habit's 1 (a pair into the plate, Pairs and Bang before v0.0.14) is seen not to be it: the question of 2026-11-14;
     // the core's shot on 6 too, a round into the plate all the same)
@@ -861,13 +887,11 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     get model() { return pm; },
     /** The keys a row is on now in the layout drawn (groups.js keyPathOf from the band), or null. */
     keysFor(id, { next = true } = {}) { return pm ? keyPathOf(pm, layout, id, { next }) : null; },
-    /** The keys the DI's row is on by its own place (never NEXT), the row matched whole, else by its id before '>' ('aim>turner:5' → 'aim'), or null. */
-    rowKeys(id) {
-      if (!pm || !id) return null;
-      const ids = [id, String(id).split('>')[0]];
-      for (const x of ids) if (pm.rows.some(r => r.id === x)) return keyPathOf(pm, layout, x, { next: false });
-      return null;
-    },
+    /**
+     * The keys the DI's row is on by its own place (never NEXT), the row matched whole, else by its id before '>' ('aim>turner:5'
+     * → 'aim') only while that row's target is the man named (isRowOf), or null: the line then shows T alone.
+     */
+    rowKeys(id) { return rowKeysOf(pm, layout, id); },
     /** The keys of what is drawn now: [{ key, id, label, off, kind, core, group, tab }]. */
     get keys() { return (view?.keys ?? []).map(k => ({ key: k.key, id: k.entry?.row?.id ?? null, label: k.entry?.row?.label ?? k.entry?.words ?? null, off: k.entry?.row?.off ?? null, kind: k.entry?.row?.kind ?? null, core: k.entry?.core ?? null, group: k.entry?.group ?? null, tab: k.entry?.tab ?? null, live: k.entry?.core === 'next' ? !!k.entry.live : !!k.entry?.row && !k.entry.row.off })); },
     /** Hooks: a tab clicked (onNav), NEXT clicked (onNext, main.js: T's tap). */

@@ -1,0 +1,38 @@
+{
+ "title": "The voices: the house's ten most said lines in V-a to V-d, made and played by the game's code",
+ "about": "Your words of 2026-11-15: \"Sound design is pretty weak\". In v0.0.19 the house said 237 lines over six lanes and 55 made a sound: the instructor was a text box. Now every line is said in a voice made by code (no recording): the instructor on the catwalk's PA (110 Hz, the horn's 300 Hz to 3.4 kHz), your #2 through his helmet's speaker (125 Hz, 250 Hz to 5 kHz), you in your own helmet (118 Hz, 6 dB under his shout). Each view draws the ten lines said most often in one set, their level over their spoken time and each word's start. Open a view live (O) to hear them: 1 to 9 and 0 a line, Space all ten. In play the Esc menu's To score page switches the set live (and &voice=a..d, or old, anywhere). The drill instructor's own line stays text: his voice is in your head.",
+ "pixel": true,
+ "groups": [
+  {
+   "id": "V",
+   "title": "V: the voices' sets",
+   "about": "V-a v0.0.19's stand-ins, V-b dry, V-c through their paths (the game's), V-d with effort.",
+   "views": [
+    {
+     "id": "V-a",
+     "name": "V-a, v0.0.19's stand-ins (five syllables, the rest silent)",
+     "query": "c=a",
+     "pixel": "640x420"
+    },
+    {
+     "id": "V-b",
+     "name": "V-b, the words made by code, dry",
+     "query": "c=b",
+     "pixel": "640x420"
+    },
+    {
+     "id": "V-c",
+     "name": "V-c, the words through their paths: the PA's horn, the helmets' speakers (the game's until you score)",
+     "query": "c=c",
+     "pixel": "640x420"
+    },
+    {
+     "id": "V-d",
+     "name": "V-d, V-c with breath and effort on the shouts",
+     "query": "c=d",
+     "pixel": "640x420"
+    }
+   ]
+  }
+ ]
+}

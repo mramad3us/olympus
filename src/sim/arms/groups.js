@@ -22,8 +22,10 @@
 // own live: outside).
 //
 // The core five, each on a fixed key in every layout: the shot (Pair at a contact in layout A, else Fire), Aim ⇄ Hold, Fix
-// (the remedy for the gun's state, panel.js remedyOf: Off safe, IMMEDIATE ACTION, MAKE READY, Press check, RELOAD; with
-// nothing to fix, the reload by purpose), the muzzle (Low ⇄ High ready) and NEXT, T's act (T is never the only way).
+// (the planner's row, shooting.js markFix, else the remedy for the gun's state, panel.js remedyOf: Off safe, IMMEDIATE ACTION,
+// MAKE READY, Press check, RELOAD; the planner's "no way to fire" (no rounds, one magazine a string) struck over any remedy, its
+// "nothing to fix" (already so, the line is cold) ticked; the reload by purpose only for rows made by hand), the muzzle (Low ⇄
+// High ready) and NEXT, T's act (T is never the only way).
 // Greyed, never removed: a struck row keeps its slot with a badge, badgeOf(off): an arrow and the remedy's key where the panel
 // has one (→ the aim, → Fix), a round's count (▮1), a gate (MKS 18), a rung (▲▲ 3), "by hand first" (✋), not issued (a struck
 // silhouette), locked (a padlock), nothing to act on (a struck eye), already so (✓); else its words.
@@ -106,6 +108,7 @@ export const MAPS = Object.freeze({
   DRILL_IN: [null,
     { words: 'Watch your corner', c: [is(/^watch:/), is(/^look:/)], cycle: true }, { words: 'To your point', c: [id('drill:carry'), is(/^drill:room:dominate(@|>|$)/), id('move:point')] },
     { words: '"Clear!"', c: [id('call:clear')] }, { words: 'Go long', c: [is(/^move:far/)] }, { words: 'Mark the room', c: [id('mark')] },
+    // (the build sheet v0.0.20 item 12: Coming out, the `out` kind's single, offered inside a room called clear (bundle.js singleRows))
     { words: 'Coming out', c: [is(/^call:out/)] }, { words: 'To the next door', c: [is(/^drill:stack:up(@|>|$)/), is(/^drill:stack:point(@|>|$)/), is(/^move:(hallEnd|next)/)] },
     { words: 'Hold it', c: [is(/^door:hold>/)] }, { words: 'Clear it', c: [is(/^door:(push|pull|kick)>/), is(/^drill:room:(in|clear)(@|>|$)/)] }],
   GUN: [null,
@@ -161,15 +164,20 @@ export const SITUATIONS = Object.freeze({
   // according to the choices made earlier yet?"))
   inner: { name: 'AN INNER DOOR', half: 'in', five: [['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 8], ['DRILL', 9]] },
   room: { name: 'IN THE ROOM', half: 'in', five: [['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 6], ['DRILL', 7]] },
-  // (AT THE DOOR's five as the user's pick drew it (P3, 2026-11-12): Stack up, Stack up and take point, Open, Kick door on 1 to 4;
-  // on 5 Enter in place of the sample's Breach until a charge is issued (v0.0.17's breaching; my call: R4's catalogue made the
-  // entry with its reach the door's own row, "Open, in: your corner" and "Open, clear the room", 27 of the honest bot's 54 door
-  // stops; Breach stays on DRILL 5 in the fan, struck "not issued"). v0.0.14 to v0.0.15 had Enter on 4 and Kick on 5.)
-  door: { name: 'AT THE DOOR', half: 'out', five: [['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 4], ['DRILL', 7]] },
+  // (AT THE DOOR's five as the user's pick drew it (P3, 2026-11-12): Stack up, Stack up and take point, Open, Kick door, Breach on
+  // 1 to 5, on every lane (the build sheet v0.0.20 item 5; the user, 2026-11-11: "always visible and accessible (even if grayed
+  // out)"): Breach struck "not issued" (the issue badge) where the kit carries no charge and no tool, live where it does, so key 5
+  // never changes meaning by lane. Enter is DRILL 7 in the fan (Tab › 2 › 7) and T's act. v0.0.14 to v0.0.15 had Enter on 4 and
+  // Kick on 5; v0.0.17 Enter on 5; v0.0.19 Breach on 5 on a breaching lane only. THE HALL, with no door to breach, keeps Enter on 5
+  // on every lane (doorFive))
+  door: { name: 'AT THE DOOR', half: 'out', five: [['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 4], ['DRILL', 5]] },
   // (THE LINE's five: Wait on 4 in place of the design's Prone (my call: Wait, "for the turn", "for the coach", "for the instructor",
   // is T's act on the line and before GO many times more than Prone; Prone keeps BODY 4 in the fan))
   line: { name: 'THE LINE', five: [['GUN', 1], ['GUN', 7], ['BODY', 3], ['BODY', 7], ['FIRE', 8]] },
 });
+
+/** THE HALL's five: AT THE DOOR's with Enter (DRILL 7) on 5, the hall's leg having no door to breach. */
+export const HALL_FIVE = Object.freeze([['DRILL', 1], ['DRILL', 2], ['DRILL', 3], ['DRILL', 4], ['DRILL', 7]]);
 
 /**
  * A struck row's badge from its reason (VIEWS §7.8.1's table): { t: 'to', ref: 'aim' | 'fix' } (an arrow and the remedy's key),
@@ -189,7 +197,9 @@ export function badgeOf(off) {
   x = /^rung (\d+)$/.exec(w);
   if (x) return { t: 'rung', n: Number(x[1]) };
   if (/by hand first/.test(w)) return { t: 'hand' };
-  if (/not (issued|carried)/.test(w)) return { t: 'issue' };
+  // (the breach's own "no charge issued" (bundle.js, at a push door on a lane with none) draws the issue badge too, so
+  // Breach on 5 is struck the same way on every door of the standard lane, the build sheet's item 5)
+  if (/not (issued|carried)|^no \w+ issued$/.test(w)) return { t: 'issue' };
   // (v0.0.19, kit D2: a shot or a row struck while a hand holds a device ('hands full'), or every row but its throws while a live
   // grenade is in it ('live grenade', bundle.js LIVE_WHY), points at Fix, the hands' way out; Shoot the lock on a
   // door not locked says what it is, "open"; a believed misfire's approach counts down its wait, "wait 30 s" to "wait 1 s")
@@ -274,6 +284,8 @@ export function modelOf(steps = [], { act = null, actLabel = null, watch = 0 } =
   // went blank after they were done, at the same stop's situation (the keys role's audit of 2026-11-15, 12 such stops on 24 lanes))
   const mark = (g, k, off) => { const e = groups[g].slots[k]; if (e && !e.row && e.words) { e.row = { id: `stand:${g}:${k}`, kind: 'stand', label: e.words, off }; e.badge = badgeOf(off); e.stand = true; } };
   if (half === 'in' && rows.some(s => /^look:hall:|^watch:hall:|>hall$/.test(s.id)) && !rows.some(s => s.id === 'move:hallEnd')) mark('DRILL', 7, 'already there: the hall\'s end');
+  // (the build sheet v0.0.20 item 12: in the hall's leg, out of room 3, "Coming out" said: its slot kept struck, never blank)
+  if (half === 'in' && rows.some(s => /^look:hall:|^watch:hall:|>hall$/.test(s.id)) && !rows.some(s => /^call:out/.test(s.id))) mark('DRILL', 6, 'already out');
   if (rows.some(s => s.id === 'contact:hold') && !rows.some(s => s.id === 'contact:challenge')) mark('TEAM', 6, 'already seen: his hands');
   // (a door already open outside it (the tier one on 48213, room 3 opened under him): from rung 2 the entry's stance is offered
   // with the bundles and the breach's way only at a closed door, so the stance without the breach on a door's leg is an open door)
@@ -309,8 +321,9 @@ export function modelOf(steps = [], { act = null, actLabel = null, watch = 0 } =
     fix: fixRow ? { core: 'fix', group: null, slot: null, words: 'Fix', row: fixRow, badge: badgeOf(fixRow.off) }
       // (v0.0.18: the planner's nothing to fix (shooting.js markFix: the house's cold line, a gun that can fire in the fight)
       : fireNone(rows) ? { core: 'fix', words: 'Fix', row: { id: 'core:fix', kind: 'stand', label: 'Nothing to fix', off: fireNone(rows) }, badge: { t: 'done' }, stand: true }
-      // (v0.0.18: the planner's reason, on Fire (shooting.js markFix): 'no rounds', or the course's one magazine a string)
-      : gunStruck(rows) ? { core: 'fix', words: 'Fix', row: { id: 'core:fix', kind: 'stand', label: 'Fix', off: rows.find(r => r.id === 'fire')?.fixWhy ?? 'nothing offered now' }, badge: { t: 'none' }, stand: true }
+      // (v0.0.18: the planner's reason, on Fire (shooting.js markFix): 'no rounds', or the course's one magazine a string; shown
+      // whatever Fire is struck for, 'aim first' too (the hunt of v0.0.18: with nothing aimed it read "Nothing to fix, already so"))
+      : fireWhy(rows) || gunStruck(rows) ? { core: 'fix', words: 'Fix', row: { id: 'core:fix', kind: 'stand', label: 'Fix', off: fireWhy(rows) ?? 'nothing offered now' }, badge: { t: 'none' }, stand: true }
         : { core: 'fix', words: 'Fix', row: { id: 'core:fix', kind: 'stand', label: 'Nothing to fix', off: 'already so' }, badge: { t: 'done' }, stand: true },
     muzzle: { core: 'muzzle', ...(muzzle ?? {}) },
     next: { core: 'next', words: 'NEXT', row: nextRow, act, actLabel: actLabel ?? nextRow?.label ?? null, badge: act ? null : { t: 'none' }, live: !!act },
@@ -320,6 +333,8 @@ export function modelOf(steps = [], { act = null, actLabel = null, watch = 0 } =
 }
 /** The planner's reason there is nothing to fix (v0.0.18, shooting.js markFix: 'the line is cold', 'already so'), or null. */
 export const fireNone = (rows) => rows.find(r => r.id === 'fire')?.fixNone ?? null;
+/** The planner's reason there is no way to fire (v0.0.18, shooting.js markFix: 'no rounds', the course's one magazine a string), or null. */
+export const fireWhy = (rows) => rows.find(r => r.id === 'fire')?.fixWhy ?? null;
 /** The reasons a shot or Fire is struck for the gun's state (the ones Fix answers). */
 export const GUN_STATE_RE = /off safe first|^on safe$|^a stoppage$|^chamber (empty|unknown)$|RELOAD first/;
 /** Whether a shot or Fire is struck for the gun's state. */
@@ -333,6 +348,10 @@ export function fixOf(rows, reload = null) {
   if (planned) return planned;
   // (the planner found nothing to fix (shooting.js markFix's fixNone on Fire): no fallback to Off safe or the reload slot)
   if (fireNone(rows)) return null;
+  // (the planner found no way to fire (fixWhy on Fire: no rounds believed anywhere, the course's one magazine a string): no press
+  // that leads nowhere, Off safe or IMMEDIATE ACTION on a rifle with nothing to fire (the hunt of v0.0.18: Fix read Off safe at
+  // CEASE FIRE on an empty rifle, then "no rounds", two presses with nothing to fire)
+  if (fireWhy(rows)) return null;
   for (const s of rows) if ((s.id === 'fire' || isShotRow(s)) && s.off) { const r = remedyOf(rows, s.off); if (r) return r; }
   const ia = rows.find(s => (s.id === 'macro:ia' || s.id === 'macro:remedial') && !s.off);
   if (ia) return ia;
@@ -368,11 +387,10 @@ export function situationOf(rows, { half = null, groups = null, act = null } = {
   // named for what it is (2026-11-15, the keys role: it said AT THE DOOR in the hall))
   // (inside it, its five the room's, named IN THE HALL: it said IN THE ROOM down the hall)
   const hall = id === 'door' && rows.some(s => /^drill:.*>hall$/.test(s.id)) && !rows.some(s => /^door:/.test(s.id));
-  // (v0.0.19, kit D2: AT THE DOOR's five on a lane whose loadout carries a charge or a tool is the user's P3 as drawn, Breach on
-  // 5 (DRILL 5) and Enter in the fan; the door rows carry the lane's `five` ('breach', shoothouse.js fiveOf at the fill), so it
-  // is the lane's constant and never moves within it; elsewhere v0.0.17's Enter on 5. The hall has no door to breach)
-  const breach5 = id === 'door' && !hall && rows.some(s => s.five === 'breach');
-  const fives = breach5 ? [...S.five.slice(0, 4), ['DRILL', 5]] : S.five;
+  // (AT THE DOOR's five is P3 as drawn on every lane, Breach on 5 (DRILL 5), never read from the rows (v0.0.19's lane
+  // `five`, R.house.five, is no longer read: an old save carrying it loads and ignores it); the hall has no door to breach, so
+  // THE HALL keeps Enter on 5 (DRILL 7), the same on every lane)
+  const fives = hall ? HALL_FIVE : S.five;
   const five = fives.map((f, i) => {
     if (!f) return { five: i + 1, group: null, slot: null, words: null, row: null, badge: null };
     if (Array.isArray(f)) { const e = groups?.[f[0]]?.slots[f[1]]; return e ? { ...e, five: i + 1 } : { five: i + 1, words: null, row: null, badge: null }; }
@@ -381,7 +399,7 @@ export function situationOf(rows, { half = null, groups = null, act = null } = {
     return { five: i + 1, group: null, slot: null, words: row && f.wordsOf ? f.wordsOf(row) : f.words, row, badge: row ? badgeOf(row.off) : { t: 'none' } };
   });
   const inHall = id === 'room' && rows.some(s => /^(look|watch):hall:|^drill:.*>hall$/.test(s.id));
-  return { id, name: hall ? 'THE HALL' : inHall ? 'IN THE HALL' : S.name, five, ...(hall || inHall ? { hall: true } : {}), ...(breach5 ? { breach: true } : {}) };
+  return { id, name: hall ? 'THE HALL' : inHall ? 'IN THE HALL' : S.name, five, ...(hall || inHall ? { hall: true } : {}) };
 }
 
 // ---- the layouts ----

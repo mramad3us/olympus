@@ -56,6 +56,9 @@
 // chaos's one entry through the roller, so a pinned recruit's Pair is slower and its odds the roll's.
 // 2026-11-12 (the shoot house's rework R1): a row's round whose man is up and facing but out of the frame this instant waits
 // for him a tick at a time, a 'line' part spliced into the saved plan, up to LINE_WAIT_MS 500 ms, then goes (runRound).
+// v0.0.20 (the build sheet v0.0.20 item 3; COMBAT §25.19.3.5): in the shoot house a round whose line your #2's body masks (carry.js
+// lineMasked) waits for him a tick at a time, a 'mask' part, "Line!" once a hold, and goes MASK_RESUME_MS after he is off it; held
+// MASK_HOLD_MAX_MS the row ends there with no round (lineHold). A bay has no #2: its rows are as built.
 // 0.0.12 (the build sheet 0.0.12 §2.2, §8 items 14, 26; COMBAT §25.6.1, §25.9): with the body moving at the pause in Combat
 // or Assault (the actor's velocity over MOVING_MS, as a bundle's entry cut by the contact leaves it), each shot row comes
 // in two: '<row>@moving' ("Pair, moving on · −2": the feet carry on along the rest of the path while the rounds go, each
@@ -84,6 +87,8 @@ import { rollerOf } from '../combat/roll.js';
 import * as TEMPLATES from '../skills/templates.js';
 import { mitigated } from '../skills/skills.js';
 import { legsHere, throughNow } from '../places/move.js';
+import { lineFromOf, lineMasked, MASK_RESUME_MS, MASK_HOLD_MAX_MS } from './carry.js';
+import { TEAM_WORDS } from '../combat/team.js';
 import { SEEN } from '../people/perception.js';
 import { aimMsOf, heldOf, dcOf, modsOf, resolveShot, fireMs, recoverMs, TRIGGER_S, TAP_SPLIT_S, HELD_MAX, HELD_RATE0, climbOf, BURST_K, ANCHOR, SUPPORT, PLATE_MM, catchAhead, shotIdNext } from './shot.js';
 import { A_MARGIN } from './paper.js';
@@ -136,7 +141,7 @@ export const MOVING_MS = 0.1, ASSAULT_FIRE_M = 10;
 /** Fire on the move (COMBAT §25.9): Combat's −4, −2 from Marksmanship 15; Assault's mitigated(−8, MRK, 30, 0.25) from rung 2. */
 export const MOVE_FIRE = Object.freeze({ combat: -4, combatEased: -2, easedFrom: 15, assault: -8, assaultFull: 30, assaultKeep: 0.25 });
 /** The parts' words (the panel's sub-steps). */
-export const PART_LABELS = Object.freeze({ aim: 'Aim', hold: 'Hold the aim', press: 'Press', round: 'Round', shift: 'Shift to the head', line: 'Waiting for the line', out: 'Out of the door', plant: 'To your point', brake: 'Planted', catch: 'Caught: the round late' });
+export const PART_LABELS = Object.freeze({ aim: 'Aim', hold: 'Hold the aim', press: 'Press', round: 'Round', shift: 'Shift to the head', line: 'Waiting for the line', out: 'Out of the door', plant: 'To your point', brake: 'Planted', catch: 'Caught: the round late', mask: 'Line: your two in it' });
 /** The feet under a shot row in a flow (see the header), the variant's order, and their words on the row. */
 export const FEET_WAYS = Object.freeze(['moving', 'point', 'stop']);
 export const FEET_WORDS = Object.freeze({ moving: 'moving on', point: 'at your point', stop: 'stop here' });
@@ -430,6 +435,33 @@ export function flowFeetOf(state, pid, T, ms = state.clock.ms) {
 
 export const keptPlan = (plan) => ({ ms: plan.ms, offSafe: !!plan.offSafe, ...(plan.moving ? { moving: { v: plan.moving.v, why: plan.moving.why } } : {}), ...(plan.way ? { way: plan.way } : {}), parts: plan.parts.map(p => ({ k: p.k, ms: p.ms, ...(p.k === 'round' ? { i: p.i, part: p.part, follow: p.follow, climbK: p.climbK } : {}) })) });
 
+/** A 'mask' part's words: your round held with your #2 on its line, and the row ended there once held MASK_HOLD_MAX_MS. */
+export const MASK_WORDS = Object.freeze({ held: 'Line!', ended: 'Line. No shot.' });
+// (see runRound: your round's line onto its man held by your #2's body in the shoot house (carry.js lineMasked: from your line
+// at the holder aimed to the man's aim point, his body a capsule of his stance): a 'mask' part a tick long while it is, "Line!" said once
+// a hold (d.maskOn, its start d.maskFromMs), at most MASK_HOLD_MAX_MS a row (d.maskMs), then the row cut with no round; his body off
+// the line, a 'mask' part MASK_RESUME_MS long (the press after the line opens) and the hold noted on the leg (L.masked). Null to fire.
+// Nowhere but the house: a bay has no #2, so its rows are as built)
+function lineHold(state, bus, d, i, pid, T, atMs) {
+  const H = state.armoury?.range?.house, two = H?.twoPid ?? null, a2 = two && two !== pid ? state.actors?.list?.find(x => x.who === two) : null, me = state.actors?.list?.find(x => x.who === pid);
+  if (!a2 || !me) return null;
+  const from = lineFromOf(state, pid, me, T);
+  const splice = (ms) => { d.plan.parts.splice(i, 0, { k: 'mask', ms }); d.list.splice(i, 0, 'mask'); };
+  if (lineMasked(from, { x: T.x, y: T.y ?? 1.35, z: T.z }, [{ x: a2.x, z: a2.z, stance: a2.stance ?? 'stand' }])) {
+    if ((d.maskMs ?? 0) >= MASK_HOLD_MAX_MS) { d.cut = true; return { ms: 0, shot: null, text: MASK_WORDS.ended }; }
+    if (!d.maskOn) { d.maskOn = true; d.maskFromMs = atMs; bus?.emit('say', { who: pid, text: TEAM_WORDS.line.words, kind: 'speech', durMs: 200, call: 'line' }); }
+    d.maskMs = (d.maskMs ?? 0) + TICK_MS;
+    splice(TICK_MS);
+    return { ms: TICK_MS, shot: null, text: MASK_WORDS.held };
+  }
+  if (!d.maskOn) return null;
+  delete d.maskOn;
+  const L = Array.isArray(H?.rooms) ? [...H.rooms, H.hall][H.cur ?? 0] : null;
+  if (L) (L.masked ??= []).push({ atMs: d.maskFromMs ?? atMs, by: two, ms: atMs - (d.maskFromMs ?? atMs) });
+  splice(MASK_RESUME_MS);
+  return { ms: MASK_RESUME_MS, shot: null, text: MASK_WORDS.held };
+}
+
 /**
  * One 'round' sub-step (w; see the header): resolveShot on the round's formula time, its part, follow and climb, the
  * held aim the row carries; the scene's recordShot. Returns { ms, shot, text }: the part's interval, or the recovery when
@@ -463,6 +495,10 @@ export function runRound(state, bus, d, i, atMs) {
       return { ms: TICK_MS, shot: null, text: PART_LABELS.out };
     }
   }
+  // (the build sheet v0.0.20 item 3 (COMBAT §25.19.3.5; TC 3-22.9 §1-10): your #2's body on the round's line holds it, a tick at a
+  // time, "Line!" once a hold (TEAM_WORDS.line), and it goes MASK_RESUME_MS after he is off it (a 'mask' part spliced in, saved with the
+  // plan, as the 'line' part is); held MASK_HOLD_MAX_MS, the row ends there, never a round through him (lineHold)
+  if (T) { const m = lineHold(state, bus, d, i, pid, T, atMs); if (m) return m; }
   const shifted = R?.shiftAt !== null && R?.shiftAt !== undefined && p.i >= R.shiftAt;
   // (the row's first round reads the held aim at its time; the rest carry it; a round after the shift holds nothing)
   let held = null;

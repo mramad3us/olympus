@@ -128,8 +128,10 @@ export function leafClosed(state, opening, ms = state?.clock?.ms ?? 0) {
  * Open or close an opening ('open' | 'closed'), its leaf finishing at atMs (now by default): the saved
  * delta { state, atMs } (dropped when it matches the template and has finished), and the nav and
  * sight cells round its leaf re-marked on every cached grid. Returns the nav cells changed.
+ * v0.0.20 (the build sheet's item 15): `how` ('push' | 'pull' | 'kick'), the verb that opened it, kept on the delta beside state
+ * and atMs, so the stage draws the leaf as it was opened (doors.js leafShownAt); absent, the linear swing as built.
  */
-export function setOpening(state, openingId, s, { atMs = state.clock?.ms ?? 0 } = {}) {
+export function setOpening(state, openingId, s, { atMs = state.clock?.ms ?? 0, how = null } = {}) {
   const area = openingArea(openingId);
   if (!area) throw new Error(`places: no opening '${openingId}'`);
   const o = openingOf(openingId);
@@ -137,7 +139,7 @@ export function setOpening(state, openingId, s, { atMs = state.clock?.ms ?? 0 } 
   if (s === 'closed' && ['doorway', 'gate', 'curtain'].includes(o.kind)) throw new Error(`places: ${openingId} is a ${o.kind}: it has no leaf to close`);
   const rec = siteRec(state, area.site), now = state.clock?.ms ?? 0;
   if (s === (o.state ?? 'open') && atMs <= now) { if (rec.openings) { delete rec.openings[openingId]; if (!Object.keys(rec.openings).length) delete rec.openings; } }
-  else (rec.openings ??= {})[openingId] = { state: s, atMs };
+  else (rec.openings ??= {})[openingId] = { state: s, atMs, ...(how ? { how } : {}) };
   remarkSight(state, openingId);
   return remarkLeaf(state, openingId);
 }

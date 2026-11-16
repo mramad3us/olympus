@@ -608,6 +608,8 @@ export const TIMER_HZ = 2400, HARNESS_HZ = 400, HARNESS_S = 0.4;
 export const PA_VOICE_DB = 14, WHISPER_DB = -14, SHOUT_DB = 8;
 /** A suit's footfall's scuff over the built step (dB against the step's recipe). */
 export const SUIT_SCUFF_DB = -6;
+/** The leaf's knock on its stop against a push's own sound where it is (dB): a kick's (under its boom), a kick's rebound back on it, a push's 6 dB under a kick's (the build sheet v0.0.20 item 15: a pull has none). */
+export const DOOR_STOP_DB = -6, DOOR_REBOUND_DB = -14, DOOR_PUSH_STOP_DB = -12;
 /** What a 'house' fact's phase plays (src/ui/audio/house.js). */
 export const HOUSE_CUES = Object.freeze({ go: 'paGo', stop: 'paStop', clear: 'shoutClear', par: 'harnessTone' });
 // (a voiced syllable: a sawtooth at the voice's pitch gliding down, through two formants of a vowel; my numbers, from the vowels' textbook
@@ -670,8 +672,51 @@ export const HOUSE = Object.freeze({
   whisperReady: Object.freeze({ levelDb: -24, durS: 0.55, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
     ...whisp(0, 0.2, 550, 1800), cons(0.2, 2800, 0.01, -8), ...whisp(0.22, 0.24, 300, 2300, -2),
   ]) }),
+  // (the build sheet v0.0.20 item 15: the leaf's knock on its stop, a 90 Hz thump of the leaf with a 2.2 kHz rattle of its frame; my numbers)
+  doorStop: Object.freeze({ levelDb: -8, durS: 0.3, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
+    Object.freeze({ kind: 'tone', hz: 90, toHz: 70, attackS: 0.001, decayS: 0.06, db: 0 }),
+    Object.freeze({ kind: 'noise', lowpass: 500, attackS: 0.001, decayS: 0.03, db: -6 }),
+    Object.freeze({ kind: 'grains', n: 5, spreadS: 0.06, bandpass: Object.freeze([2200, 2.5]), decayS: 0.004, delayS: 0.004, db: -10 }),
+  ]) }),
   suitScuff: Object.freeze({ levelDb: -16, durS: 0.09, variants: 3, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
     Object.freeze({ kind: 'noise', lowpass: 700, attackS: 0.004, decayS: 0.025, db: 0 }),
     Object.freeze({ kind: 'noise', bandpass: Object.freeze([1400, 1.4]), attackS: 0.01, decayS: 0.02, delayS: 0.01, db: -10 }),
   ]) }),
 });
+
+// ---- v0.0.20: the shot's candidates (the build sheet v0.0.20 item 2, §0 item 21; feel.md FL-1; my numbers, to be scored) ----
+// The user, 2026-11-15: "Sound design is pretty weak, guns should bang harder". v0.0.17's shot peaked high but its loudest 50 ms,
+// what the ear integrates as loudness, sat at -15.6 dBFS through the suit and the master: a click with a tail. The candidates give
+// the shot body in its first 50 ms without raising its peak, each a set of numbers src/ui/audio/gun.js reads over its built ones
+// (per gun where they differ; absent, the built):
+//   A0  v0.0.15's report (&sound=old's shot: the range's RANGE.report through the old path);
+//   A1  v0.0.17 as built (GUNS and PROTECT as they are: byte for byte);
+//   A2  A1 with the body: the gas's turbulence decaying over 20 ms (the pistol's 9; was 5 and 3), its gust over 40 ms 6 dB up
+//       (the pistol's 20; was 26 and 12), the thump 55 ms (the pistol's 30; was 30 and 18) 3 dB up;
+//   A3  A2 through a denser protection: the ceiling at -14 dB with a make-up of +15 dB (the pistol's +5, so it stays under the
+//       rifle through the clamp), both carried by the candidate (PROTECT
+//       itself and PROTECT_AT stay as built for every other): the clamp clips the blast and its body dense, as electronic
+//       protection does, and the master's limiter then holds the 50 ms the ear hears near its threshold instead of ducking it
+//       under a lone peak. The sheet's own A3 (the ceiling raised to -5 dB) was measured first and fell short: -14.3 dBFS over
+//       50 ms, since a higher ceiling only lets the lone peak duck the body harder (build sheet item 2's targets: the loudest
+//       50 ms at least -11.0 dBFS, the loudest 10 ms -9.0, the peak at most -1.0);
+//   A4  A3 with the room's first-order reflections over 5 to 30 ms 2 dB up.
+// The house plays A3 (SHOT_SCENES), every other scene A1, since "Bang" was scored 100 on it; &shot=A0..A4 and the To score
+// page's Shot row choose one anywhere (engine.js setShot).
+const BODY = Object.freeze({ gasMs: Object.freeze({ r7: 20, p12: 9 }), gustMs: Object.freeze({ r7: 40, p12: 20 }), gustDb: 6, thumpMs: Object.freeze({ r7: 55, p12: 30 }), thumpDb: 3 });
+const DENSE = Object.freeze({ ceilingDb: -14, protect: Object.freeze({ makeupDb: Object.freeze({ r7: 15, p12: 5 }) }) });
+/** The shot's candidates (see above): per gun { gasMs, gustMs, thumpMs } where they differ; gustDb, thumpDb (dB over the built); ceilingDb and protect (the protection's, over PROTECT); roomEarlyDb (the room's first taps, dB); old (the report). */
+export const SHOT_CANDIDATES = Object.freeze({
+  A0: Object.freeze({ old: true }),
+  A1: Object.freeze({}),
+  A2: BODY,
+  A3: Object.freeze({ ...BODY, ...DENSE }),
+  A4: Object.freeze({ ...BODY, ...DENSE, roomEarlyDb: 2 }),
+});
+/** The candidates' ids, in order. */
+export const SHOT_IDS = Object.freeze(Object.keys(SHOT_CANDIDATES));
+/** The scenes that play SHOT_HOUSE until the user scores the shot; every other plays SHOT_DEFAULT. */
+export const SHOT_SCENES = Object.freeze(['test-shoothouse', 'test-shoothouse-live']);
+export const SHOT_HOUSE = 'A3', SHOT_DEFAULT = 'A1';
+/** The shot a scene plays (engine.js setShot's choice): the asked one (&shot, the To score pick) if it is a candidate, else the house's in SHOT_SCENES, else the default. */
+export const shotFor = (scene, asked = null) => (SHOT_CANDIDATES[asked] ? asked : SHOT_SCENES.includes(scene) ? SHOT_HOUSE : SHOT_DEFAULT);

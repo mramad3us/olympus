@@ -2,7 +2,7 @@
 //
 // dressOf(gear, { look, sex, body, wounds }) turns src/sim/arms/gear.js's record (what a person visibly wears and carries) into
 // doll.js doll()'s arguments: the person's own look (skin, hair, rank) with the outfit the gear says, and a DollGear for the
-// pieces worn.js draws ({ rifle, pistol, carrier, thigh, ears, held }). When the gear adds nothing the doll does not already
+// pieces worn.js draws ({ rifle, pistol, carrier, thigh, ears, held, devices, device }). When the gear adds nothing the doll does not already
 // draw, the arguments are exactly v0.0.17's: a board's painted man holding a rifle is { look, sex, hand: 'rifle' } with no gear,
 // so the hit card's four B goldens cannot move. With a suit the look's head: null is dropped, because lookFor's indoor rule
 // (src/sim/people/figure.js) is a cover's and the suit's sealed helmet stays on under the Wheel's roof; the suit's helm
@@ -35,7 +35,7 @@ export function dressOf(gear, { look = {}, sex = 'm', body = null, wounds = null
     return args;
   }
   // (nothing the doll does not already draw: v0.0.17's arguments, the outfit the gear's)
-  const adds = gear.suit || gear.carrier || gear.rifle || gear.pistol || gear.thigh || gear.ears || gear.held || gear.devices?.length || gear.mask || gear.hands;
+  const adds = gear.suit || gear.carrier || gear.rifle || gear.pistol || gear.thigh || gear.ears || gear.held || gear.devices?.length || gear.mask || gear.hands || gear.device;
   L.outfit = gear.suit ? 'combatSuit' : gear.outfit ?? L.outfit ?? 'utilities';
   if (!adds) return args;
   if (gear.suit) {
@@ -50,6 +50,8 @@ export function dressOf(gear, { look = {}, sex = 'm', body = null, wounds = null
     ears: gear.ears, held: gear.held,
     // (v0.0.18, the fixer's: the devices worn off the front, only where there are any, so every doll without them keeps its key)
     ...(gear.devices?.length ? { devices: gear.devices.map(d => ({ face: d.face, slot: d.slot, shape: d.shape, colour: d.colour })) } : {}),
+    // (the device in the hands, only when there is one, so every other doll's arguments are as before)
+    ...(gear.device ? { device: { shape: gear.device.shape, colour: gear.device.colour } } : {}),
     // (v0.0.19: the force-on-force mask and the hands up, worn.js's, only when set: every other doll's arguments as before)
     ...(gear.mask ? { mask: gear.mask } : {}), ...(gear.hands ? { hands: gear.hands } : {}),
   };

@@ -22,12 +22,14 @@
 // dump pouch"), each magazine with its believed count and kind ("5 in it, ball", "5 in it, kind not seen", "a few
 // by its weight", the icon's top round tipped red for a tracer), and two tiles more when they hold anything: the
 // magazine in your hand and those at your feet (kitView's hand and feet), the feet's reach a pickup's and a seat's.
+// v0.0.20 (the hunt of v0.0.18): the hand's tile lists whatever is in the hands (kitView's held: the P-12 drawn, a G-11, the
+// halligan), and the sling's word is 'hanging on its sling' while another gun is out.
 // tilesOf(view) is the pure part (the ui tests read it), magIcon(item) the icon's pixels, inventoryCard
 // (view, { dollOf }) the DOM.
 import { plaque, pixelBuffer } from '../plaque.js';
 
 /** The carry postures' words (WEAPONS §6.1). */
-export const POSTURE_WORDS = Object.freeze({ slungBack: 'slung on your back', slungFront: 'slung in front', lowReady: 'at the low ready', highReady: 'at the high ready', aimed: 'aimed' });
+export const POSTURE_WORDS = Object.freeze({ slungBack: 'slung on your back', slungFront: 'slung in front', lowReady: 'at the low ready', highReady: 'at the high ready', aimed: 'aimed', hanging: 'hanging on its sling' });
 /** A HAD-30 magazine's rounds (WEAPONS §3.3: 30, the range detail fills five). */
 export const MAG_OF = 30;
 const ICON_K = 3;
@@ -53,8 +55,10 @@ export function tilesOf(view) {
     const holds = Number.isFinite(g.holds) ? g.holds : null;
     return { id: g.id, word: g.word ?? g.id, items, fill: holds ? Math.min(1, items.length / holds) : items.length ? 1 : 0 };
   });
-  // (the magazine in your hand and those at your feet, as tiles of their own when there are any)
-  if (view?.hand) groups.push({ id: 'hand', word: 'in your hand', items: [item(view.hand)], fill: 1 });
+  // (what is in your hands (a magazine, the P-12 drawn, a device: kitView's hand and held, v0.0.20) and the magazines at your
+  // feet, as tiles of their own when there are any)
+  const inHand = [...(view?.held ?? []), ...(view?.hand ? [view.hand] : [])];
+  if (inHand.length) groups.push({ id: 'hand', word: inHand.length > 1 ? 'in your hands' : 'in your hand', items: inHand.map(item), fill: 1 });
   if (view?.feet?.length) groups.push({ id: 'feet', word: 'at your feet', items: view.feet.map(item), fill: 1 });
   const sl = view?.sling ?? null;
   const sling = sl?.gunId ? { gunId: sl.gunId, word: `${sl.word ?? 'Your rifle'}, ${POSTURE_WORDS[sl.posture] ?? sl.posture ?? 'on its sling'}` } : null;
@@ -119,7 +123,7 @@ export function inventoryCard(view, { dollOf = null, label = (a) => a, title = '
     el('div', { className: 'pk-pocket-head' }, el('span', { textContent: g.word.replace(/^./, c => c.toUpperCase()) }), el('span', { className: 'pk-fill' }, el('i', { style: `width: ${Math.round(g.fill * 100)}%` }))),
     ...(g.items.length ? g.items.map(thing) : [el('p', { className: 'pk-none', textContent: 'Empty' })]));
   const main = el('div', { className: 'pk-main' },
-    t.sling ? el('div', { className: 'pk-group' }, el('h4', { textContent: 'On the sling' }), el('div', { className: 'pk-thing gun' }, el('span', { className: 'pk-dot gun' }), el('span', { className: 'pk-name', textContent: t.sling.word }))) : null,
+    t.sling ? el('div', { className: 'pk-group wide' }, el('h4', { textContent: 'On the sling' }), el('div', { className: 'pk-thing gun' }, el('span', { className: 'pk-dot gun' }), el('span', { className: 'pk-name', textContent: t.sling.word }))) : null,
     ...t.groups.map(g => el('div', { className: 'pk-group' }, tile(g))),
     t.empty ? el('p', { className: 'pk-none', textContent: 'Nothing issued: the utilities you stand in and what is in their pockets.' }) : null);
   const body = el('div', { className: 'glass pockets' },

@@ -36,7 +36,18 @@
 // the seen kind's enamel, with the aim glyph. Every term is the shooter's belief: the wind as read (or as the coach
 // called it), the zero as believed, the hold as set, the range as known on a line; the truth never reaches here. While
 // the rifle is being zeroed (shot.js zeroingOf) the zero term says the clicks dialled in this zero ("ZEROING ▲4 <2").
+// v0.0.20 (the build sheet v0.0.20 §1 items 13 and 14; feel FL-4 and FL-8): who speaks, and off the room. A 3 × 3 px ◉ stands over
+// the speaker's head for his line's spoken time (core/speech.js spokenMs, on the game clock: you, your number two, the instructor on
+// the catwalk), and a call of at most two words ("Clear!", "Up.", "Coming in!") stands in a balloon over him in the 5 × 7 alphabet
+// (art/kit/type.js GLYPHS57) for CALL_BALLOON_MS; both fade in and out over MARK_FADE_MS and are held by stop motion, as the frames
+// are (speakerMarks: pure, over the says heard and the game's ms). Placed by one rule (markPlace): within MARK_ABOVE_PX over the
+// speaker's head box, clear of every other figure's and stand's box. A plaque anchored to a target in the house slides off the room
+// (slideRect): to the nearest side where it covers no figure, no stand and no floor of the room you are in or about to enter (the
+// room's floor rect from the plan, projected), else to its reserved rect (layout.js RECTS.PLAQUE); keepOff(spec) sets the boxes
+// for the frame (main.js, in the house only), and place() obeys it for the plates that name a target (reticle, contact, parts, terms),
+// never a bracket, a stamp or the far window's. Off the house nothing is set, so every other scene's plaques are placed as before.
 import { glyphOf } from '../art/font.js';
+import { glyph57, width57 } from '../art/kit/type.js';
 import { GLOWS } from '../art/palette.js';
 
 /** The kinds: face, its lit edge, its shade, the letters, the glyph (VIEWS §9.1's table; tradecraft's tail and felt). */
@@ -233,8 +244,13 @@ export function place(el, p, x, y, k, anchor = 'tip', { ox = 0, oy = 0 } = {}) {
     el.$k = null;
   }
   if (el.$k !== k) { el.style.width = `${p.w * k}px`; el.style.height = `${p.h * k}px`; el.$k = k; }
-  const ax = anchor === 'tip' ? x - p.tip : anchor === 'right' ? x - p.w : anchor === 'centre' ? x - p.w / 2 : x;
-  const ay = anchor === 'tip' ? y - p.h : anchor === 'centre' ? y - p.h / 2 : y - Math.floor(p.h / 2);
+  let ax = anchor === 'tip' ? x - p.tip : anchor === 'right' ? x - p.w : anchor === 'centre' ? x - p.w / 2 : x;
+  let ay = anchor === 'tip' ? y - p.h : anchor === 'centre' ? y - p.h / 2 : y - Math.floor(p.h / 2);
+  // (off the room, in the house (keepOff), a plate naming a target slides; the brackets and stamps stand where they mark)
+  if (KEEP && SLIDES.test(el.className ?? '') && !NO_SLIDE.test(el.className ?? '')) {
+    const r = slideRect({ x: ax, y: ay, w: p.w, h: p.h }, KEEP.boxes, { bounds: KEEP.bounds, reserved: KEEP.reserved });
+    ax = r.x; ay = r.y; el.dataset.slid = r.how;
+  } else if (el.dataset?.slid) delete el.dataset.slid;
   el.style.transform = `translate(${Math.round(ox + Math.round(ax) * k)}px, ${Math.round(oy + Math.round(ay) * k)}px)`;
 }
 
@@ -581,3 +597,86 @@ export function chaosSum(mod, sn) {
   const v = Number(mod.v) || 0, head = `${mod.why} ${v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0'}`, sum = chaosArithmetic(sn);
   return sum ? `${head}: ${sum}` : head;
 }
+
+// ---- v0.0.20: who speaks, and off the room (see the header) ----
+/** The speaker's mark's size (picture px), a short call's longest, its balloon's time and the fade (ms; feel FL-4's). */
+export const SPEAKER_MARK_PX = 3, BALLOON_WORDS_MAX = 2, CALL_BALLOON_MS = 1200, MARK_FADE_MS = 120;
+/** A mark or balloon stands within this of the speaker's head box (picture px). */
+export const MARK_ABOVE_PX = 8;
+// (the plates that slide off the room, and those that never do)
+const SLIDES = /\b(reticle|contact|parts|terms)\b/, NO_SLIDE = /\b(bracket|stamp|farlabel|window)\b/;
+let KEEP = null;
+/** The frame's keep-off: { boxes: [{ x, y, w, h }] (picture px: figures, stands, the room's floor, the panel and the radio box), bounds, reserved } or null (off the house: nothing slides). */
+export function keepOff(spec) { KEEP = spec && Array.isArray(spec.boxes) ? spec : null; }
+/** Whether a line is a call for the balloon: at most BALLOON_WORDS_MAX words. */
+export const isCall = (text) => { const n = String(text ?? '').trim().split(/\s+/).filter(Boolean).length; return n > 0 && n <= BALLOON_WORDS_MAX; };
+const fadeK = (t, from, to) => clamp01(Math.min((t - from) / MARK_FADE_MS, (to - t) / MARK_FADE_MS));
+/**
+ * The speakers' marks at the game's ms (pure): [{ who, kind: 'balloon' | 'mark', text, k (0 to 1, the fade), fromMs, toMs }], the
+ * newest line a speaker's only. says: [{ who, text, atMs, spokenMs }] (the 'say' facts heard; spokenMs core/speech.js's). A call
+ * of at most two words is a balloon for CALL_BALLOON_MS, else the mark for its spoken time.
+ */
+export function speakerMarks(says, nowMs, { who = null } = {}) {
+  const last = new Map();
+  for (const x of says ?? []) if (x && x.who && Number.isFinite(x.atMs) && x.atMs <= nowMs && (!who || who.includes(x.who))) { const o = last.get(x.who); if (!o || x.atMs >= o.atMs) last.set(x.who, x); }
+  const out = [];
+  for (const x of last.values()) {
+    const call = isCall(x.text), toMs = x.atMs + (call ? CALL_BALLOON_MS : Math.max(MARK_FADE_MS * 2, Number(x.spokenMs) || 0));
+    if (nowMs > toMs) continue;
+    out.push({ who: x.who, kind: call ? 'balloon' : 'mark', text: call ? String(x.text).trim() : null, k: Math.round(fadeK(nowMs, x.atMs, toMs) * 1000) / 1000, fromMs: x.atMs, toMs });
+  }
+  return out;
+}
+/** The speaker's mark's pixels: a 3 × 3 ◉ (an ink ring, its centre amber), { w, h, data }. */
+export function markPixels() {
+  const b = pixelBuffer(SPEAKER_MARK_PX, SPEAKER_MARK_PX);
+  b.px(0, 0, 3, 3, INK); b.px(1, 1, 1, 1, AMBER);
+  return b;
+}
+/** A call's balloon: its words in the 5 × 7 alphabet on a pale face, an ink outline, a 2 px tail at its foot's middle, { w, h, data, tip }. */
+export function balloonPixels(text) {
+  const t = String(text ?? '').toUpperCase(), w = width57(t) + 6, h = 7 + 6 + 2, b = pixelBuffer(w, h);
+  b.px(0, 0, w, h - 2, INK); b.px(1, 1, w - 2, h - 4, STAMP_PALE);
+  b.clear(0, 0); b.clear(w - 1, 0); b.clear(0, h - 3); b.clear(w - 1, h - 3);
+  let x = 3;
+  for (const ch of t) { const g = glyph57(ch); g.forEach((row, j) => [...row].forEach((c, i) => { if (c === '1') b.px(x + i, 3 + j, 1, 1, INK); })); x += g[0].length + 1; }
+  const m = Math.floor(w / 2);
+  b.px(m - 1, h - 2, 2, 1, INK); b.px(m, h - 1, 1, 1, INK);
+  return { ...b, tip: m };
+}
+const meets = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+/**
+ * A mark's or balloon's place over a speaker (pure, picture px): its top-left { x, y } within MARK_ABOVE_PX over the head box
+ * (head: { x, y, w, h }), clear of every other box (others), trying the rows above the head then a step left or right; null where none is free.
+ */
+export function markPlace(head, size, others = []) {
+  const cx = head.x + head.w / 2;
+  for (let up = 1; up <= MARK_ABOVE_PX; up++) for (const dx of [0, -size.w / 2, size.w / 2, -size.w, size.w]) {
+    const r = { x: Math.round(cx - size.w / 2 + dx), y: Math.round(head.y - up - size.h), w: size.w, h: size.h };
+    if (!others.some(o => meets(r, o))) return { x: r.x, y: r.y };
+  }
+  return null;
+}
+/**
+ * A plate slid off the room (pure, any one unit): rect { x, y, w, h } as anchored; boxes the protected ones. Returns { x, y, how }: 'kept'
+ * where it covers none, else the nearest of its four sides clear of the boxes it met (above, below, left or right of their union, and
+ * of each one: 'slid'), inside bounds where given; failing all, the reserved rect ('reserved'), or where it stood with none ('stuck').
+ */
+export function slideRect(rect, boxes = [], { bounds = null, reserved = null, gap = 2 } = {}) {
+  const inB = (r) => !bounds || (r.x >= bounds.x && r.y >= bounds.y && r.x + r.w <= bounds.x + bounds.w && r.y + r.h <= bounds.y + bounds.h);
+  const free = (r) => inB(r) && !boxes.some(b => meets(r, b));
+  if (free(rect)) return { x: rect.x, y: rect.y, how: 'kept' };
+  const hit = boxes.filter(b => meets(rect, b)), U = hit.reduce((u, b) => ({ x0: Math.min(u.x0, b.x), y0: Math.min(u.y0, b.y), x1: Math.max(u.x1, b.x + b.w), y1: Math.max(u.y1, b.y + b.h) }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
+  const cands = [];
+  const sides = (u) => [{ ...rect, y: u.y0 - rect.h - gap }, { ...rect, y: u.y1 + gap }, { ...rect, x: u.x0 - rect.w - gap }, { ...rect, x: u.x1 + gap }];
+  cands.push(...sides(U));
+  for (const b of [...hit, ...boxes]) cands.push(...sides({ x0: b.x, y0: b.y, x1: b.x + b.w, y1: b.y + b.h }));
+  let best = null, bestD = Infinity;
+  for (const c of cands) { if (!free(c)) continue; const d = Math.hypot(c.x - rect.x, c.y - rect.y); if (d < bestD) { bestD = d; best = c; } }
+  if (best) return { x: best.x, y: best.y, how: 'slid' };
+  return reserved ? { x: reserved.x, y: reserved.y, how: 'reserved' } : { x: rect.x, y: rect.y, how: 'stuck' };
+}
+/** The speaker's mark on a canvas (markPixels' record with its canvas, its tip its middle). */
+export const speakerMark = () => keep('m|speaker', () => ({ ...markPixels(), tip: 1, words: 'speaking' }));
+/** A call's balloon on a canvas (balloonPixels' record with its canvas and its words). */
+export const balloon = (text) => keep(`c|${String(text ?? '').toUpperCase()}`, () => ({ ...balloonPixels(text), words: String(text ?? '') }));

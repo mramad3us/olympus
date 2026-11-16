@@ -254,6 +254,10 @@ import { paintWeaponCard } from './art/weaponcard.js';
 // (v0.0.18: the second gun carried, for the weapon card's strip: guns.js)
 import { otherGunView } from './sim/arms/guns.js';
 import { createBoot } from './ui/boot.js';
+// (the To score page and its runtime picks, the Esc menu's extra line, the shot a scene plays)
+import { parseLook, lookSet, readPicks, writePicks, topickCard, CORNER_AID_KEY, AID_SETTINGS } from './ui/cards/topick.js';
+import { setMenuExtras } from './ui/cards/menu.js';
+import { shotFor } from './data/sounds.js';
 import { applyScale, uiScale, rectsAt, placeFar, farTick, overlaps, flagToKeep, FLAG_KEEP_M, STATES as HUD_STATES } from './ui/hud/layout.js';
 import { createWatch } from './ui/hud/watch.js';
 import { createToasts } from './ui/hud/toasts.js';
@@ -295,6 +299,17 @@ import { loadoutOf, codeOf, loadoutView, reachSOf } from './sim/arms/loadout.js'
 import * as BUNDLE from './sim/combat/bundle.js';
 import { laneModel } from './ui/hud/timer.js';
 import { runSheetEl, hotWashEl, houseRunLine, houseAspects, houseEndLines } from './ui/cards/house.js';
+// (the card (the build sheet v0.0.20 §1 items 10, 13, 14, 20, 21, 25, 26): the runs kept and the next sheet, the session's
+// grid, the plan view over the debrief's model, who speaks and the plates off the room, the run's export)
+import { keepRun, againOrder, weakRoomOf } from './ui/cards/house-runs.js';
+import { createRunLog } from './ui/runlog.js';
+import { houseGrid, houseGridEl } from './ui/cards/house.js';
+import { housePlanEl } from './ui/cards/houseplan.js';
+import { debriefOf } from './sim/scenarios/house-debrief.js';
+import { speakerMarks, speakerMark, balloon, markPlace, keepOff } from './ui/plaque.js';
+import { spokenMs } from './core/speech.js';
+import { digest as digestOf } from './core/hash.js';
+import { WHEEL_S4 } from './data/places/wheel.js';
 import { hitFit } from './ui/hud/hitcard.js';
 import { breatheLead } from './ui/hud/instinct.js';
 import { isBreathe } from './ui/hud/steps.js';
@@ -350,6 +365,18 @@ const settings = {
   // (the rework's R8: the walk cycle, VIEWS §3.10.4: &cycle=A|B|C, else this browser's olympus.cycle, else the game's (B))
   cycle: params.cycle ?? (['A', 'B', 'C'].includes(readLocal('olympus.cycle')) ? readLocal('olympus.cycle') : null),
 };
+// (the build sheet v0.0.20 items 2, 7, 10 and 24: the To score page's picks, runtime only (state.$look, the shot, the voice, the walk,
+// state.$aid), this browser's (topick.js readPicks, olympus.cornerAid) unless the URL says (&look=, &shot=, &voice=, &cycle=), which wins;
+// none of them is ever saved, so a save replays byte for byte)
+const toPick = settings.nostore ? { v: 1, scores: {}, stars: [], flags: {} } : readPicks();
+const lookAsked = params.look ? parseLook(params.look) : null, lookUnknown = lookAsked?.unknown?.length ? lookAsked.unknown.join(', ') : null;
+Object.assign(settings, {
+  look: lookAsked ? lookAsked.look : toPick.flags.look ?? null,
+  shot: params.shot ?? toPick.flags.shot ?? null,
+  voice: params.voice ?? toPick.flags.voice ?? null,
+  aid: AID_SETTINGS.includes(readLocal(CORNER_AID_KEY)) ? readLocal(CORNER_AID_KEY) : 'rung',
+});
+if (lookAsked?.cycle && !params.cycle) settings.cycle = lookAsked.cycle;
 // (debug mode: an id map's cached sorted order checked against a fresh sort every 64th call, TECH §2.3.1)
 if (settings.debug) setIdsCheck(64);
 
@@ -512,6 +539,9 @@ fitInput();
 addEventListener('resize', fitInput);
 // (every error is told; sim.noteError writes only a tick's or a skip's into the state: a render's never touches it, TECH §3.7)
 loop = createLoop({ render, poll: () => { dropStartleMoves(); return input.snapshot(); }, bus, onError: (e, where) => { try { sim?.noteError(loop.state, e, where); } catch { /* (an error note that fails mustn't stop the game) */ } broke(e, where); } });
+// (the run's log is the loop's first fast layer, so it sees every tick's own input, the fast-forward's and the handle's
+// steps included: made before the sim registers its own, ui/runlog.js)
+const runLog = createRunLog(loop, { onError: (e, where) => broke(e, where) });
 sim = createSim({ loop, bus });
 const label = (a) => input.label(a);
 const instinct = createInstinct(hud, { label });
@@ -552,7 +582,7 @@ hud.append(keysHint);
 keysHint.append(el('kbd', { textContent: input.label('help') }), ' keys');
 
 // ---- the sound: made at boot, suspended; nothing plays before the first key or click ----
-const audio = createAudio({ profile: null, looks: { kitLook, earsOn: rangeKit.earsOn }, sound: params.sound });
+const audio = createAudio({ profile: null, looks: { kitLook, earsOn: rangeKit.earsOn }, sound: params.sound, shot: settings.shot, voice: settings.voice });
 // (the context's construction opens the device synchronously, over 200 ms: paid here behind the title, never on the first key)
 try { audio.prepare(); } catch (e) { console.warn('the sound was not prepared', e); }
 // (the saved volume and mute; ?nostore=1 neither reads nor writes the database, so a bench or a shot opens none)
@@ -589,7 +619,7 @@ const boot = createBoot({ cb: {
   scene: () => (scene ? { id: scene.rec.id, ended: !!scene.ended } : null),
   // (0.0.9, the fixer's: "reduce flashes" turned from the menu, kept in this browser unless nostore)
   flashes: () => settings.reduceFlashes,
-  setFlashes: (on) => { settings.reduceFlashes = !!on; if (!settings.nostore) { try { localStorage.setItem('olympus.flashes', on ? 'reduced' : 'full'); } catch { /* (a private window: this session only) */ } } },
+  setFlashes: (on) => { settings.reduceFlashes = !!on; view.setFlashes?.(settings.reduceFlashes); if (!settings.nostore) { try { localStorage.setItem('olympus.flashes', on ? 'reduced' : 'full'); } catch { /* (a private window: this session only) */ } } },
   // (R7: the step panel's layout, turned from the menu (A, B, C in turn) and kept in this browser unless nostore)
   panel: () => settings.panel,
   setPanel: (l) => { settings.panel = layoutOfWord(l); if (loop?.state) loop.state.$panel = settings.panel; if (!settings.nostore) { try { localStorage.setItem('olympus.panel', settings.panel); } catch { /* (a private window: this session only) */ } } },
@@ -618,7 +648,8 @@ const boot = createBoot({ cb: {
   // never reads), kept again on Kit up, and the screen's numbers from a fill of the lane with the code (loadout.js loadoutView))
   loadout: () => ({ code: loadoutOf(readLocal('olympus.loadout')).error ? 'standard' : codeOf(loadoutOf(readLocal('olympus.loadout'))),
     save: (c) => { if (!settings.nostore) { try { localStorage.setItem('olympus.loadout', c); } catch { /* (a private window: this session only) */ } } },
-    preview: (c, tier) => { try { const s = newGame({ seed: 48213, scene: 'test-shoothouse', scenario: 'test-shoothouse', tier, setup: 'go', loadout: c }); return loadoutView(s, s.player.id, loadoutOf(c)); } catch (e) { broke(e, 'the loadout'); return null; } },
+    // (the build sheet v0.0.20 item 23: the marine in the kit, the fill's own gear record and its dressed doll, beside the faces)
+    preview: (c, tier) => { try { const s = newGame({ seed: 48213, scene: 'test-shoothouse', scenario: 'test-shoothouse', tier, setup: 'go', loadout: c }), pid = s.player.id, gear = GEAR.gearOf(s, pid); return { ...loadoutView(s, pid, loadoutOf(c)), gear, gearKey: GEAR.gearKey(gear), doll: gear ? dressedDoll(gear, { look: s.people[pid]?.look, sex: s.people[pid]?.sex }) : null }; } catch (e) { broke(e, 'the loadout'); return null; } },
     wh: (tier) => TEMPLATES.TEST_SHEETS?.[tier]?.values?.weapons ?? 10 }),
   // (0.0.8: a scene played as a sheet: the picker's sheets and their order, react's templates.js)
   sheets: () => ({ sheets: TEMPLATES.TEST_SHEETS ?? {}, order: TEMPLATES.PICKER_TIERS ?? null, hard: hardOfSheet,
@@ -707,6 +738,8 @@ function launch(s, { from = null } = {}) {
   // (the runtime keys the sim reads, set where the state is made or loaded, before its first tick (the code review of
   // 2026-11-13: set only when the frame was drawn, the first ticks after a load ran on the defaults: the DI's keys, $gp))
   if (s) { s.$panel = settings.panel; if (settings.cycle) s.$cycle = settings.cycle; }
+  // (the To score page's picks ride the state, never saved: the look, the corner aid)
+  if (s) { if (lookSet(settings.look)) s.$look = settings.look; if (settings.aid !== 'rung') s.$aid = settings.aid; }
   loop.setState(s);
   loop.pause(false, 'player');
   hud.hidden = false;
@@ -714,6 +747,8 @@ function launch(s, { from = null } = {}) {
   if (s.skip) splash.start({ id: s.skip.id, activity: s.skip.activity, kind: s.skip.kind, engine: s.skip.engine, fromMs: s.clock.ms, toMs: s.skip.toMs, where: s.skip.where, posture: s.skip.posture, mask: s.skip.mask, spotId: s.skip.spotId ?? null, chunkMs: s.skip.chunkMs ?? 0 }, splashContext(s, s.skip));
   const rec = sceneOf(s);
   scene = rec ? { rec, seed: s.meta.seed, ended: false, shown: false } : null;
+  // (the build sheet v0.0.20 §0 item 21: the shot each scene plays: the URL's or the To score pick, else A3 in the house's scenes, else A1)
+  try { audio.setShot(shotFor(rec?.id ?? s.meta?.scenario, settings.shot)); } catch (e) { broke(e, 'the sound'); }
   // (0.0.12: the shoot house's goal names your number two: the scene's houseGoal)
   let goal = rec?.goal ?? null;
   if (goal && s.armoury?.range?.course === 'house' && houseScene.houseGoal) { try { goal = houseScene.houseGoal(s) ?? goal; } catch (e) { broke(e, 'the goal'); } }
@@ -883,6 +918,8 @@ bus.on('door', (f) => { try { audio.door(f, loop.state); } catch (e) { broke(e, 
 // (the weapon mode's facts: the voices to the radio box and the tower's chime, the steps' ticks and clicks, the shot's report, the range's faults and strings)
 bus.on('say', (f) => {
   radio.say(f, loop.state);
+  // (who speaks, for the speaker's mark and a call's balloon over his head (speakerHud), in the house only)
+  if (loop.state?.armoury?.range?.course === 'house' && f?.who && f.text) { speech.push({ who: f.who, text: String(f.text), atMs: loop.state.clock.ms, spokenMs: spokenMs(f.text) }); if (speech.length > SPEECH_KEPT) speech.splice(0, speech.length - SPEECH_KEPT); }
   // (0.0.10: the coach's "Bang!" is a shout, captioned (VIEWS §11.4): the radio box has his words, the toast what it sounded like)
   if (loop.state?.armoury?.range?.stress && /^Bang!/.test(String(f?.text ?? ''))) toast(`[a shout: ${String(f.text).trim()}]`, 'warn');
   try { audio.fact('say', f, loop.state); } catch (e) { broke(e, 'the sound'); }
@@ -1414,36 +1451,136 @@ function actWordsOf(act, steps) {
   return [row.label, row.lane ?? null, secs].filter(Boolean).join(' · ');
 }
 /** The shoot house's end card: the run sheet's card line and the instructor's one thing, the aspects, the session's runs, the run sheet and the hot wash beside it. */
+// (the card: the verdict leads; the run kept in this browser (house-runs.js keepRun: bests and GOs on the picker); after a GO
+// "Again as" leads with the next sheet up, after a NO-GO "Again from room n" (the weak room's setup); the session's sheets side by side
+// (houseGrid) from the second; the plan view beside the run sheet (houseplan.js over house-debrief.js debriefOf), a stand clicked
+// opening its truth card under it (hitModelOf(s, key, k, 'truth'), k the leg's index); "Export the run" (the run's log, runLog))
 function openHouseEnd(rec, seed) {
   const s = loop.state, hn = houseRead(s), sheets = TEMPLATES.TEST_SHEETS ?? {};
   let rs = null, hw = null;
   try { rs = houseScene.runSheetOf ? houseScene.runSheetOf(s) : null; } catch (e) { broke(e, 'the run sheet'); }
   try { hw = houseScene.hotWashOf ? houseScene.hotWashOf(s) : null; } catch (e) { broke(e, 'the hot wash'); }
   const played = hn?.tier ?? s?.armoury?.range?.house?.tier ?? null, label = played ? sheets[played]?.label ?? played : null;
-  let runs = [];
+  const verdict = rs?.verdict ?? null, H = s?.armoury?.range?.house ?? null;
+  let runs = [], grid = null;
   if (played) {
     const key = `${rec.id}|${seed}`, m = sessionHouse.get(key) ?? new Map();
-    m.set(played, houseRunLine(hn, { fmt: takeInWords, label }));
+    m.set(played, { text: houseRunLine(hn, { fmt: takeInWords, label }), label, legs: hn?.legs ?? [] });
     sessionHouse.set(key, m);
-    runs = [...m.entries()].filter(([, t]) => t).map(([t, text]) => ({ text, now: t === played }));
+    runs = [...m.entries()].filter(([, v]) => v?.text).map(([t, v]) => ({ text: v.text, now: t === played }));
+    if (m.size > 1) { try { grid = houseGridEl(houseGrid([...m.entries()].map(([t, v]) => ({ label: v.label, legs: v.legs, now: t === played })))); } catch (e) { broke(e, 'the grid'); } }
+    // (the run kept once, when the card first opens on it (the score card comes back here: never twice))
+    if (verdict && verdict.go !== null && runKept !== s) { runKept = s; try { keepRun(globalThis.localStorage, { scene: rec.id, sheet: played, loadout: H?.loadout ?? null, seed, laneMs: hn?.timerMs ?? null, go: verdict.go, why: verdict.why, version: VERSION }); } catch (e) { broke(e, 'the runs kept'); } }
   }
-  let side = null;
+  let side = null, planEl = null;
   try {
-    const said = new Set([...(rs?.rows ?? []).map(r => r.words), typeof rs?.one === 'string' ? rs.one : rs?.one?.text].filter(Boolean));
+    const said = new Set([...(rs?.rows ?? []).map(r => r.words), ...(rs?.would ?? []), typeof rs?.one === 'string' ? rs.one : rs?.one?.text, rs?.team?.words, verdict?.words].filter(Boolean));
     const stand = new Map((hn?.turners ?? []).map(T => [T.key, T.stand]));
-    const sheetEl = runSheetEl(rs), washEl = hotWashEl(hw, { fmt: takeInWords, skip: said, nameOf: (k) => stand.get(k) ?? k });
-    if (sheetEl || washEl) { side = document.createElement('div'); side.className = 'house-side'; side.append(...[sheetEl, washEl].filter(Boolean)); }
+    const sheetEl = runSheetEl(rs, { bars: hw?.bars ?? null }), washEl = hotWashEl(hw, { fmt: takeInWords, skip: said, nameOf: (k) => stand.get(k) ?? k });
+    // (the plan view: the debrief's model; a stand clicked opens its truth card in the slot under the plan)
+    const d = debriefOf(s), slot = document.createElement('div');
+    slot.className = 'plan-truth';
+    // (with the plan the hot wash stands down: its lines are the run sheet's, its bars the scrubber's lanes (card C2))
+    const plan = d && d.tracks.ms.length ? housePlanEl(d, { winW: innerWidth, winH: innerHeight, onStand: (key) => {
+      try {
+        const T = s.armoury.range.turners.find(x => x.key === key), k = T ? (T.stand === 'H' ? 3 : Number(T.stand[0]) - 1) : 0;
+        const model = hitModelOf(s, key, k, 'truth');
+        slot.replaceChildren(...(model ? [hotWash([{ k, model }], { paint: paintHitcard, fit: hitFit(uiK, globalThis.devicePixelRatio ?? 1) })] : []));
+        slot.dataset.stand = T?.stand ?? '';
+      } catch (e) { broke(e, 'the truth card'); }
+    } }) : null;
+    planEl = plan?.el ?? null;
+    if (planEl) { planEl.append(slot); report.plan = { faults: Number(planEl.dataset.faults) || 0, seek: (t) => plan.seek(t), get ms() { return plan.ms; }, get stand() { return slot.dataset.stand ?? null; }, frame: plan.frame }; }
+    if (sheetEl || washEl || planEl) { side = document.createElement('div'); side.className = `house-side${planEl ? ' with-plan' : ''}`; side.append(...[planEl, sheetEl, planEl ? null : washEl].filter(Boolean)); }
   } catch (e) { broke(e, 'the run sheet'); }
-  const again = againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null);
-  const par = s?.armoury?.range?.house?.par ?? null;
-  const { body, lines } = endCard({ scene: rec, seed, said: houseEndLines(hn, rs), sheet: label, runs, cards: side, aspects: houseAspects(hn, { fmt: takeInWords }), again, on: {
-    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout: s?.armoury?.range?.house?.loadout ?? null }),
+  const order = Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? [];
+  const again = againOrder(againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null), { go: verdict?.go === true, played, sheets: order }).map((a, i) => (verdict?.go && i === 0 && order.indexOf(a.tier) === order.indexOf(played) + 1 ? { ...a, up: true, why: `you are a GO as ${label}` } : a));
+  const from = verdict?.go === false ? weakRoomOf(hn?.legs ?? []) : null;
+  const par = s?.armoury?.range?.house?.par ?? null, loadout = s?.armoury?.range?.house?.loadout ?? null;
+  const { body, lines } = endCard({ scene: rec, seed, said: houseEndLines(hn, rs), sheet: label, runs, cards: side, grid, aspects: houseAspects(hn, { fmt: takeInWords }), again, verdict,
+    from: from?.setup ? from : null, exportRun: !!runLogOf(s), on: {
+    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout }),
     againAs: (t) => againAs(rec, t),
+    from: (setup) => playScene(rec, { seed, tier: played, par, setup, loadout }),
+    exportRun: () => exportRun(rec, s),
     score: () => openScore(),
     title: () => quitToTitle(),
   } });
   boot.openCard('end', body, lines);
 }
+// (the state the end card last kept a run for: the score card's way back never keeps it twice)
+let runKept = null;
+
+// ---- v0.0.20: the run's log, its export, who speaks and the plates off the room ----
+/** The run's log for a state, or null (ui/runlog.js: none kept, the log full, or no save at GO). */
+const runLogOf = (s) => runLog.of(s);
+/** "Export the run": { game, version, scene, seed, sheet, par, loadout, atGo, inputs, steps, runtime, sheetHash, digest } as a JSON file. */
+function exportRun(rec, s) {
+  const r = runLogOf(s);
+  if (!r) { toast('No run to export: it was not kept from GO.', 'warn'); return; }
+  const H = s.armoury.range.house;
+  let sheetHash = r.endSheet ?? null;
+  if (!sheetHash) try { sheetHash = digestOf(JSON.stringify(houseScene.runSheetOf(s))); } catch (e) { broke(e, 'the export'); }
+  const out = { game: 'olympus', kind: 'house-run', version: VERSION, scene: rec.id, seed: s.meta.seed, sheet: H.tier, par: H.parSet ?? null, loadout: H.loadout ?? null,
+    atGo: r.atGo, inputs: r.inputs, steps: r.endN ?? r.n, runtime: r.runtime, sheetHash, digest: r.endDigest ?? digestOf(toJSON(s)) };
+  try { toast(`Run exported to ${store.exportFile(JSON.stringify(out), `olympus-run-${rec.id}-${H.tier}-${s.meta.seed}.json`)}.`); } catch (e) { broke(e, 'the export'); }
+  return out;
+}
+/** What was played, for the score line (score.js playedWords): the panel's layout, the walk, the look (the page's runtime settings). */
+// (the shot and the voice from the engine that plays them (audio.shot, audio.voiceSet), as the debug handle's picks() reads them:
+// v0.0.20's fixer, the code review: s.$shot and s.$voice were read here and written nowhere, so no score line said them)
+const playedNow = (s) => (s?.armoury?.range?.course === 'house' ? { panel: s.$panel ? String(s.$panel).toUpperCase() : null, walk: s.$cycle ?? null, look: s.$look ?? null, shot: audio.shot ?? null, voice: audio.voiceSet ?? null } : null);
+
+/** The says heard in the house (the 'say' facts: who, text, atMs, spokenMs), for the speaker's marks; the newest SPEECH_KEPT. */
+const speech = [], SPEECH_KEPT = 24;
+const speakerEls = [];
+/** Who speaks now, over his head (plaque.js speakerMarks and markPlace; feel FL-4): you, your number two, the instructor. */
+function speakerHud(s, { hidden = false } = {}) {
+  const H = !hidden && s?.armoury?.range?.course === 'house' ? s.armoury.range.house : null;
+  const hide = (from = 0) => { for (let i = from; i < speakerEls.length; i++) speakerEls[i].hidden = true; };
+  if (!H || !stage.cam?.project) { if (!H) speech.length = 0; return hide(); }
+  const who = [s.player.id, H.twoPid, H.chiefPid].filter(Boolean), marks = speakerMarks(speech, s.clock.ms, { who });
+  const { ox, oy, k } = pictureBox(), boxes = figureBoxes(s);
+  let n = 0;
+  for (const m of marks) {
+    const a = s.actors?.list?.find(x => x.who === m.who);
+    if (!a) continue;
+    const [hx, hy] = stage.cam.project(a.x, 1.8, a.z), head = { x: hx - 0.3 * PX_PER_M, y: hy, w: 0.6 * PX_PER_M, h: 0.4 * PX_PER_M };
+    const p = m.kind === 'balloon' ? balloon(m.text) : speakerMark(), at = markPlace(head, { w: p.w, h: p.h }, boxes.filter(b => b.who !== m.who));
+    if (!at) continue;
+    const e = speakerEls[n] ?? (speakerEls[n] = Object.assign(document.createElement('canvas'), { className: `plaque speaker${m.kind === 'balloon' ? ' call' : ''}`, hidden: true }));
+    if (!e.parentNode) hud.append(e);
+    e.className = `plaque speaker${m.kind === 'balloon' ? ' call' : ''}`;
+    place(e, p, at.x + p.tip, at.y + p.h, k, 'tip', { ox, oy });
+    e.style.opacity = String(m.k);
+    e.dataset.who = m.who === s.player.id ? 'me' : m.who === H.twoPid ? 'two' : 'chief';
+    e.hidden = false;
+    n++;
+  }
+  hide(n);
+}
+/** The figures' and stands' boxes in the picture's pixels ({ x, y, w, h, who }): the men from foot to head 0.7 m wide, the stands 0.6 m. */
+function figureBoxes(s) {
+  const R = s.armoury?.range, out = [];
+  for (const a of s.actors?.list ?? []) { if (!a.who) continue; const [fx, fy] = stage.cam.project(a.x, 0, a.z), [, hy] = stage.cam.project(a.x, 1.85, a.z); out.push({ x: fx - 0.35 * PX_PER_M, y: Math.min(hy, fy), w: 0.7 * PX_PER_M, h: Math.abs(fy - hy) + 1, who: a.who }); }
+  for (const T of R?.turners ?? []) { const [fx, fy] = stage.cam.project(T.x, 0, T.z), [, hy] = stage.cam.project(T.x, 1.8, T.z); out.push({ x: fx - 0.3 * PX_PER_M, y: Math.min(hy, fy), w: 0.6 * PX_PER_M, h: Math.abs(fy - hy) + 1, who: T.key }); }
+  return out;
+}
+/** The plates off the room (plaque.js keepOff; feel FL-8), in the house while the lane runs: the figures, the stands, the floor of the room you are in or about to enter, the panel and the radio box; null elsewhere. */
+function houseKeepOff(s, { hidden = false } = {}) {
+  const H = !hidden && s?.armoury?.range?.course === 'house' ? s.armoury.range.house : null;
+  if (!H || H.goAtMs === null || H.end || !stage.cam?.project) { keepOff(null); return; }
+  try {
+    const { ox, oy, k } = pictureBox(), boxes = figureBoxes(s), L = houseScene.curLeg(H), room = L ? roomRect(L.room) : null;
+    if (room) { const [ax, ay] = stage.cam.project(room[0], 0, room[1]), [bx, by] = stage.cam.project(room[2], 0, room[3]); boxes.push({ x: Math.min(ax, bx), y: Math.min(ay, by), w: Math.abs(bx - ax), h: Math.abs(by - ay), who: 'room' }); }
+    const r = rectsAt(innerWidth, innerHeight, 'weapon'), toPic = (q) => ({ x: (q.x - ox) / k, y: (q.y - oy) / k, w: q.w / k, h: q.h / k });
+    for (const name of ['STEPS', 'RADIO']) if (r[name]) boxes.push({ ...toPic(r[name]), who: name });
+    keepOff({ boxes, bounds: { x: 0, y: 0, w: stage.W, h: stage.H }, reserved: r.PLAQUE ? toPic(r.PLAQUE) : null });
+    report.keepOff = { boxes: boxes.length, ox, oy, k };
+  } catch (e) { keepOff(null); broke(e, 'the plates off the room'); }
+}
+// (a room's floor rect (m) by its id, from the house's area (the Wheel's sector 4))
+const roomRect = (id) => (WHEEL_S4.rooms ?? []).find(r => r.id === id)?.rect ?? null;
 /** "Again as …" a sheet on the same seed (the scene's againAs: the same targets at the same gaps). */
 function againAs(rec, tier) {
   // (0.0.12: the shoot house's own, the same draws on the seed; the par kept where it was chosen)
@@ -1460,7 +1597,8 @@ function againAs(rec, tier) {
 }
 function openScore() {
   if (!scene) return;
-  const { body, lines } = scoreCard({ scene: scene.rec, version: VERSION, seed: scene.seed, onCopy: copyText, onDone: () => openEnd() });
+  // (the line names what was played, in the house: the panel, the walk, the look (D's page adds the shot and the voice))
+  const { body, lines } = scoreCard({ scene: scene.rec, version: VERSION, seed: scene.seed, onCopy: copyText, onDone: () => openEnd(), played: playedNow(loop.state) });
   boot.openCard('score', body, lines);
 }
 
@@ -1578,11 +1716,15 @@ function render(alpha, s, info) {
   // (R pressed once where it would wait: the line asks for it again, for HAND_AGAIN_MS)
   if (handArmedAt !== null && (performance.now() - handArmedAt > HAND_AGAIN_MS || hand?.verb !== 'wait')) handArmedAt = null;
   // (stop motion, the build sheet 0.0.5 §2.4: the step panel or the reflex card, PAPER, the plaque; the radio box in every state but a splash)
+  // (in the house, the plates off the room: the boxes they keep off, set before any is placed (houseKeepOff))
+  houseKeepOff(s, { hidden: inSplash });
   const weapon = weaponHud(s, alpha, { hidden: inSplash });
   // (0.0.8: the take-in's brackets and the pause's stamp; the coach's timer's paper on the pairs pad)
   const contact = contactHud(s, alpha, { hidden: inSplash });
   const froze = frozeHud(s, { hidden: inSplash });
   const timer = timerHud(s, { hidden: inSplash });
+  // (who speaks, over his head)
+  speakerHud(s, { hidden: inSplash || !!boot.card });
   // (0.0.10: the hit card on the stress course)
   const hit = hitHud(s, { hidden: inSplash, inStop: weapon.on });
   radio.frame(dtMs, !info.paused && !boot.card && !shown && !isHeld(s));
@@ -2203,6 +2345,36 @@ async function bench(name) {
   boot.openCard('bench', benchCard(result, { onCopy: copyText, onAgain: () => location.reload() }));
   return result;
 }
+// ---- v0.0.20: the Esc menu's To score page (the build sheet item 10; cards/topick.js) ----
+view.setFlashes?.(settings.reduceFlashes);
+setMenuExtras(() => (loop.state ? [['To score: try the samples live', () => openToScore(), null]] : []));
+/** The To score page over the game: each row's choice applied at once (the look, the walk, the shot, the voice, the corner aid). */
+function openToScore() {
+  const s = loop.state, look = settings.look ?? { stack: [], helm: null, jamb: null };
+  const keep = (p) => { if (!settings.nostore) writePicks({ ...p, flags: { look: settings.look, shot: settings.shot, voice: settings.voice } }); };
+  const apply = (row, v) => {
+    const st = loop.state;
+    if (row === 'stack' || row === 'helm' || row === 'jamb') {
+      settings.look = { ...(settings.look ?? { stack: [], helm: null, jamb: null }), [row]: v };
+      if (st) { if (lookSet(settings.look)) st.$look = settings.look; else delete st.$look; }
+    } else if (row === 'walk') {
+      settings.cycle = v; view.setCycle?.(v); if (st) st.$cycle = v;
+      if (!settings.nostore) { try { localStorage.setItem('olympus.cycle', v); } catch { /* (a private window: this session only) */ } }
+    } else if (row === 'shot') { settings.shot = v; audio.setShot(v); }
+    else if (row === 'voice') { settings.voice = v; audio.setVoice(v); }
+    else if (row === 'aid') {
+      settings.aid = v; if (st) { if (v === 'rung') delete st.$aid; else st.$aid = v; }
+      if (!settings.nostore) { try { localStorage.setItem(CORNER_AID_KEY, v); } catch { /* (a private window: this session only) */ } }
+    }
+    keep(card.picks);
+  };
+  const card = topickCard({
+    now: { look, walk: settings.cycle ?? 'B', shot: audio.shot === 'old' ? null : audio.shot, voice: audio.voiceSet, aid: settings.aid },
+    picks: toPick, play: { scene: scene?.rec?.id ?? s?.meta?.scenario ?? '?', seed: s?.meta?.seed ?? '?', version: VERSION },
+    cb: { apply, save: (p) => { Object.assign(toPick, p); keep(p); }, copy: (t) => copyText(t), back: () => boot.openMenu() },
+  });
+  boot.openCard('topick', card.body, card.lines);
+}
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch { /* (no clipboard permission: the old way) */ }
   try {
@@ -2352,6 +2524,8 @@ installDebug(createDebugHandle({
   scores: () => readScores(),
   // (the weapon mode's readers, the build sheet 0.0.5 §2.4: the gun's truth beside its belief, the panel, the plaque, the range, stop motion)
   arms: {
+    // (the To score page's picks as played: the shot and the voice the engine plays, the walk, the look, your #2's drawn look's key)
+    picks: () => ({ shot: audio.shot, voice: audio.voiceSet, cycle: settings.cycle ?? null, look: settings.look ?? null, aid: settings.aid, twoLook: view.stats.twoLook ?? null, voices: { ...audio.stats.voice } }),
     gun: (s) => {
       const id = s.stop?.gun ?? s.people?.[s.player?.id]?.kit?.worn?.sling ?? null;
       return id && s.items?.[id] ? { id, truth: JSON.parse(JSON.stringify(s.items[id])), belief: beliefOf(s, id) } : null;
@@ -2387,7 +2561,7 @@ loop.start();
 // (said once the start is made: launch clears the toasts)
 // (0.0.18: &loadout=, a preset or a code (loadout.js); an unknown one dropped with its toast as &env= is)
 const loadoutParam = params.loadout && !loadoutOf(params.loadout).error ? codeOf(loadoutOf(params.loadout)) : null, loadoutUnknown = params.loadout && !loadoutParam ? params.loadout : null;
-const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); if (loadoutUnknown) toast(`No loadout '${loadoutUnknown}': the standard instead.`, 'warn'); };
+const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); if (lookUnknown) toast(`No look '${lookUnknown}': the game's instead.`, 'warn'); if (loadoutUnknown) toast(`No loadout '${loadoutUnknown}': the standard instead.`, 'warn'); };
 if (benchName) { await bench(benchName).catch((e) => broke(e, 'the bench')); sayEnv(); }
 else if (params.play) {
   const rec = SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play);

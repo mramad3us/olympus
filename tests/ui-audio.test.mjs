@@ -69,7 +69,9 @@ import { hornVoice, blankVoice, nearPan, createStress } from '../src/ui/audio/st
 import { STRESS, HORN_SOURCE_DB, HORN_EARS_DB, HORN_EARS_LP_HZ, HORN_HZ, HORN_S, BREATHE_DB } from '../src/data/sounds.js';
 import { airAt, gravityAt } from '../src/sim/places/env.js';
 // (0.0.12: the shoot house's ear: audio/house.js, the hall's impulse (engine.js), HOUSE's recipes)
-import { houseVoice, inHouse, createHouse, PA_DIST_M } from '../src/ui/audio/house.js';
+import { houseVoice, inHouse, createHouse, PA_DIST_M, HOLD_MS, HOLD_WORD_MS } from '../src/ui/audio/house.js';
+import { SAY_MS, SAY_WORD_MS } from '../src/sim/scenarios/handling.js';
+import { DOOR_STOP_DB, DOOR_PUSH_STOP_DB, DOOR_REBOUND_DB } from '../src/data/sounds.js';
 import { hallImpulse } from '../src/ui/audio/engine.js';
 import { createGame } from './game.mjs';
 import { HOUSE, HALL, TIMER_HZ, HARNESS_HZ, HARNESS_S, SUIT_EARS_DB, PA_VOICE_DB, WHISPER_DB } from '../src/data/sounds.js';
@@ -700,6 +702,63 @@ export default [
       assert(Math.abs(m.timerGo.centroidHz - TIMER_HZ) < 700 && Math.abs(m.harnessTone.centroidHz - HARNESS_HZ) < 120 && HOUSE.harnessTone.durS === HARNESS_S, JSON.stringify([m.timerGo.centroidHz, m.harnessTone.centroidHz]));
       assert(m.doorKick.peakDb > m.doorPush.peakDb && m.doorKick.centroidHz < m.doorPush.centroidHz && m.whisperReady.peakDb < m.paGo.peakDb && m.suitScuff.durS < 0.1, 'the doors, the voices');
       assert(Object.values(m).every(x => x.same) && Object.values(m).filter(x => x.differs !== undefined).every(x => x.differs), 'deterministic, variants differ');
+    },
+  },
+  // ---- v0.0.20 (the build sheet v0.0.20 items 7 and 15) ----
+  {
+    name: 'a door\'s sound follows its leaf (the build sheet v0.0.20 item 15): the kick\'s boom at the door fact\'s leafAtMs (the boot\'s strike, its hand\'s time after the fact) and the leaf\'s knock on its stop at stopAtMs, 220 ms after the boom at DOOR_S 0.4 s, a softer one at the rebound\'s return; a push\'s knock 6 dB under; a pull none; a fact without them as v0.0.19',
+    fn() {
+      const played = [];
+      const H = createHouse({ house: (kind, o) => { played.push({ kind, d: Math.round((o.delayS ?? 0) * 1000), db: Math.round(o.gainDb * 10) / 10 }); return true; }, hall: () => {} });
+      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go' }); g.step(1);
+      const s = g.state, now = s.clock.ms, openMs = 400, handMs = 1200;
+      const at = { x: 29, z: 12 };
+      const run = (f) => { played.length = 0; H.door({ state: 'open', ...at, ...f }, s); return played.map(p => ({ ...p })); };
+      const kick = run({ how: 'kick', leafAtMs: now + handMs, stopAtMs: now + handMs + 0.55 * openMs });
+      const push = run({ how: 'push', leafAtMs: now + 200, stopAtMs: now + 200 + openMs });
+      const pull = run({ how: 'pull', leafAtMs: now + 500, stopAtMs: now + 500 + openMs });
+      const old = run({ how: 'kick' });
+      const show = (xs) => xs.map(p => `${p.kind} +${p.d} ms ${p.db} dB`).join(', ');
+      console.log(`      kick: ${show(kick)}; push: ${show(push)}; pull: ${show(pull)}; a kick with no leafAtMs (v0.0.19's fact): ${show(old)}`);
+      const boom = kick.find(p => p.kind === 'doorKick'), knocks = kick.filter(p => p.kind === 'doorStop');
+      assert(boom?.d === handMs && knocks.length === 2 && knocks[0].d - boom.d === 220 && knocks[1].d === handMs + openMs && knocks[1].db < knocks[0].db, JSON.stringify(kick));
+      const pk = push.filter(p => p.kind === 'doorStop');
+      assert(push[0].kind === 'doorPush' && push[0].d === 0 && pk.length === 1 && pk[0].d === 600 && Math.abs(pk[0].db - knocks[0].db - (DOOR_PUSH_STOP_DB - DOOR_STOP_DB)) < 0.05, JSON.stringify(push));
+      assert(pull.length === 1 && pull[0].kind === 'doorPull' && old.length === 1 && old[0].kind === 'doorKick' && old[0].d === 0 && DOOR_REBOUND_DB < DOOR_STOP_DB, JSON.stringify({ pull, old }));
+    },
+  },
+  {
+    name: 'the house speaks every line (the build sheet v0.0.20 item 7): with words, each \'say\' goes to its speaker\'s voice (the instructor on the PA, the #2 at his place, you in your helmet, a role-player at his) and register (the stack\'s "Ready." whispered, "Clear!" shouted, the PA plain), the stand-ins give way (GO keeps its beep); one speaker queued, never over himself, a line past its hold dropped; V-a keeps v0.0.19\'s stand-ins with the Standby rule fixed ("Lane A. Standby." was silent); the hold is handling.js durOf\'s',
+    fn() {
+      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go' }); g.step(1);
+      const s = g.state, me = s.player.id, H = s.armoury.range.house, chief = s.armoury.range.coachId;
+      let nowS = 10;
+      const said = [], cues = [];
+      const ear = createHouse({ house: (kind) => { cues.push(kind); return true; }, hall: () => {}, voice: (text, o) => { said.push({ text, ...o }); return true; }, now: () => nowS });
+      const facts = [['house', { phase: 'go' }], ['say', { who: chief, text: 'GO!', kind: 'pa', durMs: 3830 }], ['say', { who: H.twoPid, text: 'Ready.', kind: 'speech', durMs: 3830 }], ['say', { who: me, text: 'Clear!', kind: 'speech', call: 'clear', durMs: 600 }],
+        ['say', { who: H.twoPid, text: 'Covering!', kind: 'speech', durMs: 200 }], ['say', { who: 'p:man', text: "Don't shoot!", kind: 'speech', durMs: 4160 }], ['house', { phase: 'stacked', who: H.twoPid }], ['house', { phase: 'stop' }]];
+      for (const [t, f] of facts) ear.fact(t, f, s);
+      console.log(`      said: ${said.map(x => `${x.voice}/${x.register} "${x.text}" at ${x.atS} s`).join('; ')}; the cues ${cues.join(', ')}`);
+      const by = (t) => said.find(x => x.text === t);
+      assert(by('GO!')?.voice === 'pa' && by('Ready.')?.voice === 'two' && by('Ready.').register === 'whisper' && by('Clear!')?.voice === 'me' && by('Clear!').register === 'shout' && by("Don't shoot!")?.voice === 'man', JSON.stringify(said));
+      assert(by('Covering!')?.atS > by('Ready.').atS && cues.join() === 'timerGo', JSON.stringify({ cues, said }));
+      // (his queue: three lines at once, each after the one before; one past its hold dropped)
+      said.length = 0; nowS = 100;
+      for (const t of ['Up.', 'Covering!', 'Gun down!']) ear.fact('say', { who: H.twoPid, text: t, kind: 'speech', durMs: 200 }, s);
+      const long = 'This line is long enough to hold the speaker for ten seconds and a bit more than that, so the next is dropped for its hold.';
+      ear.fact('say', { who: chief, text: long, kind: 'pa', durMs: 1000 }, s);
+      const dropped = ear.stats.voice.dropped;
+      for (let i = 0; i < 3; i++) ear.fact('say', { who: chief, text: 'Shooter, stand still.', kind: 'pa', durMs: 1000 }, s);
+      const ts = said.map(x => x.atS);
+      console.log(`      his three at once start ${ts.slice(0, 3).join(', ')} s; the instructor's long line then three short ones: said ${said.length - 3}, dropped ${ear.stats.voice.dropped - dropped}; overlaps ${ear.stats.voice.overlaps}`);
+      assert(ts[0] === 100 && Math.abs(ts[1] - 100.55) < 1e-9 && Math.abs(ts[2] - 101.1) < 1e-9 && ear.stats.voice.overlaps === 0, JSON.stringify(ts));
+      assert(ear.stats.voice.dropped - dropped >= 1, JSON.stringify(ear.stats.voice));
+      // (V-a: the stand-ins, the Standby rule fixed)
+      const cuesA = [], A = createHouse({ house: (kind) => { cuesA.push(kind); return true; }, hall: () => {}, voice: () => true, now: () => 0 }, { voice: 'a' });
+      for (const t of ['Lane A. Standby.', 'Standby.']) A.fact('say', { who: chief, text: t, kind: 'pa' }, s);
+      A.fact('house', { phase: 'go' }, s);
+      console.log(`      V-a: ${cuesA.join(', ')}; the hold ${HOLD_MS} + ${HOLD_WORD_MS} a word (handling.js ${SAY_MS} + ${SAY_WORD_MS})`);
+      assert(cuesA.join() === 'paStandby,paStandby,paGo,timerGo' && HOLD_MS === SAY_MS && HOLD_WORD_MS === SAY_WORD_MS, cuesA.join());
     },
   },
 ];

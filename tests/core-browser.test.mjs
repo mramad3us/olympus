@@ -1571,14 +1571,21 @@ export default [
         assert(ended, 'the scene\'s bot reaches the end');
         await page.keyboard.press('Enter');
         await page.waitForSelector('.glass.end', { timeout: 30000 });
-        const end = await page.evaluate(() => ({ said: [...document.querySelectorAll('.glass.end .said')].map(p => p.textContent), sheet: document.querySelector('.runsheet')?.dataset.text ?? null, wash: document.querySelector('.house-wash')?.dataset.text ?? null, again: [...document.querySelectorAll('.glass.end .again-as')].map(b => b.textContent) }));
+        const end = await page.evaluate(() => ({ said: [...document.querySelectorAll('.glass.end .said')].map(p => p.textContent), sheet: document.querySelector('.runsheet')?.dataset.text ?? null, wash: document.querySelector('.house-wash')?.dataset.text ?? null, plan: !!document.querySelector('.houseplan'), again: [...document.querySelectorAll('.glass.end .again-as')].map(b => b.textContent) }));
         rows.push(`the end card: '${end.said.join(' | ')}'; the run sheet '${end.sheet}'; the hot wash '${end.wash?.slice(0, 160)}…'; ${end.again.length} "Again as …"`);
-        assert(end.sheet && end.wash && /^LANE A · TIER ONE/.test(end.said[0] ?? '') && end.again.length === 5, JSON.stringify(end));
+        // (v0.0.20, the build sheet's items 20 and 26: the card's head opens with the instructor's verdict, "GO · LANE A · …", and
+        // with the plan view the hot wash stands down beside the run sheet, its lines the sheet's, its bars the scrubber's lanes)
+        assert(end.sheet && (end.wash || end.plan) && /^(GO|NO-GO) · LANE A · TIER ONE/.test(end.said[0] ?? '') && end.again.length === 5, JSON.stringify(end));
         await page.keyboard.press('Digit3');
         await page.waitForSelector('.glass.score', { timeout: 10000 });
         const line = await page.evaluate(() => document.querySelector('.glass.score .score-line').value);
         rows.push(`the score line: '${line}'`);
-        assert(/^OLYMPUS v\d+\.\d+\.\d+ · test-shoothouse · seed 48213 · pause \d+ · drill \d+ · shots \d+ · ★ (yes|no) · note: /.test(line), line);
+        // (v0.0.20, the build sheet's item 10: the house's six aspects, then what was played (the panel, and the shot, voice, walk and
+        // look where they are not the game's own), as ui-scores pins it)
+        assert(/^OLYMPUS v\d+\.\d+\.\d+ · test-shoothouse · seed 48213 · pause \d+ · drill \d+ · team \d+ · panel \d+ · shots \d+ · feel \d+ · panel [ABC] · (.+ · )?★ (yes|no) · note: /.test(line), line);
+        // (v0.0.20's fixer, the code review: the shot and the voice played are on the line, read from the engine (main.js playedNow
+        // read s.$shot and s.$voice, which nothing wrote: neither was ever said))
+        assert(/ · shot \S+ · voice \S+ · /.test(line), line);
         for (const r of rows) console.log(`      ${r}`);
         assert(!errors.length, errors.join(' | '));
       }, { port, query: 'nostore=1', viewport: { width: 1600, height: 900 } });

@@ -9,6 +9,7 @@ import { assert, root } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { runHouse, houseHonestBot } from './bots/house.mjs';
 import { houseShot, runSheetOf, clearGateOf, houseCall, liveTick, liveGateOf, houseNow } from '../src/sim/scenarios/shoothouse.js';
+import { fatalOf } from '../src/sim/combat/would.js';
 import { legOf } from '../src/sim/scenarios/house-two.js';
 import { accountedOf, gateWhy, COVER_MS } from '../src/sim/combat/men.js';
 import { lanePlanOf, manPlace } from '../src/sim/combat/room.js';
@@ -23,9 +24,11 @@ function at(setup, opfor = 'live:fight,fight', tier = 'tierone') {
   for (const T of R.turners) if (T.turnAtMs !== null) T.turnAtMs -= 5000;
   return { g, st, R, H, legs, plans, pid, me, T2: R.turners.find(t => t.stand === '2a'), T3: R.turners.find(t => t.stand === '3a') };
 }
-// (two torso rounds of yours on a man, through the scene's own path: his sensor, opfor.js opforHit)
+// (a round of yours in a man's head, through the scene's own path: opfor.js opforHit and the one rule, combat/would.js (v0.0.20: a
+// strike the would-have rates fatal puts him down; v0.0.19's two torso rounds, the stands' sensor, now leave him up 87% of the time))
 function downBy(st, T, by) {
-  for (const i of [1, 2]) houseShot(st, null, { id: `gate-${T.key}-${i}`, fired: true, who: by, target: T.key, zone: 'A', part: 'torso', atMs: st.clock.ms });
+  houseShot(st, null, { id: `gate-${T.key}-1`, fired: true, who: by, target: T.key, zone: 'head', part: 'head', atMs: st.clock.ms });
+  if (!fatalOf(st, T.live.who)) throw new Error(`downBy: the head strike on ${T.key} not rated fatal: ${JSON.stringify(st.armoury.range.house.live.would.log.at(-1))}`);
 }
 // (an actor at a room's point looking at a man, the rifle aimed or at low ready)
 function lookAt(st, a, x, z, T, posture = 'aimed') {
@@ -87,18 +90,19 @@ export default [
     },
   },
   {
-    name: 'the review of v0.0.19: a role-player who gives up with a round in flight is counted once, GAVE UP, never also DOWN ("2 ROLE-PLAYERS · 2 DOWN, 1 GAVE UP" was three outcomes for two men), on the card and on his room\'s row',
+    name: 'the review of v0.0.19: a role-player who gives up with a round in flight is counted once, GAVE UP, never also DOWN ("2 ROLE-PLAYERS · 2 DOWN, 1 GAVE UP" was three outcomes for two men), on the card and on his room\'s row (v0.0.20: the round in flight one the would-have rates fatal, his head)',
     fn() {
       const A = at('room:3', 'live:fight,give'), { st, T3 } = A, now = st.clock.ms;
-      const shot = (k, atMs) => houseShot(st, null, { id: `once-${k}`, fired: true, who: A.pid, target: T3.key, zone: 'A', part: 'torso', atMs });
+      const shot = (k, atMs, zone = 'A') => houseShot(st, null, { id: `once-${k}`, fired: true, who: A.pid, target: T3.key, zone, part: zone === 'head' ? 'head' : 'torso', atMs });
       shot(1, now - 200);
       // (his hands up between the two rounds, the second already on its way (identified 'rifle' at your pause))
       Object.assign(T3, { face: 'noshoot', holds: 'hands' }); T3.live.st = 'hands'; T3.live.gaveAtMs = now - 100; T3.live.fromMs = now - 100;
       const c = (st.mind.contact ??= {}); c.last = { id: 'once-c', ids: [T3.key], ident: { [T3.key]: 'rifle' }, armour: {}, seenMs: now - 400, atMs: now - 300, ms: 100, expect: 'sector', n: 1 };
-      shot(2, now - 23);
+      shot(2, now - 23, 'head');
+      const f = fatalOf(st, T3.live.who);
       const sheet = runSheetOf(st), row3 = sheet.rows.find(r => r.room === T3.room)?.words ?? '', live = /\d+ ROLE-PLAYERS? · [^·]+/.exec(sheet.card)?.[0] ?? '';
-      console.log(`      3a: ${T3.hits.length} torso rounds, the second 77 ms after his hands; the card's "${live}"; room 3's row: ${row3}`);
-      assert(/1 GAVE UP/.test(live) && !/[1-9] DOWN/.test(live) && /LIVE: 0 DOWN, 1 GAVE UP/.test(row3) && !/NO-SHOOT/.test(row3), JSON.stringify({ live, row3 }));
+      console.log(`      3a: ${T3.hits.length} rounds (a torso, then the head 77 ms after his hands, rated ${f ? `fatal (${f.why})` : 'not fatal'}); the card's "${live}"; room 3's row: ${row3}`);
+      assert(f && f.atMs > T3.live.gaveAtMs && /1 GAVE UP/.test(live) && !/[1-9] DOWN/.test(live) && /LIVE: 0 DOWN, 1 GAVE UP/.test(row3) && !/NO-SHOOT/.test(row3), JSON.stringify({ live, row3 }));
     },
   },
   {
@@ -183,10 +187,12 @@ export default [
         const id = Object.keys(st.items).find(k => st.items[k].type === 'grenade' && st.items[k].model === 'g11');
         move(st, id, { ground: { area: R.area ?? st.places.live.area, x: T.x - 1.5, z: T.z - 1.2 } });
         setSt(st, id, 'live'); st.items[id].fuseAtMs = st.clock.ms + 125;
-        const st0 = T.live.st;
-        for (let i = 0; i < 6; i++) g.step(1, () => null);
+        const st0 = T.live.st, t0 = st.clock.ms;
+        // (six lived ticks: a pause at a choice (v0.0.20's room 1 exit, its status and "Coming out!", ends the clear's doing on the
+        // burst's next tick) stands the world still, so the man hears nothing until the honest bot's press moves it on)
+        for (let i = 0; i < 60 && st.clock.ms < t0 + 300; i++) g.step(1, st.stop?.phase === 'choose' ? bot : () => null);
         const B = (H.bursts ?? []).at(-1);
-        console.log(`      a G-11 1.9 m from 2a (he was '${st0}'): burst ${B?.model} at +${B ? B.atMs - (st.clock.ms - 300) : '-'} ms; his cue ${JSON.stringify(T.live.cue)}, now '${T.live.st}'`);
+        console.log(`      a G-11 1.9 m from 2a (he was '${st0}'): burst ${B?.model} at +${B ? B.atMs - t0 : "-"} ms; his cue ${JSON.stringify(T.live.cue)}, now '${T.live.st}'`);
         assert(B?.model === 'g11' && T.live.cue?.why === 'burst', JSON.stringify({ B: B && { model: B.model, atMs: B.atMs }, cue: T.live.cue, st: T.live.st }));
       });
     },

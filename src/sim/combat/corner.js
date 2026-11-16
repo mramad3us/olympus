@@ -265,8 +265,57 @@ export function aidK(startMs, endMs, ms) {
   if (!Number.isFinite(endMs) || ms <= endMs) return 1;
   return Math.max(0, 1 - (ms - endMs) / AID_FADE_MS);
 }
-/** The hold for a room rung (AID_HOLD_MS, the last for any above). */
-export const aidHoldMs = (rung) => AID_HOLD_MS[Math.max(0, Math.min(AID_HOLD_MS.length - 1, rung | 0))];
+// ---- v0.0.20, the room's numbers (the build sheet's items 12, 17 and 18; drill.md items 3 to 5): the leaving of a room, the far
+// leg covered, the #2's call-outs. Here, beside the rule they read, so bundle.js, house-two.js and react.js share one table ----
+/** Your "Room clear!" waits on your #2's status ("Up.") at most this long (ms; drill D3). */
+export const STATUS_MS = 600;
+/** The last man's mark: this far outward of the door's plane, this high on the latch-side jamb (m; THRESHOLD_M's 0.3, drill D3). */
+export const MARK_AT_M = 0.3, MARK_H_M = 1.5;
+/** His "Move!" this long after your "Moving!" once he is on nobody; your far walk waits on it at most MOVE_WAIT_MAX_MS (CLEAR_HOLD_MS's), then hands back (ms; drill D4). */
+export const MOVE_ANSWER_MS = 300, MOVE_WAIT_MAX_MS = 4000;
+/** His eyes on the far leg within this of farCoverOf's point count as covering it (degrees; SECTOR_HALF_DEG's, drill D4). */
+export const FAR_COVER_DEG = 20;
+/** A man within TOLD_DEG of a place your #2 called, inside TOLD_MS of the call, is expected (react.js expectOf: 'sector'; drill D5). */
+export const TOLD_MS = 3000, TOLD_DEG = 20;
+/**
+ * Where the #2's eyes go while you walk the far leg (drill D4): the plan's far hot spot (the far leg's mouth, room 3's (21.25, 7.2)),
+ * seen from his point; null on a plan with no far leg. Derived from the plan, so a generated L gets it.
+ */
+export function farCoverOf(plan) {
+  if (!plan?.far) return null;
+  const h = (plan.hot ?? []).find(x => x.id === plan.far.hot) ?? null;
+  return h ? { x: h.x, z: h.z } : null;
+}
+/**
+ * A place in your frame as the screen shows it, for a call-out (drill D5): "far leg" where it is the plan's far leg's hot spot or
+ * nearer it than any other (within 2.5 m), else the side of the screen from where you stand ("left", "right", "top", "bottom", x
+ * east the screen's right as screenWordsOf has it), "far " before it past FAR_PLACE_M. from [x, z], at [x, z].
+ */
+/** A call-out's place is "far" past this from you (m; my call: a room's half-depth). */
+export const FAR_PLACE_M = 4;
+export function placeWordsOf(plan, from, at) {
+  const near = (plan?.hot ?? []).reduce((b, h) => { const d = Math.hypot(h.x - at[0], h.z - at[1]); return !b || d < b.d ? { h, d } : b; }, null);
+  if (near?.h?.why === 'far leg' && near.d <= 2.5) return 'far leg';
+  const dx = at[0] - from[0], dz = at[1] - from[1], w = Math.abs(dx) >= Math.abs(dz) ? (dx > 0 ? 'right' : 'left') : (dz > 0 ? 'bottom' : 'top');
+  return Math.hypot(dx, dz) > FAR_PLACE_M ? `far ${w}` : w;
+}
+
+/** The aid's settings (the build sheet v0.0.20 item 24; the Esc menu's "Corner aid: by rung / always / off", state.$aid). */
+export const AID_SETTINGS = Object.freeze(['rung', 'always', 'off']);
+/**
+ * The hold for a room rung (AID_HOLD_MS, the last for any above) under the player's setting (the user, 2026-11-15: "there
+ * is currently no indication at to where we're supposed to be looking"): 'rung' as built, 'always' AID_HOLD_MS[0] (to domination on
+ * every sheet), 'off' 0 (nothing drawn: shoothouse.js cornerAidLook draws no mark at all).
+ */
+export const aidHoldMs = (rung, setting = 'rung') => (setting === 'always' ? AID_HOLD_MS[0] : setting === 'off' ? 0 : AID_HOLD_MS[Math.max(0, Math.min(AID_HOLD_MS.length - 1, rung | 0))]);
+/**
+ * Where #1's point of domination is taken from (the build sheet v0.0.20 §0 item 33; question 15, open since v0.0.17): 'authored'
+ * the plan's point where it has one (room 2's drawn point, as every lane so far), 'derived' the rule's own (COMBAT §25.7.3's method,
+ * 1.90 m deeper at room 2). The default stays authored this round (my call); pointOfRule reads it.
+ */
+export const CORNER_POINT = 'authored';
+/** A rule's point of domination under a CORNER_POINT setting: the plan's (rule.point) when authored, the rule's derived point when derived. */
+export const pointOfRule = (rule, mode = CORNER_POINT) => (mode === 'derived' && rule?.derived ? [...rule.derived] : rule?.point ? [...rule.point] : null);
 /**
  * The sector's wedge for a rule in its plan: { x, z (its point), fromRad, toRad, rays: [[x, z], [x, z]] (each edge's end:
  * where it meets the room's walls, at most SECTOR_RAY_M), arcM }. A ray runs while it stays inside the plan's rects. Cached by the rule.

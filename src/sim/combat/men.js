@@ -26,9 +26,13 @@
 // by his distance from the line); a strike (the shot's hole on him: resolveShot's man branch, target kind 'marine') goes on
 // R.house.live.struck { who, by, shotId, part, zone, at, atMs }, gives the victim supp.js's 'hit' (HIT_PTS 25: it stings,
 // it never wounds) and emits the 'house' fact phase 'paint'. A marine who did not know the shooter has his eye drawn
-// (contact.drawn, or the #2's W.drawn: { key, atMs }, good for DRAWN_MS, one tick). The sensor is the stands' own
-// (MARINE_DOWN: 2 torso, A or C, or 1 head), struckOn reads it, and the first marine down is the casualty
-// (R.house.live.casualty = { who, by, atMs, endAtMs = atMs + CASUALTY_MS 2 s }, the 'house' fact 'casualty'): the scene
+// (contact.drawn, or the #2's W.drawn: { key, atMs }, good for DRAWN_MS, one tick). v0.0.20 (the user's answer of 2026-11-16,
+// "Paintball should end if the hit is 'fatal'"): the strike is rated on its tick by combat/would.js wouldHave, what the live
+// round it stands for would have done to him through his kit's armour by the wound model, and only a fatal one (would.js
+// fatalOf: killed, down for good at once, or bled out inside BLEED_OUT_MS) makes him the casualty; v0.0.19's sensor (two torso
+// or one head: MARINE_DOWN, would.js COUNT_DOWN) judges a lane v0.0.19 saved. struckOn reads the marks and the verdict, and the
+// first marine down is the casualty (R.house.live.casualty = { who, by, atMs, endAtMs = atMs + CASUALTY_MS 2 s, why, shotId },
+// the 'house' fact 'casualty'): the scene
 // halts the lane with stepper.js HALTS 'casualty' and ends it with its card at endAtMs; through the beat (casualtyOn) nothing of
 // yours is taken (contact.js refusesAct, feetOf) and the panel is down.
 //
@@ -49,13 +53,14 @@ import { muzzleOf, angleDiff } from '../arms/carry.js';
 import { addSupp, inputPts, SUBSONIC_ZERO_M, CRACK_ZERO_M } from './supp.js';
 import { SECTOR_HALF_DEG } from './react.js';
 import { membersOf } from './team.js';
+import { wouldHave, strikeOf, fatalOf, COUNT_DOWN } from './would.js';
 
 /** A live man out of a viewer's sight this long is forgotten for the take-in (ms); his exposure's side points off his centre (m); a cover held this long counts (ms); a casualty's beat before the card (ms). My calls. */
 export const MAN_MEMORY_MS = 3000, EXPOSE_OFF_M = 0.2, COVER_MS = 500, CASUALTY_MS = 2000;
 /** The eye drawn by a round stays drawn this long (ms: one tick, the look that follows the round). */
 export const DRAWN_MS = 50;
-/** The marking sensor on a marine: the stands' own (shoothouse.js STOP_TORSO, STOP_HEAD; one rule for paint, my call). */
-export const MARINE_DOWN = Object.freeze({ torso: 2, head: 1 });
+/** v0.0.19's marking sensor on a marine (the stands' own, shoothouse.js STOP_TORSO, STOP_HEAD), kept for a lane v0.0.19 saved (would.js COUNT_DOWN; v0.0.20 rates each strike: would.js). */
+export const MARINE_DOWN = COUNT_DOWN;
 /** A man on the move is harder to hit (shot.js modsOf; my call). */
 export const MOVING_MAN_V = -2;
 /** A round's line is followed this far past its muzzle for the near misses (m; past any room of the house). */
@@ -139,11 +144,12 @@ function rayDist(ox, oz, ux, uz, x, z) {
   return Math.abs((x - ox) * uz - (z - oz) * ux);
 }
 
-/** A marine's marks (see the header): { torso, head, down, list }. */
+/** A marine's marks (see the header): { torso, head, down, list, fatal }; down when a strike on him was fatal (would.js fatalOf, the one rule). */
 export function struckOn(state, who) {
   const list = (state.armoury?.range?.house?.live?.struck ?? []).filter(s => s.who === who);
   const torso = list.filter(s => s.part === 'torso' && (s.zone === 'A' || s.zone === 'C')).length, head = list.filter(s => s.zone === 'head').length;
-  return { torso, head, down: torso >= MARINE_DOWN.torso || head >= MARINE_DOWN.head, list };
+  const fatal = fatalOf(state, who);
+  return { torso, head, down: !!fatal, list, fatal };
 }
 
 /**
@@ -179,13 +185,15 @@ export function incoming(state, bus, { who, by, shot, atMs = shot?.atMs ?? state
   }
   if (!hit) return { hit: false, down: false };
   if (L) (L.struck ??= []).push({ who, by, shotId: shot.id, part: shot.part ?? 'torso', zone: shot.zone, at: shot.hole.at, atMs });
-  bus?.emit('house', { phase: 'paint', who, by, shotId: shot.id, part: shot.part ?? 'torso', zone: shot.zone, atMs });
-  const down = struckOn(state, who).down;
+  // (the strike rated on its tick, the one rule (would.js); the fact carries its verdict for the hud and the hot wash)
+  const would = L ? wouldHave(state, strikeOf(state, { ...shot, atMs }, { on: who, by })) : null;
+  bus?.emit('house', { phase: 'paint', who, by, shotId: shot.id, part: shot.part ?? 'torso', zone: shot.zone, atMs, would: would ? (would.fatal ? 'fatal' : would.why === 'stopped' ? 'stopped' : 'wound') : null });
+  const fatal = L ? fatalOf(state, who) : null, down = !!fatal;
   if (down && L && !L.casualty) {
-    L.casualty = { who, by, atMs, endAtMs: atMs + CASUALTY_MS };
-    bus?.emit('house', { phase: 'casualty', who, by, atMs, endAtMs: L.casualty.endAtMs });
+    L.casualty = { who, by, atMs, endAtMs: atMs + CASUALTY_MS, why: fatal.why, shotId: fatal.shotId };
+    bus?.emit('house', { phase: 'casualty', who, by, atMs, endAtMs: L.casualty.endAtMs, why: fatal.why });
   }
-  return { hit: true, down };
+  return { hit: true, down, would };
 }
 
 /** Whether a marine has a man covered at ms (see the header): his rifle in his hands, its yaw within SECTOR_HALF_DEG of the man, the man seen. */

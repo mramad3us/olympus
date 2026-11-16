@@ -993,7 +993,10 @@ export function cornerPixels(c, ppm = PX_PER_M) {
 export const LEAF_SHUT = 0xc0642c, LEAF_MOVING = 0xff3a24;
 /** A dot every this many pixels along the arc, and its height off the floor (m: just over the cut walls' top, see above). */
 export const LEAF_DOT_PX = 2, LEAF_Y_M = CUT_H_M + 0.02;
-/** A leaf's arc on the floor (see above): [{ x, y, z, c }] from houseLook's leaf { hinge, u, n, widthM, openK, moving }. */
+// v0.0.20 (the build sheet's item 15; the play review's F12, "a few rust pixels at 1600"): a shut door's arc is drawn at full
+// strength over the fog, as the corner aid is (`light: true` on its pixels: range.js draws them untinted, as light), so which way
+// a door opens reads before the room is seen; a moving leaf's sweep keeps the light where it lies.
+/** A leaf's arc on the floor (see above): [{ x, y, z, c, light? }] from houseLook's leaf { hinge, u, n, widthM, openK, moving }. */
 export function leafArcPixels(L, ppm = PX_PER_M) {
   if (!L || !Array.isArray(L.hinge) || !Number.isFinite(L.widthM)) return [];
   const from = L.moving ? Math.max(0, Math.min(1, L.openK ?? 0)) : 0, c = L.moving ? LEAF_MOVING : LEAF_SHUT, seen = new Set(), out = [];
@@ -1006,7 +1009,7 @@ export function leafArcPixels(L, ppm = PX_PER_M) {
     const px = Math.floor(x * ppm), pz = Math.floor(z * ppm), key = `${px},${pz}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ x: px / ppm, y: LEAF_Y_M, z: pz / ppm, c });
+    out.push({ x: px / ppm, y: LEAF_Y_M, z: pz / ppm, c, ...(L.moving ? {} : { light: true }) });
   }
   return out;
 }
@@ -1104,4 +1107,31 @@ export function paintPuffPixels(p, ms, ppm = PX_PER_M) {
   const P = 1 / ppm, c = PAINT_FX[p.by] ?? PAINT_FX.team, r = 1 + Math.floor(t / 130), gx = (Math.floor(p.x * ppm) + 0.5) * P, gz = (Math.floor(p.z * ppm) + 0.5) * P, y = drawnY(p.y, ppm) + 0.2;
   const ring = [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r], [r, r], [-r, -r], [r, -r], [-r, r]];
   return ring.slice(0, t < 130 ? 5 : t < 260 ? 9 : 4).map(([dx, dy]) => ({ x: gx + dx * P, y: y + dy * P, z: gz, c }));
+}
+
+// ---------- v0.0.20: the room's mark on its jamb (the build sheet's item 12; drill.md D3: the last man out marks the room) ----------
+//
+// houseLook's marks (shoothouse.js marksLook): each room marked, on its latch-side jamb a little outward of the door's plane, at
+// head height, drawn upright from the hand's sub-step on (nothing pops in). Two looks to score (samples/marks/, question 7): M1 a
+// chalk X (JAMB_CHALK, JAMB_X_PX across, tinted by the light where it is, as chalk is), M2 a chemlight taped to the jamb (JAMB_GLOW,
+// a JAMB_STICK_PX bar, drawn as light: it glows through the fog). M1 until the user picks; the kind comes from the page's look flags
+// ($look.jamb, view.js passes it).
+/** The chalk's colour, the chemlight's glow, the X's size and the stick's length (px). */
+export const JAMB_CHALK = 0xe9e4d4, JAMB_GLOW = 0x7cff6e, JAMB_X_PX = 5, JAMB_STICK_PX = 4;
+/** The jamb marks' looks, in the samples' order. */
+export const JAMB_KINDS = Object.freeze(['m1', 'm2']);
+/** The marks' pixels (see above): [{ x, y, z, c, light? }] from houseLook's marks [{ x, z, y }], drawn as `kind` ('m1' | 'm2'). */
+export function jambMarks(marks, { kind = 'm1', ppm = PX_PER_M } = {}) {
+  const out = [], P = 1 / ppm;
+  for (const m of marks ?? []) {
+    if (!Number.isFinite(m?.x) || !Number.isFinite(m?.z)) continue;
+    const x0 = Math.floor(m.x * ppm) / ppm, z = Math.floor(m.z * ppm) / ppm, y0 = Math.floor((m.y ?? 1.5) * ppm) / ppm;
+    if (kind === 'm2') { for (let j = 0; j < JAMB_STICK_PX; j++) out.push({ x: x0, y: y0 + (j - 1) * P, z, c: JAMB_GLOW, light: true }); continue; }
+    const h = (JAMB_X_PX - 1) / 2;
+    for (let i = -h; i <= h; i++) {
+      out.push({ x: x0 + i * P, y: y0 + i * P, z, c: JAMB_CHALK });
+      if (i !== 0) out.push({ x: x0 + i * P, y: y0 - i * P, z, c: JAMB_CHALK });
+    }
+  }
+  return out;
 }

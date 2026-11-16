@@ -4,8 +4,9 @@
 // choices made earlier yet ?" Read two ways (DESIGN.md's log, my call): the panel in play did not yet match the user's gallery pick
 // (P3, layout C, ★ 100 for P3-j, 2026-11-12: "That idea is probably the best proposal if we can make the controls work cleanly"),
 // and the rows did not follow from the choices already made in the lane. What each test pins, each failing without its fix:
-//   - AT THE DOOR's five as P3 drew it: Stack up 1, Stack up and take point 2, Open 3, Kick door 4; Enter on 5 in Breach's place
-//     until a charge is issued (v0.0.14 to v0.0.15: Enter 4, Kick 5);
+//   - AT THE DOOR's five as P3 drew it: Stack up 1, Stack up and take point 2, Open 3, Kick door 4, Breach 5, on every lane (v0.0.20,
+//     the build sheet's item 5: v0.0.14 to v0.0.15 had Enter 4 and Kick 5, v0.0.17 Enter on 5, v0.0.19 Breach on 5 on a breaching
+//     lane only); Breach struck "not issued" (the issue badge) where none is carried, Enter in the fan (Tab › 2 › 7) and on T;
 //   - what is done stays on its key, ticked: stacked, Stack up and take point "already stacked" (✓), Read the door once read;
 //   - an inner door keeps the room's keys (Watch 1, To your point 2, "Clear!" 3), its Hold it and Clear it on 4 and 5 (they moved
 //     "Clear!" from 3 to 4 and Watch from 1 to 3);
@@ -25,6 +26,7 @@ import { stepsOf } from '../src/sim/arms/shooting.js';
 import { instinctNow, firedNow } from '../src/sim/skills/instinct.js';
 import { modelOf, viewOf, keyPathOf, resolvePath, situationOf } from '../src/sim/arms/groups.js';
 import { houseNow } from '../src/sim/scenarios/shoothouse.js';
+import { lanePlanOf } from '../src/sim/combat/room.js';
 import { contactNow } from '../src/sim/combat/contact.js';
 import { partsOf, textOf, namesKeys } from '../src/ui/hud/instinct.js';
 import { shortName } from '../src/ui/hud/steps.js';
@@ -60,13 +62,24 @@ const R = (id, kind = 'single', extra = {}) => ({ id, kind, label: id, ms: 500, 
 
 export default [
   {
-    name: 'AT THE DOOR\'s five as the user\'s pick drew it (P3, 2026-11-12): Stack up 1, Stack up and take point 2, Open 3, Kick door 4, and Enter on 5 in Breach\'s place until a charge is issued; stacked, the private on room 2 (seed 1489397426) finds Open on 3 and Kick on 4',
+    name: 'AT THE DOOR\'s five is P3-j\'s on every lane (the build sheet v0.0.20 item 5; the user, 2026-11-11: "always visible and accessible (even if grayed out)"): Stack up 1, Stack up and take point 2, Open 3, Kick door 4, Breach 5, struck "not issued" with the issue badge on the standard lane and live on the breach lane, the same key in both; Enter on Tab › 2 › 7 (re-pinned on purpose: v0.0.17 had Enter on 5, v0.0.19 Enter on 5 but on a breaching lane)',
     fn() {
-      const stops = laneStops('private', 1489397426, houseKeysBot()).filter(x => x.model.situation.id === 'door');
-      const stacked = stops.find(x => x.steps.some(s => /^door:pull>/.test(s.id)));
-      const b = band(stacked.model);
-      console.log(`      at the stack on room 2: ${['1', '2', '3', '4', '5'].map(k => `${k} ${b[k]?.words}${b[k]?.row ? ` [${b[k].row.id}${b[k].row.off ? `: ${b[k].row.off}` : ''}]` : ''}`).join(' · ')}`);
-      assert(/^door:pull>/.test(rowOn(b, '3')) && /^door:kick>/.test(rowOn(b, '4')) && /^drill:(room|carry)/.test(rowOn(b, '5')) && b['1']?.words === 'Stack up' && b['2']?.words === 'Stack up, take point', JSON.stringify(Object.fromEntries(Object.entries(b).map(([k, e]) => [k, [e?.words, e?.row?.id]]))));
+      const rows = [];
+      for (const loadout of ['standard', 'breach']) for (const [setup, door] of [['go', 'o:w4:r1'], ['room:2', 'o:w4:r2']]) {
+        const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'cpl', setup, loadout }), s = g.state, H = s.armoury.range.house, P = lanePlanOf(s).plans[door];
+        const me = s.actors.list.find(a => a.who === s.player.id), two = s.actors.list.find(a => a.who === H.two.pid);
+        me.x = P.stack[0][0]; me.z = P.stack[0][1]; two.x = P.stack[1][0]; two.z = P.stack[1][1];
+        const steps = stepsOf(s), M = modelOf(steps), b = band(M), e5 = M.situation.five[4], enter = steps.find(r => /^drill:room:(clear|in)(@|>)/.test(r.id));
+        rows.push({ loadout, door, sit: M.situation.id, words: ['1', '2', '3', '4', '5'].map(k => b[k]?.words), five: e5?.row?.id ?? null, off: e5?.row?.off ?? null, badge: e5?.badge?.t ?? null, enter: enter ? keyPathOf(M, 'c', enter.id, { next: false })?.join(' › ') : null });
+      }
+      for (const r of rows) console.log(`      ${r.loadout} at ${r.door}: ${r.words.join(' · ')}; 5 = ${r.five}${r.off ? ` (${r.off}, badge ${r.badge})` : ' (live)'}; Enter ${r.enter}`);
+      const ok = rows.every(r => r.sit === 'door' && r.words.join('|') === 'Stack up|Stack up, take point|Open|Kick door|Breach' && /^drill:door:(breach|pry|ram|shoot)/.test(r.five ?? '') && r.enter === 'Tab › 2 › 7');
+      const std = rows.filter(r => r.loadout === 'standard'), br = rows.filter(r => r.loadout === 'breach');
+      assert(ok && std.every(r => /^(not|no charge) issued$/.test(r.off ?? '') && r.badge === 'issue') && br.every(r => !r.off), JSON.stringify(rows));
+      // (and in the bots' lanes: every AT THE DOOR stop has Breach's words on 5, never Enter)
+      const stops = allStops().filter(x => x.model.situation.id === 'door' && x.leg < 3), bad = stops.filter(x => band(x.model)['5']?.words !== 'Breach');
+      console.log(`      the bots' lanes: ${stops.length} AT THE DOOR stops, Breach on 5 at ${stops.length - bad.length}`);
+      assert(stops.length > 10 && !bad.length, JSON.stringify(bad.slice(0, 3).map(x => [x.tier, x.seed, x.t, band(x.model)['5']?.words])));
     },
   },
   {

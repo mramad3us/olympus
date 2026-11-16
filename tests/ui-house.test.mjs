@@ -21,6 +21,7 @@ import { cornerPixels, CORNER_PALE, CORNER_COVERED, CORNER_TWO } from '../src/re
 import { COURSES } from '../src/data/courses.js';
 import { SCENES } from '../src/data/scenes.js';
 import { withGame } from './browser.mjs';
+import { PNG } from './png-read.mjs';
 import { overlaps } from '../src/ui/hud/layout.js';
 
 const SCENE = SCENES['test-shoothouse'];
@@ -249,6 +250,43 @@ export default [
         for (const r of rows) console.log(`      ${r}`);
         assert(!errors.length, errors.join(' | '));
       }, { port });
+    },
+  },
+  {
+    name: 'a shot lights the room for its flash (the build sheet v0.0.20 item 16; heavy): at GO in the house, your shot on the clock\'s held tick draws the muzzle\'s lamp in the stage\'s first slot, the floor\'s luma 1.5 m ahead of the muzzle up at least 25% on the shot\'s frame and back within 2% two ticks (100 ms) on; none under reduce flashes',
+    heavy: true,
+    timeoutMs: 300_000,
+    async fn() {
+      const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined, rows = [];
+      await withGame(async (page, errors, game) => {
+        await page.setViewportSize({ width: 1600, height: 900 });
+        for (const reduced of [false, true]) {
+          await game.open(`play=test-shoothouse&setup=go&tier=tierone&seed=48213&nostore=1${reduced ? '&flashes=reduced' : ''}`);
+          await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.course === 'house', null, { timeout: 60000 });
+          const frames = (n) => page.evaluate((k) => new Promise(r => { let i = 0; const f = () => (++i >= k ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
+          await frames(4);
+          // (the floor 1.5 m ahead of your muzzle, in the stage's pixels and the canvas's)
+          const where = await page.evaluate(() => {
+            const s = window.__olympus.state, me = s.actors.list.find(a => a.who === s.player.id), F = { right: [1, 0], left: [-1, 0], down: [0, 1], up: [0, -1] }[me.face] ?? [1, 0];
+            const x = me.x + F[0] * 2.4, z = me.z + F[1] * 2.4, p = window.__olympus.screenOf(x, 0, z), c = document.querySelector('canvas').getBoundingClientRect();
+            return { x, z, cx: c.left + (p.x / p.W) * c.width, cy: c.top + (p.y / p.H) * c.height, face: me.face };
+          });
+          const lumaAt = async () => { const png = PNG.read(await page.screenshot({ clip: { x: Math.round(where.cx) - 6, y: Math.round(where.cy) - 6, width: 12, height: 12 } })); let sum = 0; for (let i = 0; i < png.data.length; i += 4) sum += 0.3 * png.data[i] + 0.59 * png.data[i + 1] + 0.11 * png.data[i + 2]; return sum / (png.data.length / 4) / 255; };
+          const before = await lumaAt();
+          // (your shot as the shot role records it, on the held tick: the session's shots (look.js gunLook reads its last))
+          await page.evaluate(() => { const s = window.__olympus.state, R = s.armoury.range; (R.shots ??= []).push({ who: s.player.id, atMs: s.clock.ms, id: 'muzzle-test' }); });
+          await frames(2);
+          const at = await lumaAt(), lamp = await page.evaluate(() => window.__olympus.view.muzzle ?? null);
+          // (two ticks on: the clock stands in stop motion at GO, so the shot is put two ticks (100 ms) back on it instead)
+          await page.evaluate(() => { const s = window.__olympus.state, sh = s.armoury.range.shots.find(x => x.id === 'muzzle-test'); sh.atMs = s.clock.ms - 100; });
+          await frames(2);
+          const after = await lumaAt(), gone = await page.evaluate(() => window.__olympus.view.muzzle ?? null);
+          rows.push(`${reduced ? 'reduce flashes' : 'full'}: the floor at (${where.x.toFixed(2)}, ${where.z.toFixed(2)}) facing ${where.face}: luma ${before.toFixed(3)} → ${at.toFixed(3)} on the shot's frame (×${(at / before).toFixed(2)}), ${after.toFixed(3)} two ticks on; the lamp ${JSON.stringify(lamp)}, then ${JSON.stringify(gone)}`);
+          if (!reduced) assert(lamp?.lamps >= 1 && at >= 1.25 * before && Math.abs(after - before) <= 0.02 * before + 0.002 && !gone, JSON.stringify({ before, at, after, lamp, gone }));
+          else assert(!lamp && Math.abs(at - before) <= 0.02 * before + 0.002, JSON.stringify({ before, at, lamp }));
+        }
+      }, { port });
+      for (const r of rows) console.log(`      ${r}`);
     },
   },
 ];

@@ -110,7 +110,11 @@ export const SCENES = deepFreeze({
     id: 'test-shoothouse', title: 'Stack and clear', scenario: 'test-shoothouse',
     host: { site: 'melas', area: 'melas.wheel.s4' }, env: SITE_ENV, hour: 10.0,
     goal: 'Lane A at 1 G with your number two, on GO: three rooms and the hall. Threats down, no-shoots untouched.',
-    aspects: [['pause', "the pause: the take-in's feel, the brackets, the stamp, the brake, the log"], ['drill', 'the drill: step by step against the bundle, and the decisions that matter yours'], ['shots', 'the shots: the rows and the reloads']],
+    // (the card (the build sheet v0.0.20 §1 item 10): six aspects from three, the team, the panel ("if we can make the
+    // controls work cleanly", the user, 2026-11-12) and the feel scored apart; the score line names what was played (score.js))
+    aspects: [['pause', "the pause: the take-in's feel, the brackets, the stamp, the brake, the log"], ['drill', 'the drill: the flow, the doors, your corner'],
+      ['team', 'your number two: in on his cue, his calls, his admin'], ['panel', 'the keys: the panel, its rows, every press'],
+      ['shots', 'the shots: the rows, the reloads, both guns'], ['feel', 'the feel: the walk, the sound, the look']],
     body: {}, outfit: 'combatSuit', course: 'house', stances: true, sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
     pars: ['basic', 'advanced', 'operator'],
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },

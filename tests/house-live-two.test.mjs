@@ -58,7 +58,8 @@ export default [
     fn() {
       // (room 3's man, his sector's, down by your rounds; your #2 at his point, his eyes a little off him (his sector's scan))
       const A = at('room:3'), { st, R, H, two, T3: T2, plans, legs, bus, facts } = A, W = H.two, P = plans[legs[2].door], now = st.clock.ms;
-      for (const i of [1, 2]) houseShot(st, null, { id: `two-${i}`, fired: true, who: st.player.id, target: T2.key, zone: 'A', part: 'torso', atMs: now });
+      // (down by a round in his head the would-have rates fatal (v0.0.20, combat/would.js: two torso rounds through his soft panel leave him up 87% of the time))
+      houseShot(st, null, { id: 'two-1', fired: true, who: st.player.id, target: T2.key, zone: 'head', part: 'head', atMs: now });
       place(two, P.points[1][0], P.points[1][1], 0); two.headRad = toward(two, T2) + 0.3; two.face = faceOfHead(two.headRad);
       const k = seenK(st, two, T2, now), g0 = gateWhy(st, T2, now);
       liveTick(st, bus, R, H, now);

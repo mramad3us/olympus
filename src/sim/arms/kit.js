@@ -41,7 +41,8 @@
 // drill picks nothing up). handMagOf() is
 // the magazine in a hand. A magazine's belief is { n?, approx?, kind?, feel? } (firearms.js): the kind the
 // holder believes it holds, and the band its weight felt in the hand when the count is not known. The range's
-// meant kind is the session's load (meantLoad: the course's, 'ball').
+// meant kind is the session's load (meantLoad: the course's, 'ball'). topUpGains() (the hunt of v0.0.18) is whether a Top up
+// can change the magazine in by that rule: every Top up offered asks it.
 // 0.0.7 (the build sheet 0.0.7 §2.3, §3.1): test-range's 'range-kd' issue (the zero's four magazines of three, the ear
 // defenders 'ed1' worn in their own slot, kit.worn.ears: SLOTS gains 'ears', last, so the other templates' items and
 // ids are as before; earsOn reads it), and discard(), the coach taking a magazine back at the turn-in.
@@ -57,7 +58,8 @@
 // pouch, the R-7 slung, three magazines of 10 frangible (the house's load: the scene sets the instructor's dummy in
 // the first, the one a LOAD takes first, by `sets`), at low ready; no ear defenders (the suit filters). Every worn
 // thing now has its massKg (my calls but the suit's, the sheet's; the carrier's 4.0 kg is WEAPONS §8.3's soft panel,
-// its plates not in for training), and kitMassKg(state, pid) is what a person carries: the worn items, what they
+// its plates not in for training, and from v0.0.20 rated so: its `armour` 'carrierTraining', penetrate.js ARMOUR, the soft
+// panel over 0.85 of the torso, read by the live lane's would-have, combat/would.js), and kitMassKg(state, pid) is what a person carries: the worn items, what they
 // hold, the rifle and its optic, the magazines and their rounds (6.5×40's case, powder and bullet by the load:
 // src/sim/arms/calibres.js), 25.7 kg in 'house-cqb' (BODY §16.2's 25 kg of kit, the push and the brake's r).
 // 2026-11-13 (the shoot house's rework R6, COMBAT §25.19.6; WEAPONS §3.2's note): the sidearm. issueSidearm(state, pid, spec) gives a
@@ -87,7 +89,7 @@ import { DEVICES } from './devicetable.js';
 
 /**
  * Containers and worn things (my calls on their words and sizes): model → { type, word, slot?, holds?,
- * fits?, dump? }. The reach the I card shows (VIEWS §8.3) is the sim's own time for a magazine in
+ * fits?, dump?, armour? (a carrier's penetrate.js ARMOUR kind) }. The reach the I card shows (VIEWS §8.3) is the sim's own time for a magazine in
  * (firearms.js actionMs 'magIn', the caller's: kitView's magInS), from any pouch alike, so the card and
  * the step panel show one number (the parity review's: the card had shown 1.4 s and a dump pouch's 2.0 s
  * the game charged nowhere, against the panel's 1.6 s).
@@ -95,7 +97,9 @@ import { DEVICES } from './devicetable.js';
 export const CONTAINERS = Object.freeze({
   // (v0.0.18: its four faces (loadout.js): `holds` is the front's count, every kit before took the front alone; a pouch whose
   // record says `at` rides that face, at most faces[at] of them (canHold))
-  'pc-m3': Object.freeze({ type: 'carrier', word: 'plate carrier', slot: 'carrier', holds: 3, fits: Object.freeze(['pouch']), massKg: 4.0, faces: Object.freeze({ front: 3, left: 2, right: 2, back: 1 }) }),
+  // (`armour`, the kind of penetrate.js ARMOUR it is worn as, its plates out for training (the header's 4.0 kg), read by the
+  // live lane's would-have (combat/would.js); a data field, no item or id moves)
+  'pc-m3': Object.freeze({ type: 'carrier', word: 'plate carrier', slot: 'carrier', holds: 3, fits: Object.freeze(['pouch']), massKg: 4.0, faces: Object.freeze({ front: 3, left: 2, right: 2, back: 1 }), armour: 'carrierTraining' }),
   'pouch-mag2': Object.freeze({ type: 'pouch', word: 'magazine pouch', holds: 2, fits: Object.freeze(['mag']), massKg: 0.15 }),
   'pouch-dump': Object.freeze({ type: 'pouch', word: 'dump pouch', holds: 4, fits: Object.freeze(['mag']), dump: true, massKg: 0.2 }),
   'ears-m1': Object.freeze({ type: 'ears', word: 'ear defenders', slot: 'head', massKg: 0.35 }),
@@ -467,9 +471,44 @@ export const meantLoad = (state) => state?.armoury?.range?.load ?? 'ball';
 const emptyOf = (m) => (believedN(m) === 0 || m?.belief?.feel === 'none' ? 1 : 0);
 const tierOf = (m, load) => { const k = believedKind(m); return !load || k === load ? 0 : k === null ? 1 : 2; };
 const nRank = (m) => { const n = believedN(m); return n === null ? 0.5 : n; };
+// (the rule on two magazines' records, without the order given: below 0 when a ranks first)
+const byRule = (a, b, load) => emptyOf(a) - emptyOf(b) || tierOf(a, load) - tierOf(b, load) || nRank(b) - nRank(a);
 /** Item ids sorted by the drills' rule for a kind (see the header), stable in the order given. */
 export function rankOf(state, ids, { load = null } = {}) {
-  return ids.map((id, i) => ({ id, i, m: state.items[id] })).sort((a, b) => emptyOf(a.m) - emptyOf(b.m) || tierOf(a.m, load) - tierOf(b.m, load) || nRank(b.m) - nRank(a.m) || a.i - b.i).map(e => e.id);
+  return ids.map((id, i) => ({ id, i, m: state.items[id] })).sort((a, b) => byRule(a.m, b.m, load) || a.i - b.i).map(e => e.id);
+}
+
+/**
+ * Whether a Top up can change the magazine in, the one rule for every Top up offered (drills.js macrosFor's, plan.js gunRows'
+ * sidearm row, bundle.js's reorg): the magazine in, as the stow will leave it (its count and kind the gun's belief, as
+ * firearms.js moveCount writes them), against the pouched magazines of the gun's families by the reach's own rule (pickMag
+ * 'rule', the meant load): a gain only where the one the reach would take ranks strictly above it and is fuller, or of a
+ * better kind than a kind known in (one empty in: any not believed empty). A magazine of the gun's families in a hand, not
+ * believed empty, is a change (the seat takes it), and so is the session's named magazine in a pouch (R.wantMag: Top up
+ * reaches for its pouch, specials.js). Before (the hunt of v0.0.18 and its review), the reach took the fullest straight back
+ * where the fullest was already in, or where the only other was of a count unknown (ranked between an empty and one): the
+ * stow and the reach, 3 s for nothing, and the row offered again for ever, on the rifle and on the P-12 in the shoot house.
+ */
+export function topUpGains(state, pid, gunId, b = beliefOf(state, gunId)) {
+  const g = state.items?.[gunId];
+  if (!g || !b || b.mag !== 'in' || !g.mag) return false;
+  const fams = MODELS[g.model]?.fams ?? null, ok = (id) => state.items[id]?.type === 'mag' && (!fams || fams.includes(state.items[id].fam));
+  const h = handMagOf(state, pid);
+  if (h && ok(h.id) && believedN(state.items[h.id]) !== 0 && state.items[h.id]?.belief?.feel !== 'none') return true;
+  const pouches = pouchesOf(state, pid), want = state.armoury?.range?.wantMag ?? null;
+  if (want && g.mag !== want && pouches.some(p => !p.dump && p.mags.includes(want))) return true;
+  const belief = {};
+  if (typeof b.count === 'number') { belief.n = b.count; if (b.countApprox) belief.approx = true; }
+  if (b.magLoad) belief.kind = b.magLoad;
+  const stowed = { ...state.items[g.mag], belief }, load = meantLoad(state);
+  // (the one the reach takes: the first of the pouched by the rule, where it ranks above the stowed one)
+  let best = null;
+  for (const p of pouches) for (const id of p.mags) if (ok(id) && (!best || byRule(state.items[id], best, load) < 0)) best = state.items[id];
+  if (!best || byRule(best, stowed, load) >= 0) return false;
+  // (a change is a gain where it is fuller, or of a kind better than one known in. Not for a kind in not known alone: the
+  // range's fills seat a magazine with its kind unsaid (handling.js, pairs.js, shoothouse.js), and a ten of ball known for a
+  // ten of a kind unknown, or a four for a five, is 3 s for nothing the shooter would want)
+  return emptyOf(stowed) > emptyOf(best) || nRank(best) > nRank(stowed) || (!!b.magLoad && tierOf(best, load) < tierOf(stowed, load));
 }
 
 /** The magazine in one of the person's hands: { id, hand } or null. */
@@ -577,14 +616,15 @@ const magBelief = (id, m, reachS) => ({ id, kind: m?.type, word: wordOf(m), n: b
 
 /**
  * The I card's view (VIEWS §8.3): { groups: [{ id, key, word, holds, reachS, items: [{ id, kind, word, n, approx,
- * load, feel, reachS }] }], hand: an item or null, feet: [items], sling: { gunId, posture } }, believed counts and
+ * load, feel, reachS }] }], hand: a magazine in the hand or null, held: [the other things in the hands, a gun or a device],
+ * feet: [items], sling: { gunId, posture ('hanging' while another gun is in the hand) } }, believed counts and
  * kinds only (holds: the container's capacity; reachS the caller's magInS, the sim's time for a magazine in from
  * a pouch, 0 when none is given; the feet's groundS, a pickup's and the seat's).
  */
 export function kitView(state, pid, { magInS = null, groundS = null, devReachS = null } = {}) {
   const reach = Number.isFinite(magInS) ? magInS : 0, ground = Number.isFinite(groundS) ? groundS : 0;
   const kit = state.people?.[pid]?.kit;
-  if (!kit) return { groups: [], hand: null, feet: [], sling: null };
+  if (!kit) return { groups: [], hand: null, held: [], feet: [], sling: null };
   const worn = [];
   for (const slot of WORN_SLOTS) {
     const id = kit.worn?.[slot];
@@ -601,10 +641,17 @@ export function kitView(state, pid, { magInS = null, groundS = null, devReachS =
     groups.push({ id: c, key: `dev:${face}`, word: `${C.word}, ${face === 'back' ? 'on the back' : face === 'front' ? 'front' : `${face} side`}`, holds: C.holds, face, reachS: 0,
       items: (rec.holds ?? []).map(id => { const d = state.items[id], D = DEVICES[d?.model]; const s = typeof devReachS === 'function' ? devReachS(d?.model, face) : 0; return { id, kind: d?.type, word: D?.word ?? d?.model, model: d?.model, n: null, approx: false, load: null, feel: null, st: d?.st ?? null, massKg: D?.massKg ?? 0, reachS: s }; }) });
   }
-  const h = handMagOf(state, pid);
+  const h = handMagOf(state, pid), hg = handGunOf(state, pid);
+  // (the hunt of v0.0.18: what else is in the hands, a gun (the P-12 drawn) or a device (a G-11, the halligan, a charge),
+  // listed as held, since it has left the slot or the pouch the card lists; and the rifle's carry is the hand gun's while another
+  // gun is out (the header), so the sling's word is then 'hanging', as guns.js gunPlaceOf reads it)
+  const held = (kit.hands ?? []).filter(id => id && state.items[id] && state.items[id].type !== 'mag').map(id => {
+    const r = state.items[id], D = DEVICES[r.model];
+    return { id, kind: r.type, word: D?.word ?? wordOf(r), model: r.model, n: null, approx: false, load: null, feel: null, reachS: 0 };
+  });
   return {
-    groups, hand: h ? magBelief(h.id, state.items[h.id], 0) : null, feet: atFeetOf(state, pid).map(l => magBelief(l.id, state.items[l.id], ground)),
-    sling: kit.worn?.sling ? { gunId: kit.worn.sling, posture: kit.carry?.posture ?? 'slungFront' } : null,
+    groups, hand: h ? magBelief(h.id, state.items[h.id], 0) : null, held, feet: atFeetOf(state, pid).map(l => magBelief(l.id, state.items[l.id], ground)),
+    sling: kit.worn?.sling ? { gunId: kit.worn.sling, posture: hg && hg !== kit.worn.sling ? 'hanging' : kit.carry?.posture ?? 'slungFront' } : null,
   };
 }
 

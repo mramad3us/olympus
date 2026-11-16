@@ -26,24 +26,50 @@ import { houseWant, handsOf, twoLacks, twoDrillOf, TWO_CMDS } from '../src/sim/s
 import { ENTRY_GAP_M, pastWaypointM, TWO_SAY, TWO_SLOT_M } from '../src/sim/combat/bundle.js';
 import { lanePlanOf, pastThreshold } from '../src/sim/combat/room.js';
 import { sparesOf } from '../src/sim/arms/kit.js';
-import { gunField, beliefOf } from '../src/sim/arms/firearms.js';
+import { gunField, beliefOf, conditionOf } from '../src/sim/arms/firearms.js';
 import { subsOf } from '../src/sim/arms/drills.js';
 import { gunLook } from '../src/sim/arms/look.js';
+import { TWO_P12_DEFAULT } from '../src/sim/arms/loadout.js';
 
 const twoOf = (s) => s.armoury.range.house.two;
 const twoActor = (s) => s.actors.list.find(a => a.who === twoOf(s).pid);
 const meOf = (s) => s.actors.list.find(a => a.who === s.player.id);
 const twoRifle = (s) => s.items[s.people[twoOf(s).pid].kit.worn.sling];
 
+// (his rifle stopped three ways in room 3 (the tier one, setup room:3, seed 48213): what he did, said and drew, his man, the room)
+function stoppedRows(loadout) {
+  const rows = [];
+  for (const [kind, put] of [['stovepipe', (gun) => { gun.chamber = 'case'; }], ['double', (gun) => { gun.chamber = 'case'; gun.jam = 'double'; }], ['empty', (gun, s) => { s.items[gun.mag].n = 0; delete gun.chamber; }]]) {
+    const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'tierone', setup: 'room:3', ...(loadout ? { loadout } : {}) }), s = g.state, gun = twoRifle(s), pid = twoOf(s).pid;
+    put(gun, s);
+    const drill = twoDrillOf(s, gun), says = [], lists = [], drawn = new Set();
+    let man = null, clearAt = null, downAt = null;
+    runHouse(g, houseHonestBot(), { maxMs: 40_000, each: (game) => {
+      const st = game.state, H = st.armoury.range.house, W = H.two;
+      // (v0.0.20: his status at your "Room clear!" (house-two.js roomTick, the fact's `status`) is no call of his drill's)
+      for (const f of game.facts('say')) if (f.who === pid && !f.status) says.push(f.text);
+      for (const f of game.facts('house')) if (f.phase === 'clear' && f.room === 'w4.r3' && clearAt === null) clearAt = st.clock.ms;
+      if (W.down && downAt === null) { downAt = st.clock.ms; man = W.down.key; }
+      if (W.doing?.cmd === 'down') { if (lists.at(-1) !== W.doing.macro && !lists.includes(W.doing.macro)) lists.push(W.doing.macro); const h = handsOf(st, pid); if (h?.action) drawn.add(h.action); }
+    } });
+    const H = s.armoury.range.house, T = s.armoury.range.turners.find(x => x.key === man), faults = H.rooms[2]?.faults?.map(f => f.kind) ?? [], p = H.two.pistol;
+    rows.push({ kind, drill, lists, drawn: [...drawn], says: says.filter(t => /Gun|Reload|Up/.test(t)), man, down: T?.stoppedAtMs ?? null, clearAt, faults, gun: { chamber: gunField(twoRifle(s), 'chamber'), jam: gunField(twoRifle(s), 'jam') ?? null },
+      holstered: !p || s.people[pid].kit.worn?.holster === p });
+  }
+  return rows;
+}
+
 export default [
   {
-    name: 'the fill issues your number two in Condition 4, as you are: his magazines in his pouches, the chamber empty, on safe (COMBAT §25.19.5: "not loaded at the fill"; v0.0.12 loaded him there)',
+    name: 'the fill issues your number two in Condition 4, as you are: his rifle\'s magazines in his pouches, the chamber empty, on safe (COMBAT §25.19.5: "not loaded at the fill"; v0.0.12 loaded him there); his P-12 (standard issue from v0.0.20) in Condition 3 as yours, holstered on safe with a magazine in and the chamber empty, its spare in the thigh\'s pouch',
     fn() {
       for (const tier of ['recruit', 'tierone']) {
-        const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier }), s = g.state, gun = twoRifle(s), pid = twoOf(s).pid;
-        const mags = sparesOf(s, pid, null).filter(id => (s.items[id]?.n ?? 0) > 0);
-        console.log(`      ${tier}: his rifle ${gun.mag ? 'a magazine in' : 'no magazine'}, chamber ${gunField(gun, 'chamber') ?? 'empty'}, ${gunField(gun, 'mode')}; ${mags.length} magazines in his pouches (${mags.map(id => s.items[id].n).join(', ')} rounds)`);
+        const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier }), s = g.state, gun = twoRifle(s), pid = twoOf(s).pid, pId = twoOf(s).pistol, p = s.items[pId];
+        const all = sparesOf(s, pid, null).filter(id => (s.items[id]?.n ?? 0) > 0), mags = all.filter(id => s.items[id].fam !== 'had17'), p12s = all.filter(id => s.items[id].fam === 'had17');
+        const k = s.people[pid].kit;
+        console.log(`      ${tier}: his rifle ${gun.mag ? 'a magazine in' : 'no magazine'}, chamber ${gunField(gun, 'chamber') ?? 'empty'}, ${gunField(gun, 'mode')}; ${mags.length} magazines in his pouches (${mags.map(id => s.items[id].n).join(', ')} rounds); his P-12 ${k.worn?.holster === pId ? 'holstered' : 'NOT holstered'}, ${p?.mag ? 'a magazine in' : 'no magazine'}, chamber ${gunField(p, 'chamber') ?? 'empty'}, ${gunField(p, 'mode')}, its spares ${p12s.length}`);
         assert(!gun.mag && !gunField(gun, 'chamber') && gunField(gun, 'mode') === 'safe' && mags.length === 3, JSON.stringify({ tier, mag: gun.mag, chamber: gunField(gun, 'chamber'), mode: gunField(gun, 'mode'), mags: mags.length }));
+        assert(p && k.worn?.holster === pId && p.mag && !gunField(p, 'chamber') && gunField(p, 'mode') === 'safe' && p12s.length === 1, JSON.stringify({ tier, p, p12s }));
       }
     },
   },
@@ -184,25 +210,10 @@ export default [
     },
   },
   {
-    name: 'his own rifle stopped on his man: "Gun down!", his drill on his hands from what he believes (v0.0.19: IMMEDIATE ACTION first, then what it shows him: a double feed REMEDIAL ACTION, an empty a speed reload), "Gun up!" (the empty\'s too: his "Gun down!" closed by its own word), back on the man and him down, the room\'s "Clear!" after (COMBAT §25.19.5; v0.0.13 pressed a jammed rifle six times and called the room clear over his man)',
+    name: 'his own rifle stopped on his man without a P-12 (\'~two:none\', the tests\' only from v0.0.20): "Gun down!", his drill on his hands from what he believes (v0.0.19: IMMEDIATE ACTION first, then what it shows him: a double feed REMEDIAL ACTION, an empty a speed reload), "Gun up!" (the empty\'s too: his "Gun down!" closed by its own word), back on the man and him down, the room\'s "Clear!" after (COMBAT §25.19.5; v0.0.13 pressed a jammed rifle six times and called the room clear over his man)',
     timeoutMs: 60_000,
     fn() {
-      const rows = [];
-      for (const [kind, put] of [['stovepipe', (gun) => { gun.chamber = 'case'; }], ['double', (gun) => { gun.chamber = 'case'; gun.jam = 'double'; }], ['empty', (gun, s) => { s.items[gun.mag].n = 0; delete gun.chamber; }]]) {
-        const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'tierone', setup: 'room:3' }), s = g.state, gun = twoRifle(s), pid = twoOf(s).pid;
-        put(gun, s);
-        const drill = twoDrillOf(s, gun), says = [], lists = new Set(), drawn = new Set();
-        let man = null, clearAt = null, downAt = null;
-        runHouse(g, houseHonestBot(), { maxMs: 40_000, each: (game) => {
-          const st = game.state, H = st.armoury.range.house, W = H.two;
-          for (const f of game.facts('say')) if (f.who === pid) says.push(f.text);
-          for (const f of game.facts('house')) if (f.phase === 'clear' && f.room === 'w4.r3' && clearAt === null) clearAt = st.clock.ms;
-          if (W.down && downAt === null) { downAt = st.clock.ms; man = W.down.key; }
-          if (W.doing?.cmd === 'down') { lists.add(W.doing.macro); const h = handsOf(st, pid); if (h?.action) drawn.add(h.action); }
-        } });
-        const H = s.armoury.range.house, T = s.armoury.range.turners.find(x => x.key === man), faults = H.rooms[2]?.faults?.map(f => f.kind) ?? [];
-        rows.push({ kind, drill, lists: [...lists], drawn: [...drawn], says: says.filter(t => /Gun|Reload|Up/.test(t)), man, down: T?.stoppedAtMs ?? null, clearAt, faults, gun: { chamber: gunField(twoRifle(s), 'chamber'), jam: gunField(twoRifle(s), 'jam') ?? null } });
-      }
+      const rows = stoppedRows('standard~two:none');
       for (const r of rows) console.log(`      ${r.kind}: his drill ${r.lists.join(' then ')} (${r.drawn.join(' ')}); he said ${r.says.join(' ')}; his man ${r.man} ${r.down !== null ? `down ${fmt((r.clearAt - r.down) / 1000, 2)} s before "Clear!"` : 'up'}; room 3's faults ${r.faults.join(', ') || 'none'}`);
       // (v0.0.19, the build sheet's §0 item 20: his drill from what he believes (house-two.js twoFixOf, plan.js planFor), as yours:
       // a dead trigger is an IMMEDIATE ACTION first whatever the gun hides, and the truth's drill (v0.0.18's twoDrillOf, `drill`)
@@ -212,6 +223,31 @@ export default [
       // (the call he opened with is the one he closes (team.js TEAM_WORDS gunDown's close, gunUp): "Gun down!" then "Gun up!", the empty's
       // IA turned speed reload too; v0.0.19's first build closed it "Up.", a reload's word, which F36 counts not closed: the review of 2026-11-16)
       assert(rows.every(r => r.says[0] === TWO_SAY.gunDown && r.says.at(-1) === TWO_SAY.gunUp && !r.says.includes(TWO_SAY.up)), JSON.stringify(rows.map(r => r.says)));
+    },
+  },
+  {
+    name: 'his own rifle stopped on his man with his P-12, standard issue from v0.0.20 (the user\'s answer of 2026-11-16, "#2 has to have a sidearm"): the man facing him within 10 m, he draws first (COMBAT §25.19.6\'s transition), takes his man with it, then brings the rifle back by its own drill (a double feed REMEDIAL ACTION, an empty a speed reload), his last word "Gun up!" (or a reload\'s "Up."), the room\'s "Clear!" after his man is down and his P-12 holstered at the card',
+    timeoutMs: 60_000,
+    fn() {
+      const rows = stoppedRows(null);
+      for (const r of rows) console.log(`      ${r.kind}: his drill ${r.lists.join(' then ')} (${r.drawn.join(' ')}); he said ${r.says.join(' ')}; his man ${r.man} ${r.down !== null ? `down ${fmt((r.clearAt - r.down) / 1000, 2)} s before "Clear!"` : 'up'}; room 3's faults ${r.faults.join(', ') || 'none'}; his P-12 ${r.holstered ? 'holstered' : 'OUT'} at the card`);
+      assert(rows.every(r => r.man && r.lists[0] === 'transition' && r.lists[1] === 'rifle-up' && (r.drill === 'ia' ? r.lists.length === 2 : r.lists.at(-1) === r.drill) && r.down !== null && r.clearAt !== null && r.clearAt >= r.down && !r.faults.includes('standing') && [TWO_SAY.gunUp, TWO_SAY.up].includes(r.says.at(-1)) && r.holstered), JSON.stringify(rows));
+    },
+  },
+  {
+    name: 'his rifle empty at room 3 with his P-12 (the tier one by T): his status at your "Room clear!" comes while his Rifle up runs, "Gun down!", and that call is the one he closes, by "Gun up!" once his speed reload has the rifle back, said once and never answered by a reload\'s "Reloading!" and "Up." alone (v0.0.20\'s integration: the status beat and his P-12 merged left "Gun down!" open on all three seeds, F36)',
+    timeoutMs: 60_000,
+    fn() {
+      const rows = [];
+      for (const seed of [1489397426, 48213, 1037]) {
+        const g = createGame({ scenario: 'test-shoothouse', seed, tier: 'tierone', setup: 'room:3' }), s = g.state, W = twoOf(s), gun = twoRifle(s);
+        s.items[gun.mag].n = 0; delete gun.chamber;
+        const says = [];
+        const r = runHouse(g, houseHonestBot(), { maxMs: 12 * 60_000, each: (game) => { for (const f of game.facts('say')) if (f.who === W.pid && ['Gun down!', 'Gun up!', 'Reloading!', 'Up.'].includes(f.text)) says.push(`${f.text}${f.status ? ' (status)' : ''}`); } });
+        rows.push({ seed, done: r.done, says, status: W.status?.['o:w4:r3']?.said ?? null, down: W.down ?? null });
+      }
+      for (const r of rows) console.log(`      ${r.seed}: his status ${r.status}; he said ${r.says.join(', ')}`);
+      assert(rows.every(r => r.done && r.status === 'gunDown' && r.says.filter(x => x.startsWith('Gun down!')).length === 1 && r.says.at(-1) === 'Gun up!' && !r.says.includes('Reloading!') && !r.down), JSON.stringify(rows));
     },
   },
   {

@@ -19,6 +19,7 @@ import { houseKeysBot } from './bots/house.mjs';
 import { SLIP_WORDS } from '../src/sim/combat/bundle.js';
 import { setSt } from '../src/sim/arms/devices.js';
 import { move as kitMove } from '../src/sim/arms/kit.js';
+import { setOpening } from '../src/sim/places/model.js';
 
 const lane = (tier, o = {}) => createGame({ scenario: 'test-shoothouse', seed: 48213, tier, setup: 'go', loadout: 'frag', ...o });
 const choose = (s) => s.stop?.mode === 'stop' && s.stop.phase === 'choose' && !s.stop.reflex;
@@ -164,7 +165,7 @@ export default [
   },
   // (the review of v0.0.19's K, finding 6: HANDS FULL's Cook 2 named a row the sim never made; an armed grenade handed back now has it)
   {
-    name: 'an armed G-9P in the hand at room 1\'s stack offers Throw it, Pin back in and Cook 2 (dev:gren:cook:2): Cook 2 counts two and hands back a live grenade with only its throws; thrown, it bursts in room 1 under 2.8 s after the throw (the fuse U(4.0, 4.8) s less the count)',
+    name: 'an armed G-9P in the hand at room 1\'s stack, the door open, offers Throw it, Pin back in and Cook 2 (dev:gren:cook:2): Cook 2 counts two and hands back a live grenade with only its throws; thrown, it bursts in room 1 under 2.8 s after the throw (the fuse U(4.0, 4.8) s less the count; v0.0.20: the door opened first, a throw and a cook at a shut door being struck "door shut", the hunt of v0.0.18\'s kit-4)',
     timeoutMs: 60_000,
     fn() {
       const g = lane('sgt'), s = g.state, H = s.armoury.range.house, inner = houseKitBot({ use: 'frag' });
@@ -173,7 +174,7 @@ export default [
       runHouse(g, (st, me, mem) => {
         if (!id && choose(st) && stepsOf(st).some(r => /^drill:room:clear@[^>]*frag[^>]*>o:w4:r1$/.test(r.id) && !r.off)) {
           id = Object.keys(st.items).find(k => st.items[k].model === 'g9p');
-          kitMove(st, id, { pid: st.player.id, hand: 0 }); setSt(st, id, 'armed');
+          kitMove(st, id, { pid: st.player.id, hand: 0 }); setSt(st, id, 'armed'); setOpening(st, 'o:w4:r1', 'open');
           armed = stepsOf(st).filter(r => /^dev:/.test(r.id)).map(r => `${r.id}${r.off ? `(${r.off})` : ''}`);
           return { act: [stepAct('dev:gren:cook:2')] };
         }

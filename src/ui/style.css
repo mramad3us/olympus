@@ -367,11 +367,18 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass .logline.roll:focus-visible { outline: 1px solid var(--brass); }
 
 /* What you carry (I): the plaque, you, the gear's tiles (VIEWS §8.3; tradecraft's pockets). */
-.glass.pockets { width: min(calc(760px * var(--ui)), 94%); }
+/* v0.0.20 (the hunt of v0.0.18: the breach and full kits ran the card off the screen, its footer cut, with no scrollbar on macOS):
+   the tiles two to a row, the plaque and the footer fixed, only the body scrolling, its bar always shown when it must. */
+.glass.pockets { width: min(calc(760px * var(--ui)), 94%); display: flex; flex-direction: column; overflow: hidden; }
 .glass.pockets .pk-head canvas { image-rendering: pixelated; display: block; margin-bottom: 10px; }
-.glass.pockets .pk-body { display: grid; grid-template-columns: auto 1fr; gap: calc(16px * var(--ui)); align-items: start; }
+.glass.pockets .pk-head, .glass.pockets > .note { flex: none; }
+.glass.pockets .pk-body { display: grid; grid-template-columns: auto 1fr; gap: calc(16px * var(--ui)); align-items: start; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--glass-line) transparent; }
+.glass.pockets .pk-body::-webkit-scrollbar { width: 6px; }
+.glass.pockets .pk-body::-webkit-scrollbar-thumb { background: var(--glass-line); border-radius: 3px; }
+.glass.pockets .pk-doll { position: sticky; top: 0; }
 .glass.pockets .pk-doll canvas { image-rendering: pixelated; display: block; border: 1px solid var(--glass-line); }
-.glass.pockets .pk-main { display: flex; flex-direction: column; gap: 8px; }
+.glass.pockets .pk-main { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(230px * var(--ui)), 1fr)); gap: 8px; align-content: start; }
+.glass.pockets .pk-main > .pk-group.wide, .glass.pockets .pk-main > .pk-none { grid-column: 1 / -1; }
 .glass.pockets h4 { font-size: calc(11px * var(--ui)); letter-spacing: 0.08em; color: var(--brass); font-weight: normal; margin: 0 0 4px; text-transform: uppercase; }
 .glass.pockets .pk-pocket { background: var(--ink-2); border: 1px solid var(--glass-line); border-radius: 2px; padding: 4px 8px; }
 .glass.pockets .pk-pocket.empty { opacity: 0.6; }
@@ -382,7 +389,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass.pockets .pk-icon { image-rendering: pixelated; flex: none; }
 .glass.pockets .pk-dot { display: inline-block; width: calc(8px * var(--ui)); height: calc(8px * var(--ui)); border-radius: 50%; background: var(--glass-line); flex: none; }
 .glass.pockets .pk-dot.gun { background: var(--muted); border-radius: 1px; width: calc(18px * var(--ui)); height: calc(5px * var(--ui)); }
-.glass.pockets .pk-reach { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.glass.pockets .pk-reach { margin-left: auto; white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
 .glass.pockets .pk-none { color: var(--muted); font-size: calc(12px * var(--ui)); margin: 2px 0; }
 
 /* 0.0.7, the line at 300 m (the build sheet 0.0.7 §2.5): the terms' plate over the plaque, the far window's label and
@@ -495,6 +502,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .runsheet .rs-mark::before { content: ' · '; color: #7d746a; }
 .runsheet .rs-mark.fault { color: #a3423c; }
 .runsheet .rs-one { margin: calc(4px * var(--ui)) 0 0; font-style: italic; }
+/* (the live lane's wound sentences under the rooms, before the one thing) */
+.runsheet .rs-would { margin: calc(3px * var(--ui)) 0 0; color: #8a3a2e; }
 .house-wash { background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 4px; padding: calc(6px * var(--ui)) calc(8px * var(--ui)); color: var(--glass-text); font-size: calc(11px * var(--ui)); line-height: 1.35; }
 .house-wash .hw-title { color: var(--brass); letter-spacing: 0.08em; }
 .house-wash .hw-line { margin: 0; }
@@ -645,4 +654,78 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 #title .sheet.loadout .item.preset { width: auto; margin: 0; padding: calc(2px * var(--ui)) calc(8px * var(--ui)); font-size: calc(12px * var(--ui)); opacity: 0.7; }
 #title .sheet.loadout .item.preset.on { opacity: 1; outline: 1px solid rgba(26, 18, 20, 0.55); }
 #title .sheet.loadout .mass { margin: calc(6px * var(--ui)) 0 0; font-size: calc(11px * var(--ui)); }
+/* (the #2's P-12 a line of the paper, standard issue, not a control) */
+#title .sheet.loadout p.two { margin: calc(6px * var(--ui)) 0 0; font-size: calc(11.5px * var(--ui)); }
 #title .sheet.loadout .code { margin: 0; font-family: var(--mono); font-size: calc(9.5px * var(--ui)); opacity: 0.6; word-break: break-all; }
+
+/* v0.0.20, D (the build sheet items 10 and 23): the Esc menu's To score page (cards/topick.js), the loadout screen's marine (cards/loadout.js) */
+.glass.topick { max-width: calc(780px * var(--ui)); max-height: 92vh; overflow-y: auto; }
+.glass.topick .topick-row { display: grid; grid-template-columns: calc(150px * var(--ui)) 1fr; gap: calc(4px * var(--ui)) calc(8px * var(--ui)); align-items: center; padding: calc(4px * var(--ui)) 0; border-bottom: 1px solid var(--glass-line); }
+.glass.topick .topick-row .title { color: var(--glass-text); font-size: calc(12px * var(--ui)); }
+.glass.topick .topick-row .chips { display: flex; flex-wrap: wrap; gap: calc(3px * var(--ui)); }
+.glass.topick .chip { background: var(--ink-2); border: 1px solid var(--glass-line); color: var(--glass-text); padding: calc(2px * var(--ui)) calc(7px * var(--ui)); border-radius: 2px; cursor: pointer; font: inherit; font-size: calc(11px * var(--ui)); }
+.glass.topick .chip.on { border-color: var(--brass); color: var(--brass); }
+.glass.topick .chip.struck { opacity: 0.55; text-decoration: line-through; }
+.glass.topick .score { grid-column: 2; display: flex; align-items: center; gap: calc(6px * var(--ui)); font-size: calc(11px * var(--ui)); color: var(--glass-text); }
+.glass.topick .score input[type=range] { width: calc(160px * var(--ui)); }
+.glass.topick .score .star { background: none; border: 1px solid var(--glass-line); color: var(--glass-text); cursor: pointer; padding: 0 calc(5px * var(--ui)); }
+.glass.topick .score .star.on { border-color: var(--brass); color: var(--brass); }
+#title .sheet.loadout .faces:has(canvas.marine) { grid-template-columns: auto repeat(4, minmax(0, 1fr)); }
+#title .sheet.loadout canvas.doll.marine { image-rendering: pixelated; align-self: start; }
+
+/* v0.0.20, the card (the build sheet v0.0.20 §1 items 13, 14, 19, 20, 21, 26; C's block): the verdict, the team's row, the click on a
+   take-in bar, the session's grid, the lane timer's strip, who speaks over his head, and the plan view beside the run sheet. The end
+   card with the plan never scrolls at 1024 × 768 or 1600 × 900: the side column gives the plan its own width, the run sheet under it. */
+.glass.end .verdict { margin: 0 0 calc(4px * var(--ui)); font-weight: 700; letter-spacing: 0.06em; }
+.glass.end .verdict.go { color: #5fbf7e; }
+.glass.end .verdict.nogo { color: #d8463a; }
+.runsheet .rs-verdict { margin: calc(4px * var(--ui)) 0 0; font-weight: 700; letter-spacing: 0.04em; }
+.runsheet .rs-verdict.go { color: #2f7a4c; }
+.runsheet .rs-verdict.nogo { color: #a3423c; }
+.runsheet .rs-team { border-top: 1px dotted #d9d0bc; padding-top: calc(2px * var(--ui)); }
+.house-wash .hw-click { background: #7d746a; opacity: 0.9; }
+.house-grid { border-collapse: collapse; font-size: calc(10px * var(--ui)); font-variant-numeric: tabular-nums; }
+.house-grid th, .house-grid td { padding: 0 calc(5px * var(--ui)); text-align: left; white-space: nowrap; }
+.house-grid th.now, .house-grid td.now { color: #e7b84a; }
+.house-grid td.late { color: #d07a6e; }
+.house-grid td.fault { color: #d8463a; }
+.item.again-as.up { outline: 1px solid rgba(95, 191, 126, 0.6); }
+.timer.strip { height: calc(22px * var(--ui)); }
+.plaque.speaker { position: absolute; left: 0; top: 0; pointer-events: none; image-rendering: pixelated; transition: none; }
+.house-side.with-plan { width: auto; flex-direction: column; }
+.house-side.with-plan > .runsheet { width: auto; font-size: calc(9.5px * var(--ui)); }
+.houseplan { background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 4px; padding: calc(4px * var(--ui)); color: var(--glass-text); font-size: calc(10px * var(--ui)); }
+.houseplan .plan-head { display: flex; gap: calc(8px * var(--ui)); justify-content: space-between; color: var(--brass); letter-spacing: 0.08em; }
+.houseplan .plan-head small { color: var(--faint); letter-spacing: 0; }
+.houseplan .plan-canvas { display: block; image-rendering: pixelated; outline: none; cursor: pointer; }
+.houseplan .plan-scrubber { position: relative; margin-top: calc(3px * var(--ui)); }
+.houseplan .plan-legs { position: relative; height: calc(11px * var(--ui)); }
+.houseplan .plan-leg { position: absolute; top: 0; height: 100%; border-left: 1px solid var(--faint); padding-left: 2px; color: var(--faint); overflow: hidden; white-space: nowrap; font-size: calc(9px * var(--ui)); }
+.houseplan .plan-leg.passed { color: #d07a6e; }
+.houseplan .plan-scrub { width: 100%; margin: 0; }
+.houseplan .plan-lane { position: relative; height: calc(8px * var(--ui)); margin-left: calc(36px * var(--ui)); border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.houseplan .plan-lane b { position: absolute; left: calc(-36px * var(--ui)); top: 0; font-weight: normal; color: var(--faint); font-size: calc(8px * var(--ui)); }
+.houseplan .plan-tick { position: absolute; top: 1px; width: 1px; height: calc(6px * var(--ui)); background: var(--glass-text); }
+.houseplan .plan-tick.round { background: #f8e08a; }
+.houseplan .plan-tick.sighting, .houseplan .plan-tick.pause { background: #95c1e3; }
+.houseplan .plan-tick.fault { width: 3px; background: #d8463a; cursor: pointer; }
+.houseplan .plan-foot { display: flex; flex-wrap: wrap; gap: calc(4px * var(--ui)); margin-top: calc(3px * var(--ui)); }
+.houseplan .plan-foot button { font: inherit; color: var(--glass-text); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--glass-edge); border-radius: 2px; padding: 0 calc(4px * var(--ui)); cursor: pointer; }
+.houseplan .plan-foot .plan-fault { color: #e0533f; }
+.houseplan .plan-truth:empty { display: none; }
+#title .sheet.picker .item.sheetpick small.best { display: block; color: #2f7a4c; }
+.glass.end.house .glass-list { display: grid; grid-template-columns: 1fr 1fr; gap: calc(3px * var(--ui)); }
+.glass.end.house .glass-list .item { margin: 0; }
+.glass.end.house .aspect-said { font-size: calc(11px * var(--ui)); line-height: 1.25; }
+.glass.end.house .glass-list .item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.glass.end.house .glass-list .item small { display: inline; margin-left: calc(6px * var(--ui)); }
+/* (the play review: beside the plan view the card is about 430 px wide at 1600 × 900; its choices' words were cut
+   ("Score it six aspec", "Again as Boot rec") and a NO-GO's card scrolled. There the words go a size down, a choice's words wrap
+   rather than being cut, its small words are left out and the lines sit tighter, so the card fits the window whole) */
+.end-wrap:has(> .house-side.with-plan) > .glass.end.house { padding-top: calc(10px * var(--ui)); padding-bottom: calc(10px * var(--ui)); }
+.end-wrap:has(> .house-side.with-plan) .glass.end.house .said { font-size: calc(12px * var(--ui)); line-height: 1.3; margin: 0 0 calc(6px * var(--ui)); }
+.end-wrap:has(> .house-side.with-plan) .glass.end.house .verdict { font-size: calc(14px * var(--ui)); }
+.end-wrap:has(> .house-side.with-plan) .glass.end.house .glass-list .item { font-size: calc(12px * var(--ui)); line-height: 1.2; padding: calc(3px * var(--ui)) calc(6px * var(--ui)); gap: calc(6px * var(--ui)); white-space: normal; }
+.end-wrap:has(> .house-side.with-plan) .glass.end.house .glass-list .item small { display: none; }
+.end-wrap:has(> .house-side.with-plan) .glass.end.house .aspect-said { font-size: calc(10.5px * var(--ui)); line-height: 1.2; }
+.end-wrap:has(> .house-side.with-plan) .glass.end.house .note { font-size: calc(10px * var(--ui)); margin-top: calc(6px * var(--ui)); }

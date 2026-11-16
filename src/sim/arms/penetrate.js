@@ -39,6 +39,7 @@ import { CALIBRES, loadOf } from './calibres.js';
 import { boreTable, airOf, envOfPlace, woundFactor } from './ballistics.js';
 import { SPAN_M } from './carry.js';
 import { faceUpAt } from './pits.js';
+import { armShareOf } from '../body/wounds.js';
 
 /** WEAPONS §8.5's materials: { word, pPerMm, hard }; stopsAll: earth that no small arm crosses. */
 export const MATERIALS = Object.freeze({
@@ -98,9 +99,12 @@ export const LAYERS = Object.freeze({
   lightSuit: Object.freeze({ word: 'the suit\'s shell', P: 1, blunt: Object.freeze({ k: 0.1, crack: 0, knock: 0 }), wear: 0 }),
   insurgentPlate: Object.freeze({ word: 'a steel plate', P: 6, blunt: Object.freeze({ k: 0.35, crack: 0.06, knock: 0.15 }), wear: 0.03 }),
 });
-/** What a kind of armour covers on the torso (WEAPONS §8.3): the Corps' carrier, a soft vest, an insurgent's plate. */
+/** What a kind of armour covers on the torso (WEAPONS §8.3): the Corps' carrier, with its plates or out for training, a soft vest, an insurgent's plate. */
 export const ARMOUR = Object.freeze({
   carrier: Object.freeze({ word: 'the Corps\' carrier', cover: Object.freeze({ plate: 0.55, soft: 0.30 }) }),
+  // (the same carrier with its plates out for training, as the shoot house wears it (kit.js 'pc-m3'): the soft panel over
+  // what plate and soft cover together, 0.85 of the torso; read by the live lane's would-have, combat/would.js)
+  carrierTraining: Object.freeze({ word: 'the Corps\' carrier, its plates out for training', cover: Object.freeze({ soft: 0.85 }) }),
   softVest: Object.freeze({ word: 'a soft vest', cover: Object.freeze({ soft: 0.75 }) }),
   insurgent: Object.freeze({ word: 'a steel plate, front only', cover: Object.freeze({ insurgentPlate: 0.3 }) }),
 });
@@ -204,6 +208,42 @@ export function hitOf({ onId, part, fromId = null, rangeM = 0, cal = '6.5x40r', 
   const w = woundFactor({ eJ, diaMm: C?.diaMm ?? 6.7, woundK: woundK ?? L.woundK ?? 1 });
   return { kind: 'gunshot', onId, part, fromId, rangeM: Math.round(rangeM * 10) / 10, load: `${cal}/${load}`, energyJ: Math.round(eJ), diaMm: C?.diaMm ?? 6.7, w: Math.round(w * 100) / 100,
     penLeftMm: Math.round(penLeftMm * 100) / 100, through: !!through, exitPart: through ? exitPart ?? part : null, margin, shotId, nd: !!nd, armour };
+}
+
+/**
+ * A round meeting a body (WEAPONS §8.3, §8.4, §8.7): the one helper of traceRound's body branch and of the live lane's would-have
+ * (combat/would.js; v0.0.20, the code review of the user's answer "Paintball should end if the hit is 'fatal'", so a marking strike
+ * and a live strike make the same hit record). r the dice; cover the torso's worn armour (ARMOUR's cover, or null: bare); wear the
+ * layers' wear so far ({ [layer]: 0 … WEAR_MAX }, or null where nobody keeps it: traceRound's). On a covered torso an arm in front of
+ * it is met first (wounds.js armShareOf, its own ARM_SHARE by the margin: the arm is outside the carrier, so the panel is contested
+ * only by a round that stays in the torso; the record says armDrawn, and applyHit draws its own arm no more); then the layer it lands
+ * on (layerHit) and its contest (throughLayer); through it, the tissue at the pen left (throughTissue). The wound factor w is the
+ * impact's (hitOf at vMs, the round's speed as it meets the body: WEAPONS §8.1, §8.7's example, energyJ 2180 and w 1.56 through a
+ * plate at 42 m); what the layer took is in penLeftMm and the exit, never in w (my call, the game's as traceRound always had it).
+ * Returns { hit, part, layer, stopped, wear }: hit WEAPONS §8.7's record (armour { layer, stopped, p } or null), part where it went,
+ * layer 'bare' or the layer met, stopped whether the layer stopped it (the hit then has no tissue: BODY's blunt trauma, bluntOf, not
+ * applied), wear the wear after (a new map, or the one given).
+ */
+export function bodyHit(r, { onId, part, fromId = null, rangeM = 0, cal = '6.5x40r', load = 'ball', vMs = 0, margin = 0, shotId = null, nd = false, cover = null, wear = null }) {
+  const frangible = !!loadOf(cal, load)?.frangible, pen = penOf(cal, load, vMs), rec = { onId, fromId, rangeM, cal, load, vMs, margin, shotId, nd };
+  let at = part, armour = null, penIn = pen, layer = 'bare', armDrawn = false, wearOut = wear;
+  if (part === 'torso' && cover) {
+    armDrawn = true;
+    if (chance(r, armShareOf(margin))) at = 'arms';
+    else {
+      layer = layerHit({ armour: { cover } }, r, centreOf(margin));
+      if (layer !== 'bare') {
+        const t = throughLayer(r, { penMm: pen, layer, frangible, wear: wear?.[layer] ?? 0 });
+        armour = { layer, stopped: t.stopped, p: Math.round(t.p * 1000) / 1000 };
+        if (wear) wearOut = { ...wear, [layer]: t.wear };
+        if (t.stopped) return { hit: { ...hitOf({ ...rec, part: at, armour }), armDrawn }, part: at, layer, stopped: true, wear: wearOut };
+        penIn = t.penLeftMm;
+      }
+    }
+  }
+  const tt = throughTissue(r, { penMm: penIn, part: at, frangible });
+  const hit = hitOf({ ...rec, part: at, through: tt.through, exitPart: at, armour, penLeftMm: tt.penLeftMm });
+  return { hit: armDrawn ? { ...hit, armDrawn } : hit, part: at, layer, stopped: false, wear: wearOut, penLeftMm: tt.penLeftMm, through: tt.through };
 }
 
 /**
@@ -333,22 +373,13 @@ export function traceRound(state, { shooterId = null, from, yawRad = 0, pitchRad
     const v = kv * vT(e.s);
     if (e.kind === 'face') { faces.push({ lane: e.lane, paper: e.paper, at: e.at, rangeM: Math.round(e.s * 10) / 10 }); continue; }
     if (e.d > BODY_R_M && !chance(r, STRAY_HIT)) { nearMisses.push({ who: e.who, passM: Math.round(e.d * 100) / 100, crack: air.soundMs > 0 && v > air.soundMs }); continue; }
-    const pen = penOf(cal, load, v), person = state.people?.[e.who] ?? null;
-    let armour = null, penIn = pen;
-    if (e.part === 'torso') {
-      const layer = layerHit(person, r, centreOf(margin));
-      if (layer !== 'bare') {
-        const t = throughLayer(r, { penMm: pen, layer, frangible });
-        armour = { layer, stopped: t.stopped, p: Math.round(t.p * 1000) / 1000 };
-        if (t.stopped) { hits.push(hitOf({ onId: e.who, part: e.part, fromId: shooterId, rangeM: e.s, cal, load, vMs: v, margin, shotId, armour, nd })); stopped = { s: e.s, kind: 'body', id: e.who }; break; }
-        penIn = t.penLeftMm;
-      }
-    }
-    const tt = throughTissue(r, { penMm: penIn, part: e.part, frangible });
-    hits.push(hitOf({ onId: e.who, part: e.part, fromId: shooterId, rangeM: e.s, cal, load, vMs: v, margin, shotId, through: tt.through, exitPart: e.part, armour, penLeftMm: tt.penLeftMm, nd }));
+    // (the body: bodyHit, the one helper the live lane's would-have calls too)
+    const b = bodyHit(r, { onId: e.who, part: e.part, fromId: shooterId, rangeM: e.s, cal, load, vMs: v, margin, shotId, nd, cover: coverOf(state.people?.[e.who] ?? null) });
+    hits.push(b.hit);
+    if (b.stopped) { stopped = { s: e.s, kind: 'body', id: e.who }; break; }
     path.push(pt(e.s));
-    if (!tt.through || tt.penLeftMm <= 0) { stopped = { s: e.s, kind: 'body', id: e.who }; break; }
-    kv = vOfPen(cal, load, tt.penLeftMm) / Math.max(1, vT(e.s));
+    if (!b.through || b.penLeftMm <= 0) { stopped = { s: e.s, kind: 'body', id: e.who }; break; }
+    kv = vOfPen(cal, load, b.penLeftMm) / Math.max(1, vT(e.s));
   }
   const endAt = stopped ? stopped.s : endS;
   for (const n of near) if (n.s < endAt) { const v = kv * vT(n.s); nearMisses.push({ who: n.who, passM: Math.round(n.passM * 100) / 100, crack: air.soundMs > 0 && v > air.soundMs }); }

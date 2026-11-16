@@ -20,7 +20,16 @@
 // grid (nav.js remarkLeaf, sight.js remarkSight), and a delta that matches its template and has
 // finished is dropped (PLACES §1.10: the save holds only what changed). Which leaves are moving is
 // runtime ($places.moving), found again from the saved deltas after a load, so a game saved while a
-// door swings frees it on the tick the unsaved run would. Pure but for the state it is given.
+// door swings frees it on the tick the unsaved run would.
+//
+// v0.0.20 (the build sheet's item 15, the feel lens's FL-6: "the picture and the sound do not tell a kick from a push"): **a
+// door moves as it was opened**. The delta keeps the verb that opened it, `how` ('push' | 'pull' | 'kick', model.js setOpening's
+// option; absent for a toggle by hand, a pry, a ram or a blown door: the linear swing as built). leafAt stays the linear fraction
+// the sim reads (the nav, bundle.js's leafAt(…) >= 1, the arcs' no-stop zone: nothing of the sim moves with the picture), and
+// leafShownAt is what the stage draws, leafCurve(how, leafAt) over the same span and the same atMs: a push eases out
+// (1 − (1 − t)³), a pull is drawn by a hand (t²(3 − 2t)), a kick slams to its stop at KICK_STOP_T 0.55, rebounds to KICK_BACK_K
+// 0.88 at t 0.75 and settles at 1 at the span's end. stopAtOf(how, leafAtMs, openMs) is the moment the curve first reaches 1,
+// which the house's door facts carry for the knock (bundle.js's door and force kinds; the audio's). Pure but for the state it is given.
 import { openingOf, openingArea, openingState, openingDelta, setOpening, liveArea } from './model.js';
 import { remarkLeaf } from './nav.js';
 import { remarkSight } from './sight.js';
@@ -54,6 +63,33 @@ export function leafAt(state, openingId, ms = state?.clock?.ms ?? 0) {
   const left = d.atMs - ms;
   return s === 'open' ? Math.max(0, Math.min(1, 1 - left / ((o.openS ?? DOOR_S) * 1000))) : Math.max(0, Math.min(1, left / ((o.closeS ?? DOOR_S) * 1000)));
 }
+
+/** The verbs a leaf's curve knows (see the header); any other, or none, is the linear swing. */
+export const LEAF_HOWS = Object.freeze(['push', 'pull', 'kick']);
+/** A kick's leaf at its stop at this share of the span, back off it to KICK_BACK_K at KICK_BACK_T, settled at 1 at the end (FL-6). */
+export const KICK_STOP_T = 0.55, KICK_BACK_T = 0.75, KICK_BACK_K = 0.88;
+/**
+ * The leaf's drawn open fraction for the verb that opened it (see the header), t the linear fraction 0 to 1: push 1 − (1 − t)³,
+ * pull t²(3 − 2t), kick an ease-out square to 1 at KICK_STOP_T, a rebound to KICK_BACK_K at KICK_BACK_T and back to 1 at t 1
+ * (each leg a smooth step); else t.
+ */
+export function leafCurve(how, t) {
+  const x = Math.max(0, Math.min(1, t));
+  if (how === 'push') return 1 - (1 - x) ** 3;
+  if (how === 'pull') return x * x * (3 - 2 * x);
+  if (how !== 'kick') return x;
+  if (x <= KICK_STOP_T) { const u = x / KICK_STOP_T; return 1 - (1 - u) ** 2; }
+  const ss = (u) => u * u * (3 - 2 * u);
+  if (x <= KICK_BACK_T) return 1 - (1 - KICK_BACK_K) * ss((x - KICK_STOP_T) / (KICK_BACK_T - KICK_STOP_T));
+  return KICK_BACK_K + (1 - KICK_BACK_K) * ss((x - KICK_BACK_T) / (1 - KICK_BACK_T));
+}
+/** A door's open fraction as the stage draws it at ms (see the header): leafCurve(the delta's how, leafAt); a closing leaf, or a delta with no verb, as leafAt. */
+export function leafShownAt(state, openingId, ms = state?.clock?.ms ?? 0) {
+  const k = leafAt(state, openingId, ms), d = openingDelta(state, openingId);
+  return d?.how && d.state === 'open' && k > 0 && k < 1 ? leafCurve(d.how, k) : k;
+}
+/** When a leaf opened by `how` first stands at its stop (see the header): a kick KICK_STOP_T of the way through its swing, any other at the swing's end (ms). */
+export const stopAtOf = (how, leafAtMs, openMs) => leafAtMs + Math.round((how === 'kick' ? KICK_STOP_T : 1) * openMs);
 
 /** Turn a door the other way (see the header): 'open' | 'closed', or null for a doorway, a gate or no such door. */
 export function toggleDoor(state, openingId, bus, { who = null, to = null } = {}) {
