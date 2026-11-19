@@ -33,7 +33,8 @@
 //               (1 + 0.3 (n − 1)), the cyclic rate in place of tradecraft's BURST_GAP_S, the recovery
 //               on Weapon handling's pace (the R-7 at WH 10: 0.395 s, lived 400 ms). Recoil's impulse
 //               does not change at 0.38 G and a planted shooter (standing, kneeling or prone on Mars)
-//               keeps none of it: anchor 1.0 and climb ×1.0 (WEAPONS §7.8's 'planted').
+//               keeps none of it: anchor 1.0 and climb ×1.0 (WEAPONS §7.8's 'planted'). From step 5 of
+//               "anywhere" the anchor is the footing's (anchorOf below: ANCHORS, WEAPONS §7.8's table).
 //   taps        tapsOf: a double tap from Marksmanship 8, a triple from 18 (tradecraft's TAP_SKILL,
 //               the skill moved to Marksmanship as SKILLS §2.1 assigns it); climbOf(MRK) =
 //               clamp(1.4 − MRK / 25, 0.35, 1.4).
@@ -108,6 +109,18 @@
 // role-player sees of him); a round at a live man is past him when the shooter's own eye sees him under SEEN at the round
 // (men.js seenK, his exposure: a man who ducked behind the wing wall is not there to be hit), and a man on his dash is
 // MOVING_MAN_V −2 harder (modsOf, 'a moving man'). A stand's shot is as built.
+// v0.0.24, the anywhere round's step 5 (ROADMAP; WEAPONS §7.3, §7.8; CONTRACTS §21), footing holds the recoil (the user, 2026-11-08: "Try
+// keeping rifles looking like rifles even zero G stuff, let's say we use footing to hold recoil"): anchorOf(state, pid) reads
+// the footing (src/sim/body/footing.js footingOf) as WEAPONS §7.8's row (ANCHORS: planted, light, magBoots, handhold, braced,
+// floating) and gives the pull's recovery factor (pullMsOf, the shot rows' parts in specials.js) and the follow-up's climb
+// (modsOf) in place of the constant 'planted'; a hold taken with one hand and a two-handed gun is −4 ('one-handed, a hand
+// on the hold'). The anchoring modifier itself (free fall unanchored −6, anchored −2, braced 0, worn down by Zero-g) is the
+// roller's (src/sim/combat/roll.js, BODY §22's gravity regime row), so the plaque and the roll read it as one list. At 0.3 G
+// and up every shooter is planted: factors 1, no entry, Mars and the Wheel to the millisecond.
+// v0.0.24, the anywhere round's step 7 (free fall; WEAPONS §7.8): resolveShot gives each fired round's push and spin to the shooter
+// through body/freefall.js recoilFloat (J by calibres.js impulseNs; the anchor's keepPush and keepSpin): a floating shooter drifts
+// back along the bore and tumbles, an anchored one's anchor takes what it keeps, and the shot records it (`recoil`) off a planted
+// footing only; under the float band its case flies to the place's faces (look.js ejectCase, brass.js caseFacesOf).
 // Pure but resolveShot.
 import { stream, d20 } from '../../core/rng.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
@@ -123,7 +136,9 @@ import { pull, feel, refusalOf, gunField, sightOf, zeroOfGun, beliefZero, opticO
 import { flight, envOfPlace, CLICK_MRAD } from './ballistics.js';
 import { pathWind, windWords, windBlowsAt } from './wind.js';
 import { carryOf, muzzleOf, POSTURES } from './carry.js';
-import { ejectCase, caseGMs2 } from './look.js';
+import { ejectCase, caseGMs2, CASE_FLOAT_MS2 } from './look.js';
+import { caseFacesOf } from './brass.js';
+import { recoilFloat } from '../body/freefall.js';
 import { FACE_DOWN_UP } from './pits.js';
 import { penOf, throughMaterial } from './penetrate.js';
 import { SEEN } from '../people/perception.js';
@@ -131,6 +146,8 @@ import { spinOf, spinBiasCm } from '../places/spin.js';
 import { contactOf } from '../people/mind.js';
 import { turnerOf } from './turners.js';
 import { seenK, movingNow, MOVING_MAN_V } from '../combat/men.js';
+import { footingOf } from '../body/footing.js';
+import { FOOTING } from '../../data/body/needs.js';
 
 /** The shot's base DC (tradecraft's SHOT.dc). */
 export const SHOT_DC0 = 6;
@@ -156,8 +173,26 @@ export const CLIMB = Object.freeze({ max: 1.4, per: 25, min: 0.35 });
 export const AIM = Object.freeze({ sight: 0.6, turn: Object.freeze({ base: 90, per: 6 }), arc: Object.freeze({ base: 30, per: 2, max: 100 }), feet: 0.4 });
 /** The light on the target (tradecraft's shotOf): dark and dim. */
 export const LIGHT_MOD = Object.freeze({ dark: -4, dim: -2 });
-/** The shooter's recoil anchor at 0.38 G (WEAPONS §7.8: 'planted' standing, kneeling or prone at 0.3 G or more). */
-export const ANCHOR = Object.freeze({ recover: 1, climb: 1 });
+/**
+ * WEAPONS §7.8's anchors (step 5; see the header): what holds the shooter, the recovery's and the follow-up's climb's
+ * factors, and what the shooter keeps of each round's push (keepPush, of the drift J / m) and of its spin (keepSpin, of
+ * J × 0.45 m / I): planted keeps nothing (friction or structure takes it); light the surface's slide (slide: on Europa a
+ * suited marine slides 1.8 to 4.7 cm/s and stops within 0.1 to 0.6 cm), its climb ×1.3 on automatic only (climbAuto);
+ * magBoots none of the push and a tenth of the spin; handhold a fifth of the push and a third of the spin; braced
+ * nothing; floating all of it. The drift and the spin are step 7's motion; this round reads the two factors.
+ */
+export const ANCHORS = Object.freeze({
+  planted: Object.freeze({ recover: 1, climb: 1, climbAuto: false, keepPush: 0, keepSpin: 0, slide: false }),
+  light: Object.freeze({ recover: 1.2, climb: 1.3, climbAuto: true, keepPush: 0, keepSpin: 0, slide: true }),
+  magBoots: Object.freeze({ recover: 1.2, climb: 1.3, climbAuto: false, keepPush: 0, keepSpin: 0.1, slide: false }),
+  handhold: Object.freeze({ recover: 1.6, climb: 1.8, climbAuto: false, keepPush: 0.2, keepSpin: 1 / 3, slide: false }),
+  braced: Object.freeze({ recover: 1.1, climb: 1.1, climbAuto: false, keepPush: 0, keepSpin: 0, slide: false }),
+  floating: Object.freeze({ recover: 2.5, climb: 3.0, climbAuto: false, keepPush: 1, keepSpin: 1, slide: false }),
+});
+/** The planted row (WEAPONS §7.8: standing, kneeling or prone at 0.3 G or more; braced anywhere): every shipped scene's. */
+export const ANCHOR = ANCHORS.planted;
+/** WEAPONS §7.8's one-handed hold with a two-handed gun (a pistol's kind holds one: KINDS' hands 1). */
+export const ONE_HAND_MOD = FOOTING.ONE_HAND_RIFLE;
 /** An armoured man-target's plates (0.0.8; see the header): mm of armour steel (penetrate.js MATERIALS.steelArmour). */
 export const PLATE_MM = 10, PLATE_MATERIAL = 'steelArmour';
 
@@ -210,6 +245,17 @@ export const fireMs = ({ recoil, pace, n = 1, rpm = 700, anchor = ANCHOR.recover
 /** The recovery alone after a pull (ms): the muzzle back down, the aim settling again. */
 export const recoverMs = ({ recoil, pace, n = 1, anchor = ANCHOR.recover }) => Math.round(RECOVER_S * recoil * pace * anchor * (1 + 0.3 * (n - 1)) * 1000);
 
+/**
+ * The shooter's anchor now (WEAPONS §7.8; CONTRACTS §21; step 5): the footing's row (src/sim/body/footing.js footingOf) as
+ * { row, recover, climb, keepPush, keepSpin, slide, oneHand, footing }, the climb the row's on automatic only where it says
+ * so (light: gunId's selector at 'auto'). 'planted' at 0.3 G and up: recover 1 and climb 1, so Mars and the Wheel are unchanged.
+ */
+export function anchorOf(state, pid, { gunId = null } = {}) {
+  const F = footingOf(state, pid), A = ANCHORS[F.anchor] ?? ANCHOR;
+  const climb = A.climbAuto && state.items?.[gunId]?.mode !== 'auto' ? 1 : A.climb;
+  return { row: F.anchor, recover: A.recover, climb, keepPush: A.keepPush, keepSpin: A.keepSpin, slide: A.slide, oneHand: F.oneHand, footing: F };
+}
+
 const meOf = (state, pid) => (playerActor(state)?.who === pid ? playerActor(state) : state.actors?.list?.find(a => a.who === pid) ?? null);
 const gunModel = (state, gunId) => MODELS[state.items?.[gunId]?.model ?? 'r7'];
 
@@ -241,8 +287,11 @@ export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'nor
   // (held: a gunner's own held aim, { v } (src/sim/arms/gunner.js): the stop's aim is the player's)
   const h = held ? { aimed: true, v: held.v } : heldOf(state, pid, ms, target?.key ?? null);
   if (h.aimed && h.v) out.push({ why: h.v > 0 ? 'the aim held' : 'still coming down from the last', v: h.v, src: 'task' });
+  // (step 5: the footing's anchor, WEAPONS §7.8: its climb on a follow-up; one hand on a hold with a two-handed gun −4)
+  const anc = anchorOf(state, pid, { gunId });
+  if (anc.oneHand && (M.oneHand ? 1 : KINDS[M.kind]?.hands ?? 2) > 1) out.push({ why: 'one-handed, a hand on the hold', v: ONE_HAND_MOD, src: 'task' });
   if (follow > 0) {
-    const v = -Math.round(BURST_K * follow * M.recoil * climbOf(mrk) * ANCHOR.climb * (SUPPORT[stance] ?? 1) * climbK);
+    const v = -Math.round(BURST_K * follow * M.recoil * climbOf(mrk) * anc.climb * (SUPPORT[stance] ?? 1) * climbK);
     if (v) out.push({ why: 'the muzzle still up from the last', v, src: 'task' });
   }
   if (target && state.places?.live?.area) {
@@ -293,7 +342,8 @@ export function aimMsOf(state, pid, gunId, target, { ms = state.clock.ms } = {})
 /** A pull's time for this shooter and gun, ms (n rounds), and its recovery alone; × the chaos's time (0.0.9: the roller's timeK at ms; exactly the calm figures at 1). */
 export function pullMsOf(state, pid, gunId, n = 1, { ms = state.clock.ms } = {}) {
   const M = gunModel(state, gunId), roller = rollerOf(state, pid, { ms }), pace = paceOf(roller.value('weapons')), k = roller.timeK;
-  const f = fireMs({ recoil: M.recoil, pace, n, rpm: M.rpm ?? 700 }), r = recoverMs({ recoil: M.recoil, pace, n });
+  const anchor = anchorOf(state, pid, { gunId }).recover;
+  const f = fireMs({ recoil: M.recoil, pace, n, rpm: M.rpm ?? 700, anchor }), r = recoverMs({ recoil: M.recoil, pace, n, anchor });
   return k === 1 ? { ms: f, recoverMs: r } : { ms: Math.round(f * k), recoverMs: Math.round(r * k) };
 }
 
@@ -520,7 +570,7 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
   const me = meOf(state, pid);
   const dirRad = me?.headRad ?? muzzle?.yawRad ?? 0;
   const T = TEMPO[tempo] ?? TEMPO.normal;
-  let roll = null, hole = null, brass = null, entry = null, stepMs, recMs = 0, poi = null, after = '', fl = null, man = null;
+  let roll = null, hole = null, brass = null, entry = null, stepMs, recMs = 0, poi = null, after = '', fl = null, man = null, kick = null;
   if (f.fired) {
     const { dc, parts } = dcOf({ model: gun.model ?? 'r7', rangeM: target?.dM ?? 25, part, paper: target?.paper ?? null });
     const mods = modsOf(state, pid, { gunId, target, part, tempo: 'normal', follow, climbK, ms, held, moving });
@@ -572,7 +622,13 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
     } else roll.verb = roll.ok ? 'hit' : 'missed';
     // (a shot that did not cycle keeps its case: caught in the port (a stovepipe) or in the chamber behind the next
     // round (a double), it flies when a step clears it, not here, or it would be drawn twice: the integrator's)
-    brass = f.stoppage ? null : ejectCase(gun, { ...carryOf(state, pid), x: me?.x ?? 0, z: me?.z ?? 0, headRad: dirRad }, { atMs: ms, kind: 'case', key: id, gMs2: caseGMs2(state) });
+    // (free fall: under the float band the case flies to the place's faces, found once now (look.js; brass.js caseFacesOf))
+    const cg = caseGMs2(state);
+    brass = f.stoppage ? null : ejectCase(gun, { ...carryOf(state, pid), x: me?.x ?? 0, z: me?.z ?? 0, headRad: dirRad }, { atMs: ms, kind: 'case', key: id, gMs2: cg, faces: cg < CASE_FLOAT_MS2 ? caseFacesOf(state) : null });
+    // (free fall: the round's push and spin, what the anchor keeps of them (body/freefall.js recoilFloat; WEAPONS §7.8):
+    // nothing on a planted footing, so no shot at Mars or in the Wheel gains a field)
+    const anc = anchorOf(state, pid, { gunId });
+    kick = recoilFloat(state, pid, { model: gun.model ?? 'r7', load: f.load ?? 'ball', dirRad, keep: { keepPush: anc.keepPush, keepSpin: anc.keepSpin, row: anc.row } });
     // (on a card the tone is the hole's, not the pass at the DC: a 2 on the edge at margin −1 is on the paper, as at 0)
     // (a KD face's line keeps a note's tone whatever the hole: the pits tell the shooter, not the colour of the line)
     const far = !!poi && (target?.dM ?? 25) > NEAR_CARD_M;
@@ -604,6 +660,8 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
   if (poi && (target.up ?? 1) < FACE_DOWN_UP) extra.berm = true;
   // (0.0.8: a turner's round: its part, zone, the steel's verdict and its row, on a turner only (see the header))
   if (man) Object.assign(extra, man);
+  // (the recoil an anchor kept, off a planted footing only (see above))
+  if (kick) extra.recoil = kick;
   Object.assign(shot, extra);
   bus?.emit('shot', { id, who: pid, gun: gunId, atMs: ms, fired: shot.fired, why: shot.why, stoppage: shot.stoppage, set: shot.set, load: shot.load, muzzle: shot.muzzle, dirRad,
     target: shot.target, lane: shot.lane, hole: shot.hole, brass: shot.brass, logSeq: shot.logSeq,

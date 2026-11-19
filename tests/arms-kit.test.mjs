@@ -11,7 +11,7 @@ import { move, holderOf, rebuildHolders, sparesOf, dumpOf, pouchFor, lyingOf, ki
 import { doAction } from '../src/sim/arms/firearms.js';
 import { runMacro } from '../src/sim/arms/drills.js';
 import { createGame } from './game.mjs';
-import { earsOn, SLOTS } from '../src/sim/arms/kit.js';
+import { earsOn, SLOTS, WORN_SLOTS } from '../src/sim/arms/kit.js';
 
 // (the weapons domain's declarations, as the build sheet's §2.6 gives them, for the id walk)
 const ARMS_IDS = { idMaps: { items: 'i', 'armoury.guns': 'i', people: 'p', 'places.sites': 'place' }, idFields: { 'people{}.kit.worn{}': 'i', 'people{}.kit.hands[]': 'i', 'items{}.mag': 'i', 'items{}.holds[]': 'i', 'stop.gun': 'i', 'places.sites{}.items[].id': 'i', 'actors.area': 'place', 'player.id': 'p', 'player.actor': 'a' } };
@@ -111,7 +111,7 @@ export default [
       const T = KIT_TEMPLATES['range-kd'], gun = s.items[kit.worn.sling], ears = s.items[kit.worn.ears];
       const mags = Object.values(s.items).filter(i => i.type === 'mag' && (i.n === 3)).length;
       console.log(`      SLOTS ${SLOTS.join(', ')}; worn ${JSON.stringify(kit.worn)}; the rifle's zero ${JSON.stringify(gun.zero ?? null)}, turrets ${JSON.stringify(gun.sight ?? null)}, lever ${gun.optic ?? 1}; ears ${ears?.model}; earsOn ${earsOn(s, pid)}; magazines of three in the game ${mags}`);
-      assert(SLOTS.indexOf('ears') === SLOTS.length - 3 && SLOTS.slice(-2).join() === 'holster,thigh' && T.worn.ears === 'ed1' && ears?.type === 'ears' && earsOn(s, pid), 'the ear defenders in their slot');
+      assert(SLOTS.indexOf('ears') === SLOTS.length - 3 && SLOTS.slice(-2).join() === 'holster,thigh' && WORN_SLOTS.slice(-2).join() === 'mask,boots' && T.worn.ears === 'ed1' && ears?.type === 'ears' && earsOn(s, pid), 'the ear defenders in their slot');
       assert(T.mags.length === 4 && T.mags.every(([f, n]) => f === 'had30' && n === 3), 'four magazines of three');
       assert(mags === 4 * 6, `the player and the five of the relay each four magazines of three: ${mags}`);
       const h = createGame({ scenario: 'test-handling', seed: 48213 });

@@ -30,25 +30,34 @@
 // tradecraft's user-endorsed ladder on pEff (src/sim/campaign.js fatigue(), TIRED_H 16, EXHAUSTED_H
 // 20, WEAR_H 3, WORN_MAX 12, RAGGED_H 36, LOST_H 48): tired −1 from 16; exhausted from 20, −(3 +
 // ⌊(pEff − 20)/3⌋) to at most −12; "dead on your feet" at 36, "seeing things" at 48.
+// Off Mars (v0.0.24's stage 0, its build sheet §2 step 4; F119): the site's day is a key (core/calendar.js's day functions), a
+// Mars east longitude or 'utc', and lonMsOf turns it into what φ is counted from: on Mars the longitude's whole ms of a sol (the
+// old number, so every Mars reader keeps its bytes), on a ship or at the Phobos School the string 'utc', for which φ is the UTC
+// hour (24 body hours a 24 h day) and the clock's daily drift is `24/τ − 24/24` (clockStep's dayH): a body flown up from Melas
+// keeps its offset and is pulled to the new day as Scheer's light allows.
 import { SLEEP, QUALITY, QUALITY_BY_PHASE, QUALITY_BY_BED, CIRC, FATIGUE_BANDS, EXHAUSTED } from '../../data/body/needs.js';
-import { SOL_MS, HOUR_MS, MIN_MS } from '../../core/clock.js';
-import { MSD_EPOCH_MS, lonMs as lonMsOf } from '../../core/calendar.js';
+import { SOL_MS, DAY_MS, HOUR_MS, MIN_MS } from '../../core/clock.js';
+import { MSD_EPOCH_MS, UNIX_MS_AT_EPOCH, UTC_DAY, lonMs } from '../../core/calendar.js';
 
 /** Tradecraft's fatigue ladder (src/sim/campaign.js), printed beside BODY's by body-sleep. */
 export const TRADECRAFT_FATIGUE = Object.freeze({ TIRED_H: 16, EXHAUSTED_H: 20, WEAR_H: 3, WORN_MAX: 12, RAGGED_H: 36, LOST_H: 48 });
 /** A sol in hours (the day lived at Melas, BODY §7.2's T_day). */
 export const SOL_H = SOL_MS / HOUR_MS;
-export { lonMsOf };
+/** What φ is counted from, for a day key (see the header): a Mars longitude's ms of a sol, or 'utc'. */
+export const lonMsOf = (day) => (day === UTC_DAY ? UTC_DAY : lonMs(day));
+/** The day φ runs over, in hours, for lonMsOf's value: the sol's 24.66, or UTC's 24. */
+export const dayHOf = (lonMsV) => (lonMsV === UTC_DAY ? 24 : SOL_H);
 
 const mod = (x, m) => ((x % m) + m) % m;
-/** The body's hour φ at ms (0 to 24): the site's mean solar hour at 24 body hours a sol, plus the offset. */
-export const phiOf = (ms, lonMs, offsetH = 0) => mod(24 * mod(ms + MSD_EPOCH_MS + lonMs, SOL_MS) / SOL_MS + offsetH, 24);
+/** The body's hour φ at ms (0 to 24): the site's mean solar hour at 24 body hours a sol (UTC's hour on UTC), plus the offset. */
+export const phiOf = (ms, lonMs, offsetH = 0) => (lonMs === UTC_DAY ? mod(24 * mod(ms + UNIX_MS_AT_EPOCH, DAY_MS) / DAY_MS + offsetH, 24)
+  : mod(24 * mod(ms + MSD_EPOCH_MS + lonMs, SOL_MS) / SOL_MS + offsetH, 24));
 /** Whether φ lies in [from, to) on the clock (to past 24 wraps: [22, 32) is 22:00 to 08:00). */
 export const inPhase = (phi, from, to) => (to > 24 ? phi >= from || phi < to - 24 : phi >= from && phi < to);
 /** The game time, at or after ms, when φ next reads h (the offset held). */
 export function msAtPhi(ms, lonMs, offsetH, h) {
   const dh = mod(h - phiOf(ms, lonMs, offsetH), 24);
-  return ms + dh / 24 * SOL_MS;
+  return ms + dh / 24 * (lonMs === UTC_DAY ? DAY_MS : SOL_MS);
 }
 
 /** The circadian term of effective pressure (BODY §7.3), hours. */
@@ -171,9 +180,9 @@ export function wakeAt({ t, end, p, pH, fallMs, lonMs, offsetH }) {
 }
 
 /** The body clock's hourly step (BODY §7.2): the drift of the body's period, then the pull of the light. Returns the new offset. */
-export function clockStep(offsetH, tauIntH) {
-  let o = offsetH + 24 / tauIntH - 24 / SOL_H;
-  const cap = (o > 0 ? SLEEP.DELAY_CAP_H_DAY : SLEEP.ADVANCE_CAP_H_DAY) * SLEEP.LIGHT_K / SOL_H;
+export function clockStep(offsetH, tauIntH, dayH = SOL_H) {
+  let o = offsetH + 24 / tauIntH - 24 / dayH;
+  const cap = (o > 0 ? SLEEP.DELAY_CAP_H_DAY : SLEEP.ADVANCE_CAP_H_DAY) * SLEEP.LIGHT_K / dayH;
   o = o > 0 ? Math.max(0, o - cap) : Math.min(0, o + cap);
   return o;
 }

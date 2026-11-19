@@ -19,7 +19,7 @@ import { BANDS, POOL_OF, CARRY_FREE_BANDS, handsFrame, handsPose, poseOf } from 
 import { sheetLayout } from '../src/art/figures/atlas.js';
 import { composeFrame } from '../src/art/figures/compose.js';
 import { wear } from '../src/art/figures/outfits.js';
-import { fofMaskTpl, FOF_MASKS } from '../src/art/figures/helmets.js';
+import { fofMaskTpl, FOF_MASKS, fofMaskFor, FOF_MASKS_WORN } from '../src/art/figures/helmets.js';
 import { contactPixels, STATE_WORDS } from '../src/ui/plaque.js';
 import { markingShot, slapVoice, isMarking, MARKING_DB, MARKING_LP_HZ } from '../src/ui/audio/marking.js';
 import { ownShot } from '../src/ui/audio/gun.js';
@@ -44,8 +44,8 @@ export default [
       const g = house(), s = g.state, keys = s.actors.list.filter(a => s.people[a.who]?.kit).map(a => [a.who, gearKey(gearOf(s, a.who))]);
       for (const [who, k] of keys) { const gr = gearOf(s, who); assert(gr.mask === null && gr.hands === null && !/\|[mh]:/.test(k), `${who}: ${k}`); assert(JSON.stringify(Object.keys(gr)) === JSON.stringify(GEAR_KEYS), Object.keys(gr).join()); }
       // (v0.0.18's ten, its fixer's 'devices' among them, and the two; v0.0.20 adds 'device' after them, the device in the hands:
-      // the hunt of v0.0.18's look-2)
-      assert(JSON.stringify(GEAR_KEYS.slice(10, 12)) === '["mask","hands"]' && GEAR_KEYS.length === 13 && GEAR_KEYS[12] === 'device', GEAR_KEYS.join());
+      // the hunt of v0.0.18's look-2; v0.0.24 A adds 'boots' and 'anchor' after it, the void's, null on every shipped person)
+      assert(JSON.stringify(GEAR_KEYS.slice(10, 12)) === '["mask","hands"]' && GEAR_KEYS.length === 15 && GEAR_KEYS[12] === 'device' && GEAR_KEYS.slice(13).join() === 'boots,anchor', GEAR_KEYS.join());
       assert(Object.keys(standGear('threat', 'rifle')).join() === GEAR_KEYS.join(), 'a board\'s keys');
       const { who } = liveOn(g), k1 = gearKey(gearOf(s, who)), k0 = keys.find(x => x[0] === who)[1];
       assert(k1 === `${k0}|m:fof`, `${k1} vs ${k0}`);
@@ -145,7 +145,8 @@ export default [
       const none = dressOf({ ...g, mask: null, hands: null }, { look: {} });
       assert(!('mask' in none.gear) && !('hands' in none.gear), 'absent when unset');
       const base = { outfit: 'carrier', skin: 0xb98a64, hair: { style: 'medium', color: 0x3a2a20 }, seed: 3, head: null }, L0 = wear(base), L1 = wear({ ...base, mask: true });
-      assert(L1.mask === 'M2' && !L0.mask && shapeKey(L1) !== shapeKey(L0) && shapeKey(L0) === shapeKey(wear(base)), `${shapeKey(L0)} / ${shapeKey(L1)}`);
+      // (v0.0.24: a mask set `true` is the man's own of M2 and M3 by his seed, helmets.js fofMaskFor, the user's "M2 and M3 are decent masks" of 2026-11-19)
+      assert(L1.mask === fofMaskFor(3) && FOF_MASKS_WORN.includes(L1.mask) && !L0.mask && shapeKey(L1) !== shapeKey(L0) && shapeKey(L0) === shapeKey(wear(base)), `${shapeKey(L0)} / ${shapeKey(L1)}`);
       const rows = [];
       for (const dir of ['down', 'right', 'up']) {
         const a = composeFrame(L0, dir, 'idle0', { ppm: 24 }).cells, b = composeFrame(L1, dir, 'idle0', { ppm: 24 }).cells;

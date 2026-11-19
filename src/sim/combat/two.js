@@ -84,7 +84,9 @@ import { routed } from './route.js';
 import { placeGaits } from '../body/motion.js';
 import { ownerOf, sideOf, TEAM_WORDS } from './team.js';
 import { seenK, drawnOn, aimedOn } from './men.js';
-import { move, pouchFor, handGunOf } from '../arms/kit.js';
+import { move, pouchFor, handGunOf, wear } from '../arms/kit.js';
+import { bootsOf, bootsLocked, setAnchor } from '../body/footing.js';
+import { MAG_BOOTS } from '../../data/body/needs.js';
 import { modelOf, isLong } from '../arms/models.js';
 
 import { hostOf, registerHost, OP_HOST } from './op.js';
@@ -341,6 +343,8 @@ export const twoSees = (state, a, T, now, f = facingOf(T, now)) => f >= SEEN && 
 // (the #2's sightings, take-in, identification and row on slot 2's stands (see the header))
 export function twoTick(state, bus, R, H, a, now) {
   const W = H.two;
+  // (his mag boots with yours, before his eyes (twoBoots, at the file's end): nothing without boots of yours)
+  twoBoots(state, bus, H, now);
   // (R2 b: a live grenade on the floor that would stun him where he stands: his run clear of it first, ahead of his eyes)
   if (twoClear(state, bus, H, a, now)) return;
   coverTick(state, bus, R, H, a, now);
@@ -426,20 +430,6 @@ export function twoTick(state, bus, R, H, a, now) {
 const FACE_WORDS = Object.freeze({ hostage: 'Hostage', armoured: 'Plate' });
 const capW = (w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w);
 const faceWordOf = (T) => FACE_WORDS[T.face] ?? capW(T.holds ?? (T.face === 'noshoot' ? 'hands' : 'rifle'));
-/** Every place a call-out of his can name (corner.js placeWordsOf: the screen's sides, "far" past FAR_PLACE_M, the far leg). */
-export const CALLOUT_PLACES = Object.freeze(['left', 'right', 'top', 'bottom', 'far left', 'far right', 'far top', 'far bottom', 'far leg']);
-/**
- * His call-outs a lane's turners can draw (the build sheet §1 item 12, §0 item 18): TEAM_WORDS.contact's words with each
- * turner's face word (faceWordOf, and "Man" for one he could not identify) at each of CALLOUT_PLACES, once each: the closed set the
- * page bakes before GO (ui/audio/engine.js prebakeCallouts), so "Rifle, far left!" is whole when he says it. Pure.
- */
-export function calloutLines(turners = []) {
-  const faces = new Set(['Man']);
-  for (const T of turners ?? []) if (T?.face) faces.add(faceWordOf(T));
-  const out = [];
-  for (const face of faces) for (const place of CALLOUT_PLACES) out.push(TEAM_WORDS.contact.words.replace('{face}', face).replace('{place}', place));
-  return out;
-}
 const sayTwo = (bus, W, id, text, more = {}) => bus?.emit('say', { who: W.pid, text, kind: 'speech', durMs: TWO_CALL_MS, call: id, ...more });
 /** His calls' time said (ms; bundle.js CALL_FLOW_S, the call-out's CALL_MS 200: never a pause). */
 export const TWO_CALL_MS = 200;
@@ -1171,4 +1161,25 @@ function twoOutTick(state, H, W, now) {
   if (p.vMs > 0) { a.v = [q(p.vMs * Math.cos(p.headRad), 0.001), q(p.vMs * Math.sin(p.headRad), 0.001)]; a.headRad = p.headRad; a.face = faceOfHead(p.headRad); } else delete a.v;
   locoStep(a, a.$px, a.$pz, { state, pid: W.pid, gait: 'walk', stance: a.moveStance ?? 'combat', vMs: p.vMs > 0 ? p.vMs : null });
   if (p.done) W.out.done = true;
+}
+
+// ---- v0.0.24, the anywhere round: your number two's mag boots ----
+/**
+ * Your number two's mag boots with yours (v0.0.24, ROADMAP "anywhere" step 7, AW§4.2 item 8; BODY §16.6): with your boots worn he
+ * puts his own on (kit.js wear 'mb-1', once), and he locks his one beat after yours lock and releases his one beat after yours
+ * release (the beats the magnets' own, MAG_BOOTS.LOCK_MS 400 and UNLOCK_MS 300 ms: my call), on W.boots { act: 'lock' | 'release',
+ * atMs } (plain data, saved, so a save between your lock and his carries on). A lock the plate refuses (footing.js setAnchor: no
+ * steel underfoot) is dropped and tried again at your next. Nothing happens while you wear no boots, so every house lane at Mars
+ * and the Wheel is the bytes it was.
+ */
+export function twoBoots(state, bus, H, now = state.clock.ms) {
+  const W = H?.two, you = playerId(state);
+  if (!W?.pid || !you || !bootsOf(state, you)) return;
+  if (!bootsOf(state, W.pid)) wear(state, W.pid, 'mb-1');
+  const mine = bootsLocked(state, you), his = bootsLocked(state, W.pid), want = mine ? 'lock' : 'release';
+  if (mine === his) { delete W.boots; return; }
+  if (W.boots?.act !== want) { W.boots = { act: want, atMs: now + (mine ? MAG_BOOTS.LOCK_MS : MAG_BOOTS.UNLOCK_MS) }; return; }
+  if (now < W.boots.atMs) return;
+  setAnchor(state, W.pid, mine ? 'boots' : null);
+  delete W.boots;
 }

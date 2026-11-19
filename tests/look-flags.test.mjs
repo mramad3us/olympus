@@ -18,11 +18,13 @@ import { readParams } from '../src/core/debug.js';
 import { createGame } from './game.mjs';
 
 /** The walk's digest on the stage-0 tree (3d3fd9a5), recorded before any change of v0.0.20's D: FNV-1a over every frame's pixels. */
-const STAGE0_WALK = Object.freeze({ digest: '67cf35d1', frames: 2240 });
+// (v0.0.24 F, re-recorded: the user's picks of 2026-11-19 drawn by default, the combat EVA suit's helmet R3 in the Mars trim, its gloves
+// grey, the aimed rifle at the cheek; with no flag every look still passes lookPicked untouched; was '67cf35d1')
+const STAGE0_WALK = Object.freeze({ digest: 'e6576db8', frames: 2240 });
 
 export default [
   {
-    name: 'with no flag every figure frame is the stage-0 tree\'s: 2,240 frames of the figure code hash as before, every look passes lookPicked untouched, nothing drawn as',
+    name: 'with no flag every figure frame is the game\'s: 2,240 frames of the figure code hash as recorded (v0.0.24: the picks of 2026-11-19 drawn as), every look passes lookPicked untouched, no stack mark drawn as',
     fn() {
       let h = 2166136261 >>> 0, n = 0;
       const mix = (v) => { for (let k = 0; k < 4; k++) { h ^= (v >>> (8 * k)) & 255; h = Math.imul(h, 16777619) >>> 0; } };
@@ -39,7 +41,8 @@ export default [
       }
       console.log(`      ${n} frames, digest ${h.toString(16)} (the stage-0 tree's ${STAGE0_WALK.digest} over ${STAGE0_WALK.frames}); looks untouched by lookPicked with no pick ${untouched} of ${looks}; HELMET_DRAWN_AS ${JSON.stringify(HELMET_DRAWN_AS)}, STACK_DRAWN_AS ${JSON.stringify(STACK_DRAWN_AS)}`);
       assert(h.toString(16) === STAGE0_WALK.digest && n === STAGE0_WALK.frames && untouched === looks, JSON.stringify({ h: h.toString(16), n, untouched }));
-      assert(Object.values(HELMET_DRAWN_AS).every(v => v === null) && !STACK_DRAWN_AS.length, 'nothing drawn as until the user picks');
+      // (v0.0.24: the helmets the user picked on 2026-11-19 drawn as, the stack's marks still none: house-stack-figures waits)
+      assert(JSON.stringify(HELMET_DRAWN_AS) === '{"regular":"R3","elite":"E1","opa":"O2"}' && !STACK_DRAWN_AS.length, 'R3, E1 and O2 drawn as, no stack mark');
     },
   },
   {
@@ -54,7 +57,7 @@ export default [
       const round = lookText(parseLook(q.look).look);
       console.log(`      at GO ${s.actors.list.length} actors: stack:1 changes ${JSON.stringify(c1)}, helm:r1 ${JSON.stringify(cr)}, helm:o1 ${JSON.stringify(co)} (you ${me}, your #2 ${H.twoPid}); 'stack:9,helm:x9,colour:red,jamb:m2' keeps ${JSON.stringify(bad.look)} and drops ${JSON.stringify(bad.unknown)}; the URL ${JSON.stringify({ look: q.look, shot: q.shot, voice: q.voice })} → ${round}`);
       assert(c1.length === 2 && c1.includes(me) && c1.includes(H.twoPid) && cr.length === 2 && co.length === 1 && co[0] === H.twoPid, JSON.stringify({ c1, cr, co }));
-      assert(bad.unknown.length === 3 && bad.look.jamb === 'm2' && q.shot === 'A3' && q.voice === 'a' && round === 'stack:1+3,helm:r1,jamb:m2', JSON.stringify({ bad, q, round }));
+      assert(bad.unknown.length === 3 && bad.look.jamb === 'm2' && q.shot === 'A3' && !('voice' in q) && round === 'stack:1+3,helm:r1,jamb:m2', JSON.stringify({ bad, q, round }));
     },
   },
   {
@@ -67,7 +70,9 @@ export default [
       // (v0.0.23: the target card's four rows join, Card gun, Hands not read, Aimed, Pistol aimed (the build sheet v0.0.23 §0 item 36))
       // (v0.0.23's fixer: the voices' row out (the user, 2026-11-19, "forget voice synthesis, no voices."), so eleven rows, and an old
       // 'voice:c' score in this browser's picks is not copied)
-      assert(ROWS.length === 11 && !ROWS.some(r => r.id === 'voice') && back.picks.length === 3 && back.picks.find(x => x.id === 'A3')?.star && !back.picks.some(x => x.id === 'V-c') && /test-shoothouse on seed 48213/.test(back.head), JSON.stringify(back));
+      // (v0.0.24's fixer, its play review M4: the sets drawn as built split into the waiting row and the rated row, folded under
+      // "Already rated", so twelve rows)
+      assert(ROWS.length === 12 && !ROWS.some(r => r.id === 'voice') && back.picks.length === 3 && back.picks.find(x => x.id === 'A3')?.star && !back.picks.some(x => x.id === 'V-c') && /test-shoothouse on seed 48213/.test(back.head), JSON.stringify(back));
     },
   },
 ];

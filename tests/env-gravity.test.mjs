@@ -36,6 +36,9 @@ const SPEEDS = ['strollMs', 'walkMs', 'runMs', 'sprintMs'];
 const finite = (o) => JSON.stringify(o, (k, v) => (typeof v === 'number' && !Number.isFinite(v) ? `!${v}` : v)).includes('"!') === false;
 const throws = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
 const GUN = { model: 'r7' };
+// (v0.0.24: a case under the float band flies to a face (look.js ejectCase's `faces`, brass.js caseFacesOf in a game); the sweep
+// has no place, so a wall 2 m along the flight stands in for it, met square)
+const WALL_2M = (x, z, vx, vz) => { const s = Math.hypot(vx, vz); return s > 0 ? { tS: 2 / s, x: q(x + vx / s * 2, 1e-4), z: q(z + vz / s * 2, 1e-4), n: [-vx / s, -vz / s] } : null; };
 
 // (the player's metres over n ticks of a held input, on the live area)
 function metres(g, n, input) {
@@ -54,7 +57,7 @@ export default [
       for (const gG of SWEEP_G) {
         const s = gaitSpeeds({ gG }), gMs2 = q(gG * G0_MS2, CASE_G_STEP_MS2);
         const stances = STANCES.flatMap(a => STANCES.map(b => stanceMs(a, b, { gG })));
-        const rec = ejectCase(GUN, { x: 0, z: 0, yawRad: 0, stance: 'stand' }, { atMs: 1000, key: `sweep:${gG}`, gMs2 });
+        const rec = ejectCase(GUN, { x: 0, z: 0, yawRad: 0, stance: 'stand' }, { atMs: 1000, key: `sweep:${gG}`, gMs2, faces: WALL_2M });
         const fly = [caseAt(rec, 1000 + (rec.landMs - 1000) / 2, gMs2), caseAt(rec, rec.landMs + 10, gMs2)];
         const dust = [200, 600, 1100].flatMap(t => dustPixels({ atMs: 0, x: 0, z: 0, face: 'right', stance: 'prone' }, t, 16, gMs2));
         const berm = [100, 500].flatMap(t => bermDustPixels({ x: 0, y: 1, z: 0, atMs: 0 }, t, 16, gMs2));
@@ -136,7 +139,9 @@ export default [
       console.log(`      coasting: stand to prone ${prone} ms; foot-falls over 1.2 m floating ${falls.length}`);
       assert(res['3 G walk'].ms <= res['1 G walk'].ms && res['3 G run'].ms <= res['1 G run'].ms && res['1 G walk'].ms > 1.4, JSON.stringify(res));
       assert(res['Europa run'].gait === 'bound' && res['coast walk'].gait === 'float' && res['coast push'].gait === 'float', JSON.stringify(res));
-      near(res['coast walk'].ms, 0.6, 0.02, 'the push-off walk:'); near(res['coast push'].ms, 1.2, 0.02, 'the hard push:');
+      // (v0.0.24, free fall (body/freefall.js): the keys push off the deck at the walk's 0.6 m/s over a 1 s step, the speed ramping
+      // from rest, so the first 20 ticks cover 0.6 × 0.95² / 2 m; the next 20 drift on at 0.6 m/s, the run's keys pushing nothing)
+      near(res['coast walk'].ms, 0.27, 0.01, 'the push-off, its 1 s ramp to 0.6 m/s:'); near(res['coast push'].ms, 0.6, 0.01, 'the drift after it, the keys doing nothing:');
       assert(Number.isFinite(prone) && prone > 0 && falls.length === 0, `${prone}, ${falls.length}`);
       // (saved floating, carried on: byte for byte)
       const json = g.save();

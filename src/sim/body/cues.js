@@ -35,14 +35,16 @@ import { thirstPct, thirstIndex } from './water.js';
 import { bladderIndex, bowelIndex, bowelLowerG } from './elimination.js';
 import { grimeIndex, stubbleIndex, handsIndex } from './hygiene.js';
 import { phiOf, circ, fatigueIndex, lonMsOf } from './sleep.js';
+import { UTC_DAY } from '../../core/calendar.js';
 import { stressIndex, moraleIndex } from './stress.js';
 import { stageOf } from './thermal.js';
 import { woundWords, painOf, painBand, bandOf, bleeding, hasWounds, LIMB_CAP_PM } from './wounds.js';
 
 export { woundWords };
 
-// (the site's east longitude every reader is given: required, never a default)
-const lonNeed = (lonEDeg, who) => { if (!Number.isFinite(lonEDeg)) throw new Error(`${who}(): the site's east longitude (places/model.js lonOf), not ${lonEDeg}`); return lonEDeg; };
+// (the site's day key every reader is given, required, never a default: its east longitude on Mars, or 'utc' (v0.0.24's stage 0,
+// off Mars: jobs.js siteDayOf; core/calendar.js UTC_DAY))
+const lonNeed = (lonEDeg, who) => { if (!Number.isFinite(lonEDeg) && lonEDeg !== UTC_DAY) throw new Error(`${who}(): the site's day key (jobs.js siteDayOf: an east longitude, or 'utc'), not ${lonEDeg}`); return lonEDeg; };
 /** VIEWS §7.6's strip, in its order. */
 export const STRIP_NEEDS = Object.freeze(['water', 'food', 'bladder', 'bowel', 'sleep', 'grime', 'heat', 'air', 'pain']);
 
@@ -57,8 +59,13 @@ const HANDS_WHY = Object.freeze({
   food: Object.freeze(['Clean hands.', 'Crumbs on your fingers.', 'Sticky fingers.', 'Grimy, sticky hands.']),
   rifle: Object.freeze(['Clean hands.', 'A smear of gun oil on your fingers.', 'Gun oil and carbon on your hands.', 'Black with gun oil and carbon.']),
   regolith: Object.freeze(['Clean hands.', 'Red dust in the creases of your hands.', 'Regolith ground into your palms.', 'Regolith ground into your palms, red to the wrists.']),
+  // (step 5 of "anywhere": the other grounds' words, PLACES §2.7's soilWord (src/sim/body/footing.js groundSoilOf))
+  frost: Object.freeze(['Clean hands.', 'Frost melting in the creases of your hands.', 'Ice grit ground into your palms.', 'Ice grit ground into your palms, raw to the wrists.']),
+  soil: Object.freeze(['Clean hands.', 'Soil in the creases of your hands.', 'Earth ground into your palms.', 'Earth ground into your palms, black to the wrists.']),
+  dust: Object.freeze(['Clean hands.', 'Dust in the creases of your hands.', 'Grit ground into your palms.', 'Grit ground into your palms, grey to the wrists.']),
+  grease: Object.freeze(['Clean hands.', 'A smear of deck grease on your fingers.', 'Deck grease on your hands.', 'Black with deck grease.']),
 });
-/** The hands' words at a band index and a cause ('head', 'stall', 'food', 'rifle', 'regolith', or null: the band's own). */
+/** The hands' words at a band index and a cause ('head', 'stall', 'food', 'rifle', 'regolith', 'frost', 'soil', 'dust', 'grease', or null: the band's own). */
 export const handsWords = (i, why) => HANDS_WHY[why]?.[i] ?? HANDS_BANDS[i]?.words ?? '';
 
 /** The body's effective sleep pressure at ms (BODY §7.3): the pressure and the body clock's term. */

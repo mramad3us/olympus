@@ -26,11 +26,15 @@
 //     painted: false,                            true only on standGear's painted men
 //     mask:    null | 'fof',                     v0.0.19: the force-on-force mask (kit.worn.mask: the role-players' issue 'opfor-fof')
 //     hands:   null | 'up',                      v0.0.19: the hands up and empty (actor.hands: a role-player who gave up)
-//     device:  null | { model, shape, colour } } the device in the hands (devices.js handDeviceOf: a G-11 drawn from its pouch,
+//     device:  null | { model, shape, colour },  the device in the hands (devices.js handDeviceOf: a G-11 drawn from its pouch,
 //                                                the halligan or the ram held, a charge on its way to the door), its look
 //                                                DEVICES[model].look; its state (a pin pulled, a fuse burning) is not in it
 //                                                (the hunt of v0.0.18: the record had no place for it, so every doll drew the
 //                                                hands empty while the pouch it came from was drawn emptied)
+//     boots:   null | 'mag',                     v0.0.24: mag boots worn (kit.worn.boots: src/sim/body/footing.js bootsOf), seen at the feet
+//     anchor:  null | 'hold' | 'lanyard' | 'wedge' | 'buddy' | 'boots' }   v0.0.24: what the body does to hold (footing.js
+//                                                gearAnchorOf: a hand off the gun on a rail, a strap clipped short, back and feet
+//                                                across a passage, a teammate's brace, the boots locked)
 // It holds no count, load, chamber, selector or stoppage ("we only know what we know": a magazine in the well can be seen, the
 // rounds in it cannot), and gear.test holds the whitelist. `by` is the viewer: everything in the record is seen from the front
 // this round, so it is the same for every viewer; the parameter is there so the target view's call is already right when
@@ -39,6 +43,9 @@
 // when one gives up, show their hands. Both are seen from the front as plainly as the carrier is, so they are in the record;
 // both are null for everyone else, and gearKey adds them only when set, so every v0.0.18 key is the same string; the device
 // in the hands the same way.
+// v0.0.24 (the build sheet v0.0.24 §1 A, item 3; AW§4.1 item 1; the user's note of 2026-11-17, "show us what we would be seeing,
+// including what they are holding", a hand on a hold included): the boots and the anchor, both null on every shipped person, and
+// gearKey adds them only when set (the rule v0.0.19 kept for the mask), so every key of v0.0.18 to v0.0.23 is the same string.
 // The places are coarse on purpose (front, back, ready; holster, ready), so a live man's doll repaints only when his gear
 // changes as drawn: gearKey is the caches' key and changes with nothing else. They map from arms' guns.js vocabulary by the
 // lead's agreement test, never by import: hands → ready, hanging and slungFront → front, slungBack → back, holster → holster.
@@ -56,9 +63,12 @@ import { CONTAINERS, pouchesOf, handGunOf, pistolOf, handMagOf, containersOf } f
 import { DEVICES, DEVICE_STATES, devicesOf, handDeviceOf } from './devices.js';
 import { MODELS, isLong } from './models.js';
 import { loadoutOf, ISSUE } from './loadout.js';
+import { bootsOf, gearAnchorOf } from '../body/footing.js';
 
 /** The gear record's keys, the only ones it has (see the header). */
-export const GEAR_KEYS = Object.freeze(['outfit', 'suit', 'carrier', 'ears', 'rifle', 'pistol', 'thigh', 'held', 'devices', 'painted', 'mask', 'hands', 'device']);
+export const GEAR_KEYS = Object.freeze(['outfit', 'suit', 'carrier', 'ears', 'rifle', 'pistol', 'thigh', 'held', 'devices', 'painted', 'mask', 'hands', 'device', 'boots', 'anchor']);
+/** The boots' word in the record (any item of type 'boots' in the worn 'boots' slot is the mag boots this round). */
+export const BOOTS_MAG = 'mag';
 /** The faces off the front a worn device is drawn on (the front's pouches are the magazines'). */
 const DEVICE_FACES = Object.freeze(['left', 'right', 'back']);
 /** The mask's word in the record (any item in the worn 'mask' slot is the force-on-force mask this round). */
@@ -116,7 +126,9 @@ export function gearOf(state, pid, { by = pid } = {}) {
   const device = hd ? { model: hd.model, shape: HL.shape ?? 'can', colour: HL.colour ?? 'olive' } : null;
   const mask = worn.mask && items[worn.mask] ? MASK_FOF : null;
   const hands = actor?.hands === true && !inHand && !held && !device ? 'up' : null;
-  return { outfit: actor?.outfit ?? 'utilities', suit, carrier, ears, rifle, pistol, thigh, held, devices, painted: false, mask, hands, device };
+  // (the mag boots worn; the anchor as a viewer sees it, the actor's own record checked against where it stands)
+  const boots = kit && bootsOf(state, pid) ? BOOTS_MAG : null, anchor = actor ? gearAnchorOf(state, pid) : null;
+  return { outfit: actor?.outfit ?? 'utilities', suit, carrier, ears, rifle, pistol, thigh, held, devices, painted: false, mask, hands, device, boots, anchor };
 }
 
 /**
@@ -149,12 +161,14 @@ export function gearKey(g) {
   const t = g.thigh ? `${g.thigh.mags}/${g.thigh.holds}` : '';
   const d = (g.devices ?? []).map(x => `${x.face}${x.slot}:${x.model ?? ''}`).join(',');
   // (v0.0.19: the mask and the hands only when set, so every key without them is v0.0.18's string; the device in the hands the same)
-  return [g.outfit, s, c, g.ears ?? '', r, p, t, g.held ?? '', g.painted ? 'P' : '', ...(d ? [d] : [])].join('|') + (g.mask ? `|m:${g.mask}` : '') + (g.hands ? `|h:${g.hands}` : '') + (g.device ? `|d:${g.device.model}` : '');
+  // (the boots and the anchor the same way, so no key of v0.0.18 to v0.0.23 moves)
+  return [g.outfit, s, c, g.ears ?? '', r, p, t, g.held ?? '', g.painted ? 'P' : '', ...(d ? [d] : [])].join('|') + (g.mask ? `|m:${g.mask}` : '') + (g.hands ? `|h:${g.hands}` : '') + (g.device ? `|d:${g.device.model}` : '')
+    + (g.boots ? `|b:${g.boots}` : '') + (g.anchor ? `|a:${g.anchor}` : '');
 }
 
 /** The board's painted man for a stand's face and what it holds (see the header). */
 export function standGear(face = 'threat', holds = 'rifle') {
-  const base = { outfit: 'utilities', suit: null, carrier: null, ears: null, rifle: null, pistol: null, thigh: null, held: null, devices: [], painted: true, mask: null, hands: null, device: null };
+  const base = { outfit: 'utilities', suit: null, carrier: null, ears: null, rifle: null, pistol: null, thigh: null, held: null, devices: [], painted: true, mask: null, hands: null, device: null, boots: null, anchor: null };
   // (the armoured face changes the body; its hand holds what the stand's draw gives, a pistol too: the hunt of v0.0.18)
   if (face === 'armoured') return { ...base, outfit: 'carrier', carrier: { model: 'pc-m3', pouches: [] }, rifle: holds === 'unseen' || holds === 'pistol' ? null : { model: 'r7', finish: null, place: 'ready', mag: true }, pistol: holds === 'pistol' ? { model: 'p12', place: 'ready', mag: true } : null };
   if (face === 'unknown' || holds === 'unseen' || holds === null || holds === undefined) return base;

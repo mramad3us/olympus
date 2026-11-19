@@ -21,8 +21,8 @@
 // read (TECH §5.3); noteStop(state, ev, ms) counts a stop that happened, so the rule itself stays a
 // pure read. CLASS_MASKS is TIME §7.3's table, by activity class.
 // Pure but noteStop (it writes time.interrupts).
-import { localSol } from '../../core/calendar.js';
-import { siteLonEDeg } from '../jobs.js';
+import { localDay } from '../../core/calendar.js';
+import { siteDayOf } from '../jobs.js';
 
 /** The priority of each letter (TIME §7.1); 5 is ambient, the ticker's only. */
 export const PRIO = Object.freeze({ D: 0, A: 1, O: 2, B: 3, S: 4 });
@@ -68,10 +68,10 @@ export function letterOf(ev) {
   return p >= 0 && p <= 4 ? LETTERS[p] : null;
 }
 
-// (the S counts as they stand at ms: a new local sol starts them again)
+// (the S counts as they stand at ms: a new local sol starts them again (a new UTC day off Mars: v0.0.24's stage 0, jobs.js siteDayOf))
 function sCounts(state, ms) {
   const t = state?.time?.interrupts ?? {};
-  const sol = state ? localSol(ms ?? state.clock?.ms ?? 0, siteLonEDeg(state)).sol : null;
+  const sol = state ? localDay(ms ?? state.clock?.ms ?? 0, siteDayOf(state)).sol : null;
   return { perSkip: t.perSkip ?? 0, perSol: t.sol === sol ? t.perSol ?? 0 : 0, sol };
 }
 

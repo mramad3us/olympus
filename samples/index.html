@@ -21,6 +21,11 @@
   index by tools/gallery.mjs; the list is samples/to-score.js toScore), each with its default (what the game draws until
   you score it), its count of views, the day it was sent, what it decides and the round that draws your pick; a row opens
   its set below. "Copy the list" puts the list on the clipboard as text.
+  v0.0.24 (the user, 2026-11-19: "please in the future, place the already rated picks in a hidden drop down section at the
+  bottom"): the waiting sets are drawn first, in the list's order; every set already rated (no "open": to-score.js ratedSets)
+  is in one collapsed section at the bottom, "Already rated", its pictures loaded only when opened. "Copy my picks" gives
+  only the stars, scores and notes added or changed since the last copy (to-score.js newSince, against the copy this browser
+  remembers in olympus.copied), then one line counting the earlier ones; Clear forgets that copy too.
 -->
 <style>
   :root { --bg: #121317; --card: #1b1d23; --line: #2b2e36; --text: #d9dce2; --dim: #8b909b; --pick: #e7b84f; }
@@ -84,6 +89,10 @@
   table.toscore td.def { color: var(--pick); white-space: nowrap; }
   table.toscore a { color: var(--text); text-decoration: none; } table.toscore a:hover { text-decoration: underline; }
   table.toscore .miss { color: #e0533f; }
+  details.rated { margin-top: 30px; border-top: 1px solid var(--line); padding-top: 14px; }
+  details.rated > summary { cursor: pointer; color: var(--dim); font-size: 15px; letter-spacing: 0.04em; padding: 6px 0 14px; }
+  details.rated > summary:hover { color: var(--text); }
+  details.rated .scored { color: var(--dim); font-size: 13px; margin: -10px 0 14px; }
   @media (max-width: 760px) { header, main { padding-left: 14px; padding-right: 14px; } .matrix { grid-template-columns: 1fr; } .matrix .row, .matrix .col { display: none; } }
 </style>
 </head>
@@ -109,9 +118,9 @@
 </div>
 <div class="toast" id="toast"></div>
 <script type="module">
-  import { toScore, toScoreText } from './to-score.js';
+  import { toScore, toScoreText, ratedSets, newSince } from './to-score.js';
   // ---------- what this browser remembers ----------
-  const KEYS = { picks: 'olympus.picks', scores: 'olympus.scores', notes: 'olympus.notes' };
+  const KEYS = { picks: 'olympus.picks', scores: 'olympus.scores', notes: 'olympus.notes', copied: 'olympus.copied' };
   const load = (k, empty) => { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? empty; } catch { return empty; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
   let picks = new Set(load(KEYS.picks, [])), scores = load(KEYS.scores, {}), notes = load(KEYS.notes, {});
@@ -179,10 +188,19 @@
       list.appendChild(sec);
       sec.querySelector('#copyList').onclick = async () => { const t = toScoreText(rows); try { await navigator.clipboard.writeText(t); toast('Copied the list'); } catch { prompt('Copy this:', t); } };
     }
-    for (const s of index.samples) {
+    // (v0.0.24: the waiting sets first, in the list's order; the rated ones in the collapsed section at the bottom)
+    const rated = ratedSets(index), ratedIds = new Set(rated.map(r => r.id)), order = new Map(rows.map((r, i) => [r.id, i]));
+    const waiting = index.samples.filter(s => !ratedIds.has(s.id)).sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
+    let below = null;
+    if (rated.length) {
+      below = document.createElement('details');
+      below.className = 'rated'; below.id = 'rated';
+      below.innerHTML = `<summary>ALREADY RATED · ${rated.length} SETS (open to look again)</summary>`;
+    }
+    for (const s of [...waiting, ...index.samples.filter(x => ratedIds.has(x.id))]) {
       const wrap = document.createElement('div');
       wrap.className = 'sample'; wrap.id = `s-${s.id}`;
-      wrap.innerHTML = `<h2>${esc(s.title)}</h2><p>${esc(s.about)}</p>`;
+      wrap.innerHTML = `<h2>${esc(s.title)}</h2><p>${esc(s.about)}</p>${s.scored ? `<p class="scored">Rated ${esc(s.scored.on ?? '')}${s.scored.picks?.length ? `: ${esc(s.scored.picks.join(', '))}` : ''}</p>` : ''}`;
       for (const g of s.groups) {
         const sec = document.createElement('section');
         sec.className = 'group'; sec.id = g.id;
@@ -222,8 +240,10 @@
         groupsOf.push([first, all.length - 1]);
         wrap.appendChild(sec);
       }
-      list.appendChild(wrap);
+      (ratedIds.has(s.id) ? below : list).appendChild(wrap);
     }
+    if (below) list.appendChild(below);
+    window.__gallery = { waiting: waiting.map(s => s.id), rated: rated.map(r => r.id) };
     count();
   }
 
@@ -277,11 +297,14 @@
   });
 
   // ---------- the text to paste back ----------
-  /** The picks as text: each starred or scored view, the tallies by row and column, the notes. */
+  /** The picks as text: each star, score or note added or changed since the last copy (to-score.js newSince), the tallies by row and column, the notes, then the earlier ones counted. */
+  const nowPicks = () => ({ picks: [...picks], scores: { ...scores }, notes: { ...notes } });
   function picksText() {
     const lines = [`OLYMPUS samples, my picks (gallery built ${(index.built || '?').replace('T', ' ')} UTC):`];
-    const chosen = all.filter(a => picks.has(a.key) || scores[a.key] !== undefined);
-    if (!chosen.length && !Object.keys(notes).length) return 'No picks yet.';
+    const fresh = newSince(nowPicks(), load(KEYS.copied, null)), fp = new Set(fresh.picks);
+    const chosen = all.filter(a => fp.has(a.key) || fresh.scores[a.key] !== undefined);
+    const earlier = fresh.earlier ? `(${fresh.earlier} earlier pick${fresh.earlier === 1 ? '' : 's'} and notes already copied, not repeated)` : '';
+    if (!chosen.length && !Object.keys(fresh.notes).length) return earlier ? `No new picks since your last copy ${earlier}.` : 'No picks yet.';
     for (const a of chosen) lines.push(`${picks.has(a.key) ? '★' : '-'} ${a.v.id} · ${a.g.title} · ${a.v.name}${scores[a.key] !== undefined ? ` · ${scores[a.key]}/100` : ''}`);
     // (tallies over each matrix: by row label and by column label, the stars and the mean score)
     for (const s of index.samples) {
@@ -295,20 +318,26 @@
       }).join('; ');
       lines.push('', `${s.title}:`, `  by row (${s.matrix.rows.join(' vs ')}): ${tally('row', s.matrix.rows)}`, `  by column (${s.matrix.cols.join(' vs ')}): ${tally('col', s.matrix.cols)}`);
     }
-    const ns = Object.entries(notes).filter(([, t]) => t.trim());
+    const ns = Object.entries(fresh.notes).filter(([, t]) => t.trim());
     if (ns.length) { lines.push('', 'Notes:'); for (const [k, t] of ns) lines.push(`- ${k.split('/').pop()}: ${t.trim().replace(/\s*\n\s*/g, ' / ')}`); }
+    if (earlier) lines.push('', earlier);
     return lines.join('\n');
   }
   window.__picksText = picksText;
 
   document.getElementById('copy').onclick = async () => {
     const text = picksText();
+    // (nothing new: say so, and copy nothing (the fixer of v0.0.24's play review, L8: "Copied: paste it in the conversation" over
+    // "No picks yet."))
+    if (/^No /.test(text)) { toast(text); return; }
+    // (what was copied is remembered, so the next copy gives only what changed after it)
+    save(KEYS.copied, nowPicks());
     try { await navigator.clipboard.writeText(text); toast('Copied: paste it in the conversation'); }
     catch { prompt('Copy this:', text); }
   };
   document.getElementById('clear').onclick = () => {
     if (!confirm('Clear every star, score and note kept in this browser?')) return;
-    picks = new Set(); scores = {}; notes = {}; store();
+    picks = new Set(); scores = {}; notes = {}; store(); save(KEYS.copied, null);
     for (const a of all) refresh(a.key);
     document.querySelectorAll('textarea.note').forEach(t => { t.value = ''; });
   };

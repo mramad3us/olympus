@@ -56,6 +56,14 @@
 // (gunBakes(id)), so the engine holds two at once and plays the old until the new is whole. A0 is no recipe here: it is
 // &sound=old's report, which the engine plays through the range's old path.
 //
+// v0.0.24 (the user, 2026-11-19, of the candidates: "If i had to pick only one it's the last one, however, I would use the R-7 wave
+// for the P-12 and make the R-7 sound meaner, blunter, more bass heavy. less a "PAF" and more a "DOOM""): a candidate may voice a
+// gun with another wave (its `waves`: { model: a WAVES id }), the wave's blast, gas, gust, thump, drive and length with the gun's
+// own crack, action and loudness (the bullet and the mechanism stay the gun's). A5, the game's from v0.0.24, is A4 with the P-12
+// voiced as A4's R-7 (its numbers under A4) and the R-7 as R7_DOOM: the blast's positive phase longer and its decay slower (a
+// blunt push, not a crack), the gas darker, the gust and the chest's thump lower, longer and louder, the saturation harder, and
+// the electronics' band opened down to 70 Hz so the suit's speakers carry the boom (my numbers; samples/audio's D group).
+//
 // Pure: renderDry, renderTail, protect, ownShot, otherShot, echoShot, gunBakes and the constants; engine.js plays what they say.
 import { stream, next } from '../../core/rng.js';
 import { biquad, BAKE_CHUNK_SAMPLES } from './synth.js';
@@ -115,6 +123,21 @@ export const GUNS = Object.freeze({
     ]),
   }),
 });
+/**
+ * v0.0.24: the R-7 rebuilt meaner, blunter and heavier in the bass (see the header): a wave, played by A5 (its own numbers whole,
+ * so no candidate's per-gun decays apply to it). Against the R-7's: the positive phase 1.1 → 1.9 ms with a gentler decay (b 1.4 →
+ * 0.9: more of the blast's energy low), the gas 6.5 → 3.6 kHz and 20 → 26 ms, the gust 1.7 kHz → 650 Hz, 40 → 75 ms and 7 dB up,
+ * the thump 120 → 85 Hz falling to 36, 55 → 120 ms and 8 dB up, the drive 1.5 → 2.4 (harder, denser), the length 0.14 → 0.2 s.
+ */
+export const R7_DOOM = Object.freeze({
+  ...GUNS.r7,
+  posMs: 1.9, b: 0.9, durS: 0.2, drive: 2.8,
+  gas: Object.freeze({ hpHz: 180, lpHz: 4500, attackMs: 0.25, decayMs: 26, db: -3 }),
+  gust: Object.freeze({ lpHz: 650, attackMs: 2, decayMs: 75, db: -8 }),
+  thump: Object.freeze({ hz: 85, toHz: 36, decayMs: 120, db: -3 }),
+});
+/** The waves a candidate may voice a gun with (its `waves`, see the header): the built guns' and the rebuilt R-7's. */
+export const WAVES = Object.freeze({ r7: GUNS.r7, p12: GUNS.p12, r7doom: R7_DOOM });
 /** A gun's sound by its model (MODELS' id); one with no sound of its own is the R-7's. */
 export const gunOf = (model) => (GUNS[model] ? model : 'r7');
 /** A model's loudness against the R-7's (dB: 20 log10 of the loud ratio). */
@@ -123,15 +146,20 @@ export const loudDb = (model) => 20 * Math.log10(GUNS[gunOf(model)].loud / GUNS.
 export const shotOf = (shot) => (shot && typeof shot === 'object' ? shot : SHOT_CANDIDATES[shot] ?? SHOT_CANDIDATES.A1);
 /** A gun's voice under a shot candidate (see the header): the built record where the candidate says nothing, so A1 is GUNS' own object. */
 export function gunWith(model, shot = 'A1') {
-  const g = gunOf(model), G = GUNS[g], C = shotOf(shot);
+  const g = gunOf(model), C = shotOf(shot), w = C.waves?.[g];
+  // (another wave's blast and body with this gun's own crack, action and loudness)
+  if (w && !WAVES[w]) throw new Error(`gun: no wave '${w}'`);
+  const G = w ? Object.freeze({ ...WAVES[w], crack: GUNS[g].crack, mech: GUNS[g].mech, loud: GUNS[g].loud }) : GUNS[g];
   if (C.old || (!C.gasMs && !C.gustMs && !C.thumpMs && !C.thumpDb && !C.gasDb && !C.gustDb && !C.blastDb)) return G;
   const at = (t) => (t && Number.isFinite(t[g]) ? t[g] : null);
+  // (a level over the built: one number for every gun, or v0.0.24's per gun, { r7, p12 }, 0 for a gun it does not name)
+  const dbAt = (t) => (t && typeof t === 'object' ? t[g] ?? 0 : t ?? 0);
   return Object.freeze({
     ...G,
     ...(C.blastDb ? { blastDb: C.blastDb } : {}),
-    gas: at(C.gasMs) || C.gasDb ? Object.freeze({ ...G.gas, decayMs: at(C.gasMs) ?? G.gas.decayMs, db: G.gas.db + (C.gasDb ?? 0) }) : G.gas,
-    gust: at(C.gustMs) || C.gustDb ? Object.freeze({ ...G.gust, decayMs: at(C.gustMs) ?? G.gust.decayMs, db: G.gust.db + (C.gustDb ?? 0) }) : G.gust,
-    thump: Object.freeze({ ...G.thump, decayMs: at(C.thumpMs) ?? G.thump.decayMs, db: G.thump.db + (C.thumpDb ?? 0) }),
+    gas: at(C.gasMs) || dbAt(C.gasDb) ? Object.freeze({ ...G.gas, decayMs: at(C.gasMs) ?? G.gas.decayMs, db: G.gas.db + dbAt(C.gasDb) }) : G.gas,
+    gust: at(C.gustMs) || dbAt(C.gustDb) ? Object.freeze({ ...G.gust, decayMs: at(C.gustMs) ?? G.gust.decayMs, db: G.gust.db + dbAt(C.gustDb) }) : G.gust,
+    thump: Object.freeze({ ...G.thump, decayMs: at(C.thumpMs) ?? G.thump.decayMs, db: G.thump.db + dbAt(C.thumpDb) }),
   });
 }
 /** The protection under a shot candidate: PROTECT with the candidate's ceiling where it carries one (PROTECT itself never changes). */
@@ -139,8 +167,10 @@ export function protectOf(shot = 'A1', model = 'r7') {
   const C = shotOf(shot), up = C.protect?.makeupDb;
   if (!Number.isFinite(C.ceilingDb) && !C.protect) return PROTECT;
   // (a make-up may be per gun, { r7, p12 }, so the pistol stays under the rifle through the clamp)
-  const makeupDb = up && typeof up === 'object' ? up[gunOf(model)] ?? 0 : up ?? 0;
-  return Object.freeze({ ...PROTECT, ...(C.protect ?? {}), makeupDb, ...(Number.isFinite(C.ceilingDb) ? { ceilingDb: C.ceilingDb } : {}) });
+  // (any of the protection's numbers per gun the same way, A5's band { r7: 70, p12: 160 }: the pistol's R-7 wave heard as A4's R-7 was)
+  const g = gunOf(model), per = Object.fromEntries(Object.entries(C.protect ?? {}).map(([k, v]) => [k, v && typeof v === 'object' ? v[g] ?? PROTECT[k] ?? 0 : v]));
+  const makeupDb = up && typeof up === 'object' ? up[g] ?? 0 : up ?? 0;
+  return Object.freeze({ ...PROTECT, ...per, makeupDb, ...(Number.isFinite(C.ceilingDb) ? { ceilingDb: C.ceilingDb } : {}) });
 }
 /** A bake's key under a shot candidate: A1's as built, another's under `${id}/`. */
 export const shotKey = (key, shot = 'A1') => (!shot || shot === 'A1' ? key : `${shot}/${key}`);

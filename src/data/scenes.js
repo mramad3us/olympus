@@ -157,6 +157,35 @@ export const SCENES = deepFreeze({
     familiar: 'set',
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
+  // (the anywhere round (its build sheet §1 D, §3.4; AW§5): "Anchor before you fire", Well A of the Void Operations School at
+  // Phobos, in the site's own environment (0.0006 G: free fall), five stations from the anchor each wants, on the void range's course
+  // (src/sim/scenarios/anchors.js); 10:00 on the School's UTC day; the house's sheets; a familiar place (the School's range, briefed:
+  // the build sheet §0 item 12), so no `familiar`)
+  'test-anchors': {
+    id: 'test-anchors', title: 'Anchor before you fire', scenario: 'test-anchors',
+    host: { site: 'phobos-void', area: 'phobos.void.well-a' }, env: SITE_ENV, hour: 10.0,
+    goal: 'Well A at Phobos, in free fall. Five stations: boots, lanyard, a hand on a hold, the wedge, then one round floating. Anchor before you fire.',
+    aspects: [['anchor', 'the anchor: does the footing hold the gun, and do the rows say so'], ['move', 'the move: the boots, the push-off, the drift, the grab'],
+      ['pace', 'the pace: each station its time, the move part of it'], ['feel', 'the feel: the well, the float, the sound']],
+    body: {}, outfit: 'combatSuit', course: 'anchors', sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
+    endOn: { fact: 'range', phase: ['clear', 'stopped'] },
+  },
+  // (the same: "Secure for burn", Testudo's berthing 2 coasting to Phobos for the void week, at 0 G (the coasting deck's
+  // preset), the burn's profile drawn by the scene's fill from the seed (src/sim/scenarios/burn.js: the warning 25 to 45 s in, 1 G for
+  // 20 s, on half the seeds a surprise jink of 0.4 G), written live with the gravity's events (src/sim/places/gravity.js); 14:00 UTC,
+  // my call; no rifle fired aboard (the build sheet's risk 12))
+  'test-burn': {
+    id: 'test-burn', title: 'Secure for burn', scenario: 'test-burn',
+    // (the profile (src/sim/places/gravity.js's: atS the onset, drawn in whole seconds from the seed): the burn's onset 40 to 60 s in, so
+    // the 1MC's warning, warnS 15 s before it, comes 25 to 45 s in (AW§5); 1 G for 20 s; then, on half the seeds, a surprise jink of
+    // 0.4 G across the compartment toward the south bulkhead (dirDeg 90), after the burn's off ramp is done (its onset by 60 + 2 + 20 + 2 s))
+    host: { site: 'mcrn-testudo', area: 'testudo.deck-b.berth-2' }, hour: 14.0,
+    env: { preset: 'ship-coast', profile: [{ kind: 'burn', toG: 1.0, atS: [40, 60], warnS: 15, holdS: 20 }, { kind: 'jink', toG: 0.4, atS: [95, 110], surprise: true, chance: 0.5, dirDeg: 90 }] },
+    goal: 'Testudo, coasting to Phobos, at 0 G. Stow your three items in your locker. When the burn is called: strapped in your rack, or boots locked.',
+    aspects: [['warning', 'the warning: the siren and the 1MC, read in time'], ['fall', 'the fall: a body thrown, felt and shown'], ['feel', 'the feel: the berth, the float, the sound']],
+    body: {}, outfit: 'utilities',
+    endOn: { fact: 'burn', phase: ['done'] },
+  },
 });
 
 /**

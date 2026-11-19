@@ -23,8 +23,20 @@
 // laneWordOf's 'B' or 'C' for the lane's code; null as set and on a drawn house, whose paper says "NEW LAYOUT" as before): the run
 // sheet's title and its card's "NEW LAYOUT" say the lane's letter; "Again with a new seed" keeps it (againHouseOf).
 
+// v0.0.24 (the build sheet v0.0.24 item 19; the overhaul's O-17; samples/truth-cards T-a, the default until scored): THE TRUTH
+// CARDS. Each man and stand you engaged as he truly was at your first round at him (shoothouse.js truthAt, T.atFirst: his hold,
+// pose and facing from your eye then), in the order you engaged them, a row of small cards (CARD_MIN) under the plan view, each
+// captioned with its room, its stand, the time of your first round from GO and what your take-in had read of him, the belief you
+// acted on ("READ RIFLE"; "READ HANDS NOT SEEN"). The row is a section you can close (a <details>, open as T-a draws it:
+// the tier one's card fits whole at 1024 × 768 and 1600 × 900 with it open; a longer run sheet scrolls the side, my call). truthRows(state) is the model
+// (pure), truthRowEl the DOM (a canvas a card, painted by the hit card's paint at its own size, never smoothed). A stand with no atFirst (a save made
+// before v0.0.24, or none of your rounds at it) is not engaged and has no card.
+
 // (the rooms' role's laneWordOf read by name, so the paper is v0.0.21's until it is exported)
 import * as ASSEMBLE from '../../sim/scenes/assemble.js';
+import { gearOf } from '../../sim/arms/gear.js';
+import { seenKey, standSeen } from '../../sim/people/seen.js';
+import { lookFor, indoorsNow } from '../../sim/people/figure.js';
 /** A named house's letter for a lane's code: 'B' or 'C' (assemble.js laneWordOf), else null (the set, a drawn house, no code). */
 export function namedLaneOf(code, laneWordOf = ASSEMBLE.laneWordOf ?? null) {
   if (!code || typeof laneWordOf !== 'function') return null;
@@ -229,7 +241,7 @@ export function houseAspects(hn, { fmt = two } = {}) {
     return [`${sh?.rounds ?? 0} rounds`, z.join(', ') || 'no hits', sh?.two ? `your number two ${sh.two.fired ?? 0} fired, ${sh.two.hits ?? 0} hit` : null, dummy].filter(Boolean).join(' · ');
   };
   // (the team (the TEAM row's numbers and his rounds), the panel (the keys: presses by hand and by a row, the panel's layout)
-  // and the feel (what was played: the walk, the look; the sound's and the voice's picks are the page's, scoreLine's played))
+  // and the feel (what was played: the walk, the look; the sound's pick is the page's, scoreLine's played))
   const team = (t) => [t.words ? t.words.replace(/^TEAM · /, '').toLowerCase() : null, Number.isFinite(t.fired) ? `his rounds ${t.fired}, ${t.hits ?? 0} hit` : null].filter(Boolean).join(' · ');
   const panel = (p) => `${p.presses ?? 0} press${p.presses === 1 ? '' : 'es'}: ${p.keys ?? 0} by the keys, ${p.rows ?? 0} by a row${p.layout ? ` · panel ${String(p.layout).toUpperCase()}` : ''}`;
   const feel = (f) => [`walk ${f.cycle ?? 'B'}`, f.look ? `look ${Object.entries(f.look).filter(([, v]) => v !== null && v !== undefined && !(Array.isArray(v) && !v.length)).map(([k, v]) => `${k}:${Array.isArray(v) ? v.join('+') : v}`).join(',') || 'as built'}` : 'look as built'].join(' · ');
@@ -276,4 +288,75 @@ export function houseGridEl(g, { doc = globalThis.document } = {}) {
 export function houseEndLines(hn, rs = null) {
   const card = typeof rs?.card === 'string' ? rs.card : rs?.card?.words ?? null, one = typeof rs?.one === 'string' ? rs.one : rs?.one?.text ?? null;
   return [card ?? (typeof hn?.summary === 'string' ? hn.summary : null), one].filter(Boolean);
+}
+
+/** The take-in's read of a stand as the truth card's caption says it (the belief you acted on). */
+export const READ_WORDS = Object.freeze({ rifle: 'RIFLE', pistol: 'PISTOL', hands: 'EMPTY HANDS', phone: 'A PHONE', unseen: 'HANDS NOT SEEN' });
+/**
+ * The truth cards' rows (see the header): [{ key, stand, leg, firstMs (from GO), live, subject (the card's subject: a board's
+ * truth, or a man's Seen record as at your first round, his gear now), belief: { face, holds }, words }], in the order you engaged them.
+ */
+export function truthRows(state) {
+  const R = state?.armoury?.range, H = R?.house;
+  if (R?.course !== 'house' || !H) return [];
+  const goAt = H.goAtMs ?? 0, out = [];
+  for (const T of R.turners ?? []) {
+    const F = T.atFirst;
+    if (!F) continue;
+    const leg = T.stand === 'H' ? 3 : Number(String(T.stand)[0]) - 1, live = !!T.live?.who;
+    let subject;
+    if (live) {
+      const who = T.live.who, p = state.people?.[who], a = state.actors?.list?.find?.(x => x.who === who), now = gearOf(state, who) ?? {};
+      // (the gun in his hands at your first round, though he gave up and dropped it since)
+      const gear = { ...now, ...(F.gun && /^rifle/.test(F.how) && !now.rifle ? { rifle: { model: F.gun, finish: null, place: 'ready', mag: true } } : {}), ...(F.gun && /^pistol/.test(F.how) && !now.pistol ? { pistol: { model: F.gun, place: 'ready', mag: true } } : {}), hands: null };
+      const rec = { who, kind: 'man', frame: 'stand', gear, hold: { how: F.how, right: null, left: null, act: null }, aimAt: F.aimAt ?? null, pose: F.pose ?? 'stand', facing: F.facing ?? 'front', yawQ: 0, light: null, cover: null, rangeM: null, read: { holds: F.read?.holds ?? null, state: null } };
+      rec.key = seenKey(rec);
+      subject = { kind: 'man', key: `${who}|truth|${rec.key}`, rec, gear, person: { look: p?.look ? lookFor(p.look, a?.outfit ?? 'utilities', indoorsNow(state)) : {}, sex: p?.sex ?? 'm' } };
+    } else {
+      const rec = standSeen(F.face ?? T.face, F.holds ?? T.holds);
+      subject = { kind: 'board', key: `${rec.face}|${F.holds ?? T.holds}|truth`, face: F.face ?? T.face, holds: F.holds ?? T.holds, rec };
+    }
+    const belief = { face: F.read?.face ?? null, holds: F.read?.holds ?? null };
+    out.push({ key: T.key, stand: T.stand, leg, firstMs: Number.isFinite(F.ms) ? F.ms - goAt : null, live, subject, belief, words: `READ ${READ_WORDS[belief.holds] ?? String(belief.holds ?? '-').toUpperCase()}` });
+  }
+  return out.sort((a, b) => (a.firstMs ?? Infinity) - (b.firstMs ?? Infinity) || a.leg - b.leg);
+}
+/** A room's word for a leg (the run sheet's): "ROOM 1" to "ROOM 3", "HALL". */
+const legWord = (leg) => (leg === 3 ? 'HALL' : `ROOM ${leg + 1}`);
+/**
+ * The truth cards as a row (T-a; see the header): an element ({ className 'house-truth' }, a <details> open as T-a draws it, which
+ * you close to give the run sheet its height back: on a long run sheet the side scrolls, my call), whose
+ * data-text is every card's caption in order, or null with none. modelOf(row) → the card's model (paintHitcard's) or null; paint:
+ * paintHitcard; size: the card's size (CARD_MIN). Each card is captioned on one line, its room, its stand, the time of your first
+ * round from GO and what you read ("ROOM 2 · 2A · 16.8 S · READ RIFLE"), on one line in the run sheet's small type.
+ */
+export function truthRowEl(rows, { doc = globalThis.document, modelOf = null, paint = null, size = 170, open = true } = {}) {
+  if (!rows?.length || !doc || !paint || !modelOf) return null;
+  const el = (tag, props = {}, ...kids) => { const n = Object.assign(doc.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
+  const small = 'font-size: calc(9px * var(--ui, 1)); line-height: 1.25; letter-spacing: 0.04em; color: #9aa0ab; margin: 0;';
+  const figs = [], said = [];
+  for (const r of rows) {
+    const m = modelOf(r);
+    if (!m) continue;
+    const pm = paint({ ...m, size }), cv = el('canvas', { width: pm.w, height: pm.h });
+    cv.style.cssText = `width: ${pm.w}px; height: ${pm.h}px; image-rendering: pixelated; display: block;`;
+    cv.getContext('2d')?.putImageData(new globalThis.ImageData(new Uint8ClampedArray(pm.data.buffer.slice(0)), pm.w, pm.h), 0, 0);
+    const head = `${legWord(r.leg)} · ${String(r.stand).toUpperCase()}${Number.isFinite(r.firstMs) ? ` · ${(Math.max(0, r.firstMs) / 1000).toFixed(1)} S` : ''} · ${r.words}`;
+    const cap = el('figcaption', { className: 'truth-head', textContent: head });
+    cap.style.cssText = `${small} width: ${pm.w}px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+    cap.title = head;
+    const fig = el('figure', { className: 'truth-card' }, cap, cv);
+    fig.style.cssText = 'margin: 0; flex: 0 0 auto; display: flex; flex-direction: column; gap: 0;';
+    fig.dataset.stand = String(r.stand); fig.dataset.marks = JSON.stringify((pm.marks ?? []).map(d => [d.n, d.kind, d.zone]));
+    figs.push(fig); said.push(head);
+  }
+  if (!figs.length) return null;
+  const sum = el('summary', { className: 'truth-title', textContent: `THE TRUTH CARDS: EACH YOU ENGAGED, AS HE TRULY WAS AT YOUR FIRST ROUND (${figs.length})` });
+  sum.style.cssText = `${small} cursor: pointer;`;
+  const list = el('div', { className: 'truth-row' }, ...figs);
+  list.style.cssText = 'display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; padding-top: 1px;';
+  const box = el('details', { className: 'house-truth', open }, sum, list);
+  box.dataset.text = said.join(' | ');
+  box.dataset.n = String(figs.length);
+  return box;
 }

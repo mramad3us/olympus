@@ -133,10 +133,12 @@ export const MAPS = Object.freeze({
 });
 /** The group a row no slot takes goes to (its third level), by its kind. */
 // (v0.0.19, kit D2: a device single of the planner's (kind 'device': Pin back in, Throw it clear, Prime again) goes to GUN's
-// "Hands ▸", beside the rifle's admin, where the hands' own rows are)
+// "Hands ▸", beside the rifle's admin, where the hands' own rows are; v0.0.24's step 5: the mag boots' row (kind 'boots',
+// shooting.js bootsRow, offered only where the gravity does not hold the feet) and the anchors' (kind 'anchor', shooting.js
+// anchorRows: Take the hold, Clip in, Wedge, Let go, offered only under 0.05 G) go to BODY's, with the stances)
 const OVERFLOW_OF = (s) => (s?.kind === 'device' ? 'GUN' : isShotRow(s) || s?.kind === 'fire' || lineRow(s) ? 'FIRE'
   : ['door', 'bundle', 'watch', 'look', 'move', 'mark', 'call', 'variant'].includes(s?.kind) || /^drill:/.test(s?.id ?? '') ? 'DRILL'
-    : ['stance', 'posture', 'gait', 'wait'].includes(s?.kind) ? 'BODY' : s?.kind === 'contact' ? 'TEAM' : 'GUN');
+    : ['stance', 'posture', 'gait', 'wait', 'boots', 'anchor'].includes(s?.kind) ? 'BODY' : s?.kind === 'contact' ? 'TEAM' : 'GUN');
 /** Rows the panel never draws: their keys are their own (X, the keys' strip), and T's act names them by those keys. */
 const KEYED = Object.freeze({ leave: 'X' });
 

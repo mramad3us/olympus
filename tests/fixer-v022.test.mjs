@@ -20,7 +20,6 @@ import { pickedScene } from '../src/ui/boot.js';
 import { pickerPage } from '../src/ui/cards/pairs.js';
 import { againHouseOf } from '../src/ui/cards/house.js';
 import { houseChoice } from '../src/core/debug.js';
-import { fixedLines } from '../src/ui/audio/house.js';
 import * as COURSES_DATA from '../src/data/courses.js';
 import { SCENES } from '../src/data/scenes.js';
 import { seqOf } from '../src/sim/scenarios/handling.js';
@@ -150,16 +149,8 @@ export default [
       assert(!('SEQ_HOUSE_CASUALTY' in COURSES_DATA) && !('SEQ_HOUSE_DRAWN_CASUALTY' in COURSES_DATA) && !/The lane is closed/.test(src) && wash.sayEnd.other.includes('Weapons clear. Into the booth: hot wash.'), JSON.stringify(wash));
     },
   },
-  {
-    name: 'the live lane\'s lines whose timing is their point are baked up front, the hunt\'s too: the paint on your #2 (paintTwo, paintTwiceTwo, paintStoppedTwo), the bled rulings and the casualty lessons of his and the bled one (the code review: baked only when said)',
-    fn() {
-      const texts = new Set(fixedLines().map(l => l.text)), want = [...HOUSE_CHIEF.paintTwo, ...HOUSE_CHIEF.paintTwiceTwo, ...HOUSE_CHIEF.paintStoppedTwo].map(t => t.replaceAll('{part}', 'chest'))
-        .concat(HOUSE_CHIEF.bled, HOUSE_CHIEF.twoBled, HOUSE_CHIEF.one['casualty:two'], HOUSE_CHIEF.one['casualty:two:yours'], HOUSE_CHIEF.one['casualty:bled'], HOUSE_CHIEF.one['paint:two']);
-      const missing = want.filter(t => !texts.has(t));
-      console.log(`      fixed lines ${texts.size}; the hunt's ${want.length}, missing ${missing.length}`);
-      assert(!missing.length, JSON.stringify(missing));
-    },
-  },
+  // (retired in v0.0.24: "the live lane's lines whose timing is their point are baked up front" pinned the voices' fixed lines,
+  // gone with the synthesis (the user, 2026-11-19: "forget voice synthesis, no voices."); the lines are bubbles, bubbles.test.mjs)
   {
     name: 'a scene played as set from the page drops a named, coded or drawn house with its words (the code review: ?play=test-shoothouse-live&layout=B played as set without a word)',
     fn() {

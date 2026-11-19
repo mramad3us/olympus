@@ -70,7 +70,7 @@
 import { PX_PER_M } from './scale.js';
 import { createPixels } from './decals.js';
 import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART,
-  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, CORNER_LIT_Y_M, leafArcPixels, cornerAidPixels, floorRiflePixels, paintPuffPixels, jambMarks } from './range-items.js';
+  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, CORNER_LIT_Y_M, leafArcPixels, cornerAidPixels, floorRiflePixels, paintPuffPixels, jambMarks, JAMB_DRAWN_AS } from './range-items.js';
 import { createCollector, buildAreaData } from '../art/jobs.js';
 import { areaFromJob, newPart } from './batch.js';
 import { paintKdFace, facePx } from '../art/kit/range.js';
@@ -86,6 +86,30 @@ export const AID_PIXELS = 2048;
 /** How far outside a view a thing still drawn may stand (metres: a flag's sleeve 4.5 m up, a face's disk). */
 export const VIEW_MARGIN_M = 8;
 const inViews = (views, x, z) => !views || views.some(v => x > v.x0 - VIEW_MARGIN_M && x < v.x1 + VIEW_MARGIN_M && z > v.z0 - VIEW_MARGIN_M && z < v.z1 + VIEW_MARGIN_M + 6);
+
+/** v0.0.24: the anchors' colours on the stage (samples/void-look H-a's safety yellow, the lanyard's strap, the glove's grey for the arm and the wedge). */
+export const ANCHOR_C = Object.freeze({ hold: 0xe0bc4a, strap: 0x2c2e38, arm: 0x8a9099 });
+/**
+ * An anchor's pixels on the stage (see the void range's block below): A { kind: 'hold' | 'lanyard' | 'wedge', x, z, y (the body's height
+ * over the deck), hold?: { x, z, kind: 'hold' | 'padEye' } } → [{ x, y, z, c }]: the hold lit as a 3-pixel cross, and a line of pixels
+ * from the hand (1.1 m over the body's feet) or the belt (0.9 m) to it, a pixel every 1/ppm; the wedge two 3-pixel ticks a body's width
+ * either side across its passage. World metres, y up.
+ */
+export function anchorPixels(A, ppm) {
+  const out = [], P = 1 / ppm, by = A.y ?? 0;
+  if (A.kind === 'wedge') {
+    for (const s of [-1, 1]) for (let i = -1; i <= 1; i++) out.push({ x: A.x + i * P, y: by + 0.5, z: A.z + s * 0.42, c: ANCHOR_C.arm });
+    return out;
+  }
+  const h = A.hold;
+  if (!h) return out;
+  const hy = h.kind === 'padEye' ? 0.02 : 1.0;
+  for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) out.push({ x: h.x + dx * P, y: hy, z: h.z + dz * P, c: ANCHOR_C.hold });
+  const from = { x: A.x, y: by + (A.kind === 'lanyard' ? 0.9 : 1.1), z: A.z }, to = { x: h.x, y: hy, z: h.z };
+  const L = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z), n = Math.max(1, Math.ceil(L * ppm));
+  for (let i = 1; i < n; i++) { const t = i / n; out.push({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, z: from.z + (to.z - from.z) * t, c: A.kind === 'lanyard' ? ANCHOR_C.strap : ANCHOR_C.arm }); }
+  return out;
+}
 
 /**
  * The range on a stage: { group, update(look, { kd, ms, tintOf }), stats, dispose }. look: rangeLook(state,
@@ -202,7 +226,8 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
         }
       }
       const k = hoistAt(ms), HS = look.house ?? null;
-      if (!HS) {
+      // (no tower and no line flags in the shoot house, nor in Well A on the anchors course (the fixer of v0.0.24's play review, H1))
+      if (!HS && look.course !== 'anchors') {
         for (const p of flagPixels(kd.tower.flag, k, ms, ppm)) { put(p, FLAG_PART); stats.flag++; }
         for (const pole of LINE_FLAGS) for (const p of flagPixels(pole, k, ms, ppm, LINE_FLAG)) { put(p, FLAG_PART + 1); stats.flag++; }
       }
@@ -227,9 +252,9 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
           // (a shut door's arc as light, untinted over the fog (range-items.js leafArcPixels' `light`), the moving sweep lit where it lies)
           for (const q of leafArcPixels(L, ppm)) { if (q.light) { if (px.set(n, { ...q, color: q.c, tint: [1, 1, 1], part: 0, noLine: true, light: true })) n++; } else put(q, 0, true); hs.pixels++; }
         }
-        // (the rooms' marks on their jambs, M1 chalk or M2 a chemlight by the look flag (range-items.js jambMarks; `jamb`, view.js's $look.jamb))
+        // (the rooms' marks on their jambs, M1 chalk or M2 a chemlight by the look flag, else JAMB_DRAWN_AS (range-items.js jambMarks; `jamb`, view.js's $look.jamb))
         hs.marks = 0;
-        for (const q of jambMarks(HS.marks, { kind: jamb ?? 'm1', ppm })) {
+        for (const q of jambMarks(HS.marks, { kind: jamb ?? JAMB_DRAWN_AS, ppm })) {
           if (!inViews(views, q.x, q.z)) continue;
           if (q.light) { if (px.set(n, { ...q, color: q.c, tint: [1, 1, 1], part: 0, noLine: true, light: true })) n++; } else put(q, 0, true);
           hs.marks++; hs.pixels++;
@@ -332,6 +357,13 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
           for (const p of turnerPixels(t, ms, ppm, look.gMs2)) { put(p, p.part, p.noLine); ps.pixels++; }
           ps.holes += (t.holes ?? []).length;
           for (const h of t.holes ?? []) if (h.ring) for (const q of sparkPixels(t, h, ms, ppm, look.gMs2)) { if (blast.set(nb, { ...q, color: q.c, part: 0, noLine: true })) { nb++; ps.sparks++; } }
+        }
+        // (the void range: the anchors a viewer sees (anchors.js anchorsLook), drawn over the floor: the hold a hand is on lit in
+        // the rule's yellow with the arm's line to it, the lanyard's strap from the belt to its pad-eye, the wedge's two contacts)
+        ps.anchors = 0;
+        for (const A of PR.anchors ?? []) {
+          if (!inViews(views, A.x, A.z)) continue;
+          for (const q of anchorPixels(A, ppm)) if (over.set(no, { ...q, color: q.c, tint: tintOf ? tintOf(q.x, q.z) : [1, 1, 1], part: 0, noLine: true })) { no++; ps.anchors++; ps.pixels++; }
         }
         stats.pairs = ps;
       } else stats.pairs = null;

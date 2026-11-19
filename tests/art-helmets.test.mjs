@@ -24,14 +24,21 @@ const FACE = new Set(['s', 'e', 'o', 'b', 'z', 'h', 'ĥ', 'ħ']);
 
 export default [
   {
-    name: 'a look without helm is the game\'s: no helm, no extra letters, the sealed helmet\'s own drawing (the hook shut)',
+    name: 'a look without helm is the game\'s: from v0.0.24 the Corps\' regular R3 in the Mars trim on the combat EVA suit (the user, 2026-11-19: "R2, R3 and R4 are very good for military"), the light vac suit\'s sealed dome (S0, "for civilian vac suits"); with HELMET_DRAWN_AS unset, no helm and the sealed helmet\'s own drawing (the hook shut)',
     fn() {
-      const L = look(null), col = coloursOf(L, 16);
-      assert(L.helm === undefined && col.$fixed === undefined && col['ĵ'] === undefined, JSON.stringify({ helm: L.helm, fixed: col.$fixed }));
-      const a = composeFrame(L, 'down', 'idle0', { ppm: 16 }), b = composeFrame(look(null), 'down', 'idle0', { ppm: 16 });
-      const key = (f) => f.cells.map(r => r.map(c => (c ? c.ch : '.')).join('')).join('\n');
-      assert(key(a) === key(b) && key(a).includes('þ'), 'today\'s visor is there');
+      const R = look(null), vac = wear({ outfit: 'vac', seed: 3 });
+      assert(R.helm?.id === 'R3' && R.helm.faction === 'mars' && R.helm.trim === FACTIONS.mars.trim && vac.helm === undefined, JSON.stringify({ helm: R.helm, vac: vac.helm }));
+      const was = HELMET_DRAWN_AS.regular;
+      try {
+        HELMET_DRAWN_AS.regular = null;
+        const L = look(null), col = coloursOf(L, 16);
+        assert(L.helm === undefined && col.$fixed === undefined && col['ĵ'] === undefined, JSON.stringify({ helm: L.helm, fixed: col.$fixed }));
+        const a = composeFrame(L, 'down', 'idle0', { ppm: 16 }), b = composeFrame(look(null), 'down', 'idle0', { ppm: 16 });
+        const key = (f) => f.cells.map(r => r.map(c => (c ? c.ch : '.')).join('')).join('\n');
+        assert(key(a) === key(b) && key(a).includes('þ'), 'today\'s visor is there');
+      } finally { HELMET_DRAWN_AS.regular = was; }
       assert(helmOf({ id: 'nope' }) === null && helmOf(null) === null, 'an unknown candidate draws today\'s');
+      console.log(`      the combat EVA suit: ${R.helm.id} in ${R.helm.faction} trim; the light vac suit: ${vac.head?.kind} sealed ${vac.head?.sealed}; drawn as ${JSON.stringify(HELMET_DRAWN_AS)}`);
     },
   },
   {
@@ -129,7 +136,7 @@ export default [
       } finally { HELMET_DRAWN_AS.regular = was; clearDolls(); }
       console.log(`      the figure, the doll, the card's man: unset ${JSON.stringify(rows.unset)}; a look naming R1 ${JSON.stringify(rows.named)}; HELMET_DRAWN_AS.regular 'R1' ${JSON.stringify(rows.drawnAs)}; helmFor's R1 ${JSON.stringify(helmFor({ pick: 'R1' }))}, its O1 on you ${JSON.stringify(helmFor({ pick: 'O1', slot: 0 }))}, on your #2 ${JSON.stringify(helmFor({ pick: 'O1', slot: 1 }))}`);
       for (const k of ['fig', 'doll', 'card']) assert(rows.drawnAs[k] === rows.named[k] && rows.drawnAs[k] !== rows.unset[k], `${k}: ${JSON.stringify(rows)}`);
-      assert(was === null && helmFor({ pick: 'O1', slot: 0 }) === null && helmFor({ pick: 'O1', slot: 1 })?.id === 'O1', 'nothing drawn as until picked; the OPA on your #2 alone');
+      assert(was === 'R3' && helmFor({ pick: 'O1', slot: 0 })?.id === 'R3' && helmFor({ pick: 'O1', slot: 1 })?.id === 'O1', 'R3 drawn as from v0.0.24; an OPA pick on your #2 alone');
     },
   },
 ];

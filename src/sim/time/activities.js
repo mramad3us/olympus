@@ -95,7 +95,7 @@ import { isHeld, SEC_MS, MIN_MS, TICK_MS, wholeTicks, durationText } from '../..
 import { playerActor, playerId, cmpId } from '../../core/ids.js';
 import { post, cancel, sorted } from '../../core/queue.js';
 import { hashPick } from '../../core/hash.js';
-import { marsClock } from '../../core/calendar.js';
+import { dayClock } from '../../core/calendar.js';
 import { ACTIVITIES, WATER_MIN, SLEEP_MAX_MS, SLEEP_MIN_MS, NAP_MIN, STUBBLE_SHOWS_H, DRINK_L, SNACK_KCAL, DRESS_HURRY_K, ROWS, BARBER_H } from '../../data/activities.js';
 import { HANDS } from '../../data/body/needs.js';
 import { CUTS } from '../../data/people/looks.js';
@@ -104,7 +104,7 @@ import { spotsOf, seatOf } from '../places/fixtures.js';
 import { openNavOf, path } from '../places/nav.js';
 import { PLAYER_CLS } from '../places/move.js';
 import { placeGaits } from '../body/motion.js';
-import { siteLonEDeg } from '../jobs.js';
+import { siteDayOf, dayPhaseOf } from '../jobs.js';
 import { siteAt, waterOf } from '../places/env.js';
 import { logEntry } from '../log.js';
 import { FF_MAX_MS } from './skip.js';
@@ -119,6 +119,9 @@ import { bodyOf, intake, relieve, wash, groom, soil, sleepBegin, sleepEnd } from
 import { stagesOf, hasBeard } from '../body/cues.js';
 import { hairOf, cutsFor, cutHair, SOL_H } from '../body/hair.js';
 import { kdPartEnd } from '../scenarios/range.js';
+import { bracePending } from '../places/gravity.js';
+/** The words of a skip refused while a brace is pending (v0.0.24, step 6; my call). */
+export const BRACE_REFUSED = 'Not now: secure for the burn.';
 
 /** Under this an activity is lived at 1:1 (TIME §8.1), ms. */
 // 10 s: the user, 2026-11-07, on the 30 s of washing their hands lived at 1:1: "I'm okay with no time skip
@@ -229,7 +232,7 @@ function wants(state, def) {
   if (def.legacy) return false;
   const opt = def.optional, pid = playerId(state), body = bodyOf(state, pid);
   if (opt === 'stubble') return !!body && hasBeard(body) && (body.hygiene?.stubbleH ?? 0) >= STUBBLE_SHOWS_H;
-  if (opt === 'bowel') return !!body && (stagesOf(body, state.clock.ms, siteLonEDeg(state))?.bowel?.i ?? 0) >= 1;
+  if (opt === 'bowel') return !!body && (stagesOf(body, state.clock.ms, siteDayOf(state))?.bowel?.i ?? 0) >= 1;
   return true;
 }
 
@@ -324,7 +327,8 @@ function waterMinOf(state) {
   if (!Number.isFinite(min)) throw new Error(`activities: no water minutes for '${w}' (${Object.keys(WATER_MIN).join(', ')})`);
   return min;
 }
-const hourAt = (state, ms) => { const c = marsClock(ms, siteLonEDeg(state)); return c.timeslip ? 24 : c.civilMs / 3_600_000; };
+// (the hour on the site's own day: 24 through Mars's slip; v0.0.24's stage 0, jobs.js dayPhaseOf)
+const hourAt = (state, ms) => dayPhaseOf(state, ms).hour;
 
 /** Why a single action is struck at a spot now, or null (see the header): words for the row and the refusal. */
 export function offOf(state, id, spot = null, args = {}, { atMs = state.clock.ms, wearing = null, plan = null, bladderMl = null } = {}) {
@@ -362,7 +366,7 @@ export function offOf(state, id, spot = null, args = {}, { atMs = state.clock.ms
 // ---- the words (TIME §8.1's price; the build sheet 0.0.6 §2.1) ----
 
 // (a clock time as the watch shows it: the slip as '24:00 +12', so one moment shows one number on every screen)
-const watchHm = (ms, lon) => { const c = marsClock(ms, lon); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / 60_000)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
+const watchHm = (ms, lon) => { const c = dayClock(ms, lon); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / 60_000)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
 
 /**
  * An offer's words, TIME §8.1's price: 'wash hands · 30 s', 'shave · 4 min, done 19:46' (', done HH:MM'
@@ -370,7 +374,7 @@ const watchHm = (ms, lon) => { const c = marsClock(ms, lon); return c.timeslip ?
  * ', the count 02:35' while a drill's count is to come.
  */
 export function priceOf(state, word, durMs) {
-  const lon = siteLonEDeg(state), d = state.time?.drills?.open;
+  const lon = siteDayOf(state), d = state.time?.drills?.open;
   const count = d && state.clock.ms < d.dueMs ? `, the count ${watchHm(d.dueMs, lon)}` : '';
   const done = durMs >= DONE_FROM_MS ? `, done ${watchHm(state.clock.ms + durMs, lon)}` : '';
   return `${word} · ${durationText(durMs)}${done}${count}`;
@@ -403,8 +407,8 @@ export function walkMs(areaId, ax, az, bx, bz, speedMs) {
 }
 
 // (a clock time as the watch shows it, the slip as '24:00 +12'; and the moment its shown minute began)
-const hhmm = (ms, lon) => { const c = marsClock(ms, lon); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
-const shownMinuteMs = (ms, lon) => { const c = marsClock(ms, lon); return ms - ((c.timeslip ? c.slipMs : c.civilMs) % MIN_MS); };
+const hhmm = (ms, lon) => { const c = dayClock(ms, lon); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
+const shownMinuteMs = (ms, lon) => { const c = dayClock(ms, lon); return ms - ((c.timeslip ? c.slipMs : c.civilMs) % MIN_MS); };
 
 /** TIME §9.5's late check for an activity of durMs at a spot (see the header): null, or what makes it late. */
 export function lateCheck(state, id, spotId, durMs, args = {}) {
@@ -416,7 +420,7 @@ export function lateCheck(state, id, spotId, durMs, args = {}) {
   if (!m) return null;
   const sp = spotOf(state, spotId), x = sp?.x ?? me?.x ?? m.x, z = sp?.z ?? me?.z ?? m.z;
   const walk = state.places?.live?.area === m.area ? walkMs(m.area, x, z, m.x, m.z, placeGaits(state, m.area).walkMs) : 600_000;
-  const lon = siteLonEDeg(state);
+  const lon = siteDayOf(state);
   const endMs = now + durMs;
   // (what it leaves you wearing, whole and cut half-way: a chain's is given, args.landing)
   const land = (f) => args.landing ?? landingOutfit(state, id, f, null, args);
@@ -478,6 +482,8 @@ export function startActivity(state, bus, ctx, { id, spotId = null, args = {}, l
     } else if (late !== 'accepted') return refuse(bus, 'late', null);
   }
   const kind = force ?? plan.kind;
+  // (ROADMAP "anywhere" step 6: no time passes in a skip while a brace is pending, TIME §5.1.6's threat rule (src/sim/places/gravity.js))
+  if (kind !== 'live' && bracePending(state)) return refuse(bus, 'brace', BRACE_REFUSED);
   const t0 = state.clock.ms;
   // (the page's R at your rack's foot, standing, a sleep or a nap that begins lying: you lie down in
   // sight first, and it begins from the berth once you are down, ending where its price said)
@@ -627,13 +633,13 @@ export function causeOf(by, stopKind = null) {
 
 // (TIME §8.8's line, its placeholders filled)
 function lineOf(state, d, endMs, fraction) {
-  const rec = activityOf(d.activity), pid = playerId(state), lon = siteLonEDeg(state);
+  const rec = activityOf(d.activity), pid = playerId(state), lon = siteDayOf(state);
   const durMs = endMs - d.fromMs;
   if (fraction < 1 && !['sleep', 'nap', 'wait', 'standfast', 'idle'].includes(d.activity)) return `${cap(rec.noun ?? rec.offer)}, cut short after ${durationText(durMs)}.`;
   const tmpl = hashPick(rec.log, d.activity, pid, Math.floor(endMs / 12_000));
   // (beside the clock times it prints, the duration is theirs: "Down at 21:55, up at 23:00: 1 h 5 min", never rounded past them)
   const durText = /\{(from|to)\}/.test(tmpl) ? durationText(shownMinuteMs(endMs, lon) - shownMinuteMs(d.fromMs, lon)) : durationText(durMs);
-  const slip = (() => { for (let t = d.fromMs; t < endMs; t += 60_000) if (marsClock(t, lon).timeslip) return true; return marsClock(endMs, lon).timeslip; })();
+  const slip = (() => { for (let t = d.fromMs; t < endMs; t += 60_000) if (dayClock(t, lon).timeslip) return true; return dayClock(endMs, lon).timeslip; })();
   const outfit = { utilities: 'Utilities', pt: 'PT kit', towel: 'A towel' }[outfitOf(playerActor(state))] ?? 'Utilities';
   return cap(tmpl.replace('{dur}', durText).replace('{from}', hhmm(d.fromMs, lon)).replace('{to}', hhmm(endMs, lon)).replace('{slip}', slip ? ', through the slip' : '').replace('{outfit}', outfit));
 }

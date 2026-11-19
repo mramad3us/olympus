@@ -1126,14 +1126,16 @@ export function paintPuffPixels(p, ms, ppm = PX_PER_M) {
 // houseLook's marks (shoothouse.js marksLook): each room marked, on its latch-side jamb a little outward of the door's plane, at
 // head height, drawn upright from the hand's sub-step on (nothing pops in). Two looks to score (samples/marks/, question 7): M1 a
 // chalk X (JAMB_CHALK, JAMB_X_PX across, tinted by the light where it is, as chalk is), M2 a chemlight taped to the jamb (JAMB_GLOW,
-// a JAMB_STICK_PX bar, drawn as light: it glows through the fog). M1 until the user picks; the kind comes from the page's look flags
-// ($look.jamb, view.js passes it).
+// a JAMB_STICK_PX bar, drawn as light: it glows through the fog). The kind comes from the page's look flags ($look.jamb, view.js
+// passes it), else JAMB_DRAWN_AS: M2 from v0.0.24 (the user starred M2-a and M2-b on 2026-11-19), M1 before.
 /** The chalk's colour, the chemlight's glow, the X's size and the stick's length (px). */
 export const JAMB_CHALK = 0xe9e4d4, JAMB_GLOW = 0x7cff6e, JAMB_X_PX = 5, JAMB_STICK_PX = 4;
 /** The jamb marks' looks, in the samples' order. */
 export const JAMB_KINDS = Object.freeze(['m1', 'm2']);
+/** The room's mark the game draws with no flag: the chemlight (see above). */
+export const JAMB_DRAWN_AS = 'm2';
 /** The marks' pixels (see above): [{ x, y, z, c, light? }] from houseLook's marks [{ x, z, y }], drawn as `kind` ('m1' | 'm2'). */
-export function jambMarks(marks, { kind = 'm1', ppm = PX_PER_M } = {}) {
+export function jambMarks(marks, { kind = JAMB_DRAWN_AS, ppm = PX_PER_M } = {}) {
   const out = [], P = 1 / ppm;
   for (const m of marks ?? []) {
     if (!Number.isFinite(m?.x) || !Number.isFinite(m?.z)) continue;

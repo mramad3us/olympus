@@ -50,9 +50,9 @@
 // those of the body part it is on, so it moves with the part and never swims across a walking figure.
 // Colours here are base tones; shade.js makes each one's light, shade and dark by rule. Pure.
 import { noise, tone, mixHex } from '../tone.js';
-import { CUT_IDS } from './templates.js';
+import { CUT_IDS, MAG_BOOT_LETTERS } from './templates.js';
 import { drawingOf } from '../rifles.js';
-import { helmOf, helmColours, helmFor, FOF_MASKS, FOF_MASK, fofMaskColours } from './helmets.js';
+import { helmOf, helmColours, helmFor, FOF_MASKS, fofMaskFor, fofMaskColours } from './helmets.js';
 
 /** Skin tones (tradecraft's SKIN). */
 export const SKIN = Object.freeze({ light: 0xedc39c, tan: 0xc48a62, brown: 0x8c5a3f, dark: 0x5e3a2a });
@@ -109,8 +109,13 @@ export const BRASSARD = 0xd8463a, EARS = Object.freeze({ cup: 0x4c633d, band: 0x
 const TAN_BOOT = 0x9a7650, BELT = 0x5c4a36, DRAB = 0x545e40, DRAB_DARK = 0x3d4530;
 const SHELL = 0xc8c0ae, SKINSUIT = 0x3b4256, SUIT_RING = 0x4c5262, SUIT_BOOT = 0x5a6070, PACK = 0x7d776c, OXBLOOD = 0x6e2a2e, PT_GREY = 0x8f96a6;
 /** The combat EVA suit's blacks (0.0.12; my call, to be scored): a shell a little lifted from pure black so the shade's ramp keeps its
- * light and its dark at 16 px/m, the skin under it darker, the seams and rings a cool grey, the visor smoked blue-grey (its glint the 'l'). */
-export const COMBAT_SUIT = Object.freeze({ shell: 0x2c2f37, skin: 0x1c1e24, ring: 0x484c57, boot: 0x1f2127, visor: 0x33465a, pack: 0x26282f, carrier: 0x23252c, pouches: 0x34363e });
+ * light and its dark at 16 px/m, the skin under it darker, the seams and rings a cool grey, the visor smoked blue-grey (its glint the 'l').
+ * v0.0.24 (the user, 2026-11-19, of the P-12 in the suit's hands: "The suit needs more color variation for the gloves, they dont stand
+ * out enough (maybe gray gloves would be better for this color suit)"): the gloves a mid grey (glove), apart from the rings' dark grey. */
+/** v0.0.24: the mag boots' colours on the figure (samples/mag-boots B-b, the default until scored: boots.js SOLE_C, CUFF_C) and their letters. */
+export const MAG_BOOT_C = Object.freeze({ sole: 0x24262c, cuff: 0x8a9099 });
+export { MAG_BOOT_LETTERS };
+export const COMBAT_SUIT = Object.freeze({ shell: 0x2c2f37, skin: 0x1c1e24, ring: 0x484c57, boot: 0x1f2127, visor: 0x33465a, pack: 0x26282f, carrier: 0x23252c, pouches: 0x34363e, glove: 0x80848c });
 const MINER = 0xd0663a, MINER_BAND = 0xdfe2e8, HARDHAT = 0xe0b040, HELMET = 0x5f6646;   // (the helmet drab, as the carrier: a tan one met the skin's tone)
 
 /**
@@ -141,12 +146,16 @@ export function wear(look = {}) {
   if (look.mark) L.mark = look.mark;
   // (the helmet samples' candidate, never set by the game: samples/helmets, helmets.js; { id, faction } resolved to its colours
   // and templates, drawn on the combat EVA suit's sealed head)
-  // (else the game's helmet for a marine in the combat EVA suit, helmets.js HELMET_DRAWN_AS (none until the user picks:
-  // the sealed head as built), read through helmFor, the one place the figure, the doll and the card take it from)
+  // (else the game's helmet for a marine in the combat EVA suit, helmets.js HELMET_DRAWN_AS (from v0.0.24 the user's picks: R3 for
+  // the Corps' regulars, E1 its elites, O2 the OPA), read through helmFor, the one place the figure, the doll and the card take it from)
   if (look.helm) L.helm = helmOf(look.helm);
   else if (outfit === 'combatSuit' && !look.mask) { const h = helmFor({ kind: look.unit ?? 'regular', faction: look.faction ?? 'mars' }); if (h) L.helm = helmOf(h); }
   // (v0.0.19: the role-players' force-on-force mask over a bare head (helmets.js FOF_MASKS: an id, or true for the default; compose.js head())
-  if (look.mask) L.mask = FOF_MASKS[look.mask] ? look.mask : FOF_MASK;
+  // (a mask named is drawn; `true` is the man's own of M2 and M3 by his seed, helmets.js fofMaskFor)
+  if (look.mask) L.mask = FOF_MASKS[look.mask] ? look.mask : fofMaskFor(seed);
+  // (mag boots worn (the gear record's boots 'mag', the look's `boots`): the sole and the cuff of mag-boots' B-b, the default
+  // until scored, drawn over the boot's own pixels after the body is composed (templates.js magBootCells); absent on every other look)
+  if (look.boots === 'mag') L.magBoots = true;
   const camo = { pattern: 'valles' };
   switch (outfit) {
     case 'utilities': case 'nco': case 'carrier': case 'rangeStaff':
@@ -178,7 +187,7 @@ export function wear(look = {}) {
       const K = L.helm?.suit ? { ...COMBAT_SUIT, ...L.helm.suit } : COMBAT_SUIT;
       L.top = { kind: 'suit', color: K.shell, skin: K.skin };
       L.legs = { kind: 'suit', color: K.skin, shell: K.shell };
-      L.boots = K.boot; L.gloves = K.ring;
+      L.boots = K.boot; L.gloves = K.glove ?? K.ring;
       L.pack = { color: K.pack, helmet: false, slim: true };
       L.head = { kind: 'vac', color: L.helm?.shell ?? K.shell, sealed: true };
       L.accents.rings = K.ring; L.accents.band = L.mark?.tape ?? L.helm?.trim ?? K.ring; L.accents.visor = L.mark?.visor ?? L.helm?.visor ?? K.visor;
@@ -223,5 +232,7 @@ export function coloursOf(L, ppm) {
     ...(L.helm ? helmColours(L.helm) : {}),
     // (v0.0.19: the mask's frame and lens, on a head no helmet seals)
     ...(L.mask && !L.helm ? fofMaskColours(L.mask) : {}),
+    // (the mag boots' cuff and sole, B-b's colours, only on a look that wears them)
+    ...(L.magBoots ? { [MAG_BOOT_LETTERS.cuff]: MAG_BOOT_C.cuff, [MAG_BOOT_LETTERS.sole]: MAG_BOOT_C.sole } : {}),
   };
 }

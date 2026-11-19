@@ -10,7 +10,7 @@
 //   move     the plan's path, routed round the walls on the nav (route.js routed: from 2026-11-11 every leg not clear at
 //            the walker's C0 goes the nav's way, the bundle's own doors counted open), at the stance's walk
 //            (motion.js gaitSpeeds: Combat 1.23, Assault 2.03 m/s at 1 G), pushing
-//            and braking at BODY §16.2's legs (motion.js tractionOf: the private 3.12 and 5.07 m/s² with 25 kg on 75), as
+//            and braking at BODY §16.2's legs (motion.js legsAt: the private 3.12 and 5.07 m/s² with 25 kg on 75), as
 //            a closed-form trapezoid (moveAt): rest to rest below rung 4, the approach flowing into the entry at rung 4
 //            (it leaves the stack at the Combat walk and the entry speeds up into the Assault lope); its arriveMs is when
 //            ARRIVE_M 0.6 m are left, the flowing hand's cue on the door
@@ -195,6 +195,16 @@
 // rows alike, is struck "a charge is on the door" (breach.js CHARGE_ON_WHY); the door beat never waits on a #2 held at his
 // charge safe point, and that hold ends once your leg is another door's. #1's tell reads the door's swing for every way in but
 // the kick ("Opens out" on a pried pull door).
+// v0.0.24's step 5 (AW§4.1 item 5; the build sheet v0.0.24 §1 A): the move kind's struck row. Where the legs have nothing to push
+// on (under 0.05 G and not on locked mag boots: footing.js noFootingWhy; AW measured the house on ship-coast at 4.0 m walked and
+// every room "passed" at 500 s, nothing said), moveStruck(state, pid, rows) strikes every row that would walk (a move single, a
+// bundle with a move among its beats, a door's row with its walk) with the footing's reason ("no footing: lock your boots",
+// "no footing: take a hold", "no footing: push off from the hold"), its times dropped, so none is started and the panel says
+// why; on locked boots the legs are legsAt's (the boots' grip, their 0.5 m/s walk) and every move runs. At 0.05 G and up it
+// returns the rows untouched (no footing read past the gravity's), so no shipped panel moves. The review of v0.0.24's A to C:
+// your #2's slot walk holds the same way (runSlot: where noFootingWhy gives him a reason, his move's time is shifted a tick and
+// his place kept), so under 0.05 G only the boots walk, his as yours (the reviewer measured him walking 4.37 m at 0 G in 400
+// ticks while you could not); a drift he shares with a man holding him is free fall's.
 // Pure but startBundle, stopBundle, carryOn, startSingle, runSlot, flowIn, flowAfter, crossTick, startleTick and the beat handlers,
 // which write the doing records, the actors, the doors and the facts.
 import { holdTime, releaseTime, TICK_MS } from '../../core/clock.js';
@@ -205,8 +215,9 @@ import { G0_MS2 } from '../../core/phys.js';
 import { paceOf } from '../skills/skills.js';
 import { check, oddsOf } from '../skills/checks.js';
 import { sheetOf, valueOf, rungOf, offered } from '../skills/templates.js';
-import { gaitSpeeds, tractionOf, MOVE_STANCES } from '../body/motion.js';
-import { gravityAt, surfaceAt } from '../places/env.js';
+import { legsAt, MOVE_STANCES } from '../body/motion.js';
+import { noFootingWhy } from '../body/footing.js';
+import { gravityAt } from '../places/env.js';
 import { openingOf, openingArea, openingState, setOpening, leafClosed, areaOf } from '../places/model.js';
 import { DOOR_S, leafAt, LEAF_HOWS, stopAtOf } from '../places/doors.js';
 import { AIM } from '../arms/shot.js';
@@ -262,8 +273,8 @@ export const TWO_POLL_MS = 500;
 export const STACK_NEAR_M = 0.3, DOOR_REACH_M = 1.5;
 /** Off the line's longest step to the wall (COMBAT §25.19.6, §25.19.9; arms/sidearm.js), metres. */
 export const COVER_STEP_M = 1.5;
-/** The body under the kit when the person record gives none, and the kit when kit.js cannot weigh it (the build sheet §4: 25 kg on 75). */
-export const BODY_KG = 75, KIT_KG = 25;
+/** The body under the kit (the build sheet §4: 25 kg on 75): motion.js's, the one home since v0.0.24's stage 0 (legsAt weighs the kit; KIT_KG's fallback is gone). */
+export { BODY_KG } from '../body/motion.js';
 /** "Clear!" waits on the scene's ready-to-clear predicate at most this long, then hands back (ms; COMBAT §25.19.9). */
 export const CLEAR_HOLD_MS = 4000;
 /** A "Clear!" the scene found void is said again, after its beat, at most this many times (my call: past APPEAR_MS's second at the call's 0.2 s). */
@@ -333,12 +344,8 @@ export function skillsOf(state, pid) {
 export const HURRY_M = 1.0;
 /** The legs and the speeds where a body stands (see the header): { pushMs2, brakeMs2, walk: { relaxed, combat, assault } }. */
 export function legsOf(state, pid, x, z) {
-  const a = actorOf(state, pid), gx = x ?? a?.x ?? 0, gz = z ?? a?.z ?? 0;
-  const gG = gravityAt(state, null, gx, gz).gG, mu = surfaceAt(state, null, gx, gz)?.mu;
-  const loadKg = (typeof KIT.kitMassKg === 'function' ? KIT.kitMassKg(state, pid) : null) ?? KIT_KG;
-  const t = tractionOf({ gMs2: gG * G0_MS2, mu: Number.isFinite(mu) ? mu : 0.6, effFitness: skillsOf(state, pid).fit, massKg: BODY_KG, loadKg });
-  const walk = Object.fromEntries(MOVE_STANCES.map(s => [s, gaitSpeeds({ gG, gait: s }).walkMs]));
-  return { ...t, walk, gG };
+  const a = actorOf(state, pid);
+  return legsAt(state, pid, x ?? a?.x ?? 0, z ?? a?.z ?? 0);
 }
 
 // ---- the plan: the lane and its doors ----
@@ -1904,6 +1911,14 @@ export function handsStruck(state, pid, rows) {
   const throwsShut = (r) => shut && r.kind === 'bundle' && ['cook', 'throw'].includes((r.beats ?? []).find(b => OPENS_OR_THROWS.includes(b.k))?.k);
   return rows.map(r => (r.off ? r : bar(r) ? { ...r, off: why, struck: true } : throwsShut(r) ? { ...r, off: DOOR_SHUT_WHY, struck: true } : r));
 }
+/** The rows that would walk (see the header): a move single, a bundle with a move beat, a door's row with its walk. */
+const walksOn = (r) => r.kind === 'move' || !!r.walk || (r.kind === 'bundle' && (r.beats ?? []).some(b => b.k === 'move'));
+/** The house's rows with the legs' footing read (v0.0.24's step 5; see the header): the walking rows struck with noFootingWhy's reason where it gives one. */
+export function moveStruck(state, pid, rows) {
+  const why = noFootingWhy(state, pid);
+  if (!why) return rows;
+  return rows.map(r => (r.off || !walksOn(r) ? r : { ...r, off: why, struck: true, ms: null, rushMs: null }));
+}
 // (the scene's five (v0.0.19): house-kit.js fiveOf, set by the scene)
 function laneFive() { return laneFive.fn ?? null; }
 /** The scene's AT THE DOOR five for its lane (v0.0.19): fn(state) → 'breach' | null. */
@@ -2891,7 +2906,14 @@ export function runSlot(state, bus, rec, ms = state.clock.ms) {
     }
     const mv = rec.doing.beats.find(b => b.st === 'run' && b.k === 'move' && b.prof);
     // (his place by his move's closed form, its speed his body's (BODY §16.8); with none running, the free body's brake)
-    if (mv) {
+    if (mv && noFootingWhy(state, rec.pid)) {
+      // (the review of A to C: under 0.05 G off locked boots his legs have nothing to push on, so his walk holds where
+      // he floats, its time with it, as your drill's moves are struck (moveStruck): only the boots walk there, his as yours; his
+      // drift, if a man holding him shares one, is free fall's (freefall.js), never his walk's)
+      mv.fromMs += TICK_MS; mv.untilMs += TICK_MS;
+      if (Number.isFinite(rec.doing.untilPlanMs)) rec.doing.untilPlanMs += TICK_MS;
+      a.locoMs = ms;
+    } else if (mv) {
       let p = moveAt(mv, ms);
       // (the body gap (see the header): his next place closing within BODY_GAP_M of yours holds his walk a tick, his time
       // and the doing's planned end with it, counted on his record (rec.gap); the cue and the departure should leave it idle)

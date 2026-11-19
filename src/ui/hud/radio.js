@@ -62,7 +62,9 @@ export function lineOf(fact, state = null) {
   if (fact.who && fact.who === me) return null;
   const p = state?.people?.[fact.who] ?? null, who = [rankOf(p), familyOf(p)].filter(Boolean).join(' ');
   let head;
-  if (fact.kind === 'pa') head = `◉ TOWER${who ? ` · ${who}` : ''}`;
+  // (ROADMAP "anywhere" step 6: a speaker that is no person, the ship's 1MC (gravity.js), says its own name)
+  if (fact.speaker && !fact.who) head = `◉ ${String(fact.speaker).toUpperCase()}`;
+  else if (fact.kind === 'pa') head = `◉ TOWER${who ? ` · ${who}` : ''}`;
   else if (fact.kind === 'radio') head = `◉ ${who || 'NET'}${UNIT_WORD(p) ? ` · ${UNIT_WORD(p)}` : ''}`;
   else {
     const where = whereOf(state, fact.who);

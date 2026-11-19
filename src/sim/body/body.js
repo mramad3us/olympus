@@ -56,8 +56,12 @@
 // the same hands lived or skipped.
 // bodyOf is built once per person and ms inside the read scope (src/core/reads.js), so the panel's rolls share one
 // copy of the record; its readers read it, never write it (frozen under READS_FREEZE).
-import { MIN_MS, HOUR_MS, SEC_MS, DAY_MS, SOL_MS } from '../../core/clock.js';
-import { msAtMarsTime } from '../../core/calendar.js';
+// Off Mars (v0.0.24's stage 0, its build sheet §2 step 4; F119): the environment's `lonEDeg` is the live site's day key (jobs.js
+// siteDayOf: its east longitude on Mars, 'utc' on a ship or at the Phobos School), the sleep's and the reference sol's times
+// read on it (core/calendar.js msAtDayTime, dayLenOf; sleep.js lonMsOf, dayHOf), so a body ticks, skips and sleeps on a ship's
+// day as on Melas's sol, and on Melas every call is the one it was.
+import { MIN_MS, HOUR_MS, SEC_MS, DAY_MS } from '../../core/clock.js';
+import { msAtDayTime, dayLenOf } from '../../core/calendar.js';
 import { q } from '../../core/num.js';
 import { stream, next } from '../../core/rng.js';
 import { playerId, playerActor } from '../../core/ids.js';
@@ -75,14 +79,14 @@ import { metGOf, baseMassOf, massOf, bmrKcalH, energyRates, hungerIndex, eatBody
 import { thirstPct, thirstIndex, waterRates, kidneyNight, drinkBody } from './water.js';
 import { bladderIndex, bowelIndex, bowelLowerG, transitStep, voidBody, bladderAccident, bowelAccident } from './elimination.js';
 import { grimeIndex, stubbleIndex, grimeRate, washBody, groomBody, handsIndex, soilBody } from './hygiene.js';
-import { phiOf, circ, fatigueIndex, asleepAt, qualityOf, pressureRate, beginSleepBody, endSleepBody, wakeAt, clockStep, lonMsOf, depthOf } from './sleep.js';
+import { phiOf, circ, fatigueIndex, asleepAt, qualityOf, pressureRate, beginSleepBody, endSleepBody, wakeAt, clockStep, lonMsOf, dayHOf, depthOf } from './sleep.js';
 import { stressRate, stressIndex } from './stress.js';
 import { settleTo, coreAfter } from './thermal.js';
 import { staminaRate } from './motion.js';
 import { activityNow } from '../time/doing.js';
 import { roomOf } from '../places/model.js';
 import { envAt as placeEnvAt, bodyPlaceOf } from '../places/env.js';
-import { siteLonEDeg } from '../jobs.js';
+import { siteDayOf } from '../jobs.js';
 import { logEntry } from '../log.js';
 import { READS_FREEZE, freezeDeep } from '../../core/reads.js';
 
@@ -130,7 +134,7 @@ export function withLedgers(body, flat = {}) {
 // held.rp (saved: the key is in every save's bytes) or a term added only where the pressure differs from the
 // place's standard air, so tests/saves/ still load byte for byte)
 const envKey = (e) => `${e.gG}|${e.airC}|${e.outdoors ? 1 : 0}|${e.outfit}|${e.lonEDeg}`;
-/** An environment record: gG, pKpa and airC the place's (required: no place is assumed), outdoors, the outfit, the site's longitude. */
+/** An environment record: gG, pKpa and airC the place's (required: no place is assumed), outdoors, the outfit, the site's day key in `lonEDeg` (its east longitude on Mars, 'utc' on a ship or at the Phobos School: jobs.js siteDayOf; the field's name kept, every save's bytes with it). */
 export function envOf({ gG, outdoors = false, airC, pKpa, outfit = 'utilities', lonEDeg = 0, area = null, room = null } = {}) {
   if (!Number.isFinite(gG) || !Number.isFinite(pKpa) || !Number.isFinite(airC)) throw new Error(`envOf(): a place's gravity, pressure and temperature, not ${JSON.stringify({ gG, pKpa, airC })}`);
   const e = { gG, pKpa, airC, outdoors: !!outdoors, outfit, lonEDeg, area, room };
@@ -142,7 +146,7 @@ export function envAt(state, pid, { room = false } = {}) {
   const a = pid === playerId(state) ? playerActor(state) : (state?.actors?.list ?? []).find(x => x.who === pid) ?? null;
   const area = state?.places?.live?.area ?? null;
   const E = placeEnvAt(state, area, a?.x ?? 0, a?.z ?? 0), outdoors = E.outdoors;
-  return envOf({ gG: E.gravity.gG, pKpa: E.air.pKpa, airC: E.air.airC, outdoors, outfit: a?.outfit ?? 'utilities', lonEDeg: siteLonEDeg(state), area,
+  return envOf({ gG: E.gravity.gG, pKpa: E.air.pKpa, airC: E.air.airC, outdoors, outfit: a?.outfit ?? 'utilities', lonEDeg: siteDayOf(state), area,
     room: room && !outdoors && a ? roomOf(area, a.x, a.z)?.id ?? null : null });
 }
 
@@ -334,7 +338,7 @@ export function bodyAdvance(body, seg, fromMs, toMs, ctx = {}) {
     const cellStart = cell * CELL_MS, cellEnd = cellStart + CELL_MS, end = Math.min(toMs, cellEnd);
     if (rp && rp.cell !== cell) rp = null;
     if (t === cellStart && t % CLOCK_STEP_MS === 0 && body.sleep.clockMs !== t) {   // (the body clock's hour step)
-      body.sleep.offsetH = q(clockStep(body.sleep.offsetH, body.traits.tauIntH), 1e-12);
+      body.sleep.offsetH = q(clockStep(body.sleep.offsetH, body.traits.tauIntH, dayHOf(lonMs)), 1e-12);
       body.sleep.clockMs = t;
       rp = null; carry = null;
     }
@@ -549,7 +553,7 @@ export function hairCut(state, pid, { cut = null } = {}, ms = state?.clock?.ms, 
 }
 /** Lie down with intent to sleep (BODY §7.1): latency and depth fixed now. Returns { fallMs, depthK, latencyMs }. */
 export function sleepBegin(state, pid, ms = state?.clock?.ms, { bed = 'own-rack' } = {}, bus = null) {
-  return change(state, pid, ms, bus, (body) => beginSleepBody(body, ms, { bed, lonMs: lonMsOf(siteLonEDeg(state)) }));
+  return change(state, pid, ms, bus, (body) => beginSleepBody(body, ms, { bed, lonMs: lonMsOf(siteDayOf(state)) }));
 }
 /** Up from the bed (BODY §7.1): { by: 'natural' | 'reveille' | 'alert' | 'player' | 'body' }. Returns { inertia: 0 | −2 | −3, untilMs }. */
 export function sleepEnd(state, pid, ms = state?.clock?.ms, { by = 'player' } = {}, bus = null) {
@@ -579,20 +583,20 @@ export function letGo(state, pid, ledger, ms = state?.clock?.ms, bus = null) {
 const hm = (s) => { const [h, m] = s.split(':').map(Number); return [h, m]; };
 /** The game time of the last reveille of a sol at or before ms. */
 export function lastReveille(ms, lonEDeg, sol = REFERENCE_SOL) {
-  const [h, m] = hm(sol.reveille), t = msAtMarsTime(ms, h, m, lonEDeg);
-  return t <= ms ? t : msAtMarsTime(ms - SOL_MS, h, m, lonEDeg);
+  const [h, m] = hm(sol.reveille), t = msAtDayTime(ms, h, m, lonEDeg);
+  return t <= ms ? t : msAtDayTime(ms - dayLenOf(lonEDeg), h, m, lonEDeg);
 }
 /** A sol's rows as timed spans from its reveille: [{ fromMs, toMs, row, first }]; the rack's runs to nextReveilleMs (the same sol's by default). */
 export function solPlan(sol, reveilleMs, lonEDeg, nextReveilleMs = null) {
   const spans = [];
   let at = reveilleMs;
   for (let i = 0; i < sol.rows.length; i++) {
-    const row = sol.rows[i], [h, m] = hm(row.at), from = i === 0 ? reveilleMs : msAtMarsTime(at, h, m, lonEDeg);
+    const row = sol.rows[i], [h, m] = hm(row.at), from = i === 0 ? reveilleMs : msAtDayTime(at, h, m, lonEDeg);
     spans.push({ fromMs: from, row, first: i === 0 });
     at = from;
   }
   const [rh, rm] = hm(sol.reveille);
-  const end = nextReveilleMs ?? msAtMarsTime(at + MIN_MS, rh, rm, lonEDeg);
+  const end = nextReveilleMs ?? msAtDayTime(at + MIN_MS, rh, rm, lonEDeg);
   for (let i = 0; i < spans.length; i++) spans[i].toMs = i + 1 < spans.length ? spans[i + 1].fromMs : end;
   return spans;
 }

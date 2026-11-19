@@ -13,9 +13,9 @@
 //            20:00." for the barber's cuts, "Clippers. Head A has mirrors." for a shaved head.
 // when() reads only what the character knows: the hair as felt (its band), the wrist's clock, where they
 // stand, what is at hand (time's activitiesAt). Pure.
-import { marsClock } from '../../../core/calendar.js';
+import { dayClock } from '../../../core/calendar.js';
 import { playerId } from '../../../core/ids.js';
-import { siteLonEDeg } from '../../jobs.js';
+import { siteDayOf } from '../../jobs.js';
 import { isAsleep } from '../../body/body.js';
 import { hairOf } from '../../body/hair.js';
 import { activitiesAt, offOf, spotOf } from '../../time/activities.js';
@@ -24,8 +24,8 @@ import { rangeNow } from '../../scenarios/handling.js';
 /** The hours the DI speaks of grooming (base.js's dayH: not in the night). */
 export const GROOM_FROM_H = 5, GROOM_TO_H = 21 + 50 / 60;
 
-// (the local hour on the wrist, the slip counted past 24)
-const hourOf = (state, ms) => { const c = marsClock(ms, siteLonEDeg(state)); return c.timeslip ? 24 + c.slipMs / 3_600_000 : c.civilMs / 3_600_000; };
+// (the local hour on the wrist, the slip counted past 24; on the site's own day, v0.0.24's stage 0: jobs.js siteDayOf)
+const hourOf = (state, ms) => { const c = dayClock(ms, siteDayOf(state)); return c.timeslip ? 24 + c.slipMs / 3_600_000 : c.civilMs / 3_600_000; };
 // (the activity of a fixture you stand at, if free and not struck there now (the barber's hours above all, so the
 // DI never says "Haircut. Now" where T would be refused "The barber opens at 10:00": the fixer's, 0.0.6): 'activity:<id>', else null)
 const actAt = (state, me, id) => (activitiesAt(state, me.x, me.z).some(a => a.id === id && a.free && offOf(state, id, spotOf(state, a.spotId), {}) === null) ? `activity:${id}` : null);

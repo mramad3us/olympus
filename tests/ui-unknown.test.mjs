@@ -29,7 +29,10 @@ const DRAWN = 'play=test-shoothouse&draw=drawn&seed=48213&tier=tierone&setup=go&
 const SET = 'play=test-shoothouse&setup=go&tier=tierone&seed=48213&nostore=1';
 const LIVE = 'play=test-shoothouse-live&seed=48213&tier=tierone&setup=go&nostore=1';
 /** The set house's picture at GO (tier one, 48213), FNV-1a over its RGB bytes, as the stage-0 tree (v0.0.22's code) draws it on this Mac (Metal): recorded 2026-11-17 by B on .run/v023/base.tree, twice, the same. */
-const SET_GO_DIGEST = '92134a63';
+// (re-recorded by the v0.0.24 integration: v0.0.24 F's picks of 2026-11-19 on the stage's figures, the Corps' helmet drawn as R3 and
+// the combat EVA suit's gloves grey (helmets.js HELMET_DRAWN_AS, outfits.js COMBAT_SUIT.glove), move the set house's picture at GO;
+// the after-E tree (7a9590f4, before F) still draws 92134a63, so F's looks are the whole cause; the bubbles are the HUD's, not the stage's)
+const SET_GO_DIGEST = 'c55647e6';
 const SHOTS = path.join(root, '.run', 'v023', 'b-shots');
 
 // (the drawn lane's three rooms in node: each leg's rects, sampled at a 0.5 m grid inside a 0.4 m margin)

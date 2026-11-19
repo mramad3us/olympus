@@ -10,6 +10,7 @@ import { assert } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { overlaps } from '../src/ui/hud/layout.js';
 import { COMBAT_SUIT } from '../src/art/figures/outfits.js';
+import { HELMS, HELMET_DRAWN_AS } from '../src/art/figures/helmets.js';
 
 const hex = (r, g, b) => (r << 16) | (g << 8) | b;
 
@@ -95,7 +96,10 @@ export default [
           await page.keyboard.press(key);
           await page.waitForSelector(sel, { timeout: 10000 });
           const px = await page.evaluate((q) => { const c = document.querySelector(q), g = c.getContext('2d'), d = g.getImageData(0, 0, c.width, c.height).data, out = {}; for (let i = 0; i < d.length; i += 4) { const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]; out[k] = (out[k] ?? 0) + 1; } return { w: c.width, h: c.height, out }; }, sel);
-          const shell = px.out[COMBAT_SUIT.shell] ?? 0, visor = px.out[COMBAT_SUIT.visor] ?? 0, utilities = px.out[hex(0x9a, 0x6a, 0x4a)] ?? 0;
+          // (v0.0.24: the Corps' helmet is R3 (the user's pick of 2026-11-19), its narrow visor in its own colour, not the old dome's
+          // COMBAT_SUIT.visor: counted against the doll's own visor pixels at the canvas's density)
+          const visorC = HELMS[HELMET_DRAWN_AS.regular].colours.visor;
+          const shell = px.out[COMBAT_SUIT.shell] ?? 0, visor = px.out[visorC] ?? 0, utilities = px.out[hex(0x9a, 0x6a, 0x4a)] ?? 0;
           // (the canvas's density against the doll's: the shell's pixels)
           const f = shell / (pieces.full[COMBAT_SUIT.shell] ?? 1), got = {};
           for (const [name, e] of Object.entries(pieces.extra)) {
@@ -104,7 +108,8 @@ export default [
             got[name] = { want: Math.round(f * want), seen: Math.round(seen) };
           }
           console.log(`      ${key}: the figure ${px.w} × ${px.h} (${f.toFixed(2)} canvas px a doll px), the suit's shell ${shell} px, the visor ${visor} px; beyond the doll without each: ${Object.entries(got).map(([n, x]) => `${n} ${x.seen} of ${x.want} px`).join(', ')}`);
-          assert(shell > 150 && visor > 20, JSON.stringify({ shell, visor, utilities }));
+          const dollVisor = pieces.full[visorC] ?? 0;
+          assert(shell > 150 && dollVisor > 0 && visor >= 0.8 * f * dollVisor, JSON.stringify({ shell, visor, dollVisor, f, utilities }));
           for (const [name, x] of Object.entries(got)) assert(x.want > 0 && x.seen >= 0.8 * x.want, `${key}: the ${name} ${JSON.stringify(x)}`);
           await page.keyboard.press('Escape');
           await page.waitForTimeout(300);

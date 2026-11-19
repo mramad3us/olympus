@@ -31,13 +31,22 @@
 // rule's one home, which env.js lonOfSite reads too. placeLine(state) is the HUD's place line (the
 // live area's building, its floor in a building of floors (the area's floorName: 'upper floor'), and
 // the room or ground zone the player stands in), roomOf(area, x, z) the room
-// at a point, surfaceAt(state, x, z) what the feet are on (the audio's footsteps, BODY's grip later).
+// at a point, surfaceAt(state, x, z) what the feet are on, cell by cell (the audio's footsteps, BODY's footing and
+// grip, the soiling; step 5), groundSurfaceOf(area) a ground's own surface under its paths.
+// v0.0.24's step 5 (AW§4.1 item 2; PLACES §5.7): an area's holds are a rule, never fixtures: `holds: { gridM, padEyeM,
+// faces }`, a hold (a rung) on every face (a wall run's or a blocking fixture's edge, as the nav grid's blockers have them)
+// every gridM along it, and a pad-eye in the deck every padEyeM both ways, each lattice offset half a gridM from the area's
+// origin (samples/void-look's H-a draws the same rule). holdNear(state, x, z, reachM, { kind }) is the nearest of them
+// within reach by arithmetic on the lattice and the blockers (729 holds cost nothing a tick), or, in an area with no rule,
+// the surface's own grip under the body (PLACES §2.7: a grating's 'handholds' a hold, a 'loops' strip a pad-eye, at the
+// body's point); passageAt(state, x, z) the narrower free width across the body's place along x or z between the
+// blockers and the closed leaves (the wedge's measure, footing.js). Both read the live area's C0 grid (nav.js navOf).
 import { SITE_LIST } from '../../data/places/sites.js';
 import { SITES, START } from '../../data/setting/calendar.js';
-import { BODIES } from '../../data/places/env.js';
+import { BODIES, SURFACES } from '../../data/places/env.js';
 import { put, playerActor } from '../../core/ids.js';
 import { AREA_LIST } from './areas.js';
-import { remarkLeaf } from './nav.js';
+import { remarkLeaf, navOf } from './nav.js';
 import { remarkSight } from './sight.js';
 import { footprintOf } from './fixtures.js';
 
@@ -238,7 +247,8 @@ export function placeLine(state) {
   const me = playerActor(state), head = a.floorName ? `${a.short ?? a.name}, ${a.floorName}` : a.short ?? a.name;
   if (!me) return head;
   const where = a.kind === 'ground' ? zoneOf(a, me.x, me.z) : roomOf(a, me.x, me.z);
-  return where?.name ? `${head} · ${where.name}` : head;
+  // (a room named as its area ("Well A" in Well A) said once: the fixer of v0.0.24's play review, L4)
+  return where?.name && where.name !== (a.short ?? a.name) ? `${head} · ${where.name}` : head;
 }
 
 // (a ground area's own surface: the area's, else its site's body's ground)
@@ -247,28 +257,118 @@ function groundOf(a) {
   if (!own) throw new Error(`places: the ground '${a.id}' names no surface, and its site's body ('${siteOf(a.site)?.body}') no ground`);
   return own;
 }
+/** A ground area's own surface (its `surface`, else its site's body's ground: Melas's regolith), whatever its paths are paved with; throws for a ground with neither. */
+export function groundSurfaceOf(areaId) {
+  const a = areaOf(areaId);
+  if (a?.kind !== 'ground') throw new Error(`places: '${areaId}' is not a ground`);
+  return groundOf(a);
+}
 const segDist = (px, pz, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], L = dx * dx + dz * dz; let t = L ? ((px - a[0]) * dx + (pz - a[1]) * dz) / L : 0; t = t < 0 ? 0 : t > 1 ? 1 : t; const ex = a[0] + t * dx - px, ez = a[1] + t * dz - pz; return Math.sqrt(ex * ex + ez * ez); };
 const STAIR_KINDS = new Set(['stairs', 'stairsWell']);
 /**
- * What the feet are on at a point: 'tile' | 'vinyl' | 'concrete' (a floor's rooms; a flight 'stairs')
- * or, on a ground, 'paving' (its paved zones, roads and paths) else the ground's own: the area's `surface`,
- * else its site's body's (src/data/places/env.js BODIES' ground: Mars's regolith, Europa's ice). A ground
- * with neither throws (TECH §1.4: no quiet regolith off Mars). null with no area.
+ * What the feet are on at a point, a SURFACES id (src/data/places/env.js; PLACES §2.7), the most specific
+ * cell first (ROADMAP "anywhere" step 5: per cell). On a ground: its `surfaces` (paved zones, roads and paths:
+ * each its own `surface`, 'paving' where it names none), else the ground's own (the area's `surface`, else its
+ * site's body's: BODIES' ground, Mars's regolith, Europa's ice; a ground with neither throws, TECH §1.4: no quiet
+ * regolith off Mars). On a floor or a deck: a patch of its `surfaces` ({ rect, surface }: a strip of deck plate, a
+ * grating with its handholds), a flight 'stairs', the room's `surface` or floor kind, the area's `surface`, else
+ * 'vinyl' in a room and 'concrete' between rooms. null with no area. On the live area a live environment's `surface`
+ * (state.places.live.env.surface: v0.0.24, absent on every shipped scene) is every cell's: a floor laid in steel for a test.
  */
 export function surfaceAt(state, x, z, areaId = state?.places?.live?.area) {
   const a = areaOf(areaId);
   if (!a) return null;
+  // (ROADMAP "anywhere" step 5: the live environment's deck, a test's steel copy of a floor (tests/void-world.mjs), on the live area only)
+  const over = state?.places?.live?.env?.surface;
+  if (over && areaId === state.places.live.area) return over;
   if (a.kind === 'ground') {
     for (const s of a.surfaces ?? []) {
-      if (s.rect ? inRect(s.rect, x, z) : s.pts.some((p, k) => k + 1 < s.pts.length && segDist(x, z, p, s.pts[k + 1]) <= s.widthM / 2)) return 'paving';
+      if (s.rect ? inRect(s.rect, x, z) : s.pts.some((p, k) => k + 1 < s.pts.length && segDist(x, z, p, s.pts[k + 1]) <= s.widthM / 2)) return s.surface ?? 'paving';
     }
     return groundOf(a);
   }
+  for (const s of a.surfaces ?? []) if (s.rect && inRect(s.rect, x, z)) return s.surface;
   for (const f of a.fixtures ?? []) {
     if (!STAIR_KINDS.has(f.kind)) continue;
     const r = footprintOf(f);
     if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) return 'stairs';
   }
   const room = roomOf(a, x, z);
-  return room ? (room.surface ?? room.floor?.kind ?? 'vinyl') : 'concrete';
+  return room ? (room.surface ?? room.floor?.kind ?? a.surface ?? 'vinyl') : (a.surface ?? 'concrete');
+}
+
+// ---- the holds and the passage (v0.0.24's step 5; see the header) ----
+
+/** A grip of PLACES §2.7 that is a hold where it lies, by the kind holdNear gives: a grating's rails a hold, a strip of loops a pad-eye. */
+const GRIP_HOLDS = Object.freeze({ handholds: 'hold', loops: 'padEye' });
+// (the live floor's blockers and closed leaves as rects { x0, z0, x1, z1 }: the C0 grid's, cached with it)
+function blockersHere(state, areaId) {
+  const a = areaOf(areaId);
+  if (!a || a.kind === 'ground') return null;
+  const g = navOf(state, areaId, 'C0');
+  return { g, rects: [...g.blockers, ...g.leaves.filter(l => l.closed).map(l => l.rect)] };
+}
+const onDeck = (B, x, z) => { const i = Math.floor((x - B.g.x0) / B.g.cellM), j = Math.floor((z - B.g.z0) / B.g.cellM); return i >= 0 && j >= 0 && i < B.g.nx && j < B.g.nz && B.g.floor[j * B.g.nx + i] === 1 && !B.rects.some(r => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1); };
+// (the lattice point nearest v along an axis: off + k step, within [lo, hi], or null)
+function latticeNear(v, off, step, lo = -Infinity, hi = Infinity) {
+  const k = Math.round((v - off) / step), at = off + k * step;
+  if (at >= lo - 1e-9 && at <= hi + 1e-9) return at;
+  const a = off + Math.ceil((lo - off) / step - 1e-9) * step, b = off + Math.floor((hi - off) / step + 1e-9) * step;
+  if (a > hi + 1e-9) return null;
+  return Math.abs(a - v) <= Math.abs(b - v) ? a : b;
+}
+/**
+ * The nearest hold or pad-eye within reachM of (x, z) on the live area (see the header): { x, z, kind: 'hold' | 'padEye', dM } or
+ * null. kind limits it to one of the two. In an area with no `holds` rule the surface's grip under the body (a hold at the body's point).
+ */
+export function holdNear(state, x, z, reachM, { kind = null } = {}) {
+  const areaId = state?.places?.live?.area, a = areaOf(areaId);
+  if (!a) return null;
+  const H = a.holds;
+  if (!H) {
+    // (no rule: the grip of the surface underfoot, its SURFACES row's)
+    const id = surfaceAt(state, x, z, areaId), k = id ? GRIP_HOLDS[SURFACES[id]?.grip] ?? null : null;
+    return k && (!kind || kind === k) ? Object.freeze({ x, z, kind: k, dM: 0 }) : null;
+  }
+  const B = blockersHere(state, areaId);
+  if (!B) return null;
+  const off = H.gridM / 2, out = [];
+  if (kind !== 'hold' && H.padEyeM) {
+    const px = latticeNear(x, off, H.padEyeM), pz = latticeNear(z, off, H.padEyeM);
+    for (const dx of [-1, 0, 1]) for (const dz of [-1, 0, 1]) {
+      const ex = px + dx * H.padEyeM, ez = pz + dz * H.padEyeM;
+      if (onDeck(B, ex, ez)) out.push({ x: ex, z: ez, kind: 'padEye' });
+    }
+  }
+  if (kind !== 'padEye' && H.faces !== false) {
+    for (const r of B.rects) {
+      if (x < r.x0 - reachM || x > r.x1 + reachM || z < r.z0 - reachM || z > r.z1 + reachM) continue;
+      // (each face of the rect a run of rungs: along x at its z edges, along z at its x edges)
+      const hx = latticeNear(x, off, H.gridM, r.x0, r.x1), hz = latticeNear(z, off, H.gridM, r.z0, r.z1);
+      if (hx !== null) for (const ez of [r.z0, r.z1]) out.push({ x: hx, z: ez, kind: 'hold' });
+      if (hz !== null) for (const ex of [r.x0, r.x1]) out.push({ x: ex, z: hz, kind: 'hold' });
+    }
+  }
+  let best = null;
+  for (const h of out) {
+    const d = Math.hypot(h.x - x, h.z - z);
+    if (d <= reachM + 1e-9 && (!best || d < best.dM - 1e-9 || (Math.abs(d - best.dM) <= 1e-9 && (h.x < best.x || (h.x === best.x && h.z < best.z))))) best = { x: Math.round(h.x * 1000) / 1000, z: Math.round(h.z * 1000) / 1000, kind: h.kind, dM: Math.round(d * 1000) / 1000 };
+  }
+  return best ? Object.freeze(best) : null;
+}
+/**
+ * The passage across the body's place on the live area (see the header): { widthM, axis: 'x' | 'z' } the narrower free width
+ * between the blockers (walls, blocking fixtures, closed leaves) along x and along z, or null off a floor or with a side open.
+ */
+export function passageAt(state, x, z) {
+  const B = blockersHere(state, state?.places?.live?.area);
+  if (!B) return null;
+  let e = Infinity, w = Infinity, n = Infinity, s = Infinity;
+  for (const r of B.rects) {
+    if (z >= r.z0 && z <= r.z1) { if (r.x0 >= x) e = Math.min(e, r.x0 - x); if (r.x1 <= x) w = Math.min(w, x - r.x1); if (r.x0 < x && r.x1 > x) return Object.freeze({ widthM: 0, axis: 'x' }); }
+    if (x >= r.x0 && x <= r.x1) { if (r.z0 >= z) s = Math.min(s, r.z0 - z); if (r.z1 <= z) n = Math.min(n, z - r.z1); }
+  }
+  const wx = e + w, wz = s + n;
+  if (!Number.isFinite(wx) && !Number.isFinite(wz)) return null;
+  return Object.freeze(wx <= wz ? { widthM: Math.round(wx * 1000) / 1000, axis: 'x' } : { widthM: Math.round(wz * 1000) / 1000, axis: 'z' });
 }

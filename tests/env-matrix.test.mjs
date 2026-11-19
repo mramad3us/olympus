@@ -20,6 +20,7 @@ import { stanceMs } from '../src/sim/combat/steps.js';
 import { stanceMsOf, gunOn } from '../src/sim/arms/shooting.js';
 import { rollerOf } from '../src/sim/combat/roll.js';
 import { ejectCase, caseGMs2 } from '../src/sim/arms/look.js';
+import { caseFacesOf } from '../src/sim/arms/brass.js';
 import { readWind } from '../src/sim/arms/wind.js';
 import { flight, envOfPlace } from '../src/sim/arms/ballistics.js';
 import { MODELS } from '../src/sim/arms/models.js';
@@ -35,7 +36,7 @@ function rowOf(name, env) {
   const g = createGame({ scenario: 'test-handling', seed: SEED, env }), s = g.state, pid = s.player.id;
   const me = () => s.actors.list.find(a => a.id === s.player.actor);
   const grav = gravityAt(s), air = airAt(s), gaits = gaitsOf(s, pid), fit = rollerOf(s, pid).value('fitness'), at0 = me();
-  const stand = ejectCase({ model: 'r7' }, { x: at0.x, z: at0.z, yawRad: 0, stance: 'stand' }, { atMs: s.clock.ms, key: 'matrix', gMs2: caseGMs2(s) });
+  const stand = ejectCase({ model: 'r7' }, { x: at0.x, z: at0.z, yawRad: 0, stance: 'stand' }, { atMs: s.clock.ms, key: 'matrix', gMs2: caseGMs2(s), faces: caseFacesOf(s) });
   const M = MODELS[s.items[gunOn(s, pid)]?.model ?? 'r7'], E = envOfPlace(s);
   const f25 = flight(M.cal, 'ball', M.barrelMm, E, 25), f300 = flight(M.cal, 'ball', M.barrelMm, E, 300);
   const wind = readWind(s, pid, { bearingRad: -Math.PI / 2, rangeM: 25 });
@@ -94,7 +95,8 @@ export default [
       for (const R of [V, C]) {
         assert(R.regime === 'free' && R.gG === 0 && R.gMs2 === 0 && R.mode === 'float' && R.drawn === 'float' && R.walk === 0.6 && R.run === 1.2 && R.sprint === 2, JSON.stringify(R));
         assert(Number.isFinite(R.prone) && R.prone > 0 && R.prone10 === 2321 && R.standFree && R.proneFree && R.drop25 === 0 && R.drop300 === 0 && R.crossMs === 0, JSON.stringify(R));
-        near(R.walked, 0.6, 0.02, `${R.name}: the push-off walk:`);
+        // (v0.0.24, free fall: the keys push off the deck at 0.6 m/s over a 1 s step ramping from rest, 0.6 × 0.95² / 2 m in 20 ticks)
+        near(R.walked, 0.27, 0.01, `${R.name}: the push-off, its 1 s ramp to 0.6 m/s:`);
       }
       assert(V.pKpa === 0 && V.c === 0 && V.mach300 === null && V.tof300 === E.tof300, `vacuum: no sound, the time of flight Europa's (${V.tof300} against ${E.tof300})`);
       near(C.c, 339.4, 0.1, 'the coasting deck\'s sound:'); near(C.rho, 0.802, 0.001, 'the coasting deck\'s ρ:'); near(C.tof300, W.tof300, 0.0005, 'the deck\'s time of flight is the Wheel\'s air\'s:');

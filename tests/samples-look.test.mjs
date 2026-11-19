@@ -229,6 +229,10 @@ export default [
       const views = index().samples.flatMap(s => s.groups.flatMap(g => g.views)).length;
       await withGame(async (page, errors, game) => {
         assert(await page.locator('figure').count() === views, `${await page.locator('figure').count()} figures for ${views} views`);
+        // (v0.0.24: the look set is rated, so it sits in the closed "Already rated" section at the bottom (the user, 2026-11-19: "place
+        // the already rated picks in a hidden drop down section at the bottom"): opened as the user would, before and after the reload)
+        const openRated = () => page.evaluate(() => { const d = document.getElementById('rated'); if (d) d.open = true; return !!d; });
+        assert(await openRated(), 'no "Already rated" section');
         await page.locator('#L1 figure').nth(2).locator('.star').click();
         await page.locator('#L1 figure').nth(2).locator('.score').fill('85');
         await page.locator('#L3 figure').nth(1).locator('.score').fill('40');
@@ -237,6 +241,7 @@ export default [
         const text = await page.evaluate(() => window.__picksText());
         for (const want of ['★ L1-c', '24 px/m · A: chibi · 85/100', '- L3-b', '16 px/m · B: soldier · 40/100', 'by row (16 px/m vs 24 px/m): 16 px/m: 0 ★, mean 40 over 1; 24 px/m: 1 ★, mean 85 over 1', '- L2: the wet head reads'])
           assert(text.includes(want), `no "${want}" in:\n${text}`);
+        await openRated();
         await page.locator('#L4 figure').nth(4).locator('.pic').click();
         await page.keyboard.press('ArrowRight');
         const boxed = await page.locator('#boxId').textContent();

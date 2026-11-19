@@ -17,14 +17,15 @@
 export const KEEP_SAID_MS = 120_000;
 
 const secs = (ms) => (Number.isFinite(ms) && ms > 0 ? `${(ms / 1000).toFixed(1)} s` : '');
-/** The card's lines: { title, why, rows: [{ key: '1', option, text }], keep, keepText }; "nothing" last whatever the order given. */
+/** The card's lines: { title, why, rows: [{ key: '1', option, text }], keep, keepText, free }; "nothing" last whatever the order given. A card out of stop motion (reflex.free: v0.0.24 C's surprise, gravity.js) keeps no answer, so it has no keep line (keepText null). */
 export function reflexOf(reflex, { keep = false, keepMs = KEEP_SAID_MS, label = (a) => a } = {}) {
   if (!reflex) return null;
   const opts = [...(reflex.options ?? [])], none = opts.findIndex(o => o.key === 'none');
   if (none >= 0 && none !== opts.length - 1) opts.push(opts.splice(none, 1)[0]);
   // (an answer shown struck says why where its time would be (Transition "not carried", a man with no pistol))
   const rows = opts.map((o, i) => ({ key: String(i + 1), option: o, text: `${i + 1} ${o.label ?? o.key}${o.off ? ` · ${o.off}` : secs(o.ms) ? ` · ${secs(o.ms)}` : ''}` }));
-  return { title: reflex.title ?? 'Now.', why: reflex.why ?? null, rows, keep: !!keep, keepText: `${label('hand')} keep this answer ${Math.round(keepMs / 60000)} min: ${keep ? 'on' : 'off'}` };
+  const free = !!reflex.free;
+  return { title: reflex.title ?? 'Now.', why: reflex.why ?? null, rows, keep: !free && !!keep, free, keepText: free ? null : `${label('hand')} keep this answer ${Math.round(keepMs / 60000)} min: ${keep ? 'on' : 'off'}` };
 }
 
 /** The card in parent: { el, update(reflex | null, opts) → its text, optionFor(n) }. plaque(spec) → a plaque on a canvas (plaque.js), for the title. */
@@ -49,7 +50,7 @@ export function createReflex(parent, { plaque = null, label = (a) => a } = {}) {
       model = hidden ? null : reflexOf(reflex, { keep, label });
       root.hidden = !model;
       if (!model) { text = ''; return ''; }
-      const s = JSON.stringify([model.title, model.rows.map(r => r.text), model.keep]);
+      const s = JSON.stringify([model.title, model.rows.map(r => r.text), model.keep, model.free]);
       if (s !== sig) {
         sig = s;
         root.replaceChildren(
@@ -58,8 +59,8 @@ export function createReflex(parent, { plaque = null, label = (a) => a } = {}) {
           el('div', { className: `rx-list${model.rows.length > 5 ? ' two' : ''}` }, ...model.rows.map(r => el('div', { className: `rx-row${r.option.key === 'none' ? ' none' : ''}${r.option.off ? ' off' : ''}` },
             el('kbd', { textContent: r.key }), el('span', { className: 'label', textContent: r.option.label ?? r.option.key }),
             r.option.off ? el('span', { className: 'time', textContent: r.option.off }) : secs(r.option.ms) ? el('span', { className: 'time', textContent: secs(r.option.ms) }) : null))),
-          el('div', { className: `rx-keep${model.keep ? ' on' : ''}` }, el('kbd', { textContent: label('hand') }), ` keep this answer ${Math.round(KEEP_SAID_MS / 60000)} min: ${model.keep ? 'on' : 'off'}`));
-        text = [model.title, ...model.rows.map(r => r.text), model.keepText].join(' | ');
+          ...(model.free ? [] : [el('div', { className: `rx-keep${model.keep ? ' on' : ''}` }, el('kbd', { textContent: label('hand') }), ` keep this answer ${Math.round(KEEP_SAID_MS / 60000)} min: ${model.keep ? 'on' : 'off'}`)]));
+        text = [model.title, ...model.rows.map(r => r.text), model.keepText].filter(Boolean).join(' | ');
       }
       return text;
     },

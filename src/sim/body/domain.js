@@ -58,7 +58,7 @@ import { staminaTick } from './motion.js';
 import { stagesOf } from './cues.js';
 import { asleepAt } from './sleep.js';
 import { activityNow } from '../time/doing.js';
-import { siteLonEDeg } from '../jobs.js';
+import { siteDayOf } from '../jobs.js';
 import { eyesStep, skyChangeMs } from './eyes.js';
 import { eyeOf, fieldOf } from '../people/perception.js';
 import { sightGridOf } from '../places/sight.js';
@@ -159,7 +159,7 @@ function holds(state, pid, ledger, band, ms) {
   if (band === 'accident') return true;
   if (ledger === 'sleep') return band === 'woke' ? b.sleep.wokeMs !== null && b.sleep.wokeMs !== undefined : true;
   if (ledger === 'bladder' && band === 'wake') return asleepAt(b.sleep, ms) && b.bladder.ml >= BLADDER.WAKE_ML;
-  const spec = LEDGERS.find(l => l.key === ledger && !l.pseudo), s = stagesOf(b, ms, siteLonEDeg(state))[ledger];
+  const spec = LEDGERS.find(l => l.key === ledger && !l.pseudo), s = stagesOf(b, ms, siteDayOf(state))[ledger];
   const want = spec ? spec.bands.findIndex(x => x.id === band) : -1;
   return !!s && want >= 0 && s.i >= want;
 }
@@ -187,7 +187,7 @@ function startBodies(state) {
   for (const id of ids(state.people ?? {})) { const b = state.people[id].body; if (b && b.v !== BODY_V) { b.v = BODY_V; changed++; } }
   const pid = playerId(state), p = pid ? state.people?.[pid] : null;
   if (p && (p.body?.atMs === null || p.body?.atMs === undefined)) {
-    p.body = deltaOf(startBody(p, state.clock.ms, siteLonEDeg(state), state.meta.seed));
+    p.body = deltaOf(startBody(p, state.clock.ms, siteDayOf(state), state.meta.seed));
     resolveCrossing(state, pid, state.clock.ms);
     changed++;
   }

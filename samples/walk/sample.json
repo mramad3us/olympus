@@ -1,7 +1,7 @@
 {
  "title": "The walk: today's cycle and three candidates, animated, on the marine in the combat EVA suit with the R-7",
  "about": "Your word of 2026-11-11 on the shoot house: \"saying that the walking about is goofy is an understatement, the animation is really not there yet.\" The animation designer's three answers to the chibi's problem (legs of 0.25 m from hip to ankle at a human's speed), beside W0, the cycle v0.0.12 draws. All are the game's own figure code (src/art/figures/cycles.js, not wired into the game), at 16 px/m, in the black combat EVA suit with its carrier and the R-7, at 1 G on the shoot house's slab floor, snapped to the Mars palette as the stage snaps them. Two bands each: the Combat glide at the low ready (1.23 m/s) and Assault aimed (2.03 m/s), the speeds the body walks. Each candidate's frames follow the metres walked in its own steps, and side on its card is placed by the planted foot, so no boot slides (the plant lock: each frame's travel baked in whole pixels); seen from the front or behind the card follows the body, and the slip that leaves is measured and printed. Open a view live (O): Space runs and stops time, S slows it to a quarter, F hides the footprints, R starts again. The questions, with your scores: which cycle reads as a marine in each band (score each); is a bob on the gun line wanted at all in Combat and Assault (B says no); and the front and back views, where the feet slide in every candidate (see W-e's numbers).",
- "open": {"default": ["W-c"], "since": "2026-11-12", "decides": "the walk cycle (B, the game's since v0.0.17, until W-b to W-d are scored)", "builtIn": "v0.0.24"},
+ "scored": { "on": "2026-11-19", "picks": ["W-c"] },
  "pixel": true,
  "groups": [
   {

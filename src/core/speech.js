@@ -1,15 +1,15 @@
-// OLYMPUS core: how long a line takes to say aloud, the one helper the sim's tower wait, the voice and the speaker's marks read.
+// OLYMPUS core: how long a line takes to say aloud, the one helper the sim's tower wait and the speaker's bubbles read.
 //
 // A line said in the game is shown as text for its hold (handling.js durOf: the radio box's 3.5 s plus 0.33 s a word),
 // which is a reading time. Spoken, it takes less: SPOKEN_LEAD_MS 250 ms to draw breath and key the horn, then
 // SPOKEN_WORD_MS 300 ms a word (about 200 words a minute, a range officer's clipped pace; the build sheet v0.0.20 item 7,
 // feel.md FL-3). So the shoot house's brief, 35 words, is 10.75 s spoken, and the instructor's own 27 words after it 8.35 s.
 // One quantity, one helper (CLAUDE.md, "visuals obey the sim"): the tower holds its next command while the instructor's
-// chained line is still being said (shoothouse.js houseReady, `R.paUntilMs`), the voice paces its queue by it
-// (src/ui/audio/voice.js), and the mark over the speaker's head lasts as long (src/ui/plaque.js), so the three never part.
+// chained line is still being said (shoothouse.js houseReady, `R.paUntilMs`), and the bubble over the speaker's head lasts as
+// long (src/ui/plaque.js), so the two never part. No line is voiced (v0.0.24: the voice synthesis that paced its queue by it
+// is gone, the user's "forget voice synthesis, no voices." of 2026-11-19).
 //
-// Words are split on white space; a token is a word, but a token with digits is said by the numbers' rule (numberWords, v0.0.20:
-// the voice's lexicon, src/data/voices.js, reads the same rule): a token that opens with a digit, "10" is "ten", "300" "three
+// Words are split on white space; a token is a word, but a token with digits is said by the numbers' rule (numberWords, v0.0.20): a token that opens with a digit, "10" is "ten", "300" "three
 // hundred", "0.38" "zero point three eight", "2a" "two A", so a line with numbers takes the time its words take aloud (a token
 // that opens with a letter, a name such as "w12", is one word). A line with no words takes no time. Pure:
 // no state, no clock, integer milliseconds.

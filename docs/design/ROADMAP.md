@@ -318,6 +318,8 @@ Stage B ports about 6,500 lines of tradecraft and writes about 7,200 of its own,
 
 **The shoot house first** (the user, 2026-11-11, scoring v0.0.12's "Stack and clear" 25 / 25 / 25: "Again, this mission is our pilot for everything else that matters, max priority on getting this right"; DESIGN.md's log): the 0.0.7d rework row comes before every other row of this roadmap, and nothing else is built until the user scores the shoot house as right. **Parked**: the environment round that was to ship as v0.0.13 ("anywhere" step 5 done and step 6 partial, for ship close quarters before 0.0.7e) is in `git stash` ("v0.0.13 anywhere steps 5 (done) and 6 (partial), parked for the shoot house rework (2026-11-11)") and `.run/anywhere2-step5-6partial.patch`; it resumes, with steps 7 and 8, after the rework, before 0.0.7e. The rework's releases take the next patch numbers (v0.0.13 on), and the rows keep their numbers as names (CONTRACTS §18). The rework designs its pieces for every later close-quarters row (0.0.7e to 0.0.7g, the boarding scenes): the catalogue's families, the pause policy, the #2's doctrine, the panel and the walk are the game's, not the house's.
 
+**As built in v0.0.24 (the anywhere round).** Steps 5 to 7 of the environment are built: the footing, the anchors and the mag boots (BODY §16.6, WEAPONS §7.8, COMBAT §14.8), free fall's push-off, drift, grab and impacts (BODY §16.5, §16.6), gravity events (PLACES §3.11, BODY §13.7), with the scenes `test-anchors` "Anchor before you fire" (Well A at Phobos, PLACES §5.7) and `test-burn` "Secure for burn" (Testudo's berthing 2, PLACES §5.2). Step 8's half (the contact and suit buses, voices by radio only, `flashK(env)`) waits for the first scene that loses its air; six faces, deckhead targets and a hatch in any face wait for 0.0.7e "Hold to hold". The visual overhaul's second round (the man as you would see him: light, jamb, facing, the truth cards, the doll's hold) is built (VIEWS §4.2).
+
 ### 4.3 Stage C: joining (0.0.12 to about 0.0.16)
 
 | Patch | What joins | By section | The edge moves to |
@@ -618,6 +620,8 @@ Scenes 2 to 5 are the parallel round, merged in that order with the determinism 
 - **The order panel's pace** inside stop motion. Mitigation: `test-fireteam` scored for pace.
 
 ---
+
+**As built in v0.0.24.** `test-voidrange` came forward as `test-anchors`, "Anchor before you fire", in the R-7's and the P-12's slice: boots at 10 m, a lanyard at 15 m, one hand and the P-12 at 7 m, the wedge at 20 m, one floating round at 10 m; the V-5 and the J-12 wait.
 
 ## 10. 0.6: reconnaissance
 

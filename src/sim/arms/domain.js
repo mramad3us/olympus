@@ -49,6 +49,11 @@
 //            the bundle stopped after its beat);
 // and its id fields the house's people and the dummy's magazine (armoury.range.house.twoPid, .chiefPid, .two.pid,
 // .two.aid, .dummy.magId).
+// v0.0.24 (the anywhere round, its build sheet §1 D): test-anchors' void range (src/sim/scenarios/anchors.js) adds anchorsActors to
+// the actors layer (lived: the cadre's stations, the turners) and its own rules in place of the bay's on its course; test-burn
+// (src/sim/scenarios/burn.js) adds burnActors (lived: the stowing, the strap, the burn's watch), off any range session; their id
+// fields the course's guns and boots (armoury.range.anchors.pistol, .rifle, .boots, .cadreBoots) and the burn's
+// (burn.ncoPid, burn.boots).
 import { fillDomain } from '../../core/state.js';
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { playerId } from '../../core/ids.js';
@@ -58,6 +63,8 @@ import { onRangeCmd, rangeRules, rangeSecond } from '../scenarios/handling.js';
 import { onPitEvent, safety, kdActors, kdAct } from '../scenarios/range.js';
 import { pairsActors } from '../scenarios/pairs.js';
 import { houseActors, houseRules, houseInput, houseInputBefore, upgradeHousePistol, upgradeHousePars } from '../scenarios/shoothouse.js';
+import { anchorsActors, anchorsRules } from '../scenarios/anchors.js';
+import { burnActors } from '../scenarios/burn.js';
 import { stopBundle, upgradeMuscle } from '../combat/bundle.js';
 import { upgradeHouseWould } from '../combat/would.js';
 import * as SHOOTING from './shooting.js';
@@ -125,6 +132,8 @@ function rules(state, input, bus, ctx) {
   stopRules(state, input, bus, ctx);
   habitStep(state, input, bus, ctx);
   if (state.armoury?.range?.course === 'house') houseRules(state, input, bus, ctx);
+  // (the void range's course keeps its own rules (none of the bay's box or lanes holds in Well A))
+  else if (state.armoury?.range?.course === 'anchors') anchorsRules(state, input, bus, ctx);
   else rangeRules(state, input, bus, ctx);
   safety(state, input, bus, ctx);
 }
@@ -144,9 +153,11 @@ export const weaponsDomain = Object.freeze({
   idFields: Object.freeze({ 'people{}.kit.worn{}': 'i', 'people{}.kit.hands[]': 'i', 'items{}.mag': 'i', 'items{}.holds[]': 'i', 'stop.gun': 'i', 'places.sites{}.items[].id': 'i',
     'armoury.range.relay[].gunId': 'i', 'armoury.range.relay[].magIds[]': 'i', 'armoury.range.dummy.magId': 'i', 'armoury.range.mags{}': 'i', 'armoury.range.wantMag': 'i',
     'armoury.range.house.twoPid': 'p', 'armoury.range.house.chiefPid': 'p', 'armoury.range.house.two.pid': 'p', 'armoury.range.house.two.aid': 'a', 'armoury.range.house.dummy.magId': 'i', 'armoury.range.house.pistol': 'i',
-    'cqb.twoPid': 'p', 'cqb.two.pid': 'p', 'cqb.two.aid': 'a' }),
+    'cqb.twoPid': 'p', 'cqb.two.pid': 'p', 'cqb.two.aid': 'a',
+    'armoury.range.anchors.pistol': 'i', 'armoury.range.anchors.rifle': 'i', 'armoury.range.anchors.boots': 'i', 'armoury.range.anchors.cadreBoots': 'i',
+    'armoury.burn.ncoPid': 'p', 'armoury.burn.boots': 'i', 'armoury.burn.ncoBoots': 'i' }),
   init(state) { for (const k of KEYS) fillDomain(state, k); },
-  fast: Object.freeze({ input, actors: (s, i, b, c) => { kdActors(s, i, b, c); pairsActors(s, i, b); houseActors(s, i, b); }, rules, second: rangeSecond }),
+  fast: Object.freeze({ input, actors: (s, i, b, c) => { kdActors(s, i, b, c); pairsActors(s, i, b); houseActors(s, i, b); anchorsActors(s, i, b); burnActors(s, i, b, c); }, rules, second: rangeSecond }),
   slow: Object.freeze([]),
   jobs: Object.freeze({}),
   events: Object.freeze({ 'range-cmd': onRangeCmd, pit: onPitEvent }),

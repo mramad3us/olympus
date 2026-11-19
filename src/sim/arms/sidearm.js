@@ -266,12 +266,20 @@ export function cardOptions(state, pid, { ia, look }) {
   return [tr, gd, standing, off, look, ...struck].filter(Boolean);
 }
 
+/**
+ * Whether the weapon group's rows are offered here: in the house, and (v0.0.24) on the void range (the anchors course), where its
+ * station that wants the pistol offers Transition (scenarios/anchors.js writes armoury.range.anchors.wantPistol from the station's
+ * command to its end: "Station three ... the pistol in the other") and the next one Rifle up.
+ */
+export function weaponsHere(state) { return inHouse(state) || state?.armoury?.range?.course === 'anchors'; }
+
 /** The weapon group's rows in the house's panel (see the header): { id, kind: 'weapon', label, ms, subs, group, slot, lead?, later?, off? }. */
 export function weaponRows(state, pid, ms = state.clock.ms) {
   // (off the lane only Rifle up, a P-12 still out when the lane ended: the tower's commands are the rifle's; and before GO the
   // holstered P-12's MAKE READY where the tower's waits on it (pistolOwed))
-  const cold = !laneLive(state) && !drawn(state, pid);
-  if (!inHouse(state) || (cold && !pistolOwed(state, pid) && !pistolClearOwed(state, pid))) return [];
+  // (the void range is no cold lane: its rows are its own (weaponsHere))
+  const cold = state.armoury?.range?.course !== 'anchors' && !laneLive(state) && !drawn(state, pid);
+  if (!weaponsHere(state) || (cold && !pistolOwed(state, pid) && !pistolClearOwed(state, pid))) return [];
   const rifle = rifleOf(state, pid), use = inUseOf(state, pid), b = use ? beliefOf(state, use) : null, near = threatFacing(state, pid, ms), out = [];
   // (each sub-step's words on its own gun: the pistol's from the draw to the holster, as listMs times them)
   const labelsOf = (list) => {
@@ -310,6 +318,8 @@ export function weaponRows(state, pid, ms = state.clock.ms) {
   // whoever is facing, the lead with a man up (the review of v0.0.18: the private with his magazines spent read "Nothing to fix",
   // the DI's "Reload." with nothing to reload and no act))
   else if (use && use === rifle && holstered(state, pid) && planFor(state, pid, use, 'fire', { purpose: null }).none === 'no rounds' && planFor(state, pid, holstered(state, pid), 'fire', { carry: 'hands', purpose: null }).path) row('weapon:transition', 'transition', 'Transition: pistol', 1, { lead: !!near });
+  // (the void range's station that wants the pistol: Transition while it is holstered, whoever faces (see weaponsHere))
+  if (state.armoury?.range?.anchors?.wantPistol && holstered(state, pid) && !pistolOut && !out.some(r => r.id === 'weapon:transition')) row('weapon:transition', 'transition', 'Transition: pistol', 1, { lead: true });
   if (houseOf(state)?.two?.down && !houseOf(state).two.coveredBy) row('team:cover', 'cover', 'Cover his sector', 0, { group: 'team', lead: true });
   // (the holstered P-12's own rows, after Wait, on the lane with nobody facing you (see the header))
   const p = holstered(state, pid);

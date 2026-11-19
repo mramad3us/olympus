@@ -7,6 +7,11 @@
 // count, the day it was first sent, what it decides and the round that draws the pick. The rows are ordered by the round that
 // draws them (this round's first: their defaults ship now), then the oldest first (what has waited longest), then by id. A set
 // with no "open" is not listed; a default naming no view of the set is listed with `missing` (the page says so, the test fails).
+// v0.0.24 (the user, 2026-11-19: "please in the future, place the already rated picks in a hidden drop down section at the
+// bottom"): a set with no "open" is one the user has already rated (its "scored" { on, picks } says when and what, where the
+// lead recorded it); ratedSets(index) lists them, in the index's order, for the page's collapsed section at the bottom, and the
+// waiting sets (toScore's) are drawn above it. "Copy my picks" gives only what changed since the last copy (newSince: a star, a
+// score or a note added or changed since the copy this browser remembers), then one line counting the earlier ones.
 // Pure: samples/index.html imports it, and tests/gallery-open.test.mjs checks it with no DOM.
 
 /** A round's order ('v0.0.23' before 'v0.0.24'; anything else last). */
@@ -31,4 +36,32 @@ export function toScore(index) {
 /** The list as text, a line a set (the page's "Copy the list", and the lead's announcement). */
 export function toScoreText(rows) {
   return rows.map(r => `${r.id} (${r.views} views, since ${r.since ?? '?'}, drawn in ${r.builtIn ?? '?'}): default ${r.defaults.map(d => d.id).join(', ') || 'none'}${r.decides ? `; decides ${r.decides}` : ''}`).join('\n');
+}
+
+/** The sets already rated (see the header): every set of the index with no "open", in the index's order: [{ id, title, views, scored }]. */
+export function ratedSets(index) {
+  return (index?.samples ?? []).filter(s => !s.open).map(s => ({ id: s.id, title: s.title, views: (s.groups ?? []).reduce((n, g) => n + (g.views ?? []).length, 0), scored: s.scored ?? null }));
+}
+
+/**
+ * What changed since the last copy (see the header), pure: now and copied are { picks: [keys], scores: { key: n }, notes: { key: text } }
+ * (copied null: nothing was copied yet). Returns { picks, scores, notes } holding only the new or changed entries (a star removed
+ * is not a pick to send), and earlier: how many of now's entries were already copied as they are.
+ */
+export function newSince(now, copied = null) {
+  const C = { picks: new Set(copied?.picks ?? []), scores: copied?.scores ?? {}, notes: copied?.notes ?? {} };
+  const out = { picks: [], scores: {}, notes: {}, earlier: 0 };
+  const keys = [...new Set([...(now?.picks ?? []), ...Object.keys(now?.scores ?? {})])];
+  for (const k of keys) {
+    const star = (now.picks ?? []).includes(k), score = now.scores?.[k];
+    const same = star === C.picks.has(k) && (score === undefined ? C.scores[k] === undefined : C.scores[k] === score);
+    if (same) { out.earlier++; continue; }
+    if (star) out.picks.push(k);
+    if (score !== undefined) out.scores[k] = score;
+  }
+  for (const [k, t] of Object.entries(now?.notes ?? {})) {
+    if (!String(t ?? '').trim()) continue;
+    if (C.notes[k] === t) out.earlier++; else out.notes[k] = t;
+  }
+  return out;
 }

@@ -16,7 +16,9 @@
 //   F86  no record's key changes in a pause (at every read with the clock standing in stop motion, nothing under way, each actor's key
 //        is the one read at the tick's end, ms + TICK_MS, and the one read before it at the same tick), and the stage's look keys over the lane (stageKeyOf, the stage-0 lead's lookkeys.mjs keyOf to the letter: view.js
 //        armsOf's armedLook variant, heldLook's device and the stance sheet's carry, per actor per tick) are the set recorded on the
-//        snapshot of v0.0.22 (tests/seen-lookkeys.json), so nothing of this round moves the stage's figures;
+//        snapshot of v0.0.22 (tests/seen-lookkeys.json), so nothing of this round moves the stage's figures (re-recorded in v0.0.24
+//        with two causes named in the file, every lane held to its pin: the P-12's tower admin drawn in the hands, 8 keys added, and
+//        the P-12's high-ready walk from the high carry's stance sheet, 1 key's stance '-' to 'high');
 //   F97  the P-12's posture, one record (the user, 2026-11-17: "sidearm should have the same stances (low ready, high ready, aimed, etc)
 //        as the rifle"): on every tick with the P-12 in a man's hands (kit.js handGunOf), gunLook's pistol.posture is the sim's
 //        kit.carry.posture and the record's hold its own for each (pistol-ready, pistol-high, pistol-aim); and the act the record names
@@ -27,7 +29,10 @@
 //        against actsByAction, so ORACLE_FRAME_ACT is held to the actions too). seen's admin case drives the press check, the reload
 //        and the clearing through the gauge (no pinned lane runs them with the P-12 in the hands). The P-12's admin the drill runs as one timed beat
 //        ('pistol:ready', 'pistol:clear': sidearm.js, the pistol never out of its holster in the state) is counted apart (adminBeat):
-//        the stage draws the rifle through it, and so does the record (a finding for the lead: the stances' admin is never seen there).
+//        to v0.0.23 the stage drew the rifle through it, and so did the record (the stances' admin never seen there); from v0.0.24
+//        (v0.0.23's lead call 5) the stage draws the P-12 in the hands through it (look.js ADMIN_FRAMES), so the oracle reads the beat
+//        from the sim's sub-step (adminOf: yours by stepNow, your number two's by handsOf, the pistol in its holster) as the P-12 at
+//        the low ready, its act by the part, and every admin tick must read so (adminRead of adminBeat).
 // seenGauge({ lane }) watches a lane tick by tick (each(state)) and end() gives { F85, F86, F97 }, each { ok, …figures }; f85Line,
 // f86Line and f97Line print them. Enforced at once (SEEN_ENFORCED): seen-parity runs four lanes quick and the 28 pinned ones heavy.
 import { readFileSync } from 'node:fs';
@@ -40,9 +45,11 @@ import { handGunOf, handMagOf } from '../src/sim/arms/kit.js';
 import { faceRad } from '../src/sim/arms/carry.js';
 import { seenFace } from '../src/sim/arms/engage.js';
 import { stepNow } from '../src/sim/arms/shooting.js';
+import { handsOf } from '../src/sim/combat/two.js';
+import { isLong, modelOf } from '../src/sim/arms/models.js';
 import { figureOf } from '../src/sim/people/figure.js';
 import { TICK_MS } from '../src/core/clock.js';
-import { gaitCarryOf, STANCE_CARRIES, HELD_CARRY } from '../src/art/figures/poses.js';
+import { gaitCarryOf, STANCE_CARRIES, HELD_CARRY, PISTOL_HIGH_CARRY } from '../src/art/figures/poses.js';
 
 /** The gauges this file enforces (the build sheet v0.0.23 §8: at once). */
 export const SEEN_ENFORCED = Object.freeze(new Set(['F85', 'F86', 'F97']));
@@ -55,7 +62,16 @@ export const ORACLE_ACT = Object.freeze({
   'draw:thigh': ['draw'], draw: ['draw'], holster: ['holster'], pressCheck: ['check'], inspect: ['check'], observe: ['check'], show: ['check'],
   seat: ['reload'], magIn: ['reload'], tap: ['reload'], reach: ['reload'], magCheck: ['reload'], lookMag: ['reload'], stowMag: ['reload'], dumpMag: ['reload'], dropMag: ['reload'],
   charge: ['clear'], release: ['clear'], lockBack: ['clear'], rack: ['clear'], clearDouble: ['clear', 'reload'],
+  // (v0.0.24: the tower admin's one sub-step, its parts in turn: the hand at the holster, the rack or the clearing, the holster)
+  'pistol:ready': ['holster', 'clear', 'check'], 'pistol:clear': ['holster', 'reload', 'clear', 'check'],
 });
+/** The P-12's tower admin under way for a man (see the header): its sub-step ('pistol:ready' or 'pistol:clear') with the pistol in its holster, else null. */
+export function adminOf(state, pid, ms = state.clock.ms) {
+  const a = (pid === state.player?.id ? stepNow(state, pid, ms) : handsOf(state, pid, ms))?.action ?? null;
+  if (a !== 'pistol:ready' && a !== 'pistol:clear') return null;
+  const h = state.items?.[state.people?.[pid]?.kit?.worn?.holster];
+  return h && !isLong(modelOf(h)) && state.items?.[handGunOf(state, pid)]?.model !== 'p12' ? a : null;
+}
 /** Your running action to the P-12's acts it may make (ORACLE_ACT; a magazine out by any route reloads). */
 export const actOfAction = (a) => (!a ? [null] : a.startsWith('magOut:') ? ['reload'] : ORACLE_ACT[a] ?? [null]);
 /** The drawn frame (gunLook's action frame, firearms.js ACTIONS' frames) to the P-12's act, for a man not you (see the header); a frame not named is none. */
@@ -73,7 +89,8 @@ export function stageKeyOf(state, a) {
   const kit = gl || person?.kit ? kitLook(state, a.who) : null;
   const headset = !!person?.post && RO_POST.test(person.post.key ?? '');
   const held = gl ? heldLook(state, a, state.clock.ms) : null;
-  const sc = held ? HELD_CARRY : gl && STANCE_CARRIES.includes(gl.carry) ? gl.carry : null;
+  // (v0.0.24: the P-12 at the high ready walks from the high carry's stance sheet, as view.js armsOf picks it)
+  const sc = held ? HELD_CARRY : gl?.pistol?.posture === 'highReady' ? PISTOL_HIGH_CARRY : gl && STANCE_CARRIES.includes(gl.carry) ? gl.carry : null;
   const model = gl && gl.model && gl.model !== 'r7' ? gl.model : null, finish = gl && gl.finish ? gl.finish : null;
   return [a.who, gl ? 'rifle' : '-', gl?.carry ?? '-', gl ? gaitCarryOf(gl.carry) : '-', gl?.pistol?.posture ?? '-', gl && gl.mag === false ? 1 : 0,
     kit?.ears ? 1 : 0, kit?.carrier ? 1 : 0, headset ? 1 : 0, model ?? '-', finish ?? '-', kit?.mask ? 1 : 0, held?.model ?? '-', sc ?? '-'].join('|');
@@ -94,7 +111,7 @@ export function oracleOf(state, a, viewer, men) {
   if (handDeviceOf(state, pid)) how = 'device';
   else if (handsUp && !sitting) how = 'up';
   else {
-    const p = state.items?.[handGunOf(state, pid)]?.model === 'p12' ? state.people[pid].kit.carry?.posture : null;
+    const p = state.items?.[handGunOf(state, pid)]?.model === 'p12' ? state.people[pid].kit.carry?.posture : adminOf(state, pid, ms) ? 'lowReady' : null;
     how = p ? ORACLE_PISTOL[p] ?? 'pistol-ready' : gl ? ORACLE_CARRY[gl.carry] ?? 'empty' : 'empty';
     if (!TWO_HANDS.has(how) && handMagOf(state, pid)) how = 'mag';
   }
@@ -115,7 +132,7 @@ export function oracleOf(state, a, viewer, men) {
 export function seenGauge({ lane = null } = {}) {
   const f85 = { records: 0, agree: 0, boards: 0, boardsAgree: 0, off: [], hows: {}, poses: {}, facings: {} };
   const f86 = { pauses: 0, held: 0, moved: [], stage: new Set() };
-  const f97 = { ticks: 0, agree: 0, postures: {}, acts: {}, draws: 0, drawsRead: 0, adminBeat: 0, byFrame: 0, framesAgree: 0, off: [] };
+  const f97 = { ticks: 0, agree: 0, postures: {}, acts: {}, draws: 0, drawsRead: 0, adminBeat: 0, adminRead: 0, byFrame: 0, framesAgree: 0, off: [] };
   let last = null;
   const boards = new Map();
   const bump = (o, k) => { o[k] = (o[k] ?? 0) + 1; };
@@ -135,11 +152,12 @@ export function seenGauge({ lane = null } = {}) {
       if (ok) f85.agree++;
       else if (f85.off.length < 6) f85.off.push({ ms, who: a.who, rec: [rec.hold.how, rec.pose, rec.facing], oracle: [want.how, want.pose, want.facing] });
       // (F97: the P-12 in the hands)
-      const inHand = state.items?.[handGunOf(state, a.who)]?.model === 'p12';
+      const inHand = state.items?.[handGunOf(state, a.who)]?.model === 'p12', admin = !inHand && !!adminOf(state, a.who, ms);
       const mine = a.who === state.player.id, sn = mine ? stepNow(state, a.who, ms) : null;
-      if (inHand) {
+      if (inHand || admin) {
         f97.ticks++;
-        const p = state.people[a.who].kit.carry?.posture, gl = gunLook(state, a, ms);
+        if (admin) f97.adminBeat++;
+        const p = admin ? 'lowReady' : state.people[a.who].kit.carry?.posture, gl = gunLook(state, a, ms);
         const byFrame = actOfFrame(gl), acts = mine ? actOfAction(sn?.action) : [byFrame];
         bump(f97.postures, p);
         if (rec.hold.act) bump(f97.acts, rec.hold.act);
@@ -147,14 +165,13 @@ export function seenGauge({ lane = null } = {}) {
         const framesOk = !mine || acts.includes(byFrame);
         if (mine) { f97.byFrame++; if (framesOk) f97.framesAgree++; }
         const good = gl?.pistol?.posture === p && rec.hold.how === (ORACLE_PISTOL[p] ?? 'pistol-ready') && acts.includes(rec.hold.act) && framesOk;
-        if (good) f97.agree++;
+        if (good) { f97.agree++; if (admin) f97.adminRead++; }
         else if (f97.off.length < 6) f97.off.push({ ms, who: a.who, posture: p, look: gl?.pistol?.posture ?? null, how: rec.hold.how, act: rec.hold.act, action: sn?.action ?? null, frame: gl?.action?.frame ?? null, byFrame });
       } else if (mine && sn?.action === 'draw:thigh') {
         f97.draws++;
         if (rec.hold.act === 'draw') f97.drawsRead++;
         else if (f97.off.length < 6) f97.off.push({ ms, who: a.who, drawing: true, act: rec.hold.act });
       }
-      if (mine && /^pistol:/.test(sn?.action ?? '') && !inHand) f97.adminBeat++;
     }
     // (the boards: the record for the stand as you identified it holds what the stage paints)
     for (const st of look?.house?.stands ?? []) {
@@ -181,7 +198,7 @@ export function seenGauge({ lane = null } = {}) {
     return {
       F85: { ok: f85.agree === f85.records && f85.boardsAgree === f85.boards && f85.records > 0, ...f85 },
       F86: { ok: f86.held === f86.pauses && (!lane || (!!rec && !missing.length && !added.length)), pauses: f86.pauses, held: f86.held, moved: f86.moved, lane, stageKeys: got.length, recorded: rec?.length ?? null, missing, added },
-      F97: { ok: f97.agree === f97.ticks && f97.drawsRead === f97.draws && f97.framesAgree === f97.byFrame, ...f97 },
+      F97: { ok: f97.agree === f97.ticks && f97.drawsRead === f97.draws && f97.framesAgree === f97.byFrame && f97.adminRead === f97.adminBeat, ...f97 },
     };
   }
   return { each, end };
@@ -190,4 +207,4 @@ const counts = (o) => Object.entries(o).sort().map(([k, n]) => `${k} ${n}`).join
 /** The lines as the runners print them. */
 export const f85Line = (r) => `F85 ${r.ok ? 'MET' : 'OPEN'}: ${r.agree} of ${r.records} records agree with the oracle, ${r.boardsAgree} of ${r.boards} boards; holds ${counts(r.hows)}; poses ${counts(r.poses)}; facings ${counts(r.facings)}${r.off.length ? `; off ${JSON.stringify(r.off.slice(0, 2))}` : ''}`;
 export const f86Line = (r) => `F86 ${r.ok ? 'MET' : 'OPEN'}: ${r.held} of ${r.pauses} paused reads kept every key (at the tick's end and since the last read); the stage's look keys ${r.stageKeys} against ${r.recorded ?? 'none'} recorded (${r.missing.length} missing, ${r.added.length} new)${r.moved.length || r.missing.length || r.added.length ? ` ${JSON.stringify({ moved: r.moved.slice(0, 1), missing: r.missing.slice(0, 2), added: r.added.slice(0, 2) })}` : ''}`;
-export const f97Line = (r) => `F97 ${r.ok ? 'MET' : 'OPEN'}: ${r.agree} of ${r.ticks} ticks with the P-12 in the hands read its posture (${counts(r.postures)}), acts ${counts(r.acts)}; ${r.framesAgree} of ${r.byFrame} of your ticks the drawn frame's act the action's, ${r.ticks - r.byFrame} of another man's read by his drawn frame; ${r.drawsRead} of ${r.draws} draw ticks read 'draw'; ${r.adminBeat} ticks of the drill's P-12 admin beat with it holstered (the rifle drawn)${r.off.length ? `; off ${JSON.stringify(r.off.slice(0, 2))}` : ''}`;
+export const f97Line = (r) => `F97 ${r.ok ? 'MET' : 'OPEN'}: ${r.agree} of ${r.ticks} ticks with the P-12 in the hands read its posture (${counts(r.postures)}), acts ${counts(r.acts)}; ${r.framesAgree} of ${r.byFrame} of your ticks the drawn frame's act the action's, ${r.ticks - r.byFrame} of another man's read by his drawn frame; ${r.drawsRead} of ${r.draws} draw ticks read 'draw'; ${r.adminRead} of ${r.adminBeat} ticks of the drill's P-12 admin beat (holstered in the state) drawn and read in the hands${r.off.length ? `; off ${JSON.stringify(r.off.slice(0, 2))}` : ''}`;

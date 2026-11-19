@@ -121,7 +121,8 @@ import { DOPE_CARD } from './ballistics.js';
 import { move, sparesOf, dumpOf, pouchFor, ownerOf, holderOf, believedN, believedKind, handMagOf, pickMag, pouchesOf, pouchOf, atFeetOf, meantLoad, PLACE_WORDS } from './kit.js';
 import { CALIBRES, loadOf } from './calibres.js';
 import { ndOf, SLUNG } from './carry.js';
-import { surfaceAt } from '../places/model.js';
+import { surfaceAt } from '../places/env.js';
+import { MATERIALS } from './penetrate.js';
 import { handsFullWhy } from './devices.js';
 import { ISSUE_FINISH, isFinish, finishId } from '../../data/finishes.js';
 
@@ -1008,10 +1009,14 @@ export function canDo(state, pid, gunId) {
 // ---- the state's way in ----
 
 const actorOf = (state, pid) => state.actors?.list?.find(a => a.who === pid) ?? null;
-// (a magazine that hits a hard surface: its lips and spring take MAG_DROP_WEAR; loose regolith takes nothing)
+// (the surface a thing lies on, its SURFACES row (env.js surfaceAt), and whether it is loose (step 5: its material not hard,
+// penetrate.js MATERIALS: regolith, soil, grass; everything Melas and the Wheel are floored with but regolith is hard))
+const lyingOn = (state, g) => surfaceAt(state, g.area, g.x, g.z);
+const loose = (row) => MATERIALS[row.material]?.hard === false;
+// (a magazine that hits a hard surface: its lips and spring take MAG_DROP_WEAR; a loose one (regolith) takes nothing)
 function dropWear(state, magId, g) {
   const m = state.items[magId];
-  if (!m || surfaceAt(state, g.x, g.z, g.area) === 'regolith') return;
+  if (!m || loose(lyingOn(state, g))) return;
   m.cond = q(Math.max(0, (m.cond ?? MAG_FRESH) - MAG_DROP_WEAR), 1e-6);
 }
 const atFeet = (state, pid, gunId) => {
@@ -1095,9 +1100,10 @@ export function doAction(state, bus, { pid, gunId, action, tempo = 'normal', pre
   if (r.reach) {
     const hands = kit.hands ?? [null, null], free = !hands[1] ? 1 : !hands[0] ? 0 : 1, from = holderOf(state, r.reach.id);
     move(state, r.reach.id, { pid, hand: free });
-    if (from?.ground && surfaceAt(state, from.ground.x, from.ground.z, from.ground.area) === 'regolith') {
+    const on = from?.ground ? lyingOn(state, from.ground) : null;
+    if (on && loose(on) && on.dust > 0) {
       const m = state.items[r.reach.id];
-      m.dust = q(Math.min(1, (m.dust ?? 0) + PICKUP_DUST), 1e-6);
+      m.dust = q(Math.min(1, (m.dust ?? 0) + PICKUP_DUST * on.dust), 1e-6);
     }
     r.magId = r.reach.id;
   }

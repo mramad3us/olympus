@@ -54,6 +54,8 @@
 // the player did not see and a replay acts from the saved state and the inputs alone; without args at
 // all (the debug handle, tests) it does the line's (or the chip's) act. Acts are only what is at hand
 // (the sheet §8, item 12): lines that send you somewhere say where, in words.
+// v0.0.24: on the void range (test-anchors) the range's tower and card rules keep quiet (RANGE_OFF_VOID); aboard while test-burn
+// runs, the base's 'situation' says the scene's line by the ship's phase (offBurn, data/courses.js BURN_T), never the barracks' day.
 // The read scope (src/core/reads.js): both evaluations open state.$reads around firedNow, so the rules' panel and
 // bodies are built once per ms whichever rule reads them first; and a whole second is due once at its ms (the held second: a
 // pause standing on a whole second rebuilt the instinct twenty times a second).
@@ -70,6 +72,7 @@ import { contactNow, pendingOf } from '../combat/contact.js';
 import { takeInWords } from '../combat/react.js';
 import { startled } from '../combat/supp.js';
 import { breatheAction } from '../arms/shooting.js';
+import { BURN_T } from '../../data/courses.js';
 
 /** The range's rules that keep quiet on the pairs course (see the header): the tower's commands and the card are the coach's and the turners' there. */
 export const RANGE_OFF_PAIRS = Object.freeze(new Set(['range-cmd', 'range-kd', 'range-reload', 'range-fire', 'range-wait']));
@@ -87,8 +90,27 @@ const houseOff = (R) => !(HOUSE_CMDS.has(R.cmd?.id) && !(R.house?.goAtMs !== nul
 // made safe: the honest bot's last dead end, "off the lane: Stop", 346 in 400 lanes)
 const houseWaits = (R, id) => id === 'range-wait' && !!R?.house?.end;
 const offHouse = (r) => (RANGE_OFF_HOUSE.has(r.id) ? Object.freeze({ ...r, when: (state, me, ms) => { const R = rangeOf(state); return R?.course === 'house' && !houseWaits(R, r.id) && (r.id !== 'range-cmd' || houseOff(R)) ? null : r.when(state, me, ms); } }) : r);
+/** The range's rules that keep quiet on the void range (v0.0.24, test-anchors): the tower's commands, the card and the bay's muzzle and moves have no place in Well A (the cadre's stations and the footing's rules speak there). */
+export const RANGE_OFF_VOID = Object.freeze(new Set(['range-cmd', 'range-kd', 'range-reload', 'range-fire', 'range-wait', 'range-muzzle']));
+// (a range rule kept quiet on the void range: the same rule, its when() answering nothing there)
+const offVoid = (r) => (RANGE_OFF_VOID.has(r.id) ? Object.freeze({ ...r, when: (state, me, ms) => (rangeOf(state)?.course === 'anchors' ? null : r.when(state, me, ms)) }) : r);
+// (test-burn, the fixer of D's review: aboard, while the scene runs (its record state.armoury.burn, no end yet), the base's
+// 'situation' says the scene's line by the ship's phase (data/courses.js BURN_T) in place of the barracks' day ("Free time. Spend it
+// like it costs something." under the 1MC's warning), no act (R does the scene's acts), no humour. The record is read here, not
+// burn.js imported, so no cycle runs through places/hand.js's scene hook. Every other scene: the rule as it was)
+const burnPhase = (state) => {
+  const B = state?.armoury?.burn;
+  return !B || B.end ? null : B.onset ? 'after' : B.warnAtMs !== null && B.warnAtMs !== undefined ? 'warned' : 'before';
+};
+const offBurn = (r) => (r.id === 'situation' ? Object.freeze({
+  ...r,
+  short: (ctx) => (ctx.burn ? BURN_T.short[ctx.burn] : typeof r.short === 'function' ? r.short(ctx) : r.short),
+  when: (state, me, ms) => { const p = burnPhase(state); return p ? { variant: `burn-${p}`, burn: p, noHumour: true } : r.when(state, me, ms); },
+  act: (ctx, state) => (ctx.burn ? null : r.act ? r.act(ctx, state) : null),
+  text: { ...r.text, 'burn-before': BURN_T.before, 'burn-warned': BURN_T.warned, 'burn-after': BURN_T.after },
+}) : r);
 /** Every rule the instinct weighs: the base's, the grooming's, the range's, then the pairs' (merged by tone in settle(): within a tone, in that order). */
-export const RULES = Object.freeze([...BASE_RULES, ...GROOM_RULES, ...RANGE_RULES.map(offHouse).map(offPairs), ...PAIRS_RULES, ...CQB_RULES]);
+export const RULES = Object.freeze([...BASE_RULES.map(offBurn), ...GROOM_RULES, ...RANGE_RULES.map(offHouse).map(offPairs).map(offVoid), ...PAIRS_RULES, ...CQB_RULES]);
 /** The line's lead while stop motion holds time (VIEWS §7.4; the build sheet §8 item 10). */
 export const STOP_LEAD = 'Time stands still.';
 

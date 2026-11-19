@@ -26,7 +26,8 @@ const holders = (shape, frame) => {
   const P = HELD_POSES[frame];
   if (!P) return ['r'];
   if (frame === 'heldPin') return ['r'];
-  return ['r', 'l'].filter(s => P.reach[s]);
+  // (v0.0.24: a hand the pose leaves free of the device, the ring finger at the hip or the arm out at the target: HELD_POSES' free)
+  return ['r', 'l'].filter(s => P.reach[s] && P.free !== s);
 };
 const framesOf = (shape) => [...HELD_WALK_FRAMES, ...Object.keys(HELD_POSES).filter(f => HELD_POSES[f].parts[shape])];
 
@@ -72,8 +73,9 @@ export default [
       console.log(`      changed of drawn, facing you: ${rows.join(', ')}`);
       const beats = [null, { kind: 'arm', k: 0.2 }, { kind: 'arm', k: 0.9 }, { kind: 'throw', k: 0.2 }, { kind: 'throw', k: 0.8 }, { kind: 'force', k: 0.1 }, { kind: 'force', k: 0.3 }, { kind: 'force', k: 0.8 }, { kind: 'place', k: 0.5 }, { kind: 'stack', k: 0 }];
       const named = new Set();
-      for (const [shape, colours] of HELD_VARIANTS) for (const b of beats) {
-        const f = heldFrameOf({ shape, colour: colours[0] }, b);
+      // (v0.0.24: a throw named by its distance as well: none, 2 m (near: G2 and T3), 5 m (today's lob), 10 m (far: G3 and T2))
+      for (const [shape, colours] of HELD_VARIANTS) for (const b of beats) for (const throwM of b?.kind === 'throw' ? [null, 2, 5, 10] : [null]) {
+        const f = heldFrameOf({ shape, colour: colours[0], ...(throwM !== null ? { throwM } : {}) }, b);
         assert(BANDS[HELD_BAND].includes(f) && DIRS.every(d => S.index.get(heldKey(shape, colours[0], f, d))), JSON.stringify({ shape, b, f }));
         named.add(f);
       }
@@ -89,19 +91,28 @@ export default [
       const suit = (carry) => wear({ outfit: 'combatSuit', carrier: true, weapon: 'rifle', carry, seed: 3, model: 'r7' });
       // (v0.0.23: the P-12's band (poses.js BANDS.pistol, the user's note of 2026-11-17) is new frames, left out like the held band:
       // every frame before it is byte for byte as pinned, F98's "the rifle's own frames as before")
-      const old = FRAMES.filter(f => !BANDS[HELD_BAND].includes(f) && !BANDS.pistol.includes(f)), parts = [];
+      // (v0.0.24: the P-12's high-ready walk (BANDS.stancePistol) is new frames, left out as the pistol band is; 'draw' and
+      // 'pistolAim' left the stance sheet (nothing in the game drew them) but beatPose still poses them for three samples, so they
+      // are composed at their old place after fireMove1 and the golden holds every frame as pinned, unmoved)
+      const old = FRAMES.filter(f => !BANDS[HELD_BAND].includes(f) && !BANDS.pistol.includes(f) && !BANDS.stancePistol.includes(f)).flatMap(f => (f === 'fireMove1' ? [f, 'draw', 'pistolAim'] : [f])), parts = [];
       for (const L of [suit('low'), suit('front'), looks[2]]) for (const d of DIRS) {
         for (const f of old) { const fr = composeFrame(L, d, f, { ppm: PPM }); parts.push(shade(fr.cells, coloursOf(fr.look, PPM)).data); }
         for (const b of BEAT_FRAMES) { const fr = composeFrame(L, d, 'idle0', { ppm: PPM, pose: beatPose(b, { weapon: L.weapon, carry: L.carry }) }); parts.push(shade(fr.cells, coloursOf(fr.look, PPM)).data); }
       }
       const all = new Uint32Array(parts.reduce((a, p) => a + p.length, 0));
       let o = 0; for (const p of parts) { all.set(p, o); o += p.length; }
-      golden('the figures\' frames, three looks, every frame and beat, four facings', all, '1c53d76d17f6d4');
+      // (v0.0.24 F, re-recorded with three causes, each the user's pick of 2026-11-19: the combat EVA suit's helmet R3 in the Mars trim (helmets.js HELMET_DRAWN_AS), its gloves grey (outfits.js COMBAT_SUIT.glove), and the aimed rifle's stock raised to the cheek (compose.js AIM_CHEEK_UP_M); was '1c53d76d17f6d4')
+      golden('the figures\' frames, three looks, every frame and beat, four facings', all, '09289684fb05a6');
       let letters = 0, n = 0;
       for (const L of looks) for (const d of DIRS) for (const f of BANDS[HELD_BAND]) { const fr = composeFrame(L, d, f, { ppm: PPM }); n++; letters += fr.cells.flat().filter(c => c && LETTERS.has(c.ch.toLowerCase())).length; assert(!fr.hands, `${f} reports hands`); }
       const lay = sheetLayout(PPM), b = lay.bands[HELD_BAND];
       console.log(`      ${parts.length} frames as before; the held band's ${n} frames with ${letters} device pixels; the band at ${b.x}, ${b.y} (${b.w} × ${b.h}) of the stance sheet ${lay.pools.stance.w} × ${lay.pools.stance.h}`);
-      assert(letters === 0 && STANCE_BANDS.includes(HELD_BAND) && lay.pools.stance.w === 512 && lay.pools.stance.h === 432 && b.pool === 'stance', JSON.stringify({ letters, b, stance: lay.pools.stance }));
+      // (v0.0.24: the throw's two classes by distance (four frames, the user's G and T of 2026-11-19) take the band to a shelf of
+      // its own, 432 → 576 px; the stance sheet still takes a base slot of the atlas, 512 × 752 at 16 px/m, so the atlas's size holds)
+      assert(letters === 0 && STANCE_BANDS.includes(HELD_BAND) && lay.pools.stance.w === lay.pools.base.w && lay.pools.stance.h <= lay.pools.base.h && b.pool === 'stance', JSON.stringify({ letters, b, stance: lay.pools.stance, base: lay.pools.base }));
+      const L24 = sheetLayout(24);
+      assert(L24.pools.stance.w === L24.pools.base.w && L24.pools.stance.h <= L24.pools.base.h, JSON.stringify({ stance: L24.pools.stance, base: L24.pools.base }));
+      console.log(`      the stance sheet in its base slot: ${lay.pools.stance.w} × ${lay.pools.stance.h} in ${lay.pools.base.w} × ${lay.pools.base.h} at 16 px/m, ${L24.pools.stance.w} × ${L24.pools.stance.h} in ${L24.pools.base.w} × ${L24.pools.base.h} at 24`);
       assert(Object.keys(HELD).join() === 'can,egg,strip,spool,bar,ram', Object.keys(HELD).join());
     },
   },

@@ -5,7 +5,8 @@
 // by the live site's Plan of the Day (its record's `routine`, src/data/pod.js ROUTINES; env.js
 // routineOf: ROADMAP "anywhere"'s step 3): at Melas taps at 22:00 on its sol, reveille on the next at
 // 05:30, or 07:00 when that morning is a Saturday or a Sunday (holiday). The night is still counted in
-// sols at the site's longitude (siteLonEDeg throws off Mars: a ship's night waits for its routine). A clock time lands on its first whole second at or
+// days of the site's own clock (v0.0.24's stage 0: jobs.js siteDayOf, Melas's sols at its longitude as before, a UTC site's
+// days from 00:00 UTC on the UTC week, by the routine its site names; a site with none has no night). A clock time lands on its first whole second at or
 // after it (jobs.js's rule, so the watch reads it: tonight's 02:30 is 02:30:00.091).
 // drillOfWeek(seed, week, lonEDeg, firstNight) draws the week's alert drill from the world's seed (the
 // user, 2026-11-05: what happens in the places is procedural): r = stream(seed, 'time:alert-drill',
@@ -43,11 +44,11 @@
 // min, late to 10, very-late to 30, else missed). Lateness is kept in time.attend until PEOPLE's
 // discipline reads it (the sheet §8, item 19).
 import { post, cancel } from '../../core/queue.js';
-import { SEC_MS, MIN_MS, HOUR_MS, SOL_MS } from '../../core/clock.js';
-import { localSol, lonMs, HALF_SLIP_MS, MSD_EPOCH_MS } from '../../core/calendar.js';
+import { SEC_MS, MIN_MS, HOUR_MS, SOL_MS, DAY_MS } from '../../core/clock.js';
+import { localDay, lonMs, HALF_SLIP_MS, MSD_EPOCH_MS, UNIX_MS_AT_EPOCH, isUtcDay, dayWeekday } from '../../core/calendar.js';
 import { stream, int } from '../../core/rng.js';
 import { playerId } from '../../core/ids.js';
-import { siteLonEDeg } from '../jobs.js';
+import { siteDayOf } from '../jobs.js';
 import { siteAt, routineOf } from '../places/env.js';
 import { weekdayOf } from './dates.js';
 import { logEntry } from '../log.js';
@@ -61,31 +62,33 @@ export const NIGHT_SRC = 'time:night', ALERT_SRC = 'time:alert';
 export const ATTEND_MAX = 50;
 
 const ceilSec = (ms) => Math.ceil(ms / SEC_MS) * SEC_MS;
-/** The game ms at which a local sol begins (civil 00:00) at an east longitude. */
-export const solStartOf = (sol, lonEDeg) => sol * SOL_MS - MSD_EPOCH_MS - lonMs(lonEDeg) + HALF_SLIP_MS;
+/** The game ms at which a local sol begins (civil 00:00) at an east longitude; a UTC day at 00:00 UTC for the day key 'utc' (v0.0.24's stage 0). */
+export const solStartOf = (sol, lonEDeg) => (isUtcDay(lonEDeg) ? sol * DAY_MS - UNIX_MS_AT_EPOCH : sol * SOL_MS - MSD_EPOCH_MS - lonMs(lonEDeg) + HALF_SLIP_MS);
 /** The first whole second at or after a local sol's civil hour (decimal hours; 24 and over run into the slip). */
 export const atLocal = (sol, hour, lonEDeg) => ceilSec(solStartOf(sol, lonEDeg) + Math.round(hour * HOUR_MS));
-/** Whether a sol's morning keeps a routine's holiday hours (Melas's: Saturday and Sunday, SETTING's week, Monday 0). */
-export const holidayOf = (sol, R) => R.holidays.includes(weekdayOf(sol));
+// (a day's weekday, Monday 0: SETTING's week on Mars, the UTC week for the day key 'utc'; no key, Mars's, as before)
+const dayOfWeek = (sol, day) => (isUtcDay(day) ? dayWeekday(sol, day) : weekdayOf(sol));
+/** Whether a sol's morning keeps a routine's holiday hours (Melas's: Saturday and Sunday, SETTING's week, Monday 0); day: the site's day key. */
+export const holidayOf = (sol, R, day = null) => R.holidays.includes(dayOfWeek(sol, day));
 /** Reveille's hour on the morning of a sol by a routine (ROUTINES' row): at Melas 07:00 on Saturday and Sunday, else 05:30. */
-export const reveilleH = (sol, R) => (holidayOf(sol, R) ? R.reveilleHolidayH : R.reveilleH);
+export const reveilleH = (sol, R, day = null) => (holidayOf(sol, R, day) ? R.reveilleHolidayH : R.reveilleH);
 /** The absolute week of a local sol (SETTING's week, Monday first). */
-export const weekOf = (sol) => Math.floor((sol - weekdayOf(sol)) / 7);
+export const weekOf = (sol, day = null) => Math.floor((sol - dayOfWeek(sol, day)) / 7);
 /** The Monday of an absolute week. */
-export const mondayOf = (week) => { let s = week * 7; while (weekdayOf(s) !== 0) s++; return s; };
+export const mondayOf = (week, day = null) => { let s = week * 7; while (dayOfWeek(s, day) !== 0) s++; return s; };
 
 /** The night beginning on the local sol of ms, or the one in progress (see the header). */
 export function nightOf(state, ms = state.clock.ms) {
-  const lon = siteLonEDeg(state), R = routineOf(siteAt(state));
-  let sol = localSol(ms, lon).sol;
-  if (ms < atLocal(sol, reveilleH(sol, R), lon)) sol -= 1;
+  const lon = siteDayOf(state), R = routineOf(siteAt(state));
+  let sol = localDay(ms, lon).sol;
+  if (ms < atLocal(sol, reveilleH(sol, R, lon), lon)) sol -= 1;
   const morning = sol + 1;
-  return { sol, tapsMs: atLocal(sol, R.tapsH, lon), reveilleMs: atLocal(morning, reveilleH(morning, R), lon), holiday: holidayOf(morning, R) };
+  return { sol, tapsMs: atLocal(sol, R.tapsH, lon), reveilleMs: atLocal(morning, reveilleH(morning, R, lon), lon), holiday: holidayOf(morning, R, lon) };
 }
 
 /** The week's alert drill: { drill: the sol it sounds on, night: the sol its night began, atMs } (see the header). */
 export function drillOfWeek(seed, week, lonEDeg, firstNight = null) {
-  const r = stream(seed, 'time:alert-drill', week), mon = mondayOf(week);
+  const r = stream(seed, 'time:alert-drill', week), mon = mondayOf(week, lonEDeg);
   const first = Number.isFinite(firstNight) && firstNight >= mon && firstNight < mon + 7;
   const n = first ? firstNight - mon + int(r, Math.min(2, mon + 7 - firstNight)) : int(r, 7);
   const minute = int(r, Math.round((ALERT_DRILL.toH - ALERT_DRILL.fromH) * 60) + 1);
@@ -95,12 +98,12 @@ export function drillOfWeek(seed, week, lonEDeg, firstNight = null) {
 
 /** The drill of a night, if one: the forced one where it lies in it, else the week's draw where it falls on it. */
 export function drillOfNight(state, night, fromMs) {
-  const lon = siteLonEDeg(state), forced = state.time?.drills?.forced;
+  const lon = siteDayOf(state), forced = state.time?.drills?.forced;
   if (Number.isFinite(forced) && forced > fromMs && forced <= night.reveilleMs) {
     const at = ceilSec(forced);
-    return { drill: localSol(at, lon).sol, night: night.sol, atMs: at, forced: true };
+    return { drill: localDay(at, lon).sol, night: night.sol, atMs: at, forced: true };
   }
-  const d = drillOfWeek(state.meta.seed, weekOf(night.sol), lon, firstNightOf(state));
+  const d = drillOfWeek(state.meta.seed, weekOf(night.sol, lon), lon, firstNightOf(state));
   return d.night === night.sol ? d : null;
 }
 
@@ -154,7 +157,7 @@ export function onReveille(state, bus, ev) {
 }
 
 export function onAlert(state, bus, ev) {
-  const atMs = ev.atMs, d = { drill: ev.payload?.drill ?? localSol(atMs, siteLonEDeg(state)).sol, atMs, dueMs: atMs + ALERT_DRILL.dueMs, endMs: atMs + ALERT_DRILL.endMs, counted: false };
+  const atMs = ev.atMs, d = { drill: ev.payload?.drill ?? localDay(atMs, siteDayOf(state)).sol, atMs, dueMs: atMs + ALERT_DRILL.dueMs, endMs: atMs + ALERT_DRILL.endMs, counted: false };
   fillPod(state.time);
   state.time.drills.open = d;
   post(state, { atMs: d.dueMs, prio: 2, kind: 'alert-count', src: ALERT_SRC, line: POD_LINES.count, payload: { drill: d.drill } });

@@ -110,6 +110,7 @@ import { timeDomain } from './time/domain.js';
 import { startActivity } from './time/activities.js';
 import { postNight } from './time/pod.js';
 import { bodyDomain } from './body/domain.js';
+import { grabAction } from './body/freefall.js';
 import { placesDomain } from './places/domain.js';
 import { enterSite } from './places/model.js';
 import { setLiveEnv, msAtLocal } from './places/env.js';
@@ -123,6 +124,8 @@ import { testRange } from './scenarios/range.js';
 import { testPairs } from './scenarios/pairs.js';
 import { testStress } from './scenarios/stress.js';
 import { testShoothouse } from './scenarios/shoothouse.js';
+import { testAnchors } from './scenarios/anchors.js';
+import { testBurn } from './scenarios/burn.js';
 import { refusesAct } from './combat/contact.js';
 import { weaponsDomain } from './arms/domain.js';
 import { SCENES, STARTS } from '../data/scenes.js';
@@ -136,7 +139,7 @@ const LAYER_NAMES = new Set(FAST_LAYERS.map(L => L.name));
 /** The domains, in the order their contributors run. */
 export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'body', 'people', 'weapons', 'combat', 'world', 'career']);
 /** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
-export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs, 'test-stress': testStress, 'test-shoothouse': testShoothouse });
+export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs, 'test-stress': testStress, 'test-shoothouse': testShoothouse, 'test-anchors': testAnchors, 'test-burn': testBurn });
 
 // (one host and one environment a scenario: the scenes that share a fill differ only in the hud's fields and their setup)
 const sameStand = (a, b) => JSON.stringify([a.host, a.env]) === JSON.stringify([b.host, b.env]);
@@ -207,7 +210,7 @@ export const techDomain = descriptor({ name: 'tech', owner: 'TECH', keys: ['meta
 const stub = (name, owner, keys, more = {}) => descriptor({ name, owner, keys, init: keysInit(keys), stub: true, ...more });
 /** The domains not built yet: each claims its keys (TECH §6.1) and fills them empty. */
 export const STUB_DOMAINS = Object.freeze({
-  combat: stub('combat', 'COMBAT', ['fights'], { actions: { hit: noop, grab: noop, guard: noop } }),
+  combat: stub('combat', 'COMBAT', ['fights'], { actions: { hit: noop, grab: grabAction, guard: noop } }),   // (L's grab by context, the float's (body/freefall.js grabAction); CQC's still nothing)
   world: stub('world', 'TECH', ['world']),
   career: stub('career', 'CAREER', ['career', 'careers', 'memorial']),
 });

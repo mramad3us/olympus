@@ -229,6 +229,23 @@ export const COURSES = deepFreeze({
     reload: { turnMs: [1500, 2500], maxMs: 10_000 },
     draws: { one: [[0, 50], [-1, 25], [1, 25]], threatHolds: [['rifle', 70], ['pistol', 30]], noshootHolds: [['hands', 60], ['phone', 40]] },
   },
+  // (test-anchors' course, "Anchor before you fire", in Well A at Phobos (AW§5; the build sheet v0.0.24 §1 D;
+  // src/sim/scenarios/anchors.js): five stations, each a string at the live face after the anchor its station wants, the move to
+  // it part of its time. No tower: the cadre's commands are the course's own (seq 'anchors', no SEQ of handling.js's). My calls:
+  // the house's kit (its frangible, the School's live fire); the station's standby 1.0 to 2.5 s once you stand anchored at its
+  // mark; the turner's exposure 12 s (at 8 s the recruit's string at 10 m ran short on a fumbled Off safe); a station passed
+  // after 120 s of lived time not reached, never a dead end (the longest move, station three to the wedge, about 28 m of hops
+  // between pad-eyes, takes the recruit 90 s and more); the floating string's drift watched 60 s for the grab before the cadre
+  // calls it; the floating station counts you out in the open at floatOutM 1.5 m from its mark drifting at driftMinVMs 0.1 m/s)
+  anchors: {
+    word: 'the void range, Well A', paper: 'man', lanes: [1, 5], mags: [10, 10, 10], strings: ['boots', 'lanyard', 'onehand', 'wedge', 'floating'],
+    roGapMs: [800, 1600], firstGapMs: 3000, nudgeMs: 30000, checkMs: 3000, moveOnMs: 120_000, load: 'frangible', kit: 'house-cqb', hour: 10.0, oneMag: false, seq: 'anchors',
+    sidearm: { model: 'p12', mags: [['had17', 10, 'frangible'], ['had17', 10, 'frangible']] },
+    briefMs: 7000, standbyMs: [1000, 2500], exposeMs: 12_000, nextGapMs: 3000, driftMaxMs: 60_000, arriveM: 1.0, floatOutM: 1.5, driftMinVMs: 0.1, endAfterMs: 4000,
+    // (the safety boat: a body floating still with no hold in reach for stuckMs is fetched to the station's mark boatMs after the
+    // cadre's word, holding the boat's line on its pad-eye: never a dead end in the open well)
+    stuckMs: 8000, boatMs: 5000,
+  },
 });
 
 /** The kd course's strings (the build sheet 0.0.7 §4): line, paper, position, rounds, magazines, time limit, marked each shot ('each') or all after ('after'). */
@@ -542,6 +559,8 @@ export const HOUSE_CHIEF = deepFreeze({
   // (the hunt of v0.0.20, breach-4: an inner door opened and never looked into, the room called clear over it)
   doorOpen: ['You opened that door and never looked in.', 'An open door nobody looked through is a man at your back.'],
   stall: ['Move on.', 'Move. You are clearing, not visiting.'],
+  // (the fixer of v0.0.24's play review, M1: the stall where your legs have nothing to push on, never "Move.")
+  stallFooting: ['No footing in here. I am moving you on.', 'Nothing to push off. Moving you on.'],
   // (DC3: the live lane's sterile check before LOAD (shoothouse.js sterileTick): [0] the last marine looked at, [1] with one to come)
   sterile: ['Clean.', 'Clean. Next.'],
   // (his acknowledgement of your number two's rifle shown clear at UNLOAD, SHOW CLEAR (COMBAT §25.19.5))
@@ -642,6 +661,8 @@ export const HOUSE_CHIEF = deepFreeze({
     'passed:door': ['You stood at an open door. In, on the go: T, or walk it in.', 'Open door, nobody through it. Go on the open.'],
     'passed:stack': ['The door never opened. On the wall, then the door\'s row: T.', 'You never opened it. Stack, then open.'],
     'passed:room': ['You were in and never called it. Every corner, then "Clear!".', 'In the room and no call. Look, then "Clear!".'],
+    // (the fixer of v0.0.24's play review, M1: the rooms passed where your legs had nothing to push on)
+    'passed:footing': ['No footing, no lane. At zero G, boots on steel or a hold before you move.', 'Nothing under your feet to push on. At zero G, boots on steel or a hold first.'],
     clean: ['Clean lane. Again, faster.', 'Clean. Now do it again, and quicker.'],
     // (the play review: a lane ended before any room was run (Esc, End the scene, at GO) has nothing to wash)
     unplayed: ['No room run, so nothing to wash. Again, from the top.', 'Not one room cleared. From the top.'],
@@ -706,6 +727,59 @@ export const HOUSE_CHIEF = deepFreeze({
 // 1.32). The lane's par is then 1.3 to 1.45 times the bots' lane (0.69 to 0.79 of it, from 0.62 to 0.74); fixed from here, and a
 // room 25% slower than its sheet's bot still meets it on most legs: a tighter par is the book's, the user's question 10 in DESIGN.md's log of v0.0.20)
 export const ROOM_PAR_K = deepFreeze({ room: [1.5, 1.3], hall: [1.0, 1.4] }), ROOM_PAR_STEP_MS = 500, STANDARD_PARS = 1;
+/**
+ * v0.0.24: the void range's cadre at Phobos (test-anchors, "Anchor before you fire"; AW§5): the brief, each station's command (what
+ * to do to be anchored there, and where), Standby, the string's end, a station passed for its time, the floating string's grab
+ * and the course's end. Every line is a text bubble at the cadre (the user, 2026-11-19: "forget about voices, those are all
+ * terrible use text bubble only"), at least two phrasings each picked by hash. {n} is the station's number in words.
+ */
+export const VOID_CADRE = deepFreeze({
+  brief: [
+    'Well A. Five stations. Anchor before you fire: boots, lanyard, a hand, the wedge, and one floating. Boots are locked. Wait for my word.',
+    'Five stations, one anchor each. You fire from what holds you, never from nothing. Boots are locked. Wait for my word.',
+  ],
+  cmd: {
+    boots: ['Station one. Walk to the line, ten metres. Keep those boots locked.', 'Station one: the line, ten metres. Mag boots locked. Walk it.'],
+    lanyard: ['Station two. Release your boots, push off to the north face, take a pad-eye, clip in. Fifteen metres.', 'Station two: boots off, push to the north face, clip in at the pad-eye. Fifteen metres.'],
+    onehand: ['Station three. Along the face to the next pad-eye. One hand on the hold, the pistol in the other. Seven metres.', 'Station three: hand on a hold, the P-12 in the other. Seven metres.'],
+    wedge: ['Station four. Into the gap between the plates and wedge yourself. Back on one, boots on the other. Twenty metres.', 'Station four: the gap between the plates. Wedge in. Twenty metres.'],
+    floating: ['Station five. The north face over the plates, then push off into the open. One round from nothing, then grab the next pad-eye.', 'Station five: off the north face into the open, one round floating, then take the first hold you pass.'],
+  },
+  pistol: ['Pistol.', 'Pistol. The rifle stays slung.'],
+  standby: ['Standby.', 'Standby, standby.'],
+  stop: ['Stop. Next station.', 'Stop. Good, next.'],
+  short: ['Target gone. Next station.', 'Too slow, it is gone. Next.'],
+  passed: ['Station passed. We move on.', 'Out of time on that one. Next station.'],
+  drift: ['Now grab a pad-eye before you drift off.', 'Take the next hold. Now.'],
+  grabbed: ['Got a hold. That is the drift one round leaves you.', 'Holding. Remember what one round did.'],
+  lost: ['Stay put, the safety boat is coming to you.', 'Hands in, the boat will fetch you.'],
+  towed: ['On the boat\'s line. Take the pad-eye and carry on.', 'There. Hold on and carry on.'],
+  end: ['Well A complete. Unload, show clear at the gallery.', 'Course complete. Weapons on safe.'],
+});
+
+/**
+ * v0.0.24: the berthing compartment's NCO aboard Testudo (test-burn, "Secure for burn"; AW§5): his shout at the warning (the 1MC's
+ * own words are the gravity's, src/data/onemc.js), at loose gear thrown by the burn, and at the end. Text bubbles at him, as every
+ * line is (the user, 2026-11-19); at least two phrasings each, picked by hash.
+ */
+export const BURN_NCO = deepFreeze({
+  warn: ['Burn! Strap in or lock your boots, now!', 'You heard it! Racks or boots, move!'],
+  loose: ['Who left gear adrift? That is a missile in a burn.', 'Loose gear! Stow it before the drive lights, every time.'],
+  end: ['Secure from burn. Square your gear away.', 'Coasting. Check your kit, check your mates.'],
+});
+
+/**
+ * v0.0.24 (the fixer of D's review): the instinct's line aboard while test-burn runs, in place of the barracks' day lines ("Free time.
+ * Spend it like it costs something." through the 1MC's warning): by the ship's phase, before the warning, warned, and from the onset to
+ * the scene's end. No act: R does the scene's acts (burn.js burnOffer). skills/instinct.js offBurn reads them; short is the line's chip word.
+ */
+export const BURN_T = deepFreeze({
+  short: { before: 'Stow', warned: 'Secure', after: 'Hold on' },
+  before: ['Stow your gear; when the 1MC calls it, strap in.', 'Helmet, seabag and rifle case in your locker. Then your rack.'],
+  warned: ['Burn coming. Strap in at your rack, or lock your boots.', 'The drive lights soon. Rack or boots, now.'],
+  after: ['Stay secured until the drive is quiet.', 'Hold on. The ship is not done with you yet.'],
+});
+
 export const VERDICT_WHY = deepFreeze({
   setup: 'a lane set up is no lane', casualty: 'a casualty', hostage: 'the hostage', noshoot: 'a no-shoot', stopped: 'the safety stop', muzzle: 'your muzzle',
   standing: 'a threat left standing', passed: 'a room not cleared', pars: 'too many pars missed', lane: 'over the lane\'s par', time: 'the lane ran out of time',

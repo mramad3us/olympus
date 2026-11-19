@@ -6,8 +6,9 @@
 // filter, the room's answer and the game's master (src/ui/audio/gun.js, mix.js: the same offline model the audio-gun test
 // measures), its waveform over the first 300 ms with the loudest 10 ms and 50 ms windows marked and their levels, and the P-12's
 // beside it. A0 is v0.0.15's report (&sound=old's, through the ear defenders and the old master), A1 v0.0.17 as built, A2 A1 with
-// the body, A3 A2 through a denser protection (the house's until you score), A4 A3 with the room's early reflections up.
-// Live (the gallery's O, or ?live=1): Space or a click plays the R-7, P the P-12, B a burst of five; ?c=A0..A4 picks the candidate.
+// the body, A3 A2 through a denser protection, A4 A3 with the room's early reflections up (the user's star of 2026-11-19), A5 A4
+// with the P-12 on A4's R-7 wave and the R-7 rebuilt meaner, blunter and heavier in the bass (v0.0.24, every scene's).
+// Live (the gallery's O, or ?live=1): Space or a click plays the R-7, P the P-12, B a burst of five; ?c=A0..A5 picks the candidate.
 // window.__report: the candidate, its numbers; window.__ready once drawn. Nothing here is a recording: every sample is the game's code.
 import { gunBakes, ownShot, shotKey, GUN_RATE_HZ, TAIL_RATE_HZ } from '../../src/ui/audio/gun.js';
 import { mixdown, master, levels, MASTER, MASTER_OLD } from '../../src/ui/audio/mix.js';
@@ -55,7 +56,7 @@ function wave(st, x0, y0, w, h, nums, label) {
   ink(label, x0, y0 - 6);
   ink(`peak ${nums.peak.toFixed(1)} dBFS · loudest 10 ms ${nums.w10.db.toFixed(1)} · loudest 50 ms ${nums.w50.db.toFixed(1)}`, x0, y0 + h + 14, '#b08a3a', 10);
 }
-ink(`${cid}: ${{ A0: "v0.0.15's report (&sound=old)", A1: 'v0.0.17 as built (A1, every scene but the house)', A2: 'A1 with the body', A3: 'A2 through a denser protection (the house\'s until scored)', A4: 'A3 with the room\'s early reflections' }[cid]}`, 16, 22, '#e8eaf0', 13);
+ink(`${cid}: ${{ A0: "v0.0.15's report (&sound=old)", A1: 'v0.0.17 as built', A2: 'A1 with the body', A3: 'A2 through a denser protection', A4: 'A3 with the room\'s early reflections (your star)', A5: 'A4, the P-12 on its R-7 wave, the R-7 rebuilt (the game\'s)' }[cid]}`, 16, 22, '#e8eaf0', 13);
 wave(rifle, 16, 52, W - 32, 110, R, 'your R-7 in the house, through the suit and the master: the first 300 ms');
 wave(pistol, 16, 210, W - 32, 90, P, 'your P-12, the same');
 ink('the targets (item 2): the loudest 50 ms at least -11.0 dBFS, 10 ms -9.0, the peak at most -1.0', 16, H - 14, '#80868f', 10);

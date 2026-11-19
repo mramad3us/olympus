@@ -14,6 +14,12 @@
 // chosenReflex(state, bus, key, { keep }) closes it, releases 'reflex', keeps the answer when asked
 // (never 'none'), and returns the option chosen (NONE for an unknown key); the caller starts its step.
 // The 'reflex' fact tells the hud: { phase: 'offer' | 'chosen' | 'kept', why, title, options, key }.
+// v0.0.24 (ROADMAP "anywhere" step 6; AW§4.3 item 6): a card outside stop motion, the gravity's surprise ("The drive lights.":
+// Grab the hold, Turn feet aft), since a crew aboard a ship is not in the weapon's mode. offerFree(state, bus, holder, { why,
+// title, options }) writes the same card on a holder its caller keeps in the state (src/sim/places/gravity.js: the ship's profile,
+// holder.card, saved) and holds time ('reflex'); chosenFree(state, bus, holder, key) closes it and releases time, returning the
+// option (NONE for an unknown key); freeCardOf(holder) reads it. No answer is kept for a free card (each is its own moment), and
+// the facts are the same 'reflex' facts, with free: true.
 import { holdTime, releaseTime } from '../../core/clock.js';
 import { logEntry } from '../log.js';
 
@@ -60,3 +66,28 @@ export function chosenReflex(state, bus, key, { keep = false } = {}) {
 
 /** The card waiting, or null. */
 export const reflexNow = (state) => state.stop?.reflex ?? null;
+
+/** Open a card outside stop motion on holder (see the header): false during a skip or with no holder. */
+export function offerFree(state, bus, holder, { why, title, options = [] }) {
+  if (!holder || state.skip) return false;
+  const list = optionsOf(options, why);
+  holder.card = { why, title, atMs: state.clock.ms, options: list };
+  holdTime(state, 'reflex');
+  bus?.emit('reflex', { phase: 'offer', why, title, options: list, key: null, free: true });
+  return true;
+}
+
+/** The free card's answer (see the header): the card closed, 'reflex' released. Returns the option, or null with no card. */
+export function chosenFree(state, bus, holder, key) {
+  const R = holder?.card;
+  if (!R) return null;
+  holder.card = null;
+  releaseTime(state, 'reflex');
+  const opt = R.options.find(o => o.key === key && !o.off) ?? { ...NONE };
+  bus?.emit('reflex', { phase: 'chosen', why: R.why, title: R.title, options: R.options, key: opt.key, free: true });
+  return opt;
+}
+
+/** A holder's free card waiting, or null, marked free (the page's reflex card shows no keep line for it: the v0.0.24 review of A to C;
+ * a read, the saved card untouched). */
+export const freeCardOf = (holder) => (holder?.card ? { ...holder.card, free: true } : null);

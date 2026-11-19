@@ -1,12 +1,26 @@
 {
- "title": "The shot: A0 to A4, your R-7 and P-12 in the shoot house through the suit, drawn and played by the game's code",
- "about": "Your words of 2026-11-15: \"Sound design is pretty weak, guns should bang harder and closer to realistic\". v0.0.17's shot peaked high but its loudest 50 ms, what the ear hears as loudness, sat at -15.6 dBFS: a click with a tail. Each view draws one candidate's first 300 ms (your R-7 through the combat EVA suit's hearing filter, the room's answer and the game's master; your P-12 under it), the loudest 10 ms and 50 ms shaded with their levels. Open a view live (O) to hear it: Space or a click the R-7, P the P-12, B a burst of five. In play, the Esc menu's To score page switches the shot live in the house (and &shot=A0..A4 anywhere). The house plays A3 until you score; every other scene keeps A1, since you scored \"Bang\" on it.",
+ "title": "The shot: A0 to A5, your R-7 and P-12 in the shoot house through the suit, drawn and played by the game's code",
+ "about": "Your words of 2026-11-15: \"Sound design is pretty weak, guns should bang harder and closer to realistic\". v0.0.17's shot peaked high but its loudest 50 ms, what the ear hears as loudness, sat at -15.6 dBFS: a click with a tail. Each view draws one candidate's first 300 ms (your R-7 through the combat EVA suit's hearing filter, the room's answer and the game's master; your P-12 under it), the loudest 10 ms and 50 ms shaded with their levels. Open a view live (O) to hear it: Space or a click the R-7, P the P-12, B a burst of five. In play, the Esc menu's To score page switches the shot live in the house (and &shot=A0..A5 anywhere). You starred A4 on 2026-11-19 and asked for the R-7's wave on the P-12 and the R-7 \"meaner, blunter, more bass heavy. less a \\\"PAF\\\" and more a \\\"DOOM\\\"\": that is A5, every scene's from v0.0.24, in group D beside A4.",
  "pixel": true,
+ "open": {
+  "default": [
+   "D-b"
+  ],
+  "since": "2026-11-19",
+  "decides": "the R-7 rebuilt (A5: meaner, blunter, heavier in the bass; the P-12 on A4's R-7 wave), or A4 as you starred it",
+  "builtIn": "v0.0.24"
+ },
+ "scored": {
+  "on": "2026-11-19",
+  "picks": [
+   "A-4"
+  ]
+ },
  "groups": [
   {
    "id": "A",
    "title": "A: the shot's candidates",
-   "about": "A0 the old report, A1 as built, A2 with the body, A3 through a denser protection (the house's default until scored), A4 with the room's early reflections.",
+   "about": "A0 the old report, A1 as built, A2 with the body, A3 through a denser protection, A4 with the room's early reflections (your star of 2026-11-19).",
    "views": [
     {
      "id": "A-0",
@@ -16,7 +30,7 @@
     },
     {
      "id": "A-1",
-     "name": "A1, v0.0.17 as built (every scene but the house)",
+     "name": "A1, v0.0.17 as built",
      "query": "c=A1",
      "pixel": "640x360"
     },
@@ -28,14 +42,33 @@
     },
     {
      "id": "A-3",
-     "name": "A3, A2 through a denser protection: its ceiling -14 dB, a make-up of +15 (the house's until you score)",
+     "name": "A3, A2 through a denser protection: its ceiling -14 dB, a make-up of +15",
      "query": "c=A3",
      "pixel": "640x360"
     },
     {
      "id": "A-4",
-     "name": "A4, A3 with the room's early reflections 2 dB up",
+     "name": "A4, A3 with the room's early reflections 2 dB up (your star, 2026-11-19)",
      "query": "c=A4",
+     "pixel": "640x360"
+    }
+   ]
+  },
+  {
+   "id": "D",
+   "title": "D: the R-7 rebuilt, \"less a PAF and more a DOOM\" (A5, the game's from v0.0.24), beside A4 as you starred it",
+   "about": "A5 is A4 with the P-12 firing A4's R-7 wave (its own crack, action and loudness, about 3.8 dB under the rifle) and the R-7 rebuilt: a blunter blast (its positive phase 1.9 ms, A4's 1.1), darker gas, a lower, longer and louder gust and chest thump (85 Hz falling to 36 over 120 ms), a harder saturation, and the suit's electronics passing the rifle's boom down to 70 Hz (A4's 160). In the house through the suit: 73% of the R-7's first 200 ms under 200 Hz (A4's 17%), the loudest 50 ms -8.8 dBFS (A4's -10.6), the peak -1.3. Open a view live (O) and press Space for the R-7, P for the P-12, B for a burst.",
+   "views": [
+    {
+     "id": "D-a",
+     "name": "A4, as you starred it (the R-7 and the P-12 as built)",
+     "query": "c=A4",
+     "pixel": "640x360"
+    },
+    {
+     "id": "D-b",
+     "name": "A5, the R-7 rebuilt and the P-12 on A4's R-7 wave (the game's from v0.0.24)",
+     "query": "c=A5",
      "pixel": "640x360"
     }
    ]

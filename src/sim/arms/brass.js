@@ -11,8 +11,19 @@
 // POLICE_M 4 m (the police-brass activity's effect: R.policed counts them, and any of their live rounds
 // lying there go back in the pocket, R.picked, for the turn-in); policeOf(state, pid) does a gunner's, theirs
 // alone (n − mine there, never the player's). The declaration (src/sim/scenarios/range.js) compares the brass
-// policed with the rounds fired: "No brass, no ammo." Pure but settle, police and policeOf.
+// policed with the rounds fired: "No brass, no ammo."
+// v0.0.24 (the anywhere round's step 7; WEAPONS §2.8; CONTRACTS §21): **the faces a case meets in free fall**. Under the float
+// band a case never falls (look.js ejectCase), so its flight is straight at its launch speed until it meets a face, bounces once
+// and drifts to the next. caseFacesOf(state) is the ray that finds them, once at the ejection, on the live area's nav grid
+// (navOf for the walker's class at the case's point): the case a point of CASE_R_M 5 mm against the very rects the grid was
+// built from (collide.js overlaps: the walls, the blocking fixtures, the closed leaves) and the grid's floor (a point off it is a
+// face: the room's edge), marched in CASE_RAY_STEP_M 2 cm steps and bisected to CASE_RAY_TOL_M 0.1 mm at the first touch, the
+// face's normal the axis whose step alone touched (the rects are axis-aligned). It returns (x, z, vx, vz) → { tS, x, z, n: [nx,
+// nz] } | null, null only when the speed is 0; a ray that leaves the grid has met its edge, so a face is always found. Pure but
+// settle, police and policeOf.
 import { playerId, playerActor } from '../../core/ids.js';
+import { navOf } from '../places/nav.js';
+import { overlaps, onFloor } from '../places/collide.js';
 
 /** The tiles' size, the reach of a police, a case's pick-up time (m, s): the build sheet 0.0.7 §4. */
 export const TILE_M = 1, POLICE_M = 4, POLICE_CASE_S = 1.2;
@@ -98,4 +109,35 @@ export function policeOf(state, pid, m = POLICE_M) {
 /** The tiles as the stage draws them: [{ x, z, n }] (each tile's centre). */
 export function tilesLook(state) {
   return Object.entries(session(state)?.brassTiles ?? {}).filter(([, t]) => t.n > 0).map(([k, t]) => ({ ...tileCentre(k), n: t.n }));
+}
+
+/** A case's radius against the faces (m), the ray's march and its tolerance at the touch (m): see the header. */
+export const CASE_R_M = 0.005, CASE_RAY_STEP_M = 0.02, CASE_RAY_TOL_M = 0.0001;
+// (a position rounded to 0.1 mm toward where it came from: move.js's rule for a walker at contact)
+const back = (from, v) => (v >= from ? Math.floor(v * 1e4 + 1e-7) / 1e4 : Math.ceil(v * 1e4 - 1e-7) / 1e4);
+/** The walker's class whose grid the ray reads (places/move.js PLAYER_CLS; the rects are the same for every class). */
+const RAY_CLS = 'C0';
+
+/** The ray to a case's first face on the live area (see the header): (x, z, vx, vz) → { tS, x, z, n } | null. Throws with no live area. */
+export function caseFacesOf(state) {
+  const area = state.places?.live?.area;
+  if (!area) throw new Error('caseFacesOf(): a case in free fall flies to the faces of a live area, and there is none');
+  return (x, z, vx, vz) => {
+    const speed = Math.hypot(vx, vz);
+    if (!(speed > 0)) return null;
+    const grid = navOf(state, area, RAY_CLS, x, z), ux = vx / speed, uz = vz / speed;
+    const hit = (px, pz) => !onFloor(grid, px, pz) || overlaps(grid, px, pz, CASE_R_M);
+    const reach = Math.hypot(grid.nx * grid.cellM, grid.nz * grid.cellM) + CASE_RAY_STEP_M;
+    let free = 0, t = CASE_RAY_STEP_M;
+    if (hit(x, z)) return { tS: 0, x, z, n: [-Math.sign(ux) || 0, -Math.sign(uz) || 0] };
+    while (t < reach && !hit(x + ux * t, z + uz * t)) { free = t; t += CASE_RAY_STEP_M; }
+    t = Math.min(t, reach);
+    while (t - free > CASE_RAY_TOL_M) { const m = (free + t) / 2; if (hit(x + ux * m, z + uz * m)) t = m; else free = m; }
+    const fx = x + ux * free, fz = z + uz * free, dx = ux * (t - free) * 2 + Math.sign(ux) * CASE_RAY_TOL_M, dz = uz * (t - free) * 2 + Math.sign(uz) * CASE_RAY_TOL_M;
+    // (the face's normal: the axis whose step alone touches; a corner both)
+    const nx = ux && hit(fx + dx, fz) ? -Math.sign(ux) : 0, nz = uz && hit(fx, fz + dz) ? -Math.sign(uz) : 0;
+    const n = nx || nz ? [nx, nz] : [-Math.sign(ux), -Math.sign(uz)];
+    // (the touch rounded to 0.1 mm back toward where the case came from, never into the face: the bounce starts clear of it)
+    return { tS: free / speed, x: back(x, fx), z: back(z, fz), n };
+  };
 }

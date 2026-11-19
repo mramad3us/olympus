@@ -7,7 +7,7 @@
   {
    "id": "R",
    "title": "R: the rifle in the hands on the doll",
-   "about": "R-a both hands at the low ready, the rifle diagonal 35° below level across the body, the right hand at the grip, the left at the handguard (the default, my call). R-b the rifle hanging from the right hand, muzzle down, as v0.0.17's board man held it. Each view: you at GO in the shoot house, after Transition (the P-12 at the ready, the R-7 slung front), the R-7 slung on the back, your #2 (no P-12), and the range kit on the utilities with ear defenders and a magazine in the left hand.",
+   "about": "R-a both hands at the low ready as a marine holds it, the butt in the right shoulder's pocket, the rifle down across the body toward the ground ahead of the left foot, the right hand at the grip, the left on the handguard (redrawn in v0.0.24 on your word of 2026-11-19, \"The Doll is wrong, nobody holds their gun like that\": v0.0.18 to v0.0.23 drew it at the hip, 35° below level). R-b the rifle hanging from the right hand, muzzle down, as v0.0.17's board man held it. Each view: you at GO in the shoot house, after Transition (the P-12 at the ready, the R-7 slung front), the R-7 slung on the back, your #2 (no P-12), and the range kit on the utilities with ear defenders and a magazine in the left hand.",
    "views": [
     { "id": "R-a", "name": "R-a: both hands at the low ready", "query": "r=a", "pixel": "344x158" },
     { "id": "R-b", "name": "R-b: hanging from the right hand", "query": "r=b", "pixel": "344x158" }

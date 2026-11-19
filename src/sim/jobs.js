@@ -31,11 +31,18 @@
 // events { <kind>: fn(state, bus, ev) } for events of other kinds (a hazard, a need crossing). A name
 // or kind given twice throws. A job's src defaults to '<domain>:<name in kebab-case>' (time's
 // autosaveDay is 'time:autosave-day').
+//
+// The site's day (v0.0.24's stage 0, its build sheet §2 step 4, §3.0; F119): siteDayOf(state) is the live site's day key for
+// every reader that counts the body's clock, its sleep, an activity's hour or the routine's days (core/calendar.js's day
+// functions): on Mars's clock its east longitude, the very number siteLonEDeg gives (so Melas's arithmetic is the old one,
+// call for call), on UTC (a ship, the Phobos School) 'utc'. dayPhaseOf(state, ms) is the hour those readers read: { dayMs (ms
+// from the day's 00:00), dayLenMs (a sol or 24 h), hour (0 to 24 on the civil face, 24 through Mars's slip) }.
+// siteLonEDeg keeps its name and its throw off Mars, for the readers that are Mars's by nature (the sun, the Mars date).
 import { post, cancel } from '../core/queue.js';
 import { SEC_MS, MIN_MS, HOUR_MS, DAY_MS } from '../core/clock.js';
-import { UNIX_MS_AT_EPOCH, WEEKDAYS, msAtMarsTime } from '../core/calendar.js';
+import { UNIX_MS_AT_EPOCH, WEEKDAYS, msAtMarsTime, UTC_DAY, dayClock, dayLenOf } from '../core/calendar.js';
 import { lonOf } from './places/model.js';
-import { siteAt, msAtLocal, timeAt, marsTime } from './places/env.js';
+import { siteAt, msAtLocal, timeAt, marsTime, clockOf } from './places/env.js';
 
 const ceilSec = (ms) => Math.ceil(ms / SEC_MS) * SEC_MS;
 // (game time of a UTC midnight, modulo a day: the epoch is 08:00 UTC, so midnights fall at -8 h mod 24 h)
@@ -131,6 +138,17 @@ export function createJobs(domains) {
 /** The live site's east longitude, or the start site's before any site is live (places' lonOf: throws off Mars). */
 export function siteLonEDeg(state) {
   return lonOf(state);
+}
+
+/** The live site's day key (see the header): its east longitude on Mars's clock (siteLonEDeg's number), UTC_DAY on UTC. */
+export function siteDayOf(state) {
+  return clockOf(siteAt(state)) === 'mars-local' ? lonOf(state) : UTC_DAY;
+}
+
+/** The site's day at ms (see the header; the build sheet v0.0.24 §3.0): { dayMs, dayLenMs, hour }, 24 through Mars's slip. */
+export function dayPhaseOf(state, ms) {
+  const day = siteDayOf(state), c = dayClock(ms, day);
+  return { dayMs: c.msOfSol, dayLenMs: dayLenOf(day), hour: c.timeslip ? 24 : c.civilMs / HOUR_MS };
 }
 
 /** Post a job's next occurrence after afterMs (the clock by default): { job, every, src, prio = 5, payload }. Returns its id. */

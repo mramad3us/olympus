@@ -90,7 +90,7 @@ import { legsHere, throughNow } from '../places/move.js';
 import { lineFromOf, lineMasked, MASK_RESUME_MS, MASK_HOLD_MAX_MS } from './carry.js';
 import { TEAM_WORDS } from '../combat/team.js';
 import { SEEN } from '../people/perception.js';
-import { aimMsOf, heldOf, dcOf, modsOf, resolveShot, fireMs, recoverMs, TRIGGER_S, TAP_SPLIT_S, HELD_MAX, HELD_RATE0, climbOf, BURST_K, ANCHOR, SUPPORT, PLATE_MM, catchAhead, shotIdNext } from './shot.js';
+import { aimMsOf, heldOf, dcOf, modsOf, resolveShot, fireMs, recoverMs, TRIGGER_S, TAP_SPLIT_S, HELD_MAX, HELD_RATE0, climbOf, BURST_K, ANCHOR, SUPPORT, PLATE_MM, catchAhead, shotIdNext, anchorOf } from './shot.js';
 import { A_MARGIN } from './paper.js';
 import { beliefOf, actionMs } from './firearms.js';
 import { macrosFor, subsOf } from './drills.js';
@@ -196,10 +196,15 @@ function rangOn(state, key) {
 export const stillUp = (state, key) => !(turnerRec(state, key)?.stoppedAtMs != null) && (rangOn(state, key) > 0 || torsoHits(state, key) >= STILL_UP_TORSO);
 /** Armour seen on the target at the pause (contact.js's identification). */
 const armourSeen = (state, key) => !!contactNow(state)?.last?.armour?.[key];
-/** The body's motion at the pause (see the header): { vMs, stance } over MOVING_MS in Combat or Assault, else null. */
+/**
+ * The body's motion at the pause (see the header): { vMs, stance } over MOVING_MS in Combat or Assault, else null. A floating
+ * body's drift is no walk (v0.0.24, free fall: body/freefall.js): its round is a floating one (shot.js anchorOf's 'floating'), with
+ * no moving-on row and no brake to plant (its brake is 0: the planted row's brake would never end), so it reads null.
+ */
 export function movingOf(state, pid) {
   const me = state.actors?.list?.find(a => a.who === pid) ?? null, v = Math.hypot(me?.v?.[0] ?? 0, me?.v?.[1] ?? 0);
   if (!me || v <= MOVING_MS || (me.moveStance !== 'combat' && me.moveStance !== 'assault')) return null;
+  if (anchorOf(state, pid).row === 'floating') return null;
   return { vMs: v, stance: me.moveStance };
 }
 /** The modifier on a round fired moving on (see the header): { v, why } or { off } (the row struck). */
@@ -264,8 +269,10 @@ export function rowPlan(state, pid, rowId, target, { tempo = 'normal', atMs = st
     const h = aimed ? heldOf(state, pid, atMs, target.key) : null;
     parts.push({ k: 'hold', ms: aimed ? Math.max(0, h.toFullMs ?? 0) : Math.ceil(HELD_MAX / rate * 1000) });
   }
-  const shiftMs = t(HEAD_SHIFT_S * pace * 1000), splitMs = t(R.split === 'pull' ? fireMs({ recoil, pace, rpm }) : TAP_SPLIT_S * pace * 1000);
-  const recMs = t(recoverMs({ recoil, pace }));
+  // (step 5: the recovery on the footing's anchor, WEAPONS §7.8 (shot.js anchorOf): 1 planted, so every shipped row's parts stand)
+  const anchor = anchorOf(state, pid, { gunId }).recover;
+  const shiftMs = t(HEAD_SHIFT_S * pace * 1000), splitMs = t(R.split === 'pull' ? fireMs({ recoil, pace, rpm, anchor }) : TAP_SPLIT_S * pace * 1000);
+  const recMs = t(recoverMs({ recoil, pace, anchor }));
   if (R.shiftAt !== 0) parts.push({ k: 'press', ms: t(TRIGGER_S * 1000) });
   R.rounds.forEach((r, i) => {
     if (R.shiftAt === i) parts.push({ k: 'shift', ms: shiftMs });
@@ -526,7 +533,7 @@ export function runRound(state, bus, d, i, atMs) {
   recordShot(state, bus, shot);
   let ms = p.ms;
   const gun = state.items[gunId], ro = rollerOf(state, pid, { ms: atMs }), pace = paceOf(ro.value('weapons')), M = MODELS[gun?.model ?? 'r7'];
-  const rec = Math.round(recoverMs({ recoil: M.recoil, pace }) * (tempo === 'rushed' ? TEMPO.rushed.timeK : 1) * ro.timeK);
+  const rec = Math.round(recoverMs({ recoil: M.recoil, pace, anchor: anchorOf(state, pid, { gunId }).recover }) * (tempo === 'rushed' ? TEMPO.rushed.timeK : 1) * ro.timeK);
   if (!shot.fired) { d.gunStop = 'click'; ms = 0; }
   else if (shot.stoppage) { d.gunStop = 'stop'; ms = rec; }
   else if (shot.empty && p.i < (R?.rounds.length ?? 1) - 1) { d.cut = true; d.dry = true; ms = rec; }
@@ -605,5 +612,5 @@ export function reloadRows(state, pid, ms = state.clock.ms) {
   return out.map((r, i) => ({ r, i })).sort((a, z) => Number(z.r.first) - Number(a.r.first) || a.i - z.i).map(e => e.r);
 }
 
-/** The climb a round would take (the specials suite's table): −round(BURST_K × follow × recoil × climbOf(MRK) × climbK), planted standing. */
-export const climbFor = ({ mrk, follow, climbK = 1, recoil = MODELS.r7.recoil, stance = 'stand' }) => -Math.round(BURST_K * follow * recoil * climbOf(mrk) * ANCHOR.climb * (SUPPORT[stance] ?? 1) * climbK) || 0;
+/** The climb a round would take (the specials suite's table): −round(BURST_K × follow × recoil × climbOf(MRK) × anchor × climbK), planted standing unless anchor says (shot.js ANCHORS' climb). */
+export const climbFor = ({ mrk, follow, climbK = 1, recoil = MODELS.r7.recoil, stance = 'stand', anchor = ANCHOR.climb }) => -Math.round(BURST_K * follow * recoil * climbOf(mrk) * anchor * (SUPPORT[stance] ?? 1) * climbK) || 0;

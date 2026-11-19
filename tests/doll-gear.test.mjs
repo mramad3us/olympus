@@ -10,6 +10,7 @@ import { dressOf, dressedDoll, clearDolls, DOLL_LRU } from '../src/art/doll/dres
 import { PLATE_C, stampCount } from '../src/art/doll/worn.js';
 import { HIT_SCALE, figGeom, HIT_BANDS } from '../src/art/doll/hitcard.js';
 import { COMBAT_SUIT } from '../src/art/figures/outfits.js';
+import { HELMET_DRAWN_AS } from '../src/art/figures/helmets.js';
 import { word } from '../src/art/paint.js';
 import { createGame } from './game.mjs';
 import { gearOf } from '../src/sim/arms/gear.js';
@@ -27,13 +28,18 @@ const C0 = Object.freeze({
   vac: [{ look: { outfit: 'vac' } }, '018a840426d896'], vacOpen: [{ look: { outfit: 'vacOpen' } }, '05a51f40cb79ef'],
   cues: [{ body: { wetK: 0.5, grimeK: 0.4, sweatK: 0.6, stubbleK: 0.5, tiredK: 0.7, bladderK: 0.8, hungerK: 0.8, handsK: 0.5, handsWhy: 'rifle' } }, '1b137350833c30'],
   wounds: [{ wounds: { wounds: [{ n: 1, part: 'torso', kind: 'hole', bleed: 2 }, { n: 2, part: 'armR', kind: 'cut', bleed: 1 }], tourniquets: ['legL'], splints: [], bloody: { clothes: true } } }, '18302fbeb77d84'],
-  'R1-suit-carrier': [{ look: { outfit: 'combatSuit', helm: 'R1', carrier: true } }, '1a527882c445c5'], 'R4-suit': [{ look: { outfit: 'combatSuit', helm: 'R4' } }, '0ae7c0b5d1fde1'],
-  'E1-suit-carrier': [{ look: { outfit: 'combatSuit', helm: 'E1', carrier: true } }, '127433f0648f18'], 'O1-suit-carrier': [{ look: { outfit: 'combatSuit', helm: { id: 'O1' }, carrier: true } }, '13d12d834339e7'],
+  // (v0.0.24 F, the four suits re-recorded: the combat EVA suit's gloves grey, outfits.js COMBAT_SUIT.glove, the user's note of
+  // 2026-11-19 "maybe gray gloves would be better for this color suit"; the gloves alone moved; was '1a527882c445c5', '0ae7c0b5d1fde1',
+  // '127433f0648f18', '13d12d834339e7')
+  'R1-suit-carrier': [{ look: { outfit: 'combatSuit', helm: 'R1', carrier: true } }, '14b011d702999b'], 'R4-suit': [{ look: { outfit: 'combatSuit', helm: 'R4' } }, '00a3bbe60767e4'],
+  'E1-suit-carrier': [{ look: { outfit: 'combatSuit', helm: 'E1', carrier: true } }, '018d1458505273'], 'O1-suit-carrier': [{ look: { outfit: 'combatSuit', helm: { id: 'O1' }, carrier: true } }, '15113eb654c9d6'],
   'board-threat-rifle': [board('threat', 'rifle'), '1a5ce83c21d700'], 'board-armoured': [board('armoured', 'rifle'), '1a80a5502269cd'], 'board-noshoot-hands': [board('noshoot', 'hands'), '07915b42f5968e'],
   'board-threat-rifle-mid': [board('threat', 'rifle', 80 / 72), '11bc280f56468b'], 'board-threat-rifle-far': [board('threat', 'rifle', 64 / 72), '1c4aa8eaafb248'],
 });
 /** v0.0.17's combat EVA suit: the utilities' digest (the bug), and the suit's now (re-set on purpose in 0.0.18: the suit drawn). */
-const SUIT_V017 = '052a7a7cd0d75d', SUIT_NOW = '03bebef2bbc0f6';
+// (v0.0.24 F: SUIT_NOW re-recorded, the user's picks of 2026-11-19: the Corps' regular R3 in the Mars trim on the combat EVA suit (helmets.js
+// HELMET_DRAWN_AS, "R2, R3 and R4 are very good for military") and its gloves grey; was '03bebef2bbc0f6', the sealed head)
+const SUIT_V017 = '052a7a7cd0d75d', SUIT_NOW = '04cad96b23b113';
 const ME = (over = {}) => ({ outfit: 'combatSuit', suit: { model: 'ces-1', colour: 'black', helm: null }, carrier: { model: 'pc-m3', pouches: [{ key: 'p1', holds: 2, mags: 1 }, { key: 'p2', holds: 2, mags: 1 }, { key: 'dump', holds: 4, mags: 0 }] }, ears: null, rifle: { model: 'r7', finish: null, place: 'ready', mag: true }, pistol: { model: 'p12', place: 'holster', mag: true }, thigh: { holds: 2, mags: 1 }, held: null, painted: false, ...over });
 const PERSON = { look: { skin: 'tan', hair: { style: 'medReg', color: 'dark' }, head: null }, sex: 'm' };
 const paint = (gear, scale = DOLL_SCALE) => doll({ ...dressOf(gear, PERSON), scale });
@@ -57,18 +63,20 @@ export default [
     },
   },
   {
-    name: 'the combat EVA suit is drawn when worn, sealed helmet and all, indoors too (v0.0.17 drew the utilities, 8960 of 8960 pixels the same, and took the helmet off under the Wheel\'s roof)',
+    name: 'the combat EVA suit is drawn when worn, its helmet and all (the Corps\' R3 from v0.0.24, the sealed head before), indoors too (v0.0.17 drew the utilities, 8960 of 8960 pixels the same, and took the helmet off under the Wheel\'s roof)',
     fn() {
       const suit = doll({ look: { outfit: 'combatSuit' }, scale: DOLL_SCALE }), util = doll({ look: { outfit: 'utilities' }, scale: DOLL_SCALE });
       const indoors = doll({ look: { outfit: 'combatSuit', head: null }, scale: DOLL_SCALE });
-      const n = diffIn(suit, util), shell = countC(suit, COMBAT_SUIT.shell), visor = countC(suit, COMBAT_SUIT.visor, [20, 44, 8, 24]);
-      console.log(`      ${n} of ${suit.w * suit.h} pixels differ from the utilities'; the suit's shell ${shell} px, the visor's glass ${visor} px; indoors (head: null) ${diffIn(suit, indoors)} px moved`);
+      // (v0.0.24: the head is the game's helmet, HELMET_DRAWN_AS.regular in the Corps' trim, pixel for pixel the doll of a look naming it)
+      const named = doll({ look: { outfit: 'combatSuit', helm: { id: HELMET_DRAWN_AS.regular, faction: 'mars' } }, scale: DOLL_SCALE });
+      const n = diffIn(suit, util), shell = countC(suit, COMBAT_SUIT.shell), head = diffIn(suit, util, [20, 44, 8, 24]);
+      console.log(`      ${n} of ${suit.w * suit.h} pixels differ from the utilities'; the suit's shell ${shell} px, the head ${head} px apart from the utilities' cover, the doll naming ${HELMET_DRAWN_AS.regular} ${diffIn(suit, named)} px apart; indoors (head: null) ${diffIn(suit, indoors)} px moved`);
       golden('doll the combat EVA suit', suit.data, SUIT_NOW);
-      assert(SUIT_NOW !== SUIT_V017 && n > 2000 && shell > 200 && visor > 40, JSON.stringify({ n, shell, visor }));
-      assert(diffIn(suit, indoors) === 0, 'the sealed helmet stays on under a roof');
+      assert(SUIT_NOW !== SUIT_V017 && n > 2000 && shell > 200 && head > 40 && diffIn(suit, named) === 0, JSON.stringify({ n, shell, head }));
+      assert(diffIn(suit, indoors) === 0, 'the helmet stays on under a roof');
       // (and through the gear, with the indoor rule's head: null on the person's look)
       const dressed = paint(ME({ carrier: null, rifle: null, pistol: null, thigh: null }));
-      assert(countC(dressed, COMBAT_SUIT.visor, [20, 44, 8, 24]) > 40, 'dressOf drops the indoor rule for a suit');
+      assert(diffIn(dressed, suit, [20, 44, 8, 24]) === 0, 'dressOf drops the indoor rule for a suit');
     },
   },
   {

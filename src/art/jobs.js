@@ -236,7 +236,10 @@ const WET = new Set(['head', 'laundry', 'shower']);
 const MATERIAL_OF = (f, roomKind) => (f.kind === 'tile' ? (WET.has(roomKind) ? 'ceramic' : 'vinyl') : f.kind ?? 'vinyl');
 const floorTile = (f, ppm, roomKind = null) => {
   const kind = MATERIAL_OF(f, roomKind);
-  return tile(kind, { metres: f.metres ?? FLOOR_TILE_M, ppm, c: f.color, tileM: f.tileM ?? (kind === 'ceramic' ? 0.15 : FLOOR_TILE_UNIT_M), seed: f.seed ?? 1, ...(kind === 'concrete' ? { jointM: 1.2 } : {}) });
+  // (a deck plate's own panels, its rings and the hold rule's pad-eyes where its floor names them: the void's decks; every
+  // other floor's options as before, so no shipped tile's key moves)
+  const plate = kind === 'deckPlate' && f.plateM ? { plateM: f.plateM, ...(f.rings === false ? { rings: false } : {}), ...(f.padEyeM ? { padEyeM: f.padEyeM, padEyeAtM: f.padEyeAtM ?? 0 } : {}) } : {};
+  return tile(kind, { metres: f.metres ?? FLOOR_TILE_M, ppm, c: f.color, tileM: f.tileM ?? (kind === 'ceramic' ? 0.15 : FLOOR_TILE_UNIT_M), seed: f.seed ?? 1, ...(kind === 'concrete' ? { jointM: 1.2 } : {}), ...plate });
 };
 
 /**

@@ -1,7 +1,7 @@
 {
  "title": "The second gun on the weapon card: three ways to show it",
  "about": "Your ask of 2026-11-15: the P-12 shown like the rifle. The house issues the P-12 beside the R-7 on every sheet, and the card showed only the gun in use: the holstered pistol's condition, or the rifle hanging on its sling with a double feed, were nowhere on screen. Each picture is four cards drawn by the game's own weapon card, every word and mark from what you believe of each gun: at GO (the R-7 in use, the P-12 holstered, SAFE 1+9); after Transition (the P-12 drawn as a pistol, the rifle hanging on its click); the rifle hanging with a double feed; the P-12 locked back on an empty. The game draws WC2-A until you pick. Shown raw, as the hud shows the card.",
- "open": {"default": ["WC2-A-a"], "since": "2026-11-17", "decides": "how the second gun shows on the weapon card", "builtIn": "v0.0.24"},
+ "scored": { "on": "2026-11-19", "picks": ["WC2-A-a"] },
  "pixel": true,
  "groups": [
   {

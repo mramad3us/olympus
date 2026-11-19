@@ -118,7 +118,8 @@ export default [
       console.log(`      house-fof: ${hm.map(m => `${m.n} ${m.load}`).join(', ')}, worn ${Object.keys(s.people[m2].kit.worn).join(', ')}; the P-12 ${pm.map(m => `${m.n} ${m.load}`).join(', ')}; SLOTS ${SLOTS.join(', ')}; WORN_SLOTS ${WORN_SLOTS.join(', ')}`);
       assert(hm.length === 3 && hm.every(m => m.n === 10 && m.load === 'marking') && JSON.stringify(Object.keys(KIT_TEMPLATES['house-fof'].worn)) === JSON.stringify(Object.keys(KIT_TEMPLATES['house-cqb'].worn)), 'house-fof');
       assert(pm.every(m => m.n === 10 && m.load === 'marking'), 'the P-12\'s');
-      assert(SLOTS.join() === 'carrier,head,sling,suit,ears,holster,thigh' && WORN_SLOTS.at(-1) === 'mask' && WORN_SLOTS.length === SLOTS.length + 1, SLOTS.join());
+      // (v0.0.24 A: the mag boots' slot after the mask, so SLOTS and every kit's ids stand)
+      assert(SLOTS.join() === 'carrier,head,sling,suit,ears,holster,thigh' && WORN_SLOTS.slice(SLOTS.length).join() === 'mask,boots', SLOTS.join());
       // (the standard issue walked in its order as before: the house's worn things carrier, sling, suit; its ids the pin's, tests/house-pin)
       const order = Object.keys(createGame({ scenario: 'test-shoothouse', seed: 48213 }).state.people[pid].kit.worn).join();
       console.log(`      house-cqb's worn, in the issue's order: ${order}`);

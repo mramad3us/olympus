@@ -1583,9 +1583,9 @@ export default [
         // (v0.0.20, the build sheet's item 10: the house's six aspects, then what was played (the panel, and the shot, voice, walk and
         // look where they are not the game's own), as ui-scores pins it)
         assert(/^OLYMPUS v\d+\.\d+\.\d+ · test-shoothouse · seed 48213 · pause \d+ · drill \d+ · team \d+ · panel \d+ · shots \d+ · feel \d+ · panel [ABC] · (.+ · )?★ (yes|no) · note: /.test(line), line);
-        // (v0.0.20's fixer, the code review: the shot and the voice played are on the line, read from the engine (main.js playedNow
-        // read s.$shot and s.$voice, which nothing wrote: neither was ever said))
-        assert(/ · shot \S+ · voice \S+ · /.test(line), line);
+        // (v0.0.20's fixer, the code review: the shot played is on the line, read from the engine (main.js playedNow read s.$shot,
+        // which nothing wrote: it was never said); v0.0.24: no voice on it, the voice synthesis gone (the user, 2026-11-19, "no voices"))
+        assert(/ · shot \S+ · /.test(line) && !/ · voice /.test(line), line);
         for (const r of rows) console.log(`      ${r}`);
         assert(!errors.length, errors.join(' | '));
       }, { port, query: 'nostore=1', viewport: { width: 1600, height: 900 } });

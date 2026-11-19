@@ -37,7 +37,8 @@ export default [
             n[o.holds]++;
             if (m.words?.startsWith(UNSEEN_WORDS)) { n.unseenWords++; if (o.holds === 'gun') n.gunWhileUnseen++; }
             if (!v.ok) bad.push(`${opfor} ${T.stand} at ${s.clock.ms - H.goAtMs} ms: ${v.why}`);
-            const rec = seenOf(s, who);
+            // (v0.0.24: the card reads the man it shows with the jamb's rays, the page's read (seen.js coverOf, { cover: true }))
+            const rec = seenOf(s, who, { cover: true });
             if (m.subject?.rec?.key !== rec?.key) bad.push(`${opfor} ${T.stand}: the card's record ${m.subject?.rec?.key} is not seenOf's ${rec?.key}`);
           }
         } });

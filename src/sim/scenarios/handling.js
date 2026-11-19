@@ -120,7 +120,8 @@ import { modelOf, isLong } from '../arms/models.js';
 import { rangeSafety, carryOf } from '../arms/carry.js';
 import { scoreOf, PAPERS } from '../arms/paper.js';
 import { enterStop, leaveStop, gunOn } from '../arms/shooting.js';
-import { BRASS_LIVE, ejectCase, caseGMs2 } from '../arms/look.js';
+import { BRASS_LIVE, ejectCase, caseGMs2, CASE_FLOAT_MS2 } from '../arms/look.js';
+import { caseFacesOf } from '../arms/brass.js';
 import { feetHeld } from '../time/doing.js';
 import { feetOf } from '../combat/contact.js';
 import { halt } from '../combat/stepper.js';
@@ -128,6 +129,7 @@ import { kdReady, kdRelayReady, kdOnCmd, kdNextI, kdSecond, kdStringEnd, kdShot,
 import { pairsReady, pairsOnCmd, pairsSecond, pairsShot, pairsAfterStep, pairsBox, pairsPoint, pairsRangeNow, pairsWant, PAIRS_NUDGE, pairsStepStart } from './pairs.js';
 import { houseReady, houseOnCmd, houseSecond, houseShot, houseStepStart, houseAfterStep, houseRangeNow, houseNudgeOf, houseMoveOn, houseCmdSay, namedLaneOfDraw } from './shoothouse.js';
 import { hostOf } from '../combat/op.js';
+import { anchorsShot, anchorsRangeNow } from './anchors.js';
 
 /** Where the scene plays. */
 export const HANDLING = Object.freeze({ site: SCENES['test-handling'].host.site, area: KD_RANGE.area, course: 'fam25' });
@@ -778,6 +780,8 @@ export function recordShot(state, bus, shot) {
   if (R.course === 'kd') { recordKdShot(state, bus, shot); return; }
   if (R.course === 'pairs') { pairsShot(state, bus, shot); return; }
   if (R.course === 'house') { houseShot(state, bus, shot); return; }
+  // (the void range's course, test-anchors (anchors.js anchorsShot))
+  if (R.course === 'anchors') { anchorsShot(state, bus, shot); return; }
   if (shot.fired) {
     const issue = issueOf(state, R, shot.load);
     if (issue) issue.fired += 1;
@@ -834,7 +838,9 @@ function recordKdShot(state, bus, shot) {
 export function recordEjects(state, pid, ejects, atMs, key) {
   const R = rangeOf(state), me = playerActor(state), gun = state.items?.[gunOn(state, pid)];
   if (!R || !me || !gun || !ejects?.length) return [];
-  const recs = ejects.map(kind => ejectCase(gun, { ...carryOf(state, pid), x: me.x, z: me.z, hand: kind !== 'case' }, { atMs, kind, key: `${key}:${atMs}:${kind}`, gMs2: caseGMs2(state) }));
+  // (under the float band a case or a round flies to the place's faces, found once now (brass.js caseFacesOf))
+  const cg = caseGMs2(state), faces = cg < CASE_FLOAT_MS2 ? caseFacesOf(state) : null;
+  const recs = ejects.map(kind => ejectCase(gun, { ...carryOf(state, pid), x: me.x, z: me.z, hand: kind !== 'case' }, { atMs, kind, key: `${key}:${atMs}:${kind}`, gMs2: cg, faces }));
   if (R.course === 'kd') for (const r of recs) r.who = pid;
   R.brass.push(...recs);
   if (R.brass.length > BRASS_LIVE) R.brass.splice(0, R.brass.length - BRASS_LIVE);
@@ -896,6 +902,7 @@ export function rangeNow(state, ms = state.clock.ms) {
   if (R.course === 'kd') return kdRangeNow(state, R, ms);
   if (R.course === 'pairs') return pairsRangeNow(state, R, ms);
   if (R.course === 'house') return houseRangeNow(state, R, ms);
+  if (R.course === 'anchors') return anchorsRangeNow(state, R, ms);
   const mine = R.shots.filter(s => s.lane === R.lane);
   const s = scoreOf(mine.map(h => ({ at: h.hole, score: h.score, v: h.v })));
   const strings = [0, 1, 2].map(k => ({ ...scoreOf(mine.filter(h => h.string === k).map(h => ({ at: h.hole, score: h.score, v: h.v }))), ...(R.sat?.includes(k) ? { sat: true } : {}), ...(R.over?.includes(k) ? { over: true } : {}) }));

@@ -294,6 +294,8 @@ When the player is unconscious (BODY), time passes as an **automatic skip** of k
 6. **Never under a known threat.** A skip is refused while the player knows of a threat: COMBAT's `threatKnown(state)` (a hostile seen in the last 60 s within 100 m, shots heard or taken in the last 60 s, or an active danger or alarm in your area), except the activities that answer the alarm itself (strapped in at general quarters, standing to at a post). The instinct says why ("Not with them out there.") (my call).
 7. **Hunger keeps counting through sleep** (the user, tradecraft, 2026-10-28: "when sleeping, the hunger meter is frozen that's a bug"). Generally: no need is frozen by any activity unless the activity is its remedy.
 
+**As built in v0.0.24.** A brace pending (a gravity event's warning given, its change coming in) refuses a skip ("Not now: secure for the burn.", `activities.js` `BRACE_REFUSED`), and the warning, an A interrupt, stops one already running; a surprise's onset is a D. In `test-burn` R's plate is the scene's until its end: with nothing at hand it is struck, "Stand by for the burn" ("Stowing", "Strapping in" while an act runs), and R held opens no menu, so the place's fifteen-minute wait is never offered aboard while the ship's profile runs (`burn.js` `burnOffer`, `places/hand.js` `menuOf`); the scene ends on the fact 'burn' (phase 'done'), 5 s after the profile is done. Off Mars a day is the site's: `jobs.js` `dayPhaseOf(state, ms)` gives `{ dayMs, dayLenMs, hour }` (the east longitude on a `mars-local` site, `'utc'` otherwise: sleep, reveille, the night, the week, the watch's words and the body's clock step count UTC's 24 h day there).
+
 ### 5.2 Two engines
 
 | | **Fast-forward** (`ff`) | **Outcome skip** (`outcome`) |

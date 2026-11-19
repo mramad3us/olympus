@@ -23,10 +23,18 @@
 //               and its admin"); a frame not named is no act (the aim, the posture's own raise);
 //   PORTRAIT_BANDS  the card's range bands (metres), the record's band: art/doll/hitcard.js HIT_BANDS' maxM, held equal by the seen
 //               suite (one quantity: the sim cannot import the art's table).
+// v0.0.24 (the build sheet v0.0.24 §3.5, items 16 and 18; the portraits lens P§3.3): the card in his light and behind the jamb, and
+// a hand on a hold. The record's light (seen.js lightOf: lightLevel and spectrumAt at his feet) is quantised to LIGHT_Q and its key
+// is 'full' from LIGHT_FULL_K up, so the card repaints only when the picture changes; the art lights the figure by level over
+// LIGHT_FULL_K, never below LIGHT_FLOOR_K (samples/portrait-light L1, the default: "lit by his place, never below 30%"; LIGHT_FULL_K
+// is the house's lit rooms' 0.75, measured, the sample's LIGHT_REF, so the lit rooms and "Bang" (1.0) are drawn byte for byte; the
+// build sheet's 0.85 would have darkened every lit room by 12%: my call). The cover (seen.js coverOf, the page's) is the share of
+// his width hidden from the viewer's left and right, in quarters (COVER_Q). 'hold' joins HOLD_HOWS: a hand on a rail or a pad-eye,
+// the gun in the other (the gear record's anchor, src/sim/arms/gear.js's, A's).
 // Pure data.
 
 /** How the hands hold (see the header). */
-export const HOLD_HOWS = Object.freeze(['rifle-low', 'rifle-high', 'rifle-aim', 'rifle-slung', 'pistol-ready', 'pistol-high', 'pistol-aim', 'device', 'phone', 'mag', 'up', 'empty']);
+export const HOLD_HOWS = Object.freeze(['rifle-low', 'rifle-high', 'rifle-aim', 'rifle-slung', 'pistol-ready', 'pistol-high', 'pistol-aim', 'device', 'phone', 'mag', 'up', 'empty', 'hold']);
 /** The body's poses (see the header); 'prone' is drawn at portrait-pose's Y-p behind the art's PORTRAIT_POSES. */
 export const POSES = Object.freeze(['stand', 'kneel', 'sit', 'cower', 'prone']);
 /** The facings, as the viewer's eye sees the man (see the header). */
@@ -52,3 +60,10 @@ export const PISTOL_ACT_NAMES = Object.freeze(['draw', 'holster', 'check', 'relo
 export const PORTRAIT_BANDS = Object.freeze([Object.freeze({ id: 'near', maxM: 10 }), Object.freeze({ id: 'mid', maxM: 25 }), Object.freeze({ id: 'far', maxM: Infinity })]);
 /** A range's band id (metres; none or not a number, the near band's). */
 export const portraitBand = (rangeM) => (Number.isFinite(rangeM) ? PORTRAIT_BANDS.find(b => rangeM <= b.maxM).id : 'near');
+
+/** The light at which the card is drawn as lit (the house's lit rooms, 0.75: see the header), the floor it is never drawn below, the record's step. */
+export const LIGHT_FULL_K = 0.75, LIGHT_FLOOR_K = 0.3, LIGHT_Q = 0.05;
+/** A level as the card draws it: the figure's light, LIGHT_FLOOR_K to 1 (1 from LIGHT_FULL_K up; none, 1). */
+export const lightK = (level) => (Number.isFinite(level) ? Math.max(LIGHT_FLOOR_K, Math.min(1, level / LIGHT_FULL_K)) : 1);
+/** The cover's step (a share of his width hidden from a side). */
+export const COVER_Q = 0.25;

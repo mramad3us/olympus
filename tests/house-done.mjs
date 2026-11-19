@@ -18,7 +18,7 @@
 // LATER; a renamed test or a gauge taken out of its ENFORCED fails it, so the list never claims a check that is gone, and never
 // counts as met a gauge that is red (the review of 2026-11-16: "MET 194" counted F70, F71 and F73, red in their heavy suites). The
 // release announcement quotes the USER and the OPEN rows. Group C, the gauges, is generated: one row a
-// gauge, F1 to F99 (GAUGE_LAST). Pure data and two resolvers.
+// gauge, F1 to F123 (GAUGE_LAST). Pure data and two resolvers.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -37,7 +37,10 @@ export const GAUGE_HOMES = Object.freeze([
   { from: 56, to: 56, file: 'flawless-card.mjs', by: 'house-pars › F56:' },
   { from: 57, to: 57, file: 'flawless-card.mjs', by: 'speaker-marks' },
   { from: 58, to: 58, file: 'flawless-card.mjs', by: 'replay-run' },
-  { from: 59, to: 59, file: 'flawless-sound.mjs', by: 'house-voiced › F59 enforced' },
+  // (F59 "every line heard" to v0.0.23; from v0.0.24 no line is voiced (the user, 2026-11-19: "forget voice synthesis, no voices."),
+  // so its successor is every line shown, a bubble at its speaker: bubbles' lanes in node, the heavy case; flawless-sound.mjs and
+  // house-voiced went with the synthesis)
+  { from: 59, to: 59, file: 'bubbles.test.mjs', by: 'bubbles › the house\'s lanes in node at 1600 × 900 (F59' },
   { from: 60, to: 60, file: 'flawless-perf.mjs', by: 'house-tick-budget' },
   { from: 61, to: 62, file: 'flawless-drawn-a.mjs', role: 'A' },
   { from: 63, to: 68, file: 'flawless-drawn.mjs', role: 'B' },
@@ -68,6 +71,36 @@ export const GAUGE_HOMES = Object.freeze([
   // F95 by house-again-brief), F96 by its page case)
   { from: 92, to: 95, file: 'flawless-carried.mjs', role: 'D' },
   { from: 96, to: 96, file: 'ui-goal-clamp.test.mjs', role: 'D', by: 'ui-goal-clamp' },
+  // (v0.0.24, its build sheet §8 with every number from its F97 read three higher (v0.0.23 took F97 to F99): one row a gauge, its
+  // home the suite that names it and the case that enforces it; v: the anywhere note's V number; owner: the role (or roles) that
+  // built it; files: every suite its row in the sheet names; when: 'at once' or the ship rule it waits on. tests/void-done.mjs
+  // VOID_GAUGES is these rows filtered, never a second list (E's merge, the sheet's §0 item 29))
+  ...[
+    [100, 0, 'stage 0', 'env-noregress.test.mjs', 'env-noregress › the house\'s quick cell'],
+    [101, 1, 'A', 'anchor-table.test.mjs', 'anchor-table › on a coasting deck the anchor table by footing'],
+    [102, 2, 'A', 'footing.test.mjs', 'footing › footing (F102)'],
+    [103, 3, 'stage 0, A', 'legs-one.test.mjs', 'legs-one › legs-one (F103): no module of src calls tractionOf'],
+    [104, 4, 'A, B', 'anchor-table.test.mjs, footing.test.mjs', 'anchor-table › the mag boots as worn kit'],
+    [105, 5, 'A', 'void-house.test.mjs', 'void-house › void-house (F105): on ship-coast', 'at once (heavy)'],
+    [106, 6, 'B', 'freefall.test.mjs', 'freefall › push-off (F106'],
+    [107, 7, 'B', 'freefall.test.mjs', 'freefall › drift (F107)'],
+    [108, 8, 'B', 'freefall.test.mjs', 'freefall › the grab (F108'],
+    [109, 9, 'B', 'impact.test.mjs', 'impact › impact bands over 2,000 falls a band (F109'],
+    [110, 10, 'B', 'recoil-float.test.mjs', 'recoil-float › a round\'s push J / m and spin J × 0.45 / I (F110'],
+    [111, 11, 'B', 'brass-free.test.mjs', 'brass-free › a case at 0 G flies to the first face'],
+    [112, 12, 'C', 'grav-events.test.mjs', 'grav-events › F112: a burn\'s events to the tick'],
+    [113, 13, 'C, B', 'grav-save.test.mjs, freefall.test.mjs', 'grav-save › F113'],
+    [114, 14, 'D', 'scene-anchors.test.mjs, anchors-nodead.test.mjs, anchors-save.test.mjs', 'scene-anchors › scene-anchors (F114)', 'at the scene\'s ship rule'],
+    [115, 15, 'stage 0', 'syntax.test.mjs', 'syntax › rules: no quiet gravity or grip'],
+    [116, 16, 'A, D', 'gear-void.test.mjs', 'gear-void › gear-void (F116, the record)'],
+    [117, 17, 'every role, D', 'scene-anchors.test.mjs, house-tick-budget.test.mjs', 'scene-anchors › scene-anchors (F117)'],
+    [118, 18, 'D', 'scene-burn.test.mjs, burn-nodead.test.mjs', 'scene-burn › scene-burn (F118)', 'at its ship rule'],
+    [119, 19, 'stage 0', 'env-clock.test.mjs', 'env-clock › env-clock (F119): off Mars'],
+    [120, null, 'E', 'flawless-looks.mjs', null],
+    [121, null, 'E', 'flawless-looks.mjs', null],
+    [122, null, 'E', 'flawless-looks.mjs, ui-truth-cards.test.mjs', null],
+    [123, null, 'E', 'looks-applied.test.mjs', 'looks-applied › F123 every pick'],
+  ].map(([n, v, owner, files, by, when = 'at once']) => ({ from: n, to: n, file: files.split(', ')[0], role: owner, v, owner, files, when, ...(by ? { by } : {}) })),
 ]);
 /** The gauges' names, a short line each (COMBAT §25.19.8 and the sheets' §8; group C's rows). */
 export const GAUGE_WHAT = Object.freeze({
@@ -82,7 +115,7 @@ export const GAUGE_WHAT = Object.freeze({
   F41: 'paint by the rule', F42: 'his rounds by his sight', F43: 'the live gate', F44: 'the live balance', F45: 'never pinned',
   F46: 'in on the cue', F47: 'off your #2\'s line', F48: 'on your heels', F49: 'the bodies\' gaps', F50: 'AT THE DOOR\'s five',
   F51: 'the cold line\'s Fix', F52: '"Coming out!" and the mark', F53: 'the far walk called', F54: 'his call-outs told', F55: 'the par\'s cause',
-  F56: 'pars a sheet can meet', F57: 'nothing over the room', F58: 'the debrief and the replay', F59: 'every line heard', F60: 'the busiest tick under 2 ms',
+  F56: 'pars a sheet can meet', F57: 'nothing over the room', F58: 'the debrief and the replay', F59: 'every line shown (heard to v0.0.23: no voice from v0.0.24)', F60: 'the busiest tick under 2 ms',
   F61: 'a drawn house keeps every rule', F62: 'a drawn lane\'s doors', F63: 'the tier one\'s drawn lanes', F64: 'the keys private\'s drawn lanes', F65: 'stops on a drawn lane',
   F66: 'room 1 varies', F67: 'the fumble net empty', F68: 'the route budget', F69: 'the ladder ordered', F70: 'GO at your standard, NO-GO at the next',
   F71: 'the moments\' pace', F72: 'the drill off the range', F73: 'the house benches within TECH §16.1',
@@ -93,11 +126,27 @@ export const GAUGE_WHAT = Object.freeze({
   F87: 'nobody drawn before seen', F88: 'the unknown house drawn as seen',
   F89: 'the gun reads on the card', F90: 'the card shows what you see', F91: 'the card\'s cost', F98: 'the P-12\'s stances drawn', F99: 'the slung R-7 while the pistol is up',
   F92: 'the walk in by the words', F93: 'the line follows the legs', F94: 'the words keep their meaning', F95: 'Again\'s brief', F96: 'the goal line never clipped',
+  // (v0.0.24: its sheet's F97 to F120, three higher)
+  F100: 'nothing moves at Mars and the Wheel: every pin, golden, save, moment 2\'s walk and scene digest at 1,000 ticks, byte for byte through A to D',
+  F101: 'WEAPONS §7.8\'s table by footing, the pull\'s formula on the anchor\'s recovery, the anchoring by Zero-g',
+  F102: 'the roller\'s footing entry: exactly one below 0.2 G on a roll whose uses meet it, none at 0.3 G and up',
+  F103: 'one legs helper; the boots\' grip on locked boots', F104: 'the boots: lock 400 ms and release 300 ms within a tick; 0.50 m/s, no run; a save on locked boots byte for byte; the #2 locks with you',
+  F105: 'never a silent stall at 0 G; the steel copy cleared by T with F1, F2, F7, F26 held', F106: 'push-off speeds within 0.005 m/s; the error and tumble by points missed',
+  F107: 'drift constant to 1e-6 over 200 ticks; the keys do nothing floating; landing at 1.5 m/s or less', F108: 'the grab\'s bands; it stops a tumble; L a grab only where there is nothing to fight',
+  F109: 'impact bands over 2,000 falls', F110: 'recoil floating: push and spin a round, boots keep none and a tenth, the aim lost past the arc',
+  F111: 'brass at 0 G: two segments, never through a wall, caseAt ms-exact; Mars\'s bytes', F112: 'events to the tick; the thrown speeds; couched and boots safe; a skip refused while a brace is pending',
+  F113: 'a save at each phase of an event, mid-drift, mid-push, mid-grab, byte for byte', F114: 'test-anchors to the card on every sheet; 40 seeds × five sheets no dead end; the fuzz\'s dead ends 0; nine saves',
+  F115: 'the quiet defaults refused', F116: 'the gear record and the figure agree on the boots and the anchor at every tick', F117: 'house-tick-budget unmoved; Well A\'s busiest tick under 2 ms × k',
+  F118: 'test-burn secured in time on every seed; no dead end; a thrown body\'s card equals impactOf', F119: 'off Mars: a sol at Phobos and aboard Testudo with no throw; Melas byte for byte',
+  F120: 'the card\'s facing as scored, the marks on the target\'s plane scaled by the cosine side on',
+  F121: 'light and the jamb: lit rooms and "Bang" byte for byte; never below LIGHT_FLOOR_K; the hidden share drawn as the jamb; no doll repainted by light or cover',
+  F122: 'the truth cards: each engaged man\'s card equals seenOf at your first round\'s tick, in the scored layout', F123: 'every scored pick drawn as picked, every unscored set at its default',
 });
 // (v0.0.23's integration, the stage-0 lead's plan: F97 to F99, the P-12's gauges of the user's fourth note of 2026-11-17, homed
 // from A's and C's merges, counted at the last step; the instructor's sterile walk takes no F number, house-sterile-walk stands as a
 // test (the lead's call), and v0.0.24's sheet shifts its numbers by exactly three)
-export const GAUGE_LAST = 99;
+// (v0.0.24 E: F100 to F123 homed, the round's last merge; the sheet's §0 item 29)
+export const GAUGE_LAST = 123;
 /** The gauge's home (GAUGE_HOMES' row), or null. */
 export const homeOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_HOMES.find(h => n >= h.from && n <= h.to) ?? null; };
 
@@ -118,7 +167,11 @@ export const DONE = Object.freeze([
   { id: 'A3b', group: 'A', what: 'AT THE DOOR\'s five the same on every lane', check: gauge('F50'), by: 'v0.0.20' },
   { id: 'A4', group: 'A', what: 'the walk judged live', words: W('2026-11-12', 'Hard to tell without seeing it animated ... will judge when live'), check: user('the feel aspect, the To score page\'s Walk row'), answered: null },
   { id: 'A5', group: 'A', what: 'every waiting sample picked or waived', check: user('the To score page: helmets, stack figures, the P-12\'s card, wcard2, doll-gear, target-view, opfor-look, marks, the shot, the voices'), answered: null },
-  ...['helmets', 'house-stack-figures', 'p12-card', 'wcard2', 'doll-gear', 'target-view', 'opfor-look', 'marks', 'audio', 'voices', 'walk'].map((set, i) => ({ id: `A5${String.fromCharCode(97 + i)}`, group: 'A', what: `the samples to score: ${set}`, check: { kind: 'sample', ref: set } })),
+  // (v0.0.24: the voices, scored on 2026-11-19 as none, are no sample any more: samples/voices went with the synthesis, so A5j is
+  // the user's answer, landed)
+  ...['helmets', 'house-stack-figures', 'p12-card', 'wcard2', 'doll-gear', 'target-view', 'opfor-look', 'marks', 'audio', 'voices', 'walk'].map((set, i) => (set === 'voices'
+    ? { id: `A5${String.fromCharCode(97 + i)}`, group: 'A', what: 'the samples to score: voices (none: removed with the synthesis, v0.0.24)', check: user('the voices'), answered: W('2026-11-19', 'forget voice synthesis, no voices.') }
+    : { id: `A5${String.fromCharCode(97 + i)}`, group: 'A', what: `the samples to score: ${set}`, check: { kind: 'sample', ref: set } })),
   { id: 'A6', group: 'A', what: 'the open questions answered or their defaults accepted (v0.0.18 to v0.0.21\'s)', check: user('DESIGN.md\'s log'), answered: null },
   // ---- B. The user's complaints, each closed by a test (ROADMAP §2.4 item 7) ----
   { id: 'B1', group: 'B', what: 'nobody through a wall', words: W(D11, 'Operators path through walls when automatic pathing'), check: gauge('F1'), by: 'v0.0.14' },
@@ -171,7 +224,7 @@ export const DONE = Object.freeze([
   { id: 'B27i', group: 'B', what: 'the drill off the range\'s lane', check: test('cqb-anywhere'), by: 'v0.0.21 D' },
   { id: 'B28', group: 'B', what: 'paint ends the lane only on a fatal hit', words: W(D16, 'Paintball should end if the hit is \'fatal\''), check: test('would-lane'), by: 'v0.0.20' },
   // ---- C. The gauges: generated below (one row a gauge) ----
-  { id: 'C6', group: 'C', what: 'no criterion left printed only but the fuzz bot\'s (F44\'s balance, F56\'s stands, F59\'s if the voice were not the default)', check: later('the lead: enforced at the measured value or struck in CHANGELOG (c.md)') },
+  { id: 'C6', group: 'C', what: 'no criterion left printed only but the fuzz bot\'s (F44\'s balance, F56\'s stands; F59\'s voiced clause gone with the voices, v0.0.24)', check: later('the lead: enforced at the measured value or struck in CHANGELOG (c.md)') },
   // ---- D. Never a dead end ----
   { id: 'D1', group: 'D', what: 'every bot, every sheet, to the card', check: test('shoothouse-nodead'), by: 'v0.0.12' },
   { id: 'D2', group: 'D', what: 'the fumble net\'s lists are empty and its sweep meets no case', check: test('house-fumble › lists are empty'), by: 'v0.0.21 B' },
@@ -323,10 +376,62 @@ export const DONE = Object.freeze([
   { id: 'NE2', group: 'N', what: 'the portraits\' sets shot whole, their defaults views of their sets, the candidates C\'s tables', check: test('samples-portrait'), by: 'v0.0.23 E' },
   { id: 'NE3', group: 'N', what: 'the anywhere round\'s two sets (a floating body\'s height, mag boots and the anchors) shot whole', check: test('samples-void'), by: 'v0.0.23 E' },
   ...['portrait-gun', 'house-unknown', 'portrait-light', 'portrait-pose', 'portrait-facing', 'pistol-stances', 'portrait-suit', 'truth-cards', 'float-look', 'mag-boots'].map((set, i) => ({ id: `NE4${String.fromCharCode(97 + i)}`, group: 'N', what: `the samples to score: ${set}`, check: { kind: 'sample', ref: set } })),
+  // ---- O. v0.0.24 (its build sheet §1, §0 item 29): each role's rows directly below its own anchor (D the two scenes' USER rows,
+  // E the overhaul's rows and GAUGE_LAST, F the user's picks of 2026-11-19 applied) ----
+  // (v0.0.24 D)
+  // (D: the void's places and two scenes (F114, F116's figure half, F117, F118), the user's scores of each, the samples it draws at their defaults)
+  { id: 'OD1', group: 'O', what: '"Anchor before you fire" scored: anchor, move, pace, feel', check: user('the score line of test-anchors'), answered: null },
+  { id: 'OD2', group: 'O', what: '"Secure for burn" scored: warning, fall, feel', check: user('the score line of test-burn'), answered: null },
+  { id: 'OD3', group: 'O', what: 'Well A as authored: every station\'s mark a pad-eye, each turner at its distance, the plates\' passage 1.2 m', check: test('scene-anchors › Well A as authored'), by: 'v0.0.24 D' },
+  { id: 'OD4', group: 'O', what: 'the course to its card by the keys bot on every sheet, every station fired from the anchor it wants (F114)', check: test('scene-anchors › the course to its card'), by: 'v0.0.24 D' },
+  { id: 'OD5', group: 'O', what: 'nine save points carry on to the card byte for byte (F114)', check: test('anchors-save'), by: 'v0.0.24 D' },
+  { id: 'OD6', group: 'O', what: '40 seeds × five sheets and the fuzz\'s 40 to the card, no dead end (F114)', check: test('anchors-nodead'), by: 'v0.0.24 D' },
+  { id: 'OD7', group: 'O', what: 'Well A\'s busiest tick under 2 ms × k (F117)', check: test('scene-anchors › Well A\'s busiest tick'), by: 'v0.0.24 D' },
+  { id: 'OD8', group: 'O', what: 'the bot secured before the drive lights on every quick seed; a thrown body\'s card is impactOf\'s (F118)', check: test('scene-burn › a body left floating'), by: 'v0.0.24 D' },
+  { id: 'OD9', group: 'O', what: 'the burn on 40 seeds and the fuzz\'s 40 to the end, no dead end (F118)', check: test('burn-nodead'), by: 'v0.0.24 D' },
+  { id: 'OD10', group: 'O', what: 'in the page: the float at its height by float-look F-b, the boots by mag-boots B-b, Well A and the berth with no page error', check: test('ui-anchors'), by: 'v0.0.24 D' },
+  ...['void-look', 'float-look', 'mag-boots'].map((set, i) => ({ id: `OD${11 + i}`, group: 'O', what: `drawn at its default until scored: ${set}`, check: { kind: 'sample', ref: set }, by: 'v0.0.24 D' })),
+  // (v0.0.24 E)
+  // (E: every portrait as you would see it, F120 to F123; the doll's rifle as a marine holds it)
+  { id: 'OE1', group: 'O', what: 'a man turned drawn as scored (F1 from behind, F3 side on, F2 only on its pick), the paint on his plane at the cosine of his yaw (F120)', words: W('2026-11-17', 'the portraits need to be more dynamic and show us what we would be seeing, including what they are holding'), check: test('portrait-facing › F120'), by: 'v0.0.24 E' },
+  { id: 'OE2', group: 'O', what: 'the card in his light: room 3\'s dim darker, the lit rooms and "Bang" byte for byte, never below LIGHT_FLOOR_K, no doll repainted (F121)', check: test('portrait-light › F121 the card in his light'), by: 'v0.0.24 E' },
+  { id: 'OE3', group: 'O', what: 'a board in his light too', check: test('portrait-light › F121 a board in room 3'), by: 'v0.0.24 E' },
+  { id: 'OE4', group: 'O', what: 'half behind the jamb, half drawn: the hidden share the jamb\'s tones, hidden whole drawn whole (F121)', check: test('portrait-cover › F121'), by: 'v0.0.24 E' },
+  { id: 'OE5', group: 'O', what: 'you in the black suit on I and C: the ground by the place as portrait-suit draws it, D-a the default', check: test('portrait-suit'), by: 'v0.0.24 E' },
+  { id: 'OE6', group: 'O', what: 'you prone at Y-p, v0.0.23\'s bytes', check: test('portrait-prone'), by: 'v0.0.24 E' },
+  { id: 'OE7', group: 'O', what: 'mag boots and the anchors on the doll, absent on every shipped person\'s doll', words: W('2026-11-17', 'show us what we would be seeing, including what they are holding'), check: test('portrait-void'), by: 'v0.0.24 E' },
+  { id: 'OE8', group: 'O', what: 'the truth cards: each stand engaged as he truly was at your first round, the capture the replay\'s, written once (F122)', check: test('truth-cards › F122 the truth cards: each stand'), by: 'v0.0.24 E' },
+  { id: 'OE9', group: 'O', what: 'a v0.0.23 save engaged nothing until a round is fired after the load', check: test('truth-cards › a v0.0.23 save'), by: 'v0.0.24 E' },
+  { id: 'OE10', group: 'O', what: 'the end card\'s truth cards in the page, whole pixels, nothing overlaps or scrolls (F122)', check: test('ui-truth-cards'), by: 'v0.0.24 E' },
+  { id: 'OE11', group: 'O', what: 'every pick of v0.0.23\'s sets at its home, every game-drawn view its committed shot (F123)', check: test('looks-applied › F123 every pick'), by: 'v0.0.24 E' },
+  { id: 'OE12', group: 'O', what: 'the gallery shows what the game draws: every game-drawn view of the portraits\' sets, the boots and doll-gear equal to its shot (F123)', check: test('looks-applied › F123 the game\'s frame'), by: 'v0.0.24 E' },
+  { id: 'OE13', group: 'O', what: 'the doll\'s low ready as a marine holds it, the butt in the shoulder\'s pocket', words: W('2026-11-19', 'The Doll is wrong, nobody holds their gun like that'), check: test('doll-hold'), by: 'v0.0.24 E' },
+  // (v0.0.24 F)
+  // (F: the user's gallery picks of 2026-11-19 applied; no gauge)
+  { id: 'OF1', group: 'O', what: 'the gallery: the waiting sets on top, every rated one in a closed section at the bottom; Copy my picks only the new', words: W('2026-11-19', 'please in the future, place the already rated picks in a hidden drop down section at the bottom'), check: test('gallery-rated'), by: 'v0.0.24 F' },
+  { id: 'OF2', group: 'O', what: 'the To score page: the rated rows folded under the waiting ones; Copy my picks only the new', words: W('2026-11-19', 'please in the future, place the already rated picks in a hidden drop down section at the bottom'), check: test('topick-rated'), by: 'v0.0.24 F' },
+  { id: 'OF3', group: 'O', what: 'the shot A4 rebuilt as A5 in every scene: the P-12 on the R-7\'s wave, the R-7 blunter and heavier in the bass, its loudness targets held', words: W('2026-11-19', 'make the R-7 sound meaner, blunter, more bass heavy. less a "PAF" and more a "DOOM"'), check: test('audio-doom'), by: 'v0.0.24 F' },
+  { id: 'OF4', group: 'O', what: 'every line a text bubble at its speaker, none over another or the HUD, at least 95% placed as said', words: W('2026-11-19', 'forget about voices, those are all terrible use text bubble only'), check: test('bubbles'), by: 'v0.0.24 F' },
+  { id: 'OF5', group: 'O', what: 'the older sets drawn as scored: R3, E1, O2 in trim; the throw by distance, B3, R2; the masks M2 and M3; the chemlight; the P-12 A with C and D kept, grey gloves; the walk B (W-c)', words: W('2026-11-19', 'Lots of stale picks since I failed to review them earlier, most of what is already in game is fine'), check: test('picks-applied'), by: 'v0.0.24 F' },
+  { id: 'OF6', group: 'O', what: 'the samples to score: audio\'s D, A5 against A4', check: { kind: 'sample', ref: 'audio' } },
 ]);
 
 /** Group C: one row a gauge, F1 to GAUGE_LAST. */
-export const GAUGE_ROWS = Object.freeze(Array.from({ length: GAUGE_LAST }, (_, i) => `F${i + 1}`).map(F => ({ id: `C${F}`, group: 'C', what: GAUGE_WHAT[F], check: gauge(F), ...(homeOf(F)?.role ? { by: `v0.0.21 ${homeOf(F).role}` } : {}) })));
+/**
+ * The release each gauge came in (read from the tags: the highest F number in each tag's tests/flawless*.mjs, F73 render-bench's
+ * of v0.0.21, F100 to F123 this round's): every gauge's row says its own round and, where GAUGE_HOMES names one, the role that
+ * built it. To v0.0.23 every row with a role was labelled "v0.0.21", whatever its round (F74 to F99 among them), and the others none.
+ */
+export const GAUGE_ROUNDS = Object.freeze([
+  { from: 1, to: 24, v: 'v0.0.14' }, { from: 25, to: 26, v: 'v0.0.17' }, { from: 27, to: 29, v: 'v0.0.18' }, { from: 30, to: 44, v: 'v0.0.19' },
+  { from: 45, to: 59, v: 'v0.0.20' }, { from: 60, to: 73, v: 'v0.0.21' }, { from: 74, to: 84, v: 'v0.0.22' }, { from: 85, to: 99, v: 'v0.0.23' },
+  { from: 100, to: 123, v: 'v0.0.24' },
+]);
+/** A gauge's round (GAUGE_ROUNDS), or null. */
+export const roundOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_ROUNDS.find(r => n >= r.from && n <= r.to)?.v ?? null; };
+/** A gauge's `by`: its round and, where its home names one, its role ('v0.0.22 A'; 'v0.0.14'). */
+export const gaugeBy = (id) => { const v = roundOf(id), role = homeOf(id)?.role; return v ? (role ? `${v} ${role}` : v) : null; };
+export const GAUGE_ROWS = Object.freeze(Array.from({ length: GAUGE_LAST }, (_, i) => `F${i + 1}`).map(F => ({ id: `C${F}`, group: 'C', what: GAUGE_WHAT[F], check: gauge(F), ...(gaugeBy(F) ? { by: gaugeBy(F) } : {}) })));
 /** Every row: the list and the gauges. */
 export const ALL = Object.freeze([...DONE, ...GAUGE_ROWS]);
 
@@ -357,7 +462,7 @@ export async function resolveGauge(id) {
   const h = homeOf(id);
   if (!h) return { ok: false, why: `${id}: no home` };
   const p = path.join(testsDir, h.file);
-  if (!existsSync(p)) return { ok: false, why: `${id}: no tests/${h.file}${h.role ? ` (v0.0.21 role ${h.role})` : ''}` };
+  if (!existsSync(p)) return { ok: false, why: `${id}: no tests/${h.file}${gaugeBy(id) ? ` (${gaugeBy(id)})` : ''}` };
   const src = readFileSync(p, 'utf8');
   if (!new RegExp(`['"\`]${id}\\b`).test(src) && !new RegExp(`\\b${id}\\b`).test(src)) return { ok: false, why: `${id}: not named in ${h.file}` };
   // (an exported set whose name ends ENFORCED holding it)

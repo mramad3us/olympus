@@ -12,14 +12,16 @@
 // started afresh rather than thrown on. scoreLine, readScores and keepScore are pure over a storage
 // (the ui-scores test hands them a Map-backed one); scoreCard(…) is the DOM.
 // v0.0.20 (the build sheet v0.0.20 §1 item 10): the line names what was played before the star, so a score is read against the
-// panel, the shot, the voice, the walk and the look it was given on: "… · shots 70 · feel 60 · panel C · shot A3 · voice c · walk B ·
-// look stack:4,helm:r1 · ★ no · note: …" (played: { panel, shot, voice, walk, look }, each left out where the page has none; look
+// panel, the shot, the walk and the look it was given on: "… · shots 70 · feel 60 · panel C · shot A3 · walk B ·
+// look stack:4,helm:r1 · ★ no · note: …" (played: { panel, shot, walk, look }, each left out where the page has none; look
 // { stack, helm, jamb } in the URL's &look= words). The record kept gains `played`, the same words.
 // v0.0.21 (the build sheet v0.0.21 §1 item 16, §0 item 27): on a drawn house the line names it after the seed, "… · seed 48213 ·
 // house Cn290pc.Ks206lc.En175pc|ftatn…|p0120… · …", so a score is read against the house it was given on (house: the code, or none on
 // the house as set: its line is v0.0.20's); the record kept gains `house`.
 // v0.0.22 (its build sheet §1 item 14): a named house says its letter before its code, "… · seed 48213 · lane B · house Wn280pc… · …"
 // (house.js namedLaneOf; the set and a drawn house as before).
+// v0.0.24: no voice is played (the user, 2026-11-19: "forget voice synthesis, no voices."), so the line names none; a `voice` in
+// played is not a word of it.
 import { namedLaneOf } from './house.js';
 
 /** The storage key, and the most scores kept. */
@@ -30,12 +32,12 @@ export const SCORE_STEP = 5, SCORE_DEFAULT = 50;
 /** A score snapped to the card's grid (0 to 100, steps of 5). */
 export const snapScore = (v) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) / SCORE_STEP) * SCORE_STEP));
 
-/** What was played, in the line's words: ['panel C', 'shot A3', 'voice c', 'walk B', 'look stack:4,helm:r1'] (each left out where absent). */
+/** What was played, in the line's words: ['panel C', 'shot A3', 'walk B', 'look stack:4,helm:r1'] (each left out where absent). */
 export function playedWords(played = null) {
   if (!played) return [];
   if (typeof played === 'string') return played ? [played] : [];
   const look = played.look && typeof played.look === 'object' ? Object.entries(played.look).filter(([, v]) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)).map(([k, v]) => `${k}:${Array.isArray(v) ? v.join('+') : v}`).join(',') : played.look ?? null;
-  return [played.panel ? `panel ${played.panel}` : null, played.shot ? `shot ${played.shot}` : null, played.voice ? `voice ${played.voice}` : null, played.walk ? `walk ${played.walk}` : null, look ? `look ${look}` : null].filter(Boolean);
+  return [played.panel ? `panel ${played.panel}` : null, played.shot ? `shot ${played.shot}` : null, played.walk ? `walk ${played.walk}` : null, look ? `look ${look}` : null].filter(Boolean);
 }
 /** The line to paste (ROADMAP §2.2's form). aspects: [[name, value]…] in the scene's order, or { name: value }; played: what was played (playedWords). */
 export function scoreLine({ version, scene, seed, aspects, star = false, note = '', played = null, house = null }) {

@@ -109,6 +109,13 @@ export const NO_SKY = Object.freeze({
   tint: Object.freeze([0, 0, 0]), glow: 0, shadow: 0, level: 0,
 });
 
+// (a site every area of which stands under no sky (a deck, a floor with `sky: 'none'`), by its record: cached)
+const UNDER = new WeakMap();
+function underRockOf(rec) {
+  let v = UNDER.get(rec);
+  if (v === undefined) UNDER.set(rec, (v = (rec.areas ?? []).length > 0 && rec.areas.every(id => areaOf(id)?.sky === 'none')));
+  return v;
+}
 let skyLast = { site: null, ms: NaN, out: null }, skyPrev = { site: null, ms: NaN, out: null };   // (two slots: a frame's clock and its minute, lightFrame's two)
 /** The open air at a site (an id or a record): { elevDeg, azDeg, visible, eclipsed, sunColor, sunK, skyColor, skyK, ground, tint: [r, g, b], glow, shadow, level }; NO_SKY where it has none. */
 export function skyAt(site, ms) {
@@ -117,6 +124,9 @@ export function skyAt(site, ms) {
   if (skyPrev.site === siteId && skyPrev.ms === ms) { const t = skyLast; skyLast = skyPrev; skyPrev = t; return skyLast.out; }
   const cls = skyOf(null, site).outside;
   if (cls === 'none') return NO_SKY;
+  // (an airless body's site whose every area stands under no sky (the Void Operations School under Phobos's rock) has no
+  // open air to light, so it reads as deep space's; an airless site with an open area still throws below, its rows not written)
+  if (cls === 'airless' && underRockOf(siteRecOf(site))) return NO_SKY;
   if (cls !== 'mars-air') throw new Error(`light: no sky rows for '${cls}' yet (site '${siteId}'): VIEWS §2.7 has Mars's only`);
   const s = sunAt(siteId, ms), e = s.elevDeg;
   let i = 0;

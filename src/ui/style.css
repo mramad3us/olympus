@@ -259,7 +259,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 /* The weapon mode (the build sheet 0.0.5 §2.4; VIEWS §4.4, §7.4, §7.5): STEPS, 720 × 148 on INSTINCT,
    the weapon card's 180 × 148 at its left and the steps in two columns of five; RADIO moves onto STEPS;
    PAPER, 200 × 200 at the top centre under PAUSED's slot; the plaque and its brackets in the picture. */
-#hud.weapon .radio.voices { bottom: calc(var(--m) + (44px + 6px + 148px + 6px) * var(--ui)); }
+#hud.weapon .radio.voices, #hud .radio.voices.weapon { bottom: calc(var(--m) + (44px + 6px + 148px + 6px) * var(--ui)); }
 .steps, .reflexcard { position: absolute; left: 50%; bottom: calc(var(--m) + (44px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(720px * var(--ui)); height: calc(148px * var(--ui)); overflow: hidden; display: flex; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; pointer-events: auto; font-size: calc(12px * var(--ui)); line-height: 1.25; }
 /* (a key the pause's guard held: the panel flashes, so the press is seen to wait, never swallowed in silence: the play review of 2026-11-13) */
 #hud.guarded .steps { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass); }
@@ -690,6 +690,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass.topick .chip.struck { opacity: 0.55; text-decoration: line-through; }
 .glass.topick .score { grid-column: 2; display: flex; align-items: center; gap: calc(6px * var(--ui)); font-size: calc(11px * var(--ui)); color: var(--glass-text); }
 .glass.topick .score input[type=range] { width: calc(160px * var(--ui)); }
+/* v0.0.24 F (the user, 2026-11-19: the rated picks in a hidden section at the bottom): the To score page's rated rows, folded */
+.glass.topick .topick-rated { margin-top: calc(8px * var(--ui)); }
+.glass.topick .topick-rated > summary { cursor: pointer; color: var(--glass-text); opacity: 0.7; font-size: calc(12px * var(--ui)); padding: calc(4px * var(--ui)) 0; }
 .glass.topick .score .star { background: none; border: 1px solid var(--glass-line); color: var(--glass-text); cursor: pointer; padding: 0 calc(5px * var(--ui)); }
 .glass.topick .score .star.on { border-color: var(--brass); color: var(--brass); }
 #title .sheet.loadout .faces:has(canvas.marine) { grid-template-columns: auto repeat(4, minmax(0, 1fr)); }

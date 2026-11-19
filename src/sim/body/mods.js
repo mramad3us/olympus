@@ -26,7 +26,7 @@ import { fatigueMod } from './sleep.js';
 import { thermalMods, stageOf } from './thermal.js';
 import { smellM } from './hygiene.js';
 import { gaitsOf } from './motion.js';
-import { siteLonEDeg } from '../jobs.js';
+import { siteDayOf } from '../jobs.js';
 import { woundMods, hasWounds, canStand as woundsStand, mobilityOf } from './wounds.js';
 
 /** BODY §22's shorthand groups as SKILLS's uses ('*': every roll). */
@@ -63,7 +63,7 @@ export function bodyMods(state, pid, key = 'all', ctx = {}) {
 export function needMods(state, pid, key = 'all', ctx = {}) {
   const b = bodyOf(state, pid);
   if (!b || b.atMs === null) return [];
-  const ms = ctx.ms ?? state.clock.ms, lon = siteLonEDeg(state), s = stagesOf(b, ms, lon), out = [], uses = usesOf(key);
+  const ms = ctx.ms ?? state.clock.ms, lon = siteDayOf(state), s = stagesOf(b, ms, lon), out = [], uses = usesOf(key);
   row(out, uses, 'all', s.hunger.band.replace('-', ' '), HUNGER[s.hunger.i].mod ?? 0, 'need:hunger');
   row(out, uses, 'all', s.thirst.band, THIRST[s.thirst.i].mod ?? 0, 'need:thirst');
   if (THIRST[s.thirst.i].bodyMod) row(out, uses, ['legs', 'torso'], `${s.thirst.band}, legs`, THIRST[s.thirst.i].bodyMod, 'need:thirst');
@@ -92,7 +92,7 @@ export function needMods(state, pid, key = 'all', ctx = {}) {
 export function capacityOf(state, pid = playerId(state)) {
   const b = bodyOf(state, pid);
   if (!b) return { walkK: 1, runOk: true, sprintOk: true, awareK: 1, visionK: 1, canStand: true };
-  const ms = state.clock.ms, g = gaitsOf(state, pid), cold = stageOf(b.thermal.coreC), s = stagesOf(b, ms, siteLonEDeg(state));
+  const ms = state.clock.ms, g = gaitsOf(state, pid), cold = stageOf(b.thermal.coreC), s = stagesOf(b, ms, siteDayOf(state));
   const hurt = hasWounds(b), m = hurt ? mobilityOf(b, ms) : { k: 1, runOk: true };
   return {
     walkK: (cold?.slow ?? 1) * m.k, runOk: g.runOk && m.runOk, sprintOk: g.sprintOk && m.runOk,

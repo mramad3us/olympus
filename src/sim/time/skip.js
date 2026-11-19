@@ -97,7 +97,7 @@ import { chainStop, chainClose, chainByOf } from './chain.js';
 import { CHUNK_OFFER_S } from './splash.js';
 import { bodyOf, bodySync } from '../body/body.js';
 import { stagesOf, stripOf } from '../body/cues.js';
-import { siteLonEDeg } from '../jobs.js';
+import { siteDayOf } from '../jobs.js';
 import { playerActor } from '../../core/ids.js';
 
 export const SKIP_KINDS = Object.freeze(['ff', 'outcome', 'out', 'day', 'world']);
@@ -119,7 +119,7 @@ export const defaultStops = (mask, ev, state = null) => maskStops(mask, ev, stat
 export function bodyLook(state, ms = state.clock.ms) {
   const b = state.player?.id ? bodyOf(state, state.player.id) : null;
   if (!b) return null;
-  const lon = siteLonEDeg(state);
+  const lon = siteDayOf(state);                                   // (the site's day key: v0.0.24's stage 0, off Mars too)
   return { strip: stripOf(b, ms, lon), stages: stagesOf(b, ms, lon) };
 }
 

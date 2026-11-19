@@ -412,9 +412,12 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       const c = lay.cells.get(`${frame}|${face}`) ?? lay.cells.get(`idle0|down`);
       const [ox, oy] = originOf(from, band);
       // (see the header: the anchor's row on the spot; the card's lowest rows above the floor)
-      const nb = (c.h - c.ay) / ppm, ys = p.y ?? 0, yb = snap(Math.max(0, ys - nb)), zc = snap(p.z - ys + yb + nb);
-      const left = snap(p.x) - c.ax / ppm;
-      m4.makeScale(c.w / ppm, c.h / ppm, 1).setPosition(left, yb, zc);
+      // (a floating body past the float's scale height one step larger, nearer the camera (view.js FLOAT_SCALE_K: float-look's
+      // F-b), its card a whole number of pixels on each side so it stays on the grid; every other card at 1 as before)
+      const sk = p.scaleK ?? 1, cw = sk === 1 ? c.w : Math.round(c.w * sk), chh = sk === 1 ? c.h : Math.round(c.h * sk), cay = sk === 1 ? c.ay : Math.round(c.ay * sk), cax = sk === 1 ? c.ax : Math.round(c.ax * sk);
+      const nb = (chh - cay) / ppm, ys = p.y ?? 0, yb = snap(Math.max(0, ys - nb)), zc = snap(p.z - ys + yb + nb);
+      const left = snap(p.x) - cax / ppm;
+      m4.makeScale(cw / ppm, chh / ppm, 1).setPosition(left, yb, zc);
       cards.setMatrixAt(i, m4);
       aRect.setXYZW(i, ox + c.x, oy + c.y, c.w, c.h);
       const t = p.tint ?? [1, 1, 1];

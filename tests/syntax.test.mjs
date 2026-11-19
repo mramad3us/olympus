@@ -80,6 +80,12 @@
 // COMBAT_NO_SCENARIO (the build sheet v0.0.21 §0 item 31, §3 step 4): no module of src/sim/combat/ imports from
 // src/sim/scenarios/ (the #2's brain, combat/two.js, reaches the lane through op.js's host), so a room can be cleared where no
 // scenario runs.
+// ENV_QUIET_G (v0.0.24's stage 0, its build sheet §0 item 23, §2 step 3; F115, the anywhere note's V15): no quiet gravity or grip.
+// gravityAt never returns null and surfaceAt throws where no surface is, so a fallback behind either hides a missing wire: in
+// src's code (src/art apart, whose numbers are pixels) no 9.81 (the 1 G reference is phys.js G0_MS2), no `gG ?? 1`, no fallback
+// after a gravity read (`gravityAt(…)?.` or `gravityAt(…).gG ??`), and in src/sim no grip fallback (`Number.isFinite(mu) ? mu :`,
+// `? mu : 0.6`). The five sites the lens found (loco.js twice, people/figure.js, render/view.js, shoothouse.js gWords) and the
+// three readers' μ 0.6 (move.js, bundle.js, arms/loadout.js, now motion.js legsAt) are gone; a sixth fails here.
 // QUICK_SLOW's check (the build sheet v0.0.21 §1 item 26; TECH §13.7): tests/run.mjs's frozen list of the quick files over
 // QUICK_FILE_CPU_S names only files that exist, and against the last tag's list (when that tag has one) no file joins and no
 // ceiling rises.
@@ -249,6 +255,9 @@ const ENV_PHYS = Object.freeze(['G0_MS2', 'R_GAS', 'GAMMA_AIR']);
 const ENV_G_DEFAULT = /[({,]\s*gG\s*=(?![=>])/g;
 /** A quiet Melas: a fallback to the site by name (step 3). */
 const ENV_QUIET = /(\?\?|\|\|)\s*(['"]melas['"]|[\w$]+\.melas(?![\w$])|MELAS_[A-Z0-9_]+)|(?<=[\w$]\s*)=\s*MELAS_[A-Z0-9_]+(?=\s*[,)])/g;
+/** A quiet gravity or grip (v0.0.24's stage 0, F115): a 9.81, `gG ?? 1`, a fallback after a gravity read; in src/sim a grip fallback. */
+const QUIET_G = /(?<![\w$.])9\.81(?!\d)|(?<![\w$])gG\s*\?\?\s*1(?![\d.])|(?<![\w$.])gravityAt\((?:[^()]|\([^()]*\))*\)\s*(?:\?\.|\.\s*g(?:G|Ms2)\s*\?\?)/g;
+const QUIET_MU = /Number\.isFinite\(\s*mu\s*\)\s*\?\s*mu\s*:|\?\s*mu\s*:\s*0\.6(?!\d)/g;
 /** The readers routed through env.js localTime: no Mars clock of their own. */
 const CLOCK_READERS = Object.freeze(['src/sim/places/light.js', 'src/sim/places/clocks.js', 'src/ui/hud/watch.js', 'src/ui/cards/log.js', 'src/render/clocks.js']);
 const MARS_CLOCKS = /(?<![\w$])(marsClock|msAtMarsTime)(?![\w$])/g;
@@ -617,6 +626,29 @@ export default [
       assert(probe.every(p => p.got === p.want), JSON.stringify(probe));
       assert(ENV_PHYS.every(n => homeNames.includes(n)), `phys.js defines ${homeNames.join(', ')}`);
       assert(!lits.length && !old.length && !phys.length && !defaults.length, [...lits, ...old, ...phys, ...defaults].join('\n'));
+    },
+  },
+  {
+    name: 'rules: no quiet gravity or grip (v0.0.24\'s stage 0, F115, ENV_QUIET_G): no 9.81, no `gG ?? 1`, no fallback after a gravity read in src\'s code (src/art apart), and no grip fallback (μ 0.6) in src/sim',
+    fn() {
+      const files = srcFiles(), quiet = [];
+      const lineOf = (code, at) => code.slice(0, at).split('\n').length;
+      for (const f of files) {
+        const r = rel(f), code = codeOnly(readFileSync(f, 'utf8'));
+        if (folderOf(r) !== 'art') for (const m of code.matchAll(QUIET_G)) quiet.push(`${r}:${lineOf(code, m.index)}: ${m[0].replace(/\s+/g, ' ').slice(0, 60)}`);
+        if (folderOf(r) === 'sim') for (const m of code.matchAll(QUIET_MU)) quiet.push(`${r}:${lineOf(code, m.index)}: ${m[0].replace(/\s+/g, ' ')}`);
+      }
+      // (the probe: the five sites as they were, and their plain reads)
+      const probe = [
+        [QUIET_G, 'gMs2 = 9.81; const g = gravityAt(state, null, a.x, a.z)?.gMs2 ?? 9.81; x = gravityAt(s, null, me?.x ?? 0, me?.z ?? 0)?.gG ?? 1; y = fig.gMs2 ?? 9.81; z = gG ?? 1;', 7],
+        [QUIET_G, 'g = gravityAt(state, null, a.x, a.z).gMs2; h = 19.81; k = gG ?? 10; m = a.gG ?? 1.5; n = gravityAt(state).gG * G0_MS2;', 0],
+        [QUIET_MU, 'mu: Number.isFinite(mu) ? mu : 0.6; o = { mu: Number.isFinite(mu) ? mu : SURFACES.concrete.muDry }; p = x ? mu : 0.6', 3],
+        [QUIET_MU, 'mu: surfaceAt(state, null, x, z).mu; q = mu ? 1 : 0.65; r = { mu: 0.6 }', 0],
+      ].map(([re, text, want]) => ({ want, got: [...text.matchAll(re)].length }));
+      report({ 'a quiet gravity or grip': quiet });
+      console.log(`      ${files.length} modules; the probe ${probe.map(p => `${p.got}/${p.want}`).join(', ')}`);
+      assert(probe.every(p => p.got === p.want), JSON.stringify(probe));
+      assert(!quiet.length, quiet.join('\n'));
     },
   },
   {

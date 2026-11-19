@@ -73,7 +73,7 @@ import { word } from '../paint.js';
 import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE, cutOf, SIDES_K, COMBAT_SUIT } from '../figures/outfits.js';
 import { helmOf, helmFor } from '../figures/helmets.js';
 import { dollHelm, trimDollPlate } from './helmets.js';
-import { rifleAt, gearBends, suitBelt, carrierPouches, dumpPouch, holster, earCups, pistolAt, heldItem, backDevices, sideDevices, handDevice, holdGear, RIFLE_IN_HANDS, PISTOL_IN_HANDS } from './worn.js';
+import { rifleAt, gearBends, suitBelt, carrierPouches, dumpPouch, holster, earCups, pistolAt, heldItem, backDevices, sideDevices, handDevice, holdGear, anchorParts, RIFLE_IN_HANDS, PISTOL_IN_HANDS, ANCHOR_LOOKS } from './worn.js';
 import { backParts } from './back.js';
 import { REF, INK, mix, lum, cloth, flesh, smooth, ribbon, edgeOf, grid, halo, TONES } from './grid.js';
 
@@ -155,6 +155,12 @@ function boots(g, B, kit) {
     g.on(id, g.scan(smooth([[a + 1.6, 128], [a + 3.4, 126.8], [mid + 0.4, 127.4], [mid, 129.4], [a + 2.4, 129.8]], 3)), T.soft);
     g.on(id, g.rows(FLOOR_Y - 1, 0, REF.W), cloth(kit.suit ? 0x23252f : 0x47302a).base);   // (the sole)
     if (!kit.suit) for (const y of [top + 2, top + 4]) g.on(id, g.rows(y, Math.round(mid) - 1, Math.round(mid) + 1), T.deep);   // (laces)
+    // (mag boots (the gear's boots, A's), mag-boots' B-b: the magnet's sole a row deeper under the boot, and its housing
+    // round the ankle, the boot's top rows, in the cuff's grey; samples/mag-boots, the default until scored)
+    if (kit.gear?.boots === 'mag') {
+      g.add(g.scan([[a + 0.2, FLOOR_Y], [b + 0.6, FLOOR_Y], [b + 0.6, FLOOR_Y + MAG_SOLE_ROWS], [a + 0.2, FLOOR_Y + MAG_SOLE_ROWS]]), MAG_BOOT_C.sole);
+      g.on(id, g.rows(top, 0, REF.W, top + MAG_CUFF_ROWS - 1), MAG_BOOT_C.cuff);
+    }
   }
   if (kit.pt) {
     // (white socks over the running shoes' tops)
@@ -171,6 +177,8 @@ function boots(g, B, kit) {
   }
 }
 
+/** Mag boots on the doll (B-b, samples/mag-boots: the sole and a grey cuff), their colours and their rows (reference rows). */
+export const MAG_BOOT_C = Object.freeze({ sole: 0x24262c, cuff: 0x8a9099 }), MAG_SOLE_ROWS = 1, MAG_CUFF_ROWS = 1.3;
 /** Bare feet in shower shoes: the feet in skin, a dark sole under them and a strap across the instep. */
 function showerFeet(g, B, kit) {
   const S = flesh(kit.skin), sole = cloth(SHOWER_SHOE), [x0, x1] = [B.gap, B.hem], top = ANKLE_Y - 1;
@@ -927,16 +935,17 @@ export function kitOf(look = {}, marks = {}, body = null) {
   if (helm) {
     const K = { ...COMBAT_SUIT, ...(helm.suit ?? {}) };
     Object.assign(kit, {
-      suit: true, bloused: false, shell: K.shell, legs: K.skin, sleeve: K.skin, boots: K.boot, rings: K.ring, pack: K.pack, gloves: K.ring,
+      suit: true, bloused: false, shell: K.shell, legs: K.skin, sleeve: K.skin, boots: K.boot, rings: K.ring, pack: K.pack, gloves: K.glove ?? K.ring,
       band: helm.trim ?? K.ring, trim: helm.trim, head: { kind: 'vac', color: helm.shell, helm }, armour: look.carrier ? { color: K.carrier, pouch: K.pouches } : null,
     });
   } else if (outfit === 'combatSuit') {
     // (0.0.18, the fix: the combat EVA suit is drawn whenever it is worn, v0.0.17 drew the utilities under it (8960 of 8960 pixels
     // the same). Black as the figures wear it, worn unpressurised with the visor down (kit.js CONTAINERS 'ces-1' visor): the sealed
     // helmet in the suit's shell, its glass COMBAT_SUIT.visor, whatever the roof (the indoor rule is a cover's, never a sealed helmet's))
+    // (the gloves grey, outfits.js COMBAT_SUIT.glove: the user's "maybe gray gloves would be better for this color suit")
     const K = COMBAT_SUIT;
     Object.assign(kit, {
-      suit: true, bloused: false, shell: K.shell, legs: K.skin, sleeve: K.skin, boots: K.boot, rings: K.ring, pack: K.pack, gloves: K.ring,
+      suit: true, bloused: false, shell: K.shell, legs: K.skin, sleeve: K.skin, boots: K.boot, rings: K.ring, pack: K.pack, gloves: K.glove ?? K.ring,
       band: K.ring, head: { kind: 'vac', color: K.shell, visor: K.visor }, armour: look.carrier ? { color: K.carrier, pouch: K.pouches } : null,
     });
   }
@@ -983,8 +992,11 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
   g.held = new Set();
   // (bend: a candidate's bend outright, POSE_BENDS' shape (samples/portrait-pose/poses.js); 'profile' (F2, a candidate only) is the
   // figure side on: the head turned its most, the body drawn narrower about its middle)
-  const bend = given ?? POSE_BENDS[pose] ?? null, back = facing === 'back', profile = facing === 'profile';
+  let bend = given ?? POSE_BENDS[pose] ?? null;
+  const back = facing === 'back', profile = facing === 'profile';
   let gear1 = gear && hold ? holdGear(gear, hold, { facing, ...(hang ? { hang } : {}) }) : gear;
+  // (wedged, a boot under a rail on the deck, that knee bent: mag-boots' H-c's bend of the standing pose)
+  if (!bend && gear1?.anchor === 'wedge') bend = ANCHOR_LOOKS.wedge.bend;
   if (gear1 && bend?.lap && gear1.rifle && RIFLE_IN_HANDS.includes(gear1.rifle.place)) gear1 = { ...gear1, rifle: { ...gear1.rifle, place: 'lap' } };
   if (gear1) dressKit(kit, gear1);
   if (bend?.arms && !back) { if (bend.arms.bendR) kit.bendR = [...bend.arms.bendR]; if (bend.arms.bendL) kit.bendL = [...bend.arms.bendL]; }
@@ -993,7 +1005,7 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
   const G = kit.gear, Y = { BELT_Y, WAIST_Y };
   const bare = kit.pt || kit.towel;
   let leg0, leg1, hol0, hol1, backed = null;
-  if (back) ({ leg0, leg1, hol0, hol1, backed } = fromBehind(g, B, kit, Y));
+  if (back) { ({ leg0, leg1, hol0, hol1, backed } = fromBehind(g, B, kit, Y)); if (G?.anchor) anchorParts(g, kit); }
   else {
     leg0 = g.add([], 0);
     const L = legs(g, B, kit);
@@ -1032,6 +1044,8 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
     if (kit.head?.helm) dollHelm(g, B, kit, kit.head.helm);
     else hat(g, kit);
     if (G?.ears) earCups(g, kit);
+    // (the anchor the gear names: the rail overhead his left fist holds, or the lanyard to its plate)
+    if (G?.anchor) anchorParts(g, kit);
     if (!kit.suit && !bare) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
     // (the body's marks, over the cloth and the skin, before the seams and the ink)
     const C = kit.cues;
@@ -1063,6 +1077,7 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
     for (let p = hol0 + 1; p < hol1; p++) legIds.add(p);
     bendPose(g, bend, legIds);
     if (bend.lap && G?.rifle?.place === 'lap' && !back) rifleAt(g, B, kit, 'lap', MID, (bend.legs?.r?.[2] ?? 104));
+    if (G?.anchor === 'wedge') anchorParts(g, kit, 'rail');
     for (const o of spots) o.y += bend.drop ?? 0;
   }
   if (profile) squeeze(g, PROFILE_K);

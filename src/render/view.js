@@ -215,7 +215,7 @@ import { playerActor } from '../core/ids.js';
 import { STRIDE_WRAP_M } from '../data/body/gait.js';
 import { planOf } from '../sim/places/plan.js';
 import * as ARMS from '../sim/arms/look.js';
-import { rifleFrame, gaitCarryOf, RIFLE_BANDS, GAIT_CARRIES, STANCE_BANDS, STANCE_CARRIES, POOL_OF, HELD_BAND, HELD_CARRY, heldFrameOf } from '../art/figures/poses.js';
+import { rifleFrame, gaitCarryOf, RIFLE_BANDS, GAIT_CARRIES, STANCE_BANDS, STANCE_CARRIES, POOL_OF, HELD_BAND, HELD_CARRY, PISTOL_HIGH_BAND, PISTOL_HIGH_CARRY, heldFrameOf, tumbleFrame } from '../art/figures/poses.js';
 import { createGaitView } from './gait-view.js';
 import { CYCLE } from '../data/body/gait.js';
 import { FLASH_LIT_M, FLASH_LIGHT } from './figures.js';
@@ -242,6 +242,8 @@ import { AFTER_R_M } from './chaos.js';
 import * as BLOOD from '../sim/body/blood.js';
 import * as KNOWN from '../sim/places/known.js';
 import { createKnown, UNKNOWN_C } from './known.js';
+import { GAIT_G } from '../data/body/needs.js';
+import { G0_MS2 } from '../core/phys.js';
 
 /** The pieces' sizes the far window reads to find a long piece reaching into it (the range's kinds and the kit's). */
 const FAR_SIZES = Object.freeze({ ...RANGE_KINDS, ...FOOTPRINTS });
@@ -249,6 +251,10 @@ const FAR_SIZES = Object.freeze({ ...RANGE_KINDS, ...FOOTPRINTS });
 export const EYE_EASE_S = 0.15;
 /** People are put where they are, not glided, across a jump longer than this in a tick (metres). */
 export const JUMP_M = 1.5;
+/** v0.0.24 (VIEWS §2.11; samples/float-look F-b, the default until scored): a floating body higher than this over the deck is drawn one
+ * scale step nearer the camera (m, × FLOAT_SCALE_K: float.js SCALE_FROM_M, SCALE_STEP_K); the float's band, under which a body may float
+ * (needs.js GAIT_G.FLOAT_BELOW_G, in m/s²). */
+export const FLOAT_SCALE_FROM_M = 0.5, FLOAT_SCALE_K = 1.25, FLOAT_G_MS2 = GAIT_G.FLOAT_BELOW_G * G0_MS2;
 /** The share of sitting up (the last of it) over which the sitter on the mattress moves from the berth's head to its edge, where the sit frame follows on. */
 export const SIT_SLIDE_K = 0.6;
 /** The camera's lean where you go, east-west and north-south (metres): walking or strolling, and running (VIEWS §2.4). */
@@ -298,6 +304,9 @@ export const BEACON_LAMP = Object.freeze({ y: 2.4, r: 2.2, color: 0xff4a3a, core
 const HEAD_OF_FACE = { down: 'n', up: 's', right: 'w', left: 'e' };
 /** A stance sheet's frame drawn from the base sheet while its band paints (R8): the glide's and Assault's the Relaxed walk's, the flight the run's, a beat the rifle's own frame or the idle. */
 export function stanceFallback(frame, rifle = null) {
+  // (the P-12's high-ready walk, while its band paints: the low ready's walk at the same key, the rifle pool's)
+  const hw = /^pistolHighWalk(\d)$/.exec(frame ?? '');
+  if (hw) return `pistolWalk${hw[1]}`;
   const m = /^(glide|assault|flight)(\d)$/.exec(frame ?? '');
   if (m && m[1] === 'flight') return `run${Number(m[2]) * 4 + 3}`;
   if (m) return `walk${m[2]}`;
@@ -584,6 +593,19 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     if (!o) m.set(k, (o = Object.freeze({ ...look, ...(wet ? { wet: true } : {}), ...(tired ? { tired: true } : {}), ...(f ? { sex: 'f' } : {}) })));
     return o;
   }
+  // (a body floating, as the locomotion record says it (B's: gait 'float' while it drifts, `floatY` its centre of mass's
+  // height over the deck (freefall.js, loco.js floatLook: never `y`, the floor it stands on), `tumbleRad` the tumble's angle): standing
+  // where the place's gravity is under the float's band, so a sitter, a sleeper and the tower's officer at Mars are never one, or
+  // falling to the deck under a burn's ramp (gravity.js fallsTick writes floatY on its way down, at any gravity): { y, tumbleRad } or
+  // null. The fixer of v0.0.24's reviews: it read `a.y`, so every float was drawn on the deck at its own size, a body at rest in the
+  // void stood, and a fall was never drawn)
+  function floatOf(a, fig) {
+    if ((fig.posture ?? 'stand') !== 'stand') return null;
+    const y = Number.isFinite(a.floatY) ? a.floatY : 0;
+    if (y > 0.005) return { y, tumbleRad: Number.isFinite(a.tumbleRad) ? a.tumbleRad : 0 };
+    if (!(fig.gMs2 < FLOAT_G_MS2) || a.gait !== 'float') return null;
+    return { y: 0, tumbleRad: Number.isFinite(a.tumbleRad) ? a.tumbleRad : 0 };
+  }
   // (a look with a rifle in hand and the kit worn: the gait's carry, the magazine out, ear defenders, the
   // carrier, a headset; the rifle's design when its model is not the R-7 and its finish when not the issue's black
   // (0.0.12: gunLook's, read from the item, src/data/finishes.js); one object per look and variant, so the caches key on it)
@@ -593,10 +615,10 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     let m = armed.get(look);
     if (!m) armed.set(look, (m = new Map()));
     const model = v.weapon && v.model && v.model !== 'r7' ? v.model : null, finish = v.weapon && v.finish ? v.finish : null;
-    const k = `${v.weapon ?? '-'}|${v.carry ?? '-'}|${v.magOut ? 1 : 0}|${v.ears ? 1 : 0}|${v.carrier ? 1 : 0}|${v.headset ? 1 : 0}|${model ?? '-'}|${finish ?? '-'}|${v.sheet ?? '-'}${v.mask ? '|k' : ''}`;
+    const k = `${v.weapon ?? '-'}|${v.carry ?? '-'}|${v.magOut ? 1 : 0}|${v.ears ? 1 : 0}|${v.carrier ? 1 : 0}|${v.headset ? 1 : 0}|${model ?? '-'}|${finish ?? '-'}|${v.sheet ?? '-'}${v.mask ? '|k' : ''}${v.boots ? `|b${v.boots}` : ''}`;
     let o = m.get(k);
     // (sheet 'stance' (R8): the look of a stance sheet, a slot of its own (figures.js), the same drawing in a carry)
-    if (!o) m.set(k, (o = Object.freeze({ ...look, ...(v.weapon ? { weapon: v.weapon, carry: v.carry } : {}), ...(model ? { model } : {}), ...(finish ? { finish } : {}), ...(v.magOut ? { magOut: true } : {}), ...(v.ears ? { ears: true } : {}), ...(v.carrier ? { carrier: true } : {}), ...(v.headset ? { headset: true } : {}), ...(v.sheet ? { sheet: v.sheet } : {}), ...(v.mask ? { mask: true } : {}) })));
+    if (!o) m.set(k, (o = Object.freeze({ ...look, ...(v.weapon ? { weapon: v.weapon, carry: v.carry } : {}), ...(model ? { model } : {}), ...(finish ? { finish } : {}), ...(v.magOut ? { magOut: true } : {}), ...(v.ears ? { ears: true } : {}), ...(v.carrier ? { carrier: true } : {}), ...(v.headset ? { headset: true } : {}), ...(v.sheet ? { sheet: v.sheet } : {}), ...(v.mask ? { mask: true } : {}), ...(v.boots ? { boots: v.boots } : {}) })));
     return o;
   }
   // (the carry a figure's gait frames are painted with: the one it last walked with, so standing still in
@@ -614,15 +636,17 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       carry = gaitCarry.get(a.id);
     }
     const headset = !!person?.post && RO_POST.test(person.post.key ?? '');
-    if (!gl && !kit?.ears && !kit?.carrier && !headset && !kit?.mask) return { gl: null, look, kit };
-    const v = { weapon: gl ? 'rifle' : null, carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset, model: gl?.model ?? null, finish: gl?.finish ?? null, ...(kit?.mask ? { mask: true } : {}) };
+    if (!gl && !kit?.ears && !kit?.carrier && !headset && !kit?.mask && !kit?.boots) return { gl: null, look, kit };
+    // (mag boots worn, kitLook's boots (only when worn), so every other look is as it was)
+    const v = { weapon: gl ? 'rifle' : null, carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset, model: gl?.model ?? null, finish: gl?.finish ?? null, ...(kit?.mask ? { mask: true } : {}), ...(kit?.boots ? { boots: kit.boots } : {}) };
     // (the twin: the same look with the magazine the other way, whose sheet the figures draw while this one's band paints;
     // the sibs: the same look with each other gait carry, whose sheets hold the same carry-free frames (the rework's R2))
     // (R8: an armed mover in a stance, the stance sheet in the carry held: the glide, Assault and the beats, VIEWS §3.10.8)
     // (a device in the hands (look.js heldLook, outside the look's key: the card over the figure, atlas.js heldStrip), the
     // held band's frames from the slung-in-front carry's stance sheet (poses.js HELD_BAND))
     const held = gl && typeof ARMS.heldLook === 'function' ? ARMS.heldLook(state, a, msA) : null;
-    const sc = held && a.moveStance ? HELD_CARRY : gl && a.moveStance && STANCE_CARRIES.includes(gl.carry) ? gl.carry : null;
+    // (the P-12 out at the high ready, its walk from the high carry's stance sheet (poses.js PISTOL_HIGH_BAND))
+    const sc = held && a.moveStance ? HELD_CARRY : gl && a.moveStance && gl.pistol?.posture === 'highReady' ? PISTOL_HIGH_CARRY : gl && a.moveStance && STANCE_CARRIES.includes(gl.carry) ? gl.carry : null;
     return { gl, kit, look: armedLook(look, v), twin: gl ? armedLook(look, { ...v, magOut: !v.magOut }) : null, sibs: gl ? GAIT_CARRIES.filter(c => c !== carry).map(c => armedLook(look, { ...v, carry: c })) : null,
       stance: sc ? armedLook(look, { ...v, carry: sc, sheet: 'stance' }) : null, held };
   }
@@ -874,6 +898,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     painter?.step();                                                 // (5: the main thread's share, when there is no worker)
     let you = null, light = null;
     const people = [];
+    // (the floating bodies drawn this frame, for the tests: { id, y, scaleK, frame })
+    const floats = [];
+    stats.floats = floats;
     let peopleHidden = 0;
     waitingSheets.clear();
     // (an area's cut: the last picture held, nothing drawn, while the sim stands in another area than
@@ -916,8 +943,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const combat = KNOWN.hostKind(state) !== null;
       const flashes = [], shots = [];
       let ownGun = null;
-      // (0.0.12: the range's look on the range's ground, and in the shoot house, where the session's area is the live one)
-      const rl = typeof ARMS.rangeLook === 'function' && (live.id === KD_RANGE.area || (state.armoury?.range?.course === 'house' && state.armoury.range.area === live.id)) ? ARMS.rangeLook(state, fxMs) : null;
+      // (0.0.12: the range's look on the range's ground, and in the shoot house, where the session's area is the live one; the fixer of
+      // v0.0.24's play review (H1): and on the anchors course in Well A, whose turners, anchors and brass range.js draws from it)
+      const rl = typeof ARMS.rangeLook === 'function' && (live.id === KD_RANGE.area || ((state.armoury?.range?.course === 'house' || state.armoury?.range?.course === 'anchors') && state.armoury.range.area === live.id)) ? ARMS.rangeLook(state, fxMs) : null;
       const eye = me && typeof PERCEPTION.eyeOf === 'function' && typeof PERCEPTION.visibility === 'function' ? PERCEPTION.eyeOf(state, me) : null;
       const inSight = (x, z) => PERCEPTION.visibility(state, eye, x, z, ms) > 0;
       for (const a of state.actors?.list ?? []) {
@@ -956,14 +984,16 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         const inHand = !!gl && (['low', 'high', 'aim'].includes(gl.carry) || !!gl.pistol);
         let gv = null;
         if (free && (band || !walking0)) {
-          const vMs = step / (TICK_MS / 1000), gMs2 = fig.gMs2 ?? 9.81, stepM = fig.stepM ?? 0;
+          const vMs = step / (TICK_MS / 1000), gMs2 = fig.gMs2, stepM = fig.stepM ?? 0;
           // (the phase in the drawn cycle's steps: the figure's (the saved gp in the game's cycle, $gp in the page's other one))
           const gp0 = Number.isFinite(fig.gp) ? fig.gp : a.gp, gpA = Number.isFinite(gp0) && stepM > 0 ? gp0 - (1 - k) * step / stepM : null;
           const travelRad = Math.atan2(a.z - pz, a.x - px);
           gv = gaitView.draw({
             id: a.id, ms: fxMs, tickMs: ms, free: true, simFace: face, yawRad: Number.isFinite(a.bodyRad) ? a.bodyRad : walking0 ? travelRad : NaN,
             turnsByYaw: walking0 || (inHand && !!a.moveStance), walking: walking0 && !!band, travelRad, stride, gp: gpA, stepM, vMs, band,
-            sheet: !!arms.stance && !arms.held && (band === 'combat' || band === 'assault' || !walking0), kick: (gl?.kick ?? 0) > 0, aimed: gl?.carry === 'aim',
+            sheet: !!arms.stance && !arms.held && !gl?.pistol && (band === 'combat' || band === 'assault' || !walking0), kick: (gl?.kick ?? 0) > 0, aimed: gl?.carry === 'aim',
+            // (the P-12's high-ready walk from the stance sheet, only for a mover in a stance; the pistol's other frames as before)
+            pistolSheet: !!arms.stance && !!gl?.pistol && (band === 'combat' || band === 'assault'),
             beat: gl?.beat ?? null, action: Array.isArray(gl?.action?.frame) ? null : gl?.action?.frame ?? null, pistol: gl?.pistol ?? null, gMs2, cycle: fig.cycle ?? CYCLE,
           });
           face = gv.face;
@@ -978,6 +1008,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         const { look, key } = lookOf(look0, a.who);
         // (your #2's look's key as drawn, for the To score page's test: a pick lands on his figure)
         if (a.who === state.armoury?.range?.house?.twoPid) stats.twoLook = key;
+        // (your own look's key as drawn, for the page's tests: the mag boots on it)
+        if (own) stats.ownLook = key;
         const gait = stairsOf(a, x, z) ?? (walking0 ? stanceGait(GAIT[g0] ?? 'idle', stanceOf(a)) : GAIT[g0] ?? 'idle');
         const p = { key, look: look ?? {}, x, z, face, gait, stride, tS, phase: hash01('phase', a.id) * 2, own, id: a.id, dx: a.x - px, dz: a.z - pz, fig: fig.frame ?? null };
         if (arms.twin && !own) p.twin = lookOf(arms.twin, `${a.who}:twin`).key;
@@ -1017,7 +1049,22 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           // (below the ground: the pits' detail on their floor, drawn at their height, so the ground hides them)
           if ((fig.y ?? 0) < -0.05 && !p.frame) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
           // (standing on a height: the range officer on the tower's deck; the blob on the deck under them)
-          if (!p.y && (fig.posture ?? 'stand') === 'stand' && (fig.y ?? 0) > 0.05) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
+          // (not a body floating in free fall, whose height is the float's below)
+          if (!p.y && !floatOf(a, fig) && (fig.posture ?? 'stand') === 'stand' && (fig.y ?? 0) > 0.05) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
+          // (VIEWS §2.11, float-look's pick (F-b, the default until scored): a body floating drawn at its height over its
+          // point on the deck (the locomotion record's y: the card raised by it, figures.js, the blob left on the deck under it, smaller
+          // and fainter the higher he is), past FLOAT_SCALE_FROM_M one scale step nearer the camera (FLOAT_SCALE_K), in the tumble's
+          // frame by its angle, else the float's two drifting frames (the rifle held low in them, poses.js's float rig); a gun aimed keeps its aim)
+          const fl = floatOf(a, fig);
+          if (fl) {
+            p.y = fl.y; p.seat = 0; p.float = true;
+            if (fl.y > FLOAT_SCALE_FROM_M) p.scaleK = FLOAT_SCALE_K;
+            if (arms.gl?.carry !== 'aim' && !gv?.frame) {
+              const tf = tumbleFrame(fl.tumbleRad);
+              p.frame = tf !== 'float0' ? tf : `float${Math.floor(fxMs / 1000 + p.phase) % 2}`;
+            }
+            floats.push({ id: a.id, y: fl.y, scaleK: p.scaleK ?? 1, frame: p.frame ?? null });
+          }
         }
         // (a device in the hands: standing, the held band's frame for it and its beat (the base sheet's idle while that band
         // paints); walking, the base sheet's walk, never the slung-in-front stance sheet's glide; the card over either, at the fist)
@@ -1237,7 +1284,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // up before GO and never paint mid-lane)
         if (a.moveStance) for (const c of STANCE_CARRIES) {
           const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: c, magOut: arms.gl.mag === false, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, sheet: 'stance' }));
-          (c === arms.gl.carry ? jobs : twins).push(() => figures.prepare(keyOf(L), L, { bands: STANCE_BANDS.filter(b => b !== HELD_BAND), own }));
+          // (the P-12's high-ready walk in the high carry's sheet only)
+          (c === arms.gl.carry ? jobs : twins).push(() => figures.prepare(keyOf(L), L, { bands: STANCE_BANDS.filter(b => b !== HELD_BAND && (b !== PISTOL_HIGH_BAND || c === PISTOL_HIGH_CARRY)), own }));
         }
         // (a mover who carries a device: the held band in the slung-in-front carry's stance sheet, and the cards of the shapes
         // he carries, baked here behind the cut (the brief's splash), so a device in the hands never paints mid-lane)

@@ -38,10 +38,12 @@
 // 'sit' passed on as stance for the rifle's seated frames. Nothing else of the figure changes.
 // R8 (VIEWS §3.10.2): with the gait phase, what the view needs to read it, so it imports nothing of the body's: stepM (the
 // step the phase is counted in this tick: src/sim/body/loco.js stepMOf at the tick's speed), gMs2 (the place's gravity, for
-// the flight's lift) and cycle (the walk cycle played: the page's state.$cycle or the game's).
+// the flight's lift; v0.0.24's stage 0: on every figure, a person with no service record's too, so the view assumes no 1 G) and
+// cycle (the walk cycle played: the page's state.$cycle or the game's).
 // Pure.
 import { seatOf } from '../places/fixtures.js';
-import { areaOf, lonOf } from '../places/model.js';
+import { areaOf } from '../places/model.js';
+import { siteDayOf } from '../jobs.js';
 import { activityNow } from '../time/doing.js';
 import { bodyOf } from '../body/body.js';
 import { cuesOf } from '../body/cues.js';
@@ -79,13 +81,13 @@ export const indoorsNow = (state) => ROOFED_KINDS.has(areaOf(state.places?.live?
 // (the body's cues for the player, zeros where the body says nothing)
 function cuesFor(state, pid, ms) {
   const b = bodyOf(state, pid);
-  return b ? { ...NO_CUES, ...cuesOf(b, ms, lonOf(state)) } : NO_CUES;
+  return b ? { ...NO_CUES, ...cuesOf(b, ms, siteDayOf(state)) } : NO_CUES;
 }
 
 /** The gait phase's step and the place's gravity for the view (see the header): { stepM, gMs2, vMs, cycle }. */
 export function stepOf(state, a) {
   const dx = a.x - (a.$px ?? a.x), dz = a.z - (a.$pz ?? a.z), vMs = Math.hypot(dx, dz) / (TICK_MS / 1000);
-  const gMs2 = gravityAt(state, null, a.x, a.z)?.gMs2 ?? 9.81, cycle = cycleOf(state);
+  const gMs2 = gravityAt(state, null, a.x, a.z).gMs2, cycle = cycleOf(state);
   const gait = a.gait === 'run' || a.gait === 'bound' ? 'run' : 'walk';
   return { stepM: stepMOf({ gait, stance: a.moveStance ?? null, vMs, gMs2, legM: legMOf(state, a.who), cycle }).stepM, gMs2, vMs, cycle };
 }
@@ -95,8 +97,9 @@ export function figureOf(state, actor, ms = state?.clock?.ms ?? 0) {
   const person = actor?.who ? state.people?.[actor.who] : null;
   const gait = actor?.gait ?? 'idle', strideM = actor?.strideM ?? 0, face = actor?.face ?? 'down';
   if (!person?.service) {
+    // (the anywhere round's stage 0: the place's gravity on every figure, as stepOf gives a person's, so the view reads it with no 1 G of its own)
     return { look: person?.look ?? {}, posture: 'stand', frame: 'stand', k: 1, x: actor?.x ?? 0, z: actor?.z ?? 0, y: 0, face, head: null, spotId: actor?.spotId ?? null, curtain: false, gait, strideM, gp: gpOf(actor), bodyRad: bodyRadOf(actor),
-      outfit: 'utilities', inside: null, activity: null, cues: NO_CUES };
+      outfit: 'utilities', inside: null, activity: null, cues: NO_CUES, gMs2: gravityAt(state, null, actor?.x ?? 0, actor?.z ?? 0).gMs2 };
   }
   const isPlayer = actor.id === state.player?.actor;
   const st = actor.stance ?? null;

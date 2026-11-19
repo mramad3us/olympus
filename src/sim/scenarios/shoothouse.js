@@ -211,6 +211,8 @@ import { macroMs } from '../arms/drills.js';
 import { sheetOf } from '../skills/templates.js';
 import { ROOM_PAR_K, ROOM_PAR_STEP_MS, STANDARD_PARS, VERDICT_WHY } from '../../data/courses.js';
 import { BUILT } from '../../core/reads.js';
+import { seenOf, standSeen } from '../people/seen.js';
+import { seenFace } from '../arms/engage.js';
 
 const C = COURSES.house;
 /** Where the scene plays. */
@@ -1222,6 +1224,14 @@ function sterileTick(state, bus, R, H, now) {
   const S = (H.sterile ??= { pid: null, near: {}, done: {} }), c = actorOf(state, H.chiefPid);
   if (!c) return;
   const insp = inspectNext(state, H, 'sterile'), m = insp ? actorOf(state, insp) : null;
+  // (the fixer of v0.0.24's play review, H2: where his legs have nothing to push on (0 G with no boots: &env=ship-coast, motion.js
+  // legsAt's push min(μ g, …) 0) his walk to you never began and the live lane stood at the brief for good, nothing said; there he
+  // checks each of you by eye from where he stands, one a tick, and stays at his post, so LOAD follows as on any floor)
+  if (!H.chief && !(bodyLegsOf(state, H.chiefPid, c.x, c.z).pushMs2 > 0)) {
+    if (insp) { S.done[insp] = now; S.pid = insp; chiefSays(state, bus, inspectNext(state, H, 'sterile') ? HOUSE_CHIEF.sterile[1] : HOUSE_CHIEF.sterile[0]); }
+    else if (!S.home) S.home = 'in';
+    return;
+  }
   const B = houseSpecOf(state).booth, door = boothDoorOf(state, B);
   if (m && (!S.to || S.who !== insp || Math.hypot(m.x - S.base[0], m.z - S.base[1]) > STERILE_REPLAN_M)) {
     const dx = c.x - m.x, dz = c.z - m.z, d = Math.hypot(dx, dz);
@@ -1812,18 +1822,25 @@ function firstBy(state, L, key) {
 export const passWhyOf = (L) => (L.door === 'hall' ? null : L.state === 'open' ? 'door' : L.state === 'entered' ? 'room' : L.state === 'ahead' || L.state === 'stacked' ? 'stack' : null);
 // (the leg passed, its why first: at both of stall's passes)
 function passLeg(state, bus, H, L, now) {
-  const w = passWhyOf(L);
+  // (the fixer of v0.0.24's play review, M1: a room passed while your legs had nothing to push on (0 G with no boots locked) is the
+  // footing's, 'footing', never the door's or the stack's lesson)
+  const w = footless(state) ? 'footing' : passWhyOf(L);
   if (w) L.passWhy = w;
   houseFault(state, bus, 'time', HOUSE_CHIEF.time, L);
   endLeg(state, bus, H, L, 'passed', now);
 }
+// (your legs have nothing to push on where you stand (0 G with no boots locked: motion.js legsAt through bundle.js legsOf), so no walk
+// of yours can start: the fixer of v0.0.24's play review, M1)
+const footless = (state) => { const pid = playerId(state), a = actorOf(state, pid); return !!a && !(bodyLegsOf(state, pid, a.x, a.z).pushMs2 > 0); };
 function stall(state, bus, R, H, L, now) {
   const since = now - (H.stallAtMs ?? now), due = legDueMs(H, legsOf(H).indexOf(L)), dueNear = due !== null && now >= due - STALL_MORE_MS;
   if ((since >= STALL_MS || dueNear) && !L.stallSaid) {
     L.stallSaid = true; L.stallAtMs = now;
     if (since < STALL_MS) L.dueSaid = true;
     bus?.emit('house', { phase: 'stall', room: L.room, who: playerId(state), atMs: now });
-    chiefSays(state, bus, HOUSE_CHIEF.stall, 'stall', L.room);
+    // (the fixer of v0.0.24's play review, M1: "Move. You are clearing, not visiting." beside "No footing here." where you could not
+    // move: with your legs on nothing the instructor says why he moves you on)
+    chiefSays(state, bus, footless(state) ? HOUSE_CHIEF.stallFooting : HOUSE_CHIEF.stall, 'stall', L.room);
   }
   if (due !== null && now >= due) {
     L.dueSaid = true;
@@ -2158,6 +2175,8 @@ export function houseShot(state, bus, shot) {
     if (shot.set && H.dummy.clickAtMs === null) H.dummy.clickAtMs = shot.atMs;
   }
   if (!shot.fired) return;
+  // (the truth cards' moment, your first round at a man or a stand, hit or miss: what he truly was then, once (truthAt))
+  if (mine && T && !T.atFirst) T.atFirst = truthAt(state, T, shot.atMs);
   const L = T ? legsOf(H)[legOf(T)] : curLeg(H);
   const zone = shot.zone ?? null, part = shot.part ?? 'torso', hit = !!T && zone !== null;
   const tally = (z) => { if (!L) return; const Z = mine ? L.zones : L.twoZones; Z[z] = (Z[z] ?? 0) + 1; };
@@ -2182,6 +2201,21 @@ export function houseShot(state, bus, shot) {
   }
   const torso = T.hits.filter(h => h.part === 'torso' && (h.zone === 'A' || h.zone === 'C')).length, head = T.hits.filter(h => h.zone === 'head').length;
   if (T.face === 'hostage' ? head >= STOP_HEAD : torso >= STOP_TORSO || head >= STOP_HEAD) stopTurner(bus, T, shot.atMs);
+}
+/**
+ * What a man or a stand truly was at your first round at him (v0.0.24, the build sheet v0.0.24 item 19, §0 items 14 and 28; the
+ * overhaul's O-17): T.atFirst = { ms, how, gun, pose, facing, aimAt, face, holds, read }, written once by houseShot and never again, so the
+ * end card's truth card draws him as he was, beside what your take-in had read (read: engage.js seenFace's face and holds then, the
+ * belief you acted on; gun: the model in his hands then, so a man who later gave up and dropped it is drawn holding it). A role-player is his Seen record from your eye (seen.js seenOf, read here in a tick for this capture only,
+ * the cover off, { fresh: true, keep: false }: no cache of the page's is written, and a save loaded captures the same); a board is
+ * what its stand holds, front on. Additive: a save made before has none, read as not engaged until a round is fired at it.
+ */
+export function truthAt(state, T, ms) {
+  const sf = seenFace(state, T.key), read = { face: sf.face, holds: sf.holds };
+  const r = isLive(T) && T.live?.who ? seenOf(state, T.live.who, { by: playerId(state), ms, fresh: true, keep: false, cover: false }) : null;
+  if (r) return { ms, how: r.hold?.how ?? 'empty', gun: r.hold?.right ?? null, pose: r.pose, facing: r.facing, aimAt: r.aimAt ?? null, face: T.face, holds: T.holds, read };
+  const b = standSeen(T.face, T.holds);
+  return { ms, how: b.hold.how, pose: 'stand', facing: 'front', aimAt: null, face: T.face, holds: T.holds, read };
 }
 // (the hit sensor: down, and turned away SENSOR_MS after)
 function stopTurner(bus, T, atMs) {
@@ -2656,7 +2690,7 @@ export function runSheetOf(state, ms = state.clock.ms) {
 }
 
 // (the floor's gravity on the card, "1 G" in the Wheel, from the environment (the user's rule of 2026-11-08: the house is at 1 G))
-const gWords = (state) => { const me = playerActor(state), g = gravityAt(state, null, me?.x ?? 0, me?.z ?? 0)?.gG ?? 1; return `${Math.round(g * 100) / 100} G`; };
+const gWords = (state) => { const me = playerActor(state), g = gravityAt(state, null, me?.x ?? 0, me?.z ?? 0).gG; return `${Math.round(g * 100) / 100} G`; };
 // (the card's line: COMBAT §25.10.4's)
 function cardOf(state, R, H, views, ms) {
   const label = (TEST_SHEETS[H.tier]?.label ?? H.tier).toUpperCase();
@@ -2744,7 +2778,7 @@ export const LIVE_NAMES = Object.freeze({ '2a': 'the man in the deep corner', '3
 function oneThing(state, H, views) {
   const n = (kind) => sum(views.map(V => V.faults.filter(f => f.kind === kind).length));
   // (carried FH-2: a threat left standing in a room passed at the door is that pass's consequence, not its cause: not counted)
-  const nStanding = sum(views.map(V => (V.passWhy === 'door' ? 0 : V.faults.filter(f => f.kind === 'standing').length)));
+  const nStanding = sum(views.map(V => (V.passWhy === 'door' || V.passWhy === 'footing' ? 0 : V.faults.filter(f => f.kind === 'standing').length)));
   const passed = (why) => views.filter(V => V.passWhy === why).length;
   const doorway = sum(views.map(V => V.doorwayMs));
   const score = {
@@ -2754,6 +2788,8 @@ function oneThing(state, H, views) {
     // under the no-shoot's 90: a lane lost at the door is the first thing to fix), at its stack, the door never opened, or inside, never
     // called; the hall's pass keeps `time` (my calls). Before, every pass was `time`, "Too slow through the rooms. …", beside the NO-GO)
     'passed:door': passed('door') * PASS_DOOR_W, 'passed:stack': passed('stack') * PASS_STACK_W, 'passed:room': passed('room') * PASS_ROOM_W,
+    // (the fixer of v0.0.24's play review, M1: rooms passed with no footing, the lane's whole lesson, over every other)
+    'passed:footing': passed('footing') * PASS_FOOTING_W,
     // (the card (the build sheet v0.0.20 §1 item 4): a missed par scored by its cause, each its own advice ('par:click' is a
     // par met within the dummy's click, scored 0; 'par' a contact recorded before the causes), your number two's line masked by you)
     ...Object.fromEntries(Object.entries(views.reduce((o, V) => { for (const [k, c] of Object.entries(V.causes ?? {})) o[k] = (o[k] ?? 0) + c; return o; }, {})).map(([k, c]) => [k === 'par' ? 'par' : `par:${k}`, c * 40])),
@@ -2831,7 +2867,7 @@ function whoseOne(state, H, views, key) {
   return key;
 }
 /** A room passed at its open door, at its stack, inside it: the one thing's weights (carried FH-2; my calls). */
-export const PASS_DOOR_W = 75, PASS_STACK_W = 40, PASS_ROOM_W = 30;
+export const PASS_DOOR_W = 75, PASS_STACK_W = 40, PASS_ROOM_W = 30, PASS_FOOTING_W = 200;
 // (your number two in the room this long after you is late on your heels: the one thing's "Let him in with you." (F48's TWO_HEELS_MS))
 const HEELS_LATE_MS = 2000;
 // (the dummy's clearing over HANDS_K × the sheet's immediate action (ms; ≤ 0 within it))

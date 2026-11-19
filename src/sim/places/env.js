@@ -8,17 +8,20 @@
 //   area   its record (src/sim/places/model.js areaOf): `gravity` and `air` (absent or null: the
 //          site's), its kind (a `ground` breathes the site's outside air, open to the weather; a floor,
 //          a deck or a craft its inside air), `sky`;
-//   live   state.places.live.env, a scene's override: { preset, gravity?, air?, airC?, rev } (absent for
+//   live   state.places.live.env, a scene's override: { preset, gravity?, air?, airC?, profile?, rev } (absent for
 //          the site's own environment, so a save made before it, and every save that never sets one,
 //          is the same bytes; the upgrade 'places:env' turns a null into that absence). A preset names a
-//          whole environment (ENV_PRESETS) and its fields win over every layer under it.
+//          whole environment (ENV_PRESETS) and its fields win over every layer under it. profile (v0.0.24,
+//          step 6) is a ship's gravity events and their cursor, src/sim/places/gravity.js's, whose ramp writes
+//          the record's gravity a tick at a time through setLiveG (the rev bumped each tick it moves).
 // The zone and room layer (a zone's gas, a room's surface and light) comes with PLACES §3's zones.
 //
 // envAt(state, area, x, z) is the resolved record { site, area, body, outdoors, gravity, air, sky,
 // preset }; gravityAt { regime, gG, gMs2, down, onsetGs, spin }; airAt { air, word, pKpa, o2Kpa, co2Kpa,
 // airC, molarKgMol, vacuum, rhoKgM3, soundMs, sinkC, open }; soundMsAt the speed of sound (0: no
-// airborne path); surfaceAt { id, muDry, muWet, mu, ferrous, grip, step, dust, soilWord } under the feet
-// (model.js surfaceAt names the id). `area` is an area id; null or undefined reads the live area. x and z
+// airborne path); surfaceAt { id, muDry, muWet, mu, ferrous, material, grip, step, dust, soilWord } under the
+// feet (model.js surfaceAt names the id, cell by cell: step 5; BODY's footing, src/sim/body/footing.js, the steps' sound,
+// the soiling and a dropped magazine read it). `area` is an area id; null or undefined reads the live area. x and z
 // are taken for the zones to come. presetEnv(id) is a preset's record with no state (the ballistic
 // table's classes, the tests' matrix); bodyPlaceOf(siteId) is what a body skipped along a plan breathes
 // and weighs there ({ gG, in: { pKpa, airC }, out: { pKpa, airC } }: BODY's segments, startBody).
@@ -61,6 +64,7 @@ import * as SETTING from '../../data/setting/calendar.js';
 import { BODIES, AIRS, SURFACES, ENV_PRESETS, CLOCKS, LIGHT_REGIMES } from '../../data/places/env.js';
 import { ROUTINES } from '../../data/pod.js';
 import { siteOf, areaOf, siteLonOf, surfaceAt as surfaceIdAt } from './model.js';
+import { profileRecord } from './profile.js';
 
 const DOWN = Object.freeze([0, -1, 0]), NONE = Object.freeze([0, 0, 0]);
 
@@ -147,7 +151,7 @@ export const airAt = (state, area = null, x = 0, z = 0) => envAt(state, area, x,
 /** The speed of sound at a place, m/s: 0 where there is no air to carry it. */
 export const soundMsAt = (state, area = null, x = 0, z = 0) => envAt(state, area, x, z).air.soundMs;
 
-/** What the feet are on at a point: { id, muDry, muWet, mu (dry this round), ferrous, grip, step, dust, soilWord } (PLACES §2.7). */
+/** What the feet are on at a point: { id, muDry, muWet, mu (dry this round), ferrous, material, grip, step, dust, soilWord } (PLACES §2.7). */
 export function surfaceAt(state, area = null, x = 0, z = 0) {
   const areaId = area ?? need(state?.places?.live?.area, 'no area given and none is live');
   const id = need(surfaceIdAt(state, x, z, areaId), `no surface at (${x}, ${z}) in '${areaId}'`), row = need(SURFACES[id], `no surface '${id}' (${Object.keys(SURFACES).join(', ')})`);
@@ -169,8 +173,12 @@ export function bodyPlaceOf(siteId) {
 
 /**
  * Set or clear the live override (a scene's environment, ROADMAP "anywhere"'s steps 2 and 4): over
- * { preset, gravity?, air?, airC? } or null. Writes state.places.live.env (saved) with its rev bumped,
- * after the preset and the airs named are checked. Returns the record written, or null.
+ * { preset, gravity?, air?, airC?, profile? } or null. Writes state.places.live.env (saved) with its rev bumped,
+ * after the preset and the airs named are checked. Returns the record written, or null. v0.0.24 (step 6, src/sim/places/gravity.js):
+ * profile, a ship's gravity events, is a spec's list (scenes.js env.profile, the URL's &grav=), drawn at the clock now into the
+ * record gravity.js keeps (profileRecord: a bad event throws, as a bad preset does), or a record already drawn (kept as it is, a
+ * copy); absent, or an empty list, writes none, so every environment without one is the same bytes. surface (A's test seam: every
+ * cell's surface on the live area, model.js surfaceAt) is copied when given, an unknown one throwing.
  */
 export function setLiveEnv(state, over) {
   const live = need(state?.places?.live, 'no live place to set an environment on');
@@ -179,10 +187,28 @@ export function setLiveEnv(state, over) {
   if (over.gravity) rec.gravity = { ...over.gravity };
   if (over.air) rec.air = over.air;
   if (over.airC !== undefined) rec.airC = over.airC;
+  // (A's test seam, v0.0.24: a deck laid in one surface (model.js surfaceAt reads it), kept through a reset of the record: checked here)
+  if (over.surface) rec.surface = need(SURFACES[over.surface] && over.surface, `no surface '${over.surface}'`);
+  if (Array.isArray(over.profile) ? over.profile.length : over.profile) rec.profile = Array.isArray(over.profile) ? profileRecord(state, over.profile) : structuredClone(over.profile);
   rec.rev = (live.env?.rev ?? 0) + 1;
   checkLive(rec, live.area);                                       // (resolved before it is written: a bad override throws and the state keeps the one it had)
   live.env = rec;
   return rec;
+}
+
+/**
+ * The ramp's write (v0.0.24, step 6: src/sim/places/gravity.js gravityTick): the live environment's felt gravity set to gG, its
+ * regime kept (the live record's, else the place's under it), and its rev bumped, so every reader of the tick sees the one number
+ * and gravityAt stays a cached lookup. Throws with no live environment (a profile always has one) or a gG that is not a number.
+ */
+export function setLiveG(state, gG) {
+  const L = need(liveEnvOf(state), 'no live environment to ramp');
+  if (!Number.isFinite(gG) || gG < 0) throw new Error(`env: a felt gravity of ${gG} G`);
+  const regime = L.gravity?.regime ?? envAt(state).gravity.regime;
+  L.gravity = { ...(L.gravity ?? {}), regime, gG };
+  delete L.gravity.down;
+  L.rev = (L.rev ?? 0) + 1;
+  return L.gravity;
 }
 
 // (a live record resolved on its area, off the caches: throws for an unknown preset, a gravity with no regime or value, an unknown air or a bad temperature)

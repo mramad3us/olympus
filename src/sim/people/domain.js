@@ -73,7 +73,8 @@ export const peopleDomain = Object.freeze({
   owner: 'PEOPLE',
   keys: KEYS,
   idMaps: Object.freeze({ people: 'p', units: 'unit' }),
-  idFields: Object.freeze({ 'player.id': 'p', 'player.actor': 'a', 'actors.area': 'place' }),
+  // (step 5 of "anywhere": an actor's buddy brace names its teammate, actors.list[].anchorRef (src/sim/body/footing.js))
+  idFields: Object.freeze({ 'player.id': 'p', 'player.actor': 'a', 'actors.area': 'place', 'actors.list[].anchorRef': 'p' }),
   init: initPeople,
   fast: Object.freeze({ input: peopleInput, actors: actorsStep, look: contactLook, second: suppSecond, offers: instinctStep }),
   slow: Object.freeze([Object.freeze({ name: 'people:place', step: placeSlowStep, steady: () => true })]),

@@ -103,6 +103,15 @@
 // (DC3). Each loads with nothing written, saves again byte for byte, carries on byte for byte from a save 300 ticks on, and reaches
 // its card on its lane's tick from the fill (house-pin's honest/recruit/48213, house-live-pin's quick cell); v0.0.23's D adds the new
 // rules' assertions (the room passed with passWhy 'door'; the sterile check begun, LOAD after it) and moves the ticks with the pins.
+// v0.0.24's stage 0 (its build sheet §2 step 7, a heavy case: game-upgrade is at its QUICK_SLOW ceiling): two saves made by v0.0.23's
+// own code (the integrated snapshot, tree efa558b2, v0.0.23 untagged; the maker .run/v024/lead-figures/scripts/make-saves.mjs),
+// stamped 0.0.23: the private by the keys on 48213 at his first contact's pause in room 2 (stop motion at its choice, via 'contact',
+// the pick 2a), and the bay at 23:00 (the barracks on 48213 at hour 23, 100 ticks on). Each loads with nothing written, saves again
+// byte for byte with every id valid, and carries on byte for byte from a save made 300 ticks on; the room 2 save reaches its card on
+// the tick the same lane played straight from GO does (the keys private on 48213 from setup 'go', played in the test beside it:
+// 3702 on the snapshot, V023_GO_TICK; house-pin's cell starts at the fill, before the brief, so its 4502 is not this lane's). They are the anywhere round's held saves (F100): each
+// merge, A to D, keeps them byte for byte; after E's the house save gains no T.atFirst until a round is fired after the load (E adds
+// that assertion here).
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -135,6 +144,8 @@ import { botOf } from './flawless.mjs';
 import { instinctNow } from '../src/sim/skills/instinct.js';
 // (v0.0.22's C: the two v0.0.21 saves' end ticks under v0.0.22's rules (see their case), recorded on C's tree)
 const SAVE_TICKS = Object.freeze({ showclear: 4562, paint: 3362 });
+/** v0.0.24's stage 0: the keys private on 48213 from setup 'go' to his card, the tick on v0.0.23's snapshot (the room 2 save's lane). */
+const V023_GO_TICK = 3702;
 
 const LON = SITES.melas.lonEDeg, MIN_TICKS = 20 * 60;
 // (v0.0.21, the build sheet §1 item 25, §0 item 17: a house save from before v0.0.20's pars gains them on load, the stands' books,
@@ -689,6 +700,44 @@ export default [
           console.log(`        v0.0.23: the sterile looks at ${looks.map(ms => `${((ms - old.clock.ms) / 1000).toFixed(2)} s`).join(', ')} after the load, LOAD at ${((loadMs - old.clock.ms) / 1000).toFixed(2)} s`);
           assert(H0.sterile === undefined && looks.length === 2 && loadMs !== null && looks.every(ms => ms <= loadMs), JSON.stringify({ looks, loadMs }));
         }
+      }
+    },
+  },
+  {
+    name: 'v0.0.24 (its build sheet §2 step 7): two saves made by v0.0.23\'s own code load with nothing written and carry on byte for byte: the private by the keys at his first contact\'s pause in room 2, to his card on his lane\'s tick from the fill, and the bay at 23:00 (heavy: game-upgrade is at its QUICK_SLOW ceiling)',
+    heavy: true,
+    timeoutMs: 300_000,
+    fn() {
+      const CASES = {
+        'v0.0.23-house-room2': { bot: () => houseKeysBot(), pin: [V023_GO_TICK] },
+        'v0.0.23-bay': { bot: () => ({}), pin: null },
+      };
+      for (const [name, c] of Object.entries(CASES)) {
+        const json = read(name), old = JSON.parse(json);
+        assert(old.meta.version === '0.0.23' && old.meta.seed === 48213, `${name}: ${old.meta.version} ${old.meta.seed}`);
+        if (c.pin) {
+          const H0 = old.armoury.range.house, S0 = old.stop, T0 = S0?.pick ? old.armoury.range.turners.find(t => t.key === S0.pick) : null;
+          assert(old.meta.scenario === 'test-shoothouse' && H0.tier === 'private' && H0.cur === 1 && S0?.mode === 'stop' && S0.phase === 'choose' && S0.via === 'contact' && T0?.room === 'w4.r2', JSON.stringify({ tier: H0.tier, cur: H0.cur, via: S0?.via, pick: S0?.pick }));
+        } else assert(old.meta.scenario === 'barracks' && old.places.live.area === 'melas.echo.1', JSON.stringify({ scenario: old.meta.scenario, area: old.places.live.area }));
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), saved = g.save(), ids = checkIds(JSON.parse(saved), g.sim.domains), b = c.bot();
+        // (v0.0.24 E: the truth cards' capture (shoothouse.js truthAt) is additive: none on the load, a stand's only after a round of yours at it)
+        const loadMs = s.clock.ms, capturedAtLoad = c.pin ? s.armoury.range.turners.filter(T => T.atFirst).length : 0;
+        const step = (game, bot, n) => (typeof bot === 'function' ? game.step(n, bot) : game.step(n, {}));
+        step(g, b, 300); const mid = g.save(); step(g, b, 300); const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); step(h, c.bot(), 300);
+        const carried = h.save() === end;
+        let card = '';
+        if (c.pin) {
+          // (the same lane played straight from GO, no save: the oracle, beside the snapshot's tick)
+          const f = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private', setup: 'go' }), rf = runHouse(f, houseKeysBot(), { maxMs: 30 * 60_000 });
+          const r = runHouse(g, b, { maxMs: 30 * 60_000 });
+          const caps = s.armoury.range.turners.filter(T => T.atFirst), early = caps.filter(T => T.atFirst.ms < loadMs || !s.armoury.range.shots.some(x => x.key === T.key && x.atMs >= loadMs && x.atMs <= T.atFirst.ms));
+          card = `; to the card ${r.done} (${s.armoury.range.house.end?.why}) at tick ${s.clock.tick}, the lane straight from GO ${rf.done} at ${f.state.clock.tick} (the snapshot's ${c.pin[0]}); captures at the load ${capturedAtLoad}, at the card ${caps.map(T => T.stand).join(', ')} (each after a round of yours fired after the load: ${caps.length - early.length} of ${caps.length})`;
+          assert(capturedAtLoad === 0 && caps.length > 0 && !early.length, JSON.stringify({ capturedAtLoad, early: early.map(T => T.key) }));
+          assert(r.done && rf.done && s.clock.tick === f.state.clock.tick && s.clock.tick === c.pin[0], JSON.stringify({ done: r.done, tick: s.clock.tick, straight: f.state.clock.tick, want: c.pin[0] }));
+        }
+        console.log(`      ${name}: ${old.meta.scenario} at tick ${old.clock.tick} (${hm(old.clock.ms)}), ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}${card}`);
+        assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
       }
     },
   },

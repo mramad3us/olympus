@@ -61,7 +61,7 @@ export const BINDINGS = Object.freeze([
   { action: 'stanceUp', codes: ['KeyQ'], kind: 'sim', sends: 'stance:up', say: 'stance up' },
   { action: 'stanceDown', codes: ['KeyZ'], kind: 'sim', sends: 'stance:down', say: 'stance down' },
   { action: 'hit', codes: ['KeyK'], kind: 'sim', say: 'hit' },
-  { action: 'grab', codes: ['KeyL'], kind: 'sim', say: 'grab' },
+  { action: 'grab', codes: ['KeyL'], kind: 'sim', say: 'grab (floating: a hold or a person in reach)' },
   { action: 'guard', codes: ['Semicolon'], kind: 'sim', say: 'guard' },
   { action: 'inventory', codes: ['KeyI'], kind: 'ui', say: 'inventory' },
   { action: 'sheet', codes: ['KeyC'], kind: 'ui', say: 'character sheet' },

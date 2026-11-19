@@ -29,12 +29,12 @@
 // only when their part ends whole: the build sheet §8 item 9).
 // Pure but setCut and cutHair.
 import { HOUR_MS, SOL_MS } from '../../core/clock.js';
-import { localSol } from '../../core/calendar.js';
+import { localSol, localDay, dayLenOf, isUtcDay, dayWeekday, WEEKDAYS } from '../../core/calendar.js';
 import { hashInt } from '../../core/hash.js';
 import { CUTS, HAIR_STYLES, LEGACY_CUTS, THIN_CUT, DEFAULT_CUT } from '../../data/people/looks.js';
 import { HAIR, HAIR_BANDS } from '../../data/body/needs.js';
 import { weekdayName } from '../time/dates.js';
-import { siteLonEDeg } from '../jobs.js';
+import { siteDayOf } from '../jobs.js';
 import { tmplOf } from './record.js';
 import { hairCut } from './body.js';
 
@@ -68,8 +68,9 @@ export function squadHairH(seed, pid, cut, ms, lonEDeg = 0) {
   const C = CUTS[cut] ?? CUTS[DEFAULT_CUT];
   const cycle = Math.max(1, Math.round(SQUAD_CYCLE_K[hashInt(SQUAD_CYCLE_K.length, 'barber', seed >>> 0, pid)] * C.dueSols));
   const phase = hashInt(cycle, 'barber', 'phase', seed >>> 0, pid);
-  const { sol, msOfSol } = localSol(ms, lonEDeg);
-  const noonOf = (s) => ms - msOfSol + (s - sol) * SOL_MS + SQUAD_CUT_H * HOUR_MS;
+  // (the day the barber keeps: the local sol on Mars, the UTC day off it (v0.0.24's stage 0: lonEDeg is the site's day key))
+  const { sol, msOfSol } = localDay(ms, lonEDeg);
+  const noonOf = (s) => ms - msOfSol + (s - sol) * dayLenOf(lonEDeg) + SQUAD_CUT_H * HOUR_MS;
   let c = sol - ((((sol + phase) % cycle) + cycle) % cycle);
   if (noonOf(c) > ms) c -= cycle;
   return (ms - noonOf(c)) / HOUR_MS;
@@ -91,7 +92,7 @@ export function hairOf(state, pid, ms = state?.clock?.ms ?? 0) {
   const p = state?.people?.[pid];
   if (!p) return null;
   const sex = p.sex === 'f' ? 'f' : 'm', cut = cutIdOf(p.look, sex), C = CUTS[cut];
-  const lon = siteLonEDeg(state);
+  const lon = siteDayOf(state);
   let h = ledgerH(p, ms);
   if (h === null) h = p.service ? squadHairH(state.meta?.seed ?? 0, pid, cut, ms, lon) : 0;
   return hairAt(cut, h, ms, lon, { sex, thin: !!p.look?.hair?.thin });
@@ -103,7 +104,7 @@ export function hairAt(cut, h, ms = 0, lonEDeg = 0, { sex = CUTS[cut]?.sex ?? 'm
   const sols = h / SOL_H, grownMm = HAIR.MM_DAY * h / 24, share = sols / C.dueSols;
   const step = stepOfShare(share), b = HAIR_BANDS[step];
   const dueMs = Math.round(ms + (C.dueSols * SOL_MS - h * HOUR_MS));
-  const dueDay = weekdayName(localSol(dueMs, lonEDeg).sol);
+  const dueDay = isUtcDay(lonEDeg) ? WEEKDAYS[dayWeekday(localDay(dueMs, lonEDeg).sol, lonEDeg)] : weekdayName(localSol(dueMs, lonEDeg).sol);
   return {
     cut: CUTS[cut] ? cut : DEFAULT_CUT, word: C.word, sex, thin, h, sols,
     mm: { sides: C.sidesMm === null ? null : C.sidesMm + grownMm, top: C.topMm + grownMm },
@@ -118,7 +119,7 @@ export function hairStepOf(state, pid, ms = state?.clock?.ms ?? 0) {
   if (!p) return 0;
   const cut = cutIdOf(p.look, p.sex === 'f' ? 'f' : 'm');
   let h = ledgerH(p, ms);
-  if (h === null) h = p.service ? squadHairH(state.meta?.seed ?? 0, pid, cut, ms, siteLonEDeg(state)) : 0;
+  if (h === null) h = p.service ? squadHairH(state.meta?.seed ?? 0, pid, cut, ms, siteDayOf(state)) : 0;
   return stepOfShare(h / SOL_H / (CUTS[cut] ?? CUTS[DEFAULT_CUT]).dueSols);
 }
 

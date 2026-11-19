@@ -264,6 +264,8 @@ function die(rec, ms, why) {
   rec.bloodMs = ms;
   delete rec.knock;
 }
+/** The blood's anchor moved to ms, and a death written at ms (applyHit's own two, for BODY §16.5's other intake: src/sim/body/impact.js, v0.0.24). Write rec. */
+export const anchorBlood = anchor, dieOf = die;
 
 /** The bleed's factor held from ms on (ctx: bleedFactor's): the anchor moved to ms when it changes, so what bled before bled at the old one. Writes rec. */
 export function holdFactor(rec, ms, ctx) {

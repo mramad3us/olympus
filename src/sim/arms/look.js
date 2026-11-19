@@ -26,11 +26,14 @@
 // (the case's model is coarser than that, and Mars's 3.726527 m/s² reads 3.727, the case's gravity
 // since v0.0.5); ejectCase and caseAt take it (required: TECH §1.4), and rangeLook gives the stage its
 // gMs2 for the dust and the plates. **Under the float band** (gMs2 below src/data/body/needs.js GAIT_G's
-// 0.05 G: a coasting deck, free fall) a case never lands (WEAPONS §2.8): it flies straight at its launch
-// speed for CASE_FREE_M 2 m (half a ship's compartment, where it meets a surface: my call) and is held
-// there at its port's height (the record's restY, written only then, so every record at Mars is v0.0.10's
-// bytes), never the fall's Infinity at 0 G; the bounce and the drift to the grille at 0.15 m/s are
-// free-fall motion's (ROADMAP "anywhere" step 7). ejectCase()
+// 0.05 G: a coasting deck, free fall) a case never lands (WEAPONS §2.8): it flies straight at its port's
+// height and launch speed to the first face it meets, bounces once at CASE_BOUNCE 0.3 of its speed off
+// that face, and drifts to the next, where it is held (v0.0.24, ROADMAP "anywhere" step 7: v0.0.11's
+// CASE_FREE_M 2 m, the case held 2 m out, is gone). The faces are found once, at the ejection, by the
+// ray the caller gives (`faces`: brass.js caseFacesOf(state), the live area's walls and floor's edge),
+// required under the float band; the record then carries the bounce as `path` [{ atMs, x, z, v }] and
+// restY (its height at rest, the port's), written only then, so every record at Mars and the Wheel is
+// v0.0.10's bytes, and caseAt reads the two segments in closed form, the same whatever ticks pass. ejectCase()
 // makes the record (the shot role stores it, at most BRASS_LIVE in a session); a round or the dummy
 // thrown by a hand on the charging handle leaves at HAND_EJECT_K of the speed. Nothing here writes.
 //
@@ -99,6 +102,7 @@ import { flagOf } from './wind.js';
 import { tilesLook } from './brass.js';
 import { pitView } from '../scenarios/range.js';
 import { pairsLook } from '../scenarios/pairs.js';
+import { anchorsLook } from '../scenarios/anchors.js';
 import { stressLook } from '../scenarios/stress.js';
 import { houseLook, handsOf, houseOf } from '../scenarios/shoothouse.js';
 import { devicesLook } from '../combat/burst.js';
@@ -114,8 +118,8 @@ export const CASE_G_STEP_MS2 = 0.001;
 /** The gravity a case falls at, at a place (m/s², at CASE_G_STEP_MS2): area null for the live area. */
 export const caseGMs2 = (state, area = null) => q(gravityAt(state, area).gMs2, CASE_G_STEP_MS2);
 const needG = (gMs2) => { if (!Number.isFinite(gMs2) || gMs2 < 0) throw new Error(`look.js: a case falls at the place's gravity (caseGMs2), not ${gMs2}`); return gMs2; };
-/** Under this gravity a case does not fall (the float band at CASE_G_STEP_MS2, as caseGMs2 reads it: 0.490 m/s²), and how far it flies before it meets a surface there (m: see the header). */
-export const CASE_FLOAT_MS2 = q(GAIT_G.FLOAT_BELOW_G * G0_MS2, CASE_G_STEP_MS2), CASE_FREE_M = 2;
+/** Under this gravity a case does not fall (the float band at CASE_G_STEP_MS2, as caseGMs2 reads it: 0.490 m/s²); there it flies to a face and bounces off it at CASE_BOUNCE of its speed (see the header; my call). */
+export const CASE_FLOAT_MS2 = q(GAIT_G.FLOAT_BELOW_G * G0_MS2, CASE_G_STEP_MS2), CASE_BOUNCE = 0.3;
 /** The ejection (WEAPONS §2.8, the build sheet's §4): speed, its spread, the angle off the bore to the right and its spread, a hand's throw. */
 export const EJECT_MS = 4.0, EJECT_SPREAD_MS = 0.3, EJECT_DEG = 60, EJECT_SPREAD_DEG = 20, HAND_EJECT_K = 0.5;
 /** The port's height by stance (m), and where it sits: ahead along the bore and to its right of the holder. */
@@ -153,6 +157,18 @@ export const ACTION_FRAMES = Object.freeze({
   // (the rework's R8, VIEWS §3.10.7: going down to the knee, half way over its first third, the knee after; standing, the reverse;
   // drawn so by a mover in a stance (the view's stance sheet), the carry's frame elsewhere as before)
   'stance:kneel': ['kneelGoing', 'kneelGoing', 'kneelLow', 'kneelLow', 'kneelLow', 'kneelLow'], 'stance:stand': ['kneelLow', 'kneelLow', 'kneelLow', 'kneelLow', 'kneelGoing', 'kneelGoing'],
+});
+/**
+ * The P-12's tower admin drawn (v0.0.24, v0.0.23's lead call 5): MAKE READY's 'pistol:ready' and SHOW CLEAR's 'pistol:clear' are one
+ * timed sub-step each (sidearm.js adminRun: its draw and its holster are parts of it, unrolled, the pistol in its holster in the state
+ * throughout), so the figure drew the rifle through them and the admin stance was never seen. gunLook draws the P-12 in the hands
+ * through the sub-step, at the low ready as adminRun holds it, by its parts in turn (the actions' frames, a list walked by the
+ * sub-step's share): the hand at the holster for the draw, the rack or the clearing, the holster. Yours (stepNow) and your number two's
+ * (handsOf) alike; read only, so nothing the sim keeps moves.
+ */
+export const ADMIN_FRAMES = Object.freeze({
+  'pistol:ready': Object.freeze(['sling', 'charge', 'check', 'sling']),
+  'pistol:clear': Object.freeze(['sling', 'magout', 'charge', 'check', 'release', 'check', 'sling']),
 });
 /** The tap's time, #2's support hand on #1's shoulder at the squeeze (VIEWS §3.10.7; game ms). */
 export const TAP_MS = 300;
@@ -197,7 +213,9 @@ export function heldLook(state, actor, ms = state?.clock?.ms ?? 0) {
     }
   }
   const L = h ? DEVICES[h.model]?.look : null;
-  return L ? { id: h.id, model: h.model, shape: L.shape, colour: L.colour, st: h.st } : null;
+  // (a grenade's throw solved, its flight's length (m), so the figure winds up and throws by how far: poses.js heldFrameOf)
+  const F = h ? state.items[h.id]?.flight : null, throwM = F && Number.isFinite(F.x1) && Number.isFinite(F.x0) ? Math.round(Math.hypot(F.x1 - F.x0, F.z1 - F.z0) * 100) / 100 : null;
+  return L ? { id: h.id, model: h.model, shape: L.shape, colour: L.colour, st: h.st, ...(throwM !== null ? { throwM } : {}) } : null;
 }
 /** The shapes of the devices a person carries, hand and pouches: the stage bakes their cards before they are needed. */
 export const heldShapesOf = (state, pid) => [...new Set(devicesOf(state, pid).map(d => DEVICES[d.model]?.look?.shape).filter(Boolean))].sort();
@@ -241,10 +259,14 @@ export function gunLook(state, actor, ms = state?.clock?.ms ?? 0) {
   // (the rework's R6: the P-12 out, the rifle drawn hanging on its sling, its own look (a look already painted: no sheet made
   // mid-lane), the pistol in hand on the record for the drawing to come (VIEWS §3.10's transition frames, R8))
   const long = isLong(modelOf(gun)), rifle = long ? gun : state.items?.[state.people?.[pid]?.kit?.worn?.sling] ?? gun;
+  // (the P-12's tower admin under way, the pistol holstered: drawn in the hands (ADMIN_FRAMES))
+  const ap = long && ADMIN_FRAMES[step?.action] ? state.items?.[state.people?.[pid]?.kit?.worn?.holster] : null, admin = ap && !isLong(modelOf(ap)) ? ap : null;
+  const af = admin ? ADMIN_FRAMES[step.action] : null;
   return {
-    model: rifle.model, carry: long ? CARRY_RIGS[c.posture] ?? 'front' : 'front', stance: actor.stance ?? 'stand', ...(long ? {} : { pistol: { model: gun.model, posture: c.posture } }),
+    model: rifle.model, carry: long && !admin ? CARRY_RIGS[c.posture] ?? 'front' : 'front', stance: actor.stance ?? 'stand',
+    ...(admin ? { pistol: { model: admin.model, posture: 'lowReady' } } : long ? {} : { pistol: { model: gun.model, posture: c.posture } }),
     aim: aimAt ? { x: aimAt.x, z: aimAt.z, ms: s?.aim?.settledMs ?? G?.aimAtMs ?? null } : null, shotMs,
-    action: step ? { frame: frameAt(step.action, step.k ?? 0), k: step.k ?? 0 } : null,
+    action: step ? { frame: af ? af[Math.min(af.length - 1, Math.max(0, Math.floor((step.k ?? 0) * af.length)))] : frameAt(step.action, step.k ?? 0), k: step.k ?? 0 } : null,
     flash: shotMs === null ? 0 : fade(ms - shotMs, FLASH_MS), kick: shotMs === null ? 0 : fade(ms - shotMs, KICK_MS),
     muzzle: m ? { x: m.x, y: m.y, z: m.z } : null, finger: c.finger, mag: !!gun.mag, locked: !!gunField(gun, 'locked'),
     // (R8: the close-quarters beat, for the stance sheet's frames: only where a drill runs, so every other look is as before)
@@ -264,7 +286,8 @@ export function kitLook(state, pid) {
   // gear.js gearOf reads them: the hunt of v0.0.18 found the stage drawing you bare-eared under the I card's cups)
   const ears = CONTAINERS[head?.model]?.type === 'ears' || CONTAINERS[earsRec?.model]?.type === 'ears';
   // (v0.0.19: the force-on-force mask, only when worn, so every other kit's look is as it was)
-  return { ears, carrier: !!carrier, pouches, ...(kit.worn?.mask ? { mask: true } : {}) };
+  // (mag boots, only when worn (kit.js 'mb-1' in the worn 'boots' slot: the gear record's boots 'mag'), so every other kit's look is as it was)
+  return { ears, carrier: !!carrier, pouches, ...(kit.worn?.mask ? { mask: true } : {}), ...(CONTAINERS[state.items?.[kit.worn?.boots]?.model]?.type === 'boots' ? { boots: 'mag' } : {}) };
 }
 
 /** A case's place at ms (WEAPONS §2.8's flight): { x, y, z, rest, rotRad }. rec: ejectCase's; gMs2 the place's (caseGMs2). */
@@ -274,6 +297,12 @@ export function caseAt(rec, ms, gMs2) {
   const spin = hash01('brass', rec.atMs, rec.kind) * 2 * Math.PI;
   if (rest) return { x: rec.at[0], y: rec.restY ?? 0, z: rec.at[1], rest: true, rotRad: q(spin, 1e-4) };
   const g = rec.restY === undefined ? gMs2 : 0;                    // (a case in free fall does not fall: see the header)
+  // (in free fall, after its bounce, the second segment from the face it met)
+  const b = rec.path?.[0];
+  if (b && ms >= b.atMs) {
+    const s = (ms - b.atMs) / 1000;
+    return { x: q(b.x + b.v[0] * s, 1e-4), y: rec.y0, z: q(b.z + b.v[2] * s, 1e-4), rest: false, rotRad: q(spin + t * 25, 1e-4) };
+  }
   return { x: q(rec.x0 + rec.v[0] * t, 1e-4), y: q(Math.max(0, rec.y0 + rec.v[1] * t - 0.5 * g * t * t), 1e-4), z: q(rec.z0 + rec.v[2] * t, 1e-4), rest: false, rotRad: q(spin + t * 25, 1e-4) };
 }
 
@@ -281,9 +310,10 @@ export function caseAt(rec, ms, gMs2) {
  * A case thrown from the port (WEAPONS §2.8; the record the shot role stores): { kind, atMs, x0, y0,
  * z0, v: [vx, vy, vz], landMs, at: [x, z] }. gun: its record (unused this round but for its model);
  * carry: { x, z, yawRad (or headRad, the heading), stance, hand } (hand: thrown by a hand on the charging handle); key: the
- * hash's (the shot's id, or the step's); gMs2 the place's gravity (caseGMs2: required).
+ * hash's (the shot's id, or the step's); gMs2 the place's gravity (caseGMs2: required); faces, under the float band only and
+ * required there, the ray to the first face (brass.js caseFacesOf(state)): the record then gains restY and path (see the header).
  */
-export function ejectCase(gun, carry, { atMs, kind = 'case', key = '', gMs2 } = {}) {
+export function ejectCase(gun, carry, { atMs, kind = 'case', key = '', gMs2, faces = null } = {}) {
   needG(gMs2);
   const yaw = carry.yawRad ?? carry.headRad ?? faceRad(carry.face), stance = carry.stance ?? 'stand';
   const speed = (EJECT_MS + (hash01('eject', key, 'v') * 2 - 1) * EJECT_SPREAD_MS) * (carry.hand ? HAND_EJECT_K : 1);
@@ -291,11 +321,19 @@ export function ejectCase(gun, carry, { atMs, kind = 'case', key = '', gMs2 } = 
   const x0 = q(carry.x + PORT_AHEAD_M * Math.cos(yaw) - PORT_RIGHT_M * Math.sin(yaw), 1e-4), z0 = q(carry.z + PORT_AHEAD_M * Math.sin(yaw) + PORT_RIGHT_M * Math.cos(yaw), 1e-4);
   const y0 = PORT_H_M[stance] ?? PORT_H_M.stand;
   const vx = q(speed * Math.cos(dir), 1e-4), vz = q(speed * Math.sin(dir), 1e-4);
-  const free = gMs2 < CASE_FLOAT_MS2, tS = free ? CASE_FREE_M / speed : Math.sqrt(2 * y0 / gMs2), landMs = atMs + Math.round(tS * 1000);
-  const tq = (landMs - atMs) / 1000;
-  const rec = { kind, atMs, x0, y0, z0, v: [vx, 0, vz], landMs, at: [q(x0 + vx * tq, 1e-4), q(z0 + vz * tq, 1e-4)] };
-  if (free) rec.restY = y0;
-  return rec;
+  if (gMs2 < CASE_FLOAT_MS2) return freeCase({ kind, atMs, x0, y0, z0, vx, vz, faces });
+  const landMs = atMs + Math.round(Math.sqrt(2 * y0 / gMs2) * 1000), tq = (landMs - atMs) / 1000;
+  return { kind, atMs, x0, y0, z0, v: [vx, 0, vz], landMs, at: [q(x0 + vx * tq, 1e-4), q(z0 + vz * tq, 1e-4)] };
+}
+// (a case under the float band, its flight to the first face, the bounce and the drift to the next (see the header))
+function freeCase({ kind, atMs, x0, y0, z0, vx, vz, faces }) {
+  if (typeof faces !== 'function') throw new Error('look.js: a case in free fall flies to the place\'s faces (brass.js caseFacesOf), and none were given');
+  const f1 = faces(x0, z0, vx, vz), t1 = atMs + Math.round(f1.tS * 1000);
+  // (the bounce: the speed into the face reversed, the whole kept at CASE_BOUNCE)
+  const nl = Math.hypot(f1.n[0], f1.n[1]), nx = f1.n[0] / nl, nz = f1.n[1] / nl, dot = vx * nx + vz * nz;
+  const bx = q((vx - 2 * dot * nx) * CASE_BOUNCE, 1e-4), bz = q((vz - 2 * dot * nz) * CASE_BOUNCE, 1e-4);
+  const f2 = faces(f1.x, f1.z, bx, bz), landMs = t1 + Math.round((f2?.tS ?? 0) * 1000);
+  return { kind, atMs, x0, y0, z0, v: [vx, 0, vz], landMs, at: [f2?.x ?? f1.x, f2?.z ?? f1.z], restY: y0, path: [{ atMs: t1, x: f1.x, z: f1.z, v: [bx, 0, bz] }] };
 }
 
 /**
@@ -360,7 +398,9 @@ export function rangeLook(state, ms = state?.clock?.ms ?? 0) {
     (holes[sh.lane] ??= []).push({ xCm: sh.hole[0], yCm: sh.hole[1], score: sh.score ?? 0, v: !!sh.v, n: count[k], string: sh.string ?? 0, atMs: sh.atMs ?? null });
   }
   const lanes = [];
-  for (let lane = l0; lane <= l1; lane++) lanes.push({ lane, mine: lane === s.lane, holes: holes[lane] ?? [] });
+  // (the fixer of v0.0.24's play review (H1): the anchors course in Well A has no bay lanes, so no bay card's holes and no bay flags
+  // (range.js reads `course`); its turners and anchors are `pairs`' below)
+  if (s.course !== 'anchors') for (let lane = l0; lane <= l1; lane++) lanes.push({ lane, mine: lane === s.lane, holes: holes[lane] ?? [] });
   const area = state.actors?.area ?? state.places?.live?.area, gMs2 = caseGMs2(state, area);
   const lying = area ? lyingOf(state, area).filter(l => state.items?.[l.id]?.type === 'mag').map(l => ({ id: l.id, kind: 'mag', x: l.x, z: l.z })) : [];
   const pick = state.stop?.pick ?? null, pid = state.stop?.who ?? null;
@@ -372,11 +412,11 @@ export function rangeLook(state, ms = state?.clock?.ms ?? 0) {
   const fire = last && me && ms - last.atMs >= 0 && ms - last.atMs < dustMsOf(gMs2) ? { atMs: last.atMs, x: me.x, z: me.z, face: me.face ?? 'right', stance: me.stance ?? 'stand',
     ...(last.load ? { load: last.load, lane: last.lane, ...(L?.traceFromM ? { traceFromM: L.traceFromM, vMs: L.vRefMs } : {}) } : {}) } : null;
   return {
-    hot: !!s.hot, lanes, gMs2,
+    course: s.course ?? null, hot: !!s.hot, lanes, gMs2,
     brass: (s.brass ?? []).map(rec => ({ ...caseAt(rec, ms, gMs2), kind: rec.kind, stance: STANCE_OF_PORT[rec.y0] ?? 'stand', atMs: rec.atMs })),
-    lying, pick: pick && pid ? placeOf(state, pid, pick) : null, aimed: !!state.stop?.aim, fire, own: bayOwn(s),
+    lying, pick: pick && pid ? placeOf(state, pid, pick) : null, aimed: !!state.stop?.aim, fire, own: s.course === 'anchors' ? null : bayOwn(s),
     kd: s.course === 'kd' ? kdLook(state, s, ms, gMs2) : null,
-    pairs: s.course === 'pairs' ? pairsLook(state, ms) : null,
+    pairs: s.course === 'pairs' ? pairsLook(state, ms) : s.course === 'anchors' ? anchorsLook(state, ms) : null,
     stress: s.stress ? stressLook(state, ms) : null,
     house: s.course === 'house' ? withDevices(houseLook(state, ms), state, ms) : null,
   };

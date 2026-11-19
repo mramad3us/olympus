@@ -10,9 +10,9 @@
 // met (the review of 2026-11-16: "MET 194" took in F70, F71 and F73, red in their heavy suites). Before v0.0.21 there was no list
 // (done.md §2 finding 1).
 import { assert } from './helpers.mjs';
-import { ALL, DONE, GAUGE_ROWS, GAUGE_LAST, OPEN_GAUGES, resolveRow } from './house-done.mjs';
+import { ALL, DONE, GAUGE_ROWS, GAUGE_LAST, GAUGE_ROUNDS, OPEN_GAUGES, resolveRow } from './house-done.mjs';
 
-const GROUPS = Object.freeze({ A: 'the user\'s verdict', B: 'the user\'s complaints', C: 'the gauges', D: 'never a dead end', E: 'the ladder and the verdict', F: 'the moments', G: 'saves and replay', H: 'performance', I: 'the scored scenes', J: 'the hand-off', K: 'docs', L: 'the drawn house', M: 'v0.0.22\'s rooms, lane\'s end, blast and page', N: 'v0.0.23\'s portraits, knowledge and carried fixes' });
+const GROUPS = Object.freeze({ A: 'the user\'s verdict', B: 'the user\'s complaints', C: 'the gauges', D: 'never a dead end', E: 'the ladder and the verdict', F: 'the moments', G: 'saves and replay', H: 'performance', I: 'the scored scenes', J: 'the hand-off', K: 'docs', L: 'the drawn house', M: 'v0.0.22\'s rooms, lane\'s end, blast and page', N: 'v0.0.23\'s portraits, knowledge and carried fixes', O: 'v0.0.24\'s void, its scenes and the picks' });
 
 export default [
   {
@@ -40,6 +40,22 @@ export default [
       const naming = (id) => res.filter(r => r.row.check?.kind === 'gauge' && r.row.check.ref === id);
       const wrong = Object.keys(OPEN_GAUGES).flatMap(id => naming(id).filter(r => r.status !== 'OPEN').map(r => `${r.row.id} ${r.status}`));
       assert(!res.some(r => r.status === 'MET') && !wrong.length && Object.keys(OPEN_GAUGES).every(id => naming(id).length > 0), JSON.stringify({ wrong }));
+    },
+  },
+  {
+    name: 'every gauge\'s row names its own round (v0.0.24, carried from v0.0.23: every row with a role was labelled "v0.0.21" whatever its round, F74 to F99 among them, and the rest none): F1 v0.0.14, F25 v0.0.17, F45 v0.0.20, F61 v0.0.21 A, F74 v0.0.22 A, F85 v0.0.23 A, F100 v0.0.24 stage 0, and the rounds never go back as the numbers rise',
+    fn() {
+      const by = Object.fromEntries(GAUGE_ROWS.map(r => [r.id, r.by ?? null]));
+      const want = { CF1: 'v0.0.14', CF24: 'v0.0.14', CF25: 'v0.0.17', CF27: 'v0.0.18', CF34: 'v0.0.19', CF45: 'v0.0.20', CF59: 'v0.0.20', CF61: 'v0.0.21 A', CF73: 'v0.0.21 D', CF74: 'v0.0.22 A', CF84: 'v0.0.22 D', CF85: 'v0.0.23 A', CF98: 'v0.0.23 C', CF100: 'v0.0.24 stage 0', CF123: 'v0.0.24 E' };
+      const wrong = Object.entries(want).filter(([id, v]) => by[id] !== v).map(([id, v]) => ({ id, want: v, got: by[id] }));
+      const rounds = GAUGE_ROWS.map(r => (r.by ?? '').split(' ')[0]), num = (v) => Number(v.split('.')[2]);
+      const none = GAUGE_ROWS.filter(r => !/^v0\.0\.\d+( |$)/.test(r.by ?? '')).map(r => r.id);
+      const back = rounds.flatMap((v, i) => (i && num(v) < num(rounds[i - 1]) ? [GAUGE_ROWS[i].id] : []));
+      const covered = GAUGE_ROUNDS[0].from === 1 && GAUGE_ROUNDS.at(-1).to === GAUGE_LAST && GAUGE_ROUNDS.every((r, i) => !i || r.from === GAUGE_ROUNDS[i - 1].to + 1);
+      const counts = {};
+      for (const v of rounds) counts[v] = (counts[v] ?? 0) + 1;
+      console.log(`      ${GAUGE_ROWS.length} gauges by round: ${Object.entries(counts).map(([v, n]) => `${v} ${n}`).join(', ')}`);
+      assert(!wrong.length && !none.length && !back.length && covered, JSON.stringify({ wrong, none, back, covered }));
     },
   },
 ];

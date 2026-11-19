@@ -24,12 +24,16 @@
 // there is written as its absence, so every save made before it loads, and saves again, byte for byte.
 // v0.0.21 (the build sheet §0 item 53): the upgrade 'places:gen' (upgradeGen) registers a drawn shoot house's area again from
 // places.live.gen, before any other domain's upgrade reads the area.
+// v0.0.24 (ROADMAP "anywhere" step 6, src/sim/places/gravity.js): a ship's gravity events: their queue events ('grav:warn',
+// 'grav:onset', 'grav:hold', 'grav:end'), the fast layer 'due''s part (gravityTick: the first event posted, the ramp, the falls,
+// the jink; nothing without a profile) and the surprise card's answer (the action 'grav').
 import { initPlaces } from './model.js';
 import { playerStep } from './move.js';
 import { pathsStep } from './nav.js';
 import { handAction, doorAction } from './hand.js';
 import { upgradeEnv } from './env.js';
 import { registerHouse } from '../scenes/assemble.js';
+import { GRAV_HANDLERS, gravityTick, gravAction } from './gravity.js';
 
 /** Drop v0.0.2's site seeds from an older save (see the header). */
 export function dropSiteSeeds(state) {
@@ -59,9 +63,10 @@ export const placesDomain = Object.freeze({
   idMaps: Object.freeze({ 'places.sites': 'place' }),
   idFields: Object.freeze({ 'places.live.site': 'place', 'places.live.area': 'place', 'places.nav.queue[].area': 'place' }),
   init: initPlaces,
-  fast: Object.freeze({ player: playerStep, paths: pathsStep }),
+  fast: Object.freeze({ due: gravityTick, player: playerStep, paths: pathsStep }),
   slow: Object.freeze([]),
   jobs: Object.freeze({}),
-  actions: Object.freeze({ hand: handAction, door: doorAction }),
+  events: GRAV_HANDLERS,
+  actions: Object.freeze({ hand: handAction, door: doorAction, grav: gravAction }),
   upgrades: Object.freeze([['places:no-site-seed', dropSiteSeeds], ['places:env', upgradeEnv], ['places:gen', upgradeGen]]),
 });

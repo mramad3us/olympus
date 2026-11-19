@@ -16,7 +16,7 @@
 // the holster's mouth 0.6, seated 0.4, the hand off 0.3); holstered 0.4 s.
 // ?look=util draws the marine in utilities with the carrier (the range's look), where the black suit hides the holster's
 // line and the pistol against the legs. ?set= picks the picture:
-//   draw   one design (?d=p12a|p12b|p12c|p12d): the four facings at 16 px/m, the figure side on three times larger, the
+//   draw   one design (?d=p12a|p12c|p12d): the four facings at 16 px/m, the figure side on three times larger, the
 //          pistol's template alone at 16 px/m and six times larger, and the loop's phases with the one running lit;
 //   all    the four designs side by side, side on three times larger, on one clock, and each facing you and away at 1×.
 // The page runs by itself (the moving sample: DESIGN.md, 2026-11-12, "a sample of anything that moves is shown moving");

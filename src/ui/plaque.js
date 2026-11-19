@@ -46,6 +46,14 @@
 // room's floor rect from the plan, projected), else to its reserved rect (layout.js RECTS.PLAQUE); keepOff(spec) sets the boxes
 // for the frame (main.js, in the house only), and place() obeys it for the plates that name a target (reticle, contact, parts, terms),
 // never a bracket, a stamp or the far window's. Off the house nothing is set, so every other scene's plaques are placed as before.
+// v0.0.24 (the user, 2026-11-19: "forget about voices, those are all terrible use text bubble only"): EVERY LINE A BUBBLE. No line
+// is voiced; each is drawn in a balloon over its speaker on the stage (speakerMarks: every 'say' line, not only a call; the 3 × 3 ◉
+// is retired), its words wrapped to rows of at most BUBBLE_ROW_PX in the 5 × 7 alphabet and BUBBLE_ROWS rows a page (bubblePages:
+// a longer line is paged, each page shown for its words' share), held for the line's spoken time (core/speech.js spokenMs, as the
+// tower's wait and the PA's are), at least CALL_BALLOON_MS. Placed by markPlace over the speaker's head, clear of every other
+// figure, every bubble placed before it in the frame and the HUD's rectangles (main.js speakerHud); a bubble with no free place is
+// not drawn (the radio box shows every line whole). A speaker with no body on the stage (a loudspeaker: the 1MC, a tower's horn)
+// is anchored at the fact's `at` ({ x, z, y? }) where it gives one, else he has the radio box alone.
 import { glyphOf } from '../art/font.js';
 import { glyph57, width57 } from '../art/kit/type.js';
 import { GLOWS } from '../art/palette.js';
@@ -611,19 +619,74 @@ export function keepOff(spec) { KEEP = spec && Array.isArray(spec.boxes) ? spec 
 /** Whether a line is a call for the balloon: at most BALLOON_WORDS_MAX words. */
 export const isCall = (text) => { const n = String(text ?? '').trim().split(/\s+/).filter(Boolean).length; return n > 0 && n <= BALLOON_WORDS_MAX; };
 const fadeK = (t, from, to) => clamp01(Math.min((t - from) / MARK_FADE_MS, (to - t) / MARK_FADE_MS));
+/** v0.0.24: a bubble's rows at most this wide (picture px: about twenty letters of the 5 × 7 alphabet) and this many rows a page; its foot within BUBBLE_ABOVE_PX over its speaker's head (a man in a stack has another's head close over his). */
+export const BUBBLE_ROW_PX = 116, BUBBLE_ROWS = 3, BUBBLE_ABOVE_PX = 20;
 /**
- * The speakers' marks at the game's ms (pure): [{ who, kind: 'balloon' | 'mark', text, k (0 to 1, the fade), fromMs, toMs }], the
- * newest line a speaker's only. says: [{ who, text, atMs, spokenMs }] (the 'say' facts heard; spokenMs core/speech.js's). A call
- * of at most two words is a balloon for CALL_BALLOON_MS, else the mark for its spoken time.
+ * A line's bubble pages (pure, see the header): [{ rows: [text], share (of the line's words, 0 to 1), fromShare }], its words wrapped
+ * to rows of at most BUBBLE_ROW_PX in the 5 × 7 alphabet (a word wider than a row alone on its row, cut to it), BUBBLE_ROWS a page.
+ */
+export function bubblePages(text) {
+  // (the fixer of v0.0.24's code review: speakerMarks wraps every line shown every frame, so a line's pages are kept by its text)
+  const key = String(text ?? '');
+  let P = PAGES_KEPT.get(key);
+  if (!P) { if (PAGES_KEPT.size >= KEPT_MAX) PAGES_KEPT.delete(PAGES_KEPT.keys().next().value); PAGES_KEPT.set(key, (P = pagesOf(key))); }
+  return P;
+}
+const PAGES_KEPT = new Map();
+function pagesOf(text) {
+  // (the words as said, their case kept: the alphabet draws them in capitals, and measures them so)
+  const words = String(text ?? '').trim().split(/\s+/).filter(Boolean), rows = [], wide = (t) => width57(t.toUpperCase());
+  for (const w0 of words) {
+    let w = w0;
+    while (wide(w) > BUBBLE_ROW_PX && w.length > 1) w = w.slice(0, -1);
+    const last = rows.at(-1);
+    if (last && wide(`${last.text} ${w}`) <= BUBBLE_ROW_PX) { last.text += ` ${w}`; last.n++; } else rows.push({ text: w, n: 1 });
+  }
+  const pages = [], n = Math.max(1, words.length);
+  // (no widow: a last page of one row after a full one takes the full page's last row with it, two rows and two, so a line never
+  // ends on a page of one word ("… Wedge in. Twenty" then "metres.": the fixer of v0.0.24's play review, L2))
+  const cuts = [];
+  for (let i = 0; i < rows.length; i += BUBBLE_ROWS) cuts.push(i);
+  if (cuts.length > 1 && rows.length - cuts.at(-1) === 1 && BUBBLE_ROWS > 2) cuts[cuts.length - 1] -= 1;
+  let from = 0;
+  cuts.forEach((c, j) => {
+    const page = rows.slice(c, cuts[j + 1] ?? rows.length), k = page.reduce((a, r) => a + r.n, 0) / n;
+    pages.push(Object.freeze({ rows: Object.freeze(page.map(r => r.text)), share: k, fromShare: from }));
+    from += k;
+  });
+  return Object.freeze(pages);
+}
+/** A line's balloon's size in picture px ({ w, h }: balloonPixels' own, from its rows' widths, nothing drawn), kept by its text. */
+export function balloonSize(text) {
+  const key = String(text ?? '').toUpperCase();
+  let z = SIZES_KEPT.get(key);
+  if (!z) {
+    const rows = key.split('\n');
+    z = Object.freeze({ w: Math.max(...rows.map(r => width57(r))) + 6, h: rows.length * 9 - 2 + 6 + 2 });
+    if (SIZES_KEPT.size >= KEPT_MAX) SIZES_KEPT.delete(SIZES_KEPT.keys().next().value);
+    SIZES_KEPT.set(key, z);
+  }
+  return z;
+}
+const SIZES_KEPT = new Map();
+/**
+ * The speakers' bubbles at the game's ms (pure): [{ who, kind: 'balloon', text (the page's rows joined by a newline), k (0 to 1, the
+ * fade), fromMs, toMs, page, pages, at? }], the newest line a speaker's only. says: [{ who, text, atMs, spokenMs, at? }] (the 'say'
+ * facts heard; spokenMs core/speech.js's; at a loudspeaker's place). Every line is a bubble for its spoken time, at least
+ * CALL_BALLOON_MS (v0.0.24: the ◉ of a longer line is retired), a long line paged by its words' share of that time.
  */
 export function speakerMarks(says, nowMs, { who = null } = {}) {
   const last = new Map();
   for (const x of says ?? []) if (x && x.who && Number.isFinite(x.atMs) && x.atMs <= nowMs && (!who || who.includes(x.who))) { const o = last.get(x.who); if (!o || x.atMs >= o.atMs) last.set(x.who, x); }
   const out = [];
   for (const x of last.values()) {
-    const call = isCall(x.text), toMs = x.atMs + (call ? CALL_BALLOON_MS : Math.max(MARK_FADE_MS * 2, Number(x.spokenMs) || 0));
+    const durMs = Math.max(CALL_BALLOON_MS, Number(x.spokenMs) || 0), toMs = x.atMs + durMs;
     if (nowMs > toMs) continue;
-    out.push({ who: x.who, kind: call ? 'balloon' : 'mark', text: call ? String(x.text).trim() : null, k: Math.round(fadeK(nowMs, x.atMs, toMs) * 1000) / 1000, fromMs: x.atMs, toMs });
+    const pages = bubblePages(x.text);
+    if (!pages.length) continue;
+    const u = (nowMs - x.atMs) / durMs, i = Math.max(0, pages.findLastIndex(p => p.fromShare <= u + 1e-9));
+    const from = x.atMs + Math.round(pages[i].fromShare * durMs), to = i === pages.length - 1 ? toMs : x.atMs + Math.round(pages[i + 1].fromShare * durMs);
+    out.push({ who: x.who, kind: 'balloon', text: pages[i].rows.join('\n'), k: Math.round(fadeK(nowMs, x.atMs, toMs) * 1000) / 1000, fromMs: x.atMs, toMs, page: i, pages: pages.length, pageFromMs: from, pageToMs: to, ...(x.at ? { at: x.at } : {}) });
   }
   return out;
 }
@@ -633,13 +696,21 @@ export function markPixels() {
   b.px(0, 0, 3, 3, INK); b.px(1, 1, 1, 1, AMBER);
   return b;
 }
-/** A call's balloon: its words in the 5 × 7 alphabet on a pale face, an ink outline, a 2 px tail at its foot's middle, { w, h, data, tip }. */
+// (the two marks a line says that the 5 × 7 alphabet draws blank, drawn in the bubble alone: the alphabet's own pictures are pinned
+// by the cards that use it; each as wide as the alphabet's blank, so a row's width is width57's)
+const BUBBLE_GLYPHS = Object.freeze({ ';': Object.freeze(['000', '000', '010', '000', '010', '010', '100']), '?': Object.freeze(['111', '001', '001', '010', '010', '000', '010']) });
+/**
+ * A line's balloon: its words in the 5 × 7 alphabet on a pale face, an ink outline, a 2 px tail at its foot's middle, { w, h, data, tip }.
+ * v0.0.24: a text of several rows (joined by newlines, bubblePages' page) is drawn a row under the other, 2 px apart, each centred.
+ */
 export function balloonPixels(text) {
-  const t = String(text ?? '').toUpperCase(), w = width57(t) + 6, h = 7 + 6 + 2, b = pixelBuffer(w, h);
+  const rows = String(text ?? '').toUpperCase().split('\n'), rw = rows.map(r => width57(r)), w = Math.max(...rw) + 6, h = rows.length * 9 - 2 + 6 + 2, b = pixelBuffer(w, h);
   b.px(0, 0, w, h - 2, INK); b.px(1, 1, w - 2, h - 4, STAMP_PALE);
   b.clear(0, 0); b.clear(w - 1, 0); b.clear(0, h - 3); b.clear(w - 1, h - 3);
-  let x = 3;
-  for (const ch of t) { const g = glyph57(ch); g.forEach((row, j) => [...row].forEach((c, i) => { if (c === '1') b.px(x + i, 3 + j, 1, 1, INK); })); x += g[0].length + 1; }
+  rows.forEach((t, r) => {
+    let x = 3 + Math.floor((w - 6 - rw[r]) / 2);
+    for (const ch of t) { const g = BUBBLE_GLYPHS[ch] ?? glyph57(ch); g.forEach((row, j) => [...row].forEach((c, i) => { if (c === '1') b.px(x + i, 3 + r * 9 + j, 1, 1, INK); })); x += g[0].length + 1; }
+  });
   const m = Math.floor(w / 2);
   b.px(m - 1, h - 2, 2, 1, INK); b.px(m, h - 1, 1, 1, INK);
   return { ...b, tip: m };
@@ -649,13 +720,35 @@ const meets = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h &&
  * A mark's or balloon's place over a speaker (pure, picture px): its top-left { x, y } within MARK_ABOVE_PX over the head box
  * (head: { x, y, w, h }), clear of every other box (others), trying the rows above the head then a step left or right; null where none is free.
  */
-export function markPlace(head, size, others = []) {
+export function markPlace(head, size, others = [], { bounds = null, reach = MARK_ABOVE_PX } = {}) {
   const cx = head.x + head.w / 2;
-  for (let up = 1; up <= MARK_ABOVE_PX; up++) for (const dx of [0, -size.w / 2, size.w / 2, -size.w, size.w]) {
+  // (inside bounds where given, the picture's: a bubble half off the top of the stage is not a place)
+  const inB = (r) => !bounds || (r.x >= bounds.x && r.y >= bounds.y && r.x + r.w <= bounds.x + bounds.w && r.y + r.h <= bounds.y + bounds.h);
+  for (let up = 1; up <= reach; up++) for (const dx of [0, -size.w / 2, size.w / 2, -size.w, size.w]) {
     const r = { x: Math.round(cx - size.w / 2 + dx), y: Math.round(head.y - up - size.h), w: size.w, h: size.h };
-    if (!others.some(o => meets(r, o))) return { x: r.x, y: r.y };
+    if (inB(r) && !others.some(o => meets(r, o))) return { x: r.x, y: r.y };
   }
   return null;
+}
+/**
+ * The frame's bubbles placed (pure, v0.0.24; see the header): marks (speakerMarks'), headOf(mark) → the speaker's head box (picture
+ * px) or null (no body and no loudspeaker: no bubble), boxes (every figure's and stand's, by who: a speaker's own is left out for
+ * his bubble), ui (the HUD's rectangles in picture px), bounds (the picture). In order of the lines' starts, each placed by markPlace
+ * clear of the boxes, the HUD and the bubbles placed before it: { placed: [{ m, pix, at, head }], unplaced: [marks] }.
+ */
+export function placeBubbles(marks, { headOf, boxes = [], ui = [], bounds = null }) {
+  const placed = [], unplaced = [], taken = [];
+  for (const m of [...marks].sort((a, b) => a.fromMs - b.fromMs || String(a.who).localeCompare(String(b.who)))) {
+    const head = headOf(m);
+    if (!head) continue;
+    // (its size alone (balloonSize, kept), never its pixels drawn again each frame: the fixer of v0.0.24's code review)
+    const pix = balloonSize(m.text), at = markPlace(head, { w: pix.w, h: pix.h }, [...boxes.filter(b => b.who !== m.who), ...ui, ...taken], { bounds, reach: BUBBLE_ABOVE_PX });
+    if (!at) { unplaced.push(m); continue; }
+    // (a pixel's gap kept round each, so two never touch once scaled to the window)
+    taken.push({ x: at.x - 1, y: at.y - 1, w: pix.w + 2, h: pix.h + 2, who: 'bubble' });
+    placed.push({ m, pix, at, head });
+  }
+  return { placed, unplaced };
 }
 /**
  * A plate slid off the room (pure, any one unit): rect { x, y, w, h } as anchored; boxes the protected ones. Returns { x, y, how }: 'kept'
@@ -678,5 +771,5 @@ export function slideRect(rect, boxes = [], { bounds = null, reserved = null, ga
 }
 /** The speaker's mark on a canvas (markPixels' record with its canvas, its tip its middle). */
 export const speakerMark = () => keep('m|speaker', () => ({ ...markPixels(), tip: 1, words: 'speaking' }));
-/** A call's balloon on a canvas (balloonPixels' record with its canvas and its words). */
-export const balloon = (text) => keep(`c|${String(text ?? '').toUpperCase()}`, () => ({ ...balloonPixels(text), words: String(text ?? '') }));
+/** A line's balloon on a canvas (balloonPixels' record with its canvas and its words). */
+export const balloon = (text) => keep(`c|${String(text ?? '').toUpperCase()}`, () => ({ ...balloonPixels(text), words: String(text ?? '').replaceAll('\n', ' ') }));

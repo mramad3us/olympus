@@ -56,7 +56,7 @@ export default [
       const rows = toScore(index);
       assert(rows.length === open.length && rows.every(r => r.missing.length === 0 && r.defaults.length > 0), JSON.stringify(rows.filter(r => r.missing.length || !r.defaults.length)));
       const html = readFileSync(path.join(root, 'samples/index.html'), 'utf8');
-      assert(/import \{ toScore, toScoreText \} from '\.\/to-score\.js'/.test(html) && html.includes('id = \'to-score\''), 'samples/index.html does not draw the list');
+      assert(/import \{ toScore, toScoreText[^}]*\} from '\.\/to-score\.js'/.test(html) && html.includes('id = \'to-score\''), 'samples/index.html does not draw the list');
       const now = rows.filter(r => r.builtIn === 'v0.0.23');
       console.log(`      ${rows.length} open sets of ${sets.length} (${now.length} drawn this round: ${now.map(r => `${r.id} ${r.defaults.map(d => d.id).join('/')}`).join(', ')}); ${rows.reduce((a, r) => a + r.views, 0)} views to score`);
     },

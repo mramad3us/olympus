@@ -15,7 +15,7 @@
 // extra pouch made, put `at` its face on the carrier and filled, its ids after every other item of the fill; the standard
 // makes nothing, so a lane with &loadout=standard is the lane without it to the byte. loadoutView(state, pid) is the screen's
 // data from the sim: each face's places, their items with mass and reach (devices.js deviceMs at the person's skills), the
-// whole kit's kitMassKg and the walk's push and brake at that mass (motion.js tractionOf, as bundle.js legsOf reads them).
+// whole kit's kitMassKg and the walk's push and brake at that mass (motion.js legsAt, the one legs helper, as bundle.js legsOf reads it).
 // v0.0.19 (D2, the build sheet 0.0.19 §0 item 10, §4 item 5): the practice grenades 'g9p' and 'g13p' (a grenade pouch each)
 // and the cutting charge 'bc1+fd1' (a charge pouch with a BC-1 and its FD-1) are issued while PRACTICE_ISSUED (the one switch
 // that hides the practice grenades from the issue table), and the picker gains four presets: frag (two G-9Ps on the left), conc
@@ -31,11 +31,9 @@
 // written back without the token (it is the default now).
 // Pure but applyLoadout, which makes items (w).
 import { nextId, put, playerActor, playerId } from '../../core/ids.js';
-import { G0_MS2 } from '../../core/phys.js';
 import { CONTAINERS, move, kitMassKg } from './kit.js';
 import { DEVICES, FACES, deviceMs, fuseOf } from './devices.js';
-import { tractionOf } from '../body/motion.js';
-import { gravityAt, surfaceAt } from '../places/env.js';
+import { legsAt } from '../body/motion.js';
 import { valueOf } from '../skills/templates.js';
 
 const fz = (o) => Object.freeze(o);
@@ -187,8 +185,7 @@ export function loadoutView(state, pid, spec = null) {
     faces[f].push({ pouch: rec.model, word: CONTAINERS[rec.model]?.word ?? rec.model, items });
   }
   const massKg = kitMassKg(state, pid), a = playerId(state) === pid ? playerActor(state) : state.actors?.list?.find(x => x.who === pid) ?? null;
-  const gG = gravityAt(state, null, a?.x ?? 0, a?.z ?? 0)?.gG ?? 1, mu = surfaceAt(state, null, a?.x ?? 0, a?.z ?? 0)?.mu;
-  const t = tractionOf({ gMs2: gG * G0_MS2, mu: Number.isFinite(mu) ? mu : 0.6, effFitness: roller.value('fitness'), massKg: 75, loadKg: massKg });
+  const t = legsAt(state, pid, a?.x ?? 0, a?.z ?? 0);
   return { code: spec ? codeOf(spec) : null, faces, massKg, push: { pushMs2: Math.round(t.pushMs2 * 100) / 100, brakeMs2: Math.round(t.brakeMs2 * 100) / 100 }, wh: roller.value('weapons'), fit: roller.value('fitness') };
 }
 /** The reach (s, to 0.01) of a device of a model from a face for a roller: its kind's reach action (devices.js deviceMs). */

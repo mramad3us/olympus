@@ -41,7 +41,9 @@ export default [
     name: 'the key holds only what is drawn: SEEN_KEYS\' whitelist, no count, chamber or load in the record; seenKey changes with each drawn field and with nothing else (light, cover, the yaw, the frame, the who and the range inside its band outside it)',
     fn() {
       const g = live(), s = g.state, rp = s.armoury.range.turners.find(T => T.live).live.who, rec = seenOf(s, rp);
-      assert(SEEN_KEYS.join(',') === 'kind,face,gear,hold,aimAt,pose,facing,read,band', JSON.stringify(SEEN_KEYS));
+      // (v0.0.24, the build sheet v0.0.24 §3.5: his light, the jamb's share and a side card's yaw join the key; they are the card's
+      // paint, never the doll's key (art/doll/portrait.js portraitKey))
+      assert(SEEN_KEYS.join(',') === 'kind,face,gear,hold,aimAt,pose,facing,read,band,light,cover,yawQ', JSON.stringify(SEEN_KEYS));
       const words = [];
       const walk = (o, at) => { if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) { if (BAD_WORDS.test(k)) words.push(`${at}.${k}`); walk(v, `${at}.${k}`); } };
       walk({ ...rec, gear: null }, 'rec');
@@ -49,14 +51,17 @@ export default [
       const base = seenKey(rec), changes = {
         kind: { kind: 'board' }, face: { face: 'threat' }, gear: { gear: { ...rec.gear, ears: 'cups' } }, hold: { hold: { ...rec.hold, how: 'rifle-aim' } },
         aimAt: { aimAt: 'you' }, pose: { pose: 'kneel' }, facing: { facing: 'back' }, read: { read: { holds: 'rifle', state: 'aiming' } }, band: { rangeM: 30 },
+        light: { light: { level: 0.2, sp: 1 } }, cover: { cover: { left: 0.5, right: 0 } }, yawQ: { facing: 'left', yawQ: 1.2 },
       };
       const moved = Object.entries(changes).map(([k, v]) => [k, seenKey({ ...rec, ...v }) !== base]);
-      const still = { light: { light: 0.2 }, cover: { cover: { left: 0.5 } }, yawQ: { yawQ: 1.2 }, frame: { frame: 'run' }, who: { who: 'p1' }, rangeInBand: { rangeM: [3, 20, 40].find(m => portraitBand(m) === portraitBand(rec.rangeM)) } };
+      // (outside it: a level the card draws as lit, a man the walls hide whole (drawn whole, as last seen), a front card's yaw, sp)
+      const still = { lightFull: { light: { level: 0.95, sp: rec.light?.sp ?? 1 } }, sp: { light: { ...rec.light, sp: 3 } }, coverWhole: { cover: { left: 1, right: 0 } }, yawFront: { yawQ: 1.2 }, frame: { frame: 'run' }, who: { who: 'p1' }, rangeInBand: { rangeM: [3, 20, 40].find(m => portraitBand(m) === portraitBand(rec.rangeM)) } };
       const kept = Object.entries(still).map(([k, v]) => [k, seenKey({ ...rec, ...v }) === base]);
       console.log(`      key ${base}`);
       console.log(`      each drawn field moves it: ${moved.map(([k, m]) => `${k} ${m ? 'yes' : 'NO'}`).join(', ')}; outside it: ${kept.map(([k, m]) => `${k} ${m ? 'kept' : 'MOVED'}`).join(', ')}`);
       assert(moved.every(([, m]) => m) && kept.every(([, m]) => m) && Object.keys(changes).every(k => SEEN_KEYS.includes(k)), JSON.stringify({ moved, kept }));
-      assert(rec.light === null && rec.cover === null, 'light and cover are reserved, never computed this round');
+      // (v0.0.24: the light is read at his feet (the house's lit rooms 0.75: 'full'); the cover only when the page asks for it)
+      assert(rec.light && Number.isFinite(rec.light.level) && rec.cover === null && seenOf(s, rp, { cover: true }).cover !== null, JSON.stringify({ light: rec.light, cover: rec.cover }));
     },
   },
   {

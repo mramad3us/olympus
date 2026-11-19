@@ -1,21 +1,21 @@
-// OLYMPUS tests: no line is voiced (the user, 2026-11-19, twice: "forget about voices, those are all terrible use text bubble
-// only" and "also let me reiterate : forget voice synthesis, no voices.").
+// OLYMPUS tests: no line is voiced, and the voice synthesis is gone whole (the user, 2026-11-19, twice: "forget about voices, those
+// are all terrible use text bubble only" and "also let me reiterate : forget voice synthesis, no voices.").
 //
-// The game's voice set is voices.js VOICE_DEFAULT, 'none' from v0.0.23's fixer: the house's ear (audio/house.js createHouse) says
-// no 'say' fact and plays none of V-a's voiced syllables (paGo, paStop, paStandby, shoutClear, whisperReady), while the timer's
-// beeps, the harness's tone, the doors and the lock keep their sounds; the engine (audio/engine.js createAudio) queues no fixed
-// line at its start, says no line and bakes none of your #2's call-outs; the page takes the voice from the URL only, never from an
-// old To score pick; the To score page has no voice row and the gallery's index no voices set. Each case fails with a voiced
-// default (VOICE_DEFAULT 'c', v0.0.20's to v0.0.22's). The other sets stay by &voice= for the tests that pin them until v0.0.24
-// removes the synthesis whole.
-import { readFileSync } from 'node:fs';
+// v0.0.23's fixer made the game's voice set 'none'; v0.0.24 removes the synthesis: src/data/voices.js and src/ui/audio/voice.js are
+// gone, the engine (audio/engine.js createAudio) has no line to bake or say (no voiceLine, setVoice, prebakeCallouts), the house's
+// ear (audio/house.js createHouse) plays nothing for a 'say' fact and none of 0.0.12's voiced syllables (paGo, paStop, paStandby,
+// shoutClear, whisperReady: gone from sounds.js HOUSE), while the timer's beeps, the harness's tone, the doors and the lock keep
+// their sounds; readParams has no &voice= (an old URL with it is read as if it had none); the To score page has no voice row and
+// the gallery no voices set. Every line is a text bubble at its speaker instead (tests/bubbles.test.mjs). Each case fails if any
+// line is voiced again: a 'say' fact that plays, a recipe of a voice in HOUSE, an engine method or module that speaks.
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { assert, root } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { houseBot, runHouse } from './bots/house.mjs';
 import { createHouse } from '../src/ui/audio/house.js';
 import { createAudio } from '../src/ui/audio/engine.js';
-import { VOICE_DEFAULT, VOICE_SET } from '../src/data/voices.js';
+import { HOUSE } from '../src/data/sounds.js';
 import { readParams } from '../src/core/debug.js';
 import { ROWS } from '../src/ui/cards/topick.js';
 
@@ -42,54 +42,56 @@ class FakeContext {
 
 export default [
   {
-    name: 'the house\'s ear at the game\'s default says no line of a whole lane (the private by the keys on 48213, from the fill) and plays none of V-a\'s voiced syllables, while the timer\'s beeps and the doors still sound; V-c by name says them (the user, 2026-11-19: "forget voice synthesis, no voices.")',
+    name: 'the house\'s ear says no line of a whole lane (the private by the keys on 48213, from the fill) and HOUSE holds no voiced syllable, while the timer\'s beeps and the doors still sound (the user, 2026-11-19: "forget voice synthesis, no voices.")',
     fn() {
       const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private' });
-      const said = [], cues = [], saidC = [];
-      const ear = createHouse({ house: (kind) => { cues.push(kind); return true; }, hall: () => {}, voice: (text) => { said.push(text); return true; }, now: () => g.state.clock.ms / 1000 });
-      const earC = createHouse({ house: () => true, hall: () => {}, voice: (text) => { saidC.push(text); return true; }, now: () => g.state.clock.ms / 1000 }, { voice: 'c' });
+      const cues = [], asked = [];
+      // (an engine that would take a line if the ear ever asked: nothing may)
+      const ear = createHouse({ house: (kind) => { cues.push(kind); return true; }, hall: () => {}, voice: (text) => { asked.push(text); return true; } });
       let says = 0, heard = 0, doors = 0;
       const each = (game) => {
         for (const { type, p } of factsOf(game)) {
-          if (type === 'say') { says++; if (ear.fact('say', p, game.state)) heard++; earC.fact('say', p, game.state); }
-          else if (type === 'house' || type === 'bundle') { ear.fact(type, p, game.state); earC.fact(type, p, game.state); }
+          if (type === 'say') { says++; if (ear.fact('say', p, game.state)) heard++; }
+          else if (type === 'house' || type === 'bundle') ear.fact(type, p, game.state);
           else if (type === 'door' && p?.how) { if (ear.door(p, game.state)) doors++; }
         }
       };
       const r = runHouse(g, houseBot({ mode: 'keys' }), { each, maxMs: 600_000 });
-      const voiced = cues.filter(k => VOICED.has(k)), kinds = [...new Set(cues)];
-      console.log(`      the default '${VOICE_DEFAULT}': ${says} 'say' facts, ${heard} heard, ${said.length} lines asked of the engine; the cues ${kinds.join(', ')} (${voiced.length} voiced); V-c by name ${saidC.length} lines; the lane ${g.state.armoury.range.house.end?.why ?? 'open'}`);
+      const voiced = cues.filter(k => VOICED.has(k)), kinds = [...new Set(cues)], recipes = Object.keys(HOUSE).filter(k => VOICED.has(k));
+      console.log(`      ${says} 'say' facts, ${heard} heard, ${asked.length} lines asked of the engine; the cues ${kinds.join(', ')} (${voiced.length} voiced); HOUSE's recipes ${Object.keys(HOUSE).join(', ')}; the lane ${g.state.armoury.range.house.end?.why ?? 'open'}`);
       assert(r.done && says > 20, JSON.stringify({ done: r.done, says }));
-      assert(VOICE_DEFAULT === 'none' && VOICE_SET[VOICE_DEFAULT]?.silent === true, VOICE_DEFAULT);
-      assert(heard === 0 && said.length === 0 && voiced.length === 0, JSON.stringify({ heard, said: said.slice(0, 5), voiced: voiced.slice(0, 5) }));
-      assert(cues.includes('timerGo') && saidC.length > 20, JSON.stringify({ kinds, saidC: saidC.length }));
+      assert(heard === 0 && asked.length === 0 && voiced.length === 0 && !recipes.length, JSON.stringify({ heard, asked: asked.slice(0, 5), voiced: voiced.slice(0, 5), recipes }));
+      assert(cues.includes('timerGo') && doors > 0, JSON.stringify({ kinds, doors }));
+      assert(!('setVoice' in ear) && !('voiceSet' in ear), Object.keys(ear).join());
     },
   },
   {
-    name: 'the engine at the game\'s default queues no fixed line at its start, says no line and bakes no call-out of your #2 (createAudio with no voice; &voice=c by name queues and says them)',
+    name: 'the engine has no voice: no line baked or said, no voice set, no call-outs (no voiceLine, setVoice, prebakeCallouts, voiceSet, stats.voice), and the synthesis\'s modules are gone (src/data/voices.js, src/ui/audio/voice.js)',
     fn() {
-      const make = (voice) => { const audio = createAudio({ sound: 'new', ...(voice ? { voice } : {}), AudioContextClass: function () { return new FakeContext(); } }); audio.prepare(); audio.start(); audio.frame(null); return audio; };
-      const a = make(null), c = make('c');
-      const line = a.voiceLine('Lane A. Standby.', { voice: 'pa' }), lineC = c.voiceLine('Lane A. Standby.', { voice: 'pa' });
-      const pre = a.prebakeCallouts(['Rifle, far left!', 'Pistol, right!']), preC = c.prebakeCallouts(['Rifle, far left!', 'Pistol, right!']);
-      a.frame(null); c.frame(null);
-      const V = a.stats.voice, VC = c.stats.voice;
-      console.log(`      the default: set ${V.set}, a line said ${line}, call-outs queued ${pre}, queued ${V.queued ?? 0}, waiting ${V.waiting}, baked ${V.baked}; &voice=c: a line said ${lineC}, call-outs ${preC}, queued ${VC.queued}, waiting ${VC.waiting}`);
-      assert(V.set === 'none' && line === false && pre === 0 && !(V.queued > 0) && !(V.waiting > 0) && V.baked === 0, JSON.stringify(V));
-      assert(lineC === true && preC === 2 && (VC.queued > 0 || VC.waiting > 0), JSON.stringify(VC));
+      const audio = createAudio({ sound: 'new', voice: 'c', AudioContextClass: function () { return new FakeContext(); } });
+      audio.prepare(); audio.start(); audio.frame(null);
+      const api = ['voiceLine', 'setVoice', 'prebakeCallouts', 'calloutBaked', 'voiceSet'].filter(k => k in audio);
+      const files = ['src/data/voices.js', 'src/ui/audio/voice.js'].filter(f => existsSync(path.join(root, f)));
+      // (no module of the game imports a voice module or speaks: speechSynthesis, the browser's own voice, never either)
+      const src = [], walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.m?js$/.test(e.name)) src.push(p); } };
+      walk(path.join(root, 'src'));
+      const speaks = src.filter(p => /from '[^']*\/voices?\.js'|speechSynthesis|SpeechSynthesisUtterance/.test(readFileSync(p, 'utf8'))).map(p => path.relative(root, p));
+      console.log(`      the engine's voice API ${api.length ? api.join(', ') : 'none'}; stats.voice ${audio.stats.voice ? 'kept' : 'none'}; the modules ${files.length ? files.join(', ') : 'gone'}; ${src.length} modules of src read, ${speaks.length} that speak`);
+      assert(!api.length && audio.stats.voice === undefined && !files.length && !speaks.length, JSON.stringify({ api, files, speaks }));
     },
   },
   {
-    name: 'the page takes the voice from the URL only (&voice=none|a|b|c|d|old, else none), never from this browser\'s old To score pick; the To score page has no voice row; the gallery\'s index lists no voices set, its sample.json retired',
+    name: 'an old URL with &voice= is read as if it had none (no voice parameter, no error); the To score page has no voice row; the gallery has no voices set, in its index or its folders',
     fn() {
-      const none = readParams('?play=test-shoothouse'), c = readParams('?play=test-shoothouse&voice=c'), off = readParams('?play=test-shoothouse&voice=none');
+      const none = readParams('?play=test-shoothouse'), c = readParams('?play=test-shoothouse&voice=c'), old = readParams('?play=test-shoothouse&voice=old&seed=7');
       const main = readFileSync(path.join(root, 'src/main.js'), 'utf8');
-      const fromPick = /toPick\.flags\.voice/.test(main);
-      const index = JSON.parse(readFileSync(path.join(root, 'samples/index.json'), 'utf8')), sample = JSON.parse(readFileSync(path.join(root, 'samples/voices/sample.json'), 'utf8'));
-      console.log(`      the URL: none → ${none.voice}, &voice=c → ${c.voice}, &voice=none → ${off.voice}; main.js reads the old pick ${fromPick}; the rows ${ROWS.map(r => r.id).join(', ')}; the index's sets ${index.samples.length}, voices ${index.samples.some(s => s.id === 'voices')}; retired ${!!sample.retired}`);
-      assert(none.voice === null && c.voice === 'c' && off.voice === 'none' && !fromPick, JSON.stringify({ none: none.voice, c: c.voice, off: off.voice, fromPick }));
-      assert(!ROWS.some(r => r.id === 'voice'), ROWS.map(r => r.id).join());
-      assert(!index.samples.some(s => s.id === 'voices') && !!sample.retired, 'samples/voices still in the gallery');
+      const index = JSON.parse(readFileSync(path.join(root, 'samples/index.json'), 'utf8'));
+      const folder = existsSync(path.join(root, 'samples/voices'));
+      console.log(`      the URL: &voice=c → ${JSON.stringify(c.voice)}, &voice=old&seed=7 → voice ${JSON.stringify(old.voice)}, seed ${old.seed}; main.js names a voice ${/settings\.voice|params\.voice|voiceSet/.test(main)}; the rows ${ROWS.map(r => r.id).join(', ')}; the index's sets ${index.samples.length}, voices ${index.samples.some(s => s.id === 'voices')}; samples/voices ${folder ? 'there' : 'gone'}`);
+      assert(!('voice' in none) && !('voice' in c) && !('voice' in old) && old.seed === 7, JSON.stringify({ none, c, old }));
+      assert(!/settings\.voice|params\.voice|voiceSet/.test(main), 'main.js still carries a voice');
+      assert(!ROWS.some(r => r.id === 'voice' || /voice/i.test(r.title ?? '')), ROWS.map(r => r.id).join());
+      assert(!index.samples.some(s => s.id === 'voices') && !folder, 'samples/voices still in the gallery');
     },
   },
 ];

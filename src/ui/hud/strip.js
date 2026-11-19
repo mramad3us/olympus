@@ -24,6 +24,13 @@
 // reads them), scaled up by CSS with image-rendering: pixelated: STRIP_SCALE (3) times on the HUD, 6
 // on the sheet. createStrip(parent) keeps a row of them and writes the DOM only when the entries'
 // signature changes, so a frame costs a string compare.
+//
+// The G line (v0.0.24, ROADMAP "anywhere" step 6; AW§4.3 item 7): under the strip, one line of the felt gravity, shown only when it
+// is not nominal: whenever the felt g is under 0.3 G or a gravity event is pending or under way ("0.00 G · on mag boots",
+// "0.00 G · floating", "BRACE 0:08" through the warning, "1.00 G · burn" through the change), and absent at Mars and the Wheel. It
+// is the body's own sign (BODY's "what the player knows": weight is felt), not a gauge. gLineText(facts) formats the facts of
+// src/sim/places/gravity.js gLineOf (gravityAt for the g to 0.01 G, footingOf for the word: one quantity, one helper; the count to
+// the onset in whole seconds, rounded up, as the 1MC counts); createGLine(parent) the DOM, written only on a change.
 
 /** The glyphs' rows, top to bottom, 1 an ink pixel (VIEWS §9.1; the look glyphs of the outcome strip my calls). */
 export const GLYPHS = Object.freeze({
@@ -165,6 +172,41 @@ export function createStrip(parent, { scale = STRIP_SCALE, className = 'strip' }
         root.hidden = !list.length;
       }
       return sig;
+    },
+    get shown() { return shown; },
+  };
+}
+
+// ---- the G line (v0.0.24, see the header) ----
+
+/** The G line's words for gravity.js gLineOf's facts, '' when there are none (nominal). */
+export function gLineText(g) {
+  if (!g) return '';
+  if (g.phase === 'warn' && Number.isFinite(g.leftMs)) {
+    const s = Math.ceil(g.leftMs / 1000);
+    return `BRACE ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+  const gG = Number.isFinite(g.gG) ? g.gG.toFixed(2) : '?';
+  return g.phase && g.kind ? `${gG} G · ${g.kind}` : `${gG} G · ${g.word ?? ''}`.trim();
+}
+
+/** The G line in parent: { el, update(facts) → its text }; hidden when nominal, the DOM written only on a change. */
+export function createGLine(parent, { className = 'gline' } = {}) {
+  const root = Object.assign(globalThis.document.createElement('div'), { className });
+  root.hidden = true;
+  parent.append(root);
+  let shown = null;
+  return {
+    el: root,
+    update(facts = null) {
+      const text = gLineText(facts);
+      if (text !== shown) {
+        shown = text;
+        root.textContent = text;
+        root.hidden = !text;
+        root.classList.toggle('brace', !!facts && facts.phase === 'warn');
+      }
+      return text;
     },
     get shown() { return shown; },
   };

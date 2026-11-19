@@ -87,7 +87,7 @@ export default [
     },
   },
   {
-    name: 'Stack and clear\'s line has six aspects, pause, drill, team, panel, shots and feel, and names the panel, shot, voice, walk and look played before the star (the build sheet v0.0.20 §1 item 10; v0.0.19 had three, nothing played)',
+    name: 'Stack and clear\'s line has six aspects, pause, drill, team, panel, shots and feel, and names the panel, shot, walk and look played before the star (the build sheet v0.0.20 §1 item 10; v0.0.19 had three, nothing played; v0.0.24: no voice, a voice given is no word of it: the user\'s "no voices" of 2026-11-19)',
     fn() {
       const asp = SCENES['test-shoothouse'].aspects.map(([k]) => k);
       const line = scoreLine({ version: '0.0.20', scene: 'test-shoothouse', seed: 48213, aspects: asp.map((k, i) => [k, 50 + 5 * i]), played: { panel: 'C', shot: 'A3', voice: 'c', walk: 'B', look: { stack: [4], helm: 'r1', jamb: null } } });
@@ -95,7 +95,7 @@ export default [
       console.log(`      ${line}`);
       for (const [k, t] of words) console.log(`      ${k}: ${t}`);
       assert(JSON.stringify(asp) === JSON.stringify(HOUSE_ASPECTS) && asp.length === 6, JSON.stringify(asp));
-      assert(line === 'OLYMPUS v0.0.20 · test-shoothouse · seed 48213 · pause 50 · drill 55 · team 60 · panel 65 · shots 70 · feel 75 · panel C · shot A3 · voice c · walk B · look stack:4,helm:r1 · ★ no · note: none', line);
+      assert(line === 'OLYMPUS v0.0.20 · test-shoothouse · seed 48213 · pause 50 · drill 55 · team 60 · panel 65 · shots 70 · feel 75 · panel C · shot A3 · walk B · look stack:4,helm:r1 · ★ no · note: none', line);
       assert(words.map(([k]) => k).join() === HOUSE_ASPECTS.join(), JSON.stringify(words));
     },
   },

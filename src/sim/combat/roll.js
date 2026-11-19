@@ -18,6 +18,10 @@
 // exactly 1 at felt 0, the factor on handling, the aim and the rows' parts); mods appends suppMod(felt, skill) as one
 // 'env' entry (absent at 0), in place of firearms.js's retired PRESSURE_MODS.fire; while flash-blind "no light to see it
 // by" −2 on handling (once: never twice with the dark), while dazzled 'dazzled' DAZZLE_SIGHT on Awareness.
+// Step 5 of "anywhere" (body/footing.js footingMods): BODY §22's gravity regime row, one 'env' entry by the footing where
+// the person stands (free fall unanchored −6, anchored −2, braced 0 on a roll of the arms, legs or torso, so the shot's
+// anchoring of WEAPONS §7.3; −2 on handling with nothing holding the feet; low g −2 on CQC, Fieldcraft and Fitness), worn
+// down by Zero-g; nothing at 0.3 G and up, so Mars and the Wheel roll as before.
 // Pure.
 import { lightLevel } from '../places/light.js';
 import { bodyMods, needMods } from '../body/mods.js';
@@ -25,6 +29,7 @@ import { SKILLS } from '../skills/skills.js';
 import { valueOf } from '../skills/templates.js';
 import { playerActor } from '../../core/ids.js';
 import { feltOf, suppMod, suppTimeK, blockOf, DAZZLE_SIGHT } from './supp.js';
+import { footingMods } from '../body/footing.js';
 
 /** Below this light a hand cannot see the gun it works (tradecraft's lightBand 'dark'). */
 export const DARK_BELOW = 0.25;
@@ -61,6 +66,8 @@ export function rollerOf(state, pid, { ms = state.clock.ms } = {}) {
       const out = [...bodyMods(state, pid, uses, c), ...needMods(state, pid, uses, c)];
       if (LIGHT_SKILLS.has(skill) && ((ctx.noLight !== false && light < DARK_BELOW) || blind)) out.push({ why: 'no light to see it by', v: -2, src: 'env' });
       if (skill === 'awareness' && dazzled) out.push({ why: 'dazzled', v: DAZZLE_SIGHT, src: 'env' });
+      // (step 5: BODY §22's gravity regime row, WEAPONS §7.3's anchoring on the shot (body/footing.js): none at 0.3 G and up)
+      out.push(...footingMods(state, pid, skill));
       const s = suppMod(felt, skill);
       if (s) out.push(s);
       return out;

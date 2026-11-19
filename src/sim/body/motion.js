@@ -36,8 +36,20 @@
 // 0.02 F) / r), slowing at min(μ g, BRAKE_MS2 × (0.8 + 0.02 F) / r), r = (massKg + loadKg) / massKg (the private at 1 G
 // with 25 kg on 75: 3.12 and 5.07 m/s², the tier one 3.66 and the grip's 5.88). The body's stance is the actor's
 // `moveStance` (places/move.js reads it; the drawn `gait` stays the view's 'idle', 'walk', 'run'), absent read as Relaxed.
-import { GAIT, GAIT_G, LOAD_BANDS, STAMINA, SPO2_PCT, BMI_BY_BUILD, KCAL_PER_KG } from '../../data/body/needs.js';
-import { gravityAt } from '../places/env.js';
+// v0.0.24's stage 0 (its build sheet §2 step 2, §3.0; F103 `legs-one`): legsAt(state, pid, x, z) is the one helper for the
+// legs where a body stands, { pushMs2, brakeMs2, gripMs2, gG, mu, walk: { relaxed, combat, assault } }: tractionOf at the felt
+// gravity (env.js gravityAt's gG × G0_MS2) and the floor's μ (env.js surfaceAt, the row's dry μ: a missing surface throws
+// there, never a fallback), with what the person carries (kit.js kitMassKg) on BODY_KG 75 and their Fitness (the sheet's
+// value, as the roller reads it), and the three stances' unloaded walks at that gravity (gaitSpeeds, one row a gravity). Three
+// readers computed the same quantity before (places/move.js legsHere, combat/bundle.js legsOf, arms/loadout.js loadoutView,
+// each with its own μ 0.6 fallback that no shipped floor ever reached): they delegate here, their names kept. Nothing else
+// calls tractionOf.
+import { GAIT, GAIT_G, LOAD_BANDS, STAMINA, SPO2_PCT, BMI_BY_BUILD, KCAL_PER_KG, MAG_BOOTS } from '../../data/body/needs.js';
+import { gravityAt, surfaceAt } from '../places/env.js';
+import { G0_MS2 } from '../../core/phys.js';
+import * as KIT from '../arms/kit.js';
+import { valueOf } from '../skills/templates.js';
+import { bootsHoldN } from './footing.js';
 import { TEMPLATES, DEFAULT_TMPL } from '../../data/body/templates.js';
 import { q } from '../../core/num.js';
 import { hungerIndex } from './energy.js';
@@ -112,6 +124,30 @@ export function placeGaits(state, area = null) {
   let g = PLACE_GAITS.get(gG);
   if (!g) PLACE_GAITS.set(gG, (g = Object.freeze(gaitSpeeds({ gG }))));
   return g;
+}
+
+/** The body under the kit, kg (the build sheet 0.0.12 §4: 25 kg of kit on 75): legsAt's mass, the load on top of it. */
+export const BODY_KG = 75;
+const STANCE_WALKS = new Map();
+// (on locked mag boots under 0.05 G: one walk for every stance, BODY §16.6's 0.5 m/s, no run (footing.js magGaits for the keys))
+const MAG_WALKS = Object.freeze(Object.fromEntries(MOVE_STANCES.map(s => [s, MAG_BOOTS.WALK_MS])));
+// (the three stances' unloaded walks at a gravity, frozen, one row a gravity: legsAt runs on every mover's tick)
+function stanceWalks(gG) {
+  let w = STANCE_WALKS.get(gG);
+  if (!w) STANCE_WALKS.set(gG, (w = Object.freeze(Object.fromEntries(MOVE_STANCES.map(s => [s, gaitSpeeds({ gG, gait: s }).walkMs])))));
+  return w;
+}
+/**
+ * The legs where a body stands (see the header; the build sheet v0.0.24 §3.0): { pushMs2, brakeMs2, gripMs2, gG, mu, walk:
+ * { relaxed, combat, assault } }, at (x, z) on the live area, for the person pid with the kit they carry and their Fitness.
+ */
+export function legsAt(state, pid, x, z) {
+  const gG = gravityAt(state, null, x, z).gG, mu = surfaceAt(state, null, x, z).mu, loadKg = KIT.kitMassKg(state, pid);
+  // (ROADMAP "anywhere" step 5: locked mag boots on a ferrous face press the feet down by their hold, μ (m g + 300 N) (BODY §16.6; footing.js bootsHoldN): 0 unless worn and locked)
+  const holdN = bootsHoldN(state, pid, x, z), gMs2 = gG * G0_MS2 + (holdN ? holdN / (BODY_KG + loadKg) : 0);
+  const t = tractionOf({ gMs2, mu, effFitness: valueOf(state, pid, 'fitness'), massKg: BODY_KG, loadKg });
+  // (and under 0.05 G on them every stance walks BODY §16.6's MAG_BOOTS.WALK_MS 0.5 m/s, the free walk's magGaits for the bundles' moves)
+  return { ...t, gG, mu, walk: holdN && gG < GAIT_G.FLOAT_BELOW_G ? MAG_WALKS : stanceWalks(gG) };
 }
 
 /** Aerobic capacity, MET (BODY §8). */

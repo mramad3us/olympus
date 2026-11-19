@@ -39,6 +39,10 @@
 // swapped each time. The view holds the aimed variant it shows ('you' or 'away') for AIM_DWELL_MS before it shows the other
 // (readers.aims, the view's memory by man; targetModel without it is the record as seenOf gives it): raising, lowering, kneeling or
 // turning are never held, only the one aim's side, so the card lags the stage's aim by at most AIM_DWELL_MS and never flicks.
+// v0.0.24 (the build sheet v0.0.24 item 16, §0 item 15): the card in his light and behind the jamb. The man the card shows is read
+// with { cover: true } (seen.js coverOf's COVER_RAYS through the walls from your eye, once a frame of the page for that one man,
+// never in a tick), and a house's board gets its stand's light and cover the same way (seen.js lightOf, coverAt at the stand), so
+// room 3's dim draws its card darker and a stand half behind a jamb half drawn; "Bang"'s cards are the string's, read as scored.
 // paintOn(state, who) is the role-players' paint on a marine (R.house.live.struck) as card marks in blue, for a card of you or
 // your #2 (the casualty's).
 // Nothing pops: the card repaints only when its signature changes, and a man's dressed doll not yet painted is painted on a
@@ -52,7 +56,7 @@ import { cardModel, hitShown, hitTabs, hitRangeM, HIT_LOOK } from './hitcard.js'
 import { hitDollReady, warmHitcard, bandOf, HIT_BANDS } from '../../art/doll/hitcard.js';
 import { paintPortrait, BOARD_PLACES, PORTRAIT_PICKS } from '../../art/doll/portrait.js';
 import { engagedOf, struckLast, seenFace, seenState, liveRecOf } from '../../sim/arms/engage.js';
-import { seenOf, standSeen, seenKey } from '../../sim/people/seen.js';
+import { seenOf, standSeen, seenKey, lightOf, coverAt, paintKey } from '../../sim/people/seen.js';
 import { lookFor, indoorsNow } from '../../sim/people/figure.js';
 import { eyeOf, visibility } from '../../sim/people/perception.js';
 import { hostKind, alwaysDrawn, seenEver } from '../../sim/places/known.js';
@@ -143,7 +147,7 @@ export function targetModel(state, { key, kind = 'turner', who = null, phase = n
   const R = state.armoury?.range, me = readers.meAt?.(state) ?? null, picks = readers.picks?.(state) ?? null;
   if (kind === 'person') {
     // (out of your sight the record as last seen (seenHeld), so the card never shows what the stage hides)
-    const now = seenOf(state, who, { by: state.player?.id }), kept = seenHeld(state, who, now, readers.lastSeen), frozen = !!kept && kept !== now;
+    const now = seenOf(state, who, { by: state.player?.id, cover: true }), kept = seenHeld(state, who, now, readers.lastSeen), frozen = !!kept && kept !== now;
     const P = personOf(state, who), rec = aimHeld(kept, who, state.clock?.ms ?? 0, readers.aims);
     if (!rec?.gear) return null;
     const a = state.actors?.list?.find?.(x => x.who === who);
@@ -171,8 +175,11 @@ export function targetModel(state, { key, kind = 'turner', who = null, phase = n
   const base = hm ?? { key, k: 0, phase: phase ?? 'belief', marks: [], words: String(T.stand ?? '').toUpperCase(), line: null };
   const m = cardModel(base, { look: HIT_LOOK, face: sf.face, holds: sf.holds, tabs, rangeM: hitRangeM(T, me, null) });
   const words = sf.holds === 'unseen' ? [UNSEEN_WORDS, m.words].filter(Boolean).join(' · ') : m.words;
-  const rec = standSeen(sf.face, sf.holds, { holds: sf.holds, state: null }, { rangeM: m.rangeM ?? null });
-  return { ...m, words, subject: { kind: 'board', key: `${sf.face}|${sf.holds}`, face: sf.face, holds: sf.holds, rec }, ...(picks ? { picks } : {}) };
+  // (the stand in its light and behind the jamb from your eye, as a man is (see the header))
+  const eye = state.actors?.list?.find?.(a => a.who === state.player?.id) ?? null;
+  const rec = standSeen(sf.face, sf.holds, { holds: sf.holds, state: null }, { rangeM: m.rangeM ?? null, light: lightOf(state, T.x, T.z), cover: eye ? coverAt(state, T, eye) : null });
+  const pk = paintKey(rec);
+  return { ...m, words, subject: { kind: 'board', key: `${sf.face}|${sf.holds}${pk ? `|${pk}` : ''}`, face: sf.face, holds: sf.holds, rec }, ...(picks ? { picks } : {}) };
 }
 
 // (whether the stop names a target of yours now, a row's, an aim's or a pause's bracket, whatever it is)
@@ -252,7 +259,7 @@ export function createTargetView({ card, readers: given = {} } = {}) {
       if (pending !== m.subject.key) { pending = m.subject.key; paintPortrait(m.subject.rec, m.subject.person, { pxPerM: bandOf(m.rangeM).pxPerM, picks: m.picks ?? null }); return card.text; }
     }
     pending = null;
-    const sig = JSON.stringify([cur.key, m.phase, m.marks.map(x => [x.n, x.seen]), m.subject?.key, !!target, m.picks ?? null]);
+    const sig = JSON.stringify([cur.key, m.phase, m.marks.map(x => [x.n, x.seen]), m.subject?.key, m.subject?.rec?.key ?? null, !!target, m.picks ?? null]);
     if (sig !== seen.sig || (seen.stop && !inStop) || target) seen.t = now;
     seen.sig = sig; seen.stop = inStop;
     const on = targetShown({ engaged: !!target, phase: m.phase, n: m.marks.length, inStop, lastT: seen.t, nowT: now });

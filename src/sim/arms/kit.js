@@ -79,6 +79,11 @@
 // it, Condition 1 at low ready), and 'house-fof', the marines' on the live lane ('house-cqb' with marking in place of frangible,
 // the instructor's dummy riding as built); FOF_SIDEARM is its P-12's issue, two HAD-17s of ten marking. Marking is a load of
 // calibres.js (never a range's issue).
+// v0.0.24 (the anywhere round's step 5, rebased by stage 0 from the parked stash of 2026-11-11; BODY §16.6; COMBAT §14.8): the
+// mag boots, 'mb-1', magnetic overboots of 2.4 kg (my call), worn in their own slot, kit.worn.boots: WORN_SLOTS gains 'boots'
+// after 'mask' (never SLOTS, which the I card's carrier walk reads), so no shipped kit's items or ids move; wear(state, pid,
+// model) puts one worn thing on. Their magnets are the footing's (src/sim/body/footing.js: the actor's anchor 'boots', locked
+// and released as steps, src/sim/arms/shooting.js bootsRow), and they hold only on a ferrous face (PLACES §2.7).
 import { nextId, put } from '../../core/ids.js';
 import { q } from '../../core/num.js';
 import { areaOf } from '../places/model.js';
@@ -115,6 +120,8 @@ export const CONTAINERS = Object.freeze({
   'scab-tool': Object.freeze({ type: 'pouch', word: 'tool scabbard', holds: 1, fits: Object.freeze(['tool']), massKg: 0.3 }),
   // (v0.0.19: the force-on-force mask, worn in its own slot by the live lane's role-players (see the header))
   'fof-mask': Object.freeze({ type: 'mask', word: 'force-on-force mask', slot: 'mask', massKg: 0.6 }),
+  // (the anywhere round's step 5: the mag boots, magnetic overboots worn in their own slot, kit.worn.boots (see the header))
+  'mb-1': Object.freeze({ type: 'boots', word: 'mag boots', slot: 'boots', massKg: 2.4 }),
 });
 
 /** The issue templates: worn (slot → model), the carrier's pouches in reach order, the magazines ([family, rounds]) filling the pouches in order. */
@@ -181,8 +188,8 @@ export const PLACE_WORDS = Object.freeze({ p1: 'chest pouch 1', p2: 'chest pouch
 
 /** The worn slots, in the order a kit is walked (0.0.12's 'suit' before 'ears', so the other kits' ids stand; the rework's R6 the sidearm's holster and thigh pouch after them). */
 export const SLOTS = Object.freeze(['carrier', 'head', 'sling', 'suit', 'ears', 'holster', 'thigh']);
-/** Every worn slot in walking order: SLOTS, then v0.0.19's 'mask' (the live lane's role-players; see the header), so no other kit's ids move. */
-export const WORN_SLOTS = Object.freeze([...SLOTS, 'mask']);
+/** Every worn slot in walking order: SLOTS, then v0.0.19's 'mask' (the live lane's role-players) and v0.0.24's 'boots' (the mag boots; see the header), so no other kit's ids move. */
+export const WORN_SLOTS = Object.freeze([...SLOTS, 'mask', 'boots']);
 /** Whether a person wears ear defenders in their own slot (0.0.7: the KD's; the sound is heard through them). */
 export const earsOn = (state, pid) => !!state.people?.[pid]?.kit?.worn?.ears;
 
@@ -402,6 +409,18 @@ export function pistolOf(state, pid) {
   if (k.worn?.holster) return k.worn.holster;
   const h = handGunOf(state, pid);
   return h && !isLong(MODELS[state.items[h]?.model]) ? h : null;
+}
+/**
+ * A worn thing put on a person (v0.0.24's step 5: the mag boots for a scene or a test; any CONTAINERS row with a slot): the item made and
+ * moved into its slot. Throws for a model with no slot or a slot already taken. Returns the item's id.
+ */
+export function wear(state, pid, model) {
+  const C = CONTAINERS[model];
+  if (!C?.slot) throw new Error(`kit.wear(): '${model}' is not worn`);
+  const id = nextId(state, 'i');
+  put(state, state.items, id, { type: C.type, model });
+  move(state, id, { pid, slot: C.slot });
+  return id;
 }
 
 // ---- reading the kit ----

@@ -37,8 +37,8 @@
 // decides (what the score decides), builtIn (the round that draws the pick) }, copied as it is into the set's index entry
 // (indexEntry); samples/index.html lists every open set first, under "To score" (samples/to-score.js), and the lead drops a
 // set's "open" when the user's answer lands in DESIGN.md's log. A set without it has no "open" in the index.
-// v0.0.23's fixer: a sample.json with "retired" (why, in words) is neither shot nor listed in index.json (samples/voices, the
-// user's "forget voice synthesis, no voices." of 2026-11-19); its folder stays until its round removes it.
+// v0.0.23's fixer: a sample.json with "retired" (why, in words) is neither shot nor listed in index.json (samples/voices was the
+// first, the user's "forget voice synthesis, no voices." of 2026-11-19; v0.0.24 removed its folder with the synthesis).
 //
 // The repository is served by tools/serve.py on the gallery's own port (8212 by default: its own browser
 // origin, so its own saves; never the play copy's 8200 or the dev tree's 8201), refused if anything
@@ -115,10 +115,12 @@ export function readSamples(dir = SAMPLES) {
 
 /**
  * A set's entry in index.json (see the header): its id (the folder), title, about, whether pixel art, the matrix's labels, its
- * "open" (copied from sample.json when it has one, absent when not) and its groups as shot. Pure (tests/gallery-open.test.mjs).
+ * "open" and "scored" (copied from sample.json when it has them, absent when not) and its groups as shot. Pure (tests/gallery-open.test.mjs).
+ * v0.0.24: the user's answer lands as "scored": { on (the day), picks (the view ids the user starred or chose) } in place of "open",
+ * copied into the index the same way; samples/index.html draws such a set in its collapsed "Already rated" section.
  */
 export function indexEntry(folder, sample, groups) {
-  return { id: folder, title: sample.title, about: sample.about, pixel: !!sample.pixel, matrix: sample.matrix ? { rows: sample.matrix.rows.labels, cols: sample.matrix.cols.labels } : null, ...(sample.open ? { open: sample.open } : {}), groups };
+  return { id: folder, title: sample.title, about: sample.about, pixel: !!sample.pixel, matrix: sample.matrix ? { rows: sample.matrix.rows.labels, cols: sample.matrix.cols.labels } : null, ...(sample.open ? { open: sample.open } : {}), ...(sample.scored ? { scored: sample.scored } : {}), groups };
 }
 
 /** shot.mjs's output: its first line, the report it printed (JSON, ended by a line "}"), the lines after. */

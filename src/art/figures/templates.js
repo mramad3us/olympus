@@ -30,9 +30,33 @@
 // (v0.0.5's was a four-pixel hook, three along): at 16 px/m two pixels on a 16-pixel rifle (each 6.25 cm of
 // the 1.0 m drawn rifle: 12.5 cm below the well, 6 cm front to back, the HAD-30's own 6.5), at 24 px/m a
 // 2 × 3 band; the doll's rifle (doll.js, acrossK 2.4) takes the same shape. Every design keeps it.
+// v0.0.24 (the anywhere round; samples/mag-boots B-b, the default until scored): magBootCells(cells) draws mag boots over a composed
+// frame's own boot pixels (the role letters f and F, whatever pose): in each column of a boot its top pixel becomes the magnet's
+// cuff (MAG_BOOT_LETTERS.cuff, a fixed tone) and a sole a pixel deeper is added under its lowest (MAG_BOOT_LETTERS.sole), where the
+// grid is empty there; outfits.js colours them, compose.js calls it for a look with magBoots.
 // Pure.
 
 import { drawingOf } from '../rifles.js';
+
+/** The mag boots' letters (see the header): the cuff over the boot's top, the sole under its foot. */
+export const MAG_BOOT_LETTERS = Object.freeze({ cuff: 'ƀ', sole: 'ɓ' });
+/** Mag boots over a composed frame's cells (see the header): writes cells (a grid of rows of { ch, part, ... } or null). Returns the pixels changed. */
+export function magBootCells(cells) {
+  const cols = new Map();
+  for (let y = 0; y < cells.length; y++) for (let x = 0; x < (cells[y]?.length ?? 0); x++) {
+    const c = cells[y][x];
+    if (!c || (c.ch !== 'f' && c.ch !== 'F')) continue;
+    const k = cols.get(x);
+    if (!k) cols.set(x, { top: y, bot: y, part: c.part }); else { k.top = Math.min(k.top, y); k.bot = Math.max(k.bot, y); }
+  }
+  let n = 0;
+  for (const [x, k] of cols) {
+    if (k.bot > k.top) { const c = cells[k.top][x]; cells[k.top][x] = { ...c, ch: MAG_BOOT_LETTERS.cuff, t: 'base' }; n++; }
+    const y = k.bot + 1;
+    if (y < cells.length && cells[y] && !cells[y][x]) { cells[y][x] = { ch: MAG_BOOT_LETTERS.sole, part: k.part, u: 0, v: 0, t: 'base' }; n++; }
+  }
+  return n;
+}
 
 // ---------- the reference (tradecraft's 15 × 12 head at [4, 7] facing the camera, 14 × 12 at [5, 7] side on) ----------
 
@@ -351,9 +375,10 @@ export function flashCells(kind, mx, my, th, k = 1) {
 // compose.js draws a device (a capsule from a to b, th pixels, in a device's role letter; `hand` measures from that hand's tip,
 // else from the shoulders' middle; [forward, left, up] metres), held in the right fist, the way a figure walks or runs with it.
 // HELD_POSES are the beats' own (the held band, poses.js BANDS.stanceHeld): the arms put by the rig's IK where the user's picks
-// of samples/held-devices put them (the defaults until the user scores: G1 the can at the chest, T1 the underhand lob, B1 the
-// halligan across the body, R1 the ram level at the belly, C1 the strip upright in the fist; the pin, the pry, the swing and the
-// placing the sample's, which every candidate shares), with the device's parts where those candidates draw them. The device's
+// of samples/held-devices put them (scored by the user on 2026-11-19: G1 the can at the chest, G2 and G3 with T3 and T2 by the
+// throw's distance beside T1 the underhand lob, B3 the halligan on the shoulder, R2 the ram hanging, C1 the strip upright in the
+// fist; the pin, the pry, the swing and the placing the sample's, which every candidate shares), with the device's parts where
+// those candidates draw them. The device's
 // pixels are a card over the figure (atlas.js heldStrip: only those the body leaves in sight), so its colour is its model's and no
 // figure's frame carries it: a figure with no device is drawn as before, to the byte.
 /** The device's role letters (a device's own, as the sample's: the body, steel, black, the tube) and the colours the card paints them in by the look's colour word (devicetable.js look.colour; the doll's DEVICE_C). */
@@ -394,8 +419,9 @@ export const HELD = Object.freeze({
   bar: Object.freeze(bar([-0.18, 0, -0.16], [0.3, 0, 0.36], 'r')),
   ram: Object.freeze(ram([-0.12, 0, 0.06], [0.26, 0, -0.08], 'r')),
 });
-// (the defaults' points, held.js's: B1, R1)
+// (the defaults' points, held.js's: B1, R1; v0.0.24, the user's stars of 2026-11-19: B3 on the shoulder, R2 hanging)
 const B1P = [[0.22, -0.3, -0.54], [0.24, 0.26, 0.28]], R1P = [[0.02, -0.25, -0.42], [0.62, 0.02, -0.38]];
+const B3P = [[0.3, -0.26, -0.18], [-0.6, -0.3, 0.25]], R2P = [[0.04, -0.34, -0.3], [0.5, -0.34, -0.42]];
 const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 const along = (p0, p1, kr, kl) => ({ r: kr === null ? null : lerp3(p0, p1, kr), l: kl === null ? null : lerp3(p0, p1, kl) });
 /**
@@ -407,10 +433,19 @@ export const HELD_POSES = Object.freeze({
   heldPin: { reach: { r: [0.2, -0.04, -0.16], l: [0.24, 0.2, -0.12] }, parts: { can: can('r'), egg: egg('r') } },
   heldThrow0: { lean: 0.2, reach: { r: [-0.14, -0.3, -0.4] }, parts: { can: can('r'), egg: egg('r') } },
   heldThrow1: { lean: 0.16, reach: { r: [0.34, -0.12, -0.3] }, parts: { can: can('r'), egg: egg('r') } },
-  heldBar: { reach: along(...B1P, 0.3, 0.65), parts: { bar: bar(...B1P) } },
+  // (the user, 2026-11-19, of G: "Use the ones that make sense depending on how far we're throwing, those are all good",
+  // and of T: "use what makes sense again depending on distance": a short throw wound up low at the hip (G2, the left finger in
+  // the ring) and bowled round the jamb (T3); a long one cocked at the shoulder (G3, the left arm out at the target) and thrown
+  // overarm (T2); between them today's lob from the chest (G1, T1). poses.js heldFrameOf picks them by the throw's distance;
+// `free` names a hand that holds no part of the device: the ring finger's, the arm out at the target)
+  heldThrowNear0: { lean: 0.04, reach: { r: [0.12, -0.2, -0.44], l: [0.13, -0.1, -0.36] }, free: 'l', parts: { can: can('r'), egg: egg('r') } },
+  heldThrowNear1: { lean: 0.06, reach: { r: [0.22, -0.46, -0.44] }, parts: { can: can('r'), egg: egg('r') } },
+  heldThrowFar0: { lean: 0.0, reach: { r: [-0.04, -0.27, 0.1], l: [0.3, 0.06, 0.0] }, free: 'l', parts: { can: can('r'), egg: egg('r') } },
+  heldThrowFar1: { lean: 0.14, reach: { r: [0.3, -0.16, 0.06] }, parts: { can: can('r'), egg: egg('r') } },
+  heldBar: { reach: along(...B3P, 0.08, null), parts: { bar: bar(...B3P) } },
   heldForce0: { lean: 0.05, reach: along([-0.25, -0.15, -0.25], [0.7, 0.0, 0.1], 0.3, 0.55), parts: { bar: bar([-0.25, -0.15, -0.25], [0.7, 0.0, 0.1]) } },
   heldForce1: { lean: -0.12, reach: along([-0.2, -0.45, -0.2], [0.7, 0.0, 0.1], 0.3, 0.45), parts: { bar: bar([-0.2, -0.45, -0.2], [0.7, 0.0, 0.1]) } },
-  heldRam: { reach: along(...R1P, 0.25, 0.6), parts: { ram: ram(...R1P) } },
+  heldRam: { reach: along(...R2P, 0.05, null), parts: { ram: ram(...R2P) } },
   heldSwing0: { lean: -0.04, reach: along([-0.3, -0.2, -0.38], [0.38, -0.02, -0.34], 0.2, 0.55), parts: { ram: ram([-0.3, -0.2, -0.38], [0.38, -0.02, -0.34]) } },
   heldSwing1: { lean: 0.14, reach: along([-0.06, -0.12, -0.3], [0.66, 0.0, -0.22], 0.2, 0.55), parts: { ram: ram([-0.06, -0.12, -0.3], [0.66, 0.0, -0.22]) } },
   heldStrip: { reach: { r: [0.2, -0.12, -0.3] }, parts: { strip: strip([0, 0, -0.02], [0, 0, 0.3], 'under', 'r') } },

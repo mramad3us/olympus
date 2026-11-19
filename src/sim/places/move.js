@@ -8,8 +8,20 @@
 // here, ROADMAP "anywhere" step 2). Shift runs, while the body can run (a blown marine walks), and wins
 // over Alt, which strolls; with no direction the speed is 0. The gravity's mode (gaitSpeeds' `mode`)
 // names what is drawn: under 0.3 G the run is BODY §16.7's 'bound' (its 2.8 m four-frame cycle, the
-// art's), and under 0.05 G every move is a 'float' at BODY §16.6's push-off speeds (a stub until
-// free-fall motion: no foot falls, src/ui/audio/steps.js).
+// art's), and under 0.05 G every move is a 'float', free fall's (below: no foot falls, src/ui/audio/steps.js). Step 5 (src/sim/body/footing.js): on mag boots locked on a
+// ferrous face under 0.05 G the walk is BODY §16.6's 0.5 m/s with no run (magGaits, mode 'magWalk'), and legsHere's grip
+// is μ (m g + 300 N) while they are locked (bootsHoldN: nothing changes without boots, so no shipped walk moves).
+// v0.0.24's seam for free fall (the build sheet v0.0.24 §0 item 5, §3.1): a body whose footing is 'float' (under 0.05 G, nothing
+// holding it), or held there by a hold, a lanyard or a brace (B's freefall.js floatsNow: under 0.05 G only the boots walk), is free
+// fall's to move: inertStep's first lines, and the free walk's before the keys are read, call
+// floatStep(state, a, feet, grid, pid, dt, record) (B's src/sim/body/freefall.js: the push-off, the drift, a face met, the tumble)
+// and return when it moved the body (it always does for a floating body). At 0.05 G and up the footing is never 'float', so the seam
+// reads the gravity and nothing else. The seam is given the bus (floatStep's eighth argument), so a push-off's roll and a face
+// met reach the page as facts, not only J (the review of v0.0.24's A to C: in play they never showed). And nothing that walks
+// is planned where the legs have nothing to push on (legsHere's push or brake 0, under 0.05 G off locked boots: noLegs): a carry
+// through a doorway, a step aside or a way out of one is null there, and a carry under way is dropped once the body floats (the
+// review's crash: a carry planned at 0 G after a burn ramped back, its profile divided by a brake of nothing, the body's place
+// NaN and every tick after thrown).
 // While TIME's feetHeld (src/sim/time/doing.js: an activity under way, lying or sitting, a transition
 // playing) the keys only turn a standing player (not while a transition plays: the rise keeps its
 // facing) and nothing settles the feet, so a berth or a stall
@@ -63,7 +75,7 @@
 // every shipped scene and moment 2's walk are unchanged). In Combat and Assault the walk is the stance's (motion.js
 // gaitSpeeds' gait: 1.23 and 2.03 m/s at 1 G) and the body has inertia: its velocity (actor.v = [vx, vz], kept only while
 // it moves) goes toward the keys' wanted velocity at the legs' push when it speeds up and their brake when it slows
-// (motion.js tractionOf at the place's gravity and floor, with the kit the person carries), so a stop and a restart cost
+// (motion.js legsAt at the place's gravity and floor, with the kit the person carries), so a stop and a restart cost
 // real time and a contact's window brakes a walking private to a stop in 0.24 s (contact.js feetOf stops the wanted
 // velocity after the body's go); each axis of the tick's step collides as before. A running move beat of a bundle (the
 // stepper's moveNow: stop motion with a bundle's feet under way) sets the body's place from its closed form (stepper.js
@@ -114,19 +126,20 @@ import { doorsStep } from './doors.js';
 import { portalCrossed, moveTo } from './portals.js';
 import { playerActor, playerId } from '../../core/ids.js';
 import { STRIDE_WRAP_M } from '../../data/body/gait.js';
-import { gaitsOf, tractionOf } from '../body/motion.js';
-import { gravityAt, surfaceAt } from './env.js';
-import { G0_MS2 } from '../../core/phys.js';
+import { gaitsOf, legsAt } from '../body/motion.js';
 import { moveNow, moveAt, profileOf, pathLen, halt } from '../combat/stepper.js';
-import * as KIT from '../arms/kit.js';
-import { valueOf, rungOf } from '../skills/templates.js';
-import { SURFACES } from '../../data/places/env.js';
+import { rungOf } from '../skills/templates.js';
 import { feetHeld, transPlaying } from '../time/doing.js';
 import { feetOf, pendingOf } from '../combat/contact.js';
 import { locoStep } from '../body/loco.js';
 import { startled } from '../combat/supp.js';
 import { zonesOf, liveZoneAt, exitOf, laneOf, standsStill, keepClearOf, restClear, EXIT_M } from './zones.js';
 import { routed, clipped } from '../combat/route.js';
+import { footingOf, magGaits } from '../body/footing.js';
+import { gravityAt } from './env.js';
+import { GAIT_G } from '../../data/body/needs.js';
+// (free fall's seam (see the header): v0.0.24 B's body/freefall.js floatStep)
+import { floatStep, floatsNow as floatTick } from '../body/freefall.js';
 
 /** The player's clearance class (PLACES §2.1: C0, PT kit or uniform, until kit sets it). */
 export const PLAYER_CLS = 'C0';
@@ -275,14 +288,21 @@ export function moveActor(actor, mx, mz, speedMs, grid) {
   return dx || dz ? q(Math.sqrt(dx * dx + dz * dz), POS_STEP_M) : 0;
 }
 
-/** The legs where the player stands (BODY §16.2): motion.js tractionOf at the place's gravity and floor, with what the person carries and their Fitness. */
-export function legsHere(state, pid, x, z) {
-  const gG = gravityAt(state, null, x, z).gG, mu = surfaceAt(state, null, x, z)?.mu;
-  const loadKg = typeof KIT.kitMassKg === 'function' ? KIT.kitMassKg(state, pid) : 0;
-  return tractionOf({ gMs2: gG * G0_MS2, mu: Number.isFinite(mu) ? mu : SURFACES.concrete.muDry, effFitness: valueOf(state, pid, 'fitness'), massKg: BODY_KG, loadKg });
+/** The legs where the player stands (BODY §16.2): motion.js legsAt, the one helper (v0.0.24's stage 0: the place's gravity and floor, what the person carries, their Fitness). */
+export const legsHere = (state, pid, x, z) => legsAt(state, pid, x, z);
+/** The body under the kit, kg (the build sheet 0.0.12 §4: 25 kg of kit on 75): motion.js's, the one home since v0.0.24's stage 0. */
+export { BODY_KG } from '../body/motion.js';
+
+/** A person's gaits here (motion.js gaitsOf), on locked mag boots holding on a ferrous face under 0.05 G BODY §16.6's walk (footing.js magGaits; v0.0.24's step 5, for every pid: the player, the #2, the men). */
+function gaitsHere(state, pid, opts) {
+  const g = gaitsOf(state, pid, opts);
+  return g.mode === 'float' && footingOf(state, pid).mode === 'magWalk' ? magGaits(g) : g;
 }
-/** The body under the kit, kg (the build sheet 0.0.12 §4: 25 kg of kit on 75). */
-export const BODY_KG = 75;
+// (whether the body's tick is free fall's (see the header): the gravity where it stands first (a cached lookup), so at 0.05 G and up
+// nothing more is read; then freefall.js floatsNow: floating, or held by a hold, a lanyard or a brace, where only the boots walk)
+const floatsNow = (state, pid, a) => gravityAt(state, null, a.x, a.z).gG < GAIT_G.FLOAT_BELOW_G && floatTick(state, pid);
+// (legs with nothing to push on or brake against (see the header): no walk can be planned from them, its profile a division by 0)
+const noLegs = (L) => !(L.pushMs2 > 0) || !(L.brakeMs2 > 0);
 
 /** The free body's time step (s): from the game time its place is for (a.locoMs) to ms, at most two ticks; a tick where it has none. */
 export function inertDtS(a, ms) {
@@ -291,8 +311,11 @@ export function inertDtS(a, ms) {
 }
 // (one tick in Combat or Assault: the velocity toward the keys' wanted velocity at push or brake, then each axis's step
 // collided; from the body's own time (inertDtS), so a body placed mid-tick by a beat moves only the rest of the tick)
-function inertStep(state, a, feet, grid, stance, pid = playerId(state), dt = inertDtS(a, state.clock.ms), record = true) {
-  const gaits = gaitsOf(state, pid, { gait: stance });
+function inertStep(state, a, feet, grid, stance, pid = playerId(state), dt = inertDtS(a, state.clock.ms), record = true, bus = null) {
+  const g0 = gaitsOf(state, pid, { gait: stance });
+  // (a floating body is free fall's (B's floatStep; see the header); on locked boots BODY §16.6's walk (magGaits))
+  if (g0.mode === 'float' && floatsNow(state, pid, a) && floatStep(state, a, feet, grid, pid, dt, record, bus)) return;
+  const gaits = g0.mode === 'float' && footingOf(state, pid).mode === 'magWalk' ? magGaits(g0) : g0;
   const x = sgn(feet.mx), z = sgn(feet.mz), n = x && z ? Math.SQRT1_2 : 1;
   const want = x || z ? (feet.run && gaits.runOk ? gaits.runMs : gaits.walkMs) : 0;
   const wx = x * n * want, wz = z * n * want, vx0 = a.v?.[0] ?? 0, vz0 = a.v?.[1] ?? 0;
@@ -455,7 +478,9 @@ export function throughOf(state, pid, a, ms = state.clock.ms, { rest = false } =
   const vx0 = a.v?.[0] ?? 0, vz0 = a.v?.[1] ?? 0, v0 = Math.sqrt(vx0 * vx0 + vz0 * vz0), moving = v0 > THROUGH_MIN_MS;
   if (!moving && !rest) return null;
   // (from rest (rest: the feet the game's, a body in a zone): the heading the way the body's path goes on, else none)
-  const v = moving ? v0 : 0, L = legsHere(state, pid, a.x, a.z), stopM = v * v / (2 * L.brakeMs2);
+  const v = moving ? v0 : 0, L = legsHere(state, pid, a.x, a.z);
+  if (noLegs(L)) return null;
+  const stopM = v * v / (2 * L.brakeMs2);
   const Z = liveZoneAt(state, area, a.x, a.z) ?? (moving ? liveZoneAt(state, area, a.x + vx0 / v0 * stopM, a.z + vz0 / v0 * stopM) : null);
   // (or the brake would leave it at rest across a way the scene keeps clear (keepClearOf: your #2's way in through the door just
   // passed, while he is not yet in; 2026-11-15, the user: "squad AI sometimes stays out of the room on entry (room 2)": a man
@@ -521,7 +546,9 @@ export function keptOf(state, pid, a, area, keep, dir, v, stopM, st, ms) {
   for (const way of ways) {
     const p = routed(state, way, { area }).map(r => [q(r[0], 0.0001), q(r[1], 0.0001)]), end = p[p.length - 1];
     if (p.length >= 2 && ok(end[0], end[1]) && walkable(state, area, p) && bodyClear(state, pid, p)) {
-      const L = legsHere(state, pid, a.x, a.z), walkMs = gaitsOf(state, pid, { gait: st }).walkMs, P = profileOf(pathLen(p), Math.max(v, walkMs), L.pushMs2, L.brakeMs2, { v0: v, v1: 0 });
+      const L = legsHere(state, pid, a.x, a.z);
+      if (noLegs(L)) return null;
+      const walkMs = gaitsOf(state, pid, { gait: st }).walkMs, P = profileOf(pathLen(p), Math.max(v, walkMs), L.pushMs2, L.brakeMs2, { v0: v, v1: 0 });
       const t0 = Number.isFinite(a.locoMs) && a.locoMs <= ms ? a.locoMs : ms;
       return { id: 'through', k: 'move', ch: 'feet', stance: st, path: p, prof: P, fromMs: t0, untilMs: t0 + Math.round(P.T * 1000), way: 'through', zone: 'keep' };
     }
@@ -537,6 +564,7 @@ export function throughAway(state, pid, a, away, ms = state.clock.ms) {
   const st = a?.moveStance === 'assault' ? 'assault' : 'combat', area = state.places?.live?.area, Z = area && a ? liveZoneAt(state, area, a.x, a.z) : null;
   if (!Z) return null;
   const from = [a.x, a.z], v = Math.sqrt((a.v?.[0] ?? 0) ** 2 + (a.v?.[1] ?? 0) ** 2), L = legsHere(state, pid, a.x, a.z);
+  if (noLegs(L)) return null;
   const ahead = exitOf(Z, from, away), back = exitOf(Z, from, away ? [-away[0], -away[1]] : null);
   for (const e of [ahead, back]) {
     const p = routed(state, [from, e], { area }).map(r => [q(r[0], 0.0001), q(r[1], 0.0001)]), end = p[p.length - 1];
@@ -561,6 +589,7 @@ export function stepAside(state, pid, a, to, ms = state.clock.ms) {
   const p = way.map(r => [q(r[0], 0.0001), q(r[1], 0.0001)]);
   if (p.length < 2 || !walkable(state, area, p) || !bodyClear(state, pid, p)) return null;
   const v = Math.sqrt((a.v?.[0] ?? 0) ** 2 + (a.v?.[1] ?? 0) ** 2), L = legsHere(state, pid, a.x, a.z);
+  if (noLegs(L)) return null;
   const P = profileOf(pathLen(p), Math.max(v, gaitsOf(state, pid, { gait: st }).walkMs), L.pushMs2, L.brakeMs2, { v0: v, v1: 0 });
   return { id: 'through', k: 'move', ch: 'feet', stance: st, path: p, prof: P, fromMs: ms, untilMs: ms + Math.round(P.T * 1000), way: 'aside' };
 }
@@ -587,6 +616,7 @@ export function roundAbout(state, pid, a, mv, body, ms = state.clock.ms) {
   const p = r.map(x => [q(x[0], 0.0001), q(x[1], 0.0001)]);
   if (!walkable(state, area, p) || !bodyClear(state, pid, p)) return null;
   const st = mv.stance ?? a.moveStance ?? 'combat', L = legsHere(state, pid, a.x, a.z);
+  if (noLegs(L)) return null;
   const vMax = Math.max(mv.prof.vp ?? 0, gaitsOf(state, pid, { gait: st }).walkMs ?? 0), P = profileOf(pathLen(p), vMax, L.pushMs2, L.brakeMs2, { v0: 0, v1: mv.prof.v1 ?? 0 });
   return { path: p, prof: P, fromMs: ms, untilMs: ms + Math.round(P.T * 1000) };
 }
@@ -695,6 +725,8 @@ export function playerStep(state, input, bus, ctx) {
   if (!area) return;
   // (2026-11-13: the carry through a no-stop zone, dropped or begun before the move is read (see the header))
   throughCheck(state, playerId(state), a, input);
+  // (a floating body is carried by nothing: the carry under way is dropped and the float's tick below moves it (see the header))
+  if (a.through && floatsNow(state, playerId(state), a)) delete a.through;
   // (0.0.12: a bundle's move beat under way puts the body where its closed form says (see the header); the carry through a zone is one)
   const mv = moveNow(state, playerId(state));
   if (mv) {
@@ -737,13 +769,21 @@ export function playerStep(state, input, bus, ctx) {
   // a lying player's spot is inside the rack, where a walker may not stand)
   // (nor a rising one: the rise and the dressing keep their facing, never swung round mid-frame)
   const strafe = lineStrafe(state);
-  if (feetHeld(state)) {
+  // (a floating player is free fall's, keys or none, the feet held or not (B's floatStep; see the header))
+  if (floatsNow(state, playerId(state), a)) {
+    const g = navOf(state, area, PLAYER_CLS, a.x, a.z);
+    if (floatStep(state, a, feet, g, playerId(state), inertDtS(a, state.clock.ms), true, bus)) { finishStep(state, a, g, area, bus); return; }
+  }
+  // (strapped into a rack or a couch (profile.js setStrapped): the straps hold the body as held feet do, so the keys only turn it and
+  // R's Unstrap is the way out; the fixer of v0.0.24's code review: at 0 G a strapped body walked off at float speeds and stayed
+  // 'couched', scored strapped wherever it was at the burn)
+  if (feetHeld(state) || a.strapped) {
     if ((a.posture ?? 'stand') === 'stand' && !transPlaying(a, state.clock.ms) && !strafe) a.face = faceOf(mx, mz, a.face);
     a.gait = 'idle';
     // (a body moving in a stance when its feet are held (a step in stop motion with no feet of its own: an aim, a macro)
     // brakes to a stop, never stops dead (BODY §16.2; the rework's R2: from 2.03 m/s to 0 in a tick at a stoppage's IA))
     if (a.v && (a.moveStance === 'combat' || a.moveStance === 'assault')) {
-      inertStep(state, a, { mx: 0, mz: 0 }, navOf(state, area, PLAYER_CLS, a.x, a.z), a.moveStance);
+      inertStep(state, a, { mx: 0, mz: 0 }, navOf(state, area, PLAYER_CLS, a.x, a.z), a.moveStance, playerId(state), inertDtS(a, state.clock.ms), true, bus);
       finishStep(state, a, navOf(state, area, PLAYER_CLS, a.x, a.z), area, bus);
     } else if (a.v) {
       // (and a body Relaxed has no speed of its own (throughOf): a walk cut at 2 m/s, then a stance row (Relaxed), kept its
@@ -760,12 +800,12 @@ export function playerStep(state, input, bus, ctx) {
   // (0.0.12: in Combat or Assault, the stance's walk and the body's inertia (see the header))
   const stance = a.moveStance === 'combat' || a.moveStance === 'assault' ? a.moveStance : null;
   if (stance) {
-    inertStep(state, a, feet, grid, stance);
+    inertStep(state, a, feet, grid, stance, playerId(state), inertDtS(a, state.clock.ms), true, bus);
     if (movedThisTick(a)) a.gait = 'walk';
     finishStep(state, a, grid, area, bus);
     return;
   }
-  const gaits = gaitsOf(state, playerId(state)), gait = gaitOf(feet, gaits), speed = speedOf(feet, gaits);
+  const gaits = gaitsHere(state, playerId(state)), gait = gaitOf(feet, gaits), speed = speedOf(feet, gaits);
   if (!speed) { a.gait = 'idle'; return; }
   const x0 = a.x, z0 = a.z;
   moveActor(a, mx, mz, speed, grid);

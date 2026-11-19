@@ -44,6 +44,8 @@ const V0010 = Object.freeze({
   'sandbox|48213': [23480400000, 'test.rooms', 24.9, 4.4, 'right', '13270604d2b6c8'],
   'barracks|48213': [23480400000, 'melas.echo.1', 52.075, 3.3, 'down', '09eaa02234bb43'],
 });
+/** v0.0.24's two void scenes ("Anchor before you fire", "Secure for burn"): off Mars, with no v0.0.10 start. */
+const VOID_SCENES = Object.freeze(['test-anchors', 'test-burn']);
 const startOf = (s) => { const a = playerActor(s); return [s.clock.ms === s.meta.createdMs ? s.clock.ms : `${s.clock.ms}≠${s.meta.createdMs}`, s.places.live.area, a.x, a.z, a.face, digest(toJSON(s))]; };
 const throws = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
 
@@ -63,7 +65,8 @@ export default [
       }
       // (every scene v0.0.10 had: the shoot house, new in 0.0.12, is the fourth test's)
       // (v0.0.19's "Stack and clear, live" plays the shoot house's scenario: neither had a v0.0.10 start)
-      const listed = SCENE_IDS.filter(id => SCENES[id].scenario && SCENES[id].scenario !== 'test-shoothouse').length * 2 + 2;
+      // (v0.0.24's two void scenes, new since, have no v0.0.10 start either)
+      const listed = SCENE_IDS.filter(id => SCENES[id].scenario && SCENES[id].scenario !== 'test-shoothouse' && !VOID_SCENES.includes(id)).length * 2 + 2;
       assert(Object.keys(V0010).length === listed, `every built scene on two seeds and the two starts: ${Object.keys(V0010).length} of ${listed}`);
       assert(!bad.length, `starts that moved: ${bad.join(', ')}`);
     },
@@ -75,12 +78,16 @@ export default [
       for (const scenario of Object.keys(SCENARIOS)) {
         const spec = specOf({ scenario }), s = newGame({ seed: 48213, scenario, version: 'test' });
         rows.push(`${scenario.padEnd(14)} ${spec.id.padEnd(14)} host ${JSON.stringify(spec.host)} env ${spec.env.preset}; live ${s.places.live.site}/${s.places.live.area}, env ${JSON.stringify(s.places.live.env ?? null)}, ${gravityAt(s).gG} G`);
-        assert(s.places.live.site === spec.host.site && !('env' in s.places.live) && siteOf(spec.host.site), `${scenario}: ${JSON.stringify(s.places.live)}`);
+        // (v0.0.24: "Secure for burn" stands in a coasting deck's preset with the ship's profile written live: its own environment)
+        assert(s.places.live.site === spec.host.site && (!('env' in s.places.live) || spec.env.preset !== 'site') && siteOf(spec.host.site), `${scenario}: ${JSON.stringify(s.places.live)}`);
       }
       for (const r of rows) console.log(`      ${r}`);
       const built = Object.values(SCENES).filter(x => x.built !== false);
-      assert(built.every(x => x.env.preset === 'site' && x.host.site === 'melas' && SCENARIOS[x.scenario]), 'every shipped scene: Melas, the site\'s own environment, a fill');
-      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-shoothouse-live' && SCENE_IDS.at(-2) === 'test-shoothouse', SCENE_IDS.join());
+      // (v0.0.24: the void's two scenes stand off Mars, Well A at Phobos in its site's own environment and the berth aboard Testudo on a
+      // coasting deck's preset; listed after "Stack and clear, live", the anchors then the burn)
+      assert(built.filter(x => !VOID_SCENES.includes(x.id)).every(x => x.env.preset === 'site' && x.host.site === 'melas' && SCENARIOS[x.scenario]), 'every shipped scene but the void\'s: Melas, the site\'s own environment, a fill');
+      assert(SCENES['test-anchors'].host.site === 'phobos-void' && SCENES['test-anchors'].env.preset === 'site' && SCENES['test-burn'].host.site === 'mcrn-testudo' && SCENES['test-burn'].env.preset === 'ship-coast', 'the void\'s two scenes');
+      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-burn' && SCENE_IDS.at(-2) === 'test-anchors' && SCENE_IDS.at(-3) === 'test-shoothouse-live' && SCENE_IDS.at(-4) === 'test-shoothouse', SCENE_IDS.join());
       assert(Object.values(STARTS).every(x => x.env.preset === 'site') && STARTS.sandbox.host.site === 'test' && STARTS.barracks.host.site === 'melas', JSON.stringify(STARTS));
       console.log(`      the Tests menu: ${SCENE_IDS.join(', ')}; stubs: ${Object.values(SCENES).filter(x => x.built === false).map(x => x.id).join(', ')}`);
     },

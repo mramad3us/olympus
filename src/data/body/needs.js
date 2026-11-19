@@ -266,3 +266,97 @@ export const LOAD_BANDS = deepFreeze([
 export const CELL_MS = 60_000;
 /** The body clock's offset is stepped on the hour grid (BODY §2.6), ms. */
 export const CLOCK_STEP_MS = 3_600_000;
+
+// ---- v0.0.24, the anywhere round: the footing, free fall and the gravity events ----
+/**
+ * The footing (v0.0.24, ROADMAP "anywhere" step 5; BODY §16.6, §22's gravity regime row; WEAPONS §7.3, §7.8; COMBAT §14.8;
+ * CONTRACTS §21): what holds a body where it stands, read by src/sim/body/footing.js footingOf. The gravity's
+ * thresholds are GAIT_G's (planted from BOUND_BELOW_G 0.3 G, free fall under FLOAT_BELOW_G 0.05 G); these are the
+ * anchors' own numbers. SLIP_M: a hold, a lanyard or a wedge holds where it was taken, and a body this far from that
+ * spot has let it go (my call: the keys moving him off it). BUDDY_M: a teammate's brace reaches this far (my call, an
+ * arm's length on the harness). MOD: BODY §22's gravity regime row, SKILLS §5.13's suggested bases adopted, on a roll
+ * whose uses meet arms, legs or torso: free fall unanchored −6, anchored (a hold, mag boots, a lanyard) −2, braced 0;
+ * low g (FLOAT_BELOW_G to LOWG_BELOW_G 0.2 G) −2 on Close combat, Fieldcraft and Fitness; BODY §16.6's work with the
+ * hands floating free or on one hand's hold, no foot restraint or lanyard, −2 (WORK). Each is worn down by Zero-g
+ * (SKILLS §5.13: mitigated(base, Zero-g, ZEROG_FULL_AT 24, ZEROG_KEEP 0.15)). ONE_HAND_RIFLE: WEAPONS §7.8's
+ * one hand on a hold with a two-handed gun in the other, −4 (on the shot: src/sim/arms/shot.js). The anchors as steps (AW§4.1
+ * item 3; COMBAT §14.8; my calls but the lanyard's): REACH_M 0.8 m, the hand's reach to a hold or a pad-eye
+ * (src/sim/places/model.js holdNear); WEDGE_M the passage a marine wedges across, back on one face and boots on the other, 0.8
+ * to 1.2 m, measured on the nav grid's blockers at the body's place; STEP_MS each step's time, no roll: "Take the hold" 0.5 s,
+ * "Clip in" 1.0 s at Zero-g 10 (COMBAT §14.8's LANYARD_S, × the skill's pace: src/sim/arms/shooting.js anchorRows), "Wedge"
+ * 1.0 s, "Let go" 0.2 s. REST_MS 0.05 m/s: under it a body in free fall is at rest against what it touches; faster it drifts, and
+ * a drifting body locks no boots, takes no hold or lanyard and wedges across nothing by a step (only the grab, L, takes a hold on
+ * the move, through its speed's bands: v0.0.24 B's src/sim/body/freefall.js, whose AT_REST_MS is this number). OFF_DECK_Y_M 1.01 m: a
+ * body whose free fall's height (actor.floatY, B's: its centre of mass over the deck, 1.0 m a standing man's) is over this has
+ * no deck under its soles, and its boots lock on nothing (the review of v0.0.24's A to C).
+ */
+export const FOOTING = deepFreeze({
+  SLIP_M: 0.05, BUDDY_M: 1.0, LOWG_BELOW_G: 0.2, REST_MS: 0.05, OFF_DECK_Y_M: 1.01,
+  MOD: { floating: -6, anchored: -2, braced: 0, lowG: -2, work: -2 },
+  LOWG_SKILLS: ['cqc', 'fieldcraft', 'fitness'], FREE_USES: ['arms', 'legs', 'torso'], OWN_SKILLS: ['zerog', 'eva'],
+  ZEROG_FULL_AT: 24, ZEROG_KEEP: 0.15, ONE_HAND_RIFLE: -4,
+  REACH_M: 0.8, WEDGE_M: [0.8, 1.2], STEP_MS: { hold: 500, clip: 1000, wedge: 1000, letGo: 200 },
+});
+/**
+ * BODY §16.6's mag boots (the boots worn in the kit's 'boots' slot, src/sim/arms/kit.js 'mb-1'): HOLD_N a locked boot's
+ * hold, 300 N, and one boot is always locked as you walk, so the floor's grip is μ (m g + HOLD_N) (BODY §16.2, §16.6);
+ * BREAKAWAY_N 800 N (a hard shove, an impact: step 7's); WALK_MS 0.5 m/s, no run. The magnets are a step each way:
+ * UNLOCK_MS 300 ms, both boots up (BODY's "a push-off needs both unlocked (0.3 s)"), LOCK_MS 400 ms, both boots
+ * planted on the plate (my call: a little longer than lifting them). They hold only on a ferrous face (PLACES §2.7's
+ * `ferrous`: a ship's steel plating, the Pens' plates; never ice, regolith or a ceramic tile).
+ */
+export const MAG_BOOTS = deepFreeze({ HOLD_N: 300, BREAKAWAY_N: 800, WALK_MS: 0.5, LOCK_MS: 400, UNLOCK_MS: 300 });
+/**
+ * Free fall (v0.0.24, ROADMAP "anywhere" step 7; BODY §16.5, §16.6; WEAPONS §7.8; CONTRACTS §21), read by
+ * src/sim/body/freefall.js and src/sim/body/impact.js. The plane plus a height: a floating body keeps actor.floatY, its
+ * centre of mass over the deck, FLOAT_Y_M 1.0 m once it pushes off the deck or lets go standing (my call: a standing marine's
+ * hips; a field of its own, never actor.y, the floor a body stands on, which the hit model and the blast read). PUSH: BODY §16.6's push-off from a face or a hold within REACH_M 0.8 m, at the keys' speed (stroll 0.3, walk 0.6,
+ * run 1.2 m/s; sprint 2.0 m/s by the step's own speed), a step of MS 1,000 ms over which the body's speed ramps from rest
+ * to the push's (my call: the legs' extension, a closed form), one Zero-g roll at DC 6 (+FAST_DC 4 at FAST_MS 2.0 m/s and
+ * over: COMBAT §14.5 and SKILLS §2.2 give push-offs to Zero-g, never EVA, which stays the suit's skill), each point missed
+ * ERR_DEG 5° off the direction and TUMBLE_RADS 0.1 rad/s of tumble. LAND_MS: a face met at 1.5 m/s or less stops the body
+ * on it (a landing, my call: the hands or the feet take it), faster an impact. GRAB: BODY §16.6's grab within REACH_M,
+ * held under HOLD_MS 1.5 m/s relative, a Zero-g roll at DC_BASE 10 + DC_PER_MS 3 a m/s over it up to IMPACT_MS 3.0 m/s
+ * (a miss glances off; a miss by SPRAIN_BY 5 or more wrenches the wrist, SPRAIN_K 0.15 of the arm's capacity), an impact
+ * over it. AT_REST_MS: under this a body is at rest against what it touches (a push-off starts only from rest, my call):
+ * FOOTING.REST_MS, the one number (an anchor is taken by a step only from rest too).
+ * RECOIL: WEAPONS §7.8's floating drift and spin a round, the lever LEVER_M 0.45 m (the shoulder over the centre of mass)
+ * and the pitch inertia I_PER_KG 17 / 95 kg·m² a kg (17 kg·m² for a 95 kg marine with rifle and kit, scaled by mass: my
+ * call). IMPACT: BODY §16.5's model (LONGHAUL's applyImpact, its 0 to 100 losses as shares of a part's capacity):
+ * the bands' lower edges, m/s (bruise 1, hard 3, bone-breaking 5, crushing 8, lethal 12, fatal 18), the torso's share at a
+ * band's edge and its rise a m/s, the legs' absorption feet first LEGS_MS 3.0 m/s (TRAINED_MS 4.0 at Fitness TRAINED_FIT
+ * 12 or more) ÷ √(the load's mass ratio) × bone, the hands' HANDS_MS 1.5 m/s first (my call: half the legs'), the part
+ * that meets the face taking LEAD_K 1.5 × the torso's share, the head HEAD_K 0.3, the other limbs LIMB_K 0.5 (LONGHAUL's
+ * limbF at a bruise), the hard band's FRACTURE_HARD 0.3 fracture, the crushing band's KO_MS 60 s down and the inside bleed.
+ */
+export const FREEFALL = deepFreeze({
+  FLOAT_Y_M: 1.0, REACH_M: 0.8, AT_REST_MS: FOOTING.REST_MS, LAND_MS: 1.5,
+  PUSH: { MS: 1000, SPEEDS_MS: { stroll: 0.3, walk: 0.6, run: 1.2, sprint: 2.0 }, DC: 6, FAST_DC: 4, FAST_MS: 2.0, ERR_DEG: 5, TUMBLE_RADS: 0.1 },
+  GRAB: { HOLD_MS: 1.5, IMPACT_MS: 3.0, DC_BASE: 10, DC_PER_MS: 3, SPRAIN_BY: 5, SPRAIN_K: 0.15 },
+  RECOIL: { LEVER_M: 0.45, I_REF_KGM2: 17, I_REF_KG: 95 },
+  IMPACT: {
+    BANDS: [
+      { id: 'bruise', fromMs: 1, torso: 0.03, perMs: 0.025 },
+      { id: 'hard', fromMs: 3, torso: 0.10, perMs: 0.05, fracture: 0.3 },
+      { id: 'breaking', fromMs: 5, torso: 0.20, perMs: 0.067, fracture: 1 },
+      { id: 'crushing', fromMs: 8, torso: 0.40, perMs: 0.0625, fracture: 1, ko: true, inside: true },
+      { id: 'lethal', fromMs: 12, torso: 0.60, perMs: 0.05, fracture: 1, ko: true, inside: true },
+      { id: 'fatal', fromMs: 18, torso: 1, perMs: 0, fatal: true },
+    ],
+    LEGS_MS: 3.0, TRAINED_MS: 4.0, TRAINED_FIT: 12, HANDS_MS: 1.5, LEAD_K: 1.5, HEAD_K: 0.3, LIMB_K: 0.5, KO_MS: 60_000,
+    INSIDE_PM: 0.5, INSIDE_LETHAL_PM: 1.0, INSIDE_H: 3, JITTER: [0.8, 1.2],
+  },
+});
+/**
+ * Gravity events (v0.0.24, ROADMAP "anywhere" step 6; BODY §13.7, §14.1; COMBAT §14.8's feet-aft table; PLACES §3.11;
+ * src/sim/places/gravity.js): what a change of a ship's thrust does to a body that is not floating. A body standing on the deck,
+ * or on locked mag boots, or braced, rides an announced change of up to BRACE_G 1.5 G (it bends its knees: the warning's
+ * whole point) and a surprise of up to SURPRISE_G 0.5 G (no time to brace; a 0.4 G jink is survived), and above either goes
+ * down prone; a hand on a hold keeps it up to HOLD_MAX_G 1 G (one arm holds about its own weight: AW§4.3 item 4, my call) and
+ * is pulled off above it; above COUCH_G 2.5 G nobody stands (BODY §14.1's band past r 2.8, "can't stand for long", made the
+ * footing 'couched': my call that a body at 2.5 G is down whatever holds it), and a body strapped into a couch or a rack is
+ * couched at any change. DOWN_MS: going down to the deck takes 1.5 s, and DOWN_DROP_M the centre of mass's fall that the
+ * bruise roll is made on (my call: a quarter metre, a body that buckles rather than drops).
+ */
+export const BRACE_G = 1.5, SURPRISE_G = 0.5, COUCH_G = 2.5;
+export const GRAV_BODY = deepFreeze({ HOLD_MAX_G: 1, DOWN_MS: 1500, DOWN_DROP_M: 0.25 });

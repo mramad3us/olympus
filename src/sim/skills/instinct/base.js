@@ -9,6 +9,17 @@
 // where, and T then does nothing. The rules, most pressing first:
 //   wound         by the wound  (0.0.7) the body's wound line in BODY §23.2's order (cues.js woundLine): an artery
 //                         or a hard bleed and shock urgent, a bleed warn, the pain a note; its words are the line
+//   anchor        urgent  (v0.0.24's step 5; AW§4.1 items 4 and 5; COMBAT §14.8) under 0.05 G with a gun up and nothing
+//                         holding the body (footing.js footingOf 'float'), where the place gives an anchor: "Anchor before
+//                         you fire." and T takes the best one (footing.js anchorOffers: the wedge, the boots on steel, the
+//                         lanyard, the hold; the act 'anchor:<row>', shooting.js anchorAction); where none is in reach a
+//                         note with no act, "No footing: nothing in reach to hold.", so a drill that cannot move says
+//                         why out of the mode as its struck rows do in it (never a silent stall: AW's 4.0 m in 500 s);
+//                         drifting past a hold, "Drifting. L to grab the hold." (no step takes a hold on the move: the
+//                         grab's). It reads saved state only and never waits out a repeat (repeatMs 0): what it said
+//                         before a load is runtime memory, so a save made through a burn carries on to the same line
+//                         and the same T (the review of v0.0.24's A to C: after a load the note took the line from
+//                         "Rifle back." for its three seconds, and T's presses differed)
 //   alarm         urgent  a drill open and you not mustered (or mustered and gone from your rack):
 //                         up, utilities, the foot of your rack (T rises you, then dresses you at your
 //                         rack); past the count, the words say you missed it, never its time
@@ -49,9 +60,9 @@
 // an operation, the private by T left with no act). doAct(state, bus, ctx, act) does an act,
 // the instinct's T and nothing else; 'stop:<step>' acts go to the step panel (shooting.js chooseStep).
 // Pure but doAct.
-import { marsClock } from '../../../core/calendar.js';
+import { dayClock } from '../../../core/calendar.js';
 import { playerActor, playerId } from '../../../core/ids.js';
-import { siteLonEDeg } from '../../jobs.js';
+import { siteDayOf } from '../../jobs.js';
 import { routineOf, siteAt } from '../../places/env.js';
 import { bodyOf, isAsleep } from '../../body/body.js';
 import { stagesOf, hasBeard, woundLine } from '../../body/cues.js';
@@ -65,6 +76,12 @@ import { kdAct } from '../../scenarios/range.js';
 import { opLive } from '../../combat/op.js';
 import { chooseStep, enterStop } from '../../arms/shooting.js';
 import { stepOfAct } from './range.js';
+import { anchorAction } from '../../arms/shooting.js';
+import { gravityAt } from '../../places/env.js';
+import { footingOf, anchorOffers, driftingNow } from '../../body/footing.js';
+import { holdNear } from '../../places/model.js';
+import { GAIT_G, FOOTING } from '../../../data/body/needs.js';
+import { handGunOf } from '../../arms/kit.js';
 
 // (BODY's band ladders, so a rule names the band it fires at and reads the stage by its place in the ladder)
 const LADDERS = Object.freeze({
@@ -90,9 +107,9 @@ export function atLeast(stages, ledger, band) {
 let memo = { state: null, ms: NaN, v: null };
 function know(state, me, ms) {
   if (memo.state === state && memo.ms === ms) return memo.v;
-  const pid = playerId(state), lon = siteLonEDeg(state), body = bodyOf(state, pid);
+  const pid = playerId(state), lon = siteDayOf(state), body = bodyOf(state, pid);   // (the site's day key: v0.0.24's stage 0)
   const stages = body ? stagesOf(body, ms, lon) : null;
-  const c = marsClock(ms, lon), h = c.timeslip ? 24 + c.slipMs / 3_600_000 : c.civilMs / 3_600_000;
+  const c = dayClock(ms, lon), h = c.timeslip ? 24 + c.slipMs / 3_600_000 : c.civilMs / 3_600_000;
   const at = activitiesAt(state, me.x, me.z).filter(a => a.free);
   const m = musterOf(state, pid);
   const atRack = !!m && state.places?.live?.area === m.area && Math.hypot(me.x - m.x, me.z - m.z) <= 0.6;
@@ -136,6 +153,30 @@ export const BASE_RULES = Object.freeze([
       return w ? { k, tone: w.tone, said: w.text } : null;
     },
     text: { 1: ['{said}'] },
+  },
+  {
+    // (ROADMAP "anywhere" step 5: a gun up while floating, an anchor in reach (see the header); gravity read first, so Mars and the Wheel pay a lookup)
+    id: 'anchor', voice: 'di', tone: (ctx) => (ctx.step ? 'urgent' : 'note'), short: (ctx) => (ctx.step ? 'Anchor' : 'No footing'), reach: null, repeatMs: 0,
+    when(state, me, ms) {
+      void ms;
+      if (!state.places?.live?.area || gravityAt(state, null, me.x, me.z).gG >= GAIT_G.FLOAT_BELOW_G) return null;
+      const pid = playerId(state), posture = state.people?.[pid]?.kit?.carry?.posture;
+      const up = !!handGunOf(state, pid) || posture === 'lowReady' || posture === 'highReady' || posture === 'aimed';
+      if (!up || footingOf(state, pid).mode !== 'float') return null;
+      const best = anchorOffers(state, pid).find(o => o.ok);
+      if (best) return { step: best.step, variant: best.kind, busy: !!state.skip || !!state.time?.doing };
+      return { step: null, variant: driftingNow(state, pid) && holdNear(state, me.x, me.z, FOOTING.REACH_M) ? 'drift' : 'none' };
+    },
+    act: (ctx) => (ctx.busy || !ctx.step ? null : `anchor:${ctx.step}`),
+    text: {
+      1: ['Anchor before you fire.'],
+      braced: ['Anchor before you fire. Wedge yourself across.', 'Anchor before you fire. Back on one face, boots on the other.'],
+      boots: ['Anchor before you fire. Lock your boots.', 'Anchor before you fire. Boots down on the plate.'],
+      tether: ['Anchor before you fire. Clip in.', 'Anchor before you fire. Lanyard on the pad-eye.'],
+      handhold: ['Anchor before you fire. Take the hold.', 'Anchor before you fire. A hand on the hold.'],
+      none: ['No footing: nothing in reach to hold.', 'No footing here. Nothing in reach to hold.'],
+      drift: ['Drifting. L to grab the hold.', 'Drifting: L to grab the hold as you pass.'],
+    },
   },
   {
     id: 'alarm', voice: 'di', tone: 'urgent', short: 'Klaxon', reach: null,
@@ -349,13 +390,14 @@ export const BASE_RULES = Object.freeze([
   },
 ]);
 
-/** Do an instinct's act (T): 'rise', 'dress:utilities', 'activity:<id>', 'standfast', 'sleep:reveille' (in your berth), 'stop:<step>' (a step of the panel: the range's rules), 'stop:enter' (G) and 'kd:<id>' (the KD's police, turn-in, declaration). Returns whether it was done. */
+/** Do an instinct's act (T): 'rise', 'dress:utilities', 'activity:<id>', 'standfast', 'sleep:reveille' (in your berth), 'stop:<step>' (a step of the panel: the range's rules), 'stop:enter' (G), 'kd:<id>' (the KD's police, turn-in, declaration) and 'anchor:<row>' (v0.0.24: an anchor's row or the boots' lock, shooting.js anchorAction). Returns whether it was done. */
 export function doAct(state, bus, ctx, act) {
   const me = playerActor(state);
   if (!me || !act) return false;
   if (act === 'rise') return !!riseActor(state, me, state.clock.ms);
   if (act === 'stop:enter') return enterStop(state, bus, { via: 'ready' }).ok;
   if (act.startsWith('kd:')) return !!kdAct(state, bus, act.slice(3), ctx).ok;
+  if (act.startsWith('anchor:')) return !!anchorAction(state, bus, act.slice(7)).ok;
   if (act.startsWith('stop:')) { const s = stepOfAct(act); return !!s && chooseStep(state, bus, { step: s.step, tempo: s.tempo, target: s.target }, ctx).ok; }
   if (act === 'standfast') return startActivity(state, bus, ctx, { id: 'standfast' }).ok;
   if (act === 'sleep:reveille') {

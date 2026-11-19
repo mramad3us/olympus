@@ -77,7 +77,7 @@
 import { PX_PER_M } from '../../render/scale.js';
 import { bodyOf } from './body.js';
 import { poseOf, cellKind, AIM_TILT, KICK_TILT } from './poses.js';
-import { headKit, shapeAt, turned, GUNS } from './templates.js';
+import { headKit, shapeAt, turned, GUNS, magBootCells } from './templates.js';
 import { wear } from './outfits.js';
 import { drawingOf } from '../rifles.js';
 import { helmTpl, trimPlate, fofMaskTpl } from './helmets.js';
@@ -205,6 +205,8 @@ function ik(s, t, a, b, pole) {
 const pitchUp = (d, a) => { const h = Math.hypot(d[0], d[1]) || 1, c = Math.cos(a), s = Math.sin(a); return norm([d[0] / h * (h * c - d[2] * s), d[1] / h * (h * c - d[2] * s), h * s + d[2] * c]); };
 const yaw = (d, a) => [d[0] * Math.cos(a) - d[1] * Math.sin(a), d[0] * Math.sin(a) + d[1] * Math.cos(a), d[2]];
 
+/** v0.0.24: an aimed rifle's stock raised this far over the shoulder joint, the cheek on it (m, the chibi's: two pixels at 16 px/m). */
+export const AIM_CHEEK_UP_M = 0.12;
 /**
  * Where the weapon is for a frame (body frame): { gun, butt, dir, down, lenM, withMag, hand: { r, l },
  * loose (a magazine in the left hand: { at, dir }), strap (a sling across the chest: [from, to]),
@@ -237,7 +239,11 @@ function rigOf(pose, J, B, look, dir) {
       out.dir = aimDir();
       if (gun === 'rifle') {
         out.butt = add(add(J.sh.r, mul(Fw, 0.02)), mul(LEFT, B.armOut * 0.45));
+        // (the user, 2026-11-19, of the aimed rifle: "NOT GOOD": standing or kneeling the stock is in the shoulder's pocket
+        // and the cheek down on it, so the bore rides at the jaw, AIM_CHEEK_UP_M over the shoulder joint, and the support hand on
+        // the handguard (finish(): at the template's fore, slid back only where the arm cannot reach); prone as it was)
         if (r.mode === 'prone') out.butt = add(out.butt, mul(U, 0.03));
+        else out.butt = add(out.butt, mul(U, AIM_CHEEK_UP_M));
       } else {
         const reach = (B.upperArm + B.foreArm) * 0.92;
         const grip = add(add(mid, mul(Fw, reach)), mul(U, -0.02));
@@ -671,6 +677,8 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
     }
     for (const c of hit) { c.ch = 'ŕ'; c.t = 'base'; }
   }
+  // (mag boots over the boots' own pixels, B-b's cuff and sole (templates.js magBootCells))
+  if (Lk.magBoots && !pose.noLegs) magBootCells(g.cells);
   let cells = g.cells;
   if (pose.roll) { const b = bbox(cells); cells = rotateCells(cells, pose.roll, (b.x0 + b.x1 + 1) / 2, (b.y0 + b.y1 + 1) / 2); muzzle = null; }
   let dx = M, dy = M;                                              // (where the cell's top-left is on the drawing grid)

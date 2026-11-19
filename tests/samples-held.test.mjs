@@ -18,7 +18,9 @@ import { wear, coloursOf } from '../src/art/figures/outfits.js';
 import { FRAMES as FRAMES_ALL, DIRS, BANDS } from '../src/art/figures/poses.js';
 // (v0.0.22: the held band's frames are new (poses.js BANDS.stanceHeld, the build sheet v0.0.22 §1 item 17); the game's frames before
 // them are pinned here as they were, and art-held holds the new ones)
-const FRAMES = FRAMES_ALL.filter(f => !BANDS.stanceHeld.includes(f));
+// (v0.0.24: the P-12's high-ready walk (BANDS.stancePistol) is new frames too, left out; 'draw' and 'pistolAim' left the stance sheet
+// but beatPose still poses them for three samples: composed at their old place after fireMove1, so the golden holds unmoved)
+const FRAMES = FRAMES_ALL.filter(f => !BANDS.stanceHeld.includes(f) && !BANDS.stancePistol.includes(f)).flatMap(f => (f === 'fireMove1' ? [f, 'draw', 'pistolAim'] : [f]));
 import { BEAT_FRAMES, beatPose } from '../src/art/figures/walk.js';
 import { expand } from '../tools/gallery.mjs';
 import { DEV_COL, isDevice, SETS, THROWS, specOf, poseFor } from '../samples/held-devices/held.js';
@@ -47,7 +49,8 @@ export default [
       let o = 0; for (const p of parts) { all.set(p, o); o += p.length; }
       console.log(`      ${parts.length} frames, ${all.length} pixels`);
       // (pinned on v0.0.19's compose.js before the sample's hooks were written)
-      golden('the figures\' frames, three looks, every frame and beat, four facings', all, '1c53d76d17f6d4');
+      // (v0.0.24 F, re-recorded with three causes, each the user's pick of 2026-11-19: the combat EVA suit's helmet R3 in the Mars trim (helmets.js HELMET_DRAWN_AS), its gloves grey (outfits.js COMBAT_SUIT.glove), and the aimed rifle's stock raised to the cheek (compose.js AIM_CHEEK_UP_M); was '1c53d76d17f6d4')
+      golden('the figures\' frames, three looks, every frame and beat, four facings', all, '09289684fb05a6');
     },
   },
   {

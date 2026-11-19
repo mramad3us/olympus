@@ -43,10 +43,15 @@
 // STEP_TRIM_DB (−17 dB) under stepVoice's gain, well under the shots (gun.js), and by the movement stance (actor.moveStance:
 // places/move.js), STANCE_STEP_DB: the Careful walk (Combat) rolls heel to toe, 5 dB under; the Fast one (Assault) lopes,
 // 1 dB over; Relaxed as built (my calls). stepTrimDb(stance, sound) is that sum, 0 for the old sound.
+//
+// v0.0.24, the anywhere round's step 5: the recipe is the surface's SURFACES row's `step` (sounds.js SURFACE_STEP, so Europa's
+// ice crunches and a deck plate slaps), and with mag boots locked on a ferrous face ({ boots: true }) the clank, MAG_STEP, at
+// least MAG_STEP_G 0.3 G of weight, so a mag walk is heard where free fall's feet weigh nothing.
 import { STEP_M } from '../../art/figures/poses.js';
 import { STRIDE_WRAP_M } from '../../data/body/gait.js';
 import { airDb } from '../../sim/people/hearing.js';
-import { GAIT_DB, SURFACE_STEP, LOOKAHEAD_S, LOWPASS_REF_HZ, LOWPASS_REF_KPA } from '../../data/sounds.js';
+import { GAIT_DB, SURFACE_STEP, MAG_STEP, MAG_STEP_G, LOOKAHEAD_S, LOWPASS_REF_HZ, LOWPASS_REF_KPA } from '../../data/sounds.js';
+import { SURFACES } from '../../data/places/env.js';
 
 /** The new sound's foot-falls against stepVoice's gain (dB; see the header). */
 export const STEP_TRIM_DB = -17;
@@ -91,13 +96,14 @@ export function footfalls(prevStrideM, strideM, gait) {
 }
 
 /**
- * What a foot-fall sounds like: { kind ('tile' | 'concrete' | 'regolith'), gainDb (against the same
- * step on Earth at 1 G), lowpassHz, weightDb, airDb, gaitDb }. gG the site's gravity, pKpa the air.
+ * What a foot-fall sounds like: { kind ('tile' | 'concrete' | 'regolith' | 'mag'), gainDb (against the same
+ * step on Earth at 1 G), lowpassHz, weightDb, airDb, gaitDb }. gG the site's gravity, pKpa the air; boots true
+ * when mag boots are locked (step 5: on a ferrous face their clank, MAG_STEP, struck with at least MAG_STEP_G of weight).
  */
-export function stepVoice(surface, gait, { gG, pKpa } = {}) {
+export function stepVoice(surface, gait, { gG, pKpa, boots = false } = {}) {
   if (!Number.isFinite(gG)) throw new Error(`stepVoice(): the place's gravity in G, not ${gG}`);
-  const kind = SURFACE_STEP[surface] ?? 'concrete';
-  const w = weightDb(gG), a = airDb(pKpa), g = GAIT_DB[gait] ?? 0;
+  const mag = boots && !!SURFACES[surface]?.ferrous, kind = mag ? MAG_STEP : SURFACE_STEP[surface] ?? 'concrete';
+  const w = weightDb(mag ? Math.max(gG, MAG_STEP_G) : gG), a = airDb(pKpa), g = GAIT_DB[gait] ?? 0;
   return { kind, gainDb: Math.round((w + a + g) * 100) / 100, lowpassHz: lowpassHz(pKpa), weightDb: Math.round(w * 100) / 100, airDb: Math.round(a * 100) / 100, gaitDb: g };
 }
 

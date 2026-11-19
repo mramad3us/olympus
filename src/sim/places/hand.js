@@ -81,10 +81,10 @@
 // args: { id, spotId, args, late: 'fit' | 'accepted' } }.
 import { isHeld, durationText } from '../../core/clock.js';
 import { playerActor, playerId, cmpId } from '../../core/ids.js';
-import { marsClock } from '../../core/calendar.js';
+import { dayClock } from '../../core/calendar.js';
 import { liveArea, openingOf, openingState } from './model.js';
 import { toggleDoor, turns } from './doors.js';
-import { siteLonEDeg } from '../jobs.js';
+import { siteDayOf } from '../jobs.js';
 import { WAIT_MS, ROWS, PRIORITY, NAP_MIN, STUBBLE_SHOWS_H, SLEEP_MAX_MS } from '../../data/activities.js';
 import { HANDS } from '../../data/body/needs.js';
 import { CUTS } from '../../data/people/looks.js';
@@ -133,7 +133,8 @@ function doorOffer(state, me, area) {
   return Object.freeze({ act: 'hand', verb: open ? 'close' : 'open', target: best.id, label: open ? 'close the door' : 'open the door', id: null, spotId: null, args: {}, why: null });
 }
 
-const hourOf = (ms, lon) => { const c = marsClock(ms, lon); return c.timeslip ? 24 : c.civilMs / 3_600_000; };
+// (the hour on the site's own day, 24 through Mars's slip: v0.0.24's stage 0, lon the day key, jobs.js siteDayOf)
+const hourOf = (ms, lon) => { const c = dayClock(ms, lon); return c.timeslip ? 24 : c.civilMs / 3_600_000; };
 
 // ---- the rows ----
 
@@ -225,7 +226,7 @@ export const PRIORITY_TESTS = Object.freeze(Object.keys(TESTS));
 
 // (what the tests read, once a menu)
 function knowOf(state) {
-  const pid = playerId(state), body = bodyOf(state, pid), lon = siteLonEDeg(state), ms = state.clock.ms, d = state.time?.drills?.open;
+  const pid = playerId(state), body = bodyOf(state, pid), lon = siteDayOf(state), ms = state.clock.ms, d = state.time?.drills?.open;
   return { body, stages: body ? stagesOf(body, ms, lon) : null, hair: hairOf(state, pid, ms), h: hourOf(ms, lon), drill: !!d && ms < d.endMs };
 }
 
@@ -259,6 +260,9 @@ function struckOf(spot, rows, k) {
 function menuOf(state) {
   if (!state || state.skip || isHeld(state) || state.time?.doing || state.stop || state.time?.lead) return { none: true };
   if (state.armoury?.range) return { none: true };
+  // (the fixer of D's review: a scene with its acts at hand (HAND_SCENES, below: test-burn) takes R and R held whole while its
+  // offer stands, struck or not, so neither R nor R held's menu offers the place's wait, whose skip would pass over the scene's events)
+  if (HAND_SCENES.some(h => h.offer(state))) return { none: true };
   const me = playerActor(state), area = liveArea(state);
   if (!me || !area) return { rows: [waitRow(null)], quick: { row: null, why: null }, wait: true, title: titleOf(null), spot: null };
   if (transPlaying(me, state.clock.ms)) return { none: true };
@@ -293,8 +297,22 @@ export function handMenu(state) {
   return { title: m.title, spotId: m.spot?.spotId ?? null, fixtureId: m.spot?.fixtureId ?? null, quick: m.quick.row?.key ?? 'wait', rows: m.rows };
 }
 
+// (a scene's own acts at hand, R's quick action before the place's (test-burn's stowing and strap-in: scenarios/burn.js
+// registers them at its load, so no module of places imports a scenario): { offer(state) → { id, key?, label, durMs } | null,
+// act(state, bus, id) }. Absent from every other scene: its offer is null there, so R is as before)
+const HAND_SCENES = [];
+/** Register a scene's acts at hand (see above). */
+export function registerHandScene(h) { if (!HAND_SCENES.includes(h)) HAND_SCENES.push(Object.freeze(h)); }
+function sceneOffer(state) {
+  if (state.skip || isHeld(state) || state.stop) return null;
+  for (const h of HAND_SCENES) { const o = h.offer(state); if (o) return { h, o }; }
+  return null;
+}
+
 /** What R would do now (see the header): { act: 'hand', verb, target, id, spotId, args, label, durMs, endMs, late, why, rows, more } | null. */
 export function handOffer(state) {
+  const sc = sceneOffer(state);
+  if (sc) return Object.freeze({ act: 'hand', verb: 'scene', target: null, id: sc.o.id, spotId: null, args: sc.o.key ? { key: sc.o.key } : {}, label: sc.o.label, durMs: sc.o.durMs, endMs: state.clock.ms + sc.o.durMs, late: null, why: null, rows: 0, more: [], struck: null });
   const m = menuOf(state);
   if (m.none) return null;
   if (m.rise) return RISE_OFFER;
@@ -321,6 +339,8 @@ const KIND_OF_VERB = Object.freeze({ open: 'door', close: 'door', rise: 'rise', 
 export function handAction(state, action, bus, ctx) {
   const offer = handOffer(state);
   if (!offer) return;
+  // (a scene's own act, the one its offer names)
+  if (offer.verb === 'scene') { const sc = sceneOffer(state); if (sc && sc.o.id === offer.id) sc.h.act(state, bus, offer.id); return; }
   const args = typeof action === 'object' ? action?.args ?? {} : {};
   const want = args.want ?? null, kind = KIND_OF_VERB[offer.verb];
   // (R held's door row: the door the menu showed, if it is still at hand, whatever R tapped would do; the fixer's, 0.0.6)

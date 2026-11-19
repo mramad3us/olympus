@@ -14,10 +14,16 @@
 //             temperature is the place's (a preset's airC). Molar masses: Martian air 29.62 g/mol (the
 //             hub's mix: N₂ 65.4, O₂ 32, Ar 2, CO₂ 0.6%), Earth's 28.96; Ice standard's 28.90 and belt
 //             air's 29.16 are summed from their partial pressures (my calls).
-//   SURFACES  PLACES §2.7's rows by id: friction dry and wet, whether mag boots hold (ferrous), the grip
-//             (none, handholds, magStrip, loops), the footstep recipe (src/data/sounds.js SURFACE_STEP's
-//             kinds), the dust, and the word for what gets on your hands. The tile, vinyl, concrete,
-//             grating, soil, grass and rock rows' friction are my calls from published values.
+//   SURFACES  PLACES §2.7's rows by id: friction dry and wet, whether mag boots hold (ferrous: a ship's steel
+//             plating takes them, ice and regolith do not), the material (src/sim/arms/penetrate.js MATERIALS:
+//             what a dropped magazine meets, hard or loose; step 5, my calls: a tile and vinyl over a slab read
+//             as concrete, soil and grass as the ground, rock as concrete), the grip (none, handholds, magStrip,
+//             loops: what a hand or a lanyard can take, src/sim/body/footing.js), the footstep recipe
+//             (src/data/sounds.js SURFACE_STEP reads it), the dust (what kneeling soils the hands with, and a
+//             magazine picked up off a loose one), and the word for what gets on your hands. The tile, vinyl,
+//             concrete, grating, soil, grass and rock rows' friction are my calls from published values. v0.0.24:
+//             plateGrid, the void's steel (Well A, a ship's compartment: AW§4.1 item 2, my calls), whose holds are
+//             its area's rule `holds: { gridM, padEyeM, faces }` (src/sim/places/model.js holdNear).
 //   CLOCKS    the kinds of clock a site keeps: `mars-local` (the sol at the site's longitude, the
 //             timeslip in it), `utc` (a ship's and the Corps' day), `earth-local` (an Earth town's day,
 //             not built: it throws until a site names it). src/sim/places/env.js localTime reads them.
@@ -68,21 +74,24 @@ export const AIRS = deepFreeze({
   vacuum: { word: 'vacuum', pKpa: 0, o2Kpa: 0, n2Kpa: 0, co2Kpa: 0, h2oKpa: 0, molarKgMol: 0, airC: null },
 });
 
-/** The surfaces (PLACES §2.7): muDry, muWet, ferrous (mag boots hold), grip, step (the footstep's kind), dust (0 to 1), soilWord. */
+/** The surfaces (PLACES §2.7): muDry, muWet, ferrous (mag boots hold), material (penetrate.js MATERIALS), grip, step (the footstep's kind), dust (0 to 1), soilWord. */
 export const SURFACES = deepFreeze({
-  regolith: { muDry: 0.5, muWet: 0.45, ferrous: false, grip: 'none', step: 'regolith', dust: 1, soilWord: 'regolith' },
-  paving: { muDry: 0.6, muWet: 0.3, ferrous: false, grip: 'none', step: 'concrete', dust: 0.5, soilWord: 'dust' },
-  concrete: { muDry: 0.6, muWet: 0.3, ferrous: false, grip: 'none', step: 'concrete', dust: 0.3, soilWord: 'dust' },
-  stairs: { muDry: 0.6, muWet: 0.3, ferrous: false, grip: 'none', step: 'concrete', dust: 0.3, soilWord: 'dust' },
-  tile: { muDry: 0.5, muWet: 0.25, ferrous: false, grip: 'none', step: 'tile', dust: 0.1, soilWord: 'dust' },
-  vinyl: { muDry: 0.55, muWet: 0.3, ferrous: false, grip: 'none', step: 'tile', dust: 0.1, soilWord: 'dust' },
-  deckPlate: { muDry: 0.6, muWet: 0.3, ferrous: true, grip: 'magStrip', step: 'concrete', dust: 0, soilWord: 'grease' },
-  grating: { muDry: 0.7, muWet: 0.5, ferrous: true, grip: 'handholds', step: 'concrete', dust: 0, soilWord: 'grease' },
-  'ice-100K': { muDry: 0.3, muWet: 0.3, ferrous: false, grip: 'none', step: 'regolith', dust: 0.2, soilWord: 'frost' },
-  'ice-263K': { muDry: 0.1, muWet: 0.05, ferrous: false, grip: 'none', step: 'regolith', dust: 0, soilWord: 'frost' },
-  soil: { muDry: 0.6, muWet: 0.4, ferrous: false, grip: 'none', step: 'regolith', dust: 0.6, soilWord: 'soil' },
-  grass: { muDry: 0.55, muWet: 0.35, ferrous: false, grip: 'none', step: 'regolith', dust: 0.2, soilWord: 'soil' },
-  rock: { muDry: 0.7, muWet: 0.5, ferrous: false, grip: 'none', step: 'concrete', dust: 0.4, soilWord: 'dust' },
+  regolith: { muDry: 0.5, muWet: 0.45, ferrous: false, material: 'regolith', grip: 'none', step: 'regolith', dust: 1, soilWord: 'regolith' },
+  paving: { muDry: 0.6, muWet: 0.3, ferrous: false, material: 'concrete', grip: 'none', step: 'concrete', dust: 0.5, soilWord: 'dust' },
+  concrete: { muDry: 0.6, muWet: 0.3, ferrous: false, material: 'concrete', grip: 'none', step: 'concrete', dust: 0.3, soilWord: 'dust' },
+  stairs: { muDry: 0.6, muWet: 0.3, ferrous: false, material: 'concrete', grip: 'none', step: 'concrete', dust: 0.3, soilWord: 'dust' },
+  tile: { muDry: 0.5, muWet: 0.25, ferrous: false, material: 'concrete', grip: 'none', step: 'tile', dust: 0.1, soilWord: 'dust' },
+  vinyl: { muDry: 0.55, muWet: 0.3, ferrous: false, material: 'concrete', grip: 'none', step: 'tile', dust: 0.1, soilWord: 'dust' },
+  deckPlate: { muDry: 0.6, muWet: 0.3, ferrous: true, material: 'steelMild', grip: 'magStrip', step: 'concrete', dust: 0, soilWord: 'grease' },
+  // (AW§4.1 item 2: the Wells' plate, PLACES §5.7's "steel deck plate on all six faces (mag boots anywhere), handholds on a
+  // 1.5 m grid and pad-eyes every 3 m": the holds an area's rule, `holds` (src/sim/places/model.js holdNear), never fixtures)
+  plateGrid: { muDry: 0.6, muWet: 0.3, ferrous: true, material: 'steelMild', grip: 'handholds', step: 'concrete', dust: 0, soilWord: 'grease' },
+  grating: { muDry: 0.7, muWet: 0.5, ferrous: true, material: 'steelMild', grip: 'handholds', step: 'concrete', dust: 0, soilWord: 'grease' },
+  'ice-100K': { muDry: 0.3, muWet: 0.3, ferrous: false, material: 'ice', grip: 'none', step: 'regolith', dust: 0.2, soilWord: 'frost' },
+  'ice-263K': { muDry: 0.1, muWet: 0.05, ferrous: false, material: 'ice', grip: 'none', step: 'regolith', dust: 0, soilWord: 'frost' },
+  soil: { muDry: 0.6, muWet: 0.4, ferrous: false, material: 'ground', grip: 'none', step: 'regolith', dust: 0.6, soilWord: 'soil' },
+  grass: { muDry: 0.55, muWet: 0.35, ferrous: false, material: 'ground', grip: 'none', step: 'regolith', dust: 0.2, soilWord: 'soil' },
+  rock: { muDry: 0.7, muWet: 0.5, ferrous: false, material: 'concrete', grip: 'none', step: 'concrete', dust: 0.4, soilWord: 'dust' },
 });
 
 /** The kinds of clock a site keeps (PLACES §1.2; TIME §2): Melas's sol, a ship's UTC, an Earth town's day; day 'sol' (SOL_MS, the timeslip in it) or 'day' (24 h). built false: no reader yet. */

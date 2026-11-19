@@ -11,17 +11,25 @@
 //   - the sky by site: Mars's open air at Melas, `none` under a roof (cls) and on a ship (no sun, level 0);
 //   - no quiet Melas: an unknown site, a site off Mars asked for a longitude (lonOf, lonOfSite), a clock not built, a
 //     sky with no rows, a site with no Plan of the Day or water, and the sun off Mars all throw.
+//   - off Mars (v0.0.24's stage 0, its build sheet §2 step 4; F119, the anywhere note's V19): the readers of the body's clock,
+//     its sleep, an activity's hour and the routine's days take the site's day key (jobs.js siteDayOf), so a body ticks a sol at
+//     Phobos and aboard Testudo, skips and a sleep included, with no throw, its sleep pressure and body clock printed against
+//     Melas's, and a save made asleep there carries on byte for byte; the two sites are tests/site-hooks.mjs's stand-ins until
+//     D's records land (then D's). On Melas the day functions are the Mars ones, call for call: dayClock is marsClock, localDay
+//     localSol, msAtDayTime msAtMarsTime, dayPhaseOf the activities' old hour, on 2,000 random times each.
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { stream, int } from '../src/core/rng.js';
 import { SOL_MS, DAY_MS, HOUR_MS, MIN_MS } from '../src/core/clock.js';
-import { utc, marsClock, yearsOf } from '../src/core/calendar.js';
+import { utc, marsClock, yearsOf, localSol, msAtMarsTime, dayClock, localDay, msAtDayTime, dayLenOf, UTC_DAY } from '../src/core/calendar.js';
+import { register } from 'node:module';
+import { SITES_QUERY, STAND_INS } from './site-hooks.mjs';
 import * as SETTING from '../src/data/setting/calendar.js';
 import { ROUTINES } from '../src/data/pod.js';
 import { LIGHT_REGIMES } from '../src/data/places/env.js';
 import { localTime, timeAt, msAtLocal, skyOf, lonOfSite, routineOf, waterOf, clockOf, siteAt } from '../src/sim/places/env.js';
 import { lonOf, siteOf } from '../src/sim/places/model.js';
-import { nextOccurrence } from '../src/sim/jobs.js';
+import { nextOccurrence, siteDayOf, dayPhaseOf } from '../src/sim/jobs.js';
 import { clockLighting, skyAt, NO_SKY } from '../src/sim/places/light.js';
 import { sunAt } from '../src/sim/places/sun.js';
 import { wallClockAt } from '../src/sim/places/clocks.js';
@@ -48,6 +56,38 @@ function v10Lighting(ms) {
   if (c.timeslip) return 'lightsOut';
   const h = c.civilMs / HOUR_MS, rev = [5, 6].includes(c.weekday) ? 7.0 : 5.5;
   return h < rev || h >= 22.0 ? 'lightsOut' : h < 18.0 ? 'day' : 'evening';
+}
+
+// (v0.0.24's stage 0: the game loaded a second time with the two off-Mars sites in its registry, tests/site-hooks.mjs; once)
+const SITES_REG = Symbol.for('olympus.sites.registered');
+async function sitesCopy() {
+  if (!globalThis[SITES_REG]) { register('./site-hooks.mjs', import.meta.url); globalThis[SITES_REG] = true; }
+  const at = (p) => import(`${new URL(p, import.meta.url).href}?${SITES_QUERY}`);
+  const [game, body, sleep, jobs, model] = await Promise.all([at('./game.mjs'), at('../src/sim/body/body.js'), at('../src/sim/body/sleep.js'), at('../src/sim/jobs.js'), at('../src/sim/places/model.js')]);
+  return { createGame: game.createGame, ...body, phiOf: sleep.phiOf, lonMsOf: sleep.lonMsOf, siteDayOf: jobs.siteDayOf, dayPhaseOf: jobs.dayPhaseOf, siteOf: model.siteOf };
+}
+/** The off-Mars sites F119 ticks, and Melas for the comparison. */
+const SOL_SITES = Object.freeze([null, 'phobos-void', 'mcrn-testudo']);
+// (a body's sol at a site: the barracks on 48213 at 21:00 Melas, the live site set to it, then 100 ticks, two hours' wait, down
+// in the rack (sleepBegin), eight hours' skip, up (sleepEnd), waits to 25 h, 100 ticks; the body's sleep and clock read after each)
+function solAt(C, site) {
+  const g = C.createGame({ scenario: 'barracks', seed: 48213, hour: 21 });
+  if (site) g.state.places.live.site = site;
+  const s = g.state, pid = s.player.id, t0 = s.clock.ms, rows = [];
+  const look = (what) => {
+    const b = C.bodyOf(s, pid), day = C.siteDayOf(s), ph = C.dayPhaseOf(s, s.clock.ms);
+    rows.push({ what, h: ph.hour, dayLenMs: ph.dayLenMs, pH: b.sleep.pressureH, offH: b.sleep.offsetH, phi: C.phiOf(s.clock.ms, C.lonMsOf(day), b.sleep.offsetH), asleep: C.isAsleep(s, pid, s.clock.ms), day });
+  };
+  g.step(100, {}); look('start');
+  g.skipNow({ activity: 'wait', planMs: 2 * HOUR_MS, mask: 'D' }); look('waited 2 h');
+  C.sleepBegin(s, pid, s.clock.ms, { bed: 'own-rack' }); look('down');
+  g.skipNow({ activity: 'wait', planMs: 8 * HOUR_MS, mask: 'D' }); look('asleep');
+  const saved = g.save(), atSave = s.clock.ms;
+  C.sleepEnd(s, pid, s.clock.ms, { by: 'player' }); look('up');
+  let skips = 0;
+  while (s.clock.ms < t0 + 25 * HOUR_MS && skips < 12) { g.skipNow({ activity: 'wait', planMs: t0 + 25 * HOUR_MS - s.clock.ms, mask: 'D' }); skips++; }
+  g.step(100, {}); look('a sol on');
+  return { g, rows, livedH: (s.clock.ms - t0) / HOUR_MS, skips, errors: g.errors.length, saved, atSave, pod: s.time?.pod ?? null, day: C.siteDayOf(s) };
 }
 
 export default [
@@ -189,6 +229,67 @@ export default [
       const lons = [lonOf({ places: { live: { site: 'melas', area: 'melas.ground' } } }), lonOf({ places: { live: { site: 'test', area: 'test.rooms' } } }), lonOf({ places: { live: null } }), lonOfSite('melas'), timeAt(MELAS_LON, START_MS).face];
       console.log(`      still read: ${lons.join(', ')}`);
       assert(lons[0] === MELAS_LON && lons[1] === MELAS_LON && lons[2] === MELAS_LON && lons[3] === MELAS_LON && lons[4] === 'mars-local', JSON.stringify(lons));
+    },
+  },  {
+    name: 'env-clock (F119): off Mars a body ticks a sol at Phobos and aboard Testudo, skips and a sleep included, with no throw; its sleep pressure and body clock printed against Melas\'s; a save made asleep there carries on byte for byte',
+    async fn() {
+      const C = await sitesCopy(), out = {}, bad = [];
+      for (const id of SOL_SITES.slice(1)) {
+        const rec = C.siteOf(id), stand = STAND_INS.find(x => x.id === id);
+        console.log(`      ${id}: ${rec?.template === stand.template ? 'the stand-in (tests/site-hooks.mjs)' : `D's record (${rec?.template})`}, clock ${rec?.clock}, routine ${rec?.routine}`);
+        if (!rec) bad.push(`${id}: not in the copy's registry`);
+      }
+      for (const site of SOL_SITES) {
+        let r;
+        try { r = solAt(C, site); } catch (e) { bad.push(`${site ?? 'melas'}: threw ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' | ')}`); continue; }
+        out[site ?? 'melas'] = r;
+        const fmtH = (h) => `${pad2(Math.floor(h))}:${pad2(Math.floor((h % 1) * 60))}`;
+        console.log(`      ${site ?? 'melas'} (day key ${r.day}): ${fmt(r.livedH, 2)} h lived in ${r.skips + 3} skips, errors ${r.errors}; the night ${r.pod ? `taps ${fmtH(C.dayPhaseOf(r.g.state, r.pod.tapsMs).hour)}, reveille ${fmtH(C.dayPhaseOf(r.g.state, r.pod.reveilleMs).hour)}` : 'none'}`);
+        for (const w of r.rows) console.log(`        ${w.what.padEnd(10)} ${fmtH(w.h)} on a ${fmt(w.dayLenMs / HOUR_MS, 2)} h day: pressure ${fmt(w.pH, 2)} h, body clock offset ${fmt(w.offH, 3)} h, φ ${fmt(w.phi, 2)}, ${w.asleep ? 'asleep' : 'awake'}`);
+        if (r.errors) bad.push(`${site ?? 'melas'}: ${r.errors} lost ticks: ${r.g.errors.slice(0, 2).join(' | ')}`);
+        if (!(r.livedH >= 25)) bad.push(`${site ?? 'melas'}: only ${r.livedH} h lived`);
+        if (!r.rows.every(w => [w.h, w.pH, w.offH, w.phi].every(Number.isFinite))) bad.push(`${site ?? 'melas'}: a reading not finite ${JSON.stringify(r.rows)}`);
+        const asleep = r.rows.find(w => w.what === 'asleep'), down = r.rows.find(w => w.what === 'down');
+        if (!asleep?.asleep || !(asleep.pH < down.pH)) bad.push(`${site ?? 'melas'}: the sleep did not recover the pressure ${JSON.stringify({ down, asleep })}`);
+        if (site && (r.day !== UTC_DAY || r.rows.some(w => w.dayLenMs !== DAY_MS))) bad.push(`${site}: not on the UTC day ${JSON.stringify({ day: r.day, len: r.rows.map(w => w.dayLenMs) })}`);
+        if (!site && (r.day !== MELAS_LON || r.rows.some(w => w.dayLenMs !== SOL_MS))) bad.push(`melas: not on the sol at its longitude ${JSON.stringify({ day: r.day })}`);
+        if (site) {
+          // (the save made asleep there, loaded in a fresh game of the copy: both carry on, 200 ticks and two hours, to one digest)
+          const A = C.createGame({ scenario: 'barracks', seed: 48213, hour: 21 }), B = C.createGame({ scenario: 'barracks', seed: 48213, hour: 21 });
+          A.load(r.saved); B.load(r.saved);
+          for (const x of [A, B]) { x.step(200, {}); x.skipNow({ activity: 'wait', planMs: 2 * HOUR_MS, mask: 'D' }); }
+          const da = A.digest(), db = B.digest(), first = A.digest();
+          console.log(`        its save at ${fmtH(C.dayPhaseOf(A.state, r.atSave).hour)} UTC, asleep: loaded twice and carried on 200 ticks and 2 h: ${da} and ${db}, errors ${A.errors.length} and ${B.errors.length}`);
+          if (da !== db || first !== da || A.errors.length || B.errors.length) bad.push(`${site}: the save did not carry on byte for byte ${JSON.stringify({ da, db })}`);
+        }
+      }
+      const m = out.melas, p = out['phobos-void'];
+      if (m && p) console.log(`      against Melas: the pressure after the sleep ${fmt(p.rows.find(w => w.what === 'asleep').pH, 2)} h at Phobos, ${fmt(m.rows.find(w => w.what === 'asleep').pH, 2)} h at Melas (the same ms: ${fmt(p.rows.find(w => w.what === 'down').h, 2)} UTC against ${fmt(m.rows.find(w => w.what === 'down').h, 2)} on the sol)`);
+      assert(!bad.length, bad.join('\n'));
+    },
+  },
+  {
+    name: 'env-clock (F119): on Mars the day functions are the Mars ones, call for call (dayClock, localDay, msAtDayTime, dayPhaseOf\'s hour against marsClock, localSol, msAtMarsTime and the activities\' old hour, 2,000 random times); on UTC they are UTC\'s',
+    fn() {
+      const r = stream(48213, 'test:env-clock:day'), bad = [];
+      const g = createGame({ scenario: 'barracks', seed: 48213 }), s = g.state, lon = siteDayOf(s);
+      let n = 0;
+      for (let i = 0; i < 2000; i++) {
+        const ms = START_MS + int(r, 3_000_000_000) * 7 + int(r, 1000), h = int(r, 24), mi = int(r, 60);
+        const mc = marsClock(ms, MELAS_LON), dc = dayClock(ms, lon);
+        const oldHour = mc.timeslip ? 24 : mc.civilMs / 3_600_000;
+        if (JSON.stringify(mc) !== JSON.stringify(dc)) bad.push(`dayClock ${ms}`);
+        if (JSON.stringify(localSol(ms, MELAS_LON)) !== JSON.stringify(localDay(ms, lon))) bad.push(`localDay ${ms}`);
+        if (msAtMarsTime(ms, h, mi, MELAS_LON) !== msAtDayTime(ms, h, mi, lon)) bad.push(`msAtDayTime ${ms}`);
+        if (dayPhaseOf(s, ms).hour !== oldHour) bad.push(`dayPhaseOf ${ms}`);
+        // (UTC's: the hour and the day's length from utc())
+        const u = utc(ms), du = dayClock(ms, UTC_DAY), at = msAtDayTime(ms, h, mi, UTC_DAY), ua = utc(at);
+        if (du.hour !== u.hour || du.minute !== u.minute || du.weekday !== u.weekday || du.timeslip) bad.push(`utc ${ms}`);
+        if (ua.hour !== h || ua.minute !== mi || at < ms || at - ms >= DAY_MS) bad.push(`utc time ${ms} ${h}:${mi}`);
+        n++;
+      }
+      console.log(`      ${n} times on Melas's day key ${lon} (a ${fmt(dayLenOf(lon) / HOUR_MS, 3)} h sol) and on UTC (${fmt(dayLenOf(UTC_DAY) / HOUR_MS, 0)} h): ${bad.length} differences${bad.length ? `: ${bad.slice(0, 5).join(', ')}` : ''}`);
+      assert(lon === MELAS_LON && !bad.length, JSON.stringify({ lon, bad: bad.slice(0, 10) }));
     },
   },
 ];

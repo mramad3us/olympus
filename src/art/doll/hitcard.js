@@ -54,13 +54,24 @@
 // filled with the paint where it was seen. In belief a round seen to strike is painted at its called point (paint can be seen to
 // land: the man wears it), one not seen is the amber ring as before; in truth at its hole. A mark without `paint` is drawn as it
 // always was, so every board's card, the four B goldens and "Bang" are unchanged.
+// v0.0.24 (the build sheet v0.0.24 items 14 to 16; P§3.3): THE CARD AS YOU WOULD SEE HIM. A subject's record carries his light and
+// the jamb's share (src/sim/people/seen.js: light from lightLevel at his feet, cover from the page's rays): below LIGHT_FULL_K the
+// figure's pixels are darkened by lightK (portrait.js litPixel, L1: never below LIGHT_FLOOR_K), so room 3's dim (0.40) draws him
+// at 0.53 and the lit rooms (0.75) and "Bang" (1.0) byte for byte as before (a board's gun keeps the board's ink, so it reads in
+// any light: F89); the share a jamb hides from a side is drawn as the
+// wall over him (J1, portrait.js jambOver), the marks on top (they are the sim's); hidden whole, he is drawn whole, as last seen. Side on, the marks on the man-target's plane
+// are drawn at the cosine of his yaw from the figure's middle (a man seen at 67.5° has the board's width at 0.38); from behind,
+// as on the front (P's call: a man-target has no back). A man's card's ground is target-view's L pick (MAN_GROUND_PICKS, L-a the
+// dark until scored: the user's "use what makes sense again depending on distance" of 2026-11-19 was held-devices' T group, the
+// throw, F's to build, not the target view, whose groups are F, L and H; a model's own ground wins). None of it enters the doll's
+// key: a man walking through a lamp's pool repaints the card, never the doll.
 import { word } from '../paint.js';
 import { glyphOf } from '../font.js';
 import { GLOWS } from '../palette.js';
 import { doll } from './doll.js';
 import { dressOf, dressedReady } from './dress.js';
 import { INK, mix, lum } from './grid.js';
-import { paintPortrait, portraitReady, maskOf, boardGear, boardLook, PORTRAIT_HOLD, PORTRAIT_PICKS, BANG_BOARD_HOLD, BOARD_PLACES, HOSTAGE_PLACES } from './portrait.js';
+import { paintPortrait, portraitReady, maskOf, boardGear, boardLook, PORTRAIT_HOLD, PORTRAIT_PICKS, BANG_BOARD_HOLD, BOARD_PLACES, HOSTAGE_PLACES, jambOver, litPixel, lightK as litK } from './portrait.js';
 
 /** The card in card pixels (the HUD's HITCARD at --ui 1), the words' strip under the figure. */
 export const CARD_W = 200, CARD_H = 200, WORDS_H = 40;
@@ -171,10 +182,12 @@ function subjectDoll(subject, scale, { place = 'hand', picks = null } = {}) {
     return { pm: P.pm, mask: P.mask, held: P.held, colour: true };
   }
   const P = { ...PORTRAIT_PICKS, ...(picks ?? {}) };
-  return dollFor(subject?.face ?? 'threat', subject?.holds ?? 'rifle', scale, subject?.side ?? 'right', place, P.hostage);
+  return dollFor(subject?.face ?? 'threat', subject?.holds ?? 'rifle', scale, subject?.side ?? (P.hostageSide === 'H-b' ? 'left' : 'right'), place, P.hostage);
 }
 /** A man's card's ground (sample L): 'dark', the board's bay dark (L-a, the default), or 'lifted' toward the board's khaki so amber rings read (L-b). */
 export const MAN_GROUNDS = Object.freeze({ dark: 0, lifted: 0.35 });
+/** A man's card's ground by target-view's L pick (PORTRAIT_PICKS.ground: L-a, the dark, until the user scores the set). */
+export const MAN_GROUND_PICKS = Object.freeze({ 'L-a': 'dark', 'L-b': 'lifted' });
 /** The dolls a turner's card may need made ahead (the scene's load), so the first card of a string is painted in one frame (the runtime review of 0.0.10: the first paint dropped a frame); at the near band unless a density is given. */
 export function warmHitcard(faces = [['threat', 'rifle'], ['threat', 'pistol']], pxPerM = HIT_PX_PER_M, { place = BANG_BOARD_HOLD } = {}) { for (const [f, h] of faces) dollFor(f, h, figGeom(pxPerM).scale, 'right', place); return DOLLS.size; }
 /** The board dolls painted so far (the target view's test: no frame paints more than one new doll; a man's is dress.js's, dollCount). */
@@ -234,7 +247,10 @@ export function paintHitcard(m = {}) {
   // so the man-target's zones and marks stay where the sim put them on him; standing front on, no shift, the card as before)
   const shift = pm.anchors ? r(pm.anchors.aZone[1] - G.aRow) : 0;
   const at = figAt(band.pxPerM, S, pm.w), r0 = G.rows[0] + shift, r1 = Math.max(r0 + 1, Math.min(G.rows[1] + shift, r0 + figH - at.y));
-  const lift = colour ? MAN_GROUNDS[subject.ground] ?? 0 : 0;
+  const ground = subject.ground ?? MAN_GROUND_PICKS[picks.ground] ?? 'dark', lift = colour ? MAN_GROUNDS[ground] ?? 0 : 0;
+  // (his light, the jamb's share and the yaw side on, from the record (see the header))
+  const rec = subject.rec ?? null, level = Number.isFinite(rec?.light?.level) ? rec.light.level : null, hid = rec?.cover ?? null;
+  const yawK = rec && (rec.facing === 'left' || rec.facing === 'right') && Number.isFinite(rec.yawQ) ? Math.abs(Math.cos(rec.yawQ)) : 1;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) col[y * W + x] = y >= figH ? HIT_C.glass : mix(mix(HIT_C.board, 0x3a3c45, y / figH * 0.6), HIT_C.khakiShade, lift);
   // ---- the figure: the doll's outline and kit in the board's two tones; v0.0.23, what the hands hold in the board's dark ink
   // (PORTRAIT_HOLD, G1; G2 its own colours; G3 the ink with a rim of khaki where it meets the figure); V2 veils a man's held pixels
@@ -243,7 +259,7 @@ export function paintHitcard(m = {}) {
   const inked = !!m.subject || BANG_BOARD_HOLD !== 'hand';
   const tone = picks.gun === 'G2' ? null : PORTRAIT_HOLD, rim = picks.gun === 'G3', veil = colour && picks.unread === 'V2' && m.live?.holds === 'unseen';
   const isHeld = (x, y) => x >= 0 && y >= 0 && x < pm.w && y < pm.h && !!held?.[y * pm.w + x];
-  let gunIn = 0, gunAll = 0;
+  let gunIn = 0, gunAll = 0, fx0 = Infinity, fx1 = -Infinity;
   if (held && inked) for (let i = 0; i < held.length; i++) if (held[i]) gunAll++;
   for (let y = r0; y < Math.min(r1, pm.h); y++) for (let x = 0; x < pm.w; x++) {
     const i = y * pm.w + x;
@@ -254,11 +270,17 @@ export function paintHitcard(m = {}) {
     if (hd && !colour && !tone) out = c;
     if (hd && veil) out = (x + y) % 2 ? mix(HIT_C.board, 0x3a3c45, 0.3) : c;
     if (hd) gunIn++;
-    put(at.x + x, at.y + y - r0, out);
+    // (his light on the figure; a board's gun keeps its ink, so it reads in any light (F89's tones))
+    put(at.x + x, at.y + y - r0, level === null || (hd && !colour && tone) ? out : litPixel(out, level));
+    if (x < fx0) fx0 = x;
+    if (x > fx1) fx1 = x;
   }
   // (the board's stakes, from its foot to the words' strip; a man stands on none)
   const foot = at.y + r1 - r0;
   if (foot < figH && !colour) { rect(at.x + G.stakeIn, foot, STAKE_W_PX, figH - foot, HIT_C.stake); rect(at.x + pm.w - G.stakeIn - STAKE_W_PX, foot, STAKE_W_PX, figH - foot, HIT_C.stake); }
+  // ---- v0.0.24: the jamb over the share of him it hides (J1), before the zones and the marks ----
+  // (a man the walls hide whole is drawn whole, as last seen: the card held after you engaged him, never a card of wall (my call))
+  const jamb = hid && (hid.left > 0 || hid.right > 0) && (hid.left ?? 0) + (hid.right ?? 0) < 1 && fx1 >= fx0 ? jambOver(col, W, { fx0: at.x + fx0, fx1: at.x + fx1, y0: 1, y1: figH, left: hid.left, right: hid.right }) : 0;
   // ---- the man-target's zones printed over the figure ----
   const zones = colour ? null : zonesOnCard(band.pxPerM, m.man, { size: S });
   if (zones) {
@@ -307,7 +329,8 @@ export function paintHitcard(m = {}) {
     for (let j = -h; j <= h; j++) for (let i = -h; i <= h; i++) { if (Math.abs(i) === h && Math.abs(j) === h) continue; put(cx + i, cy + j, Math.abs(i) === h || Math.abs(j) === h ? HIT_C.khakiInk : INK); }
   };
   const list = Array.isArray(m.marks) ? m.marks : [];
-  const where = (p) => manToCard(p[0], p[1], band.pxPerM, { w: pm.w, size: S });
+  // (side on, the board's plane foreshortened about the figure's middle by the cosine of his yaw (v0.0.24))
+  const midX = at.x + pm.w / 2, where = (p) => { const [x, y] = manToCard(p[0], p[1], band.pxPerM, { w: pm.w, size: S }); return [midX + (x - midX) * yawK, y]; };
   // (truth: the calls under the holes first, at CALLS_K; then the holes; belief: the rings, a seen one filled)
   if (truth) for (const mk of list) if (mk.hole && mk.called) { const [x, y] = where(mk.called); ring(r(x), r(y), HIT_C.amber, CALLS_K); }
   // (0.0.18: your #2's holes in truth, under yours, unnumbered, in the board's ink at TWO_K)
@@ -371,6 +394,7 @@ export function paintHitcard(m = {}) {
   for (let y = 0; y < H; y++) { col[y * W] = HIT_C.edge; col[y * W + W - 1] = HIT_C.edge; }
   for (let i = 0; i < W * H; i++) data[i] = word(col[i]);
   return { w: W, h: H, data, repeat: false, key: null, glows: false, look: 'B', band: band.id, pxPerM: band.pxPerM, size: S, marks: drawn, zones, words: rows, subject: subject.kind ?? 'board', gun: { inCrop: gunIn, all: gunAll }, place,
+    lit: level === null ? 1 : litK(level), jamb, yawK, ground: colour ? ground : null,
     anchors: pm.anchors ? { head: [at.x + pm.anchors.head[0], at.y + pm.anchors.head[1] - r0], aZone: [at.x + pm.anchors.aZone[0], at.y + pm.anchors.aZone[1] - r0] } : null };
 }
 

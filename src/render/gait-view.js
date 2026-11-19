@@ -97,7 +97,8 @@ export function createGaitView() {
       if (sheet && o.kick && o.aimed) { out.frame = `fireMove${Math.floor(((o.gp % 2) + 2) % 2)}`; out.beat = 'fireMove'; return out; }
       // (the P-12 out, walking: its own walk at the low ready or aimed (poses.js pistolWalkOf: four keys across both steps), the R-7 swinging on its sling)
       if (o.pistol && o.kick) { out.frame = 'pistolFire'; out.beat = 'pistol'; return out; }
-      if (o.pistol) { const at = walkFrame(o.band === 'run' ? 'combat' : o.band, { gp: o.gp, stepM: o.stepM, back: kind === 'back', cycle: o.cycle }); out.frame = pistolWalkOf(o.pistol, at, bandSpec(o.cycle, o.band === 'run' ? 'combat' : o.band).n); out.lagPx = at.lagPx; out.beat = 'pistol'; return out; }
+      // (at the high ready, its own walk where the stance sheet is there (o.pistolSheet), else the low ready's)
+      if (o.pistol) { const at = walkFrame(o.band === 'run' ? 'combat' : o.band, { gp: o.gp, stepM: o.stepM, back: kind === 'back', cycle: o.cycle }); out.frame = pistolWalkOf(o.pistol, at, bandSpec(o.cycle, o.band === 'run' ? 'combat' : o.band).n, { sheet: !!o.pistolSheet }); out.lagPx = at.lagPx; out.beat = 'pistol'; return out; }
       if (sheet && kind === 'side') {
         const right = wrap(o.travelRad - (FACE_AXIS[face] ?? 0)) > 0;
         out.frame = `side${right ? 'R' : 'L'}${Math.floor(o.stride / (SIDE_STEP_M / 2)) % 2}`; out.beat = 'side';

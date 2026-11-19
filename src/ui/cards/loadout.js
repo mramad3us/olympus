@@ -10,7 +10,7 @@
 // (loadout.js PRESET_ORDER: v0.0.18's four, then Frag, Concussion, Cut and Mixed; they wrap on the paper, never over the mass),
 // the line "Your #2: P-12, issued as yours" (his sidearm is standard issue, the user's answer of 2026-11-16, "#2 has
 // to have a sidearm"; v0.0.19's row that turned it on and off is gone, loadout.js TWO_P12_DEFAULT), and the whole kit's mass with the walk's push and brake at it, before and after. Every number is the sim's: preview(code, tier) is main.js's, a fill of the lane
-// with that code (loadout.js loadoutView: kitMassKg, motion.js tractionOf), and the reach devices.js deviceMs at the sheet's own
+// with that code (loadout.js loadoutView: kitMassKg, motion.js legsAt), and the reach devices.js deviceMs at the sheet's own
 // values; this module computes nothing of its own.
 // The keys (by code; the letters are the game's in play, so none is taken here): the arrows (and Z, S) move between the buttons
 // as on every title page (the front's fixed places, disabled, left out), the presets' row one stop (Left and Right along it),

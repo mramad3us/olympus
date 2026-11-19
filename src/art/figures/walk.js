@@ -226,7 +226,12 @@ function legsFlat(rx, lx, drop, { rPitch = 0, lPitch = 0, rLift = null, lLift = 
   const r = a(rx, rPitch, rLift), l = a(lx, lPitch, lLift);
   return { r: legTo(r[0], r[1] - h, abd?.r ?? ABD).leg, l: legTo(l[0], l[1] - h, abd?.l ?? ABD).leg, feet: { r: rPitch, l: lPitch } };
 }
-/** The beats' names, as the stance sheet holds them (poses.js BANDS.stanceBeats and stanceShots). */
+/**
+ * The beats' names: the stance sheet holds all but 'draw' and 'pistolAim' (poses.js BANDS.stanceBeats and stanceShots). Those two
+ * left the sheet in v0.0.24 (no frame the game draws asks them since v0.0.23's pistol band); their poses stay here because three
+ * sample pages draw them (p12-draw, pistol-stances' "asked, never drawn", portrait-pose's P and Y-12) and the figures' golden
+ * (art-held, samples-held) composes every name of this list.
+ */
 export const BEAT_FRAMES = Object.freeze(['start', 'plant', 'kneelGoing', 'stack', 'stackB', 'stackTap', 'doorHand', 'kick0', 'kick1', 'kick2', 'sideR0', 'sideR1', 'sideL0', 'sideL1', 'fireMove0', 'fireMove1', 'draw', 'pistolAim']);
 
 /** The pose of a beat for a carry (see the header and VIEWS §3.10.7); null for a name that is not one. */

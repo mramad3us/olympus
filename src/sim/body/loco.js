@@ -31,6 +31,14 @@
 // No `SAVE_SCHEMA` bump: the fields are additive and only a body that moves writes them, so every scene's start keeps its
 // bytes (BODY §16.8 asked upgradeState to fill gp 0 and bodyRad from headRad; read absent as those instead, a save made
 // before and one made after carry on alike: my call).
+// v0.0.24's step 7 (free fall, src/sim/body/freefall.js; BODY §16.6; VIEWS §2.11): a floating body's record is gait 'float' when
+// it moved (its mode, the view's float frames), with no stride and no gait phase (no foot falls: steps.js plays none), and its yaw
+// is the head's, never turned to its travel (a drifting body does not walk where it goes); the float's own fields are on the actor
+// beside the record (`floatY` its centre of mass's height over the deck, never `y`, the floor it stands on; `v` the drift, `tumble` and `tumbleRad` its pitch's spin and angle, `push` a
+// push-off under way), each absent at rest on a deck, so every record at Mars and the Wheel is the bytes it was. floatLook(a) is
+// the view's one read of them: { y (the floatY), vMs, tumbleRad, pushing } or null for a body not floating.
+// v0.0.24's stage 0 (its build sheet §0 item 30, F115): with no state (a test's call of stepMOf or locoStep alone) the gravity is
+// the 1 G reference, core/phys.js G0_MS2 (9.80665 m/s²), never a 9.81 of its own; every call with a state reads the place's.
 // Pure but tickStart, moverStart and locoStep, which write the actor's record.
 import { q } from '../../core/num.js';
 import { TICK_MS } from '../../core/clock.js';
@@ -38,7 +46,7 @@ import { playerActor } from '../../core/ids.js';
 import { paceOf } from '../skills/skills.js';
 import { valueOf } from '../skills/templates.js';
 import { gravityAt } from '../places/env.js';
-import { takeoffVzMs } from '../../core/phys.js';
+import { takeoffVzMs, G0_MS2 } from '../../core/phys.js';
 import { STRIDE_WRAP_M, GP_WRAP, CYCLE, STEP_PX, STEP_PPM, LOPE_FROUDE, LOPE_VZ_MS, RUN_VZ_MS, LEG_K, REF_HEIGHT_M, TURN_OPERATOR_S, TURN_RECRUIT_S } from '../../data/body/gait.js';
 
 const POS_STEP_M = 0.0001, GP_STEP = 1e-6, RAD_STEP = 1e-6, G_MIN_MS2 = 0.05;
@@ -47,7 +55,7 @@ const wrapRad = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math
 export const FASTEST_K = 0.45;
 
 /** The band a gait's phase is counted in: { band ('walk' | 'combat' | 'assault' | 'run' | null in a float or idle), flight (s, 0 without), stepM (m) }. */
-export function stepMOf({ gait, stance = null, vMs = 0, gMs2 = 9.81, legM = LEG_K * REF_HEIGHT_M, cycle = CYCLE }) {
+export function stepMOf({ gait, stance = null, vMs = 0, gMs2 = G0_MS2, legM = LEG_K * REF_HEIGHT_M, cycle = CYCLE }) {
   if (!gait || gait === 'idle' || gait === 'float') return { band: null, flight: 0, stepM: 0 };
   const S = STEP_PX[cycle] ?? STEP_PX[CYCLE], g = Math.max(G_MIN_MS2, gMs2);
   const run = gait === 'run' || gait === 'bound';
@@ -104,11 +112,16 @@ export function moverStart(a) {
 export function locoStep(a, x0, z0, { state = null, pid = a?.who ?? null, gait = 'walk', stance = a?.moveStance ?? null, vMs = null, inHand = null, dtS = TICK_MS / 1000, stride = true } = {}) {
   if (!a) return 0;
   const dx = a.x - x0, dz = a.z - z0, moved = q(Math.hypot(dx, dz), POS_STEP_M);
-  const moving = moved > 1e-9;
+  const moving = moved > 1e-9, float = gait === 'float';
   a.gait = moving ? gait : 'idle';
+  if (float) {
+    // (free fall: no stride, no phase, the yaw the head's (see the header))
+    if (Number.isFinite(a.headRad) && a.bodyRad !== q(wrapRad(a.headRad), RAD_STEP)) a.bodyRad = q(wrapRad(a.headRad), RAD_STEP);
+    return moved;
+  }
   if (moving && stride) a.strideM = q(((a.strideM ?? 0) + moved) % STRIDE_WRAP_M, POS_STEP_M);
   if (moving) {
-    const gMs2 = state ? gravityAt(state, null, a.x, a.z).gMs2 : 9.81, legM = state && pid ? legMOf(state, pid) : LEG_K * REF_HEIGHT_M;
+    const gMs2 = state ? gravityAt(state, null, a.x, a.z).gMs2 : G0_MS2, legM = state && pid ? legMOf(state, pid) : LEG_K * REF_HEIGHT_M;
     const v = Number.isFinite(vMs) && vMs > 0 ? vMs : moved / Math.max(1e-3, dtS);
     const s = stepMOf({ gait, stance, vMs: v, gMs2, legM, cycle: CYCLE });
     if (s.stepM > 0) a.gp = q(((gpOf(a) + moved / s.stepM) % GP_WRAP + GP_WRAP) % GP_WRAP, GP_STEP);
@@ -130,4 +143,11 @@ export function locoStep(a, x0, z0, { state = null, pid = a?.who ?? null, gait =
     if (b !== a.bodyRad) a.bodyRad = b;
   }
   return moved;
+}
+
+/** A floating body's look (see the header; VIEWS §2.11): { y, vMs, tumbleRad, pushing }, or null for a body on a deck with no drift, tumble or push. */
+export function floatLook(a) {
+  if (!a || (a.floatY === undefined && !a.v && !a.tumble && !a.push)) return null;
+  if (a.floatY === undefined && a.gait !== 'float') return null;
+  return { y: a.floatY ?? 0, vMs: q(Math.hypot(a.v?.[0] ?? 0, a.v?.[1] ?? 0), 0.001), tumbleRad: a.tumbleRad ?? 0, pushing: !!a.push };
 }

@@ -94,9 +94,10 @@
 // 0.0.5 §2.2's fill; 'mixed', 0.0.6: the course from its brief with a fourth magazine, of tracer); &env=<preset> (ROADMAP
 // "anywhere" step 2: any scene under a named environment, src/data/places/env.js ENV_PRESETS, such as ship-1g, wheel (the Wheel's 1 G),
 // earth-temperate, europa-surface, ship-coast or freefall-vacuum: the sim's newGame sets it live on the scene's host before the fill, and
-// an unknown name throws there, core knowing no preset); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
+// an unknown name throws there, core knowing no preset); &grav=burn:1.0@40s~15 (v0.0.24, ROADMAP "anywhere" step 6: a ship's gravity events on
+// any scene, a test parameter, src/sim/places/gravity.js parseGrav: kind:toG@atSs[~warnS][^onsetGs][+holdS][!] (! a surprise), several by ','); and for the stage &mood=<name>, &fog=1, &nostore=1 (IndexedDB neither read nor written: shots, benches,
 // agents' smoke runs), &perf=1 (the GL counters and pass times) and &sound=old (v0.0.15's sound, to compare: 0.0.16); v0.0.20's &shot=A0..A4 (the
-// shot's candidate, every scene), &voice=a|b|c|d|old (the voice's set; old is V-a) and &look=stack:4+5,helm:r1,jamb:m2 (the To score
+// shot's candidate, every scene; A5 from v0.0.24) and &look=stack:4+5,helm:r1,jamb:m2 (the To score
 // page's picks, runtime only: state.$look), each winning over the page's kept picks. ?bench=<scene> (or ?bench=1, the
 // default scene) runs the bench card (main.js; src/data/bench.js holds the scenes).
 import { toJSON, fromJSON } from './state.js';
@@ -109,7 +110,9 @@ export const FACES = Object.freeze(['up', 'down', 'left', 'right']);
 export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200', 'far', 'standby', 'standby:1', 'standby:2', 'standby:3', 'standby:4', 'bangs', 'bangs:standby',
   // (0.0.12: test-shoothouse's, the build sheet 0.0.12 §2.3: at GO in stop motion, at room 2's or room 3's door or the hall's last leg with the rooms
   // before it cleared by the tier one's plan on the same draws, and room 1 at the sighting with the private's window open)
-  'go', 'room:2', 'room:3', 'hall', 'contact']);
+  'go', 'room:2', 'room:3', 'hall', 'contact',
+  // (test-anchors', "Anchor before you fire": station k's command given, the stations before it set up (scenarios/anchors.js ANCHORS_SETUPS))
+  's1', 's2', 's3', 's4', 's5']);
 /** test-shoothouse's pars by the URL (&par=: the build sheet 0.0.12 §4's PAR_MS names); else null, the sheet's own (PAR_OF_TIER). */
 export const PARS_URL = Object.freeze(['basic', 'advanced', 'operator']);
 /** test-shoothouse's role-players by the URL (&opfor=: 0.0.19, "Stack and clear, live"): 'none', 'live', or 'live:' and two cards (fight, give, hide); else null, none. */
@@ -142,17 +145,19 @@ export const CYCLES_URL = Object.freeze(['A', 'B', 'C']);
 
 /** The shot by the URL (&shot=A0..A4: v0.0.20's candidates, src/data/sounds.js SHOT_CANDIDATES; engine.js setShot): else null, the scene's own. */
 export const SHOTS_URL = Object.freeze(['A0', 'A1', 'A2', 'A3', 'A4']);
-/** The voice by the URL (&voice=a|b|c|d, or old (V-a, v0.0.19's stand-ins), or none: v0.0.20's sets, src/data/voices.js VOICE_SETS): else null, the game's (none from v0.0.23: the user, 2026-11-19, "no voices"). */
-export const VOICES_URL = Object.freeze(['a', 'b', 'c', 'd', 'old', 'none']);
+// (no &voice=. The voice synthesis is gone whole (the user, 2026-11-19: "forget voice synthesis, no voices."): an old URL
+// with &voice= is read as if it had none, with no toast and no error, as any parameter the game does not know)
 /** The look's flags by the URL (&look=stack:4+5,helm:r1,jamb:m2: v0.0.20's To score picks; a query reads '+' as a space, taken as one), the form only (ui/cards/topick.js parseLook reads and checks them). */
 export const LOOK_URL = /^[a-z0-9:+, ]{1,80}$/i;
+/** &grav='s form (v0.0.24, step 6): kinds, numbers and the grammar's marks, a '+' coming through as a space; the events are parsed by gravity.js parseGrav. */
+export const GRAV_URL = /^[a-z0-9.:@~^+!, ]{1,160}$/;
 /** The shoot house's light by the URL (&houselight=b|c, FL-9's candidates: src/data/places/house-light.js houseLightOf; else null, today's HL-a). */
 export const HOUSE_LIGHTS_URL = Object.freeze(['a', 'b', 'c']);
 
 /** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
 export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, loadout, opfor, draw, house, doors, rooms, layout, plans, panel, cycle, sound, shot, voice, look, houseLight }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, grav, loadout, opfor, draw, house, doors, rooms, layout, plans, panel, cycle, sound, shot, look, houseLight }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -177,6 +182,10 @@ export function readParams(search = globalThis.location?.search ?? '') {
     par: PARS_URL.includes(q.get('par')) ? q.get('par') : null,
     flashes: FLASHES.includes(q.get('flashes')) ? q.get('flashes') : null,
     env: /^[a-z0-9-]{1,32}$/.test(q.get('env') ?? '') ? q.get('env') : null,
+    // (ROADMAP "anywhere" step 6: a ship's gravity events on any scene, 'burn:1.0@40s~15' (src/sim/places/gravity.js
+    // parseGrav, which main.js reads and drops with a toast when it does not parse, as it does &env=; a form past GRAV_URL kept short
+    // for the toast, never parsed as anything else)
+    grav: q.get('grav') ? (GRAV_URL.test(q.get('grav')) ? q.get('grav') : String(q.get('grav')).slice(0, 40)) : null,
     // (v0.0.18: test-shoothouse's loadout, a preset or a code (src/sim/arms/loadout.js; a '+' comes through as a space), read by
     // main.js, which drops an unknown one with a toast as it does &env=)
     loadout: /^[a-z0-9~:,+ -]{1,160}$/.test(q.get('loadout') ?? '') ? q.get('loadout') : null,
@@ -197,9 +206,8 @@ export function readParams(search = globalThis.location?.search ?? '') {
     panel: PANELS_URL.includes(String(q.get('panel') ?? '').toLowerCase()) ? String(q.get('panel')).toLowerCase() : null,
     cycle: CYCLES_URL.includes(String(q.get('cycle') ?? '').toUpperCase()) ? String(q.get('cycle')).toUpperCase() : null,
     sound: SOUNDS_URL.includes(q.get('sound')) ? q.get('sound') : null,
-    // (the shot's candidate, the voice's set (old is V-a), the look's flags: the To score page's, by the URL, which wins)
+    // (the shot's candidate and the look's flags: the To score page's, by the URL, which wins)
     shot: SHOTS_URL.includes(String(q.get('shot') ?? '').toUpperCase()) ? String(q.get('shot')).toUpperCase() : null,
-    voice: VOICES_URL.includes(String(q.get('voice') ?? '').toLowerCase()) ? (String(q.get('voice')).toLowerCase() === 'old' ? 'a' : String(q.get('voice')).toLowerCase()) : null,
     look: LOOK_URL.test(q.get('look') ?? '') ? q.get('look') : null,
     // (FL-9: a candidate of the shoot house's light, 'HL-b' or 'HL-c' (runtime only, state.$houseLight); 'a' or none is today's)
     houseLight: HOUSE_LIGHTS_URL.includes(hl) && hl !== 'a' ? `HL-${hl}` : null,
@@ -322,7 +330,7 @@ export function createDebugHandle({ loop, sim = null, start, newGame, version = 
     scores() { return scores ? scores() : { v: 1, scores: [] }; },
     /** The gun the player holds or slings: { id, truth, belief }, or null (main.js gives arms' readers). */
     gun() { return arms?.gun && loop.state ? arms.gun(loop.state) : null; },
-    /** The To score page's picks as played (the shot, the voice, the walk, the look, your #2's drawn look), or null (main.js gives arms' readers). */
+    /** The To score page's picks as played (the shot, the walk, the look, your #2's drawn look), or null (main.js gives arms' readers). */
     picks() { return arms?.picks ? arms.picks() : null; },
     /** The step panel now: { steps, slots, text }, or null. */
     steps() { return arms?.steps && loop.state ? arms.steps(loop.state) : null; },

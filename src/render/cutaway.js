@@ -42,6 +42,8 @@ export { WALL_H_M, CUT_H_M };
 export const CUT = 0x3a3f4b;
 export const DARK = 0x14151c;
 export const STRIP = SHIP_GLOWS[0], BATTLE_RED = SHIP_GLOWS[1], EMERGENCY_AMBER = 0xffb347;
+/** A void bulkhead's rung (v0.0.24: the hold rule's, samples/void-look H-a's safety yellow). */
+export const RUNG_YELLOW = 0xc8a43a;
 /** Heights of the battle strip (north wall, cut walls), the emergency lamps; the floor strips' width; metres. */
 export const BATTLE_Y_M = 1.3, BATTLE_CUT_Y_M = 0.8, EMERGENCY_Y_M = 2.2, STRIP_W_M = 0.08;
 
@@ -118,8 +120,8 @@ function paintDoor(px, x, w, h, f, ppm, label) {
  */
 export function decorRect(d, ppm, X, faceH) {
   const f = fontFor(ppm), text = d.text ?? 'MCRN';
-  const w = d.kind === 'stencil' ? f.width(text) : Math.max(3, Math.round((d.w ?? (d.kind === 'emergency' ? 0.3 : 0.6)) * ppm));
-  const h = d.kind === 'stencil' ? f.h : Math.max(3, Math.round((d.h ?? (d.kind === 'emergency' ? 0.14 : 0.4)) * ppm));
+  const w = d.kind === 'stencil' ? f.width(text) : Math.max(3, Math.round((d.w ?? (d.kind === 'emergency' ? 0.3 : d.kind === 'rung' ? 0.5 : 0.6)) * ppm));
+  const h = d.kind === 'stencil' ? f.h : d.kind === 'rung' ? 2 : Math.max(3, Math.round((d.h ?? (d.kind === 'emergency' ? 0.14 : 0.4)) * ppm));
   const y = d.y ?? (d.kind === 'emergency' ? EMERGENCY_Y_M : 1.5);
   return { x: X(d.x) - Math.floor(w / 2), y: faceH - Math.round(y * ppm) - h, w, h };
 }
@@ -141,6 +143,8 @@ function paintDecor(px, d, x, y, w, h, f, ppm) {
   }
   if (d.kind === 'clock') { px(x, y, w, h, 0x23252f); px(x + 1, y + 1, w - 2, h - 2, 0xf4efe6); const cx = x + Math.floor(w / 2), cy = y + Math.floor(h / 2); px(cx, y + 2, 1, cy - y - 1, 0x23252f); px(cx, cy, Math.max(1, Math.floor(w / 3)), 1, 0x23252f); return; }
   if (d.kind === 'stencil') { fontFor(ppm).stencil(px, x, y, d.text ?? 'MCRN', d.color ?? stencilColour(f)); return; }
+  // (a rung of the hold rule on a void's bulkhead, samples/void-look H-a's: a yellow bar standing off the face, its feet dark)
+  if (d.kind === 'rung') { px(x, y, w, 1, RUNG_YELLOW); px(x, y + 1, w, Math.max(1, h - 1), tone(RUNG_YELLOW, -0.2)); px(x, y + h, 1, 1, tone(f.c2, -0.2)); px(x + w - 1, y + h, 1, 1, tone(f.c2, -0.2)); return; }
   // a sign: a plate, its text centred
   const c = d.color ?? 0x9e3c36;
   px(x, y, w, h, c); bevel(px, x, y, w, h, c, 1.2);

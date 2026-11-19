@@ -39,6 +39,9 @@
 // through a 2 kHz band, its fundamental under it and the blades' hiss); and the R menu's sounds on the UI bus:
 // uiMove a 12 ms tick as the cursor moves, uiCheck a latch's click as a box is checked and uiUncheck the same
 // lower, uiConfirm two rising notes (660 then 880 Hz) on DO IT, uiClose a falling blip.
+// Step 5 of "anywhere": a surface's footstep is its SURFACES row's `step` (src/data/places/env.js), so ice, soil and a
+// deck plate are heard by their own kind, and a locked mag boot on steel clanks (STEPS.mag, my call).
+import { SURFACES } from './places/env.js';
 
 /** At most this many voices at once; a sound past it is dropped (VIEWS §11.2's 48). */
 export const VOICES_MAX = 48;
@@ -52,8 +55,16 @@ export const LOWPASS_REF_HZ = 8000, LOWPASS_REF_KPA = 101.3;
 // air is 65.9 kPa, a building's Martian indoor standard 66.0 kPa: src/data/places/env.js AIRS.)
 /** A gait's foot strikes harder or softer than the walk's (dB, my calls; the bound's landing is BODY's at 0.0.5). */
 export const GAIT_DB = Object.freeze({ walk: 0, stroll: -4, run: 4, bound: 6 });
-/** What the feet hear on each surface PLACES names (surfaceAt): tile and vinyl tick, concrete and paving slap, regolith crunches. */
-export const SURFACE_STEP = Object.freeze({ tile: 'tile', vinyl: 'tile', concrete: 'concrete', paving: 'concrete', stairs: 'concrete', regolith: 'regolith', path: 'regolith' });
+/**
+ * What the feet hear on each surface PLACES names (surfaceAt): the SURFACES row's own `step` (src/data/places/env.js, the one
+ * home: step 5 of "anywhere"), tile and vinyl tick, concrete, paving, a deck plate and rock slap, regolith, soil and ice
+ * crunch; 'path' a trodden way's regolith. Mag boots locked on a ferrous face clank (MAG_STEP, src/ui/audio/steps.js stepVoice).
+ */
+export const SURFACE_STEP = Object.freeze({ ...Object.fromEntries(Object.entries(SURFACES).map(([id, r]) => [id, r.step])), path: 'regolith' });
+/** The footstep of a locked mag boot on a ferrous face (BODY §16.6): the magnet's clank on steel, whatever the plate's own step. */
+export const MAG_STEP = 'mag';
+/** A locked mag boot strikes with at least this weight (G): its 300 N hold on a marine of about 100 kg in kit, felt as 0.3 G (my call; BODY §16.6). */
+export const MAG_STEP_G = 0.3;
 /** Distance for a sound not your own: inverse distance from 1 m, rolloff 1.5 indoors and 1 outdoors (VIEWS §11.2). */
 export const ROLLOFF = Object.freeze({ floor: 1.5, ground: 1, default: 1.5 });
 /** The stereo spread: a source this far to one side is panned fully (metres, my call). */
@@ -75,6 +86,15 @@ export const STEPS = Object.freeze({
       Object.freeze({ kind: 'noise', bandpass: Object.freeze([800, 1.1]), attackS: 0.001, decayS: 0.014, db: 0 }),
       Object.freeze({ kind: 'noise', bandpass: Object.freeze([1900, 2.2]), attackS: 0.004, decayS: 0.02, delayS: 0.012, db: -15 }),
       Object.freeze({ kind: 'tone', hz: 100, toHz: 70, attackS: 0.002, decayS: 0.02, db: -8 }),
+    ]),
+  }),
+  // (step 5: a mag boot's sole snapping onto steel: a short ring over the plate's thud (my call))
+  mag: Object.freeze({
+    levelDb: -10, durS: 0.08, variants: 4,
+    layers: Object.freeze([
+      Object.freeze({ kind: 'noise', bandpass: Object.freeze([1200, 1.4]), attackS: 0.0008, decayS: 0.012, db: 0 }),
+      Object.freeze({ kind: 'tone', hz: 1650, toHz: 1600, attackS: 0.0005, decayS: 0.03, db: -12 }),
+      Object.freeze({ kind: 'tone', hz: 95, toHz: 70, attackS: 0.002, decayS: 0.02, db: -9 }),
     ]),
   }),
   regolith: Object.freeze({
@@ -136,6 +156,14 @@ export const CLIPPER_HZ = 120;
 /** Bugle notes (Hz): the call is on the bugle's harmonics in C. */
 const G4 = 392, C5 = 523.25, E5 = 659.26, G5 = 783.99;
 
+/**
+ * The brace siren aboard a ship (v0.0.24, ROADMAP "anywhere" step 6; src/ui/audio/siren.js plays it): samples/void-look's S-a, the
+ * default until the user scores it (stage 0's set, the build sheet §0 item 27): two tones a minor third apart, SIREN_HZ, high and
+ * low a half cycle each (my calls: a ship's alarm), one cycle a recipe played every SIREN_CYCLE_MS while a brace is warned, at
+ * SIREN_DB against the recipe's peak (the sample's level, what the user hears and scores) through the compartment's air. S-b, the
+ * rising whoop, is the sample's other candidate: a score swaps this row.
+ */
+export const SIREN_HZ = Object.freeze([960, 770]), SIREN_CYCLE_MS = 1000, SIREN_DB = -6;
 /** The world's sounds of the round (see the header). */
 export const WORLD = Object.freeze({
   water: Object.freeze({
@@ -185,6 +213,11 @@ export const WORLD = Object.freeze({
       Object.freeze({ kind: 'noise', highpass: 4000, attackS: 0.0002, decayS: 0.0012, db: 0 }),
       Object.freeze({ kind: 'tone', hz: 3200, toHz: 3000, attackS: 0.0002, decayS: 0.0018, db: -6 }),
     ]),
+  }),
+  // (ROADMAP "anywhere" step 6: a ship's brace siren, samples/void-look's S-a until scored: SIREN below)
+  siren: Object.freeze({
+    levelDb: -3, durS: 1.02, variants: 1, rateHz: WORLD_RATE_HZ,
+    layers: Object.freeze([Object.freeze({ kind: 'notes', notes: Object.freeze(SIREN_HZ.map(hz => Object.freeze([hz, SIREN_CYCLE_MS / 2000]))), gapS: 0.01, vibratoK: 0, scoopK: 0, attackS: 0.01, releaseS: 0.02, db: 0 })]),
   }),
   // (the 0.0.6 round's, below: the clippers' loop and the R menu's sounds)
   clippers: Object.freeze({
@@ -589,11 +622,10 @@ export const STRESS = Object.freeze({
 // hall's reverb (HALL: RT60 0.6 s, early reflections off the panels 2 to 5 m away, a send of HALL.sendDb from the world bus,
 // src/ui/audio/engine.js's convolver over an impulse made by code: hallImpulse), so a shot rings in the room it is fired in and
 // the berm's slap-back of the range is not heard. A shot reaches you through the suit's hearing filter (SUIT_EARS_DB, its limiter's
-// gate: the combat EVA suit filters; no ear defenders, the build sheet's §2.1), as defenders did on the range. The instructor's
-// words are the PA's: "Standby", "GO" and "Stop" (PA_WORDS: voiced syllables, a sawtooth at the voice's pitch through two
-// formants, its consonants band-passed noise), his faults as speech in the radio box; the stack's whispered "Ready" (the #2's: the
-// same syllables as noise through the formants, no pitch, a hand's breadth from your ear); "Clear!" shouted. The timer is the
-// instructor's: a 2.4 kHz beep at GO (TIMER_HZ), its double beep for a room cleared within par, and the harness's low tone
+// gate: the combat EVA suit filters; no ear defenders, the build sheet's §2.1), as defenders did on the range. Every word said in
+// the house is text, a bubble at its speaker (v0.0.24: the PA's "Standby", "GO" and "Stop", the #2's whispered "Ready" and the
+// shouted "Clear!", voiced syllables from 0.0.12 to v0.0.23, are gone with the voice synthesis: the user, 2026-11-19, "forget
+// voice synthesis, no voices."). The timer is the instructor's: a 2.4 kHz beep at GO (TIMER_HZ), its double beep for a room cleared within par, and the harness's low tone
 // (HARNESS_HZ 400 Hz, 0.4 s) at a par missed. The doors: the push (a latch and a quick swing), the pull (the latch, a step back,
 // the swing), the kick (a boot's thump on the leaf and the frame's crack), a lock's rattle when a leaf will not give. The suit's
 // footsteps are the built cadence and weight (steps.js: 4.53 foot-falls a second walking at 1 G) with a rubber sole's scuff over
@@ -604,26 +636,10 @@ export const HALL = Object.freeze({ rt60S: 0.6, earlyM: Object.freeze([2, 2.8, 3
 export const SUIT_EARS_DB = -20, SUIT_EARS_LP_HZ = 3000;
 /** The instructor's timer (Hz) and the harness's tone (Hz, s). */
 export const TIMER_HZ = 2400, HARNESS_HZ = 400, HARNESS_S = 0.4;
-/** The PA's voice at 1 m against its recipe (dB), from the catwalk; a whisper at your ear (dB); a shout at 1 m (dB). */
-export const PA_VOICE_DB = 14, WHISPER_DB = -14, SHOUT_DB = 8;
 /** A suit's footfall's scuff over the built step (dB against the step's recipe). */
 export const SUIT_SCUFF_DB = -6;
 /** The leaf's knock on its stop against a push's own sound where it is (dB): a kick's (under its boom), a kick's rebound back on it, a push's 6 dB under a kick's (the build sheet v0.0.20 item 15: a pull has none). */
 export const DOOR_STOP_DB = -6, DOOR_REBOUND_DB = -14, DOOR_PUSH_STOP_DB = -12;
-/** What a 'house' fact's phase plays (src/ui/audio/house.js). */
-export const HOUSE_CUES = Object.freeze({ go: 'paGo', stop: 'paStop', clear: 'shoutClear', par: 'harnessTone' });
-// (a voiced syllable: a sawtooth at the voice's pitch gliding down, through two formants of a vowel; my numbers, from the vowels' textbook
-// formants: "oh" 500 and 900 Hz, "ah" 700 and 1,200, "eh" 550 and 1,800, "ee" 300 and 2,300)
-const syl = (delayS, durS, hz, f1, f2, db = 0) => [
-  Object.freeze({ kind: 'glide', hz, toHz: hz * 0.88, durS, delayS, attackS: 0.02, releaseS: 0.06, formant: Object.freeze([f1, 4]), db }),
-  Object.freeze({ kind: 'glide', hz, toHz: hz * 0.88, durS, delayS, attackS: 0.02, releaseS: 0.06, formant: Object.freeze([f2, 5]), db: db - 6 }),
-];
-// (a whispered syllable: noise through the vowel's two formants, no pitch)
-const whisp = (delayS, durS, f1, f2, db = 0) => [
-  Object.freeze({ kind: 'noise', bandpass: Object.freeze([f1, 3]), attackS: 0.03, decayS: durS * 0.6, delayS, db }),
-  Object.freeze({ kind: 'noise', bandpass: Object.freeze([f2, 4]), attackS: 0.03, decayS: durS * 0.5, delayS, db: db - 3 }),
-];
-const cons = (delayS, hz, decayS, db) => Object.freeze({ kind: 'noise', bandpass: Object.freeze([hz, 1.5]), attackS: 0.002, decayS, delayS, db });
 /** The shoot house's recipes (see the header). */
 export const HOUSE = Object.freeze({
   timerGo: Object.freeze({ levelDb: -14, durS: 0.5, variants: 1, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
@@ -657,21 +673,6 @@ export const HOUSE = Object.freeze({
     Object.freeze({ kind: 'grains', n: 6, spreadS: 0.22, bandpass: Object.freeze([2300, 2.5]), decayS: 0.006, db: 0 }),
     Object.freeze({ kind: 'tone', hz: 1700, toHz: 1650, attackS: 0.0005, decayS: 0.01, db: -8 }),
   ]) }),
-  paStandby: Object.freeze({ levelDb: -12, durS: 0.8, variants: 1, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
-    cons(0, 5000, 0.05, -6), cons(0.07, 3000, 0.01, -10), ...syl(0.09, 0.2, 130, 700, 1200), cons(0.32, 1800, 0.012, -10), ...syl(0.36, 0.34, 118, 550, 1800, -2),
-  ]) }),
-  paGo: Object.freeze({ levelDb: -8, durS: 0.55, variants: 1, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
-    cons(0, 1500, 0.012, -8), ...syl(0.03, 0.42, 150, 500, 900),
-  ]) }),
-  paStop: Object.freeze({ levelDb: -10, durS: 0.55, variants: 1, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
-    cons(0, 5200, 0.06, -6), cons(0.09, 3200, 0.008, -10), ...syl(0.1, 0.28, 140, 700, 1100), cons(0.4, 1200, 0.01, -12),
-  ]) }),
-  shoutClear: Object.freeze({ levelDb: -10, durS: 0.6, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
-    cons(0, 2600, 0.012, -6), ...syl(0.04, 0.18, 165, 300, 2300, -2), ...syl(0.2, 0.3, 150, 650, 1500),
-  ]) }),
-  whisperReady: Object.freeze({ levelDb: -24, durS: 0.55, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
-    ...whisp(0, 0.2, 550, 1800), cons(0.2, 2800, 0.01, -8), ...whisp(0.22, 0.24, 300, 2300, -2),
-  ]) }),
   // (the build sheet v0.0.20 item 15: the leaf's knock on its stop, a 90 Hz thump of the leaf with a 2.2 kHz rattle of its frame; my numbers)
   doorStop: Object.freeze({ levelDb: -8, durS: 0.3, variants: 2, rateHz: WORLD_RATE_HZ, layers: Object.freeze([
     Object.freeze({ kind: 'tone', hz: 90, toHz: 70, attackS: 0.001, decayS: 0.06, db: 0 }),
@@ -701,8 +702,16 @@ export const HOUSE = Object.freeze({
 //       50 ms, since a higher ceiling only lets the lone peak duck the body harder (build sheet item 2's targets: the loudest
 //       50 ms at least -11.0 dBFS, the loudest 10 ms -9.0, the peak at most -1.0);
 //   A4  A3 with the room's first-order reflections over 5 to 30 ms 2 dB up.
-// The house plays A3 (SHOT_SCENES), every other scene A1, since "Bang" was scored 100 on it; &shot=A0..A4 and the To score
+// The house played A3 (SHOT_SCENES), every other scene A1, since "Bang" was scored 100 on it; &shot=A0..A5 and the To score
 // page's Shot row choose one anywhere (engine.js setShot).
+// v0.0.24 (the user, 2026-11-19, A4 starred: "If i had to pick only one it's the last one, however, I would use the R-7 wave for
+// the P-12 and make the R-7 sound meaner, blunter, more bass heavy. less a "PAF" and more a "DOOM""): every scene plays A5, A4
+// with the P-12 voiced as A4's R-7 (the R-7's wave, its A4 numbers: the gas 20 ms, the gust 40 ms and 6 dB up, the thump 55 ms
+// and 3 dB up; the pistol's own crack, action and loudness, its make-up +6 dB against A4's +5 so it sits 3.8 dB under the rifle
+// over 50 ms in the suit) and the R-7 as gun.js R7_DOOM, through the electronics' band opened to 70 Hz for the rifle (A4's 160,
+// kept for the pistol) so the boom reaches the ear in the suit and the defenders: in the house through the suit 73% of the
+// R-7's first 200 ms under 200 Hz (A4's 17%), its loudest 50 ms -8.8 dBFS (A4's -10.6), its peak -1.3 (A4's -1.5).
+// samples/audio's D group sends it to score against A4 (my call: the decided default until the user says otherwise).
 const BODY = Object.freeze({ gasMs: Object.freeze({ r7: 20, p12: 9 }), gustMs: Object.freeze({ r7: 40, p12: 20 }), gustDb: 6, thumpMs: Object.freeze({ r7: 55, p12: 30 }), thumpDb: 3 });
 const DENSE = Object.freeze({ ceilingDb: -14, protect: Object.freeze({ makeupDb: Object.freeze({ r7: 15, p12: 5 }) }) });
 /** The shot's candidates (see above): per gun { gasMs, gustMs, thumpMs } where they differ; gustDb, thumpDb (dB over the built); ceilingDb and protect (the protection's, over PROTECT); roomEarlyDb (the room's first taps, dB); old (the report). */
@@ -712,11 +721,16 @@ export const SHOT_CANDIDATES = Object.freeze({
   A2: BODY,
   A3: Object.freeze({ ...BODY, ...DENSE }),
   A4: Object.freeze({ ...BODY, ...DENSE, roomEarlyDb: 2 }),
+  A5: Object.freeze({
+    gasMs: Object.freeze({ p12: 20 }), gustMs: Object.freeze({ p12: 40 }), gustDb: Object.freeze({ p12: 6 }), thumpMs: Object.freeze({ p12: 55 }), thumpDb: Object.freeze({ p12: 3 }),
+    ceilingDb: -14, protect: Object.freeze({ makeupDb: Object.freeze({ r7: 15, p12: 6 }), hpHz: Object.freeze({ r7: 70, p12: 160 }) }), roomEarlyDb: 2,
+    waves: Object.freeze({ r7: 'r7doom', p12: 'r7' }),
+  }),
 });
 /** The candidates' ids, in order. */
 export const SHOT_IDS = Object.freeze(Object.keys(SHOT_CANDIDATES));
-/** The scenes that play SHOT_HOUSE until the user scores the shot; every other plays SHOT_DEFAULT. */
+/** The scenes that play SHOT_HOUSE; every other plays SHOT_DEFAULT: one shot in every scene from v0.0.24 (A5, see above). */
 export const SHOT_SCENES = Object.freeze(['test-shoothouse', 'test-shoothouse-live']);
-export const SHOT_HOUSE = 'A3', SHOT_DEFAULT = 'A1';
+export const SHOT_HOUSE = 'A5', SHOT_DEFAULT = 'A5';
 /** The shot a scene plays (engine.js setShot's choice): the asked one (&shot, the To score pick) if it is a candidate, else the house's in SHOT_SCENES, else the default. */
 export const shotFor = (scene, asked = null) => (SHOT_CANDIDATES[asked] ? asked : SHOT_SCENES.includes(scene) ? SHOT_HOUSE : SHOT_DEFAULT);

@@ -30,7 +30,7 @@ export const CARD_CASES = Object.freeze([
   ['4x', { belief: b({ optic: 4 }) }], ['the KD at 300', { belief: b({ optic: 4, sight: { elev: 3, wind: -1 } }), distance: true, line: 300, hold: { xMil: 0.5, yMil: 0 } }],
   ['zeroing', { belief: b({ sight: { elev: 4, wind: 2 } }), distance: true, zeroing: { from: { elev: 0, wind: 0 } } }],
   ['desert finish', { belief: b({}), finish: 'desert' }], ['P12A drawn', { model: 'p12', drawing: 'p12a', belief: { ...P12 } }],
-  ['P12B locked', { model: 'p12', drawing: 'p12b', belief: { ...P12, locked: true, chamber: 'empty', count: 0, port: 'open', mode: 'semi' } }],
+  // (v0.0.24: 'P12B locked' retired with the slab, which the user scored 0 on 2026-11-19 and the game dropped)
   ['P12C hand', { model: 'p12', drawing: 'p12c', belief: { ...P12, mag: 'out', count: null, hand: { fam: 'had17', n: 10, approx: false, load: 'frangible', feel: null, cap: 17 } } }],
   ['P12D click', { model: 'p12', drawing: 'p12d', belief: { ...P12, stoppage: 'click', mode: 'semi' } }],
 ]);
@@ -54,7 +54,6 @@ const CARD_HASHES = Object.freeze({
   'zeroing': '1fb688d15ce55b',
   'desert finish': '07214684dd79f5',
   'P12A drawn': '0e1de556cf713f',
-  'P12B locked': '15bc6a1a75eb78',
   'P12C hand': '0c96477e1a84ec',
   'P12D click': '03416aa7856930',
 });

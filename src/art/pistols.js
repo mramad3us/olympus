@@ -4,7 +4,7 @@
 // Sergeant up: a striker pistol, 19.5 cm, with an oversized ambidextrous frame safety (up safe, down fire), irons (the
 // RD-1P red dot waits), a HAD-17 holding the house's ten frangible rounds, carried on the right thigh. Until v0.0.14 the
 // weapon card drew the R-7 whatever was in hand (WEAPONS §3.2's note, VIEWS §4.4); this module is the machinery the card
-// needs for a pistol, and four designs of the P-12 for the user to score in the gallery (samples/p12-card, samples/p12-draw),
+// needs for a pistol, and the designs of the P-12 the user scored in the gallery (samples/p12-card, samples/p12-draw),
 // as the rifles were chosen (src/art/rifles.js). From v0.0.18 the game's card draws the P-12 as P12A (PISTOL_DRAWN_AS, my call,
 // provisional until the user's pick; v0.0.17's was empty and the card drew the R-7 with the pistol's belief on it); a sample's
 // explicit `drawing` (weaponcard.js paintWeaponCard) reaches any design.
@@ -13,14 +13,16 @@
 // black is a dark slide over a black polymer frame, and flat dark earth the usual tan frame under a black slide):
 //   - p12a, "the service pistol": a squared slide with rear and front serrations, the frame's accessory rail under its
 //     dust cover, a rounded undercut guard, a short beavertail, a stippled grip, a flush baseplate, low irons;
-//   - p12b, "the slab": a flat-sided slide with a chamfered nose and angled serrations, the RD-1P's cut on the slide
-//     closed by its cover plate (the dot waits: the plate is drawn, not the sight), a ledge rear sight that racks the
-//     slide off a belt or a boot one-handed, a squared guard with a hook, a flared magwell, a pad on the baseplate;
+//   - (p12b, "the slab", scored 0 by the user on 2026-11-19 and dropped in v0.0.24; the grammar's hook, ledge, pad and flare
+//     stay for later pistols);
 //   - p12c, "the monolith": slide and frame in one tone, the slide's top sloping from a tall rear to the nose, a full
 //     dust cover to the muzzle, a straight-backed grip in finger grooves, a long beavertail;
 //   - p12d, "the lanyard": a rounded slide (the classic's), fish-scale serrations, a lightening window over the barrel's
 //     front, a round guard, a wrapped grip, and a lanyard loop at the heel (a marine's pistol is tied on: in free fall a
 //     dropped one leaves, WEAPONS' gravity table).
+// v0.0.24 (the user, 2026-11-19: "whatever is in game is perfect" of P12A; P12C "gosh this one as an alt is very good as well";
+// P12D "add this for variety as well, don't forget there will be many more weapons as we build variety later on"): the P-12 stays
+// p12a (PISTOL_DRAWN_AS); p12c and p12d are kept as the alternate pistols' drawings, drawn by no model yet.
 // A drawing has:
 //   - card(c): the pistol at PISTOL_CARD_PX_PER_M, three times the rifle's card density (a 19.5 cm pistol at the rifle's
 //     144 px/m would be 28 px on a 180 px card: at 432 it is 84 px and reads), muzzle to the right, its state as the
@@ -71,8 +73,6 @@ const COPPER = 0xb8643a, TRACER_TIP = 0xc23b2e, SKIN = 0xb0806a, SKIN_D = 0x8a5e
 const SHAPES = Object.freeze({
   p12a: Object.freeze({ top: [8, 8], nose: 'square', ser: 'line', front: [0.145, 0.168], cut: null, tone: 'metal', sights: 'low',
     dust: 0.168, rail: true, guard: 'round', beaver: 'short', slant: 0.3, texture: 'stipple', plate: 'flush', flare: false, grooves: false, lanyard: false }),
-  p12b: Object.freeze({ top: [8, 8], nose: 'chamfer', ser: 'angled', front: [0.14, 0.165], cut: 'plate', tone: 'metal', sights: 'ledge',
-    dust: 0.175, rail: true, guard: 'hook', beaver: 'short', slant: 0.3, texture: 'stipple', plate: 'pad', flare: true, grooves: false, lanyard: false }),
   p12c: Object.freeze({ top: [9, 7], nose: 'slope', ser: 'line', front: null, cut: null, tone: 'frame', sights: 'low',
     dust: 0.19, rail: false, guard: 'square', beaver: 'long', slant: 0.18, texture: 'grooves', plate: 'flush', flare: false, grooves: true, lanyard: false }),
   p12d: Object.freeze({ top: [8, 8], nose: 'round', ser: 'fish', front: null, cut: 'window', tone: 'metal', sights: 'low',
@@ -276,11 +276,10 @@ function template(art, top) {
   return Object.freeze({ len, grip: G.grip * k, fore: G.fore * k, muzzle: G.muzzle * k, magwell: G.magwell * k, parts: Object.freeze(parts), mag: Object.freeze([]), loose: 'u', furn: FURN });
 }
 // (seven pixels along at 16 px/m, the 0.42 m a chibi's pistol is drawn (body.js pistolM): the slide in gun metal over the frame
-// in the furniture, the grip two pixels under the hand; each design's one or two telling pixels: a's port glint, b's plate on
-// top and its hooked guard, c's tall rear in one tone, d's lanyard loop under the heel)
+// in the furniture, the grip two pixels under the hand; each design's one or two telling pixels: a's port glint, c's tall rear
+// in one tone, d's lanyard loop under the heel)
 const FIG = Object.freeze({
   p12a: template(['nnnnvnn', 'tttttt.', 'tt.....'], -1),
-  p12b: template(['.nn....', 'nnnnnnn', 'tttttt.', 'tt..t..'], -2),
   p12c: template(['tt.....', 'ttttvtt', 'ttttttt', 'tt.....'], -2),
   p12d: template(['nnnnnnv', 'ttttt..', 'tt.....', 'v......'], -1),
 });
@@ -290,7 +289,6 @@ const FIG = Object.freeze({
 /** The designs by id (see the header): { id, name, short, lenM, shape, fig }. */
 export const PISTOL_DESIGNS = Object.freeze({
   p12a: Object.freeze({ id: 'p12a', short: 'A', name: 'the service pistol: squared slide, rail, stippled grip, flush plate', lenM: P12_LEN_M, shape: SHAPES.p12a, fig: FIG.p12a }),
-  p12b: Object.freeze({ id: 'p12b', short: 'B', name: "the slab: chamfered slide, the RD-1P's cover plate, ledge sight, hooked guard, flared well", lenM: P12_LEN_M, shape: SHAPES.p12b, fig: FIG.p12b }),
   p12c: Object.freeze({ id: 'p12c', short: 'C', name: 'the monolith: one tone, sloping slide, full dust cover, finger grooves', lenM: P12_LEN_M, shape: SHAPES.p12c, fig: FIG.p12c }),
   p12d: Object.freeze({ id: 'p12d', short: 'D', name: 'the lanyard: rounded slide, fish scales, window over the barrel, lanyard loop', lenM: P12_LEN_M, shape: SHAPES.p12d, fig: FIG.p12d }),
 });

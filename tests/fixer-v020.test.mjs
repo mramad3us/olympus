@@ -17,29 +17,9 @@ import { runSheetEl } from '../src/ui/cards/house.js';
 import { houseHonestBot } from './bots/house.mjs';
 import { houseNow } from '../src/sim/scenarios/shoothouse.js';
 import { laneModel } from '../src/ui/hud/timer.js';
-import { createAudio } from '../src/ui/audio/engine.js';
 import { modelOf } from '../src/sim/arms/groups.js';
-import { fixedLines } from '../src/ui/audio/house.js';
 
 const fixture = () => gunzipSync(readFileSync(path.join(root, 'tests', 'topup-crash.json.gz'))).toString();
-// ---- a stand-in AudioContext (audio-gun's): the graph as plain objects ----
-const param = (v = 0) => ({ value: v, setValueAtTime(x) { this.value = x; }, setTargetAtTime(x) { this.value = x; }, cancelScheduledValues() {} });
-class FakeNode { constructor(ctx, kind) { this.ctx = ctx; this.kind = kind; this.outs = []; } connect(n) { this.outs.push(n); return n; } disconnect() { this.outs = []; } }
-class FakeContext {
-  constructor() { this.state = 'suspended'; this.currentTime = 0; this.sampleRate = 48000; this.destination = new FakeNode(this, 'destination'); this.started = []; this.made = []; }
-  mk(kind, extra = {}) { const n = Object.assign(new FakeNode(this, kind), extra); this.made.push(n); return n; }
-  resume() { this.state = 'running'; this.onstatechange?.(); return Promise.resolve(); }
-  close() { this.state = 'closed'; }
-  createGain() { return this.mk('gain', { gain: param(1) }); }
-  createBiquadFilter() { return this.mk('biquad', { type: 'lowpass', frequency: param(350), Q: param(1) }); }
-  createDynamicsCompressor() { return this.mk('compressor', { threshold: param(-24), knee: param(30), ratio: param(12), attack: param(0.003), release: param(0.25) }); }
-  createConvolver() { return this.mk('convolver', { normalize: true, buffer: null }); }
-  createStereoPanner() { return this.mk('panner', { pan: param(0) }); }
-  createWaveShaper() { return this.mk('shaper', { curve: null, oversample: 'unset' }); }
-  createBuffer(ch, len, sr) { const data = Array.from({ length: ch }, () => new Float32Array(len)); return { numberOfChannels: ch, length: len, sampleRate: sr, getChannelData: (i) => data[i], copyToChannel: (src, i) => data[i].set(src) }; }
-  createBufferSource() { const ctx = this; return this.mk('source', { buffer: null, loop: false, playbackRate: param(1), start(t) { ctx.started.push({ src: this, at: t }); }, stop() {} }); }
-}
-
 // (a document enough for runSheetEl in node: elements that keep their children, their text and their dataset)
 const fakeDoc = { createElement: (tag) => ({ tag, kids: [], dataset: {}, append(...k) { this.kids.push(...k); } }) };
 const textOf = (n) => (typeof n === 'string' ? n : [n.textContent ?? '', ...(n.kids ?? []).map(textOf)].filter(Boolean).join(' '));
@@ -145,25 +125,8 @@ export default [
       assert(!wrong.length, JSON.stringify({ wrong, met }));
     },
   },
-  {
-    name: 'the house\'s voice keeps every fixed line (the PA\'s, the team\'s calls) however many other lines are said, and bakes a line said after the sounds are all baked: 230 lines after the fixed 56 leave the 56 cached and 160 others, and a fixed line said again is not baked again (the code review of v0.0.20: the trim deleted the oldest, the fixed lines first, at 280; and no line said once toBake was empty was ever baked)',
-    heavy: true, // (the v0.0.22 integration: the file over its quick CPU budget, 3 s (QUICK_FILE_CPU_S), on v0.0.21's runner; its whole lanes moved to the heavy suite as TECH §13.7 says, the case unchanged)
-    fn() {
-      const Klass = function () { return new FakeContext(); };
-      const audio = createAudio({ sound: 'new', voice: 'c', AudioContextClass: Klass });
-      audio.prepare(); audio.start();
-      const F = fixedLines().length, V = audio.stats.voice;
-      for (let f = 0; f < 20000 && !(audio.stats.baked && V.fixed >= F && !V.queued); f++) audio.frame(null);
-      const before = { ...V };
-      for (let i = 0; i < 230; i++) audio.voiceLine(`Line number ${i}, said once.`, { voice: 'pa' });
-      for (let f = 0; f < 20000 && (V.waiting || V.queued); f++) audio.frame(null);
-      const after = { ...V }, L = fixedLines()[0];
-      audio.voiceLine(L.text, { voice: L.voice, register: L.register });
-      for (let f = 0; f < 50 && (V.waiting || V.queued); f++) audio.frame(null);
-      console.log(`      the fixed lines ${F}; before ${JSON.stringify({ baked: before.baked, cached: before.cached, fixed: before.fixed })}; after 230 more ${JSON.stringify({ baked: after.baked, cached: after.cached, fixed: after.fixed, waiting: after.waiting })}; a fixed line again: baked ${V.baked}`);
-      assert(before.fixed === F && after.fixed === F && after.cached === F + 160 && after.baked === before.baked + 230 && !after.waiting && V.baked === after.baked, JSON.stringify({ F, before, after, now: { ...V } }));
-    },
-  },
+  // (retired in v0.0.24: "the house's voice keeps every fixed line" pinned the voice synthesis's cache, gone whole with it: the user,
+  // 2026-11-19, "forget voice synthesis, no voices."; no-voices holds that nothing is said)
   {
     name: 'AT THE DOOR\'s Breach on 5, before Stack up, is struck "stack first" where the loadout carries a charge or a tool, and "not issued" only where it carries none (the play review of v0.0.20: the breach, full, cut and mixed loadouts read "Breach: not issued" with the issue badge at every door\'s first stop)',
     fn() {

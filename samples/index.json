@@ -1,17 +1,31 @@
 {
- "built": "2026-11-19T00:15",
+ "built": "2026-11-19T05:01",
  "samples": [
   {
    "id": "audio",
-   "title": "The shot: A0 to A4, your R-7 and P-12 in the shoot house through the suit, drawn and played by the game's code",
-   "about": "Your words of 2026-11-15: \"Sound design is pretty weak, guns should bang harder and closer to realistic\". v0.0.17's shot peaked high but its loudest 50 ms, what the ear hears as loudness, sat at -15.6 dBFS: a click with a tail. Each view draws one candidate's first 300 ms (your R-7 through the combat EVA suit's hearing filter, the room's answer and the game's master; your P-12 under it), the loudest 10 ms and 50 ms shaded with their levels. Open a view live (O) to hear it: Space or a click the R-7, P the P-12, B a burst of five. In play, the Esc menu's To score page switches the shot live in the house (and &shot=A0..A4 anywhere). The house plays A3 until you score; every other scene keeps A1, since you scored \"Bang\" on it.",
+   "title": "The shot: A0 to A5, your R-7 and P-12 in the shoot house through the suit, drawn and played by the game's code",
+   "about": "Your words of 2026-11-15: \"Sound design is pretty weak, guns should bang harder and closer to realistic\". v0.0.17's shot peaked high but its loudest 50 ms, what the ear hears as loudness, sat at -15.6 dBFS: a click with a tail. Each view draws one candidate's first 300 ms (your R-7 through the combat EVA suit's hearing filter, the room's answer and the game's master; your P-12 under it), the loudest 10 ms and 50 ms shaded with their levels. Open a view live (O) to hear it: Space or a click the R-7, P the P-12, B a burst of five. In play, the Esc menu's To score page switches the shot live in the house (and &shot=A0..A5 anywhere). You starred A4 on 2026-11-19 and asked for the R-7's wave on the P-12 and the R-7 \"meaner, blunter, more bass heavy. less a \\\"PAF\\\" and more a \\\"DOOM\\\"\": that is A5, every scene's from v0.0.24, in group D beside A4.",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "D-b"
+    ],
+    "since": "2026-11-19",
+    "decides": "the R-7 rebuilt (A5: meaner, blunter, heavier in the bass; the P-12 on A4's R-7 wave), or A4 as you starred it",
+    "builtIn": "v0.0.24"
+   },
+   "scored": {
+    "on": "2026-11-19",
+    "picks": [
+     "A-4"
+    ]
+   },
    "groups": [
     {
      "id": "A",
      "title": "A: the shot's candidates",
-     "about": "A0 the old report, A1 as built, A2 with the body, A3 through a denser protection (the house's default until scored), A4 with the room's early reflections.",
+     "about": "A0 the old report, A1 as built, A2 with the body, A3 through a denser protection, A4 with the room's early reflections (your star of 2026-11-19).",
      "sets": null,
      "views": [
       {
@@ -27,7 +41,7 @@
       },
       {
        "id": "A-1",
-       "name": "A1, v0.0.17 as built (every scene but the house)",
+       "name": "A1, v0.0.17 as built",
        "query": "c=A1",
        "shot": "audio/shots/a-1.png",
        "native": [
@@ -49,7 +63,7 @@
       },
       {
        "id": "A-3",
-       "name": "A3, A2 through a denser protection: its ceiling -14 dB, a make-up of +15 (the house's until you score)",
+       "name": "A3, A2 through a denser protection: its ceiling -14 dB, a make-up of +15",
        "query": "c=A3",
        "shot": "audio/shots/a-3.png",
        "native": [
@@ -60,9 +74,39 @@
       },
       {
        "id": "A-4",
-       "name": "A4, A3 with the room's early reflections 2 dB up",
+       "name": "A4, A3 with the room's early reflections 2 dB up (your star, 2026-11-19)",
        "query": "c=A4",
        "shot": "audio/shots/a-4.png",
+       "native": [
+        640,
+        360
+       ],
+       "report": {}
+      }
+     ]
+    },
+    {
+     "id": "D",
+     "title": "D: the R-7 rebuilt, \"less a PAF and more a DOOM\" (A5, the game's from v0.0.24), beside A4 as you starred it",
+     "about": "A5 is A4 with the P-12 firing A4's R-7 wave (its own crack, action and loudness, about 3.8 dB under the rifle) and the R-7 rebuilt: a blunter blast (its positive phase 1.9 ms, A4's 1.1), darker gas, a lower, longer and louder gust and chest thump (85 Hz falling to 36 over 120 ms), a harder saturation, and the suit's electronics passing the rifle's boom down to 70 Hz (A4's 160). In the house through the suit: 73% of the R-7's first 200 ms under 200 Hz (A4's 17%), the loudest 50 ms -8.8 dBFS (A4's -10.6), the peak -1.3. Open a view live (O) and press Space for the R-7, P for the P-12, B for a burst.",
+     "sets": null,
+     "views": [
+      {
+       "id": "D-a",
+       "name": "A4, as you starred it (the R-7 and the P-12 as built)",
+       "query": "c=A4",
+       "shot": "audio/shots/d-a.png",
+       "native": [
+        640,
+        360
+       ],
+       "report": {}
+      },
+      {
+       "id": "D-b",
+       "name": "A5, the R-7 rebuilt and the P-12 on A4's R-7 wave (the game's from v0.0.24)",
+       "query": "c=A5",
+       "shot": "audio/shots/d-b.png",
        "native": [
         640,
         360
@@ -172,7 +216,7 @@
     {
      "id": "R",
      "title": "R: the rifle in the hands on the doll",
-     "about": "R-a both hands at the low ready, the rifle diagonal 35° below level across the body, the right hand at the grip, the left at the handguard (the default, my call). R-b the rifle hanging from the right hand, muzzle down, as v0.0.17's board man held it. Each view: you at GO in the shoot house, after Transition (the P-12 at the ready, the R-7 slung front), the R-7 slung on the back, your #2 (no P-12), and the range kit on the utilities with ear defenders and a magazine in the left hand.",
+     "about": "R-a both hands at the low ready as a marine holds it, the butt in the right shoulder's pocket, the rifle down across the body toward the ground ahead of the left foot, the right hand at the grip, the left on the handguard (redrawn in v0.0.24 on your word of 2026-11-19, \"The Doll is wrong, nobody holds their gun like that\": v0.0.18 to v0.0.23 drew it at the hip, 35° below level). R-b the rifle hanging from the right hand, muzzle down, as v0.0.17's board man held it. Each view: you at GO in the shoot house, after Transition (the P-12 at the ready, the R-7 slung front), the R-7 slung on the back, your #2 (no P-12), and the range kit on the utilities with ear defenders and a magazine in the left hand.",
      "sets": null,
      "views": [
       {
@@ -587,17 +631,17 @@
    "about": "The hunt of v0.0.18 (kit-10): with a G-11 armed in your hand, the halligan at a pry or a charge being placed, the stage's figure draws both fists empty and the rifle slung in front, and the grenade appears from nowhere on its flight's first frame. Every picture is the game's own figure code (src/art/figures: composeFrame and shade) in the shoot house's black combat EVA suit and plate carrier, at 16 px/m on the house's slab floor, snapped to the Mars palette as the stage's post pass snaps them (?snap=0 raw); the device is drawn into the figure by two sample-only hooks of compose.js (a pose's reach and device), which no frame of the game uses, so the game is unchanged until you pick. The devices are drawn bigger than life, as the guns are: the G-11's can 0.25 m (4 px tall), the halligan as long as the rifle (1.0 m), the ram 0.55 to 0.6 m and 4 px thick, the strip 0.5 m; their colours are the doll's. Each view loops its beat on WEAPONS' and COMBAT's times (devices.js DEVICE_ACTIONS at Weapon handling 10: the rifle let hang 0.3 s, the reach 1.2 s, the pin 0.5 s, the throw 0.7 s with the can leaving the hand at its end, the force 3.0 s with the halligan, a swing 1.0 s with the ram, the placing 6.0 s cut to its first and last second, the rifle back up 1.0 s); the gallery's picture is the still named in each group. The defaults (G1, T1, B1, R1, C1) are the doll's own choices, so the stage and the I card agree until you score them.",
    "pixel": true,
    "matrix": null,
-   "open": {
-    "default": [
+   "scored": {
+    "on": "2026-11-19",
+    "picks": [
      "G1",
-     "T1",
-     "B1",
-     "R1",
-     "C1"
-    ],
-    "since": "2026-11-16",
-    "decides": "a device in the hands on the figure: the G-11, the throw, the halligan, the ram, the charge",
-    "builtIn": "v0.0.24"
+     "G2",
+     "G3",
+     "B3",
+     "R2",
+     "C1",
+     "K1"
+    ]
    },
    "groups": [
     {
@@ -896,13 +940,16 @@
    "about": "Your words of 2026-11-15: \"The helmet design is pretty goofy, I was thinking slicker design like this for regular units and even slicker for elite units with no visor, replaced by thin slits for the eyes or red dots depending on the elite units (martian get red outlines on their gear, UN get blue), if OPA get elite units, they'll get more rugged looking gear like [the cut helmet over a full-face mask] modernized.\" Every candidate is an original design (no insignia, letters or logos), drawn by the game's own figure code at 16 px/m and by the card's doll, behind a sample flag: the game's look does not change until you pick. Each view: on the left you and your #2 walking up the hall to room 1's door, both in the candidate, in the game's own picture of the shoot house (test-shoothouse at 10:00 on seed 48213: its light, the post pass, the Mars palette); in the middle the four facings at the door in that light at twice size (front, side on both ways, from behind); on the right the inventory and character card's figure. The gallery's pictures are stills; open a view live (O) and it walks: Space stops and starts it, S slows it to a quarter, the arrows step a tick while stopped, R starts again. Score each candidate; parts can be joined (say which: a visor from one, a jaw from another).",
    "pixel": true,
    "matrix": null,
-   "open": {
-    "default": [
-     "R-a"
-    ],
-    "since": "2026-11-15",
-    "decides": "the helmets: regular, elite, the factions' trim, the OPA's (S0, today's sealed helmet, until scored)",
-    "builtIn": "v0.0.24"
+   "scored": {
+    "on": "2026-11-19",
+    "picks": [
+     "R-d",
+     "R-c",
+     "R-e",
+     "E-a",
+     "O-b",
+     "A-b"
+    ]
    },
    "groups": [
     {
@@ -1370,17 +1417,15 @@
    "about": "The house's light was my call in v0.0.12 and never sampled. Every picture is the game itself, \"Stack and clear\" on seed 48213 at 10:00, 16 px/m, its HUD hidden: the house's light, the fog of awareness (what you do not see now, greyed and dimmed), the post pass and the Mars palette as built, the candidate set as the game would carry it. HL-a is today's: the base's overheads by the clock, 0.75 in every room and the hall by day (neutral white), room 3 dim at 0.40 (COMBAT §25.10.4). What reads near black in the house today is not unlit rooms: it is the fog's dim and the solid voids between the lane's rooms (the places of the house's other layouts, not built). HL-b is a real shoot house's light: no ceilings, the sector's high bays and the catwalk's LED floods (cool white, the floods' own lamp) light every room, the hall and the apron as one at the hall's 0.75; room 3 too, so its dim goes with HL-b; the fog alone dims what you have not seen. Its cool white turns the solid voids from today's dark brown to navy: the voids take the rooms' mean light, and the palette snaps a cool near black to its navy. HL-c is warm pools: a warm-white pendant over each room's centre, its core at the hall's 0.75, its ring 0.50, the corners at a warm 0.30 spill (58% of their colour); room 3's centre at its dim 0.40, its corners 0.15; the hall's own light as today. The fog's dim follows the light where you stand, so under HL-c everything you do not see now is darker while you stand in a room's spill (H2: the hall and your #2 behind you, though their light is today's). The light is the sim's: perception's reach (10 m + 42 m × the light), the take-in and the shot read it, so a candidate changes what you see in the corners as the picture shows it. Each view is shown in the three: score the light, star what you like; several can be joined (say which). Open a view live (O): keys 1, 2 and 3 switch HL-a, HL-b and HL-c at the same moment, H shows the HUD and plays on from there. In play, &houselight=b or &houselight=c on the game's URL.",
    "pixel": true,
    "matrix": null,
-   "open": {
-    "default": [
+   "scored": {
+    "on": "2026-11-19",
+    "picks": [
      "H1-a",
      "H2-a",
      "H3-a",
      "H4-a",
      "H5-a"
-    ],
-    "since": "2026-11-16",
-    "decides": "the shoot house's light (HL-a, today's, until scored)",
-    "builtIn": "v0.0.24"
+    ]
    },
    "groups": [
     {
@@ -2938,14 +2983,12 @@
    "about": "v0.0.20 (the build sheet's item 12; question 7): leaving a room, the last man out marks it on the latch-side jamb, 0.3 m outward of the door's plane and 1.5 m up, from his hand's stroke on (nothing pops in): your #2 as he passes the door, you where he went out first. Two looks, drawn by the game's own code (src/render/range-items.js jambMarks) at 16 px/m: M1 a chalk X, lit by the light where it is, as chalk is; M2 a chemlight taped to the jamb, which glows through the fog. Each seen from the hall, face on, with a marine's head height dotted for scale, lit and in the dark. The game draws M1 until you pick.",
    "pixel": true,
    "matrix": null,
-   "open": {
-    "default": [
-     "M1-a",
-     "M1-b"
-    ],
-    "since": "2026-11-16",
-    "decides": "the room's mark on its jamb (M1, the chalk X)",
-    "builtIn": "v0.0.24"
+   "scored": {
+    "on": "2026-11-19",
+    "picks": [
+     "M2-a",
+     "M2-b"
+    ]
    },
    "groups": [
     {
@@ -3036,15 +3079,14 @@
    "about": "\"Stack and clear, live\" (v0.0.19) puts two role-players in the shoot house in place of stands 2a and 3a: generated marines of the cadre in utilities and a plate carrier, a force-on-force mask, an R-7 with marking rounds. A man who gives up drops his rifle to the floor and puts his hands up, and kneels when challenged; a round of marking paint shows where it struck. Every picture is the game's own code: the doll of the inventory and the target view, the world figure at 24 px/m, the target view's card. The game draws the defaults (M2, H1, P1) until you score them.",
    "pixel": true,
    "matrix": null,
-   "open": {
-    "default": [
+   "scored": {
+    "on": "2026-11-19",
+    "picks": [
      "M2",
+     "M3",
      "H1",
      "P1"
-    ],
-    "since": "2026-11-16",
-    "decides": "the live men: the mask (M), the hands up (H), the paint (P)",
-    "builtIn": "v0.0.24"
+    ]
    },
    "groups": [
     {
@@ -3187,18 +3229,16 @@
   },
   {
    "id": "p12-card",
-   "title": "The P-12 on the weapon card: four designs in the Corps' black",
-   "about": "The P-12 (the sidearm on every sheet, a HAD-17 of ten frangible, the thigh holster) had no drawing until v0.0.18: with the pistol in hand the card drew the R-7. From v0.0.18 the game draws it as P12A, the service pistol, until you pick. Four designs, each drawn by the game's own weapon card (src/art/pistols.js), at three times the rifle's density (432 px/m: the 19.5 cm pistol is 84 px, where at the rifle's 144 it would be 28). What the card shows is what you believe: the slide locked back with the barrel out of its nose; a sliver of brass at the hood's rear when a round is believed chambered (a loaded chamber witness, my call); the HAD-17's rounds seen through a witness slot in the grip's back, from the top (my call: the HAD-17 has its witness holes), \"?\" on the baseplate when the count was never checked; the well's open mouth with the magazine out; the oversized safety's paddle up for SAFE, down for SEMI; a stovepipe or a double feed in the port once looked at; a magazine in the hand right of the muzzle, its holes to its count. A: the service pistol (squared slide, front and rear serrations, rail, stippled grip). B: the slab (chamfered nose, angled serrations, the RD-1P's cut closed by its cover plate, a ledge rear sight for racking one-handed, hooked guard, flared well, pad on the baseplate). C: the monolith (slide and frame one tone, the slide sloping from a tall rear, a full dust cover, finger grooves, long beavertail). D: the lanyard (rounded nose, fish scales, a window over the barrel, a lanyard loop at the heel: a dropped pistol in free fall leaves). Shown raw, as the hud shows the card.",
+   "title": "The P-12 on the weapon card: three designs in the Corps' black (A the game's, C and D the alternates)",
+   "about": "The P-12 (the sidearm on every sheet, a HAD-17 of ten frangible, the thigh holster) had no drawing until v0.0.18: with the pistol in hand the card drew the R-7. From v0.0.18 the game draws it as P12A, the service pistol, until you pick. Four designs, each drawn by the game's own weapon card (src/art/pistols.js), at three times the rifle's density (432 px/m: the 19.5 cm pistol is 84 px, where at the rifle's 144 it would be 28). What the card shows is what you believe: the slide locked back with the barrel out of its nose; a sliver of brass at the hood's rear when a round is believed chambered (a loaded chamber witness, my call); the HAD-17's rounds seen through a witness slot in the grip's back, from the top (my call: the HAD-17 has its witness holes), \"?\" on the baseplate when the count was never checked; the well's open mouth with the magazine out; the oversized safety's paddle up for SAFE, down for SEMI; a stovepipe or a double feed in the port once looked at; a magazine in the hand right of the muzzle, its holes to its count. A: the service pistol (squared slide, front and rear serrations, rail, stippled grip). (B, the slab, was dropped on your score of 2026-11-19.) C: the monolith (slide and frame one tone, the slide sloping from a tall rear, a full dust cover, finger grooves, long beavertail). D: the lanyard (rounded nose, fish scales, a window over the barrel, a lanyard loop at the heel: a dropped pistol in free fall leaves). Shown raw, as the hud shows the card.",
    "pixel": true,
    "matrix": null,
-   "open": {
-    "default": [
-     "P12A-a",
-     "P12A-b"
-    ],
-    "since": "2026-11-14",
-    "decides": "the P-12's design on the weapon card (P12A)",
-    "builtIn": "v0.0.24"
+   "scored": {
+    "on": "2026-11-19",
+    "picks": [
+     "P12X-a",
+     "P12X-b"
+    ]
    },
    "groups": [
     {
@@ -3228,46 +3268,6 @@
        "name": "Never checked; a double feed with a light magazine in the hand; Condition 3; the magazine out",
        "query": "d=p12a&set=more",
        "shot": "p12-card/shots/p12a-b.png",
-       "native": [
-        740,
-        156
-       ],
-       "report": {
-        "frame": [
-         740,
-         156
-        ]
-       }
-      }
-     ]
-    },
-    {
-     "id": "P12B",
-     "title": "P12B: the slab",
-     "about": "A flat-sided slide with a chamfered nose and angled serrations, the RD-1P's cut closed by its cover plate (the dot waits), a ledge rear sight, a squared guard with a hook, a flared magwell, a pad on the baseplate.",
-     "sets": null,
-     "views": [
-      {
-       "id": "P12B-a",
-       "name": "Condition 1 on safe with ten; firing, about six left; locked back on empty; a stovepipe, a full magazine in the hand",
-       "query": "d=p12b&set=card",
-       "shot": "p12-card/shots/p12b-a.png",
-       "native": [
-        740,
-        156
-       ],
-       "report": {
-        "frame": [
-         740,
-         156
-        ]
-       }
-      },
-      {
-       "id": "P12B-b",
-       "name": "Never checked; a double feed with a light magazine in the hand; Condition 3; the magazine out",
-       "query": "d=p12b&set=more",
-       "shot": "p12-card/shots/p12b-b.png",
        "native": [
         740,
         156
@@ -3363,13 +3363,13 @@
     },
     {
      "id": "P12X",
-     "title": "P12X: the four side by side, and the finishes",
-     "about": "The four in Condition 1, and A in the rifles' seven finishes (the frame in the finish's furniture, the slide in its metal: the Corps' black is a dark slide on a black polymer frame). The finish is the issued item's, as for the rifles.",
+     "title": "P12X: the designs side by side, and the finishes",
+     "about": "A, C and D in Condition 1 (B dropped on your score of 2026-11-19), and A in the rifles' seven finishes (the frame in the finish's furniture, the slide in its metal: the Corps' black is a dark slide on a black polymer frame). The finish is the issued item's, as for the rifles.",
      "sets": null,
      "views": [
       {
        "id": "P12X-a",
-       "name": "A, B, C and D in Condition 1, the Corps' black",
+       "name": "A, C and D in Condition 1, the Corps' black",
        "query": "set=designs",
        "shot": "p12-card/shots/p12x-a.png",
        "native": [
@@ -3409,13 +3409,11 @@
    "about": "Each design's figure template (seven pixels along, the size a chibi's pistol is drawn) in the hand of the game's own figure, the shoot house's sergeant in the black combat EVA suit and carrier, on the house's slab floor, snapped to the Mars palette. The loop runs 5.2 s on WEAPONS' base times: holstered; the draw, 1.1 s (the hand to the holster, the pistol clear of it one-handed, the press out, the sights); two shots 0.4 s apart, each its kick and flash; the aim held; a scan at the low ready; the holster, 1.3 s. The gallery's picture is a still at the aim between the shots: open a view (O) and it moves (Space stops it, S slows it to a quarter, R starts it again). The game draws its old pistol until you pick; at 16 px/m the designs differ by a pixel or two (B's plate and hooked guard, C's tall rear in one tone, D's lanyard loop), so the card carries the choice and this asks whether the figure's pistol reads at all. In the suit the pistol and the holster are black on black: the last view is the same in utilities with the carrier, where they read.",
    "pixel": true,
    "matrix": null,
-   "open": {
-    "default": [
+   "scored": {
+    "on": "2026-11-19",
+    "picks": [
      "P12M-a"
-    ],
-    "since": "2026-11-14",
-    "decides": "the P-12 on the figure, drawn and fired (A)",
-    "builtIn": "v0.0.24"
+    ]
    },
    "groups": [
     {
@@ -3429,22 +3427,6 @@
        "name": "A, the service pistol, in the combat EVA suit",
        "query": "set=draw&d=p12a",
        "shot": "p12-draw/shots/p12m-a.png",
-       "native": [
-        320,
-        184
-       ],
-       "report": {
-        "frame": [
-         320,
-         184
-        ]
-       }
-      },
-      {
-       "id": "P12M-b",
-       "name": "B, the slab, in the combat EVA suit",
-       "query": "set=draw&d=p12b",
-       "shot": "p12-draw/shots/p12m-b.png",
        "native": [
         320,
         184
@@ -3490,7 +3472,7 @@
       },
       {
        "id": "P12M-e",
-       "name": "The four on one clock, side on, facing you and away, in the combat EVA suit",
+       "name": "A, C and D on one clock, side on, facing you and away, in the combat EVA suit (its gloves grey from v0.0.24)",
        "query": "set=all",
        "shot": "p12-draw/shots/p12m-e.png",
        "native": [
@@ -3506,7 +3488,7 @@
       },
       {
        "id": "P12M-f",
-       "name": "The four on one clock in utilities with the carrier",
+       "name": "A, C and D on one clock in utilities with the carrier",
        "query": "set=all&look=util",
        "shot": "p12-draw/shots/p12m-f.png",
        "native": [
@@ -5183,18 +5165,196 @@
    ]
   },
   {
+   "id": "void-look",
+   "title": "The void's places and sounds: Well A's steel deck and its holds, the ship's siren and the mag boots' clank",
+   "about": "v0.0.24 takes you off Mars: \"Anchor before you fire\" in Well A at Phobos, the void range, and \"Secure for burn\" aboard Testudo, your ship coasting to Phobos. Both are floored in steel plate a mag boot holds on, with holds for the hands on a grid (a hold every 1.5 m along a bulkhead, a pad-eye in the deck every 3 m for a lanyard's clip), and a burn is warned by a siren before the 1MC's words; a locked mag boot clanks on the steel where a bare foot in free fall weighs nothing. None of these was in a sample, so here they are, each drawn and played by the game's own code (the deck by its plate painter at 16 px/m, snapped to the stage's palette, the game's marine standing in it for scale and the corner three times larger; the sounds by its synthesiser, mix and master, drawn as their level over time). P: the deck. P-a (the default until scored) plain plate, its weld seams; P-b the same plate with the hold grid painted on it in a worn safety yellow. H: the holds. H-a (the default) yellow rungs on the bulkhead and ringed pad-eyes in the deck; H-b recessed rails in the bulkhead and flush pad-eyes. S: the siren. S-a (the default) two tones, 960 and 770 Hz, a half second each; S-b a rising whoop, 500 to 1,200 Hz over a second. K: the clank. K-a (the default) at the level the boots measure, -7.09 dB; K-b 3 dB quieter. Open a sound's view live (O): Space or a click plays it. The game builds at the defaults until you score; a score swaps one table each.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "P-a",
+     "H-a",
+     "S-a",
+     "K-a"
+    ],
+    "since": "2026-11-19",
+    "decides": "Well A's and the berth's deck (P) and holds (H), the burn's siren (S), the mag boots' clank (K)",
+    "builtIn": "v0.0.24"
+   },
+   "groups": [
+    {
+     "id": "P",
+     "title": "P: the deck",
+     "about": "A patch of deck 10 m by 6 m at 16 px/m, the bulkhead along its top with H-a's holds, the marine standing in it; the corner by the bulkhead three times larger.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P-a",
+       "name": "P-a: plain plate, its weld seams (the default)",
+       "query": "p=P-a",
+       "shot": "void-look/shots/p-a.png",
+       "native": [
+        268,
+        125
+       ],
+       "report": {
+        "frame": [
+         268,
+         125
+        ]
+       }
+      },
+      {
+       "id": "P-b",
+       "name": "P-b: the hold grid painted on the plate",
+       "query": "p=P-b",
+       "shot": "void-look/shots/p-b.png",
+       "native": [
+        268,
+        125
+       ],
+       "report": {
+        "frame": [
+         268,
+         125
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "H",
+     "title": "H: the holds",
+     "about": "The same patch on P-a's plate: a hold every 1.5 m along the bulkhead, a pad-eye in the deck every 3 m.",
+     "sets": null,
+     "views": [
+      {
+       "id": "H-a",
+       "name": "H-a: yellow rungs and ringed pad-eyes (the default)",
+       "query": "h=H-a",
+       "shot": "void-look/shots/h-a.png",
+       "native": [
+        268,
+        125
+       ],
+       "report": {
+        "frame": [
+         268,
+         125
+        ]
+       }
+      },
+      {
+       "id": "H-b",
+       "name": "H-b: recessed rails and flush pad-eyes",
+       "query": "h=H-b",
+       "shot": "void-look/shots/h-b.png",
+       "native": [
+        268,
+        125
+       ],
+       "report": {
+        "frame": [
+         268,
+         125
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "S",
+     "title": "S: the burn's siren",
+     "about": "Three seconds of the siren as the berth hears it, through the game's mix and master, drawn as its pitch over time (400 to 1,400 Hz, its loudest stretches gold); open live (O) and press Space to hear it.",
+     "sets": null,
+     "views": [
+      {
+       "id": "S-a",
+       "name": "S-a: two tones, 960 and 770 Hz (the default)",
+       "query": "s=S-a",
+       "shot": "void-look/shots/s-a.png",
+       "native": [
+        320,
+        120
+       ],
+       "report": {
+        "frame": [
+         320,
+         120
+        ]
+       }
+      },
+      {
+       "id": "S-b",
+       "name": "S-b: a rising whoop, 500 to 1,200 Hz",
+       "query": "s=S-b",
+       "shot": "void-look/shots/s-b.png",
+       "native": [
+        320,
+        120
+       ],
+       "report": {
+        "frame": [
+         320,
+         120
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "K",
+     "title": "K: the mag boots' clank",
+     "about": "Four steps on locked mag boots at their 0.5 m/s on steel, as you hear your own; open live (O) and press Space to hear them.",
+     "sets": null,
+     "views": [
+      {
+       "id": "K-a",
+       "name": "K-a: the clank as measured, -7.09 dB (the default)",
+       "query": "k=K-a",
+       "shot": "void-look/shots/k-a.png",
+       "native": [
+        320,
+        120
+       ],
+       "report": {
+        "frame": [
+         320,
+         120
+        ]
+       }
+      },
+      {
+       "id": "K-b",
+       "name": "K-b: 3 dB quieter, -10.09 dB",
+       "query": "k=K-b",
+       "shot": "void-look/shots/k-b.png",
+       "native": [
+        320,
+        120
+       ],
+       "report": {
+        "frame": [
+         320,
+         120
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "walk",
    "title": "The walk: today's cycle and three candidates, animated, on the marine in the combat EVA suit with the R-7",
    "about": "Your word of 2026-11-11 on the shoot house: \"saying that the walking about is goofy is an understatement, the animation is really not there yet.\" The animation designer's three answers to the chibi's problem (legs of 0.25 m from hip to ankle at a human's speed), beside W0, the cycle v0.0.12 draws. All are the game's own figure code (src/art/figures/cycles.js, not wired into the game), at 16 px/m, in the black combat EVA suit with its carrier and the R-7, at 1 G on the shoot house's slab floor, snapped to the Mars palette as the stage snaps them. Two bands each: the Combat glide at the low ready (1.23 m/s) and Assault aimed (2.03 m/s), the speeds the body walks. Each candidate's frames follow the metres walked in its own steps, and side on its card is placed by the planted foot, so no boot slides (the plant lock: each frame's travel baked in whole pixels); seen from the front or behind the card follows the body, and the slip that leaves is measured and printed. Open a view live (O): Space runs and stops time, S slows it to a quarter, F hides the footprints, R starts again. The questions, with your scores: which cycle reads as a marine in each band (score each); is a bob on the gun line wanted at all in Combat and Assault (B says no); and the front and back views, where the feet slide in every candidate (see W-e's numbers).",
    "pixel": true,
    "matrix": null,
-   "open": {
-    "default": [
+   "scored": {
+    "on": "2026-11-19",
+    "picks": [
      "W-c"
-    ],
-    "since": "2026-11-12",
-    "decides": "the walk cycle (B, the game's since v0.0.17, until W-b to W-d are scored)",
-    "builtIn": "v0.0.24"
+    ]
    },
    "groups": [
     {
@@ -5309,13 +5469,11 @@
    "about": "Your ask of 2026-11-15: the P-12 shown like the rifle. The house issues the P-12 beside the R-7 on every sheet, and the card showed only the gun in use: the holstered pistol's condition, or the rifle hanging on its sling with a double feed, were nowhere on screen. Each picture is four cards drawn by the game's own weapon card, every word and mark from what you believe of each gun: at GO (the R-7 in use, the P-12 holstered, SAFE 1+9); after Transition (the P-12 drawn as a pistol, the rifle hanging on its click); the rifle hanging with a double feed; the P-12 locked back on an empty. The game draws WC2-A until you pick. Shown raw, as the hud shows the card.",
    "pixel": true,
    "matrix": null,
-   "open": {
-    "default": [
+   "scored": {
+    "on": "2026-11-19",
+    "picks": [
      "WC2-A-a"
-    ],
-    "since": "2026-11-17",
-    "decides": "how the second gun shows on the weapon card",
-    "builtIn": "v0.0.24"
+    ]
    },
    "groups": [
     {

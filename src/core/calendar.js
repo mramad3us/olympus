@@ -59,6 +59,15 @@
 // A site's solIndex is compared against the same boundaries, so a date is the same sol number
 // planet-wide: my is the largest k whose Sol 1 is at or before solIndex, solOfYear = solIndex - Sol 1
 // + 1. Years hold 668 or 669 sols (MY 211 to 216: 669, 669, 669, 669, 668, 669).
+//
+// The day of a site's clock (v0.0.24's stage 0, its build sheet §2 step 4; F119): the body's clock, its sleep, the hour an
+// activity reads and the routine's sols were all counted on Mars's local sol at the site's east longitude, so a site that
+// keeps UTC (a ship's, the Phobos School's: PLACES §1.2's `utc` clock) had no day to count on and threw. Every such reader
+// now takes a day key in place of the longitude: a number is a Mars east longitude and takes the old functions, the very
+// calls, branch for branch (so Melas keeps its bytes by construction, not by an equivalence that could round differently);
+// UTC_DAY ('utc') is the UTC calendar's 24 h day from midnight UTC. localDay is localSol's form ({ sol: the day's index,
+// msOfSol: ms from its 00:00 }), dayClock marsClock's (UTC's face with no slip: timeslip false, slipMs 0, its weekday
+// the UTC week's, 0 Monday), msAtDayTime msAtMarsTime's, dayLenOf the day's length (SOL_MS or DAY_MS).
 import { SEC_MS, MIN_MS, HOUR_MS, DAY_MS, SOL_MS, EPOCH_UTC } from './clock.js';
 
 export const TT_MINUS_UTC_S = 69.184;                              // 37 s of leap seconds (2017) + 32.184 s
@@ -185,6 +194,44 @@ export function msAtMarsTime(fromMs, hour, minute = 0, lonEDeg = 0) {
   if (!(into >= 0 && into < SOL_MS)) throw new Error(`no ${hour}:${minute} on a Mars clock`);
   let t = solStartMs(fromMs, lonEDeg) + into;
   if (t < fromMs) t += SOL_MS;
+  return t;
+}
+
+// ---- the day of a site's clock: a Mars longitude or UTC's (see the header) ----
+
+/** The day key of a site on UTC (a ship's, the Phobos School's); any number is a Mars east longitude. */
+export const UTC_DAY = 'utc';
+/** Whether a day key is UTC's (else a Mars east longitude: the old path). */
+export const isUtcDay = (day) => day === UTC_DAY;
+/** The day's length, ms: Mars's sol, or UTC's 24 h. */
+export const dayLenOf = (day) => (isUtcDay(day) ? DAY_MS : SOL_MS);
+/** The day holding ms and the ms into it from 00:00 (localSol's form): { sol, msOfSol }. */
+export function localDay(ms, day) {
+  if (!isUtcDay(day)) return localSol(ms, day);
+  const t = ms + UNIX_MS_AT_EPOCH, k = Math.floor(t / DAY_MS);
+  return { sol: k, msOfSol: t - k * DAY_MS };
+}
+/** The game time at which the day holding ms began (00:00). */
+export const dayStartMs = (ms, day) => (isUtcDay(day) ? ms - localDay(ms, day).msOfSol : solStartMs(ms, day));
+/** The clock at ms on a day key (marsClock's fields; UTC's with no slip, its weekday the UTC week's, 0 Monday). */
+export function dayClock(ms, day, years = null) {
+  if (!isUtcDay(day)) return marsClock(ms, day, years);
+  const { sol, msOfSol } = localDay(ms, day);
+  return {
+    sol, msOfSol, civilMs: msOfSol,
+    hour: Math.floor(msOfSol / HOUR_MS), minute: Math.floor(msOfSol / MIN_MS) % 60, second: Math.floor(msOfSol / SEC_MS) % 60,
+    timeslip: false, slipMs: 0, lmstH: msOfSol / HOUR_MS, meanSolarFrac: msOfSol / DAY_MS, weekday: ((sol + 3) % 7 + 7) % 7,
+  };
+}
+/** A day's weekday from its index (0 Monday): weekdayOfSol on Mars, the UTC week's on UTC. */
+export const dayWeekday = (index, day, years = null) => (isUtcDay(day) ? ((index + 3) % 7 + 7) % 7 : weekdayOfSol(index, years));
+/** The first game time at or after fromMs when the day's clock reads hour:minute (msAtMarsTime on Mars; UTC's day has no 24:mm). */
+export function msAtDayTime(fromMs, hour, minute = 0, day = 0) {
+  if (!isUtcDay(day)) return msAtMarsTime(fromMs, hour, minute, day);
+  const into = hour * HOUR_MS + minute * MIN_MS;
+  if (!(into >= 0 && into < DAY_MS)) throw new Error(`no ${hour}:${minute} on a UTC clock`);
+  let t = dayStartMs(fromMs, day) + into;
+  if (t < fromMs) t += DAY_MS;
   return t;
 }
 

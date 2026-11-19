@@ -23,4 +23,9 @@ export const POSTS = deepFreeze({
   // the player move by nothing; in utilities, the mask and the carrier their kit's)
   'melas:wheel-house-opfor-a': { site: 'melas', key: 'wheel-house-opfor-a', what: 'shoot house role-player', ranks: [['LCpl', 60], ['Cpl', 40]], mos: '0311', unitId: '2/4', branch: 'marines', outfit: 'utilities' },
   'melas:wheel-house-opfor-b': { site: 'melas', key: 'wheel-house-opfor-b', what: 'shoot house role-player', ranks: [['LCpl', 60], ['Cpl', 40]], mos: '0311', unitId: '2/4', branch: 'marines', outfit: 'utilities' },
+  // (the void range's cadre at the Void Operations School, Phobos ("Anchor before you fire"; AW§5), and the berthing
+  // compartment's NCO aboard Testudo ("Secure for burn"): generated as every post is, on their own streams; the School's unit and
+  // the ship's detachment are not drawn yet, so both are kept on the roster's 2/4 (my call))
+  'phobos-void:cadre': { site: 'phobos-void', key: 'cadre', what: 'void range cadre', ranks: [['SSgt', 60], ['GySgt', 25], ['Sgt', 15]], mos: '0369', unitId: '2/4', branch: 'marines', outfit: 'combatSuit' },
+  'mcrn-testudo:berth-nco': { site: 'mcrn-testudo', key: 'berth-nco', what: 'berthing NCO', ranks: [['Sgt', 60], ['Cpl', 40]], mos: '0311', unitId: '2/4', branch: 'marines', outfit: 'utilities' },
 });

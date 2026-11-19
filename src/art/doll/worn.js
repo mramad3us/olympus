@@ -5,8 +5,9 @@
 // pieces the gear adds (src/sim/arms/gear.js gearOf, turned into the doll's arguments by ./dress.js), each in its place:
 //   - the rifle: slung across the chest ('front': the butt high at the viewer's left, the muzzle at the viewer's right knee, as
 //     the world figure's front rig), slung on the back ('back': drawn before the torso, so only the muzzle over the viewer's
-//     right shoulder shows), at the low ready ('ready': diagonal across the body 35° below level, the muzzle down to the
-//     viewer's right, both arms bent onto it, the right hand at the grip, the left at the handguard), or hanging from the right
+//     right shoulder shows), at the low ready ('ready', v0.0.24: the butt in his right shoulder's pocket, the rifle down across
+//     the body toward the ground ahead of his left foot, foreshortened, the right hand at the grip, the left on the handguard:
+//     READY_BUTT; before, diagonal across the belly 35° below level, the butt free at the hip), or hanging from the right
 //     hand ('hand': the board's painted man, v0.0.17's rifleIn to the pixel);
 //   - the carrier's magazine pouches by the kit's list (two at MID − 8 and MID + 2, three at v0.0.17's three places, four at
 //     width 5), the dump pouch on the belt at the wearer's left hip, and the magazines in them as their baseplates: a HAD-30's
@@ -45,11 +46,20 @@ import { shapeAt, turned } from '../figures/templates.js';
 import { drawingOf } from '../rifles.js';
 import { pistolDrawingOf, P12_LEN_M } from '../pistols.js';
 import { COMBAT_SUIT, EARS } from '../figures/outfits.js';
+import { fofMaskFor } from '../figures/helmets.js';
 
 /** Doll pixels a centimetre at scale 1 (doll.js PX_PER_CM's: 175 cm over 126 rows). */
 const PX_PER_CM = 0.72;
 /** The rifle's length on the doll (cm), its grip's share from the butt, and the low ready's angle below level (degrees). */
 export const RIFLE_CM = 85, GRIP_K = 4.5 / 16, READY_DEG = 35;
+/**
+ * The low ready as a marine holds it (v0.0.24; the user, 2026-11-19: "The Doll is wrong, nobody holds their gun like that"): the
+ * butt in his right shoulder's pocket (the viewer's left), the rifle down across the body toward the ground ahead of his left foot,
+ * seen from the front foreshortened (READY_LEN_K of its length), the right fist at the grip under the shoulder, the left on the
+ * handguard: reference columns from the middle and rows. v0.0.18 to v0.0.23 drew it at the hip, 35° below level across the belly,
+ * the butt free of the body.
+ */
+export const READY_BUTT = Object.freeze([-12, 33]), READY_MUZZLE = Object.freeze([8, 70]), READY_LEN_K = 0.69;
 /** The magazine's baseplate colours: the HAD-30's polymer, lit on its top row (VIEWS §4.2). */
 export const PLATE_C = Object.freeze({ base: 0x23252f, lit: 0x4c5262 });
 /** The memo's bound: model × finish × scale × place × body is a handful in a game; this keeps a bench from growing it. */
@@ -61,7 +71,7 @@ const line = (from, to) => ({ at: from, th: Math.atan2(to[1] - from[1], to[0] - 
 function rifleLine(place, B, MID, lenRef) {
   if (place === 'front') return line([MID - 13, 33], [MID + 14, 92]);
   if (place === 'back') return line([MID - 12, 70], [MID + 18, 12]);
-  if (place === 'ready') { const th = READY_DEG * Math.PI / 180, grip = [MID - 8, 58], g = lenRef * GRIP_K; return { at: [grip[0] - Math.cos(th) * g, grip[1] - Math.sin(th) * g], th }; }
+  if (place === 'ready') return line([MID + READY_BUTT[0], READY_BUTT[1]], [MID + READY_MUZZLE[0], READY_MUZZLE[1]]);
   // (the high ready, the butt at the belly and the muzzle up past his right shoulder (the viewer's left), foreshortened;
   // aimed away, across the chest from his right shoulder toward his facing (aimAwayL the other way); hanging at his right hip,
   // muzzle down (the slung rifle's RH2); across the knees, sitting (drawn after the pose's bend, at the knees' row))
@@ -76,7 +86,7 @@ function rifleLine(place, B, MID, lenRef) {
   return null;
 }
 /** The rifle's drawn length on the doll by its place, as a share of RIFLE_CM (a place seen foreshortened draws it shorter). */
-export const RIFLE_LEN_K = Object.freeze({ high: 0.83, aimAway: 0.62, aimAwayL: 0.62, lap: 0.95 });
+export const RIFLE_LEN_K = Object.freeze({ high: 0.83, aimAway: 0.62, aimAwayL: 0.62, lap: 0.95, ready: READY_LEN_K });
 
 /**
  * The rifle's pixels on the doll's grid at scale S for a place ([[x, y, colour]] in target pixels, in turned()'s order),
@@ -209,13 +219,51 @@ export function handDevice(g, B, kit, layer) {
   return null;
 }
 
+/** The fists at the low ready (see READY_BUTT): the right at the grip (GRIP_K along the drawn rifle), the left on the handguard (READY_FORE_K along). */
+export const READY_FORE_K = 0.62;
+function readyBends() {
+  const at = (k) => [READY_BUTT[0] + (READY_MUZZLE[0] - READY_BUTT[0]) * k, READY_BUTT[1] + (READY_MUZZLE[1] - READY_BUTT[1]) * k];
+  const [gx, gy] = at(GRIP_K), [fx, fy] = at(READY_FORE_K);
+  return { bendR: [-gx, gy], bendL: [fx, fy] };
+}
+/**
+ * The anchors on the doll (v0.0.24; samples/mag-boots H, samples/portrait-pose/poses.js ANCHORS: H-a the default until scored),
+ * each drawn for the anchor the gear names (my call: the three are different anchors, so each is drawn as its candidate drew it):
+ * 'hold' the left fist up on a rail overhead (the rail from x0 to x1 at row y, reference), 'lanyard' a tether from the belt's left
+ * to a plate on the deck, 'wedge' a boot under a rail on the deck, that knee bent (a bend of the standing pose). Their colours: the
+ * rail's steel and its lit edge, the strap, the deck's plate.
+ */
+export const ANCHOR_LOOKS = Object.freeze({
+  hold: Object.freeze({ bendL: Object.freeze([10, 4]), rail: Object.freeze({ y: 2, x0: 36, x1: 56 }) }),
+  lanyard: Object.freeze({ line: Object.freeze({ from: Object.freeze([46, 60]), to: Object.freeze([60, 132]) }) }),
+  wedge: Object.freeze({ bend: Object.freeze({ drop: 6, legs: Object.freeze({ r: Object.freeze([1, 'fit']), l: Object.freeze([0.7, 'fit']) }) }), rail: Object.freeze({ y: 124, x0: 30, x1: 56 }) }),
+});
+export const ANCHOR_C = Object.freeze({ rail: 0x8a909c, lit: 0xc8ccd4, strap: 0x2c2e38, plate: 0x6a7080 });
+/** The anchor's pieces on the doll's grid (see ANCHOR_LOOKS), drawn over the figure; 'rail' only, after a pose's bend (the wedge's). */
+export function anchorParts(g, kit, only = null) {
+  const a = kit.gear?.anchor, L = ANCHOR_LOOKS[a];
+  if (!L) return null;
+  const rail = (R) => { const id = g.add(g.rows(R.y, R.x0, R.x1, R.y + 1), ANCHOR_C.rail); g.on(id, g.rows(R.y, R.x0, R.x1), ANCHOR_C.lit); return id; };
+  if (only === 'rail') return a === 'wedge' ? rail(L.rail) : null;
+  if (a === 'hold') return rail(L.rail);
+  if (a === 'lanyard') {
+    const { from, to } = L.line, n = Math.ceil(Math.max(Math.abs(to[0] - from[0]), Math.abs(to[1] - from[1]))), cells = [];
+    for (let i = 0; i <= n; i++) { const x = from[0] + (to[0] - from[0]) * i / n, y = from[1] + (to[1] - from[1]) * i / n; cells.push([y, x, x + 0.6]); }
+    const id = g.add(cells.flatMap(([y, x0, x1]) => g.rows(y, x0, x1)), ANCHOR_C.strap);
+    g.add(g.rows(to[1], to[0] - 2, to[0] + 3, to[1] + 0.8), ANCHOR_C.plate);
+    return id;
+  }
+  return null;
+}
 /** The arms' bends the gear's hands give (the gear wins over the body's cues while the hands are on a weapon: my call). */
 export function gearBends(gear) {
+  // (a hand on a hold (the gear's anchor 'hold', mag-boots' H-a): the left fist up on the rail overhead, the right where the gun puts it)
+  if (gear?.anchor === 'hold') { const b = gearBends({ ...gear, anchor: null }); return { ...(b ?? {}), bendL: [...ANCHOR_LOOKS.hold.bendL] }; }
   // (v0.0.19: the hands up and empty, both arms, at the look's place)
   if (gear?.hands === 'up') { const to = HANDS_LOOKS[gear.handsLook] ?? HANDS_LOOKS[HANDS_LOOK]; return { bendR: [to[0], to[1]], bendL: [to[0], to[1]] }; }
   // (a device in the hands, by its shape: HELD_BENDS)
   if (gear?.device) { const b = HELD_BENDS[gear.device.shape] ?? HELD_BENDS.can; return { bendR: [...b.bendR], ...(b.bendL ? { bendL: [...b.bendL] } : {}) }; }
-  if (gear?.rifle?.place === 'ready') { const th = READY_DEG * Math.PI / 180; return { bendR: [8, 58], bendL: [-8 + Math.cos(th) * 14, 58 + Math.sin(th) * 14] }; }
+  if (gear?.rifle?.place === 'ready') return readyBends();
   if (gear?.pistol?.place === 'ready') return { bendR: [2, 56], bendL: [2, 56] };
   // (the holds' new places, the fists where each puts them (see rifleLine and PISTOL_LINES))
   const b = PLACE_BENDS[`rifle:${gear?.rifle?.place}`] ?? PLACE_BENDS[`pistol:${gear?.pistol?.place}`];
@@ -275,6 +323,8 @@ export function holdGear(gear, hold, { facing = 'front', hang = PISTOL_HANG } = 
     case 'pistol-draw': case 'pistol-holster': if (g.pistol) { g.pistol = { ...g.pistol, place: 'draw' }; if (g.rifle && g.rifle.place !== 'back') rifleTo(slungAs); } break;
     case 'up': g.hands = 'up'; if (g.rifle && RIFLE_IN_HANDS.includes(g.rifle.place)) g.rifle = null; if (g.pistol && PISTOL_IN_HANDS.includes(g.pistol.place)) g.pistol = null; g.held = null; g.device = null; break;
     case 'empty': if (g.rifle && RIFLE_IN_HANDS.includes(g.rifle.place)) rifleTo('front'); if (g.pistol && PISTOL_IN_HANDS.includes(g.pistol.place)) g.pistol = { ...g.pistol, place: 'holster' }; break;
+    // (a hand on a hold, the gun in the other at the low ready (one-handed: the left fist on the rail))
+    case 'hold': g.anchor = 'hold'; if (g.rifle && RIFLE_IN_HANDS.includes(g.rifle.place)) rifleTo('ready'); if (g.pistol && PISTOL_IN_HANDS.includes(g.pistol.place)) g.pistol = { ...g.pistol, place: 'ready' }; break;
     default: break;
   }
   return g;
@@ -452,7 +502,8 @@ export function fofMask(g, kit, look = MASK_LOOK) {
 export function heldItem(g, B, kit) {
   const MID = g.MID, y = B.armIn[0][1] + 1;
   // (v0.0.19: the mask and the open hands, after the seams with their own rims (see the header))
-  if (kit.gear?.mask) kit.late.push(() => fofMask(g, kit, kit.gear.maskLook ?? MASK_LOOK));
+  // (the man's own of M2 and M3 by his seed, as the figure wears it: helmets.js fofMaskFor, the user's "M2 and M3 are decent masks")
+  if (kit.gear?.mask) kit.late.push(() => fofMask(g, kit, kit.gear.maskLook ?? fofMaskFor(kit.seed)));
   if (kit.gear?.hands === 'up') kit.late.push(() => openPalms(g, kit));
   if (kit.gear?.device) handDevice(g, B, kit, 'over');
   if (kit.gear?.held === 'phone') {

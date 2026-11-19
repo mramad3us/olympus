@@ -30,6 +30,7 @@
 import { resample, mirror, REF } from './templates.js';
 import { mixHex, tone } from '../tone.js';
 import { GLOW } from '../paint.js';
+import { hashPick } from '../../core/hash.js';
 
 /** The factions' trim colours (my call, to be scored): Mars red, the UN blue; and the eyes' glow in each. */
 export const FACTIONS = Object.freeze({
@@ -462,10 +463,18 @@ export function helmOf(h) {
 // #2; S4 and S5 are the stage's, not the figure's, and are drawn by the sample only). The Esc menu's To score page tries any of
 // them live (state.$look, src/ui/cards/topick.js): lookPicked() is what the stage draws your and your #2's look with.
 /**
- * The helmet the game draws by kind of man (an id of HELMS), none until the user picks: null is the sealed head as built. Not
- * frozen: the pick is this one line, and art-helmets sets it to hold that the figure, the doll and the card all follow it.
+ * The helmet the game draws by kind of man (an id of HELMS; null would be the sealed head as built). Not frozen: the pick is this
+ * one line, and art-helmets sets it to hold that the figure, the doll and the card all follow it.
+ * v0.0.24 (the user, 2026-11-19: "You can use the first one (current one) but for civilian vac suits not military. R2, R3 and R4
+ * are very good for military, R1 is redundant with R3"; E1 "very good in game"; "O2 is excellent, even the card"; "trim for all"):
+ * the Corps' regulars R3 (the best scored, 90), its elites E1, the OPA O2, every one in its faction's trim (helmFor: the Corps'
+ * Mars red; the OPA take none), on the combat EVA suit; the light vac suit keeps S0, the sealed dome (no one in the game wears it
+ * yet but the civilians the samples draw). R2 and R4 stay as the regulars' variants by unit (HELMET_BY_UNIT, none set yet), R1 is
+ * not drawn by the game.
  */
-export const HELMET_DRAWN_AS = { regular: null, elite: null, opa: null };
+export const HELMET_DRAWN_AS = { regular: 'R3', elite: 'E1', opa: 'O2' };
+/** A unit's own regular helmet, R2 or R4, over HELMET_DRAWN_AS.regular (the user's "R2, R3 and R4 are very good for military"): none set yet. */
+export const HELMET_BY_UNIT = Object.freeze({});
 /** The stack's marks the game draws (ids of STACKS), none until the user picks (not frozen, as HELMET_DRAWN_AS). */
 export const STACK_DRAWN_AS = [];
 const GOLD = 0xb08a3a, NAVY_RED = 0xc8453c, RIM = 0x80868f;
@@ -503,7 +512,9 @@ export function helmFor({ kind = 'regular', pick = null, slot = 0, faction = 'ma
  */
 export function lookPicked(look, slot, picks = null) {
   if (!look || look.outfit !== 'combatSuit' || (slot !== 0 && slot !== 1)) return look;
-  const ids = picks?.stack?.length ? picks.stack : STACK_DRAWN_AS, mark = marksFor(ids, slot), helm = look.helm ? null : helmFor({ pick: picks?.helm ?? null, slot });
+  // (the game's own helmet, HELMET_DRAWN_AS, is wear()'s for a look naming none: only a pick adds one here, so with no pick the look passes untouched)
+  const P = picks?.helm ? HELMS[String(picks.helm).toUpperCase()] : null, applies = P && !(P.family === 'opa' && slot !== 1);
+  const ids = picks?.stack?.length ? picks.stack : STACK_DRAWN_AS, mark = marksFor(ids, slot), helm = look.helm || !applies ? null : helmFor({ pick: picks.helm, slot });
   if (!mark && !helm) return look;
   return { ...look, ...(mark ? { mark: { ...(look.mark ?? {}), ...mark } } : {}), ...(helm ? { helm } : {}) };
 }
@@ -577,6 +588,12 @@ export const FOF_MASKS = Object.freeze({
   M3: Object.freeze({ id: 'M3', name: 'M3 the shield: a smoked shield to the jaw, a chin guard', frame: 0x24262d, lens: 0x4e6474 }),
 });
 export const FOF_MASK = 'M2';
+/**
+ * v0.0.24 (the user, 2026-11-19, of the live men: "M2 and M3 are decent masks though"): the masks the role-players wear, one a man
+ * by his look's seed (a cosmetic hash, core/hash.js), so the figure and the card's doll (worn.js, by the same seed) draw the same.
+ */
+export const FOF_MASKS_WORN = Object.freeze(['M2', 'M3']);
+export const fofMaskFor = (seed) => hashPick(FOF_MASKS_WORN, 'fof-mask', seed ?? 1);
 const masks = new Map();
 /** A mask's template for a view at a head box bw × bh: { x, y, rows } from the box's top-left ('left' mirrored from 'right'), or null with no such mask. */
 export function fofMaskTpl(id, view, bw, bh) {

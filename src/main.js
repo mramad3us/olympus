@@ -206,7 +206,6 @@ import { MIN_MS, HOUR_MS, TICK_MS, durationText, isHeld } from './core/clock.js'
 import { BUILT } from './core/reads.js';
 import { hitDollCount } from './art/doll/hitcard.js';
 import { dollCount } from './art/doll/dress.js';
-import { calloutLines } from './sim/combat/two.js';
 import { utcClockText } from './core/calendar.js';
 import { playerActor, setIdsCheck } from './core/ids.js';
 import { solText } from './sim/time/dates.js';
@@ -221,7 +220,8 @@ import { instinctNow } from './sim/skills/instinct.js';
 import { bodyOf } from './sim/body/body.js';
 import { stagesOf, stripOf, wordsOf, cuesOf } from './sim/body/cues.js';
 import { lookFor, indoorsNow } from './sim/people/figure.js';
-import { areaOf, lonOf, generatedIds } from './sim/places/model.js';
+import { areaOf, generatedIds } from './sim/places/model.js';
+import { siteDayOf } from './sim/jobs.js';
 import { heldLayouts } from './sim/scenes/assemble.js';
 import { timeAt, siteAt, isPreset } from './sim/places/env.js';
 import { lightLevel } from './sim/places/light.js';
@@ -267,6 +267,9 @@ import { setMenuExtras } from './ui/cards/menu.js';
 import { shotFor } from './data/sounds.js';
 import { applyScale, uiScale, rectsAt, placeFar, farTick, overlaps, flagToKeep, FLAG_KEEP_M, STATES as HUD_STATES } from './ui/hud/layout.js';
 import { createWatch } from './ui/hud/watch.js';
+// (ROADMAP "anywhere" step 6: a ship's gravity events, the URL's &grav=, the G line under the watch, the surprise's card)
+import { parseGrav, addProfile, gLineOf, gravCardOf } from './sim/places/gravity.js';
+import { createGLine } from './ui/hud/strip.js';
 import { createToasts } from './ui/hud/toasts.js';
 import { wantOf } from './ui/hud/offer.js';
 import { createInstinct } from './ui/hud/instinct.js';
@@ -295,17 +298,21 @@ import * as stressScene from './sim/scenarios/stress.js';
 import { COURSES } from './data/courses.js';
 import * as MARKS from './sim/arms/marks.js';
 import { createHitcard } from './ui/hud/hitcard.js';
-import { paintHitcard } from './art/doll/hitcard.js';
+import { paintHitcard, CARD_MIN } from './art/doll/hitcard.js';
 import { createTargetView } from './ui/hud/target.js';
 import { stressLines, hotWash, sessionGrid, gridTable } from './ui/cards/stress.js';
 // (0.0.12: "Stack and clear": the scene's views (shoothouse.js), the drill's running bundle (bundle.js), the instructor's lane timer, the
 // run sheet and the hot wash (cards/house.js))
 import * as houseScene from './sim/scenarios/shoothouse.js';
+// (the anywhere round's two scenes: their end cards' lines (cards/anchors.js) from the scenes' own views)
+import { anchorsNow } from './sim/scenarios/anchors.js';
+import { burnNow } from './sim/scenarios/burn.js';
+import { anchorsSaid, anchorsAspects, burnSaid, burnAspects } from './ui/cards/anchors.js';
 // (0.0.18: the loadout, its code and the screen's numbers (src/sim/arms/loadout.js))
 import { loadoutOf, codeOf, loadoutView, reachSOf } from './sim/arms/loadout.js';
 import * as BUNDLE from './sim/combat/bundle.js';
 import { laneModel } from './ui/hud/timer.js';
-import { runSheetEl, hotWashEl, houseRunLine, houseAspects, houseEndLines } from './ui/cards/house.js';
+import { runSheetEl, hotWashEl, houseRunLine, houseAspects, houseEndLines, truthRows, truthRowEl } from './ui/cards/house.js';
 // (the card (the build sheet v0.0.20 §1 items 10, 13, 14, 20, 21, 25, 26): the runs kept and the next sheet, the session's
 // grid, the plan view over the debrief's model, who speaks and the plates off the room, the run's export)
 import { keepRun, againOrder, weakRoomOf } from './ui/cards/house-runs.js';
@@ -319,7 +326,7 @@ import { housePlanEl } from './ui/cards/houseplan.js';
 import { ghostKeyOf, ghostOf, keepGhost, ghostsFor, ghostWords, deltaWords } from './ui/cards/house-ghosts.js';
 import { namedLaneOf, againHouseOf } from './ui/cards/house.js';
 import { debriefOf } from './sim/scenarios/house-debrief.js';
-import { speakerMarks, speakerMark, balloon, markPlace, keepOff } from './ui/plaque.js';
+import { speakerMarks, balloon, placeBubbles, keepOff } from './ui/plaque.js';
 import { spokenMs } from './core/speech.js';
 import { digest as digestOf } from './core/hash.js';
 import { WHEEL_S4 } from './data/places/wheel.js';
@@ -335,7 +342,7 @@ import { doll, DOLL_SCALE } from './art/doll/doll.js';
 import * as GEAR from './sim/arms/gear.js';
 import { dressedDoll } from './art/doll/dress.js';
 // (you on the I and C cards and the loadout's marine through the portrait's renderer, from the Seen record in the mirror)
-import { paintPortrait } from './art/doll/portrait.js';
+import { paintPortrait, cardBackdrop } from './art/doll/portrait.js';
 import { seenOf } from './sim/people/seen.js';
 import { createStage } from './render/stage.js';
 import { createView, CUT_MAX_MS, FOG_CELLS } from './render/view.js';
@@ -367,6 +374,10 @@ const params = readParams();
 // dropped here and said in a toast once the page is up, as an unknown ?play is, never a throw in newGame and a dark page)
 const envUnknown = params.env && !isPreset(params.env) ? params.env : null;
 if (envUnknown) params.env = null;
+// (&grav= a ship's gravity events on every game this page starts (gravity.js parseGrav); one that does not parse is
+// dropped here and said in a toast once the page is up, as &env= is)
+const gravList = params.grav ? parseGrav(params.grav) : null;
+const gravUnknown = params.grav && !gravList ? params.grav : null;
 const readLocal = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const benchName = params.bench ? (params.bench === '1' ? BENCH_DEFAULT : params.bench) : null;
 const settings = {
@@ -383,17 +394,14 @@ const settings = {
   // (FL-9: the shoot house's light candidate, &houselight=b|c (src/data/places/house-light.js), runtime only; none is today's)
   houseLight: params.houseLight ?? null,
 };
-// (the build sheet v0.0.20 items 2, 7, 10 and 24: the To score page's picks, runtime only (state.$look, the shot, the voice, the walk,
-// state.$aid), this browser's (topick.js readPicks, olympus.cornerAid) unless the URL says (&look=, &shot=, &voice=, &cycle=), which wins;
+// (the build sheet v0.0.20 items 2, 10 and 24: the To score page's picks, runtime only (state.$look, the shot, the walk,
+// state.$aid), this browser's (topick.js readPicks, olympus.cornerAid) unless the URL says (&look=, &shot=, &cycle=), which wins;
 // none of them is ever saved, so a save replays byte for byte)
 const toPick = settings.nostore ? { v: 1, scores: {}, stars: [], flags: {} } : readPicks();
 const lookAsked = params.look ? parseLook(params.look) : null, lookUnknown = lookAsked?.unknown?.length ? lookAsked.unknown.join(', ') : null;
 Object.assign(settings, {
   look: lookAsked ? lookAsked.look : toPick.flags.look ?? null,
   shot: params.shot ?? toPick.flags.shot ?? null,
-  // (the voice by the URL only, never this browser's old To score pick (a V-c kept from v0.0.22 would speak):
-  // the user, 2026-11-19, "forget voice synthesis, no voices.")
-  voice: params.voice ?? null,
   aid: AID_SETTINGS.includes(readLocal(CORNER_AID_KEY)) ? readLocal(CORNER_AID_KEY) : 'rung',
 });
 if (lookAsked?.cycle && !params.cycle) settings.cycle = lookAsked.cycle;
@@ -413,6 +421,7 @@ document.body.append(frameEl);
 const stage = createStage({ parent: frameEl, palette: 'mars' });
 frameEl.append(hud);
 const watch = createWatch(hud);
+const gLine = createGLine(watch.el);
 hud.append(banner);
 const gl = stage.renderer.getContext();
 window.__renderer = stage.stats.gpu;
@@ -622,7 +631,7 @@ hud.append(keysHint);
 keysHint.append(el('kbd', { textContent: input.label('help') }), ' keys');
 
 // ---- the sound: made at boot, suspended; nothing plays before the first key or click ----
-const audio = createAudio({ profile: null, looks: { kitLook, earsOn: rangeKit.earsOn }, sound: params.sound, shot: settings.shot, voice: settings.voice });
+const audio = createAudio({ profile: null, looks: { kitLook, earsOn: rangeKit.earsOn }, sound: params.sound, shot: settings.shot });
 // (the context's construction opens the device synchronously, over 200 ms: paid here behind the title, never on the first key)
 try { audio.prepare(); } catch (e) { console.warn('the sound was not prepared', e); }
 // (the saved volume and mute; ?nostore=1 neither reads nor writes the database, so a bench or a shot opens none)
@@ -723,8 +732,12 @@ function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks'
   // (rooms ('all'), layout ('B' | 'C') and plans ('derived'), each passed only when given (playScene's houseChoice orders them))
   // (again, the house's Again of the same lane, passed only when true: the v0.0.23 play review's first finding, playScene's
   // `again` dropped here, so the page never gave the short brief)
-  return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}),
+  const s = freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}),
     ...(rooms ? { rooms } : {}), ...(layout ? { layout } : {}), ...(plans ? { plans } : {}), ...(again ? { again: true } : {}) });
+  // (the URL's &grav= set on the game before its first tick, its times from the start, added to the scene's own profile
+  // (gravity.js addProfile; the fixer of v0.0.24's code review: setProfile alone replaced it, so test-burn lost its burn))
+  if (gravList) addProfile(s, gravList);
+  return s;
 }
 /** The URL's start somewhere else (&area=, &at=, &face=), or null: an area alone starts at its spawn. */
 function atParam(scenario) {
@@ -810,8 +823,6 @@ function launch(s, { from = null } = {}) {
   scene = rec ? { rec, seed: s.meta.seed, ended: false, shown: false } : null;
   // (the build sheet v0.0.20 §0 item 21: the shot each scene plays: the URL's or the To score pick, else A3 in the house's scenes, else A1)
   try { audio.setShot(shotFor(rec?.id ?? s.meta?.scenario, settings.shot)); } catch (e) { broke(e, 'the sound'); }
-  // (the build sheet §1 item 12: your #2's call-outs this lane's turners can draw, baked behind the lines said, before GO)
-  if (s.armoury?.range?.course === 'house') { try { audio.prebakeCallouts?.(calloutLines(s.armoury.range.turners)); } catch (e) { broke(e, 'the sound'); } }
   // (0.0.12: the shoot house's goal names your number two: the scene's houseGoal)
   let goal = rec?.goal ?? null;
   if (goal && s.armoury?.range?.course === 'house' && houseScene.houseGoal) { try { goal = houseScene.houseGoal(s) ?? goal; } catch (e) { broke(e, 'the goal'); } }
@@ -903,8 +914,9 @@ async function showTitle() {
 }
 
 // ---- saves ----
-// (the live site's longitude, which the body's readers take: lonOf throws off Mars's clock, never a quiet 0)
-const lonAt = (s) => lonOf(s);
+// (the live site's day key, which the body's readers take: its east longitude on Mars's clock, 'utc' on a ship or at the Phobos
+// School (v0.0.24's stage 0, jobs.js siteDayOf); an unknown site throws, never a quiet 0)
+const lonAt = (s) => siteDayOf(s);
 /** The line a save shows in the lists: 'Standard · Sol 590 MY 211 · 12:44 · 02:24Z · Echo Company barracks, ground floor'. */
 function about(s) {
   const c = timeAt(siteAt(s), s.clock.ms), pad = (n) => String(n).padStart(2, '0');
@@ -1001,8 +1013,15 @@ bus.on('door', (f) => { try { audio.door(f, loop.state); } catch (e) { broke(e, 
 // (the weapon mode's facts: the voices to the radio box and the tower's chime, the steps' ticks and clicks, the shot's report, the range's faults and strings)
 bus.on('say', (f) => {
   radio.say(f, loop.state);
-  // (who speaks, for the speaker's mark and a call's balloon over his head (speakerHud), in the house only)
-  if (loop.state?.armoury?.range?.course === 'house' && f?.who && f.text) { speech.push({ who: f.who, text: String(f.text), atMs: loop.state.clock.ms, spokenMs: spokenMs(f.text) }); if (speech.length > SPEECH_KEPT) speech.splice(0, speech.length - SPEECH_KEPT); }
+  // (who speaks, for his line's bubble over his head (speakerHud): v0.0.24, every line in every scene, the user's "text bubble only";
+  // a loudspeaker's line at the fact's `at`; a speaker with no body and no place (a ship's 1MC: { who: null, speaker: '1MC' }) at the
+  // top of the picture, his name before his words)
+  const by = f?.who ?? (f?.speaker ? `pa:${f.speaker}` : null);
+  if (loop.state && by && f.text) {
+    const at = f.at && Number.isFinite(f.at.x) ? f.at : f.who ? null : 'top';
+    speech.push({ who: by, text: f.who ? String(f.text) : `${f.speaker}: ${f.text}`, atMs: loop.state.clock.ms, spokenMs: spokenMs(f.text), ...(at ? { at } : {}) });
+    if (speech.length > SPEECH_KEPT) speech.splice(0, speech.length - SPEECH_KEPT);
+  }
   // (0.0.10: the coach's "Bang!" is a shout, captioned (VIEWS §11.4): the radio box has his words, the toast what it sounded like)
   if (loop.state?.armoury?.range?.stress && /^Bang!/.test(String(f?.text ?? ''))) toast(`[a shout: ${String(f.text).trim()}]`, 'warn');
   try { audio.fact('say', f, loop.state); } catch (e) { broke(e, 'the sound'); }
@@ -1164,6 +1183,9 @@ input.onAction((action, kind, e) => {
   if (guardedFlash(action, e)) return;
   // (0.0.12: V in the house cycles the movement stances, Relaxed, Combat, Assault (the sim's gait), in and out of stop motion)
   if (action === 'carry' && kind !== 'up' && stancesNow() && !loop.paused) { input.queue('gait'); return; }
+  // (the surprise's free card answers its digits in stop motion too, where it is shown in the panel's place unless a reflex card of the
+  // stop's own is up: the fixer of v0.0.24's code review, a card holding time unseen and unanswerable in weapon mode)
+  if (!loop.paused && !(inStop() && stopReflexUp()) && gravCardKey(action, kind)) return;
   if (inStop() && !loop.paused && stopKey(action, kind, e)) return;
   if (action === 'pause') loop.togglePause('player');
   else if (action === 'menu') boot.openMenu();
@@ -1189,6 +1211,17 @@ const showPlaqueInfo = () => { infoUntil = performance.now() + PLAQUE_INFO_MS; }
 addEventListener('keydown', () => { lastInput = 'key'; }, true);
 addEventListener('pointermove', (e) => { if (e.movementX || e.movementY) lastInput = 'mouse'; }, true);
 function resetWeaponHud() { stepPage = 0; digitShift = false; reflexKeep = false; hoverKey = null; lastString = null; plaqueMemo = null; stepChosenMs = null; stampSeen = null; frozeSeen = null; lastBurst = null; lastBlank = null; hitSeen = { sig: null, t: -Infinity, stop: false, shown: null }; startleSeen = { id: null, t0: -Infinity, endT0: -Infinity, stop: false }; ticks.reset(); radio.clear(); }
+// (ROADMAP "anywhere" step 6: the surprise's card out of stop motion (gravity.js gravCardOf): a digit pressed answers it, as the reflex
+// card's digit does; the card holds time, and nothing else hears the digits while it is up)
+// (a reflex card of stop motion's own is up (stopNow's reflex))
+function stopReflexUp() { try { return !!stopNow(loop.state)?.reflex; } catch { return false; } }
+function gravCardKey(action, kind) {
+  let card = null;
+  try { card = loop.state ? gravCardOf(loop.state) : null; } catch { card = null; }
+  if (!card || !action.startsWith('digit:')) return false;
+  if (kind === 'digit') { const o = reflexCard.optionFor(Number(action.slice(6))); if (o && !o.off) input.queue({ act: 'grav', args: { card: o.key } }); }
+  return true;
+}
 function stopKey(action, kind, e) {
   const s = loop.state;
   let st = null;
@@ -1345,10 +1378,17 @@ function hardOfSheet(tier) {
 // currently worn gear": you as in a mirror, the Seen record's (seen.js seenOf with mirror: front on, your stance and your hold: kneeling
 // with your carry, prone behind the rifle, a G-11 in the fist, the P-12 at the ready) painted by portrait.js at the doll's scale; the
 // gear as worn when the record cannot be read)
+// (the build sheet v0.0.24 item 17; samples/portrait-suit: the cards' ground by the place you stand in, D-a (the doll's own
+// wall, today's) until scored; portrait.js cardBackdrop, by suitPlaceOf: the shoot house, an indoor place, or the street)
 function mirrorDoll(s, gear, person) {
   let rec = null;
   try { rec = seenOf(s, s.player.id, { mirror: true }); } catch (e) { broke(e, 'the portrait'); }
-  return rec ? paintPortrait(rec, person, { scale: DOLL_SCALE }).pm : dressedDoll(gear, person);
+  return rec ? cardBackdrop(paintPortrait(rec, person, { scale: DOLL_SCALE }).pm, DOLL_SCALE, suitPlaceOf(s)) : dressedDoll(gear, person);
+}
+/** The I and C cards' place for their ground (portrait.js SUIT_PLACES): 'house' in the shoot house, 'street' on open ground, else 'bay'. */
+function suitPlaceOf(s) {
+  if (s?.armoury?.range?.course === 'house') return 'house';
+  try { return indoorsNow(s) ? 'bay' : 'street'; } catch { return 'bay'; }
 }
 // (the loadout's marine: standing, the rifle at the low ready, the kit as chosen, through the same renderer)
 function loadoutDoll(s, pid, gear) {
@@ -1448,6 +1488,8 @@ function openEnd() {
   const { rec, seed } = scene;
   // (0.0.12: the shoot house's own card)
   if (loop.state?.armoury?.range?.course === 'house') return openHouseEnd(rec, seed);
+  // (the void's two scenes, their own lines on the scene's card)
+  if (loop.state?.armoury?.range?.course === 'anchors' || loop.state?.armoury?.burn) return openVoidEnd(rec, seed);
   let said = null, pn = null;
   // (the range's summary, and on the KD an incident on a line of its own: sceneLines)
   try { const s = loop.state, r = s ? rangeNow(s) : null; said = sceneLines(r, r?.course === 'kd' ? kdOf(s) : null, { clockText }); } catch (e) { broke(e, 'the end card'); }
@@ -1507,6 +1549,26 @@ function openEnd() {
     aspects: pn && !sn ? aspectLines(pn.card, { fmt: takeInWords }) : [], again, on: {
     again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), hour: params.play === rec.scenario ? params.hour : null, setup: params.play === rec.scenario || params.play === rec.id ? params.setup : null, tier }),
     againAs: (t) => againAs(rec, t),
+    score: () => openScore(),
+    title: () => quitToTitle(),
+  } });
+  boot.openCard('end', body, lines);
+}
+/**
+ * v0.0.24 (the anywhere round; its build sheet §1 D): the end card of "Anchor before you fire" and of "Secure for burn": the scene's
+ * own lines (cards/anchors.js, from anchorsNow and burnNow), the anchors' "Again as …" each other sheet on the same seed.
+ */
+function openVoidEnd(rec, seed) {
+  const s = loop.state, sheets = TEMPLATES.TEST_SHEETS ?? {};
+  let said = [], aspects = [], played = null;
+  try {
+    const an = s?.armoury?.range?.course === 'anchors' ? anchorsNow(s) : null, bn = an ? null : burnNow(s);
+    if (an) { said = anchorsSaid(an); aspects = anchorsAspects(an); played = an.tier; } else if (bn) { said = burnSaid(bn); aspects = burnAspects(bn); }
+  } catch (e) { broke(e, 'the end card'); }
+  const again = played ? againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null) : [];
+  const { body, lines } = endCard({ scene: rec, seed, said, sheet: played ? sheets[played]?.label ?? played : null, aspects, again, on: {
+    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played }),
+    againAs: (t) => playScene(rec, { seed, tier: t }),
     score: () => openScore(),
     title: () => quitToTitle(),
   } });
@@ -1605,7 +1667,7 @@ function openHouseEnd(rec, seed) {
       try { keepRun(globalThis.localStorage, { scene: rec.id, sheet: played, loadout: H?.loadout ?? null, seed, laneMs: hn?.timerMs ?? null, go: verdict.go, why: verdict.why, version: VERSION, code: drawn, qual: q?.qual ?? null }); } catch (e) { broke(e, 'the runs kept'); }
     }
   }
-  let side = null, planEl = null;
+  let side = null, planEl = null, truthEl = null;
   try {
     const said = new Set([...(rs?.rows ?? []).map(r => r.words), ...(rs?.would ?? []), typeof rs?.one === 'string' ? rs.one : rs?.one?.text, rs?.team?.words, verdict?.words].filter(Boolean));
     const stand = new Map((hn?.turners ?? []).map(T => [T.key, T.stand]));
@@ -1639,7 +1701,13 @@ function openHouseEnd(rec, seed) {
         ghost: { key: gkey, offered: plan.ghosts.map(ghostWords), get chosen() { return plan.ghost ? ghostWords(plan.ghost) : null; }, get delta() { return deltaWords(plan.delta); }, set: (i) => plan.setGhost(i),
           play: (r) => plan.play(r), pause: () => plan.pause(), get drawMaxMs() { return plan.drawMaxMs; }, get draws() { return plan.draws; }, reset: () => plan.resetDraws() } };
     }
-    if (sheetEl || washEl || planEl) { side = document.createElement('div'); side.className = `house-side${planEl ? ' with-plan' : ''}`; side.append(...[planEl, sheetEl, planEl ? null : washEl].filter(Boolean)); }
+    // (the truth cards under the plan, each man and stand you engaged as he truly was at your first round (house.js
+    // truthRows, truth-cards' T-a), the card's marks in truth, a role-player's as paint)
+    try {
+      truthEl = truthRowEl(truthRows(s), { paint: paintHitcard, size: CARD_MIN, modelOf: (r) => { const m = hitModelOf(s, r.key, r.leg, 'truth'); return m ? { ...m, subject: r.subject, marks: r.live ? m.marks.map(x => ({ ...x, paint: 'team' })) : m.marks } : null; } });
+      if (truthEl) report.truth = { n: Number(truthEl.dataset.n) || 0, text: truthEl.dataset.text };
+    } catch (e) { broke(e, 'the truth cards'); }
+    if (sheetEl || washEl || planEl) { side = document.createElement('div'); side.className = `house-side${planEl ? ' with-plan' : ''}`; side.append(...[planEl, planEl ? truthEl : null, sheetEl, planEl ? null : washEl].filter(Boolean)); }
   } catch (e) { broke(e, 'the run sheet'); }
   const order = Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? [];
   const again = againOrder(againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null), { go: verdict?.go === true, played, sheets: order }).map((a, i) => (verdict?.go && i === 0 && order.indexOf(a.tier) === order.indexOf(played) + 1 ? { ...a, up: true, why: `you are a GO as ${label}` } : a));
@@ -1672,6 +1740,10 @@ function openHouseEnd(rec, seed) {
     title: leave(() => quitToTitle()),
   } });
   boot.openCard('end', body, lines);
+  // (the v0.0.24 integration: the truth row closes itself where, open, it would make the side column scroll (ui-hunt-page's P1, the
+  // hunt of v0.0.20: "nothing scrolled or cut"; the sergeant's live card at 1280 × 720 scrolled 89 px with it open), and stays open
+  // where it fits (truth-cards' T-a), its summary there to open it)
+  try { if (truthEl?.open && side?.isConnected && side.scrollHeight > side.clientHeight + 1) truthEl.open = false; } catch (e) { broke(e, 'the truth cards'); }
 }
 // (the state the end card last kept a run for: the score card's way back never keeps it twice)
 let runKept = null;
@@ -1718,33 +1790,55 @@ function exportRun(rec, s) {
   return out;
 }
 /** What was played, for the score line (score.js playedWords): the panel's layout, the walk, the look (the page's runtime settings). */
-// (the shot and the voice from the engine that plays them (audio.shot, audio.voiceSet), as the debug handle's picks() reads them:
-// v0.0.20's fixer, the code review: s.$shot and s.$voice were read here and written nowhere, so no score line said them)
-const playedNow = (s) => (s?.armoury?.range?.course === 'house' ? { panel: s.$panel ? String(s.$panel).toUpperCase() : null, walk: s.$cycle ?? null, look: s.$look ?? null, shot: audio.shot ?? null, voice: audio.voiceSet ?? null } : null);
+// (the shot from the engine that plays it (audio.shot), as the debug handle's picks() reads it: v0.0.20's fixer, the code
+// review: s.$shot was read here and written nowhere, so no score line said it)
+const playedNow = (s) => (s?.armoury?.range?.course === 'house' ? { panel: s.$panel ? String(s.$panel).toUpperCase() : null, walk: s.$cycle ?? null, look: s.$look ?? null, shot: audio.shot ?? null } : null);
 
-/** The says heard in the house (the 'say' facts: who, text, atMs, spokenMs), for the speaker's marks; the newest SPEECH_KEPT. */
+/** The says heard (the 'say' facts: who, text, atMs, spokenMs, at?), for the speakers' bubbles; the newest SPEECH_KEPT, this state's only. */
 const speech = [], SPEECH_KEPT = 24;
+let speechOf = null;
 const speakerEls = [];
-/** Who speaks now, over his head (plaque.js speakerMarks and markPlace; feel FL-4): you, your number two, the instructor. */
+/**
+ * Who speaks now, his line in a bubble over his head (plaque.js speakerMarks and placeBubbles; feel FL-4; v0.0.24, the user's "text
+ * bubble only" of 2026-11-19): every line of anyone with a body on the stage, or of a loudspeaker at its `at`, in every scene, clear
+ * of the other figures, the bubbles placed before it and the HUD's rectangles; a bubble with no free place waits in the radio box.
+ */
 function speakerHud(s, { hidden = false } = {}) {
-  const H = !hidden && s?.armoury?.range?.course === 'house' ? s.armoury.range.house : null;
   const hide = (from = 0) => { for (let i = from; i < speakerEls.length; i++) speakerEls[i].hidden = true; };
-  if (!H || !stage.cam?.project) { if (!H) speech.length = 0; return hide(); }
-  const who = [s.player.id, H.twoPid, H.chiefPid].filter(Boolean), marks = speakerMarks(speech, s.clock.ms, { who });
-  const { ox, oy, k } = pictureBox(), boxes = figureBoxes(s);
+  // (a new state, a new game or a load: the lines heard before it are another clock's)
+  if (s !== speechOf) { speech.length = 0; speechOf = s; }
+  if (hidden || !s || !stage.cam?.project) return hide();
+  const marks = speakerMarks(speech, s.clock.ms);
+  if (!marks.length) return hide();
+  const { ox, oy, k } = pictureBox(), boxes = figureBoxes(s), byWho = new Map((s.actors?.list ?? []).filter(a => a.who).map(a => [a.who, a]));
+  // (the HUD as it stands this frame: every element of it shown, a plaque included, the bubbles themselves left out; read only
+  // when a bubble is to be placed; one larger than half the window is an overlay, not a panel)
+  // (each rectangle grown to the whole picture pixels it touches, so a bubble at whole pixels never meets it by a fraction once scaled;
+  // read after every other part of the HUD is written this frame (frame's order), so the read is the frame's one layout, never one
+  // forced between two writes: the fixer of v0.0.24's reviews)
+  const toPic = (q) => { const x0 = Math.floor((q.left - ox) / k), y0 = Math.floor((q.top - oy) / k), x1 = Math.ceil((q.right - ox) / k), y1 = Math.ceil((q.bottom - oy) / k); return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, who: 'ui' }; };
+  const ui = [...hud.children].filter(e => !e.hidden && !e.classList.contains('speaker')).map(e => e.getBoundingClientRect())
+    .filter(q => q.width > 0 && q.height > 0 && q.width * q.height < 0.5 * innerWidth * innerHeight).map(toPic);
+  // (a loudspeaker with no place: a head at the picture's top middle, under the HUD's top panels, the bubble standing over it)
+  const topY = Math.max(0, ...ui.filter(q => q.y < stage.H / 3).map(q => q.y + q.h)) + 2;
+  const headOf = (m) => {
+    if (m.at === 'top') return { x: stage.W / 2 - 5, y: topY + 48, w: 10, h: 0 };
+    const a = byWho.get(m.who), p = a ? [a.x, 1.8, a.z] : m.at ? [m.at.x, m.at.y ?? 2.2, m.at.z] : null;
+    if (!p) return null;
+    const [hx, hy] = stage.cam.project(p[0], p[1], p[2]);
+    return { x: hx - 0.3 * PX_PER_M, y: hy, w: 0.6 * PX_PER_M, h: 0.4 * PX_PER_M };
+  };
+  const { placed } = placeBubbles(marks, { headOf, boxes, ui, bounds: { x: 0, y: 0, w: stage.W, h: stage.H } });
   let n = 0;
-  for (const m of marks) {
-    const a = s.actors?.list?.find(x => x.who === m.who);
-    if (!a) continue;
-    const [hx, hy] = stage.cam.project(a.x, 1.8, a.z), head = { x: hx - 0.3 * PX_PER_M, y: hy, w: 0.6 * PX_PER_M, h: 0.4 * PX_PER_M };
-    const p = m.kind === 'balloon' ? balloon(m.text) : speakerMark(), at = markPlace(head, { w: p.w, h: p.h }, boxes.filter(b => b.who !== m.who));
-    if (!at) continue;
-    const e = speakerEls[n] ?? (speakerEls[n] = Object.assign(document.createElement('canvas'), { className: `plaque speaker${m.kind === 'balloon' ? ' call' : ''}`, hidden: true }));
+  for (const { m, at } of placed) {
+    const p = balloon(m.text);
+    const e = speakerEls[n] ?? (speakerEls[n] = Object.assign(document.createElement('canvas'), { className: 'plaque speaker call', hidden: true }));
     if (!e.parentNode) hud.append(e);
-    e.className = `plaque speaker${m.kind === 'balloon' ? ' call' : ''}`;
     place(e, p, at.x + p.tip, at.y + p.h, k, 'tip', { ox, oy });
     e.style.opacity = String(m.k);
-    e.dataset.who = m.who === s.player.id ? 'me' : m.who === H.twoPid ? 'two' : 'chief';
+    const H = s.armoury?.range?.house;
+    e.dataset.who = m.who === s.player.id ? 'me' : H && m.who === H.twoPid ? 'two' : H && m.who === H.chiefPid ? 'chief' : m.who;
+    e.dataset.words = p.words;
     e.hidden = false;
     n++;
   }
@@ -1789,7 +1883,7 @@ function againAs(rec, tier) {
 }
 function openScore() {
   if (!scene) return;
-  // (the line names what was played, in the house: the panel, the walk, the look (D's page adds the shot and the voice))
+  // (the line names what was played, in the house: the panel, the walk, the look (D's page adds the shot))
   const { body, lines } = scoreCard({ scene: scene.rec, version: VERSION, seed: scene.seed, onCopy: copyText, onDone: () => openEnd(), played: playedNow(loop.state), house: drawnCodeOf(loop.state) });
   boot.openCard('score', body, lines);
 }
@@ -1898,6 +1992,10 @@ function render(alpha, s, info) {
   watch.el.hidden = inSplash; keysHint.hidden = inSplash;
   const splashText = splashHud.update(shown, { state: s });
   const faces = inSplash ? null : watch.update(s, { strip: stripNow(s) });
+  // (ROADMAP "anywhere" step 6: the G line under the watch, only when the gravity is not nominal (gravity.js gLineOf, strip.js gLineText))
+  let gFacts = null;
+  if (!inSplash) { try { gFacts = gLineOf(s); } catch (e) { broke(e, 'the G line'); } }
+  const gText = gLine.update(gFacts);
   const showBanner = !inSplash && !cutHeld && loop.pauseReasons.some(r => r !== 'splash' && r !== 'cut');
   banner.hidden = !showBanner;
   if (showBanner) {
@@ -1919,12 +2017,12 @@ function render(alpha, s, info) {
   const contact = contactHud(s, alpha, { hidden: inSplash });
   const froze = frozeHud(s, { hidden: inSplash });
   const timer = timerHud(s, { hidden: inSplash });
-  // (who speaks, over his head)
-  speakerHud(s, { hidden: inSplash || !!boot.card });
   // (0.0.10: the hit card on the stress course)
   const hit = hitHud(s, { hidden: inSplash, inStop: weapon.on });
   radio.frame(dtMs, !info.paused && !boot.card && !shown && !isHeld(s));
-  const voices = radio.update({ hidden: inSplash, weapon: weapon.on, state: s });
+  // (the radio box over the panel's place while the surprise's free card holds it out of stop motion, as in stop motion: the fixer
+  // of v0.0.24's play review, M2, the 1MC's and the NCO's lines inside the jink's card)
+  const voices = radio.update({ hidden: inSplash, weapon: weapon.on || !!weapon.reflex, state: s });
   // (the lead: "Time stands still." in stop motion (VIEWS §7.4), v0.0.4's words while G's stub holds time, the scene's end;
   // 0.0.8: at a contact's pause, until a step is chosen, "Contact · 0.55 s." in its place)
   const pause = weapon.on && !s.skip ? pauseOf(s) : null;
@@ -1941,7 +2039,11 @@ function render(alpha, s, info) {
   let rowKeys = null;
   if (weapon.on && now?.line?.row) { try { rowKeys = stepPanel.rowKeys(now.line.row); } catch (e) { broke(e, 'the instinct'); } }
   const line = instinct.update({ hidden: inSplash, lead, now, offer: hand, armed: handArmedAt !== null, ui: uiK, actWords, rowKeys });
-  report.hud = { watch: faces, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on, far: weapon.far,
+  // (who speaks, over his head: after every other part of the HUD is written this frame, the hit card, the radio box and the line
+  // among them, so a bubble is placed clear of what the frame shows (the fixer of v0.0.24's reviews: a bubble under the hit card, one
+  // a pixel into the radio box, and a forced layout between the HUD's writes))
+  speakerHud(s, { hidden: inSplash || !!boot.card });
+  report.hud = { watch: faces, gline: gText, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on, far: weapon.far,
     terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '', timer, contact, lead, froze, chaos: view.stats.chaos ?? null, hit,
     contactPlate: contactPlate.hidden ? '' : contactPlate.dataset.text ?? '', parts: partsPlate.hidden ? '' : partsPlate.dataset.text ?? '' };
   avpuFade(s);
@@ -2020,7 +2122,13 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   const keepPaper = kdModel?.card === 'group' || kdModel?.card === 'score';
   // (the far window, in stop motion or by E held on a KD line: placed before PAPER, which yields to it)
   const far = s && !hidden ? farHud(s, sim, on, { paper: keepPaper }) : farHud(null);
-  if (!on) { stepPanel.update({ hidden: true }); reflexCard.update(null); paperInset.update(null); aimHud(null); return { ...HIDDEN_WEAPON, far: far?.words ?? '' }; }
+  if (!on) {
+    // (ROADMAP "anywhere" step 6: the surprise's card out of stop motion, a ship's crew's: the reflex card alone, time standing still)
+    let card = null;
+    if (s && !hidden) { try { card = gravCardOf(s); } catch (e) { broke(e, 'the gravity card'); } }
+    stepPanel.update({ hidden: true }); const reflexText = reflexCard.update(card); paperInset.update(null); aimHud(null);
+    return { ...HIDDEN_WEAPON, reflex: reflexText ?? '', far: far?.words ?? '' };
+  }
   // (0.0.8: the pairs pad has no card to show close: PAPER is the coach's timer's (timerHud))
   // (0.0.12: the shoot house's PAPER is the instructor's lane timer too)
   const onPairs = sim.range?.course === 'pairs' || sim.range?.course === 'house' || s.armoury?.range?.course === 'house';
@@ -2032,7 +2140,11 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   const acts = (sim.kd?.acts ?? []).map(a => ({ id: a.id, kind: 'command', label: a.label, ms: a.ms ?? null, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: true, skill: null, act: a.id }));
   const steps = acts.length ? [...sim.steps.filter(x => x.kind === 'fire' || x.kind === 'aim' || x.kind === 'hold'), ...acts, ...sim.steps.filter(x => !(x.kind === 'fire' || x.kind === 'aim' || x.kind === 'hold'))] : sim.steps;
   // (a reflex card: the weapon card stays at its place, the reflex card beside it in the rest of STEPS)
-  if (st.reflex) { stepPanel.update({ cardOnly: true, steps: [], belief: sim.belief, ui: uiK, ...distance }); reflexText = reflexCard.update(st.reflex, { keep: reflexKeep }); }
+  // (the fixer of the code review: the surprise's free card (gravity.js gravCardOf) holds time in stop motion too, so it is
+  // shown there in the reflex card's place and its digits answer it (gravCardKey); before, it held time with no card drawn)
+  let grav = null;
+  if (!st.reflex) { try { grav = gravCardOf(s); } catch (e) { broke(e, 'the gravity card'); } }
+  if (st.reflex || grav) { stepPanel.update({ cardOnly: true, steps: [], belief: sim.belief, ui: uiK, ...distance }); reflexText = st.reflex ? reflexCard.update(st.reflex, { keep: reflexKeep }) : reflexCard.update(grav); }
   else {
     reflexCard.update(null);
     // (R7: the panel's model by the layout played, T's act on NEXT with its words, and a key a decision, so a drawer or a bank
@@ -2550,10 +2662,10 @@ async function bench(name) {
 // ---- v0.0.20: the Esc menu's To score page (the build sheet item 10; cards/topick.js) ----
 view.setFlashes?.(settings.reduceFlashes);
 setMenuExtras(() => (loop.state ? [['To score: try the samples live', () => openToScore(), null]] : []));
-/** The To score page over the game: each row's choice applied at once (the look, the walk, the shot, the voice, the corner aid). */
+/** The To score page over the game: each row's choice applied at once (the look, the walk, the shot, the corner aid). */
 function openToScore() {
   const s = loop.state, look = settings.look ?? { stack: [], helm: null, jamb: null };
-  const keep = (p) => { if (!settings.nostore) writePicks({ ...p, flags: { look: settings.look, shot: settings.shot, voice: settings.voice } }); };
+  const keep = (p) => { if (!settings.nostore) writePicks({ ...p, flags: { look: settings.look, shot: settings.shot } }); };
   const apply = (row, v) => {
     const st = loop.state;
     if (row === 'stack' || row === 'helm' || row === 'jamb') {
@@ -2575,7 +2687,7 @@ function openToScore() {
     keep(card.picks);
   };
   const card = topickCard({
-    now: { look, walk: settings.cycle ?? 'B', shot: audio.shot === 'old' ? null : audio.shot, voice: audio.voiceSet, aid: settings.aid },
+    now: { look, walk: settings.cycle ?? 'B', shot: audio.shot === 'old' ? null : audio.shot, aid: settings.aid },
     picks: toPick, play: { scene: scene?.rec?.id ?? s?.meta?.scenario ?? '?', seed: s?.meta?.seed ?? '?', version: VERSION },
     cb: { apply, save: (p) => { Object.assign(toPick, p); keep(p); }, copy: (t) => copyText(t), back: () => boot.openMenu() },
   });
@@ -2736,8 +2848,8 @@ installDebug(createDebugHandle({
   scores: () => readScores(),
   // (the weapon mode's readers, the build sheet 0.0.5 §2.4: the gun's truth beside its belief, the panel, the plaque, the range, stop motion)
   arms: {
-    // (the To score page's picks as played: the shot and the voice the engine plays, the walk, the look, your #2's drawn look's key)
-    picks: () => ({ shot: audio.shot, voice: audio.voiceSet, cycle: settings.cycle ?? null, look: settings.look ?? null, aid: settings.aid, twoLook: view.stats.twoLook ?? null, voices: { ...audio.stats.voice } }),
+    // (the To score page's picks as played: the shot the engine plays, the walk, the look, your #2's drawn look's key)
+    picks: () => ({ shot: audio.shot, cycle: settings.cycle ?? null, look: settings.look ?? null, aid: settings.aid, twoLook: view.stats.twoLook ?? null }),
     gun: (s) => {
       const id = s.stop?.gun ?? s.people?.[s.player?.id]?.kit?.worn?.sling ?? null;
       return id && s.items?.[id] ? { id, truth: JSON.parse(JSON.stringify(s.items[id])), belief: beliefOf(s, id) } : null;
@@ -2781,7 +2893,7 @@ const houseSay = () => { if (!params.houseAsked || params.layout || !drawableOf(
 // (and on a scene played as set from the page, the live lane until F80 is met, any other house dropped with its words (drawableOf))
 const recURL = params.play ? SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play) ?? null : null;
 const houseURL = houseChoice({ draw: params.draw, house: params.house, rooms: params.rooms, layout: params.layout }, { roomsDefault: SCENES_DATA.HOUSE_ROOMS_DEFAULT ?? 'a', drawable: drawableOf(recURL) });
-const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); if (lookUnknown) toast(`No look '${lookUnknown}': the game's instead.`, 'warn'); if (loadoutUnknown) toast(`No loadout '${loadoutUnknown}': the standard instead.`, 'warn');
+const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); if (gravUnknown) toast(`No gravity event '${gravUnknown}': none instead.`, 'warn'); if (lookUnknown) toast(`No look '${lookUnknown}': the game's instead.`, 'warn'); if (loadoutUnknown) toast(`No loadout '${loadoutUnknown}': the standard instead.`, 'warn');
   for (const t of houseURL.dropped) toast(t, 'warn');
   houseSay(); };
 if (benchName) { await bench(benchName).catch((e) => broke(e, 'the bench')); sayEnv(); }

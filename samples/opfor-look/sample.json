@@ -1,7 +1,7 @@
 {
  "title": "The first live men: the force-on-force mask, the hands up, the paint",
  "about": "\"Stack and clear, live\" (v0.0.19) puts two role-players in the shoot house in place of stands 2a and 3a: generated marines of the cadre in utilities and a plate carrier, a force-on-force mask, an R-7 with marking rounds. A man who gives up drops his rifle to the floor and puts his hands up, and kneels when challenged; a round of marking paint shows where it struck. Every picture is the game's own code: the doll of the inventory and the target view, the world figure at 24 px/m, the target view's card. The game draws the defaults (M2, H1, P1) until you score them.",
- "open": {"default": ["M2", "H1", "P1"], "since": "2026-11-16", "decides": "the live men: the mask (M), the hands up (H), the paint (P)", "builtIn": "v0.0.24"},
+ "scored": { "on": "2026-11-19", "picks": ["M2", "M3", "H1", "P1"] },
  "pixel": true,
  "groups": [
   {

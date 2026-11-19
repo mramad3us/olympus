@@ -22,6 +22,7 @@
 // v0.0.16 (audio/gun.js; the user, 2026-11-15: "guns should bang harder"): the same shot in the new sound, gun.js's R-7 in the
 // bay's space through the defenders' electronics (its make-up, to Melas air's 5.2 kHz), and in the old (&sound=old) as it was.
 import { BAKE_SLICE_MAX_MS } from '../src/ui/audio/engine.js';
+import { SHOT_HOUSE } from '../src/data/sounds.js';
 import { assert, fmt } from './helpers.mjs';
 import { withGame, frameMs } from './browser.mjs';
 import { machineK } from './helpers.mjs';
@@ -248,7 +249,7 @@ export default [
     },
   },
   {
-    name: 'the shoot house by ear (0.0.12, the build sheet 0.0.12 §2.7): the hall\'s reverb on in the Wheel (its send open) and off at the title; the stack\'s doors by their verbs; the #2\'s whispered "Ready" on his stack; a shot in the hall through the suit\'s filter with no berm echo; the suit\'s steps scuffing at 1 G\'s cadence; the timer\'s beeps and the harness\'s tone on their facts',
+    name: 'the shoot house by ear (0.0.12, the build sheet 0.0.12 §2.7): the hall\'s reverb on in the Wheel (its send open) and off at the title; the stack\'s doors by their verbs; no whispered "Ready" (v0.0.24: no voice, the user\'s "no voices" of 2026-11-19); a shot in the hall through the suit\'s filter with no berm echo; the suit\'s steps scuffing at 1 G\'s cadence; the timer\'s beeps and the harness\'s tone on their facts',
     heavy: true,
     timeoutMs: 240000,
     async fn() {
@@ -274,35 +275,34 @@ export default [
         const s1 = await page.evaluate((h) => { const a = window[h].audio; return { hall: a.hallOn, house: a.house ? { ...a.house, byKind: { ...a.house.byKind } } : null, steps: a.steps, scuffs: a.scuffs ?? 0, last: a.range?.lastReport ?? null, echoes: a.range?.echoes ?? 0 }; }, H);
         console.log(`      at GO: the context ${s0.state}, the hall's send ${s0.hall}; after the stack, the door and the walk: the hall ${s1.hall}, the house's cues ${JSON.stringify(s1.house?.byKind)}, ${s1.steps} steps with ${s1.scuffs} suit scuffs, berm echoes ${s1.echoes}`);
         assert(s0.state === 'running' && s1.hall === true && s1.house && s1.house.doors >= 1 && (s1.house.byKind.doorPush ?? 0) + (s1.house.byKind.doorPull ?? 0) >= 1, JSON.stringify(s1));
-        assert(s1.house.whispers >= 1 && s1.echoes === 0, JSON.stringify(s1.house));
+        assert(!s1.house.byKind.whisperReady && s1.house.whispers === undefined && s1.echoes === 0, JSON.stringify(s1.house));
         assert(s1.steps === 0 || s1.scuffs >= 1, JSON.stringify({ steps: s1.steps, scuffs: s1.scuffs }));
         assert(!errors.length, errors.join(' | '));
-      // (&voice=a, v0.0.19's stand-ins by name: the #2's whispered "Ready" this case pins is a voice, and the game voices none from
-      // v0.0.23's fixer, the user's "forget voice synthesis, no voices." of 2026-11-19)
-      }, { port, query: 'play=test-shoothouse&setup=go&tier=private&seed=48213&nostore=1&voice=a' });
+      }, { port, query: 'play=test-shoothouse&setup=go&tier=private&seed=48213&nostore=1' });
     },
   },
   {
-    name: 'the house speaks and bangs in the page (the build sheet v0.0.20 items 2 and 7): after the first key the house\'s shot is A3 once its parts are baked, the tower\'s LOAD said in the instructor\'s voice (the fixed lines baked after the first key, LOAD played), none late (the brief, said before any key, is the autoplay rule\'s), the frames under 16.7 ms × k at the 95th percentile while the voices bake; no page errors',
+    name: 'the house bangs in the page (the build sheet v0.0.20 item 2): after the first key the house\'s shot is SHOT_HOUSE (A5 from v0.0.24, A3 before) once its parts are baked, the tower reaches LOAD with no line said aloud (v0.0.24: v0.0.20 item 7\'s voice gone, the user\'s "forget voice synthesis, no voices." of 2026-11-19; an old &voice=c ignored) (the brief, said before any key, is the autoplay rule\'s), the frames under 16.7 ms × k at the 95th percentile while the voices bake; no page errors',
     heavy: true,
     timeoutMs: 300_000,
     async fn() {
       const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined, rows = [];
       await withGame(async (page, errors, game) => {
-        // (&voice=c by name: the synthesis this case measures is no longer the game's default (the user, 2026-11-19, "no voices"); v0.0.24 retires the case with it)
+        // (an old URL's &voice=c, read as if it had none)
         await game.open('play=test-shoothouse&tier=private&seed=48213&nostore=1&voice=c');
         await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.course === 'house', null, { timeout: 60000 });
         // (the first key wakes the sound (the browsers' autoplay rule); Shift does nothing in the game)
         await page.keyboard.press('ShiftLeft');
         const fm = await frameMs(page);
-        await page.waitForFunction(() => window.__olympus.picks().shot === 'A3', null, { timeout: 60000 });
+        await page.waitForFunction((h) => window.__olympus.picks().shot === h, SHOT_HOUSE, { timeout: 60000 });
         // (on to LOAD: the instructor's brief, then the tower's LOAD, said)
-        // (the game stepped on to LOAD from the handle, a tick at a time, the voices said as the facts come)
+        // (the game stepped on to LOAD from the handle, a tick at a time)
         const toLoad = await page.evaluate(async () => { const H = window.__olympus; let n = 0; while (n < 900 && H.state.armoury.range.cmd?.id !== 'load') { H.step(1); n++; if (n % 20 === 0) await new Promise(r => requestAnimationFrame(r)); } return { n, cmd: H.state.armoury.range.cmd?.id ?? null }; });
         await page.waitForTimeout(3000);
-        const p = await page.evaluate(() => window.__olympus.picks());
-        rows.push(`LOAD after ${toLoad.n} ticks (${toLoad.cmd}); the shot ${p.shot}; the voices ${JSON.stringify(p.voices)}; the frames while baking: median ${fmt(fm.medianMs, 1)} ms, 95th percentile ${fmt(fm.p95Ms, 1)} ms (k ${fmt(machineK(), 2)})`);
-        assert(p.shot === 'A3' && p.voice === 'c' && toLoad.cmd === 'load' && p.voices.played >= 1 && p.voices.baked >= 2 && p.voices.late === 0, JSON.stringify({ p, toLoad }));
+        const p = await page.evaluate(() => ({ ...window.__olympus.picks(), stats: Object.keys(window.__report.audio ?? {}).filter(k => /voice$/.test(k)) }));
+        rows.push(`LOAD after ${toLoad.n} ticks (${toLoad.cmd}); the shot ${p.shot}; a voice ${p.voice ?? 'none'}, the audio's voice stats ${p.stats.join(', ') || 'none'}; the frames while baking: median ${fmt(fm.medianMs, 1)} ms, 95th percentile ${fmt(fm.p95Ms, 1)} ms (k ${fmt(machineK(), 2)})`);
+        assert(p.shot === SHOT_HOUSE && !('voice' in p) && !('voices' in p) && !p.stats.length && toLoad.cmd === 'load', JSON.stringify({ p, toLoad }));
+        assert(!errors.length, errors.join(' | '));
         // (in macOS's background band headless Chrome paces its frames at 10 to 12 Hz whatever the page does (CLAUDE.md): the frames judged only when paced at 60)
         if (fm.medianMs < 25) assert(fm.p95Ms <= 16.7 * Math.max(1, machineK()) * 1.25, JSON.stringify(fm));
       }, { port });
@@ -310,22 +310,21 @@ export default [
     },
   },
   {
-    name: '(v0.0.21, the build sheet §1 item 12) the bake in slices in the page: after the first key every slice of the bake (the house\'s A3, the fixed lines, your #2\'s call-outs queued at the launch) under BAKE_SLICE_MAX_MS 5 ms × k (v0.0.18\'s release log: 13.6 ms), the call-outs whole before GO, the frames under 16.7 ms × k at the 95th percentile while they bake',
+    name: '(v0.0.21, the build sheet §1 item 12) the bake in slices in the page: after the first key every slice of the bake (the house\'s shot and every sound; v0.0.24: no fixed line or call-out, the voices gone) under BAKE_SLICE_MAX_MS 5 ms × k (v0.0.18\'s release log: 13.6 ms), the frames under 16.7 ms × k at the 95th percentile while they bake',
     heavy: true,
     timeoutMs: 300_000,
     async fn() {
       const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined;
       await withGame(async (page, errors, game) => {
-        // (&voice=c by name, as the case above: the fixed lines and the call-outs this bake holds are baked only with a voice)
-        await game.open('play=test-shoothouse&tier=sgt&seed=48213&setup=go&nostore=1&voice=c');
+        await game.open('play=test-shoothouse&tier=sgt&seed=48213&setup=go&nostore=1');
         await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.course === 'house', null, { timeout: 60000 });
         await page.keyboard.press('ShiftLeft');
         const fm = await frameMs(page);
-        await page.waitForFunction(() => window.__report.audio.baked && !window.__report.audio.voice.queued && window.__report.audio.voice.prebaked > 0 && !window.__report.audio.voice.waiting, null, { timeout: 90000 });
-        const a = await page.evaluate(() => ({ bake: window.__report.audio.bake, voice: window.__report.audio.voice }));
+        await page.waitForFunction(() => window.__report.audio.baked, null, { timeout: 90000 });
+        const a = await page.evaluate(() => ({ bake: window.__report.audio.bake }));
         const k = Math.max(1, machineK());
-        console.log(`      the bake: ${a.bake.slices} slices, the longest ${fmt(a.bake.longestMs, 2)} ms (slice ${a.bake.longestAt}), the mean ${fmt(a.bake.sumMs / Math.max(1, a.bake.slices), 2)} ms, against ${BAKE_SLICE_MAX_MS} ms × k ${fmt(k, 2)}; the voices ${a.voice.baked} baked, ${a.voice.prebaked} call-outs queued at the launch, the longest wait of a line said ${fmt(a.voice.delayMaxMs, 0)} ms, ${a.voice.late} late; the frames while baking: median ${fmt(fm.medianMs, 1)} ms, p95 ${fmt(fm.p95Ms, 1)} ms`);
-        assert(a.bake.longestMs <= BAKE_SLICE_MAX_MS * k && a.voice.prebaked >= 27, JSON.stringify(a));
+        console.log(`      the bake: ${a.bake.slices} slices, the longest ${fmt(a.bake.longestMs, 2)} ms (slice ${a.bake.longestAt}), the mean ${fmt(a.bake.sumMs / Math.max(1, a.bake.slices), 2)} ms, against ${BAKE_SLICE_MAX_MS} ms × k ${fmt(k, 2)}; the frames while baking: median ${fmt(fm.medianMs, 1)} ms, p95 ${fmt(fm.p95Ms, 1)} ms`);
+        assert(a.bake.longestMs <= BAKE_SLICE_MAX_MS * k, JSON.stringify(a));
         if (fm.medianMs < 25) assert(fm.p95Ms <= 16.7 * k * 1.25, JSON.stringify(fm));
         assert(!errors.length, errors.join('\n'));
       }, { port });

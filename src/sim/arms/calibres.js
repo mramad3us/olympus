@@ -33,7 +33,11 @@
 // near miss is supp.js's SUBSONIC_PTS and a strike stings for HIT_PTS; it neither penetrates (pen0Mm 0) nor wounds (woundK 0),
 // and it is never a range's issue (range: false). Its spin bias on the Wheel is COMBAT's 2.8 cm at 5 m (src/sim/places/spin.js:
 // ω d² / v at 120 m/s). Its pink tip and its drag (bcG7 0.05, its speed at 5 m and 7 m tests/opfor-fire.test.mjs prints) are my calls.
-// Data only: frozen literals and three lookups.
+// v0.0.24 (the anywhere round's step 7; WEAPONS §2.2, §7.8; CONTRACTS §21): impulseNs(cal, load, vMs), a round's recoil impulse
+// (N·s), the one helper for it: the bullet's momentum plus the propellant's gas leaving at GAS_K 1.5 × the muzzle's speed,
+// clamped to GAS_MIN_MS 700 to GAS_MAX_MS 1,400 m/s (WEAPONS §2.2's rule): the 6.5×40 ball at 790 m/s 8.47 N·s, the frangible
+// 7.05, the 9×21 ball at 390 m/s 3.19. A blank is its gas alone; a dummy is never fired, so asking its impulse throws.
+// Data only: frozen literals, three lookups and impulseNs.
 
 /** The marking round's own fields (v0.0.19; see the header): one record, the P-12's its speed from its own barrel. */
 const MARKING_6_5 = Object.freeze({ word: 'marking', tip: 0xd4508c, tipWord: 'a pink plastic tip', massG: 0.5, vRefMs: 120, refBarrelMm: 460, vExp: 0.18, bcG7: 0.05, pen0Mm: 0, penExp: 2, woundK: 0, marking: true, priceMcr: 0.25, range: false });
@@ -75,3 +79,19 @@ export const loadOf = (cal, load = 'ball') => CALIBRES[cal]?.loads?.[load] ?? nu
 export const LIVE_LOADS = Object.freeze(Object.fromEntries(Object.entries(CALIBRES).map(([cal, C]) => [cal, Object.freeze(Object.keys(C.loads).filter(k => !C.loads[k].blank && !C.loads[k].dummy && C.loads[k].range !== false))])));
 /** A kind's word ('ball', 'tracer'; the orange dummy 'dummy'), the id itself when unknown. */
 export const loadWord = (load, cal = '6.5x40r') => (load === 'dummy' ? 'dummy' : loadOf(cal, load)?.word ?? load);
+
+/** The propellant gas's speed as a share of the muzzle's, and its clamp (m/s; WEAPONS §2.2; see the header). */
+export const GAS_K = 1.5, GAS_MIN_MS = 700, GAS_MAX_MS = 1400;
+/**
+ * A round's recoil impulse, N·s (see the header): the bullet's mass × vMs (the muzzle's speed: ballistics.js v0Of for the gun's
+ * barrel) plus the propellant's mass × GAS_K × vMs clamped to GAS_MIN_MS to GAS_MAX_MS. Throws on a calibre or load unknown, a
+ * dummy, or a speed that is not a positive number.
+ */
+export function impulseNs(cal, load = 'ball', vMs) {
+  const C = CALIBRES[cal], L = C?.loads?.[load];
+  if (!L) throw new Error(`impulseNs(): no load '${load}' of the calibre '${cal}'`);
+  if (L.dummy) throw new Error(`impulseNs(): ${L.word} is never fired`);
+  if (!(vMs > 0)) throw new Error(`impulseNs(): the muzzle's speed in m/s, not ${vMs}`);
+  const gasMs = Math.min(GAS_MAX_MS, Math.max(GAS_MIN_MS, GAS_K * vMs));
+  return ((L.massG ?? 0) * vMs + C.propG * gasMs) / 1000;
+}

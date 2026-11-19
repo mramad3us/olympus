@@ -128,14 +128,15 @@ export default [
     },
   },
   {
-    name: 'one helmet id for one look (the build sheet v0.0.20 item 22): the figure and the doll take a marine\'s helmet from one place, helmets.js helmFor: every candidate named draws its own doll, the same id the figure wears; with none named and none drawn as, the sealed head as built on both',
+    name: 'one helmet id for one look (the build sheet v0.0.20 item 22): the figure and the doll take a marine\'s helmet from one place, helmets.js helmFor: every candidate named draws its own doll, the same id the figure wears; with none named, both draw HELMET_DRAWN_AS.regular (R3 in the Mars trim from v0.0.24, the user\'s pick of 2026-11-19; before, the sealed head as built)',
     fn() {
       const dig = (pm) => { let h = 2166136261 >>> 0; for (let i = 0; i < pm.data.length; i++) { h ^= pm.data[i]; h = Math.imul(h, 16777619) >>> 0; } return h.toString(16); };
       const look = (helm) => ({ outfit: 'combatSuit', seed: 3, ...(helm ? { helm } : {}) });
       const rows = HELM_IDS.map(id => { const spec = helmFor({ pick: id, slot: 1 }); return { id, fig: wear(look(spec)).helm?.id ?? null, doll: dig(doll({ look: look(spec), sex: 'm', outfit: 'combatSuit' })) }; });
-      const none = { fig: wear(look(null)).helm ?? null, doll: dig(doll({ look: look(null), sex: 'm', outfit: 'combatSuit' })) };
+      const none = { fig: wear(look(null)).helm?.id ?? null, doll: dig(doll({ look: look(null), sex: 'm', outfit: 'combatSuit' })) };
       console.log(`      ${rows.map(r => `${r.id}: the figure ${r.fig}, the doll ${r.doll}`).join('; ')}; none: the figure ${none.fig}, the doll ${none.doll}; drawn as ${JSON.stringify(HELMET_DRAWN_AS)}`);
-      assert(rows.every(r => r.fig === r.id) && new Set(rows.map(r => r.doll)).size === rows.length && !rows.some(r => r.doll === none.doll) && none.fig === null, JSON.stringify({ rows, none }));
+      const drawn = rows.find(r => r.id === HELMET_DRAWN_AS.regular);
+      assert(rows.every(r => r.fig === r.id) && new Set(rows.map(r => r.doll)).size === rows.length && none.fig === 'R3' && drawn?.doll === none.doll, JSON.stringify({ rows, none }));
     },
   },
 ];

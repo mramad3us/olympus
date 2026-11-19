@@ -142,10 +142,13 @@ export function paintedSteel(px, x, y, w, h, o = {}) {
  * A warship's deck plate (PLACES §3.14 deckPlate, an aluminium sandwich): panels `plateM` square with
  * dark seams, a bolt in each corner, a grip pattern of raised lozenges in staggered rows (lit on top,
  * shaded below), a recessed tie-down ring on some panels (cargo and couches lash to them), scuffs
- * where boots wear the grip smooth. kind 'grip' | 'smooth' | 'grating'.
+ * where boots wear the grip smooth. kind 'grip' | 'smooth' | 'grating'. v0.0.24 (the void's decks, samples/void-look P-a and
+ * H-a): `rings` false leaves the tie-down rings out (on a void deck a ring off the hold rule would read as a hold), and
+ * `padEyeM` paints the rule's pad-eyes (src/sim/places/model.js holdNear's lattice: one every padEyeM both ways, at padEyeAtM from
+ * the world's origin), each a yellow-ringed eye proud of the plate, H-a's.
  */
 export function deckPlate(px, x, y, w, h, o = {}) {
-  const { c = 0x657974, ppm = 16, seed = 1, wx = 0, wy = 0, period = 0, plateM = 1.0, kind = 'grip', worn = 0.4 } = o;
+  const { c = 0x657974, ppm = 16, seed = 1, wx = 0, wy = 0, period = 0, plateM = 1.0, kind = 'grip', worn = 0.4, rings = true, padEyeM = 0, padEyeAtM = 0 } = o;
   const g = P(plateM, ppm, 8), u = ppm / 16, F = field(o);
   const seam = tone(c, -0.16), lit = tone(c, 0.05), sh = tone(c, -0.06);
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
@@ -173,12 +176,23 @@ export function deckPlate(px, x, y, w, h, o = {}) {
     const I = wx + i, J = wy + j, a = wrap(I, g), b = wrap(J, g), e = Math.max(2, Math.round(2.5 * u));
     if ((a === e || a === g - e) && (b === e || b === g - e)) { px(x + i, y + j, 1, 1, tone(c, 0.1)); if (j + 1 < h) px(x + i, y + j + 1, 1, 1, tone(c, -0.14)); }
     const pi = Math.floor(I / g), pj = Math.floor(J / g), cell = hash3(wrap(pi, period ? Math.round(period / g) : 0), wrap(pj, period ? Math.round(period / g) : 0), seed + 7);
-    if (kind !== 'grating' && cell % 5 === 0) {
+    if (rings && kind !== 'grating' && cell % 5 === 0) {
       const cx = Math.floor(g / 2), cy = Math.floor(g / 2), rr = Math.max(2, Math.round(2.4 * u)), d = Math.hypot(a - cx, b - cy);
       if (d < rr + 0.5) px(x + i, y + j, 1, 1, d > rr - 0.8 ? (b < cy ? tone(c, -0.18) : tone(c, 0.06)) : tone(c, -0.26));
     }
   }
+  // (the hold rule's pad-eyes, H-a's: a yellow ring, its dark well, the eye's steel; the lattice world-anchored)
+  if (padEyeM > 0) {
+    const pe = Math.round(padEyeM * ppm), at = Math.round(padEyeAtM * ppm), u2 = ppm / 16, R = 2.4 * u2;
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const a = wrap(wx + i - at, pe), b = wrap(wy + j - at, pe), da = Math.min(a, pe - a), db = Math.min(b, pe - b), d = Math.hypot(da, db);
+      if (d > R) continue;
+      px(x + i, y + j, 1, 1, d > 1.5 * u2 ? PAD_EYE_YELLOW : d > 0.5 * u2 ? tone(c, -0.3) : PAD_EYE_STEEL);
+    }
+  }
 }
+/** The pad-eyes' colours (samples/void-look H-a's: the safety yellow, the eye's steel). */
+export const PAD_EYE_YELLOW = 0xc8a43a, PAD_EYE_STEEL = 0xa9b0b8;
 
 /** Rubber matting: dark, with coin studs ('coin'), ribs ('rib') or a drainage grid ('drain', shower floors), joints every `tileM`. */
 export function rubberMat(px, x, y, w, h, o = {}) {

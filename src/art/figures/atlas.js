@@ -108,7 +108,7 @@ export function sheetLayout(ppm = PX_PER_M) {
 export function shapeKey(L) {
   return [L.top?.kind, L.top?.emblem ? 'e' : '', L.legs?.kind, L.head?.kind ?? '-', L.armour ? 'ø' : '', L.pack ? (L.pack.helmet ? 'jh' : 'j') : '',
     L.belt ? 'y' : '', L.rank ? 'r' : '', L.gloves ? 'd' : '', `${L.hair?.style}${L.hair?.step || ''}`, L.weapon ?? '-', L.carry ?? '-', L.wet ? 'w' : '', L.tired ? 't' : '',
-    `${L.ears ? 'E' : ''}${L.headset ? 'H' : ''}${L.brassard ? 'B' : ''}${L.magOut ? 'M' : ''}`].join('|') + (L.model ? `|${L.model}` : '') + (L.cycle ? `|c${L.cycle}` : '') + (L.mask ? `|k${L.mask}` : '');
+    `${L.ears ? 'E' : ''}${L.headset ? 'H' : ''}${L.brassard ? 'B' : ''}${L.magOut ? 'M' : ''}`].join('|') + (L.model ? `|${L.model}` : '') + (L.cycle ? `|c${L.cycle}` : '') + (L.mask ? `|k${L.mask}` : '') + (L.magBoots ? '|mb' : '');
 }
 /** How many composed frames are kept (a least-recently-used cache: about ten shapes' gait bands). */
 export const COMPOSED_KEEP = 600;

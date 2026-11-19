@@ -113,7 +113,22 @@
 // area (R.area) is the live one, by their record's name. gaitAction is V where a spec sets stances (the house): Relaxed →
 // Combat → Assault, the posture following (slung, low ready, high ready). A Watch held is the actor's watch ({ hotId, x, z,
 // yawRad, fromMs }, kept out of the mode while the keys walk him in; react.js reads it as a held sector).
-// Pure but enterStop, leaveStop, liveStep, chooseStep, breatheAction, gaitAction, stopInput, stopRules.
+// Step 5 of "anywhere" (BODY §16.6; COMBAT §14.8; src/sim/body/footing.js): with mag boots worn (the kit's 'boots' slot) the
+// panel offers their magnets after the stances (bootsRow): "Lock your boots" (MAG_BOOTS.LOCK_MS 400 ms) under 0.3 G where
+// the feet stand on a ferrous face, struck "no steel underfoot" off one, and "Release your boots" (UNLOCK_MS 300 ms) while
+// locked; one sub-step of fixed time, no roll, the actor's anchor taken or let go at its end (footing.js setAnchor), and a
+// live step out of the mode (bootsAction). Kneeling or lying on a ground soils the hands by the ground's own row
+// (footing.js groundSoilOf: its dust and its word; Melas's regolith +15 'regolith' as before).
+// v0.0.24's step 5 (AW§4.1 items 3 to 5; COMBAT §14.8): under 0.05 G the panel offers the anchors the place gives after the
+// boots (anchorRows, kind 'anchor', BODY's group): "Take the hold" (a hold or a pad-eye within FOOTING.REACH_M 0.8 m, 0.5 s),
+// "Clip in" (the lanyard on a pad-eye in reach, 1.0 s × the Zero-g pace), "Wedge" (across a passage of 0.8 to 1.2 m, 1.0 s),
+// each struck with the place's reason where it is not there (footing.js anchorOffers), and "Let go" (0.2 s) while one holds;
+// one sub-step of fixed time, no roll, the anchor taken at its end (footing.js setAnchor); live steps out of the mode
+// (anchorAction, the DI's T's act). In the house a drill row that would walk where the legs have nothing to push on (under
+// 0.05 G and not on locked boots) is struck with the footing's reason (bundle.js moveStruck; AW§4.1 item 5), never started.
+// Fire is never struck for a floating shooter (COMBAT §14.8's "a single shot at need"): its plaque carries the roller's
+// "free fall, unanchored" and its time the anchor's recovery (shot.js anchorOf).
+// Pure but enterStop, leaveStop, liveStep, chooseStep, breatheAction, bootsAction, anchorAction, gaitAction, stopInput, stopRules.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { playerActor, playerId } from '../../core/ids.js';
@@ -125,6 +140,7 @@ import { rollerOf } from '../combat/roll.js';
 import { suppMod, bandOf, SHAKING_ODDS, breatheOffer, breatheStart, breatheEnd, BREATHE_MS, BREATHE_SUB_MS } from '../combat/supp.js';
 import { stanceMs, WAIT_MAX_MS, STANCES, stanceStep } from '../combat/steps.js';
 import { gravityAt } from '../places/env.js';
+import { bootsOf, bootsLocked, setAnchor, groundSoilOf, footingOf, anchorOffers, bootsLockWhy } from '../body/footing.js';
 import { offerReflex, chosenReflex } from '../combat/reflex.js';
 import { aimMsOf, pullMsOf, heldOf, plaqueOf, resolveShot, HELD_MAX, poiOf, holdFor, holdWords, windBeliefOf, HOLD_STEP_MRAD, HOLD_MAX_MRAD, HOLD_SHIFT_MS, catchAhead, shotIdNext } from './shot.js';
 import { canDo, doAction, beliefOf, actionMs, tempoFor, refusalOf, sayObserved, actionOf, actionKey, actionPlace, dial, dialMs, opticMs, readMs, setOptic, believeZero, beliefZero, sightOf, TURRET_MAX_CLK, HANDS_FULL_OK } from './firearms.js';
@@ -139,9 +155,8 @@ import { faceUpAt, markedFor, FACE_DOWN_UP } from './pits.js';
 import { AIM_LEAD_K, EDGE_KEEP_M, FRAME_HALF_M } from './look.js';
 import { KD_RANGE } from '../../data/places/range.js';
 import { KD_STRINGS } from '../../data/courses.js';
-import { HANDS } from '../../data/body/needs.js';
+import { HANDS, MAG_BOOTS, GAIT_G, FOOTING } from '../../data/body/needs.js';
 import { soil } from '../body/body.js';
-import { areaOf } from '../places/model.js';
 import { logEntry } from '../log.js';
 import { lineReady, recordShot, recordEjects, recordDischarge, afterStep, aheadOf, lineCold, coachOf, rangeOf, markOfMacro, onStepStart, noteTick, magSeated, oneMagWarn, kindWarn, spoutCheck } from '../scenarios/handling.js';
 import { turnerTargets, facingOf } from './turners.js';
@@ -149,12 +164,12 @@ import { shotRows, reloadRows, rowPlan, keptPlan, runRowSub, endRowSub, RELOAD_P
 import { contactRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive, contactNow, CONTACT_LABELS } from '../combat/contact.js';
 import { contactOf } from '../people/mind.js';
 import { useList, begin, advance, endStep, stepFact } from '../combat/stepper.js';
-import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant, wayOf, pathFrom, feetTo, flowIn, flowAfter, crossTick, mineUp, doorNow, preGoRows, handsStruck } from '../combat/bundle.js';
+import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant, wayOf, pathFrom, feetTo, flowIn, flowAfter, crossTick, mineUp, doorNow, preGoRows, handsStruck, moveStruck } from '../combat/bundle.js';
 import { clipped, lineClear } from '../combat/route.js';
 import { rungOf } from '../skills/templates.js';
 import { MOVE_STANCES, gaitsOf } from '../body/motion.js';
 import { profileOf, pathLen } from '../combat/stepper.js';
-import { cardOptions, weaponList, weaponRows, offlineFeet, sidearmSub, sidearmEnd, adminSubs, adminMs } from './sidearm.js';
+import { cardOptions, weaponList, weaponRows, weaponsHere, offlineFeet, sidearmSub, sidearmEnd, adminSubs, adminMs } from './sidearm.js';
 import { planFor, absOf, stepAbs } from './plan.js';
 import { markRow } from './rowmark.js';
 import { gunsOf } from './guns.js';
@@ -197,7 +212,13 @@ export const LABELS = Object.freeze({
   'step:wall': 'Step to the wall', hang: 'Let it hang', 'draw:thigh': 'Draw the pistol', holster: 'Holster it', 'team:cover': 'Cover his sector',
   'weapon:gun-down': 'Gun down', 'weapon:offline': 'Off the line', 'weapon:transition': 'Transition: pistol', 'weapon:rifle-up': 'Rifle up', 'weapon:pistol-clear': 'P-12: SHOW CLEAR',
   'pistol:ready': 'The pistol: rack, safe, holster', 'pistol:clear': 'The pistol: clear, holster',
+  // (ROADMAP "anywhere" step 5: the mag boots' magnets (see the header))
+  'boots:lock': 'Lock your boots', 'boots:release': 'Release your boots',
+  'anchor:hold': 'Take the hold', 'anchor:clip': 'Clip in', 'anchor:wedge': 'Wedge', 'anchor:letgo': 'Let go',
 });
+/** The anchors' sub-steps' words and the anchor each takes (v0.0.24's step 5: footing.js setAnchor's kinds; Let go null). */
+const ANCHOR_WORDS = Object.freeze({ 'anchor:hold': 'A hand on the hold.', 'anchor:clip': 'Lanyard clipped on: both hands on the gun.', 'anchor:wedge': 'Back on one face, boots on the other.', 'anchor:letgo': 'You let go.' });
+const ANCHOR_KIND = Object.freeze({ 'anchor:hold': 'handhold', 'anchor:clip': 'tether', 'anchor:wedge': 'braced', 'anchor:letgo': null });
 /** The holstered P-12's rows' words by their row ids (plan.js gunRows). */
 export const OTHER_LABELS = Object.freeze({ topup: 'Top up', 'macro:ready': 'MAKE READY' });
 /** An action's words on a gun's model: the pistol's where they differ (gunwords.js), else the panel's (LABELS), else the id. */
@@ -598,7 +619,8 @@ function houseRows(state, pid, ms) {
   // the stances' rows say what they trade where they are chosen (specials.js stanceHint))
   for (const r of [...b, ...sg]) if (r.stance) r.hint = stanceHint(state, pid, r.stance);
   // (a device in a hand strikes the drill's rows that do not use it (bundle.js handsStruck))
-  const rows = handsStruck(state, pid, [...(carry ? [carry] : []), ...b.filter(r => !r.later), ...sg]), grey = b.filter(r => r.later);
+  // (ROADMAP "anywhere" step 5: a row that walks where the legs have nothing to push on, struck with the footing's reason (bundle.js moveStruck))
+  const rows = moveStruck(state, pid, handsStruck(state, pid, [...(carry ? [carry] : []), ...b.filter(r => !r.later), ...sg])), grey = b.filter(r => r.later);
   // (at a door below rung 2: outside the room, X is the walk in by the keys)
   const go = rungOf(state, pid, 'room') < 2 && sg.some(r => r.kind === 'watch');
   return { rows, go, grey };
@@ -647,7 +669,9 @@ function stepsOfRaw(state, ms) {
     odds: null, routine: null, off: null, subs: [], cmd: false, skill: null, key: stance === 'sit' || down ? null : STANCES.indexOf(to) > STANCES.indexOf(stance) ? STANCE_KEYS.down : STANCE_KEYS.up }));
   // (0.0.8: the pairs bay has no tower: the coach runs it, and in a standby you wait for the turn)
   const R0 = rangeOf(state), waitLabel = R0?.course === 'pairs' && !R0.end ? (R0.cmd?.id === 'standby' && R0.str && !R0.str.done ? 'Wait for the turn' : 'Wait for the coach')
-    : onHouse(state) && !R0.end ? (laneLive(R0) ? 'Wait' : 'Wait for the instructor') : LABELS.wait;
+    : onHouse(state) && !R0.end ? (laneLive(R0) ? 'Wait' : 'Wait for the instructor')
+    // (Well A has no tower: the cadre runs the stations, the turn his (the fixer of v0.0.24's play review, L1))
+    : R0?.course === 'anchors' && !R0.end ? 'Wait for the cadre' : LABELS.wait;
   const wait = { id: 'wait', kind: 'wait', label: waitLabel, ms: WAIT_MAX_MS, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
   // (0.0.12: in the house, the drill's rows; X at a door below rung 2 says what it does (see the header))
   // (the drill's rows only on the lane, from GO to its end: before GO and after it the instructor's commands are the panel's
@@ -658,15 +682,18 @@ function stepsOfRaw(state, ms) {
   const leave = { id: 'leave', kind: 'leave', label: hRows?.go ? 'go: the clock runs, the keys move you' : house ? 'Go: the clock runs' : LABELS.leave, ms: 0, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: false, skill: null };
   // (0.0.10: Breathe where the model offers it: fixed with nothing facing you, a single marked "! he's up" with a threat up (see the header))
   const br = breatheRow(state, pid, ms);
+  // (ROADMAP "anywhere" step 5: the mag boots' magnets, after the stances, where boots are worn and the footing can use them (see the header))
+  // (and the anchors' rows under 0.05 G, after them: anchorRows)
+  const bt = bootsRow(state, pid), boots = [...(bt ? [bt] : []), ...anchorRows(state, pid)];
   // (the rifle on its sling: its Up, the drill's rows and the weapon group's (Transition, Gun down, Off the line), Fix marked by the
   // planner (Up, or Transition where the rifle has no rounds left) (the review and the dead-end hunt of v0.0.18: a fumble that
   // swung the rifle onto its sling at a contact left Fix "Nothing to fix", T silent and Up four keys deep, and a rifle hanging
   // on a stoppage after a fumbled draw lost Transition with a man facing at 4 m))
   if (slung(posture)) {
-    const wS = inHouse(state) ? weaponRows(state, pid, ms) : [];
+    const wS = weaponsHere(state) ? weaponRows(state, pid, ms) : [];
     // (the hunt of v0.0.18: Up struck while a hand holds a device (devices.js handsFullWhy), the device's ways out first)
     const full = handsFullWhy(state, pid), upStep = (a) => { const st = actionStep(state, roller, gun, a); return a === 'up' && full && !st.off ? { ...st, off: full } : st; };
-    const sl = [...wS.filter(r => r.lead), ...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(upStep), ...stances, ...(br?.later ? [br] : []),
+    const sl = [...wS.filter(r => r.lead), ...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(upStep), ...stances, ...boots, ...(br?.later ? [br] : []),
       ...wS.filter(r => !r.lead && !r.later), wait, leave, ...wS.filter(r => !r.lead && r.later), ...(hRows?.grey ?? [])];
     markFix(state, pid, S.gun, sl, roller, gun);
     return shaking(roller, sl);
@@ -766,13 +793,13 @@ function stepsOfRaw(state, ms) {
     if (a === 'selector:safe' && hammerDown) st.off = 'hammer down: charge first';
     (noAnswer(a) ? tail : out).push(noAnswer(a) ? Object.assign(st, { later: true }) : st);
   }
-  out.push(...stances, ...later, ...tail, ...(br?.later ? [br] : []));
+  out.push(...stances, ...boots, ...later, ...tail, ...(br?.later ? [br] : []));
   for (const a of singles) if (a.startsWith('posture:')) out.push(actionStep(state, roller, gun, a, 'posture'));
   if (mw) out.push({ ...wait, id: 'wait:mark', label: LABELS['wait:mark'], ms: MARK_WAIT_MS });
   if (struckLast) out.push(Object.assign(fire, { later: true }), Object.assign(aimRow, { later: true }));
   // (the rework's R6: the weapon group's rows in the house (arms/sidearm.js weaponRows): a lead row first of all (Rifle up with
   // nobody facing, Transition with a threat close, Gun down, Cover his sector), the rest before Wait, the later ones after it)
-  const wRows = inHouse(state) ? weaponRows(state, pid, ms) : [];
+  const wRows = weaponsHere(state) ? weaponRows(state, pid, ms) : [];
   out.unshift(...wRows.filter(r => r.lead));
   // (before GO in the house: Back on your mark and Careful, the body's part of MAKE READY (bundle.js preGoRows))
   const pre = inHouse(state) && onHouse(state) && !R0.end ? preGoRows(state, pid, ms) : [];
@@ -934,6 +961,42 @@ export function breatheRow(state, pid = playerId(state), ms = state.clock.ms) {
   if (!o.ok) return null;
   const subs = BREATHE_WORDS.map(w => ({ id: 'breathe', label: w.replace(/\.$/, ''), ms: BREATHE_SUB_MS }));
   return o.up ? row('breathe', 'breathe', LABELS.breathe, BREATHE_MS, { subs, later: true, warn: 'up' }) : row('breathe', 'breathe', LABELS.breathe, BREATHE_MS, { subs, promoted: true });
+}
+
+/**
+ * The mag boots' row (step 5; see the header), or null: with boots worn (the kit's 'boots' slot), "Release your boots"
+ * (MAG_BOOTS.UNLOCK_MS) while they are locked, else "Lock your boots" (MAG_BOOTS.LOCK_MS) where the gravity does not hold
+ * the feet by itself (under GAIT_G.BOUND_BELOW_G 0.3 G), struck "no steel underfoot" off a ferrous face (PLACES §2.7). No roll.
+ */
+export function bootsRow(state, pid = playerId(state)) {
+  const me = state.actors?.list?.find(a => a.who === pid);
+  if (!me || !state.places?.live?.area || !bootsOf(state, pid)) return null;
+  const sub = (id, ms) => [{ id, label: LABELS[id], ms }];
+  if (bootsLocked(state, pid)) return row('boots:release', 'boots', LABELS['boots:release'], MAG_BOOTS.UNLOCK_MS, { subs: sub('boots:release', MAG_BOOTS.UNLOCK_MS) });
+  if (gHere(state, me) >= GAIT_G.BOUND_BELOW_G) return null;
+  // (no steel underfoot, or no deck under the boots: off it or drifting (footing.js bootsLockWhy; the review of v0.0.24's A to C))
+  const off = bootsLockWhy(state, pid);
+  return row('boots:lock', 'boots', LABELS['boots:lock'], MAG_BOOTS.LOCK_MS, { subs: sub('boots:lock', MAG_BOOTS.LOCK_MS), off });
+}
+
+/** An anchor step's time (v0.0.24's step 5; FOOTING.STEP_MS): the hold 500, the wedge 1,000, Let go 200 ms; Clip in 1,000 ms × the Zero-g pace (COMBAT §14.8's LANYARD_S at value 10). */
+export function anchorStepMs(state, pid, id) {
+  const T = FOOTING.STEP_MS;
+  if (id === 'anchor:clip') return Math.round(T.clip * paceOf(rollerOf(state, pid).value('zerog')));
+  return id === 'anchor:hold' ? T.hold : id === 'anchor:wedge' ? T.wedge : T.letGo;
+}
+/**
+ * The anchors' rows (v0.0.24's step 5; see the header): [] at 0.05 G and up; while a hold, a lanyard, a wedge or a buddy holds
+ * you, "Let go"; floating, "Wedge", "Clip in" and "Take the hold" (footing.js anchorOffers' order, the boots' row apart: bootsRow),
+ * each struck with the place's reason where it is not there. No roll.
+ */
+export function anchorRows(state, pid = playerId(state)) {
+  const me = state.actors?.list?.find(a => a.who === pid);
+  if (!me || !state.places?.live?.area || gHere(state, me) >= GAIT_G.FLOAT_BELOW_G) return [];
+  const mk = (id, off = null) => { const ms = anchorStepMs(state, pid, id); return row(id, 'anchor', LABELS[id], ms, { subs: [{ id, label: LABELS[id], ms }], off }); };
+  const F = footingOf(state, pid);
+  if (['handhold', 'tether', 'braced', 'buddy'].includes(F.hold)) return [mk('anchor:letgo')];
+  return anchorOffers(state, pid).filter(o => o.step !== 'boots:lock').map(o => mk(o.step, o.ok ? null : o.why));
 }
 
 // (0.0.9: a row whose odds the chaos holds under SHAKING_ODDS is marked "! shaking", never struck (combat/supp.js; COMBAT
@@ -1147,6 +1210,14 @@ function rifleSub(state, bus, d, i, atMs) {
     rec.ms = BREATHE_SUB_MS;
     if (i === 0) { const b = breatheStart(state, bus, pid, atMs); d.breathePool = b?.pool ?? null; }
     text = BREATHE_WORDS[i] ?? BREATHE_WORDS[0];
+  } else if (id === 'boots:lock' || id === 'boots:release') {
+    // (step 5: the magnets a step each way, their fixed time, no roll; the anchor taken or let go at the sub-step's end)
+    rec.ms = id === 'boots:lock' ? MAG_BOOTS.LOCK_MS : MAG_BOOTS.UNLOCK_MS;
+    text = id === 'boots:lock' ? 'Boots down: the magnets take the plate.' : 'Boots up: the magnets let go.';
+  } else if (id.startsWith('anchor:')) {
+    // (ROADMAP "anywhere" step 5: an anchor taken or let go, its fixed time, no roll; written at the sub-step's end (endSub))
+    rec.ms = anchorStepMs(state, pid, id);
+    text = ANCHOR_WORDS[id] ?? '';
   } else if (id === 'wait') {
     rec.ms = WAIT_MAX_MS;
   } else if (id === 'wait:mark') {
@@ -1192,12 +1263,14 @@ function rifleSub(state, bus, d, i, atMs) {
 // (the sub-steps that touch nothing of the rifle's working parts: the hands stay as they were; 0.0.6's magazine in the
 // hand too, all but the seat, which is the old magazine in's hand on the well, so a LOAD soils the hands as v0.0.5's did)
 const CLEAN_SUBS = new Set(['aim', 'hold', 'fire', 'wait', 'finger', 'show', 'observe', 'reach', 'lookMag', 'stowMag', 'dumpMag', 'dropMag', 'breathe']);
-// (the hands after a sub-step: the rifle's oil and carbon, or the ground's regolith; the build sheet 0.0.6 §2.1)
+// (the hands after a sub-step: the rifle's oil and carbon, or the ground's own (step 5: footing.js groundSoilOf, the ground's
+// dust and its word; Melas's regolith +15 as in 0.0.6); the build sheet 0.0.6 §2.1)
 function soilOf(state, bus, id, stanceTo) {
-  if (!id) return;
+  if (!id || id.startsWith('boots:') || id.startsWith('anchor:')) return;
   const pid = playerId(state);
   if (id.startsWith('stance:')) {
-    if ((stanceTo === 'kneel' || stanceTo === 'prone' || stanceTo === 'sit') && areaOf(state.places?.live?.area)?.kind === 'ground') soil(state, pid, { k: HANDS.REGOLITH, why: 'regolith' }, state.clock.ms, bus);
+    const me = meOf(state), g = (stanceTo === 'kneel' || stanceTo === 'prone' || stanceTo === 'sit') && me ? groundSoilOf(state, state.places?.live?.area, me.x, me.z) : null;
+    if (g) soil(state, pid, { k: g.k, why: g.why }, state.clock.ms, bus);
     return;
   }
   // (0.0.7: the turrets, the lever, the hold and a read touch none of the working parts)
@@ -1216,6 +1289,14 @@ function endSub(state, bus, d) {
     // (the coach looks into the chamber, then says what he saw: "Clear." at the look's end, not its start)
     sayObserved(state, bus, d.say);
     delete d.say;
+  } else if (id === 'boots:lock' || id === 'boots:release') {
+    // (step 5: the magnets on or off at the sub-step's end; a plate gone from under the boots meanwhile is said (footing.js setAnchor))
+    const r = id === 'boots:lock' ? setAnchor(state, d.who, 'boots') : (bootsLocked(state, d.who) ? setAnchor(state, d.who, null) : { ok: true });
+    if (!r.ok) bus?.emit('line', { text: `The magnets find nothing: ${r.why}.`, kind: 'warn' });
+  } else if (id && id.startsWith('anchor:')) {
+    // (ROADMAP "anywhere" step 5: the anchor at the sub-step's end, checked against the place as it is then (footing.js setAnchor))
+    const r = setAnchor(state, d.who, ANCHOR_KIND[id] ?? null);
+    if (!r.ok) bus?.emit('line', { text: `Nothing to take: ${r.why}.`, kind: 'warn' });
   } else if (id && id.startsWith('contact:')) endContactSub(state, bus, d, id);
   else if (d.plan && id === 'shift') endRowSub(state, bus, d);
   // (the build sheet's item 7 (f), the net's N15: the pistol's place sub-steps whatever the step's kind: a weapon row's rest run as
@@ -1435,6 +1516,18 @@ export function liveStep(state, bus, { pid = playerId(state), step } = {}) {
     const o = breatheOffer(state, pid, state.clock.ms);
     if (!o.ok) return { ok: false, why: o.why };
     st = { id: 'breathe', kind: 'breathe', label: LABELS.breathe };
+  } else if (step === 'boots:lock' || step === 'boots:release') {
+    // (step 5: the mag boots out of the mode, a live step with no rifle needed (see the header))
+    const b = bootsRow(state, pid);
+    if (!b || b.id !== step) return { ok: false, why: 'not offered' };
+    if (b.off) return { ok: false, why: b.off };
+    st = { id: step, kind: 'boots', label: b.label };
+  } else if (step.startsWith('anchor:')) {
+    // (ROADMAP "anywhere" step 5: an anchor out of the mode, a live step with no rifle needed (see the header))
+    const b = anchorRows(state, pid).find(r => r.id === step);
+    if (!b) return { ok: false, why: 'not offered' };
+    if (b.off) return { ok: false, why: b.off };
+    st = { id: step, kind: 'anchor', label: b.label };
   } else {
     if (!gunId || !canDo(state, pid, gunId).includes(step)) return { ok: false, why: 'not offered' };
     st = { id: step, kind: 'single' };
@@ -1448,6 +1541,21 @@ export function liveStep(state, bus, { pid = playerId(state), step } = {}) {
 export function breatheAction(state, bus) {
   if (state.stop?.mode === 'stop') return chooseStep(state, bus, { step: 'breathe' });
   return liveStep(state, bus, { pid: playerId(state), step: 'breathe' });
+}
+
+/** The mag boots (step 5): the row bootsRow offers, locked or released, a step in the mode and a live step out of it. Returns { ok, why }. */
+export function bootsAction(state, bus) {
+  const b = bootsRow(state, playerId(state));
+  if (!b) return { ok: false, why: 'no mag boots on' };
+  if (state.stop?.mode === 'stop') return chooseStep(state, bus, { step: b.id });
+  return liveStep(state, bus, { pid: playerId(state), step: b.id });
+}
+
+/** An anchor (v0.0.24's step 5; the DI's T's 'anchor:<row>'): a row of anchorRows or the boots' lock, a step in the mode and a live step out of it. Returns { ok, why }. */
+export function anchorAction(state, bus, step) {
+  if (step === 'boots:lock') return bootsAction(state, bus);
+  if (state.stop?.mode === 'stop') return chooseStep(state, bus, { step });
+  return liveStep(state, bus, { pid: playerId(state), step });
 }
 
 /** The carry action (V): the posture's other in the mode, a live step out of it; slung, the rifle up. */

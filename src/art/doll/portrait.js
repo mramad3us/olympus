@@ -18,15 +18,38 @@
 // The picks (PORTRAIT_PICKS: the defaults of samples/portrait-gun, portrait-pose, portrait-facing and portrait-light until the user
 // scores them; the Esc menu's To score page swaps some in live through opts.picks, never saved) and the ship switches
 // (PORTRAIT_POSES, PORTRAIT_FACING: false draws every card standing, or front on, as v0.0.22) are read at the paint.
+// v0.0.24 (the build sheet v0.0.24 items 14 to 19; the overhaul's second round): the picks of v0.0.23's sets applied, none of them
+// scored yet, so each at its default (PORTRAIT_PICKS: the back F1 and the side F3, the card's body R1, the light L1, the jamb J1, the
+// suit's backdrop D-a, the truth cards T-a, the boots B-b, the anchor H-a): a pick is the one line here. drawnRec turns a side card
+// into the profile only on F2 and a back card into the front only if the back is ever unpicked. The card in his light and behind
+// the jamb is the hit card's paint (./hitcard.js, from the record's light and cover, never the doll's key): lightK (src/data/
+// portrait.js: the level over LIGHT_FULL_K, never below LIGHT_FLOOR_K, the sample's L1) darkens the figure, JAMB_C draws the jamb
+// over the hidden share (J1, the house's wall with its lit edge toward you), the marks on top. cardBackdrop is the I and C cards'
+// ground by the place (D-a, the doll's own wall, today's and the default; D-b the place's tones; D-c with a rim of the place's
+// light on the suit: samples/portrait-suit's, lifted). The user's standing rule of 2026-11-19 holds over each: "keep things simple,
+// it's a game. I love the attention do detail, but only if it won't impact gameplay or performance (or introduce so much
+// complexity it creates bugs)".
 // Pure but the caches (./dress.js's LRU, the masks by doll).
 import { word } from '../paint.js';
 import { backdropAt } from './doll.js';
 import { dressedDoll, dressedReady, dollKey } from './dress.js';
+import { INK, mix } from './grid.js';
+import { LIGHT_FULL_K, LIGHT_FLOOR_K, lightK } from '../../data/portrait.js';
+
+/** The light's numbers (src/data/portrait.js's: one home, read by the record and the card). */
+export { LIGHT_FULL_K, LIGHT_FLOOR_K, lightK };
 
 /** The gun's tones on a board (G1, the board's dark ink, as the stage paints a turner's hold: its lit pixels a step lighter). */
 export const PORTRAIT_HOLD = Object.freeze({ ink: 0x2a2216, lit: 0x3d3220 });
 /** The looks drawn until the user scores them (the build sheet v0.0.23 §5: the samples' defaults). */
-export const PORTRAIT_PICKS = Object.freeze({ gun: 'G1', where: 'W1', hostage: 'H1', aim: 'A1', pistol: 'P1', kneel: 'K1', down: 'D1', cower: 'C1', prone: 'Y-p', back: 'F1', side: 'F3', unread: 'V1' });
+export const PORTRAIT_PICKS = Object.freeze({ gun: 'G1', where: 'W1', hostage: 'H1', aim: 'A1', pistol: 'P1', kneel: 'K1', down: 'D1', cower: 'C1', prone: 'Y-p', back: 'F1', side: 'F3', unread: 'V1',
+  // (the rest of v0.0.23's sets, each at its default until scored (the build sheet v0.0.24 item 14): the card's body
+  // (portrait-facing R), his light and the jamb (portrait-light L, J), the I and C cards' ground (portrait-suit D), the truth
+  // cards' layout (truth-cards T), the boots and the anchor (mag-boots B, H), the hostage card's side and a man's card's ground
+  // (target-view H, L))
+  body: 'R1', light: 'L1', jamb: 'J1', suit: 'D-a', truth: 'T-a', boots: 'B-b', anchor: 'H-a', hostageSide: 'H-a', ground: 'L-a' });
+/** A side card's facing by the side pick (F3 the head turned, the record's own 'left' or 'right'; F2 the profile) and the back's (F1 drawn from behind). */
+export const SIDE_FACINGS = Object.freeze({ F3: null, F2: 'profile' }), BACK_FACINGS = Object.freeze({ F1: 'back' });
 /** The ship switches (the build sheet's ship rules): the poses and the facing drawn, or every card standing and front on. */
 export const PORTRAIT_POSES = true, PORTRAIT_FACING = true;
 /** "Bang"'s boards keep the hold the user starred (question 1's default: 'hand', the gun hanging); 'ready' on their yes. */
@@ -49,6 +72,9 @@ export function drawnRec(rec, picks = null) {
   const P = picksOf(picks), out = { ...rec, hold: rec.hold ? { ...rec.hold } : rec.hold };
   if (!PORTRAIT_POSES) out.pose = 'stand';
   if (!PORTRAIT_FACING) out.facing = 'front';
+  // (the facing as scored: a side card the profile on F2, F3 the record's own side (the head turned); the back F1's)
+  if ((out.facing === 'left' || out.facing === 'right') && SIDE_FACINGS[P.side]) out.facing = SIDE_FACINGS[P.side];
+  if (out.facing === 'back') out.facing = BACK_FACINGS[P.back] ?? 'front';
   // (prone, Y-p: the head and shoulders low behind the gun, end on, whatever its carry: the bend keeps only what is over the line)
   if (out.pose === 'prone' && out.hold && /^(rifle|pistol)-(low|high|aim|ready)$/.test(out.hold.how ?? '')) { out.hold.how = out.hold.how.startsWith('rifle') ? 'rifle-aim' : 'pistol-aim'; out.aimAt = 'you'; }
   const how = out.hold?.how;
@@ -104,3 +130,59 @@ export function paintPortrait(rec, person = {}, opts = {}) {
 export function portraitKey(rec, person = {}, scale = 96 / 72, picks = null) { const r = drawnRec(rec, picks); return dollKey(r?.gear ?? null, person ?? {}, scale, r); }
 /** Whether a record's portrait is painted already at a scale (the target view paints at most one new doll a frame). */
 export function portraitReady(rec, person = {}, scale = 96 / 72, picks = null) { const r = drawnRec(rec, picks); return dressedReady(r?.gear ?? null, person ?? {}, scale, r); }
+
+/** The jamb's tones (J1; samples/portrait-light's: the house's wall, its lit edge toward you, its ink). */
+export const JAMB_C = Object.freeze({ face: 0x4b4540, lit: 0x6e665c, ink: 0x14151c });
+/**
+ * The jamb over a card's figure (J1): the share of his width a side hides (cover's left and right, from the viewer's), from his
+ * figure's columns fx0..fx1, drawn as the wall in its tones down every row of the figure's part of the card (rows y0..y1), its
+ * lit edge toward the rest of him and its ink. col: the card's colours (0xrrggbb, W wide). Returns the pixels drawn.
+ */
+export function jambOver(col, W, { fx0, fx1, y0, y1, left = 0, right = 0 }) {
+  let n = 0;
+  const span = fx1 - fx0 + 1, put = (x, y, c) => { if (x >= 0 && x < W) { col[y * W + x] = c; n++; } };
+  if (span <= 0) return 0;
+  const L = Math.round(span * Math.max(0, Math.min(1, left))), R = Math.round(span * Math.max(0, Math.min(1, right)));
+  // (the jamb from the card's edge to the hidden share's edge, the edge lit then inked: as the sample's J1)
+  if (L > 0) { const edge = fx0 + L; for (let y = y0; y < y1; y++) for (let x = 1; x < edge; x++) put(x, y, x === edge - 1 ? JAMB_C.ink : x >= edge - 3 ? JAMB_C.lit : JAMB_C.face); }
+  if (R > 0) { const edge = fx1 - R + 1; for (let y = y0; y < y1; y++) for (let x = W - 2; x >= edge; x--) put(x, y, x === edge ? JAMB_C.ink : x <= edge + 2 ? JAMB_C.lit : JAMB_C.face); }
+  return n;
+}
+/** A figure pixel in his light (L1): darkened by lightK of the level (src/data/portrait.js), the sample's L1; a level of LIGHT_FULL_K and up leaves it as it is. */
+export const litPixel = (c, level) => { const k = lightK(level); return k >= 1 ? c : mix(0x000000, c, k); };
+
+/** The I and C cards' ground candidates (portrait-suit D) and their places' tones (samples/portrait-suit's: the wall, the floor, the shadow under the feet, the place's light for the rim). */
+export const SUIT_LOOKS = Object.freeze(['D-a', 'D-b', 'D-c']);
+export const SUIT_PLACES = Object.freeze({
+  house: Object.freeze({ wall: 0x57534e, floor: 0x76726c, shadow: 0x4f4c48, light: 0xf2ead8 }),
+  bay: Object.freeze({ wall: 0x4a5560, floor: 0x3a3f47, shadow: 0x262a30, light: 0xdfe6f0 }),
+  street: Object.freeze({ wall: 0x8a5d46, floor: 0x6b4634, shadow: 0x4a2f24, light: 0xf0c49a }),
+});
+/** The rim's share toward the place's light (D-c). */
+export const RIM_K = 0.55;
+const hexOfWord = (v) => ((v & 0xff) << 16) | (v & 0xff00) | ((v >>> 16) & 0xff);
+/**
+ * A doll on the I and C cards' ground (see the header): D-a (the default) the doll as it is, the very Pixmap; D-b the doll's wall,
+ * floor and shadow in the place's tones (SUIT_PLACES: 'house', 'bay', 'street'); D-c D-b with the suit's outer pixels on the lit side
+ * (the light from the upper left, as the doll's own) lifted toward the place's light by RIM_K. scale: the doll's.
+ */
+export function cardBackdrop(pm, scale, place = 'bay', look = PORTRAIT_PICKS.suit) {
+  const Pl = SUIT_PLACES[place];
+  if (!pm || look === 'D-a' || !Pl || !SUIT_LOOKS.includes(look)) return pm;
+  const mask = maskOf(pm, scale), data = new Uint32Array(pm.data);
+  for (let y = 0; y < pm.h; y++) for (let x = 0; x < pm.w; x++) {
+    const i = y * pm.w + x;
+    if (mask[i]) continue;
+    const b = backdropAt(x, y, scale);
+    data[i] = word(b === 0x383c4a ? Pl.wall : b === 0x1f2029 ? Pl.shadow : Pl.floor);
+  }
+  if (look === 'D-c') {
+    const isInk = (x, y) => x >= 0 && y >= 0 && x < pm.w && y < pm.h && mask[y * pm.w + x] && hexOfWord(pm.data[y * pm.w + x]) === INK;
+    for (let y = 0; y < pm.h; y++) for (let x = 0; x < pm.w; x++) {
+      const i = y * pm.w + x;
+      if (!mask[i] || hexOfWord(pm.data[i]) === INK) continue;
+      if ((isInk(x - 1, y) && !isInk(x + 1, y)) || isInk(x, y - 1)) data[i] = word(mix(hexOfWord(pm.data[i]), Pl.light, RIM_K));
+    }
+  }
+  return { ...pm, data };
+}

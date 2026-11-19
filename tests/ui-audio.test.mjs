@@ -43,10 +43,10 @@
 // at 6 kHz loud for 20 s then falling over 60 s to its floor, both easing back over its last minute, the caption once; the coach's
 // voice at your shoulder round the deafness, the tower's 20 m off not; CHAOS's recipes rendered and measured.
 // The 0.0.12 round's (the build sheet 0.0.12 §2.7, §5.4; audio/house.js): the shoot house in the ears: the hall's reverb (its impulse made by
-// code: RT60 0.6 s measured off its decay, its early reflections at their paths' delays), the house's voices (the PA from the catwalk 3 m over
-// you, the #2's whisper at your ear, a kick through the suit's filter), each 'house' fact's cue (GO the PA and the 2.4 kHz start beep, the
-// stack's "Ready" the #2's alone, a door by its verb, "Clear!" and the double beep for a room within par, the harness's 400 Hz tone at a par
-// missed, a lock's rattle on a refusal), nothing off the house; and HOUSE's recipes rendered and measured where they belong.
+// code: RT60 0.6 s measured off its decay, its early reflections at their paths' delays), the house's sounds where they are (a kick through
+// the suit's filter), each 'house' fact's cue (the 2.4 kHz start beep at GO, a door by its verb, the double beep for a room within par, the
+// harness's 400 Hz tone at a par missed, a lock's rattle on a refusal), nothing off the house; and HOUSE's recipes rendered and measured
+// where they belong. v0.0.24: no PA, whisper or shout, no line said (the voice synthesis gone: the user, 2026-11-19, "no voices").
 import { assert, near, fmt } from './helpers.mjs';
 import { footfalls, stepVoice, createStepScheduler, weightDb, lowpassHz, HALF_CYCLE_M } from '../src/ui/audio/steps.js';
 import { render, measure } from '../src/ui/audio/synth.js';
@@ -69,12 +69,11 @@ import { hornVoice, blankVoice, nearPan, createStress } from '../src/ui/audio/st
 import { STRESS, HORN_SOURCE_DB, HORN_EARS_DB, HORN_EARS_LP_HZ, HORN_HZ, HORN_S, BREATHE_DB } from '../src/data/sounds.js';
 import { airAt, gravityAt } from '../src/sim/places/env.js';
 // (0.0.12: the shoot house's ear: audio/house.js, the hall's impulse (engine.js), HOUSE's recipes)
-import { houseVoice, inHouse, createHouse, PA_DIST_M, HOLD_MS, HOLD_WORD_MS } from '../src/ui/audio/house.js';
-import { SAY_MS, SAY_WORD_MS } from '../src/sim/scenarios/handling.js';
+import { houseVoice, inHouse, createHouse } from '../src/ui/audio/house.js';
 import { DOOR_STOP_DB, DOOR_PUSH_STOP_DB, DOOR_REBOUND_DB } from '../src/data/sounds.js';
 import { hallImpulse } from '../src/ui/audio/engine.js';
 import { createGame } from './game.mjs';
-import { HOUSE, HALL, TIMER_HZ, HARNESS_HZ, HARNESS_S, SUIT_EARS_DB, PA_VOICE_DB, WHISPER_DB } from '../src/data/sounds.js';
+import { HOUSE, HALL, TIMER_HZ, HARNESS_HZ, HARNESS_S, SUIT_EARS_DB } from '../src/data/sounds.js';
 
 // (the place's air and gravity, as the presenters read them (src/sim/places/env.js: TECH §1.4): Melas's valley floor and
 // a building's floor; every voice takes them, none assumes one)
@@ -660,24 +659,20 @@ export default [
     },
   },
   {
-    name: 'the house\'s voices (audio/house.js houseVoice, 0.0.12): the PA from the catwalk 3 m over you, the #2\'s whisper at your ear, a door and a kick where they are (the kick through the suit\'s filter), the timer and the harness in the suit at 0 dB; in the bay\'s air (65.9 kPa: the gains are the air\'s law)',
+    name: 'the house\'s sounds where they are (audio/house.js houseVoice, 0.0.12): a door and a kick where they are (the kick through the suit\'s filter), the timer and the harness in the suit at 0 dB; in the bay\'s air (65.9 kPa: the gains are the air\'s law); v0.0.24: no PA, whisper or shout, the voices gone (the user, 2026-11-19: "forget voice synthesis, no voices.")',
     fn() {
       const g = createGame({ scenario: 'test-handling', seed: 48213 }).state, pKpa = airAt(g, null, 0, 0).pKpa, me = { x: 30, z: 13.2 };
-      const v = { pa: houseVoice('pa', { me, pKpa }), whisper: houseVoice('whisper', { me, at: { x: 30.65, z: 13.2 }, pKpa }), door: houseVoice('door', { me, at: { x: 29, z: 12 }, pKpa }), kick: houseVoice('kick', { me, at: { x: 29, z: 12 }, pKpa }), kickBare: houseVoice('kick', { me, at: { x: 29, z: 12 }, pKpa, suit: false }), timer: houseVoice('timer', { pKpa }) };
+      const v = { door: houseVoice('door', { me, at: { x: 29, z: 12 }, pKpa }), kick: houseVoice('kick', { me, at: { x: 29, z: 12 }, pKpa }), kickBare: houseVoice('kick', { me, at: { x: 29, z: 12 }, pKpa, suit: false }), timer: houseVoice('timer', { pKpa }), harness: houseVoice('harness', { pKpa }) };
       for (const [k, x] of Object.entries(v)) console.log(`      ${k}: ${fmt(x.gainDb, 1)} dB, low-pass ${Math.round(x.lowpassHz)} Hz, pan ${fmt(x.pan, 2)}, ${fmt(x.distM, 2)} m`);
-      near(v.pa.distM, PA_DIST_M, 1e-9);
-      assert(v.pa.gainDb < PA_VOICE_DB && v.whisper.gainDb <= WHISPER_DB + 0.01 && v.whisper.pan > 0, JSON.stringify(v));
       near(v.kickBare.gainDb - v.kick.gainDb, -SUIT_EARS_DB / 2, 1e-9);
-      assert(v.timer.gainDb === 0 && v.door.pan < 0, JSON.stringify(v));
+      assert(v.timer.gainDb === 0 && v.harness.gainDb === 0 && v.door.pan < 0 && v.kickBare.gainDb > v.door.gainDb, JSON.stringify(v));
     },
   },
   {
-    name: 'each \'house\' fact\'s cue (audio/house.js createHouse, 0.0.12): GO the PA and the start beep; the #2\'s stack his whisper ("Ready"), yours none; a push, a pull, a kick by their verbs; "Clear!" shouted and the double beep for a room within par; the harness\'s tone at a par missed, none at one met; a lock\'s rattle on a refusal; the instructor\'s "Standby"; nothing off the house, and the hall\'s send on in it and off out of it',
+    name: 'each \'house\' fact\'s cue (audio/house.js createHouse, 0.0.12; v0.0.24 no voiced syllable: the user\'s "no voices" of 2026-11-19): GO the start beep; a stack, a "Ready.", a "Clear!" and the instructor\'s "Standby" and "Stop" nothing (bubbles, never voices); a push, a pull, a kick by their verbs; the double beep for a room within par; the harness\'s tone at a par missed, none at one met; a lock\'s rattle on a refusal; nothing off the house, and the hall\'s send on in it and off out of it',
     fn() {
       const played = [], hall = [];
-      // (V-a by name: the stand-ins this case pins are voiced syllables, and the game's set is 'none' from v0.0.23's fixer (the user,
-      // 2026-11-19, "no voices"); no-voices.test.mjs holds the default's silence)
-      const H = createHouse({ house: (kind, o) => { played.push([kind, Math.round((o.delayS ?? 0) * 100) / 100]); return true; }, hall: (on) => hall.push(on) }, { voice: 'a' });
+      const H = createHouse({ house: (kind, o) => { played.push([kind, Math.round((o.delayS ?? 0) * 100) / 100]); return true; }, hall: (on) => hall.push(on) });
       const g = createGame({ scenario: 'test-handling', seed: 48213 }).state;
       const house = { ...g, armoury: { ...g.armoury, range: { ...(g.armoury?.range ?? {}), course: 'house' } } }, me = g.player.id;
       const facts = [['house', { phase: 'go' }], ['house', { phase: 'stacked', who: 'p:two' }], ['house', { phase: 'stacked', who: me }], ['house', { phase: 'open', kind: 'push' }], ['house', { phase: 'open', kind: 'pull' }], ['house', { phase: 'open', kind: 'kick' }], ['house', { phase: 'open' }], ['say', { who: 'p:two', text: 'Ready.', call: 'ready' }], ['say', { who: me, text: 'Ready.', call: 'ready' }],
@@ -691,18 +686,18 @@ export default [
       const doors = ['push', 'pull', 'kick'].map(how => H.door({ how, state: 'open', x: 29, z: 12 }, house)), doorOff = H.door({ how: 'push', state: 'open' }, g);
       console.log(`      the door facts by their verbs: ${doors.join(', ')}; off the house ${doorOff}`);
       assert(doors.every(Boolean) && !doorOff, 'the doors');
-      assert(kinds.join() === 'paGo,timerGo,whisperReady,doorPush,doorPull,doorKick,whisperReady,shoutClear,timerDouble,shoutClear,harnessTone,lockRattle,paStandby,paStop', kinds.join());
+      assert(kinds.join() === 'timerGo,doorPush,doorPull,doorKick,timerDouble,harnessTone,lockRattle', kinds.join());
       assert(played.length === off + 3 && hall.join() === 'true,false' && inHouse(house) && !inHouse(g), JSON.stringify({ hall }));
     },
   },
   {
-    name: 'HOUSE\'s recipes rendered and measured (0.0.12): the timer\'s beep at 2.4 kHz and its double beep 0.2 s apart, the harness\'s 400 Hz tone over 0.4 s, the voices\' syllables in a voice\'s band, the whisper quieter and pitchless, the kick the loudest and lowest of the doors, the suit\'s scuff short; the same samples twice, the variants different',
+    name: 'HOUSE\'s recipes rendered and measured (0.0.12): the timer\'s beep at 2.4 kHz and its double beep 0.2 s apart, the harness\'s 400 Hz tone over 0.4 s (v0.0.24: no voices\' syllables), the kick the loudest and lowest of the doors, the suit\'s scuff short; the same samples twice, the variants different',
     fn() {
       const m = {};
       for (const [k, r] of Object.entries(HOUSE)) { const a = render(r, { sampleRate: WORLD_RATE_HZ, name: k }), b = render(r, { sampleRate: WORLD_RATE_HZ, name: k }); m[k] = { ...measure(a.samples ?? a, WORLD_RATE_HZ), same: (a.samples ?? a).every((v, i) => v === (b.samples ?? b)[i]) }; if ((r.variants ?? 1) > 1) { const c = render(r, { sampleRate: WORLD_RATE_HZ, name: k, variant: 1 }); m[k].differs = (c.samples ?? c).some((v, i) => v !== (a.samples ?? a)[i]); } }
       for (const [k, x] of Object.entries(m)) console.log(`      ${k}: peak ${fmt(x.peakDb, 1)} dB, RMS ${fmt(x.rmsDb, 1)}, centroid ${Math.round(x.centroidHz)} Hz, ${fmt(x.durS, 2)} s${x.differs !== undefined ? `, variants differ ${x.differs}` : ''}`);
       assert(Math.abs(m.timerGo.centroidHz - TIMER_HZ) < 700 && Math.abs(m.harnessTone.centroidHz - HARNESS_HZ) < 120 && HOUSE.harnessTone.durS === HARNESS_S, JSON.stringify([m.timerGo.centroidHz, m.harnessTone.centroidHz]));
-      assert(m.doorKick.peakDb > m.doorPush.peakDb && m.doorKick.centroidHz < m.doorPush.centroidHz && m.whisperReady.peakDb < m.paGo.peakDb && m.suitScuff.durS < 0.1, 'the doors, the voices');
+      assert(m.doorKick.peakDb > m.doorPush.peakDb && m.doorKick.centroidHz < m.doorPush.centroidHz && m.suitScuff.durS < 0.1 && !('paGo' in m) && !('whisperReady' in m), 'the doors, no voices');
       assert(Object.values(m).every(x => x.same) && Object.values(m).filter(x => x.differs !== undefined).every(x => x.differs), 'deterministic, variants differ');
     },
   },
@@ -729,41 +724,9 @@ export default [
       assert(pull.length === 1 && pull[0].kind === 'doorPull' && old.length === 1 && old[0].kind === 'doorKick' && old[0].d === 0 && DOOR_REBOUND_DB < DOOR_STOP_DB, JSON.stringify({ pull, old }));
     },
   },
-  {
-    name: 'the house speaks every line (the build sheet v0.0.20 item 7): with words, each \'say\' goes to its speaker\'s voice (the instructor on the PA, the #2 at his place, you in your helmet, a role-player at his) and register (the stack\'s "Ready." whispered, "Clear!" shouted, the PA plain), the stand-ins give way (GO keeps its beep); one speaker queued, never over himself, a line past its hold dropped; V-a keeps v0.0.19\'s stand-ins with the Standby rule fixed ("Lane A. Standby." was silent); the hold is handling.js durOf\'s',
-    fn() {
-      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go' }); g.step(1);
-      const s = g.state, me = s.player.id, H = s.armoury.range.house, chief = s.armoury.range.coachId;
-      let nowS = 10;
-      const said = [], cues = [];
-      // (V-c by name: the game voices no line from v0.0.23's fixer, the user's "no voices" of 2026-11-19; the synthesis is pinned until v0.0.24 removes it)
-      const ear = createHouse({ house: (kind) => { cues.push(kind); return true; }, hall: () => {}, voice: (text, o) => { said.push({ text, ...o }); return true; }, now: () => nowS }, { voice: 'c' });
-      const facts = [['house', { phase: 'go' }], ['say', { who: chief, text: 'GO!', kind: 'pa', durMs: 3830 }], ['say', { who: H.twoPid, text: 'Ready.', kind: 'speech', durMs: 3830 }], ['say', { who: me, text: 'Clear!', kind: 'speech', call: 'clear', durMs: 600 }],
-        ['say', { who: H.twoPid, text: 'Covering!', kind: 'speech', durMs: 200 }], ['say', { who: 'p:man', text: "Don't shoot!", kind: 'speech', durMs: 4160 }], ['house', { phase: 'stacked', who: H.twoPid }], ['house', { phase: 'stop' }]];
-      for (const [t, f] of facts) ear.fact(t, f, s);
-      console.log(`      said: ${said.map(x => `${x.voice}/${x.register} "${x.text}" at ${x.atS} s`).join('; ')}; the cues ${cues.join(', ')}`);
-      const by = (t) => said.find(x => x.text === t);
-      assert(by('GO!')?.voice === 'pa' && by('Ready.')?.voice === 'two' && by('Ready.').register === 'whisper' && by('Clear!')?.voice === 'me' && by('Clear!').register === 'shout' && by("Don't shoot!")?.voice === 'man', JSON.stringify(said));
-      assert(by('Covering!')?.atS > by('Ready.').atS && cues.join() === 'timerGo', JSON.stringify({ cues, said }));
-      // (his queue: three lines at once, each after the one before; one past its hold dropped)
-      said.length = 0; nowS = 100;
-      for (const t of ['Up.', 'Covering!', 'Gun down!']) ear.fact('say', { who: H.twoPid, text: t, kind: 'speech', durMs: 200 }, s);
-      const long = 'This line is long enough to hold the speaker for ten seconds and a bit more than that, so the next is dropped for its hold.';
-      ear.fact('say', { who: chief, text: long, kind: 'pa', durMs: 1000 }, s);
-      const dropped = ear.stats.voice.dropped;
-      for (let i = 0; i < 3; i++) ear.fact('say', { who: chief, text: 'Shooter, stand still.', kind: 'pa', durMs: 1000 }, s);
-      const ts = said.map(x => x.atS);
-      console.log(`      his three at once start ${ts.slice(0, 3).join(', ')} s; the instructor's long line then three short ones: said ${said.length - 3}, dropped ${ear.stats.voice.dropped - dropped}; overlaps ${ear.stats.voice.overlaps}`);
-      assert(ts[0] === 100 && Math.abs(ts[1] - 100.55) < 1e-9 && Math.abs(ts[2] - 101.1) < 1e-9 && ear.stats.voice.overlaps === 0, JSON.stringify(ts));
-      assert(ear.stats.voice.dropped - dropped >= 1, JSON.stringify(ear.stats.voice));
-      // (V-a: the stand-ins, the Standby rule fixed)
-      const cuesA = [], A = createHouse({ house: (kind) => { cuesA.push(kind); return true; }, hall: () => {}, voice: () => true, now: () => 0 }, { voice: 'a' });
-      for (const t of ['Lane A. Standby.', 'Standby.']) A.fact('say', { who: chief, text: t, kind: 'pa' }, s);
-      A.fact('house', { phase: 'go' }, s);
-      console.log(`      V-a: ${cuesA.join(', ')}; the hold ${HOLD_MS} + ${HOLD_WORD_MS} a word (handling.js ${SAY_MS} + ${SAY_WORD_MS})`);
-      assert(cuesA.join() === 'paStandby,paStandby,paGo,timerGo' && HOLD_MS === SAY_MS && HOLD_WORD_MS === SAY_WORD_MS, cuesA.join());
-    },
-  },
+  // (retired in v0.0.24: "the house speaks every line" (v0.0.20 item 7) pinned the voice synthesis, gone whole with it (the user,
+  // 2026-11-19, twice: "forget about voices, those are all terrible use text bubble only", "forget voice synthesis, no voices.");
+  // no-voices holds that no line is voiced, bubbles that every line is shown at its speaker)
 ];
 
 function near1(a, b) { return Math.abs(a - b) < 1e-9; }

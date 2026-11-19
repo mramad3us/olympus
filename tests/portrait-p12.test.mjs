@@ -69,7 +69,7 @@ export default [
       card.n = cards.length; card.distinct = new Set(cards.map(c => hash(Array.from(c.data).join(',')))).size;
       // (the names: gunLook's pistol posture and its action frame to the stage's frame, and walking)
       const names = [pistolFrameOf({ posture: 'lowReady' }), pistolFrameOf({ posture: 'highReady' }), pistolFrameOf({ posture: 'aimed' }), pistolFrameOf({ posture: 'lowReady' }, { frame: 'sling', k: 0 }), pistolFrameOf({ posture: 'lowReady' }, { frame: ['check', 'charge'], k: 0.6 }), pistolFrameOf({ posture: 'aimed' }, null, 1), pistolWalkOf({ posture: 'lowReady' }, { frame: 'glide2' }, 4), pistolWalkOf({ posture: 'aimed' }, { frame: 'glide6' }, 4)];
-      const r = { ok: stage.distinct === stage.n && stage.pistol === 4 * DIRS.length && doll1.distinct === doll1.n && doll1.held === 4 && card.distinct === card.n, stage, doll: doll1, card, rifle: 'byte for byte (art-held, \'1c53d76d17f6d4\')' };
+      const r = { ok: stage.distinct === stage.n && stage.pistol === 4 * DIRS.length && doll1.distinct === doll1.n && doll1.held === 4 && card.distinct === card.n, stage, doll: doll1, card, rifle: 'byte for byte (art-held, \'09289684fb05a6\' from v0.0.24 F\'s picks)' };
       console.log(`      ${f98Line(r)}`);
       console.log(`      the names: ${names.join(', ')}; the band ${BANDS.pistol.length} frames (${PISTOL_FRAMES.join(', ')})`);
       assert(names.join() === 'pistolLow,pistolHigh,pistolAimed,pistolHolster,pistolCheck,pistolFire,pistolWalk1,pistolAimWalk3', names.join());

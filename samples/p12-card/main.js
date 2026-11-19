@@ -1,8 +1,8 @@
 // OLYMPUS sample: the P-12's designs on the weapon card, in the Corps' black, as the holder believes the pistol.
 //
 // The P-12 (WEAPONS §3.2, built in v0.0.14: the sidearm from the Sergeant up, a HAD-17 of ten frangible, the thigh holster)
-// has had no drawing: its card drew the R-7 (WEAPONS §3.2's note, VIEWS §4.4). Four designs of src/art/pistols.js
-// (PISTOL_DESIGNS: p12a the service pistol, p12b the slab, p12c the monolith, p12d the lanyard), each drawn by the game's own
+// has had no drawing: its card drew the R-7 (WEAPONS §3.2's note, VIEWS §4.4). The designs of src/art/pistols.js (B dropped on the user's score of 2026-11-19)
+// (PISTOL_DESIGNS: p12a the service pistol, p12c the monolith, p12d the lanyard; p12b the slab dropped in v0.0.24), each drawn by the game's own
 // weapon card (src/art/weaponcard.js paintWeaponCard({ drawing, finish, belief })), each named here by its drawing; from v0.0.18
 // the game's card draws the P-12 as P12A until the user's pick (pistols.js PISTOL_DRAWN_AS). ?d= picks the design, ?f= the finish
 // (none: the issue's, the Corps' black), ?set= the picture:
@@ -12,7 +12,7 @@
 //   more      four more: the chamber and the count never checked ("?" by the port and on the baseplate); a double feed
 //             looked at with a magazine in the hand whose weight says "a few"; Condition 3 (no round chambered, the hood
 //             bare); the magazine out, the well's mouth open, nothing in the hand;
-//   designs   the four designs side by side in Condition 1, each named;
+//   designs   the designs side by side in Condition 1, each named (three from v0.0.24: a slot left empty);
 //   finishes  the design in every finish (the rifles' seven, src/data/finishes.js), Condition 1.
 // The cards are drawn into the page as the game's hud draws them (never snapped to the palette), at their own size, and the
 // picture is scaled up by a whole number to fill the window, so the gallery shoots it crisply.

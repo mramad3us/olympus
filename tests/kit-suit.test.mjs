@@ -10,7 +10,7 @@ import { assert, fmt } from './helpers.mjs';
 import { bayGame } from './contact-world.mjs';
 import { newState } from '../src/core/state.js';
 import { put } from '../src/core/ids.js';
-import { materialise, kitMassKg, kitView, pickMag, magMassG, roundMassG, CONTAINERS, KIT_TEMPLATES, SLOTS } from '../src/sim/arms/kit.js';
+import { materialise, kitMassKg, kitView, pickMag, magMassG, roundMassG, CONTAINERS, KIT_TEMPLATES, SLOTS, WORN_SLOTS } from '../src/sim/arms/kit.js';
 import { MODELS, OPTICS } from '../src/sim/arms/models.js';
 import { protOf, bang, blockOf, inputPts, EARPRO_K } from '../src/sim/combat/supp.js';
 import { CLO, warmthOf } from '../src/sim/body/thermal.js';
@@ -38,7 +38,7 @@ export default [
       console.log(`      the magazines ${magIds.map(id => { const m = s.items[id]; return `${id} ${m.n} ${m.load} (${fmt(magMassG(m), 1)} g)`; }).join(', ')}; a frangible round ${fmt(roundMassG('6.5x40r', 'frangible'), 2)} g, a ball round ${fmt(roundMassG('6.5x40r', 'ball'), 2)} g`);
       console.log(`      the I card's worn: ${view.groups.find(g => g.id === 'worn')?.items.map(i => i.word).join(', ')}; pouches ${view.groups.filter(g => g.key).map(g => `${g.word} ${g.items.length}`).join(', ')}`);
       console.log(`      protOf ${JSON.stringify(prot)}; carried ${kg} kg (${parts.map(([w, v]) => `${w} ${fmt(v, 2)}`).join(', ')}); on ${BODY_KG} kg, r ${fmt((BODY_KG + kg) / BODY_KG, 3)} (BODY §16.2's push and brake ÷ r)`);
-      assert(SLOTS.indexOf('ears') === SLOTS.length - 3 && SLOTS.slice(-2).join() === 'holster,thigh' && SLOTS.includes('suit') && kit.worn.suit && !kit.worn.ears && !kit.worn.head && kit.worn.sling === gunId && wornIds.length === 1 && wornIds[0] === kit.worn.suit, JSON.stringify(kit.worn));
+      assert(SLOTS.indexOf('ears') === SLOTS.length - 3 && SLOTS.slice(-2).join() === 'holster,thigh' && WORN_SLOTS.slice(-2).join() === 'mask,boots' && SLOTS.includes('suit') && kit.worn.suit && !kit.worn.ears && !kit.worn.head && kit.worn.sling === gunId && wornIds.length === 1 && wornIds[0] === kit.worn.suit, JSON.stringify(kit.worn));
       assert(suit.type === 'suit' && suit.model === 'ces-1' && C.colour === 'black' && C.massKg === 16 && C.visor === true && kit.carry.posture === 'lowReady', JSON.stringify(suit));
       assert(magIds.length === 3 && magIds.every(id => s.items[id].n === 10 && s.items[id].load === 'frangible' && s.items[id].belief?.kind === 'frangible'), 'three magazines of 10 frangible');
       assert(prot.visor === true && prot.ears === 'suit', JSON.stringify(prot));
