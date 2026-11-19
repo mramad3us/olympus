@@ -115,6 +115,22 @@
 // after. The view draws them for a mover in a stance (pistolWalkOf's sheet), from that sheet; anywhere else, and while it paints, the
 // low ready's walk as before. The stance pool's 'draw' and 'pistolAim' are gone from the sheet (nothing in the game asked them since
 // the pistol band; walk.js beatPose keeps the two poses, which three sample pages draw: p12-draw, pistol-stances, portrait-pose).
+// v0.0.26 ("Bang, then go", its build sheet items 6 and 8, §3.3, §10, §11 risk 1): A MAN IN THE BANG. A role-player the bang
+// startles, stuns or blinds is drawn dazed for exactly as long as the sim's block says (daze0, daze1: hunched, the support hand to
+// the eyes, the rifle hanging muzzle down at the strong-side hip, samples/breach-poses D-a until the user scores; its sway, the
+// upper body a pixel down at DAZE_SWAY_HZ 1.5 Hz on the game's clock, daze1, held on daze0 under "reduce flashes"; kneeling, the
+// same upper body over the kneel's legs, dazeKneel0 and dazeKneel1, my call: a man dazed at his hide stays on his knee), and one
+// frozen is drawn cowering (cower: crouched on both soles, the arms over the head, the rifle hanging slung across the chest, C-a).
+// The sheet's first plan, carry-free frames at the arms band's end as handsUp is, does not fit: the arms band is 480 px of the
+// base sheet's 512 at 16 px/m (its prone cells 48 wide side on), so two cells more would widen every base sheet to 544 and lose
+// a column of the atlas's looks. They are a band of the stance pool instead (BANDS.stanceShock, SHOCK_BAND: §11 risk 1's
+// fallback, a band of their own), on the shots' shelf beside the P-12's high walk (352 of its 512 px at 16 px/m, 528 of 768 at
+// 24), painted only in the low carry's stance sheet (SHOCK_CARRY) and only for the role-players (view.js prepareOwn, behind the
+// brief's cut), so the stance sheet keeps its 512 × 576 and no slot is added. Each frame draws the rifle itself by its rig
+// (the hip's hang, slung in front), the hands put by `reach` (compose.js's IK, as the held devices' candidates are): the
+// candidates' rows are the sample's, DAZE_POSES and COWER_POSES, the pick DAZE_POSE and COWER_POSE (a score is one constant).
+// shockFrameOf(gl) names the frame from look.js gunLook's action ('daze' or 'cower', from men.js liveStateOf), dazeSway(frame,
+// ms, still) its sway.
 // Pure: no DOM, no three.js.
 import { cyclePose, beatPose, bandSpec, cycleAt, cycleOfLook, RUN_FPS } from './walk.js';
 import { HELD_POSES } from './templates.js';
@@ -150,6 +166,8 @@ export const BANDS = Object.freeze({
   stanceShots: Object.freeze(['fireMove0', 'fireMove1']),
   // (the P-12's high-ready walk, on the shots' shelf: see the header)
   stancePistol: Object.freeze(range('pistolHighWalk', 4)),
+  // (a role-player dazed (with its sway, standing and kneeling) and cowering, on the same shelf: see the header)
+  stanceShock: Object.freeze(['daze0', 'daze1', 'dazeKneel0', 'dazeKneel1', 'cower']),
   // (a device in the hands, in the slung-in-front carry's stance sheet only: see the header)
   stanceHeld: Object.freeze(Object.keys(HELD_POSES)),
   // (the P-12's stances with the R-7 hanging on its sling, the rifle's pool: see the header)
@@ -193,11 +211,28 @@ export function pistolFrameOf(pistol, action = null, kick = 0) {
   return (fa && PISTOL_ACTION[fa]) ?? PISTOL_POSTURE[pistol.posture] ?? 'pistolLow';
 }
 /** The stance pool's bands (R8: a sheet a carry, for an armed mover in a stance, in a base slot of its own: atlas.js, src/render/figures.js). */
-export const STANCE_BANDS = Object.freeze(['stanceWalk', 'stanceBeats', 'stanceShots', 'stancePistol', 'stanceHeld']);
+export const STANCE_BANDS = Object.freeze(['stanceWalk', 'stanceBeats', 'stanceShots', 'stancePistol', 'stanceShock', 'stanceHeld']);
 /** The P-12's high-ready walk's band (v0.0.24: see the header), painted only in the high carry's stance sheet, which every armed mover has before GO. */
 export const PISTOL_HIGH_BAND = 'stancePistol', PISTOL_HIGH_CARRY = 'high';
 /** The held band: painted only in the slung-in-front carry's stance sheet (HELD_CARRY), the others' stance sheets leave it out. */
 export const HELD_BAND = 'stanceHeld', HELD_CARRY = 'front';
+/** The shock's band (v0.0.26: see the header), painted only in the low carry's stance sheet of a role-player, which view.js draws it from. */
+export const SHOCK_BAND = 'stanceShock', SHOCK_CARRY = 'low';
+/** The daze's sway (VIEWS §3.4: the upper body a pixel down and up again, game time; none under "reduce flashes"). */
+export const DAZE_SWAY_HZ = 1.5;
+/** The frame of a role-player in the shock (gunLook's action frame 'daze' or 'cower', from men.js liveStateOf), by his stance: or null. */
+export function shockFrameOf(gl) {
+  const act = gl?.action?.frame;
+  if (act === 'daze') return gl.stance === 'kneel' ? 'dazeKneel0' : 'daze0';
+  if (act === 'cower') return 'cower';
+  return null;
+}
+/** A daze frame at its sway's phase at game ms (the second half of each cycle a pixel down); held still, or any other frame, as given. */
+export function dazeSway(frame, ms, still = false) {
+  if (still || !/^daze(Kneel)?0$/.test(frame ?? '') || !Number.isFinite(ms)) return frame;
+  const ph = ((ms / 1000) * DAZE_SWAY_HZ) % 1;
+  return ph >= 0.5 ? frame.replace(/0$/, '1') : frame;
+}
 /** The frame a body standing with a device draws: held look.js heldLook's { shape }, beat beatOf's device beat ({ kind, k, model }) or null. */
 /**
  * v0.0.24 (the user, 2026-11-19: "Use the ones that make sense depending on how far we're throwing"): a throw under THROW_NEAR_M is
@@ -315,6 +350,38 @@ export function handsPose(id = HANDS_POSE, kneel = false) {
 /** The frame of a man with his hands up, by his stance: kneeling (challenged) or standing. */
 export const handsFrame = (stance) => (stance === 'kneel' ? 'handsKneel' : 'handsUp');
 
+// (the daze and the cower, the sample's candidates' stage rows written outright (samples/breach-poses/poses.js, held equal
+// by tests/samples-breach): a pose in the figure engine's terms, the rifle by its rig, the free hands by `reach`)
+const HUNCH_LEGS = Object.freeze({ r: Object.freeze([0.3, 0.55, 0.08]), l: Object.freeze([0.18, 0.4, 0.07]) });
+const CROUCH_LEGS = Object.freeze({ r: Object.freeze([1.85, 2.45, 0.14]), l: Object.freeze([1.85, 2.45, 0.14]) });
+/** The daze's candidates (D: startled, stunned or flash-blind): D-a the default, D-b the head turned away. */
+export const DAZE_POSES = Object.freeze({
+  'D-a': Object.freeze({ lean: 0.38, headDrop: 1, legs: HUNCH_LEGS, rig: Object.freeze({ mode: 'hip', gun: 'rifle' }), reach: Object.freeze({ r: Object.freeze([0.06, -0.15, -0.33]), l: Object.freeze([0.15, 0.0, 0.27]) }) }),
+  'D-b': Object.freeze({ lean: 0.32, head: 'turn', headDrop: 1, legs: HUNCH_LEGS, rig: Object.freeze({ mode: 'low', gun: 'rifle', oneHand: true }), reach: Object.freeze({ l: Object.freeze([0.17, -0.08, 0.25]) }) }),
+});
+/** The cower's candidates (C: frozen): C-a the default, crouched, the arms over the head; C-b down in the corner. */
+export const COWER_POSES = Object.freeze({
+  'C-a': Object.freeze({ lean: 0.55, headDrop: 2, legs: CROUCH_LEGS, rig: Object.freeze({ mode: 'front', gun: 'rifle' }), reach: Object.freeze({ r: Object.freeze([0.02, -0.16, 0.3]), l: Object.freeze([0.02, 0.16, 0.3]) }) }),
+  'C-b': Object.freeze({ stance: 'sit', ground: 'pelvis', lean: 0.42, head: 'turn', headDrop: 2, legs: Object.freeze({ r: Object.freeze([1.9, 2.1, 0.2]), l: Object.freeze([1.9, 2.1, 0.2]) }), rig: Object.freeze({ mode: 'lap', gun: 'rifle' }), reach: Object.freeze({ r: Object.freeze([0.24, -0.1, -0.18]), l: Object.freeze([0.24, 0.1, -0.18]) }) }),
+});
+/** The picks the game draws until the user scores samples/breach-poses (its defaults). */
+export const DAZE_POSE = 'D-a', COWER_POSE = 'C-a';
+/**
+ * The shock band's pose of a frame (see the header), as a given pose is composed (compose.js composeFrame's `given`: the sample's
+ * own way, so the game's frame is the sample's pixel for pixel), or null: daze0 and daze1 the pick standing, its sway a pixel down;
+ * dazeKneel0 and dazeKneel1 its upper body over the kneel's legs; cower the cower's pick.
+ */
+export function shockPose(frame, { daze = DAZE_POSE, cower = COWER_POSE } = {}) {
+  const m = /^(daze|dazeKneel)([01])$/.exec(frame ?? '');
+  const base = { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0 };
+  if (m) {
+    const D = DAZE_POSES[daze] ?? DAZE_POSES[DAZE_POSE];
+    return m[1] === 'dazeKneel' ? { ...base, ...D, stance: KNEEL.stance, legs: KNEEL.legs, bob: Number(m[2]) } : { ...base, ...D, bob: Number(m[2]) };
+  }
+  if (frame === 'cower') return { ...base, ...(COWER_POSES[cower] ?? COWER_POSES[COWER_POSE]) };
+  return null;
+}
+
 // The rifle's held frames (0.0.5): a stance's body (SHOOT's feet standing, KNEEL, PRONE's) and the rig's
 // mode (compose.js rigOf: 'low', 'high', 'front' slung across the chest hands off, 'slung' on the back,
 // 'raise' both hands bringing it off the sling, 'charge' the right hand at the charging handle, 'release'
@@ -371,6 +438,9 @@ function basePose(frame, { weapon = null, carry = null, cycle = null } = {}) {
   const beat = beatPose(frame, { weapon: weapon ?? 'rifle', carry: stanceCarry(carry), cycle: cy });
   if (beat) return { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, arms: HANG, ...beat };
   // (the held band, over the stack's legs, the rifle slung in front, the hands put where the device is held)
+  // (the shock band's frames, written outright as the sample composes them)
+  const sh = shockPose(frame);
+  if (sh) return sh;
   const H = HELD_POSES[frame];
   if (H) { const st = beatPose('stack', { weapon: 'rifle', carry: 'low', cycle: cy }); return { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, arms: HANG, ...st, lean: H.lean ?? st.lean, rig: { mode: 'front', gun: 'rifle' }, reach: { r: H.reach.r ?? null, l: H.reach.l ?? null } }; }
   let p;
@@ -566,6 +636,9 @@ export function rifleFrame(gl, { face = 'right', x = 0, z = 0, ms = 0 } = {}) {
   if (!gl) return { frame: null, flash: false };
   const stance = CARRY_FRAME[gl.stance] ? gl.stance : 'stand', flash = !!gl.flash;
   // (the P-12 out, standing: its own stances (see the header); kneeling or prone, the stance's own frames as before)
+  // (a role-player dazed or cowering, whatever his carry (see the header))
+  const shock = shockFrameOf(gl);
+  if (shock) return { frame: shock, flash };
   if (gl.pistol && stance === 'stand') return { frame: pistolFrameOf(gl.pistol, gl.action, gl.kick), flash };
   const aimed = (kick) => {
     if (stance !== 'stand') return kick ? FIRE_OF[stance] : AIM_OF[stance];

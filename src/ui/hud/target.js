@@ -46,6 +46,11 @@
 // v0.0.25 (the build sheet item 12; PC§5): a man or a board upside down to you is drawn as you see him: the record's roll (seen.js:
 // the quarter turns between his up and yours, a stand's by its onFace) turns the card (R-a, art/doll/hitcard.js through portrait.js
 // turnRegion), its signature with it; R-b keeps it upright and names his face (rollWords).
+// v0.0.26 (the build sheet items 6 and 9, §3.3; "Bang, then go"): a role-player dazed or cowering is drawn so (seen.js's pose 'daze',
+// 'dazeKneel' or 'cower', warmed at the load: WARM_HOLDS), his words the take-in's DAZED or COWERING; and a man searched ("Search him",
+// contact.js's 20 s row after the room's "Clear!": T.live.searched) is shown in truth before the lane's end, every mark where it struck
+// (marks.js hitMarks in contact.js cardPhaseOf's phase, A's one reader: belief until his search's end or the lane's), his words "SEARCHED" and the would-have's verdict from the ledger (searchedWords: the first fatal
+// strike's "WOULD HAVE BEEN FATAL: THE CHEST", else a wound's "A WOUND: <where>", else "HIS SOFT PANEL STOPPED ONE"; never a number).
 // paintOn(state, who) is the role-players' paint on a marine (R.house.live.struck) as card marks in blue, for a card of you or
 // your #2 (the casualty's).
 // Nothing pops: the card repaints only when its signature changes, and a man's dressed doll not yet painted is painted on a
@@ -64,11 +69,16 @@ import { lookFor, indoorsNow } from '../../sim/people/figure.js';
 import { eyeOf, visibility } from '../../sim/people/perception.js';
 import { hostKind, alwaysDrawn, seenEver } from '../../sim/places/known.js';
 import { STATE_WORDS } from '../plaque.js';
+import { wouldOn, WOULD_WHY } from '../../sim/combat/would.js';
+import { cardPhaseOf } from '../../sim/combat/contact.js';
+import { LAYERS } from '../../sim/arms/penetrate.js';
 
 /** The target view's modes (see the header). */
 export const TARGET_MODES = Object.freeze(['string', 'lane', 'free']);
 /** The words before a stand's when its hands were not seen (COMBAT §25.4.6: "can't see his hands"). */
 export const UNSEEN_WORDS = 'HANDS NOT SEEN';
+/** A man's words while his give is under way, his rifle not yet on the floor (v0.0.26). */
+export const GIVING_WORDS = 'GIVING UP';
 
 /** The state a take-in read of a live man, as the card says it: the plaque's words (one formatter). */
 export { STATE_WORDS };
@@ -114,9 +124,13 @@ export function seenHeld(state, who, rec, last) {
 /** A fresh memory for seenHeld (the view's readers.lastSeen). */
 export const lastSeenMemory = () => ({ state: null, men: new Map() });
 
-/** The poses a role-player's card may take at a scene's load (warm()'s set: FRAME_SEEN's standing and kneeling holds, sitting, cowering). */
-export const WARM_HOLDS = Object.freeze([['rifle-low', 'stand'], ['rifle-aim', 'stand'], ['rifle-high', 'stand'], ['up', 'stand'], ['rifle-low', 'kneel'], ['rifle-aim', 'kneel'], ['up', 'kneel'], ['rifle-low', 'sit'], ['rifle-low', 'cower']]);
-/** And aimed away (across the chest, A1's other side), standing and kneeling, at the near band only (the house's rooms; 46 dolls with the rest, inside DOLL_LRU 48). */
+/**
+ * The poses a role-player's card may take at a scene's load (warm()'s set: FRAME_SEEN's standing and kneeling holds, sitting, cowering;
+ * v0.0.26, "Bang, then go": cowering with the hands empty, the rifle on its sling (C-a's card), and dazed standing and kneeling, the
+ * rifle low (D-a's), so no doll is painted when a man first dazes or cowers).
+ */
+export const WARM_HOLDS = Object.freeze([['rifle-low', 'stand'], ['rifle-aim', 'stand'], ['rifle-high', 'stand'], ['up', 'stand'], ['rifle-low', 'kneel'], ['rifle-aim', 'kneel'], ['up', 'kneel'], ['rifle-low', 'sit'], ['empty', 'cower'], ['rifle-low', 'daze'], ['rifle-low', 'dazeKneel']]);
+/** And aimed away (across the chest, A1's other side), standing and kneeling, at the near band only (the house's rooms; 54 dolls with the rest, inside DOLL_LRU 56: breach-look holds it). */
 export const WARM_NEAR = Object.freeze([['rifle-aim', 'stand', 'away'], ['rifle-aim', 'kneel', 'away']]);
 /** Your #2's carries as his card may show them (warm()'s). */
 export const WARM_TWO = Object.freeze(['rifle-low', 'rifle-high', 'rifle-aim']);
@@ -131,6 +145,23 @@ export const HOUSE_FACES = Object.freeze([['threat', 'rifle'], ['threat', 'pisto
 export function paintOn(state, who) {
   const list = (state?.armoury?.range?.house?.live?.struck ?? []).filter(x => x.who === who);
   return list.map((x, i) => { const at = x.hole ?? x.at ?? null; return { n: i + 1, shotId: x.shotId ?? null, called: at, seen: true, hole: at, zone: x.zone ?? null, part: x.part ?? 'torso', paint: 'rp' }; }).filter(m => m.hole);
+}
+
+/** The live man whose search ended last ("Search him", T.live.searched): { key, atMs }, or null. */
+export function searchedLast(state) {
+  let out = null;
+  for (const T of state?.armoury?.range?.turners ?? []) { const at = T.live?.searched?.atMs; if (Number.isFinite(at) && (!out || at > out.atMs)) out = { key: T.key, atMs: at }; }
+  return out;
+}
+/** A searched man's verdict from the ledger (see the header), in the card's words; 'NOT STRUCK' for a man no round reached. */
+export function searchedWords(state, pid) {
+  const { list } = wouldOn(state, pid), f = list.find(x => x.fatal);
+  if (f) return `WOULD HAVE BEEN FATAL: ${WOULD_WHY[f.why] ?? 'THE STRIKE'}`;
+  const w = list.find(x => !x.fatal && x.why !== 'stopped' && x.layer !== null);
+  if (w) return w.where ? `A WOUND: ${String(w.where).toUpperCase()}` : 'A WOUND';
+  const st = list.find(x => x.why === 'stopped');
+  if (st) return `HIS ${String(LAYERS[st.layer]?.word ?? 'armour').replace(/^the /, '').toUpperCase()} STOPPED ONE`;
+  return 'NOT STRUCK';
 }
 
 /** The card's words with R-b's face named before them (v0.0.25: portrait.js ROLL_FACE_WORDS, only for a subject turned to you; R-a turns the card instead). */
@@ -164,11 +195,16 @@ export function targetModel(state, { key, kind = 'turner', who = null, phase = n
     // (v0.0.19: a role-player, with the house's marks as paint; v0.0.23: drawn as the stage shows him (V1), the take-in's read in the words)
     const LT = R?.course === 'house' ? liveRecOf(state, who) : null;
     if (LT) {
-      const sf = seenFace(state, LT.key), st = seenState(state, LT.key);
-      const hm = readers.marksOf ? readers.marksOf(state, LT.key, 0, phase) : null;
+      const sf = seenFace(state, LT.key), st = seenState(state, LT.key), searched = !!LT.live?.searched;
+      // (searched, his card in truth before the lane's end, "SEARCHED" and the verdict first (see the header); the phase
+      // contact.js cardPhaseOf's, the one reader, where the caller names none)
+      const hm = readers.marksOf ? readers.marksOf(state, LT.key, 0, phase ?? cardPhaseOf(state, LT.key)) : null;
       const marks = (hm?.marks ?? []).map(mk => ({ ...mk, paint: 'team' }));
-      const lead = [STATE_WORDS[st] ?? (sf.holds === 'unseen' ? UNSEEN_WORDS : null), hm?.words ?? String(LT.stand ?? '').toUpperCase()].filter(Boolean).join(' · ');
-      return { look: HIT_LOOK, man: null, key: LT.key, k: 0, face: null, holds: null, phase: hm?.phase ?? phase ?? 'belief', marks, words: lead, line: hm?.line ?? null, tabs, rangeM: frozen ? rec.rangeM : hitRangeM(a ?? LT, me, null),
+      // (his give under way, the rifle still in his hands as the figure draws it (seen.js frame 'drop', GIVE_DROP_MS): GIVING UP, the words
+      // agreeing with the figure, HANDS UP once it is on the floor (the play review of v0.0.26, finding 6: HANDS UP over a two-handed grip))
+      const stWord = st === 'hands' && rec.frame === 'drop' ? GIVING_WORDS : STATE_WORDS[st];
+      const lead = [...(searched ? ['SEARCHED', searchedWords(state, who)] : [stWord ?? (sf.holds === 'unseen' ? UNSEEN_WORDS : null)]), hm?.words ?? String(LT.stand ?? '').toUpperCase()].filter(Boolean).join(' · ');
+      return { look: HIT_LOOK, man: null, key: LT.key, k: 0, face: null, holds: null, phase: hm?.phase ?? phase ?? cardPhaseOf(state, LT.key), marks, words: lead, ...(searched ? { headRows: 4 } : {}), line: hm?.line ?? null, tabs, rangeM: frozen ? rec.rangeM : hitRangeM(a ?? LT, me, null),
         subject, live: { key: LT.key, state: st, holds: sf.holds }, ...(picks ? { picks } : {}) };
     }
     return { look: HIT_LOOK, man: null, key, k: 0, face: null, holds: null, phase: 'belief', marks: [], words: rollWords(P.name, rec, picks), line: null, tabs: [], rangeM: frozen ? rec.rangeM : hitRangeM(a, me, null), subject, ...(picks ? { picks } : {}) };
@@ -234,20 +270,38 @@ export function createTargetView({ card, readers: given = {} } = {}) {
   let held = null;                                                   // ({ key, kind, who }: the target shown last, held after the engagement)
   let closedMs = -Infinity;                                          // (game ms the held card last closed: a round struck after it opens it again)
   let pending = null;                                                // (a man's doll painted this frame: the card waits a frame for it)
+  let pin = null;                                                    // ({ key, atMs, under, on }: the man last searched and the aim or bracket he took the card from)
   const close = (seen, ms) => { held = null; closedMs = ms; seen.shown = null; return card.update(null); };
   function engageFrame(s, { hidden = false, inStop = false, ui = 1, seen, now }) {
     const R = s?.armoury?.range, house = R?.course === 'house', ms = s?.clock?.ms ?? 0;
     if (hidden || !s || (house && R.end)) { held = null; seen.shown = null; return card.update(null); }
     const eng = engagedOf(s);
     // (in the house a stand; anywhere a live man: paper and the bay's turners off "Bang" are not this view's)
-    const target = eng && (eng.kind === 'person' || (eng.kind === 'turner' && house)) ? eng : null;
+    let target = eng && (eng.kind === 'person' || (eng.kind === 'turner' && house)) ? eng : null;
+    // (a search that has just ended takes the card from the aim or the bracket left where they were (pin.under, the first one
+    // met after it), until they move or a row engages another: the splash hid the card and your muzzle stayed on the first man, so after
+    // the second search the card went back to his, your #2's man's truth never shown (the play review of v0.0.26, finding 8))
+    const sr = house ? searchedLast(s) : null;
+    if (sr && sr.atMs > (pin?.atMs ?? -Infinity)) pin = { key: sr.key, atMs: sr.atMs, under: undefined, on: true };
+    if (pin?.on && target && target.key !== pin.key) {
+      if (target.why !== 'row' && pin.under === undefined) pin.under = target.key;
+      if (target.why === 'row' || target.key !== pin.under) pin.on = false;
+    }
+    if (pin?.on) {
+      const T = (R?.turners ?? []).find(t => t.key === pin.key);
+      if (T?.live?.who) { target = null; held = { key: pin.key, kind: 'person', who: T.live.who, live: true }; } else pin.on = false;
+    }
     if (target) held = { key: target.key, kind: target.kind, who: target.who ?? null, live: !!(house && target.kind === 'person' && liveRecOf(s, target.who)) };
     else if (!held && house) {
-      const sl = struckLast(s);
+      // (the man last searched, where his search ended after your last round that struck: the splash hides the card and
+      // drops what it held, so after the second search the card went back to the first man's, your #2's man's truth never shown
+      // (the play review of v0.0.26, finding 8))
+      const sl0 = struckLast(s), sr = searchedLast(s), sl = sr && (!sl0 || sr.atMs >= sl0.atMs) ? sr : sl0;
       if (sl && sl.atMs > closedMs) { const T = (R?.turners ?? []).find(t => t.key === sl.key); held = T?.live?.who ? { key: sl.key, kind: 'person', who: T.live.who, live: true } : { key: sl.key, kind: 'turner', who: null }; }
     }
     // (v0.0.19: a role-player no longer engaged is held as a stand is, and closed once ruled out)
-    if (!target && held?.live) { const T = liveRecOf(s, held.who); if (!T || T.live.st === 'out') return close(seen, ms); }
+    // (a man searched is held as any other, so the truth his search turned is seen after it ends)
+    if (!target && held?.live) { const T = liveRecOf(s, held.who); if (!T || (T.live.st === 'out' && !T.live.searched)) return close(seen, ms); }
     // (a man no longer engaged is held only out of stop motion: in it, or while the stop names something this view does not draw
     // (your paper, a bay turner off "Bang"), his card closes at once, so it never stands over your own target)
     if (!target && held?.kind === 'person' && !held.live && (inStop || stopNames(s))) return close(seen, ms);
@@ -305,7 +359,7 @@ export function createTargetView({ card, readers: given = {} } = {}) {
       }
       return n;
     },
-    reset() { held = null; pending = null; closedMs = -Infinity; readers.known.clear(); readers.aims?.clear?.(); if (readers.lastSeen) { readers.lastSeen.state = null; readers.lastSeen.men.clear(); } },
+    reset() { held = null; pending = null; pin = null; closedMs = -Infinity; readers.known.clear(); readers.aims?.clear?.(); if (readers.lastSeen) { readers.lastSeen.state = null; readers.lastSeen.men.clear(); } },
     /** "Bang"'s card model for a turner of a string (main.js's hot wash reads it too). */
     stringModel: hitModelOf,
   };

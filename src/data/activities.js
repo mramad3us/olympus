@@ -226,6 +226,13 @@ export const ACTIVITIES = deepFreeze({
     parts: [still('house-showclear', 'asked', 1.5, 'stand', { line: 'Your number two cleared his guns for the instructor.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
     log: ['Your number two cleared his guns for the instructor: {dur}.', '{dur} on safe while your number two showed clear.', 'The instructor looked into your number two\'s chamber: {dur}.', '{dur} for your number two\'s SHOW CLEAR.'],
   },
+  // ("Bang, then go" (its build sheet §1 item 9): a man searched after room 1's "Clear!", his search's lived time behind the brief
+  // splash, as SHOW CLEAR's wait is (src/sim/scenarios/shoothouse.js breachSearchTick); a fast-forward of lived ticks)
+  'house-search': {
+    id: 'house-search', class: 'day', uses: [], offer: 'the search', noun: 'the search', mask: 'D A',
+    parts: [still('house-search', 'asked', 1.5, 'stand', { line: 'Searching him: 20 s. His card turns to the truth.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['You searched him: {dur}.', '{dur} on your knees by him, the search.', 'The search: {dur}, pockets, panel and kit.', '{dur} of the search.'],
+  },
   idle: {
     id: 'idle', class: 'day', uses: [], offer: 'idle', mask: 'D A',
     parts: [still('idle', 'asked', 1.5)], resumable: false, stoppable: true, chunkMs: 0, vignette: null, min: 0,

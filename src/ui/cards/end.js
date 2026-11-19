@@ -61,7 +61,8 @@ export function endCard({ scene, seed, on = {}, said = null, sheet = null, aspec
   const all = [
     ...q,
     line(q.length + 1, 'Again', `seed ${seed}${qual?.next && !qual.done ? ' · ends the qualification' : ''}`, () => on.again?.(true)),
-    line(q.length + 2, 'Again with a new seed', 'what is drawn, drawn afresh', () => on.again?.(false)),
+    // (a scene may name it in its own words (scenes.js newSeed: "Bang, then go"'s "Another door", a new seed, a new draw))
+    line(q.length + 2, scene.newSeed?.[0] ?? 'Again with a new seed', scene.newSeed?.[1] ?? 'what is drawn, drawn afresh', () => on.again?.(false)),
     line(q.length + 3, 'Score it', `${COUNT_WORDS[scene.aspects?.length ?? 3] ?? `${scene.aspects.length} aspects`}, a ★, a note`, () => on.score?.(), q.length ? 'item' : 'item lead'),
     // (0.0.8: the other sheets on the same seed)
     // (0.0.9: on "Three bangs" the hardening's word leads, the scene's lesson (the design review))

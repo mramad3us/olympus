@@ -87,6 +87,11 @@
 // AIM_LEAD_K, EDGE_KEEP_M and FRAME_HALF_M are VIEWS §2.4's weapon-mode lead, shared by the camera and
 // the shot role's targetsOf: the frame's centre AIM_LEAD_K of the way from the player to the bracketed
 // target, the player kept EDGE_KEEP_M inside the frame's half-size at 16 px/m.
+// v0.0.26 (its build sheet items 6 and 8, §3.3; "Bang, then go"): a role-player in the shock. gunLook's action frame for a live man
+// (a turner riding R.turners with live.who his) is 'daze' while men.js liveStateOf reads him 'dazed' (startled, stunned or
+// flash-blind, not down or giving: the sim's block, so the stage sees the window close) and 'cower' while it reads him 'cowering'
+// (frozen), over any sub-step of his hands; the stage draws poses.js shockFrameOf of it and the Seen record reads the same action
+// (seen.js frameOfSeen), so the stage's frame, the card's pose and the plaque's word are one map. Every other actor's look as before.
 import { hash01 } from '../../core/hash.js';
 import { q } from '../../core/num.js';
 import { ACTIONS, gunField, finishOf } from './firearms.js';
@@ -106,6 +111,7 @@ import { anchorsLook } from '../scenarios/anchors.js';
 import { gearAnchorOf, anchorHoldOf } from '../body/footing.js';
 import { stressLook } from '../scenarios/stress.js';
 import { houseLook, handsOf, houseOf } from '../scenarios/shoothouse.js';
+import { liveStateOf } from '../combat/men.js';
 import { devicesLook } from '../combat/burst.js';
 import { devicesView } from './devlook.js';
 import { DEVICES, handDeviceOf, devicesOf, liveDevices } from './devices.js';
@@ -263,11 +269,14 @@ export function gunLook(state, actor, ms = state?.clock?.ms ?? 0) {
   // (the P-12's tower admin under way, the pistol holstered: drawn in the hands (ADMIN_FRAMES))
   const ap = long && ADMIN_FRAMES[step?.action] ? state.items?.[state.people?.[pid]?.kit?.worn?.holster] : null, admin = ap && !isLong(modelOf(ap)) ? ap : null;
   const af = admin ? ADMIN_FRAMES[step.action] : null;
+  // (a role-player dazed or cowering (see the header): that frame over his hands' sub-step)
+  const live = sess?.course === 'house' ? (sess.turners ?? []).find(t => t.live?.who === pid) ?? null : null, ls = live ? liveStateOf(state, live, ms) : null;
+  const shock = ls === 'dazed' ? 'daze' : ls === 'cowering' ? 'cower' : null;
   return {
     model: rifle.model, carry: long && !admin ? CARRY_RIGS[c.posture] ?? 'front' : 'front', stance: actor.stance ?? 'stand',
     ...(admin ? { pistol: { model: admin.model, posture: 'lowReady' } } : long ? {} : { pistol: { model: gun.model, posture: c.posture } }),
     aim: aimAt ? { x: aimAt.x, z: aimAt.z, ms: s?.aim?.settledMs ?? G?.aimAtMs ?? null } : null, shotMs,
-    action: step ? { frame: af ? af[Math.min(af.length - 1, Math.max(0, Math.floor((step.k ?? 0) * af.length)))] : frameAt(step.action, step.k ?? 0), k: step.k ?? 0 } : null,
+    action: shock ? { frame: shock, k: 0 } : step ? { frame: af ? af[Math.min(af.length - 1, Math.max(0, Math.floor((step.k ?? 0) * af.length)))] : frameAt(step.action, step.k ?? 0), k: step.k ?? 0 } : null,
     flash: shotMs === null ? 0 : fade(ms - shotMs, FLASH_MS), kick: shotMs === null ? 0 : fade(ms - shotMs, KICK_MS),
     muzzle: m ? { x: m.x, y: m.y, z: m.z } : null, finger: c.finger, mag: !!gun.mag, locked: !!gunField(gun, 'locked'),
     // (R8: the close-quarters beat, for the stance sheet's frames: only where a drill runs, so every other look is as before)

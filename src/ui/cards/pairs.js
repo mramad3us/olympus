@@ -43,6 +43,8 @@
 // HOUSE_ROOMS_DEFAULT first), live only on the drawn choice and carried with it (onPick(tier, { draw: 'drawn', rooms })). Without
 // them (A's exports not there, or a scene with no layouts) the row is v0.0.21's to the letter. Qualify draws as before (the page's
 // room default; a named house never qualifies: the build sheet §0 item 21).
+// v0.0.26 ("Bang, then go", its build sheet §1 item 1): the house's sheets and pars, no House, Rooms or Kit row (the scene is played as set,
+// its kit drawn from the seed: scenes.js breach), its own line under the title (SCENE_LINES['test-breach']).
 import { loadoutPage, loadoutWord } from './loadout.js';
 import { readRuns, bestsOf, bestWords, qualNext, PAR_ORDER } from './house-runs.js';
 import * as SCENES_DATA from '../../data/scenes.js';
@@ -82,7 +84,9 @@ export const SETUP_LINES = Object.freeze({ bangs: 'Utilities, no ear defenders. 
 export const SCENE_LINES = Object.freeze({ 'test-stress': 'Ear defenders on. Five strings at 7 m: one calm, then the coach makes noise beside you (a horn and blanks, a bang he calls, three he does not), the last on a one-round magazine. Breathe when you can. Esc, End the scene, takes you to the card.',
   // (0.0.12: the shoot house; my words. v0.0.23, its build sheet item 15, carried FH-7: in plain words, what T does at each sheet and
   // what the keys do (the first-hour lens: "a step at a time" and "T bundles it" told a new player nothing he could do))
-  'test-shoothouse': 'The Wheel, at 1 G. Your number two is of your sheet too, and runs the same drill. Boot recruit and Private: T names every step and does it, but your keys walk you through each door, as the instructor calls them. From the Corporal, T takes you through the door too, a room\'s drill at a time. The same rooms and draws on the seed whichever you choose.' });
+  'test-shoothouse': 'The Wheel, at 1 G. Your number two is of your sheet too, and runs the same drill. Boot recruit and Private: T names every step and does it, but your keys walk you through each door, as the instructor calls them. From the Corporal, T takes you through the door too, a room\'s drill at a time. The same rooms and draws on the seed whichever you choose.',
+  // ("Bang, then go"; my words, the door's draw never named (we only know what we know))
+  'test-breach': 'Room 1 of the house at 1 G, two role-players inside. Boot recruit and Private: T names every step and does it, but your keys walk you through the door. From the Corporal, T takes you through it, the bang with it. The same door and kit on the seed whichever you choose.' });
 /** Whether a scene's picker leads with the hardening (its lesson: "Three bangs" and "Bang"). */
 export const leadsHard = (scene) => scene?.setup === 'bangs' || scene?.id === 'test-stress' || scene?.course === 'stress';
 
@@ -169,7 +173,8 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
   // (v0.0.18: the shoot house's loadout, one for every sheet (cards/loadout.js): "Kit: Standard ▸" opens its screen in the picker's
   // place, Kit up comes back with the code, carried into the lane with the sheet; loadout: main.js's { code, save, preview, wh })
   // (the house's course with a kit to choose: not the Wreck's, shot with the standard kit (scenes.js `ship`))
-  let kitCode = loadout && scene?.course === 'house' && !scene.ship ? (loadout.code ?? 'standard') : null;
+  // ("Bang, then go" draws its kit from the seed (the bang or none): no Kit row, as the Wreck has none)
+  let kitCode = loadout && scene?.course === 'house' && !scene.ship && !scene.breach ? (loadout.code ?? 'standard') : null;
   const kitBtn = kitCode !== null ? el('button', { className: 'item small kitpick', type: 'button' }, '') : null;
   const kitText = () => { if (kitBtn) { kitBtn.textContent = `Kit: ${loadoutWord(kitCode)} ▸`; kitBtn.dataset.code = kitCode; } };
   kitText();

@@ -94,7 +94,8 @@ export default [
       // (v0.0.24: the P-12's high-ready walk (BANDS.stancePistol) is new frames, left out as the pistol band is; 'draw' and
       // 'pistolAim' left the stance sheet (nothing in the game drew them) but beatPose still poses them for three samples, so they
       // are composed at their old place after fireMove1 and the golden holds every frame as pinned, unmoved)
-      const old = FRAMES.filter(f => !BANDS[HELD_BAND].includes(f) && !BANDS.pistol.includes(f) && !BANDS.stancePistol.includes(f)).flatMap(f => (f === 'fireMove1' ? [f, 'draw', 'pistolAim'] : [f])), parts = [];
+      // (v0.0.26: the role-player's daze and cower (BANDS.stanceShock, "Bang, then go") are new frames, left out as the P-12's are)
+      const old = FRAMES.filter(f => !BANDS[HELD_BAND].includes(f) && !BANDS.pistol.includes(f) && !BANDS.stancePistol.includes(f) && !BANDS.stanceShock.includes(f)).flatMap(f => (f === 'fireMove1' ? [f, 'draw', 'pistolAim'] : [f])), parts = [];
       for (const L of [suit('low'), suit('front'), looks[2]]) for (const d of DIRS) {
         for (const f of old) { const fr = composeFrame(L, d, f, { ppm: PPM }); parts.push(shade(fr.cells, coloursOf(fr.look, PPM)).data); }
         for (const b of BEAT_FRAMES) { const fr = composeFrame(L, d, 'idle0', { ppm: PPM, pose: beatPose(b, { weapon: L.weapon, carry: L.carry }) }); parts.push(shade(fr.cells, coloursOf(fr.look, PPM)).data); }

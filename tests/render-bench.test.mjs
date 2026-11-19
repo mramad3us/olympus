@@ -53,7 +53,7 @@ async function houseBench(name, { lane = null } = {}) {
   await withGame(async (page, errors) => {
     await page.waitForFunction(() => window.__bench && document.querySelector('.glass.bench'), null, { timeout: 120000 });
     const r = await page.evaluate(() => window.__bench), here = await frameClock(page), text = await page.evaluate(() => document.querySelector('.glass.bench .benchtext').value);
-    const st = await page.evaluate(() => { const s = window.__olympus.state, H = s?.armoury?.range?.house; return { legs: [...(H?.rooms ?? []), ...(H?.hall ? [H.hall] : [])].map(L => L.state), bursts: H?.bursts?.length ?? 0, live: !!H?.live, held: s?.stop?.mode ?? null }; });
+    const st = await page.evaluate(() => { const s = window.__olympus.state, H = s?.armoury?.range?.house; return { legs: [...(H?.rooms ?? []), ...(H?.hall ? [H.hall] : [])].map(L => L.state), bursts: H?.bursts?.length ?? 0, live: !!H?.live, bangGo: !!H?.bangGo, held: s?.stop?.mode ?? null }; });
     const sixty = r.medianMs <= 17.5 && here.medianMs <= 17.5;
     console.log(`      ${name}: ${r.frames} frames, median ${r.medianMs} ms, p95 ${r.p95Ms}, max ${r.maxMs}, over 25 ms ${r.over25}; draw calls ${r.drawCallsMax}; the sim's busiest tick ${r.tickMaxMs} ms; UI p95 ${r.uiP95Ms} ms; links after the warm ${r.linksAfterWarm}; the largest upload after GO + 1 s ${r.upload?.kb} KB (${r.upload?.key ?? '-'}, at ${r.upload?.atS ?? '-'} s); the lane ${JSON.stringify(st)}; the page's clock ${fmt(here.medianMs, 1)} ms${sixty ? '' : ' (not 60 Hz: the frame bounds printed, not held)'}`);
     for (const line of text.split('\n').slice(-2)) console.log(`        ${line}`);
@@ -247,5 +247,13 @@ export default [
     heavy: true,
     timeoutMs: 180000,
     async fn() { await houseBench('house-stop', { lane: (st) => st.held === 'stop' }); },
+  },
+  {
+    name: '(F148, v0.0.26) the bench scene breach: "Bang, then go" (the bang, the door held, 48213), the sergeant at GO, T and the shot row every 2 s for 20 s (the throw, the burst, both men dazed and swaying, the room\'s rows): TECH §16.1 on the card as house-kit\'s (K4: the shock band prepared behind the cut, so no upload over UPLOAD_MID_KB after GO + 1 s)',
+    heavy: true,
+    timeoutMs: 180000,
+    async fn() {
+      await houseBench('breach', { lane: (st) => st.live && st.bangGo });
+    },
   },
 ];

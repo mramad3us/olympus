@@ -61,6 +61,9 @@
 // The read scope (src/core/reads.js): both evaluations open state.$reads around firedNow, so the rules' panel and
 // bodies are built once per ms whichever rule reads them first; and a whole second is due once at its ms (the held second: a
 // pause standing on a whole second rebuilt the instinct twenty times a second).
+// v0.0.26 (its build sheet's K2): state.$instinct is runtime, stripped from saves, and the actions run in the tick's input layer,
+// before its offers: so the first tick after a load had no line for a bare T (the debug handle, the bots) to do, and a T player
+// parted from the game saved on that tick. instinctAction settles it first when it is absent, as the next offers would.
 import { isHeld, SEC_MS } from '../../core/clock.js';
 import { hashPick, hash01 } from '../../core/hash.js';
 import { playerActor } from '../../core/ids.js';
@@ -275,7 +278,7 @@ export function instinctAction(state, action, bus, ctx) {
   else {
     // (a game loaded and not yet ticked has no line (state.$instinct is runtime): settled now from what fires, as its first tick
     // would, so T on a pause's first tick after a load does what it did in the game that saved (v0.0.25's fixer, the code review:
-    // zerocqb-save chose its points round it))
+    // zerocqb-save chose its points round it; v0.0.26's K2, carried-v026, holds it too: one fix, the tag's))
     if (!state.$instinct) {
       const s0 = settle(null, fired, state.clock.ms, { urgentOnly: isHeld(state) && !isHeld(state, 'stop') });
       if (s0.line) state.$instinct = { ...instinctNow(state), line: s0.line, chip: s0.chip ? { id: s0.chip.id, act: s0.chip.act } : null };

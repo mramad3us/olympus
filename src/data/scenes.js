@@ -37,6 +37,9 @@
 // its own scenario, `ship: 'wreck'` (the operation record's one field the lane branches on), `tug` (the yard tug's pull, set at GO),
 // `familiar: 'walls'` (the walls briefed, every compartment black until seen) and `menu` (false: played by its URL only, left off the
 // Tests menu by main.js scenes(), until its ship rule is met).
+// v0.0.26's test-breach, "Bang, then go" (its build sheet §1 item 1; ROADMAP §4.2's 0.0.7f): the house's scenario cut to room 1 with
+// the live lane's two role-players in it, `breach` ('drawn': the bang and the held door from the seed; shoothouse.js drawBreach) and
+// `newSeed` (the end card's "Again with a new seed" in the scene's words: "Another door"); on the Tests menu since its ship rule was met.
 // The hud reads every field; scenes save nothing (the sheet §8, item 24): their scores alone are kept.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 // (every shipped scene stands on Base Melas in the site's own environment: v0.0.10's, byte for byte)
@@ -159,6 +162,29 @@ export const SCENES = deepFreeze({
     draws: ['set'],
     // (as test-shoothouse's, the scenario's: a drawn live lane, the tests' only while F80 is open, is unfamiliar)
     familiar: 'set',
+    endOn: { fact: 'range', phase: ['clear', 'stopped'] },
+  },
+  // ("Bang, then go" (its build sheet §1 item 1, §3.2; ROADMAP §4.2's 0.0.7f; COMBAT §7.10, §7.11, §25.18.2): room 1 of lane
+  // A as set, two role-players of the cadre in it (the live lane's two men, one in each marine's sector, both briefed to fight, so what
+  // they do after is COMBAT §7.11's table alone), the bang and the held door drawn from the seed (`breach`: 'drawn', or the URL's
+  // &breach=<bang|quiet>,<held|loose>; shoothouse.js drawBreach), the lane ended at room 1's "Clear!". The house's fill with
+  // `opfor: 'live'` and `breach` (shoothouse.js testShoothouse's breach branch, which writes R.house.bangGo), the house's host and
+  // hour (game.js specOf's rule). Played as set from the page (`draws: ['set']`: every other house option dropped with one toast,
+  // core/debug.js breachChoice). `newSeed`: the end card's "Again with a new seed" in this scene's words, "Another door" (a new seed, a
+  // new draw). On the Tests menu since its ship rule was met (the build sheet's ship rules: F138 and F147 green))
+  'test-breach': {
+    id: 'test-breach', title: 'Bang, then go', scenario: 'test-shoothouse', opfor: 'live', breach: 'drawn',
+    host: { site: 'melas', area: 'melas.wheel.s4' }, env: SITE_ENV, hour: 10.0,
+    goal: 'Room 1 at 1 G with your number two: two role-players inside, who fire back. The bang if you carry one, then go. Put them down or take their surrender.',
+    aspects: [['defenders', 'the defenders: can you read their state from the figure and the plaque: dazed, cowering, hands up, back on the door'],
+      ['bang', 'the bang: the window it buys, and the cost of a slow stack'], ['hitcard', 'the hit card: belief in the fight, the truth when you search him or at the wash']],
+    body: {}, outfit: 'combatSuit', course: 'house', stances: true, sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
+    pars: ['basic', 'advanced', 'operator'],
+    draws: ['set'],
+    familiar: 'set',
+    newSeed: ['Another door', 'a new seed, a new draw'],
+    // (on the Tests menu, after "Stack and clear, live", from the integration of v0.0.26: its ship rule met, scene-breach,
+    // breach-nodead and breach-save (F138) and env-noregress (F147) green in the full run on the merged tree; by URL only until then)
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
   // (the anywhere round (its build sheet §1 D, §3.4; AW§5): "Anchor before you fire", Well A of the Void Operations School at

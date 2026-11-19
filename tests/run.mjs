@@ -44,7 +44,9 @@
 // file counts the ✓ and ✗ lines it had printed, and one failure more; its time is the file's time so
 // far, so the next run's longest-first order still knows it. A filtered run claims browser ports, and
 // prints the quiet lanes' header, only when a browser file may hold a test the filter keeps (by its
-// name or its text: mayMatch); every file is still loaded, so one that fails to load still fails.
+// name or its text: mayMatch); every file is still loaded, so one that fails to load still fails. From v0.0.26 (its build sheet §2
+// step 3; the carried lens §4.2 item 7) a filtered run's pool is the number of files that may hold a test it keeps (at least
+// one, which loads the rest): `node tests/run.mjs 'house-two ›'` warmed seven workers for one file before.
 //
 // A test that never settles would hang a release (tools/release.sh waits on this), so each one
 // gets timeoutMs, else TIMEOUT_MS from the environment, else five minutes (my call). A worker with a
@@ -144,6 +146,7 @@ const QUICK_CPU_S = 375;   // (v0.0.21's stage 0: the whole quick runs measured 
  */
 const QUICK_SLOW = Object.freeze({
   // (v0.0.21's stage 0, four whole quick runs at JOBS=3: each file's worst measure plus 25%; the files from 2.4 s, whose 25% reaches 3 s)
+  // (v0.0.26's stage 0: panel-keys and reads-scope left it, 1.5 and 1.4 s on the snapshot's quick runs after v0.0.25 E's heavy twins)
   'house-fumble.test.mjs': 15.3,
   'house-unpinned.test.mjs': 14.7,
   'plan-walk.test.mjs': 14.3,
@@ -161,7 +164,6 @@ const QUICK_SLOW = Object.freeze({
   'stress-review.test.mjs': 5.0,
   'hunt-pistol.test.mjs': 4.9,
   'scene-range.test.mjs': 4.9,
-  'panel-keys.test.mjs': 4.7,
   'ui-zeroing.test.mjs': 4.7,
   'kd-tower.test.mjs': 4.4,
   'scene-shoothouse.test.mjs': 4.4,
@@ -170,7 +172,6 @@ const QUICK_SLOW = Object.freeze({
   'house-catalogue.test.mjs': 4.0,
   'kit-makers.test.mjs': 3.9,
   'scene-bangs.test.mjs': 3.8,
-  'reads-scope.test.mjs': 3.6,
   'house-corner.test.mjs': 3.6,
   'house-shoot.test.mjs': 3.5,
   'team-task.test.mjs': 3.3,
@@ -400,7 +401,8 @@ async function main() {
   };
   const poolT0 = performance.now();
   if (order.length) await new Promise(resolveAll => {
-    const nWorkers = Math.min(JOBS, Math.max(order.length, ports.length ? 1 : 0));
+    // (v0.0.26: a filtered run's pool, the files that may hold a test it keeps, at least one; see the header)
+    const nWorkers = Math.min(JOBS, Math.max(filter ? Math.max(1, order.filter(f => kind[f].may).length) : order.length, ports.length ? 1 : 0));
     const nPorts = Math.min(ports.length, nWorkers);
     say(`(${pooled.length} files on ${nWorkers} workers, ${nPorts} with a browser port (${ports.slice(0, nPorts).map(p => p.port).join(', ') || 'none'})${lanes.length ? `; then ${lanes.length} in the quiet lanes` : ''}${last.length ? `; ${last.length} here after: ${names(last)}` : ''})\n`);
     const live = new Set(), all = new Set(), busy = new Set(), laneBusy = new Set();

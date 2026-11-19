@@ -31,6 +31,10 @@
 // the tier one's card fits whole at 1024 × 768 and 1600 × 900 with it open; a longer run sheet scrolls the side, my call). truthRows(state) is the model
 // (pure), truthRowEl the DOM (a canvas a card, painted by the hit card's paint at its own size, never smoothed). A stand with no atFirst (a save made
 // before v0.0.24, or none of your rounds at it) is not engaged and has no card.
+// v0.0.26 ("Bang, then go", its build sheet §1 items 8 and 10): the run sheet's title says "ROOM 1" and its head the scene's ("BANG, THEN GO ·
+// SERGEANT · ROOM 1 · THE BANG ISSUED · THE DOOR WAS HELD"), and under the room's row the window's (breachRows: THE WINDOW, a line a man,
+// THEIR CHOICES), every figure shoothouse.js bangWindowOf's; the end card's "Again with a new seed" is the scene's "Another door"
+// (scenes.js newSeed), and its "Again" keeps the draw's words (main.js openHouseEnd).
 
 // (the rooms' role's laneWordOf read by name, so the paper is v0.0.21's until it is exported)
 import { WRECK_LEGS } from '../../data/courses.js';
@@ -108,6 +112,15 @@ export const FAULT_MARKS = Object.freeze([
 /** Whether a mark is a fault (red on the paper). */
 export const isFault = (mark) => FAULT_MARKS.some(f => String(mark).toUpperCase().includes(f));
 
+/**
+ * "Bang, then go"'s rows of the run sheet (v0.0.26; shoothouse.js runSheetOf's breach, its words from bangWindowOf alone): THE WINDOW (or THE
+ * DOOR), a line a man, THEIR CHOICES, each { words, head (before its colon), marks (its ' · ' parts) }; [] on every other lane.
+ */
+export function breachRows(rs) {
+  const B = rs?.breach;
+  if (!B) return [];
+  return [B.window, ...(B.men ?? []), B.choices].filter(Boolean).map(words => { const i = words.indexOf(': '); return { words, head: i > 0 ? words.slice(0, i) : words, marks: i > 0 ? words.slice(i + 2).split(' · ') : [] }; });
+}
 /** A run sheet row's parts: { head, marks: [{ text, fault }] } from its words ("ROOM 1 · 7.40 S · …": the head is the room and its time). */
 export function rowParts(words) {
   const bits = String(words ?? '').split(' · ').map(t => t.trim()).filter(Boolean);
@@ -131,12 +144,16 @@ export function runSheetEl(rs, { doc = globalThis.document, bars = null, lane = 
       ...p.marks.map(m => el('span', { className: `rs-mark${m.fault ? ' fault' : ''}`, textContent: why && / MISSED$/.test(m.text) ? `${m.text} (${why.toUpperCase()})` : m.text })));
   });
   const would = Array.isArray(rs.would) ? rs.would : [];
+  // ("Bang, then go": the window's rows under the room's (breachRows: THE WINDOW or THE DOOR, a line a man, THEIR CHOICES)
+  const breach = breachRows(rs);
   // (a named house's letter where the card says NEW LAYOUT)
   const card0 = typeof rs.card === 'string' ? rs.card : rs.card?.words ?? rs.card?.text ?? null, card = lane && card0 ? card0.replace(/\bNEW LAYOUT\b/, `LANE ${lane}`) : card0, one = typeof rs.one === 'string' ? rs.one : rs.one?.text ?? null;
   const body = el('div', { className: 'runsheet' },
-    el('div', { className: 'rs-title' }, el('span', { textContent: 'RUN SHEET' }), el('span', { className: 'rs-lane', textContent: place ?? (lane ? `LANE ${lane} · THE WHEEL · HOUSE 1` : rs.lane ? `LANE ${rs.lane}` : 'THE WHEEL · HOUSE 1') })),
+    el('div', { className: 'rs-title' }, el('span', { textContent: 'RUN SHEET' }), el('span', { className: 'rs-lane', textContent: place ?? (rs.breach ? 'ROOM 1 · THE WHEEL · HOUSE 1' : lane ? `LANE ${lane} · THE WHEEL · HOUSE 1` : rs.lane ? `LANE ${rs.lane}` : 'THE WHEEL · HOUSE 1') })),
+    rs.breach?.head ? el('p', { className: 'rs-card rs-breach', textContent: rs.breach.head }) : null,
     card ? el('p', { className: 'rs-card', textContent: card }) : null,
     ...rows,
+    ...breach.map(b => el('div', { className: 'rs-row rs-breach' }, el('span', { className: 'rs-head', textContent: b.head }), ...b.marks.map(m => el('span', { className: 'rs-mark', textContent: m })))),
     // (the team's row under the rooms', its marks split as a room's are)
     rs.team?.words ? (() => { const p = rowParts(rs.team.words); return el('div', { className: 'rs-row rs-team' }, el('span', { className: 'rs-head', textContent: p.head }), ...p.marks.map(m => el('span', { className: `rs-mark${m.fault || /MASKED|HELD OUT [1-9]/.test(m.text) ? ' fault' : ''}`, textContent: m.text }))); })() : null,
     // (the live lane's wound sentences, what the rounds would have done (shoothouse.js wouldLines))
@@ -144,7 +161,7 @@ export function runSheetEl(rs, { doc = globalThis.document, bars = null, lane = 
     one ? el('p', { className: 'rs-one', textContent: one }) : null,
     rs.verdict?.words ? el('p', { className: `rs-verdict ${rs.verdict.go ? 'go' : 'nogo'}`, textContent: rs.verdict.words }) : null,
     rs.practised?.words ? el('p', { className: 'rs-practised', textContent: rs.practised.words }) : null);
-  body.dataset.text = [card, ...(rs.rows ?? []).map(r => r.words), rs.team?.words ?? null, ...would, one, rs.verdict?.words ?? null].filter(Boolean).join(' | ');
+  body.dataset.text = [rs.breach?.head ?? null, card, ...(rs.rows ?? []).map(r => r.words), ...breach.map(b => b.words), rs.team?.words ?? null, ...would, one, rs.verdict?.words ?? null].filter(Boolean).join(' | ');
   return body;
 }
 /** A room's missed pars by cause, in CAUSE_WORDS, from hotWashOf's bars: Map room → "seen late" ("seen late, slow hands" for two). */
@@ -292,9 +309,12 @@ export function houseGridEl(g, { doc = globalThis.document } = {}) {
 }
 
 /** The end card's lines for the house: [the run sheet's card line, the instructor's one thing] (the summary is the card's own words). */
-export function houseEndLines(hn, rs = null) {
+export function houseEndLines(hn, rs = null, hw = null) {
   const card = typeof rs?.card === 'string' ? rs.card : rs?.card?.words ?? null, one = typeof rs?.one === 'string' ? rs.one : rs?.one?.text ?? null;
-  return [card ?? (typeof hn?.summary === 'string' ? hn.summary : null), one].filter(Boolean);
+  // (the hot wash's lead where it has one ("Bang, then go"'s window, shoothouse.js windowWords), before the one thing: the card
+  // shows the plan, so the wash's own block stands down, and its story was nowhere on the page (the play review of v0.0.26, finding 1))
+  const lead = typeof hw?.lead === 'string' && hw.lead !== one ? hw.lead : null;
+  return [card ?? (typeof hn?.summary === 'string' ? hn.summary : null), lead, one].filter(Boolean);
 }
 
 /** The take-in's read of a stand as the truth card's caption says it (the belief you acted on). */

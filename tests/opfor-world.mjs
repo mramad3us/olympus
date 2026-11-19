@@ -14,6 +14,20 @@
 // keeping him from the turn-away): the suites that read them say so in a printed note when hooked is false.
 // runTo(g, pred, input, max) steps until pred(state); liveOf(g) the house's R.house.live; rp(g, stand) a role-player's record.
 //
+// rpScript(opts) (v0.0.26, "Bang, then go": its build sheet §1 A, §6 A, §7: A tests against no other role's code) is a bare room-1
+// state with the scene's two men and a scripted stack, so the brain is tested without the scene's lane: the real headless game of
+// test-shoothouse at GO (setup 'go': you and your #2 stacked on room 1's push door, GO given), R.house.bangGo written by hand as
+// the scene's fill will write it ({ v: 1, bang, held, code, window: null, track: {}, search: null }), R.house.opfor 'live' and
+// opfor.js fillOpfor called last with both cards forced 'fight' (the scene's rule: the table chooses), you out of stop motion.
+// Its verbs, each acting at the clock as it stands: open() room 1's door (its leaf, the men's cue); bang(at) a G-11 burst inside
+// room 1 (burst.js burst, thrown by you: the stack prepared), at [29.0, 10.5] unless given; enter(who, at, faceTo) a marine put
+// through the door to a place of the room facing a point ('me' or 'two'; the actor moved, as the drill's walk would leave him);
+// down(stand) the man put down by the one rule's other door (opfor.js opforBled: a wound that bleeds him down, so goDown and its
+// friend's news run as at a fatal round); press(stand, pts) points on his pool (supp.js addSupp, a 'roomShot' of the given
+// points: the chaos a test needs); run(ms, input) the clock run that long, X at every pause (time runs, nobody of yours fires
+// unless the input does); man(stand) his record, actor(stand) his actor. Each scripted act is written as the scene's own
+// writers write it, so what the men do after is opfor.js's alone.
+//
 // spotCheck(state, stand, [x, z], opts) is the role-players' spot rule (v0.0.19's, written in tests/opfor-spots.test.mjs; moved here
 // and widened by v0.0.22's stage 0, its build sheet §0 item 17, so opfor-spots and the drawn posts' tests share it): the cell lies in
 // the leg's own rect (the plan's first), 0.4 m or more off every wall face (room.js wallClearanceM: a C0 body and a margin), BODY_GAP_M
@@ -27,7 +41,11 @@
 import { fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { weaponsDomain } from '../src/sim/arms/domain.js';
-import { fillOpfor, opforTick, opforHit, spotOf } from '../src/sim/scenarios/opfor.js';
+import { fillOpfor, opforTick, opforHit, opforBled, spotOf } from '../src/sim/scenarios/opfor.js';
+import { setOpening } from '../src/sim/places/model.js';
+import { leaveStop, faceOfHead } from '../src/sim/arms/shooting.js';
+import { burst } from '../src/sim/combat/burst.js';
+import { addSupp } from '../src/sim/combat/supp.js';
 import { standsOf } from '../src/sim/scenarios/shoothouse.js';
 import { lanePlanOf, wallClearanceM, sectorOf, SECTOR_HALF_DEG } from '../src/sim/combat/room.js';
 import { sightGridOf } from '../src/sim/places/sight.js';
@@ -80,6 +98,40 @@ export const liveOf = (g) => houseOfS(g.state)?.live ?? null;
 export const rp = (g, stand) => g.state.armoury.range.turners.find(T => T.stand === stand && T.live) ?? null;
 /** A role-player's actor. */
 export const rpActor = (g, stand) => { const T = rp(g, stand); return T ? g.state.actors.list.find(a => a.who === T.live.who) ?? null : null; };
+
+// ---- the scene's room, scripted (v0.0.26; see the header) ----
+
+/** Room 1's door, its threshold and the bang's default place (house 1, lane A as set). */
+export const ROOM1 = Object.freeze({ door: 'o:w4:r1', threshold: [29.0, 11.7], bangAt: [29.0, 10.5], points: Object.freeze([[27.5, 11.5], [30.5, 11.5]]) });
+// (X at every pause: time runs, you never fire)
+const LEAVE_ = (st) => (st.stop?.mode === 'stop' && st.stop.phase === 'choose' ? { act: [{ act: 'stop', args: { step: 'leave', tempo: 'normal' } }] } : {});
+
+/** The scripted room (see the header): { g, s, R, H, open, bang, enter, down, press, run, man, actor, LEAVE }. opts { seed, tier, held: 'held' | 'loose', bang: 'bang' | 'quiet', stay, loadout } (stay: left in stop motion at GO, for a bot to play on; loadout: createGame's, 'flash' for the house's own bang). */
+export function rpScript({ seed = 48213, tier = 'sgt', held = 'loose', bang = 'bang', stay = false, loadout = null } = {}) {
+  const g = createGame({ scenario: 'test-shoothouse', seed, tier, setup: 'go', ...(loadout ? { loadout } : {}) }), s = g.state, R = s.armoury.range, H = R.house;
+  H.bangGo = { v: 1, bang, held, code: `${bang},${held}`, window: null, track: {}, search: null };
+  H.opfor = 'live';
+  const fill = fillOpfor(s, H, { mode: 'live', cards: { '1a': 'fight', '1b': 'fight' } });
+  if (!stay && s.stop) leaveStop(s, g.bus, 'scene');
+  const man = (stand) => R.turners.find(T => T.stand === stand && T.live) ?? null;
+  const actor = (stand) => { const T = man(stand); return T ? s.actors.list.find(a => a.who === T.live.who) ?? null : null; };
+  const two = () => s.actors.list.find(a => a.who === H.twoPid) ?? null;
+  let n = 0;
+  return {
+    g, s, R, H, fill, man, actor, LEAVE: LEAVE_,
+    open: () => setOpening(s, ROOM1.door, 'open', { atMs: s.clock.ms }),
+    bang: (at = ROOM1.bangAt) => burst(s, g.bus, { id: `rp-bang-${++n}`, model: 'g11', x: at[0], z: at[1], atMs: s.clock.ms, byId: s.player.id }),
+    enter: (who = 'me', at = ROOM1.points[who === 'two' ? 1 : 0], faceTo = null) => {
+      const a = who === 'two' ? two() : g.me(), to = faceTo ?? (who === 'two' ? [31.0, 8.5] : [27.0, 8.5]);
+      a.x = at[0]; a.z = at[1]; a.$px = at[0]; a.$pz = at[1];
+      a.headRad = Math.atan2(to[1] - at[1], to[0] - at[0]); a.face = faceOfHead(a.headRad);
+      return a;
+    },
+    down: (stand) => opforBled(s, g.bus, man(stand), s.clock.ms),
+    press: (stand, pts) => addSupp(s, g.bus, man(stand).live.who, { id: `rp-press-${++n}`, kind: 'roomShot', pts, atMs: s.clock.ms, why: 'the script' }),
+    run: (ms, input = LEAVE_) => { const t0 = s.clock.ms; let k = 0; while (s.clock.ms < t0 + ms && k < 20000) { g.step(1, input); k++; } return k; },
+  };
+}
 
 // ---- the spot rule (see the header; v0.0.22: moved from tests/opfor-spots.test.mjs and widened) ----
 

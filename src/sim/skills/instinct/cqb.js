@@ -55,6 +55,18 @@
 //   cqb-rp-down   warn    (v0.0.19) a role-player of the room down, still armed, nobody covering him (combat/men.js gateWhy 'down'):
 //                         Cover him (the contact's "Cover him", else the aim onto him and its hold); the room's "Clear!" waits on it
 //   cqb-rp-hands  warn    (v0.0.19) one who gave up, his hands seen up, uncovered: Challenge him, then Cover him
+//   cqb-rp-dazed  urgent  (v0.0.26, "Bang, then go" only: R.house.bangGo) a role-player of yours bracketed, up and dazed (men.js
+//                         liveStateOf 'dazed': startled, flash-blind or stunned), from rung 2: "He's dazed. Now." and no act, the
+//                         pair it names left to you, as cqb-rp-fire's (tests/bots/house.mjs SHOT_LINES and PAIR_LINES carry it);
+//                         urgent, so it leads over cqb-contact's "Pair." on the same man (the window is the lesson)
+//   cqb-rp-hands  (v0.0.26, "Bang, then go" only) its 'cower' variant: a man of the room seen cowering (liveStateOf 'cowering', his
+//                         body at SEEN from your eye), not yet given up: "He's done. Challenge him.", the Challenge with the bracket
+//                         on him, else the aim onto him; cqb-contact and cqb-rp-fire keep quiet over him meanwhile (a round at him
+//                         stays lawful)
+//   cqb-rp-search note    (v0.0.26, "Bang, then go" only) after the room's "Clear!", a man accounted for there within contact.js
+//                         SEARCH_M 1.5 m, not yet searched (searchableOf): "Search him if you want the truth now.", Search him;
+//                         farther, its 'walk' variant: "Go to him. Search him if you want the truth now.", the walk up to him
+//                         (contact.js searchWalkOf's 'move:search')
 //   cqb-rp-gone   warn    (v0.0.19) one the team saw, up, in nobody's sight now (gateWhy 'unaccounted'): "Find him.", the Look at
 //                         the hot spot nearest where he was last seen (the house's H.live.lastAt, never where he is)
 //   cqb-hostage   urgent  the hostage card bracketed: "Hostage. Head only, or hold.": the aim if not aimed, below rung 2; from
@@ -130,7 +142,7 @@ import { muzzleOf, flagsAt } from '../../arms/carry.js';
 import { stillUp, halfOrLess, fullerAtHand } from '../../arms/specials.js';
 import { sparesOf, believedN } from '../../arms/kit.js';
 import { facingOf } from '../../arms/turners.js';
-import { contactNow, lullOf, IDENT_WORDS } from '../../combat/contact.js';
+import { contactNow, lullOf, IDENT_WORDS, searchableOf } from '../../combat/contact.js';
 import { takeInWords } from '../../combat/react.js';
 import { doorNow, lockedOf, twoAway, innerWall, HANDBACK_WORDS, breachOf, kickableOf, onFront, twoChargeOn, usesDevice, variantHere } from '../../combat/bundle.js';
 // (the bodies and the line's rules (cqb-blocked, cqb-two-out, cqb-limit, cqb-pair))
@@ -148,7 +160,8 @@ import { handDeviceOf, DEVICES } from '../../arms/devices.js';
 import { placedOn } from '../../combat/breach.js';
 import { planFor } from '../../arms/plan.js';
 import { handsPath } from '../../arms/devplan.js';
-import { isLive, upNow, accountedOf, gateWhy } from '../../combat/men.js';
+import { isLive, upNow, accountedOf, gateWhy, liveStateOf, seenK } from '../../combat/men.js';
+import { SEEN } from '../../people/perception.js';
 import { rungOf, valueOf } from '../templates.js';
 import { openingState } from '../../places/model.js';
 import { keysFor, layoutIn } from '../../arms/groups.js';
@@ -459,6 +472,8 @@ const bundleRow = (k, bundle) => { const v = voidOfHouse(bundle); return k.steps
 const DONE_WORDS = Object.freeze({ 'stack:up': 'stacked', 'stack:point': 'stacked, the door read', 'room:in': 'in, your corner', 'room:dominate': 'your sector' });
 // (the lane's leg after a door, in words, and how far its stack is from you: "room 2, 6.2 m", "the hall, 4.0 m")
 function nextWords(state, R, me) {
+  // ("Bang, then go" is room 1 alone (R.house.bangGo): no next leg to name, "Clear." (the play review of v0.0.26, finding 7))
+  if (R.house?.bangGo) return null;
   const H = R.house, next = (H?.rooms ?? []).find(r => r.state !== 'clear' && r.state !== 'passed'), hall = !next && H?.hall && H.hall.state !== 'clear' && H.hall.state !== 'passed';
   const here = doorNow(state, playerId(state)), st = here?.plan?.stack?.[0] ?? null;
   // (a distance under half a metre is no distance: you are there (the design review of 2026-11-13: "room 2, 0.0 m"))
@@ -544,6 +559,11 @@ const uncoveredOf = (k, ms, acc) => liveMen(k).filter(T => gateWhy(k.state, T, m
 // (the row that puts your muzzle on him and keeps it there: the contact's "Cover him" (contact:hold) with the bracket on him, else
 // the aim's hold when aimed on him, else the aim onto him; null where none is offered)
 const coverAct = (k, T) => (!T ? null : k.S?.pick === T.key ? actIf(k, 'contact:hold') ?? (k.S.aim?.key === T.key ? actIf(k, 'hold') : aimOnto(k, T.key)) : aimOnto(k, T.key));
+// ("Bang, then go"'s lane, the scene's record (R.house.bangGo): its lines and the cower's quiet only there, so the live lane's T is v0.0.25's)
+const bangGoLane = (k) => !!k?.R?.house?.bangGo;
+// (a man of the room you see cowering, not giving up, on "Bang, then go": the bracketed one first)
+const cowerOf = (k, ms) => (bangGoLane(k) ? liveMen(k).filter(T => liveStateOf(k.state, T, ms) === 'cowering' && seenK(k.state, k.me, T, ms) >= SEEN)
+  .sort((a, b) => (b.key === k.S?.pick) - (a.key === k.S?.pick) || a.key.localeCompare(b.key))[0] ?? null : null);
 
 /** The DI's close-quarters rules (see the header), most pressing first within a tone. */
 // (whether the brief forbids the bang of the grenade in the hand into a door's room: a practice
@@ -653,6 +673,9 @@ export const CQB_RULES = Object.freeze([
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!k?.choosing || !k.T || (k.T.face !== 'threat' && k.T.face !== 'armoured') || !stillUp(state, k.T.key) || facingOf(k.T, ms) < 0.5 || noShotNow(k)) return null;
+      // ("Bang, then go": a man you see cowering is cqb-rp-hands' to challenge, never this line's head shot (the play review of
+      // v0.0.26, finding 5: "Plate. Head: 4." over a man read COWERING, and T shot him))
+      if (bangGoLane(k) && cowerOf(k, ms) === k.T) return null;
       const key = headKeys(state, k), row = headRow(k)?.id;
       return key ? { k, tier: k.shotTier, voice: k.voice, key, variant: `key${key}`, words: 'key', row } : { k, tier: k.shotTier, voice: k.voice, row };
     },
@@ -688,6 +711,8 @@ export const CQB_RULES = Object.freeze([
     when(state, me, ms) {
       const k = know(state, me, ms), T = k?.T;
       if (!k?.choosing || k.rung < 2 || !isLive(T) || !upNow(T, ms) || T.face !== 'threat' || !(T.live.fired > 0) || noShotNow(k) || stillUp(state, T.key)) return null;
+      // ("Bang, then go": a man you see cowering is no longer on you: cqb-rp-hands' challenge leads)
+      if (bangGoLane(k) && cowerOf(k, ms) === T) return null;
       // (a man you know (taken in at your last pause or before): never one nobody has seen, firing or not)
       if (!(k.last?.ids ?? []).includes(T.key) && state.mind?.contact?.known?.[T.key] === undefined) return null;
       if (k.R.house?.twoPid && (ownerOf(state, T) ?? 1) !== 1) return null;
@@ -699,6 +724,22 @@ export const CQB_RULES = Object.freeze([
     text: { 1: ["He's on you. Pair, now.", "He's shooting at you. Pair him.", 'Return fire. Pair.', "He's firing. Two in him."], 2: ["He's on you. Pair.", 'Pair. Now.', 'On you. Pair.', 'Return fire.'], 3: ['Pair.', 'On you.', 'Now.', 'Pair him.'] },
   },
   {
+    // ("Bang, then go": a role-player of yours bracketed, up and dazed (men.js liveStateOf): the window the bang bought, named
+    // with the pair it leaves to you (no act), as cqb-rp-fire's; on the scene's lane only (see the header))
+    id: 'cqb-rp-dazed', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'urgent', short: 'Dazed', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms), T = k?.T;
+      if (!k?.choosing || k.rung < 2 || !bangGoLane(k) || !isLive(T) || !upNow(T, ms) || T.face !== 'threat' || liveStateOf(state, T, ms) !== 'dazed' || noShotNow(k) || stillUp(state, T.key)) return null;
+      if (!(k.last?.ids ?? []).includes(T.key) && state.mind?.contact?.known?.[T.key] === undefined) return null;
+      if (k.R.house?.twoPid && (ownerOf(state, T) ?? 1) !== 1) return null;
+      const onHim = (s) => s.id.startsWith('shot:') && !s.off && (s.target ?? T.key) === T.key;
+      const shot = k.steps.find(s => onHim(s) && /^shot:pair(@|$)/.test(s.id)) ?? k.steps.find(onHim);
+      return shot ? { k, tier: k.shotTier, voice: k.voice, row: shot.id } : null;
+    },
+    act: () => null,
+    text: { 1: ["He's dazed. Now. Pair.", "He can't see. Pair him now.", "Dazed. Two in him, now.", "He's blind. Now."], 2: ["He's dazed. Now.", 'Dazed. Pair.', 'Now. Pair.', "He's dazed."], 3: ['Now.', 'Dazed. Now.', 'Pair.', 'Now. Him.'] },
+  },
+  {
     id: 'cqb-contact', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'urgent', short: 'Aim', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
@@ -707,7 +748,9 @@ export const CQB_RULES = Object.freeze([
       // or a shot through the doorway he opened, until BANG_LATE_MS after the bang (the review of v0.0.19: the recruit and the private
       // by the keys were led into a contact 0.15 s before the bang, entered 6.36 s and 3.97 s after it and were faulted 'bang')
       if (bangPending(k, ms)) return null;
-      const all = upKnown(k, ms), twoPid = k.R.house?.twoPid ?? null;
+      // ("Bang, then go": a man you see cowering is cqb-rp-hands' to challenge, not this line's to shoot)
+      const cower = bangGoLane(k) ? cowerOf(k, ms) : null;
+      const all = upKnown(k, ms).filter(u => u.T !== cower), twoPid = k.R.house?.twoPid ?? null;
       // (with a #2, his corner's men are his: yours first; a man of yours whose hands you have not seen comes before his)
       const up = twoPid ? all.filter(u => (ownerOf(state, u.T) ?? 1) === 1) : all;
       if (!up.length) {
@@ -826,6 +869,15 @@ export const CQB_RULES = Object.freeze([
       const k = know(state, me, ms);
       if (!k?.choosing || !k.plan) return null;
       const said = k.S?.last?.step === 'contact:challenge' || k.S?.last?.step === 'contact:hold';
+      // ("Bang, then go": a man seen cowering, not giving up: "He's done. Challenge him.", the bracket and the aim onto him first)
+      // (never again while a challenge of yours on him is not yet judged: the tick it ends holds the clock, and a second press there
+      // ran past his give (the review of A, 2026-11-19); the hands variant's `said`, by his record, so a challenge he did not hear is offered again)
+      const C = cowerOf(k, ms);
+      if (C && C.live.chalUntilMs === undefined) {
+        if (k.S?.pick === C.key && k.offered('contact:challenge')) return { k, tier: k.tier, voice: k.voice, key: C.key, variant: 'cower', words: `cower${k.tier}`, act: 'stop:contact:challenge' };
+        const act = k.S?.pick === C.key ? null : aimOnto(k, C.key);
+        if (act) return { k, tier: k.tier, voice: k.voice, key: C.key, variant: 'cowerOnto', words: `cowerOnto${k.tier}`, act };
+      }
       const T = uncoveredOf(k, ms, 'hands');
       if (!T) return null;
       if (k.S?.pick === T.key && !said && k.offered('contact:challenge')) return { k, tier: k.tier, voice: k.voice, key: T.key, variant: 'challenge', words: `challenge${k.tier}`, act: 'stop:contact:challenge' };
@@ -834,6 +886,8 @@ export const CQB_RULES = Object.freeze([
     },
     act: (ctx) => ctx.act,
     text: { challenge1: ['Hands up. Challenge him.', 'He gave up. Challenge him.', 'Hands up. Tell him what to do.', 'He quit. Challenge him.'], challenge2: ['Hands up. Challenge.', 'Challenge him.', 'Hands. Challenge.', 'Challenge.'], challenge3: ['Challenge.', 'Hands. Challenge.', 'Tell him.', 'Challenge him.'],
+      cower1: ["He's done. Challenge him.", "He's cowering. Challenge him.", "He's frozen. Make him give up.", "He's done. Tell him."], cower2: ["He's done. Challenge him.", 'Cowering. Challenge.', "He's done. Challenge.", 'Challenge him.'], cower3: ['Challenge.', "He's done.", 'Challenge him.', 'Tell him.'],
+      cowerOnto1: ["He's done. On him, then challenge.", "He's cowering. Get on him.", "He's frozen. Cover him first.", "He's done. Muzzle on him."], cowerOnto2: ["He's done. On him.", 'Cowering. On him.', 'On him.', "He's done."], cowerOnto3: ['On him.', "He's done.", 'Him.', 'Cover.'],
       cover1: ['He gave up. Cover him.', 'Hands up. Keep him covered.', 'He quit. Muzzle on him.', 'Cover him. He gave up.'], cover2: ['Cover him.', 'Hands up. Cover.', 'On him.', 'Keep him covered.'], cover3: ['Cover him.', 'Cover.', 'On him.', 'Covered.'] },
   },
   {
@@ -851,6 +905,23 @@ export const CQB_RULES = Object.freeze([
     },
     act: (ctx) => ctx.act,
     text: { 1: ['Find him. He went behind the bend.', "He's gone from view. Find him.", 'Where did he go? Look there.', 'Lost him. Find him before you call it.'], 2: ['Find him.', 'Lost him. Look.', 'He moved. Find him.', 'Find him first.'], 3: ['Find him.', 'Look.', 'Where is he?', 'Find him.'] },
+  },
+  {
+    // ("Bang, then go": after the room's "Clear!", a man accounted for there within reach and not yet searched: Search him
+    // (contact.js's row, 20 s behind the scene's skip); never required, so a note; on the scene's lane only (see the header))
+    id: 'cqb-rp-search', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'note', short: 'Search him', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms);
+      if (!k?.choosing || !bangGoLane(k)) return null;
+      const T = k.offered('contact:search') ? searchableOf(state, k.pid, ms)[0] : null;
+      if (T) return { k, tier: k.tier, voice: k.voice, key: T.key, act: 'stop:contact:search' };
+      // (out of reach: the walk up to him first, the search's own row then (contact.js searchWalkOf; the review of A, 2026-11-19))
+      const W = k.offered('move:search') ? searchableOf(state, k.pid, ms, { reach: false })[0] : null;
+      return W ? { k, tier: k.tier, voice: k.voice, key: W.key, variant: 'walk', words: `walk${k.tier}`, act: 'stop:move:search' } : null;
+    },
+    act: (ctx) => ctx.act,
+    text: { 1: ['Search him if you want the truth now.', "Search him. You'll see what you hit.", 'Search him: where did yours go?', 'Search him. Then you know.'], 2: ['Search him.', 'Search him if you want.', 'Search. The truth.', 'Search him now.'], 3: ['Search him.', 'Search.', 'Check him.', 'Search him.'],
+      walk1: ['Go to him. Search him if you want the truth now.', 'Walk up to him and search him.', 'To him, then search him.', 'Go and search him. Then you know.'], walk2: ['To him. Search him.', 'Go search him.', 'To him, search.', 'Search him if you want.'], walk3: ['To him.', 'Search him.', 'Go.', 'Search.'] },
   },
   {
     // (the rework's R6, COMBAT §25.19.6: the pistol out and nobody of yours facing: holster it, the rifle up and cleared)
@@ -1151,10 +1222,16 @@ export const CQB_RULES = Object.freeze([
       // (below rung 3 this is the line at the stack: it names your corner once, the rule's (corner.js); from rung 3 cqb-stack did)
       const corner = cornerOf1(k.plan, state) ?? 'left';
       if (row) { const bw = bangWords(state, k, row.id); return { k, id: row.id, variant: `${how}${bw.tag}`, words: k.rung >= 3 ? 'clear' : 'in', voice: k.voice, corner, bang: bw.bang, brief: bw.brief }; }
+      // ("Bang, then go" with the bang issued: below rung 2 the door's row is the flash's ("Flash it", the kit's single), as the
+      // room's row carries it from rung 2; the push left the boot recruit and the private no word of the bang, and every one of their
+      // lanes without it was a casualty (the play review of v0.0.26, finding 2). Spent, the door's own way again)
+      const fr = !hatch && bangGoLane(k) && k.R.house.bangGo.bang === 'bang' ? bundleRow(k, 'door:flash') : null;
+      if (fr) return { k, id: fr.id, variant: 'flash', words: 'flash', voice: k.voice, corner };
       return k.offered(id) ? { k, id, variant: how, words: how, voice: k.voice, corner } : null;
     },
     act: (ctx) => actIf(ctx.k, ctx.id),
-    text: { push: ['Open it. Push. Your corner: {corner}.', 'Push it open. Your corner: {corner}.', 'The door. Push. Your corner: {corner}.', 'Open it. Your corner: {corner}.'],
+    text: { flash: ['Flash it. Your corner: {corner}.', 'The bang first. Flash it. Your corner: {corner}.', 'Door and bang: flash it. Your corner: {corner}.', 'Flash it, then in. Your corner: {corner}.'],
+      push: ['Open it. Push. Your corner: {corner}.', 'Push it open. Your corner: {corner}.', 'The door. Push. Your corner: {corner}.', 'Open it. Your corner: {corner}.'],
       pull: ['Pull it open. Your corner: {corner}.', 'It opens to you. Pull. Your corner: {corner}.', 'Pull the door. Your corner: {corner}.', 'Open it. Pull. Your corner: {corner}.'],
       kick: ['Kick it. Your corner: {corner}.', 'Locked. Kick it. Your corner: {corner}.', 'Boot the door. Your corner: {corner}.', 'Kick it in. Your corner: {corner}.'],
       undog: ['Undog it. Your face: {corner}.', 'The dogs. Your face: {corner}.', 'Undog the hatch. Your face: {corner}.', 'Dogs off. Your face: {corner}.'],

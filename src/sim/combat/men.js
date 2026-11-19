@@ -42,6 +42,11 @@
 // 'out' (ruled out), 'down' or 'hands' when he is so and covered (by you, or your #2's "Got him.", R.house.two.got), else null;
 // gateWhy is the clear gate's reason on him ('down', 'hands', 'unaccounted': seen by the team, up, and in nobody's sight now).
 //
+// What a man is doing, read (v0.0.26, "Bang, then go": its build sheet item 6, §0 item 11, §3.1). liveStateOf(state, T, ms) is the
+// one map from his record to the words a viewer's eyes read off him: 'dazed' while he is shocked (shockedNow: startled by supp.js,
+// or flash-blind or stunned by his combat block) and neither down nor giving up, else LIVE_STATE by his st. The identification
+// (contact.js identify), the instinct, opfor.js opforLook's frame and the card read it, so the daze is drawn and named exactly
+// while the sim's block says so, on every live lane (one rule: a shocked man read AIMING was wrong on "Stack and clear, live" too).
 // None of it writes anything on a lane with no live man: every writer is reached only through a record with `live`.
 // Pure but remember, forget, incoming and coverTick, which write the memories, the house's record and the pools.
 import { q } from '../../core/num.js';
@@ -50,7 +55,7 @@ import { sightOf, eyeOf, visibility, SEEN, CONE_SOFT_RAD } from '../people/perce
 import { contactOf, noteContact } from '../people/mind.js';
 import { facingOf, turnersOf } from '../arms/turners.js';
 import { muzzleOf, angleDiff } from '../arms/carry.js';
-import { addSupp, inputPts, SUBSONIC_ZERO_M, CRACK_ZERO_M } from './supp.js';
+import { addSupp, inputPts, startled, blockOf, SUBSONIC_ZERO_M, CRACK_ZERO_M } from './supp.js';
 import { SECTOR_HALF_DEG } from './react.js';
 import { membersOf } from './team.js';
 import { wouldHave, strikeOf, fatalOf, COUNT_DOWN } from './would.js';
@@ -71,6 +76,22 @@ export const MARINE_Y = Object.freeze({ stand: 1.35, kneel: 0.9, crouch: 0.9, pr
 /** What a live man is doing, in the identification's words (COMBAT §7.11's state words, the plaque's): by T.live.st. */
 export const LIVE_STATE = Object.freeze({ wait: 'looking', turn: 'looking', aim: 'aiming', fire: 'aiming', move: 'running', cover: 'aiming', freeze: 'cowering', hands: 'hands', down: 'down', out: 'down' });
 
+/**
+ * Whether a person is shocked at ms (COMBAT §7.11 step 2; the role-players' "starts nothing"): startled (supp.js startled), or his
+ * combat block's flash-blind or stun still running. The one reader: opfor.js rpShocked is this.
+ */
+export function shockedNow(state, pid, ms = state.clock.ms) {
+  if (startled(state, pid, ms)) return true;
+  const c = blockOf(state, pid);
+  return !!c && ((c.blindUntilMs ?? 0) > ms || (c.stunUntilMs ?? 0) > ms);
+}
+/** What a live man is doing at ms, in the identification's words (see the header): 'dazed' while shocked, not down nor giving up, else LIVE_STATE by his st; null for a stand. */
+export function liveStateOf(state, T, ms = state.clock.ms) {
+  const L = T?.live;
+  if (!L) return null;
+  if (L.st !== 'hands' && L.st !== 'down' && L.st !== 'out' && !L.give && shockedNow(state, L.who, ms)) return 'dazed';
+  return LIVE_STATE[L.st] ?? 'looking';
+}
 /** Whether a turner record is a live man. */
 export const isLive = (T) => !!T?.live;
 /** The casualty's beat under way (the lane's R.house.live.casualty set and its end not yet come): the stack is out of the fight, every act of yours refused and your feet still (contact.js refusesAct and feetOf), the panel down (the scene's casualtyTick). */

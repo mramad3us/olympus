@@ -20,7 +20,8 @@ import { FRAMES as FRAMES_ALL, DIRS, BANDS } from '../src/art/figures/poses.js';
 // them are pinned here as they were, and art-held holds the new ones)
 // (v0.0.24: the P-12's high-ready walk (BANDS.stancePistol) is new frames too, left out; 'draw' and 'pistolAim' left the stance sheet
 // but beatPose still poses them for three samples: composed at their old place after fireMove1, so the golden holds unmoved)
-const FRAMES = FRAMES_ALL.filter(f => !BANDS.stanceHeld.includes(f) && !BANDS.stancePistol.includes(f)).flatMap(f => (f === 'fireMove1' ? [f, 'draw', 'pistolAim'] : [f]));
+// (v0.0.26: the role-player's daze and cower (BANDS.stanceShock, "Bang, then go") are new frames, left out as the P-12's high walk is)
+const FRAMES = FRAMES_ALL.filter(f => !BANDS.stanceHeld.includes(f) && !BANDS.stancePistol.includes(f) && !BANDS.stanceShock.includes(f)).flatMap(f => (f === 'fireMove1' ? [f, 'draw', 'pistolAim'] : [f]));
 import { BEAT_FRAMES, beatPose } from '../src/art/figures/walk.js';
 import { expand } from '../tools/gallery.mjs';
 import { DEV_COL, isDevice, SETS, THROWS, specOf, poseFor } from '../samples/held-devices/held.js';

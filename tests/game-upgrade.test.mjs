@@ -119,6 +119,14 @@
 // nothing written (saved again byte for byte: no key gained), carries on byte for byte from a save made 300 ticks on, and reaches
 // its card on the tick the same course or lane played straight does (V024_ANCHORS_TICK 2354, V023_GO_TICK 3702, unchanged from
 // v0.0.23). They are the Wreck round's held saves (F124): every merge, E to D, keeps them byte for byte.
+// v0.0.26's stage 0 (its build sheet §2 step 6, a heavy case as v0.0.25's): two saves made by v0.0.25's own code (the integrated
+// snapshot, tree 10b699aa, v0.0.25 untagged; the maker .run/v026/lead-figures/scripts/make-saves.mjs), stamped 0.0.25: the sergeant
+// by T (the honest bot) on 48213 from GO at his first contact's pause (tick 89, room 1, the pick 1a: K2's case, T on the first tick
+// after the load) and the live lane's private by the keys on 48213 from GO at his contact's pause in room 2 with the role-player there
+// identified (tick 512, the pick 2a, read AIMING). Each loads with nothing written (saved again byte for byte: no key gained),
+// carries on byte for byte from a save made 300 ticks on, and reaches its card on the tick the same lane played straight from GO
+// does (V025_PAUSE_TICK 3082, clear; V025_LIVE_TICK 2822, the casualty). They are "Bang, then go"'s held saves (F147): every merge,
+// D to C, keeps them byte for byte, but the live one if the DAZED read moves it (F147's named exception, re-recorded with its cause).
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -165,6 +173,8 @@ const V024_ANCHORS_TICK = 2354;
  * V024_ANCHORS_TICK, the oracle that holds the load byte for byte.
  */
 const V025_ANCHORS_STRAIGHT_TICK = 2782;
+/** v0.0.26's stage 0: the sergeant by T on 48213 from GO to his card, and the live lane's private by the keys, the ticks on v0.0.25's snapshot (10b699aa). */
+const V025_PAUSE_TICK = 3082, V025_LIVE_TICK = 2822;
 
 const LON = SITES.melas.lonEDeg, MIN_TICKS = 20 * 60;
 // (v0.0.21, the build sheet §1 item 25, §0 item 17: a house save from before v0.0.20's pars gains them on load, the stands' books,
@@ -790,6 +800,32 @@ export default [
         console.log(`      ${name}: ${old.meta.scenario} at tick ${old.clock.tick}, ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte (no key gained)' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}${card}`);
         assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
         assert(c.done(s) && c.done(f.state) && f.state.clock.tick === (c.straightTick ?? c.tick) && s.clock.tick === c.tick, JSON.stringify({ tick: s.clock.tick, straight: f.state.clock.tick, want: c.tick, wantStraight: c.straightTick ?? c.tick }));
+      }
+    },
+  },
+  {
+    name: 'v0.0.26 (its build sheet §2 step 6): two saves made by v0.0.25\'s own code load with nothing written, gain no key and carry on byte for byte: the sergeant by T at his first contact\'s pause in room 1, and the live lane\'s private by the keys at his contact\'s pause in room 2 with the role-player identified, each to its card on its lane\'s tick from GO',
+    heavy: true,
+    timeoutMs: 300_000,
+    fn() {
+      const CASES = {
+        'v0.0.25-house-pause': { bot: () => houseHonestBot(), straight: { tier: 'sgt' }, tick: V025_PAUSE_TICK, room: 'w4.r1' },
+        'v0.0.25-house-live': { bot: () => houseKeysBot(), straight: { tier: 'private', opfor: 'live' }, tick: V025_LIVE_TICK, room: 'w4.r2' },
+      };
+      for (const [name, c] of Object.entries(CASES)) {
+        const json = read(name), old = JSON.parse(json), H0 = old.armoury.range.house, S0 = old.stop, T0 = S0?.pick ? old.armoury.range.turners.find(t => t.key === S0.pick) : null;
+        assert(old.meta.version === '0.0.25' && old.meta.seed === 48213 && old.meta.scenario === 'test-shoothouse' && H0.tier === c.straight.tier, `${name}: ${old.meta.version} ${old.meta.seed} ${old.meta.scenario} ${H0.tier}`);
+        assert(S0?.mode === 'stop' && S0.phase === 'choose' && S0.via === 'contact' && T0?.room === c.room && (!c.straight.opfor || (T0.live && old.mind?.contact?.last?.state?.[T0.key])), JSON.stringify({ via: S0?.via, room: T0?.room, live: !!T0?.live }));
+        const g = createGame({ scenario: 'test-shoothouse', seed: 48213 }), s = g.load(json), saved = g.save(), ids = checkIds(JSON.parse(saved), g.sim.domains), b = c.bot();
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame({ scenario: 'test-shoothouse', seed: 48213 }); h.load(mid); h.step(300, c.bot());
+        const carried = h.save() === end;
+        runHouse(g, b, { maxMs: 30 * 60_000 });
+        const f = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go', ...c.straight }); runHouse(f, c.bot(), { maxMs: 30 * 60_000 });
+        const done = (st) => !!st.armoury.range.house.end;
+        console.log(`      ${name}: tick ${old.clock.tick}, the pick ${S0.pick} in ${T0.room}${T0.live ? ` (live, read ${old.mind.contact.last.state[T0.key]})` : ''}, ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte (no key gained)' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}; to the card ${done(s)} (${s.armoury.range.house.end?.why ?? 'none'}) at tick ${s.clock.tick}, the lane straight ${done(f.state)} at ${f.state.clock.tick} (the snapshot's ${c.tick})`);
+        assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
+        assert(done(s) && done(f.state) && s.clock.tick === f.state.clock.tick && s.clock.tick === c.tick, JSON.stringify({ tick: s.clock.tick, straight: f.state.clock.tick, want: c.tick }));
       }
     },
   },

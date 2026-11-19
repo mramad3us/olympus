@@ -87,9 +87,12 @@ export default [
       // coasting deck's preset; listed after "Stack and clear, live", the anchors then the burn)
       assert(built.filter(x => !VOID_SCENES.includes(x.id)).every(x => x.env.preset === 'site' && x.host.site === 'melas' && SCENARIOS[x.scenario]), 'every shipped scene but the void\'s: Melas, the site\'s own environment, a fill');
       assert(SCENES['test-anchors'].host.site === 'phobos-void' && SCENES['test-anchors'].env.preset === 'site' && SCENES['test-burn'].host.site === 'mcrn-testudo' && SCENES['test-burn'].env.preset === 'ship-coast', 'the void\'s two scenes');
+      // (v0.0.26: "Bang, then go", the house's scenario at its stand, host and hour, after "Stack and clear, live" in the menu's order, the
+      // house's family together (its build sheet §0 item 20); on the Tests menu since v0.0.26's integration met its ship rule, tests/scene-breach)
+      assert(SCENES['test-breach'].scenario === 'test-shoothouse' && JSON.stringify(SCENES['test-breach'].host) === JSON.stringify(SCENES['test-shoothouse'].host) && SCENES['test-breach'].hour === SCENES['test-shoothouse'].hour, 'the scene of room 1');
       // (v0.0.25: "Hold to hold", the Wreck at Phobos in its site's own environment, its own scenario, after "Secure for burn" in the menu's order)
       assert(SCENES['test-zerocqb'].host.site === 'phobos-void' && SCENES['test-zerocqb'].host.area === 'phobos.void.wreck' && SCENES['test-zerocqb'].env.preset === 'site' && SCENES['test-zerocqb'].scenario === 'test-zerocqb', 'the Wreck\'s scene');
-      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-zerocqb' && SCENE_IDS.at(-2) === 'test-burn' && SCENE_IDS.at(-3) === 'test-anchors' && SCENE_IDS.at(-4) === 'test-shoothouse-live' && SCENE_IDS.at(-5) === 'test-shoothouse', SCENE_IDS.join());
+      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-zerocqb' && SCENE_IDS.at(-2) === 'test-burn' && SCENE_IDS.at(-3) === 'test-anchors' && SCENE_IDS.at(-4) === 'test-breach' && SCENE_IDS.at(-5) === 'test-shoothouse-live' && SCENE_IDS.at(-6) === 'test-shoothouse', SCENE_IDS.join());
       assert(Object.values(STARTS).every(x => x.env.preset === 'site') && STARTS.sandbox.host.site === 'test' && STARTS.barracks.host.site === 'melas', JSON.stringify(STARTS));
       console.log(`      the Tests menu: ${SCENE_IDS.join(', ')}; stubs: ${Object.values(SCENES).filter(x => x.built === false).map(x => x.id).join(', ')}`);
     },

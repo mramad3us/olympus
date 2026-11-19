@@ -31,19 +31,25 @@
 // build sheet's 0.85 would have darkened every lit room by 12%: my call). The cover (seen.js coverOf, the page's) is the share of
 // his width hidden from the viewer's left and right, in quarters (COVER_Q). 'hold' joins HOLD_HOWS: a hand on a rail or a pad-eye,
 // the gun in the other (the gear record's anchor, src/sim/arms/gear.js's, A's).
+// v0.0.26 (the build sheet items 6 and 8, §3.3; "Bang, then go"): a role-player dazed (startled, stunned or flash-blind) is the
+// stage's frame 'daze' (or 'dazeKneel' on his knee), the pose 'daze' or 'dazeKneel' (doll.js POSE_BENDS: samples/breach-poses D-a's
+// card, hunched, the support hand to the eyes) and the rifle at the low ready in his firing hand, whatever his carry; a frozen one is
+// 'cower', the pose 'cower' (C1) with his hands empty over his head, the rifle hanging on its sling across his chest (C-a's card),
+// whatever his stance: the frame's hold is FRAME_SEEN's how, so the card draws what the stage draws.
 // Pure data.
 
 /** How the hands hold (see the header). */
 export const HOLD_HOWS = Object.freeze(['rifle-low', 'rifle-high', 'rifle-aim', 'rifle-slung', 'pistol-ready', 'pistol-high', 'pistol-aim', 'device', 'phone', 'mag', 'up', 'empty', 'hold']);
 /** The body's poses (see the header); 'prone' is drawn at portrait-pose's Y-p behind the art's PORTRAIT_POSES. */
-export const POSES = Object.freeze(['stand', 'kneel', 'sit', 'cower', 'prone']);
+export const POSES = Object.freeze(['stand', 'kneel', 'sit', 'cower', 'prone', 'daze', 'dazeKneel']);
 /** The facings, as the viewer's eye sees the man (see the header). */
 export const FACINGS = Object.freeze(['front', 'back', 'left', 'right']);
 /** The stage's frames to the record (see the header): a field absent is read from the body or the carry. */
 export const FRAME_SEEN = Object.freeze({
   stand: Object.freeze({}), aim: Object.freeze({}), run: Object.freeze({}), crouch: Object.freeze({ pose: 'kneel' }),
-  cower: Object.freeze({ pose: 'cower' }), drop: Object.freeze({}), hands: Object.freeze({ pose: 'stand', how: 'up' }),
+  cower: Object.freeze({ pose: 'cower', how: 'empty' }), drop: Object.freeze({}), hands: Object.freeze({ pose: 'stand', how: 'up' }),
   kneel: Object.freeze({ pose: 'kneel', how: 'up' }), sit: Object.freeze({ pose: 'sit' }), prone: Object.freeze({ pose: 'prone' }),
+  daze: Object.freeze({ pose: 'daze', how: 'rifle-low' }), dazeKneel: Object.freeze({ pose: 'dazeKneel', how: 'rifle-low' }),
 });
 /** gunLook's carry (and the P-12's posture while it is out) to the hold (see the header). */
 export const CARRY_HOW = Object.freeze({

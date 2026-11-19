@@ -77,6 +77,10 @@
 // [&par=basic|advanced|operator] (0.0.12: test-shoothouse's par, else the sheet's own; its setups go, room:2, room:3, hall, contact)
 // [&loadout=standard|flash|breach|full|v1~…] (0.0.18: test-shoothouse's loadout, one for every sheet; main.js drops an unknown one)
 // [&opfor=none|live|live:<2a card>,<3a card>] (0.0.19: test-shoothouse's role-players, the cards fight, give or hide; ?play=test-shoothouse-live is 'live')
+// [&breach=<bang|quiet>,<held|loose>] (v0.0.26: ?play=test-breach's draw, "Bang, then go": the bang issued or not, room 1's door held or
+// not; either part '*' or left out is drawn from the seed (src/sim/scenarios/shoothouse.js parseBreach, drawBreach); the scene's own is
+// 'drawn'. Its house options, kit and role-players are dropped with one toast (breachChoice below), every setup but 'go' too; on any
+// other scene &breach itself is dropped with its own toast, "&breach is Bang, then go's." (breachOnly))
 // [&draw=set|drawn] [&house=<code>] [&doors=fixed] (test-shoothouse's house, as set (layout A, the default) or drawn from the
 // seed (src/sim/scenes/assemble.js); &house a drawn house's code, its layout part alone ('Cn290pc.Ks206lc.En175pc', the cast then
 // drawn from &seed) or whole (with '|f…|p…'), which implies drawn; &doors=fixed the chunks' authored swings, every door closed)
@@ -120,6 +124,8 @@ export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200',
 export const PARS_URL = Object.freeze(['basic', 'advanced', 'operator']);
 /** test-shoothouse's role-players by the URL (&opfor=: 0.0.19, "Stack and clear, live"): 'none', 'live', or 'live:' and two cards (fight, give, hide); else null, none. */
 export const OPFOR_URL = /^(none|live(:(fight|give|hide),(fight|give|hide))?)$/;
+/** "Bang, then go"'s draw by the URL (&breach=: v0.0.26): 'drawn', or '<bang|quiet>,<held|loose>', either part '*' or empty (drawn), the door's part may be left out; else null, the scene's own ('drawn'). */
+export const BREACH_URL = /^(drawn|(bang|quiet|\*)?(,(held|loose|\*)?)?)$/;
 /** test-shoothouse's house by the URL (&draw=: v0.0.21, the drawn house): 'set' (layout A) or 'drawn' (from the seed); else null, the scene's default. */
 export const DRAWS_URL = Object.freeze(['set', 'drawn']);
 /** A drawn house's code by the URL (&house=: the form only, three rooms and the cast's parts; scenes/assemble.js parseHouse reads and checks it). */
@@ -160,7 +166,7 @@ export const HOUSE_LIGHTS_URL = Object.freeze(['a', 'b', 'c']);
 /** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
 export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, grav, loadout, opfor, draw, house, doors, rooms, layout, plans, panel, cycle, sound, shot, look, houseLight }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, grav, loadout, opfor, breach, draw, house, doors, rooms, layout, plans, panel, cycle, sound, shot, look, houseLight }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -195,6 +201,8 @@ export function readParams(search = globalThis.location?.search ?? '') {
     // (v0.0.19: test-shoothouse's role-players, 'none', 'live' or 'live:<2a card>,<3a card>' (src/sim/scenarios/opfor.js parseOpfor,
     // which the fill reads; a card unknown there leaves the lane without them): the form only, here)
     opfor: OPFOR_URL.test(q.get('opfor') ?? '') ? q.get('opfor') : null,
+    // ("Bang, then go"'s draw, the form only (shoothouse.js parseBreach reads it); '' and a malformed one null: the scene's own)
+    breach: q.get('breach') && BREACH_URL.test(String(q.get('breach')).toLowerCase()) ? String(q.get('breach')).toLowerCase() : null,
     // (the drawn house, read by the fill (shoothouse.js drawnCodeFor): the form only, here)
     draw: DRAWS_URL.includes(q.get('draw')) ? q.get('draw') : null,
     house: HOUSE_URL.test(q.get('house') ?? '') ? q.get('house') : null,
@@ -260,6 +268,29 @@ export function shipChoice(rec, { draw = null, house = null, rooms = null, layou
   if (!rec?.ship) return { dropped: [] };
   const asked = !!(draw || house || rooms || layout || (opfor && opfor !== 'none') || (loadout && loadout !== 'standard'));
   return { dropped: asked ? [SHIP_DROPPED] : [] };
+}
+
+/**
+ * "Bang, then go" (v0.0.26: a scene with `breach`, test-breach) is played in room 1 as set: the URL's house, layout, rooms, draw, code, plans,
+ * role-players and kit are dropped, and said once (main.js's toasts), as the Wreck's are (shipChoice); every setup but 'go' too, said with
+ * them. Returns { dropped }: the words, or none. A scene without `breach` drops nothing here.
+ */
+export const BREACH_DROPPED = 'Bang, then go is played in room 1 as set.';
+export function breachChoice(rec, { draw = null, house = null, rooms = null, layout = null, plans = null, opfor = null, loadout = null, setup = null } = {}) {
+  if (!rec?.breach) return { dropped: [] };
+  const asked = !!(draw || house || rooms || layout || plans || (opfor && opfor !== 'live') || (loadout && loadout !== 'standard') || (setup && setup !== 'go'));
+  return { dropped: asked ? [BREACH_DROPPED] : [] };
+}
+
+/**
+ * &breach= is "Bang, then go"'s alone (v0.0.26; the review of B and C, 2026-11-19: `?play=test-shoothouse&breach=bang,held` and the live
+ * lane's played room 1 alone, filed under test-breach, with no word): kept for a scene with `breach`, else dropped and said once, as the
+ * Wreck drops what its scene does not take. `rec` is the URL's scene (null for a bare scenario). Returns { breach, dropped }.
+ */
+export const BREACH_ONLY = '&breach is Bang, then go\'s.';
+export function breachOnly(rec, breach = null) {
+  if (!breach) return { breach: null, dropped: [] };
+  return rec?.breach ? { breach, dropped: [] } : { breach: null, dropped: [BREACH_ONLY] };
 }
 
 // ('<x>,<z>' as two finite numbers, else null)

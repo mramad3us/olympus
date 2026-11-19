@@ -464,18 +464,26 @@ export function tagPlaces(marks = [], { W = CARD_W, H = CARD_H - WORDS_H, wordsW
 }
 
 /**
- * The words' rows at a card size (card px across, at WORDS_K): the headline split at its ' · ' into up to two rows, the coach's
+ * The words' rows at a card size (card px across, at WORDS_K): the headline split at its ' · ' into up to two rows (m.headRows, four on
+ * a searched man's card; a part too wide for a row wrapped at its words), the coach's
  * line (truth only) wrapped at a word into up to three, the last cut with '..' where it runs over. { head: [rows], line: [rows], h }.
  */
 export function wordsRows(m = {}, size = CARD_W) {
   const room = size - 12, fits = (t) => wordsW(t, WORDS_K) <= room;
   const wrap = (tokens, sep, most) => {
     const rows = [''];
-    for (const t of tokens) { const n = rows.at(-1) ? `${rows.at(-1)}${sep}${t}` : t; if (!fits(n) && rows.at(-1)) rows.push(t); else rows[rows.length - 1] = n; }
+    const put = (t, s) => { const n = rows.at(-1) ? `${rows.at(-1)}${s}${t}` : t; if (!fits(n) && rows.at(-1)) rows.push(t); else rows[rows.length - 1] = n; };
+    // (a part too wide for a row alone is wrapped at its words from a row of its own, never cut whole: the searched card's
+    // "WOULD HAVE BEEN FATAL: KILLED OUTRIGHT" read "WOULD HAVE BEEN FATAL:.." (the play review of v0.0.26, finding 8))
+    for (const t of tokens) {
+      if (fits(t) || !/\s/.test(t)) put(t, sep);
+      else { if (rows.at(-1)) rows.push(''); t.split(/\s+/).forEach((w) => put(w, ' ')); }
+    }
     if (rows.length > most) { rows.length = most; let last = `${rows[most - 1]}..`; while (!fits(last) && last.length > 3) last = `${last.slice(0, -3).trimEnd()}..`; rows[most - 1] = last; }
     return rows.filter(Boolean);
   };
-  const head = m.words ? wrap(String(m.words).split(' · '), ' · ', 2) : [];
+  // (a searched man's card (hud/target.js targetModel: headRows 4) has two rows more for his verdict)
+  const head = m.words ? wrap(String(m.words).split(' · '), ' · ', m.headRows ?? 2) : [];
   const line = m.phase === 'truth' && m.line ? wrap(String(m.line).split(/\s+/), ' ', 3) : [];
   const h = 6 + head.length * WORDS_ROW_PX + (line.length ? 4 + line.length * WORDS_ROW_PX : 0) + 2;
   return { head, line, h: Math.max(WORDS_H - 12, h) };

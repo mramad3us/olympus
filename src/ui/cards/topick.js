@@ -61,9 +61,10 @@ export const ratedRow = (row) => row.rated === true || RATED_SETS.includes(ROW_S
  * The gallery's sets the game draws as built, scored as seen: those still waiting (on top, with every waiting set no other row tries)
  * and those rated (folded under "Already rated"). The fixer of v0.0.24's play review, M4: one row held wcard2 and opfor-look, rated
  * on 2026-11-19, among the waiting rows, and nine waiting sets had no row at all. v0.0.25: the Wreck's two sets (wreck-faces,
- * portrait-faces, made by its stage 0) lead the waiting row, the ones to score first (its build sheet §10).
+ * portrait-faces, made by its stage 0) lead the waiting row, the ones to score first (its build sheet §10). v0.0.26: "Bang, then
+ * go"'s set (breach-poses, the role-player dazed and cowering, made by its stage 0) leads it (its build sheet §2 step 7, §10).
  */
-export const DRAWN_WAITING = Object.freeze(['wreck-faces', 'portrait-faces', 'doll-gear', 'target-view', 'truth-cards', 'portrait-facing', 'portrait-light', 'portrait-suit', 'pistol-stances', 'house-unknown', 'float-look', 'mag-boots', 'void-look']);
+export const DRAWN_WAITING = Object.freeze(['breach-poses', 'wreck-faces', 'portrait-faces', 'doll-gear', 'target-view', 'truth-cards', 'portrait-facing', 'portrait-light', 'portrait-suit', 'pistol-stances', 'house-unknown', 'float-look', 'mag-boots', 'void-look']);
 export const DRAWN_RATED = Object.freeze(['wcard2', 'opfor-look']);
 /** The rows (see the header): { id, title, ids, multi?, words (an id's words), struck? (an id the stage does not draw: why), scored (false: a setting) }. */
 export const ROWS = Object.freeze([

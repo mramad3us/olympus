@@ -12,8 +12,9 @@
 import { assert } from './helpers.mjs';
 import { ALL, DONE, GAUGE_ROWS, GAUGE_LAST, GAUGE_ROUNDS, OPEN_GAUGES, resolveRow } from './house-done.mjs';
 import { WRECK_GAUGES, WRECK_FIRST, WRECK_LAST } from './wreck-done.mjs';
+import { BREACH_GAUGES, BREACH_FIRST, BREACH_LAST } from './breach-done.mjs';
 
-const GROUPS = Object.freeze({ A: 'the user\'s verdict', B: 'the user\'s complaints', C: 'the gauges', D: 'never a dead end', E: 'the ladder and the verdict', F: 'the moments', G: 'saves and replay', H: 'performance', I: 'the scored scenes', J: 'the hand-off', K: 'docs', L: 'the drawn house', M: 'v0.0.22\'s rooms, lane\'s end, blast and page', N: 'v0.0.23\'s portraits, knowledge and carried fixes', O: 'v0.0.24\'s void, its scenes and the picks', P: 'v0.0.25\'s Wreck and the carried fixes' });
+const GROUPS = Object.freeze({ A: 'the user\'s verdict', B: 'the user\'s complaints', C: 'the gauges', D: 'never a dead end', E: 'the ladder and the verdict', F: 'the moments', G: 'saves and replay', H: 'performance', I: 'the scored scenes', J: 'the hand-off', K: 'docs', L: 'the drawn house', M: 'v0.0.22\'s rooms, lane\'s end, blast and page', N: 'v0.0.23\'s portraits, knowledge and carried fixes', O: 'v0.0.24\'s void, its scenes and the picks', P: 'v0.0.25\'s Wreck and the carried fixes', Q: 'v0.0.26\'s Bang, then go' });
 
 export default [
   {
@@ -52,7 +53,9 @@ export default [
       const rounds = GAUGE_ROWS.map(r => (r.by ?? '').split(' ')[0]), num = (v) => Number(v.split('.')[2]);
       const none = GAUGE_ROWS.filter(r => !/^v0\.0\.\d+( |$)/.test(r.by ?? '')).map(r => r.id);
       const back = rounds.flatMap((v, i) => (i && num(v) < num(rounds[i - 1]) ? [GAUGE_ROWS[i].id] : []));
-      const covered = GAUGE_ROUNDS[0].from === 1 && GAUGE_ROUNDS.at(-1).to === GAUGE_LAST && GAUGE_ROUNDS.every((r, i) => !i || r.from === GAUGE_ROUNDS[i - 1].to + 1);
+      // (v0.0.26's stage 0: the rounds run to the last gauge homed or, while a round's gauges are frozen and not yet homed
+      // (tests/breach-done.mjs), to that round's last: its row is there before its first gauge is)
+      const covered = GAUGE_ROUNDS[0].from === 1 && GAUGE_ROUNDS.at(-1).to === Math.max(GAUGE_LAST, BREACH_LAST) && GAUGE_ROUNDS.every((r, i) => !i || r.from === GAUGE_ROUNDS[i - 1].to + 1);
       const counts = {};
       for (const v of rounds) counts[v] = (counts[v] ?? 0) + 1;
       console.log(`      ${GAUGE_ROWS.length} gauges by round: ${Object.entries(counts).map(([v, n]) => `${v} ${n}`).join(', ')}`);
@@ -66,8 +69,22 @@ export default [
       const homed = ns.filter(n => rows.has(`CF${n}`));
       console.log(`      ${WRECK_GAUGES.length} gauges F${WRECK_FIRST} to F${WRECK_LAST}; GAUGE_LAST ${GAUGE_LAST}; homed in house-done ${homed.length}; owners ${[...new Set(WRECK_GAUGES.map(g => g.owner))].join(', ')}; group P ${GROUPS.P ? 'listed' : 'MISSING'}`);
       assert(ns.length === WRECK_LAST - WRECK_FIRST + 1 && ns.every((n, i) => n === WRECK_FIRST + i) && WRECK_GAUGES.every(g => g.what && g.files.length && g.owner && g.when), JSON.stringify(ns));
-      assert(GAUGE_LAST === WRECK_FIRST - 1 ? homed.length === 0 : GAUGE_LAST === WRECK_LAST && homed.length === ns.length, JSON.stringify({ GAUGE_LAST, homed }));
+      // (v0.0.26's stage 0: homed once GAUGE_LAST reaches F137, whatever later rounds add after it)
+      assert(GAUGE_LAST === WRECK_FIRST - 1 ? homed.length === 0 : GAUGE_LAST >= WRECK_LAST && homed.length === ns.length, JSON.stringify({ GAUGE_LAST, homed }));
       assert(!!GROUPS.P, 'group P');
+    },
+  },
+  {
+    name: 'v0.0.26\'s gauges frozen (its build sheet §2 step 5, §8): tests/breach-done.mjs lists F138 to F149 in order, one row a gauge with its files, owner and when, after house-done\'s last homed gauge (GAUGE_LAST 137 until C\'s merge homes them, then 149 and each a house-done row); GAUGE_ROUNDS names them v0.0.26\'s; group Q is listed with its anchors',
+    fn() {
+      const ns = BREACH_GAUGES.map(g => Number(g.F.slice(1))), rows = new Set(GAUGE_ROWS.map(r => r.id));
+      const homed = ns.filter(n => rows.has(`CF${n}`)), round = GAUGE_ROUNDS.find(r => r.from === BREACH_FIRST);
+      const qRows = DONE.filter(r => r.group === 'Q').map(r => r.id);
+      console.log(`      ${BREACH_GAUGES.length} gauges F${BREACH_FIRST} to F${BREACH_LAST}; GAUGE_LAST ${GAUGE_LAST}; homed in house-done ${homed.length}; owners ${[...new Set(BREACH_GAUGES.map(g => g.owner))].join(', ')}; their round ${round ? `${round.v} F${round.from} to F${round.to}` : 'MISSING'}; group Q ${GROUPS.Q ? 'listed' : 'MISSING'}, its rows ${qRows.join(', ') || 'none'}`);
+      assert(BREACH_FIRST === WRECK_LAST + 1 && ns.length === BREACH_LAST - BREACH_FIRST + 1 && ns.every((n, i) => n === BREACH_FIRST + i) && BREACH_GAUGES.every(g => g.what && g.files.length && g.owner && g.when), JSON.stringify(ns));
+      assert(GAUGE_LAST === BREACH_FIRST - 1 ? homed.length === 0 : GAUGE_LAST >= BREACH_LAST && homed.length === ns.length, JSON.stringify({ GAUGE_LAST, homed }));
+      assert(round?.to === BREACH_LAST && round.v === 'v0.0.26', JSON.stringify(round));
+      assert(!!GROUPS.Q, 'group Q');
     },
   },
 ];

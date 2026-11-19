@@ -18,7 +18,7 @@
 // LATER; a renamed test or a gauge taken out of its ENFORCED fails it, so the list never claims a check that is gone, and never
 // counts as met a gauge that is red (the review of 2026-11-16: "MET 194" counted F70, F71 and F73, red in their heavy suites). The
 // release announcement quotes the USER and the OPEN rows. Group C, the gauges, is generated: one row a
-// gauge, F1 to GAUGE_LAST (137 from v0.0.25). Pure data and two resolvers.
+// gauge, F1 to GAUGE_LAST (F137 at v0.0.25; F149 at v0.0.26's last merge). Pure data and two resolvers.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -116,6 +116,20 @@ export const GAUGE_HOMES = Object.freeze([
     [135, null, 'A', 'zerocqb-transit.test.mjs, wreck-place.test.mjs', 'zerocqb-transit › one deck at a time'],
     [136, null, 'C, D', 'zerocqb-words.test.mjs, ui-zerocqb.test.mjs', 'zerocqb-words › F136 (the sim\'s half)'],
     [137, null, 'A, D', 'wreck-known.test.mjs, ui-zerocqb.test.mjs', 'wreck-known › from deck 5 nothing of deck 6'],
+    // (v0.0.26, "Bang, then go", its build sheet §8: F138 to F149 homed at C's merge, the round's last; tests/breach-done.mjs
+    // BREACH_GAUGES is these rows filtered from here on)
+    [138, 1, 'B', 'scene-breach.test.mjs, breach-nodead.test.mjs, breach-save.test.mjs', 'scene-breach › F138 (quick): the four draws forced', 'the Tests menu\'s ship rule (F138 and F147 green)'],
+    [139, 2, 'B', 'breach-window.test.mjs', 'breach-window › F139: the bang buys the room'],
+    [140, 3, 'B', 'breach-window.test.mjs', 'breach-window › F140: the slow stack and the held door'],
+    [141, 5, 'A', 'breach-choice.test.mjs', 'breach-choice › breach-choice: the table chooses'],
+    [142, 6, 'A', 'breach-shock.test.mjs', 'breach-shock › breach-shock: a shocked man starts nothing'],
+    [143, 6, 'A, C', 'breach-look.test.mjs, ui-breach.test.mjs', 'breach-look › F143 (sim): on "Bang, then go"'],
+    [144, 7, 'A', 'breach-challenge.test.mjs', 'breach-challenge › breach-challenge: a man frozen, and a man in cover'],
+    [145, 8, 'B', 'breach-window.test.mjs, breach-wash.test.mjs', 'breach-window › F145 (one number)'],
+    [146, 9, 'A, C', 'breach-search.test.mjs, ui-breach.test.mjs', 'breach-search › breach-search: belief until the search'],
+    [147, 15, 'stage 0', 'env-noregress.test.mjs', 'env-noregress › env-noregress, quick (F100, F124): the bay at 23:00'],
+    [148, 11, 'B, C', 'breach-tick.test.mjs, ui-breach.test.mjs', 'breach-tick › F148 (the tick\'s half, quick)'],
+    [149, 14, 'B, C, D', 'breach-words.test.mjs, ui-breach.test.mjs, carried-v026.test.mjs', 'breach-words › F149 (the sim\'s half)'],
   ].map(([n, v, owner, files, by, when = 'at once']) => ({ from: n, to: n, file: files.split(', ')[0], role: owner, v, owner, files, when, ...(by ? { by } : {}) })),
 ]);
 /** The gauges' names, a short line each (COMBAT §25.19.8 and the sheets' §8; group C's rows). */
@@ -172,13 +186,27 @@ export const GAUGE_WHAT = Object.freeze({
   F135: 'one deck at a time: crossHatch the only deck change, nobody between the decks, the actors list never re-made; a save mid-transit carries on',
   F136: 'every line of the Wreck a text bubble at its speaker, none voiced, none overlapping at 1024 × 768 and 1600 × 900',
   F137: 'nothing drawn before seen in the Wreck, and nothing of the other deck in the picture',
+  // (v0.0.26: its sheet's §8, F138 to F149, tests/breach-done.mjs's rows)
+  F138: 'the scene to its card on every sheet and draw, by T, the keys and the fuzz; no dead end; nine saves byte for byte',
+  F139: 'the bang buys the room: with the entry on the bang, no role-player\'s round before #1\'s first; no casualty from the corporal up over 20 seeds (the recruit\'s and the private\'s printed)',
+  F140: 'the slow stack and the held door: T13 reprinted from the game by the bots\' late; the held man blinded by every bang through his door (0 unblinded); quiet held, his first round printed; the 0.5 s cell 100% from the corporal up',
+  F141: 'the table chooses: every change of a man\'s state is choiceOf\'s, the shock\'s, the give\'s or the fall\'s, never a card; no roll for a calm or under-fire man; a friend seen falling +10 and -0.1 exactly once',
+  F142: 'the shock: a shocked man starts nothing; blind only within 60° of his facing; DAZED exactly while shocked',
+  F143: 'seen, never told: the stage\'s frame, the card\'s pose and the plaque\'s word agree with one map at every drawn tick, on both lanes',
+  F144: 'the challenge: a frozen or covered man challenged within 6 m, seen or heard, gives on its end tick; never a fighting man; no round after a give',
+  F145: 'one number: the window rows, the run sheet, the wash and the tests read bangWindowOf only, equal to the sim to the tick',
+  F146: 'belief, then truth: no truth mark before a search\'s end or Stop; a halted search leaves belief; a searched card equals hitMarks\' truth',
+  F147: 'nothing else moves: every v0.0.25 pin byte for byte (the scenes at 1,000 ticks, the house\'s pins, the saves, moment 2\'s walk, the goldens, the steel copy), but a house-live-pin cell moved by the DAZED read, with its cause',
+  F148: 'cost: the scene\'s busiest tick under 2 ms × k (the least of three); no doll painted and no figure band uploaded after the brief\'s cut',
+  F149: 'every line a text bubble at its speaker, none voiced, none overlapping at 1024 × 768 and 1600 × 900',
 });
 // (v0.0.23's integration, the stage-0 lead's plan: F97 to F99, the P-12's gauges of the user's fourth note of 2026-11-17, homed
 // from A's and C's merges, counted at the last step; the instructor's sterile walk takes no F number, house-sterile-walk stands as a
 // test (the lead's call), and v0.0.24's sheet shifts its numbers by exactly three)
 // (v0.0.24 E: F100 to F123 homed, the round's last merge; the sheet's §0 item 29)
 // (v0.0.25 D: F124 to F137 homed, the round's last merge; its sheet's §7, §8)
-export const GAUGE_LAST = 137;
+// (v0.0.26 C: F138 to F149 homed, the round's last merge; its sheet's §7, §8)
+export const GAUGE_LAST = 149;
 /** The gauge's home (GAUGE_HOMES' row), or null. */
 export const homeOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_HOMES.find(h => n >= h.from && n <= h.to) ?? null; };
 
@@ -495,6 +523,58 @@ export const DONE = Object.freeze([
   { id: 'PE3', group: 'P', what: 'no plate over another in the house: the row\'s plate ("PAIR, MOVING ON") stacked below the shot\'s plaque ("TORSO SURE") it would meet (v0.0.23\'s question 22)', check: test('carried-v025 › C3'), by: 'v0.0.25 E' },
   { id: 'PE4', group: 'P', what: 'the tower\'s wait moves the lane by chance only, judged by the paired difference where it sees a 3% wait, else by the 2% bound kept', check: test('house-pace › the wait moves the lane from GO by chance only'), by: 'v0.0.25 E' },
   { id: 'PE5', group: 'P', what: 'the quick suite lighter, no case changed: reads-scope\'s, panel-keys\' and fixer-v020\'s extra lanes in heavy twins', check: test('panel-keys › every case over the lanes\' stops above'), by: 'v0.0.25 E' },
+  // ---- Q. v0.0.26, "Bang, then go" and the carried fixes (its build sheet §1, §8): each role's rows directly below its own anchor
+  // (stage 0 the pins, the quick suite's memo, house-pace's sixty seeds and the samples; A the defenders, B the scene and the lane,
+  // C the look and GAUGE_LAST 149 at its merge, D the carried fixes); the round's gauges F138 to F149 are tests/breach-done.mjs's
+  // until C homes them ----
+  // (v0.0.26 stage 0)
+  { id: 'QS1', group: 'Q', what: 'the fresh game kept per process: a clone of the first newGame for the same options, the same save and play with NO_GAME_MEMO=1', check: test('game-memo › the fresh game kept per process'), by: 'v0.0.26 stage 0' },
+  { id: 'QS2', group: 'Q', what: 'the tower\'s wait judged on the boot recruit\'s sixty seeds, three blocks printed, the paired bound unchanged at two standard errors and the 3% wait injected still seen (K5)', check: test('house-pace › the wait moves the lane from GO by chance only'), by: 'v0.0.26 stage 0' },
+  { id: 'QS3', group: 'Q', what: 'the samples to score: breach-poses (D, the daze; C, the cower; D-a and C-a drawn until scored), waiting on top of the gallery and at the head of the To score page\'s waiting row', check: { kind: 'sample', ref: 'breach-poses' } },
+  // (v0.0.26 A)
+  // (A: the defenders: room 1's posts, the held door, a friend seen falling, the read DAZED, the challenge that ends a freeze, "Search him"; F141, F142, F144 and F143's and F146's sim halves)
+  { id: 'QA1', group: 'Q', what: 'room 1\'s two role-players at posts of their own (1a your side, 1b your #2\'s), each start, hide and dash by v0.0.19\'s spot rule, reached through the one seam only on "Bang, then go"\'s record (R.house.bangGo, never the breached doors\' R.house.breach)', check: test('opfor-spots › v0.0.26, room 1\'s two posts'), by: 'v0.0.26 A' },
+  { id: 'QA2', group: 'Q', what: 'they choose by COMBAT §7.11\'s table at their felt band and nerve grade, never a card; a friend seen falling +10 on the other\'s pool and −0.1 on his resolve, once a fall, nothing on the live lane\'s set (F141)', words: W('2026-11-07', 'Suppression, training and exprience will decide how well NPCs can respond to threats and whether they fight back, try to rush for cover or flee all together'), check: test('breach-choice › the table chooses'), by: 'v0.0.26 A' },
+  { id: 'QA3', group: 'Q', what: 'a shocked man starts nothing, the flash blinds only within 60° of his facing, and he is read DAZED and drawn dazed exactly while his block says so, on every live lane; the held door\'s man laid on the door from GO, taking you in \'sector\' (F142, F143\'s sim half)', check: test('breach-shock › a shocked man starts nothing'), by: 'v0.0.26 A' },
+  { id: 'QA4', group: 'Q', what: 'a cowering man challenged within 6 m, seen or heard, gives at the challenge\'s end; never a fighting man, never out of reach or unseen and unheard; T\'s "He\'s done. Challenge him." on the scene (F144)', check: test('breach-challenge › a man frozen, and a man in cover'), by: 'v0.0.26 A' },
+  { id: 'QA5', group: 'Q', what: '"Search him" after the room\'s "Clear!", 20 s, within 1.5 m of a man accounted for: belief until its end, then the truth (contact.js cardPhaseOf); a search cut by a cue offered again; never required (F146\'s sim half)', check: test('breach-search › belief until the search'), by: 'v0.0.26 A' },
+  // (the review of A, 2026-11-19: its five findings, each failing without its fix)
+  { id: 'QA6', group: 'Q', what: 'the house\'s own bang ("Flash it", where the G-11 really lands, by the far wall) blinds both men in room 1 on every sheet, held and loose: each man\'s rifle laid on the funnel inside the door, his eyes on the threshold (F140\'s half: 52 of 240 men unblinded with them laid on the threshold)', check: test('breach-shock › the house\'s own bang ("Flash it"'), by: 'v0.0.26 A' },
+  { id: 'QA7', group: 'Q', what: 'the held door is a door held: the held man takes a marine through it \'sector\' and fires first; the loose man, turned by the leaf, lays his aim from the far wall (shot.js aimMsOf from the facing he turned from) and takes him \'alert\', 0.45 s later', check: test('breach-shock › the held door is a door held'), by: 'v0.0.26 A' },
+  { id: 'QA8', group: 'Q', what: 'a second Challenge pressed on the first one\'s held end tick leaves the first judged: he gives at its end; T names no Challenge on that tick', check: test('breach-challenge › a second Challenge pressed'), by: 'v0.0.26 A' },
+  { id: 'QA9', group: 'Q', what: '"Search him" out of reach is its walk, "To him, to search", named by T, which walks you within 1.5 m of him; the search\'s row and T\'s line there', check: test('breach-search › out of reach (from your point'), by: 'v0.0.26 A' },
+  { id: 'QA10', group: 'Q', what: 'on "Bang, then go" a man identified and seen in plain sight is read as he is: the plaque\'s word, the stage\'s frame and T\'s line agree (COWERING the tick he freezes, never DAZED over a man drawn cowering)', check: test('breach-shock › on "Bang, then go" the read follows sight'), by: 'v0.0.26 A' },
+  { id: 'QA11', group: 'Q', what: 'the window closes: a man the bang knocked off his aim lays his rifle on the door again once his shock ends, so a slow stack meets it (the review of B and C: he stood at his low ready until a marine was in his eyes, and holding 8 s cost nothing)', check: test('breach-shock › the window closes'), by: 'v0.0.26 A' },
+  // (v0.0.26 B)
+  // (B: the scene and the lane, its build sheet §1 items 1 to 4, 8 and 10, §6 B; the gauges F138, F139, F140, F145, F148 and F149's halves)
+  { id: 'QB1', group: 'Q', what: '"Bang, then go" on the house\'s scenario after "Stack and clear, live", by its URL until its ship rule; room 1\'s two role-players and nothing past it, R.house.bangGo on this lane alone', check: test('scene-breach › the scene'), by: 'v0.0.26 B' },
+  { id: 'QB2', group: 'Q', what: 'the draw from the seed on its own stream: the bang on three seeds in four, the door held on one in two; &breach= forcing either part', check: test('scene-breach › the draw'), by: 'v0.0.26 B' },
+  { id: 'QB3', group: 'Q', what: 'the four draws to their card by the sergeant, the lane ended at room 1, the card\'s head naming the draw (F138\'s quick half)', check: test('scene-breach › F138 (quick)'), by: 'v0.0.26 B' },
+  { id: 'QB4', group: 'Q', what: '"Again" and "Again as …" keep the draw; "Another door" a new seed and a new draw; every house option, the kit, the cards and every setup but GO dropped with one toast', check: test('scene-breach › "Again"'), by: 'v0.0.26 B' },
+  { id: 'QB5', group: 'Q', what: 'no dead end: 10 seeds × the six sheets × the four draws by the honest player, and the scene\'s fuzz (F138)', words: W('2026-11-07', 'a scene never dead-ends'), check: test('breach-nodead › F138 (heavy): 10 seeds'), by: 'v0.0.26 B' },
+  { id: 'QB6', group: 'Q', what: 'the scene\'s fuzz: in 3 to 6 s after the bang, never a challenge, a man with his hands up searched and shot once (the fault \'surrendered\'), every lane to its card', check: test('breach-nodead › F138 (heavy): the scene\'s fuzz'), by: 'v0.0.26 B' },
+  { id: 'QB7', group: 'Q', what: 'the live lane\'s gauges on the scene: F38 to F43 and F45 met on the four draws by every sheet', check: test('breach-nodead › F138 (heavy): the live lane'), by: 'v0.0.26 B' },
+  { id: 'QB8', group: 'Q', what: 'a save at nine points of the scene (GO, mid-throw, the bang, a man dazed, his dash, a man cowering, mid-challenge, mid-search, the hot wash) carries on byte for byte (F138)', check: test('breach-save › F138 (the saves, quick)'), by: 'v0.0.26 B' },
+  { id: 'QB9', group: 'Q', what: 'the bang buys the room: on the bang no round of theirs before the stack\'s and no casualty from the corporal up over 20 seeds (F139)', check: test('breach-window › F139'), by: 'v0.0.26 B' },
+  { id: 'QB10', group: 'Q', what: 'the slow stack and the held door: T13 from the game by the bots\' late, the held man blinded by every bang through his door, the quiet held door\'s first round by sheet (F140)', check: test('breach-window › F140'), by: 'v0.0.26 B' },
+  { id: 'QB11', group: 'Q', what: 'one number: THE WINDOW, a line a man, THEIR CHOICES, the run sheet\'s ON THE BANG and DOOR OPEN n S BEFORE THE BANG and the wash from bangWindowOf to the tick (F145)', check: test('breach-window › F145'), by: 'v0.0.26 B' },
+  { id: 'QB12', group: 'Q', what: 'the hot wash\'s first line by the window\'s case, a casualty\'s lesson leading its own; each man\'s line his track (F145)', check: test('breach-wash › F145'), by: 'v0.0.26 B' },
+  { id: 'QB13', group: 'Q', what: 'every line of the scene a text bubble at its speaker, none voiced; the brief names the kit, never the door; the search offered once (F149\'s sim half)', words: W('2026-11-19', 'forget voice synthesis, no voices.'), check: test('breach-words › F149'), by: 'v0.0.26 B' },
+  { id: 'QB14', group: 'Q', what: 'the scene\'s busiest tick under 2 ms × k, the least of three (F148\'s tick half)', check: test('breach-tick › F148 (the tick\'s half, quick)'), by: 'v0.0.26 B' },
+  { id: 'QB15', group: 'Q', what: 'the scene\'s pin: four lanes from the fill to the card to the tick, the run sheet and the save', check: test('breach-pin › the scene\'s pin'), by: 'v0.0.26 B' },
+  { id: 'QB16', group: 'Q', what: '"Search him" runs its 20 s behind the house\'s skip with its splash, from its first running tick to its end (the review of B and C: 40 s of watching at 1× after "Clear!")', check: test('breach-words › "Search him" runs its 20 s'), by: 'v0.0.26 B' },
+  { id: 'QB17', group: 'Q', what: 'from rung 2 one press throws the bang: T alone throws one G-11 through room 1\'s door where it was issued, none on the quiet door (the review of B and C: no test failed without it)', check: test('scene-breach › F138 (quick, by T alone)'), by: 'v0.0.26 B' },
+  { id: 'QB18', group: 'Q', what: 'by T alone from the corporal up over 10 seeds and the four draws: every lane to its card at room 1, one G-11 on the bang and none on the quiet door (F138)', check: test('breach-nodead › F138 (heavy, by T alone)'), by: 'v0.0.26 B' },
+  { id: 'QB19', group: 'Q', what: 'the end card\'s "Another door" in the scene\'s words, Again on a new seed; &breach= dropped with its toast on every other scene, never playing room 1 there (the review of B and C)', check: test('scene-breach › "Another door" on the end card'), by: 'v0.0.26 B' },
+  // (v0.0.26 C)
+  // (C: the look of a man in the bang, the searched card and the bench; F143, F146, F148 and F149's page halves; GAUGE_LAST 149 at its merge)
+  { id: 'QC1', group: 'Q', what: 'a role-player in the bang drawn dazed exactly while his block says so (hunched, the hand to the eyes, the rifle low: D-a; its sway a pixel at 1.5 Hz, still under "reduce flashes"; on his knee the same over the kneel) and a frozen one cowering (C-a), from a band of the stance pool painted behind the brief\'s cut', check: test('breach-look › the daze exactly while his block says so'), by: 'v0.0.26 C' },
+  { id: 'QC2', group: 'Q', what: 'seen, never told: the stage\'s frame, the card\'s pose and the plaque\'s word one map at every tick of "Bang, then go" and of A\'s scripted rooms, and on the live lane with the bang and without (F143, the sim\'s half)', check: test('breach-look › F143 (sim): on "Bang, then go"'), by: 'v0.0.26 C' },
+  { id: 'QC3', group: 'Q', what: 'the game draws the scored set\'s defaults pixel for pixel, the stage\'s frames and the target card, each from its one home', check: test('samples-breach › the game draws the sample\'s defaults pixel for pixel'), by: 'v0.0.26 C' },
+  // (v0.0.26 D)
+  // (D: the carried fixes K2 and K6; no gauge of its own but F149's K6 half (tests/breach-done.mjs), held by carried-v026)
+  { id: 'QD1', group: 'Q', what: 'T acts on the first tick after a save loaded at a pause: the line settled first where the load left none, the same act, save and play as the game saved (K2; v0.0.25-house-pause played on to room 2\'s stack)', check: test('carried-v026 › K2: T on the first tick'), by: 'v0.0.26 D' },
+  { id: 'QD2', group: 'Q', what: 'every line a bubble at its speaker, never the radio box for want of a free place among figures and boards: your #2\'s "Got you." and "Through." at the Wreck\'s scuttle over the hold\'s boards, every bubble that placed before where it was (K6; F149\'s half)', words: W('2026-11-19', 'forget voice synthesis, no voices.'), check: test('carried-v026 › K6: your #2'), by: 'v0.0.26 D' },
 ]);
 
 /** Group C: one row a gauge, F1 to GAUGE_LAST. */
@@ -509,6 +589,10 @@ export const GAUGE_ROUNDS = Object.freeze([
   { from: 100, to: 123, v: 'v0.0.24' },
   // (v0.0.25's integration: the Wreck's F124 to F137, homed by D's merge)
   { from: 124, to: 137, v: 'v0.0.25' },
+  // (v0.0.26's stage 0: "Bang, then go"'s F138 to F149, frozen in tests/breach-done.mjs, homed by C's merge (GAUGE_LAST 149); named
+  // here before they are homed, so the round's row is there at its first gauge's merge, as v0.0.25's was not: the case "every gauge's
+  // row names its own round" went red at v0.0.25 D's merge for want of it)
+  { from: 138, to: 149, v: 'v0.0.26' },
 ]);
 /** A gauge's round (GAUGE_ROUNDS), or null. */
 export const roundOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_ROUNDS.find(r => n >= r.from && n <= r.to)?.v ?? null; };
@@ -589,7 +673,10 @@ export const OPEN_GAUGES = Object.freeze({
   // band at the high ready drawn from a sibling carry's sheet, the same pixels); the frame's bytes left are the fog's and the range layer's)
   F73: { run: "render-bench's house benches, v0.0.25 D's runs of 2026-11-19 (this Mac, 60 Hz, :8233; the bench card's own reading)", value: 'house-kit 117.9 KB at 6.9 s and house-live 117.9 KB at 6.8 s, no band sent (v0.0.24: 230.5 and 237.9 KB, your look\'s rifle band at the high ready 144 KB of it): the fog\'s eased mask (48 KB a frame while it eases) and the range layer\'s pixel buffers (about 70 KB while its pixels change)', target: `no upload over 64 KB after GO + 1 s` },
   // (v0.0.25's gauges red on their owners' runs (c.md, 2026-11-19): homed at D's merge, open until the lead's quiet heavy run says otherwise)
-  F129: { run: "C's Wreck lanes, v0.0.25 C's handoff of 2026-11-19 (48213, every sheet, honest, keys and fuzz)", value: 'no lane braced: your #2\'s stack:point at the trunk halted by your body before his brace beat, your transit on the coaming\'s hold after TWO_WAIT_MS 3 s (zerocqb-two\'s bare world braced)', target: 'the brace held from your transit to your plant or 0.2 s after your first round, never absent' },
+  // (v0.0.26's stage 0, its build sheet §0 item 16: F129's words were C's first handoff's, "no lane braced"; v0.0.25's fix of the
+  // review of C and D braces the lanes (your #2 stacks up again at a deck hatch, BRACE_HOLD_MAX_MS 5,000), and the integrator's full
+  // run of 2026-11-19 (load 2 to 6, not quiet) had zerocqb-two green. Open until the lead's quiet heavy run; never loosened)
+  F129: { run: "zerocqb-two, the v0.0.25 integration's full run of 2026-11-19 (JOBS=4, load 2 to 6: not a quiet run); C's handoff before the fix of the review of C and D", value: 'the lanes braced since that fix (the sergeant 3 ticks, the corporal 48, the tier one 21, each with "Got you." and "Through."), zerocqb-two green in the full run; before it no lane braced (your #2\'s stack:point at the trunk halted by your body before his brace beat)', target: 'the brace held from your transit to your plant or 0.2 s after your first round, never absent' },
   F132: { run: "zerocqb-flawless, v0.0.25 C's run of 2026-11-19 (6 sheets × 48213, 1037, 1074)", value: 'F1, F2, F6, F9, F10, F14, F26 met; F7 18 corner faults, F13 15 stops on the tier one against 14, F15 74.6 s against 46, F17 54 of 54 stacks over 1.5 m, F24 10 of 210 stops naming no row, F25 51 of 54 cues late', target: 'as on the house' },
   // (F134 emptied by v0.0.25's docs check: zerocqb-pars' heavy case on the integrated tree, 2026-11-19 (JOBS=3, k 1.00), MET: 12 of 12
   // T lanes GO on 48213, 1037 and 1074, 3 of 3 a sheet (the corporal on 48213 and 1037 and the sergeant on 1037 each one stand missed

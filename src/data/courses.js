@@ -900,3 +900,32 @@ export const VERDICT_WHY = deepFreeze({
   standing: 'a threat left standing', passed: 'a room not cleared', pars: 'too many pars missed', lane: 'over the lane\'s par', time: 'the lane ran out of time',
   burst: 'the cease fire at the burst',
 });
+
+// v0.0.26, "Bang, then go" (its build sheet §1 item 1, item 8, §3.2; SC§10.1, SC§10.3): the instructor's words for room 1 with the two
+// role-players, each a text bubble at its speaker (the user, 2026-11-19: "forget voice synthesis, no voices."). The brief names the kit and
+// never the door ("we only know what we know"); the card says afterwards which it was. Read by shoothouse.js houseCmdSay (the PA's brief and
+// standby on R.house.bangGo), its search offer after room 1's "Clear!" and windowWords (the hot wash's first line, by the window's case).
+/** "Bang, then go"'s words (see the section's head): the brief (first run, Again), the kit's line by the draw, the standby, the search offer, the window's six. */
+export const BREACH_CHIEF = deepFreeze({
+  brief: ['Room 1, live: two role-players with marking rounds, playing Star Helix security. Masks stay down. A fatal hit ends it. Put them down or take their surrender.',
+    'Room 1, live. Two of my staff are in there with marking rounds, playing Star Helix security. Masks stay down. A fatal hit ends it. Put them down or take their surrender.'],
+  again: ['Room 1 again.', 'Room 1, again.'],
+  kit: { bang: ['You each carry a G-11. On the bang, go.', 'One G-11 each. On the bang, go.'], quiet: ['No bangs today. Speed is your bang.', 'No bangs today. Your speed is the bang.'] },
+  sterile: 'Sterile check first.',
+  standby: ['Room 1. Standby.', 'Standby.'],
+  search: ['Search them if you want the truth now.', 'Search them now if you want the truth.'],
+  // (the men ruled out at room 1's "Clear!", named ({men}: "1A", "1A and 1B"): the house's "You, out." read as said to you, the instructor
+  // beside you (the play review of v0.0.26))
+  out: ['{men}, you are out. Sit down where you are.', '{men}: out. Sit down.'],
+  // (the hot wash's first line by the window's case (shoothouse.js windowWords; SC§10.3's five, and a sixth, my call: the quiet loose
+  // door where he was on it first); {n} the seconds from the bang to your entry)
+  window: {
+    onBang: ['On the bang. They were blind when you came through.', 'On the bang. They could not see you come through.'],
+    late: ['You came in {n} seconds after the bang. They were getting their eyes back.', '{n} seconds after the bang. Their eyes were coming back.'],
+    wasted: ['Five seconds of blind, and you spent them outside.', 'You spent their five seconds of blind outside the door.'],
+    kept: ['You had a bang and kept it.', 'A bang in your pouch is no bang.'],
+    held: ['He had his rifle on that door before you opened it. That is what the bang is for.', 'His rifle was on that door before it moved. That is what the bang is for.'],
+    faster: ['The door turned him. You were faster.', 'The door turned him, and you beat his rifle.'],
+    slower: ['The door turned him, and he was on it before you. Speed is your bang.', 'He heard the door and got there first. Speed is your bang.'],
+  },
+});

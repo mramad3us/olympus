@@ -815,6 +815,10 @@ export const POSE_BENDS = Object.freeze({
   sit: Object.freeze({ drop: 66, legsOver: true, lap: true, legs: Object.freeze({ r: Object.freeze([0, 0.9, 104]), l: Object.freeze([0, 0.9, 104]) }), arms: Object.freeze({ bendR: Object.freeze([14, 38]), bendL: Object.freeze([14, 38]) }) }),
   cower: Object.freeze({ drop: 28, legs: Object.freeze({ r: Object.freeze([0.35, 'fit']), l: Object.freeze([0.35, 'fit']) }), arms: Object.freeze({ bendR: Object.freeze([9.5, 13]), bendL: Object.freeze([9.5, 13]) }) }),
   prone: Object.freeze({ drop: 86, cut: 46, legs: null }),
+  // ("Bang, then go": samples/breach-poses D-a's card until the user scores, hunched, the support hand to the eyes, the rifle
+  // low in the firing hand; on his knee the kneel's legs under the same arms (my call): a role-player dazed, as the stage draws him)
+  daze: Object.freeze({ drop: 5, legs: Object.freeze({ r: Object.freeze([0.95, 'fit']), l: Object.freeze([0.95, 'fit']) }), arms: Object.freeze({ bendL: Object.freeze([0.5, 15]) }) }),
+  dazeKneel: Object.freeze({ drop: 31, legs: Object.freeze({ r: Object.freeze([1, 0]), l: Object.freeze([0.25, 'fit']) }), arms: Object.freeze({ bendL: Object.freeze([0.5, 15]) }) }),
 });
 /** The reference rows of the standing figure's anchors: the head's centre and the man-target's A zone's (hitcard.js HEAD_ROW, A_ROW at scale 1). */
 export const HEAD_Y = 16, A_ZONE_Y = 37.6;

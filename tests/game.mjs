@@ -10,7 +10,8 @@
 // src/sim/game.js createSim (its fast layers, its slow layer, its skips), and a new game from
 // newGame() (the scenario, the seed, the mode, the domains given to replace built-in ones, such as
 // tests/game-dummy.mjs's world). It holds nothing of its own but those: load() swaps the state and
-// the same loop and sim carry on.
+// the same loop and sim carry on. From v0.0.26 the new game is a clone of the first made for the same options in this process
+// (newGameMemo below; NO_GAME_MEMO=1 makes each anew).
 //
 // step(n, inputOrBot) runs n loop ticks. The input is a partial snapshot ({ mx: 1 } is enough,
 // filled from NO_INPUT; an act in a fixed input fires on every one of the n ticks, so step(1, …)
@@ -50,6 +51,10 @@ export const stepBudget = (n) => Object.freeze({ over: (stepsDone) => stepsDone 
  */
 let HOUSE_OVERRIDE = null;
 export function withHouse(o, fn) { const was = HOUSE_OVERRIDE; HOUSE_OVERRIDE = o ?? null; try { return fn(); } finally { HOUSE_OVERRIDE = was; } }
+// (v0.0.26: "Bang, then go"'s draw for every house game a suite's helper makes inside fn and names none (withBreach('bang,held', fn): the
+// live lanes' gauges, tests/flawless-live.mjs liveLane, played on the scene by tests/breach-nodead), as withHouse does for the house)
+let BREACH_OVERRIDE = null;
+export function withBreach(code, fn) { const was = BREACH_OVERRIDE; BREACH_OVERRIDE = code ?? null; try { return fn(); } finally { BREACH_OVERRIDE = was; } }
 /**
  * The house's options createGame passes to newGame (v0.0.22, the build sheet §2 step 3, §0 item 40): the page's precedence (core/debug.js
  * houseChoice) with rooms 'a' the default whatever the page's HOUSE_ROOMS_DEFAULT says: a named layout beats a code, the rooms and
@@ -61,6 +66,35 @@ export function houseOpts({ draw = null, house = null, doors = null, rooms = 'a'
   const H = houseChoice({ draw, house, rooms: rooms === 'a' ? null : rooms, layout, pool }, { roomsDefault: 'a' }).opts;
   const drawn = H.house || H.draw === 'drawn' ? 'drawn' : null;
   return { ...(drawn ? { draw: drawn } : {}), ...(H.house ? { house: H.house } : {}), ...(doors ? { doors } : {}), ...(H.rooms ? { rooms: H.rooms } : {}), ...(H.layout ? { layout: H.layout } : {}), ...(plans ? { plans } : {}) };
+}
+/**
+ * The fresh game kept per process (v0.0.26's stage 0, its build sheet §2 step 2; the carried lens §4.2 item 1): a quick run makes
+ * about 3,600 games, half of them repeats of options made before in the same worker (the barracks' roster alone is 10 ms a roll), so
+ * newGameMemo(opts) keeps the first newGame(opts) for given options, keyed by the options' JSON, and hands every caller a
+ * structuredClone of it, the first caller included, so every game a test makes is a clone of one plain state whether it was made
+ * now or before. The state is plain data (CLAUDE.md's rule), so a clone of it is the state newGame would make again: the same save,
+ * the same digest, the same play (game-memo holds it, with and without). A game that changes its state never reaches the kept one.
+ * Options with test domains (descriptors that replace built-in ones) are never kept, nor a state that will not clone; at most
+ * GAME_MEMO_MAX are kept, the least recently used dropped first. NO_GAME_MEMO=1 (read at each call) makes every game anew.
+ */
+export const GAME_MEMO_MAX = 64;
+const GAME_MEMO = new Map();
+const memoCount = { hits: 0, misses: 0, skipped: 0 };
+/** The memo's counts so far in this process: { hits, misses, skipped, kept }. */
+export const gameMemoStats = () => ({ ...memoCount, kept: GAME_MEMO.size });
+/** A fresh state for newGame's options (see above). */
+export function newGameMemo(opts) {
+  if (process.env.NO_GAME_MEMO === '1' || Object.keys(opts.domains ?? {}).length) { memoCount.skipped++; return newGame(opts); }
+  const key = JSON.stringify(opts);
+  let kept = GAME_MEMO.get(key);
+  if (kept) { memoCount.hits++; GAME_MEMO.delete(key); GAME_MEMO.set(key, kept); return structuredClone(kept); }
+  kept = newGame(opts);
+  let out;
+  try { out = structuredClone(kept); } catch { memoCount.skipped++; return kept; }
+  memoCount.misses++;
+  GAME_MEMO.set(key, kept);
+  if (GAME_MEMO.size > GAME_MEMO_MAX) GAME_MEMO.delete(GAME_MEMO.keys().next().value);
+  return out;
 }
 /** Real skips end; one that hasn't after this many slices is a bug, not a long skip. */
 export const SKIP_SLICES_MAX = 1_000_000;
@@ -84,10 +118,12 @@ export { playerActor };
  * drawn house), rooms, layout and plans (v0.0.22, the build sheet §2 step 3, §0 item 40: rooms 'a' (layout A's three, whatever the
  * page's HOUSE_ROOMS_DEFAULT) or 'all' (X4's eight, which alone implies drawn and with draw 'set' is dropped, as the page drops it);
  * layout 'A' (the set), 'B' or 'C', a named house that beats house, rooms and draw; plans 'derived'; each passed only when not the
- * default, so no test, pin or golden moves with them absent).
+ * default, so no test, pin or golden moves with them absent). breach (v0.0.26: "Bang, then go"'s draw on the house's scenario, 'drawn'
+ * or a code '<bang|quiet>,<held|loose>' (shoothouse.js parseBreach), as the page's &breach= does; passed only when given, and keyed by the
+ * memo with the other options).
  */
 export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', hour = null, startMs, worldId = null,
-  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = 'a', layout = null, plans = null, pool = null, again = false } = {}) {
+  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = 'a', layout = null, plans = null, pool = null, again = false, breach = null } = {}) {
   const errors = [];
   let sim = null, hooks = null, seen = 0;
   const bus = recordingBus({ onError: (e, type) => errors.push(`a listener of '${type}': ${firstLine(e)}`) });
@@ -110,12 +146,14 @@ export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', 
   if (typeof again !== 'boolean') throw new Error(`createGame(): no such again ${JSON.stringify(again)} (true or false)`);
   if (!ROOMS_URL.includes(rooms ?? 'a') || (layout !== null && !LAYOUTS_URL.includes(layout)) || (plans !== null && !PLANS_URL.includes(plans))) throw new Error(`createGame(): no such house option ${JSON.stringify({ rooms, layout, plans })}`);
   // (and from v0.0.22 the override's rooms and layout too (withHouse({ draw: 'drawn', rooms: 'all' }, fn)), for a createGame naming none)
+  if (breach === null && BREACH_OVERRIDE && scenario === 'test-shoothouse') breach = BREACH_OVERRIDE;
   if (draw === null && !house && !layout && (rooms ?? 'a') === 'a' && HOUSE_OVERRIDE) { house = HOUSE_OVERRIDE.house ?? null; draw = HOUSE_OVERRIDE.draw ?? null; rooms = HOUSE_OVERRIDE.rooms ?? 'a'; layout = HOUSE_OVERRIDE.layout ?? null; }
   // (v0.0.22, the B and C review of 2026-11-16: a live lane is drawn as the test asks (liveDraw), which the page never passes: there it
   // is the set until its ship rule is met, shoothouse.js drawnCodeFor; a lane with no draw asked is the set either way)
-  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier, env, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...houseOpts({ draw, house, doors, rooms, layout, plans, pool }), liveDraw: true, ...(again ? { again } : {}) };
+  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier, env, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...houseOpts({ draw, house, doors, rooms, layout, plans, pool }), liveDraw: true, ...(again ? { again } : {}), ...(breach ? { breach } : {}) };
   if (startMs !== undefined) opts.startMs = startMs;
-  loop.setState(newGame(opts));
+  // (v0.0.26's stage 0: the fresh state kept per process by its options, newGameMemo below)
+  loop.setState(newGameMemo(opts));
 
   const strictCheck = () => {
     if (strict && errors.length > seen) { const fresh = errors.slice(seen); seen = errors.length; throw new Error(`the game broke: ${fresh.join('; ')}`); }

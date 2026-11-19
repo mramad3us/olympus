@@ -58,6 +58,10 @@
 // each plate naming a target was slid off the room on its own, so the row's plate ("PAIR, MOVING ON") could slide onto the shot's
 // plaque ("TORSO SURE") under it. place() keeps the frame's slid plates (PLATES, emptied by each keepOff) and slides each new one off
 // them too; slideRect stacks a plate below one it would meet (its x kept, 'stacked'), else slides as before, never onto a plate.
+// v0.0.26 (its build sheet's K6): A BUBBLE AT ITS SPEAKER, EVEN AMONG BOARDS. A bubble with no free place clear of the figures and
+// boards is tried once more with their boxes left out (never the HUD's, never another bubble's), after every bubble that found a free
+// place, so those stand where they did; only a bubble with no place even then is left to the radio box (your #2's "Got you." at the
+// Wreck's scuttle, the hold's boards behind it, went there; "Don't shoot!" from a man among boards and bodies would have).
 import { glyphOf } from '../art/font.js';
 import { glyph57, width57 } from '../art/kit/type.js';
 import { GLOWS } from '../art/palette.js';
@@ -485,7 +489,7 @@ export const IDENT_WORDS = Object.freeze({ rifle: 'RIFLE', pistol: 'PISTOL', han
  * after what was identified (contact.js identify's last.state, written only on a passed roll: a failed one leaves none, "can't
  * tell"): "CONTACT · RIFLE · AIMING · TAKEN IN 0.80 S". A stand has none, so every v0.0.18 plate is the same.
  */
-export const STATE_WORDS = Object.freeze({ aiming: 'AIMING', looking: 'LOOKING', running: 'RUNNING', hands: 'HANDS UP', cowering: 'COWERING', down: 'DOWN' });
+export const STATE_WORDS = Object.freeze({ aiming: 'AIMING', looking: 'LOOKING', running: 'RUNNING', hands: 'HANDS UP', cowering: 'COWERING', down: 'DOWN', dazed: 'DAZED' });
 /** The strip's span for a take-in (ms): STRIP_SPAN_MS, or the next whole second past a longer one. */
 export const stripSpanMs = (ms) => Math.max(STRIP_SPAN_MS, Math.ceil((Number(ms) || 0) / 1000) * 1000);
 /**
@@ -763,10 +767,19 @@ export function markPlace(head, size, others = [], { bounds = null, reach = MARK
  * The frame's bubbles placed (pure, v0.0.24; see the header): marks (speakerMarks'), headOf(mark) → the speaker's head box (picture
  * px) or null (no body and no loudspeaker: no bubble), boxes (every figure's and stand's, by who: a speaker's own is left out for
  * his bubble), ui (the HUD's rectangles in picture px), bounds (the picture). In order of the lines' starts, each placed by markPlace
- * clear of the boxes, the HUD and the bubbles placed before it: { placed: [{ m, pix, at, head }], unplaced: [marks] }.
+ * clear of the boxes, the HUD and the bubbles placed before it: { placed: [{ m, pix, at, head, over? }], unplaced: [marks] }.
+ * v0.0.26 (its build sheet's K6; v0.0.25's integration, your #2's "Got you." and "Through." at the Wreck's scuttle, the boards of
+ * the hold behind it on every row within BUBBLE_ABOVE_PX): a bubble with no free place clear of the figures and boards tries once
+ * more over them (`over: true`), never over the HUD or another bubble, so it stands at its speaker rather than in the radio box. The
+ * second tries come after every first, so a bubble that places on its first try places exactly where it did before.
  */
 export function placeBubbles(marks, { headOf, boxes = [], ui = [], bounds = null }) {
-  const placed = [], unplaced = [], taken = [];
+  const placed = [], unplaced = [], taken = [], again = [];
+  const take = (m, pix, at, head, over) => {
+    // (a pixel's gap kept round each, so two never touch once scaled to the window)
+    taken.push({ x: at.x - 1, y: at.y - 1, w: pix.w + 2, h: pix.h + 2, who: 'bubble' });
+    placed.push({ m, pix, at, head, ...(over ? { over: true } : {}) });
+  };
   for (const m of [...marks].sort((a, b) => a.fromMs - b.fromMs || String(a.who).localeCompare(String(b.who)))) {
     const head = headOf(m);
     if (!head) continue;
@@ -774,11 +787,15 @@ export function placeBubbles(marks, { headOf, boxes = [], ui = [], bounds = null
     // (a line heard at a place, its `at` (a loudspeaker, your #2's words at the scuttle), reaches BUBBLE_AT_REACH_PX up: a place has no
     // body of its own to stand over, and the boards round a scuttle left it none in BUBBLE_ABOVE_PX (v0.0.25's fixer, the play review's
     // "Got you." and "Through." in the radio box alone))
-    const pix = balloonSize(m.text), at = markPlace(head, { w: pix.w, h: pix.h }, [...boxes.filter(b => b.who !== m.who), ...ui, ...taken], { bounds, reach: m.at ? BUBBLE_AT_REACH_PX : BUBBLE_ABOVE_PX });
-    if (!at) { unplaced.push(m); continue; }
-    // (a pixel's gap kept round each, so two never touch once scaled to the window)
-    taken.push({ x: at.x - 1, y: at.y - 1, w: pix.w + 2, h: pix.h + 2, who: 'bubble' });
-    placed.push({ m, pix, at, head });
+    const pix = balloonSize(m.text), reach = m.at ? BUBBLE_AT_REACH_PX : BUBBLE_ABOVE_PX;
+    const at = markPlace(head, { w: pix.w, h: pix.h }, [...boxes.filter(b => b.who !== m.who), ...ui, ...taken], { bounds, reach });
+    if (at) take(m, pix, at, head, false); else again.push({ m, pix, head, reach });
+  }
+  // (K6's second try, in the same order: clear of the HUD and of every bubble placed, the figures' and boards' boxes left out, at
+  // the same reach as the first)
+  for (const { m, pix, head, reach } of again) {
+    const at = markPlace(head, { w: pix.w, h: pix.h }, [...ui, ...taken], { bounds, reach });
+    if (at) take(m, pix, at, head, true); else unplaced.push(m);
   }
   return { placed, unplaced };
 }

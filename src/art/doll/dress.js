@@ -16,11 +16,12 @@
 // seenOf's, as plain data: art reads no sim) and passes its hold, pose and facing to the doll, so the dressed doll is the man as you
 // see him (doll.js POSE_BENDS, worn.js holdGear); a record standing front on with no hold is the doll as before, to its key. A board's
 // painted man holds his gun where the stage paints it (W1: gear.js standGear's 'ready'), the 'hand' place kept for "Bang"'s boards.
-// The LRU holds 48 (P§4: the warm set's poses and the I and C cards; about 64 KB a doll at the near band, 3 MB at most).
+// The LRU holds 48 (P§4: the warm set's poses and the I and C cards; about 64 KB a doll at the near band, 3 MB at most); v0.0.26, 56:
+// the live lane's warm set (46 dolls) and the daze's standing and kneeling holds, two a man at two bands ("Bang, then go"), 54.
 import { doll, DOLL_SCALE } from './doll.js';
 
 /** The dressed dolls kept (my call: the house's faces, the #2, you and a few changes of gear; v0.0.23: 48, the poses' warm set). */
-export const DOLL_LRU = 48;
+export const DOLL_LRU = 56;
 /** The record's fields the doll draws (the rest of seenOf's record is the card's words or the band): a record with none of them set is the plain doll. */
 const posed = (rec) => !!rec && ((rec.pose && rec.pose !== 'stand') || (rec.facing && rec.facing !== 'front') || !!rec.hold?.how);
 const CUES = Object.freeze(['wetK', 'grimeK', 'sweatK', 'stubbleK', 'tiredK', 'bladderK', 'hungerK', 'handsK']);

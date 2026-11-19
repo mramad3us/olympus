@@ -60,6 +60,10 @@
 // passes { fresh: true }. The stage itself is not switched to this record (the build sheet §0 item 33: gunLook's per-tick fields, the
 // flash, the kick, the muzzle, the action's share, would freeze under a key): tests/flawless-seen.mjs holds the two to agree at every
 // tick of the pinned lanes (F85), through an oracle of its own written from the stage's readers.
+// v0.0.26 (the build sheet items 6 and 8; "Bang, then go"): a role-player in the shock, read from the stage's own reader, gunLook's
+// action frame ('daze' or 'cower', men.js liveStateOf through look.js): frame 'daze' ('dazeKneel' on his knee) and 'cower' (in any
+// stance), each with its pose and its hold (FRAME_SEEN's how: the rifle low in the firing hand; the hands empty, the rifle on its
+// sling), after sitting and the hands, before the dash: the stage's precedence (down, giving, shocked, frozen).
 import { playerId } from '../../core/ids.js';
 import { HOLD_HOWS, FRAME_SEEN, CARRY_HOW, TWO_HANDED, PISTOL_ACTS, portraitBand } from '../../data/portrait.js';
 import { gunLook, rangeLook } from '../arms/look.js';
@@ -145,6 +149,9 @@ export function frameOfSeen(a, gl, man = null) {
   if (man?.frame === 'handsUp' || man?.frame === 'handsKneel' || (a?.hands === true && !gl)) return a?.stance === 'kneel' || man?.frame === 'handsKneel' ? 'kneel' : 'hands';
   // (giving up: his record says hands, the rifle still on him, lowered until it drops)
   if (man?.st === 'hands' && gunInHands) return 'drop';
+  // (in the shock, as the stage draws him (see the header))
+  if (gl?.action?.frame === 'daze') return a?.stance === 'kneel' ? 'dazeKneel' : 'daze';
+  if (gl?.action?.frame === 'cower') return 'cower';
   if (man?.st === 'move') return 'run';
   if (man?.st === 'freeze' && a?.stance === 'kneel') return 'cower';
   if (gl?.carry === 'aim' || gl?.pistol?.posture === 'aimed') return 'aim';
@@ -161,6 +168,9 @@ export function holdOfSeen(state, pid, gl, frame, gear) {
   if (dev) return { how: 'device', right: dev.model ?? null, left: null, act: null };
   const F = FRAME_SEEN[frame] ?? {};
   if (F.how === 'up') return { how: 'up', right: null, left: null, act: null };
+  // (the shock's holds, the frame's own (see the header): the rifle low in the hands, or the hands empty)
+  if (F.how === 'empty') return { how: 'empty', right: null, left: null, act: null };
+  if (F.how === 'rifle-low') { const m = gl?.model ?? modelOfItem(state, handGunOf(state, pid)); return { how: 'rifle-low', right: m, left: m, act: null }; }
   // (a hand on a hold (the gear's anchor, A's), the gun in the other: drawn one-handed)
   if (gear?.anchor === 'hold') return { how: 'hold', right: gl ? (gl.pistol ? gl.pistol.model : gl.carry === 'front' || gl.carry === 'slung' ? null : gl.model) : null, left: 'hold', act: null };
   const magId = handMagOf(state, pid)?.id ?? null, mag = modelOfItem(state, magId);

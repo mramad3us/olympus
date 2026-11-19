@@ -44,6 +44,40 @@ export const OPFOR_SPOTS = deepFreeze({
 });
 
 /**
+ * v0.0.26, "Bang, then go" (its build sheet §0 items 1 and 4, §3.1; scene.md SC§6.1): room 1 of lane A as set, centre-fed, one man in
+ * each marine's sector, both the same two men of the cadre (RP-A your man in the far left corner, RP-B your #2's in the far right).
+ * opfor.js reaches them through its seam (rpStandsOf, spotOf) only while the lane's record says so (R.house.bangGo); RP_STANDS and
+ * OPFOR_SPOTS are untouched. Each start is the room's far corner hot spot (room.js lanePlanOf's r1:fl, r1:fr), not the board's
+ * stand: HOUSE1's 1a and 1b stand 0.25 m off the north wall's line, 0.17 m off its face, inside a C0 body, which the spot rule
+ * refuses (my call: the man stands 0.2 m forward of the board, his own corner kept; 3.77 m from the threshold, the board's 4.1).
+ * Each hide was found by the same scratch search as v0.0.19's (/private/tmp/claude-501/olympus-build/v026/a/hide.mjs, 2026-11-19):
+ * a cell of room 1 by the spot rule (tests/opfor-world.mjs spotCheck), his own side by room.js sectorOf, 3 m or less from his
+ * start and no nearer the threshold than 1 m less than it, the dash clear for a C0 body, the farthest off the threshold's line to
+ * his start (0.76 m each, 0.9 m along the north wall toward the room's middle; 2.2 m apart). Room 1 is an open box, so the dash buys
+ * the entry's surprise, not concealment, as in rooms 2 and 3. They face the far wall ('up'), the door 148° off it, outside the
+ * 110° cone, so its leaf turns them; `holds` marks the one man laid on the door from GO when the scene draws the door held
+ * (the build sheet §0 item 4: one man, yours; 1b never holds).
+ * Each aimAt is on the door's centre line inside the room, not the threshold (the review of A, 2026-11-19; my call): the house's
+ * own G-11 lands by the far wall (z 8.14 to 9.76 on 216 of 240 lanes, 20 seeds, every sheet, held and loose), beside the men, and from a far corner
+ * the threshold lies 58° off that wall, so a man laid on the threshold faced those bursts 60° to 73° off, outside supp.js
+ * FLASH_CONE_DEG 60, and 64 of 240 men in the bang stayed unblinded and fired first. Laid on the funnel 1.3 to 1.5 m inside the
+ * door, he faces the whole room: every one of those landings within 54.5° of 1a's facing and 55.5° of 1b's (the most the far
+ * corner allows, the starts fixed by the spot rule), the threshold 14.5° off 1a's aim and 17.6° off 1b's, inside react.js
+ * SECTOR_HALF_DEG 20, so the held man still takes a marine through the door 'sector'.
+ */
+export const BREACH_STANDS = Object.freeze(['1a', '1b']);
+export const BREACH_SPOTS = deepFreeze({
+  '1a': {
+    post: 'melas:wheel-house-opfor-a', name: 'the man in the far left corner', door: 'o:w4:r1',
+    start: [27.0, 8.5], face: 'up', hide: [27.9, 8.5], dash: [[27.0, 8.5], [27.9, 8.5]], aimAt: [29.0, 10.4], eyes: [29.0, 11.7], holds: true,
+  },
+  '1b': {
+    post: 'melas:wheel-house-opfor-b', name: 'the man in the far right corner', door: 'o:w4:r1',
+    start: [31.0, 8.5], face: 'up', hide: [30.1, 8.5], dash: [[31.0, 8.5], [30.1, 8.5]], aimAt: [29.0, 10.2], eyes: [29.0, 11.7],
+  },
+});
+
+/**
  * The cadre's cards by lane room, weighted (opfor.md §1: room 2's man fight 7, give 3; room 3's fight 4, hide 4, give 2). v0.0.22 (its
  * build sheet §0 item 18, G5): keyed by the lane room ('2', '3'), not the set's stand ('2a', '3a'), so a drawn house's post in a lane
  * room is briefed as the set's man of that room; the stream stays keyed by stand (opfor.js drawCards), so the set's cards are v0.0.21's.

@@ -84,6 +84,29 @@
 // 'running', 'hands', 'cowering', 'down'; men.js LIVE_STATE), on a passed roll only. A live man down (sitting, still armed) keeps
 // his rows: Hold him as "Cover him", leading. contactLive and lullOf read men.js upNow. And the startle's hold on the
 // player's flow runs first in the look (bundle.js startleTick). A lane with no live man writes nothing new.
+// v0.0.26 ("Bang, then go": its build sheet items 6, 7 and 9, §3.1; COMBAT §7.7, §7.11): the identification reads men.js
+// liveStateOf, so a man taken in while startled, flash-blind or stunned reads 'dazed' (DAZED on the plaque), on every live lane.
+// On "Bang, then go" (R.house.bangGo) the read then follows sight: a man whose state a passed look has written, seen at SEEN this
+// tick (contactLook, you neither startled nor blind), is read as he is (liveStateOf), so the plaque's word, the stage's frame and T's
+// line agree while he is in plain sight (the review of A, 2026-11-19: a man taken in DAZED who froze read DAZED for 4.15 s while drawn
+// cowering and T said "He's done. Challenge him."); out of sight, or on the other lanes (their pins), it waits for the next look.
+// Challenge is offered also on a man read cowering, or seen cowering now (his liveStateOf 'cowering', his body seen at SEEN), the
+// bracket on him: a man who froze after the pause that took him in is still a man to challenge (the challenge's give is
+// opfor.js challengeTick's). And "Search him" ('contact:search', SEARCH_LABEL, SEARCH_MS 20 s), on "Bang, then go"'s lane only
+// (R.house.bangGo): a row on a man accounted for at his room's "Clear!" (searchableOf: ruled out there, or still accounted as
+// down or with his hands up, men.js accountedOf, his leg called clear), not yet searched, within SEARCH_M 1.5 m of you, the one
+// nearest you. Out of reach, the row is its walk, 'move:search' "To him, to search" (searchWalkOf: a move row as bundle.js
+// startSingle runs the house's moves, at Combat to SEARCH_WALK_M 0.9 m short of the nearest such man on the line from you), so T and
+// a press reach it as the keys do (the review of A, 2026-11-19: the men lay 3.0 to 4.9 m off at "Clear!", and with no walk the row
+// was never offered on 192 lanes). Its 20 s are SEARCH_PARTS 4 parts, so a sighting (contactInput, as it cuts a
+// Breathe) cuts it at a part's end; behind the house's skip the detector sits out, so in play only a search at 1× is cut by a sighting
+// (the skip never begins over a pending; the code review of v0.0.26). Offered only until the lane's end. Its start writes R.house.bangGo.search = { key, fromMs, untilMs } (the
+// scene's record of the last search begun) and its end, the sub's last tick lived, T.live.searched = { by, atMs }, bangGo.search
+// back to null and the 'house' fact { phase: 'rp', kind: 'searched', key } (the last part's end only): his card turns to the truth
+// then (the hud's).
+// searchOn(state, ms) is whether a search is under way now (the stop's doing on its sub, or on its walk; never the record alone: a
+// search cut by a cue leaves the record, and is offered again). cardPhaseOf(state, key) is the phase his hit card is drawn in: the truth once he is
+// searched or the lane is over, belief before. Never required, never faulted.
 // Pure but contactLook, contactInput, identify, runContactSub, endContactSub and byOrder, which write the mind, the stop
 // and the log.
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
@@ -107,8 +130,9 @@ import { gunField } from '../arms/firearms.js';
 import { roomPlanOf, pastThreshold, inFunnel, manPlace, doorOfRoom } from './room.js';
 import { ownerOf, roleAt } from './team.js';
 import { stillUp } from '../arms/specials.js';
-import { seenK, upNow, stale, remember, drawnOn, gateWhy, casualtyOn, LIVE_STATE } from './men.js';
-import { startleTick, flowOn, carryOn, doorNow } from './bundle.js';
+import { seenK, upNow, stale, remember, drawnOn, gateWhy, casualtyOn, liveStateOf, accountedOf } from './men.js';
+import { startleTick, flowOn, carryOn, doorNow, legsOf, wayOf } from './bundle.js';
+import { profileOf, pathLen } from './stepper.js';
 import { BANG_LATE_MS } from './burst.js';
 import { opOf, onHouse, laneRec, sessionOf } from './op.js';
 
@@ -132,6 +156,12 @@ export const CHALLENGE_SAY = 'Show me your hands!';
 export const CONTACT_LABELS = Object.freeze({ 'contact:hold': 'Hold him', 'contact:challenge': 'Challenge' });
 /** Hold him on a live man down, still armed (v0.0.19: the role-players'; COMBAT §7.11). */
 export const COVER_LABEL = 'Cover him';
+/** "Search him" (v0.0.26; COMBAT §7.7, CONTRACTS' 20 s): its label, its time (ms) and its reach from you (m; my call). */
+export const SEARCH_LABEL = 'Search him', SEARCH_MS = 20_000, SEARCH_M = 1.5;
+/** The search's parts, each SEARCH_MS / SEARCH_PARTS (my call: as Breathe's four, so a sighting cuts it at a part's end, never mid-part). */
+export const SEARCH_PARTS = 4;
+/** The search's walk: its end this far short of him on the line from you (m; my call: inside SEARCH_M with the walk's arrival to spare), and its label. */
+export const SEARCH_WALK_M = 0.9, SEARCH_WALK_LABEL = 'To him, to search';
 
 const sgn = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const ZERO_FEET = Object.freeze({ mx: 0, mz: 0, run: false, stroll: false });
@@ -201,6 +231,13 @@ export function contactLook(state, input, bus, ctx) {
     const k = q(seenK(state, me, T, ms, { drawn: T.key === drawnKey }), 1e-6);
     (liveK ??= {})[T.key] = k;
     if (k >= SEEN) { c0 ??= noteContact(state, {}); remember(c0.seenAt ??= {}, T.key, ms); }
+  }
+  // ("Bang, then go" only: a man identified at a pause and seen now in plain sight is read as he is (see the header))
+  if (c0?.last?.state && liveK && laneRec(state)?.bangGo) for (const T of list) {
+    const was = c0.last.state[T.key];
+    if (was === undefined || !(liveK[T.key] >= SEEN)) continue;
+    const now = liveStateOf(state, T, ms);
+    if (now && now !== was) c0.last.state[T.key] = now;
   }
   if (c0?.drawn) delete c0.drawn;
   // (a turner turned away is forgotten: its next turn is a fresh sighting; v0.0.19, a live man out of sight MAN_MEMORY_MS too)
@@ -424,6 +461,8 @@ export function contactInput(state, input, bus, ctx) {
   // through a man seen)
   const b = state.stop?.doing;
   if (b && b.kind === 'breathe' && b.i + 1 < b.list.length) b.cut = true;
+  // (and "Search him", at its part's end: a man seen is a cue, the search offered again after it (see the header))
+  if (b && b.list?.[b.i] === 'contact:search' && b.i + 1 < b.list.length) b.cut = true;
   if (state.clock.ms < P.untilMs) {
     // (time held inside the window would freeze the game on a person not yet taken in, every action refused: a stop-motion
     // step that ended here lets the clock run on, the body idle (COMBAT §25.4.5); any other hold (a reflex card) ends the
@@ -577,7 +616,8 @@ export function identify(state, pid, key, { bonus = 0, atMs = state.clock.ms } =
   L.ident[key] = ident;
   if (armour) L.armour[key] = true;
   // (v0.0.19: a live man's state, what he is doing, on a passed roll only: a failed look leaves "can't tell")
-  if (T.live && roll.ok) (L.state ??= {})[key] = LIVE_STATE[T.live.st] ?? 'looking';
+  // (men.js liveStateOf, so a shocked man reads 'dazed')
+  if (T.live && roll.ok) (L.state ??= {})[key] = liveStateOf(state, T, atMs) ?? 'looking';
   return { ident, armour, roll };
 }
 
@@ -608,10 +648,13 @@ export function relook(state, bus, key, ms = state.clock.ms) {
  */
 export function contactRows(state, pid = playerId(state), ms = state.clock.ms) {
   const S = state.stop, L = contactOf(state)?.last;
-  if (!S || S.mode !== 'stop' || !L || !S.pick || !L.ids.includes(S.pick)) return [];
+  if (!S || S.mode !== 'stop') return [];
+  // (the live men's rows that need no pause of their own: Challenge on a man seen cowering, Search him (see the header))
+  const own = liveRows(state, pid, ms);
+  if (!L || !S.pick || !L.ids.includes(S.pick)) return own;
   const key = S.pick, T = turnerTargets(state, ms).find(t => t.key === key);
   // (v0.0.19: a live man down is still armed: his rows stay, Hold him as "Cover him", leading)
-  if (!T || T.facingK < SEEN || (T.down && !T.live)) return [];
+  if (!T || T.facingK < SEEN || (T.down && !T.live)) return own;
   const id = L.ident[key] ?? 'unseen', cover = !!T.live && T.down, lead = id === 'hands' || id === 'phone' || cover;
   const tgt = targetOf(state, key, pid) ?? { ...T, dM: Math.hypot(T.x - (playerActor(state)?.x ?? 0), T.z - (playerActor(state)?.z ?? 0)) };
   const aimed = S.aim?.key === key;
@@ -624,19 +667,115 @@ export function contactRows(state, pid = playerId(state), ms = state.clock.ms) {
   // review of v0.0.8: pressed again it took 0 ms and did nothing, a dead button at the head of the panel))
   const held = aimed && heldOf(state, pid, ms, key).v >= HELD_MAX;
   const out = [row('contact:hold', aimMs + holdMs, [...(aimed ? [] : [{ id: 'aim', label: 'Aim', ms: aimMs }]), { id: 'hold', label: 'Hold the aim', ms: holdMs }], { skill: 'marksmanship', ...(cover ? { label: COVER_LABEL } : {}), ...(held ? { off: 'held', lead: false } : {}) })];
-  if (id === 'unseen' || id === 'hands' || id === 'phone') out.push(row('contact:challenge', CHALLENGE_MS, [{ id: 'contact:challenge', label: CONTACT_LABELS['contact:challenge'], ms: CHALLENGE_MS }], { words: CHALLENGE_SAY }));
+  if (id === 'unseen' || id === 'hands' || id === 'phone' || cowering(state, key, L, ms)) out.push(row('contact:challenge', CHALLENGE_MS, [{ id: 'contact:challenge', label: CONTACT_LABELS['contact:challenge'], ms: CHALLENGE_MS }], { words: CHALLENGE_SAY }));
+  return [...out, ...own.filter(r => !out.some(o => o.id === r.id))];
+}
+// (a man read cowering at the last pause, or a live man up whom you see cowering now (his body at SEEN from your eye))
+function cowering(state, key, L, ms) {
+  if (L?.state?.[key] === 'cowering') return true;
+  const T = turnerOf(state, key), me = playerActor(state);
+  return !!T?.live && liveStateOf(state, T, ms) === 'cowering' && !!me && seenK(state, me, T, ms) >= SEEN;
+}
+// (a contact row of the live men's: the step panel's shape, as contactRows' own)
+const liveRow = (rid, label, ms0, key, o = {}) => ({ id: rid, kind: 'contact', label, ms: ms0, rushMs: null, carefulMs: null, odds: null, routine: null, off: null,
+  subs: [{ id: rid, label, ms: ms0 }], list: [rid], cmd: false, skill: null, target: key, lead: false, ...o });
+// (the rows on the bracketed live man, or the man in reach, that no pause has to give: Challenge on a man seen cowering, the bracket
+// on him though the last contact was another's; Search him on "Bang, then go" (see the header))
+function liveRows(state, pid, ms) {
+  const S = state.stop, out = [];
+  const P = S?.pick ? turnerOf(state, S.pick) : null;
+  if (P?.live && cowering(state, P.key, null, ms)) out.push(liveRow('contact:challenge', CONTACT_LABELS['contact:challenge'], CHALLENGE_MS, P.key, { words: CHALLENGE_SAY, lead: true }));
+  const T = searchableOf(state, pid, ms)[0];
+  if (T) {
+    const part = { id: 'contact:search', label: SEARCH_LABEL, ms: SEARCH_MS / SEARCH_PARTS }, subs = Array.from({ length: SEARCH_PARTS }, () => ({ ...part }));
+    out.push(liveRow('contact:search', SEARCH_LABEL, SEARCH_MS, T.key, { subs, list: subs.map(x => x.id) }));
+  } else {
+    // (none in reach: the walk to the nearest, a house move row (bundle.js startSingle's), then the search's own row there)
+    const W = searchWalkOf(state, pid, ms);
+    if (W) out.push(liveRow('move:search', SEARCH_WALK_LABEL, W.ms, W.key, { kind: 'move', to: W.to, subs: [], list: [] }));
+  }
   return out;
 }
+/**
+ * The walk up to the man a marine would search (v0.0.26; see the header): the nearest searchable at any reach, none within SEARCH_M;
+ * { key, to: [x, z] SEARCH_WALK_M short of him on the line from the marine, ms the walk's at Combat (bundle.js legsOf, its routed way) }
+ * or null.
+ */
+export function searchWalkOf(state, pid = playerId(state), ms = state.clock.ms) {
+  if (searchableOf(state, pid, ms).length) return null;
+  const T = searchableOf(state, pid, ms, { reach: false })[0], me = pid === playerId(state) ? playerActor(state) : state.actors?.list?.find(a => a.who === pid) ?? null;
+  const a = T ? state.actors?.list?.find(x => x.who === T.live.who) : null;
+  if (!T || !me || !a) return null;
+  const d = Math.hypot(me.x - a.x, me.z - a.z), k = SEARCH_WALK_M / d, to = [q(a.x + (me.x - a.x) * k, 0.01), q(a.z + (me.z - a.z) * k, 0.01)];
+  const legs = legsOf(state, pid), P = profileOf(pathLen(wayOf(state, [[me.x, me.z], to])), legs.walk.combat, legs.pushMs2, legs.brakeMs2);
+  return { key: T.key, to, ms: Math.round(P.T * 1000) };
+}
+/**
+ * The live men a marine may search now (v0.0.26; see the header), nearest first: on "Bang, then go"'s lane, accounted for at his room's
+ * "Clear!" (ruled out 'clear' or 'passed' when down or with his hands up, else men.js accountedOf 'down' or 'hands' with his leg
+ * clear), not yet searched, within SEARCH_M of the marine (reach false: any distance). Returns turner records.
+ */
+export function searchableOf(state, pid = playerId(state), ms = state.clock.ms, { reach = true } = {}) {
+  const H = laneRec(state);
+  // (never once the lane has ended: a man ruled out at "Clear!" keeps st 'out', and "To him, to search" stayed offered through SHOW CLEAR
+  // and the wash (the code review of v0.0.26, finding 1))
+  if (!H?.bangGo || !H.live || H.end) return [];
+  const me = pid === playerId(state) ? playerActor(state) : state.actors?.list?.find(a => a.who === pid) ?? null;
+  if (!me) return [];
+  const out = [];
+  for (const T of turnersOf(state)) {
+    const L = T.live;
+    if (!L || L.searched) continue;
+    const a = state.actors?.list?.find(x => x.who === L.who), dM = a ? Math.hypot(a.x - me.x, a.z - me.z) : Infinity;
+    if (reach && !(dM <= SEARCH_M)) continue;
+    const was = L.st === 'out' ? (H.live.ruled ?? []).find(r => r.key === T.key)?.was ?? null : null;
+    const ok = L.st === 'out' ? (L.outWhy === 'clear' || L.outWhy === 'passed') && (was === 'down' || was === 'hands')
+      : (accountedOf(state, T, ms) === 'down' || accountedOf(state, T, ms) === 'hands') && (H.rooms ?? []).some(R => R.room === T.room && R.state === 'clear');
+    if (ok) out.push({ T, dM });
+  }
+  return out.sort((x, y) => x.dM - y.dM || x.T.key.localeCompare(y.T.key)).map(x => x.T);
+}
+/**
+ * The phase a live man's hit card is drawn in (v0.0.26; COMBAT §7.7, VIEWS §7.7): 'truth' once he is searched (T.live.searched) or the
+ * lane is over (the range's end, the hot wash's truth), else 'belief'; a stand's card the lane's end alone. The one reader for the
+ * card (ui/hud/target.js passes it to marks.js hitMarks) and the tests.
+ */
+export function cardPhaseOf(state, key) {
+  const R = state.armoury?.range ?? null, T = turnerOf(state, key);
+  return R?.end || T?.live?.searched ? 'truth' : 'belief';
+}
+/** Whether a search is running now (v0.0.26; see the header): the stop's doing on its 'contact:search' sub, not yet at its end. Returns its target's key or null. */
+export function searchOn(state, ms = state.clock.ms) {
+  const d = state.stop?.doing;
+  // (its walk: the house's move under way, the man it walks to the nearest still searchable)
+  if (d?.step === 'move:search') return searchableOf(state, d.who ?? playerId(state), ms, { reach: false })[0]?.key ?? null;
+  if (!d || d.list?.[d.i] !== 'contact:search' || (Number.isFinite(d.untilMs) && ms >= d.untilMs)) return null;
+  return d.target ?? state.stop?.pick ?? null;
+}
 
-/** A contact sub-step at its start (shooting.js runSub): the challenge said. Returns { ms, text }. */
+/** A contact sub-step at its start (shooting.js runSub): the challenge said; v0.0.26, the search begun (see the header). Returns { ms, text }. */
 export function runContactSub(state, bus, d, id, atMs) {
+  if (id === 'contact:search') {
+    const H = laneRec(state), key = d?.target ?? state.stop?.pick ?? null;
+    if (H?.bangGo && key && !(d?.i > 0)) H.bangGo.search = { key, fromMs: atMs, untilMs: atMs + SEARCH_MS };
+    return { ms: SEARCH_MS / SEARCH_PARTS, text: SEARCH_LABEL };
+  }
   if (id !== 'contact:challenge') return { ms: 0, text: null };
   bus?.emit('say', { who: d?.who ?? playerId(state), text: CHALLENGE_SAY, kind: 'speech', durMs: CHALLENGE_MS });
   return { ms: CHALLENGE_MS, text: CHALLENGE_SAY };
 }
 
-/** A contact sub-step at its end (shooting.js endSub): after the challenge, a fresh identification at +CHALLENGE_BONUS, and the line says what you now see. */
+/** A contact sub-step at its end (shooting.js endSub): after the challenge, a fresh identification at +CHALLENGE_BONUS, and the line says what you now see; v0.0.26, the search done (see the header). */
 export function endContactSub(state, bus, d, id) {
+  if (id === 'contact:search') {
+    const H = laneRec(state), key = d?.target ?? state.stop?.pick ?? null, T = key ? turnerOf(state, key) : null, now = state.clock.ms;
+    // (only the last part's end searches him: a search cut at an earlier part's end leaves him as he was)
+    if (!T?.live || T.live.searched || (d && d.i + 1 < (d.list?.length ?? 1))) return null;
+    T.live.searched = { by: d?.who ?? playerId(state), atMs: now };
+    if (H?.bangGo) H.bangGo.search = null;
+    bus?.emit('house', { phase: 'rp', kind: 'searched', key, stand: T.stand, who: T.live.who, atMs: now });
+    return T.live.searched;
+  }
   if (id !== 'contact:challenge') return null;
   const pid = d?.who ?? playerId(state), key = d?.target ?? state.stop?.pick, L = contactOf(state)?.last;
   if (!key || !L?.ids.includes(key)) return null;

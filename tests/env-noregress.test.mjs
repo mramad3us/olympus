@@ -25,6 +25,11 @@
 // boots, every leg clear in STEEL_COPY's 107.55 s, the same operation at 1 G in 47.65 s), which the Wreck's body and beats (B) must
 // leave to the millisecond where the ship is absent; tests/saves/v0.0.24-*.json.gz are game-upgrade's. E's two re-records
 // (house-pin-drawn, seen-lookkeys.json) are named in .run/v025/lead.md with each cell's cause.
+// v0.0.26's stage 0 (F147, its build sheet §2 step 1, §8): the same set is "Bang, then go"'s, on v0.0.25's integrated snapshot
+// (10b699aa, every digest above unmoved there, test-zerocqb's 1bbaff6ec60182 among them), with zerocqb-pin's seven Wreck lanes among
+// the suites and tests/saves/v0.0.25-*.json.gz in game-upgrade's. Nothing of v0.0.25 moves through the round but, if it moves, a
+// house-live-pin cell by the DAZED read (a shocked role-player identified DAZED, men.js liveStateOf), re-recorded with that cause
+// alone (the sheet's §0 item 11). B adds 'test-breach' to SCENE_DIGESTS with its first digest: a new scene's own pin.
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { PRINT_HASH } from './golden.mjs';
@@ -62,6 +67,14 @@ export const SCENE_DIGESTS = Object.freeze({
   // re-pinned by the fix of the review of C and D (156e3074e18d61 before): the hold's plan lost its two corners behind the cargo, so its
   // par and the lane's are 0.5 s shorter (house.rooms[2].parMs 26,000 → 25,500, laneParMs 126,000 → 125,500), nothing else in the save)
   'test-zerocqb': '1bbaff6ec60182',
+  // (v0.0.26 B's scene, "Bang, then go": its own first pin, recorded on B's tree after A's merge (.run/v026/after-A.tree with B's work: the
+  // brief, its draw 'bang,held' on 48213, 1,000 ticks with no keys); nothing re-recorded. Re-recorded by the fix of the review of B and C
+  // (2026-11-19) for A's fix of its review (11:01, after B's recording: 1a's four-way face on the threshold at the fill, house-opfor.js
+  // BREACH_SPOTS' aimAt and eyes), 15d253d7026a58 → 1d7a05308ffe78; the re-aim after the shock and the search's skip move nothing here
+  // (checked with each undone))
+  // (v0.0.26's fixer: room 1's par planned with the flash on a bang draw (shoothouse.js roomBookOf; the drawn draw on 48213 is bang,held),
+  // the leg's and the lane's par in the state from the fill, 1d7a05308ffe78 → 100eb44409c8d3; checked with that fix alone undone)
+  'test-breach': '100eb44409c8d3',
 });
 /** The bay at 23:00 (the quick cell): the barracks at hour 23, 1,000 ticks. */
 export const BAY_2300 = Object.freeze({ scenario: 'barracks', hour: 23, seed: 48213, ticks: 1000, digest: '154a1ea53a1608' });
@@ -70,11 +83,14 @@ export const HELD_SUITES = Object.freeze([
   'house-pin', 'house-pin-drawn', 'house-live-pin', 'game-upgrade', 'game-walk',
   'people-roster', 'places-validate', 'house-shapes', 'house-draw8', 'room', 'doll-gear', 'target-view', 'art-held', 'samples-held', 'game-determinism',
   'gear-void',
+  // (v0.0.26's stage 0: the Wreck's seven lanes, v0.0.25's pin)
+  'zerocqb-pin',
 ]);
 /** void-house's steel copy (v0.0.25's F124): the sergeant by T on 48213, house 1 at 0 G in mag boots and at 1 G, every leg clear, ms from the start. */
 export const STEEL_COPY = Object.freeze({ steelMs: 107_550, oneMs: 47_650 });
 
-const SCENE_ROWS = () => [...Object.values(SCENES), ...Object.values(STARTS)].map(s => ({ id: s.id, scenario: s.scenario, ...(s.setup ? { setup: s.setup } : {}), ...(s.opfor ? { opfor: s.opfor } : {}) }));
+// (v0.0.26: a scene's own `breach` with it, so "Bang, then go"'s row is the scene's, not the live lane's)
+const SCENE_ROWS = () => [...Object.values(SCENES), ...Object.values(STARTS)].map(s => ({ id: s.id, scenario: s.scenario, ...(s.setup ? { setup: s.setup } : {}), ...(s.opfor ? { opfor: s.opfor } : {}), ...(s.breach ? { breach: s.breach } : {}) }));
 
 // (one scene: made on 48213, n ticks with no keys, its save's digest and its errors)
 function sceneAt({ id, ticks = 1000, seed = 48213, ...o }) {

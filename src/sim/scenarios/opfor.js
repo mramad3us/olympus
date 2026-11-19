@@ -85,12 +85,44 @@
 // (stream(seed, 'house:rp', …), supp.js's, react.js's, shot.js's shotStream), never Math.random. opforNow(state, ms) is the hud's,
 // the bots' and the tests' view; opforLook(state, ms) the stage's (the figure's frame, his rifle in his hands, across his knees
 // or on the floor). A wound that bleeds him down later (would.js wouldTick) sits him down at that tick (opforBled). Pure but fillOpfor,
-// opforTick, opforHit, opforBled and ruleOut, which write the session.
+// opforTick, opforHit, opforBled, ruleOut and friendDown, which write the session.
+//
+// v0.0.26, "Bang, then go" (its build sheet §0 items 4, 5, 11, §3.1; COMBAT §7.10, §7.11; defenders.md DF§3 to DF§6): the scene's
+// lane (R.house.bangGo, written by the scene's fill only: absent on every other lane, so they read as before) puts the same two men
+// in room 1 (house-opfor.js BREACH_SPOTS: RP-A your man in the far left corner, RP-B your #2's in the far right), reached through
+// the one seam (rpStandsOf gives BREACH_STANDS, spotOf BREACH_SPOTS[T.stand]); their cards are forced 'fight', so whatever they do
+// after is the table's. Four things are new, and the rest is the procedure above:
+//   the held door (fillOpfor): with bangGo.held 'held', the spot that `holds` (1a only) starts laid on the door: st 'aim', his
+//      carry aimed, his head on aimAt (the funnel inside the threshold), his four-way face on the spot's `eyes` (the threshold), L.aimAt
+//      and L.cue (the door) set, so a marine through it in his cone is taken in 'sector'. A loose man turned by the door's leaf lays his
+//      aim in shot.js aimMsOf from the facing he turned from (its turn term; TURN_MS the head's part of it), so the hold is worth its
+//      0.45 s (the review of A, 2026-11-19: from the facing he turned to, he was laid 1.15 s after the leaf, before any entry, and
+//      held and loose were one room on 96 of 96 lanes); on the scene's lane only, the live lane's aim as built (its pins);
+//   the window closes (brain): the shock knocks a laid aim off the door; on the scene's lane a man left at st 'aim' with no aim laid
+//      nor coming, his shock over, lays it on the door again (startAim, aimMsOf from where he holds it), so a slow stack meets his
+//      rifle (the review of B and C, 2026-11-19: he stood at his low ready until a marine was in his eyes, and holding 8 s cost
+//      nothing); the live lane as built;
+//   a friend seen falling (friendDown, from goDown, so from a fatal round and opforBled alike; COMBAT §7.10's one term): each other
+//      live man not spent who sees him fall (men.js bodySeen from his eye, at SEEN) or stands within supp.js FRIEND_HIT_M 10 m of
+//      him in the same room takes supp.js's 'friendHit' (FRIEND_HIT_PTS 10, its own gate at 10 m) and L.resolve less RESOLVE_FRIEND
+//      0.1 (from 1), which his next nerve check reads (choiceOf passes it to supp.js nerveCheck: round(10 × (resolve − 1)), −1 at
+//      0.9); once a fall. On the live lane's set its two men stand 15.6 m apart in rooms 2 and 3 behind walls: nothing is written;
+//   the challenge ends a freeze (challengeTick, before the shock: the give is no new aggression): a man in 'freeze' or 'cover' on
+//      whom your Challenge ('contact:challenge', contact.js CHALLENGE_MS 1.2 s) runs, who at its end sees you (bodySeen at SEEN) or
+//      hears you (supp.js hearsVoice: deaf after the bang but within DEAF_VOICE_M 2 m) within KNEEL_M 6 m, gives on that tick
+//      (startGive) and kneels as soon as his rifle is down (kneelTick reads the same L.chalUntilMs). A challenge already over is
+//      judged before a new one is taken (a second press on the first one's held end tick never puts the first off). Unchallenged he
+//      stays the table's: his felt back under suppressed, he rolls fight and comes back up;
+//   the read: a shocked man (men.js shockedNow, rpShocked here) not down nor giving is drawn in the frame 'daze' (opforLook) and read
+//      'dazed' (men.js liveStateOf: the identification's word, DAZED), on every live lane. L.choice keeps its band and grade as
+//      built ({ what, band, atMs, grade, dc }: the CONTRACTS choice fact's band, grade and atMs, `what` its choice, no who or felt; the fact
+//      itself is not posted, CONTRACTS says so).
+// opforNow gains dazed, resolve and searched (T.live.searched, the search's end: contact.js's).
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { stream, weighted } from '../../core/rng.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
-import { OPFOR_SPOTS, RP_STANDS, RP_CARD_WEIGHTS, RP_QUALITY, RP_DOCTRINE, RP_CLASS, RP_INOC } from '../../data/places/house-opfor.js';
+import { OPFOR_SPOTS, RP_STANDS, BREACH_SPOTS, BREACH_STANDS, RP_CARD_WEIGHTS, RP_QUALITY, RP_DOCTRINE, RP_CLASS, RP_INOC } from '../../data/places/house-opfor.js';
 import { houseSpecOf, postsOf } from '../scenes/assemble.js';
 import { openingState } from '../places/model.js';
 import { placeGaits } from '../body/motion.js';
@@ -112,11 +144,11 @@ import { resolveShot, aimMsOf } from '../arms/shot.js';
 import { rowPlan } from '../arms/specials.js';
 import { rollerOf } from '../combat/roll.js';
 import { takeInMs } from '../combat/react.js';
-import { feltOf, bandN, nerveCheck, startled, addSupp, inputPts, blockOf } from '../combat/supp.js';
+import { feltOf, bandN, nerveCheck, addSupp, inputPts, hearsVoice, FRIEND_HIT_M } from '../combat/supp.js';
 import { manPlace, roomAt, SECTOR_HALF_DEG } from '../combat/room.js';
 import { legsOf as bodyLegsOf, BODY_GAP_M } from '../combat/bundle.js';
 import { profileOf, moveAt, pathLen } from '../combat/stepper.js';
-import { bodySeen, marineTarget, incoming, remember, stale, struckOn, forget } from '../combat/men.js';
+import { bodySeen, marineTarget, incoming, remember, stale, struckOn, forget, shockedNow, liveStateOf } from '../combat/men.js';
 import { wouldHave, strikeOf, fatalOf, newLedger } from '../combat/would.js';
 
 /** The URL's modes (&opfor=none | live[:<2a card>,<3a card>]). */
@@ -139,6 +171,8 @@ export const CUE_SHOT_M = 8, CUE_BURST_M = 10;
 export const NEAR_MISS_M = 0.5;
 /** He surrenders only with a marine's weapon within this (m), and kneels to a challenge within that (m) (COMBAT §7.11; opfor.md §2.3). */
 export const SURRENDER_M = 5, KNEEL_M = 6;
+/** A friend seen falling takes this off his resolve (COMBAT §7.10; v0.0.26). */
+export const RESOLVE_FRIEND = 0.1;
 /** His rounds kept on the house's record (R.house.live.shots). */
 export const SHOTS_KEPT = 30;
 /** His rifle laid on the floor this far ahead of him, toward his door (m; my call). */
@@ -216,14 +250,22 @@ function drawnPosts(state) {
  * `post` the billet of his lane room's man (the same two men of Base Melas wherever their rooms fall).
  */
 export function spotOf(state, T) {
+  if (bangGoOf(state)) return BREACH_SPOTS[T.stand];
   const P = drawnPosts(state);
   return P ? P[T.stand] : OPFOR_SPOTS[T.stand];
 }
-/** The lane's role-player stands, room 2's then room 3's: the set's RP_STANDS ['2a', '3a']; on a drawn house the stands of the posts of lane rooms 2 and 3 (G5); state may be null (the set). */
+/**
+ * The lane's role-player stands, room 2's then room 3's: the set's RP_STANDS ['2a', '3a']; on a drawn house the stands of the posts of
+ * lane rooms 2 and 3 (G5); on "Bang, then go" (v0.0.26: R.house.bangGo, never R.house.breach, the house's breached doors) room 1's
+ * BREACH_STANDS ['1a', '1b']; state may be null (the set).
+ */
 export function rpStandsOf(state) {
+  if (bangGoOf(state)) return BREACH_STANDS;
   const P = drawnPosts(state);
   return P ? Object.keys(P).sort() : RP_STANDS;
 }
+// (the scene's record, "Bang, then go"'s (v0.0.26): its fill's alone; absent on every other lane)
+const bangGoOf = (state) => (state ? rangeOf(state)?.house?.bangGo ?? null : null);
 /**
  * A role-player's sheet at quality q (COMBAT §7.9's mapping; see the header): Marksmanship and Weapon handling round(4 + 14q), Fieldcraft
  * and Awareness round(3 + 12q), CQC round(2 + 12q), Warfighting round(60 q²); the class 'cop' (supp.js HARD_K, NERVE_K), whose values
@@ -278,6 +320,8 @@ export function fillOpfor(state, H = rangeOf(state)?.house ?? null, opts = null)
       live: { who: pid, card: cards[stand], st: 'wait', fromMs: now, cue: null, aimAt: null, aiming: null, turn: null, eyes: null, eng: null, move: null,
         choice: null, band: 0, seen: {}, known: {}, drawn: null, give: null, ia: null, firstAtMs: null, fired: 0, dashed: false, said: {} },
     };
+    // (the held door, "Bang, then go"'s draw: the spot that holds laid on the threshold from the fill (see the header))
+    if (H.bangGo?.held === 'held' && S.holds) holdDoor(state, R.turners[i], state.actors.list.at(-1), S, now);
     pids[stand] = pid;
   }
   H.live = { mode: 'live', cards, seenBy: {}, struck: [], casualty: null, ruled: [], shots: [], heardMs: now, burstsHeard: H.bursts?.length ?? 0, would: newLedger() };
@@ -286,6 +330,15 @@ export function fillOpfor(state, H = rangeOf(state)?.house ?? null, opts = null)
   return { cards, pids };
 }
 const legIndex = (T) => (T.stand === 'H' ? 3 : Number(T.stand?.[0]) - 1);
+// (his rifle laid on his door's threshold before anyone comes: st 'aim', aimed, his head on it, the door his cue already (v0.0.26))
+function holdDoor(state, T, a, S, now) {
+  const L = T.live, [x, z] = S.aimAt;
+  L.st = 'aim'; L.fromMs = now;
+  L.aimAt = [x, z];
+  L.cue = { x: q(x, 0.001), z: q(z, 0.001), atMs: now, why: 'door' };
+  state.people[L.who].kit.carry.posture = 'aimed';
+  a.headRad = q(bearing(a, x, z), 1e-6); a.face = eyesFace(a, S);
+}
 
 // ---- each lived tick ----
 
@@ -355,6 +408,7 @@ function brain(state, bus, R, H, Lv, T, a, now, news) {
   hear(state, bus, H, T, a, now, news);
   if (L.give) { if (now >= L.give.dropAtMs) giveUp(state, bus, T, a, now); return 0; }
   if (L.st === 'hands') { kneelTick(state, T, a, now); return 0; }
+  if (challengeTick(state, bus, T, a, now)) return 0;
   const shocked = shockedOf(state, pid, now);
   if (shocked) {
     // (a startle, a flash or a stun: nothing new; a held aim knocked off the door; rounds not yet fired cut)
@@ -371,17 +425,17 @@ function brain(state, bus, R, H, Lv, T, a, now, news) {
   if (L.move) return moveTick(state, bus, H, T, a, now);
   if (L.st === 'freeze' || L.st === 'cover') { look(state, bus, H, T, a, now, { fire: false }); return 0; }
   if (L.eng) { fireTick(state, bus, R, H, Lv, T, a, now); return 0; }
+  // ("Bang, then go" only: his shock over, a man left at st 'aim' with no aim laid nor coming (the shock knocked it off,
+  // above) lays his rifle on the door again, from where he holds it; before, nothing re-aimed him but a marine in his eyes, so a slow
+  // stack cost nothing (the review of B and C, 2026-11-19). On the live lane as built, so its pins hold)
+  if (L.st === 'aim' && !L.aimAt && !L.aiming && !L.turn && bangGoOf(state) && gunOn(state, pid)) startAim(state, T, a, now);
   turnTick(state, T, a, now);
   look(state, bus, H, T, a, now, { fire: true });
   return 0;
 }
-/** Whether a role-player is shocked at ms (step 3): startled (supp.js), flash-blind or stunned (his combat block). */
-export const rpShocked = (state, pid, now = state.clock.ms) => shockedOf(state, pid, now);
-const shockedOf = (state, pid, now) => {
-  if (startled(state, pid, now)) return true;
-  const c = blockOf(state, pid);
-  return !!c && ((c.blindUntilMs ?? 0) > now || (c.stunUntilMs ?? 0) > now);
-};
+/** Whether a role-player is shocked at ms (step 3): startled (supp.js), flash-blind or stunned (his combat block); men.js shockedNow, the one reader (v0.0.26). */
+export const rpShocked = (state, pid, now = state.clock.ms) => shockedNow(state, pid, now);
+const shockedOf = (state, pid, now) => shockedNow(state, pid, now);
 
 // ---- what he hears (step 1) ----
 
@@ -424,7 +478,7 @@ function turnTick(state, T, a, now) {
     const k = clamp01((now - L.turn.fromMs) / TURN_MS);
     a.headRad = q(L.turn.fromRad + wrap(L.turn.toRad - L.turn.fromRad) * k, 1e-6);
     a.face = faceOfHead(a.headRad);
-    if (now >= L.turn.untilMs) { L.turn = null; startAim(state, T, a, now); }
+    if (now >= L.turn.untilMs) { const turn = L.turn; L.turn = null; startAim(state, T, a, now, turn); }
   }
   if (L.aiming && now >= L.aiming.untilMs) {
     const k = state.people[L.who].kit;
@@ -432,16 +486,29 @@ function turnTick(state, T, a, now) {
     L.aimAt = L.aiming.at; L.aiming = null;
   }
 }
-// (his rifle onto his door's threshold: posture 'aimed' at his aim time from where he holds it)
-function startAim(state, T, a, now) {
+// (his rifle onto his door's threshold: posture 'aimed' at his aim time from where he holds it. v0.0.26, "Bang, then go" only: after a
+// cue's turn, the aim is shot.js aimMsOf from the facing he turned from (its turn term counted, the turn's TURN_MS part of it), not
+// from the facing he turned to: the turn of 148° from the far wall cost TURN_MS 300 ms and then a still man's aim, so a loose man
+// was laid on the door 1.15 s after its leaf moved, before the entry, and the held door changed nothing on 96 of 96 lanes (the
+// review of A, 2026-11-19). On the live lane the aim is as built, so its pins hold (see the header))
+function startAim(state, T, a, now, turn = null) {
   const L = T.live, S = spotOf(state, T), gunId = gunOn(state, L.who);
   L.st = 'aim'; L.fromMs = now;
   if (!S || !gunId) return;
   const [x, z] = S.aimAt, dM = Math.hypot(x - a.x, z - a.z);
-  const ms = aimMsOf(state, L.who, gunId, { x, z, dM }, { ms: now });
-  a.headRad = q(bearing(a, x, z), 1e-6); a.face = faceOfHead(a.headRad);
+  let ms;
+  if (turn && bangGoOf(state)) {
+    const head = a.headRad;
+    a.headRad = turn.fromRad;
+    ms = Math.max(0, aimMsOf(state, L.who, gunId, { x, z, dM }, { ms: now }) - (now - turn.fromMs));
+    a.headRad = head;
+  } else ms = aimMsOf(state, L.who, gunId, { x, z, dM }, { ms: now });
+  a.headRad = q(bearing(a, x, z), 1e-6); a.face = eyesFace(a, S);
   L.aiming = { at: [x, z], untilMs: whole(now + ms) };
 }
+// (his four-way face, the eyes' cone (perception.js eyeOf reads the face, not headRad): on his spot's `eyes` where it has them (v0.0.26,
+// "Bang, then go": the threshold, his rifle laid on the funnel inside it; see house-opfor.js BREACH_SPOTS), else his aim's (as built))
+const eyesFace = (a, S) => (S?.eyes ? faceOfHead(bearing(a, S.eyes[0], S.eyes[1])) : faceOfHead(a.headRad));
 
 // ---- his eyes and his card (step 9) ----
 
@@ -628,7 +695,7 @@ function choiceTick(state, bus, H, T, a, now) {
   if (band !== L.band) { L.band = band; roll = true; }
   else if (ch && (ch.what === 'cover' || ch.what === 'freeze') && band >= 2 && now - ch.atMs >= CHOICE_DWELL_MS) roll = true;
   if (!roll) return;
-  const { what, grade, dc } = choiceOf(state, pid, { felt, atMs: now, key: `rp:${T.key}`, near: () => weaponNear(state, H, a) });
+  const { what, grade, dc } = choiceOf(state, pid, { felt, atMs: now, key: `rp:${T.key}`, near: () => weaponNear(state, H, a), resolve: L.resolve ?? null });
   L.choice = { what, band, atMs: now, ...(grade ? { grade, dc } : {}) };
   if (what === 'fight') { if (L.st === 'freeze' || L.st === 'cover') { delete a.stance; startAim(state, T, a, now); } return; }
   if (what === 'surrender') { startGive(state, T, now); return; }
@@ -644,12 +711,13 @@ function choiceTick(state, bus, H, T, a, now) {
 /**
  * A role-player's choice at a felt (COMBAT §7.11's table, the security doctrine; see the header): { what: 'fight' | 'cover' | 'freeze' |
  * 'surrender', band, grade, dc }. Calm or under fire 'fight' with no roll; else supp.js nerveCheck on its stream (key: 'rp:<turner key>'),
- * read on CHOICE_TABLE, a surrender only with near() true (a marine's weapon within SURRENDER_M), else a freeze.
+ * read on CHOICE_TABLE, a surrender only with near() true (a marine's weapon within SURRENDER_M), else a freeze. resolve (v0.0.26: his
+ * L.resolve, a friend seen falling) goes to the nerve check as built; null (none written) rolls as before.
  */
-export function choiceOf(state, pid, { felt, atMs = state.clock.ms, key = 'rp', near = () => false }) {
+export function choiceOf(state, pid, { felt, atMs = state.clock.ms, key = 'rp', near = () => false, resolve = null }) {
   const band = bandN(felt);
   if (band < 2) return { what: 'fight', band, grade: null, dc: null };
-  const r = nerveCheck(state, pid, { felt, atMs, key }), grade = r.roll?.grade ?? 'pass';
+  const r = nerveCheck(state, pid, { felt, atMs, key, resolve }), grade = r.roll?.grade ?? 'pass';
   let what = CHOICE_TABLE[Math.min(3, band)][grade] ?? 'freeze';
   if (what === 'surrender' && !near()) what = 'freeze';
   return { what, band, grade, dc: r.dc };
@@ -715,6 +783,35 @@ function kneelTick(state, T, a, now) {
   if (L.chalUntilMs !== undefined && now >= L.chalUntilMs) { L.knelt = now; a.stance = 'kneel'; }
 }
 
+// (your challenge on a man frozen or in cover (see the header): recorded while it runs on him, judged on the first tick he lives
+// at or past its end (the tick its sub-step ends holds the clock for your next choice, so the men live the one after); returns whether he gave)
+function challengeTick(state, bus, T, a, now) {
+  const L = T.live, d = state.stop?.doing, me = playerActor(state);
+  const on = !!d && !d.beats && d.list?.[d.i] === 'contact:challenge' && (d.target ?? state.stop?.pick) === T.key;
+  // (one left from a challenge he outlasted (he stood to fight before its end) is dropped once its end has passed, never a give later)
+  if (L.st !== 'freeze' && L.st !== 'cover') { if (L.chalUntilMs !== undefined && !on && now >= L.chalUntilMs) delete L.chalUntilMs; return false; }
+  // (a challenge already over is judged before a new one is taken: the tick a challenge ends holds the clock, so a second Challenge
+  // pressed on that held tick runs by the first tick he lives, and taking its end first moved the first one's give 1.2 s on, past
+  // his next roll (the review of A, 2026-11-19: the recruit on seed 5, T's "He's done. Challenge him." pressed twice, his re-roll
+  // to fight at +350 ms and a chest casualty; with one press he gave on the end tick))
+  // (given, L.chalUntilMs stays: kneelTick kneels him on it once his rifle is down)
+  if (L.chalUntilMs !== undefined && now >= L.chalUntilMs) {
+    const ended = L.chalUntilMs;
+    if (challengeHeard(state, L, a, me, now)) { startGive(state, T, now); return true; }
+    delete L.chalUntilMs;
+    if (!on || (d.untilMs ?? now) <= ended) return false;
+  }
+  if (on) L.chalUntilMs = d.untilMs ?? now;
+  if (L.chalUntilMs === undefined || now < L.chalUntilMs) return false;
+  if (!challengeHeard(state, L, a, me, now)) { delete L.chalUntilMs; return false; }
+  startGive(state, T, now);
+  return true;
+}
+// (whether a challenge ending now reaches him: you within KNEEL_M, whom he sees or hears (see the header))
+function challengeHeard(state, L, a, me, now) {
+  return !!me && Math.hypot(me.x - a.x, me.z - a.z) <= KNEEL_M && (bodySeen(state, a, me.x, me.z, now) >= SEEN || hearsVoice(state, L.who, { x: me.x, z: me.z }, now));
+}
+
 function say(state, bus, T, kind) {
   const L = T.live;
   if (L.said[kind]) return;
@@ -764,6 +861,30 @@ function goDown(state, bus, T, atMs) {
   if (p) p.posture = 'sit';
   say(state, bus, T, 'down');
   bus?.emit('house', { phase: 'rp', kind: 'down', key: T.key, stand: T.stand, who: L.who, atMs });
+  friendDown(state, bus, T, atMs);
+}
+/**
+ * A friend seen falling (w; v0.0.26, COMBAT §7.10; see the header): from goDown, once a fall. Each other live man not spent who sees T
+ * fall (men.js bodySeen from his eye, at SEEN) or stands within FRIEND_HIT_M of him in the same room: supp.js 'friendHit' on his pool
+ * (inputPts' own gate: FRIEND_HIT_PTS within FRIEND_HIT_M, nothing past it) and his L.resolve less RESOLVE_FRIEND. Returns the keys
+ * of the men it reached ([] where no one qualifies: nothing written).
+ */
+export function friendDown(state, bus, T, atMs = state.clock.ms) {
+  const R = rangeOf(state), fa = actorOf(state, T?.live?.who), out = [];
+  if (!R || !fa) return out;
+  const room = roomAt(state, fa.x, fa.z);
+  for (const O of R.turners) {
+    const L = O.live;
+    if (O === T || !L || SPENT.has(L.st) || L.give) continue;
+    const a = actorOf(state, L.who);
+    if (!a) continue;
+    const rM = Math.hypot(a.x - fa.x, a.z - fa.z), near = room !== null && rM <= FRIEND_HIT_M && roomAt(state, a.x, a.z) === room;
+    if (!near && !(bodySeen(state, a, fa.x, fa.z, atMs) >= SEEN)) continue;
+    addSupp(state, bus, L.who, { id: `${T.key}:friend`, kind: 'friendHit', pts: inputPts('friendHit', { rM }), atMs, why: 'a friend down' });
+    L.resolve = q((L.resolve ?? 1) - RESOLVE_FRIEND, 0.01);
+    out.push(O.key);
+  }
+  return out;
 }
 /**
  * The instructor's ruling on a role-player (w): he is out (why 'clear' | 'passed' | 'lane' | 'frag' | 'setup'), sits on as he is and acts no
@@ -788,7 +909,7 @@ export function ruleOut(state, bus, T, why, atMs = state.clock.ms) {
 
 // ---- the views ----
 
-/** The role-players now (the hud's, the bots' and the tests' view): [{ key, stand, name, who, card, st, x, z, room, slot, headRad, fired, firstAtMs, hits, fatal (the why of his fatal strike, would.js, or null), rifle, choice, band, outWhy }]. */
+/** The role-players now (the hud's, the bots' and the tests' view): [{ key, stand, name, who, card, st, x, z, room, slot, headRad, fired, firstAtMs, hits, fatal (the why of his fatal strike, would.js, or null), rifle, choice, band, outWhy, giving, knelt, dazed, resolve, searched }] (v0.0.26: dazed men.js liveStateOf's, resolve his L.resolve or null, searched contact.js's { by, atMs } or null). */
 export function opforNow(state, ms = state.clock.ms) {
   const R = rangeOf(state);
   if (!R?.house?.live) return [];
@@ -797,7 +918,7 @@ export function opforNow(state, ms = state.clock.ms) {
     const torso = T.hits.filter(h => h.part === 'torso' && (h.zone === 'A' || h.zone === 'C')).length, head = T.hits.filter(h => h.zone === 'head').length;
     return { key: T.key, stand: T.stand, name: T.name, who: L.who, card: L.card, st: L.st, x: T.x, z: T.z, room: T.room, slot: T.slot, headRad: a?.headRad ?? null,
       fired: L.fired, firstAtMs: L.firstAtMs, hits: { torso, head }, fatal: fatalOf(state, L.who)?.why ?? null, rifle: rifleWhere(state, T), choice: L.choice?.what ?? null, band: L.band, outWhy: L.outWhy ?? null,
-      giving: !!L.give, knelt: !!L.knelt, at: ms };
+      giving: !!L.give, knelt: !!L.knelt, dazed: liveStateOf(state, T, ms) === 'dazed', resolve: L.resolve ?? null, searched: L.searched ?? null, at: ms };
   });
 }
 // (where his rifle is: in his hands, across his knees (down), on the floor (given up), or nowhere)
@@ -810,7 +931,8 @@ function rifleWhere(state, T) {
 /**
  * The stage's role-players (look.js rangeLook().house's, the look role's): [{ key, who, x, z, headRad, frame, posture, stance, hands,
  * rifle: { where: 'hands' | 'knees' | 'floor', x?, z?, yawRad?, fromMs? }, mask: true }]. frame: 'stand', 'aim', 'run', 'crouch',
- * 'cower', 'drop' (the rifle falling, from L.give's atMs to its dropAtMs), 'hands', 'kneel', 'sit'.
+ * 'cower', 'drop' (the rifle falling, from L.give's atMs to its dropAtMs), 'hands', 'kneel', 'sit', and (v0.0.26) 'daze' (men.js
+ * liveStateOf 'dazed': shocked, not down nor giving; before cower, run, aim, crouch and stand).
  */
 export function opforLook(state, ms = state.clock.ms) {
   const R = rangeOf(state);
@@ -819,7 +941,7 @@ export function opforLook(state, ms = state.clock.ms) {
   return R.turners.filter(T => T.live).map(T => {
     const L = T.live, a = actorOf(state, L.who), carry = state.people[L.who]?.kit?.carry ?? {};
     const frame = L.st === 'down' || (L.st === 'out' && a?.posture === 'sit') ? 'sit' : L.give ? 'drop' : L.st === 'hands' ? (L.knelt ? 'kneel' : 'hands')
-      : L.st === 'move' ? 'run' : L.st === 'freeze' ? 'cower' : carry.posture === 'aimed' ? 'aim' : a?.stance === 'kneel' ? 'crouch' : 'stand';
+      : liveStateOf(state, T, ms) === 'dazed' ? 'daze' : L.st === 'move' ? 'run' : L.st === 'freeze' ? 'cower' : carry.posture === 'aimed' ? 'aim' : a?.stance === 'kneel' ? 'crouch' : 'stand';
     const floor = L.rifleId ? lying.find(l => l.id === L.rifleId) ?? null : null;
     const rifle = floor ? { where: 'floor', x: floor.x, z: floor.z, yawRad: q(bearing(a ?? { x: T.x, z: T.z }, floor.x, floor.z), 1e-4) } : L.give ? { where: 'hands', fromMs: L.give.atMs, toMs: L.give.dropAtMs } : { where: rifleWhere(state, T) ?? 'hands' };
     return { key: T.key, stand: T.stand, who: L.who, x: a?.x ?? T.x, z: a?.z ?? T.z, headRad: a?.headRad ?? null, frame, posture: a?.posture ?? 'stand', stance: a?.stance ?? 'stand', hands: !!a?.hands, rifle, mask: true };

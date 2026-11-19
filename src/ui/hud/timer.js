@@ -260,13 +260,25 @@ export function laneModel(hn, nowMs = 0) {
 }
 /** The strip's height and its letters' scale (CSS px at --ui 1; my calls: one line of the 3 × 5 alphabet at ×2 with its margins). */
 export const STRIP_H = 22;
+/**
+ * The strip's parts that fit its paper (paper px across): the room and the man's par kept, the room's own par (the middle part) given way
+ * first, then the room's word before its clock. v0.0.26: "ROOM 1 13.2 · PAR 24.0 · 1A 5.0 LEFT" is 240 paper px on a 200 px strip, and the man's countdown, the part that
+ * matters, was cut to "1A 5." (the play review of v0.0.26, finding 10).
+ */
+export function stripParts(words, w = TIMER_W) {
+  const parts = String(words ?? '').split(' · '), end = (ps) => 8 + ps.reduce((a, p) => a + (textW(p) + 4) * TIMER_K, 0) - 4 * TIMER_K;
+  while (parts.length > 2 && end(parts) > w - 6) parts.splice(1, 1);
+  // (still over ("ROOM 1 13.2 · 1A HE FIRED FIRST", 226 px): the room's clock keeps its figure alone)
+  if (parts.length > 1 && end(parts) > w - 6) parts[0] = parts[0].split(' ').at(-1);
+  return parts;
+}
 /** Draw the strip (laneModel's strip words) on a Canvas2D at s device pixels a paper pixel: one line on the paper, a missed par red. */
 export function drawStrip(g, words, s = 1, w = TIMER_W) {
   const k = TIMER_K, R = (x, y, ww, hh, c) => { g.fillStyle = c; g.fillRect(Math.round(x * s), Math.round(y * s), Math.max(1, Math.round(ww * s)), Math.max(1, Math.round(hh * s))); };
   R(0, 0, w, STRIP_H, GLASS);
   R(4, 3, w - 8, STRIP_H - 6, PAPER_C);
   let x = 8;
-  for (const [i, part] of String(words ?? '').split(' · ').entries()) {
+  for (const [i, part] of stripParts(words, w).entries()) {
     const c = /FIRED FIRST/.test(part) ? RED_C : i === 0 ? INKC : FAINT;
     writeText((px, py, ww, hh) => R(x + (px - x) * k, 6 + (py - 6) * k, ww * k, hh * k, c), x, 6, part, null);
     x += (textW(part) + 4) * k;

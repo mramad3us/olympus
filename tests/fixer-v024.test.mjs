@@ -109,7 +109,9 @@ export default [
   {
     name: 'M3, L6, CR3: the frame places the bubbles after every other part of the HUD is written (the hit card, the radio box, the line), so they keep off what the frame shows and the HUD\'s read is the frame\'s one layout; the HUD\'s rectangles grown to whole picture pixels',
     fn() {
-      const main = readFileSync(path.join(root, 'src', 'main.js'), 'utf8'), body = main.slice(main.indexOf('houseKeepOff(s, { hidden: inSplash });'), main.indexOf('report.hud = {'));
+      // (v0.0.26's carried stage: the frame's keep-off call is plateKeepOff (the house's houseKeepOff inside it, the plates off the HUD
+      // elsewhere), so the frame's body is read from it; the order asserted is unchanged)
+      const main = readFileSync(path.join(root, 'src', 'main.js'), 'utf8'), body = main.slice(main.indexOf('plateKeepOff(s, { hidden: inSplash });'), main.indexOf('report.hud = {'));
       const at = (re) => body.search(re), order = { weaponHud: at(/weaponHud\(s, alpha/), hitHud: at(/hitHud\(s, \{/), radio: at(/radio\.update\(\{/), line: at(/instinct\.update\(\{/), bubbles: at(/speakerHud\(s, \{/) };
       console.log(`      the frame's order: ${Object.entries(order).sort((a, b) => a[1] - b[1]).map(([k]) => k).join(' → ')}`);
       assert(Object.values(order).every(i => i >= 0) && order.bubbles > Math.max(order.weaponHud, order.hitHud, order.radio, order.line), JSON.stringify(order));

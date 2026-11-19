@@ -129,12 +129,15 @@ export default [
       const near = markPlace(head, size, [{ x: 170, y: 180, w: 70, h: 7 }], { reach: BUBBLE_ABOVE_PX });
       console.log(`      over him: ${JSON.stringify(near)} (straight above at x ${200 + 5 - 30})`);
       assert(near && near.x === 175, JSON.stringify(near));
-      // (boards over every row within BUBBLE_ABOVE_PX, five offsets wide: a body's line is left to the radio box, a place's goes higher)
+      // (boards over every row within BUBBLE_ABOVE_PX, five offsets wide: a place's line goes higher, clear of them; a body's line was
+      // left to the radio box here until v0.0.26's K6, which tries it once more over the figures and boards (never the HUD or another
+      // bubble): re-read at v0.0.26's integration, both fixes kept, the user's "every line a text bubble at its speaker" of 2026-11-19)
       const boards = [{ x: 0, y: 150, w: 400, h: 50 }];
       const marks = [{ who: 'two', text: 'Got you.', fromMs: 0, k: 1, at: { x: 0, y: 2.2, z: 0 } }, { who: 'man', text: 'Clear!', fromMs: 0, k: 1 }];
       const r = placeBubbles(marks, { headOf: () => head, boxes: boards, bounds: { x: 0, y: 0, w: 640, h: 360 } });
-      console.log(`      placed ${r.placed.map(p => `${p.m.who} at y ${p.at.y}`).join(', ')}; left ${r.unplaced.map(m => m.who).join(', ')}`);
-      assert(r.placed.length === 1 && r.placed[0].m.who === 'two' && r.placed[0].at.y + 13 <= 150 && BUBBLE_AT_REACH_PX > BUBBLE_ABOVE_PX, JSON.stringify(r));
+      console.log(`      placed ${r.placed.map(p => `${p.m.who} at y ${p.at.y}${p.over ? ' (over the boards)' : ''}`).join(', ')}; left ${r.unplaced.map(m => m.who).join(', ')}`);
+      const two = r.placed.find(p => p.m.who === 'two'), man = r.placed.find(p => p.m.who === 'man');
+      assert(r.placed.length === 2 && two && !two.over && two.at.y + 13 <= 150 && man?.over && man.at.y + 15 <= head.y && man.at.y + 15 >= head.y - BUBBLE_ABOVE_PX - 1 && BUBBLE_AT_REACH_PX > BUBBLE_ABOVE_PX, JSON.stringify(r));
     },
   },
   {

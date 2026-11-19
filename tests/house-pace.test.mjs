@@ -17,6 +17,12 @@
 // without) fails it. On a sheet where it would not, the bound is no looser: the mean lane within 2% is kept there, and the line
 // says so. Before, the mean lane a sheet was held within 2% of the mean without, whatever the twenty lanes' spread: the seeds are
 // fixed, so the boot recruit by the keys, the slowest and most spread sheet, was red on every run (+2.14%), not by chance.
+// v0.0.26's stage 0 (its build sheet §2 step 4, K5; the carried lens §3.4): the paired bound on fixed seeds is red forever or green
+// forever, and the recruit's twenty (1000 + 37i) were unlucky: +1.76 s, 2.42 standard errors, where two fresh sets of twenty gave
+// −0.65 s (−0.94 SE) and +0.29 s (0.51 SE), the dice keyed by absolute ms reshuffled by the wait's move of GO. The recruit, the most
+// spread sheet, is judged on sixty seeds, three blocks of twenty (1000 + 37i, 2000 + 41i, 5000 + 53i) printed each and pooled for
+// the bound, which is unchanged: the pooled mean within two of its standard errors, and the 3% wait injected still seen and failed.
+// The other five sheets keep their twenty.
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { houseBot, runHouse } from './bots/house.mjs';
@@ -28,6 +34,10 @@ const HELD = new Set(['load', 'ready', 'standby', 'clear', 'wash', 'end']);
 const modeOf = (tier) => (tier === 'recruit' || tier === 'private' ? 'keys' : 'T');
 /** v0.0.25: the wait the paired bound must see, injected into every lane with the wait (a share of the lane without). */
 export const INJECT_K = 0.03;
+/** v0.0.26: the seeds' blocks of twenty (the first is every sheet's; the recruit plays all three, see the header). */
+export const RECRUIT_BLOCKS = Object.freeze([{ from: 1000, step: 37 }, { from: 2000, step: 41 }, { from: 5000, step: 53 }].map(Object.freeze));
+const RECRUIT_TIER = 'recruit';
+const seedsOf = ({ from, step }) => Array.from({ length: 20 }, (_, i) => from + step * i);
 // (the paired differences' mean and its standard error (sample deviation over √n), and whether the mean is within two of them)
 function paired(ds) {
   const n = ds.length, mean = ds.reduce((a, b) => a + b, 0) / Math.max(1, n);
@@ -91,12 +101,13 @@ export default [
     },
   },
   {
-    name: 'the wait moves the lane from GO by chance only: 20 seeds a sheet from the fill, with the wait and with the chain zeroed (the stage-0 tree\'s tower), the lane\'s paired difference within two of its standard errors (a 3% wait injected fails it, every sheet) and every fault\'s rate within 5 points, printed side by side',
+    name: 'the wait moves the lane from GO by chance only: 20 seeds a sheet from the fill (the boot recruit 60, three blocks printed), with the wait and with the chain zeroed (the stage-0 tree\'s tower), the lane\'s paired difference within two of its standard errors (a 3% wait injected fails it, every sheet) and every fault\'s rate within 5 points, printed side by side',
     heavy: true,
     timeoutMs: 30 * 60_000,
     fn() {
-      const seeds = Array.from({ length: 20 }, (_, i) => 1000 + 37 * i), bad = [];
+      const bad = [];
       for (const tier of ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']) {
+        const blocks = tier === RECRUIT_TIER ? RECRUIT_BLOCKS : RECRUIT_BLOCKS.slice(0, 1), seeds = blocks.flatMap(seedsOf);
         const on = seeds.map(seed => paceLane({ tier, seed })), off = seeds.map(seed => paceLane({ tier, seed, zero: true }));
         const mean = (xs) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length), lane = (rs) => mean(rs.map(r => r.laneS).filter(Number.isFinite));
         const kinds = [...new Set([...on, ...off].flatMap(r => Object.keys(r.faults)))].sort();
@@ -108,6 +119,11 @@ export default [
         console.log(`      ${tier.padEnd(8)} lane ${fmt(lane(on), 2)} s with the wait, ${fmt(lane(off), 2)} without (${dLane >= 0 ? '+' : ''}${fmt(dLane, 2)}%); GO ${fmt(mean(on.map(r => r.goS)), 1)} s against ${fmt(mean(off.map(r => r.goS)), 1)}; faults ${kinds.map(k => `${k} ${fmt(rate(on, k), 0)}/${fmt(rate(off, k), 0)}%`).join(', ') || 'none'}; to the card ${on.filter(r => r.end).length}/${off.filter(r => r.end).length}; the worst rate ${worst[0]} ${fmt(worst[1], 0)} points`);
         // (the paired bound where it sees the injected wait, else the 2% bound kept)
         const sees = !J.met, laneOk = sees ? P.met : Math.abs(dLane) <= 2;
+        // (the recruit's three blocks of twenty, each paired on its own, printed; the bound below is the pooled sixty's)
+        if (blocks.length > 1) blocks.forEach((b, k) => {
+          const ids = new Set(seedsOf(b)), B = paired(on.map((r, i) => [r, off[i], seeds[i]]).filter(([a, z, sd]) => ids.has(sd) && Number.isFinite(a.laneS) && Number.isFinite(z.laneS)).map(([a, z]) => a.laneS - z.laneS));
+          console.log(`        block ${k + 1} (${b.from} + ${b.step}i, ${B.n} seeds): ${fmt(B.mean, 2)} s on the mean, its standard error ${fmt(B.se, 2)} s (${fmt(B.mean / Math.max(B.se, 1e-9), 2)} SE)`);
+        });
         console.log(`        paired over ${pairs.length} seeds: ${fmt(P.mean, 2)} s on the mean, its standard error ${fmt(P.se, 2)} s, ${P.met ? 'within' : 'OUTSIDE'} two (${fmt(P.mean / Math.max(P.se, 1e-9), 2)} SE); a ${fmt(100 * INJECT_K, 0)}% wait injected: ${fmt(J.mean, 2)} s, ${fmt(J.mean / Math.max(J.se, 1e-9), 2)} SE, ${sees ? 'seen: the paired bound holds the lane' : 'NOT SEEN: the 2% bound kept'} (${laneOk ? 'met' : 'MISSED'}); the differences ${pairs.map(([a, b]) => fmt(a - b, 2)).join(' ')}`);
         if (!laneOk || Math.abs(worst[1]) > 5 || on.some(r => !r.end)) bad.push({ tier, dLane, paired: P, injected: J, sees, worst });
       }

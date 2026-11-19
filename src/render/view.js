@@ -200,6 +200,14 @@
 //     (X-a, the default until scored), nothing built or sent;
 //   - C6 (F73): every band a scene's cast can need prepared behind the brief's cut (prepareOwn): in free fall the float band (the
 //     drift, the tumble, the face change), so no figure first drawn mid-lane sends a band whole.
+// v0.0.26 (the build sheet items 6, 8 and 11, §3.3, §11 risk 1; "Bang, then go"): A MAN IN THE BANG. A role-player look.js gunLook
+// reads dazed or cowering (its action frame 'daze' or 'cower', from men.js liveStateOf: the sim's block, never a clock of the view's)
+// is drawn in the shock band's frame (poses.js shockFrameOf: daze0 or dazeKneel0 by his stance, its sway dazeSway on the game's
+// clock, held still under "reduce flashes"; cower), from the low carry's stance sheet (armsOf's stance look in SHOCK_CARRY, whatever
+// his carry), the carry's own frame its stand-in while that band is not up; prepareOwn paints the band there for the role-players
+// only, behind the brief's cut (K4: nothing painted or sent mid-lane when a man first dazes or cowers). prepareOwn names a role-player
+// by the range's live turners: his actor's hands flag, which named him before, is written only when he gives up, so at a load it
+// named none, and his bare look (the hands up) was sent mid-lane at his give too.
 import * as FIGURE from '../sim/people/figure.js';
 import * as PERCEPTION from '../sim/people/perception.js';
 import * as ALERTS from '../sim/time/alerts.js';
@@ -234,7 +242,7 @@ import { playerActor } from '../core/ids.js';
 import { STRIDE_WRAP_M } from '../data/body/gait.js';
 import { planOf } from '../sim/places/plan.js';
 import * as ARMS from '../sim/arms/look.js';
-import { rifleFrame, gaitCarryOf, RIFLE_BANDS, GAIT_CARRIES, STANCE_BANDS, STANCE_CARRIES, POOL_OF, HELD_BAND, HELD_CARRY, PISTOL_HIGH_BAND, PISTOL_HIGH_CARRY, heldFrameOf, tumbleFrame } from '../art/figures/poses.js';
+import { rifleFrame, gaitCarryOf, RIFLE_BANDS, GAIT_CARRIES, STANCE_BANDS, STANCE_CARRIES, POOL_OF, HELD_BAND, HELD_CARRY, PISTOL_HIGH_BAND, PISTOL_HIGH_CARRY, SHOCK_BAND, SHOCK_CARRY, shockFrameOf, dazeSway, heldFrameOf, tumbleFrame } from '../art/figures/poses.js';
 import { createGaitView } from './gait-view.js';
 import { CYCLE } from '../data/body/gait.js';
 import { FLASH_LIT_M, FLASH_LIGHT } from './figures.js';
@@ -717,7 +725,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     // held band's frames from the slung-in-front carry's stance sheet (poses.js HELD_BAND))
     const held = gl && typeof ARMS.heldLook === 'function' ? ARMS.heldLook(state, a, msA) : null;
     // (the P-12 out at the high ready, its walk from the high carry's stance sheet (poses.js PISTOL_HIGH_BAND))
-    const sc = held && a.moveStance ? HELD_CARRY : gl && a.moveStance && gl.pistol?.posture === 'highReady' ? PISTOL_HIGH_CARRY : gl && a.moveStance && STANCE_CARRIES.includes(gl.carry) ? gl.carry : null;
+    // (a role-player in the shock, its band from the low carry's stance sheet (poses.js SHOCK_CARRY), whatever his carry)
+    const shock = gl && a.moveStance && !held && shockFrameOf(gl) ? SHOCK_CARRY : null;
+    const sc = shock ?? (held && a.moveStance ? HELD_CARRY : gl && a.moveStance && gl.pistol?.posture === 'highReady' ? PISTOL_HIGH_CARRY : gl && a.moveStance && STANCE_CARRIES.includes(gl.carry) ? gl.carry : null);
     return { gl, kit, look: armedLook(look, v), twin: gl ? armedLook(look, { ...v, magOut: !v.magOut }) : null, sibs: gl ? GAIT_CARRIES.filter(c => c !== carry).map(c => armedLook(look, { ...v, carry: c })) : null,
       stance: sc ? armedLook(look, { ...v, carry: sc, sheet: 'stance' }) : null, held };
   }
@@ -1126,6 +1136,11 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           else if (gv?.frame) { /* (R8: the beat's frame, set above) */ }
           else if (rf?.frame) { p.frame = rf.frame; p.flash = !!rf.flash; }
           else if (tf === 'aid') p.frame = 'aid';                     // (the corpsman kneeling at work, unarmed)
+          // (a role-player dazed or cowering (see the header): the shock band's frame, its sway, the carry's frame its stand-in)
+          if (p.frame && p.frame === rf?.frame && POOL_OF[BAND_OF[p.frame]] === 'stance' && shockFrameOf(arms.gl)) {
+            p.frame = dazeSway(p.frame, fxMs, reduceFlashes);
+            p.fallback = rifleFrame({ ...arms.gl, action: null }, { face, x, z, ms: fxMs }).frame ?? 'idle0';
+          }
           // (below the ground: the pits' detail on their floor, drawn at their height, so the ground hides them)
           if ((fig.y ?? 0) < -0.05 && !p.frame) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
           // (standing on a height: the range officer on the tower's deck; the blob on the deck under them)
@@ -1365,13 +1380,18 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   // (F73: the kit's parts of a look that armsOf adds and the prepared looks must carry too, or every sheet prepared behind the
   // cut is another look's and the drawn one paints mid-lane: the gas mask (v0.0.22) and the mag boots (v0.0.24, worn in the void's scenes and
   // the Wreck's: its every sheet went up whole in the lane, your stance bands among them)
+  /** The gait carries a role-player's rifle can take (v0.0.26: his posture is the low ready, the high ready or aimed, drawn walking at the high: gaitCarryOf). */
+  const RP_CARRIES = Object.freeze(['low', 'high']);
   const kitExtra = (k) => ({ ...(k?.mask ? { mask: true } : {}), ...(k?.boots ? { boots: k.boots } : {}) });
   /** Every actor's figure painted and sent behind a cut (the paint worker: the player's first, priority 'own'): resolves once they are up. */
   function prepareOwn(state) {
     lastState = state;
     const meId = playerActor(state)?.id ?? null, jobs = [], twins = [];
+    // (the role-players by the range's live turners: an actor's hands flag is written only when he gives up, so at the load
+    // `typeof a.hands === 'boolean'` named none of them, and neither his bare look's bands nor the shock band went up behind the cut)
+    const liveMen = new Set((state.armoury?.range?.turners ?? []).filter(T => T.live?.who).map(T => T.live.who));
     for (const a of state.actors?.list ?? []) {
-      const fig = figureOf(state, a), person = state.people?.[a.who] ?? null, own = a.id === meId;
+      const fig = figureOf(state, a), person = state.people?.[a.who] ?? null, own = a.id === meId, rp = typeof a.hands === 'boolean' || liveMen.has(a.who);
       // (a rifle in hand: its look and the magazine-out one, with the arms and rifle bands, so a change of
       // posture or a magazine out in stop motion never paints on the main thread)
       const arms = armsOf(state, a, lookWith(fig.look, fig, person?.sex), state.clock.ms, false);
@@ -1379,7 +1399,12 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // (0.0.7: the seated band too, sitting with the R-7 at 200 m, so a figure never stands while it paints)
         // (in free fall the float band too, the drift, the tumble and a face change, so nobody's first push-off, tumble or
         // plant on a face paints mid-lane)
-        const rifleBands = ['gait', 'arms', 'seated', ...RIFLE_BANDS, ...(own || a.moveStance ? ['move'] : []), ...(fig.gMs2 < FLOAT_G_MS2 ? ['float'] : [])];
+        // (a role-player's rest band too, the sit he is drawn in when down (render's 'sit'), so no man's fall paints mid-lane)
+        // (the walks in the other carries and the stance sheets in the magazine the lane is played with: on the house, loaded
+        // (a lane from its fill starts with the magazines out until LOAD, and its walks and stance sheets prepared so went unused while
+        // the loaded ones took slots mid-lane: "Bang, then go"'s #2, his high walk and his aimed stance sheet, sent 288 KB at GO + 14 s))
+        const laneMagOut = state.armoury?.range?.course === 'house' && !state.armoury.range.end ? false : arms.gl.mag === false;
+        const rifleBands = ['gait', 'arms', 'seated', ...RIFLE_BANDS, ...(own || a.moveStance ? ['move'] : []), ...(fig.gMs2 < FLOAT_G_MS2 ? ['float'] : []), ...(rp ? ['rest'] : [])];
         // (the look as held first, everyone's, then the twins: rifle sheets are taken while free (6 at 16 px/m from v0.0.23, 8 before), so the
         // relay's figures in sight have theirs and a twin waits for a sheet another look leaves)
         for (const magOut of arms.gl.mag === false ? [true, false] : [false, true]) {
@@ -1391,18 +1416,22 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // gets the stance pool before GO, its walk in every gait carry (the gait and move bands; the carry-free frames come from
         // any of its sheets, figures.js sibs), so no figure in close quarters falls back to idle0 or waits to be drawn; a scene
         // without stances (the KD's relay: six rifles in sight) keeps its sheets for its people)
+        // (a role-player's walk only in the carries he can take, the low and the high ready (RP_CARRIES: he never slings his
+        // rifle), his down's rest band in each: the atlas's 40 base slots held the scene's every sheet only so ("Bang, then go": you, your
+        // #2 with the G-11's held sheets and the two men asked 41 before, and a marine's stance sheet went up mid-lane))
         if (a.moveStance) for (const c of GAIT_CARRIES) {
-          if (c === gaitCarry.get(a.id)) continue;
-          const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: c, magOut: arms.gl.mag === false, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit) }));
+          if (c === gaitCarry.get(a.id) || (rp && !RP_CARRIES.includes(c))) continue;
+          const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: c, magOut: laneMagOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit) }));
           // (in free fall the float band in every carry too: a face change or a tumble at the high ready never paints mid-lane)
-          twins.push(() => figures.prepare(keyOf(L), L, { bands: ['gait', 'move', ...(fig.gMs2 < FLOAT_G_MS2 ? ['float'] : [])], own }));
+          twins.push(() => figures.prepare(keyOf(L), L, { bands: ['gait', 'move', ...(fig.gMs2 < FLOAT_G_MS2 ? ['float'] : []), ...(rp ? ['rest'] : [])], own }));
         }
         // (R8, VIEWS §3.10.8: its stance sheets, one a carry it moves in (low, high, aimed), so the glide, Assault and the beats are
         // up before GO and never paint mid-lane)
         if (a.moveStance) for (const c of STANCE_CARRIES) {
-          const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: c, magOut: arms.gl.mag === false, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit), sheet: 'stance' }));
+          const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: c, magOut: laneMagOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit), sheet: 'stance' }));
           // (the P-12's high-ready walk in the high carry's sheet only)
-          (c === arms.gl.carry ? jobs : twins).push(() => figures.prepare(keyOf(L), L, { bands: STANCE_BANDS.filter(b => b !== HELD_BAND && (b !== PISTOL_HIGH_BAND || c === PISTOL_HIGH_CARRY)), own }));
+          // (a role-player's daze and cower in the low carry's sheet only (poses.js SHOCK_BAND), behind the brief's cut)
+          (c === arms.gl.carry ? jobs : twins).push(() => figures.prepare(keyOf(L), L, { bands: STANCE_BANDS.filter(b => b !== HELD_BAND && (b !== PISTOL_HIGH_BAND || c === PISTOL_HIGH_CARRY) && (b !== SHOCK_BAND || (rp && c === SHOCK_CARRY))), own }));
         }
         // (a mover who carries a device: the held band in the slung-in-front carry's stance sheet, and the cards of the shapes
         // he carries, baked here behind the cut (the brief's splash), so a device in the hands never paints mid-lane)
@@ -1415,9 +1444,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           figures.prepareHeld?.(shapes);
         }
         if (own) ownLook = { state, want: arms.look, shown: arms.look, asked: false };
-        // (v0.0.19: a role-player (an actor with a hands flag) may give up: his look with his rifle on the floor, the arms band's
-        // handsUp and handsKneel with it, painted before GO, so his hands never wait on a sheet)
-        if (typeof a.hands === 'boolean') {
+        // (v0.0.19: a role-player may give up: his look with his rifle on the floor, the arms band's handsUp and handsKneel with it,
+        // painted before GO, so his hands never wait on a sheet; v0.0.26: named by the live turners, rp above)
+        if (rp) {
           const k0 = arms.kit, bare = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: null, carry: null, magOut: false, ears: !!k0?.ears, carrier: !!k0?.carrier, headset: false, model: null, finish: null, ...(k0?.mask ? { mask: true } : {}) });
           const { key: kb, look: lb } = lookOf(bare, a.who);
           twins.push(() => figures.prepare(kb, lb, { bands: ['gait', 'arms'], own }));

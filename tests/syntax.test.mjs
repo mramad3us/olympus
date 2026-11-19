@@ -801,10 +801,11 @@ export default [
     },
   },
   {
-    name: 'rules: the live lane\'s one seam (the build sheet v0.0.22 §0 item 16, §2 step 4): no code of src names OPFOR_SPOTS[ outside opfor.js spotOf, nor RP_STANDS outside spotOf, rpStandsOf, parseOpfor and opforCode (the URL\'s grammar), house-opfor.js\'s declarations and the import',
+    name: 'rules: the live lane\'s one seam (the build sheet v0.0.22 §0 item 16, §2 step 4): no code of src names OPFOR_SPOTS[ outside opfor.js spotOf, nor RP_STANDS outside spotOf, rpStandsOf, parseOpfor and opforCode (the URL\'s grammar), house-opfor.js\'s declarations and the import; v0.0.26 (its build sheet §1 A): BREACH_SPOTS[ outside spotOf, nor BREACH_STANDS outside rpStandsOf, likewise',
     fn() {
       const HOME = 'src/sim/scenarios/opfor.js', DATA = 'src/data/places/house-opfor.js';
-      const RULES = [{ re: /\bOPFOR_SPOTS\s*\[/g, ok: ['spotOf'] }, { re: /\bRP_STANDS\b/g, ok: ['spotOf', 'rpStandsOf', 'parseOpfor', 'opforCode'] }];
+      const RULES = [{ re: /\bOPFOR_SPOTS\s*\[/g, ok: ['spotOf'] }, { re: /\bRP_STANDS\b/g, ok: ['spotOf', 'rpStandsOf', 'parseOpfor', 'opforCode'] },
+        { re: /\bBREACH_SPOTS\s*\[/g, ok: ['spotOf'] }, { re: /\bBREACH_STANDS\b/g, ok: ['rpStandsOf'] }];
       // (the top-level declaration a place in the code lies in: the last `function name(` or `const name =` at a line's start before
       // it, `import` for an import statement, the module's name for its data)
       const ownerAt = (code, at) => {
@@ -819,7 +820,7 @@ export default [
       for (const f of srcFiles()) {
         const r = rel(f), src = readFileSync(f, 'utf8');
         // (only a module whose text names either is read as code)
-        if (!src.includes('OPFOR_SPOTS') && !src.includes('RP_STANDS')) continue;
+        if (!src.includes('OPFOR_SPOTS') && !src.includes('RP_STANDS') && !src.includes('BREACH_SPOTS') && !src.includes('BREACH_STANDS')) continue;
         for (const h of hitsIn(src)) {
           seen[r] = (seen[r] ?? 0) + 1;
           if (r === DATA || h.owner === 'import') continue;
@@ -829,8 +830,11 @@ export default [
       const owners = hitsIn(readFileSync(path.join(root, HOME), 'utf8')).filter(h => h.owner !== 'import').map(h => `${h.what} ${h.owner}`);
       const probe = hitsIn("import { OPFOR_SPOTS, RP_STANDS } from 'x';\nexport function spotOf(state, T) { return OPFOR_SPOTS[T.stand]; }\nfunction hear(state, T) { const S = OPFOR_SPOTS[T.stand]; } // OPFOR_SPOTS[x]\nconst all = RP_STANDS.length;")
         .filter(h => h.owner !== 'import' && !h.ok.includes(h.owner)).length;
-      console.log(`      named in ${Object.entries(seen).map(([f, n]) => `${f} (${n})`).join(', ')}; in opfor.js's code: ${owners.join(', ')}; out of place ${bad.length}${bad.length ? `: ${bad.join('; ')}` : ''}; the probe ${probe}/2`);
-      assert(probe === 2 && !bad.length && owners.some(o => o === 'OPFOR_SPOTS[ spotOf') && owners.some(o => o === 'RP_STANDS rpStandsOf'), JSON.stringify({ bad, owners, probe }));
+      // (v0.0.26: the scene's table by the same rule, and its probe: a read of BREACH_SPOTS[ in hear and of BREACH_STANDS in fillOpfor refused)
+      const probe2 = hitsIn("import { BREACH_SPOTS, BREACH_STANDS } from 'x';\nexport function spotOf(state, T) { return BREACH_SPOTS[T.stand]; }\nexport function rpStandsOf(state) { return BREACH_STANDS; }\nfunction hear(state, T) { const S = BREACH_SPOTS[T.stand]; }\nfunction fillOpfor(state) { for (const s of BREACH_STANDS) {} }")
+        .filter(h => h.owner !== 'import' && !h.ok.includes(h.owner)).length;
+      console.log(`      named in ${Object.entries(seen).map(([f, n]) => `${f} (${n})`).join(', ')}; in opfor.js's code: ${owners.join(', ')}; out of place ${bad.length}${bad.length ? `: ${bad.join('; ')}` : ''}; the probe ${probe}/2, the scene's ${probe2}/2`);
+      assert(probe === 2 && probe2 === 2 && !bad.length && owners.some(o => o === 'OPFOR_SPOTS[ spotOf') && owners.some(o => o === 'RP_STANDS rpStandsOf') && owners.some(o => o === 'BREACH_SPOTS[ spotOf') && owners.some(o => o === 'BREACH_STANDS rpStandsOf'), JSON.stringify({ bad, owners, probe, probe2 }));
     },
   },
   {

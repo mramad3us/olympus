@@ -493,6 +493,9 @@ export function doorNow(state, pid = playerId(state)) {
   if (H?.rooms?.length || H?.hall) {
     const recs = [...(H.rooms ?? []), ...(H.hall ? [{ ...H.hall, door: 'hall' }] : [])];
     for (let i = 0; i < lane.order.length; i++) {
+      // ("Bang, then go" is room 1 alone (R.house.bangGo): its lane has no door after it, so room 2's rows, its watches and T's "Clear
+      // it. 13.9 s." never come up once room 1 is clear (the play review of v0.0.26, finding 7: the house's next leg leaked into the scene))
+      if (H.bangGo && i > 0) return null;
       const door = lane.order[i], rec = recs.find(r => (r.door ?? r.id) === door) ?? recs[i] ?? null;
       if (rec && DONE_ROOM.has(rec.state)) continue;
       return { door, plan: lane.plans[door] ?? planOf(state, door), i, rec };

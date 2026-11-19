@@ -36,6 +36,17 @@
 // stood in; its dice are hashes of its seed and its count of decisions (mem.n). Every run must reach the card (the user,
 // 2026-11-07: "a scene never dead-ends").
 //
+// v0.0.26 ("Bang, then go", its build sheet §6 B): the house bot reads the scene's two new words as the player does: a man read COWERING
+// (the identification's state, contact.js's, or the Challenge row the panel offers on him) is challenged once before any round, as the
+// DI's "He's done. Challenge him." says (a round at him is lawful all the same: the honest and T bots follow the line); a man read DAZED
+// is shot as any armed man, as "He's dazed. Now." says (SHOT_LINES and PAIR_LINES hold cqb-rp-dazed). After room 1's "Clear!", with the
+// search offered (R.house.bangGo.offer), the keys bot walks to the nearest man accounted for (contact.js searchableOf) until he is within
+// SEARCH_M and presses "Search him" once a man (mem.searchedKeys); T's bots search only where T offers it, in reach.
+// v0.0.26 ("Bang, then go", its build sheet §6 B, F138): breachFuzzBot({ seed }) hunts the scene's dead ends: the late stack's kit bot
+// (tests/bots/kit.mjs houseKitBot's `late`, 3 to 6 s after the bang, by the seed; the bang thrown where it is issued) up to room 1's
+// threshold, then the house's fuzz bot with three things more and one less: a man with his hands up searched where the row is offered
+// ('contact:search'), a round at a man with his hands up once (a shot row on him: F39 catches it as the fault 'surrendered'), never a
+// challenge ('contact:challenge' dropped from its choices); its dice its own stream ('breach-fuzz'), so no house fuzz lane moves.
 // v0.0.21 (its build sheet's item 6): at MAKE READY and Standby the house bot answers the holstered P-12's round still owed
 // (sidearm.js pistolOwed: its part of the rifle's MAKE READY fumbled) by its own row, "P-12: MAKE READY", as the instructor's nudge
 // names it, and a P-12 that row left in the hand (a part fumbled after the draw) by its Carry on, else Rifle up; before, it read the
@@ -44,7 +55,7 @@
 import { houseNow } from '../../src/sim/scenarios/shoothouse.js';
 import { stepsOf, targetOf } from '../../src/sim/arms/shooting.js';
 import { beliefOf } from '../../src/sim/arms/firearms.js';
-import { contactNow } from '../../src/sim/combat/contact.js';
+import { contactNow, searchableOf, SEARCH_M } from '../../src/sim/combat/contact.js';
 import { lanePlanOf, pastThreshold, inFunnel } from '../../src/sim/combat/room.js';
 import { cornerOf, TWO_WAIT_MS, insideOf } from '../../src/sim/combat/bundle.js';
 import { clipped } from '../../src/sim/combat/route.js';
@@ -53,6 +64,8 @@ import { rungOf } from '../../src/sim/skills/templates.js';
 import { instinctNow } from '../../src/sim/skills/instinct.js';
 import { pistolOwed, drawn as drawnPistol } from '../../src/sim/arms/sidearm.js';
 import { stepAct, pressToward } from './lib.mjs';
+// (v0.0.26: the late stack's kit bot for breachFuzzBot, read at call time: kit.mjs imports this file)
+import * as KIT from './kit.mjs';
 import { onFaceOf, bootsLocked, footingOf } from '../../src/sim/body/footing.js';
 import { bracePending, gravNow } from '../../src/sim/places/gravity.js';
 import { hashInt } from '../../src/core/hash.js';
@@ -112,6 +125,9 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     };
     const finger = state.people[pid]?.kit?.carry?.finger ?? 'off';
     const inside = !!plan && pastThreshold(plan, me.x, me.z);
+    // (v0.0.26, "Bang, then go": the search after room 1's "Clear!", by the keys (see the header))
+    const sr = lane && mode === 'keys' ? searchStep(state, me, mem) : null;
+    if (sr) return sr.step ? choose(sr.step, 'normal', sr.target) : sr;
     // ---- out of stop motion ----
     if (!S) {
       // (v0.0.25, the Wreck: the tug's warning on the deckhead, G for the face's row (feet aft), whatever the walk)
@@ -227,6 +243,9 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       const want = threats[0].key;
       if (S.pick !== want) return choose(`pick=${want}`);
       const pick = S.pick, T = N.turners.find(t => t.key === pick);
+      // (v0.0.26: a man read COWERING, or offered Challenge as one (contact.js's row on a man seen cowering), challenged once before a round)
+      const cower = T?.live && (last.state?.[pick] === 'cowering' || steps.some(s => s.id === 'contact:challenge' && !s.off && s.target === pick && s.lead));
+      if (cower && has('contact:challenge') && !(mem.challenged ?? []).includes(`cower:${pick}`)) { (mem.challenged ??= []).push(`cower:${pick}`); return choose('contact:challenge'); }
       const rows = steps.filter(isShotRow).filter(s => (s.target ?? pick) === pick);
       const open = T?.face === 'hostage' ? rows.find(s => !s.off && /head/.test(s.id)) : rows.find(s => !s.off);
       if (open) return choose(open.id, 'normal', pick);
@@ -384,6 +403,26 @@ function farPathOf(plan, me, h) {
 }
 
 // (the walk in by the keys: nothing for the human's start, then toward each point of the path in turn; lineK > 1 runs the last leg long)
+// (the search after room 1's "Clear!" on "Bang, then go" (see the header): out of stop motion and toward the man until within SEARCH_M less
+// a margin, then into it and "Search him"; null where no search is offered or wanted, else an input or { step, target })
+function searchStep(state, me, mem) {
+  const H = state.armoury?.range?.house;
+  if (!H?.bangGo?.offer || H.end) return null;
+  const T = searchableOf(state, state.player.id, state.clock.ms, { reach: false }).find(t => !(mem.searchedKeys ?? []).includes(t.key));
+  if (!T) return null;
+  const a = state.actors.list.find(x => x.who === T.live.who) ?? T, S = state.stop;
+  if (Math.hypot(a.x - me.x, a.z - me.z) > SEARCH_M - 0.3) {
+    if (S) return S.doing ? {} : { step: 'leave', target: null };
+    return pressToward(me, [a.x, a.z]);
+  }
+  if (!S) return { act: ['ready'] };
+  if (S.doing) return {};
+  const row = stepsOf(state).find(x => x.id === 'contact:search' && !x.off);
+  if (!row) return null;
+  (mem.searchedKeys ??= []).push(T.key);
+  return { step: row.id, target: row.target ?? null };
+}
+
 function walk(state, me, mem, now, humanStartMs) {
   const w = mem.walk;
   if (now - w.fromMs < humanStartMs) return {};
@@ -456,9 +495,10 @@ export function houseTBot() {
 }
 
 /** The lines that name a shot and leave it to the player (no act): the honest bot takes the row they name on a man of his own. */
-export const SHOT_LINES = Object.freeze(new Set(['cqb-contact', 'cqb-still-up', 'cqb-hostage', 'cqb-rp-fire']));
+// (v0.0.26: and cqb-rp-dazed, "He's dazed. Now.", on "Bang, then go": a dazed man of yours, the pair it names, no act)
+export const SHOT_LINES = Object.freeze(new Set(['cqb-contact', 'cqb-still-up', 'cqb-hostage', 'cqb-rp-fire', 'cqb-rp-dazed']));
 // (the lines that name the pair: the contact's, and a role-player firing on you (v0.0.19, cqb-rp-fire); the others name the head)
-const PAIR_LINES = new Set(['cqb-contact', 'cqb-rp-fire']);
+const PAIR_LINES = new Set(['cqb-contact', 'cqb-rp-fire', 'cqb-rp-dazed']);
 // (v0.0.21, the review of A and B: the contact's line names a shot on the bracketed man only in its press, row and aim variants (each
 // read off the man bracketed); 'his', 'move', 'hands' and 'safe' name none, and a line of theirs with no act is a gap of the game's,
 // never a shot: the honest bot fired a pair at a no-shoot under "That one's his. Carry on." (act-less while the closet's question
@@ -631,6 +671,35 @@ export function houseFuzzBot({ seed = 1 } = {}) {
 }
 
 /** Run a bot on a game to its card or maxMs of game time (each(game) after every tick, before its facts are cleared): { ticks, ms, done, mem }. */
+/** The breach fuzz's hold after the bang (ms): 3 to 6 s by its seed (see the header). */
+export const BREACH_FUZZ_LATE_MS = Object.freeze([3000, 6000]);
+export function breachFuzzBot({ seed = 1 } = {}) {
+  const late = BREACH_FUZZ_LATE_MS[0] + hashInt(BREACH_FUZZ_LATE_MS[1] - BREACH_FUZZ_LATE_MS[0] + 1, 'breach-fuzz-late', seed);
+  const inner = houseFuzzBot({ seed });
+  // (the approach and the late entry: the kit bot by its sheet's walk, imported late so kit.mjs, which imports this file, is whole)
+  let approach = null;
+  return (state, me, mem) => {
+    const H = state.armoury?.range?.house, L = H?.rooms?.[0], S = state.stop, now = state.clock.ms;
+    mem.late ??= late;
+    if (H && H.goAtMs !== null && !H.end && L && L.enteredAtMs === null) {
+      approach ??= KIT.houseKitBot({ use: 'flash', base: rungOf(state, state.player.id, 'room') >= 2 ? 'T' : 'keys', late });
+      return approach(state, me, (mem.approach ??= {}));
+    }
+    if (H && H.goAtMs !== null && !H.end && S?.mode === 'stop' && S.phase === 'choose' && !S.reflex && !S.doing) {
+      const die = (k) => hashInt(k, 'breach-fuzz', seed, mem.bn = (mem.bn ?? 0) + 1), rows = stepsOf(state).filter(x => !x.off);
+      const hands = (H.live ? state.armoury.range.turners : []).filter(T => T.live?.st === 'hands' && !T.live.give);
+      const search = rows.find(x => x.id === 'contact:search');
+      if (search && die(2) === 0) { mem.searched = (mem.searched ?? 0) + 1; return { act: [stepAct(search.id, 'normal', search.target ?? null)] }; }
+      const shot = !mem.handsShot ? rows.find(x => isShotRow(x) && hands.some(T => T.key === (x.target ?? S.pick))) : null;
+      if (shot) { mem.handsShot = now; return { act: [stepAct(shot.id, 'normal', shot.target ?? null)] }; }
+    }
+    const r = inner(state, me, mem);
+    // (never a challenge: the fuzz's choice of it taken back, the time left to run)
+    if (r?.act?.some(a => a?.args?.step === 'contact:challenge')) { mem.noChallenge = (mem.noChallenge ?? 0) + 1; return {}; }
+    return r;
+  };
+}
+
 export function runHouse(game, bot, { maxMs = 30 * 60_000, maxTicks = Math.round(maxMs / TICK_MS) * 2, each = null } = {}) {
   const s0 = game.state.clock.ms;
   let ticks = 0;

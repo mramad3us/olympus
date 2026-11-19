@@ -6,6 +6,30 @@ Shots and drivers stay in the scratch folders named below, outside the repo; wha
 
 ---
 
+## v0.0.26, 2026-11-19: "Bang, then go", the round's play review, code review and fixer
+
+**What was played.** The integrated tree before the release, by the play reviewer's probes and shots (`.run/v026/review-play/`), the integration's smoke on port 8235 (the tests' own bots loaded in the page, a tick at a time, the search's fast-forward ended by hand: `?play=test-breach&tier=private&breach=bang,held` by the keys to the card, both men searched, 4,564 ticks; `&tier=sgt&breach=quiet,loose` by T, 4,297; `&tier=raider&setup=go&seed=1037` by T on a drawn bang,loose, 3,293; `&tier=sgt&breach=bang,held&loadout=frag&draw=drawn`, the options dropped, 4,399; 0 page errors, console errors or failed requests each), the fixer's page runs on :8237 (the sergeant's bang on the held door by the honest player; the boot recruit by T on the bang, the loose door), and the build's own lanes: 240 lanes by the honest player (ten seeds, six sheets, four draws), 60 by the fuzz, 192 by the review's matrix, 984 men's blindness on fresh seeds.
+
+**What a player would find rough, and what was done** (each reproduced first, each with a test that fails without its fix; DESIGN.md's log, 2026-11-19, v0.0.26):
+1. **The hot wash's window line was on no page** (the end card stood the wash block down): fixed, the line leads the end card's lines.
+2. **The boot recruit and the private were never told to throw the bang** (T said "Open it. Push."; every lane of theirs without it was a casualty): fixed, T names "Flash it" on a bang draw.
+3. **The tier one was NO-GO over the lane's par on every bang draw** (the par was the quiet room's): fixed, room 1's par carries the flash (9.0 to 13.5 s).
+4. **T named the head on a man cowering, and shot him**: fixed, "He's done. Challenge him." leads.
+5. **A second Challenge on the first one's held end tick dropped his give** (the recruit on seed 5, a chest casualty): fixed.
+6. **The bang left men unblinded** (188 of 240 blinded): the held man's aim point moved onto the door's centre line; 980 of 984 on fresh seeds, the other four stunned all the same.
+7. **A shocked man never laid his rifle back on the door, so the slow stack cost nothing**: fixed on the scene; the window closes at about 6 s.
+8. **Held and loose were one room** (96 of 96 identical): the loose man's turn is now counted; the hold buys 450 to 650 ms.
+9. **"Search him" was never offered on a played lane, ran at 1x with no splash, and was offered after the lane's end**: a walk row, the splash, and none after the end.
+10. **The searched card cut its verdict ("WOULD HAVE BEEN FATAL:..") and showed the first man's truth after the second search**: the headline wraps, the last searched man is pinned.
+11. **Room 2's rows and "Clear it. 13.9 s." leaked in after "Clear!"**; **HANDS UP showed while the rifle was still gripped**; **the timer strip cut the man's par**; **"You, out." read as said to you**: fixed with the card's own words.
+12. **Your #2's "Got you." and "Through." went to the radio box, and "GO, GO, GO!" on the catwalk was drawn 2.2 m below him**: K6's second pass and `headHeightOf`.
+
+**Said, not changed** (the fixer's reasons in DESIGN.md's log): the cover and freeze rates, the slow stack's cost from the corporal up and "held equals loose" in outcome are the defenders' tuning and the user's score (no honest lane froze a man in 240); T's "Hands?" on a held man whose hands were not seen is the house's identification rule (2 of 240 lanes); the bang lesson on a quiet draw is the sheet's acceptance item 6; "Search them..." hidden behind the splash is the house's standard (the line stands in the radio log).
+
+**The numbers**: the quick suite on the final run 2,119 passed, 1 failed at `JOBS=2` (137.7 s, CPU 373.7 s against 375; the one red `breach-tick`'s quick case, 2.04 ms against 2.00, on time alone under other workflows' load), the integration's 2,113 passed, 0 failed (127.2 s, CPU 342.6 s); at `JOBS=3` red on the CPU sum (388.8 s) and `breach-tick` (2.22 ms) on time alone, as the v0.0.25 tag is; the full run 2,493 passed, 7 failed, then after the fixer 2,501 passed, 10 failed (three on a loaded machine's time, green alone). The known red, as in CHANGELOG: `house-ladder`, `moment-house`, `render-bench` x3, `house-flawless-live` F80, `house-swings`. The user's scores: none yet; the samples waiting are `breach-poses` (D-a, C-a by default) and the earlier rounds'.
+
+---
+
 ## v0.0.25, 2026-11-19: "Hold to hold", the round's play review and its fixer
 
 **What was played.** The integrated tree before the release, by the play reviewer's probes and shots (`.run/v025/review-play/`), the integration's own smoke on port 8235 (`?play=test-zerocqb` as the private by the keys to the card, as the sergeant by T, `&setup=tug`, `&setup=hold` on another seed, `?play=test-burn` and `?play=test-anchors&setup=s5`: 0 page errors, console errors or failed requests, the server killed after), the grip probe (the sergeant by T from `trunk` on 48213, to see where "Got you." and "Through." are placed), and the fixer's reproductions in node and on port 8237 (`.run/v025/fix.md`). Lanes in node: 240 honest and 120 fuzz lanes of `zerocqb-nodead` to the card (none dead), the nine save points, 40-seed sweeps of the burn bot, a booted marine, a lazy one and the fuzz bot on the manoeuvre.

@@ -201,7 +201,7 @@ import { createLoop } from './core/loop.js';
 import { createInput } from './core/input.js';
 import { fromJSON, toJSON } from './core/state.js';
 import * as store from './core/store.js';
-import { createDebugHandle, installDebug, readParams, houseChoice, shipChoice } from './core/debug.js';
+import { createDebugHandle, installDebug, readParams, houseChoice, shipChoice, breachChoice, breachOnly } from './core/debug.js';
 import { MIN_MS, HOUR_MS, TICK_MS, durationText, isHeld } from './core/clock.js';
 import { BUILT } from './core/reads.js';
 import { hitDollCount } from './art/doll/hitcard.js';
@@ -219,7 +219,7 @@ import * as SCENES_DATA from './data/scenes.js';
 import { instinctNow } from './sim/skills/instinct.js';
 import { bodyOf } from './sim/body/body.js';
 import { stagesOf, stripOf, wordsOf, cuesOf } from './sim/body/cues.js';
-import { lookFor, indoorsNow } from './sim/people/figure.js';
+import { lookFor, indoorsNow, figureOf } from './sim/people/figure.js';
 import { areaOf, generatedIds } from './sim/places/model.js';
 import { planOf as placePlanOf, roomAt as placeRoomAt } from './sim/places/plan.js';
 import * as FOOTING from './sim/body/footing.js';
@@ -726,7 +726,7 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
  * (test-pairs' sheet, 0.0.8: 'recruit' … 'tierone'; null the scene's private), scene (a scene's spec, src/data/scenes.js:
  * its host, environment, hour and setup; ROADMAP "anywhere" step 4) }.
  */
-function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, again = false } = {}) {
+function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, again = false, breach = null } = {}) {
   if (!scene && !SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
   // (0.0.8: tier, test-pairs' sheet (null: the scene's private); scenes never write a career)
   // (ROADMAP "anywhere" step 2: the URL's &env=<preset> runs every game this page starts under that environment)
@@ -737,8 +737,9 @@ function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks'
   // (rooms ('all'), layout ('B' | 'C') and plans ('derived'), each passed only when given (playScene's houseChoice orders them))
   // (again, the house's Again of the same lane, passed only when true: the v0.0.23 play review's first finding, playScene's
   // `again` dropped here, so the page never gave the short brief)
+  // (breach, "Bang, then go"'s draw by the URL or the card's Again (null: the scene's own, 'drawn'), passed only when given)
   const s = freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}),
-    ...(rooms ? { rooms } : {}), ...(layout ? { layout } : {}), ...(plans ? { plans } : {}), ...(again ? { again: true } : {}) });
+    ...(rooms ? { rooms } : {}), ...(layout ? { layout } : {}), ...(plans ? { plans } : {}), ...(again ? { again: true } : {}), ...(breach ? { breach } : {}) });
   // (the URL's &grav= set on the game before its first tick, its times from the start, added to the scene's own profile
   // (gravity.js addProfile; the fixer of v0.0.24's code review: setProfile alone replaced it, so test-burn lost its burn))
   if (gravList) addProfile(s, gravList);
@@ -784,12 +785,14 @@ const sceneOf = (s) => {
   if (!s?.meta?.scenario) return null;
   // (0.0.9: the banged pairs the game whose session has the setup 'bangs')
   const all = Object.values(SCENES).filter(x => x.scenario === s.meta.scenario), setup = s.armoury?.range?.mixed ? 'mixed' : String(s.armoury?.range?.setup ?? '').startsWith('bangs') ? 'bangs' : null;
-  return all.find(x => (x.setup ?? null) === setup) ?? all[0] ?? null;
+  // ("Bang, then go" the house's game whose record carries R.house.bangGo, never another house's; its card, score and Again its own)
+  const bang = !!s.armoury?.range?.house?.bangGo, fits = all.filter(x => !!x.breach === bang);
+  return fits.find(x => (x.setup ?? null) === setup) ?? fits[0] ?? all[0] ?? null;
 };
 // (whether a scene's house can be other than the set from the page: its `draws` lists 'drawn', or it lists none)
 const drawableOf = (rec) => !Array.isArray(rec?.draws) || rec.draws.includes('drawn');
 /** Start a scene: a new game from its spec, at its hour (or the URL's), with the seed given or a new one, the URL's setup (else the scene's own), and a sheet's tier (test-pairs, 0.0.8). */
-function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, pool = null, again = false } = {}) {
+function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, pool = null, again = false, breach = null } = {}) {
   // (draw, house, rooms and layout as one choice (debug.js houseChoice, a drawn lane given no rooms taking scenes.js
   // HOUSE_ROOMS_DEFAULT, so qualified and "Again with a new seed" follow it); plans beside them, a lead's switch)
   // (`pool`, the end card's, a drawn code's room set kept with it; a scene played as set from the page (its `draws`
@@ -797,7 +800,8 @@ function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier =
   // (its build sheet §2 step 3: again, the house's Again of the same lane (its short brief), passed only when true; the end
   // card's rows that set it are v0.0.23 D's)
   const H = houseChoice({ draw, house, rooms, layout, pool }, { roomsDefault: SCENES_DATA.HOUSE_ROOMS_DEFAULT ?? 'a', drawable: drawableOf(rec) }).opts;
-  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par, ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...H, ...(doors ? { doors } : {}), ...(plans ? { plans } : {}), ...(again ? { again: true } : {}) }));
+  // (breach, "Bang, then go"'s draw (the URL's, or the card's Again keeping its code), passed only when given: the scene's own, 'drawn', else)
+  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par, ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...H, ...(doors ? { doors } : {}), ...(plans ? { plans } : {}), ...(again ? { again: true } : {}), ...(breach ? { breach } : {}) }));
 }
 
 /** Play a state from here (new, loaded or imported). Resolves with it once its area shows (or the cut gives up). */
@@ -1746,14 +1750,15 @@ function openHouseEnd(rec, seed) {
     return qualLaunch(() => playScene(rec, { seed: seedQ, tier, par: tier === played ? H?.parSet ?? null : null, setup: null, draw: 'drawn' }));
   };
   const leave = (fn) => (...a) => { qualAttempt = null; return fn(...a); };
-  const { body, lines } = endCard({ scene: rec, seed, said: houseEndLines(hn, rs), sheet: label, runs, cards: side, grid, aspects: houseAspects(hn, { fmt: takeInWords }), again, verdict,
+  const { body, lines } = endCard({ scene: rec, seed, said: houseEndLines(hn, rs, hw), sheet: label, runs, cards: side, grid, aspects: houseAspects(hn, { fmt: takeInWords }), again, verdict,
     from: from?.setup ? from : null, exportRun: !!runLogOf(s), code: drawn, lane, qual, on: {
     // (a new seed keeps a named house, B or C, with a new cast, and a drawn house its rooms (house.js againHouseOf))
     // (its build sheet item 14, carried FH-5: the short brief, "Same lane, same rules.", where the house is the run before's: the
     // same seed, or a new seed on a set or named house (the same layout, a new cast); never a drawn house's new seed (new doors))
-    again: leave((same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout, again: same || !drawn || !!lane, ...againHouseOf({ same, code: drawn, lane, rooms: roomsOf, plans: plansOf }) })),
+    // ("Bang, then go"'s Again keeps its draw's words (the same door, the same kit), its new seed ("Another door") draws anew)
+    again: leave((same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout, again: same || !drawn || !!lane, ...againHouseOf({ same, code: drawn, lane, rooms: roomsOf, plans: plansOf }), ...(same && H?.bangGo ? { breach: H.bangGo.code } : {}) })),
     // ("Again as" on a drawn house keeps its code (the same seed, the same house, another sheet))
-    againAs: leave((t) => { if (!drawn && !plansOf) return againAs(rec, t); const h = houseScene.againAsHouse(s, t); return playScene(rec, { seed: h.seed, tier: h.tier, par: h.par ?? null, setup: null, loadout: h.loadout ?? null, ...keepHouse }); }),
+    againAs: leave((t) => { if (!drawn && !plansOf && !H?.bangGo) return againAs(rec, t); const h = houseScene.againAsHouse(s, t); return playScene(rec, { seed: h.seed, tier: h.tier, par: h.par ?? null, setup: null, loadout: h.loadout ?? null, ...(h.breach ? { breach: h.breach } : {}), ...keepHouse }); }),
     from: leave((setup) => playScene(rec, { seed, tier: played, par, setup, loadout, ...keepHouse })),
     qual: (tier) => qualLane(tier),
     exportRun: () => exportRun(rec, s),
@@ -1832,9 +1837,14 @@ function speakerAt(s) {
   const sp = list.find(q => room && q.room === room) ?? list.reduce((b, q) => (Math.hypot(q.x - me.x, q.z - me.z) < Math.hypot(b.x - me.x, b.z - me.z) ? q : b), list[0]);
   return { x: sp.x, y: sp.y ?? 2.1, z: sp.z };
 }
-/** v0.0.25: the height of the top of a person as drawn, for his bubble (footing.js bodySpanOf's far end off the deck: a man on the deckhead's boots at 2.2 m; on the deck the 1.8 m every scene had). */
+/**
+ * v0.0.25: the height of the top of a person as drawn, for his bubble (footing.js bodySpanOf's far end off the deck: a man on the deckhead's
+ * boots at 2.2 m; on the deck the 1.8 m every scene had). v0.0.26 (ui-breach, F149's page half): a man standing on a height is drawn on it
+ * (render/view.js: the figure's y, the instructor on the shoot house's catwalk), so his head is 1.8 m over it, not over the floor: "GO, GO,
+ * GO!" stood 2.2 m below him.
+ */
 function headHeightOf(s, a) {
-  if (!a?.onFace || a.onFace === 'deck') return 1.8;
+  if (!a?.onFace || a.onFace === 'deck') { const f = figureOf(s, a, s.clock.ms); return 1.8 + ((f.posture ?? 'stand') === 'stand' && (f.y ?? 0) > 0.05 ? f.y : 0); }
   const span = typeof FOOTING.bodySpanOf === 'function' ? FOOTING.bodySpanOf(s, a) : null;
   return (Array.isArray(span) ? Math.max(span[0], span[1]) : (Number.isFinite(a.floatY) ? a.floatY + 1.0 : 2.2)) + 0.05;
 }
@@ -1911,6 +1921,31 @@ function houseKeepOff(s, { hidden = false } = {}) {
     report.keepOff = { boxes: boxes.length, ox, oy, k };
   } catch (e) { keepOff(null); broke(e, 'the plates off the room'); }
 }
+/**
+ * The plates off the HUD, off the house (v0.0.26's carried round, v0.0.25's fixer's held finding: in Well A the "AIM 1.9 S" plate at
+ * the cadre stood half under the target card; VIEWS §7.5, nothing over the HUD): on a range course, a plate naming a target (plaque.js
+ * SLIDES) keeps off the HUD's cards as they stand at the frame's start (the watch, the log's lines, the step panel, the radio box,
+ * PAPER, the line; read after render() has written this frame's hud.hidden, toasts and watch, so it may force one layout where those
+ * changed, as the bubbles' read of the HUD's rects does: the code review of v0.0.26, finding 6, corrected the claim that it forces none), off the target
+ * card's rectangle (HITCARD) always, and off the plates placed before it (v0.0.25's C3 rule, now off the house too). No reserved rect:
+ * a plate with no free side stands where it was. The house keeps its own (houseKeepOff: the room, the figures and the stands too).
+ */
+function plateKeepOff(s, { hidden = false } = {}) {
+  if (s?.armoury?.range?.course === 'house') { houseKeepOff(s, { hidden }); return; }
+  if (hidden || !s?.armoury?.range || !stage.cam?.project) { keepOff(null); return; }
+  try {
+    const { ox, oy, k } = pictureBox();
+    const toPic = (q) => { const x0 = Math.floor((q.left - ox) / k), y0 = Math.floor((q.top - oy) / k), x1 = Math.ceil((q.right - ox) / k), y1 = Math.ceil((q.bottom - oy) / k); return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, who: 'ui' }; };
+    // (the HUD's own elements shown, never a plate, a bracket, a bubble or the plaque's hover; one larger than half the window is an overlay)
+    const els = [...[...hud.children].filter(e => !e.hidden && !/\b(plaque|plaque-info|fartick)\b/.test(e.className)), ...toasts.el.children];
+    const boxes = els.map(e => e.getBoundingClientRect()).filter(q => q.width > 0 && q.height > 0 && q.width * q.height < 0.5 * innerWidth * innerHeight).map(toPic);
+    // (and the target card's own rectangle (layout.js HITCARD) whether it shows yet or not: it opens on the frame you engage, the frame
+    // the plate first stands, after the plates are placed, so the last frame's layout would leave the plate under it for that frame)
+    const c = rectsAt(innerWidth, innerHeight, 'weapon-hit').HITCARD;
+    if (c) boxes.push(toPic({ left: c.x, top: c.y, right: c.x + c.w, bottom: c.y + c.h }));
+    keepOff({ boxes, bounds: { x: 0, y: 0, w: stage.W, h: stage.H }, reserved: null });
+  } catch (e) { keepOff(null); broke(e, 'the plates off the HUD'); }
+}
 // (a room's floor rect (m) by its id, from the house's area (the Wheel's sector 4))
 // (the live area's rooms, a drawn house's own ids 'w4~<v>.rN' (scenes/assemble.js); the Wheel's sector 4 as set)
 const roomRect = (id) => (areaOf(loop.state?.places?.live?.area)?.rooms ?? WHEEL_S4.rooms ?? []).find(r => r.id === id)?.rect ?? null;
@@ -1920,7 +1955,7 @@ function againAs(rec, tier) {
   if (loop.state?.armoury?.range?.course === 'house') {
     let h = null;
     try { h = houseScene.againAsHouse ? houseScene.againAsHouse(loop.state, tier) : null; } catch (e) { broke(e, 'Again as'); }
-    return playScene(rec, { seed: h?.seed ?? scene?.seed ?? randomSeed(), tier: h?.tier ?? tier, par: h?.par ?? null, setup: null, loadout: h?.loadout ?? null });
+    return playScene(rec, { seed: h?.seed ?? scene?.seed ?? randomSeed(), tier: h?.tier ?? tier, par: h?.par ?? null, setup: null, loadout: h?.loadout ?? null, ...(h?.breach ? { breach: h.breach } : {}) });
   }
   let a = null;
   // (0.0.10: the stress course's own, which keeps the scene)
@@ -2057,8 +2092,9 @@ function render(alpha, s, info) {
   // (R pressed once where it would wait: the line asks for it again, for HAND_AGAIN_MS)
   if (handArmedAt !== null && (performance.now() - handArmedAt > HAND_AGAIN_MS || hand?.verb !== 'wait')) handArmedAt = null;
   // (stop motion, the build sheet 0.0.5 §2.4: the step panel or the reflex card, PAPER, the plaque; the radio box in every state but a splash)
-  // (in the house, the plates off the room: the boxes they keep off, set before any is placed (houseKeepOff))
-  houseKeepOff(s, { hidden: inSplash });
+  // (in the house, the plates off the room: the boxes they keep off, set before any is placed (houseKeepOff); on another range course
+  // off the HUD's cards (plateKeepOff))
+  plateKeepOff(s, { hidden: inSplash });
   const weapon = weaponHud(s, alpha, { hidden: inSplash });
   // (0.0.8: the take-in's brackets and the pause's stamp; the coach's timer's paper on the pairs pad)
   const contact = contactHud(s, alpha, { hidden: inSplash });
@@ -2685,7 +2721,7 @@ async function bench(name) {
   const scene = BENCH_SCENES[name];
   if (!scene || !SCENARIOS[scene.play]) { toast(`No bench scene '${name}': the title instead.`, 'warn'); await showTitle(); return null; }
   // (a house bench's kit, role-players and the house as set, as the URL would give them)
-  await launch(newGame({ seed: scene.seed, scenario: scene.play, hour: scene.hour, at: scene.at ?? null, setup: scene.setup ?? null, tier: scene.tier ?? null, ...(scene.loadout ? { loadout: scene.loadout } : {}), ...(scene.opfor ? { opfor: scene.opfor } : {}), ...(scene.draw ? { draw: scene.draw } : {}) }));
+  await launch(newGame({ seed: scene.seed, scenario: scene.play, hour: scene.hour, at: scene.at ?? null, setup: scene.setup ?? null, tier: scene.tier ?? null, ...(scene.loadout ? { loadout: scene.loadout } : {}), ...(scene.opfor ? { opfor: scene.opfor } : {}), ...(scene.draw ? { draw: scene.draw } : {}), ...(scene.breach ? { breach: scene.breach } : {}) }));
   while (!window.__ready) await sleep(50);
   const me = () => { const a = playerActor(loop.state); return a ? { x: a.x, z: a.z } : null; };
   // (the scene's keys through the input, so a press key (R at the rack) reaches the page's listeners as a real one would)
@@ -2938,20 +2974,25 @@ const loadoutParam = params.loadout && !loadoutOf(params.loadout).error ? codeOf
 // (a &house= code not played as written (assemble.js houseUrlNote, read from the house the scene plays, once it is made:
 // the code review of 2026-11-16 found the toast said "Its rooms as given" on &draw=set, the live lane and every other scene, and a
 // malformed code dropped silently; a code that &layout dropped is not judged here: its toast is houseChoice's)
-const houseSay = () => { if (!params.houseAsked || params.layout || !drawableOf(recURL) || recURL?.ship) return; let note = null; try { const s = loop?.state, played = s?.armoury?.range?.course === 'house' ? houseCodeOf(s) : null; note = houseUrlNote(params.houseAsked, played, params.seed ?? 48213); } catch (e) { broke(e, 'the house\'s code'); } if (note) toast(note, 'warn'); };
+const houseSay = () => { if (!params.houseAsked || params.layout || !drawableOf(recURL) || recURL?.ship || recURL?.breach) return; let note = null; try { const s = loop?.state, played = s?.armoury?.range?.course === 'house' ? houseCodeOf(s) : null; note = houseUrlNote(params.houseAsked, played, params.seed ?? 48213); } catch (e) { broke(e, 'the house\'s code'); } if (note) toast(note, 'warn'); };
 // (&layout, &house, &rooms and &draw as one choice (houseChoice): a loser dropped with its toast)
 // (and on a scene played as set from the page, the live lane until F80 is met, any other house dropped with its words (drawableOf))
 const recURL = params.play ? SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play) ?? null : null;
 // (a ship's lane (the Wreck) is shot as set with the standard kit: its own one toast in place of houseChoice's (shipChoice))
-const houseURL = recURL?.ship ? shipChoice(recURL, { draw: params.draw, house: params.houseAsked, rooms: params.rooms, layout: params.layout, opfor: params.opfor, loadout: params.loadout })
+// ("Bang, then go" is played in room 1 as set: its own one toast likewise (breachChoice), every setup but 'go' said with it)
+const houseURL = recURL?.breach ? breachChoice(recURL, { draw: params.draw, house: params.houseAsked, rooms: params.rooms, layout: params.layout, plans: params.plans, opfor: params.opfor, loadout: params.loadout, setup: params.setup })
+  : recURL?.ship ? shipChoice(recURL, { draw: params.draw, house: params.houseAsked, rooms: params.rooms, layout: params.layout, opfor: params.opfor, loadout: params.loadout })
   : houseChoice({ draw: params.draw, house: params.house, rooms: params.rooms, layout: params.layout }, { roomsDefault: SCENES_DATA.HOUSE_ROOMS_DEFAULT ?? 'a', drawable: drawableOf(recURL) });
+// (&breach= is "Bang, then go"'s alone: on any other scene, or a bare scenario, dropped with its toast (breachOnly; the review of
+// B and C, 2026-11-19: "Stack and clear" and its live lane played room 1 alone with no word))
+const breachURL = breachOnly(recURL, params.breach);
 const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); if (gravUnknown) toast(`No gravity event '${gravUnknown}': none instead.`, 'warn'); if (lookUnknown) toast(`No look '${lookUnknown}': the game's instead.`, 'warn'); if (loadoutUnknown) toast(`No loadout '${loadoutUnknown}': the standard instead.`, 'warn');
-  for (const t of houseURL.dropped) toast(t, 'warn');
+  for (const t of [...houseURL.dropped, ...breachURL.dropped]) toast(t, 'warn');
   houseSay(); };
 if (benchName) { await bench(benchName).catch((e) => broke(e, 'the bench')); sayEnv(); }
 else if (params.play) {
   const rec = SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play);
-  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier, par: params.par, loadout: loadoutParam, opfor: params.opfor, draw: params.draw ?? null, house: params.house ?? null, doors: params.doors ?? null, rooms: params.rooms ?? null, layout: params.layout ?? null, plans: params.plans ?? null });
+  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier, par: params.par, loadout: loadoutParam, opfor: params.opfor, draw: params.draw ?? null, house: params.house ?? null, doors: params.doors ?? null, rooms: params.rooms ?? null, layout: params.layout ?? null, plans: params.plans ?? null, breach: breachURL.breach });
   else if (SCENARIOS[params.play]) launch(newGame({ seed: params.seed ?? 1, scenario: params.play, mode: params.mode, hour: params.hour, at: atParam(params.play) }));
   else { toast(`No scenario '${params.play}': the title instead.`, 'warn'); await showTitle(); }
   sayEnv();

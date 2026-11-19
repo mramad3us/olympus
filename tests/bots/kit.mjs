@@ -18,7 +18,11 @@
 // v0.0.22 (the build sheet v0.0.22 item 8, R1 b): a grenade handed back at your feet or short on you ("Get clear"), the kit bot
 // presses T on the DI's line (cqb.js cqb-grenade, "Grenade! Get clear.": Get clear, bundle.js move:clear), as a player who reads
 // it; mem.clears counts them. With `decline` it carries on the drill instead (Carry on; mem.declined), the tests' lane that keeps the fault.
-// The memory is plain data on the actor (the bots' rule), so it saves.
+// v0.0.26 ("Bang, then go", its build sheet §6 B, F140): `late`, ms held at the stack after the bang through room 1's door, the slow
+// stack's knob (tests/breach-window's T13 reprinted from the game). On every sheet the bot stacks by its row ("To the door. On the
+// wall."), presses the single "Flash it" (the room row would go through on the bang by itself), and from the bang leaves stop motion and
+// stands still until `late` ms have passed (mem.lateAt, the bang's ms), then hands the entry to its base bot (the keys' walk, T's
+// bundle). The memory is plain data on the actor (the bots' rule), so it saves.
 import { houseHonestBot, houseKeysBot, houseFuzzBot, houseTBot } from './house.mjs';
 import { stepAct } from './lib.mjs';
 import { stepsOf } from '../../src/sim/arms/shooting.js';
@@ -35,7 +39,7 @@ export const KIT_VARIANT_MAX = 6;
 /** The rung from which the kit bot throws a practice frag or concussion (see bangFor): the corporal's, Weapon handling 11. */
 export const FRAG_RUNG = 2;
 /** The kit bot (see the header). */
-export function houseKitBot({ use = 'flash', base = 'honest', cook = null, decline = false } = {}) {
+export function houseKitBot({ use = 'flash', base = 'honest', cook = null, decline = false, late = null } = {}) {
   const inner = base === 'keys' ? houseKeysBot() : base === 'T' ? houseTBot() : houseHonestBot();
   // (v0.0.19: the bang a door gets by the use and the brief, and the way in by the use)
   const bangFor = (state, door, kinds) => {
@@ -51,6 +55,7 @@ export function houseKitBot({ use = 'flash', base = 'honest', cook = null, decli
   const breaching = use === 'breach' || use === 'both' || use === 'cut' || use === 'shoot';
   return (state, me, mem) => {
     mem.kitPresses ??= 0; mem.kitDoors ??= {};
+    if (late !== null) { const r = lateStep(state, mem, late); if (r) return r; }
     const N = houseNow(state), S = state.stop;
     const lane = N && N.goAtMs !== null && !N.end;
     if (lane && S?.mode === 'stop' && S.phase === 'choose' && !S.reflex) {
@@ -70,7 +75,8 @@ export function houseKitBot({ use = 'flash', base = 'honest', cook = null, decli
         const rec = (mem.kitDoors[door] ??= { n: 0, done: false });
         const press = (id) => { rec.n++; mem.kitPresses++; return { act: [stepAct(id)] }; };
         const kinds = ['flash', 'frag', 'conc'].filter(k => kitHas(state, pid, k === 'flash' ? 'flashbang' : k));
-        const want = bangFor(state, door, kinds);
+        // (the late stack's bang thrown by its own row: the entry after it goes in with none (late; a second G-11 would reset the window))
+        const want = late !== null && mem.lateFlashed ? null : bangFor(state, door, kinds);
         if (!rec.done && rec.n < KIT_VARIANT_MAX) {
           if (rung >= 2) {
             const bang = rows.find(r => r.id === 'drill:variant:bang'), br = rows.find(r => r.id === 'drill:variant:breach'), ck = rows.find(r => r.id === 'drill:variant:cook');
@@ -98,6 +104,25 @@ export function houseKitBot({ use = 'flash', base = 'honest', cook = null, decli
     }
     return inner(state, me, mem);
   };
+}
+
+// (the late stack (see the header), room 1's door only, before your entry: the stack row, then the single "Flash it", then still until
+// the bang + late; null to hand the decision on)
+function lateStep(state, mem, late) {
+  const H = state.armoury?.range?.house, L = H?.rooms?.[0], S = state.stop, now = state.clock.ms;
+  if (!H || H.goAtMs === null || H.end || !L || L.enteredAtMs !== null || state.skip) return null;
+  const B = (H.bursts ?? []).filter(b => b.thrown === L.door && !b.atFeet).at(-1) ?? null;
+  if (B) { mem.lateAt ??= B.atMs; if (now >= B.atMs + late) return null; }
+  // (a doing of the approach or the throw runs out; the throw done and its fuse burning, or the bang thrown and `late` not yet passed:
+  // out of stop motion and still, the time running)
+  if (S?.doing) return {};
+  if (B || mem.lateFlashed) return S?.mode === 'stop' && S.phase === 'choose' && !S.reflex ? { act: [stepAct('leave')] } : S ? null : {};
+  if (!S || S.mode !== 'stop' || S.phase !== 'choose' || S.reflex) return null;
+  const rows = stepsOf(state), live = (re) => rows.find(r => re.test(r.id) && !r.off);
+  const flash = live(/^drill:door:flash/);
+  if (flash) { mem.lateFlashed = now; mem.kitPresses++; return { act: [stepAct(flash.id)] }; }
+  const stack = live(/^drill:stack:up/);
+  return stack ? { act: [stepAct(stack.id)] } : null;
 }
 
 /** The kit's fuzz (see the header): the house fuzz bot, with a kit row or a device row pressed in its place one time in KIT_FUZZ_K. */
