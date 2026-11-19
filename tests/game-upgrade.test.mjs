@@ -97,6 +97,12 @@
 // the strike said once, never twice). Each loads with nothing written, saves again byte for byte with every id valid, carries on
 // byte for byte from a save made 300 ticks on, and reaches its card on the tick its lane from the fill does (house-pin's
 // keys/private/48213 and house-live-pin's quick cell), the lane's end its own; v0.0.22's C adds the new rules' assertions here.
+// v0.0.23's stage 0 (its build sheet §2 step 4): two saves made by v0.0.22's own code (the integrated snapshot, v0.0.22 untagged): the
+// honest recruit standing 30 s at room 2's open door on 48213 with the instinct's walk-in line on ("Move. D and S, through the door.",
+// the keys into the wall: FH-1), and the sergeant by T on the live lane (live:fight,hide) 10 s into the tower's brief, H.sterile absent
+// (DC3). Each loads with nothing written, saves again byte for byte, carries on byte for byte from a save 300 ticks on, and reaches
+// its card on its lane's tick from the fill (house-pin's honest/recruit/48213, house-live-pin's quick cell); v0.0.23's D adds the new
+// rules' assertions (the room passed with passWhy 'door'; the sterile check begun, LOAD after it) and moves the ticks with the pins.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -125,6 +131,8 @@ import { LIVE_PIN } from './house-live-pin.test.mjs';
 import { resetCaches as resetHouses } from '../src/sim/scenes/assemble.js';
 import { areaOf, resetCaches as resetRegistry } from '../src/sim/places/model.js';
 import { HOUSE_CHIEF } from '../src/data/courses.js';
+import { botOf } from './flawless.mjs';
+import { instinctNow } from '../src/sim/skills/instinct.js';
 // (v0.0.22's C: the two v0.0.21 saves' end ticks under v0.0.22's rules (see their case), recorded on C's tree)
 const SAVE_TICKS = Object.freeze({ showclear: 4562, paint: 3362 });
 
@@ -632,6 +640,55 @@ export default [
         assert(r.done && H.end?.why === c.end && s.clock.tick === c.tick, JSON.stringify({ done: r.done, end: H.end?.why, tick: s.clock.tick, want: c.tick }));
         if (name.endsWith('showclear')) assert(H.show?.done?.[s.player.id] !== undefined && H.show?.done?.[H.twoPid] !== undefined && twoLine === 1, JSON.stringify({ show: H.show, twoLine }));
         else assert(paint === 0 && words.some(t => HOUSE_CHIEF.one['casualty:click'].includes(t) || /Weapons clear|Guns are clear/.test(t)), JSON.stringify({ paint, words: words.slice(-6) }));
+      }
+    },
+  },
+  {
+    // (v0.0.23's stage 0, its build sheet §2 step 4 and carried §5 step 0: two saves made by v0.0.22's own code (the integrated snapshot,
+    // tree 5268b1cd; v0.0.22 untagged), for v0.0.23's D, whose rules load over them (FH-1, FH-2: the walk words and the room passed with
+    // passWhy 'door'; DC3: the sterile check begun on the load, LOAD after it). Held here to v0.0.22's rules: each reaches its card on
+    // its lane's tick from the fill (house-pin's honest/recruit/48213 and house-live-pin's quick cell, the bots that made them, whose
+    // memory is saved on the actor); D moves both ticks with the pins and adds its new-rule assertions here)
+    // (v0.0.23 D, its build sheet §6: under v0.0.23's rules the door save's line names #1's path from where the recruit stands (FH-1,
+    // "Q to the door, S through it, then D"; v0.0.22 said "D and S", into the wall) and room 2 is passed with passWhy 'door' (FH-2, on
+    // the honest bot, who walks no keys); the brief save's sterile check begins on the load (H.sterile, absent in it) and LOAD comes after
+    // both looks (DC3). The door save's card keeps its tick (9482: FH-1 and FH-2 move no tick); the brief save reaches its card on
+    // house-live-pin's quick cell's new tick, 3442 (DC3's check before LOAD: v0.0.22's 3362), its brief's words v0.0.22's, said before the save)
+    name: 'v0.0.23 (its build sheet §2 step 4): two saves made by v0.0.22\'s own code load and carry on byte for byte, each to its card on its lane\'s tick: the honest recruit standing 30 s at room 2\'s open door with the walk-in line on, and the sergeant by T 10 s into the live lane\'s brief, H.sterile absent; under v0.0.23\'s rules the line names #1\'s path, room 2 is passed with passWhy \'door\', the sterile check begins on the load and LOAD follows both looks (heavy: game-upgrade is at its QUICK_SLOW ceiling)',
+    heavy: true,
+    timeoutMs: 300_000,
+    fn() {
+      const CASES = {
+        'v0.0.22-house-door-recruit': { bot: () => botOf('honest', { seed: 48213 }), pin: PIN['honest/recruit/48213/standard'] },
+        'v0.0.22-house-live-brief': { bot: () => houseBot({ mode: 'T' }), pin: LIVE_PIN['T/sgt/48213/live:fight,hide'] },
+      };
+      for (const [name, c] of Object.entries(CASES)) {
+        const json = read(name), old = JSON.parse(json), R0 = old.armoury.range, H0 = R0.house;
+        assert(old.meta.version === '0.0.22' && old.meta.scenario === 'test-shoothouse' && old.meta.seed === 48213, `${name}: ${old.meta.version} ${old.meta.scenario} ${old.meta.seed}`);
+        if (name.endsWith('door-recruit')) assert(H0.tier === 'recruit' && H0.cur === 1 && H0.rooms[1].state === 'open' && !old.stop, JSON.stringify({ tier: H0.tier, cur: H0.cur, leg: H0.rooms[1]?.state, stop: !!old.stop }));
+        else assert(H0.tier === 'sgt' && R0.cmd?.id === 'brief' && H0.goAtMs === null && H0.sterile === undefined && H0.live?.cards?.['2a'] === 'fight' && H0.live?.cards?.['3a'] === 'hide', JSON.stringify({ tier: H0.tier, cmd: R0.cmd?.id, go: H0.goAtMs, sterile: H0.sterile, cards: H0.live?.cards }));
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), saved = g.save(), ids = checkIds(JSON.parse(saved), g.sim.domains), b = c.bot();
+        // (the instinct's line is runtime ($instinct): read on a copy one tick after the load, by the same bot)
+        const peek = createGame({ scenario: old.meta.scenario, seed: 48213 }); peek.load(json); const pb = c.bot(); peek.step(1, pb); const line = instinctNow(peek.state).line;
+        // (v0.0.23's rules, on the copy: the brief save on to LOAD, the sterile looks' ms against LOAD's)
+        let loadMs = null;
+        if (name.endsWith('live-brief')) for (let i = 0; i < 1200 && loadMs === null; i++) { peek.step(1, pb); if (peek.state.armoury.range.cmd?.id === 'load') loadMs = peek.state.clock.ms; }
+        const looks = Object.values(peek.state.armoury.range.house.sterile?.done ?? {});
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, c.bot());
+        const carried = h.save() === end;
+        const r = runHouse(g, b, { maxMs: 30 * 60_000 }), H = s.armoury.range.house;
+        const where = name.endsWith('door-recruit') ? `the ${H0.tier} at room 2's open door, the line on the load ${line?.id ?? '-'}: "${line?.text ?? ''}"` : `the ${H0.tier} ${((old.clock.ms - R0.cmd.atMs) / 1000).toFixed(2)} s into the live lane's brief`;
+        console.log(`      ${name}: ${where}, tick ${old.clock.tick}, ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}; to the card ${r.done} (${H.end?.why}) at tick ${s.clock.tick}, its lane from the fill ${c.pin[0]}`);
+        assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
+        assert(r.done && s.clock.tick === c.pin[0], JSON.stringify({ done: r.done, end: H.end?.why, tick: s.clock.tick, want: c.pin[0] }));
+        if (name.endsWith('door-recruit')) {
+          console.log(`        v0.0.23: room 2 ${H.rooms[1].state}, passWhy ${H.rooms[1].passWhy ?? '-'}; the one thing ${runSheetOf(s).one?.key ?? '-'}`);
+          assert(/Q to the door, S through it, then D/.test(line?.text ?? '') && H.rooms[1].state === 'passed' && H.rooms[1].passWhy === 'door', JSON.stringify({ line: line?.text, leg: H.rooms[1].state, why: H.rooms[1].passWhy }));
+        } else {
+          console.log(`        v0.0.23: the sterile looks at ${looks.map(ms => `${((ms - old.clock.ms) / 1000).toFixed(2)} s`).join(', ')} after the load, LOAD at ${((loadMs - old.clock.ms) / 1000).toFixed(2)} s`);
+          assert(H0.sterile === undefined && looks.length === 2 && loadMs !== null && looks.every(ms => ms <= loadMs), JSON.stringify({ looks, loadMs }));
+        }
       }
     },
   },

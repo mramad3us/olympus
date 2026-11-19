@@ -1,0 +1,18 @@
+{
+ "title": "A house you have not seen: black, hatched, or the brief's outline, until you see into it",
+ "about": "Your note of 2026-11-17: \"we see what is in the rooms before entering them, this should not be the case when we start generating procedurally\" (and its two looks, \"black, or the brief's outline\"). Each picture is the game's own frame of a house drawn from seed 48213 (&draw=drawn, made by capture.mjs) at GO and after room 1: today's on the left (the unknown house's switch off: every room drawn, dimmed by the fog where unseen) and the look on the right, over the very pixels the game hides. The game hides a pixel whose own spot falls on a cell of the house never in your sight, in a room you have not entered (a room entered is known whole), off the stretch of hall you walked; the footprint's outer walls, the catwalk, the booth and the walls' faces toward what you see are known and drawn. Once seen, a cell stays drawn as you last saw it (the fog's dim, as today). Only a drawn house is unfamiliar: the house as set is briefed, so its rooms stay drawn dimmed (question 8); the plan view and the debrief after the lane still show the whole house. U1 (the default, shipped this release on drawn lanes) is the game's picture itself, pixel for pixel: black inside the walls; U2 the hidden pixels hatched in the fog's felt tint, the cold pale blue of what is felt and not seen, at the dark's level; U3 black with the floor plan as a faint outline (the rooms', the closet's, the booth's and the hall's edges; no doors). Reshot 2026-11-18 on the game's own frames (the review: the first shots drew a mask of the sample's own, with the catwalk, the booth and the hall's north wall black where the game draws them).",
+ "open": {"default": ["U1"], "since": "2026-11-17", "decides": "how a house you have not seen is drawn before you see into it (drawn lanes)", "builtIn": "v0.0.23"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "U",
+   "title": "U: the unseen inside the footprint",
+   "about": "At GO (you and your #2 at the start mark, every room ahead) and after room 1 (room 1 cleared, the stack on room 2's door): today's frame on the left, the look on the right.",
+   "views": [
+    { "id": "U1", "name": "U1: black inside the walls (the default)", "query": "u=U1", "pixel": "1292x752" },
+    { "id": "U2", "name": "U2: hatched in the fog's felt tint", "query": "u=U2", "pixel": "1292x752" },
+    { "id": "U3", "name": "U3: the brief's outline of the floor plan", "query": "u=U3", "pixel": "1292x752" }
+   ]
+  }
+ ]
+}

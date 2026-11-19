@@ -1,0 +1,18 @@
+{
+ "title": "The end card's truth cards: under the plan, beside each room's line, or one at a time under the scrubber",
+ "about": "After the lane the end card shows the plan view (the house from above, the lane replayed under a scrubber) and opens one stand's truth card when you click it. The overhaul's O-17 shows every man and stand you engaged as he truly was at your first round beside the plan, so the lane reads at a glance; this sample lays them out three ways, built in v0.0.24 on your score (the end card is unchanged until then). Every card is the game's own truth card (the board you scored, its holes in ink, the calls under them, the coach's line), every plan the game's own plan view, of a lane played to its card by the private by the keys on your seed of 2026-11-17, 4028068471 (made by make.mjs; the house as set: 1a, 2a, 3a, 3b and the hall's H engaged). T-a (the default) a row of small cards under the plan in the order you engaged them, each with its room and the time of your first round on it from GO; T-b each card beside its room's line, the run sheet's legs down the right with the leg's time and par; T-c one card at a time under the scrubber, following the replay (two moments shown: just after your first round on 1a, and on 3b). The cards are drawn at 170 px (the smallest the game draws) in T-a and T-b, 200 in T-c; the scrubber in T-c is the sample's own drawing in the plan's colours.",
+ "open": {"default": ["T-a"], "since": "2026-11-17", "decides": "where the end card shows each man and stand you engaged as he truly was", "builtIn": "v0.0.24"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "T",
+   "title": "T: the truth cards on the end card",
+   "about": "The private by the keys on seed 4028068471, the house as set, to the card (75.1 s from GO).",
+   "views": [
+    { "id": "T-a", "name": "T-a: a row under the plan (the default)", "query": "t=T-a", "pixel": "874x432" },
+    { "id": "T-b", "name": "T-b: each beside its room's line", "query": "t=T-b", "pixel": "948x700" },
+    { "id": "T-c", "name": "T-c: one at a time under the scrubber", "query": "t=T-c", "pixel": "996x488" }
+   ]
+  }
+ ]
+}

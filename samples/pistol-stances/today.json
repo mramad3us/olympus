@@ -1,0 +1,27 @@
+{
+ "about": "Made by capture.mjs (see its header): the save v0.0.17-house-pistol loaded in today's game, what the view asked for and where you stand on the picture.",
+ "save": "tests/saves/v0.0.17-house-pistol.json.gz",
+ "crop": 64,
+ "posture": "lowReady",
+ "arms": {
+  "carry": "front",
+  "stance": "stand",
+  "frame": "draw",
+  "flash": 0,
+  "kick": 0,
+  "shake": false,
+  "pick": {
+   "x": 24.7,
+   "z": 18.7
+  }
+ },
+ "you": {
+  "x": 22.6,
+  "z": 14.9,
+  "face": "down"
+ },
+ "at": [
+  325,
+  147
+ ]
+}

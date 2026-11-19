@@ -22,10 +22,23 @@
 //            while the stop names your paper or a bay turner, a man no longer engaged closes at once.
 // v0.0.19 (the build sheet 0.0.19 §1 L-look; opfor §2.6): THE LIVE MAN. A role-player rides R.turners with `live`; engage.js gives
 // him as a person (his stand's key, his pid). In the house he is held as a stand is (hitShown's rule after the engagement, your last
-// round on him included), closed once he is ruled out ('out') and not engaged, and drawn in his gear as your take-in identified
-// him (liveGear: what is in his hands is what the take-in read; 'unseen' leaves them empty, 'hands' puts them up), never as his
-// record holds him. His marks are the house's (marks.js hitMarks: belief until R.end, then truth) drawn as paint (art's PAINT_C:
-// the stack's rounds in the cadre's pink), the words the state your take-in read (STATE_WORDS) before the marks' own.
+// round on him included), closed once he is ruled out ('out') and not engaged. His marks are the house's (marks.js hitMarks: belief
+// until R.end, then truth) drawn as paint (art's PAINT_C: the stack's rounds in the cadre's pink), the words the state your take-in
+// read (STATE_WORDS) before the marks' own.
+// v0.0.23 (the build sheet v0.0.23 items 1 to 5; the user's note of 2026-11-17: "the portraits need to be more dynamic and show us
+// what we would be seeing, including what they are holding"): every card's subject carries the Seen record (src/sim/people/seen.js:
+// seenOf for a man, as your eye is shown him now, his hold, his pose, his facing from you; standSeen for a board, its gun where the
+// stage paints it), drawn by src/art/doll/portrait.js. liveGear is retired (rule V1, the build sheet §0 item 2): the card draws in a
+// man's hands what the stage draws in them, the take-in's read stays in the words ("HANDS NOT SEEN · 2A"), so the card never
+// contradicts the picture; a board's stage paints nothing in the hands until identified, so neither does its card. The signature
+// carries the record's key (`rec.key` as m.subject.key), so the card repaints the frame he raises, aims, kneels, gives up or turns,
+// and never otherwise. warm() paints what a scene's men can show at its load (each role-player in his holds and poses, your #2 in his
+// carries, the boards' faces at the house's place), the rest one new doll a frame.
+// The aim's dwell (the review of 2026-11-18): a man's aim crossing AIM_AT_RAD (seen.js, no hysteresis) flicked the card between
+// end on and across the chest for a single tick (50 ms: the tier one's live:hide,give, 2a you, away, you), a repaint and a doll
+// swapped each time. The view holds the aimed variant it shows ('you' or 'away') for AIM_DWELL_MS before it shows the other
+// (readers.aims, the view's memory by man; targetModel without it is the record as seenOf gives it): raising, lowering, kneeling or
+// turning are never held, only the one aim's side, so the card lags the stage's aim by at most AIM_DWELL_MS and never flicks.
 // paintOn(state, who) is the role-players' paint on a marine (R.house.live.struck) as card marks in blue, for a card of you or
 // your #2 (the casualty's).
 // Nothing pops: the card repaints only when its signature changes, and a man's dressed doll not yet painted is painted on a
@@ -36,11 +49,13 @@
 //                                                                    stringModel(state, key, k, phase, tabs), reset() }
 // readers (main.js's, read once a tick): pairsOf(s) (pairs.js pairsNow), marksOf(s, key, k, phase) (hitMarks), meAt(s).
 import { cardModel, hitShown, hitTabs, hitRangeM, HIT_LOOK } from './hitcard.js';
-import { hitDollReady, warmHitcard, figGeom, bandOf, HIT_BANDS } from '../../art/doll/hitcard.js';
-import { dressedDoll } from '../../art/doll/dress.js';
+import { hitDollReady, warmHitcard, bandOf, HIT_BANDS } from '../../art/doll/hitcard.js';
+import { paintPortrait, BOARD_PLACES, PORTRAIT_PICKS } from '../../art/doll/portrait.js';
 import { engagedOf, struckLast, seenFace, seenState, liveRecOf } from '../../sim/arms/engage.js';
-import { gearOf, gearKey } from '../../sim/arms/gear.js';
+import { seenOf, standSeen, seenKey } from '../../sim/people/seen.js';
 import { lookFor, indoorsNow } from '../../sim/people/figure.js';
+import { eyeOf, visibility } from '../../sim/people/perception.js';
+import { hostKind, alwaysDrawn, seenEver } from '../../sim/places/known.js';
 import { STATE_WORDS } from '../plaque.js';
 
 /** The target view's modes (see the header). */
@@ -51,18 +66,59 @@ export const UNSEEN_WORDS = 'HANDS NOT SEEN';
 /** The state a take-in read of a live man, as the card says it: the plaque's words (one formatter). */
 export { STATE_WORDS };
 
+/** How long the card holds the side of an aim it shows ('you' end on, 'away' across the chest) before it shows the other, game ms (see the header). */
+export const AIM_DWELL_MS = 300;
 /**
- * A live man's gear as your take-in identified him (see the header): the kit as worn (the mask, the carrier), what is in his hands
- * as identified: 'unseen' (or nothing told) empties them, 'hands' or a read of 'hands' puts them up, a rifle or a pistol keeps it.
+ * The record with its aim's side held (see the header): aims, a Map who → { aimAt, atMs } (the view's); the record as given when
+ * not aimed, when the side is the one shown, or when the side shown has been shown AIM_DWELL_MS; else the side shown, its key with it.
  */
-export function liveGear(gear, { holds = 'unseen', state = null } = {}) {
-  if (!gear) return gear;
-  const inHands = (p) => p && (p.place === 'ready' || p.place === 'hand');
-  const g = { ...gear };
-  if (holds === 'hands' || state === 'hands') return { ...g, rifle: inHands(g.rifle) ? null : g.rifle, pistol: inHands(g.pistol) ? null : g.pistol, held: null, hands: 'up' };
-  if (holds === 'rifle' || holds === 'pistol') return { ...g, hands: null };
-  return { ...g, rifle: inHands(g.rifle) ? null : g.rifle, pistol: inHands(g.pistol) ? null : g.pistol, held: null, hands: null };
+export function aimHeld(rec, who, ms, aims) {
+  if (!aims || !rec) return rec;
+  const was = aims.get(who);
+  if (!rec.aimAt) { aims.delete(who); return rec; }
+  if (was && was.aimAt !== rec.aimAt && ms >= was.atMs && ms - was.atMs < AIM_DWELL_MS) {
+    const held = { ...rec, aimAt: was.aimAt };
+    held.key = seenKey(held);
+    return held;
+  }
+  if (!was || was.aimAt !== rec.aimAt || ms < was.atMs) aims.set(who, { aimAt: rec.aimAt, atMs: ms });
+  return rec;
 }
+
+/**
+ * The record as your eye last had it (the code review of v0.0.23's first finding: seenOf reads a man's true hold, pose and facing
+ * wherever he is, so a card held in stop motion showed "sit|front" and the hands up from behind a wall, while the stage drew him
+ * as last seen or not at all). last: { state, men: Map who → record } (the view's). As the stage's memory decides (render/memory.js
+ * recall's combat branch, in a combat scene only, sim/places/known.js hostKind; never for you, your #2 or the instructor, known.js
+ * alwaysDrawn): a man whose spot is in your sight (perception's visibility above 0, the stage's test) is given as seenOf gives him
+ * and kept; out of sight, the record kept at the last tick he was in it; never kept, as he is where known.js seenEver says the stage
+ * draws him (a load's rooms, the take-in's sightings), else null (no card: the stage draws nothing of him). A new state forgets.
+ * Without last, or out of a combat scene, the record as given.
+ */
+export function seenHeld(state, who, rec, last) {
+  if (!last || !rec || hostKind(state) === null) return rec;
+  if (last.state !== state) { last.state = state; last.men.clear(); }
+  const list = state.actors?.list ?? [], me = list.find(a => a.who === state.player?.id), a = list.find(x => x.who === who);
+  if (!me || !a || alwaysDrawn(state, a)) return rec;
+  const sight = (x, z) => visibility(state, eyeOf(state, me), x, z, state.clock?.ms ?? 0) > 0;
+  if (sight(a.x, a.z)) { last.men.set(who, rec); return rec; }
+  return last.men.get(who) ?? (seenEver(state, a, { sight }) ? rec : null);
+}
+/** A fresh memory for seenHeld (the view's readers.lastSeen). */
+export const lastSeenMemory = () => ({ state: null, men: new Map() });
+
+/** The poses a role-player's card may take at a scene's load (warm()'s set: FRAME_SEEN's standing and kneeling holds, sitting, cowering). */
+export const WARM_HOLDS = Object.freeze([['rifle-low', 'stand'], ['rifle-aim', 'stand'], ['rifle-high', 'stand'], ['up', 'stand'], ['rifle-low', 'kneel'], ['rifle-aim', 'kneel'], ['up', 'kneel'], ['rifle-low', 'sit'], ['rifle-low', 'cower']]);
+/** And aimed away (across the chest, A1's other side), standing and kneeling, at the near band only (the house's rooms; 46 dolls with the rest, inside DOLL_LRU 48). */
+export const WARM_NEAR = Object.freeze([['rifle-aim', 'stand', 'away'], ['rifle-aim', 'kneel', 'away']]);
+/** Your #2's carries as his card may show them (warm()'s). */
+export const WARM_TWO = Object.freeze(['rifle-low', 'rifle-high', 'rifle-aim']);
+/**
+ * Every (face, holds) a stand of the house can be drawn with (portrait-warm: the fill's faces, armoured with a pistol the user's
+ * 2a of seed 4028068471, and each as unidentified): warm()'s list, at the house's place.
+ */
+export const HOUSE_FACES = Object.freeze([['threat', 'rifle'], ['threat', 'pistol'], ['noshoot', 'hands'], ['noshoot', 'phone'], ['armoured', 'rifle'], ['armoured', 'pistol'], ['armoured', 'unseen'],
+  ['hostage', 'pistol'], ['hostage', 'rifle'], ['hostage', 'unseen'], ['unknown', 'unseen']]);
 
 /** The role-players' paint on a marine (R.house.live.struck: { who, part, zone, hole | at }) as card marks, in truth, blue (see the header). */
 export function paintOn(state, who) {
@@ -84,24 +140,25 @@ function personOf(state, who) {
 
 /** The card's model for a target (see the header): a stand's board with its marks, or a man in his gear. */
 export function targetModel(state, { key, kind = 'turner', who = null, phase = null, tabs = [], readers = {} } = {}) {
-  const R = state.armoury?.range, me = readers.meAt?.(state) ?? null;
+  const R = state.armoury?.range, me = readers.meAt?.(state) ?? null, picks = readers.picks?.(state) ?? null;
   if (kind === 'person') {
-    const P = personOf(state, who), gear0 = gearOf(state, who, { by: state.player?.id });
-    if (!gear0) return null;
+    // (out of your sight the record as last seen (seenHeld), so the card never shows what the stage hides)
+    const now = seenOf(state, who, { by: state.player?.id }), kept = seenHeld(state, who, now, readers.lastSeen), frozen = !!kept && kept !== now;
+    const P = personOf(state, who), rec = aimHeld(kept, who, state.clock?.ms ?? 0, readers.aims);
+    if (!rec?.gear) return null;
     const a = state.actors?.list?.find?.(x => x.who === who);
-    // (v0.0.19: a role-player, as identified, with the house's marks as paint)
+    const person = { look: P.look, sex: P.sex }, subject = { kind: 'man', key: `${who}|${rec.key}`, rec, gear: rec.gear, person };
+    // (v0.0.19: a role-player, with the house's marks as paint; v0.0.23: drawn as the stage shows him (V1), the take-in's read in the words)
     const LT = R?.course === 'house' ? liveRecOf(state, who) : null;
     if (LT) {
-      const sf = seenFace(state, LT.key), st = seenState(state, LT.key), gear = liveGear(gear0, { holds: sf.holds, state: st });
+      const sf = seenFace(state, LT.key), st = seenState(state, LT.key);
       const hm = readers.marksOf ? readers.marksOf(state, LT.key, 0, phase) : null;
       const marks = (hm?.marks ?? []).map(mk => ({ ...mk, paint: 'team' }));
       const lead = [STATE_WORDS[st] ?? (sf.holds === 'unseen' ? UNSEEN_WORDS : null), hm?.words ?? String(LT.stand ?? '').toUpperCase()].filter(Boolean).join(' · ');
-      return { look: HIT_LOOK, man: null, key: LT.key, k: 0, face: null, holds: null, phase: hm?.phase ?? phase ?? 'belief', marks, words: lead, line: hm?.line ?? null, tabs, rangeM: hitRangeM(a ?? LT, me, null),
-        subject: { kind: 'man', key: `${who}|${gearKey(gear)}`, gear, person: { look: P.look, sex: P.sex } }, live: { key: LT.key, state: st, holds: sf.holds } };
+      return { look: HIT_LOOK, man: null, key: LT.key, k: 0, face: null, holds: null, phase: hm?.phase ?? phase ?? 'belief', marks, words: lead, line: hm?.line ?? null, tabs, rangeM: frozen ? rec.rangeM : hitRangeM(a ?? LT, me, null),
+        subject, live: { key: LT.key, state: st, holds: sf.holds }, ...(picks ? { picks } : {}) };
     }
-    const gear = gear0;
-    return { look: HIT_LOOK, man: null, key, k: 0, face: null, holds: null, phase: 'belief', marks: [], words: P.name, line: null, tabs: [], rangeM: hitRangeM(a, me, null),
-      subject: { kind: 'man', key: `${who}|${gearKey(gear)}`, gear, person: { look: P.look, sex: P.sex } } };
+    return { look: HIT_LOOK, man: null, key, k: 0, face: null, holds: null, phase: 'belief', marks: [], words: P.name, line: null, tabs: [], rangeM: frozen ? rec.rangeM : hitRangeM(a, me, null), subject, ...(picks ? { picks } : {}) };
   }
   const T = (R?.turners ?? []).find(t => t.key === key) ?? null;
   if (!T) return null;
@@ -114,7 +171,8 @@ export function targetModel(state, { key, kind = 'turner', who = null, phase = n
   const base = hm ?? { key, k: 0, phase: phase ?? 'belief', marks: [], words: String(T.stand ?? '').toUpperCase(), line: null };
   const m = cardModel(base, { look: HIT_LOOK, face: sf.face, holds: sf.holds, tabs, rangeM: hitRangeM(T, me, null) });
   const words = sf.holds === 'unseen' ? [UNSEEN_WORDS, m.words].filter(Boolean).join(' · ') : m.words;
-  return { ...m, words, subject: { kind: 'board', key: `${sf.face}|${sf.holds}`, face: sf.face, holds: sf.holds } };
+  const rec = standSeen(sf.face, sf.holds, { holds: sf.holds, state: null }, { rangeM: m.rangeM ?? null });
+  return { ...m, words, subject: { kind: 'board', key: `${sf.face}|${sf.holds}`, face: sf.face, holds: sf.holds, rec }, ...(picks ? { picks } : {}) };
 }
 
 // (whether the stop names a target of yours now, a row's, an aim's or a pause's bracket, whatever it is)
@@ -122,7 +180,7 @@ const stopNames = (s) => { const S = s.stop; return !!S && S.who === s.player?.i
 
 /** The target view (see the header): frame() each frame, warm() at the scene's load. */
 export function createTargetView({ card, readers: given = {} } = {}) {
-  const readers = { known: new Map(), ...given };
+  const readers = { known: new Map(), aims: new Map(), lastSeen: lastSeenMemory(), ...given };
   // ---- 'string': main.js hitHud's v0.0.17 body, moved verbatim (its hitModelOf beside it) ----
   function hitModelOf(s, key, k, phase, tabs = []) {
     const hm = readers.marksOf(s, key, k, phase);
@@ -190,11 +248,11 @@ export function createTargetView({ card, readers: given = {} } = {}) {
     const m = targetModel(s, { key: cur.key, kind: cur.kind, who: cur.who ?? null, tabs, readers });
     if (!m) { seen.shown = null; return card.update(null); }
     // (a man's doll not painted yet: painted now, the card as it was for this frame)
-    if (m.subject?.kind === 'man' && !hitDollReady(m.subject, bandOf(m.rangeM).pxPerM)) {
-      if (pending !== m.subject.key) { pending = m.subject.key; dressedDoll(m.subject.gear, m.subject.person, figGeom(bandOf(m.rangeM).pxPerM).scale); return card.text; }
+    if (m.subject?.kind === 'man' && !hitDollReady(m.subject, bandOf(m.rangeM).pxPerM, { picks: m.picks ?? null })) {
+      if (pending !== m.subject.key) { pending = m.subject.key; paintPortrait(m.subject.rec, m.subject.person, { pxPerM: bandOf(m.rangeM).pxPerM, picks: m.picks ?? null }); return card.text; }
     }
     pending = null;
-    const sig = JSON.stringify([cur.key, m.phase, m.marks.map(x => [x.n, x.seen]), m.subject?.key, !!target]);
+    const sig = JSON.stringify([cur.key, m.phase, m.marks.map(x => [x.n, x.seen]), m.subject?.key, !!target, m.picks ?? null]);
     if (sig !== seen.sig || (seen.stop && !inStop) || target) seen.t = now;
     seen.sig = sig; seen.stop = inStop;
     const on = targetShown({ engaged: !!target, phase: m.phase, n: m.marks.length, inStop, lastT: seen.t, nowT: now });
@@ -213,22 +271,24 @@ export function createTargetView({ card, readers: given = {} } = {}) {
       const R = s?.armoury?.range;
       if (R?.stress) return warmHitcard();
       if (R?.course !== 'house') return 0;
-      const faces = [['threat', 'rifle'], ['threat', 'pistol'], ['noshoot', 'hands'], ['noshoot', 'phone'], ['armoured', 'rifle'], ['armoured', 'unseen'], ['hostage', 'pistol'], ['hostage', 'rifle'], ['hostage', 'unseen'], ['unknown', 'unseen']];
-      // (the house's rooms are within the mid band: its stands at the near and mid bands' densities, HIT_BANDS' 96 and 80 px a metre)
-      const bands = HIT_BANDS.filter(b => b.maxM <= 25).map(b => b.pxPerM);
+      // (the house's rooms are within the mid band: its stands at the near and mid bands' densities, HIT_BANDS' 96 and 80 px a metre;
+      // v0.0.23: the boards at the house's place (W1), every face the fill can give, armoured with a pistol among them)
+      const bands = HIT_BANDS.filter(b => b.maxM <= 25).map(b => b.pxPerM), picks = readers.picks?.(s) ?? null;
+      const place = BOARD_PLACES[{ ...PORTRAIT_PICKS, ...(picks ?? {}) }.where] ?? 'ready';
       let n = 0;
-      for (const ppm of bands) n = warmHitcard(faces, ppm);
-      const two = R.house?.two?.pid, gear = two ? gearOf(s, two) : null;
-      if (gear) { const P = personOf(s, two); for (const ppm of bands) dressedDoll(gear, { look: P.look, sex: P.sex }, figGeom(ppm).scale); }
-      // (v0.0.19: each role-player as he may be identified: hands unseen, his rifle seen, his hands up)
+      for (const ppm of bands) n = warmHitcard(HOUSE_FACES, ppm, { place });
+      // (your #2 in his carries; v0.0.23: each role-player front on in the holds and poses his frames can give (WARM_HOLDS))
+      const front = (who, how, pose = 'stand', aimAt = 'you') => { const r = seenOf(s, who, { by: s.player?.id }); return r ? { ...r, hold: { ...r.hold, how, act: null }, aimAt: how.endsWith('aim') ? aimAt : null, pose, facing: 'front' } : null; };
+      const two = R.house?.two?.pid;
+      if (two) { const P = personOf(s, two); for (const how of WARM_TWO) { const rec = front(two, how); if (rec) for (const ppm of bands) paintPortrait(rec, { look: P.look, sex: P.sex }, { pxPerM: ppm, picks }); } }
       for (const T of (R.turners ?? []).filter(t => t.live?.who)) {
-        const g0 = gearOf(s, T.live.who), P = personOf(s, T.live.who);
-        if (!g0) continue;
-        for (const holds of ['unseen', 'rifle', 'hands']) for (const ppm of bands) dressedDoll(liveGear(g0, { holds }), { look: P.look, sex: P.sex }, figGeom(ppm).scale);
+        const P = personOf(s, T.live.who);
+        for (const [how, pose] of WARM_HOLDS) { const rec = front(T.live.who, how, pose); if (rec) for (const ppm of bands) paintPortrait(rec, { look: P.look, sex: P.sex }, { pxPerM: ppm, picks }); }
+        for (const [how, pose, aimAt] of WARM_NEAR) { const rec = front(T.live.who, how, pose, aimAt); if (rec) paintPortrait(rec, { look: P.look, sex: P.sex }, { pxPerM: bands[0], picks }); }
       }
       return n;
     },
-    reset() { held = null; pending = null; closedMs = -Infinity; readers.known.clear(); },
+    reset() { held = null; pending = null; closedMs = -Infinity; readers.known.clear(); readers.aims?.clear?.(); if (readers.lastSeen) { readers.lastSeen.state = null; readers.lastSeen.men.clear(); } },
     /** "Bang"'s card model for a turner of a string (main.js's hot wash reads it too). */
     stringModel: hitModelOf,
   };

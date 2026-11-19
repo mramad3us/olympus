@@ -1,6 +1,7 @@
 {
  "title": "The P-12 on the figure at 16 px/m, moving: drawn from the thigh, aimed, fired, holstered",
  "about": "Each design's figure template (seven pixels along, the size a chibi's pistol is drawn) in the hand of the game's own figure, the shoot house's sergeant in the black combat EVA suit and carrier, on the house's slab floor, snapped to the Mars palette. The loop runs 5.2 s on WEAPONS' base times: holstered; the draw, 1.1 s (the hand to the holster, the pistol clear of it one-handed, the press out, the sights); two shots 0.4 s apart, each its kick and flash; the aim held; a scan at the low ready; the holster, 1.3 s. The gallery's picture is a still at the aim between the shots: open a view (O) and it moves (Space stops it, S slows it to a quarter, R starts it again). The game draws its old pistol until you pick; at 16 px/m the designs differ by a pixel or two (B's plate and hooked guard, C's tall rear in one tone, D's lanyard loop), so the card carries the choice and this asks whether the figure's pistol reads at all. In the suit the pistol and the holster are black on black: the last view is the same in utilities with the carrier, where they read.",
+ "open": {"default": ["P12M-a"], "since": "2026-11-14", "decides": "the P-12 on the figure, drawn and fired (A)", "builtIn": "v0.0.24"},
  "pixel": true,
  "groups": [
   {

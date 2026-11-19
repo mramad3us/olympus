@@ -329,11 +329,14 @@ import { isBreathe } from './ui/hud/steps.js';
 import { createReflex } from './ui/hud/reflex.js';
 import { plaque, bracket, place, shotPlaque, plaqueWords, plaqueParts, termsPlaque, termLines, farLabel,
   windowBracket, bracketScale, stamp, STAMP_S, contactPlaque, rowPartsPlaque, frozeStamp, chaosSum, feltMod } from './ui/plaque.js';
-import { doll } from './art/doll/doll.js';
+import { doll, DOLL_SCALE } from './art/doll/doll.js';
 // (0.0.18, the doll role: the I and C figures and the target view drawn from the gear worn now (gear.js, dress.js), the target view
 // whenever you engage a stand or a man (engage.js, hud/target.js))
 import * as GEAR from './sim/arms/gear.js';
 import { dressedDoll } from './art/doll/dress.js';
+// (you on the I and C cards and the loadout's marine through the portrait's renderer, from the Seen record in the mirror)
+import { paintPortrait } from './art/doll/portrait.js';
+import { seenOf } from './sim/people/seen.js';
 import { createStage } from './render/stage.js';
 import { createView, CUT_MAX_MS, FOG_CELLS } from './render/view.js';
 import { FOG_CELL_M } from './render/fog.js';
@@ -388,7 +391,9 @@ const lookAsked = params.look ? parseLook(params.look) : null, lookUnknown = loo
 Object.assign(settings, {
   look: lookAsked ? lookAsked.look : toPick.flags.look ?? null,
   shot: params.shot ?? toPick.flags.shot ?? null,
-  voice: params.voice ?? toPick.flags.voice ?? null,
+  // (the voice by the URL only, never this browser's old To score pick (a V-c kept from v0.0.22 would speak):
+  // the user, 2026-11-19, "forget voice synthesis, no voices.")
+  voice: params.voice ?? null,
   aid: AID_SETTINGS.includes(readLocal(CORNER_AID_KEY)) ? readLocal(CORNER_AID_KEY) : 'rung',
 });
 if (lookAsked?.cycle && !params.cycle) settings.cycle = lookAsked.cycle;
@@ -671,6 +676,8 @@ const boot = createBoot({ cb: {
   },
   keysRows: () => keysRows({
     label: (a) => input.label(a), panel: settings.panel,
+    // (carried FH-8: in the shoot house the card leads with the house's block)
+    scene: scene?.rec ?? null,
     // (R's words in this build, from the sim's own number)
     says: { hand: `what's at hand, as its plate says: an action, a door, else wait ${durationText(WAIT_MS)} (R twice); held: the menu of every action there` },
     extra: settings.debug ? DEBUG_SKIPS.map(([code, ms]) => [input.label(code), `debug: ${durationText(ms)} pass (marks the save)`]) : [],
@@ -678,13 +685,13 @@ const boot = createBoot({ cb: {
   // (the hidden rolls only in debug, once the scene is over: tradecraft's)
   logLines: () => logLines(loop.state, { over: !!settings.debug && !!scene?.ended }),
   scenes: () => SCENE_IDS.map(id => SCENES[id]),                    // (the built scenes: a stub's spec, ROADMAP "anywhere" step 4, waits for its layout)
-  playScene: (scene, { tier = null, par = null, loadout = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, qual = false } = {}) => (qual ? qualFirst(scene, tier, par) : playScene(scene, { tier, par, loadout, draw, house, doors, rooms, layout, plans })),
+  playScene: (scene, { tier = null, par = null, loadout = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, qual = false, again = false } = {}) => (qual ? qualFirst(scene, tier, par) : playScene(scene, { tier, par, loadout, draw, house, doors, rooms, layout, plans, again })),
   // (0.0.18: the shoot house's loadout screen (cards/loadout.js): the code this browser kept (olympus.loadout, a convenience the sim
   // never reads), kept again on Kit up, and the screen's numbers from a fill of the lane with the code (loadout.js loadoutView))
   loadout: () => ({ code: loadoutOf(readLocal('olympus.loadout')).error ? 'standard' : codeOf(loadoutOf(readLocal('olympus.loadout'))),
     save: (c) => { if (!settings.nostore) { try { localStorage.setItem('olympus.loadout', c); } catch { /* (a private window: this session only) */ } } },
     // (the build sheet v0.0.20 item 23: the marine in the kit, the fill's own gear record and its dressed doll, beside the faces)
-    preview: (c, tier) => { try { const s = newGame({ seed: 48213, scene: 'test-shoothouse', scenario: 'test-shoothouse', tier, setup: 'go', loadout: c }), pid = s.player.id, gear = GEAR.gearOf(s, pid); return { ...loadoutView(s, pid, loadoutOf(c)), gear, gearKey: GEAR.gearKey(gear), doll: gear ? dressedDoll(gear, { look: s.people[pid]?.look, sex: s.people[pid]?.sex }) : null }; } catch (e) { broke(e, 'the loadout'); return null; } },
+    preview: (c, tier) => { try { const s = newGame({ seed: 48213, scene: 'test-shoothouse', scenario: 'test-shoothouse', tier, setup: 'go', loadout: c }), pid = s.player.id, gear = GEAR.gearOf(s, pid); return { ...loadoutView(s, pid, loadoutOf(c)), gear, gearKey: GEAR.gearKey(gear), doll: gear ? loadoutDoll(s, pid, gear) : null }; } catch (e) { broke(e, 'the loadout'); return null; } },
     wh: (tier) => TEMPLATES.TEST_SHEETS?.[tier]?.values?.weapons ?? 10 }),
   // (0.0.8: a scene played as a sheet: the picker's sheets and their order, react's templates.js)
   sheets: () => ({ sheets: TEMPLATES.TEST_SHEETS ?? {}, order: TEMPLATES.PICKER_TIERS ?? null, hard: hardOfSheet,
@@ -705,7 +712,7 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
  * (test-pairs' sheet, 0.0.8: 'recruit' … 'tierone'; null the scene's private), scene (a scene's spec, src/data/scenes.js:
  * its host, environment, hour and setup; ROADMAP "anywhere" step 4) }.
  */
-function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null } = {}) {
+function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, again = false } = {}) {
   if (!scene && !SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
   // (0.0.8: tier, test-pairs' sheet (null: the scene's private); scenes never write a career)
   // (ROADMAP "anywhere" step 2: the URL's &env=<preset> runs every game this page starts under that environment)
@@ -714,8 +721,10 @@ function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks'
   // (0.0.19: opfor, the shoot house's role-players by the URL (null: the scene's own, "Stack and clear, live"'s 'live'))
   // (draw, house and doors, the shoot house's drawn house (null: as set; the build sheet §0 item 54))
   // (rooms ('all'), layout ('B' | 'C') and plans ('derived'), each passed only when given (playScene's houseChoice orders them))
+  // (again, the house's Again of the same lane, passed only when true: the v0.0.23 play review's first finding, playScene's
+  // `again` dropped here, so the page never gave the short brief)
   return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}),
-    ...(rooms ? { rooms } : {}), ...(layout ? { layout } : {}), ...(plans ? { plans } : {}) });
+    ...(rooms ? { rooms } : {}), ...(layout ? { layout } : {}), ...(plans ? { plans } : {}), ...(again ? { again: true } : {}) });
 }
 /** The URL's start somewhere else (&area=, &at=, &face=), or null: an area alone starts at its spawn. */
 function atParam(scenario) {
@@ -762,13 +771,15 @@ const sceneOf = (s) => {
 // (whether a scene's house can be other than the set from the page: its `draws` lists 'drawn', or it lists none)
 const drawableOf = (rec) => !Array.isArray(rec?.draws) || rec.draws.includes('drawn');
 /** Start a scene: a new game from its spec, at its hour (or the URL's), with the seed given or a new one, the URL's setup (else the scene's own), and a sheet's tier (test-pairs, 0.0.8). */
-function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, pool = null } = {}) {
+function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, pool = null, again = false } = {}) {
   // (draw, house, rooms and layout as one choice (debug.js houseChoice, a drawn lane given no rooms taking scenes.js
   // HOUSE_ROOMS_DEFAULT, so qualified and "Again with a new seed" follow it); plans beside them, a lead's switch)
   // (`pool`, the end card's, a drawn code's room set kept with it; a scene played as set from the page (its `draws`
   // without 'drawn') given no other house)
+  // (its build sheet §2 step 3: again, the house's Again of the same lane (its short brief), passed only when true; the end
+  // card's rows that set it are v0.0.23 D's)
   const H = houseChoice({ draw, house, rooms, layout, pool }, { roomsDefault: SCENES_DATA.HOUSE_ROOMS_DEFAULT ?? 'a', drawable: drawableOf(rec) }).opts;
-  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par, ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...H, ...(doors ? { doors } : {}), ...(plans ? { plans } : {}) }));
+  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par, ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...H, ...(doors ? { doors } : {}), ...(plans ? { plans } : {}), ...(again ? { again: true } : {}) }));
 }
 
 /** Play a state from here (new, loaded or imported). Resolves with it once its area shows (or the cut gives up). */
@@ -804,7 +815,8 @@ function launch(s, { from = null } = {}) {
   // (0.0.12: the shoot house's goal names your number two: the scene's houseGoal)
   let goal = rec?.goal ?? null;
   if (goal && s.armoury?.range?.course === 'house' && houseScene.houseGoal) { try { goal = houseScene.houseGoal(s) ?? goal; } catch (e) { broke(e, 'the goal'); } }
-  if (goal) toasts.push(goal, 'calm', { s: GOAL_S });
+  // (carried FH-4: the goal whole, three lines at most (toasts.js push's kind, style.css .toast.goal))
+  if (goal) toasts.push(goal, 'calm', { s: GOAL_S, kind: 'goal' });
   // (0.0.10, the runtime review's: "Bang"'s hit card dolls made at the load, so the first card of a string paints in one frame)
   // (0.0.18: and the shoot house's faces as they may be seen, and your #2 in his gear: hud/target.js warm; the view reset on every
   // launch, so a man held on the scene before is not shown on this one)
@@ -1121,7 +1133,12 @@ function instinctPress(kind) {
   const seen = tDown;
   tDown = null;
   if (!canAct()) return;
-  if (kind === 'tap') input.queue({ act: 'instinct', args: { id: seen?.line?.id ?? null, act: seen?.line?.act ?? null } });
+  if (kind === 'tap') {
+    input.queue({ act: 'instinct', args: { id: seen?.line?.id ?? null, act: seen?.line?.act ?? null } });
+    // (its build sheet item 12, carried FH-3: a line that names a row and leaves it to you ("Press it."): T pulses that row's
+    // tile on the panel, the NEXT tile saying "6: yours. T never shoots."; the sim gets the same input as before)
+    if (seen?.line && !seen.line.act && seen.line.row) stepPanel.pulse(seen.line.row);
+  }
   else if (kind === 'held' && seen?.chip) input.queue({ act: 'instinct', args: { id: seen.chip.id ?? null, act: seen.chip.act ?? null, chip: true } });
 }
 // (the splash's keys: Space, Enter or a click to the end; Backspace stop here; T on the strip's "carry on"; Esc the menu)
@@ -1324,6 +1341,20 @@ function hardOfSheet(tier) {
   const inoc = t.inoc ?? SUPP.INOC_OF_TIER?.[tier] ?? 0, H = SUPP.hardFrom({ wf: t.wf, cls: 'soldier', inoc }), exp = SUPP.hardFrom({ wf: t.wf, cls: 'soldier', inoc: 0 });
   return { word: SUPP.hardWord(H), title: `Hardening ${H}: experience ${exp}, training ${inoc}` };
 }
+// (the build sheet v0.0.23 item 5; the user's ask of 2026-11-15, "the I and C menu preview of the character should show the
+// currently worn gear": you as in a mirror, the Seen record's (seen.js seenOf with mirror: front on, your stance and your hold: kneeling
+// with your carry, prone behind the rifle, a G-11 in the fist, the P-12 at the ready) painted by portrait.js at the doll's scale; the
+// gear as worn when the record cannot be read)
+function mirrorDoll(s, gear, person) {
+  let rec = null;
+  try { rec = seenOf(s, s.player.id, { mirror: true }); } catch (e) { broke(e, 'the portrait'); }
+  return rec ? paintPortrait(rec, person, { scale: DOLL_SCALE }).pm : dressedDoll(gear, person);
+}
+// (the loadout's marine: standing, the rifle at the low ready, the kit as chosen, through the same renderer)
+function loadoutDoll(s, pid, gear) {
+  const person = { look: s.people[pid]?.look, sex: s.people[pid]?.sex }, rec = seenOf(s, pid, { mirror: true });
+  return rec ? paintPortrait({ ...rec, hold: { ...rec.hold, how: 'rifle-low', act: null }, aimAt: null, pose: 'stand', facing: 'front' }, person, { scale: DOLL_SCALE }).pm : dressedDoll(gear, person);
+}
 // (the player's hair's drawn step, hairOf's: the sheet's and the inventory's dolls wear the cut as it has grown)
 const hairStep = (s) => { try { return hairOf(s, s.player?.id, s.clock.ms)?.step ?? 0; } catch { return 0; } };
 const clockText = (ms) => { const c = timeAt(siteAt(loop.state), ms); return c.timeslip ? `24:00 +${Math.floor(c.slipMs / MIN_MS)}` : `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; };
@@ -1335,7 +1366,7 @@ function openSheet() {
   catch (e) { broke(e, 'the character sheet'); return; }
   // (0.0.18: the figure wears the gear worn now, gear.js gearOf through dress.js; a person with no kit and no actor as before)
   const gear = (() => { try { return GEAR.gearOf(s, s.player.id); } catch (e) { broke(e, 'the gear'); return null; } })();
-  boot.openCard('sheet', sheetCard(sheet, { dollOf: (args) => (gear ? dressedDoll(gear, { look: args?.look, sex: args?.sex, body: args?.body }) : doll(args)) }));
+  boot.openCard('sheet', sheetCard(sheet, { dollOf: (args) => (gear ? mirrorDoll(s, gear, { look: args?.look, sex: args?.sex, body: args?.body }) : doll(args)) }));
 }
 // (I: what you carry, believed counts only (arms' kitView); the doll as on the sheet)
 function openInventory() {
@@ -1356,7 +1387,7 @@ function openInventory() {
   // (0.0.18: the figure wears the gear worn now, as the sheet's; the plaque names the suit when one is worn)
   const gear = (() => { try { return GEAR.gearOf(s, s.player.id); } catch (e) { broke(e, 'the gear'); return null; } })();
   const { body, lines } = inventoryCard(view, { label: (a) => input.label(a), sub: gear?.suit ? 'COMBAT EVA SUIT' : null,
-    dollOf: look ? () => (gear ? dressedDoll(gear, { look, sex: p.sex }) : doll({ look, sex: p.sex, outfit: me?.outfit ?? 'utilities' })) : null });
+    dollOf: look ? () => (gear ? mirrorDoll(s, gear, { look, sex: p.sex }) : doll({ look, sex: p.sex, outfit: me?.outfit ?? 'utilities' })) : null });
   boot.openCard('inventory', body, lines);
 }
 // (R held: the menu of every single action at hand, cards/actions.js; its keys its own while it is up)
@@ -1506,6 +1537,14 @@ function bundleRead(s) {
   bundleMemo = { key, state: s, bn };
   return bn;
 }
+/** The spot of the Watch or Look row T's act names now ('stop:look:r1:nl' → 'r1:nl'), or null (the play review's fourth finding, v0.0.23's fixer). */
+function hotOfAct(s) {
+  if (s?.armoury?.range?.course !== 'house' || !s.stop) return null;
+  let act = null;
+  try { act = instinctNow(s)?.line?.act ?? null; } catch (e) { broke(e, 'the instinct'); }
+  const m = /^stop:(?:watch|look):(.+?)(?:@[a-z]+)?$/.exec(String(act ?? ''));
+  return m ? m[1] : null;
+}
 /** Whether the scene being played turns V into the movement stances (its spec's stances: the build sheet 0.0.12 §8 item 7). */
 const stancesNow = (s = loop?.state) => !!(s && sceneOf(s)?.stances);
 /**
@@ -1621,7 +1660,9 @@ function openHouseEnd(rec, seed) {
   const { body, lines } = endCard({ scene: rec, seed, said: houseEndLines(hn, rs), sheet: label, runs, cards: side, grid, aspects: houseAspects(hn, { fmt: takeInWords }), again, verdict,
     from: from?.setup ? from : null, exportRun: !!runLogOf(s), code: drawn, lane, qual, on: {
     // (a new seed keeps a named house, B or C, with a new cast, and a drawn house its rooms (house.js againHouseOf))
-    again: leave((same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout, ...againHouseOf({ same, code: drawn, lane, rooms: roomsOf, plans: plansOf }) })),
+    // (its build sheet item 14, carried FH-5: the short brief, "Same lane, same rules.", where the house is the run before's: the
+    // same seed, or a new seed on a set or named house (the same layout, a new cast); never a drawn house's new seed (new doors))
+    again: leave((same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout, again: same || !drawn || !!lane, ...againHouseOf({ same, code: drawn, lane, rooms: roomsOf, plans: plansOf }) })),
     // ("Again as" on a drawn house keeps its code (the same seed, the same house, another sheet))
     againAs: leave((t) => { if (!drawn && !plansOf) return againAs(rec, t); const h = houseScene.againAsHouse(s, t); return playScene(rec, { seed: h.seed, tier: h.tier, par: h.par ?? null, setup: null, loadout: h.loadout ?? null, ...keepHouse }); }),
     from: leave((setup) => playScene(rec, { seed, tier: played, par, setup, loadout, ...keepHouse })),
@@ -1815,7 +1856,11 @@ function render(alpha, s, info) {
   { const me = s ? playerActor(s) : null; view.setChaos?.(sn ? { sn, ms: s.clock.ms, reduce: settings.reduceFlashes, face: me?.face ?? 'right', burst: lastBurst } : null); }
   // (0.0.9: the bay's wind for the bangs' smoke, the sim's own (wind.js windAt at the pad), only while a bang is planned)
   const bangsNow0 = s?.armoury?.range?.bangs?.plan ?? null, windNow = bangsNow0?.length ? windAt(s.meta.seed, s.clock.ms, bangsNow0[0].x, bangsNow0[0].z, { gust: false }) : null;
-  view.frame(alpha, s, { ...info, lonEDeg: lon, cut: cutHeld > 0, splash: shown, wind: windNow });
+  // (its build sheet item 18, DW: the hot spot of the Watch or Look row under the panel's cursor, drawn lit on the floor)
+  // (the play review's fourth finding: with no row under the cursor, the spot of the Watch or Look row T's act names
+  // (NEXT's), so a player on the keys sees which corner T would take; the cursor's row wins)
+  const hov = stepPanel.hovered, hot = hov && /^(watch|look):/.test(hov) ? hov.slice(hov.indexOf(':') + 1) : hotOfAct(s);
+  view.frame(alpha, s, { ...info, lonEDeg: lon, cut: cutHeld > 0, splash: shown, wind: windNow, hot });
   // (the frame's main-thread work: its ticks and the view; the frame clock itself is the browser's)
   report.frame = { ticks: info.ticks ?? 0, tickMs: (info.ticks ?? 0) * (loop.stats.tickMs ?? 0), viewMs: view.stats.viewMs, splash: shown ? shown.phase : null };
   counters && (report.gl = { last: counters.frame(), max: counters.max, total: { bytes: counters.total.bytes, uploads: counters.total.uploads, links: counters.total.links, compiles: counters.total.compiles } });
@@ -2457,7 +2502,8 @@ function hitMarksRead(s, key, k, phase) {
 }
 // (0.0.18, the doll role: the target view, hud/target.js. "Bang"'s card as scored, hitModelOf and hitHud's v0.0.17 bodies moved there
 // verbatim (its 'string' mode); the shoot house's stands and any live man whenever you engage them (its 'lane' and 'free' modes))
-const targetView = createTargetView({ card: hitCard, readers: { pairsOf, marksOf: hitMarksRead, meAt } });
+// (the card's picks tried live on the To score page (state.$look.card, runtime only) over portrait.js PORTRAIT_PICKS)
+const targetView = createTargetView({ card: hitCard, readers: { pairsOf, marksOf: hitMarksRead, meAt, picks: (s) => s?.$look?.card ?? null } });
 /** The hit card's model for a turner of a string (paintHitcard's input: cardModel), its face and holds the turner's. */
 const hitModelOf = (s, key, k, phase, tabs = []) => targetView.stringModel(s, key, k, phase, tabs);
 // (when the card in belief last changed or stop motion was left: its hold out of the mode counts from there)
@@ -2513,11 +2559,15 @@ function openToScore() {
     if (row === 'stack' || row === 'helm' || row === 'jamb') {
       settings.look = { ...(settings.look ?? { stack: [], helm: null, jamb: null }), [row]: v };
       if (st) { if (lookSet(settings.look)) st.$look = settings.look; else delete st.$look; }
+    } else if (row.startsWith('card.')) {
+      // (the target card's picks, state.$look.card, runtime only: the target view reads them over PORTRAIT_PICKS)
+      const L = settings.look ?? { stack: [], helm: null, jamb: null };
+      settings.look = { ...L, card: { ...(L.card ?? {}), [row.slice(5)]: v } };
+      if (st) { if (lookSet(settings.look)) st.$look = settings.look; else delete st.$look; }
     } else if (row === 'walk') {
       settings.cycle = v; view.setCycle?.(v); if (st) st.$cycle = v;
       if (!settings.nostore) { try { localStorage.setItem('olympus.cycle', v); } catch { /* (a private window: this session only) */ } }
     } else if (row === 'shot') { settings.shot = v; audio.setShot(v); }
-    else if (row === 'voice') { settings.voice = v; audio.setVoice(v); }
     else if (row === 'aid') {
       settings.aid = v; if (st) { if (v === 'rung') delete st.$aid; else st.$aid = v; }
       if (!settings.nostore) { try { localStorage.setItem(CORNER_AID_KEY, v); } catch { /* (a private window: this session only) */ } }

@@ -42,10 +42,10 @@
 //     (src/art/figures/bedding.js), from a small atlas a cell a sleeper, a fourth instanced draw with the
 //     cards' own shader (one program), lit by the same tint; no blob (the rack is under them).
 //   - RIFLE SHEETS (0.0.5): the rifle's handling bands (poses.js RIFLE_BANDS) are a second, smaller sheet
-//     a look gets only when it first handles a rifle (atlas.js pools.rifle: 896 × 152 at 16 px/m), kept in
-//     the atlas's rows the base sheets leave below them (RIFLE_SLOTS_MIN of them at least, a base row given
-//     up for them where the rows left are too few): 8 at 16 px/m and 9 at 24 in a 4096 atlas, the base
-//     sheets' 40 and 15 unchanged. A full pool gives the rifle sheet unseen longest to the look that needs
+//     a look gets only when it first handles a rifle (atlas.js pools.rifle: 1360 × 152 at 16 px/m from v0.0.23, the P-12's band
+//     beside the rifle's; 896 × 152 before), kept in the atlas's rows the base sheets leave below them (RIFLE_SLOTS_MIN of them at
+//     least, a base row given up for them where the rows left are too few): 6 at 16 px/m and 6 at 24 in a 4096 atlas (8 and 9
+//     to v0.0.22), the base sheets' 40 and 15 unchanged. A full pool gives the rifle sheet unseen longest to the look that needs
 //     one; its owner keeps its base sheet.
 //     0.0.7 (the KD's relay, six rifles in sight): prepare takes a rifle sheet when one is free; a rifle band
 //     painted for a look with none is forgotten, so it is asked again once the look has one; and a figure whose

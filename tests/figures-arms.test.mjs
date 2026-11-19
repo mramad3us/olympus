@@ -90,7 +90,9 @@ export default [
         const lay = sheetLayout(ppm), slots = Math.floor(4096 / lay.w) * Math.floor(4096 / lay.h), R = lay.pools.rifle;
         const rows = Math.floor(4096 / lay.h), rifleSlots = Math.floor(4096 / R.w) * Math.floor((4096 - rows * lay.h) / R.h);
         console.log(`      ${ppm} px/m: the base sheet ${lay.w} × ${lay.h} (${slots} looks), the rifle sheet ${R.w} × ${R.h} (${rifleSlots} in the rows left under the base sheets)`);
-        assert(slots >= (ppm === 16 ? 40 : 15) && rifleSlots >= 4, `${slots} looks, ${rifleSlots} rifle sheets`);
+        // (v0.0.23's fixer, the code review's third finding: the P-12's band widened the rifle sheet and took the rifle sheets from 8
+        // and 9 to 6; held at 6 so a further widening cannot take more unseen (the live lane measured no more uploads than v0.0.22's))
+        assert(slots >= (ppm === 16 ? 40 : 15) && rifleSlots >= 6, `${slots} looks, ${rifleSlots} rifle sheets`);
         for (const f of NEW) for (const d of DIRS) { const c = lay.cells.get(`${f}|${d}`), b = lay.bands[c.band]; assert(c.pool === 'rifle' && c.x >= b.x && c.y >= b.y && c.x + c.w <= b.x + b.w && c.y + c.h <= b.y + b.h, `${f} ${d} in its band`); }
       }
     },

@@ -64,7 +64,7 @@ import { BASE_RULES, doAct } from './instinct/base.js';
 import { GROOM_RULES } from './instinct/groom.js';
 import { RANGE_RULES } from './instinct/range.js';
 import { PAIRS_RULES } from './instinct/pairs.js';
-import { CQB_RULES, stopLead } from './instinct/cqb.js';
+import { CQB_RULES, stopLead, walkInKey } from './instinct/cqb.js';
 import { rangeOf } from '../scenarios/handling.js';
 import { contactNow, pendingOf } from '../combat/contact.js';
 import { takeInWords } from '../combat/react.js';
@@ -208,7 +208,10 @@ export function instinctStep(state, input, bus, ctx) {
   const S = state.stop, win = pendingOf(state) ? 'w' : '', jolt = state.player?.id && startled(state, state.player.id, ms) ? '|s' : '';
   const stopKey = `${S ? `${S.mode}|${S.phase}|${S.doing?.step ?? ''}|${S.doing?.i ?? ''}|${S.reflex ? 'r' : ''}` : ''}${win ? `|${win}` : ''}${jolt}`;
   // (the held second: a whole second is due once at that ms, not on every tick the clock stands there in a pause)
-  const due = !prev || prev.quiet === 'splash' || (ms % SEC_MS === 0 && prev.atMs !== ms) || (input?.act?.length ?? 0) > 0 || prev.atMs === undefined || prev.atMs > ms || (prev.stopKey ?? '') !== stopKey;
+  // (its build sheet item 10, carried FH-1: the walk in's leg changed (cqb.js walkInKey, '' everywhere else): the line follows
+  // your legs the tick they change, never the next whole second, which a 0.4 m leg is crossed inside at the Combat walk)
+  const walkKey = walkInKey(state);
+  const due = !prev || prev.quiet === 'splash' || (ms % SEC_MS === 0 && prev.atMs !== ms) || (input?.act?.length ?? 0) > 0 || prev.atMs === undefined || prev.atMs > ms || (prev.stopKey ?? '') !== stopKey || (prev.walkKey ?? '') !== walkKey;
   if (!due) return;
   const fired = scoped(state, () => firedNow(state, ms));
   const stop = isHeld(state, 'stop');
@@ -219,7 +222,7 @@ export function instinctStep(state, input, bus, ctx) {
   const cl = contactLead(state, prev);
   // (2026-11-12, the rework's R4: in the house every stop says why (COMBAT §25.19.4), the contact's take-in at its own pause)
   const hl = stop ? stopLead(state, ms) : null;
-  state.$instinct = { line: L.line, chip: C, keys: s.keys, queued: s.queued, gone: s.gone, humourAt: L.humourAt, atMs: ms, lead: stop && L.line ? hl ?? cl.lead ?? STOP_LEAD : null, stopKey, leadDone: cl.done };
+  state.$instinct = { line: L.line, chip: C, keys: s.keys, queued: s.queued, gone: s.gone, humourAt: L.humourAt, atMs: ms, walkKey, lead: stop && L.line ? hl ?? cl.lead ?? STOP_LEAD : null, stopKey, leadDone: cl.done };
 }
 
 /** The line's lead at a contact's pause: "Contact · 0.55 s.", until a step is chosen after it (runtime: $instinct.leadDone, the contact whose lead has gone). */

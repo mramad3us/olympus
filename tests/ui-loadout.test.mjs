@@ -134,4 +134,26 @@ export default [
       for (const r of rows) console.log(`      ${r}`);
     },
   },
+  {
+    name: 'the Kit screen says how to choose: "1 to 8: a preset. Or an item, then a place for it; Backspace or Delete empties a place." under KIT, whole in the window at 1280 × 720 (v0.0.23, carried FH-9; before: the line said what the kit weighs and nothing of the keys)',
+    heavy: true,
+    timeoutMs: 300_000,
+    async fn() {
+      const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined;
+      let sub = null;
+      await withGame(async (page, errors, game) => {
+        await page.setViewportSize({ width: 1280, height: 720 });
+        await game.open('nostore=1');
+        await page.waitForSelector('#title .item.tests');
+        await page.click('#title .item.tests');
+        await page.evaluate(() => [...document.querySelectorAll('#title .item.scene')].find(b => b.innerText.startsWith('Stack and clear')).click());
+        await page.waitForSelector('#title .item.kitpick');
+        await page.click('#title .item.kitpick');
+        await page.waitForSelector('#title .sheet.loadout');
+        sub = await page.evaluate(() => { const e = document.querySelector('#title .sheet.loadout .sub'), r = e.getBoundingClientRect(); return { text: e.textContent, whole: e.scrollHeight <= e.clientHeight + 1 && r.right <= innerWidth && r.bottom <= innerHeight }; });
+      }, { port });
+      console.log(`      the line under KIT: "${sub?.text}"; ${sub?.whole ? 'whole in the window' : 'CUT'}`);
+      assert(sub && /1 to 8: a preset\. Or an item, then a place for it; Backspace or Delete empties a place\.$/.test(sub.text) && sub.whole, JSON.stringify(sub));
+    },
+  },
 ];

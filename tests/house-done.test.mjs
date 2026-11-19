@@ -12,7 +12,7 @@
 import { assert } from './helpers.mjs';
 import { ALL, DONE, GAUGE_ROWS, GAUGE_LAST, OPEN_GAUGES, resolveRow } from './house-done.mjs';
 
-const GROUPS = Object.freeze({ A: 'the user\'s verdict', B: 'the user\'s complaints', C: 'the gauges', D: 'never a dead end', E: 'the ladder and the verdict', F: 'the moments', G: 'saves and replay', H: 'performance', I: 'the scored scenes', J: 'the hand-off', K: 'docs', L: 'the drawn house' });
+const GROUPS = Object.freeze({ A: 'the user\'s verdict', B: 'the user\'s complaints', C: 'the gauges', D: 'never a dead end', E: 'the ladder and the verdict', F: 'the moments', G: 'saves and replay', H: 'performance', I: 'the scored scenes', J: 'the hand-off', K: 'docs', L: 'the drawn house', M: 'v0.0.22\'s rooms, lane\'s end, blast and page', N: 'v0.0.23\'s portraits, knowledge and carried fixes' });
 
 export default [
   {

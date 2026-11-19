@@ -11,23 +11,41 @@
 // sex, the DollGear, the wounds; the scale; the body's cues rounded to 0.1 so sweat creeping up does not repaint it each frame;
 // art reads no sim module, so the key is the arguments', which change exactly when the sim's gearKey does) and keeps the last
 // DOLL_LRU of them, so the I and C cards and the target view share one painting. Pure but the cache.
+// v0.0.23 (the build sheet v0.0.23 §3.3, items 1 to 5; the user's note of 2026-11-17: "the portraits need to be more dynamic and
+// show us what we would be seeing, including what they are holding"): dressOf takes the Seen record (`rec`, src/sim/people/seen.js
+// seenOf's, as plain data: art reads no sim) and passes its hold, pose and facing to the doll, so the dressed doll is the man as you
+// see him (doll.js POSE_BENDS, worn.js holdGear); a record standing front on with no hold is the doll as before, to its key. A board's
+// painted man holds his gun where the stage paints it (W1: gear.js standGear's 'ready'), the 'hand' place kept for "Bang"'s boards.
+// The LRU holds 48 (P§4: the warm set's poses and the I and C cards; about 64 KB a doll at the near band, 3 MB at most).
 import { doll, DOLL_SCALE } from './doll.js';
 
-/** The dressed dolls kept (my call: the house's faces, the #2, you and a few changes of gear). */
-export const DOLL_LRU = 24;
+/** The dressed dolls kept (my call: the house's faces, the #2, you and a few changes of gear; v0.0.23: 48, the poses' warm set). */
+export const DOLL_LRU = 48;
+/** The record's fields the doll draws (the rest of seenOf's record is the card's words or the band): a record with none of them set is the plain doll. */
+const posed = (rec) => !!rec && ((rec.pose && rec.pose !== 'stand') || (rec.facing && rec.facing !== 'front') || !!rec.hold?.how);
 const CUES = Object.freeze(['wetK', 'grimeK', 'sweatK', 'stubbleK', 'tiredK', 'bladderK', 'hungerK', 'handsK']);
 const CACHE = new Map();
+let PAINTS = 0;
 
 /** The doll's arguments for a gear record and a person (see the header). */
-export function dressOf(gear, { look = {}, sex = 'm', body = null, wounds = null } = {}) {
+export function dressOf(gear, { look = {}, sex = 'm', body = null, wounds = null } = {}, { rec = null } = {}) {
   const L = { ...(look ?? {}) }, args = { look: L, sex };
   if (body) args.body = body;
   if (wounds) args.wounds = wounds;
+  // (the record's pose, facing and hold, only when it is not the plain standing front-on doll, so every key before is the same string)
+  if (posed(rec)) {
+    if (rec.pose && rec.pose !== 'stand') args.pose = rec.pose;
+    if (rec.facing && rec.facing !== 'front') args.facing = rec.facing;
+    if (rec.hold?.how) args.hold = { how: rec.hold.how, ...(rec.aimAt ? { aimAt: rec.aimAt } : {}), ...(rec.hold.place ? { place: rec.hold.place } : {}), ...(rec.hold.act ? { act: rec.hold.act } : {}) };
+    if (rec.hang) args.hang = rec.hang;
+  }
   if (!gear) return args;
   if (gear.painted) {
-    // (the board's painted man: the look the board gives him, what his face holds)
+    // (the board's painted man: the look the board gives him, what his face holds; v0.0.23: a gun at the ready (W1) is drawn by the
+    // gear's place, 'hand' as before)
     if (gear.rifle?.place === 'hand') args.hand = 'rifle';
     const extra = {};
+    if (gear.rifle && gear.rifle.place !== 'hand') extra.rifle = { model: gear.rifle.model, finish: gear.rifle.finish ?? null, place: gear.rifle.place, mag: !!gear.rifle.mag };
     if (gear.pistol) extra.pistol = { model: gear.pistol.model, place: gear.pistol.place, mag: !!gear.pistol.mag };
     if (gear.held) extra.held = gear.held;
     // (painted: a pistol in a painted hand has no holster on the thigh)
@@ -60,19 +78,26 @@ export function dressOf(gear, { look = {}, sex = 'm', body = null, wounds = null
 
 // (the cache's key: dressOf's arguments but the body, whose cues count to 0.1)
 const cuesKey = (body) => (body ? CUES.map(k => Math.round((body[k] ?? 0) * 10)).join(',') + (body.handsWhy ?? '') : '');
-const keyOf = (gear, person, scale) => { const { body, ...rest } = dressOf(gear, { ...person, body: null }); void body; return `${JSON.stringify(rest)}|${scale}|${cuesKey(person.body)}`; };
+const keyOf = (gear, person, scale, rec = null) => { const { body, ...rest } = dressOf(gear, { ...person, body: null }, { rec }); void body; return `${JSON.stringify(rest)}|${scale}|${cuesKey(person.body)}`; };
+/** The dressed doll's cache key (portrait.js portraitKey's: the record's drawn fields, the person's look, the scale). */
+export const dollKey = keyOf;
 
-/** The dressed doll (doll.js's Pixmap) for a gear record, a person ({ look, sex, body, wounds }) and a scale, cached (see the header). */
-export function dressedDoll(gear, person = {}, scale = DOLL_SCALE) {
-  const key = keyOf(gear, person, scale), hit = CACHE.get(key);
+/** The dressed doll (doll.js's Pixmap) for a gear record, a person ({ look, sex, body, wounds }) and a scale, cached (see the header); rec: the Seen record. */
+export function dressedDoll(gear, person = {}, scale = DOLL_SCALE, rec = null) {
+  const key = keyOf(gear, person, scale, rec), hit = CACHE.get(key);
   if (hit) { CACHE.delete(key); CACHE.set(key, hit); return hit; }
-  const pm = doll({ ...dressOf(gear, person), scale });
+  const pm = doll({ ...dressOf(gear, person, { rec }), scale });
+  PAINTS++;
   CACHE.set(key, pm);
   while (CACHE.size > DOLL_LRU) CACHE.delete(CACHE.keys().next().value);
   return pm;
 }
 /** Whether a dressed doll is painted already (the target view paints at most one new doll a frame). */
-export const dressedReady = (gear, person = {}, scale = DOLL_SCALE) => CACHE.has(keyOf(gear, person, scale));
+export const dressedReady = (gear, person = {}, scale = DOLL_SCALE, rec = null) => CACHE.has(keyOf(gear, person, scale, rec));
+/** The dressed dolls painted since the module loaded, an LRU's evictions never hiding one (the tests': F91, one new doll a frame). */
+export const dollPaints = () => PAINTS;
+/** The dressed dolls' keys kept, oldest first (the tests': F91, every doll painted after GO in the warm set or a variant of one). */
+export const dollKeys = () => [...CACHE.keys()];
 /** The dressed dolls painted and kept (the tests'). */
 export const dollCount = () => CACHE.size;
 /** The cache emptied (tests only). */

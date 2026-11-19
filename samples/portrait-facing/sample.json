@@ -1,0 +1,28 @@
+{
+ "title": "A man turned on the target card: from behind, in profile, or front on with his head turned; and the card's body",
+ "about": "Your note of 2026-11-17: the card should \"show us what we would be seeing\". The card drew every man front on, though the stage drew him turned away. His facing is read from your eye (front within 45° of you, from behind beyond 135°, a side between). Each picture is one candidate, the live lane's role-player drawn by the game's own doll and card code (A's back of a man for F1): F, today's card (front on) for comparison, the candidate at 4, 14 and 30 m, then the card as he turns (a new card each time his facing crosses a band) beside the stage's frames of him facing you, side on and away; R, the card's body for a man with no marks on him, three records (aimed at you, at the low ready, the hands up) at the near and mid bands. F1 (from behind) and F3 (a side: front on, the head and the gun's line turned) are drawn in this release at their defaults; F2 (the profile) only if you score it, in v0.0.24. R1 (the doll, the card you starred) stays; R2 and R3 (the stage's own figure) would be for an unmarked man only (its chibi head cannot carry the marks life size): your pick in v0.0.24.",
+ "open": {"default": ["F1", "F3", "R1"], "since": "2026-11-18", "decides": "a man turned on the target card (F) and the card's body (R)", "builtIn": "v0.0.23"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "F",
+   "title": "F: a man turned",
+   "about": "Today's card, the candidate at three bands, then the turn and the stage's frames.",
+   "views": [
+    { "id": "F1", "name": "F1: from behind (the default for his back)", "query": "v=F1", "pixel": "844x439" },
+    { "id": "F3", "name": "F3: front on, his head turned (the default for a side)", "query": "v=F3", "pixel": "844x439" },
+    { "id": "F2", "name": "F2: in profile", "query": "v=F2", "pixel": "844x439" }
+   ]
+  },
+  {
+   "id": "R",
+   "title": "R: the card's body for a man with no marks",
+   "about": "Aimed at you, at the low ready, the hands up, at 4 m and 14 m.",
+   "views": [
+    { "id": "R1", "name": "R1: the doll (the default)", "query": "v=R1", "pixel": "616x439" },
+    { "id": "R2", "name": "R2: the stage's figure, finer", "query": "v=R2", "pixel": "616x439" },
+    { "id": "R3", "name": "R3: the stage's own cell, blown up", "query": "v=R3", "pixel": "616x439" }
+   ]
+  }
+ ]
+}

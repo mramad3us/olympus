@@ -337,11 +337,103 @@ export function keysOf(dx, dz) {
   const both = [[ns, Math.abs(dz)], [ew, Math.abs(dx)]].filter(([x]) => x).sort((a, b) => b[1] - a[1]).map(([x]) => x);
   return both.length > 1 ? `${both[0]} and ${both[1]}` : both[0] ?? 'Z';
 }
-/** The walk in by the keys in words, from a room's plan: { keys, side } (the bearing from #1's stack to his point; his corner's side, the rule's as the screen shows it: src/sim/combat/corner.js screenWordsOf, the one place it is decided). */
-export function walkWords(plan) {
+/**
+ * The walk in by the keys in words, from a room's plan and where you stand (`at`, the stack by default): { keys, side, legs }. v0.0.23
+ * (its build sheet item 10, carried FH-1): the keys along #1's own path (walkLegs, legsWords: "Q to the door, S through it, then D"),
+ * never the straight bearing from the stack to the point, which on room 2 and room 3 of lane A ("D and S", "Z") walked a recruit into
+ * the wall beside the doorway (the doorways lie west of both stacks: stopped 0.16 m off the stack from 77.8 s to the room's pass); the
+ * bearing (keysOf) only for a plan with no path. `legs` the legs' keys run together ('QSD'); his corner's side the rule's as the
+ * screen shows it (src/sim/combat/corner.js screenWordsOf, the one place it is decided).
+ */
+export function walkWords(plan, at = null) {
   const st = plan?.stack?.[0], pt = plan?.points?.[0];
-  if (!st || !pt) return { keys: 'Z', side: 'left' };
-  return { keys: keysOf(pt[0] - st[0], pt[1] - st[1]), side: cornerOf1(plan) ?? 'left' };
+  if (!st || !pt) return { keys: 'Z', side: 'left', legs: '' };
+  const legs = walkLegs(plan, at ?? st);
+  return { keys: legs.length ? legsWords(legs) : keysOf(pt[0] - st[0], pt[1] - st[1]), side: cornerOf1(plan) ?? 'left', legs: legs.map(l => l.key).join('') };
+}
+/** A leg of the walk in shorter than this is no key of its own, unless it crosses the door's plane or is the last (m; FH-1, measured on 81 rooms). */
+export const WALK_LEG_MIN_M = 0.2;
+/** Standing this far or more inside the doorway's span from either jamb, not yet through, the legs along the wall are dropped: the next word is the door's (m; FH-1). */
+export const DOOR_SPAN_INSET_M = 0.2;
+/** Standing farther than this off #1's path (its nearest point), the walk in starts with the approach to it (m; my call: the reading recruit on eight-room seed 208 stood 7.5 m off room 2's stack with its door found open). */
+export const WALK_PATH_OFF_M = 0.6;
+/** The approach's key of an axis while its part of the way is this long or more (m; my call: under WALK_PATH_OFF_M, so the approach ends on the path). */
+export const WALK_AXIS_M = 0.3;
+/**
+ * The approach's keys (x east, z south): a key for each axis whose part is WALK_AXIS_M or more, the north or south key first ("S and Q").
+ * By a fixed length a part, never keysOf's share of the bearing: holding both walks the diagonal and each part only shrinks, so a key
+ * drops out once and never comes back. By the share, the words flipped between "S" and "S and Q" every 0.6 s as the diagonal crossed
+ * its 0.35, each flip a new line to read, and the reading recruit on eight-room seed 208 crept 3 m in 10 s until room 2 was passed at its
+ * open door (house-reader's F92). Pure.
+ */
+export function approachKeys(dx, dz) {
+  const ns = Math.abs(dz) >= WALK_AXIS_M ? (dz > 0 ? 'S' : 'Z') : null, ew = Math.abs(dx) >= WALK_AXIS_M ? (dx > 0 ? 'D' : 'Q') : null;
+  return ns && ew ? `${ns} and ${ew}` : ns ?? ew ?? keysOf(dx, dz);
+}
+/**
+ * #1's path (plan.paths[1]) from where he stands as legs of one key each (carried FH-1): from the nearest segment ahead of
+ * `at` by projection, each segment's key by its larger part (Z north, S south, Q west, D east, as keysOf), equal keys merged, a leg
+ * under WALK_LEG_MIN_M dropped unless it crosses the plane (`past`) or is the last; standing in the doorway's span (inset
+ * DOOR_SPAN_INSET_M from either jamb) and not through, the legs along the wall dropped (the overshoot: "D to the door" read at x 19.91
+ * with the doorway's west jamb at 20.15). [{ key, m, past }]; [] with no path. Pure.
+ */
+export function walkLegs(plan, at) {
+  const path = plan?.paths?.[1];
+  if (!path?.length || !at) return [];
+  let best = { i: 0, d: Infinity };
+  for (let i = 0; i < path.length - 1; i++) {
+    const [ax, az] = path[i], [bx, bz] = path[i + 1], dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
+    const t = Math.max(0, Math.min(1, ((at[0] - ax) * dx + (at[1] - az) * dz) / L2)), d = Math.hypot(at[0] - (ax + t * dx), at[1] - (az + t * dz));
+    if (d < best.d - 1e-9) best = { i, d };
+  }
+  // (far off the path (WALK_PATH_OFF_M), the approach first: one leg to its nearest point, keyed by its parts (approachKeys, "S and Q"),
+  // so a walk from across the hall goes to the stack and never stairs between two keys, each change a new read)
+  const [ax0, az0] = path[best.i], [bx0, bz0] = path[best.i + 1] ?? path[best.i], vx = bx0 - ax0, vz = bz0 - az0, l2 = vx * vx + vz * vz || 1;
+  const t0 = Math.max(0, Math.min(1, ((at[0] - ax0) * vx + (at[1] - az0) * vz) / l2)), near = [ax0 + t0 * vx, az0 + t0 * vz];
+  const far = best.d > WALK_PATH_OFF_M ? { key: approachKeys(near[0] - at[0], near[1] - at[1]), m: best.d, past: false, approach: true } : null;
+  const pts = [far ? near : at, ...path.slice(best.i + 1)], legs = [];
+  const pl = plan.plane, side = (p) => (pl ? Math.sign(((pl.axis === 'x' ? p[1] : p[0]) - pl.at) * pl.into) : 0);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const dx = pts[i + 1][0] - pts[i][0], dz = pts[i + 1][1] - pts[i][1];
+    const key = Math.abs(dx) >= Math.abs(dz) ? (dx > 0 ? 'D' : 'Q') : dz > 0 ? 'S' : 'Z', m = Math.hypot(dx, dz), past = side(pts[i]) <= 0 && side(pts[i + 1]) > 0;
+    const last = legs.at(-1);
+    if (last && last.key === key) { last.m += m; last.past ||= past; } else legs.push({ key, m, past });
+  }
+  if (pl) {
+    const u = pl.axis === 'x' ? at[0] : at[1], along = pl.axis === 'x' ? ['Q', 'D'] : ['Z', 'S'];
+    if (side(at) <= 0 && u >= pl.a + DOOR_SPAN_INSET_M && u <= pl.b - DOOR_SPAN_INSET_M) while (legs.length > 1 && along.includes(legs[0].key) && !legs[0].past) legs.shift();
+  }
+  const kept = legs.filter((l, i) => l.m >= WALK_LEG_MIN_M || l.past || i === legs.length - 1);
+  const out = kept.reduce((a, l) => { const last = a.at(-1); if (last && last.key === l.key) { last.m += l.m; last.past ||= l.past; } else a.push({ ...l }); return a; }, []);
+  return far ? [far, ...out] : out;
+}
+/** The legs in words: "Q to the door, S through it, then D"; one leg alone its key (carried FH-1). */
+export function legsWords(legs) {
+  if (!legs?.length) return '';
+  // (the approach from off the path first: "S and Q to the stack, then Q to the door, S through it, then D")
+  if (legs[0].approach) { const rest = legsWords(legs.slice(1)); return `${legs[0].key} to the stack${rest ? `, then ${rest}` : ''}`; }
+  if (legs.length === 1) return legs[0].key;
+  const k = legs.findIndex(l => l.past);
+  if (k < 0) return legs.map(l => l.key).join(', then ');
+  const before = legs.slice(0, k).map(l => l.key), after = legs.slice(k + 1).map(l => l.key);
+  return [before.length ? `${before.join(', ')} to the door` : null, `${legs[k].key} through it`, after.length ? `then ${after.join(', ')}` : null].filter(Boolean).join(', ');
+}
+/**
+ * The walk in's key where you stand (carried FH-1's refresh key): '' unless out of stop motion on the lane (GO given, no end),
+ * your room rung under 2, the door ahead open and you not past it; then `${door}|${the legs' keys}`. instinct.js instinctStep re-reads
+ * the line the tick it changes, so the words follow your legs, not the clock's whole second (without it the 0.4 m leg "S through it"
+ * was crossed in 0.33 s between two whole seconds and the recruit read "D to the door" past the jamb). Cheap first: the stop and the
+ * rung before doorNow. Pure, runtime only (instinct.js keeps it on $instinct).
+ */
+export function walkInKey(state) {
+  if (state.stop) return '';
+  const H = opOf(state);
+  if (!H || H.goAtMs === null || H.goAtMs === undefined || H.end) return '';
+  const me = playerActor(state), pid = playerId(state);
+  if (!me || rungOf(state, pid, 'room') >= 2) return '';
+  const plan = doorNow(state, pid)?.plan;
+  if (!plan?.door || openingState(state, plan.door) !== 'open' || pastThreshold(plan, me.x, me.z)) return '';
+  return `${plan.door}|${walkLegs(plan, [me.x, me.z]).map(l => l.key).join('')}`;
 }
 // (your corner in words, #1's by the rule (corner.js), as the screen shows it (screenWordsOf: room 2, entered going south, is
 // "right"; the marine's own "left" read wrong against the bracket on the screen's right, the play review of 2026-11-15):
@@ -571,12 +663,18 @@ export const CQB_RULES = Object.freeze([
     when(state, me, ms) {
       const k = know(state, me, ms);
       if (!(k?.choosing && k.T?.face === 'hostage' && (k.T.stoppedAtMs === null || k.T.stoppedAtMs === undefined) && facingOf(k.T, ms) >= 0.5) || noShotNow(k)) return null;
+      // (on him, the head shot struck only for the safe ("off safe first") and Off safe offered: the thumb first, as
+      // cqb-contact's 'safe'. Before, "Hostage. Head only, or hold." with no act and no row named, a dead end for T: the reading recruit
+      // on eight-room seed 208, aimed at room 1's hostage-taker on safe, stood 90 s in stop motion until the room was passed)
+      const onHim = k.S.aim?.key === k.T.key, headSafe = k.steps.some(s => s.id.startsWith('shot:head') && /off safe/i.test(String(s.off ?? '')) && (s.target ?? k.T.key) === k.T.key);
+      if (onHim && !headLive(k) && headSafe && k.offered('selector:semi')) return { k, tier: k.shotTier, voice: k.voice, variant: 'safe', words: 'safe', row: 'selector:semi' };
       const key = headKeys(state, k), row = headRow(k)?.id;
       return key ? { k, tier: k.shotTier, voice: k.voice, key, variant: `key${key}`, words: 'key', row } : { k, tier: k.shotTier, voice: k.voice, row };
     },
-    act: (ctx) => (ctx.k.S.aim?.key === ctx.k.T.key || (ctx.k.rung >= 2 && headLive(ctx.k)) ? null : actIf(ctx.k, 'aim')),
+    act: (ctx) => (ctx.variant === 'safe' ? actIf(ctx.k, 'selector:semi') : ctx.k.S.aim?.key === ctx.k.T.key || (ctx.k.rung >= 2 && headLive(ctx.k)) ? null : actIf(ctx.k, 'aim')),
     text: { 1: ['Hostage. Head only, or hold.', 'He\'s got a hostage. Head, or hold.', 'Hostage. Nothing but the head.', 'Hostage. Head shot or no shot.'], 2: ['Hostage. Head only, or hold.', 'Head only. Or hold.', 'Hostage. Head or nothing.', 'Head only.'], 3: ['Head only.', 'Hostage. Head.', 'Head, or hold.', 'Head or nothing.'],
-      key: ['Hostage. Head only, {key}, or hold.', 'Head only: {key}. Or hold.', 'Hostage. Head or nothing: {key}.', 'Head only: {key}.'] },
+      key: ['Hostage. Head only, {key}, or hold.', 'Head only: {key}. Or hold.', 'Hostage. Head or nothing: {key}.', 'Head only: {key}.'],
+      safe: ['Hostage. Off safe, then the head.', 'Hostage. Thumb it off first. Head only.', 'Off safe. Head only, or hold.', 'Hostage. Safe off, then the head.'] },
   },
   {
     // (v0.0.19, COMBAT §25.18: a role-player of yours up and firing on the stack, bracketed: the shot the line names and leaves to
@@ -876,6 +974,8 @@ export const CQB_RULES = Object.freeze([
       const k = know(state, me, ms);
       if (!k?.plan?.door || !inFunnel(k.plan, me.x, me.z) || Math.hypot(me.v?.[0] ?? 0, me.v?.[1] ?? 0) > 0.05 || k.S?.doing) return null;
       const variant = k.rung >= 2 ? 'enter' : k.inside ? 'point' : 'keys';
+      // (carried FH-1: the walk in's keys from where you stand in the doorway, #1's path's (walkWords), the legs in the variant)
+      if (variant === 'keys') { const w = walkWords(k.plan, [me.x, me.z]); return { k, variant: `keys|${w.legs}`, words: 'keys', voice: k.voice, keys: w.keys }; }
       return { k, variant, words: variant, voice: k.voice };
     },
     // (in: the room's bundle where it is offered, else the halted bundle's Carry on, else your point; never a line naming nothing
@@ -883,7 +983,7 @@ export const CQB_RULES = Object.freeze([
     // inside it, and T waited 90 s: the stopped body had kept its speed before, so the line never came))
     act: (ctx) => (ctx.variant === 'enter' ? actIf(ctx.k, bundleRow(ctx.k, ctx.k.rung >= 3 ? 'room:clear' : 'room:in')?.id ?? null) ?? actIf(ctx.k, 'drill:carry') ?? actIf(ctx.k, bundleRow(ctx.k, 'room:dominate')?.id ?? null) ?? actIf(ctx.k, 'move:point') : ctx.variant === 'point' ? actIf(ctx.k, 'move:point') : actIf(ctx.k, 'leave')),
     text: { enter: ['Out of the door. In.', 'You\'re in the door. Go.', 'Don\'t stop in the door. In.', 'Doorway. Move.'], point: ['Out of the door. Your point.', 'Off the door. To your point.', 'Not in the door. Your point.', 'Move. Your point.'],
-      keys: ['Out of the door. X, then keys, in.', "You're a target in the door. X, and in.", "Don't stand in the door. X, then the keys.", 'Out of the door. X, in, with the keys.'] },
+      keys: ['Out of the door. X, then {keys}.', "You're a target in the door. X, and {keys}.", "Don't stand in the door. X, then {keys}.", 'Out of the door. X, in: {keys}.'] },
   },
   {
     id: 'cqb-corner', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'warn', short: 'Your corner', reach: null,
@@ -1060,14 +1160,16 @@ export const CQB_RULES = Object.freeze([
       if (!k?.choosing || !k.open || k.inside || !k.plan?.door || k.S?.carry || k.S?.flow) return null;
       // (the play review: never the walk in while a hand holds a device, cqb-hands its way out first)
       if (handDeviceOf(state, k.pid)) return null;
-      if (k.rung < 2) return k.offered('leave') ? { k, variant: 'keys', words: 'keys', voice: k.voice, ...walkWords(k.plan) } : null;
+      // (carried FH-1: the keys along #1's path from where you stand, the legs in the variant so the words are picked
+      // again when a leg changes; the act tests the words' entry, never the variant, which now carries the legs)
+      if (k.rung < 2) { if (!k.offered('leave')) return null; const w = walkWords(k.plan, [me.x, me.z]); return { k, variant: `keys|${w.legs}`, words: 'keys', voice: k.voice, ...w }; }
       const row = bundleRow(k, k.rung >= 3 ? 'room:clear' : 'room:in');
       const bw = row ? bangWords(state, k, row.id) : null;
       return row ? { k, row: row.id, variant: `enter${bw.tag}`, words: 'enter', voice: k.voice, bang: bw.bang, brief: bw.brief } : null;
     },
-    act: (ctx) => (ctx.variant === 'keys' ? actIf(ctx.k, 'leave') : actIf(ctx.k, ctx.row)),
+    act: (ctx) => (ctx.words === 'keys' ? actIf(ctx.k, 'leave') : actIf(ctx.k, ctx.row)),
     // (the side is named once, at the stack (cqb-door, corner.js); here the floor's mark says it, the words only "your corner")
-    text: { keys: ["In. Your corner first. Don't stop in the door. X, then {keys}.", 'X. Then in, with the keys. Your corner first.', "Go. X, and walk it in, {keys}. Don't stop in the door.", 'X, then in. Your corner. Keep moving.'],
+    text: { keys: ["X, then walk it: {keys}. Don't stop in the door.", 'X. Then the keys: {keys}.', 'Go. X, and walk it in: {keys}.', 'X, then {keys}. Your corner.'],
       enter: ['In{bang}, your corner.{brief}', 'Enter{bang}. Your corner.{brief}', 'In{bang}. Take your corner.{brief}', 'Go{bang}. Corner.{brief}'] },
   },
   {
@@ -1095,7 +1197,10 @@ export const CQB_RULES = Object.freeze([
       const k = know(state, me, ms), H = k?.R.house;
       if (!k || k.inMode || !H || state.time?.doing || !k.plan) return null;
       if (k.inside && H.two?.block) return null;
-      if (Math.hypot(me.v?.[0] ?? 0, me.v?.[1] ?? 0) > 0.05 || ms - (H.stallAtMs ?? ms) < WALK_NUDGE_MS) return null;
+      // (carried FH-1: on the walk in below rung 2 (the door open, not yet through) the line holds while you walk, its keys
+      // re-read along #1's path as you go (walkInKey), with no wait and no stillness test; elsewhere v0.0.21's nudge)
+      const walkIn = k.rung < 2 && !k.inside && k.open && !!k.plan.door;
+      if (!walkIn && (Math.hypot(me.v?.[0] ?? 0, me.v?.[1] ?? 0) > 0.05 || ms - (H.stallAtMs ?? ms) < WALK_NUDGE_MS)) return null;
       // (where the walk goes: your point once in (or the door open), else your stack; its keys by the bearing)
       const to = k.inside || k.open ? k.plan.points?.[0] : k.plan.stack?.[0];
       if (!to) return null;
@@ -1105,12 +1210,12 @@ export const CQB_RULES = Object.freeze([
       const keysOnly = k.rung < 2 && !k.inside && k.open && !!k.plan.door;
       // (the variant names the words' entry, as instinct.js wordsOf reads them only with one (since v0.0.14 this line's
       // words were empty, on the lane and off it: the review of 2026-11-16), the keys in it so the words follow the bearing)
-      const keys = keysOf(to[0] - me.x, to[1] - me.z), words = keysOnly ? 'keys' : 'go';
+      const keys = keysOnly ? walkWords(k.plan, [me.x, me.z]).keys : keysOf(to[0] - me.x, to[1] - me.z), words = keysOnly ? 'keys' : 'go';
       return d > 0.5 ? { k, tier: k.tier, voice: k.voice, words, variant: `${words}|${keys}`, keys, where, keysOnly } : { k, tier: k.tier, voice: k.voice, words: 'here', variant: 'here' };
     },
     act: (ctx) => (ctx.keysOnly ? null : 'stop:enter'),
     text: { go: ['Keep moving. {keys} to {where}, or G for the drill.', "Don't stand there. {keys}: {where}.", 'Move. {keys} to {where}. G for the drill.', 'On. {keys}, {where}.'],
-      keys: ["Keep moving. {keys}, in. Don't stop in the door.", 'In. {keys}. Your corner.', 'Walk it in: {keys}.', 'Move. {keys}, through the door.'],
+      keys: ["{keys}. Don't stop in the door.", 'Walk it in: {keys}.', 'In: {keys}. Your corner.', 'Move: {keys}.'],
       here: ['Keep moving. G for the drill.', "Don't stand there. G, and the next row.", 'Move. G for the drill.', 'On. G.'] },
   },
   {
@@ -1177,10 +1282,11 @@ export const CQB_RULES = Object.freeze([
       const id = firstOf(k, ['drill:carry', 'move:point', look ? hotRow(k, look) : null, 'call:clear', 'move:hallEnd', 'leave']);
       if (!id) return null;
       const row = k.steps.find(x => x.id === id), down = !!k.T && k.T.stoppedAtMs !== null && k.T.stoppedAtMs !== undefined;
-      const what = id === 'leave' ? 'X, then the keys' : String(row?.label ?? id).replace(/\.$/, '');
+      // (carried FH-1: the walk in named by its keys along #1's path from where you stand, as cqb-go names them)
+      const what = id === 'leave' ? `X, then ${k.plan?.door && k.open && !k.inside ? walkWords(k.plan, [me.x, me.z]).keys : 'the keys'}` : String(row?.label ?? id).replace(/\.$/, '');
       // (the variant, so the words' entry is read (empty since v0.0.14: instinct.js wordsOf needs one), the row in it so
       // the words follow it)
-      return { k, id, tier: k.tier, voice: k.voice, what, words: down ? 'down' : 'on', variant: `${down ? 'down' : 'on'}|${id}` };
+      return { k, id, tier: k.tier, voice: k.voice, what, words: down ? 'down' : 'on', variant: `${down ? 'down' : 'on'}|${id}${id === 'leave' ? `|${what}` : ''}` };
     },
     act: (ctx) => actIf(ctx.k, ctx.id),
     text: { down: ['Down. Next: {what}.', 'Down. {what}.', "He's down. {what}.", 'Down. On: {what}.'], on: ['Next: {what}.', 'On: {what}.', '{what}.', 'Keep it going: {what}.'] },

@@ -9,10 +9,15 @@
 //             S5 the stage's rules the gallery's page draws (struck here: "the gallery");
 //   Helmet    R1 to R4 and E1 to E4 in the Corps' Mars trim on both of you, O1 to O3 on your #2 alone, so one is seen in the stack;
 //   Walk      A, B, C (the walk cycle, VIEWS §3.10.4: main.js's settings.cycle, state.$cycle, never the save);
-//   Shot      A0 to A4 (src/data/sounds.js SHOT_CANDIDATES; engine.js setShot), Voice V-a to V-d (voices.js VOICE_SETS);
+//   Shot      A0 to A4 (src/data/sounds.js SHOT_CANDIDATES; engine.js setShot); the Voice row (V-a to V-d) is gone from v0.0.23,
+//             the user's "forget voice synthesis, no voices." (2026-11-19): no line is voiced;
 //   Mark      the room's mark on the jamb, M1 a chalk X, M2 a chemlight (B's range-items.js jambMarks);
 //   Corner aid  by rung, always, off (B's corner.js aidHoldMs: a setting, state.$aid, kept as olympus.cornerAid), not scored;
-//   and v0.0.18's and v0.0.19's sets the game draws as built (wcard2, doll-gear, target-view, opfor-look), scored as seen.
+//   and v0.0.18's and v0.0.19's sets the game draws as built (wcard2, doll-gear, target-view, opfor-look), scored as seen;
+//   v0.0.23 (the build sheet v0.0.23 §0 item 36): the target card's four this round judges moving, on the card as you engage:
+//   Card gun G1 to G3 (portrait-gun: the gun in the board's ink, its own colours, the ink rimmed), Hands not read V1 and V2 (a man's
+//   hands as the stage draws them, or veiled until your take-in reads them), Aimed A1 and A2 (end on, canted), Pistol aimed P1 and P2
+//   (arms out, cupped at the chest): state.$look.card { gun, unread, aim, pistol }, read by the target view over portrait.js PORTRAIT_PICKS.
 // The picks are runtime only (state.$look { stack, helm, jamb }, the shot, the voice, the walk), never saved, so a save replays
 // byte for byte; they are this browser's in localStorage (TOPICK_KEY, every read and write in try and catch; the gallery's own
 // olympus.picks is a list of its views, which the page's object would clobber on a shared origin, so the page keeps its own key:
@@ -22,7 +27,14 @@
 // parseLook and lookText are pure; topickCard is the DOM builder, every change sent back through cb (main.js applies it).
 import { HELM_IDS, HELMS, STACK_IDS, STACKS } from '../../art/figures/helmets.js';
 import { SHOT_IDS } from '../../data/sounds.js';
-import { VOICE_SETS } from '../../data/voices.js';
+
+/** The target card's picks this page tries (see the header): the row's id, the look's key, the candidates (portrait.js PORTRAIT_PICKS' defaults first). */
+export const CARD_PICKS = Object.freeze([
+  Object.freeze({ id: 'card.gun', key: 'gun', title: 'Card gun', ids: Object.freeze(['G1', 'G2', 'G3']) }),
+  Object.freeze({ id: 'card.unread', key: 'unread', title: 'Hands not read', ids: Object.freeze(['V1', 'V2']) }),
+  Object.freeze({ id: 'card.aim', key: 'aim', title: 'Aimed', ids: Object.freeze(['A1', 'A2']) }),
+  Object.freeze({ id: 'card.pistol', key: 'pistol', title: 'Pistol aimed', ids: Object.freeze(['P1', 'P2']) }),
+]);
 
 /** This browser's picks (see the header). */
 export const TOPICK_KEY = 'olympus.topick';
@@ -40,8 +52,8 @@ export const ROWS = Object.freeze([
   Object.freeze({ id: 'helm', title: 'Helmets', ids: HELM_IDS, words: (id) => id, about: (id) => HELMS[id]?.name ?? id }),
   Object.freeze({ id: 'walk', title: 'The walk', ids: WALK_IDS, words: (id) => id }),
   Object.freeze({ id: 'shot', title: 'The shot', ids: SHOT_IDS, words: (id) => id }),
-  Object.freeze({ id: 'voice', title: 'The voices', ids: VOICE_SETS, words: (id) => `V-${id}` }),
   Object.freeze({ id: 'jamb', title: 'The room\'s mark', ids: JAMB_IDS, words: (id) => id }),
+  ...CARD_PICKS.map(c => Object.freeze({ id: c.id, title: c.title, ids: c.ids, words: (id) => id, card: c.key })),
   Object.freeze({ id: 'aid', title: 'Corner aid', ids: AID_SETTINGS, words: (id) => ({ rung: 'by rung', always: 'always', off: 'off' }[id]), scored: false }),
   Object.freeze({ id: 'drawn', title: 'As the game draws them', ids: Object.freeze(['wcard2', 'doll-gear', 'target-view', 'opfor-look']), words: (id) => id, seen: true }),
 ]);
@@ -59,6 +71,7 @@ export function parseLook(text) {
     else if (key === 'helm') { const id = v.toUpperCase(); if (HELM_IDS.includes(id)) look.helm = id; else unknown.push(part); }
     else if (key === 'jamb') { const id = v.toUpperCase(); if (JAMB_IDS.includes(id)) look.jamb = id.toLowerCase(); else unknown.push(part); }
     else if (key === 'cycle') { const id = v.toUpperCase(); if (WALK_IDS.includes(id)) cycle = id; else unknown.push(part); }
+    else if (CARD_PICKS.some(c => c.key === key)) { const c = CARD_PICKS.find(x => x.key === key), id = v.toUpperCase(); if (c.ids.includes(id)) look.card = { ...(look.card ?? {}), [key]: id }; else unknown.push(part); }
     else unknown.push(part);
   }
   return { look, cycle, unknown };
@@ -69,10 +82,11 @@ export function lookText(look) {
   if (look?.stack?.length) bits.push(`stack:${look.stack.map(id => id.replace(/^S/, '')).join('+')}`);
   if (look?.helm) bits.push(`helm:${String(look.helm).toLowerCase()}`);
   if (look?.jamb) bits.push(`jamb:${String(look.jamb).toLowerCase()}`);
+  for (const c of CARD_PICKS) if (look?.card?.[c.key]) bits.push(`${c.key}:${String(look.card[c.key]).toLowerCase()}`);
   return bits.join(',');
 }
 /** Whether a look picks anything. */
-export const lookSet = (look) => !!(look?.stack?.length || look?.helm || look?.jamb);
+export const lookSet = (look) => !!(look?.stack?.length || look?.helm || look?.jamb || (look?.card && Object.keys(look.card).length));
 
 /** This browser's picks ({ v: 1, scores: { 'row:id': n }, stars: ['row:id'], flags: { look, shot, voice, walk } }), or a fresh record. */
 export function readPicks(storage = globalThis.localStorage) {
@@ -116,7 +130,8 @@ export function picksOf(text) {
 export function topickCard({ now, picks, cb, play = {} }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids.filter(k => k !== null && k !== undefined)); return n; };
   const P = { v: 1, scores: { ...(picks?.scores ?? {}) }, stars: [...(picks?.stars ?? [])], flags: { ...(picks?.flags ?? {}) } };
-  const state = { stack: [...(now.look?.stack ?? [])], helm: now.look?.helm ?? null, walk: now.walk ?? 'B', shot: now.shot ?? null, voice: now.voice ?? null, jamb: (now.look?.jamb ?? 'm1').toUpperCase(), aid: now.aid ?? 'rung', drawn: 'wcard2' };
+  const state = { stack: [...(now.look?.stack ?? [])], helm: now.look?.helm ?? null, walk: now.walk ?? 'B', shot: now.shot ?? null, voice: now.voice ?? null, jamb: (now.look?.jamb ?? 'm1').toUpperCase(), aid: now.aid ?? 'rung', drawn: 'wcard2',
+    ...Object.fromEntries(CARD_PICKS.map(c => [c.id, now.look?.card?.[c.key] ?? c.ids[0]])) };
   const shownOf = (row) => (row.multi ? state.stack.at(-1) ?? 'S0' : state[row.id]);
   const rowsEl = el('div', { className: 'topick-rows' }), note = el('p', { className: 'note' });
   const lines = [];
@@ -150,7 +165,7 @@ export function topickCard({ now, picks, cb, play = {} }) {
   }
   draw();
   const copy = el('button', { type: 'button', className: 'item lead', textContent: 'Copy my picks' });
-  copy.onclick = () => { const t = picksText(P, { ...play, flags: lookText({ stack: state.stack, helm: state.helm, jamb: state.jamb.toLowerCase() }) }); cb.copy?.(t); note.textContent = t === 'No picks yet.' ? t : 'Copied: paste them back in the chat.'; };
+  copy.onclick = () => { const t = picksText(P, { ...play, flags: lookText({ stack: state.stack, helm: state.helm, jamb: state.jamb.toLowerCase(), card: Object.fromEntries(CARD_PICKS.filter(c => state[c.id] !== c.ids[0]).map(c => [c.key, state[c.id]])) }) }); cb.copy?.(t); note.textContent = t === 'No picks yet.' ? t : 'Copied: paste them back in the chat.'; };
   const back = el('button', { type: 'button', className: 'item', textContent: 'Back' });
   back.onclick = () => cb.back?.();
   lines.push(copy, back);

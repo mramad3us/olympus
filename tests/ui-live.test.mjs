@@ -1,5 +1,5 @@
 // OLYMPUS tests: the first live men in the page (heavy, a browser file; the build sheet 0.0.19 §1 L-look, §6, §8 F43; opfor §5
-// "ui-live"). On "Stack and clear, live" (?play=test-shoothouse-live, the sergeant, seed 48213, the cards forced 'give' for the man in
+// "ui-live"). On "Stack and clear, live" (?play=test-shoothouse-live, the sergeant, seed 1 (48213 until v0.0.23), the cards forced 'give' for the man in
 // room 2's deep corner and 'fight' for room 3's), run by the house's T bot in the page: the role-player wears his mask (his gear in
 // the page); the target view opens on him as a man (his stand's key, never a board) and shows the stack's paint on him once struck;
 // a man who gave up is drawn with his hands up (the figures' frame handsUp or handsKneel) and his rifle on the floor (the house's
@@ -11,13 +11,17 @@ import { assert, machineK } from './helpers.mjs';
 import { withGame } from './browser.mjs';
 import { SCENES } from '../src/data/scenes.js';
 
-const QUERY = 'play=test-shoothouse-live&tier=sgt&seed=48213&nostore=1&opfor=live:give,fight';
+// (seed 1, re-pointed from 48213 at v0.0.23's integration: v0.0.23 D's sterile check (DC3, the instructor's look on the floor before
+// LOAD, 140 ticks more from the fill to GO) moves the take-in's read of 2a on 48213 at room 2's contact from 'aiming' to "can't tell", so
+// the sergeant challenges him and fires no round, and no live man's card ever shows the stack's paint; seed 1 is the first of seeds 1 to
+// 12 whose sergeant by T strikes 2a, who gives up, and meets 3a's pair, as 48213 did on v0.0.22 (2a's hits 'me', 3a's 'two+two'))
+const QUERY = 'play=test-shoothouse-live&tier=sgt&seed=1&nostore=1&opfor=live:give,fight';
 /** Each in-page run's wall-clock budget (ms): the three runs inside the test's five minutes. */
 const BUDGET_MS = 80_000;
 
 export default [
   {
-    name: 'on "Stack and clear, live" (the sergeant, seed 48213, cards give and fight) the role-player is drawn in his mask, the target view on him in his gear with the stack\'s paint, hands up drawn hands up with his rifle on the floor from the tick his record says so, no frame over 25 ms at his pair, no page errors',
+    name: 'on "Stack and clear, live" (the sergeant, seed 1, cards give and fight) the role-player is drawn in his mask, the target view on him in his gear with the stack\'s paint, hands up drawn hands up with his rifle on the floor from the tick his record says so, no frame over 25 ms at his pair, no page errors',
     heavy: true,
     timeoutMs: 300000,
     async fn() {

@@ -143,7 +143,7 @@ import { ACTIVITIES } from '../../data/activities.js';
 import { WHEEL_S4 } from '../../data/places/wheel.js';
 import { houseSpecOf, assembleHouse, drawnCodeOf, wholeCodeOf, parseHouse, ASSEMBLE_V, HOUSE_LAYOUTS, laneWordOf } from '../scenes/assemble.js';
 import { lonOfSite, gravityAt } from '../places/env.js';
-import { openingState, setOpening, roomOf, zoneOf } from '../places/model.js';
+import { openingState, setOpening, roomOf, zoneOf, areaOf } from '../places/model.js';
 import { placeGaits } from '../body/motion.js';
 import { setOutfit, syncActors } from '../people/place.js';
 import { drawStaff, setPost, staffName } from '../people/staff.js';
@@ -182,7 +182,8 @@ import { runSlot, freeBody, gapSettle, twoLegOver, handBack, legsOf as bodyLegsO
 import { profileOf, moveAt, pathLen, advanceList, halt as haltDoing } from '../combat/stepper.js';
 import { useBodies } from '../places/move.js';
 import { useLanes, useKeepClear, liveZoneAt, arcsOf } from '../places/zones.js';
-import { leafAt } from '../places/doors.js';
+import { leafAt, toggleDoor, turns as leafTurns } from '../places/doors.js';
+import { routed } from '../combat/route.js';
 import { moverStart, locoStep } from '../body/loco.js';
 import { startActivity } from '../time/activities.js';
 // (v0.0.19: your number two's code is in combat/two.js, its names re-exported here so the tests, the bots and the gauges import them unchanged)
@@ -439,8 +440,10 @@ const newLeg = (door, room) => ({ room, door, state: 'ahead', fromMs: null, stac
 // sheet §0 item 54); the set ignores them, the drawn house's branch (A) reads them. v0.0.22 (its build sheet §2 step 3): rooms ('all':
 // X4's eight chunks drawn from; absent the three), layout ('B' | 'C': a named house; absent or 'A' the set) and plans ('derived')
 // come through likewise, absent when not given; v0.0.22's A reads them, stage 0 only threads them; liveDraw (true from the tests'
-// createGame only, never from the page) lets a live lane be drawn as asked while its ship rule is open: drawnCodeFor)
-export function testShoothouse(state, { at = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, liveDraw = false } = {}) {
+// createGame only, never from the page) lets a live lane be drawn as asked while its ship rule is open: drawnCodeFor). v0.0.23 (its
+// build sheet §2 step 3, item 14): again (the page's "Again" of the same lane, createGame's again: true) writes R.house.again = true
+// when given with no setup (a setup has no brief), nothing otherwise; stage 0 only threads it, v0.0.23's D reads it (the short brief)
+export function testShoothouse(state, { at = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, liveDraw = false, again = false } = {}) {
   // (the house through its seam, scenes/assemble.js: HOUSE1 and its area as set. v0.0.21 A, the drawn house: its code
   // (drawnCodeFor: the URL's &house, the picker's draw, never the live lane's), its area assembled and registered (model.js's
   // registry), its spec read from it until R.house.draw is written; nothing of it on the set)
@@ -509,6 +512,8 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
     // (the drawn house's record, R.house.draw = { mode: 'drawn', v, code }: absent on the set; its rooms and
     // layout where given, and R.house.plans 'derived' where given)
     ...(drawRec ? { draw: drawRec } : {}), ...plansRec,
+    // (Again of the same lane, from the fill only (no setup); absent otherwise, so every lane without it is as before)
+    ...(again && !setup ? { again: true } : {}),
   };
   R.load = live ? 'marking' : 'frangible';
   // (the rework's R6: the P-12, on every sheet from 2026-11-15 (the Sergeant up before), its ids after every other item of the
@@ -864,6 +869,9 @@ export function houseReady(state, def, { still, safe } = {}) {
     // (FL22-1: and your gun looked at by the instructor's eye (chiefSees), not called clear from the catwalk's far end)
     case 'shown': return twoLacks(state, 'clear') || pistolLacks(state, playerId(state), 'clear') || loadedGun(state.items?.[state.people?.[playerId(state)]?.kit?.worn?.sling]) || !chiefSees(state, H, playerId(state)) ? false : null;
     case 'washed': return !!H.wash && state.clock.ms >= H.wash.atMs + WASH_MS;
+    // (its build sheet item 17, DC3: on the live lane LOAD follows the sterile check, the instructor's look at you and at your
+    // #2 on the floor (sterileTick), nothing to press; null elsewhere, as before)
+    case 'always': return def.id === 'brief' && rangeOf(state)?.load === 'marking' && !(chiefSees(state, H, playerId(state), 'sterile') && (!H.twoPid || chiefSees(state, H, H.twoPid, 'sterile'))) ? false : null;
     default: return null;
   }
 }
@@ -893,6 +901,12 @@ export function pistolLacks(state, pid = playerId(state), cmd = 'stop') {
  * room. Next door." at 585 s; the build sheet's item 3 had 'passed' with 'clear', from before the due; my call).
  */
 export function houseCmdSay(state, def) {
+  // (its build sheet items 14 and 17, carried FH-5 and DC3: Again of the same lane (R.house.again, from the fill) and the live
+  // lane (R.load 'marking') say their own words, in this order: the live Again's, Again's, the live lane's; then the wash's by the end)
+  const again = !!houseOf(state)?.again, live = rangeOf(state)?.load === 'marking';
+  if (def?.sayAgainLive && again && live) return def.sayAgainLive;
+  if (def?.sayAgain && again && !live) return def.sayAgain;
+  if (def?.sayLive && live) return def.sayLive;
   if (!def?.sayEnd) return def?.say;
   const why = houseOf(state)?.end?.why ?? null;
   return why === 'clear' || why === null ? def.sayEnd.clear : def.sayEnd.other;
@@ -908,7 +922,10 @@ export function houseOnCmd(state, bus, def, i = SEQ_HOUSE.findIndex(c => c.id ==
   // (each command goes to both marines: your number two's own macro for it, on his list doing (COMBAT §25.19.5))
   if (TWO_CMDS[def.id]) twoCmd(state, bus, def.id);
   switch (def.id) {
-    case 'brief': chiefSays(state, bus, `${hashPick(HOUSE_CHIEF.brief, 'house-chief', state.meta.seed, 'brief')} ${gravityWords(state)}${doorWords(state)}${kitWords(state)}`, 'brief'); break;
+    // (carried FH-5: on Again of the same lane the beside-you line is not said, but for a kit with practice grenades, whose
+    // rule ("hostiles only" rooms) is never lost to Again: "Same kit." and the intelligence (house-kit.js intelWords))
+    case 'brief': if (H.again) { const intel = intelWords(state); if (intel) chiefSays(state, bus, `Same kit.${intel}`, 'brief'); break; }
+      chiefSays(state, bus, `${hashPick(HOUSE_CHIEF.brief, 'house-chief', state.meta.seed, 'brief')} ${gravityWords(state)}${doorWords(state)}${kitWords(state)}`, 'brief'); break;
     case 'standby': H.standby = { attempt: 0, goAtMs: null, fromMs: now, backSaid: false }; armGo(state); break;
     case 'go': goNow(state, bus); break;
     case 'stop': R.hot = false; break;
@@ -962,7 +979,9 @@ export function houseActors(state, input, bus) {
   // (your number two's tower admin, from the fill to SHOW CLEAR: his macro's sub-steps at their times)
   twoAdminTick(state, bus, H, now);
   if (R.cmd?.id === 'standby' && H.goAtMs === null) standbyTick(state, bus, R, H, now);
-  if (H.goAtMs === null) return;
+  // (DC3: before GO the instructor walks only for the live lane's sterile check, during the brief, on the floor, and home
+  // to the booth after it, through LOAD to Standby if his walk back takes that long)
+  if (H.goAtMs === null) { if (R.load === 'marking' && (R.cmd?.id === 'brief' || H.sterile?.home === 'walk')) sterileTick(state, bus, R, H, now); return; }
   triggers(state, bus, R, H, now);
   if (!H.end) {
     const a = actorOf(state, H.twoPid);
@@ -1059,10 +1078,12 @@ function chiefWalk(state, R, H, now = state.clock.ms) {
   chiefStep(state, H, c, cw, to, now);
   if (insp !== null || H.show) lookTick(state, R, H, insp, now);
 }
-// (his step toward the point `to` this tick (chiefWalk's walk, as before v0.0.22))
-function chiefStep(state, H, c, cw, to, now) {
-  const y = cw.y ?? 3;
-  if (c.y !== y) { c.y = y; const p = state.people[H.chiefPid]?.post; if (p) p.y = y; if (c.x !== cw.path[0][0] || c.z !== cw.path[0][1]) placeTwo(state, c, cw.path[0][0], cw.path[0][1]); }
+// (his step toward the point `to` this tick (chiefWalk's walk, as before v0.0.22); v0.0.23 (the review of 2026-11-18): on the floor his
+// walk is the nav's (route.js routed, `open` the doors he opens on his way), never a straight line through the booth's or a room's wall)
+function chiefStep(state, H, c, cw, to, now, { floor = false, open = [] } = {}) {
+  const y = cw?.y ?? 3;
+  // (DC3: { floor }: a walk on the floor, the sterile check's: no lift to the catwalk, no place at its end)
+  if (!floor && c.y !== y) { c.y = y; const p = state.people[H.chiefPid]?.post; if (p) p.y = y; if (c.x !== cw.path[0][0] || c.z !== cw.path[0][1]) placeTwo(state, c, cw.path[0][0], cw.path[0][1]); }
   moverStart(c);
   let W = H.chief ?? null;
   // (a tick he was not walked (a fast-forward, whose ticks the scene's layer sits out): planned again from where he stands, never run on to where the clock has gone)
@@ -1073,7 +1094,11 @@ function chiefStep(state, H, c, cw, to, now) {
     const d = Math.hypot(to[0] - c.x, to[1] - c.z);
     if (d < 1e-6 && !c.v) { if (W) H.chief = null; c.gait = 'idle'; return; }
     // (from where he stands, at the speed he has: never a jump, never a stop dead)
-    const v0 = Math.hypot(c.v?.[0] ?? 0, c.v?.[1] ?? 0), legs = bodyLegsOf(state, H.chiefPid, c.x, c.z), path = [[c.x, c.z], [to[0], to[1]]];
+    const v0 = Math.hypot(c.v?.[0] ?? 0, c.v?.[1] ?? 0), legs = bodyLegsOf(state, H.chiefPid, c.x, c.z), line = [[c.x, c.z], [to[0], to[1]]];
+    // (the code review's sixth finding: a floor walk with no way round stands where he is, never the straight line
+    // through a wall or a shut leaf; sterileTick opens the doors on his way first (sterileDoors))
+    const path = floor ? routed(state, line, { open }) : line;
+    if (!path) { if (W) H.chief = null; delete c.v; c.gait = 'idle'; return; }
     const prof = profileOf(pathLen(path), placeGaits(state).walkMs, legs.pushMs2, legs.brakeMs2, { v0: Math.min(v0, placeGaits(state).walkMs), v1: 0 });
     W = H.chief = { to: [to[0], to[1]], path: path.map(p => [q(p[0], 1e-4), q(p[1], 1e-4)]), prof, fromMs, untilMs: fromMs + Math.round(prof.T * 1000) };
   }
@@ -1117,46 +1142,135 @@ export function chiefReach(state, H, pid) {
 // macro run again after a swing onto the sling says it again) is said under his eye)
 const mePassed = (state, R) => { const pid = playerId(state); return !!R?.shown && !pistolLacks(state, pid, 'clear') && !loadedGun(state.items?.[state.people?.[pid]?.kit?.worn?.sling]) && stillOf(state); };
 // (a marine's guns shown: yours as the tower judges them, your #2's macro over (his look owed) or his guns already judged)
-const shownBy = (state, R, H, pid) => (pid === H.twoPid ? H.two?.showOwed !== undefined || !!H.two?.shown : mePassed(state, R));
+// (DC3: the look's record by its key, 'show' (SHOW CLEAR's, H.show) or 'sterile' (the live lane's check before LOAD, H.sterile);
+// nothing is shown at the sterile check, Condition 4 from the fill, so it is owed and met by the eye alone)
+const lookRec = (H, key = 'show') => (key === 'sterile' ? H.sterile : H.show);
+const shownBy = (state, R, H, pid, key = 'show') => key === 'sterile' || (pid === H.twoPid ? H.two?.showOwed !== undefined || !!H.two?.shown : mePassed(state, R));
 // (a marine the look is owed: each of you until looked at (your #2's line may come on the tick his look is met, chiefSees' own read,
 // before lookTick writes it: written then all the same))
-const owedBy = (state, H, pid) => !!actorOf(state, pid) && H.show?.done?.[pid] === undefined;
-/** The marine the instructor walks to at Stop and SHOW CLEAR: your #2 if his guns are shown and yours are not, else you, then him; null once both are looked at. */
-export function inspectNext(state, H) {
-  const R = rangeOf(state), pid = playerId(state), two = H.twoPid && owedBy(state, H, H.twoPid) ? H.twoPid : null, me = owedBy(state, H, pid) ? pid : null;
-  if (two && shownBy(state, R, H, two) && !(me && shownBy(state, R, H, me))) return two;
+const owedBy = (state, H, pid, key = 'show') => !!actorOf(state, pid) && lookRec(H, key)?.done?.[pid] === undefined;
+/**
+ * The marine the instructor walks to: at Stop and SHOW CLEAR ('show') your #2 if his guns are shown and yours are not, else you, then
+ * him; at the live lane's sterile check ('sterile', v0.0.23 DC3) you, then him; null once both are looked at.
+ */
+export function inspectNext(state, H, key = 'show') {
+  const R = rangeOf(state), pid = playerId(state), two = H.twoPid && owedBy(state, H, H.twoPid, key) ? H.twoPid : null, me = owedBy(state, H, pid, key) ? pid : null;
+  if (key === 'show' && two && shownBy(state, R, H, two) && !(me && shownBy(state, R, H, me))) return two;
   return me ?? two;
 }
-/** Whether the instructor has looked at a marine's shown guns; true with no instructor or no catwalk on the house (no gate), and for anyone else. */
-export function chiefSees(state, H, pid) {
-  if (!H || !actorOf(state, H.chiefPid) || !houseSpecOf(state).catwalk?.path?.length) return true;
+/**
+ * Whether the instructor has looked at a marine (`key` 'show', the default: his shown guns; 'sterile': the live lane's check before
+ * LOAD, v0.0.23 DC3); true with no instructor, or for SHOW CLEAR no catwalk on the house (no gate), and for anyone else.
+ */
+export function chiefSees(state, H, pid, key = 'show') {
+  if (!H || !actorOf(state, H.chiefPid) || (key === 'show' && !houseSpecOf(state).catwalk?.path?.length)) return true;
   if (pid !== playerId(state) && pid !== H.twoPid) return true;
   // (done, or met this tick: his eye in reach long enough at guns shown now, so the tower reads the look on the tick the show ends,
   // never a tick after it, when a pause would open between)
-  return H.show?.done?.[pid] !== undefined || lookMet(state, rangeOf(state), H, pid);
+  return lookRec(H, key)?.done?.[pid] !== undefined || lookMet(state, rangeOf(state), H, pid, state.clock.ms, key);
 }
 // (the look met now: his eye in reach of pid SHOW_LOOK_MS or more, the guns shown)
-function lookMet(state, R, H, pid, now = state.clock.ms) {
-  const t = H.show?.near?.[pid];
-  return Number.isFinite(t) && now - t >= SHOW_LOOK_MS && shownBy(state, R, H, pid);
+function lookMet(state, R, H, pid, now = state.clock.ms, key = 'show') {
+  const t = lookRec(H, key)?.near?.[pid];
+  return Number.isFinite(t) && now - t >= SHOW_LOOK_MS && shownBy(state, R, H, pid, key);
 }
 // (the look advanced a tick (chiefWalk, after his step): where he walks, since when his eye is within reach of each of you, each look
 // done once the guns are shown and SHOW_LOOK_MS have passed in reach; out of the catwalk's reach, from its nearest point once he
 // stands there (you; your #2 only where his walk out could not be made, two.js W.out.none))
-function lookTick(state, R, H, insp, now) {
-  if (!showing(R, H)) return;
-  const S = (H.show ??= { pid: null, near: {}, done: {} }), c = actorOf(state, H.chiefPid);
+// v0.0.23 (DC3): keyed 'sterile', the live lane's check on the floor: one marine at a time (the one he walks to), once he stands at his
+// point in front of him (his walk over: no H.chief), his eye within SHOW_CLEAR_M, nothing shown; the record H.sterile (sterileTick)
+function lookTick(state, R, H, insp, now, key = 'show') {
+  const sterile = key === 'sterile';
+  if (!sterile && !showing(R, H)) return;
+  const S = sterile ? (H.sterile ??= { pid: null, near: {}, done: {} }) : (H.show ??= { pid: null, near: {}, done: {} }), c = actorOf(state, H.chiefPid);
   S.pid = insp;
   if (!c) return;
   for (const pid of [playerId(state), H.twoPid]) {
     const m = pid ? actorOf(state, pid) : null;
-    if (!m || !owedBy(state, H, pid)) continue;
+    if (!m || !owedBy(state, H, pid, key)) continue;
     const two = pid === H.twoPid;
-    const near = chiefReach(state, H, pid) ? eyeTo(c, m) <= SHOW_CLEAR_M : insp === pid && !H.chief && (!two || !!H.two?.out?.none);
+    const near = sterile ? insp === pid && !H.chief && eyeTo(c, m) <= SHOW_CLEAR_M : chiefReach(state, H, pid) ? eyeTo(c, m) <= SHOW_CLEAR_M : insp === pid && !H.chief && (!two || !!H.two?.out?.none);
     if (!near) { delete S.near[pid]; continue; }
     S.near[pid] ??= now;
-    if (lookMet(state, R, H, pid, now)) S.done[pid] = now;
+    if (lookMet(state, R, H, pid, now, key)) S.done[pid] = now;
   }
+}
+/** The sterile check's stand-off: the instructor stops this far in front of the marine he checks (m; v0.0.23 DC3, my call: inside SHOW_CLEAR_M from the floor, a body's gap off him). */
+export const STERILE_STAND_M = 0.8;
+/** The marine moved this far from where the stand-off was taken: the instructor's point taken again (m; my call). */
+const STERILE_REPLAN_M = 0.3;
+/** Within this of his booth post (m) he is home: the booth's door shut behind him (the review of 2026-11-18; my call). */
+const STERILE_HOME_M = 0.05;
+// (the booth's door: its turning leaf between the booth and the apron, found by the booth's room, the set's or a drawn house's)
+const boothDoorOf = (state, B) => (B?.room ? (areaOf(state.places?.live?.area)?.openings ?? []).find(o => leafTurns(o) && (o.rooms ?? []).includes(B.room)) ?? null : null);
+/**
+ * The live lane's sterile check (its build sheet item 17, DC3; COMBAT §25.10): once the brief's PA chain is said (the tower's
+ * brief and the instructor's line beside you, R.paUntilMs), the instructor walks on the floor (chiefStep's { floor }) to STERILE_STAND_M
+ * in front of you, looks (SHOW_LOOK_MS with his eye within SHOW_CLEAR_M), says "Clean. Next.", then the same at your #2, "Clean.";
+ * houseReady's brief gate lets LOAD come after both. H.sterile { pid, near, done, to, base, who } (additive: absent until it begins; `to`
+ * his point, `base` where its marine `who` stood when it was taken). Before v0.0.23 the live lane was briefed and loaded as the frangible lane,
+ * the instructor standing 3.4 m off until GO (the doctrine lens: a live lane begins with the safety's look at every man's kit).
+ * The review of 2026-11-18: his walk was a straight line from his post in the booth, through the booth's wall into the hall on every
+ * live lane (and through room walls when you moved), and after the looks he stood in the open hall until GO lifted him 28 m to the
+ * catwalk in plain sight. Now his floor walk is routed (chiefStep's `open`: out of the booth by its door, which he opens as he sets
+ * out (toggleDoor, the bus's 'door'), round by the apron and the hall's east doorway), and once both looks are done he walks home to
+ * his post in the booth (`home` 'walk', through LOAD and on to Standby if it takes that long) and shuts its door behind him ('in'), so
+ * GO lifts him from the shut booth, out of view, as before DC3. H.sterile gains `home` (additive).
+ */
+function sterileTick(state, bus, R, H, now) {
+  if (!H.sterile && now < (R.paUntilMs ?? 0)) return;
+  const S = (H.sterile ??= { pid: null, near: {}, done: {} }), c = actorOf(state, H.chiefPid);
+  if (!c) return;
+  const insp = inspectNext(state, H, 'sterile'), m = insp ? actorOf(state, insp) : null;
+  const B = houseSpecOf(state).booth, door = boothDoorOf(state, B);
+  if (m && (!S.to || S.who !== insp || Math.hypot(m.x - S.base[0], m.z - S.base[1]) > STERILE_REPLAN_M)) {
+    const dx = c.x - m.x, dz = c.z - m.z, d = Math.hypot(dx, dz);
+    S.to = d > STERILE_STAND_M ? [q(m.x + dx / d * STERILE_STAND_M, 0.01), q(m.z + dz / d * STERILE_STAND_M, 0.01)] : [q(c.x, 0.01), q(c.z, 0.01)];
+    S.base = [m.x, m.z]; S.who = insp;
+  }
+  // (both looked at: home to his post in the booth)
+  if (!insp && S.to && B && !S.home) { S.home = 'walk'; S.to = [B.x, B.z]; S.who = null; }
+  // (the booth's door open while he is out of it or on his way home; shut behind him once he stands at his post)
+  if (door && S.to && S.home !== 'in' && openingState(state, door) !== 'open') toggleDoor(state, door.id, bus, { who: H.chiefPid, to: 'open' });
+  const open = [...(door ? [door.id] : []), ...(S.opened ?? [])];
+  // (the code review's sixth finding: you behind a room's shut door before LOAD, his walk had no way round and went
+  // straight through the leaf; now a walk about to be planned that has none with the booth's door open opens the doors on the way
+  // he would take with every door open, as he sets out (S.opened, additive), and with none even so he stands where he is)
+  if (S.to && (m || H.chief || S.home === 'walk') && (!H.chief || H.chief.to[0] !== S.to[0] || H.chief.to[1] !== S.to[1])) {
+    for (const id of sterileDoors(state, [[c.x, c.z], S.to], open)) {
+      if (openingState(state, id) !== 'open') toggleDoor(state, id, bus, { who: H.chiefPid, to: 'open' });
+      (S.opened ??= []).push(id); open.push(id);
+    }
+  }
+  if (S.to && (m || H.chief || S.home === 'walk')) chiefStep(state, H, c, houseSpecOf(state).catwalk, S.to, now, { floor: true, open });
+  if (S.home === 'walk' && !H.chief && Math.hypot(c.x - B.x, c.z - B.z) <= STERILE_HOME_M) {
+    S.home = 'in';
+    if (door && openingState(state, door) !== 'closed') toggleDoor(state, door.id, bus, { who: H.chiefPid, to: 'closed' });
+  }
+  const before = Object.keys(S.done).length;
+  lookTick(state, R, H, insp, now, 'sterile');
+  if (Object.keys(S.done).length > before) chiefSays(state, bus, inspectNext(state, H, 'sterile') ? HOUSE_CHIEF.sterile[1] : HOUSE_CHIEF.sterile[0]);
+}
+/**
+ * The doors the instructor's floor walk from line[0] to line[1] must open: the turning leaves the nav's way
+ * crosses (its path through a leaf's doorway, by the opening's plane between a and b) not in `open` and not swung open. route.js
+ * routed solves a way blocked by a shut leaf on the all-open grid, so with you behind room 1's shut door his way went through its
+ * leaf (3 ticks inside it on 48213, live:fight,hide): he now opens it as he sets out, as he opens the booth's.
+ */
+function sterileDoors(state, line, open) {
+  const path = routed(state, line, { open });
+  if (!path) return [];
+  const leaves = (areaOf(state.places?.live?.area)?.openings ?? []).filter(o => leafTurns(o) && leafAt(state, o.id) < 1);
+  const crossed = (o) => {
+    for (let i = 1; i < path.length; i++) {
+      const [ax, az] = path[i - 1], [bx, bz] = path[i], [u0, u1, w0, w1] = o.axis === 'x' ? [az, bz, ax, bx] : [ax, bx, az, bz];
+      if ((u0 - o.at) * (u1 - o.at) > 0 || u0 === u1) continue;
+      const w = w0 + (w1 - w0) * (o.at - u0) / (u1 - u0);
+      if (w >= o.a && w <= o.b) return true;
+    }
+    return false;
+  };
+  return leaves.filter(o => !open.includes(o.id) && crossed(o)).map(o => o.id);
 }
 // (the point of a polyline nearest to p)
 function nearestOn(path, p) {
@@ -1690,6 +1804,19 @@ function firstBy(state, L, key) {
 // and at the due the leg is passed with 'time', its own state's steps buying nothing more. It bites only on a lane already
 // past 420 s from GO with legs to go (no honest lane comes near it). L.dueSaid, true once the due said the words or passed the
 // leg (additive: absent on a save before it, and on every leg the due never met).
+/**
+ * Why a leg the stall or the lane's due passes was passed (its build sheet item 11, carried FH-2): 'stack' (the door never
+ * opened: the leg 'ahead' or 'stacked'), 'door' (open, never crossed), 'room' (entered, never called); the hall none (it has no door:
+ * its pass keeps v0.0.20's lesson, `time`). Written on the leg as L.passWhy (additive: absent on old saves, read as `time`). Pure.
+ */
+export const passWhyOf = (L) => (L.door === 'hall' ? null : L.state === 'open' ? 'door' : L.state === 'entered' ? 'room' : L.state === 'ahead' || L.state === 'stacked' ? 'stack' : null);
+// (the leg passed, its why first: at both of stall's passes)
+function passLeg(state, bus, H, L, now) {
+  const w = passWhyOf(L);
+  if (w) L.passWhy = w;
+  houseFault(state, bus, 'time', HOUSE_CHIEF.time, L);
+  endLeg(state, bus, H, L, 'passed', now);
+}
 function stall(state, bus, R, H, L, now) {
   const since = now - (H.stallAtMs ?? now), due = legDueMs(H, legsOf(H).indexOf(L)), dueNear = due !== null && now >= due - STALL_MORE_MS;
   if ((since >= STALL_MS || dueNear) && !L.stallSaid) {
@@ -1700,14 +1827,10 @@ function stall(state, bus, R, H, L, now) {
   }
   if (due !== null && now >= due) {
     L.dueSaid = true;
-    houseFault(state, bus, 'time', HOUSE_CHIEF.time, L);
-    endLeg(state, bus, H, L, 'passed', now);
+    passLeg(state, bus, H, L, now);
     return;
   }
-  if (since >= STALL_MS + STALL_MORE_MS || (L.stallSaid && Number.isFinite(L.stallAtMs) && now - L.stallAtMs >= STALL_MORE_MS)) {
-    houseFault(state, bus, 'time', HOUSE_CHIEF.time, L);
-    endLeg(state, bus, H, L, 'passed', now);
-  }
+  if (since >= STALL_MS + STALL_MORE_MS || (L.stallSaid && Number.isFinite(L.stallAtMs) && now - L.stallAtMs >= STALL_MORE_MS)) passLeg(state, bus, H, L, now);
 }
 
 /**
@@ -2435,6 +2558,8 @@ function legView(state, H, L, k, now) {
     doorwayMs: L.funnelMs, faults: L.faults.map(f => ({ ...f })), presses: L.presses, pressAbout: { ...L.pressAbout }, how: { ...L.how }, seen: new Set(L.contacts.map(c => c.key)).size,
     contacts: L.contacts.map(c => ({ ...c, ...(THREAT_FACES.includes(c.face) ? { parMs: parOf(state, rangeOf(state).turners.find(T => T.key === c.key), H).ms, ...parLeftOf(state, H, L, c, now) } : {}) })), inner: L.inner, kit: [...(L.kit ?? []), ...teamMarks(state, H, L)], bangMs: L.bangMs ?? null,
     ...(H.live ? { live: liveLegOf(state, H, k) } : {}),
+    // (carried FH-2: why a passed leg was passed, 'stack' | 'door' | 'room'; absent on a leg not passed, or the hall)
+    ...(L.passWhy ? { passWhy: L.passWhy } : {}),
   };
 }
 // (an open threat's par clock as pars() judges it, for the lane timer's strip (the code review: the strip ran each
@@ -2618,10 +2743,17 @@ export const LIVE_NAMES = Object.freeze({ '2a': 'the man in the deep corner', '3
 // (the instructor's one thing to do differently: the worst number of the run, by its weight (COMBAT §17.2; my call on the weights))
 function oneThing(state, H, views) {
   const n = (kind) => sum(views.map(V => V.faults.filter(f => f.kind === kind).length));
+  // (carried FH-2: a threat left standing in a room passed at the door is that pass's consequence, not its cause: not counted)
+  const nStanding = sum(views.map(V => (V.passWhy === 'door' ? 0 : V.faults.filter(f => f.kind === 'standing').length)));
+  const passed = (why) => views.filter(V => V.passWhy === why).length;
   const doorway = sum(views.map(V => V.doorwayMs));
   const score = {
     // (the par's advice from your own corner's men only: a miss on the #2's is his (the fixer's of 0.0.12))
-    hostage: n('hostage') * 100, noshoot: n('noshoot') * 90, muzzle: n('muzzle') * 70, standing: n('standing') * 60,
+    hostage: n('hostage') * 100, noshoot: n('noshoot') * 90, muzzle: n('muzzle') * 70, standing: nStanding * 60,
+    // (its build sheet item 11, carried FH-2: a room passed, by why: at its open door, never crossed (over the muzzle's 70 and
+    // under the no-shoot's 90: a lane lost at the door is the first thing to fix), at its stack, the door never opened, or inside, never
+    // called; the hall's pass keeps `time` (my calls). Before, every pass was `time`, "Too slow through the rooms. …", beside the NO-GO)
+    'passed:door': passed('door') * PASS_DOOR_W, 'passed:stack': passed('stack') * PASS_STACK_W, 'passed:room': passed('room') * PASS_ROOM_W,
     // (the card (the build sheet v0.0.20 §1 item 4): a missed par scored by its cause, each its own advice ('par:click' is a
     // par met within the dummy's click, scored 0; 'par' a contact recorded before the causes), your number two's line masked by you)
     ...Object.fromEntries(Object.entries(views.reduce((o, V) => { for (const [k, c] of Object.entries(V.causes ?? {})) o[k] = (o[k] ?? 0) + c; return o; }, {})).map(([k, c]) => [k === 'par' ? 'par' : `par:${k}`, c * 40])),
@@ -2648,7 +2780,8 @@ function oneThing(state, H, views) {
   const key = whoseOne(state, H, views, worst && worst[1] > 0 ? worst[0] : ran ? (setUp ? 'setup' : 'clean') : 'unplayed');
   // (the doorway's advice below rung 2 names the Watch, the one decision that keeps the feet going through the door)
   const keys = rungOf(state, playerId(state), 'room') < 2;
-  const lines = key === 'funnel' && keys && HOUSE_CHIEF.one.funnelKeys ? HOUSE_CHIEF.one.funnelKeys : key === 'par:unready' && keys ? HOUSE_CHIEF.one['par:unreadyKeys'] : HOUSE_CHIEF.one[key] ?? HOUSE_CHIEF.one.par;
+  const lines = key === 'funnel' && keys && HOUSE_CHIEF.one.funnelKeys ? HOUSE_CHIEF.one.funnelKeys : key === 'par:unready' && keys ? HOUSE_CHIEF.one['par:unreadyKeys']
+    : key === 'passed:door' && keys ? HOUSE_CHIEF.one['passed:doorKeys'] : HOUSE_CHIEF.one[key] ?? HOUSE_CHIEF.one.par;
   return { key, text: hashPick(lines, 'house-chief', state.meta.seed, 'one', key), score: worst?.[1] ?? 0 };
 }
 // (the one thing's key for a casualty, in the merge's order (the v0.0.22 integration): your late one 'casualty:bled' (the hunt of
@@ -2697,6 +2830,8 @@ function whoseOne(state, H, views, key) {
   if (key === 'paint' && two && !sum(views.map(V => V.live?.paint ?? 0)) && sum(views.map(V => V.live?.paintTwo ?? 0))) return 'paint:two';
   return key;
 }
+/** A room passed at its open door, at its stack, inside it: the one thing's weights (carried FH-2; my calls). */
+export const PASS_DOOR_W = 75, PASS_STACK_W = 40, PASS_ROOM_W = 30;
 // (your number two in the room this long after you is late on your heels: the one thing's "Let him in with you." (F48's TWO_HEELS_MS))
 const HEELS_LATE_MS = 2000;
 // (the dummy's clearing over HANDS_K × the sheet's immediate action (ms; ≤ 0 within it))
@@ -2836,8 +2971,19 @@ export function houseGoal(state) {
   const H = houseOf(state), two = state.people?.[H?.twoPid];
   const who = two ? `${RANK_WORD[two.service?.rank] ?? two.service?.rank ?? ''} ${two.name?.family ?? ''}`.trim() : 'your number two';
   // (short enough for the goal box's two lines at 1600 × 900, the rule that matters most last but whole (the fixer's of 0.0.12))
-  return `${laneNameOf(state)} at 1 G, ${who} your number two. On GO: three rooms and the hall. Threats down, no-shoots untouched.`;
+  // (its build sheet items 13 and 18, carried FH-4, DC3b and DW: the goal line is three lines at most (toasts.js kind 'goal'); the
+  // live lane's its own, the role-players and their marking rounds named (it was the frangible lane's word for word: houseGoal read no
+  // live men); and the dead corner named once (GOAL_CORNER), never in the spoken brief, whose every word moves every lane's ticks. The
+  // words measured in the page against the longest rank and family the names can give ("Private First Class Merriweather") on a drawn
+  // house: 163 and 168 characters, three lines at 1280 × 720 and 1600 × 900 (ui-goal-clamp); the carried lens's live words, 234 with
+  // its corner, were four)
+  const live = rangeOf(state)?.load === 'marking';
+  return live
+    ? `${laneNameOf(state)} at 1 G, live, ${who} your number two. Two role-players with marking rounds. Threats down, no-shoots untouched. ${GOAL_CORNER}`
+    : `${laneNameOf(state)} at 1 G, ${who} your number two. On GO: three rooms and the hall. Threats down, no-shoots untouched. ${GOAL_CORNER}`;
 }
+/** The dead corner named once on the goal line (DW: the user, 2026-11-17, "i don't know what the "look behind the door" option does"; my call on the words). */
+export const GOAL_CORNER = 'Look behind a push door.';
 const RANK_WORD = Object.freeze({ Pvt: 'Private', PFC: 'Private First Class', LCpl: 'Lance Corporal', Cpl: 'Corporal', Sgt: 'Sergeant', SSgt: 'Staff Sergeant' });
 
 /**

@@ -168,10 +168,14 @@ export default [
     },
   },
   {
-    name: 'arm-card and gap-zero, the hunt\'s lane (heavy): the sergeant by T on 48213, live:hide,fight: the arm\'s strike LIMB on the card beside "left arm", and room 3\'s rounds on the one tick "FIRST ROUNDS TOGETHER"',
+    name: 'arm-card and gap-zero, the hunt\'s lane (heavy): the sergeant by T on seed 43, live:hide,fight: the arm\'s strike LIMB on the card beside "left arm", and a room\'s rounds on the one tick "FIRST ROUNDS TOGETHER"',
     heavy: true,
     fn() {
-      const g = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'sgt', opfor: 'live:hide,fight' }), s = g.state, H = houseOf(g), pid = s.player.id, words = [];
+      // (re-pointed from 48213 to seed 43 at v0.0.23's integration: v0.0.23 D's sterile check (DC3, the instructor's look on the floor
+      // before LOAD, 140 ticks more from the fill to GO) moves the live lane on 48213: it now ends a casualty at 22.75 s with one torso
+      // strike and no arm. Seed 43 is the only one of seeds 1 to 200 whose sergeant by T takes an arm strike ("Paint, left arm. Keep
+      // working.", "1 TORSO, 1 LIMB") on a lane that also has rounds on one tick; the assertions are unchanged)
+      const g = createGame({ scenario: 'test-shoothouse', seed: 43, tier: 'sgt', opfor: 'live:hide,fight' }), s = g.state, H = houseOf(g), pid = s.player.id, words = [];
       runHouse(g, houseTBot(), { maxMs: 10 * 60_000, each: (x) => { for (const t of said(x)) if (/paint/i.test(t)) words.push(t); } });
       const rs = runSheetOf(s), mine = H.live.would.log.filter(e => e.on === pid), arms = mine.filter(e => /^arm/.test(e.part)).length;
       const paint = /PAINT ON YOU: [^·]+/.exec(rs.card)?.[0]?.trim(), rows = rs.rows.map(r => r.words).filter(w => /LIVE/.test(w));

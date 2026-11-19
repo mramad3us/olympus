@@ -1,0 +1,28 @@
+{
+ "title": "Mag boots and the anchors on the figure and the doll: the sole, the cuff, the magnet's plate; a hand on a hold, the lanyard, the wedge",
+ "about": "The void range (v0.0.24, \"Anchor before you fire\") issues magnetic boots: a body locked to a steel deck holds his gun as on the ground, one floating does not, and you must see which (your note of 2026-11-17: \"show us what we would be seeing\"). The boots do not exist in the game yet, so each candidate redraws only the boots of the game's own figure (the shoot house's marine in the black combat EVA suit, at 16 px/m, snapped to the Mars palette) and of the game's own doll (the I and C cards' figure in the same kit). Each picture: the figure today, then with the candidate, in four facings; the feet three times larger facing you and side on; the doll's lower legs twice its size. B-b (the default until scored) a sole a pixel deeper and a grey cuff round the ankle (the magnet's housing); B-a a heavier sole, two pixels, no cuff; B-c the cuff with the magnet's plate, light steel on the cuff's outer side. H (drawn on the portraits round's pose engine): how a body anchored on the deck shows, the doll and the figure in four facings, today's above. H-a (the default until scored) the hand on a hold: the left arm up to a rail over the head on the doll, a handhold at his side on the figure (the chibi's helmet hides a hand over the head); H-b the lanyard: a tether from the belt's left to a plate on the deck; H-c the wedge: a boot under a rail on the deck, that knee bent.",
+ "open": {"default": ["B-b", "H-a"], "since": "2026-11-17", "decides": "mag boots on the figure and the cards (B), and how an anchored body shows (H)", "builtIn": "v0.0.24"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "B",
+   "title": "B: the boots",
+   "about": "Today and the candidate side by side: the figure's four facings at 16 px/m (you, away, right, left), the feet three times larger, the doll's lower legs twice.",
+   "views": [
+    { "id": "B-b", "name": "B-b: sole and grey cuff (the default)", "query": "b=B-b", "pixel": "298x229" },
+    { "id": "B-a", "name": "B-a: a heavier sole", "query": "b=B-a", "pixel": "298x229" },
+    { "id": "B-c", "name": "B-c: the cuff and the magnet's plate", "query": "b=B-c", "pixel": "298x229" }
+   ]
+  },
+  {
+   "id": "H",
+   "title": "H: anchored on the deck",
+   "about": "The doll (the I and C cards) today and with the anchor, twice its size; the figure at 16 px/m three times larger, today's facings, then the candidate's.",
+   "views": [
+    { "id": "H-a", "name": "H-a: the hand on a hold (the default)", "query": "h=H-a", "pixel": "428x596" },
+    { "id": "H-b", "name": "H-b: the lanyard", "query": "h=H-b", "pixel": "428x596" },
+    { "id": "H-c", "name": "H-c: the wedge", "query": "h=H-c", "pixel": "428x596" }
+   ]
+  }
+ ]
+}

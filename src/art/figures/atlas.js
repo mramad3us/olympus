@@ -14,7 +14,7 @@
 // quarters, painted in one carry) is shelved like the base pool, its sheet within a base sheet's size, so the render keeps it in a
 // base slot of its own (src/render/figures.js), only for an armed mover in a stance: no new texture, the base looks unchanged.
 // 0.0.5: the rifle's handling bands (poses.js RIFLE_BANDS) are laid out in a POOL of their own, a second,
-// smaller sheet (pools.rifle: the three bands side by side, about 880 × 152 at 16 px/m), so the base sheet
+// smaller sheet (pools.rifle: the bands side by side, 1360 × 152 at 16 px/m from v0.0.23's P-12 band, RIFLE_SHEET_W_M), so the base sheet
 // keeps its size and the atlas its 40 looks at 16 px/m; the render keeps rifle sheets in the atlas's rows
 // the base sheets leave below them (src/render/figures.js) and gives one only to a look that handles a
 // rifle. A band's rectangle and its cells are in its pool's sheet (bands[band].pool).
@@ -44,8 +44,10 @@ import { word } from '../paint.js';
 
 /** The sheet's width, metres at the density (512 px at 16 px/m, 768 at 24). */
 export const SHEET_W_M = 32;
-/** The rifle pool's sheet width, metres (its three bands side by side: 880 px at 16 px/m, so four go across a 4096 atlas). */
-export const RIFLE_SHEET_W_M = 56;
+/** The rifle pool's sheet width, metres (its three bands side by side: 880 px at 16 px/m, so four go across a 4096 atlas; v0.0.23,
+ * the P-12's band beside them (poses.js BANDS.pistol, fifteen frames with its two walks, the user's note of 2026-11-17): 85 m,
+ * 1360 px at 16 px/m (three across) and 2040 at 24 (two across), the most that keeps those counts). */
+export const RIFLE_SHEET_W_M = 85;
 const GAP = 0;
 
 const layouts = new Map();

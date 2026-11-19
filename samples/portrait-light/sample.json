@@ -1,0 +1,35 @@
+{
+ "title": "The card as you would see him: in his light, half behind the jamb, his hands not yet read",
+ "about": "Your note of 2026-11-17: the portraits \"need to be more dynamic and show us what we would be seeing\". Every card is the live lane's role-player 2a (the plate carrier, the force-on-force mask, the R-7 at the low ready) in his own colours, drawn by the game's own doll and card code (samples/portrait-lib/card.js), the candidate drawn over it. L decides the card in his light (built in v0.0.24, on your score; drawn unlit until then), J a man half behind a door's jamb (v0.0.24; drawn whole until then), V his hands before your take-in has read them (this release at V1: v0.0.22 emptied his hands on the card while the stage drew his rifle, a card that contradicted the stage).",
+ "open": {"default": ["L1", "J1", "V1"], "since": "2026-11-17", "decides": "his hands not yet read (V, this release at V1); the card in his light (L) and half behind a jamb (J), built in v0.0.24", "builtIn": "v0.0.23"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "L",
+   "title": "L: the card in his light",
+   "about": "Four places: a lit room (the house's 0.75), room 3's dim (0.40), a dark room (0.10) and a man in a lamp's pool, the light falling off from a lamp above his left shoulder. L1 (the default for v0.0.24) lit by his place's light over the lit room's, never below 30%, the lit rooms unchanged; L2 unlit, today's: the four alike.",
+   "views": [
+    { "id": "L1", "name": "L1: lit by his place, never below 30% (the default)", "query": "l=L1", "pixel": "820x218" },
+    { "id": "L2", "name": "L2: unlit (today's)", "query": "l=L2", "pixel": "820x218" }
+   ]
+  },
+  {
+   "id": "J",
+   "title": "J: half behind the jamb",
+   "about": "A quarter, a half and three quarters of him behind a door's jamb, from the viewer's left. J1 (the default for v0.0.24) the jamb drawn over him, the house's wall with its lit edge toward you; J2 the hidden share faded to the card's ground.",
+   "views": [
+    { "id": "J1", "name": "J1: the jamb drawn over him (the default)", "query": "j=J1", "pixel": "616x218" },
+    { "id": "J2", "name": "J2: the hidden share faded", "query": "j=J2", "pixel": "616x218" }
+   ]
+  },
+  {
+   "id": "V",
+   "title": "V: his hands before your take-in has read them",
+   "about": "Today's card first (v0.0.22 emptied his hands), then the candidate at the near and mid bands. V1 (the default, this release) his hands and the rifle drawn as the stage shows them, the words \"HANDS NOT SEEN · 2A\" saying what your mind has not read; V2 the hands and what is in them veiled, hatched in the card's ground.",
+   "views": [
+    { "id": "V1", "name": "V1: as the stage shows him, in words (the default)", "query": "v=V1", "pixel": "616x218" },
+    { "id": "V2", "name": "V2: the hands veiled", "query": "v=V2", "pixel": "616x218" }
+   ]
+  }
+ ]
+}

@@ -17,11 +17,23 @@
 // as last seen never jumps to where they are in one frame with the bay in view (the review of v0.0.5's
 // rack: seven did on the dressing splash's first frame); they show as they are once looked at. It is the view's, never saved; PEOPLE's state.mind.seen and its ghosts (a
 // person's last sighting kept in the save, forgotten past 70 m) come with sightings (0.0.10).
+// v0.0.23 (its build sheet item 6, §0 items 20 and 34; the user, 2026-11-17: "a person or a thing is drawn only where it is
+// seen now, or as last seen, never before it has been seen"): in a combat scene (the view's say: src/sim/places/known.js
+// hostKind) recall answers { hide: true } for a man the view must not draw: out of sight and never kept here, unless the
+// caller's seenEver (known.js seenEver: on your contact's sightings, or in a room entered on a new state's first frame) says he
+// was seen; and a man kept here whose remembered spot is in sight while he is not (he left it while you looked away, or as
+// you watched) is gone from where you last saw him, so he is hidden, not drawn where he truly is in the dim, until he is in
+// sight again (`gone` on his entry, cleared by the next keep). Out of a combat scene recall is v0.0.22's to the letter: the
+// base's people keep PEOPLE's no-pop box (overhaul question 2's default).
 // Pure: no DOM, no three.js (node tests drive it on the headless game).
 
+/** recall's answer for a man the view does not draw (see the header). */
+export const HIDE = Object.freeze({ hide: true });
+
 /**
- * A memory: { begin(state, areaId), recall(id, x, z, inSight), keep(id, x, z, value), forget(), size }.
- * inSight(x, z) → bool is the caller's (the view's: perception's visibility above 0).
+ * A memory: { begin(state, areaId) → fresh, recall(id, x, z, inSight, { combat, seenEver }), keep(id, x, z, value), forget(), size }.
+ * inSight(x, z) → bool is the caller's (the view's: perception's visibility above 0). begin answers true when it forgot (a new
+ * state, another area, a skip): the view's first frame of a new memory, where known.js seenEver's rooms count.
  */
 export function createMemory() {
   const seen = new Map();                                            // actor id → { x, z, value }
@@ -29,12 +41,21 @@ export function createMemory() {
   return {
     /** A frame begins: forgotten with a new state, another area, or while a skip runs (skipping: the caller's say, by default state.skip; the view's waits for a splash's iris to close). */
     begin(state, areaId, { skipping = !!state?.skip } = {}) {
-      if (!of || of.state !== state || of.area !== areaId || skipping) { seen.clear(); of = { state, area: areaId }; }
+      if (!of || of.state !== state || of.area !== areaId || skipping) { seen.clear(); of = { state, area: areaId }; return true; }
+      return false;
     },
-    /** What to draw for an actor at (x, z): its remembered value when neither spot is in sight, else null (draw it as it is, then keep it). */
-    recall(id, x, z, inSight) {
+    /**
+     * What to draw for an actor at (x, z): its remembered value when neither spot is in sight, else null (draw it as it is, then
+     * keep it). combat (see the header): { hide: true } for a man out of sight never kept and not seenEver, or kept and
+     * gone from his remembered spot, which is in sight.
+     */
+    recall(id, x, z, inSight, { combat = false, seenEver = true } = {}) {
       const was = seen.get(id);
-      return was && !inSight(x, z) && !inSight(was.x, was.z) ? was.value : null;
+      if (!combat) return was && !inSight(x, z) && !inSight(was.x, was.z) ? was.value : null;
+      if (inSight(x, z)) return null;
+      if (!was) return seenEver ? null : HIDE;
+      if (was.gone || inSight(was.x, was.z)) { was.gone = true; return HIDE; }
+      return was.value;
     },
     /** Remember an actor as drawn now, standing at (x, z) in the sim. */
     keep(id, x, z, value) { seen.set(id, { x, z, value }); },

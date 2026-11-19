@@ -87,7 +87,9 @@ export default [
       const looks = [wear({ ...HELD_LOOK, carry: 'low' }), wear(HELD_LOOK), wear({ outfit: 'utilities', weapon: 'pistol', carry: 'low', carrier: true, seed: 5 })];
       // (samples-held's looks and loop, the frames before v0.0.22's: pinned on v0.0.19's own compose.js)
       const suit = (carry) => wear({ outfit: 'combatSuit', carrier: true, weapon: 'rifle', carry, seed: 3, model: 'r7' });
-      const old = FRAMES.filter(f => !BANDS[HELD_BAND].includes(f)), parts = [];
+      // (v0.0.23: the P-12's band (poses.js BANDS.pistol, the user's note of 2026-11-17) is new frames, left out like the held band:
+      // every frame before it is byte for byte as pinned, F98's "the rifle's own frames as before")
+      const old = FRAMES.filter(f => !BANDS[HELD_BAND].includes(f) && !BANDS.pistol.includes(f)), parts = [];
       for (const L of [suit('low'), suit('front'), looks[2]]) for (const d of DIRS) {
         for (const f of old) { const fr = composeFrame(L, d, f, { ppm: PPM }); parts.push(shade(fr.cells, coloursOf(fr.look, PPM)).data); }
         for (const b of BEAT_FRAMES) { const fr = composeFrame(L, d, 'idle0', { ppm: PPM, pose: beatPose(b, { weapon: L.weapon, carry: L.carry }) }); parts.push(shade(fr.cells, coloursOf(fr.look, PPM)).data); }

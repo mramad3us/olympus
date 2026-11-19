@@ -83,7 +83,8 @@ export default [
     name: 'the armoured man holding a pistol is drawn holding it, on the record and on the target card (the hunt of v0.0.18, look-5: the card drew the R-7 where the stage\'s board held a pistol)',
     fn() {
       const gp = standGear('armoured', 'pistol'), gr = standGear('armoured', 'rifle');
-      assert(gp.pistol?.place === 'hand' && !gp.rifle && gp.outfit === 'carrier' && gp.carrier && gr.rifle?.place === 'hand' && !gr.pistol, JSON.stringify({ gp, gr }));
+      // (v0.0.23, re-pinned for the user's note of 2026-11-17: the painted man's gun at the ready, W1; v0.0.22 hung it from the hand)
+      assert(gp.pistol?.place === 'ready' && !gp.rifle && gp.outfit === 'carrier' && gp.carrier && gr.rifle?.place === 'ready' && !gr.pistol, JSON.stringify({ gp, gr }));
       const P = (face, holds) => paintHitcard({ face, holds, phase: 'belief', marks: [], words: `${face} ${holds}`, rangeM: 6, subject: { kind: 'board', face, holds } });
       const a = P('armoured', 'pistol'), b = P('armoured', 'rifle');
       let n = 0;

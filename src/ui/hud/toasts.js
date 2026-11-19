@@ -11,6 +11,9 @@
 // middle or the watch (the user: "overlapping UI elements", tradecraft; VIEWS §7.5). Everything a
 // toast said is in the log card (J), whole. A line may ask for its own time (push(text, tone, { s }):
 // a test scene's goal line, GOAL_S 8 s, the build sheet 0.0.4 §2.4).
+// v0.0.23 (its build sheet item 13, carried FH-4): and its kind (push(text, tone, { s, kind })), a class on the line: the goal line is
+// kind 'goal', clamped at three lines (style.css .toast.goal), so a goal naming a long rank and name is never cut ("… Threats down,
+// no-shoots untouched." lost its last words at 1280 × 720 with the longest #2); it yields to a later line as any toast does.
 
 /** How long a toast stays, in seconds of play (VIEWS §7.1), and how many show at once. */
 export const TOAST_S = 16, TOASTS_MAX = 3;
@@ -29,10 +32,10 @@ export function createToasts(parent) {
   };
   return {
     el: root,
-    /** A line: its text and its tone ('note' | 'warn' | 'urgent' | 'bad' | 'calm'); s its seconds of play (TOAST_S by default). */
-    push(text, tone = 'note', { s = TOAST_S } = {}) {
+    /** A line: its text and its tone ('note' | 'warn' | 'urgent' | 'bad' | 'calm'); s its seconds of play (TOAST_S by default); kind a class of its own ('goal'). */
+    push(text, tone = 'note', { s = TOAST_S, kind = null } = {}) {
       if (!text) return null;
-      const t = Object.assign(document.createElement('div'), { className: `toast ${tone || 'note'}`, textContent: String(text) });
+      const t = Object.assign(document.createElement('div'), { className: `toast ${tone || 'note'}${kind ? ` ${kind}` : ''}`, textContent: String(text) });
       t.dataset.born = String(clockMs);
       t.dataset.life = String(s * 1000);
       root.append(t);

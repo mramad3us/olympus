@@ -57,10 +57,11 @@ class FakeContext {
 }
 // (where a node's outputs lead: the kinds along the first path to the destination)
 const pathOf = (n) => { const out = []; let x = n; for (let i = 0; i < 24 && x; i++) { out.push(x.kind); x = x.outs[0]; } return out; };
-export function engineOn(sound, looks = {}) {
+// (voice: the set by name, for a case that measures the voices' bake: none is the game's from v0.0.23's fixer, the user's "no voices")
+export function engineOn(sound, looks = {}, voice = null) {
   let ctx = null;
   const Klass = function () { ctx = new FakeContext(); return ctx; };
-  const audio = createAudio({ sound, looks, AudioContextClass: Klass });
+  const audio = createAudio({ sound, looks, ...(voice ? { voice } : {}), AudioContextClass: Klass });
   audio.prepare(); audio.start();
   let frames = 0, worstMs = 0;
   while (!audio.stats.baked && frames < 5000) { const t0 = performance.now(); audio.frame(null); worstMs = Math.max(worstMs, performance.now() - t0); frames++; }

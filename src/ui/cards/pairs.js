@@ -80,8 +80,9 @@ export function pickerRows(sheets = {}, order = null, focus = PICKER_DEFAULT, { 
 export const SETUP_LINES = Object.freeze({ bangs: 'Utilities, no ear defenders. In the first standby the coach makes some noise behind you; the rest is Pairs as built. Esc, End the scene, takes you to the card after the first string.' });
 /** A scene's line under the picker's title where it has no setup (0.0.10: "Bang"; my words). */
 export const SCENE_LINES = Object.freeze({ 'test-stress': 'Ear defenders on. Five strings at 7 m: one calm, then the coach makes noise beside you (a horn and blanks, a bang he calls, three he does not), the last on a one-round magazine. Breathe when you can. Esc, End the scene, takes you to the card.',
-  // (0.0.12: the shoot house; my words)
-  'test-shoothouse': 'The Wheel, at 1 G. Your number two is of your sheet too, and runs the same drill. The recruit does it a step at a time, X and the keys to go in; from the Corporal T bundles it. The same rooms and draws on the seed whichever you choose.' });
+  // (0.0.12: the shoot house; my words. v0.0.23, its build sheet item 15, carried FH-7: in plain words, what T does at each sheet and
+  // what the keys do (the first-hour lens: "a step at a time" and "T bundles it" told a new player nothing he could do))
+  'test-shoothouse': 'The Wheel, at 1 G. Your number two is of your sheet too, and runs the same drill. Boot recruit and Private: T names every step and does it, but your keys walk you through each door, as the instructor calls them. From the Corporal, T takes you through the door too, a room\'s drill at a time. The same rooms and draws on the seed whichever you choose.' });
 /** Whether a scene's picker leads with the hardening (its lesson: "Three bangs" and "Bang"). */
 export const leadsHard = (scene) => scene?.setup === 'bangs' || scene?.id === 'test-stress' || scene?.course === 'stress';
 

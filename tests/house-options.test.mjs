@@ -8,6 +8,8 @@
 // alone implies drawn and with draw 'set' is dropped; a drawn lane given no rooms takes the page's HOUSE_ROOMS_DEFAULT (createGame
 // 'a' whatever it says). Each is passed only when it is not the default, so a lane given none of them, or their defaults, is the
 // lane it was to the byte (the digests below). The fill (shoothouse.js testShoothouse) takes them; v0.0.22's A reads them.
+// v0.0.23 (its build sheet §2 step 3, item 14): again, the house's Again of the same lane, threaded the same way (newGame, createGame,
+// main.js playScene and the picker's hook) to the fill, which writes R.house.again only when given with no setup; v0.0.23's D reads it.
 import { assert, near } from './helpers.mjs';
 import { createGame, houseOpts } from './game.mjs';
 import { readParams, houseChoice, ROOMS_URL, LAYOUTS_URL, PLANS_URL } from '../src/core/debug.js';
@@ -84,6 +86,27 @@ export default [
       console.log(`      unknown options: ${bad.map(m => (m ? 'threw' : 'made a game')).join(', ')}`);
       assert(bad.every(Boolean), fmt(bad));
       near(bad.length, 3, 0, 'three unknowns');
+    },
+  },
+  {
+    // (v0.0.23's stage 0, its build sheet §2 step 3 and item 14: the house's Again of the same lane threaded as the options above,
+    // newGame and createGame to testShoothouse, which writes R.house.again; nothing reads it until v0.0.23's D, the short brief)
+    name: 'again (v0.0.23): absent or false writes nothing, the lane to the byte; true writes R.house.again = true at the fill and nothing else; with a setup (no brief) nothing; a value not true or false throws',
+    fn() {
+      const mk = (o) => createGame({ scenario: 'test-shoothouse', seed: 48213, ...o });
+      const plain = mk({}), off = mk({ again: false }), on = mk({ again: true }), set = mk({ again: true, setup: 'go' }), setPlain = mk({ setup: 'go' });
+      const H = (g) => g.state.armoury.range.house;
+      // (the save with again taken out: the same text as the plain lane's, so again writes that one field and nothing else)
+      const without = JSON.parse(on.save());
+      delete without.armoury.range.house.again;
+      const same = JSON.stringify(without) === JSON.stringify(JSON.parse(plain.save()));
+      console.log(`      digests: none ${plain.digest()}, false ${off.digest()}, true ${on.digest()} (R.house.again ${H(on).again}; with it taken out the plain save: ${same}); setup 'go' with again ${set.digest()}, without ${setPlain.digest()} (R.house.again ${H(set).again})`);
+      assert(plain.digest() === off.digest() && !('again' in H(plain)) && !('again' in H(off)), fmt({ plain: plain.digest(), off: off.digest() }));
+      assert(H(on).again === true && on.digest() !== plain.digest() && same, fmt({ again: H(on).again, same }));
+      assert(!('again' in H(set)) && set.digest() === setPlain.digest(), fmt({ again: H(set).again, set: set.digest(), setPlain: setPlain.digest() }));
+      const bad = ['yes', 1, null].map(v => { try { mk({ again: v }); return null; } catch (e) { return String(e.message); } });
+      console.log(`      again 'yes', 1, null: ${bad.map(m => (m ? 'threw' : 'made a game')).join(', ')}`);
+      assert(bad.every(Boolean), fmt(bad));
     },
   },
 ];

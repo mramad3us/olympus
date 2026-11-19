@@ -1,0 +1,18 @@
+{
+ "title": "You in the black suit on the I and C cards: today's backdrop, the place's, or the place's with a rim light",
+ "about": "The I and C cards draw you as the doll in the gear you wear (your ask of 2026-11-15), and in the combat EVA suit the doll is black on its own dark wall: the suit's outline is the ink round it, and the figure reads as a hole in the card. Every picture is the game's own dressed doll at the cards' scale, unlit as they draw it: you at GO in the shoot house (GO: the suit, the carrier, the R-7 at the low ready, the P-12 holstered) and after Transition (P-12: the pistol at the ready, the R-7 slung in front), in three places (the shoot house, the squad bay, the Melas street); the candidate redraws only the ground behind you and, in D-c, a rim of light on the suit's edge. D-a today's backdrop (the doll's own wall and floor wherever you are; the default until scored); D-b the place's backdrop (its wall and floor in the place's tones, the floor's shadow kept); D-c the place's backdrop and a rim light (the suit's outermost pixels on the lit side, the upper left as the doll is lit, lifted toward the place's light). Built in v0.0.24 on your score.",
+ "open": {"default": ["D-a"], "since": "2026-11-17", "decides": "you in the black suit on the I and C cards: the ground behind you and a rim of light", "builtIn": "v0.0.24"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "D",
+   "title": "D: the ground behind you, and a rim of light",
+   "about": "Columns: the shoot house, the squad bay, the Melas street. Rows: at GO; after Transition (the P-12 at the ready).",
+   "views": [
+    { "id": "D-a", "name": "D-a: today's backdrop (the default)", "query": "d=D-a", "pixel": "208x314" },
+    { "id": "D-b", "name": "D-b: the place's backdrop", "query": "d=D-b", "pixel": "208x314" },
+    { "id": "D-c", "name": "D-c: the place's backdrop and a rim light", "query": "d=D-c", "pixel": "208x314" }
+   ]
+  }
+ ]
+}

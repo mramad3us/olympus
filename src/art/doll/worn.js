@@ -57,12 +57,26 @@ const STAMP_MAX = 64;
 const STAMPS = new Map();
 
 // (the rifle's anchor and direction by its place, reference coordinates: [x, y] where the turned shape's origin, the butt, sits, and th)
+const line = (from, to) => ({ at: from, th: Math.atan2(to[1] - from[1], to[0] - from[0]) });
 function rifleLine(place, B, MID, lenRef) {
-  if (place === 'front') { const to = [MID + 14, 92], from = [MID - 13, 33]; return { at: from, th: Math.atan2(to[1] - from[1], to[0] - from[0]) }; }
-  if (place === 'back') { const from = [MID - 12, 70], to = [MID + 18, 12]; return { at: from, th: Math.atan2(to[1] - from[1], to[0] - from[0]) }; }
+  if (place === 'front') return line([MID - 13, 33], [MID + 14, 92]);
+  if (place === 'back') return line([MID - 12, 70], [MID + 18, 12]);
   if (place === 'ready') { const th = READY_DEG * Math.PI / 180, grip = [MID - 8, 58], g = lenRef * GRIP_K; return { at: [grip[0] - Math.cos(th) * g, grip[1] - Math.sin(th) * g], th }; }
+  // (the high ready, the butt at the belly and the muzzle up past his right shoulder (the viewer's left), foreshortened;
+  // aimed away, across the chest from his right shoulder toward his facing (aimAwayL the other way); hanging at his right hip,
+  // muzzle down (the slung rifle's RH2); across the knees, sitting (drawn after the pose's bend, at the knees' row))
+  if (place === 'high') return line([MID + 4, 62], [MID - 12, 14]);
+  if (place === 'aimAway') return line([MID - 10, 34], [MID + 26, 38]);
+  if (place === 'aimAwayL') return line([MID + 9, 34], [MID - 27, 38]);
+  if (place === 'hip') return line([MID - 15, 40], [MID - 18, 104]);
+  // (RH1, the default: hanging from the two-point sling while the pistol is up, the butt at the chest's middle under the support
+  // arm, the muzzle down by his left knee (the viewer's right), clear of the pistol held on the middle line)
+  if (place === 'hang') return line([MID + 6, 33], [MID + 17, 100]);
+  if (place === 'lap') return line([MID - 30, 1], [MID + 30, 3]);
   return null;
 }
+/** The rifle's drawn length on the doll by its place, as a share of RIFLE_CM (a place seen foreshortened draws it shorter). */
+export const RIFLE_LEN_K = Object.freeze({ high: 0.83, aimAway: 0.62, aimAwayL: 0.62, lap: 0.95 });
 
 /**
  * The rifle's pixels on the doll's grid at scale S for a place ([[x, y, colour]] in target pixels, in turned()'s order),
@@ -72,7 +86,7 @@ export function rifleStamp(model, finish, S, place, B, MID, mag = true) {
   const key = `${model}|${finish ?? ''}|${S}|${place}|${B.hand}|${B.armIn[0][1]}|${mag ? 1 : 0}`;
   const hit = STAMPS.get(key);
   if (hit) return hit;
-  const lenPx = Math.round(RIFLE_CM * PX_PER_CM * S);
+  const lenPx = Math.round(RIFLE_CM * PX_PER_CM * S * (RIFLE_LEN_K[place] ?? 1));
   // (the rifle as its drawing has it, src/art/rifles.js: the look's model, else the R-7's; its furniture in its finish's colours;
   // the magazine in the well only when the gear says so: the hunt of v0.0.18 found the doll drawing it whatever the gear said)
   const D = drawingOf(model ?? 'r7', finish), shape = shapeAt('rifle', lenPx, 2.4 * S, mag, D.fig);
@@ -99,12 +113,38 @@ export function rifleStamp(model, finish, S, place, B, MID, mag = true) {
   return out;
 }
 
+/** The rifle's places on the doll that are in the hands (the rest hang on the sling or lie across the back or the knees). */
+export const RIFLE_IN_HANDS = Object.freeze(['hand', 'ready', 'high', 'aimYou', 'aimAway', 'aimAwayL']);
+/** The pistol's places on the doll that are in the hands ('holster' and 'draw', the hand on it holstered, are not). */
+export const PISTOL_IN_HANDS = Object.freeze(['hand', 'ready', 'high', 'aim', 'cupped', 'aimAway', 'check', 'hostage']);
+// (a part of what the hands hold: the card tones exactly these pixels (the build sheet v0.0.23 item 1: g.held, as g.quiet marks the seams))
+const holds = (g, id) => { g.held?.add(id); return id; };
+
 /** The rifle drawn at its place (a new part, in the stamp's order). */
-export function rifleAt(g, B, kit, place, MID) {
-  const id = g.add([], 0);
+export function rifleAt(g, B, kit, place, MID, dy = 0) {
+  if (place === 'aimYou') return rifleAtYou(g, B, kit, MID);
+  const id = g.add([], 0), d = Math.round(dy * g.S);
   // (a figure with no gear record, the board's 'hand' rifle, keeps its magazine)
-  for (const [x, y, c] of rifleStamp(kit.model ?? 'r7', kit.finish, g.S, place, B, MID, kit.gear?.rifle?.mag !== false)) g.px(x, y, c, id);
-  return id;
+  for (const [x, y, c] of rifleStamp(kit.model ?? 'r7', kit.finish, g.S, place, B, MID, kit.gear?.rifle?.mag !== false)) g.px(x, y + d, c, id);
+  return RIFLE_IN_HANDS.includes(place) || place === 'lap' ? holds(g, id) : id;
+}
+/** The rifle's colours on the doll: lighter than the sprites' (against the doll's dark wall gun metal would vanish). */
+const RIFLE_DOLL_C = Object.freeze({ body: 0x2e313c, steel: 0xa0a8b4, bore: 0x14151c, optic: 0x23252f, glass: 0x8fc8e8 });
+/**
+ * The rifle aimed at you, end on (portrait-pose's A1, the default): the stock in his right shoulder (the viewer's left), the
+ * muzzle a ring of steel round the black bore before his chest, the gun's body dark behind it toward the shoulder, the optic's
+ * box over the ring with its lens lit (the stage's composer draws a gun seen end on the same way: compose.js gunCells).
+ */
+export function rifleAtYou(g, B, kit, MID) {
+  const C = RIFLE_DOLL_C, id = g.add([], 0), cx = MID - 3, cy = 39;
+  // (the body: from the shoulder's pocket in to the ring, a band two pixels deep)
+  for (let k = 0; k <= 8; k++) { const x = cx - 7 + k, y = cy - 4 + k * 0.45; g.put(x, y, C.body, id); g.put(x, y + 1, C.body, id); }
+  // (the optic over it: a dark box, its lens a lit pixel toward you)
+  g.span(cy - 5, cx - 2, cx + 1, C.optic, id); g.span(cy - 4, cx - 2, cx + 1, C.optic, id); g.put(cx - 1, cy - 4, C.glass, id);
+  // (the ring: steel round the bore, a magazine's edge under it)
+  for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) { const r = Math.abs(i) + Math.abs(j); if (r > 3) continue; g.put(cx + i, cy + j, i === 0 && j === 0 ? C.bore : r >= 2 ? C.steel : mix(C.steel, C.body, 0.5), id); }
+  if (kit.gear?.rifle?.mag !== false) { g.put(cx, cy + 3, PLATE_C.base, id); g.put(cx, cy + 4, PLATE_C.lit, id); }
+  return holds(g, id);
 }
 
 /** The masks to score (see the header) and the default drawn until the user picks. */
@@ -144,18 +184,18 @@ export function handDevice(g, B, kit, layer) {
       g.on(id, g.scan([[a[0], a[1]], [a[0] + 1, a[1]], [b[0] + 1, b[1]], [b[0], b[1]]]), C.light);
       g.span(b[1] - 1, b[0] - 1, b[0] + 3, C.base, id); g.span(b[1] - 2, b[0] + 2, b[0] + 4, C.light, id);   // (the fork)
       g.span(a[1] + 1, a[0] - 3, a[0] + 1, C.shade, id);                                                   // (the pick and adze)
-      return id;
+      return holds(g, id);
     }
     if (d.shape === 'ram') {
       const id = g.add(g.rows(to[1] - 3, MID - 12, MID + 11, to[1] + 3), C.base);
       g.on(id, g.rows(to[1] - 3, MID - 12, MID + 11), C.light); g.on(id, g.rows(to[1] + 3, MID - 12, MID + 11), C.shade);
       g.on(id, g.rows(to[1] - 3, MID + 9, MID + 11, to[1] + 3), cloth(DEVICE_C.steel).base);   // (the striking face)
-      return id;
+      return holds(g, id);
     }
     if (d.shape === 'strip') {
       const id = g.add(g.rows(to[1] - 10, x - 1, x, to[1] + 5), C.base);
       g.on(id, g.rows(to[1] - 10, x - 1, x - 1, to[1] + 5), C.light);
-      return id;
+      return holds(g, id);
     }
     return null;
   }
@@ -164,7 +204,7 @@ export function handDevice(g, B, kit, layer) {
     const y0 = to[1] - 7, id = g.add(g.rows(y0, x - 1.5, x + 1.5, y0 + 4), C.base);
     g.on(id, g.rows(y0, x - 1.5, x + 1.5), C.light);
     if (d.shape !== 'spool') g.on(id, g.rows(y0 + 1, x - 2.5, x - 2.5, y0 + 5), 0x8a909c);
-    return id;
+    return holds(g, id);
   }
   return null;
 }
@@ -177,7 +217,67 @@ export function gearBends(gear) {
   if (gear?.device) { const b = HELD_BENDS[gear.device.shape] ?? HELD_BENDS.can; return { bendR: [...b.bendR], ...(b.bendL ? { bendL: [...b.bendL] } : {}) }; }
   if (gear?.rifle?.place === 'ready') { const th = READY_DEG * Math.PI / 180; return { bendR: [8, 58], bendL: [-8 + Math.cos(th) * 14, 58 + Math.sin(th) * 14] }; }
   if (gear?.pistol?.place === 'ready') return { bendR: [2, 56], bendL: [2, 56] };
-  return null;
+  // (the holds' new places, the fists where each puts them (see rifleLine and PISTOL_LINES))
+  const b = PLACE_BENDS[`rifle:${gear?.rifle?.place}`] ?? PLACE_BENDS[`pistol:${gear?.pistol?.place}`];
+  return b ? { bendR: [...b.bendR], ...(b.bendL ? { bendL: [...b.bendL] } : {}) } : null;
+}
+/**
+ * The fists for the holds v0.0.23 adds ([d, y] as HELD_BENDS'): the rifle at the high ready (the right fist at the grip by the
+ * belly, the left up the handguard), aimed at you (the right at the grip under the shoulder, the left under the ring), aimed away
+ * (both along it across the chest); the pistol at the high ready (both at the chest), aimed at you (both round the slide's end),
+ * in the press check (the right at the grip, the left on the slide), aimed away, raised at the hostage, and the hand on the holstered
+ * grip ('draw': the right fist at the holster's mouth, the left hanging).
+ */
+export const PLACE_BENDS = Object.freeze({
+  'rifle:high': Object.freeze({ bendR: Object.freeze([1, 49]), bendL: Object.freeze([-6, 33]) }),
+  'rifle:aimYou': Object.freeze({ bendR: Object.freeze([8, 44]), bendL: Object.freeze([-1, 43]) }),
+  'rifle:aimAway': Object.freeze({ bendR: Object.freeze([1, 37]), bendL: Object.freeze([12, 38]) }),
+  'rifle:aimAwayL': Object.freeze({ bendR: Object.freeze([-11, 38]), bendL: Object.freeze([0, 37]) }),
+  'pistol:high': Object.freeze({ bendR: Object.freeze([1, 50]), bendL: Object.freeze([1, 50]) }),
+  'pistol:aim': Object.freeze({ bendR: Object.freeze([3, 43]), bendL: Object.freeze([0, 43]) }),
+  'pistol:cupped': Object.freeze({ bendR: Object.freeze([3, 49]), bendL: Object.freeze([0, 49]) }),
+  'pistol:check': Object.freeze({ bendR: Object.freeze([3, 52]), bendL: Object.freeze([-1, 44]) }),
+  'pistol:aimAway': Object.freeze({ bendR: Object.freeze([1, 41]), bendL: Object.freeze([4, 41]) }),
+  'pistol:hostage': Object.freeze({ bendR: Object.freeze([14, 30]) }),
+  'pistol:draw': Object.freeze({ bendR: Object.freeze([16, 60]) }),
+});
+
+/**
+ * The record's hold as the doll's places (the build sheet §3.3: worn.js HOLDS, rifleAt and pistolAt by how): a gear
+ * record's rifle and pistol put where the hold says, the hands up or empty. how: data/portrait.js HOLD_HOWS (and the pistol's
+ * admin, 'pistol-draw', 'pistol-holster', 'pistol-check', 'pistol-reload', 'pistol-clear', or the record's act naming one); aimAt 'you' | 'away'; facing turns an
+ * aim away toward the side he faces; hang the slung rifle's place while the pistol is up (PISTOL_HANGS). A how the doll has no
+ * place for leaves the gear as it is.
+ */
+export const PISTOL_HANGS = Object.freeze({ RH1: 'hang', RH2: 'hip', RH3: 'back' }), PISTOL_HANG = 'RH1';
+/** The record's pistol acts (data/portrait.js PISTOL_ACT_NAMES) as the doll's holds. */
+export const PISTOL_ACT_HOW = Object.freeze({ draw: 'pistol-draw', holster: 'pistol-holster', check: 'pistol-check', reload: 'pistol-reload', clear: 'pistol-clear' });
+export function holdGear(gear, hold, { facing = 'front', hang = PISTOL_HANG } = {}) {
+  if (!gear || !hold?.how) return gear;
+  const how = hold.how, g = { ...gear }, slungAs = PISTOL_HANGS[hang] ?? PISTOL_HANGS[PISTOL_HANG];
+  // (a candidate's place outright (the samples' tables: samples/portrait-pose/poses.js), on the gun the how names)
+  if (hold.place) { if (how.startsWith('pistol') && g.pistol) { g.pistol = { ...g.pistol, place: hold.place }; if (g.rifle && g.rifle.place !== 'back') g.rifle = { ...g.rifle, place: slungAs }; } else if (g.rifle) g.rifle = { ...g.rifle, place: hold.place }; return g; }
+  const rifleTo = (place) => { if (g.rifle) g.rifle = { ...g.rifle, place }; };
+  const pistolTo = (place) => { if (g.pistol) { g.pistol = { ...g.pistol, place }; if (g.rifle && RIFLE_IN_HANDS.includes(g.rifle.place)) rifleTo(slungAs); else if (g.rifle && g.rifle.place === 'front') rifleTo(slungAs); } };
+  const away = facing === 'left' ? 'aimAwayL' : 'aimAway';
+  // (the P-12's act wins over its posture (seen.js hold.act: the draw and the holster, the hand at the holstered grip; the press
+  // check, the reload and the clearing, the admin at the chest))
+  const act = PISTOL_ACT_HOW[hold.act] ?? null;
+  switch (act ?? how) {
+    case 'rifle-low': rifleTo('ready'); break;
+    case 'rifle-high': rifleTo('high'); break;
+    case 'rifle-aim': rifleTo(hold.aimAt === 'away' ? away : 'aimYou'); break;
+    case 'rifle-slung': rifleTo('front'); break;
+    case 'pistol-ready': pistolTo('ready'); break;
+    case 'pistol-high': pistolTo('high'); break;
+    case 'pistol-aim': pistolTo(hold.aimAt === 'away' ? 'aimAway' : hold.aimAt === 'cupped' ? 'cupped' : 'aim'); break;
+    case 'pistol-check': case 'pistol-reload': case 'pistol-clear': pistolTo('check'); break;
+    case 'pistol-draw': case 'pistol-holster': if (g.pistol) { g.pistol = { ...g.pistol, place: 'draw' }; if (g.rifle && g.rifle.place !== 'back') rifleTo(slungAs); } break;
+    case 'up': g.hands = 'up'; if (g.rifle && RIFLE_IN_HANDS.includes(g.rifle.place)) g.rifle = null; if (g.pistol && PISTOL_IN_HANDS.includes(g.pistol.place)) g.pistol = null; g.held = null; g.device = null; break;
+    case 'empty': if (g.rifle && RIFLE_IN_HANDS.includes(g.rifle.place)) rifleTo('front'); if (g.pistol && PISTOL_IN_HANDS.includes(g.pistol.place)) g.pistol = { ...g.pistol, place: 'holster' }; break;
+    default: break;
+  }
+  return g;
 }
 
 /** The suit's slim belt (a dump pouch, a holster or a thigh pouch hangs from it). */
@@ -237,7 +337,7 @@ export function holster(g, B, kit, Y) {
     g.on(id, g.rows(Y.BELT_Y + 2, x0, x1), A.light); g.on(id, g.scan([[x1 - 1, Y.BELT_Y + 2], [x1, Y.BELT_Y + 2], [x1, 84], [x1 - 1, 84]]), A.shade);
     for (const y of [70, 79]) g.span(y, x0 - 0.6, x1 + 2.6, A.deep, id);   // (the leg straps)
     // (its mouth: the P-12's grip in the frame's black over it, or open and dark with the pistol drawn)
-    if (P.place === 'holster') { g.span(Y.BELT_Y, x0 + 1.4, x1 - 1.4, 0x3a3d48, id); g.span(Y.BELT_Y + 1, x0 + 1.4, x1 - 1.4, 0x23252f, id); g.span(Y.BELT_Y + 2, x0 + 1, x1 - 1, 0x23252f, id); }
+    if (P.place === 'holster' || P.place === 'draw') { g.span(Y.BELT_Y, x0 + 1.4, x1 - 1.4, 0x3a3d48, id); g.span(Y.BELT_Y + 1, x0 + 1.4, x1 - 1.4, 0x23252f, id); g.span(Y.BELT_Y + 2, x0 + 1, x1 - 1, 0x23252f, id); }
     else g.span(Y.BELT_Y + 2, x0 + 1, x1 - 1, INK, id);
   }
   if (T) {
@@ -256,14 +356,41 @@ export function earCups(g, kit) {
   return band;
 }
 
-/** The pistol in the hand: 'ready' at the belly between both fists, 'hand' hanging from the right hand (the board's). */
+/**
+ * The pistol's lines on the doll by its place (the user's note of 2026-11-17: "sidearm should have the same stances (low
+ * ready, high ready, aimed, etc) as the rifle"): [x, y] reference where the shape's origin sits, th, and its drawn length's share.
+ * 'ready' the low ready (at the belly between both fists, the slide down), 'high' the high ready (at the chest, the muzzle up),
+ * 'check' the press check and the admin (at the chest, canted, the support hand on the slide), 'aimAway' held out across the body
+ * toward his facing, 'hostage' raised beside the hostile's head toward the hostage (portrait-gun's H1); 'hand' the board's, hanging.
+ */
+const PISTOL_LINES = Object.freeze({
+  ready: Object.freeze({ at: [32, 57], th: Math.PI / 2, k: 0.7 }), high: Object.freeze({ at: [32, 48], th: -Math.PI / 2, k: 0.7 }),
+  check: Object.freeze({ at: [29, 50], th: -Math.PI / 3, k: 0.7 }), aimAway: Object.freeze({ at: [30, 39], th: 0.06, k: 0.8 }),
+  hostage: Object.freeze({ at: [17, 27], th: -0.35, k: 0.8 }),
+});
+/** The P-12 held up at a stance on the doll (the high ready, the admin, aimed away): a step lighter than the frame's colours, its steel lit (see pistolAt). */
+const PISTOL_DOLL_C = Object.freeze({ n: cloth(0x4a4e5a), u: cloth(0x30333c), v: cloth(0xa0a8b4) });
+/** The pistol in the hand (see PISTOL_LINES; 'aim' end on at you): a new part, among g.held. */
 export function pistolAt(g, B, kit, place) {
-  const S = g.S, MID = g.MID, D = pistolDrawingOf(kit.gear?.pistol?.model ?? 'p12'), len = Math.round(P12_LEN_M * 100 * PX_PER_CM * S * (place === 'ready' ? 0.7 : 1));
-  const shape = shapeAt('pistol', len, 1.6 * S, kit.gear?.pistol?.mag !== false, D?.fig ?? null), C = { n: cloth(0x3a3d48), u: cloth(0x23252f), v: cloth(0x8a909c) };
-  const [x0, y0] = place === 'ready' ? [MID * S, 57 * S] : [(MID - B.hand) * S, (B.armIn[0][1] + 2) * S];
+  if (place === 'aim' || place === 'cupped') return pistolAtYou(g, B, kit, place === 'cupped' ? 47 : 41);
+  const S = g.S, MID = g.MID, D = pistolDrawingOf(kit.gear?.pistol?.model ?? 'p12'), L = PISTOL_LINES[place] ?? null;
+  const len = Math.round(P12_LEN_M * 100 * PX_PER_CM * S * (L ? L.k : 1));
+  // (the low ready and the board's 'hand' in the frame's colours as before, byte for byte (samples/portrait-gun's W1 is
+  // drawn from them); the other stances held up before the chest a step lighter, so the slide reads over the carrier)
+  const shape = shapeAt('pistol', len, 1.6 * S, kit.gear?.pistol?.mag !== false, D?.fig ?? null), C = L && place !== 'ready' ? PISTOL_DOLL_C : { n: cloth(0x3a3d48), u: cloth(0x23252f), v: cloth(0x8a909c) };
+  const [x0, y0] = L ? [(L.at[0] - 32 + MID) * S, L.at[1] * S] : [(MID - B.hand) * S, (B.armIn[0][1] + 2) * S], th = L ? L.th : Math.PI / 2;
   const id = g.add([], 0);
-  for (const [x, y, ch] of turned(shape, x0, y0, Math.PI / 2, false)) { const T = C[ch] ?? C.n; g.px(Math.round(x), Math.round(y), x > x0 + S ? T.shade : T.base, id); }
-  return id;
+  // (the far side in shade: right of the slide hanging down, under it held level or up)
+  const shadeOf = (x, y) => (Math.abs(Math.sin(th)) > 0.7 ? x > x0 + S : y > y0 + S);
+  for (const [x, y, ch] of turned(shape, x0, y0, th, false)) { const T = C[ch] ?? C.n; g.px(Math.round(x), Math.round(y), shadeOf(x, y) ? T.shade : T.base, id); }
+  return holds(g, id);
+}
+/** The pistol aimed at you, end on (portrait-pose's P1): both fists out before the chest, the slide's end a dark block, the bore black in its steel. */
+export function pistolAtYou(g, B, kit, cy = 41) {
+  const MID = g.MID, id = g.add([], 0), cx = MID - 1, C = { n: 0x3a3d48, u: 0x23252f, v: 0x8a909c };
+  for (let j = -2; j <= 1; j++) for (let i = -2; i <= 1; i++) g.put(cx + i, cy + j, j === -2 ? C.n : C.u, id);
+  g.put(cx - 1, cy - 1, C.v, id); g.put(cx, cy - 1, C.v, id); g.put(cx - 1, cy, INK, id); g.put(cx, cy, C.v, id);
+  return holds(g, id);
 }
 
 /** The open palms over the fists of hands held up (gear.hands 'up'): four fingers up from each fist, a thumb in, in the skin's tones. */
@@ -331,7 +458,7 @@ export function heldItem(g, B, kit) {
   if (kit.gear?.held === 'phone') {
     const x = MID - B.hand - 2, id = g.add(g.rows(y, x, x + 2, y + 4), 0x23252f);
     g.on(id, g.rows(y + 1, x + 1, x + 1, y + 3), 0x8fc8e8);
-    return id;
+    return holds(g, id);
   }
   if (kit.gear?.held === 'mag') {
     // (in the left hand: hanging, or at its fist where the hands are on the rifle)
@@ -344,7 +471,7 @@ export function heldItem(g, B, kit) {
 function magIn(g, x, y) {
   const id = g.add(g.scan([[x, y + 2], [x + 3, y + 2], [x + 4, y + 9], [x + 1, y + 9]]), PLATE_C.base);
   g.on(id, g.rows(y + 9, x + 1, x + 4), PLATE_C.lit);
-  return id;
+  return holds(g, id);
 }
 
 /** The devices' colours by their look's colour word (src/sim/arms/devices.js DEVICES[model].look). */

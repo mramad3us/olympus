@@ -64,7 +64,11 @@
 //      FOG_TURN_DEG, a door's leaf moves, the area changes, and once a game second; eased and dithered by
 //      fog.js and the post pass (VIEWS §2.11), its eased values moving with their cells when the window
 //      does, and snapped (no easing) on a new area, so the old area's shape never shows on the new one.
-//      view.fog is the last recompute's wanted values;
+//      view.fog is the last recompute's wanted values. v0.0.23 (its build sheet item 7; the user, 2026-11-17: "we see what is
+//      in the rooms before entering them"): in an unfamiliar place (src/sim/places/known.js familiarOf: the shoot house drawn
+//      from the seed) the known cells (src/render/known.js: the footprint's fixed parts and the rooms entered, made again for
+//      a new state, then every cell a recompute sees) go with the fog to the post pass, which paints a cell never in sight
+//      UNKNOWN_C (U1, black) whole, its walls, things and people with it; a familiar place passes none, its picture as before;
 //  10. see-through (VIEWS §2.10): a mass, a wall or a fixture standing between the camera and you
 //      dissolves round you over SEE_DISSOLVE_S 0.25 s both ways (materials.js: the checkerboard, a roof
 //      taken away, your silhouette inked through it by the post pass); behind a mass taller than
@@ -175,6 +179,8 @@
 // lying, remembered: drawn as last seen }), the clocks' faces as drawn, the lamps (table: pools in the table, slots: dynamic ones in use),
 // the chunks ({ built, building, popped, mainMs }), the area ({ id, buildMs, cutMs }), the see-through
 // and the fog, the camera and where your figure was drawn, the GPU by pass where there is a timer.
+// v0.0.23 (its build sheet item 18, DW): frame's info.hot, the hot spot whose Watch or Look row is under the step panel's cursor
+// (main.js), drawn lit on the floor (range-items.js cornerPixels, CORNER_LIT) on a copy of the house's corners; stats.hotLit says which.
 import * as FIGURE from '../sim/people/figure.js';
 import * as PERCEPTION from '../sim/people/perception.js';
 import * as ALERTS from '../sim/time/alerts.js';
@@ -186,7 +192,7 @@ import { BAND_OF } from '../art/figures/poses.js';
 import { BREATH_HZ } from '../art/figures/bedding.js';
 import { createFigures } from './figures.js';
 import { areaFromJob, reserveParts } from './batch.js';
-import { createFogMask, FOG_CELL_M } from './fog.js';
+import { createFogMask, createKnownTexture, FOG_CELL_M } from './fog.js';
 import { MOODS } from './moods.js';
 import { LEAD_S } from './camera.js';
 import { PX_PER_M } from './scale.js';
@@ -234,6 +240,8 @@ import { hornPixels, coachRiflePixels, blankFlashPixels, blankFlashOn, BLANK_FLA
 import { chaosOf, easeChaos, CALM as CHAOS_CALM } from './chaos.js';
 import { AFTER_R_M } from './chaos.js';
 import * as BLOOD from '../sim/body/blood.js';
+import * as KNOWN from '../sim/places/known.js';
+import { createKnown, UNKNOWN_C } from './known.js';
 
 /** The pieces' sizes the far window reads to find a long piece reaching into it (the range's kinds and the kit's). */
 const FAR_SIZES = Object.freeze({ ...RANGE_KINDS, ...FOOTPRINTS });
@@ -377,9 +385,12 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   let lastT = null, snapNext = true, realS = 0, ownLook = null, eyeShown = null, eyeState = null, eyeHeld = null;
   const looks = new Map();                                           // person id → { look, key }
   const memory = createMemory();                                     // (each actor as last drawn in sight)
+  // (the unknown place's known cells, their texture and the making it was made for)
+  const known = createKnown({ cellM: FOG_CELL_M });
+  let knownTex = null, knownGen = null;
   const waitingSheets = new Set();
   const stats = {
-    calls: 0, triangles: 0, programs: 0, cpuMs: 0, viewMs: 0, uploads: { n: 0, bytes: 0 }, people: { drawn: 0, lying: 0 }, deferred: 0, ppm, splash: null, vignette: null, beacon: null,
+    calls: 0, triangles: 0, programs: 0, cpuMs: 0, viewMs: 0, uploads: { n: 0, bytes: 0 }, people: { drawn: 0, lying: 0, hidden: 0 }, deferred: 0, ppm, splash: null, vignette: null, beacon: null,
     res: [stage.W, stage.H], camera: { x: 0, z: 0 }, gpu: null, mood: null, area: null, build: null, frames: 0, you: null,
     clocks: [], lamps: { table: 0, slots: 0 }, chunks: { built: 0, building: 0, popped: 0, mainMs: 0 }, see: { k: 0, lift: 0 }, fog: { recomputes: 0, ms: 0, source: null },
     arms: null, range: null, far: null, blood: null,
@@ -677,18 +688,23 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     fog ??= createFogMask({ nx: FOG_CELLS[0], nz: FOG_CELLS[1] });
     const me = playerActor(state), real = !testFog && typeof PERCEPTION.sightMask === 'function' && typeof PERCEPTION.eyeOf === 'function';
     if (!real && !testFog) { stage.setFog(null); return; }
+    // (the known cells for this state and area, made again on a new one, and a recompute forced so the cells in sight are
+    // known on its first frame)
+    const kOn = known.begin(state, live.area, () => ({ familiar: KNOWN.familiarOf(state, live.id), footprint: KNOWN.footprintOf(state), rooms: KNOWN.knownRoomsOf(state) }));
+    const kFresh = knownGen !== known.gen; knownGen = known.gen;
     const eye = real ? PERCEPTION.eyeOf(state, me) : { x: you.x, z: you.z, headRad: Math.atan2(...(FACE[you.face] ?? FACE.down).slice().reverse()) };
     const sec = Math.floor(state.clock.ms / 1000);
     const turned = fogAt && Math.abs((((eye.headRad ?? 0) - fogAt.head) * 180 / Math.PI + 540) % 360 - 180) >= FOG_TURN_DEG;
     // (a new area, or the first fog: shown as it is at once, never the old area's shape eased out over the new: v0.0.3's review)
     const snap = !fogAt || live.id !== fogAt.area, liftSig = lift ? `${lift.x},${lift.z}` : '';
-    if (snap || Math.hypot(eye.x - fogAt.x, eye.z - fogAt.z) >= FOG_MOVE_M || turned || sec !== fogAt.sec || propsSig !== fogAt.props || liftSig !== fogAt.lift) {
+    if (snap || kFresh || Math.hypot(eye.x - fogAt.x, eye.z - fogAt.z) >= FOG_MOVE_M || turned || sec !== fogAt.sec || propsSig !== fogAt.props || liftSig !== fogAt.lift) {
       const t0 = now(), cam = stage.cam.at;
       fog.place(cam.x - FOG_CELLS[0] * FOG_CELL_M / 2, cam.z - FOG_CELLS[1] * FOG_CELL_M / 2);
       const [x0, z0] = fog.box;
       if (real) {
         const mask = { x0, z0, nx: FOG_CELLS[0], nz: FOG_CELLS[1], cellM: FOG_CELL_M, vis: new Float32Array(FOG_CELLS[0] * FOG_CELLS[1]) };
         PERCEPTION.sightMask(state, eye, mask);
+        if (kOn) known.see(mask.vis, mask);
         // (a splash's iris, closed: the vignette inside it shown as seen; my call)
         if (lift) for (let j = 0; j < mask.nz; j++) for (let i = 0; i < mask.nx; i++) if (Math.hypot(x0 + (i + 0.5) * FOG_CELL_M - lift.x, z0 + (j + 0.5) * FOG_CELL_M - lift.z) < lift.r) mask.vis[j * mask.nx + i] = 1;
         fog.setSeen(mask.vis);
@@ -707,7 +723,18 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     }
     fog.ease(snap ? Infinity : dtS || Infinity);
     const [tex, x0, z0, w, h] = fog.upload();
-    stage.setFog(tex, x0, z0, w, h, light?.dimK ?? stage.mood.dimK);
+    if (!kOn) stats.fog.known = null;
+    stage.setFog(tex, x0, z0, w, h, light?.dimK ?? stage.mood.dimK, kOn ? knownFrame() : null);
+  }
+  // (the known cells' texture, one bit a cell (render/known.js), made for each new mask and re-sent only when a cell turned known)
+  function knownFrame() {
+    const m = known.mask;
+    if (!m) return null;
+    if (!knownTex || knownTex.image.data !== m.data) { knownTex?.dispose(); knownTex = createKnownTexture(m); }
+    const sent = known.take();
+    if (sent) knownTex.needsUpdate = true;
+    stats.fog.known = { cells: known.count, of: m.nx * m.nz, sent: sent ? m.w * m.h : 0 };
+    return { texture: knownTex, x0: m.x0, z0: m.z0, cellM: m.cellM, nx: m.nx, nz: m.nz, colour: UNKNOWN_C };
   }
 
   // ---------- see-through and the lifted roof ----------
@@ -847,6 +874,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     painter?.step();                                                 // (5: the main thread's share, when there is no worker)
     let you = null, light = null;
     const people = [];
+    let peopleHidden = 0;
     waitingSheets.clear();
     // (an area's cut: the last picture held, nothing drawn, while the sim stands in another area than
     // the view shows or the cut waits for the figures; the uploads still go, so the figures the cut waits
@@ -880,7 +908,12 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       // splash's iris covers the picture (or no splash shows it), never in sight of the bay: a brief
       // splash's lapse keeps it, so a squadmate drawn as last seen stays so until looked at; the review
       // of v0.0.5's rack, seven jumping in the dressing splash's first frame)
-      memory.begin(state, live.id, { skipping: !!state.skip && (!sp || (sp.form === 'full' && (sp.inkK ?? 0) >= 0.999)) });
+      const memFresh = memory.begin(state, live.id, { skipping: !!state.skip && (!sp || (sp.form === 'full' && (sp.inkK ?? 0) >= 0.999)) });
+      // (the build sheet item 6: in a combat scene a man never seen is not drawn (memory.js recall's combat branch,
+      // known.js seenEver); the rooms entered count for him on a new memory's first frame only, so a load draws the men of the
+      // rooms you were in, and entering a room while playing reveals nobody you have not yet seen; you, your #2 and the instructor
+      // by v0.0.22's rule, known.js alwaysDrawn)
+      const combat = KNOWN.hostKind(state) !== null;
       const flashes = [], shots = [];
       let ownGun = null;
       // (0.0.12: the range's look on the range's ground, and in the shoot house, where the session's area is the live one)
@@ -888,7 +921,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const eye = me && typeof PERCEPTION.eyeOf === 'function' && typeof PERCEPTION.visibility === 'function' ? PERCEPTION.eyeOf(state, me) : null;
       const inSight = (x, z) => PERCEPTION.visibility(state, eye, x, z, ms) > 0;
       for (const a of state.actors?.list ?? []) {
-        const was = a.id !== meId && eye ? memory.recall(a.id, a.x, a.z, inSight) : null;
+        const was = a.id !== meId && eye ? memory.recall(a.id, a.x, a.z, inSight, combat && !KNOWN.alwaysDrawn(state, a) ? { combat, seenEver: KNOWN.seenEver(state, a, { rooms: memFresh, sight: inSight }) } : undefined) : null;
+        if (was?.hide) { peopleHidden++; continue; }
         if (was) { people.push({ ...was, tS, dx: 0, dz: 0, remembered: true }); continue; }
         const fig = figureOf(state, a, msA), own = a.id === meId;
         // (a transition plays at its own places (figureOf's x and z, k under 1), never glided; everything else between the ticks)
@@ -1087,7 +1121,15 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         rl.house = { ...HSv, stands: HSv.stands.filter(t => t && standsSeen.keys.has(t.key)) };
       }
       // (the jamb's mark as the To score page picks it, state.$look.jamb ('m1' a chalk X, 'm2' a chemlight; B's range-items.js jambMarks' kind))
-      stats.range = rl ? rangeLayer.update(rl, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views, jamb: state.$look?.jamb ?? null }) : (rangeLayer.update(null), null);
+      // (its build sheet item 18, DW: the house's corner whose Watch or Look row is under the panel's cursor (info.hot, main.js's)
+      // drawn lit, range-items.js cornerPixels' CORNER_LIT: a copy of the corners with that one marked, the look itself untouched; the
+      // review of 2026-11-18: marked 'known' in a familiar house (the set, briefed: sim/places/known.js familiarOf), whose spot is lit
+      // over the remembered floor behind a shut door; in a drawn one true where you see the spot now, else 'hidden': the view still
+      // names it (stats.hotLit), the stage draws nothing of a room you do not know (render/range.js, range-items.js cornerPixels))
+      const litOf = info.hot && rl?.house?.corners?.length ? (c) => (KNOWN.familiarOf(state, live.id) ? 'known' : eye && inSight(c.x, c.z) ? true : 'hidden') : null;
+      const rlLit = litOf && rl.house.corners.some(c => c.id === info.hot) ? { ...rl, house: { ...rl.house, corners: rl.house.corners.map(c => (c.id === info.hot ? { ...c, lit: litOf(c) } : c)) } } : rl;
+      stats.hotLit = rlLit !== rl ? info.hot : null;
+      stats.range = rl ? rangeLayer.update(rlLit, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views, jamb: state.$look?.jamb ?? null }) : (rangeLayer.update(null), null);
       // (0.0.9: the bangs on the pad, at the moment drawn; a flash's light pool among the moving lamps)
       // (0.0.10: the stress course's bangs, the same layer; its din, the din layer)
       // (0.0.18: the shoot house's grenades and bursts, the same layer: render/devices.js)
@@ -1149,7 +1191,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     Object.assign(stats, {
       calls: s.calls.total, triangles: s.triangles, programs: s.programs, cpuMs: s.cpuMs, viewMs: now() - t0,
       uploads: uploads ? { n: up.n, bytes: up.bytes, key: up.key ?? null } : { n: figures.stats.lastFrame.uploads, bytes: figures.stats.lastFrame.bytes },
-      people: { drawn: figures.stats.drawn, lying: figures.stats.lying ?? 0, remembered: people.reduce((n, p) => n + (p.remembered ? 1 : 0), 0) },
+      people: { drawn: figures.stats.drawn, lying: figures.stats.lying ?? 0, remembered: people.reduce((n, p) => n + (p.remembered ? 1 : 0), 0), hidden: peopleHidden },
       // (the device in the hands: the cards drawn, the figures holding one with none drawn (all behind the body), the strip, its late bakes, and who held what in which frame)
       held: { drawn: figures.stats.heldDrawn ?? 0, none: figures.stats.heldNone ?? 0, strip: figures.stats.held ?? null, late: figures.stats.heldLate ?? 0, who: people.filter(p => p.held).map(p => ({ id: p.id, ...p.held, frame: p.drawnFrame ?? p.frame ?? null, face: p.face })) }, deferred: figures.stats.deferred + figures.stats.fallback,
       lamps: { table: lighting.stats.table, slots: stage.lights.slots.filter(p => p[0].intensity > 0).length, overflow: lighting.stats.overflow, fills: lighting.stats.fills },
@@ -1175,7 +1217,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       if (arms.gl) {
         // (0.0.7: the seated band too, sitting with the R-7 at 200 m, so a figure never stands while it paints)
         const rifleBands = ['gait', 'arms', 'seated', ...RIFLE_BANDS, ...(own || a.moveStance ? ['move'] : [])];
-        // (the look as held first, everyone's, then the twins: rifle sheets are taken while free (8 at 16 px/m), so the
+        // (the look as held first, everyone's, then the twins: rifle sheets are taken while free (6 at 16 px/m from v0.0.23, 8 before), so the
         // relay's figures in sight have theirs and a twin waits for a sheet another look leaves)
         for (const magOut of arms.gl.mag === false ? [true, false] : [false, true]) {
           const L = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: gaitCarry.get(a.id), magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null });
@@ -1296,7 +1338,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       endWipe();
       for (const c of cache.values()) c.built?.dispose();
       cache.clear(); live = null;
-      figures.dispose(); fog?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); blood.dispose(); far.dispose(); bangs.dispose(); devices.dispose(); din.dispose();
+      figures.dispose(); fog?.dispose(); knownTex?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); blood.dispose(); far.dispose(); bangs.dispose(); devices.dispose(); din.dispose();
     },
   };
 }

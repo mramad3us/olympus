@@ -64,7 +64,16 @@
 // the rig's IK) and `device` (the device's parts drawn as capsules between the hands, under the fists or over one), and its
 // frame then reports the hands' tips; no pose of the game carries either, so the game's frames are unchanged. v0.0.22 (the build
 // sheet v0.0.22 §1 item 17): the held band's poses (poses.js BANDS.stanceHeld, templates.js HELD_POSES) carry `reach`, never `device`,
-// and the held card (atlas.js heldStrip) composes a game frame with opts.device to read the device's pixels and the hands' tips. Pure.
+// and the held card (atlas.js heldStrip) composes a game frame with opts.device to read the device's pixels and the hands' tips.
+// v0.0.23 (the user's note of 2026-11-17: "Holding the sidearm with the rifle dangling should be redrawn, sidearm should have the same
+// stances (low ready, high ready, aimed, etc) as the rifle"): the P-12's rigs (poses.js's pistol band): 'low', 'high' and 'aim' as
+// before, 'holster' (the right hand on the holstered grip at the hip), 'check' (the pistol in to the chest, canted, the support hand
+// on the slide) and the magazine ('magout': the pistol up at the chest, the support hand at the well with the magazine); and THE
+// HANG: a rig's `hang` ('front', 'hip' or 'back') draws the R-7 on its sling as a second gun with no hands, across the chest muzzle
+// down (the slung-in-front rig's line), at the strong-side hip, or on the back, always under both arms (its depth held below the
+// nearer arm's), so the rifle never shows through the arms that hold the pistol. The slung-in-front rig swings with the stride (a
+// stride's frames, pose.stride: the walk, the run, the glide, Assault, the flight): its muzzle out sideways by HANG_SWING_K of the
+// thighs' difference (a pendulum on the sling); every other frame, standing, kneeling, at the stack, as before. Pure.
 import { PX_PER_M } from '../../render/scale.js';
 import { bodyOf } from './body.js';
 import { poseOf, cellKind, AIM_TILT, KICK_TILT } from './poses.js';
@@ -75,6 +84,8 @@ import { helmTpl, trimPlate, fofMaskTpl } from './helmets.js';
 
 /** How much of the camera's depth a sprite shows: along the facing, across it, and for a body lying along the depth. */
 export const DEPTH_K = 0.4, SIDE_K = 0.12, LYING_K = 1.0;
+/** The slung rifle's swing with the stride: its muzzle sideways by this share of the thighs' difference (radians of hip swing). */
+export const HANG_SWING_K = 0.35;
 
 // ---------- vectors, [F, L, U] metres ----------
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -219,6 +230,8 @@ function rigOf(pose, J, B, look, dir) {
     if (r.kick) d = pitchUp(d, KICK_TILT[gun]);
     return d;
   };
+  // (the P-12's own handling, the holster and the admin (see the header))
+  if (gun === 'pistol' && r.p12 && ['holster', 'check', 'magout', 'magin'].includes(r.mode)) return pistolRig(out, r, J, B, G, at, mid);
   switch (r.mode) {
     case 'aim': case 'prone': {
       out.dir = aimDir();
@@ -287,11 +300,20 @@ function rigOf(pose, J, B, look, dir) {
     }
     case 'front': {
       if (r.prone) return proneSlung(out, J, B, G, at, right);
-      // (slung in front, hands off: across the chest, the butt at the right shoulder, the muzzle at the left knee)
-      out.dir = norm(add(add(mul(U, -0.86), mul(LEFT, 0.5)), mul(Fw, 0.1)));
+      // (slung in front, hands off: across the chest, the butt at the right shoulder, the muzzle at the left knee; v0.0.23, swung
+      // with the stride, the thighs' difference (0 standing), so the slung rifle hangs from its sling as the body walks)
+      const sw = pose.stride ? ((pose.legs?.r?.[0] ?? 0) - (pose.legs?.l?.[0] ?? 0)) * HANG_SWING_K : 0;
+      out.dir = norm(add(add(mul(U, -0.86), mul(LEFT, 0.5 + sw)), mul(Fw, 0.1)));
       out.butt = add(add(add(J.sh.r, mul(Fw, B.chestDepth + 0.05)), mul(U, 0.03)), mul(LEFT, 0.03));
       out.down = Fw;
       out.strap = [add(add(J.sh.l, mul(Fw, B.chestDepth * 0.9)), mul(U, 0.03)), out.butt];
+      return finish(out, J, B, G, at, false);
+    }
+    case 'hip': {
+      // (RH2: hanging on its sling at the strong-side hip, muzzle down, the butt up under the right arm)
+      out.dir = norm(add(add(mul(U, -0.95), mul(right, 0.12)), mul(Fw, 0.12)));
+      out.butt = add(add(add(J.sh.r, mul(Fw, B.chestDepth * 0.4)), mul(U, -0.12)), mul(right, 0.04));
+      out.down = Fw;
       return finish(out, J, B, G, at, false);
     }
     case 'raise': {
@@ -321,6 +343,35 @@ function rigOf(pose, J, B, look, dir) {
     default: return null;
   }
   return finish(out, J, B, G, at, true);
+}
+// (the P-12's holster and admin rigs: see the header)
+function pistolRig(out, r, J, B, G, at, mid) {
+  const U = UP, Fw = F, right = mul(LEFT, -1);
+  if (r.mode === 'holster') {
+    // (in its holster on the right thigh as the slung pistol is drawn, the right hand closed on its grip)
+    out.dir = mul(U, -1); out.down = Fw;
+    out.butt = add(add(J.hip.r, mul(right, B.thighThick * 0.7)), mul(U, -0.02));
+    out.holster = true;
+    const o = finish(out, J, B, G, at, false);
+    o.hand.r = add(o.butt, mul(U, 0.02));
+    return o;
+  }
+  const chest = add(add(mid, mul(U, -0.15)), mul(Fw, B.chestDepth + 0.1));
+  if (r.mode === 'check') {
+    out.dir = norm(add(add(mul(Fw, 0.7), mul(U, 0.45)), mul(LEFT, 0.4)));
+    out.butt = sub(chest, mul(out.dir, at(G.grip)));
+    const o = finish(out, J, B, G, at, true);
+    o.hand.l = add(o.butt, mul(o.dir, at(G.muzzle) * 0.7));
+    return o;
+  }
+  out.dir = norm(add(mul(Fw, 0.5), mul(U, 0.85)));
+  out.butt = sub(chest, mul(out.dir, at(G.grip)));
+  out.down = norm(add(mul(Fw, 0.45), mul(U, -0.9)));
+  out.withMag = r.mode === 'magin';
+  const o = finish(out, J, B, G, at, true);
+  o.hand.l = add(o.magwell ?? o.butt, mul(o.down, B.magM * 0.85));
+  o.loose = { at: add(o.magwell ?? o.butt, mul(o.down, B.magM * 0.3)), dir: o.down };
+  return o;
 }
 // (a rifle slung while prone: across the back from the hips toward the right shoulder, the hands free)
 function proneSlung(out, J, B, G, at, right) {
@@ -581,6 +632,16 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
       g.capsule(snap2(a, 1), snap2(b, 1), 0.55, pose.held === 'brush' ? 'w' : 'v');
       if (pose.held === 'brush') g.put(Math.floor(b[0]), Math.floor(b[1]), 'i');
     });
+  }
+  // (the R-7 on its sling while the pistol is up (the rig's hang: see the header), under both arms)
+  if (rig && pose.rig?.hang && !pose.noHang) {
+    const H = rigOf({ ...pose, rig: { mode: pose.rig.hang === 'back' ? 'slung' : pose.rig.hang, gun: 'rifle' } }, J, B, { ...Lk, magOut: false }, dir);
+    if (H) {
+      const hd = P.depth(add(H.butt, mul(H.dir, H.lenM * 0.3))) - 0.012, below = Math.min(armD.r ?? Infinity, armD.l ?? Infinity) - 0.004;
+      const fig = drawingOf(Lk.model ?? 'r7').fig;
+      op(H.mode === 'slung' ? P.depth(H.butt) : Math.min(hd, below), () => { gunCells(g, H, pp, P, B, fig); });
+      if (H.strap) op(Math.min(torsoDepth + 0.01, below), () => { const a = pp(H.strap[0]), b = pp(H.strap[1]); g.begin(); g.capsule(snap2(a, 1), snap2(b, 1), 0.5 + (B.ppm >= 20 ? 0.5 : 0), 'y'); });
+    }
   }
   // The weapon (and a loose magazine, a sling, a holster).
   let muzzle = null, flash = null;

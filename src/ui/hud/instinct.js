@@ -82,7 +82,11 @@ export function partsOf({ lead = null, now = null, offer = null, label = (a) => 
   // (0.0.16, the fixer's: T's label is not said again where the line names its act's own row by its keys, after its words or in
   // them: at 1600 × 900 "T: Open the door: pull · 1.0 s. Pull it open. Your corner: right. [3]" was cut with "…" and lost the
   // side and the key chip, at 1024 × 768 at "Your corne…")
-  const own = !!line?.act && !!line?.row && Array.isArray(rowKeys) && rowKeys.length > 0 && sameRow(line.act, line.row);
+  const ownRow = !!line?.act && !!line?.row && Array.isArray(rowKeys) && rowKeys.length > 0 && sameRow(line.act, line.row);
+  // (the play review's finding 2: a line whose act leaves the panel and whose words name that key ("X, then Q to
+  // the door, Z through it, then D.", the walk in's) takes no "go: the clock runs, the keys move you." either: at 1280 × 720 and
+  // 1600 × 900 it was cut at "Z t…" and lost the way you turn)
+  const own = ownRow || (line?.act === 'stop:leave' && !!line?.text && namesKeys(line.text, [String(label('shoot'))]));
   if (line?.text) out.push({ part: 'line', tone: toneOf(line.tone), keys: line.act ? [T] : [], text: line.text, id: line.id ?? null, act: line.act ?? null, ...(line.act && actWords && !own ? { what: String(actWords) } : {}), ...(rk ? { rowKeys: rk } : {}) });
   // (the chip: the next keyless line in short, T held does it; the keycaps of lines with keys of their own; the rest counted)
   const keyed = (now?.keys ?? []).map(k => label(k)), queued = Math.max(0, Number(now?.queued) || 0);

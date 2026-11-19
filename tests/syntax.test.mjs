@@ -227,7 +227,9 @@ const MAY_IMPORT = {
   art: ['core', 'data', 'art'], render: ['core', 'data', 'art', 'render'], ui: SRC_FOLDERS, main: [...SRC_FOLDERS, 'main'],
 };
 /** The pure sim helpers the stage may read (TECH §2.2's SIM_FOR_VIEW, with the 0.0.2 sheet's places/plan.js, the 0.0.3 sheet's §1: the sun, the clocks, the doors, people's perception and figures, and the 0.0.4 sheet's §1: the alert's beacon). */
-const SIM_FOR_VIEW = new Set(['src/sim/places/plan.js', 'src/sim/places/light.js', 'src/sim/places/sun.js', 'src/sim/places/clocks.js', 'src/sim/places/doors.js', 'src/sim/people/perception.js', 'src/sim/people/figure.js', 'src/sim/time/alerts.js', 'src/sim/arms/look.js', 'src/sim/body/blood.js']);
+// 0.0.23 (the build sheet v0.0.23 §0 item 15): src/sim/places/known.js, what the stage may draw of a place and its people before
+// they are seen (familiarOf, footprintOf, knownRoomsOf, hostKind, seenEver), read by view.js directly as it reads perception.
+const SIM_FOR_VIEW = new Set(['src/sim/places/plan.js', 'src/sim/places/light.js', 'src/sim/places/sun.js', 'src/sim/places/clocks.js', 'src/sim/places/doors.js', 'src/sim/people/perception.js', 'src/sim/people/figure.js', 'src/sim/time/alerts.js', 'src/sim/arms/look.js', 'src/sim/body/blood.js', 'src/sim/places/known.js']);
 /** SKILLS §5.12: the one pace helper's home (paceOf); a name with "pace" as a word is defined nowhere else in src. */
 const PACE_HOME = 'src/sim/skills/skills.js';
 // (a name's words: camelCase, PascalCase, snake_case and SCREAMING_CASE split; "pace" one of them)

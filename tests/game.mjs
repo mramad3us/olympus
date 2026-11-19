@@ -87,7 +87,7 @@ export { playerActor };
  * default, so no test, pin or golden moves with them absent).
  */
 export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', hour = null, startMs, worldId = null,
-  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = 'a', layout = null, plans = null, pool = null } = {}) {
+  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = 'a', layout = null, plans = null, pool = null, again = false } = {}) {
   const errors = [];
   let sim = null, hooks = null, seen = 0;
   const bus = recordingBus({ onError: (e, type) => errors.push(`a listener of '${type}': ${firstLine(e)}`) });
@@ -106,12 +106,14 @@ export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', 
   // (withHouse's override reads only a createGame that names no draw and no house: `draw` null is "none named", so a test's own
   // `draw: 'set'` keeps the set inside withHouse too; the review of v0.0.21's A and B)
   // (v0.0.22, the build sheet §2 step 3, §0 item 40: rooms, layout and plans checked, so a typo fails here, not as the set)
+  // (v0.0.23, its build sheet §2 step 3: again, the house's Again of the same lane, true or false only; passed only when true)
+  if (typeof again !== 'boolean') throw new Error(`createGame(): no such again ${JSON.stringify(again)} (true or false)`);
   if (!ROOMS_URL.includes(rooms ?? 'a') || (layout !== null && !LAYOUTS_URL.includes(layout)) || (plans !== null && !PLANS_URL.includes(plans))) throw new Error(`createGame(): no such house option ${JSON.stringify({ rooms, layout, plans })}`);
   // (and from v0.0.22 the override's rooms and layout too (withHouse({ draw: 'drawn', rooms: 'all' }, fn)), for a createGame naming none)
   if (draw === null && !house && !layout && (rooms ?? 'a') === 'a' && HOUSE_OVERRIDE) { house = HOUSE_OVERRIDE.house ?? null; draw = HOUSE_OVERRIDE.draw ?? null; rooms = HOUSE_OVERRIDE.rooms ?? 'a'; layout = HOUSE_OVERRIDE.layout ?? null; }
   // (v0.0.22, the B and C review of 2026-11-16: a live lane is drawn as the test asks (liveDraw), which the page never passes: there it
   // is the set until its ship rule is met, shoothouse.js drawnCodeFor; a lane with no draw asked is the set either way)
-  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier, env, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...houseOpts({ draw, house, doors, rooms, layout, plans, pool }), liveDraw: true };
+  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier, env, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...houseOpts({ draw, house, doors, rooms, layout, plans, pool }), liveDraw: true, ...(again ? { again } : {}) };
   if (startMs !== undefined) opts.startMs = startMs;
   loop.setState(newGame(opts));
 

@@ -1,5 +1,5 @@
 {
- "built": "2026-11-16T18:13",
+ "built": "2026-11-19T00:15",
  "samples": [
   {
    "id": "audio",
@@ -157,23 +157,170 @@
   {
    "id": "doll-gear",
    "title": "The I and C figure in the gear worn now: the rifle at the ready, or hanging from the hand",
-   "about": "Your words of 2026-11-15: \"the I and C menu preview of the character should show the currently worn gear\". The figure is the game's own doll, dressed from what you wear and carry (the gear record, src/sim/arms/gear.js): the combat EVA suit drawn at last (v0.0.17 drew the utilities under it), the plate carrier with a baseplate showing for each magazine in a pouch, the dump pouch on the belt, the P-12 in its thigh holster (its grip over the mouth, or the mouth open with the pistol drawn) and its spare in the pouch below, the R-7 slung front, on the back, or in the hands, ear defenders' cups where they are worn. Each figure at the I and C cards' scale, unlit as the cards draw it, labelled. Score R: how the rifle in the hands is drawn.",
+   "about": "Your words of 2026-11-15: \"the I and C menu preview of the character should show the currently worn gear\". The figure is the game's own doll, dressed from what you wear and carry (the gear record, src/sim/arms/gear.js): the combat EVA suit drawn at last (v0.0.17 drew the utilities under it), the plate carrier with a baseplate showing for each magazine in a pouch, the dump pouch on the belt, the P-12 in its thigh holster (its grip over the mouth, or the mouth open with the pistol drawn) and its spare in the pouch below, the R-7 slung front, on the back, or in the hands, ear defenders' cups where they are worn. Each figure at the I and C cards' scale, unlit as the cards draw it, labelled. Score R: how the rifle in the hands is drawn. Shot first in v0.0.23 (drawn at R-a since v0.0.18 with nobody's score behind it); where it meets v0.0.23's sets: R-b, the rifle hanging from the hand, is `portrait-gun`'s W2, so one score decides both (the portrait's holds grow from it: R-a is the hold `rifle-low`).",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "R-a"
+    ],
+    "since": "2026-11-17",
+    "decides": "how the rifle in the hands is drawn on the doll (R-b is portrait-gun's W2: one score decides both)",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "R",
      "title": "R: the rifle in the hands on the doll",
      "about": "R-a both hands at the low ready, the rifle diagonal 35° below level across the body, the right hand at the grip, the left at the handguard (the default, my call). R-b the rifle hanging from the right hand, muzzle down, as v0.0.17's board man held it. Each view: you at GO in the shoot house, after Transition (the P-12 at the ready, the R-7 slung front), the R-7 slung on the back, your #2 (no P-12), and the range kit on the utilities with ear defenders and a magazine in the left hand.",
      "sets": null,
-     "views": []
+     "views": [
+      {
+       "id": "R-a",
+       "name": "R-a: both hands at the low ready",
+       "query": "r=a",
+       "shot": "doll-gear/shots/r-a.png",
+       "native": [
+        344,
+        158
+       ],
+       "report": {
+        "frame": [
+         344,
+         158
+        ]
+       }
+      },
+      {
+       "id": "R-b",
+       "name": "R-b: hanging from the right hand",
+       "query": "r=b",
+       "shot": "doll-gear/shots/r-b.png",
+       "native": [
+        344,
+        158
+       ],
+       "report": {
+        "frame": [
+         344,
+         158
+        ]
+       }
+      }
+     ]
     },
     {
      "id": "P",
      "title": "P: the magazines in the pouches (for reference)",
      "about": "VIEWS §4.2's rule as written: a double magazine pouch shows two baseplates when full and one when half, an empty one only its seam; the dump pouch sags by what it holds. Chest pouches 1 and 2 from empty to full, then the dump pouch with none, two and four.",
      "sets": null,
-     "views": []
+     "views": [
+      {
+       "id": "P-a",
+       "name": "The baseplates by the magazines in",
+       "query": "set=pouches",
+       "shot": "doll-gear/shots/p-a.png",
+       "native": [
+        480,
+        158
+       ],
+       "report": {
+        "frame": [
+         480,
+         158
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "float-look",
+   "title": "A floating body's height, read from above: a shadow, a scale step, a line to the deck, or a ring",
+   "about": "In free fall a body drifts off the deck, and the stage's camera from above shows a body 1 m up as a body 1 m further north: its height cannot be read (VIEWS's zero-g frames, \"height by shadow and scale\"). The anywhere round (v0.0.24, \"Anchor before you fire\" and \"Secure for burn\") draws it by the look you score here; until then nothing in the game floats but the float frames' tests. Every figure is the game's own (the shoot house's marine in the black combat EVA suit, in the float frames the stage has today: float0, float1 and the tumble's turns), on a steel deck of the void range's 1.5 m plates, at the stage's two densities (16 and 24 px/m) and 16 three times larger, snapped to the Mars palette; each body at 0.3, 1.0 or 1.8 m over its point on the deck (written in its corner; T, tumbling at 1.0 m), raised on the picture by its height as the stage's camera puts it. F-b (the default until scored) the shadow and one scale step (a body more than 0.5 m off the deck drawn at the next step of density, 1.25 times, nearer the camera); F-a the shadow offset alone (a soft dark ellipse under him, fainter the higher he is); F-c the shadow and a thin dotted line from the body down to the point under him; F-d an outline ring on the deck in place of the shadow.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "F-b"
+    ],
+    "since": "2026-11-17",
+    "decides": "how a floating body's height is drawn (the anywhere round)",
+    "builtIn": "v0.0.24"
+   },
+   "groups": [
+    {
+     "id": "F",
+     "title": "F: a floating body's height",
+     "about": "Rows: 16 px/m, 24 px/m, 16 px/m three times larger. In each row the bodies at 0.3, 1.0 and 1.8 m, then tumbling at 1.0 m (the tumble's 90° and 225° turns).",
+     "sets": null,
+     "views": [
+      {
+       "id": "F-b",
+       "name": "F-b: the shadow and one scale step (the default)",
+       "query": "f=F-b",
+       "shot": "float-look/shots/f-b.png",
+       "native": [
+        361,
+        430
+       ],
+       "report": {
+        "frame": [
+         361,
+         430
+        ]
+       }
+      },
+      {
+       "id": "F-a",
+       "name": "F-a: the shadow alone",
+       "query": "f=F-a",
+       "shot": "float-look/shots/f-a.png",
+       "native": [
+        361,
+        430
+       ],
+       "report": {
+        "frame": [
+         361,
+         430
+        ]
+       }
+      },
+      {
+       "id": "F-c",
+       "name": "F-c: the shadow and a line to the deck",
+       "query": "f=F-c",
+       "shot": "float-look/shots/f-c.png",
+       "native": [
+        361,
+        430
+       ],
+       "report": {
+        "frame": [
+         361,
+         430
+        ]
+       }
+      },
+      {
+       "id": "F-d",
+       "name": "F-d: a ring on the deck",
+       "query": "f=F-d",
+       "shot": "float-look/shots/f-d.png",
+       "native": [
+        361,
+        430
+       ],
+       "report": {
+        "frame": [
+         361,
+         430
+        ]
+       }
+      }
+     ]
     }
    ]
   },
@@ -440,6 +587,18 @@
    "about": "The hunt of v0.0.18 (kit-10): with a G-11 armed in your hand, the halligan at a pry or a charge being placed, the stage's figure draws both fists empty and the rifle slung in front, and the grenade appears from nowhere on its flight's first frame. Every picture is the game's own figure code (src/art/figures: composeFrame and shade) in the shoot house's black combat EVA suit and plate carrier, at 16 px/m on the house's slab floor, snapped to the Mars palette as the stage's post pass snaps them (?snap=0 raw); the device is drawn into the figure by two sample-only hooks of compose.js (a pose's reach and device), which no frame of the game uses, so the game is unchanged until you pick. The devices are drawn bigger than life, as the guns are: the G-11's can 0.25 m (4 px tall), the halligan as long as the rifle (1.0 m), the ram 0.55 to 0.6 m and 4 px thick, the strip 0.5 m; their colours are the doll's. Each view loops its beat on WEAPONS' and COMBAT's times (devices.js DEVICE_ACTIONS at Weapon handling 10: the rifle let hang 0.3 s, the reach 1.2 s, the pin 0.5 s, the throw 0.7 s with the can leaving the hand at its end, the force 3.0 s with the halligan, a swing 1.0 s with the ram, the placing 6.0 s cut to its first and last second, the rifle back up 1.0 s); the gallery's picture is the still named in each group. The defaults (G1, T1, B1, R1, C1) are the doll's own choices, so the stage and the I card agree until you score them.",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "G1",
+     "T1",
+     "B1",
+     "R1",
+     "C1"
+    ],
+    "since": "2026-11-16",
+    "decides": "a device in the hands on the figure: the G-11, the throw, the halligan, the ram, the charge",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "G",
@@ -737,6 +896,14 @@
    "about": "Your words of 2026-11-15: \"The helmet design is pretty goofy, I was thinking slicker design like this for regular units and even slicker for elite units with no visor, replaced by thin slits for the eyes or red dots depending on the elite units (martian get red outlines on their gear, UN get blue), if OPA get elite units, they'll get more rugged looking gear like [the cut helmet over a full-face mask] modernized.\" Every candidate is an original design (no insignia, letters or logos), drawn by the game's own figure code at 16 px/m and by the card's doll, behind a sample flag: the game's look does not change until you pick. Each view: on the left you and your #2 walking up the hall to room 1's door, both in the candidate, in the game's own picture of the shoot house (test-shoothouse at 10:00 on seed 48213: its light, the post pass, the Mars palette); in the middle the four facings at the door in that light at twice size (front, side on both ways, from behind); on the right the inventory and character card's figure. The gallery's pictures are stills; open a view live (O) and it walks: Space stops and starts it, S slows it to a quarter, the arrows step a tick while stopped, R starts again. Score each candidate; parts can be joined (say which: a visor from one, a jaw from another).",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "R-a"
+    ],
+    "since": "2026-11-15",
+    "decides": "the helmets: regular, elite, the factions' trim, the OPA's (S0, today's sealed helmet, until scored)",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "R",
@@ -1203,6 +1370,18 @@
    "about": "The house's light was my call in v0.0.12 and never sampled. Every picture is the game itself, \"Stack and clear\" on seed 48213 at 10:00, 16 px/m, its HUD hidden: the house's light, the fog of awareness (what you do not see now, greyed and dimmed), the post pass and the Mars palette as built, the candidate set as the game would carry it. HL-a is today's: the base's overheads by the clock, 0.75 in every room and the hall by day (neutral white), room 3 dim at 0.40 (COMBAT §25.10.4). What reads near black in the house today is not unlit rooms: it is the fog's dim and the solid voids between the lane's rooms (the places of the house's other layouts, not built). HL-b is a real shoot house's light: no ceilings, the sector's high bays and the catwalk's LED floods (cool white, the floods' own lamp) light every room, the hall and the apron as one at the hall's 0.75; room 3 too, so its dim goes with HL-b; the fog alone dims what you have not seen. Its cool white turns the solid voids from today's dark brown to navy: the voids take the rooms' mean light, and the palette snaps a cool near black to its navy. HL-c is warm pools: a warm-white pendant over each room's centre, its core at the hall's 0.75, its ring 0.50, the corners at a warm 0.30 spill (58% of their colour); room 3's centre at its dim 0.40, its corners 0.15; the hall's own light as today. The fog's dim follows the light where you stand, so under HL-c everything you do not see now is darker while you stand in a room's spill (H2: the hall and your #2 behind you, though their light is today's). The light is the sim's: perception's reach (10 m + 42 m × the light), the take-in and the shot read it, so a candidate changes what you see in the corners as the picture shows it. Each view is shown in the three: score the light, star what you like; several can be joined (say which). Open a view live (O): keys 1, 2 and 3 switch HL-a, HL-b and HL-c at the same moment, H shows the HUD and plays on from there. In play, &houselight=b or &houselight=c on the game's URL.",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "H1-a",
+     "H2-a",
+     "H3-a",
+     "H4-a",
+     "H5-a"
+    ],
+    "since": "2026-11-16",
+    "decides": "the shoot house's light (HL-a, today's, until scored)",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "H1",
@@ -1492,6 +1671,14 @@
    "about": "The v0.0.14 reviews: \"You and your #2 merge into one blob on the walk\" and \"In the black suit the legs barely read\". The suit stays black (the Corps' armour is black); five ways to keep the two men and their legs apart at 16 px/m, each beside today's look. Every view is the game's own picture of the hall at room 1's door (test-shoothouse at 10:00 on seed 48213: the house's light and floor, the fog of awareness, the post pass, the Mars palette; shot by capture.mjs with the stack moved out), with the stack drawn over it as the stage draws it: the game's figure code (walk cycle B's Combat glide at the low ready, side on with the plant lock; the stack's beat when still), lit by the tint the view gives a figure there, then the post pass's outline, grade and snap. S-h checks that drawing against the game's own picture of GO. The moment, 8.7 s looped: you and your #2 glide (1.23 m/s) from the start mark to the stack on room 1's door, one behind the other along the hall (one depth: the blob), then your #2 crosses in front of you to the door's far side (0.65 m nearer the camera). The gallery's pictures are stills at each tile's telling moment; open a view live (O) and it moves: Space stops and starts it, S slows it to a quarter, the arrows step a tick while stopped, R starts again. Score each candidate in motion; several can be joined (say which).",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "S-a"
+    ],
+    "since": "2026-11-14",
+    "decides": "how you and your #2 are told apart in the black suit (S0, today's, until scored)",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "S",
@@ -1624,6 +1811,79 @@
         "frame": [
          334,
          134
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "house-unknown",
+   "title": "A house you have not seen: black, hatched, or the brief's outline, until you see into it",
+   "about": "Your note of 2026-11-17: \"we see what is in the rooms before entering them, this should not be the case when we start generating procedurally\" (and its two looks, \"black, or the brief's outline\"). Each picture is the game's own frame of a house drawn from seed 48213 (&draw=drawn, made by capture.mjs) at GO and after room 1: today's on the left (the unknown house's switch off: every room drawn, dimmed by the fog where unseen) and the look on the right, over the very pixels the game hides. The game hides a pixel whose own spot falls on a cell of the house never in your sight, in a room you have not entered (a room entered is known whole), off the stretch of hall you walked; the footprint's outer walls, the catwalk, the booth and the walls' faces toward what you see are known and drawn. Once seen, a cell stays drawn as you last saw it (the fog's dim, as today). Only a drawn house is unfamiliar: the house as set is briefed, so its rooms stay drawn dimmed (question 8); the plan view and the debrief after the lane still show the whole house. U1 (the default, shipped this release on drawn lanes) is the game's picture itself, pixel for pixel: black inside the walls; U2 the hidden pixels hatched in the fog's felt tint, the cold pale blue of what is felt and not seen, at the dark's level; U3 black with the floor plan as a faint outline (the rooms', the closet's, the booth's and the hall's edges; no doors). Reshot 2026-11-18 on the game's own frames (the review: the first shots drew a mask of the sample's own, with the catwalk, the booth and the hall's north wall black where the game draws them).",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "U1"
+    ],
+    "since": "2026-11-17",
+    "decides": "how a house you have not seen is drawn before you see into it (drawn lanes)",
+    "builtIn": "v0.0.23"
+   },
+   "groups": [
+    {
+     "id": "U",
+     "title": "U: the unseen inside the footprint",
+     "about": "At GO (you and your #2 at the start mark, every room ahead) and after room 1 (room 1 cleared, the stack on room 2's door): today's frame on the left, the look on the right.",
+     "sets": null,
+     "views": [
+      {
+       "id": "U1",
+       "name": "U1: black inside the walls (the default)",
+       "query": "u=U1",
+       "shot": "house-unknown/shots/u1.png",
+       "native": [
+        1292,
+        752
+       ],
+       "report": {
+        "frame": [
+         1292,
+         752
+        ]
+       }
+      },
+      {
+       "id": "U2",
+       "name": "U2: hatched in the fog's felt tint",
+       "query": "u=U2",
+       "shot": "house-unknown/shots/u2.png",
+       "native": [
+        1292,
+        752
+       ],
+       "report": {
+        "frame": [
+         1292,
+         752
+        ]
+       }
+      },
+      {
+       "id": "U3",
+       "name": "U3: the brief's outline of the floor plan",
+       "query": "u=U3",
+       "shot": "house-unknown/shots/u3.png",
+       "native": [
+        1292,
+        752
+       ],
+       "report": {
+        "frame": [
+         1292,
+         752
         ]
        }
       }
@@ -2543,11 +2803,150 @@
    ]
   },
   {
+   "id": "mag-boots",
+   "title": "Mag boots and the anchors on the figure and the doll: the sole, the cuff, the magnet's plate; a hand on a hold, the lanyard, the wedge",
+   "about": "The void range (v0.0.24, \"Anchor before you fire\") issues magnetic boots: a body locked to a steel deck holds his gun as on the ground, one floating does not, and you must see which (your note of 2026-11-17: \"show us what we would be seeing\"). The boots do not exist in the game yet, so each candidate redraws only the boots of the game's own figure (the shoot house's marine in the black combat EVA suit, at 16 px/m, snapped to the Mars palette) and of the game's own doll (the I and C cards' figure in the same kit). Each picture: the figure today, then with the candidate, in four facings; the feet three times larger facing you and side on; the doll's lower legs twice its size. B-b (the default until scored) a sole a pixel deeper and a grey cuff round the ankle (the magnet's housing); B-a a heavier sole, two pixels, no cuff; B-c the cuff with the magnet's plate, light steel on the cuff's outer side. H (drawn on the portraits round's pose engine): how a body anchored on the deck shows, the doll and the figure in four facings, today's above. H-a (the default until scored) the hand on a hold: the left arm up to a rail over the head on the doll, a handhold at his side on the figure (the chibi's helmet hides a hand over the head); H-b the lanyard: a tether from the belt's left to a plate on the deck; H-c the wedge: a boot under a rail on the deck, that knee bent.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "B-b",
+     "H-a"
+    ],
+    "since": "2026-11-17",
+    "decides": "mag boots on the figure and the cards (B), and how an anchored body shows (H)",
+    "builtIn": "v0.0.24"
+   },
+   "groups": [
+    {
+     "id": "B",
+     "title": "B: the boots",
+     "about": "Today and the candidate side by side: the figure's four facings at 16 px/m (you, away, right, left), the feet three times larger, the doll's lower legs twice.",
+     "sets": null,
+     "views": [
+      {
+       "id": "B-b",
+       "name": "B-b: sole and grey cuff (the default)",
+       "query": "b=B-b",
+       "shot": "mag-boots/shots/b-b.png",
+       "native": [
+        298,
+        229
+       ],
+       "report": {
+        "frame": [
+         298,
+         229
+        ]
+       }
+      },
+      {
+       "id": "B-a",
+       "name": "B-a: a heavier sole",
+       "query": "b=B-a",
+       "shot": "mag-boots/shots/b-a.png",
+       "native": [
+        298,
+        229
+       ],
+       "report": {
+        "frame": [
+         298,
+         229
+        ]
+       }
+      },
+      {
+       "id": "B-c",
+       "name": "B-c: the cuff and the magnet's plate",
+       "query": "b=B-c",
+       "shot": "mag-boots/shots/b-c.png",
+       "native": [
+        298,
+        229
+       ],
+       "report": {
+        "frame": [
+         298,
+         229
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "H",
+     "title": "H: anchored on the deck",
+     "about": "The doll (the I and C cards) today and with the anchor, twice its size; the figure at 16 px/m three times larger, today's facings, then the candidate's.",
+     "sets": null,
+     "views": [
+      {
+       "id": "H-a",
+       "name": "H-a: the hand on a hold (the default)",
+       "query": "h=H-a",
+       "shot": "mag-boots/shots/h-a.png",
+       "native": [
+        428,
+        596
+       ],
+       "report": {
+        "frame": [
+         428,
+         596
+        ]
+       }
+      },
+      {
+       "id": "H-b",
+       "name": "H-b: the lanyard",
+       "query": "h=H-b",
+       "shot": "mag-boots/shots/h-b.png",
+       "native": [
+        428,
+        596
+       ],
+       "report": {
+        "frame": [
+         428,
+         596
+        ]
+       }
+      },
+      {
+       "id": "H-c",
+       "name": "H-c: the wedge",
+       "query": "h=H-c",
+       "shot": "mag-boots/shots/h-c.png",
+       "native": [
+        428,
+        596
+       ],
+       "report": {
+        "frame": [
+         428,
+         596
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "marks",
    "title": "The room's mark on its jamb: M1 a chalk X, M2 a chemlight, made by the last man out",
    "about": "v0.0.20 (the build sheet's item 12; question 7): leaving a room, the last man out marks it on the latch-side jamb, 0.3 m outward of the door's plane and 1.5 m up, from his hand's stroke on (nothing pops in): your #2 as he passes the door, you where he went out first. Two looks, drawn by the game's own code (src/render/range-items.js jambMarks) at 16 px/m: M1 a chalk X, lit by the light where it is, as chalk is; M2 a chemlight taped to the jamb, which glows through the fog. Each seen from the hall, face on, with a marine's head height dotted for scale, lit and in the dark. The game draws M1 until you pick.",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "M1-a",
+     "M1-b"
+    ],
+    "since": "2026-11-16",
+    "decides": "the room's mark on its jamb (M1, the chalk X)",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "M1",
@@ -2637,6 +3036,16 @@
    "about": "\"Stack and clear, live\" (v0.0.19) puts two role-players in the shoot house in place of stands 2a and 3a: generated marines of the cadre in utilities and a plate carrier, a force-on-force mask, an R-7 with marking rounds. A man who gives up drops his rifle to the floor and puts his hands up, and kneels when challenged; a round of marking paint shows where it struck. Every picture is the game's own code: the doll of the inventory and the target view, the world figure at 24 px/m, the target view's card. The game draws the defaults (M2, H1, P1) until you score them.",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "M2",
+     "H1",
+     "P1"
+    ],
+    "since": "2026-11-16",
+    "decides": "the live men: the mask (M), the hands up (H), the paint (P)",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "M",
@@ -2782,6 +3191,15 @@
    "about": "The P-12 (the sidearm on every sheet, a HAD-17 of ten frangible, the thigh holster) had no drawing until v0.0.18: with the pistol in hand the card drew the R-7. From v0.0.18 the game draws it as P12A, the service pistol, until you pick. Four designs, each drawn by the game's own weapon card (src/art/pistols.js), at three times the rifle's density (432 px/m: the 19.5 cm pistol is 84 px, where at the rifle's 144 it would be 28). What the card shows is what you believe: the slide locked back with the barrel out of its nose; a sliver of brass at the hood's rear when a round is believed chambered (a loaded chamber witness, my call); the HAD-17's rounds seen through a witness slot in the grip's back, from the top (my call: the HAD-17 has its witness holes), \"?\" on the baseplate when the count was never checked; the well's open mouth with the magazine out; the oversized safety's paddle up for SAFE, down for SEMI; a stovepipe or a double feed in the port once looked at; a magazine in the hand right of the muzzle, its holes to its count. A: the service pistol (squared slide, front and rear serrations, rail, stippled grip). B: the slab (chamfered nose, angled serrations, the RD-1P's cut closed by its cover plate, a ledge rear sight for racking one-handed, hooked guard, flared well, pad on the baseplate). C: the monolith (slide and frame one tone, the slide sloping from a tall rear, a full dust cover, finger grooves, long beavertail). D: the lanyard (rounded nose, fish scales, a window over the barrel, a lanyard loop at the heel: a dropped pistol in free fall leaves). Shown raw, as the hud shows the card.",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "P12A-a",
+     "P12A-b"
+    ],
+    "since": "2026-11-14",
+    "decides": "the P-12's design on the weapon card (P12A)",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "P12A",
@@ -2991,6 +3409,14 @@
    "about": "Each design's figure template (seven pixels along, the size a chibi's pistol is drawn) in the hand of the game's own figure, the shoot house's sergeant in the black combat EVA suit and carrier, on the house's slab floor, snapped to the Mars palette. The loop runs 5.2 s on WEAPONS' base times: holstered; the draw, 1.1 s (the hand to the holster, the pistol clear of it one-handed, the press out, the sights); two shots 0.4 s apart, each its kick and flash; the aim held; a scan at the low ready; the holster, 1.3 s. The gallery's picture is a still at the aim between the shots: open a view (O) and it moves (Space stops it, S slows it to a quarter, R starts it again). The game draws its old pistol until you pick; at 16 px/m the designs differ by a pixel or two (B's plate and hooked guard, C's tall rear in one tone, D's lanyard loop), so the card carries the choice and this asks whether the figure's pistol reads at all. In the suit the pistol and the holster are black on black: the last view is the same in utilities with the carrier, where they read.",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "P12M-a"
+    ],
+    "since": "2026-11-14",
+    "decides": "the P-12 on the figure, drawn and fired (A)",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "P12M",
@@ -3612,91 +4038,1145 @@
    ]
   },
   {
-   "id": "target-view",
-   "title": "The target view: the stands as you saw them, a live man in his gear, the hostage card",
-   "about": "Your words of 2026-11-15: \"we need to generalize that target view for every time we're engaging something or someone\", and the people in it \"rendered ... as we see them, meaning with their gear\". The card is \"Bang\"'s B (the khaki board you scored 99), drawn by the game's own code (src/art/doll/hitcard.js). In the shoot house it opens as soon as you aim at or bracket a stand your take-in has seen, the stand drawn as your take-in identified it, never as its record holds; \"Bang\" keeps its own as you scored it. Score L and H.",
+   "id": "pistol-stances",
+   "title": "The P-12's stances, and the R-7 hanging while it is up: low ready, high ready, aimed, at the holster, the admin; across the chest, at the hip, on the back",
+   "about": "Your note of 2026-11-17: \"Holding the sidearm with the rifle dangling should be redrawn, sidearm should have the same stances (low ready, high ready, aimed, etc) as the rifle\". The game already keeps one posture for whichever gun is in your hands (the P-12 at the low ready, the high ready or aimed, as the R-7 is), but the stage has only two pistol frames (the draw and the pistol aimed), painted only in a stance sheet that a hanging rifle's carry never has: so with the P-12 out the stage draws you with the rifle slung in front and empty hands, and no pistol. T (today, for reference, not scored) shows that: the stage's own picture of the sergeant after Transition (the save v0.0.17-house-pistol, made by capture.mjs) three times larger, the I and C cards' doll in the same kit, the frame the stage draws, the two pistol frames it asks for and never draws (in which the rifle is not drawn at all), and the rifle's own low ready, high ready and aimed, in four facings. PS, the stances, each drawn in this release (the defaults, until you score them): PS-a the low ready, PS-b the high ready, PS-c aimed (with the shot's kick), PS-d the hand at the holster (the draw and the holster), PS-e the admin (the press check, the slide racked, the clearing; the magazine out and in beside it), seen when you work the P-12 in your own hands (a press check, a reload, a rack or lock back and release at a pause: the stage's pistolCheck and pistolMag, the doll's and the card's check), not in the tower's LOAD and SHOW CLEAR, which the drill runs this round as one beat with the pistol in its holster and the rifle drawn in your hands (the review of 2026-11-18; the lead's or v0.0.24's to draw); each on you on the I and C cards (today's doll, then the stance), on a man with his P-12 on the target card at 4 and 14 m, and on the stage's figure in four facings beside today's frame (the low ready walking too). RH, the R-7 on its sling while the pistol is up, at the low ready: RH1 across the chest, muzzle down (the default), RH2 on the strong-side hip, RH3 swung round to the back; on the cards from the front and from behind, on the figure in four facings and walking side on, the rifle swinging with the stride, never through the arms. Score a stance to have it redrawn, and pick the hang.",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "PS-a",
+     "PS-b",
+     "PS-c",
+     "PS-d",
+     "PS-e",
+     "RH1"
+    ],
+    "since": "2026-11-18",
+    "decides": "the P-12's stances on the figure, the doll and the card (PS), and how the R-7 hangs while the pistol is up (RH)",
+    "builtIn": "v0.0.23"
+   },
+   "groups": [
+    {
+     "id": "T",
+     "title": "T: what the game draws today with the P-12 out",
+     "about": "The stage's picture at the save (×3) and the doll; then the frame drawn (slungFront), the two pistol frames asked for and never drawn (draw, pistolAim), the rifle's own three stances, each facing you, right, away and left at 16 px/m, twice their size.",
+     "sets": null,
+     "views": [
+      {
+       "id": "T",
+       "name": "T: today (for reference, not scored)",
+       "query": "set=today",
+       "shot": "pistol-stances/shots/t.png",
+       "native": [
+        856,
+        488
+       ],
+       "report": {
+        "frame": [
+         856,
+         488
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "PS",
+     "title": "PS: the P-12's stances",
+     "about": "You on the I and C cards (today, then the stance), a man so on the target card at 4 and 14 m, then the stage's figure, today's frame and the stance in four facings, and the frames that go with it side on.",
+     "sets": null,
+     "views": [
+      {
+       "id": "PS-a",
+       "name": "PS-a: the low ready (drawn)",
+       "query": "ps=PS-a",
+       "shot": "pistol-stances/shots/ps-a.png",
+       "native": [
+        676,
+        492
+       ],
+       "report": {
+        "frame": [
+         676,
+         492
+        ]
+       }
+      },
+      {
+       "id": "PS-b",
+       "name": "PS-b: the high ready (drawn)",
+       "query": "ps=PS-b",
+       "shot": "pistol-stances/shots/ps-b.png",
+       "native": [
+        676,
+        492
+       ],
+       "report": {
+        "frame": [
+         676,
+         492
+        ]
+       }
+      },
+      {
+       "id": "PS-c",
+       "name": "PS-c: aimed (drawn)",
+       "query": "ps=PS-c",
+       "shot": "pistol-stances/shots/ps-c.png",
+       "native": [
+        676,
+        492
+       ],
+       "report": {
+        "frame": [
+         676,
+         492
+        ]
+       }
+      },
+      {
+       "id": "PS-d",
+       "name": "PS-d: the hand at the holster (drawn)",
+       "query": "ps=PS-d",
+       "shot": "pistol-stances/shots/ps-d.png",
+       "native": [
+        676,
+        492
+       ],
+       "report": {
+        "frame": [
+         676,
+         492
+        ]
+       }
+      },
+      {
+       "id": "PS-e",
+       "name": "PS-e: the admin: the press check (drawn when you work it in your hands; not in the tower's LOAD and SHOW CLEAR, run holstered)",
+       "query": "ps=PS-e",
+       "shot": "pistol-stances/shots/ps-e.png",
+       "native": [
+        676,
+        492
+       ],
+       "report": {
+        "frame": [
+         676,
+         492
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "RH",
+     "title": "RH: the R-7 hanging while the pistol is up",
+     "about": "At the low ready: the I and C cards from the front and from behind, the target card at 4 and 14 m, the figure in four facings, then walking side on, the rifle swinging with the stride.",
+     "sets": null,
+     "views": [
+      {
+       "id": "RH1",
+       "name": "RH1: across the chest, muzzle down (the default)",
+       "query": "rh=RH1",
+       "shot": "pistol-stances/shots/rh1.png",
+       "native": [
+        676,
+        492
+       ],
+       "report": {
+        "frame": [
+         676,
+         492
+        ]
+       }
+      },
+      {
+       "id": "RH2",
+       "name": "RH2: on the strong-side hip",
+       "query": "rh=RH2",
+       "shot": "pistol-stances/shots/rh2.png",
+       "native": [
+        676,
+        492
+       ],
+       "report": {
+        "frame": [
+         676,
+         492
+        ]
+       }
+      },
+      {
+       "id": "RH3",
+       "name": "RH3: swung round to the back",
+       "query": "rh=RH3",
+       "shot": "pistol-stances/shots/rh3.png",
+       "native": [
+        676,
+        492
+       ],
+       "report": {
+        "frame": [
+         676,
+         492
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "portrait-facing",
+   "title": "A man turned on the target card: from behind, in profile, or front on with his head turned; and the card's body",
+   "about": "Your note of 2026-11-17: the card should \"show us what we would be seeing\". The card drew every man front on, though the stage drew him turned away. His facing is read from your eye (front within 45° of you, from behind beyond 135°, a side between). Each picture is one candidate, the live lane's role-player drawn by the game's own doll and card code (A's back of a man for F1): F, today's card (front on) for comparison, the candidate at 4, 14 and 30 m, then the card as he turns (a new card each time his facing crosses a band) beside the stage's frames of him facing you, side on and away; R, the card's body for a man with no marks on him, three records (aimed at you, at the low ready, the hands up) at the near and mid bands. F1 (from behind) and F3 (a side: front on, the head and the gun's line turned) are drawn in this release at their defaults; F2 (the profile) only if you score it, in v0.0.24. R1 (the doll, the card you starred) stays; R2 and R3 (the stage's own figure) would be for an unmarked man only (its chibi head cannot carry the marks life size): your pick in v0.0.24.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "F1",
+     "F3",
+     "R1"
+    ],
+    "since": "2026-11-18",
+    "decides": "a man turned on the target card (F) and the card's body (R)",
+    "builtIn": "v0.0.23"
+   },
+   "groups": [
+    {
+     "id": "F",
+     "title": "F: a man turned",
+     "about": "Today's card, the candidate at three bands, then the turn and the stage's frames.",
+     "sets": null,
+     "views": [
+      {
+       "id": "F1",
+       "name": "F1: from behind (the default for his back)",
+       "query": "v=F1",
+       "shot": "portrait-facing/shots/f1.png",
+       "native": [
+        844,
+        439
+       ],
+       "report": {
+        "frame": [
+         844,
+         439
+        ]
+       }
+      },
+      {
+       "id": "F3",
+       "name": "F3: front on, his head turned (the default for a side)",
+       "query": "v=F3",
+       "shot": "portrait-facing/shots/f3.png",
+       "native": [
+        844,
+        439
+       ],
+       "report": {
+        "frame": [
+         844,
+         439
+        ]
+       }
+      },
+      {
+       "id": "F2",
+       "name": "F2: in profile",
+       "query": "v=F2",
+       "shot": "portrait-facing/shots/f2.png",
+       "native": [
+        844,
+        439
+       ],
+       "report": {
+        "frame": [
+         844,
+         439
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "R",
+     "title": "R: the card's body for a man with no marks",
+     "about": "Aimed at you, at the low ready, the hands up, at 4 m and 14 m.",
+     "sets": null,
+     "views": [
+      {
+       "id": "R1",
+       "name": "R1: the doll (the default)",
+       "query": "v=R1",
+       "shot": "portrait-facing/shots/r1.png",
+       "native": [
+        616,
+        439
+       ],
+       "report": {
+        "frame": [
+         616,
+         439
+        ]
+       }
+      },
+      {
+       "id": "R2",
+       "name": "R2: the stage's figure, finer",
+       "query": "v=R2",
+       "shot": "portrait-facing/shots/r2.png",
+       "native": [
+        616,
+        439
+       ],
+       "report": {
+        "frame": [
+         616,
+         439
+        ]
+       }
+      },
+      {
+       "id": "R3",
+       "name": "R3: the stage's own cell, blown up",
+       "query": "v=R3",
+       "shot": "portrait-facing/shots/r3.png",
+       "native": [
+        616,
+        439
+       ],
+       "report": {
+        "frame": [
+         616,
+         439
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "portrait-gun",
+   "title": "The gun in his hands on the target card: how it reads, where he holds it, the hostage card's hostile",
+   "about": "Your note of 2026-11-17: \"the portrait of the NPC holding a gun does not display the gun they are holding\". The card is \"Bang\"'s B, the khaki board you scored 99 (src/art/doll/hitcard.js), and its painted man held his gun hanging from the right hand in the board's two tones: the gun was lost in the khaki (0 pixels in a tone of its own) and the rifle hung half below the card's crop. Every picture is the game's own doll and card code with only the gun's own pixels toned by the candidate (samples/portrait-lib/card.js): your stands of seed 4028068471 (2a the armoured face with a pistol, 1a a threat with a rifle, 3b the hostage card) and a threat with a pistol, each at the near, mid and far bands (4, 14 and 30 m), today's card on the first row for comparison (not scored). G decides how the gun reads, W where he holds it, H what the hostage's hostile holds beside her. Drawn in this release at the defaults G1, W1 and H1 (a fix of what the card already claims to show, so it waits for no score); your pick replaces them. \"Bang\"'s own boards keep their starred look until you say otherwise (question 1). Where it meets the other sets: W2 is doll-gear's R-b; target-view's H decides on which side of her the hostile stands.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "G1",
+     "W1",
+     "H1"
+    ],
+    "since": "2026-11-17",
+    "decides": "the gun on the target card: its tone (G), where he holds it (W), the hostage card's hostile (H)",
+    "builtIn": "v0.0.23"
+   },
+   "groups": [
+    {
+     "id": "G",
+     "title": "G: how the gun reads on the khaki board",
+     "about": "Held at the ready (W1). G1 (the default) the gun in the board's dark ink (0x2a2216), its lit pixels a step lighter (0x3d3220), as the stage paints a turner's hold; G2 the gun in its own colours, the polymer black and the steel over the khaki, as photo-threat boards print it; G3 the ink with a one-pixel khaki rim on the pixels round it, so its outline separates from the arms.",
+     "sets": null,
+     "views": [
+      {
+       "id": "G1",
+       "name": "G1: the board's dark ink (the default)",
+       "query": "g=G1",
+       "shot": "portrait-gun/shots/g1.png",
+       "native": [
+        820,
+        830
+       ],
+       "report": {
+        "frame": [
+         820,
+         830
+        ]
+       }
+      },
+      {
+       "id": "G2",
+       "name": "G2: its own colours",
+       "query": "g=G2",
+       "shot": "portrait-gun/shots/g2.png",
+       "native": [
+        820,
+        830
+       ],
+       "report": {
+        "frame": [
+         820,
+         830
+        ]
+       }
+      },
+      {
+       "id": "G3",
+       "name": "G3: ink with a khaki rim",
+       "query": "g=G3",
+       "shot": "portrait-gun/shots/g3.png",
+       "native": [
+        820,
+        830
+       ],
+       "report": {
+        "frame": [
+         820,
+         830
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "W",
+     "title": "W: where the painted man holds it",
+     "about": "In G1's ink. W1 (the default) at the low ready as the stage paints it: the rifle across the body 35° below level, the right hand at the grip and the left at the handguard; the pistol between both fists at the belly. W2 hanging from the right hand as today, the card's crop lowered to the knee (the figure's rows 4 to 150 at the near band, the board standing higher on shorter stakes) so the rifle is whole.",
+     "sets": null,
+     "views": [
+      {
+       "id": "W1",
+       "name": "W1: at the ready (the default)",
+       "query": "w=W1",
+       "shot": "portrait-gun/shots/w1.png",
+       "native": [
+        820,
+        830
+       ],
+       "report": {
+        "frame": [
+         820,
+         830
+        ]
+       }
+      },
+      {
+       "id": "W2",
+       "name": "W2: hanging, the crop to the knee",
+       "query": "w=W2",
+       "shot": "portrait-gun/shots/w2.png",
+       "native": [
+        820,
+        830
+       ],
+       "report": {
+        "frame": [
+         820,
+         830
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "H",
+     "title": "H: the hostage card's hostile",
+     "about": "The hostile behind the hostage at the viewer's right (target-view's H-a), in G1's ink: today's card (his pistol hanging from his hand behind her, never seen), then the candidate in belief with a round to the head called, in truth (the hole in the head, the coach's line) and at the mid band. H1 (the default) his fist at her head, the P-12 level at her temple; H2 his rifle up beside her shoulder, the muzzle high.",
+     "sets": null,
+     "views": [
+      {
+       "id": "H1",
+       "name": "H1: his pistol at her head (the default)",
+       "query": "h=H1",
+       "shot": "portrait-gun/shots/h1.png",
+       "native": [
+        820,
+        218
+       ],
+       "report": {
+        "frame": [
+         820,
+         218
+        ]
+       }
+      },
+      {
+       "id": "H2",
+       "name": "H2: his rifle up beside her",
+       "query": "h=H2",
+       "shot": "portrait-gun/shots/h2.png",
+       "native": [
+        820,
+        218
+       ],
+       "report": {
+        "frame": [
+         820,
+         218
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "portrait-light",
+   "title": "The card as you would see him: in his light, half behind the jamb, his hands not yet read",
+   "about": "Your note of 2026-11-17: the portraits \"need to be more dynamic and show us what we would be seeing\". Every card is the live lane's role-player 2a (the plate carrier, the force-on-force mask, the R-7 at the low ready) in his own colours, drawn by the game's own doll and card code (samples/portrait-lib/card.js), the candidate drawn over it. L decides the card in his light (built in v0.0.24, on your score; drawn unlit until then), J a man half behind a door's jamb (v0.0.24; drawn whole until then), V his hands before your take-in has read them (this release at V1: v0.0.22 emptied his hands on the card while the stage drew his rifle, a card that contradicted the stage).",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "L1",
+     "J1",
+     "V1"
+    ],
+    "since": "2026-11-17",
+    "decides": "his hands not yet read (V, this release at V1); the card in his light (L) and half behind a jamb (J), built in v0.0.24",
+    "builtIn": "v0.0.23"
+   },
+   "groups": [
+    {
+     "id": "L",
+     "title": "L: the card in his light",
+     "about": "Four places: a lit room (the house's 0.75), room 3's dim (0.40), a dark room (0.10) and a man in a lamp's pool, the light falling off from a lamp above his left shoulder. L1 (the default for v0.0.24) lit by his place's light over the lit room's, never below 30%, the lit rooms unchanged; L2 unlit, today's: the four alike.",
+     "sets": null,
+     "views": [
+      {
+       "id": "L1",
+       "name": "L1: lit by his place, never below 30% (the default)",
+       "query": "l=L1",
+       "shot": "portrait-light/shots/l1.png",
+       "native": [
+        820,
+        218
+       ],
+       "report": {
+        "frame": [
+         820,
+         218
+        ]
+       }
+      },
+      {
+       "id": "L2",
+       "name": "L2: unlit (today's)",
+       "query": "l=L2",
+       "shot": "portrait-light/shots/l2.png",
+       "native": [
+        820,
+        218
+       ],
+       "report": {
+        "frame": [
+         820,
+         218
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "J",
+     "title": "J: half behind the jamb",
+     "about": "A quarter, a half and three quarters of him behind a door's jamb, from the viewer's left. J1 (the default for v0.0.24) the jamb drawn over him, the house's wall with its lit edge toward you; J2 the hidden share faded to the card's ground.",
+     "sets": null,
+     "views": [
+      {
+       "id": "J1",
+       "name": "J1: the jamb drawn over him (the default)",
+       "query": "j=J1",
+       "shot": "portrait-light/shots/j1.png",
+       "native": [
+        616,
+        218
+       ],
+       "report": {
+        "frame": [
+         616,
+         218
+        ]
+       }
+      },
+      {
+       "id": "J2",
+       "name": "J2: the hidden share faded",
+       "query": "j=J2",
+       "shot": "portrait-light/shots/j2.png",
+       "native": [
+        616,
+        218
+       ],
+       "report": {
+        "frame": [
+         616,
+         218
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "V",
+     "title": "V: his hands before your take-in has read them",
+     "about": "Today's card first (v0.0.22 emptied his hands), then the candidate at the near and mid bands. V1 (the default, this release) his hands and the rifle drawn as the stage shows them, the words \"HANDS NOT SEEN · 2A\" saying what your mind has not read; V2 the hands and what is in them veiled, hatched in the card's ground.",
+     "sets": null,
+     "views": [
+      {
+       "id": "V1",
+       "name": "V1: as the stage shows him, in words (the default)",
+       "query": "v=V1",
+       "shot": "portrait-light/shots/v1.png",
+       "native": [
+        616,
+        218
+       ],
+       "report": {
+        "frame": [
+         616,
+         218
+        ]
+       }
+      },
+      {
+       "id": "V2",
+       "name": "V2: the hands veiled",
+       "query": "v=V2",
+       "shot": "portrait-light/shots/v2.png",
+       "native": [
+        616,
+        218
+       ],
+       "report": {
+        "frame": [
+         616,
+         218
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "portrait-pose",
+   "title": "The man as he stands on the target card, and you on the C card: aimed at you, the pistol aimed, kneeling, down, cowering; you kneeling, with a G-11, the P-12, prone",
+   "about": "Your note of 2026-11-17: \"the portraits need to be more dynamic and show us what we would be seeing, including what they are holding\" (and your rule of 2026-11-12, \"anything that moves is shown moving\"). Until now the card drew every man standing, his gear as worn, whatever he did. Each picture is one candidate, drawn by the game's own doll and card code on the portraits round's pose engine (C's: the poses as bends of the doll, the holds on the gear's places): first today's card for comparison, then the candidate on the target card at the near, mid and far bands (4, 14 and 30 m), the live lane's role-player (utilities, the plate carrier, the force-on-force mask, the R-7; his P-12 out for P); then the moment moving: the card at its paint rate (it repaints only when what you see changes, so before and after) beside the stage's frames of the same moment, toward you, three times their size. Y is you on the C card as in a mirror (today's doll, then the candidate's, twice their size). Drawn in this release at the defaults A1, P1, K1, D1, C1 and Y-p (the poses ship at their defaults, question 16); your picks replace them, in v0.0.24 if they land after the merge.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "A1",
+     "P1",
+     "K1",
+     "D1",
+     "C1",
+     "Y-p"
+    ],
+    "since": "2026-11-18",
+    "decides": "the man as he stands on the target card (A, P, K, D, C) and you prone on the C card (Y-p)",
+    "builtIn": "v0.0.23"
+   },
+   "groups": [
+    {
+     "id": "A",
+     "title": "A: a rifle aimed at you",
+     "about": "Moving: the low ready, then aimed; the stage's low ready, raise and aim.",
+     "sets": null,
+     "views": [
+      {
+       "id": "A1",
+       "name": "A1: end on, the muzzle a ring at his chest (the default)",
+       "query": "c=A1",
+       "shot": "portrait-pose/shots/a1.png",
+       "native": [
+        820,
+        439
+       ],
+       "report": {
+        "frame": [
+         820,
+         439
+        ]
+       }
+      },
+      {
+       "id": "A2",
+       "name": "A2: canted, the rifle across his chest",
+       "query": "c=A2",
+       "shot": "portrait-pose/shots/a2.png",
+       "native": [
+        820,
+        439
+       ],
+       "report": {
+        "frame": [
+         820,
+         439
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "P",
+     "title": "P: a pistol aimed at you",
+     "about": "The P-12 out, the R-7 slung. Moving: the pistol at the ready, then aimed; the stage's draw and pistol aimed.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P1",
+       "name": "P1: both arms out, the slide end on (the default)",
+       "query": "c=P1",
+       "shot": "portrait-pose/shots/p1.png",
+       "native": [
+        820,
+        439
+       ],
+       "report": {
+        "frame": [
+         820,
+         439
+        ]
+       }
+      },
+      {
+       "id": "P2",
+       "name": "P2: cupped at the chest",
+       "query": "c=P2",
+       "shot": "portrait-pose/shots/p2.png",
+       "native": [
+        820,
+        439
+       ],
+       "report": {
+        "frame": [
+         820,
+         439
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "K",
+     "title": "K: kneeling (a check)",
+     "about": "Moving: standing aimed, then kneeling aimed; the stage's aim, the knee going down and the kneeling aim.",
+     "sets": null,
+     "views": [
+      {
+       "id": "K1",
+       "name": "K1: on the right knee, aimed (the default)",
+       "query": "c=K1",
+       "shot": "portrait-pose/shots/k1.png",
+       "native": [
+        820,
+        439
+       ],
+       "report": {
+        "frame": [
+         820,
+         439
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "D",
+     "title": "D: down, ruled out and sitting where he is",
+     "about": "Moving: standing at the low ready, then sitting; the stage's low ready and sitting low. D2 is a new bend, drawn on a card composed by the card's own geometry.",
+     "sets": null,
+     "views": [
+      {
+       "id": "D1",
+       "name": "D1: sitting, the rifle across his knees (the default)",
+       "query": "c=D1",
+       "shot": "portrait-pose/shots/d1.png",
+       "native": [
+        820,
+        439
+       ],
+       "report": {
+        "frame": [
+         820,
+         439
+        ]
+       }
+      },
+      {
+       "id": "D2",
+       "name": "D2: slumped on his side",
+       "query": "c=D2",
+       "shot": "portrait-pose/shots/d2.png",
+       "native": [
+        820,
+        439
+       ],
+       "report": {
+        "frame": [
+         820,
+         439
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "C",
+     "title": "C: cowering (a check)",
+     "about": "Moving: standing at the low ready, then crouched; the stage draws a frozen man as he stands.",
+     "sets": null,
+     "views": [
+      {
+       "id": "C1",
+       "name": "C1: crouched, the fists at his head (the default)",
+       "query": "c=C1",
+       "shot": "portrait-pose/shots/c1.png",
+       "native": [
+        820,
+        439
+       ],
+       "report": {
+        "frame": [
+         820,
+         439
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "Y",
+     "title": "Y: you on the C card, as in a mirror",
+     "about": "The black combat EVA suit, the carrier, the R-7, the P-12 on the thigh. Y-p is the default of its own question (you prone on the C card); the others are checks of the I and C cards.",
+     "sets": null,
+     "views": [
+      {
+       "id": "Y-p",
+       "name": "Y-p: prone, behind the rifle, end on (the default)",
+       "query": "c=Y-p",
+       "shot": "portrait-pose/shots/y-p.png",
+       "native": [
+        586,
+        463
+       ],
+       "report": {
+        "frame": [
+         586,
+         463
+        ]
+       }
+      },
+      {
+       "id": "Y-k",
+       "name": "Y-k: kneeling, the rifle at the low ready",
+       "query": "c=Y-k",
+       "shot": "portrait-pose/shots/y-k.png",
+       "native": [
+        586,
+        463
+       ],
+       "report": {
+        "frame": [
+         586,
+         463
+        ]
+       }
+      },
+      {
+       "id": "Y-g",
+       "name": "Y-g: a G-11 in the fist",
+       "query": "c=Y-g",
+       "shot": "portrait-pose/shots/y-g.png",
+       "native": [
+        586,
+        463
+       ],
+       "report": {
+        "frame": [
+         586,
+         463
+        ]
+       }
+      },
+      {
+       "id": "Y-12",
+       "name": "Y-12: the P-12 at the ready",
+       "query": "c=Y-12",
+       "shot": "portrait-pose/shots/y-12.png",
+       "native": [
+        586,
+        463
+       ],
+       "report": {
+        "frame": [
+         586,
+         463
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "portrait-suit",
+   "title": "You in the black suit on the I and C cards: today's backdrop, the place's, or the place's with a rim light",
+   "about": "The I and C cards draw you as the doll in the gear you wear (your ask of 2026-11-15), and in the combat EVA suit the doll is black on its own dark wall: the suit's outline is the ink round it, and the figure reads as a hole in the card. Every picture is the game's own dressed doll at the cards' scale, unlit as they draw it: you at GO in the shoot house (GO: the suit, the carrier, the R-7 at the low ready, the P-12 holstered) and after Transition (P-12: the pistol at the ready, the R-7 slung in front), in three places (the shoot house, the squad bay, the Melas street); the candidate redraws only the ground behind you and, in D-c, a rim of light on the suit's edge. D-a today's backdrop (the doll's own wall and floor wherever you are; the default until scored); D-b the place's backdrop (its wall and floor in the place's tones, the floor's shadow kept); D-c the place's backdrop and a rim light (the suit's outermost pixels on the lit side, the upper left as the doll is lit, lifted toward the place's light). Built in v0.0.24 on your score.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "D-a"
+    ],
+    "since": "2026-11-17",
+    "decides": "you in the black suit on the I and C cards: the ground behind you and a rim of light",
+    "builtIn": "v0.0.24"
+   },
+   "groups": [
+    {
+     "id": "D",
+     "title": "D: the ground behind you, and a rim of light",
+     "about": "Columns: the shoot house, the squad bay, the Melas street. Rows: at GO; after Transition (the P-12 at the ready).",
+     "sets": null,
+     "views": [
+      {
+       "id": "D-a",
+       "name": "D-a: today's backdrop (the default)",
+       "query": "d=D-a",
+       "shot": "portrait-suit/shots/d-a.png",
+       "native": [
+        208,
+        314
+       ],
+       "report": {
+        "frame": [
+         208,
+         314
+        ]
+       }
+      },
+      {
+       "id": "D-b",
+       "name": "D-b: the place's backdrop",
+       "query": "d=D-b",
+       "shot": "portrait-suit/shots/d-b.png",
+       "native": [
+        208,
+        314
+       ],
+       "report": {
+        "frame": [
+         208,
+         314
+        ]
+       }
+      },
+      {
+       "id": "D-c",
+       "name": "D-c: the place's backdrop and a rim light",
+       "query": "d=D-c",
+       "shot": "portrait-suit/shots/d-c.png",
+       "native": [
+        208,
+        314
+       ],
+       "report": {
+        "frame": [
+         208,
+         314
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "target-view",
+   "title": "The target view: the stands as you saw them, a live man in his gear, the hostage card",
+   "about": "Your words of 2026-11-15: \"we need to generalize that target view for every time we're engaging something or someone\", and the people in it \"rendered ... as we see them, meaning with their gear\". The card is \"Bang\"'s B (the khaki board you scored 99), drawn by the game's own code (src/art/doll/hitcard.js). In the shoot house it opens as soon as you aim at or bracket a stand your take-in has seen, the stand drawn as your take-in identified it, never as its record holds; \"Bang\" keeps its own as you scored it. Score L and H. Shot first in v0.0.23 (drawn at L-a and H-a since v0.0.18 with nobody's score behind them); where it meets v0.0.23's sets: H here decides on which side of the hostage the hostile shows, and `portrait-gun`'s H decides what his gun hand holds (his pistol at her head, or his rifle up beside her); F's boards hold their guns where `portrait-gun`'s W decides.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "L-a",
+     "H-a"
+    ],
+    "since": "2026-11-17",
+    "decides": "the live man's card ground (L) and the hostage card's side (H)",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "F",
      "title": "F: the house's stands as identified (for reference)",
      "about": "A threat with a rifle; a threat with a pistol, the P-12 in his hand (v0.0.17 drew him empty-handed, \"Bang\"'s pistol boards too); a no-shoot with a phone; a no-shoot with empty hands; the armoured face; a stand whose hands your look did not see, empty-handed and \"HANDS NOT SEEN\".",
      "sets": null,
-     "views": []
+     "views": [
+      {
+       "id": "F-a",
+       "name": "The six faces as identified",
+       "query": "set=faces",
+       "shot": "target-view/shots/f-a.png",
+       "native": [
+        616,
+        412
+       ],
+       "report": {
+        "frame": [
+         616,
+         412
+        ]
+       }
+      }
+     ]
     },
     {
      "id": "L",
      "title": "L: a live man's card",
      "about": "Your #2 in the combat EVA suit, the carrier and the R-7 at the ready, in his own colours with no stakes and no zones, at the near band (4 m) and the mid band (14 m). L-a on the card's dark ground (the default); L-b on a ground lifted toward the board's khaki, so amber rings will read on a black suit once hits on people are drawn.",
      "sets": null,
-     "views": []
+     "views": [
+      {
+       "id": "L-a",
+       "name": "L-a: on the dark ground",
+       "query": "l=a",
+       "shot": "target-view/shots/l-a.png",
+       "native": [
+        412,
+        208
+       ],
+       "report": {
+        "frame": [
+         412,
+         208
+        ]
+       }
+      },
+      {
+       "id": "L-b",
+       "name": "L-b: on a lifted ground",
+       "query": "l=b",
+       "shot": "target-view/shots/l-b.png",
+       "native": [
+        412,
+        208
+       ],
+       "report": {
+        "frame": [
+         412,
+         208
+        ]
+       }
+      }
+     ]
     },
     {
      "id": "H",
      "title": "H: the hostage card",
      "about": "Two painted men: the hostage in front (light skin, empty hands), the hostile behind him, his head and his pistol showing beside the hostage, 14 card pixels to the side at the near band. In belief with a round to the head called, and in truth. H-a the hostile at the viewer's right (the default); H-b at the left.",
      "sets": null,
-     "views": []
+     "views": [
+      {
+       "id": "H-a",
+       "name": "H-a: the hostile at the right",
+       "query": "h=a",
+       "shot": "target-view/shots/h-a.png",
+       "native": [
+        412,
+        208
+       ],
+       "report": {
+        "frame": [
+         412,
+         208
+        ]
+       }
+      },
+      {
+       "id": "H-b",
+       "name": "H-b: the hostile at the left",
+       "query": "h=b",
+       "shot": "target-view/shots/h-b.png",
+       "native": [
+        412,
+        208
+       ],
+       "report": {
+        "frame": [
+         412,
+         208
+        ]
+       }
+      }
+     ]
     }
    ]
   },
   {
-   "id": "voices",
-   "title": "The voices: the house's ten most said lines in V-a to V-d, made and played by the game's code",
-   "about": "Your words of 2026-11-15: \"Sound design is pretty weak\". In v0.0.19 the house said 237 lines over six lanes and 55 made a sound: the instructor was a text box. Now every line is said in a voice made by code (no recording): the instructor on the catwalk's PA (110 Hz, the horn's 300 Hz to 3.4 kHz), your #2 through his helmet's speaker (125 Hz, 250 Hz to 5 kHz), you in your own helmet (118 Hz, 6 dB under his shout). Each view draws the ten lines said most often in one set, their level over their spoken time and each word's start. Open a view live (O) to hear them: 1 to 9 and 0 a line, Space all ten. In play the Esc menu's To score page switches the set live (and &voice=a..d, or old, anywhere). The drill instructor's own line stays text: his voice is in your head.",
+   "id": "truth-cards",
+   "title": "The end card's truth cards: under the plan, beside each room's line, or one at a time under the scrubber",
+   "about": "After the lane the end card shows the plan view (the house from above, the lane replayed under a scrubber) and opens one stand's truth card when you click it. The overhaul's O-17 shows every man and stand you engaged as he truly was at your first round beside the plan, so the lane reads at a glance; this sample lays them out three ways, built in v0.0.24 on your score (the end card is unchanged until then). Every card is the game's own truth card (the board you scored, its holes in ink, the calls under them, the coach's line), every plan the game's own plan view, of a lane played to its card by the private by the keys on your seed of 2026-11-17, 4028068471 (made by make.mjs; the house as set: 1a, 2a, 3a, 3b and the hall's H engaged). T-a (the default) a row of small cards under the plan in the order you engaged them, each with its room and the time of your first round on it from GO; T-b each card beside its room's line, the run sheet's legs down the right with the leg's time and par; T-c one card at a time under the scrubber, following the replay (two moments shown: just after your first round on 1a, and on 3b). The cards are drawn at 170 px (the smallest the game draws) in T-a and T-b, 200 in T-c; the scrubber in T-c is the sample's own drawing in the plan's colours.",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "T-a"
+    ],
+    "since": "2026-11-17",
+    "decides": "where the end card shows each man and stand you engaged as he truly was",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
-     "id": "V",
-     "title": "V: the voices' sets",
-     "about": "V-a v0.0.19's stand-ins, V-b dry, V-c through their paths (the game's), V-d with effort.",
+     "id": "T",
+     "title": "T: the truth cards on the end card",
+     "about": "The private by the keys on seed 4028068471, the house as set, to the card (75.1 s from GO).",
      "sets": null,
      "views": [
       {
-       "id": "V-a",
-       "name": "V-a, v0.0.19's stand-ins (five syllables, the rest silent)",
-       "query": "c=a",
-       "shot": "voices/shots/v-a.png",
+       "id": "T-a",
+       "name": "T-a: a row under the plan (the default)",
+       "query": "t=T-a",
+       "shot": "truth-cards/shots/t-a.png",
        "native": [
-        640,
-        420
+        874,
+        432
        ],
-       "report": {}
+       "report": {
+        "frame": [
+         874,
+         432
+        ]
+       }
       },
       {
-       "id": "V-b",
-       "name": "V-b, the words made by code, dry",
-       "query": "c=b",
-       "shot": "voices/shots/v-b.png",
+       "id": "T-b",
+       "name": "T-b: each beside its room's line",
+       "query": "t=T-b",
+       "shot": "truth-cards/shots/t-b.png",
        "native": [
-        640,
-        420
+        948,
+        700
        ],
-       "report": {}
+       "report": {
+        "frame": [
+         948,
+         700
+        ]
+       }
       },
       {
-       "id": "V-c",
-       "name": "V-c, the words through their paths: the PA's horn, the helmets' speakers (the game's until you score)",
-       "query": "c=c",
-       "shot": "voices/shots/v-c.png",
+       "id": "T-c",
+       "name": "T-c: one at a time under the scrubber",
+       "query": "t=T-c",
+       "shot": "truth-cards/shots/t-c.png",
        "native": [
-        640,
-        420
+        996,
+        488
        ],
-       "report": {}
-      },
-      {
-       "id": "V-d",
-       "name": "V-d, V-c with breath and effort on the shouts",
-       "query": "c=d",
-       "shot": "voices/shots/v-d.png",
-       "native": [
-        640,
-        420
-       ],
-       "report": {}
+       "report": {
+        "frame": [
+         996,
+         488
+        ]
+       }
       }
      ]
     }
@@ -3708,6 +5188,14 @@
    "about": "Your word of 2026-11-11 on the shoot house: \"saying that the walking about is goofy is an understatement, the animation is really not there yet.\" The animation designer's three answers to the chibi's problem (legs of 0.25 m from hip to ankle at a human's speed), beside W0, the cycle v0.0.12 draws. All are the game's own figure code (src/art/figures/cycles.js, not wired into the game), at 16 px/m, in the black combat EVA suit with its carrier and the R-7, at 1 G on the shoot house's slab floor, snapped to the Mars palette as the stage snaps them. Two bands each: the Combat glide at the low ready (1.23 m/s) and Assault aimed (2.03 m/s), the speeds the body walks. Each candidate's frames follow the metres walked in its own steps, and side on its card is placed by the planted foot, so no boot slides (the plant lock: each frame's travel baked in whole pixels); seen from the front or behind the card follows the body, and the slip that leaves is measured and printed. Open a view live (O): Space runs and stops time, S slows it to a quarter, F hides the footprints, R starts again. The questions, with your scores: which cycle reads as a marine in each band (score each); is a bob on the gun line wanted at all in Combat and Assault (B says no); and the front and back views, where the feet slide in every candidate (see W-e's numbers).",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "W-c"
+    ],
+    "since": "2026-11-12",
+    "decides": "the walk cycle (B, the game's since v0.0.17, until W-b to W-d are scored)",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "W",
@@ -3821,27 +5309,86 @@
    "about": "Your ask of 2026-11-15: the P-12 shown like the rifle. The house issues the P-12 beside the R-7 on every sheet, and the card showed only the gun in use: the holstered pistol's condition, or the rifle hanging on its sling with a double feed, were nowhere on screen. Each picture is four cards drawn by the game's own weapon card, every word and mark from what you believe of each gun: at GO (the R-7 in use, the P-12 holstered, SAFE 1+9); after Transition (the P-12 drawn as a pistol, the rifle hanging on its click); the rifle hanging with a double feed; the P-12 locked back on an empty. The game draws WC2-A until you pick. Shown raw, as the hud shows the card.",
    "pixel": true,
    "matrix": null,
+   "open": {
+    "default": [
+     "WC2-A-a"
+    ],
+    "since": "2026-11-17",
+    "decides": "how the second gun shows on the weapon card",
+    "builtIn": "v0.0.24"
+   },
    "groups": [
     {
      "id": "WC2-A",
      "title": "WC2-A: a strip at the card's foot, a picture for where it is",
      "about": "The gun in use whole, as today, with a small brass hands mark at its top left; the other gun in a strip at the foot (rows 124 to 147, under a rule): a glyph for where it is (the holster, hanging on its sling, slung in front or on your back), its silhouette from its own card drawing (the pistol at a third of its card size, the rifle at a quarter) and its condition from its own belief (SAFE 1+9; an amber ! for a stoppage, ? for a chamber never checked). With one gun the card is as it was, pixel for pixel. The default built.",
      "sets": null,
-     "views": []
+     "views": [
+      {
+       "id": "WC2-A-a",
+       "name": "At GO; after Transition; the rifle hanging with a double feed; the P-12 locked back on an empty",
+       "query": "v=a",
+       "shot": "wcard2/shots/wc2-a-a.png",
+       "native": [
+        740,
+        164
+       ],
+       "report": {
+        "frame": [
+         740,
+         164
+        ]
+       }
+      }
+     ]
     },
     {
      "id": "WC2-B",
      "title": "WC2-B: the same strip, the place in a word",
      "about": "As A, with the place spelt out (HOLSTER, HANGING, SLUNG, BACK) in place of the glyph, the silhouette and the condition after it.",
      "sets": null,
-     "views": []
+     "views": [
+      {
+       "id": "WC2-B-a",
+       "name": "At GO; after Transition; the rifle hanging with a double feed; the P-12 locked back on an empty",
+       "query": "v=b",
+       "shot": "wcard2/shots/wc2-b-a.png",
+       "native": [
+        740,
+        164
+       ],
+       "report": {
+        "frame": [
+         740,
+         164
+        ]
+       }
+      }
+     ]
     },
     {
      "id": "WC2-C",
      "title": "WC2-C: two half cards side by side",
      "about": "Each gun's own card at half its size, the one in use on the left and lit, the other on the right and dimmed. Both guns are whole, but every word and mark is half as big.",
      "sets": null,
-     "views": []
+     "views": [
+      {
+       "id": "WC2-C-a",
+       "name": "At GO; after Transition; the rifle hanging with a double feed; the P-12 locked back on an empty",
+       "query": "v=c",
+       "shot": "wcard2/shots/wc2-c-a.png",
+       "native": [
+        740,
+        164
+       ],
+       "report": {
+        "frame": [
+         740,
+         164
+        ]
+       }
+      }
+     ]
     }
    ]
   }

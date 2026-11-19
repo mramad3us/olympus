@@ -24,7 +24,8 @@
 // changing by the minute: no redraw) and setSunElevation(deg) (the key light's height, redrawn a degree
 // at a time); setArea(area) (its group, lamps and strip-light map);
 // setFocus({ x, z, h, w }) (the figure seen through to: things between it and the camera are drawn
-// see-through); setFog(texture, x0, z0, w, h, dimK) (the fog of awareness, src/render/fog.js);
+// see-through); setFog(texture, x0, z0, w, h, dimK, known) (the fog of awareness, src/render/fog.js; known, v0.0.23, the
+// unfamiliar place's mask, src/render/known.js, or null);
 // setPalette(name | colours). stats holds the last frame's draw calls, triangles and milliseconds.
 //
 // The GPU's time by pass (TECH §16.5), where the browser offers EXT_disjoint_timer_query_webgl2

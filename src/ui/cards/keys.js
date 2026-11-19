@@ -28,6 +28,10 @@
 // The 0.0.12 round's (the build sheet 0.0.12 §8 item 7; VIEWS §10): in the shoot house V is the movement stance (Relaxed,
 // Combat, Assault) where the scene's spec sets `stances`, and Backspace stops a drill T started after its running beat
 // (HOUSE_KEYS); elsewhere V stays the carry posture.
+// v0.0.23 (its build sheet item 15, carried FH-8): in the shoot house (keysRows' scene, a scene whose course is 'house') the card leads
+// with a block of its own, "In the shoot house" (HOUSE_BLOCK: T, G, X, the walk, the digits, V, Backspace, then Space, Esc and ?,
+// HOUSE_KEYS folded into it), then the rest less those rows, R's words without the wait R has none of there (the first-hour lens:
+// the card led with run, stroll and R's "wait 15 min" and named G, X and T among twenty others).
 import { bindingOf } from '../../core/keys.js';
 
 /** The actions with a meaning in this build, in the card's order (the walk and the digits are rows of their own). */
@@ -86,10 +90,35 @@ export const PANEL_DIGITS = Object.freeze({
 /** The layout-only rows of STOP_KEYS, by their first key: kept for their own layout alone. */
 const LAYOUT_ROW = Object.freeze({ Tab: 'c', KeyR: 'b', Escape: 'a' });
 
-/** The card's rows: [[keys, words]…]. label(action or code) names a key; says overrides words; extra adds rows (the debug keys); panel the step panel's layout played (null: every layout's rows, as before). */
-export function keysRows({ label, says = {}, extra = [], panel = null }) {
-  const rows = [[`${label('up')} ${label('left')} ${label('down')} ${label('right')}`, 'walk (the arrows too)']];
+/** The shoot house's block (carried FH-8): [action or code, words]; 'walk' the four move keys, 'digits' 1 to 0. */
+export const HOUSE_BLOCK = Object.freeze([
+  ['instinct', 'what the instinct says; at a door below the corporal it gives you X, never the feet'],
+  ['ready', 'the panel: time stands still while you choose'],
+  ['shoot', 'out of the panel: the clock runs, the keys move you'],
+  ['walk', 'walk, the way the instructor calls it'],
+  ['digits', 'the panel\'s rows, as their words say'],
+  // (DW: the Watch and Look rows, and the dead corner named once (the help the log of 2026-11-17 asks for; my call: on this card,
+  // the one help in the house, the inventory card's being the kit's))
+  ['watchlook', 'Watch, outside: your muzzle on the spot as you go in. Look, inside: check it. A push door hides a corner behind it: "Look: behind the door"'],
+  ['carry', 'the stance: Relaxed (rifle slung), Careful (slower, steadier shots on the move), Fast (quicker, moving shots worse)'],
+  ['Backspace', 'a drill running (a bundle T started): stop after its beat'],
+  ['pause', 'pause'], ['menu', 'the menu'], ['help', 'these keys'],
+]);
+/** The heading of the house's block, a row with no key. */
+export const HOUSE_HEAD = 'In the shoot house';
+/** The actions the house's block names, left out of the rest of the card there. */
+const IN_BLOCK = new Set(['instinct', 'ready', 'shoot', 'carry', 'pause', 'menu', 'help']);
+
+/** The card's rows: [[keys, words]…]. label(action or code) names a key; says overrides words; extra adds rows (the debug keys); panel the step panel's layout played (null: every layout's rows, as before); scene the test scene played ({ course }: 'house' leads with HOUSE_BLOCK). */
+export function keysRows({ label, says = {}, extra = [], panel = null, scene = null }) {
+  const walk = `${label('up')} ${label('left')} ${label('down')} ${label('right')}`;
+  const house = scene?.course === 'house';
+  const rows = house ? [[null, HOUSE_HEAD], ...HOUSE_BLOCK.map(([k, w]) => [k === 'walk' ? walk : k === 'digits' ? '1 … 0' : k === 'watchlook' ? 'Watch, Look' : label(k), w]), [null, 'Everywhere']] : [];
+  rows.push([walk, 'walk (the arrows too)']);
   for (const action of KEYS_IN_BUILD) {
+    if (house && IN_BLOCK.has(action)) continue;
+    // (in the house R has no wait: its words without it)
+    if (house && action === 'hand') { rows.push([label(action), KEY_WORDS.hand]); continue; }
     if (action === 'digits') { rows.push(['1 … 0', says.digits ?? KEY_WORDS.digits]); if (PANEL_DIGITS[panel]) rows.push(...PANEL_DIGITS[panel]); continue; }
     if (action === 'stance') { rows.push([`${label('stanceUp')} ${label('stanceDown')}`, says.stance ?? KEY_WORDS.stance]); continue; }
     rows.push([label(action), says[action] ?? KEY_WORDS[action] ?? bindingOf(action)?.say ?? action]);
@@ -98,7 +127,7 @@ export function keysRows({ label, says = {}, extra = [], panel = null }) {
   for (const [ks, words] of STOP_KEYS) if (!panel || !LAYOUT_ROW[ks[0]] || LAYOUT_ROW[ks[0]] === panel) rows.push([ks.map(k => label(k)).join(' '), words]);
   for (const [ks, words] of CONTACT_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
   for (const [ks, words] of MENU_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
-  for (const [ks, words] of HOUSE_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
+  if (!house) for (const [ks, words] of HOUSE_KEYS) rows.push([ks.map(k => label(k)).join(' '), words]);
   for (const r of extra) rows.push(r);
   return rows;
 }
@@ -108,6 +137,6 @@ export function keysCard(rows) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids); return n; };
   return el('div', { className: 'glass keys' },
     el('h3', { textContent: 'Keys' }),
-    el('div', { className: 'keylist' }, ...rows.flatMap(([k, say]) => [el('kbd', { textContent: k }), el('span', { textContent: say })])),
+    el('div', { className: 'keylist' }, ...rows.flatMap(([k, say]) => (k === null ? [el('span', { className: 'khead', textContent: say, style: 'grid-column: 1 / -1; color: var(--brass); letter-spacing: 0.08em; margin-top: 4px' })] : [el('kbd', { textContent: k }), el('span', { textContent: say })]))),
     el('p', { className: 'note', textContent: 'Read by where they sit on the keyboard, so any layout plays the same; labelled AZERTY. ? or Esc to close.' }));
 }

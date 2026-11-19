@@ -25,7 +25,9 @@ export default [
     fn() {
       // (the slice's own length, the noise of a shared machine removed as F60's tick is (stage 0's tick-costs.mjs): the lesser longest
       // of two whole bakes, held to the bound × the machine's factor read just before and just after them, the slower)
-      const k0 = machineNow().k, N0 = engineOn('new'), N1 = engineOn('new'), k = Math.max(k0, machineNow().k);
+      // (V-c by name: the lines and the call-outs this case bakes are the synthesis's, no longer the game's default (the user,
+      // 2026-11-19, "forget voice synthesis, no voices."); v0.0.24 removes the synthesis and this case's lines with it)
+      const k0 = machineNow().k, N0 = engineOn('new', {}, 'c'), N1 = engineOn('new', {}, 'c'), k = Math.max(k0, machineNow().k);
       const N = N0.audio.stats.bake.longestMs <= N1.audio.stats.bake.longestMs ? N0 : N1, B = N.audio.stats.bake, other = (N === N0 ? N1 : N0).audio.stats.bake.longestMs;
       const g = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go' }), lines = calloutLines(g.state.armoury.range.turners);
       const queued = N.audio.prebakeCallouts(lines);

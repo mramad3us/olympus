@@ -39,7 +39,8 @@ export default [
       const looks = [suit('low'), suit('front'), wear({ outfit: 'utilities', weapon: 'pistol', carry: 'low', carrier: true, seed: 5 })];
       const parts = [];
       for (const L of looks) for (const d of DIRS) {
-        for (const f of FRAMES) { const fr = composeFrame(L, d, f, { ppm: PPM }); parts.push(shade(fr.cells, coloursOf(fr.look, PPM)).data); assert(!fr.hands, `${f} ${d} reports hands`); }
+        // (v0.0.23: the P-12's band (poses.js BANDS.pistol, the user's note of 2026-11-17) is new frames, left out: every frame before it as pinned)
+        for (const f of FRAMES.filter(x => !BANDS.pistol.includes(x))) { const fr = composeFrame(L, d, f, { ppm: PPM }); parts.push(shade(fr.cells, coloursOf(fr.look, PPM)).data); assert(!fr.hands, `${f} ${d} reports hands`); }
         for (const b of BEAT_FRAMES) { const fr = composeFrame(L, d, 'idle0', { ppm: PPM, pose: beatPose(b, { weapon: L.weapon, carry: L.carry }) }); parts.push(shade(fr.cells, coloursOf(fr.look, PPM)).data); assert(!fr.hands, `${b} ${d} reports hands`); }
       }
       const all = new Uint32Array(parts.reduce((a, p) => a + p.length, 0));

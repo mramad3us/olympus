@@ -70,7 +70,7 @@
 import { PX_PER_M } from './scale.js';
 import { createPixels } from './decals.js';
 import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART,
-  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, leafArcPixels, cornerAidPixels, floorRiflePixels, paintPuffPixels, jambMarks } from './range-items.js';
+  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, CORNER_LIT_Y_M, leafArcPixels, cornerAidPixels, floorRiflePixels, paintPuffPixels, jambMarks } from './range-items.js';
 import { createCollector, buildAreaData } from '../art/jobs.js';
 import { areaFromJob, newPart } from './batch.js';
 import { paintKdFace, facePx } from '../art/kit/range.js';
@@ -238,6 +238,17 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
         hs.aid = 0;
         // (as light, untinted: the fog of awareness never dims the aid (decals.js createPixels' light), the room unseen until you are in it)
         for (const q of cornerAidPixels(HS.aid, ppm)) { if (!inViews(views, q.x, q.z)) continue; if (over.set(no, { ...q, color: q.c, tint: [1, 1, 1], part: 0, noLine: true, light: true })) { no++; hs.aid++; hs.pixels++; } }
+        // (DW, the review of 2026-11-18: the corner under the panel's cursor (view.js's lit copy, c.lit) drawn again in the over
+        // layer after the aid and a hair above it (CORNER_LIT_Y_M), so "Look: behind the door" lights where your corner's bracket lies; in
+        // the floor's light as the floor is where you see it (c.lit true), as light where the house is known (c.lit 'known': the set,
+        // briefed), so a Watch row lights its spot over the remembered floor behind the shut door; a drawn house's spot you do not see
+        // (c.lit 'hidden') not at all)
+        hs.lit = 0;
+        for (const c of HS.corners ?? []) {
+          if ((c.lit !== true && c.lit !== 'known') || c.gone || c.clear || !inViews(views, c.x, c.z)) continue;
+          const known = c.lit === 'known';
+          for (const q of cornerPixels(c, ppm)) { const y = CORNER_LIT_Y_M; if (over.set(no, { ...q, y, color: q.c, tint: known || !tintOf ? [1, 1, 1] : tintOf(q.x, q.z), part: 0, noLine: true, ...(known ? { light: true } : {}) })) { no++; hs.lit++; hs.pixels++; } }
+        }
         const hung = new Set((look.pairs?.turners ?? []).map(t => t.key));
         for (const t of HS.stands ?? []) {
           if (!t || hung.has(t.key) || !t.face || !inViews(views, t.x, t.z)) continue;

@@ -18,7 +18,7 @@
 // LATER; a renamed test or a gauge taken out of its ENFORCED fails it, so the list never claims a check that is gone, and never
 // counts as met a gauge that is red (the review of 2026-11-16: "MET 194" counted F70, F71 and F73, red in their heavy suites). The
 // release announcement quotes the USER and the OPEN rows. Group C, the gauges, is generated: one row a
-// gauge, F1 to F84 (GAUGE_LAST). Pure data and two resolvers.
+// gauge, F1 to F99 (GAUGE_LAST). Pure data and two resolvers.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -56,6 +56,18 @@ export const GAUGE_HOMES = Object.freeze([
   { from: 82, to: 82, file: 'flawless-end.mjs', role: 'C', by: 'house-live-words › the live lane\'s words over 8 seeds' },
   { from: 83, to: 83, file: 'ui-houseplan.test.mjs', role: 'D', by: 'ui-houseplan › the ghost' },
   { from: 84, to: 84, file: 'flawless-held.mjs', role: 'D' },
+  // (v0.0.23, its build sheet §8 and the stage-0 lead's F97: A's record against the stage, enforced in SEEN_ENFORCED)
+  { from: 85, to: 86, file: 'flawless-seen.mjs', role: 'A' },
+  { from: 97, to: 97, file: 'flawless-seen.mjs', role: 'A' },
+  // (B's: nobody drawn before seen and the unknown house, enforced in KNOWN_ENFORCED; their page halves ui-unknown's)
+  { from: 87, to: 88, file: 'flawless-known.mjs', role: 'B' },
+  // (C's: the portraits, F89 to F91, and the lead's F98 and F99 for the P-12's stances and the slung R-7, enforced in PORTRAIT_ENFORCED)
+  { from: 89, to: 91, file: 'flawless-portrait.mjs', role: 'C' },
+  { from: 98, to: 99, file: 'flawless-portrait.mjs', role: 'C' },
+  // (D's: the carried fixes, F92 to F95 enforced in CARRIED_ENFORCED (F92 and F93 by house-reader's sweep, heavy; F94 by house-live-brief,
+  // F95 by house-again-brief), F96 by its page case)
+  { from: 92, to: 95, file: 'flawless-carried.mjs', role: 'D' },
+  { from: 96, to: 96, file: 'ui-goal-clamp.test.mjs', role: 'D', by: 'ui-goal-clamp' },
 ]);
 /** The gauges' names, a short line each (COMBAT §25.19.8 and the sheets' §8; group C's rows). */
 export const GAUGE_WHAT = Object.freeze({
@@ -77,8 +89,15 @@ export const GAUGE_WHAT = Object.freeze({
   F74: 'the deriver checks every plan', F75: 'the eight rooms\' cases', F76: 'eight-room lanes in their pars', F77: 'nobody at rest in a no-stop zone',
   F78: 'the stack\'s own grenade', F79: 'nobody into a live grenade', F80: 'the drawn live lanes', F81: 'the race by post',
   F82: 'the lane ends as it is ended', F83: 'the ghost on its own key, whole pixels, a 4× replay\'s frames', F84: 'the held device drawn',
+  F85: 'the record agrees with the stage', F86: 'no key moves in a pause, the stage\'s looks as recorded', F97: 'the P-12\'s posture, one record',
+  F87: 'nobody drawn before seen', F88: 'the unknown house drawn as seen',
+  F89: 'the gun reads on the card', F90: 'the card shows what you see', F91: 'the card\'s cost', F98: 'the P-12\'s stances drawn', F99: 'the slung R-7 while the pistol is up',
+  F92: 'the walk in by the words', F93: 'the line follows the legs', F94: 'the words keep their meaning', F95: 'Again\'s brief', F96: 'the goal line never clipped',
 });
-export const GAUGE_LAST = 84;
+// (v0.0.23's integration, the stage-0 lead's plan: F97 to F99, the P-12's gauges of the user's fourth note of 2026-11-17, homed
+// from A's and C's merges, counted at the last step; the instructor's sterile walk takes no F number, house-sterile-walk stands as a
+// test (the lead's call), and v0.0.24's sheet shifts its numbers by exactly three)
+export const GAUGE_LAST = 99;
 /** The gauge's home (GAUGE_HOMES' row), or null. */
 export const homeOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_HOMES.find(h => n >= h.from && n <= h.to) ?? null; };
 
@@ -248,6 +267,62 @@ export const DONE = Object.freeze([
   { id: 'MD6', group: 'M', what: 'the G-11 in your hand on the stage, nothing baked mid-lane', check: test('ui-held-device'), by: 'v0.0.22 D' },
   { id: 'MD7', group: 'M', what: 'the samples to score: held-devices (G, T, B, R, C; the defaults G1, T1, B1, R1, C1 drawn until scored)', check: { kind: 'sample', ref: 'held-devices' } },
   // (D: the page and the art)
+  // ---- N. v0.0.23 (its build sheet §1): each role's rows directly below its own anchor ----
+  // (A: the record of what you see and the back of a man, F85 and F86; the P-12's posture in the record, F97)
+  { id: 'NA1', group: 'N', what: 'one record of what you see of a man (his hold, his pose, his facing from your eye), the key only what a portrait draws', check: test('seen › the key holds only what is drawn'), by: 'v0.0.23 A' },
+  { id: 'NA2', group: 'N', what: 'the record agrees with the stage on every tick, the stage\'s look keys as recorded (F85, F86): the turner lanes\' quick cell', check: test('seen-parity › the turner lanes'), by: 'v0.0.23 A' },
+  { id: 'NA3', group: 'N', what: 'the same on the live lane\'s quick cell, the role-players\' frames held', check: test('seen-parity-live › the live lane'), by: 'v0.0.23 A' },
+  { id: 'NA4', group: 'N', what: 'the same on the 28 pinned lanes, each held to its pin', check: test('seen-parity › the 28 pinned lanes (heavy)'), by: 'v0.0.23 A' },
+  { id: 'NA5', group: 'N', what: 'the P-12 drawn has the rifle\'s stances in the record: low ready, high ready, aimed, the draw and the holster (F97)', words: W('2026-11-17', 'sidearm should have the same stances (low ready, high ready, aimed, etc) as the rifle'), check: test('seen › the P-12 drawn has the rifle\'s stances'), by: 'v0.0.23 A' },
+  { id: 'NA6', group: 'N', what: 'the back of a man: no hands where his body hides them, the carrier\'s back panel, a rifle on his back whole, the anchors where the front\'s are', check: test('portrait-back'), by: 'v0.0.23 A' },
+  { id: 'NA7', group: 'N', what: 'the record imports no scenario and loads first in its own process', check: test('import-order › people/seen.js'), by: 'v0.0.23 A' },
+  { id: 'NA8', group: 'N', what: 'the P-12\'s admin read as it runs: the press check, the reload and the clearing, each tick by your action and your drawn frame (F97\'s act rows)', words: W('2026-11-17', 'sidearm should have the same stances (low ready, high ready, aimed, etc) as the rifle'), check: test('seen › the P-12\'s admin read as it runs'), by: 'v0.0.23 A' },
+  // (B: the stage's knowledge, nobody before seen and the unknown house, F87 and F88)
+  { id: 'NB1', group: 'N', what: 'nobody drawn before you have seen him: at GO on the live lane neither role-player drawn, each from his first sighting, then as last seen (F87, node half)', words: W('2026-11-17', 'we see what is in the rooms before entering them, this should not be the case when we start generating procedurally'), check: test('house-unseen › F87 (node half)'), by: 'v0.0.23 B' },
+  { id: 'NB2', group: 'N', what: 'a load keeps the men seen before it (your sightings, the rooms you entered), and no other', check: test('house-unseen › a load keeps'), by: 'v0.0.23 B' },
+  { id: 'NB3', group: 'N', what: 'a drawn house drawn only as you see into it: no cell known before in sight, none unknown again (F88, node half)', check: test('view-unknown › F88 (node half)'), by: 'v0.0.23 B' },
+  { id: 'NB4', group: 'N', what: 'the rebuild at a load from the legs: a room entered known whole, the hall as walked', check: test('view-unknown › the rebuild at a load'), by: 'v0.0.23 B' },
+  { id: 'NB5', group: 'N', what: 'familiar places as before: the set house, the named layouts, the live lane as set, the bay', check: test('view-unknown › familiar places'), by: 'v0.0.23 B' },
+  { id: 'NB6', group: 'N', what: 'in the page: the drawn lane\'s rooms black (U1) until seen, the known cells\' sends under UPLOAD_MID_KB; the set house v0.0.22\'s picture to the byte; neither man drawn at GO (F87, F88)', check: test('ui-unknown'), by: 'v0.0.23 B' },
+  // (C: the portraits, F89 to F91; the P-12's stances and the slung R-7's hang, F98 and F99)
+  { id: 'NC1', group: 'N', what: 'the gun in his hands on the card in the board\'s ink, where the stage paints it: 2a armoured with a pistol, the hostage\'s hostile, 1a, at the three bands (F89)', words: W('2026-11-17', 'the portrait of the NPC holding a gun does not display the gun they are holding'), check: test('portrait-gun › F89 the gun reads on the house'), by: 'v0.0.23 C' },
+  { id: 'NC2', group: 'N', what: '"Bang"\'s boards as starred until question 1: no ink, the gun hanging', check: test('portrait-gun › "Bang"'), by: 'v0.0.23 C' },
+  { id: 'NC3', group: 'N', what: 'the warm set holds every face the fill gives, armoured with a pistol among them', check: test('portrait-warm'), by: 'v0.0.23 C' },
+  { id: 'NC4', group: 'N', what: 'the card never contradicts the stage: never empty hands where it draws a gun, the take-in\'s read in the words (F90)', check: test('portrait-agrees › F90'), by: 'v0.0.23 C' },
+  { id: 'NC5', group: 'N', what: 'the man as he stands: aimed at you, kneeling, sitting, hands up, each its own doll; from behind and side on (F90)', words: W('2026-11-17', 'the portraits need to be more dynamic and show us what we would be seeing, including what they are holding'), check: test('portrait-dynamic › on the live lane'), by: 'v0.0.23 C' },
+  { id: 'NC6', group: 'N', what: 'turned away, drawn from behind; side on, the head turned', check: test('portrait-dynamic › a role-player turned'), by: 'v0.0.23 C' },
+  { id: 'NC7', group: 'N', what: 'you on the C card as in a mirror: kneeling, prone, a G-11, the P-12', words: W('2026-11-15', 'the I and C menu preview of the character should show the currently worn gear'), check: test('portrait-dynamic › you on the C card'), by: 'v0.0.23 C' },
+  { id: 'NC8', group: 'N', what: 'the marks where the sim put them whatever the pose and facing, "Bang"\'s unmoved', check: test('portrait-marks'), by: 'v0.0.23 C' },
+  { id: 'NC9', group: 'N', what: 'the card\'s cost: a posed doll under 4 ms × k, one new doll a frame, every doll warmed or a variant (F91)', check: test('portrait-perf'), by: 'v0.0.23 C' },
+  { id: 'NC10', group: 'N', what: 'the P-12\'s stances drawn on the stage, the doll and the card; the rifle\'s frames as before (F98)', words: W('2026-11-17', 'sidearm should have the same stances (low ready, high ready, aimed, etc) as the rifle'), check: test('portrait-p12 › F98'), by: 'v0.0.23 C' },
+  { id: 'NC11', group: 'N', what: 'the R-7 hanging on its sling while the pistol is up, never through the arms, swinging with the walk (F99)', words: W('2026-11-17', 'Holding the sidearm with the rifle dangling should be redrawn'), check: test('portrait-p12 › F99'), by: 'v0.0.23 C' },
+  { id: 'NC12', group: 'N', what: 'in the page: the user\'s saves of 4028068471, the gun in the board\'s ink on 2a\'s and the hostage\'s cards, the live 2a\'s card his record', check: test('ui-portrait'), by: 'v0.0.23 C' },
+  // (D: the carried fixes, F92 to F96)
+  { id: 'ND1', group: 'N', what: 'the walk in named along #1\'s path: "Q to the door, S through it, then D", never into the wall beside the doorway', check: test('house-walkwords › the walk-in words on every room'), by: 'v0.0.23 D' },
+  { id: 'ND2', group: 'N', what: 'the walk-in line re-read the tick your leg changes (F93)', check: test('house-walkkey › the walk-in line names the leg'), by: 'v0.0.23 D' },
+  { id: 'ND3', group: 'N', what: 'the reading recruit and private through every door by the words, 80 lanes (F92, F93)', check: test('house-reader'), by: 'v0.0.23 D' },
+  { id: 'ND4', group: 'N', what: 'a room passed at its open door taught as one: "You stood at an open door. …"', check: test('house-one-passed › the honest recruit on 48213'), by: 'v0.0.23 D' },
+  { id: 'ND5', group: 'N', what: 'T names the key it will not press: "6: yours. T never shoots.", the row pulsed', check: test('ui-t-names'), by: 'v0.0.23 D' },
+  { id: 'ND6', group: 'N', what: 'the goal line whole at three lines, the live lane\'s its own, every PA page whole (F96)', check: test('ui-goal-clamp'), by: 'v0.0.23 D' },
+  { id: 'ND7', group: 'N', what: 'Again: the short brief, LOAD 6.1 s after the fill, not 23 (F95)', check: test('house-again-brief › Again of the same lane'), by: 'v0.0.23 D' },
+  { id: 'ND8', group: 'N', what: 'the Tests list opens on the scene played last, else "Stack and clear"', check: test('tests-focus'), by: 'v0.0.23 D' },
+  { id: 'ND9', group: 'N', what: 'the keys card leads with the shoot house\'s keys in the house', check: test('keys-house'), by: 'v0.0.23 D' },
+  { id: 'ND10', group: 'N', what: 'the picker\'s note and the Kit line in plain words', check: test('house-words › the house\'s picker note'), by: 'v0.0.23 D' },
+  { id: 'ND11', group: 'N', what: 'the Kit line says how to choose', check: test('ui-loadout › the Kit screen says'), by: 'v0.0.23 D' },
+  { id: 'ND12', group: 'N', what: 'the instructor agrees with the drill: the #2 low, never "muzzle up" over him', check: test('house-words › the instructor agrees with the drill'), by: 'v0.0.23 D' },
+  { id: 'ND13', group: 'N', what: 'the live lane briefed as live, a sterile check on the floor before LOAD (F94)', check: test('house-live-brief › the live lane is briefed as live'), by: 'v0.0.23 D' },
+  { id: 'ND14', group: 'N', what: 'F94 from the fill to the card on 28 live lanes', check: test('house-live-brief › F94 from the fill to the card'), by: 'v0.0.23 D' },
+  { id: 'ND15', group: 'N', what: 'a save inside the sterile check carries on to LOAD byte for byte', check: test('house-sterile-save'), by: 'v0.0.23 D' },
+  { id: 'ND16', group: 'N', what: 'the door rows say what they do: "Look: behind the door", "check" on the row, the corner the open door hides on its hover', words: W('2026-11-17', 'i don\'t know what the "look behind the door" option does'), check: test('house-words › every Watch and Look row'), by: 'v0.0.23 D' },
+  { id: 'ND17', group: 'N', what: 'the spot a Watch or Look row names lit on the floor under the cursor', words: W('2026-11-17', 'same for the watch the near right corner etc'), check: test('ui-hot-lit'), by: 'v0.0.23 D' },
+  { id: 'ND18', group: 'N', what: 'two v0.0.22 saves load under the new rules: the walk words, passWhy \'door\', the sterile check begun', check: test('game-upgrade › v0.0.23 (its build sheet §2 step 4)'), by: 'v0.0.23 D' },
+  { id: 'ND20', group: 'N', what: 'the hostage line on safe gives T the thumb, never a dead end (found by F92)', check: test('house-hostage-safe'), by: 'v0.0.23 D' },
+  { id: 'ND19', group: 'N', what: 'the instructor walks to the catwalk, never jumps there (FH-10)', check: later('v0.0.24: not taken in v0.0.23 (its build sheet item 19, question 13: built only with every pin\'s ticks held; not measured this round)') },
+  // (E: the samples and the To score page; no gauge)
+  { id: 'NE1', group: 'N', what: 'every look set this round and the next depend on, made first, and one "To score" list of every open set with its default', words: W('2026-11-17', 'the portraits need to be more dynamic and show us what we would be seeing, including what they are holding'), check: test('gallery-open'), by: 'v0.0.23 E' },
+  { id: 'NE2', group: 'N', what: 'the portraits\' sets shot whole, their defaults views of their sets, the candidates C\'s tables', check: test('samples-portrait'), by: 'v0.0.23 E' },
+  { id: 'NE3', group: 'N', what: 'the anywhere round\'s two sets (a floating body\'s height, mag boots and the anchors) shot whole', check: test('samples-void'), by: 'v0.0.23 E' },
+  ...['portrait-gun', 'house-unknown', 'portrait-light', 'portrait-pose', 'portrait-facing', 'pistol-stances', 'portrait-suit', 'truth-cards', 'float-look', 'mag-boots'].map((set, i) => ({ id: `NE4${String.fromCharCode(97 + i)}`, group: 'N', what: `the samples to score: ${set}`, check: { kind: 'sample', ref: set } })),
 ]);
 
 /** Group C: one row a gauge, F1 to GAUGE_LAST. */

@@ -1,0 +1,36 @@
+{
+ "title": "The gun in his hands on the target card: how it reads, where he holds it, the hostage card's hostile",
+ "about": "Your note of 2026-11-17: \"the portrait of the NPC holding a gun does not display the gun they are holding\". The card is \"Bang\"'s B, the khaki board you scored 99 (src/art/doll/hitcard.js), and its painted man held his gun hanging from the right hand in the board's two tones: the gun was lost in the khaki (0 pixels in a tone of its own) and the rifle hung half below the card's crop. Every picture is the game's own doll and card code with only the gun's own pixels toned by the candidate (samples/portrait-lib/card.js): your stands of seed 4028068471 (2a the armoured face with a pistol, 1a a threat with a rifle, 3b the hostage card) and a threat with a pistol, each at the near, mid and far bands (4, 14 and 30 m), today's card on the first row for comparison (not scored). G decides how the gun reads, W where he holds it, H what the hostage's hostile holds beside her. Drawn in this release at the defaults G1, W1 and H1 (a fix of what the card already claims to show, so it waits for no score); your pick replaces them. \"Bang\"'s own boards keep their starred look until you say otherwise (question 1). Where it meets the other sets: W2 is doll-gear's R-b; target-view's H decides on which side of her the hostile stands.",
+ "open": {"default": ["G1", "W1", "H1"], "since": "2026-11-17", "decides": "the gun on the target card: its tone (G), where he holds it (W), the hostage card's hostile (H)", "builtIn": "v0.0.23"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "G",
+   "title": "G: how the gun reads on the khaki board",
+   "about": "Held at the ready (W1). G1 (the default) the gun in the board's dark ink (0x2a2216), its lit pixels a step lighter (0x3d3220), as the stage paints a turner's hold; G2 the gun in its own colours, the polymer black and the steel over the khaki, as photo-threat boards print it; G3 the ink with a one-pixel khaki rim on the pixels round it, so its outline separates from the arms.",
+   "views": [
+    { "id": "G1", "name": "G1: the board's dark ink (the default)", "query": "g=G1", "pixel": "820x830" },
+    { "id": "G2", "name": "G2: its own colours", "query": "g=G2", "pixel": "820x830" },
+    { "id": "G3", "name": "G3: ink with a khaki rim", "query": "g=G3", "pixel": "820x830" }
+   ]
+  },
+  {
+   "id": "W",
+   "title": "W: where the painted man holds it",
+   "about": "In G1's ink. W1 (the default) at the low ready as the stage paints it: the rifle across the body 35° below level, the right hand at the grip and the left at the handguard; the pistol between both fists at the belly. W2 hanging from the right hand as today, the card's crop lowered to the knee (the figure's rows 4 to 150 at the near band, the board standing higher on shorter stakes) so the rifle is whole.",
+   "views": [
+    { "id": "W1", "name": "W1: at the ready (the default)", "query": "w=W1", "pixel": "820x830" },
+    { "id": "W2", "name": "W2: hanging, the crop to the knee", "query": "w=W2", "pixel": "820x830" }
+   ]
+  },
+  {
+   "id": "H",
+   "title": "H: the hostage card's hostile",
+   "about": "The hostile behind the hostage at the viewer's right (target-view's H-a), in G1's ink: today's card (his pistol hanging from his hand behind her, never seen), then the candidate in belief with a round to the head called, in truth (the hole in the head, the coach's line) and at the mid band. H1 (the default) his fist at her head, the P-12 level at her temple; H2 his rifle up beside her shoulder, the muzzle high.",
+   "views": [
+    { "id": "H1", "name": "H1: his pistol at her head (the default)", "query": "h=H1", "pixel": "820x218" },
+    { "id": "H2", "name": "H2: his rifle up beside her", "query": "h=H2", "pixel": "820x218" }
+   ]
+  }
+ ]
+}

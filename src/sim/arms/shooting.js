@@ -1469,7 +1469,13 @@ export const STANCE_POSTURE = Object.freeze({ relaxed: 'slungFront', combat: 'lo
 export function gaitAction(state, bus) {
   const me = meOf(state), pid = playerId(state);
   if (!me) return { ok: false, why: 'nobody' };
-  const from = me.moveStance ?? 'relaxed', to = MOVE_STANCES[(MOVE_STANCES.indexOf(from) + 1) % MOVE_STANCES.length];
+  const from = me.moveStance ?? 'relaxed';
+  let to = MOVE_STANCES[(MOVE_STANCES.indexOf(from) + 1) % MOVE_STANCES.length];
+  // (the play review's eighth finding: with the P-12 in the hand Relaxed is passed over, for a pistol is never
+  // slung: V set its posture 'slungFront' with it still drawn, a press with nothing seen, one in three; now V goes between Combat and
+  // Assault by the pistol's posture, the low and the high ready, so every press changes it, as carryAction's V does out of the house)
+  const gun = handGunOf(state, pid);
+  if (gun && state.items?.[gun]?.model === 'p12') to = postureOf(state, pid) === 'highReady' ? 'combat' : 'assault';
   setStance(state, bus, pid, to);
   const want = STANCE_POSTURE[to], now = postureOf(state, pid);
   if (want === now) return { ok: true, why: null, to };

@@ -675,7 +675,9 @@ export default [
     name: 'each \'house\' fact\'s cue (audio/house.js createHouse, 0.0.12): GO the PA and the start beep; the #2\'s stack his whisper ("Ready"), yours none; a push, a pull, a kick by their verbs; "Clear!" shouted and the double beep for a room within par; the harness\'s tone at a par missed, none at one met; a lock\'s rattle on a refusal; the instructor\'s "Standby"; nothing off the house, and the hall\'s send on in it and off out of it',
     fn() {
       const played = [], hall = [];
-      const H = createHouse({ house: (kind, o) => { played.push([kind, Math.round((o.delayS ?? 0) * 100) / 100]); return true; }, hall: (on) => hall.push(on) });
+      // (V-a by name: the stand-ins this case pins are voiced syllables, and the game's set is 'none' from v0.0.23's fixer (the user,
+      // 2026-11-19, "no voices"); no-voices.test.mjs holds the default's silence)
+      const H = createHouse({ house: (kind, o) => { played.push([kind, Math.round((o.delayS ?? 0) * 100) / 100]); return true; }, hall: (on) => hall.push(on) }, { voice: 'a' });
       const g = createGame({ scenario: 'test-handling', seed: 48213 }).state;
       const house = { ...g, armoury: { ...g.armoury, range: { ...(g.armoury?.range ?? {}), course: 'house' } } }, me = g.player.id;
       const facts = [['house', { phase: 'go' }], ['house', { phase: 'stacked', who: 'p:two' }], ['house', { phase: 'stacked', who: me }], ['house', { phase: 'open', kind: 'push' }], ['house', { phase: 'open', kind: 'pull' }], ['house', { phase: 'open', kind: 'kick' }], ['house', { phase: 'open' }], ['say', { who: 'p:two', text: 'Ready.', call: 'ready' }], ['say', { who: me, text: 'Ready.', call: 'ready' }],
@@ -734,7 +736,8 @@ export default [
       const s = g.state, me = s.player.id, H = s.armoury.range.house, chief = s.armoury.range.coachId;
       let nowS = 10;
       const said = [], cues = [];
-      const ear = createHouse({ house: (kind) => { cues.push(kind); return true; }, hall: () => {}, voice: (text, o) => { said.push({ text, ...o }); return true; }, now: () => nowS });
+      // (V-c by name: the game voices no line from v0.0.23's fixer, the user's "no voices" of 2026-11-19; the synthesis is pinned until v0.0.24 removes it)
+      const ear = createHouse({ house: (kind) => { cues.push(kind); return true; }, hall: () => {}, voice: (text, o) => { said.push({ text, ...o }); return true; }, now: () => nowS }, { voice: 'c' });
       const facts = [['house', { phase: 'go' }], ['say', { who: chief, text: 'GO!', kind: 'pa', durMs: 3830 }], ['say', { who: H.twoPid, text: 'Ready.', kind: 'speech', durMs: 3830 }], ['say', { who: me, text: 'Clear!', kind: 'speech', call: 'clear', durMs: 600 }],
         ['say', { who: H.twoPid, text: 'Covering!', kind: 'speech', durMs: 200 }], ['say', { who: 'p:man', text: "Don't shoot!", kind: 'speech', durMs: 4160 }], ['house', { phase: 'stacked', who: H.twoPid }], ['house', { phase: 'stop' }]];
       for (const [t, f] of facts) ear.fact(t, f, s);

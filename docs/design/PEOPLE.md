@@ -742,6 +742,8 @@ An NPC who sees you within 15 m knows your weapon's visible state (in hand, slun
 
 ---
 
+- **As built in v0.0.23** (`src/sim/people/seen.js`; VIEWS §7.11): the take-in's read (`seenFace`, `seenState`) is in the Seen record's `read` and the card's words, never in the picture; the picture is what the stage draws (the user, 2026-11-17: "show us what we would be seeing"). The stage draws nobody in a combat scene before the viewer has seen him (`src/sim/places/known.js` `seenEver`, VIEWS §2.11).
+
 ## 8. Relationships
 
 ### 8.1 Gauges toward you

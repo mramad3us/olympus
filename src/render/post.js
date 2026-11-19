@@ -33,6 +33,12 @@
 //      the mask half a metre south of it per metre up (a façade reads as the ground at its foot: the
 //      user, tradecraft 2026-11-03, "the flickering shadows on the buildings"), dithered against a 4 × 4
 //      Bayer matrix: unseen is dimmed, greyer, a little cold (dimK), felt is a cold pale tint;
+//   2a. the unknown (its build sheet item 7; the user, 2026-11-17: "we see what is in the rooms before entering
+//      them"): in an unfamiliar place, setFog's `known` (src/render/known.js: one bit a cell of the area, on the fog's lattice)
+//      looked up at the pixel's own world spot (no lift for height: a man or a box in a room never seen is as unknown as its
+//      floor, and a wall's face toward a known hall is drawn), and a cell never in sight painted UNKNOWN_C whole, before the
+//      fog's dim and instead of it: no outline, no grade and no palette snap on it (U1's black stays black), a chaos over the
+//      picture (a flash's white, the startle's dark) still over it, and a pixel of light still drawn. No `known`, no change;
 //   3. the outline, over the four neighbours: another part more than 0.35 m behind, or a depth jump of
 //      0.6 m, inks this pixel to 0.12 (a silhouette); another part 0.02–0.35 m behind, to 0.4 (a line
 //      between touching parts). Metric thresholds: a pixel up the ground or down a wall is 0.044 m
@@ -84,9 +90,9 @@ const QUAD_VERT = `out vec2 vUv; void main() { vUv = uv; gl_Position = vec4(posi
 const POST_FRAG = /* glsl */`
   precision highp float; precision highp int; precision highp sampler2D;
   in vec2 vUv; out vec4 outColor;
-  uniform sampler2D tColor, tDepth, tId, tFog, tLut, tPal;
-  uniform vec2 res; uniform float near, far, outline, grade, fogOn, dimK, srgb, eyeGain, eyeCone, eyeRod, eyeGlare;
-  uniform vec4 fogBox; uniform mat4 invVP; uniform vec3 peoplePart;
+  uniform sampler2D tColor, tDepth, tId, tFog, tLut, tPal, tKnown;
+  uniform vec2 res; uniform float near, far, outline, grade, fogOn, dimK, srgb, eyeGain, eyeCone, eyeRod, eyeGlare, knownOn;
+  uniform vec4 fogBox, knownBox; uniform ivec2 knownN; uniform vec3 unknownC; uniform mat4 invVP; uniform vec3 peoplePart;
   uniform int lutN, lutTiles, palCount, snapMode;
   uniform float chaosVig, chaosDither, chaosDrain, chaosDark, chaosPale, chaosWhite, chaosGrey, chaosAfter, chaosVeil, chaosVeilGrey;
   uniform vec2 chaosEye, chaosFace; uniform vec3 chaosBurst;
@@ -101,6 +107,13 @@ const POST_FRAG = /* glsl */`
   }
   // Unseen: darker, greyer, a little cold, as a memory of the place; at night much darker (dimK).
   vec3 dim(vec3 c) { float l = dot(c, vec3(0.30, 0.59, 0.11)); return mix(vec3(l), c, 0.3) * dimK + vec3(0.010, 0.016, 0.032) * dimK / 0.48; }
+  // (2a) A cell of the area never in sight: its bit in tKnown, eight cells a byte along x; off the grid, known.
+  bool unknownAt(vec2 p) {
+    ivec2 c = ivec2(floor((p - knownBox.xy) / knownBox.z));
+    if (c.x < 0 || c.y < 0 || c.x >= knownN.x || c.y >= knownN.y) return false;
+    int b = int(texelFetch(tKnown, ivec2(c.x / 8, c.y), 0).r * 255.0 + 0.5);
+    return ((b >> (c.x - (c.x / 8) * 8)) & 1) == 0;
+  }
   // Felt, not seen: the place as the mind has it, cold and pale.
   vec3 feltTint(vec3 c) { float l = dot(c, vec3(0.30, 0.59, 0.11)); return mix(c, vec3(0.60, 0.72, 0.95) * (l * 0.9 + 0.12), 0.72); }
   vec3 encode(vec3 c) {
@@ -151,13 +164,16 @@ const POST_FRAG = /* glsl */`
     // (0.0.9: a pixel of light (the ID's flag LIGHT_FLAG: a bang's flash) is never dimmed as unseen: a flash behind you lights what you see)
     vec4 id = texelFetch(tId, ip, 0);
     bool light = id.a > ${(LIGHT_FLAG - 0.05).toFixed(2)} && id.a < ${(LIGHT_FLAG + 0.05).toFixed(2)};
-    if (fogOn > 0.5 && raw < 0.99999 && !light) {
+    bool unk = false;
+    if (fogOn > 0.5 && raw < 0.99999 && !light && knownOn > 0.5 && unknownAt(wp.xz)) { unk = true; col = unknownC; }
+    else if (fogOn > 0.5 && raw < 0.99999 && !light) {
       vec2 fp = wp.xz + vec2(0.0, clamp(wp.y, 0.0, 1.0) * 0.5);
       vec2 fv = texture(tFog, (fp - fogBox.xy) / fogBox.zw).rg;
       if (fv.r < bayer(gl_FragCoord.xy)) col = dim(encode(clamp(eyeC * min(eyeCone, 1.0), 0.0, 1.0)));   // (the memory: darker to a light-adapted eye, never lit by a dark-adapted one)
       else if (fv.g > bayer(gl_FragCoord.xy + vec2(2.0, 1.0))) col = feltTint(col);
     }
-    if (outline > 0.5 && !(id.a > 0.25 && id.a < 0.75) && !light) {
+    if (unk) { /* (2a: the unknown is drawn flat, no line) */ }
+    else if (outline > 0.5 && !(id.a > 0.25 && id.a < 0.75) && !light) {
       float edge = 1.0;
       ivec2 o[4] = ivec2[4](ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1));
       for (int i = 0; i < 4; i++) {
@@ -179,7 +195,7 @@ const POST_FRAG = /* glsl */`
       for (int i = 0; i < 4; i++) { vec3 idn = texelFetch(tId, clamp(ip + o[i], ivec2(0), mx), 0).rgb; if (isPeople(idn)) n++; }
       if (n >= 2) col = mix(col, vec3(0.08, 0.08, 0.11), ${SILHOUETTE_K.toFixed(2)});
     }
-    if (grade > 0.0) {
+    if (grade > 0.0 && !unk) {
       float l = dot(col, vec3(0.30, 0.59, 0.11));
       col = mix(col, vec3(l), 0.18 * grade) * mix(vec3(1.0), vec3(1.05, 1.0, 0.9), grade);
       col += grade * max(0.0, 0.35 - l) * vec3(0.03, -0.01, 0.05);
@@ -205,7 +221,10 @@ const POST_FRAG = /* glsl */`
     if (chaosDark > 0.0 && !light) col *= 1.0 - chaosDark;
     if (chaosPale > 0.0) col = mix(col, vec3(0.95, 0.94, 0.9), chaosPale);
     col = clamp(col, 0.0, 1.0);
-    if (snapMode == 0) col = snapLut(col); else if (snapMode == 1) col = snapLoop(col);
+    // (2a: the unknown's colour kept exactly, unless a chaos moved it)
+    bool keepUnk = unk && all(lessThan(abs(col - unknownC), vec3(0.5 / 255.0)));
+    if (keepUnk) col = unknownC;
+    else if (snapMode == 0) col = snapLut(col); else if (snapMode == 1) col = snapLoop(col);
     outColor = vec4(col, 1.0);
   }`;
 
@@ -278,7 +297,8 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
     lutN: { value: LUT_LEVELS }, lutTiles: { value: LUT_TILES }, snapMode: { value: SNAP[snap] ?? 0 },
     res: { value: new THREE.Vector2(W, H) }, near: { value: near }, far: { value: far },
     outline: { value: outline ? 1 : 0 }, grade: { value: grade }, srgb: { value: gamma === 'srgb' ? 1 : 0 },
-    tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, dimK: { value: 0.48 }, eyeGain: { value: 1 }, eyeCone: { value: 1 }, eyeRod: { value: 0 }, eyeGlare: { value: 0 },
+    tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, dimK: { value: 0.48 },
+    tKnown: { value: null }, knownOn: { value: 0 }, knownBox: { value: new THREE.Vector4(0, 0, 1, 0) }, knownN: { value: new THREE.Vector2(0, 0) }, unknownC: { value: new THREE.Vector3(0, 0, 0) }, eyeGain: { value: 1 }, eyeCone: { value: 1 }, eyeRod: { value: 0 }, eyeGlare: { value: 0 },
     chaosVig: { value: 0 }, chaosDither: { value: 0 }, chaosDrain: { value: 0 }, chaosDark: { value: 0 }, chaosPale: { value: 0 }, chaosWhite: { value: 0 }, chaosGrey: { value: 0 }, chaosAfter: { value: 0 }, chaosVeil: { value: 0 }, chaosVeilGrey: { value: 0 },
     chaosEye: { value: new THREE.Vector2(W / 2, H / 2) }, chaosFace: { value: new THREE.Vector2(1, 0) }, chaosBurst: { value: new THREE.Vector3(0, 0, 0) },
     invVP: { value: new THREE.Matrix4() }, peoplePart: { value: new THREE.Vector3(...PEOPLE_ID) },
@@ -327,7 +347,21 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
     cropped = x === null ? null : [x, y, Math.max(1, w), Math.max(1, h)];
     fitBlit();
   }
-  const setFog = (tex, x0 = 0, z0 = 0, w = 1, h = 1, dimK = 0.48) => { U.tFog.value = tex; U.fogOn.value = tex ? 1 : 0; U.fogBox.value.set(x0, z0, w, h); U.dimK.value = dimK; };
+  /**
+   * The fog of awareness (step 2): its mask texture (null: none), its box in metres, the dim. known (step 2a): the unknown's
+   * cells, { texture, x0, z0, cellM, nx, nz, colour } (src/render/known.js's mask in the view's texture; colour 0xRRGGBB), or null:
+   * every cell known, the picture as before.
+   */
+  const setFog = (tex, x0 = 0, z0 = 0, w = 1, h = 1, dimK = 0.48, known = null) => {
+    U.tFog.value = tex; U.fogOn.value = tex ? 1 : 0; U.fogBox.value.set(x0, z0, w, h); U.dimK.value = dimK;
+    const k = tex && known?.texture ? known : null;
+    U.tKnown.value = k ? k.texture : null; U.knownOn.value = k ? 1 : 0;
+    if (k) {
+      U.knownBox.value.set(k.x0, k.z0, k.cellM, 0); U.knownN.value.set(k.nx, k.nz);
+      const c = k.colour ?? 0;
+      U.unknownC.value.set(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255);
+    }
+  };
   /** The eye (see the header, step 0): its gain against v0.0.4's exposure (the rods'), the cones' (never over it), the rods' share of vision, 0 to 1, and the glare, log units over the adapted level (0 at rest). */
   const setEye = (gain = 1, rod = 0, cone = gain, glare = 0) => {
     U.eyeGain.value = Number.isFinite(gain) ? gain : 1;

@@ -24,7 +24,14 @@ import { beliefOf } from '../src/sim/arms/firearms.js';
 // of 2026-11-16); that label alone moves every digest, the pauses and the closet's the same (checked by putting the old label back:
 // the old digests to the byte). Was 'private/48213': [20, 0, '17e68730c8d01b'], 'tierone/48213': [15, 3, '1a6e7df86a9831'],
 // 'sgt/1037': [17, 6, '14f67340608758'])
-export const STANDARD_ROWS = Object.freeze({ 'private/48213': [20, 0, '0a6472b4704993'], 'tierone/48213': [15, 3, '1815c0034914ab'], 'sgt/1037': [17, 6, '0a197456b2d44c'] });
+// (v0.0.23 D, its build sheet item 18, DW, on purpose: the Watch and Look rows' labels name their action and spot (bundle.js hotLabel:
+// "Watch behind the door: muzzle on it as you go in", "Look: check the far right corner"), the ids and acts unchanged; the labels alone
+// move every digest, the pauses and the closet's the same (checked by putting v0.0.22's labels back: the old digests to the byte).
+// Was 'private/48213': [20, 0, '0a6472b4704993'], 'tierone/48213': [15, 3, '1815c0034914ab'], 'sgt/1037': [17, 6, '0a197456b2d44c'])
+// (the review of 2026-11-18, on purpose: the labels shortened to the tile's two lines, "Watch: near right corner", "Look: behind the
+// door", their purpose on the row's meta (steps.js HOT_PURPOSE); the labels alone again, the pauses and the closet's the same. Was
+// 'private/48213': [20, 0, '014067b405568d'], 'tierone/48213': [15, 3, '1b789ec9fe08c6'], 'sgt/1037': [17, 6, '0e9fb5a3e73434'])
+export const STANDARD_ROWS = Object.freeze({ 'private/48213': [20, 0, '040944c185d8e9'], 'tierone/48213': [15, 3, '199908990bb854'], 'sgt/1037': [17, 6, '1e1a066acce0b0'] });
 /** The same with his P-12, standard issue from v0.0.20 (the user's answer of 2026-11-16, "#2 has to have a sidearm"): his longer MAKE READY and SHOW CLEAR move the lane's ticks, so its pauses (re-recorded on v0.0.20's tree, PRINT_HASH=1). */
 // (the tier one's one pause more, at 50.30 s: after his own SHOW CLEAR, the tower waiting on your #2's P-12 cleared; the admin rows
 // of an empty rifle, every one of them v0.0.18's (macro:clear, macro:load, macro:reload:speed); the private and the sergeant the same)
@@ -37,7 +44,9 @@ export const STANDARD_ROWS = Object.freeze({ 'private/48213': [20, 0, '0a6472b47
 // before them the same; the private's and every ~two:none lane's unchanged. Were 'tierone/48213': [18, 3, '15024d1bcce693'],
 // 'sgt/1037': [20, 6, '15e26021ef9b6c'])
 // (the v0.0.22 integration: both causes together, re-pinned on the merged tree)
-export const STANDARD_ROWS_P12 = Object.freeze({ 'private/48213': [20, 0, '0a6472b4704993'], 'tierone/48213': [16, 3, '07e2baf92015f4'], 'sgt/1037': [18, 6, '1120da1a425954'] });
+// (v0.0.23 D, DW: the same labels; was 'private/48213': [20, 0, '0a6472b4704993'], 'tierone/48213': [16, 3, '07e2baf92015f4'], 'sgt/1037': [18, 6, '1120da1a425954'])
+// (the review of 2026-11-18: the shorter labels; was 'private/48213': [20, 0, '014067b405568d'], 'tierone/48213': [16, 3, '1b1d864a3d3a39'], 'sgt/1037': [18, 6, '0ba4f9169eafd6'])
+export const STANDARD_ROWS_P12 = Object.freeze({ 'private/48213': [20, 0, '040944c185d8e9'], 'tierone/48213': [16, 3, '0f4bd81b0ea67e'], 'sgt/1037': [18, 6, '0575a4b02ce0d1'] });
 
 export default [
   {

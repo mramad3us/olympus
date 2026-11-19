@@ -25,6 +25,8 @@
 // The voice set is the To score page's (V-a to V-d, voices.js VOICE_SET; setVoice): V-a is v0.0.19's stand-ins (the five
 // syllables, the rest silent) with the Standby rule fixed (/\bstandby\b/i: "Lane A. Standby." was silent); with words, the
 // stand-ins give way to the voice (GO's beep, Stop's and the stack's stand-ins are said by the 'say' facts instead).
+// v0.0.23's fixer (the user, 2026-11-19: "forget voice synthesis, no voices."): the game's set is voices.js VOICE_NONE, 'none',
+// which says no line and none of V-a's syllables (mute()); the beeps, the harness's tone and the doors play as before.
 // The kick's boom plays at the leaf's first move (the door fact's leafAtMs, B's: the boot's strike), the leaf's knock on its
 // stop (sounds.js doorStop) at stopAtMs and a softer one at a kick's rebound; a push's knock 6 dB under; a pull none.
 import { playerId, playerActor } from '../../core/ids.js';
@@ -35,7 +37,7 @@ import { ROLLOFF, PAN_FULL_M, PA_VOICE_DB, WHISPER_DB, SHOUT_DB, SUIT_EARS_DB, S
 import { REGISTER, VOICE_SET, VOICE_DEFAULT } from '../../data/voices.js';
 import { TEAM_WORDS } from '../../sim/combat/team.js';
 import { spokenMs } from '../../core/speech.js';
-import { SEQ_HOUSE, HOUSE_CHIEF, COURSES } from '../../data/courses.js';
+import { SEQ_HOUSE, SEQ_HOUSE_DRAWN, HOUSE_CHIEF, COURSES } from '../../data/courses.js';
 
 const r1 = (v) => Math.round(v * 10) / 10;
 const dbOfDist = (dM, roll = ROLLOFF.floor) => 20 * Math.log10(1 / (1 + roll * Math.max(0, dM - 1)));
@@ -83,6 +85,8 @@ export const PAINT_PARTS = Object.freeze(['chest', 'head']);
 export function fixedLines() {
   const out = [], seen = new Set(), add = (text, voice, register) => { const k = `${voice}|${register}|${text}`; if (text && !seen.has(k)) { seen.add(k); out.push({ text, voice, register }); } };
   for (const c of SEQ_HOUSE) for (const t of [...(c.say ?? []), ...(c.sayEnd?.other ?? [])]) add(t, 'pa', REGISTER.pa);
+  // (its build sheet items 14 and 17: the short brief on Again and the live lane's words, the set's and the drawn house's)
+  for (const c of [...SEQ_HOUSE, ...SEQ_HOUSE_DRAWN]) for (const t of [...(c.sayAgain ?? []), ...(c.sayLive ?? []), ...(c.sayAgainLive ?? [])]) add(t, 'pa', REGISTER.pa);
   for (const t of [...HOUSE_CHIEF.paint, ...HOUSE_CHIEF.paintTwice, ...HOUSE_CHIEF.paintStopped, ...(HOUSE_CHIEF.paintTwo ?? []), ...(HOUSE_CHIEF.paintTwiceTwo ?? []), ...(HOUSE_CHIEF.paintStoppedTwo ?? [])]) for (const part of PAINT_PARTS) add(t.replaceAll('{part}', part), 'pa', REGISTER.speech);
   for (const t of [...HOUSE_CHIEF.casualty, ...HOUSE_CHIEF.twoDown, ...HOUSE_CHIEF.out, ...HOUSE_CHIEF.one.casualty, ...HOUSE_CHIEF.one['casualty:click'], ...HOUSE_CHIEF.one['casualty:fought'], ...HOUSE_CHIEF.one['casualty:unseen'],
     ...(HOUSE_CHIEF.bled ?? []), ...(HOUSE_CHIEF.twoBled ?? []), ...['casualty:two', 'casualty:two:yours', 'casualty:bled', 'paint:two'].flatMap(k => HOUSE_CHIEF.one[k] ?? [])]) add(t, 'pa', REGISTER.speech);
@@ -143,6 +147,8 @@ export function createHouse(engine, { voice = VOICE_DEFAULT } = {}) {
   const queue = createVoiceQueue();
   stats.voice = { ...queue.stats, byRole: {} }; stats.set = set;
   const words = () => VOICE_SET[set].words && typeof engine.voice === 'function';
+  // (the game's set 'none' says nothing, V-a's voiced syllables included: the user's "no voices", 2026-11-19)
+  const mute = () => !!VOICE_SET[set].silent;
   const play = (recipe, v, extra = {}) => {
     const ok = engine.house(recipe, { gainDb: v.gainDb, lowHz: v.lowpassHz, pan: v.pan, ...extra });
     if (ok) { stats.cues++; stats.byKind[recipe] = (stats.byKind[recipe] ?? 0) + 1; stats.last = { what: recipe, gainDb: r1(v.gainDb), lowpassHz: Math.round(v.lowpassHz) }; }
@@ -159,9 +165,9 @@ export function createHouse(engine, { voice = VOICE_DEFAULT } = {}) {
     if (type === 'house') {
       const ph = f.phase;
       // (with words, GO, Stop and the stack's "Ready" are the 'say' facts' to say; GO keeps its timer's beep)
-      if (ph === 'go') { stats.beeps++; if (!words()) { stats.pa++; play(HOUSE_CUES.go, houseVoice('pa', { me: here, pKpa })); } return play('timerGo', houseVoice('timer', { pKpa })); }
-      if (ph === 'stop') { if (words()) return false; stats.pa++; return play(HOUSE_CUES.stop, houseVoice('pa', { me: here, pKpa })); }
-      if (ph === 'stacked' && !mine) { if (words()) return false; stats.whispers++; return play('whisperReady', houseVoice('whisper', { me: here, at: posOf(state, f.who), pKpa })); }
+      if (ph === 'go') { stats.beeps++; if (!words() && !mute()) { stats.pa++; play(HOUSE_CUES.go, houseVoice('pa', { me: here, pKpa })); } return play('timerGo', houseVoice('timer', { pKpa })); }
+      if (ph === 'stop') { if (words() || mute()) return false; stats.pa++; return play(HOUSE_CUES.stop, houseVoice('pa', { me: here, pKpa })); }
+      if (ph === 'stacked' && !mine) { if (words() || mute()) return false; stats.whispers++; return play('whisperReady', houseVoice('whisper', { me: here, at: posOf(state, f.who), pKpa })); }
       if (ph === 'open' && f.kind) {
         const verb = f.kind === 'kick' ? 'doorKick' : f.kind === 'pull' ? 'doorPull' : f.kind === 'locked' ? 'lockRattle' : 'doorPush';
         stats.doors++;
@@ -169,7 +175,7 @@ export function createHouse(engine, { voice = VOICE_DEFAULT } = {}) {
       }
       if (ph === 'clear') {
         // (with words, the "Clear!" is its 'say' fact's; the room within par keeps its double beep)
-        if (words()) { if (f.met === true) { stats.beeps++; return play('timerDouble', houseVoice('timer', { pKpa }), { delayS: 0.35 }); } return false; }
+        if (words() || mute()) { if (f.met === true) { stats.beeps++; return play('timerDouble', houseVoice('timer', { pKpa }), { delayS: 0.35 }); } return false; }
         stats.shouts++;
         const ok = play(HOUSE_CUES.clear, houseVoice('shout', { me: here, at: mine ? here : posOf(state, f.who), pKpa }));
         if (f.met === true) { stats.beeps++; play('timerDouble', houseVoice('timer', { pKpa }), { delayS: 0.35 }); }
@@ -181,6 +187,7 @@ export function createHouse(engine, { voice = VOICE_DEFAULT } = {}) {
     if (type === 'bundle' && f.phase === 'halt' && f.why === 'refused') { stats.doors++; return play('lockRattle', houseVoice('door', { me: here, at: here, pKpa })); }
     // (every line said aloud, in its speaker's voice)
     if (type === 'say' && words()) return sayLine(f, state, { me, here, pKpa });
+    if (type === 'say' && mute()) return false;
     // (V-a: the stand-ins; the Standby rule fixed: "Lane A. Standby." matches it, v0.0.19's /^\s*standby\b/i did not)
     if (type === 'say' && /\bstandby\b/i.test(String(f.text ?? ''))) { stats.pa++; return play('paStandby', houseVoice('pa', { me: here, pKpa })); }
     // (the drill's calls are said: the #2's "Ready." whispered at your shoulder; "Clear!" shouted by whoever calls it, where the scene's fact did not)

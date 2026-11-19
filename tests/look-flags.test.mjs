@@ -58,13 +58,16 @@ export default [
     },
   },
   {
-    name: 'the To score page\'s rows (the stack, the helmets, the walk, the shot, the voices, the room\'s mark, the corner aid, the sets drawn as built) and "Copy my picks" in the gallery\'s line form, read back the same',
+    name: 'the To score page\'s rows (the stack, the helmets, the walk, the shot, the room\'s mark, the card\'s four, the corner aid, the sets drawn as built; the voices\' row gone, the user\'s "no voices" of 2026-11-19) and "Copy my picks" in the gallery\'s line form, read back the same, an old voice pick left out',
     fn() {
       const p = { v: 1, scores: { 'stack:S1': 80, 'helm:R1': 65, 'shot:A3': 90, 'voice:c': 70 }, stars: ['shot:A3', 'helm:R1'], flags: {} };
       const t = picksText(p, { scene: 'test-shoothouse', seed: 48213, version: '0.0.20', flags: 'stack:1,helm:r1' }), back = picksOf(t);
       console.log(`      rows: ${ROWS.map(r => `${r.title} (${r.ids.length})`).join(', ')}`);
       console.log(`      ${t.split('\n').join(' | ')}`);
-      assert(ROWS.length === 8 && back.picks.length === 4 && back.picks.find(x => x.id === 'A3')?.star && back.picks.find(x => x.id === 'V-c')?.score === 70 && /test-shoothouse on seed 48213/.test(back.head), JSON.stringify(back));
+      // (v0.0.23: the target card's four rows join, Card gun, Hands not read, Aimed, Pistol aimed (the build sheet v0.0.23 §0 item 36))
+      // (v0.0.23's fixer: the voices' row out (the user, 2026-11-19, "forget voice synthesis, no voices."), so eleven rows, and an old
+      // 'voice:c' score in this browser's picks is not copied)
+      assert(ROWS.length === 11 && !ROWS.some(r => r.id === 'voice') && back.picks.length === 3 && back.picks.find(x => x.id === 'A3')?.star && !back.picks.some(x => x.id === 'V-c') && /test-shoothouse on seed 48213/.test(back.head), JSON.stringify(back));
     },
   },
 ];

@@ -8,7 +8,8 @@
 // tower's, the voice's and the marks' one helper core/speech.js, and C's house-debrief.js; from v0.0.21 (its build sheet §3 step 4)
 // combat/op.js, combat/two.js and scenes/assemble.js (the house's seam), which shoothouse.js calls into and which call the lane back only
 // through op.js's host; v0.0.22 (its build sheet §2 step 1) deleted house-two.js, v0.0.21's shim of combat/two.js, so it is no longer
-// on the list. Each prints its exports' count and its load time.
+// on the list; from v0.0.23 (its build sheet §0 item 16, §6 A) people/seen.js, the Seen record, which reads look.js (and through it the
+// house's look) and engage.js and imports no scenario itself. Each prints its exports' count and its load time.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -31,6 +32,8 @@ export const FIRST = Object.freeze([
   'src/sim/game.js',
   'src/core/speech.js',
   'src/sim/scenarios/house-debrief.js',
+  // (v0.0.23 A: the Seen record, first in its own process)
+  'src/sim/people/seen.js',
 ]);
 // (a role's module, not built before its merge: a skip with a note, never a pass that tested nothing; none since v0.0.20's C landed)
 const LATER = Object.freeze({});
@@ -47,7 +50,7 @@ function importFirst(rel) {
 
 export default [
   {
-    name: 'each of combat/op.js, combat/two.js, scenes/assemble.js, devplan.js, shoothouse.js, plan.js, team.js, bundle.js, combat/breach.js, game.js, speech.js and house-debrief.js imported first in a fresh node process loads without a throw: no top-level read of a binding across the house\'s cycles (the build sheet v0.0.19 §0 item 12, v0.0.20 §9 item 7)',
+    name: 'each of combat/op.js, combat/two.js, scenes/assemble.js, devplan.js, shoothouse.js, plan.js, team.js, bundle.js, combat/breach.js, game.js, speech.js, house-debrief.js and people/seen.js imported first in a fresh node process loads without a throw: no top-level read of a binding across the house\'s cycles (the build sheet v0.0.19 §0 item 12, v0.0.20 §9 item 7, v0.0.23 §6 A)',
     timeoutMs: 120_000,
     fn() {
       const bad = [];

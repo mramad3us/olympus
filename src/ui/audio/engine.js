@@ -90,7 +90,8 @@
 // one begun a frame (a long one goes on over the frames after), and played when whole, at its time or at once if its time has
 // passed (stats.voices.late). The instructor, the #2 and a role-player on the world bus (the hall's reverb answers them); your
 // own voice on the voice bus, dry, in your helmet. setVoice(set) (the To score page's Voice row; createAudio's voice, &voice=)
-// changes the set: 'a' is v0.0.19's stand-ins, no voice baked.
+// changes the set: 'a' is v0.0.19's stand-ins, no voice baked. From v0.0.23 (the user, 2026-11-19, "no voices") the game's set
+// is 'none' (voices.js VOICE_DEFAULT): nothing is baked or said; the other sets only by &voice=, for the tests that pin them.
 //
 // v0.0.21 (the build sheet §1 item 12; the perf lens's P7): BAKE_FRAME_MS was checked between parts, so a part rendered whole: the
 // v0.0.18 release log's longest slice was 13.6 ms, and a 4 s loop's layer 5.2 ms at once. Every renderer now yields every

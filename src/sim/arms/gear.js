@@ -42,7 +42,10 @@
 // The places are coarse on purpose (front, back, ready; holster, ready), so a live man's doll repaints only when his gear
 // changes as drawn: gearKey is the caches' key and changes with nothing else. They map from arms' guns.js vocabulary by the
 // lead's agreement test, never by import: hands → ready, hanging and slungFront → front, slungBack → back, holster → holster.
-// 'hand' is standGear's alone, the painted man on a board holding what the stand's face holds.
+// v0.0.23 (the build sheet v0.0.23 item 1; the user's note of 2026-11-17: "the portrait of the NPC holding a gun does not display
+// the gun they are holding"): the board's painted man holds his gun where the stage paints it, at the ready (W1: the rifle across
+// the body, the pistol between the fists), never hanging from the hand at the crop's foot; 'hand' is gone from standGear (the art's
+// boardGear keeps it for "Bang"'s boards as the user starred them, src/art/doll/portrait.js BANG_BOARD_HOLD).
 // standGear(face, holds) is the board's painted man (bay and house): a threat in utilities bare-headed with tan skin, a
 // no-shoot the same with light skin, the armoured face in the carrier and helmet with the rifle (or the P-12 when the stand
 // holds a pistol: the house draws the armoured stand's hand as any threat's), holds 'unseen' (the
@@ -63,7 +66,7 @@ export const MASK_FOF = 'fof';
 /** The rifle's place on the figure by the carry's posture (kit.carry.posture). */
 export const RIFLE_PLACES = Object.freeze({ slungFront: 'front', slungBack: 'back', lowReady: 'ready', highReady: 'ready', aimed: 'ready' });
 /** The world figure's rig by the gear's rifle place (look.js CARRY_RIGS' coarse reading: low, high and aim are all 'ready'). */
-const FIGURE_CARRY = Object.freeze({ front: 'front', back: 'slung', ready: 'ready', hand: 'ready' });
+const FIGURE_CARRY = Object.freeze({ front: 'front', back: 'slung', ready: 'ready', hand: 'ready' });   // ('hand': a v0.0.22 record's, read the same)
 
 const actorFor = (state, pid) => state.actors?.list?.find?.(a => a.who === pid) ?? null;
 
@@ -153,10 +156,10 @@ export function gearKey(g) {
 export function standGear(face = 'threat', holds = 'rifle') {
   const base = { outfit: 'utilities', suit: null, carrier: null, ears: null, rifle: null, pistol: null, thigh: null, held: null, devices: [], painted: true, mask: null, hands: null, device: null };
   // (the armoured face changes the body; its hand holds what the stand's draw gives, a pistol too: the hunt of v0.0.18)
-  if (face === 'armoured') return { ...base, outfit: 'carrier', carrier: { model: 'pc-m3', pouches: [] }, rifle: holds === 'unseen' || holds === 'pistol' ? null : { model: 'r7', finish: null, place: 'hand', mag: true }, pistol: holds === 'pistol' ? { model: 'p12', place: 'hand', mag: true } : null };
+  if (face === 'armoured') return { ...base, outfit: 'carrier', carrier: { model: 'pc-m3', pouches: [] }, rifle: holds === 'unseen' || holds === 'pistol' ? null : { model: 'r7', finish: null, place: 'ready', mag: true }, pistol: holds === 'pistol' ? { model: 'p12', place: 'ready', mag: true } : null };
   if (face === 'unknown' || holds === 'unseen' || holds === null || holds === undefined) return base;
-  if (holds === 'rifle') return { ...base, rifle: { model: 'r7', finish: null, place: 'hand', mag: true } };
-  if (holds === 'pistol') return { ...base, pistol: { model: 'p12', place: 'hand', mag: true } };
+  if (holds === 'rifle') return { ...base, rifle: { model: 'r7', finish: null, place: 'ready', mag: true } };
+  if (holds === 'pistol') return { ...base, pistol: { model: 'p12', place: 'ready', mag: true } };
   if (holds === 'phone') return { ...base, held: 'phone' };
   return base;
 }

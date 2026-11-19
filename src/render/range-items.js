@@ -971,9 +971,21 @@ export const CORNER_PALE = 0xb8b4a8, CORNER_COVERED = 0xd8a640, CORNER_TWO = 0xe
 /** The tick's length (px) and its height off the floor (m: over the floor's own pixels, under every figure's feet). */
 export const CORNER_PX = 2, CORNER_Y_M = 0.012;
 /** A hot spot's tick: [{ x, y, z, c }] (houseLook's corner: { x, z, covered, by: 'you' | 'two' | … }). */
-export function cornerPixels(c, ppm = PX_PER_M) {
+// v0.0.23 (its build sheet item 18, DW; the user, 2026-11-17, "i don't know what the "look behind the door" option does"): the hot
+// spot whose Watch or Look row is under the panel's cursor is drawn lit, CORNER_LIT (my call: a warm white over the pale and the
+// brass), so the row's words and the spot on the floor are read together; `lit` is the caller's (view.js marks the corner from the
+// cursor's row, main.js's hot), the corner's own c.lit by default (true seen now, 'known' a familiar house's, 'hidden' a drawn
+// house's unseen spot: not lit; the review of 2026-11-18). Off the cursor, its colour as before.
+/** A hot spot's tick while its row is under the panel's cursor. */
+export const CORNER_LIT = 0xfff0b8;
+/**
+ * The lit tick's height when drawn again over your corner's aid (render/range.js's over layer; the review of 2026-11-18: under the aid
+ * at CORNER_Y_M "Look: behind the door" never lit): a hair over AID_Y_M, so it lies above the aid's bracket where they cross (m).
+ */
+export const CORNER_LIT_Y_M = 0.025;
+export function cornerPixels(c, ppm = PX_PER_M, { lit = c?.lit === true || c?.lit === 'known' } = {}) {
   if (!c || !Number.isFinite(c.x) || !Number.isFinite(c.z)) return [];
-  const P = 1 / ppm, col = !c.covered ? CORNER_PALE : c.by === 'two' || c.by === 2 ? CORNER_TWO : CORNER_COVERED;
+  const P = 1 / ppm, col = lit ? CORNER_LIT : !c.covered ? CORNER_PALE : c.by === 'two' || c.by === 2 ? CORNER_TWO : CORNER_COVERED;
   const x0 = Math.floor(c.x * ppm) / ppm, z = Math.floor(c.z * ppm) / ppm;
   return Array.from({ length: CORNER_PX }, (_, i) => ({ x: x0 + i * P, y: CORNER_Y_M, z, c: col }));
 }

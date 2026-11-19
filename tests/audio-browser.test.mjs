@@ -277,7 +277,9 @@ export default [
         assert(s1.house.whispers >= 1 && s1.echoes === 0, JSON.stringify(s1.house));
         assert(s1.steps === 0 || s1.scuffs >= 1, JSON.stringify({ steps: s1.steps, scuffs: s1.scuffs }));
         assert(!errors.length, errors.join(' | '));
-      }, { port, query: 'play=test-shoothouse&setup=go&tier=private&seed=48213&nostore=1' });
+      // (&voice=a, v0.0.19's stand-ins by name: the #2's whispered "Ready" this case pins is a voice, and the game voices none from
+      // v0.0.23's fixer, the user's "forget voice synthesis, no voices." of 2026-11-19)
+      }, { port, query: 'play=test-shoothouse&setup=go&tier=private&seed=48213&nostore=1&voice=a' });
     },
   },
   {
@@ -287,7 +289,8 @@ export default [
     async fn() {
       const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined, rows = [];
       await withGame(async (page, errors, game) => {
-        await game.open('play=test-shoothouse&tier=private&seed=48213&nostore=1');
+        // (&voice=c by name: the synthesis this case measures is no longer the game's default (the user, 2026-11-19, "no voices"); v0.0.24 retires the case with it)
+        await game.open('play=test-shoothouse&tier=private&seed=48213&nostore=1&voice=c');
         await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.course === 'house', null, { timeout: 60000 });
         // (the first key wakes the sound (the browsers' autoplay rule); Shift does nothing in the game)
         await page.keyboard.press('ShiftLeft');
@@ -313,7 +316,8 @@ export default [
     async fn() {
       const port = Number(process.env.OLYMPUS_TEST_PORT) || undefined;
       await withGame(async (page, errors, game) => {
-        await game.open('play=test-shoothouse&tier=sgt&seed=48213&setup=go&nostore=1');
+        // (&voice=c by name, as the case above: the fixed lines and the call-outs this bake holds are baked only with a voice)
+        await game.open('play=test-shoothouse&tier=sgt&seed=48213&setup=go&nostore=1&voice=c');
         await page.waitForFunction(() => window.__ready && window.__olympus.state?.armoury?.range?.course === 'house', null, { timeout: 60000 });
         await page.keyboard.press('ShiftLeft');
         const fm = await frameMs(page);

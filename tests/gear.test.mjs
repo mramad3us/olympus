@@ -110,9 +110,11 @@ export default [
       const out = cases.map(([f, h]) => [f, h, standGear(f, h)]);
       for (const [f, h, gr] of out) console.log(`      ${f} ${h}: ${gearKey(gr)}`);
       const by = (f, h) => out.find(o => o[0] === f && o[1] === h)[2];
-      assert(by('threat', 'rifle').rifle?.place === 'hand' && by('threat', 'pistol').pistol?.place === 'hand' && by('noshoot', 'phone').held === 'phone', 'what the hands hold');
+      // (v0.0.23, re-pinned for the user's note of 2026-11-17, "the portrait of the NPC holding a gun does not display the gun they
+      // are holding": the painted man holds his gun at the ready, where the stage paints it (W1); v0.0.22 hung it from the hand)
+      assert(by('threat', 'rifle').rifle?.place === 'ready' && by('threat', 'pistol').pistol?.place === 'ready' && by('noshoot', 'phone').held === 'phone', 'what the hands hold');
       assert(!by('noshoot', 'hands').rifle && !by('noshoot', 'hands').pistol && !by('noshoot', 'hands').held, 'empty hands');
-      assert(by('armoured', 'rifle').carrier && by('armoured', 'rifle').rifle?.place === 'hand' && by('armoured', 'rifle').outfit === 'carrier', 'the armoured silhouette');
+      assert(by('armoured', 'rifle').carrier && by('armoured', 'rifle').rifle?.place === 'ready' && by('armoured', 'rifle').outfit === 'carrier', 'the armoured silhouette');
       for (const [f, h] of [['threat', 'unseen'], ['unknown', 'rifle']]) { const gr = by(f, h); assert(!gr.rifle && !gr.pistol && !gr.held, `${f} ${h} holds nothing`); }
       assert(out.every(o => o[2].painted === true && JSON.stringify(Object.keys(o[2])) === JSON.stringify(GEAR_KEYS)), 'painted, the same keys');
     },

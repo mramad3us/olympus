@@ -7,12 +7,15 @@
 // records each line it is asked to say: { who, atS, ms }. Heard is the ear's own answer to the fact (a voice queued or, with
 // V-a, a stand-in played). The criterion's first two clauses are enforced while the voice ships as the default (V-c: the
 // build sheet's ship rule, house-voiced and voice-render green), its third at once (the wait ships whatever the voice).
+// v0.0.23's fixer: the game voices no line (the user, 2026-11-19, "forget voice synthesis, no voices."; voices.js VOICE_DEFAULT
+// 'none'), so the lanes are heard in V-c by name (SOUND_SET), the synthesis &voice=c still plays, until v0.0.24 removes it and F59 with it.
 import { createGame } from './game.mjs';
 import { houseBot, runHouse } from './bots/house.mjs';
 import { createHouse } from '../src/ui/audio/house.js';
-import { VOICE_DEFAULT } from '../src/data/voices.js';
 import { TICK_MS } from '../src/core/clock.js';
 
+/** The set the lanes are heard in: V-c by name, no longer the game's (see the header). */
+export const SOUND_SET = 'c';
 /** F59's share of the 'say' facts heard (×). */
 export const HEARD_MIN = 0.95;
 /** The commands the wait holds (those posted after a command outside the lane). */
@@ -25,7 +28,7 @@ const factsOf = (game) => (game.bus.events ?? []).map(e => (Array.isArray(e) ? {
  * One lane from the fill, heard (see the header): { tier, seed, mode, set, says, heard, byRole, silent: [text…], lines: [{ who, atS,
  * ms }], cmds: [{ id, atMs, chainMs }], end, also: { set, heard } (also: a second set heard on the same facts) }.
  */
-export function soundLane({ tier, seed, mode, set = VOICE_DEFAULT, also = null, maxMs = 600_000 }) {
+export function soundLane({ tier, seed, mode, set = SOUND_SET, also = null, maxMs = 600_000 }) {
   const g = createGame({ scenario: 'test-shoothouse', seed, tier }), t0 = g.state.clock.ms;
   const lines = [], rec = { tier, seed, mode, set, says: 0, heard: 0, byRole: {}, silent: [], lines, cmds: [] };
   const ear = createHouse({ house: () => true, hall: () => {}, voice: (text, o) => { lines.push({ who: o.who ?? o.voice, text, atS: o.atS, ms: o.ms }); return true; }, now: () => (g.state.clock.ms - t0) / 1000 }, { voice: set });

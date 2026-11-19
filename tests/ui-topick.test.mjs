@@ -51,7 +51,8 @@ export default [
         const menuAgain = await page.evaluate(() => !!document.querySelector('.overlay .menu') && !document.querySelector('.overlay .topick'));
         rows.push(`the menu: ${line.join(' | ')}; the page's rows: ${rowsSeen.join(', ')}`);
         rows.push(`Helmet R1: state.$look ${JSON.stringify(after.$look)}; your #2's look ${before.look === after.look ? 'the same' : 'changed'}; the shot A0 → ${shotA0}, A3 → ${shotA3}; the walk A → state.$cycle ${walk}; copied: ${text.split('\n').join(' | ')}; read back ${back.picks.length} picks; Back to the menu ${menuAgain}`);
-        assert(line.some(l => /To score/.test(l)) && rowsSeen.length === 8 && after.$look?.helm === 'R1' && before.look && after.look !== before.look, JSON.stringify({ line, rowsSeen, before, after }));
+        // (v0.0.23: the target card's four joined (the build sheet v0.0.23 §0 item 36) and the voices' row gone (the user, 2026-11-19, "no voices"): eleven rows)
+        assert(line.some(l => /To score/.test(l)) && rowsSeen.length === 11 && !rowsSeen.includes('The voices') && rowsSeen.includes('Card gun') && after.$look?.helm === 'R1' && before.look && after.look !== before.look, JSON.stringify({ line, rowsSeen, before, after }));
         assert(shotA0 === 'A0' && shotA3 === 'A3' && walk === 'A' && back.picks.some(p => p.id === 'R1' && p.star && p.score === 70) && menuAgain, JSON.stringify({ shotA0, shotA3, walk, text, menuAgain }));
       }, { port });
       for (const r of rows) console.log(`      ${r}`);

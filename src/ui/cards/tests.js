@@ -76,6 +76,21 @@ export function sceneLines(range, kd = null, opts = {}) {
   return [head, incident, kd?.relayLine ?? null].filter(Boolean);
 }
 
+/** The scene the Tests list opens on when no other is named (carried FH-6: the pilot, "Stack and clear"). */
+export const TESTS_PILOT = 'test-shoothouse';
+/** The key, in this browser, of the scene last played from the Tests list (boot.js showTests writes it on a pick). */
+export const TESTS_LAST_KEY = 'olympus.tests.last';
+/**
+ * The scene the Tests list focuses (its build sheet item 15, carried FH-6): the one played last if it is listed, else the
+ * pilot TESTS_PILOT, else the first; null with none listed. Before, the list opened on its first row, "Ten minutes under the shower",
+ * three Enters away from the house a returning player came for (the first-hour lens). Pure: scenes are SCENES' records or ids.
+ */
+export function testsFocus(scenes, last = null) {
+  const ids = (scenes ?? []).map(s => (typeof s === 'string' ? s : s?.id)).filter(Boolean);
+  if (last && ids.includes(last)) return last;
+  return ids.includes(TESTS_PILOT) ? TESTS_PILOT : ids[0] ?? null;
+}
+
 /** The page's body: a paper sheet. scenes: SCENES' records in order; onPick(scene); onBack(); storage (the scores). */
 export function testsPage({ scenes, onPick, onBack, version = '?', storage = globalThis.localStorage }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };

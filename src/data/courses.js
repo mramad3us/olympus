@@ -459,8 +459,17 @@ const WASH_SAY = ['The lane is clear. Hot wash, in the booth.', 'The lane is cle
 /** The house course's sequence (see the header): the instructor's commands on the PA, { id, ready, say, short?, sayEnd? }. */
 export const SEQ_HOUSE = deepFreeze([
   { id: 'brief', ready: 'always', say: ["Lane A. Three rooms and the hall, you and your number two. Full G in the Wheel: your kit weighs what it weighs on Earth. On my GO you stack and clear. Threats down, no-shoots untouched. My timer, not your wounds.",
-    "This is lane A: three rooms, then the hall, at one G. You and your number two clear it on my GO. Put the threats down and leave the no-shoots alone. I run the timer."] },
-  { id: 'load', ready: 'magIn', short: 'Ten rounds, LOAD.', say: ['Practice rounds. With a magazine of ten, LOAD.', 'Frangible today. Your first magazine, ten rounds. LOAD.'] },
+    "This is lane A: three rooms, then the hall, at one G. You and your number two clear it on my GO. Put the threats down and leave the no-shoots alone. I run the timer."],
+    // (its build sheet item 14, carried FH-5: on Again of the same lane (R.house.again) the short brief, shoothouse.js houseCmdSay,
+    // the beside-you line not said (houseOnCmd): LOAD about 6 s after the fill, not 23)
+    sayAgain: ['Same lane, same rules. Threats down, no-shoots untouched.', 'Again. Same lane. Threats down, no-shoots untouched.'],
+    // (its build sheet item 17, DC3: the live lane's brief (R.load 'marking'), its Again's, and never "frangible" or "not your
+    // wounds" from the fill to the card there; the sterile check is said, then done on the floor before LOAD (shoothouse.js sterileTick))
+    sayLive: ['Lane A, live. Two of my staff are in the house with marking rounds. Masks down until I call the lane. A fatal hit ends your lane. Threats down, no-shoots untouched. Sterile check first, then on my GO you stack and clear.',
+      'This is lane A, live: two role-players with marking rounds among the panels, at one G. Masks stay down. A fatal hit ends it. Put the threats down and leave the no-shoots alone. Sterile check first.'],
+    sayAgainLive: ['Same lane, live. Masks down. A fatal hit ends it.', 'Again, live. Same lane, same rules. Masks down.'] },
+  { id: 'load', ready: 'magIn', short: 'Ten rounds, LOAD.', say: ['Practice rounds. With a magazine of ten, LOAD.', 'Frangible today. Your first magazine, ten rounds. LOAD.'],
+    sayLive: ['Marking rounds. With a magazine of ten, LOAD.', 'Marking only today. Your first magazine, ten rounds. LOAD.'] },
   { id: 'ready', ready: 'houseStart', short: 'MAKE READY. Low ready, on safe, on your mark.', say: ['MAKE READY. Low ready, on safe, on your mark. Combat.', 'MAKE READY. On safe, low ready, on your mark, and your number two behind you.'] },
   { id: 'standby', ready: 'goArm', say: ['Standby.', 'Lane A. Standby.'] },
   { id: 'go', ready: 'laneDone', say: ['GO!', 'GO, GO, GO!'] },
@@ -478,7 +487,12 @@ export const SEQ_HOUSE = deepFreeze([
  * record carries a draw); every other command the same object.
  */
 export const SEQ_HOUSE_DRAWN = deepFreeze(SEQ_HOUSE.map(c => (c.id === 'brief' ? { ...c, say: ['A new layout. Three rooms and the hall, you and your number two. Full G in the Wheel: your kit weighs what it weighs on Earth. On my GO you stack and clear. Threats down, no-shoots untouched. My timer, not your wounds.',
-  'The panels are moved: a layout the instructors have set. Three rooms, then the hall, at one G. You and your number two clear it on my GO. Put the threats down and leave the no-shoots alone. I run the timer.'] }
+  'The panels are moved: a layout the instructors have set. Three rooms, then the hall, at one G. You and your number two clear it on my GO. Put the threats down and leave the no-shoots alone. I run the timer.'],
+  // (its build sheet §0 item 21: the drawn house's own short brief on Again of the same code, never SEQ_HOUSE's "lane")
+  sayAgain: ['Same layout, same rules. Threats down, no-shoots untouched.', 'Again. Same layout. Threats down, no-shoots untouched.'],
+  sayLive: ['A new layout, live. Two of my staff are in the house with marking rounds. Masks down until I call the lane. A fatal hit ends your lane. Threats down, no-shoots untouched. Sterile check first, then on my GO you stack and clear.',
+    'The panels are moved, live: two role-players with marking rounds among the panels, at one G. Masks stay down. A fatal hit ends it. Put the threats down and leave the no-shoots alone. Sterile check first.'],
+  sayAgainLive: ['Same layout, live. Masks down. A fatal hit ends it.', 'Again, live. Same layout, same rules. Masks down.'] }
   : c.id === 'standby' ? { ...c, say: ['Standby.', 'New layout. Standby.'] } : c)));
 /**
  * The house course's sequence on a named house, B or C (the play review of v0.0.22, 2026-11-17: the card, the paper and the timer
@@ -490,7 +504,9 @@ const SEQ_HOUSE_NAMED = new Map();
 export function seqHouseNamed(letter) {
   if (!SEQ_HOUSE_NAMED.has(letter)) {
     const lane = (t) => t.replace(/\bLane A\b/g, `Lane ${letter}`).replace(/\blane A\b/g, `lane ${letter}`);
-    SEQ_HOUSE_NAMED.set(letter, deepFreeze(SEQ_HOUSE.map(c => (c.id === 'brief' || c.id === 'standby' ? { ...c, say: c.say.map(lane) } : c))));
+    // (the live brief's words (sayLive, sayAgainLive, DC3) say the letter too, so a named lane never says
+    // "Lane A, live"; the live lane is played as set today, so no lane's words move)
+    SEQ_HOUSE_NAMED.set(letter, deepFreeze(SEQ_HOUSE.map(c => (c.id === 'brief' || c.id === 'standby' ? { ...c, say: c.say.map(lane), ...(c.sayLive ? { sayLive: c.sayLive.map(lane) } : {}), ...(c.sayAgainLive ? { sayAgainLive: c.sayAgainLive.map(lane) } : {}) } : c))));
   }
   return SEQ_HOUSE_NAMED.get(letter);
 }
@@ -508,7 +524,9 @@ export const HOUSE_NUDGE = deepFreeze({ mag: 'a magazine in.', chamber: 'a round
  * other line a room, nothing while a take-in runs; the hot wash's lines ({room} a room's word, {s} seconds, {n} a count).
  */
 export const HOUSE_CHIEF = deepFreeze({
-  brief: ['Your number two takes the far corner of every room you cross. Muzzles up in the stack.', 'Two of you, one lane. He goes where you do not. Muzzle up, never across him.'],
+  // (its build sheet item 16, DC2: the words agree with the drill, #1 high on the door and the #2 low behind him, his corner
+  // the other way, never "far"; each phrasing as long as v0.0.22's (17 and 16 spoken words), so the tower's chain and every lane's ticks hold)
+  brief: ['Your number two takes his corner, the other way. You high on the door, him low behind.', 'Two of you, one lane. He goes where you do not. Him low, never across you.'],
   // (the brief's second sentence, by the floor's gravity where you stand (shoothouse.js gravityWords): {g} in G)
   full: ['Full G here: your kit weighs what it weighs on Earth.', 'One G on this deck. Your kit weighs its full weight.'],
   gravity: ['{g} G on this deck.', 'This deck pulls {g} G.'],
@@ -524,6 +542,8 @@ export const HOUSE_CHIEF = deepFreeze({
   // (the hunt of v0.0.20, breach-4: an inner door opened and never looked into, the room called clear over it)
   doorOpen: ['You opened that door and never looked in.', 'An open door nobody looked through is a man at your back.'],
   stall: ['Move on.', 'Move. You are clearing, not visiting.'],
+  // (DC3: the live lane's sterile check before LOAD (shoothouse.js sterileTick): [0] the last marine looked at, [1] with one to come)
+  sterile: ['Clean.', 'Clean. Next.'],
   // (his acknowledgement of your number two's rifle shown clear at UNLOAD, SHOW CLEAR (COMBAT §25.19.5))
   twoClear: ['Number two, clear.', 'Number two: clear.'],
   // (your #2's guns still loaded at the end of his SHOW CLEAR: the instructor clears them himself (combat/two.js twoShown))
@@ -607,13 +627,21 @@ export const HOUSE_CHIEF = deepFreeze({
     funnelKeys: ['You stood in the doorway. Set a Watch on your corner before X: your feet keep going through the door.', 'The door is where they shoot you. Watch your corner before you go, and the pause will not stop you in it.'],
     par: ['He fired first. Set a Watch on your corner before you go: your eyes are there when he is.', 'Too slow off the sighting. Muzzle on the corner before you cross the door.'],
     corner: ['You called clear with a corner unlooked. Every corner, then the call.', 'Look into every corner before you call it.'],
-    muzzle: ['Your muzzle crossed your number two. High ready in the stack, always.', 'Never across your number two. Muzzle up when he is in front of it.'],
+    // (DC2: the cure is the low ready with the #2 in front, never "high ready" or "muzzle up" (12 and 14 words, as v0.0.22's))
+    muzzle: ['Your muzzle crossed your number two. Low ready when he\'s in front.', 'Never across your number two. Muzzle down when he is in front of it.'],
     noshoot: ['You shot a no-shoot. Identify, then press.', 'Hands first. Then the trigger.'],
     hostage: ['You hit the hostage. With a hostage it is the head or nothing.', 'Hostage: head only, or hold.'],
     standing: ['You left a man standing. Down, then on.', 'Never leave one up behind you.'],
     door: ['You left the inner door. Hold it, or clear it.', 'A closed door at your back is a man at your back. Hold it.'],
     dummy: ['The click: tap, rack, back on him. It should be quicker.', 'The dummy cost you. Tap, rack, and back on target without thinking.'],
     time: ['Too slow through the rooms. The same drill, quicker hands.', 'Faster between the rooms. The pause is the only time you get.'],
+    // (its build sheet item 11, carried FH-2: a room passed by the stall or the lane's due, by why (shoothouse.js passWhyOf):
+    // at its open door, never crossed ('passed:door'; below rung 2 'passed:doorKeys', the keys' way in), at its stack ('passed:stack'),
+    // inside, never called ('passed:room'); was `time` for every one, "Too slow through the rooms." beside "NO-GO. A threat left standing.")
+    'passed:doorKeys': ['You stood at an open door. X, then walk it in, the way I call it.', 'The door was open and you never went through. X, then walk it, the way I call it.'],
+    'passed:door': ['You stood at an open door. In, on the go: T, or walk it in.', 'Open door, nobody through it. Go on the open.'],
+    'passed:stack': ['The door never opened. On the wall, then the door\'s row: T.', 'You never opened it. Stack, then open.'],
+    'passed:room': ['You were in and never called it. Every corner, then "Clear!".', 'In the room and no call. Look, then "Clear!".'],
     clean: ['Clean lane. Again, faster.', 'Clean. Now do it again, and quicker.'],
     // (the play review: a lane ended before any room was run (Esc, End the scene, at GO) has nothing to wash)
     unplayed: ['No room run, so nothing to wash. Again, from the top.', 'Not one room cleared. From the top.'],

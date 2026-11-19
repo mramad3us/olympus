@@ -57,9 +57,10 @@
 import { word } from '../paint.js';
 import { glyphOf } from '../font.js';
 import { GLOWS } from '../palette.js';
-import { doll, backdropAt } from './doll.js';
-import { dressOf, dressedDoll, dressedReady } from './dress.js';
+import { doll } from './doll.js';
+import { dressOf, dressedReady } from './dress.js';
 import { INK, mix, lum } from './grid.js';
+import { paintPortrait, portraitReady, maskOf, boardGear, boardLook, PORTRAIT_HOLD, PORTRAIT_PICKS, BANG_BOARD_HOLD, BOARD_PLACES, HOSTAGE_PLACES } from './portrait.js';
 
 /** The card in card pixels (the HUD's HITCARD at --ui 1), the words' strip under the figure. */
 export const CARD_W = 200, CARD_H = 200, WORDS_H = 40;
@@ -124,77 +125,65 @@ const DROPS = Object.freeze([[4, -3], [-4, 2], [3, 4], [-3, -4]]);
 const r = Math.round;
 const DOLLS = new Map();
 // (a man's card's mask by his dressed doll (the build sheet §1 item 15; the perf lens's P9): dress.js keeps the dolls,
-// DOLL_LRU of them, and the mask goes with its doll when the LRU lets it go. Until v0.0.21 the men had their own entries in DOLLS
-// by subject key and scale, never let go: a new #2 a seed, three scales, about 36 KB each, some 10 MB over a hundred "Again"s)
-const MAN_MASKS = new WeakMap();
-/** The painted man's look on a board by its face: 'armoured' in the plate carrier and helmet, the rest bare-headed in utilities (a no-shoot light-skinned). */
-const boardLook = (face) => (face === 'armoured' ? { outfit: 'carrier', skin: 'tan', hair: { style: 'highTight', color: 'dark' } } : { outfit: 'utilities', skin: face === 'noshoot' || face === 'hostage' ? 'light' : 'tan', head: null, hair: { style: 'medium', color: 'dark' } });
-/** The board's painted man (src/sim/arms/gear.js standGear's, written here: art reads no sim module): what his face holds in his hand. */
-function boardGear(face, holds) {
-  const base = { outfit: face === 'armoured' ? 'carrier' : 'utilities', suit: null, carrier: null, ears: null, rifle: null, pistol: null, thigh: null, held: null, painted: true };
-  // (an unseen hand holds nothing, the armoured face's too: the card draws only what the take-in saw)
-  if (holds === 'unseen' || face === 'unknown' || face === 'hostage') return base;
-  // (a pistol before the armoured face's rifle: the house draws the armoured stand's hand as any threat's, and the hunt of
-  // v0.0.18 found the card drawing the rifle where the stage's board held a pistol)
-  if (holds === 'pistol') return { ...base, pistol: { model: 'p12', place: 'hand', mag: true } };
-  if (face === 'armoured' || holds === 'rifle') return { ...base, rifle: { model: 'r7', finish: null, place: 'hand', mag: true } };
-  if (holds === 'phone') return { ...base, held: 'phone' };
-  return base;
-}
-// (the figure's pixels, its ink round it included: those that are not the doll's wall and floor)
-function maskOf(pm, scale) {
-  const mask = new Uint8Array(pm.w * pm.h);
-  for (let y = 0; y < pm.h; y++) for (let x = 0; x < pm.w; x++) mask[y * pm.w + x] = pm.data[y * pm.w + x] !== word(backdropAt(x, y, scale)) ? 1 : 0;
-  return mask;
-}
-/** The doll for a turner's face at a doll scale: { pm, mask } (cached by face, holds and scale): see the header. */
-function dollFor(face = 'threat', holds = 'rifle', scale = HIT_SCALE, side = 'right') {
-  const key = `${face}|${holds}|${scale}${face === 'hostage' && side === 'left' ? '|left' : ''}`;
+// DOLL_LRU of them, and the mask goes with its doll when the LRU lets it go (portrait.js maskOf keeps it by its doll))
+// (the board's painted man and his look are portrait.js boardGear and boardLook, shared with the portrait)
+/**
+ * The doll for a turner's face at a doll scale: { pm, mask, held } (cached by face, holds, scale and the place of his gun): see the
+ * header. place: 'hand' ("Bang"'s, BANG_BOARD_HOLD) or 'ready' (the house's, W1); hostage: the H pick's places for the hostile.
+ */
+function dollFor(face = 'threat', holds = 'rifle', scale = HIT_SCALE, side = 'right', place = 'hand', hostage = 'H1') {
+  const key = `${face}|${holds}|${scale}${face === 'hostage' && side === 'left' ? '|left' : ''}${place === 'hand' ? '' : `|${place}`}${face === 'hostage' && place !== 'hand' && hostage !== 'H1' ? `|${hostage}` : ''}`;
   if (DOLLS.has(key)) return DOLLS.get(key);
-  let pm;
+  let pm, held;
   if (face === 'hostage') {
     // (the hostile is the man-target, centred, its head circle on his head; the hostage in front of him, HOSTAGE_DX_PX to the side
     // and a little lower, so his head and his gun hand show beside the hostage's: side 'right' puts the hostile at the viewer's right)
-    const back = doll({ ...dressOf(boardGear('threat', holds === 'rifle' || holds === 'unseen' ? holds : 'pistol'), { look: boardLook('threat'), sex: 'm' }), scale }), front = doll({ ...dressOf(boardGear('hostage', 'hands'), { look: boardLook('hostage'), sex: 'm' }), scale });
+    // (on the house's card his gun as portrait-gun's H decides, H1 his pistol raised at her head, a rifle up at the high ready)
+    const places = place === 'hand' ? null : HOSTAGE_PLACES[hostage] ?? HOSTAGE_PLACES.H1;
+    const back = doll({ ...dressOf(boardGear('threat', holds === 'rifle' || holds === 'unseen' ? holds : 'pistol', place, places), { look: boardLook('threat'), sex: 'm' }), scale }), front = doll({ ...dressOf(boardGear('hostage', 'hands'), { look: boardLook('hostage'), sex: 'm' }), scale });
     // (his gun hand is his right, at the viewer's left: with the hostage at the viewer's left he is drawn mirrored, so what he holds
     // is on the side away from her and shows)
     const dx = (side === 'left' ? 1 : -1) * r(HOSTAGE_DX_PX * scale / HIT_SCALE), dy = r(3 * scale / HIT_SCALE), fm = maskOf(front, scale), data = new Uint32Array(back.data);
-    if (side !== 'left') for (let y = 0; y < back.h; y++) for (let x = 0; x < back.w; x++) data[y * back.w + x] = back.data[y * back.w + back.w - 1 - x];
+    const bh = back.held ?? new Uint8Array(back.w * back.h);
+    held = new Uint8Array(bh);
+    if (side !== 'left') for (let y = 0; y < back.h; y++) for (let x = 0; x < back.w; x++) { data[y * back.w + x] = back.data[y * back.w + back.w - 1 - x]; held[y * back.w + x] = bh[y * back.w + back.w - 1 - x]; }
     for (let y = 0; y < back.h; y++) for (let x = 0; x < back.w; x++) {
       const i = y * back.w + x, sx = x - dx, sy = y - dy, j = sy * front.w + sx;
       if (sx < 0 || sy < 0 || sx >= front.w || sy >= front.h || !fm[j]) continue;
-      data[i] = front.data[j];
+      data[i] = front.data[j]; held[i] = 0;
     }
     pm = { ...back, data };
   } else {
     // (the board's painted man: v0.0.17's arguments exactly where the gear adds nothing (a rifle in the hand, empty hands))
-    pm = doll({ ...dressOf(boardGear(face, holds), { look: boardLook(face), sex: 'm' }), scale });
+    pm = doll({ ...dressOf(boardGear(face, holds, place), { look: boardLook(face), sex: 'm' }), scale });
+    held = pm.held;
   }
-  const out = { pm, mask: maskOf(pm, scale) };
+  const out = { pm, mask: maskOf(pm, scale), held: held ?? new Uint8Array(pm.w * pm.h) };
   DOLLS.set(key, out);
   return out;
 }
-/** A card's subject's doll at a scale: { pm, mask, colour } (a board's in khaki, a man's in his own colours): see the header. */
-function subjectDoll(subject, scale) {
+/** A card's subject's doll at a scale: { pm, mask, held, colour } (a board's in khaki, a man's in his own colours): see the header. */
+function subjectDoll(subject, scale, { place = 'hand', picks = null } = {}) {
   if (subject?.kind === 'man') {
-    const pm = dressedDoll(subject.gear, subject.person ?? {}, scale);
-    let hit = MAN_MASKS.get(pm);
-    if (!hit) { hit = { pm, mask: maskOf(pm, scale), colour: true }; MAN_MASKS.set(pm, hit); }
-    return hit;
+    // (the man as the record has him, portrait.js's; a model with a gear and no record (v0.0.22's) is the record standing)
+    const rec = subject.rec ?? { kind: 'man', gear: subject.gear, hold: null, pose: 'stand', facing: 'front' };
+    const P = paintPortrait(rec, subject.person ?? {}, { scale, picks });
+    return { pm: P.pm, mask: P.mask, held: P.held, colour: true };
   }
-  return dollFor(subject?.face ?? 'threat', subject?.holds ?? 'rifle', scale, subject?.side ?? 'right');
+  const P = { ...PORTRAIT_PICKS, ...(picks ?? {}) };
+  return dollFor(subject?.face ?? 'threat', subject?.holds ?? 'rifle', scale, subject?.side ?? 'right', place, P.hostage);
 }
 /** A man's card's ground (sample L): 'dark', the board's bay dark (L-a, the default), or 'lifted' toward the board's khaki so amber rings read (L-b). */
 export const MAN_GROUNDS = Object.freeze({ dark: 0, lifted: 0.35 });
 /** The dolls a turner's card may need made ahead (the scene's load), so the first card of a string is painted in one frame (the runtime review of 0.0.10: the first paint dropped a frame); at the near band unless a density is given. */
-export function warmHitcard(faces = [['threat', 'rifle'], ['threat', 'pistol']], pxPerM = HIT_PX_PER_M) { for (const [f, h] of faces) dollFor(f, h, figGeom(pxPerM).scale); return DOLLS.size; }
+export function warmHitcard(faces = [['threat', 'rifle'], ['threat', 'pistol']], pxPerM = HIT_PX_PER_M, { place = BANG_BOARD_HOLD } = {}) { for (const [f, h] of faces) dollFor(f, h, figGeom(pxPerM).scale, 'right', place); return DOLLS.size; }
 /** The board dolls painted so far (the target view's test: no frame paints more than one new doll; a man's is dress.js's, dollCount). */
 export const hitDollCount = () => DOLLS.size;
 /** Whether a subject's doll is painted already at a density (the target view paints at most one new doll a frame). */
-export function hitDollReady(subject, pxPerM = HIT_PX_PER_M) {
+export function hitDollReady(subject, pxPerM = HIT_PX_PER_M, { picks = null } = {}) {
   const scale = figGeom(pxPerM).scale;
-  if (subject?.kind === 'man') return dressedReady(subject.gear, subject.person ?? {}, scale);
-  return DOLLS.has(`${subject?.face ?? 'threat'}|${subject?.holds ?? 'rifle'}|${scale}`);
+  if (subject?.kind === 'man') return subject.rec ? portraitReady(subject.rec, subject.person ?? {}, scale, picks) : dressedReady(subject.gear, subject.person ?? {}, scale);
+  return DOLLS.has(`${subject?.face ?? 'threat'}|${subject?.holds ?? 'rifle'}|${scale}`) || DOLLS.has(`${subject?.face ?? 'threat'}|${subject?.holds ?? 'rifle'}|${scale}|${BOARD_PLACES[(picks ?? PORTRAIT_PICKS).where ?? 'W1'] ?? 'ready'}`);
 }
 const hexOf = (v) => ((v & 0xff) << 16) | (v & 0xff00) | ((v >>> 16) & 0xff);
 
@@ -237,16 +226,35 @@ export function paintHitcard(m = {}) {
   // (the words' strip at the foot, as tall as its rows (wordsRows); the figure from figAt, cut where the strip begins)
   const rows = wordsRows(m, S), figH = H - rows.h;
   // ---- the ground: the bay's dark under the board ----
-  const subject = m.subject ?? { kind: 'board', face: m.face, holds: m.holds }, { pm, mask, colour } = subjectDoll(subject, G.scale);
-  const at = figAt(band.pxPerM, S, pm.w), r0 = G.rows[0], r1 = Math.max(r0 + 1, Math.min(G.rows[1], r0 + figH - at.y));
+  // (a board with no subject is "Bang"'s, its painted man as starred (BANG_BOARD_HOLD); the house's boards hold the gun at
+  // the ready, W1 (portrait.js); the picks are the defaults or the To score page's live ones (m.picks, never saved))
+  const picks = { ...PORTRAIT_PICKS, ...(m.picks ?? {}) }, place = m.subject ? BOARD_PLACES[picks.where] ?? 'ready' : BANG_BOARD_HOLD;
+  const subject = m.subject ?? { kind: 'board', face: m.face, holds: m.holds }, { pm, mask, colour, held } = subjectDoll(subject, G.scale, { place, picks });
+  // (a posed doll's body set down by its pose (or drawn from behind, its anchors back.js's): the crop follows the doll's own A zone,
+  // so the man-target's zones and marks stay where the sim put them on him; standing front on, no shift, the card as before)
+  const shift = pm.anchors ? r(pm.anchors.aZone[1] - G.aRow) : 0;
+  const at = figAt(band.pxPerM, S, pm.w), r0 = G.rows[0] + shift, r1 = Math.max(r0 + 1, Math.min(G.rows[1] + shift, r0 + figH - at.y));
   const lift = colour ? MAN_GROUNDS[subject.ground] ?? 0 : 0;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) col[y * W + x] = y >= figH ? HIT_C.glass : mix(mix(HIT_C.board, 0x3a3c45, y / figH * 0.6), HIT_C.khakiShade, lift);
-  // ---- the figure: the doll's outline and kit in the board's two tones ----
+  // ---- the figure: the doll's outline and kit in the board's two tones; v0.0.23, what the hands hold in the board's dark ink
+  // (PORTRAIT_HOLD, G1; G2 its own colours; G3 the ink with a rim of khaki where it meets the figure); V2 veils a man's held pixels
+  // while your take-in has not read his hands ----
+  // ("Bang"'s board as starred keeps its two tones, the gun with them, until question 1's yes)
+  const inked = !!m.subject || BANG_BOARD_HOLD !== 'hand';
+  const tone = picks.gun === 'G2' ? null : PORTRAIT_HOLD, rim = picks.gun === 'G3', veil = colour && picks.unread === 'V2' && m.live?.holds === 'unseen';
+  const isHeld = (x, y) => x >= 0 && y >= 0 && x < pm.w && y < pm.h && !!held?.[y * pm.w + x];
+  let gunIn = 0, gunAll = 0;
+  if (held && inked) for (let i = 0; i < held.length; i++) if (held[i]) gunAll++;
   for (let y = r0; y < Math.min(r1, pm.h); y++) for (let x = 0; x < pm.w; x++) {
     const i = y * pm.w + x;
     if (!mask[i]) continue;
-    const c = hexOf(pm.data[i]);
-    put(at.x + x, at.y + y - r0, colour ? c : c === INK ? HIT_C.khakiInk : lum(c) > 92 ? HIT_C.khaki : HIT_C.khakiShade);
+    const c = hexOf(pm.data[i]), hd = inked && !!held?.[i];
+    let out = colour ? c : c === INK ? HIT_C.khakiInk : lum(c) > 92 ? HIT_C.khaki : HIT_C.khakiShade;
+    if (hd && !colour && tone) out = rim && !(isHeld(x - 1, y) && isHeld(x + 1, y) && isHeld(x, y - 1) && isHeld(x, y + 1)) ? HIT_C.khaki : lum(c) > 120 ? tone.lit : tone.ink;
+    if (hd && !colour && !tone) out = c;
+    if (hd && veil) out = (x + y) % 2 ? mix(HIT_C.board, 0x3a3c45, 0.3) : c;
+    if (hd) gunIn++;
+    put(at.x + x, at.y + y - r0, out);
   }
   // (the board's stakes, from its foot to the words' strip; a man stands on none)
   const foot = at.y + r1 - r0;
@@ -362,7 +370,8 @@ export function paintHitcard(m = {}) {
   for (let x = 0; x < W; x++) { col[x] = HIT_C.edge; col[(H - 1) * W + x] = HIT_C.edge; }
   for (let y = 0; y < H; y++) { col[y * W] = HIT_C.edge; col[y * W + W - 1] = HIT_C.edge; }
   for (let i = 0; i < W * H; i++) data[i] = word(col[i]);
-  return { w: W, h: H, data, repeat: false, key: null, glows: false, look: 'B', band: band.id, pxPerM: band.pxPerM, size: S, marks: drawn, zones, words: rows, subject: subject.kind ?? 'board' };
+  return { w: W, h: H, data, repeat: false, key: null, glows: false, look: 'B', band: band.id, pxPerM: band.pxPerM, size: S, marks: drawn, zones, words: rows, subject: subject.kind ?? 'board', gun: { inCrop: gunIn, all: gunAll }, place,
+    anchors: pm.anchors ? { head: [at.x + pm.anchors.head[0], at.y + pm.anchors.head[1] - r0], aZone: [at.x + pm.anchors.aZone[0], at.y + pm.anchors.aZone[1] - r0] } : null };
 }
 
 /**

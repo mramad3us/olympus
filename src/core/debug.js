@@ -142,8 +142,8 @@ export const CYCLES_URL = Object.freeze(['A', 'B', 'C']);
 
 /** The shot by the URL (&shot=A0..A4: v0.0.20's candidates, src/data/sounds.js SHOT_CANDIDATES; engine.js setShot): else null, the scene's own. */
 export const SHOTS_URL = Object.freeze(['A0', 'A1', 'A2', 'A3', 'A4']);
-/** The voice by the URL (&voice=a|b|c|d, or old (V-a, v0.0.19's stand-ins): v0.0.20's sets, src/data/voices.js VOICE_SETS): else null, the game's (V-c). */
-export const VOICES_URL = Object.freeze(['a', 'b', 'c', 'd', 'old']);
+/** The voice by the URL (&voice=a|b|c|d, or old (V-a, v0.0.19's stand-ins), or none: v0.0.20's sets, src/data/voices.js VOICE_SETS): else null, the game's (none from v0.0.23: the user, 2026-11-19, "no voices"). */
+export const VOICES_URL = Object.freeze(['a', 'b', 'c', 'd', 'old', 'none']);
 /** The look's flags by the URL (&look=stack:4+5,helm:r1,jamb:m2: v0.0.20's To score picks; a query reads '+' as a space, taken as one), the form only (ui/cards/topick.js parseLook reads and checks them). */
 export const LOOK_URL = /^[a-z0-9:+, ]{1,80}$/i;
 /** The shoot house's light by the URL (&houselight=b|c, FL-9's candidates: src/data/places/house-light.js houseLightOf; else null, today's HL-a). */

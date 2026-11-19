@@ -147,6 +147,39 @@ export function rowKeysOf(pm, layout, id) {
 
 // (whether a panel entry wears the DI's light: its row is the line's (isRowOf), never the NEXT key's copy of it)
 export const diLit = (e, diRow) => !!diRow && !!e?.row?.id && isRowOf(e.row, diRow) && e.core !== 'next';
+/** A tapped T with no act pulses the row the DI's line names this long (ms; v0.0.23, its build sheet item 12, carried FH-3). */
+export const STEP_PULSE_MS = 600;
+/**
+ * The NEXT tile's words where T has no act and the DI's line names a row the panel shows (carried FH-3): "6: yours. T never
+ * shoots." for a shot row, "6: yours." for any other, the keys its own place is on in the layout drawn (rowKeysOf: "Tab › 1 › 5"
+ * where the row is in a group); "T: nothing now" where the line names none. Before v0.0.23 the tile said "T: nothing now" beside
+ * a line that said "Press it.", and a tapped T did nothing a new player could see (the first-hour lens: the recruit pressed T
+ * eleven times at room 1's contact). Pure.
+ */
+export function nextWords(pm, layout, diRow) {
+  const path = diRow ? rowKeysOf(pm, layout, diRow) : null;
+  if (!path?.length) return 'T: nothing now';
+  return `${path.join(' › ')}: yours.${/^shot:|^fire$/.test(String(diRow)) ? ' T never shoots.' : ''}`;
+}
+/** The Watch and Look rows' group hint on their hover (its build sheet item 18, DW: the user, 2026-11-17, "i don't know what the "look behind the door" option does"). */
+export const WATCH_HINT = 'outside: aim in; inside: check';
+/**
+ * What a Watch or Look row does, drawn on the row itself where its odds would be (DW; the review of 2026-11-18: D's first
+ * labels carried it after the spot and were cut at the tile's two lines in panels C and A, so it was never read). The rows have no
+ * roll in doubt (bundle.js: routine, every time), so their "routine" told nothing; now the meta says "aim in" (Watch: your muzzle on
+ * the spot as you go in) or "check" (Look: your eyes and muzzle into it), in every layout and form, beside the label; the hover says
+ * it whole (HOT_PURPOSE_WORDS), the dead corner's "the corner the open door hides" with it (my calls on the words).
+ */
+export const HOT_PURPOSE = Object.freeze({ watch: 'aim in', look: 'check' });
+export const HOT_PURPOSE_WORDS = Object.freeze({ watch: 'Watch: your muzzle on that spot as you go through the door', look: 'Look: your eyes and muzzle into that spot, to check it for a man', behind: 'behind the door: the corner the open door hides' });
+/** A Watch or Look row on a tile (see row()): { word ('WATCH' | 'LOOK'), spot (its label past "Watch: "), label }, else null. */
+export function hotTileOf(step) {
+  const m = /^(watch|look):/.exec(String(step?.id ?? '')), label = String(step?.label ?? '');
+  const lm = m ? /^(Watch|Look): (.+)$/.exec(label) : null;
+  return lm ? { word: lm[1].toUpperCase(), spot: lm[2], label } : null;
+}
+/** A row's purpose word (HOT_PURPOSE) when it is a Watch or Look row, else null. */
+export const hotPurposeOf = (step) => { const m = /^(watch|look):/.exec(String(step?.id ?? '')); return m ? HOT_PURPOSE[m[1]] : null; };
 
 /**
  * A shaking row's hover words: "pinned −10: the chaos 105 − your hardening 7 = felt 98" (the band's word and the row's
@@ -491,6 +524,8 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   // (R7: the model, the layout, the view, and where the player is in it: nav (an open drawer, bank or the fan's group, its third
   // level), reset where the stop changes (navKey); fanHeld, Tab held in layout C)
   let pm = null, layout = DEFAULT_LAYOUT, view = null, nav = {}, navKey = null, fanHeld = false, watchStep = 0, small = false, diRow = null;
+  // (carried FH-3: the row a tapped T named and until when it pulses (performance.now ms), or null)
+  let pulsed = null;
   // (every step the panel has shown, by id: the one running leaves stepsOf's list as it changes the gun, LOAD once the magazine is in)
   const known = new Map();
 
@@ -648,7 +683,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
   // (a row: its key, its label (two lines at most), and at its right its time over its odds or its reason;
   // the chained wait's row marked as it runs, its time gone as a bar along its foot)
   function row(slot, v, doing, entry = null) {
-    const s = slot.step, isRunning = !!doing && doing.step === s.id, odds = oddsText(s), t = timeText(s, v);
+    const s = slot.step, isRunning = !!doing && doing.step === s.id, purpose = hotPurposeOf(s), odds = purpose ?? oddsText(s), t = timeText(s, v);
     // (0.0.9: the step last run, its marks after its name until another is chosen)
     const done = lastMarks(v.ticks, s.id);
     const dots = bundleDots(s);
@@ -666,7 +701,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
         s.off ? (badgeEl(entry?.badge ?? badgeOf(s.off)) ?? el('span', { className: 'why', textContent: s.off })) : s.warn ? el('span', { className: 'why warn', textContent: `! ${warnWords(s.warn)}` })
           // (a shot row: each round's odds, a meter under each, the head's marked: graphics beside the numbers)
           : isShotRow(s) ? rounds()
-          : odds ? el('span', { className: `odds${s.routine ? ' routine' : ''}`, textContent: odds }) : null);
+          : odds ? el('span', { className: `odds${purpose ? ' purpose' : s.routine ? ' routine' : ''}`, textContent: odds }) : null);
     const kids = [el('kbd', { textContent: slot.key }), lab, meta];
     // (R7: the hover leads with the row's own words, whole where the tile cuts them short)
     const hover = rowTitle(s, { label, chaos: v.chaos ?? null });
@@ -702,7 +737,7 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     if (e.home) return `${k.key} ◂ home`;
     if (e.more) return `${k.key} more · ${e.page + 1}/${e.pages}`;
     if (e.deep && !e.row) return `${k.key} ${e.words ?? '▸'} ${e.count ?? ''}`.trim();
-    if (e.core === 'next') return `${k.key} NEXT: ${e.live ? e.actLabel ?? 'T' : 'nothing'}`;
+    if (e.core === 'next') return `${k.key} NEXT: ${e.live ? e.actLabel ?? 'T' : (() => { const w = nextWords(pm, layout, diRow); return w === 'T: nothing now' ? 'nothing' : w; })()}`;
     if (!e.row) return e.words ? `${k.key} (${e.words})` : null;
     const t = rowText({ key: k.key, step: e.row }, { shift: v.shift });
     return e.core ? `${t} [${CORE_WORDS[e.core]}]` : t;
@@ -786,8 +821,10 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     } else if (e.core === 'next') {
       const st = e.row, live = !!e.live;
       const t = live && st ? timeText(st, v) : '';
-      n = el('div', { className: `step core next${live ? '' : ' off'}`, title: live ? `NEXT: what T does now${st ? `, ${st.label}` : ''} (T tapped does the same)` : 'NEXT: T has nothing to do now' },
-        el('kbd', { textContent: k.key }), el('span', { className: 'label' }, el('span', { className: 'name', textContent: live ? st?.label ?? e.actLabel ?? 'T' : 'T: nothing now' })),
+      // (carried FH-3: T with no act names the key the DI's row is on, "6: yours. T never shoots.")
+      const idle = live ? null : nextWords(pm, layout, diRow);
+      n = el('div', { className: `step core next${live ? '' : ' off'}${idle && idle !== 'T: nothing now' ? ' yours' : ''}`, title: live ? `NEXT: what T does now${st ? `, ${st.label}` : ''} (T tapped does the same)` : idle === 'T: nothing now' ? 'NEXT: T has nothing to do now' : `NEXT: ${idle} The row the instructor names is yours to press` },
+        el('kbd', { textContent: k.key }), el('span', { className: 'label' }, el('span', { className: 'name', textContent: live ? st?.label ?? e.actLabel ?? 'T' : idle })),
         el('span', { className: 'meta' }, t ? el('span', { className: 'time', textContent: t }) : null, el('kbd', { className: 'tcap', textContent: 'T' })));
       if (live) n.addEventListener('click', () => onNext?.());
     } else {
@@ -808,9 +845,27 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
       const nm = n.querySelector('.label .name');
       // (the hover leads with the tile's whole name, where the tile cuts it (NEXT's said "NEXT: …" first))
       if (nm?.firstChild && e?.core === 'next' && !String(n.title).startsWith(nm.firstChild.textContent)) n.title = `${nm.firstChild.textContent}: ${n.title}`;
-      if (small && nm?.firstChild && (e?.row || e?.words) && !e?.tab && !e?.more && !e?.home) { const w = e.core === 'next' && !e.live ? 'nothing' : e.core === 'next' ? shortName({ row: e.row, words: e.actLabel }) : shortName(e, pm?.half); if (!n.title) n.title = nm.textContent; nm.firstChild.textContent = w; }
+      // (the play review's third finding: a Watch or Look tile, its own or NEXT's naming one, cut at "Watch: behind
+      // the…" at 1280 × 720 and 1600 × 900: on a tile its verb is the tile's word (WATCH, LOOK, as FIX and MUZZLE are) and the name
+      // the spot alone, "behind the door", whole in its two lines; the hover keeps the whole label)
+      const hk = form !== 'list' && nm?.firstChild ? hotTileOf(e?.core === 'next' ? (e.live ? e.row : null) : e?.row) : null;
+      if (hk && !small) {
+        if (!n.title.includes(hk.label)) n.title = `${hk.label}${n.title ? ` · ${n.title}` : ''}`;
+        nm.firstChild.textContent = hk.spot; n.dataset.label = hk.label;
+        const w = el('span', { className: 'cw', textContent: hk.word }), tag = n.querySelector(':scope > .ctag');
+        if (tag) tag.append(w); else n.querySelector(':scope > kbd')?.after(el('span', { className: 'ctag' }, w));
+      }
+      if (small && nm?.firstChild && (e?.row || e?.words) && !e?.tab && !e?.more && !e?.home) { const idle = e.core === 'next' && !e.live ? nextWords(pm, layout, diRow) : null; const w = idle ? (idle === 'T: nothing now' ? 'nothing' : idle.replace(/\..*$/, '')) : e.core === 'next' ? shortName({ row: e.row, words: e.actLabel }) : shortName(e, pm?.half); if (!n.title) n.title = nm.textContent; nm.firstChild.textContent = w; }
     }
     const rid = e?.row?.id ?? null;
+    // (carried FH-3: the row a tapped T named pulses STEP_PULSE_MS, kept through a redraw inside it)
+    if (rid && pulsed && isRowOf(e.row, pulsed.id) && e.core !== 'next' && (globalThis.performance?.now?.() ?? 0) < pulsed.until) n.classList.add('pulse');
+    // (DW: the Watch and Look rows' hover says what the group does, outside and in)
+    // (the review of 2026-11-18: what it does whole on the hover, the dead corner's words with it; the row's own meta says it short, HOT_PURPOSE)
+    if (/^(watch|look):/.test(String(rid ?? '')) && !String(n.title).includes(WATCH_HINT)) {
+      const kind = String(rid).split(':')[0], behind = /behind the door/.test(String(e?.row?.label ?? ''));
+      n.title = `${n.title ? `${n.title} · ` : ''}${HOT_PURPOSE_WORDS[kind]}${behind ? `; ${HOT_PURPOSE_WORDS.behind}` : ''} · ${WATCH_HINT}`;
+    }
     if (diLit(e, diRow)) n.classList.add('di');
     // (the head called for (the DI's row To the head: still up after the plate, the hostage), the other shots stand aside, dimmed,
     // so the old habit's 1 (a pair into the plate, Pairs and Bang before v0.0.14) is seen not to be it: the question of 2026-11-14;
@@ -850,6 +905,19 @@ export function createSteps(parent, { label = (a) => a, paintCard = null, onPick
     get slots() { return slots; },
     /** The step under the pointer now (its id), or null. */
     get hovered() { return root.hidden || !slots.some(x => x.step.id === hovered) ? null : hovered; },
+    /**
+     * Pulse the row a tapped T named and will not press (its build sheet item 12, carried FH-3): its tile wears 'pulse' for
+     * STEP_PULSE_MS, nothing drawn over anything; whether a tile of it is shown.
+     */
+    pulse(id) {
+      if (!id) return false;
+      const until = (globalThis.performance?.now?.() ?? 0) + STEP_PULSE_MS;
+      pulsed = { id, until };
+      const els = rowsEls.filter(x => x.dataset?.step && isRowOf({ id: x.dataset.step }, id) && x.dataset.core !== 'next');
+      for (const r of els) { r.classList.remove('pulse'); void r.offsetWidth; r.classList.add('pulse'); }
+      setTimeout(() => { if (pulsed?.until === until) { pulsed = null; for (const r of els) r.classList.remove('pulse'); } }, STEP_PULSE_MS);
+      return els.length > 0;
+    },
     /** Flash a row (a struck step chosen: its reason lit for FLASH_MS). */
     flash(id) {
       const r = rowsEls.find(x => x.dataset?.step === id);

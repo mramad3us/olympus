@@ -21,13 +21,21 @@
 // whispered, the calls in a room shouted, the PA plain. VOICE_SETS are the four to score (samples/voices): V-a today's stand-ins,
 // V-b the words dry, V-c the words through their paths (the game's until the user scores), V-d V-c with breath and effort on
 // the shouts. Every number is my call, to be scored.
+//
+// v0.0.23's fixer (the user, 2026-11-19, twice: "forget about voices, those are all terrible use text bubble only" and "also let
+// me reiterate : forget voice synthesis, no voices."): the game's set is 'none', no line voiced in any scene and none of V-a's
+// five voiced syllables either (paGo, paStop, paStandby, shoutClear, whisperReady are a voice's syllables: my call); every line
+// shows as the text it always showed, and the timer's beeps, the harness's tone, the doors, the steps and the guns sound as
+// before. The four sets stay reachable by &voice=a|b|c|d for the tests that pin them, and v0.0.24 removes the synthesis whole.
 
 /** The voice's render rate (Hz): a voice's band ends at 5 kHz, Melas's air takes the rest. */
 export const VOICE_RATE_HZ = 24000;
-/** The four sets to score (samples/voices, the To score page's Voice row): V-a today's, V-b dry, V-c through their paths, V-d with effort. */
+/** The four sets once scored (samples/voices, retired with the To score page's Voice row by the user's word of 2026-11-19): V-a v0.0.19's stand-ins, V-b dry, V-c through their paths, V-d with effort; each by &voice= only. */
 export const VOICE_SETS = Object.freeze(['a', 'b', 'c', 'd']);
-/** The set the game plays until the user scores one (the build sheet's ship rule: V-c only if house-voiced and voice-render pass). */
-export const VOICE_DEFAULT = 'c';
+/** No voice (see the header): the game's set from v0.0.23, the user's "no voices" of 2026-11-19. */
+export const VOICE_NONE = 'none';
+/** The set the game plays: none (the user, 2026-11-19; it was V-c from v0.0.20). */
+export const VOICE_DEFAULT = VOICE_NONE;
 /** Your own voice under your number two's shout (dB). */
 export const OWN_VOICE_DB = -6;
 /** The speakers' paths (see the header): pitch (Hz), band [low, high] (Hz) or null, level against a recipe's 0 dB (dB), shelf (dB under 300 Hz). */
@@ -54,8 +62,9 @@ export const REGISTER = Object.freeze({
   // (by the fact's kind and the speaker)
   pa: 'plain', speech: 'plain', chief: 'plain', man: 'shout',
 });
-/** The four sets: { words (formant words, or v0.0.19's stand-ins), paths (through the speakers' bands), effort (breath on the shouts) }. */
+/** The sets: { words (formant words, or v0.0.19's stand-ins), paths (through the speakers' bands), effort (breath on the shouts), silent (no voice at all: not the words, not V-a's syllables) }. */
 export const VOICE_SET = Object.freeze({
+  none: Object.freeze({ words: false, paths: false, effort: false, silent: true }),
   a: Object.freeze({ words: false, paths: false, effort: false }),
   b: Object.freeze({ words: true, paths: false, effort: false }),
   c: Object.freeze({ words: true, paths: true, effort: false }),

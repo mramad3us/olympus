@@ -1,6 +1,7 @@
 {
  "title": "The target view: the stands as you saw them, a live man in his gear, the hostage card",
- "about": "Your words of 2026-11-15: \"we need to generalize that target view for every time we're engaging something or someone\", and the people in it \"rendered ... as we see them, meaning with their gear\". The card is \"Bang\"'s B (the khaki board you scored 99), drawn by the game's own code (src/art/doll/hitcard.js). In the shoot house it opens as soon as you aim at or bracket a stand your take-in has seen, the stand drawn as your take-in identified it, never as its record holds; \"Bang\" keeps its own as you scored it. Score L and H.",
+ "about": "Your words of 2026-11-15: \"we need to generalize that target view for every time we're engaging something or someone\", and the people in it \"rendered ... as we see them, meaning with their gear\". The card is \"Bang\"'s B (the khaki board you scored 99), drawn by the game's own code (src/art/doll/hitcard.js). In the shoot house it opens as soon as you aim at or bracket a stand your take-in has seen, the stand drawn as your take-in identified it, never as its record holds; \"Bang\" keeps its own as you scored it. Score L and H. Shot first in v0.0.23 (drawn at L-a and H-a since v0.0.18 with nobody's score behind them); where it meets v0.0.23's sets: H here decides on which side of the hostage the hostile shows, and `portrait-gun`'s H decides what his gun hand holds (his pistol at her head, or his rifle up beside her); F's boards hold their guns where `portrait-gun`'s W decides.",
+ "open": {"default": ["L-a", "H-a"], "since": "2026-11-17", "decides": "the live man's card ground (L) and the hostage card's side (H)", "builtIn": "v0.0.24"},
  "pixel": true,
  "groups": [
   {

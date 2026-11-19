@@ -102,12 +102,17 @@ export default [
     },
   },
   {
-    name: 'the casualty\'s lesson names the pistol only where the DI\'s line did: the private on 48213 (layout C, live, keys) heard "Tap, rack, back on." at the click and is not taught "a click means the pistol"; the sergeant\'s click on 48213 live by T still is (the play review: casualty:click below rung 2)',
+    name: 'the casualty\'s lesson names the pistol only where the DI\'s line did: the private on 48213 (layout C, live, keys) heard "Tap, rack, back on." at the click and is not taught "a click means the pistol"; the sergeant\'s click on seed 1 live by T still is (the play review: casualty:click below rung 2)',
     heavy: true,
     timeoutMs: 300_000,
     fn() {
       const one = (o, bot) => { const g = createGame({ scenario: 'test-shoothouse', ...o }); runHouse(g, bot, { maxMs: 20 * 60_000 }); return { key: runSheetOf(g.state).one?.key ?? null, end: houseOf(g).end?.why }; };
-      const priv = one({ tier: 'private', seed: 48213, layout: 'C', opfor: 'live' }, houseBot({ mode: 'keys' })), sgt = one({ tier: 'sgt', seed: 48213, opfor: 'live:fight,hide' }, houseBot({ mode: 'T' }));
+      const priv = one({ tier: 'private', seed: 48213, layout: 'C', opfor: 'live' }, houseBot({ mode: 'keys' })), sgt = one({ tier: 'sgt', seed: 1, opfor: 'live:fight,hide' }, houseBot({ mode: 'T' }));
+      // (the sergeant's lane re-pointed from 48213 to seed 1 at v0.0.23's integration: v0.0.23 D's sterile check (DC3, the instructor's
+      // look on the floor before LOAD, 140 ticks more of the brief) moves the live lane on 48213 so its fatal strike follows no click
+      // ('casualty', the card's cause unchanged); seed 1 is the first of seeds 1 to 40 whose sergeant by T dies after his click there
+      // ('casualty:click'), so the case still holds the rule from rung 2. The private's half still fails without the fix: with the
+      // rung's floor taken off casualtyCause his lane on 48213 is 'casualty:click')
       console.log(`      the private: ${JSON.stringify(priv)}; the sergeant: ${JSON.stringify(sgt)}`);
       assert(priv.end === 'casualty' && priv.key !== 'casualty:click' && sgt.end === 'casualty' && sgt.key === 'casualty:click', JSON.stringify({ priv, sgt }));
     },

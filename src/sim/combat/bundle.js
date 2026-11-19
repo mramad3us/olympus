@@ -2167,8 +2167,8 @@ export function singleRows(state, pid = playerId(state), ms = state.clock.ms) {
   const muzzleYaw = a.headRad ?? 0;
   for (const h of plan.hot ?? []) {
     const turn = Math.abs(wrap(bearing(me, hotXZ(h)) - muzzleYaw)) / D2R, name = hotName(plan, h);
-    if (!inside) out.push(row(`watch:${h.id}`, 'watch', `Watch: ${name}`, watchS(sk.wh, turn) * 1000, { hot: h.id, off: a.watch?.hotId === h.id ? 'watching' : null }));
-    else out.push(row(`look:${h.id}`, 'look', `Look: ${name}`, lookS(sk.awr, turn) * 1000, { hot: h.id }));
+    if (!inside) out.push(row(`watch:${h.id}`, 'watch', hotLabel('watch', h, name), watchS(sk.wh, turn) * 1000, { hot: h.id, off: a.watch?.hotId === h.id ? 'watching' : null }));
+    else out.push(row(`look:${h.id}`, 'look', hotLabel('look', h, name), lookS(sk.awr, turn) * 1000, { hot: h.id }));
   }
   // (Move: inside a room to the slot's point; along the hall to its end; never through a door's plane below rung 2 (see the header))
   if (inside) {
@@ -2297,6 +2297,20 @@ const swingNote = (sw) => (sw ? { how: sw.how, hinge: sw.hinge, words: sw.words 
 const SINGLE_GROUP = Object.freeze({ bundle: 'stack', door: 'door', watch: 'room', look: 'room', move: 'room', call: 'room', mark: 'room', gait: 'body' });
 // (a hot spot's name in the panel's words)
 const HOT_WORDS = Object.freeze({ 'behind the door': 'behind the door', corner: 'the corner', 'far leg': 'the far leg' });
+/**
+ * A Watch or Look row's label: its action and its spot (its build sheet item 18, DW; the user, 2026-11-17, "i don't know
+ * what the "look behind the door" option does" and "same for the watch the near right corner etc"): "Watch: near right corner",
+ * "Look: far left corner", the push door's dead corner "Watch: behind the door" and "Look: behind the door" (the spot's article
+ * dropped). What each does is said where the list is drawn (steps.js HOT_PURPOSE: Watch, "aim in as you go in"; Look, "check it
+ * for a man"; behind the door, "the corner the open door hides"), never in the label: the review of 2026-11-18 found D's first
+ * words ("Watch the near right corner: muzzle on it as you go in", 33 to 52 characters) cut at the tile's two lines in panels C and
+ * A, so the half that said what the row does was never seen (my calls on the words). The ids and acts are unchanged (watch:<hot>,
+ * look:<hot>): every bot, the instinct and the gauges key on them, never on a label.
+ */
+export function hotLabel(kind, h, name) {
+  const spot = String(name ?? '').replace(/^the /, '');
+  return `${kind === 'watch' ? 'Watch' : 'Look'}: ${spot}`;
+}
 /** A corner this deep past the door's plane or less is a near one, metres; this far or less off the door's middle is straight ahead (my calls). */
 export const HOT_NEAR_M = 1.5, HOT_AHEAD_M = 0.3;
 function hotName(plan, h) {

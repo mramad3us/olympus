@@ -73,12 +73,13 @@ import { word } from '../paint.js';
 import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE, cutOf, SIDES_K, COMBAT_SUIT } from '../figures/outfits.js';
 import { helmOf, helmFor } from '../figures/helmets.js';
 import { dollHelm, trimDollPlate } from './helmets.js';
-import { rifleAt, gearBends, suitBelt, carrierPouches, dumpPouch, holster, earCups, pistolAt, heldItem, backDevices, sideDevices, handDevice } from './worn.js';
+import { rifleAt, gearBends, suitBelt, carrierPouches, dumpPouch, holster, earCups, pistolAt, heldItem, backDevices, sideDevices, handDevice, holdGear, RIFLE_IN_HANDS, PISTOL_IN_HANDS } from './worn.js';
+import { backParts } from './back.js';
 import { REF, INK, mix, lum, cloth, flesh, smooth, ribbon, edgeOf, grid, halo, TONES } from './grid.js';
 
 /** The close figure's scale: the stage's density over tradecraft's 16 px/m (my call: the same size against the picture). */
 export const DOLL_SCALE = PX_PER_M / 16;
-const DROP = 2;                                                    // (drawn from row 0, then set down: air over the head, room for the ink)
+export const DROP = 2;                                                 // (drawn from row 0, then set down: air over the head, room for the ink)
 const MID = REF.W / 2;
 /** Doll pixels a centimetre at scale 1 (tradecraft's: 175 cm over 126 rows): what's held is drawn to its length. */
 export const PX_PER_CM = 0.72;
@@ -91,12 +92,15 @@ export const TIRED_SHOWS_K = 0.5, BLADDER_SHOWS_K = 0.6, HUNGER_SHOWS_K = 0.6;
 export const HANDS_SHARE = Object.freeze([[0.2, 0.18], [0.4, 0.4], [0.7, 0.65]]);
 export const HANDS_DIRT = Object.freeze({ slow: 0x6e6862, head: 0x6e6862, stall: 0x5f5a54, food: 0x7a6650, rifle: 0x2b2d33, regolith: 0xa04a2c });
 const WAIST_Y = 52, BELT_Y = 58, CROTCH_Y = 72, KNEE_Y = 101, ANKLE_Y = 124, FLOOR_Y = 132;
+/** The body's rows a part drawn from outside this module takes (./back.js backParts: the waist and the belt, reference rows). */
+export const DOLL_ROWS = Object.freeze({ WAIST_Y, BELT_Y });
 const lf = (pts) => pts.map(([d, y]) => [MID - d, y]);
 const rt = (pts) => pts.map(([d, y]) => [MID + d, y]);
 const both = (pts) => [...lf(pts), ...rt(pts).reverse()];
 const folds = (g, id, list, c) => { for (const [path, w] of list) g.on(id, g.scan(ribbon(path, w)), c); };
 
-const BODY = {
+/** The body's measures by sex (reference columns from the middle, and rows): ./back.js draws from them too. */
+export const BODY = {
   m: { neck: 4.6, shoulder: 20.4, chest: 16.2, waist: 13.6, hip: 14.6, knee: 13.2, hem: 12.6, gap: 3, ankle: [4.4, 10],
     armOut: [[12, 29.4], [17, 30.6], [19.8, 33], [21, 38], [21.6, 46], [22.4, 53], [22.6, 60], [22, 70]], armIn: [[16.2, 70], [16.4, 60], [15.8, 53], [15.2, 47], [15, 41], [13, 36]], hand: 19.2 },
   f: { neck: 3.5, shoulder: 17.6, chest: 14.4, waist: 10.4, hip: 14.6, knee: 11.6, hem: 10.8, gap: 2.2, ankle: [4, 9.4], small: true,
@@ -394,11 +398,21 @@ function head(g, B, kit, look) {
   g.on(face, g.scan(smooth([[MID - 6.8, 17], [MID - 5.4, 16.8], [MID - 5, 18.4], [MID - 6.4, 19]], 2)), S.soft);
   g.on(face, g.rows(25, MID - 3, MID + 2), S.shade); g.on(face, g.rows(24, MID + 1, MID + 3), S.shade);
   const hairC = kit.hair.color, brow = mix(hairC, S.deep, 0.15), lid = mix(0x2a1c18, S.deep, 0.25), white = mix(0xf6f4ee, kit.skin, 0.15), iris = 0x2a1c18;
-  for (const [a, b] of [[MID - 6, MID - 3], [MID + 2, MID + 5]]) g.span(12, a, b, brow);
-  g.put(MID - 6, 13, brow); g.put(MID + 5, 13, brow);
-  for (const x0 of [MID - 6, MID + 3]) { g.span(14, x0, x0 + 2, lid); g.put(x0, 15, white); g.put(x0 + 1, 15, iris); g.put(x0 + 2, 15, white); }
-  g.put(MID, 16, S.shade); g.put(MID, 17, S.shade); g.put(MID, 18, S.shade); g.put(MID - 1, 19, S.shade); g.put(MID, 19, S.deep); g.put(MID + 1, 19, S.shade); g.put(MID - 1, 18, S.light);
-  g.span(22, MID - 2, MID + 1, S.deep); g.put(MID - 3, 22, S.shade); g.put(MID + 2, 22, S.shade); g.span(23, MID - 1, MID, S.shade);
+  // (F3: a man side on drawn front on with his head turned, the features slid toward the side he faces, the far eye
+  // narrowed to a lid, the far ear hidden under the cheek's shade; kit.turn the reference columns, 0 front on: the pixels as before)
+  const t = kit.turn ?? 0, M = MID + t;
+  if (t) g.on(face, g.scan(smooth(t > 0 ? [[MID - 8, 9], [MID - 7, 18], [MID - 5, 23], [MID - 3, 23], [MID - 5, 14]] : [[MID + 8, 9], [MID + 7, 18], [MID + 5, 23], [MID + 3, 23], [MID + 5, 14]], 3)), S.shade);
+  for (const [a, b] of [[M - 6, M - 3], [M + 2, M + 5]]) g.span(12, a, b, brow);
+  g.put(M - 6, 13, brow); g.put(M + 5, 13, brow);
+  for (const x0 of [M - 6, M + 3]) {
+    const far = (t > 0 && x0 < M) || (t < 0 && x0 > M);
+    g.span(14, x0, x0 + 2, lid);
+    if (far) { g.span(15, x0, x0 + 2, lid); continue; }
+    g.put(x0, 15, white); g.put(x0 + 1, 15, iris); g.put(x0 + 2, 15, white);
+  }
+  g.put(M, 16, S.shade); g.put(M, 17, S.shade); g.put(M, 18, S.shade); g.put(M - 1, 19, S.shade); g.put(M, 19, S.deep); g.put(M + 1, 19, S.shade); g.put(M - 1, 18, S.light);
+  if (t) g.put(M + Math.sign(t) * 2, 18, S.shade);                    // (the nose's side toward him, shaded)
+  g.span(22, M - 2, M + 1, S.deep); g.put(M - 3, 22, S.shade); g.put(M + 2, 22, S.shade); g.span(23, M - 1, M, S.shade);
   void look;
 }
 // (hair: the regulation cuts (0.0.6) at their step, drawn in clumps, its lit top, a dark where it turns; see the header)
@@ -773,6 +787,113 @@ function sweatMarks(g, kit, k) {
   }
 }
 
+// ---------- the poses (the build sheet §3.3, P§3.3; portrait-pose's defaults) ----------
+
+/** Where the legs are cut from the body and bent: the belt (their top), the knee, the floor's last row + 1 (reference rows). */
+const HIP_Y = BELT_Y, LEG_KNEE_Y = KNEE_Y, LEG_FOOT_Y = FLOOR_Y + 1;
+/**
+ * The poses as bends of the standing figure's parts (data: samples/portrait-pose's candidates are rows of the same shape): the
+ * body above the legs set down `drop` reference rows (and cut at row `cut` of it: what lies behind a prone man's shoulders), each
+ * leg (r the man's right, the viewer's left) its thigh's and its shin's rows drawn at a share (k; 'fit' fills to the floor), from
+ * `from` (else the hip's new row), the legs drawn over the body (legsOver: knees up before a sitting man's belly) or under it;
+ * `lean` shears the body toward the viewer's right (a share of a column a row); `arms` the fists' places (doll.js bentArm's),
+ * over the hold's. The anchors (the head's and the A zone's centres) go down with the body. Default poses (my call, the lens's):
+ * K1 kneeling on the right knee, the left foot planted; D1 sitting on the floor, knees up, the rifle across them; C1 crouched, the
+ * fists at the head's sides; Y-p prone, the head and shoulders low behind the rifle, end on.
+ */
+export const POSE_BENDS = Object.freeze({
+  stand: null,
+  kneel: Object.freeze({ drop: 31, legs: Object.freeze({ r: Object.freeze([1, 0]), l: Object.freeze([0.25, 'fit']) }) }),
+  sit: Object.freeze({ drop: 66, legsOver: true, lap: true, legs: Object.freeze({ r: Object.freeze([0, 0.9, 104]), l: Object.freeze([0, 0.9, 104]) }), arms: Object.freeze({ bendR: Object.freeze([14, 38]), bendL: Object.freeze([14, 38]) }) }),
+  cower: Object.freeze({ drop: 28, legs: Object.freeze({ r: Object.freeze([0.35, 'fit']), l: Object.freeze([0.35, 'fit']) }), arms: Object.freeze({ bendR: Object.freeze([9.5, 13]), bendL: Object.freeze([9.5, 13]) }) }),
+  prone: Object.freeze({ drop: 86, cut: 46, legs: null }),
+});
+/** The reference rows of the standing figure's anchors: the head's centre and the man-target's A zone's (hitcard.js HEAD_ROW, A_ROW at scale 1). */
+export const HEAD_Y = 16, A_ZONE_Y = 37.6;
+
+// (the bend (POSE_BENDS' shape) on the drawn grid: the body's parts moved rigidly, the legs' rows resampled side by side)
+function bendPose(g, P, legIds) {
+  const S = g.S, R = g.ROWS, W = g.W, col = g.col, part = g.part, T = (v) => Math.round(v * S), mid = Math.round(g.MID * S);
+  const nc = Array.from({ length: R }, () => Array(W).fill(null)), np = Array.from({ length: R }, () => Array(W).fill(0));
+  const drop = T(P.drop ?? 0), cut = Number.isFinite(P.cut) ? T(P.cut) : Infinity;
+  const body = () => {
+    for (let y = 0; y < Math.min(R, cut); y++) for (let x = 0; x < W; x++) {
+      const c = col[y][x], p = part[y][x];
+      if (c === null || legIds.has(p)) continue;
+      const yd = y + drop, xd = x + (P.lean ? Math.round((T(HIP_Y) + drop - yd) * -P.lean) : 0);
+      if (yd >= 0 && yd < R && xd >= 0 && xd < W) { nc[yd][xd] = c; np[yd][xd] = p; }
+    }
+  };
+  const legs = () => {
+    if (!P.legs) return;
+    const thigh = LEG_KNEE_Y - HIP_Y, shin = LEG_FOOT_Y - LEG_KNEE_Y;
+    for (const side of ['r', 'l']) {
+      const [kt, ks0, from0] = P.legs[side], from = Number.isFinite(from0) ? from0 : HIP_Y + (P.drop ?? 0);
+      const ks = ks0 === 'fit' ? Math.max(0, (LEG_FOOT_Y - from - kt * thigh) / shin) : ks0;
+      const segs = [[HIP_Y, kt * thigh, kt], [LEG_KNEE_Y, ks * shin, ks]];
+      let at = from;
+      for (const [src0, n, k] of segs) {
+        if (k > 0) for (let yd = T(at); yd < T(at + n) && yd < R; yd++) {
+          const ys = Math.min(R - 1, Math.floor(T(src0) + (yd - T(at)) / k));
+          for (let x = side === 'r' ? 0 : mid; x < (side === 'r' ? mid : W); x++) { const c = col[ys][x], p = part[ys][x]; if (c !== null && legIds.has(p) && yd >= 0) { nc[yd][x] = c; np[yd][x] = p; } }
+        }
+        at += n;
+      }
+    }
+  };
+  if (P.legsOver) { body(); legs(); } else { legs(); body(); }
+  for (let y = 0; y < R; y++) { col[y] = nc[y]; part[y] = np[y]; }
+}
+
+/** The profile candidate's width against the front's (F2: a candidate the user scores; the game draws F1 and F3). */
+export const PROFILE_K = 0.6;
+// (the figure drawn narrower about its middle column, nearest: the profile candidate)
+function squeeze(g, k) {
+  const W = g.W, c = W / 2;
+  for (let y = 0; y < g.ROWS; y++) {
+    const row = g.col[y], prt = g.part[y], nr = Array(W).fill(null), np = Array(W).fill(0);
+    for (let x = 0; x < W; x++) { const sx = Math.floor(c + (x + 0.5 - c) / k); if (sx >= 0 && sx < W) { nr[x] = row[sx]; np[x] = prt[sx]; } }
+    g.col[y] = nr; g.part[y] = np;
+  }
+}
+
+/**
+ * The figure from behind (portrait-facing's F1; A's ./back.js): the legs and the boots as the front draws them, the cargo
+ * pockets and the holster on them, then the lower body mirrored about the middle (from behind his right thigh, the holster's, is at
+ * the viewer's right: my call), then backParts from the waist up in place of the front's torso, arms and head, then the camouflage
+ * over the lot (back.js adds the blouse's back, the arms and the cover to kit.camoParts). What is in the hands is in front of him and
+ * hidden; a rifle in the hands or hanging in front shows as its sling, one on the back whole. The body's cues (sweat, grime, the
+ * face's) are the front's: not drawn. Returns the parts' bounds the pose's bend needs and the back's anchors.
+ */
+function fromBehind(g, B, kit, Y) {
+  const G = kit.gear, bare = kit.pt || kit.towel;
+  const leg0 = g.add([], 0), L = legs(g, B, kit);
+  if (!kit.suit && !bare) kit.camoParts.add(L.a).add(L.b);
+  boots(g, B, kit);
+  if (bare) overLegs(g, B, kit);
+  if (!kit.suit && !bare) cargo(g, B, kit, L);
+  const leg1 = g.add([], 0), hol0 = g.add([], 0);
+  if (G && !G.painted && (G.pistol || G.thigh)) holster(g, B, kit, Y);
+  const hol1 = g.add([], 0);
+  // (mirrored about the legs' own middle, so they stand where the front's do: the columns' sum of the knee row's outer edges)
+  const kr = Math.round(KNEE_Y * g.S), row = g.col[kr];
+  let x0 = -1, x1 = -1;
+  for (let x = 0; x < g.W; x++) if (row[x] !== null) { if (x0 < 0) x0 = x; x1 = x; }
+  const sum = x0 < 0 ? g.W - 1 : x0 + x1;
+  for (let y = 0; y < g.ROWS; y++) {
+    const c = g.col[y], p = g.part[y], nc = Array(g.W).fill(null), np = Array(g.W).fill(0);
+    for (let x = 0; x < g.W; x++) { const sx = sum - x; if (sx >= 0 && sx < g.W) { nc[x] = c[sx]; np[x] = p[sx]; } }
+    g.col[y] = nc; g.part[y] = np;
+  }
+  // (the rifle as back.js reads it: in the hands, the sling across the back as at the ready; at the hip or across the knees, as slung in front)
+  const R = G?.rifle;
+  if (R && R.place !== 'back' && R.place !== 'front') kit.gear = { ...G, rifle: { ...R, place: RIFLE_IN_HANDS.includes(R.place) ? 'ready' : 'front' } };
+  const backed = backParts(g, B, kit, Y);
+  kit.gear = G;
+  if (!kit.suit && !bare) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
+  return { leg0, leg1, hol0, hol1, backed };
+}
+
 // ---------- the backdrop ----------
 
 const WALL = 0x383c4a, FLOOR = 0x2b2e3a, FLOOR_DARK = 0x1f2029;
@@ -784,7 +905,7 @@ function backdrop(x, y) {
 // ---------- the figure ----------
 
 /** The kit a look puts on the doll (the sprites' look, src/art/figures/outfits.js, read for the doll), and the body's cues it shows. */
-function kitOf(look = {}, marks = {}, body = null) {
+export function kitOf(look = {}, marks = {}, body = null) {
   const outfit = look.outfit ?? 'utilities', suit = outfit === 'vac' || outfit === 'vacOpen';
   const skin = SKIN[look.skin] ?? look.skin ?? SKIN.tan;
   const kit = {
@@ -838,7 +959,7 @@ function kitOf(look = {}, marks = {}, body = null) {
  * and finish, the carrier on any outfit (the suit's black, the drab on the utilities), and the arms' bends while the hands are
  * on a weapon (they win over the body's cues: my call).
  */
-function dressKit(kit, gear) {
+export function dressKit(kit, gear) {
   kit.gear = gear;
   if (gear.rifle?.model) kit.model = gear.rifle.model;
   if (gear.rifle?.finish) kit.finish = gear.rifle.finish;
@@ -855,48 +976,72 @@ function dressKit(kit, gear) {
  * ({ wounds: [{ n, part, kind, bleed, dressed, stitched, spurt, plate }], tourniquets, splints, bloody }),
  * scale (DOLL_SCALE), gear (0.0.18: ./dress.js dressOf's DollGear, the pieces worn.js draws; none, the doll as before) }.
  */
-export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hurts = null, scale = DOLL_SCALE, body = null, outfit = null, gear = null } = {}) {
+export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hurts = null, scale = DOLL_SCALE, body = null, outfit = null, gear = null, pose = 'stand', hold = null, facing = 'front', hang = undefined, bend: given = null } = {}) {
   const g = grid(scale, DROP), B = BODY[sex] ?? BODY.m, kit = kitOf(outfit ? { ...look, outfit } : look, marks, body);
-  if (gear) dressKit(kit, gear);
+  // (the parts of what the hands hold (worn.js), for the card's tones; the record's hold on the gear's places; the pose's
+  // bend, the facing (from behind: A's back.js over the figure, no hands; side on: the head turned, F3))
+  g.held = new Set();
+  // (bend: a candidate's bend outright, POSE_BENDS' shape (samples/portrait-pose/poses.js); 'profile' (F2, a candidate only) is the
+  // figure side on: the head turned its most, the body drawn narrower about its middle)
+  const bend = given ?? POSE_BENDS[pose] ?? null, back = facing === 'back', profile = facing === 'profile';
+  let gear1 = gear && hold ? holdGear(gear, hold, { facing, ...(hang ? { hang } : {}) }) : gear;
+  if (gear1 && bend?.lap && gear1.rifle && RIFLE_IN_HANDS.includes(gear1.rifle.place)) gear1 = { ...gear1, rifle: { ...gear1.rifle, place: 'lap' } };
+  if (gear1) dressKit(kit, gear1);
+  if (bend?.arms && !back) { if (bend.arms.bendR) kit.bendR = [...bend.arms.bendR]; if (bend.arms.bendL) kit.bendL = [...bend.arms.bendL]; }
+  if (facing === 'left' || facing === 'right') kit.turn = facing === 'left' ? -2 : 2;
+  if (profile) kit.turn = 3;
   const G = kit.gear, Y = { BELT_Y, WAIST_Y };
   const bare = kit.pt || kit.towel;
-  const L = legs(g, B, kit);
-  if (!kit.suit && !bare) kit.camoParts.add(L.a).add(L.b);
-  boots(g, B, kit);
-  if (bare) overLegs(g, B, kit);
-  if (!kit.suit && !bare) cargo(g, B, kit, L);
-  // (0.0.18, the gear's pieces in their order: worn.js; without gear the doll is drawn as before)
-  if (G?.rifle?.place === 'back') rifleAt(g, B, kit, 'back', MID);
-  if (G?.devices?.length) backDevices(g, B, kit);
-  if (kit.suit) shell(g, B, kit);
-  else if (kit.pt) tee(g, B, kit);
-  else if (kit.towel) (sex === 'f' ? towelChest : bareTorso)(g, B, kit);
-  else { blouse(g, B, kit); rigBelt(g, B, kit); }
-  if (G && kit.suit && (G.carrier?.pouches?.some(p => p.key === 'dump') || G.pistol || G.thigh)) suitBelt(g, B, kit, Y);
-  if (kit.armour) carrier(g, B, kit);
-  if (G && kit.armour) dumpPouch(g, B, kit, Y);
-  if (G?.devices?.length && kit.armour) sideDevices(g, B, kit);
-  if (G && !G.painted && (G.pistol || G.thigh)) holster(g, B, kit, Y);
-  if (hand === 'rifle' || G?.rifle?.place === 'hand') rifleIn(g, B, kit);
-  else if (G?.rifle?.place === 'front' || G?.rifle?.place === 'ready') rifleAt(g, B, kit, G.rifle.place, MID);
-  if (G?.pistol?.place === 'hand' || G?.pistol?.place === 'ready') pistolAt(g, B, kit, G.pistol.place);
-  if (G?.device) handDevice(g, B, kit, 'under');
-  arms(g, B, kit);
-  if (G) heldItem(g, B, kit);
-  head(g, B, kit, look);
-  if (kit.head?.kind !== 'vac') hair(g, kit);
-  if (kit.head?.helm) dollHelm(g, B, kit, kit.head.helm);
-  else hat(g, kit);
-  if (G?.ears) earCups(g, kit);
-  if (!kit.suit && !bare) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
-  // (the body's marks, over the cloth and the skin, before the seams and the ink)
-  const C = kit.cues;
-  if (C.sweat > 0.05) sweatMarks(g, kit, C.sweat);
-  if (C.grime > 0.05) grimeMarks(g, C.grime);
-  if (C.hands > 0 && !kit.gloves) dirtyHands(g, kit, C.hands, C.handsWhy);
-  if (C.stubble > 0.05 && kit.head?.kind !== 'vac') stubble(g, kit, C.stubble);
-  if (C.tired >= TIRED_SHOWS_K && kit.head?.kind !== 'vac') tiredEyes(g, kit);
-  if (C.wet > 0 && kit.head?.kind !== 'vac' && !kit.head) wetHair(g, kit);
+  let leg0, leg1, hol0, hol1, backed = null;
+  if (back) ({ leg0, leg1, hol0, hol1, backed } = fromBehind(g, B, kit, Y));
+  else {
+    leg0 = g.add([], 0);
+    const L = legs(g, B, kit);
+    if (!kit.suit && !bare) kit.camoParts.add(L.a).add(L.b);
+    boots(g, B, kit);
+    if (bare) overLegs(g, B, kit);
+    if (!kit.suit && !bare) cargo(g, B, kit, L);
+    leg1 = g.add([], 0);
+    // (0.0.18, the gear's pieces in their order: worn.js; without gear the doll is drawn as before)
+    if (G?.rifle?.place === 'back') rifleAt(g, B, kit, 'back', MID);
+    if (G?.devices?.length) backDevices(g, B, kit);
+    if (kit.suit) shell(g, B, kit);
+    else if (kit.pt) tee(g, B, kit);
+    else if (kit.towel) (sex === 'f' ? towelChest : bareTorso)(g, B, kit);
+    else { blouse(g, B, kit); rigBelt(g, B, kit); }
+    if (G && kit.suit && (G.carrier?.pouches?.some(p => p.key === 'dump') || G.pistol || G.thigh)) suitBelt(g, B, kit, Y);
+    if (kit.armour) carrier(g, B, kit);
+    if (G && kit.armour) dumpPouch(g, B, kit, Y);
+    if (G?.devices?.length && kit.armour) sideDevices(g, B, kit);
+    hol0 = g.add([], 0);
+    if (G && !G.painted && (G.pistol || G.thigh)) holster(g, B, kit, Y);
+    hol1 = g.add([], 0);
+    // (the rifle at any place but the back's and across the knees (drawn after the pose's bend); the pistol in the hands at its place)
+    if (hand === 'rifle' || G?.rifle?.place === 'hand') rifleIn(g, B, kit);
+    else if (G?.rifle && G.rifle.place !== 'back' && G.rifle.place !== 'lap') rifleAt(g, B, kit, G.rifle.place, MID);
+    // (the board's pistol hanging from the hand and the low ready under the fists, as before; v0.0.23, held up at a stance (the high
+    // ready, aimed, the admin) over the fists, the slide and the muzzle before the hands that hold it, so it reads)
+    const under = (p) => p === 'hand' || p === 'ready';
+    if (G?.pistol && under(G.pistol.place)) pistolAt(g, B, kit, G.pistol.place);
+    if (G?.device) handDevice(g, B, kit, 'under');
+    arms(g, B, kit);
+    if (G?.pistol && !under(G.pistol.place) && PISTOL_IN_HANDS.includes(G.pistol.place)) pistolAt(g, B, kit, G.pistol.place);
+    if (G) heldItem(g, B, kit);
+    head(g, B, kit, look);
+    if (kit.head?.kind !== 'vac') hair(g, kit);
+    if (kit.head?.helm) dollHelm(g, B, kit, kit.head.helm);
+    else hat(g, kit);
+    if (G?.ears) earCups(g, kit);
+    if (!kit.suit && !bare) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
+    // (the body's marks, over the cloth and the skin, before the seams and the ink)
+    const C = kit.cues;
+    if (C.sweat > 0.05) sweatMarks(g, kit, C.sweat);
+    if (C.grime > 0.05) grimeMarks(g, C.grime);
+    if (C.hands > 0 && !kit.gloves) dirtyHands(g, kit, C.hands, C.handsWhy);
+    if (C.stubble > 0.05 && kit.head?.kind !== 'vac') stubble(g, kit, C.stubble);
+    if (C.tired >= TIRED_SHOWS_K && kit.head?.kind !== 'vac') tiredEyes(g, kit);
+    if (C.wet > 0 && kit.head?.kind !== 'vac' && !kit.head) wetHair(g, kit);
+  }
   // Where a part lies over an earlier one, its edge goes dark (before the marks: a seam mustn't cross a pocket's gold).
   const seams = [];
   for (let y = 0; y < g.ROWS; y++) for (let x = 0; x < g.W; x++) {
@@ -909,7 +1054,18 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
   }
   for (const [x, y, c] of seams) g.col[y][x] = c;
   for (const f of kit.late) f();                                   // (the slots' marks and the rank pins, over the seams)
-  const spots = hurts ? wounds(g, B, sex, hurts) : [];
+  const spots = hurts && !back ? wounds(g, B, sex, hurts) : [];
+  // (the pose's bend over the finished figure, seams, marks and wounds with it: the body's parts set down, the legs by
+  // their parts resampled; a rifle across a sitting man's knees after it, at the knees' row; the wounds' places go down with the body)
+  if (bend) {
+    const legIds = new Set();
+    for (let p = leg0 + 1; p < leg1; p++) legIds.add(p);
+    for (let p = hol0 + 1; p < hol1; p++) legIds.add(p);
+    bendPose(g, bend, legIds);
+    if (bend.lap && G?.rifle?.place === 'lap' && !back) rifleAt(g, B, kit, 'lap', MID, (bend.legs?.r?.[2] ?? 104));
+    for (const o of spots) o.y += bend.drop ?? 0;
+  }
+  if (profile) squeeze(g, PROFILE_K);
   // Then the ink, round the lot, on the wall (the figure set down DROP reference rows).
   const W = g.W, drop = Math.round(DROP * scale), H = g.ROWS + drop, data = new Uint32Array(W * H);
   const at = (x, y) => (y - drop >= 0 && y - drop < g.ROWS && x >= 0 && x < W ? g.col[y - drop][x] : null);
@@ -919,7 +1075,19 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
     const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => at(x + dx, y + dy) !== null);
     data[y * W + x] = word(edge ? INK : backdrop(x / scale, y / scale - DROP));
   }
-  return { w: W, h: H, data, repeat: false, key: null, glows: false, scale, spots: spots.map(o => ({ ...o, x: Math.round(o.x * scale), y: Math.round((o.y + DROP) * scale) })) };
+  // (the held parts' pixels (the card tones them) and the anchors, both in the Pixmap's pixels; non-enumerable extras, so
+  // a doll's record and its digests are as before)
+  const held = new Uint8Array(W * H);
+  if (g.held.size) for (let y = 0; y < g.ROWS; y++) for (let x = 0; x < W; x++) if (g.held.has(g.part[y][x]) && g.col[y][x] !== null) held[(y + drop) * W + x] = 1;
+  const dy = (bend?.drop ?? 0);
+  // (from behind, back.js's anchors (within a pixel of the front's: the marks land on the back where they land on the front))
+  const ah = backed?.anchors?.head ?? [MID, HEAD_Y], aa = backed?.anchors?.aZone ?? [MID, A_ZONE_Y];
+  const anchors = { head: [ah[0] * scale, (ah[1] + DROP + dy) * scale], aZone: [aa[0] * scale, (aa[1] + DROP + dy) * scale], drop: dy * scale };
+  const out = { w: W, h: H, data, repeat: false, key: null, glows: false, scale, spots: spots.map(o => ({ ...o, x: Math.round(o.x * scale), y: Math.round((o.y + DROP) * scale) })) };
+  Object.defineProperty(out, 'held', { value: held, enumerable: false });
+  Object.defineProperty(out, 'anchors', { value: anchors, enumerable: false });
+  Object.defineProperty(out, 'pose', { value: { pose, facing, hold: hold?.how ?? null }, enumerable: false });
+  return out;
 }
 
 /** The backdrop at a pixel of the doll (for a frame round it), at a scale. */

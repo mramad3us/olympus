@@ -172,7 +172,8 @@ export default [
       console.log(`      from a standstill: ${seq.join(' ')}; across the facing ${side}; a shot on the move ${shot}; at the stack every 0.5 s: ${breath.join(' ')}; held: ${held.join(' ')}; the kneel ${kneel}; the pistol ${pistol}; the kick ${kick.join(' ')}`);
       assert(seq[1] === 'start' && seq[3].startsWith('glide') && seq[5] === 'plant' && seq[6] === 'plant' && seq[7] === '-', seq.join());
       assert(side.startsWith('sideR') && shot.startsWith('fireMove') && breath.includes('stack') && breath.includes('stackB') && new Set(held).size === 1, JSON.stringify({ side, shot, breath, held }));
-      assert(kneel === 'kneelGoing' && pistol === 'pistolAim' && kick.join() === 'kick0,kick1,kick2', JSON.stringify({ kneel, pistol, kick }));
+      // (v0.0.23: the P-12 aimed is the pistol band's frame, its stances as the rifle's (the user's note of 2026-11-17); v0.0.22 'pistolAim')
+      assert(kneel === 'kneelGoing' && pistol === 'pistolAimed' && kick.join() === 'kick0,kick1,kick2', JSON.stringify({ kneel, pistol, kick }));
     },
   },
   {

@@ -19,6 +19,8 @@
 // (v0.0.3's review: the window moved a cell and the fog's edge lagged the world by a cell for the ease
 // time); cells new to the window start unseen. A move of the whole window or more starts it afresh.
 // The texture's data is small (the game's 192 × 128 cells × 2 bytes = 48 KB) and re-sent only when it changed.
+// v0.0.23 (its build sheet item 7): createKnownTexture(mask) wraps src/render/known.js's known cells (one bit a cell of the
+// area, eight to a byte) in a one-channel texture, read exactly (nearest, no mipmaps, rows unpadded) by the post pass's unknown term.
 import * as THREE from 'three';
 
 export const FOG_CELL_M = 0.25;
@@ -83,4 +85,14 @@ export function createFogMask({ nx = FOG_N[0], nz = FOG_N[1], cellM = FOG_CELL_M
     dispose() { texture.dispose(); },
   };
   return mask;
+}
+
+/** The known cells' texture (see the header): known.js's mask { data, w, h } as w × h bytes; needsUpdate set by its owner when a cell turns known. */
+export function createKnownTexture(mask) {
+  const t = new THREE.DataTexture(mask.data, mask.w, mask.h, THREE.RedFormat, THREE.UnsignedByteType);
+  t.magFilter = t.minFilter = THREE.NearestFilter;
+  t.generateMipmaps = false;
+  t.unpackAlignment = 1;
+  t.needsUpdate = true;
+  return t;
 }

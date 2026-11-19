@@ -29,13 +29,21 @@
 //     (L1-a, L1-b, ... the next set going on at e), each the group's query plus the set's plus its row's
 //     and column's parameter: so the pictures of a group differ only in what the matrix says, and each
 //     view's name says what that is.
-// index.json: { built, samples: [{ id (the folder), title, about, pixel, matrix, groups: [{ id, title,
+// index.json: { built, samples: [{ id (the folder), title, about, pixel, matrix, open?, groups: [{ id, title,
 // about, sets, views: [{ id, name, set, row, col, query, shot, native, report }] }] }] }, report being
 // the numbers the page published (draw calls, people, the atlas's uploads), kept to be read.
+// v0.0.23 (its build sheet §1 item 8, "the To score page"): a set the user has not scored yet carries in its sample.json
+// "open": { default (a view id, or a list of them: what the game draws until the score), since (the day it was first sent),
+// decides (what the score decides), builtIn (the round that draws the pick) }, copied as it is into the set's index entry
+// (indexEntry); samples/index.html lists every open set first, under "To score" (samples/to-score.js), and the lead drops a
+// set's "open" when the user's answer lands in DESIGN.md's log. A set without it has no "open" in the index.
+// v0.0.23's fixer: a sample.json with "retired" (why, in words) is neither shot nor listed in index.json (samples/voices, the
+// user's "forget voice synthesis, no voices." of 2026-11-19); its folder stays until its round removes it.
 //
 // The repository is served by tools/serve.py on the gallery's own port (8212 by default: its own browser
 // origin, so its own saves; never the play copy's 8200 or the dev tree's 8201), refused if anything
-// already answers there. --contact writes one labelled sheet of every view (ImageMagick's montage).
+// already answers there. --contact writes one labelled sheet of the views the run shot (every view with no filter; with a
+// filter, the filter's: v0.0.23, stage 0's note that a set's sheet held the whole index), by ImageMagick's montage.
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, mkdtempSync, statSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -105,6 +113,14 @@ export function readSamples(dir = SAMPLES) {
     .map(folder => ({ folder, sample: JSON.parse(readFileSync(path.join(dir, folder, 'sample.json'), 'utf8')) }));
 }
 
+/**
+ * A set's entry in index.json (see the header): its id (the folder), title, about, whether pixel art, the matrix's labels, its
+ * "open" (copied from sample.json when it has one, absent when not) and its groups as shot. Pure (tests/gallery-open.test.mjs).
+ */
+export function indexEntry(folder, sample, groups) {
+  return { id: folder, title: sample.title, about: sample.about, pixel: !!sample.pixel, matrix: sample.matrix ? { rows: sample.matrix.rows.labels, cols: sample.matrix.cols.labels } : null, ...(sample.open ? { open: sample.open } : {}), groups };
+}
+
 /** shot.mjs's output: its first line, the report it printed (JSON, ended by a line "}"), the lines after. */
 function parseShot(out) {
   const lines = out.split('\n'), a = lines.findIndex(l => l === '{'), b = a >= 0 ? lines.indexOf('}', a) : -1;
@@ -136,7 +152,7 @@ async function main() {
   const indexPath = path.join(SAMPLES, 'index.json');
   const old = existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : { samples: [] };
   const oldViews = new Map(old.samples.flatMap(s => (s.groups ?? []).flatMap(g => g.views.map(v => [`${s.id}/${v.id}`, v]))));
-  const failed = [], out = [];
+  const failed = [], out = [], shotNow = [];
   let shot = 0;
   try {
     for (let w = 0; !(await answers(port)); w += 100) {
@@ -144,6 +160,7 @@ async function main() {
       await new Promise(r => setTimeout(r, 100));
     }
     for (const { folder, sample } of readSamples()) {
+      if (sample.retired) continue;
       const groups = expand(folder, sample), shots = path.join(SAMPLES, folder, 'shots');
       mkdirSync(shots, { recursive: true });
       let all = true;
@@ -174,7 +191,7 @@ async function main() {
             execFileSync('magick', [small, '-filter', 'point', '-resize', `${native[0] * KEEP_X}x${native[1] * KEEP_X}!`, dest]);
           } else execFileSync('magick', [raw, '-resize', '800x', '-quality', '82', dest]);
           Object.assign(v, { shot: `${folder}/shots/${file}`, native, report: keep(report) });
-          shot++;
+          shot++; shotNow.push(v);
           const r = v.report ?? {};
           console.log(`  ✓ ${v.id} · ${v.name} (${((performance.now() - t0) / 1000).toFixed(1)} s)${native ? ` ${native.join('×')} ×${KEEP_X}` : ''}` +
             `${r.calls !== undefined ? ` · ${r.calls} draw calls` : ''}${r.people !== undefined ? ` · ${r.drawn}/${r.people} people, ${r.looks} looks` : ''}${r.figureUploads !== undefined ? ` · ${r.figureUploads} bands, ${r.figureKB} KB, painted ${r.figurePaintMs} ms` : ''}`);
@@ -190,7 +207,7 @@ async function main() {
         for (const f of readdirSync(shots)) if (/\.(jpg|png)$/.test(f) && !live.has(f) && statSync(path.join(shots, f)).isFile()) rmSync(path.join(shots, f));
       }
       for (const g of groups) g.views = g.views.filter(v => !v.missing).map(({ pixel, missing, ...v }) => v);
-      out.push({ id: folder, title: sample.title, about: sample.about, pixel: !!sample.pixel, matrix: sample.matrix ? { rows: sample.matrix.rows.labels, cols: sample.matrix.cols.labels } : null, groups });
+      out.push(indexEntry(folder, sample, groups));
     }
   } finally {
     server.kill();
@@ -198,9 +215,11 @@ async function main() {
   }
   writeFileSync(indexPath, JSON.stringify({ built: new Date().toISOString().slice(0, 16), samples: out }, null, 1) + '\n');
   const views = out.flatMap(s => s.groups.flatMap(g => g.views));
-  if (contact && views.length) {
+  // (the sheet: the views this run shot, so a filtered run's sheet is its set's, not the whole index's)
+  const sheet = filter ? shotNow : views;
+  if (contact && sheet.length) {
     const font = ['/System/Library/Fonts/Helvetica.ttc', '/System/Library/Fonts/Supplemental/Arial.ttf'].find(f => existsSync(f));
-    const tiles = views.flatMap(v => ['-label', `${v.id} · ${v.name}`, path.join(SAMPLES, v.shot)]);
+    const tiles = sheet.flatMap(v => ['-label', `${v.id} · ${v.name}`, path.join(SAMPLES, v.shot)]);
     try {
       execFileSync('magick', ['montage', ...(font ? ['-font', font] : []), ...tiles, '-tile', '4x', '-geometry', '480x270+6+6',
         '-background', '#15171c', '-fill', '#cfd3da', '-pointsize', '13', contact], { stdio: 'pipe' });
@@ -211,7 +230,7 @@ async function main() {
   if (failed.length) { console.log('failed:\n  ' + failed.join('\n  ')); process.exitCode = 1; }
 }
 
-// (run as a script; imported, as the tests do, it only lends expand(), nativeOf() and readSamples())
+// (run as a script; imported, as the tests do, it only lends expand(), nativeOf(), readSamples() and indexEntry())
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((e) => { console.error(`gallery: ${e.message}`); process.exitCode = 1; });
 }

@@ -131,6 +131,10 @@ export const SCENES = deepFreeze({
     // lead's quiet run and the nets' eight-room lanes meet 0 cases (the ship rule), then ['a', 'all']; &rooms=all plays the eight
     // whatever this says)
     rooms: ['a'],
+    // (its build sheet item 7: the house as set is briefed, so familiar; drawn from the seed it is not, its rooms black until
+    // seen (src/sim/places/known.js familiarOf; the user, 2026-11-17: "we see what is in the rooms before entering them, this should
+    // not be the case when we start generating procedurally"). Absent on a scene: every place familiar)
+    familiar: 'set',
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
   // (v0.0.19: "Stack and clear, live", the same lane with two role-players of the cadre in place of stands 2a and 3a, firing
@@ -149,6 +153,8 @@ export const SCENES = deepFreeze({
     // a live lane as asked (liveDraw), but the page plays it as set and the picker's house row waits on its ship rule: F80
     // (tests/flawless-end.mjs) is OPEN, F44's band (the tier one painted on 3 of 7 drawn lanes against 5%), so ['set', 'drawn'] when it is MET)
     draws: ['set'],
+    // (as test-shoothouse's, the scenario's: a drawn live lane, the tests' only while F80 is open, is unfamiliar)
+    familiar: 'set',
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
 });

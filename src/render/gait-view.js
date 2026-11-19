@@ -24,7 +24,7 @@
 //     120 ms (the pivot, VIEWS §3.10.6: the turn's own time is the sim's yaw, so the frame follows it); `kneelGoing` half way to the knee (the stance step's frames); the
 //     pistol drawn and aimed (COMBAT §25.19.6).
 // Pure but for the memory it keeps (createGaitView): no DOM, no three.js.
-import { walkFrame } from '../art/figures/poses.js';
+import { walkFrame, pistolFrameOf, pistolWalkOf } from '../art/figures/poses.js';
 import { bandSpec, flightLiftM } from '../art/figures/walk.js';
 import { LOPE_VZ_MS, RUN_VZ_MS } from '../data/body/gait.js';
 import { takeoffVzMs } from '../core/phys.js';
@@ -95,6 +95,9 @@ export function createGaitView() {
       const walked = ((o.stride - m.startStride) % 201.6 + 201.6) % 201.6;
       const braking = m.v < m.v0 - 0.02 && m.v < PLANT_V_MS;
       if (sheet && o.kick && o.aimed) { out.frame = `fireMove${Math.floor(((o.gp % 2) + 2) % 2)}`; out.beat = 'fireMove'; return out; }
+      // (the P-12 out, walking: its own walk at the low ready or aimed (poses.js pistolWalkOf: four keys across both steps), the R-7 swinging on its sling)
+      if (o.pistol && o.kick) { out.frame = 'pistolFire'; out.beat = 'pistol'; return out; }
+      if (o.pistol) { const at = walkFrame(o.band === 'run' ? 'combat' : o.band, { gp: o.gp, stepM: o.stepM, back: kind === 'back', cycle: o.cycle }); out.frame = pistolWalkOf(o.pistol, at, bandSpec(o.cycle, o.band === 'run' ? 'combat' : o.band).n); out.lagPx = at.lagPx; out.beat = 'pistol'; return out; }
       if (sheet && kind === 'side') {
         const right = wrap(o.travelRad - (FACE_AXIS[face] ?? 0)) > 0;
         out.frame = `side${right ? 'R' : 'L'}${Math.floor(o.stride / (SIDE_STEP_M / 2)) % 2}`; out.beat = 'side';
@@ -118,8 +121,10 @@ export function createGaitView() {
     if (m.moving) { m.moving = false; m.stopMs = o.ms; m.stopV = Math.max(m.v, m.v0, m.peakV); }
     if (!o.sheet && !o.pistol) return out;
     if (o.ms < (m.pivotUntil ?? -Infinity) && !o.kick && !o.action && !o.pistol) { out.frame = `glide${bandSpec(o.cycle, 'combat').n === 4 ? 2 : 1}`; out.beat = 'pivot'; return out; }
-    // (the pistol out (COMBAT §25.19.6): drawn, then aimed; the rifle's kneeling and handling frames stay the rifle's)
-    if (o.pistol) { out.frame = o.pistol.posture === 'aimed' ? 'pistolAim' : 'draw'; out.beat = 'pistol'; return out; }
+    // (the pistol out (COMBAT §25.19.6): v0.0.23, its stances as the rifle's (poses.js pistolFrameOf: the low and high ready, aimed,
+    // its kick, the holster, the admin), the rifle's pool's pistol band, the R-7 hanging on its sling; the rifle's kneeling and
+    // handling frames stay the rifle's)
+    if (o.pistol) { out.frame = pistolFrameOf(o.pistol, o.action, o.kick ? 1 : 0); out.beat = 'pistol'; return out; }
     if (o.action === 'kneelGoing' || o.action === 'kneelLow') { out.frame = o.action; out.beat = 'kneel'; return out; }
     const b = o.beat;
     if (b?.kind === 'kick') { out.frame = `kick${Math.min(2, Math.floor(b.k * 3))}`; out.beat = 'kick'; return out; }

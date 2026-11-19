@@ -35,7 +35,7 @@
 import { menuCard } from './cards/menu.js';
 import { keysCard } from './cards/keys.js';
 import { logCard } from './cards/log.js';
-import { testsPage, pickerOf } from './cards/tests.js';
+import { testsPage, pickerOf, testsFocus, TESTS_LAST_KEY } from './cards/tests.js';
 import { pickerPage } from './cards/pairs.js';
 
 const el = (tag, props = {}, ...kids) => {
@@ -176,9 +176,16 @@ export function createBoot({ root = document.body, cb }) {
   function showTests() {
     page = 'tests';
     // (0.0.8: a scene played as a sheet (test-pairs) opens its picker first; the rest start at once)
-    title.replaceChildren(testsPage({ scenes: cb.scenes?.() ?? [], version: titleArgs?.version ?? '?', onPick: (scene) => (pickerOf(scene) && cb.sheets ? showPicker(scene) : cb.playScene?.(scene)), onBack: () => back() }));
+    // (its build sheet item 15, carried FH-6: the list opens on the scene played last, else "Stack and clear" (tests.js
+    // testsFocus); the pick kept in this browser, read and written in try and catch (a private window: the pilot))
+    const scenes = cb.scenes?.() ?? [];
+    let last = null;
+    try { last = globalThis.localStorage?.getItem(TESTS_LAST_KEY) ?? null; } catch { last = null; }
+    const keep = (scene) => { try { globalThis.localStorage?.setItem(TESTS_LAST_KEY, scene.id); } catch { /* (a private window keeps nothing) */ } };
+    title.replaceChildren(testsPage({ scenes, version: titleArgs?.version ?? '?', onPick: (scene) => { keep(scene); return pickerOf(scene) && cb.sheets ? showPicker(scene) : cb.playScene?.(scene); }, onBack: () => back() }));
     title.hidden = false;
-    title.querySelector('.item.scene')?.focus();
+    const focus = testsFocus(scenes, last), at = scenes.findIndex(s => s.id === focus);
+    (title.querySelectorAll('.item.scene')[at] ?? title.querySelector('.item.scene'))?.focus();
   }
   /** test-pairs' sheet picker (cards/pairs.js), on the title's paper: a sheet starts the scene as it; Back to the Tests. */
   function showPicker(scene) {

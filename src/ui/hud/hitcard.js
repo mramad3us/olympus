@@ -88,7 +88,9 @@ export function createHitcard(parent, { paint } = {}) {
       root.hidden = false;
       const fit = hitFit(ui, dpr), fs = `${fit.size}|${fit.k}|${fit.smooth}`;
       if (fs !== fitSig) { fitSig = fs; sig = null; cv.width = fit.size; cv.height = fit.size; cv.style.width = `${fit.size * fit.k}px`; cv.style.height = `${fit.size * fit.k}px`; cv.style.imageRendering = fit.smooth ? 'auto' : 'pixelated'; root.dataset.k = String(fit.k); root.dataset.size = String(fit.size); root.dataset.smooth = fit.smooth ? '1' : ''; }
-      const sg = JSON.stringify([m.look, bandOf(m.rangeM ?? null).id, m.face, m.holds, m.phase, m.marks.map(x => [x.n, x.called, x.seen, x.hole, x.zone]), m.words, m.line, m.tabs, ...(m.subject ? [m.subject.kind, m.subject.key ?? null, m.subject.face ?? null, m.subject.holds ?? null] : [])]);
+      const sg = JSON.stringify([m.look, bandOf(m.rangeM ?? null).id, m.face, m.holds, m.phase, m.marks.map(x => [x.n, x.called, x.seen, x.hole, x.zone]), m.words, m.line, m.tabs, ...(m.subject ? [m.subject.kind, m.subject.key ?? null, m.subject.face ?? null, m.subject.holds ?? null] : []), m.picks ?? null]);
+      // (the code review's fifth finding: the To score page's card picks (m.picks: Card gun, Hands not read, Aimed,
+      // Pistol aimed) in the signature, so a pick repaints the card shown, not the next change of something else)
       if (sg !== sig && paint) {
         sig = sg;
         const pm = paint({ ...m, size: fit.size });

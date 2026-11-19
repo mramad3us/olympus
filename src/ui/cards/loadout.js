@@ -26,6 +26,8 @@
 // on his left, right and back are what applyLoadout put there, each device as devices.js DEVICES[model].look draws it), redrawn
 // on each change, at DOLL_PX CSS pixels a doll pixel (1 in a window under DOLL_SHORT_PX tall, so Kit up stays in it). Pure but the DOM
 // builder.
+// v0.0.23 (its build sheet item 15, carried FH-9): the line under KIT says how to choose: "1 to 8: a preset. Or an item, then a place for
+// it; Backspace or Delete empties a place." (both keys empty a place, as the places' keys always did).
 import { ISSUE, ISSUE_ORDER, PRESET_ORDER, PRESET_WORDS, LOADOUT_PRESETS, FACE_N, loadoutOf, codeOf, checkLoadout, placeKg } from '../../sim/arms/loadout.js';
 import { DEVICES, FACES, FACE_K, DEVICE_ACTIONS } from '../../sim/arms/devices.js';
 import { paceOf } from '../../sim/skills/skills.js';
@@ -124,7 +126,7 @@ export function loadoutPage({ code = 'standard', tier = 'private', wh = 10, prev
     }
     body.replaceChildren(
       el('h2', { textContent: 'KIT' }),
-      el('p', { className: 'sub', textContent: `One loadout for every sheet, your number two's the same. Reach shown at ${tier === 'private' ? 'the private' : tier}'s Weapon handling (${wh}). What you carry is felt in every push and brake.` }),
+      el('p', { className: 'sub', textContent: `One loadout for every sheet, your number two's the same. Reach shown at ${tier === 'private' ? 'the private' : tier}'s Weapon handling (${wh}). What you carry is felt in every push and brake. 1 to 8: a preset. Or an item, then a place for it; Backspace or Delete empties a place.` }),
       el('div', { className: 'faces' }, figure, ...FACES.map(col)),
       el('p', { className: `why${why ? ' on' : ''}`, textContent: why ?? '' }),
       el('div', { className: 'issues' }, ...issue),

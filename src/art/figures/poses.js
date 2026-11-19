@@ -88,6 +88,23 @@
 // (templates.js HELD_POSES: the arms by the rig's IK where the defaults of samples/held-devices hold them, over the stack's legs). Its
 // frames carry no device: the device is a card over the figure (atlas.js heldStrip). heldFrameOf(held, beat) names the frame a body
 // standing with a device draws (look.js heldLook and beatOf's device beats); walking, it draws its walk, the card at its fist.
+// v0.0.23 (the user's note of 2026-11-17: "Graphics : Holding the sidearm with the rifle dangling should be redrawn, sidearm should
+// have the same stances (low ready, high ready, aimed, etc) as the rifle"): THE P-12'S STANCES. With the pistol out the stage drew
+// the rifle slung in front and empty hands (the stance pool's 'draw' and 'pistolAim' are in no sheet a pistol's look has: its carry
+// is 'front', and the view falls back to the carry's frame), so the sidearm was never seen. The pistol band (BANDS.pistol, in the
+// rifle's pool beside its handling: carry-free, painted with the rifle bands before GO, so a pistol's look draws them from any of its
+// sheets) holds the P-12 as the rifle's are held: pistolLow (the low ready, the muzzle down before the belly), pistolHigh (the high
+// ready, the muzzle up at the chest), pistolAimed and pistolFire (both arms out, its kick), pistolHolster (the right hand at the
+// holstered grip: the draw and the holster), pistolCheck (the admin: the press check, the slide racked, the clearing, the support
+// hand on the slide), pistolMag (the magazine out and in, the support hand at the well), pistolWalk0 to 3 (the low ready on the
+// move) and pistolAimWalk0 to 3 (aimed on the move, the turret's arms over the same legs), each walk four keys across the whole of the
+// combat glide's cycle, both steps (the contact and the passing of each: the review of 2026-11-18 found the first four keys drawn
+// from the first step only, the second step held on one frame, and the aimed walk one standing frame sliding over the floor); the
+// band is held to fifteen frames so the rifle pool's sheet keeps three across a 4096 atlas at 16 px/m and two at 24 (atlas.js
+// RIFLE_SHEET_W_M), which is why a walk is four keys a cycle and not the glide's eight; each with the R-7 hanging on its sling (the rig's `hang`, compose.js: across the chest, muzzle
+// down, under the arms, never through them), swinging with the walk's stride (compose.js HANG_SWING_K, a pendulum from the sling).
+// pistolFrameOf(pistol, action, kick) names the frame standing from gunLook's pistol posture and action frame, pistolWalkOf(pistol,
+// walkAt, n) walking; rifleFrame() draws it whenever the P-12 is the gun carried. The rifle's own frames are as before.
 // Pure: no DOM, no three.js.
 import { cyclePose, beatPose, bandSpec, cycleAt, cycleOfLook, RUN_FPS } from './walk.js';
 import { HELD_POSES } from './templates.js';
@@ -122,9 +139,46 @@ export const BANDS = Object.freeze({
   stanceShots: Object.freeze(['fireMove0', 'fireMove1', 'draw', 'pistolAim']),
   // (a device in the hands, in the slung-in-front carry's stance sheet only: see the header)
   stanceHeld: Object.freeze(Object.keys(HELD_POSES)),
+  // (the P-12's stances with the R-7 hanging on its sling, the rifle's pool: see the header)
+  pistol: Object.freeze(['pistolLow', 'pistolHigh', 'pistolAimed', 'pistolFire', 'pistolHolster', 'pistolCheck', 'pistolMag', ...range('pistolWalk', 4), ...range('pistolAimWalk', 4)]),
 });
 /** The bands painted in the rifle's pool of the atlas (atlas.js sheetLayout's pools): only a look that handles a rifle needs them. */
-export const RIFLE_BANDS = Object.freeze(['rifle', 'rifleKneel', 'rifleProne']);
+export const RIFLE_BANDS = Object.freeze(['rifle', 'rifleKneel', 'rifleProne', 'pistol']);
+/** The P-12's walks (the low ready and aimed): their keys across the whole of the combat glide's cycle, both steps (see the header). */
+export const PISTOL_WALK_N = 4;
+/** The glide's frame (0 .. 2n − 1: step × n + key) that a pistol walk's key k draws: the first frame of its share of the cycle. */
+export const pistolWalkKey = (k, n) => Math.min(2 * n - 1, Math.ceil(k * 2 * n / PISTOL_WALK_N));
+/**
+ * The frame of a body walking with the P-12 out (gait-view.js, from the walk's place in its cycle: walkFrame's step and key, a
+ * cycle of 2n frames, n the band's keys a step; the flight read as its step's last key): its share of the whole cycle to one of
+ * PISTOL_WALK_N keys, so both steps are drawn in order; aimed, the aimed walk (the turret's arms over the same legs); else the low
+ * ready's, the R-7 swinging on its sling.
+ */
+export function pistolWalkOf(pistol, walkAt, n = 4) {
+  if (!pistol) return null;
+  const nn = Math.max(1, n);
+  let f;
+  if (Number.isFinite(walkAt?.step) && Number.isFinite(walkAt?.j)) f = (walkAt.step % 2) * nn + Math.min(nn - 1, walkAt.j);
+  else f = Math.min(2 * nn - 1, Number(/(\d+)$/.exec(walkAt?.frame ?? '')?.[1] ?? 0));
+  const k = Math.min(PISTOL_WALK_N - 1, Math.floor(f * PISTOL_WALK_N / (2 * nn)));
+  return `${pistol.posture === 'aimed' ? 'pistolAimWalk' : 'pistolWalk'}${k}`;
+}
+/** The P-12's frames (see the header): by its posture, its action's frame and its kick. */
+export const PISTOL_FRAMES = Object.freeze(BANDS.pistol);
+const PISTOL_POSTURE = Object.freeze({ lowReady: 'pistolLow', highReady: 'pistolHigh', aimed: 'pistolAimed' });
+const PISTOL_ACTION = Object.freeze({ raise: 'pistolHolster', sling: 'pistolHolster', check: 'pistolCheck', charge: 'pistolCheck', release: 'pistolCheck', magout: 'pistolMag', magin: 'pistolMag', aim: 'pistolAimed', fire: 'pistolFire' });
+/** The frame of a body with the P-12 out (gunLook's pistol { posture }, its action frame (look.js ACTION_FRAMES' name, a list walked by k) and kick). */
+export function pistolFrameOf(pistol, action = null, kick = 0) {
+  if (!pistol) return null;
+  if (kick > 0) return 'pistolFire';
+  const act = action?.frame ?? action, list = Array.isArray(act) ? act : act ? [act] : [];
+  const f = list.length ? list[Math.min(list.length - 1, Math.max(0, Math.floor((action?.k ?? 0) * list.length)))] : null;
+  // (the play review's eighth finding: 'raise' with the P-12 already out is a change of its posture (V, low to high
+  // ready), drawn as the posture it goes to, never the holster's frame: a dip to the thigh at every press; the draw itself is
+  // 'raise' with the pistol still in the holster, gunLook giving no pistol, so the rifle's frames draw it)
+  const fa = f === 'raise' ? null : f;
+  return (fa && PISTOL_ACTION[fa]) ?? PISTOL_POSTURE[pistol.posture] ?? 'pistolLow';
+}
 /** The stance pool's bands (R8: a sheet a carry, for an armed mover in a stance, in a base slot of its own: atlas.js, src/render/figures.js). */
 export const STANCE_BANDS = Object.freeze(['stanceWalk', 'stanceBeats', 'stanceShots', 'stanceHeld']);
 /** The held band: painted only in the slung-in-front carry's stance sheet (HELD_CARRY), the others' stance sheets leave it out. */
@@ -253,6 +307,11 @@ const HELD_RIFLE = Object.freeze({
   proneCheck: [PRONE_BODY, 'check'], proneMagout: [PRONE_BODY, 'magout'], proneMagin: [PRONE_BODY, 'magin'],
 });
 
+/** The P-12's frames' bodies and rigs: [body, the rig's mode, kick]; its stance a shooter's for the aim and the fire. */
+const PISTOL_HELD = Object.freeze({
+  pistolLow: [STAND_EASY, 'low', 0], pistolHigh: [STAND_EASY, 'high', 0], pistolAimed: [SHOOT, 'aim', 0], pistolFire: [SHOOT, 'aim', 1],
+  pistolHolster: [STAND_EASY, 'holster', 0], pistolCheck: [SHOOT, 'check', 0], pistolMag: [SHOOT, 'magout', 0],
+});
 /** The seated frames' rigs: [mode, kick]. */
 const SEATED_RIG = Object.freeze({ sitAim: ['aim', 0], sitFire: ['aim', 1], sitLow: ['low', 0], sitCharge: ['charge', 0], sitMagout: ['magout', 0] });
 
@@ -298,6 +357,14 @@ function basePose(frame, { weapon = null, carry = null, cycle = null } = {}) {
     case 'glide': p = cyclePose(cy, 'combat', k, { weapon: weapon ?? 'rifle', carry: stanceCarry(carry) }); break;
     case 'assault': p = cyclePose(cy, 'assault', k, { weapon: weapon ?? 'rifle', carry: stanceCarry(carry) }); break;
     case 'flight': p = cyclePose(cy, 'combat', k * bandSpec(cy, 'combat').fps, { weapon: weapon ?? 'rifle', carry: stanceCarry(carry), flight: true }); break;
+    // (the P-12 on the move, at the low ready or aimed, the combat glide's legs at PISTOL_WALK_N keys of its whole cycle
+    // (pistolWalkKey: both steps), the R-7 hanging on its sling and swinging with the stride (stride: compose.js's front rig,
+    // HANG_SWING_K); aimed, the turret's lean and the pistol's aimed rig, as pistolAimed stands)
+    case 'pistolWalk': case 'pistolAimWalk': {
+      const aim = name === 'pistolAimWalk', kk = pistolWalkKey(k, bandSpec(cy, 'combat').n);
+      p = { ...cyclePose(cy, 'combat', kk, { weapon: 'rifle', carry: aim ? 'aim' : 'low' }), rig: { mode: aim ? 'aim' : 'low', gun: 'pistol', turn: 0, kick: 0, hold: true, hang: 'front', p12: true }, stride: true };
+      break;
+    }
     case 'stairsUp': p = { ...(k % 2 ? UP1 : UP0), rig: gaitRig }; if (k >= 2) p = flip(p); break;
     case 'stairsDown': p = { ...(k % 2 ? DOWN1 : DOWN0), rig: gaitRig }; if (k >= 2) p = flip(p); break;
     case 'look': p = { legs: STAND, arms: HANG, head: 'turn', rig: gaitRig }; break;
@@ -321,6 +388,11 @@ function basePose(frame, { weapon = null, carry = null, cycle = null } = {}) {
   if (!p && SEATED_RIG[frame]) {
     const [mode, kick] = SEATED_RIG[frame];
     p = { ...SEATED, rig: { mode, gun: weapon ?? 'rifle', turn: 0, kick, kneel: true, hold: true } };
+  }
+  if (!p && PISTOL_HELD[frame]) {
+    // (the P-12 in the hands, standing as the rifle's handling stands, the R-7 hanging on its sling (the rig's hang))
+    const [body, mode, kick] = PISTOL_HELD[frame];
+    p = { ...body, ...(mode === 'check' ? { headDrop: 1 } : {}), rig: { mode, gun: 'pistol', turn: 0, kick, hold: true, hang: 'front', p12: true } };
   }
   if (!p && HELD_RIFLE[frame]) {
     const [body, mode] = HELD_RIFLE[frame];
@@ -451,6 +523,8 @@ const AIM_OF = { stand: 'aim', kneel: 'kneel', prone: 'prone', sit: 'sitAim' }, 
 export function rifleFrame(gl, { face = 'right', x = 0, z = 0, ms = 0 } = {}) {
   if (!gl) return { frame: null, flash: false };
   const stance = CARRY_FRAME[gl.stance] ? gl.stance : 'stand', flash = !!gl.flash;
+  // (the P-12 out, standing: its own stances (see the header); kneeling or prone, the stance's own frames as before)
+  if (gl.pistol && stance === 'stand') return { frame: pistolFrameOf(gl.pistol, gl.action, gl.kick), flash };
   const aimed = (kick) => {
     if (stance !== 'stand') return kick ? FIRE_OF[stance] : AIM_OF[stance];
     const a = gl.aim, dx = a ? a.x - x : 0, dz = a ? a.z - z : 0;
